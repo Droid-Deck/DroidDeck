@@ -47,7 +47,6 @@ fun PerformancePage(
     gamescopeRealtime: Boolean,
     gpuClockPin: Boolean,
     performanceBoost: Boolean,
-    samsungSdk: Boolean?,
     ramCapMb: Int,
     zramClient: Boolean,
     vramCapMb: Int,
@@ -70,7 +69,6 @@ fun PerformancePage(
     onGamescopeRealtime: (Boolean) -> Unit,
     onGpuClockPin: (Boolean) -> Unit,
     onPerformanceBoost: (Boolean) -> Unit,
-    onImportSamsungSdk: () -> Unit,
     onRamCapMb: (Int) -> Unit,
     onZramClient: (Boolean) -> Unit,
     onVramCapMb: (Int) -> Unit,
@@ -136,13 +134,6 @@ fun PerformancePage(
                 stringResource(R.string.perf_boost_hint),
                 performanceBoost, onChange = onPerformanceBoost,
             )
-            if (samsungSdk != null) {
-                ActionRow(
-                    stringResource(R.string.perf_samsung_sdk),
-                    stringResource(if (samsungSdk) R.string.perf_samsung_sdk_ready else R.string.perf_samsung_sdk_missing),
-                    stringResource(R.string.perf_samsung_sdk_import), onClick = onImportSamsungSdk,
-                )
-            }
         }
         SettingsGroup(stringResource(R.string.perf_gpu)) {
             ToggleRow(

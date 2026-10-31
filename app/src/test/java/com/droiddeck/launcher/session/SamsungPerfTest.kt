@@ -1,53 +1,60 @@
 package com.droiddeck.launcher.session
 
+import com.droiddeck.launcher.session.SamsungPerf.Floor
 import org.junit.Assert.assertArrayEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Rule
+import org.junit.Assert.assertEquals
 import org.junit.Test
-import org.junit.rules.TemporaryFolder
-import java.io.ByteArrayOutputStream
-import java.io.File
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
+import java.io.ByteArrayInputStream
+import java.io.EOFException
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 class SamsungPerfTest {
-    @get:Rule val temp = TemporaryFolder()
+    private val cpu = intArrayOf(300000, 691200, 1190400, 1555200, 2016000)
+    private val gpu = intArrayOf(220000, 350000, 490000, 600000, 680000)
+    private val bus = intArrayOf(547000, 1017000, 1555000, 2092000, 3196000)
 
-    private val sdkClasses = listOf("com/samsung/sdk/sperf/SPerf.class", "com/samsung/sdk/sperf/PerformanceManager.class")
-
-    private fun zip(entries: Map<String, ByteArray>): ByteArray {
-        val bytes = ByteArrayOutputStream()
-        ZipOutputStream(bytes).use { out ->
-            entries.forEach { (name, data) -> out.putNextEntry(ZipEntry(name)); out.write(data); out.closeEntry() }
-        }
-        return bytes.toByteArray()
+    /** A level table as Samsung's service sends it: 38 little-endian ints. */
+    private fun table(maxTimeoutMs: Int, cpu: IntArray = this.cpu, gpu: IntArray = this.gpu, bus: IntArray = this.bus): ByteArray {
+        val ints = intArrayOf(0, 0, 0, maxTimeoutMs) + cpu + gpu + bus + intArrayOf(5, 5, 5, maxTimeoutMs) + IntArray(15) { 3_000_000 }
+        return ByteBuffer.allocate(ints.size * 4).order(ByteOrder.LITTLE_ENDIAN).apply { ints.forEach { putInt(it) } }.array()
     }
 
-    private fun file(name: String, data: ByteArray) = File(temp.root, name).apply { writeBytes(data) }
-
-    @Test fun `the SDK jar is taken from Samsung's zip, not the sample's copy`() {
-        val sdkJar = zip(sdkClasses.associateWith { byteArrayOf(1) })
-        val sampleJar = zip(mapOf("com/samsung/sdk/sperf/SPerf.class" to byteArrayOf(2)))
-        val download = file("PerformanceSDK_v1.0.0.zip", zip(mapOf(
-            "Samples/Performance/lib/perfsdk.jar" to sampleJar,
-            "Libs/perfsdk-v1.0.0.jar" to sdkJar,
-        )))
-        val target = File(temp.root, "out.jar")
-        assertTrue(SamsungPerf.extractJar(download, target))
-        assertArrayEquals(sdkJar, target.readBytes())
+    @Test fun `the floors are read from the table, and nothing past it`() {
+        val stream = ByteArrayInputStream(table(10000) + byteArrayOf(7))
+        val levels = SamsungPerf.readLevels(stream)
+        assertArrayEquals(cpu, levels.cpu)
+        assertArrayEquals(gpu, levels.gpu)
+        assertArrayEquals(bus, levels.bus)
+        assertEquals(10000, levels.maxTimeoutMs)
+        assertEquals(1, stream.available())
     }
 
-    @Test fun `the jar itself is taken as it is`() {
-        val jar = file("perfsdk-v1.0.0.jar", zip(sdkClasses.associateWith { byteArrayOf(1) }))
-        val target = File(temp.root, "out.jar")
-        assertTrue(SamsungPerf.extractJar(jar, target))
-        assertArrayEquals(jar.readBytes(), target.readBytes())
+    @Test fun `the middle level of each floor is held, with four cores online`() {
+        val floors = SamsungPerf.floors(SamsungPerf.readLevels(ByteArrayInputStream(table(-1))))
+        val hold = SamsungPerf.HOLD_MS
+        assertEquals(
+            listOf(
+                Floor(SamsungPerf.CPU_MIN, 1190400, hold),
+                Floor(SamsungPerf.CPU_CORES_MIN, 4, hold),
+                Floor(SamsungPerf.GPU_MIN, 490000, hold),
+                Floor(SamsungPerf.BUS_MIN, 1555000, hold),
+            ),
+            floors,
+        )
     }
 
-    @Test fun `other files are refused`() {
-        val target = File(temp.root, "out.jar")
-        assertFalse(SamsungPerf.extractJar(file("Samples.zip", zip(mapOf("a.txt" to byteArrayOf(1)))), target))
-        assertFalse(SamsungPerf.extractJar(file("notes.zip", byteArrayOf(1, 2, 3)), target))
+    @Test fun `a shorter limit from the phone shortens the hold`() {
+        val floors = SamsungPerf.floors(SamsungPerf.readLevels(ByteArrayInputStream(table(3000))))
+        assertEquals(setOf(3000), floors.map { it.timeoutMs }.toSet())
+    }
+
+    @Test fun `a resource the phone does not offer is left alone`() {
+        val floors = SamsungPerf.floors(SamsungPerf.readLevels(ByteArrayInputStream(table(-1, gpu = IntArray(5) { -1 }))))
+        assertEquals(listOf(SamsungPerf.CPU_MIN, SamsungPerf.CPU_CORES_MIN, SamsungPerf.BUS_MIN), floors.map { it.type })
+    }
+
+    @Test(expected = EOFException::class) fun `a short answer is refused`() {
+        SamsungPerf.readLevels(ByteArrayInputStream(table(-1).copyOf(100)))
     }
 }

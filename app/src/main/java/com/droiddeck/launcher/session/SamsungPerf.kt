@@ -1,137 +1,145 @@
 package com.droiddeck.launcher.session
 
 import android.content.Context
+import android.net.LocalServerSocket
+import android.net.LocalSocket
 import android.os.Build
+import android.os.IBinder
+import android.os.Parcel
 import android.os.PowerManager
+import android.system.Os
+import android.system.OsConstants
+import android.system.StructPollfd
 import android.util.Log
-import com.android.dx.command.dexer.DxContext
-import com.android.dx.command.dexer.Main
 import com.droiddeck.launcher.wayland.WaylandCompositor
-import dalvik.system.DexClassLoader
-import java.io.ByteArrayOutputStream
-import java.io.File
-import java.lang.reflect.Method
-import java.util.zip.ZipFile
+import com.samsung.sdk.sperf.Boost
+import java.io.DataInputStream
+import java.io.DataOutputStream
+import java.io.InputStream
+import kotlin.random.Random
 
 /**
- * Samsung's Galaxy Performance SDK (com.samsung.sdk.sperf): CPU, GPU and memory-bus clock floors from
- * Samsung's own service. Its licence does not allow passing the jar on, so a Samsung owner downloads
- * it from [DOWNLOAD_URL] and imports it; it is turned into dex on the phone and loaded from there.
+ * Samsung's CPU, GPU and memory-bus clock floors, from the performance service in Samsung's firmware.
+ * DroidDeck talks to it directly, the way Samsung's Galaxy Performance SDK 1.0.0 does, so the SDK is
+ * not needed: the binder service [SERVICE] sends the phone's level table over a local socket, and the
+ * firmware library [LIBRARY] ([Boost]) holds a level. Other phones have neither, and nothing happens.
  *
- * The presets are renewed every [RENEW_S] seconds with a [HOLD_MS] timeout, so Samsung's service
- * lets go on its own if the app dies.
+ * The floors are those of the SDK's CPU, GPU and bus presets (the middle of five levels, at least four
+ * cores online), renewed every [RENEW_S] seconds with a [HOLD_MS] timeout, so Samsung lets go on its
+ * own if the app dies.
  */
 object SamsungPerf {
-    enum class ImportResult { IMPORTED, INVALID, FAILED }
-
     private const val TAG = "SamsungPerf"
-    const val DOWNLOAD_URL = "https://developer.samsung.com/galaxy-performance/download.html"
-    private const val SPERF = "com.samsung.sdk.sperf"
-    private val REQUIRED = listOf("SPerf", "PerformanceManager").map { "${SPERF.replace('.', '/')}/$it.class" }
-    private const val PRESETS = 64 or 128 or 256 // PerformanceManager.PRESET_TYPE_CPU | _GPU | _BUS
-    private const val HOLD_MS = 5000
+    private const val LIBRARY = "perfsdk.performance.samsung"
+    private const val SERVICE = "perfsdkservice"
+    private const val DESCRIPTOR = "com.samsung.android.perfsdkservice.IPerfSDKService"
+    private const val CALL_INIT = IBinder.FIRST_CALL_TRANSACTION // initPerfSDK(socket name): Int
+    private const val CALL_PACKAGE = IBinder.FIRST_CALL_TRANSACTION + 1 // getAllowedPkgName(): String
+    private const val ASK_LEVELS = 10
+    private const val SOCKET_TIMEOUT_MS = 3000
+
+    // Boost.requestBoost types
+    internal const val CPU_MIN = 0
+    internal const val GPU_MIN = 2
+    internal const val BUS_MIN = 4
+    internal const val CPU_CORES_MIN = 6
+    private const val LEVEL = 2
+    private const val CORES = 4
+    internal const val HOLD_MS = 5000
     private const val RENEW_S = 2
 
-    val samsung: Boolean get() = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
+    /** The floors the phone offers, five values each from low to high, and the longest timeout (≤ 0: none). */
+    internal class Levels(val cpu: IntArray, val gpu: IntArray, val bus: IntArray, val maxTimeoutMs: Int)
 
-    fun offered(context: Context) = samsung || SessionPrefs.samsungPerfAnyPhone(context)
+    /** The service's answer to [ASK_LEVELS] in little-endian ints: the floors, then the ceilings, unused here. */
+    internal fun readLevels(stream: InputStream): Levels {
+        val input = DataInputStream(stream)
+        fun next() = Integer.reverseBytes(input.readInt())
+        fun five() = IntArray(5) { next() }
+        repeat(3) { next() }
+        val timeout = next()
+        val levels = Levels(five(), five(), five(), timeout)
+        repeat(3 + 1 + 15) { next() } // level counts, the ceilings' timeout, CPU, GPU and bus ceilings
+        return levels
+    }
 
-    fun imported(context: Context) = dexFile(context).isFile
+    /** One Boost.requestBoost call. */
+    internal data class Floor(val type: Int, val value: Int, val timeoutMs: Int)
 
-    private fun dir(context: Context) = File(context.filesDir, "samsung-perf")
+    internal fun floors(levels: Levels): List<Floor> {
+        val timeout = if (levels.maxTimeoutMs > 0) minOf(HOLD_MS, levels.maxTimeoutMs) else HOLD_MS
+        return listOf(
+            Floor(CPU_MIN, levels.cpu[LEVEL], timeout),
+            Floor(CPU_CORES_MIN, CORES, timeout),
+            Floor(GPU_MIN, levels.gpu[LEVEL], timeout),
+            Floor(BUS_MIN, levels.bus[LEVEL], timeout),
+        ).filter { it.value > 0 }
+    }
 
-    private fun dexFile(context: Context) = File(dir(context), "perfsdk.dex.jar")
+    private val connectLock = Any()
+    private var floors: List<Floor>? = null
+    @Volatile private var unavailable: String? = null
+    private var socket: LocalSocket? = null // kept open for the process's life, as the SDK does
 
-    @Synchronized
-    fun import(context: Context, source: File): ImportResult {
-        val dir = dir(context).apply { mkdirs() }
-        val jar = File(dir, "perfsdk.jar.staged")
-        val dex = File(dir, "perfsdk.dex.jar.staged")
+    /** Once per process. Null where there is no Samsung service, with the reason in [unavailable]. */
+    private fun connect(): List<Floor>? = synchronized(connectLock) { connectLocked() }
+
+    private fun connectLocked(): List<Floor>? {
+        floors?.let { return it }
+        if (unavailable != null) return null
         try {
-            if (!extractJar(source, jar)) return ImportResult.INVALID
-            val log = ByteArrayOutputStream()
-            val dx = DxContext(log, log)
-            val args = Main.Arguments(dx).apply {
-                fileNames = arrayOf(jar.path)
-                outName = dex.path
-                jarOutput = true
-                minSdkVersion = 26
-                makeOptionsObjects()
+            System.loadLibrary(LIBRARY)
+            val service = Class.forName("android.os.ServiceManager").getMethod("getService", String::class.java)
+                .invoke(null, SERVICE) as IBinder? ?: return fail("no $SERVICE service")
+            val name = "PERFSDK_SOC_" + Random.nextInt(36 * 36 * 36 * 36 * 36).toString(36).padStart(5, '0')
+            val server = LocalServerSocket(name) // the service connects to it; Closeable only from Android 10
+            val client = try {
+                val init = call(service, CALL_INIT, { writeString(name) }, { readInt() })
+                val pkg = call(service, CALL_PACKAGE, {}, { readString() })
+                if (!pkg.isNullOrEmpty()) Boost.setPkgName(pkg)
+                Log.i(TAG, "service: init $init, package $pkg")
+                val poll = StructPollfd().apply { fd = server.fileDescriptor; events = OsConstants.POLLIN.toShort() }
+                if (Os.poll(arrayOf(poll), SOCKET_TIMEOUT_MS) < 1) return fail("$SERVICE did not connect")
+                server.accept()
+            } finally {
+                server.close()
             }
-            val status = Main(dx).runDx(args)
-            if (status != 0 || !dex.isFile) {
-                Log.w(TAG, "dx exit $status: $log")
-                return ImportResult.FAILED
-            }
-            val target = dexFile(context)
-            target.setWritable(true)
-            target.delete()
-            if (!dex.renameTo(target)) return ImportResult.FAILED
-            target.setReadOnly()
-            sdk = null
-            unusable = false
-            Log.i(TAG, "SDK from $source ready (${target.length()} bytes of dex)")
-            return ImportResult.IMPORTED
+            client.soTimeout = SOCKET_TIMEOUT_MS
+            DataOutputStream(client.outputStream).apply { writeInt(Integer.reverseBytes(ASK_LEVELS)); flush() }
+            val levels = readLevels(client.inputStream)
+            socket = client
+            Log.i(TAG, "levels: cpu ${levels.cpu.joinToString()} / gpu ${levels.gpu.joinToString()} / " +
+                "bus ${levels.bus.joinToString()}, max ${levels.maxTimeoutMs} ms")
+            val found = floors(levels)
+            if (found.isEmpty()) return fail("no usable levels")
+            floors = found
+            return found
+        } catch (_: UnsatisfiedLinkError) {
+            return fail("no Samsung performance library")
         } catch (t: Throwable) {
-            Log.w(TAG, "could not import $source", t)
-            return ImportResult.FAILED
+            Log.w(TAG, "could not connect", t)
+            return fail("could not connect (${t.javaClass.simpleName})")
+        }
+    }
+
+    private fun fail(why: String): List<Floor>? {
+        unavailable = why
+        Log.i(TAG, "not available: $why")
+        return null
+    }
+
+    private fun <T> call(service: IBinder, code: Int, write: Parcel.() -> Unit, read: Parcel.() -> T): T {
+        val data = Parcel.obtain()
+        val reply = Parcel.obtain()
+        try {
+            data.writeInterfaceToken(DESCRIPTOR)
+            data.write()
+            service.transact(code, data, reply, 0)
+            reply.readException()
+            return reply.read()
         } finally {
-            jar.delete()
-            dex.delete()
-        }
-    }
-
-    /** Samsung's zip also holds the sample app's different perfsdk.jar; Libs/ is the SDK's own. */
-    internal fun extractJar(source: File, target: File): Boolean = try {
-        ZipFile(source).use { zip -> extractJar(zip, source, target) }
-    } catch (_: java.util.zip.ZipException) {
-        false
-    }
-
-    private fun extractJar(zip: ZipFile, source: File, target: File): Boolean {
-        if (REQUIRED.all { zip.getEntry(it) != null }) {
-            source.copyTo(target, overwrite = true)
-            return true
-        }
-        val jars = zip.entries().asSequence()
-            .filter { !it.isDirectory && it.name.endsWith(".jar", ignoreCase = true) }
-            .sortedByDescending { it.name.contains("Libs/") }
-            .toList()
-        for (entry in jars) {
-            zip.getInputStream(entry).use { input -> target.outputStream().use { input.copyTo(it) } }
-            val found = runCatching { ZipFile(target).use { inner -> REQUIRED.all { inner.getEntry(it) != null } } }.getOrDefault(false)
-            if (found) return true
-        }
-        return false
-    }
-
-    private class Sdk(val manager: Any, val start: Method, val stop: Method)
-
-    private var sdk: Sdk? = null
-    private var unusable = false
-
-    /** SPerf.initialize is false where Samsung's service is missing. */
-    @Synchronized
-    private fun load(context: Context): Sdk? {
-        sdk?.let { return it }
-        if (unusable || !imported(context)) return null
-        try {
-            val loader = DexClassLoader(dexFile(context).path, context.codeCacheDir.path, null, context.classLoader)
-            val sperf = loader.loadClass("$SPERF.SPerf")
-            runCatching { sperf.getMethod("setDebugModeEnabled", Boolean::class.javaPrimitiveType).invoke(null, false) }
-            if (sperf.getMethod("initialize", Context::class.java).invoke(null, context.applicationContext) != true) {
-                Log.i(TAG, "SDK loaded, but this phone does not support it")
-                unusable = true
-                return null
-            }
-            val pm = loader.loadClass("$SPERF.PerformanceManager")
-            val manager = pm.getMethod("getInstance").invoke(null) ?: return null
-            val int = Int::class.javaPrimitiveType
-            return Sdk(manager, pm.getMethod("start", int, int), pm.getMethod("stop")).also { sdk = it }
-        } catch (t: Throwable) {
-            Log.w(TAG, "SDK not usable", t)
-            unusable = true
-            return null
+            reply.recycle()
+            data.recycle()
         }
     }
 
@@ -140,9 +148,8 @@ object SamsungPerf {
     /** At a session's start. The line is for the log. */
     @Synchronized
     fun start(context: Context): String {
-        if (!offered(context)) return "samsung boost: not a Samsung phone"
         if (!SessionPrefs.performanceBoost(context)) return "samsung boost: off"
-        if (!imported(context)) return "samsung boost: SDK not imported"
+        unavailable?.let { return "samsung boost: $it" }
         val app = context.applicationContext
         worker?.interrupt()
         worker = Thread({ run(app) }, "samsung-boost").apply { isDaemon = true; start() }
@@ -157,7 +164,7 @@ object SamsungPerf {
     }
 
     private fun run(context: Context) {
-        val sdk = load(context) ?: return
+        val floors = connect() ?: return
         val pm = context.getSystemService(PowerManager::class.java)
         val frames = ArrayDeque<Long>()
         var pacedFor = 0
@@ -173,10 +180,10 @@ object SamsungPerf {
                 val hot = Build.VERSION.SDK_INT >= 29 && pm.currentThermalStatus >= PowerManager.THERMAL_STATUS_SEVERE
                 val want = fps >= 1 && !pm.isPowerSaveMode && !hot && pacedFor < GameThreadHints.PACE_LEAVE_S
                 if (want && (!boosting || tick % RENEW_S == 0)) {
-                    val result = sdk.start.invoke(sdk.manager, PRESETS, HOLD_MS)
-                    if (!boosting) Log.i(TAG, "boosting (game ${fps.toInt()} fps, start $result)")
+                    val results = floors.map { Boost.requestBoost(it.type, it.value, it.timeoutMs) }
+                    if (!boosting) Log.i(TAG, "boosting (game ${fps.toInt()} fps, results $results)")
                 } else if (!want && boosting) {
-                    sdk.stop.invoke(sdk.manager)
+                    Boost.releaseBoost()
                     Log.i(TAG, "let go (game ${fps.toInt()} fps${if (hot) ", hot" else ""}${if (paced) ", holding pace" else ""})")
                 }
                 boosting = want
@@ -187,7 +194,7 @@ object SamsungPerf {
         } catch (t: Throwable) {
             Log.w(TAG, "stopped", t)
         } finally {
-            if (boosting) runCatching { sdk.stop.invoke(sdk.manager) }
+            if (boosting) runCatching { Boost.releaseBoost() }
         }
     }
 }

@@ -46,7 +46,6 @@ import com.droiddeck.launcher.session.GameSaves
 import com.droiddeck.launcher.session.SessionLogShare
 import com.droiddeck.launcher.session.SessionPaths
 import com.droiddeck.launcher.session.SessionPrefs
-import com.droiddeck.launcher.session.SamsungPerf
 import com.droiddeck.launcher.session.SteamRepair
 import com.droiddeck.launcher.core.CpuCores
 import com.droiddeck.launcher.core.DownloadSource
@@ -173,7 +172,6 @@ class FrontEndActivity : ComponentActivity() {
     private var vramCapMb by mutableStateOf(0)
     private var gpuClockPin by mutableStateOf(false)
     private var performanceBoost by mutableStateOf(false)
-    private var samsungSdk by mutableStateOf<Boolean?>(null)
     private var prootNoSeccomp by mutableStateOf(false)
     private var prootFastPath by mutableStateOf(true)
     private var cursorComposite by mutableStateOf(false)
@@ -256,9 +254,6 @@ class FrontEndActivity : ComponentActivity() {
     }
     private val pickLossless = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { importLossless(it) }
-    }
-    private val pickSamsungSdk = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { importSamsungSdk(it) }
     }
     private val pickSaveZip = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         val then = onSavePicked.also { onSavePicked = null } ?: return@registerForActivityResult
@@ -399,27 +394,6 @@ class FrontEndActivity : ComponentActivity() {
                 android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
             }
         }, "lossless-import").start()
-    }
-
-    private fun importSamsungSdk(source: File) {
-        Thread({
-            val message = getString(
-                when (SamsungPerf.import(this, source)) {
-                    SamsungPerf.ImportResult.IMPORTED -> R.string.perf_samsung_sdk_imported
-                    SamsungPerf.ImportResult.INVALID -> R.string.perf_samsung_sdk_invalid
-                    SamsungPerf.ImportResult.FAILED -> R.string.perf_samsung_sdk_failed
-                },
-            )
-            val imported = SamsungPerf.imported(this)
-            ui.post {
-                samsungSdk = imported
-                android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
-            }
-        }, "samsung-sdk-import").start()
-    }
-
-    private fun pickSamsungSdk() {
-        pickSamsungSdk.launch(InAppFilePicker.buildIntent(this, listOf("zip", "jar"), getString(R.string.perf_samsung_sdk_pick)))
     }
 
     private fun importSaves(name: String, game: () -> GameSaves.Game) {
@@ -2253,7 +2227,7 @@ class FrontEndActivity : ComponentActivity() {
             fsyncFirst = fsyncFirst,
             gamescopeRealtime = gamescopeRealtime,
             gpuClockPin = gpuClockPin,
-            performanceBoost = performanceBoost, samsungSdk = samsungSdk,
+            performanceBoost = performanceBoost,
             ramCapMb = ramCapMb, vramCapMb = vramCapMb, zramClient = zramClient,
             deviceRamMb = (android.app.ActivityManager.MemoryInfo()
                 .also((getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager)::getMemoryInfo).totalMem / (1024 * 1024)).toInt(),
@@ -2271,12 +2245,7 @@ class FrontEndActivity : ComponentActivity() {
             onFsyncFirst = { on -> SessionPrefs.setFsyncFirst(this, on); fsyncFirst = on },
             onGamescopeRealtime = { on -> SessionPrefs.setGamescopeRealtime(this, on); gamescopeRealtime = on },
             onGpuClockPin = { on -> SessionPrefs.setGpuClockPin(this, on); gpuClockPin = on },
-            onPerformanceBoost = { on ->
-                SessionPrefs.setPerformanceBoost(this, on)
-                performanceBoost = on
-                if (on && samsungSdk == false) pickSamsungSdk()
-            },
-            onImportSamsungSdk = { pickSamsungSdk() },
+            onPerformanceBoost = { on -> SessionPrefs.setPerformanceBoost(this, on); performanceBoost = on },
             onRamCapMb = { mb -> SessionPrefs.setRamCapMb(this, mb); ramCapMb = mb },
             onZramClient = { on -> SessionPrefs.setZramClient(this, on); zramClient = on },
             onVramCapMb = { mb -> SessionPrefs.setVramCapMb(this, mb); vramCapMb = mb },
@@ -2494,7 +2463,6 @@ class FrontEndActivity : ComponentActivity() {
         vramCapMb = SessionPrefs.vramCapMb(this)
         gpuClockPin = SessionPrefs.gpuClockPin(this)
         performanceBoost = SessionPrefs.performanceBoost(this)
-        samsungSdk = if (SamsungPerf.offered(this)) SamsungPerf.imported(this) else null
         prootNoSeccomp = SessionPrefs.prootNoSeccomp(this)
         prootFastPath = SessionPrefs.prootFastPath(this)
         cursorComposite = SessionPrefs.cursorComposite(this)
