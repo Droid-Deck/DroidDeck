@@ -48,7 +48,7 @@ object SteamMatch {
         val known = get(context, key)
         if (known != null && known.certainty == Certainty.NAME) return known
         if (known != null && known.certainty == Certainty.NONE && now - known.checkedAt < RETRY_AFTER_MS) return known
-        legacy?.takeIf { it.isFile }?.let { runCatching { it.readText().trim().toInt() }.getOrNull() }?.takeIf { it > 0 }?.let { id ->
+        legacy?.takeIf { it.isFile }?.let { runCatching { it.readText().trim().toInt() }.getOrNull() }?.takeIf { it > 0 && it != GameIdentifier.SPACEWAR }?.let { id ->
             return Match(id, Certainty.NAME, "store search", now).also { put(context, key, it) }
         }
         if (search == null) return known?.takeIf { it.certainty != Certainty.FILES } ?: Match(null, Certainty.NONE, "", 0)

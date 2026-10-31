@@ -66,6 +66,13 @@ class AddedGameArtLookupTest {
         assertEquals(SteamMatch.Certainty.NAME, match.certainty)
     }
 
+    @Test fun anEarlierBuildsSpacewarLookupIsNotAMatch() {
+        val dir = tmp.newFolder("Peak")
+        val exe = File(dir, "PEAK.exe").apply { writeText("x") }
+        val legacy = File(tmp.newFolder(), "steam-appid").apply { writeText("480") }
+        assertEquals(3527290, SteamMatch.resolve(app, dir.path, exe, "PEAK", legacy = legacy) { 3527290 }.appId)
+    }
+
     @Test fun aStoreResultIsTakenOnlyWhenItsNameMatches() {
         assertNull(AddedGameArt.pickStoreResult("My Obscure Game", listOf("10" to "Totally Different", "11" to "Another One")))
         assertEquals("20", AddedGameArt.pickStoreResult("Hades", listOf("19" to "Hades II Soundtrack Bundle Extra", "20" to "Hades")))
