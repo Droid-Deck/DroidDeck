@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Terminal
+import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.AutoFixHigh
 import androidx.compose.material.icons.outlined.ExpandMore
@@ -240,6 +241,7 @@ class DrawerActions(
     val textureAnisotropy: Int? = 0,
     val textureLodBias: String? = TextureFiltering.LOD_BIAS_OFF,
     val secondScreenMode: SecondScreenMode,
+    val dashboardAvailable: Boolean = false,
     val secondScreenDisplays: List<SecondScreenDisplay>,
     val selectedSecondScreenDisplay: Int,
     val onHud: (Boolean) -> Unit,
@@ -893,6 +895,7 @@ private fun BottomScreenModes(a: DrawerActions, modifier: Modifier, onPick: () -
         if (com.droiddeck.launcher.session.SessionState.deckPad) add(SecondScreenMode.DECK_CONTROLS to Icons.Outlined.SportsEsports)
         add(SecondScreenMode.KEYBOARD_TRACKPAD to Icons.Outlined.Keyboard)
         add(SecondScreenMode.TERMINAL to Icons.Outlined.Terminal)
+        if (a.dashboardAvailable) add(SecondScreenMode.DASHBOARD to Icons.Outlined.Dashboard)
     }
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -1190,7 +1193,8 @@ private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) 
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val modes = listOf(SecondScreenMode.NONE, SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL) +
-        if (com.droiddeck.launcher.session.SessionState.deckPad) listOf(SecondScreenMode.DECK_CONTROLS) else emptyList()
+        (if (com.droiddeck.launcher.session.SessionState.deckPad) listOf(SecondScreenMode.DECK_CONTROLS) else emptyList()) +
+        (if (a.dashboardAvailable) listOf(SecondScreenMode.DASHBOARD) else emptyList())
     SettingsGroup(stringResource(R.string.drawer_second_screen_mode)) {
         Column(Modifier.fillMaxWidth().selectableGroup()) {
             modes.forEach { mode ->

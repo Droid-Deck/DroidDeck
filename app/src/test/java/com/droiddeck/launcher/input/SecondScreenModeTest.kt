@@ -23,4 +23,10 @@ class SecondScreenModeTest {
         assertEquals(SecondScreenMode.DECK_CONTROLS, SecondScreenMode.opening("none", deckPad = true))
         assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening("gone", deckPad = false))
     }
+
+    @Test fun theDashboardOpensAgainOnlyWhileItHasPages() {
+        assertEquals(SecondScreenMode.DASHBOARD, SecondScreenMode.opening("dashboard", deckPad = true, dashboard = true))
+        assertEquals(SecondScreenMode.DECK_CONTROLS, SecondScreenMode.opening("dashboard", deckPad = true, dashboard = false))
+        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening("dashboard", deckPad = false))
+    }
 }
