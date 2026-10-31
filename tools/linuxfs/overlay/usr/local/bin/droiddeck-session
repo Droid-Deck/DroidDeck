@@ -1167,6 +1167,12 @@ case $mode in
       echo "== steam: open driver pair - software CEF compositing, GPU raster"
     fi
     _bl_cef=(-cef-force-gpu "${bl_steam_presentation[@]}" -cef-use-gl=angle "-cef-use-angle=$bl_steam_angle")
+    # On Mali the web helper in the preload's default layout (--no-zygote --in-process-gpu) is restarted
+    # every 10 s and Steam never shows a frame (Immortalis-G720 on PanVK-kbase and on Venus).
+    if [ -z "${BL_WEBHELPER_ARGS:-}" ] && { [ "${BL_DRM_STANDIN:-}" = /dev/mali0 ] || [ "${BL_VENUS:-0}" = 1 ]; }; then
+      export BL_WEBHELPER_ARGS=stock
+      echo "== steam: web helper process layout: stock (Mali)"
+    fi
     decky_loader=$HOME/homebrew/services/PluginLoader
     if [ -f "$HOME/.droiddeck-decky-enabled" ] && [ -x "$decky_loader" ]; then
       decky_arch=$(cat "$HOME/homebrew/services/.droiddeck-decky-arch" 2>/dev/null || echo unknown)

@@ -21,7 +21,8 @@ class SteamPresentationTest(unittest.TestCase):
                   + 'steam_client=("$steam_root/steamrtarm64/steam")\n'
                   + source[command:command_end])
         env = dict(os.environ)
-        for key in ("BL_STEAM_GL_PRESENT", "DISABLE_GAMESCOPE_WSI", "LIBGL_KOPPER_DISABLE"):
+        for key in ("BL_STEAM_GL_PRESENT", "DISABLE_GAMESCOPE_WSI", "LIBGL_KOPPER_DISABLE", "BL_DRM_STANDIN", "BL_VENUS",
+                    "BL_WEBHELPER_ARGS"):
             env.pop(key, None)
         if enabled is not None:
             env["BL_STEAM_GL_PRESENT"] = enabled
@@ -34,7 +35,8 @@ class SteamPresentationTest(unittest.TestCase):
                                '"disable":os.getenv("DISABLE_GAMESCOPE_WSI"),'
                                '"kopper":os.getenv("LIBGL_KOPPER_DISABLE"),'
                                '"path":os.getenv("PATH"),'
-                               '"helper":os.getenv("BL_STEAM_WEBHELPER")}))\n')
+                               '"helper":os.getenv("BL_STEAM_WEBHELPER"),'
+                               '"layout":os.getenv("BL_WEBHELPER_ARGS")}))\n')
             program.chmod(0o755)
             env.update(steam_root=tmp, steam_channel="steamdeck_publicbeta")
             result = subprocess.run(["bash", "-c", script, "test", "steam://open/main"],
@@ -69,6 +71,22 @@ class SteamPresentationTest(unittest.TestCase):
         self.assertNotIn("-cef-disable-gpu-compositing", result["args"])
         self.assertEqual(result["disable"], "0")
         self.assertEqual(result["kopper"], "false")
+
+    def test_adreno_keeps_the_preload_layout(self):
+        self.assertIsNone(self.launch()["layout"])
+        self.assertIsNone(self.launch(inherited={"BL_DRM_STANDIN": "/dev/kgsl-3d0"})["layout"])
+
+    def test_mali_open_driver_pair_uses_the_stock_layout(self):
+        result = self.launch(inherited={"BL_DRM_STANDIN": "/dev/mali0", "BL_STEAM_SOFT_COMPOSITING": "1"})
+        self.assertEqual(result["layout"], "stock")
+        self.assertIn("-cef-disable-gpu-compositing", result["args"])
+
+    def test_venus_uses_the_stock_layout(self):
+        self.assertEqual(self.launch(inherited={"BL_VENUS": "1"})["layout"], "stock")
+
+    def test_a_chosen_layout_is_kept(self):
+        result = self.launch(inherited={"BL_DRM_STANDIN": "/dev/mali0", "BL_WEBHELPER_ARGS": "--in-process-gpu"})
+        self.assertEqual(result["layout"], "--in-process-gpu")
 
 
 if __name__ == "__main__":
