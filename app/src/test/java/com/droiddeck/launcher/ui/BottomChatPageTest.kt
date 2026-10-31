@@ -29,6 +29,12 @@ class BottomChatPageTest {
         }
     }
 
+    @Test fun theGroupChatListLeavesRoomForTheOnlineFriends() {
+        assertTrue(STEAM_CHAT_FIT_CSS.contains(".ChatRoomList_Empty{display:none!important}"))
+        assertTrue(STEAM_CHAT_FIT_CSS.contains(".chatRoomListContainer{height:auto!important;max-height:25vh!important}"))
+        assertTrue(STEAM_CHAT_FIT_CSS.contains(".chat_main>:has(~.chat_main_flex){display:none!important}"))
+    }
+
     @Test fun desktopAgentKeepsTheWebViewChromeVersion() {
         val ua = desktopUserAgent("Mozilla/5.0 (Linux; Android 15; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/141.0.7390.122 Mobile Safari/537.36")
         assertEquals("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.122 Safari/537.36", ua)

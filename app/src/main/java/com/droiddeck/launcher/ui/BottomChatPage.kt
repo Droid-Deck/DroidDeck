@@ -69,7 +69,9 @@ internal fun desktopUserAgent(webView: String?): String {
 /**
  * At the panel's own scale Steam's desktop chat gets about 600x300 CSS pixels and its friends list collapses, so the
  * page is laid out [cssWidth] wide and drawn at [scale]. Steam's site header (the rows before .chat_main_flex; its
- * class name is generated) is hidden to leave the height to the friends list and the chat.
+ * class name is generated) is hidden to leave the height to the friends list and the chat. The group chat list keeps
+ * a fixed 114 px height and an empty-list note that cover the online friends, so it shrinks to its rows (at most a
+ * quarter of the panel) and the note is hidden.
  */
 internal fun steamChatFitScript(cssWidth: Int, scale: Float): String {
     val zoom = "%.2f".format(java.util.Locale.US, scale)
@@ -81,7 +83,9 @@ internal fun steamChatFitScript(cssWidth: Int, scale: Float): String {
         "window.dispatchEvent(new Event('resize'));})()"
 }
 
-internal const val STEAM_CHAT_FIT_CSS = ".chat_main>:has(~.chat_main_flex){display:none!important}"
+internal const val STEAM_CHAT_FIT_CSS = ".chat_main>:has(~.chat_main_flex){display:none!important}" +
+    ".ChatRoomList_Empty{display:none!important}" +
+    ".chatRoomListContainer{height:auto!important;max-height:25vh!important}"
 
 @Composable
 fun BottomChatPage() {
