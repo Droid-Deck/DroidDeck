@@ -625,6 +625,13 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("performanceBoost", on).apply()
     }
 
+    /** Check the boost: BoostReport pauses the boost every other minute of play and compares. */
+    fun boostCheck(context: Context): Boolean = prefs(context).getBoolean("boostCheck", false)
+
+    fun setBoostCheck(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("boostCheck", on).apply()
+    }
+
     fun prootNoSeccomp(context: Context): Boolean = prefs(context).getBoolean("prootNoSeccomp", false)
 
     fun setProotNoSeccomp(context: Context, on: Boolean) {

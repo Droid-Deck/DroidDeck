@@ -61,9 +61,17 @@ object GameThreadHints {
 
     private var worker: Thread? = null
 
+    /** For BoostReport: the last start line, the threads boosted now, and hint sessions refused. */
+    @Volatile internal var startLine = "game thread hints: off"
+    @Volatile internal var boostedThreads = emptySet<Int>()
+    @Volatile internal var refused = 0
+
     /** At a session's start. The line is for the log. */
     @Synchronized
-    fun start(context: Context): String {
+    fun start(context: Context): String = begin(context).also { startLine = it }
+
+    private fun begin(context: Context): String {
+        refused = 0
         if (!SessionPrefs.performanceBoost(context)) return "game thread hints: off"
         if (Build.VERSION.SDK_INT < 31) return "game thread hints: needs Android 12"
         val hm = context.getSystemService(PerformanceHintManager::class.java)
@@ -98,7 +106,7 @@ object GameThreadHints {
                     val paced = frames.size > PACE_WINDOW_S && holdsPace(fps, SessionState.refreshHz.toDouble())
                     pacedFor = if (paced) pacedFor + 1 else 0
                     // Not SEVERE: the Odin 3 reports it once its skin reaches 50 C, a couple of minutes into any game.
-                    val spare = pm.isPowerSaveMode || pm.currentThermalStatus >= PowerManager.THERMAL_STATUS_CRITICAL
+                    val spare = pm.isPowerSaveMode || pm.currentThermalStatus >= PowerManager.THERMAL_STATUS_CRITICAL || BoostReport.paused
                     val next = when {
                         spare || pacedFor >= PACE_LEAVE_S -> emptySet()
                         paced -> pick(boosted, busy.filterKeys { it in boosted })
@@ -108,6 +116,7 @@ object GameThreadHints {
                         session = update(hm, session, next)
                         // No session means a thread exited in between: tried again next second.
                         boosted = if (session == null) emptySet() else next
+                        boostedThreads = boosted
                         Log.i(TAG, (if (session == null && next.isNotEmpty()) "no session for " else "boosting ") +
                             next.joinToString { "${readName("/proc/$it/comm")}/$it ${((busy[it] ?: 0.0) * 100).toInt()}%" }.ifEmpty { "nothing" } +
                             " (game ${fps.toInt()} fps${if (paced) ", holding pace" else ""})")
@@ -121,6 +130,7 @@ object GameThreadHints {
             Log.w(TAG, "stopped", t)
         } finally {
             session?.close()
+            boostedThreads = emptySet()
         }
     }
 
@@ -129,9 +139,10 @@ object GameThreadHints {
         session?.close()
         if (tids.isEmpty()) return null
         return try {
-            hm.createHintSession(tids.toIntArray(), TARGET_NS)
+            hm.createHintSession(tids.toIntArray(), TARGET_NS).also { if (it == null) refused++ }
         } catch (t: RuntimeException) {
             Log.w(TAG, "createHintSession", t)
+            refused++
             null
         }
     }
