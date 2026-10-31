@@ -3559,4 +3559,14 @@
     <string name="gog_repair_action">إصلاح الملفات</string>
     <string name="gog_refresh_action">تحديث التثبيت</string>
     <string name="gog_select_patch">اختيار</string>
+    <string name="stores_gamejolt_not_owned">ليس في مكتبة Game Jolt الخاصة بك</string>
+    <string name="stores_gamejolt_no_build">لا يوجد تنزيل لنظام Windows لهذه اللعبة</string>
+    <string name="stores_gamejolt_no_exe">لم يتم العثور على لعبة Windows في التنزيل</string>
+    <string name="stores_gamejolt_no_game">تعذر العثور على هذه اللعبة على Game Jolt</string>
+    <string name="stores_gamejolt_browse_failed">تعذّر تحميل الألعاب من Game Jolt</string>
+    <string name="stores_gamejolt_download_failed">استجاب Game Jolt بـ HTTP %1$d</string>
+    <string name="stores_gamejolt_pick_failed">تعذر تحميل التنزيلات من Game Jolt</string>
+    <string name="stores_gamejolt_build_open">فتح على Game Jolt</string>
+    <string name="stores_gamejolt_archive">أرشيفات %1$s غير مدعومة</string>
+    <string name="stores_gamejolt_extract_failed">تعذر استخراج التنزيل (رمز الخروج %1$d)</string>
 </resources>

@@ -3485,4 +3485,14 @@
     <string name="gog_repair_action">Napraw pliki</string>
     <string name="gog_refresh_action">Odśwież instalację</string>
     <string name="gog_select_patch">Wybierz</string>
+    <string name="stores_gamejolt_not_owned">Nie ma go w Twojej bibliotece Game Jolt</string>
+    <string name="stores_gamejolt_no_build">Brak wersji na Windows dla tej gry</string>
+    <string name="stores_gamejolt_no_exe">W pobranych plikach nie znaleziono gry na Windows</string>
+    <string name="stores_gamejolt_no_game">Nie znaleziono tej gry w Game Jolt</string>
+    <string name="stores_gamejolt_browse_failed">Nie udało się wczytać gier z Game Jolt</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt odpowiedziało HTTP %1$d</string>
+    <string name="stores_gamejolt_pick_failed">Nie udało się wczytać plików z Game Jolt</string>
+    <string name="stores_gamejolt_build_open">Otwórz w Game Jolt</string>
+    <string name="stores_gamejolt_archive">Archiwa %1$s nie są obsługiwane</string>
+    <string name="stores_gamejolt_extract_failed">Nie można rozpakować pobranego pliku (kod %1$d)</string>
 </resources>

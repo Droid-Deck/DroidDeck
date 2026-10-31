@@ -6,6 +6,7 @@ enum class Store(val id: String, val label: String, val shortLabel: String) {
     AMAZON("amazon", "Amazon Games", "Amazon"),
     XBOX("xbox", "Xbox", "Xbox"),
     ITCH("itch", "itch.io", "itch"),
+    GAMEJOLT("gamejolt", "Game Jolt", "Game Jolt"),
     BATTLENET("battlenet", "Battle.net", "Battle.net");
 
     companion object {

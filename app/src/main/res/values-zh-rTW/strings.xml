@@ -3329,4 +3329,14 @@
     <string name="gog_repair_action">修復檔案</string>
     <string name="gog_refresh_action">重新整理安裝</string>
     <string name="gog_select_patch">選取</string>
+    <string name="stores_gamejolt_not_owned">不在你的 Game Jolt 收藏庫中</string>
+    <string name="stores_gamejolt_no_build">這個遊戲沒有 Windows 下載</string>
+    <string name="stores_gamejolt_no_exe">下載內容中找不到 Windows 遊戲</string>
+    <string name="stores_gamejolt_no_game">在 Game Jolt 找不到這款遊戲</string>
+    <string name="stores_gamejolt_browse_failed">無法從 Game Jolt 載入遊戲</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt 回應 HTTP %1$d</string>
+    <string name="stores_gamejolt_pick_failed">無法從 Game Jolt 載入下載內容</string>
+    <string name="stores_gamejolt_build_open">在 Game Jolt 開啟</string>
+    <string name="stores_gamejolt_archive">不支援 %1$s 壓縮檔</string>
+    <string name="stores_gamejolt_extract_failed">無法解壓縮下載內容（代碼 %1$d）</string>
 </resources>

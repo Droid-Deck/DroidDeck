@@ -3383,4 +3383,14 @@
     <string name="gog_repair_action">Perbaiki file</string>
     <string name="gog_refresh_action">Segarkan instalasi</string>
     <string name="gog_select_patch">Pilih</string>
+    <string name="stores_gamejolt_not_owned">Tidak ada di pustaka Game Jolt Anda</string>
+    <string name="stores_gamejolt_no_build">Tidak ada unduhan Windows untuk game ini</string>
+    <string name="stores_gamejolt_no_exe">Tidak ada game Windows di unduhan</string>
+    <string name="stores_gamejolt_no_game">Game ini tidak ditemukan di Game Jolt</string>
+    <string name="stores_gamejolt_browse_failed">Tidak dapat memuat game dari Game Jolt</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt menjawab HTTP %1$d</string>
+    <string name="stores_gamejolt_pick_failed">Tidak dapat memuat unduhan dari Game Jolt</string>
+    <string name="stores_gamejolt_build_open">Buka di Game Jolt</string>
+    <string name="stores_gamejolt_archive">Arsip %1$s tidak didukung</string>
+    <string name="stores_gamejolt_extract_failed">Tidak dapat mengekstrak unduhan (kode %1$d)</string>
 </resources>

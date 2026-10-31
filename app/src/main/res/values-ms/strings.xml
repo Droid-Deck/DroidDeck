@@ -3383,4 +3383,14 @@
     <string name="gog_repair_action">Baik pulih fail</string>
     <string name="gog_refresh_action">Segar semula pemasangan</string>
     <string name="gog_select_patch">Pilih</string>
+    <string name="stores_gamejolt_not_owned">Tiada dalam pustaka Game Jolt anda</string>
+    <string name="stores_gamejolt_no_build">Tiada muat turun Windows untuk permainan ini</string>
+    <string name="stores_gamejolt_no_exe">Tiada permainan Windows ditemui dalam muat turun</string>
+    <string name="stores_gamejolt_no_game">Permainan ini tidak ditemui di Game Jolt</string>
+    <string name="stores_gamejolt_browse_failed">Tidak dapat memuatkan permainan daripada Game Jolt</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt menjawab HTTP %1$d</string>
+    <string name="stores_gamejolt_pick_failed">Tidak dapat memuatkan muat turun daripada Game Jolt</string>
+    <string name="stores_gamejolt_build_open">Buka di Game Jolt</string>
+    <string name="stores_gamejolt_archive">Arkib %1$s tidak disokong</string>
+    <string name="stores_gamejolt_extract_failed">Tidak dapat mengekstrak muat turun (kod %1$d)</string>
 </resources>

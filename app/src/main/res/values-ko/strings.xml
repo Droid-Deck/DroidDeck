@@ -3383,4 +3383,14 @@
     <string name="gog_repair_action">파일 복구</string>
     <string name="gog_refresh_action">설치 새로 고침</string>
     <string name="gog_select_patch">선택</string>
+    <string name="stores_gamejolt_not_owned">Game Jolt 라이브러리에 없습니다</string>
+    <string name="stores_gamejolt_no_build">이 게임의 Windows 다운로드가 없습니다</string>
+    <string name="stores_gamejolt_no_exe">다운로드에서 Windows 게임을 찾을 수 없습니다</string>
+    <string name="stores_gamejolt_no_game">Game Jolt에서 이 게임을 찾을 수 없습니다</string>
+    <string name="stores_gamejolt_browse_failed">Game Jolt에서 게임을 불러오지 못했습니다</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt가 HTTP %1$d을(를) 반환했습니다</string>
+    <string name="stores_gamejolt_pick_failed">Game Jolt에서 다운로드를 불러오지 못했습니다</string>
+    <string name="stores_gamejolt_build_open">Game Jolt에서 열기</string>
+    <string name="stores_gamejolt_archive">%1$s 압축 파일은 지원하지 않습니다</string>
+    <string name="stores_gamejolt_extract_failed">다운로드한 파일의 압축을 풀 수 없습니다(코드 %1$d)</string>
 </resources>

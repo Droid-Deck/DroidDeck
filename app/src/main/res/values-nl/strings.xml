@@ -3411,4 +3411,14 @@
     <string name="gog_repair_action">Bestanden repareren</string>
     <string name="gog_refresh_action">Installatie vernieuwen</string>
     <string name="gog_select_patch">Kiezen</string>
+    <string name="stores_gamejolt_not_owned">Niet in je Game Jolt-bibliotheek</string>
+    <string name="stores_gamejolt_no_build">Geen Windows-download voor dit spel</string>
+    <string name="stores_gamejolt_no_exe">Geen Windows-game gevonden in de download</string>
+    <string name="stores_gamejolt_no_game">Deze game is niet gevonden op Game Jolt</string>
+    <string name="stores_gamejolt_browse_failed">Games van Game Jolt konden niet worden geladen</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt antwoordde HTTP %1$d</string>
+    <string name="stores_gamejolt_pick_failed">De downloads van Game Jolt konden niet worden geladen</string>
+    <string name="stores_gamejolt_build_open">Openen op Game Jolt</string>
+    <string name="stores_gamejolt_archive">%1$s-archieven worden niet ondersteund</string>
+    <string name="stores_gamejolt_extract_failed">Download kan niet worden uitgepakt (code %1$d)</string>
 </resources>

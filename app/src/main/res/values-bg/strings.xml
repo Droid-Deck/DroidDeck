@@ -3411,4 +3411,14 @@
     <string name="gog_repair_action">Поправка на файловете</string>
     <string name="gog_refresh_action">Обновяване на инсталацията</string>
     <string name="gog_select_patch">Избор</string>
+    <string name="stores_gamejolt_not_owned">Не е в библиотеката ви в Game Jolt</string>
+    <string name="stores_gamejolt_no_build">Няма изтегляне за Windows за тази игра</string>
+    <string name="stores_gamejolt_no_exe">В изтеглянето не е намерена игра за Windows</string>
+    <string name="stores_gamejolt_no_game">Играта не беше намерена в Game Jolt</string>
+    <string name="stores_gamejolt_browse_failed">Игрите от Game Jolt не можаха да се заредят</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt отговори HTTP %1$d</string>
+    <string name="stores_gamejolt_pick_failed">Изтеглянията от Game Jolt не можаха да се заредят</string>
+    <string name="stores_gamejolt_build_open">Отваряне в Game Jolt</string>
+    <string name="stores_gamejolt_archive">Архивите %1$s не се поддържат</string>
+    <string name="stores_gamejolt_extract_failed">Изтеглянето не можа да бъде разархивирано (код %1$d)</string>
 </resources>

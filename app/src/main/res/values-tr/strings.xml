@@ -3411,4 +3411,14 @@
     <string name="gog_repair_action">Dosyaları onar</string>
     <string name="gog_refresh_action">Kurulumu yenile</string>
     <string name="gog_select_patch">Seç</string>
+    <string name="stores_gamejolt_not_owned">Game Jolt kütüphanenizde yok</string>
+    <string name="stores_gamejolt_no_build">Bu oyunun Windows indirmesi yok</string>
+    <string name="stores_gamejolt_no_exe">İndirmede Windows oyunu bulunamadı</string>
+    <string name="stores_gamejolt_no_game">Bu oyun Game Jolt\'da bulunamadı</string>
+    <string name="stores_gamejolt_browse_failed">Game Jolt oyunları yüklenemedi</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt HTTP %1$d yanıtı verdi</string>
+    <string name="stores_gamejolt_pick_failed">İndirmeler Game Jolt\'dan yüklenemedi</string>
+    <string name="stores_gamejolt_build_open">Game Jolt\'da aç</string>
+    <string name="stores_gamejolt_archive">%1$s arşivleri desteklenmiyor</string>
+    <string name="stores_gamejolt_extract_failed">İndirme ayıklanamadı (kod %1$d)</string>
 </resources>

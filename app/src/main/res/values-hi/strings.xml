@@ -3411,4 +3411,14 @@
     <string name="gog_repair_action">फ़ाइलें रिपेयर करें</string>
     <string name="gog_refresh_action">इंस्टॉलेशन रिफ़्रेश करें</string>
     <string name="gog_select_patch">चुनें</string>
+    <string name="stores_gamejolt_not_owned">आपकी Game Jolt लाइब्रेरी में नहीं</string>
+    <string name="stores_gamejolt_no_build">इस गेम के लिए Windows डाउनलोड नहीं है</string>
+    <string name="stores_gamejolt_no_exe">डाउनलोड में कोई Windows गेम नहीं मिला</string>
+    <string name="stores_gamejolt_no_game">यह गेम Game Jolt पर नहीं मिला</string>
+    <string name="stores_gamejolt_browse_failed">Game Jolt से गेम लोड नहीं हो सके</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt ने HTTP %1$d लौटाया</string>
+    <string name="stores_gamejolt_pick_failed">Game Jolt से डाउनलोड लोड नहीं हो सके</string>
+    <string name="stores_gamejolt_build_open">Game Jolt पर खोलें</string>
+    <string name="stores_gamejolt_archive">%1$s आर्काइव समर्थित नहीं हैं</string>
+    <string name="stores_gamejolt_extract_failed">डाउनलोड एक्सट्रैक्ट नहीं हो सका (कोड %1$d)</string>
 </resources>

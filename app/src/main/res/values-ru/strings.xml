@@ -3485,4 +3485,14 @@
     <string name="gog_repair_action">Восстановить файлы</string>
     <string name="gog_refresh_action">Обновить установку</string>
     <string name="gog_select_patch">Выбрать</string>
+    <string name="stores_gamejolt_not_owned">Нет в вашей библиотеке Game Jolt</string>
+    <string name="stores_gamejolt_no_build">Для этой игры нет загрузки для Windows</string>
+    <string name="stores_gamejolt_no_exe">В загрузке не найдена игра для Windows</string>
+    <string name="stores_gamejolt_no_game">Не удалось найти эту игру на Game Jolt</string>
+    <string name="stores_gamejolt_browse_failed">Не удалось загрузить игры с Game Jolt</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt ответил HTTP %1$d</string>
+    <string name="stores_gamejolt_pick_failed">Не удалось загрузить список файлов с Game Jolt</string>
+    <string name="stores_gamejolt_build_open">Открыть на Game Jolt</string>
+    <string name="stores_gamejolt_archive">Архивы %1$s не поддерживаются</string>
+    <string name="stores_gamejolt_extract_failed">Не удалось распаковать загрузку (код %1$d)</string>
 </resources>

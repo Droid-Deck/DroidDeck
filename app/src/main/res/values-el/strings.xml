@@ -3411,4 +3411,14 @@
     <string name="gog_repair_action">Επιδιόρθωση αρχείων</string>
     <string name="gog_refresh_action">Ανανέωση εγκατάστασης</string>
     <string name="gog_select_patch">Επιλογή</string>
+    <string name="stores_gamejolt_not_owned">Δεν είναι στη βιβλιοθήκη σας στο Game Jolt</string>
+    <string name="stores_gamejolt_no_build">Δεν υπάρχει λήψη για Windows για αυτό το παιχνίδι</string>
+    <string name="stores_gamejolt_no_exe">Δεν βρέθηκε παιχνίδι Windows στη λήψη</string>
+    <string name="stores_gamejolt_no_game">Δεν βρέθηκε αυτό το παιχνίδι στο Game Jolt</string>
+    <string name="stores_gamejolt_browse_failed">Δεν ήταν δυνατή η φόρτωση παιχνιδιών από το Game Jolt</string>
+    <string name="stores_gamejolt_download_failed">Το Game Jolt απάντησε HTTP %1$d</string>
+    <string name="stores_gamejolt_pick_failed">Δεν ήταν δυνατή η φόρτωση των λήψεων από το Game Jolt</string>
+    <string name="stores_gamejolt_build_open">Άνοιγμα στο Game Jolt</string>
+    <string name="stores_gamejolt_archive">Τα αρχεία %1$s δεν υποστηρίζονται</string>
+    <string name="stores_gamejolt_extract_failed">Δεν ήταν δυνατή η αποσυμπίεση της λήψης (κωδικός %1$d)</string>
 </resources>

@@ -3383,4 +3383,14 @@
     <string name="gog_repair_action">ซ่อมแซมไฟล์</string>
     <string name="gog_refresh_action">รีเฟรชการติดตั้ง</string>
     <string name="gog_select_patch">เลือก</string>
+    <string name="stores_gamejolt_not_owned">ไม่มีในคลัง Game Jolt ของคุณ</string>
+    <string name="stores_gamejolt_no_build">เกมนี้ไม่มีการดาวน์โหลดสำหรับ Windows</string>
+    <string name="stores_gamejolt_no_exe">ไม่พบเกม Windows ในไฟล์ที่ดาวน์โหลด</string>
+    <string name="stores_gamejolt_no_game">ไม่พบเกมนี้บน Game Jolt</string>
+    <string name="stores_gamejolt_browse_failed">โหลดเกมจาก Game Jolt ไม่ได้</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt ตอบกลับ HTTP %1$d</string>
+    <string name="stores_gamejolt_pick_failed">โหลดรายการดาวน์โหลดจาก Game Jolt ไม่ได้</string>
+    <string name="stores_gamejolt_build_open">เปิดบน Game Jolt</string>
+    <string name="stores_gamejolt_archive">ไม่รองรับไฟล์ %1$s</string>
+    <string name="stores_gamejolt_extract_failed">แตกไฟล์ที่ดาวน์โหลดไม่ได้ (รหัส %1$d)</string>
 </resources>

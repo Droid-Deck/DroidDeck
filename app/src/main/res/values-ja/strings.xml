@@ -3328,4 +3328,14 @@
     <string name="gog_repair_action">ファイルを修復</string>
     <string name="gog_refresh_action">インストールを更新</string>
     <string name="gog_select_patch">選択</string>
+    <string name="stores_gamejolt_not_owned">Game Jolt ライブラリにありません</string>
+    <string name="stores_gamejolt_no_build">このゲームには Windows 版のダウンロードがありません</string>
+    <string name="stores_gamejolt_no_exe">ダウンロードに Windows 版のゲームが見つかりません</string>
+    <string name="stores_gamejolt_no_game">Game Jolt でこのゲームが見つかりませんでした</string>
+    <string name="stores_gamejolt_browse_failed">Game Jolt のゲームを読み込めませんでした</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt が HTTP %1$d を返しました</string>
+    <string name="stores_gamejolt_pick_failed">Game Jolt からダウンロードを読み込めませんでした</string>
+    <string name="stores_gamejolt_build_open">Game Jolt で開く</string>
+    <string name="stores_gamejolt_archive">%1$s 形式のアーカイブには対応していません</string>
+    <string name="stores_gamejolt_extract_failed">ダウンロードを展開できませんでした (終了コード %1$d)</string>
 </resources>

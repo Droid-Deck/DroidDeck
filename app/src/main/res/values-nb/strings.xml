@@ -3411,4 +3411,14 @@
     <string name="gog_repair_action">Reparer filer</string>
     <string name="gog_refresh_action">Oppdater installasjonen</string>
     <string name="gog_select_patch">Velg</string>
+    <string name="stores_gamejolt_not_owned">Ikke i Game Jolt-biblioteket ditt</string>
+    <string name="stores_gamejolt_no_build">Ingen Windows-nedlasting for dette spillet</string>
+    <string name="stores_gamejolt_no_exe">Fant ikke noe Windows-spill i nedlastingen</string>
+    <string name="stores_gamejolt_no_game">Fant ikke dette spillet på Game Jolt</string>
+    <string name="stores_gamejolt_browse_failed">Kunne ikke laste spill fra Game Jolt</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt svarte HTTP %1$d</string>
+    <string name="stores_gamejolt_pick_failed">Kunne ikke laste inn nedlastingene fra Game Jolt</string>
+    <string name="stores_gamejolt_build_open">Åpne på Game Jolt</string>
+    <string name="stores_gamejolt_archive">%1$s-arkiver støttes ikke</string>
+    <string name="stores_gamejolt_extract_failed">Kunne ikke pakke ut nedlastingen (kode %1$d)</string>
 </resources>

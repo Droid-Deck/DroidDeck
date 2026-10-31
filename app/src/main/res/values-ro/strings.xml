@@ -3448,4 +3448,14 @@
     <string name="gog_repair_action">Repară fișierele</string>
     <string name="gog_refresh_action">Reîmprospătează instalarea</string>
     <string name="gog_select_patch">Selectează</string>
+    <string name="stores_gamejolt_not_owned">Nu este în biblioteca ta Game Jolt</string>
+    <string name="stores_gamejolt_no_build">Nu există descărcare pentru Windows la acest joc</string>
+    <string name="stores_gamejolt_no_exe">Nu s-a găsit niciun joc Windows în descărcare</string>
+    <string name="stores_gamejolt_no_game">Jocul nu a fost găsit pe Game Jolt</string>
+    <string name="stores_gamejolt_browse_failed">Nu s-au putut încărca jocurile de pe Game Jolt</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt a răspuns HTTP %1$d</string>
+    <string name="stores_gamejolt_pick_failed">Descărcările de pe Game Jolt nu au putut fi încărcate</string>
+    <string name="stores_gamejolt_build_open">Deschide pe Game Jolt</string>
+    <string name="stores_gamejolt_archive">Arhivele %1$s nu sunt acceptate</string>
+    <string name="stores_gamejolt_extract_failed">Descărcarea nu a putut fi extrasă (cod %1$d)</string>
 </resources>
