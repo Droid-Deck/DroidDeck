@@ -287,6 +287,7 @@ object AddedGameArt {
         var sgdbDown = false
         var changed = false
         for (game in games) {
+            if (forgetOtherAppsArt(context, game)) changed = true
             val start = missing(context, game)
             val full = Slot.COVER in start
             val allowed = if (full) Slot.values().toSet() else EXTRAS
@@ -327,6 +328,24 @@ object AddedGameArt {
             if ((missing(context, game) intersect EXTRAS).isEmpty()) tried.delete() else if (asked) tried.writeText("")
         }
         return changed
+    }
+
+    private val FETCHED = Slot.values().map { SteamGridDb.cacheName(it) }
+
+    internal fun forgetOtherAppsArt(context: Context, game: AddedGames.Game): Boolean {
+        val before = SteamMatch.get(context, game.folder.path)?.takeIf { it.appId != null } ?: return false
+        val identity = runCatching { GameIdentifier.identify(game.exe) }.getOrNull()
+        val now = identity?.appId
+        if (now == before.appId || (now == null && before.certainty != SteamMatch.Certainty.FILES)) return false
+        SteamMatch.put(context, game.folder.path,
+            if (identity != null && now != null) SteamMatch.Match(now, SteamMatch.Certainty.FILES, identity.source.name.lowercase(), System.currentTimeMillis())
+            else SteamMatch.Match(null, SteamMatch.Certainty.NONE, "", 0))
+        val cache = cacheDir(context, game)
+        val dropped = FETCHED.count { File(cache, it).delete() }
+        FETCHED.forEach { File(cache, "$it.src").delete() }
+        listOf("sgdb-id", "steam-appid", EXTRAS_TRIED).forEach { File(cache, it).delete() }
+        Log.i(TAG, "${game.name}: its files no longer name Steam app ${before.appId}; its art is fetched again")
+        return dropped > 0
     }
 
     internal fun steamMatch(context: Context, game: AddedGames.Game, search: (String) -> Int?): SteamMatch.Match {

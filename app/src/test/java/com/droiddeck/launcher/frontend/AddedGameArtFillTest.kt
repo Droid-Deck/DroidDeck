@@ -154,6 +154,52 @@ class AddedGameArtFillTest {
         assertFalse(File(AddedGameArt.cacheDir(app, second), AddedGameArt.EXTRAS_TRIED).exists())
     }
 
+    private fun steamFrom(asked: MutableList<String>, bytes: Byte, search: Int? = null) = AddedGameArt.Sources(
+        storeLogo = { false },
+        steamSearch = { if (search == null) fail("searched although the game names its appid"); search },
+        steam = { id, cache, slots ->
+            asked += id
+            slots.forEach { File(cache, steamNames.getValue(it)).writeBytes(byteArrayOf(bytes)) }
+            slots.isNotEmpty()
+        },
+        sgdbGame = { _, _, _ -> null },
+        sgdb = { _, _, _, _ -> false },
+    )
+
+    @Test fun artOfTheAppTheFilesNamedBeforeIsFetchedAgain() {
+        val g = game("Peak", 0x8100000AL, cover = false)
+        File(g.folder, "steam_appid.txt").writeText("1029210")
+        val asked = ArrayList<String>()
+        assertTrue(AddedGameArt.fetchMissing(app, listOf(g), "", steamFrom(asked, 1)))
+        File(g.folder, "steam_appid.txt").writeText("3527290")
+        assertTrue(AddedGameArt.fetchMissing(app, listOf(g), "", steamFrom(asked, 2)))
+        assertEquals(listOf("1029210", "3527290"), asked)
+        assertArrayEquals(byteArrayOf(2), File(AddedGameArt.cacheDir(app, g), "p.jpg").readBytes())
+        assertFalse(AddedGameArt.fetchMissing(app, listOf(g), "", steamFrom(asked, 3)))
+        assertEquals(2, asked.size)
+    }
+
+    @Test fun aPictureTheUserChoseOutlivesTheChange() {
+        val g = game("Peak", 0x8100000BL, cover = false)
+        File(g.folder, "steam_appid.txt").writeText("1029210")
+        AddedGameArt.fetchMissing(app, listOf(g), "", steamFrom(ArrayList(), 1))
+        val picked = File(tmp.root, "mine.jpg").apply { writeBytes(byteArrayOf(7)) }
+        assertTrue(AddedGameArt.store(AddedGameArt.cacheDir(app, g), Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, picked.path, picked.path)))
+        File(g.folder, "steam_appid.txt").writeText("3527290")
+        AddedGameArt.fetchMissing(app, listOf(g), "", steamFrom(ArrayList(), 2))
+        assertArrayEquals(byteArrayOf(7), AddedGameArt.resolve(app, g).portrait!!.readBytes())
+    }
+
+    @Test fun filesThatStopNamingAnAppFallBackToTheGamesName() {
+        val g = game("Peak", 0x8100000CL, cover = false)
+        File(g.folder, "steam_appid.txt").writeText("1029210")
+        val asked = ArrayList<String>()
+        AddedGameArt.fetchMissing(app, listOf(g), "", steamFrom(asked, 1))
+        File(g.folder, "steam_appid.txt").writeText("480")
+        assertTrue(AddedGameArt.fetchMissing(app, listOf(g), "", steamFrom(asked, 2, search = 3527290)))
+        assertEquals(listOf("1029210", "3527290"), asked)
+    }
+
     @Test fun nothingIsFetchedWhenArtIsOff() {
         SessionPrefs.setAddedGamesArt(app, false)
         val calls = Calls()

@@ -31,8 +31,25 @@ class GameIdentifierTest {
     fun steamAppIdTxt_inSteamSettingsSubdir_isFound() {
         val dir = tmp.newFolder("Game")
         File(dir, "steam_settings").mkdirs()
-        File(dir, "steam_settings/steam_appid.txt").writeText("480")
-        assertEquals(480, GameIdentifier.identify(exeIn(dir)).appId)
+        File(dir, "steam_settings/steam_appid.txt").writeText("3527290")
+        assertEquals(3527290, GameIdentifier.identify(exeIn(dir)).appId)
+    }
+
+    @Test
+    fun spacewarAppId_namesNoGame() {
+        val dir = tmp.newFolder("PEAK")
+        File(dir, "steam_appid.txt").writeText("480")
+        File(dir, "steam_emu.ini").writeText("[Settings]\nAppId=480\n")
+        assertNull(GameIdentifier.identify(exeIn(dir)).appId)
+    }
+
+    @Test
+    fun spacewarAppId_fallsThroughToTheGamesOwnId() {
+        val dir = tmp.newFolder("PEAK")
+        File(dir, "steam_appid.txt").writeText("480")
+        File(dir, "steam_settings").mkdirs()
+        File(dir, "steam_settings/steam_appid.txt").writeText("3527290")
+        assertEquals(3527290, GameIdentifier.identify(exeIn(dir)).appId)
     }
 
     @Test
