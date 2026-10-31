@@ -4,6 +4,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.PC_KEY_HIDDEN_GROUPS
 import com.droiddeck.launcher.input.PC_KEY_ROWS
 import com.droiddeck.launcher.input.PC_MODIFIERS
+import com.droiddeck.launcher.input.PC_SYMBOL_ROWS
 import com.droiddeck.launcher.input.PcKey
 import androidx.compose.ui.res.stringResource
 import android.view.KeyEvent
@@ -77,6 +78,8 @@ fun PcKeyboard(
     val colors = MaterialTheme.colorScheme
     val mods = remember { mutableStateMapOf<Int, Int>() }
     var capsOn by remember { mutableStateOf(false) }
+    var symbols by remember { mutableStateOf(false) }
+    var synthShift by remember { mutableStateOf(false) }
     val firstKey = remember { FocusRequester() }
     val shifted = (mods[42] ?: MOD_OFF) != MOD_OFF || (mods[54] ?: MOD_OFF) != MOD_OFF
 
@@ -84,6 +87,7 @@ fun PcKeyboard(
         for ((code, state) in mods.toMap()) if (state == MOD_ONCE) { sendKey(code, false); mods[code] = MOD_OFF }
     }
     fun press(key: PcKey) {
+        if (key.code == 0) { symbols = !symbols; return }
         if (key.code in PC_MODIFIERS) {
             when (mods[key.code] ?: MOD_OFF) {
                 MOD_OFF -> { sendKey(key.code, true); mods[key.code] = MOD_ONCE }
@@ -92,17 +96,19 @@ fun PcKeyboard(
             }
             return
         }
+        val userShifted = (mods[42] ?: MOD_OFF) != MOD_OFF || (mods[54] ?: MOD_OFF) != MOD_OFF
+        if (key.synthShift && !userShifted && !synthShift) { sendKey(42, true); synthShift = true }
         sendKey(key.code, true)
     }
     fun release(key: PcKey) {
-        if (key.code in PC_MODIFIERS) return
+        if (key.code == 0 || key.code in PC_MODIFIERS) return
         sendKey(key.code, false)
+        if (key.synthShift && synthShift) { sendKey(42, false); synthShift = false }
         if (key.code == 58) capsOn = !capsOn
         releaseOnceModifiers()
     }
     // Long-press commit for character keys: send a full shift-wrapped sequence through a local
     // flag, never mods[42], so a held key must not flip the whole panel's shifted rendering.
-    var synthShift by remember { mutableStateOf(false) }
     fun holdStart(key: PcKey) {
         val userShifted = (mods[42] ?: MOD_OFF) != MOD_OFF || (mods[54] ?: MOD_OFF) != MOD_OFF
         val isLetter = key.label.length == 1 && key.label[0].isLetter()
@@ -120,12 +126,15 @@ fun PcKeyboard(
             for ((code, state) in mods.toMap()) if (state != MOD_OFF) sendKey(code, false)
         }
     }
-    LaunchedEffect(Unit) { runCatching { firstKey.requestFocus() } }
+    LaunchedEffect(symbols) { runCatching { firstKey.requestFocus() } }
 
     val prefsContext = LocalContext.current
     remember { PcKeyboardPrefs.load(prefsContext) }
     val hiddenCodes = PcKeyboardPrefs.hiddenKeys.flatMap { PC_KEY_HIDDEN_GROUPS[it].orEmpty() }.toSet()
-    val rows = PC_KEY_ROWS.map { row -> row.filter { it.code !in hiddenCodes } }.filter { it.isNotEmpty() }
+    val abcRows = PC_KEY_ROWS.map { row -> row.filter { it.code !in hiddenCodes } }.filter { it.isNotEmpty() }
+    val baseRows = if (symbols) PC_SYMBOL_ROWS else abcRows
+    val toggleKey = PcKey(if (symbols) "ABC" else "?123", 0, 1.25f)
+    val rows = baseRows.mapIndexed { i, row -> if (i == baseRows.lastIndex) listOf(toggleKey) + row else row }
     val longPress = PcKeyboardPrefs.longPress
     val longPressMs = PcKeyboardPrefs.longPressMs
 
