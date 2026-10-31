@@ -171,6 +171,7 @@ class SessionService : Service() {
         updateSuspendPolicy()
     }
     @Volatile private var sessionGen = 0
+    private val agentEnvSessionIds = java.util.concurrent.ConcurrentHashMap<Int, String>()
 
     override fun onCreate() {
         super.onCreate()
@@ -370,9 +371,10 @@ class SessionService : Service() {
         SessionState.steamUi = intent?.getStringExtra(EXTRA_STEAM_UI)
         SessionState.steamUrl = intent?.getStringExtra(EXTRA_STEAM_URL)
         com.droiddeck.launcher.stores.battlenet.BattleNetClient.clearRequests(LinuxRuntime.sessionRoot(this))
-        synchronized(stopLock) {
+        val gen = synchronized(stopLock) {
             SessionState.steamClientArch = null
             SessionState.running = true
+            ++sessionGen
         }
         if (SessionState.stopRequested) {
             stopSession(0)
@@ -383,7 +385,6 @@ class SessionService : Service() {
         SessionState.guestPid = -1
         SessionEvents.transition(SessionPhase.STARTING_GUEST, "service.started", mapOf("mode" to SessionState.mode))
         com.droiddeck.launcher.wayland.CompositorHost.newSession()
-        val gen = ++sessionGen
         SessionPrefs.backgroundAppLimit(this).takeIf { it != com.droiddeck.launcher.core.BackgroundAppLimit.OFF }
             ?.let { com.droiddeck.launcher.core.BackgroundAppLimit.applyAsync(this, it) }
         if (SessionPrefs.clearCachedApps(this)) clearCachedApps()
@@ -471,9 +472,21 @@ class SessionService : Service() {
                 return
             }
         }
-        val agentEnvironment = runCatching { com.droiddeck.launcher.agent.AgentEnv.beginSession(this) }
-            .onFailure { Log.w(TAG, "agent environment skipped", it) }
+        val agentSessionId = UUID.randomUUID().toString().replace("-", "")
+        synchronized(stopLock) {
+            if (gen != sessionGen || !SessionState.running) return
+            agentEnvSessionIds[gen] = agentSessionId
+        }
+        val agentEnvironment = runCatching { com.droiddeck.launcher.agent.AgentEnv.beginSession(this, agentSessionId) }
+            .onFailure {
+                synchronized(stopLock) { agentEnvSessionIds.remove(gen, agentSessionId) }
+                Log.w(TAG, "agent environment skipped", it)
+            }
             .getOrDefault(emptyList())
+        if (synchronized(stopLock) { (gen != sessionGen || !SessionState.running).also { if (it) agentEnvSessionIds.remove(gen, agentSessionId) } }) {
+            runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this, agentSessionId) }
+            return
+        }
         SessionFiles.stage(this, root, startsSession = true)
         // Earlier sessions' reports still read the Steam logs and VAC marker this session replaces.
         SessionArtifacts.awaitCollections()
@@ -1727,6 +1740,9 @@ class SessionService : Service() {
     private fun finishSessionStop(status: Int, stoppedGen: Int, afterStopped: () -> Unit = {}) {
         mainHandler.post {
             try {
+                val agentSessionId = synchronized(stopLock) { agentEnvSessionIds.remove(stoppedGen) }
+                if (agentSessionId != null) runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this, agentSessionId) }
+                    .onFailure { Log.w(TAG, "clearing agent overrides for session $stoppedGen", it) }
                 if (stoppedGen != sessionGen || SessionState.running) {
                     Log.i(TAG, "session $stoppedGen finished stopping after a new one started")
                     return@post
@@ -1743,8 +1759,6 @@ class SessionService : Service() {
                 com.droiddeck.launcher.agent.AgentGuest.stop()
                 com.droiddeck.launcher.stores.StoreLaunchRequests.stop()
                 Thread({ com.droiddeck.launcher.stores.CloudSaves.uploadAllDirty(applicationContext, "session-end", running = false) }, "cloud-session-end").start()
-                runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this) }
-                    .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
                 releaseLocks()
                 MemoryLog.stop()
                 com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(applicationContext)
@@ -1791,20 +1805,19 @@ class SessionService : Service() {
         cancelQueuedSteamGame()
         gameExitWatchToken++
         completeNativeSleep()
-        val (ended, endedArch) = synchronized(stopLock) {
+        val (ended, endedArch, stoppedGen) = synchronized(stopLock) {
             if (!SessionState.running) return
             SessionEvents.record("guest.exited", mapOf("status" to status))
             SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
             SessionState.running = false
             val ended = SessionPaths.take()
             if (ended != null) SessionArtifacts.collectionStarted(ended)
-            ended to SessionState.steamClientArch
+            Triple(ended, SessionState.steamClientArch, sessionGen)
         }
         SessionState.micAvailable = false
         SessionState.micEnabled = false
         xrActivityVisible = false
         updateDownloadMonitoring()
-        val stoppedGen = sessionGen
         val stoppedSession = SessionState.sessionId
         val launcherEnded = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP || SessionState.program == NoSteamLaunch.EPIC ||
             SessionState.program == NoSteamLaunch.BATTLENET
@@ -1822,7 +1835,7 @@ class SessionService : Service() {
         val auxiliary = synchronized(auxiliaryProcessesLock) {
             auxiliaryProcesses.toMap().also { auxiliaryProcesses.clear() }
         }
-        SessionTerminal.clear(sessionGen)
+        SessionTerminal.clear(stoppedGen)
         val controller = suspendController
         suspendController = null
         if (ended != null) {
