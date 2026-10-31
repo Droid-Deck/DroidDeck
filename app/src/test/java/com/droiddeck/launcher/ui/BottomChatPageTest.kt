@@ -9,6 +9,7 @@ class BottomChatPageTest {
     @Test fun steamSitesOpenOthersDoNot() {
         assertTrue(steamChatAllows("steamcommunity.com"))
         assertTrue(steamChatAllows("login.steampowered.com"))
+        assertTrue(steamChatAllows("steam-chat.com"))
         assertTrue(steamChatAllows("community.cloudflare.steamstatic.com"))
         assertFalse(steamChatAllows("steamcommunity.com.example.net"))
         assertFalse(steamChatAllows("evilsteamcommunity.com"))

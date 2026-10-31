@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -36,9 +37,16 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
+import com.droiddeck.launcher.session.SteamWebLogin
+import com.droiddeck.launcher.runtime.LinuxRuntime
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import java.io.File
+import kotlin.coroutines.resume
 
 private const val STEAM_CHAT = "https://steamcommunity.com/chat"
-private val STEAM_HOSTS = listOf("steamcommunity.com", "steampowered.com", "steamstatic.com", "steamcontent.com")
+private val STEAM_HOSTS = listOf("steamcommunity.com", "steam-chat.com", "steampowered.com", "steamstatic.com", "steamcontent.com")
 
 /** Steam chat stays on Steam's own sites; anything else is not opened on the bottom screen. */
 internal fun steamChatAllows(host: String?): Boolean =
@@ -55,6 +63,21 @@ fun BottomChatPage() {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     var chatOpen by remember { mutableStateOf(false) }
+    // null while the Steam client's sign-in is being copied, then whether there was one.
+    var fromSteam by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(chatOpen) {
+        if (!chatOpen) {
+            fromSteam = null
+            return@LaunchedEffect
+        }
+        val cookies = withContext(Dispatchers.IO) {
+            SteamWebLogin.read(LinuxRuntime.rootDir(context), SessionState.steamClientArch, File(context.cacheDir, "steam-web-login"))
+        }
+        val manager = CookieManager.getInstance()
+        for (c in cookies) suspendCancellableCoroutine { cont -> manager.setCookie("https://${c.host}", c.header) { cont.resume(Unit) } }
+        manager.flush()
+        fromSteam = cookies.any { it.header.startsWith("steamLoginSecure=") }
+    }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         VoiceRow(context)
         if (!chatOpen) {
@@ -64,8 +87,10 @@ fun BottomChatPage() {
                 BottomPillButton(stringResource(R.string.bottom_chat_open), "bottom-chat-open") { chatOpen = true }
             }
         } else {
-            Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(14.dp))) { SteamChatView() }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(14.dp))) { if (fromSteam != null) SteamChatView() }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(if (fromSteam == false) stringResource(R.string.bottom_chat_not_signed_in) else "", fontSize = 12.sp,
+                    color = colors.onSurfaceVariant, maxLines = 2, modifier = Modifier.weight(1f).padding(end = 8.dp))
                 BottomPillButton(stringResource(R.string.bottom_chat_close), "bottom-chat-close") { chatOpen = false }
             }
         }
