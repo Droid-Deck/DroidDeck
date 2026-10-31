@@ -790,6 +790,10 @@
     <string name="drawer_low_latency_touch">Low-latency touch</string>
     <string name="drawer_low_latency_touch_hint">Touches skip frame batching; Steam touch controls at 1000 Hz. Slightly more CPU.</string>
     <string name="drawer_evdev_mouse">Raw mouse channel</string>
+    <string name="drawer_relative_mouse">Relative mouse</string>
+    <string name="drawer_relative_mouse_auto">Auto</string>
+    <string name="drawer_relative_mouse_on">On</string>
+    <string name="drawer_relative_mouse_off">Off</string>
     <string name="drawer_direct_cursor">Cursor</string>
     <string name="drawer_pc_keyboard">PC keyboard</string>
     <string name="drawer_android_keyboard">Android</string>
