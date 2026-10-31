@@ -1110,7 +1110,7 @@ object SessionPrefs {
 
     /** The drawer's frame limit slider: its first stop is Off. */
     const val FPS_LIMIT_OFF = 15
-    const val FPS_LIMIT_MAX = 120
+    const val FPS_LIMIT_MAX = 165
 
     /**
      * Buffers go back to the game as soon as they are replaced instead of once per refresh;
