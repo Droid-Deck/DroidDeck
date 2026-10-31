@@ -88,7 +88,7 @@ fun BottomDownloadsPage() {
                 d.total <= 0L -> stringResource(R.string.bottom_downloads_queued)
                 else -> listOf("${formatBytes(d.done)} / ${formatBytes(d.total)}", formatSpeed(row.rate)).filter { it.isNotEmpty() }.joinToString(" · ")
             }
-            DownloadRow(d.name, stringResource(R.string.bottom_downloads_steam), detail,
+            BottomDownloadRow(d.name, stringResource(R.string.bottom_downloads_steam), detail,
                 if (d.total > 0L) (d.done.toFloat() / d.total).coerceIn(0f, 1f) else null)
         }
         items(store, key = { "store:${it.key}" }) { entry ->
@@ -101,13 +101,13 @@ fun BottomDownloadsPage() {
                     formatSpeed(e.speedBps),
                 ).filter { it.isNotEmpty() }.joinToString(" · ")
             }
-            DownloadRow(e.name, e.store.label, detail, e.stageFraction.takeIf { it >= 0f })
+            BottomDownloadRow(e.name, e.store.label, detail, e.stageFraction.takeIf { it >= 0f })
         }
     }
 }
 
 @Composable
-private fun DownloadRow(name: String, source: String, detail: String, fraction: Float?) {
+private fun BottomDownloadRow(name: String, source: String, detail: String, fraction: Float?) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     Column(
