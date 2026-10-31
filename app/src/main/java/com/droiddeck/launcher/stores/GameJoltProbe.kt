@@ -35,6 +35,26 @@ internal object GameJoltProbe {
         }
     }.getOrNull()
 
+    private val CHUNK_DIRS = setOf("assets", "chunks", "static", "js", "dist")
+
+    private fun chunkShape(raw: String): String {
+        val clean = raw.substringBefore('?').substringBefore('#')
+        val absoluteUrl = clean.startsWith("http://") || clean.startsWith("https://")
+        val host = if (absoluteUrl) runCatching { URL(clean).host.lowercase() }.getOrNull().orEmpty() else ""
+        val path = if (absoluteUrl) runCatching { URL(clean).path }.getOrNull().orEmpty() else clean
+        val parts = path.split('/')
+        val shaped = parts.mapIndexed { i, seg ->
+            when {
+                seg.isEmpty() -> seg
+                i == parts.lastIndex -> "*." + seg.substringAfterLast('.', "")
+                seg in CHUNK_DIRS || seg == "." || seg == ".." -> seg
+                else -> "*"
+            }
+        }
+        val prefix = if (absoluteUrl && isGameJoltHost(clean)) "https://$host" else ""
+        return prefix + shaped.joinToString("/")
+    }
+
     private class Reply(val code: Int, val type: String, val finalUrl: String, val body: String)
 
     fun run(input: String) {
@@ -177,13 +197,13 @@ internal object GameJoltProbe {
             val src = queue.removeFirst()
             fetched++
             val js = fetch(src, "*/*", MAX_SCRIPT) ?: continue
-            log("script code=${js.code} bytes=${js.body.length} url=$src", SecretScrub.Urls.KEEP_PATH)
+            log("script code=${js.code} bytes=${js.body.length} url=${chunkShape(src)}", SecretScrub.Urls.KEEP_PATH)
             scan("script", js.body, fromScripts)
             val refs = scriptRef.findAll(js.body).map { it.groupValues[1] }.toList()
             if (fetched == 1) {
-                refs.take(5).forEach { log("script ref sample: $it", SecretScrub.Urls.KEEP_PATH) }
-                val at = js.body.indexOf(refs.firstOrNull().orEmpty())
-                if (at >= 0) log("script ref context: ${js.body.substring(maxOf(0, at - 200), minOf(js.body.length, at + 200))}", SecretScrub.Urls.KEEP_PATH)
+                log("script refs found: ${refs.size}")
+                refs.map { chunkShape(it) }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(8)
+                    .forEach { log("script ref shape: ${it.key} x${it.value}", SecretScrub.Urls.KEEP_PATH) }
             }
             refs.mapNotNull { resolve(js.finalUrl, it) }
                 .filter { isGameJoltHost(it) && seen.add(it) }
