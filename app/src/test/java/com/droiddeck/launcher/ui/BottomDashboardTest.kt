@@ -36,3 +36,10 @@ class BottomDownloadsRateTest {
         assertEquals(0L, downloadRate(-1L, 0L, 100L, 2_000L))
     }
 }
+
+class BottomTelemetryLapTimeTest {
+    @Test fun lapTimesReadAsMinutesSecondsMillis() {
+        assertEquals("1:23.456", lapTime(83.456f))
+        assertEquals("0:05.000", lapTime(5f))
+    }
+}
