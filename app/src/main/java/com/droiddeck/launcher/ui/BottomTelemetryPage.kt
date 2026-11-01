@@ -152,6 +152,8 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
     DisposableEffect(frames) { onDispose { frames.close() } }
     val currentFps = { if (frames.live) frames.stats.fps else fps() }
     var hud by remember { mutableStateOf(StatsHud.from(SessionPrefs.statsHud(context))) }
+    // The Bottom screen HUD master switch (the big HUD and the Line strip; the game's dashboard stays).
+    var hudOn by remember { mutableStateOf(SessionPrefs.bottomHud(context)) }
     var hudTick by remember { mutableIntStateOf(0) }
     var fanRpm by remember { mutableStateOf<Long?>(null) }
     var gpuName by remember { mutableStateOf("") }
@@ -242,6 +244,7 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
                 s.battery?.watts?.takeIf { it > 0f }?.let { wattsHistory.add(it) }
             }
             clock = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date())
+            hudOn = SessionPrefs.bottomHud(context)
             perfTick++
             delay(METRICS_MS)
         }
@@ -296,7 +299,8 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val viewport = maxHeight
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (noData) hudTick.let {
+            if (!hudOn) Unit
+            else if (noData) hudTick.let {
                 perfTick.let {
                     val now = System.nanoTime()
                     val live = frames.live

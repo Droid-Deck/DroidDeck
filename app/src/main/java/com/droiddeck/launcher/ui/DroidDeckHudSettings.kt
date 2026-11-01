@@ -110,17 +110,24 @@ private fun flag(on: Boolean) = if (on) "1" else "0"
 @Composable
 private fun BottomStripSettings(host: MenuHost, track: (String) -> Modifier) {
     val context = LocalContext.current
+    var hudOn by remember { mutableStateOf(SessionPrefs.bottomHud(context)) }
     var onTabs by remember { mutableStateOf(SessionPrefs.bottomStripOnTabs(context)) }
     var shown by remember { mutableStateOf(SessionPrefs.bottomStripMetrics(context)) }
     SettingsGroup(stringResource(R.string.bottom_hud_group), detail = stringResource(R.string.bottom_hud_group_detail)) {
+        // The master switch; the rows under it stay in view (greyed out) while it is off.
+        ToggleRow(host, "bottom-hud", stringResource(R.string.bottom_hud_group), stringResource(R.string.bottom_hud_hint), hudOn,
+            chipModifier = track("bottom-hud")) { on ->
+            hudOn = on
+            SessionPrefs.setBottomHud(context, on)
+        }
         ToggleRow(host, "bottom-strip-tabs", stringResource(R.string.bottom_strip_tabs), stringResource(R.string.bottom_strip_tabs_hint), onTabs,
-            chipModifier = track("bottom-strip-tabs")) { on ->
+            enabled = hudOn, chipModifier = track("bottom-strip-tabs")) { on ->
             onTabs = on
             SessionPrefs.setBottomStripOnTabs(context, on)
         }
         for ((metric, label) in BOTTOM_STRIP_ROWS) {
             ToggleRow(host, "bottom-strip-${metric.id}", stringResource(label), null, metric in shown,
-                chipModifier = track("bottom-strip-${metric.id}")) { on ->
+                enabled = hudOn, chipModifier = track("bottom-strip-${metric.id}")) { on ->
                 shown = if (on) shown + metric else shown - metric
                 SessionPrefs.setBottomStripMetric(context, metric, on)
             }

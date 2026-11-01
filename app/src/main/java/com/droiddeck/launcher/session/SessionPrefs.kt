@@ -113,6 +113,13 @@ object SessionPrefs {
         prefs(context).edit().putString("bottomStripMetrics", StripMetric.encode(now)).apply()
     }
 
+    /** The bottom-screen HUD as a whole (the big HUD, the Line strip, the strip under the tabs), default on. */
+    fun bottomHud(context: Context): Boolean = prefs(context).getBoolean("bottomHud", true)
+
+    fun setBottomHud(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("bottomHud", on).apply()
+    }
+
     /** The one-line strip under the bottom-screen tabs (every tab but In-game stats), default on. */
     fun bottomStripOnTabs(context: Context): Boolean = prefs(context).getBoolean("bottomStripTabs", true)
 

@@ -33,7 +33,7 @@ private const val STRIP_TEMP_PLAIN = 0xFFF2F5F9.toInt()
 /**
  * The one-line strip under the bottom-screen tabs during a session, on every page but In-game stats (that page has
  * its own HUD and strip). It reads the game's frames and the device itself, so it works with the top-screen HUD
- * off; the Bottom screen HUD settings turn it off and pick its numbers (read again every half second).
+ * off; the Bottom screen HUD settings (master switch, strip on every tab, numbers) are read again every half second.
  */
 @Composable
 internal fun SessionBottomStrip(pageId: String?, fps: () -> Float?) {
@@ -44,7 +44,7 @@ internal fun SessionBottomStrip(pageId: String?, fps: () -> Float?) {
     var frameTick by remember { mutableIntStateOf(0) }
     var device by remember { mutableStateOf<HudMetrics.Snapshot?>(null) }
     var clock by remember { mutableStateOf("") }
-    var onTabs by remember { mutableStateOf(SessionPrefs.bottomStripOnTabs(context)) }
+    var onTabs by remember { mutableStateOf(SessionPrefs.bottomHud(context) && SessionPrefs.bottomStripOnTabs(context)) }
     var metrics by remember { mutableStateOf(SessionPrefs.bottomStripMetrics(context)) }
     var thresholds by remember { mutableStateOf<Map<HudMetrics.TempSensor, HudMetrics.Thresholds>>(emptyMap()) }
     val tempDisplay = remember { HudMetrics.TempDisplay.from(KeyValueSet(DroidDeckHudConfig.encode(DroidDeckHudConfig.load(context)))) }
@@ -60,7 +60,7 @@ internal fun SessionBottomStrip(pageId: String?, fps: () -> Float?) {
             HudMetrics.TempSensor.values().mapNotNull { sensor -> runCatching { sensor to reader.resolveThresholds(sensor, tempDisplay) }.getOrNull() }.toMap()
         }
         while (isActive) {
-            onTabs = SessionPrefs.bottomStripOnTabs(context)
+            onTabs = SessionPrefs.bottomHud(context) && SessionPrefs.bottomStripOnTabs(context)
             metrics = SessionPrefs.bottomStripMetrics(context)
             // Hidden (switched off, or on In-game stats): no device reads.
             if (onTabs && page != BOTTOM_PAGE_TELEMETRY) {
