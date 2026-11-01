@@ -416,6 +416,7 @@ internal fun GameActions(
                     }
                 }
                 if (store == Store.ITCH && installed != null) ItchUpdateButton(installed, download == null && StoresState.uninstalling[installed.key] == null)
+                if (store == Store.GAMEJOLT && installed != null) GameJoltVersionButton(installed, download == null && StoresState.uninstalling[installed.key] == null)
                 if (store == Store.GOG && installed != null) GogMaintenanceActions(installed)
                 if (store == Store.XBOX && id != null) XboxInstalledStream(id, game?.name ?: item?.title.orEmpty(), item)
                 if (store == Store.XBOX && installed != null && id != null) {

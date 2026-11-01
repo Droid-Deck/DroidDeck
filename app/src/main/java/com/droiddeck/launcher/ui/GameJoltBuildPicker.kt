@@ -22,12 +22,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.CatalogItem
+import com.droiddeck.launcher.stores.InstalledStoreGame
+import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.formatBytes
 import com.droiddeck.launcher.stores.gamejolt.GameJoltBuild
 import com.droiddeck.launcher.stores.gamejolt.GameJoltBuilds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+private const val CHOOSE = "choose"
+
+@Composable
+internal fun GameJoltVersionButton(installed: InstalledStoreGame, enabled: Boolean) {
+    SecondaryButton(stringResource(R.string.stores_itch_pick_title), enabled = enabled) {
+        val sidecar = installed.sidecar
+        StoresState.gameJoltPicking = CatalogItem(
+            store = Store.GAMEJOLT, id = sidecar.id, title = sidecar.title, imageUrl = sidecar.cover, isFree = true,
+            extra = mapOf("gameId" to (sidecar.extra["gameId"] ?: sidecar.id), CHOOSE to "1"),
+        )
+    }
+}
 
 @Composable
 internal fun GameJoltBuildPicker(item: CatalogItem, onDismiss: () -> Unit) {
@@ -54,7 +69,7 @@ internal fun GameJoltBuildPicker(item: CatalogItem, onDismiss: () -> Unit) {
         val result = withContext(Dispatchers.IO) { GameJoltBuilds.load(app, gameId) }
         if (result == null) { failed = true; return@LaunchedEffect }
         loaded = result
-        if (item.isFree && shown.targetState) result.singleOrNull()?.takeIf { it.installable }?.let { install(it) }
+        if (item.isFree && item.extra[CHOOSE] != "1" && shown.targetState) result.singleOrNull()?.takeIf { it.installable }?.let { install(it) }
     }
 
     AppDialog(shown, close, "gameJoltBuilds", wide = false, maxWidth = 460.dp) {
