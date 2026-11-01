@@ -10,7 +10,6 @@ COMPONENTS = runpy.run_path(str(BIN / "droiddeck-wincomponents"))
 
 
 class FakePackage:
-    """A package's tables in memory, as msiinfo would give them."""
 
     def __init__(self, tables, summary=None):
         self.path = "fake.msi"

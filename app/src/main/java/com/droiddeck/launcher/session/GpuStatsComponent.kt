@@ -73,7 +73,6 @@ class GpuStatsComponent(val dir: File, private val root: File) : SessionPart() {
         }, "gpu-stats").apply { isDaemon = true; start() }
     }
 
-    // kgsl's gpubusy can read 0 0 straight after a read, so feeds that share a reader share one read.
     private fun refresh() {
         if (layerLoad != null || cycleClock != null || memstore != null) {
             shown = hudShown()
@@ -288,8 +287,6 @@ class GpuStatsComponent(val dir: File, private val root: File) : SessionPart() {
         return pick("gpu_busy_percentage", LOAD_SOURCES, "%3d %%\n") { it.coerceIn(0, 100) }
     }
 
-    // kgsl publishes busy/total once per ~1 s of GPU-on time and zeroes it on any read while the GPU is
-    // power-collapsed, so direct pollers mostly see 0; latch each published window instead.
     private fun latchedBusyFeed(): Feed? {
         var load = 0L
         var windowAt = 0L

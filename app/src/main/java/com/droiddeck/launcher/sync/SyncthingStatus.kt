@@ -31,7 +31,6 @@ data class SyncSnapshot(
     val syncing get() = folders.any { it.syncing }
     val needBytes get() = folders.filter { it.syncing }.sumOf { it.needBytes }
 
-    /** Share of the syncing folders' data already in place, 0..100. */
     val percent: Int get() {
         val active = folders.filter { it.syncing }
         val global = active.sumOf { it.globalBytes }
@@ -41,7 +40,6 @@ data class SyncSnapshot(
 }
 
 internal object SyncthingParse {
-    /** Stands in for a folder whose status request failed, so it shows as an error rather than as up to date. */
     fun unreadableStatus(): JSONObject = JSONObject().put("state", "error").put("errors", 1)
 
     fun folder(config: JSONObject, status: JSONObject?, blocked: Boolean, names: Map<String, String>): SyncFolder {

@@ -3,7 +3,6 @@ package com.droiddeck.launcher.session
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-/** One reading from a racing game's telemetry. Fractions are 0..1; null means the game does not send it. */
 data class Telemetry(
     val source: String,
     val speedKmh: Float? = null,
@@ -19,33 +18,22 @@ data class Telemetry(
     val currentLapS: Float? = null,
     val lastLapS: Float? = null,
     val bestLapS: Float? = null,
-    /** G-force as the game sends it (lateral, longitudinal) and steering from -1 (left) to 1 (right). */
     val gLat: Float? = null,
     val gLon: Float? = null,
     val steer: Float? = null,
-    /** Front left, front right, rear left, rear right. */
     val tireTempsC: List<Float>? = null,
     val turboBar: Float? = null,
     val engineTempC: Float? = null,
     val oilTempC: Float? = null,
-    /** OutGauge dashboard lights that are on, as GameTelemetry.DL_* bits. */
     val lights: Int? = null,
 )
 
-/**
- * Racing telemetry games send over UDP to 127.0.0.1. Each format has its own port, the one the game or
- * its common tools use by default:
- * - [CODEMASTERS_PORT]: DiRT Rally 1/2, DiRT 4, GRID ("extradata 3" float array), DiRT Showdown (152-byte packet).
- * - [FORZA_PORT]: Forza Motorsport 7/2023 and Forza Horizon 4/5 "Data Out" (Sled and Dash).
- * - [OUTGAUGE_PORT]: BeamNG.drive and Live for Speed OutGauge.
- */
 object GameTelemetry {
     const val CODEMASTERS_PORT = 20777
     const val FORZA_PORT = 5300
     const val OUTGAUGE_PORT = 4444
     val PORTS = listOf(CODEMASTERS_PORT, FORZA_PORT, OUTGAUGE_PORT)
 
-    // Games send to 127.0.0.1; on Android InetAddress.getLoopbackAddress() is ::1, which IPv4 packets never reach.
     val LISTEN_ADDRESS: java.net.InetAddress = java.net.InetAddress.getByAddress(byteArrayOf(127, 0, 0, 1))
 
     fun parse(port: Int, data: ByteArray, length: Int): Telemetry? = runCatching {
@@ -61,15 +49,12 @@ object GameTelemetry {
     private const val MPS_TO_KMH = 3.6f
     private const val GRAVITY = 9.81f
 
-    // OutGauge DashLights / ShowLights bits (Live for Speed InSim; BeamNG uses the same values).
     const val DL_SHIFT = 1
     const val DL_HANDBRAKE = 4
     const val DL_PITSPEED = 8
     const val DL_TC = 16
     const val DL_ABS = 1024
 
-    // Float indexes of the Codemasters packet; engine rpm values are sent divided by 10. Older games
-    // (DiRT Showdown) send only the first 38 floats, so lap count, position, fuel and max rpm are missing there.
     private const val CM_LAP_TIME = 1
     private const val CM_SPEED = 7
     private const val CM_THROTTLE = 29
@@ -99,7 +84,6 @@ object GameTelemetry {
             speedKmh = f(CM_SPEED) * MPS_TO_KMH,
             rpm = f(CM_RPM) * 10f,
             maxRpm = (f(CM_MAX_RPM) * 10f).takeIf { it > 0f },
-            // Neutral is 0; DiRT Rally 2.0 reports reverse as 10, older games as -1.
             gear = when {
                 gear == 0 -> "N"
                 gear < 0 || gear == 10 -> "R"
@@ -119,8 +103,6 @@ object GameTelemetry {
         )
     }
 
-    // Forza "Data Out": Sled is 232 bytes; the Dash block follows it (FM7 311, FM 2023 331). Horizon 4/5 send
-    // 324 bytes with 12 extra bytes before the Dash block.
     private const val FORZA_SLED = 232
     private const val FORZA_FM7 = 311
     private const val FORZA_HORIZON = 324
@@ -140,7 +122,6 @@ object GameTelemetry {
         if (dash < 0) return Telemetry(source = "Forza", rpm = rpm, maxRpm = maxRpm.takeIf { it > 0f })
         if (!racing) return Telemetry(source = "Forza")
         val gear = buf.get(dash + 75).toInt() and 0xFF
-        // Tire temperatures are read as Fahrenheit, as community Data Out parsers do; not checked on a device.
         val tiresF = (0 until 4).map { buf.getFloat(dash + 24 + it * 4) }
         return Telemetry(
             source = "Forza",
@@ -163,7 +144,6 @@ object GameTelemetry {
         )
     }
 
-    // OutGauge: 92 bytes, or 96 with the optional id at the end.
     private const val OUTGAUGE_SIZE = 92
 
     internal fun outGauge(buf: ByteBuffer, length: Int): Telemetry? {
@@ -189,14 +169,12 @@ object GameTelemetry {
     }
 }
 
-/** Games that publish their state locally without any setup: War Thunder's web page and Elite Dangerous' Status.json. */
 object GameStatusFiles {
     const val WAR_THUNDER_STATE = "http://127.0.0.1:8111/state"
     private const val ELITE_APP = "359320"
     private const val ELITE_STATUS = "pfx/drive_c/users/steamuser/Saved Games/Frontier Developments/Elite Dangerous/Status.json"
     const val WAR_THUNDER_ROWS = 12
 
-    /** War Thunder's own labels (for example "TAS, km/h") with their values, while a match runs. */
     internal fun warThunder(json: String): List<Pair<String, String>> {
         val state = org.json.JSONObject(json)
         if (!state.optBoolean("valid", false)) return emptyList()
@@ -214,7 +192,6 @@ object GameStatusFiles {
 
     data class Elite(val fuelMain: Double?, val fuelReserve: Double?, val cargo: Double?, val pips: List<Int>?, val legal: String?, val balance: Long?)
 
-    /** Null while Elite is at its menus (Status.json then carries only the timestamp and flags). */
     internal fun elite(json: String): Elite? {
         val s = org.json.JSONObject(json)
         val fuel = s.optJSONObject("Fuel")

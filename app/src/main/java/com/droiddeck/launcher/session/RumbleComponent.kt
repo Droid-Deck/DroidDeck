@@ -214,8 +214,6 @@ class RumbleComponent : SessionPart() {
             if (any) manager.vibrate(combined.combine()) else cancel()
         }
 
-        // Some vendors' input-device vibrator HALs (Samsung's) don't halt a Bluetooth pad's running
-        // effect on cancel(), but a new effect always replaces it.
         override fun cancel() {
             val supersede = CombinedVibration.startParallel()
             ids.forEach { supersede.addVibrator(it, VibrationEffect.createOneShot(1L, 1)) }
@@ -255,7 +253,6 @@ class RumbleComponent : SessionPart() {
         private const val TAG = "SessionService"
         const val NAME = "droiddeck-rumble"
         const val MIN_GAP_MS = 50L
-        // Must match RUMBLE_HOLD_MS in fakeinput_steam.cpp.
         const val HOLD_MS = 0xFFFF
         const val HOLD_EFFECT_MS = 2000L
         const val KEEPALIVE_MS = 1500L

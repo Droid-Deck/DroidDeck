@@ -14,7 +14,7 @@ READER = ROOT / "app/src/main/cpp/waylandcomp/src/hudframes.c"
 def patch_writer():
     added = [line[1:] for line in PATCH.read_text().splitlines() if line.startswith("+") and not line.startswith("+++")]
     text = "\n".join(added)
-    start = text.index("// DroidDeck's own HUD reads")
+    start = text.index("static constexpr uint32_t k_uDroidDeckHudFramesMagic")
     end = text.index("\n}\n", text.index("static void publish_droiddeck_hud_info()", start)) + 3
     return text[start:end]
 

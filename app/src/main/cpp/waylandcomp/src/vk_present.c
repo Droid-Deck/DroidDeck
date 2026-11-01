@@ -71,8 +71,6 @@ static int g_first_frame_done;
 static int g_base_black;
 
 int vkp_quest_layer_presentation(void) {
-    /* Compositor thread only; this is a process-wide device property, not a session setting.
-     * Quest 2 still needs its separate A6xx driver: this gate only chooses presentation. */
     static int enabled = -1;
     if (enabled < 0) {
         char model[PROP_VALUE_MAX] = {0}, device[PROP_VALUE_MAX] = {0}, maker[PROP_VALUE_MAX] = {0};
@@ -477,7 +475,6 @@ static int dev_init(void) {
     g_vk.EnumerateDeviceExtensionProperties(g_pd, NULL, &ne, NULL);
     VkExtensionProperties *exts = calloc(ne ? ne : 1, sizeof(*exts));
     g_vk.EnumerateDeviceExtensionProperties(g_pd, NULL, &ne, exts);
-    /* Only what the driver has: the system driver lacks the dma-buf ones, which the cloud player never needs. */
     for (unsigned i = 0; i < 4; i++) {
         if (has_ext(exts, ne, import_exts[i])) dev_exts[n_dev_exts++] = import_exts[i];
         else LOGE("present: driver MISSING %s (dmabuf import will fail)", import_exts[i]);
@@ -489,7 +486,6 @@ static int dev_init(void) {
     }
     const int want_sem_fd = has_ext(exts, ne, VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME);
     if (want_sem_fd) dev_exts[n_dev_exts++] = VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME;
-    /* The cloud player's decoded frames arrive as AHardwareBuffers (vkp_image_from_ahb). */
     g_ahb_import = has_ext(exts, ne, VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME) &&
                    has_ext(exts, ne, VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME);
     if (g_ahb_import) {
@@ -1701,9 +1697,6 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         VkImageLayout result_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         if (fx) {
             int mapped_w = (int)(scene_w * g_map.kx + 0.5f), mapped_h = (int)(scene_h * g_map.ky + 0.5f);
-            /* Frame generation samples every output pixel. Upscaling first made it interpolate
-             * the whole panel (3200x1440 on a 1440p phone) and rebuild on Steam's first frame.
-             * Grade at the game's size instead; the screen blit still scales to the panel. */
             if (fg) { mapped_w = scene_w; mapped_h = scene_h; }
             vkp_effects_set_formats(scene_fmt, scene_fmt);
             result = vkp_effects_run(cmd, scene_img, scene_w, scene_h, mapped_w, mapped_h, &rw, &rh);
@@ -1803,9 +1796,6 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
 
 int vkp_render(int scene_w, int scene_h, const struct vkp_draw *draws, int n) {
     if (vkp_quest_layer_presentation() && !vkp_framegen_active() && !vkp_cardboard_active()) {
-        /* The desktop (multiple windows), overlays and an empty scene must also avoid WSI.
-         * Merely enabling zero-copy handles only a single fullscreen window and leaves both
-         * the letterbox and every fallback frame going through the corrupted swapchain. */
         vkp_apply_window_request();
         sc_layer_hide_overlay();
         if (n > 0) {
@@ -1817,9 +1807,6 @@ int vkp_render(int scene_w, int scene_h, const struct vkp_draw *draws, int n) {
         } else {
             sc_layer_hide();
         }
-        /* sc_layer_present_pass signals only after submitting client content.
-         * A backdrop alone, or a successful no-op while a layer slot is unavailable,
-         * must not dismiss the app's loading UI or mark Steam's window as shown. */
         return vkp_base_black(scene_w, scene_h);
     }
     return render_impl(scene_w, scene_h, draws, n, NULL, NULL);
@@ -1856,8 +1843,6 @@ void vkp_signal_first_frame(void) {
 int vkp_update_map(int scene_w, int scene_h) {
     if (g_dev_state == -2 || dev_init() != 0 || !g_window || scene_w <= 0 || scene_h <= 0) return -1;
     if (vkp_quest_layer_presentation()) {
-        /* Layer geometry needs the window size, not a Vulkan swapchain. In particular, do
-         * not create/present a swapchain just to paint black under an otherwise clean layer. */
         int w = ANativeWindow_getWidth(g_window), h = ANativeWindow_getHeight(g_window);
         if (w <= 0 || h <= 0) return -1;
         g_extent = (VkExtent2D){(uint32_t)w, (uint32_t)h};

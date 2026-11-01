@@ -3537,7 +3537,7 @@
     <string name="sync_location_shared">DroidDeck shared storage</string>
     <string name="sync_location_card">DroidDeck on %1$s</string>
     <string name="sync_location_app">DroidDeck app data</string>
-    <string name="sync_web_path_locked">New folders are saved in DroidDeck\'s Sync folder. To sync a different DroidDeck folder, use Add folder on the Sync tab.</string>
+    <string name="sync_web_path_locked">New folders are saved in DroidDeck\'s Sync folder. To sync a different DroidDeck folder, use Add folder on the Syncthing tab.</string>
     <string name="sync_web_title">Syncthing</string>
     <string name="sync_web_reload">Reload</string>
     <string name="sync_not_running">Syncthing isn\'t running.</string>

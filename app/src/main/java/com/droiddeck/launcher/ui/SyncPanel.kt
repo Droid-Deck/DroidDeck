@@ -159,7 +159,6 @@ private fun SyncRunning(snap: SyncSnapshot, onShowId: () -> Unit, onAdvanced: ()
     )
 }
 
-/** Two columns of settings groups side by side, stacked on narrow panes. */
 @Composable
 internal fun PairedColumns(left: @Composable ColumnScope.() -> Unit, right: @Composable ColumnScope.() -> Unit) {
     if (LocalNarrowPane.current) {

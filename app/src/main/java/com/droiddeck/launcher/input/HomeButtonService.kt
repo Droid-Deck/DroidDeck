@@ -37,7 +37,6 @@ object HomeButtonShortcuts {
     }
 
     fun onKeyEvent(context: Context, event: KeyEvent): Boolean {
-        // AYN maps its system-assistant key (gpio-keys KEY_F24) to HOME too; only the pad's Home is Guide.
         if (!HomeGuideInput.isHome(event.keyCode) || !PadBridge.isControllerKeyEvent(event)) return false
         return input.onKeyEvent(event, enabled() && HomeApp.isDefault(context))
     }

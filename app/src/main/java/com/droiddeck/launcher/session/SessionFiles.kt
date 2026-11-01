@@ -33,7 +33,6 @@ object SessionFiles {
         "etc/xdg/autostart/droiddeck-clipboard.desktop" to "etc/xdg/autostart/droiddeck-clipboard.desktop",
     )
 
-    /** Puts the session's files in place; [startsSession] is true only for the call that starts the Steam session. */
     fun stage(context: Context, root: File, startsSession: Boolean = false) {
         if (DesktopCatalog.desktopInstalled(root) && !DesktopCatalog.desktopFromPack(root)) try { DesktopCatalog.cleanLegacy(context) }
         catch (e: Exception) { Log.w(TAG, "LXQt cleanup will retry next session", e) }
@@ -171,7 +170,6 @@ object SessionFiles {
         } + listOf("libvulkan-thunk.so", "libwebkitinput.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
         val optional = (arrayOf(
             "usr/local/bin/gamescope" to "usr/local/bin/gamescope",
-            // The gamescope pack carries its own WSI layer (patch 0117); it replaces the runtime's stock copy.
             "usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so" to "usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so",
             "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
             "usr/local/lib/droiddeck-pipewire.tzst" to "usr/local/lib/droiddeck-pipewire.tzst",
@@ -282,7 +280,6 @@ object SessionFiles {
             val movieDir = File(home, "config/uioverrides/movies")
             val config = File(home, "config/config.vdf")
             if (startupMovie == null) {
-                // Nothing to play (a movie whose volume could not be set is never played at another volume), so no earlier copy plays either.
                 for (name in listOf("bigpicture_startup.webm", "steam_os_startup.webm")) {
                     File(movieDir, name).delete()
                     File(movieDir, ".$name.source").delete()
@@ -302,17 +299,10 @@ object SessionFiles {
             if (!bigPictureMovieInstalled) allInstalled = false
             if (done && home.path.contains(".droiddeck-x64") == activeIsX64) seen = if (bigPictureMovieInstalled) BOOT_MOVIE_PATH else ""
         }
-        // A pick made in the app is done once a session started with every Steam client's config having it; guest commands run
-        // before that, and a Steam that is already running writes its own choice back when it exits.
         if (force && allDone && allInstalled && startsSession) SessionPrefs.setBootMovieApplyNext(context, false)
         seen?.let { SessionPrefs.setBootMovieSteamSeen(context, it) }
     }
 
-    /**
-     * Points Steam's startup movie back at its own default when it names a movie that is gone: DroidDeck's staged copy that
-     * could not be prepared, or (when a pick here is waiting) a movie removed from Steam's folder. True when Steam's config
-     * no longer names a missing movie.
-     */
     internal fun resetMissingStartupMovie(config: File, force: Boolean): Boolean {
         if (!config.isFile) return true
         val text = runCatching { config.readText() }.getOrElse {
@@ -391,7 +381,6 @@ object SessionFiles {
             installed = staged.setReadable(true, false) && staged.renameTo(movie)
             if (installed) {
                 FileUtils.writeString(stamp, identity)
-                // Steam's picker draws its preview from this picture and does not redraw it when the movie changes.
                 File(directory, name.removeSuffix(".webm") + ".jpg").delete()
             }
         } catch (e: Exception) {
@@ -408,10 +397,6 @@ object SessionFiles {
     internal const val BOOT_MOVIES_DIR = "/uioverrides/movies/"
     internal const val BOOT_MOVIE_PATH = "/uioverrides/movies/bigpicture_startup.webm"
 
-    /**
-     * Steam's startup movie setting is the `StartupMovie` section inside its `Customization` section; the one under the Steam
-     * settings is where older clients kept it, and DroidDeck still keeps it in step.
-     */
     private fun customizationMovie(text: String): VdfBlock? {
         var from = 0
         while (true) {
@@ -421,7 +406,6 @@ object SessionFiles {
         }
     }
 
-    /** The older `StartupMovie` section: the first one that is not inside `Customization`. */
     private fun olderMovie(text: String): VdfBlock? {
         val inside = customizationMovie(text)
         var from = 0
@@ -432,10 +416,8 @@ object SessionFiles {
         }
     }
 
-    /** The section Steam reads: the one under `Customization` when there is one. */
     private fun activeStartupMovie(text: String): VdfBlock? = customizationMovie(text) ?: olderMovie(text)
 
-    /** The movie Steam's config selects, as a path like `/uioverrides/movies/x.webm`; null when none is named. */
     internal fun startupMoviePath(config: File): String? = startupMovieLocalPath(config)?.takeIf { it.isNotEmpty() }
 
     internal fun startupMovieLocalPath(config: File): String? {
@@ -444,7 +426,6 @@ object SessionFiles {
         return scalar(text.substring(movie.keyStart, movie.close + 1), "LocalPath")
     }
 
-    /** Both `StartupMovie` sections of Steam's config as written there, for the report; null when there is none. */
     internal fun startupMovieBlock(config: File): String? {
         val text = runCatching { config.readText() }.getOrNull() ?: return null
         val parts = listOfNotNull(
@@ -454,7 +435,6 @@ object SessionFiles {
         return parts.takeIf { it.isNotEmpty() }?.joinToString("\n")
     }
 
-    /** The `Customization` section of Steam's config with the lines before it, for the report; null when there is none. */
     internal fun customizationBlock(config: File): String? {
         val text = runCatching { config.readText() }.getOrNull() ?: return null
         val customization = findObject(text, "Customization", 0, text.length) ?: return null
@@ -467,7 +447,6 @@ object SessionFiles {
         return text.replaceRange(movie.keyStart, movie.close + 1, setScalar(setScalar(block, "MovieID", "0", newline), "LocalPath", path, newline))
     }
 
-    /** True when Steam's config selects DroidDeck's staged movie once this returns. */
     internal fun ensureStartupMovieDefault(config: File, force: Boolean = false): Boolean {
         val path = BOOT_MOVIE_PATH
         val legacyPath = "/uioverrides/movies/droiddeck-startup.webm"
@@ -494,7 +473,6 @@ object SessionFiles {
                 return false
             }
         }
-        // Later sections first, so the positions of earlier ones stay valid.
         val targets = listOfNotNull(customizationMovie(text), olderMovie(text)).sortedByDescending { it.keyStart }
         for (target in targets) text = pointAt(text, target, path, newline)
         if (olderMovie(text) == null) {
@@ -538,11 +516,6 @@ object SessionFiles {
 
     private val IDLE_SLEEP_TIMERS = listOf("IdleSuspendBatterySeconds", "IdleSuspendACSeconds")
 
-    /**
-     * Sets Steam's Power > "Sleep after" (battery and plugged in) to Disabled at every session start: Android
-     * owns the device's sleep, and a client that suspends inside the session only shows a black screen. Dimming stays the user's. Runs
-     * only before the client starts, which rewrites its config on exit.
-     */
     internal fun disableIdleSleep(steamHome: File): Boolean {
         val config = File(steamHome, "config/config.vdf")
         val text = runCatching { config.readText() }.getOrNull() ?: return false
@@ -573,7 +546,6 @@ object SessionFiles {
         }
     }
 
-    /** Adds the `Customization` section Steam reads, next to the `Software` section, when the config has none. */
     private fun withCustomization(text: String, path: String, newline: String): String {
         val root = findObject(text, "InstallConfigStore", 0, text.length) ?: return text
         val lineStart = text.lastIndexOf('\n', root.close).let { if (it < 0) 0 else it + 1 }
@@ -643,13 +615,6 @@ object SessionFiles {
 
     fun logDirectory(context: Context): File = LinuxRuntime.logDir(context).apply { mkdirs() }
 
-    /**
-     * Registers the Android system fonts (which include CJK faces such as Noto Sans CJK /
-     * MiSans) with the container's fontconfig, so the Steam Deck UI (CEF/webkit renderer)
-     * resolves Chinese/Japanese glyphs instead of showing tofu / mojibake.
-     * The fonts themselves are bind-mounted by LinuxRuntime.bindSystemFonts() into
-     * /usr/local/share/fonts/android; here we only need to point fontconfig at them.
-     */
     private val DESKTOP_STRINGS = listOf(
         "desktop_restore_title" to R.string.desktop_restore_title,
         "desktop_restore_body" to R.string.desktop_restore_body,

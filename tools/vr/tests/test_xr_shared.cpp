@@ -58,7 +58,6 @@ int main() {
     assert(!absent.SendShared(path, header, buffer)); assert(!absent.SharedLeaseLost());
     XrFrameReceiver receiver; assert(receiver.Start(path));
     XrFrameSender invalid;
-    // An ordinary file is not a DMA-BUF and must never be acknowledged as one.
     assert(!invalid.SendShared(path, Header(), buffer));
     assert(invalid.SharedLeaseLost() && receiver.Rejected() == 1);
     DroidDeckXrPixels frame; assert(!receiver.Take(&frame));

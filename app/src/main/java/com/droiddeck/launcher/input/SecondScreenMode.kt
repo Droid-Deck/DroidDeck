@@ -19,7 +19,6 @@ enum class SecondScreenMode(val id: String, @StringRes val label: Int) {
                 it != NONE && it.id == remembered && (it != DECK_CONTROLS || deckPad) && (it != DASHBOARD || dashboard) &&
                     (it != DESKTOP || desktop)
             }?.let { return it }
-            // No pick yet: the dashboard. A pick that can't open right now keeps the old fallback.
             val picked = entries.any { it != NONE && it.id == remembered }
             return when {
                 dashboard && !picked -> DASHBOARD

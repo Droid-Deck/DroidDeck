@@ -1,34 +1,4 @@
 #!/usr/bin/python3
-r"""Before Proton starts a store game, asks the app for what that store needs at launch.
-
-Run by droiddeck-proton / droiddeck-proton-wrap (steam-compatibility) for every real game launch,
-whoever started it: the Games tab, a pinned shortcut, or the Steam client's own Play button. It
-looks for the store launcher DroidDeck wrote (.droiddeck-launch.bat) among the arguments; beside it
-.droiddeck-store.json says which store and game it is.
-
-For an Epic game, once the Epic Games Launcher is installed (droiddeck-epic), the game is started
-through it: the hidden launcher signs the game in and hands its arguments back in
-.droiddeck-epic-args. Without the launcher, or when it cannot, the game needs a fresh exchange code
-to sign in, which only the app can mint. The request goes through files under $BL_LAUNCH_DIR/stores (the session root, the same path on both
-sides):
-
-    req/<id>.json    {"op": "epic-code", "store": "epic", "id": "<app name>"}   (tmp + rename)
-    resp/<id>.json   {"ok": true, "code": true|false, "reason": "..."}
-
-The app writes .droiddeck-epic-code into the game's folder itself - the code never passes through
-here - and the launcher .bat reads and deletes it. No answer within TIMEOUT seconds: the game starts
-with its offline identity. A code file older than STALE_SECONDS is removed first, so a code left by
-an earlier launch is never used.
-
-The game's prefix gets Wine's browser set to droiddeck-open-url, which hands web addresses to
-Android: an EOS sign-in step that falls back to a browser (a consent Epic asks for once per product)
-is finished there. An EOS overlay pointer (HKCU\Software\Epic Games\EOS "OverlayPath") an earlier
-build wrote is removed - with it the game exited while loading.
-
-Battle.net.exe in Battle.net's prefix is handed to droiddeck-battlenet, which runs the whole launch.
-
-    droiddeck-store-launch <the arguments Steam gave the compat tool>
-"""
 
 import base64
 import binascii
@@ -77,12 +47,6 @@ def sidecar_at(folder):
 
 
 def find_store_game(argv):
-    """
-    The (folder, sidecar) of a store game among [argv], or None when this is not one. Steam passes
-    the shortcut's target: the launcher .bat when the game has one (Epic, Amazon, a GOG game with
-    arguments), else the game's exe itself (most GOG games), which may sit in a subfolder - so the
-    folders above it are looked through too, up to MAX_DEPTH, for the sidecar.
-    """
     for raw in argv:
         arg = raw.strip().strip('"').strip("'").replace("\\", "/")
         low = arg.lower()
@@ -100,7 +64,6 @@ def find_store_game(argv):
 
 
 def drop_stale(folder, now=None):
-    """Removes a code file older than STALE_SECONDS; True when one was removed."""
     code = folder / EPIC_CODE
     try:
         if (now if now is not None else time.time()) - code.stat().st_mtime > STALE_SECONDS:
@@ -136,7 +99,6 @@ def through_client(folder, sidecar, timeout=CLIENT_TIMEOUT):
 
 
 def ask(channel, request, timeout=TIMEOUT):
-    """Writes [request] under channel/req and waits for channel/resp; the answer, or None on timeout."""
     req_dir, resp_dir = channel / "req", channel / "resp"
     req_dir.mkdir(parents=True, exist_ok=True)
     resp_dir.mkdir(parents=True, exist_ok=True)
@@ -161,7 +123,6 @@ def ask(channel, request, timeout=TIMEOUT):
 
 
 def windows_path(unix):
-    """A guest path as Wine names it through Z: (the whole filesystem)."""
     return "Z:" + unix.replace("/", "\\")
 
 
@@ -170,12 +131,6 @@ def reg_escape(value):
 
 
 def set_value(reg, key, name, value, now=None):
-    """
-    Appends `key` with `"name"="value"` to a prefix's user.reg unless the last word on it already
-    says so. Appended rather than edited in place, as DirectAudio's key is: Wine reads later sections
-    over earlier ones, and nothing of the file is rewritten under a wineserver that might hold it.
-    False when there is no user.reg yet (Proton creates the prefix after this; the next launch has it).
-    """
     if not reg.is_file():
         return False
     line = '"%s"="%s"' % (name, reg_escape(value))
@@ -193,7 +148,6 @@ def set_value(reg, key, name, value, now=None):
 
 
 def remove_value(reg, key, name):
-    """Drops every `"name"=` line under `key` in user.reg; True when one was there."""
     if not reg.is_file():
         return False
     rows, inside, dropped = [], False, False
@@ -212,13 +166,11 @@ def remove_value(reg, key, name):
 
 
 def options(sidecar):
-    """An Epic game's launch choices from its sidecar, as the Games tab's Epic card sets them."""
     e = sidecar.get("epic") if isinstance(sidecar.get("epic"), dict) else {}
     return {"eos": e.get("eos", True) is not False, "offline": e.get("offline", False) is True}
 
 
 def server_socket(pfx):
-    """The wineserver socket for prefix [pfx], as Wine names it (server-<dev>-<inode> under /tmp/.wine-<uid>)."""
     try:
         st = os.stat(pfx)
     except OSError:
@@ -228,11 +180,6 @@ def server_socket(pfx):
 
 
 def wait_for_server(pfx, timeout=SERVER_WAIT):
-    """
-    Waits for a wineserver still holding this prefix (an earlier verb's, or the last launch's) to
-    exit: it rewrites user.reg from its own memory when it does, which drops a line appended
-    meanwhile. True when none is left.
-    """
     sock = server_socket(pfx)
     if sock is None:
         return True
@@ -243,7 +190,6 @@ def wait_for_server(pfx, timeout=SERVER_WAIT):
 
 
 def has_value(reg, key, name, value=None):
-    """Whether the last word on `key` in user.reg sets "name" (to [value], when given)."""
     if not reg.is_file():
         return False
     inside, last = False, None
@@ -258,7 +204,6 @@ def has_value(reg, key, name, value=None):
 
 
 def provision_prefix(compat_data, wait=SERVER_WAIT):
-    """Wine's browser set to the hand-off, and an earlier build's EOS overlay pointer removed."""
     if not compat_data:
         return "no-prefix"
     pfx = Path(compat_data) / "pfx"
@@ -318,12 +263,10 @@ def battlenet(argv, env=os.environ):
 
 
 def cloud_on(sidecar):
-    """Cloud saves for this game (the game card's switch; on unless turned off)."""
     return str(sidecar.get("store")) in CLOUD_STORES and sidecar.get("cloud", True) is not False
 
 
 def exited(argv, code=0):
-    """After the game: ask the app to upload what changed, without waiting for it."""
     found = find_store_game(argv)
     launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
     if found is not None and str(found[1].get("store")) == "epic" and os.environ.get(EPIC_HANDLED) != "1" \
@@ -344,7 +287,6 @@ COMET_DIR = Path("/usr/local/lib/droiddeck-comet")
 
 
 def provision_galaxy(compat_data, proton, timeout=90):
-    """Proton creates the prefix and registers Galaxy before the first game runs."""
     if not compat_data or not proton or not Path(proton).is_file():
         return "no-proton"
     data = Path(compat_data)

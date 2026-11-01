@@ -374,16 +374,11 @@ int vkp_framegen_run(VkCommandBuffer cmd, VkImage scene, VkImageView scene_view,
         mark_failed(kind);
         return 0;
     }
-    /* The ring and the engine's images are new on this frame. Dispatching into them now
-     * null-dereferenced Turnip (vkp_framegen_run, first Steam frame, 2560x1440 to the panel).
-     * Show this frame as it is; generation starts once the size has settled. */
     if (size_changed || ring == 2) {
         FGLOG("frame generation catches up at %dx%d; this frame is shown as it is", w, h);
         return 0;
     }
 
-    /* The pacer's source rate must be the game's, not this loop's: a loop slowed by its own
-     * generations would otherwise read as a slower game and justify even more generations. */
     ++g_source_frames;
     const uint64_t game_frames = droiddeck_game_frames();
     uint32_t n_gen = fge_plan(g_ring_n, game_frames ? game_frames : g_source_frames, g_presented_rate);

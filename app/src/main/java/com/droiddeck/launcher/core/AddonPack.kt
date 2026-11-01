@@ -13,12 +13,6 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileInputStream
 
-/**
- * A pack built by CI alongside this APK (tools/packs). Main and release builds publish it to
- * DroidDeck-Components under a content-addressed tag; a PR test build attaches packs that are not there
- * yet to its pr-N release on DroidDeck-CI. The APK pins the pack's SHA-256, so only the bytes this build
- * was made with install, whichever host serves them.
- */
 internal class AddonPack(
     val name: String, private val sha256: String, val size: Long, private val required: List<String>,
     private val reuseDeviceCopy: Boolean = sha256.isEmpty() && !BuildConfig.CI_BUILD,
@@ -43,13 +37,11 @@ internal class AddonPack(
     )
 
     private fun root(context: Context) = File(context.filesDir, "addons/$name")
-    /** App-private and written only after the archive matched the pinned digest. */
     fun dir(context: Context) = File(root(context), version(context))
     fun file(context: Context, relative: String) = File(dir(context), relative)
 
     fun installed(context: Context): Boolean = version(context).isNotEmpty() && File(dir(context), COMPLETE).isFile
 
-    // A build made outside CI pins no packs, so it runs the newest one a CI build already verified and installed.
     private fun version(context: Context): String = if (!reuseDeviceCopy) sha256 else deviceCopy(context).orEmpty()
 
     private fun deviceCopy(context: Context): String? = root(context).listFiles().orEmpty()
@@ -66,7 +58,6 @@ internal class AddonPack(
             .also { mutableState.value = it }
     }
 
-    /** Starts the download in the background unless the pack is already present or on its way. */
     fun ensure(context: Context, onReady: (Context) -> Unit = {}) {
         val app = context.applicationContext
         synchronized(lock) {
@@ -81,7 +72,6 @@ internal class AddonPack(
         }
     }
 
-    /** Blocks a worker thread until the pack is installed, starting the download if needed. */
     @JvmOverloads
     fun await(context: Context, running: () -> Boolean = { true }, onState: (State) -> Unit = {}): Boolean {
         if (installed(context)) return true
@@ -127,7 +117,6 @@ internal class AddonPack(
         return true
     }
 
-    // A local build pins the packs it compiled, which no release hosts, so it ships them as assets.
     internal fun bundled(context: Context, archive: File): Boolean {
         val copied = runCatching {
             bundle(context).use { input -> archive.outputStream().use { input.copyTo(it) } }

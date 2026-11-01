@@ -26,7 +26,6 @@ quest_settings() {
 configure_graphics() {
     case "$(cat /sys/class/kgsl/kgsl-3d0/gpu_model 2>/dev/null)" in
         Adreno840*)
-            # The session's forced sysmem mode loses the Vulkan device in SteamVR.
             export TU_DEBUG="$(
                 IFS=', '
                 set -f
@@ -41,8 +40,6 @@ configure_graphics() {
     esac
 }
 
-# Any OpenXR probe (Steam runs one through Proton at every client start) starts vrserver
-# while a runtime is registered, so SteamVR is registered only during a DroidDeck VR session.
 unregister() {
     if grep -qF "\"$steamvr\"" "$HOME/.config/openvr/openvrpaths.vrpath" 2>/dev/null; then
         rm -f "$HOME/.config/openvr/openvrpaths.vrpath"
@@ -78,7 +75,6 @@ stop() {
 
 case "${1:-status}" in
 launch)
-    # Library/URL entry point: use the same installer and start path as the app.
     exec 8>"$state/launch.lock"
     flock -n 8 || exit 0
     if ! installed; then
@@ -221,7 +217,6 @@ JSON
         quest_settings apply || exit 1
         startup_handed_off=0
         trap '[ "$startup_handed_off" = 1 ] || quest_settings restore' EXIT
-        # The pinned Frame package's CVP constructor exits on Quest's unsupported SoC.
         cvp=$steamvr/drivers/cv/bin/linuxarm64/libArcturusPerception.so
         if [ -f "$cvp" ]; then
             disabled=$cvp.droiddeck-disabled

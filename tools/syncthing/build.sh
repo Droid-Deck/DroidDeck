@@ -33,10 +33,8 @@ EPOCH=$(git -C "$SRC" show -s --format=%ct HEAD)
 cache=${DROIDDECK_BUILD_CACHE:-"${HOME}/.cache/droiddeck-build"}
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
-# build.go writes its output into the source tree, so build from a copy.
 cp -a "$SRC" "$WORK/syncthing"
 rm -f "$WORK/syncthing/.git"
-# -checklinkname=0: the fork's anet dependency links against internal net symbols.
 (
   cd "$WORK/syncthing"
   export GOTOOLCHAIN="go${GO_VERSION}" GOPATH="$cache/go" GOMODCACHE="$cache/go/pkg/mod" GOFLAGS=-buildvcs=false

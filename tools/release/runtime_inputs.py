@@ -1,4 +1,3 @@
-"""Attest prepared runtime inputs and reject stale local or CI APK payloads."""
 import hashlib
 import gzip
 import json
@@ -13,7 +12,6 @@ from zipfile import ZipFile
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = Path('app/build/runtime-inputs.json')
 PACKS = Path('app/build/packs')
-# Runtime trees shipped as add-on packs (tools/packs/build.sh) rather than inside the APK.
 PACKED = {'assets/linuxfs/usr/local/lib/droiddeck-xbox/': 'xbox', 'assets/linuxfs/usr/local/lib/droiddeck-comet/': 'comet',
           'assets/directaudio/': 'directaudio'}
 PACKED_FILES = {'lib/arm64-v8a/libproot.so': ('proot', 'libproot.so'),

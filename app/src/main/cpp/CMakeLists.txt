@@ -8,7 +8,6 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-z,max-page-size=16384
 
 add_subdirectory(adrenotools)
 
-# DXVK's DXBC->SPIR-V translator is zlib licensed (vendored under thirdparty/dxbc).
 add_subdirectory(thirdparty/dxbc)
 
 set(DDFG_UPSTREAM "v0.3.0")
@@ -45,7 +44,6 @@ add_library(ddvenc SHARED venc/venc_server.cpp)
 target_compile_features(ddvenc PRIVATE cxx_std_17)
 target_link_libraries(ddvenc mediandk log)
 
-# The optional proprietary SDK is supplied locally; its headers/libraries are not vendored.
 if(DROIDDECK_VITURE_SDK_DIR)
     add_library(droiddeck_viture SHARED viture/sdk_bridge.cpp)
     target_compile_features(droiddeck_viture PRIVATE cxx_std_17)

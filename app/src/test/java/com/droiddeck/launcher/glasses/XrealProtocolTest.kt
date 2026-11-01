@@ -93,7 +93,6 @@ class XrealProtocolTest {
         assertEquals(0x2822, XrealProtocol.read(requests).command)
         repeat(3) { assertEquals(0x275e, XrealProtocol.read(requests).command) }
         assertEquals(0, requests.available())
-        // Actual 1S busy response remains an error, never a successful ack.
         assertFalse(XrealProtocol.acknowledged(byteArrayOf(0x22, 3, 8, 0x89.toByte(), 0x27)))
     }
 

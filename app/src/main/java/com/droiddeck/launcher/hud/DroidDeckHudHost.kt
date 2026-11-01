@@ -19,10 +19,6 @@ import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
 import kotlin.math.roundToInt
 
-/**
- * DroidDeck HUD on the session screen, in place of the old text HUD: the view, the frame feed from gamescope
- * (MangoHud's frame times) and MangoHud's readings, started with the session's first frame.
- */
 class DroidDeckHudHost(context: Context) {
     private val context = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
@@ -36,8 +32,6 @@ class DroidDeckHudHost(context: Context) {
     private var polling = false
     private var wantX = Float.NaN
     private var wantY = Float.NaN
-    // With snapping on, the side the HUD keeps to (0 = left, 1 = right), so it stays against that side when its
-    // size changes. NaN = not snapped.
     private var anchorX = Float.NaN
     private var snaps = true
     private var snapping = false
@@ -51,13 +45,10 @@ class DroidDeckHudHost(context: Context) {
 
     var onPresentingWindowChanged: (() -> Unit)? = null
 
-    /** The frame rate the HUD shows; null while the HUD is off and not counting frames. */
     val liveFps: Float? get() = if (polling) feed.stats.fps else null
 
-    /** The HUD itself changed a setting: a tap cycles the size, a long press locks it. */
     var onConfigChanged: (() -> Unit)? = null
 
-    /** Screen point → whether an on-screen control takes a touch there; a locked HUD lets those through. */
     var passesTouchAt: ((rawX: Float, rawY: Float) -> Boolean)? = null
 
     private val listener = object : WaylandCompositor.GameListener {
@@ -86,7 +77,6 @@ class DroidDeckHudHost(context: Context) {
         get() = SessionPrefs.hudEnabled(context) &&
             !File(Environment.getExternalStorageDirectory(), "Download/droiddeck-no-hud").exists()
 
-    /** Adds the HUD to [root] at [index] (above the game surface, under the session overlay). */
     fun attach(root: FrameLayout, index: Int) {
         if (view != null) return
         val hud = DroidDeckHudView(root.context)
@@ -171,13 +161,11 @@ class DroidDeckHudHost(context: Context) {
         view?.visibility = View.GONE
     }
 
-    /** Picture-in-picture and similar: keep running, draw nothing. */
     fun setHidden(hide: Boolean) {
         hidden = hide
         applyShown()
     }
 
-    /** The session screen is stopped (another app in front): draw nothing and stop reading sensors. */
     fun setBackgrounded(stopped: Boolean) {
         backgrounded = stopped
         applyShown()
@@ -188,7 +176,6 @@ class DroidDeckHudHost(context: Context) {
         val show = !hidden && !backgrounded
         view?.visibility = if (show) View.VISIBLE else View.GONE
         showing = show
-        // Frames are read once per display frame only while the HUD is drawn.
         if (show != polling) {
             polling = show
             if (show) Choreographer.getInstance().postFrameCallback(frameCallback)
@@ -196,14 +183,11 @@ class DroidDeckHudHost(context: Context) {
         }
     }
 
-    /** A sensor report (DroidDeck HUD's diagnostics) in Downloads/DroidDeck; null when it can't be written. */
     fun exportDiagnostics(): File? = runCatching {
         val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "DroidDeck")
         dir.mkdirs()
         val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.US).format(java.util.Date())
         val file = File(dir, "HUD-diagnostics-$stamp.txt")
-        // Its own reader: the HUD's CPU load is the change since its previous sample, which an export must
-        // not move. Two samples half a second apart, MangoHud's sampling period.
         val metrics = HudMetrics(context)
         metrics.setMangoReadings(MangoReadings(File(context.filesDir, "session"), LinuxRuntime.rootDir(context)))
         metrics.snapshot()
@@ -243,17 +227,14 @@ class DroidDeckHudHost(context: Context) {
         return if (stats.size > 3 && stats[3] > 1f) stats[3] else 0f
     }
 
-    /** The edge the HUD was dropped over, once a good part of it hangs past that edge; null when it stays. */
     private fun dockEdgeFor(v: View): DroidDeckHudDock? {
         val over = overhang(v) ?: return null
         return over.key.takeIf { over.value >= DOCK_OVERHANG }
     }
 
-    /** The edge the HUD hangs furthest past, with how much of it does, as a share of its own size. */
     private fun overhang(v: View): Map.Entry<DroidDeckHudDock, Float>? {
         val p = v.parent as? View ?: return null
         if (p.width <= 0 || p.height <= 0 || v.width <= 0 || v.height <= 0) return null
-        // The Strip spans the screen and is short: measure its pull in a set distance rather than its own size.
         val strip = (v as? DroidDeckHudView)?.isStrip == true
         val density = v.resources.displayMetrics.density
         val w = if (strip) minOf(v.width.toFloat(), STRIP_PULL_ACROSS_DP * density) else v.width.toFloat()
@@ -266,7 +247,6 @@ class DroidDeckHudHost(context: Context) {
         ).maxByOrNull { it.value }
     }
 
-    /** The tab follows the finger along its edge and away from it, staying on screen. */
     private fun dragTab(hud: DroidDeckHudView, x: Float, y: Float) {
         val p = hud.parent as? View ?: return
         stopMotion(hud)
@@ -275,7 +255,6 @@ class DroidDeckHudHost(context: Context) {
         hud.y = y.coerceIn(0f, (p.height - hud.height).toFloat().coerceAtLeast(0f))
     }
 
-    /** A tab pulled out by more than its own size comes out as the HUD there; a shorter pull slides it back onto its edge. */
     private fun dropTab(hud: DroidDeckHudView) {
         val p = hud.parent as? View ?: return
         val maxX = (p.width - hud.width).toFloat().coerceAtLeast(0f)
@@ -298,13 +277,11 @@ class DroidDeckHudHost(context: Context) {
             .withEndAction { snapping = false }.start()
     }
 
-    /** Stops the HUD's running move, and the per-frame listener a dock animation hangs on it, which outlives a cancel. */
     private fun stopMotion(hud: DroidDeckHudView) {
         hud.animate().setUpdateListener(null)
         hud.animate().cancel()
     }
 
-    /** Glides the HUD from (fromX, fromY) to where it now is, back at full size. */
     private fun glideFrom(hud: DroidDeckHudView, fromX: Float, fromY: Float) {
         if (Motion.scale == 0f || (fromX == hud.x && fromY == hud.y && hud.scaleX == 1f && hud.scaleY == 1f)) {
             hud.scaleX = 1f; hud.scaleY = 1f
@@ -317,7 +294,6 @@ class DroidDeckHudHost(context: Context) {
             .withEndAction { snapping = false; keepOnScreen(hud) }.start()
     }
 
-    /** A drop short of docking fades the tab preview back out. */
     private fun fadeDockPreview(hud: DroidDeckHudView) {
         val from = hud.dockPreviewBlend
         if (from <= 0f) return
@@ -331,10 +307,6 @@ class DroidDeckHudHost(context: Context) {
         }
     }
 
-    /**
-     * Dropped, the HUD glides to the nearer side of the screen at the height it was let go, as a picture-in-picture
-     * window does, carried to the side a fling throws it toward.
-     */
     private fun snapToAnchor(hud: DroidDeckHudView, vx: Float) {
         val p = hud.parent as? View ?: return
         val maxX = (p.width - hud.width).toFloat().coerceAtLeast(0f)
@@ -354,10 +326,6 @@ class DroidDeckHudHost(context: Context) {
             .withEndAction { snapping = false; keepOnScreen(hud) }.start()
     }
 
-    /**
-     * Dragged past an edge, the HUD shrinks around the finger toward the tab it docks as, reaching the tab's
-     * size where a drop would dock it, so the drop finishes a contraction the drag already started.
-     */
     private fun shrinkPastEdge(hud: DroidDeckHudView, rawX: Float, rawY: Float) {
         if (hud.dock != DroidDeckHudDock.NONE) return
         val p = hud.parent as? View ?: return
@@ -372,7 +340,6 @@ class DroidDeckHudHost(context: Context) {
         hud.pivotX = rawX - at[0] - hud.x
         hud.pivotY = rawY - at[1] - hud.y
         if (hud.isStrip) {
-            // The bar draws in sideways toward the tab's width; scaled evenly it would thin to a line.
             hud.scaleX = 1f + (tabW / hud.width - 1f) * e
             hud.scaleY = 1f
             return
@@ -382,7 +349,6 @@ class DroidDeckHudHost(context: Context) {
         hud.scaleX = s; hud.scaleY = s
     }
 
-    /** Tucks the HUD against [edge] as its FPS tab, or with [DroidDeckHudDock.NONE] brings it back out from where it was docked. */
     private fun setDock(hud: DroidDeckHudView, edge: DroidDeckHudDock) {
         if (edge == hud.dock) return
         animateDock(hud, edge) { commitDock(hud, edge) }
@@ -405,10 +371,6 @@ class DroidDeckHudHost(context: Context) {
         onConfigChanged?.invoke()
     }
 
-    /**
-     * Where the HUD comes out of its tab, decided before it expands so it grows straight there: where the tab is
-     * (against its edge, or wherever it was pulled to), and with snapping on, against the nearer side.
-     */
     private fun settleOutOfTab(hud: DroidDeckHudView, tabX: Float, tabY: Float) {
         val p = hud.parent as? View
         val maxX = if (p == null) Float.MAX_VALUE else (p.width - hud.contentWidth).coerceAtLeast(0f)
@@ -419,11 +381,6 @@ class DroidDeckHudHost(context: Context) {
         SessionPrefs.setDroidDeckHudPosition(context, wantX, wantY)
     }
 
-    /**
-     * One shape contracts into the tab, and the tab expands back out to the HUD: the view is scaled onto the
-     * tab's exact rectangle, and the layouts swap at that same size and place. Timing and curve are the
-     * launcher's own ([Motion]), and off when animations are off.
-     */
     private fun animateDock(hud: DroidDeckHudView, edge: DroidDeckHudDock, commit: () -> Unit) {
         stopMotion(hud)
         previewFade?.cancel(); previewFade = null
@@ -436,7 +393,6 @@ class DroidDeckHudHost(context: Context) {
             commit(); return
         }
         if (edge != DroidDeckHudDock.NONE) {
-            // Continue from what the drag left on screen: the shrunk HUD, and the tab where it is along the edge.
             val left = hud.x + hud.pivotX * (1f - hud.scaleX); val top = hud.y + hud.pivotY * (1f - hud.scaleY)
             val shownW = hud.width * hud.scaleX; val shownH = hud.height * hud.scaleY
             hud.pivotX = 0f; hud.pivotY = 0f
@@ -480,11 +436,9 @@ class DroidDeckHudHost(context: Context) {
         }
     }
 
-    /** The pivot, in parent coordinates, that scaling by [scale] takes a span starting at [from] onto one starting at [to]. */
     private fun pivotFor(from: Float, to: Float, scale: Float): Float =
         if (scale > 0.999f) from else (to - from * scale) / (1f - scale)
 
-    /** Where a [w] x [h] HUD or tab sits once [keepOnScreen] has settled it against [dock]. */
     private fun settled(p: View, dock: DroidDeckHudDock, w: Float, h: Float): Pair<Float, Float> {
         val maxX = (p.width - w).coerceAtLeast(0f); val maxY = (p.height - h).coerceAtLeast(0f)
         var x = wantX.coerceIn(0f, maxX); var y = wantY.coerceIn(0f, maxY)
@@ -498,9 +452,6 @@ class DroidDeckHudHost(context: Context) {
         return Pair(x, y)
     }
 
-    // The HUD is clamped from where the user left it (wantX/wantY, set on a drop or restore), not from where
-    // it is drawn: a window that shrinks and grows back (picture-in-picture, a fold) must not leave it in the
-    // corner the small window pushed it to.
     private fun keepOnScreen(v: View) {
         if (snapping) return
         val p = v.parent as? View ?: return
@@ -528,27 +479,19 @@ class DroidDeckHudHost(context: Context) {
     }
 
     companion object {
-        /** How much of the HUD, as a share of its own size, must hang past a screen edge for it to dock there. */
         private const val DOCK_OVERHANG = 0.4f
-        /** How far ahead a fling carries the HUD when picking the spot it snaps to, as seconds of its speed. */
         private const val FLING_REACH_S = 0.18f
-        /** How far toward docking a drag goes, as a share of the way, before the tab starts to fade in over the HUD. */
         private const val PREVIEW_FROM = 0.55f
-        /** How far the Strip is pulled sideways, or off its edge, for its overhang to count as its whole size. */
         private const val STRIP_PULL_ACROSS_DP = 600f
         private const val STRIP_PULL_OFF_DP = 150f
-        /** The share of the expand animation over which the tab fades out to the HUD. */
         private const val EXPAND_FADE = 0.5f
         private val EASE = PathInterpolator(0.2f, 0.8f, 0.2f, 1f)
 
-        /** True while the HUD is on screen; DroidDeck keeps sampling VRAM for it (GpuMemComponent). */
         @Volatile @JvmStatic var showing = false
             private set
 
-        /** "Adreno (TM) 750" as the driver names it, "Adreno 750" as DroidDeck does elsewhere. */
         internal fun cleanGpuName(name: String): String = name.replace("(TM)", "").replace(Regex("\\s+"), " ").trim()
 
-        /** The Proton build of a game process: the first STEAM_COMPAT_TOOL_PATHS entry's folder. */
         internal fun protonName(pid: Int): String? = runCatching {
             val environ = File("/proc/$pid/environ").readBytes().toString(Charsets.UTF_8).split('\u0000')
             val paths = environ.firstOrNull { it.startsWith("STEAM_COMPAT_TOOL_PATHS=") }?.substringAfter('=') ?: return null

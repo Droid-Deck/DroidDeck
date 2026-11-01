@@ -28,7 +28,6 @@ public final class TouchscreenGestures {
         void key(int code, boolean down);
         void wheel(int steps);
         void showKeyboard();
-        /** Establish the pointer origin before a relative middle-mouse pan begins. */
         default void prepareRelativePan() {}
         default void gesture(Gesture gesture) {}
     }
@@ -97,12 +96,10 @@ public final class TouchscreenGestures {
         final int code;
         MouseButton(int code) { this.code = code; }
     }
-    // Long-press detection
     private Runnable longPressRunnable;
     private boolean longPressTriggered;
     private boolean longPressActionHeld, twoFingerHoldActionHeld, threeFingerHoldActionHeld;
 
-    // Double-tap detection
     private long lastTapTime;
     private float lastTapX;
     private float lastTapY;
@@ -110,76 +107,54 @@ public final class TouchscreenGestures {
     private float doubleTapAnchorX, doubleTapAnchorY;
     private long singleFingerDownTime;
 
-    // Drag tracking (box selection)
     private boolean isDragging;
     private boolean dragButtonPressed;
 
-    // Two-finger tracking
     private boolean twoFingerDragging;
     private float twoFingerLastX0, twoFingerLastY0;
     private float twoFingerLastX1, twoFingerLastY1;
     private boolean twoFingerMiddleButtonDown;
-    // Pinch tracking
     private float pinchLastDistance;
     private float pinchZoomRemainder;
     private float keyPanRemainderX, keyPanRemainderY;
     private static final float PINCH_STEP_PX = 10f;
-    // Two-finger tap detection
     private boolean twoFingerTapPossible;
     private boolean twoFingerTapFired;
-    // Track which WASD/arrow keys are currently held
     private boolean panKeyUp, panKeyDown, panKeyLeft, panKeyRight;
-    // True when finger has moved beyond tap tolerance (prevents spurious tap on lift)
     private boolean movedBeyondTapThreshold;
-    // True after a multi-finger gesture has been active — prevents the remaining
-    // finger from starting a spurious single-finger drag on lift sequence.
     private boolean multiFingerGestureUsed;
-    // Remember which keycodes were actually pressed so releasePanKeys releases only those
     private Integer panLeftKey, panRightKey, panUpKey, panDownKey;
-    // Long-press movement tolerance (pixels of raw finger movement before cancelling long-press)
     private static final float LONG_PRESS_MOVE_TOLERANCE = 50f;
-    // Raw touch-down coordinates for measuring finger travel
     private float touchDownRawX, touchDownRawY;
-    // Last raw coordinates for single-finger drag delta
     private float singleFingerLastRawX, singleFingerLastRawY;
-    // Two-finger gesture mutual exclusion (only pan OR pinch, not both)
     private static final int TWO_FINGER_GESTURE_NONE = 0;
     private static final int TWO_FINGER_GESTURE_PAN = 1;
     private static final int TWO_FINGER_GESTURE_ZOOM = 2;
     private int twoFingerGestureMode = TWO_FINGER_GESTURE_NONE;
-    // Accumulated deltas for deciding which two-finger gesture to lock into
     private float accumulatedPinchDelta, accumulatedPanDelta;
 
-    // Settle window: ignore movement for first N ms after second finger lands (#1)
-    // Also serves as a grace period for a third finger to arrive before 2F locks in
     private static final long TWO_FINGER_SETTLE_MS = 120;
     private static final long THREE_FINGER_SETTLE_MS = 50;
     private long twoFingerDownTime;
     private long threeFingerDownTime;
 
-    // Velocity gating for two-finger hold vs drag (#2)
     private long twoFingerLastMoveTime;
-    private static final float MIN_DRAG_VELOCITY = 0.3f; // px/ms to commit to drag
+    private static final float MIN_DRAG_VELOCITY = 0.3f;
 
-    // Pinch vs drag ratio: pinch delta must exceed pan by this factor to classify as pinch (#4)
     private static final float PINCH_RATIO_THRESHOLD = 1.5f;
 
-    // Cancel-and-reclassify: allow reclassification within this window after lock-in (#5)
     private static final long RECLASSIFY_WINDOW_MS = 100;
     private long twoFingerLockTime;
     private float reclassifyPinchDelta, reclassifyPanDelta;
-    // Gesture pointer ownership tracking (prevents d-pad/button pointer conflicts)
     private int gestureFingerCount = 0;
     private final ArrayList<Integer> gestureOwnedPointerIds = new ArrayList<>();
     private final int[] multiFingerStartIds = new int[3];
     private final float[] multiFingerStartX = new float[3], multiFingerStartY = new float[3];
     private int multiFingerStartCount;
 
-    // Two-finger hold detection
     private Runnable twoFingerHoldRunnable;
     private boolean twoFingerHoldTriggered;
 
-    // Three-finger tracking
     private boolean threeFingerTapPossible;
     private boolean threeFingerTapFired;
     private boolean threeFingerDragging;
@@ -199,9 +174,7 @@ public final class TouchscreenGestures {
 
         switch (action) {
             case MotionEvent.ACTION_DOWN:
-                // A new touch must not shorten or discard an already recognized click.
                 handleTsCancel(true);
-                // First pointer overall — gesture system claims it
                 gestureOwnedPointerIds.clear();
                 gestureOwnedPointerIds.add(pointerId);
                 gestureFingerCount = 1;
@@ -209,13 +182,11 @@ public final class TouchscreenGestures {
                 break;
 
             case MotionEvent.ACTION_POINTER_DOWN:
-                // New pointer arrived — gesture system claims it
                 if (!gestureOwnedPointerIds.contains(pointerId)) {
                     gestureOwnedPointerIds.add(pointerId);
                     gestureFingerCount++;
                 }
                 if (gestureFingerCount == 1) {
-                    // First gesture finger (controls own earlier pointers)
                     handleTsDown(event, actionIndex);
                 } else if (gestureFingerCount == 2) {
                     handleTsPointerDown(event);
@@ -242,15 +213,12 @@ public final class TouchscreenGestures {
                     gestureOwnedPointerIds.remove(Integer.valueOf(pointerId));
                     gestureFingerCount = Math.max(0, gestureFingerCount - 1);
                     if (prevCount == 3 && gestureFingerCount == 2) {
-                        // Three-finger gesture ending
                         handleTsThreeFingerUp(event);
                     } else if (prevCount == 2 && gestureFingerCount == 1) {
-                        // Two-finger gesture ending (2→1)
                         handleTsPointerUp(event);
                     } else if (prevCount >= 4) {
                         if (removedIndex < 3) rebaseThreeFingerMovement(event);
                     } else if (prevCount >= 1 && gestureFingerCount == 0) {
-                        // Last gesture finger lifted while controls still hold pointers
                         handleTsUp(event, actionIndex);
                     }
                 }
@@ -261,9 +229,6 @@ public final class TouchscreenGestures {
                     int prevCount = gestureFingerCount;
                     gestureOwnedPointerIds.remove(Integer.valueOf(pointerId));
                     gestureFingerCount = Math.max(0, gestureFingerCount - 1);
-                    // Clean up multi-finger state if needed, routing by previous
-                    // gesture mode so a 3-finger gesture isn't ended via the
-                    // two-finger cleanup path.
                     if (prevCount >= 3) {
                         handleTsThreeFingerUp(event);
                     } else if (prevCount == 2) {
@@ -271,7 +236,6 @@ public final class TouchscreenGestures {
                     }
                     handleTsUp(event, actionIndex);
                 }
-                // ACTION_UP = last pointer overall — full cleanup
                 gestureOwnedPointerIds.clear();
                 gestureFingerCount = 0;
                 break;
@@ -309,15 +273,12 @@ public final class TouchscreenGestures {
         threeFingerHoldTriggered = false;
         accumulatedThreeFingerDelta = 0;
 
-        // Store raw touch coordinates for long-press movement tolerance
         touchDownRawX = event.getX(actionIndex);
         touchDownRawY = event.getY(actionIndex);
         singleFingerDownTime = SystemClock.uptimeMillis();
         singleFingerLastRawX = touchDownRawX;
         singleFingerLastRawY = touchDownRawY;
 
-        // Keep a nearby re-tap undecided until UP: it can still become a drag,
-        // long press, or multi-finger gesture instead of a double click.
         if (isDoubleTap(event, actionIndex)) {
             secondTapCandidate = true;
             doubleTapAnchorX = lastTapX;
@@ -327,7 +288,6 @@ public final class TouchscreenGestures {
 
         if (!secondTapCandidate && delayedPress == null && pendingTapPress == null) moveCursorTo(x, y);
 
-        // Schedule long-press
         if (gestureConfig.getLongPressEnabled()) {
             longPressRunnable = () -> {
                 secondTapCandidate = false;
@@ -342,7 +302,6 @@ public final class TouchscreenGestures {
             postDelayed(longPressRunnable, gestureConfig.getLongPressDelay());
         }
 
-        // Tap: immediate cursor move (press is deferred to UP for click, or MOVE for drag)
     }
 
     private void handleTsPointerDown(MotionEvent event) {
@@ -351,11 +310,6 @@ public final class TouchscreenGestures {
         flushPendingTapRelease();
         lastTapTime = 0;
         flushPendingHoldClickRelease();
-        // Cancel any single-finger long-press.  cancelLongPressTimer only
-        // clears the pending runnable; if the long-press has already fired
-        // we must also release the held action before we transition into a
-        // multi-finger gesture, otherwise the long-press button/key stays
-        // down for the rest of the touch sequence.
         if (longPressTriggered) {
             longPressActionHeld = releaseHoldAction(longPressActionHeld, gestureConfig.getLongPressAction());
             longPressTriggered = false;
@@ -388,7 +342,6 @@ public final class TouchscreenGestures {
                         event.getY(idx0) - event.getY(idx1));
                 recordMultiFingerOrigins(event, 2);
             }
-            // Schedule two-finger hold
             if (gestureConfig.getTwoFingerHoldEnabled()) {
                 twoFingerHoldRunnable = () -> {
                     twoFingerHoldTriggered = true;
@@ -404,33 +357,26 @@ public final class TouchscreenGestures {
     }
 
     private void handleTsMove(MotionEvent event, int pointerIndex) {
-        // After a multi-finger gesture, ignore single-finger movement until all fingers lift
         if (multiFingerGestureUsed) return;
 
         int x = (int) event.getX(pointerIndex);
         int y = (int) event.getY(pointerIndex);
 
-        // If long press already triggered, ignore movement (right-click already sent)
         if (longPressTriggered) return;
 
-        // Measure raw finger travel from initial touch point
         float rawTravel = maxFingerTravel(event, pointerIndex, touchDownRawX, touchDownRawY);
         if (secondTapCandidate && (rawTravel > doubleTapSlop
                 || maxFingerTravel(event, pointerIndex, doubleTapAnchorX, doubleTapAnchorY) >= doubleTapSlop)) {
             secondTapCandidate = false;
         }
 
-        // The threshold decides when a drag starts. An active drag must keep
-        // following the finger even when it returns through the touch origin.
         if (!isDragging && rawTravel <= LONG_PRESS_MOVE_TOLERANCE) {
             return;
         }
 
-        // Beyond tolerance — cancel long press
         cancelLongPressTimer();
         movedBeyondTapThreshold = true;
 
-        // Detect drag start
         if (!isDragging && gestureConfig.getDragEnabled()) {
             flushPendingTapRelease();
             String dragAction = gestureConfig.getDragAction();
@@ -438,14 +384,7 @@ public final class TouchscreenGestures {
             dragButtonPressed = true;
             singleFingerLastRawX = event.getX(pointerIndex);
             singleFingerLastRawY = event.getY(pointerIndex);
-            // Send the configured drag press immediately so that a short
-            // move followed straight by UP still produces a press+release
-            // pair.  A zero-delta performPanAction just presses the button
-            // (or is a no-op for the key-pan variants, which press per
-            // direction on their next move frame).
             if (isClickDragAction(dragAction)) {
-                // The candidate's cursor stayed at the previous click. Start
-                // a drag at this touch's own origin before pressing its button.
                 moveCursorTo((int) touchDownRawX, (int) touchDownRawY);
                 if (useRelativeMouseDragMovement()) {
                     pressClickDragAction(dragAction);
@@ -456,7 +395,6 @@ public final class TouchscreenGestures {
                 performPanAction(0f, 0f, dragAction);
             }
             notifyGesture(Gesture.DRAG);
-            // Non-click pan actions continue with real deltas on the next frame.
             return;
         }
 
@@ -481,14 +419,11 @@ public final class TouchscreenGestures {
             return;
         }
 
-        // Move cursor
         moveCursorTo(x, y);
     }
 
     private void handleTsTwoFingerMove(MotionEvent event) {
         if (multiFingerGestureUsed) return;
-        // If a two-finger hold has already fired, ignore subsequent jitter so
-        // it can't lock into a pan/zoom gesture mid-hold.
         if (twoFingerHoldTriggered) return;
         if (gestureFingerCount < 2 || gestureOwnedPointerIds.size() < 2) return;
 
@@ -496,20 +431,15 @@ public final class TouchscreenGestures {
         int idx1 = event.findPointerIndex(gestureOwnedPointerIds.get(1));
         if (idx0 < 0 || idx1 < 0) return;
 
-        // Settling delays recognition, not movement tracking. A swipe or pinch
-        // must stop being a tap/hold even when it finishes inside that delay.
         if (multiFingerMovementExceeded(event)) {
             twoFingerTapPossible = false;
             cancelTwoFingerHoldTimer();
         }
-        // Slow deliberate travel can cross touch slop before reaching the
-        // pan/zoom threshold. It must not turn into a stationary hold first.
         if (multiFingerMovementExceeded(event, true)) cancelTwoFingerHoldTimer();
 
         float x0 = event.getX(idx0), y0 = event.getY(idx0);
         float x1 = event.getX(idx1), y1 = event.getY(idx1);
 
-        // Compute per-frame pan and pinch deltas
         float currDist = (float) Math.hypot(x0 - x1, y0 - y1);
         float framePinchDelta = Math.abs(currDist - pinchLastDistance);
 
@@ -523,7 +453,6 @@ public final class TouchscreenGestures {
 
         long now = SystemClock.uptimeMillis();
         if (now - twoFingerDownTime < TWO_FINGER_SETTLE_MS) {
-            // Still settling — update stored positions but don't accumulate deltas
             twoFingerLastX0 = x0; twoFingerLastY0 = y0;
             twoFingerLastX1 = x1; twoFingerLastY1 = y1;
             pinchLastDistance = currDist;
@@ -531,14 +460,12 @@ public final class TouchscreenGestures {
         }
         long frameTime = now - twoFingerLastMoveTime;
         twoFingerLastMoveTime = now;
-        float velocity = (frameTime > 0) ? framePanDelta / frameTime : 0; // px/ms
+        float velocity = (frameTime > 0) ? framePanDelta / frameTime : 0;
 
-        // Accumulate deltas until we have enough movement to decide gesture type
         if (twoFingerGestureMode == TWO_FINGER_GESTURE_NONE) {
             accumulatedPinchDelta += framePinchDelta;
             accumulatedPanDelta += framePanDelta;
             if (accumulatedPinchDelta + accumulatedPanDelta > (float) gestureConfig.getGestureThreshold()) {
-                // Enough movement to lock into a gesture — no longer a tap or hold
                 twoFingerTapPossible = false;
                 cancelTwoFingerHoldTimer();
                 if (accumulatedPinchDelta > accumulatedPanDelta * PINCH_RATIO_THRESHOLD
@@ -551,7 +478,6 @@ public final class TouchscreenGestures {
                     twoFingerLockTime = now;
                     notifyGesture(Gesture.TWO_FINGER_DRAG);
                 } else if (accumulatedPanDelta >= accumulatedPinchDelta && gestureConfig.getTwoFingerDragEnabled()) {
-                    // Fallback: pan is dominant but velocity was too low — still drag
                     twoFingerGestureMode = TWO_FINGER_GESTURE_PAN;
                     twoFingerLockTime = now;
                     notifyGesture(Gesture.TWO_FINGER_DRAG);
@@ -571,7 +497,7 @@ public final class TouchscreenGestures {
             reclassifyPinchDelta += framePinchDelta;
             reclassifyPanDelta += framePanDelta;
             float reclassifyTotal = reclassifyPinchDelta + reclassifyPanDelta;
-            if (reclassifyTotal > 20f) { // enough post-lock data to reclassify
+            if (reclassifyTotal > 20f) {
                 boolean shouldBeZoom = reclassifyPinchDelta > reclassifyPanDelta * PINCH_RATIO_THRESHOLD;
                 if (shouldBeZoom && twoFingerGestureMode == TWO_FINGER_GESTURE_PAN
                         && gestureConfig.getPinchEnabled()) {
@@ -585,7 +511,7 @@ public final class TouchscreenGestures {
                     resetSmallMovement();
                     notifyGesture(Gesture.TWO_FINGER_DRAG);
                 }
-                twoFingerLockTime = 0; // done reclassifying
+                twoFingerLockTime = 0;
                 reclassifyPinchDelta = 0;
                 reclassifyPanDelta = 0;
             }
@@ -595,12 +521,10 @@ public final class TouchscreenGestures {
             pinchZoomRemainder = accumulateSignedMovement(pinchZoomRemainder, delta);
             if (Math.abs(pinchZoomRemainder) >= PINCH_STEP_PX) {
                 performZoomAction(pinchZoomRemainder > 0);
-                // Keep the fractional travel, without queuing a burst of old
-                // zoom actions after a large move or a direction reversal.
                 pinchZoomRemainder %= PINCH_STEP_PX;
             }
         }
-        pinchLastDistance = currDist; // Always update baseline to avoid stale deltas
+        pinchLastDistance = currDist;
         if (twoFingerGestureMode == TWO_FINGER_GESTURE_PAN) {
             String twoFingerDragAction = gestureConfig.getTwoFingerDragAction();
             if (isClickDragAction(twoFingerDragAction)) {
@@ -627,14 +551,11 @@ public final class TouchscreenGestures {
     private void handleTsPointerUp(MotionEvent event) {
         cancelTwoFingerHoldTimer();
         if (multiFingerMovementExceeded(event)) twoFingerTapPossible = false;
-        // Two-finger hold release
         if (twoFingerHoldTriggered) {
             twoFingerHoldActionHeld = releaseHoldAction(twoFingerHoldActionHeld, gestureConfig.getTwoFingerHoldAction());
             twoFingerHoldTriggered = false;
         }
-        // Two-finger tap detection
         else if (twoFingerTapPossible && !twoFingerDragging && gestureConfig.getTwoFingerTapEnabled()) {
-            // Move cursor to midpoint between the two fingers
             float midX = (twoFingerLastX0 + twoFingerLastX1) / 2f;
             float midY = (twoFingerLastY0 + twoFingerLastY1) / 2f;
             queueTapClick(gestureConfig.getTwoFingerTapAction(), midX, midY);
@@ -652,7 +573,6 @@ public final class TouchscreenGestures {
         reclassifyPinchDelta = 0;
         reclassifyPanDelta = 0;
         twoFingerLockTime = 0;
-        // Suppress single-finger tap/drag when last finger lifts after any 2F gesture
         movedBeyondTapThreshold = true;
         multiFingerGestureUsed = true;
     }
@@ -661,7 +581,6 @@ public final class TouchscreenGestures {
         cancelLongPressTimer();
 
         if (longPressTriggered) {
-            // Release the long-press action
             longPressActionHeld = releaseHoldAction(longPressActionHeld, gestureConfig.getLongPressAction());
             longPressTriggered = false;
             return;
@@ -671,7 +590,6 @@ public final class TouchscreenGestures {
         float y = event.getY(actionIndex);
 
         if (isDragging && dragButtonPressed) {
-            // End drag (release any held drag buttons/keys)
             releaseDragInput();
             dragButtonPressed = false;
             isDragging = false;
@@ -685,8 +603,6 @@ public final class TouchscreenGestures {
                     ? gestureConfig.getLongPressDelay() : ViewConfiguration.getLongPressTimeout();
             if (SystemClock.uptimeMillis() - singleFingerDownTime < tapLimit
                     && Math.hypot(x - doubleTapAnchorX, y - doubleTapAnchorY) < doubleTapSlop) {
-                // A normal left tap already supplied the first click. Other
-                // single-tap mappings need a complete synthesized double click.
                 boolean firstTapClicked = gestureConfig.getTapEnabled()
                         && TouchGestureConfig.ACTION_LEFT_CLICK.equals(gestureConfig.getTapAction());
                 int clicks = firstTapClicked ? 1 : 2;
@@ -697,26 +613,21 @@ public final class TouchscreenGestures {
             }
         }
 
-        // Two-finger tap already sent its click on POINTER_UP — skip the tap on UP
         if (twoFingerTapFired) {
             twoFingerTapFired = false;
             return;
         }
 
-        // Three-finger tap already sent its click — skip the tap on UP
         if (threeFingerTapFired) {
             threeFingerTapFired = false;
             return;
         }
 
-        // Simple tap — only if finger stayed within tap tolerance
         if (gestureConfig.getTapEnabled() && !movedBeyondTapThreshold) {
             queueTapClick(gestureConfig.getTapAction(), x, y);
             notifyGesture(Gesture.TAP);
         }
 
-        // Record for double-tap detection (even if tap itself is disabled,
-        // so double-tap can still prime from single touch-ups)
         if (!movedBeyondTapThreshold && (gestureConfig.getTapEnabled() || gestureConfig.getDoubleTapEnabled())) {
             lastTapTime = SystemClock.uptimeMillis();
             lastTapX = x;
@@ -776,13 +687,10 @@ public final class TouchscreenGestures {
         cancelLongPressTimer();
         cancelDrag();
         cancelTwoFingerHoldTimer();
-        // If a two-finger hold already injected its action, release it before
-        // transitioning so the held button/key doesn't stay down.
         if (twoFingerHoldTriggered) {
             twoFingerHoldActionHeld = releaseHoldAction(twoFingerHoldActionHeld, gestureConfig.getTwoFingerHoldAction());
             twoFingerHoldTriggered = false;
         }
-        // Clean up two-finger state
         releaseDragInput();
         resetSmallMovement();
         twoFingerDragging = false;
@@ -797,7 +705,6 @@ public final class TouchscreenGestures {
         threeFingerDragOffsetX = threeFingerDragOffsetY = 0f;
         threeFingerDownTime = SystemClock.uptimeMillis();
 
-        // Compute midpoint of three gesture fingers
         if (gestureOwnedPointerIds.size() >= 3) {
             float sumX = 0, sumY = 0;
             int validCount = 0;
@@ -809,13 +716,12 @@ public final class TouchscreenGestures {
                     validCount++;
                 }
             }
-            if (validCount < 3) return; // Can't proceed without all 3 pointers
+            if (validCount < 3) return;
             threeFingerLastMidX = sumX / 3f;
             threeFingerLastMidY = sumY / 3f;
             recordMultiFingerOrigins(event, 3);
         }
 
-        // Schedule three-finger hold
         if (gestureConfig.getThreeFingerHoldEnabled()) {
             threeFingerHoldRunnable = () -> {
                 threeFingerHoldTriggered = true;
@@ -831,8 +737,6 @@ public final class TouchscreenGestures {
 
     private void handleTsThreeFingerMove(MotionEvent event) {
         if (gestureFingerCount < 3 || gestureOwnedPointerIds.size() < 3) return;
-        // If a three-finger hold has already fired, ignore subsequent jitter so
-        // it can't lock into a pan gesture mid-hold.
         if (threeFingerHoldTriggered) return;
         if (multiFingerMovementExceeded(event)) {
             threeFingerTapPossible = false;
@@ -877,8 +781,6 @@ public final class TouchscreenGestures {
         }
 
         if (threeFingerGestureMode == THREE_FINGER_GESTURE_PAN) {
-            // Once recognized, retain small mouse movements. Keyboard panning
-            // accumulates its own direction threshold in performKeyPan.
             String threeFingerDragAction = gestureConfig.getThreeFingerDragAction();
             if (isClickDragAction(threeFingerDragAction)) {
                 if (useRelativeMouseDragMovement()) {
@@ -919,7 +821,6 @@ public final class TouchscreenGestures {
         multiFingerStartCount = 0;
         resetSmallMovement();
         threeFingerGestureMode = THREE_FINGER_GESTURE_NONE;
-        // Suppress single-finger tap/drag when last finger lifts after any 3F gesture
         movedBeyondTapThreshold = true;
         multiFingerGestureUsed = true;
     }
@@ -966,7 +867,6 @@ public final class TouchscreenGestures {
         }
         x /= 3f;
         y /= 3f;
-        // Replacing a tracked finger changes the centroid without moving the cursor.
         if (threeFingerDragging) {
             threeFingerDragOffsetX += threeFingerLastMidX - x;
             threeFingerDragOffsetY += threeFingerLastMidY - y;
@@ -1030,9 +930,6 @@ public final class TouchscreenGestures {
     private void startPendingTapClick() {
         if (delayedPress != null || pendingTapPress != null || pendingTapClicks.isEmpty()) return;
         TapClick click = pendingTapClicks.peekFirst();
-        // Games that poll button state need an observable UP interval too.
-        // Reuse the first tap's location: normal finger drift must not turn
-        // this into two clicks on different targets or a tiny drag.
         long delay = Math.max(0, CLICK_DELAYED_TIME - (SystemClock.uptimeMillis() - lastInputReleaseTime));
         pendingTapPress = () -> {
             pendingTapPress = null;
@@ -1224,9 +1121,6 @@ public final class TouchscreenGestures {
             pressButton(MouseButton.BUTTON_MIDDLE);
             twoFingerMiddleButtonDown = true;
         }
-        // Pan from the client's current pointer. Games can recenter the mouse
-        // when the middle button goes down; replaying our old absolute touch
-        // anchor after that warp causes a large, unintended camera movement.
         moveCursorByRelativeDelta(dx, dy);
     }
 
@@ -1287,10 +1181,6 @@ public final class TouchscreenGestures {
     }
 
     private void performKeyPan(float dx, float dy, Integer leftKey, Integer rightKey, Integer upKey, Integer downKey) {
-        // When fingers are actively moving, update key states to match the
-        // swipe direction.  When fingers stop moving but stay on screen,
-        // keep the current keys held — movement continues until finger-up
-        // calls releasePanKeys().
 
         keyPanRemainderX = accumulateSignedMovement(keyPanRemainderX, dx);
         keyPanRemainderY = accumulateSignedMovement(keyPanRemainderY, dy);
@@ -1300,9 +1190,6 @@ public final class TouchscreenGestures {
         dy = keyPanRemainderY;
         keyPanRemainderX = keyPanRemainderY = 0f;
 
-        // --- Significant movement detected: update each axis ---
-
-        // Horizontal: determine desired state from this frame's delta
         boolean wantLeft  = dx < -3f;
         boolean wantRight = dx > 3f;
 
@@ -1311,7 +1198,6 @@ public final class TouchscreenGestures {
         if (wantLeft && !panKeyLeft)   { pressKey(leftKey);    panKeyLeft = true; panLeftKey = leftKey; }
         if (wantRight && !panKeyRight) { pressKey(rightKey);   panKeyRight = true; panRightKey = rightKey; }
 
-        // Vertical: determine desired state from this frame's delta
         boolean wantUp   = dy < -3f;
         boolean wantDown = dy > 3f;
 

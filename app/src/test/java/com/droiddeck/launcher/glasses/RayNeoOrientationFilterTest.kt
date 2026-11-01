@@ -79,8 +79,6 @@ class RayNeoOrientationFilterTest {
         val first = screen(filter.update(sample(0, level)))
         val ref = HeadPose.recenter(first)
         var q = FloatArray(4)
-        // Physical 30-degree turn over one second, through the complete shared
-        // VITURE conversion and recenter pipeline. GT signs match device captures.
         repeat(100) { i ->
             val a = Math.toRadians((i + 1) * 0.3)
             val accel = when (axis) {

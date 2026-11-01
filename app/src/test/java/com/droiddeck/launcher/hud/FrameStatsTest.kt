@@ -8,7 +8,6 @@ import org.junit.Test
 import kotlin.random.Random
 
 class FrameStatsTest {
-    /** MangoHud's update_hud_info_with_frametime and fps()/frame_timing(), line by line (overlay.cpp). */
     private class Mango {
         val frametimeData = ArrayList<Float>(List(200) { 0f })
         var lastPresentTime = 0L

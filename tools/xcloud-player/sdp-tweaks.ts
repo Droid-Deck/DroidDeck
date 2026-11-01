@@ -1,6 +1,5 @@
-// Offer tweaks after Better xCloud by redphx (MIT, src/utils/sdp.ts): prefer an H.264 profile, cap bitrate.
+// Offer tweaks after Better xCloud by redphx (MIT, src/utils/sdp.ts).
 
-/** Moves the H.264 payloads of the chosen profile to the front of the video m-line. */
 export function preferH264Profile(sdp: string, profile: 'high' | 'normal' | 'low'): string {
     const prefix = profile === 'high' ? '4d' : (profile === 'low' ? '420' : '42e')
     const preferred: string[] = []
@@ -17,7 +16,6 @@ export function preferH264Profile(sdp: string, profile: 'high' | 'normal' | 'low
     return lines.join('\r\n')
 }
 
-/** Sets b=AS (kbit/s) on the video m-section. */
 export function capVideoBitrate(sdp: string, kbps: number): string {
     const lines = sdp.split('\r\n')
     const start = lines.findIndex(line => line.startsWith('m=video'))

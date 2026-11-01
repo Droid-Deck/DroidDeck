@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Reproduce the pinned Nexus source and DroidDeck credential transport."""
 import hashlib
 import json
 from pathlib import Path

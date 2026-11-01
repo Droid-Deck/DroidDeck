@@ -86,8 +86,6 @@ trap 'exit 143' TERM
 
 cache_dir=${DROIDDECK_BUILD_CACHE:-"${HOME}/.cache/droiddeck-build"}
 mkdir -p "${cache_dir}"
-# Steps whose output depends only on tracked sources are kept per input hash in the
-# shared cache, so a rerun or a fresh worktree copies them instead of rebuilding.
 inputs_hash() {
     (cd "${repo_root}" && { printf '%s\n' "$1"; shift; find "$@" -type f ! -name '*.pyc' | LC_ALL=C sort | xargs shasum -a 256; }) \
         | shasum -a 256 | cut -d' ' -f1
@@ -105,7 +103,6 @@ save_step() {
     part=$(mktemp -d "${stored}.part.XXXXXX")
     (cd "$3" && tar -cf - .) | tar -xf - -C "${part}"
     touch "${part}/.complete"
-    # Another checkout may have published the same key meanwhile; its copy is equivalent.
     if [[ -e "${stored}" ]]; then rm -rf "${part}"; else mv "${part}" "${stored}" || rm -rf "${part}"; fi
 }
 

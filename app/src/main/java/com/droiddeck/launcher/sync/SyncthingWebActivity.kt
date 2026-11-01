@@ -40,7 +40,6 @@ import com.droiddeck.launcher.ui.DroidDeckTheme
 import com.droiddeck.launcher.ui.LocalPalette
 import com.droiddeck.launcher.ui.SecondaryButton
 
-/** Syncthing's own web UI, signed in automatically and kept on the loopback address. */
 class SyncthingWebActivity : ComponentActivity() {
     private var web: WebView? = null
 
@@ -100,7 +99,6 @@ class SyncthingWebActivity : ComponentActivity() {
         cookies.setAcceptCookie(true)
         val origin = Uri.parse(url).authority
         webViewClient = object : WebViewClient() {
-            // The proxy cookie isn't port-scoped, so nothing else on loopback may receive it.
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
                 if (request.url.authority == origin) null else WebResourceResponse("text/plain", "utf-8", 403, "Forbidden", emptyMap(), null)
 
@@ -115,7 +113,6 @@ class SyncthingWebActivity : ComponentActivity() {
     }
 }
 
-/** Keeps Syncthing's folder path field read-only, so new folders get the default path inside DroidDeck's Sync folder. */
 private fun lockFolderPath(note: String) = """
     (function (note) {
       if (window.droiddeckPathLock) return;

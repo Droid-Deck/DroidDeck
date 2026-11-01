@@ -1,18 +1,4 @@
 #!/usr/bin/env python3
-"""DroidDeck boot animation: procedural sound design.
-
-Every sound is synthesized (no samples) and placed on the exact physics events the animation
-engine reports (events.json, exported by events.py). Key: D major.
-
-  legs (arch)   lands on a muted D
-  ball          lands on A, the second bounce a quieter echo
-  bowl          lands on F#
-  balancing     silence
-  jump          silence
-  lock          a soft landing in the same voice, then all those notes together as the D chord
-
-Usage: python3 sound.py [events.json] [out.wav]
-"""
 import json, sys
 import numpy as np
 from scipy import signal
@@ -32,7 +18,6 @@ D3, A3, D4, E4, Fs4, A4, B4, Cs5, D5, E5, Fs5, A5, D6 = [hz(n) for n in (50, 57,
 def tt(dur): return np.arange(int(dur * SR)) / SR
 
 def edge(x, a_ms=1.0, r_ms=4.0):
-    """Click-free start and end."""
     na, nr = max(1, int(a_ms * SR / 1000)), max(1, int(r_ms * SR / 1000))
     x[:na] *= np.sin(np.linspace(0, np.pi / 2, na)) ** 2
     x[-nr:] *= np.cos(np.linspace(0, np.pi / 2, nr)) ** 2
@@ -51,7 +36,6 @@ def modal(freqs, decays, amps, dur):
     return y
 
 def glide(f0, f1, tau, dur):
-    """Sine whose pitch moves exponentially from f0 to f1."""
     t = tt(dur); f = f1 + (f0 - f1) * np.exp(-t / tau)
     return np.sin(2 * np.pi * np.cumsum(f) / SR)
 
@@ -69,7 +53,6 @@ def put(t0, st, gain=1.0):
     j = min(N, i + st.shape[1]); MIX[:, i:j] += gain * st[:, :j - i]
 
 def wood(amp, f0=520, size=1.0, thump=0.0, dur=.35):
-    """Hard wood / toy-block clack. thump adds body for heavy landings."""
     r = [1, 1.93, 2.81, 4.13, 5.62]
     y = modal([f0 * k for k in r], [s * size for s in (.055, .034, .022, .014, .009)], [1, .55, .42, .26, .16], dur)
     y += .7 * noise_burst(dur, 1400, 7500, .0035)
@@ -77,7 +60,6 @@ def wood(amp, f0=520, size=1.0, thump=0.0, dur=.35):
     return edge(y * amp)
 
 def bonk(amp, f):
-    """Hollow rubber ball on a board: round pitched body, soft click, tiny board knock."""
     d = .42; t = tt(d)
     y = glide(f * 1.28, f, .018, d) * np.exp(-t / (.09 + .05 * amp))
     y += .22 * glide(f * 2.45, f * 2.3, .02, d) * np.exp(-t / .035)
@@ -87,7 +69,6 @@ def bonk(amp, f):
     return edge(y * amp, a_ms=.6)
 
 def bowl_ring(amp, f=A4, dur=2.4, dscale=1.0):
-    """Struck metal bowl: inharmonic partials, each split in two for the slow beating shimmer."""
     t = tt(dur); y = np.zeros_like(t)
     for k, dec, a, beat in zip((1, 2.71, 5.12, 8.21), tuple(d * dscale for d in (1.25, .62, .3, .15)), (1, .45, .24, .12), (.9, 1.7, 2.6, 3.1)):
         for s in (-1, 1):
@@ -107,7 +88,6 @@ def marimba(f, amp, damp=1.0):
     return edge(y * amp, a_ms=1.5, r_ms=40)
 
 def svf_whoosh(env, fc, q=.9):
-    """Noise through a band-pass whose centre follows fc(t): air moving past a spinning piece."""
     x = rng.standard_normal(len(env)); y = np.zeros_like(x); ic1 = ic2 = 0.0
     for i in range(len(x)):
         g = np.tan(np.pi * min(fc[i], SR * .45) / SR); k = 1 / q
@@ -117,7 +97,6 @@ def svf_whoosh(env, fc, q=.9):
     return y * env
 
 def epiano(f, amp, dur=2.8, decay=1.5):
-    """FM electric piano: bright tine at the strike that mellows as the index falls."""
     t = tt(dur)
     idx = 1.7 * np.exp(-t / .22) + .22
     y = np.sin(2 * np.pi * f * t + idx * np.sin(2 * np.pi * f * t))
@@ -125,7 +104,6 @@ def epiano(f, amp, dur=2.8, decay=1.5):
     return edge(y * np.exp(-t / decay) * amp, a_ms=3, r_ms=60)
 
 def tock(f, amp, decay=.42, sub=0.0):
-    """A landing as a muted note in the chord's own FM e-piano voice: felt contact, no pitch bend."""
     d = 1.5; t = tt(d)
     idx = 1.3 * np.exp(-t / .07) + .18
     y = np.sin(2 * np.pi * f * t + idx * np.sin(2 * np.pi * f * t)) * np.exp(-t / decay)

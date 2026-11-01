@@ -46,7 +46,6 @@ import java.io.File
 
 internal class SyncLocation(val root: File, val label: String, val icon: ImageVector)
 
-/** The Linux runtime's /root, which is HOME for everything DroidDeck runs in the container. */
 internal fun containerHome(context: Context) = File(LinuxRuntime.rootDir(context), "root")
 
 internal fun syncLocations(context: Context): List<SyncLocation> {
@@ -62,7 +61,6 @@ internal fun syncLocations(context: Context): List<SyncLocation> {
         shared + SyncLocation(roots.first(), context.getString(R.string.sync_location_app), Icons.Outlined.Folder)
 }
 
-/** Browses only DroidDeck's own storage and returns a folder Syncthing is allowed to use. */
 @Composable
 internal fun SyncFolderPicker(title: String, suggestedName: String?, onDismiss: () -> Unit, onPick: (File) -> Unit) {
     val ctx = LocalContext.current
