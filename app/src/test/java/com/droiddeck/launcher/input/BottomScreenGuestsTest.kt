@@ -35,6 +35,17 @@ class BottomScreenGuestsTest {
         assertEquals(Top.NONE, BottomScreenGuests.classify(null, homes))
     }
 
+    @Test fun theWindowListDecidesWhenItSeesPastDroidDeck() {
+        assertEquals("com.android.chrome", BottomScreenGuests.holder("com.android.chrome", null, homes))
+        assertEquals(null, BottomScreenGuests.holder("com.android.launcher3", "com.android.chrome", homes))
+    }
+
+    @Test fun anAppOpenedUnderDroidDeckHoldsTheScreenUntilTheListSeesIt() {
+        assertEquals("com.google.android.youtube", BottomScreenGuests.holder(null, "com.google.android.youtube", homes))
+        assertEquals(null, BottomScreenGuests.holder(null, "com.android.launcher3", homes))
+        assertEquals(null, BottomScreenGuests.holder(null, null, homes))
+    }
+
     @Test fun keyboardsAndOverlaysNeverTakeTheScreen() {
         assertTrue(BottomScreenGuests.ignorable(AccessibilityWindowInfo.TYPE_INPUT_METHOD))
         assertTrue(BottomScreenGuests.ignorable(AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY))

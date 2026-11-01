@@ -13,6 +13,7 @@ import android.util.Log
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityWindowInfo
+import java.util.concurrent.ConcurrentHashMap
 
 object BottomScreenGuests {
     enum class Top { HOME, GUEST, NONE }
@@ -23,6 +24,12 @@ object BottomScreenGuests {
         null -> Top.NONE
         in homes -> Top.HOME
         else -> Top.GUEST
+    }
+
+    internal fun holder(topPkg: String?, arrival: String?, homes: Set<String>): String? = when {
+        topPkg != null -> topPkg.takeIf { classify(it, homes) == Top.GUEST }
+        arrival != null -> arrival.takeIf { classify(it, homes) == Top.GUEST }
+        else -> null
     }
 
     internal fun ignorable(type: Int): Boolean = type == AccessibilityWindowInfo.TYPE_INPUT_METHOD ||
@@ -38,13 +45,14 @@ class BottomScreenWatch(private val service: AccessibilityService) {
     private val thread = HandlerThread("bottom-screen").apply { start() }
     private val handler = Handler(thread.looper)
     private val own = service.packageName
+    private val arrivals = ConcurrentHashMap<Int, String>()
     private var homes: Set<String> = emptySet()
     private var holders: Map<Int, String?> = emptyMap()
     private val check = Runnable { evaluate() }
 
     fun start() {
         service.serviceInfo = service.serviceInfo?.apply {
-            eventTypes = eventTypes or AccessibilityEvent.TYPE_WINDOWS_CHANGED
+            eventTypes = eventTypes or AccessibilityEvent.TYPE_WINDOWS_CHANGED or AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
             flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
         }
         handler.post {
@@ -54,7 +62,15 @@ class BottomScreenWatch(private val service: AccessibilityService) {
     }
 
     fun onEvent(event: AccessibilityEvent) {
-        if (event.eventType != AccessibilityEvent.TYPE_WINDOWS_CHANGED) return
+        when (event.eventType) {
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
+                val pkg = event.packageName?.toString() ?: return
+                if (event.displayId == Display.DEFAULT_DISPLAY || pkg == own || pkg == SYSTEM_UI) return
+                arrivals[event.displayId] = pkg
+            }
+            AccessibilityEvent.TYPE_WINDOWS_CHANGED -> Unit
+            else -> return
+        }
         handler.removeCallbacks(check)
         handler.postDelayed(check, 150)
     }
@@ -78,7 +94,8 @@ class BottomScreenWatch(private val service: AccessibilityService) {
                 .filter { !BottomScreenGuests.ignorable(it.type) && cover(it, display) >= BottomScreenGuests.MIN_COVER }
                 .sortedByDescending { it.layer }
                 .firstNotNullOfOrNull { packageOf(it)?.takeUnless { pkg -> pkg == own } }
-            if (BottomScreenGuests.classify(topPkg, homes) == BottomScreenGuests.Top.GUEST) taken[id] = topPkg
+            if (topPkg != null) arrivals.remove(id)
+            BottomScreenGuests.holder(topPkg, arrivals[id], homes)?.let { taken[id] = it }
         }
         if (taken != holders) Log.i(TAG, "bottom screen holders: $taken")
         holders = taken
@@ -107,5 +124,6 @@ class BottomScreenWatch(private val service: AccessibilityService) {
 
     private companion object {
         const val TAG = "BottomScreen"
+        const val SYSTEM_UI = "com.android.systemui"
     }
 }
