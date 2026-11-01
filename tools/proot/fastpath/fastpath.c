@@ -141,11 +141,13 @@ static int traced_by_match(const char *key) {
   return found;
 }
 
-static long init_sys(long nr, long a, long b, long c) {
+static long init_sys4(long nr, long a, long b, long c, long d) {
   static long (*real_syscall)(long, ...);
   if (!real_syscall) real_syscall = (long (*)(long, ...))dlsym(RTLD_NEXT, "syscall");
-  return real_syscall(nr, a, b, c);
+  return real_syscall(nr, a, b, c, d);
 }
+
+static long init_sys(long nr, long a, long b, long c) { return init_sys4(nr, a, b, c, 0); }
 
 static int program_32bit(const char *prog, int scripts) {
   char head[256];
@@ -504,7 +506,7 @@ static long own_exe(char *g) {
     memcpy(g, exe_text, n + 1);
     return n;
   }
-  long t = syscall(SYS_readlinkat, AT_FDCWD, "/proc/self/exe", g, PATH_MAX - 1);
+  long t = init_sys4(SYS_readlinkat, AT_FDCWD, (long)"/proc/self/exe", (long)g, PATH_MAX - 1);
   if (t <= 0 || t >= PATH_MAX - 1) return FP_SLOW;
   g[t] = 0;
   static pthread_mutex_t exe_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -875,20 +877,82 @@ int __fxstat(int ver, int fd, struct stat *st) {
 }
 int __fxstat64(int ver, int fd, struct stat64 *st) { return __fxstat(ver, fd, (struct stat *)st); }
 
-int statx(int dirfd, const char *path, int flags, unsigned mask, struct statx *out) {
-  REAL(statx, int (*)(int, const char *, int, unsigned, struct statx *));
+#ifndef STATX__RESERVED
+#define STATX__RESERVED 0x80000000U
+#endif
+
+static int statx_missing;
+
+static unsigned int dev_major(unsigned long long dev) {
+  return ((dev >> 8) & 0xfff) | ((unsigned int)(dev >> 32) & ~0xfffU);
+}
+static unsigned int dev_minor(unsigned long long dev) {
+  return (dev & 0xff) | ((unsigned int)(dev >> 12) & ~0xffU);
+}
+
+static void fill_statx(struct statx *out, const struct stat *st) {
+  memset(out, 0, sizeof *out);
+  out->stx_mask = STATX_BASIC_STATS;
+  out->stx_blksize = st->st_blksize;
+  out->stx_nlink = st->st_nlink;
+  out->stx_uid = st->st_uid;
+  out->stx_gid = st->st_gid;
+  out->stx_mode = st->st_mode;
+  out->stx_ino = st->st_ino;
+  out->stx_size = st->st_size;
+  out->stx_blocks = st->st_blocks;
+  out->stx_atime.tv_sec = st->st_atim.tv_sec;
+  out->stx_atime.tv_nsec = st->st_atim.tv_nsec;
+  out->stx_ctime.tv_sec = st->st_ctim.tv_sec;
+  out->stx_ctime.tv_nsec = st->st_ctim.tv_nsec;
+  out->stx_mtime.tv_sec = st->st_mtim.tv_sec;
+  out->stx_mtime.tv_nsec = st->st_mtim.tv_nsec;
+  out->stx_rdev_major = dev_major(st->st_rdev);
+  out->stx_rdev_minor = dev_minor(st->st_rdev);
+  out->stx_dev_major = dev_major(st->st_dev);
+  out->stx_dev_minor = dev_minor(st->st_dev);
+}
+
+/* Emulate statx on older kernels < 4.11 */
+static long statx_call(int dirfd, const char *path, int flags, unsigned mask, struct statx *out) {
+  struct stat st;
+  long rs;
+  if ((flags & ~(AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT | AT_STATX_SYNC_TYPE)) ||
+      (flags & AT_STATX_SYNC_TYPE) == AT_STATX_SYNC_TYPE)
+    return -EINVAL;
+  if (!statx_missing) {
+    rs = sc(SYS_statx, dirfd, (long)path, flags, mask, (long)out);
+    if (rs != -ENOSYS) return rs;
+    statx_missing = 1;
+  }
+  if (flags & AT_STATX_SYNC_TYPE) return -ENOSYS;
+  rs = sc(SYS_newfstatat, dirfd, (long)path, (long)&st,
+          flags & (AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT), 0);
+  if (rs < 0) return rs;
+  fill_statx(out, &st);
+  return 0;
+}
+
+static long fp_statx(int dirfd, const char *path, int flags, unsigned mask, struct statx *out) {
   struct res r;
   long rs;
-  if ((flags & AT_EMPTY_PATH) && !path[0] && fp_ready()) {
-    hits++;
-    return ret(sc(SYS_statx, dirfd, (long)"", flags, mask, (long)out));
-  }
+  if (mask & STATX__RESERVED) return -EINVAL;
+  if (!out) return -EFAULT;
+  if (!path) return flags & AT_EMPTY_PATH ? FP_SLOW : -EFAULT;
+  if ((flags & AT_EMPTY_PATH) && !path[0] && fp_ready())
+    return statx_call(dirfd, "", flags, mask, out);
   rs = (flags & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT | AT_STATX_SYNC_TYPE)) ? FP_SLOW
        : resolve(dirfd, path, (flags & AT_SYMLINK_NOFOLLOW ? 0 : 1) | MAY_BE_UNSEEN, &r);
   if (rs == 1) rs = -ENOENT;
   if (rs == 0 || rs == UNSEEN)
-    rs = sc(SYS_statx, AT_FDCWD, (long)r.host, flags | (rs == 0 && !r.magic ? AT_SYMLINK_NOFOLLOW : 0), mask, (long)out);
-  ANSWER(rs, dirfd, path, real_statx(dirfd, path, flags, mask, out));
+    rs = statx_call(AT_FDCWD, r.host, flags | (rs == 0 && !r.magic ? AT_SYMLINK_NOFOLLOW : 0), mask, out);
+  return rs;
+}
+
+int statx(int dirfd, const char *path, int flags, unsigned mask, struct statx *out) {
+  REAL(statx, int (*)(int, const char *, int, unsigned, struct statx *));
+  ANSWER(fp_statx(dirfd, path, flags, mask, out), dirfd, path,
+         real_statx ? real_statx(dirfd, path, flags, mask, out) : ret(sc(SYS_statx, dirfd, (long)path, flags, mask, (long)out)));
 }
 
 
@@ -896,8 +960,7 @@ static int effective_is_real(void) {
   return !getauxval(AT_SECURE) && getuid() == geteuid() && getgid() == getegid();
 }
 
-static int access_common(int dirfd, const char *path, int mode, int flags) {
-  REAL(faccessat, int (*)(int, const char *, int, int));
+static long fp_access(int dirfd, const char *path, int mode, int flags) {
   struct res r;
   if ((flags & AT_EACCESS) && effective_is_real()) flags &= ~AT_EACCESS;
   long rs = (flags & ~AT_SYMLINK_NOFOLLOW) == 0
@@ -905,6 +968,12 @@ static int access_common(int dirfd, const char *path, int mode, int flags) {
   if (rs == 1) rs = -ENOENT;
   if (rs == 0 && S_ISLNK(r.st.st_mode)) rs = FP_SLOW;
   if (rs == 0 || rs == UNSEEN) rs = sc(SYS_faccessat, AT_FDCWD, (long)r.host, mode, 0, 0);
+  return rs;
+}
+
+static int access_common(int dirfd, const char *path, int mode, int flags) {
+  REAL(faccessat, int (*)(int, const char *, int, int));
+  long rs = fp_access(dirfd, path, mode, flags);
   if (rs != FP_SLOW) { hits++; return ret(rs); }
   missed(__func__, dirfd, path);
   if (flags == 0) return (int)syscall(SYS_faccessat, dirfd, path, mode);
@@ -932,33 +1001,35 @@ static long link_text(const struct res *r, char *text, size_t size, int *changed
   return (long)strlen(text);
 }
 
-static ssize_t readlink_common(int dirfd, const char *path, char *buf, size_t size) {
-  REAL(readlinkat, ssize_t (*)(int, const char *, char *, size_t));
+static long fp_readlink(int dirfd, const char *path, char *buf, size_t size, size_t *written) {
   struct res r;
   char text[PATH_MAX];
   int changed;
   long rs = size ? resolve(dirfd, path, 0, &r) : FP_SLOW;
   if (rs == 1) rs = -ENOENT;
   if (rs == 0) rs = link_text(&r, text, size, &changed);
-  if (rs == FP_SLOW) {
-    missed(__func__, dirfd, path);
-    return real_readlinkat(dirfd, path, buf, size);
-  }
-  hits++;
-  if (rs < 0) return ret(rs);
+  if (rs < 0) return rs;
   size_t n = rs;
   if (!changed) {
     n = n < size ? n : size;
     memcpy(buf, text, n);
+    if (written) *written = n;
     return n;
   }
   size_t max = size < PATH_MAX ? size : PATH_MAX;
   if (n + 1 < max) {
     memcpy(buf, text, n + 1);
+    if (written) *written = n + 1;
     return n;
   }
   memcpy(buf, text, max);
+  if (written) *written = max;
   return max;
+}
+
+static ssize_t readlink_common(int dirfd, const char *path, char *buf, size_t size) {
+  REAL(readlinkat, ssize_t (*)(int, const char *, char *, size_t));
+  ANSWER(fp_readlink(dirfd, path, buf, size, NULL), dirfd, path, real_readlinkat(dirfd, path, buf, size));
 }
 ssize_t readlinkat(int dirfd, const char *path, char *buf, size_t size) { return readlink_common(dirfd, path, buf, size); }
 ssize_t readlink(const char *path, char *buf, size_t size) { return readlink_common(AT_FDCWD, path, buf, size); }
@@ -1021,12 +1092,15 @@ char *__getcwd_chk(char *buf, size_t size, size_t room) {
 }
 
 
-int mkdirat(int dirfd, const char *path, mode_t mode) {
-  REAL(mkdirat, int (*)(int, const char *, mode_t));
+static long fp_mkdir(int dirfd, const char *path, mode_t mode) {
   struct res r;
   long rs = resolve(dirfd, path, MAY_BE_UNSEEN, &r);
   if (rs == 0 || rs == 1 || rs == UNSEEN) rs = sc(SYS_mkdirat, AT_FDCWD, (long)r.host, mode, 0, 0);
-  ANSWER(rs, dirfd, path, real_mkdirat(dirfd, path, mode));
+  return rs;
+}
+int mkdirat(int dirfd, const char *path, mode_t mode) {
+  REAL(mkdirat, int (*)(int, const char *, mode_t));
+  ANSWER(fp_mkdir(dirfd, path, mode), dirfd, path, real_mkdirat(dirfd, path, mode));
 }
 int mkdir(const char *path, mode_t mode) { return mkdirat(AT_FDCWD, path, mode); }
 
@@ -1072,8 +1146,7 @@ int unlinkat(int dirfd, const char *path, int flags) { return unlink_common(dirf
 int unlink(const char *path) { return unlink_common(AT_FDCWD, path, 0); }
 int rmdir(const char *path) { return unlink_common(AT_FDCWD, path, AT_REMOVEDIR); }
 
-static int rename_common(int olddirfd, const char *old, int newdirfd, const char *new, unsigned flags) {
-  REAL(renameat2, int (*)(int, const char *, int, const char *, unsigned));
+static long fp_rename(int olddirfd, const char *old, int newdirfd, const char *new, unsigned flags) {
   struct res from, to;
   long rs = flags & ~RENAME_NOREPLACE || trailing_slash(old) || trailing_slash(new) ? FP_SLOW : resolve(olddirfd, old, 0, &from);
   if (rs == 1) rs = -ENOENT;
@@ -1088,6 +1161,11 @@ static int rename_common(int olddirfd, const char *old, int newdirfd, const char
       if (rs == 0) forget();
     }
   }
+  return rs;
+}
+static int rename_common(int olddirfd, const char *old, int newdirfd, const char *new, unsigned flags) {
+  REAL(renameat2, int (*)(int, const char *, int, const char *, unsigned));
+  long rs = fp_rename(olddirfd, old, newdirfd, new, flags);
   if (rs != FP_SLOW) { hits++; return ret(rs); }
   missed(__func__, olddirfd, old);
   if (!flags) return (int)syscall(SYS_renameat, olddirfd, old, newdirfd, new);
@@ -1099,30 +1177,35 @@ int renameat2(int olddirfd, const char *old, int newdirfd, const char *new, unsi
 int renameat(int olddirfd, const char *old, int newdirfd, const char *new) { return rename_common(olddirfd, old, newdirfd, new, 0); }
 int rename(const char *old, const char *new) { return rename_common(AT_FDCWD, old, AT_FDCWD, new, 0); }
 
-int symlinkat(const char *target, int dirfd, const char *path) {
-  REAL(symlinkat, int (*)(const char *, int, const char *));
+static long fp_symlink(const char *target, int dirfd, const char *path) {
   struct res r;
   long rs = trailing_slash(path) ? FP_SLOW : resolve(dirfd, path, MAY_BE_UNSEEN, &r);
   if (rs == 0 || rs == 1 || rs == UNSEEN) {
     rs = sc(SYS_symlinkat, (long)target, AT_FDCWD, (long)r.host, 0, 0);
     if (rs == 0) forget();
   }
-  ANSWER(rs, dirfd, path, real_symlinkat(target, dirfd, path));
+  return rs;
+}
+int symlinkat(const char *target, int dirfd, const char *path) {
+  REAL(symlinkat, int (*)(const char *, int, const char *));
+  ANSWER(fp_symlink(target, dirfd, path), dirfd, path, real_symlinkat(target, dirfd, path));
 }
 int symlink(const char *target, const char *path) { return symlinkat(target, AT_FDCWD, path); }
 
-int fchmodat(int dirfd, const char *path, mode_t mode, int flags) {
-  REAL(fchmodat, int (*)(int, const char *, mode_t, int));
+static long fp_chmod(int dirfd, const char *path, mode_t mode, int flags) {
   struct res r;
   long rs = flags ? FP_SLOW : resolve(dirfd, path, 1 | MAY_BE_UNSEEN, &r);
   if (rs == 1) rs = -ENOENT;
   if (rs == 0 || rs == UNSEEN) rs = sc(SYS_fchmodat, AT_FDCWD, (long)r.host, mode, 0, 0);
-  ANSWER(rs, dirfd, path, real_fchmodat(dirfd, path, mode, flags));
+  return rs;
+}
+int fchmodat(int dirfd, const char *path, mode_t mode, int flags) {
+  REAL(fchmodat, int (*)(int, const char *, mode_t, int));
+  ANSWER(fp_chmod(dirfd, path, mode, flags), dirfd, path, real_fchmodat(dirfd, path, mode, flags));
 }
 int chmod(const char *path, mode_t mode) { return fchmodat(AT_FDCWD, path, mode, 0); }
 
-static int utimens_common(int dirfd, const char *path, const struct timespec times[2], int flags) {
-  REAL(utimensat, int (*)(int, const char *, const struct timespec[2], int));
+static long fp_utimens(int dirfd, const char *path, const struct timespec times[2], int flags) {
   struct res r;
   long rs;
   if (!path && fp_ready()) {
@@ -1132,7 +1215,11 @@ static int utimens_common(int dirfd, const char *path, const struct timespec tim
     if (rs == 1) rs = -ENOENT;
     if (rs == 0 || rs == UNSEEN) rs = sc(SYS_utimensat, AT_FDCWD, (long)r.host, (long)times, flags, 0);
   }
-  ANSWER(rs, dirfd, path, real_utimensat(dirfd, path, times, flags));
+  return rs;
+}
+static int utimens_common(int dirfd, const char *path, const struct timespec times[2], int flags) {
+  REAL(utimensat, int (*)(int, const char *, const struct timespec[2], int));
+  ANSWER(fp_utimens(dirfd, path, times, flags), dirfd, path, real_utimensat(dirfd, path, times, flags));
 }
 int utimensat(int dirfd, const char *path, const struct timespec times[2], int flags) {
   return utimens_common(dirfd, path, times, flags);
@@ -1159,23 +1246,29 @@ int utime(const char *path, const struct utimbuf *times) {
   return utimens_common(AT_FDCWD, path, ts, 0);
 }
 
-int truncate(const char *path, off_t length) {
-  REAL(truncate, int (*)(const char *, off_t));
+static long fp_truncate(const char *path, off_t length) {
   struct res r;
   long rs = resolve(AT_FDCWD, path, 1 | MAY_BE_UNSEEN, &r);
   if (rs == 1) rs = -ENOENT;
   if (rs == 0 || rs == UNSEEN) rs = sc(SYS_truncate, (long)r.host, length, 0, 0, 0);
-  ANSWER(rs, AT_FDCWD, path, real_truncate(path, length));
+  return rs;
+}
+int truncate(const char *path, off_t length) {
+  REAL(truncate, int (*)(const char *, off_t));
+  ANSWER(fp_truncate(path, length), AT_FDCWD, path, real_truncate(path, length));
 }
 int truncate64(const char *path, off_t length) __attribute__((alias("truncate")));
 
-static int statfs_common(const char *path, struct statfs *buf, int (*real)(const char *, struct statfs *)) {
+static long fp_statfs(const char *path, struct statfs *buf) {
   struct res r;
   long rs = resolve(AT_FDCWD, path, 1, &r);
   if (rs == 1) rs = -ENOENT;
   if (rs == 0 && under(r.guest, "/dev/shm", 8)) rs = FP_SLOW;
   if (rs == 0) rs = sc(SYS_statfs, (long)r.host, (long)buf, 0, 0, 0);
-  ANSWER(rs, AT_FDCWD, path, real(path, buf));
+  return rs;
+}
+static int statfs_common(const char *path, struct statfs *buf, int (*real)(const char *, struct statfs *)) {
+  ANSWER(fp_statfs(path, buf), AT_FDCWD, path, real(path, buf));
 }
 int statfs(const char *path, struct statfs *buf) {
   REAL(statfs, int (*)(const char *, struct statfs *));
@@ -1223,12 +1316,16 @@ int statvfs64(const char *path, struct statvfs64 *buf) {
   return statvfs_common(path, (struct statvfs *)buf, real_statvfs64);
 }
 
-static ssize_t getxattr_common(const char *path, const char *name, void *value, size_t size, int follow,
-                               ssize_t (*real)(const char *, const char *, void *, size_t)) {
+static long fp_getxattr(const char *path, const char *name, void *value, size_t size, int follow) {
   struct res r;
   long rs = resolve(AT_FDCWD, path, follow | MAY_BE_UNSEEN, &r);
   if (rs == 1) rs = -ENOENT;
   if (rs == 0 || rs == UNSEEN) rs = sc(follow ? SYS_getxattr : SYS_lgetxattr, (long)r.host, (long)name, (long)value, size, 0);
+  return rs;
+}
+static ssize_t getxattr_common(const char *path, const char *name, void *value, size_t size, int follow,
+                               ssize_t (*real)(const char *, const char *, void *, size_t)) {
+  long rs = fp_getxattr(path, name, value, size, follow);
   if (rs != FP_SLOW) { hits++; return rs < 0 ? ret(rs) : rs; }
   missed(__func__, AT_FDCWD, path);
   return real(path, name, value, size);
@@ -1242,12 +1339,16 @@ ssize_t lgetxattr(const char *path, const char *name, void *value, size_t size) 
   return getxattr_common(path, name, value, size, 0, real_lgetxattr);
 }
 
-static ssize_t listxattr_common(const char *path, char *list, size_t size, int follow,
-                                ssize_t (*real)(const char *, char *, size_t)) {
+static long fp_listxattr(const char *path, char *list, size_t size, int follow) {
   struct res r;
   long rs = resolve(AT_FDCWD, path, follow | MAY_BE_UNSEEN, &r);
   if (rs == 1) rs = -ENOENT;
   if (rs == 0 || rs == UNSEEN) rs = sc(follow ? SYS_listxattr : SYS_llistxattr, (long)r.host, (long)list, size, 0, 0);
+  return rs;
+}
+static ssize_t listxattr_common(const char *path, char *list, size_t size, int follow,
+                                ssize_t (*real)(const char *, char *, size_t)) {
+  long rs = fp_listxattr(path, list, size, follow);
   if (rs != FP_SLOW) { hits++; return rs < 0 ? ret(rs) : rs; }
   missed(__func__, AT_FDCWD, path);
   return real(path, list, size);
@@ -1261,13 +1362,15 @@ ssize_t llistxattr(const char *path, char *list, size_t size) {
   return listxattr_common(path, list, size, 0, real_llistxattr);
 }
 
-int inotify_add_watch(int fd, const char *path, uint32_t mask) {
-  REAL(inotify_add_watch, int (*)(int, const char *, uint32_t));
+static long fp_inotify(int fd, const char *path, uint32_t mask) {
   struct res r;
   long rs = resolve(AT_FDCWD, path, (mask & IN_DONT_FOLLOW ? 0 : 1) | MAY_BE_UNSEEN, &r);
-  if (rs == 1) rs = -ENOENT;
-  if (rs == 0 || rs == UNSEEN) rs = sc(SYS_inotify_add_watch, fd, (long)r.host, mask, 0, 0);
-  ANSWER(rs, AT_FDCWD, path, real_inotify_add_watch(fd, path, mask));
+  if (rs == 0 || rs == 1 || rs == UNSEEN) rs = sc(SYS_inotify_add_watch, fd, (long)r.host, mask, 0, 0);
+  return rs;
+}
+int inotify_add_watch(int fd, const char *path, uint32_t mask) {
+  REAL(inotify_add_watch, int (*)(int, const char *, uint32_t));
+  ANSWER(fp_inotify(fd, path, mask), AT_FDCWD, path, real_inotify_add_watch(fd, path, mask));
 }
 
 
@@ -1763,3 +1866,5 @@ struct passwd *getpwuid(uid_t uid) {
   missed(__func__, AT_FDCWD, "(passwd)");
   return real_getpwuid(uid);
 }
+
+#include "svc-patch.h"

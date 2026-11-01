@@ -38,6 +38,9 @@ object SessionState {
     var installing: String? = null
 
     @Volatile
+    var installCancellation: com.droiddeck.launcher.core.Downloader.Cancellation? = null
+
+    @Volatile
     var stopRequested = false
 
     @Volatile
@@ -46,16 +49,21 @@ object SessionState {
     var activityDisplayId = 0
     @Volatile
     var runtimeDriver: String? = null
+    var micAvailable by mutableStateOf(false)
+    var micEnabled by mutableStateOf(false)
     var suspended by mutableStateOf(false)
     var resumeRequested by mutableStateOf(false)
     var resuming by mutableStateOf(false)
     var resumeFailures by mutableIntStateOf(0)
     var resumeFailed by mutableStateOf(false)
+    var manualPause by mutableStateOf(false)
     @Volatile var pipActive = false
     @Volatile
     var program: String? = null
     @Volatile
     var programArgs: List<String> = emptyList()
+    @Volatile
+    var gameId: String? = null
     @Volatile
     var steamUi: String? = null
     @Volatile
@@ -83,6 +91,11 @@ object SessionState {
 
     @Volatile var secondScreenMode = com.droiddeck.launcher.input.SecondScreenMode.NONE
     @Volatile var secondScreenDisplay = -1
+    @Volatile var secondScreenAutoOpened = false
+    @Volatile var secondScreenProvisional = false
+
+    /** Guest library paths on removable storage and the host folders they are mounted from, set by SessionService. */
+    @Volatile var steamLibraryMounts: Map<String, java.io.File> = emptyMap()
 
     @Volatile
     var mode = "steam"
@@ -99,6 +112,7 @@ object SessionState {
     @Volatile
     var upscaleRatio: Float = 0f
 
+    /** Frame limit chosen in the drawer for a game launched without Steam; 0 is off. */
     @Volatile
     var fpsLimit: Int = 0
 

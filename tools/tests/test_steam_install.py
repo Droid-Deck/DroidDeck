@@ -26,25 +26,48 @@ class SteamInstallTest(unittest.TestCase):
         self.bin = self.root / 'bin'
         self.bin.mkdir()
         curl = self.bin / 'curl'
-        curl.write_text('''#!/bin/bash
-set -eu
-url=""
-out=""
-while [ $# -gt 0 ]; do
-  case $1 in
-    -o) out=$2; shift 2 ;;
-    --connect-timeout|--max-time|--speed-limit|--speed-time|--retry|--retry-delay) shift 2 ;;
-    -*) shift ;;
-    *) url=$1; shift ;;
-  esac
-done
-printf '%s\\n' "$url" >> "$TEST_REQUESTS"
-if [ -n "${TEST_FAIL_HOST:-}" ]; then
-  case $url in *"$TEST_FAIL_HOST"*) exit 22 ;; esac
-fi
-cp "$TEST_CDN/${url##*/}" "$out"
+        curl.write_text('''#!/usr/bin/env python3
+import os, sys
+args = sys.argv[1:]
+url = next(a for a in args if a.startswith('https://'))
+out = args[args.index('-o') + 1]
+name = url.rsplit('/', 1)[1]
+offset = os.path.getsize(out) if '-C' in args and os.path.exists(out) else 0
+with open(os.environ['TEST_REQUESTS'], 'a') as log:
+    log.write(url + '\\n')
+with open(os.environ['TEST_REQUESTS'] + '.offsets', 'a') as log:
+    log.write(f'{name} {offset}\\n')
+def done(status, code='200'):
+    if '-w' in args:
+        sys.stdout.write(code)
+    sys.exit(status)
+host_fail = os.environ.get('TEST_FAIL_HOST')
+if host_fail and host_fail in url:
+    done(22, '000')
+action = []
+plan = os.environ.get('TEST_PLAN')
+if plan and os.path.exists(plan):
+    lines = open(plan).read().splitlines()
+    for n, line in enumerate(lines):
+        if line.split()[0] == name:
+            action = line.split()[1:]
+            del lines[n]
+            open(plan, 'w').write(''.join(l + '\\n' for l in lines))
+            break
+if action[:1] == ['fail']:
+    done(int(action[1]), '000')
+if action[:1] == ['http']:
+    done(22, action[1])
+if action[:1] == ['norange'] and offset:
+    done(33)
+data = open(os.path.join(os.environ['TEST_CDN'], name), 'rb').read()
+end = int(action[1]) if action[:1] == ['cut'] else len(data)
+with open(out, 'ab' if offset else 'wb') as target:
+    target.write(data[offset:end])
+done(28 if end < len(data) else 0)
 ''')
         curl.chmod(0o755)
+        self.plan = self.root / 'plan'
         if shutil.which('sha256sum') is None:
             sha = self.bin / 'sha256sum'
             sha.write_text('#!/bin/bash\nexec shasum -a 256 "$@"\n')
@@ -55,7 +78,8 @@ cp "$TEST_CDN/${url##*/}" "$out"
             sha1.chmod(0o755)
         self.env = dict(os.environ, HOME=str(self.home), XDG_DATA_HOME=str(self.data),
                         PATH=str(self.bin) + os.pathsep + os.environ['PATH'],
-                        TEST_CDN=str(self.cdn), TEST_REQUESTS=str(self.requests))
+                        TEST_CDN=str(self.cdn), TEST_REQUESTS=str(self.requests),
+                        TEST_PLAN=str(self.plan), BL_STEAM_RETRY_DELAYS='0 0 0')
         for channel in ('steamdeck_publicbeta', 'steamdeck_stable'):
             archive = self.cdn / (channel + '.zip')
             with zipfile.ZipFile(archive, 'w') as package:
@@ -254,6 +278,143 @@ cp "$TEST_CDN/${url##*/}" "$out"
         self.requests.unlink()
         self.assertEqual(0, self.install().returncode)
         self.assertFalse(self.requests.exists())
+
+    def publish(self, **parts):
+        """The CDN's client as these parts (block name -> byte count of incompressible content),
+        listed with sizes as Valve's manifest lists them."""
+        files = {}
+        blocks = ''
+        for block, length in parts.items():
+            archive = self.cdn / f'{block}.zip.{hashlib.sha1(block.encode()).hexdigest()}'
+            with zipfile.ZipFile(archive, 'w', zipfile.ZIP_STORED) as package:
+                package.writestr(f'parts/{block}', os.urandom(length))
+                if block.endswith('_linuxarm64_linuxarm64'):
+                    package.writestr('steamrtarm64/steam', 'steamdeck_publicbeta')
+            data = archive.read_bytes()
+            files[block] = archive.name
+            blocks += (f'\t"{block}"\n\t{{\n\t\t"file"\t\t"{archive.name}"\n\t\t"size"\t\t"{len(data)}"\n'
+                       f'\t\t"sha2"\t\t"{hashlib.sha256(data).hexdigest()}"\n\t}}\n')
+        (self.cdn / 'steam_client_steamdeck_publicbeta_linuxarm64').write_text(
+            '"linuxarm64"\n{\n\t"version"\t\t"123456"\n' + blocks + '}\n')
+        return files
+
+    def two_parts(self):
+        return self.publish(a_all=1_200_000, client_linuxarm64_linuxarm64=1_300_000)
+
+    def plan_for(self, name, *actions):
+        with self.plan.open('a') as plan:
+            plan.writelines(f'{name} {action}\n' for action in actions)
+
+    def offsets(self, name):
+        log = Path(str(self.requests) + '.offsets')
+        return [int(line.split()[1]) for line in log.read_text().splitlines() if line.split()[0] == name]
+
+    def requested(self):
+        return [line.rsplit('/', 1)[1] for line in self.requests.read_text().splitlines()]
+
+    @property
+    def download(self):
+        return self.steam / 'package/droiddeck-download'
+
+    def test_progress_is_counted_in_megabytes_across_parts(self):
+        self.two_parts()
+        result = self.install()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn('downloading Steam: a_all (1/2), 0 of 2 MB\n', result.stdout)
+        self.assertIn('downloading Steam: client_linuxarm64_linuxarm64 (2/2), 1 of 2 MB\n', result.stdout)
+        self.assertTrue((self.steam / 'parts/a_all').is_file())
+        self.assertFalse(self.download.exists())
+
+    def test_a_dropped_connection_resumes_from_what_arrived(self):
+        files = self.two_parts()
+        client = files['client_linuxarm64_linuxarm64']
+        self.plan_for(client, 'cut 500000')
+        result = self.install()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual([0, 500000], self.offsets(client))
+        self.assertIn('interrupted (curl exit 28), trying again in 0 s', result.stdout)
+        self.assertEqual('123456\n', (self.steam / 'package/droiddeck-installed').read_text())
+
+    def test_a_failed_session_keeps_what_it_finished_and_fetched(self):
+        files = self.two_parts()
+        client = files['client_linuxarm64_linuxarm64']
+        self.plan_for(client, 'cut 400000', *['fail 6'] * 12)
+        result = self.install()
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn('could not download client_linuxarm64_linuxarm64 (curl exit 6)', result.stderr)
+        self.assertFalse((self.steam / 'package/droiddeck-installed').exists())
+        self.assertTrue((self.download / (files['a_all'] + '.unpacked')).is_file())
+        self.assertFalse((self.download / files['a_all']).exists())
+        self.assertEqual(400000, (self.download / client).stat().st_size)
+        self.requests.unlink()
+        Path(str(self.requests) + '.offsets').unlink()
+        self.assertEqual(0, self.install().returncode)
+        self.assertEqual(['steam_client_steamdeck_publicbeta_linuxarm64', client], self.requested())
+        self.assertEqual([400000], self.offsets(client))
+        self.assertFalse(self.download.exists())
+
+    def test_a_server_that_will_not_resume_starts_the_part_over(self):
+        files = self.two_parts()
+        client = files['client_linuxarm64_linuxarm64']
+        self.plan_for(client, 'cut 400000', 'norange')
+        result = self.install()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual([0, 400000, 0], self.offsets(client))
+
+    def test_a_missing_part_hands_over_to_the_next_cdn_at_once(self):
+        files = self.two_parts()
+        client = files['client_linuxarm64_linuxarm64']
+        self.plan_for(client, 'http 404')
+        result = self.install()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(['https://client-update.steamstatic.com/' + client,
+                          'https://client-update.akamai.steamstatic.com/' + client],
+                         [line for line in self.requests.read_text().splitlines() if line.endswith(client)])
+        self.assertIn('HTTP 404 from https://client-update.steamstatic.com', result.stderr)
+        self.assertNotIn('trying again', result.stdout)
+
+    def test_a_server_error_is_retried_on_the_same_cdn(self):
+        files = self.two_parts()
+        client = files['client_linuxarm64_linuxarm64']
+        self.plan_for(client, 'http 503')
+        result = self.install()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(['https://client-update.steamstatic.com/' + client] * 2,
+                         [line for line in self.requests.read_text().splitlines() if line.endswith(client)])
+        self.assertIn('interrupted (curl exit 22), trying again in 0 s', result.stdout)
+
+    def test_bytes_that_do_not_check_out_are_fetched_again(self):
+        files = self.two_parts()
+        client = files['client_linuxarm64_linuxarm64']
+        self.download.mkdir(parents=True)
+        (self.download / client).write_bytes(b'x' * (self.cdn / client).stat().st_size)
+        result = self.install()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual([0], self.offsets(client))
+
+    def test_parts_left_for_another_client_version_are_dropped(self):
+        files = self.two_parts()
+        self.download.mkdir(parents=True)
+        (self.download / 'a_all.zip.0123').write_bytes(b'older')
+        (self.download / 'b_all.zip.4567.unpacked').write_bytes(b'')
+        self.plan_for(files['client_linuxarm64_linuxarm64'], *['fail 7'] * 12)
+        self.assertNotEqual(0, self.install().returncode)
+        self.assertEqual([files['a_all'] + '.unpacked'], sorted(p.name for p in self.download.iterdir()))
+
+    def test_a_repair_unpacks_every_part_again_once(self):
+        files = self.two_parts()
+        self.assertEqual(0, self.install().returncode)
+        (self.home / '.bl-steam-repair').write_text('1\n')
+        self.requests.unlink()
+        self.plan_for(files['client_linuxarm64_linuxarm64'], *['fail 7'] * 12)
+        self.assertNotEqual(0, self.install().returncode)
+        self.assertIn(files['a_all'], self.requested())
+        self.requests.unlink()
+        self.assertEqual(0, self.install().returncode)
+        self.assertEqual(['steam_client_steamdeck_publicbeta_linuxarm64', files['client_linuxarm64_linuxarm64']],
+                         self.requested())
+        self.assertFalse((self.home / '.bl-steam-repair').exists())
+        self.assertFalse(self.download.exists())
 
 
 if __name__ == '__main__':

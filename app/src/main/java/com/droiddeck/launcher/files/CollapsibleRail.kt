@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.files
 
+import androidx.compose.foundation.shape.CircleShape
+import com.droiddeck.launcher.ui.focusGlide
 import android.content.res.Configuration
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
@@ -181,14 +183,14 @@ fun CollapsibleRail(
                     modifier = Modifier.weight(1f),
                 )
                 if (!state.portraitLocked) {
-                    IconButton(onClick = state.onToggle, modifier = Modifier.size(28.dp)) {
+                    IconButton(onClick = state.onToggle, modifier = Modifier.size(28.dp).focusGlide(CircleShape)) {
                         Text("‹‹", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 15.sp)
                     }
                 }
             }
         }
         if (collapsed && !state.portraitLocked) {
-            IconButton(onClick = state.onToggle, modifier = Modifier.fillMaxWidth().height(24.dp)) {
+            IconButton(onClick = state.onToggle, modifier = Modifier.fillMaxWidth().height(24.dp).focusGlide(CircleShape)) {
                 Text("››", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 15.sp)
             }
         }
@@ -197,14 +199,14 @@ fun CollapsibleRail(
             if (collapsed) {
                 Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     links.forEach { link ->
-                        IconButton(onClick = link.onClick, modifier = Modifier.size(32.dp)) {
+                        IconButton(onClick = link.onClick, modifier = Modifier.size(32.dp).focusGlide(CircleShape)) {
                             Icon(link.icon, link.label, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
             } else {
                 links.forEach { link ->
-                    TextButton(onClick = link.onClick, modifier = Modifier.padding(start = 4.dp)) {
+                    TextButton(onClick = link.onClick, modifier = Modifier.padding(start = 4.dp).focusGlide(CircleShape)) {
                         Icon(link.icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(link.label, fontSize = 12.sp)
@@ -250,11 +252,11 @@ fun CollapsibleRail(
                             if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
                             shape,
                         )
-                        .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = item.onClick)
+                        .focusGlide(shape).clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = item.onClick)
                         .padding(horizontal = if (collapsed) 2.dp else 11.dp, vertical = if (collapsed) 6.dp else 9.dp)
                 } else {
                     base
-                        .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = item.onClick)
+                        .focusGlide(shape).clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = item.onClick)
                         .background(if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else Color.Transparent)
                         .padding(horizontal = if (collapsed) 2.dp else 13.dp, vertical = if (collapsed) 7.dp else 11.dp)
                 }
@@ -361,6 +363,7 @@ private fun TopTabCell(
         modifier = modifier
             .clip(RoundedCornerShape(9.dp))
             .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else Color.Transparent)
+            .focusGlide(RoundedCornerShape(9.dp))
             .then(
                 if (isTab) {
                     Modifier.selectable(selected = selected, role = androidx.compose.ui.semantics.Role.Tab, onClick = onClick)

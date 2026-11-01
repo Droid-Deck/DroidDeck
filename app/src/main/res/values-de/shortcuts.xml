@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">Physische Tastenkürzel</string>
+    <string name="shortcuts_dd_menu">DroidDeck-Menü</string>
+    <string name="shortcuts_capture">Zuweisen: %1$s</string>
+    <string name="shortcuts_press">Drücke eine Taste und lasse sie los. Die Zuweisung wird automatisch gespeichert.</string>
+    <string name="shortcuts_release">Lasse die Taste los, um fortzufahren.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">Diese Taste ist bereits zugewiesen: %1$s</string>
+    <string name="shortcuts_save">Neu zuweisen</string>
+    <string name="shortcuts_retry">Andere Taste versuchen</string>
+    <string name="shortcuts_limitations">Die Home-Taste und einige Zusatztasten sind möglicherweise nicht verfügbar.</string>
+</resources>

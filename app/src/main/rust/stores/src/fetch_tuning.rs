@@ -68,6 +68,10 @@ pub const SERVER_EXPLORE_EVERY: u64 = 8;
 pub const NOMINAL_CHUNK_RESERVE_BYTES: u64 = 1024 * 1024;
 pub const RATE_LIMIT_COOLDOWN_MS: u64 = 5_000;
 
+// Long enough that every retry of the item (5 attempts, at most ~4.5 s of backoff) goes to another
+// mirror after this one served a truncated or undecodable body.
+pub const SERVER_FAULT_COOLDOWN_MS: u64 = 10_000;
+
 pub fn retry_backoff_millis(attempt: u32) -> u64 {
     if attempt == 0 {
         return 0;

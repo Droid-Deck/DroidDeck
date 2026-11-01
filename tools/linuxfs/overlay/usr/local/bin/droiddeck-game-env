@@ -4,8 +4,10 @@ import json
 import os
 import re
 import runpy
+import signal
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 GAME_TU_DEBUG = "DROIDDECK_GAME_TU_DEBUG"
@@ -33,7 +35,6 @@ DOTNET_FEX = {
     "FEX_MEMCPYSETTSOENABLED": "1",
     "FEX_HALFBARRIERTSOENABLED": "1",
     "FEX_X87REDUCEDPRECISION": "0",
-    "FEX_MULTIBLOCK": "0",
 }
 
 
@@ -84,7 +85,7 @@ def is_godot(game):
 @fix
 def dotnet_memory_ordering(game):
     if "coreclr.dll" in game.files:
-        return DOTNET_FEX, [], ".NET runtime: FEX with full TSO and without multiblock"
+        return DOTNET_FEX, [], ".NET runtime: FEX with full TSO"
 
 
 @fix
@@ -102,8 +103,17 @@ def godot_vulkan(game):
 @fix
 def godot_sentry(game):
     sentry = sorted(n[:-4] for n in game.files if n.startswith("libsentry.windows.") and n.endswith(".dll"))
-    if is_godot(game) and sentry:
+    if is_godot(game) and sentry and ("coreclr.dll" in game.files or "godotsharp.dll" in game.files):
         return {"WINEDLLOVERRIDES": ";".join(n + "=d" for n in sentry)}, [], "Godot: Sentry crash handler off"
+
+
+@fix
+def d3dgear_hook(game):
+    """D3DGear's capture DLL left beside a game (The Crew 2) is loaded by it and hooks the DXGI swapchain;
+    under Wine the hook faults over a thousand times within seconds and the game never presents again:
+    black screen while the sound keeps playing."""
+    if "d3dgear64.dll" in game.files:
+        return {"WINEDLLOVERRIDES": "d3dgear64=d"}, [], "D3DGear capture hook off (it stops the game drawing)"
 
 
 @fix
@@ -120,6 +130,53 @@ def arkham_city_x87(game):
         return {"FEX_X87REDUCEDPRECISION": "0"}, [], "Batman: Arkham City: FEX with full x87 precision"
 
 
+
+@fix
+def teardown_vsync(game):
+    if game.stem == "teardown":
+        return {"vblank_mode": "2"}, [], "Teardown: OpenGL keeps the game's own vsync"
+
+
+@fix
+def protonfixes_off(game):
+    if game.stem in ("blackops3", "darksoulsremastered"):
+        return {"PROTONFIXES_DISABLE": "1"}, [], "umu-protonfixes off (its ALSA audio and VC++ installer steps fail here)"
+
+
+@fix
+def little_nightmares_threads(game):
+    if game.stem == "littlenightmares":
+        return {"PROTONFIXES_DISABLE": "1"}, [], "Little Nightmares: umu-protonfixes off (its -onethread puts the game and renderer on one thread)"
+
+
+@fix
+def caravan_sandwitch_feature_level(game):
+    if "caravansandwitch.exe" in game.files or game.stem == "caravansandwitch-win64-shipping":
+        return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "Caravan SandWitch: D3D12 feature level 12_1 (12_2 hands it mesh shader pipelines vkd3d-proton cannot build)"
+
+
+@fix
+def robocop_rogue_city_feature_level(game):
+    """vkd3d-proton turns mesh shaders off on Adreno, but 12_2 still advertises them, and UE5 then builds mesh
+    pipelines with no pipeline layout that crash Turnip on launch."""
+    if "robocop.exe" in game.files or game.stem == "robocop-win64-shipping":
+        return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "RoboCop: Rogue City: D3D12 feature level 12_1"
+
+
+@fix
+def reskate_feature_level(game):
+    if "skate.exe" in game.files and "reskate.dll" in game.files:
+        return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "ReSkate (skate.): D3D12 feature level 12_1"
+
+
+@fix
+def cyberpunk_feature_level(game):
+    if game.stem == "cyberpunk2077" or (
+        game.stem == "redprelauncher"
+        and os.path.isfile(os.path.join(os.path.dirname(game.exe), "bin", "x64", "Cyberpunk2077.exe"))
+    ):
+        return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "Cyberpunk 2077: D3D12 feature level 12_1"
+
 def skip_red_launcher(command):
     """Cyberpunk 2077's prelauncher opens REDlauncher, a Qt WebEngine window that hands over to the
     game half a minute later and then stays up beside it, well over a core busy for as long as the
@@ -131,6 +188,61 @@ def skip_red_launcher(command):
             print("droiddeck-game-env: REDlauncher skipped", file=sys.stderr)
             return command[:2] + [game] + command[3:]
     return command
+
+
+UBISOFT_LAUNCHER = "drive_c/Program Files (x86)/Ubisoft/Ubisoft Game Launcher"
+UBISOFT_SETTINGS = "drive_c/users/steamuser/AppData/Local/Ubisoft Game Launcher/settings.yaml"
+
+
+def overlay_off(text):
+    lines = text.splitlines()
+    try:
+        start = next(i for i, line in enumerate(lines) if re.fullmatch(r"overlay:\s*(#.*)?", line))
+    except StopIteration:
+        if lines and not lines[-1].strip():
+            lines.pop()
+        return "\n".join(lines + ["overlay:", "  enabled: false", "  warning_enabled: false"]) + "\n"
+    end = start + 1
+    for index in range(start + 1, len(lines)):
+        if lines[index].strip() and not lines[index].startswith("  "):
+            break
+        if lines[index].strip():
+            end = index + 1
+    block = lines[start + 1:end]
+    for key in ("enabled", "warning_enabled"):
+        entry = "  %s: false" % key
+        found = [i for i, line in enumerate(block) if line.split(":", 1)[0] == "  " + key]
+        if found:
+            block[found[0]] = entry
+        else:
+            block.append(entry)
+    return "\n".join(lines[:start + 1] + block + lines[end:]) + "\n"
+
+
+def ubisoft_overlay_off(env):
+    prefix = Path(env.get("STEAM_COMPAT_DATA_PATH", "/nonexistent")) / "pfx"
+    if not (prefix / UBISOFT_LAUNCHER).is_dir():
+        return
+    settings = prefix / UBISOFT_SETTINGS
+    try:
+        text = settings.read_text(encoding="utf-8") if settings.exists() else ""
+        updated = overlay_off(text)
+        if updated == text:
+            return
+        settings.parent.mkdir(parents=True, exist_ok=True)
+        handle, staged = tempfile.mkstemp(prefix=".settings-", dir=settings.parent)
+        try:
+            with os.fdopen(handle, "w", encoding="utf-8") as target:
+                target.write(updated)
+            if settings.exists():
+                os.chmod(staged, settings.stat().st_mode & 0o7777)
+            os.replace(staged, settings)
+        except BaseException:
+            os.unlink(staged)
+            raise
+        print("droiddeck-game-env: Ubisoft Connect overlay turned off", file=sys.stderr)
+    except (OSError, UnicodeDecodeError) as error:
+        print("droiddeck-game-env: Ubisoft Connect overlay left as is (%s)" % error, file=sys.stderr)
 
 
 def offline_without_anticheat(command, env):
@@ -169,7 +281,10 @@ def engine_fixes(exe, args):
     for check in FIXES:
         found = check(game)
         if found:
-            env.update(found[0])
+            for name, value in found[0].items():
+                if name == "WINEDLLOVERRIDES" and env.get(name):
+                    value = env[name] + ";" + value
+                env[name] = value
             extra += found[1]
             notes.append(found[2])
     return env, extra, notes
@@ -202,6 +317,151 @@ def game_gpu(env):
     return result
 
 
+def vram_cap(env):
+    """Puts the session's VRAM cap ahead of the game's own DXVK settings, so a game profile can still raise it."""
+    value = env.get("BL_VRAM_MB", "")
+    if not re.fullmatch(r"[1-9][0-9]{0,6}", value):
+        return env
+    result = env.copy()
+    cap = "dxgi.maxDeviceMemory = %d" % int(value)
+    own = result.get("DXVK_CONFIG", "").strip().strip(";").strip()
+    result["DXVK_CONFIG"] = cap + "; " + own if own else cap
+    return result
+
+
+def parse_cores(text):
+    """CPU numbers from a list such as "0-3,6"; None when the text is not one."""
+    cores = set()
+    for part in text.replace(" ", "").split(","):
+        match = re.fullmatch(r"(\d{1,3})(?:-(\d{1,3}))?", part)
+        if not match:
+            return None
+        first, last = int(match.group(1)), int(match.group(2) or match.group(1))
+        if last < first:
+            return None
+        cores.update(range(first, last + 1))
+    return cores or None
+
+
+def online_cores():
+    try:
+        with open("/sys/devices/system/cpu/online") as f:
+            cores = parse_cores(f.read().strip())
+    except OSError:
+        cores = None
+    return cores or os.sched_getaffinity(0) | set(range(os.cpu_count() or 0))
+
+
+def game_cores(env):
+    """Pins the game to the cores its profile names, in place of the session's game cores."""
+    text = env.get("DROIDDECK_GAME_CORES", "").strip()
+    if not text:
+        return
+    cores = parse_cores(text)
+    chosen = cores & online_cores() if cores else None
+    if not chosen:
+        print("droiddeck-game-env: ignoring game cores %r" % text, file=sys.stderr)
+        return
+    try:
+        os.sched_setaffinity(0, chosen)
+        print("droiddeck-game-env: game cores %s" % ",".join(map(str, sorted(chosen))), file=sys.stderr)
+    except OSError as error:
+        print("droiddeck-game-env: could not use game cores %r (%s)" % (text, error), file=sys.stderr)
+
+
+def core_speeds(cores, root="/sys/devices/system/cpu"):
+    """Each core's capacity, else its top clock; None when some core reports neither."""
+    for name in ("cpu_capacity", "cpufreq/cpuinfo_max_freq"):
+        speeds = {}
+        for core in cores:
+            try:
+                with open("%s/cpu%d/%s" % (root, core, name)) as f:
+                    speeds[core] = int(f.read().strip())
+            except (OSError, ValueError):
+                break
+        else:
+            return speeds
+    return None
+
+
+def fastest_first(cores):
+    """The cores, fastest first; cores of equal or unknown speed keep their numeric order."""
+    cores = sorted(cores)
+    speeds = core_speeds(cores)
+    return sorted(cores, key=lambda core: -speeds[core]) if speeds else cores
+
+
+def proton_cpu_limit(command, env):
+    """This game's entry in Proton's own default_cpu_limit list: a core count, another value such as "P" as text, or None."""
+    app_id = env.get("SteamGameId", "")
+    if not command or not app_id.isdigit():
+        return None
+    try:
+        if os.path.getsize(command[0]) > 4 * 1024 * 1024:
+            return None
+        with open(command[0], encoding="utf-8", errors="replace") as f:
+            text = f.read()
+    except OSError:
+        return None
+    table = re.search(r"^default_cpu_limit = \{(.*?)^\}", text, re.M | re.S)
+    match = table and re.search(r'^\s*"%s"\s*:\s*"?(\w+)' % app_id, table.group(1), re.M)
+    if not match:
+        return None
+    value = match.group(1)
+    return int(value) if value.isdigit() else value
+
+
+def cpu_topology(env, command=()):
+    """Windows sees the game's cores fastest first, so a thread a game pins to CPU 0 runs on the fastest core."""
+    if "PROTON_CPU_TOPOLOGY" in env:
+        return
+    if "WINE_CPU_TOPOLOGY" in env:
+        if env["WINE_CPU_TOPOLOGY"]:
+            env["PROTON_CPU_TOPOLOGY"] = env["WINE_CPU_TOPOLOGY"]
+        return
+    picked = bool(env.get("DROIDDECK_GAME_CORES", "").strip() or env.get("BL_GAME_CPUS", "").strip())
+    fastest = env.get("DROIDDECK_FASTEST_CORES", "").strip() != "0" and game_id(env) is not None
+    if not (picked or fastest):
+        return
+    try:
+        cores = sorted(os.sched_getaffinity(0))
+    except OSError:
+        return
+    online = online_cores()
+    if not cores or cores[-1] >= len(online):
+        return
+    picked = picked and not set(cores) >= online
+    if fastest:
+        limit = None if picked else proton_cpu_limit(command, env)
+        if isinstance(limit, str):
+            return
+        cores = fastest_first(cores)[:limit or None]
+    elif set(cores) >= online:
+        return
+    if cores == sorted(online):
+        return
+    env["WINE_CPU_TOPOLOGY"] = env["PROTON_CPU_TOPOLOGY"] = "%d:%s" % (len(cores), ",".join(map(str, cores)))
+    print("droiddeck-game-env: Windows sees %d cores (%s)" % (len(cores), env["WINE_CPU_TOPOLOGY"]), file=sys.stderr)
+
+
+def gl_vsync(env):
+    """OpenGL stops waiting for each screen refresh; Steam's Frame Limit still holds the game through gamescope."""
+    # Wine asks for interval 1 on every GL window, and WineD3D's front-buffer drawing (DirectDraw,
+    # Direct3D 1-7) never lowers it, so those games ran at the refresh rate with no limit set.
+    if "vblank_mode" in env or game_id(env) is None:
+        return False
+    env["vblank_mode"] = "0"
+    return True
+
+
+def game_images(env):
+    if game_id(env) is None:
+        return False
+    env.setdefault("GAMESCOPE_WSI_MIN_IMAGE_COUNT", "8")
+    env.setdefault("GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT", "1")
+    return True
+
+
 def apply_config(env, config, app_id, fixes=None):
     if config.get("version") != 1:
         raise ValueError("unsupported environment configuration")
@@ -231,6 +491,59 @@ def apply_config(env, config, app_id, fixes=None):
         if dxvk:
             own = result.get("DXVK_CONFIG", "").strip().rstrip(";").strip()
             result["DXVK_CONFIG"] = own + "; " + dxvk if own else dxvk
+    return result
+
+
+GAME_DEBUG_CHANNELS = (
+    "timestamp", "pid", "tid", "seh", "unwind", "threadname", "debugstr", "loaddll", "mscoree",
+)
+WINE_DEBUG_SELECTOR = re.compile(r"(?:(trace|warn|err|fixme))?([+-])([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def game_debug_channels(*values):
+    """Normalize Wine selectors, retaining custom channels before required diagnostics."""
+    selectors = {}
+    for value in values:
+        if not isinstance(value, str) or "\0" in value or len(value) > 8192:
+            continue
+        for part in value.split(","):
+            part = part.strip()
+            match = WINE_DEBUG_SELECTOR.fullmatch(part)
+            if match is None:
+                continue
+            key = (match[1] or "", match[3])
+            # Move the last value to the end: global +/-all and per-class selectors
+            # have ordered semantics, so replacing a value in its old position is wrong.
+            selectors.pop(key, None)
+            selectors[key] = part
+    for channel in GAME_DEBUG_CHANNELS:
+        key = ("", channel)
+        selectors.pop(key, None)
+        selectors[key] = "+" + channel
+    formatted = ",".join(selectors.values())
+    if len(formatted) > 8192:
+        formatted = ",".join("+" + channel for channel in GAME_DEBUG_CHANNELS)
+    return formatted
+
+
+def apply_game_debug_logs(env, config, debug_dir):
+    """Apply app-owned diagnostics to a real game, without editing its launch command."""
+    if not isinstance(config, dict) or config.get("version") != 1 or config.get("gameDebugLogs") is not True:
+        return env
+    if (not isinstance(debug_dir, str) or "\0" in debug_dir or len(debug_dir) > 8192
+            or not os.path.isabs(debug_dir) or not os.path.isdir(debug_dir)):
+        print("droiddeck-game-env: game debug logs skipped; session log directory unavailable", file=sys.stderr)
+        return env
+    result = dict(env)
+    result.update({
+        "PROTON_LOG": "1",
+        "PROTON_LOG_DIR": debug_dir,
+        "PROTON_CRASH_REPORT_DIR": debug_dir,
+        "DXVK_LOG_PATH": debug_dir,
+        "DXVK_LOG_LEVEL": "debug",
+        "VKD3D_DEBUG": "info",
+        "WINEDEBUG": game_debug_channels(env.get("WINEDEBUG"), env.get("PROTON_LOG")),
+    })
     return result
 
 
@@ -420,7 +733,211 @@ def record_install_scripts(digest, env):
         print("droiddeck-game-env: install scripts not recorded (%s)" % error, file=sys.stderr)
 
 
-def start(launch, launch_env, digest):
+def directaudio_settings(env):
+    if "directaudio" not in env.get("WINE_AUDIO_DRIVER", "").split(","):
+        return env
+    for name, value in list(env.items()):
+        if name.startswith("AUDIO_DIRECT_"):
+            env["BANNER_" + name] = value
+    return env
+
+
+DIRT_GAMES = {"dirt3_game": "dirt3", "showdown": "dirtshowdown", "showdown_avx": "dirtshowdown"}
+DIRT_WS2 = "/usr/local/lib/droiddeck-dirt/ws2_32.dll"
+DIRT_MARKER = b"droiddeck-dirt-ws2_32"
+DIRT_FIXED = "showdown_avx.exe".encode("utf-16-le")
+DIRT_SAVED = ".droiddeck-original"
+
+
+def dirt_telemetry_on(prefix, game):
+    """Whether the game's UDP/motion output is on, as In-game stats or another listener sets it ("dbox" is its default)."""
+    try:
+        folders = [f for f in (Path(prefix) / "pfx/drive_c/users/steamuser/Documents/My Games").iterdir()
+                   if f.name.lower().replace(" ", "") == game]
+    except OSError:
+        return False
+    for folder in folders:
+        try:
+            text = (folder / "hardwaresettings/hardware_settings_config.xml").read_text(encoding="latin-1")
+        except OSError:
+            continue
+        for tag in ("udp", "motion"):
+            element = re.search(r"<%s\s[^>]*>" % tag, text)
+            if element:
+                attrs = dict(re.findall(r'\s(\w+)="([^"]*)"', element.group(0)))
+                return attrs.get("enabled") == "true" and attrs.get("ip", "").lower() not in ("", "dbox")
+    return False
+
+
+def proton_ws2(proton):
+    return Path(proton).parent / "files/lib/wine/i386-windows/ws2_32.dll"
+
+
+def proton_has_dirt_fix(proton):
+    try:
+        return DIRT_FIXED in proton_ws2(proton).read_bytes()
+    except OSError:
+        return False
+
+
+WINE_DLL_DIRS = ("/lib/wine/i386-windows", "/lib/wine/x86_64-windows", "/lib/wine/aarch64-windows", "/lib/wine",
+                 "/lib/wine/fakedlls", "/lib64/wine", "/lib64/wine/fakedlls", "/lib64/wine/x86_64-windows")
+
+
+def is_wine_dll_link(path):
+    """A link into a Wine DLL folder: the rule Proton uses to tell its own DLLs in a prefix (file_is_wine_builtin_dll)."""
+    try:
+        return os.path.islink(path) and os.path.dirname(os.readlink(path)).endswith(WINE_DLL_DIRS)
+    except OSError:
+        return False
+
+
+def prefix_ws2(prefix):
+    return Path(prefix) / "pfx/drive_c/windows/syswow64/ws2_32.dll"
+
+
+def is_dirt_stand_in(path):
+    try:
+        return not path.is_symlink() and DIRT_MARKER in path.read_bytes()
+    except OSError:
+        return False
+
+
+def dirt_ws2_wanted(command, env):
+    """The prefix to give the ws2_32 stand-in: a DiRT 3 / Showdown launch with telemetry on and a Proton without the fix."""
+    prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
+    if len(command) < 3 or not prefix or not os.path.isfile(DIRT_WS2):
+        return None
+    game = DIRT_GAMES.get(os.path.splitext(os.path.basename(command[2]))[0].lower())
+    if not game or not dirt_telemetry_on(prefix, game) or proton_has_dirt_fix(command[0]):
+        return None
+    return prefix if os.path.lexists(prefix_ws2(prefix)) else None
+
+
+def swap_dirt_ws2(prefix):
+    """Puts the stand-in where the prefix's syswow64/ws2_32.dll is; that file is kept beside it."""
+    target = prefix_ws2(prefix)
+    saved = target.with_name(target.name + DIRT_SAVED)
+    data = Path(DIRT_WS2).read_bytes()
+    if not is_dirt_stand_in(target):
+        if os.path.lexists(saved):
+            os.unlink(saved)
+        os.replace(target, saved)
+    staged = target.with_name(target.name + ".droiddeck-tmp")
+    staged.write_bytes(data)
+    os.replace(staged, target)
+
+
+def restore_dirt_ws2(prefix, proton):
+    """Puts a Wine syswow64/ws2_32.dll back if the stand-in is still there; true when it changed something.
+
+    That is the prefix's own one, unless it was a link to a Wine DLL folder and the game ran on another Proton since
+    the swap: Proton then relinked the prefix's other DLLs to itself but left the stand-in, so a link to the running
+    Proton's ws2_32.dll goes back instead. Anything else (a native file, a link to a mod's DLL) goes back as it was."""
+    target = prefix_ws2(prefix)
+    saved = target.with_name(target.name + DIRT_SAVED)
+    own = proton_ws2(proton)
+    had_saved = os.path.lexists(saved)
+    if had_saved:
+        if os.path.lexists(target) and not is_dirt_stand_in(target):
+            os.unlink(saved)
+            return False
+        if not own.is_file() or not is_wine_dll_link(saved) or os.path.realpath(saved) == os.path.realpath(own):
+            os.replace(saved, target)
+            return True
+        os.unlink(saved)
+    if own.is_file() and (is_dirt_stand_in(target) or (had_saved and not os.path.lexists(target))):
+        link = target.with_name(target.name + ".droiddeck-tmp")
+        if os.path.lexists(link):
+            os.unlink(link)
+        os.symlink(own, link)
+        os.replace(link, target)
+        return True
+    return False
+
+
+EGO_RESTRICTIONS = "system/hardware_settings_restrictions.xml"
+EGO_CORE_RULE = re.compile(r'[ \t]*<restrict_if name="cores" op="(int_[a-z]+)" value="(\d+)">.*?</restrict_if>[ \t]*\r?\n', re.S)
+EGO_OPS = {"int_eq": int.__eq__, "int_ne": int.__ne__, "int_ge": int.__ge__, "int_gt": int.__gt__,
+           "int_le": int.__le__, "int_lt": int.__lt__}
+
+
+def windows_core_count(env):
+    count = (env.get("WINE_CPU_TOPOLOGY") or "").split(":", 1)[0]
+    return int(count) if count.isascii() and count.isdigit() and int(count) > 0 else None
+
+
+def ego_core_plan(command, env):
+    """Codemasters EGO games (DiRT 3, DiRT Showdown, GRID, F1 ...) pick their thread plan by core count from
+    system/hardware_settings_restrictions.xml. A count with no plan (5 when a phone's slow cores are left out) puts
+    every worker on one core, and DiRT 3 then stops on a loading screen. Adds a plan for the count Windows sees,
+    copied from the nearest smaller one; the file as it was is kept beside it. Returns a note, or None."""
+    count = windows_core_count(env)
+    if not count or len(command) < 3:
+        return None
+    folder = Path(command[2]).parent
+    path = folder / EGO_RESTRICTIONS
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        return None
+    text = raw.decode("latin-1")
+    start, end = text.find("<cpu>"), text.find("</cpu>")
+    if start < 0 or end < start:
+        return None
+    rules = list(EGO_CORE_RULE.finditer(text, start, end))
+    if not rules or any(EGO_OPS.get(rule.group(1), lambda a, b: True)(count, int(rule.group(2))) for rule in rules):
+        return None
+    smaller = [rule for rule in rules if rule.group(1) == "int_eq" and int(rule.group(2)) < count]
+    if not smaller:
+        return None
+    source = max(smaller, key=lambda rule: int(rule.group(2)))
+    worker_map = re.search(r'workerMapFile="([^"]+)"', source.group(0))
+    if worker_map and not (folder / worker_map.group(1)).is_file():
+        return None
+    plan = source.group(0).replace('value="%s"' % source.group(2), 'value="%d"' % count, 1)
+    saved = path.with_name(path.name + DIRT_SAVED)
+    if not os.path.lexists(saved):
+        saved.write_bytes(raw)
+    handle, staged = tempfile.mkstemp(prefix=path.name + ".", suffix=".droiddeck-tmp", dir=str(path.parent))
+    try:
+        with os.fdopen(handle, "wb") as out:
+            out.write((text[:source.end()] + plan + text[source.end():]).encode("latin-1"))
+        os.replace(staged, path)
+    except BaseException:
+        if os.path.lexists(staged):
+            os.unlink(staged)
+        raise
+    return "%s had no thread plan for %d cores; added a copy of its %s-core plan" % (EGO_RESTRICTIONS, count, source.group(2))
+
+
+def wait_forwarding_signals(process):
+    def forward(signum, frame):
+        try:
+            process.send_signal(signum)
+        except OSError:
+            pass
+
+    previous = {signum: signal.signal(signum, forward) for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)}
+    try:
+        code = process.wait()
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+    return 128 - code if code < 0 else code
+
+
+def start(launch, launch_env, digest, after=None):
+    if after:
+        process = subprocess.Popen(launch, env=launch_env)
+        try:
+            return wait_forwarding_signals(process)
+        finally:
+            try:
+                after()
+            except OSError as error:
+                print("droiddeck-game-env: DiRT telemetry fix: prefix ws2_32 not put back (%s); the next launch does it" % error,
+                      file=sys.stderr)
     if digest:
         code = subprocess.run(launch, env=launch_env, check=False).returncode
         if code == 0:
@@ -435,6 +952,7 @@ def main():
         return 2
     env = game_gpu(os.environ.copy())
     mic_enabled = env.get("BL_MIC_ENABLED")
+    debug_dir = env.get("BL_DEBUG_DIR", "")
     scripts = mark_install_scripts(command, env)
     if scripts and install_scripts_done(scripts, env):
         print("droiddeck-game-env: install scripts already run in this prefix; evaluator skipped", file=sys.stderr)
@@ -444,12 +962,19 @@ def main():
     except OSError:
         digest = None
     app_id = game_id(env)
+    dirt_prefix = None
     if app_id:
+        gl_default = gl_vsync(env)
         waiting = len(command) > 1 and command[1] == "waitforexitandrun"
+        if waiting:
+            game_images(env)
         fixes = {}
         if waiting:
             command = skip_red_launcher(command)
+            ubisoft_overlay_off(env)
             fixes, extra, notes = engine_fixes(command[2], command[3:]) if len(command) > 2 else ({}, [], [])
+            if not gl_default:
+                fixes.pop("vblank_mode", None)
             for note in notes:
                 print("droiddeck-game-env: " + note, file=sys.stderr)
             command += extra
@@ -457,11 +982,18 @@ def main():
             if components:
                 own = fixes.get("WINEDLLOVERRIDES")
                 fixes["WINEDLLOVERRIDES"] = components + ";" + own if own else components
+            dirt_prefix = dirt_ws2_wanted(command, env)
+            if dirt_prefix:
+                own = fixes.get("WINEDLLOVERRIDES")
+                fixes["WINEDLLOVERRIDES"] = own + ";ws2_32=n,b" if own else "ws2_32=n,b"
         path = Path.home() / ".config/droiddeck/game-environment.json"
+        config = {}
         try:
             with path.open(encoding="utf-8") as source:
                 config = json.load(source)
             if waiting:
+                if "vblank_mode" in config.get("shared", {}):
+                    fixes.pop("vblank_mode", None)
                 env = apply_config(env, config, app_id, fixes)
             else:
                 env = apply_config(env, sync_config(config, app_id), app_id)
@@ -470,11 +1002,29 @@ def main():
                 env = apply_config(env, {"version": 1}, app_id, fixes)
         except (OSError, ValueError, TypeError, AttributeError):
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+        if waiting:
+            before_debug = env
+            env = apply_game_debug_logs(env, config, debug_dir)
+            if env is not before_debug:
+                print("droiddeck-game-env: game debug logs enabled for this launch", file=sys.stderr)
+        if gl_default and env.get("vblank_mode") == "0":
+            print("droiddeck-game-env: OpenGL does not wait for the screen refresh (vblank_mode=0)", file=sys.stderr)
     if app_id and len(command) > 1 and command[1] == "waitforexitandrun":
         command = offline_without_anticheat(command, env)
     if mic_enabled == "0":
-        env["BANNER_AUDIO_DIRECT_MIC"] = "0"
+        env["AUDIO_DIRECT_MIC"] = "0"
+    env = directaudio_settings(env)
+    env = vram_cap(env)
     env = force_ssbs(command, env)
+    game_cores(env)
+    cpu_topology(env, command)
+    if app_id and len(command) > 2 and command[1] == "waitforexitandrun":
+        try:
+            note = ego_core_plan(command, env)
+        except OSError as error:
+            note = "no thread plan added for this core count (%s)" % error
+        if note:
+            print("droiddeck-game-env: " + note, file=sys.stderr)
     try:
         xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))
     except Exception as error:
@@ -487,16 +1037,45 @@ def main():
         return 1
     if xbox_result is not None:
         return xbox_result
+    after = None
+    prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
+    if app_id and prefix and len(command) > 1 and command[1] == "waitforexitandrun":
+        try:
+            if dirt_prefix:
+                after = lambda: restore_dirt_ws2(dirt_prefix, command[0])
+                swap_dirt_ws2(dirt_prefix)
+                print("droiddeck-game-env: DiRT telemetry fix: ws2_32 stand-in in the prefix until the game exits",
+                      file=sys.stderr)
+            elif restore_dirt_ws2(prefix, command[0]):
+                print("droiddeck-game-env: DiRT telemetry fix: put the prefix's own ws2_32 back", file=sys.stderr)
+        except OSError as error:
+            print("droiddeck-game-env: DiRT telemetry fix not applied (%s)" % error, file=sys.stderr)
+            if after:
+                after = None
+                try:
+                    restore_dirt_ws2(dirt_prefix, command[0])
+                except OSError as undo:
+                    print("droiddeck-game-env: DiRT telemetry fix: prefix ws2_32 not put back (%s); Wine uses its own copy "
+                          "and the next launch puts the file back" % undo, file=sys.stderr)
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
     if launch[0] != command[0]:
         try:
-            return start(launch, launch_env, digest)
+            return start(launch, launch_env, digest, after)
         except OSError as error:
             print("droiddeck-game-env: %s could not start (%s); stock launch" % (launch[0], error), file=sys.stderr)
             launch, launch_env = command, without_pack(launch_env, env)
             record_stock(sync, launch, launch_env)
-    return start(launch, launch_env, digest)
+    try:
+        return start(launch, launch_env, digest, after)
+    except OSError:
+        if after:
+            try:
+                after()
+            except OSError as error:
+                print("droiddeck-game-env: DiRT telemetry fix: prefix ws2_32 not put back (%s); the next launch does it" % error,
+                      file=sys.stderr)
+        raise
 
 
 if __name__ == "__main__":

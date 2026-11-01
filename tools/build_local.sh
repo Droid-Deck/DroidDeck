@@ -24,7 +24,8 @@ java_dir="${JAVA_HOME:-/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents
 [[ -x "$java_dir/bin/java" ]] || java_dir="${HOME}/.local/share/mise/installs/java/temurin-17"
 [[ "$java_dir" == */homebrew/* ]] && echo "using homebrew java path: $java_dir"
 [[ "$java_dir" == */mise/* ]] && echo "using mise java path: $java_dir"
-image_name=${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v3}
+. "${repo_root}/tools/docker_platform.sh"
+image_name=${DROIDDECK_BUILD_IMAGE}
 build_variant=${DROIDDECK_BUILD_VARIANT:-release}
 case "$build_variant" in
     debug) gradle_task=assembleDebug ;;
@@ -113,7 +114,7 @@ image_id=$(docker image inspect --format '{{.Id}}' "${image_name}")
 rm -rf -- "${linuxfs_dir}"
 mkdir -p "${linuxfs_dir}"
 
-docker run --rm --platform linux/amd64 \
+docker run --rm --platform "${docker_platform}" \
     --user "$(id -u):$(id -g)" \
     -v "${repo_root}:/src" -w /src "${image_name}" bash -lc '
         set -euo pipefail
@@ -221,7 +222,7 @@ fi
 
 . "${repo_root}/tools/linuxfs/uruntime.env"
 uruntime_binary=$(cached "${URUNTIME_SHA256}" "${URUNTIME_ASSET}" \
-    bash -c 'curl -fsSL --retry 3 -o "$out" "$0"' "https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/${URUNTIME_ASSET}")
+    bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/${URUNTIME_ASSET}")
 mkdir -p "${linuxfs_dir}/usr/local/lib/droiddeck" "${linuxfs_dir}/usr/local/share/licenses/uruntime"
 install -m644 "${uruntime_binary}" "${linuxfs_dir}/usr/local/lib/droiddeck/uruntime"
 install -m644 "${repo_root}/tools/linuxfs/licenses/uruntime-LICENSE" "${linuxfs_dir}/usr/local/share/licenses/uruntime/LICENSE"
@@ -256,7 +257,7 @@ mkdir -p "${msi_pkgs}" "${msi_dir}"
 while read -r package_sha256 package_url; do
     [[ -n "${package_url}" ]] || continue
     package_archive=$(cached "${package_sha256}" "$(basename "${package_url}")" \
-        bash -c 'curl -fsSL --retry 3 -o "$out" "$0"' "${package_url}")
+        bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "${package_url}")
     tar -xJf "${package_archive}" -C "${msi_pkgs}"
 done < <(grep -v '^#' "${repo_root}/tools/msitools/packages.txt")
 for tool in msiinfo cabextract; do install -m644 "${msi_pkgs}/usr/bin/${tool}" "${msi_dir}/${tool}"; done
@@ -276,14 +277,14 @@ mkdir -p "${mango_dir}" "${mango_pkgs}"
 while read -r package_sha256 package_url; do
     [[ -n "${package_url}" ]] || continue
     package_archive=$(cached "${package_sha256}" "$(basename "${package_url}")" \
-        bash -c 'curl -fsSL --retry 3 -o "$out" "$0"' "${package_url}")
+        bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "${package_url}")
     zstd -dc "${package_archive}" | tar -xf - -C "${mango_pkgs}"
 done < <(grep -v '^#' "${repo_root}/tools/mangoapp/packages.txt")
 install -m644 "${mango_pkgs}/usr/bin/mangoapp" "${mango_dir}/mangoapp"
 for library in libfmt.so.10 libspdlog.so.1.13 libglfw.so.3 libtraceevent.so.1; do
     cp -L "${mango_pkgs}/usr/lib/${library}" "${mango_dir}/${library}"
 done
-docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" -v "${repo_root}:/src" -w /src "${image_name}" \
+docker run --rm --platform "${docker_platform}" --user "$(id -u):$(id -g)" -v "${repo_root}:/src" -w /src "${image_name}" \
     aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wl,-soname,libtracefs.so.1 \
     -o app/src/main/assets/linuxfs/usr/local/lib/mangoapp/libtracefs.so.1 tools/mangoapp/libtracefs-shim.c
 mkdir -p "${linuxfs_dir}/usr/local/bin"
@@ -294,7 +295,7 @@ mkdir -p "${pw_pkgs}"
 while read -r package_sha256 package_url; do
     [[ -n "${package_url}" ]] || continue
     package_archive=$(cached "${package_sha256}" "$(basename "${package_url}")" \
-        bash -c 'curl -fsSL --retry 3 -o "$out" "$0"' "${package_url}")
+        bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "${package_url}")
     zstd -dc "${package_archive}" | tar -xf - -C "${pw_pkgs}"
 done < <(grep -v '^#' "${repo_root}/tools/pipewire/packages.txt")
 "${repo_root}/tools/pipewire/assemble.sh" "${pw_pkgs}" "${linuxfs_dir}/usr/local/lib/droiddeck-pipewire.tzst"
@@ -303,7 +304,7 @@ pa_source=${DROIDDECK_PA13_SOURCE_DIR:-"${staging_dir}/pulseaudio-13.0"}
 if [[ -z "${DROIDDECK_PA13_SOURCE_DIR:-}" ]]; then
     pa_tarball="${cache_dir}/pulseaudio-13.0.tar.gz"
     if [[ ! -s "${pa_tarball}" ]] || ! tar -tzf "${pa_tarball}" >/dev/null 2>&1; then
-        curl -fsSL -o "${pa_tarball}.part" \
+        curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "${pa_tarball}.part" \
             https://github.com/pulseaudio/pulseaudio/archive/refs/tags/v13.0.tar.gz
         mv "${pa_tarball}.part" "${pa_tarball}"
     fi

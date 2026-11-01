@@ -259,24 +259,91 @@ def focus_snapshot():
 STEAM_APP_CLASS = re.compile(r"steam_app_(\d+)$")
 
 
-def tag_game_windows(snap):
-    if os.environ.get("BL_STEAM_CLIENT_ARCH") != "x86_64":
-        return False
+def process_env(pid, proc=Path("/proc")):
+    try:
+        return dict(entry.split(b"=", 1) for entry in (proc / str(pid) / "environ").read_bytes().split(b"\0") if b"=" in entry)
+    except OSError:
+        return {}
+
+
+def steam_app_id(env):
+    try:
+        app = int(env.get(b"SteamAppId", b"0"))
+    except ValueError:
+        return None
+    return app if 0 < app < 2**32 else None
+
+
+def under_reaper(pid, proc=Path("/proc")):
+    for _ in range(64):
+        try:
+            if (proc / str(pid) / "comm").read_text().strip() == "reaper":
+                return True
+            stat = (proc / str(pid) / "stat").read_text()
+            pid = int(stat[stat.rindex(")") + 2:].split()[1])
+        except (OSError, ValueError, IndexError):
+            return False
+        if pid <= 1:
+            return False
+    return False
+
+
+def sandboxed_apps(proc=Path("/proc")):
+    apps = {}
+    try:
+        pids = [entry for entry in os.listdir(proc) if entry.isdigit()]
+    except OSError:
+        return apps
+    for pid in pids:
+        env = process_env(pid, proc)
+        flatpak, app = env.get(b"FLATPAK_ID"), steam_app_id(env)
+        if flatpak and app:
+            name = flatpak.decode(errors="replace").lower()
+            for key in {name, name.rsplit(".", 1)[-1]}:
+                apps[key] = app if apps.get(key, app) == app else None
+    return apps
+
+
+def window_steam_app(win, flatpaks, proc=Path("/proc")):
+    match = STEAM_APP_CLASS.match(win.get("class") or "")
+    if match:
+        return match.group(1) if os.environ.get("BL_STEAM_CLIENT_ARCH") == "x86_64" else None
+    pid = win.get("pid")
+    if pid:
+        if under_reaper(pid, proc):
+            return None
+        app = steam_app_id(process_env(pid, proc))
+        if app:
+            return str(app)
+    app = flatpaks().get((win.get("class") or "").lower())
+    return str(app) if app else None
+
+
+def tag_game_windows(snap, proc=Path("/proc")):
     tagged = False
+    found = []
+
+    def flatpaks():
+        if not found:
+            found.append(sandboxed_apps(proc))
+        return found[0]
+
     for display, wins in snap.get("displays", {}).items():
         if display == os.environ.get("DISPLAY"):
             continue
         for win in wins:
-            match = STEAM_APP_CLASS.match(win.get("class") or "")
-            if not match or win.get("appId") or win.get("map") != "viewable" or win.get("overrideRedirect"):
+            if win.get("appId") or win.get("map") != "viewable" or win.get("overrideRedirect") or win.get("inputOnly"):
+                continue
+            app = window_steam_app(win, flatpaks, proc)
+            if not app:
                 continue
             try:
                 done = subprocess.run(["xprop", "-display", display, "-id", str(win["window"]), "-f", "STEAM_GAME", "32c",
-                                       "-set", "STEAM_GAME", match.group(1)],
+                                       "-set", "STEAM_GAME", app],
                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5).returncode == 0
             except (OSError, subprocess.TimeoutExpired):
                 done = False
-            log("game window %s on %s tagged STEAM_GAME=%s: %s" % (win["window"], display, match.group(1), "ok" if done else "failed"))
+            log("game window %s on %s tagged STEAM_GAME=%s: %s" % (win["window"], display, app, "ok" if done else "failed"))
             tagged = tagged or done
     return tagged
 
@@ -538,9 +605,56 @@ KEYBOARD_CHECK_SECONDS = 30
 KEYBOARD_JS = r"""
 (() => {
   const self = window.__droiddeckKeyboard || (window.__droiddeckKeyboard = { watched: new WeakSet(), last: null });
+  self.wrapped = self.wrapped || new WeakSet();
+  self.route = self.route === true;
+  self.wrap = vkm => {
+    if (!vkm || self.wrapped.has(vkm) || typeof vkm.ShowVirtualKeyboard !== "function") return;
+    self.wrapped.add(vkm);
+    const show = vkm.ShowVirtualKeyboard;
+    vkm.ShowVirtualKeyboard = function (ref, props, modal) {
+      if (self.route && !modal && typeof this.SetActiveVirtualKeyboardTarget === "function" &&
+          !this.BUseVRKeyboard?.() && !this.m_Instance?.IsDesktopOverlayWindow?.()) {
+        this.SetActiveVirtualKeyboardTarget(ref, props);
+        self.follow(this);
+        if (typeof window.__BINDING__ === "function") window.__BINDING__("request");
+        return;
+      }
+      return show.call(this, ref, props, modal);
+    };
+  };
+  self.editing = vkm => {
+    let el = null;
+    try { el = vkm?.m_ownerWindow?.document?.activeElement || null; } catch (e) {}
+    if (!el) return null;
+    return el.tagName === "TEXTAREA" || el.isContentEditable === true ||
+      (el.tagName === "INPUT" && !/^(button|checkbox|radio|range|submit|reset|file|image|color)$/i.test(el.type || ""));
+  };
+  self.follow = vkm => {
+    self.active = vkm;
+    self.missed = 0;
+    self.seen = false;
+    self.follower = self.follower || setInterval(() => {
+      if (!self.active) return;
+      const ref = self.active.m_currentVirtualKeyboardRef;
+      const editing = self.editing(self.active);
+      const valid = !!ref && (editing !== null ? editing :
+        (typeof ref.BIsElementValidForInput !== "function" || ref.BIsElementValidForInput()));
+      if (valid) self.seen = true;
+      if (self.route && ref && (valid || !self.seen)) {
+        self.missed = 0;
+        return;
+      }
+      if (++self.missed < 2) return;
+      self.active = null;
+      clearInterval(self.follower);
+      self.follower = null;
+      if (typeof window.__BINDING__ === "function") window.__BINDING__("dismiss");
+    }, 150);
+  };
   self.check = () => {
     let showing = false;
     for (const win of Array.from(globalThis.SteamUIStore?.WindowStore?.SteamUIWindows || [])) {
+      self.wrap(win?.VirtualKeyboardManager);
       const value = win?.VirtualKeyboardManager?.IsShowingVirtualKeyboard;
       if (!value) continue;
       if (!self.watched.has(value) && typeof value.Subscribe === "function") {
@@ -559,6 +673,29 @@ KEYBOARD_JS = r"""
   return self.check();
 })()
 """.replace("__BINDING__", KEYBOARD_BINDING)
+KEYBOARD_ROUTE_SECONDS = 0.5
+KEYBOARD_ROUTE_JS = r"""
+(route => {
+  const self = window.__droiddeckKeyboard;
+  if (!self) return false;
+  self.route = route;
+  if (!route) return true;
+  for (const win of Array.from(globalThis.SteamUIStore?.WindowStore?.SteamUIWindows || [])) {
+    const vkm = win?.VirtualKeyboardManager;
+    if (vkm?.m_bIsInlineVirtualKeyboardOpen?.m_currentValue === true && vkm?.m_bIsVirtualKeyboardModal?.m_currentValue !== true &&
+        typeof vkm.SetVirtualKeyboardHidden === "function") {
+      const ref = vkm.m_currentVirtualKeyboardRef, props = vkm.m_ActiveElementProps;
+      vkm.SetVirtualKeyboardHidden();
+      if (ref && typeof vkm.SetActiveVirtualKeyboardTarget === "function") {
+        vkm.SetActiveVirtualKeyboardTarget(ref, props);
+        if (typeof self.follow === "function") self.follow(vkm);
+      }
+      if (typeof window.__BINDING__ === "function") window.__BINDING__("request");
+    }
+  }
+  return true;
+})(__ROUTE__)
+""".replace("__BINDING__", KEYBOARD_BINDING)
 
 
 class KeyboardWatcher(threading.Thread):
@@ -566,8 +703,14 @@ class KeyboardWatcher(threading.Thread):
         super().__init__(daemon=True, name="keyboard")
         self.agent_dir = agent_dir
         self.path = agent_dir / "keyboard.json"
+        self.request_path = agent_dir / "keyboard-request.json"
+        self.dismiss_path = agent_dir / "keyboard-dismiss.json"
+        self.dismissals = 0
+        self.route_path = agent_dir / "keyboard-route"
         self.showing = None
         self.seq = 0
+        self.requests = 0
+        self.route = None
         self.next_id = 0
         self.attached = False
 
@@ -577,6 +720,30 @@ class KeyboardWatcher(threading.Thread):
         self.showing = showing
         self.seq += 1
         write_json(self.path, {"steamKeyboard": showing, "seq": self.seq})
+
+    def request(self):
+        self.requests += 1
+        write_json(self.request_path, {"seq": self.requests})
+
+    def dismiss(self):
+        self.dismissals += 1
+        write_json(self.dismiss_path, {"seq": self.dismissals})
+
+    def wanted_route(self):
+        try:
+            return self.route_path.read_text().strip() == "bottom"
+        except OSError:
+            return False
+
+    def apply_route(self, ws, force=False):
+        route = self.wanted_route()
+        if route == self.route and not force:
+            return
+        result = self.call(ws, "Runtime.evaluate", {
+            "expression": KEYBOARD_ROUTE_JS.replace("__ROUTE__", "true" if route else "false"), "returnByValue": True})
+        if result.get("exceptionDetails"):
+            raise AgentError("JS_EXCEPTION", json.dumps(result["exceptionDetails"])[:500])
+        self.route = route
 
     def run(self):
         failures, last = 0, None
@@ -604,10 +771,18 @@ class KeyboardWatcher(threading.Thread):
         try:
             self.call(ws, "Runtime.addBinding", {"name": KEYBOARD_BINDING})
             self.report(self.install(ws))
+            self.apply_route(ws, force=True)
             self.attached = True
+            installed = time.monotonic()
             while True:
-                if not ws.buffer and not select.select([ws.s], [], [], KEYBOARD_CHECK_SECONDS)[0]:
-                    self.report(self.install(ws))
+                wait = min(KEYBOARD_ROUTE_SECONDS, KEYBOARD_CHECK_SECONDS)
+                if not ws.buffer and not select.select([ws.s], [], [], wait)[0]:
+                    if time.monotonic() - installed >= KEYBOARD_CHECK_SECONDS:
+                        self.report(self.install(ws))
+                        self.apply_route(ws, force=True)
+                        installed = time.monotonic()
+                    else:
+                        self.apply_route(ws)
                     continue
                 self.event(json.loads(ws.recv()))
         finally:
@@ -635,7 +810,12 @@ class KeyboardWatcher(threading.Thread):
     def event(self, message):
         params = message.get("params") or {}
         if message.get("method") == "Runtime.bindingCalled" and params.get("name") == KEYBOARD_BINDING:
-            self.report(params.get("payload") == "true")
+            if params.get("payload") == "request":
+                self.request()
+            elif params.get("payload") == "dismiss":
+                self.dismiss()
+            else:
+                self.report(params.get("payload") == "true")
 
 
 def steam_idle_inhibit(agent_dir, inhibit):

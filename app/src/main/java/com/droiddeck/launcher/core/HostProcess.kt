@@ -8,7 +8,11 @@ object HostProcess {
     private const val TAG = "HostProcess"
 
     @JvmStatic
-    fun start(command: String, env: Array<String>?, dir: File?, onExit: Consumer<Int>?, onLine: Consumer<String>?): Int {
+    fun start(command: String, env: Array<String>?, dir: File?, onExit: Consumer<Int>?, onLine: Consumer<String>?): Int =
+        start(command, env, dir, onExit, onLine, null)
+
+    @JvmStatic
+    fun start(command: String, env: Array<String>?, dir: File?, onExit: Consumer<Int>?, onLine: Consumer<String>?, outputFile: File?): Int {
         val argv = split(command)
         if (argv.isEmpty()) return -1
         return try {
@@ -19,7 +23,10 @@ object HostProcess {
                 if (eq > 0) builder.environment()[line.substring(0, eq)] = line.substring(eq + 1)
             }
             builder.redirectErrorStream(true)
-            if (onLine == null) builder.redirectOutput(File("/dev/null"))
+            if (onLine == null) {
+                if (outputFile == null) builder.redirectOutput(File("/dev/null"))
+                else builder.redirectOutput(ProcessBuilder.Redirect.appendTo(outputFile))
+            }
             val process = builder.start()
             val pid = pidOf(process)
             Log.i(TAG, "started pid $pid: ${argv.first()} (${argv.size - 1} arguments)")

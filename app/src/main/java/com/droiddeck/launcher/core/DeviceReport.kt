@@ -29,6 +29,11 @@ import java.util.Locale
 object DeviceReport {
     private const val TAG = "DeviceReport"
 
+    internal fun cpuFeaturesSummary(cpuInfo: String): String = cpuInfo.lineSequence()
+        .filter { it.substringBefore(':').trim() == "Features" }
+        .map { it.substringAfter(':').trim().split(Regex("\\s+")).filter(String::isNotEmpty).joinToString(" ") }
+        .filter(String::isNotEmpty).distinct().joinToString(" | ").ifEmpty { "not reported" }
+
     fun write(context: Context, target: File, mode: String) {
         try {
             target.writeText(build(context, mode))
@@ -141,6 +146,7 @@ object DeviceReport {
 
         h("CPU and memory")
         k("Cores", CpuCores.all.size)
+        k("CPU features", cpuFeaturesSummary(FileUtils.readString(File("/proc/cpuinfo")).orEmpty()))
         b.append("Core ceilings          ")
         b.append(CpuCores.all.joinToString(", ") { c ->
             "cpu$c " + (CpuCores.maxGhz(c)?.let { String.format(Locale.US, "%.2f GHz", it) } ?: "?")
@@ -152,13 +158,17 @@ object DeviceReport {
             k("RAM total", FileUtils.sizeToString(mi.totalMem))
             k("RAM available", FileUtils.sizeToString(mi.availMem))
         }
-        runCatching {
-            val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) k("Thermal status", thermalStatusName(pm.currentThermalStatus))
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                k("Thermal headroom (10 s)", pm.getThermalHeadroom(10).let { if (it.isNaN()) "not reported" else String.format(Locale.US, "%.2f", it) })
+        val pm = runCatching { context.getSystemService(Context.POWER_SERVICE) as? PowerManager }.getOrNull()
+        if (pm != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                k("Thermal status", runCatching { thermalStatusName(pm.currentThermalStatus) }.getOrNull())
             }
-            k("Power saver", pm.isPowerSaveMode)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                k("Thermal headroom (10 s)", runCatching {
+                    pm.getThermalHeadroom(10).let { if (it.isNaN()) "not reported" else String.format(Locale.US, "%.2f", it) }
+                }.getOrNull())
+            }
+            k("Power saver", runCatching { pm.isPowerSaveMode }.getOrNull())
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val rate = runCatching { context.getSystemService(PerformanceHintManager::class.java)?.preferredUpdateRateNanos }.getOrNull()
@@ -252,8 +262,13 @@ object DeviceReport {
         EsyncPacks.status(LinuxRuntime.rootDir(context)).let { k("droiddeck-esync packs", "${it.installed} installed, ${it.wanted} wanted") }
         k("Linux x86 (FEX)", if (com.droiddeck.launcher.runtime.LinuxFex.ready(context)) "ready" else "not set up")
         k("gamescope realtime", SessionPrefs.gamescopeRealtime(context))
+        k("zRAM: compress Steam during games", SessionPrefs.zramClient(context))
+        k("RAM cap", SessionPrefs.ramCapMb(context).let { if (it > 0) "$it MB" else "off" })
+        k("VRAM cap", SessionPrefs.vramCapMb(context).let { if (it > 0) "$it MB" else "driver default" })
         k("proot without seccomp", SessionPrefs.prootNoSeccomp(context))
         k("proot fast path", SessionPrefs.prootFastPath(context))
+        k("proot binary", LinuxRuntime.prootSource(context) + " " + LinuxRuntime.prootBinary(context).path)
+        k("proot fast path (eligible)", com.droiddeck.launcher.runtime.ProotFastPath.enabled(context))
         k("Guest host name", SessionPrefs.guestHostname(context))
         k("DirectAudio for games", SessionPrefs.directAudio(context))
         k("Stretch 16:9 to panel", SessionPrefs.stretch16x9(context))

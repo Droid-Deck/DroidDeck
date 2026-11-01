@@ -10,7 +10,7 @@
 #   5. on a foldable cycles the device state (half-opened, and with --closed also closed) through
 #      `cmd device_state`, then puts the original state back;
 #   6. reads the newest session folder of a debug build: first frame, last frame rate, the
-#      memory page size and the last process exits.
+#      memory page size, the proot that session ran, and the last process exits.
 #
 # Usage: tools/device-smoke.sh [--serial SERIAL] [--apk FILE] [--pkg PACKAGE]
 #                              [--no-density] [--no-size] [--no-fold] [--closed]
@@ -279,6 +279,16 @@ else
   ev=$(sh_ run-as "$pkg" cat "files/logs/$dir/events.jsonl" 2>/dev/null)
   echo "$ev" | grep -q '"frame.first"' && ok "first frame was drawn" || note "no frame.first in $dir"
   echo "$ev" | grep -q '"session.failed"' && bad "session.failed: $(echo "$ev" | grep '"session.failed"' | tail -1 | cut -c1-160)"
+  report=$(sh_ run-as "$pkg" cat "files/logs/$dir/device.txt" 2>/dev/null)
+  proot_line=$(echo "$report" | grep 'proot binary' | head -1)
+  case $proot_line in
+    *"rootfs fallback"*|*"missing"*) bad "session proot is not the patched binary ($proot_line)" ;;
+    *"apk"*|*"add-on pack"*) ok "patched proot ($proot_line)" ;;
+    *) note "device report has no proot binary line (build from before the check)" ;;
+  esac
+  app_log=$(sh_ run-as "$pkg" cat "files/logs/$dir/app.log" 2>/dev/null)
+  echo "$app_log" | grep -Fq 'proot: fast path on (' && ok "proot fast path was on" \
+    || note "proot fast path activation was not recorded ($(echo "$report" | grep 'proot fast path' | tr '\n' '; '))"
   fps=$(sh_ run-as "$pkg" cat "files/logs/$dir/app.log" 2>/dev/null | grep 'last 10 s:' | tail -1 | sed 's/.*last 10 s: //' | cut -c1-70)
   [ -n "$fps" ] && echo "  last stats      $fps"
   sh_ run-as "$pkg" cat "files/logs/$dir/device.txt" 2>/dev/null | grep -E 'Memory page size|^Kernel' | sed 's/^/  report          /'

@@ -68,6 +68,7 @@ import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.LogoPosition
 import com.droiddeck.launcher.frontend.SteamGameArt
 import com.droiddeck.launcher.frontend.SteamGridDb
+import com.droiddeck.launcher.frontend.SteamLaunchOptions
 import com.droiddeck.launcher.session.SessionPrefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -191,7 +192,7 @@ internal fun SteamGameArtEditor(
     game: com.droiddeck.launcher.frontend.Library.SteamGame, onClose: () -> Unit, onChanged: () -> Unit,
 ) {
     val target = remember(game.appId) { ArtTarget.of(game) }
-    ArtOnlyEditor(game.name, target, game, { SteamGameArt.describe(it, game) }, onClose, onChanged)
+    ArtOnlyEditor(game.name, target, game, { SteamGameArt.describe(it, game) }, onClose, onChanged, launchAppId = game.appId)
 }
 
 @Composable
@@ -207,18 +208,25 @@ internal fun StoreGameArtEditor(folder: String, name: String, onClose: () -> Uni
 @Composable
 private fun ArtOnlyEditor(
     name: String, target: ArtTarget?, refresh: Any?, describe: (Context) -> List<AddedGameArt.SlotState>,
-    onClose: () -> Unit, onChanged: () -> Unit,
+    onClose: () -> Unit, onChanged: () -> Unit, launchAppId: Int? = null,
 ) {
     val app = LocalContext.current.applicationContext
     val colors = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
     val shown = rememberShown(onClose)
     val close = { shown.targetState = false }
     var version by remember { mutableIntStateOf(0) }
     var arts by remember { mutableStateOf<List<AddedGameArt.SlotState>>(emptyList()) }
     var artSlot by remember { mutableStateOf<AddedGameArt.Slot?>(null) }
     var logoOpen by remember { mutableStateOf(false) }
+    var launchOptions by remember { mutableStateOf<String?>(null) }
+    var launchVersion by remember { mutableIntStateOf(0) }
+    var editingLaunch by remember { mutableStateOf<String?>(null) }
+    var launchSaving by remember { mutableStateOf(false) }
+    var launchError by remember { mutableStateOf<Int?>(null) }
     val position = rememberLogoPosition(target, version)
     LaunchedEffect(version, refresh) { if (target != null) arts = withContext(Dispatchers.IO) { describe(app) } }
+    LaunchedEffect(launchAppId, launchVersion) { if (launchAppId != null) launchOptions = withContext(Dispatchers.IO) { SteamLaunchOptions.current(app, launchAppId) } }
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusWithinFrames({ false }) { first } }
     AppDialog(shown, close, "artEditor", wide = false, maxWidth = 460.dp) {
@@ -228,10 +236,19 @@ private fun ArtOnlyEditor(
             verticalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState()),
         ) {
-            Text(stringResource(R.string.edit_artwork), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
+            if (launchAppId != null) {
+                FieldRow(stringResource(R.string.edit_launch_options), focus = first, onClick = { if (!launchSaving) launchOptions?.let { editingLaunch = it } }) {
+                    val options = launchOptions
+                    if (options == null || launchSaving) Loading() else ValueText(options.ifEmpty { "—" }, muted = options.isEmpty())
+                }
+                val error = launchError
+                if (error != null) Text(stringResource(error), fontSize = 12.sp, color = colors.error, modifier = Modifier.padding(start = 4.dp))
+                else Text(stringResource(R.string.edit_launch_options_steam_hint), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp))
+            }
+            Text(stringResource(R.string.edit_artwork), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, top = if (launchAppId != null) 8.dp else 2.dp))
             for (slot in AddedGameArt.Slot.values()) key(slot) {
                 val state = arts.firstOrNull { it.slot == slot }
-                FieldRow(slot.label(), focus = if (slot == AddedGameArt.Slot.COVER) first else null, onClick = { if (target != null) artSlot = slot }) {
+                FieldRow(slot.label(), focus = if (slot == AddedGameArt.Slot.COVER && launchAppId == null) first else null, onClick = { if (target != null) artSlot = slot }) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         SlotThumb(slot, state?.file)
                         if (state != null) ValueText(artSourceLabel(state.source), muted = true) else Loading()
@@ -239,6 +256,27 @@ private fun ArtOnlyEditor(
                 }
             }
             PickerRow(Icons.Outlined.Tune, stringResource(R.string.art_adjust_logo), logoPositionSummary(position?.value), enabled = target != null && position != null) { logoOpen = true }
+        }
+    }
+    val before = editingLaunch
+    if (before != null && launchAppId != null) TextEntryDialog(stringResource(R.string.edit_launch_options), before, onDismiss = { editingLaunch = null }) { value ->
+        if (launchSaving || value == before.trim()) return@TextEntryDialog
+        launchSaving = true
+        scope.launch {
+            try {
+                val saved = withContext(Dispatchers.IO) { SteamLaunchOptions.set(app, launchAppId, value, before) }
+                launchError = when (saved) {
+                    SteamLaunchOptions.Saved.YES -> null
+                    SteamLaunchOptions.Saved.DESKTOP -> R.string.edit_launch_options_desktop
+                    SteamLaunchOptions.Saved.NO -> R.string.edit_launch_options_not_saved
+                }
+                if (saved == SteamLaunchOptions.Saved.YES) launchOptions = value else {
+                    launchOptions = null
+                    launchVersion++
+                }
+            } finally {
+                launchSaving = false
+            }
         }
     }
     val chosen = target ?: return
@@ -475,7 +513,7 @@ internal fun TextEntryDialog(title: String, initial: String, onDismiss: () -> Un
     AppDialog(shown, close, "textEntry", wide = false, maxWidth = 460.dp) {
         DialogTitleRow(title, onClose = close)
         androidx.compose.material3.OutlinedTextField(
-            value, { value = it }, singleLine = true, modifier = Modifier.fillMaxWidth().focusRequester(focus),
+            value, { value = it }, singleLine = true, modifier = Modifier.fillMaxWidth().focusRequester(focus).focusGlide(),
             keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { onSave(value.trim()); close() }),
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
         )
@@ -644,7 +682,7 @@ private fun SgdbSearchDialog(
             SmallIconButton(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.common_back), colors.onBackground, onClick = back)
         })
         androidx.compose.material3.OutlinedTextField(
-            query, { query = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+            query, { query = it }, singleLine = true, modifier = Modifier.fillMaxWidth().focusGlide(),
             label = { Text(stringResource(R.string.art_sgdb_search_label)) },
             keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { leaveField(); search() }),
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
