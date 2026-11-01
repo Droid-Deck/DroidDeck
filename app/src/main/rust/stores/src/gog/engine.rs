@@ -360,6 +360,12 @@ impl<'a> GogSink<'a> {
     fn finalize_file(&self, file_idx: usize, st: &mut FileState) -> Result<(), String> {
         let file = &self.files[file_idx];
         if let Some(handle) = st.handle.take() {
+            // Sync file content to disk before closing
+            if let Err(err) = handle.sync_all() {
+                self.log(&format!("FILE sync failed file={} err={}", file.relative_path, err));
+                let _ = fs::remove_file(&st.tmp_path);
+                return Err(format!("file sync failed: {}", file.relative_path));
+            }
             drop(handle);
         }
         let actual = fs::metadata(&st.tmp_path).map(|m| m.len()).unwrap_or(0);
@@ -389,6 +395,24 @@ impl<'a> GogSink<'a> {
             self.log(&format!("FILE rename failed file={} err={err}", file.relative_path));
             let _ = fs::remove_file(&st.tmp_path);
             return Err(format!("file rename failed: {}", file.relative_path));
+        }
+        // Sync directory to persist the rename
+        let mut dir_to_sync = st.out_path.parent();
+        while let Some(parent) = dir_to_sync {
+            match std::fs::File::open(parent) {
+                Ok(dir) => {
+                    if let Err(err) = dir.sync_all() {
+                        self.log(&format!("FILE dir sync failed file={} dir={} err={}",
+                            file.relative_path, parent.display(), err));
+                    }
+                }
+                Err(err) => {
+                    self.log(&format!("FILE dir open failed file={} dir={} err={}",
+                        file.relative_path, parent.display(), err));
+                    break;
+                }
+            }
+            dir_to_sync = parent.parent();
         }
         st.finalized = true;
         Ok(())

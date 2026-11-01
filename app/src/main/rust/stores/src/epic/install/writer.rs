@@ -1,5 +1,6 @@
 use std::fs::{self, File, OpenOptions};
 use std::os::unix::fs::FileExt;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
@@ -270,7 +271,24 @@ impl<'a> Engine<'a> {
                     .map_err(|e| format!("Could not assemble or atomically replace {}: {e}", file.path))?;
             }
             fs::rename(&stage, &file.dest)
-                .map_err(|e| format!("Could not assemble or atomically replace {}: {e}", file.path))
+                .map_err(|e| format!("Could not assemble or atomically replace {}: {e}", file.path))?;
+            // Sync directory to persist the rename
+            let mut dir_to_sync = file.dest.parent();
+            while let Some(parent) = dir_to_sync {
+                match std::fs::File::open(parent) {
+                    Ok(dir) => {
+                        if let Err(err) = dir.sync_all() {
+                            eprintln!("Epic: directory sync failed for {} err={err}", file.dest.display());
+                        }
+                    }
+                    Err(err) => {
+                        eprintln!("Epic: could not open directory for sync {} err={err}", parent.display());
+                        break;
+                    }
+                }
+                dir_to_sync = parent.parent();
+            }
+            Ok(())
         })();
         if file.resume.is_some() {
             let _ = fs::remove_file(staging::list_path(&stage));
@@ -633,12 +651,45 @@ fn keep_partial(file: &EngineFile, written: &[bool], stage: &Path, dir: &Path) -
     let partial = dir.join(staging::partial_name(&file.path, file.size, file.sha1));
     let list: String = kept.iter().map(|o| format!("{o}\n")).collect();
     let synced = OpenOptions::new().write(true).open(stage).and_then(|h| h.sync_all());
-    if synced.is_err() || fs::rename(stage, &partial).is_err() {
+    if synced.is_err() {
         return false;
+    }
+    if fs::rename(stage, &partial).is_err() {
+        return false;
+    }
+    let mut dir_to_sync = partial.parent();
+    while let Some(parent) = dir_to_sync {
+        if let Ok(dir) = std::fs::File::open(parent) {
+            if let Err(err) = dir.sync_all() {
+                eprintln!("Epic: stage rename dir sync failed dir={} err={}", parent.display(), err);
+            }
+        } else {
+            break;
+        }
+        dir_to_sync = parent.parent();
     }
     let resumed = file.resume.as_ref().is_some_and(|r| r.stage == partial);
     let temp = dir.join(staging::unique_name());
-    let listed = fs::write(&temp, list).and_then(|_| fs::rename(&temp, staging::list_path(&partial))).is_ok();
+    let list_path = staging::list_path(&partial);
+    let listed = (|| -> std::io::Result<()> {
+        let mut f = fs::File::create(&temp)?;
+        f.write_all(list.as_bytes())?;
+        f.sync_all()?;
+        drop(f);
+        fs::rename(&temp, &list_path)?;
+        let mut dir_to_sync = list_path.parent();
+        while let Some(parent) = dir_to_sync {
+            if let Ok(dir) = std::fs::File::open(parent) {
+                if let Err(err) = dir.sync_all() {
+                    eprintln!("Epic: list rename dir sync failed dir={} err={}", parent.display(), err);
+                }
+            } else {
+                break;
+            }
+            dir_to_sync = parent.parent();
+        }
+        Ok(())
+    })().is_ok();
     if !listed {
         let _ = fs::remove_file(&temp);
         if !resumed {
