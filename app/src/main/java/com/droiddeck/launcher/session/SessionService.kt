@@ -577,6 +577,7 @@ class SessionService : Service() {
             add("-c")
             add("cd \"\$HOME\" && exec /bin/bash -i")
         }
+        val desktopGuest = ArrayList(guest)
         guest.add(LinuxRuntime.SESSION_SCRIPT)
         guest.add(SessionState.mode)
         if (SessionState.mode == MODE_STEAM) SessionState.steamUrl?.takeIf { it.startsWith("steam://") }?.let {
@@ -643,6 +644,10 @@ class SessionService : Service() {
         }
         if (gen == sessionGen && SessionState.running) {
             SessionTerminal.prepare(terminalCommand, terminalHostEnvironment.map { (key, value) -> "$key=$value" }.toTypedArray(), root, gen)
+            val (fastPathName, _) = ProotFastPath.hostEnv("")
+            BottomDesktop.prepare(desktopGuest, binds, sessionRoot,
+                hostEnv.asArray().filterNot { it.startsWith("$fastPathName=") }.toTypedArray(), root, sessionDir, gen,
+            ) { gen == sessionGen && SessionState.running }
         }
 
         if (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP) OfflineMode.apply(this, root)
@@ -704,7 +709,10 @@ class SessionService : Service() {
         if (gen == sessionGen && SessionState.running) {
             suspendController = SessionSuspendController(
                 sessionRoot = { sessionPid },
-                helperRoots = { components.mapNotNull { it.suspendPid().takeIf { pid -> pid > 1 } } },
+                helperRoots = {
+                    components.mapNotNull { it.suspendPid().takeIf { pid -> pid > 1 } } +
+                        listOfNotNull(BottomDesktop.suspendPid.takeIf { it > 1 })
+                },
                 suspendAudio = {
                     if (!pulse.setSinkSuspended(true)) Log.w(TAG, "could not suspend audio sink")
                     if (!pulse.setMicSuspended(true)) Log.w(TAG, "could not suspend microphone source")
@@ -1610,6 +1618,7 @@ class SessionService : Service() {
         ))
         if (shouldSuspend) {
             freezePending = true
+            SessionState.suspending = true
             freezeCancelled = false
             val freezeSteamToken = steamSleepToken
             val freezeNativeToken = nativeSleepToken
@@ -1618,6 +1627,7 @@ class SessionService : Service() {
             ) { success ->
                 mainHandler.post {
                     if (gen != sessionGen || !SessionState.running) return@post
+                    SessionState.suspending = false
                     suspendOperationPending = false
                     freezePending = false
                     if (success) {
@@ -1830,6 +1840,7 @@ class SessionService : Service() {
         GameThreadHints.stop()
         suspendOperationPending = false
         freezePending = false
+        SessionState.suspending = false
         launchWatcher?.stopWatching()
         launchWatcher = null
         syncWatcher?.stopWatching()
@@ -1840,6 +1851,7 @@ class SessionService : Service() {
             auxiliaryProcesses.toMap().also { auxiliaryProcesses.clear() }
         }
         SessionTerminal.clear(sessionGen)
+        BottomDesktop.stop(this, stoppedGen)
         val controller = suspendController
         suspendController = null
         if (ended != null) {

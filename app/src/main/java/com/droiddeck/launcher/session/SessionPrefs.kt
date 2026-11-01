@@ -100,6 +100,13 @@ object SessionPrefs {
         prefs(context).edit().putString("secondScreenPanel", mode).apply()
     }
 
+    /** The bottom-screen desktop takes touch as a trackpad unless the user switched it to direct touch. */
+    fun bottomDesktopDirectTouch(context: Context): Boolean = prefs(context).getBoolean("bottomDesktopDirectTouch", false)
+
+    fun setBottomDesktopDirectTouch(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("bottomDesktopDirectTouch", on).apply()
+    }
+
     fun statsStrip(context: Context): String? = prefs(context).getString("statsStrip", null)
 
     fun setStatsStrip(context: Context, id: String) {

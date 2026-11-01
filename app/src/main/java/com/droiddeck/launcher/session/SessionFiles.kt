@@ -22,6 +22,7 @@ object SessionFiles {
 
     internal val DESKTOP_FILES = arrayOf(
         "usr/local/bin/droiddeck-desktop" to "usr/local/bin/droiddeck-desktop",
+        "usr/local/bin/droiddeck-bottom-desktop" to "usr/local/bin/droiddeck-bottom-desktop",
         "usr/local/bin/droiddeck-gpu" to "usr/local/bin/droiddeck-gpu",
         "usr/local/bin/droiddeck-desktop-gpu" to "usr/local/bin/droiddeck-desktop-gpu",
         "usr/local/bin/droiddeck-desktop-window-rules" to "usr/local/bin/droiddeck-desktop-window-rules",
