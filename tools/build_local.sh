@@ -181,6 +181,13 @@ if ! restore_step vr "${vr_key}" "${vr_out}"; then
     save_step vr "${vr_key}" "${vr_out}"
 fi
 
+gpuload_out="${linuxfs_dir}/usr/local/lib/droiddeck-gpuload"
+gpuload_key=$(inputs_hash "${image_id} ${ndk_version} ${VK_INCLUDE:-}" tools/gpuload)
+if ! restore_step gpuload "${gpuload_key}" "${gpuload_out}"; then
+    DROIDDECK_BUILD_IMAGE="${image_name}" "${repo_root}/tools/gpuload/build.sh" "${gpuload_out}"
+    save_step gpuload "${gpuload_key}" "${gpuload_out}"
+fi
+
 github_repo=${DROIDDECK_GITHUB_REPOSITORY:-}
 if [[ -z "${github_repo}" ]]; then
     origin_url=$(git -C "${repo_root}" remote get-url origin)

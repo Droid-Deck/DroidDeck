@@ -7,10 +7,13 @@ import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
 import java.io.RandomAccessFile
 
-class GpuStatsComponent(val dir: File) : SessionPart() {
+class GpuStatsComponent(val dir: File, private val root: File) : SessionPart() {
     @Volatile private var running = false
     private var thread: Thread? = null
     private val feeds = ArrayList<Feed>()
+    private var layerLoad: LayerLoad? = null
+    private var cycleClock: KgslClock.Sampler? = null
+    @Volatile private var shown = false
 
     private class Feed(
         val file: File, val source: String, val read: () -> Long?, val format: String, val percent: Boolean = false,
@@ -24,9 +27,11 @@ class GpuStatsComponent(val dir: File) : SessionPart() {
     }
 
     fun prepare(): Boolean {
+        sources = ""
         if (!File(KGSL).exists()) return false
         val unreadable = MANGOHUD_FILES.any { File(KGSL, it).let { f -> f.exists() && !f.canRead() } }
-        if (!unreadable && !File(GPUBUSY).canRead()) return false
+        // Where SELinux hides the kgsl nodes completely (exists() is false too), the layer and cycle-counter feeds stand in.
+        if (!unreadable && !File(GPUBUSY).canRead() && !loadBlocked()) return false
         return try {
             dir.mkdirs()
             dir.listFiles()?.forEach { java.nio.file.Files.deleteIfExists(it.toPath()) }
@@ -34,19 +39,20 @@ class GpuStatsComponent(val dir: File) : SessionPart() {
             PASSTHROUGH_FILES.forEach { name ->
                 runCatching { File(dir, name).writeText(File(KGSL, name).readText()) }
             }
-            loadFeed()?.let { load ->
+            (loadFeed() ?: layerLoadFeed())?.let { load ->
                 feeds.add(load)
                 feeds.add(Feed(File(dir, "perf_now"), load.source, load.read, "%-6s\n", percent = true))
             }
-            pick("clock_mhz", clockSources(), "%5d\n") { mhz(it) }?.let { clock ->
+            (pick("clock_mhz", clockSources(), "%5d\n") { mhz(it) } ?: cycleClockFeed())?.let { clock ->
                 feeds.add(clock)
                 feeds.add(Feed(File(dir, "cur_freq"), clock.source, { clock.read()?.times(1_000_000) }, "%-10d\n"))
             }
             pick("temp", tempSources(), "%6d\n") { milliCelsius(it) }?.let { feeds.add(it) }
             refresh()
-            Log.i(TAG, "hud: kgsl stats from the session's own: " + MANGOHUD_FILES.joinToString { name ->
+            sources = MANGOHUD_FILES.joinToString { name ->
                 "$name " + (feeds.firstOrNull { it.file.name == name }?.source ?: "none")
-            })
+            }
+            Log.i(TAG, "hud: kgsl stats from the session's own: $sources")
             true
         } catch (e: Exception) {
             Log.w(TAG, "hud: could not stand in for kgsl stats: $e")
@@ -68,6 +74,10 @@ class GpuStatsComponent(val dir: File) : SessionPart() {
 
     // kgsl's gpubusy can read 0 0 straight after a read, so feeds that share a reader share one read.
     private fun refresh() {
+        if (layerLoad != null || cycleClock != null) {
+            shown = hudShown()
+            layerLoad?.wanted(shown)
+        }
         val values = HashMap<() -> Long?, Long?>()
         for (feed in feeds) {
             if (feed.read !in values) values[feed.read] = feed.read()
@@ -79,6 +89,73 @@ class GpuStatsComponent(val dir: File) : SessionPart() {
         running = false
         thread?.interrupt()
         thread = null
+        layerLoad?.clear()
+        cycleClock?.close()
+        cycleClock = null
+        sources = ""
+    }
+
+    private fun hudShown(): Boolean = OverlayShown.check(root) || com.droiddeck.launcher.hud.DroidDeckHudHost.showing
+
+    // Android hides the load (kgsl sysfs blocked): the in-game Vulkan layer times the GPU work instead.
+    private fun layerLoadFeed(): Feed? {
+        if (!loadBlocked()) return null
+        val load = LayerLoad(guestLoadDir(root)).also { it.clear(); layerLoad = it }
+        val read = { if (shown) load.percent() else null }
+        return Feed(File(dir, "gpu_busy_percentage"), "in-game Vulkan timing ($GUEST_LOAD_DIR)", read, "%3d %%\n")
+    }
+
+    // The clock nodes are blocked too: read the GPU's cycle counter from a small GPU job of our own.
+    private fun cycleClockFeed(): Feed? {
+        val sampler = KgslClock.open() ?: return null
+        cycleClock = sampler
+        // clock_mhz and cur_freq both read this; one GPU job per refresh serves both.
+        var at = 0L
+        var last: Long? = null
+        val read = {
+            val now = SystemClock.elapsedRealtime()
+            if (now - at > PERIOD_MS / 2) { at = now; last = if (shown) sampler.mhz()?.toLong() else null }
+            last
+        }
+        return Feed(File(dir, "clock_mhz"), "GPU cycle counter (own GPU job)", read, "%5d\n")
+    }
+
+    /** Busy time the layer (tools/gpuload) writes per process, as a share of wall time between two reads. */
+    internal class LayerLoad(private val dir: File, private val clock: () -> Long = System::nanoTime) {
+        private val last = HashMap<String, Long>()
+        private var lastAt = 0L
+
+        fun wanted(on: Boolean) {
+            val flag = File(dir, "on")
+            if (on && !flag.exists()) runCatching { dir.mkdirs(); flag.createNewFile() }
+            if (!on && flag.exists()) { flag.delete(); last.clear(); lastAt = 0L }
+        }
+
+        fun percent(): Long? {
+            val now = clock()
+            val files = dir.listFiles { f -> f.name.isNotEmpty() && f.name.all(Char::isDigit) } ?: return null
+            var busy = 0L
+            val seen = HashSet<String>()
+            for (file in files) {
+                val total = runCatching { file.readText().trim().substringBefore(' ').toLong() }.getOrNull() ?: continue
+                seen += file.name
+                last[file.name]?.let { if (total >= it) busy += total - it }
+                last[file.name] = total
+                if (System.currentTimeMillis() - file.lastModified() > STALE_MS) file.delete()
+            }
+            last.keys.retainAll(seen)
+            val wall = now - lastAt
+            val first = lastAt == 0L
+            lastAt = now
+            if (first || wall <= 0) return null
+            return (busy * 100 / wall).coerceIn(0, 100)
+        }
+
+        fun clear() {
+            dir.listFiles()?.forEach { it.delete() }
+            last.clear()
+            lastAt = 0L
+        }
     }
 
     private fun loadFeed(): Feed? {
@@ -134,6 +211,23 @@ class GpuStatsComponent(val dir: File) : SessionPart() {
         private const val LOAD_HOLD_MS = 5_000L
         private val MANGOHUD_FILES = listOf("gpu_busy_percentage", "clock_mhz", "temp")
         private val PASSTHROUGH_FILES = listOf("gpu_model", "gpu_chipid")
+        const val GUEST_LOAD_DIR = "/run/droiddeck-hud/gpu-load"
+
+        /** Where the running session's GPU feeds come from, for the HUD diagnostics export. */
+        @Volatile var sources = ""
+        private const val STALE_MS = 30_000L
+
+        fun guestLoadDir(root: File) = File(root, GUEST_LOAD_DIR.removePrefix("/"))
+
+        /** True when this app can see kgsl but none of its GPU load nodes (SELinux-blocked, e.g. the Retroid Pocket Duo). */
+        fun loadBlocked(): Boolean = File(KGSL).exists() && !File(GPUBUSY).canRead() && LOAD_SOURCES.none { File(it).canRead() }
+
+        /** Turns on the in-game layer (tools/gpuload) where the load is blocked; empty elsewhere. */
+        fun guestEnv(root: File): List<String> {
+            if (!loadBlocked()) return emptyList()
+            guestLoadDir(root).mkdirs()
+            return listOf("DROIDDECK_GPU_LOAD=1", "DROIDDECK_GPU_LOAD_DIR=$GUEST_LOAD_DIR")
+        }
         private const val QCOM_GPU = "/sys/kernel/gpu"
         private val LOAD_SOURCES = listOf(
             "$KGSL/gpu_busy_percentage", "$KGSL/devfreq/gpu_load", "$KGSL/gpuload", "$QCOM_GPU/gpu_busy",

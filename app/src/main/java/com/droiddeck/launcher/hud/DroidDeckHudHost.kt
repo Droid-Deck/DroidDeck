@@ -185,6 +185,7 @@ class DroidDeckHudHost(context: Context) {
             "CPU ${mango.cpuPercent}% ${mango.cpuTempC}°C, GPU ${mango.gpuPercent}% ${mango.gpuClockMhz}MHz ${mango.gpuTempC}°C, " +
             "RAM ${mango.ramUsedText()}/${mango.ramTotalText()}, VRAM ${mango.vramText()}, battery ${mango.battery.percent}% " +
             "${mango.battery.watts}W charging=${mango.battery.charging}\n" +
+            "GPU feeds: ${com.droiddeck.launcher.session.GpuStatsComponent.sources.ifEmpty { "none (no session, or kgsl absent)" }}\n" +
             "CPU temperature zones: ${LinuxRuntime.cpuTempZones().joinToString { it.name }}\n" +
             "Frames: ${if (feed.engine.isNotEmpty() || feed.pid > 0) "gamescope (pid ${feed.pid}, ${feed.engine})" else "compositor"}, " +
             "fps ${feed.stats.fps}\n")
