@@ -31,24 +31,47 @@ internal fun GameJoltBrowseBar(showMature: Boolean) {
     fun toggle(set: Set<String>, value: String): Set<String> = if (value in set) set - value else set + value
     Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         ChipRow {
-            for (section in GameJoltBrowse.sections) BrowseChip(sectionLabel(section), query.section == section) { GameJoltBrowseState.choose(ctx, query.copy(section = section)) }
-        }
-        ChipRow {
-            for (price in GameJoltBrowse.prices) BrowseChip(priceLabel(price), query.price == price) { GameJoltBrowseState.choose(ctx, query.copy(price = price)) }
-        }
-        ChipRow {
-            BrowseChip(stringResource(R.string.stores_itch_platform_any), query.os.isEmpty()) { GameJoltBrowseState.choose(ctx, query.copy(os = emptySet())) }
-            for (os in GameJoltBrowse.systems) BrowseChip(systemLabel(os), os in query.os) { GameJoltBrowseState.choose(ctx, query.copy(os = toggle(query.os, os))) }
-        }
-        ChipRow {
-            for (browser in GameJoltBrowse.browsers) BrowseChip(browserLabel(browser), browser in query.browser) { GameJoltBrowseState.choose(ctx, query.copy(browser = toggle(query.browser, browser))) }
-        }
-        ChipRow {
-            for (maturity in GameJoltBrowse.maturities.filter { showMature || it != "adult" }) BrowseChip(maturityLabel(maturity), maturity in query.maturity) { GameJoltBrowseState.choose(ctx, query.copy(maturity = toggle(query.maturity, maturity))) }
-        }
-        ChipRow {
-            for (status in GameJoltBrowse.statuses) BrowseChip(statusLabel(status), status in query.status) { GameJoltBrowseState.choose(ctx, query.copy(status = toggle(query.status, status))) }
-            BrowseChip(stringResource(R.string.stores_gamejolt_partners), query.partners) { GameJoltBrowseState.choose(ctx, query.copy(partners = !query.partners)) }
+            BrowseDropdown(sectionLabel(query.section)) { first, close ->
+                GameJoltBrowse.sections.forEachIndexed { index, section ->
+                    MenuItem(sectionLabel(section), query.section == section, focusRequester = if (index == 0) first else null) {
+                        GameJoltBrowseState.choose(ctx, query.copy(section = section))
+                        close()
+                    }
+                }
+            }
+            BrowseDropdown(priceLabel(query.price)) { first, close ->
+                GameJoltBrowse.prices.forEachIndexed { index, price ->
+                    MenuItem(priceLabel(price), query.price == price, focusRequester = if (index == 0) first else null) {
+                        GameJoltBrowseState.choose(ctx, query.copy(price = price))
+                        close()
+                    }
+                }
+            }
+            val anyPlatform = stringResource(R.string.stores_itch_platform_any)
+            BrowseDropdown(browseSummary(GameJoltBrowse.systems.filter { it in query.os }.map { systemLabel(it) }, anyPlatform)) { first, _ ->
+                MenuItem(anyPlatform, query.os.isEmpty(), focusRequester = first) { GameJoltBrowseState.choose(ctx, query.copy(os = emptySet())) }
+                for (os in GameJoltBrowse.systems) MenuItem(systemLabel(os), os in query.os) { GameJoltBrowseState.choose(ctx, query.copy(os = toggle(query.os, os))) }
+            }
+            BrowseDropdown(browseSummary(GameJoltBrowse.browsers.filter { it in query.browser }.map { browserLabel(it) }, stringResource(R.string.stores_gamejolt_filter_browser))) { first, _ ->
+                GameJoltBrowse.browsers.forEachIndexed { index, browser ->
+                    MenuItem(browserLabel(browser), browser in query.browser, focusRequester = if (index == 0) first else null) { GameJoltBrowseState.choose(ctx, query.copy(browser = toggle(query.browser, browser))) }
+                }
+            }
+            val maturities = GameJoltBrowse.maturities.filter { showMature || it != "adult" }
+            BrowseDropdown(browseSummary(maturities.filter { it in query.maturity }.map { maturityLabel(it) }, stringResource(R.string.stores_gamejolt_filter_maturity))) { first, _ ->
+                maturities.forEachIndexed { index, maturity ->
+                    MenuItem(maturityLabel(maturity), maturity in query.maturity, focusRequester = if (index == 0) first else null) { GameJoltBrowseState.choose(ctx, query.copy(maturity = toggle(query.maturity, maturity))) }
+                }
+            }
+            BrowseDropdown(browseSummary(GameJoltBrowse.statuses.filter { it in query.status }.map { statusLabel(it) }, stringResource(R.string.stores_gamejolt_filter_status))) { first, _ ->
+                GameJoltBrowse.statuses.forEachIndexed { index, status ->
+                    MenuItem(statusLabel(status), status in query.status, focusRequester = if (index == 0) first else null) { GameJoltBrowseState.choose(ctx, query.copy(status = toggle(query.status, status))) }
+                }
+            }
+            val partners = stringResource(R.string.stores_gamejolt_partners)
+            BrowseDropdown(if (query.partners) partners else stringResource(R.string.stores_gamejolt_filter_partners)) { first, _ ->
+                MenuItem(partners, query.partners, focusRequester = first) { GameJoltBrowseState.choose(ctx, query.copy(partners = !query.partners)) }
+            }
         }
         ChipRow {
             for (tag in query.tags) BrowseChip("$tag  ✕", true) { GameJoltBrowseState.choose(ctx, query.copy(tags = query.tags - tag)) }
