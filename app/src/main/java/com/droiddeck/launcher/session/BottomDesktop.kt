@@ -143,6 +143,7 @@ object BottomDesktop {
             setState(State.FAILED)
             return
         }
+        if (owner != -1 && owner != current.generation) stop(context, owner)
         appContext = context.applicationContext
         owner = current.generation
         outputSize = width to height
