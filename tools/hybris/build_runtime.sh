@@ -52,7 +52,7 @@ for patch in "$root"/tools/hybris/patches/*.patch; do
 done
 # Include new source files in the patch shipped with the runtime's licenses.
 git -C "$work/libhybris" add --intent-to-add .
-export ARLINUX_WSI_PROTOCOL_DIR="$work/rootfs/graphics-protocols"
+export ARLINUX_WSI_PROTOCOL_DIR="$work/libhybris/arlinux/graphics-protocols"
 "$work/libhybris/tools/build-aarch64.sh" --out "$work/build"
 
 ndk="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-}}}"

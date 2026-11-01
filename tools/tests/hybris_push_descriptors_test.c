@@ -27,6 +27,7 @@ static size_t replay_template_size;
 static size_t expected_template_size;
 static VkDescriptorUpdateTemplate replay_template_handle;
 static unsigned fail_alloc;
+static int polygon_active;
 static unsigned extension_calls;
 static VkStructureType extension_type;
 static uint64_t extension_values[2];
@@ -298,10 +299,18 @@ struct hybris_bc_command *hybris_bc_command_find(VkCommandBuffer c, struct hybri
 void *hybris_bc_alloc(struct hybris_bc_device *d, size_t size) { (void)d; return push_test_calloc(1, size); }
 void hybris_bc_free(struct hybris_bc_device *d, void *p) { (void)d; free(p); }
 void hybris_bc_command_retire(struct hybris_bc_command *c) { hybris_bc_command_state_reset(&c->state); }
-void hybris_bc_transfer_init(struct hybris_bc_transfer *t, const struct hybris_bc_decoder *d,
+void hybris_bc_transfer_init(struct hybris_bc_transfer *t, struct hybris_bc_decoder *d,
     const VkPhysicalDeviceMemoryProperties *m, const VkPhysicalDeviceLimits *l)
 { memset(t, 0, sizeof(*t)); t->decoder = d; t->memory = m; t->limits = l; }
 void hybris_bc_transfer_finish(struct hybris_bc_transfer *t) { (void)t; }
+/* Upstream command registry, polygon emulation and transcode helpers: inert here. */
+void hybris_bc_command_publish(struct hybris_bc_device *d, struct hybris_bc_command *c) { (void)d; (void)c; }
+void hybris_bc_command_unpublish(struct hybris_bc_command *c) { (void)c; }
+int hybris_shader_polygon_active(VkDevice d) { (void)d; return polygon_active; }
+int hybris_bc_mutable_format(VkFormat f) { (void)f; return 0; }
+int hybris_bc_view_format_allowed(VkFormat base, VkFormat view, VkImageCreateFlags flags)
+{ (void)flags; return base == view; }
+VkFormat hybris_bc_transcode_format(VkFormat f) { (void)f; return VK_FORMAT_UNDEFINED; }
 
 static void reset_state(void)
 {
@@ -555,12 +564,91 @@ int main(void)
     reset_state();
 #endif
 
-    /* No emulated format means no retained push state. */
+    /* Neither BC nor polygon emulation means no retained push state. */
     device.format_mask = 0; images[0] = original_images[0]; images[1] = original_images[1]; buffer = original_buffer;
     direct(COMMAND, VK_PIPELINE_BIND_POINT_COMPUTE, LAYOUT, 2, 2, writes);
     clear_replay(); hybris_bc_restore_compute(&command.state, COMMAND);
     assert(old_calls == 0 && info2_calls == 0 && template_calls == 0 && template2_calls == 0);
-    device.format_mask = 1;
+    reset_state();
+
+    /* Polygon emulation also uses the compute journal when BC is disabled.
+     * Exercise both core and KHR spellings, with all caller-owned data and
+     * template handles retired before the synthetic compute restore. */
+    polygon_active = 1;
+    const char *direct_names[] = {"vkCmdPushDescriptorSet", "vkCmdPushDescriptorSetKHR"};
+    const char *direct2_names[] = {"vkCmdPushDescriptorSet2", "vkCmdPushDescriptorSet2KHR"};
+    const char *template_names[] = {"vkCmdPushDescriptorSetWithTemplate", "vkCmdPushDescriptorSetWithTemplateKHR"};
+    const char *template2_names[] = {"vkCmdPushDescriptorSetWithTemplate2", "vkCmdPushDescriptorSetWithTemplate2KHR"};
+    const char *create_names[] = {"vkCreateDescriptorUpdateTemplate", "vkCreateDescriptorUpdateTemplateKHR"};
+    const char *destroy_names[] = {"vkDestroyDescriptorUpdateTemplate", "vkDestroyDescriptorUpdateTemplateKHR"};
+    expected_template_size = sizeof(template_data);
+    for (unsigned alias = 0; alias < 2; ++alias) {
+        direct = (PFN_vkCmdPushDescriptorSetKHR)hybris_bc_commands_proc(direct_names[alias]);
+        direct2 = (PFN_vkCmdPushDescriptorSet2KHR)hybris_bc_commands_proc(direct2_names[alias]);
+        template = (PFN_vkCmdPushDescriptorSetWithTemplateKHR)hybris_bc_commands_proc(template_names[alias]);
+        template2 = (PFN_vkCmdPushDescriptorSetWithTemplate2KHR)hybris_bc_commands_proc(template2_names[alias]);
+        create = (PFN_vkCreateDescriptorUpdateTemplateKHR)hybris_bc_commands_proc(create_names[alias]);
+        destroy = (PFN_vkDestroyDescriptorUpdateTemplateKHR)hybris_bc_commands_proc(destroy_names[alias]);
+        assert(direct && direct2 && template && template2 && create && destroy);
+
+        images[0] = original_images[0]; images[1] = original_images[1]; buffer = original_buffer;
+        direct(COMMAND, VK_PIPELINE_BIND_POINT_COMPUTE, LAYOUT, 2, 2, writes);
+        memset(images, 0, sizeof(images)); memset(&buffer, 0, sizeof(buffer));
+        clear_replay(); hybris_bc_restore_compute(&command.state, COMMAND);
+        assert(old_calls == 1); expect_images_and_buffer(original_images, &original_buffer);
+        reset_state();
+
+        images[0] = original_images[0]; images[1] = original_images[1]; buffer = original_buffer;
+        info.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+        direct2(COMMAND, &info);
+        info.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT; direct2(COMMAND, &info);
+        memset(images, 0, sizeof(images)); memset(&buffer, 0, sizeof(buffer));
+        clear_replay(); hybris_bc_restore_compute(&command.state, COMMAND);
+        assert(info2_calls == 1 && replay_stages == VK_SHADER_STAGE_COMPUTE_BIT);
+        expect_images_and_buffer(original_images, &original_buffer);
+        reset_state();
+
+        for (unsigned maintenance6 = 0; maintenance6 < 2; ++maintenance6) {
+            assert(!device.layouts.templates);
+            assert(create(DEVICE, &template_info, NULL, &update_template) == VK_SUCCESS);
+            assert(device.layouts.templates);
+            memcpy(template_data, original_images, sizeof(original_images));
+            memcpy(template_data + sizeof(original_images), &original_buffer, sizeof(original_buffer));
+            template_info2.descriptorUpdateTemplate = update_template;
+            if (maintenance6) template2(COMMAND, &template_info2);
+            else template(COMMAND, update_template, LAYOUT, 2, template_data);
+            destroy(DEVICE, update_template, NULL);
+            assert(!device.layouts.templates);
+            memset(template_data, 0, sizeof(template_data));
+            clear_replay(); hybris_bc_restore_compute(&command.state, COMMAND);
+            assert((maintenance6 ? template2_calls : template_calls) == 1);
+            assert(replay_template_handle != update_template);
+            assert(!memcmp(replay_template, original_images, sizeof(original_images)));
+            assert(!memcmp(replay_template + sizeof(original_images), &original_buffer, sizeof(original_buffer)));
+            reset_state();
+        }
+        images[0] = original_images[0]; images[1] = original_images[1]; buffer = original_buffer;
+        direct(COMMAND, VK_PIPELINE_BIND_POINT_GRAPHICS, LAYOUT, 2, 2, writes);
+        clear_replay(); hybris_bc_restore_compute(&command.state, COMMAND);
+        assert(!old_calls);
+        reset_state();
+        info.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        info.pNext = (const void *)(uintptr_t)1;
+        direct2(COMMAND, &info);
+        assert(command.state.error == VK_ERROR_FEATURE_NOT_PRESENT);
+        info.pNext = NULL;
+        reset_state();
+        assert(create(DEVICE, &template_info, NULL, &update_template) == VK_SUCCESS);
+        template_info2.descriptorUpdateTemplate = update_template;
+        template_info2.pNext = (const void *)(uintptr_t)1;
+        template2(COMMAND, &template_info2);
+        assert(command.state.error == VK_ERROR_FEATURE_NOT_PRESENT);
+        template_info2.pNext = NULL;
+        destroy(DEVICE, update_template, NULL);
+        assert(!device.layouts.templates);
+        reset_state();
+    }
+    polygon_active = 0; device.format_mask = 1;
 
     /* A failed deep copy is reported by EndCommandBuffer; void command APIs
      * may not silently leave partially restorable state behind. */

@@ -1,8 +1,7 @@
 diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
-index aebed1b..44029f4 100644
 --- a/hybris/vulkan/Makefile.am
 +++ b/hybris/vulkan/Makefile.am
-@@ -11,7 +11,7 @@ lib_LTLIBRARIES = \
+@@ -14,7 +14,7 @@ lib_LTLIBRARIES = \
  libVkLayer_hybris_compat_la_SOURCES = layer/entry.c layer/device.c layer/physical.c layer/commands.c layer/layer.h \
      layer/device_features.c layer/device_features.h layer/device_create_sizes.inc \
      compat/bc_decode.c compat/bc_decode.h compat/shaders/bc_decode.inc \
@@ -12,13 +11,12 @@ index aebed1b..44029f4 100644
      compat/application_policy.c compat/application_policy.h \
      compat/vendor_compat.c compat/vendor_compat.h \
 diff --git a/hybris/vulkan/compat/bc_command_state.c b/hybris/vulkan/compat/bc_command_state.c
-index 7264edf..db6033f 100644
 --- a/hybris/vulkan/compat/bc_command_state.c
 +++ b/hybris/vulkan/compat/bc_command_state.c
-@@ -9,17 +9,244 @@ struct hybris_bc_layout {
-     size_t references;
-     struct hybris_bc_layout *next;
- };
+@@ -21,18 +21,245 @@ static size_t layout_bucket(VkPipelineLayout handle)
+     key ^= key >> 33;
+     return (size_t)key & (HYBRIS_BC_LAYOUT_BUCKETS - 1);
+ }
 -enum saved_kind { SAVED_DESCRIPTORS, SAVED_PUSH };
 +struct hybris_bc_template_entry {
 +    VkDescriptorUpdateTemplateEntry source;
@@ -44,6 +42,7 @@ index 7264edf..db6033f 100644
      struct hybris_bc_layout *layout;
 +    struct hybris_bc_template *update_template;
      enum saved_kind kind;
+     VkPipelineBindPoint bind_point;
 -    uint32_t first, count, offset_count;
 +    uint32_t first, count, offset_count, set;
      VkShaderStageFlags stages;
@@ -52,7 +51,7 @@ index 7264edf..db6033f 100644
      /* Descriptor handles followed by uint32_t offsets, or push bytes. */
      _Alignas(VkDescriptorSet) unsigned char data[];
  };
-
+ 
 +static int add_size(size_t *total, size_t bytes)
 +{
 +    if (bytes > SIZE_MAX - *total) return 0;
@@ -262,20 +261,15 @@ index 7264edf..db6033f 100644
  void hybris_bc_layouts_init(struct hybris_bc_layouts *layouts, VkDevice device,
      PFN_vkGetDeviceProcAddr resolver)
  {
-@@ -42,6 +269,48 @@ static void release_layout(struct hybris_bc_layouts *layouts, struct hybris_bc_l
-     }
+@@ -92,9 +319,147 @@ void hybris_bc_layout_remove(struct hybris_bc_layouts *layouts, VkPipelineLayout
+     if (layout) hybris_bc_layout_release(layouts, layout);
  }
-
+ 
 +static struct hybris_bc_layout *acquire_layout(struct hybris_bc_layouts *layouts,
 +    VkPipelineLayout handle)
 +{
-+    pthread_mutex_lock(&layouts->guard);
-+    struct hybris_bc_layout *layout = layouts->head;
-+    while (layout && layout->handle != handle) layout = layout->next;
-+    if (layout && layout->references != SIZE_MAX) ++layout->references;
-+    else layout = NULL;
-+    pthread_mutex_unlock(&layouts->guard);
-+    return layout;
++    struct hybris_bc_layout *layout;
++    return hybris_bc_layout_acquire(layouts, handle, &layout) == VK_SUCCESS ? layout : NULL;
 +}
 +
 +static void release_template(struct hybris_bc_layouts *layouts,
@@ -290,7 +284,7 @@ index 7264edf..db6033f 100644
 +            update_template->destroy_name);
 +    if (destroy_template)
 +        destroy_template(layouts->device, update_template->shadow, NULL);
-+    release_layout(layouts, update_template->layout);
++    hybris_bc_layout_release(layouts, update_template->layout);
 +    free(update_template);
 +}
 +
@@ -308,13 +302,6 @@ index 7264edf..db6033f 100644
 +    return update_template;
 +}
 +
- VkResult hybris_bc_layout_add(struct hybris_bc_layouts *layouts, VkPipelineLayout handle,
-     const VkPipelineLayoutCreateInfo *info)
- {
-@@ -71,9 +340,110 @@ void hybris_bc_layout_remove(struct hybris_bc_layouts *layouts, VkPipelineLayout
-     if (layout) release_layout(layouts, layout);
- }
-
 +VkResult hybris_bc_template_add(struct hybris_bc_layouts *layouts,
 +    VkDescriptorUpdateTemplate handle, const VkDescriptorUpdateTemplateCreateInfo *info,
 +    const char *create_name, const char *destroy_name)
@@ -336,7 +323,7 @@ index 7264edf..db6033f 100644
 +    if (!update_template || (info->descriptorUpdateEntryCount && !normalized)) {
 +        free(normalized);
 +        free(update_template);
-+        release_layout(layouts, layout);
++        hybris_bc_layout_release(layouts, layout);
 +        return VK_ERROR_OUT_OF_HOST_MEMORY;
 +    }
 +    update_template->handle = handle;
@@ -391,7 +378,7 @@ index 7264edf..db6033f 100644
 +    }
 +    free(normalized);
 +    if (result != VK_SUCCESS) {
-+        release_layout(layouts, layout);
++        hybris_bc_layout_release(layouts, layout);
 +        free(update_template);
 +        return result;
 +    }
@@ -422,40 +409,19 @@ index 7264edf..db6033f 100644
      while (layouts->head) hybris_bc_layout_remove(layouts, layouts->head->handle);
      pthread_mutex_destroy(&layouts->guard);
  }
-@@ -90,6 +460,8 @@ void hybris_bc_command_state_reset(struct hybris_bc_command_state *state)
+@@ -112,6 +477,8 @@ void hybris_bc_command_state_reset(struct hybris_bc_command_state *state)
      struct hybris_bc_saved_command *saved = state->first;
      while (saved) {
          struct hybris_bc_saved_command *next = saved->next;
 +        if (saved->update_template)
 +            release_template(state->layouts, saved->update_template);
-         release_layout(state->layouts, saved->layout);
+         hybris_bc_layout_release(state->layouts, saved->layout);
          free(saved);
          saved = next;
-@@ -107,17 +479,11 @@ static struct hybris_bc_saved_command *save(struct hybris_bc_command_state *stat
-     }
-     struct hybris_bc_saved_command *saved = calloc(1, sizeof(*saved) + bytes);
-     if (!saved) { state->error = VK_ERROR_OUT_OF_HOST_MEMORY; return NULL; }
--    pthread_mutex_lock(&state->layouts->guard);
--    struct hybris_bc_layout *layout = state->layouts->head;
--    while (layout && layout->handle != handle) layout = layout->next;
--    if (layout && layout->references != SIZE_MAX) {
--        ++layout->references;
--        saved->layout = layout;
--    }
--    pthread_mutex_unlock(&state->layouts->guard);
-+    struct hybris_bc_layout *layout = acquire_layout(state->layouts, handle);
-+    saved->layout = layout;
-     if (!saved->layout) {
-         free(saved);
--        state->error = layout ? VK_ERROR_OUT_OF_HOST_MEMORY : VK_ERROR_INITIALIZATION_FAILED;
-+        state->error = VK_ERROR_INITIALIZATION_FAILED;
-         return NULL;
-     }
-     if (state->last) state->last->next = saved;
-@@ -165,6 +531,188 @@ void hybris_bc_save_push(struct hybris_bc_command_state *state, VkPipelineLayout
+@@ -187,6 +554,190 @@ void hybris_bc_save_push(struct hybris_bc_command_state *state, VkPipelineLayout
      if (size) memcpy(saved->data, values, size);
  }
-
+ 
 +void hybris_bc_save_push_descriptors(struct hybris_bc_command_state *state,
 +    VkPipelineLayout layout, uint32_t set, uint32_t count,
 +    const VkWriteDescriptorSet *writes, VkShaderStageFlags stages,
@@ -469,7 +435,7 @@ index 7264edf..db6033f 100644
 +    }
 +    bytes = write_bytes;
 +    for (uint32_t i = 0; i < count; ++i) {
-+        size_t element_size, alignment, payload;
++        size_t element_size, alignment, payload = 0;
 +        struct extension_payload extension;
 +        if (!descriptor_element_layout(writes[i].descriptorType, &element_size, &alignment) ||
 +            !descriptor_extension_payload(&writes[i], &extension)) {
@@ -497,6 +463,7 @@ index 7264edf..db6033f 100644
 +    struct hybris_bc_saved_command *saved = save(state, layout, bytes);
 +    if (!saved) return;
 +    saved->kind = SAVED_PUSH_DESCRIPTORS;
++    saved->bind_point = VK_PIPELINE_BIND_POINT_COMPUTE;
 +    saved->set = set;
 +    /* Maintenance6 stage masks are equivalent to separate bind-point calls.
 +     * The decoder disturbs compute only; replaying a mixed mask would overwrite
@@ -508,7 +475,7 @@ index 7264edf..db6033f 100644
 +    VkWriteDescriptorSet *copies = (VkWriteDescriptorSet *)saved->data;
 +    size_t cursor = write_bytes;
 +    for (uint32_t i = 0; i < count; ++i) {
-+        size_t element_size, alignment, payload;
++        size_t element_size, alignment, payload = 0;
 +        struct extension_payload extension;
 +        descriptor_element_layout(writes[i].descriptorType, &element_size, &alignment);
 +        descriptor_extension_payload(&writes[i], &extension);
@@ -622,6 +589,7 @@ index 7264edf..db6033f 100644
 +        return;
 +    }
 +    saved->kind = SAVED_PUSH_TEMPLATE;
++    saved->bind_point = VK_PIPELINE_BIND_POINT_COMPUTE;
 +    saved->update_template = update_template;
 +    saved->set = set;
 +    saved->call_name = call_name;
@@ -638,16 +606,15 @@ index 7264edf..db6033f 100644
 +    }
 +}
 +
- void hybris_bc_restore_compute(struct hybris_bc_command_state *state, VkCommandBuffer command)
+ static void restore(struct hybris_bc_command_state *state, VkCommandBuffer command, VkPipelineBindPoint bind_point)
  {
      if (state->error != VK_SUCCESS) return;
-@@ -181,8 +729,41 @@ void hybris_bc_restore_compute(struct hybris_bc_command_state *state, VkCommandB
+@@ -205,6 +756,41 @@ static void restore(struct hybris_bc_command_state *state, VkCommandBuffer comma
                  saved->first, saved->count, (const VkDescriptorSet *)saved->data,
                  saved->offset_count,
                  (const uint32_t *)(saved->data + (size_t)saved->count * sizeof(VkDescriptorSet)));
--        } else {
-+        } else if (saved->kind == SAVED_PUSH) {
-             push(command, saved->layout->clone, saved->stages, saved->first, saved->count, saved->data);
++        } else if (saved->kind == SAVED_PUSH || saved->bind_point != bind_point) {
++            continue;
 +        } else if (saved->kind == SAVED_PUSH_DESCRIPTORS) {
 +            if (saved->info2) {
 +                PFN_vkCmdPushDescriptorSet2 call =
@@ -683,9 +650,8 @@ index 7264edf..db6033f 100644
 +                saved->set, saved->data);
          }
      }
- }
+     /* Preserve the complete stage mask required by each layout's ranges.
 diff --git a/hybris/vulkan/compat/bc_command_state.h b/hybris/vulkan/compat/bc_command_state.h
-index 79960b0..03637d1 100644
 --- a/hybris/vulkan/compat/bc_command_state.h
 +++ b/hybris/vulkan/compat/bc_command_state.h
 @@ -1,10 +1,11 @@
@@ -695,21 +661,21 @@ index 79960b0..03637d1 100644
 -#include <vulkan/vulkan.h>
 +#include "bc_vulkan_compat.h"
  #include <pthread.h>
-
+ 
  struct hybris_bc_layout;
 +struct hybris_bc_template;
  struct hybris_bc_saved_command;
+ #define HYBRIS_BC_LAYOUT_BUCKETS 1024
  /* Owned by one emulated device; initialize before publishing that device. */
- struct hybris_bc_layouts {
-@@ -12,6 +13,7 @@ struct hybris_bc_layouts {
-     PFN_vkGetDeviceProcAddr resolver;
+@@ -14,6 +15,7 @@ struct hybris_bc_layouts {
      pthread_mutex_t guard;
      struct hybris_bc_layout *head;
+     struct hybris_bc_layout *index[HYBRIS_BC_LAYOUT_BUCKETS];
 +    struct hybris_bc_template *templates;
  };
  /* Owned by one command buffer, externally synchronized with its recording.
   * Reset/free only after Vulkan permits retiring the recorded commands. */
-@@ -29,6 +31,11 @@ void hybris_bc_layouts_finish(struct hybris_bc_layouts *layouts);
+@@ -33,6 +35,11 @@ void hybris_bc_layouts_finish(struct hybris_bc_layouts *layouts);
  VkResult hybris_bc_layout_add(struct hybris_bc_layouts *layouts, VkPipelineLayout handle,
      const VkPipelineLayoutCreateInfo *info);
  void hybris_bc_layout_remove(struct hybris_bc_layouts *layouts, VkPipelineLayout handle);
@@ -718,13 +684,14 @@ index 79960b0..03637d1 100644
 +    const char *create_name, const char *destroy_name);
 +void hybris_bc_template_remove(struct hybris_bc_layouts *layouts,
 +    VkDescriptorUpdateTemplate handle);
- void hybris_bc_command_state_init(struct hybris_bc_command_state *state,
-     struct hybris_bc_layouts *layouts);
- void hybris_bc_command_state_reset(struct hybris_bc_command_state *state);
-@@ -40,6 +47,14 @@ void hybris_bc_save_descriptors(struct hybris_bc_command_state *state,
+ /* Stable identity of a particular layout lifetime, not a reusable Vulkan
+  * handle. The caller releases this reference after its pipeline retires. */
+ VkResult hybris_bc_layout_acquire(struct hybris_bc_layouts *layouts, VkPipelineLayout handle,
+@@ -52,6 +59,15 @@ void hybris_bc_save_descriptors(struct hybris_bc_command_state *state,
      const uint32_t *offsets);
  void hybris_bc_save_push(struct hybris_bc_command_state *state, VkPipelineLayout layout,
      VkShaderStageFlags stages, uint32_t offset, uint32_t size, const void *values);
++/* Compute push descriptors and push-descriptor templates, journaled like descriptor binds. */
 +void hybris_bc_save_push_descriptors(struct hybris_bc_command_state *state,
 +    VkPipelineLayout layout, uint32_t set, uint32_t count,
 +    const VkWriteDescriptorSet *writes, VkShaderStageFlags stages,
@@ -737,12 +704,11 @@ index 79960b0..03637d1 100644
   * return state->error from EndCommandBuffer if a void recording hook failed. */
  void hybris_bc_restore_compute(struct hybris_bc_command_state *state, VkCommandBuffer command);
 diff --git a/hybris/vulkan/compat/bc_commands.c b/hybris/vulkan/compat/bc_commands.c
-index cf62d7d..830b997 100644
 --- a/hybris/vulkan/compat/bc_commands.c
 +++ b/hybris/vulkan/compat/bc_commands.c
-@@ -169,6 +169,59 @@ static void VKAPI_CALL destroy_layout(VkDevice handle, VkPipelineLayout layout,
+@@ -177,6 +177,59 @@ static void VKAPI_CALL destroy_layout(VkDevice handle, VkPipelineLayout layout,
      DestroyPipelineLayout(handle, layout, allocator);
-     if (device->format_mask) hybris_bc_layout_remove(&device->layouts, layout);
+     if (journal_enabled(device)) hybris_bc_layout_remove(&device->layouts, layout);
  }
 +static VkResult create_template(VkDevice handle,
 +    const VkDescriptorUpdateTemplateCreateInfo *info,
@@ -754,7 +720,7 @@ index cf62d7d..830b997 100644
 +    PFN_vkCreateDescriptorUpdateTemplate create =
 +        (PFN_vkCreateDescriptorUpdateTemplate)device->resolver(handle, create_name);
 +    VkResult result = create(handle, info, allocator, out);
-+    if (result != VK_SUCCESS || !device->format_mask ||
++    if (result != VK_SUCCESS || !journal_enabled(device) ||
 +        info->templateType != VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_PUSH_DESCRIPTORS ||
 +        info->pipelineBindPoint != VK_PIPELINE_BIND_POINT_COMPUTE)
 +        return result;
@@ -786,7 +752,7 @@ index cf62d7d..830b997 100644
 +    PFN_vkDestroyDescriptorUpdateTemplate destroy =
 +        (PFN_vkDestroyDescriptorUpdateTemplate)device->resolver(handle, name);
 +    destroy(handle, update_template, allocator);
-+    if (device->format_mask)
++    if (journal_enabled(device))
 +        hybris_bc_template_remove(&device->layouts, update_template);
 +}
 +static void VKAPI_CALL destroy_template_core(VkDevice handle,
@@ -800,9 +766,9 @@ index cf62d7d..830b997 100644
  static void VKAPI_CALL bind_pipeline(VkCommandBuffer handle, VkPipelineBindPoint point, VkPipeline pipeline)
  {
      struct hybris_bc_device *device;
-@@ -200,6 +253,54 @@ static void VKAPI_CALL push_constants(VkCommandBuffer handle, VkPipelineLayout l
-     CmdPushConstants(handle, layout, stages, offset, size, values);
-     if (device->format_mask) hybris_bc_save_push(&command->state, layout, stages, offset, size, values);
+@@ -205,6 +258,54 @@ static void VKAPI_CALL push_constants(VkCommandBuffer handle, VkPipelineLayout l
+     device->push_constants(handle, layout, stages, offset, size, values);
+     if (journal_enabled(device)) hybris_bc_save_push(&command->state, layout, stages, offset, size, values);
  }
 +static void push_descriptors(VkCommandBuffer handle, VkPipelineBindPoint point,
 +    VkPipelineLayout layout, uint32_t set, uint32_t count,
@@ -814,7 +780,7 @@ index cf62d7d..830b997 100644
 +    PFN_vkCmdPushDescriptorSetKHR call =
 +        (PFN_vkCmdPushDescriptorSetKHR)device->resolver(device->handle, name);
 +    call(handle, point, layout, set, count, writes);
-+    if (device->format_mask && point == VK_PIPELINE_BIND_POINT_COMPUTE)
++    if (journal_enabled(device) && point == VK_PIPELINE_BIND_POINT_COMPUTE)
 +        hybris_bc_save_push_descriptors(&command->state, layout, set, count,
 +            writes, VK_SHADER_STAGE_COMPUTE_BIT, name, 0);
 +}
@@ -838,7 +804,7 @@ index cf62d7d..830b997 100644
 +    PFN_vkCmdPushDescriptorSetWithTemplateKHR call =
 +        (PFN_vkCmdPushDescriptorSetWithTemplateKHR)device->resolver(device->handle, name);
 +    call(handle, update_template, layout, set, data);
-+    if (device->format_mask)
++    if (journal_enabled(device))
 +        hybris_bc_save_push_template(&command->state, update_template, layout,
 +            set, data, NULL, name, 0);
 +}
@@ -852,13 +818,13 @@ index cf62d7d..830b997 100644
 +    uint32_t set, const void *data)
 +{ push_template(handle, update_template, layout, set, data,
 +    "vkCmdPushDescriptorSetWithTemplateKHR"); }
- static void bind_descriptors2(VkCommandBuffer handle, const VkBindDescriptorSetsInfo *info, const char *name)
- {
-     struct hybris_bc_device *device;
-@@ -231,6 +332,53 @@ static void VKAPI_CALL push_constants2_core(VkCommandBuffer handle, const VkPush
- { push_constants2(handle, info, "vkCmdPushConstants2"); }
- static void VKAPI_CALL push_constants2_khr(VkCommandBuffer handle, const VkPushConstantsInfo *info)
+ /* maintenance6 entry points also change the compute state temporarily used
+  * by the BC decoder. Forward the complete native command, then capture the
+  * same state as the original descriptor/push-constant entry points. */
+@@ -248,6 +349,53 @@ static void VKAPI_CALL push_constants2_khr(VkCommandBuffer handle, const VkPushC
  { push_constants2(handle, info, "vkCmdPushConstants2KHR"); }
+ static void VKAPI_CALL push_constants2_core(VkCommandBuffer handle, const VkPushConstantsInfoKHR *info)
+ { push_constants2(handle, info, "vkCmdPushConstants2"); }
 +static void push_descriptors2(VkCommandBuffer handle,
 +    const VkPushDescriptorSetInfo *info, const char *name)
 +{
@@ -868,7 +834,7 @@ index cf62d7d..830b997 100644
 +    PFN_vkCmdPushDescriptorSet2 call =
 +        (PFN_vkCmdPushDescriptorSet2)device->resolver(device->handle, name);
 +    call(handle, info);
-+    if (!device->format_mask || !(info->stageFlags & VK_SHADER_STAGE_COMPUTE_BIT))
++    if (!journal_enabled(device) || !(info->stageFlags & VK_SHADER_STAGE_COMPUTE_BIT))
 +        return;
 +    if (info->pNext) {
 +        if (command->state.error == VK_SUCCESS)
@@ -895,7 +861,7 @@ index cf62d7d..830b997 100644
 +        (PFN_vkCmdPushDescriptorSetWithTemplate2)device->resolver(device->handle,
 +            name);
 +    call(handle, info);
-+    if (device->format_mask)
++    if (journal_enabled(device))
 +        hybris_bc_save_push_template(&command->state,
 +            info->descriptorUpdateTemplate, info->layout, info->set,
 +            info->pData, info->pNext, name, 1);
@@ -909,7 +875,7 @@ index cf62d7d..830b997 100644
  PFN_vkVoidFunction hybris_bc_commands_proc(const char *name)
  {
      static const struct { const char *name; PFN_vkVoidFunction function; } commands[] = {
-@@ -239,10 +387,21 @@ PFN_vkVoidFunction hybris_bc_commands_proc(const char *name)
+@@ -256,10 +404,21 @@ PFN_vkVoidFunction hybris_bc_commands_proc(const char *name)
          ENTRY(BeginCommandBuffer, begin_command), ENTRY(EndCommandBuffer, end_command),
          ENTRY(ResetCommandBuffer, reset_command), ENTRY(ResetCommandPool, reset_pool),
          ENTRY(DestroyCommandPool, destroy_pool), ENTRY(CreatePipelineLayout, create_layout),
@@ -921,9 +887,9 @@ index cf62d7d..830b997 100644
 +        ENTRY(DestroyDescriptorUpdateTemplateKHR, destroy_template_khr),
 +        ENTRY(CmdBindPipeline, bind_pipeline),
          ENTRY(CmdBindDescriptorSets, bind_descriptors), ENTRY(CmdPushConstants, push_constants),
-         ENTRY(CmdBindDescriptorSets2, bind_descriptors2_core), ENTRY(CmdBindDescriptorSets2KHR, bind_descriptors2_khr),
--        ENTRY(CmdPushConstants2, push_constants2_core), ENTRY(CmdPushConstants2KHR, push_constants2_khr)
-+        ENTRY(CmdPushConstants2, push_constants2_core), ENTRY(CmdPushConstants2KHR, push_constants2_khr),
+         ENTRY(CmdBindDescriptorSets2KHR, bind_descriptors2_khr), ENTRY(CmdBindDescriptorSets2, bind_descriptors2_core),
+-        ENTRY(CmdPushConstants2KHR, push_constants2_khr), ENTRY(CmdPushConstants2, push_constants2_core)
++        ENTRY(CmdPushConstants2KHR, push_constants2_khr), ENTRY(CmdPushConstants2, push_constants2_core),
 +        ENTRY(CmdPushDescriptorSet, push_descriptors_core), ENTRY(CmdPushDescriptorSetKHR, push_descriptors_khr),
 +        ENTRY(CmdPushDescriptorSetWithTemplate, push_template_core),
 +        ENTRY(CmdPushDescriptorSetWithTemplateKHR, push_template_khr),
@@ -934,42 +900,19 @@ index cf62d7d..830b997 100644
      };
      for (size_t i = 0; i < sizeof(commands) / sizeof(commands[0]); ++i)
 diff --git a/hybris/vulkan/compat/bc_policy.c b/hybris/vulkan/compat/bc_policy.c
-index 37c414c..b3f9d2c 100644
 --- a/hybris/vulkan/compat/bc_policy.c
 +++ b/hybris/vulkan/compat/bc_policy.c
-@@ -59,7 +59,8 @@ unsigned hybris_bc_physical_mask(VkPhysicalDevice physical)
-     PHYSICAL_PROC(GetPhysicalDeviceFormatProperties);
-     VkPhysicalDeviceProperties properties;
-     GetPhysicalDeviceProperties(physical, &properties);
--    /* Core 1.4 includes descriptor-state commands that are not intercepted yet. */
-+    /* The DXVK profile has a separate 1.3 capability contract. Other profiles
-+     * still reject native 1.4 until every new state path is covered. */
-     if (properties.apiVersion < VK_API_VERSION_1_1 || (!dxvk_profile() && properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 4, 0)) ||
-         properties.limits.maxStorageBufferRange < 256 ||
-         properties.limits.minStorageBufferOffsetAlignment >= properties.limits.maxStorageBufferRange) return 0;
-@@ -95,8 +96,8 @@ unsigned hybris_bc_physical_mask(VkPhysicalDevice physical)
-     }
-     return mask;
- }
--/* The emulation profile implements Vulkan 1.3 plus maintenance6. Do not expose
-- * 1.4 core host-copy/push-descriptor operations that bypass our state tracking. */
-+/* The emulation profile implements Vulkan 1.3 plus maintenance6. Keep the 1.4
-+ * core feature contract hidden even though extension push state is tracked. */
- static void cap_properties(VkPhysicalDevice physical, VkPhysicalDeviceProperties *out)
- {
-     if (dxvk_profile() && hybris_bc_physical_mask(physical) && out->apiVersion > VK_API_VERSION_1_3)
-@@ -144,7 +145,7 @@ int hybris_bc_format_properties(VkPhysicalDevice physical, VkFormat format, VkFo
+@@ -227,7 +227,7 @@ static void VKAPI_CALL properties2_khr(VkPhysicalDevice physical, VkPhysicalDevi
  int hybris_bc_extension_allowed(const char *name)
  {
      static const char *const unsupported[] = {
 -        "VK_EXT_descriptor_buffer", "VK_KHR_push_descriptor", "VK_EXT_shader_object",
 +        "VK_EXT_descriptor_buffer", "VK_EXT_shader_object",
-         "VK_KHR_maintenance6", "VK_KHR_maintenance8", "VK_EXT_host_image_copy",
+         "VK_NV_per_stage_descriptor_set", "VK_KHR_maintenance8", "VK_EXT_host_image_copy",
          "VK_QCOM_rotated_copy_commands", "VK_EXT_device_generated_commands",
          "VK_NV_device_generated_commands", "VK_NV_device_generated_commands_compute",
 diff --git a/hybris/vulkan/compat/bc_vulkan_compat.h b/hybris/vulkan/compat/bc_vulkan_compat.h
 new file mode 100644
-index 0000000..c79e476
 --- /dev/null
 +++ b/hybris/vulkan/compat/bc_vulkan_compat.h
 @@ -0,0 +1,22 @@
@@ -996,14 +939,13 @@ index 0000000..c79e476
 +
 +#endif
 diff --git a/tests/baseline/bc-images.md b/tests/baseline/bc-images.md
-index efb1445..68af944 100644
 --- a/tests/baseline/bc-images.md
 +++ b/tests/baseline/bc-images.md
-@@ -39,11 +39,13 @@ When emulation is active, pipeline statistics and protected memory are disabled;
+@@ -44,11 +44,13 @@ When emulation is active, pipeline statistics and protected memory are disabled;
  protected queue flags are removed too. Injected compute must not contaminate
  application pipeline-statistics queries. Unsupported descriptor-state and
  related extensions are excluded from enumeration and rejected at device
--creation: descriptor buffer, push descriptor, shader object, maintenance6/8,
+-creation: descriptor buffer, push descriptor, shader object, maintenance8,
 +creation: descriptor buffer, shader object, maintenance8,
  host image copy, QCOM rotated copy, EXT/NV generated commands (including NV
  compute generated commands), NV indirect memory copy, and NV dedicated allocation. Feature queries for
@@ -1012,361 +954,6 @@ index efb1445..68af944 100644
 +apply only to the opt-in device with selected emulated formats. The DXVK profile
 +retains `VK_KHR_push_descriptor` revision 2 and `VK_KHR_maintenance6`; their
 +command state is replayed around injected BC decoder dispatches.
-
+ 
  ## Implementation and resource ownership
-
-@@ -120,6 +122,16 @@ Explicit command-buffer reset, pool reset and free/reallocation alternate with
- implicit reset. Classic events are used on both devices; copy2 and
- synchronization2 are conditional on queried/enabled extensions.
-
-+`bc-images-push-validation` uses a push-descriptor layout with a non-dynamic
-+storage-buffer descriptor whose offset is the prior dynamic offset. It exercises
-+`vkCmdPushDescriptorSetKHR`, `vkCmdPushDescriptorSetWithTemplateKHR`,
-+`vkCmdPushDescriptorSet2KHR`, and `vkCmdPushDescriptorSetWithTemplate2KHR` on
-+the four mip levels. Its log labels these as `KHR-direct`, `KHR-template`,
-+`KHR2-direct`, and `KHR2-template`. The application zeroes the source writes or
-+template payload immediately after recording each push and destroys the template
-+and pipeline layout before submission, so successful readbacks also prove that
-+the interceptor retained the state it needs.
-+
- All 288 readbacks check sampling, compressed bytes and surrounding sentinels
- across the complete 256 KiB output buffer. BC sampling must match the native
- reference bit for bit. BC4/BC5 sample all four components at 16-bit precision,
-@@ -164,6 +176,28 @@ For Mali use serial `10AFA31610002QH`, HAL `/vendor/lib64/hw/vulkan.mali.so`
- and the explicit `--icd-mali-loader-quirk` flag. Omit `--bc-textures` for the
- native-behavior control; use `missing` for the normal opt-in selection policy.
-
-+For the PowerVR DXVK capability contract, compare the dedicated descriptor-set
-+control with the push-descriptor case using the same staged runtime:
-+
-+```sh
-+python3 tests/baseline/run.py --serial SERIAL --icd-hal HAL --vulkan-loader LOADER \
-+  --validation-layer LAYER --validation-manifest LAYER_JSON \
-+  --bc-textures dxvk --case icd-bc-images-push-control-validation \
-+  --case icd-bc-images-push-validation
-+```
-+
-+The runner supplies `HYBRIS_BC_TEXTURES=dxvk BC_MAINTENANCE6=1
-+BC_D3D_FORMATS=1` to both cases and adds `BC_PUSH_DESCRIPTORS=1` only to the
-+push case. The paired D3D run covers 14 formats, two shapes, four mips and
-+three submissions: 336 readbacks, with 28 readbacks for each named push route.
-+The original `bc-images-validation` case remains unchanged. The equivalent
-+direct guest probe arguments are:
-+
-+```sh
-+HYBRIS_BC_TEXTURES=dxvk BC_PUSH_DESCRIPTORS=1 BC_MAINTENANCE6=1 BC_D3D_FORMATS=1 \
-+  ./probe-glibc bc-images-push-validation
-+```
-+
- ## Earlier BC1–BC3 evidence
-
- The initial application-path run (`20260908T085934-5ae46145`, Redmi;
-diff --git a/tests/baseline/probe_bc_images.c b/tests/baseline/probe_bc_images.c
-index 55e069c..4499d2c 100644
---- a/tests/baseline/probe_bc_images.c
-+++ b/tests/baseline/probe_bc_images.c
-@@ -3,6 +3,13 @@
- #define BC_IMAGE_FORMAT_COUNT BC_FORMAT_COUNT
- #include "shaders/bc-sample.inc"
-
-+static const char *push_route_name(unsigned route)
-+{
-+    static const char *const names[] = {
-+        "KHR-direct", "KHR-template", "KHR2-direct", "KHR2-template", "none"};
-+    return names[route < 4 ? route : 4];
-+}
-+
- static void image_barrier(PFN_vkCmdPipelineBarrier barrier, VkCommandBuffer command, VkImage image,
-     uint32_t mip, uint32_t layers, VkImageLayout before, VkImageLayout after,
-     VkPipelineStageFlags source_stage, VkAccessFlags source_access,
-@@ -63,7 +70,7 @@ int bc_images_probe(int validate, int route)
-         .pNext = validate ? &vf : NULL, .enabledLayerCount = validate ? 1 : 0, .ppEnabledLayerNames = &layer,
-         .enabledExtensionCount = validate ? 2 : 0, .ppEnabledExtensionNames = extensions};
-     CHECK(p_vkCreateInstance(&ci, NULL, &instance));
--    V(vkDestroyInstance); V(vkEnumeratePhysicalDevices); V(vkGetPhysicalDeviceProperties);
-+    V(vkDestroyInstance); V(vkEnumeratePhysicalDevices); V(vkGetPhysicalDeviceProperties); V(vkGetPhysicalDeviceProperties2);
-     V(vkGetPhysicalDeviceMemoryProperties); V(vkGetPhysicalDeviceQueueFamilyProperties);
-     V(vkGetPhysicalDeviceFormatProperties); V(vkGetPhysicalDeviceFormatProperties2);
-     V(vkGetPhysicalDeviceImageFormatProperties); V(vkGetPhysicalDeviceImageFormatProperties2);
-@@ -145,11 +152,15 @@ int bc_images_probe(int validate, int route)
-     if (!available) return 2;
-     CHECK(p_vkEnumerateDeviceExtensionProperties(physical, NULL, &extension_count, available));
-     int copies2 = 0, sync2 = 0, maintenance4 = 0, format_list = 0;
-+    int push_descriptors = getenv("BC_PUSH_DESCRIPTORS") != NULL;
-+    uint32_t push_descriptor_version = 0;
-     for (uint32_t i = 0; i < extension_count; ++i) {
-         if (!strcmp(available[i].extensionName, VK_KHR_COPY_COMMANDS_2_EXTENSION_NAME)) copies2 = 1;
-         if (!strcmp(available[i].extensionName, VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME)) sync2 = 1;
-         if (!strcmp(available[i].extensionName, VK_KHR_MAINTENANCE_4_EXTENSION_NAME)) maintenance4 = 1;
-         if (!strcmp(available[i].extensionName, VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME)) format_list = 1;
-+        if (!strcmp(available[i].extensionName, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME))
-+            push_descriptor_version = available[i].specVersion;
-     }
-     free(available);
-     VkPhysicalDeviceSynchronization2Features synchronization = {
-@@ -165,22 +176,35 @@ int bc_images_probe(int validate, int route)
-         p_vkGetPhysicalDeviceFeatures2(physical, &queried);
-         maintenance4 = maintenance.maintenance4;
-     }
--    int maintenance6 = getenv("BC_MAINTENANCE6") != NULL;
-+    int maintenance6 = getenv("BC_MAINTENANCE6") != NULL || push_descriptors;
-     VkPhysicalDeviceMaintenance6FeaturesKHR maintenance_six = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_6_FEATURES_KHR};
-     if (maintenance6) {
-         VkPhysicalDeviceFeatures2 q = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, .pNext = &maintenance_six};
-         p_vkGetPhysicalDeviceFeatures2(physical, &q);
-         if (!maintenance_six.maintenance6) { puts("MISSING maintenance6"); return 3; }
-     }
-+    if (push_descriptors) {
-+        VkPhysicalDevicePushDescriptorPropertiesKHR pushed = {
-+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PUSH_DESCRIPTOR_PROPERTIES_KHR};
-+        VkPhysicalDeviceProperties2 queried = {
-+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, .pNext = &pushed};
-+        p_vkGetPhysicalDeviceProperties2(physical, &queried);
-+        if (push_descriptor_version < 2 || pushed.maxPushDescriptors < 3) {
-+            printf("MISSING push_descriptor revision=%u max=%u\n", push_descriptor_version,
-+                pushed.maxPushDescriptors);
-+            return 3;
-+        }
-+    }
-     maintenance.pNext = maintenance6 ? &maintenance_six : NULL;
-     synchronization.pNext = maintenance4 ? (void *)&maintenance : maintenance6 ? (void *)&maintenance_six : NULL;
--    const char *device_extensions[5];
-+    const char *device_extensions[6];
-     uint32_t device_extension_count = 0;
-     if (copies2) device_extensions[device_extension_count++] = VK_KHR_COPY_COMMANDS_2_EXTENSION_NAME;
-     if (sync2) device_extensions[device_extension_count++] = VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME;
-     if (maintenance4) device_extensions[device_extension_count++] = VK_KHR_MAINTENANCE_4_EXTENSION_NAME;
-     if (format_list) device_extensions[device_extension_count++] = VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME;
-     if (maintenance6) device_extensions[device_extension_count++] = VK_KHR_MAINTENANCE_6_EXTENSION_NAME;
-+    if (push_descriptors) device_extensions[device_extension_count++] = VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME;
-     float priority = 1;
-     VkDeviceQueueCreateInfo qc = {.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-         .queueFamilyIndex = family, .queueCount = 1, .pQueuePriorities = &priority};
-@@ -214,6 +238,7 @@ int bc_images_probe(int validate, int route)
-     D(vkCreateImageView); D(vkDestroyImageView); D(vkCreateSampler); D(vkDestroySampler);
-     D(vkCreateDescriptorSetLayout); D(vkDestroyDescriptorSetLayout); D(vkCreateDescriptorPool);
-     D(vkDestroyDescriptorPool); D(vkAllocateDescriptorSets); D(vkUpdateDescriptorSets);
-+    D(vkCreateDescriptorUpdateTemplate); D(vkDestroyDescriptorUpdateTemplate);
-     D(vkCreateShaderModule); D(vkDestroyShaderModule); D(vkCreatePipelineLayout); D(vkDestroyPipelineLayout);
-     D(vkCreateComputePipelines); D(vkDestroyPipeline); D(vkCmdBindPipeline); D(vkCmdBindDescriptorSets);
-     D(vkCmdPushConstants); D(vkCmdDispatch); D(vkCmdCopyBufferToImage); D(vkCmdCopyImage); D(vkCmdCopyImageToBuffer);
-@@ -272,21 +297,25 @@ int bc_images_probe(int validate, int route)
-     if (dynamic_offset + OUTPUT > RAW) return 3;
-     VkDescriptorSetLayoutBinding bindings[3] = {
-         {.binding = 0, .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT},
--        {.binding = 1, .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT},
-+        {.binding = 1, .descriptorType = push_descriptors ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
-+            .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT},
-         {.binding = 2, .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT}};
-     VkDescriptorSetLayoutCreateInfo layout_info = {.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-+        .flags = push_descriptors ? VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR : 0,
-         .bindingCount = 3, .pBindings = bindings};
-     VkDescriptorSetLayout descriptor_layout;
-     CHECK(p_vkCreateDescriptorSetLayout(device, &layout_info, NULL, &descriptor_layout));
--    VkDescriptorPoolSize sizes[2] = {{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2}, {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1}};
--    VkDescriptorPoolCreateInfo descriptor_info = {.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
--        .maxSets = 1, .poolSizeCount = 2, .pPoolSizes = sizes};
--    VkDescriptorPool descriptor_pool;
--    CHECK(p_vkCreateDescriptorPool(device, &descriptor_info, NULL, &descriptor_pool));
--    VkDescriptorSetAllocateInfo set_info = {.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
--        .descriptorPool = descriptor_pool, .descriptorSetCount = 1, .pSetLayouts = &descriptor_layout};
--    VkDescriptorSet descriptors;
--    CHECK(p_vkAllocateDescriptorSets(device, &set_info, &descriptors));
-+    VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
-+    VkDescriptorSet descriptors = VK_NULL_HANDLE;
-+    if (!push_descriptors) {
-+        VkDescriptorPoolSize sizes[2] = {{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2}, {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1}};
-+        VkDescriptorPoolCreateInfo descriptor_info = {.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-+            .maxSets = 1, .poolSizeCount = 2, .pPoolSizes = sizes};
-+        CHECK(p_vkCreateDescriptorPool(device, &descriptor_info, NULL, &descriptor_pool));
-+        VkDescriptorSetAllocateInfo set_info = {.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-+            .descriptorPool = descriptor_pool, .descriptorSetCount = 1, .pSetLayouts = &descriptor_layout};
-+        CHECK(p_vkAllocateDescriptorSets(device, &set_info, &descriptors));
-+    }
-     VkSamplerCreateInfo sampler_info = {.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-         .magFilter = VK_FILTER_NEAREST, .minFilter = VK_FILTER_NEAREST, .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-         .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-@@ -320,8 +349,18 @@ int bc_images_probe(int validate, int route)
-     PFN_vkCmdBindDescriptorSets2KHR bind2 = (PFN_vkCmdBindDescriptorSets2KHR)p_vkGetDeviceProcAddr(device, "vkCmdBindDescriptorSets2KHR");
-     PFN_vkCmdPushConstants2KHR push2 = (PFN_vkCmdPushConstants2KHR)p_vkGetDeviceProcAddr(device, "vkCmdPushConstants2KHR");
-     if (maintenance6 && (!bind2 || !push2)) return 2;
--    printf("BC_EXTENDED maintenance6=%d mutable=%d\n", maintenance6, getenv("BC_MUTABLE") != NULL);
--    unsigned failures = 0, readbacks = 0, copies2_cases = 0, sync2_cases = 0;
-+    PFN_vkCmdPushDescriptorSetKHR push = push_descriptors ?
-+        (PFN_vkCmdPushDescriptorSetKHR)p_vkGetDeviceProcAddr(device, "vkCmdPushDescriptorSetKHR") : NULL;
-+    PFN_vkCmdPushDescriptorSetWithTemplateKHR push_template = push_descriptors ?
-+        (PFN_vkCmdPushDescriptorSetWithTemplateKHR)p_vkGetDeviceProcAddr(device, "vkCmdPushDescriptorSetWithTemplateKHR") : NULL;
-+    PFN_vkCmdPushDescriptorSet2KHR push2_descriptors = push_descriptors ?
-+        (PFN_vkCmdPushDescriptorSet2KHR)p_vkGetDeviceProcAddr(device, "vkCmdPushDescriptorSet2KHR") : NULL;
-+    PFN_vkCmdPushDescriptorSetWithTemplate2KHR push2_template = push_descriptors ?
-+        (PFN_vkCmdPushDescriptorSetWithTemplate2KHR)p_vkGetDeviceProcAddr(device, "vkCmdPushDescriptorSetWithTemplate2KHR") : NULL;
-+    if (push_descriptors && (!push || !push_template || !push2_descriptors || !push2_template)) return 2;
-+    printf("BC_EXTENDED maintenance6=%d push_descriptors=%d mutable=%d\n", maintenance6,
-+        push_descriptors, getenv("BC_MUTABLE") != NULL);
-+    unsigned failures = 0, readbacks = 0, copies2_cases = 0, sync2_cases = 0, push_routes[4] = {0};
-     for (unsigned f = first_format; f < BC_IMAGE_FORMAT_COUNT; ++f) {
-         for (unsigned shape_index = 0; shape_index < 2; ++shape_index) {
-         uint32_t base_width = shape_index ? 32 : 9, base_height = shape_index ? 32 : 7;
-@@ -333,6 +372,7 @@ int bc_images_probe(int validate, int route)
-             copies2_cases += use2;
-             int use_sync2 = sync2 && (mip & 1);
-             sync2_cases += use_sync2;
-+            unsigned push_route = push_descriptors ? mip & 3 : 4;
-             unsigned mode = bc_mode(f);
-             unsigned sampler_choice = linear_filter[f] ? 1 + (f < 2 || f >= 12 ? mip : mip % 3) : 0;
-             /* Legacy opaque-black sampling with nonidentity swizzles is undefined. */
-@@ -413,15 +453,17 @@ int bc_images_probe(int validate, int route)
-             CHECK(p_vkCreateImageView(device, &view_info, NULL, &reference_view));
-             VkDescriptorImageInfo reference = {.sampler = samplers[sampler_choice], .imageView = reference_view, .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-             VkDescriptorImageInfo sampled = {.sampler = samplers[sampler_choice], .imageView = view, .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
--            VkDescriptorBufferInfo output = {.buffer = buffers[1], .range = OUTPUT};
-+            VkDescriptorBufferInfo output = {.buffer = buffers[1],
-+                .offset = push_descriptors ? dynamic_offset : 0, .range = OUTPUT};
-             VkWriteDescriptorSet writes[3] = {
-                 {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = descriptors, .dstBinding = 0, .descriptorCount = 1,
-                     .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .pImageInfo = &sampled},
-                 {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = descriptors, .dstBinding = 1, .descriptorCount = 1,
--                    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, .pBufferInfo = &output},
-+                    .descriptorType = push_descriptors ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
-+                    .pBufferInfo = &output},
-                 {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = descriptors, .dstBinding = 2, .descriptorCount = 1,
-                     .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .pImageInfo = &reference}};
--            p_vkUpdateDescriptorSets(device, 3, writes, 0, NULL);
-+            if (!push_descriptors) p_vkUpdateDescriptorSets(device, 3, writes, 0, NULL);
-             VkPushConstantRange push_range = {VK_SHADER_STAGE_COMPUTE_BIT, 0, 20};
-             VkPipelineLayoutCreateInfo pipeline_layout_info = {.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-                 .setLayoutCount = 1, .pSetLayouts = &descriptor_layout, .pushConstantRangeCount = 1, .pPushConstantRanges = &push_range};
-@@ -432,10 +474,55 @@ int bc_images_probe(int validate, int route)
-                     .module = shader, .pName = "main"}, .layout = pipeline_layout};
-             VkPipeline pipeline;
-             CHECK(p_vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipeline_info, NULL, &pipeline));
-+            struct {
-+                VkDescriptorImageInfo sampled;
-+                VkDescriptorBufferInfo output;
-+                VkDescriptorImageInfo reference;
-+            } template_payload = {sampled, output, reference};
-+            VkDescriptorUpdateTemplateEntry template_entries[3] = {
-+                {.dstBinding = 0, .descriptorCount = 1, .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-+                    .offset = offsetof(__typeof__(template_payload), sampled), .stride = sizeof(template_payload.sampled)},
-+                {.dstBinding = 1, .descriptorCount = 1,
-+                    .descriptorType = push_descriptors ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
-+                    .offset = offsetof(__typeof__(template_payload), output), .stride = sizeof(template_payload.output)},
-+                {.dstBinding = 2, .descriptorCount = 1, .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-+                    .offset = offsetof(__typeof__(template_payload), reference), .stride = sizeof(template_payload.reference)}};
-+            VkDescriptorUpdateTemplate update_template = VK_NULL_HANDLE;
-+            if (push_descriptors) {
-+                VkDescriptorUpdateTemplateCreateInfo template_info = {
-+                    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO,
-+                    .descriptorUpdateEntryCount = 3, .pDescriptorUpdateEntries = template_entries,
-+                    .templateType = VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_PUSH_DESCRIPTORS,
-+                    .pipelineBindPoint = VK_PIPELINE_BIND_POINT_COMPUTE, .pipelineLayout = pipeline_layout,
-+                    .set = 0};
-+                CHECK(p_vkCreateDescriptorUpdateTemplate(device, &template_info, NULL, &update_template));
-+            }
-             VkCommandBufferBeginInfo begin = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-             CHECK(p_vkBeginCommandBuffer(command, &begin));
-             p_vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
--            if (maintenance6) {
-+            if (push_descriptors) {
-+                ++push_routes[push_route];
-+                if (push_route == 0) {
-+                    push(command, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline_layout, 0, 3, writes);
-+                    memset(writes, 0, sizeof(writes));
-+                } else if (push_route == 1) {
-+                    push_template(command, update_template, pipeline_layout, 0, &template_payload);
-+                    memset(&template_payload, 0, sizeof(template_payload));
-+                } else if (push_route == 2) {
-+                    VkPushDescriptorSetInfoKHR info = {.sType = VK_STRUCTURE_TYPE_PUSH_DESCRIPTOR_SET_INFO_KHR,
-+                        .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT, .layout = pipeline_layout, .set = 0,
-+                        .descriptorWriteCount = 3, .pDescriptorWrites = writes};
-+                    push2_descriptors(command, &info);
-+                    memset(writes, 0, sizeof(writes));
-+                } else {
-+                    VkPushDescriptorSetWithTemplateInfoKHR info = {
-+                        .sType = VK_STRUCTURE_TYPE_PUSH_DESCRIPTOR_SET_WITH_TEMPLATE_INFO_KHR,
-+                        .descriptorUpdateTemplate = update_template,
-+                        .layout = pipeline_layout, .set = 0, .pData = &template_payload};
-+                    push2_template(command, &info);
-+                    memset(&template_payload, 0, sizeof(template_payload));
-+                }
-+            } else if (maintenance6) {
-                 VkBindDescriptorSetsInfoKHR bind = {.sType = VK_STRUCTURE_TYPE_BIND_DESCRIPTOR_SETS_INFO_KHR,
-                     .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT, .layout = pipeline_layout,
-                     .descriptorSetCount = 1, .pDescriptorSets = &descriptors,
-@@ -565,6 +652,7 @@ int bc_images_probe(int validate, int route)
-                 VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &host, 0, NULL, 0, NULL);
-             CHECK(p_vkEndCommandBuffer(command));
-             /* The interceptor must retain its own compatible layout for replay. */
-+            if (push_descriptors) p_vkDestroyDescriptorUpdateTemplate(device, update_template, NULL);
-             p_vkDestroyPipelineLayout(device, pipeline_layout, NULL);
-             for (unsigned round = 0; round < 3; ++round) {
-                 struct hybris_bc_region fixture = {.width = width, .height = height, .layers = LAYERS,
-@@ -609,8 +697,8 @@ int bc_images_probe(int validate, int route)
-                     .swizzle = view_swizzled, .patched = patched, .filtering = linear_filter[f],
-                     .sampler_choice = sampler_choice};
-                 unsigned bad = bc_verify_image_readback(&check);
--                printf("BC_IMAGES_READBACK format=%u shape=%u mip=%u round=%u copy2=%u sync2=%u gpu_patch=%u linear_filter=%u border=%u pixels=%u raw_bytes=%u bad=%u\n",
--                    bc_formats[f], shape_index, mip, round, use2, use_sync2, patched, linear_filter[f] != 0, sampler_choice >= 2 ? sampler_choice - 1 : 0, pixels, raw_size, bad);
-+                printf("BC_IMAGES_READBACK format=%u shape=%u mip=%u round=%u push_route=%s copy2=%u sync2=%u gpu_patch=%u linear_filter=%u border=%u pixels=%u raw_bytes=%u bad=%u\n",
-+                    bc_formats[f], shape_index, mip, round, push_route_name(push_route), use2, use_sync2, patched, linear_filter[f] != 0, sampler_choice >= 2 ? sampler_choice - 1 : 0, pixels, raw_size, bad);
-                 failures += bad; ++readbacks;
-                 CHECK(p_vkResetFences(device, 1, &fence));
-             }
-@@ -635,7 +723,7 @@ int bc_images_probe(int validate, int route)
-     p_vkDestroyCommandPool(device, pool, NULL);
-     p_vkDestroyShaderModule(device, shader, NULL);
-     for (unsigned i = 0; i < 5; ++i) p_vkDestroySampler(device, samplers[i], NULL);
--    p_vkDestroyDescriptorPool(device, descriptor_pool, NULL);
-+    if (descriptor_pool) p_vkDestroyDescriptorPool(device, descriptor_pool, NULL);
-     p_vkDestroyDescriptorSetLayout(device, descriptor_layout, NULL);
-     for (unsigned i = 0; i < 2; ++i) {
-         p_vkUnmapMemory(device, buffer_memory[i]);
-@@ -645,7 +733,12 @@ int bc_images_probe(int validate, int route)
-     p_vkDestroyDevice(device, NULL);
-     if (destroy_messenger) destroy_messenger(instance, messenger, NULL);
-     p_vkDestroyInstance(instance, NULL); dlclose(h);
--    printf("BC_IMAGES_SUMMARY formats=%u shapes=2 readbacks=%u copy2_cases=%u sync2_cases=%u maintenance4=%u format_list=%u failures=%u validation_errors=%u route=%d\n",
--        (unsigned)BC_IMAGE_FORMAT_COUNT - first_format, readbacks, copies2_cases, sync2_cases, maintenance4, format_list, failures, validation.errors, route);
--    return failures || validation.errors || readbacks != (BC_IMAGE_FORMAT_COUNT - first_format) * 2 * 4 * 3 ? 2 : 0;
-+    printf("BC_IMAGES_SUMMARY formats=%u shapes=2 readbacks=%u copy2_cases=%u sync2_cases=%u maintenance4=%u format_list=%u push_descriptors=%u push_routes=KHR-direct:%u,KHR-template:%u,KHR2-direct:%u,KHR2-template:%u failures=%u validation_errors=%u route=%d\n",
-+        (unsigned)BC_IMAGE_FORMAT_COUNT - first_format, readbacks, copies2_cases, sync2_cases, maintenance4, format_list,
-+        push_descriptors, push_routes[0], push_routes[1], push_routes[2], push_routes[3], failures, validation.errors, route);
-+    unsigned expected_routes = ((unsigned)BC_IMAGE_FORMAT_COUNT - first_format) * 2;
-+    return failures || validation.errors ||
-+        readbacks != (BC_IMAGE_FORMAT_COUNT - first_format) * 2 * 4 * 3 ||
-+        (push_descriptors && (push_routes[0] != expected_routes || push_routes[1] != expected_routes ||
-+            push_routes[2] != expected_routes || push_routes[3] != expected_routes)) ? 2 : 0;
- }
-diff --git a/tests/baseline/run.py b/tests/baseline/run.py
-index 9e50926..92407eb 100755
---- a/tests/baseline/run.py
-+++ b/tests/baseline/run.py
-@@ -32,7 +32,7 @@ p.add_argument('--runtime', type=Path, help='Directory containing glibc loader a
- p.add_argument('--manifest', type=Path, help='Provenance JSON from tools/manifest.py')
- p.add_argument('--out', type=Path, default=Path(__file__).resolve().parent / 'build/results')
- p.add_argument('--bundle', type=Path, default=Path(__file__).resolve().parent / 'build/bundle')
--p.add_argument('--bc-textures', choices=('missing', 'force'), help='Enable experimental BC1-7 image fallback for ICD cases')
-+p.add_argument('--bc-textures', choices=('missing', 'force', 'dxvk'), help='Enable experimental BC1-7 image fallback for ICD cases')
- p.add_argument('--point-size-compat', action='store_true', help='Remove constant-one PointSize outputs only in eligible non-point pipelines')
- p.add_argument('--unused-builtins', action='store_true', help='Remove provably unaccessed output clip/cull declarations in ICD shaders')
- p.add_argument('--scaled-format-trace', action='store_true', help='Audit raw/effective scaled format decisions; requires scaled compatibility')
-@@ -371,7 +371,7 @@ if standard_backend:
-         cases.extend(('icd', mode, 'probe-glibc') for mode in (
-             'ubo-pool-reset-validation', 'ubo-pool-empty-reset-validation'))
-         cases.extend(('icd', 'scaled-vertex-' + shape + '-validation', 'probe-glibc') for shape in ('packed1', 'packed2', 'packed3', 'packed4', 'builtins', 'matrix', 'array', 'nested', 'matarray', 'spec', 'spec-direct', 'group', 'group-multi', 'group-spec', 'divisor', 'divisor-stride', 'divisor-zero', 'divisor-base', 'divisor-zero-base'))
--        cases.extend([('icd', mode, 'probe-glibc') for mode in ('scaled-vertex-literal-validation', 'scaled-vertex-literal-gdpa-validation', 'scaled-vertex-multi-validation', 'scaled-vertex-multi-gdpa-validation', 'scaled-vertex-validation', 'scaled-vertex-gdpa-validation', 'memory-ranges-validation', 'blender-readback-validation', 'bc-decode-validation', 'bc-images-validation', 'bc-images-gdpa-validation', 'bc-images-dlsym-validation', 'timeline-queues-core-validation', 'timeline-queues-khr-validation', 'timeline-core-validation', 'timeline-khr-validation', 'render-core13-validation', 'render-khr13-validation', 'validation', 'ubo-validation', 'ubo-dynamic-validation', 'ubo-multi-validation', 'ubo-large-validation', 'ubo-staged-validation', 'ubo-template-validation')])
-+        cases.extend([('icd', mode, 'probe-glibc') for mode in ('scaled-vertex-literal-validation', 'scaled-vertex-literal-gdpa-validation', 'scaled-vertex-multi-validation', 'scaled-vertex-multi-gdpa-validation', 'scaled-vertex-validation', 'scaled-vertex-gdpa-validation', 'memory-ranges-validation', 'blender-readback-validation', 'bc-decode-validation', 'bc-images-validation', 'bc-images-gdpa-validation', 'bc-images-dlsym-validation', 'bc-images-push-control-validation', 'bc-images-push-validation', 'timeline-queues-core-validation', 'timeline-queues-khr-validation', 'timeline-core-validation', 'timeline-khr-validation', 'render-core13-validation', 'render-khr13-validation', 'validation', 'ubo-validation', 'ubo-dynamic-validation', 'ubo-multi-validation', 'ubo-large-validation', 'ubo-staged-validation', 'ubo-template-validation')])
-
- if a.capture_tools:
-     stage_tools(a.capture_tools, stage, metadata, sha256_file)
-@@ -462,6 +462,10 @@ try:
-             command = 'HYBRIS_VULKAN_COMPAT_UNUSED_BUILTINS=1 ' + command
-         if backend in {'icd', 'icd-linked'} and a.bc_textures:
-             command = 'HYBRIS_BC_TEXTURES=' + a.bc_textures + ' ' + command
-+        if backend == 'icd' and mode in {'bc-images-push-control-validation', 'bc-images-push-validation'}:
-+            command = 'BC_MAINTENANCE6=1 BC_D3D_FORMATS=1 ' + command
-+        if backend == 'icd' and mode == 'bc-images-push-validation':
-+            command = 'BC_PUSH_DESCRIPTORS=1 ' + command
-         if backend in {'icd', 'icd-linked'} and a.packed_vertex_compat:
-             command = 'HYBRIS_VULKAN_COMPAT_PACKED_VERTEX=' + ('force' if a.packed_vertex_compat == 'force' else '1') + ' ' + command
-             if 'packed' in mode:
+ 

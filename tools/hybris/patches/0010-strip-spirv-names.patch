@@ -1,8 +1,8 @@
 diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
 --- a/hybris/vulkan/Makefile.am
 +++ b/hybris/vulkan/Makefile.am
-@@ -24,6 +24,7 @@ libVkLayer_hybris_compat_la_SOURCES = layer/entry.c layer/device.c layer/physica
-     compat/clip_distance.c compat/clip_distance.h compat/spirv_clip.c \
+@@ -35,6 +35,7 @@ libVkLayer_hybris_compat_la_SOURCES = layer/entry.c layer/device.c layer/physica
+     compat/polygon_buffers.c compat/polygon_buffers.h \
      compat/shader_policy.c compat/shader_policy.h \
      compat/shader_cleanup.c compat/shader_cleanup.h compat/spirv_builtins.c compat/spirv_builtins.h \
 +    compat/spirv_names.c compat/spirv_names.h \
@@ -116,7 +116,7 @@ diff --git a/hybris/vulkan/compat/shader_cleanup.h b/hybris/vulkan/compat/shader
 diff --git a/hybris/vulkan/compat/shader_dispatch.c b/hybris/vulkan/compat/shader_dispatch.c
 --- a/hybris/vulkan/compat/shader_dispatch.c
 +++ b/hybris/vulkan/compat/shader_dispatch.c
-@@ -479,8 +479,7 @@ static VkResult convert_pipeline(struct shader_device *device, VkGraphicsPipelin
+@@ -596,8 +596,7 @@ static VkResult convert_pipeline(struct shader_device *device, VkGraphicsPipelin
          if (hybris_shader_cleanup_enabled()) {
              uint32_t *clean = NULL;
              size_t clean_size = 0;

@@ -3,7 +3,9 @@
 #include "device_features.h"
 #include "../compat/vertex_stores.h"
 #include "../compat/clip_distance.h"
+#include "../compat/bc_policy.h"
 #include "../compat/scaled_vertex.h"
+#include "../compat/shader_dispatch.h"
 #include <vulkan/vk_layer.h>
 #include <stdio.h>
 #include <string.h>
@@ -36,19 +38,46 @@ VkResult hybris_device_features_prepare(VkPhysicalDevice physical,
     *out = (struct hybris_device_features){.info = *info};
     int clip = hybris_clip_active(physical);
     int stores = hybris_vertex_stores_active(physical);
-    if (!clip && !stores) return VK_SUCCESS;
+    int bc = hybris_bc_complete(physical);
+    VkPhysicalDeviceFeatures compression = {0};
+    hybris_bc_enable_transcode_features(physical, &compression);
+    int transcode = compression.textureCompressionETC2 || compression.textureCompressionASTC_LDR;
+    int cull = hybris_cull_active(physical);
+    int polygon=hybris_shader_polygon_emulated(physical);
+    if (!clip && !stores && !bc && !cull && !polygon && !transcode) return VK_SUCCESS;
     if (info->pEnabledFeatures) {
         out->features = *info->pEnabledFeatures;
+        if (transcode) hybris_bc_enable_transcode_features(physical, &out->features);
         if (clip) out->features.shaderClipDistance = VK_FALSE;
         if (stores) out->features.vertexPipelineStoresAndAtomics = VK_FALSE;
+        if (bc) out->features.textureCompressionBC = VK_FALSE;
+        if (cull) {
+            out->features.shaderCullDistance = VK_FALSE;
+            out->features.geometryShader = VK_TRUE;
+        }
+        if (polygon && out->features.fillModeNonSolid) {
+            out->features.fillModeNonSolid=VK_FALSE;
+            out->features.drawIndirectFirstInstance=VK_TRUE;
+        }
         out->info.pEnabledFeatures = &out->features;
     }
     const VkBaseInStructure *target = info->pNext;
     while (target && target->sType != VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2)
         target = target->pNext;
-    if (!target) return VK_SUCCESS;
+    if (!target) {
+        if ((cull || transcode) && !info->pEnabledFeatures) {
+            out->features = (VkPhysicalDeviceFeatures){.geometryShader = cull ? VK_TRUE : VK_FALSE};
+            if (transcode) hybris_bc_enable_transcode_features(physical, &out->features);
+            out->info.pEnabledFeatures = &out->features;
+        }
+        return VK_SUCCESS;
+    }
     const VkPhysicalDeviceFeatures *requested = &((const VkPhysicalDeviceFeatures2 *)target)->features;
-    if (!(clip && requested->shaderClipDistance) && !(stores && requested->vertexPipelineStoresAndAtomics))
+    int add_compression = (!requested->textureCompressionETC2 && compression.textureCompressionETC2) ||
+        (!requested->textureCompressionASTC_LDR && compression.textureCompressionASTC_LDR);
+    if (!(clip && requested->shaderClipDistance) && !(stores && requested->vertexPipelineStoresAndAtomics) &&
+        !(bc && requested->textureCompressionBC) && !(cull && (requested->shaderCullDistance || !requested->geometryShader)) &&
+        !(polygon && requested->fillModeNonSolid) && !add_compression)
         return VK_SUCCESS;
 
     /* Only copy the prefix needed to replace Features2. Preserve every other
@@ -73,8 +102,18 @@ VkResult hybris_device_features_prepare(VkPhysicalDevice physical,
         *slot = copy;
         slot = &copy->pNext;
         if (node == target) {
+            if (transcode) hybris_bc_enable_transcode_features(physical, &((VkPhysicalDeviceFeatures2 *)copy)->features);
             if (clip) ((VkPhysicalDeviceFeatures2 *)copy)->features.shaderClipDistance = VK_FALSE;
             if (stores) ((VkPhysicalDeviceFeatures2 *)copy)->features.vertexPipelineStoresAndAtomics = VK_FALSE;
+            if (bc) ((VkPhysicalDeviceFeatures2 *)copy)->features.textureCompressionBC = VK_FALSE;
+            if (cull) {
+                ((VkPhysicalDeviceFeatures2 *)copy)->features.shaderCullDistance = VK_FALSE;
+                ((VkPhysicalDeviceFeatures2 *)copy)->features.geometryShader = VK_TRUE;
+            }
+            if (polygon && ((VkPhysicalDeviceFeatures2*)copy)->features.fillModeNonSolid) {
+                ((VkPhysicalDeviceFeatures2*)copy)->features.fillModeNonSolid=VK_FALSE;
+                ((VkPhysicalDeviceFeatures2*)copy)->features.drawIndirectFirstInstance=VK_TRUE;
+            }
             copy->pNext = (void *)out->suffix;
             break;
         }
