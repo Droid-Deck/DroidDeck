@@ -13,6 +13,7 @@ import android.util.Log
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityWindowInfo
+import android.view.inputmethod.InputMethodManager
 import java.util.concurrent.ConcurrentHashMap
 
 object BottomScreenGuests {
@@ -42,11 +43,14 @@ object BottomScreenGuests {
 }
 
 class BottomScreenWatch(private val service: AccessibilityService) {
+    private class Arrival(val pkg: String)
+
     private val thread = HandlerThread("bottom-screen").apply { start() }
     private val handler = Handler(thread.looper)
     private val own = service.packageName
-    private val arrivals = ConcurrentHashMap<Int, String>()
+    private val arrivals = ConcurrentHashMap<Int, Arrival>()
     private var homes: Set<String> = emptySet()
+    private var keyboards: Set<String> = emptySet()
     private var holders: Map<Int, String?> = emptyMap()
     private val check = Runnable { evaluate() }
 
@@ -57,6 +61,7 @@ class BottomScreenWatch(private val service: AccessibilityService) {
         }
         handler.post {
             homes = homePackages()
+            keyboards = keyboardPackages()
             evaluate()
         }
     }
@@ -66,7 +71,7 @@ class BottomScreenWatch(private val service: AccessibilityService) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
                 val pkg = event.packageName?.toString() ?: return
                 if (event.displayId == Display.DEFAULT_DISPLAY || pkg == own || pkg == SYSTEM_UI) return
-                arrivals[event.displayId] = pkg
+                arrivals[event.displayId] = Arrival(pkg)
             }
             AccessibilityEvent.TYPE_WINDOWS_CHANGED -> Unit
             else -> return
@@ -77,25 +82,27 @@ class BottomScreenWatch(private val service: AccessibilityService) {
 
     fun stop() {
         handler.removeCallbacksAndMessages(null)
+        handler.post { DualScreen.setTaken(emptySet()) }
         thread.quitSafely()
-        DualScreen.setTaken(emptySet())
     }
 
     private fun evaluate() {
+        val seen = HashMap(arrivals)
         val all = runCatching { service.windowsOnAllDisplays }.getOrNull() ?: return
         val displays = service.getSystemService(DisplayManager::class.java) ?: return
         val taken = mutableMapOf<Int, String?>()
         for (i in 0 until all.size()) {
             val id = all.keyAt(i)
             if (id == Display.DEFAULT_DISPLAY) continue
-            val display = displays.getDisplay(id) ?: continue
+            val display = displays.getDisplay(id)?.takeIf(DualScreen::builtIn) ?: continue
             val windows = all.valueAt(i)
             val topPkg = windows.asSequence()
                 .filter { !BottomScreenGuests.ignorable(it.type) && cover(it, display) >= BottomScreenGuests.MIN_COVER }
                 .sortedByDescending { it.layer }
                 .firstNotNullOfOrNull { packageOf(it)?.takeUnless { pkg -> pkg == own } }
-            if (topPkg != null) arrivals.remove(id)
-            BottomScreenGuests.holder(topPkg, arrivals[id], homes)?.let { taken[id] = it }
+            val arrival = seen[id]
+            if (topPkg != null && arrival != null) arrivals.remove(id, arrival)
+            BottomScreenGuests.holder(topPkg, arrival?.pkg?.takeUnless { it in keyboards }, homes)?.let { taken[id] = it }
         }
         if (taken != holders) Log.i(TAG, "bottom screen holders: $taken")
         holders = taken
@@ -121,6 +128,11 @@ class BottomScreenWatch(private val service: AccessibilityService) {
             }.getOrDefault(emptyList())
         }.toSet()
     }
+
+    private fun keyboardPackages(): Set<String> =
+        runCatching {
+            service.getSystemService(InputMethodManager::class.java)?.inputMethodList.orEmpty().map { it.packageName }.toSet()
+        }.getOrDefault(emptySet())
 
     private companion object {
         const val TAG = "BottomScreen"

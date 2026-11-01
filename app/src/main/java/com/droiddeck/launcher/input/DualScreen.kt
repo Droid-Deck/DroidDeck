@@ -90,6 +90,8 @@ object DualScreen {
             it.isValid && it.displayId != primaryDisplayId && (it.flags and Display.FLAG_PRESENTATION) != 0
         }
 
+    fun builtIn(display: Display): Boolean = isBuiltIn(displayType(display), Build.MODEL)
+
     internal fun isBuiltIn(type: Int?, model: String): Boolean =
         if (type != null) type == TYPE_INTERNAL else model.trim().lowercase() in knownModels
 
