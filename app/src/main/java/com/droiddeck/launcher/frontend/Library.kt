@@ -101,15 +101,22 @@ object Library {
         libraries: List<File> = steamLibraries(context).map { it.first },
     ): File? {
         val ids = listOf(appId.toString(), java.lang.Integer.toString(appId.toInt())).distinct()
+        return prefixRoots(context, libraries, preferredLibrary).asSequence()
+            .flatMap { root -> ids.asSequence().map { id -> File(root, "steamapps/compatdata/$id/pfx") } }
+            .firstOrNull { it.isDirectory }
+    }
+
+    /** Every steamapps/compatdata folder, in the libraries [protonPrefix] searches. */
+    fun compatdataDirs(context: Context, libraries: List<File> = steamLibraries(context).map { it.first }): List<File> =
+        prefixRoots(context, libraries).map { File(it, "steamapps/compatdata") }.filter { it.isDirectory }
+
+    private fun prefixRoots(context: Context, libraries: List<File>, preferredLibrary: File? = null): List<File> {
         val secondary = libraries.drop(1).mapNotNull { runCatching { it.canonicalPath }.getOrNull() }.toSet()
         fun prefixRoot(root: File): File = if (runCatching { root.canonicalPath }.getOrNull() in secondary)
             SecondaryLibrary.privateRoot(context.filesDir, root).takeIf { File(it, "steamapps/compatdata").isDirectory } ?: root
             else root
-        val roots = (listOfNotNull(preferredLibrary) + libraries).map(::prefixRoot)
+        return (listOfNotNull(preferredLibrary) + libraries).map(::prefixRoot)
             .distinctBy { runCatching { it.canonicalPath }.getOrDefault(it.absolutePath) }
-        return roots.asSequence()
-            .flatMap { root -> ids.asSequence().map { id -> File(root, "steamapps/compatdata/$id/pfx") } }
-            .firstOrNull { it.isDirectory }
     }
 
     fun steamGames(
@@ -274,7 +281,7 @@ object Library {
         Spec("duckstation", "DuckStation", "PS1", "/opt/appimages/duckstation.AppImage", listOf("ps1", "psx"), setOf("cue", "chd", "pbp", "iso", "bin", "img", "ecm", "m3u")),
         Spec("melonds", "melonDS", "DS", "/opt/appimages/melonds.AppImage", listOf("ds", "nds"), setOf("nds", "dsi"), atPanel = true),
         Spec("cemu", "Cemu", "Wii U", "/opt/appimages/cemu.AppImage", listOf("wiiu", "wii u"), setOf("wua", "wud", "wux", "rpx")),
-        Spec("ppsspp", "PPSSPP", "PSP", "/usr/bin/PPSSPPSDL", listOf("psp"), setOf("iso", "cso", "pbp", "chd")),
+        Spec("ppsspp", "PPSSPP", "PSP", "/usr/local/bin/PPSSPPSDL", listOf("psp"), setOf("iso", "cso", "pbp", "chd")),
         Spec("retroarch", "RetroArch", "many systems", "/usr/bin/retroarch", emptyList(), emptySet()),
     )
     private fun displayTitle(name: String): String =

@@ -1,13 +1,19 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.session.ComponentsManager
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -109,17 +115,41 @@ class ComponentsPageProfileTest {
             .assertIsEnabled()
     }
 
+    @Test fun sameNamedStableRowsFromDifferentSourcesToggleIndependently() {
+        fun item(file: String, source: String, nightly: Boolean, asset: Long) = ComponentsManager.CatalogItem(
+            file, "dxvk", if (nightly) ComponentsManager.DD_NIGHTLY else "Dxvk-Linux",
+            "https://github.com/$source/releases/download/v1/$file", 100, "sha256:$source",
+            sourceId = source, repository = source, assetId = asset,
+        )
+        val stableA = item("dxvk-3.1.1-linux.wcp", "owner/a", false, 1)
+        val stableB = item("dxvk-3.1.1-linux.wcp", "owner/b", false, 2)
+        val nightlyA = item("DD-dxvk-3.1.1+101-nightly.wcp", "owner/a", true, 3)
+        val nightlyB = item("DD-dxvk-3.1.1+202-nightly.wcp", "owner/b", true, 4)
+        show(comp = "dxvk", catalog = listOf(stableA, stableB, nightlyA, nightlyB))
+
+        val stableLabel = RuntimeEnvironment.getApplication().getString(R.string.comp_channel_stable)
+        compose.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, stableLabel))
+            .onFirst().performClick()
+        compose.onNodeWithText("DD-dxvk-3.1.1+101-nightly").assertExists()
+        compose.onNodeWithText("DD-dxvk-3.1.1+202-nightly").assertDoesNotExist()
+        compose.onAllNodesWithText("dxvk-3.1.1-linux").assertCountEquals(1)
+        compose.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, stableLabel))
+            .onFirst().performClick()
+        compose.onNodeWithText("DD-dxvk-3.1.1+202-nightly").assertExists()
+    }
+
     private fun show(
         downloads: Map<String, Int> = emptyMap(),
         comp: String = PROTON_TAB,
         gpu: GpuDriversState = GpuDriversState(),
+        catalog: List<ComponentsManager.CatalogItem> = emptyList(),
         initialGameKey: () -> String? = { null },
     ) {
         compose.setContent {
             DroidDeckTheme {
                 ComponentsPage(
                     snapshot = null,
-                    catalog = emptyList(),
+                    catalog = catalog,
                     catalogAt = 0,
                     protonId = null,
                     comp = comp,

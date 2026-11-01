@@ -11,6 +11,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -35,6 +36,7 @@ class ComponentsCatalogSourcesTest {
     private lateinit var context: Context
     private val productionRefresher = ComponentsManager.catalogRefresher
     private val productionDownloader = ComponentsManager.packageDownloader
+    private val productionReceiptWriter = ComponentsManager.packageReceiptWriter
 
     @Before
     fun setUp() {
@@ -49,12 +51,14 @@ class ComponentsCatalogSourcesTest {
         }
         ComponentsManager.catalogRefresher = productionRefresher
         ComponentsManager.packageDownloader = productionDownloader
+        ComponentsManager.packageReceiptWriter = productionReceiptWriter
     }
 
     @After
     fun tearDown() {
         ComponentsManager.catalogRefresher = productionRefresher
         ComponentsManager.packageDownloader = productionDownloader
+        ComponentsManager.packageReceiptWriter = productionReceiptWriter
     }
 
     @Test
@@ -318,6 +322,50 @@ class ComponentsCatalogSourcesTest {
             legacyCommitted = true
         }
         assertTrue(legacyCommitted)
+    }
+
+    @Test
+    fun receiptFailurePreservesExistingPackagesAndRemovesNewPackages() {
+        val comp = "dxvk"
+        val custom = RepositorySources.source("wallentx/custom-components")
+        ComponentsManager.saveSources(context, comp, ComponentsManager.sources(context, comp).map { it.copy(hidden = true) } + custom)
+        val generation = RepositorySources.generation(context, ComponentsManager.sourceScope(comp), ComponentsManager.sourceBuiltIns(comp))
+        val bound = RepositorySources.bind(context, ComponentsManager.sourceScope(comp), ComponentsManager.sourceBuiltIns(comp), custom, 1234L, generation)
+        val payload = File(context.cacheDir, "rollback-download.wcp")
+        writeWcp(payload, "new package")
+        val digest = Hashes.sha256(payload)
+        val packages = File(context.filesDir, "components/packages").apply { mkdirs() }
+        ComponentsManager.packageDownloader = { _, destination, _, _ -> payload.copyTo(destination, overwrite = true); true }
+
+        for (scenario in listOf("identical", "different", "new")) {
+            val name = "receipt-$scenario.wcp"
+            val dest = File(packages, name)
+            when (scenario) {
+                "identical" -> payload.copyTo(dest, overwrite = true)
+                "different" -> writeWcp(dest, "previous package")
+            }
+            val previous = dest.takeIf { it.isFile }?.readBytes()
+            val receipt = File(packages, "$name.source.json")
+            receipt.writeText("previous receipt")
+            val item = ComponentsManager.CatalogItem(
+                file = "custom.wcp", comp = comp, release = "v1",
+                url = GitHubArtifacts.releaseAssetUrl(bound.repository, "v1", "custom.wcp"),
+                size = payload.length(), digest = "sha256:$digest", sourceId = bound.id,
+                repository = bound.repository, repositoryId = bound.repositoryId!!,
+                releaseId = 44L, assetId = 55L, localFile = name,
+            )
+            ComponentsManager.packageReceiptWriter = { _, _ -> throw IOException("receipt write failed") }
+            assertTrue("$scenario should fail", runCatching { ComponentsManager.download(context, item) {} }.isFailure)
+            if (previous == null) assertFalse(dest.exists()) else assertArrayEquals(previous, dest.readBytes())
+            assertEquals("previous receipt", receipt.readText())
+            assertFalse(File(packages, "$name.part").exists())
+            assertTrue(packages.listFiles().orEmpty().none { it.name.endsWith(".backup") })
+
+            ComponentsManager.packageReceiptWriter = productionReceiptWriter
+            ComponentsManager.download(context, item) {}
+            assertArrayEquals(payload.readBytes(), dest.readBytes())
+            assertEquals(bound.repository, JSONObject(receipt.readText()).getString("repository"))
+        }
     }
 
     @Test

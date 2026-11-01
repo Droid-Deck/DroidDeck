@@ -206,8 +206,7 @@ object ComponentsManager {
         if (staged.exists()) check(staged.delete()) { "Could not remove unpublished component selections" }
     }
 
-    private fun saveState(context: Context, state: JSONObject) {
-        val prepared = prepareLaunchState(context, state)
+    private fun saveState(context: Context, state: JSONObject, prepared: PreparedLaunchState = prepareLaunchState(context, state)) {
         val dir = launchDir(context)
         val tmp = File(dir, "desired.tsv.tmp")
         try {
@@ -224,6 +223,17 @@ object ComponentsManager {
         }
         File(dir, "store").listFiles()?.filter { it.isDirectory && it.name !in prepared.keep }
             ?.forEach { it.deleteRecursively() }
+    }
+
+    fun republish(context: Context): Boolean = synchronized(lock) {
+        recoverState(context)
+        val saved = stateFile(context)
+        if (saved.exists() && runCatching { JSONObject(saved.readText()) }.isFailure) return false
+        val state = loadState(context)
+        val prepared = prepareLaunchState(context, state)
+        if ((FileUtils.readString(File(launchDir(context), "desired.tsv")) ?: "") == prepared.text) return false
+        saveState(context, state, prepared)
+        true
     }
 
     private fun JSONObject.sub(key: String): JSONObject = optJSONObject(key) ?: JSONObject().also { put(key, it) }
@@ -1067,6 +1077,7 @@ object ComponentsManager {
 
     internal var catalogRefresher: (Context, String, RepositorySources.Source) -> List<CatalogItem> =
         ::refreshCatalogSource
+    internal var packageReceiptWriter: (File, ByteArray) -> Unit = RepositorySources::atomicWrite
     internal var packageDownloader: (String, File, String, (Int) -> Unit) -> Boolean = { url, file, digest, progress ->
         Downloader.downloadFile(url, file, true, digest) { value ->
             progress(if (value < 0) -1 else (value * 100).toInt().coerceIn(0, 100))
@@ -1496,6 +1507,46 @@ object ComponentsManager {
         ) { commit() }
     }
 
+    private fun storeDownloadedPackage(context: Context, part: File, dest: File, item: CatalogItem) {
+        val existed = dest.exists()
+        var backup: File? = null
+        var committed = false
+        try {
+            check(!existed || dest.isFile) { "Invalid existing component package ${dest.name}" }
+            val identical = existed && Hashes.sha256(dest).equals(item.digest.substringAfter(':'), true)
+            if (existed && !identical) {
+                checkPackageUnused(context, loadState(context), dest.name)
+                val previous = File.createTempFile(".component-", ".backup", dest.parentFile)
+                try {
+                    dest.copyTo(previous, overwrite = true)
+                } catch (error: Throwable) {
+                    previous.delete()
+                    throw error
+                }
+                backup = previous
+            }
+            if (!identical) storePackage(context, part, dest)
+            packageReceiptWriter(provenanceFile(dest), provenance(item).toString().toByteArray(Charsets.UTF_8))
+            committed = true
+        } catch (error: Throwable) {
+            if (backup != null) {
+                val restored = backup.renameTo(dest) ||
+                    ((!dest.exists() || dest.delete()) && backup.renameTo(dest))
+                if (!restored) {
+                    // Keep the previous bytes for recovery if the filesystem refuses restoration.
+                    if (dest.exists() && !dest.delete()) Log.e(TAG, "Could not remove uncommitted component ${dest.name}")
+                    error.addSuppressed(IOException("Could not restore ${dest.name}; backup retained at ${backup.path}"))
+                }
+            } else if (!existed && dest.exists() && !dest.delete()) {
+                error.addSuppressed(IOException("Could not remove uncommitted component ${dest.name}"))
+            }
+            throw error
+        } finally {
+            part.delete()
+            if (committed && backup != null && !backup.delete()) Log.w(TAG, "Could not remove component backup ${backup.name}")
+        }
+    }
+
     fun download(context: Context, item: CatalogItem, progress: (Int) -> Unit): Package {
         val repository = RepositorySources.canonicalRepository(item.repository)
         val legacyUnbound = repository == NIGHTLIES &&
@@ -1537,17 +1588,8 @@ object ComponentsManager {
         require(info.comp == item.comp) { part.delete(); "Component archive type does not match its catalog" }
         try {
             commitDownloadedPackage(context, item, generation) {
-                storePackage(context, part, dest)
-                if (item.sourceId.isNotEmpty()) {
-                    try {
-                        RepositorySources.atomicWrite(
-                            provenanceFile(dest), provenance(item).toString().toByteArray(Charsets.UTF_8),
-                        )
-                    } catch (error: Throwable) {
-                        dest.delete()
-                        throw error
-                    }
-                }
+                if (item.sourceId.isEmpty()) storePackage(context, part, dest)
+                else storeDownloadedPackage(context, part, dest, item)
             }
         } catch (error: IOException) {
             part.delete()

@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.stores.xbox
 
+import androidx.compose.foundation.shape.CircleShape
+import com.droiddeck.launcher.ui.focusGlide
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
@@ -181,10 +183,10 @@ class XboxNativePlayerActivity : ComponentActivity() {
                 fun NoticeButton(label: String, focus: androidx.compose.ui.focus.FocusRequester?, onClick: () -> Unit) =
                     androidx.compose.material3.TextButton(onClick = onClick,
                         modifier = androidx.compose.ui.Modifier.let { if (focus != null) it.focusRequester(focus) else it }
-                            .onKeyEvent { e -> if (e.type == KeyEventType.KeyDown && e.key == Key.ButtonA) { onClick(); true } else false }) {
+                            .onKeyEvent { e -> if (e.type == KeyEventType.KeyDown && e.key == Key.ButtonA) { onClick(); true } else false }.focusGlide(CircleShape)) {
                         androidx.compose.material3.Text(label)
                     }
-                androidx.compose.material3.AlertDialog(
+                com.droiddeck.launcher.ui.GlideAlertDialog(
                     onDismissRequest = { finish() },
                     properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
                     title = { androidx.compose.material3.Text(title) },

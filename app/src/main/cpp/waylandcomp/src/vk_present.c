@@ -384,6 +384,13 @@ int vkp_output_to_scene(double ox, double oy, double *sx, double *sy) {
     return 1;
 }
 
+int vkp_scene_to_output(double sx, double sy, double *ox, double *oy) {
+    if (!g_map.valid || g_map.kx <= 0 || g_map.ky <= 0) return 0;
+    *ox = sx * g_map.kx + g_map.off_x;
+    *oy = sy * g_map.ky + g_map.off_y;
+    return 1;
+}
+
 void vkp_output_size(int *w, int *h) {
     *w = (int)g_extent.width;
     *h = (int)g_extent.height;

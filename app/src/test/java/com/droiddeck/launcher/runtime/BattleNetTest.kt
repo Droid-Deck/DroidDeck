@@ -212,8 +212,26 @@ class BattleNetTest {
         )
         assertEquals(listOf("agent" to "C:/ProgramData/Battle.net/Agent", "hs_beta" to "C:/Program Files (x86)/Hearthstone", "wow_classic_anniversary" to "Z:/root/Games/World of Warcraft"),
             BattleNet.productDbEntries(db))
-        assertEquals(emptyList<Pair<String, String>>(), BattleNet.productDbEntries(db.copyOf(db.size - 3)))
-        assertEquals(emptyList<Pair<String, String>>(), BattleNet.productDbEntries(byteArrayOf(0x0a, 0x7f, 0x01)))
+        assertNull(BattleNet.productDbEntries(db.copyOf(db.size - 3)))
+        assertNull(BattleNet.productDbEntries(byteArrayOf(0x0a, 0x7f, 0x01)))
+        assertNull(BattleNet.productDbEntries(ByteArray(0)))
+        assertNull(BattleNet.productDbEntries(byteArrayOf(0x0a, 0x03, 0x0a, 0x7f, 0x01)))
+        assertEquals(emptyList<Pair<String, String>>(), BattleNet.productDbEntries(message(field(1, message(field(1, "s1"), field(3, message(field(1, "Z:/Games/StarCraft"))), field(4, message(field(1, message(varintField(1, 0))))))))))
+    }
+
+    @Test fun theAgentDoesNotStartWithoutTheGameStorageCard() {
+        val card = Files.createTempDirectory("card").toFile()
+        com.droiddeck.launcher.session.SessionPrefs.setGameStorage(context, card.path, "SD Card")
+        assertTrue(com.droiddeck.launcher.stores.battlenet.BattleNetInstall.binds(context).any { it.endsWith(":/mnt/droiddeck-sd") })
+        card.deleteRecursively()
+        assertThrows(IllegalStateException::class.java) { com.droiddeck.launcher.stores.battlenet.BattleNetInstall.binds(context) }
+    }
+
+    @Test fun aGameTheAgentNoLongerTracksIsNotInstalled() {
+        val registry = listOf("wow" to "Z:\\mnt\\droiddeck-sd\\Games\\Battle.net\\World of Warcraft", "hs_beta" to "C:\\Hearthstone")
+        assertEquals(listOf("hs_beta" to "C:\\Hearthstone", "HS_BETA" to "C:/Hearthstone"), BattleNet.installs(registry, listOf("HS_BETA" to "C:/Hearthstone")))
+        assertEquals(registry, BattleNet.installs(registry, null))
+        assertEquals(emptyList<Pair<String, String>>(), BattleNet.installs(registry, emptyList()))
     }
 
     @Test fun theGamesAreTheTitlesInstalledInTheirFolders() {
@@ -229,9 +247,11 @@ class BattleNetTest {
             File(pfx, "drive_c/$folder").mkdirs()
         }
         val games = BattleNet.games(context)
-        assertEquals(listOf("Fen", "OSI", "WTCG", "WoWC"), games.map { it.code })
-        assertEquals(listOf("Diablo IV", "Diablo II: Resurrected", "Hearthstone", "World of Warcraft Classic"), games.map { it.name })
-        assertEquals(File(pfx, "drive_c/Games/Diablo II Resurrected"), games[1].folder)
+        assertEquals(listOf("Fen", "WTCG", "WoWC"), games.map { it.code })
+        assertEquals(listOf("Diablo IV", "Hearthstone", "World of Warcraft Classic"), games.map { it.name })
+        assertEquals(File(pfx, "drive_c/Program Files (x86)/Hearthstone"), games[1].folder)
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").delete()
+        assertEquals(listOf("Fen", "OSI"), BattleNet.games(context).map { it.code })
         assertNull(BattleNet.hostFolder(context, "D:\\Games\\X"))
         assertNull(BattleNet.hostFolder(context, "C:\\..\\..\\etc"))
         assertNull(BattleNet.hostFolder(context, "Z:\\root\\..\\..\\etc"))

@@ -186,6 +186,13 @@ int vkp_cardboard_active(void) {
     return on;
 }
 
+int vkp_cardboard_source(void) {
+    pthread_mutex_lock(&g_lock);
+    const int source = g_set.enabled ? g_set.source : CARDBOARD_SOURCE_SCREEN;
+    pthread_mutex_unlock(&g_lock);
+    return source;
+}
+
 int vkp_cardboard_pose_changed(void) {
     if (!g_changed) return 0;
     g_changed = 0;

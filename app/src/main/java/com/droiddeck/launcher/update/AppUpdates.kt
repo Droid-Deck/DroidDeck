@@ -298,15 +298,28 @@ object AppUpdates {
     fun follow(context: Context, catalog: Catalog?, me: Installed = installed()): Follow {
         stored(context)?.let { return it }
         val initialSource = RepositorySources.visible(context, SOURCE_SCOPE, sourceBuiltIns()).firstOrNull()?.id.orEmpty()
-        val inferred = when {
-            me.pr != 0 -> Follow(Channel.TEST, me.pr, initialSource)
-            catalog == null -> return Follow(Channel.STABLE, sourceId = initialSource)
-            catalog.stable != null && isRunning(catalog.stable, me) -> Follow(Channel.STABLE, sourceId = initialSource)
-            me.updatable -> Follow(Channel.NIGHTLY, sourceId = initialSource)
-            else -> Follow(Channel.STABLE, sourceId = initialSource)
-        }
-        setFollow(context, inferred)
-        return inferred
+        val guess = guessFollow(catalog, me)
+        val follow = guess.follow.copy(sourceId = initialSource)
+        if (guess.certain) setFollow(context, follow)
+        return follow
+    }
+
+    internal class Guess(val follow: Follow, val certain: Boolean)
+
+    /**
+     * Stable and Preview builds of one commit are the same APK. Preview history can include older Stable releases,
+     * so an overlapping older-build guess keeps the Stable default for this run without persisting it.
+     */
+    internal fun guessFollow(catalog: Catalog?, me: Installed): Guess {
+        if (me.pr != 0) return Guess(Follow(Channel.TEST, me.pr), true)
+        val stable = catalog?.stable
+        if (stable != null && isRunning(stable, me)) return Guess(Follow(Channel.STABLE), true)
+        val publishedPreview = catalog != null && me.updatable && (
+            catalog.preview?.let { isRunning(it, me) } == true ||
+                catalog.recentPreviews.any { matchesInstalledCommit(it.commit, me.commit) }
+            )
+        if (stable?.version?.let { compareVersions(me.version, it) < 0 } == true) return Guess(Follow(Channel.STABLE), !publishedPreview)
+        return Guess(Follow(if (publishedPreview) Channel.NIGHTLY else Channel.STABLE), false)
     }
 
     fun setFollow(context: Context, follow: Follow) {

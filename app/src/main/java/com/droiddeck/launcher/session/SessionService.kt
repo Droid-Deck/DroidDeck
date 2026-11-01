@@ -25,6 +25,7 @@ import android.os.PowerManager
 import android.hardware.display.DisplayManager
 import android.view.Display
 import android.util.Log
+import android.widget.Toast
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.audio.DirectAudioRelayComponent
@@ -72,7 +73,9 @@ class SessionService : Service() {
     private var downloadMonitorTask: Runnable? = null
     private var downloadActive = false
     private var clientInstallActive = false
-    @Volatile private var steamLibraryMounts = emptyMap<String, File>()
+    private var steamLibraryMounts: Map<String, File>
+        get() = SessionState.steamLibraryMounts
+        set(value) { SessionState.steamLibraryMounts = value }
     private var suspendDownloadNow = false
     private var suspendPolicy = SessionPrefs.SUSPEND_MANUAL
     private var steamDownloadsInBackground = false
@@ -90,6 +93,7 @@ class SessionService : Service() {
     private var screenOn = true
     private var sessionDisplayId = Display.DEFAULT_DISPLAY
     private var manualPauseRequested = false
+    private var manualHold = false
     private var steamSleepToken: String? = null
     private var nativeSleepToken: String? = null
     private var nativeSleepReady = false
@@ -273,7 +277,11 @@ class SessionService : Service() {
                 val hold = intent?.getBooleanExtra(EXTRA_HOLD, false) == true
                 if (hold == signInHold) return START_NOT_STICKY
                 signInHold = hold
-                if (hold) manualPauseRequested = false
+                if (hold) {
+                    manualPauseRequested = false
+                    manualHold = false
+                    SessionState.manualPause = false
+                }
                 suspendAttemptFailed = false
                 updateSuspendPolicy()
                 return START_NOT_STICKY
@@ -303,6 +311,14 @@ class SessionService : Service() {
                 updateSuspendPolicy()
                 return START_NOT_STICKY
             }
+            ACTION_PAUSE_NOW -> {
+                if (!SessionState.running || SessionState.suspended || signInHold) return START_NOT_STICKY
+                manualHold = true
+                SessionState.manualPause = true
+                suspendAttemptFailed = false
+                updateSuspendPolicy()
+                return START_NOT_STICKY
+            }
             ACTION_RESUME -> {
                 resumeSession()
                 return START_NOT_STICKY
@@ -320,6 +336,7 @@ class SessionService : Service() {
             return START_NOT_STICKY
         }
         SessionState.mode = intent?.getStringExtra(EXTRA_MODE) ?: MODE_STEAM
+        SessionState.fpsLimit = 0
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
         activityVisible = true
@@ -345,6 +362,8 @@ class SessionService : Service() {
         SessionState.resumeRequested = false
         SessionState.resuming = false
         SessionState.resumeFailed = false
+        manualHold = false
+        SessionState.manualPause = false
         SessionState.pipActive = false
         pipTask = false
         SessionState.program = intent?.getStringExtra(EXTRA_PROGRAM)
@@ -384,10 +403,10 @@ class SessionService : Service() {
     }
 
     private fun collectSessionArtifacts(dir: File, steamArch: String?) {
+        SessionLogCapture.stopFor(dir)
         try {
             SessionArtifacts.collect(this, dir, "session stopped", steamArch)
         } finally {
-            SessionLogCapture.stopFor(dir)
             SessionPaths.release(this, dir)
         }
     }
@@ -430,22 +449,55 @@ class SessionService : Service() {
         val sessionRoot = LinuxRuntime.sessionRoot(this).apply { mkdirs() }
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
         killStragglers()
-        for (pack in listOf(AddonPack.PROOT, AddonPack.DIRECTAUDIO))
-            if (!pack.await(this, { gen == sessionGen && SessionState.running })) Log.w(TAG, "${pack.name} pack unavailable")
+        val stillStarting = { gen == sessionGen && SessionState.running }
+        val prootPack = LinuxRuntime.patchedProot(this) || AddonPack.PROOT.await(this, stillStarting)
+        val directAudioPack = AddonPack.DIRECTAUDIO.await(this, stillStarting)
+        if (!stillStarting()) {
+            Log.i(TAG, "session stopped while add-on packs were downloading")
+            return
+        }
+        if (!directAudioPack) {
+            Log.w(TAG, "directaudio pack unavailable; game audio drivers will not be staged")
+            mainHandler.post {
+                Toast.makeText(this, R.string.session_directaudio_missing, Toast.LENGTH_LONG).show()
+            }
+        }
+        if (!LinuxRuntime.patchedProot(this)) {
+            if (SessionPrefs.allowStockProot(this)) {
+                Log.w(TAG, "proot: patched proot missing; droiddeck-stock-proot allows the rootfs copy")
+            } else {
+                val message = getString(R.string.session_proot_missing)
+                Log.e(TAG, "$message (pack ready=$prootPack)")
+                SessionEvents.fail("PROOT_MISSING", message, -1)
+                stopSession(-1)
+                return
+            }
+        }
         val agentEnvironment = runCatching { com.droiddeck.launcher.agent.AgentEnv.beginSession(this) }
             .onFailure { Log.w(TAG, "agent environment skipped", it) }
             .getOrDefault(emptyList())
         SessionFiles.stage(this, root, startsSession = true)
         // Earlier sessions' reports still read the Steam logs and VAC marker this session replaces.
         SessionArtifacts.awaitCollections()
-        SessionArtifacts.finishAbandoned(this)
+        SessionArtifacts.finishAbandoned(this, beforeGuestStart = true)
         VacDiagnostics.arm(this)
         com.droiddeck.launcher.agent.AgentGuest.reset(this)
         com.droiddeck.launcher.stores.gog.GogComet.begin()
         com.droiddeck.launcher.stores.StoreLaunchRequests.start(this)
 
         val sessionDir = openSessionFolder()
+        try {
+            GameEnvironmentStore.publish(this)
+        } catch (e: Exception) {
+            Log.e(TAG, "could not publish the game environment", e)
+            stopSession(-1)
+            return
+        }
         val sessionLog = File(sessionDir, "session.log")
+        val prootLine = "== proot: ${LinuxRuntime.prootBinary(this).path} (${LinuxRuntime.prootSource(this)})"
+        Log.i(TAG, prootLine)
+        runCatching { sessionLog.appendText(prootLine + "\n") }
+            .onFailure { Log.w(TAG, "could not write the proot line to ${sessionLog.path}", it) }
 
         Log.i(TAG, GpuClockPin.start(this))
         Log.i(TAG, GameThreadHints.start(this))
@@ -453,6 +505,9 @@ class SessionService : Service() {
         val size = SessionState.outputSize
         val guest = ArrayList<String>()
         val steamHere = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
+        runCatching { ComponentsManager.republish(this) }
+            .onSuccess { if (it) Log.i(TAG, "component selections published for the installed Proton builds") }
+            .onFailure { Log.w(TAG, "component selections", it) }
         if (steamHere) {
             runCatching { ComponentsManager.ensureForcedPackages(this) }
                 .onSuccess { if (it != null) Log.i(TAG, it) }
@@ -462,7 +517,7 @@ class SessionService : Service() {
         if (steamHere) guest.add("BL_EPIC_APP_ID=" + com.droiddeck.launcher.stores.epic.EpicClient.shortcutAppId)
         val fastPathAt = guest.size
 
-        val pulse = startAudio(guest, sessionDir)
+        val pulse = startAudio(guest, sessionDir, directAudioPack)
         if (steamHere) {
             val encoder = VideoEncodeBridge(File(filesDir, "venc/venc.sock"))
             encoder.attach(this)
@@ -472,23 +527,17 @@ class SessionService : Service() {
 
         guest.add("BL_WIDTH=" + size.first)
         guest.add("BL_HEIGHT=" + size.second)
-        if (SessionState.followScreen) guest.add("BL_FOLLOW_OUTPUT=1")
+        if (SessionState.followScreen || size.first < size.second ||
+            SessionPrefs.orientation(this) == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER)
+            guest.add("BL_FOLLOW_OUTPUT=1")
         if (SessionState.hdr) {
             guest.add("BL_HDR=1")
             guest.add("DXVK_HDR=1")
             Log.i(TAG, "hdr: gamescope --hdr-enabled, DXVK_HDR=1")
         }
-        guest.add("BL_FPS=" + SessionState.fpsLimit)
-        // gamescope's WSI layer and winex11 reuse their per-present window checks for this long; 0 checks on every present.
-        val windowCheckMs = if (SessionState.performanceMode) 100 else 0
-        guest.add("DROIDDECK_WSI_BYPASS_CHECK_MS=$windowCheckMs")
-        guest.add("WINE_OFFSCREEN_CHECK_MS=$windowCheckMs")
-        if (SessionPrefs.compositorFpsLimit(SessionState.fpsLimit, SessionState.performanceMode) == SessionPrefs.FPS_UNPACED) {
-            // gamescope turns buffers around slower than an unpaced game draws; more images keep it drawing.
-            guest.add("GAMESCOPE_WSI_MIN_IMAGE_COUNT=8")
-            guest.add("GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT=1")
-        }
-        Log.i(TAG, "performance mode " + (if (SessionState.performanceMode) "on" else "off") + ", frame limit " + SessionState.fpsLimit)
+        // gamescope's WSI layer and winex11 reuse their per-present window checks for this long.
+        guest.add("DROIDDECK_WSI_BYPASS_CHECK_MS=100")
+        guest.add("WINE_OFFSCREEN_CHECK_MS=100")
         guest.add("BL_REFRESH=" + Math.round(SessionState.refreshHz))
         guest.add("BL_LOG=" + sessionLog.path)
         guest.add("BL_DEBUG_DIR=" + sessionDir.path)
@@ -602,6 +651,10 @@ class SessionService : Service() {
         networkLink.attach(this)
         networkLink.publish()
         components.add(networkLink)
+        val deviceControls = com.droiddeck.launcher.runtime.DeviceControlsComponent(this, root) { activityVisible && screenOn }
+        deviceControls.attach(this)
+        deviceControls.publish()
+        components.add(deviceControls)
         if (gen != sessionGen || !SessionState.running) {
             Log.i(TAG, "session stopped while it was starting; not launching it")
             if (gen == sessionGen) components.clear()
@@ -665,6 +718,7 @@ class SessionService : Service() {
                     if (!pulse.setMicSuspended(false)) Log.w(TAG, "could not resume microphone source")
                 },
                 zramControl = File(filesDir, "${LinuxRuntime.DIR}/tmp/.bl-zram"),
+                clockControl = File(filesDir, "${LinuxRuntime.DIR}/tmp/.bl-clock"),
                 pagedOut = { processes, unacknowledged, residentKb, swapKb, swapBeforeKb, millis ->
                     Log.i(TAG, "paged out $processes processes ($unacknowledged unacknowledged) in $millis ms: " +
                         "resident ${residentKb / 1024} MB, zram ${swapBeforeKb / 1024} -> ${swapKb / 1024} MB")
@@ -672,6 +726,20 @@ class SessionService : Service() {
                         SessionEvents.record("session.paged_out", mapOf(
                             "processes" to processes, "unacknowledged" to unacknowledged, "residentMb" to residentKb / 1024,
                             "swapMb" to swapKb / 1024, "swapBeforeMb" to swapBeforeKb / 1024, "ms" to millis,
+                        ))
+                    }
+                },
+                readBackAllowed = { SessionPrefs.ramCapMb(this) == 0 },
+                pagedIn = { processes, swapKb, swapBeforeKb, availableKb, millis ->
+                    if (processes == 0) {
+                        Log.i(TAG, "left ${swapBeforeKb / 1024} MB in zram after resume (RAM cap, or ${availableKb / 1024} MB available is too little)")
+                    } else {
+                        Log.i(TAG, "read back $processes processes in $millis ms: zram ${swapBeforeKb / 1024} -> ${swapKb / 1024} MB")
+                    }
+                    mainHandler.post {
+                        SessionEvents.record("session.paged_in", mapOf(
+                            "processes" to processes, "swapMb" to swapKb / 1024, "swapBeforeMb" to swapBeforeKb / 1024,
+                            "availableMb" to availableKb / 1024, "ms" to millis,
                         ))
                     }
                 },
@@ -702,7 +770,7 @@ class SessionService : Service() {
         guest.add("DROIDDECK_BWRAP_SOCKET=" + com.droiddeck.launcher.runtime.BwrapSpawner.socket(this))
         guest.add("HOME=/root")
         guest.add("USER=root")
-        guest.add("PATH=/usr/local/bin:/usr/bin:/bin")
+        guest.add("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games")
         guest.add("TERM=xterm-256color")
         guest.add("LANG=C.UTF-8")
         guest.add("BL_STEAM_LANGUAGE=" + SteamLanguage.forLocale(
@@ -749,8 +817,8 @@ class SessionService : Service() {
                 SessionArtifacts.recordClient(it, arch)
                 SessionArtifacts.markSteamLogs(it, File(SessionPrefs.steamRoot(this, arch), "logs"))
             }
-            if (arch == "x86_64") FexCatalog.cached(this)?.let { guest.addAll(FexCatalog.environment(it)) }
         }
+        FexCatalog.cached(this)?.let { guest.addAll(FexCatalog.environment(it)) }
         if (SessionState.mode == MODE_STEAM) {
             guest.add("BL_GAMESCOPE_STRETCH_16X9=" + (if (SessionPrefs.stretch16x9(this)) "1" else "0"))
         }
@@ -766,7 +834,7 @@ class SessionService : Service() {
             if (!SessionPrefs.zramClient(this)) guest.add("BL_ZRAM_CLIENT=0")
         }
         SessionPrefs.vramCapMb(this).takeIf { it > 0 }?.let { guest.add("BL_VRAM_MB=$it") }
-        guest.add("BANNER_AUDIO_DIRECT_DECAY=0")
+        guest.add("AUDIO_DIRECT_DECAY=0")
         val extra = extraEnv() + agentEnvironment
         if (extra.none { it.startsWith("TU_DEBUG=") }) guest.add("$GAME_TU_DEBUG=" + (tuOverride ?: if (tuDriver) "sysmem" else ""))
         extra.forEach { guest.add(it) }
@@ -782,13 +850,14 @@ class SessionService : Service() {
     private fun noSteamGame(): Boolean =
         SessionState.mode == MODE_RUN && SessionState.program in setOf(NoSteamLaunch.PROTON_RUN, NoSteamLaunch.EPIC, NoSteamLaunch.BATTLENET)
 
-    private fun startAudio(guest: MutableList<String>, sessionDir: File): PulseAudioComponent {
-        val wantsDirectAudio = (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP || noSteamGame()) &&
+    private fun startAudio(guest: MutableList<String>, sessionDir: File, directAudioPack: Boolean): PulseAudioComponent {
+        val wantsDirectAudio = directAudioPack &&
+            (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP || noSteamGame()) &&
             SessionPrefs.directAudio(this)
         val wantsMic = SessionPrefs.micEnabled(this) &&
             checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         guest.add("BL_MIC_ENABLED=" + if (wantsMic) "1" else "0")
-        guest.add("BANNER_AUDIO_DIRECT_MIC=" + if (wantsMic) "1" else "0")
+        guest.add("AUDIO_DIRECT_MIC=" + if (wantsMic) "1" else "0")
         val audioDir = File(filesDir, "directaudio").apply { mkdirs() }
         val relaySocket = File(audioDir, "relay.sock")
         val micFifo = if (wantsMic) File(audioDir, "mic.fifo") else null
@@ -816,7 +885,11 @@ class SessionService : Service() {
         }
         if (wantsDirectAudio) {
             guest.add("BL_DIRECTAUDIO=/" + SessionFiles.DIRECTAUDIO_DIR)
-            guest.add("BANNER_AUDIO_DIRECT_RELAY=" + relaySocket.absolutePath)
+            guest.add("AUDIO_DIRECT_RELAY=" + relaySocket.absolutePath)
+            val lowLatency = com.droiddeck.launcher.audio.DirectAudioTiming.lowLatencyOutput()
+            val timing = com.droiddeck.launcher.audio.DirectAudioTiming.environment(lowLatency)
+            guest.addAll(timing)
+            Log.i(TAG, "audio: Android output " + (if (lowLatency) "is low-latency; DirectAudio keeps its defaults" else "is not low-latency; DirectAudio uses " + timing.joinToString(" ")))
         }
         Log.i(TAG, "audio: client DirectAudio (in-process sink)" + (if (wantsDirectAudio) " + DirectAudio for games" else "")
             + (if (wantsMic) " + microphone" else "") +
@@ -825,7 +898,7 @@ class SessionService : Service() {
     }
 
     private fun addControllerEnvironment(guest: MutableList<String>, fakeInputDir: File, sessionDir: File) {
-        FakeInputWriter.prepareRingSlots(fakeInputDir, 4)
+        FakeInputWriter.prepareRingSlots(fakeInputDir, 5)
         val builtinPad = SessionPrefs.builtinPad(this)
         val hiddenPad = SessionState.mode == MODE_STEAM && !builtinPad &&
             !com.droiddeck.launcher.input.PadBridge.anyControllerConnected()
@@ -852,7 +925,7 @@ class SessionService : Service() {
         SessionState.deckPad = deckBinds.isNotEmpty()
         if (wantsDeck && !SessionState.deckPad) Log.w(TAG, "deck pad: not available this session; the pad stays an Xbox 360 controller")
         logControllersAtStart()
-        com.droiddeck.launcher.input.FakeInputWriter.setLowLatency(SessionPrefs.lowLatencyController(this), SessionPrefs.lowLatencyTouch(this))
+        com.droiddeck.launcher.input.FakeInputWriter.setLowLatency(SessionPrefs.lowLatency(this))
         if (uinput) {
             guest.add("FAKE_EVDEV_UINPUT=1")
             if (SessionState.deckPad) {
@@ -983,7 +1056,7 @@ class SessionService : Service() {
                 Log.w(TAG, "added games: ${root.host} is not a readable folder this session")
             }
         }
-        for ((host, guest) in com.droiddeck.launcher.stores.StoreInstallRoot.externalRoots(this)) {
+        for ((host, guest) in com.droiddeck.launcher.stores.StoreInstallRoot.externalRootsForXodus(this)) {
             if (host.isDirectory && host.canRead()) {
                 File(LinuxRuntime.rootDir(this), guest.removePrefix("/")).mkdirs()
                 binds.add(host.path + ":" + guest)
@@ -1282,23 +1355,15 @@ class SessionService : Service() {
 
     /** A Steam game is running: the client runs each one under its reaper, and Proton's script
      *  waits on the game with waitforexitandrun. Read from the command lines, as ComponentsManager does. */
-    private fun steamGameRunning(): Boolean {
-        val procs = File("/proc").listFiles() ?: return false
-        for (p in procs) {
-            if (!p.name.all(Char::isDigit)) continue
-            val cmd = runCatching { File(p, "cmdline").readBytes() }.getOrNull() ?: continue
-            if (cmd.isEmpty()) continue
-            val text = String(cmd).replace('\u0000', ' ')
-            if (text.contains("SteamLaunch AppId=") || text.contains("waitforexitandrun")) return true
-        }
-        return false
-    }
+    private fun steamGameRunning(): Boolean = SteamGameProcess.running()
 
     private fun resumeSession(panelVisible: Boolean = true) {
         if (SessionState.suspended) SessionState.resumeRequested = true
         if (panelVisible) activityVisible = true
         screenOn = readScreenOn()
         manualPauseRequested = false
+        manualHold = false
+        SessionState.manualPause = false
         suspendDownloadNow = false
         if (steamSleepToken == null && (nativeSleepToken == null || nativeSleepFallback || nativeSleepIdle)) requestSteamWake()
         completeNativeSleep()
@@ -1506,12 +1571,12 @@ class SessionService : Service() {
             manualPauseRequested = false
         }
         val controller = suspendController ?: return
-        if (downloadsBlockingSuspend) acquireLocks()
-        val steamPause = SessionState.mode == MODE_STEAM && !downloadsBlockingSuspend && when (suspendPolicy) {
+        if (downloadsBlockingSuspend && !manualHold) acquireLocks()
+        val steamPause = SessionState.mode == MODE_STEAM && (manualHold || !downloadsBlockingSuspend && when (suspendPolicy) {
             SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_NATIVE -> hidden
             SessionPrefs.SUSPEND_MANUAL -> manualPauseRequested
             else -> false
-        }
+        })
         if (!steamPause) {
             completeNativeSleep()
         } else if (nativeSleepToken == null && steamSleepToken == null &&
@@ -1519,12 +1584,15 @@ class SessionService : Service() {
             prepareNativeSleep()
         }
         val prepared = SessionState.mode != MODE_STEAM || nativeSleepReady
-        val shouldSuspend = steamSleepToken != null || when (suspendPolicy) {
+        val shouldSuspend = steamSleepToken != null || (manualHold && prepared) || when (suspendPolicy) {
             SessionPrefs.SUSPEND_AUTO -> hidden && prepared && !downloadsBlockingSuspend
             SessionPrefs.SUSPEND_NATIVE -> hidden && nativeSleepReady && !downloadsBlockingSuspend
             SessionPrefs.SUSPEND_MANUAL -> manualPauseRequested && prepared && !downloadsBlockingSuspend
             else -> false
         }
+        // A frozen game never sends the stop for a held rumble, so the keepalive would run on.
+        val quietRumble = !screenOn || shouldSuspend || SessionState.suspended
+        components.forEach { (it as? RumbleComponent)?.quiet(quietRumble) }
         if (freezePending && !shouldSuspend && !freezeCancelled) {
             freezeCancelled = true
             controller.cancelFreeze()
@@ -1564,6 +1632,8 @@ class SessionService : Service() {
                             SessionEvents.record("session.suspend_cancelled")
                         } else {
                             suspendAttemptFailed = true
+                            manualHold = false
+                            SessionState.manualPause = false
                             Log.w(TAG, "could not confirm that the session stopped")
                         }
                     }
@@ -1612,7 +1682,7 @@ class SessionService : Service() {
     }
 
     private fun resumeSteamSleepOnReturn() {
-        if (suspendPolicy in setOf(SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_NATIVE) && hasVisibleSurface) {
+        if (!manualHold && suspendPolicy in setOf(SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_NATIVE) && hasVisibleSurface) {
             if (steamSleepToken == null && (nativeSleepToken == null || nativeSleepFallback || nativeSleepIdle)) requestSteamWake()
             completeNativeSleep()
             completeSteamSleep()
@@ -1670,42 +1740,48 @@ class SessionService : Service() {
         }.onFailure { Log.w(TAG, "could not request Steam wake", it) }
     }
 
-    private fun finishSessionStop(status: Int, stoppedGen: Int) {
+    private fun finishSessionStop(status: Int, stoppedGen: Int, afterStopped: () -> Unit = {}) {
         mainHandler.post {
-            if (stoppedGen != sessionGen || SessionState.running) {
-                Log.i(TAG, "session $stoppedGen finished stopping after a new one started")
-                return@post
+            try {
+                if (stoppedGen != sessionGen || SessionState.running) {
+                    Log.i(TAG, "session $stoppedGen finished stopping after a new one started")
+                    return@post
+                }
+                SessionState.suspended = false
+                SessionState.resumeRequested = false
+                SessionState.resuming = false
+                SessionState.resumeFailed = false
+                manualHold = false
+                SessionState.manualPause = false
+                SessionState.pipActive = false
+                pipTask = false
+                SessionState.guestPid = -1
+                com.droiddeck.launcher.agent.AgentGuest.stop()
+                com.droiddeck.launcher.stores.StoreLaunchRequests.stop()
+                Thread({ com.droiddeck.launcher.stores.CloudSaves.uploadAllDirty(applicationContext, "session-end", running = false) }, "cloud-session-end").start()
+                runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this) }
+                    .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
+                releaseLocks()
+                MemoryLog.stop()
+                com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(applicationContext)
+                if (status == 0) {
+                    SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
+                } else {
+                    val code = SessionState.failureCode ?: "GUEST_EXIT"
+                    val message = SessionState.failureMessage ?: "Session guest exited with status $status"
+                    val failureStatus = SessionState.failureStatus ?: status
+                    SessionEvents.fail(code, message, failureStatus)
+                }
+                SessionState.steamVr = false
+                com.droiddeck.launcher.glasses.Glasses.cancelSteamVrStart()
+                com.droiddeck.launcher.glasses.Glasses.setVrActive(false)
+                com.droiddeck.launcher.glasses.Glasses.set3dForVr(false)
+                SessionState.notifyEnded(status)
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            } finally {
+                afterStopped()
             }
-            SessionState.suspended = false
-            SessionState.resumeRequested = false
-            SessionState.resuming = false
-            SessionState.resumeFailed = false
-            SessionState.pipActive = false
-            pipTask = false
-            SessionState.guestPid = -1
-            com.droiddeck.launcher.agent.AgentGuest.stop()
-            com.droiddeck.launcher.stores.StoreLaunchRequests.stop()
-            Thread({ com.droiddeck.launcher.stores.CloudSaves.uploadAllDirty(applicationContext, "session-end", running = false) }, "cloud-session-end").start()
-            runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this) }
-                .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
-            releaseLocks()
-            MemoryLog.stop()
-            com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(applicationContext)
-            if (status == 0) {
-                SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
-            } else {
-                val code = SessionState.failureCode ?: "GUEST_EXIT"
-                val message = SessionState.failureMessage ?: "Session guest exited with status $status"
-                val failureStatus = SessionState.failureStatus ?: status
-                SessionEvents.fail(code, message, failureStatus)
-            }
-            SessionState.steamVr = false
-            com.droiddeck.launcher.glasses.Glasses.cancelSteamVrStart()
-            com.droiddeck.launcher.glasses.Glasses.setVrActive(false)
-            com.droiddeck.launcher.glasses.Glasses.set3dForVr(false)
-            SessionState.notifyEnded(status)
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
         }
     }
 
@@ -1736,7 +1812,9 @@ class SessionService : Service() {
             SessionEvents.record("guest.exited", mapOf("status" to status))
             SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
             SessionState.running = false
-            SessionPaths.take() to SessionState.steamClientArch
+            val ended = SessionPaths.take()
+            if (ended != null) SessionArtifacts.collectionStarted(ended)
+            ended to SessionState.steamClientArch
         }
         SessionState.micAvailable = false
         SessionState.micEnabled = false
@@ -1765,8 +1843,6 @@ class SessionService : Service() {
         suspendController = null
         if (ended != null) {
             VacDiagnostics.snapshot(this, ended)
-            SessionArtifacts.collectionStarted(ended)
-            Thread({ collectSessionArtifacts(ended, endedArch) }, "session-collect").start()
         }
         components.reversed().forEach {
             try {
@@ -1776,6 +1852,9 @@ class SessionService : Service() {
             }
         }
         components.clear()
+        val collectEnded = {
+            if (ended != null) Thread({ collectSessionArtifacts(ended, endedArch) }, "session-collect").start()
+        }
         FakeInputWriter.releaseAllRingSlots()
         com.droiddeck.launcher.input.SteamTouchDevice.release()
         val steamClientMayRun = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
@@ -1787,13 +1866,13 @@ class SessionService : Service() {
                     auxiliary.forEach { (pid, started) -> teardown(pid, started) }
                     if (prootPid > 1) teardown(prootPid)
                     killGuestLeftovers()
-                    finishSessionStop(status, stoppedGen)
+                    finishSessionStop(status, stoppedGen, collectEnded)
                     if (launcherEnded) importLauncherGames()
                 }, "session-teardown").start()
             } else {
                 Thread({
                     com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
-                    finishSessionStop(status, stoppedGen)
+                    finishSessionStop(status, stoppedGen, collectEnded)
                     if (launcherEnded) importLauncherGames()
                 }, "gog-session-stop").start()
             }
@@ -1811,6 +1890,9 @@ class SessionService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
+        if (rootIntent?.component?.className in setOf(
+                com.droiddeck.launcher.ui.DualScreenActivity::class.java.name,
+                com.droiddeck.launcher.ui.SessionTypingActivity::class.java.name)) return
         if (pipTask || xrActivityVisible) {
             Log.i(TAG, "panel task dismissed - retaining the session under its active surface policy")
             activityVisible = false
@@ -2032,6 +2114,7 @@ class SessionService : Service() {
         const val ACTION_STOP = "com.droiddeck.launcher.STOP_SESSION"
         const val ACTION_RESUME = "com.droiddeck.launcher.RESUME_SESSION"
         const val ACTION_SUSPEND_NOW = "com.droiddeck.launcher.SUSPEND_NOW"
+        private const val ACTION_PAUSE_NOW = "com.droiddeck.launcher.PAUSE_NOW"
         private const val ACTION_PIP_BEGIN = "com.droiddeck.launcher.PIP_BEGIN"
         const val ACTION_LAUNCH_GAME = "com.droiddeck.launcher.LAUNCH_STEAM_GAME"
         const val ACTION_HOME_GUIDE = "com.droiddeck.launcher.HOME_GUIDE"
@@ -2106,6 +2189,7 @@ class SessionService : Service() {
         fun stop(context: Context) {
             if (!SessionState.running) {
                 SessionState.stopRequested = true
+                SessionState.installCancellation?.cancel()
                 return
             }
             context.startService(Intent(context, SessionService::class.java).setAction(ACTION_STOP))
@@ -2149,6 +2233,10 @@ class SessionService : Service() {
         fun holdForSignIn(context: Context, hold: Boolean) {
             if (!SessionState.running) return
             context.startService(Intent(context, SessionService::class.java).setAction(ACTION_SIGN_IN_HOLD).putExtra(EXTRA_HOLD, hold))
+        }
+
+        fun pause(context: Context) {
+            context.startService(Intent(context, SessionService::class.java).setAction(ACTION_PAUSE_NOW))
         }
 
         fun resume(context: Context) {

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">Pintasan tombol fisik</string>
+    <string name="shortcuts_dd_menu">Menu DroidDeck</string>
+    <string name="shortcuts_capture">Tetapkan: %1$s</string>
+    <string name="shortcuts_press">Tekan lalu lepaskan tombol. Penetapan disimpan otomatis.</string>
+    <string name="shortcuts_release">Lepaskan tombol untuk melanjutkan.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">Tombol ini sudah ditetapkan untuk: %1$s</string>
+    <string name="shortcuts_save">Tetapkan ulang</string>
+    <string name="shortcuts_retry">Coba tombol lain</string>
+    <string name="shortcuts_limitations">Tombol Beranda dan beberapa tombol tambahan mungkin tidak tersedia.</string>
+</resources>

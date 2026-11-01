@@ -38,7 +38,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.AlertDialog
+import com.droiddeck.launcher.ui.GlideAlertDialog as AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -590,11 +590,11 @@ fun ComponentsPage(
                 val available = availableRows(l, catalog, snapshot)
                 if (available.isEmpty()) EmptyLine(if (catalogAt == 0L) stringResource(R.string.comp_refresh_to_list) else stringResource(R.string.comp_nothing_new))
                 for ((stable, nightly) in available) {
-                    val d = if (nightly != null && nightlyPicked[stable.file] == true) nightly else stable
+                    val d = if (nightly != null && nightlyPicked[stable.id] == true) nightly else stable
                     GetLine(
                         d.file.removeSuffix(".wcp"), "${d.repository} · ${d.release} · " + stringResource(R.string.common_size_mb, d.size / 1048576.0),
                         progress = downloads[d.id], enabled = busy == null,
-                        channel = if (nightly != null) ({ ChannelToggle(d === nightly, enabled = busy == null) { nightlyPicked[stable.file] = d !== nightly } }) else null,
+                        channel = if (nightly != null) ({ ChannelToggle(d === nightly, enabled = busy == null) { nightlyPicked[stable.id] = d !== nightly } }) else null,
                     ) { onDownload(d) }
                 }
             }
@@ -701,7 +701,7 @@ fun ComponentsPage(
 
     Box(Modifier.fillMaxSize().onGloballyPositioned { pageAt = it.positionInRoot() }.onFocusChanged { pageFocused = it.hasFocus }) {
         Column(
-            Modifier.fillMaxSize().padding(horizontal = if (narrow) 16.dp else 22.dp, vertical = if (narrow) 12.dp else 18.dp)
+            Modifier.fillMaxSize().padding(horizontal = if (narrow) 16.dp else 22.dp).padding(top = if (narrow) 12.dp else 18.dp)
                 .then(if (selectedGame == null) Modifier.bumpers(
                     onPrevious = { pick(layerStep(layer, -1)) },
                     onNext = { pick(layerStep(layer, 1)) },
@@ -994,7 +994,7 @@ private fun Stack(
             onFocus = { onFocus(l) }, onClick = { onOpen(l) },
         )
     }
-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
         StackHeading(stringResource(R.string.comp_this_device))
         card(GPU_TAB)
         Spacer(Modifier.height(6.dp))

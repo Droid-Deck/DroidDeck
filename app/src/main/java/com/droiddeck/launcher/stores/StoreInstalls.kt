@@ -30,7 +30,12 @@ object StoreInstalls {
                 it.write(before.copy(state = StoreGameSidecar.STATE_UPDATING, installVersion = "").toJson().toString(2).toByteArray(Charsets.UTF_8))
                 it.fd.sync()
             }
-            Files.move(stage.toPath(), StoreGameSidecar.file(folder).toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            val record = StoreGameSidecar.file(folder).toPath()
+            try {
+                Files.move(stage.toPath(), record, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            } catch (e: java.nio.file.AtomicMoveNotSupportedException) {
+                Files.move(stage.toPath(), record, StandardCopyOption.REPLACE_EXISTING)
+            }
         } finally {
             stage.delete()
         }
