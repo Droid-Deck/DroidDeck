@@ -183,7 +183,7 @@ private fun InstalledTab(a: ModeSettingsActions) {
     val debugging = remember { com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(app) }
     var probing by remember { mutableStateOf(false) }
     if (debugging) {
-        SettingsRow("Game Jolt probe", "Logs what Game Jolt's pages and endpoints return for one game link") {
+        SettingsRow("Game Jolt probe", "Logs what Game Jolt's pages, endpoints and your signed-in account return for one game link") {
             SecondaryButton("Run probe", onClick = { probing = true })
         }
         SettingsRow(stringResource(R.string.boot_movie_report), stringResource(R.string.boot_movie_report_hint)) {
@@ -204,7 +204,7 @@ private fun InstalledTab(a: ModeSettingsActions) {
     if (browsing) InstalledMoviesDialog(a) { browsing = false }
     if (probing) TextEntryDialog(
         "Game Jolt game link", "", number = false, confirm = "Run",
-        onSubmit = { value -> if (value.isNotEmpty()) com.droiddeck.launcher.stores.GameJoltProbe.run(value) }, onDismiss = { probing = false },
+        onSubmit = { value -> if (value.isNotEmpty()) { com.droiddeck.launcher.stores.GameJoltProbe.run(value); com.droiddeck.launcher.stores.gamejolt.GameJoltSessionProbe.run(app, value) } }, onDismiss = { probing = false },
         id = "gamejolt-probe-entry",
     )
 }
