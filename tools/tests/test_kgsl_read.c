@@ -11,7 +11,7 @@ static int read_error, wait_error, waits;
 static unsigned int retired;
 
 static int mock(int fd, unsigned long request, void *arg) {
-  assert(fd == 42);
+  assert(fd == 42 || fd == 43);
   if (request == IOCTL_KGSL_CMDSTREAM_READTIMESTAMP_CTXTID) {
     if (read_error) {
       errno = read_error;
@@ -56,6 +56,12 @@ static int read_timestamp(unsigned int context, unsigned int *timestamp) {
   return rc;
 }
 
+static void create_context(unsigned int context) {
+  struct kgsl_drawctxt_create create = {.drawctxt_id = context};
+  int rc = 0;
+  bl_kgsl_track(mock, 42, IOCTL_KGSL_DRAWCTXT_CREATE, &create, &rc);
+}
+
 int main(void) {
   unsigned int timestamp;
 
@@ -64,7 +70,20 @@ int main(void) {
 
   read_error = EACCES;
   retired = 0;
+  errno = EACCES;
+  assert(read_timestamp(3, &timestamp) == -1 && errno == EACCES && waits == 0);
+
+  create_context(3);
   assert(read_timestamp(3, &timestamp) == 0 && timestamp == 0 && waits == 0);
+
+  read_error = EBADF;
+  assert(read_timestamp(3, &timestamp) == -1 && errno == EBADF && waits == 0);
+  read_error = EACCES;
+
+  struct kgsl_cmdstream_readtimestamp_ctxtid other = {.context_id = 3, .type = KGSL_TIMESTAMP_RETIRED};
+  int other_rc = mock(43, IOCTL_KGSL_CMDSTREAM_READTIMESTAMP_CTXTID, &other);
+  bl_kgsl_track(mock, 43, IOCTL_KGSL_CMDSTREAM_READTIMESTAMP_CTXTID, &other, &other_rc);
+  assert(other_rc == -1 && errno == EACCES && waits == 0);
 
   submit(1);
   submit(2);
@@ -97,11 +116,14 @@ int main(void) {
   retired = 6;
   assert(read_timestamp(3, &timestamp) == 0 && timestamp == 6);
 
-  struct kgsl_drawctxt_create create = {.drawctxt_id = 3};
-  bl_kgsl_track(mock, 42, IOCTL_KGSL_DRAWCTXT_CREATE, &create, &rc);
+  create_context(3);
   retired = 0;
   waits = 0;
   assert(read_timestamp(3, &timestamp) == 0 && timestamp == 0 && waits == 0);
+
+  struct kgsl_drawctxt_destroy destroy = {.drawctxt_id = 3};
+  bl_kgsl_track(mock, 42, IOCTL_KGSL_DRAWCTXT_DESTROY, &destroy, &rc);
+  assert(read_timestamp(3, &timestamp) == -1 && errno == EACCES);
 
   errno = EACCES;
   assert(read_timestamp(5000, &timestamp) == -1 && errno == EACCES);

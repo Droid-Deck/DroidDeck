@@ -12,6 +12,7 @@
 static struct {
   uint32_t submitted;
   uint32_t retired;
+  int owner;
 } contexts[KGSL_CONTEXTS];
 
 static void report_denied(unsigned long request, int error) {
@@ -34,7 +35,9 @@ static int read_retired(int (*real)(int, unsigned long, void *), int fd,
   uint32_t id = read->context_id;
   uint32_t timestamp, submitted;
 
-  if (read->type != KGSL_TIMESTAMP_RETIRED || id >= KGSL_CONTEXTS) return -1;
+  if (read->type != KGSL_TIMESTAMP_RETIRED || id >= KGSL_CONTEXTS ||
+      __atomic_load_n(&contexts[id].owner, __ATOMIC_RELAXED) != fd + 1)
+    return -1;
   timestamp = __atomic_load_n(&contexts[id].retired, __ATOMIC_RELAXED);
   submitted = __atomic_load_n(&contexts[id].submitted, __ATOMIC_RELAXED);
   while (timestamp != submitted) {
@@ -72,14 +75,19 @@ __attribute__((visibility("hidden"))) void bl_kgsl_track(int (*real)(int, unsign
       if (create->drawctxt_id < KGSL_CONTEXTS) {
         note_submit(create->drawctxt_id, 0);
         __atomic_store_n(&contexts[create->drawctxt_id].retired, 0, __ATOMIC_RELAXED);
+        __atomic_store_n(&contexts[create->drawctxt_id].owner, fd + 1, __ATOMIC_RELAXED);
       }
+    } else if (request == IOCTL_KGSL_DRAWCTXT_DESTROY) {
+      const struct kgsl_drawctxt_destroy *destroy = arg;
+      if (destroy->drawctxt_id < KGSL_CONTEXTS)
+        __atomic_store_n(&contexts[destroy->drawctxt_id].owner, 0, __ATOMIC_RELAXED);
     }
     return;
   }
   if (_IOC_TYPE(request) == KGSL_IOC_TYPE && (saved == EACCES || saved == EPERM ||
                                               request == IOCTL_KGSL_CMDSTREAM_READTIMESTAMP_CTXTID))
     report_denied(request, saved);
-  if (request != IOCTL_KGSL_CMDSTREAM_READTIMESTAMP_CTXTID) return;
+  if (request != IOCTL_KGSL_CMDSTREAM_READTIMESTAMP_CTXTID || saved == EBADF) return;
   if (read_retired(real, fd, arg) == 0)
     *rc = 0;
   else if (errno != saved)
