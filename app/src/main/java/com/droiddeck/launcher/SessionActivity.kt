@@ -475,6 +475,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var sessionActivityDisplayId = Display.DEFAULT_DISPLAY
     private lateinit var displayManager: DisplayManager
     private var secondScreenPresentation: SecondScreenPresentation? = null
+    private val bottomScreenListener: () -> Unit = {
+        if (secondScreenPresentation?.display?.displayId?.let(com.droiddeck.launcher.input.DualScreen::taken) == true) closeSecondScreen(reset = false)
+        refreshSecondScreenDisplays()
+    }
+
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) {
             notifyActivityDisplayStateChanged(displayId)
@@ -3087,6 +3092,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             closeSecondScreen(reset = false)
             return
         }
+        if (com.droiddeck.launcher.input.DualScreen.taken(target.displayId)) {
+            if (secondScreenPresentation != null) closeSecondScreen(reset = false)
+            secondScreenMode = mode
+            SessionState.secondScreenMode = mode
+            return
+        }
         var presentation = secondScreenPresentation
         if (presentation?.display?.displayId != target.displayId) {
             dropDockedDrawer()
@@ -3974,6 +3985,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (::hud.isInitialized) hud.setBackgrounded(false)
         refreshActivityDisplayId()
         displayManager.registerDisplayListener(displayListener, Handler(Looper.getMainLooper()))
+        com.droiddeck.launcher.input.DualScreen.watchTaken(bottomScreenListener)
         for (name in arrayOf("peak_refresh_rate", "min_refresh_rate")) {
             contentResolver.registerContentObserver(android.provider.Settings.System.getUriFor(name), false, refreshSettingObserver)
         }
@@ -3994,6 +4006,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (::hud.isInitialized) hud.setBackgrounded(true)
         updateHandCamera()
         displayManager.unregisterDisplayListener(displayListener)
+        com.droiddeck.launcher.input.DualScreen.unwatchTaken(bottomScreenListener)
         contentResolver.unregisterContentObserver(refreshSettingObserver)
         closeSecondScreen(reset = false)
         startedScreens = (startedScreens - 1).coerceAtLeast(0)

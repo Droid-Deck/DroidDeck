@@ -18,6 +18,23 @@ object DualScreen {
     private const val TYPE_INTERNAL = 1
     private val knownModels = setOf("retroid pocket duo", "ayn thor")
     private val touchedDisplays = mutableSetOf<Int>()
+    private val takenListeners = java.util.concurrent.CopyOnWriteArraySet<() -> Unit>()
+    @Volatile private var takenDisplays: Set<Int> = emptySet()
+    private val main by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
+
+    fun yieldsBottom(model: String): Boolean = model.trim().equals("retroid pocket duo", ignoreCase = true)
+
+    fun taken(displayId: Int): Boolean = displayId in takenDisplays
+
+    fun setTaken(ids: Set<Int>) {
+        if (ids == takenDisplays) return
+        takenDisplays = ids
+        main.post { takenListeners.forEach { it() } }
+    }
+
+    fun watchTaken(listener: () -> Unit) { takenListeners += listener }
+
+    fun unwatchTaken(listener: () -> Unit) { takenListeners -= listener }
 
     fun builtInDisplay(displayManager: DisplayManager, primaryDisplayId: Int): Display? {
         val primary = displayManager.getDisplay(primaryDisplayId)
@@ -66,7 +83,7 @@ object DualScreen {
             MODE_OFF -> null
             MODE_ON -> internalDisplay(displayManager, primaryDisplayId) ?: anyDisplay(displayManager, primaryDisplayId)
             else -> builtInDisplay(displayManager, primaryDisplayId)
-        }
+        }?.takeUnless { taken(it.displayId) }
 
     fun anyDisplay(displayManager: DisplayManager, primaryDisplayId: Int): Display? =
         displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION).firstOrNull {
