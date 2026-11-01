@@ -41,7 +41,7 @@ internal object GameJoltBuilds {
                     packageId = build.optLong("game_package_id").toString(),
                     packageTitle = packages[build.optLong("game_package_id")].orEmpty(),
                     version = release?.optString("version_number").orEmpty(),
-                    filename = file?.optString("filename").orEmpty().substringAfterLast('/'),
+                    filename = file?.optString("filename").orEmpty().substringAfterLast('/').substringAfterLast('\\'),
                     size = file?.optLong("filesize") ?: 0L,
                     stamp = release?.optLong("published_on")?.takeIf { it > 0L }?.toString().orEmpty(),
                     platforms = platforms(build),

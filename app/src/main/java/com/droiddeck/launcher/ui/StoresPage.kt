@@ -837,6 +837,7 @@ private fun Storefront(
     fun shelf(l: List<CatalogItem>?) = l?.filter(::shown)
     LaunchedEffect(store, q) { StoresState.search(ctx, store, q) }
     val gameJolt = store == Store.GAMEJOLT
+    LaunchedEffect(gameJolt, s.storesShowMature) { if (gameJolt) GameJoltBrowseState.sync(ctx, s.storesShowMature) }
     val browsing = q.isEmpty() && ((store == Store.ITCH && ItchBrowseState.active) || gameJolt)
     val browseItems = if (!browsing) emptyList() else if (gameJolt) GameJoltBrowseState.items else ItchBrowseState.items
     val catalog = store == Store.BATTLENET && q.isEmpty()

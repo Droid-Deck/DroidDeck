@@ -50,7 +50,7 @@ internal class GameJoltInstaller(
         handle.log("Game Jolt: installing build ${build.id} (${build.filename}, ${build.size} bytes, platforms ${build.platforms.joinToString(",")}, launch ${build.executable.ifBlank { "none" }})")
         val scratch = StoreInstallRoot.scratchDir(app, Store.GAMEJOLT, item.id)
         scratch.mkdirs()
-        val filename = build.filename.ifBlank { "download.bin" }
+        val filename = build.filename.trim().takeUnless { it.isBlank() || it == "." || it == ".." } ?: "download.bin"
         val archive = File(scratch, filename)
         val exe = try {
             handle.stage(DownloadStage.DOWNLOAD)
@@ -117,8 +117,7 @@ internal class GameJoltInstaller(
         }
         for (attempt in 0..1) {
             val have = target.length()
-            val url = GameJoltApi.downloadUrl(build.id, GameJoltAuth.cookies(app))
-                ?: throw IllegalStateException(app.getString(R.string.stores_gamejolt_download_failed, 0))
+            val url = downloadLink(build)
             var conn: HttpURLConnection? = null
             try {
                 conn = (URL(url).openConnection() as HttpURLConnection).apply {
@@ -159,6 +158,19 @@ internal class GameJoltInstaller(
                 runCatching { conn?.disconnect() }
             }
         }
+    }
+
+    private fun downloadLink(build: GameJoltBuild): String {
+        val answer = GameJoltApi.post("/web/discover/games/builds/get-download-url/${build.id}", GameJoltAuth.cookies(app))
+        val url = answer.payload?.optString("url").orEmpty()
+        if (url.startsWith("https://")) return url
+        throw IllegalStateException(
+            when {
+                answer.code == 0 -> app.getString(R.string.stores_gamejolt_download_unreachable)
+                answer.ok -> app.getString(R.string.stores_gamejolt_download_no_link)
+                else -> app.getString(R.string.stores_gamejolt_download_failed, answer.code)
+            },
+        )
     }
 
     private fun clearPartialInstall() {

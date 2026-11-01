@@ -28,7 +28,6 @@ internal fun GameJoltBrowseBar(showMature: Boolean) {
     val query = GameJoltBrowseState.query
     var picking by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { if (GameJoltBrowseState.items.isEmpty()) GameJoltBrowseState.more(ctx) }
-    LaunchedEffect(showMature) { GameJoltBrowseState.sync(ctx, showMature) }
     fun toggle(set: Set<String>, value: String): Set<String> = if (value in set) set - value else set + value
     Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         ChipRow {
