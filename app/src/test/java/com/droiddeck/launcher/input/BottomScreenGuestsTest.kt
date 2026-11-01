@@ -16,7 +16,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
 class BottomScreenGuestsTest {
-    private val own = "com.droiddeck.launcher"
     private val homes = setOf("com.android.launcher3", "com.retroidpocket.gamelauncher")
 
     @After fun clear() = DualScreen.setTaken(emptySet())
@@ -29,20 +28,11 @@ class BottomScreenGuestsTest {
         assertFalse(BottomScreenGuests.supported("Pixel 8", 36))
     }
 
-    @Test fun theTopWindowDecidesWhoHoldsTheScreen() {
-        assertEquals(Top.OWN, BottomScreenGuests.classify(own, own, homes))
-        assertEquals(Top.HOME, BottomScreenGuests.classify("com.android.launcher3", own, homes))
-        assertEquals(Top.GUEST, BottomScreenGuests.classify("com.android.chrome", own, homes))
-        assertEquals(Top.GUEST, BottomScreenGuests.classify("com.retroidpocket.dualscreen.assistant", own, homes))
-        assertEquals(Top.NONE, BottomScreenGuests.classify(null, own, homes))
-    }
-
-    @Test fun anotherAppTakesTheScreenAndHomeOrNothingGivesItBack() {
-        assertTrue(BottomScreenGuests.taken(Top.GUEST, hiddenArrival = false))
-        assertTrue("an app opened under DroidDeck's panel", BottomScreenGuests.taken(Top.OWN, hiddenArrival = true))
-        assertFalse(BottomScreenGuests.taken(Top.OWN, hiddenArrival = false))
-        assertFalse(BottomScreenGuests.taken(Top.HOME, hiddenArrival = true))
-        assertFalse(BottomScreenGuests.taken(Top.NONE, hiddenArrival = true))
+    @Test fun anyWindowButTheHomeScreenHoldsTheScreen() {
+        assertEquals(Top.HOME, BottomScreenGuests.classify("com.android.launcher3", homes))
+        assertEquals(Top.GUEST, BottomScreenGuests.classify("com.android.chrome", homes))
+        assertEquals(Top.GUEST, BottomScreenGuests.classify("com.retroidpocket.dualscreen.assistant", homes))
+        assertEquals(Top.NONE, BottomScreenGuests.classify(null, homes))
     }
 
     @Test fun keyboardsAndOverlaysNeverTakeTheScreen() {

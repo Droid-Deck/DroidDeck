@@ -13,21 +13,17 @@ import android.util.Log
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityWindowInfo
-import java.util.concurrent.ConcurrentHashMap
 
 object BottomScreenGuests {
-    enum class Top { OWN, HOME, GUEST, NONE }
+    enum class Top { HOME, GUEST, NONE }
 
     internal const val MIN_COVER = 0.5f
 
-    internal fun classify(pkg: String?, own: String, homes: Set<String>): Top = when (pkg) {
+    internal fun classify(pkg: String?, homes: Set<String>): Top = when (pkg) {
         null -> Top.NONE
-        own -> Top.OWN
         in homes -> Top.HOME
         else -> Top.GUEST
     }
-
-    internal fun taken(top: Top, hiddenArrival: Boolean): Boolean = top == Top.GUEST || (top == Top.OWN && hiddenArrival)
 
     internal fun ignorable(type: Int): Boolean = type == AccessibilityWindowInfo.TYPE_INPUT_METHOD ||
         type == AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY ||
@@ -39,11 +35,8 @@ object BottomScreenGuests {
 }
 
 class BottomScreenWatch(private val service: AccessibilityService) {
-    private class Arrival(val windowId: Int, val pkg: String)
-
     private val thread = HandlerThread("bottom-screen").apply { start() }
     private val handler = Handler(thread.looper)
-    private val arrivals = ConcurrentHashMap<Int, Arrival>()
     private val own = service.packageName
     private var homes: Set<String> = emptySet()
     private var holders: Map<Int, String?> = emptyMap()
@@ -51,7 +44,7 @@ class BottomScreenWatch(private val service: AccessibilityService) {
 
     fun start() {
         service.serviceInfo = service.serviceInfo?.apply {
-            eventTypes = eventTypes or AccessibilityEvent.TYPE_WINDOWS_CHANGED or AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+            eventTypes = eventTypes or AccessibilityEvent.TYPE_WINDOWS_CHANGED
             flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
         }
         handler.post {
@@ -61,15 +54,7 @@ class BottomScreenWatch(private val service: AccessibilityService) {
     }
 
     fun onEvent(event: AccessibilityEvent) {
-        when (event.eventType) {
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
-                val pkg = event.packageName?.toString() ?: return
-                if (event.displayId == Display.DEFAULT_DISPLAY || pkg == own) return
-                arrivals[event.displayId] = Arrival(event.windowId, pkg)
-            }
-            AccessibilityEvent.TYPE_WINDOWS_CHANGED -> Unit
-            else -> return
-        }
+        if (event.eventType != AccessibilityEvent.TYPE_WINDOWS_CHANGED) return
         handler.removeCallbacks(check)
         handler.postDelayed(check, 150)
     }
@@ -92,11 +77,8 @@ class BottomScreenWatch(private val service: AccessibilityService) {
             val topPkg = windows.asSequence()
                 .filter { !BottomScreenGuests.ignorable(it.type) && cover(it, display) >= BottomScreenGuests.MIN_COVER }
                 .sortedByDescending { it.layer }
-                .firstNotNullOfOrNull { packageOf(it) }
-            val top = BottomScreenGuests.classify(topPkg, own, homes)
-            val arrival = arrivals[id]?.takeUnless { a -> a.pkg in homes || windows.any { it.id == a.windowId } }
-            if (top != BottomScreenGuests.Top.OWN || arrival == null) arrivals.remove(id)
-            if (BottomScreenGuests.taken(top, arrival != null)) taken[id] = if (top == BottomScreenGuests.Top.GUEST) topPkg else arrival?.pkg
+                .firstNotNullOfOrNull { packageOf(it)?.takeUnless { pkg -> pkg == own } }
+            if (BottomScreenGuests.classify(topPkg, homes) == BottomScreenGuests.Top.GUEST) taken[id] = topPkg
         }
         if (taken != holders) Log.i(TAG, "bottom screen holders: $taken")
         holders = taken
@@ -117,6 +99,7 @@ class BottomScreenWatch(private val service: AccessibilityService) {
         return listOf(Intent.CATEGORY_HOME, Intent.CATEGORY_SECONDARY_HOME).flatMap { category ->
             runCatching {
                 pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(category), PackageManager.MATCH_ALL)
+                    .filter { it.priority >= 0 }
                     .mapNotNull { it.activityInfo?.packageName }
             }.getOrDefault(emptyList())
         }.toSet()
