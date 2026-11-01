@@ -134,8 +134,8 @@ android {
         applicationId "com.droiddeck.launcher"
         minSdkVersion 26
         targetSdkVersion 28
-        versionCode 16
-        versionName "0.6.7"
+        versionCode 17
+        versionName "0.6.9"
         buildConfigField "String", "BUILD_LABEL", "\"${escapedBuildLabel}\""
         buildConfigField "String", "SOURCE_COMMIT", "\"${sourceCommit}\""
         buildConfigField "int", "PR_NUMBER", "${prNumber}"
@@ -300,10 +300,22 @@ def stageGogNotices = tasks.register('stageGogNotices', Copy) {
 android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('gogNotices'))
 tasks.named('preBuild').configure { dependsOn(stageGogNotices) }
 
+// CI publishes its packs; a local build pins packs nobody hosts (see addonPacks), so the APK carries them.
+if (!ciBuild) {
+    def stageLocalPacks = tasks.register('stageLocalPacks', Sync) {
+        from(layout.buildDirectory.dir('packs')) { include '*.tar.zst' }
+        into(layout.buildDirectory.dir('localPackAssets/packs'))
+    }
+    android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('localPackAssets'))
+    tasks.named('preBuild').configure { dependsOn(stageLocalPacks) }
+}
+
 def verifyRuntimeInputs = tasks.register('verifyRuntimeInputs', Exec) {
     mustRunAfter(stageSessionScripts, stageRuntimeAssets)
     workingDir rootProject.projectDir
-    commandLine pythonExecutable, 'tools/release/runtime_inputs.py', 'verify'
+    def allowStale = (project.findProperty('allowStaleRuntime')
+        ?: localBuildOptions.getProperty('droiddeck.allowStaleRuntime', 'false')).toString().toBoolean()
+    commandLine([pythonExecutable, 'tools/release/runtime_inputs.py', 'verify'] + (allowStale ? ['--allow-stale-sources'] : []))
 }
 tasks.configureEach { task ->
     if (task.name in ['packageDebug', 'packageRelease']) task.dependsOn(verifyRuntimeInputs)

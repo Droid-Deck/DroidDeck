@@ -1006,7 +1006,7 @@ public class HudMetrics {
     // =======================================================================
 
     /**
-     * Immutable point-in-time reading of every metric the Fusion HUD draws. Collected in one pass by
+     * Immutable point-in-time reading of every metric the DroidDeck HUD draws. Collected in one pass by
      * {@link #snapshot()} so the view never touches sysfs / BatteryManager during draw (the user's
      * explicit ask: one collection pass, cached, so gameplay isn't strained). All numeric fields are
      * raw (nullable when unreadable); the view formats + colours them.
@@ -1268,7 +1268,7 @@ public class HudMetrics {
         Snapshot s = snapshot();
 
         StringBuilder sb = new StringBuilder();
-        sb.append("DroidDeck FusionHUD diagnostics\n");
+        sb.append("DroidDeck HUD diagnostics\n");
         sb.append("Generated: ")
           .append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date())).append('\n');
         sb.append("Device: ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL).append('\n');

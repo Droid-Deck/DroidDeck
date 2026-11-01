@@ -8,7 +8,7 @@ import kotlin.math.roundToInt
  * overlay.cpp update_hud_info_with_frametime and hud_elements.cpp fps() / frame_timing(). The FPS is the
  * frames counted over a sampling period of at least 500 ms, the frame time next to it is 1000 / FPS, and
  * the graph holds the last 200 frame times (zeros until filled) on a fixed 0-50 ms scale, min and max
- * taken over those 200. Average and lows are FusionHUD's own readouts.
+ * taken over those 200. Average and lows are DroidDeck HUD's own readouts.
  */
 internal class FrameStats {
     private val graph = FloatArray(GRAPH_FRAMES)

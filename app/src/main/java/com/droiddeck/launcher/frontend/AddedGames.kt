@@ -170,9 +170,9 @@ object AddedGames {
         val files = folder.listFiles() ?: return null
         if (files.any { it.isFile && it.name.endsWith(".exe", ignoreCase = true) && !skipExe(it.name) }) return null
         if (declaredExes(folder).isNotEmpty()) return null
-        val dirs = files.filter { it.isDirectory && !it.name.startsWith(".") }.sortedBy { it.name.lowercase() }
-        if (dirs.size < 2 || dirs.any { it.name.lowercase() in GAME_PARTS }) return null
-        return dirs.takeIf { all -> all.all { rank(it).exes.isNotEmpty() } }
+        val dirs = files.filter { it.isDirectory && !it.name.startsWith(".") && !isSteamLibraryFolder(it.name) }.sortedBy { it.name.lowercase() }
+        if (dirs.any { it.name.lowercase() in GAME_PARTS || GameExePicker.auxiliaryDir(it) }) return null
+        return dirs.filter { rank(it).exes.isNotEmpty() }.takeIf { it.size >= 2 }
     }
 
     private fun expand(folder: File, entries: Set<String>): List<File> =

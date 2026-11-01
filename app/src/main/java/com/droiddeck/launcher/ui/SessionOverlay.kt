@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Terminal
+import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.AutoFixHigh
 import androidx.compose.material.icons.outlined.ExpandMore
@@ -220,6 +221,8 @@ class DrawerActions(
     val micAvailable: Boolean = false,
     val micEnabled: Boolean = false,
     val onMicEnabled: (Boolean) -> Unit = {},
+    val backHold: Boolean = true,
+    val onBackHold: (Boolean) -> Unit = {},
     val backActionsInverted: Boolean,
     val backDoubleTapMs: Int = 500,
     val onBackDoubleTapMs: (Int) -> Unit = {},
@@ -240,6 +243,7 @@ class DrawerActions(
     val textureAnisotropy: Int? = 0,
     val textureLodBias: String? = TextureFiltering.LOD_BIAS_OFF,
     val secondScreenMode: SecondScreenMode,
+    val dashboardAvailable: Boolean = false,
     val secondScreenDisplays: List<SecondScreenDisplay>,
     val selectedSecondScreenDisplay: Int,
     val onHud: (Boolean) -> Unit,
@@ -533,7 +537,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(pageScroll.getValue(page)),
                 ) { CompositionLocalProvider(LocalChipMinWidth provides 96.dp, LocalCompactSettings provides true) {
                     when (page) {
-                        SessionDrawerPage.HUD -> FusionHudSettings(host, a) { key -> focus.track(page, key) }
+                        SessionDrawerPage.HUD -> DroidDeckHudSettings(host, a) { key -> focus.track(page, key) }
                         SessionDrawerPage.DISPLAY -> {
                             SettingsGroup(stringResource(R.string.drawer_page_display)) {
                                 val fgOpen = host.open == "fg"
@@ -639,6 +643,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                             chipModifier = focus.track(page, "keyboard-button"), onChange = a.onKeyboardButton)
                                     }
                                 }
+                                if (a.steam) ToggleRow(host, "back-hold", stringResource(R.string.back_hold),
+                                    stringResource(R.string.back_hold_hint), a.backHold,
+                                    chipModifier = focus.track(page, "back-hold"), onChange = a.onBackHold)
                                 if (a.steam) ChoiceRow(host, "back-actions", stringResource(R.string.mode_back), null,
                                     listOf(false to stringResource(SessionPrefs.BACK_MENU_THEN_QAM), true to stringResource(SessionPrefs.BACK_QAM_THEN_MENU)),
                                     a.backActionsInverted, chipModifier = focus.track(page, "back-actions"), onPick = a.onBackActionsInverted)
@@ -893,6 +900,7 @@ private fun BottomScreenModes(a: DrawerActions, modifier: Modifier, onPick: () -
         if (com.droiddeck.launcher.session.SessionState.deckPad) add(SecondScreenMode.DECK_CONTROLS to Icons.Outlined.SportsEsports)
         add(SecondScreenMode.KEYBOARD_TRACKPAD to Icons.Outlined.Keyboard)
         add(SecondScreenMode.TERMINAL to Icons.Outlined.Terminal)
+        if (a.dashboardAvailable) add(SecondScreenMode.DASHBOARD to Icons.Outlined.Dashboard)
     }
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -1190,7 +1198,8 @@ private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) 
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val modes = listOf(SecondScreenMode.NONE, SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL) +
-        if (com.droiddeck.launcher.session.SessionState.deckPad) listOf(SecondScreenMode.DECK_CONTROLS) else emptyList()
+        (if (com.droiddeck.launcher.session.SessionState.deckPad) listOf(SecondScreenMode.DECK_CONTROLS) else emptyList()) +
+        (if (a.dashboardAvailable) listOf(SecondScreenMode.DASHBOARD) else emptyList())
     SettingsGroup(stringResource(R.string.drawer_second_screen_mode)) {
         Column(Modifier.fillMaxWidth().selectableGroup()) {
             modes.forEach { mode ->

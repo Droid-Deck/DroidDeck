@@ -22,16 +22,22 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.os.SystemClock
 import android.text.format.DateFormat
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import androidx.annotation.VisibleForTesting
 import androidx.compose.ui.graphics.toArgb
+import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.ui.Motion
+import com.droiddeck.launcher.ui.Palette
 import com.droiddeck.launcher.ui.Themes
 import java.util.Date
 import java.util.Locale
 import java.util.function.BiConsumer
 import java.util.function.Consumer
+import java.util.function.IntConsumer
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -41,13 +47,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * Fusion HUD — the 4th selectable in-game overlay. One color-coded visual language rendered at four
+ * DroidDeck HUD — the 4th selectable in-game overlay. One color-coded visual language rendered at four
  * SIZE modes (Full / Tiles / Pill / Minimal / Mega), all driven by [FrameStats] (gamescope's frame times
  * read by MangoHud's rules) + a single cached [HudMetrics.Snapshot]. Pure Canvas drawing.
  *
@@ -60,7 +67,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * drag are frozen while locked. A locked HUD lets a touch through where an on-screen control under it
  * takes it ([passesTouchAt]); everywhere else it keeps the touch, so a long press there unlocks it.
  */
-class FusionHudView(context: Context) : View(context) {
+class DroidDeckHudView(context: Context) : View(context) {
 
     private var frames: FrameStats? = null
     internal fun setFrameStats(stats: FrameStats?) { frames = stats }
@@ -73,12 +80,13 @@ class FusionHudView(context: Context) : View(context) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var updateJob: Job? = null
+    private var hueJob: Job? = null
     private val metrics = HudMetrics(context)
 
     private val density = resources.displayMetrics.density
 
     // ---- Config -----------------------------------------------------------
-    private var size = FusionSize.FULL
+    private var size = DroidDeckHudSize.FULL
     private var scale = 1f
     private var bgOpacity = 0.8f
     private var outlineIntensity = 0.4f
@@ -114,7 +122,7 @@ class FusionHudView(context: Context) : View(context) {
 
     private var engineLabel = ""
     private var displayServer = ""     // "X11" / "Wayland": which display server the game runs on
-    private var hdrState = FusionHdr.NONE  // Wayland HDR, on its own line under latency · display server
+    private var hdrState = DroidDeckHudHdr.NONE  // Wayland HDR, on its own line under latency · display server
     private var gpuModel = ""
     // The GPU name a Wayland session reports to games instead of the real adapter ("" = none). It has
     // to travel separately from gpuModel: Wayland hands the spoof to DXVK and leaves the Vulkan device
@@ -146,7 +154,15 @@ class FusionHudView(context: Context) : View(context) {
     private var headerMark: RectF? = null
     private var chipRect: RectF? = null
 
-    // Every size sits in the DroidDeck mark's D: a straight left side split by the orb, round on the
+    // Pushed past a screen edge, the HUD shrinks to a tab with the FPS that stays at that edge.
+    var dock = DroidDeckHudDock.NONE
+        private set
+    private var tabRect: RectF? = null
+    // The Strip is a bar across the whole screen, kept against the top or bottom edge.
+    private var stripRect: RectF? = null
+    private val tabPath = Path()
+
+    // Every size sits in the DroidDeck mark's D: a straight left side, round on the
     // right. Its fixed layers (fill, header band, watermark, glowing outline) go into a bitmap, because
     // Android before 9 skips glow on shapes drawn with hardware acceleration.
     private var dPanel: RectF? = null
@@ -213,12 +229,83 @@ class FusionHudView(context: Context) : View(context) {
     fun setOnMovedListener(l: BiConsumer<Float, Float>?) { onMovedListener = l }
     fun setOnSizeCycledListener(l: Consumer<String>?) { onSizeCycledListener = l }
     fun setOnLockChangedListener(l: Consumer<Boolean>?) { onLockChangedListener = l }
+    private var onDockChangedListener: Consumer<String>? = null
+    private var onScaledListener: IntConsumer? = null
+    private var onDraggedListener: BiConsumer<Float, Float>? = null
+    /** The HUD moved under the finger, at that screen point. */
+    fun setOnDraggedListener(l: BiConsumer<Float, Float>?) { onDraggedListener = l }
+    private var onFlungListener: BiConsumer<Float, Float>? = null
+    /** A drag ended in a fling, at this velocity (pixels per second), just before the move is reported. */
+    fun setOnFlungListener(l: BiConsumer<Float, Float>?) { onFlungListener = l }
+    fun setOnDockChangedListener(l: Consumer<String>?) { onDockChangedListener = l }
+    /** A pinch settled on this size, in percent. */
+    fun setOnScaledListener(l: IntConsumer?) { onScaledListener = l }
 
     private val lockController = HudLockController(context, this, object : HudLockController.Callbacks {
         override fun onTap() { cycleSize() }
         override fun onMoved(x: Float, y: Float) { onMovedListener?.accept(x, y) }
+        override fun onDragged(rawX: Float, rawY: Float) { onDraggedListener?.accept(rawX, rawY) }
+        override fun onFlung(velocityX: Float, velocityY: Float) { onFlungListener?.accept(velocityX, velocityY) }
         override fun onLockChanged(locked: Boolean) { onLockChangedListener?.accept(locked) }
+        override fun onPinch(factor: Float) {
+            val next = (scale * factor).coerceIn(MIN_SCALE, MAX_SCALE)
+            if (next == scale) return
+            scale = next
+            rebuildAndInvalidate()
+        }
+        override fun onPinchEnd() { onScaledListener?.accept((scale * 100f).roundToInt()) }
     })
+
+    // A docked tab always takes touches, locked or not: a tap brings the HUD back, a drag moves the tab.
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+    private var tabDownRawX = 0f
+    private var tabDownRawY = 0f
+    private var tabStartX = 0f
+    private var tabStartY = 0f
+    private var tabDragging = false
+    private var onTabDraggedListener: BiConsumer<Float, Float>? = null
+    private var onTabDroppedListener: Runnable? = null
+    private var onTabDragCancelledListener: Runnable? = null
+    /** The docked tab is dragged: where the finger would put it (x, y in the parent). */
+    fun setOnTabDraggedListener(l: BiConsumer<Float, Float>?) { onTabDraggedListener = l }
+    fun setOnTabDroppedListener(l: Runnable?) { onTabDroppedListener = l }
+    /** The system took the tab's drag away: the tab goes back to where it was docked. */
+    fun setOnTabDragCancelledListener(l: Runnable?) { onTabDragCancelledListener = l }
+
+    private fun onTabTouch(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                tabDownRawX = event.rawX; tabDownRawY = event.rawY
+                tabStartX = x; tabStartY = y
+                tabDragging = false
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dx = event.rawX - tabDownRawX; val dy = event.rawY - tabDownRawY
+                if (!tabDragging && dx * dx + dy * dy > touchSlop * touchSlop) tabDragging = true
+                if (tabDragging) onTabDraggedListener?.accept(tabStartX + dx, tabStartY + dy)
+            }
+            MotionEvent.ACTION_UP -> {
+                if (tabDragging) { tabDragging = false; onTabDroppedListener?.run() }
+                else onDockChangedListener?.accept(DroidDeckHudDock.NONE.token)
+            }
+            MotionEvent.ACTION_CANCEL -> if (tabDragging) {
+                tabDragging = false
+                onTabDragCancelledListener?.run()
+            }
+        }
+        return true
+    }
+
+    // On the way into the tab or out of it, the tab fades in over the HUD at the tab's true size on screen.
+    private var previewEdge = DroidDeckHudDock.NONE
+    private var previewBlend = 0f
+    internal fun setDockPreview(edge: DroidDeckHudDock, blend: Float) {
+        val b = blend.coerceIn(0f, 1f)
+        if (edge == previewEdge && b == previewBlend) return
+        previewEdge = edge; previewBlend = b
+        invalidate()
+    }
+    internal val dockPreviewBlend: Float get() = previewBlend
 
     // ---- Public surface (symmetric with the other overlays) ---------------
     fun setEngineLabel(s: String?) { if ((s ?: "") != engineLabel) { engineLabel = s ?: ""; post { rebuildAndInvalidate() } } }
@@ -227,9 +314,9 @@ class FusionHudView(context: Context) : View(context) {
      *  in place of the real model, marked so it can't be read as the chip that is really rendering. */
     fun setGpuSpoofName(s: String?) { gpuSpoofName = s ?: ""; post { rebuildAndInvalidate() } }
     fun setDisplayServer(s: String?) { displayServer = s ?: ""; post { rebuildAndInvalidate() } }
-    /** [FusionHdr] code; [FusionHdr.NONE] (the default) draws no HDR line anywhere. Any thread. */
+    /** [DroidDeckHudHdr] code; [DroidDeckHudHdr.NONE] (the default) draws no HDR line anywhere. Any thread. */
     fun setHdrState(state: Int) {
-        val v = if (state in FusionHdr.ON..FusionHdr.NOT_ON_THIS_SCREEN) state else FusionHdr.NONE
+        val v = if (state in DroidDeckHudHdr.ON..DroidDeckHudHdr.NOT_ON_THIS_SCREEN) state else DroidDeckHudHdr.NONE
         post { if (v != hdrState) { hdrState = v; rebuildAndInvalidate() } }
     }
     fun setWineVersion(s: String?) { if ((s ?: "") != wineVersion) { wineVersion = s ?: ""; post { rebuildAndInvalidate() } } }
@@ -255,7 +342,7 @@ class FusionHudView(context: Context) : View(context) {
         if (graphRect != null) invalidate()
     }
 
-    /** Fusion has no orientation (tap cycles size instead); kept for a symmetric host surface. */
+    /** The HUD has no orientation (tap cycles size instead); kept for a symmetric host surface. */
     fun setVertical(vertical: Boolean) { /* no-op */ }
     fun isVertical(): Boolean = false
 
@@ -269,7 +356,7 @@ class FusionHudView(context: Context) : View(context) {
         if (configString.isNullOrEmpty()) return
         val cfg = KeyValueSet(configString)
 
-        size = FusionSize.from(cfg.get("hudSize", "minimal"))
+        size = DroidDeckHudSize.from(cfg.get("hudSize", "minimal"))
         showFPS = cfg.get("showFPS", "1") == "1"
         showEngine = cfg.get("showEngine", "1") == "1"
         showGpuModel = cfg.get("showGpuModel", "1") == "1"
@@ -285,7 +372,7 @@ class FusionHudView(context: Context) : View(context) {
         showGraph = cfg.get("showFPSGraph", "0") == "1"
         showLow001 = cfg.get("showLow001", "1") == "1"
         fpsDecimal = cfg.get("fpsDecimal", "1") == "1"
-        showClockTime = cfg.get("showClock", "1") == "1"   // Fusion clock defaults ON
+        showClockTime = cfg.get("showClock", "1") == "1"   // the clock defaults ON
         showPerCore = cfg.get("showPerCore", "1") == "1"
         showSwap = cfg.get("showSwap", "1") == "1"
         showNet = cfg.get("showNet", "1") == "1"
@@ -296,6 +383,7 @@ class FusionHudView(context: Context) : View(context) {
         showSession = cfg.get("showSession", "1") == "1"
         tempDisplay = HudMetrics.TempDisplay.from(cfg)
         lockController.setLocked(cfg.get("hudLocked", "1") == "1")
+        dock = DroidDeckHudDock.from(cfg.get("hudDock", "none"))
 
         colorIntensity = when (cfg.get("hudColor", "vivid")) {
             "soft" -> 0.72f; "mid" -> 0.88f; else -> 1.0f
@@ -329,9 +417,11 @@ class FusionHudView(context: Context) : View(context) {
 
     private fun stopUpdates() {
         updateJob?.cancel(); updateJob = null
+        hueJob?.cancel(); hueJob = null
     }
 
     private fun startUpdates() {
+        startHueCycle()
         if (updateJob?.isActive == true) return
         updateJob = scope.launch {
             while (isActive) {
@@ -358,11 +448,48 @@ class FusionHudView(context: Context) : View(context) {
     var onRefresh: Runnable? = null
 
     private fun applyTheme() {
-        val palette = Themes.current(context)
+        applyPalette(Themes.current(context))
+        if (isAttachedToWindow && isShown) startHueCycle()
+    }
+
+    private fun applyPalette(palette: Palette) {
         accent = palette.primary.toArgb()
         surfaceRgb = palette.surface.toArgb() and 0xFFFFFF
         colFps = accent
         colGraph = lighten(accent, 0.3f)
+    }
+
+    /**
+     * Inner Gamer turns the colour wheel inside the app's Compose UI, which is not running while the drawer is
+     * closed, so the HUD turns it here and shares the hue so the drawer picks up where the HUD is.
+     */
+    private fun startHueCycle() {
+        if (hueJob?.isActive == true) return
+        if (SessionPrefs.theme(context) != Themes.INNER_GAMER) return
+        hueJob = scope.launch {
+            var hue = Themes.rgbHue
+            var shown = Float.NaN
+            var last = SystemClock.uptimeMillis()
+            while (isActive && SessionPrefs.theme(context) == Themes.INNER_GAMER) {
+                val now = SystemClock.uptimeMillis()
+                val cycle = Themes.rgbCycleMillis(Themes.rgbSpeed).toFloat()
+                if (Motion.scale == 0f) {
+                    last = now
+                    delay(HUE_IDLE_MS)
+                    continue
+                }
+                hue = (hue + (now - last) / cycle * 360f) % 360f
+                last = now
+                val stepped = (hue / Themes.RGB_HUE_STEP).toInt() * Themes.RGB_HUE_STEP
+                if (stepped != shown) {
+                    shown = stepped
+                    Themes.moveRgbHue(stepped)
+                    applyPalette(Themes.innerGamer(stepped))
+                    rebuildAndInvalidate()
+                }
+                delay((cycle * Themes.RGB_HUE_STEP / 360f).toLong().coerceAtLeast(16L))
+            }
+        }
     }
 
     private fun lighten(color: Int, amount: Float): Int = Color.rgb(
@@ -453,27 +580,27 @@ class FusionHudView(context: Context) : View(context) {
     private fun glowing(spans: List<Span>): List<Span> =
         spans.mapIndexed { i, s -> if (i == 0) Span(s.text, s.color, s.sizePx, glow = true) else s }
 
-    // ---- Wayland HDR state (one line of its own; nothing at all for FusionHdr.NONE) ----
+    // ---- Wayland HDR state (one line of its own; nothing at all for DroidDeckHudHdr.NONE) ----
     /** The state as a full line: "HDR", "HDR (no headroom)", "HDR off", "HDR ready", "HDR tone-mapped",
      *  "HDR not on this screen". */
     private fun hdrLine(px: Float): List<Span> = when (hdrState) {
-        FusionHdr.ON -> listOf(Span("HDR", colHdr, px))
-        FusionHdr.NO_HEADROOM -> listOf(Span("HDR", colHdr, px), Span(" (no headroom)", colBat, px))
-        FusionHdr.OFF -> listOf(Span("HDR off", colDim, px))
-        FusionHdr.READY -> listOf(Span("HDR ready", colDim, px))
-        FusionHdr.TONEMAPPED -> listOf(Span("HDR", colDim, px), Span(" tone-mapped", colBat, px))
-        FusionHdr.NOT_ON_THIS_SCREEN -> listOf(Span("HDR", colDim, px), Span(" not on this screen", colBat, px))
+        DroidDeckHudHdr.ON -> listOf(Span("HDR", colHdr, px))
+        DroidDeckHudHdr.NO_HEADROOM -> listOf(Span("HDR", colHdr, px), Span(" (no headroom)", colBat, px))
+        DroidDeckHudHdr.OFF -> listOf(Span("HDR off", colDim, px))
+        DroidDeckHudHdr.READY -> listOf(Span("HDR ready", colDim, px))
+        DroidDeckHudHdr.TONEMAPPED -> listOf(Span("HDR", colDim, px), Span(" tone-mapped", colBat, px))
+        DroidDeckHudHdr.NOT_ON_THIS_SCREEN -> listOf(Span("HDR", colDim, px), Span(" not on this screen", colBat, px))
         else -> emptyList()
     }
     /** The value after an "HDR" label (Full / Mega): "on", "no headroom", "off", "ready", "tone-mapped",
      *  "not on this screen". */
     private fun hdrValue(px: Float): List<Span> = when (hdrState) {
-        FusionHdr.ON -> listOf(Span("on", colHdr, px))
-        FusionHdr.NO_HEADROOM -> listOf(Span("no headroom", colBat, px))
-        FusionHdr.OFF -> listOf(Span("off", colDim, px))
-        FusionHdr.READY -> listOf(Span("ready", colDim, px))
-        FusionHdr.TONEMAPPED -> listOf(Span("tone-mapped", colBat, px))
-        FusionHdr.NOT_ON_THIS_SCREEN -> listOf(Span("not on this screen", colBat, px))
+        DroidDeckHudHdr.ON -> listOf(Span("on", colHdr, px))
+        DroidDeckHudHdr.NO_HEADROOM -> listOf(Span("no headroom", colBat, px))
+        DroidDeckHudHdr.OFF -> listOf(Span("off", colDim, px))
+        DroidDeckHudHdr.READY -> listOf(Span("ready", colDim, px))
+        DroidDeckHudHdr.TONEMAPPED -> listOf(Span("tone-mapped", colBat, px))
+        DroidDeckHudHdr.NOT_ON_THIS_SCREEN -> listOf(Span("not on this screen", colBat, px))
         else -> emptyList()
     }
     private fun hdrText(): String = hdrLine(1f).joinToString("") { it.text }
@@ -495,26 +622,66 @@ class FusionHudView(context: Context) : View(context) {
     // ---- Layout builders --------------------------------------------------
     private fun rebuild() {
         glyphs.clear(); tileRects.clear(); graphRect = null
-        headerMark = null; chipRect = null; dPanel = null; dDividerTop = -1f
+        headerMark = null; chipRect = null; dPanel = null; dDividerTop = -1f; tabRect = null; stripRect = null
         val s = snap
         if (s == null) { contentW = 0f; contentH = 0f; return }
+        if (dock != DroidDeckHudDock.NONE) { buildDockTab(); return }
         when (size) {
-            FusionSize.FULL -> { buildFull(s); intoPanel(sp(10f), header = true) }
-            FusionSize.TILES -> { buildTiles(s); intoPanel(sp(9f), header = true) }
-            FusionSize.PILL -> { buildPill(s); intoPanel(sp(10f), header = false) }
-            FusionSize.MINIMAL -> buildMinimal(s)
-            FusionSize.MEGA -> { buildMega(s); intoPanel(sp(10f), header = true) }
+            DroidDeckHudSize.FULL -> { buildFull(s); intoPanel(sp(10f), header = true) }
+            DroidDeckHudSize.TILES -> { buildTiles(s); intoPanel(sp(9f), header = true) }
+            DroidDeckHudSize.PILL -> { buildPill(s); intoPanel(sp(10f), header = false) }
+            DroidDeckHudSize.MINIMAL -> buildMinimal(s)
+            DroidDeckHudSize.MEGA -> { buildMega(s); intoPanel(sp(10f), header = true) }
+            DroidDeckHudSize.STRIP -> buildStrip(s)
         }
+    }
+
+    /** The docked tab: the FPS alone, in a box square on the edge it sits against. */
+    private fun buildDockTab() {
+        val numPx = sp(20f)
+        val spans = tabSpans()
+        val padX = sp(9f); val padY = sp(7f)
+        placeRun(padX, padY + capHeight(numPx), spans)
+        val (w, h) = dockTabSize()
+        contentW = w; contentH = h
+        tabRect = RectF(0f, 0f, contentW, contentH)
+    }
+
+    private fun tabSpans() = listOf(Span(one(fpsNow), colValue, sp(20f)), Span("fps", colDim, sp(8.5f)))
+
+    /** The size the docked tab has, so the HUD can contract to exactly that shape before the tab replaces it. */
+    internal fun dockTabSize(): Pair<Float, Float> =
+        Pair(runWidth(tabSpans()) + 2f * sp(9f), capHeight(sp(20f)) + 2f * sp(7f))
+
+    private fun drawTab(canvas: Canvas, rect: RectF, edgeOf: DroidDeckHudDock = dock) {
+        val r = sp(8f); val stroke = max(outlineWidth(), sp(1.5f)); val h = stroke / 2f
+        val round = floatArrayOf(r, r, r, r, r, r, r, r)
+        val edge = when (edgeOf) {
+            DroidDeckHudDock.LEFT -> intArrayOf(0, 3)
+            DroidDeckHudDock.RIGHT -> intArrayOf(1, 2)
+            DroidDeckHudDock.TOP -> intArrayOf(0, 1)
+            DroidDeckHudDock.BOTTOM -> intArrayOf(2, 3)
+            DroidDeckHudDock.NONE -> intArrayOf()
+        }
+        for (corner in edge) { round[corner * 2] = 0f; round[corner * 2 + 1] = 0f }
+        tabPath.rewind()
+        tabPath.addRoundRect(rect.left + h, rect.top + h, rect.right - h, rect.bottom - h, round, Path.Direction.CW)
+        headerPaint.shader = null
+        headerPaint.color = withAlpha(panelColor(), max(Color.alpha(panelColor()), 200))
+        canvas.drawPath(tabPath, headerPaint)
+        strokePaint.strokeWidth = stroke
+        strokePaint.color = outlineColor()
+        canvas.drawPath(tabPath, strokePaint)
     }
 
     // ---- DroidDeck panel, header and chip -----------------------------------
     /** The clock sits in the header on every size but the Pill, which keeps it under the FPS. */
-    private fun footerClock(): Boolean = showClockTime && size == FusionSize.PILL
+    private fun footerClock(): Boolean = showClockTime && size == DroidDeckHudSize.PILL
 
     private fun measureSans(text: String, sizePx: Float): Float { wordmarkPaint.textSize = sizePx; return wordmarkPaint.measureText(text) }
 
     private fun panelInset() = sp(8f)              // room for the glow around the panel
-    private fun panelLeft() = sp(13f)              // the orb and its glow stick out of the left side
+    private fun panelLeft() = sp(13f)              // the outline's glow sticks out of the left side
     private fun contentLeft() = panelLeft() + sp(16f)
 
     /** The DroidDeck mark, "DroidDeck" and the clock across the top, starting on [left], with the same
@@ -672,7 +839,7 @@ class FusionHudView(context: Context) : View(context) {
             rows.add(HudRow(Span("GPU", colGpu, rowPx), gpuModelSpans(rowPx, colValue)))
         if (displayServer.isNotBlank())
             rows.add(HudRow(Span("DISP", colDisp, rowPx), listOf(Span(displayServer, colValue, rowPx))))
-        if (hdrState != FusionHdr.NONE)
+        if (hdrState != DroidDeckHudHdr.NONE)
             rows.add(HudRow(Span("HDR", colHdr, rowPx), hdrValue(rowPx)))
         if (showGPU) {
             val v = ArrayList<Span>()
@@ -784,7 +951,7 @@ class FusionHudView(context: Context) : View(context) {
                 dxVersion().ifBlank { null }, false))
         if (displayServer.isNotBlank())
             tiles.add(Tile("DISPLAY", colDisp, listOf(Span(displayServer, colValue, valPx)),
-                if (hdrState != FusionHdr.NONE) hdrText() else null, false))
+                if (hdrState != DroidDeckHudHdr.NONE) hdrText() else null, false))
         if (showGpuModel && gpuNameText().isNotBlank())
             tiles.add(Tile("GPU", colGpu, gpuModelSpans(valPx, colValue), null, true))
         if (showBattery || showPower || showBatteryTemp) {
@@ -893,7 +1060,7 @@ class FusionHudView(context: Context) : View(context) {
         }
         // Wayland HDR state on its OWN line directly under the latency · display-server line (it ran off
         // the capsule's right edge as "40.3ms · Wayland · HDR (no headroom)"). Only in HDR sessions.
-        if (hdrState != FusionHdr.NONE) stack.add(hdrLine(stkPx))
+        if (hdrState != DroidDeckHudHdr.NONE) stack.add(hdrLine(stkPx))
 
         var statsW = 0f
         for (l in stack) statsW = max(statsW, runWidth(l))
@@ -963,7 +1130,7 @@ class FusionHudView(context: Context) : View(context) {
         }
         val footerLabel = listOf(if (showEngine) engineLabel else "", displayServer)
             .filter { it.isNotBlank() }.joinToString(" · ")
-        val hdr = if (hdrState != FusionHdr.NONE) hdrLine(footPx) else emptyList()
+        val hdr = if (hdrState != DroidDeckHudHdr.NONE) hdrLine(footPx) else emptyList()
 
         val (headerBottom, headerRight) = addPanelHeader(left, inner)
         val x = headerRight
@@ -994,6 +1161,94 @@ class FusionHudView(context: Context) : View(context) {
         val panel = RectF(panelLeft(), panelInset(), left + colW + sp(34f), last + measurePaint.fontMetrics.descent + sp(9f) + stroke)
 
         finishPanel(panel, halfRound = true)
+    }
+
+    /**
+     * Full's readouts on one line across the screen: the mark, the FPS, the graph, the lows, then GPU, CPU,
+     * memory, battery, display server and GPU model, with the clock on the right end. Groups that no longer
+     * fit before the clock are left off, from the end.
+     */
+    private fun buildStrip(s: HudMetrics.Snapshot) {
+        val rowPx = sp(11.5f); val unitPx = rowPx * 0.8f; val fpsPx = sp(15f)
+        val padX = sp(10f); val groupGap = sp(13f)
+        val h = sp(26f)
+        val w = ((parent as? View)?.width?.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels).toFloat()
+        val mid = h / 2f
+        val baseline = mid + capHeight(fpsPx) / 2f
+
+        val markH = sp(13f)
+        val markLeft = padX - DroidDeckMark.inkLeftFor(markH)
+        headerMark = RectF(markLeft, mid - markH / 2f, markLeft + DroidDeckMark.widthFor(markH), mid + markH / 2f)
+        var x = markLeft + DroidDeckMark.inkRightFor(markH) + sp(8f)
+
+        var right = w - padX
+        if (showClockTime) {
+            val t = clockTimeString()
+            right -= measure(t, rowPx)
+            glyphs.add(Glyph(right, baseline, t, blend(colDim), rowPx))
+            right -= groupGap
+        }
+
+        val generating = differs(fpsNow)
+        val fps = ArrayList<Span>()
+        if (apiLabel() != "FPS") fps += Span("${apiLabel()} ", colDim, rowPx)
+        fps += Span(fpsText(fpsNow), colValue, if (generating) fpsPx * 0.8f else fpsPx, glow = true)
+        fps += Span("fps", colDim, unitPx)
+        x = placeRun(x, baseline, fps) + groupGap
+
+        if (showGraph) {
+            val gw = sp(72f); val gh = h * 0.55f
+            if (x + gw <= right) {
+                graphRect = RectF(x, mid - gh / 2f, x + gw, mid + gh / 2f)
+                x += gw + groupGap
+            }
+        }
+
+        val groups = ArrayList<List<Span>>()
+        run {
+            val l = ArrayList<Span>()
+            l += Span("1% ", colDim, rowPx); l += Span(lowText(lows.low1Fps) ?: "—", colFps, rowPx)
+            l += Span(" 0.1% ", colDim, rowPx); l += Span(lowText(lows.low01Fps) ?: "—", colFps, rowPx)
+            if (showLow001) { l += Span(" 0.01% ", colDim, rowPx); l += Span(lowText(lows.low001Fps) ?: "—", colFps, rowPx) }
+            groups += l
+        }
+        if (showGPU || showGpuTemp) {
+            val l = arrayListOf(Span("GPU", colGpu, rowPx))
+            if (showGPU) l += Span(" ${s.gpuPercent ?: "—"}%", colGpu, rowPx)
+            if (showGpuTemp && s.gpuTempC != null) { l += Span(" ", colDim, rowPx); l += tempSpans(s.gpuTempC, HudMetrics.TempSensor.GPU, rowPx, unitPx) }
+            groups += l
+        }
+        if (showCPU || showCpuTemp) {
+            val l = arrayListOf(Span("CPU", colCpu, rowPx))
+            if (showCPU) l += Span(" ${s.cpuPercent ?: "—"}%", colCpu, rowPx)
+            if (showCpuTemp && s.cpuTempC != null) { l += Span(" ", colDim, rowPx); l += tempSpans(s.cpuTempC, HudMetrics.TempSensor.CPU, rowPx, unitPx) }
+            groups += l
+        }
+        if (showVram) s.vramText()?.let { groups += listOf(Span("VRAM $it", colVram, rowPx)) }
+        if (showRAM) groups += listOf(Span("RAM ${s.ramPercent.roundToInt()}%", colRam, rowPx))
+        if (showBattery || showPower || showBatteryTemp) {
+            val l = ArrayList<Span>()
+            fun part(spans: List<Span>) {
+                l += if (l.isEmpty()) Span("BAT ", colBat, rowPx) else Span(" ", colDim, rowPx)
+                l += spans
+            }
+            if (showBattery && s.battery.percent != null) part(listOf(Span("${s.battery.percent}%", colBat, rowPx)))
+            if (showBatteryTemp && s.battery.tempC != null)
+                part(tempSpans(s.battery.tempC, HudMetrics.TempSensor.BATTERY, rowPx, unitPx))
+            if (showPower && s.battery.watts > 0f) part(listOf(Span("${fmt1(s.battery.watts)}W", colDim, rowPx)))
+            if (l.isNotEmpty()) groups += l
+        }
+        if (displayServer.isNotBlank()) groups += listOf(Span(displayServer, colDisp, rowPx))
+        if (hdrState != DroidDeckHudHdr.NONE) groups += hdrLine(rowPx)
+        if (showGpuModel && gpuNameText().isNotBlank()) groups += gpuModelSpans(rowPx, colDim, compact = true)
+
+        for (g in groups) {
+            if (x + runWidth(g) > right) break
+            x = placeRun(x, baseline, g) + groupGap
+        }
+
+        stripRect = RectF(0f, 0f, w, h)
+        contentW = w; contentH = h
     }
 
     private fun capHeight(px: Float): Float {
@@ -1143,7 +1398,7 @@ class FusionHudView(context: Context) : View(context) {
         val band = ArrayList<List<Span>>()
         if (showResolution) band.add(listOf(Span("RES ", colDim, bandPx), Span(resolutionString(), colValue, bandPx)))
         if (displayServer.isNotBlank()) band.add(listOf(Span("DISP ", colDim, bandPx), Span(displayServer, colDisp, bandPx)))
-        if (hdrState != FusionHdr.NONE) band.add(listOf(Span("HDR ", colDim, bandPx)) + hdrValue(bandPx))
+        if (hdrState != DroidDeckHudHdr.NONE) band.add(listOf(Span("HDR ", colDim, bandPx)) + hdrValue(bandPx))
         if (showProton && wineVersion.isNotBlank()) band.add(listOf(Span(wineVersion, colVram, bandPx)))
         if (showSession) band.add(listOf(Span("elapsed ", colDim, bandPx), Span(elapsedString(), colValue, bandPx)))
         if (band.isNotEmpty()) {
@@ -1185,6 +1440,8 @@ class FusionHudView(context: Context) : View(context) {
 
     // ---- Measure / draw ---------------------------------------------------
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        // The Strip spans the parent, past the side margin the floating sizes keep.
+        if (stripRect != null) { setMeasuredDimension(contentW.roundToInt(), resolveSize(contentH.roundToInt(), heightMeasureSpec)); return }
         setMeasuredDimension(
             resolveSize(contentW.roundToInt(), widthMeasureSpec),
             resolveSize(contentH.roundToInt(), heightMeasureSpec),
@@ -1193,6 +1450,39 @@ class FusionHudView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         if (contentW <= 0f || contentH <= 0f) { lockController.drawBadge(canvas); return }
+        val blend = if (dock == DroidDeckHudDock.NONE && previewEdge != DroidDeckHudDock.NONE) previewBlend else 0f
+        if (blend <= 0f) { drawContent(canvas); return }
+        if (blend < 1f) {
+            canvas.saveLayerAlpha(0f, 0f, width.toFloat(), height.toFloat(), ((1f - blend) * 255f).roundToInt())
+            drawContent(canvas)
+            canvas.restore()
+        }
+        drawTabPreview(canvas, blend)
+    }
+
+    /** The docked tab drawn at its own size in the middle of the view, undoing the view's scale. */
+    private fun drawTabPreview(canvas: Canvas, blend: Float) {
+        val (w, h) = dockTabSize()
+        if (scaleX <= 0f || scaleY <= 0f) return
+        canvas.save()
+        canvas.translate(width / 2f, height / 2f)
+        canvas.scale(1f / scaleX, 1f / scaleY)
+        canvas.translate(-w / 2f, -h / 2f)
+        canvas.saveLayerAlpha(0f, 0f, w, h, (blend * 255f).roundToInt())
+        drawTab(canvas, RectF(0f, 0f, w, h), previewEdge)
+        var x = sp(9f)
+        val baseline = sp(7f) + capHeight(sp(20f))
+        for (span in tabSpans()) {
+            drawPaint.textSize = span.sizePx
+            drawPaint.color = blend(span.color)
+            canvas.drawText(span.text, x, baseline, drawPaint)
+            x += measure(span.text, span.sizePx)
+        }
+        canvas.restore()
+        canvas.restore()
+    }
+
+    private fun drawContent(canvas: Canvas) {
 
         dPanel?.let { panel -> panelFrame(panel)?.let { canvas.drawBitmap(it, 0f, 0f, null) } }
 
@@ -1204,6 +1494,8 @@ class FusionHudView(context: Context) : View(context) {
         }
 
         chipRect?.let { drawChip(canvas, it) }
+        tabRect?.let { drawTab(canvas, it) }
+        stripRect?.let { drawStrip(canvas, it) }
 
         // Text
         for (g in glyphs) {
@@ -1245,6 +1537,21 @@ class FusionHudView(context: Context) : View(context) {
         canvas.drawPath(graphPath, graphPaint)
     }
 
+    /** The bar, with the accent line on the side that faces the game (under it at the top, over it at the bottom). */
+    private fun drawStrip(canvas: Canvas, rect: RectF) {
+        headerPaint.shader = null
+        headerPaint.color = panelColor()
+        canvas.drawRect(rect, headerPaint)
+        val stroke = outlineWidth()
+        if (stroke <= 0f) return
+        val line = max(stroke / 2f, density)
+        val p = parent as? View
+        val atBottom = p != null && p.height > 0 && y + height / 2f > p.height / 2f
+        headerPaint.color = withAlpha(outlineColor(), (110 + 145 * outlineIntensity).roundToInt().coerceAtMost(255))
+        if (atBottom) canvas.drawRect(rect.left, rect.top, rect.right, rect.top + line, headerPaint)
+        else canvas.drawRect(rect.left, rect.bottom - line, rect.right, rect.bottom, headerPaint)
+    }
+
     private fun outlineWidth(): Float = if (outlineIntensity > 0f) outlineIntensity * sp(3.5f) else 0f
     private fun outlineColor(): Int = if (outlineFollowAccent) accent else Color.rgb(200, 200, 200)
     private fun panelColor(): Int = Color.argb((bgOpacity.coerceIn(0f, 1f) * 255f).roundToInt(),
@@ -1253,19 +1560,17 @@ class FusionHudView(context: Context) : View(context) {
         Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
 
     /** The D: straight left side with small corners, round on the right with radius [rad] (a half circle
-     *  when it is half the height). [split] > 0 leaves that much open above and below the middle of the
-     *  left side, where the orb sits. */
-    private fun dShape(l: Float, t: Float, r: Float, b: Float, rad: Float, corner: Float, split: Float): Path {
-        val cy = (t + b) / 2f
+     *  when it is half the height). */
+    private fun dShape(l: Float, t: Float, r: Float, b: Float, rad: Float, corner: Float): Path {
         return Path().apply {
-            if (split > 0f) moveTo(l, cy + split) else moveTo(l, t + corner)
+            moveTo(l, t + corner)
             lineTo(l, b - corner); quadTo(l, b, l + corner, b)
             lineTo(r - rad, b)
             arcTo(r - 2f * rad, b - 2f * rad, r, b, 90f, -90f, false)
             lineTo(r, t + rad)
             arcTo(r - 2f * rad, t, r, t + 2f * rad, 0f, -90f, false)
             lineTo(l + corner, t); quadTo(l, t, l, t + corner)
-            if (split > 0f) lineTo(l, cy - split) else close()
+            close()
         }
     }
 
@@ -1285,7 +1590,7 @@ class FusionHudView(context: Context) : View(context) {
         val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         val corner = sp(6f)
-        val body = dShape(panel.left, panel.top, panel.right, panel.bottom, dRadius, corner, 0f)
+        val body = dShape(panel.left, panel.top, panel.right, panel.bottom, dRadius, corner)
         bgPaint.color = panelColor()
         c.drawPath(body, bgPaint)
         c.save()
@@ -1307,7 +1612,7 @@ class FusionHudView(context: Context) : View(context) {
         c.restore()
         if (stroke > 0f) {
             val h = stroke / 2f
-            val outline = dShape(panel.left + h, panel.top + h, panel.right - h, panel.bottom - h, dRadius - h, corner, sp(9f))
+            val outline = dShape(panel.left + h, panel.top + h, panel.right - h, panel.bottom - h, dRadius - h, corner)
             val blur = BlurMaskFilter((sp(3.2f) - 0.5f).coerceAtLeast(0.5f) / 0.57735f, BlurMaskFilter.Blur.NORMAL)
             glowPaint.strokeWidth = stroke
             // Two blurred passes under the sharp one, as the 4-in-1 preview's neon.
@@ -1315,8 +1620,6 @@ class FusionHudView(context: Context) : View(context) {
                 glowPaint.maskFilter = if (pass < 2) blur else null
                 glowPaint.style = Paint.Style.STROKE; glowPaint.color = outlineColor()
                 c.drawPath(outline, glowPaint)
-                glowPaint.style = Paint.Style.FILL; glowPaint.color = accent
-                c.drawCircle(panel.left + h, panel.centerY(), sp(5.5f), glowPaint)
             }
             glowPaint.maskFilter = null
         }
@@ -1358,15 +1661,24 @@ class FusionHudView(context: Context) : View(context) {
 
     // Declining the down event hands the whole gesture to the views under the HUD.
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (dock != DroidDeckHudDock.NONE) return onTabTouch(event)
         if (event.actionMasked == MotionEvent.ACTION_DOWN && lockController.isLocked() &&
             passesTouchAt?.invoke(event.rawX, event.rawY) == true) return false
         return lockController.onTouchEvent(event)
     }
 
-    internal val isDragging: Boolean get() = lockController.isDragging()
+    internal val isStrip: Boolean get() = stripRect != null
+
+    internal val contentWidth: Float get() = contentW
+    internal val contentHeight: Float get() = contentH
+
+    internal val isDragging: Boolean get() = lockController.isDragging() || tabDragging
 
     private companion object {
         const val REFRESH_MS = 500L
+        private const val HUE_IDLE_MS = 500L
+        const val MIN_SCALE = 0.5f
+        const val MAX_SCALE = 2f
         const val GRAPH_CLIP_MS = 49.9f
 
         fun parseIntOr(s: String?, d: Int): Int = try { s?.trim()?.toInt() ?: d } catch (e: Exception) { d }

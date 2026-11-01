@@ -14,19 +14,20 @@
 package com.droiddeck.launcher.hud
 
 /**
- * Size modes for the Fusion HUD (the 4th selectable in-game overlay style). One shared color-coded
+ * Size modes for the DroidDeck HUD (the 4th selectable in-game overlay style). One shared color-coded
  * visual language, four amounts of detail — see the approved mockup. The config value is the lower-case
  * token stored under the `hudSize` key; the label is the user-facing string.
  */
-enum class FusionSize(val token: String, val label: String) {
+enum class DroidDeckHudSize(val token: String, val label: String) {
     FULL("full", "Full"),
     TILES("tiles", "Tiles"),
     PILL("pill", "Pill"),
     MINIMAL("minimal", "Minimal"),
-    MEGA("mega", "Mega");
+    MEGA("mega", "Mega"),
+    STRIP("strip", "Strip");
 
-    /** Next size in the tap-cycle: Full → Tiles → Pill → Minimal → Mega → Full. */
-    fun next(): FusionSize {
+    /** Next size in the tap-cycle: Full → Tiles → Pill → Minimal → Mega → Strip → Full. */
+    fun next(): DroidDeckHudSize {
         val all = values()
         return all[(ordinal + 1) % all.size]
     }
@@ -40,12 +41,12 @@ enum class FusionSize(val token: String, val label: String) {
     fun supportedChips(): Set<String> = when (this) {
         MINIMAL -> MINIMAL_CHIPS
         PILL -> PILL_CHIPS
-        FULL, TILES -> STANDARD_CHIPS
+        FULL, TILES, STRIP -> STANDARD_CHIPS
         MEGA -> MEGA_CHIPS
     }
 
     companion object {
-        fun from(token: String?): FusionSize =
+        fun from(token: String?): DroidDeckHudSize =
             values().firstOrNull { it.token.equals(token, ignoreCase = true) } ?: FULL
 
         // Chip-label ids (must match the labels the config UIs build). "Clock" is a small subtle
@@ -66,12 +67,21 @@ enum class FusionSize(val token: String, val label: String) {
     }
 }
 
+/** The screen edge the HUD is tucked against, where only its FPS tab shows ([NONE] = floating free). */
+enum class DroidDeckHudDock(val token: String) {
+    NONE("none"), LEFT("left"), RIGHT("right"), TOP("top"), BOTTOM("bottom");
+
+    companion object {
+        fun from(token: String?): DroidDeckHudDock = values().firstOrNull { it.token == token } ?: NONE
+    }
+}
+
 /**
- * The Wayland HDR state the Fusion HUD shows on its own line, directly under the latency · display-server
- * line (the host sets it with [FusionHudView.setHdrState]). [NONE] = no line at all: every session whose
+ * The Wayland HDR state the DroidDeck HUD shows on its own line, directly under the latency · display-server
+ * line (the host sets it with [DroidDeckHudView.setHdrState]). [NONE] = no line at all: every session whose
  * HDR gate is closed (X11, SDR screens, HDR off) keeps the HUD exactly as it was.
  */
-object FusionHdr {
+object DroidDeckHudHdr {
     const val NONE = 0
     const val ON = 1           // HDR frames on screen with HDR headroom
     const val NO_HEADROOM = 2  // HDR frames on screen, but the display gives them no headroom (5 s+)

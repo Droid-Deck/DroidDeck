@@ -111,10 +111,7 @@ object AutoComponents {
 
     @VisibleForTesting internal var gameRunning: () -> Boolean = { gameProcessRunning() }
 
-    private fun gameProcessRunning(): Boolean = File("/proc").listFiles()?.any { p ->
-        p.name.all(Char::isDigit) && runCatching { String(File(p, "cmdline").readBytes()).replace('\u0000', ' ') }.getOrNull()
-            ?.let { it.contains("SteamLaunch AppId=") || it.contains("proton waitforexitandrun") } == true
-    } == true
+    private fun gameProcessRunning(): Boolean = com.droiddeck.launcher.session.SteamGameProcess.running()
 
     fun queueInSession(context: Context, game: Library.SteamGame) {
         if (appKey(game) == null) return

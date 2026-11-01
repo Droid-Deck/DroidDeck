@@ -68,6 +68,7 @@ class ModeSettings(
     val pipSupported: Boolean = false,
     val pipAutoEnter: Boolean = false,
     val oscMode: String?,
+    val backHold: Boolean = true,
     val backActionsInverted: Boolean = false,
     val directAudio: Boolean?,
     val mic: Boolean?,
@@ -118,6 +119,7 @@ class ModeSettingsActions(
     val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
     val onPipAutoEnter: (Boolean) -> Unit = {},
     val onOsc: (String) -> Unit,
+    val onBackHold: (Boolean) -> Unit = {},
     val onBackActionsInverted: (Boolean) -> Unit = {},
     val onDirectAudio: (Boolean) -> Unit,
     val onMic: (Boolean) -> Unit,
@@ -296,6 +298,10 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 stringResource(R.string.unfolded_controls_with_controller_hint),
                 s.unfoldedControlsWithController, onChange = a.onUnfoldedControlsWithController,
             )
+            if (steam) ToggleRow(
+                host, "back-hold", stringResource(R.string.back_hold),
+                stringResource(R.string.back_hold_hint), s.backHold, onChange = a.onBackHold,
+            )
             if (steam) ChoiceRow(
                 host, "back-actions", stringResource(R.string.mode_back), stringResource(SessionPrefs.backActionsOrder(s.backActionsInverted)),
                 listOf(
@@ -303,7 +309,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                     true to stringResource(SessionPrefs.BACK_QAM_THEN_MENU),
                 ), s.backActionsInverted, onPick = a.onBackActionsInverted,
             )
-            if (steam && s.steamController in listOf(SessionPrefs.CONTROLLER_DECK, SessionPrefs.CONTROLLER_STEAM)) {
+            if (steam && s.backHold && s.steamController in listOf(SessionPrefs.CONTROLLER_DECK, SessionPrefs.CONTROLLER_STEAM)) {
                 Note(stringResource(R.string.back_native_qam_hint))
             }
             PhysicalShortcutRows()

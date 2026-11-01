@@ -395,7 +395,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     StoresMotion.step?.let { ask ->
         key(ask) {
             StepOut(
-                open = StoresMotion.stepOpen, pill = ask.anchor.translate(-hostAt), side = ask.side, accent = ask.accent,
+                open = StoresMotion.stepOpen, pill = ask.anchor.translate(-hostAt), preferredSide = ask.side, accent = ask.accent,
                 onDismiss = { StoresMotion.fold() }, onClosed = { StoresMotion.closed(ask) },
                 pillCorner = ask.pillCorner, maxWidth = ask.maxWidth, items = ask.items, handle = ask.handle, content = ask.content,
             )

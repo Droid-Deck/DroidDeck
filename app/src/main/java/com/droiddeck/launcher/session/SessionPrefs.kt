@@ -100,6 +100,38 @@ object SessionPrefs {
         prefs(context).edit().putString("secondScreenPanel", mode).apply()
     }
 
+    fun statsStrip(context: Context): String? = prefs(context).getString("statsStrip", null)
+
+    fun setStatsStrip(context: Context, id: String) {
+        prefs(context).edit().putString("statsStrip", id).apply()
+    }
+
+    fun statsSpeedUnit(context: Context): String? = prefs(context).getString("statsSpeedUnit", null)
+
+    fun setStatsSpeedUnit(context: Context, id: String) {
+        prefs(context).edit().putString("statsSpeedUnit", id).apply()
+    }
+
+    fun statsDash(context: Context): String? = prefs(context).getString("statsDash", null)
+
+    fun setStatsDash(context: Context, id: String) {
+        prefs(context).edit().putString("statsDash", id).apply()
+    }
+
+    /** In-game stats "Send dashboard data" Automatic: on unless the user switched it off. */
+    fun telemetryAuto(context: Context): Boolean = prefs(context).getBoolean("telemetryAuto", true)
+
+    fun setTelemetryAuto(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("telemetryAuto", on).apply()
+    }
+
+    /** Games the user switched off by hand, as TelemetryOutput keys; Automatic leaves them alone. */
+    fun telemetryOff(context: Context): Set<String> = prefs(context).getStringSet("telemetryOff", null)?.toSet().orEmpty()
+
+    fun setTelemetryOff(context: Context, keys: Set<String>) {
+        prefs(context).edit().putStringSet("telemetryOff", keys.toSet()).apply()
+    }
+
     fun dualScreenLauncher(context: Context): Boolean = prefs(context).getBoolean("dualScreenLauncher", true)
 
     fun setDualScreenLauncher(context: Context, on: Boolean) {
@@ -286,18 +318,18 @@ object SessionPrefs {
         prefs(context).edit().putInt("hudOpacity", percent.coerceIn(HUD_OPACITY_RANGE)).apply()
     }
 
-    fun fusionHudConfig(context: Context): String? = prefs(context).getString("fusionHud", null)
+    fun droidDeckHudConfig(context: Context): String? = prefs(context).getString("__KEEP_droidDeckHud__", null)
 
-    fun setFusionHudConfig(context: Context, config: String) {
-        prefs(context).edit().putString("fusionHud", config).apply()
+    fun setDroidDeckHudConfig(context: Context, config: String) {
+        prefs(context).edit().putString("__KEEP_droidDeckHud__", config).apply()
     }
 
-    fun fusionHudPosition(context: Context): Pair<Float, Float>? =
-        prefs(context).getString("fusionHudPos", null)?.split(',')?.mapNotNull { it.toFloatOrNull() }
+    fun droidDeckHudPosition(context: Context): Pair<Float, Float>? =
+        prefs(context).getString("__KEEP_droidDeckHudPos__", null)?.split(',')?.mapNotNull { it.toFloatOrNull() }
             ?.takeIf { it.size == 2 }?.let { it[0] to it[1] }
 
-    fun setFusionHudPosition(context: Context, x: Float, y: Float) {
-        prefs(context).edit().putString("fusionHudPos", "$x,$y").apply()
+    fun setDroidDeckHudPosition(context: Context, x: Float, y: Float) {
+        prefs(context).edit().putString("__KEEP_droidDeckHudPos__", "$x,$y").apply()
     }
 
     const val HUD_COLOR_MINT = "mint"
@@ -326,6 +358,12 @@ object SessionPrefs {
 
     fun setDirectCursor(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("directCursor", on).apply()
+    }
+
+    fun backHold(context: Context): Boolean = prefs(context).getBoolean("backHold", true)
+
+    fun setBackHold(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("backHold", on).apply()
     }
 
     fun backActionsInverted(context: Context): Boolean = prefs(context).getBoolean("backActionsInverted", false)
@@ -1023,19 +1061,32 @@ object SessionPrefs {
         if (previous != null && !p.contains("addedAppId:$folderPath")) {
             val moved = movedAddedGame(p.all, previous, folderPath)
             moved.keys.forEach { edit.remove(it) }
-            moved.values.forEach { (name, value) ->
-                when (value) {
-                    is String -> edit.putString(name, value)
-                    is Long -> edit.putLong(name, value)
-                    is Int -> edit.putInt(name, value)
-                    is Boolean -> edit.putBoolean(name, value)
-                    is Float -> edit.putFloat(name, value)
-                }
-            }
+            moved.values.forEach { (name, value) -> edit.putValue(name, value) }
             val removed = removedAddedGames(context)
             if (previous in removed) edit.putString("removedAddedGames", removed.map { if (it == previous) folderPath else it }.joinToString("\n"))
         }
         edit.apply()
+    }
+
+    fun inheritAddedGame(context: Context, from: String, to: String) = synchronized(addedGameLock) {
+        val p = prefs(context)
+        val all = p.all
+        val edit = p.edit()
+        all.filterKeys { it.startsWith("added") && it.endsWith(":$from") }.forEach { (name, value) ->
+            val key = name.removeSuffix(from) + to
+            if (key !in all) edit.putValue(key, value)
+        }
+        edit.apply()
+    }
+
+    private fun android.content.SharedPreferences.Editor.putValue(name: String, value: Any?) {
+        when (value) {
+            is String -> putString(name, value)
+            is Long -> putLong(name, value)
+            is Int -> putInt(name, value)
+            is Boolean -> putBoolean(name, value)
+            is Float -> putFloat(name, value)
+        }
     }
 
     internal fun movedAddedGame(all: Map<String, *>, from: String, to: String): Map<String, Pair<String, Any?>> =
@@ -1097,7 +1148,7 @@ object SessionPrefs {
 
     /** The drawer's frame limit slider: its first stop is Off. */
     const val FPS_LIMIT_OFF = 15
-    const val FPS_LIMIT_MAX = 120
+    const val FPS_LIMIT_MAX = 165
 
     /**
      * Buffers go back to the game as soon as they are replaced instead of once per refresh;
