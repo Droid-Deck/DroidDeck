@@ -279,7 +279,10 @@ class DroidDeckHudView(context: Context) : View(context) {
                 if (tabDragging) { tabDragging = false; onTabDroppedListener?.run() }
                 else onDockChangedListener?.accept(DroidDeckHudDock.NONE.token)
             }
-            MotionEvent.ACTION_CANCEL -> if (tabDragging) { tabDragging = false; onTabDroppedListener?.run() }
+            MotionEvent.ACTION_CANCEL -> if (tabDragging) {
+                tabDragging = false
+                x = tabStartX; y = tabStartY
+            }
         }
         return true
     }

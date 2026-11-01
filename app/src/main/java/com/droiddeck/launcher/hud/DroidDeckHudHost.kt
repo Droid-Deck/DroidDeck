@@ -43,7 +43,6 @@ class DroidDeckHudHost(context: Context) {
     private var snapping = false
     private var previewFade: ValueAnimator? = null
     private var flingX = 0f
-    private var flingY = 0f
     private var engine = ""
     private var gpuName = ""
     private var protonPid = 0
@@ -98,19 +97,20 @@ class DroidDeckHudHost(context: Context) {
         hud.setOnDraggedListener { rawX, rawY ->
             anchorX = Float.NaN; snapping = false
             previewFade?.cancel(); previewFade = null
+            stopMotion(hud)
             shrinkPastEdge(hud, rawX, rawY)
         }
-        hud.setOnFlungListener { vx, vy -> flingX = vx; flingY = vy }
+        hud.setOnFlungListener { vx, _ -> flingX = vx }
         hud.setOnTabDraggedListener { x, y -> dragTab(hud, x, y) }
         hud.setOnTabDroppedListener { dropTab(hud) }
         hud.setOnMovedListener { x, y ->
             wantX = x; wantY = y
-            val vx = flingX; val vy = flingY
-            flingX = 0f; flingY = 0f
+            val vx = flingX
+            flingX = 0f
             dockEdgeFor(hud)?.let { edge -> setDock(hud, edge); return@setOnMovedListener }
             stopMotion(hud)
             fadeDockPreview(hud)
-            if (snaps && !hud.isStrip) { snapToAnchor(hud, vx, vy); return@setOnMovedListener }
+            if (snaps && !hud.isStrip) { snapToAnchor(hud, vx); return@setOnMovedListener }
             val fromX = hud.x; val fromY = hud.y
             keepOnScreen(hud)
             wantX = hud.x; wantY = hud.y
@@ -330,15 +330,15 @@ class DroidDeckHudHost(context: Context) {
 
     /**
      * Dropped, the HUD glides to the nearer side of the screen at the height it was let go, as a picture-in-picture
-     * window does, carried toward where a fling throws it.
+     * window does, carried to the side a fling throws it toward.
      */
-    private fun snapToAnchor(hud: DroidDeckHudView, vx: Float, vy: Float) {
+    private fun snapToAnchor(hud: DroidDeckHudView, vx: Float) {
         val p = hud.parent as? View ?: return
         val maxX = (p.width - hud.width).toFloat().coerceAtLeast(0f)
         val maxY = (p.height - hud.height).toFloat().coerceAtLeast(0f)
         anchorX = if (hud.x + vx * FLING_REACH_S < maxX / 2f) 0f else 1f
         wantX = anchorX * maxX
-        wantY = (hud.y + vy * FLING_REACH_S).coerceIn(0f, maxY)
+        wantY = hud.y.coerceIn(0f, maxY)
         SessionPrefs.setDroidDeckHudPosition(context, wantX, wantY)
         stopMotion(hud)
         if (Motion.scale == 0f) {
