@@ -63,6 +63,8 @@ jobs:
           echo "base-sha=$(git rev-parse origin/main)" >> "$GITHUB_OUTPUT"
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
+          # Partial clone: a merged blob that only exists in a fork's history can't be lazily fetched (GitHub: "not our ref"); merge-tree writes it locally first.
+          git merge-tree --write-tree HEAD origin/main >/dev/null || true
           git merge --no-ff --no-edit origin/main
       - name: Resolve trusted manifest base
         id: trusted
@@ -100,6 +102,7 @@ jobs:
           git fetch --no-tags origin "$BUILD_BASE_SHA"
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
+          git merge-tree --write-tree HEAD FETCH_HEAD >/dev/null || true
           git merge --no-ff --no-edit FETCH_HEAD
       - name: Verify pinned source tree
         env:
@@ -158,6 +161,7 @@ jobs:
           git fetch --no-tags origin "$BUILD_BASE_SHA"
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
+          git merge-tree --write-tree HEAD FETCH_HEAD >/dev/null || true
           git merge --no-ff --no-edit FETCH_HEAD
       - name: Verify pinned source tree
         env:
@@ -367,6 +371,7 @@ jobs:
           git fetch --no-tags origin "$BUILD_BASE_SHA"
           BASE=$(git rev-parse --short FETCH_HEAD)
           HEAD=$(git rev-parse --short HEAD)
+          git merge-tree --write-tree HEAD FETCH_HEAD >/dev/null || true
           if git merge --no-ff --no-edit FETCH_HEAD >/tmp/merge.out 2>&1; then
             {
               echo "###  Mergeable"
@@ -669,6 +674,7 @@ jobs:
           git fetch --no-tags origin "$BUILD_BASE_SHA"
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
+          git merge-tree --write-tree HEAD FETCH_HEAD >/dev/null || true
           git merge --no-ff --no-edit FETCH_HEAD
       - name: Verify backend and test source match
         env:
@@ -722,6 +728,7 @@ jobs:
           git fetch --no-tags origin "$BUILD_BASE_SHA"
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
+          git merge-tree --write-tree HEAD FETCH_HEAD >/dev/null || true
           git merge --no-ff --no-edit FETCH_HEAD
       - name: Verify backend and test source match
         env:
