@@ -2106,7 +2106,7 @@
     <string name="display_look_filter">%1$s Ορίζει την κλιμάκωση σε %2$s.</string>
     <string name="display_match_screen">Αντιστοίχιση οθόνης (%1$d×%2$d)</string>
     <string name="display_follow_screen">Ακολούθηση οθόνης (αλλάζει μέγεθος όταν διπλώνει ή ξεδιπλώνει)</string>
-    <string name="display_follow_screen_scaled">Ακολούθηση οθόνης ÷%1$d</string>
+    <string name="display_follow_screen_scaled">Ακολούθηση οθόνης ÷%1$s</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Εμφάνιση στοιχείων συσκευής</string>
     <string name="device_info_hide">Απόκρυψη στοιχείων συσκευής</string>

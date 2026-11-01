@@ -4,7 +4,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SessionDisplayTest {
-    private val scaledFollow = listOf("follow/2", "follow/3", "follow/4")
+    private val scaledFollow = listOf("follow/1.5", "follow/2", "follow/2.5", "follow/3", "follow/4")
 
     @Test fun portraitPresetsSwapTheOutputAndRetainTheResolutionCap() {
         assertEquals(720 to 1280, SessionDisplay.resolveChoice(1920 to 1080, "720p", portrait = true))
@@ -110,17 +110,24 @@ class SessionDisplayTest {
     @Test fun scaledFollowDividesTheWindowAndStaysEven() {
         assertEquals(1260 to 540, SessionDisplay.resolveChoice(1080 to 2520, "follow/2"))
         assertEquals(540 to 1260, SessionDisplay.resolveChoice(2520 to 1080, "follow/2", portrait = true))
-        assertEquals(1092 to 984, SessionDisplay.followSize(2185, 1969, scale = 2))
-        assertEquals(656 to 728, SessionDisplay.followSize(1968, 2184, scale = 3))
-        assertNull(SessionDisplay.followSize(640, 360, scale = 2))
+        assertEquals(1092 to 984, SessionDisplay.followSize(2185, 1969, scale = 2f))
+        assertEquals(656 to 728, SessionDisplay.followSize(1968, 2184, scale = 3f))
+        assertNull(SessionDisplay.followSize(640, 360, scale = 2f))
+        assertEquals(720 to 1600, SessionDisplay.resolveChoice(2400 to 1080, "follow/1.5", portrait = true))
+        assertEquals(1600 to 720, SessionDisplay.resolveChoice(1080 to 2400, "follow/1.5"))
+        assertNull(SessionDisplay.followScale("follow/1.0"))
     }
 
     @Test fun onlyKnownFollowChoicesCountAsFollow() {
-        assertEquals(1, SessionDisplay.followScale(SessionDisplay.FOLLOW_SCREEN))
-        assertEquals(3, SessionDisplay.followScale("follow/3"))
-        assertEquals("follow/2", SessionDisplay.followScaled(2))
+        assertEquals(1f, SessionDisplay.followScale(SessionDisplay.FOLLOW_SCREEN))
+        assertEquals(3f, SessionDisplay.followScale("follow/3"))
+        assertEquals(1.3f, SessionDisplay.followScale("follow/1.3"))
+        assertEquals(1.3f, SessionDisplay.followScale("follow/1.26"))
+        assertEquals("follow/1.3", SessionDisplay.followScaled(1.3f))
+        assertEquals("follow/2", SessionDisplay.followScaled(2f))
         assertNull(SessionDisplay.followScale("follow/1"))
         assertNull(SessionDisplay.followScale("follow/x"))
+        assertNull(SessionDisplay.followScale("follow/9"))
         assertNull(SessionDisplay.followScale("720p"))
         assertFalse(SessionDisplay.isFollow(SessionDisplay.MATCH_SCREEN))
     }

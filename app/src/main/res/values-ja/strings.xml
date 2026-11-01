@@ -2053,7 +2053,7 @@
     <string name="display_look_filter">%1$s スケーリングを%2$sに設定します。</string>
     <string name="display_match_screen">画面に合わせる（%1$d×%2$d）</string>
     <string name="display_follow_screen">画面に追従（開閉時にサイズを変更）</string>
-    <string name="display_follow_screen_scaled">画面に追従 ÷%1$d</string>
+    <string name="display_follow_screen_scaled">画面に追従 ÷%1$s</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">デバイスの詳細を表示</string>
     <string name="device_info_hide">デバイスの詳細を非表示</string>

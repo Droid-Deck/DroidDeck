@@ -2186,10 +2186,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         WaylandCompositor.nativeResizeOutput(size.first, size.second)
     }
 
-    private fun followScale(): Int {
+    private fun followScale(): Float {
         val mode = displayMode()
         val choice = SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
-        return com.droiddeck.launcher.session.SessionDisplay.followScale(choice) ?: 1
+        return com.droiddeck.launcher.session.SessionDisplay.followScale(choice) ?: 1f
     }
 
     private fun followChoice(): Boolean {

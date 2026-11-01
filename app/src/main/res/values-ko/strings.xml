@@ -2083,7 +2083,7 @@
     <string name="display_look_filter">%1$s 스케일링을 %2$s(으)로 설정합니다.</string>
     <string name="display_match_screen">화면에 맞춤(%1$d×%2$d)</string>
     <string name="display_follow_screen">화면 따라가기(접거나 펼치면 크기 변경)</string>
-    <string name="display_follow_screen_scaled">화면 따라가기 ÷%1$d</string>
+    <string name="display_follow_screen_scaled">화면 따라가기 ÷%1$s</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">기기 세부 정보 표시</string>
     <string name="device_info_hide">기기 세부 정보 숨기기</string>

@@ -2098,7 +2098,7 @@
     <string name="display_look_filter">%1$s Ölçeklemeyi %2$s olarak ayarlar.</string>
     <string name="display_match_screen">Ekrana Uydur (%1$d×%2$d)</string>
     <string name="display_follow_screen">Ekranı takip et (katlanıp açıldığında yeniden boyutlanır)</string>
-    <string name="display_follow_screen_scaled">Ekranı takip et ÷%1$d</string>
+    <string name="display_follow_screen_scaled">Ekranı takip et ÷%1$s</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Cihaz ayrıntılarını göster</string>
     <string name="device_info_hide">Cihaz ayrıntılarını gizle</string>

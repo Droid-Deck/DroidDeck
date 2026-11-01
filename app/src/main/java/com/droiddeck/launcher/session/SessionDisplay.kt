@@ -7,7 +7,9 @@ object SessionDisplay {
     const val MATCH_SCREEN = "screen"
     const val FOLLOW_SCREEN = "follow"
     const val FOLLOW_MIN_SIDE = 480
-    val FOLLOW_SCALES = listOf(2, 3, 4)
+    val FOLLOW_SCALES = listOf(1.5f, 2f, 2.5f, 3f, 4f)
+    const val FOLLOW_CUSTOM = "follow/custom"
+    const val FOLLOW_SCALE_MAX = 8f
     private const val FOLLOW_SCALED_PREFIX = "follow/"
 
     const val DEFAULT_RESOLUTION = "720p"
@@ -16,14 +18,20 @@ object SessionDisplay {
     fun presetHeight(choice: String): Int? =
         if (choice.endsWith("p")) choice.dropLast(1).toIntOrNull()?.takeIf { it > 0 } else null
 
-    fun followScaled(scale: Int): String = FOLLOW_SCALED_PREFIX + scale
+    fun followScaled(scale: Float): String = FOLLOW_SCALED_PREFIX + formatScale(scale)
+
+    fun formatScale(scale: Float): String =
+        (Math.round(scale * 10) / 10f).let { if (it % 1f == 0f) it.toInt().toString() else it.toString() }
+
+    fun parseFollowScale(text: String): Float? =
+        text.trim().replace(',', '.').toFloatOrNull()
+            ?.let { Math.round(it * 10) / 10f }?.takeIf { it > 1f && it <= FOLLOW_SCALE_MAX }
 
     fun isFollow(choice: String): Boolean = followScale(choice) != null
 
-    fun followScale(choice: String): Int? = when {
-        choice == FOLLOW_SCREEN -> 1
-        choice.startsWith(FOLLOW_SCALED_PREFIX) ->
-            choice.removePrefix(FOLLOW_SCALED_PREFIX).toIntOrNull()?.takeIf { it in FOLLOW_SCALES }
+    fun followScale(choice: String): Float? = when {
+        choice == FOLLOW_SCREEN -> 1f
+        choice.startsWith(FOLLOW_SCALED_PREFIX) -> parseFollowScale(choice.removePrefix(FOLLOW_SCALED_PREFIX))
         else -> null
     }
 
@@ -46,13 +54,13 @@ object SessionDisplay {
             .filter { resolveChoice(panel, it) != screenSize(panel) } + MATCH_SCREEN + FOLLOW_SCREEN + FOLLOW_SCALES.map(::followScaled)
     }
 
-    fun followSize(width: Int, height: Int, controlsBelow: Boolean = false, scale: Int = 1): Pair<Int, Int>? =
+    fun followSize(width: Int, height: Int, controlsBelow: Boolean = false, scale: Float = 1f): Pair<Int, Int>? =
         if (width <= 0 || height <= 0 ||
             (if (controlsBelow) width else minOf(width, height)) < FOLLOW_MIN_SIDE) null
         else scaledDown(width to height, scale)
 
-    private fun scaledDown(size: Pair<Int, Int>, scale: Int): Pair<Int, Int> =
-        (size.first / scale and 1.inv()) to (size.second / scale and 1.inv())
+    private fun scaledDown(size: Pair<Int, Int>, scale: Float): Pair<Int, Int> =
+        (Math.round(size.first / scale) and 1.inv()) to (Math.round(size.second / scale) and 1.inv())
 
     const val UNFOLDED_MAX_GAME_SHARE = 0.8f
 

@@ -671,3 +671,23 @@ internal fun CustomResolutionDialog(initial: Pair<Int, Int>?, onSave: (Pair<Int,
         dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
     )
 }
+
+@Composable
+internal fun CustomFollowScaleDialog(initial: Float?, onSave: (Float) -> Unit, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf(initial?.let(com.droiddeck.launcher.session.SessionDisplay::formatScale) ?: "") }
+    val parsed = com.droiddeck.launcher.session.SessionDisplay.parseFollowScale(text)
+    com.droiddeck.launcher.ui.GlideAlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.display_follow_screen_scaled, "…")) },
+        text = {
+            androidx.compose.material3.OutlinedTextField(
+                text, { v -> text = v.filter { it.isDigit() || it == '.' || it == ',' }.take(4) },
+                label = { Text("÷") }, singleLine = true, isError = parsed == null && text.isNotEmpty(),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+                modifier = Modifier.focusGlide(),
+            )
+        },
+        confirmButton = { androidx.compose.material3.TextButton(enabled = parsed != null, onClick = { parsed?.let(onSave) }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_use)) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
+    )
+}

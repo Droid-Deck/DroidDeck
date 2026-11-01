@@ -2083,7 +2083,7 @@
     <string name="display_look_filter">%1$s Mengatur skala ke %2$s.</string>
     <string name="display_match_screen">Sesuaikan layar (%1$d×%2$d)</string>
     <string name="display_follow_screen">Ikuti layar (ukuran berubah saat dilipat atau dibuka)</string>
-    <string name="display_follow_screen_scaled">Ikuti layar ÷%1$d</string>
+    <string name="display_follow_screen_scaled">Ikuti layar ÷%1$s</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Tampilkan detail perangkat</string>
     <string name="device_info_hide">Sembunyikan detail perangkat</string>
