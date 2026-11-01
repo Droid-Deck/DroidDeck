@@ -1,7 +1,9 @@
 package com.droiddeck.launcher.hud
 
+import android.os.Environment
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
+import kotlin.math.roundToInt
 
 /**
  * The readings Steam's performance overlay shows in a DroidDeck session (Valve's mangohud 20260902.1,
@@ -57,6 +59,7 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
 
     /** Average of the zones the session types cpuN-thermal, truncated. */
     fun cpuTempC(): Int? {
+        externalCpuTemp()?.let { return it }
         var sum = 0f
         var count = 0
         for (zone in LinuxRuntime.cpuTempZones()) {
@@ -65,6 +68,13 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
             count++
         }
         return if (count == 0) null else (sum / count).toInt()
+    }
+
+    /** Optional ADB helper feed: /sdcard/DroidDeck/cpu-temp, refreshed by tools/update_cpu_temp.sh. */
+    private fun externalCpuTemp(): Int? {
+        val file = File(Environment.getExternalStorageDirectory(), "DroidDeck/cpu-temp")
+        if (!file.isFile || System.currentTimeMillis() - file.lastModified() > CPU_TEMP_FRESH_MS) return null
+        return readFloat(file)?.roundToInt()?.takeIf { it in -20..150 }
     }
 
     fun gpuPercent(): Int? {
@@ -144,6 +154,7 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
         const val VRAM_FILE = "run/droiddeck-hud/gpu-mem"
         private const val FEED_FRESH_MS = 10_000L
         private const val VRAM_FRESH_MS = 15_000L
+        private const val CPU_TEMP_FRESH_MS = 10_000L
         private val WHITESPACE = Regex("\\s+")
 
         private fun readLong(file: File): Long? = runCatching { file.readText().trim().toLong() }.getOrNull()
