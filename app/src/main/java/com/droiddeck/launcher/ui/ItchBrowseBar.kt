@@ -8,6 +8,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,6 +20,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -44,16 +47,29 @@ internal fun ItchBrowseBar() {
     var picking by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         ChipRow {
-            for (sort in ItchBrowse.sorts) BrowseChip(sortLabel(sort), query.sort == sort) { ItchBrowseState.choose(ctx, query.copy(sort = sort)) }
-        }
-        ChipRow {
-            for (price in ItchBrowse.prices) BrowseChip(priceLabel(price), query.price == price) { ItchBrowseState.choose(ctx, query.copy(price = price)) }
-        }
-        ChipRow {
-            BrowseChip(stringResource(R.string.stores_itch_platform_any), query.platforms.isEmpty()) { ItchBrowseState.choose(ctx, query.copy(platforms = emptySet())) }
-            for (platform in ItchBrowse.platformNames) {
-                val on = platform in query.platforms
-                BrowseChip(platformLabel(platform), on) { ItchBrowseState.choose(ctx, query.copy(platforms = if (on) query.platforms - platform else query.platforms + platform)) }
+            BrowseDropdown(sortLabel(query.sort)) { first, close ->
+                ItchBrowse.sorts.forEachIndexed { index, sort ->
+                    MenuItem(sortLabel(sort), query.sort == sort, focusRequester = if (index == 0) first else null) {
+                        ItchBrowseState.choose(ctx, query.copy(sort = sort))
+                        close()
+                    }
+                }
+            }
+            BrowseDropdown(priceLabel(query.price)) { first, close ->
+                ItchBrowse.prices.forEachIndexed { index, price ->
+                    MenuItem(priceLabel(price), query.price == price, focusRequester = if (index == 0) first else null) {
+                        ItchBrowseState.choose(ctx, query.copy(price = price))
+                        close()
+                    }
+                }
+            }
+            val anyPlatform = stringResource(R.string.stores_itch_platform_any)
+            BrowseDropdown(browseSummary(ItchBrowse.platformNames.filter { it in query.platforms }.map { platformLabel(it) }, anyPlatform)) { first, _ ->
+                MenuItem(anyPlatform, query.platforms.isEmpty(), focusRequester = first) { ItchBrowseState.choose(ctx, query.copy(platforms = emptySet())) }
+                for (platform in ItchBrowse.platformNames) {
+                    val on = platform in query.platforms
+                    MenuItem(platformLabel(platform), on) { ItchBrowseState.choose(ctx, query.copy(platforms = if (on) query.platforms - platform else query.platforms + platform)) }
+                }
             }
         }
         ChipRow {
@@ -83,7 +99,7 @@ internal fun ItchLoadMore() {
 }
 
 @Composable
-private fun ChipRow(content: @Composable () -> Unit) {
+internal fun ChipRow(content: @Composable () -> Unit) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).selectableGroup(),
@@ -91,7 +107,22 @@ private fun ChipRow(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun BrowseChip(label: String, selected: Boolean, onClick: () -> Unit) {
+internal fun BrowseDropdown(text: String, content: @Composable ColumnScope.(FocusRequester, () -> Unit) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        CompositionLocalProvider(LocalChipMinWidth provides 0.dp) { ValueChip(text, expanded) { expanded = !expanded } }
+        AnchoredMenu(expanded, onDismiss = { expanded = false }, compact = true, minWidth = 160.dp) { first -> content(first) { expanded = false } }
+    }
+}
+
+internal fun browseSummary(labels: List<String>, empty: String): String = when (labels.size) {
+    0 -> empty
+    1, 2 -> labels.joinToString(", ")
+    else -> "${labels.first()} +${labels.size - 1}"
+}
+
+@Composable
+internal fun BrowseChip(label: String, selected: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val shape = RoundedCornerShape(8.dp)

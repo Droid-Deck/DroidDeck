@@ -289,4 +289,9 @@ class StoreInstallRootTest {
         assertFalse(StoreInstallRoot.insufficientSpace(1L, 1L))
         assertFalse(StoreInstallRoot.insufficientSpace(0L, 0L))
     }
+
+    @Test fun itchKeepsTheFolderItsGamesWereInstalledInWhateverItsDisplayName() {
+        assertEquals("itch", StoreInstallRoot.storeDir(File("/games"), Store.ITCH).name)
+        assertEquals("Game Jolt", StoreInstallRoot.storeDir(File("/games"), Store.GAMEJOLT).name)
+    }
 }

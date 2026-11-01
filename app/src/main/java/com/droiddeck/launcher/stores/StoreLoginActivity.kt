@@ -278,6 +278,10 @@ class StoreLoginActivity : ComponentActivity() {
             if (url != null && view != null && flow?.isRedirect(url) == true && flow?.readsPage != true) complete(view, url)
         }
 
+        override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+            if (!isPopup && store == Store.GAMEJOLT && url != null && view != null && flow?.isRedirect(url) == true && flow?.readsPage != true) complete(view, url)
+        }
+
         override fun onPageFinished(view: WebView?, url: String?) {
             if (url != null && view != null && flow?.readsPage == true && flow?.isRedirect(url) == true) complete(view, url)
         }
