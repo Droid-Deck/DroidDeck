@@ -1,7 +1,15 @@
 #!/usr/bin/python3
 import json
 import os
+import re
+import shutil
+import signal
+import socket
+import subprocess
 import sys
+import tempfile
+import time
+import urllib.parse
 
 os.environ.setdefault("FLATPAK_BWRAP", "/usr/local/bin/droiddeck-bwrap")
 
@@ -11,6 +19,22 @@ gi.require_version("Flatpak", "1.0")
 from gi.repository import Flatpak, Gio, GLib
 
 REMOTE = "flathub"
+SYSTEM_BUS = "/run/dbus/system_bus_socket"
+BUS_COMMANDS = ("install", "install-bundle", "uninstall", "update", "prune")
+BUS_CONFIG = """<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+<busconfig>
+  <type>system</type>
+  <listen>unix:path=%s</listen>
+  <auth>EXTERNAL</auth>
+  <policy context="default">
+    <allow user="*"/>
+    <allow own="*"/>
+    <allow send_destination="*"/>
+    <allow receive_sender="*"/>
+  </policy>
+</busconfig>
+"""
 
 
 def prepare_rootfs():
@@ -31,6 +55,116 @@ def prepare_rootfs():
                 dst.write(data)
     except OSError as err:
         emit(e="warning", message="could not prepare %s: %s" % (target, err))
+
+
+def bus_reachable(path):
+    if isinstance(path, tuple):
+        try:
+            socket.create_connection(path, timeout=1).close()
+            return True
+        except (OSError, ValueError):
+            return False
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        sock.connect(path)
+        return True
+    except OSError:
+        return False
+    finally:
+        sock.close()
+
+
+def system_bus_paths():
+    address = os.environ.get("DBUS_SYSTEM_BUS_ADDRESS", "")
+    if not address:
+        return [SYSTEM_BUS]
+    paths = []
+    for entry in filter(None, address.split(";")):
+        found = None
+        kind, _, params = entry.partition(":")
+        values = dict(part.partition("=")[::2] for part in params.split(","))
+        if kind == "unix":
+            if values.get("path"):
+                found = urllib.parse.unquote_to_bytes(values["path"])
+            elif values.get("abstract"):
+                found = b"\0" + urllib.parse.unquote_to_bytes(values["abstract"])
+        elif kind == "tcp":
+            port = urllib.parse.unquote(values.get("port", ""))
+            digits = port.lstrip("0")
+            if not re.fullmatch(r"[0-9]+", port, re.ASCII) or not 0 < len(digits) <= 5 or int(digits) > 65535:
+                continue
+            found = (urllib.parse.unquote(values.get("host", "localhost")), int(digits))
+        if found is None:
+            return None
+        paths.append(found)
+    return paths
+
+
+def system_bus_reachable():
+    paths = system_bus_paths()
+    return paths is None or any(bus_reachable(path) for path in paths)
+
+
+def stop_system_bus(bus):
+    if not bus:
+        return
+    proc, work, conf, path = bus
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+    remove_bus_files(work, conf, path)
+
+
+def remove_bus_files(work, conf, path):
+    for name in (path, conf):
+        try:
+            os.unlink(name)
+        except OSError:
+            pass
+    try:
+        os.rmdir(work)
+    except OSError:
+        pass
+
+
+def private_system_bus():
+    if system_bus_reachable():
+        return None
+    daemon = shutil.which("dbus-daemon")
+    if not daemon:
+        emit(e="warning", message="no system bus and no dbus-daemon to start one")
+        return None
+    try:
+        work = tempfile.mkdtemp(prefix="droiddeck-flatpak-bus-")
+    except OSError as err:
+        emit(e="warning", message="could not start a private system bus: %s" % err)
+        return None
+    conf = os.path.join(work, "bus.conf")
+    path = os.path.join(work, "bus")
+    try:
+        with open(conf, "w") as f:
+            f.write(BUS_CONFIG % path)
+        proc = subprocess.Popen([daemon, "--config-file=" + conf, "--nofork", "--nopidfile"],
+                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError as err:
+        remove_bus_files(work, conf, path)
+        emit(e="warning", message="could not start a private system bus: %s" % err)
+        return None
+    bus = (proc, work, conf, path)
+    for _ in range(50):
+        if bus_reachable(path) or proc.poll() is not None:
+            break
+        time.sleep(0.1)
+    if not bus_reachable(path):
+        stop_system_bus(bus)
+        emit(e="warning", message="the private system bus did not start")
+        return None
+    os.environ["DBUS_SYSTEM_BUS_ADDRESS"] = "unix:path=" + path
+    return bus
 
 
 def emit(**kw):
@@ -109,21 +243,31 @@ def run(t, state, report_done=True):
     return 0
 
 
+def arches():
+    native = Flatpak.get_default_arch()
+    return [native, "x86_64"] if native == "aarch64" else [native]
+
+
 def install(app_id):
     inst = installation()
-    arch = Flatpak.get_default_arch()
     if app_ref(inst, app_id) is not None:
         emit(e="done", note="already installed")
         return 0
-    branch, last = None, None
-    for candidate in ("stable", "master"):
-        try:
-            branch = inst.fetch_remote_ref_sync(REMOTE, Flatpak.RefKind.APP, app_id, arch, candidate, None).get_branch()
+    arch, branch, last = None, None, None
+    for candidate_arch in arches():
+        for candidate in ("stable", "master"):
+            try:
+                branch = inst.fetch_remote_ref_sync(REMOTE, Flatpak.RefKind.APP, app_id, candidate_arch, candidate,
+                                                    None).get_branch()
+                arch = candidate_arch
+                break
+            except GLib.Error as err:
+                last = err
+        if branch is not None:
             break
-        except GLib.Error as err:
-            last = err
     if branch is None:
-        emit(e="error", message="%s is not on Flathub for %s (%s)" % (app_id, arch, last.message if last else "no branch"))
+        emit(e="error", message="%s is not on Flathub for %s (%s)" % (app_id, " or ".join(arches()),
+                                                                      last.message if last else "no branch"))
         return 1
     t, state = transaction(inst)
     t.add_install(REMOTE, "app/%s/%s/%s" % (app_id, arch, branch), None)
@@ -141,9 +285,14 @@ def install_bundle(path):
     inst = installation()
     bundle = Gio.File.new_for_path(path)
     try:
-        app_id = Flatpak.BundleRef.new(bundle).get_name()
+        ref = Flatpak.BundleRef.new(bundle)
+        app_id = ref.get_name()
     except GLib.Error as err:
         emit(e="error", message="%s is not a Flatpak bundle (%s)" % (os.path.basename(path), err.message))
+        return 1
+    if ref.get_arch() not in arches():
+        emit(e="error", code="arch", id=app_id, arch=ref.get_arch(),
+             message="%s is built for %s, not %s" % (app_id, ref.get_arch(), " or ".join(arches())))
         return 1
     if app_ref(inst, app_id) is not None:
         emit(e="done", id=app_id, note="already installed")
@@ -242,6 +391,16 @@ def main():
     cmd, args = sys.argv[1], sys.argv[2:]
     if cmd in ("install", "install-bundle", "update"):
         prepare_rootfs()
+    bus = private_system_bus() if cmd in BUS_COMMANDS else None
+    if bus:
+        signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(128 + signum))
+    try:
+        return command(cmd, args)
+    finally:
+        stop_system_bus(bus)
+
+
+def command(cmd, args):
     if cmd == "install" and args:
         return install(args[0])
     if cmd == "install-bundle" and args:

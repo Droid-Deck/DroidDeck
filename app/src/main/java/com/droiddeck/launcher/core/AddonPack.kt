@@ -22,6 +22,7 @@ import java.io.FileInputStream
 internal class AddonPack(
     val name: String, private val sha256: String, val size: Long, private val required: List<String>,
     private val reuseDeviceCopy: Boolean = sha256.isEmpty() && !BuildConfig.CI_BUILD,
+    private val bundle: (Context) -> java.io.InputStream = { it.assets.open("packs/$name.tar.zst") },
 ) {
     sealed interface State {
         data object Missing : State
@@ -104,7 +105,7 @@ internal class AddonPack(
         }
         val root = root(context).apply { mkdirs() }
         val archive = File(root, "$sha256.tar.zst")
-        val downloaded = urls.any { url ->
+        val downloaded = bundled(context, archive) || urls.any { url ->
             Downloader.downloadFile(url, archive, true, sha256) { p -> mutableState.value = State.Downloading(p.coerceIn(0f, 1f)) }
                 .also { if (!it) archive.delete() }
         }
@@ -124,6 +125,17 @@ internal class AddonPack(
         }
         root.listFiles().orEmpty().filter { it.name != sha256 }.forEach { it.deleteRecursively() }
         return true
+    }
+
+    // A local build pins the packs it compiled, which no release hosts, so it ships them as assets.
+    internal fun bundled(context: Context, archive: File): Boolean {
+        val copied = runCatching {
+            bundle(context).use { input -> archive.outputStream().use { input.copyTo(it) } }
+        }.isSuccess
+        if (copied && Hashes.sha256(archive).equals(sha256, ignoreCase = true)) return true
+        if (copied) Log.w(TAG, "$name: the bundled pack does not match the pinned digest")
+        archive.delete()
+        return false
     }
 
     companion object {
@@ -146,5 +158,7 @@ internal class AddonPack(
             listOf("version", "xodus-cli", "xodus-service"))
         val COMET = AddonPack("comet", BuildConfig.PACK_COMET_SHA256, BuildConfig.PACK_COMET_SIZE,
             listOf("version", "comet"))
+        val BUTLER = AddonPack("butler", BuildConfig.PACK_BUTLER_SHA256, BuildConfig.PACK_BUTLER_SIZE,
+            listOf("version", "butler", "7z.so", "libc7zip.so"))
     }
 }

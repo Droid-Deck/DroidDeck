@@ -11,14 +11,15 @@ object RuntimeHealth {
     fun brokenLibraryLinks(context: Context): List<String> = brokenLibraryLinks(LinuxRuntime.rootDir(context))
 
     /** A complete runtime has no library link in usr/lib whose target is missing. */
-    fun brokenLibraryLinks(root: File): List<String> {
-        val lib = File(root, "usr/lib")
-        val names = lib.list() ?: return emptyList()
-        return names.sorted().filter { name ->
-            val path = File(lib, name).toPath()
-            Files.isSymbolicLink(path) && !resolves(root, path)
+    fun brokenLibraryLinks(root: File): List<String> =
+        listOf("usr/lib", "usr/lib/aarch64-linux-gnu").flatMap { dir ->
+            val lib = File(root, dir)
+            val names = lib.list() ?: return@flatMap emptyList()
+            names.sorted().filter { name ->
+                val path = File(lib, name).toPath()
+                Files.isSymbolicLink(path) && !resolves(root, path)
+            }.map { if (dir == "usr/lib") it else "aarch64-linux-gnu/$it" }
         }
-    }
 
     private fun resolves(root: File, link: Path): Boolean = try {
         var path = link

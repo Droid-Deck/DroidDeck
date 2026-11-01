@@ -174,7 +174,7 @@ private fun DesktopDock(
     val pal = LocalPalette.current
     val narrow = LocalNarrowPane.current
     val available = s.emulators.filter { !it.installed }
-    val flatpaks = com.droiddeck.launcher.store.StoreState.installed
+    val flatpaks = com.droiddeck.launcher.store.StoreState.installed.filter { f -> apps.none { it.key == "flatpak:${f.id}" } }
     val keys = installed.map { "emu:${it.id}" } + apps.map { "user:${it.key}" } + flatpaks.map { "flatpak:${it.id}" }
     var lastAt by remember { mutableStateOf<Rect?>(null) }
     var dockAt by remember { mutableStateOf<Rect?>(null) }

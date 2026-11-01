@@ -1,4 +1,5 @@
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -378,7 +379,330 @@ class SystemGraphicsLaunchTest(unittest.TestCase):
             self.assertEqual(actual_env["BL_SYNC_PACK"], "selected")
 
 
+class DirtTelemetryFixTest(unittest.TestCase):
+    SHOWDOWN_ON = '<x><motion enabled="true" ip="127.0.0.1" port="20777" delay="1" extradata="3" /></x>'
+    SHOWDOWN_DEFAULT = '<x><motion enabled="true" ip="dbox" port="20777" delay="1" extradata="0" /></x>'
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        self.prefix = root / "compatdata/2848447563"
+        self.proton = root / "Proton/proton"
+        self.own = root / "Proton/files/lib/wine/i386-windows/ws2_32.dll"
+        self.own.parent.mkdir(parents=True)
+        self.own.write_bytes(b"MZ wine ws2_32")
+        self.proton.write_text("")
+        self.target = self.prefix / "pfx/drive_c/windows/syswow64/ws2_32.dll"
+        self.target.parent.mkdir(parents=True)
+        self.target.symlink_to(self.own)
+        self.stand_in = root / "droiddeck-dirt/ws2_32.dll"
+        self.stand_in.parent.mkdir()
+        self.stand_in.write_bytes(b"MZ droiddeck-dirt-ws2_32 stand-in")
+        self.patch = mock.patch.dict(MODULE["dirt_ws2_wanted"].__globals__, {"DIRT_WS2": str(self.stand_in)})
+        self.patch.start()
+
+    def tearDown(self):
+        self.patch.stop()
+        self.tmp.cleanup()
+
+    def config(self, folder, text):
+        path = self.prefix / "pfx/drive_c/users/steamuser/Documents/My Games" / folder / "hardwaresettings/hardware_settings_config.xml"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+
+    def command(self, exe="showdown.exe"):
+        return [str(self.proton), "waitforexitandrun", "/root/Storage/games/DiRT Showdown/" + exe]
+
+    def env(self):
+        return {"STEAM_COMPAT_DATA_PATH": str(self.prefix)}
+
+    def test_telemetry_counts_as_on_when_the_game_sends_somewhere(self):
+        self.config("DiRT Showdown", self.SHOWDOWN_DEFAULT)
+        self.assertFalse(MODULE["dirt_telemetry_on"](self.prefix, "dirtshowdown"))
+        self.config("DiRT Showdown", self.SHOWDOWN_ON)
+        self.assertTrue(MODULE["dirt_telemetry_on"](self.prefix, "dirtshowdown"))
+        self.config("DiRT Showdown", self.SHOWDOWN_ON.replace('enabled="true"', 'enabled="false"'))
+        self.assertFalse(MODULE["dirt_telemetry_on"](self.prefix, "dirtshowdown"))
+        self.config("DiRT3", '<x><motion enabled="true" ip="192.168.1.20" port="20777" /></x>')
+        self.assertTrue(MODULE["dirt_telemetry_on"](self.prefix, "dirt3"))
+
+    def test_stand_in_is_wanted_only_for_the_dirt_games_with_telemetry_on_and_a_proton_without_the_fix(self):
+        wanted = MODULE["dirt_ws2_wanted"]
+        self.config("DiRT Showdown", self.SHOWDOWN_DEFAULT)
+        self.assertIsNone(wanted(self.command(), self.env()))
+        self.config("DiRT Showdown", self.SHOWDOWN_ON)
+        self.assertEqual(wanted(self.command(), self.env()), str(self.prefix))
+        self.assertEqual(wanted(self.command("Showdown_AVX.exe"), self.env()), str(self.prefix))
+        self.assertIsNone(wanted(self.command("DiRTRally2.exe"), self.env()))
+        self.own.write_bytes(b"MZ wine ws2_32 " + "showdown_avx.exe".encode("utf-16-le"))
+        self.assertIsNone(wanted(self.command(), self.env()))
+
+    def test_swap_keeps_the_prefix_link_and_restore_puts_it_back(self):
+        MODULE["swap_dirt_ws2"](self.prefix)
+        saved = self.target.with_name("ws2_32.dll.droiddeck-original")
+        self.assertFalse(self.target.is_symlink())
+        self.assertEqual(self.target.read_bytes(), self.stand_in.read_bytes())
+        self.assertEqual(os.readlink(saved), str(self.own))
+        self.assertEqual(self.own.read_bytes(), b"MZ wine ws2_32")
+        MODULE["swap_dirt_ws2"](self.prefix)
+        self.assertEqual(os.readlink(saved), str(self.own))
+        self.assertTrue(MODULE["restore_dirt_ws2"](self.prefix, self.proton))
+        self.assertEqual(os.readlink(self.target), str(self.own))
+        self.assertFalse(os.path.lexists(saved))
+        self.assertFalse(MODULE["restore_dirt_ws2"](self.prefix, self.proton))
+
+    def test_restore_keeps_a_file_proton_put_back_meanwhile(self):
+        MODULE["swap_dirt_ws2"](self.prefix)
+        newer = self.own.with_name("ws2_32-newer.dll")
+        newer.write_bytes(b"MZ newer wine ws2_32")
+        self.target.unlink()
+        self.target.symlink_to(newer)
+        self.assertFalse(MODULE["restore_dirt_ws2"](self.prefix, self.proton))
+        self.assertEqual(os.readlink(self.target), str(newer))
+        self.assertFalse(os.path.lexists(self.target.with_name("ws2_32.dll.droiddeck-original")))
+
+    def test_after_a_proton_switch_the_running_protons_file_goes_back(self):
+        MODULE["swap_dirt_ws2"](self.prefix)
+        other = Path(self.tmp.name) / "GE-Proton/proton"
+        other_own = other.parent / "files/lib/wine/i386-windows/ws2_32.dll"
+        other_own.parent.mkdir(parents=True)
+        other_own.write_bytes(b"MZ GE wine ws2_32")
+        other.write_text("")
+        self.assertTrue(MODULE["restore_dirt_ws2"](self.prefix, other))
+        self.assertEqual(os.readlink(self.target), str(other_own))
+        self.assertFalse(os.path.lexists(self.target.with_name("ws2_32.dll.droiddeck-original")))
+
+    def test_restore_follows_a_proton_reached_through_a_linked_folder(self):
+        MODULE["swap_dirt_ws2"](self.prefix)
+        pack = Path(self.tmp.name) / "pack"
+        (pack / "files/lib/wine").mkdir(parents=True)
+        (pack / "files/lib/wine/i386-windows").symlink_to(self.own.parent)
+        (pack / "proton").write_text("")
+        self.assertTrue(MODULE["restore_dirt_ws2"](self.prefix, pack / "proton"))
+        self.assertEqual(os.readlink(self.target), str(self.own))
+
+    def test_a_stand_in_left_without_the_saved_link_is_replaced_by_protons_own_file(self):
+        self.target.unlink()
+        self.target.write_bytes(self.stand_in.read_bytes())
+        self.assertTrue(MODULE["restore_dirt_ws2"](self.prefix, self.proton))
+        self.assertEqual(os.readlink(self.target), str(self.own))
+
+    def test_launch_swaps_the_stand_in_in_for_the_game_and_back_afterwards(self):
+        self.config("DiRT Showdown", self.SHOWDOWN_ON)
+        self.proton.write_text("#!" + sys.executable + "\nimport os, sys\n"
+            "target = os.path.join(os.environ['STEAM_COMPAT_DATA_PATH'], 'pfx/drive_c/windows/syswow64/ws2_32.dll')\n"
+            "print(os.environ.get('WINEDLLOVERRIDES', ''))\n"
+            "print(os.path.islink(target), b'droiddeck-dirt-ws2_32' in open(target, 'rb').read())\n")
+        self.proton.chmod(0o755)
+        runner = Path(self.tmp.name) / "run.py"
+        runner.write_text("import runpy, sys\nmain = runpy.run_path(sys.argv[1])['main']\nmain.__globals__['DIRT_WS2'] = sys.argv[2]\n"
+                          "sys.argv = [sys.argv[1]] + sys.argv[3:]\nsys.exit(main())\n")
+        home = Path(self.tmp.name) / "home"
+        home.mkdir()
+        result = subprocess.run([sys.executable, str(runner), str(BIN / "droiddeck-game-env"), str(self.stand_in), *self.command()],
+            env={**os.environ, "HOME": str(home), "STEAM_COMPAT_DATA_PATH": str(self.prefix)}, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        overrides, state = result.stdout.splitlines()[-2:]
+        self.assertIn("ws2_32=n,b", overrides.split(";"))
+        self.assertEqual(state, "False True")
+        self.assertIn("DiRT telemetry fix: ws2_32 stand-in", result.stderr)
+        self.assertEqual(os.readlink(self.target), str(self.own))
+        self.assertFalse(os.path.lexists(self.target.with_name("ws2_32.dll.droiddeck-original")))
+
+    def test_a_proton_that_cannot_start_leaves_the_prefix_as_it_was(self):
+        self.config("DiRT Showdown", self.SHOWDOWN_ON)
+        self.proton.write_text("not a program")
+        self.proton.chmod(0o644)
+        runner = Path(self.tmp.name) / "run.py"
+        runner.write_text("import runpy, sys\nmain = runpy.run_path(sys.argv[1])['main']\nmain.__globals__['DIRT_WS2'] = sys.argv[2]\n"
+                          "sys.argv = [sys.argv[1]] + sys.argv[3:]\nsys.exit(main())\n")
+        home = Path(self.tmp.name) / "home"
+        home.mkdir()
+        result = subprocess.run([sys.executable, str(runner), str(BIN / "droiddeck-game-env"), str(self.stand_in), *self.command()],
+            env={**os.environ, "HOME": str(home), "STEAM_COMPAT_DATA_PATH": str(self.prefix)}, text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("DiRT telemetry fix: ws2_32 stand-in", result.stderr)
+        self.assertEqual(os.readlink(self.target), str(self.own))
+        self.assertFalse(os.path.lexists(self.target.with_name("ws2_32.dll.droiddeck-original")))
+
+    def test_launch_with_telemetry_off_leaves_the_prefix_alone(self):
+        self.config("DiRT Showdown", self.SHOWDOWN_DEFAULT)
+        self.proton.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('WINEDLLOVERRIDES', ''))\n")
+        self.proton.chmod(0o755)
+        home = Path(self.tmp.name) / "home"
+        home.mkdir()
+        result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), *self.command()],
+            env={**os.environ, "HOME": str(home), "STEAM_COMPAT_DATA_PATH": str(self.prefix)}, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("ws2_32=n,b", result.stdout)
+        self.assertEqual(os.readlink(self.target), str(self.own))
+
+    def test_a_failed_put_back_does_not_end_the_launch_with_an_error(self):
+        def fail():
+            raise OSError(28, "No space left on device")
+        stderr = io.StringIO()
+        with mock.patch("sys.stderr", stderr):
+            code = MODULE["start"]([sys.executable, "-c", "raise SystemExit(0)"], dict(os.environ), None, fail)
+        self.assertEqual(code, 0)
+        self.assertIn("not put back", stderr.getvalue())
+
+    def test_a_half_done_swap_is_put_back(self):
+        saved = self.target.with_name("ws2_32.dll.droiddeck-original")
+        os.replace(self.target, saved)
+        self.assertTrue(MODULE["restore_dirt_ws2"](self.prefix, self.proton))
+        self.assertEqual(os.readlink(self.target), str(self.own))
+        self.assertFalse(os.path.lexists(saved))
+
+    def test_a_native_ws2_32_goes_back_as_it_was_after_a_proton_switch(self):
+        self.target.unlink()
+        self.target.write_bytes(b"MZ a mod's own ws2_32")
+        MODULE["swap_dirt_ws2"](self.prefix)
+        other = Path(self.tmp.name) / "GE-Proton/proton"
+        (other.parent / "files/lib/wine/i386-windows").mkdir(parents=True)
+        (other.parent / "files/lib/wine/i386-windows/ws2_32.dll").write_bytes(b"MZ GE wine ws2_32")
+        other.write_text("")
+        self.assertTrue(MODULE["restore_dirt_ws2"](self.prefix, other))
+        self.assertFalse(self.target.is_symlink())
+        self.assertEqual(self.target.read_bytes(), b"MZ a mod's own ws2_32")
+
+    def test_a_link_to_a_mods_ws2_32_goes_back_as_it_was(self):
+        mod = Path(self.tmp.name) / "mods/ws2_32.dll"
+        mod.parent.mkdir()
+        mod.write_bytes(b"MZ a mod's ws2_32")
+        self.target.unlink()
+        self.target.symlink_to(mod)
+        MODULE["swap_dirt_ws2"](self.prefix)
+        other = Path(self.tmp.name) / "GE-Proton/proton"
+        (other.parent / "files/lib/wine/i386-windows").mkdir(parents=True)
+        (other.parent / "files/lib/wine/i386-windows/ws2_32.dll").write_bytes(b"MZ GE wine ws2_32")
+        other.write_text("")
+        self.assertTrue(MODULE["restore_dirt_ws2"](self.prefix, other))
+        self.assertEqual(os.readlink(self.target), str(mod))
+
+    def test_start_gives_the_signal_handlers_back(self):
+        import signal
+        before = {s: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)}
+        MODULE["start"]([sys.executable, "-c", "pass"], dict(os.environ), None, lambda: None)
+        self.assertEqual(before, {s: signal.getsignal(s) for s in before})
+
+    def test_start_puts_the_file_back_after_the_game_exits(self):
+        calls = []
+        code = MODULE["start"]([sys.executable, "-c", "raise SystemExit(3)"], dict(os.environ), None, lambda: calls.append("restored"))
+        self.assertEqual(code, 3)
+        self.assertEqual(calls, ["restored"])
+        with self.assertRaises(OSError):
+            MODULE["start"]([str(Path(self.tmp.name) / "missing")], dict(os.environ), None, lambda: calls.append("again"))
+        self.assertEqual(calls, ["restored"])
+
+
+class EgoCorePlanTest(unittest.TestCase):
+    """DiRT 3's restrictions as shipped: plans for 2, 3, 4, 6 and 8+ cores, one core for anything else."""
+
+    @staticmethod
+    def rule(op, value, worker_map):
+        return ('            <restrict_if name="cores" op="%s" value="%d">\r\n                <restrict_add>\r\n'
+                '                    <threadStrategy parallelUpdateRender="true"  workerMapFile="system/%s" updateProcessor="2" />\r\n'
+                '                </restrict_add>\r\n            </restrict_if>\r\n' % (op, value, worker_map))
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.system = Path(self.tmp.name) / "DiRT 3/system"
+        self.system.mkdir(parents=True)
+        cpu = "".join(self.rule("int_eq", n, "workerMap%dCore.xml" % n) for n in (2, 3, 4, 6)) + self.rule("int_ge", 8, "workerMap8Core.xml")
+        self.shipped = ('<?xml version="1.0" encoding="UTF-8" ?>\r\n<hardware_settings_restrictions>\r\n    <cpu>\r\n'
+                        '        <restrict_info>\r\n' + cpu +
+                        '            <restrict_else>\r\n                <restrict_add>\r\n'
+                        '                    <threadStrategy parallelUpdateRender="false" workerMapFile="system/workerMap.xml" />\r\n'
+                        '                </restrict_add>\r\n            </restrict_else>\r\n        </restrict_info>\r\n    </cpu>\r\n'
+                        '    <audio_card>\r\n' + self.rule("int_eq", 5, "audio.xml") + '    </audio_card>\r\n'
+                        '</hardware_settings_restrictions>').encode("latin-1")
+        self.path = self.system / "hardware_settings_restrictions.xml"
+        self.path.write_bytes(self.shipped)
+        for name in ("workerMap.xml", "workerMap2Core.xml", "workerMap3Core.xml", "workerMap4Core.xml", "workerMap6Core.xml", "workerMap8Core.xml"):
+            (self.system / name).write_text("<workerMap />")
+        self.command = ["/proton", "waitforexitandrun", str(self.system.parent / "dirt3_game.exe")]
+        self.saved = self.path.with_name(self.path.name + ".droiddeck-original")
+
+    def plan(self, topology, command=None):
+        env = {} if topology is None else {"WINE_CPU_TOPOLOGY": topology}
+        return MODULE["ego_core_plan"](command or self.command, env)
+
+    def test_five_cores_get_a_copy_of_the_four_core_plan(self):
+        note = self.plan("5:7,3,4,5,6")
+        self.assertIn("5 cores", note)
+        self.assertIn("4-core plan", note)
+        text = self.path.read_bytes()
+        four = self.rule("int_eq", 4, "workerMap4Core.xml").encode("latin-1")
+        five = self.rule("int_eq", 5, "workerMap4Core.xml").encode("latin-1")
+        self.assertEqual(text, self.shipped.replace(four, four + five))
+        self.assertNotIn(b"\n", text.replace(b"\r\n", b""))
+        self.assertEqual(self.saved.read_bytes(), self.shipped)
+        self.assertEqual(sorted(p.name for p in self.system.glob("*droiddeck-tmp*")), [])
+        self.assertIsNone(self.plan("5:7,3,4,5,6"))
+        self.assertEqual(self.path.read_bytes(), text)
+        self.assertEqual(self.saved.read_bytes(), self.shipped)
+
+    def test_seven_cores_get_the_six_core_plan(self):
+        self.assertIn("6-core plan", self.plan("7:7,1,2,3,4,5,6"))
+        self.assertIn(b'value="7">\r\n                <restrict_add>\r\n                    <threadStrategy parallelUpdateRender="true"  '
+                      b'workerMapFile="system/workerMap6Core.xml"', self.path.read_bytes())
+
+    def test_counts_with_a_plan_are_left_alone(self):
+        for topology in ("2:7,6", "4:7,3,4,5", "6:7,3,4,5,6,2", "8:7,2,3,4,5,6,0,1", "12:0,1,2,3,4,5,6,7,8,9,10,11"):
+            self.assertIsNone(self.plan(topology), topology)
+        self.assertEqual(self.path.read_bytes(), self.shipped)
+        self.assertFalse(os.path.lexists(self.saved))
+
+    def test_nothing_changes_without_a_core_count_a_restrictions_file_a_smaller_plan_or_its_worker_map(self):
+        self.assertIsNone(self.plan(None))
+        self.assertIsNone(self.plan(""))
+        self.assertIsNone(self.plan("x:1"))
+        self.assertIsNone(self.plan("\u00b2:7"))
+        self.assertIsNone(self.plan("1:7"))
+        self.assertIsNone(self.plan("5:7,3,4,5,6", ["/proton", "waitforexitandrun"]))
+        self.assertIsNone(self.plan("5:7,3,4,5,6", ["/proton", "waitforexitandrun", "/elsewhere/game.exe"]))
+        (self.system / "workerMap4Core.xml").unlink()
+        self.assertIsNone(self.plan("5:7,3,4,5,6"))
+        self.assertEqual(self.path.read_bytes(), self.shipped)
+        self.assertFalse(os.path.lexists(self.saved))
+
+    def test_an_unknown_comparison_counts_as_a_plan(self):
+        self.path.write_bytes(self.shipped.replace(b'op="int_ge" value="8"', b'op="int_between" value="8"'))
+        self.assertIsNone(self.plan("5:7,3,4,5,6"))
+
+    def test_main_adds_the_plan_before_the_game_starts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            probe = Path(tmp) / "probe"
+            probe.write_text('#!/bin/sh\ngrep -c \'value="5"\' "%s"\n' % self.path)
+            probe.chmod(0o755)
+            env = {k: v for k, v in os.environ.items() if not k.startswith(("WINE", "PROTON", "DROIDDECK", "BL_", "STEAM"))}
+            env.update(HOME=tmp, STEAM_COMPAT_DATA_PATH="/compatdata/3791535942", WINE_CPU_TOPOLOGY="5:7,3,4,5,6")
+            result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun", self.command[2]],
+                                    env=env, text=True, capture_output=True, check=True)
+        self.assertEqual(result.stdout.strip(), "2", result.stderr)
+        self.assertIn("added a copy of its 4-core plan", result.stderr)
+
+
 class GameDebugLoggingTest(unittest.TestCase):
+    def test_maintenance_precision_survives_run_with_performance_game_settings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            config = home / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            config.write_text(json.dumps({"version": 1, "shared": {"FEX_X87REDUCEDPRECISION": "1"},
+                                          "games": {"42": {"FEX_X87REDUCEDPRECISION": "1"}}}))
+            probe = home / "proton"
+            probe.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ['FEX_X87REDUCEDPRECISION'])\n")
+            probe.chmod(0o755)
+            base = {**os.environ, "HOME": tmp, "STEAM_COMPAT_DATA_PATH": str(home / "compatdata/42")}
+            maintenance = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "run"],
+                env={**base, "DROIDDECK_GOG_MAINTENANCE": "1", "FEX_X87REDUCEDPRECISION": "0"}, text=True, capture_output=True, check=True)
+            game = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun"],
+                env={**base, "FEX_X87REDUCEDPRECISION": "1"}, text=True, capture_output=True, check=True)
+            self.assertEqual("0", maintenance.stdout.strip())
+            self.assertEqual("1", game.stdout.strip())
+
     def test_real_game_launch_without_config_file_keeps_the_base_environment(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
@@ -720,7 +1044,7 @@ class PlacedMemoryLaunchTest(unittest.TestCase):
                             patch.object(subprocess, "call", return_value=7) as call:
                         self.assertEqual(xbox["wine"]([str(prepared)], env, MODULE["call_proton"]), 7)
                     self.assertEqual(call.call_args.args[0], [str(runtime / "run-proton.py"),
-                                     "/selected/proton", "waitforexitandrun", "X:\\Bin\\Game.exe", "--custom"])
+                                     "/selected/proton", "waitforexitandrun", "X:\\droiddeck-xbox-game\\Bin\\Game.exe", "--custom"])
                     self.assertEqual(call.call_args.kwargs["env"][self.setting], "1")
                     self.assertTrue(call.call_args.kwargs["env"]["VK_INSTANCE_LAYERS"].endswith(":" + self.layer))
                     self.assertFalse(os.path.lexists(prefix / "dosdevices/x:"))
@@ -995,21 +1319,41 @@ class GameEnvironmentTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
             probe = home / "probe"
-            probe.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('BANNER_AUDIO_DIRECT_MIC', 'unset'))\n")
+            probe.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('AUDIO_DIRECT_MIC', 'unset'))\n")
             probe.chmod(0o755)
             config = home / ".config/droiddeck/game-environment.json"
             config.parent.mkdir(parents=True)
             for enabled, override, expected in (("1", None, "1"), ("0", "1", "0"), ("1", "0", "0")):
                 with self.subTest(enabled=enabled, override=override):
                     profile = {} if override is None else {
-                        "BANNER_AUDIO_DIRECT_MIC": override, "BL_MIC_ENABLED": override,
+                        "AUDIO_DIRECT_MIC": override, "BL_MIC_ENABLED": override,
                     }
                     config.write_text(json.dumps({"version": 1, "games": {"42": profile}}))
                     env = dict(os.environ, HOME=tmp, BL_MIC_ENABLED=enabled,
-                               BANNER_AUDIO_DIRECT_MIC="1", STEAM_COMPAT_DATA_PATH="/compatdata/42")
+                               AUDIO_DIRECT_MIC="1", STEAM_COMPAT_DATA_PATH="/compatdata/42")
                     result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"),
                                              str(probe), "waitforexitandrun"],
                                             env=env, text=True, capture_output=True, check=True)
+                    self.assertEqual(result.stdout.strip(), expected)
+
+    def test_game_profile_directaudio_settings_reach_the_driver(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            probe = home / "probe"
+            probe.write_text("#!" + sys.executable + "\nimport os\nprint(' '.join(sorted(k + '=' + v for k, v in os.environ.items() if k.startswith('BANNER_AUDIO_DIRECT_'))))\n")
+            probe.chmod(0o755)
+            config = home / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            config.write_text(json.dumps({"version": 1, "games": {"42": {"AUDIO_DIRECT_MS": "80"}}}))
+            base = {key: value for key, value in os.environ.items() if "AUDIO_DIRECT_" not in key}
+            base.update(HOME=tmp, BL_MIC_ENABLED="0", STEAM_COMPAT_DATA_PATH="/compatdata/42",
+                        AUDIO_DIRECT_MS="60", AUDIO_DIRECT_PERIOD_MS="20", AUDIO_DIRECT_MIC="1",
+                        BANNER_AUDIO_DIRECT_MS="60", BANNER_AUDIO_DIRECT_MIC="1")
+            for driver, expected in (("directaudio,pulse", "BANNER_AUDIO_DIRECT_MIC=0 BANNER_AUDIO_DIRECT_MS=80 BANNER_AUDIO_DIRECT_PERIOD_MS=20"),
+                                     ("pulse", "BANNER_AUDIO_DIRECT_MIC=1 BANNER_AUDIO_DIRECT_MS=60")):
+                with self.subTest(driver=driver):
+                    result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun"],
+                                            env=dict(base, WINE_AUDIO_DRIVER=driver), text=True, capture_output=True, check=True)
                     self.assertEqual(result.stdout.strip(), expected)
 
     def test_desktop_games_restart_on_the_gpu_with_steams_preloads_handed_back(self):
@@ -1298,7 +1642,7 @@ class GameEnvironmentTest(unittest.TestCase):
                 (game / name).touch()
             env, extra, notes = MODULE["engine_fixes"](str(game / "Game.exe"), [])
             self.assertEqual(env["FEX_TSOENABLED"], "1")
-            self.assertEqual(env["FEX_MULTIBLOCK"], "0")
+            self.assertNotIn("FEX_MULTIBLOCK", env)
             self.assertEqual(env["WINEDLLOVERRIDES"], "libsentry.windows.release.x86_64=d")
             self.assertEqual(extra, ["--rendering-driver", "vulkan"])
             self.assertEqual(MODULE["engine_fixes"](str(game / "Game.exe"), ["--rendering-driver", "opengl3"])[1], [])
@@ -1430,6 +1774,12 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertTrue(notes)
         self.assertEqual(MODULE["engine_fixes"]("/game/Game/DarkSoulsII.exe", []), ({}, [], []))
 
+    def test_little_nightmares_keeps_its_render_thread(self):
+        env, extra, notes = MODULE["engine_fixes"]("/game/Little Nightmares/Atlas/Binaries/Win64/LittleNightmares.exe", [])
+        self.assertEqual((env, extra), ({"PROTONFIXES_DISABLE": "1"}, []))
+        self.assertTrue(notes)
+        self.assertEqual(MODULE["engine_fixes"]("/game/Little Nightmares II/Moonlight/Binaries/Win64/LittleNightmaresII.exe", []), ({}, [], []))
+
     def test_game_cores_are_parsed_from_lists_and_ranges(self):
         parse = MODULE["parse_cores"]
         self.assertEqual(parse("0-3,6"), {0, 1, 2, 3, 6})
@@ -1470,6 +1820,72 @@ class GameEnvironmentTest(unittest.TestCase):
                 MODULE["cpu_topology"](env)
             self.assertEqual(env.get("WINE_CPU_TOPOLOGY"), expected, env)
             self.assertEqual(env.get("PROTON_CPU_TOPOLOGY"), proton, env)
+
+    def test_only_games_get_the_larger_swapchain(self):
+        game = {"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/945360"}
+        self.assertTrue(MODULE["game_images"](game))
+        self.assertEqual(game["GAMESCOPE_WSI_MIN_IMAGE_COUNT"], "8")
+        self.assertEqual(game["GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT"], "1")
+        own = {"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/945360", "GAMESCOPE_WSI_MIN_IMAGE_COUNT": "3"}
+        MODULE["game_images"](own)
+        self.assertEqual(own["GAMESCOPE_WSI_MIN_IMAGE_COUNT"], "3")
+        for env in ({}, {"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/0"}):
+            self.assertFalse(MODULE["game_images"](env))
+            self.assertNotIn("GAMESCOPE_WSI_MIN_IMAGE_COUNT", env)
+
+    def test_opengl_games_do_not_wait_for_the_screen_refresh(self):
+        cases = [
+            ({}, "0"),
+            ({"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/-686078602"}, "0"),
+            ({"vblank_mode": "2"}, "2"),
+            ({"vblank_mode": ""}, ""),
+            ({"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/0"}, None),
+            ({"STEAM_COMPAT_DATA_PATH": ""}, None),
+        ]
+        for env, expected in cases:
+            env.setdefault("STEAM_COMPAT_DATA_PATH", "/steam/compatdata/3608888694")
+            added = expected == "0" and "vblank_mode" not in env
+            self.assertEqual(MODULE["gl_vsync"](env), added, env)
+            self.assertEqual(env.get("vblank_mode"), expected, env)
+        said = "OpenGL does not wait for the screen refresh"
+        with tempfile.TemporaryDirectory() as tmp:
+            probe = Path(tmp) / "probe"
+            probe.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('vblank_mode', 'unset'))\n")
+            probe.chmod(0o755)
+            config = Path(tmp) / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            for inherited, edits, expected in (({}, None, "0"), ({"vblank_mode": "3"}, None, "3"),
+                                               ({}, {"vblank_mode": None}, "unset"), ({}, {"vblank_mode": "2"}, "2"),
+                                               ({"vblank_mode": "3"}, {"vblank_mode": None}, "unset")):
+                with self.subTest(inherited=inherited, edits=edits):
+                    config.write_text(json.dumps({"version": 1, "games": {"42": edits or {}}}))
+                    env = {name: value for name, value in os.environ.items() if name != "vblank_mode"}
+                    env.update(HOME=tmp, STEAM_COMPAT_DATA_PATH="/compatdata/42", **inherited)
+                    result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun"],
+                                            env=env, text=True, capture_output=True, check=True)
+                    self.assertEqual(result.stdout.strip(), expected)
+                    self.assertEqual(said in result.stderr, expected == "0" and not inherited, result.stderr)
+
+    def test_teardown_keeps_its_own_vsync_unless_the_player_chose(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            probe = Path(tmp) / "probe"
+            probe.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('vblank_mode', 'unset'))\n")
+            probe.chmod(0o755)
+            game = Path(tmp) / "Teardown/teardown.exe"
+            game.parent.mkdir()
+            game.write_bytes(b"MZ")
+            config = Path(tmp) / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            for inherited, edits, shared, expected in (({}, None, None, "2"), ({"vblank_mode": "0"}, None, None, "0"),
+                                                       ({}, {"vblank_mode": "1"}, None, "1"),
+                                                       ({}, None, {"vblank_mode": "1"}, "1")):
+                with self.subTest(inherited=inherited, edits=edits, shared=shared):
+                    config.write_text(json.dumps({"version": 1, "shared": shared or {}, "games": {"1167630": edits or {}}}))
+                    env = {name: value for name, value in os.environ.items() if name != "vblank_mode"}
+                    env.update(HOME=tmp, STEAM_COMPAT_DATA_PATH="/compatdata/1167630", **inherited)
+                    result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun", str(game)],
+                                            env=env, text=True, capture_output=True, check=True)
+                    self.assertEqual(result.stdout.strip(), expected, result.stderr)
 
     def test_windows_cpu_0_is_the_fastest_core(self):
         os_mod = MODULE["os"]
@@ -1855,6 +2271,36 @@ class GameEnvironmentTest(unittest.TestCase):
         for script in (COMPAT["LAUNCHER_SH"], COMPAT["EXTRA_WRAPPER_SH"] % "proton"):
             subprocess.run(["bash", "-n"], input=script, text=True, check=True)
             self.assertIn('bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', script)
+
+    def test_both_proton_wrappers_answer_steams_driver_query_without_wine(self):
+        scripts = (COMPAT["launcher_sh"](), COMPAT["extra_wrapper_sh"]("proton"))
+        query = "/root/.local/share/Steam/steamrtarm64/../bin/d3ddriverquery64.exe"
+        probe = "/root/.local/share/Steam/steamapps/compatdata/0"
+        for script in scripts:
+            subprocess.run(["bash", "-n"], input=script, text=True, check=True)
+            self.assertLess(script.index('case "$verb:${1##*/}:'), script.index("bl_components "))
+            for args, prefix in (([query, "-d3d12"], probe), ([query], probe + "/"),
+                                 ([query.replace("64.exe", ".exe")], probe)):
+                result = subprocess.run(["bash", "-s", "run"] + args, input=script, text=True, capture_output=True,
+                                        env={"PATH": os.defpath, "HOME": "/nonexistent", "STEAM_COMPAT_DATA_PATH": prefix},
+                                        timeout=10)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertEqual(result.stdout, "")
+                self.assertIn("D3D driver query is not run", result.stderr)
+        skip = COMPAT["BL_DRIVER_QUERY_SKIP"]
+        for verb, args, prefix in (
+                ("getcompatpath", [query], probe),
+                ("run", [query], "/root/.local/share/Steam/steamapps/compatdata/2276548447"),
+                ("run", [query], None),
+                ("waitforexitandrun", ["/games/AIO/AIO-Graphics-Test-64bit.exe", "--cube", "dx11"], probe),
+                ("run", ["/games/Tool/tool.exe", query], probe),
+                ("run", ["/games/d3ddriverquery64.exe.bak"], probe)):
+            env = {"PATH": os.defpath}
+            if prefix is not None:
+                env["STEAM_COMPAT_DATA_PATH"] = prefix
+            out = subprocess.run(["bash", "-c", "verb=" + verb + "\n" + skip + "echo continued", "_"] + args,
+                                 env=env, capture_output=True, text=True, check=True).stdout
+            self.assertEqual(out, "continued\n", (verb, args, prefix))
 
     def test_wrappers_preload_the_session_library_before_the_input_shim(self):
         overlay = "/root/.local/share/Steam/ubuntu12_64/gameoverlayrenderer.so"
@@ -2267,11 +2713,11 @@ class DirectAudioPrefixTest(unittest.TestCase):
             (self.windows / folder).mkdir(parents=True)
         self.reg = self.compat / "pfx/user.reg"
 
-    def run_setup(self, verb="waitforexitandrun", target="game.exe", cwd=None):
-        script = COMPAT["BL_DIRECTAUDIO_SETUP"] + '\nverb=$2\nbl_directaudio "$1" "$3"\necho "WINEDLLPATH=$WINEDLLPATH"\necho "WINE_AUDIO_DRIVER=${WINE_AUDIO_DRIVER:-}"\n'
+    def run_setup(self, verb="waitforexitandrun", target="game.exe", cwd=None, extra=None):
+        script = COMPAT["BL_DIRECTAUDIO_SETUP"] + '\nverb=$2\nbl_directaudio "$1" "$3"\necho "WINEDLLPATH=$WINEDLLPATH"\necho "WINE_AUDIO_DRIVER=${WINE_AUDIO_DRIVER:-}"\nenv | grep "^BANNER_AUDIO_DIRECT_" | sort\n'
         steam = self.compat.parent / "Steam"
         env = dict(os.environ, BL_DIRECTAUDIO=str(self.sets), STEAM_COMPAT_DATA_PATH=str(self.compat),
-                   STEAM_COMPAT_CLIENT_INSTALL_PATH=str(steam))
+                   STEAM_COMPAT_CLIENT_INSTALL_PATH=str(steam), **(extra or {}))
         env.pop("WINEDLLPATH", None)
         env.pop("WINE_AUDIO_DRIVER", None)
         return subprocess.run(["bash", "-c", script, "bash", str(self.tool), verb, target], cwd=cwd, env=env,
@@ -2319,6 +2765,21 @@ class DirectAudioPrefixTest(unittest.TestCase):
         self.assertIn("DirectAudio selected", result.stderr)
         self.assertEqual(self.link("system32"), str(self.audio / "lib/wine/aarch64-windows/winedirectaudio.drv"))
         self.assertEqual(self.audio_values(), [("[Software\\\\Wine\\\\Drivers]", '"Audio"="directaudio,pulse"')])
+    def test_audio_direct_settings_reach_the_driver_under_its_own_names(self):
+        self.reg.write_text("WINE REGISTRY Version 2\n\n#arch=win64\n")
+        result = self.run_setup(extra={"AUDIO_DIRECT_MS": "60", "AUDIO_DIRECT_PERIOD_MS": "20",
+                                       "AUDIO_DIRECT_RELAY": "/run/relay.sock", "OTHER_AUDIO_DIRECT_MS": "5"})
+        lines = [line for line in result.stdout.splitlines() if line.startswith("BANNER_")]
+        self.assertEqual(lines, ["BANNER_AUDIO_DIRECT_MS=60", "BANNER_AUDIO_DIRECT_PERIOD_MS=20",
+                                 "BANNER_AUDIO_DIRECT_RELAY=/run/relay.sock"])
+
+    def test_audio_direct_settings_are_not_handed_on_when_directaudio_stays_off(self):
+        legacycompat = self.compat.parent / "Steam/legacycompat"
+        legacycompat.mkdir(parents=True)
+        (legacycompat / "iscriptevaluator.exe").write_bytes(b"Steam install-script evaluator")
+        result = self.run_setup(target="iscriptevaluator.exe", cwd=legacycompat, extra={"AUDIO_DIRECT_MS": "60"})
+        self.assertNotIn("BANNER_AUDIO_DIRECT_MS", result.stdout)
+
     def test_non_launch_verbs_preserve_audio_configuration(self):
         for verb in ("getcompatpath", "getnativepath", "destroyprefix"):
             with self.subTest(verb=verb):

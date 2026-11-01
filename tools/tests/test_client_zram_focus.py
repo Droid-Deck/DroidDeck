@@ -19,6 +19,65 @@ def run_bash(script, env=None):
 
 
 class ClientZramFocusTest(unittest.TestCase):
+    def test_the_hidden_epic_launcher_is_compressed_with_the_client(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proc = Path(tmp)
+
+            def task(pid, argv, env=()):
+                folder = proc / str(pid)
+                folder.mkdir()
+                (folder / 'cmdline').write_bytes(b''.join(arg.encode() + b'\0' for arg in argv))
+                (folder / 'environ').write_bytes(b''.join(item.encode() + b'\0' for item in env))
+
+            fex = '/s/FEX-Emu/usr/bin/FEX'
+            task(5000010, ['/s/steamrtarm64/steam', '-gamepadui'])
+            task(5000011, [fex, '/e/usr/bin/EpicGamesLauncher'], ['HOME=/root', 'DROIDDECK_EPIC_HIDDEN=1'])
+            task(5000012, [fex, './/lib/webkit2gtk-4.1/WebKitWebProcess', '4'], ['DROIDDECK_EPIC_HIDDEN=1', 'LANG=C'])
+            task(5000013, [fex, '/e/usr/bin/EpicGamesLauncher'], ['HOME=/root'])
+            task(5000014, ['/e/WebKitWebProcess', '4'], ['DROIDDECK_EPIC_HIDDEN=1'])
+            task(5000015, [fex, '/e/usr/bin/EpicGamesLauncher'], ['DROIDDECK_EPIC_HIDDEN=10'])
+            task(5000016, ['/s/reaper', 'SteamLaunch', 'AppId=413150', '--', 'game'])
+            source = function_source('bl_zram_scan').replace('/proc/[0-9]*', tmp + '/[0-9]*')
+            result = run_bash(source + '\nbl_zram_scan\necho "${_bl_pids[*]}|${_bl_others[*]}|$_bl_game|$_bl_apps"')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual('', result.stderr)
+        self.assertEqual('5000010 5000011 5000012|5000013 5000014 5000015|1| 413150', result.stdout.strip())
+
+    def scan_fake(self, tasks):
+        with tempfile.TemporaryDirectory() as tmp:
+            for pid, argv in tasks:
+                self.write_cmd(Path(tmp), pid, argv)
+            source = function_source('bl_zram_scan').replace('/proc/[0-9]*', tmp + '/[0-9]*')
+            return run_bash(source + '\nbl_zram_scan\necho "${_bl_pids[*]}|${_bl_others[*]}|$_bl_game"')
+
+    def test_battlenet_is_compressed_with_the_client_while_one_of_its_games_runs(self):
+        launcher = [
+            (6000010, ['/s/steamrtarm64/steam', '-gamepadui']),
+            (6000011, ['/s/reaper', 'SteamLaunch', 'AppId=2899116412', '--', 'droiddeck-battlenet']),
+            (6000012, ['C:\\Program Files (x86)\\Battle.net\\Battle.net.exe', '--exec=launch S1']),
+            (6000013, ['C:\\Program Files (x86)\\Battle.net\\Battle.net.15511\\Battle.net Helper.exe', '--type=renderer']),
+            (6000014, ['C:\\ProgramData\\Battle.net\\Agent\\Agent.9324\\Agent.exe', '--internalclienttools']),
+            (6000015, ['C:\\windows\\system32\\services.exe']),
+            (6000016, ['C:\\windows\\system32\\winedevice.exe', '-uid']),
+        ]
+        game = [(6000017, ['S:\\Games\\StarCraft\\x86\\StarCraft.exe', '-launch', '-uid', 's1'])]
+        before = self.scan_fake(launcher)
+        during = self.scan_fake(launcher + game)
+        for result in (before, during):
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual('', result.stderr)
+        self.assertEqual('6000010|6000015 6000016 6000012 6000013 6000014|1', before.stdout.strip())
+        self.assertEqual('6000010 6000012 6000013 6000014|6000015 6000016 6000017|1', during.stdout.strip())
+
+    def test_a_game_without_a_battlenet_uid_leaves_battlenet_alone(self):
+        result = self.scan_fake([
+            (6000020, ['C:\\Program Files (x86)\\Battle.net\\Battle.net.exe']),
+            (6000021, ['D:\\Games\\Other\\Game.exe', '-windowed']),
+            (6000022, ['/usr/bin/wine', 'game.exe', '-uid']),
+        ])
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual('|6000021 6000022 6000020|0', result.stdout.strip())
+
     def test_refocus_restarts_the_delay_and_game_exit_restores_a_packed_client(self):
         source = SCRIPT.read_text()
         start = source.index('          if [ "$_bl_game" = 1 ] && bl_game_focused; then')

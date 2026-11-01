@@ -363,14 +363,14 @@ class AppUpdatesTest {
     @Test
     fun customCatalogIsBoundToTheSelectedRepositoryAndCarriesItsSource() {
         val raw = publishedCatalog("0".repeat(64))
-            .put("sourceRepo", "wallentx/DroidDeck")
-            .put("ciRepo", "wallentx/DroidDeck-CI")
+            .put("sourceRepo", "example/DroidDeck")
+            .put("ciRepo", "example/DroidDeck-CI")
         raw.getJSONObject("preview").getJSONObject("apks").getJSONObject("com.droiddeck.launcher")
-            .put("url", "https://github.com/wallentx/DroidDeck-CI/releases/download/main-deadbee/DroidDeck-main-deadbee.apk")
+            .put("url", "https://github.com/example/DroidDeck-CI/releases/download/main-deadbee/DroidDeck-main-deadbee.apk")
         val parsed = AppUpdates.readPublishedCatalog(
             raw, "com.droiddeck.launcher", 123L,
             expectedSourceRepo = null,
-            expectedCiRepo = "wallentx/DroidDeck-CI",
+            expectedCiRepo = "example/DroidDeck-CI",
             sourceId = "source-1",
         )
         assertEquals("source-1", parsed.sourceId)
@@ -381,7 +381,7 @@ class AppUpdatesTest {
     fun legacyOfficialCacheCannotBecomeACustomSourcesCatalog() {
         val context = RuntimeEnvironment.getApplication()
         val official = AppUpdates.sources(context).single()
-        val custom = RepositorySources.source("wallentx/droiddeck-ci")
+        val custom = RepositorySources.source("example/droiddeck-ci")
         AppUpdates.saveSources(context, listOf(official.copy(hidden = true), custom))
         context.getSharedPreferences("app_updates", 0).edit()
             .putString("catalog", AppUpdates.writeCatalog(catalog).toString())
@@ -402,6 +402,78 @@ class AppUpdatesTest {
         assertNotNull(AppUpdates.cached(context, official.id))
         assertTrue(context.getSharedPreferences("app_updates", 0).contains(AppUpdates.catalogCacheKey(main)))
         assertFalse(context.getSharedPreferences("app_updates", 0).contains("catalog:${official.id}"))
+    }
+
+    @Test
+    fun anEmptySavedSourceFallsBackToTheFirstVisibleSource() {
+        val context = RuntimeEnvironment.getApplication()
+        val original = AppUpdates.sources(context)
+        val prefs = context.getSharedPreferences("app_updates", 0)
+        try {
+            val visible = AppUpdates.saveSources(context, original.map { it.copy(hidden = false) }).first()
+            prefs.edit().clear().putString("channel", "nightly").putString("source", "").commit()
+            assertEquals(Follow(Channel.NIGHTLY, sourceId = visible.id), AppUpdates.follow(context, null))
+        } finally {
+            prefs.edit().clear().commit()
+            AppUpdates.saveSources(context, original)
+        }
+    }
+
+    @Test
+    fun anEmptyFollowInputPreservesTheExistingSourceSelection() {
+        val context = RuntimeEnvironment.getApplication()
+        val original = AppUpdates.sources(context)
+        val prefs = context.getSharedPreferences("app_updates", 0)
+        try {
+            val custom = RepositorySources.source("example/updates")
+            AppUpdates.saveSources(context, original + custom)
+            prefs.edit().clear().commit()
+            AppUpdates.setFollow(context, Follow(Channel.STABLE, sourceId = custom.id))
+            AppUpdates.setFollow(context, Follow(Channel.TEST, 93))
+            assertEquals(custom.id, prefs.getString("source", null))
+            assertEquals(Follow(Channel.TEST, 93, custom.id), AppUpdates.follow(context, null))
+        } finally {
+            prefs.edit().clear().commit()
+            AppUpdates.saveSources(context, original)
+        }
+    }
+
+    @Test
+    fun noVisibleSourceStaysEmptyUntilOneBecomesVisible() {
+        val context = RuntimeEnvironment.getApplication()
+        val original = AppUpdates.sources(context)
+        val prefs = context.getSharedPreferences("app_updates", 0)
+        try {
+            AppUpdates.saveSources(context, original.map { it.copy(hidden = true) })
+            prefs.edit().clear().commit()
+            AppUpdates.setFollow(context, Follow(Channel.TEST, 93))
+            assertFalse(prefs.contains("source"))
+            assertEquals(Follow(Channel.TEST, 93), AppUpdates.follow(context, null))
+            val visible = AppUpdates.saveSources(context, original.map { it.copy(hidden = false) }).first()
+            assertEquals(Follow(Channel.TEST, 93, visible.id), AppUpdates.follow(context, null))
+        } finally {
+            prefs.edit().clear().commit()
+            AppUpdates.saveSources(context, original)
+        }
+    }
+
+    @Test
+    fun aSavedHiddenSourceIsNotSilentlyReplacedByAnotherVisibleSource() {
+        val context = RuntimeEnvironment.getApplication()
+        val original = AppUpdates.sources(context)
+        val prefs = context.getSharedPreferences("app_updates", 0)
+        try {
+            val hidden = original.first().copy(hidden = true)
+            val custom = RepositorySources.source("example/updates")
+            AppUpdates.saveSources(context, original.map { it.copy(hidden = true) } + custom)
+            prefs.edit().clear().commit()
+            AppUpdates.setFollow(context, Follow(Channel.STABLE, sourceId = hidden.id))
+            AppUpdates.setFollow(context, Follow(Channel.NIGHTLY))
+            assertEquals(Follow(Channel.NIGHTLY, sourceId = hidden.id), AppUpdates.follow(context, null))
+        } finally {
+            prefs.edit().clear().commit()
+            AppUpdates.saveSources(context, original)
+        }
     }
 
     @Test
@@ -443,6 +515,30 @@ class AppUpdatesTest {
     }
 
     @Test
+    fun missingCatalogDoesNotOverrideAutomaticChannelInference() {
+        val context = RuntimeEnvironment.getApplication()
+        val preferences = context.getSharedPreferences("app_updates", 0)
+        preferences.edit().clear().commit()
+        try {
+            val installed = me("bbbbbbb", version = "0.3.0")
+            val provisional = AppUpdates.follow(context, null, installed)
+            assertEquals(Channel.STABLE, provisional.channel)
+            assertEquals(AppUpdates.sources(context).single().id, provisional.sourceId)
+            assertFalse(preferences.contains("channel"))
+
+            val inferred = AppUpdates.follow(context, catalog, installed)
+            assertEquals(Channel.NIGHTLY, inferred.channel)
+            assertEquals(provisional.sourceId, inferred.sourceId)
+            assertFalse(preferences.contains("channel"))
+            assertEquals(provisional, AppUpdates.follow(context, null, installed))
+            AppUpdates.setFollow(context, inferred)
+            assertEquals(inferred, AppUpdates.follow(context, null, installed))
+        } finally {
+            preferences.edit().clear().commit()
+        }
+    }
+
+    @Test
     fun missingCatalogAndRateLimitReportDifferentErrorsAndPreserveCachedUpdate() {
         val context = RuntimeEnvironment.getApplication()
         val source = AppUpdates.saveSources(
@@ -476,5 +572,69 @@ class AppUpdatesTest {
             GitHubArtifacts.openConnection = production
             GitHubArtifacts.clearRateLimits()
         }
+    }
+    @Test fun anOlderStableIsGuessedStableAndSaved() {
+        val g = AppUpdates.guessFollow(catalog, me("eeeeeee999", version = "0.1.9"))
+        assertEquals(AppUpdates.Channel.STABLE, g.follow.channel)
+        assertTrue(g.certain)
+    }
+
+    @Test fun anOlderBuildInPreviewHistoryKeepsStableAsAnUncertainGuess() {
+        val withHistory = AppUpdates.Catalog(stable, release("1111111"), emptyList(), 0L, recentPreview)
+        val g = AppUpdates.guessFollow(withHistory, me("2".repeat(40), version = "0.1.0"))
+        assertEquals(Channel.STABLE, g.follow.channel)
+        assertFalse(g.certain)
+    }
+
+    @Test fun anOlderCataloguedBuildDoesNotPersistAGuessAndExplicitChoicesStillWin() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val preferences = context.getSharedPreferences("app_updates", android.content.Context.MODE_PRIVATE)
+        preferences.edit().clear().commit()
+        try {
+            val installed = me("2".repeat(40), version = "0.1.0")
+            val newerStable = release("0".repeat(40), version = "9999.0.0")
+            val currentPreview = release(installed.commit)
+            val newerCatalog = AppUpdates.Catalog(newerStable, currentPreview, emptyList(), 0L)
+            assertEquals(Channel.STABLE, AppUpdates.follow(context, newerCatalog, installed).channel)
+            assertNull(preferences.getString("channel", null))
+            assertEquals(Channel.STABLE, AppUpdates.follow(context, null, installed).channel)
+            assertNull(preferences.getString("channel", null))
+            for (choice in listOf(Follow(Channel.STABLE), Follow(Channel.NIGHTLY), Follow(Channel.TEST, 93))) {
+                AppUpdates.setFollow(context, choice)
+                val actual = AppUpdates.follow(context, newerCatalog, installed)
+                assertEquals(choice.channel, actual.channel)
+                assertEquals(choice.pr, actual.pr)
+            }
+        } finally {
+            preferences.edit().clear().commit()
+        }
+    }
+
+    @Test fun runningTheCatalogStableIsCertainStable() {
+        val g = AppUpdates.guessFollow(catalog, me(stable.commit))
+        assertEquals(AppUpdates.Channel.STABLE, g.follow.channel)
+        assertTrue(g.certain)
+    }
+
+    @Test fun aPublishedPreviewPastStableIsGuessedNightlyWithoutSaving() {
+        val withHistory = AppUpdates.Catalog(stable, release("1111111"), emptyList(), 0L, recentPreview)
+        val g = AppUpdates.guessFollow(withHistory, me("2".repeat(40), version = "0.3.0"))
+        assertEquals(AppUpdates.Channel.NIGHTLY, g.follow.channel)
+        assertFalse(g.certain)
+    }
+
+    @Test fun anUncataloguedNewerBuildStaysStableForNow() {
+        val g = AppUpdates.guessFollow(catalog, me("9".repeat(40), version = "0.3.0"))
+        assertEquals(AppUpdates.Channel.STABLE, g.follow.channel)
+        assertFalse(g.certain)
+        val offline = AppUpdates.guessFollow(null, me("9".repeat(40), version = "0.3.0"))
+        assertEquals(AppUpdates.Channel.STABLE, offline.follow.channel)
+        assertFalse(offline.certain)
+    }
+
+    @Test fun aPullRequestBuildIsCertainTest() {
+        val g = AppUpdates.guessFollow(catalog, me("ccccccc2222222222222222222222222222222", pr = 93))
+        assertEquals(AppUpdates.Channel.TEST, g.follow.channel)
+        assertTrue(g.certain)
     }
 }

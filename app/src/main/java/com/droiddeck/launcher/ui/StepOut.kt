@@ -124,6 +124,18 @@ internal enum class StepSide {
     Right,
 }
 
+internal fun fitStepSide(preferred: StepSide, pill: Rect, hostWidth: Float, wanted: Float): StepSide {
+    val leftRoom = pill.right
+    val rightRoom = hostWidth - pill.left
+    val room = if (preferred == StepSide.Left) leftRoom else rightRoom
+    val other = if (preferred == StepSide.Left) rightRoom else leftRoom
+    return if (room >= wanted || other <= room) preferred else if (preferred == StepSide.Left) StepSide.Right else StepSide.Left
+}
+
+internal fun stepReach(side: StepSide, pill: Rect, hostWidth: Float, width: Int): Pair<Float, Float> =
+    if (side == StepSide.Left) pill.left to (pill.right - width).coerceAtLeast(0f)
+    else pill.right to (pill.left + width).coerceAtMost(hostWidth)
+
 internal class StepOutScope(private val items: List<Animatable<Float, AnimationVector1D>>, val first: FocusRequester, val open: Boolean, val maxHeight: Dp) {
     fun Modifier.stepItem(i: Int): Modifier = graphicsLayer {
         val v = items[i.coerceIn(0, items.lastIndex)].value
@@ -141,7 +153,7 @@ private val OutFillet = 10.dp
 internal fun StepOut(
     open: Boolean,
     pill: Rect,
-    side: StepSide,
+    preferredSide: StepSide,
     accent: Color,
     onDismiss: () -> Unit,
     onClosed: () -> Unit,
@@ -166,6 +178,7 @@ internal fun StepOut(
     val opener = remember { arrayOfNulls<GlideSource>(1) }
     val openNow = androidx.compose.runtime.rememberUpdatedState(open)
     var moving by remember { mutableStateOf(false) }
+    val placed = remember { arrayOfNulls<Any>(3) }
     if (moving) VeilRing()
     val pull = with(density) { OutPull.toPx() }
     val corner = pillCorner?.let { with(density) { it.toPx() } } ?: minOf(pill.height, pill.width) / 2f
@@ -177,13 +190,18 @@ internal fun StepOut(
             maxOf(hostHeight - pill.bottom - pull, pill.top - pull).coerceAtLeast(44.dp.toPx()).toDp()
         }
         val up = measured?.let { pill.bottom + pull + it.height > hostHeight && pill.top - pull - it.height >= 0f } ?: false
+        val wantedW = with(density) { maxWidth.toPx() }
+        val side = fitStepSide(preferredSide, pill, hostWidth, wantedW)
         val room = if (side == StepSide.Left) pill.right else hostWidth - pill.left
-        val maxW = with(density) { maxWidth.toPx() }.coerceAtMost(room).coerceAtLeast(pill.width)
-        LaunchedEffect(open, measured) {
-            if (!open && !grown) { onClosed(); return@LaunchedEffect }
+        val maxW = wantedW.coerceAtMost(room).coerceAtLeast(pill.width)
+        LaunchedEffect(open, measured, side, pill, hostWidth) {
+            val moved = placed[0] == open && placed[1] == measured
+            val flipped = placed[2] != null && placed[2] != side
+            placed[0] = open; placed[1] = measured; placed[2] = side
+            if (!open && !grown) { if (!moved) onClosed(); return@LaunchedEffect }
             val c = measured ?: return@LaunchedEffect
-            val rest = if (side == StepSide.Left) pill.left else pill.right
-            val out = if (side == StepSide.Left) (pill.right - c.width).coerceAtLeast(0f) else (pill.left + c.width).coerceAtMost(hostWidth)
+            val (rest, out) = stepReach(side, pill, hostWidth, c.width)
+            if (grown && flipped) edge.snapTo(if (open) out else rest)
             val boxBottom = pill.bottom + pull + c.height
             if (open) {
                 if (!grown) {
@@ -202,11 +220,6 @@ internal fun StepOut(
                     pieces.forEachIndexed { i, a ->
                         launch { delay(Motion.ms(260 + i * 55).toLong()); a.animateTo(1f, Motion.tw(220)) }
                     }
-                    if (inputMode.inputMode == InputMode.Keyboard) launch {
-                        delay(Motion.ms(300).toLong())
-                        withFrameNanos { }
-                        runCatching { first.requestFocus() }
-                    }
                 }
             } else {
                 opener[0]?.let { o -> if (inputMode.inputMode == InputMode.Keyboard) runCatching { o.requester.requestFocus() } }
@@ -223,6 +236,13 @@ internal fun StepOut(
                 moving = false
                 onClosed()
             }
+        }
+
+        LaunchedEffect(open, measured) {
+            if (!open || measured == null || inputMode.inputMode != InputMode.Keyboard) return@LaunchedEffect
+            delay(Motion.ms(300).toLong())
+            withFrameNanos { }
+            runCatching { first.requestFocus() }
         }
 
         LaunchedEffect(open, grown, inputMode.inputMode) {
@@ -245,8 +265,7 @@ internal fun StepOut(
             else stepPathRight(path, pill, edge.value, bottom.value, pill.bottom + pull, boxCorner, fillet, corner)
             if (up) path.transform(Matrix().apply { this[1, 1] = -1f; this[3, 1] = pill.top + pill.bottom })
             val a = measured?.let { c ->
-                val rest = if (side == StepSide.Left) pill.left else pill.right
-                val out = if (side == StepSide.Left) (pill.right - c.width).coerceAtLeast(0f) else (pill.left + c.width).coerceAtMost(hostWidth)
+                val (rest, out) = stepReach(side, pill, hostWidth, c.width)
                 val down = pill.bottom + pull + c.height - pill.bottom
                 val across = kotlin.math.abs(out - rest)
                 val fd = if (down < 1f) 1f else (bottom.value - pill.bottom) / down

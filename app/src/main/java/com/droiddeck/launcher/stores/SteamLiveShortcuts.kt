@@ -92,6 +92,28 @@ object SteamLiveShortcuts {
         if (evaluate(context, js) != null) Log.i(TAG, "live shortcuts: updated $id")
     }
 
+    fun launchOptions(context: Context, appId: Long): String? {
+        if (!clientRunning()) return null
+        val js = """
+            new Promise(done => {
+              let handle = null, answer;
+              const finish = d => { clearTimeout(timer); try { handle?.unregister(); } catch (e) {} done(d); };
+              const timer = setTimeout(() => finish(null), 4000);
+              handle = SteamClient.Apps.RegisterForAppDetails(${appId and 0xFFFFFFFFL}, d => { answer = d; if (handle) finish(d); });
+              if (answer !== undefined) finish(answer);
+            }).then(d => typeof d?.strLaunchOptions === 'string' ? d.strLaunchOptions : null)
+        """.trimIndent()
+        return evaluate(context, js)
+    }
+
+    fun setLaunchOptions(context: Context, appId: Long, options: String): Boolean {
+        if (!clientRunning()) return false
+        val id = appId and 0xFFFFFFFFL
+        val done = evaluate(context, "(async () => { SteamClient.Apps.SetAppLaunchOptions($id, ${JSONObject.quote(options)}); return 1; })()") != null
+        if (done) Log.i(TAG, "live: launch options for $id")
+        return done
+    }
+
     fun setArt(context: Context, appId: Long, assetType: Int?, file: java.io.File?, iconPath: String? = null) {
         if (!clientRunning()) return
         val id = appId and 0xFFFFFFFFL

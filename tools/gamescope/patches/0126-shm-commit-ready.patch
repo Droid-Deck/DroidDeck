@@ -1,7 +1,7 @@
 diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 --- a/src/steamcompmgr.cpp
 +++ b/src/steamcompmgr.cpp
-@@ -95,6 +95,7 @@
+@@ -96,6 +96,7 @@
  #include "Script/Script.h"
  #include "refresh_rate.h"
  #include "commit.h"
@@ -9,7 +9,7 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
  #include "reshade_effect_manager.hpp"
  #include "BufferMemo.h"
  #include "vrclient_detect.h"
-@@ -8451,7 +8452,6 @@ void update_wayland_res(CommitDoneList_t *doneCommits, steamcompmgr_win_t *w, Re
+@@ -8484,7 +8485,6 @@
  		return;
  	}
  
@@ -17,16 +17,16 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
  	global_focus_t *pCurrentFocus = GetCurrentFocus();
  
  	static bool bMangoappSocketDisable = env_to_bool( getenv( "GAMESCOPE_MANGOAPP_SOCKET_DISABLE" ));
-@@ -8492,8 +8492,6 @@ void update_wayland_res(CommitDoneList_t *doneCommits, steamcompmgr_win_t *w, Re
+@@ -8534,8 +8534,6 @@
+ 
  	bool bValidPreemptiveScale = reslistentry.pAcquirePoint && pUpscaleFocus && cv_upscale_preemptive;
  	bool bPreemptiveUpscale = bValidPreemptiveScale && newCommit->ShouldPreemptivelyUpscale( pUpscaleFocus->eUpscaleFilter, pUpscaleFocus->eUpscaleScaler );
- 
--	bool bKnownReady = false;
 -
+-	bool bKnownReady = false;
+ 
  	std::pair<int32_t, bool> eventFd = gamescope::CAcquireTimelinePoint::k_InvalidEvent;
  
- 	if ( bPreemptiveUpscale )
-@@ -8589,31 +8587,44 @@ void update_wayland_res(CommitDoneList_t *doneCommits, steamcompmgr_win_t *w, Re
+@@ -8632,47 +8630,56 @@
  			pBackendFb->SetBuffer( buf );
  	}
  
@@ -40,21 +40,29 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 -		struct wlr_dmabuf_attributes dmabuf = {0};
 -		if ( wlr_buffer_get_dmabuf( buf, &dmabuf ) )
 -		{
--			fence = dup( dmabuf.fd[0] );
+-			// A finished buffer needs no fence of its own.
+-			if ( cv_commit_ready_check && commit_fence_ready_now( dmabuf.fd[0] ) )
+-				bKnownReady = true;
+-			else
+-				fence = dup( dmabuf.fd[0] );
 -		}
 -		else
+-		{
+-			fence = newCommit->vulkanTex->memoryFence();
 +	gamescope::BufferCommitSync commitSync = gamescope::SelectBufferCommitSync(
 +		eventFd != gamescope::CAcquireTimelinePoint::k_InvalidEvent,
 +		eventFd.first,
 +		eventFd.second,
-+		[&]() -> std::optional<int> {
++		[&]() -> std::optional<gamescope::BufferCommitSync> {
 +			struct wlr_dmabuf_attributes dmabuf = {0};
 +			if ( wlr_buffer_get_dmabuf( buf, &dmabuf ) )
 +			{
++				if ( cv_commit_ready_check && commit_fence_ready_now( dmabuf.fd[0] ) )
++					return gamescope::BufferCommitSync::DmaBuf( -1, true );
 +				int fd = dup( dmabuf.fd[0] );
 +				if ( fd < 0 )
 +					xwm_log.errorf( "Failed to duplicate DMA-BUF fence: %d", errno );
-+				return fd;
++				return gamescope::BufferCommitSync::DmaBuf( fd );
 +			}
 +			return std::nullopt;
 +		} );
@@ -65,31 +73,49 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 +		// return an invalid fd on drivers that do not export the allocation.
 +		static bool loggedSynchronousUpload = false;
 +		if ( !loggedSynchronousUpload )
- 		{
--			fence = newCommit->vulkanTex->memoryFence();
++		{
 +			xwm_log.infof( "Treating synchronously uploaded SHM commit %lu as ready without an external fence",
 +				newCommit->commitID );
 +			loggedSynchronousUpload = true;
  		}
  	}
  
- 	gpuvis_trace_printf( "pushing wait for commit %lu win %lx", newCommit->commitID, w->type == steamcompmgr_win_type_t::XWAYLAND ? w->xwayland().id : 0 );
-+	if ( !gamescope::DispatchBufferCommitSync( newCommit.get(), g_ImageWaiter, commitSync,
-+			mango_nudge, uMangoMsgType, doneCommits ) )
+ 	if ( cv_commit_ready_check )
  	{
--		newCommit->SetFence( fence, mango_nudge, uMangoMsgType, doneCommits );
+-		if ( !bKnownReady && fence >= 0 && commit_fence_ready_now( fence ) )
+-			bKnownReady = true;
+-		note_commit_fence( bKnownReady );
++		if ( !commitSync.knownReady && commitSync.fence >= 0 && commit_fence_ready_now( commitSync.fence ) )
++			commitSync.knownReady = true;
++		note_commit_fence( commitSync.knownReady );
+ 	}
+ 
+ 	gpuvis_trace_printf( "pushing wait for commit %lu win %lx", newCommit->commitID, w->type == steamcompmgr_win_type_t::XWAYLAND ? w->xwayland().id : 0 );
+-	{
+-		newCommit->SetFence( fence, mango_nudge, uMangoMsgType, doneCommits, bDroidDeckHudFrame && droiddeck_hud_frames_wanted() );
 -		if ( bKnownReady )
+-		{
 -			newCommit->Signal();
+-			if ( cv_commit_ready_check )
+-				( w->type == steamcompmgr_win_type_t::XWAYLAND ? s_bXwaylandCommitsDoneAtImport : s_bXdgCommitsDoneAtImport ) = true;
+-		}
 -		else
 -			g_ImageWaiter.AddWaitable( newCommit.get() );
+-	}
++	if ( !gamescope::DispatchBufferCommitSync( newCommit.get(), g_ImageWaiter, commitSync,
++			mango_nudge, uMangoMsgType, doneCommits, bDroidDeckHudFrame && droiddeck_hud_frames_wanted() ) )
++	{
 +		xwm_log.errorf( "Failed to queue %s commit fence fd %d for commit %lu",
 +			gamescope::BufferCommitSyncSourceName( commitSync.source ), commitSync.fence, newCommit->commitID );
 +		// Dropping the commit releases its buffer and discards presentation feedback.
 +		w->receivedDoneCommit = true;
 +		return;
- 	}
++	}
++	if ( commitSync.knownReady )
++		( w->type == steamcompmgr_win_type_t::XWAYLAND ? s_bXwaylandCommitsDoneAtImport : s_bXdgCommitsDoneAtImport ) = true;
  
  	w->commit_queue.push_back( std::move(newCommit) );
+ }
 diff --git a/src/buffer_commit_sync.hpp b/src/buffer_commit_sync.hpp
 new file mode 100644
 --- /dev/null
@@ -119,9 +145,9 @@ new file mode 100644
 +		return { fence, knownReady, BufferCommitSyncSource::ExplicitAcquire };
 +	}
 +
-+	static constexpr BufferCommitSync DmaBuf( int fence )
++	static constexpr BufferCommitSync DmaBuf( int fence, bool knownReady = false )
 +	{
-+		return { fence, false, BufferCommitSyncSource::DmaBuf };
++		return { fence, knownReady, BufferCommitSyncSource::DmaBuf };
 +	}
 +
 +	static constexpr BufferCommitSync SynchronousUpload()
@@ -137,8 +163,8 @@ new file mode 100644
 +	if ( hasExplicitAcquire )
 +		return BufferCommitSync::ExplicitAcquire( explicitFence, explicitKnownReady );
 +
-+	if ( std::optional<int> dmaBufFence = getDmaBufFence() )
-+		return BufferCommitSync::DmaBuf( *dmaBufFence );
++	if ( std::optional<BufferCommitSync> dmaBuf = getDmaBufFence() )
++		return *dmaBuf;
 +
 +	return BufferCommitSync::SynchronousUpload();
 +}
@@ -160,9 +186,9 @@ new file mode 100644
 +
 +template <typename Commit, typename Waiter, typename DoneCommits>
 +bool DispatchBufferCommitSync( Commit *commit, Waiter &waiter, const BufferCommitSync &sync,
-+	bool mangoNudge, unsigned int mangoMsgType, DoneCommits *doneCommits )
++	bool mangoNudge, unsigned int mangoMsgType, const DoneCommits &doneCommits, bool hudFrame )
 +{
-+	commit->SetFence( sync.fence, mangoNudge, mangoMsgType, doneCommits );
++	commit->SetFence( sync.fence, mangoNudge, mangoMsgType, doneCommits, hudFrame );
 +	if ( !sync.knownReady && sync.fence < 0 )
 +		return false;
 +	if ( sync.knownReady )

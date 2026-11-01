@@ -498,6 +498,25 @@ fun FileManagerScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     val drives = remember(storageTick) { StorageRoots.list(context) }
+    var accessDrive by remember { mutableStateOf<String?>(null) }
+    fun unreadable(drive: StorageRoot) {
+        if (AllFilesAccess.missing()) accessDrive = drive.label
+        else Toast.makeText(context, context.getString(R.string.fm_drive_not_readable, drive.label), Toast.LENGTH_SHORT).show()
+    }
+    accessDrive?.let { label ->
+        OutlinedAlertDialog(
+            onDismissRequest = { accessDrive = null },
+            title = { Text(stringResource(R.string.fm_drive_access_title, label)) },
+            text = { Text(stringResource(R.string.fm_drive_access_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    accessDrive = null
+                    AllFilesAccess.open(context)
+                }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.upd_open_settings)) }
+            },
+            dismissButton = { TextButton(onClick = { accessDrive = null }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
+        )
+    }
     val linuxRoot = remember(storageTick) {
         com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context).takeIf { File(it, "usr").isDirectory }
     }
@@ -747,11 +766,7 @@ fun FileManagerScreen(
                                 if (drive.readable) {
                                     openDrive(drive.dir)
                                 } else {
-                                    Toast.makeText(
-                                        context,
-                                        context.getString(R.string.fm_drive_not_readable, drive.label),
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
+                                    unreadable(drive)
                                 }
                             },
                             modifier = Modifier.focusGlide(),
@@ -1072,7 +1087,7 @@ fun FileManagerScreen(
             add(locItem(stringResource(R.string.fm_drive_internal), Icons.Filled.Smartphone, File("/storage/emulated/0")))
             drives.filter { it.removable }.forEach { d ->
                 add(RailItem(d.label, Icons.Filled.SdStorage, !showFavorites && currentRoot.absolutePath == d.dir.absolutePath) {
-                    showFavorites = false; if (d.readable) openDrive(d.dir)
+                    showFavorites = false; if (d.readable) openDrive(d.dir) else unreadable(d)
                 })
             }
             linuxRoot?.let { add(locItem(stringResource(R.string.fm_drive_linux), Icons.Filled.Terminal, it)) }

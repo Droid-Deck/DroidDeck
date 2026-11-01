@@ -3,6 +3,9 @@ package com.droiddeck.launcher.session
 import android.os.Process
 import java.io.File
 import java.io.IOException
+import java.io.RandomAccessFile
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
@@ -19,8 +22,15 @@ internal class SessionSuspendController(
     private val nowMillis: () -> Long = { System.nanoTime() / 1_000_000 },
     private val executor: ExecutorService = Executors.newSingleThreadExecutor(),
     private val zramControl: File? = null,
+    private val clockControl: File? = null,
+    private val nowNanos: () -> Long = System::nanoTime,
     private val pagedOut: (processes: Int, unacknowledged: Int, residentKb: Long, swapKb: Long, swapBeforeKb: Long, millis: Long) -> Unit =
         { _, _, _, _, _, _ -> },
+    // False with a RAM cap set: the user asked for the session to use less memory, so nothing is read back.
+    private val readBackAllowed: () -> Boolean = { true },
+    // processes is 0 when the read-back was skipped: a RAM cap, or MemAvailable could not take it.
+    private val pagedIn: (processes: Int, swapKb: Long, swapBeforeKb: Long, availableKb: Long, millis: Long) -> Unit =
+        { _, _, _, _, _ -> },
 ) {
     private enum class Role { SESSION_ROOT, SESSION_CHILD, HELPER_ROOT, HELPER_CHILD }
 
@@ -43,6 +53,8 @@ internal class SessionSuspendController(
     @Volatile private var closing = false
     @Volatile private var cancelled = false
     private var frozen = emptyList<ProcessRecord>()
+    private var frozenSince: Long? = null
+    private var pagedOutTargets = emptyList<ProcessRecord>()
 
     fun freeze(pageOut: Boolean = false, completion: (Boolean) -> Unit) {
         cancelled = false
@@ -93,6 +105,7 @@ internal class SessionSuspendController(
             } catch (_: Exception) {
             } finally {
                 frozen = records.values.toList()
+                if (complete && frozenSince == null) frozenSince = nowNanos()
                 if (!complete) {
                     if (restoreSafely(frozen)) frozen = emptyList()
                     runAudio(resumeAudio)
@@ -100,6 +113,8 @@ internal class SessionSuspendController(
                 if (interrupted) Thread.currentThread().interrupt()
             }
             completion(complete)
+            // A cancelled or failed freeze leaves the game running with whatever the page-out already moved.
+            if (!complete && frozen.isEmpty() && !interrupted) readBack()
         }, { completion(false) })
     }
 
@@ -111,16 +126,19 @@ internal class SessionSuspendController(
     fun resume(completion: (Boolean) -> Unit) {
         submit({
             val records = frozen
+            advanceClock()
             runAudio(resumeAudio)
             val resumed = restoreSafely(records)
             if (resumed) frozen = emptyList()
             completion(resumed)
+            if (resumed) readBack()
         }, { completion(false) })
     }
 
     fun closeAndResume(completion: () -> Unit) {
         closing = true
         submit({
+            advanceClock()
             if (restoreSafely(frozen)) frozen = emptyList()
             completion()
             executor.shutdown()
@@ -132,6 +150,23 @@ internal class SessionSuspendController(
             executor.execute(task)
         } catch (_: RejectedExecutionException) {
             rejected()
+        }
+    }
+
+    private fun advanceClock() {
+        val since = frozenSince ?: return
+        frozenSince = null
+        val control = clockControl?.takeIf { it.isFile && it.length() >= Long.SIZE_BYTES } ?: return
+        try {
+            RandomAccessFile(control, "rw").use { file ->
+                val bytes = ByteArray(Long.SIZE_BYTES)
+                file.readFully(bytes)
+                val shift = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).long.coerceAtLeast(0L) +
+                    (nowNanos() - since).coerceAtLeast(0L)
+                file.seek(0L)
+                file.write(ByteBuffer.allocate(Long.SIZE_BYTES).order(ByteOrder.LITTLE_ENDIAN).putLong(shift).array())
+            }
+        } catch (_: IOException) {
         }
     }
 
@@ -263,6 +298,7 @@ internal class SessionSuspendController(
             }
         }
         if (targets.isEmpty()) return
+        pagedOutTargets = (pagedOutTargets + targets).distinct()
         val acks = targets.associateWith { File(control.parentFile, "${control.name}.ack.${it.pid}") }
         acks.values.forEach { it.delete() }
         val start = nowMillis()
@@ -281,6 +317,69 @@ internal class SessionSuspendController(
         acks.values.forEach { it.delete() }
         val after = memoryKb(targets)
         pagedOut(targets.size, unacknowledged, after.first, after.second, before.second, nowMillis() - start)
+    }
+
+    // Left in zram, the paged-out memory comes back one major fault at a time while the game runs; in a heavy
+    // game that is hundreds of faults per frame and stalls of a quarter second and more, long after the resume.
+    // libblsession's handler reads back only the swapped pages (mode 0, as the session script does for the client).
+    // The handler runs on whichever thread takes the signal, so that thread pauses for the read-back,
+    // once and right after the resume instead of mid-game.
+    // It signals even with nothing in zram yet: after a cancelled freeze a page-out handler may not have started,
+    // and it reads the mode only when it starts, so it reads back instead of paging out.
+    private fun readBack() {
+        val targets = pagedOutTargets.filterNot { isGone(it) }
+        pagedOutTargets = emptyList()
+        val control = zramControl?.takeIf { it.isFile } ?: return
+        if (targets.isEmpty() || closing) return
+        val before = memoryKb(targets).second
+        val (total, available) = meminfoKb()
+        if (!readBackAllowed() || !canTake(before, total, available)) {
+            pagedIn(0, before, before, available, 0)
+            return
+        }
+        try {
+            control.writeText("0")
+        } catch (_: IOException) {
+            return
+        }
+        val start = nowMillis()
+        for (record in targets) send(record, SIGURG)
+        var swap = before
+        var unchanged = 0
+        try {
+            while (!closing && nowMillis() - start < READ_BACK_TIMEOUT_MS) {
+                sleep(READ_BACK_POLL_MS)
+                val current = memoryKb(targets).second
+                unchanged = if (current == swap) unchanged + 1 else 0
+                swap = current
+                if (swap == 0L || unchanged >= READ_BACK_STABLE_POLLS) break
+            }
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
+        pagedIn(targets.size, swap, before, available, nowMillis() - start)
+    }
+
+    // Reading back moves the swap into resident memory, out of MemAvailable. On a device short on memory that
+    // could push Android's low-memory killer onto DroidDeck itself, so the memory comes back only when
+    // MemAvailable is at least twice the swap and keeps 1 GB or a tenth of MemTotal, whichever is more, after it.
+    // Otherwise it stays in zram and faults back in as the game touches it, as before.
+    private fun canTake(swapKb: Long, totalKb: Long, availableKb: Long): Boolean =
+        availableKb >= swapKb * READ_BACK_AVAILABLE_FACTOR &&
+            availableKb - swapKb >= maxOf(READ_BACK_HEADROOM_KB, totalKb / READ_BACK_TOTAL_SHARE)
+
+    // MemTotal and MemAvailable, 0 when unreadable (which skips the read-back).
+    private fun meminfoKb(): Pair<Long, Long> = try {
+        val values = HashMap<String, Long>()
+        File(procRoot, "meminfo").forEachLine { line ->
+            val name = line.substringBefore(':')
+            if (name == "MemTotal" || name == "MemAvailable") {
+                line.substringAfter(':').trim().substringBefore(' ').toLongOrNull()?.let { values[name] = it }
+            }
+        }
+        (values["MemTotal"] ?: 0L) to (values["MemAvailable"] ?: 0L)
+    } catch (_: IOException) {
+        0L to 0L
     }
 
     private fun isGone(record: ProcessRecord): Boolean =
@@ -384,6 +483,12 @@ internal class SessionSuspendController(
         const val PAGE_OUT_POLL_MS = 100L
         const val PAGE_OUT_START_MS = 2_000L
         const val PAGE_OUT_TIMEOUT_MS = 12_000L
+        const val READ_BACK_POLL_MS = 100L
+        const val READ_BACK_STABLE_POLLS = 5
+        const val READ_BACK_TIMEOUT_MS = 5_000L
+        const val READ_BACK_HEADROOM_KB = 1_048_576L
+        const val READ_BACK_AVAILABLE_FACTOR = 2L
+        const val READ_BACK_TOTAL_SHARE = 10L
         const val RESTORE_CHECKS = 80
         const val FREEZE_TIMEOUT_MS = 8_000L
         const val FREEZE_MAX_PASSES = 256

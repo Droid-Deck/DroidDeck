@@ -163,9 +163,15 @@ public final class WaylandCompositor {
 
     public static native int nativeCursorSerial();
 
+    public static native void nativeSetCursorComposite(boolean on);
+
     public static final int CURSOR_BUF_INTS = 6 + 256 * 256;
 
     public static native void nativeSendKey(int evdev, int state);
+
+    public static native boolean nativeFocusTakesTouch();
+
+    public static native boolean nativeCursorInputPos(int[] out);
 
     public static native void nativeVsync(long frameTimeNanos);
 
@@ -284,6 +290,8 @@ public final class WaylandCompositor {
 
     public static native void nativeSetFpsLimit(int fps);
 
+    public static native void nativeSetRenderOnCommit(boolean on);
+
     public static native void nativeSetGpuTurbo(boolean on);
 
     public static native int nativeRaisePriority(int tid, int nice);
@@ -321,9 +329,17 @@ public final class WaylandCompositor {
         nativeSendSceneInput(6, dx * 256, dy * 256);
     }
 
+    private static float pendingDeltaX, pendingDeltaY;
+
     public static void sendPointerDelta(float dx, float dy) {
-        int x = Math.round(dx * 256f), y = Math.round(dy * 256f);
+        // Round-to-zero per event would drop slow motion entirely; carry the remainder.
+        pendingDeltaX += dx * 256f;
+        pendingDeltaY += dy * 256f;
+        int x = (int) Math.floor(pendingDeltaX);
+        int y = (int) Math.floor(pendingDeltaY);
         if (x == 0 && y == 0) return;
+        pendingDeltaX -= x;
+        pendingDeltaY -= y;
         nativeSendSceneInput(6, x, y);
     }
 }

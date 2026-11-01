@@ -1,0 +1,24 @@
+From facb0f6476b374cb9bdb07e388936f4ca0a829ce Mon Sep 17 00:00:00 2001
+From: maxjivi05 <maxjividen@gmail.com>
+Date: Wed, 28 Oct 2026 15:17:52 -0400
+Subject: [PATCH] fake_id0: keep the statx exit stop so owners stay faked
+
+---
+ src/extension/fake_id0/fake_id0.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/extension/fake_id0/fake_id0.c b/src/extension/fake_id0/fake_id0.c
+index dc28529..a5ee018 100644
+--- a/src/extension/fake_id0/fake_id0.c
++++ b/src/extension/fake_id0/fake_id0.c
+@@ -349,6 +349,7 @@ static FilteredSysnum filtered_sysnums[] = {
+ 	{ PR_stat64,		FILTER_SYSEXIT },
+ 	{ PR_statfs,		FILTER_SYSEXIT },
+ 	{ PR_statfs64,		FILTER_SYSEXIT },
++	{ PR_statx,		FILTER_SYSEXIT },
+ 	FILTERED_SYSNUM_END,
+ };
+ 
+-- 
+2.43.0
+
