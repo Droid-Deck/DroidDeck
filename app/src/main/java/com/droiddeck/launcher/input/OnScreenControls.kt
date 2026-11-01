@@ -713,7 +713,10 @@ class OnScreenControls(
             bridge.setSystemButtons(controls.any { it.id == "guide" && it.pressedBy != -1 }, qamHeld)
         } else {
             bridge.setSystemButtons(false, qamHeld)
-            bridge.applyTouch { state ->
+            val stickWrites = controls.filter { it.stick >= 0 && it.dirty }.fold(0) { mask, control ->
+                mask or if (control.stick == 0) PadBridge.LEFT_STICK else PadBridge.RIGHT_STICK
+            }
+            bridge.applyTouch(stickWrites) { state ->
                 val used = HashSet<String>()
                 val held = HashSet<String>()
                 for (control in controls) {

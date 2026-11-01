@@ -633,6 +633,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
 
         val bridge = PadBridge(File(LinuxRuntime.sessionRoot(this), "dev/input"))
+        bridge.setStickDeadZone(ControllerPrefs.deadZone(this))
         bridge.setSelectSteam(ControllerPrefs.read(this).selectSteam)
         bridge.setBuiltinPad(SessionState.mode != SessionService.MODE_STEAM || SessionPrefs.builtinPad(this))
         padBridge = bridge
@@ -4096,6 +4097,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         (getSystemService(INPUT_SERVICE) as? InputManager)
             ?.registerInputDeviceListener(deviceListener, Handler(Looper.getMainLooper()))
+        padBridge?.setStickDeadZone(ControllerPrefs.deadZone(this))
         refreshSecondScreenDisplays()
         if (SessionState.guestPid > 1) padBridge?.syncConnectedControllers()
         joyConVr?.refresh()

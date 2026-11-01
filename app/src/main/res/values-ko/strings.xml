@@ -1099,6 +1099,8 @@
     <string name="ctrl_stick_click_hint">스틱을 두 번 탭한 후 길게 누르면 L3 또는 R3이 입력됩니다</string>
     <string name="ctrl_adaptive">적응형 스틱</string>
     <string name="ctrl_rumble">게임 진동</string>
+    <string name="ctrl_dead_zone">스틱 데드존</string>
+    <string name="ctrl_dead_zone_hint" formatted="false">물리 컨트롤러 스틱에 적용합니다. 0%는 데드존을 끄며 기본값은 12%입니다.</string>
     <string name="ctrl_steam_button">Steam 버튼</string>
     <string name="ctrl_qam_button">QAM 버튼</string>
     <string name="ctrl_keyboard_button">키보드 버튼</string>
