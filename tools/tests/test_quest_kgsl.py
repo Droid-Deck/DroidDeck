@@ -18,6 +18,15 @@ class QuestKgslTest(unittest.TestCase):
             result = subprocess.run([binary], capture_output=True, text=True, check=True, timeout=10)
             self.assertIn('PASS: 12 GPUOBJ', result.stdout)
 
+    def test_refused_timestamp_read_is_answered_from_waits(self):
+        with tempfile.TemporaryDirectory() as folder:
+            binary = str(Path(folder) / 'test-kgsl-read')
+            subprocess.run(['gcc', '-Wall', '-Wextra', '-Werror', '-O2', '-o', binary,
+                            str(QUEST.parent / 'tests/test_kgsl_read.c'),
+                            str(QUEST.parent / 'linuxfs/preload/kgslpoll.c')], check=True)
+            result = subprocess.run([binary], capture_output=True, text=True, check=True, timeout=10)
+            self.assertIn('PASS: refused timestamp reads', result.stdout)
+
 
 if __name__ == '__main__':
     unittest.main()

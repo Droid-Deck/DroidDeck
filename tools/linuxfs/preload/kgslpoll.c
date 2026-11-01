@@ -1,28 +1,90 @@
 #define _GNU_SOURCE
 #include <errno.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <sys/ioctl.h>
 
-#define KGSL_IOC_TYPE 0x09
-#define KGSL_TIMESTAMP_RETIRED 0x00000002
+#include "../../quest/kgsl_compat.h"
 
-struct kgsl_device_waittimestamp_ctxtid {
-  unsigned int context_id;
-  unsigned int timestamp;
-  unsigned int timeout;
-};
+#define KGSL_CONTEXTS 1024
 
-struct kgsl_cmdstream_readtimestamp_ctxtid {
-  unsigned int context_id;
-  unsigned int type;
-  unsigned int timestamp;
-};
+static struct {
+  uint32_t submitted;
+  uint32_t retired;
+} contexts[KGSL_CONTEXTS];
 
-#define IOCTL_KGSL_DEVICE_WAITTIMESTAMP_CTXTID \
-  _IOW(KGSL_IOC_TYPE, 0x7, struct kgsl_device_waittimestamp_ctxtid)
-#define IOCTL_KGSL_CMDSTREAM_READTIMESTAMP_CTXTID \
-  _IOWR(KGSL_IOC_TYPE, 0x16, struct kgsl_cmdstream_readtimestamp_ctxtid)
+static void report_denied(unsigned long request, int error) {
+  static unsigned reports;
+  int saved = errno;
+
+  if (__atomic_fetch_add(&reports, 1, __ATOMIC_RELAXED) < 8)
+    fprintf(stderr, "[QuestKGSL] ioctl 0x%lx refused, errno=%d\n", request & 0xff, error);
+  errno = saved;
+}
+
+static void note_submit(unsigned int context_id, unsigned int timestamp) {
+  if (context_id < KGSL_CONTEXTS)
+    __atomic_store_n(&contexts[context_id].submitted, timestamp, __ATOMIC_RELAXED);
+}
+
+/* shortcut: an unfinished timestamp sleeps a jiffy per poll, read the memstore instead if Quest's mmap of it is proven */
+static int read_retired(int (*real)(int, unsigned long, void *), int fd,
+                        struct kgsl_cmdstream_readtimestamp_ctxtid *read) {
+  uint32_t id = read->context_id;
+  uint32_t timestamp, submitted;
+
+  if (read->type != KGSL_TIMESTAMP_RETIRED || id >= KGSL_CONTEXTS) return -1;
+  timestamp = __atomic_load_n(&contexts[id].retired, __ATOMIC_RELAXED);
+  submitted = __atomic_load_n(&contexts[id].submitted, __ATOMIC_RELAXED);
+  while (timestamp != submitted) {
+    /* KGSL reads a timeout of 0 as wait forever. */
+    struct kgsl_device_waittimestamp_ctxtid wait = {
+        .context_id = id, .timestamp = timestamp + 1, .timeout = 1};
+
+    if (real(fd, IOCTL_KGSL_DEVICE_WAITTIMESTAMP_CTXTID, &wait) != 0) {
+      if (errno != ETIMEDOUT && errno != ETIME && errno != EINTR && errno != EAGAIN) return -1;
+      break;
+    }
+    timestamp++;
+    __atomic_store_n(&contexts[id].retired, timestamp, __ATOMIC_RELAXED);
+  }
+  read->timestamp = timestamp;
+  return 0;
+}
+
+/* Quest refuses some KGSL ioctls, and Mesa 27 turns a failed timestamp read into VK_ERROR_UNKNOWN. */
+__attribute__((visibility("hidden"))) void bl_kgsl_track(int (*real)(int, unsigned long, void *),
+                                                         int fd, unsigned long request, void *arg,
+                                                         int *rc) {
+  int saved = errno;
+
+  if (arg == NULL) return;
+  if (*rc == 0) {
+    if (request == IOCTL_KGSL_GPU_COMMAND) {
+      const struct kgsl_gpu_command *submit = arg;
+      note_submit(submit->context_id, submit->timestamp);
+    } else if (request == IOCTL_KGSL_GPU_AUX_COMMAND) {
+      const struct kgsl_gpu_aux_command *submit = arg;
+      note_submit(submit->context_id, submit->timestamp);
+    } else if (request == IOCTL_KGSL_DRAWCTXT_CREATE) {
+      const struct kgsl_drawctxt_create *create = arg;
+      if (create->drawctxt_id < KGSL_CONTEXTS) {
+        note_submit(create->drawctxt_id, 0);
+        __atomic_store_n(&contexts[create->drawctxt_id].retired, 0, __ATOMIC_RELAXED);
+      }
+    }
+    return;
+  }
+  if (_IOC_TYPE(request) == KGSL_IOC_TYPE && (saved == EACCES || saved == EPERM ||
+                                              request == IOCTL_KGSL_CMDSTREAM_READTIMESTAMP_CTXTID))
+    report_denied(request, saved);
+  if (request != IOCTL_KGSL_CMDSTREAM_READTIMESTAMP_CTXTID) return;
+  if (read_retired(real, fd, arg) == 0)
+    *rc = 0;
+  else if (errno != saved)
+    report_denied(IOCTL_KGSL_DEVICE_WAITTIMESTAMP_CTXTID, errno);
+}
 
 static int enabled(void) {
   static int cached = -1;
