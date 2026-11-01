@@ -1087,13 +1087,16 @@ object ComponentsManager {
     fun importPackage(context: Context, source: File, name: String): Package = synchronized(lock) {
         val info = packageInfo(context, source)
         val dest = File(packagesDir(context), safeName(name).let { if (it.endsWith(".wcp")) it else "$it.wcp" })
-        storePackage(context, source.copyTo(File(dest.parentFile, dest.name + ".part"), overwrite = true), dest)
+        val part = File(dest.parentFile, dest.name + ".part")
+        source.copyTo(part, overwrite = true)
+        storePackage(context, part, dest)
         provenanceFile(dest).delete()
         info.copy(file = dest.name)
     }
 
     internal var catalogRefresher: (Context, String, RepositorySources.Source) -> List<CatalogItem> =
         ::refreshCatalogSource
+    internal var packageReceiptWriter: (File, ByteArray) -> Unit = RepositorySources::atomicWrite
     internal var packageDownloader: (String, File, String, (Int) -> Unit) -> Boolean = { url, file, digest, progress ->
         Downloader.downloadFile(url, file, true, digest) { value ->
             progress(if (value < 0) -1 else (value * 100).toInt().coerceIn(0, 100))
@@ -1523,6 +1526,46 @@ object ComponentsManager {
         ) { commit() }
     }
 
+    private fun storeDownloadedPackage(context: Context, part: File, dest: File, item: CatalogItem) {
+        val existed = dest.exists()
+        var backup: File? = null
+        var committed = false
+        try {
+            check(!existed || dest.isFile) { "Invalid existing component package ${dest.name}" }
+            val identical = existed && Hashes.sha256(dest).equals(item.digest.substringAfter(':'), true)
+            if (existed && !identical) {
+                checkPackageUnused(context, loadState(context), dest.name)
+                val previous = File.createTempFile(".component-", ".backup", dest.parentFile)
+                try {
+                    dest.copyTo(previous, overwrite = true)
+                } catch (error: Throwable) {
+                    previous.delete()
+                    throw error
+                }
+                backup = previous
+            }
+            if (!identical) storePackage(context, part, dest)
+            packageReceiptWriter(provenanceFile(dest), provenance(item).toString().toByteArray(Charsets.UTF_8))
+            committed = true
+        } catch (error: Throwable) {
+            if (backup != null) {
+                val restored = backup.renameTo(dest) ||
+                    ((!dest.exists() || dest.delete()) && backup.renameTo(dest))
+                if (!restored) {
+                    // Keep the previous bytes for recovery if the filesystem refuses restoration.
+                    if (dest.exists() && !dest.delete()) Log.e(TAG, "Could not remove uncommitted component ${dest.name}")
+                    error.addSuppressed(IOException("Could not restore ${dest.name}; backup retained at ${backup.path}"))
+                }
+            } else if (!existed && dest.exists() && !dest.delete()) {
+                error.addSuppressed(IOException("Could not remove uncommitted component ${dest.name}"))
+            }
+            throw error
+        } finally {
+            part.delete()
+            if (committed && backup != null && !backup.delete()) Log.w(TAG, "Could not remove component backup ${backup.name}")
+        }
+    }
+
     fun download(context: Context, item: CatalogItem, progress: (Int) -> Unit): Package {
         val repository = RepositorySources.canonicalRepository(item.repository)
         val legacyUnbound = repository == NIGHTLIES &&
@@ -1564,17 +1607,8 @@ object ComponentsManager {
         require(info.comp == item.comp) { part.delete(); "Component archive type does not match its catalog" }
         try {
             commitDownloadedPackage(context, item, generation) {
-                storePackage(context, part, dest)
-                if (item.sourceId.isNotEmpty()) {
-                    try {
-                        RepositorySources.atomicWrite(
-                            provenanceFile(dest), provenance(item).toString().toByteArray(Charsets.UTF_8),
-                        )
-                    } catch (error: Throwable) {
-                        dest.delete()
-                        throw error
-                    }
-                }
+                if (item.sourceId.isEmpty()) storePackage(context, part, dest)
+                else storeDownloadedPackage(context, part, dest, item)
             }
         } catch (error: IOException) {
             part.delete()

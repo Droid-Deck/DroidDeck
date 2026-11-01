@@ -2,7 +2,6 @@
 <resources>
     <string name="mode_touch_gestures">Gester</string>
     <string name="gesture_settings">Inställningar för pekgester</string>
-    <string name="gesture_settings_hint">Anpassa mus- och tangentbordsgester. Välj Gester som pekläge för att använda dem.</string>
     <string name="gesture_tap">Tryck</string>
     <string name="gesture_drag">Dra med ett finger</string>
     <string name="gesture_long_press">Långt tryck</string>
@@ -15,6 +14,8 @@
     <string name="gesture_three_hold">Håll med tre fingrar</string>
     <string name="gesture_pinch">Nyp för att zooma</string>
     <string name="gesture_hold_button">Håll knappen nedtryckt</string>
+    <string name="gesture_hold_left">Håll vänster knapp nedtryckt</string>
+    <string name="gesture_hold_right">Håll höger knapp nedtryckt</string>
     <string name="gesture_click_once">Klicka en gång</string>
     <string name="gesture_hold_delay">Fördröjning före hållning</string>
     <string name="gesture_double_delay">Intervall för dubbeltryck</string>

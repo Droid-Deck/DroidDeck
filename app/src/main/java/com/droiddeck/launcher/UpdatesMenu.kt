@@ -109,12 +109,12 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
     private fun sourcesChanged() {
         request++
         checking = false
+        pending = null
+        askPermission = false
         sources = AppUpdates.sources(activity).filterNot { it.hidden }
         if (sources.none { it.id == follow.sourceId }) {
             catalog = null
             error = null
-            pending = null
-            askPermission = false
         } else {
             catalog = AppUpdates.cached(activity, follow.sourceId)
             error = null
@@ -123,9 +123,11 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
     }
 
     private fun chooseSource(sourceId: String) {
-        if (sources.none { it.id == sourceId } || sourceId == follow.sourceId) return
+        if (stage != null || sources.none { it.id == sourceId } || sourceId == follow.sourceId) return
         request++
         checking = false
+        pending = null
+        askPermission = false
         follow = follow.copy(sourceId = sourceId)
         AppUpdates.setFollow(activity, follow)
         catalog = AppUpdates.cached(activity, sourceId)
@@ -135,7 +137,9 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
 
     private fun install(r: AppUpdates.Release) {
         if (stage != null) return
-        if (catalog?.sourceId != follow.sourceId || sources.none { it.id == follow.sourceId }) {
+        val selectedCatalog = catalog
+        if (selectedCatalog == null || selectedCatalog.sourceId != follow.sourceId ||
+            sources.none { it.id == follow.sourceId } || AppUpdates.release(selectedCatalog, follow) !== r) {
             error = activity.getString(R.string.upd_no_download)
             return
         }
@@ -144,13 +148,13 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
         if (SessionState.running) { error = activity.getString(R.string.upd_stop_first); return }
         if (!SelfInstaller.canInstall(activity)) { pending = r; askPermission = true; return }
         error = null
-        session = -1
         val sourceId = follow.sourceId
         val sourceGeneration = RepositorySources.generation(activity, AppUpdates.SOURCE_SCOPE, AppUpdates.sourceBuiltIns())
         if (!RepositorySources.isCurrent(activity, AppUpdates.SOURCE_SCOPE, AppUpdates.sourceBuiltIns(), sourceId, sourceGeneration)) {
             error = activity.getString(R.string.upd_no_download)
             return
         }
+        session = -1
         stage = activity.getString(R.string.upd_stage_downloading)
         percent = 0
         Thread({
@@ -194,6 +198,7 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
         sources = AppUpdates.sources(activity).filterNot { it.hidden }
         follow = AppUpdates.follow(activity, null)
         catalog = AppUpdates.cached(activity, follow.sourceId)
+        follow = AppUpdates.follow(activity, catalog)
         val filter = IntentFilter(SelfInstaller.ACTION_STATUS)
         if (Build.VERSION.SDK_INT >= 33) activity.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
         else activity.registerReceiver(receiver, filter)

@@ -24,15 +24,33 @@ object GamesFolderMigration {
         for (root in roots) {
             var n = 0
             val steamInstalls = AddedGames.steamInstallDirs(root.host)
-            for (folder in root.host.listFiles { f -> f.isDirectory }?.sortedBy { it.name.lowercase() }.orEmpty()) {
-                if (AddedGames.isSteamLibraryFolder(folder.name) || folder.name.lowercase() in steamInstalls) continue
-                if (folder.absolutePath in storeRoots || StoreGameSidecar.read(folder) != null) continue
-                if (folder.path in entries) continue
-                val picked = SessionPrefs.addedGameExe(context, folder.path).takeIf { it.isNotEmpty() }?.let { File(it) }?.takeIf { it.isFile }
-                val exe = picked ?: AddedGames.rank(folder).exes.firstOrNull() ?: continue
-                AddedExes.put(context, AddedExes.Entry(folder.path, exe.path, picked = picked != null))
-                entries.add(folder.path)
-                if (folder.path !in removed) n++
+            for (top in root.host.listFiles { f -> f.isDirectory }?.sortedBy { it.name.lowercase() }.orEmpty()) {
+                if (AddedGames.isSteamLibraryFolder(top.name) || top.name.lowercase() in steamInstalls) continue
+                if (top.absolutePath in storeRoots || StoreGameSidecar.read(top) != null) continue
+                if (top.path in entries) continue
+                val topPick = SessionPrefs.addedGameExe(context, top.path).takeIf { it.isNotEmpty() }?.let { File(it) }?.takeIf { it.isFile }
+                val groups = AddedGames.groupGames(top)
+                val played = topPick ?: groups?.let { AddedGames.rank(top).exes.firstOrNull() }
+                val owner = played?.let { exe -> top.listFiles { f -> f.isDirectory }?.firstOrNull { exe.path.startsWith(it.path + File.separator) } }
+                val folders = when {
+                    groups == null -> listOf(top)
+                    topPick == null || owner in groups -> groups
+                    owner == null || owner.name.startsWith(".") || AddedGames.isSteamLibraryFolder(owner.name) -> listOf(top)
+                    else -> (groups + owner).sortedBy { it.name.lowercase() }
+                }
+                for (folder in folders) {
+                    if (folder.absolutePath in storeRoots || StoreGameSidecar.read(folder) != null) continue
+                    if (folder.path in entries) continue
+                    val picked = SessionPrefs.addedGameExe(context, folder.path).takeIf { it.isNotEmpty() }?.let { File(it) }?.takeIf { it.isFile }
+                        ?: topPick?.takeIf { it.path.startsWith(folder.path + File.separator) }
+                    val ranked = AddedGames.rank(folder).exes.firstOrNull()
+                    val exe = picked ?: played?.takeIf { folder == owner } ?: ranked ?: continue
+                    AddedExes.put(context, AddedExes.Entry(folder.path, exe.path, picked = picked != null || exe != ranked))
+                    entries.add(folder.path)
+                    if (folder != top && folder == owner) SessionPrefs.inheritAddedGame(context, top.path, folder.path)
+                    if (folder != top && top.path in removed) SessionPrefs.setAddedGameRemoved(context, folder.path, true)
+                    else if (folder.path !in removed) n++
+                }
             }
             Log.i(TAG, "games: migrated ${root.host} → $n games")
         }

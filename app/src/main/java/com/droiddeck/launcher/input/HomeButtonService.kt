@@ -60,6 +60,7 @@ class HomeButtonService : AccessibilityService(), InputManager.InputDeviceListen
 
     override fun onUnbind(intent: Intent?): Boolean {
         HomeButtonShortcuts.release()
+        com.droiddeck.launcher.core.SteamIntegration.syncShortcutsListing(this)
         return super.onUnbind(intent)
     }
 

@@ -10,6 +10,22 @@ enum class SecondScreenMode(val id: String, @StringRes val label: Int) {
     KEYBOARD_TRACKPAD("keyboard-trackpad", R.string.second_mode_keyboard_trackpad),
     TERMINAL("terminal", R.string.second_mode_terminal),
     DECK_CONTROLS("deck-controls", R.string.second_mode_deck_controls),
+    DASHBOARD("dashboard", R.string.second_mode_dashboard);
+
+    companion object {
+        fun opening(remembered: String?, deckPad: Boolean, dashboard: Boolean = false): SecondScreenMode {
+            entries.firstOrNull {
+                it != NONE && it.id == remembered && (it != DECK_CONTROLS || deckPad) && (it != DASHBOARD || dashboard)
+            }?.let { return it }
+            // No pick yet: the dashboard. A pick that can't open right now keeps the old fallback.
+            val picked = entries.any { it != NONE && it.id == remembered }
+            return when {
+                dashboard && !picked -> DASHBOARD
+                deckPad -> DECK_CONTROLS
+                else -> KEYBOARD_TRACKPAD
+            }
+        }
+    }
 }
 
 data class SecondScreenDisplay(val id: Int, val label: String)

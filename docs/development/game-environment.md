@@ -96,6 +96,23 @@ A Unity game under FEX (`UnityPlayer.dll` for Windows builds under Proton,
 turns it off: without TSO such games can deadlock or crash (seen with Megabonk
 and Crab Game). A FEX preset chosen for the game itself still applies.
 
+Games launched through Proton get `vblank_mode=0`, so OpenGL does not wait for
+each screen refresh. Wine asks for a swap interval of 1 on every OpenGL window, and WineD3D's front-buffer
+drawing (DirectDraw, Direct3D 1–7) never lowers it, so those games ran at the
+refresh rate even with no frame limit (AIO Direct3D 7: 144 fps at 144 Hz, about
+2,260 with the wait off). Steam's Frame Limit still holds a game: while it is on,
+gamescope's WSI layer presents every swapchain in FIFO at the limit. A
+`vblank_mode` from the launch options or the environment editor is kept, and
+**Remove** in the editor leaves Mesa's own default.
+
+A game launch (`waitforexitandrun`) also gets
+`GAMESCOPE_WSI_MIN_IMAGE_COUNT=8` and `GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT=1`,
+so an uncapped game keeps drawing while gamescope turns buffers around. The
+session itself no longer sets them: the Steam client's UI renders through the
+same WSI layer, and with eight images and no frame limit it drew flat out
+(about 240 frames a second at 120 Hz) and heated the device. Values set in the
+launch options or the environment editor are kept.
+
 ## Defaults and available suggestions
 
 The initial configuration enables Mesa shader caching with

@@ -223,5 +223,20 @@
       "cmake",
       "xz-utils"
     ]
+  },
+  "dirt-ws2": {
+    "script": "tools/components/recipes/dirt-ws2.sh",
+    "inputs": [
+      "tools/dirt-ws2",
+      "tools/components/recipes/dirt-ws2.sh"
+    ],
+    "outputs": [
+      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-dirt/ws2_32.dll"
+    ],
+    "packages": [
+      "clang",
+      "lld",
+      "llvm"
+    ]
   }
 }

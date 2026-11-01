@@ -8,6 +8,8 @@ on:
       - '**/*.md'
       - 'LICENSE'
       - '.gitignore'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
   pull_request:
     branches: [ main ]
     types: [ opened, synchronize, reopened, ready_for_review ]
@@ -15,6 +17,8 @@ on:
       - '**/*.md'
       - 'LICENSE'
       - '.gitignore'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
   workflow_dispatch:
     inputs:
       component:
@@ -32,7 +36,7 @@ on:
         type: string
         default: ''
       wallentx_preview:
-        description: Build wallentx Preview 6 as an in-place fork update
+        description: Build the next wallentx preview as an in-place fork update
         type: boolean
         default: false
       rebuild_preloads:
@@ -46,8 +50,8 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: build-${{ github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: build-${{ github.event.pull_request.number || (github.event_name == 'push' && 'main') || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
 
 env:
   DROIDDECK_COMPONENT_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
@@ -179,6 +183,10 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+          sparse-checkout: |
+            /*
+            !/docs/releases/media/
+          sparse-checkout-cone-mode: false
           persist-credentials: false
       - name: Pin and merge the APK source
         id: merge
@@ -212,6 +220,10 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+          sparse-checkout: |
+            /*
+            !/docs/releases/media/
+          sparse-checkout-cone-mode: false
           persist-credentials: false
       - name: Merge the pinned APK base
         if: github.event_name == 'pull_request'
@@ -266,6 +278,10 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+          sparse-checkout: |
+            /*
+            !/docs/releases/media/
+          sparse-checkout-cone-mode: false
           persist-credentials: false
       - name: Merge the pinned APK base
         if: github.event_name == 'pull_request'
@@ -392,6 +408,9 @@ jobs:
         if: steps.comet.outputs.cache-hit != 'true'
         run: python3 tools/components/prepare.py comet
 
+      - name: Build the DiRT 3 / DiRT Showdown ws2_32 stand-in
+        run: python3 tools/components/prepare.py dirt-ws2
+
       - name: Prepare graphics driver variants
         run: python3 tools/quest/build-driver.py "$ANDROID_HOME/ndk/$NDK_VERSION"
       - name: Record and pack prepared components
@@ -417,6 +436,10 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+          sparse-checkout: |
+            /*
+            !/docs/releases/media/
+          sparse-checkout-cone-mode: false
           persist-credentials: false
 
       - name: Check human authorship
@@ -538,7 +561,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
-          cache-cleanup: on-success
+          cache-cleanup: ${{ github.event_name == 'pull_request' && 'never' || 'on-success' }}
 
       - name: Resolve the pinned Android NDK
         run: bash tools/ci/resolve-ndk.sh
@@ -558,8 +581,8 @@ jobs:
           path = Path('app/build.gradle')
           source = path.read_text()
           for old, new in (
-              (r'(?m)^        versionCode 15$', '        versionCode 20'),
-              (r'(?m)^        versionName "0\.6\.0"$', '        versionName "0.6.0-wallentx.7"'),
+              (r'(?m)^        versionCode 17$', '        versionCode 21'),
+              (r'(?m)^        versionName "0\.6\.9"$', '        versionName "0.6.9-wallentx.8"'),
           ):
               source, count = re.subn(old, new, source)
               if count != 1:
@@ -574,6 +597,7 @@ jobs:
         id: build-label
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           BUILD_REF: ${{ github.ref_name }}
           BUILD_SHA: ${{ github.sha }}
@@ -592,6 +616,7 @@ jobs:
           echo "label=$label" >> "$GITHUB_OUTPUT"
           echo "DROIDDECK_SOURCE_COMMIT=${PR_HEAD_SHA:-$BUILD_SHA}" >> "$GITHUB_ENV"
           echo "DROIDDECK_PR_NUMBER=${PR_NUMBER:-0}" >> "$GITHUB_ENV"
+          echo "DROIDDECK_PR_TITLE=${PR_TITLE//$'\n'/ }" >> "$GITHUB_ENV"
           echo "Build: \`$label\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Rust toolchain for the store engines (aarch64-linux-android)
@@ -687,13 +712,6 @@ jobs:
           git diff --exit-code -- app/src/main/rust/stores/Cargo.lock \
             || { echo "::error::Cargo.lock changed during the build; commit the regenerated lockfile (uploaded as stores-cargo-lock)"; exit 1; }
 
-      - name: Store engines host unit tests
-        timeout-minutes: 10
-        continue-on-error: true
-        run: |
-          cd app/src/main/rust/stores
-          cargo test --locked 2>&1 | tail -60
-
       - name: Upload the regenerated Cargo.lock
         if: failure()
         uses: actions/upload-artifact@v4
@@ -783,6 +801,63 @@ jobs:
           APK_OUTCOME: ${{ steps.apk-upload.outcome }}
         run: bash tools/release/report-build.sh
 
+  store-tests:
+    name: Store engines host tests
+    needs: source
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    continue-on-error: true
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          sparse-checkout: |
+            /*
+            !/docs/releases/media/
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Merge the pinned APK base
+        if: github.event_name == 'pull_request'
+        env:
+          BUILD_BASE_SHA: ${{ needs.source.outputs.base-sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$BUILD_BASE_SHA"
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          git merge --no-ff --no-edit FETCH_HEAD
+      - name: Verify backend and test source match
+        env:
+          XBOX_SOURCE_TREE: ${{ needs.source.outputs.tree-sha }}
+        run: test "$(git rev-parse 'HEAD^{tree}')" = "$XBOX_SOURCE_TREE"
+      - name: Rust toolchain
+        id: rust
+        run: echo "rustc=$(rustc -V | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - name: Cache cargo registry and the host test target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            app/src/main/rust/stores/target
+          key: stores-host-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.rustc }}-${{ hashFiles('app/src/main/rust/stores/Cargo.lock') }}-${{ hashFiles('app/src/main/rust/stores/src/**', 'app/src/main/rust/stores/Cargo.toml', 'app/src/main/rust/stores/build.rs') }}
+          restore-keys: |
+            stores-host-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.rustc }}-${{ hashFiles('app/src/main/rust/stores/Cargo.lock') }}-
+            stores-host-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.rustc }}-
+      - name: Store engines host unit tests
+        timeout-minutes: 10
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          cd app/src/main/rust/stores
+          cargo test --locked 2>&1 | tail -60
+
   python-tests:
     name: Python and native regression tests
     needs: source
@@ -794,6 +869,10 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+          sparse-checkout: |
+            /*
+            !/docs/releases/media/
+          sparse-checkout-cone-mode: false
           persist-credentials: false
       - name: Merge the pinned APK base
         if: github.event_name == 'pull_request'
@@ -842,12 +921,12 @@ jobs:
           timeout 10 /tmp/test-presenter-shutdown
 
       - name: Steam import and game environment tests
-        run: python3 -m unittest discover -s tools/tests -p 'test_*.py'
+        run: bash tools/ci/run-python-tests.sh
 
   checks:
     name: Compile and test APK
     needs: [build, python-tests]
-    if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.component == 'apk') && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
+    if: ${{ !cancelled() && (github.event_name != 'workflow_dispatch' || inputs.component == 'apk') && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

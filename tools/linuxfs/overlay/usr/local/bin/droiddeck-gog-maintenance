@@ -1,0 +1,344 @@
+#!/usr/bin/python3
+"""GOG patch installers and the lease shared by maintenance and game launches."""
+import fcntl
+import errno
+import json
+import os
+from pathlib import Path
+import runpy
+import subprocess
+import sys
+import tempfile
+import time
+
+BIN = Path(__file__).resolve().parent
+IDLE = {"wineserver", "services.exe", "winedevice.exe", "explorer.exe", "rpcss.exe", "plugplay.exe",
+        "conhost.exe", "lsass.exe", "svchost.exe", "steam.exe", "wineboot.exe", "winemenubuilder.exe"}
+
+
+def control(folder):
+    folder = Path(folder).resolve(strict=True)
+    root = folder / ".droiddeck-gog"
+    if root.is_symlink():
+        raise ValueError("GOG control directory is a symbolic link")
+    root.mkdir(exist_ok=True)
+    return root
+
+
+def read(path):
+    if path.is_symlink():
+        raise ValueError("GOG metadata is a symbolic link")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def write(path, value):
+    if path.is_symlink():
+        raise ValueError("GOG metadata is a symbolic link")
+    descriptor, name = tempfile.mkstemp(prefix=path.name + ".", suffix=".new", dir=path.parent)
+    temporary = Path(name)
+    try:
+        with os.fdopen(descriptor, "w") as stream:
+            json.dump(value, stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            try:
+                os.fsync(directory)
+            except OSError as error:
+                if error.errno not in (errno.EINVAL, errno.ENOTSUP):
+                    raise
+        finally:
+            os.close(directory)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def lock_file(root):
+    return os.fdopen(os.open(root / "lease", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600), "r+")
+
+
+def generation(pid):
+    try:
+        return Path("/proc/%s/stat" % pid).read_text().rsplit(")", 1)[1].split()[19]
+    except (OSError, IndexError):
+        return None
+
+
+def lease(folder, owner):
+    root = control(folder)
+    with lock_file(root) as stream:
+        fcntl.lockf(stream, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        sidecar = read(Path(folder) / ".droiddeck-store.json")
+        if sidecar.get("state", "installed") != "installed":
+            raise ValueError("Resume or recover the GOG update before playing")
+        journal = root / "operation.json"
+        if journal.exists() and read(journal).get("phase") != "download":
+            raise ValueError("GOG maintenance is incomplete")
+        start = generation(owner)
+        if start is None:
+            raise ValueError("Game launcher has exited")
+        print("ready", flush=True)
+        sys.stdout.close()
+        while generation(owner) == start:
+            time.sleep(0.25)
+    return 0
+
+
+def desktop_environment(base, proc=Path("/proc")):
+    env = dict(base)
+    if env.get("DROIDDECK_GOG_DESKTOP") != "1":
+        return env
+    deadline = time.monotonic() + 45
+    while True:
+        for entry in proc.iterdir():
+            if not entry.name.isdigit():
+                continue
+            try:
+                command = (entry / "cmdline").read_bytes().split(b"\0")[0]
+                if command != b"/usr/bin/plasmashell":
+                    continue
+                values = dict(os.fsdecode(item).split("=", 1) for item in (entry / "environ").read_bytes().split(b"\0") if b"=" in item)
+                if values.get("BL_DESKTOP") != "1" or values.get("XDG_RUNTIME_DIR") != env.get("XDG_RUNTIME_DIR"):
+                    continue
+                if not values.get("DISPLAY") or values.get("WAYLAND_DISPLAY") == env.get("WAYLAND_DISPLAY"):
+                    continue
+                for key in ("DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS", "BL_DESKTOP"):
+                    if key in values:
+                        env[key] = values[key]
+                return env
+            except (OSError, ValueError):
+                continue
+        if time.monotonic() >= deadline:
+            raise ValueError("The desktop display is not ready; resume the Linux session and verify recovery before retrying")
+        time.sleep(0.25)
+
+
+def target_for(folder, appid, game):
+    run = runpy.run_path(str(BIN / "droiddeck-proton-run"))["main"].__globals__
+    root = os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or run["STEAM_ROOT"]
+    target = run["shortcut_target"](str(int(appid) & 0xffffffff), str(game), str(folder), root)
+    target.install = str(folder)
+    return run, root, target
+
+
+def runner(folder, appid, game, graphical=False):
+    run, root, target = target_for(folder, appid, game)
+    available = run["tools"](root)
+    name, _ = run["choose_tool"](target.appid, run["mapping"](root), available)
+    if name is None:
+        raise ValueError("No Proton tool is installed for this game")
+    tool, command = available[name]
+    base = desktop_environment(os.environ) if graphical else dict(os.environ)
+    env = run["environment"](base, target, tool, root, window=base.get("BL_DESKTOP") == "1")
+    env["DROIDDECK_GOG_MAINTENANCE"] = "1"
+    # Installer copy routines use x87 integer loads/stores; reduced precision corrupts paths (FEX #5827).
+    env["FEX_X87REDUCEDPRECISION"] = "0"
+    env.pop("BL_STORE_EXIT", None)
+    return str(Path(tool) / command), env, target.compatdata
+
+
+def active(prefix, proc=Path("/proc")):
+    result = []
+    prefix = os.path.realpath(os.path.join(prefix, "pfx"))
+    for entry in proc.iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            env = dict(part.split(b"=", 1) for part in (entry / "environ").read_bytes().split(b"\0") if b"=" in part)
+            if os.path.realpath(os.fsdecode(env.get(b"WINEPREFIX", b""))) != prefix:
+                continue
+            args = (entry / "cmdline").read_bytes().split(b"\0")
+            name = os.fsdecode(args[0]).replace("\\", "/").rsplit("/", 1)[-1].lower()
+            if name not in IDLE:
+                result.append(int(entry.name))
+        except (OSError, ValueError):
+            continue
+    return result
+
+
+def idle(folder, appid, game):
+    _, _, target = target_for(folder, appid, game)
+    if active(target.compatdata):
+        raise ValueError("Close the GOG game before maintenance")
+    return 0
+
+
+def validate_installer(folder, installer):
+    root = control(folder)
+    path = Path(installer)
+    if path.is_symlink() or not path.resolve(strict=True).is_relative_to(root / "downloads") or path.suffix.lower() != ".exe":
+        raise ValueError("The patch executable is outside GOG download storage")
+    with path.open("rb") as stream:
+        if stream.read(2) != b"MZ":
+            raise ValueError("The GOG patch is not a Windows executable")
+    return path
+
+
+def installer_arguments(path):
+    with path.open("rb") as stream:
+        data = stream.read(4 * 1024 * 1024)
+    return ["/NOGUI"] if b"Inno Setup Setup Data" in data else []
+
+
+def start(folder, appid, installer, game):
+    root = control(folder)
+    validate_installer(folder, installer)
+    with lock_file(root) as stream:
+        fcntl.lockf(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        journal = read(root / "operation.json")
+        if journal.get("phase") != "patch-ready":
+            raise ValueError("The patch must be selected again before it can run")
+        idle(folder, appid, game)
+        journal["phase"] = "patch-starting"
+        write(root / "operation.json", journal)
+        write(root / "patch-status.json", {"state": "starting", "startedAt": time.time()})
+        with (root / "patch.log").open("ab") as log:
+            subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "run", folder, appid, installer, game],
+                             stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True, close_fds=True)
+    return 0
+
+
+def status(folder):
+    root = control(folder)
+    path = root / "patch-status.json"
+    result = read(path)
+    ended = result.get("state") == "running" and generation(result.get("pid")) != result.get("generation")
+    abandoned = result.get("state") == "starting" and time.time() - result.get("startedAt", 0) > 60
+    if ended or abandoned:
+        result = {"state": "uncertain", "reason": "The patch helper ended without a confirmed result; verify recovery before retrying"}
+        write(path, result)
+        journal = read(root / "operation.json")
+        journal["phase"] = "patch-uncertain"
+        write(root / "operation.json", journal)
+    print(json.dumps(result), flush=True)
+    return 0
+
+
+def run_patch(folder, appid, installer, game):
+    root = control(folder)
+    try:
+        with lock_file(root) as stream:
+            fcntl.lockf(stream, fcntl.LOCK_EX)
+            path = validate_installer(folder, installer)
+            command, env, prefix = runner(folder, appid, game, True)
+            if active(prefix):
+                raise ValueError("Close the GOG game before applying the patch")
+            journal = read(root / "operation.json")
+            if journal.get("phase") != "patch-starting":
+                raise ValueError("The patch is already running or needs recovery")
+            journal["phase"] = "patch-applying"
+            write(root / "operation.json", journal)
+            sidecar_path = Path(folder) / ".droiddeck-store.json"
+            sidecar = read(sidecar_path)
+            sidecar["state"] = "updating"
+            write(sidecar_path, sidecar)
+            installed_path = root / "installed.json"
+            if installed_path.is_file():
+                installed = read(installed_path)
+                installed.update(verified=False, manifest={}, files=[])
+                write(installed_path, installed)
+            write(root / "patch-status.json", {"state": "running", "pid": os.getpid(), "generation": generation(os.getpid())})
+            os.makedirs(prefix, exist_ok=True)
+            setup = runpy.run_path(str(BIN / "droiddeck-store-launch"))["main"].__globals__
+            previous = dict(os.environ)
+            try:
+                os.environ.update(env)
+                pfx = Path(prefix) / "pfx"
+                if not (pfx / "system.reg").is_file() or not (pfx / "drive_c/windows/system32/reg.exe").is_file():
+                    subprocess.run([command, "run", "wineboot.exe", "-u"], env=env, timeout=90, check=True)
+                if not (pfx / "drive_c/windows/system32/reg.exe").is_file():
+                    raise ValueError("Proton did not initialize the game's registry tool")
+                result = setup["apply_gog_registry"](Path(folder), prefix, command, installation=journal.get("before"))
+                if not result.startswith(("ready", "written=")):
+                    raise ValueError("GOG registry preparation failed; the patch was not applied")
+                prepare_setup(folder, command, env)
+            finally:
+                os.environ.clear(); os.environ.update(previous)
+            proc = subprocess.Popen([command, "run", str(path), *installer_arguments(path)], cwd=str(path.parent), env=env)
+            code = proc.wait()
+            quiet_at = time.monotonic()
+            while True:
+                if active(prefix):
+                    quiet_at = time.monotonic()
+                elif time.monotonic() - quiet_at >= 2:
+                    break
+                time.sleep(0.25)
+            journal["phase"] = "patch-uncertain"
+            write(root / "operation.json", journal)
+            if code:
+                raise ValueError("GOG patch installer exited with code %d; inspect patch.log" % code)
+            write(root / "patch-status.json", {"state": "done", "exitCode": code})
+        return 0
+    except Exception as error:
+        write(root / "patch-status.json", {"state": "failed", "reason": str(error)})
+        return 1
+
+
+def prepare_setup(folder, command, env):
+    root = control(folder)
+    record_path = root / "installed.json"
+    if not record_path.is_file():
+        return
+    journal = read(root / "operation.json")
+    record = journal.get("before") or read(record_path)
+    manifest = record.get("manifest", {})
+    if not record.get("build"):
+        return
+    info_path = Path(folder) / ("goggame-%s.info" % record["id"])
+    language = read(info_path).get("language", "") if info_path.is_file() else ""
+    legacy = manifest.get("product", {})
+    products = manifest.get("products", []) if not legacy else [
+        {"productId": str(item["gameID"]), "temp_executable": item["executable"].lstrip("/\\")}
+        for item in legacy.get("support_commands", [])
+        if "Neutral" in item.get("languages", []) or record.get("language") in item.get("languages", []) or language in item.get("languages", [])]
+    for product in products:
+        if str(product.get("productId")) not in record.get("products", []):
+            continue
+        program = None
+        if manifest.get("scriptInterpreter"):
+            if not (Path(folder) / ("goggame-%s.script" % product["productId"])).is_file():
+                continue
+            program = Path(folder) / "support/__redist/ISI/scriptinterpreter.exe"
+        elif product.get("temp_executable"):
+            relative = product["temp_executable"].replace("\\", "/")
+            for candidate in (Path(folder) / "support" / str(product["productId"]) / relative, Path(folder) / relative):
+                if candidate.is_file():
+                    program = candidate
+                    break
+        if program is None:
+            continue
+        if not program.resolve(strict=True).is_relative_to(Path(folder).resolve()):
+            raise ValueError("GOG setup executable leaves the installation")
+        windows = "Z:" + str(Path(folder).resolve()).replace("/", "\\")
+        args = ["/VERYSILENT", "/DIR=" + windows, "/ProductId=" + str(product["productId"]),
+                "/galaxyclient", "/buildId=" + str(legacy.get("timestamp", record["build"])), "/versionName=" + record.get("version", ""),
+                "/lang-code=" + record.get("language", "en-US"), "/supportDir=" + windows + "\\support", "/nodesktopshortcut"]
+        if language:
+            args += ["/Language=" + language, "/LANG=" + language.lower()]
+        result = subprocess.run([command, "run", str(program), *args], env=env, cwd=folder, timeout=120)
+        if result.returncode:
+            raise ValueError("GOG installation setup failed; the patch was not applied")
+
+
+def main(argv):
+    if len(argv) == 3 and argv[0] == "lease":
+        return lease(argv[1], int(argv[2]))
+    if len(argv) == 4 and argv[0] == "idle":
+        return idle(*argv[1:])
+    if len(argv) == 2 and argv[0] == "status":
+        return status(argv[1])
+    if len(argv) == 5 and argv[0] == "start":
+        return start(*argv[1:])
+    if len(argv) == 5 and argv[0] == "run":
+        return run_patch(*argv[1:])
+    raise ValueError("Invalid GOG maintenance command")
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except Exception as error:
+        print("GOG maintenance: " + str(error), file=sys.stderr)
+        sys.exit(1)

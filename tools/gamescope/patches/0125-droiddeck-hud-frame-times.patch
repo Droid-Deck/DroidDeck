@@ -1,0 +1,227 @@
+diff --git a/src/commit.cpp b/src/commit.cpp
+index f2e0f0c..fbfb550 100644
+--- a/src/commit.cpp
++++ b/src/commit.cpp
+@@ -86,6 +86,8 @@ void commit_t::Signal()
+         mangoapp_nudge_app_frame( k_uMangoappLegacyMsgType, now );
+     if ( m_uMangoMsgType != 0 )
+         mangoapp_nudge_app_frame( m_uMangoMsgType, now );
++    if ( m_bDroidDeckHudFrame )
++        droiddeck_hud_app_frame( now );
+ }
+ 
+ void commit_t::OnPollHangUp()
+@@ -113,7 +115,7 @@ bool commit_t::CloseFenceInternal()
+     return true;
+ }
+ 
+-void commit_t::SetFence( int nFence, bool bMangoNudge, uint32_t uMangoMsgType, const std::shared_ptr<CommitDoneList_t> &pDoneCommits )
++void commit_t::SetFence( int nFence, bool bMangoNudge, uint32_t uMangoMsgType, const std::shared_ptr<CommitDoneList_t> &pDoneCommits, bool bDroidDeckHudFrame )
+ {
+     std::unique_lock lock( m_WaitableCommitStateMutex );
+     CloseFenceInternal();
+@@ -121,6 +123,7 @@ void commit_t::SetFence( int nFence, bool bMangoNudge, uint32_t uMangoMsgType, c
+     m_nCommitFence = nFence;
+     m_bMangoNudge = bMangoNudge;
+     m_uMangoMsgType = uMangoMsgType;
++    m_bDroidDeckHudFrame = bDroidDeckHudFrame;
+     m_pDoneCommits = pDoneCommits;
+ }
+ 
+diff --git a/src/commit.h b/src/commit.h
+index 8603a9a..ae767b6 100644
+--- a/src/commit.h
++++ b/src/commit.h
+@@ -35,7 +35,7 @@ struct commit_t final : public gamescope::RcObject, public gamescope::IWaitable,
+ 
+ 	// Returns true if we had a fence that was closed.
+ 	bool CloseFenceInternal();
+-	void SetFence( int nFence, bool bMangoNudge, uint32_t uMangoMsgType, const std::shared_ptr<CommitDoneList_t> &pDoneCommits );
++	void SetFence( int nFence, bool bMangoNudge, uint32_t uMangoMsgType, const std::shared_ptr<CommitDoneList_t> &pDoneCommits, bool bDroidDeckHudFrame = false );
+ 
+ 	bool ShouldPreemptivelyUpscale( GamescopeUpscaleFilter eFilter, GamescopeUpscaleScaler eScaler );
+ 
+@@ -82,5 +82,6 @@ struct commit_t final : public gamescope::RcObject, public gamescope::IWaitable,
+ 	bool m_bMangoNudge = false;
+ 	// Typed mangoapp stream to nudge, 0 for none, never the legacy type.
+ 	uint32_t m_uMangoMsgType = 0;
++	bool m_bDroidDeckHudFrame = false;
+ 	std::shared_ptr<CommitDoneList_t> m_pDoneCommits; // I hate this
+ };
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+index 0aef598..1473148 100644
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -57,6 +57,7 @@
+ #include <stdio.h>
+ #include <string.h>
+ #include <fcntl.h>
++#include <sys/mman.h>
+ #include <sys/poll.h>
+ #include <sys/inotify.h>
+ #include <sys/time.h>
+@@ -8359,6 +8360,8 @@ static TempUpscaleImage_t *GetTempUpscaleImage( global_focus_t *pFocus, uint32_t
+ 
+ gamescope::ConVar<bool> cv_surface_update_force_only_current_surface( "surface_update_force_only_current_surface", false, "Force updates to apply only to the current surface, ignoring commits for other surfaces." );
+ 
++static bool droiddeck_hud_frames_wanted();
++
+ gamescope::ConVar<bool> cv_commit_ready_check( "commit_ready_check", true, "Check a new commit's fence at import; a finished frame is marked done in the same pass instead of through the image waiter." );
+ 
+ // Set when update_wayland_res marks a commit done itself, so the main loop handles it in the same pass.
+@@ -8519,6 +8522,16 @@ void update_wayland_res(const std::shared_ptr<CommitDoneList_t> &doneCommits, st
+ 			uMangoMsgType = pMangoFocus->externalOverlayWindow->uMangoappMsgType;
+ 	}
+ 
++	// The commits the typed stream of connector 0 counts, whether or not a mangoapp runs.
++	bool bDroidDeckHudFrame = false;
++	if ( pUpscaleFocus && !w->isSteamStreamingClient )
++		bDroidDeckHudFrame = pUpscaleFocus->ulVirtualFocusKey == 0;
++	else if ( w->isSteamStreamingClientVideo )
++	{
++		auto iter = g_VirtualConnectorFocuses.find( 0 );
++		bDroidDeckHudFrame = iter != g_VirtualConnectorFocuses.end() && iter->second.focusWindow && iter->second.focusWindow->isSteamStreamingClient;
++	}
++
+ 	bool bValidPreemptiveScale = reslistentry.pAcquirePoint && pUpscaleFocus && cv_upscale_preemptive;
+ 	bool bPreemptiveUpscale = bValidPreemptiveScale && newCommit->ShouldPreemptivelyUpscale( pUpscaleFocus->eUpscaleFilter, pUpscaleFocus->eUpscaleScaler );
+ 
+@@ -8650,7 +8663,7 @@ void update_wayland_res(const std::shared_ptr<CommitDoneList_t> &doneCommits, st
+ 
+ 	gpuvis_trace_printf( "pushing wait for commit %lu win %lx", newCommit->commitID, w->type == steamcompmgr_win_type_t::XWAYLAND ? w->xwayland().id : 0 );
+ 	{
+-		newCommit->SetFence( fence, mango_nudge, uMangoMsgType, doneCommits );
++		newCommit->SetFence( fence, mango_nudge, uMangoMsgType, doneCommits, bDroidDeckHudFrame && droiddeck_hud_frames_wanted() );
+ 		if ( bKnownReady )
+ 		{
+ 			newCommit->Signal();
+@@ -9865,6 +9878,109 @@ static void publish_mangoapp_connector_snapshots()
+ 	}
+ }
+ 
++// DroidDeck's own HUD reads the frame times DroidDeck's mangoapp shows from a shared file named by
++// DROIDDECK_HUD_FRAMES, also while no mangoapp runs. That mangoapp (Valve's 20260902.1 build) reads the
++// field at byte 16 of each message as its frame time, which is app_frametime_ns here: one time per
++// signalled commit of the connector's windows (mangoapp_nudge_app_frame). The file gets the same commits
++// of connector 0. Little-endian: 0 magic, 4 version, 8 capacity, 12 pid, 16 frames written (u64),
++// 24 info sequence (odd while the info is written), 28 output width, 32 height, 36 refresh mHz, 40 Steam
++// focused, 44 engine (40 bytes), then from 128 one { frametime ns, monotonic time ns } pair per frame,
++// a ring of capacity.
++static constexpr uint32_t k_uDroidDeckHudFramesMagic = 0x46484444;
++static constexpr uint32_t k_uDroidDeckHudFramesVersion = 1;
++static constexpr uint32_t k_uDroidDeckHudFramesCapacity = 1024;
++static constexpr size_t k_zDroidDeckHudFramesHeader = 128;
++static constexpr size_t k_zDroidDeckHudFramesSize = k_zDroidDeckHudFramesHeader + k_uDroidDeckHudFramesCapacity * 16;
++static std::mutex s_DroidDeckHudFramesMutex;
++
++static uint8_t *droiddeck_hud_frames_map()
++{
++	static uint8_t *s_pMap = nullptr;
++	static bool s_bTried = false;
++	if ( s_bTried )
++		return s_pMap;
++	s_bTried = true;
++
++	const char *pszPath = getenv( "DROIDDECK_HUD_FRAMES" );
++	if ( !pszPath || !*pszPath )
++		return nullptr;
++	int fd = open( pszPath, O_RDWR | O_CREAT | O_CLOEXEC, 0644 );
++	if ( fd < 0 )
++	{
++		xwm_log.errorf_errno( "DroidDeck HUD frames: open %s", pszPath );
++		return nullptr;
++	}
++	void *pMap = MAP_FAILED;
++	if ( ftruncate( fd, k_zDroidDeckHudFramesSize ) == 0 )
++		pMap = mmap( nullptr, k_zDroidDeckHudFramesSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0 );
++	close( fd );
++	if ( pMap == MAP_FAILED )
++	{
++		xwm_log.errorf_errno( "DroidDeck HUD frames: map %s", pszPath );
++		return nullptr;
++	}
++	uint8_t *pBytes = static_cast<uint8_t *>( pMap );
++	__atomic_store_n( reinterpret_cast<uint32_t *>( pBytes ), 0u, __ATOMIC_RELEASE );
++	memset( pBytes + 4, 0, k_zDroidDeckHudFramesSize - 4 );
++	memcpy( pBytes + 4, &k_uDroidDeckHudFramesVersion, 4 );
++	memcpy( pBytes + 8, &k_uDroidDeckHudFramesCapacity, 4 );
++	__atomic_store_n( reinterpret_cast<uint32_t *>( pBytes ), k_uDroidDeckHudFramesMagic, __ATOMIC_RELEASE );
++	xwm_log.infof( "DroidDeck HUD frames: %s", pszPath );
++	s_pMap = pBytes;
++	return s_pMap;
++}
++
++static bool droiddeck_hud_frames_wanted()
++{
++	std::unique_lock lock( s_DroidDeckHudFramesMutex );
++	return droiddeck_hud_frames_map() != nullptr;
++}
++
++// Signal() runs on the image waiter thread or, for a frame finished at import, on steamcompmgr's.
++void droiddeck_hud_app_frame( uint64_t ulNow )
++{
++	std::unique_lock lock( s_DroidDeckHudFramesMutex );
++	uint8_t *pMap = droiddeck_hud_frames_map();
++	if ( !pMap )
++		return;
++	static uint64_t s_ulLastFrame = 0;
++	uint64_t ulLast = s_ulLastFrame;
++	s_ulLastFrame = ulNow;
++	if ( !ulLast || ulNow <= ulLast )
++		return;
++	uint64_t *pCount = reinterpret_cast<uint64_t *>( pMap + 16 );
++	uint64_t ulCount = __atomic_load_n( pCount, __ATOMIC_RELAXED );
++	uint64_t ulFrame[2] = { ulNow - ulLast, ulNow };
++	memcpy( pMap + k_zDroidDeckHudFramesHeader + ( ulCount % k_uDroidDeckHudFramesCapacity ) * 16, ulFrame, sizeof( ulFrame ) );
++	__atomic_store_n( pCount, ulCount + 1, __ATOMIC_RELEASE );
++}
++
++static void publish_droiddeck_hud_info()
++{
++	std::unique_lock lock( s_DroidDeckHudFramesMutex );
++	uint8_t *pMap = droiddeck_hud_frames_map();
++	if ( !pMap )
++		return;
++	auto focusIter = g_VirtualConnectorFocuses.find( 0 );
++	global_focus_t *pFocus = focusIter != g_VirtualConnectorFocuses.end() ? &focusIter->second : GetCurrentFocus();
++	if ( !pFocus )
++		return;
++
++	uint32_t *pSeq = reinterpret_cast<uint32_t *>( pMap + 24 );
++	uint32_t uSeq = __atomic_load_n( pSeq, __ATOMIC_RELAXED );
++	__atomic_store_n( pSeq, uSeq + 1, __ATOMIC_RELAXED );
++	__atomic_thread_fence( __ATOMIC_RELEASE );
++	uint32_t uPid = uint32_t( pFocus->nFocusWindowPid );
++	uint32_t uOutput[4] = { g_nOutputWidth, g_nOutputHeight, uint32_t( g_nOutputRefresh ), window_is_steam( pFocus->inputFocusWindow ) ? 1u : 0u };
++	char szEngine[40] = {};
++	if ( pFocus->pFocusWindowEngine )
++		pFocus->pFocusWindowEngine->copy( szEngine, sizeof( szEngine ) - 1 );
++	memcpy( pMap + 12, &uPid, 4 );
++	memcpy( pMap + 28, uOutput, sizeof( uOutput ) );
++	memcpy( pMap + 44, szEngine, sizeof( szEngine ) );
++	__atomic_store_n( pSeq, uSeq + 2, __ATOMIC_RELEASE );
++}
++
+ // mangohudctl posts one control message for every instance to act on.
+ static void relay_mangoapp_control()
+ {
+@@ -10843,6 +10959,7 @@ steamcompmgr_main(int argc, char **argv)
+ 
+ 		publish_mangoapp_snapshot();
+ 		publish_mangoapp_connector_snapshots();
++		publish_droiddeck_hud_info();
+ 		relay_mangoapp_control();
+ 
+ 		if ( bIsVBlankFromTimer )
+diff --git a/src/steamcompmgr.hpp b/src/steamcompmgr.hpp
+index bd62fd1..7a7119f 100644
+--- a/src/steamcompmgr.hpp
++++ b/src/steamcompmgr.hpp
+@@ -173,6 +173,7 @@ static constexpr uint32_t MangoappControlMsgType( uint32_t uMsgType )
+ static_assert( MangoappControlMsgType( k_uMangoappLegacyMsgType ) == k_uMangoappControlMsgType );
+ 
+ extern void mangoapp_update( uint64_t visible_frametime, uint64_t app_frametime_ns, uint64_t latency_ns, uint32_t uMsgType = k_uMangoappLegacyMsgType );
++extern void droiddeck_hud_app_frame( uint64_t ulNow );
+ extern void mangoapp_nudge_app_frame( uint32_t uMsgType, uint64_t ulNow );
+ extern void mangoapp_set_connector_snapshots( std::unordered_map<uint32_t, MangoappSnapshot_t> snapshots );
+ extern void mangoapp_drop_stream( uint32_t uMsgType );

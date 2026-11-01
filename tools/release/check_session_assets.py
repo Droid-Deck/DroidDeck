@@ -9,6 +9,8 @@ OVERLAY = Path(__file__).resolve().parents[1] / 'linuxfs/overlay'
 SESSION_FILES = OVERLAY.parents[2] / 'app/src/main/java/com/droiddeck/launcher/session/SessionFiles.kt'
 HELPER_DESTINATIONS = {
     'usr/local/bin/droiddeck-steam-taskset': 'usr/local/libexec/droiddeck-steam/taskset',
+    'usr/local/bin/droiddeck-systemd-run': 'usr/local/bin/systemd-run',
+    'usr/local/bin/droiddeck-snap-cli': 'usr/local/bin/snap',
 }
 
 

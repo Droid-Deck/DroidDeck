@@ -70,5 +70,19 @@ class SessionAssetsTest(unittest.TestCase):
                 self.assertEqual(['not extracted at session start: ' + source],
                                  assets.check_extraction(self.overlay, f'"{source}" to "{destination}"'))
 
+    def test_renamed_snap_helpers_require_their_expected_destinations(self):
+        for helper, target in (('droiddeck-systemd-run', 'systemd-run'),
+                               ('droiddeck-snap-cli', 'snap')):
+            with self.subTest(helper=helper):
+                path = self.helper.with_name(helper)
+                self.helper.rename(path)
+                source = 'usr/local/bin/' + helper
+                expected = 'usr/local/bin/' + target
+                self.assertEqual([], assets.check_extraction(self.overlay, f'"{source}" to "{expected}"'))
+                for destination in (source, 'usr/local/bin/unrelated'):
+                    self.assertEqual(['not extracted at session start: ' + source],
+                                     assets.check_extraction(self.overlay, f'"{source}" to "{destination}"'))
+                path.rename(self.helper)
+
     def test_current_session_stages_all_bundled_helpers(self):
         self.assertEqual([], assets.check_extraction(assets.OVERLAY, assets.SESSION_FILES.read_text()))

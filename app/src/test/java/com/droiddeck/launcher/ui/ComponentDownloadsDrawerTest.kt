@@ -10,8 +10,12 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -87,6 +91,53 @@ class ComponentDownloadsDrawerTest {
         assertEquals(listOf(nightly), requested)
     }
 
+    @Test fun sameNamedComponentsFromDifferentSourcesToggleIndependently() {
+        val stableA = sourced("dxvk-3.1.1-linux.wcp", "owner/a", false, 1)
+        val stableB = sourced("dxvk-3.1.1-linux.wcp", "owner/b", false, 2)
+        val nightlyA = sourced("DD-dxvk-3.1.1+101-nightly.wcp", "owner/a", true, 3)
+        val nightlyB = sourced("DD-dxvk-3.1.1+202-nightly.wcp", "owner/b", true, 4)
+        show(catalog = listOf(stableA, stableB, nightlyA, nightlyB))
+        compose.onNodeWithTag("cmp-download-dxvk").performClick()
+        compose.onNodeWithText("owner/a", substring = true).assertExists()
+        compose.onNodeWithText("owner/b", substring = true).assertExists()
+
+        val nightlyLabel = RuntimeEnvironment.getApplication().getString(R.string.comp_channel_nightly)
+        compose.onAllNodesWithText(nightlyLabel).onFirst().performClick()
+        compose.onNodeWithText("DD-dxvk-3.1.1+101-nightly").assertExists()
+        compose.onNodeWithText("DD-dxvk-3.1.1+202-nightly").assertDoesNotExist()
+        compose.onAllNodesWithText("dxvk-3.1.1-linux").assertCountEquals(1)
+        compose.onAllNodesWithText(nightlyLabel).onLast().performClick()
+        compose.onNodeWithText("DD-dxvk-3.1.1+202-nightly").assertExists()
+    }
+
+    @Test fun qualifiedDownloadDoesNotDisableAnotherSourceWithSameFilename() {
+        val stableA = sourced("dxvk-3.1.1-linux.wcp", "owner/a", false, 1)
+        val stableB = sourced("dxvk-3.1.1-linux.wcp", "owner/b", false, 2)
+        val requested = mutableListOf<ComponentsManager.CatalogItem>()
+        show(catalog = listOf(stableA, stableB), downloads = mapOf(stableA.id to 45), onDownload = requested::add)
+        compose.onNodeWithTag("cmp-download-dxvk").performClick()
+        compose.onNodeWithText("owner/a", substring = true).assertExists()
+        compose.onNodeWithText("owner/b", substring = true).assertExists()
+        compose.onAllNodesWithText("dxvk-3.1.1-linux").onFirst().assertIsNotEnabled()
+        compose.onAllNodesWithText("dxvk-3.1.1-linux").onLast().performClick()
+        assertEquals(listOf(stableB), requested)
+    }
+
+    @Test fun storedQualifiedPackageDoesNotDisableAnotherSourceWithSameFilename() {
+        val stableA = sourced("dxvk-3.1.1-linux.wcp", "owner/a", false, 1)
+        val stableB = sourced("dxvk-3.1.1-linux.wcp", "owner/b", false, 2)
+        val requested = mutableListOf<ComponentsManager.CatalogItem>()
+        show(catalog = listOf(stableA, stableB),
+            packages = listOf(ComponentsManager.Package(stableA.localFile, "dxvk", "3.1.1", "", 100)),
+            onDownload = requested::add)
+        compose.onNodeWithTag("cmp-download-dxvk").performClick()
+        compose.onNodeWithText("owner/a", substring = true).assertExists()
+        compose.onNodeWithText("owner/b", substring = true).assertExists()
+        compose.onAllNodesWithText("dxvk-3.1.1-linux").onFirst().assertIsNotEnabled()
+        compose.onAllNodesWithText("dxvk-3.1.1-linux").onLast().performClick()
+        assertEquals(listOf(stableB), requested)
+    }
+
     @Test fun emptyCatalogOffersRefreshAndDisablesVersionChoicesWhileChecking() {
         var refreshes = 0
         show(catalog = emptyList(), checking = false, onRefresh = { refreshes++ })
@@ -104,6 +155,7 @@ class ComponentDownloadsDrawerTest {
     private fun show(
         catalog: List<ComponentsManager.CatalogItem> = listOf(dxvk, stored, inFlight, fex),
         downloads: Map<String, Int> = emptyMap(),
+        packages: List<ComponentsManager.Package> = listOf(ComponentsManager.Package(stored.file, "dxvk", "2.3", "", 100)),
         checking: Boolean = false,
         onRefresh: () -> Unit = {},
         onDownload: (ComponentsManager.CatalogItem) -> Unit = {},
@@ -115,7 +167,7 @@ class ComponentDownloadsDrawerTest {
                     ComponentDownloadsDrawerGroup(
                         host = rememberMenuHost(), catalog = catalog, catalogAt = 0,
                         checking = checking,
-                        packages = listOf(ComponentsManager.Package(stored.file, "dxvk", "2.3", "", 100)),
+                        packages = packages,
                         downloads = downloads, onRefresh = onRefresh, onDownload = onDownload,
                         track = { Modifier.testTag(it) },
                     )
@@ -126,5 +178,11 @@ class ComponentDownloadsDrawerTest {
 
     private fun item(file: String, comp: String) = ComponentsManager.CatalogItem(
         file, comp, "Nightlies", "https://github.com/example/$file", 100, "sha256:test",
+    )
+
+    private fun sourced(file: String, source: String, nightly: Boolean, asset: Long) = ComponentsManager.CatalogItem(
+        file, "dxvk", if (nightly) ComponentsManager.DD_NIGHTLY else "Dxvk-Linux",
+        "https://github.com/$source/releases/download/v1/$file", 100, "sha256:$source",
+        sourceId = source, repository = source, assetId = asset, localFile = "${source.substringAfter('/')}-$file",
     )
 }

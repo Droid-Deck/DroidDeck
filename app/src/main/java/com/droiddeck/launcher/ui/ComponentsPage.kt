@@ -72,6 +72,7 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
@@ -601,11 +602,12 @@ fun ComponentsPage(
                 val available = availableRows(l, catalog, snapshot)
                 if (available.isEmpty()) EmptyLine(if (catalogAt == 0L) stringResource(R.string.comp_refresh_to_list) else stringResource(R.string.comp_nothing_new))
                 for ((stable, nightly) in available) {
-                    val d = if (nightly != null && nightlyPicked[stable.file] == true) nightly else stable
+                    val d = if (nightly != null && nightlyPicked[stable.id] == true) nightly else stable
                     GetLine(
                         d.file.removeSuffix(".wcp"), "${d.repository} · ${d.release} · " + stringResource(R.string.common_size_mb, d.size / 1048576.0),
-                        progress = downloads[d.file], enabled = busy == null,
-                        channel = if (nightly != null) ({ ChannelToggle(d === nightly, enabled = busy == null) { nightlyPicked[stable.file] = d !== nightly } }) else null,
+                        progress = downloads[d.id], enabled = busy == null,
+                        channel = if (nightly != null) ({ ChannelToggle(d === nightly, enabled = busy == null,
+                            modifier = Modifier.testTag("component-channel:${stable.id}")) { nightlyPicked[stable.id] = d !== nightly } }) else null,
                     ) { onDownload(d) }
                 }
             }
@@ -1522,7 +1524,7 @@ private fun GetLine(
 
 // Stable | Nightly in the same box as SmallButton: one focus stop, A (or a tap) flips it.
 @Composable
-private fun ChannelToggle(nightly: Boolean, enabled: Boolean, onFlip: () -> Unit) {
+private fun ChannelToggle(nightly: Boolean, enabled: Boolean, modifier: Modifier = Modifier, onFlip: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
@@ -1530,7 +1532,7 @@ private fun ChannelToggle(nightly: Boolean, enabled: Boolean, onFlip: () -> Unit
     val state = stringResource(if (nightly) R.string.comp_channel_nightly else R.string.comp_channel_stable)
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp),
-        modifier = Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp))
+        modifier = modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp))
             .background(colors.surfaceVariant)
             .glideBorder(hot, RoundedCornerShape(10.dp), colors.onBackground, pal.line2, restWidth = 2.dp)
             .hoverable(src).toggleable(value = nightly, interactionSource = src, indication = null, enabled = enabled, role = Role.Switch, onValueChange = { onFlip() })
