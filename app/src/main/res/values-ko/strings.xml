@@ -652,8 +652,8 @@
     <string name="hud_size_strip">바</string>
     <string name="hud_locked">위치 고정</string>
     <string name="hud_locked_hint">HUD를 드래그하여 이동하고, 길게 눌러 고정하거나 해제합니다. 고정된 동안에도 아래에 있는 화면 컨트롤은 계속 작동합니다.</string>
-    <string name="hud_snap">가장자리에 맞추기</string>
-    <string name="hud_snap_hint">HUD를 놓으면 가장 가까운 가장자리나 모서리로 이동합니다. 튕기면 그 방향으로 이동합니다.</string>
+    <string name="hud_snap">양옆에 맞추기</string>
+    <string name="hud_snap_hint">HUD를 놓으면 화면에서 더 가까운 쪽으로 이동합니다. 튕기면 그 방향으로 이동합니다.</string>
     <string name="hud_group_look">외관</string>
     <string name="hud_scale">화면상 크기</string>
     <string name="hud_color_soft">은은함</string>

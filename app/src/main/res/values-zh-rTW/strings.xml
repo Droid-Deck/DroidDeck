@@ -641,8 +641,8 @@
     <string name="hud_size_strip">橫條</string>
     <string name="hud_locked">鎖定位置</string>
     <string name="hud_locked_hint">拖曳 HUD 可移動位置；長按可鎖定或解鎖。鎖定時，下方的螢幕控制項仍可使用。</string>
-    <string name="hud_snap">貼齊邊緣</string>
-    <string name="hud_snap_hint">放開 HUD 後，它會移到最近的邊緣或角落。輕甩可將它甩向該方向。</string>
+    <string name="hud_snap">貼齊兩側</string>
+    <string name="hud_snap_hint">放開 HUD 後，它會移到螢幕較近的一側。輕甩可將它甩向該方向。</string>
     <string name="hud_group_look">外觀</string>
     <string name="hud_scale">螢幕顯示大小</string>
     <string name="hud_color_soft">柔和</string>

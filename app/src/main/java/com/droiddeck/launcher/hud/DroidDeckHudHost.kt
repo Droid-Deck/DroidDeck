@@ -36,10 +36,9 @@ class DroidDeckHudHost(context: Context) {
     private var polling = false
     private var wantX = Float.NaN
     private var wantY = Float.NaN
-    // With snapping on, the HUD keeps to a corner or an edge middle: these are its share of the free space across
-    // and down (0, 0.5 or 1), so it stays there when its size changes. NaN = not snapped.
+    // With snapping on, the side the HUD keeps to (0 = left, 1 = right), so it stays against that side when its
+    // size changes. NaN = not snapped.
     private var anchorX = Float.NaN
-    private var anchorY = Float.NaN
     private var snaps = true
     private var snapping = false
     private var previewFade: ValueAnimator? = null
@@ -97,7 +96,7 @@ class DroidDeckHudHost(context: Context) {
         hud.setGpuModel(cleanGpuName(GpuInfo.detect().displayName(context)))
         hud.onRefresh = Runnable { refreshLabels(hud) }
         hud.setOnDraggedListener { rawX, rawY ->
-            anchorX = Float.NaN; anchorY = Float.NaN; snapping = false
+            anchorX = Float.NaN; snapping = false
             previewFade?.cancel(); previewFade = null
             shrinkPastEdge(hud, rawX, rawY)
         }
@@ -145,7 +144,7 @@ class DroidDeckHudHost(context: Context) {
     fun applyConfig() {
         val config = DroidDeckHudConfig.load(context)
         snaps = config["hudSnap"] != "0"
-        if (!snaps) { anchorX = Float.NaN; anchorY = Float.NaN }
+        if (!snaps) anchorX = Float.NaN
         view?.applyConfig(DroidDeckHudConfig.encode(config))
     }
 
@@ -265,13 +264,6 @@ class DroidDeckHudHost(context: Context) {
         ).maxByOrNull { it.value }
     }
 
-    /** The closest of the corners and edge middles to (x, y), as shares of the free space (maxX, maxY). */
-    private fun nearestAnchor(x: Float, y: Float, maxX: Float, maxY: Float): Pair<Float, Float> {
-        val spots = listOf(0f, 0.5f, 1f).flatMap { ax -> listOf(0f, 0.5f, 1f).map { ay -> ax to ay } }
-            .filter { it != 0.5f to 0.5f }
-        return spots.minBy { (ax, ay) -> (ax * maxX - x).let { it * it } + (ay * maxY - y).let { it * it } }
-    }
-
     /** The tab follows the finger along its edge and away from it, staying on screen. */
     private fun dragTab(hud: DroidDeckHudView, x: Float, y: Float) {
         val p = hud.parent as? View ?: return
@@ -337,16 +329,16 @@ class DroidDeckHudHost(context: Context) {
     }
 
     /**
-     * Dropped, the HUD glides to the nearest corner or edge middle as a picture-in-picture
+     * Dropped, the HUD glides to the nearer side of the screen at the height it was let go, as a picture-in-picture
      * window does, carried toward where a fling throws it.
      */
     private fun snapToAnchor(hud: DroidDeckHudView, vx: Float, vy: Float) {
         val p = hud.parent as? View ?: return
         val maxX = (p.width - hud.width).toFloat().coerceAtLeast(0f)
         val maxY = (p.height - hud.height).toFloat().coerceAtLeast(0f)
-        val (ax, ay) = nearestAnchor(hud.x + vx * FLING_REACH_S, hud.y + vy * FLING_REACH_S, maxX, maxY)
-        anchorX = ax; anchorY = ay
-        wantX = anchorX * maxX; wantY = anchorY * maxY
+        anchorX = if (hud.x + vx * FLING_REACH_S < maxX / 2f) 0f else 1f
+        wantX = anchorX * maxX
+        wantY = (hud.y + vy * FLING_REACH_S).coerceIn(0f, maxY)
         SessionPrefs.setDroidDeckHudPosition(context, wantX, wantY)
         stopMotion(hud)
         if (Motion.scale == 0f) {
@@ -397,7 +389,7 @@ class DroidDeckHudHost(context: Context) {
         if (edge == DroidDeckHudDock.NONE) {
             // Out where the tab is: against its edge, or wherever it was pulled to.
             wantX = hud.x; wantY = hud.y
-            anchorX = Float.NaN; anchorY = Float.NaN
+            anchorX = Float.NaN
         } else {
             val p = hud.parent as? View
             if (p != null) {
@@ -503,10 +495,9 @@ class DroidDeckHudHost(context: Context) {
         val maxY = (p.height - v.height).toFloat().coerceAtLeast(0f)
         val anchored = (v as? DroidDeckHudView)?.let { it.dock == DroidDeckHudDock.NONE && !it.isStrip } == true
         if (snaps && anchored && anchorX.isNaN()) {
-            val (ax, ay) = nearestAnchor(wantX.coerceIn(0f, maxX), wantY.coerceIn(0f, maxY), maxX, maxY)
-            anchorX = ax; anchorY = ay
+            anchorX = if (wantX.coerceIn(0f, maxX) < maxX / 2f) 0f else 1f
         }
-        if (snaps && anchored && !anchorX.isNaN()) { wantX = anchorX * maxX; wantY = anchorY * maxY }
+        if (snaps && anchored && !anchorX.isNaN()) wantX = anchorX * maxX
         var x = wantX.coerceIn(0f, maxX)
         var y = wantY.coerceIn(0f, maxY)
         if ((v as? DroidDeckHudView)?.isStrip == true) y = if (y + v.height / 2f < p.height / 2f) 0f else maxY

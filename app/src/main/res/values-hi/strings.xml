@@ -655,7 +655,7 @@
     <string name="hud_locked">जगह पर लॉक करें</string>
     <string name="hud_locked_hint">HUD को खिसकाने के लिए उसे ड्रैग करें; देर तक दबाने से वह लॉक या अनलॉक होता है। लॉक रहने पर भी उसके नीचे के ऑन-स्क्रीन कंट्रोल काम करते रहते हैं।</string>
     <string name="hud_snap">किनारों पर चिपकाएँ</string>
-    <string name="hud_snap_hint">HUD छोड़ने पर यह सबसे पास के किनारे या कोने में चला जाता है। तेज़ी से झटकने पर यह उसी दिशा में जाता है।</string>
+    <string name="hud_snap_hint">HUD छोड़ने पर यह स्क्रीन की पास वाली ओर चला जाता है। तेज़ी से झटकने पर यह उसी दिशा में जाता है।</string>
     <string name="hud_group_look">लुक</string>
     <string name="hud_scale">स्क्रीन पर आकार</string>
     <string name="hud_color_soft">हल्का</string>
