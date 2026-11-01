@@ -325,13 +325,15 @@ object AppUpdates {
     fun setFollow(context: Context, follow: Follow) {
         val value = if (follow.channel == Channel.TEST) "test:${follow.pr}"
         else follow.channel.name.lowercase()
-        prefs(context).edit().putString(KEY_CHANNEL, value).putString(KEY_SOURCE, follow.sourceId).apply()
+        val editor = prefs(context).edit().putString(KEY_CHANNEL, value)
+        if (follow.sourceId.isNotEmpty()) editor.putString(KEY_SOURCE, follow.sourceId)
+        editor.apply()
     }
 
     private fun stored(context: Context): Follow? {
         val v = prefs(context).getString(KEY_CHANNEL, null) ?: return null
-        val sourceId = if (prefs(context).contains(KEY_SOURCE)) prefs(context).getString(KEY_SOURCE, "").orEmpty()
-        else RepositorySources.visible(context, SOURCE_SCOPE, sourceBuiltIns()).firstOrNull()?.id.orEmpty()
+        val sourceId = prefs(context).getString(KEY_SOURCE, null)?.takeIf { it.isNotEmpty() }
+            ?: RepositorySources.visible(context, SOURCE_SCOPE, sourceBuiltIns()).firstOrNull()?.id.orEmpty()
         return when {
             v == "stable" -> Follow(Channel.STABLE, sourceId = sourceId)
             v == "nightly" || v == "preview" -> Follow(Channel.NIGHTLY, sourceId = sourceId)

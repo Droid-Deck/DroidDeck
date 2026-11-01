@@ -405,6 +405,78 @@ class AppUpdatesTest {
     }
 
     @Test
+    fun anEmptySavedSourceFallsBackToTheFirstVisibleSource() {
+        val context = RuntimeEnvironment.getApplication()
+        val original = AppUpdates.sources(context)
+        val prefs = context.getSharedPreferences("app_updates", 0)
+        try {
+            val visible = AppUpdates.saveSources(context, original.map { it.copy(hidden = false) }).first()
+            prefs.edit().clear().putString("channel", "nightly").putString("source", "").commit()
+            assertEquals(Follow(Channel.NIGHTLY, sourceId = visible.id), AppUpdates.follow(context, null))
+        } finally {
+            prefs.edit().clear().commit()
+            AppUpdates.saveSources(context, original)
+        }
+    }
+
+    @Test
+    fun anEmptyFollowInputPreservesTheExistingSourceSelection() {
+        val context = RuntimeEnvironment.getApplication()
+        val original = AppUpdates.sources(context)
+        val prefs = context.getSharedPreferences("app_updates", 0)
+        try {
+            val custom = RepositorySources.source("example/updates")
+            AppUpdates.saveSources(context, original + custom)
+            prefs.edit().clear().commit()
+            AppUpdates.setFollow(context, Follow(Channel.STABLE, sourceId = custom.id))
+            AppUpdates.setFollow(context, Follow(Channel.TEST, 93))
+            assertEquals(custom.id, prefs.getString("source", null))
+            assertEquals(Follow(Channel.TEST, 93, custom.id), AppUpdates.follow(context, null))
+        } finally {
+            prefs.edit().clear().commit()
+            AppUpdates.saveSources(context, original)
+        }
+    }
+
+    @Test
+    fun noVisibleSourceStaysEmptyUntilOneBecomesVisible() {
+        val context = RuntimeEnvironment.getApplication()
+        val original = AppUpdates.sources(context)
+        val prefs = context.getSharedPreferences("app_updates", 0)
+        try {
+            AppUpdates.saveSources(context, original.map { it.copy(hidden = true) })
+            prefs.edit().clear().commit()
+            AppUpdates.setFollow(context, Follow(Channel.TEST, 93))
+            assertFalse(prefs.contains("source"))
+            assertEquals(Follow(Channel.TEST, 93), AppUpdates.follow(context, null))
+            val visible = AppUpdates.saveSources(context, original.map { it.copy(hidden = false) }).first()
+            assertEquals(Follow(Channel.TEST, 93, visible.id), AppUpdates.follow(context, null))
+        } finally {
+            prefs.edit().clear().commit()
+            AppUpdates.saveSources(context, original)
+        }
+    }
+
+    @Test
+    fun aSavedHiddenSourceIsNotSilentlyReplacedByAnotherVisibleSource() {
+        val context = RuntimeEnvironment.getApplication()
+        val original = AppUpdates.sources(context)
+        val prefs = context.getSharedPreferences("app_updates", 0)
+        try {
+            val hidden = original.first().copy(hidden = true)
+            val custom = RepositorySources.source("example/updates")
+            AppUpdates.saveSources(context, original.map { it.copy(hidden = true) } + custom)
+            prefs.edit().clear().commit()
+            AppUpdates.setFollow(context, Follow(Channel.STABLE, sourceId = hidden.id))
+            AppUpdates.setFollow(context, Follow(Channel.NIGHTLY))
+            assertEquals(Follow(Channel.NIGHTLY, sourceId = hidden.id), AppUpdates.follow(context, null))
+        } finally {
+            prefs.edit().clear().commit()
+            AppUpdates.saveSources(context, original)
+        }
+    }
+
+    @Test
     fun catalogCachesAreIsolatedByBranchAndReuseTheSameSelectionWhenReturning() {
         val context = RuntimeEnvironment.getApplication()
         val original = AppUpdates.sources(context).single()
