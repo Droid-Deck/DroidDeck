@@ -2131,6 +2131,7 @@
     <string name="display_look_filter">%1$s 将缩放设为 %2$s。</string>
     <string name="display_match_screen">匹配屏幕（%1$d×%2$d）</string>
     <string name="display_follow_screen">跟随屏幕（折叠或展开时调整大小）</string>
+    <string name="display_follow_screen_scaled">缩放 %1$s</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">显示设备详情</string>
     <string name="device_info_hide">隐藏设备详情</string>
