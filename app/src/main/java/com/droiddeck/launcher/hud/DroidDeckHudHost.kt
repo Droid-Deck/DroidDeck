@@ -42,6 +42,7 @@ class DroidDeckHudHost(context: Context) {
     private var anchorY = Float.NaN
     private var snaps = true
     private var snapping = false
+    private var previewFade: ValueAnimator? = null
     private var flingX = 0f
     private var flingY = 0f
     private var engine = ""
@@ -97,6 +98,7 @@ class DroidDeckHudHost(context: Context) {
         hud.onRefresh = Runnable { refreshLabels(hud) }
         hud.setOnDraggedListener { rawX, rawY ->
             anchorX = Float.NaN; anchorY = Float.NaN; snapping = false
+            previewFade?.cancel(); previewFade = null
             shrinkPastEdge(hud, rawX, rawY)
         }
         hud.setOnFlungListener { vx, vy -> flingX = vx; flingY = vy }
@@ -107,12 +109,14 @@ class DroidDeckHudHost(context: Context) {
             val vx = flingX; val vy = flingY
             flingX = 0f; flingY = 0f
             dockEdgeFor(hud)?.let { edge -> setDock(hud, edge); return@setOnMovedListener }
+            stopMotion(hud)
             fadeDockPreview(hud)
             if (snaps && !hud.isStrip) { snapToAnchor(hud, vx, vy); return@setOnMovedListener }
-            if (hud.scaleX != 1f) hud.animate().scaleX(1f).scaleY(1f).setDuration(Motion.ms(200).toLong()).setInterpolator(EASE).start()
+            val fromX = hud.x; val fromY = hud.y
             keepOnScreen(hud)
             wantX = hud.x; wantY = hud.y
             SessionPrefs.setDroidDeckHudPosition(context, hud.x, hud.y)
+            glideFrom(hud, fromX, fromY)
         }
         hud.setOnSizeCycledListener { size -> DroidDeckHudConfig.set(context, "hudSize", size); onConfigChanged?.invoke() }
         hud.setOnDockChangedListener { token -> setDock(hud, DroidDeckHudDock.from(token)) }
@@ -271,7 +275,7 @@ class DroidDeckHudHost(context: Context) {
     /** The tab follows the finger along its edge and away from it, staying on screen. */
     private fun dragTab(hud: DroidDeckHudView, x: Float, y: Float) {
         val p = hud.parent as? View ?: return
-        hud.animate().cancel()
+        stopMotion(hud)
         hud.x = x.coerceIn(0f, (p.width - hud.width).toFloat().coerceAtLeast(0f))
         hud.y = y.coerceIn(0f, (p.height - hud.height).toFloat().coerceAtLeast(0f))
     }
@@ -299,13 +303,33 @@ class DroidDeckHudHost(context: Context) {
             .withEndAction { snapping = false }.start()
     }
 
+    /** Stops the HUD's running move, and the per-frame listener a dock animation hangs on it, which outlives a cancel. */
+    private fun stopMotion(hud: DroidDeckHudView) {
+        hud.animate().setUpdateListener(null)
+        hud.animate().cancel()
+    }
+
+    /** Glides the HUD from (fromX, fromY) to where it now is, back at full size. */
+    private fun glideFrom(hud: DroidDeckHudView, fromX: Float, fromY: Float) {
+        if (Motion.scale == 0f || (fromX == hud.x && fromY == hud.y && hud.scaleX == 1f && hud.scaleY == 1f)) {
+            hud.scaleX = 1f; hud.scaleY = 1f
+            return
+        }
+        val toX = hud.x; val toY = hud.y
+        hud.x = fromX; hud.y = fromY
+        snapping = true
+        hud.animate().x(toX).y(toY).scaleX(1f).scaleY(1f).setDuration(Motion.ms(220).toLong()).setInterpolator(EASE)
+            .withEndAction { snapping = false; keepOnScreen(hud) }.start()
+    }
+
     /** A drop short of docking fades the tab preview back out. */
     private fun fadeDockPreview(hud: DroidDeckHudView) {
         val from = hud.dockPreviewBlend
         if (from <= 0f) return
         val edge = overhang(hud)?.key ?: DroidDeckHudDock.NONE
         if (Motion.scale == 0f) { hud.setDockPreview(DroidDeckHudDock.NONE, 0f); return }
-        ValueAnimator.ofFloat(from, 0f).apply {
+        previewFade?.cancel()
+        previewFade = ValueAnimator.ofFloat(from, 0f).apply {
             duration = Motion.ms(200).toLong()
             addUpdateListener { hud.setDockPreview(edge, it.animatedValue as Float) }
             start()
@@ -324,7 +348,7 @@ class DroidDeckHudHost(context: Context) {
         anchorX = ax; anchorY = ay
         wantX = anchorX * maxX; wantY = anchorY * maxY
         SessionPrefs.setDroidDeckHudPosition(context, wantX, wantY)
-        hud.animate().cancel()
+        stopMotion(hud)
         if (Motion.scale == 0f) {
             hud.scaleX = 1f; hud.scaleY = 1f
             hud.x = wantX; hud.y = wantY
@@ -394,7 +418,8 @@ class DroidDeckHudHost(context: Context) {
      * launcher's own ([Motion]), and off when animations are off.
      */
     private fun animateDock(hud: DroidDeckHudView, edge: DroidDeckHudDock, commit: () -> Unit) {
-        hud.animate().cancel()
+        stopMotion(hud)
+        previewFade?.cancel(); previewFade = null
         snapping = false
         hud.alpha = 1f
         val p = hud.parent as? View
