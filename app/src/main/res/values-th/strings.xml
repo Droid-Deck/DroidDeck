@@ -3393,4 +3393,24 @@
     <string name="stores_gamejolt_build_open">เปิดบน Game Jolt</string>
     <string name="stores_gamejolt_archive">ไม่รองรับไฟล์ %1$s</string>
     <string name="stores_gamejolt_extract_failed">แตกไฟล์ที่ดาวน์โหลดไม่ได้ (รหัส %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">ไม่สามารถเชื่อมต่อ Game Jolt ได้</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt ไม่ได้ให้ลิงก์ดาวน์โหลด</string>
+    <string name="stores_gamejolt_section_featured">แนะนำ</string>
+    <string name="stores_gamejolt_section_hot">มาแรง</string>
+    <string name="stores_gamejolt_section_best">ยอดนิยมสูงสุด</string>
+    <string name="stores_gamejolt_section_new">ใหม่</string>
+    <string name="stores_gamejolt_price_under_30">$30 หรือต่ำกว่า</string>
+    <string name="stores_gamejolt_os_other">อื่น ๆ</string>
+    <string name="stores_gamejolt_maturity_everyone">ทุกวัย</string>
+    <string name="stores_gamejolt_maturity_teen">วัยรุ่น</string>
+    <string name="stores_gamejolt_maturity_adult">ผู้ใหญ่</string>
+    <string name="stores_gamejolt_status_complete">เสร็จสมบูรณ์</string>
+    <string name="stores_gamejolt_status_early">เข้าถึงก่อนใคร</string>
+    <string name="stores_gamejolt_status_devlog">บันทึกการพัฒนา</string>
+    <string name="stores_gamejolt_partners">เกมของพาร์ตเนอร์</string>
+    <string name="stores_gamejolt_filter_browser">เบราว์เซอร์</string>
+    <string name="stores_gamejolt_filter_maturity">ระดับเนื้อหา</string>
+    <string name="stores_gamejolt_filter_status">สถานะ</string>
+    <string name="stores_gamejolt_filter_partners">พาร์ตเนอร์</string>
+    <string name="stores_gamejolt_followed">เกมที่ติดตาม</string>
 </resources>

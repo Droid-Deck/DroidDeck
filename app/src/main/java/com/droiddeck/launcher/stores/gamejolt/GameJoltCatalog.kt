@@ -16,12 +16,12 @@ internal object GameJoltCatalog {
     private const val PAID = "paid"
     private val sellableLogged = AtomicBoolean(false)
 
-    fun items(games: JSONArray?): List<CatalogItem> {
+    fun items(games: JSONArray?, owned: Boolean = false): List<CatalogItem> {
         if (games == null) return emptyList()
-        return (0 until games.length()).mapNotNull { games.optJSONObject(it)?.let(::item) }.distinctBy { it.id }
+        return (0 until games.length()).mapNotNull { games.optJSONObject(it)?.let { game -> item(game, owned) } }.distinctBy { it.id }
     }
 
-    fun item(game: JSONObject): CatalogItem? {
+    fun item(game: JSONObject, owned: Boolean = false): CatalogItem? {
         val id = game.optLong("id")
         if (id <= 0L) return null
         val slug = game.optString("slug")
@@ -32,6 +32,7 @@ internal object GameJoltCatalog {
         val author = developer?.optString("display_name").orEmpty().ifBlank { developer?.optString("username").orEmpty() }
         val thumbnail = game.optJSONObject("thumbnail_media_item")?.optString("img_url").orEmpty().ifBlank { game.optString("img_thumbnail") }
         val header = game.optJSONObject("header_media_item")?.optString("img_url").orEmpty().ifBlank { game.optString("img_thumbnail") }
+        val price = if (paid) GameJoltPricing.of(sellable) else null
         val compatibility = game.optJSONObject("compatibility")
         val tags = buildList {
             if (compatibility?.optBoolean("os_windows") == true) add("Windows")
@@ -47,6 +48,10 @@ internal object GameJoltCatalog {
             tags = tags,
             isFree = !paid,
             hasPrice = paid,
+            finalPrice = price?.final.orEmpty(),
+            originalPrice = price?.original.orEmpty(),
+            discountPercent = price?.discount ?: 0,
+            owned = owned,
             storeUrl = GameJoltApi.pageUrl(slug.ifBlank { "game" }, id.toString()),
             developer = author,
             publisher = author,

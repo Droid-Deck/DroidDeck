@@ -3393,4 +3393,24 @@
     <string name="stores_gamejolt_build_open">Buka di Game Jolt</string>
     <string name="stores_gamejolt_archive">Arsip %1$s tidak didukung</string>
     <string name="stores_gamejolt_extract_failed">Tidak dapat mengekstrak unduhan (kode %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">Tidak dapat menghubungi Game Jolt</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt tidak memberikan tautan unduhan</string>
+    <string name="stores_gamejolt_section_featured">Unggulan</string>
+    <string name="stores_gamejolt_section_hot">Hangat</string>
+    <string name="stores_gamejolt_section_best">Terbaik</string>
+    <string name="stores_gamejolt_section_new">Baru</string>
+    <string name="stores_gamejolt_price_under_30">$30 atau kurang</string>
+    <string name="stores_gamejolt_os_other">Lainnya</string>
+    <string name="stores_gamejolt_maturity_everyone">Semua umur</string>
+    <string name="stores_gamejolt_maturity_teen">Remaja</string>
+    <string name="stores_gamejolt_maturity_adult">Dewasa</string>
+    <string name="stores_gamejolt_status_complete">Selesai</string>
+    <string name="stores_gamejolt_status_early">Akses awal</string>
+    <string name="stores_gamejolt_status_devlog">Devlog</string>
+    <string name="stores_gamejolt_partners">Game mitra</string>
+    <string name="stores_gamejolt_filter_browser">Peramban</string>
+    <string name="stores_gamejolt_filter_maturity">Kematangan</string>
+    <string name="stores_gamejolt_filter_status">Status</string>
+    <string name="stores_gamejolt_filter_partners">Mitra</string>
+    <string name="stores_gamejolt_followed">Game yang diikuti</string>
 </resources>

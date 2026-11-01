@@ -372,6 +372,7 @@ fun MenuItem(
             .background(if (hot && enabled) Color.White.copy(alpha = 0.07f) else Color.Transparent)
             .glideBorder(hot && enabled, RoundedCornerShape(8.dp), pal.signal)
             .alpha(if (enabled) 1f else 0.4f)
+            .semantics { selected = checked }
             .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, enabled = enabled, onClick = onClick)
             .controllerConfirm(enabled = enabled, onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 9.dp),

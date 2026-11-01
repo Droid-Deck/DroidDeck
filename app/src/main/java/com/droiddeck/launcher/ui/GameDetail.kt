@@ -220,6 +220,7 @@ internal fun GameDetail(
                     if (!s.shortcutPicker) CompositionLocalProvider(LocalPillButtons provides true) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (installed != null && installed.sidecar.store == Store.ITCH) ItchCheckButton(installed)
+                            if (installed != null && installed.sidecar.store == Store.GAMEJOLT) GameJoltCheckButton(installed)
                             RemoveButton(title, game, installed, a)
                         }
                     }
@@ -416,6 +417,7 @@ internal fun GameActions(
                     }
                 }
                 if (store == Store.ITCH && installed != null) ItchUpdateButton(installed, download == null && StoresState.uninstalling[installed.key] == null)
+                if (store == Store.GAMEJOLT && installed != null) GameJoltUpdateButton(installed, download == null && StoresState.uninstalling[installed.key] == null)
                 if (store == Store.GAMEJOLT && installed != null) GameJoltVersionButton(installed, download == null && StoresState.uninstalling[installed.key] == null)
                 if (store == Store.GOG && installed != null) GogMaintenanceActions(installed)
                 if (store == Store.XBOX && id != null) XboxInstalledStream(id, game?.name ?: item?.title.orEmpty(), item)

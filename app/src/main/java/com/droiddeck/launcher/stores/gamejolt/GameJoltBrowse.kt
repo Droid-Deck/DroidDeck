@@ -45,7 +45,7 @@ internal object GameJoltBrowse {
 
     fun queryString(query: GameJoltQuery, page: Int): String {
         val parts = ArrayList<String>()
-        if (query.section != SECTION_FEATURED && query.section in sections) parts.add("section=${query.section}")
+        parts.add("section=${query.section.takeIf { it in sections } ?: SECTION_FEATURED}")
         query.tags.forEach { parts.add("tag=" + enc(tagSlug(it))) }
         if (query.price != PRICE_ANY && query.price in prices) parts.add("f_price=${query.price}")
         systems.filter { it in query.os }.forEach { parts.add("f_os%5B%5D=$it") }
@@ -70,14 +70,9 @@ internal object GameJoltBrowse {
     fun page(context: Context, query: GameJoltQuery, page: Int, showMature: Boolean): Page {
         val cookies = GameJoltAuth.cookies(context)
         val asked = effective(query, showMature)
-        var answer = fetch(queryString(asked, page), cookies)
-        var unfiltered = false
-        if (!answer.ok && query.maturity.isEmpty() && asked.maturity.isNotEmpty()) {
-            answer = fetch(queryString(asked.copy(maturity = emptySet()), page), cookies)
-            unfiltered = true
-        }
+        val answer = fetch(queryString(asked, page), cookies)
         val all = if (answer.ok) GameJoltCatalog.items(answer.payload?.optJSONArray("games")) else emptyList()
-        return Page(if (unfiltered && !showMature) all.filterNot { it.mature } else all, answer.code, all.map { it.id })
+        return Page(all, answer.code, all.map { it.id })
     }
 
     private fun fetch(qs: String, cookies: String): GameJoltAnswer {

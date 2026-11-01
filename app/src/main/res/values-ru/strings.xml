@@ -3495,4 +3495,24 @@
     <string name="stores_gamejolt_build_open">Открыть на Game Jolt</string>
     <string name="stores_gamejolt_archive">Архивы %1$s не поддерживаются</string>
     <string name="stores_gamejolt_extract_failed">Не удалось распаковать загрузку (код %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">Не удалось связаться с Game Jolt</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt не предоставил ссылку для скачивания</string>
+    <string name="stores_gamejolt_section_featured">Рекомендуемые</string>
+    <string name="stores_gamejolt_section_hot">Популярные</string>
+    <string name="stores_gamejolt_section_best">Лучшие</string>
+    <string name="stores_gamejolt_section_new">Новые</string>
+    <string name="stores_gamejolt_price_under_30">30 $ или дешевле</string>
+    <string name="stores_gamejolt_os_other">Другое</string>
+    <string name="stores_gamejolt_maturity_everyone">Для всех возрастов</string>
+    <string name="stores_gamejolt_maturity_teen">Подростки</string>
+    <string name="stores_gamejolt_maturity_adult">Для взрослых</string>
+    <string name="stores_gamejolt_status_complete">Завершена</string>
+    <string name="stores_gamejolt_status_early">Ранний доступ</string>
+    <string name="stores_gamejolt_status_devlog">Дневник разработки</string>
+    <string name="stores_gamejolt_partners">Игры партнёров</string>
+    <string name="stores_gamejolt_filter_browser">Браузер</string>
+    <string name="stores_gamejolt_filter_maturity">Возрастной рейтинг</string>
+    <string name="stores_gamejolt_filter_status">Статус</string>
+    <string name="stores_gamejolt_filter_partners">Партнёры</string>
+    <string name="stores_gamejolt_followed">Отслеживаемые игры</string>
 </resources>
