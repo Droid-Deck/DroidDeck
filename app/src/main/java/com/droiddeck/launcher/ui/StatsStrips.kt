@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -95,13 +96,16 @@ private fun LogoBadge(size: Dp) {
     }
 }
 
+/** The mark and "DroidDeck" on the left, the running game's name in the middle, the clock on the right. */
 @Composable
-private fun LogoHeader(clock: String) {
+private fun LogoHeader(clock: String, game: String?) {
     val colors = MaterialTheme.colorScheme
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(horizontal = 2.dp)) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         DroidDeckLogo(16.dp)
         Text("DroidDeck", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
-        if (clock.isNotEmpty()) Text("· $clock", fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = colors.onSurfaceVariant)
+        Text(game.orEmpty(), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, textAlign = TextAlign.Center,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        if (clock.isNotEmpty()) Text(clock, fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = colors.onSurfaceVariant)
     }
 }
 
@@ -146,6 +150,7 @@ internal class StripData(
     val gpuHistory: List<Float>,
     val wattsHistory: List<Float>,
     val clock: String,
+    val game: String? = null,
 )
 
 private fun percentTemp(percent: Int?, temp: Int?): String =
@@ -212,7 +217,7 @@ private fun TilesStrip(d: StripData) {
     val gpuPercent: Int? = s?.gpuPercent
     val gpuTemp: Int? = s?.gpuTempC
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        LogoHeader(d.clock)
+        LogoHeader(d.clock, d.game)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             HistoryTile("FPS", accent, fpsText(d.fps), "fps", d.fpsHistory, 75f)
             HistoryTile("CPU", StatsColors.cpu, s?.cpuPercent?.let { "$it%" } ?: "–", s?.cpuTempC?.let { "$it°" } ?: "", d.cpuHistory, 100f)
@@ -248,7 +253,7 @@ private fun RingsStrip(d: StripData) {
     val gpuPercent: Int? = s?.gpuPercent
     val gpuTemp: Int? = s?.gpuTempC
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        LogoHeader(d.clock)
+        LogoHeader(d.clock, d.game)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             RingTile("CPU", StatsColors.cpu, s?.cpuPercent?.let { it / 100f }, s?.cpuPercent?.let { "$it%" } ?: "–", s?.cpuTempC?.let { "$it °C" } ?: "")
             RingTile("GPU", StatsColors.gpu, gpuPercent?.let { it / 100f }, gpuPercent?.let { "$it%" } ?: gpuTemp?.let { "$it°" } ?: "–",

@@ -100,12 +100,6 @@ object SessionPrefs {
         prefs(context).edit().putString("secondScreenPanel", mode).apply()
     }
 
-    fun bottomPage(context: Context): String? = prefs(context).getString("bottomPage", null)
-
-    fun setBottomPage(context: Context, page: String) {
-        prefs(context).edit().putString("bottomPage", page).apply()
-    }
-
     fun statsStrip(context: Context): String? = prefs(context).getString("statsStrip", null)
 
     fun setStatsStrip(context: Context, id: String) {

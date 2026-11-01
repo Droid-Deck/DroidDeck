@@ -56,7 +56,25 @@ class BottomPage(
 internal fun pickBottomPage(remembered: String?, ids: List<String>): String? =
     ids.firstOrNull { it == remembered } ?: ids.firstOrNull { it == DEFAULT_PAGE } ?: ids.firstOrNull()
 
-/** The page a game start switches to; not saved, so the page the user picked still opens next time. */
+/**
+ * The tab picked during one session. Each Steam session starts with no pick, so the dashboard opens on Chat; reopened
+ * later in the same session it shows the tab picked last.
+ */
+internal object SessionBottomTab {
+    private var session: String? = null
+    private var tab: String? = null
+
+    @Synchronized
+    fun picked(sessionId: String?): String? = tab.takeIf { sessionId != null && sessionId == session }
+
+    @Synchronized
+    fun pick(sessionId: String?, id: String) {
+        session = sessionId
+        tab = id
+    }
+}
+
+/** The page a game start switches to; not remembered as the user's pick. */
 internal fun pageForGameStart(ids: List<String>): String? = GAME_PAGE.takeIf { it in ids }
 
 private const val DEFAULT_PAGE = "chat"

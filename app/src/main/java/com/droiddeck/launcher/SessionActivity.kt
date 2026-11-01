@@ -3132,9 +3132,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         dashboard = if (bottomPages().isEmpty()) null else ({
             DroidDeckTheme {
                 BottomDashboard(
-                    bottomPages(), SessionPrefs.bottomPage(this),
+                    bottomPages(), com.droiddeck.launcher.ui.SessionBottomTab.picked(SessionState.sessionId),
                     gameStarts = gameStarts,
-                    onPage = { SessionPrefs.setBottomPage(this, it) },
+                    onPage = { com.droiddeck.launcher.ui.SessionBottomTab.pick(SessionState.sessionId, it) },
                     onClose = { selectSecondScreenMode(SecondScreenMode.NONE) },
                     onMenu = if (dockDrawer()) ({ drawerOpen = true }) else null,
                 )

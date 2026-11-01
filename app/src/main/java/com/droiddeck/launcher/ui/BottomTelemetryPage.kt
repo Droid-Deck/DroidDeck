@@ -47,7 +47,9 @@ import com.droiddeck.launcher.hud.MangoReadings
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.GameStatusFiles
 import com.droiddeck.launcher.session.GameTelemetry
+import com.droiddeck.launcher.input.SteamTouchConfig
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.SpeedUnit
 import com.droiddeck.launcher.session.StatsDash
@@ -96,6 +98,8 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
     var outputs by remember { mutableStateOf<List<TelemetryOutput.Game>>(emptyList()) }
     var menuGames by remember { mutableStateOf<List<TelemetryOutput.MenuGame>>(emptyList()) }
     var running by remember { mutableStateOf<String?>(null) }
+    var gameName by remember { mutableStateOf<String?>(null) }
+    val steamClient = remember { if (SessionState.mode == SessionService.MODE_STEAM) SessionPrefs.activeSteamClientArch(context) else null }
     var outputFailed by remember { mutableStateOf<String?>(null) }
     var rescan by remember { mutableIntStateOf(0) }
     var auto by remember { mutableStateOf(SessionPrefs.telemetryAuto(context)) }
@@ -216,6 +220,11 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
             runCatching { Library.steamGames(context).mapNotNull { TelemetryOutput.MENU_GAMES[it.appId] }.distinct() }.getOrDefault(emptyList())
         }
     }
+    LaunchedEffect(running) {
+        val id = running?.toLongOrNull()
+        gameName = if (id == null) null
+            else withContext(Dispatchers.IO) { runCatching { SteamTouchConfig.gameName(context, id.toInt()) }.getOrNull() }
+    }
     LaunchedEffect(rescan) {
         while (isActive) {
             outputs = withContext(Dispatchers.IO) { runCatching { TelemetryOutput.scan(Library.compatdataDirs(context)) }.getOrDefault(emptyList()) }
@@ -226,7 +235,8 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         perfTick.let {
-            StatsStripView(strip, StripData(fpsNow, device, fpsHistory.snapshot(), cpuHistory.snapshot(), gpuHistory.snapshot(), wattsHistory.snapshot(), clock)) {
+            StatsStripView(strip, StripData(fpsNow, device, fpsHistory.snapshot(), cpuHistory.snapshot(), gpuHistory.snapshot(), wattsHistory.snapshot(), clock,
+                if (running != null) gameName else steamClient?.let { stringResource(steamClientLabel(it)) })) {
                 strip = strip.next()
                 SessionPrefs.setStatsStrip(context, strip.id)
             }
@@ -324,6 +334,9 @@ private fun httpGet(url: String): String {
     }
 }
 
+
+/** The Steam client the session runs, shown in the strip's top line while no game runs. */
+internal fun steamClientLabel(arch: String): Int = if (arch == "x86_64") R.string.stats_steam_client_x86 else R.string.stats_steam_client_arm
 
 @Composable
 private fun ChoiceRow(title: String, value: String, onClick: () -> Unit) {

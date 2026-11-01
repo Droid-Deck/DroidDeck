@@ -55,4 +55,17 @@ class BottomTelemetryLapTimeTest {
         assertEquals("1:23.456", lapTime(83.456f))
         assertEquals("0:05.000", lapTime(5f))
     }
+
+    @Test fun eachSessionStartsWithoutAPickedTab() {
+        SessionBottomTab.pick("2026-11-01-01-steam", "screenshots")
+        assertEquals("screenshots", SessionBottomTab.picked("2026-11-01-01-steam"))
+        assertNull(SessionBottomTab.picked("2026-11-01-02-steam"))
+        assertNull(SessionBottomTab.picked(null))
+        assertEquals("chat", pickBottomPage(SessionBottomTab.picked("2026-11-01-02-steam"), listOf("telemetry", "chat", "screenshots")))
+    }
+
+    @Test fun theStripNamesTheSteamClient() {
+        assertEquals(com.droiddeck.launcher.R.string.stats_steam_client_x86, steamClientLabel("x86_64"))
+        assertEquals(com.droiddeck.launcher.R.string.stats_steam_client_arm, steamClientLabel("arm64"))
+    }
 }
