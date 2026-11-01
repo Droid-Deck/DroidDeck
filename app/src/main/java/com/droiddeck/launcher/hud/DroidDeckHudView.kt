@@ -1235,11 +1235,10 @@ class DroidDeckHudView(context: Context) : View(context) {
         val rowPx = sp(11.5f); val unitPx = rowPx * 0.62f; val bandPx = sp(9.5f)
         val pad = sp(10f); val lineGap = sp(3.5f); val lvGap = sp(7f); val gutter = sp(16f)
 
-        // ---- LEFT column: GPU, aggregate CPU, then per-core rows ----
+        // ---- Every row in one list; the columns are dealt from it further down ----
         val left = ArrayList<Pair<String, HudRow>>()
-        val right = ArrayList<Pair<String, HudRow>>()
         fun addLeft(key: String, row: HudRow?) { if (row != null) left.add(Pair(key, row)) }
-        fun addRight(key: String, row: HudRow?) { if (row != null) right.add(Pair(key, row)) }
+        fun addRight(key: String, row: HudRow?) = addLeft(key, row)
 
         if (showGpuModel && gpuNameText().isNotBlank())
             addLeft("showGpuModel", HudRow(Span("GPU", colGpu, rowPx), gpuModelSpans(rowPx, colValue)))
@@ -1272,7 +1271,7 @@ class DroidDeckHudView(context: Context) : View(context) {
             }
         }
 
-        // ---- RIGHT column: VRAM, RAM, SWP, NET, BAT, engine, lows ----
+        // ---- Remaining rows: VRAM, RAM, SWP, NET, BAT, engine, lows ----
         if (showVram && s.vramText() != null)
             addRight("showVram", HudRow(Span("VRAM", colVram, rowPx), valueUnit(s.vramText()!!, rowPx, unitPx)))
         if (showRAM) {
@@ -1318,10 +1317,14 @@ class DroidDeckHudView(context: Context) : View(context) {
         if (showLow01) addRight("showLow01", HudRow(Span("0.1%", colLo, rowPx), numUnit(lowText(lows.low01Fps), "FPS", rowPx, unitPx)))
         if (showLow001) addRight("showLow001", HudRow(Span("0.01%", colLo, rowPx), numUnit(lowText(lows.low001Fps), "FPS", rowPx, unitPx)))
 
-        // ---- Two columns side by side (each reflows independently) ----
-        val (leftBottom, leftRight) = layoutColumn(left.sortedBy { rank(it.first) }.map { it.second }, pad, pad, rowPx, lineGap, lvGap)
-        val rightX = (if (left.isEmpty()) pad else leftRight + gutter)
-        val (rightBottom, rightRight) = layoutColumn(right.sortedBy { rank(it.first) }.map { it.second }, rightX, pad, rowPx, lineGap, lvGap)
+        // ---- Two columns side by side ----
+        // The rows are dealt alternately so reading down the left column and up the right one follows the
+        // saved order: item 0 left, item 1 right, item 2 left again. Sorting each column on its own would
+        // put the neighbours of a moved row in the other column, out of the order the list shows.
+        val dealt = left.sortedBy { rank(it.first) }.map { it.second }
+        val (leftBottom, leftRight) = layoutColumn(dealt.filterIndexed { i, _ -> i % 2 == 0 }, pad, pad, rowPx, lineGap, lvGap)
+        val rightX = (if (dealt.size < 2) pad else leftRight + gutter)
+        val (rightBottom, rightRight) = layoutColumn(dealt.filterIndexed { i, _ -> i % 2 == 1 }, rightX, pad, rowPx, lineGap, lvGap)
         var y = max(leftBottom, rightBottom)
         var maxRight = max(leftRight, rightRight)
 

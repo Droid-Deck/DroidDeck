@@ -6,8 +6,13 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -37,6 +42,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -58,44 +64,37 @@ internal fun HudReadingsDialog(
     remember(initialOn) { for (key in initialOrder) enabled[key] = initialOn[key] == true; true }
 
     AppDialog(shown, close, "hudReadings", wide = false, scrollable = false) {
-        DialogHeader(
-            eyebrow = stringResource(R.string.hud_group_metrics),
-            title = stringResource(R.string.hud_group_metrics),
-            trailing = {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    SecondaryButton(stringResource(R.string.hud_reset_button), onClick = {
-                        onSave(DroidDeckHudConfig.DEFAULTS.mapValues { it.value == "1" }, DroidDeckHudConfig.ORDER)
-                        close()
-                    })
-                    PrimaryButton(stringResource(R.string.common_ok), onClick = {
-                        onSave(enabled.toMap(), order.toList()); close()
-                    })
-                }
-            },
-        )
         val state = rememberLazyListState()
         var draggingKey by remember { mutableStateOf<String?>(null) }
         var dragOffset by remember { mutableFloatStateOf(0f) }
         var rowHeight by remember { mutableFloatStateOf(0f) }
-        LazyColumn(state = state, modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp)) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val listMax = (maxHeight * 0.62f).coerceAtLeast(120.dp)
+        Column {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(stringResource(R.string.hud_group_metrics), fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onBackground, maxLines = 1, modifier = Modifier.weight(1f))
+            SecondaryButton(stringResource(R.string.hud_reset_button), compact = true, onClick = {
+                onSave(DroidDeckHudConfig.DEFAULTS.mapValues { it.value == "1" }, DroidDeckHudConfig.ORDER)
+                close()
+            })
+            PrimaryButton(stringResource(R.string.common_ok), compact = true, onClick = {
+                onSave(enabled.toMap(), order.toList()); close()
+            })
+        }
+        Spacer(Modifier.height(8.dp))
+        LazyColumn(state = state, modifier = Modifier.fillMaxWidth().heightIn(max = listMax)) {
             itemsIndexed(order, key = { _, key -> key }) { index, key ->
                 val dragged = draggingKey == key
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().height(ROW_HEIGHT)
+                        .graphicsLayer { translationY = if (dragged) dragOffset else 0f }
                         .zIndex(if (dragged) 1f else 0f)
-                        .graphicsLayer {
-                            translationY = if (dragged) dragOffset else 0f
-                            val lift = if (dragged) 1f else 0f
-                            scaleX = 1f + 0.02f * lift
-                            scaleY = 1f + 0.02f * lift
-                            shadowElevation = 10.dp.toPx() * lift
-                        }
-                        .animateItemPlacement()
                         .clip(Shape12)
-                        .background(MaterialTheme.colorScheme.surface)
+                        .background(if (dragged) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface)
                         .onSizeChanged { if (rowHeight <= 0f) rowHeight = it.height.toFloat() }
-                        .padding(start = 4.dp, end = 10.dp, top = 2.dp, bottom = 2.dp),
+                        .padding(start = 4.dp, end = 6.dp),
                 ) {
                     DragHandle(onStart = { draggingKey = key; dragOffset = 0f },
                         onDrag = { amount ->
@@ -119,10 +118,12 @@ internal fun HudReadingsDialog(
                     val label = hudMetricLabel(key)
                     Text(if (label != null) stringResource(label) else key,
                         fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground, maxLines = 1,
-                        modifier = Modifier.weight(1f).padding(start = 6.dp))
+                        modifier = Modifier.weight(1f).padding(start = 2.dp))
                     ToggleSwitch(enabled[key] == true, true, null) { enabled[key] = !(enabled[key] == true) }
                 }
             }
+        }
+        }
         }
     }
 }
@@ -134,7 +135,7 @@ private fun DragHandle(onStart: () -> Unit, onDrag: (Float) -> Unit, onEnd: () -
     val end = rememberUpdatedState(onEnd)
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.size(44.dp).pointerInput(Unit) {
+        modifier = Modifier.size(width = 40.dp, height = ROW_HEIGHT).pointerInput(Unit) {
             detectDragGestures(
                 onDragStart = { start.value() },
                 onDragEnd = { end.value() },
@@ -148,3 +149,5 @@ private fun DragHandle(onStart: () -> Unit, onDrag: (Float) -> Unit, onEnd: () -
         Icon(Icons.Filled.DragHandle, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
     }
 }
+
+private val ROW_HEIGHT = 44.dp
