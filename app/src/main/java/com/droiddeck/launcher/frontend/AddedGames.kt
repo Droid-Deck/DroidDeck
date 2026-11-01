@@ -6,6 +6,7 @@ import com.droiddeck.launcher.runtime.LinuxRuntime
 import org.json.JSONObject
 import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SteamLibraries
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoreInstallRoot
@@ -69,6 +70,10 @@ object AddedGames {
             if (path.startsWith("$roms/")) return "/root/ROMs/" + path.removePrefix("$roms/")
         }
         StoreInstallRoot.externalGuestPath(context, host)?.let { return it }
+        for (lib in SteamLibraries.list(context)) {
+            if (path == lib.path) return lib.guest
+            if (path.startsWith("${lib.path}/")) return lib.guest + "/" + path.removePrefix("${lib.path}/")
+        }
         GameStorage.effective(context)?.let { lib ->
             if (path.startsWith("${lib.path}/")) return "$LIBRARY/" + path.removePrefix("${lib.path}/")
         }
@@ -83,6 +88,7 @@ object AddedGames {
         if (!guest.startsWith("/") || guest.split('/').any { it == ".." }) return null
         val mapped = roots(context).map { it.host to it.guest } + StoreInstallRoot.externalRoots(context) +
             listOfNotNull(GameStorage.effective(context)?.let { File(it.path) to LIBRARY }) +
+            SteamLibraries.list(context).map { it.host to it.guest } +
             (android.os.Environment.getExternalStorageDirectory() to "/root/Storage")
         for ((host, root) in mapped.sortedByDescending { it.second.length }) {
             if (guest == root) return host

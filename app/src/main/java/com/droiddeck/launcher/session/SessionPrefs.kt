@@ -1422,4 +1422,16 @@ object SessionPrefs {
     fun setGameStorage(context: Context, path: String, label: String) {
         prefs(context).edit().putString("gameStorage", path).putString("gameStorageLabel", label).apply()
     }
+
+    fun steamLibraries(context: Context): String = prefs(context).getString("steamLibraries", "") ?: ""
+
+    fun setSteamLibraries(context: Context, json: String) {
+        prefs(context).edit().putString("steamLibraries", json).apply()
+    }
+
+    fun steamLibraryNextId(context: Context): Int = prefs(context).getInt("steamLibraryNextId", 1)
+
+    fun setSteamLibraryNextId(context: Context, id: Int) {
+        prefs(context).edit().putInt("steamLibraryNextId", id).apply()
+    }
 }

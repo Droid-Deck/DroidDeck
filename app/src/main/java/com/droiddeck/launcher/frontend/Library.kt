@@ -5,6 +5,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SteamLibraries
 import com.droiddeck.launcher.session.SecondaryLibrary
 import java.io.File
 
@@ -88,11 +89,13 @@ object Library {
     internal fun steamLibraries(context: Context, arch: String = SessionPrefs.activeSteamClientArch(context)): List<Pair<File, String>> {
         val root = SessionPrefs.steamRoot(context, arch)
         val card = GameStorage.effective(context)
-        if (arch == "x86_64") return listOfNotNull(root to "internal", card?.let { File(it.path, GameStorage.X64_CARD_DIR) to it.label })
+        val added = SteamLibraries.list(context).filter { it.host.isDirectory }
+        if (arch == "x86_64") return listOfNotNull(root to "internal", card?.let { File(it.path, GameStorage.X64_CARD_DIR) to it.label }) +
+            added.map { it.x64Host to it.label }
         return listOfNotNull(
             root to "internal",
             card?.let { File(it.path) to it.label },
-        ) + GameStorage.gamesFolderLibraries(context).map { it.host to it.label }
+        ) + added.map { it.host to it.label } + GameStorage.gamesFolderLibraries(context).map { it.host to it.label }
     }
 
     fun protonPrefix(
