@@ -94,7 +94,9 @@ internal object GameJoltSessionProbe {
             "f_maturity[]=everyone&f_maturity[]=teen", "f_maturity%5B%5D=teen", "f_status%5B%5D=complete", "f_os%5B%5D=windows", "f_price=free", "",
         )) {
             val answer = GameJoltApi.browse(variant, cookies)
-            log("browse check ?$variant code=${answer.code} games=${answer.payload?.optJSONArray("games")?.length() ?: 0}")
+            val games = answer.payload?.optJSONArray("games")
+            val sample = games?.let { list -> (0 until minOf(list.length(), MAX_PACKAGES)).joinToString(",") { "${list.optJSONObject(it)?.optLong("id")}:${list.optJSONObject(it)?.opt("has_adult_content")}" } }.orEmpty()
+            log("browse check ?$variant code=${answer.code} games=${games?.length() ?: 0} idsAdult=[$sample]")
         }
         val name = GameJoltAuth.username(app)
         for (kind in listOf("owned", "followed", "developer", "recommended")) {
