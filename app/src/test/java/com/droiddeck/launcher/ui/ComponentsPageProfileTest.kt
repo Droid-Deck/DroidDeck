@@ -4,11 +4,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.printToString
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.session.ComponentsManager
@@ -125,14 +129,29 @@ class ComponentsPageProfileTest {
         val nightlyB = item("DD-dxvk-3.1.1+202-nightly.wcp", "owner/b", true, 4)
         show(comp = "dxvk", catalog = listOf(stableA, stableB, nightlyA, nightlyB))
 
-        compose.onAllNodesWithText("dxvk-3.1.1-linux").assertCountEquals(2)
-        compose.onNodeWithTag("component-channel:${stableA.id}").performClick()
-        compose.onNodeWithText("DD-dxvk-3.1.1+101-nightly").assertExists()
-        compose.onNodeWithText("DD-dxvk-3.1.1+202-nightly").assertDoesNotExist()
-        compose.onAllNodesWithText("dxvk-3.1.1-linux").assertCountEquals(1)
-        compose.onNodeWithTag("component-channel:${stableB.id}").performClick()
-        compose.onNodeWithText("DD-dxvk-3.1.1+101-nightly").assertExists()
-        compose.onNodeWithText("DD-dxvk-3.1.1+202-nightly").assertExists()
+        try {
+            compose.onAllNodesWithText("dxvk-3.1.1-linux").assertCountEquals(2)
+            val switchA = compose.onNodeWithTag("component-channel:${stableA.id}")
+            val switchB = compose.onNodeWithTag("component-channel:${stableB.id}")
+            switchA.assertIsOff()
+            switchB.assertIsOff()
+            switchA.performClick()
+            switchA.assertIsOn()
+            switchB.assertIsOff()
+            compose.onNodeWithText("DD-dxvk-3.1.1+101-nightly").assertExists()
+            compose.onNodeWithText("DD-dxvk-3.1.1+202-nightly").assertDoesNotExist()
+            compose.onAllNodesWithText("dxvk-3.1.1-linux").assertCountEquals(1)
+            switchB.performClick()
+            switchA.assertIsOn()
+            switchB.assertIsOn()
+            compose.onNodeWithText("DD-dxvk-3.1.1+101-nightly").assertExists()
+            compose.onNodeWithText("DD-dxvk-3.1.1+202-nightly").assertExists()
+        } catch (failure: AssertionError) {
+            val merged = runCatching { compose.onRoot().printToString() }.getOrElse { it.toString() }
+            val unmerged = runCatching { compose.onRoot(useUnmergedTree = true).printToString() }
+                .getOrElse { it.toString() }
+            throw AssertionError("${failure.message}\nMerged semantics:\n$merged\nUnmerged semantics:\n$unmerged", failure)
+        }
     }
 
     private fun show(
