@@ -27,7 +27,10 @@ VkImageMemoryBarrier bar(VkImage img, VkImageLayout from, VkImageLayout to,
 }
 
 Engine::Engine() = default;
-Engine::~Engine() { destroyRing(); fg_.destroy(); }
+Engine::~Engine() {
+    if (fg_.destroy()) destroyRing();
+    else DDFG_LOGE("native: retaining the input ring because GPU completion is unknown");
+}
 
 bool Engine::init(const VkTable& table, VkPhysicalDevice phys, VkDevice dev,
                   uint32_t queueFamily, VkQueue queue) {

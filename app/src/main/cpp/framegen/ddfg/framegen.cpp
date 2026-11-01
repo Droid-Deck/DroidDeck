@@ -107,6 +107,10 @@ static bool buildSetLayout(const DeviceDispatch* dd, VkDevice dev,
 
 bool FrameGen::init(const DeviceDispatch* dd, const InstanceDispatch* id,
                     VkPhysicalDevice phys, VkDevice dev, uint32_t queueFamily, VkQueue queue) {
+    if (device_ || completionUnknown_) {
+        DDFG_LOGE("framegen: refusing to initialize an instance that still owns device resources");
+        return false;
+    }
     dd_ = dd; id_ = id; phys_ = phys; device_ = dev; queueFamily_ = queueFamily; queue_ = queue;
     id_->GetPhysicalDeviceMemoryProperties(phys_, &memProps_);
 
@@ -165,9 +169,20 @@ static VkExtent2D levelExtent(VkExtent2D e, int l) {
 }
 
 bool FrameGen::onResize(VkExtent2D extent, VkFormat  , bool force) {
-
-
+    if (completionUnknown_) return false;
+    if (!device_) {
+        DDFG_LOGE("framegen: cannot resize before device initialization");
+        return false;
+    }
     if (!force && ready_ && extent.width == extent_.width && extent.height == extent_.height) return true;
+    if (!pyrA_.empty() && !waitIdle("resize")) return false;
+    ready_ = false;
+    const VkResult reset = dd_->ResetDescriptorPool(device_, descPool_, 0);
+    if (reset != VK_SUCCESS) {
+        DDFG_LOGE("framegen: descriptor pool reset failed (%d); resize stopped without releasing resources", (int)reset);
+        return false;
+    }
+    releaseScratch();
     for (auto& i : pyrA_) destroyImage(i); pyrA_.clear();
     for (auto& i : pyrB_) destroyImage(i); pyrB_.clear();
     for (auto& i : pyrAs_) destroyImage(i); pyrAs_.clear();
@@ -194,6 +209,9 @@ bool FrameGen::onResize(VkExtent2D extent, VkFormat  , bool force) {
     if (!makeImage(flowExpB_, extent, VK_FORMAT_R16G16B16A16_SFLOAT, flowUsage)) return false;
     if (!makeImage(flowRegA_, levelExtent(extent, flowFinest_), VK_FORMAT_R16G16B16A16_SFLOAT, regUsage)) return false;
     if (!makeImage(flowRegB_, levelExtent(extent, flowFinest_), VK_FORMAT_R16G16B16A16_SFLOAT, regUsage)) return false;
+    for (int i = 0; i < 6; ++i) gmRun_[i] = 0.0;
+    for (int s = 0; s < kGmSlots; ++s) { gmSlotValid_[s] = false; for (int i = 0; i < 6; ++i) gmLinAt_[s][i] = 0.0; }
+    gmHaveEst_ = false; gmEngaged_ = false; gmStableCount_ = 0; gmLastTransPx_ = 0.0f;
     ready_ = true;
     DDFG_LOGI("framegen resized to %ux%u (%d pyramid levels, kFlowFinest=%d perf_preset=%d)",
              extent.width, extent.height, kLevels, flowFinest_, cfg_.perfPreset);
@@ -212,9 +230,24 @@ void FrameGen::barrier(VkCommandBuffer cmd, VkImage img, VkImageLayout from, VkI
 }
 
 
-void FrameGen::destroy() {
-    if (!device_) return;
-    dd_->DeviceWaitIdle(device_);
+bool FrameGen::waitIdle(const char* operation) {
+    if (completionUnknown_) return false;
+    const VkResult result = dd_->DeviceWaitIdle(device_);
+    if (result == VK_SUCCESS) return true;
+    completionUnknown_ = true;
+    ready_ = false;
+    DDFG_LOGE("framegen: %s vkDeviceWaitIdle failed (%d); this instance is stopped and its GPU resources retained",
+              operation, (int)result);
+    return false;
+}
+
+bool FrameGen::destroy() {
+    if (!device_) return true;
+    if (!waitIdle("destroy")) return false;
+    ready_ = false;
+    if (descPool_) dd_->DestroyDescriptorPool(device_, descPool_, nullptr);
+    descPool_ = VK_NULL_HANDLE;
+    releaseScratch();
     for (auto& i : pyrA_) destroyImage(i); pyrA_.clear();
     for (auto& i : pyrB_) destroyImage(i); pyrB_.clear();
     for (auto& i : pyrAs_) destroyImage(i); pyrAs_.clear();
@@ -232,9 +265,9 @@ void FrameGen::destroy() {
         gmSsbo_[s] = VK_NULL_HANDLE; gmSsboMem_[s] = VK_NULL_HANDLE; gmSsboPtr_[s] = nullptr;
     }
     gmBuffersReady_ = false;
-    if (descPool_) dd_->DestroyDescriptorPool(device_, descPool_, nullptr);
     if (linear_) dd_->DestroySampler(device_, linear_, nullptr);
     descPool_ = VK_NULL_HANDLE; linear_ = VK_NULL_HANDLE; device_ = VK_NULL_HANDLE; ready_ = false;
+    return true;
 }
 
 }
