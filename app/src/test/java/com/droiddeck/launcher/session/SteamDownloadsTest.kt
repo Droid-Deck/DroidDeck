@@ -17,6 +17,13 @@ class SteamDownloadsTest {
         }
     """.trimIndent()
 
+    @Test fun anAppUnfinishedInBothSteamHomesIsListedOnce() {
+        val arm = SteamDownload("220", "Half-Life 2", 10L, 100L)
+        val x86 = SteamDownload("220", "Half-Life 2", 60L, 100L)
+        val other = SteamDownload("440", "Team Fortress 2", 5L, 50L)
+        assertEquals(listOf(x86, other), SteamDownloads.onePerApp(listOf(arm, x86, other)))
+    }
+
     @Test fun anInstalledGameIsNotADownload() {
         assertNull(SteamDownloads.fromManifest("220", "Half-Life 2", manifest(4, 100, 100)))
     }

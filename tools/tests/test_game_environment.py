@@ -171,6 +171,22 @@ class DirtTelemetryFixTest(unittest.TestCase):
         self.assertNotIn("ws2_32=n,b", result.stdout)
         self.assertEqual(os.readlink(self.target), str(self.own))
 
+    def test_a_failed_put_back_does_not_end_the_launch_with_an_error(self):
+        def fail():
+            raise OSError(28, "No space left on device")
+        stderr = io.StringIO()
+        with mock.patch("sys.stderr", stderr):
+            code = MODULE["start"]([sys.executable, "-c", "raise SystemExit(0)"], dict(os.environ), None, fail)
+        self.assertEqual(code, 0)
+        self.assertIn("not put back", stderr.getvalue())
+
+    def test_a_half_done_swap_is_put_back(self):
+        saved = self.target.with_name("ws2_32.dll.droiddeck-original")
+        os.replace(self.target, saved)
+        self.assertTrue(MODULE["restore_dirt_ws2"](self.prefix, self.proton))
+        self.assertEqual(os.readlink(self.target), str(self.own))
+        self.assertFalse(os.path.lexists(saved))
+
     def test_start_puts_the_file_back_after_the_game_exits(self):
         calls = []
         code = MODULE["start"]([sys.executable, "-c", "raise SystemExit(3)"], dict(os.environ), None, lambda: calls.append("restored"))

@@ -3151,7 +3151,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     ))
 
     // A settings page opened on the bottom screen sits under the dashboard window, so the dashboard hides
-    // until the setting is on; choosing Dashboard in the menu again shows it sooner.
+    // until the setting is on, or for at most SETTINGS_WATCH_CHECKS seconds when it is left off (another
+    // app's page closing cannot be seen); choosing Dashboard in the menu again shows it sooner.
     private fun openSettingsBelow(intent: android.content.Intent, done: () -> Boolean) {
         val presentation = secondScreenPresentation ?: return
         val options = android.app.ActivityOptions.makeBasic().setLaunchDisplayId(presentation.display.displayId)
@@ -3170,7 +3171,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     presentation.show()
                     return
                 }
-                if (++checks < SETTINGS_WATCH_CHECKS) uiHandler.postDelayed(this, SETTINGS_WATCH_MS)
+                if (++checks < SETTINGS_WATCH_CHECKS) uiHandler.postDelayed(this, SETTINGS_WATCH_MS) else presentation.show()
             }
         }, SETTINGS_WATCH_MS)
     }

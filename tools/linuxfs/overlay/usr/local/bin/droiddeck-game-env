@@ -856,7 +856,11 @@ def start(launch, launch_env, digest, after=None):
         try:
             return wait_forwarding_signals(process)
         finally:
-            after()
+            try:
+                after()
+            except OSError as error:
+                print("droiddeck-game-env: DiRT telemetry fix: prefix ws2_32 not put back (%s); the next launch does it" % error,
+                      file=sys.stderr)
     if digest:
         code = subprocess.run(launch, env=launch_env, check=False).returncode
         if code == 0:
@@ -954,14 +958,20 @@ def main():
     if app_id and prefix and len(command) > 1 and command[1] == "waitforexitandrun":
         try:
             if dirt_prefix:
-                swap_dirt_ws2(dirt_prefix)
                 after = lambda: restore_dirt_ws2(dirt_prefix, command[0])
+                swap_dirt_ws2(dirt_prefix)
                 print("droiddeck-game-env: DiRT telemetry fix: ws2_32 stand-in in the prefix until the game exits",
                       file=sys.stderr)
             elif restore_dirt_ws2(prefix, command[0]):
                 print("droiddeck-game-env: DiRT telemetry fix: put the prefix's own ws2_32 back", file=sys.stderr)
         except OSError as error:
             print("droiddeck-game-env: DiRT telemetry fix not applied (%s)" % error, file=sys.stderr)
+            if after:
+                after = None
+                try:
+                    restore_dirt_ws2(dirt_prefix, command[0])
+                except OSError:
+                    pass
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
     if launch[0] != command[0]:

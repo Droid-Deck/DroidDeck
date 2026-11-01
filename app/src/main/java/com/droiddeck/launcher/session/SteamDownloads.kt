@@ -23,7 +23,7 @@ object SteamDownloads {
             val name = SteamDownloadMonitor.value(text, "name") ?: id
             names[id] = name
             fromManifest(id, name, text)
-        }
+        }.let(::onePerApp)
         val homes = client?.let { listOf(if (it == "x86_64") SteamDownloadMonitor.STEAM_HOMES[1] else SteamDownloadMonitor.STEAM_HOMES[0]) }
             ?: SteamDownloadMonitor.STEAM_HOMES
         val log = homes.map { File(runtimeRoot, "$it/logs/content_log.txt") }.filter { it.isFile }.maxByOrNull { it.lastModified() }
@@ -31,6 +31,10 @@ object SteamDownloads {
             .map { SteamDownload(it, names[it] ?: it, 0L, 0L, shader = true) }
         return apps + shaders
     }
+
+    /** The arm64 and x86-64 Steam homes can both hold an unfinished manifest of one app; the page keys rows by app. */
+    internal fun onePerApp(downloads: List<SteamDownload>): List<SteamDownload> =
+        downloads.groupBy { it.appId }.values.map { same -> same.maxBy { it.done } }
 
     internal fun fromManifest(id: String, name: String, text: String): SteamDownload? {
         val flags = SteamDownloadMonitor.value(text, "StateFlags")?.toLongOrNull() ?: 0L

@@ -53,10 +53,13 @@ object BottomNotifications {
 
 class BottomNotificationListener : NotificationListenerService() {
     override fun onListenerConnected() {
+        BottomNotifications.clear()
         runCatching { activeNotifications }.getOrNull()?.sortedBy { it.postTime }?.forEach { BottomNotifications.post(this, it) }
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) = BottomNotifications.post(this, sbn)
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) = BottomNotifications.remove(sbn.key)
+
+    override fun onListenerDisconnected() = BottomNotifications.clear()
 }
