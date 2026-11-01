@@ -48,13 +48,17 @@ object BottomDesktop {
     @Volatile var state = State.OFF
         private set
     private var onTextInput: ((Boolean) -> Unit)? = null
+    private var imeWatcher: android.os.FileObserver? = null
 
     private var appContext: Context? = null
     private var service: Messenger? = null
     private var binding: ServiceConnection? = null
     private var pendingAttach: Message? = null
     /** The desktop guest's proot: -1 when there is none, 0 while it is being started. */
-    private var guestPid = -1
+    @Volatile private var guestPid = -1
+
+    /** The proot to freeze with the session when it pauses. */
+    val suspendPid: Int get() = guestPid
     private var guestGeneration = 0
     private var outputSize = 0 to 0
     private var cursorShown = false
@@ -67,7 +71,6 @@ object BottomDesktop {
                     if (guestPid < 0 && state == State.STARTING) startGuest()
                 }
                 Comp.MSG_FIRST_FRAME -> if (state == State.STARTING) setState(State.RUNNING)
-                Comp.MSG_TEXT_INPUT -> onTextInput?.invoke(msg.arg1 != 0)
             }
         }
     })
@@ -103,7 +106,23 @@ object BottomDesktop {
 
     fun removeListener(listener: () -> Unit) { listeners.remove(listener) }
 
+    /** Called on the main thread when a text field in the desktop gains or loses focus (droiddeck-ime's report). */
     fun setTextInputListener(listener: ((Boolean) -> Unit)?) { onTextInput = listener }
+
+    private fun watchIme(dir: File) {
+        imeWatcher?.stopWatching()
+        dir.deleteRecursively()
+        dir.mkdirs()
+        @Suppress("DEPRECATION")
+        imeWatcher = object : android.os.FileObserver(dir.path, MOVED_TO or CLOSE_WRITE) {
+            override fun onEvent(event: Int, path: String?) {
+                if (path != "ime.json") return
+                val focused = runCatching { org.json.JSONObject(File(dir, path).readText()).optBoolean("textField") }
+                    .getOrNull() ?: return
+                main.post { if (imeWatcher === this) onTextInput?.invoke(focused) }
+            }
+        }.also { it.startWatching() }
+    }
 
     private fun setState(next: State) {
         if (Looper.myLooper() != Looper.getMainLooper()) { main.post { setState(next) }; return }
@@ -197,6 +216,8 @@ object BottomDesktop {
         binding = null
         service = null
         pendingAttach = null
+        imeWatcher?.stopWatching()
+        imeWatcher = null
         setState(State.OFF)
     }
 
@@ -261,12 +282,15 @@ object BottomDesktop {
             }
             val dir = File(current.sessionDir, "bottom-desktop").apply { mkdirs() }
             val runtime = runtimeDir(context).apply { mkdirs() }
+            val imeDir = File(current.sessionRoot, "bottom-desktop-ime")
+            main.post { if (generation == guestGeneration) watchIme(imeDir) }
             val binds = LinuxRuntime.binds(context, current.sessionRoot, runtime, Environment.getExternalStorageDirectory(), current.binds)
             val guest = ArrayList(current.guest).apply {
                 add("BL_WIDTH=$width")
                 add("BL_HEIGHT=$height")
                 add("BL_DEBUG_DIR=" + dir.path)
                 add("BL_TOP_SESSION=" + SessionState.mode)
+                add("BL_IME_DIR=" + imeDir.path)
                 add(SCRIPT)
             }
             val command = LinuxRuntime.commandWithBinds(context, current.root, binds, guest)

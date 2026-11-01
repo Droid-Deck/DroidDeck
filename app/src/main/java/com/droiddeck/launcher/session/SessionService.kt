@@ -709,7 +709,10 @@ class SessionService : Service() {
         if (gen == sessionGen && SessionState.running) {
             suspendController = SessionSuspendController(
                 sessionRoot = { sessionPid },
-                helperRoots = { components.mapNotNull { it.suspendPid().takeIf { pid -> pid > 1 } } },
+                helperRoots = {
+                    components.mapNotNull { it.suspendPid().takeIf { pid -> pid > 1 } } +
+                        listOfNotNull(BottomDesktop.suspendPid.takeIf { it > 1 })
+                },
                 suspendAudio = {
                     if (!pulse.setSinkSuspended(true)) Log.w(TAG, "could not suspend audio sink")
                     if (!pulse.setMicSuspended(true)) Log.w(TAG, "could not suspend microphone source")

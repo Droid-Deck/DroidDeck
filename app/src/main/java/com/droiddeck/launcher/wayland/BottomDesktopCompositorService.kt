@@ -68,9 +68,6 @@ class BottomDesktopCompositorService : Service() {
                     .onFailure { Log.w(TAG, "could not point the compositor's log at $path", it) }
             }
             WaylandCompositor.setFirstFrameListener { reply(MSG_FIRST_FRAME) }
-            WaylandCompositor.setTextInputListener { enabled, _, _, _, _, _ ->
-                reply(MSG_TEXT_INPUT, if (enabled) 1 else 0)
-            }
             WaylandCompositor.nativeSetScaleMode(SCALE_FIT, ALIGN_CENTER)
         }
         val turnip = com.droiddeck.launcher.gpu.TurnipDriver(this)
@@ -104,7 +101,6 @@ class BottomDesktopCompositorService : Service() {
         const val MSG_CURSOR = 10
         const val MSG_ATTACHED = 101
         const val MSG_FIRST_FRAME = 102
-        const val MSG_TEXT_INPUT = 103
         const val KEY_RUNTIME_DIR = "runtimeDir"
         const val KEY_WIDTH = "width"
         const val KEY_HEIGHT = "height"

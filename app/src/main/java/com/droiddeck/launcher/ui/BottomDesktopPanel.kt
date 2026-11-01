@@ -2,7 +2,9 @@ package com.droiddeck.launcher.ui
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Color
+import android.os.SystemClock
 import android.graphics.Typeface
 import android.view.Gravity
 import android.view.KeyEvent
@@ -54,6 +56,7 @@ class BottomDesktopPanel(
     private var fullWidth = 0
     private var fullHeight = 0
     private var lastTouchY = 0f
+    private var lastPressMs = 0L
     private var scrollRestX = 0f
     private var scrollRestY = 0f
     private val stateListener: () -> Unit = { showState() }
@@ -141,9 +144,11 @@ class BottomDesktopPanel(
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         BottomDesktop.addListener(stateListener)
-        BottomDesktop.setTextInputListener { wanted ->
-            if (wanted && !keyboardHost.shown) keyboardHost.show()
-            else if (!wanted && keyboardHost.shown) keyboardHost.hide()
+        BottomDesktop.setTextInputListener { focused ->
+            val tapped = SystemClock.uptimeMillis() - lastPressMs < TEXT_FIELD_TAP_MS
+            val hardKeyboard = resources.configuration.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO
+            if (focused && tapped && !hardKeyboard && !keyboardHost.shown) keyboardHost.show()
+            else if (!focused && keyboardHost.shown) keyboardHost.hide()
         }
         showState()
         post { if (!keyboardHost.shown) requestFocus() }
@@ -248,6 +253,7 @@ class BottomDesktopPanel(
         val w = surfaceView.width
         val h = surfaceView.height
         if (w <= 0 || h <= 0 || BottomDesktop.state != BottomDesktop.State.RUNNING) return true
+        if (event.actionMasked == MotionEvent.ACTION_UP) lastPressMs = SystemClock.uptimeMillis()
         if (directTouch) return forwardTouch(event, w, h)
         val bounds = RectF(0f, 0f, w.toFloat(), h.toFloat())
         if (trackpad.bounds != bounds) {
@@ -333,5 +339,6 @@ class BottomDesktopPanel(
         const val SCENE_AXIS = 12
         const val KEY_LEFTCTRL = 29
         const val AXIS_UNITS_PER_PIXEL = 3f
+        const val TEXT_FIELD_TAP_MS = 1_000L
     }
 }
