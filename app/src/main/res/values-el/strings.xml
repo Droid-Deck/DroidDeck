@@ -3658,10 +3658,10 @@
 
     <string name="theme_white_red">Κατακόκκινο χιόνι</string>
     
-    <string name="hud_metric_latency">Frame time</string>
-    <string name="hud_metric_avg">Average frame rate</string>
-    <string name="hud_metric_display">Display server</string>
-    <string name="hud_metric_hdr">HDR state</string>
-    <string name="hud_readings_shown">Shown</string>
-    <string name="hud_readings_count">%1$d of %2$d</string>
+    <string name="hud_metric_latency">Χρόνος καρέ</string>
+    <string name="hud_metric_avg">Μέσος ρυθμός καρέ</string>
+    <string name="hud_metric_display">Διακομιστής προβολής</string>
+    <string name="hud_metric_hdr">Κατάσταση HDR</string>
+    <string name="hud_readings_shown">Εμφανίζονται</string>
+    <string name="hud_readings_count">%1$d από %2$d</string>
 </resources>

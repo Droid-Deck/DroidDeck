@@ -80,6 +80,7 @@ internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (Stri
             initialOn = DroidDeckHudConfig.order(cfg).associateWith { on(it) },
             onDismiss = { editing = false },
             onSave = { switches, order -> a.onHudOrder(switches, order) },
+            onReset = a.onHudReset,
         )
     }
 

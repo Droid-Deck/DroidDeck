@@ -50,7 +50,6 @@ import androidx.compose.ui.zIndex
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.hud.DroidDeckHudConfig
 
 private val ROW_HEIGHT = 44.dp
 
@@ -62,6 +61,7 @@ internal fun HudReadingsDialog(
     initialOn: Map<String, Boolean>,
     onDismiss: () -> Unit,
     onSave: (Map<String, Boolean>, List<String>) -> Unit,
+    onReset: () -> Unit,
 ) {
     val shown = rememberShown(onDismiss)
     val close = { shown.targetState = false }
@@ -108,10 +108,7 @@ internal fun HudReadingsDialog(
             initialOrder.map { if (it in visible) moved[i++] else it }
         }
         val save = { onSave(enabled.toMap(), merged()); close() }
-        val restore = {
-            onSave(DroidDeckHudConfig.DEFAULTS.mapValues { it.value == "1" }, DroidDeckHudConfig.ORDER)
-            close()
-        }
+        val restore = { onReset(); close() }
         BoxWithConstraints(Modifier.fillMaxWidth().fillMaxHeight()) {
             val beside = maxWidth >= 600.dp || maxWidth > maxHeight
             val list = @Composable { m: Modifier ->

@@ -3697,10 +3697,10 @@
 
     <string name="theme_white_red">Neve Escarlate</string>
     
-    <string name="hud_metric_latency">Frame time</string>
-    <string name="hud_metric_avg">Average frame rate</string>
-    <string name="hud_metric_display">Display server</string>
-    <string name="hud_metric_hdr">HDR state</string>
-    <string name="hud_readings_shown">Shown</string>
-    <string name="hud_readings_count">%1$d of %2$d</string>
+    <string name="hud_metric_latency">Tempo de frame</string>
+    <string name="hud_metric_avg">Taxa média de frames</string>
+    <string name="hud_metric_display">Servidor de ecrã</string>
+    <string name="hud_metric_hdr">Estado HDR</string>
+    <string name="hud_readings_shown">Mostrados</string>
+    <string name="hud_readings_count">%1$d de %2$d</string>
 </resources>

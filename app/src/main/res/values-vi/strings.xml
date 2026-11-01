@@ -3628,10 +3628,10 @@
 
     <string name="theme_white_red">Tuyết đỏ thẫm</string>
     
-    <string name="hud_metric_latency">Frame time</string>
-    <string name="hud_metric_avg">Average frame rate</string>
-    <string name="hud_metric_display">Display server</string>
-    <string name="hud_metric_hdr">HDR state</string>
-    <string name="hud_readings_shown">Shown</string>
-    <string name="hud_readings_count">%1$d of %2$d</string>
+    <string name="hud_metric_latency">Thời gian khung hình</string>
+    <string name="hud_metric_avg">Tốc độ khung hình trung bình</string>
+    <string name="hud_metric_display">Máy chủ hiển thị</string>
+    <string name="hud_metric_hdr">Trạng thái HDR</string>
+    <string name="hud_readings_shown">Đang hiển thị</string>
+    <string name="hud_readings_count">%1$d trên %2$d</string>
 </resources>

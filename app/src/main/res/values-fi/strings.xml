@@ -3658,10 +3658,10 @@
 
     <string name="theme_white_red">Helakanpunainen lumi</string>
     
-    <string name="hud_metric_latency">Frame time</string>
-    <string name="hud_metric_avg">Average frame rate</string>
-    <string name="hud_metric_display">Display server</string>
-    <string name="hud_metric_hdr">HDR state</string>
-    <string name="hud_readings_shown">Shown</string>
-    <string name="hud_readings_count">%1$d of %2$d</string>
+    <string name="hud_metric_latency">Kuvan aika</string>
+    <string name="hud_metric_avg">Keskimääräinen kuvataajuus</string>
+    <string name="hud_metric_display">Näyttöpalvelin</string>
+    <string name="hud_metric_hdr">HDR-tila</string>
+    <string name="hud_readings_shown">Näkyvissä</string>
+    <string name="hud_readings_count">%1$d / %2$d</string>
 </resources>

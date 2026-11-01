@@ -3628,10 +3628,10 @@
 
     <string name="theme_white_red">หิมะสีแดงชาด</string>
     
-    <string name="hud_metric_latency">Frame time</string>
-    <string name="hud_metric_avg">Average frame rate</string>
-    <string name="hud_metric_display">Display server</string>
-    <string name="hud_metric_hdr">HDR state</string>
-    <string name="hud_readings_shown">Shown</string>
-    <string name="hud_readings_count">%1$d of %2$d</string>
+    <string name="hud_metric_latency">เวลาเฟรม</string>
+    <string name="hud_metric_avg">อัตราเฟรมเฉลี่ย</string>
+    <string name="hud_metric_display">เซิร์ฟเวอร์แสดงผล</string>
+    <string name="hud_metric_hdr">สถานะ HDR</string>
+    <string name="hud_readings_shown">ที่แสดง</string>
+    <string name="hud_readings_count">%1$d จาก %2$d</string>
 </resources>

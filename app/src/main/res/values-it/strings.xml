@@ -3697,10 +3697,10 @@
 
     <string name="theme_white_red">Neve scarlatta</string>
     
-    <string name="hud_metric_latency">Frame time</string>
-    <string name="hud_metric_avg">Average frame rate</string>
-    <string name="hud_metric_display">Display server</string>
-    <string name="hud_metric_hdr">HDR state</string>
-    <string name="hud_readings_shown">Shown</string>
-    <string name="hud_readings_count">%1$d of %2$d</string>
+    <string name="hud_metric_latency">Tempo frame</string>
+    <string name="hud_metric_avg">Frequenza media fotogrammi</string>
+    <string name="hud_metric_display">Server di visualizzazione</string>
+    <string name="hud_metric_hdr">Stato HDR</string>
+    <string name="hud_readings_shown">Mostrati</string>
+    <string name="hud_readings_count">%1$d di %2$d</string>
 </resources>

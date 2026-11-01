@@ -3628,10 +3628,10 @@
 
     <string name="theme_white_red">緋色の雪</string>
     
-    <string name="hud_metric_latency">Frame time</string>
-    <string name="hud_metric_avg">Average frame rate</string>
-    <string name="hud_metric_display">Display server</string>
-    <string name="hud_metric_hdr">HDR state</string>
-    <string name="hud_readings_shown">Shown</string>
-    <string name="hud_readings_count">%1$d of %2$d</string>
+    <string name="hud_metric_latency">フレーム時間</string>
+    <string name="hud_metric_avg">平均フレームレート</string>
+    <string name="hud_metric_display">表示サーバー</string>
+    <string name="hud_metric_hdr">HDR 状態</string>
+    <string name="hud_readings_shown">表示中</string>
+    <string name="hud_readings_count">%2$d 中 %1$d</string>
 </resources>

@@ -3658,10 +3658,10 @@
 
     <string name="theme_white_red">Skarlátvörös hó</string>
     
-    <string name="hud_metric_latency">Frame time</string>
-    <string name="hud_metric_avg">Average frame rate</string>
-    <string name="hud_metric_display">Display server</string>
-    <string name="hud_metric_hdr">HDR state</string>
-    <string name="hud_readings_shown">Shown</string>
-    <string name="hud_readings_count">%1$d of %2$d</string>
+    <string name="hud_metric_latency">Képkockaidő</string>
+    <string name="hud_metric_avg">Átlagos képkockasebesség</string>
+    <string name="hud_metric_display">Megjelenítő kiszolgáló</string>
+    <string name="hud_metric_hdr">HDR állapot</string>
+    <string name="hud_readings_shown">Megjelenítve</string>
+    <string name="hud_readings_count">%1$d / %2$d</string>
 </resources>

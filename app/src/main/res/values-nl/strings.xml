@@ -3658,10 +3658,10 @@
 
     <string name="theme_white_red">Scharlakenrode sneeuw</string>
     
-    <string name="hud_metric_latency">Frame time</string>
-    <string name="hud_metric_avg">Average frame rate</string>
-    <string name="hud_metric_display">Display server</string>
-    <string name="hud_metric_hdr">HDR state</string>
-    <string name="hud_readings_shown">Shown</string>
-    <string name="hud_readings_count">%1$d of %2$d</string>
+    <string name="hud_metric_latency">Frametijd</string>
+    <string name="hud_metric_avg">Gemiddelde framesnelheid</string>
+    <string name="hud_metric_display">Weergaveserver</string>
+    <string name="hud_metric_hdr">HDR-status</string>
+    <string name="hud_readings_shown">Getoond</string>
+    <string name="hud_readings_count">%1$d van %2$d</string>
 </resources>
