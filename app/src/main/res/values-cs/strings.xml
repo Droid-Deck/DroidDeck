@@ -299,6 +299,8 @@
     <string name="mode_controller_x360">Ovladač Xbox 360</string>
     <string name="mode_controller_note">Deck: tlačítko Quick Access a gyroskop. Steam Controller: totéž, navíc snímání úchopu na zadních tlačítkách. DualShock 4 a DualSense: gyroskop, trackpad slouží jako touchpad. Xbox 360: Quick Access otevřete kombinací Guide+A.</string>
     <string name="mode_back">Zpět</string>
+    <string name="back_hold">Podržení Zpět pro zkratky Steam</string>
+    <string name="back_hold_hint">Podržení Zpět otevře Rychlý přístup nebo vytváří kombinace Steam s dalšími tlačítky. Vypnutím se podržení Zpět ignoruje; klepnutí a dvojité klepnutí fungují dál.</string>
     <string name="back_native_qam_hint">Podržte Zpět 700 ms, nebo podržte Zpět a stiskněte jiné tlačítko pro zkratky Steamu.</string>
     <string name="back_double_tap_window">Interval dvojitého klepnutí</string>
     <string name="back_tap_ms">%1$d ms</string>

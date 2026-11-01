@@ -299,6 +299,8 @@
     <string name="mode_controller_x360">คอนโทรลเลอร์ Xbox 360</string>
     <string name="mode_controller_note">Deck: ปุ่ม Quick Access และไจโร Steam Controller: เหมือนกัน พร้อมเซนเซอร์แรงจับที่ปุ่มด้านหลัง DualShock 4 และ DualSense: ไจโร และแทร็กแพดทำหน้าที่เป็นทัชแพด Xbox 360: เปิด Quick Access ด้วย Guide+A</string>
     <string name="mode_back">กลับ</string>
+    <string name="back_hold">กดค้างย้อนกลับสำหรับทางลัด Steam</string>
+    <string name="back_hold_hint">กดค้างย้อนกลับเพื่อเปิดการเข้าถึงด่วนหรือใช้คอมโบ Steam กับปุ่มอื่น ปิดเพื่อไม่สนใจการกดค้าง การแตะและแตะสองครั้งยังใช้ได้</string>
     <string name="back_native_qam_hint">กดปุ่ม Back ค้างไว้ 700 ms หรือกด Back ค้างแล้วกดปุ่มอื่นเพื่อใช้ทางลัดของ Steam</string>
     <string name="back_double_tap_window">ช่วงเวลาแตะสองครั้ง</string>
     <string name="back_tap_ms">%1$d ms</string>

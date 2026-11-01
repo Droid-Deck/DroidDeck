@@ -299,6 +299,8 @@
     <string name="mode_controller_x360">وحدة تحكم Xbox 360</string>
     <string name="mode_controller_note">Deck: زر «الوصول السريع» والجيروسكوب. Steam Controller: الشيء نفسه، مع استشعار القبضة على الأزرار الخلفية. DualShock 4 وDualSense: الجيروسكوب، ولوحتا التتبع كلوحة اللمس الخاصة بها. Xbox 360: افتح «الوصول السريع» باستخدام Guide+A.</string>
     <string name="mode_back">زر الرجوع</string>
+    <string name="back_hold">الضغط المطوّل على الرجوع لاختصارات Steam</string>
+    <string name="back_hold_hint">الضغط المطوّل على الرجوع يفتح الوصول السريع أو ينشئ اختصارات Steam مع أزرار أخرى. أوقفه لتجاهل الضغط المطوّل؛ النقر والنقر المزدوج يبقيان يعملان.</string>
     <string name="back_native_qam_hint">اضغط مطوّلًا على زر الرجوع لمدة 700 ملّي ثانية، أو اضغط عليه مطوّلًا مع زر آخر لاختصارات Steam.</string>
     <string name="back_double_tap_window">مهلة النقر المزدوج</string>
     <string name="back_tap_ms">%1$d ملّي ثانية</string>

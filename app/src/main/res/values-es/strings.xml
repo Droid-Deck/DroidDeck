@@ -299,6 +299,8 @@
     <string name="mode_controller_x360">Mando Xbox 360</string>
     <string name="mode_controller_note">Deck: botón de Quick Access y giroscopio. Steam Controller: lo mismo, con detección de agarre en los botones traseros. DualShock 4 y DualSense: giroscopio, y los trackpads como su panel táctil. Xbox 360: abre Quick Access con Guide+A.</string>
     <string name="mode_back">Atrás</string>
+    <string name="back_hold">Mantener Atrás para atajos de Steam</string>
+    <string name="back_hold_hint">Mantener Atrás abre Acceso rápido o crea combinaciones de Steam con otros botones. Desactívalo para ignorar Atrás mantenido; pulsar y pulsar dos veces siguen funcionando.</string>
     <string name="back_native_qam_hint">Mantén Atrás 700 ms, o mantén Atrás y pulsa otro botón para los atajos de Steam.</string>
     <string name="back_double_tap_window">Intervalo de doble toque</string>
     <string name="back_tap_ms">%1$d ms</string>

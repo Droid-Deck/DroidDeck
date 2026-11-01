@@ -298,6 +298,8 @@
     <string name="mode_controller_x360">Xbox 360 控制器</string>
     <string name="mode_controller_note">Deck：提供快速存取按鈕和陀螺儀。Xbox 360：按 Guide+A 開啟快速存取。</string>
     <string name="mode_back">返回</string>
+    <string name="back_hold">長按返回鍵使用 Steam 快捷操作</string>
+    <string name="back_hold_hint">長按返回鍵開啟快速存取，或與其他按鍵組成 Steam 組合鍵。關閉後忽略長按；輕觸和輕觸兩下仍然有效。</string>
     <string name="back_native_qam_hint">按住返回鍵 700 毫秒，或按住返回鍵並按下其他按鈕以使用 Steam 快速鍵。</string>
     <string name="back_double_tap_window">連按兩下間隔</string>
     <string name="back_tap_ms">%1$d 毫秒</string>

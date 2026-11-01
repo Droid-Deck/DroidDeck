@@ -299,6 +299,8 @@
     <string name="mode_controller_x360">Xbox 360 kumandası</string>
     <string name="mode_controller_note">Deck: Hızlı Erişim düğmesi ve jiroskop. Steam Controller: aynısı, ayrıca arka düğmelerde kavrama algılama. DualShock 4 ve DualSense: jiroskop; dokunmatik yüzeyler kumandanın dokunmatik paneli olur. Xbox 360: Hızlı Erişim\'i Guide+A ile açın.</string>
     <string name="mode_back">Geri</string>
+    <string name="back_hold">Steam kısayolları için Geri\'yi basılı tut</string>
+    <string name="back_hold_hint">Geri\'yi basılı tutmak Hızlı Erişim\'i açar veya diğer düğmelerle Steam kombinasyonları yapar. Basılı tutmayı yok saymak için kapatın; dokunma ve çift dokunma çalışmaya devam eder.</string>
     <string name="back_native_qam_hint">Steam kısayolları için Geri\'yi 700 ms basılı tutun veya Geri\'yi basılı tutup başka bir düğmeye basın.</string>
     <string name="back_double_tap_window">Çift dokunma aralığı</string>
     <string name="back_tap_ms">%1$d ms</string>

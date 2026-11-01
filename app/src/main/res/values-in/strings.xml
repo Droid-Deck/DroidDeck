@@ -299,6 +299,8 @@
     <string name="mode_controller_x360">Pengontrol Xbox 360</string>
     <string name="mode_controller_note">Deck: tombol Quick Access dan giroskop. Steam Controller: sama, dengan grip sense pada tombol belakang. DualShock 4 dan DualSense: giroskop, dan trackpad sebagai touchpad-nya. Xbox 360: buka Quick Access dengan Guide+A.</string>
     <string name="mode_back">Kembali</string>
+    <string name="back_hold">Tahan Kembali untuk pintasan Steam</string>
+    <string name="back_hold_hint">Menahan Kembali membuka Akses Cepat atau membuat kombinasi Steam dengan tombol lain. Matikan untuk mengabaikan Kembali yang ditahan; ketuk dan ketuk dua kali tetap berfungsi.</string>
     <string name="back_native_qam_hint">Tahan Back selama 700 ms, atau tahan Back dan tekan tombol lain untuk pintasan Steam.</string>
     <string name="back_double_tap_window">Jeda ketuk dua kali</string>
     <string name="back_tap_ms">%1$d ms</string>

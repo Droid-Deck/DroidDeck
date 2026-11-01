@@ -299,6 +299,8 @@
     <string name="mode_controller_x360">Контроллер Xbox 360</string>
     <string name="mode_controller_note">Deck: кнопка быстрого доступа и гироскоп. Steam Controller: то же самое, с датчиком хвата на задних кнопках. DualShock 4 и DualSense: гироскоп, а трекпады работают как их тачпад. Xbox 360: используйте Guide+A для быстрого доступа.</string>
     <string name="mode_back">Назад</string>
+    <string name="back_hold">Удержание «Назад» для сочетаний Steam</string>
+    <string name="back_hold_hint">Удержание «Назад» открывает быстрый доступ или создаёт сочетания Steam с другими кнопками. Выключите, чтобы удержание игнорировалось; нажатие и двойное нажатие работают.</string>
     <string name="back_native_qam_hint">Удерживайте «Назад» 700 мс или удерживайте «Назад» и нажмите другую кнопку для сочетаний Steam.</string>
     <string name="back_double_tap_window">Интервал двойного нажатия</string>
     <string name="back_tap_ms">%1$d мс</string>

@@ -323,6 +323,8 @@
     <string name="mode_controller_x360">Xbox 360 controller</string>
     <string name="mode_controller_note">Deck: Quick Access button and gyro. Steam Controller: the same, with grip sense on the back buttons. DualShock 4 and DualSense: gyro, and the trackpads as their touchpad. Xbox 360: open Quick Access with Guide+A.</string>
     <string name="mode_back">Back</string>
+    <string name="back_hold">Hold Back for Steam shortcuts</string>
+    <string name="back_hold_hint">Holding Back opens Quick Access or makes Steam chords with other buttons. Turn off to ignore held Back; tap and double-tap still work.</string>
     <string name="back_native_qam_hint">Hold Back for 700 ms, or hold Back and press another button for Steam shortcuts.</string>
     <string name="back_double_tap_window">Double-tap window</string>
     <string name="back_tap_ms">%1$d ms</string>

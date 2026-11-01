@@ -299,6 +299,8 @@
     <string name="mode_controller_x360">Kontroler Xbox 360</string>
     <string name="mode_controller_note">Deck: przycisk szybkiego dostępu i żyroskop. Steam Controller: to samo oraz wykrywanie chwytu na tylnych przyciskach. DualShock 4 i DualSense: żyroskop, a gładziki działają jako ich touchpad. Xbox 360: szybki dostęp otwiera Guide+A.</string>
     <string name="mode_back">Wstecz</string>
+    <string name="back_hold">Przytrzymaj Wstecz dla skrótów Steam</string>
+    <string name="back_hold_hint">Przytrzymanie Wstecz otwiera Szybki dostęp lub tworzy skróty Steam z innymi przyciskami. Wyłącz, aby ignorować przytrzymanie; dotknięcie i podwójne dotknięcie nadal działają.</string>
     <string name="back_native_qam_hint">Przytrzymaj Wstecz przez 700 ms lub przytrzymaj Wstecz i naciśnij inny przycisk, aby użyć skrótów Steam.</string>
     <string name="back_double_tap_window">Czas podwójnego dotknięcia</string>
     <string name="back_tap_ms">%1$d ms</string>

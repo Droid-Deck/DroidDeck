@@ -360,6 +360,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("directCursor", on).apply()
     }
 
+    fun backHold(context: Context): Boolean = prefs(context).getBoolean("backHold", true)
+
+    fun setBackHold(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("backHold", on).apply()
+    }
+
     fun backActionsInverted(context: Context): Boolean = prefs(context).getBoolean("backActionsInverted", false)
 
     fun setBackActionsInverted(context: Context, inverted: Boolean) {
