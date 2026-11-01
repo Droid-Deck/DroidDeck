@@ -18,9 +18,12 @@ class BottomPageActions(
     val runningGame: () -> String? = { null },
 )
 
+/** The In-game stats page's id; it has its own HUD, so the strip under the tabs is not drawn there. */
+internal const val BOTTOM_PAGE_TELEMETRY = "telemetry"
+
 /** The pages the bottom-screen dashboard offers during a session, in tab order. */
 fun sessionBottomPages(actions: BottomPageActions): List<BottomPage> = listOf(
-    BottomPage("telemetry", R.string.bottom_page_telemetry, Icons.Outlined.Speed) { BottomTelemetryPage(actions.fps, actions.runningGame) },
+    BottomPage(BOTTOM_PAGE_TELEMETRY, R.string.bottom_page_telemetry, Icons.Outlined.Speed) { BottomTelemetryPage(actions.fps, actions.runningGame) },
     BottomPage("downloads", R.string.bottom_page_downloads, Icons.Outlined.Download) { BottomDownloadsPage() },
     BottomPage("notifications", R.string.bottom_page_notifications, Icons.Outlined.Notifications) { BottomNotificationsPage(actions.openSettings) },
     BottomPage("screenshots", R.string.bottom_page_screenshots, Icons.Outlined.PhotoLibrary) { BottomScreenshotsPage(actions.takeScreenshot) },

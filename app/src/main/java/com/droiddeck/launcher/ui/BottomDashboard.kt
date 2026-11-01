@@ -94,6 +94,8 @@ fun BottomDashboard(
     onClose: () -> Unit,
     onMenu: (() -> Unit)?,
     gameStarts: Int = 0,
+    /** Drawn under the tabs, given the open page's id (draws nothing where it is not wanted). */
+    strip: (@Composable (String?) -> Unit)? = null,
 ) {
     val colors = MaterialTheme.colorScheme
     var current by remember { mutableStateOf(pickBottomPage(remembered, pages.map { it.id })) }
@@ -117,6 +119,7 @@ fun BottomDashboard(
                 }
                 if (onMenu != null) BarButton(Icons.Outlined.Menu, stringResource(R.string.touch_droiddeck_menu), "bottom-menu", onMenu)
             }
+            strip?.invoke(page?.id)
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (page != null) page.content()
                 else Text(stringResource(R.string.bottom_dashboard_empty), fontSize = 15.sp, color = colors.onSurfaceVariant,

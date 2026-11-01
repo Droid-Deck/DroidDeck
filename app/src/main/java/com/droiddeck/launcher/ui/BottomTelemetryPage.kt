@@ -89,15 +89,16 @@ import java.util.concurrent.atomic.AtomicReference
 
 private const val DRAW_MS = 66L
 private const val TELEMETRY_STALE_MS = 3_000L
-private const val METRICS_MS = 1_000L
+private const val METRICS_MS = 500L
 private const val THUNDER_MS = 500L
 private const val THUNDER_RETRY_MS = 3_000L
 private const val ELITE_MS = 1_000L
 private const val ELITE_SEARCH_MS = 10_000L
 private const val OUTPUT_SCAN_MS = 3_000L
-/** Top strip history: one reading a second for 30 s. */
-private const val PERF_N = 30
-private const val HUD_EVERY = 4
+/** Top strip history: two readings a second for 30 s. */
+private const val PERF_N = 60
+/** The HUD and the Line strip redraw at most this often while the game's frames arrive (about 10 a second). */
+private const val FRAME_MS = 100L
 private const val MINUTE_NS = 60_000_000_000L
 private const val TEMP_PLAIN = 0xFFF2F5F9.toInt()
 
@@ -195,7 +196,6 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
                 }
             }
         }
-        var drawn = 0
         while (isActive) {
             val reading = latest.get()
             race = reading?.takeIf { System.currentTimeMillis() - it.first < TELEMETRY_STALE_MS }?.second
@@ -205,10 +205,16 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
                 speedTrace.add(r.speedKmh ?: 0f)
                 traceTick++
             }
-            if (frames.poll(System.nanoTime()) && ++drawn % HUD_EVERY == 0) hudTick++
             fpsNow = currentFps()
             unknown = traffic.filter { (_, t) -> t.packets > 0 && !t.readable }.map { (port, t) -> UnknownTraffic(port, t.packets, t.length) }
             delay(DRAW_MS)
+        }
+    }
+    // The frame numbers (FPS, lows, graph) on their own clock, so they do not wait for the telemetry loop.
+    LaunchedEffect(frames) {
+        while (isActive) {
+            if (frames.poll(System.nanoTime())) hudTick++
+            delay(FRAME_MS)
         }
     }
     LaunchedEffect(Unit) {
@@ -318,10 +324,23 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
                         SessionPrefs.setStatsHud(context, hud.id)
                     }
                 }
-            } else perfTick.let {
-                StatsStripView(strip, StripData(fpsNow, device, fpsHistory.snapshot(), cpuHistory.snapshot(), gpuHistory.snapshot(), wattsHistory.snapshot(), clock, title)) {
-                    strip = strip.next()
-                    SessionPrefs.setStatsStrip(context, strip.id)
+            } else hudTick.let {
+                perfTick.let {
+                    val live = frames.live
+                    val graph = FloatArray(FrameStats.GRAPH_FRAMES).also { if (live) frames.stats.graph(it) }
+                    val data = StripData(
+                        fpsNow, device, fpsHistory.snapshot(), cpuHistory.snapshot(), gpuHistory.snapshot(), wattsHistory.snapshot(), clock, title,
+                        engine = if (live && !frames.steamFocused) frames.engine else "",
+                        lows = if (live) frames.stats.lows(System.nanoTime()) else null, graph = graph,
+                        metrics = SessionPrefs.bottomStripMetrics(context), fahrenheit = tempDisplay.fahrenheit,
+                        tempColor = { sensor, c ->
+                            thresholds[sensor]?.let { Color(HudMetrics.tempColor(c.toFloat(), it, tempDisplay, TEMP_PLAIN)) } ?: Color(TEMP_PLAIN)
+                        },
+                    )
+                    StatsStripView(strip, data) {
+                        strip = strip.next()
+                        SessionPrefs.setStatsStrip(context, strip.id)
+                    }
                 }
             }
             race?.let { r ->

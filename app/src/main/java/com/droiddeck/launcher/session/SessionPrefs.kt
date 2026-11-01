@@ -106,6 +106,20 @@ object SessionPrefs {
         prefs(context).edit().putString("statsStrip", id).apply()
     }
 
+    fun bottomStripMetrics(context: Context): Set<StripMetric> = StripMetric.parse(prefs(context).getString("bottomStripMetrics", null))
+
+    fun setBottomStripMetric(context: Context, metric: StripMetric, on: Boolean) {
+        val now = bottomStripMetrics(context).let { if (on) it + metric else it - metric }
+        prefs(context).edit().putString("bottomStripMetrics", StripMetric.encode(now)).apply()
+    }
+
+    /** The one-line strip under the bottom-screen tabs (every tab but In-game stats), default on. */
+    fun bottomStripOnTabs(context: Context): Boolean = prefs(context).getBoolean("bottomStripTabs", true)
+
+    fun setBottomStripOnTabs(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("bottomStripTabs", on).apply()
+    }
+
     fun statsHud(context: Context): String? = prefs(context).getString("statsHud", null)
 
     fun setStatsHud(context: Context, id: String) {

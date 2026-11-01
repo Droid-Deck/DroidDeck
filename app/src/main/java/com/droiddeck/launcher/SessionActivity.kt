@@ -3169,6 +3169,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onPage = { com.droiddeck.launcher.ui.SessionBottomTab.pick(SessionState.sessionId, it) },
                     onClose = { selectSecondScreenMode(SecondScreenMode.NONE) },
                     onMenu = if (dockDrawer()) ({ drawerOpen = true }) else null,
+                    strip = { pageId ->
+                        com.droiddeck.launcher.ui.SessionBottomStrip(pageId) { if (::hud.isInitialized) hud.liveFps else null }
+                    },
                 )
             }
         }),

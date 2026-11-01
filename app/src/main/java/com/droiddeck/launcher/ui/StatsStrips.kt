@@ -36,18 +36,23 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.hud.DroidDeckMark
+import com.droiddeck.launcher.hud.FrameStats
 import com.droiddeck.launcher.hud.HudMetrics
 import com.droiddeck.launcher.session.StatsStrip
+import com.droiddeck.launcher.session.StripMetric
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -151,6 +156,13 @@ internal class StripData(
     val wattsHistory: List<Float>,
     val clock: String,
     val game: String? = null,
+    /** The Line strip's extras: graphics API, frame-time lows, the frame-time graph (ms, oldest first). */
+    val engine: String = "",
+    val lows: FrameStats.Lows? = null,
+    val graph: FloatArray? = null,
+    val metrics: Set<StripMetric> = StripMetric.defaults,
+    val fahrenheit: Boolean = false,
+    val tempColor: ((HudMetrics.TempSensor, Int) -> Color)? = null,
 )
 
 private fun percentTemp(percent: Int?, temp: Int?): String =
@@ -166,12 +178,126 @@ private fun fpsText(fps: Float?): String = fps?.takeIf { it > 0f }?.let { "%.1f"
 internal fun StatsStripView(style: StatsStrip, d: StripData, onTap: () -> Unit) {
     Box(Modifier.fillMaxWidth().clickable(onClick = onTap)) {
         when (style) {
+            StatsStrip.LINE -> LineStrip(d)
             StatsStrip.PANEL -> PanelStrip(d)
             StatsStrip.TILES -> TilesStrip(d)
             StatsStrip.RINGS -> RingsStrip(d)
         }
     }
 }
+
+/** The top-screen HUD's text colours on its dark panel. */
+private object LineInk {
+    val value = Color(0xFFF2F5F9)
+    val dim = Color(0xFF9AA4B2)
+    val vram = Color(0xFFC98BFF)
+}
+
+private class LineItem(val priority: Int, val content: @Composable () -> Unit)
+
+/**
+ * One line like the top-screen HUD's Strip: API and FPS, frame-time graph, lows, GPU, CPU, VRAM, RAM and the clock.
+ * When the line is too narrow the least important numbers are left out (the FPS stays); the clock sits at the right.
+ */
+@Composable
+internal fun LineStrip(d: StripData, modifier: Modifier = Modifier) {
+    val pal = LocalPalette.current
+    val shape = RoundedCornerShape(12.dp)
+    val m = d.metrics
+    val s = d.device
+    val items = ArrayList<LineItem>()
+    items += LineItem(0) { DroidDeckLogo(16.dp) }
+    if (StripMetric.ENGINE in m && d.engine.isNotEmpty()) items += LineItem(70) { LineText(d.engine, LineInk.dim, 12.sp) }
+    items += LineItem(0) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            LineText(fpsText(d.fps), LineInk.value, 17.sp)
+            LineText("fps", LineInk.dim, 10.sp, Modifier.padding(start = 2.dp, bottom = 2.dp))
+        }
+    }
+    val graph = d.graph
+    if (StripMetric.GRAPH in m && graph != null) items += LineItem(60) {
+        Sparkline(graph.asList(), 0f, FrameStats.GRAPH_MAX_MS, lerp(pal.primary, Color.White, 0.3f), Modifier.width(56.dp).height(16.dp))
+    }
+    if (StripMetric.LOWS in m) {
+        items += LineItem(10) { LinePair("1%", LineInk.dim, lowText(d.lows?.low1Fps), StatsColors.cpu) }
+        items += LineItem(90) { LinePair("0.1%", LineInk.dim, lowText(d.lows?.low01Fps), StatsColors.cpu) }
+    }
+    if (StripMetric.LOW001 in m) items += LineItem(100) { LinePair("0.01%", LineInk.dim, lowText(d.lows?.low001Fps), StatsColors.cpu) }
+    if (StripMetric.GPU in m || StripMetric.GPU_TEMP in m) items += LineItem(20) {
+        LineMetric("GPU", StatsColors.gpu, if (StripMetric.GPU in m) s?.gpuPercent else null,
+            if (StripMetric.GPU_TEMP in m) s?.gpuTempC else null, HudMetrics.TempSensor.GPU, d)
+    }
+    if (StripMetric.CPU in m || StripMetric.CPU_TEMP in m) items += LineItem(30) {
+        LineMetric("CPU", StatsColors.cpu, if (StripMetric.CPU in m) s?.cpuPercent else null,
+            if (StripMetric.CPU_TEMP in m) s?.cpuTempC else null, HudMetrics.TempSensor.CPU, d)
+    }
+    if (StripMetric.VRAM in m) items += LineItem(80) { LinePair("VRAM", LineInk.vram, gibText(s?.vramUsedBytes), LineInk.vram) }
+    if (StripMetric.RAM in m) items += LineItem(40) { LinePair("RAM", StatsColors.ram, s?.let { "${it.ramPercent.roundToInt()}%" } ?: "–", StatsColors.ram) }
+    val clock = StripMetric.CLOCK in m && d.clock.isNotEmpty()
+    if (clock) items += LineItem(50) { LineText(d.clock, LineInk.dim, 12.sp) }
+    PriorityRow(
+        IntArray(items.size) { items[it].priority }, 10.dp, pinLast = clock,
+        modifier = modifier.fillMaxWidth().clip(shape).background(pal.surface).border(1.dp, pal.primary.copy(alpha = 0.35f), shape)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    ) {
+        items.forEach { it.content() }
+    }
+}
+
+/** A row that leaves out the children that do not fit, by [priorities] (see [fitByPriority]); [pinLast] right-aligns the last one. */
+@Composable
+private fun PriorityRow(priorities: IntArray, spacing: Dp, pinLast: Boolean, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Layout(content, modifier) { measurables, constraints ->
+        val gap = spacing.roundToPx()
+        val loose = Constraints(maxHeight = constraints.maxHeight)
+        val placeables = measurables.map { it.measure(loose) }
+        val max = if (constraints.hasBoundedWidth) constraints.maxWidth else Int.MAX_VALUE
+        val keep = fitByPriority(IntArray(placeables.size) { placeables[it].width }, priorities.copyOf(placeables.size), gap, max)
+        val height = maxOf(constraints.minHeight, placeables.filterIndexed { i, _ -> keep[i] }.maxOfOrNull { it.height } ?: 0)
+        val used = placeables.filterIndexed { i, _ -> keep[i] }.sumOf { it.width } + gap * maxOf(0, keep.count { it } - 1)
+        val width = if (constraints.hasBoundedWidth) constraints.maxWidth else used
+        layout(width, height) {
+            var x = 0
+            val last = placeables.lastIndex
+            placeables.forEachIndexed { i, p ->
+                if (!keep[i]) return@forEachIndexed
+                val px = if (pinLast && i == last) width - p.width else x
+                p.placeRelative(px, (height - p.height) / 2)
+                x += p.width + gap
+            }
+        }
+    }
+}
+
+@Composable
+private fun LineText(text: String, color: Color, size: TextUnit = 13.sp, modifier: Modifier = Modifier) {
+    Text(text, fontSize = size, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = color, maxLines = 1, softWrap = false,
+        modifier = modifier)
+}
+
+@Composable
+private fun LinePair(label: String, labelColor: Color, value: String, valueColor: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        LineText(label, labelColor, 11.sp)
+        LineText(value, valueColor)
+    }
+}
+
+@Composable
+private fun LineMetric(label: String, color: Color, percent: Int?, tempC: Int?, sensor: HudMetrics.TempSensor, d: StripData) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        LineText(label, color, 11.sp)
+        if (percent == null && tempC == null) LineText("–", color)
+        if (percent != null) LineText("$percent%", color)
+        if (tempC != null) LineText(tempText(tempC, d.fahrenheit), d.tempColor?.invoke(sensor, tempC) ?: LineInk.value)
+    }
+}
+
+private fun lowText(fps: Float?): String = fps?.takeIf { it > 0f }?.let { "%.1f".format(it) } ?: "–"
+
+private fun gibText(bytes: Long?): String = bytes?.let { "%.1fGiB".format(it / 1073741824.0) } ?: "–"
+
+private fun tempText(c: Int, fahrenheit: Boolean): String = if (fahrenheit) "${(c * 9f / 5f + 32f).roundToInt()}°F" else "$c°C"
 
 @Composable
 private fun PanelStrip(d: StripData) {
