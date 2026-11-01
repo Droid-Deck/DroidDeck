@@ -651,6 +651,7 @@
     <string name="hud_size_pill">Kapsel</string>
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">Leiste</string>
     <string name="hud_locked">Position sperren</string>
     <string name="hud_locked_hint">Ziehe das HUD, um es zu verschieben; langes Drücken sperrt oder entsperrt es. Solange es gesperrt ist, funktionieren die Bildschirmsteuerungen darunter weiter.</string>
     <string name="hud_group_look">Aussehen</string>

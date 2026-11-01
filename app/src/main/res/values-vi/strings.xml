@@ -649,6 +649,7 @@
     <string name="hud_size_pill">Dạng viên</string>
     <string name="hud_size_minimal">Tối giản</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">Thanh</string>
     <string name="hud_locked">Khóa vị trí</string>
     <string name="hud_locked_hint">Kéo HUD để di chuyển; nhấn giữ để khóa hoặc mở khóa. Khi đã khóa, các nút điều khiển trên màn hình bên dưới vẫn hoạt động.</string>
     <string name="hud_group_look">Giao diện</string>

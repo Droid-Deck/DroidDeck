@@ -675,6 +675,7 @@
     <string name="hud_size_pill">Pill</string>
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">Strip</string>
     <string name="hud_locked">Lock in place</string>
     <string name="hud_locked_hint">Drag the HUD to move it; a long press locks or unlocks it. While it is locked, on-screen controls under it still work.</string>
     <string name="hud_group_look">Look</string>

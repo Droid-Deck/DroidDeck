@@ -651,6 +651,7 @@
     <string name="hud_size_pill">Κάψουλα</string>
     <string name="hud_size_minimal">Ελάχιστο</string>
     <string name="hud_size_mega">Μέγα</string>
+    <string name="hud_size_strip">Λωρίδα</string>
     <string name="hud_locked">Κλείδωμα θέσης</string>
     <string name="hud_locked_hint">Σύρετε το HUD για να το μετακινήσετε· ένα παρατεταμένο πάτημα το κλειδώνει ή το ξεκλειδώνει. Όσο είναι κλειδωμένο, τα χειριστήρια οθόνης από κάτω του εξακολουθούν να λειτουργούν.</string>
     <string name="hud_group_look">Εμφάνιση</string>

@@ -649,6 +649,7 @@
     <string name="hud_size_pill">แคปซูล</string>
     <string name="hud_size_minimal">มินิมอล</string>
     <string name="hud_size_mega">เมกะ</string>
+    <string name="hud_size_strip">แถบ</string>
     <string name="hud_locked">ล็อกตำแหน่ง</string>
     <string name="hud_locked_hint">ลาก HUD เพื่อย้าย กดค้างเพื่อล็อกหรือปลดล็อก ขณะล็อก ปุ่มควบคุมบนหน้าจอที่อยู่ด้านล่างยังใช้งานได้</string>
     <string name="hud_group_look">รูปลักษณ์</string>

@@ -655,6 +655,7 @@
     <string name="hud_size_pill">Pilulka</string>
     <string name="hud_size_minimal">Minimální</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">Lišta</string>
     <string name="hud_locked">Zamknout na místě</string>
     <string name="hud_locked_hint">Přetažením HUD přesunete; dlouhým stiskem ho zamknete nebo odemknete. Když je zamknutý, ovládací prvky na obrazovce pod ním dál fungují.</string>
     <string name="hud_group_look">Vzhled</string>

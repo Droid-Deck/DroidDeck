@@ -88,7 +88,7 @@ class DroidDeckHudHost(context: Context) {
         hud.onRefresh = Runnable { refreshLabels(hud) }
         hud.setOnMovedListener { x, y ->
             wantX = x; wantY = y
-            dockEdgeFor(hud)?.let { edge -> setDock(hud, edge); return@setOnMovedListener }
+            if (!hud.isStrip) dockEdgeFor(hud)?.let { edge -> setDock(hud, edge); return@setOnMovedListener }
             keepOnScreen(hud)
             wantX = hud.x; wantY = hud.y
             SessionPrefs.setDroidDeckHudPosition(context, hud.x, hud.y)
@@ -324,6 +324,7 @@ class DroidDeckHudHost(context: Context) {
         val maxY = (p.height - v.height).toFloat().coerceAtLeast(0f)
         var x = wantX.coerceIn(0f, maxX)
         var y = wantY.coerceIn(0f, maxY)
+        if ((v as? DroidDeckHudView)?.isStrip == true) y = if (y + v.height / 2f < p.height / 2f) 0f else maxY
         when (v.let { it as? DroidDeckHudView }?.dock) {
             DroidDeckHudDock.LEFT -> x = 0f
             DroidDeckHudDock.RIGHT -> x = maxX

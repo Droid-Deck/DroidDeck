@@ -651,6 +651,7 @@
     <string name="hud_size_pill">Pil</string>
     <string name="hud_size_minimal">Minimaal</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">Balk</string>
     <string name="hud_locked">Vastzetten</string>
     <string name="hud_locked_hint">Sleep de HUD om hem te verplaatsen; lang drukken zet hem vast of los. Zolang hij vastzit, blijven de schermknoppen eronder werken.</string>
     <string name="hud_group_look">Weergave</string>

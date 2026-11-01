@@ -659,6 +659,7 @@
     <string name="hud_size_pill">كبسولة</string>
     <string name="hud_size_minimal">مصغّر</string>
     <string name="hud_size_mega">ضخم</string>
+    <string name="hud_size_strip">شريط</string>
     <string name="hud_locked">تثبيت في مكانه</string>
     <string name="hud_locked_hint">اسحب HUD لتحريكه؛ والضغط مطولًا يثبّته أو يلغي تثبيته. أثناء تثبيته، تظل عناصر التحكم على الشاشة الموجودة تحته تعمل.</string>
     <string name="hud_group_look">المظهر</string>

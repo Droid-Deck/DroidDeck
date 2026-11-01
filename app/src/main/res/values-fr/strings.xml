@@ -653,6 +653,7 @@
     <string name="hud_size_pill">Pilule</string>
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Méga</string>
+    <string name="hud_size_strip">Bandeau</string>
     <string name="hud_locked">Verrouiller la position</string>
     <string name="hud_locked_hint">Faites glisser le HUD pour le déplacer ; un appui long le verrouille ou le déverrouille. Tant qu\'il est verrouillé, les commandes à l\'écran situées dessous restent utilisables.</string>
     <string name="hud_group_look">Apparence</string>
