@@ -12,6 +12,9 @@ class GpuStatsComponent(val dir: File, private val root: File) : SessionPart() {
     private var thread: Thread? = null
     private val feeds = ArrayList<Feed>()
     private var layerLoad: LayerLoad? = null
+    private var memstore: KgslBusy.Reader? = null
+    private var memstoreLoad: MemstoreLoad? = null
+    private var memstoreState: String? = null
     private var cycleClock: KgslClock.Sampler? = null
     @Volatile private var shown = false
 
@@ -39,7 +42,7 @@ class GpuStatsComponent(val dir: File, private val root: File) : SessionPart() {
             PASSTHROUGH_FILES.forEach { name ->
                 runCatching { File(dir, name).writeText(File(KGSL, name).readText()) }
             }
-            (loadFeed() ?: layerLoadFeed())?.let { load ->
+            (loadFeed() ?: blockedLoadFeed())?.let { load ->
                 feeds.add(load)
                 feeds.add(Feed(File(dir, "perf_now"), load.source, load.read, "%-6s\n", percent = true))
             }
@@ -49,9 +52,7 @@ class GpuStatsComponent(val dir: File, private val root: File) : SessionPart() {
             }
             pick("temp", tempSources(), "%6d\n") { milliCelsius(it) }?.let { feeds.add(it) }
             refresh()
-            sources = MANGOHUD_FILES.joinToString { name ->
-                "$name " + (feeds.firstOrNull { it.file.name == name }?.source ?: "none")
-            }
+            describeSources()
             Log.i(TAG, "hud: kgsl stats from the session's own: $sources")
             true
         } catch (e: Exception) {
@@ -74,21 +75,59 @@ class GpuStatsComponent(val dir: File, private val root: File) : SessionPart() {
 
     // kgsl's gpubusy can read 0 0 straight after a read, so feeds that share a reader share one read.
     private fun refresh() {
-        if (layerLoad != null || cycleClock != null) {
+        if (layerLoad != null || cycleClock != null || memstore != null) {
             shown = hudShown()
-            layerLoad?.wanted(shown)
+            memstore?.run(shown)
+            if (!shown) memstoreLoad?.pause()
+            layerLoad?.wanted(shown && memstoreLoad?.working != true)
         }
         val values = HashMap<() -> Long?, Long?>()
         for (feed in feeds) {
             if (feed.read !in values) values[feed.read] = feed.read()
             values[feed.read]?.let { write(feed, it) }
         }
+        memstoreLoad?.let { load ->
+            val state = when {
+                load.working -> "working"
+                load.failed -> "failed"
+                else -> null
+            }
+            if (state != memstoreState) {
+                memstoreState = state
+                if (load.failed) {
+                    memstore?.close()
+                    memstore = null
+                    Log.i(TAG, "hud: kgsl memstore timestamps never moved; GPU load from Vulkan timing")
+                } else if (load.working) {
+                    Log.i(TAG, "hud: GPU load from the kgsl memstore (all GPU work)")
+                }
+                describeSources()
+            }
+        }
+    }
+
+    private fun describeSources() {
+        sources = MANGOHUD_FILES.joinToString { name ->
+            val source = if (name == "gpu_busy_percentage" && memstoreLoad != null) memstoreSource()
+                else feeds.firstOrNull { it.file.name == name }?.source
+            "$name " + (source ?: "none")
+        }
+    }
+
+    private fun memstoreSource(): String = when {
+        memstoreLoad?.working == true -> "kgsl memstore ringbuffer timestamps (all GPU work)"
+        memstoreLoad?.failed == true -> LAYER_SOURCE
+        else -> "kgsl memstore once its timestamps move; until then $LAYER_SOURCE"
     }
 
     override fun stop() {
         running = false
         thread?.interrupt()
         thread = null
+        memstore?.close()
+        memstore = null
+        memstoreLoad = null
+        memstoreState = null
         layerLoad?.clear()
         cycleClock?.close()
         cycleClock = null
@@ -97,13 +136,23 @@ class GpuStatsComponent(val dir: File, private val root: File) : SessionPart() {
 
     private fun hudShown(): Boolean = OverlayShown.check(root) || com.droiddeck.launcher.hud.DroidDeckHudHost.showing
 
-    // Android hides the load (kgsl sysfs blocked): the in-game Vulkan layer times the GPU work instead.
-    private fun layerLoadFeed(): Feed? {
+    // Android hides the load (kgsl sysfs blocked): the kgsl memstore gives the whole GPU's busy share. The in-game
+    // Vulkan layer and the compositor time their own GPU work until the memstore timestamps are seen moving, and
+    // for the whole session where they never move.
+    private fun blockedLoadFeed(): Feed? {
         if (!loadBlocked()) return null
         val load = LayerLoad(guestLoadDir(root), extra = ::compositorBusyNs, onWanted = ::compositorTiming)
             .also { it.clear(); layerLoad = it }
-        val read = { if (shown) load.percent() else null }
-        return Feed(File(dir, "gpu_busy_percentage"), "Vulkan timing: games ($GUEST_LOAD_DIR) + DroidDeck compositor", read, "%3d %%\n")
+        val sampled = KgslBusy.open()?.let { reader ->
+            memstore = reader
+            MemstoreLoad(reader::counts).also { memstoreLoad = it }
+        }
+        val read = read@{
+            if (!shown) return@read null
+            val whole = sampled?.percent()
+            if (sampled?.working == true) whole else load.percent()
+        }
+        return Feed(File(dir, "gpu_busy_percentage"), LAYER_SOURCE, read, "%3d %%\n")
     }
 
     // The clock nodes are blocked too: read the GPU's cycle counter from a small GPU job of our own.
@@ -188,6 +237,52 @@ class GpuStatsComponent(val dir: File, private val root: File) : SessionPart() {
         }
     }
 
+    /**
+     * Busy share over the last [WINDOW] reads from [KgslBusy] running totals (busy samples, samples, samples with
+     * new ringbuffer work). Not [working] until new work has been seen; [failed] once [GIVE_UP_SAMPLES] samples
+     * passed without any.
+     */
+    internal class MemstoreLoad(private val counts: () -> LongArray?) {
+        var working = false
+            private set
+        var failed = false
+            private set
+        private val window = ArrayDeque<LongArray>()
+        private var waited = 0L
+
+        fun percent(): Long? {
+            if (failed) return null
+            val now = counts() ?: return null
+            val previous = window.lastOrNull()
+            window.addLast(now)
+            while (window.size > WINDOW + 1) window.removeFirst()
+            if (previous == null) return null
+            val fresh = now[1] - previous[1]
+            if (fresh <= 0) return null
+            if (!working) {
+                if (now[2] > previous[2]) {
+                    working = true
+                } else {
+                    waited += fresh
+                    if (waited >= GIVE_UP_SAMPLES) failed = true
+                    return null
+                }
+            }
+            val base = window.first()
+            return ((now[0] - base[0]) * 100 / (now[1] - base[1])).coerceIn(0, 100)
+        }
+
+        /** The totals stop while sampling is off; the next reading starts a new window. */
+        fun pause() {
+            window.clear()
+        }
+
+        companion object {
+            const val GIVE_UP_SAMPLES = 5_000L
+            const val WINDOW = 2
+        }
+    }
+
     private fun loadFeed(): Feed? {
         latchedBusyFeed()?.let { return it }
         return pick("gpu_busy_percentage", LOAD_SOURCES, "%3d %%\n") { it.coerceIn(0, 100) }
@@ -242,6 +337,7 @@ class GpuStatsComponent(val dir: File, private val root: File) : SessionPart() {
         private val MANGOHUD_FILES = listOf("gpu_busy_percentage", "clock_mhz", "temp")
         private val PASSTHROUGH_FILES = listOf("gpu_model", "gpu_chipid")
         const val GUEST_LOAD_DIR = "/run/droiddeck-hud/gpu-load"
+        private const val LAYER_SOURCE = "Vulkan timing: games ($GUEST_LOAD_DIR) + DroidDeck compositor"
 
         /** Where the running session's GPU feeds come from, for the HUD diagnostics export. */
         @Volatile var sources = ""

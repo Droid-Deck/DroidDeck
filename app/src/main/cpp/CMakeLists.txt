@@ -37,7 +37,7 @@ target_link_libraries(sdnative log)
 add_library(deviceinfo SHARED deviceinfo/vkinfo.c)
 target_link_libraries(deviceinfo dl)
 
-add_library(gpuclock SHARED gpuclock/kgsl_clock.c)
+add_library(gpuclock SHARED gpuclock/kgsl_clock.c gpuclock/kgsl_busy.c)
 
 add_library(termux SHARED termux/termux.c)
 
