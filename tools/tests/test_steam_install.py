@@ -33,10 +33,11 @@ url = next(a for a in args if a.startswith('https://'))
 out = args[args.index('-o') + 1]
 name = url.rsplit('/', 1)[1]
 offset = os.path.getsize(out) if '-C' in args and os.path.exists(out) else 0
-with open(os.environ['TEST_REQUESTS'], 'a') as log:
-    log.write(url + '\\n')
-with open(os.environ['TEST_REQUESTS'] + '.offsets', 'a') as log:
-    log.write(f'{name} {offset}\\n')
+if out != os.devnull:
+    with open(os.environ['TEST_REQUESTS'], 'a') as log:
+        log.write(url + '\\n')
+    with open(os.environ['TEST_REQUESTS'] + '.offsets', 'a') as log:
+        log.write(f'{name} {offset}\\n')
 def done(status, code='200'):
     if '-w' in args:
         sys.stdout.write(code)
@@ -45,8 +46,9 @@ host_fail = os.environ.get('TEST_FAIL_HOST')
 if host_fail and host_fail in url:
     done(22, '000')
 action = []
+probe = out == os.devnull
 plan = os.environ.get('TEST_PLAN')
-if plan and os.path.exists(plan):
+if not probe and plan and os.path.exists(plan):
     lines = open(plan).read().splitlines()
     for n, line in enumerate(lines):
         if line.split()[0] == name:

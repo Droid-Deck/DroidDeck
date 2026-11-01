@@ -2,6 +2,8 @@
 set -eu
 ROOTFS_URL=https://github.com/Droid-Deck/DroidDeck-Components/releases/download/fex-rootfs-ubuntu-24.04-2026-08-11/Ubuntu_24_04.sqsh
 ROOTFS_SHA256=2854b06d3ff1b8f6e526135bfb6dd5b7b30ab3ab73e79ae933a3d9fed959a178
+CDN_LIST="https://client-update.steamstatic.com https://client-update.akamai.steamstatic.com https://client-update.fastly.steamstatic.com"
+GITHUB_MIRRORS="https://gh-proxy.com https://gh-proxy.org https://ghproxy.net https://ghfast.top"
 CDN=https://client-update.fastly.steamstatic.com
 # Must match the -clientbeta droiddeck-session starts this client with (steam_channel).
 X64_CHANNEL=steamdeck_publicbeta
@@ -16,6 +18,51 @@ LOG=$X64_HOME/steam-x64.log
 mkdir -p "$X64_HOME"
 step() { echo "== STEP $(date -u +%H:%M:%S) $*" | tee -a "$LOG"; }
 . "${BASH_SOURCE[0]%/*}/droiddeck-fex-update"
+cdn_manifest() {
+  local candidate
+  for candidate in $CDN_LIST; do
+    if curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-connrefused --retry-delay 3 \
+        "$candidate/$1" -o "$2"; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+cdn_order=()
+# The CDN that answers the manifest first is not the fastest one, so measure the
+# opening of a part and take the source that actually moves bytes.
+cdn_rank() {
+  local candidate speed fastest="" fastest_speed=0
+  for candidate in $CDN_LIST; do
+    speed=$(curl -fsSL --connect-timeout 8 --max-time 8 -r 0-2097151 -o /dev/null \
+      -w '%{speed_download}' "$candidate/$1" 2>/dev/null) || true
+    speed=${speed%%.*}
+    case $speed in ''|*[!0-9]*) speed=0 ;; esac
+    if [ "$speed" -gt "$fastest_speed" ]; then
+      fastest_speed=$speed
+      fastest=$candidate
+    fi
+  done
+  [ -n "$fastest" ] || fastest=$CDN
+  step "steam client source: ${fastest#https://} ($((fastest_speed / 1024)) KB/s)"
+  cdn_order=("$fastest")
+  for candidate in $CDN_LIST; do
+    [ "$candidate" = "$fastest" ] || cdn_order+=("$candidate")
+  done
+}
+cdn_fetch() {
+  local host
+  for host in "${cdn_order[@]}"; do
+    if curl -fsSL --connect-timeout 10 --speed-limit 102400 --speed-time 30 --max-time 1800 \
+        --retry 3 --retry-delay 3 --retry-all-errors "$host/$1" -o "$2" &&
+       echo "$3  $2" | sha256sum -c --quiet; then
+      return 0
+    fi
+    rm -f "$2"
+  done
+  return 1
+}
 
 x64_default_dir() {
   local d
@@ -45,7 +92,7 @@ x64_sync_client() {
   old=$STEAM_X64/package/steam_client_${chan}_steamrt64.manifest
   cur=$(awk -F'"' '$2 == "version" { print $4; exit }' "$old" 2>/dev/null || true)
   work=$(mktemp -d)
-  if ! curl -fsSL "$CDN/steam_client_${chan}_steamrt64" -o "$work/manifest"; then
+  if ! cdn_manifest "steam_client_${chan}_steamrt64" "$work/manifest"; then
     rm -rf "$work"; return 0
   fi
   version=$(awk -F'"' '$2 == "version" { print $4; exit }' "$work/manifest")
@@ -61,17 +108,44 @@ x64_sync_client() {
   fi
   total=$(grep -c . "$work/todo" || true)
   step "updating the x86-64 Steam client to $version (was ${cur:-none}, $total part(s))"
+  if [ -s "$work/todo" ]; then
+    cdn_rank "$(head -1 "$work/todo" | awk '{ print $2 }')"
+    mkdir -p "$STEAM_X64/package"
+    echo "${cdn_order[0]#https://}/" > "$STEAM_X64/package/droiddeck-cdn"
+  fi
   i=0
   while read -r block file sum; do
     i=$((i + 1))
     step "downloading Steam: $block ($i/$total)"
-    if ! curl -fsSL "$CDN/$file" -o "$work/$file" || ! echo "$sum  $work/$file" | sha256sum -c --quiet; then
+    if ! cdn_fetch "$file" "$work/$file" "$sum"; then
       step "could not update the x86-64 client; it updates itself"
       rm -rf "$work"; return 0
     fi
     unzip -qo "$work/$file" -d "$STEAM_X64"
     rm -f "$work/$file"
   done < "$work/todo"
+  awk -F'"' '
+    /^\t"/ && NF >= 3 && $4 == "" { block = $2 }
+    $2 == "file" { file[block] = $4 }
+    $2 == "sha2" { sha[block] = $4 }
+    $2 == "size" { size[block] = $4 }
+    $2 == "zipvz" { vz[block] = $4 }
+    $2 == "sha2vz" { vzsha[block] = $4 }
+    END {
+      for (b in file) {
+        if (vz[b] != "") { n = split(vz[b], part, "_"); print b, vz[b], vzsha[b], part[n] }
+        else print b, file[b], sha[b], size[b]
+      }
+    }
+  ' "$work/manifest" | sort > "$work/packages"
+  total=$(grep -c . "$work/packages" || true)
+  j=0
+  while read -r block name sum bytes; do
+    j=$((j + 1))
+    if [ -f "$STEAM_X64/package/$name" ] && [ "$(stat -c %s "$STEAM_X64/package/$name")" = "$bytes" ]; then continue; fi
+    step "downloading Steam: $block ($j/$total)"
+    x64_package_fetch "$name" "$sum" || { step "will let the client fetch $name itself"; rm -f "$STEAM_X64/package/$name"; }
+  done < "$work/packages"
   cp -f "$work/manifest" "$old"
   echo "$version" > "$STEAM_X64/package/droiddeck-installed"
   chmod +x "$STEAM_X64/steam.sh" "$STEAM_X64/steamrt64/steam" "$STEAM_X64/ubuntu12_32/steam" 2>/dev/null || true
@@ -321,7 +395,7 @@ PY
 x64_fetch() {
   local url=$1 out=$2 label=$3 total pid rc=0 last=-1 pct
   total=$(curl -fsSIL "$url" 2>/dev/null | tr -d '\r' | awk 'tolower($1) == "content-length:" { v = $2 } END { print v + 0 }')
-  curl -fL -sS -C - "$url" -o "$out" &
+  curl -fL -sS -C - --speed-limit 102400 --speed-time 30 --retry 3 --retry-delay 3 "$url" -o "$out" &
   pid=$!
   while kill -0 "$pid" 2>/dev/null; do
     sleep 3
@@ -333,21 +407,69 @@ x64_fetch() {
   return "$rc"
 }
 
+# Steam verifies package/ by name and size before it fetches anything, so the archives our
+# own fetch leaves there turn the client's first run into an unpack, and -C resumes them.
+x64_package_fetch() {
+  local name=$1 sum=$2 target=$STEAM_X64/package/$1 host
+  for host in "${cdn_order[@]}"; do
+    if x64_fetch "$host/$name" "$target" "downloading Steam: $name"; then
+      if echo "$sum  $target" | sha256sum -c --quiet >/dev/null 2>&1; then return 0; fi
+      rm -f "$target"
+    fi
+  done
+  return 1
+}
+
+# A release asset on github.com goes through the mirrors when the origin crawls.
+github_sources() {
+  local url=$1 mirror
+  echo "$url"
+  case $url in
+    https://github.com/*)
+      for mirror in $GITHUB_MIRRORS; do echo "$mirror/$url"; done
+      ;;
+  esac
+}
+# Valve's zips carry Windows separators; the client looks for clientui/fonts, not clientui\fonts.
+fix_backslashes() {
+  local odd fixed
+  find "$STEAM_X64" -depth -name '*\\*' | while read -r odd; do
+    fixed=${odd//\\/\/}
+    mkdir -p "$(dirname "$fixed")"
+    if [ -d "$odd" ]; then
+      cp -a "$odd/." "$fixed/" && rm -rf "$odd"
+    else
+      mv -f "$odd" "$fixed"
+    fi
+  done
+}
+x64_download() {
+  local url=$1 out=$2 label=$3 sha=$4 source rc
+  for source in $(github_sources "$url"); do
+    [ "$source" = "$url" ] || step "mirror: ${source%%/https*}"
+    rc=0
+    x64_fetch "$source" "$out" "$label" || rc=$?
+    if [ -s "$out" ] && echo "$sha  $out" | sha256sum -c --quiet >/dev/null 2>&1; then
+      return 0
+    fi
+    # A source that stopped short leaves its bytes for the next one to resume; a
+    # finished download that fails the digest is not worth appending to.
+    [ "$rc" = 0 ] && rm -f "$out"
+  done
+  return 1
+}
+
 x64_prepare() {
 fex_ready || { step "FEX could not be installed; see $LOG"; exit 1; }
 step "FEX ready ($FEX_NOW, $FEX_FROM)"
 # The client's opt-in to its SteamRT3 build; without it, it re-executes through steam.sh, whose checks fail under proot.
 mkdir -p "$STEAM_X64" && : > "$STEAM_X64/.steam-enable-steamrt64-client"
+fix_backslashes
 
 if [ ! -f "$ROOTFS/.droiddeck-complete" ]; then
   # Resumes a part-done download; a finished one answers 416, which is not a failure here.
-  x64_fetch "$ROOTFS_URL" "$X64_HOME/rootfs.sqsh" "downloading FEX's Ubuntu 24.04 x86 rootfs" || {
-    rc=$?
-    [ "$rc" = 22 ] && [ -s "$X64_HOME/rootfs.sqsh" ] || { step "rootfs download failed (curl $rc)"; exit 1; }
-  }
-  if ! echo "$ROOTFS_SHA256  $X64_HOME/rootfs.sqsh" | sha256sum -c --quiet >/dev/null 2>&1; then
-    rm -f "$X64_HOME/rootfs.sqsh"; step "rootfs download did not match its checksum; try again"; exit 1
-  fi
+  x64_download "$ROOTFS_URL" "$X64_HOME/rootfs.sqsh" "downloading FEX's Ubuntu 24.04 x86 rootfs" "$ROOTFS_SHA256" ||
+    { step "rootfs download failed on every source"; exit 1; }
   step "unpacking the rootfs"
   rm -rf "$ROOTFS"
   /usr/local/bin/unsquashfs -no-xattrs -no-progress -ignore-errors -d "$ROOTFS" "$X64_HOME/rootfs.sqsh" >>"$LOG" 2>&1 || true
@@ -393,7 +515,7 @@ fi
 if [ ! -x "$STEAM_X64/steamrt64/steam" ] || [ ! -f "$STEAM_X64/package/droiddeck-installed" ]; then
   step "downloading the x86-64 Steam client ($MANIFEST)"
   work=$(mktemp -d)
-  curl -fsSL "$CDN/$MANIFEST" -o "$work/manifest"
+  cdn_manifest "$MANIFEST" "$work/manifest" || { step "no CDN answered for $MANIFEST"; exit 1; }
   version=$(awk -F'"' '$2 == "version" { print $4; exit }' "$work/manifest")
   awk -F'"' '
     /^\t"/ && NF >= 3 && $4 == "" { block = $2 }
@@ -404,12 +526,13 @@ if [ ! -x "$STEAM_X64/steamrt64/steam" ] || [ ! -f "$STEAM_X64/package/droiddeck
   [ -s "$work/parts" ] || { step "no client components in $MANIFEST"; exit 1; }
   mkdir -p "$STEAM_X64/package"
   total=$(grep -c . "$work/parts")
+  cdn_rank "$(head -1 "$work/parts" | awk '{ print $2 }')"
+  echo "${cdn_order[0]#https://}/" > "$STEAM_X64/package/droiddeck-cdn"
   i=0
   while read -r block file sum; do
     i=$((i + 1))
     step "client: $block ($i/$total)"
-    curl -fsSL "$CDN/$file" -o "$work/$file"
-    echo "$sum  $work/$file" | sha256sum -c --quiet
+    cdn_fetch "$file" "$work/$file" "$sum" || { step "could not fetch $file"; exit 1; }
     unzip -qo "$work/$file" -d "$STEAM_X64"
     rm -f "$work/$file"
   done < "$work/parts"
@@ -421,6 +544,15 @@ if [ ! -x "$STEAM_X64/steamrt64/steam" ] || [ ! -f "$STEAM_X64/package/droiddeck
 fi
 [ -n "$x64_repair" ] && printf 'tracked\nrepaired\n' > "$unconfirmed"
 x64_sync_client
+fix_backslashes
+if [ ! -s "$STEAM_X64/package/droiddeck-cdn" ] && [ -f "$STEAM_X64/package/$MANIFEST.manifest" ]; then
+  want=$(awk -F'"' '$2 == "file" && $4 ~ /_steamrt64$/ { print $4; exit }' "$STEAM_X64/package/$MANIFEST.manifest" 2>/dev/null || true)
+  if [ -n "$want" ]; then
+    cdn_rank "$want"
+    mkdir -p "$STEAM_X64/package"
+    echo "${cdn_order[0]#https://}/" > "$STEAM_X64/package/droiddeck-cdn"
+  fi
+fi
 scout=$STEAM_X64/ubuntu12_32
 if [ -f "$scout/steam-runtime.tar.xz" ] &&
    { [ ! -x "$scout/steam-runtime/run.sh" ] ||
