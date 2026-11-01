@@ -50,7 +50,7 @@ static int read_retired(int (*real)(int, unsigned long, void *), int fd,
   timestamp = __atomic_load_n(&contexts[id].retired, __ATOMIC_RELAXED);
   submitted = __atomic_load_n(&contexts[id].submitted, __ATOMIC_RELAXED);
   /* KGSL checks a context's owner on every wait, which catches one that died with a reused descriptor. */
-  if (timestamp != 0 && wait_retired(real, fd, id, timestamp) < 0) return -1;
+  if (timestamp == submitted && wait_retired(real, fd, id, timestamp) < 0) return -1;
   while (timestamp != submitted) {
     result = wait_retired(real, fd, id, timestamp + 1);
     if (result < 0) return -1;

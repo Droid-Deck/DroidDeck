@@ -74,8 +74,13 @@ int main(void) {
   assert(read_timestamp(3, &timestamp) == -1 && errno == EACCES && waits == 0);
 
   create_context(3);
-  assert(read_timestamp(3, &timestamp) == 0 && timestamp == 0 && waits == 0);
+  assert(read_timestamp(3, &timestamp) == 0 && timestamp == 0 && waits == 1);
 
+  wait_error = EINVAL;
+  assert(read_timestamp(3, &timestamp) == -1 && errno == EINVAL);
+  wait_error = 0;
+
+  waits = 0;
   read_error = EBADF;
   assert(read_timestamp(3, &timestamp) == -1 && errno == EBADF && waits == 0);
   read_error = EACCES;
@@ -95,11 +100,11 @@ int main(void) {
   assert(read_timestamp(3, &timestamp) == 0 && timestamp == 2 && waits == 3);
 
   waits = 0;
-  assert(read_timestamp(3, &timestamp) == 0 && timestamp == 2 && waits == 2);
+  assert(read_timestamp(3, &timestamp) == 0 && timestamp == 2 && waits == 1);
 
   retired = 3;
   waits = 0;
-  assert(read_timestamp(3, &timestamp) == 0 && timestamp == 3 && waits == 2);
+  assert(read_timestamp(3, &timestamp) == 0 && timestamp == 3 && waits == 1);
 
   waits = 0;
   assert(read_timestamp(3, &timestamp) == 0 && timestamp == 3 && waits == 1);
@@ -123,7 +128,7 @@ int main(void) {
   create_context(3);
   retired = 0;
   waits = 0;
-  assert(read_timestamp(3, &timestamp) == 0 && timestamp == 0 && waits == 0);
+  assert(read_timestamp(3, &timestamp) == 0 && timestamp == 0 && waits == 1);
 
   struct kgsl_drawctxt_destroy destroy = {.drawctxt_id = 3};
   bl_kgsl_track(mock, 42, IOCTL_KGSL_DRAWCTXT_DESTROY, &destroy, &rc);
