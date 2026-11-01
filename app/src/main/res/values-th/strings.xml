@@ -299,6 +299,8 @@
     <string name="mode_controller_x360">คอนโทรลเลอร์ Xbox 360</string>
     <string name="mode_controller_note">Deck: ปุ่ม Quick Access และไจโร Steam Controller: เหมือนกัน พร้อมเซนเซอร์แรงจับที่ปุ่มด้านหลัง DualShock 4 และ DualSense: ไจโร และแทร็กแพดทำหน้าที่เป็นทัชแพด Xbox 360: เปิด Quick Access ด้วย Guide+A</string>
     <string name="mode_back">กลับ</string>
+    <string name="back_shortcuts">ทางลัดปุ่มย้อนกลับ</string>
+    <string name="back_shortcuts_hint">แตะย้อนกลับเพื่อเปิดเมนู DroidDeck แตะสองครั้งหรือกดค้างเพื่อเปิด Steam ปิดเพื่อปล่อยปุ่มย้อนกลับให้แอปอื่น</string>
     <string name="back_native_qam_hint">กดปุ่ม Back ค้างไว้ 700 ms หรือกด Back ค้างแล้วกดปุ่มอื่นเพื่อใช้ทางลัดของ Steam</string>
     <string name="back_double_tap_window">ช่วงเวลาแตะสองครั้ง</string>
     <string name="back_tap_ms">%1$d ms</string>

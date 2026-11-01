@@ -221,6 +221,8 @@ class DrawerActions(
     val micAvailable: Boolean = false,
     val micEnabled: Boolean = false,
     val onMicEnabled: (Boolean) -> Unit = {},
+    val backShortcuts: Boolean = true,
+    val onBackShortcuts: (Boolean) -> Unit = {},
     val backActionsInverted: Boolean,
     val backDoubleTapMs: Int = 500,
     val onBackDoubleTapMs: (Int) -> Unit = {},
@@ -641,10 +643,13 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                             chipModifier = focus.track(page, "keyboard-button"), onChange = a.onKeyboardButton)
                                     }
                                 }
-                                if (a.steam) ChoiceRow(host, "back-actions", stringResource(R.string.mode_back), null,
+                                ToggleRow(host, "back-shortcuts", stringResource(R.string.back_shortcuts),
+                                    stringResource(R.string.back_shortcuts_hint), a.backShortcuts,
+                                    chipModifier = focus.track(page, "back-shortcuts"), onChange = a.onBackShortcuts)
+                                if (a.steam && a.backShortcuts) ChoiceRow(host, "back-actions", stringResource(R.string.mode_back), null,
                                     listOf(false to stringResource(SessionPrefs.BACK_MENU_THEN_QAM), true to stringResource(SessionPrefs.BACK_QAM_THEN_MENU)),
                                     a.backActionsInverted, chipModifier = focus.track(page, "back-actions"), onPick = a.onBackActionsInverted)
-                                if (a.steam) ChoiceRow(host, "back-double-tap", stringResource(R.string.back_double_tap_window), null,
+                                if (a.steam && a.backShortcuts) ChoiceRow(host, "back-double-tap", stringResource(R.string.back_double_tap_window), null,
                                     SessionPrefs.BACK_DOUBLE_TAP_MS_OPTIONS.map { it to stringResource(R.string.back_tap_ms, it) },
                                     a.backDoubleTapMs, chipModifier = focus.track(page, "back-double-tap"), onPick = a.onBackDoubleTapMs)
                                 PhysicalShortcutRows(modifierFor = { focus.track(page, "physical-shortcut-${it.name}") })

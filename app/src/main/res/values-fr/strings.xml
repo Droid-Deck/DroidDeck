@@ -299,6 +299,8 @@
     <string name="mode_controller_x360">Manette Xbox 360</string>
     <string name="mode_controller_note">Deck : bouton d\'accès rapide et gyroscope. Steam Controller : idem, avec détection de la prise en main sur les boutons arrière. DualShock 4 et DualSense : gyroscope, et les trackpads servent de pavé tactile. Xbox 360 : utilisez Guide+A pour ouvrir l\'accès rapide.</string>
     <string name="mode_back">Retour</string>
+    <string name="back_shortcuts">Raccourcis du bouton Retour</string>
+    <string name="back_shortcuts_hint">Appuyez sur Retour pour le menu DroidDeck, deux fois ou longuement pour Steam. Désactivez pour laisser le bouton Retour aux autres applis.</string>
     <string name="back_native_qam_hint">Maintenez Retour pendant 700 ms, ou maintenez Retour et appuyez sur un autre bouton pour les raccourcis Steam.</string>
     <string name="back_double_tap_window">Délai du double appui</string>
     <string name="back_tap_ms">%1$d ms</string>

@@ -299,6 +299,8 @@
     <string name="mode_controller_x360">Xbox 360 -ohjain</string>
     <string name="mode_controller_note">Deck: pikavalikkopainike ja gyroskooppi. Steam Controller: samat, ja takapainikkeissa puristustunnistus. DualShock 4 ja DualSense: gyroskooppi, ja kosketuslevyt toimivat kosketuslevynä. Xbox 360: avaa pikavalikko Guide+A:lla.</string>
     <string name="mode_back">Back</string>
+    <string name="back_shortcuts">Takaisin-painikkeen pikanäppäimet</string>
+    <string name="back_shortcuts_hint">Napauta Takaisin avataksesi DroidDeck-valikon, kaksoisnapauta tai pidä pohjassa Steamille. Poista käytöstä, jos haluat jättää Takaisin-painikkeen muille sovelluksille.</string>
     <string name="back_native_qam_hint">Pidä Back-painiketta 700 ms, tai pidä Back-painiketta ja paina toista painiketta Steam-pikanäppäimiä varten.</string>
     <string name="back_double_tap_window">Kaksoisnapautuksen aikaikkuna</string>
     <string name="back_tap_ms">%1$d ms</string>

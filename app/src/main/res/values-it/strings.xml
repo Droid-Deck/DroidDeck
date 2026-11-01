@@ -299,6 +299,8 @@
     <string name="mode_controller_x360">Controller Xbox 360</string>
     <string name="mode_controller_note">Deck: tasto Accesso rapido e giroscopio. Steam Controller: lo stesso, con il rilevamento della presa sui tasti posteriori. DualShock 4 e DualSense: giroscopio, con i trackpad usati come touchpad. Xbox 360: apri Accesso rapido con Guide+A.</string>
     <string name="mode_back">Indietro</string>
+    <string name="back_shortcuts">Scorciatoie del tasto Indietro</string>
+    <string name="back_shortcuts_hint">Tocca Indietro per il menu di DroidDeck, toccalo due volte o tienilo premuto per Steam. Disattiva per lasciare il tasto Indietro ad altre app.</string>
     <string name="back_native_qam_hint">Tieni premuto Indietro per 700 ms, oppure tieni premuto Indietro e premi un altro tasto per le scorciatoie di Steam.</string>
     <string name="back_double_tap_window">Intervallo doppio tocco</string>
     <string name="back_tap_ms">%1$d ms</string>

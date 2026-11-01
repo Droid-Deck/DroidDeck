@@ -299,6 +299,8 @@
     <string name="mode_controller_x360">Xbox-360-Controller</string>
     <string name="mode_controller_note">Deck: Schnellzugriffstaste und Gyro. Steam Controller: dasselbe, mit Griffsensor an den Rücktasten. DualShock 4 und DualSense: Gyro, die Trackpads dienen als deren Touchpad. Xbox 360: Schnellzugriff mit Guide+A öffnen.</string>
     <string name="mode_back">Zurück</string>
+    <string name="back_shortcuts">Zurück-Tasten-Kürzel</string>
+    <string name="back_shortcuts_hint">Zurück tippen öffnet das DroidDeck-Menü, doppelt tippen oder halten öffnet Steam. Ausschalten, um die Zurück-Taste anderen Apps zu überlassen.</string>
     <string name="back_native_qam_hint">Halte Zurück 700 ms lang gedrückt oder halte Zurück und drücke eine weitere Taste für Steam-Tastenkürzel.</string>
     <string name="back_double_tap_window">Zeitfenster für Doppeltippen</string>
     <string name="back_tap_ms">%1$d ms</string>

@@ -299,6 +299,8 @@
     <string name="mode_controller_x360">Tay cầm Xbox 360</string>
     <string name="mode_controller_note">Deck: nút Quick Access và con quay hồi chuyển. Steam Controller: tương tự, cộng với cảm biến nắm ở các nút phía sau. DualShock 4 và DualSense: con quay hồi chuyển, và touchpad dùng làm bàn di chuột. Xbox 360: mở Quick Access bằng Guide+A.</string>
     <string name="mode_back">Quay lại</string>
+    <string name="back_shortcuts">Phím tắt nút Quay lại</string>
+    <string name="back_shortcuts_hint">Nhấn Quay lại để mở menu DroidDeck, nhấn đúp hoặc giữ để mở Steam. Tắt để nhường nút Quay lại cho ứng dụng khác.</string>
     <string name="back_native_qam_hint">Giữ Back 700 ms, hoặc giữ Back và nhấn nút khác để dùng phím tắt Steam.</string>
     <string name="back_double_tap_window">Khoảng thời gian nhấn đúp</string>
     <string name="back_tap_ms">%1$d ms</string>

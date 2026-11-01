@@ -299,6 +299,8 @@
     <string name="mode_controller_x360">Xbox 360-kontroller</string>
     <string name="mode_controller_note">Deck: Hurtigmeny-knapp og gyro. Steam Controller: det samme, med gripesensor på bakknappene. DualShock 4 og DualSense: gyro, og styreflatene som styreflate. Xbox 360: åpne Hurtigmenyen med Guide+A.</string>
     <string name="mode_back">Tilbake</string>
+    <string name="back_shortcuts">Snarveier for Tilbake-knappen</string>
+    <string name="back_shortcuts_hint">Trykk på Tilbake for DroidDeck-menyen, dobbelttrykk eller hold for Steam. Slå av for å overlate Tilbake-knappen til andre apper.</string>
     <string name="back_native_qam_hint">Hold Tilbake i 700 ms, eller hold Tilbake og trykk en annen knapp for Steam-snarveier.</string>
     <string name="back_double_tap_window">Tidsvindu for dobbelttrykk</string>
     <string name="back_tap_ms">%1$d ms</string>

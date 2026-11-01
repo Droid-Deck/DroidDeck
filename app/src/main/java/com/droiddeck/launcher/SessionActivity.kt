@@ -388,6 +388,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val drawerGameProfileRefreshes = LatestRequestCoordinator<DrawerGameProfileRefresh>()
     private var drawerPage by mutableStateOf(SessionDrawerPage.CONTROLLER)
     private var drawerControllerActive by mutableStateOf(false)
+    private var backShortcuts by mutableStateOf(true)
     private var backActionsInverted by mutableStateOf(false)
     private var backDoubleTapMs by mutableStateOf(500)
     private var lowLatency by mutableStateOf(true)
@@ -821,7 +822,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     drawerOpen -> drawerOpen = false
                     achievementsOpen -> closeAchievements()
                     pcKeyboardOpen -> pcKeyboardOpen = false
-                    else -> routeBackAction()
+                    backShortcuts -> routeBackAction()
                 }
             }
         })
@@ -1263,6 +1264,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 com.droiddeck.launcher.input.FakeInputWriter.setPadType(SessionPrefs.padType(id))
                 com.droiddeck.launcher.session.InputSysfsComponent.padTypeChanged(SessionPrefs.padType(id))
                 padType = id
+            },
+            backShortcuts = backShortcuts,
+            onBackShortcuts = { on ->
+                SessionPrefs.setBackShortcuts(this@SessionActivity, on)
+                backShortcuts = on
             },
             backActionsInverted = backActionsInverted,
             backDoubleTapMs = backDoubleTapMs,
@@ -1873,6 +1879,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
         oscMode = SessionPrefs.oscMode(this)
+        backShortcuts = SessionPrefs.backShortcuts(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         physicalShortcuts.bindings = PhysicalShortcuts.read(this)
         backDoubleTapMs = SessionPrefs.backDoubleTapMs(this)
@@ -2491,7 +2498,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 return super.dispatchKeyEvent(event)
             }
         }
-        val backToQam = !pipUi && !screenKeyTextFocus && !drawerOpen && !pcKeyboardOpen && !achievementsOpen &&
+        val backToQam = backShortcuts && !pipUi && !screenKeyTextFocus && !drawerOpen && !pcKeyboardOpen && !achievementsOpen &&
             SessionState.mode == SessionService.MODE_STEAM && SessionState.running && SessionState.firstFrameSeen &&
             !SessionState.suspended && padBridge?.canHoldQam() == true
         if (backQamInput.onKeyEvent(event, backToQam)) {

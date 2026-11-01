@@ -360,6 +360,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("directCursor", on).apply()
     }
 
+    fun backShortcuts(context: Context): Boolean = prefs(context).getBoolean("backShortcuts", true)
+
+    fun setBackShortcuts(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("backShortcuts", on).apply()
+    }
+
     fun backActionsInverted(context: Context): Boolean = prefs(context).getBoolean("backActionsInverted", false)
 
     fun setBackActionsInverted(context: Context, inverted: Boolean) {
