@@ -279,7 +279,7 @@ object BottomDesktop {
     private fun startGuest() {
         val context = appContext ?: return
         val current = launch
-        if (current == null || !SessionState.running) {
+        if (current == null || !SessionState.running || current.generation != owner) {
             setState(State.FAILED)
             return
         }
