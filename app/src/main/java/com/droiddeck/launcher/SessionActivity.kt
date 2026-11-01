@@ -3165,14 +3165,23 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!opened) return
         presentation.hide()
         var checks = 0
+        // Show throws if the display went away while the settings page was open, as in showSecondScreen.
+        fun showAgain() {
+            try {
+                presentation.show()
+            } catch (e: Exception) {
+                Log.w(TAG, "could not show the dashboard again", e)
+                if (secondScreenPresentation === presentation) closeSecondScreen(reset = true)
+            }
+        }
         uiHandler.postDelayed(object : Runnable {
             override fun run() {
                 if (secondScreenPresentation !== presentation || presentation.isShowing) return
                 if (done()) {
-                    presentation.show()
+                    showAgain()
                     return
                 }
-                if (++checks < SETTINGS_WATCH_CHECKS) uiHandler.postDelayed(this, SETTINGS_WATCH_MS) else presentation.show()
+                if (++checks < SETTINGS_WATCH_CHECKS) uiHandler.postDelayed(this, SETTINGS_WATCH_MS) else showAgain()
             }
         }, SETTINGS_WATCH_MS)
     }
