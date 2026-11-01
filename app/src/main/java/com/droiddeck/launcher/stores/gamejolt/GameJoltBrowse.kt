@@ -59,7 +59,7 @@ internal object GameJoltBrowse {
 
     private fun enc(value: String): String = URLEncoder.encode(value, "UTF-8")
 
-    class Page(val items: List<CatalogItem>, val code: Int)
+    class Page(val items: List<CatalogItem>, val code: Int, val rawIds: List<String>)
 
     fun effective(query: GameJoltQuery, showMature: Boolean): GameJoltQuery {
         if (showMature) return query
@@ -77,7 +77,7 @@ internal object GameJoltBrowse {
             unfiltered = true
         }
         val all = if (answer.ok) GameJoltCatalog.items(answer.payload?.optJSONArray("games")) else emptyList()
-        return Page(if (unfiltered && !showMature) all.filterNot { it.mature } else all, answer.code)
+        return Page(if (unfiltered && !showMature) all.filterNot { it.mature } else all, answer.code, all.map { it.id })
     }
 
     private fun fetch(qs: String, cookies: String): GameJoltAnswer {
@@ -103,6 +103,7 @@ internal object GameJoltBrowseState {
     private var next = 1
     private var generation = 0
     private var loadedMature: Boolean? = null
+    private val seenRaw = HashSet<String>()
 
     fun sync(context: Context, showMature: Boolean) {
         val before = loadedMature ?: return
@@ -116,6 +117,7 @@ internal object GameJoltBrowseState {
         failed = false
         loading = false
         next = 1
+        seenRaw.clear()
     }
 
     fun choose(context: Context, wanted: GameJoltQuery) {
@@ -145,16 +147,14 @@ internal object GameJoltBrowseState {
                     failed = true
                     return@post
                 }
-                if (answer.items.isEmpty()) {
+                if (answer.rawIds.filter { seenRaw.add(it) }.isEmpty()) {
                     ended = true
                     return@post
                 }
+                next = page + 1
                 val known = items.mapTo(HashSet()) { it.id }
                 val fresh = answer.items.filter { known.add(it.id) }
-                if (fresh.isEmpty()) ended = true else {
-                    items = items + fresh
-                    next = page + 1
-                }
+                if (fresh.isEmpty()) more(app) else items = items + fresh
             }
         }, "gamejolt-browse").start()
     }
