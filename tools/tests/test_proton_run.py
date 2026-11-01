@@ -116,6 +116,13 @@ class SteamLibraryTest(Temp):
         with mock.patch("builtins.open", side_effect=AssertionError("opened a non-regular file")):
             self.assertEqual(RUN["steam_libraries"](self.target(folder)), set())
 
+    def test_a_symlink_loop_in_a_scanned_folder_is_skipped(self):
+        folder = self.game()
+        self.dll("Game/bin/steam_api64.dll")
+        os.symlink("loop", folder / "loop")
+        os.symlink("loop", folder / "bin/loop")
+        self.assertEqual(RUN["steam_libraries"](self.target(folder)), {"steam_api64"})
+
     def test_a_non_pe_file_is_not_a_library(self):
         folder = self.game()
         self.write("Game/steam_notes.dll", b"ISteamClient ISteamApps")
@@ -223,6 +230,9 @@ class OwnSteamIdTest(Temp):
     def test_a_non_numeric_app_id_does_not_count(self):
         self.assertFalse(RUN["own_steam_id"](self.target(self.game("123abc"))))
 
+    def test_a_non_ascii_digit_app_id_does_not_count(self):
+        self.assertFalse(RUN["own_steam_id"](self.target(self.game("\u00b2"))))
+
     def test_a_plain_game_has_no_app_id(self):
         self.assertFalse(RUN["own_steam_id"](self.target(self.game(None))))
 
@@ -318,6 +328,20 @@ class OverrideTest(Temp):
     def test_comma_separated_names_are_split(self):
         self.assertEqual(RUN["merge_overrides"]("steam_api64,lsteamclient=b"), "steam_api64=b;lsteamclient=b")
 
+    def test_space_and_tab_separated_names_are_split(self):
+        for merge in (RUN["merge_overrides"], GAME_ENV["merge_overrides"]):
+            self.assertEqual(merge("steam_api64 lsteamclient=b"), "steam_api64=b;lsteamclient=b")
+            self.assertEqual(merge("steam_api64\tlsteamclient=b"), "steam_api64=b;lsteamclient=b")
+
+    def test_a_dll_suffix_is_the_same_name(self):
+        for merge in (RUN["merge_overrides"], GAME_ENV["merge_overrides"]):
+            self.assertEqual(merge("steam_api64.dll=b;steam_api64=n,b"), "steam_api64=n,b")
+
+    def test_a_caller_dll_suffix_is_not_overridden(self):
+        env = {"WINEDLLOVERRIDES": "steam_api64.dll=b"}
+        RUN["prefer_game_steam_client"](env, self.state())
+        self.assertEqual(env["WINEDLLOVERRIDES"], "steam_api64=b;lsteamclient=d")
+
     def test_quoted_entries_are_ignored(self):
         self.assertEqual(RUN["merge_overrides"]('foo="bad";bar=d'), "bar=d")
 
@@ -358,6 +382,17 @@ class OverrideTest(Temp):
         )
         self.assertEqual(result["WINEDLLOVERRIDES"], "steam_api64=n,b;lsteamclient=d;foo=b")
         self.assertEqual(result["WINEDLLOVERRIDES"].count("foo"), 1)
+
+    def test_a_game_override_keeps_shared_and_fixes(self):
+        result = GAME_ENV["apply_config"](
+            {"WINEDLLOVERRIDES": "steam_api64=n,b;lsteamclient=d"},
+            {"version": 1, "shared": {"WINEDLLOVERRIDES": "foo=d"},
+             "games": {"2150000000": {"WINEDLLOVERRIDES": "foo=b;bar=b"}}},
+            "2150000000",
+            {"WINEDLLOVERRIDES": "ws2_32=b"},
+        )
+        self.assertEqual(result["WINEDLLOVERRIDES"],
+                         "steam_api64=n,b;lsteamclient=d;foo=b;ws2_32=b;bar=b")
 
     def test_fixes_are_merged_without_duplicates(self):
         result = GAME_ENV["apply_config"](

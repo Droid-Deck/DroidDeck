@@ -436,6 +436,13 @@ def scan_entries(path):
         return []
 
 
+def entry_is_dir(entry):
+    try:
+        return entry.is_dir()
+    except OSError:
+        return False
+
+
 def steam_folders(target):
     """Where a game's Steam libraries can sit: beside the exe, at the folder it starts in, one level
     inside either, and inside the usual bin/x64 folders, since games keep them there. A start folder
@@ -461,7 +468,7 @@ def steam_folders(target):
         for entry in scan_entries(root):
             if len(folders) >= STEAM_SCAN_FOLDERS:
                 return folders
-            if not entry.is_dir() or entry.name.startswith(".") or entry.path in seen:
+            if not entry_is_dir(entry) or entry.name.startswith(".") or entry.path in seen:
                 continue
             if restricted and entry.name.lower() not in STEAM_LIBRARY_DIRS:
                 continue
@@ -472,7 +479,7 @@ def steam_folders(target):
             for child in scan_entries(entry.path):
                 if len(folders) >= STEAM_SCAN_FOLDERS:
                     return folders
-                if child.is_dir() and not child.name.startswith(".") and child.path not in seen:
+                if entry_is_dir(child) and not child.name.startswith(".") and child.path not in seen:
                     seen.add(child.path)
                     folders.append(child.path)
     return folders
@@ -551,7 +558,7 @@ def steam_app_id(path):
     except OSError:
         return None
     value = text.split(maxsplit=1)[0] if text else ""
-    if not value.isdigit():
+    if not (value.isascii() and value.isdigit()):
         return None
     app_id = int(value)
     return app_id if 0 < app_id < STEAM_APP_LIMIT and app_id != STEAM_SPACEWAR else None
@@ -604,15 +611,18 @@ def steam_state(target):
 # Both launch helpers are staged by name (SessionFiles), so a shared parser would need another
 # staged file; this copy is kept here and in droiddeck-game-env, and the two must change together.
 def merge_overrides(*values):
-    """One entry per DLL, the last setting winning; a comma-separated name list is split."""
+    """One entry per DLL, the last setting winning; Wine separates names with commas, spaces
+    or tabs."""
     modes = {}
     for value in values:
         for entry in (value or "").split(";"):
             name, equals, mode = entry.strip().partition("=")
             if not equals or not name or '"' in entry or "'" in entry:
                 continue
-            for part in name.split(","):
+            for part in re.split(r"[, \t]+", name):
                 part = part.strip().lower()
+                if part.endswith(".dll"):
+                    part = part[:-4]
                 if part:
                     modes[part] = mode.strip()
     return ";".join(name + "=" + mode for name, mode in modes.items())

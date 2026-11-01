@@ -277,15 +277,18 @@ def offline_without_anticheat(command, env):
 # Both launch helpers are staged by name (SessionFiles), so a shared parser would need another
 # staged file; this copy is kept here and in droiddeck-proton-run, and the two must change together.
 def merge_overrides(*values):
-    """One entry per DLL, the last setting winning; a comma-separated name list is split."""
+    """One entry per DLL, the last setting winning; Wine separates names with commas, spaces
+    or tabs."""
     modes = {}
     for value in values:
         for entry in (value or "").split(";"):
             name, equals, mode = entry.strip().partition("=")
             if not equals or not name or '"' in entry or "'" in entry:
                 continue
-            for part in name.split(","):
+            for part in re.split(r"[, \t]+", name):
                 part = part.strip().lower()
+                if part.endswith(".dll"):
+                    part = part[:-4]
                 if part:
                     modes[part] = mode.strip()
     return ";".join(name + "=" + mode for name, mode in modes.items())
@@ -488,7 +491,12 @@ def apply_config(env, config, app_id, fixes=None):
         if name == "WINEDLLOVERRIDES" and entries.get(name) and isinstance(value, str):
             value = merge_overrides(entries[name], value)
         entries[name] = value
-    entries.update(config.get("games", {}).get(app_id, {}))
+    game_entries = dict(config.get("games", {}).get(app_id, {}))
+    if (isinstance(game_entries.get("WINEDLLOVERRIDES"), str)
+            and isinstance(entries.get("WINEDLLOVERRIDES"), str)):
+        game_entries["WINEDLLOVERRIDES"] = merge_overrides(
+            entries["WINEDLLOVERRIDES"], game_entries["WINEDLLOVERRIDES"])
+    entries.update(game_entries)
     for name, value in entries.items():
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
             raise ValueError("invalid environment name")
