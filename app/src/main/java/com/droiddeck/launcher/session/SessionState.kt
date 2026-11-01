@@ -94,6 +94,9 @@ object SessionState {
     @Volatile var secondScreenAutoOpened = false
     @Volatile var secondScreenProvisional = false
 
+    /** Guest library paths on removable storage and the host folders they are mounted from, set by SessionService. */
+    @Volatile var steamLibraryMounts: Map<String, java.io.File> = emptyMap()
+
     @Volatile
     var mode = "steam"
 

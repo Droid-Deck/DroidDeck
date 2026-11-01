@@ -274,6 +274,9 @@ jobs:
         if: steps.comet.outputs.cache-hit != 'true'
         run: python3 tools/components/prepare.py comet
 
+      - name: Build the DiRT 3 / DiRT Showdown ws2_32 stand-in
+        run: python3 tools/components/prepare.py dirt-ws2
+
       - name: Prepare graphics driver variants
         run: python3 tools/quest/build-driver.py "$ANDROID_HOME/ndk/$NDK_VERSION"
       - name: Record and pack prepared components

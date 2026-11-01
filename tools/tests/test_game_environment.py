@@ -29,6 +29,222 @@ def config_text(entries):
     return '"InstallConfigStore" { "Software" { "Valve" { "Steam" { "CompatToolMapping" { %s } } } } }' % mapping
 
 
+class DirtTelemetryFixTest(unittest.TestCase):
+    SHOWDOWN_ON = '<x><motion enabled="true" ip="127.0.0.1" port="20777" delay="1" extradata="3" /></x>'
+    SHOWDOWN_DEFAULT = '<x><motion enabled="true" ip="dbox" port="20777" delay="1" extradata="0" /></x>'
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        self.prefix = root / "compatdata/2848447563"
+        self.proton = root / "Proton/proton"
+        self.own = root / "Proton/files/lib/wine/i386-windows/ws2_32.dll"
+        self.own.parent.mkdir(parents=True)
+        self.own.write_bytes(b"MZ wine ws2_32")
+        self.proton.write_text("")
+        self.target = self.prefix / "pfx/drive_c/windows/syswow64/ws2_32.dll"
+        self.target.parent.mkdir(parents=True)
+        self.target.symlink_to(self.own)
+        self.stand_in = root / "droiddeck-dirt/ws2_32.dll"
+        self.stand_in.parent.mkdir()
+        self.stand_in.write_bytes(b"MZ droiddeck-dirt-ws2_32 stand-in")
+        self.patch = mock.patch.dict(MODULE["dirt_ws2_wanted"].__globals__, {"DIRT_WS2": str(self.stand_in)})
+        self.patch.start()
+
+    def tearDown(self):
+        self.patch.stop()
+        self.tmp.cleanup()
+
+    def config(self, folder, text):
+        path = self.prefix / "pfx/drive_c/users/steamuser/Documents/My Games" / folder / "hardwaresettings/hardware_settings_config.xml"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+
+    def command(self, exe="showdown.exe"):
+        return [str(self.proton), "waitforexitandrun", "/root/Storage/games/DiRT Showdown/" + exe]
+
+    def env(self):
+        return {"STEAM_COMPAT_DATA_PATH": str(self.prefix)}
+
+    def test_telemetry_counts_as_on_when_the_game_sends_somewhere(self):
+        self.config("DiRT Showdown", self.SHOWDOWN_DEFAULT)
+        self.assertFalse(MODULE["dirt_telemetry_on"](self.prefix, "dirtshowdown"))
+        self.config("DiRT Showdown", self.SHOWDOWN_ON)
+        self.assertTrue(MODULE["dirt_telemetry_on"](self.prefix, "dirtshowdown"))
+        self.config("DiRT Showdown", self.SHOWDOWN_ON.replace('enabled="true"', 'enabled="false"'))
+        self.assertFalse(MODULE["dirt_telemetry_on"](self.prefix, "dirtshowdown"))
+        self.config("DiRT3", '<x><motion enabled="true" ip="192.168.1.20" port="20777" /></x>')
+        self.assertTrue(MODULE["dirt_telemetry_on"](self.prefix, "dirt3"))
+
+    def test_stand_in_is_wanted_only_for_the_dirt_games_with_telemetry_on_and_a_proton_without_the_fix(self):
+        wanted = MODULE["dirt_ws2_wanted"]
+        self.config("DiRT Showdown", self.SHOWDOWN_DEFAULT)
+        self.assertIsNone(wanted(self.command(), self.env()))
+        self.config("DiRT Showdown", self.SHOWDOWN_ON)
+        self.assertEqual(wanted(self.command(), self.env()), str(self.prefix))
+        self.assertEqual(wanted(self.command("Showdown_AVX.exe"), self.env()), str(self.prefix))
+        self.assertIsNone(wanted(self.command("DiRTRally2.exe"), self.env()))
+        self.own.write_bytes(b"MZ wine ws2_32 " + "showdown_avx.exe".encode("utf-16-le"))
+        self.assertIsNone(wanted(self.command(), self.env()))
+
+    def test_swap_keeps_the_prefix_link_and_restore_puts_it_back(self):
+        MODULE["swap_dirt_ws2"](self.prefix)
+        saved = self.target.with_name("ws2_32.dll.droiddeck-original")
+        self.assertFalse(self.target.is_symlink())
+        self.assertEqual(self.target.read_bytes(), self.stand_in.read_bytes())
+        self.assertEqual(os.readlink(saved), str(self.own))
+        self.assertEqual(self.own.read_bytes(), b"MZ wine ws2_32")
+        MODULE["swap_dirt_ws2"](self.prefix)
+        self.assertEqual(os.readlink(saved), str(self.own))
+        self.assertTrue(MODULE["restore_dirt_ws2"](self.prefix, self.proton))
+        self.assertEqual(os.readlink(self.target), str(self.own))
+        self.assertFalse(os.path.lexists(saved))
+        self.assertFalse(MODULE["restore_dirt_ws2"](self.prefix, self.proton))
+
+    def test_restore_keeps_a_file_proton_put_back_meanwhile(self):
+        MODULE["swap_dirt_ws2"](self.prefix)
+        newer = self.own.with_name("ws2_32-newer.dll")
+        newer.write_bytes(b"MZ newer wine ws2_32")
+        self.target.unlink()
+        self.target.symlink_to(newer)
+        self.assertFalse(MODULE["restore_dirt_ws2"](self.prefix, self.proton))
+        self.assertEqual(os.readlink(self.target), str(newer))
+        self.assertFalse(os.path.lexists(self.target.with_name("ws2_32.dll.droiddeck-original")))
+
+    def test_after_a_proton_switch_the_running_protons_file_goes_back(self):
+        MODULE["swap_dirt_ws2"](self.prefix)
+        other = Path(self.tmp.name) / "GE-Proton/proton"
+        other_own = other.parent / "files/lib/wine/i386-windows/ws2_32.dll"
+        other_own.parent.mkdir(parents=True)
+        other_own.write_bytes(b"MZ GE wine ws2_32")
+        other.write_text("")
+        self.assertTrue(MODULE["restore_dirt_ws2"](self.prefix, other))
+        self.assertEqual(os.readlink(self.target), str(other_own))
+        self.assertFalse(os.path.lexists(self.target.with_name("ws2_32.dll.droiddeck-original")))
+
+    def test_restore_follows_a_proton_reached_through_a_linked_folder(self):
+        MODULE["swap_dirt_ws2"](self.prefix)
+        pack = Path(self.tmp.name) / "pack"
+        (pack / "files/lib/wine").mkdir(parents=True)
+        (pack / "files/lib/wine/i386-windows").symlink_to(self.own.parent)
+        (pack / "proton").write_text("")
+        self.assertTrue(MODULE["restore_dirt_ws2"](self.prefix, pack / "proton"))
+        self.assertEqual(os.readlink(self.target), str(self.own))
+
+    def test_a_stand_in_left_without_the_saved_link_is_replaced_by_protons_own_file(self):
+        self.target.unlink()
+        self.target.write_bytes(self.stand_in.read_bytes())
+        self.assertTrue(MODULE["restore_dirt_ws2"](self.prefix, self.proton))
+        self.assertEqual(os.readlink(self.target), str(self.own))
+
+    def test_launch_swaps_the_stand_in_in_for_the_game_and_back_afterwards(self):
+        self.config("DiRT Showdown", self.SHOWDOWN_ON)
+        self.proton.write_text("#!" + sys.executable + "\nimport os, sys\n"
+            "target = os.path.join(os.environ['STEAM_COMPAT_DATA_PATH'], 'pfx/drive_c/windows/syswow64/ws2_32.dll')\n"
+            "print(os.environ.get('WINEDLLOVERRIDES', ''))\n"
+            "print(os.path.islink(target), b'droiddeck-dirt-ws2_32' in open(target, 'rb').read())\n")
+        self.proton.chmod(0o755)
+        runner = Path(self.tmp.name) / "run.py"
+        runner.write_text("import runpy, sys\nmain = runpy.run_path(sys.argv[1])['main']\nmain.__globals__['DIRT_WS2'] = sys.argv[2]\n"
+                          "sys.argv = [sys.argv[1]] + sys.argv[3:]\nsys.exit(main())\n")
+        home = Path(self.tmp.name) / "home"
+        home.mkdir()
+        result = subprocess.run([sys.executable, str(runner), str(BIN / "droiddeck-game-env"), str(self.stand_in), *self.command()],
+            env={**os.environ, "HOME": str(home), "STEAM_COMPAT_DATA_PATH": str(self.prefix)}, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        overrides, state = result.stdout.splitlines()[-2:]
+        self.assertIn("ws2_32=n,b", overrides.split(";"))
+        self.assertEqual(state, "False True")
+        self.assertIn("DiRT telemetry fix: ws2_32 stand-in", result.stderr)
+        self.assertEqual(os.readlink(self.target), str(self.own))
+        self.assertFalse(os.path.lexists(self.target.with_name("ws2_32.dll.droiddeck-original")))
+
+    def test_a_proton_that_cannot_start_leaves_the_prefix_as_it_was(self):
+        self.config("DiRT Showdown", self.SHOWDOWN_ON)
+        self.proton.write_text("not a program")
+        self.proton.chmod(0o644)
+        runner = Path(self.tmp.name) / "run.py"
+        runner.write_text("import runpy, sys\nmain = runpy.run_path(sys.argv[1])['main']\nmain.__globals__['DIRT_WS2'] = sys.argv[2]\n"
+                          "sys.argv = [sys.argv[1]] + sys.argv[3:]\nsys.exit(main())\n")
+        home = Path(self.tmp.name) / "home"
+        home.mkdir()
+        result = subprocess.run([sys.executable, str(runner), str(BIN / "droiddeck-game-env"), str(self.stand_in), *self.command()],
+            env={**os.environ, "HOME": str(home), "STEAM_COMPAT_DATA_PATH": str(self.prefix)}, text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("DiRT telemetry fix: ws2_32 stand-in", result.stderr)
+        self.assertEqual(os.readlink(self.target), str(self.own))
+        self.assertFalse(os.path.lexists(self.target.with_name("ws2_32.dll.droiddeck-original")))
+
+    def test_launch_with_telemetry_off_leaves_the_prefix_alone(self):
+        self.config("DiRT Showdown", self.SHOWDOWN_DEFAULT)
+        self.proton.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('WINEDLLOVERRIDES', ''))\n")
+        self.proton.chmod(0o755)
+        home = Path(self.tmp.name) / "home"
+        home.mkdir()
+        result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), *self.command()],
+            env={**os.environ, "HOME": str(home), "STEAM_COMPAT_DATA_PATH": str(self.prefix)}, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("ws2_32=n,b", result.stdout)
+        self.assertEqual(os.readlink(self.target), str(self.own))
+
+    def test_a_failed_put_back_does_not_end_the_launch_with_an_error(self):
+        def fail():
+            raise OSError(28, "No space left on device")
+        stderr = io.StringIO()
+        with mock.patch("sys.stderr", stderr):
+            code = MODULE["start"]([sys.executable, "-c", "raise SystemExit(0)"], dict(os.environ), None, fail)
+        self.assertEqual(code, 0)
+        self.assertIn("not put back", stderr.getvalue())
+
+    def test_a_half_done_swap_is_put_back(self):
+        saved = self.target.with_name("ws2_32.dll.droiddeck-original")
+        os.replace(self.target, saved)
+        self.assertTrue(MODULE["restore_dirt_ws2"](self.prefix, self.proton))
+        self.assertEqual(os.readlink(self.target), str(self.own))
+        self.assertFalse(os.path.lexists(saved))
+
+    def test_a_native_ws2_32_goes_back_as_it_was_after_a_proton_switch(self):
+        self.target.unlink()
+        self.target.write_bytes(b"MZ a mod's own ws2_32")
+        MODULE["swap_dirt_ws2"](self.prefix)
+        other = Path(self.tmp.name) / "GE-Proton/proton"
+        (other.parent / "files/lib/wine/i386-windows").mkdir(parents=True)
+        (other.parent / "files/lib/wine/i386-windows/ws2_32.dll").write_bytes(b"MZ GE wine ws2_32")
+        other.write_text("")
+        self.assertTrue(MODULE["restore_dirt_ws2"](self.prefix, other))
+        self.assertFalse(self.target.is_symlink())
+        self.assertEqual(self.target.read_bytes(), b"MZ a mod's own ws2_32")
+
+    def test_a_link_to_a_mods_ws2_32_goes_back_as_it_was(self):
+        mod = Path(self.tmp.name) / "mods/ws2_32.dll"
+        mod.parent.mkdir()
+        mod.write_bytes(b"MZ a mod's ws2_32")
+        self.target.unlink()
+        self.target.symlink_to(mod)
+        MODULE["swap_dirt_ws2"](self.prefix)
+        other = Path(self.tmp.name) / "GE-Proton/proton"
+        (other.parent / "files/lib/wine/i386-windows").mkdir(parents=True)
+        (other.parent / "files/lib/wine/i386-windows/ws2_32.dll").write_bytes(b"MZ GE wine ws2_32")
+        other.write_text("")
+        self.assertTrue(MODULE["restore_dirt_ws2"](self.prefix, other))
+        self.assertEqual(os.readlink(self.target), str(mod))
+
+    def test_start_gives_the_signal_handlers_back(self):
+        import signal
+        before = {s: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)}
+        MODULE["start"]([sys.executable, "-c", "pass"], dict(os.environ), None, lambda: None)
+        self.assertEqual(before, {s: signal.getsignal(s) for s in before})
+
+    def test_start_puts_the_file_back_after_the_game_exits(self):
+        calls = []
+        code = MODULE["start"]([sys.executable, "-c", "raise SystemExit(3)"], dict(os.environ), None, lambda: calls.append("restored"))
+        self.assertEqual(code, 3)
+        self.assertEqual(calls, ["restored"])
+        with self.assertRaises(OSError):
+            MODULE["start"]([str(Path(self.tmp.name) / "missing")], dict(os.environ), None, lambda: calls.append("again"))
+        self.assertEqual(calls, ["restored"])
+
+
 class GameDebugLoggingTest(unittest.TestCase):
     def test_maintenance_precision_survives_run_with_performance_game_settings(self):
         with tempfile.TemporaryDirectory() as tmp:

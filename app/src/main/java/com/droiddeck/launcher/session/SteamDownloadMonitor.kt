@@ -101,34 +101,6 @@ internal class SteamDownloadMonitor {
             now - lastContentActivityAt <= CONTENT_ACTIVITY_GRACE_MS
     }
 
-    private fun manifests(runtimeRoot: File, mounts: Map<String, File>): List<File> {
-        val steamRoots = linkedSetOf<File>()
-        for (home in STEAM_HOMES) {
-            val primary = File(runtimeRoot, home)
-            steamRoots += primary
-            val libraryFolders = File(primary, "steamapps/libraryfolders.vdf")
-            runCatching {
-                PATH.findAll(libraryFolders.readText()).forEach { match ->
-                    steamRoots += hostPath(runtimeRoot, match.groupValues[1], mounts)
-                }
-            }
-        }
-        return steamRoots.flatMap { root ->
-            File(root, "steamapps").listFiles { file ->
-                file.isFile && file.name.startsWith("appmanifest_") && file.name.endsWith(".acf")
-            }.orEmpty().toList()
-        }
-    }
-
-    private fun hostPath(runtimeRoot: File, guest: String, mounts: Map<String, File>): File {
-        val path = guest.trimEnd('/')
-        for ((mount, host) in mounts) {
-            if (path == mount) return host
-            if (path.startsWith("$mount/")) return File(host, path.removePrefix("$mount/"))
-        }
-        return File(runtimeRoot, path.removePrefix("/"))
-    }
-
     private fun read(file: File): ManifestState {
         val text = runCatching { file.readText() }.getOrDefault("")
         val flags = value(text, "StateFlags")?.toLongOrNull() ?: 0L
@@ -136,9 +108,6 @@ internal class SteamDownloadMonitor {
         val total = value(text, "BytesToDownload")?.toLongOrNull() ?: 0L
         return ManifestState(downloaded, flags != 4L && (total <= 0L || downloaded < total))
     }
-
-    private fun value(text: String, key: String): String? =
-        Regex("\"$key\"\\s+\"([^\"]*)\"").find(text)?.groupValues?.get(1)
 
     companion object {
         fun clientInstallPending(runtimeRoot: File): Boolean {
@@ -149,12 +118,43 @@ internal class SteamDownloadMonitor {
             return !(stamped && File(steam, "steamrtarm64/steam").isFile) || File(home, ".bl-steam-repair").exists()
         }
 
+        internal fun manifests(runtimeRoot: File, mounts: Map<String, File>): List<File> {
+            val steamRoots = linkedSetOf<File>()
+            for (home in STEAM_HOMES) {
+                val primary = File(runtimeRoot, home)
+                steamRoots += primary
+                val libraryFolders = File(primary, "steamapps/libraryfolders.vdf")
+                runCatching {
+                    PATH.findAll(libraryFolders.readText()).forEach { match ->
+                        steamRoots += hostPath(runtimeRoot, match.groupValues[1], mounts)
+                    }
+                }
+            }
+            return steamRoots.flatMap { root ->
+                File(root, "steamapps").listFiles { file ->
+                    file.isFile && file.name.startsWith("appmanifest_") && file.name.endsWith(".acf")
+                }.orEmpty().toList()
+            }
+        }
+
+        private fun hostPath(runtimeRoot: File, guest: String, mounts: Map<String, File>): File {
+            val path = guest.trimEnd('/')
+            for ((mount, host) in mounts) {
+                if (path == mount) return host
+                if (path.startsWith("$mount/")) return File(host, path.removePrefix("$mount/"))
+            }
+            return File(runtimeRoot, path.removePrefix("/"))
+        }
+
+        internal fun value(text: String, key: String): String? =
+            Regex("\"$key\"\\s+\"([^\"]*)\"").find(text)?.groupValues?.get(1)
+
         private const val MANIFEST_PROGRESS_GRACE_MS = 8_000L
         private const val CONTENT_ACTIVITY_GRACE_MS = 90_000L
         private const val MIN_RECEIVE_BYTES_PER_SEC = 64L * 1024L
         private val PATH = Regex("\"path\"\\s+\"([^\"]+)\"")
-        private val STEAM_HOMES = listOf("root/.local/share/Steam", "root/.droiddeck-x64/.local/share/Steam")
-        private val CONTENT_UPDATE = Regex("""AppID (\d+) (App|Workshop|Shader) update changed : (.*)""")
+        internal val STEAM_HOMES = listOf("root/.local/share/Steam", "root/.droiddeck-x64/.local/share/Steam")
+        internal val CONTENT_UPDATE = Regex("""AppID (\d+) (App|Workshop|Shader) update changed : (.*)""")
         private val CURRENT_RATE = Regex("""Current download rate: ([\d.]+) Mbps""")
     }
 }
