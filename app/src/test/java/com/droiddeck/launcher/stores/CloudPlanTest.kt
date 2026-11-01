@@ -54,6 +54,22 @@ class CloudPlanTest {
         assertTrue(CloudPlan.down(mapOf("s" to Local("a")), mapOf("s" to Remote(null, 2500)), base).transfer.isEmpty())
     }
 
+    @Test fun gogRawObjectsThatStillMatchTheLocalBytesAreResentOnce() {
+        val base = mapOf("s" to Entry("a", "a", 1000))
+        val plan = CloudPlan.up(mapOf("s" to Local("a")), mapOf("s" to Remote("a", 1000)), base)
+        assertEquals(listOf("s"), plan.same)
+        assertEquals(listOf("s"), CloudPlan.upSend(plan, force = false, repairRawGog = true))
+        assertTrue(CloudPlan.upSend(plan, force = false, repairRawGog = false).isEmpty())
+    }
+
+    @Test fun aForcedGogUploadSendsUnchangedFilesEvenWithoutACloudHash() {
+        val base = mapOf("s" to Entry("a", "a", 1000))
+        val plan = CloudPlan.up(mapOf("s" to Local("a")), mapOf("s" to Remote(null, 1000)), base)
+        assertTrue(plan.transfer.isEmpty() && plan.conflicts.isEmpty() && plan.same.isEmpty())
+        assertEquals(listOf("s"), CloudPlan.upSend(plan, force = true, repairRawGog = true, allLocal = listOf("s")))
+        assertTrue(CloudPlan.upSend(plan, force = true, repairRawGog = false, allLocal = listOf("s")).isEmpty())
+    }
+
     @Test fun theBaselineSurvivesItsJson() {
         val b = mapOf("a/b.sav" to Entry("l", "c", 5), "x" to Entry("l2", null, -1))
         assertEquals(b, CloudPlan.fromJson(CloudPlan.toJson(b)))

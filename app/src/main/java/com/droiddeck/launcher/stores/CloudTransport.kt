@@ -1,24 +1,43 @@
 package com.droiddeck.launcher.stores
 
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.io.InputStream
+import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.security.DigestOutputStream
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 import java.util.TimeZone
 import java.util.zip.CRC32
 import java.util.zip.Deflater
+import java.util.zip.DeflaterOutputStream
 import org.json.JSONArray
 import org.json.JSONObject
 
 class CloudFile(val name: String, var modifiedMs: Long, var md5: String? = null, val readLink: String? = null)
 
+class CloudPut(val modifiedMs: Long, val md5: String?)
+
 interface CloudTransport {
     fun list(): List<CloudFile>
     fun details(file: CloudFile) {}
     fun get(file: CloudFile): Pair<ByteArray, Long>
-    fun put(files: Map<String, ByteArray>): Map<String, Long>
+    fun put(files: Map<String, ByteArray>, modifiedMs: Map<String, Long> = emptyMap()): Map<String, Long>
+
+    /** Uploads from files so a transport can stream instead of holding every save in memory. */
+    fun putFiles(files: Map<String, File>, modifiedMs: Map<String, Long> = emptyMap()): Map<String, CloudPut> {
+        val data = files.mapValues { it.value.readBytes() }
+        val digests = data.mapValues { md5Hex(it.value) }
+        return put(data, modifiedMs).mapValues { (name, modified) -> CloudPut(modified, digests.getValue(name)) }
+    }
 }
 
 private const val TIMEOUT = 30_000
@@ -48,6 +67,8 @@ internal fun gunzip(data: ByteArray): ByteArray? = try {
 } catch (e: Exception) { null }
 
 /** Same gzip GOG uses on PUT: deflate level 6, mtime 0, OS Unix. */
+private val GOG_GZIP_HEADER = byteArrayOf(0x1f, 0x8b.toByte(), 8, 0, 0, 0, 0, 0, 0, 3)
+
 internal fun gzipGogPut(data: ByteArray): ByteArray {
     val deflater = Deflater(6, true)
     val raw = ByteArrayOutputStream()
@@ -64,14 +85,14 @@ internal fun gzipGogPut(data: ByteArray): ByteArray {
     }
     val crc = CRC32().also { it.update(data) }
     return ByteArrayOutputStream(18 + raw.size()).apply {
-        write(byteArrayOf(0x1f, 0x8b.toByte(), 8, 0, 0, 0, 0, 0, 0, 3))
+        write(GOG_GZIP_HEADER)
         write(raw.toByteArray())
         writeIntLe(crc.value.toInt())
         writeIntLe(data.size)
     }.toByteArray()
 }
 
-private fun ByteArrayOutputStream.writeIntLe(v: Int) {
+private fun OutputStream.writeIntLe(v: Int) {
     write(v and 0xff)
     write(v ushr 8 and 0xff)
     write(v ushr 16 and 0xff)
@@ -121,13 +142,64 @@ internal fun gogRelativeNames(files: List<CloudFile>, location: String?): Pair<S
     }
 }
 
+private fun md5Hex(data: ByteArray): String =
+    java.security.MessageDigest.getInstance("MD5").digest(data).joinToString("") { "%02x".format(it) }
+
+private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
+
+private class GzipFile(val length: Long, val rawMd5: String, val etag: String)
+
+/** Streams the same gzip framing as [gzipGogPut] into [dst] without reading the save into memory. */
+private fun gzipFile(src: File, dst: File): GzipFile {
+    val raw = java.security.MessageDigest.getInstance("MD5")
+    val compressed = java.security.MessageDigest.getInstance("MD5")
+    val crc = CRC32()
+    var size = 0L
+    val file = FileOutputStream(dst)
+    val out = DigestOutputStream(file, compressed)
+    try {
+        out.write(GOG_GZIP_HEADER)
+        val deflater = Deflater(6, true)
+        try {
+            val deflate = DeflaterOutputStream(out, deflater, 64 * 1024)
+            src.inputStream().use { input ->
+                val buf = ByteArray(64 * 1024)
+                while (true) {
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    raw.update(buf, 0, n)
+                    crc.update(buf, 0, n)
+                    size += n
+                    deflate.write(buf, 0, n)
+                }
+            }
+            deflate.finish()
+        } finally {
+            deflater.end()
+        }
+        out.writeIntLe(crc.value.toInt())
+        out.writeIntLe(size.toInt())
+        out.flush()
+        return GzipFile(dst.length(), raw.digest().toHex(), compressed.digest().toHex())
+    } finally {
+        out.close()
+    }
+}
+
+/** GOG Galaxy parses `X-Object-Meta-LocalLastModified`; objects without it fail as "invalid data". */
+private val GOG_STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssxxx", Locale.US)
+
+private fun gogStamp(ms: Long): String =
+    Instant.ofEpochMilli(ms).atOffset(ZoneOffset.UTC).truncatedTo(ChronoUnit.SECONDS).format(GOG_STAMP)
+
 class GogCloud(
     private val userId: String,
     private val clientId: String,
     private val token: String,
     private val location: String? = null,
+    baseUrl: String? = null,
 ) : CloudTransport {
-    private val base = "https://cloudstorage.gog.com/v1/$userId/$clientId"
+    private val base = baseUrl ?: "https://cloudstorage.gog.com/v1/$userId/$clientId"
     private val ua = "GOG Galaxy"
     private var prefix: String? = location?.let { "$it/" }
 
@@ -198,16 +270,38 @@ class GogCloud(
         return gogDecodeCloudBody(data, encoding) to modified
     }
 
-    override fun put(files: Map<String, ByteArray>): Map<String, Long> = files.mapValues { (name, data) ->
+    override fun put(files: Map<String, ByteArray>, modifiedMs: Map<String, Long>): Map<String, Long> = files.mapValues { (name, data) ->
+        val body = gzipGogPut(data)
+        putBody(name, body.inputStream(), body.size.toLong(), md5Hex(body), modifiedMs[name] ?: System.currentTimeMillis())
+    }
+
+    override fun putFiles(files: Map<String, File>, modifiedMs: Map<String, Long>): Map<String, CloudPut> = files.mapValues { (name, file) ->
+        val compressed = File.createTempFile("gog-cloud-", ".gz")
+        try {
+            val gz = gzipFile(file, compressed)
+            val modified = putBody(name, compressed.inputStream(), gz.length, gz.etag, modifiedMs[name] ?: file.lastModified())
+            CloudPut(modified, gz.rawMd5)
+        } finally {
+            compressed.delete()
+        }
+    }
+
+    private fun putBody(name: String, source: InputStream, length: Long, etag: String, modified: Long): Long {
         val c = open("$base/${cloudKey(name)}", "PUT", token, ua)
-        c.doOutput = true
-        c.setRequestProperty("Content-Type", "application/octet-stream")
-        c.setFixedLengthStreamingMode(data.size)
-        c.outputStream.use { it.write(data) }
-        val code = c.responseCode
-        c.disconnect()
-        if (code !in 200..299) throw java.io.IOException("GOG cloud put HTTP $code")
-        CloudFile(name, -1L).also { details(it) }.modifiedMs
+        try {
+            c.doOutput = true
+            c.setRequestProperty("Content-Type", "application/octet-stream")
+            c.setRequestProperty("Content-Encoding", "gzip")
+            c.setRequestProperty("Etag", etag)
+            c.setRequestProperty("X-Object-Meta-LocalLastModified", gogStamp(modified))
+            c.setFixedLengthStreamingMode(length)
+            c.outputStream.use { out -> source.use { it.copyTo(out, 64 * 1024) } }
+            val code = c.responseCode
+            if (code !in 200..299) throw java.io.IOException("GOG cloud put HTTP $code")
+            return CloudFile(name, -1L).also { details(it) }.modifiedMs
+        } finally {
+            c.disconnect()
+        }
     }
 }
 
@@ -216,6 +310,6 @@ class EpicCloud(private val accountId: String, private val appName: String, priv
 
     override fun get(file: CloudFile): Pair<ByteArray, Long> = com.droiddeck.launcher.stores.epic.EpicSaveSync.read(file)
 
-    override fun put(files: Map<String, ByteArray>): Map<String, Long> =
+    override fun put(files: Map<String, ByteArray>, modifiedMs: Map<String, Long>): Map<String, Long> =
         com.droiddeck.launcher.stores.epic.EpicSaveSync.write(token, accountId, appName, files)
 }
