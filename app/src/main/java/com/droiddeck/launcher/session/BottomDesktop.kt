@@ -270,6 +270,11 @@ object BottomDesktop {
             setState(State.FAILED)
             return
         }
+        // The session's freeze has already collected its helpers; a guest started now would run on unfrozen.
+        if (SessionState.suspended) {
+            setState(State.OFF)
+            return
+        }
         val generation = ++guestGeneration
         guestPid = 0
         val (width, height) = outputSize
@@ -314,6 +319,13 @@ object BottomDesktop {
                     guestPid = -1
                     Log.e(TAG, "the desktop's guest did not start")
                     setState(State.FAILED)
+                    return@post
+                }
+                if (SessionState.suspended) {
+                    SessionService.stopTerminalProcess(context, pid)
+                    guestPid = -1
+                    guestGeneration++
+                    setState(State.OFF)
                     return@post
                 }
                 guestPid = pid

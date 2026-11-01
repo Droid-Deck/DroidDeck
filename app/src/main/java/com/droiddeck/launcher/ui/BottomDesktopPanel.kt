@@ -253,7 +253,8 @@ class BottomDesktopPanel(
         val w = surfaceView.width
         val h = surfaceView.height
         if (w <= 0 || h <= 0 || BottomDesktop.state != BottomDesktop.State.RUNNING) return true
-        if (event.actionMasked == MotionEvent.ACTION_UP) lastPressMs = SystemClock.uptimeMillis()
+        if (event.actionMasked == MotionEvent.ACTION_DOWN || event.actionMasked == MotionEvent.ACTION_UP)
+            lastPressMs = SystemClock.uptimeMillis()
         if (directTouch) return forwardTouch(event, w, h)
         val bounds = RectF(0f, 0f, w.toFloat(), h.toFloat())
         if (trackpad.bounds != bounds) {
