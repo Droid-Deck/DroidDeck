@@ -3421,4 +3421,24 @@
     <string name="stores_gamejolt_build_open">Avaa Game Joltissa</string>
     <string name="stores_gamejolt_archive">%1$s-arkistot eivät ole tuettuja</string>
     <string name="stores_gamejolt_extract_failed">Latausta ei voitu purkaa (koodi %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">Game Joltiin ei saatu yhteyttä</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt ei antanut latauslinkkiä</string>
+    <string name="stores_gamejolt_section_featured">Esittelyssä</string>
+    <string name="stores_gamejolt_section_hot">Kuumat</string>
+    <string name="stores_gamejolt_section_best">Parhaat</string>
+    <string name="stores_gamejolt_section_new">Uudet</string>
+    <string name="stores_gamejolt_price_under_30">30 $ tai alle</string>
+    <string name="stores_gamejolt_os_other">Muu</string>
+    <string name="stores_gamejolt_maturity_everyone">Kaikenikäisille</string>
+    <string name="stores_gamejolt_maturity_teen">Nuoret</string>
+    <string name="stores_gamejolt_maturity_adult">Aikuiset</string>
+    <string name="stores_gamejolt_status_complete">Valmis</string>
+    <string name="stores_gamejolt_status_early">Ennakkojulkaisu</string>
+    <string name="stores_gamejolt_status_devlog">Kehityspäiväkirja</string>
+    <string name="stores_gamejolt_partners">Kumppanien pelit</string>
+    <string name="stores_gamejolt_filter_browser">Selain</string>
+    <string name="stores_gamejolt_filter_maturity">Ikärajat</string>
+    <string name="stores_gamejolt_filter_status">Tila</string>
+    <string name="stores_gamejolt_filter_partners">Kumppanit</string>
+    <string name="stores_gamejolt_followed">Seuratut pelit</string>
 </resources>

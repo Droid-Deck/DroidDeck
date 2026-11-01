@@ -3458,4 +3458,24 @@
     <string name="stores_gamejolt_build_open">Abrir en Game Jolt</string>
     <string name="stores_gamejolt_archive">Los archivos %1$s no son compatibles</string>
     <string name="stores_gamejolt_extract_failed">No se ha podido extraer la descarga (código %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">No se pudo conectar con Game Jolt</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt no proporcionó un enlace de descarga</string>
+    <string name="stores_gamejolt_section_featured">Destacados</string>
+    <string name="stores_gamejolt_section_hot">Populares</string>
+    <string name="stores_gamejolt_section_best">Mejores</string>
+    <string name="stores_gamejolt_section_new">Nuevos</string>
+    <string name="stores_gamejolt_price_under_30">30 $ o menos</string>
+    <string name="stores_gamejolt_os_other">Otros</string>
+    <string name="stores_gamejolt_maturity_everyone">Todas las edades</string>
+    <string name="stores_gamejolt_maturity_teen">Adolescentes</string>
+    <string name="stores_gamejolt_maturity_adult">Adultos</string>
+    <string name="stores_gamejolt_status_complete">Completo</string>
+    <string name="stores_gamejolt_status_early">Acceso anticipado</string>
+    <string name="stores_gamejolt_status_devlog">Devlog</string>
+    <string name="stores_gamejolt_partners">Juegos de socios</string>
+    <string name="stores_gamejolt_filter_browser">Navegador</string>
+    <string name="stores_gamejolt_filter_maturity">Clasificación</string>
+    <string name="stores_gamejolt_filter_status">Estado</string>
+    <string name="stores_gamejolt_filter_partners">Socios</string>
+    <string name="stores_gamejolt_followed">Juegos seguidos</string>
 </resources>

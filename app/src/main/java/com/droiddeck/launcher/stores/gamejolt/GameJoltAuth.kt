@@ -16,6 +16,8 @@ internal object GameJoltAuth {
         )
     }
 
+    fun username(context: Context): String = StoreAccounts.read(context.applicationContext, Store.GAMEJOLT)?.optString("username").orEmpty()
+
     fun userId(context: Context): String = StoreAccounts.read(context.applicationContext, Store.GAMEJOLT)?.optString("user_id").orEmpty()
 
     fun clear(context: Context) = StoreAccounts.clear(context.applicationContext, Store.GAMEJOLT)

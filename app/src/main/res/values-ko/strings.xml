@@ -3393,4 +3393,24 @@
     <string name="stores_gamejolt_build_open">Game Jolt에서 열기</string>
     <string name="stores_gamejolt_archive">%1$s 압축 파일은 지원하지 않습니다</string>
     <string name="stores_gamejolt_extract_failed">다운로드한 파일의 압축을 풀 수 없습니다(코드 %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">Game Jolt에 연결할 수 없습니다</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt에서 다운로드 링크를 제공하지 않았습니다</string>
+    <string name="stores_gamejolt_section_featured">추천</string>
+    <string name="stores_gamejolt_section_hot">인기</string>
+    <string name="stores_gamejolt_section_best">베스트</string>
+    <string name="stores_gamejolt_section_new">신규</string>
+    <string name="stores_gamejolt_price_under_30">$30 이하</string>
+    <string name="stores_gamejolt_os_other">기타</string>
+    <string name="stores_gamejolt_maturity_everyone">전체 이용가</string>
+    <string name="stores_gamejolt_maturity_teen">청소년</string>
+    <string name="stores_gamejolt_maturity_adult">성인</string>
+    <string name="stores_gamejolt_status_complete">완성</string>
+    <string name="stores_gamejolt_status_early">앞서 해보기</string>
+    <string name="stores_gamejolt_status_devlog">개발 일지</string>
+    <string name="stores_gamejolt_partners">파트너 게임</string>
+    <string name="stores_gamejolt_filter_browser">브라우저</string>
+    <string name="stores_gamejolt_filter_maturity">연령 등급</string>
+    <string name="stores_gamejolt_filter_status">상태</string>
+    <string name="stores_gamejolt_filter_partners">파트너</string>
+    <string name="stores_gamejolt_followed">팔로우한 게임</string>
 </resources>

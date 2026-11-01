@@ -3421,4 +3421,24 @@
     <string name="stores_gamejolt_build_open">Openen op Game Jolt</string>
     <string name="stores_gamejolt_archive">%1$s-archieven worden niet ondersteund</string>
     <string name="stores_gamejolt_extract_failed">Download kan niet worden uitgepakt (code %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">Game Jolt is niet bereikbaar</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt gaf geen downloadlink</string>
+    <string name="stores_gamejolt_section_featured">Uitgelicht</string>
+    <string name="stores_gamejolt_section_hot">Populair</string>
+    <string name="stores_gamejolt_section_best">Beste</string>
+    <string name="stores_gamejolt_section_new">Nieuw</string>
+    <string name="stores_gamejolt_price_under_30">$30 of minder</string>
+    <string name="stores_gamejolt_os_other">Overig</string>
+    <string name="stores_gamejolt_maturity_everyone">Alle leeftijden</string>
+    <string name="stores_gamejolt_maturity_teen">Tieners</string>
+    <string name="stores_gamejolt_maturity_adult">Volwassenen</string>
+    <string name="stores_gamejolt_status_complete">Voltooid</string>
+    <string name="stores_gamejolt_status_early">Early access</string>
+    <string name="stores_gamejolt_status_devlog">Devlog</string>
+    <string name="stores_gamejolt_partners">Partnerspellen</string>
+    <string name="stores_gamejolt_filter_browser">Browser</string>
+    <string name="stores_gamejolt_filter_maturity">Leeftijdsklasse</string>
+    <string name="stores_gamejolt_filter_status">Status</string>
+    <string name="stores_gamejolt_filter_partners">Partners</string>
+    <string name="stores_gamejolt_followed">Gevolgde games</string>
 </resources>

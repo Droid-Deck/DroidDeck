@@ -3421,4 +3421,24 @@
     <string name="stores_gamejolt_build_open">Άνοιγμα στο Game Jolt</string>
     <string name="stores_gamejolt_archive">Τα αρχεία %1$s δεν υποστηρίζονται</string>
     <string name="stores_gamejolt_extract_failed">Δεν ήταν δυνατή η αποσυμπίεση της λήψης (κωδικός %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">Δεν ήταν δυνατή η σύνδεση με το Game Jolt</string>
+    <string name="stores_gamejolt_download_no_link">Το Game Jolt δεν έδωσε σύνδεσμο λήψης</string>
+    <string name="stores_gamejolt_section_featured">Προτεινόμενα</string>
+    <string name="stores_gamejolt_section_hot">Δημοφιλή</string>
+    <string name="stores_gamejolt_section_best">Καλύτερα</string>
+    <string name="stores_gamejolt_section_new">Νέα</string>
+    <string name="stores_gamejolt_price_under_30">30$ ή λιγότερο</string>
+    <string name="stores_gamejolt_os_other">Άλλα</string>
+    <string name="stores_gamejolt_maturity_everyone">Όλες οι ηλικίες</string>
+    <string name="stores_gamejolt_maturity_teen">Έφηβοι</string>
+    <string name="stores_gamejolt_maturity_adult">Ενήλικες</string>
+    <string name="stores_gamejolt_status_complete">Ολοκληρωμένα</string>
+    <string name="stores_gamejolt_status_early">Πρώιμη πρόσβαση</string>
+    <string name="stores_gamejolt_status_devlog">Devlog</string>
+    <string name="stores_gamejolt_partners">Παιχνίδια συνεργατών</string>
+    <string name="stores_gamejolt_filter_browser">Πρόγραμμα περιήγησης</string>
+    <string name="stores_gamejolt_filter_maturity">Ωριμότητα</string>
+    <string name="stores_gamejolt_filter_status">Κατάσταση</string>
+    <string name="stores_gamejolt_filter_partners">Συνεργάτες</string>
+    <string name="stores_gamejolt_followed">Παιχνίδια που ακολουθείτε</string>
 </resources>

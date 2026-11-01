@@ -3421,4 +3421,24 @@
     <string name="stores_gamejolt_build_open">Åpne på Game Jolt</string>
     <string name="stores_gamejolt_archive">%1$s-arkiver støttes ikke</string>
     <string name="stores_gamejolt_extract_failed">Kunne ikke pakke ut nedlastingen (kode %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">Kunne ikke nå Game Jolt</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt ga ingen nedlastingslenke</string>
+    <string name="stores_gamejolt_section_featured">Fremhevet</string>
+    <string name="stores_gamejolt_section_hot">Populære</string>
+    <string name="stores_gamejolt_section_best">Beste</string>
+    <string name="stores_gamejolt_section_new">Nye</string>
+    <string name="stores_gamejolt_price_under_30">$30 eller mindre</string>
+    <string name="stores_gamejolt_os_other">Annet</string>
+    <string name="stores_gamejolt_maturity_everyone">Alle aldre</string>
+    <string name="stores_gamejolt_maturity_teen">Tenåringer</string>
+    <string name="stores_gamejolt_maturity_adult">Voksne</string>
+    <string name="stores_gamejolt_status_complete">Ferdig</string>
+    <string name="stores_gamejolt_status_early">Early access</string>
+    <string name="stores_gamejolt_status_devlog">Devlog</string>
+    <string name="stores_gamejolt_partners">Partnerspill</string>
+    <string name="stores_gamejolt_filter_browser">Nettleser</string>
+    <string name="stores_gamejolt_filter_maturity">Aldersgrense</string>
+    <string name="stores_gamejolt_filter_status">Status</string>
+    <string name="stores_gamejolt_filter_partners">Partnere</string>
+    <string name="stores_gamejolt_followed">Fulgte spill</string>
 </resources>

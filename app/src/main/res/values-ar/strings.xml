@@ -3569,4 +3569,24 @@
     <string name="stores_gamejolt_build_open">فتح على Game Jolt</string>
     <string name="stores_gamejolt_archive">أرشيفات %1$s غير مدعومة</string>
     <string name="stores_gamejolt_extract_failed">تعذر استخراج التنزيل (رمز الخروج %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">تعذر الوصول إلى Game Jolt</string>
+    <string name="stores_gamejolt_download_no_link">لم يوفر Game Jolt رابط تنزيل</string>
+    <string name="stores_gamejolt_section_featured">مميزة</string>
+    <string name="stores_gamejolt_section_hot">رائجة</string>
+    <string name="stores_gamejolt_section_best">الأفضل</string>
+    <string name="stores_gamejolt_section_new">جديدة</string>
+    <string name="stores_gamejolt_price_under_30">30$ أو أقل</string>
+    <string name="stores_gamejolt_os_other">أخرى</string>
+    <string name="stores_gamejolt_maturity_everyone">لجميع الأعمار</string>
+    <string name="stores_gamejolt_maturity_teen">المراهقون</string>
+    <string name="stores_gamejolt_maturity_adult">للبالغين</string>
+    <string name="stores_gamejolt_status_complete">مكتملة</string>
+    <string name="stores_gamejolt_status_early">وصول مبكر</string>
+    <string name="stores_gamejolt_status_devlog">يوميات التطوير</string>
+    <string name="stores_gamejolt_partners">ألعاب الشركاء</string>
+    <string name="stores_gamejolt_filter_browser">المتصفح</string>
+    <string name="stores_gamejolt_filter_maturity">التصنيف العمري</string>
+    <string name="stores_gamejolt_filter_status">الحالة</string>
+    <string name="stores_gamejolt_filter_partners">الشركاء</string>
+    <string name="stores_gamejolt_followed">الألعاب المتابَعة</string>
 </resources>

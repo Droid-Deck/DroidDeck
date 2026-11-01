@@ -3393,4 +3393,24 @@
     <string name="stores_gamejolt_build_open">Buka di Game Jolt</string>
     <string name="stores_gamejolt_archive">Arkib %1$s tidak disokong</string>
     <string name="stores_gamejolt_extract_failed">Tidak dapat mengekstrak muat turun (kod %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">Tidak dapat menghubungi Game Jolt</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt tidak memberikan pautan muat turun</string>
+    <string name="stores_gamejolt_section_featured">Pilihan</string>
+    <string name="stores_gamejolt_section_hot">Hangat</string>
+    <string name="stores_gamejolt_section_best">Terbaik</string>
+    <string name="stores_gamejolt_section_new">Baharu</string>
+    <string name="stores_gamejolt_price_under_30">$30 atau kurang</string>
+    <string name="stores_gamejolt_os_other">Lain-lain</string>
+    <string name="stores_gamejolt_maturity_everyone">Semua peringkat umur</string>
+    <string name="stores_gamejolt_maturity_teen">Remaja</string>
+    <string name="stores_gamejolt_maturity_adult">Dewasa</string>
+    <string name="stores_gamejolt_status_complete">Siap</string>
+    <string name="stores_gamejolt_status_early">Akses awal</string>
+    <string name="stores_gamejolt_status_devlog">Devlog</string>
+    <string name="stores_gamejolt_partners">Permainan rakan kongsi</string>
+    <string name="stores_gamejolt_filter_browser">Pelayar</string>
+    <string name="stores_gamejolt_filter_maturity">Kematangan</string>
+    <string name="stores_gamejolt_filter_status">Status</string>
+    <string name="stores_gamejolt_filter_partners">Rakan kongsi</string>
+    <string name="stores_gamejolt_followed">Permainan diikuti</string>
 </resources>

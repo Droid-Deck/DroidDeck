@@ -35,6 +35,7 @@ object GameJoltBackend : StoreBackend {
         val app = context.applicationContext
         GameJoltPrefs.get(app).edit().clear().apply()
         GameJoltAuth.clear(app)
+        GameJoltLibrary.reset()
         StoresState.post {
             StoresState.library.remove(store)
             StoresState.shelves.remove(store)
@@ -45,7 +46,9 @@ object GameJoltBackend : StoreBackend {
     }
 
     override fun syncLibrary(context: Context, force: Boolean) {
-        StoresState.post { StoresState.library[store] = emptyList() }
+        val app = context.applicationContext
+        if (force) GameJoltLibrary.reset()
+        Thread({ GameJoltLibrary.sync(app, force) }, "gamejolt-sync").start()
     }
 
     override fun loadShelves(context: Context, force: Boolean) {
@@ -67,7 +70,7 @@ object GameJoltBackend : StoreBackend {
 
     override fun install(context: Context, item: CatalogItem, root: File) {
         val app = context.applicationContext
-        if (!item.isFree) {
+        if (!item.isFree && !item.owned) {
             StoresState.logLine("Game Jolt: \"${item.title}\" is a paid game, opening its page instead")
             return
         }

@@ -3339,4 +3339,24 @@
     <string name="stores_gamejolt_build_open">在 Game Jolt 上打开</string>
     <string name="stores_gamejolt_archive">不支持 %1$s 压缩包</string>
     <string name="stores_gamejolt_extract_failed">无法解压下载内容（代码 %1$d）</string>
+    <string name="stores_gamejolt_download_unreachable">无法连接到 Game Jolt</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt 未提供下载链接</string>
+    <string name="stores_gamejolt_section_featured">精选</string>
+    <string name="stores_gamejolt_section_hot">热门</string>
+    <string name="stores_gamejolt_section_best">最佳</string>
+    <string name="stores_gamejolt_section_new">最新</string>
+    <string name="stores_gamejolt_price_under_30">30 美元以下</string>
+    <string name="stores_gamejolt_os_other">其他</string>
+    <string name="stores_gamejolt_maturity_everyone">全年龄</string>
+    <string name="stores_gamejolt_maturity_teen">青少年</string>
+    <string name="stores_gamejolt_maturity_adult">成人</string>
+    <string name="stores_gamejolt_status_complete">已完成</string>
+    <string name="stores_gamejolt_status_early">抢先体验</string>
+    <string name="stores_gamejolt_status_devlog">开发日志</string>
+    <string name="stores_gamejolt_partners">合作伙伴游戏</string>
+    <string name="stores_gamejolt_filter_browser">浏览器</string>
+    <string name="stores_gamejolt_filter_maturity">内容分级</string>
+    <string name="stores_gamejolt_filter_status">状态</string>
+    <string name="stores_gamejolt_filter_partners">合作伙伴</string>
+    <string name="stores_gamejolt_followed">已关注的游戏</string>
 </resources>

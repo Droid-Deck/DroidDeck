@@ -3495,4 +3495,24 @@
     <string name="stores_gamejolt_build_open">Otevřít na Game Jolt</string>
     <string name="stores_gamejolt_archive">Archivy %1$s nejsou podporovány</string>
     <string name="stores_gamejolt_extract_failed">Stažený soubor nelze rozbalit (kód %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">Game Jolt není dostupný</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt neposkytl odkaz ke stažení</string>
+    <string name="stores_gamejolt_section_featured">Doporučené</string>
+    <string name="stores_gamejolt_section_hot">Populární</string>
+    <string name="stores_gamejolt_section_best">Nejlepší</string>
+    <string name="stores_gamejolt_section_new">Nové</string>
+    <string name="stores_gamejolt_price_under_30">30 $ nebo méně</string>
+    <string name="stores_gamejolt_os_other">Jiné</string>
+    <string name="stores_gamejolt_maturity_everyone">Pro všechny věkové skupiny</string>
+    <string name="stores_gamejolt_maturity_teen">Teenageři</string>
+    <string name="stores_gamejolt_maturity_adult">Pro dospělé</string>
+    <string name="stores_gamejolt_status_complete">Dokončeno</string>
+    <string name="stores_gamejolt_status_early">Předběžný přístup</string>
+    <string name="stores_gamejolt_status_devlog">Devlog</string>
+    <string name="stores_gamejolt_partners">Hry partnerů</string>
+    <string name="stores_gamejolt_filter_browser">Prohlížeč</string>
+    <string name="stores_gamejolt_filter_maturity">Věkové hodnocení</string>
+    <string name="stores_gamejolt_filter_status">Stav</string>
+    <string name="stores_gamejolt_filter_partners">Partneři</string>
+    <string name="stores_gamejolt_followed">Sledované hry</string>
 </resources>

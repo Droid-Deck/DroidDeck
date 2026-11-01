@@ -3338,4 +3338,24 @@
     <string name="stores_gamejolt_build_open">Game Jolt で開く</string>
     <string name="stores_gamejolt_archive">%1$s 形式のアーカイブには対応していません</string>
     <string name="stores_gamejolt_extract_failed">ダウンロードを展開できませんでした (終了コード %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">Game Jolt に接続できませんでした</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt がダウンロードリンクを提供しませんでした</string>
+    <string name="stores_gamejolt_section_featured">注目</string>
+    <string name="stores_gamejolt_section_hot">人気急上昇</string>
+    <string name="stores_gamejolt_section_best">ベスト</string>
+    <string name="stores_gamejolt_section_new">新着</string>
+    <string name="stores_gamejolt_price_under_30">30ドル以下</string>
+    <string name="stores_gamejolt_os_other">その他</string>
+    <string name="stores_gamejolt_maturity_everyone">全年齢</string>
+    <string name="stores_gamejolt_maturity_teen">ティーン</string>
+    <string name="stores_gamejolt_maturity_adult">成人向け</string>
+    <string name="stores_gamejolt_status_complete">完成</string>
+    <string name="stores_gamejolt_status_early">アーリーアクセス</string>
+    <string name="stores_gamejolt_status_devlog">開発ログ</string>
+    <string name="stores_gamejolt_partners">パートナーのゲーム</string>
+    <string name="stores_gamejolt_filter_browser">ブラウザ</string>
+    <string name="stores_gamejolt_filter_maturity">対象年齢</string>
+    <string name="stores_gamejolt_filter_status">ステータス</string>
+    <string name="stores_gamejolt_filter_partners">パートナー</string>
+    <string name="stores_gamejolt_followed">フォロー中のゲーム</string>
 </resources>

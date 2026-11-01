@@ -35,7 +35,7 @@ internal class GameJoltInstaller(
     override fun run(handle: DownloadQueue.JobHandle): String? {
         val cookies = GameJoltAuth.cookies(app)
         if (cookies.isBlank()) throw IllegalStateException(app.getString(R.string.stores_sync_sign_in))
-        if (!item.isFree) throw IllegalStateException(app.getString(R.string.stores_gamejolt_not_owned))
+        if (!item.isFree && !item.owned) throw IllegalStateException(app.getString(R.string.stores_gamejolt_not_owned))
         val gameId = item.extra["gameId"].orEmpty().ifEmpty { item.id }
         val before = StoreGameSidecar.read(folder)
         previous = before
@@ -84,6 +84,7 @@ internal class GameJoltInstaller(
             cloud = false,
         )
         StoreInstalls.complete(app, folder, sidecar) { done, steps -> handle.stageProgress(done.toLong(), steps.toLong()) }
+        GameJoltUpdates.applied(app, item.key)
         return folder.path
     }
 

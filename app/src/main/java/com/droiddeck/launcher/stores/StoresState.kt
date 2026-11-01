@@ -133,7 +133,7 @@ object StoresState {
         store, id, library[store].orEmpty(),
         found[store].orEmpty() + when (store) {
             Store.ITCH -> com.droiddeck.launcher.stores.itch.ItchBrowseState.items + com.droiddeck.launcher.stores.itch.ItchCollections.items()
-            Store.GAMEJOLT -> com.droiddeck.launcher.stores.gamejolt.GameJoltBrowseState.items
+            Store.GAMEJOLT -> com.droiddeck.launcher.stores.gamejolt.GameJoltBrowseState.items + com.droiddeck.launcher.stores.gamejolt.GameJoltCollections.items()
             else -> emptyList()
         },
         shelves[store],
@@ -196,6 +196,10 @@ object StoresState {
             backend?.signOut(app)
             if (store == Store.GOG) com.droiddeck.launcher.stores.gog.GogComet.replaceAccount { StoreAccounts.clear(app, store) }
             else if (store != Store.XBOX || backend == null) StoreAccounts.clear(app, store)
+            if (store == Store.GAMEJOLT) {
+                com.droiddeck.launcher.stores.gamejolt.GameJoltCollections.clear()
+                com.droiddeck.launcher.stores.gamejolt.GameJoltUpdates.clear(app)
+            }
             if (store == Store.ITCH) {
                 com.droiddeck.launcher.stores.itch.ItchCollections.clear()
                 com.droiddeck.launcher.stores.itch.ItchUpdates.clear(app)
@@ -293,6 +297,7 @@ object StoresState {
                     installed = installed.filterNot { it.folder.absolutePath == game.folder.absolutePath }
                     uninstalling.remove(key)
                     if (game.sidecar.store == Store.ITCH) com.droiddeck.launcher.stores.itch.ItchUpdates.applied(app, key)
+                    if (game.sidecar.store == Store.GAMEJOLT) com.droiddeck.launcher.stores.gamejolt.GameJoltUpdates.applied(app, key)
                 }
             })
             main.post(onDone)
