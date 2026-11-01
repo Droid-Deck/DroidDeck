@@ -30,12 +30,12 @@ fun ResolutionRow(
         value to if (value == SessionDisplay.MATCH_SCREEN) stringResource(R.string.display_match_screen, screen.first, screen.second)
         else if (value == SessionDisplay.FOLLOW_SCREEN) stringResource(R.string.display_follow_screen)
         else if (SessionDisplay.isFollow(value)) stringResource(R.string.display_follow_screen_scaled,
-            SessionDisplay.formatScale(SessionDisplay.followScale(value) ?: 1f))
+            SessionDisplay.formatScale(SessionDisplay.followScale(value) ?: 1f)) + " (${dimensions.first}×${dimensions.second})"
         else if (value == SessionDisplay.DEFAULT_RESOLUTION) stringResource(R.string.mode_res_default, "${dimensions.first}×${dimensions.second}")
         else "${dimensions.first}×${dimensions.second}"
     } + listOf(SessionDisplay.FOLLOW_CUSTOM to stringResource(R.string.display_follow_screen_scaled,
         if (customFollow) SessionDisplay.formatScale(SessionDisplay.followScale(choice) ?: 1f) else "…"
-    )) + (custom to if (selected in choices) stringResource(R.string.mode_res_custom)
+    ) + if (customFollow) " (${size.first}×${size.second})" else "") + (custom to if (selected in choices) stringResource(R.string.mode_res_custom)
         else stringResource(R.string.mode_res_custom_value, size.first, size.second))
     ChoiceRow(host, "resolution", stringResource(R.string.display_resolution),
         stringResource(R.string.common_applies_next_session),
