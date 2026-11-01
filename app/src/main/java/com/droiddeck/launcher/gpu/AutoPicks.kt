@@ -29,9 +29,10 @@ object AutoPicks {
     val BUILT_IN = listOf(
         Rule(setOf(Family.A8XX), models = setOf(840), prefer = listOf(NEWEST_DD_TURNIP, DriverPairs.WN_BALANCED)),
         Rule(setOf(Family.A8XX), prefer = listOf(DriverPairs.WN_BALANCED)),
-        Rule(setOf(Family.A7XX_LOW), prefer = listOf(DriverPairs.BANNER_710)),
+        Rule(setOf(Family.A7XX_LOW), prefer = listOf(NEWEST_DD_TURNIP, DriverPairs.BANNER_710)),
         Rule(setOf(Family.A7XX), oneUi8Gen2 = true, prefer = listOf(DriverPairs.BANNER_ONEUI)),
-        Rule(setOf(Family.A7XX, Family.A6XX), prefer = listOf(DriverPairs.BANNER)),
+        Rule(setOf(Family.A7XX), prefer = listOf(NEWEST_DD_TURNIP, DriverPairs.BANNER)),
+        Rule(setOf(Family.A6XX), prefer = listOf(DriverPairs.BANNER)),
         Rule(setOf(Family.ADRENO_UNKNOWN), minSdk = 36, prefer = listOf(DriverPairs.WN_BALANCED)),
         Rule(setOf(Family.ADRENO_UNKNOWN), prefer = listOf(DriverPairs.BANNER)),
     )
