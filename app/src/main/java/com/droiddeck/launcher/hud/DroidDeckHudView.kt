@@ -654,7 +654,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         Pair(runWidth(tabSpans()) + 2f * sp(9f), capHeight(sp(20f)) + 2f * sp(7f))
 
     private fun drawTab(canvas: Canvas, rect: RectF, edgeOf: DroidDeckHudDock = dock) {
-        val r = sp(8f); val stroke = max(outlineWidth(), sp(1.5f)); val h = stroke / 2f
+        val r = sp(8f); val stroke = outlineWidth(); val h = stroke / 2f
         val round = floatArrayOf(r, r, r, r, r, r, r, r)
         val edge = when (edgeOf) {
             DroidDeckHudDock.LEFT -> intArrayOf(0, 3)
@@ -669,6 +669,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         headerPaint.shader = null
         headerPaint.color = withAlpha(panelColor(), max(Color.alpha(panelColor()), 200))
         canvas.drawPath(tabPath, headerPaint)
+        if (stroke <= 0f) return
         strokePaint.strokeWidth = stroke
         strokePaint.color = outlineColor()
         canvas.drawPath(tabPath, strokePaint)
