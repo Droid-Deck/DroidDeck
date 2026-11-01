@@ -114,9 +114,9 @@ object GameThreadHints {
                     pacedFor = if (paced) pacedFor + 1 else 0
                     val spare = when {
                         BoostReport.paused -> "check pause"
-                        pm.isPowerSaveMode -> "battery saver"
+                        pm.isPowerSaveMode -> BoostReport.BATTERY_SAVER
                         // Not SEVERE: the Odin 3 reports it once its skin reaches 50 C, a couple of minutes into any game.
-                        pm.currentThermalStatus >= PowerManager.THERMAL_STATUS_CRITICAL -> "too hot"
+                        pm.currentThermalStatus >= PowerManager.THERMAL_STATUS_CRITICAL -> BoostReport.TOO_HOT
                         pacedFor >= PACE_LEAVE_S -> "game keeps up"
                         else -> null
                     }

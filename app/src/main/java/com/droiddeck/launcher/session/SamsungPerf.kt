@@ -208,8 +208,8 @@ object SamsungPerf {
                 val why = when {
                     BoostReport.paused -> "check pause"
                     fps < 1 -> "no frames"
-                    pm.isPowerSaveMode -> "battery saver"
-                    hot -> "too hot"
+                    pm.isPowerSaveMode -> BoostReport.BATTERY_SAVER
+                    hot -> BoostReport.TOO_HOT
                     pacedFor >= GameThreadHints.PACE_LEAVE_S -> "game keeps up"
                     else -> null
                 }

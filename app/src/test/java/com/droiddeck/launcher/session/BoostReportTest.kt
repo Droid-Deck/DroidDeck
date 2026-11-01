@@ -56,13 +56,34 @@ class BoostReportTest {
         assertEquals(7, BoostReport.minutesForVerdict())
     }
 
-    @Test fun `the check starts after the first minute of play, boost on first`() {
+    @Test fun `the check starts after the first minute of play, then goes on, paused, paused, on`() {
         (1..60).forEach { assertNull(BoostReport.checkWindow(it)) }
         assertEquals(false to 0, BoostReport.checkWindow(61))
         assertEquals(false to 59, BoostReport.checkWindow(120))
         assertEquals(true to 0, BoostReport.checkWindow(121))
-        assertEquals(true to 59, BoostReport.checkWindow(180))
-        assertEquals(false to 0, BoostReport.checkWindow(181))
+        assertEquals(true to 119, BoostReport.checkWindow(240))
+        assertEquals(false to 0, BoostReport.checkWindow(241))
+        assertEquals(false to 119, BoostReport.checkWindow(360))
+        assertEquals(true to 0, BoostReport.checkWindow(361))
+    }
+
+    @Test fun `a game slowing down steadily as the phone warms favours neither side`() {
+        val on = BoostReport.Side()
+        val off = BoostReport.Side()
+        for (s in 1..BoostReport.WARMUP_S + 8 * BoostReport.WINDOW_S) {
+            val (pause, at) = BoostReport.checkWindow(s) ?: continue
+            if (at >= BoostReport.SETTLE_S) (if (pause) off else on).add(150 - s / 6, null, 0)
+        }
+        assertEquals(on.average, off.average, 0.5)
+        assertTrue(BoostReport.verdict(on, off).startsWith("not worth keeping"))
+    }
+
+    @Test fun `no verdict when heat held the boost back for more than a quarter of its turns`() {
+        val on = BoostReport.Side().apply { repeat(200) { add(80, null, 4, held = it < 60) } }
+        val v = BoostReport.verdict(on, side(60))
+        assertTrue(v, v.startsWith("can't tell: the phone was too hot or saving battery for 30 % of the time"))
+        assertTrue(BoostReport.verdict(BoostReport.Side().apply { repeat(200) { add(80, null, 4, held = it < 40) } }, side(60))
+            .startsWith("worth keeping"))
     }
 
     @Test fun `the status names why the boost is off, once for a reason both parts give`() {

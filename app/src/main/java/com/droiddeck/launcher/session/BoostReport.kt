@@ -20,10 +20,12 @@ import kotlin.math.roundToInt
  * every [STATUS_S] seconds of play with why a part is off, and a summary with a verdict when the
  * session ends. Play is time the game presents frames.
  *
- * With "Check the boost" on, the boost is paused for every other [WINDOW_S] seconds of play, so the
- * frame rate with and without it is compared over the same stretch of game. The first [WARMUP_S]
- * seconds of play (loading, shader compiles) and the first [SETTLE_S] seconds after each switch are
- * not counted.
+ * With "Check the boost" on, the boost is on and paused in [WINDOW_S]-second windows of play in the
+ * order on, paused, paused, on, so the frame rate with and without it is compared over the same
+ * stretch of game, and a steady change such as the phone warming up favours neither side. The first
+ * [WARMUP_S] seconds of play (loading, shader compiles) and the first [SETTLE_S] seconds after each
+ * switch are not counted. Seconds the boost should be on but is held back for heat or battery saver
+ * are counted as [Side.heldBack]; too many and there is no verdict.
  */
 object BoostReport {
     private const val TAG = "BoostReport"
@@ -32,6 +34,8 @@ object BoostReport {
     internal const val WINDOW_S = 60
     internal const val SETTLE_S = 5
     internal const val CHECK_MIN_S = 120 // counted seconds on each side before there is a verdict
+    internal const val TOO_HOT = "too hot"
+    internal const val BATTERY_SAVER = "battery saver"
     private const val CONFIRM_S = 2 // held this long before the clocks are compared
     private const val SAMPLES = 5
     private const val SAMPLE_MS = 200L
@@ -52,16 +56,19 @@ object BoostReport {
         val fps = ArrayList<Int>()
         val milliamps = ArrayList<Int>()
         var hottest = 0
+        /** Seconds the boost should have been on but was held back for heat or battery saver. */
+        var heldBack = 0
         val seconds get() = fps.size
         val average get() = if (fps.isEmpty()) 0.0 else fps.average()
         /** The frame rate of the slowest 5 % of seconds. */
         val low get() = if (fps.isEmpty()) 0 else fps.sorted()[fps.size / 20]
         val draw get() = if (milliamps.isEmpty()) null else milliamps.average()
 
-        fun add(f: Int, ma: Int?, thermal: Int) {
+        fun add(f: Int, ma: Int?, thermal: Int, held: Boolean = false) {
             fps.add(f)
             ma?.let { milliamps.add(it) }
             hottest = maxOf(hottest, thermal)
+            if (held) heldBack++
         }
     }
 
@@ -77,15 +84,25 @@ object BoostReport {
     }
 
     internal fun minutesForVerdict(): Int {
-        val windows = (CHECK_MIN_S + WINDOW_S - SETTLE_S - 1) / (WINDOW_S - SETTLE_S)
-        return (WARMUP_S + 2 * windows * WINDOW_S + 59) / 60
+        val counted = IntArray(2)
+        var played = 0
+        while (counted.any { it < CHECK_MIN_S }) {
+            val (pause, at) = checkWindow(++played) ?: continue
+            if (at >= SETTLE_S) counted[if (pause) 1 else 0]++
+        }
+        return (played + 59) / 60
     }
 
-    /** Where second [played] of play falls in the check: null in the warm-up, else whether the boost is paused and the second's place in its window. */
+    /**
+     * Where second [played] of play falls in the check: null in the warm-up, else whether the boost is
+     * paused and the seconds since it last switched. One window on, then two paused, two on, and so on.
+     */
     internal fun checkWindow(played: Int): Pair<Boolean, Int>? {
         if (played <= WARMUP_S) return null
         val n = played - WARMUP_S - 1
-        return (n / WINDOW_S % 2 == 1) to n % WINDOW_S
+        if (n < WINDOW_S) return false to n
+        val m = n - WINDOW_S
+        return (m / (2 * WINDOW_S) % 2 == 0) to m % (2 * WINDOW_S)
     }
 
     /** Why neither part boosts now, from what each says (Samsung's only where the phone has its service). */
@@ -98,6 +115,10 @@ object BoostReport {
 
     /** From Check the boost: whether the boost made the game faster where it matters. */
     internal fun verdict(on: Side, off: Side): String {
+        if (on.seconds > 0 && on.heldBack * 4 > on.seconds) {
+            return "can't tell: the phone was too hot or saving battery for ${share(on.heldBack, on.seconds)} of the time " +
+                "the boost should have been on, so it was off then; try again with the phone cool and not charging"
+        }
         if (on.seconds < CHECK_MIN_S || off.seconds < CHECK_MIN_S) {
             return "too short to tell: play at least ${minutesForVerdict()} minutes with Check the boost on"
         }
@@ -230,25 +251,28 @@ object BoostReport {
         r.batteryEnd = battery(bm)
         r.lastFrameMs = System.currentTimeMillis()
 
+        val threads = GameThreadHints.boostedThreads
+        val samsung = SamsungPerf.holding
+        (if (samsung || threads.isNotEmpty()) r.boosted else r.unboosted).add(fps, ma, thermal)
+        if (samsung) r.samsungHeld++
+        // A part switching on or off can be read between its two fields, with no reason yet: not counted.
+        val coresWhy = GameThreadHints.offWhy
+        val samsungWhy = SamsungPerf.offWhy.takeIf { SamsungPerf.connected }
+        if (threads.isEmpty() && coresWhy != null) r.coresOff[coresWhy] = (r.coresOff[coresWhy] ?: 0) + 1
+        if (!samsung && samsungWhy != null) r.samsungOff[samsungWhy] = (r.samsungOff[samsungWhy] ?: 0) + 1
+        val off = if (samsung || threads.isNotEmpty()) null else offReasons(coresWhy, samsungWhy)
+        val held = off != null && listOfNotNull(coresWhy, samsungWhy).any { it == TOO_HOT || it == BATTERY_SAVER }
+
         val window = if (r.check) checkWindow(r.played) else null
         if (window != null) {
             val (pause, at) = window
             if (at == 0) {
                 paused = pause
-                line(r, if (pause) "check: boost paused for $WINDOW_S s" else "check: boost on for $WINDOW_S s")
+                val span = if (r.played <= WARMUP_S + WINDOW_S) WINDOW_S else 2 * WINDOW_S
+                line(r, "check: boost ${if (pause) "paused" else "on"} for $span s")
             }
-            if (at >= SETTLE_S) (if (pause) r.checkOff else r.checkOn).add(fps, ma, thermal)
+            if (at >= SETTLE_S) (if (pause) r.checkOff else r.checkOn).add(fps, ma, thermal, held && !pause)
         }
-
-        val threads = GameThreadHints.boostedThreads
-        val samsung = SamsungPerf.holding
-        (if (samsung || threads.isNotEmpty()) r.boosted else r.unboosted).add(fps, ma, thermal)
-        if (samsung) r.samsungHeld++
-        val coresWhy = GameThreadHints.offWhy ?: "unknown"
-        val samsungWhy = (SamsungPerf.offWhy ?: "unknown").takeIf { SamsungPerf.connected }
-        if (threads.isEmpty()) r.coresOff[coresWhy] = (r.coresOff[coresWhy] ?: 0) + 1
-        if (!samsung && samsungWhy != null) r.samsungOff[samsungWhy] = (r.samsungOff[samsungWhy] ?: 0) + 1
-        val off = if (samsung || threads.isNotEmpty()) null else offReasons(coresWhy, samsungWhy)
         if (threads.isNotEmpty()) {
             r.coresBoosted++
             for (tid in threads) {
@@ -390,7 +414,8 @@ object BoostReport {
         off.maxByOrNull { it.value }?.let { "${it.key} ${clock(it.value)} of ${clock(played)}" } ?: "no reason given"
 
     private fun side(s: Side) = "${"%.1f".format(Locale.US, s.average)} fps, slowest 5 % ${s.low}" +
-        (s.draw?.let { ", battery ${it.roundToInt()} mA" } ?: "") + ", hottest ${THERMAL.getOrElse(s.hottest) { "${s.hottest}" }}"
+        (s.draw?.let { ", battery ${it.roundToInt()} mA" } ?: "") + ", hottest ${THERMAL.getOrElse(s.hottest) { "${s.hottest}" }}" +
+        (if (s.heldBack > 0) ", held back for heat or battery saver ${share(s.heldBack, s.seconds)}" else "")
 
     private fun share(part: Int, whole: Int) = if (whole == 0) "0 %" else "${part * 100 / whole} %"
 
