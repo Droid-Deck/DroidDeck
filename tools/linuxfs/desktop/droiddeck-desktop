@@ -31,6 +31,12 @@ export BL_DESKTOP=1
 ln -sf /usr/local/bin/droiddeck-steam-launch /usr/local/bin/steamdeck-steam 2>/dev/null
 ln -sf /usr/local/bin/droiddeck-steam-shim /usr/local/bin/steam 2>/dev/null
 python3 /usr/local/bin/droiddeck-desktop-games 2>&1 | sed 's/^/[games] /'
+# startplasma applies this file over the session environment, and keeps what an earlier session wrote.
+mkdir -p "$HOME/.config"
+{
+  printf '[Formats]\nLANG=%s\n' "${LANG:-C.UTF-8}"
+  [ -n "${LANGUAGE:-}" ] && printf '\n[Translations]\nLANGUAGE=%s\n' "$LANGUAGE"
+} > "$HOME/.config/plasma-localerc"
 cat > /usr/share/applications/droiddeck-steam-x64.desktop <<'ENTRY'
 [Desktop Entry]
 Type=Application
