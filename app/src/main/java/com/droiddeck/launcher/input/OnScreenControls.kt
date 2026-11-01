@@ -685,15 +685,18 @@ class OnScreenControls(
     private fun adaptiveStickAt(x: Float, y: Float): Control? {
         if (!settings.adaptiveSticks || editing || buttonsOnly || quickHidden) return null
         if (x < safe.left || x >= width - safe.right || y < safe.top || y >= height - safe.bottom) return null
-        if (controls.any { it.stick < 0 && isVisible(it) && it.contains(x, y, it.radius, 5f) }) return null
-        return controls.filter {
-            val dx = x - it.cx
-            val dy = y - it.cy
-            val reach = it.radius * 1.4f * sqrt(1.5f)
-            it.stick >= 0 && isVisible(it) && it.pressedBy == -1 && dx * dx + dy * dy <= reach * reach
-        }.minByOrNull {
-            val dx = x - it.cx
-            val dy = y - it.cy
+        if (controls.any { control ->
+            control.stick < 0 && isVisible(control) && control.contains(x, y, control.radius, 5f)
+        }) return null
+        return controls.filter { control ->
+            val dx = if (control.stick == 0) max(0f, x - control.cx) else x - control.cx
+            val dy = y - control.cy
+            val reach = control.radius * 1.4f * sqrt(1.5f)
+            control.stick >= 0 && isVisible(control) && control.pressedBy == -1 &&
+                dx * dx + dy * dy <= reach * reach
+        }.minByOrNull { control ->
+            val dx = x - control.cx
+            val dy = y - control.cy
             dx * dx + dy * dy
         }
     }
