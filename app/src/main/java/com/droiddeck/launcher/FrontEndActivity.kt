@@ -502,6 +502,7 @@ class FrontEndActivity : ComponentActivity() {
             val result = SteamLibraries.add(this, path)
             ui.post {
                 steamLibraries = SteamLibraries.list(this)
+                refresh()
                 if (result is SteamLibraries.AddResult.Refused) {
                     android.widget.Toast.makeText(this, getString(R.string.main_storage_not_usable, result.reason), android.widget.Toast.LENGTH_LONG).show()
                 }
@@ -2208,6 +2209,7 @@ class FrontEndActivity : ComponentActivity() {
                 onRemoveSteamLibrary = { id ->
                     SteamLibraries.remove(this, id)
                     steamLibraries = SteamLibraries.list(this)
+                    refresh()
                 },
                 onStorageDiagnostics = { on ->
                     SessionPrefs.setStorageDiagnosticsEnabled(this, on)

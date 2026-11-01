@@ -3,6 +3,7 @@ package com.droiddeck.launcher.session
 import android.content.Context
 import android.os.storage.StorageManager
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.frontend.AddedGames
 import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
@@ -12,6 +13,7 @@ object SteamLibraries {
     const val GUEST_ROOT = "/mnt/droiddeck-lib"
     // Each library costs a bind per redirected tool and prefix folder; the PRoot fast path holds 256 in all.
     const val MAX = 4
+    private val lock = Any()
 
     class Entry(val id: String, val path: String, val label: String) {
         val host: File get() = File(path)
@@ -56,23 +58,30 @@ object SteamLibraries {
             canonical(SessionPrefs.steamRoot(context, "arm64")),
         )
         if (taken.any { overlaps(it, host) }) return AddResult.Refused(context.getString(R.string.libraries_overlap))
+        // Adding a Games folder itself is fine; a child of one would make it overlap and hide the rest of that folder.
+        if (AddedGames.roots(context).any { host.startsWith(canonical(it.host) + "/") }) return AddResult.Refused(context.getString(R.string.libraries_overlap))
         GameStorage.prepare(context, path)?.let { return AddResult.Refused(it) }
-        // A removed library's mount stays registered with Steam until its next session, so ids are never reused.
-        val next = maxOf(SessionPrefs.steamLibraryNextId(context), (entries.maxOfOrNull { it.id.toInt() } ?: 0) + 1)
-        val entry = Entry(next.toString(), path, clean(label).ifEmpty { File(path).name })
-        save(context, entries + entry)
-        SessionPrefs.setSteamLibraryNextId(context, next + 1)
-        return AddResult.Added(entry)
+        synchronized(lock) {
+            val current = list(context)
+            if (current.size >= MAX) return AddResult.Refused(context.getString(R.string.libraries_full, MAX))
+            if (current.any { overlaps(canonical(it.host), host) }) return AddResult.Refused(context.getString(R.string.libraries_overlap))
+            // A removed library's mount stays registered with Steam until its next session, so ids are never reused.
+            val next = maxOf(SessionPrefs.steamLibraryNextId(context), (current.maxOfOrNull { it.id.toInt() } ?: 0) + 1)
+            val entry = Entry(next.toString(), path, clean(label).ifEmpty { File(path).name })
+            save(context, current + entry)
+            SessionPrefs.setSteamLibraryNextId(context, next + 1)
+            return AddResult.Added(entry)
+        }
     }
 
     fun rename(context: Context, id: String, label: String) {
         val name = clean(label).takeIf { it.isNotEmpty() } ?: return
-        save(context, list(context).map { if (it.id == id) Entry(it.id, it.path, name) else it })
+        synchronized(lock) { save(context, list(context).map { if (it.id == id) Entry(it.id, it.path, name) else it }) }
     }
 
     /** Forgets the library; its folder and games stay where they are. */
     fun remove(context: Context, id: String) {
-        save(context, list(context).filterNot { it.id == id })
+        synchronized(lock) { save(context, list(context).filterNot { it.id == id }) }
     }
 
     fun defaultLabel(context: Context, folder: File): String {

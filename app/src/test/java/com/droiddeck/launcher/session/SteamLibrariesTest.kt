@@ -60,6 +60,9 @@ class SteamLibrariesTest {
         assertEquals(File(pc, "steamapps/common"), AddedGames.hostPath(app, "${lib.guest}/steamapps/common"))
         val docs = added(tmp.newFolder("Documents").path)
         assertEquals("${docs.guest}/steamapps", AddedGames.guestPath(app, File(docs.path, "steamapps")))
+        val nested = File(pc, "Other").apply { mkdirs() }
+        SteamLibraries.remove(app, lib.id)
+        assertTrue(SteamLibraries.add(app, nested.path) is SteamLibraries.AddResult.Refused)
     }
 
     @Test fun unreadableOrInvalidEntriesAreDropped() {
