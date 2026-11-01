@@ -870,6 +870,8 @@ public class HudMetrics {
 
     private long[] lastCoreTotal = null;
     private long[] lastCoreIdle = null;
+    /** Whether the last per-core reading came from /proc/stat for every core (false: clock speed estimate). */
+    private volatile boolean perCoreFromStat = false;
 
     public int[] readPerCorePercent() {
         int cores = Runtime.getRuntime().availableProcessors();
@@ -909,13 +911,16 @@ public class HudMetrics {
                 }
             }
         } catch (Exception ignored) {}
+        boolean fromStat = out.length > 0;
         for (int i = 0; i < out.length; i++) {
             if (out[i] >= 0) continue;
+            fromStat = false;
             Long cur = readLongFromLine("/sys/devices/system/cpu/cpu" + i + "/cpufreq/scaling_cur_freq");
             Long max = readLongFromLine("/sys/devices/system/cpu/cpu" + i + "/cpufreq/cpuinfo_max_freq");
             if (cur != null && max != null && max > 0L)
                 out[i] = clampPercent((int) ((Math.max(0L, Math.min(cur, max)) * 100L) / max));
         }
+        perCoreFromStat = fromStat;
         return out;
     }
 
@@ -1009,7 +1014,8 @@ public class HudMetrics {
             cores.append('c').append(i).append('=').append(v < 0 ? "?" : (v + "%"));
         }
         if (s.perCorePercent.length > 0)
-            metricHit(sb, "Per-core %", cores.toString(), "/proc/stat (per-cpu lines)");
+            metricHit(sb, "Per-core %", cores.toString(), perCoreFromStat ? "/proc/stat (per-cpu lines)"
+                : "scaling_cur_freq / cpuinfo_max_freq (clock estimate)");
         else
             metricMiss(sb, "Per-core %", "/proc/stat");
 

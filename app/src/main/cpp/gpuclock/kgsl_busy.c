@@ -1,5 +1,6 @@
 // Whole-GPU busy share without root on Adreno (KGSL) devices whose kgsl sysfs is blocked for apps: a thread
-// samples the memstore ringbuffer timestamps (kgsl_busy.h) once a millisecond while running.
+// samples the memstore timestamps (kgsl_busy.h) once a millisecond while running. Ringbuffer entries are used where
+// the kernel writes them; on hardware-scheduled kernels, which leave them at 0, the contexts' own entries are used.
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -15,13 +16,21 @@
 #include "kgsl_busy.h"
 
 #define SAMPLE_NS 1000000L
+// Context mode: how many samples between scans for the contexts that are submitting work.
+#define SCAN_EVERY 200
+
+enum { MODE_RINGBUFFER = 1, MODE_CONTEXTS = 2 };
 
 struct reader {
     int fd;
     void *map;
     size_t bytes;
     int first;
+    int mode;
     uint32_t last[KGSL_BUSY_SLOTS];
+    uint32_t *seen, *ctx_last;
+    int live[KGSL_BUSY_MAX_LIVE];
+    int live_count;
     pthread_mutex_t lock;
     pthread_t thread;
     int thread_on;
@@ -32,9 +41,18 @@ struct reader {
 static void *sample_loop(void *arg) {
     struct reader *r = arg;
     const struct timespec gap = {0, SAMPLE_NS};
+    int until_scan = 0;
     while (atomic_load(&r->run)) {
-        int moved = 0;
-        int busy = kgsl_busy_sample(r->map, r->first, r->last, &moved);
+        int moved = 0, busy;
+        if (r->mode == MODE_CONTEXTS) {
+            if (until_scan-- <= 0) {
+                r->live_count = kgsl_busy_scan_contexts(r->map, r->first, r->seen, r->live, KGSL_BUSY_MAX_LIVE);
+                until_scan = SCAN_EVERY;
+            }
+            busy = kgsl_busy_sample_contexts(r->map, r->live, r->live_count, r->ctx_last, &moved);
+        } else {
+            busy = kgsl_busy_sample(r->map, r->first, r->last, &moved);
+        }
         if (busy) atomic_fetch_add(&r->busy, 1);
         if (moved) atomic_fetch_add(&r->moves, 1);
         atomic_fetch_add(&r->samples, 1);
@@ -62,6 +80,8 @@ static void reader_close(struct reader *r) {
     reader_run(r, 0);
     if (r->map && r->map != MAP_FAILED) munmap(r->map, r->bytes);
     if (r->fd >= 0) close(r->fd);
+    free(r->seen);
+    free(r->ctx_last);
     pthread_mutex_destroy(&r->lock);
     free(r);
 }
@@ -85,7 +105,17 @@ static int reader_open(struct reader **out) {
     int moved = 0, started = 0;
     kgsl_busy_sample(r->map, r->first, r->last, &moved);
     for (int i = 0; i < KGSL_BUSY_SLOTS; i++) started |= r->last[i] != 0;
-    if (!started) { reader_close(r); return -ENODATA; }
+    if (started) {
+        r->mode = MODE_RINGBUFFER;
+    } else {
+        r->seen = calloc((size_t)r->first, sizeof(uint32_t));
+        r->ctx_last = calloc((size_t)r->first, sizeof(uint32_t));
+        if (!r->seen || !r->ctx_last) { reader_close(r); return -ENOMEM; }
+        r->live_count = kgsl_busy_scan_contexts(r->map, r->first, r->seen, r->live, KGSL_BUSY_MAX_LIVE);
+        if (r->live_count == 0) { reader_close(r); return -ENODATA; }
+        kgsl_busy_sample_contexts(r->map, r->live, r->live_count, r->ctx_last, &moved);
+        r->mode = MODE_CONTEXTS;
+    }
     *out = r;
     return 0;
 }
@@ -101,6 +131,10 @@ JNIEXPORT jlong JNICALL Java_com_droiddeck_launcher_session_KgslBusy_nativeOpen(
         (*env)->SetIntArrayRegion(env, error, 0, 1, &v);
     }
     return e ? 0 : (jlong)(intptr_t)r;
+}
+
+JNIEXPORT jint JNICALL Java_com_droiddeck_launcher_session_KgslBusy_nativeMode(JNIEnv *env, jclass cls, jlong handle) {
+    return handle ? ((struct reader *)(intptr_t)handle)->mode : 0;
 }
 
 JNIEXPORT void JNICALL Java_com_droiddeck_launcher_session_KgslBusy_nativeRun(JNIEnv *env, jclass cls, jlong handle, jboolean on) {
