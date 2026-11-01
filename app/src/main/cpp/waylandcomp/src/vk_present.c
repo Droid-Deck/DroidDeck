@@ -7,6 +7,7 @@
 #include "framegen_bridge.h"
 #include "hdr_compose.h"
 #include "blend_pass.h"
+#include "gpu_busy.h"
 #include "droiddeck_color.h"
 #include "quest_device.h"
 #include <stdio.h>
@@ -517,6 +518,7 @@ static int dev_init(void) {
     }
     vk_loader_load_device(g_dev);
     g_vk.GetDeviceQueue(g_dev, g_qfam, 0, &g_queue);
+    vkp_gpu_busy_device(g_pd, g_dev, g_qfam);
     if (want_sem_fd) {
         g_import_sem_fd = (PFN_vkImportSemaphoreFdKHR)g_vk.GetDeviceProcAddr(g_dev, "vkImportSemaphoreFdKHR");
         VkSemaphoreCreateInfo wsci = {.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
@@ -1311,6 +1313,7 @@ static void device_lost(const char *where) {
     g_dev_state = -2;
     g_base_black = 0;
     vkp_framegen_device_lost();
+    vkp_gpu_busy_device_lost();
     droiddeck_log("error", "GPU device lost (VK_ERROR_DEVICE_LOST in %s): the compositor has stopped presenting; "
                "restart the session", where);
     for (uint32_t i = 0; i < g_nimg; i++) blendp_forget_image(g_images[i]);

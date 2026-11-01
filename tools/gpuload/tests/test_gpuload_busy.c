@@ -4,20 +4,16 @@
 #include "gpuload_busy.h"
 
 int main(void) {
-    struct gpuload_busy b = {0, 0};
     const uint64_t max = 1000;
-    assert(gpuload_add_interval(&b, 10, 20, max) && b.busy_ticks == 10);
-    // Gap: counted on its own.
-    assert(gpuload_add_interval(&b, 30, 35, max) && b.busy_ticks == 15);
-    // Overlaps what is already counted: only the new part.
-    assert(gpuload_add_interval(&b, 32, 40, max) && b.busy_ticks == 20);
-    // Fully inside: nothing new.
-    assert(!gpuload_add_interval(&b, 33, 39, max) && b.busy_ticks == 20);
-    // Backwards, empty or too long: refused.
-    assert(!gpuload_add_interval(&b, 60, 50, max) && b.busy_ticks == 20);
-    assert(!gpuload_add_interval(&b, 70, 70, max) && b.busy_ticks == 20);
-    assert(!gpuload_add_interval(&b, 100, 100 + max + 1, max) && b.busy_ticks == 20);
-    assert(b.covered_until == 40);
+    assert(gpuload_interval(10, 20, max) == 10);
+    // Each batch counts on its own, even when the counter restarted in between (later batch has smaller ticks).
+    assert(gpuload_interval(900000, 900400, max) == 400);
+    assert(gpuload_interval(50, 350, max) == 300);
+    // Backwards, empty or too long: nothing.
+    assert(gpuload_interval(60, 50, max) == 0);
+    assert(gpuload_interval(70, 70, max) == 0);
+    assert(gpuload_interval(100, 100 + max + 1, max) == 0);
+    assert(gpuload_interval(100, 100 + max, max) == max);
     // Query results: both halves available and an end that differs from the last harvested one.
     assert(gpuload_result_is_new(1, 1, 500, 400));
     assert(!gpuload_result_is_new(1, 1, 400, 400));

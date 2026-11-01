@@ -1,14 +1,7 @@
-// VK_LAYER_DROIDDECK_gpu_load: measures how long this process keeps the GPU busy, for the HUD on devices where
-// Android keeps the GPU load from apps (the kgsl sysfs nodes are SELinux-blocked and kgsl refuses perfcounter
-// reads while /sys/class/kgsl/kgsl-3d0/perfcounter is 0).
-//
-// Each submit batch that has command buffers gets one of our command buffers in front (resets a query pair and
-// writes a TOP_OF_PIPE timestamp) and one behind (BOTTOM_OF_PIPE timestamp). Finished pairs are read back without
-// waiting on later submits, overlapping time is counted once per device, and the process total in nanoseconds is
-// written to $DROIDDECK_GPU_LOAD_DIR/<pid>. The app turns the totals of all processes into a percentage.
-// Nothing is added while $DROIDDECK_GPU_LOAD_DIR/on is missing (the app removes it while no HUD is shown).
-// The start timestamp sits after the batch's semaphore waits only because Turnip on kgsl holds a whole batch until
-// its waits signal; a driver that starts TOP_OF_PIPE work before the waits would count the waiting time as busy.
+// VK_LAYER_DROIDDECK_gpu_load: this process's GPU busy time for the HUD where Android keeps the GPU load from apps
+// (kgsl sysfs SELinux-blocked, perfcounter reads refused while /sys/class/kgsl/kgsl-3d0/perfcounter is 0).
+// The process total in nanoseconds goes to $DROIDDECK_GPU_LOAD_DIR/<pid>; nothing is timed while
+// $DROIDDECK_GPU_LOAD_DIR/on is missing (the app removes it while no HUD is shown).
 #define _GNU_SOURCE
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_layer.h>
@@ -25,19 +18,18 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "gpuload_busy.h"
+#include "gpuload_ring.h"
 
 #define EXPORT __attribute__((visibility("default")))
-#define RING 64
 #define MAX_FAMILIES 32
 #define WANTED_CHECK_NS 500000000ull
 #define WRITE_EVERY_NS 100000000ull
-#define LONGEST_SUBMIT_NS 2000000000.0
 
 static const char *g_dir;
 
 static void say(const char *what) {
-    fprintf(stderr, "[droiddeck-gpu-load] %s: %s\n", program_invocation_short_name, what);
+    // FEX leaves program_invocation_short_name empty for x86 programs.
+    fprintf(stderr, "[droiddeck-gpu-load] %s (pid %d): %s\n", program_invocation_short_name, (int)getpid(), what);
 }
 
 __attribute__((constructor)) static void init(void) {
@@ -64,48 +56,24 @@ struct dev {
     struct dev *next_in_list;
     VkDevice handle;
     PFN_vkGetDeviceProcAddr gdpa;
-    PFN_vkSetDeviceLoaderData set_data;
     PFN_vkDestroyDevice destroy;
     PFN_vkGetDeviceQueue get_queue;
     PFN_vkGetDeviceQueue2 get_queue2;
     PFN_vkQueueSubmit submit;
     PFN_vkQueueSubmit2 submit2;
     PFN_vkQueueSubmit2 submit2_khr;
-    PFN_vkCreateCommandPool create_pool;
-    PFN_vkDestroyCommandPool destroy_pool;
-    PFN_vkAllocateCommandBuffers alloc_cmds;
-    PFN_vkBeginCommandBuffer begin;
-    PFN_vkEndCommandBuffer end;
-    PFN_vkCmdResetQueryPool cmd_reset;
-    PFN_vkCmdWriteTimestamp cmd_timestamp;
-    PFN_vkCreateQueryPool create_queries;
-    PFN_vkDestroyQueryPool destroy_queries;
-    PFN_vkGetQueryPoolResults results;
-    double period_ns;
-    uint64_t max_ticks;
+    struct gpuload_vk vk;
     uint32_t family_count;
     uint32_t timestamp_bits[MAX_FAMILIES];
-    pthread_mutex_t lock;
-    struct gpuload_busy busy;
 };
 
-struct slot {
-    VkCommandBuffer start, end;
-    uint64_t last_end;
-};
-
-// Submits to one queue are externally synchronized by the app, so a queue's ring needs no lock of its own.
 struct queue {
     struct queue *next_in_list;
     VkQueue handle;
     struct dev *dev;
     uint32_t family;
-    int state;  // 0 not set up, 1 measuring, -1 cannot measure
-    VkCommandPool pool;
-    VkQueryPool queries;
-    uint64_t mask;
-    uint32_t next, oldest, inflight;
-    struct slot slot[RING];
+    uint32_t epoch;
+    struct gpuload_ring ring;
 };
 
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -157,6 +125,7 @@ static void note_queue(struct dev *d, VkQueue handle, uint32_t family) {
 static _Atomic uint64_t g_busy_ns;
 static _Atomic uint64_t g_wanted_at;
 static _Atomic int g_wanted;
+static _Atomic uint32_t g_epoch = 1;  // bumped each time the HUD comes back
 static pthread_mutex_t g_write_lock = PTHREAD_MUTEX_INITIALIZER;
 static uint64_t g_written_at;
 static int g_fd = -1;
@@ -170,7 +139,8 @@ static int wanted(uint64_t now) {
     char path[512];
     snprintf(path, sizeof(path), "%s/on", g_dir);
     int on = access(path, F_OK) == 0;
-    atomic_store(&g_wanted, on);
+    if (on && !atomic_exchange(&g_wanted, on)) atomic_fetch_add(&g_epoch, 1);
+    if (!on) atomic_store(&g_wanted, 0);
     return on;
 }
 
@@ -180,7 +150,7 @@ static void publish(uint64_t now) {
         g_written_at = now;
         pid_t pid = getpid();
         struct stat st;
-        // A forked child writes its own file; a file the app removed as stale is created again.
+        // The app deletes files that stopped changing; a forked child needs its own.
         if (g_fd >= 0 && (g_fd_pid != pid || fstat(g_fd, &st) || st.st_nlink == 0)) { close(g_fd); g_fd = -1; }
         if (g_fd < 0) {
             char path[512];
@@ -198,171 +168,50 @@ static void publish(uint64_t now) {
     pthread_mutex_unlock(&g_write_lock);
 }
 
-// ---- per-queue timestamp ring --------------------------------------------------------------------------------
-
-static void queue_release(struct queue *q) {
-    struct dev *d = q->dev;
-    if (q->queries) d->destroy_queries(d->handle, q->queries, NULL);
-    if (q->pool) d->destroy_pool(d->handle, q->pool, NULL);
-    q->queries = VK_NULL_HANDLE;
-    q->pool = VK_NULL_HANDLE;
-}
-
-static int record_slot(struct dev *d, struct queue *q, uint32_t i) {
-    const VkCommandBufferBeginInfo begin = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-    struct slot *s = &q->slot[i];
-    if (d->begin(s->start, &begin) != VK_SUCCESS) return 0;
-    d->cmd_reset(s->start, q->queries, 2 * i, 2);
-    d->cmd_timestamp(s->start, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, q->queries, 2 * i);
-    if (d->end(s->start) != VK_SUCCESS) return 0;
-    if (d->begin(s->end, &begin) != VK_SUCCESS) return 0;
-    d->cmd_timestamp(s->end, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, q->queries, 2 * i + 1);
-    return d->end(s->end) == VK_SUCCESS;
-}
-
-static void queue_setup(struct queue *q) {
-    struct dev *d = q->dev;
-    q->state = -1;
-    if (!d->set_data || q->family >= d->family_count || !d->timestamp_bits[q->family]) return;
-    uint32_t bits = d->timestamp_bits[q->family];
-    q->mask = bits >= 64 ? ~0ull : (1ull << bits) - 1;
-    const VkCommandPoolCreateInfo pool = {.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, .queueFamilyIndex = q->family};
-    const VkQueryPoolCreateInfo queries = {.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
-                                           .queryType = VK_QUERY_TYPE_TIMESTAMP, .queryCount = 2 * RING};
-    VkCommandBuffer cmds[2 * RING];
-    const VkCommandBufferAllocateInfo alloc = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-                                               .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY, .commandBufferCount = 2 * RING};
-    if (d->create_pool(d->handle, &pool, NULL, &q->pool) != VK_SUCCESS) { q->pool = VK_NULL_HANDLE; goto fail; }
-    if (d->create_queries(d->handle, &queries, NULL, &q->queries) != VK_SUCCESS) { q->queries = VK_NULL_HANDLE; goto fail; }
-    VkCommandBufferAllocateInfo mine = alloc;
-    mine.commandPool = q->pool;
-    if (d->alloc_cmds(d->handle, &mine, cmds) != VK_SUCCESS) goto fail;
-    for (uint32_t i = 0; i < 2 * RING; i++)
-        if (d->set_data(d->handle, cmds[i]) != VK_SUCCESS) goto fail;
-    for (uint32_t i = 0; i < RING; i++) {
-        q->slot[i].start = cmds[2 * i];
-        q->slot[i].end = cmds[2 * i + 1];
-        if (!record_slot(d, q, i)) goto fail;
-    }
-    q->state = 1;
-    if (!__atomic_exchange_n(&g_announced, 1, __ATOMIC_RELAXED)) say("measuring this process's GPU busy time for the HUD");
-    return;
-fail:
-    say("cannot time this queue; leaving it alone");
-    queue_release(q);
-    q->state = -1;
-}
-
-// Slots are used in ring order and a queue runs its batches in order, so the oldest slot finishes first.
-static void harvest(struct queue *q) {
-    struct dev *d = q->dev;
-    while (q->inflight) {
-        struct slot *s = &q->slot[q->oldest];
-        uint64_t r[4] = {0, 0, 0, 0};
-        VkResult res = d->results(d->handle, q->queries, 2 * q->oldest, 2, sizeof(r), r, 2 * sizeof(uint64_t),
-                                  VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT);
-        if (res != VK_SUCCESS && res != VK_NOT_READY) return;
-        uint64_t start = r[0] & q->mask, end = r[2] & q->mask;
-        if (!gpuload_result_is_new(r[1], r[3], end, s->last_end)) return;
-        s->last_end = end;
-        q->oldest = (q->oldest + 1) % RING;
-        q->inflight--;
-        pthread_mutex_lock(&d->lock);
-        uint64_t before = d->busy.busy_ticks;
-        gpuload_add_interval(&d->busy, start, end, d->max_ticks);
-        uint64_t added = d->busy.busy_ticks - before;
-        pthread_mutex_unlock(&d->lock);
-        if (added) atomic_fetch_add(&g_busy_ns, (uint64_t)((double)added * d->period_ns));
-    }
-}
-
-// Common entry for every submit: returns the queue to wrap batches on, or NULL to pass the submit through.
+// The queue to time this submit on, or NULL to pass it through.
 static struct queue *measuring(VkQueue handle) {
     if (!g_dir) return NULL;
     struct queue *q = queue_for(handle);
     if (!q) return NULL;
     uint64_t now = now_ns();
     if (!wanted(now)) return NULL;
-    if (q->state == 0) queue_setup(q);
-    if (q->state != 1) return NULL;
-    harvest(q);
+    struct dev *d = q->dev;
+    if (q->ring.state == 0) {
+        uint32_t bits = q->family < d->family_count ? d->timestamp_bits[q->family] : 0;
+        if (gpuload_ring_setup(&q->ring, &d->vk, q->family, bits)) {
+            if (!__atomic_exchange_n(&g_announced, 1, __ATOMIC_RELAXED)) say("timing this process's GPU work for the HUD");
+        } else {
+            say(bits ? "cannot set up GPU timing on this queue" : "this queue family has no timestamps");
+        }
+        q->epoch = atomic_load(&g_epoch);
+    }
+    if (q->ring.state != 1) return NULL;
+    uint64_t ns = gpuload_ring_harvest(&q->ring, &d->vk);
+    uint32_t epoch = atomic_load(&g_epoch);
+    if (q->epoch == epoch) atomic_fetch_add(&g_busy_ns, ns);
+    else q->epoch = epoch;  // timed before the HUD went away
     publish(now);
     return q;
-}
-
-static int plain_batch(const void *next) {
-    for (const VkBaseInStructure *s = next; s; s = s->pNext) {
-        if (s->sType == VK_STRUCTURE_TYPE_DEVICE_GROUP_SUBMIT_INFO) return 0;
-        if (s->sType == VK_STRUCTURE_TYPE_PROTECTED_SUBMIT_INFO && ((const VkProtectedSubmitInfo *)s)->protectedSubmit)
-            return 0;
-    }
-    return 1;
-}
-
-static void unwind(struct queue *q, uint32_t used) {
-    q->next = (q->next + RING - used) % RING;
-    q->inflight -= used;
 }
 
 static VkResult VKAPI_CALL QueueSubmit(VkQueue queue, uint32_t count, const VkSubmitInfo *infos, VkFence fence) {
     struct dev *d = dev_for(queue);
     if (!d) return VK_ERROR_DEVICE_LOST;
     struct queue *q = count ? measuring(queue) : NULL;
-    if (!q) return d->submit(queue, count, infos, fence);
-    size_t cmds = 0;
-    for (uint32_t i = 0; i < count; i++) cmds += infos[i].commandBufferCount + 2;
-    VkSubmitInfo *mine = malloc(count * sizeof(*mine) + cmds * sizeof(VkCommandBuffer));
-    if (!mine) return d->submit(queue, count, infos, fence);
-    VkCommandBuffer *list = (VkCommandBuffer *)(mine + count);
     uint32_t used = 0;
-    for (uint32_t i = 0; i < count; i++) {
-        mine[i] = infos[i];
-        if (!infos[i].commandBufferCount || !plain_batch(infos[i].pNext) || q->inflight >= RING) continue;
-        struct slot *s = &q->slot[q->next];
-        VkCommandBuffer *cb = list;
-        cb[0] = s->start;
-        memcpy(cb + 1, infos[i].pCommandBuffers, infos[i].commandBufferCount * sizeof(VkCommandBuffer));
-        cb[infos[i].commandBufferCount + 1] = s->end;
-        mine[i].pCommandBuffers = cb;
-        mine[i].commandBufferCount = infos[i].commandBufferCount + 2;
-        list += infos[i].commandBufferCount + 2;
-        q->next = (q->next + 1) % RING;
-        q->inflight++;
-        used++;
-    }
-    VkResult r = d->submit(queue, count, mine, fence);
-    if (r != VK_SUCCESS) unwind(q, used);
+    VkSubmitInfo *mine = q ? gpuload_ring_wrap(&q->ring, count, infos, &used) : NULL;
+    VkResult r = d->submit(queue, count, mine ? mine : infos, fence);
+    if (mine && r != VK_SUCCESS) gpuload_ring_unwind(&q->ring, used);
     free(mine);
     return r;
 }
 
 static VkResult submit2(PFN_vkQueueSubmit2 next, VkQueue queue, uint32_t count, const VkSubmitInfo2 *infos, VkFence fence) {
     struct queue *q = count ? measuring(queue) : NULL;
-    if (!q) return next(queue, count, infos, fence);
-    size_t cmds = 0;
-    for (uint32_t i = 0; i < count; i++) cmds += infos[i].commandBufferInfoCount + 2;
-    VkSubmitInfo2 *mine = malloc(count * sizeof(*mine) + cmds * sizeof(VkCommandBufferSubmitInfo));
-    if (!mine) return next(queue, count, infos, fence);
-    VkCommandBufferSubmitInfo *list = (VkCommandBufferSubmitInfo *)(mine + count);
     uint32_t used = 0;
-    for (uint32_t i = 0; i < count; i++) {
-        mine[i] = infos[i];
-        uint32_t n = infos[i].commandBufferInfoCount;
-        if (!n || (infos[i].flags & VK_SUBMIT_PROTECTED_BIT) || !plain_batch(infos[i].pNext) || q->inflight >= RING) continue;
-        struct slot *s = &q->slot[q->next];
-        VkCommandBufferSubmitInfo *cb = list;
-        cb[0] = (VkCommandBufferSubmitInfo){.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO, .commandBuffer = s->start};
-        memcpy(cb + 1, infos[i].pCommandBufferInfos, n * sizeof(VkCommandBufferSubmitInfo));
-        cb[n + 1] = (VkCommandBufferSubmitInfo){.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO, .commandBuffer = s->end};
-        mine[i].pCommandBufferInfos = cb;
-        mine[i].commandBufferInfoCount = n + 2;
-        list += n + 2;
-        q->next = (q->next + 1) % RING;
-        q->inflight++;
-        used++;
-    }
-    VkResult r = next(queue, count, mine, fence);
-    if (r != VK_SUCCESS) unwind(q, used);
+    VkSubmitInfo2 *mine = q ? gpuload_ring_wrap2(&q->ring, count, infos, &used) : NULL;
+    VkResult r = next(queue, count, mine ? mine : infos, fence);
+    if (mine && r != VK_SUCCESS) gpuload_ring_unwind(&q->ring, used);
     free(mine);
     return r;
 }
@@ -454,7 +303,6 @@ static VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice pd, const VkDeviceCreat
     if (r != VK_SUCCESS) { free(d); return r; }
     d->handle = *out;
     d->gdpa = next_gdpa;
-    d->set_data = callback ? callback->u.pfnSetDeviceLoaderData : NULL;
 #define LOAD(field, type, name) d->field = (type)next_gdpa(*out, name)
     LOAD(destroy, PFN_vkDestroyDevice, "vkDestroyDevice");
     LOAD(get_queue, PFN_vkGetDeviceQueue, "vkGetDeviceQueue");
@@ -462,22 +310,23 @@ static VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice pd, const VkDeviceCreat
     LOAD(submit, PFN_vkQueueSubmit, "vkQueueSubmit");
     LOAD(submit2, PFN_vkQueueSubmit2, "vkQueueSubmit2");
     LOAD(submit2_khr, PFN_vkQueueSubmit2, "vkQueueSubmit2KHR");
-    LOAD(create_pool, PFN_vkCreateCommandPool, "vkCreateCommandPool");
-    LOAD(destroy_pool, PFN_vkDestroyCommandPool, "vkDestroyCommandPool");
-    LOAD(alloc_cmds, PFN_vkAllocateCommandBuffers, "vkAllocateCommandBuffers");
-    LOAD(begin, PFN_vkBeginCommandBuffer, "vkBeginCommandBuffer");
-    LOAD(end, PFN_vkEndCommandBuffer, "vkEndCommandBuffer");
-    LOAD(cmd_reset, PFN_vkCmdResetQueryPool, "vkCmdResetQueryPool");
-    LOAD(cmd_timestamp, PFN_vkCmdWriteTimestamp, "vkCmdWriteTimestamp");
-    LOAD(create_queries, PFN_vkCreateQueryPool, "vkCreateQueryPool");
-    LOAD(destroy_queries, PFN_vkDestroyQueryPool, "vkDestroyQueryPool");
-    LOAD(results, PFN_vkGetQueryPoolResults, "vkGetQueryPoolResults");
+    LOAD(vk.create_pool, PFN_vkCreateCommandPool, "vkCreateCommandPool");
+    LOAD(vk.destroy_pool, PFN_vkDestroyCommandPool, "vkDestroyCommandPool");
+    LOAD(vk.alloc_cmds, PFN_vkAllocateCommandBuffers, "vkAllocateCommandBuffers");
+    LOAD(vk.begin, PFN_vkBeginCommandBuffer, "vkBeginCommandBuffer");
+    LOAD(vk.end, PFN_vkEndCommandBuffer, "vkEndCommandBuffer");
+    LOAD(vk.cmd_reset, PFN_vkCmdResetQueryPool, "vkCmdResetQueryPool");
+    LOAD(vk.cmd_timestamp, PFN_vkCmdWriteTimestamp, "vkCmdWriteTimestamp");
+    LOAD(vk.create_queries, PFN_vkCreateQueryPool, "vkCreateQueryPool");
+    LOAD(vk.destroy_queries, PFN_vkDestroyQueryPool, "vkDestroyQueryPool");
+    LOAD(vk.results, PFN_vkGetQueryPoolResults, "vkGetQueryPoolResults");
 #undef LOAD
-    pthread_mutex_init(&d->lock, NULL);
+    d->vk.device = *out;
+    d->vk.set_data = callback ? (gpuload_set_data_fn)callback->u.pfnSetDeviceLoaderData : NULL;
     if (in && in->props && in->families) {
         VkPhysicalDeviceProperties props;
         in->props(pd, &props);
-        d->period_ns = props.limits.timestampPeriod;
+        gpuload_vk_period(&d->vk, props.limits.timestampPeriod);
         uint32_t n = 0;
         in->families(pd, &n, NULL);
         VkQueueFamilyProperties families[MAX_FAMILIES];
@@ -486,11 +335,8 @@ static VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice pd, const VkDeviceCreat
         d->family_count = n;
         for (uint32_t i = 0; i < n; i++) d->timestamp_bits[i] = families[i].timestampValidBits;
     }
-    // Without these the device is passed through untouched.
-    if (d->period_ns <= 0 || !d->create_pool || !d->alloc_cmds || !d->begin || !d->end || !d->cmd_reset ||
-        !d->cmd_timestamp || !d->create_queries || !d->results || !d->destroy_pool || !d->destroy_queries)
-        d->family_count = 0;
-    d->max_ticks = d->period_ns > 0 ? (uint64_t)(LONGEST_SUBMIT_NS / d->period_ns) : 0;
+    // Without the loader callback our command buffers would lack the loader's dispatch pointer.
+    if (!d->vk.set_data) d->family_count = 0;
     pthread_mutex_lock(&g_lock);
     d->next_in_list = g_devs;
     g_devs = d;
@@ -510,9 +356,13 @@ static void VKAPI_CALL DestroyDevice(VkDevice device, const VkAllocationCallback
     for (struct dev **p = &g_devs; *p; p = &(*p)->next_in_list)
         if (*p == d) { *p = d->next_in_list; break; }
     pthread_mutex_unlock(&g_lock);
-    while (mine) { struct queue *q = mine; mine = q->next_in_list; queue_release(q); free(q); }
+    while (mine) {
+        struct queue *q = mine;
+        mine = q->next_in_list;
+        gpuload_ring_release(&q->ring, &d->vk);
+        free(q);
+    }
     PFN_vkDestroyDevice destroy = d->destroy;
-    pthread_mutex_destroy(&d->lock);
     free(d);
     if (destroy) destroy(device, alloc);
 }
@@ -522,7 +372,7 @@ static void VKAPI_CALL DestroyDevice(VkDevice device, const VkAllocationCallback
 EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL DroidDeckGpuLoad_GetDeviceProcAddr(VkDevice device, const char *name);
 
 static PFN_vkVoidFunction device_hook(struct dev *d, const char *name) {
-    if (!g_dir || !d) return NULL;
+    if (!g_dir) return NULL;
     if (!strcmp(name, "vkGetDeviceQueue") && d->get_queue) return (PFN_vkVoidFunction)GetDeviceQueue;
     if (!strcmp(name, "vkGetDeviceQueue2") && d->get_queue2) return (PFN_vkVoidFunction)GetDeviceQueue2;
     if (!strcmp(name, "vkQueueSubmit") && d->submit) return (PFN_vkVoidFunction)QueueSubmit;

@@ -12,7 +12,7 @@ import org.junit.rules.TemporaryFolder
 class GpuLayerLoadTest {
     @get:Rule val tmp = TemporaryFolder()
     private var now = 0L
-    private fun load(dir: File) = GpuStatsComponent.LayerLoad(dir) { now }
+    private fun load(dir: File) = GpuStatsComponent.LayerLoad(dir, clock = { now })
     private fun write(dir: File, pid: Int, busyNs: Long) = File(dir, "$pid").writeText("%20d %-32s\n".format(busyNs, "game"))
 
     @Test fun busyTimeOfAllProcessesOverWallTime() {
@@ -70,5 +70,45 @@ class GpuLayerLoadTest {
         load.wanted(true)
         now += 1_000L
         assertNull(load.percent())
+    }
+
+    @Test fun theCompositorsOwnGpuTimeAddsToTheGames() {
+        val dir = tmp.newFolder("gpu-load")
+        var compositor: Long? = 7_000_000_000L
+        val load = GpuStatsComponent.LayerLoad(dir, clock = { now }, extra = { compositor })
+        write(dir, 100, 1_000_000_000L)
+        now = 1L
+        assertNull(load.percent())
+        write(dir, 100, 1_600_000_000L)
+        compositor = 7_150_000_000L
+        now += 1_000_000_000L
+        assertEquals(75L, load.percent())
+        compositor = null
+        write(dir, 100, 1_900_000_000L)
+        now += 1_000_000_000L
+        assertEquals(30L, load.percent())
+    }
+
+    @Test fun onlyTheCompositorCountsWhenNoGameReportsYet() {
+        val dir = File(tmp.root, "never-created")
+        var compositor = 0L
+        val load = GpuStatsComponent.LayerLoad(dir, clock = { now }, extra = { compositor })
+        now = 1L
+        load.percent()
+        compositor = 200_000_000L
+        now += 1_000_000_000L
+        assertEquals(20L, load.percent())
+    }
+
+    @Test fun compositorTimingFollowsTheHudOnlyOnChanges() {
+        val dir = tmp.newFolder("gpu-load")
+        val calls = mutableListOf<Boolean>()
+        val load = GpuStatsComponent.LayerLoad(dir, clock = { now }, onWanted = { calls += it })
+        load.wanted(true)
+        load.wanted(true)
+        load.wanted(false)
+        load.wanted(true)
+        load.clear()
+        assertEquals(listOf(true, false, true, false), calls)
     }
 }

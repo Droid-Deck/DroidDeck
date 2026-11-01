@@ -148,6 +148,10 @@ public final class WaylandCompositor {
 
     public static native void nativeStart(String xdgRuntimeDir);
 
+    /** Nanoseconds of the compositor's own GPU work while timing is on, or -1 when it is not timed. */
+    public static native long nativeGpuBusyNs();
+    public static native void nativeSetGpuTiming(boolean on);
+
     public static native void nativeStartWithSurface(Surface surface, String xdgRuntimeDir,
                                                      String driverPath, String libraryName,
                                                      String nativeLibDir);

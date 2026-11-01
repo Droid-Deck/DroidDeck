@@ -100,9 +100,10 @@ class GpuStatsComponent(val dir: File, private val root: File) : SessionPart() {
     // Android hides the load (kgsl sysfs blocked): the in-game Vulkan layer times the GPU work instead.
     private fun layerLoadFeed(): Feed? {
         if (!loadBlocked()) return null
-        val load = LayerLoad(guestLoadDir(root)).also { it.clear(); layerLoad = it }
+        val load = LayerLoad(guestLoadDir(root), extra = ::compositorBusyNs, onWanted = ::compositorTiming)
+            .also { it.clear(); layerLoad = it }
         val read = { if (shown) load.percent() else null }
-        return Feed(File(dir, "gpu_busy_percentage"), "in-game Vulkan timing ($GUEST_LOAD_DIR)", read, "%3d %%\n")
+        return Feed(File(dir, "gpu_busy_percentage"), "Vulkan timing: games ($GUEST_LOAD_DIR) + DroidDeck compositor", read, "%3d %%\n")
     }
 
     // The clock nodes are blocked too: read the GPU's cycle counter from a small GPU job of our own.
@@ -120,20 +121,38 @@ class GpuStatsComponent(val dir: File, private val root: File) : SessionPart() {
         return Feed(File(dir, "clock_mhz"), "GPU cycle counter (own GPU job)", read, "%5d\n")
     }
 
-    /** Busy time the layer (tools/gpuload) writes per process, as a share of wall time between two reads. */
-    internal class LayerLoad(private val dir: File, private val clock: () -> Long = System::nanoTime) {
+    private fun compositorBusyNs(): Long? =
+        runCatching { com.droiddeck.launcher.wayland.WaylandCompositor.nativeGpuBusyNs() }.getOrNull()?.takeIf { it >= 0 }
+
+    private fun compositorTiming(on: Boolean) {
+        runCatching { com.droiddeck.launcher.wayland.WaylandCompositor.nativeSetGpuTiming(on) }
+    }
+
+    /**
+     * Busy time the layer (tools/gpuload) writes per process, plus [extra] (the compositor's own GPU time), as a share
+     * of wall time between two reads.
+     */
+    internal class LayerLoad(
+        private val dir: File,
+        private val clock: () -> Long = System::nanoTime,
+        private val extra: () -> Long? = { null },
+        private val onWanted: (Boolean) -> Unit = {},
+    ) {
         private val last = HashMap<String, Long>()
         private var lastAt = 0L
+        private var on = false
 
         fun wanted(on: Boolean) {
             val flag = File(dir, "on")
             if (on && !flag.exists()) runCatching { dir.mkdirs(); flag.createNewFile() }
             if (!on && flag.exists()) { flag.delete(); last.clear(); lastAt = 0L }
+            if (on != this.on) onWanted(on)
+            this.on = on
         }
 
         fun percent(): Long? {
             val now = clock()
-            val files = dir.listFiles { f -> f.name.isNotEmpty() && f.name.all(Char::isDigit) } ?: return null
+            val files = dir.listFiles { f -> f.name.isNotEmpty() && f.name.all(Char::isDigit) }.orEmpty()
             var busy = 0L
             val seen = HashSet<String>()
             for (file in files) {
@@ -142,6 +161,11 @@ class GpuStatsComponent(val dir: File, private val root: File) : SessionPart() {
                 last[file.name]?.let { if (total >= it) busy += total - it }
                 last[file.name] = total
                 if (System.currentTimeMillis() - file.lastModified() > STALE_MS) file.delete()
+            }
+            extra()?.let { total ->
+                seen += EXTRA
+                last[EXTRA]?.let { if (total >= it) busy += total - it }
+                last[EXTRA] = total
             }
             last.keys.retainAll(seen)
             val wall = now - lastAt
@@ -155,6 +179,12 @@ class GpuStatsComponent(val dir: File, private val root: File) : SessionPart() {
             dir.listFiles()?.forEach { it.delete() }
             last.clear()
             lastAt = 0L
+            if (on) onWanted(false)
+            on = false
+        }
+
+        private companion object {
+            const val EXTRA = "compositor"
         }
     }
 
