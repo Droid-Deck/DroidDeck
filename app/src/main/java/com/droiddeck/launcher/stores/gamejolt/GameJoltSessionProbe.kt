@@ -101,7 +101,7 @@ internal object GameJoltSessionProbe {
             val sample = games?.let { list -> (0 until minOf(list.length(), MAX_PACKAGES)).joinToString(",") { "${list.optJSONObject(it)?.optLong("id")}:${list.optJSONObject(it)?.opt("has_adult_content")}" } }.orEmpty()
             log("browse check ?$variant code=${answer.code} games=${games?.length() ?: 0} idsAdult=[$sample]")
         }
-        for (variant in listOf("f_price=sale", "f_price=paid", "f_price=5-less")) {
+        for (variant in listOf("section=best&f_price=sale", "section=best&f_price=paid", "section=hot&f_price=5-less")) {
             val answer = GameJoltApi.browse(variant, cookies)
             val games = answer.payload?.optJSONArray("games")
             val keys = sortedSetOf<String>()
