@@ -69,8 +69,14 @@ internal fun HudReadingsDialog(
         var rowHeight by remember { mutableFloatStateOf(0f) }
         BoxWithConstraints(Modifier.fillMaxWidth()) {
         val listMax = (maxHeight * 0.62f).coerceAtLeast(120.dp)
-        Row {
-        LazyColumn(state = state, modifier = Modifier.weight(1f).heightIn(max = listMax)) {
+        val beside = maxWidth >= 600.dp || maxWidth > maxHeight
+        val save = { onSave(enabled.toMap(), order.toList()); close() }
+        val restore = {
+            onSave(DroidDeckHudConfig.DEFAULTS.mapValues { it.value == "1" }, DroidDeckHudConfig.ORDER)
+            close()
+        }
+        val list = @Composable { m: Modifier ->
+            LazyColumn(state = state, modifier = m.heightIn(max = listMax)) {
             itemsIndexed(order, key = { _, key -> key }) { index, key ->
                 val dragged = draggingKey == key
                 Row(
@@ -109,17 +115,18 @@ internal fun HudReadingsDialog(
                     ToggleSwitch(enabled[key] == true, true, null) { enabled[key] = !(enabled[key] == true) }
                 }
             }
+            }
         }
-        Spacer(Modifier.width(8.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            PrimaryButton(stringResource(R.string.common_ok), compact = true, onClick = {
-                onSave(enabled.toMap(), order.toList()); close()
-            })
-            SecondaryButton(stringResource(R.string.hud_reset_button), compact = true, onClick = {
-                onSave(DroidDeckHudConfig.DEFAULTS.mapValues { it.value == "1" }, DroidDeckHudConfig.ORDER)
-                close()
-            })
-        }
+        val ok = @Composable { PrimaryButton(stringResource(R.string.common_ok), compact = true, onClick = save) }
+        val reset = @Composable { SecondaryButton(stringResource(R.string.hud_reset_button), compact = true, onClick = restore) }
+        if (beside) Row {
+            list(Modifier.weight(1f))
+            Column(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { ok(); reset() }
+        } else Column {
+            list(Modifier.fillMaxWidth())
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(Modifier.weight(1f)); ok(); reset()
+            }
         }
         }
     }
