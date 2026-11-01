@@ -132,6 +132,7 @@ internal class StepAsk(
     val pillCorner: androidx.compose.ui.unit.Dp? = null,
     val items: Int = 4,
     val onDismiss: () -> Unit = {},
+    val canDismiss: () -> Boolean = { true },
     val maxWidth: androidx.compose.ui.unit.Dp = 300.dp,
     val handle: @Composable () -> Unit,
     val content: @Composable StepOutScope.() -> Unit,

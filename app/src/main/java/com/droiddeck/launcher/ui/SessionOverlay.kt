@@ -1604,17 +1604,17 @@ internal fun ComponentDownloadsDrawerGroup(
                         // A nightly paired with a stable build rides on that row; Stable/Nightly tabs beside the row pick which one.
                         val pairs = ComponentsManager.nightlyPairs(items)
                         val rows = items.filter { it !in pairs.values }
-                        fun shown(row: ComponentsManager.CatalogItem) = pairs[row]?.takeIf { nightlyPicked[row.file] == true } ?: row
-                        val firstAvailable = rows.firstOrNull { shown(it).let { s -> ComponentsManager.safeName(s.file) !in installed && s.file !in downloads } }
+                        fun shown(row: ComponentsManager.CatalogItem) = pairs[row]?.takeIf { nightlyPicked[row.id] == true } ?: row
+                        val firstAvailable = rows.firstOrNull { shown(it).let { s -> ComponentsManager.safeName(s.localFile) !in installed && s.id !in downloads } }
                         rows.forEach { row ->
                             val item = shown(row)
                             val nightly = pairs[row]
-                            val stored = ComponentsManager.safeName(item.file) in installed
-                            val progress = downloads[item.file]
+                            val stored = ComponentsManager.safeName(item.localFile) in installed
+                            val progress = downloads[item.id]
                             val choose = @Composable { rowModifier: Modifier ->
                                 MenuItem(item.file.removeSuffix(".wcp"), checked = stored,
                                     enabled = !stored && progress == null,
-                                    detail = when {
+                                    detail = item.repository + " · " + when {
                                         stored -> stringResource(R.string.wincomp_downloaded)
                                         progress != null -> if (progress < 0) stringResource(R.string.wincomp_downloading, item.file.removeSuffix(".wcp")) else "$progress%"
                                         else -> item.release + " · " + stringResource(R.string.common_size_mb, item.size / 1048576.0)
@@ -1632,7 +1632,7 @@ internal fun ComponentDownloadsDrawerGroup(
                                 TabStrip(
                                     listOf(stringResource(R.string.comp_channel_stable), stringResource(R.string.comp_channel_nightly)),
                                     selected = if (item === nightly) 1 else 0,
-                                    onSelect = { nightlyPicked[row.file] = it == 1 },
+                                    onSelect = { nightlyPicked[row.id] = it == 1 },
                                     bumpers = false, compact = true, modifier = Modifier.padding(start = 6.dp, end = 4.dp),
                                 )
                             }
@@ -1645,7 +1645,8 @@ internal fun ComponentDownloadsDrawerGroup(
             stringResource(if (catalogAt == 0L) R.string.comp_refresh_to_list else R.string.comp_nothing_new),
             fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(14.dp),
         )
-        for ((file, progress) in downloads) {
+        for ((id, progress) in downloads) {
+            val file = catalog.firstOrNull { it.id == id }?.file ?: id
             Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
                 Text(stringResource(R.string.wincomp_downloading, file.removeSuffix(".wcp")),
                     fontSize = 12.sp, color = colors.onSurfaceVariant)

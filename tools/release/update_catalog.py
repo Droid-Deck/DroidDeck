@@ -406,25 +406,30 @@ def build_catalog(source: GitHub, ci: GitHub, source_repo: str, ci_repo: str) ->
     }
 
 
-def current_file(ci: GitHub, repo: str, path: str):
+def current_file(ci: GitHub, repo: str, path: str, branch: str | None = None):
+    ref = f"?ref={q(branch)}" if branch is not None else ""
     try:
-        return ci.get(f"/repos/{repo}/contents/{q(path)}?ref=main")
+        return ci.get(f"/repos/{repo}/contents/{q(path)}{ref}")
     except ApiError as e:
         if e.status == 404:
             return None
         raise
 
 
-def publish_catalog(source: GitHub, ci: GitHub, source_repo: str, ci_repo: str, path: str):
+def publish_catalog(
+    source: GitHub, ci: GitHub, source_repo: str, ci_repo: str, path: str,
+    branch: str | None = None,
+):
     for attempt in range(4):
         catalog = build_catalog(source, ci, source_repo, ci_repo)
         content = (json.dumps(catalog, indent=2, sort_keys=False) + "\n").encode()
-        old = current_file(ci, ci_repo, path)
+        old = current_file(ci, ci_repo, path, branch)
         body = {
             "message": "ci: refresh DroidDeck update catalog",
             "content": base64.b64encode(content).decode(),
-            "branch": "main",
         }
+        if branch is not None:
+            body["branch"] = branch
         if old:
             body["sha"] = old["sha"]
             try:
@@ -439,8 +444,9 @@ def publish_catalog(source: GitHub, ci: GitHub, source_repo: str, ci_repo: str, 
             except Exception:
                 pass
         try:
-            ci.put(f"/repos/{ci_repo}/contents/{q(path)}", body)
-            print(f"published https://raw.githubusercontent.com/{ci_repo}/main/{path}")
+            result = ci.put(f"/repos/{ci_repo}/contents/{q(path)}", body)
+            location = (result.get("content") or {}).get("html_url") or f"{ci_repo}:{path}"
+            print(f"published {location}")
             return catalog
         except ApiError as e:
             if e.status not in (409, 422) or attempt == 3:
@@ -454,8 +460,13 @@ def main():
     parser.add_argument("--source-repo", default="Droid-Deck/DroidDeck")
     parser.add_argument("--ci-repo", default="Droid-Deck/DroidDeck-CI")
     parser.add_argument("--path", default="catalog.json")
+    parser.add_argument("--branch", help="Publish to this branch instead of the repository's default branch")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+    if args.branch is not None:
+        args.branch = args.branch.strip()
+        if not args.branch:
+            parser.error("--branch must name a branch")
 
     source = GitHub(os.environ.get("SOURCE_GITHUB_TOKEN", ""))
     ci = GitHub(os.environ.get("CI_GITHUB_TOKEN", os.environ.get("SOURCE_GITHUB_TOKEN", "")))
@@ -464,7 +475,7 @@ def main():
     else:
         if not os.environ.get("CI_GITHUB_TOKEN"):
             raise SystemExit("CI_GITHUB_TOKEN is required to publish")
-        publish_catalog(source, ci, args.source_repo, args.ci_repo, args.path)
+        publish_catalog(source, ci, args.source_repo, args.ci_repo, args.path, args.branch)
 
 
 if __name__ == "__main__":
