@@ -17,7 +17,6 @@ import com.droiddeck.launcher.hud.DroidDeckHudConfig
 import com.droiddeck.launcher.hud.DroidDeckHudSize
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.StripMetric
-import com.droiddeck.launcher.hud.DroidDeckHudView
 
 @Composable
 internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
@@ -69,7 +68,7 @@ internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (Stri
     SettingsGroup(stringResource(R.string.hud_group_metrics)) {
         ActionRow(stringResource(R.string.hud_group_metrics), null, stringResource(R.string.common_edit),
             onClick = { editing = true }, modifier = track("hud-readings"))
-        val rows = DroidDeckHudView.rowsFor(DroidDeckHudSize.from(cfg["hudSize"]), cfg)
+        val rows = DroidDeckHudSize.rowsFor(DroidDeckHudSize.from(cfg["hudSize"]), cfg)
         SettingsRow(stringResource(R.string.hud_readings_shown), null) {
             Text(stringResource(R.string.hud_readings_count, rows.count { on(it) }, rows.size),
                 fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)

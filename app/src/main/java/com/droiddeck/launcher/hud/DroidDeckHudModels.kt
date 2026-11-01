@@ -13,6 +13,27 @@
 
 package com.droiddeck.launcher.hud
 
+/**
+ * Size modes for the DroidDeck HUD (the 4th selectable in-game overlay style). One shared color-coded
+ * visual language, four amounts of detail — see the approved mockup. The config value is the lower-case
+ * token stored under the `hudSize` key; the label is the user-facing string.
+ */
+/** The text sizes and spacing a [DroidDeckHudSize] lays its rows out with, in sp. */
+data class DroidDeckHudStyle(
+    val row: Float,
+    val unit: Float,
+    val pad: Float,
+    val lineGap: Float,
+    val labelGap: Float,
+    val key: Float = 0f,
+    val sub: Float = 0f,
+    val foot: Float = 0f,
+    val band: Float = 0f,
+    val gutter: Float = 0f,
+    val tileGap: Float = 0f,
+    val innerPad: Float = 0f,
+)
+
 enum class DroidDeckHudSize(val token: String, val label: String) {
     FULL("full", "Full"),
     TILES("tiles", "Tiles"),
@@ -26,27 +47,66 @@ enum class DroidDeckHudSize(val token: String, val label: String) {
         return all[(ordinal + 1) % all.size]
     }
 
-    fun supportedChips(): Set<String> = when (this) {
-        MINIMAL -> MINIMAL_CHIPS
-        PILL -> PILL_CHIPS
-        FULL, TILES, STRIP -> STANDARD_CHIPS
-        MEGA -> MEGA_CHIPS
-    }
+    /**
+     * The rows this size draws, in the order it draws them before the user moves any. This is the single
+     * source of truth for both surfaces: [DroidDeckHudView] draws exactly these and the settings screen
+     * offers exactly these. A switch outside the set is ignored by the size, so the two cannot drift.
+     */
+    val rows: List<String> get() = ROWS[this].orEmpty()
+    /**
+     * The numbers each size sets its text in, in sp. One table so a size's scale can be read (and changed)
+     * in one place instead of hunting the `sp(...)` literals scattered through its builder.
+     */
+    val style: DroidDeckHudStyle get() = STYLE.getValue(this)
+
 
     companion object {
         fun from(token: String?): DroidDeckHudSize =
             values().firstOrNull { it.token.equals(token, ignoreCase = true) } ?: FULL
 
-        val MINIMAL_CHIPS = setOf("FPS", "FPS graph", "1% low", "0.1% low", "0.01% low", "FPS .1", "Engine", "Clock")
-        val PILL_CHIPS = setOf("FPS", "FPS graph", "GPU", "CPU", "VRAM", "RAM", "Battery", "GPU model", "FPS .1", "Engine", "Clock")
-        val STANDARD_CHIPS = setOf(
-            "FPS", "FPS graph", "GPU", "GPU temp", "CPU", "VRAM", "RAM", "Power", "Temp",
-            "Battery", "GPU model", "Engine", "1% low", "0.1% low", "0.01% low", "FPS .1", "Clock",
+        val ROWS: Map<DroidDeckHudSize, List<String>> = mapOf(
+            FULL to listOf(
+                "showGpuModel", "showDisplay", "showHdr", "showGPULoad", "showCPUUsage", "showVram",
+                "showRAM", "showBattery", "showFPS", "showAvg", "showLow1", "showLow01", "showLow001",
+            ),
+            TILES to listOf(
+                "showFPS", "showLatency", "showGPULoad", "showCPUUsage", "showVram", "showRAM",
+                "showEngine", "showDisplay", "showHdr", "showAvg", "showLow1", "showLow01", "showLow001",
+                "showGpuModel", "showBattery",
+            ),
+            PILL to listOf(
+                "showFPS", "showGpuModel", "showGPULoad", "showCPUUsage", "showRAM", "showBattery",
+                "showLatency", "showDisplay", "showVram", "showHdr",
+            ),
+            MINIMAL to listOf(
+                "showFPS", "showLow1", "showLow01", "showLow001", "showAvg", "showLatency",
+                "showEngine", "showDisplay", "showHdr",
+            ),
+            MEGA to listOf(
+                "showGpuModel", "showGPULoad", "showCPUUsage", "showPerCore", "showVram", "showRAM",
+                "showSwap", "showNet", "showBattery", "showFPS", "showAvg", "showLow1", "showLow01",
+                "showLow001", "showResolution", "showDisplay", "showHdr", "showProton", "showSession",
+            ),
         )
-        val MEGA_ONLY = setOf(
-            "Per-core", "Swap", "Network", "Resolution", "Proton", "Wrapper", "DX ver", "Session",
+
+
+        val STYLE: Map<DroidDeckHudSize, DroidDeckHudStyle> = mapOf(
+            FULL to DroidDeckHudStyle(row = 12f, unit = 12f * 0.62f, pad = 10f, lineGap = 4f, labelGap = 8f),
+            TILES to DroidDeckHudStyle(row = 18f, unit = 11f, pad = 9f, lineGap = 4f, labelGap = 8f,
+                key = 10f, sub = 10f, tileGap = 6f, innerPad = 8f),
+            PILL to DroidDeckHudStyle(row = 30f, unit = 30f * 0.36f, pad = 10f, lineGap = 3f, labelGap = 12f,
+                sub = 11.5f),
+            MINIMAL to DroidDeckHudStyle(row = 34f, unit = 34f * 0.32f, pad = 10f, lineGap = 4f, labelGap = 8f,
+                sub = 11.5f, foot = 9.5f),
+            MEGA to DroidDeckHudStyle(row = 11.5f, unit = 11.5f * 0.62f, pad = 10f, lineGap = 3.5f, labelGap = 7f,
+                band = 9.5f, gutter = 16f),
         )
-        val MEGA_CHIPS = STANDARD_CHIPS + MEGA_ONLY
+
+        /** The rows a size draws, in their current order, for the settings screen to list. */
+        fun rowsFor(size: DroidDeckHudSize, values: Map<String, String>): List<String> {
+            val supported = size.rows
+            return DroidDeckHudConfig.order(values).filter { it in supported }
+        }
     }
 }
 
