@@ -1625,8 +1625,8 @@ class SessionService : Service() {
                 pageOut = steamSleepToken != null || nativeSleepToken != null || !activityVisible || !screenOn,
             ) { success ->
                 mainHandler.post {
-                    SessionState.suspending = false
                     if (gen != sessionGen || !SessionState.running) return@post
+                    SessionState.suspending = false
                     suspendOperationPending = false
                     freezePending = false
                     if (success) {
