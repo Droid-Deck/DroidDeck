@@ -751,6 +751,10 @@
     <string name="drawer_low_latency_touch">Dotyk o niskim opóźnieniu</string>
     <string name="drawer_low_latency_touch_hint">Dotknięcia pomijają łączenie klatek; sterowanie dotykiem Steam działa z 1000 Hz. Nieco więcej CPU.</string>
     <string name="drawer_evdev_mouse">Surowy kanał myszy</string>
+    <string name="drawer_relative_mouse">Mysz względna</string>
+    <string name="drawer_relative_mouse_auto">Automatycznie</string>
+    <string name="drawer_relative_mouse_on">Włączone</string>
+    <string name="drawer_relative_mouse_off">Wyłączone</string>
     <string name="drawer_direct_cursor">Kursor</string>
     <string name="drawer_pc_keyboard">Klawiatura PC</string>
     <string name="drawer_android_keyboard">Android</string>

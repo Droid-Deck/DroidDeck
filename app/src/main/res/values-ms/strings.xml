@@ -745,6 +745,10 @@
     <string name="drawer_low_latency_touch">Sentuh kependaman rendah</string>
     <string name="drawer_low_latency_touch_hint">Sentuhan melangkau pengumpulan bingkai, jadi kawalan sentuh Steam berjalan pada 1000 Hz. Sedikit lebih banyak CPU.</string>
     <string name="drawer_evdev_mouse">Saluran tetikus mentah</string>
+    <string name="drawer_relative_mouse">Tetikus relatif</string>
+    <string name="drawer_relative_mouse_auto">Automatik</string>
+    <string name="drawer_relative_mouse_on">Hidup</string>
+    <string name="drawer_relative_mouse_off">Mati</string>
     <string name="drawer_direct_cursor">Kursor</string>
     <string name="drawer_pc_keyboard">Papan kekunci PC</string>
     <string name="drawer_android_keyboard">Android</string>

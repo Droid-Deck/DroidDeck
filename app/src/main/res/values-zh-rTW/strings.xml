@@ -734,6 +734,10 @@
     <string name="drawer_low_latency_touch">低延遲觸控</string>
     <string name="drawer_low_latency_touch_hint">觸控略過影格合併，Steam 觸控以 1000 Hz 回報。CPU 使用率略高。</string>
     <string name="drawer_evdev_mouse">原生滑鼠通道</string>
+    <string name="drawer_relative_mouse">相對滑鼠</string>
+    <string name="drawer_relative_mouse_auto">自動</string>
+    <string name="drawer_relative_mouse_on">開</string>
+    <string name="drawer_relative_mouse_off">關</string>
     <string name="drawer_direct_cursor">游標</string>
     <string name="drawer_pc_keyboard">電腦鍵盤</string>
     <string name="drawer_android_keyboard">Android</string>
