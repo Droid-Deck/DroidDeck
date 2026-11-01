@@ -25,14 +25,6 @@ public final class LinuxVulkanDriver {
         return values;
     }
 
-    public static String optionLabel(Context context, String value) {
-        if (value == null || value.isEmpty()) return "Runtime default (built into the runtime)";
-        LinuxVulkanDriverManager m = new LinuxVulkanDriverManager(context);
-        if (!m.isInstalled(value)) return value + " (imported, missing - uses the runtime default)";
-        String ver = m.getDriverVersion(value);
-        return m.getDriverName(value) + (ver.isEmpty() ? "" : " " + ver) + " (imported)";
-    }
-
     public static String resolveIcdPath(Context context, String value) {
         if (value == null || value.isEmpty()) return null;
         LinuxVulkanDriverManager m = new LinuxVulkanDriverManager(context);

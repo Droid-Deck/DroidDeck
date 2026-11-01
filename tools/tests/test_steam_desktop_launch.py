@@ -1,4 +1,3 @@
-"""Desktop Steam stays on KDE; explicit Big Picture still switches sessions."""
 import fcntl
 import os
 from pathlib import Path

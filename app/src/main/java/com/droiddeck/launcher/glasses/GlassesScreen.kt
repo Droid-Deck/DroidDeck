@@ -36,7 +36,6 @@ class GlassesScreen(context: Context, display: Display, refreshHz: Int, private 
     fun prefer(hz: Int, resolution: GlassesResolution? = null) {
         wantHz = hz
         wantResolution = resolution
-        // A 2D/SBS transition can replace the active mode without changing Hz.
         applyMode()
     }
 

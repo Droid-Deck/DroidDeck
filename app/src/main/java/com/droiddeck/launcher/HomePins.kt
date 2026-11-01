@@ -12,7 +12,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
-/** Shortcuts other apps asked to put on the home screen. The system keeps the pinned set per launcher. */
 object HomePins {
     class Pinned(val info: ShortcutInfo, val icon: Bitmap?, val appLabel: String, val userSerial: Long) {
         val key get() = "pin:${info.`package`}/${info.id}" + if (userSerial != 0L) "#$userSerial" else ""

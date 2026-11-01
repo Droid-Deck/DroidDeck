@@ -115,7 +115,6 @@ import java.io.File
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 
-/** What a game page shows: `app:<appId>` for a game in the library, `[app:]<store>:<id>` for a store product. */
 internal class GameRef(val appId: Int?, val store: Store?, val storeId: String?) {
     fun game(games: List<Library.SteamGame>): Library.SteamGame? = when {
         appId != null -> games.firstOrNull { it.appId == appId }
@@ -195,7 +194,6 @@ internal fun GameDetail(
     var inPage by remember(key) { mutableStateOf(false) }
     var onStrip by remember(key) { mutableStateOf(false) }
     var dropped by remember(key) { mutableStateOf(0) }
-    // A tab's content is swapped or refreshed under the focused row; focus goes back to the tabs, not to the rail.
     LaunchedEffect(dropped) {
         if (dropped == 0) return@LaunchedEffect
         androidx.compose.runtime.withFrameNanos { }
@@ -319,7 +317,6 @@ private fun GameStatusLine(source: String, game: Library.SteamGame?, item: Catal
     }
 }
 
-/** One frosted pill that holds the game's actions and its headline scores. */
 @Composable
 private fun GameCapsule(scores: GameScores?, actions: @Composable () -> Unit) {
     Row(
@@ -500,7 +497,6 @@ internal fun GameActions(
     }
 }
 
-/** Xbox Cloud Gaming rows the user added to the Library, for games not installed here. */
 @Composable
 internal fun rememberXboxCloudRows(s: FrontEndState): List<Library.SteamGame> {
     val ctx = LocalContext.current
@@ -535,7 +531,6 @@ private fun XboxInstalledStream(id: String, title: String, item: CatalogItem?) {
 private fun XboxLibraryButton(id: String, item: CatalogItem?) {
     val ctx = LocalContext.current
     LaunchedEffect(Unit) { XboxCloudGames.load(ctx) }
-    // Add and Remove replace each other; the controller focus moves to the new button instead of getting lost.
     val slot = remember { FocusRequester() }
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
     val scope = rememberCoroutineScope()
@@ -572,7 +567,6 @@ private fun GameShortcutMenu(g: Library.SteamGame, a: FrontEndActions) {
     }
 }
 
-/** The pencil opens the editor each kind of game always had: the shortcut editor for added games, art for the rest. */
 @Composable
 private fun rememberEditArt(g: Library.SteamGame): (() -> Unit)? {
     val ctx = LocalContext.current
@@ -593,7 +587,6 @@ private fun EditArtButton(g: Library.SteamGame) {
     IconAction(Icons.Outlined.Edit, stringResource(R.string.game_edit_art), "game:edit", onClick = open)
 }
 
-/** Narrow screens keep one More button in the capsule instead of a row of small ones. */
 @Composable
 private fun GameMoreMenu(g: Library.SteamGame, a: FrontEndActions) {
     var open by remember(g.gameId) { mutableStateOf(false) }
@@ -932,7 +925,6 @@ private fun InstallTab(game: Library.SteamGame?, installed: InstalledStoreGame?,
     }
 }
 
-/** Text a controller has to land on to bring it into view: focusable, with the focus ring. */
 @Composable
 internal fun Modifier.readable(): Modifier {
     val pal = LocalPalette.current
@@ -953,7 +945,6 @@ internal fun FactRow(label: String, value: String, labelWidth: androidx.compose.
     }
 }
 
-/** Store installs are measured by [StoreSizes]; Steam and added games by walking their folder once. */
 @Composable
 internal fun diskSize(installed: InstalledStoreGame?, folder: File): Long? {
     val ctx = LocalContext.current

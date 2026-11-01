@@ -107,7 +107,6 @@ class SessionService : Service() {
     private var freezeCancelled = false
     private var pendingSteamGameId: String? = null
     private var pendingSteamGameGeneration = -1
-    // Bumped to cancel a running game-exit watch (a new launch, or the session ending).
     @Volatile private var gameExitWatchToken = 0
     private val flushSteamGame = object : Runnable {
         override fun run() = flushQueuedSteamGame()
@@ -477,7 +476,6 @@ class SessionService : Service() {
             .onFailure { Log.w(TAG, "agent environment skipped", it) }
             .getOrDefault(emptyList())
         SessionFiles.stage(this, root, startsSession = true)
-        // Earlier sessions' reports still read the Steam logs and VAC marker this session replaces.
         SessionArtifacts.awaitCollections()
         SessionArtifacts.finishAbandoned(this, beforeGuestStart = true)
         VacDiagnostics.arm(this)
@@ -535,7 +533,6 @@ class SessionService : Service() {
             guest.add("DXVK_HDR=1")
             Log.i(TAG, "hdr: gamescope --hdr-enabled, DXVK_HDR=1")
         }
-        // gamescope's WSI layer and winex11 reuse their per-present window checks for this long.
         guest.add("DROIDDECK_WSI_BYPASS_CHECK_MS=100")
         guest.add("WINE_OFFSCREEN_CHECK_MS=100")
         guest.add("BL_REFRESH=" + Math.round(SessionState.refreshHz))
@@ -1102,7 +1099,6 @@ class SessionService : Service() {
             }
         }
         val x64Libraries = org.json.JSONArray()
-        // Desktop mode offers the x86-64 client either way; droiddeck-steam-x64 drops library folders it is not given.
         val x64Here = SessionPrefs.steamClientArch(this) == "x86_64" ||
             (SessionState.mode == MODE_DESKTOP &&
                 com.droiddeck.launcher.storage.SteamStorage.x64ClientPresent(SessionPrefs.steamRoot(this, "x86_64")))
@@ -1306,13 +1302,6 @@ class SessionService : Service() {
         Log.i(TAG, "queued Steam game $gameId for the running client")
     }
 
-    /**
-     * A game launched from the front end (the Games tab, or another launcher's link): once it has
-     * started and then been gone for [GAME_EXIT_GRACE_MS], ask the client to exit through the
-     * session script's steam-stop request. The client quits cleanly, finishing its cloud sync, so
-     * the session ends on its own and the activity returns to where the launch came from instead
-     * of leaving the player in Big Picture. The grace covers launchers that restart the game.
-     */
     private fun watchGameExit(gameId: String, gen: Int) {
         if (!SessionPrefs.returnAfterGame(this)) return
         val token = ++gameExitWatchToken
@@ -1327,7 +1316,6 @@ class SessionService : Service() {
                     seen = true
                     goneSince = 0L
                 } else if (!seen) {
-                    // Never started (an install, an update or a failed launch): leave the session be.
                     if (now > startBy) {
                         Log.i(TAG, "game $gameId did not start; not watching for its exit")
                         return@Thread
@@ -1353,8 +1341,6 @@ class SessionService : Service() {
         Log.i(TAG, "game $gameId closed: asking the client to exit and returning to the launcher")
     }
 
-    /** A Steam game is running: the client runs each one under its reaper, and Proton's script
-     *  waits on the game with waitforexitandrun. Read from the command lines, as ComponentsManager does. */
     private fun steamGameRunning(): Boolean = SteamGameProcess.running()
 
     private fun resumeSession(panelVisible: Boolean = true) {
@@ -1567,7 +1553,6 @@ class SessionService : Service() {
         if (suspendPolicy == SessionPrefs.SUSPEND_MANUAL && hidden && !downloadsBlockingSuspend) {
             manualPauseRequested = true
         } else if (!hidden && !SessionState.suspended) {
-            // Coming back before the freeze finished keeps the game running instead of pausing it a moment later.
             manualPauseRequested = false
         }
         val controller = suspendController ?: return
@@ -1590,7 +1575,6 @@ class SessionService : Service() {
             SessionPrefs.SUSPEND_MANUAL -> manualPauseRequested && prepared && !downloadsBlockingSuspend
             else -> false
         }
-        // A frozen game never sends the stop for a held rumble, so the keepalive would run on.
         val quietRumble = !screenOn || shouldSuspend || SessionState.suspended
         components.forEach { (it as? RumbleComponent)?.quiet(quietRumble) }
         if (freezePending && !shouldSuspend && !freezeCancelled) {
@@ -1906,7 +1890,7 @@ class SessionService : Service() {
 
     override fun onDestroy() {
         stopSession(0)
-        GameThreadHints.stop() // also when the session never got as far as running
+        GameThreadHints.stop()
         if (screenReceiverRegistered) {
             unregisterReceiver(screenReceiver)
             screenReceiverRegistered = false
@@ -2145,9 +2129,7 @@ class SessionService : Service() {
         private const val DOWNLOAD_POLL_MS = 2_000L
         private const val STEAM_GAME_REQUEST = "steam-game"
         private const val GAME_URL_PREFIX = "steam://rungameid/"
-        /** How long a front-end launch may take to start (downloads, first-run installs) before the exit watch gives up. */
         private const val GAME_START_TIMEOUT_MS = 20 * 60_000L
-        /** How long the game must stay gone before the client is asked to exit: launchers restart games. */
         private const val GAME_EXIT_GRACE_MS = 10_000L
         private const val GAME_EXIT_POLL_MS = 2_000L
         private const val NO_PAD_SWITCH = "Download/droiddeck-no-pad"

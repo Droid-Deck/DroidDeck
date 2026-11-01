@@ -183,10 +183,6 @@ class StoreLoginActivity : ComponentActivity() {
         return root
     }
 
-    /**
-     * The activity handles density changes itself so that folding between two displays of different
-     * density keeps the page and the sign-in in progress; the dp-based chrome sizes are applied again.
-     */
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         if (!::topBar.isInitialized) return
@@ -221,7 +217,6 @@ class StoreLoginActivity : ComponentActivity() {
         setBackgroundColor(0xFF0A0B0D.toInt())
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
-        // Store sign-in pages are web pages; they never need to read local files or content:// URIs.
         settings.allowFileAccess = false
         settings.allowContentAccess = false
         settings.userAgentString = userAgent

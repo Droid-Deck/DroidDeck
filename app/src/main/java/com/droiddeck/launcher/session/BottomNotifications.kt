@@ -7,13 +7,8 @@ import android.service.notification.StatusBarNotification
 import androidx.compose.runtime.mutableStateListOf
 import androidx.core.app.NotificationManagerCompat
 
-/** One notification for the bottom-screen list. Kept in memory only; never written to disk or logs. */
 data class BottomNotification(val key: String, val app: String, val title: String, val text: String, val postedAt: Long)
 
-/**
- * Notifications from other apps for the bottom screen, so a message can be read without leaving the game.
- * Works only after the user allows DroidDeck notification access in Android settings.
- */
 object BottomNotifications {
     val items = mutableStateListOf<BottomNotification>()
 

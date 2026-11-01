@@ -135,7 +135,6 @@ internal class ItchInstaller(
 
     private fun download(key: String, downloadKeyId: String, uploadId: String, version: String, target: File, expected: Long,
                          handle: DownloadQueue.JobHandle) {
-        // A partial file is only resumed when it came from this exact upload build.
         val origin = File(target.path + ".from")
         val stamp = "$uploadId $version $expected"
         if (!target.isFile || runCatching { origin.readText() }.getOrNull() != stamp) {
@@ -169,7 +168,6 @@ internal class ItchInstaller(
                 if (have > 0) handle.log(if (append) "itch.io: resuming at ${have} bytes" else "itch.io: server ignored the resume, starting over")
                 var done = if (append) have else 0L
                 val total = conn.contentLengthLong.takeIf { it > 0 }?.let { if (append) it + have else it } ?: expected
-                // The first report is the queue's speed baseline, so resumed bytes don't read as instant throughput.
                 handle.progress(done, total)
                 val buffer = ByteArray(128 * 1024)
                 conn.inputStream.use { input ->
@@ -293,7 +291,6 @@ internal class ItchInstaller(
         return if (path == root || path.startsWith(root + File.separator)) file else null
     }
 
-    // No JVM library reads RAR5; the runtime's bsdtar (libarchive) does.
     private fun unrar(archive: File, handle: DownloadQueue.JobHandle, kind: String) {
         if (!LinuxRuntime.isInstalled(app)) throw IllegalStateException(app.getString(R.string.stores_itch_archive, kind))
         val binds = if (listOf(app.filesDir, app.cacheDir).any { work.absolutePath.startsWith(it.absolutePath + "/") }) null
@@ -437,8 +434,6 @@ internal class ItchInstaller(
         FileInputStream(source).use { input -> FileOutputStream(target).use { out -> input.copyTo(out, 128 * 1024) } }
     }
 
-    // Streaming readers stop silently on zips whose data descriptors disagree with the local headers;
-    // the central directory is authoritative.
     private fun unzip(archive: File, handle: DownloadQueue.JobHandle) {
         val total = archive.length()
         var written = 0L

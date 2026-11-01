@@ -702,7 +702,6 @@ private fun GameSettingsCard(host: MenuHost, game: com.droiddeck.launcher.fronte
     GameSettingsMenus(host, game, state)
 }
 
-/** The per-game settings menus, opened by setting [MenuHost.open] to [GAME_SETTINGS_MENU]. */
 @Composable
 internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.frontend.Library.SteamGame, state: GameSettingsState) {
     val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
@@ -911,14 +910,12 @@ private fun LanguageRow(host: MenuHost, chosen: String, onPick: (String) -> Unit
     }
 }
 
-/** How fast Inner Gamer cycles its colours. */
 @Composable
 private fun RgbSpeedRow() {
     val ctx = androidx.compose.ui.platform.LocalContext.current.applicationContext
     SliderRow(stringResource(R.string.theme_rgb_speed), stringResource(R.string.theme_rgb_speed_hint), Themes.rgbSpeed, 1..Themes.RGB_SPEEDS) { Themes.setRgbSpeed(ctx, it) }
 }
 
-/** The two colours of the Gradient theme, each a small square that opens the colour picker. */
 @Composable
 private fun GradientColorRows() {
     val ctx = androidx.compose.ui.platform.LocalContext.current.applicationContext

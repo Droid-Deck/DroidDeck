@@ -51,13 +51,11 @@ import com.droiddeck.launcher.session.StatsStrip
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-/** FusionHUD's metric colors, so the bottom screen reads like the HUD on the top screen. */
 internal object StatsColors {
     val cpu = Color(0xFF58A6FF)
     val gpu = Color(0xFF5EE08A)
     val ram = Color(0xFFFF7BC0)
     val bat = Color(0xFFFFAB5E)
-    // Throttle and brake stay apart for red-green colour blindness (checked against the dark surface).
     val throttle = Color(0xFF14A39A)
     val brake = Color(0xFFE5484D)
     val speed = Color(0xFF2E8FD6)
@@ -66,7 +64,6 @@ internal object StatsColors {
     val badge = Color(0xFF0B0D10)
 }
 
-/** The last [capacity] readings, oldest first. */
 internal class History(private val capacity: Int) {
     private val values = ArrayDeque<Float>(capacity)
     fun add(v: Float) {
@@ -78,7 +75,6 @@ internal class History(private val capacity: Int) {
 
 private val MARK_RATIO = DroidDeckMark.widthFor(1f)
 
-/** The DroidDeck mark (the split D with the blue orb), the same artwork the HUD draws. */
 @Composable
 internal fun DroidDeckLogo(height: Dp, modifier: Modifier = Modifier, body: Color = Color.White, orb: Color = LocalPalette.current.primary) {
     Canvas(modifier.size(height * MARK_RATIO, height)) {
@@ -96,7 +92,6 @@ private fun LogoBadge(size: Dp) {
     }
 }
 
-/** The mark and "DroidDeck" on the left, the running game's name in the middle, the clock on the right. */
 @Composable
 private fun LogoHeader(clock: String, game: String?) {
     val colors = MaterialTheme.colorScheme
@@ -123,7 +118,6 @@ internal fun Sparkline(values: List<Float>, min: Float, max: Float, color: Color
     }
 }
 
-/** A readout card: dark surface, a thin accent edge and the DroidDeck mark before the title ("" = mark only). */
 @Composable
 internal fun StatsCard(title: String?, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     val pal = LocalPalette.current
@@ -141,7 +135,6 @@ internal fun StatsCard(title: String?, modifier: Modifier = Modifier, content: @
     }
 }
 
-/** What the top strip shows; histories hold one reading a second, oldest first. */
 internal class StripData(
     val fps: Float?,
     val device: HudMetrics.Snapshot?,
@@ -161,7 +154,6 @@ private fun batteryText(s: HudMetrics.Snapshot?): String =
 
 private fun fpsText(fps: Float?): String = fps?.takeIf { it > 0f }?.let { "%.1f".format(it) } ?: "–"
 
-/** The top strip; a tap moves to the next style. */
 @Composable
 internal fun StatsStripView(style: StatsStrip, d: StripData, onTap: () -> Unit) {
     Box(Modifier.fillMaxWidth().clickable(onClick = onTap)) {

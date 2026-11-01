@@ -266,7 +266,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (locked) openEvdevMouse() else closeEvdevMouse()
             padMouseCheckedAt = 0L
             if (::padMouse.isInitialized) padMouseMode()
-            // Touchpad deltas are measured from the middle while locked (moveLockedPointer).
             if (locked && ::touchpad.isInitialized) {
                 drawnRect()?.let { touchpad.place(it.centerX(), it.centerY()) }
                 cursorVisible = false
@@ -514,8 +513,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
-    // A higher refresh rate allowed in Android's settings does not change the display while this window
-    // still asks for a lower mode, so the mode is chosen again when the setting changes.
     private val refreshSettingObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
         override fun onChange(selfChange: Boolean) {
             applyOutputPacing()
@@ -572,7 +569,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             finish()
             return
         }
-        // A cancelled install keeps its thread until the download stops; a new launch would reuse its stop flag and close itself.
         if (savedInstanceState == null && SessionState.installing != null && !SessionState.running) {
             runtimeRemovalBlocked = true
             android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
@@ -583,7 +579,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             val mode = intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
             SessionState.programArgs = intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
             SessionEvents.begin(this, mode, SessionPaths.label(mode, intent.getStringExtra(SessionService.EXTRA_PROGRAM)))
-            // begin() moves the phase on, so the block below never runs for a new session; reset per-session flags here.
             SessionState.secondScreenAutoOpened = false
             SessionState.secondScreenProvisional = false
         }
@@ -716,8 +711,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             ViewConfiguration.get(this).scaledTouchSlop.toFloat(), gestureOutput,
         )
         refreshGestureConfig()
-        // A real touch target lets FrameLayout split fingers between the
-        // game surface and on-screen buttons, in either finger-down order.
         root.isMotionEventSplittingEnabled = true
         surfaceView.setOnTouchListener { _, event ->
             if (!event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN)) {
@@ -923,7 +916,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.BLACK))
                     },
                 )
-                // Also runs when a second screen appears, so Automatic applies then with the running game known.
                 LaunchedEffect(AgentGuest.focusRevision, secondScreenDisplays.isNotEmpty()) {
                     val nextGame = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         if (SessionState.mode == SessionService.MODE_RUN) SessionState.program?.let { "program:$it" }
@@ -1117,7 +1109,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     SessionAchievements(inFront.game, inFront.title, onClose = ::closeAchievements)
                 }
                 com.droiddeck.launcher.ui.AchievementNotificationOverlay()
-                // Auto and Native resume on their own as the session comes back; only a failed resume needs the button.
                 val autoResume = suspendPolicy == SessionPrefs.SUSPEND_AUTO || suspendPolicy == SessionPrefs.SUSPEND_NATIVE
                 LaunchedEffect(SessionState.manualPause, SessionState.suspended) {
                     if (!SessionState.manualPause && !SessionState.suspended) pauseAnimated = false
@@ -1477,7 +1468,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         ))
     }
 
-    /** The SteamVR driver switches pad sticks between hands and game on both stick clicks together. */
     private fun switchVrSticks() {
         val chord = { down: Boolean -> padBridge?.applyTouch { state ->
             state.press(com.droiddeck.launcher.input.PadState.L3, down)
@@ -2206,8 +2196,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
-        // Hiding the phone surface after a handoff delivers a late destruction
-        // callback. It must not reset the new output's size or attachment.
         if (holder !== outputHolder()) return
         cancelTouchGestures()
         surfaceW = 0
@@ -2648,10 +2636,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (PadBridge.isControllerMotionEvent(event) && padMouseMode() && padMouse.onMotion(event)) return true
         if (padBridge?.onMotionEvent(event) == true) return true
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE) && !drawerOpen) {
-            /* The app's own controls get the pointer first. With the picture on the glasses the
-             * phone shows its panel, and hovering or clicking a control there must reach it
-             * instead of moving and clicking the guest pointer on the glasses. Whatever the UI
-             * leaves alone — the rest of the screen — still drives the guest pointer. */
             if (appUiOwnsPointer()) {
                 if (super.dispatchGenericMotionEvent(event)) return true
                 if (onMouse(event)) return true
@@ -2665,7 +2649,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun dispatchTrackballEvent(event: MotionEvent): Boolean =
         onCapturedPointer(event) || super.dispatchTrackballEvent(event)
 
-    /** Whether one of the on-screen control layers takes a finger going down at this screen point. */
     private fun controlTakesTouchAt(rawX: Float, rawY: Float): Boolean {
         val at = IntArray(2)
         fun takes(view: View, hit: (Float, Float) -> Boolean): Boolean {
@@ -2843,9 +2826,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         override fun prepareRelativePan() {
             if (pointerLocked) return
             val rect = drawnRect() ?: return
-            // Gamescope retains the last absolute position while a game can warp
-            // its own cursor to the center. Its first unlocked motion must start
-            // from that same origin, before the game switches to pointer lock.
             moveTo(rect.centerX(), rect.centerY())
         }
         override fun key(code: Int, down: Boolean) {
@@ -3165,7 +3145,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }),
     )
 
-    /** Pages for the bottom-screen dashboard; the dashboard is offered only while at least one exists. */
     private fun bottomPages(): List<BottomPage> = sessionBottomPages(BottomPageActions(
         takeScreenshot = ::captureScreenshot,
         fps = { if (::hud.isInitialized) hud.liveFps else null },
@@ -3173,9 +3152,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         runningGame = { gestureGame },
     ))
 
-    // A settings page opened on the bottom screen sits under the dashboard window, so the dashboard hides
-    // until the setting is on, or for at most SETTINGS_WATCH_CHECKS seconds when it is left off (another
-    // app's page closing cannot be seen); choosing Dashboard in the menu again shows it sooner.
     private fun openSettingsBelow(intent: android.content.Intent, done: () -> Boolean) {
         val presentation = secondScreenPresentation ?: return
         val options = android.app.ActivityOptions.makeBasic().setLaunchDisplayId(presentation.display.displayId)
@@ -3187,7 +3163,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!opened) return
         presentation.hide()
         var checks = 0
-        // Show throws if the display went away while the settings page was open, as in showSecondScreen.
         fun showAgain() {
             try {
                 presentation.show()
@@ -3208,9 +3183,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }, SETTINGS_WATCH_MS)
     }
 
-    /** Copies the game frame (no overlay) at the size it is shown and saves it to Pictures/DroidDeck. */
     private fun captureScreenshot(onDone: (Boolean) -> Unit) {
-        // With the glasses as the output the game is drawn on their surface; the phone's surface is hidden then.
         val source = if (glassesOutputActive) glassesScreen?.surfaceView else if (::surfaceView.isInitialized) surfaceView else null
         val width = source?.width ?: 0
         val height = source?.height ?: 0
@@ -3652,23 +3625,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (want) view.requestPointerCapture() else view.releasePointerCapture()
     }
 
-    /** Null until the first application, so the initial state is applied rather than skipped. */
     private var platformPointerShown: Boolean? = null
 
-    /**
-     * The app's own UI is what the mouse is over, so it needs a pointer of its own: the drawer,
-     * keyboard, achievements and PiP controls, and — once the glasses own the picture — the whole
-     * phone, which then shows [GlassesPhonePanel] instead of the game.
-     */
     private fun appUiOwnsPointer(): Boolean =
         drawerOpen || pcKeyboardOpen || achievementsOpen || pipUi || glassesOutputActive
 
-    /**
-     * Over the game neither this app nor Android draws a pointer: the compositor's cursor is the
-     * only one (Compose's on the phone, inside the picture on the glasses). Over the app's own UI
-     * the game gets no pointer events at all, so without this nothing visible follows the mouse
-     * while buttons still highlight and click.
-     */
     private fun applyPlatformPointer(shown: Boolean) {
         if (!::sessionRoot.isInitialized || !::surfaceView.isInitialized) return
         if (shown == platformPointerShown) return
@@ -3889,7 +3850,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (down || code !in gestureKeysDown) WaylandCompositor.nativeSendKey(code, if (down) 1 else 0)
     }
 
-    // The frozen game cannot draw again, so the paused overlay shows a copy taken while the surface still holds its frame.
     private fun capturePausedFrame(manual: Boolean = false) {
         if (!SessionState.running || pipUi || isInPictureInPictureMode || glassesOutputActive) return
         if (SessionState.suspended && pausedFrame != null) return
@@ -3934,8 +3894,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         SessionService.pause(this)
     }
 
-    // Sessions that froze from picture-in-picture, or before onPause could copy a frame, have none; the
-    // compositor shows the frozen frame again once its output is back, so copy it from there.
     private fun requestPausedFrame() {
         if (pausedFrame != null) return
         pausedFrameWanted = true
@@ -4172,8 +4130,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             Glasses.cancelSteamVrStart()
         }
         if (glasses.present) {
-            // Optional stereo starts only after RUNNING is observed. READY can
-            // arrive repeatedly while the launch worker is still starting VR.
             if (action == "install") steamVrStatus = SteamVr.Status.INSTALLING
             runSteamVrAction(action, ::currentRequest) {
                 val ok = SteamVr.run(this, action)
@@ -4366,8 +4322,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (holder !== outputHolder()) return
         glassesOutputActive = glassesScreen?.holder === holder
         if (CompositorHost.isStarted) WaylandCompositor.nativeSetCursorComposite(glassesOutputActive)
-        // Keep the phone's layout for touch/controller coordinates, but remove
-        // its SurfaceView so it cannot retain the last game frame under the hint.
         surfaceView.visibility = if (glassesOutputActive) View.INVISIBLE else View.VISIBLE
         Log.i(TAG, "compositor output attached: " +
             if (glassesOutputActive) "glasses display ${glassesScreen?.display?.displayId}" else "phone")
@@ -4446,8 +4400,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         if (target != null) {
             val screen = GlassesScreen(this, target, Glasses.outputHz(), this, Glasses.outputResolution())
-            // show() can create the surface synchronously. Select its holder
-            // first, otherwise surfaceCreated() rejects the glasses callback.
             glassesScreen = screen
             applyOutputPacing()
             surfaceW = 0

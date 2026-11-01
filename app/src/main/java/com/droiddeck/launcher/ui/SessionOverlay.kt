@@ -1601,7 +1601,6 @@ internal fun ComponentDownloadsDrawerGroup(
                     }
                     AnchoredMenu(open, onDismiss = { if (host.open == key) host.open = null },
                         title = ComponentsManager.LABEL.getValue(comp)) { firstItemFocus ->
-                        // A nightly paired with a stable build rides on that row; Stable/Nightly tabs beside the row pick which one.
                         val pairs = ComponentsManager.nightlyPairs(items)
                         val rows = items.filter { it !in pairs.values }
                         fun shown(row: ComponentsManager.CatalogItem) = pairs[row]?.takeIf { nightlyPicked[row.file] == true } ?: row

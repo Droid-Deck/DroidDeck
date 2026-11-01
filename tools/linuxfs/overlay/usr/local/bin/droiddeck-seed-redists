@@ -144,8 +144,6 @@ unseed() {
   return 1
 }
 
-# The ledger lines whose values the registry still holds, in both views where we wrote both. A Proton
-# update replaces its default_pfx system.reg but not our ledger beside it, and new prefixes copy both.
 present() { awk -F'\t' -v hive="$hive" '
   NR == FNR {
     path = $1

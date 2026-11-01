@@ -180,7 +180,6 @@ object AddedGames {
 
     private fun entryFolders(context: Context): Set<String> = AddedExes.list(context).map { it.folder }.toSet()
 
-    /** The card's Steam libraries: the arm64 client's steamapps and the x86-64 client's own folder beside it. */
     internal fun isSteamLibraryFolder(name: String): Boolean =
         name.equals("steamapps", ignoreCase = true) || name == com.droiddeck.launcher.session.GameStorage.X64_CARD_DIR
 
@@ -315,7 +314,6 @@ object AddedGames {
 
     fun addFolder(context: Context, dir: File, onGame: (Game) -> Unit = {}, onChecking: (String?) -> Unit = {}, showHidden: Boolean = false): FolderResult {
         val app = context.applicationContext
-        // Binds are mounted at session start, so a new one reaches the session from the next start.
         if (guestPath(app, dir) == null) bindFolder(app, dir)
         val removed = SessionPrefs.removedAddedGames(app).toSet()
         val listed = listedFolders(app, removed)
