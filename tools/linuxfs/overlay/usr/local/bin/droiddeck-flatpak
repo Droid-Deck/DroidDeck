@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 
 os.environ.setdefault("FLATPAK_BWRAP", "/usr/local/bin/droiddeck-bwrap")
 
@@ -75,7 +76,9 @@ def system_bus_paths():
         if entry.startswith("unix:"):
             for key, _, value in (part.partition("=") for part in entry[len("unix:"):].split(",")):
                 if key == "path" and value:
-                    paths.append(value)
+                    paths.append(urllib.parse.unquote(value))
+                elif key == "abstract" and value:
+                    paths.append("\0" + urllib.parse.unquote(value))
     return paths
 
 

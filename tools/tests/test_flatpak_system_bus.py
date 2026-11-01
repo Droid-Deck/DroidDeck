@@ -114,6 +114,26 @@ class FlatpakSystemBusTest(unittest.TestCase):
             server.close()
             os.unlink(path)
 
+    def test_escaped_and_abstract_addresses_are_probed_as_dbus_reads_them(self):
+        path = os.path.join(self.tmp, "sys-bus")
+        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        server.bind(path)
+        server.listen(1)
+        abstract = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        abstract.bind("\0droiddeck-flatpak-test-%d" % os.getpid())
+        abstract.listen(1)
+        try:
+            os.environ["DBUS_SYSTEM_BUS_ADDRESS"] = "unix:path=" + path.replace("-", "%2D")
+            self.assertTrue(self.module.system_bus_reachable())
+            os.environ["DBUS_SYSTEM_BUS_ADDRESS"] = "unix:path=%s;unix:abstract=droiddeck-flatpak-test-%d" % (os.path.join(self.tmp, "missing"), os.getpid())
+            self.assertTrue(self.module.system_bus_reachable())
+            os.environ["DBUS_SYSTEM_BUS_ADDRESS"] = "unix:abstract=droiddeck-flatpak-missing-%d" % os.getpid()
+            self.assertFalse(self.module.system_bus_reachable())
+        finally:
+            abstract.close()
+            server.close()
+            os.unlink(path)
+
     def test_a_daemon_that_cannot_launch_leaves_no_files_and_warns(self):
         made = []
         real = tempfile.mkdtemp
