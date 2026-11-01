@@ -641,6 +641,8 @@
     <string name="hud_size_strip">横条</string>
     <string name="hud_locked">锁定位置</string>
     <string name="hud_locked_hint">拖动 HUD 可移动位置；长按可锁定或解锁。锁定时，下方的屏幕控件仍可使用。</string>
+    <string name="hud_snap">吸附到边缘</string>
+    <string name="hud_snap_hint">松开 HUD 后，它会移到最近的边缘、角落或中间。轻甩可将它甩向该方向。</string>
     <string name="hud_group_look">外观</string>
     <string name="hud_scale">屏幕显示大小</string>
     <string name="hud_color_soft">柔和</string>

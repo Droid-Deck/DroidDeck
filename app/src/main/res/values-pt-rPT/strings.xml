@@ -656,6 +656,8 @@
     <string name="hud_size_strip">Barra</string>
     <string name="hud_locked">Bloquear posição</string>
     <string name="hud_locked_hint">Arraste o HUD para o mover; um toque longo bloqueia-o ou desbloqueia-o. Enquanto estiver bloqueado, os controlos no ecrã por baixo dele continuam a funcionar.</string>
+    <string name="hud_snap">Encaixar nas margens</string>
+    <string name="hud_snap_hint">Solte o HUD e ele vai para a margem, o canto ou o centro mais próximo. Um gesto rápido lança-o nessa direção.</string>
     <string name="hud_group_look">Aspeto</string>
     <string name="hud_scale">Tamanho no ecrã</string>
     <string name="hud_color_soft">Suave</string>

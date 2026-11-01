@@ -654,6 +654,8 @@
     <string name="hud_size_strip">Λωρίδα</string>
     <string name="hud_locked">Κλείδωμα θέσης</string>
     <string name="hud_locked_hint">Σύρετε το HUD για να το μετακινήσετε· ένα παρατεταμένο πάτημα το κλειδώνει ή το ξεκλειδώνει. Όσο είναι κλειδωμένο, τα χειριστήρια οθόνης από κάτω του εξακολουθούν να λειτουργούν.</string>
+    <string name="hud_snap">Προσκόλληση στις άκρες</string>
+    <string name="hud_snap_hint">Αφήστε το HUD και μετακινείται στην πλησιέστερη άκρη, γωνία ή στο κέντρο. Μια γρήγορη κίνηση το πετάει προς εκείνη την κατεύθυνση.</string>
     <string name="hud_group_look">Εμφάνιση</string>
     <string name="hud_scale">Μέγεθος στην οθόνη</string>
     <string name="hud_color_soft">Απαλό</string>

@@ -658,6 +658,8 @@
     <string name="hud_size_strip">Pasek</string>
     <string name="hud_locked">Zablokuj w miejscu</string>
     <string name="hud_locked_hint">Przeciągnij HUD, aby go przesunąć; długie naciśnięcie blokuje go lub odblokowuje. Gdy jest zablokowany, sterowanie ekranowe pod nim nadal działa.</string>
+    <string name="hud_snap">Przyciągaj do krawędzi</string>
+    <string name="hud_snap_hint">Puść HUD, a przesunie się do najbliższej krawędzi, rogu lub środka. Szybki ruch rzuca go w tę stronę.</string>
     <string name="hud_group_look">Wygląd</string>
     <string name="hud_scale">Rozmiar na ekranie</string>
     <string name="hud_color_soft">Stonowany</string>

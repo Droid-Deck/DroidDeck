@@ -29,6 +29,8 @@ internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (Stri
             size, chipModifier = track("hud-size")) { a.onHudSetting("hudSize", it.token) }
         ToggleRow(host, "hud-locked", stringResource(R.string.hud_locked), stringResource(R.string.hud_locked_hint), on("hudLocked"),
             chipModifier = track("hud-locked")) { a.onHudSetting("hudLocked", flag(it)) }
+        ToggleRow(host, "hud-snap", stringResource(R.string.hud_snap), stringResource(R.string.hud_snap_hint), on("hudSnap"),
+            chipModifier = track("hud-snap")) { a.onHudSetting("hudSnap", flag(it)) }
     }
     if (!a.hudOn) return
 

@@ -225,6 +225,12 @@ class DroidDeckHudView(context: Context) : View(context) {
     fun setOnLockChangedListener(l: Consumer<Boolean>?) { onLockChangedListener = l }
     private var onDockChangedListener: Consumer<String>? = null
     private var onScaledListener: IntConsumer? = null
+    private var onDraggedListener: BiConsumer<Float, Float>? = null
+    /** The HUD moved under the finger, at that screen point. */
+    fun setOnDraggedListener(l: BiConsumer<Float, Float>?) { onDraggedListener = l }
+    private var onFlungListener: BiConsumer<Float, Float>? = null
+    /** A drag ended in a fling, at this velocity (pixels per second), just before the move is reported. */
+    fun setOnFlungListener(l: BiConsumer<Float, Float>?) { onFlungListener = l }
     fun setOnDockChangedListener(l: Consumer<String>?) { onDockChangedListener = l }
     /** A pinch settled on this size, in percent. */
     fun setOnScaledListener(l: IntConsumer?) { onScaledListener = l }
@@ -232,6 +238,8 @@ class DroidDeckHudView(context: Context) : View(context) {
     private val lockController = HudLockController(context, this, object : HudLockController.Callbacks {
         override fun onTap() { cycleSize() }
         override fun onMoved(x: Float, y: Float) { onMovedListener?.accept(x, y) }
+        override fun onDragged(rawX: Float, rawY: Float) { onDraggedListener?.accept(rawX, rawY) }
+        override fun onFlung(velocityX: Float, velocityY: Float) { onFlungListener?.accept(velocityX, velocityY) }
         override fun onLockChanged(locked: Boolean) { onLockChangedListener?.accept(locked) }
         override fun onPinch(factor: Float) {
             val next = (scale * factor).coerceIn(MIN_SCALE, MAX_SCALE)

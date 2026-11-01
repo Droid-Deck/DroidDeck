@@ -656,6 +656,8 @@
     <string name="hud_size_strip">Barra</string>
     <string name="hud_locked">Blocca in posizione</string>
     <string name="hud_locked_hint">Trascina l\'HUD per spostarlo; una pressione prolungata lo blocca o lo sblocca. Mentre è bloccato, i controlli su schermo sotto di esso continuano a funzionare.</string>
+    <string name="hud_snap">Aggancia ai bordi</string>
+    <string name="hud_snap_hint">Rilascia l\'HUD e si sposta al bordo, all\'angolo o al centro più vicino. Un gesto rapido lo lancia in quella direzione.</string>
     <string name="hud_group_look">Aspetto</string>
     <string name="hud_scale">Dimensione sullo schermo</string>
     <string name="hud_color_soft">Tenue</string>

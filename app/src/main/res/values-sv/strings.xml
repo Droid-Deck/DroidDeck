@@ -654,6 +654,8 @@
     <string name="hud_size_strip">List</string>
     <string name="hud_locked">Lås på plats</string>
     <string name="hud_locked_hint">Dra HUD:en för att flytta den; ett långt tryck låser eller låser upp den. När den är låst fungerar skärmkontrollerna under den fortfarande.</string>
+    <string name="hud_snap">Fäst mot kanter</string>
+    <string name="hud_snap_hint">Släpp HUD:en så flyttas den till närmaste kant, hörn eller mitten. En snabb svepning kastar den åt det hållet.</string>
     <string name="hud_group_look">Utseende</string>
     <string name="hud_scale">Storlek på skärmen</string>
     <string name="hud_color_soft">Mjuk</string>

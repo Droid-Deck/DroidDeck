@@ -658,6 +658,8 @@
     <string name="hud_size_strip">Полоса</string>
     <string name="hud_locked">Закрепить на месте</string>
     <string name="hud_locked_hint">Перетащите HUD, чтобы переместить его; долгое нажатие закрепляет или открепляет его. Пока он закреплён, экранные элементы управления под ним продолжают работать.</string>
+    <string name="hud_snap">Прилипание к краям</string>
+    <string name="hud_snap_hint">Отпустите HUD, и он переместится к ближайшему краю, углу или в центр. Резкий жест отбросит его в ту сторону.</string>
     <string name="hud_group_look">Внешний вид</string>
     <string name="hud_scale">Размер на экране</string>
     <string name="hud_color_soft">Мягкий</string>
