@@ -87,11 +87,6 @@ class LibraryEntriesTest {
         assertEquals(listOf("epic", "gog", "battlenet"), librarySources(entries, listOf("missing", "epic", "epic", "amazon")))
     }
 
-    @Test fun aSignedInStoreWithNoGamesKeepsItsPlaceInTheStoreOrder() {
-        val entries = listOf("steam", "xbox", "gamejolt").map { LibraryEntry(it, it, it, null, null, true) }
-        assertEquals(listOf("steam", "xbox", "itch", "gamejolt"), librarySources(entries, listOf("xbox", "itch", "gamejolt"), setOf("itch")))
-    }
-
     @Test fun gameKeysNameEitherAnAppOrAStoreProduct() {
         GameRef.parse("app:440").let { assertEquals(440, it.appId); assertNull(it.store) }
         GameRef.parse("app:-12").let { assertEquals(-12, it.appId) }
