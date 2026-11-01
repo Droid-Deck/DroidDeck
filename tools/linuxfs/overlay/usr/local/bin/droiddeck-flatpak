@@ -57,6 +57,12 @@ def prepare_rootfs():
 
 
 def bus_reachable(path):
+    if isinstance(path, tuple):
+        try:
+            socket.create_connection(path, timeout=1).close()
+            return True
+        except (OSError, ValueError):
+            return False
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
         sock.connect(path)
@@ -74,12 +80,15 @@ def system_bus_paths():
     paths = []
     for entry in filter(None, address.split(";")):
         found = None
-        if entry.startswith("unix:"):
-            for key, _, value in (part.partition("=") for part in entry[len("unix:"):].split(",")):
-                if key == "path" and value:
-                    found = urllib.parse.unquote_to_bytes(value)
-                elif key == "abstract" and value:
-                    found = b"\0" + urllib.parse.unquote_to_bytes(value)
+        kind, _, params = entry.partition(":")
+        values = dict(part.partition("=")[::2] for part in params.split(","))
+        if kind == "unix":
+            if values.get("path"):
+                found = urllib.parse.unquote_to_bytes(values["path"])
+            elif values.get("abstract"):
+                found = b"\0" + urllib.parse.unquote_to_bytes(values["abstract"])
+        elif kind == "tcp" and values.get("port"):
+            found = (urllib.parse.unquote(values.get("host", "localhost")), values["port"])
         if found is None:
             return None
         paths.append(found)
