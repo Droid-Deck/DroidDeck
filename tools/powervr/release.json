@@ -775,31 +775,33 @@
   "format": 1,
   "hybris": {
     "provenance": {
-      "component_ci_run": "https://github.com/wallentx/DroidDeck/actions/runs/39360327540",
+      "component_ci_run": "https://github.com/wallentx/DroidDeck/actions/runs/41287902018",
       "note": "Candidate pin: publish this exact archive and verify its URL before updating release.json.",
-      "producer_commit": "4ed93fb9ee6e2a0b24ff087196f2e93d247fd985",
-      "upstream_source_commit": "bc8cb3586b79d208fd21b925fa0209b3e432e008"
+      "producer_commit": "2537046fe47cf02f7d18a7efac8b6c7ea6e9b78e",
+      "upstream_source_commit": "7076971ba6a2fe8834cb0f3aaf4ee721cc1b678d"
     },
     "recipe_inputs": {
-      "tools/hybris/build_runtime.sh": "ae29d79602f36e113fe4d5599b9d0f36899643aaa2341c21d371de1b65bc59b2",
+      "tools/hybris/build_runtime.sh": "c1cefbde17976938d89b31386568cb01fa6b86f9e228aef07c6ea23e614c3920",
       "tools/hybris/component_record.py": "59d102eb89b279d617a8dc43629ed572ca46faf34a61d5ee81bb52005485f521",
-      "tools/hybris/patches/0001-dxvk-bc-profile.patch": "b90605e51256595de4453352865aa198e59bd2d392ac6b7c2a60f38c57727c9d",
-      "tools/hybris/patches/0002-vendor-compatibility.patch": "9741c8424c06d4c525b1f8b5a4472a16eaa2e8d3be56b86a6f49dbef53a0d5c2",
-      "tools/hybris/patches/0003-placed-memory-layer.patch": "da2238b6e71418993aa1ffe5678a413e2d05114194e1c533ac67c13c92561941",
-      "tools/hybris/patches/0004-mali-mapping-lock.patch": "8876d45d135133ea51c01ab71c89172b3ac75a4f1954f4f75dadcfc82d9d5af1",
-      "tools/hybris/patches/0005-inline-shader-modules.patch": "8fb9c05b9d6f1dd2200a3d85122ae84e697dc306a17c16f3f8a7bbdb50f70e34",
-      "tools/hybris/patches/0006-clip-shader-layout.patch": "b414e01a85720b6e7a460f8834cd5f9a020efef8c15df8766f00619086e05f5c",
-      "tools/hybris/patches/0007-clip-pipeline-contract.patch": "4018a569d7894d6253a12fa74daf5492758d36fb8c080d45118c408669a656be",
-      "tools/hybris/patches/0008-bc-push-descriptors.patch": "21fce09f3e8f1527669f3151f10b426a50029703e022f047843864598329ae0f",
-      "tools/hybris/patches/0009-tls-capacity-and-icd-diagnostics.patch": "4ab9c80d0cb249c834c2dee6c1a1883a2ab39e15f4c606f7848821a809ae8bed",
-      "tools/hybris/patches/0010-strip-spirv-names.patch": "29f61758aff3e1a04e144dd515fb1e4789fe16f4681a9efa9e2d299759fa25c4",
-      "tools/hybris/patches/0011-zink-vertex-input-profile.patch": "2aa29ee4f2ed9859b1b4c49d4f03c51becbdd7323b0b42a0b702ae19eefd8498",
-      "tools/hybris/powervr-hal-version.patch": "d3ed8ca03e5a874b9dc46651983117760c7490b96127335625d0480a2b85e66f",
-      "tools/hybris/source.env": "9ae7985f2052dbcc8b9666494bc8a711ec85013f6a27d6d72d9729c32b919dd8"
+      "tools/hybris/patches/0001-dxvk-bc-profile.patch": "16c7876d19b4a4e847f0e8439552c853d0a93e319d5e6b2058b3c6d43c5cd1bc",
+      "tools/hybris/patches/0002-vendor-compatibility.patch": "7bad99613e1b64b9a7d8f8450ba6aa65d755e8a0f4bc1d9086d2af2bc5891cab",
+      "tools/hybris/patches/0003-placed-memory-layer.patch": "7fbedc90bdd9ad2163abb59898a27115119950d385be69e4378d5417698a2287",
+      "tools/hybris/patches/0004-mali-mapping-lock.patch": "bb969d21658d891ce798e73751c35fbd0b36e214b716b2ce9290792202502cdf",
+      "tools/hybris/patches/0005-inline-shader-modules.patch": "ca4d0d60fcb1bdf413776b25bef03067e1022a9fc4827c92c5852bf77c167e06",
+      "tools/hybris/patches/0006-clip-shader-layout.patch": "9e8e6c53c01803a1691e65fa3701ba511700d4f76f8370d8c3dfcf91d1fa70b0",
+      "tools/hybris/patches/0007-clip-pipeline-contract.patch": "b40814c061588d3be9761bc1129d37abddced3ccf6a36a04ee8a8017de39c3dd",
+      "tools/hybris/patches/0008-bc-push-descriptors.patch": "42ec0c15c510820f9a559f6459bca652a33fc7ab94ad89d82460933b917345b3",
+      "tools/hybris/patches/0009-tls-capacity-and-icd-diagnostics.patch": "60e330d81ca743a195120c811c61e83827c0980aa8950b6e9243508b742e73d2",
+      "tools/hybris/patches/0010-strip-spirv-names.patch": "4b36dd5b77a26370e2c229cc6c8e88432bc118e32eb0834fa643a22aa3ea40ef",
+      "tools/hybris/patches/0011-zink-vertex-input-profile.patch": "ce1084ae8671eb79db48c0f8370808ade6a9e9749010644c19b80883873dcbe9",
+      "tools/hybris/patches/0012-track-commands-gate.patch": "fa1a48c34567217ad14223f212fb4a495cd2b4066495d14fff0e1eeb42183ec1",
+      "tools/hybris/patches/0013-build-snapshot-license.patch": "4093c3ec4dc2bcb18671b5016c4f9147592fd00e59082d7fb5855ca13dee4228",
+      "tools/hybris/powervr-hal-version.patch": "9fff26678dc4120bd124fd1cee0d7220c81d7b37ec11e8eafefa5f29a1d06e67",
+      "tools/hybris/source.env": "ab2acc2c9dbaf61f011d213a98a2da39e55228d8ddf5c74e2c884bf5273952e4"
     },
-    "sha256": "a4e1ab9581c83ee6feff95e0e527930977a6c14c0e72bd2c4abf777e8472d987",
-    "size": 5799930,
-    "tree_sha256": "864bc3b007f0d441c8843a5b70db3a5099282b40b6c6391e284a061b7f7fad0c",
-    "url": "https://github.com/wallentx/DroidDeck/releases/download/hybris-4ed93fb9ee6e2a0b24ff087196f2e93d247fd985/runtime.tzst"
+    "sha256": "0d740b1651615b42fdd8615f460af4c5d31991f8219f0449d889375efd4be3bf",
+    "size": 6595325,
+    "tree_sha256": "66a9dad0f73d1033d8fc44086a972eca1e0801b1f21a53f595f5877b013b6de4",
+    "url": "https://github.com/wallentx/DroidDeck/releases/download/hybris-2537046fe47cf02f7d18a7efac8b6c7ea6e9b78e/runtime.tzst"
   }
 }
