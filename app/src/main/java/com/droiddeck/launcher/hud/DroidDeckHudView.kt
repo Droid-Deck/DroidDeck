@@ -538,19 +538,19 @@ class DroidDeckHudView(context: Context) : View(context) {
     }
 
     private fun buildDockTab() {
-        val numPx = sp(20f)
+        val numPx = sp(TAB_NUM_SP)
         val spans = tabSpans()
-        val padX = sp(9f); val padY = sp(7f)
+        val padX = sp(TAB_PAD_X_SP); val padY = sp(TAB_PAD_Y_SP)
         placeRun(padX, padY + capHeight(numPx), spans)
         val (w, h) = dockTabSize()
         contentW = w; contentH = h
         tabRect = RectF(0f, 0f, contentW, contentH)
     }
 
-    private fun tabSpans() = listOf(Span(one(fpsNow), colValue, sp(20f)), Span("fps", colDim, sp(8.5f)))
+    private fun tabSpans() = listOf(Span(one(fpsNow), colValue, sp(TAB_NUM_SP)), Span("fps", colDim, sp(TAB_LABEL_SP)))
 
     internal fun dockTabSize(): Pair<Float, Float> =
-        Pair(runWidth(tabSpans()) + 2f * sp(9f), capHeight(sp(20f)) + 2f * sp(7f))
+        Pair(runWidth(tabSpans()) + 2f * sp(TAB_PAD_X_SP), capHeight(sp(TAB_NUM_SP)) + 2f * sp(TAB_PAD_Y_SP))
 
     private fun drawTab(canvas: Canvas, rect: RectF, edgeOf: DroidDeckHudDock = dock) {
         val r = sp(8f); val stroke = outlineWidth(); val h = stroke / 2f
@@ -1292,8 +1292,8 @@ class DroidDeckHudView(context: Context) : View(context) {
         canvas.translate(-w / 2f, -h / 2f)
         canvas.saveLayerAlpha(0f, 0f, w, h, (blend * 255f).roundToInt())
         drawTab(canvas, RectF(0f, 0f, w, h), previewEdge)
-        var x = sp(9f)
-        val baseline = sp(7f) + capHeight(sp(20f))
+        var x = sp(TAB_PAD_X_SP)
+        val baseline = sp(TAB_PAD_Y_SP) + capHeight(sp(TAB_NUM_SP))
         for (span in tabSpans()) {
             drawPaint.textSize = span.sizePx
             drawPaint.color = blend(span.color)
@@ -1483,6 +1483,10 @@ class DroidDeckHudView(context: Context) : View(context) {
     internal val isDragging: Boolean get() = lockController.isDragging() || tabDragging
 
     private companion object {
+        const val TAB_NUM_SP = 10f
+        const val TAB_LABEL_SP = 6f
+        const val TAB_PAD_X_SP = 5f
+        const val TAB_PAD_Y_SP = 4f
         const val REFRESH_MS = 500L
         private const val HUE_IDLE_MS = 500L
         const val MIN_SCALE = 0.5f
