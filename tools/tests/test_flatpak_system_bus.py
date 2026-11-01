@@ -131,7 +131,7 @@ class FlatpakSystemBusTest(unittest.TestCase):
             self.assertFalse(self.module.system_bus_reachable())
             listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             listener.bind(("127.0.0.1", 0))
-            listener.listen(1)
+            listener.listen(8)
             port = listener.getsockname()[1]
             os.environ["DBUS_SYSTEM_BUS_ADDRESS"] = "unix:abstract=droiddeck-flatpak-missing-%d;tcp:host=127.0.0.1,port=%d" % (os.getpid(), port)
             self.assertTrue(self.module.system_bus_reachable())
