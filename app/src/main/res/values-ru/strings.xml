@@ -3442,6 +3442,8 @@
     <string name="apps_filter_hidden">Скрытые</string>
     <string name="apps_hide">Скрыть</string>
     <string name="apps_unhide">Показывать в приложениях</string>
+    <string name="apps_favorite">Добавить в избранное</string>
+    <string name="apps_unfavorite">Удалить из избранного</string>
     <string name="apps_shortcut_remove">Удалить ярлык</string>
     <string name="apps_pin_title">Добавить в приложения</string>
     <string name="apps_pin_add">Добавить</string>

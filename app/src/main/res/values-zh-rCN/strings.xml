@@ -3289,6 +3289,8 @@
     <string name="apps_filter_hidden">已隐藏</string>
     <string name="apps_hide">隐藏</string>
     <string name="apps_unhide">在应用中显示</string>
+    <string name="apps_favorite">添加到收藏</string>
+    <string name="apps_unfavorite">从收藏中移除</string>
     <string name="apps_shortcut_remove">移除快捷方式</string>
     <string name="apps_pin_title">添加到应用</string>
     <string name="apps_pin_add">添加</string>

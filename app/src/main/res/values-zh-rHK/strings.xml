@@ -3289,6 +3289,8 @@
     <string name="apps_filter_hidden">已隱藏</string>
     <string name="apps_hide">隱藏</string>
     <string name="apps_unhide">在應用程式中顯示</string>
+    <string name="apps_favorite">加入最愛</string>
+    <string name="apps_unfavorite">從最愛中移除</string>
     <string name="apps_shortcut_remove">移除捷徑</string>
     <string name="apps_pin_title">加入應用程式</string>
     <string name="apps_pin_add">新增</string>

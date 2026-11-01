@@ -3370,6 +3370,8 @@
     <string name="apps_filter_hidden">Rejtett</string>
     <string name="apps_hide">Elrejtés</string>
     <string name="apps_unhide">Megjelenítés az alkalmazások között</string>
+    <string name="apps_favorite">Hozzáadás a kedvencekhez</string>
+    <string name="apps_unfavorite">Eltávolítás a kedvencek közül</string>
     <string name="apps_shortcut_remove">Parancsikon eltávolítása</string>
     <string name="apps_pin_title">Hozzáadás az alkalmazásokhoz</string>
     <string name="apps_pin_add">Hozzáadás</string>

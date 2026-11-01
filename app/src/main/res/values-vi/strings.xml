@@ -3343,6 +3343,8 @@
     <string name="apps_filter_hidden">Đã ẩn</string>
     <string name="apps_hide">Ẩn</string>
     <string name="apps_unhide">Hiện trong ứng dụng</string>
+    <string name="apps_favorite">Thêm vào mục yêu thích</string>
+    <string name="apps_unfavorite">Xóa khỏi mục yêu thích</string>
     <string name="apps_shortcut_remove">Xóa lối tắt</string>
     <string name="apps_pin_title">Thêm vào Ứng dụng</string>
     <string name="apps_pin_add">Thêm</string>

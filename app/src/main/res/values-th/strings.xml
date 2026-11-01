@@ -3343,6 +3343,8 @@
     <string name="apps_filter_hidden">ที่ซ่อนไว้</string>
     <string name="apps_hide">ซ่อน</string>
     <string name="apps_unhide">แสดงในแอป</string>
+    <string name="apps_favorite">เพิ่มในรายการโปรด</string>
+    <string name="apps_unfavorite">นำออกจากรายการโปรด</string>
     <string name="apps_shortcut_remove">นำทางลัดออก</string>
     <string name="apps_pin_title">เพิ่มลงในแอป</string>
     <string name="apps_pin_add">เพิ่ม</string>
