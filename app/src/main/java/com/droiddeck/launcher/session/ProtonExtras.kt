@@ -106,11 +106,12 @@ object ProtonExtras {
         synchronized(checkLock) {
             val file = latestFile(context)
             val cache = readJson(file)
+            val waiting = testReleaseMissing(cache)
             val due = tools.filter { tool ->
                 val at = cache.optJSONObject(tool.id)?.optLong("at", 0L) ?: 0L
-                force || (now - at) !in 0 until CHECK_EVERY_MS
+                force || (now - at) !in 0 until CHECK_EVERY_MS || (waiting && tool.id == OWN)
             }
-            if (due.isEmpty() || !force && (now - lastAttempt) in 0 until RETRY_MS) return false
+            if (due.isEmpty() || !force && !waiting && (now - lastAttempt) in 0 until RETRY_MS) return false
             lastAttempt = now
             for (tool in due) {
                 val tag = findLatestAsset(tool)?.tag ?: continue
@@ -120,6 +121,9 @@ object ProtonExtras {
             return true
         }
     }
+
+    internal fun testReleaseMissing(cache: JSONObject): Boolean =
+        cache.optJSONObject(OWN)?.optString("tag") != TEST_RELEASE
 
     private fun record(context: Context, tool: Tool, dir: String?, tag: String) {
         runCatching {

@@ -102,6 +102,13 @@ class ProtonExtrasTest {
     }
 
     @Test
+    fun theTestPrereleaseIsCheckedForUntilItIsFound() {
+        assertTrue(ProtonExtras.testReleaseMissing(JSONObject()))
+        assertTrue(ProtonExtras.testReleaseMissing(JSONObject().put("droiddeck", JSONObject().put("tag", "DroidDeck-Proton-11-11.10"))))
+        assertFalse(ProtonExtras.testReleaseMissing(JSONObject().put("droiddeck", JSONObject().put("tag", ProtonExtras.TEST_RELEASE))))
+    }
+
+    @Test
     fun versionsCompareByTheirNumbers() {
         val sorted = listOf("GE-Proton11-10", "GE-Proton10-25", "GE-Proton11-9", "GE-Proton11-1")
             .sortedWith { a, b -> ProtonExtras.compareVersions(a, b) }
@@ -154,15 +161,15 @@ class ProtonExtrasTest {
         val latest = JSONObject()
             .put("ge", JSONObject().put("tag", "GE-Proton11-7").put("at", now - 60_000))
             .put("cachyos", JSONObject().put("tag", "cachyos-11.0-20261005-slr").put("at", now - 60_000))
-            .put("droiddeck", JSONObject().put("tag", "DroidDeck-Proton-11-7.6").put("at", now - ProtonExtras.CHECK_EVERY_MS + 60_000))
+            .put("droiddeck", JSONObject().put("tag", ProtonExtras.TEST_RELEASE).put("at", now - ProtonExtras.CHECK_EVERY_MS + 60_000))
         File(context.filesDir, "proton-latest.json").writeText(latest.toString())
         assertFalse(ProtonExtras.checkLatest(context, now = now))
-        assertEquals("DroidDeck-Proton-11-7.6", ProtonExtras.update(context, tool("droiddeck")))
+        assertEquals(ProtonExtras.TEST_RELEASE, ProtonExtras.update(context, tool("droiddeck")))
         assertNull(ProtonExtras.update(context, tool("ge")))
         assertNull(ProtonExtras.update(context, tool("cachyos")))
         assertEquals(listOf("DroidDeck-Proton 11-7.5"), ProtonExtras.installedTags(context, tool("droiddeck")))
-        File(context.filesDir, "proton-extras.json").writeText(JSONObject().put("DroidDeck-Proton 11-7.5", "DroidDeck-Proton-11-7.6").toString())
-        assertEquals(listOf("DroidDeck-Proton-11-7.6"), ProtonExtras.installedTags(context, tool("droiddeck")))
+        File(context.filesDir, "proton-extras.json").writeText(JSONObject().put("DroidDeck-Proton 11-7.5", ProtonExtras.TEST_RELEASE).toString())
+        assertEquals(listOf(ProtonExtras.TEST_RELEASE), ProtonExtras.installedTags(context, tool("droiddeck")))
         assertNull(ProtonExtras.update(context, tool("droiddeck")))
     }
 
