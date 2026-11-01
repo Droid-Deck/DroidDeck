@@ -20,6 +20,7 @@ import com.droiddeck.launcher.hud.KeyValueSet
 import com.droiddeck.launcher.hud.MangoReadings
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.StripMetric
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -64,6 +65,7 @@ internal fun SessionBottomStrip(pageId: String?, fps: () -> Float?) {
             metrics = SessionPrefs.bottomStripMetrics(context)
             // Hidden (switched off, or on In-game stats): no device reads.
             if (onTabs && page != BOTTOM_PAGE_TELEMETRY) {
+                if (StripMetric.GPU in metrics || StripMetric.VRAM in metrics) com.droiddeck.launcher.hud.BottomHudPresence.beat()
                 device = withContext(Dispatchers.IO) { runCatching { reader.snapshot() }.getOrNull() }
                 clock = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date())
             }

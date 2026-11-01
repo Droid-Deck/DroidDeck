@@ -134,7 +134,9 @@ class GpuStatsComponent(val dir: File, private val root: File) : SessionPart() {
         sources = ""
     }
 
-    private fun hudShown(): Boolean = OverlayShown.check(root) || com.droiddeck.launcher.hud.DroidDeckHudHost.showing
+    // Any HUD that shows these numbers: Steam's overlay, the top-screen HUD, or the bottom-screen HUD and strips.
+    private fun hudShown(): Boolean = OverlayShown.check(root) || com.droiddeck.launcher.hud.DroidDeckHudHost.showing ||
+        com.droiddeck.launcher.hud.BottomHudPresence.showing
 
     // Android hides the load (kgsl sysfs blocked): the kgsl memstore gives the whole GPU's busy share. The in-game
     // Vulkan layer and the compositor time their own GPU work until the memstore timestamps are seen moving, and

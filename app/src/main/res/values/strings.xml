@@ -1937,7 +1937,6 @@
     <string name="stats_hud_core_group_unknown">%1$d cores</string>
     <string name="stats_hud_game_cores">game</string>
     <string name="stats_hud_fps_of">FPS of %1$d Hz</string>
-    <string name="stats_hud_brightens">Brightens when FPS drops under %1$d</string>
     <string name="stats_hud_red_mark">The red mark is where the HUD shows the temperature in red.</string>
     <string name="stats_hud_whole_device">whole device</string>
     <string name="stats_hud_battery_temp">battery</string>

@@ -125,7 +125,8 @@ private const val UNIT = 0.62f
 @Composable
 internal fun StatsHudView(style: StatsHud, d: HudData, modifier: Modifier, onTap: () -> Unit) {
     val accent = LocalPalette.current.primary
-    val night = style == StatsHud.NIGHT && !nightAwake(d)
+    // Night stays dim; it no longer lights up when the FPS drops (it flickered with games that hover at the floor).
+    val night = style == StatsHud.NIGHT
     Box(modifier.clickable(onClick = onTap)) {
         HudPanel(d.clock, if (style == StatsHud.GRAPHS) stringResource(R.string.stats_hud_last_seconds, d.fpsHistory.size) else null, night, accent) {
             when (style) {
@@ -144,10 +145,6 @@ internal fun StatsHudView(style: StatsHud, d: HudData, modifier: Modifier, onTap
         }
     }
 }
-
-private fun nightAwake(d: HudData): Boolean = d.fps?.let { it > 0f && it < nightFloor(d) } == true
-
-private fun nightFloor(d: HudData): Int = (d.hz * 0.83f).roundToInt()
 
 // ---- panel ----------------------------------------------------------------------------------
 
@@ -626,7 +623,6 @@ private fun ColumnScope.Night(d: HudData, dim: Boolean) {
                 num(it.toString(), "%", 30.sp, if (dim) Color(0xFF6B5A44) else StatsColors.bat)
             }
         }, 30.sp, Modifier.padding(top = 14.dp))
-        Small(stringResource(R.string.stats_hud_brightens, nightFloor(d)), 12.5.sp, Color(0xFF56606C), Modifier.padding(top = 8.dp))
     }
 }
 

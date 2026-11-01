@@ -245,6 +245,8 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
             }
             clock = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date())
             hudOn = SessionPrefs.bottomHud(context)
+            // Keeps the GPU load, clock and VRAM readers going while this HUD shows them (top HUD off too).
+            if (hudOn) com.droiddeck.launcher.hud.BottomHudPresence.beat()
             perfTick++
             delay(METRICS_MS)
         }
