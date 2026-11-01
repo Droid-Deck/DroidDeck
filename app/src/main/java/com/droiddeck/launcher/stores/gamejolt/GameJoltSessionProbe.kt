@@ -12,9 +12,10 @@ internal object GameJoltSessionProbe {
     private const val MAX_LINES = 40
     private const val MAX_PATHS = 120
     private const val DEPTH = 7
+    private const val MAX_PACKAGES = 12
     private val wordsKept = setOf("type", "currency", "status", "key", "message", "error", "reason", "os", "code", "kind", "state", "access", "level")
     private val noisy = Regex("^\\.(recommendedGames|comments|developer|knownFollowers|posts)")
-    private val ownership = Regex("^\\.(sellables\\[0\\]\\.(?!resource)|game\\.sellable\\.(?!resource)|packages\\[0\\]\\.is_game_owner|microdata)")
+    private val ownership = Regex("^\\.(sellables\\[0\\]\\.(?!resource)|game\\.sellable\\.(?!resource)|microdata)")
     private val interesting = Regex("own|access|purchas|bought|paid|licen|price|amount|sellable|pricing|key|order|library|count|total|has_|is_|can_", RegexOption.IGNORE_CASE)
     private val trailingId = Regex("/(\\d+)/?(?:[?#].*)?$")
 
@@ -60,6 +61,12 @@ internal object GameJoltSessionProbe {
     private fun describe(label: String, answer: GameJoltAnswer) {
         val top = answer.json?.keys()?.asSequence()?.toList()?.sorted()?.joinToString(",").orEmpty()
         log("$label code=${answer.code} top=[$top] user=${answer.user != null}")
+        answer.payload?.optJSONArray("packages")?.let { list ->
+            log("$label packages=${list.length()} gameOwner=[${(0 until minOf(list.length(), MAX_PACKAGES)).joinToString(",") { list.optJSONObject(it)?.opt("is_game_owner").toString() }}]")
+        }
+        answer.payload?.optJSONArray("sellables")?.let { list ->
+            log("$label sellables=${list.length()} owned=[${(0 until minOf(list.length(), MAX_PACKAGES)).joinToString(",") { list.optJSONObject(it)?.opt("is_owned").toString() }}]")
+        }
         val map = flat(answer.payload)
         logLong("$label ownership", map.filter { (path, _) -> ownership.containsMatchIn(path) }.entries.joinToString(" ") { "${it.key}=${it.value}" })
         val picked = map.filter { (path, _) -> interesting.containsMatchIn(path) && !noisy.containsMatchIn(path) }.entries.take(MAX_PATHS)
@@ -81,6 +88,13 @@ internal object GameJoltSessionProbe {
         }
         for (path in listOf("/web/auth/check", "/web/dash/shell", "/web/library", "/web/library/playlists", "/web/dash/purchases")) {
             describe(path, GameJoltApi.get(path, cookies))
+        }
+        for (variant in listOf(
+            "maturity=everyone,teen", "f_maturity=everyone,teen", "f_maturity[]=everyone", "f_maturity%5B%5D=everyone",
+            "f_maturity[]=everyone&f_maturity[]=teen", "f_maturity%5B%5D=teen", "f_status%5B%5D=complete", "f_os%5B%5D=windows", "f_price=free", "",
+        )) {
+            val answer = GameJoltApi.browse(variant, cookies)
+            log("browse check ?$variant code=${answer.code} games=${answer.payload?.optJSONArray("games")?.length() ?: 0}")
         }
         val name = GameJoltAuth.username(app)
         for (kind in listOf("owned", "followed", "developer", "recommended")) {
