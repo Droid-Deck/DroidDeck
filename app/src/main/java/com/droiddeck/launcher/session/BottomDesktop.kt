@@ -57,11 +57,15 @@ object BottomDesktop {
     private var guestPid = -1
     private var guestGeneration = 0
     private var outputSize = 0 to 0
+    private var cursorShown = false
 
     private val replies = Messenger(object : Handler(Looper.getMainLooper()) {
         override fun handleMessage(msg: Message) {
             when (msg.what) {
-                Comp.MSG_ATTACHED -> if (guestPid < 0 && state == State.STARTING) startGuest()
+                Comp.MSG_ATTACHED -> {
+                    service?.let { send(it, Message.obtain(null, Comp.MSG_CURSOR, if (cursorShown) 1 else 0, 0)) }
+                    if (guestPid < 0 && state == State.STARTING) startGuest()
+                }
                 Comp.MSG_FIRST_FRAME -> if (state == State.STARTING) setState(State.RUNNING)
                 Comp.MSG_TEXT_INPUT -> onTextInput?.invoke(msg.arg1 != 0)
             }
@@ -147,6 +151,27 @@ object BottomDesktop {
         send(target, Message.obtain(null, Comp.MSG_TOUCH, (pointerId shl 8) or (action and 0xff),
             (x.coerceIn(0, 0xffff) shl 16) or y.coerceIn(0, 0xffff)))
     }
+
+    fun sendPointer(x: Int, y: Int) {
+        val target = service ?: return
+        send(target, Message.obtain(null, Comp.MSG_POINTER, x, y))
+    }
+
+    /** Button (3), wheel (4) and smooth-scroll (12) input, as `WaylandCompositor.nativeSendSceneInput` takes it. */
+    fun sendScene(type: Int, a: Int, b: Int = 0) {
+        val target = service ?: return
+        send(target, Message.obtain(null, Comp.MSG_SCENE, type, a).apply {
+            if (b != 0) data = Bundle().apply { putInt(Comp.KEY_B, b) }
+        })
+    }
+
+    fun showCursor(on: Boolean) {
+        cursorShown = on
+        service?.let { send(it, Message.obtain(null, Comp.MSG_CURSOR, if (on) 1 else 0, 0)) }
+    }
+
+    /** False when the next attach starts a new compositor process, which needs a surface no earlier one used. */
+    val connected: Boolean get() = service != null
 
     fun sendKey(evdev: Int, down: Boolean) {
         val target = service ?: return

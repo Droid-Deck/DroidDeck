@@ -1883,7 +1883,11 @@
     <string name="second_mode_dashboard">Dashboard</string>
     <string name="second_mode_desktop">Desktop</string>
     <string name="bottom_desktop_start">Start the desktop</string>
-    <string name="bottom_desktop_stop">Close the desktop</string>
+    <string name="bottom_desktop_title">Desktop · %1$s</string>
+    <string name="bottom_desktop_mode_trackpad">Trackpad</string>
+    <string name="bottom_desktop_mode_touch">Direct touch</string>
+    <string name="bottom_desktop_trackpad">Trackpad. Tap for direct touch</string>
+    <string name="bottom_desktop_direct_touch">Direct touch. Tap for trackpad</string>
     <string name="bottom_desktop_starting">Starting the KDE desktop…</string>
     <string name="bottom_desktop_ended">The desktop closed.</string>
     <string name="bottom_desktop_failed">The desktop couldn\'t start. Its logs are in this session\'s bottom-desktop folder.</string>

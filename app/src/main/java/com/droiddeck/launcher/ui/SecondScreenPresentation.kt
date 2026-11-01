@@ -243,8 +243,11 @@ class SecondScreenPresentation(
             SecondScreenMode.TERMINAL -> renderTerminal()
             SecondScreenMode.DECK_CONTROLS -> root.addView(DeckControlsPanel(context, onClose, onSteamMenu, onQam, pad, onMenu = onMenu), weightParams())
             SecondScreenMode.DASHBOARD -> renderDashboard()
-            SecondScreenMode.DESKTOP -> root.addView(BottomDesktopPanel(context, onClose, onMenu,
-                (onSteamMenu to onQam).takeIf { SessionState.mode == SessionService.MODE_STEAM }), weightParams())
+            SecondScreenMode.DESKTOP -> {
+                ownComposeViews()
+                root.addView(BottomDesktopPanel(context, onClose, onMenu,
+                    (onSteamMenu to onQam).takeIf { SessionState.mode == SessionService.MODE_STEAM }), weightParams())
+            }
             SecondScreenMode.NONE -> Unit
         }
     }

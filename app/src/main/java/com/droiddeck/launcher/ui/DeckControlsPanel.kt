@@ -715,10 +715,13 @@ class DeckControlsPanel(
                 }
             }
 
-        internal fun menuButton(context: Context, onClick: () -> Unit) = android.widget.ImageView(context).apply {
-            setImageResource(R.drawable.ic_stat_session)
+        internal fun menuButton(context: Context, onClick: () -> Unit) =
+            iconButton(context, R.drawable.ic_stat_session, context.getString(R.string.touch_droiddeck_menu), onClick)
+
+        internal fun iconButton(context: Context, icon: Int, description: String, onClick: () -> Unit) = android.widget.ImageView(context).apply {
+            setImageResource(icon)
             setColorFilter(TEXT)
-            contentDescription = context.getString(R.string.touch_droiddeck_menu)
+            contentDescription = description
             scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
             val pad = dp(context, 11)
             setPadding(pad, pad, pad, pad)
