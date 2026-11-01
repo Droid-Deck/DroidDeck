@@ -846,7 +846,7 @@ x64_exec() {
   mkdir -p "$STEAM_X64/logs"
   touch "$STEAM_X64/logs/bootstrap_log.txt"
   ( tail -n0 -F --pid=$$ "$STEAM_X64/logs/bootstrap_log.txt" 2>/dev/null |
-      grep --line-buffered -oE 'Downloading update \([0-9,]+ of [0-9,]+ KB\)' | sed -u 's/,//g' >&2 ) &
+      grep --line-buffered -oE 'Downloading update \([0-9,]+ of [0-9,]+ KB\)|^[[:space:]]*(\[[^]]+\][[:space:]]*)*(Extracting package|Installing update)\.\.\.[[:space:]]*$' | sed -u 's/,//g' >&2 ) &
   echo "== x86-64 client: steamrt64 $(x64_manifest_version steamrt64) (the client may update itself)" >&2
   x64_webhelper_gpu && { x64_gpu_watch >&2 & }
   exec "${BL_FEX:-/usr/local/bin/FEX}" "$STEAM_X64/steamrt64/steam" "$@"
