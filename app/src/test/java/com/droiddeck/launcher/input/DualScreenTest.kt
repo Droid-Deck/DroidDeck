@@ -29,6 +29,7 @@ class DualScreenTest {
     @Test fun knownModelsCountWhenTheTypeIsHidden() {
         assertTrue(DualScreen.isBuiltIn(null, "Retroid Pocket Duo"))
         assertTrue(DualScreen.isBuiltIn(null, " AYN Thor "))
+        assertTrue(DualScreen.isBuiltIn(null, "AYN Thor Max"))
         assertFalse(DualScreen.isBuiltIn(null, "Pixel 8"))
     }
 

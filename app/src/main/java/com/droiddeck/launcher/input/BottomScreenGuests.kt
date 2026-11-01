@@ -55,6 +55,7 @@ class BottomScreenWatch(private val service: AccessibilityService) {
     private val check = Runnable { evaluate() }
 
     fun start() {
+        current = this
         service.serviceInfo = service.serviceInfo?.apply {
             eventTypes = eventTypes or AccessibilityEvent.TYPE_WINDOWS_CHANGED or AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
             flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
@@ -82,7 +83,12 @@ class BottomScreenWatch(private val service: AccessibilityService) {
 
     fun stop() {
         handler.removeCallbacksAndMessages(null)
-        handler.post { DualScreen.setTaken(emptySet()) }
+        handler.post {
+            if (current === this) {
+                current = null
+                DualScreen.setTaken(emptySet())
+            }
+        }
         thread.quitSafely()
     }
 
@@ -104,6 +110,7 @@ class BottomScreenWatch(private val service: AccessibilityService) {
             if (topPkg != null && arrival != null) arrivals.remove(id, arrival)
             BottomScreenGuests.holder(topPkg, arrival?.pkg?.takeUnless { it in keyboards }, homes)?.let { taken[id] = it }
         }
+        if (current !== this) return
         if (taken != holders) Log.i(TAG, "bottom screen holders: $taken")
         holders = taken
         DualScreen.setTaken(taken.keys)
@@ -135,6 +142,7 @@ class BottomScreenWatch(private val service: AccessibilityService) {
         }.getOrDefault(emptySet())
 
     private companion object {
+        @Volatile var current: BottomScreenWatch? = null
         const val TAG = "BottomScreen"
         const val SYSTEM_UI = "com.android.systemui"
     }

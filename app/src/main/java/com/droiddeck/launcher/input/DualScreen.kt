@@ -93,7 +93,7 @@ object DualScreen {
     fun builtIn(display: Display): Boolean = isBuiltIn(displayType(display), Build.MODEL)
 
     internal fun isBuiltIn(type: Int?, model: String): Boolean =
-        if (type != null) type == TYPE_INTERNAL else model.trim().lowercase() in knownModels
+        if (type != null) type == TYPE_INTERNAL else yieldsBottom(model)
 
     private fun displayType(display: Display): Int? =
         runCatching { Display::class.java.getMethod("getType").invoke(display) as Int }.getOrNull()
