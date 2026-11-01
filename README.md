@@ -5,7 +5,7 @@
   </picture>
 </p>
 
-DroidDeck brings the SteamOS experience to Android: Valve's Steam client in Big Picture on your Adreno handheld, with Windows games through Valve's ARM64 Proton.
+DroidDeck brings the SteamOS experience to Android: Steam Gaming Mode, full Linux desktop, integration with GOG, Epic Games, Xbox, and other storefronts, Steam VR, and more!
 
 <p align="center"><b>100% open source. No ads. No telemetry. No source withheld.</b></p>
 
