@@ -58,7 +58,7 @@ object DesktopCatalog {
             .sortedBy { it.name }
             .mapNotNull { f -> FileUtils.readString(f)?.let { runCatching { entryFrom(JSONObject(it)) }.getOrNull() } }
 
-    private val installLock = Any()
+    internal val installLock = Any()
 
     private fun downloadFile(context: Context, entry: Entry) = File(context.cacheDir, "pkg-${entry.id}-${entry.sha256.take(12)}.download")
 
@@ -231,6 +231,11 @@ object DesktopCatalog {
                 if (desktopFromPack(root)) DesktopPack.finishInstall(root) else cleanLegacy(context, report)
                 val pending = File(root, DesktopRemoval.PENDING)
                 check(!pending.exists() || pending.delete()) { "Could not finish desktop installation" }
+                // The desktop's language pack is finished under the same lock, so resuming an
+                // interrupted desktop install also brings its translations.
+                DesktopI18n.ensure(context, report)?.let { problem ->
+                    Log.w(TAG, "desktop language: $problem")
+                }
             }
             FileUtils.writeString(marker(context, entry.id), entry.version)
             check(installed(context, entry.id) == entry.version) { "Could not finish package installation" }
