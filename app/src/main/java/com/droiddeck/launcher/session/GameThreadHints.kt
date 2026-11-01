@@ -36,6 +36,9 @@ import kotlin.math.abs
  * under 90 fps against 2-7% unboosted. A game with no frames (Factorio's benchmark, a loading screen)
  * or one falling behind the panel is boosted; one holding pace keeps what it has for [PACE_LEAVE_S]
  * seconds and is then let go.
+ *
+ * Part of the Performance boost switch, on by default only where it was measured ([measuredHere]).
+ * Another phone's HAL may boost differently, or not at all.
  */
 object GameThreadHints {
     private const val TAG = "GameThreadHints"
@@ -46,21 +49,38 @@ object GameThreadHints {
     private const val LEAVE = 0.15 // a capped game's main thread idles to ~30% on a prime core; under 0.3 it hopped back and forth
     private const val MAX_THREADS = 2 // one per prime core; a third would be sped up in place instead
     private const val TOP_PROCESSES = 3
-    private const val PACE_WINDOW_S = 3
-    private const val PACE_LEAVE_S = 10
+    internal const val PACE_WINDOW_S = 3
+    internal const val PACE_LEAVE_S = 10
     private const val PACE_TOLERANCE = 0.08
 
     /** Busy, but not the game: the app itself and the Steam client, whose UI would otherwise hold the prime cores. */
     private val NOT_GAMES = setOf("steam", "steamwebhelper")
 
+    /** The Odin 3 (CQ8725S), where the boost was measured. */
+    val measuredHere: Boolean get() = Build.VERSION.SDK_INT >= 31 && Build.SOC_MODEL == "CQ8725S"
+
     private var worker: Thread? = null
+
+    /** For BoostReport: the last start line, the threads boosted now, why none is, and hint sessions refused. */
+    @Volatile internal var startLine = "game thread hints: off"
+    @Volatile internal var boostedThreads = emptySet<Int>()
+    @Volatile internal var offWhy: String? = null
+    @Volatile internal var refused = 0
 
     /** At a session's start. The line is for the log. */
     @Synchronized
     fun start(context: Context): String {
-        if (!SessionPrefs.gameThreadHints(context)) return "game thread hints: off"
-        // Measured on the Odin 3 (CQ8725S) only; another HAL may boost differently, or not at all.
-        if (Build.VERSION.SDK_INT < 31 || Build.SOC_MODEL != "CQ8725S") return "game thread hints: Odin 3 only"
+        offWhy = "starting"
+        return begin(context).also {
+            startLine = it
+            if (it != "game thread hints: watching") offWhy = it.removePrefix("game thread hints: ")
+        }
+    }
+
+    private fun begin(context: Context): String {
+        refused = 0
+        if (!SessionPrefs.performanceBoost(context)) return "game thread hints: off"
+        if (Build.VERSION.SDK_INT < 31) return "game thread hints: needs Android 12"
         val hm = context.getSystemService(PerformanceHintManager::class.java)
             ?: return "game thread hints: no PerformanceHintManager"
         val pm = context.getSystemService(PowerManager::class.java)
@@ -92,10 +112,16 @@ object GameThreadHints {
                     val fps = (frames.last() - frames.first()).toDouble() / (frames.size - 1).coerceAtLeast(1)
                     val paced = frames.size > PACE_WINDOW_S && holdsPace(fps, SessionState.refreshHz.toDouble())
                     pacedFor = if (paced) pacedFor + 1 else 0
-                    // Not SEVERE: the Odin 3 reports it once its skin reaches 50 C, a couple of minutes into any game.
-                    val spare = pm.isPowerSaveMode || pm.currentThermalStatus >= PowerManager.THERMAL_STATUS_CRITICAL
+                    val spare = when {
+                        BoostReport.paused -> "check pause"
+                        pm.isPowerSaveMode -> BoostReport.BATTERY_SAVER
+                        // Not SEVERE: the Odin 3 reports it once its skin reaches 50 C, a couple of minutes into any game.
+                        pm.currentThermalStatus >= PowerManager.THERMAL_STATUS_CRITICAL -> BoostReport.TOO_HOT
+                        pacedFor >= PACE_LEAVE_S -> "game keeps up"
+                        else -> null
+                    }
                     val next = when {
-                        spare || pacedFor >= PACE_LEAVE_S -> emptySet()
+                        spare != null -> emptySet()
                         paced -> pick(boosted, busy.filterKeys { it in boosted })
                         else -> pick(boosted, busy)
                     }
@@ -103,10 +129,12 @@ object GameThreadHints {
                         session = update(hm, session, next)
                         // No session means a thread exited in between: tried again next second.
                         boosted = if (session == null) emptySet() else next
+                        boostedThreads = boosted
                         Log.i(TAG, (if (session == null && next.isNotEmpty()) "no session for " else "boosting ") +
                             next.joinToString { "${readName("/proc/$it/comm")}/$it ${((busy[it] ?: 0.0) * 100).toInt()}%" }.ifEmpty { "nothing" } +
                             " (game ${fps.toInt()} fps${if (paced) ", holding pace" else ""})")
                     }
+                    offWhy = offReason(spare, boosted, paced, next)
                 }
                 session?.reportActualWorkDuration(TARGET_NS * 3 / 2)
                 Thread.sleep(REPORT_MS)
@@ -116,7 +144,17 @@ object GameThreadHints {
             Log.w(TAG, "stopped", t)
         } finally {
             session?.close()
+            boostedThreads = emptySet()
         }
+    }
+
+    /** Why no thread is boosted, for the log; null while one is. [spare] is why the boost is held back, if it is. */
+    internal fun offReason(spare: String?, boosted: Set<Int>, paced: Boolean, next: Set<Int>): String? = when {
+        spare != null -> spare
+        boosted.isNotEmpty() -> null
+        paced -> "game keeps up"
+        next.isEmpty() -> "no thread busy enough"
+        else -> "Android refused the hint"
     }
 
     /** A new session over [tids] in place of [session]; null for none. The set changes seldom, so no setThreads. */
@@ -124,9 +162,10 @@ object GameThreadHints {
         session?.close()
         if (tids.isEmpty()) return null
         return try {
-            hm.createHintSession(tids.toIntArray(), TARGET_NS)
+            hm.createHintSession(tids.toIntArray(), TARGET_NS).also { if (it == null) refused++ }
         } catch (t: RuntimeException) {
             Log.w(TAG, "createHintSession", t)
+            refused++
             null
         }
     }

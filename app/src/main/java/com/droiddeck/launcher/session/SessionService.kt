@@ -499,6 +499,8 @@ class SessionService : Service() {
 
         Log.i(TAG, GpuClockPin.start(this))
         Log.i(TAG, GameThreadHints.start(this))
+        Log.i(TAG, SamsungPerf.start(this))
+        Log.i(TAG, BoostReport.start(this, sessionDir))
 
         val size = SessionState.outputSize
         val guest = ArrayList<String>()
@@ -1810,7 +1812,9 @@ class SessionService : Service() {
             SessionState.program == NoSteamLaunch.BATTLENET
         SessionState.stopRequested = false
         GpuClockPin.stop(this)
+        BoostReport.stop()
         GameThreadHints.stop()
+        SamsungPerf.stop()
         suspendOperationPending = false
         freezePending = false
         launchWatcher?.stopWatching()
@@ -1890,7 +1894,9 @@ class SessionService : Service() {
 
     override fun onDestroy() {
         stopSession(0)
+        BoostReport.stop()
         GameThreadHints.stop() // also when the session never got as far as running
+        SamsungPerf.stop()
         if (screenReceiverRegistered) {
             unregisterReceiver(screenReceiver)
             screenReceiverRegistered = false

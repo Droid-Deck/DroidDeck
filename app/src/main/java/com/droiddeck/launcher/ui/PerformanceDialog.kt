@@ -46,6 +46,8 @@ fun PerformancePage(
     fsyncFirst: Boolean,
     gamescopeRealtime: Boolean,
     gpuClockPin: Boolean,
+    performanceBoost: Boolean,
+    boostCheck: Boolean,
     ramCapMb: Int,
     zramClient: Boolean,
     vramCapMb: Int,
@@ -67,6 +69,8 @@ fun PerformancePage(
     onFsyncFirst: (Boolean) -> Unit,
     onGamescopeRealtime: (Boolean) -> Unit,
     onGpuClockPin: (Boolean) -> Unit,
+    onPerformanceBoost: (Boolean) -> Unit,
+    onBoostCheck: (Boolean) -> Unit,
     onRamCapMb: (Int) -> Unit,
     onZramClient: (Boolean) -> Unit,
     onVramCapMb: (Int) -> Unit,
@@ -124,6 +128,18 @@ fun PerformancePage(
                 host, "gsrealtime", stringResource(R.string.perf_gsrealtime),
                 stringResource(R.string.perf_gsrealtime_hint),
                 gamescopeRealtime, onChange = onGamescopeRealtime,
+            )
+        }
+        SettingsGroup(stringResource(R.string.perf_boost_group)) {
+            ToggleRow(
+                host, "boost", stringResource(R.string.perf_boost),
+                stringResource(R.string.perf_boost_hint),
+                performanceBoost, onChange = onPerformanceBoost,
+            )
+            ToggleRow(
+                host, "boostcheck", stringResource(R.string.perf_boost_check),
+                stringResource(R.string.perf_boost_check_hint),
+                boostCheck, enabled = performanceBoost, onChange = onBoostCheck,
             )
         }
         SettingsGroup(stringResource(R.string.perf_gpu)) {
