@@ -5,7 +5,7 @@ enum class Store(val id: String, val label: String, val shortLabel: String) {
     EPIC("epic", "Epic Games", "Epic"),
     AMAZON("amazon", "Amazon Games", "Amazon"),
     XBOX("xbox", "Xbox", "Xbox"),
-    ITCH("itch", "itch.io", "itch"),
+    ITCH("itch", "Itch.io", "Itch.io"),
     GAMEJOLT("gamejolt", "Game Jolt", "Game Jolt"),
     BATTLENET("battlenet", "Battle.net", "Battle.net");
 
