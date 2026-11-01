@@ -774,6 +774,18 @@ def proton_has_dirt_fix(proton):
         return False
 
 
+WINE_DLL_DIRS = ("/lib/wine/i386-windows", "/lib/wine/x86_64-windows", "/lib/wine/aarch64-windows", "/lib/wine",
+                 "/lib/wine/fakedlls", "/lib64/wine", "/lib64/wine/fakedlls", "/lib64/wine/x86_64-windows")
+
+
+def is_wine_dll_link(path):
+    """A link into a Wine DLL folder: the rule Proton uses to tell its own DLLs in a prefix (file_is_wine_builtin_dll)."""
+    try:
+        return os.path.islink(path) and os.path.dirname(os.readlink(path)).endswith(WINE_DLL_DIRS)
+    except OSError:
+        return False
+
+
 def prefix_ws2(prefix):
     return Path(prefix) / "pfx/drive_c/windows/syswow64/ws2_32.dll"
 
@@ -813,9 +825,9 @@ def swap_dirt_ws2(prefix):
 def restore_dirt_ws2(prefix, proton):
     """Puts a Wine syswow64/ws2_32.dll back if the stand-in is still there; true when it changed something.
 
-    That is the prefix's own one, unless it was a link and the game ran on another Proton since the swap: Proton then
-    relinked the prefix's other DLLs to itself but left the stand-in, so a link to the running Proton's ws2_32.dll goes
-    back instead. A file that was not a link (a native ws2_32.dll) always goes back as it was."""
+    That is the prefix's own one, unless it was a link to a Wine DLL folder and the game ran on another Proton since
+    the swap: Proton then relinked the prefix's other DLLs to itself but left the stand-in, so a link to the running
+    Proton's ws2_32.dll goes back instead. Anything else (a native file, a link to a mod's DLL) goes back as it was."""
     target = prefix_ws2(prefix)
     saved = target.with_name(target.name + DIRT_SAVED)
     own = proton_ws2(proton)
@@ -824,7 +836,7 @@ def restore_dirt_ws2(prefix, proton):
         if os.path.lexists(target) and not is_dirt_stand_in(target):
             os.unlink(saved)
             return False
-        if not own.is_file() or not os.path.islink(saved) or os.path.realpath(saved) == os.path.realpath(own):
+        if not own.is_file() or not is_wine_dll_link(saved) or os.path.realpath(saved) == os.path.realpath(own):
             os.replace(saved, target)
             return True
         os.unlink(saved)

@@ -919,7 +919,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.BLACK))
                     },
                 )
-                LaunchedEffect(AgentGuest.focusRevision) {
+                // Also runs when a second screen appears, so Automatic applies then with the running game known.
+                LaunchedEffect(AgentGuest.focusRevision, secondScreenDisplays.isNotEmpty()) {
                     val nextGame = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         if (SessionState.mode == SessionService.MODE_RUN) SessionState.program?.let { "program:$it" }
                         else {
@@ -3030,13 +3031,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val oldIds = secondScreenDisplays.map { it.id }.toSet()
         secondScreenDisplays = candidates
         val newIds = candidates.map { it.id }.toSet()
-        if (started && oldIds.isEmpty() && newIds.isNotEmpty()) {
-            // Automatic otherwise runs on focus changes only, while a second screen is there.
-            val game = gestureGame
-            Thread({
-                runCatching { com.droiddeck.launcher.session.TelemetryOutput.applyAutomatic(this@SessionActivity, game) }
-            }, "dashboard-data-automatic").start()
-        }
         if (secondScreenMode != SecondScreenMode.NONE && oldIds.isNotEmpty() && selectedSecondScreenDisplay !in newIds) {
             closeSecondScreen(reset = true)
             SessionState.secondScreenAutoOpened = false
