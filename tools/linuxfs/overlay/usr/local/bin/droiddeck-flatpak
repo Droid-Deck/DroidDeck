@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import json
+import re
 import os
 import shutil
 import signal
@@ -87,8 +88,11 @@ def system_bus_paths():
                 found = urllib.parse.unquote_to_bytes(values["path"])
             elif values.get("abstract"):
                 found = b"\0" + urllib.parse.unquote_to_bytes(values["abstract"])
-        elif kind == "tcp" and urllib.parse.unquote(values.get("port", "")).isdigit():
-            found = (urllib.parse.unquote(values.get("host", "localhost")), int(urllib.parse.unquote(values["port"])))
+        elif kind == "tcp":
+            port = urllib.parse.unquote(values.get("port", ""))
+            if not re.fullmatch(r"[0-9]{1,5}", port, re.ASCII) or not 0 < int(port) < 65536:
+                continue
+            found = (urllib.parse.unquote(values.get("host", "localhost")), int(port))
         if found is None:
             return None
         paths.append(found)
