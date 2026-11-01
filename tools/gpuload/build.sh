@@ -13,11 +13,14 @@ case "$out" in /*) ;; *) out="$PWD/$out" ;; esac
 
 vkinc=${VK_INCLUDE:-}
 if [ -z "$vkinc" ]; then
-    for ndk in "${ANDROID_NDK_HOME:-}" "${ANDROID_NDK_LATEST_HOME:-}" \
-               $(ls -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}"/ndk/* 2>/dev/null | sort -r); do
-        [ -n "$ndk" ] || continue
-        cand=$(ls -d "$ndk"/toolchains/llvm/prebuilt/*/sysroot/usr/include 2>/dev/null | head -1)
-        if [ -n "$cand" ] && [ -f "$cand/vulkan/vk_layer.h" ]; then vkinc=$cand; break; fi
+    ndks=("${NDK:-}" "${ANDROID_NDK_HOME:-}" "${ANDROID_NDK_LATEST_HOME:-}")
+    sdk_ndks=("${ANDROID_HOME:-$HOME/Library/Android/sdk}"/ndk/*)
+    for ((i = ${#sdk_ndks[@]} - 1; i >= 0; i--)); do ndks+=("${sdk_ndks[i]}"); done
+    for ndk in "${ndks[@]}"; do
+        [ -n "$ndk" ] && [ -d "$ndk" ] || continue
+        for cand in "$ndk"/toolchains/llvm/prebuilt/*/sysroot/usr/include; do
+            if [ -f "$cand/vulkan/vk_layer.h" ]; then vkinc=$cand; break 2; fi
+        done
     done
 fi
 [ -n "$vkinc" ] && [ -f "$vkinc/vulkan/vulkan_core.h" ] || { echo "tools/gpuload/build.sh: no Vulkan headers (set VK_INCLUDE)" >&2; exit 1; }
