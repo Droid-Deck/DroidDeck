@@ -93,7 +93,8 @@ internal object SetupTabs {
     var openLauncher = false
     var openOverview = false
 }
-private const val GLASSES_TAB = 5
+private const val GLASSES_TAB = 6
+private const val SYNC_TAB = 4
 
 @Composable
 private fun CheckRow(state: CheckState, title: String, detail: String?, divider: Boolean = true, action: (@Composable () -> Unit)? = null) {
@@ -190,7 +191,7 @@ internal fun SetupPanel(
         onDismiss = { editDownloadProxy = false },
         onSave = { a.onDownloadProxy(it); editDownloadProxy = false },
     )
-    val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_launcher), stringResource(R.string.setup_tab_storage), stringResource(R.string.setup_tab_diagnostics), stringResource(R.string.setup_tab_glasses))
+    val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_launcher), stringResource(R.string.setup_tab_storage), stringResource(R.string.setup_tab_sync), stringResource(R.string.setup_tab_diagnostics), stringResource(R.string.setup_tab_glasses))
     var tab by rememberSaveable { mutableStateOf(if (SetupTabs.openLauncher) LAUNCHER_TAB else 0) }
     SetupTabs.openLauncher = false
     if (SetupTabs.openOverview) { tab = 0; SetupTabs.openOverview = false }
@@ -209,6 +210,18 @@ internal fun SetupPanel(
             kotlinx.coroutines.delay(2_000)
             a.onRefreshPhantomStatus()
         }
+    }
+    LaunchedEffect(com.droiddeck.launcher.sync.Syncthing.openRequests) {
+        if (com.droiddeck.launcher.sync.Syncthing.openPending) {
+            com.droiddeck.launcher.sync.Syncthing.openPending = false
+            tab = SYNC_TAB
+        }
+    }
+    var syncAdvanced by rememberSaveable { mutableStateOf(false) }
+    if (syncAdvanced) {
+        androidx.activity.compose.BackHandler { syncAdvanced = false }
+        SyncAdvancedPage(host) { syncAdvanced = false }
+        return
     }
     LaunchedEffect(tab) {
         if (tabTurned && inputModeManager.inputMode == InputMode.Keyboard) {
@@ -492,7 +505,8 @@ internal fun SetupPanel(
                         }
                     }
                     STORAGE_TAB -> StoragePanel(s, a)
-                    4 -> {
+                    SYNC_TAB -> SyncPanel(host, runtimeOk) { syncAdvanced = true }
+                    5 -> {
                         SettingsGroup(stringResource(R.string.setup_tab_diagnostics)) {
                             ToggleRow(host, "logs", stringResource(R.string.setup_logs), stringResource(R.string.setup_logs_hint), s.logsEnabled) { a.onLogs() }
                             ToggleRow(
