@@ -2111,6 +2111,8 @@
     <string name="gpuinfo_a850_experimental">Experimental Adreno 850 support: requires compatible experimental display and game drivers; not verified on this device</string>
     <string name="gpuinfo_below_tested">Below tested hardware (Adreno 725 and newer): it may not run</string>
     <string name="gpuinfo_unsupported">Not supported: DroidDeck needs an Adreno (Snapdragon) GPU</string>
+    <string name="gpuinfo_bridge">Runs through the Mali bridge, on the phone\'s own Vulkan driver</string>
+    <string name="gpuinfo_bridge_off">Not supported with the Mali bridge off: Turnip needs an Adreno (Snapdragon) GPU</string>
 
     <string name="turnip_rate_limited">GitHub\'s rate limit was hit - try again later</string>
     <string name="turnip_github_http">GitHub answered HTTP %1$d</string>

@@ -65,6 +65,7 @@ public final class LinuxRuntime {
     private static final String HOST_DIR = "opt/android-host";
     /** The downloaded add-on pack. The APK does not ship this binary. */
     public static final String PROOT_PACK = "add-on pack";
+    public static final String PROOT_PACKAGED = "packaged";
     /** Termux's unpatched proot inside the rootfs. Developer switch only. */
     public static final String PROOT_ROOTFS = "rootfs fallback";
     public static final String PROOT_MISSING = "missing";
@@ -81,18 +82,32 @@ public final class LinuxRuntime {
         return rootfsProot(context).isFile() && rootfsLoader(context).isFile();
     }
 
+    private static File packagedProot(Context context) {
+        return new File(context.getApplicationInfo().nativeLibraryDir, "libproot.so");
+    }
+
+    private static File packagedLoader(Context context) {
+        return new File(context.getApplicationInfo().nativeLibraryDir, "libproot-loader.so");
+    }
+
+    private static boolean packagedProotReady(Context context) {
+        return packagedProot(context).isFile() && packagedLoader(context).isFile();
+    }
+
     /** Patched proot is the add-on pack. The rootfs copy is not that binary. */
     public static boolean patchedProot(Context context) {
         return AddonPack.PROOT.installed(context);
     }
 
     public static File prootBinary(Context context) {
+        if (packagedProotReady(context)) return packagedProot(context);
         if (AddonPack.PROOT.installed(context)) return AddonPack.PROOT.file(context, "libproot.so");
         if (SessionPrefs.allowStockProot(context)) return rootfsProot(context);
         return AddonPack.PROOT.file(context, "libproot.so");
     }
 
     public static File prootLoader(Context context) {
+        if (packagedProotReady(context)) return packagedLoader(context);
         if (AddonPack.PROOT.installed(context)) return AddonPack.PROOT.file(context, "libproot-loader.so");
         if (SessionPrefs.allowStockProot(context)) return rootfsLoader(context);
         return AddonPack.PROOT.file(context, "libproot-loader.so");
@@ -102,6 +117,8 @@ public final class LinuxRuntime {
     public static String prootSource(Context context) {
         File bin = prootBinary(context);
         if (!bin.isFile()) return PROOT_MISSING;
+        if (packagedProotReady(context)
+                && bin.getPath().equals(packagedProot(context).getPath())) return PROOT_PACKAGED;
         if (AddonPack.PROOT.installed(context)
                 && bin.getPath().equals(AddonPack.PROOT.file(context, "libproot.so").getPath())) return PROOT_PACK;
         return PROOT_ROOTFS;
@@ -113,7 +130,7 @@ public final class LinuxRuntime {
     }
 
     public static boolean isInstalled(Context context) {
-        return hasRootfs(context) && (patchedProot(context) || rootfsProotReady(context));
+        return hasRootfs(context) && (packagedProotReady(context) || patchedProot(context) || rootfsProotReady(context));
     }
 
     /** The rootfs alone: enough to read the game library, while the proot pack can still be downloading. */
@@ -284,11 +301,21 @@ public final class LinuxRuntime {
         return false;
     }
 
-    private static final String MALI_DEVICE = "/dev/mali0";
+    static final String MALI_DEVICE = "/dev/mali0";
+
+    static final String[] DRM_RENDER_NODES = {
+        "/dev/dri/renderD128", "/dev/dri/renderD129", "/dev/dri/renderD130", "/dev/dri/renderD131",
+    };
 
     public static String gpuStandIn(Context context) {
         if (new File(KGSL_DEVICE).exists()) return KGSL_DEVICE;
-        if (com.droiddeck.launcher.core.DeviceSupport.INSTANCE.vkBridge(context) && new File(MALI_DEVICE).exists()) return MALI_DEVICE;
+        if (!com.droiddeck.launcher.core.DeviceSupport.INSTANCE.vkBridge(context)) return null;
+        return bridgeStandIn(path -> new File(path).exists());
+    }
+
+    static String bridgeStandIn(java.util.function.Predicate<String> exists) {
+        if (exists.test(MALI_DEVICE)) return MALI_DEVICE;
+        for (String node : DRM_RENDER_NODES) if (exists.test(node)) return node;
         return null;
     }
 

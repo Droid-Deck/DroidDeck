@@ -16,7 +16,7 @@ object DeviceInfo {
         val vk = VulkanInfo.query()
         val gpu = GpuInfo.detect()
         return listOf(
-            chip(), gpu(gpu), cpu(), memory(context), system(), vulkan(context, vk), drivers(context, gpu),
+            chip(), gpu(context, gpu), cpu(), memory(context), system(), vulkan(context, vk), drivers(context, gpu),
         ).filter { it.rows.isNotEmpty() }
     }
 
@@ -51,7 +51,7 @@ object DeviceInfo {
         add("Family", read("/sys/devices/soc0/family"))
     })
 
-    private fun gpu(gpu: GpuInfo) = Section("GPU", buildList<Pair<String, String>> {
+    private fun gpu(context: Context, gpu: GpuInfo) = Section("GPU", buildList<Pair<String, String>> {
         add("GPU", gpu.name)
         add("Family", gpu.family.label)
         add("Model found from", when (gpu.modelSource) {
@@ -66,7 +66,7 @@ object DeviceInfo {
         add("Clock range", gpuRange())
         add("Load", read("$kgsl/gpu_busy_percentage")?.let { if (it.endsWith("%")) it else "$it %" })
         add("Temperature", read("$kgsl/temp")?.toLongOrNull()?.let { if (it > 1000) "${it / 1000} °C" else "$it °C" })
-        add("Support", gpu.supportText)
+        add("Support", gpu.supportText(SessionPrefs.vkBridge(context)))
     })
 
     private fun cpu() = Section("CPU", buildList<Pair<String, String>> {

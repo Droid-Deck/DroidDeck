@@ -251,12 +251,36 @@ class LinuxNetworkLinkComponent(
         }
     }
 
+    private fun localDnsServers(): List<String> {
+        val servers = LinkedHashSet<String>()
+        for (network in connectivity.allNetworks) {
+            val capabilities = connectivity.getNetworkCapabilities(network) ?: continue
+            if (!capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) continue
+            if (!capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
+                !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) continue
+            val link = connectivity.getLinkProperties(network) ?: continue
+            for (address in link.dnsServers) {
+                if (address.isLinkLocalAddress || address.isLoopbackAddress || address.isAnyLocalAddress) continue
+                address.hostAddress?.substringBefore('%')?.let { servers.add(it) }
+            }
+            link.routes.firstOrNull { it.isDefaultRoute }?.gateway?.let { gateway ->
+                if (gateway is Inet4Address && !gateway.isLoopbackAddress && !gateway.isAnyLocalAddress) {
+                    gateway.hostAddress?.substringBefore('%')?.let { servers.add(it) }
+                }
+            }
+        }
+        return servers.sortedWith(compareBy<String>(
+            { if (it.startsWith("192.168.") || it.startsWith("10.")) 0 else 1 },
+            { if (it.contains(':')) 1 else 0 },
+        )).take(6)
+    }
+
     private fun writeResolver(properties: LinkProperties?) {
         val own = properties?.dnsServers.orEmpty()
             .filter { !it.isLinkLocalAddress && !it.isLoopbackAddress && !it.isAnyLocalAddress }
             .sortedBy { if (it is Inet4Address) 0 else 1 }
             .mapNotNull { it.hostAddress?.substringBefore('%') }
-        val servers = (own + listOf("8.8.8.8", "1.1.1.1", "2001:4860:4860::8888")).distinct().take(6)
+        val servers = (localDnsServers() + own + listOf("8.8.8.8", "1.1.1.1", "2001:4860:4860::8888")).distinct().take(6)
         val text = buildString {
             append("# Written by the app from the device's active network; edits are overwritten.\n")
             for (server in servers) append("nameserver $server\n")

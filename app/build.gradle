@@ -219,8 +219,7 @@ android {
         jniLibs {
             useLegacyPackaging = true
             pickFirsts += ['**/libtermux.so']
-            // Shipped in the proot and tracking packs (tools/packs) and run or loaded from there.
-            excludes += ['**/libproot.so', '**/libproot-loader.so', '**/libopencv_java4.so', '**/libmediapipe_tasks_jni.so']
+            excludes += ['**/libopencv_java4.so', '**/libmediapipe_tasks_jni.so']
         }
     }
 

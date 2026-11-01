@@ -2032,6 +2032,8 @@
     <string name="gpuinfo_a850_experimental">Adreno 850 实验支持：需要配套的实验版显示驱动和游戏驱动；尚未在此设备上验证</string>
     <string name="gpuinfo_below_tested">低于已测试的硬件（Adreno 725 及更新）：可能无法运行</string>
     <string name="gpuinfo_unsupported">不受支持：DroidDeck 需要 Adreno（骁龙）GPU</string>
+    <string name="gpuinfo_bridge">通过 Mali 桥接运行，使用手机自带的 Vulkan 驱动</string>
+    <string name="gpuinfo_bridge_off">关闭 Mali 桥接时不受支持：Turnip 需要 Adreno（骁龙）GPU</string>
 
     <string name="turnip_rate_limited">已达到 GitHub 的请求频率限制 — 请稍后重试</string>
     <string name="turnip_github_http">GitHub 返回 HTTP %1$d</string>

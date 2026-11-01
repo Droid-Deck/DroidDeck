@@ -209,7 +209,7 @@ object DeviceReport {
 
         h("Drivers")
         val gpu = com.droiddeck.launcher.gpu.GpuInfo.detect()
-        k("GPU", "${gpu.name} · ${gpu.family.label} · ${gpu.supportText}" + if (gpu.oneUi8Gen2) " · One UI 8 Gen 2" else "")
+        k("GPU", "${gpu.name} · ${gpu.family.label} · ${gpu.supportText(SessionPrefs.vkBridge(context))}" + if (gpu.oneUi8Gen2) " · One UI 8 Gen 2" else "")
         if (gpu.model == 740) {
             val hint = com.droiddeck.launcher.gpu.TpUbwcHint
             k("TP UBWC hint", hint.forThisDevice(context) ?: "driver default")
