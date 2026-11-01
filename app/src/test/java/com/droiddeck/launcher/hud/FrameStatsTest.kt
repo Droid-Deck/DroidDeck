@@ -69,6 +69,17 @@ class FrameStatsTest {
         assertFalse(feed.poll(now + 1))
     }
 
+    @Test fun compositorFramesDoNotCountAsLiveGamescopeFrames() {
+        val feed = GameFrameFeed(java.io.File("/nonexistent/droiddeck-hud/frames"))
+        var now = 1_000_000_000L
+        assertFalse(feed.live)
+        feed.onCompositorFrame(now)
+        now += 16_666_667L
+        feed.onCompositorFrame(now)
+        feed.poll(now)
+        assertFalse(feed.live)
+    }
+
     @Test fun aCompletedPeriodIsCountedWhenMangoHudWouldRedraw() {
         val stats = FrameStats()
         var now = 1_000_000_000L

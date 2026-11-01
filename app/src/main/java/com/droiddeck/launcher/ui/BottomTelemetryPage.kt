@@ -22,6 +22,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -42,6 +43,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.hud.GameFrameFeed
+import com.droiddeck.launcher.hud.HudFrames
 import com.droiddeck.launcher.hud.HudMetrics
 import com.droiddeck.launcher.hud.MangoReadings
 import com.droiddeck.launcher.runtime.LinuxRuntime
@@ -126,6 +129,10 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
     var perfTick by remember { mutableIntStateOf(0) }
     var traceTick by remember { mutableIntStateOf(0) }
     var clock by remember { mutableStateOf("") }
+    // Read here as well as by the top-screen HUD, so FPS shows while that HUD is off.
+    val frames = remember { GameFrameFeed(File(LinuxRuntime.rootDir(context), HudFrames.PATH)) }
+    DisposableEffect(frames) { onDispose { frames.close() } }
+    val currentFps = { if (frames.live) frames.stats.fps else fps() }
 
     LaunchedEffect(Unit) {
         for (port in GameTelemetry.PORTS) launch(Dispatchers.IO) {
@@ -169,7 +176,8 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
                 speedTrace.add(r.speedKmh ?: 0f)
                 traceTick++
             }
-            fpsNow = fps()
+            frames.poll(System.nanoTime())
+            fpsNow = currentFps()
             unknown = traffic.filter { (_, t) -> t.packets > 0 && !t.readable }.map { (port, t) -> UnknownTraffic(port, t.packets, t.length) }
             delay(DRAW_MS)
         }
@@ -178,7 +186,7 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
         val metrics = HudMetrics(context).apply { setMangoReadings(MangoReadings(File(context.filesDir, "session"), LinuxRuntime.rootDir(context))) }
         while (isActive) {
             device = withContext(Dispatchers.IO) { runCatching { metrics.snapshot() }.getOrNull() }
-            fps()?.takeIf { it > 0f }?.let { fpsHistory.add(it) }
+            currentFps()?.takeIf { it > 0f }?.let { fpsHistory.add(it) }
             device?.let { s ->
                 s.cpuPercent?.let { cpuHistory.add(it.toFloat()) }
                 s.gpuPercent?.let { gpuHistory.add(it.toFloat()) }
@@ -268,7 +276,7 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
                 ))
             }
         }
-        if (race == null && thunder.isEmpty() && elite == null) {
+        if (race == null && thunder.isEmpty() && elite == null && running == null) {
             Text(stringResource(R.string.bottom_telemetry_help),
                 fontSize = 14.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp))
         }

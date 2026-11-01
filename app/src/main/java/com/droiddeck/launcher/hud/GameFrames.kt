@@ -176,6 +176,9 @@ internal class GameFrameFeed(private val file: File, val stats: FrameStats = Fra
     @Volatile var refreshMilliHz = 0
         private set
 
+    /** Gamescope's frames are arriving: the last one came less than LIVE_NS ago. */
+    val live: Boolean get() = fromGamescope
+
     /** Main thread, once per display frame. True when new frames arrived. */
     fun poll(nowNs: Long): Boolean {
         val compositorAdded = compositorFrames != seenCompositorFrames
