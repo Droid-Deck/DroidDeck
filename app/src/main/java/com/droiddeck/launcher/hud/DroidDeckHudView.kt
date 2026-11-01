@@ -422,15 +422,22 @@ class DroidDeckHudView(context: Context) : View(context) {
      */
     private fun startHueCycle() {
         if (hueJob?.isActive == true) return
-        if (SessionPrefs.theme(context) != Themes.INNER_GAMER || Motion.scale == 0f) return
+        if (SessionPrefs.theme(context) != Themes.INNER_GAMER) return
         hueJob = scope.launch {
-            val start = Themes.rgbHue
-            val startedAt = SystemClock.uptimeMillis()
+            var hue = Themes.rgbHue
             var shown = Float.NaN
+            var last = SystemClock.uptimeMillis()
             while (isActive && SessionPrefs.theme(context) == Themes.INNER_GAMER) {
+                val now = SystemClock.uptimeMillis()
                 val cycle = Themes.rgbCycleMillis(Themes.rgbSpeed).toFloat()
-                val hue = start + (SystemClock.uptimeMillis() - startedAt) / cycle * 360f
-                val stepped = ((hue % 360f) / Themes.RGB_HUE_STEP).toInt() * Themes.RGB_HUE_STEP
+                if (Motion.scale == 0f) {
+                    last = now
+                    delay(HUE_IDLE_MS)
+                    continue
+                }
+                hue = (hue + (now - last) / cycle * 360f) % 360f
+                last = now
+                val stepped = (hue / Themes.RGB_HUE_STEP).toInt() * Themes.RGB_HUE_STEP
                 if (stepped != shown) {
                     shown = stepped
                     Themes.moveRgbHue(stepped)
@@ -1484,6 +1491,7 @@ class DroidDeckHudView(context: Context) : View(context) {
 
     private companion object {
         const val REFRESH_MS = 500L
+        private const val HUE_IDLE_MS = 500L
         const val MIN_SCALE = 0.5f
         const val MAX_SCALE = 2f
         const val GRAPH_CLIP_MS = 49.9f
