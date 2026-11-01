@@ -670,7 +670,7 @@
     <string name="hud_outline_color">Колір контуру</string>
     <string name="hud_outline_gray">Сірий</string>
     <string name="hud_outline_theme">Колір теми</string>
-    <string name="hud_group_metrics">Показники</string>
+    <string name="hud_group_metrics">Інформація HUD</string>
     <string name="hud_metric_graph">Графік часу кадрів</string>
     <string name="hud_metric_decimal">Частота кадрів із десятими</string>
     <string name="hud_metric_low1">1% мінімальних</string>
@@ -3740,7 +3740,4 @@
     <string name="hud_metric_avg">Average frame rate</string>
     <string name="hud_metric_display">Display server</string>
     <string name="hud_metric_hdr">HDR state</string>
-    <string name="hud_readings_edit">Change readings</string>
-    <string name="hud_readings_title">Readings</string>
-    <string name="hud_readings_restore">Restore</string>
 </resources>

@@ -689,7 +689,7 @@
     <string name="hud_outline_color">Цвет контура</string>
     <string name="hud_outline_gray">Серый</string>
     <string name="hud_outline_theme">Цвет темы</string>
-    <string name="hud_group_metrics">Показатели</string>
+    <string name="hud_group_metrics">Информация HUD</string>
     <string name="hud_metric_graph">График времени кадров</string>
     <string name="hud_metric_decimal">Частота кадров с десятыми</string>
     <string name="hud_metric_low1">1% минимальных</string>
@@ -3823,7 +3823,4 @@
     <string name="hud_metric_avg">Average frame rate</string>
     <string name="hud_metric_display">Display server</string>
     <string name="hud_metric_hdr">HDR state</string>
-    <string name="hud_readings_edit">Change readings</string>
-    <string name="hud_readings_title">Readings</string>
-    <string name="hud_readings_restore">Restore</string>
 </resources>

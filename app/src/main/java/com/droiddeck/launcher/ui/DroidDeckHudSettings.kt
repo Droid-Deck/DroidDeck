@@ -64,7 +64,7 @@ internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (Stri
 
     var editing by remember { mutableStateOf(false) }
     SettingsGroup(stringResource(R.string.hud_group_metrics)) {
-        ActionRow(stringResource(R.string.hud_group_metrics), null, stringResource(R.string.hud_readings_edit),
+        ActionRow(stringResource(R.string.hud_group_metrics), null, stringResource(R.string.common_edit),
             onClick = { editing = true }, modifier = track("hud-readings"))
         if (editing) HudReadingsDialog(
             initialOrder = DroidDeckHudConfig.order(cfg),

@@ -666,7 +666,7 @@
     <string name="hud_outline_color">Dış hat rengi</string>
     <string name="hud_outline_gray">Gri</string>
     <string name="hud_outline_theme">Tema rengi</string>
-    <string name="hud_group_metrics">Ölçümler</string>
+    <string name="hud_group_metrics">HUD bilgileri</string>
     <string name="hud_metric_graph">Kare süresi grafiği</string>
     <string name="hud_metric_decimal">Ondalıklı kare hızı</string>
     <string name="hud_metric_low1">1% en düşük</string>
@@ -3662,7 +3662,4 @@
     <string name="hud_metric_avg">Average frame rate</string>
     <string name="hud_metric_display">Display server</string>
     <string name="hud_metric_hdr">HDR state</string>
-    <string name="hud_readings_edit">Change readings</string>
-    <string name="hud_readings_title">Readings</string>
-    <string name="hud_readings_restore">Restore</string>
 </resources>

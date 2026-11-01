@@ -668,7 +668,7 @@
     <string name="hud_outline_color">Couleur du contour</string>
     <string name="hud_outline_gray">Gris</string>
     <string name="hud_outline_theme">Couleur du thème</string>
-    <string name="hud_group_metrics">Mesures</string>
+    <string name="hud_group_metrics">Infos du HUD</string>
     <string name="hud_metric_graph">Graphique des temps d\'image</string>
     <string name="hud_metric_decimal">Fréquence d\'images avec une décimale</string>
     <string name="hud_metric_low1">1% les plus bas</string>
@@ -3701,7 +3701,4 @@
     <string name="hud_metric_avg">Average frame rate</string>
     <string name="hud_metric_display">Display server</string>
     <string name="hud_metric_hdr">HDR state</string>
-    <string name="hud_readings_edit">Change readings</string>
-    <string name="hud_readings_title">Readings</string>
-    <string name="hud_readings_restore">Restore</string>
 </resources>

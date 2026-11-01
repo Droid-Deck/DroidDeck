@@ -54,17 +54,16 @@ internal fun HudReadingsDialog(
     val shown = rememberShown(onDismiss)
     val close = { shown.targetState = false }
     val order = remember { mutableStateListOf<String>().apply { addAll(initialOrder) } }
-    val enabled = remember {
-        mutableStateMapOf<String, Boolean>().apply { for (key in initialOrder) put(key, initialOn[key] == true) }
-    }
+    val enabled = remember { mutableStateMapOf<String, Boolean>() }
+    remember(initialOn) { for (key in initialOrder) enabled[key] = initialOn[key] == true; true }
 
-    AppDialog(shown, close, "hudReadings", wide = false) {
+    AppDialog(shown, close, "hudReadings", wide = false, scrollable = false) {
         DialogHeader(
             eyebrow = stringResource(R.string.hud_group_metrics),
-            title = stringResource(R.string.hud_readings_title),
+            title = stringResource(R.string.hud_group_metrics),
             trailing = {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    SecondaryButton(stringResource(R.string.hud_readings_restore), onClick = {
+                    SecondaryButton(stringResource(R.string.hud_reset_button), onClick = {
                         onSave(DroidDeckHudConfig.DEFAULTS.mapValues { it.value == "1" }, DroidDeckHudConfig.ORDER)
                         close()
                     })
@@ -87,7 +86,10 @@ internal fun HudReadingsDialog(
                         .zIndex(if (dragged) 1f else 0f)
                         .graphicsLayer {
                             translationY = if (dragged) dragOffset else 0f
-                            shadowElevation = if (dragged) 8.dp.toPx() else 0f
+                            val lift = if (dragged) 1f else 0f
+                            scaleX = 1f + 0.02f * lift
+                            scaleY = 1f + 0.02f * lift
+                            shadowElevation = 10.dp.toPx() * lift
                         }
                         .animateItemPlacement()
                         .clip(Shape12)

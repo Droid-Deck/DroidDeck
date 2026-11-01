@@ -664,7 +664,7 @@
     <string name="hud_outline_color">描邊顏色</string>
     <string name="hud_outline_gray">灰色</string>
     <string name="hud_outline_theme">主題色</string>
-    <string name="hud_group_metrics">讀數</string>
+    <string name="hud_group_metrics">HUD 資訊</string>
     <string name="hud_metric_graph">幀時間圖表</string>
     <string name="hud_metric_decimal">幀率顯示小數</string>
     <string name="hud_metric_low1">1% 最低幀</string>
@@ -3635,7 +3635,4 @@
     <string name="hud_metric_avg">平均幀率</string>
     <string name="hud_metric_display">顯示服務</string>
     <string name="hud_metric_hdr">HDR 狀態</string>
-    <string name="hud_readings_edit">Change readings</string>
-    <string name="hud_readings_title">Readings</string>
-    <string name="hud_readings_restore">Restore</string>
 </resources>

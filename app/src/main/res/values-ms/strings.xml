@@ -664,7 +664,7 @@
     <string name="hud_outline_color">Warna garis luar</string>
     <string name="hud_outline_gray">Kelabu</string>
     <string name="hud_outline_theme">Warna tema</string>
-    <string name="hud_group_metrics">Bacaan</string>
+    <string name="hud_group_metrics">Maklumat HUD</string>
     <string name="hud_metric_graph">Graf masa bingkai</string>
     <string name="hud_metric_decimal">Kadar bingkai dengan perpuluhan</string>
     <string name="hud_metric_low1">1% terendah</string>
@@ -3632,7 +3632,4 @@
     <string name="hud_metric_avg">Average frame rate</string>
     <string name="hud_metric_display">Display server</string>
     <string name="hud_metric_hdr">HDR state</string>
-    <string name="hud_readings_edit">Change readings</string>
-    <string name="hud_readings_title">Readings</string>
-    <string name="hud_readings_restore">Restore</string>
 </resources>
