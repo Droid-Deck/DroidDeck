@@ -113,7 +113,9 @@ function field(text, name) {
 }
 
 function install() {
-  var form = call("POST", "/install", '{"uid":"' + uid + '","instructions_patch_url":"http://' + zone + '.patch.battle.net:1119/' +
+  // Blizzard's China repository moved to cn.patch.battlenet.com.cn; cn.patch.battle.net only redirects away from it.
+  var patch = zone == "cn" ? "cn.patch.battlenet.com.cn" : zone + ".patch.battle.net";
+  var form = call("POST", "/install", '{"uid":"' + uid + '","instructions_patch_url":"http://' + patch + ':1119/' +
     product + '","instructions_product":"NGDP","monitor_pid":12345,"priority":{"insert_at_head":true,"value":900}}');
   save(".form", form);
   if (form.indexOf('"' + lang + '"') < 0) lang = "enUS";
