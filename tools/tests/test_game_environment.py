@@ -245,6 +245,93 @@ class DirtTelemetryFixTest(unittest.TestCase):
         self.assertEqual(calls, ["restored"])
 
 
+class EgoCorePlanTest(unittest.TestCase):
+    """DiRT 3's restrictions as shipped: plans for 2, 3, 4, 6 and 8+ cores, one core for anything else."""
+
+    @staticmethod
+    def rule(op, value, worker_map):
+        return ('            <restrict_if name="cores" op="%s" value="%d">\r\n                <restrict_add>\r\n'
+                '                    <threadStrategy parallelUpdateRender="true"  workerMapFile="system/%s" updateProcessor="2" />\r\n'
+                '                </restrict_add>\r\n            </restrict_if>\r\n' % (op, value, worker_map))
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.system = Path(self.tmp.name) / "DiRT 3/system"
+        self.system.mkdir(parents=True)
+        cpu = "".join(self.rule("int_eq", n, "workerMap%dCore.xml" % n) for n in (2, 3, 4, 6)) + self.rule("int_ge", 8, "workerMap8Core.xml")
+        self.shipped = ('<?xml version="1.0" encoding="UTF-8" ?>\r\n<hardware_settings_restrictions>\r\n    <cpu>\r\n'
+                        '        <restrict_info>\r\n' + cpu +
+                        '            <restrict_else>\r\n                <restrict_add>\r\n'
+                        '                    <threadStrategy parallelUpdateRender="false" workerMapFile="system/workerMap.xml" />\r\n'
+                        '                </restrict_add>\r\n            </restrict_else>\r\n        </restrict_info>\r\n    </cpu>\r\n'
+                        '    <audio_card>\r\n' + self.rule("int_eq", 5, "audio.xml") + '    </audio_card>\r\n'
+                        '</hardware_settings_restrictions>').encode("latin-1")
+        self.path = self.system / "hardware_settings_restrictions.xml"
+        self.path.write_bytes(self.shipped)
+        for name in ("workerMap.xml", "workerMap2Core.xml", "workerMap3Core.xml", "workerMap4Core.xml", "workerMap6Core.xml", "workerMap8Core.xml"):
+            (self.system / name).write_text("<workerMap />")
+        self.command = ["/proton", "waitforexitandrun", str(self.system.parent / "dirt3_game.exe")]
+        self.saved = self.path.with_name(self.path.name + ".droiddeck-original")
+
+    def plan(self, topology, command=None):
+        env = {} if topology is None else {"WINE_CPU_TOPOLOGY": topology}
+        return MODULE["ego_core_plan"](command or self.command, env)
+
+    def test_five_cores_get_a_copy_of_the_four_core_plan(self):
+        note = self.plan("5:7,3,4,5,6")
+        self.assertIn("5 cores", note)
+        self.assertIn("4-core plan", note)
+        text = self.path.read_bytes()
+        four = self.rule("int_eq", 4, "workerMap4Core.xml").encode("latin-1")
+        five = self.rule("int_eq", 5, "workerMap4Core.xml").encode("latin-1")
+        self.assertEqual(text, self.shipped.replace(four, four + five))
+        self.assertNotIn(b"\n", text.replace(b"\r\n", b""))
+        self.assertEqual(self.saved.read_bytes(), self.shipped)
+        self.assertIsNone(self.plan("5:7,3,4,5,6"))
+        self.assertEqual(self.path.read_bytes(), text)
+        self.assertEqual(self.saved.read_bytes(), self.shipped)
+
+    def test_seven_cores_get_the_six_core_plan(self):
+        self.assertIn("6-core plan", self.plan("7:7,1,2,3,4,5,6"))
+        self.assertIn(b'value="7">\r\n                <restrict_add>\r\n                    <threadStrategy parallelUpdateRender="true"  '
+                      b'workerMapFile="system/workerMap6Core.xml"', self.path.read_bytes())
+
+    def test_counts_with_a_plan_are_left_alone(self):
+        for topology in ("2:7,6", "4:7,3,4,5", "6:7,3,4,5,6,2", "8:7,2,3,4,5,6,0,1", "12:0,1,2,3,4,5,6,7,8,9,10,11"):
+            self.assertIsNone(self.plan(topology), topology)
+        self.assertEqual(self.path.read_bytes(), self.shipped)
+        self.assertFalse(os.path.lexists(self.saved))
+
+    def test_nothing_changes_without_a_core_count_a_restrictions_file_a_smaller_plan_or_its_worker_map(self):
+        self.assertIsNone(self.plan(None))
+        self.assertIsNone(self.plan(""))
+        self.assertIsNone(self.plan("x:1"))
+        self.assertIsNone(self.plan("1:7"))
+        self.assertIsNone(self.plan("5:7,3,4,5,6", ["/proton", "waitforexitandrun"]))
+        self.assertIsNone(self.plan("5:7,3,4,5,6", ["/proton", "waitforexitandrun", "/elsewhere/game.exe"]))
+        (self.system / "workerMap4Core.xml").unlink()
+        self.assertIsNone(self.plan("5:7,3,4,5,6"))
+        self.assertEqual(self.path.read_bytes(), self.shipped)
+        self.assertFalse(os.path.lexists(self.saved))
+
+    def test_an_unknown_comparison_counts_as_a_plan(self):
+        self.path.write_bytes(self.shipped.replace(b'op="int_ge" value="8"', b'op="int_between" value="8"'))
+        self.assertIsNone(self.plan("5:7,3,4,5,6"))
+
+    def test_main_adds_the_plan_before_the_game_starts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            probe = Path(tmp) / "probe"
+            probe.write_text('#!/bin/sh\ngrep -c \'value="5"\' "%s"\n' % self.path)
+            probe.chmod(0o755)
+            env = {k: v for k, v in os.environ.items() if not k.startswith(("WINE", "PROTON", "DROIDDECK", "BL_", "STEAM"))}
+            env.update(HOME=tmp, STEAM_COMPAT_DATA_PATH="/compatdata/3791535942", WINE_CPU_TOPOLOGY="5:7,3,4,5,6")
+            result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun", self.command[2]],
+                                    env=env, text=True, capture_output=True, check=True)
+        self.assertEqual(result.stdout.strip(), "2", result.stderr)
+        self.assertIn("added a copy of its 4-core plan", result.stderr)
+
+
 class GameDebugLoggingTest(unittest.TestCase):
     def test_maintenance_precision_survives_run_with_performance_game_settings(self):
         with tempfile.TemporaryDirectory() as tmp:
