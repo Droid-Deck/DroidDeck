@@ -106,7 +106,7 @@ class DroidDeckHudHost(context: Context) {
             wantX = x; wantY = y
             val vx = flingX; val vy = flingY
             flingX = 0f; flingY = 0f
-            if (!hud.isStrip) dockEdgeFor(hud)?.let { edge -> setDock(hud, edge); return@setOnMovedListener }
+            dockEdgeFor(hud)?.let { edge -> setDock(hud, edge); return@setOnMovedListener }
             fadeDockPreview(hud)
             if (snaps && !hud.isStrip) { snapToAnchor(hud, vx, vy); return@setOnMovedListener }
             if (hud.scaleX != 1f) hud.animate().scaleX(1f).scaleY(1f).setDuration(Motion.ms(200).toLong()).setInterpolator(EASE).start()
@@ -248,11 +248,16 @@ class DroidDeckHudHost(context: Context) {
     private fun overhang(v: View): Map.Entry<DroidDeckHudDock, Float>? {
         val p = v.parent as? View ?: return null
         if (p.width <= 0 || p.height <= 0 || v.width <= 0 || v.height <= 0) return null
+        // The Strip spans the screen and is short: measure its pull in a set distance rather than its own size.
+        val strip = (v as? DroidDeckHudView)?.isStrip == true
+        val density = v.resources.displayMetrics.density
+        val w = if (strip) minOf(v.width.toFloat(), STRIP_PULL_ACROSS_DP * density) else v.width.toFloat()
+        val h = if (strip) maxOf(v.height.toFloat(), STRIP_PULL_OFF_DP * density) else v.height.toFloat()
         return mapOf(
-            DroidDeckHudDock.LEFT to -v.x / v.width,
-            DroidDeckHudDock.RIGHT to (v.x + v.width - p.width) / v.width,
-            DroidDeckHudDock.TOP to -v.y / v.height,
-            DroidDeckHudDock.BOTTOM to (v.y + v.height - p.height) / v.height,
+            DroidDeckHudDock.LEFT to -v.x / w,
+            DroidDeckHudDock.RIGHT to (v.x + v.width - p.width) / w,
+            DroidDeckHudDock.TOP to -v.y / h,
+            DroidDeckHudDock.BOTTOM to (v.y + v.height - p.height) / h,
         ).maxByOrNull { it.value }
     }
 
@@ -335,7 +340,7 @@ class DroidDeckHudHost(context: Context) {
      * size where a drop would dock it, so the drop finishes a contraction the drag already started.
      */
     private fun shrinkPastEdge(hud: DroidDeckHudView, rawX: Float, rawY: Float) {
-        if (hud.dock != DroidDeckHudDock.NONE || hud.isStrip) return
+        if (hud.dock != DroidDeckHudDock.NONE) return
         val p = hud.parent as? View ?: return
         val edge = overhang(hud) ?: return
         val over = edge.value
@@ -343,11 +348,18 @@ class DroidDeckHudHost(context: Context) {
         val fade = ((t - PREVIEW_FROM) / (1f - PREVIEW_FROM)).coerceIn(0f, 1f)
         hud.setDockPreview(edge.key, fade * fade * (3f - 2f * fade))
         val (tabW, tabH) = hud.dockTabSize()
-        val tabScale = maxOf(tabW / hud.width, tabH / hud.height).coerceAtMost(1f)
-        val s = 1f + (tabScale - 1f) * t * t * (3f - 2f * t)
+        val e = t * t * (3f - 2f * t)
         val at = IntArray(2).also { p.getLocationOnScreen(it) }
         hud.pivotX = rawX - at[0] - hud.x
         hud.pivotY = rawY - at[1] - hud.y
+        if (hud.isStrip) {
+            // The bar draws in sideways toward the tab's width; scaled evenly it would thin to a line.
+            hud.scaleX = 1f + (tabW / hud.width - 1f) * e
+            hud.scaleY = 1f
+            return
+        }
+        val tabScale = maxOf(tabW / hud.width, tabH / hud.height).coerceAtMost(1f)
+        val s = 1f + (tabScale - 1f) * e
         hud.scaleX = s; hud.scaleY = s
     }
 
@@ -491,6 +503,9 @@ class DroidDeckHudHost(context: Context) {
         private const val FLING_REACH_S = 0.18f
         /** How far toward docking a drag goes, as a share of the way, before the tab starts to fade in over the HUD. */
         private const val PREVIEW_FROM = 0.55f
+        /** How far the Strip is pulled sideways, or off its edge, for its overhang to count as its whole size. */
+        private const val STRIP_PULL_ACROSS_DP = 600f
+        private const val STRIP_PULL_OFF_DP = 150f
         /** The share of the expand animation over which the tab fades out to the HUD. */
         private const val EXPAND_FADE = 0.5f
         private val EASE = PathInterpolator(0.2f, 0.8f, 0.2f, 1f)
