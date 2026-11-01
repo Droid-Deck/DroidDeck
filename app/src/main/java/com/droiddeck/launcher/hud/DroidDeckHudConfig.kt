@@ -43,6 +43,18 @@ internal object DroidDeckHudConfig {
         return values
     }
 
+    /** Writes several switches and the row order in one go, so the HUD is rebuilt once. */
+    fun choose(context: Context, switches: Map<String, Boolean>, order: List<String>): Map<String, String> {
+        val values = load(context)
+        for ((key, on) in switches) if (key in DEFAULTS) {
+            values[key] = flag(on)
+            TWINS[key]?.let { values[it] = flag(on) }
+        }
+        values["hudOrder"] = order.filter { it in ORDER }.joinToString("|")
+        SessionPrefs.setDroidDeckHudConfig(context, encode(values))
+        return values
+    }
+
     fun reset(context: Context): Map<String, String> {
         SessionPrefs.setDroidDeckHudConfig(context, encode(DEFAULTS))
         return DEFAULTS

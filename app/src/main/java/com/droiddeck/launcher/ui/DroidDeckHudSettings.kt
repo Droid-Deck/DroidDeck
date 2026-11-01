@@ -1,32 +1,15 @@
 package com.droiddeck.launcher.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.LocalIndication
-import androidx.compose.foundation.hoverable
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.hud.DroidDeckHudConfig
 import com.droiddeck.launcher.hud.DroidDeckHudSize
@@ -79,14 +62,16 @@ internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (Stri
             chipModifier = track("hud-fps-decimal")) { a.onHudSetting("fpsDecimal", flag(it)) }
     }
 
-    val order = DroidDeckHudConfig.order(cfg)
+    var editing by remember { mutableStateOf(false) }
     SettingsGroup(stringResource(R.string.hud_group_metrics)) {
-        for ((index, key) in order.withIndex()) {
-            val metric = METRICS.firstOrNull { it.key == key } ?: continue
-            HudMetricRow(host, metric, index, order.size, on(metric.key), track("hud-${metric.key}"),
-                onChange = { a.onHudSetting(metric.key, flag(it)) },
-                onMove = { a.onHudMove(metric.key, it) })
-        }
+        ActionRow(stringResource(R.string.hud_group_metrics), null, stringResource(R.string.hud_readings_edit),
+            onClick = { editing = true }, modifier = track("hud-readings"))
+        if (editing) HudReadingsDialog(
+            initialOrder = DroidDeckHudConfig.order(cfg),
+            initialOn = DroidDeckHudConfig.order(cfg).associateWith { on(it) },
+            onDismiss = { editing = false },
+            onSave = { switches, order -> a.onHudOrder(switches, order) },
+        )
     }
 
     if (on("showTemp") || on("showGpuTemp")) SettingsGroup(stringResource(R.string.hud_group_temps)) {
@@ -168,38 +153,6 @@ private val BOTTOM_STRIP_ROWS = listOf(
 
 private class HudMetric(val key: String, val label: Int)
 
-@Composable
-private fun HudMetricRow(
-    host: MenuHost, metric: HudMetric, index: Int, count: Int, checked: Boolean,
-    modifier: Modifier, onChange: (Boolean) -> Unit, onMove: (Boolean) -> Unit,
-) {
-    val colors = MaterialTheme.colorScheme
-    SettingsRow(stringResource(metric.label), null) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            ToggleSwitch(checked, true, stringResource(metric.label), modifier) {
-                host.open = null; onChange(it)
-            }
-            MoveButton(Icons.Filled.KeyboardArrowUp, stringResource(R.string.hud_move_up), colors.onBackground, index > 0) { onMove(true) }
-            MoveButton(Icons.Filled.KeyboardArrowDown, stringResource(R.string.hud_move_down), colors.onBackground, index < count - 1) { onMove(false) }
-        }
-    }
-}
-
-@Composable
-private fun MoveButton(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String,
-                       tint: Color, enabled: Boolean, onClick: () -> Unit) {
-    val src = remember { MutableInteractionSource() }
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier.size(36.dp).alpha(if (enabled) 1f else 0.3f)
-            .clip(RoundedCornerShape(8.dp))
-            .hoverable(src)
-            .clickable(interactionSource = src, indication = LocalIndication.current, enabled = enabled, role = Role.Button, onClick = onClick)
-            .controllerConfirm(enabled = enabled, onClick = onClick)
-            .semantics { contentDescription = description },
-    ) { Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp)) }
-}
-
 // Wrapper and DX version have nothing to show in DroidDeck.
 private val METRICS = listOf(
     HudMetric("showGpuModel", R.string.hud_metric_gpu_model),
@@ -230,3 +183,6 @@ private val METRICS = listOf(
     HudMetric("showSession", R.string.hud_metric_session),
     HudMetric("showClock", R.string.hud_metric_clock),
 )
+
+internal fun hudMetricLabel(key: String): Int? =
+    METRICS.firstOrNull { it.key == key }?.label
