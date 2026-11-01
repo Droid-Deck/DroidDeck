@@ -741,6 +741,9 @@ class DroidDeckHudView(context: Context) : View(context) {
         contentW = max(contentW, pad + w + pad)
     }
 
+    private fun hasGpuStats(s: HudMetrics.Snapshot): Boolean =
+        s.gpuPercent != null || s.gpuTempC != null || s.gpuClockMhz != null
+
     private fun buildFull(s: HudMetrics.Snapshot) {
         val rowPx = sp(12f); val unitPx = rowPx * 0.62f
         val pad = sp(10f); val lineGap = sp(4f); val lvGap = sp(8f)
@@ -752,7 +755,7 @@ class DroidDeckHudView(context: Context) : View(context) {
             rows.add(HudRow(Span("DISP", colDisp, rowPx), listOf(Span(displayServer, colValue, rowPx))))
         if (hdrState != DroidDeckHudHdr.NONE)
             rows.add(HudRow(Span("HDR", colHdr, rowPx), hdrValue(rowPx)))
-        if (showGPU) {
+        if (showGPU && hasGpuStats(s)) {
             val v = ArrayList<Span>()
             v += numUnit(s.gpuPercent?.toString(), "%", rowPx, unitPx)
             if (showGpuTemp) tempSpans(s.gpuTempC, HudMetrics.TempSensor.GPU, rowPx, unitPx)
@@ -846,7 +849,7 @@ class DroidDeckHudView(context: Context) : View(context) {
             "${fmt1(fpsAvg)} avg · ${lowText(lows.low1Fps) ?: "—"} 1%", false))
         if (showFPS) tiles.add(Tile("FRAME", colDim, numUnit(fmt1(1000f / max(fpsNow, 1f)), "ms", valPx, unitPx),
             "${fmt1(graphMinMs)} – ${fmt1(graphMaxMs)}", false))
-        if (showGPU) tiles.add(Tile("GPU", colGpu, numUnit(s.gpuPercent?.toString(), "%", valPx, unitPx),
+        if (showGPU && hasGpuStats(s)) tiles.add(Tile("GPU", colGpu, numUnit(s.gpuPercent?.toString(), "%", valPx, unitPx),
             if (showGpuTemp && s.gpuTempC != null) HudMetrics.formatTemp(s.gpuTempC.toFloat(), tempDisplay, false)
             else s.gpuClockMhz?.let { "${it}MHz" }, false))
         if (showCPU) tiles.add(Tile("CPU", colCpu, numUnit(s.cpuPercent?.toString(), "%", valPx, unitPx),
@@ -938,7 +941,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         val gpuName = if (showGpuModel && gpuNameText().isNotBlank()) gpuModelSpans(stkPx, colDim, compact = true) else null
         run {
             val l = ArrayList<Span>()
-            if (showGPU) { l += Span("GPU ${s.gpuPercent ?: "—"}%", colGpu, stkPx) }
+            if (showGPU && s.gpuPercent != null) { l += Span("GPU ${s.gpuPercent}%", colGpu, stkPx) }
             if (showCPU) { if (l.isNotEmpty()) l += Span(" · ", colDim, stkPx); l += Span("CPU ${s.cpuPercent ?: "—"}%", colCpu, stkPx) }
             if (l.isNotEmpty()) stack.add(l)
         }
@@ -1133,7 +1136,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         val left = ArrayList<HudRow>()
         if (showGpuModel && gpuNameText().isNotBlank())
             left.add(HudRow(Span("GPU", colGpu, rowPx), gpuModelSpans(rowPx, colValue)))
-        if (showGPU) {
+        if (showGPU && hasGpuStats(s)) {
             val v = ArrayList<Span>()
             v += numUnit(s.gpuPercent?.toString(), "%", rowPx, unitPx)
             if (showGpuTemp) tempSpans(s.gpuTempC, HudMetrics.TempSensor.GPU, rowPx, unitPx)

@@ -103,7 +103,7 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
     }
 
     /** The KGSL total DroidDeck shares with the session (GpuMemComponent). */
-    fun vramBytes(): Long? = fresh(File(rootDir, VRAM_FILE), VRAM_FRESH_MS)?.let(::readLong)
+    fun vramBytes(): Long? = fresh(File(rootDir, VRAM_FILE), VRAM_FRESH_MS)?.let(::readLong)?.takeIf { it > 0 }
 
     /** BAT* under the session's power_supply (BatteryComponent): no watts while charging, full or unknown. */
     fun battery(): Battery? {
