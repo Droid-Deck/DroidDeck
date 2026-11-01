@@ -4,6 +4,7 @@ import json
 import os
 import re
 import runpy
+import signal
 import subprocess
 import sys
 import tempfile
@@ -735,7 +736,127 @@ def directaudio_settings(env):
     return env
 
 
-def start(launch, launch_env, digest):
+DIRT_GAMES = {"dirt3_game": "dirt3", "showdown": "dirtshowdown", "showdown_avx": "dirtshowdown"}
+DIRT_WS2 = "/usr/local/lib/droiddeck-dirt/ws2_32.dll"
+DIRT_MARKER = b"droiddeck-dirt-ws2_32"
+DIRT_FIXED = "showdown_avx.exe".encode("utf-16-le")
+DIRT_SAVED = ".droiddeck-original"
+
+
+def dirt_telemetry_on(prefix, game):
+    """Whether the game's UDP/motion output is on, as In-game stats or another listener sets it ("dbox" is its default)."""
+    try:
+        folders = [f for f in (Path(prefix) / "pfx/drive_c/users/steamuser/Documents/My Games").iterdir()
+                   if f.name.lower().replace(" ", "") == game]
+    except OSError:
+        return False
+    for folder in folders:
+        try:
+            text = (folder / "hardwaresettings/hardware_settings_config.xml").read_text(encoding="latin-1")
+        except OSError:
+            continue
+        for tag in ("udp", "motion"):
+            element = re.search(r"<%s\s[^>]*>" % tag, text)
+            if element:
+                attrs = dict(re.findall(r'\s(\w+)="([^"]*)"', element.group(0)))
+                return attrs.get("enabled") == "true" and attrs.get("ip", "").lower() not in ("", "dbox")
+    return False
+
+
+def proton_ws2(proton):
+    return Path(proton).parent / "files/lib/wine/i386-windows/ws2_32.dll"
+
+
+def proton_has_dirt_fix(proton):
+    try:
+        return DIRT_FIXED in proton_ws2(proton).read_bytes()
+    except OSError:
+        return False
+
+
+def prefix_ws2(prefix):
+    return Path(prefix) / "pfx/drive_c/windows/syswow64/ws2_32.dll"
+
+
+def is_dirt_stand_in(path):
+    try:
+        return not path.is_symlink() and DIRT_MARKER in path.read_bytes()
+    except OSError:
+        return False
+
+
+def dirt_ws2_wanted(command, env):
+    """The prefix to give the ws2_32 stand-in: a DiRT 3 / Showdown launch with telemetry on and a Proton without the fix."""
+    prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
+    if len(command) < 3 or not prefix or not os.path.isfile(DIRT_WS2):
+        return None
+    game = DIRT_GAMES.get(os.path.splitext(os.path.basename(command[2]))[0].lower())
+    if not game or not dirt_telemetry_on(prefix, game) or proton_has_dirt_fix(command[0]):
+        return None
+    return prefix if os.path.lexists(prefix_ws2(prefix)) else None
+
+
+def swap_dirt_ws2(prefix):
+    """Puts the stand-in where the prefix's syswow64/ws2_32.dll is; that file is kept beside it."""
+    target = prefix_ws2(prefix)
+    saved = target.with_name(target.name + DIRT_SAVED)
+    data = Path(DIRT_WS2).read_bytes()
+    if not is_dirt_stand_in(target):
+        if os.path.lexists(saved):
+            os.unlink(saved)
+        os.replace(target, saved)
+    staged = target.with_name(target.name + ".droiddeck-tmp")
+    staged.write_bytes(data)
+    os.replace(staged, target)
+
+
+def restore_dirt_ws2(prefix, proton):
+    """Puts a Wine syswow64/ws2_32.dll back if the stand-in is still there; true when it changed something.
+
+    That is the prefix's own one, unless the game ran on another Proton since the swap: Proton then relinked the
+    prefix's other DLLs to itself but left the stand-in, so the running Proton's ws2_32.dll goes back instead."""
+    target = prefix_ws2(prefix)
+    saved = target.with_name(target.name + DIRT_SAVED)
+    own = proton_ws2(proton)
+    had_saved = os.path.lexists(saved)
+    if had_saved:
+        if os.path.lexists(target) and not is_dirt_stand_in(target):
+            os.unlink(saved)
+            return False
+        if not own.is_file() or os.path.realpath(saved) == os.path.realpath(own):
+            os.replace(saved, target)
+            return True
+        os.unlink(saved)
+    if own.is_file() and (is_dirt_stand_in(target) or (had_saved and not os.path.lexists(target))):
+        link = target.with_name(target.name + ".droiddeck-tmp")
+        if os.path.lexists(link):
+            os.unlink(link)
+        os.symlink(own, link)
+        os.replace(link, target)
+        return True
+    return False
+
+
+def wait_forwarding_signals(process):
+    def forward(signum, frame):
+        try:
+            process.send_signal(signum)
+        except OSError:
+            pass
+
+    for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(signum, forward)
+    code = process.wait()
+    return 128 - code if code < 0 else code
+
+
+def start(launch, launch_env, digest, after=None):
+    if after:
+        process = subprocess.Popen(launch, env=launch_env)
+        try:
+            return wait_forwarding_signals(process)
+        finally:
+            after()
     if digest:
         code = subprocess.run(launch, env=launch_env, check=False).returncode
         if code == 0:
@@ -760,6 +881,7 @@ def main():
     except OSError:
         digest = None
     app_id = game_id(env)
+    dirt_prefix = None
     if app_id:
         gl_default = gl_vsync(env)
         waiting = len(command) > 1 and command[1] == "waitforexitandrun"
@@ -779,6 +901,10 @@ def main():
             if components:
                 own = fixes.get("WINEDLLOVERRIDES")
                 fixes["WINEDLLOVERRIDES"] = components + ";" + own if own else components
+            dirt_prefix = dirt_ws2_wanted(command, env)
+            if dirt_prefix:
+                own = fixes.get("WINEDLLOVERRIDES")
+                fixes["WINEDLLOVERRIDES"] = own + ";ws2_32=n,b" if own else "ws2_32=n,b"
         path = Path.home() / ".config/droiddeck/game-environment.json"
         config = {}
         try:
@@ -823,16 +949,29 @@ def main():
         return 1
     if xbox_result is not None:
         return xbox_result
+    after = None
+    prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
+    if app_id and prefix and len(command) > 1 and command[1] == "waitforexitandrun":
+        try:
+            if dirt_prefix:
+                swap_dirt_ws2(dirt_prefix)
+                after = lambda: restore_dirt_ws2(dirt_prefix, command[0])
+                print("droiddeck-game-env: DiRT telemetry fix: ws2_32 stand-in in the prefix until the game exits",
+                      file=sys.stderr)
+            elif restore_dirt_ws2(prefix, command[0]):
+                print("droiddeck-game-env: DiRT telemetry fix: put the prefix's own ws2_32 back", file=sys.stderr)
+        except OSError as error:
+            print("droiddeck-game-env: DiRT telemetry fix not applied (%s)" % error, file=sys.stderr)
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
     if launch[0] != command[0]:
         try:
-            return start(launch, launch_env, digest)
+            return start(launch, launch_env, digest, after)
         except OSError as error:
             print("droiddeck-game-env: %s could not start (%s); stock launch" % (launch[0], error), file=sys.stderr)
             launch, launch_env = command, without_pack(launch_env, env)
             record_stock(sync, launch, launch_env)
-    return start(launch, launch_env, digest)
+    return start(launch, launch_env, digest, after)
 
 
 if __name__ == "__main__":
