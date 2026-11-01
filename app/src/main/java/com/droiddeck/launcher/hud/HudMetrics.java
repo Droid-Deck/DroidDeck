@@ -9,7 +9,8 @@
  * AND in the in-app credits/about screen.
  *
  * Ported to DroidDeck from FusionHUD (Bannerlator's HUD) and modified for DroidDeck.
- * Metric readers ported from GameNative's PerformanceHudView.
+ * Metric readers by @xXJSONDeruloXx (GPL-3.0), ported from their PerformanceHudView pull request:
+ * https://github.com/utkarshdalal/GameNative/pull/777
  */
 
 package com.droiddeck.launcher.hud;
