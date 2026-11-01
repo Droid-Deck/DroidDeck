@@ -2129,6 +2129,7 @@
     <string name="display_look_filter">%1$s Cambia el escalado a %2$s.</string>
     <string name="display_match_screen">Igual a la pantalla (%1$d×%2$d)</string>
     <string name="display_follow_screen">Seguir la pantalla (cambia de tamaño al plegar o desplegar)</string>
+    <string name="display_follow_screen_scaled">Escalado %1$s</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Mostrar detalles del dispositivo</string>
     <string name="device_info_hide">Ocultar detalles del dispositivo</string>
