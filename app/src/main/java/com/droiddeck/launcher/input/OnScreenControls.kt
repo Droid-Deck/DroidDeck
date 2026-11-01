@@ -87,9 +87,12 @@ class OnScreenControls(
         Control("start", "start", -1, 20f, 0f, 0f),
         Control("guide", "guide", -1, 22f, 0f, 0f),
         Control("qam", "qam", -1, 22f, 0f, 0f),
+        Control("quick", "quick", -1, 18f, 0f, 0f),
+        Control("keyboard", "keyboard", -1, 18f, 0f, 0f),
     )
 
     private val groups = controls.map { it.group }.distinct()
+    private val placeableGroups = groups.filter { it !in toolIds }
 
     private var buttonsOnly = false
     val isButtonsOnly: Boolean get() = buttonsOnly
@@ -218,14 +221,23 @@ class OnScreenControls(
     private fun relayout() {
         if (width <= 0 || height <= 0) return
         fit = if (buttonsOnly && !editing) 1f else fitScale()
-        for (control in controls) control.radius = if (buttonsOnly && !editing && (control.id == "guide" || control.id == "qam")) dp(30f) else scaled(control.radiusDp)
+        for (control in controls) control.radius = when {
+            buttonsOnly && !editing && (control.id == "guide" || control.id == "qam") -> dp(30f)
+            control.id in toolIds -> dp(18f)
+            else -> scaled(control.radiusDp)
+        }
+        val saved = if (ignoreSaved) emptyMap() else ControllerPrefs.layout(context, width, height)
         if (buttonsOnly && !editing) {
             val inset = dp(44f)
             put("guide", safe.left + inset, height - safe.bottom - inset)
             put("qam", width - safe.right - inset, height - safe.bottom - inset)
+            put("keyboard", width / 2f, height - safe.bottom - dp(44f))
+            saved["keyboard"]?.let { put("keyboard", it.first * width, it.second * height) }
         } else {
             placeAuto(width.toFloat(), height.toFloat())
-            if (!ignoreSaved) for ((group, pos) in ControllerPrefs.layout(context, width, height)) {
+            put("quick", safe.left + dp(34f), height - safe.bottom - dp(34f))
+            put("keyboard", safe.left + dp(90f), height - safe.bottom - dp(34f))
+            for ((group, pos) in saved) {
                 if (group in groups) put(group, pos.first * width, pos.second * height)
             }
         }
@@ -315,7 +327,7 @@ class OnScreenControls(
 
     private fun crowded(group: String, gap: Float, space: Float = gap / 2f, except: String? = null): Boolean {
         val (x, y) = centre(group)
-        return groups.any { other ->
+        return placeableGroups.any { other ->
             if (other == group || other == except) return@any false
             val (ox, oy) = centre(other)
             val dx = x - ox
@@ -385,6 +397,7 @@ class OnScreenControls(
 
     override fun onDraw(canvas: Canvas) {
         if (!quickHidden) for (control in controls) {
+            if (control.id in toolIds) continue
             if (!isVisible(control)) continue
             if (control.stick >= 0 && settings.adaptiveSticks && !editing && control.pressedBy == -1) continue
             val held = control.pressedBy != -1
@@ -443,8 +456,11 @@ class OnScreenControls(
                     canvas.drawRoundRect(box, single.halfH, single.halfH, stroke)
                 } else canvas.drawCircle(x, y, extent(group) + dp(6f), stroke)
             }
-        } else if (!buttonsOnly) {
-            val (x, y) = quickCenter()
+        }
+        if (editing || !buttonsOnly) {
+            val quick = tool("quick")
+            val x = quick.cx
+            val y = quick.cy
             val radius = dp(18f)
             fill.color = Color.argb(190, Color.red(idleFill), Color.green(idleFill), Color.blue(idleFill))
             canvas.drawCircle(x, y, radius, fill)
@@ -454,8 +470,10 @@ class OnScreenControls(
             text.textSize = dp(22f)
             canvas.drawText(if (quickHidden) "+" else "−", x, y + text.textSize * 0.35f, text)
         }
-        if (!editing && settings.keyboardButton && onKeyboard != null) {
-            val (x, y) = keyboardCenter()
+        if (editing || (settings.keyboardButton && onKeyboard != null)) {
+            val keyboard = tool("keyboard")
+            val x = keyboard.cx
+            val y = keyboard.cy
             fill.color = Color.argb(190, Color.red(idleFill), Color.green(idleFill), Color.blue(idleFill))
             canvas.drawCircle(x, y, dp(18f), fill)
             stroke.color = if (keyboardPressedBy == -1) idleStroke else heldStroke
@@ -471,25 +489,21 @@ class OnScreenControls(
         }
     }
 
-    private fun quickCenter() = (safe.left + dp(34f)) to (height - safe.bottom - dp(34f))
-
-    private fun keyboardCenter() = if (buttonsOnly)
-        width / 2f to (height - safe.bottom - dp(44f))
-    else (safe.left + dp(90f)) to (height - safe.bottom - dp(34f))
+    private fun tool(id: String): Control = controls.first { it.id == id }
 
     private fun keyboardContains(x: Float, y: Float): Boolean {
         if (!settings.keyboardButton || onKeyboard == null) return false
-        val (cx, cy) = keyboardCenter()
-        val dx = x - cx
-        val dy = y - cy
+        val c = tool("keyboard")
+        val dx = x - c.cx
+        val dy = y - c.cy
         return dx * dx + dy * dy <= dp(26f) * dp(26f)
     }
 
     private fun quickContains(x: Float, y: Float): Boolean {
-        val (cx, cy) = quickCenter()
+        val c = tool("quick")
         val radius = dp(26f)
-        val dx = x - cx
-        val dy = y - cy
+        val dx = x - c.cx
+        val dy = y - c.cy
         return dx * dx + dy * dy <= radius * radius
     }
 
@@ -679,13 +693,14 @@ class OnScreenControls(
 
     private fun controlAt(x: Float, y: Float): Control? =
         controls.firstOrNull {
-            !quickHidden && isVisible(it) && (editing || !settings.adaptiveSticks || it.stick < 0) && it.contains(x, y, it.radius)
+            !quickHidden && isVisible(it) && (editing || !settings.adaptiveSticks || it.stick < 0) &&
+                (editing || it.id !in toolIds) && it.contains(x, y, it.radius)
         }
 
     private fun adaptiveStickAt(x: Float, y: Float): Control? {
         if (!settings.adaptiveSticks || editing || buttonsOnly || quickHidden) return null
         if (x < safe.left || x >= width - safe.right || y < safe.top || y >= height - safe.bottom) return null
-        if (controls.any { it.stick < 0 && isVisible(it) && it.contains(x, y, it.radius, 5f) }) return null
+        if (controls.any { it.stick < 0 && it.id !in toolIds && isVisible(it) && it.contains(x, y, it.radius, 5f) }) return null
         return controls.filter {
             val dx = x - it.cx
             val dy = y - it.cy
@@ -699,6 +714,8 @@ class OnScreenControls(
     }
 
     private fun isVisible(control: Control): Boolean = when {
+        control.id == "quick" -> editing || !buttonsOnly
+        control.id == "keyboard" -> editing || (settings.keyboardButton && onKeyboard != null)
         !editing && control.id == "guide" && !settings.steamButton -> false
         !editing && control.id == "qam" && !settings.qamButton -> false
         buttonsOnly && !editing -> control.id == "guide" || control.id == "qam"
@@ -727,7 +744,7 @@ class OnScreenControls(
                             else { state.rightX = control.kx / control.radius; state.rightY = control.ky / control.radius }
                             control.dirty = false
                         }
-                        control.id == "qam" || control.target == ControllerPrefs.OFF -> {}
+                        control.id == "qam" || control.id in toolIds || control.target == ControllerPrefs.OFF -> {}
                         else -> {
                             used.add(control.target)
                             if (control.pressedBy != -1) held.add(control.target)
@@ -790,5 +807,6 @@ class OnScreenControls(
         const val SNAP_TOLERANCE_PX = 1f
         val shoulderIds = setOf("lb", "rb", "lt", "rt")
         val directions = listOf("up", "right", "down", "left")
+        val toolIds = setOf("quick", "keyboard")
     }
 }
