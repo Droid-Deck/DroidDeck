@@ -9,11 +9,13 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -29,6 +31,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -44,6 +47,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 import androidx.compose.ui.zIndex
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.hud.DroidDeckHudConfig
 
@@ -68,23 +73,46 @@ internal fun HudReadingsDialog(
     var draggingKey by remember { mutableStateOf<String?>(null) }
     var dragDy by remember { mutableFloatStateOf(0f) }
     var dragFrom by remember { mutableIntStateOf(-1) }
+    var fingerY by remember { mutableFloatStateOf(0f) }
 
-    AppDialog(shown, close, "hudReadings", wide = false, scrollable = false) {
+    AppDialog(shown, close, "hudReadings", wide = false, scrollable = false, modifier = Modifier.fillMaxHeight()) {
         val state = rememberLazyListState()
-        // Rows this size does not draw keep their slots: only the visible ones are re-sequenced, so switching
-    // to another size finds its own order untouched.
-    val merged = {
-        val moved = order.toList()
-        var i = 0
-        initialOrder.map { if (it in visible) moved[i++] else it }
-    }
-    val save = { onSave(enabled.toMap(), merged()); close() }
+        // Holding a row past the top or bottom edge keeps the list scrolling: the finger has nowhere left
+        // to go, so the rows have to come to it. fingerY is where the finger sits inside the viewport.
+        val finger = rememberUpdatedState(fingerY)
+        LaunchedEffect(draggingKey) {
+            if (draggingKey == null) return@LaunchedEffect
+            while (isActive) {
+                val info = state.layoutInfo
+                val y = finger.value
+                val top = info.viewportStartOffset + rowPx * 0.5f
+                val bottom = info.viewportEndOffset - rowPx * 0.5f
+                val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
+                val step = when {
+                    y < top && state.firstVisibleItemIndex > 0 -> -rowPx / 4f
+                    y > bottom && last < order.size - 1 -> rowPx / 4f
+                    else -> 0f
+                }
+                if (step != 0f) {
+                    val moved = state.scrollBy(step)
+                    if (moved != 0f) { dragDy -= moved; fingerY += moved }
+                }
+                delay(16)
+            }
+        }
+        // Rows this size does not draw keep their slots: only the visible ones are re-sequenced, so
+        // switching to another size finds its own order untouched.
+        val merged = {
+            val moved = order.toList()
+            var i = 0
+            initialOrder.map { if (it in visible) moved[i++] else it }
+        }
+        val save = { onSave(enabled.toMap(), merged()); close() }
         val restore = {
             onSave(DroidDeckHudConfig.DEFAULTS.mapValues { it.value == "1" }, DroidDeckHudConfig.ORDER)
             close()
         }
-        BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val listH = (maxHeight * 0.72f).coerceAtLeast(140.dp)
+        BoxWithConstraints(Modifier.fillMaxWidth().fillMaxHeight()) {
             val beside = maxWidth >= 600.dp || maxWidth > maxHeight
             val list = @Composable { m: Modifier ->
                 LazyColumn(state = state, modifier = m) {
@@ -113,8 +141,11 @@ internal fun HudReadingsDialog(
                                 .padding(start = 4.dp, end = 6.dp),
                         ) {
                             DragHandle(
-                                onStart = { draggingKey = key; dragFrom = index; dragDy = 0f },
-                                onDrag = { dy -> dragDy = (dragDy + dy).coerceIn(-dragFrom * rowPx, (order.size - 1 - dragFrom) * rowPx) },
+                                onStart = {
+                                    draggingKey = key; dragFrom = index; dragDy = 0f
+                                    fingerY = index * rowPx + rowPx / 2f
+                                },
+                                onDrag = { dy -> dragDy += dy; fingerY += dy },
                                 onEnd = {
                                     val to = (dragFrom + (dragDy / rowPx).roundToInt()).coerceIn(0, order.size - 1)
                                     val at = order.indexOf(key)
@@ -133,11 +164,11 @@ internal fun HudReadingsDialog(
             }
             val ok = @Composable { PrimaryButton(stringResource(R.string.common_ok), compact = true, onClick = save) }
             val reset = @Composable { SecondaryButton(stringResource(R.string.hud_reset_button), compact = true, onClick = restore) }
-            if (beside) Row {
-                list(Modifier.weight(1f).height(listH))
+            if (beside) Row(Modifier.fillMaxSize()) {
+                list(Modifier.weight(1f).fillMaxHeight())
                 Column(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { ok(); reset() }
-            } else Column {
-                list(Modifier.weight(1f).fillMaxWidth().height(listH))
+            } else Column(Modifier.fillMaxSize()) {
+                list(Modifier.weight(1f).fillMaxWidth())
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(Modifier.weight(1f)); ok(); reset()
                 }
