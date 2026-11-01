@@ -149,13 +149,21 @@ def record(root=ROOT):
     (root / MANIFEST).write_text(json.dumps(data, sort_keys=True, indent=2) + '\n')
 
 
-def verify(root=ROOT):
+def verify(root=ROOT, stale_sources_ok=False):
     try:
         data = json.loads((root / MANIFEST).read_text())
     except (OSError, ValueError):
         raise ValueError('Runtime inputs have not been prepared. Run tools/build_local.sh.')
-    if data.get('version') != 1 or data.get('sources') != sources(root):
+    if data.get('version') != 1:
         raise ValueError('Runtime sources changed since preparation. Run tools/build_local.sh.')
+    current = sources(root)
+    if data.get('sources') != current:
+        if not stale_sources_ok:
+            raise ValueError('Runtime sources changed since preparation. Run tools/build_local.sh.')
+        recorded = data.get('sources') or {}
+        changed = sorted(name for name in recorded.keys() | current.keys() if recorded.get(name) != current.get(name))
+        print('Warning: reusing runtime assets prepared from other sources (run tools/build_local.sh if these matter):\n  '
+              + '\n  '.join(changed[:20]) + ('\n  ...' if len(changed) > 20 else ''), file=sys.stderr)
     for name in required():
         if name not in data['outputs']:
             raise ValueError('Runtime manifest missing ' + name)
@@ -224,7 +232,7 @@ if __name__ == '__main__':
         if sys.argv[1] == 'record':
             record()
         elif sys.argv[1] == 'verify':
-            verify()
+            verify(stale_sources_ok='--allow-stale-sources' in sys.argv[2:])
         elif sys.argv[1] == 'apk':
             check_apk(sys.argv[2])
         else:

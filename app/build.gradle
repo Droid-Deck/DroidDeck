@@ -303,7 +303,9 @@ tasks.named('preBuild').configure { dependsOn(stageGogNotices) }
 def verifyRuntimeInputs = tasks.register('verifyRuntimeInputs', Exec) {
     mustRunAfter(stageSessionScripts, stageRuntimeAssets)
     workingDir rootProject.projectDir
-    commandLine pythonExecutable, 'tools/release/runtime_inputs.py', 'verify'
+    def allowStale = (project.findProperty('allowStaleRuntime')
+        ?: localBuildOptions.getProperty('droiddeck.allowStaleRuntime', 'false')).toString().toBoolean()
+    commandLine([pythonExecutable, 'tools/release/runtime_inputs.py', 'verify'] + (allowStale ? ['--allow-stale-sources'] : []))
 }
 tasks.configureEach { task ->
     if (task.name in ['packageDebug', 'packageRelease']) task.dependsOn(verifyRuntimeInputs)
