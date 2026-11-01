@@ -255,6 +255,11 @@ android {
     }
 }
 
+// No instrumented tests; the unused androidTest variant breaks the VS Code Kotlin import.
+androidComponents {
+    beforeVariants(selector().all()) { it.androidTest.enable = false }
+}
+
 // Vendor binaries remain in the user's SDK directory; never vendor them into Git.
 if (vitureSdkDir) {
     android.sourceSets.main.jniLibs.srcDir(new File(vitureSdkDir, 'android'))
