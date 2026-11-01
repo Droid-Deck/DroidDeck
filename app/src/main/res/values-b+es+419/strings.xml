@@ -3673,8 +3673,6 @@
     <string name="hud_metric_avg">Average frame rate</string>
     <string name="hud_metric_display">Display server</string>
     <string name="hud_metric_hdr">HDR state</string>
-    <string name="hud_move_up">Move up</string>
-    <string name="hud_move_down">Move down</string>
     <string name="hud_readings_edit">Change readings</string>
     <string name="hud_readings_title">Readings</string>
     <string name="hud_readings_on">Shown</string>

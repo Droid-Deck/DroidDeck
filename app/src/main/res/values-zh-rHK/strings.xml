@@ -3635,8 +3635,6 @@
     <string name="hud_metric_avg">平均幀率</string>
     <string name="hud_metric_display">顯示服務</string>
     <string name="hud_metric_hdr">HDR 狀態</string>
-    <string name="hud_move_up">上移</string>
-    <string name="hud_move_down">下移</string>
     <string name="hud_readings_edit">Change readings</string>
     <string name="hud_readings_title">Readings</string>
     <string name="hud_readings_on">Shown</string>

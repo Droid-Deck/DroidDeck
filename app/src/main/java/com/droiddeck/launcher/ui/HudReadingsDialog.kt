@@ -22,8 +22,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DragHandle
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -102,7 +100,6 @@ private fun HudReadingsOn(order: MutableList<String>, enabled: MutableMap<String
         HudSectionLabel(stringResource(R.string.hud_readings_on))
         if (on.isEmpty()) HudEmptyLine()
         for (key in on) {
-            val index = order.indexOf(key)
             Row(verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().clip(Shape12).background(MaterialTheme.colorScheme.surface)
                     .onSizeChanged { if (rowHeight <= 0f) rowHeight = it.height.toFloat() }
@@ -111,12 +108,6 @@ private fun HudReadingsOn(order: MutableList<String>, enabled: MutableMap<String
                     val at = order.indexOf(key)
                     val to = at + step
                     if (at >= 0 && to in order.indices) order.add(to, order.removeAt(at))
-                }
-                HudIconButton(Icons.Filled.KeyboardArrowUp, stringResource(R.string.hud_move_up), index > 0) {
-                    order.add(index - 1, order.removeAt(index))
-                }
-                HudIconButton(Icons.Filled.KeyboardArrowDown, stringResource(R.string.hud_move_down), index < order.size - 1) {
-                    order.add(index + 1, order.removeAt(index))
                 }
                 HudIconButton(Icons.Filled.Close, stringResource(R.string.hud_readings_hide), true) { enabled[key] = false }
             }
