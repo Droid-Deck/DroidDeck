@@ -856,6 +856,55 @@ def restore_dirt_ws2(prefix, proton):
     return False
 
 
+EGO_RESTRICTIONS = "system/hardware_settings_restrictions.xml"
+EGO_CORE_RULE = re.compile(r'[ \t]*<restrict_if name="cores" op="(int_[a-z]+)" value="(\d+)">.*?</restrict_if>[ \t]*\r?\n', re.S)
+EGO_OPS = {"int_eq": int.__eq__, "int_ne": int.__ne__, "int_ge": int.__ge__, "int_gt": int.__gt__,
+           "int_le": int.__le__, "int_lt": int.__lt__}
+
+
+def windows_core_count(env):
+    count = (env.get("WINE_CPU_TOPOLOGY") or "").split(":", 1)[0]
+    return int(count) if count.isdigit() and int(count) > 0 else None
+
+
+def ego_core_plan(command, env):
+    """Codemasters EGO games (DiRT 3, DiRT Showdown, GRID, F1 ...) pick their thread plan by core count from
+    system/hardware_settings_restrictions.xml. A count with no plan (5 when a phone's slow cores are left out) puts
+    every worker on one core, and DiRT 3 then stops on a loading screen. Adds a plan for the count Windows sees,
+    copied from the nearest smaller one; the file as it was is kept beside it. Returns a note, or None."""
+    count = windows_core_count(env)
+    if not count or len(command) < 3:
+        return None
+    folder = Path(command[2]).parent
+    path = folder / EGO_RESTRICTIONS
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        return None
+    text = raw.decode("latin-1")
+    start, end = text.find("<cpu>"), text.find("</cpu>")
+    if start < 0 or end < start:
+        return None
+    rules = list(EGO_CORE_RULE.finditer(text, start, end))
+    if not rules or any(EGO_OPS.get(rule.group(1), lambda a, b: True)(count, int(rule.group(2))) for rule in rules):
+        return None
+    smaller = [rule for rule in rules if rule.group(1) == "int_eq" and int(rule.group(2)) < count]
+    if not smaller:
+        return None
+    source = max(smaller, key=lambda rule: int(rule.group(2)))
+    worker_map = re.search(r'workerMapFile="([^"]+)"', source.group(0))
+    if worker_map and not (folder / worker_map.group(1)).is_file():
+        return None
+    plan = source.group(0).replace('value="%s"' % source.group(2), 'value="%d"' % count, 1)
+    saved = path.with_name(path.name + DIRT_SAVED)
+    if not os.path.lexists(saved):
+        saved.write_bytes(raw)
+    staged = path.with_name(path.name + ".droiddeck-tmp")
+    staged.write_bytes((text[:source.end()] + plan + text[source.end():]).encode("latin-1"))
+    os.replace(staged, path)
+    return "%s had no thread plan for %d cores; added a copy of its %s-core plan" % (EGO_RESTRICTIONS, count, source.group(2))
+
+
 def wait_forwarding_signals(process):
     def forward(signum, frame):
         try:
@@ -963,6 +1012,13 @@ def main():
     env = force_ssbs(command, env)
     game_cores(env)
     cpu_topology(env, command)
+    if app_id and len(command) > 2 and command[1] == "waitforexitandrun":
+        try:
+            note = ego_core_plan(command, env)
+        except OSError as error:
+            note = "no thread plan added for this core count (%s)" % error
+        if note:
+            print("droiddeck-game-env: " + note, file=sys.stderr)
     try:
         xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))
     except Exception as error:
