@@ -13,6 +13,7 @@ internal object GameJoltSessionProbe {
     private const val MAX_PATHS = 120
     private const val DEPTH = 7
     private const val MAX_PACKAGES = 12
+    private const val PRICE_SAMPLE = 14
     private val wordsKept = setOf("type", "currency", "status", "key", "message", "error", "reason", "os", "code", "kind", "state", "access", "level")
     private val noisy = Regex("^\\.(recommendedGames|comments|developer|knownFollowers|posts)")
     private val ownership = Regex("^\\.(sellables\\[0\\]\\.(?!resource)|game\\.sellable\\.(?!resource)|microdata)")
@@ -97,6 +98,20 @@ internal object GameJoltSessionProbe {
             val games = answer.payload?.optJSONArray("games")
             val sample = games?.let { list -> (0 until minOf(list.length(), MAX_PACKAGES)).joinToString(",") { "${list.optJSONObject(it)?.optLong("id")}:${list.optJSONObject(it)?.opt("has_adult_content")}" } }.orEmpty()
             log("browse check ?$variant code=${answer.code} games=${games?.length() ?: 0} idsAdult=[$sample]")
+        }
+        for (variant in listOf("f_price=sale", "f_price=paid", "f_price=5-less")) {
+            val answer = GameJoltApi.browse(variant, cookies)
+            val games = answer.payload?.optJSONArray("games")
+            val sample = games?.let { list ->
+                (0 until minOf(list.length(), PRICE_SAMPLE)).joinToString(" ") { index ->
+                    val game = list.optJSONObject(index)
+                    val sellable = game?.optJSONObject("sellable")
+                    val prices = sellable?.optJSONArray("pricings")
+                    val shown = prices?.let { p -> (0 until p.length()).joinToString("|") { i -> p.optJSONObject(i)?.let { o -> "${o.opt("amount")}/${o.opt("currency_code")}/${o.opt("country_code")}/${o.opt("promotional")}/keys=${o.keys().asSequence().toList().sorted().joinToString("+")}" }.orEmpty() } }
+                    "${game?.optLong("id")}:${sellable?.opt("type")}:[$shown]"
+                }
+            }.orEmpty()
+            logLong("browse prices ?$variant code=${answer.code} games=${games?.length() ?: 0}", sample)
         }
         val name = GameJoltAuth.username(app)
         for (kind in listOf("owned", "followed", "developer", "recommended")) {
