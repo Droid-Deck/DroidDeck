@@ -1,14 +1,12 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.droiddeck.launcher.R
@@ -127,14 +125,13 @@ class ComponentsPageProfileTest {
         val nightlyB = item("DD-dxvk-3.1.1+202-nightly.wcp", "owner/b", true, 4)
         show(comp = "dxvk", catalog = listOf(stableA, stableB, nightlyA, nightlyB))
 
-        val stableLabel = RuntimeEnvironment.getApplication().getString(R.string.comp_channel_stable)
-        compose.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, stableLabel))
-            .onFirst().performClick()
+        compose.onAllNodesWithText("dxvk-3.1.1-linux").assertCountEquals(2)
+        compose.onNodeWithTag("component-channel:${stableA.id}").performClick()
         compose.onNodeWithText("DD-dxvk-3.1.1+101-nightly").assertExists()
         compose.onNodeWithText("DD-dxvk-3.1.1+202-nightly").assertDoesNotExist()
         compose.onAllNodesWithText("dxvk-3.1.1-linux").assertCountEquals(1)
-        compose.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, stableLabel))
-            .onFirst().performClick()
+        compose.onNodeWithTag("component-channel:${stableB.id}").performClick()
+        compose.onNodeWithText("DD-dxvk-3.1.1+101-nightly").assertExists()
         compose.onNodeWithText("DD-dxvk-3.1.1+202-nightly").assertExists()
     }
 
