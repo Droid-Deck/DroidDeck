@@ -16,6 +16,8 @@ import com.samsung.sdk.sperf.Boost
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.InputStream
+import java.lang.reflect.InvocationTargetException
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.random.Random
 
 /**
@@ -28,6 +30,10 @@ import kotlin.random.Random
  * cores online), asked for with a timeout of at most [HOLD_MS], so Samsung lets go on its own if the
  * app dies. Samsung may hold a request for less than asked (1 s on an SM8850 Galaxy Z Fold), so they
  * are renewed every [renewMs].
+ *
+ * A phone without the firmware library is not asked again until the app restarts. Where the library
+ * is there, a failed connection is tried again [TRIES] times a session, each failure with its reason
+ * in [Tries.failed], and again at the next session.
  */
 object SamsungPerf {
     private const val TAG = "SamsungPerf"
@@ -48,6 +54,8 @@ object SamsungPerf {
     private const val CORES = 4
     internal const val HOLD_MS = 5000
     private const val SEEN_HOLD_MS = 1000
+    internal const val TRIES = 4
+    private val RETRY_S = intArrayOf(5, 15, 30)
 
     /** Half the hold, and no later than half the shortest hold Samsung has been seen to use. */
     internal fun renewMs(holdMs: Int): Long = (minOf(holdMs, SEEN_HOLD_MS) / 2).coerceAtLeast(100).toLong()
@@ -80,57 +88,92 @@ object SamsungPerf {
         ).filter { it.value > 0 }
     }
 
+    /** One session's tries to connect: why each failed, and whether all [TRIES] did. */
+    internal class Tries {
+        val failed = CopyOnWriteArrayList<String>()
+        @Volatile var gaveUp = false
+    }
+
+    /** What the log says after try [n] failed. */
+    internal fun retryNote(n: Int): String =
+        if (n < TRIES) "trying again in ${RETRY_S[n - 1]} s" else "no more tries until the next game"
+
+    /** A failed try's reason: the step it was on and what went wrong there. */
+    internal fun failure(step: String, t: Throwable): String {
+        val cause = (t as? InvocationTargetException)?.targetException ?: t
+        return "failed while $step (${cause.javaClass.simpleName}${cause.message?.takeIf { it.isNotBlank() }?.let { ": $it" } ?: ""})"
+    }
+
     private val connectLock = Any()
     @Volatile private var floors: List<Floor>? = null
     @Volatile private var unavailable: String? = null
     private var socket: LocalSocket? = null // kept open for the process's life, as the SDK does
+    @Volatile internal var tries = Tries()
 
-    /** Once per process. Null where there is no Samsung service, with the reason in [unavailable]. */
-    private fun connect(): List<Floor>? = synchronized(connectLock) { connectLocked() }
+    private class Failed(val why: String) : Exception(why)
 
-    private fun connectLocked(): List<Floor>? {
+    /** Null where there is no Samsung service (the reason in [unavailable]) or this try failed (the reason in [t]). */
+    private fun connect(t: Tries): List<Floor>? = synchronized(connectLock) { connectLocked(t) }
+
+    private fun connectLocked(t: Tries): List<Floor>? {
         floors?.let { return it }
         if (unavailable != null) return null
         try {
             System.loadLibrary(LIBRARY)
+        } catch (_: UnsatisfiedLinkError) {
+            unavailable = "no Samsung performance library"
+            offWhy = unavailable
+            Log.i(TAG, "not available: $unavailable")
+            return null
+        }
+        var step = "looking up Samsung's performance service"
+        var client: LocalSocket? = null
+        try {
             val service = Class.forName("android.os.ServiceManager").getMethod("getService", String::class.java)
-                .invoke(null, SERVICE) as IBinder? ?: return fail("no $SERVICE service")
+                .invoke(null, SERVICE) as IBinder? ?: throw Failed("Samsung's performance service ($SERVICE) is not running")
             val name = "PERFSDK_SOC_" + Random.nextInt(36 * 36 * 36 * 36 * 36).toString(36).padStart(5, '0')
+            step = "opening a socket for the service"
             val server = LocalServerSocket(name) // the service connects to it; Closeable only from Android 10
-            val client = try {
+            val accepted = try {
+                step = "asking the service to connect"
                 val init = call(service, CALL_INIT, { writeString(name) }, { readInt() })
+                step = "asking the service for the package name"
                 val pkg = call(service, CALL_PACKAGE, {}, { readString() })
                 if (!pkg.isNullOrEmpty()) Boost.setPkgName(pkg)
                 Log.i(TAG, "service: init $init, package $pkg")
+                step = "waiting for the service to connect"
                 val poll = StructPollfd().apply { fd = server.fileDescriptor; events = OsConstants.POLLIN.toShort() }
-                if (Os.poll(arrayOf(poll), SOCKET_TIMEOUT_MS) < 1) return fail("$SERVICE did not connect")
+                if (Os.poll(arrayOf(poll), SOCKET_TIMEOUT_MS) < 1) {
+                    throw Failed("the service did not connect within ${SOCKET_TIMEOUT_MS / 1000} s (it answered $init, package ${pkg ?: "none"})")
+                }
                 server.accept()
             } finally {
                 server.close()
             }
-            client.soTimeout = SOCKET_TIMEOUT_MS
-            DataOutputStream(client.outputStream).apply { writeInt(Integer.reverseBytes(ASK_LEVELS)); flush() }
-            val levels = readLevels(client.inputStream)
-            socket = client
+            client = accepted
+            step = "reading the service's level table"
+            accepted.soTimeout = SOCKET_TIMEOUT_MS
+            DataOutputStream(accepted.outputStream).apply { writeInt(Integer.reverseBytes(ASK_LEVELS)); flush() }
+            val levels = readLevels(accepted.inputStream)
             Log.i(TAG, "levels: cpu ${levels.cpu.joinToString()} / gpu ${levels.gpu.joinToString()} / " +
                 "bus ${levels.bus.joinToString()}, max ${levels.maxTimeoutMs} ms")
             val found = floors(levels)
-            if (found.isEmpty()) return fail("no usable levels")
+            if (found.isEmpty()) {
+                throw Failed("the level table has no usable floors (cpu ${levels.cpu.joinToString()} / gpu ${levels.gpu.joinToString()} / bus ${levels.bus.joinToString()})")
+            }
+            socket = accepted
+            client = null
             floors = found
             return found
-        } catch (_: UnsatisfiedLinkError) {
-            return fail("no Samsung performance library")
-        } catch (t: Throwable) {
-            Log.w(TAG, "could not connect", t)
-            return fail("could not connect (${t.javaClass.simpleName})")
+        } catch (e: Throwable) {
+            val why = (e as? Failed)?.why ?: failure(step, e)
+            t.failed.add(why)
+            offWhy = "could not connect"
+            Log.w(TAG, "try ${t.failed.size} of $TRIES failed: $why", e.takeIf { it !is Failed })
+            return null
+        } finally {
+            client?.let { runCatching { it.close() } }
         }
-    }
-
-    private fun fail(why: String): List<Floor>? {
-        unavailable = why
-        offWhy = why
-        Log.i(TAG, "not available: $why")
-        return null
     }
 
     private fun <T> call(service: IBinder, code: Int, write: Parcel.() -> Unit, read: Parcel.() -> T): T {
@@ -139,7 +182,7 @@ object SamsungPerf {
         try {
             data.writeInterfaceToken(DESCRIPTOR)
             data.write()
-            service.transact(code, data, reply, 0)
+            if (!service.transact(code, data, reply, 0)) throw Failed("the service does not take call $code")
             reply.readException()
             return reply.read()
         } finally {
@@ -165,7 +208,13 @@ object SamsungPerf {
                 "connected, floors " + f.joinToString { "${TYPE_NAMES[it.type]} ${it.value}" } +
                     ", asked for $hold ms at a time, renewed every ${renewMs(hold)} ms"
             }
-            ?: "connecting"
+            ?: tries.let { t ->
+                when {
+                    t.gaveUp -> "could not connect in $TRIES tries (last: ${t.failed.lastOrNull()})"
+                    t.failed.isNotEmpty() -> "connecting, try ${t.failed.size + 1} of $TRIES"
+                    else -> "connecting"
+                }
+            }
 
     internal fun floorValue(type: Int): Int? = floors?.firstOrNull { it.type == type }?.value
 
@@ -179,7 +228,9 @@ object SamsungPerf {
         val app = context.applicationContext
         worker?.interrupt()
         offWhy = "starting"
-        worker = Thread({ run(app) }, "samsung-boost").apply { isDaemon = true; start() }
+        val t = Tries()
+        tries = t
+        worker = Thread({ run(app, t) }, "samsung-boost").apply { isDaemon = true; start() }
         return "samsung boost: watching"
     }
 
@@ -190,14 +241,26 @@ object SamsungPerf {
         worker = null
     }
 
-    private fun run(context: Context) {
-        val floors = connect() ?: return
-        val renew = renewMs(floors.minOf { it.timeoutMs })
-        val pm = context.getSystemService(PowerManager::class.java)
-        val frames = ArrayDeque<Long>()
-        var pacedFor = 0
+    private fun run(context: Context, t: Tries) {
         var boosting = false
         try {
+            var found = connect(t)
+            while (found == null && unavailable == null && t.failed.size < TRIES) {
+                Thread.sleep(RETRY_S[t.failed.size - 1] * 1000L)
+                found = connect(t)
+            }
+            if (found == null) {
+                if (unavailable == null) {
+                    t.gaveUp = true
+                    offWhy = "could not connect in $TRIES tries"
+                }
+                return
+            }
+            val floors: List<Floor> = found
+            val renew = renewMs(floors.minOf { it.timeoutMs })
+            val pm = context.getSystemService(PowerManager::class.java)
+            val frames = ArrayDeque<Long>()
+            var pacedFor = 0
             while (!Thread.currentThread().isInterrupted) {
                 frames.addLast(WaylandCompositor.gameFrameCount())
                 if (frames.size > GameThreadHints.PACE_WINDOW_S + 1) frames.removeFirst()
@@ -210,7 +273,7 @@ object SamsungPerf {
                     fps < 1 -> "no frames"
                     pm.isPowerSaveMode -> BoostReport.BATTERY_SAVER
                     hot -> BoostReport.TOO_HOT
-                    pacedFor >= GameThreadHints.PACE_LEAVE_S -> "game keeps up"
+                    pacedFor >= GameThreadHints.PACE_LEAVE_S -> BoostReport.KEEPS_UP
                     else -> null
                 }
                 offWhy = why
@@ -238,8 +301,8 @@ object SamsungPerf {
                 Thread.sleep(1000 - slept)
             }
         } catch (_: InterruptedException) {
-        } catch (t: Throwable) {
-            Log.w(TAG, "stopped", t)
+        } catch (e: Throwable) {
+            Log.w(TAG, "stopped", e)
         } finally {
             if (boosting) runCatching { Boost.releaseBoost() }
             holding = false

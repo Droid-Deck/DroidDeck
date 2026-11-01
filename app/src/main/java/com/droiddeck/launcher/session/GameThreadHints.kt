@@ -117,7 +117,7 @@ object GameThreadHints {
                         pm.isPowerSaveMode -> BoostReport.BATTERY_SAVER
                         // Not SEVERE: the Odin 3 reports it once its skin reaches 50 C, a couple of minutes into any game.
                         pm.currentThermalStatus >= PowerManager.THERMAL_STATUS_CRITICAL -> BoostReport.TOO_HOT
-                        pacedFor >= PACE_LEAVE_S -> "game keeps up"
+                        pacedFor >= PACE_LEAVE_S -> BoostReport.KEEPS_UP
                         else -> null
                     }
                     val next = when {
@@ -152,7 +152,7 @@ object GameThreadHints {
     internal fun offReason(spare: String?, boosted: Set<Int>, paced: Boolean, next: Set<Int>): String? = when {
         spare != null -> spare
         boosted.isNotEmpty() -> null
-        paced -> "game keeps up"
+        paced -> BoostReport.KEEPS_UP
         next.isEmpty() -> "no thread busy enough"
         else -> "Android refused the hint"
     }

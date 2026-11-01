@@ -86,6 +86,17 @@ class BoostReportTest {
             .startsWith("worth keeping"))
     }
 
+    @Test fun `a game that keeps up without the boost does not need it`() {
+        val on = BoostReport.Side().apply { repeat(200) { add(58, null, 0, idle = it >= 12) } }
+        val v = BoostReport.verdict(on, side(59))
+        assertTrue(v, v.startsWith("not needed for this game: it kept up without the boost for 94 % of the boost's turns"))
+        assertTrue(v, v.endsWith("(58.0 fps in its turns, 59.0 fps paused)"))
+        val busy = BoostReport.Side().apply { repeat(200) { add(41, null, 0, idle = it < 96) } }
+        assertTrue(BoostReport.verdict(busy, side(40)).startsWith("unclear, a small gain"))
+        val short = BoostReport.Side().apply { repeat(100) { add(58, null, 0, idle = true) } }
+        assertTrue(BoostReport.verdict(short, side(59)).startsWith("too short to tell"))
+    }
+
     @Test fun `the status names why the boost is off, once for a reason both parts give`() {
         assertEquals("too hot", BoostReport.offReasons("too hot", "too hot"))
         assertEquals("game keeps up, too hot", BoostReport.offReasons("game keeps up", "too hot"))

@@ -6,6 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.EOFException
+import java.lang.reflect.InvocationTargetException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -59,6 +60,25 @@ class SamsungPerfTest {
         assertEquals(500L, SamsungPerf.renewMs(1000))
         assertEquals(150L, SamsungPerf.renewMs(300))
         assertEquals(100L, SamsungPerf.renewMs(50))
+    }
+
+    @Test fun `a failed connection is tried again a few times, then at the next game`() {
+        assertEquals(4, SamsungPerf.TRIES)
+        assertEquals("trying again in 5 s", SamsungPerf.retryNote(1))
+        assertEquals("trying again in 15 s", SamsungPerf.retryNote(2))
+        assertEquals("trying again in 30 s", SamsungPerf.retryNote(3))
+        assertEquals("no more tries until the next game", SamsungPerf.retryNote(4))
+    }
+
+    @Test fun `a failed try names the step it was on and the error`() {
+        assertEquals(
+            "failed while reading the service's level table (EOFException)",
+            SamsungPerf.failure("reading the service's level table", EOFException()),
+        )
+        assertEquals(
+            "failed while looking up Samsung's performance service (SecurityException: not allowed)",
+            SamsungPerf.failure("looking up Samsung's performance service", InvocationTargetException(SecurityException("not allowed"))),
+        )
     }
 
     @Test(expected = EOFException::class) fun `a short answer is refused`() {
