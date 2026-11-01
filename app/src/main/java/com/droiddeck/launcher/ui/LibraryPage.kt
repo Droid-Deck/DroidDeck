@@ -155,9 +155,9 @@ internal fun collectionEntries(all: List<LibraryEntry>, items: List<CatalogItem>
 internal fun installedFirst(entries: List<LibraryEntry>): List<LibraryEntry> = entries.partition { it.installed }.let { (on, off) -> on + off }
 
 internal const val LIBRARY_ALL = "all"
-internal fun librarySources(entries: List<LibraryEntry>, order: List<String>): List<String> =
+internal fun librarySources(entries: List<LibraryEntry>, order: List<String>, always: Set<String> = emptySet()): List<String> =
     (listOf(Library.SOURCE_STEAM) + arrangeStoreTabs(order, emptySet()).map { it.store.id } + Library.ADDED)
-        .filter { source -> entries.any { it.source == source } }
+        .filter { source -> source in always || entries.any { it.source == source } }
 
 /** Survives leaving the page, so Stores can open the Library on one store's owned games. */
 internal object LibraryDisplay {
@@ -236,8 +236,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         }
     }
     val itchSignedIn = owned.containsKey(Store.ITCH)
-    val listed = librarySources(all, SessionPrefs.storesTabOrder(ctx))
-    val sources = if (itchSignedIn && Store.ITCH.id !in listed) listed + Store.ITCH.id else listed
+    val sources = librarySources(all, SessionPrefs.storesTabOrder(ctx), if (itchSignedIn) setOf(Store.ITCH.id) else emptySet())
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
     val q = LibraryView.query.trim().lowercase()
     val xboxFilter = if (source == Store.XBOX.id) XboxLibraryFilter.current else XboxLibraryFilter.ALL

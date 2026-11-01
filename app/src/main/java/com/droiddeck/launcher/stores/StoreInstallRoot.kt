@@ -228,7 +228,7 @@ object StoreInstallRoot {
 
     fun isRemovable(context: Context, folder: File): Boolean = !folder.absolutePath.startsWith(internalRoot(context).absolutePath + "/")
 
-    fun storeDir(root: File, store: Store): File = File(root, store.shortLabel)
+    fun storeDir(root: File, store: Store): File = File(root, store.folder)
 
     fun gameFolders(context: Context): List<File> = roots(context).flatMap { root ->
         Store.entries.flatMap { store ->

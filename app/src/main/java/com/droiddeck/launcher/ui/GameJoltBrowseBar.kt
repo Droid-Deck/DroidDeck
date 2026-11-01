@@ -33,7 +33,7 @@ internal fun GameJoltBrowseBar(showMature: Boolean) {
         ChipRow {
             BrowseDropdown(sectionLabel(query.section)) { first, close ->
                 GameJoltBrowse.sections.forEachIndexed { index, section ->
-                    BrowseOption(sectionLabel(section), query.section == section, focusRequester = if (index == 0) first else null) {
+                    MenuItem(sectionLabel(section), query.section == section, focusRequester = if (index == 0) first else null) {
                         GameJoltBrowseState.choose(ctx, query.copy(section = section))
                         close()
                     }
@@ -41,7 +41,7 @@ internal fun GameJoltBrowseBar(showMature: Boolean) {
             }
             BrowseDropdown(priceLabel(query.price)) { first, close ->
                 GameJoltBrowse.prices.forEachIndexed { index, price ->
-                    BrowseOption(priceLabel(price), query.price == price, focusRequester = if (index == 0) first else null) {
+                    MenuItem(priceLabel(price), query.price == price, focusRequester = if (index == 0) first else null) {
                         GameJoltBrowseState.choose(ctx, query.copy(price = price))
                         close()
                     }
@@ -49,28 +49,28 @@ internal fun GameJoltBrowseBar(showMature: Boolean) {
             }
             val anyPlatform = stringResource(R.string.stores_itch_platform_any)
             BrowseDropdown(browseSummary(GameJoltBrowse.systems.filter { it in query.os }.map { systemLabel(it) }, anyPlatform)) { first, _ ->
-                BrowseOption(anyPlatform, query.os.isEmpty(), focusRequester = first) { GameJoltBrowseState.choose(ctx, query.copy(os = emptySet())) }
-                for (os in GameJoltBrowse.systems) BrowseOption(systemLabel(os), os in query.os) { GameJoltBrowseState.choose(ctx, query.copy(os = toggle(query.os, os))) }
+                MenuItem(anyPlatform, query.os.isEmpty(), focusRequester = first) { GameJoltBrowseState.choose(ctx, query.copy(os = emptySet())) }
+                for (os in GameJoltBrowse.systems) MenuItem(systemLabel(os), os in query.os) { GameJoltBrowseState.choose(ctx, query.copy(os = toggle(query.os, os))) }
             }
             BrowseDropdown(browseSummary(GameJoltBrowse.browsers.filter { it in query.browser }.map { browserLabel(it) }, stringResource(R.string.stores_gamejolt_filter_browser))) { first, _ ->
                 GameJoltBrowse.browsers.forEachIndexed { index, browser ->
-                    BrowseOption(browserLabel(browser), browser in query.browser, focusRequester = if (index == 0) first else null) { GameJoltBrowseState.choose(ctx, query.copy(browser = toggle(query.browser, browser))) }
+                    MenuItem(browserLabel(browser), browser in query.browser, focusRequester = if (index == 0) first else null) { GameJoltBrowseState.choose(ctx, query.copy(browser = toggle(query.browser, browser))) }
                 }
             }
             val maturities = GameJoltBrowse.maturities.filter { showMature || it != "adult" }
             BrowseDropdown(browseSummary(maturities.filter { it in query.maturity }.map { maturityLabel(it) }, stringResource(R.string.stores_gamejolt_filter_maturity))) { first, _ ->
                 maturities.forEachIndexed { index, maturity ->
-                    BrowseOption(maturityLabel(maturity), maturity in query.maturity, focusRequester = if (index == 0) first else null) { GameJoltBrowseState.choose(ctx, query.copy(maturity = toggle(query.maturity, maturity))) }
+                    MenuItem(maturityLabel(maturity), maturity in query.maturity, focusRequester = if (index == 0) first else null) { GameJoltBrowseState.choose(ctx, query.copy(maturity = toggle(query.maturity, maturity))) }
                 }
             }
             BrowseDropdown(browseSummary(GameJoltBrowse.statuses.filter { it in query.status }.map { statusLabel(it) }, stringResource(R.string.stores_gamejolt_filter_status))) { first, _ ->
                 GameJoltBrowse.statuses.forEachIndexed { index, status ->
-                    BrowseOption(statusLabel(status), status in query.status, focusRequester = if (index == 0) first else null) { GameJoltBrowseState.choose(ctx, query.copy(status = toggle(query.status, status))) }
+                    MenuItem(statusLabel(status), status in query.status, focusRequester = if (index == 0) first else null) { GameJoltBrowseState.choose(ctx, query.copy(status = toggle(query.status, status))) }
                 }
             }
             val partners = stringResource(R.string.stores_gamejolt_partners)
             BrowseDropdown(if (query.partners) partners else stringResource(R.string.stores_gamejolt_filter_partners)) { first, _ ->
-                BrowseOption(partners, query.partners, focusRequester = first) { GameJoltBrowseState.choose(ctx, query.copy(partners = !query.partners)) }
+                MenuItem(partners, query.partners, focusRequester = first) { GameJoltBrowseState.choose(ctx, query.copy(partners = !query.partners)) }
             }
         }
         ChipRow {

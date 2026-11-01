@@ -33,8 +33,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -51,7 +49,7 @@ internal fun ItchBrowseBar() {
         ChipRow {
             BrowseDropdown(sortLabel(query.sort)) { first, close ->
                 ItchBrowse.sorts.forEachIndexed { index, sort ->
-                    BrowseOption(sortLabel(sort), query.sort == sort, focusRequester = if (index == 0) first else null) {
+                    MenuItem(sortLabel(sort), query.sort == sort, focusRequester = if (index == 0) first else null) {
                         ItchBrowseState.choose(ctx, query.copy(sort = sort))
                         close()
                     }
@@ -59,7 +57,7 @@ internal fun ItchBrowseBar() {
             }
             BrowseDropdown(priceLabel(query.price)) { first, close ->
                 ItchBrowse.prices.forEachIndexed { index, price ->
-                    BrowseOption(priceLabel(price), query.price == price, focusRequester = if (index == 0) first else null) {
+                    MenuItem(priceLabel(price), query.price == price, focusRequester = if (index == 0) first else null) {
                         ItchBrowseState.choose(ctx, query.copy(price = price))
                         close()
                     }
@@ -67,10 +65,10 @@ internal fun ItchBrowseBar() {
             }
             val anyPlatform = stringResource(R.string.stores_itch_platform_any)
             BrowseDropdown(browseSummary(ItchBrowse.platformNames.filter { it in query.platforms }.map { platformLabel(it) }, anyPlatform)) { first, _ ->
-                BrowseOption(anyPlatform, query.platforms.isEmpty(), focusRequester = first) { ItchBrowseState.choose(ctx, query.copy(platforms = emptySet())) }
+                MenuItem(anyPlatform, query.platforms.isEmpty(), focusRequester = first) { ItchBrowseState.choose(ctx, query.copy(platforms = emptySet())) }
                 for (platform in ItchBrowse.platformNames) {
                     val on = platform in query.platforms
-                    BrowseOption(platformLabel(platform), on) { ItchBrowseState.choose(ctx, query.copy(platforms = if (on) query.platforms - platform else query.platforms + platform)) }
+                    MenuItem(platformLabel(platform), on) { ItchBrowseState.choose(ctx, query.copy(platforms = if (on) query.platforms - platform else query.platforms + platform)) }
                 }
             }
         }
@@ -115,11 +113,6 @@ internal fun BrowseDropdown(text: String, content: @Composable ColumnScope.(Focu
         CompositionLocalProvider(LocalChipMinWidth provides 0.dp) { ValueChip(text, expanded) { expanded = !expanded } }
         AnchoredMenu(expanded, onDismiss = { expanded = false }, compact = true, minWidth = 160.dp) { first -> content(first) { expanded = false } }
     }
-}
-
-@Composable
-internal fun BrowseOption(label: String, selected: Boolean, focusRequester: FocusRequester? = null, onClick: () -> Unit) {
-    MenuItem(label, selected, focusRequester = focusRequester, modifier = Modifier.semantics { this.selected = selected }, onClick = onClick)
 }
 
 internal fun browseSummary(labels: List<String>, empty: String): String = when (labels.size) {
