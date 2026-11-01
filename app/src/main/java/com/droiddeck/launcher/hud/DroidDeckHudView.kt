@@ -766,9 +766,9 @@ class DroidDeckHudView(context: Context) : View(context) {
         if (showCPU) {
             val v = ArrayList<Span>()
             v += numUnit(s.cpuPercent?.toString(), "%", rowPx, unitPx)
+            v += gap(unitPx); v += numUnit(s.cpuClockMhz?.toString(), "MHz", rowPx, unitPx)
             if (showCpuTemp) tempSpans(s.cpuTempC, HudMetrics.TempSensor.CPU, rowPx, unitPx)
                 .let { if (it.isNotEmpty()) { v += gap(unitPx); v += it } }
-            v += gap(unitPx); v += numUnit(s.cpuClockMhz?.toString(), "MHz", rowPx, unitPx)
             rows.add(HudRow(Span("CPU", colCpu, rowPx), v))
         }
         if (showVram && s.vramText() != null)
@@ -853,8 +853,9 @@ class DroidDeckHudView(context: Context) : View(context) {
             if (showGpuTemp && s.gpuTempC != null) HudMetrics.formatTemp(s.gpuTempC.toFloat(), tempDisplay, false)
             else s.gpuClockMhz?.let { "${it}MHz" }, false))
         if (showCPU) tiles.add(Tile("CPU", colCpu, numUnit(s.cpuPercent?.toString(), "%", valPx, unitPx),
-            listOfNotNull(if (showCpuTemp) s.cpuTempC?.let { HudMetrics.formatTemp(it.toFloat(), tempDisplay, false) } else null,
-                s.cpuClockMhz?.toString()).joinToString(" · ").ifBlank { null }, false))
+            listOfNotNull(s.cpuClockMhz?.let { "${it}MHz" },
+                if (showCpuTemp) s.cpuTempC?.let { HudMetrics.formatTemp(it.toFloat(), tempDisplay, false) } else null)
+                .joinToString(" · ").ifBlank { null }, false))
         if (showVram && s.vramText() != null) tiles.add(Tile("VRAM", colVram, valueUnit(s.vramText()!!, valPx, unitPx), null, false))
         if (showRAM) tiles.add(Tile("RAM", colRam, numUnit(s.ramPercent.roundToInt().toString(), "%", valPx, unitPx),
             "${s.ramUsedText()} / ${s.ramTotalText()}", false))
@@ -1147,9 +1148,9 @@ class DroidDeckHudView(context: Context) : View(context) {
         if (showCPU) {
             val v = ArrayList<Span>()
             v += numUnit(s.cpuPercent?.toString(), "%", rowPx, unitPx)
+            v += gap(unitPx); v += numUnit(s.cpuClockMhz?.toString(), "MHz", rowPx, unitPx)
             if (showCpuTemp) tempSpans(s.cpuTempC, HudMetrics.TempSensor.CPU, rowPx, unitPx)
                 .let { if (it.isNotEmpty()) { v += gap(unitPx); v += it } }
-            v += gap(unitPx); v += numUnit(s.cpuClockMhz?.toString(), "MHz", rowPx, unitPx)
             left.add(HudRow(Span("CPU", colCpu, rowPx), v))
         }
         if (showPerCore) {
