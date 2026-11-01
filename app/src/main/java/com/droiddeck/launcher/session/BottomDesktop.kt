@@ -63,6 +63,8 @@ object BottomDesktop {
     private var guestGeneration = 0
     private var outputSize = 0 to 0
     private var cursorShown = false
+    /** The session generation whose launch the running compositor and guest belong to; -1 when none. */
+    private var owner = -1
 
     private val replies = Messenger(object : Handler(Looper.getMainLooper()) {
         override fun handleMessage(msg: Message) {
@@ -142,6 +144,7 @@ object BottomDesktop {
             return
         }
         appContext = context.applicationContext
+        owner = current.generation
         outputSize = width to height
         val dir = File(current.sessionDir, "bottom-desktop").apply { mkdirs() }
         val msg = Message.obtain(null, Comp.MSG_ATTACH).apply {
@@ -208,10 +211,11 @@ object BottomDesktop {
     fun stop(context: Context, generation: Int? = null) {
         if (Looper.myLooper() != Looper.getMainLooper()) { main.post { stop(context, generation) }; return }
         synchronized(launchLock) {
-            val current = launch
-            if (generation != null && current != null && current.generation != generation) return
-            if (generation != null) launch = null
+            if (generation != null && launch?.generation == generation) launch = null
         }
+        // A newer session may already have prepared its launch; only the desktop the stopped session started goes.
+        if (generation != null && owner != generation) return
+        owner = -1
         val pid = guestPid
         guestPid = -1
         guestGeneration++
@@ -316,8 +320,9 @@ object BottomDesktop {
                 }
             }, null, File(dir, "proot.log"))
             main.post {
-                if (generation != guestGeneration) {
+                if (generation != guestGeneration || launch !== current) {
                     if (pid > 1) SessionService.stopTerminalProcess(context, pid)
+                    if (generation == guestGeneration) guestPid = -1
                     return@post
                 }
                 if (pid <= 1) {
