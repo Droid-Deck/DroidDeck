@@ -299,8 +299,8 @@
     <string name="mode_controller_x360">Controller Xbox 360</string>
     <string name="mode_controller_note">Deck: butonul Acces rapid și giroscopul. Steam Controller: la fel, cu senzori de strângere pe butoanele din spate. DualShock 4 și DualSense: giroscop, și trackpadurile ca touchpad propriu. Xbox 360: deschide Acces rapid cu Guide+A.</string>
     <string name="mode_back">Înapoi</string>
-    <string name="back_shortcuts">Comenzi rapide pentru butonul Înapoi</string>
-    <string name="back_shortcuts_hint">Atinge Înapoi pentru meniul DroidDeck, de două ori sau lung pentru Steam. Dezactivează pentru a lăsa butonul Înapoi altor aplicații.</string>
+    <string name="back_hold">Ține apăsat Înapoi pentru comenzi Steam</string>
+    <string name="back_hold_hint">Ținerea apăsată a butonului Înapoi deschide Acces rapid sau face combinații Steam cu alte butoane. Dezactivează pentru a o lăsa altor aplicații; atingerea și dubla atingere funcționează în continuare.</string>
     <string name="back_native_qam_hint">Ține apăsat Înapoi 700 ms sau ține apăsat Înapoi și apasă alt buton pentru comenzile rapide Steam.</string>
     <string name="back_double_tap_window">Interval pentru atingere dublă</string>
     <string name="back_tap_ms">%1$d ms</string>

@@ -299,8 +299,8 @@
     <string name="mode_controller_x360">Контролер Xbox 360</string>
     <string name="mode_controller_note">Deck: бутон Quick Access и гироскоп. Steam Controller: същото, с усещане за захват на задните бутони. DualShock 4 и DualSense: гироскоп, а тракпадовете служат като тъчпад. Xbox 360: отворете Quick Access с Guide+A.</string>
     <string name="mode_back">Back</string>
-    <string name="back_shortcuts">Преки пътища за бутона Назад</string>
-    <string name="back_shortcuts_hint">Докоснете Назад за менюто на DroidDeck, двукратно или задръжте за Steam. Изключете, за да оставите бутона Назад на други приложения.</string>
+    <string name="back_hold">Задържане на Назад за преки пътища в Steam</string>
+    <string name="back_hold_hint">Задържането на Назад отваря Бърз достъп или прави комбинации в Steam с други бутони. Изключете, за да го оставите на други приложения; докосване и двойно докосване още работят.</string>
     <string name="back_native_qam_hint">Задръжте Back за 700 ms или задръжте Back и натиснете друг бутон за преки пътища на Steam.</string>
     <string name="back_double_tap_window">Интервал за двойно докосване</string>
     <string name="back_tap_ms">%1$d ms</string>

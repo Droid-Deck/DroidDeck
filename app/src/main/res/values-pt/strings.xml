@@ -299,8 +299,8 @@
     <string name="mode_controller_x360">Controle de Xbox 360</string>
     <string name="mode_controller_note">Deck: botão de Acesso rápido e giroscópio. Steam Controller: o mesmo, com detecção de pegada nos botões traseiros. DualShock 4 e DualSense: giroscópio, e os trackpads como o touchpad deles. Xbox 360: abra o Acesso rápido com Guide+A.</string>
     <string name="mode_back">Voltar</string>
-    <string name="back_shortcuts">Atalhos do botão Voltar</string>
-    <string name="back_shortcuts_hint">Toque em Voltar para o menu do DroidDeck; toque duas vezes ou segure para o Steam. Desative para deixar o botão Voltar para outros apps.</string>
+    <string name="back_hold">Segurar Voltar para atalhos do Steam</string>
+    <string name="back_hold_hint">Segurar Voltar abre o Acesso rápido ou cria combinações do Steam com outros botões. Desative para deixar isso para outros apps; toque e toque duplo continuam funcionando.</string>
     <string name="back_native_qam_hint">Segure Voltar por 700 ms, ou segure Voltar e pressione outro botão para atalhos da Steam.</string>
     <string name="back_double_tap_window">Intervalo do toque duplo</string>
     <string name="back_tap_ms">%1$d ms</string>

@@ -299,8 +299,8 @@
     <string name="mode_controller_x360">Xbox 360 컨트롤러</string>
     <string name="mode_controller_note">Deck: 빠른 액세스 버튼과 자이로스코프를 제공합니다. Xbox 360: Guide+A로 빠른 액세스를 엽니다.</string>
     <string name="mode_back">뒤로</string>
-    <string name="back_shortcuts">뒤로 버튼 단축키</string>
-    <string name="back_shortcuts_hint">뒤로를 탭하면 DroidDeck 메뉴, 두 번 탭하거나 길게 누르면 Steam이 열립니다. 끄면 뒤로 버튼을 다른 앱에 맡깁니다.</string>
+    <string name="back_hold">뒤로 길게 눌러 Steam 단축키</string>
+    <string name="back_hold_hint">뒤로를 길게 누르면 빠른 실행이 열리거나 다른 버튼과 Steam 조합이 됩니다. 끄면 다른 앱에 맡깁니다. 탭과 두 번 탭은 계속 작동합니다.</string>
     <string name="back_native_qam_hint">뒤로 버튼을 700ms 동안 누르거나, 뒤로 버튼을 누른 채 다른 버튼을 누르면 Steam 단축키를 사용할 수 있습니다.</string>
     <string name="back_double_tap_window">두 번 탭 간격</string>
     <string name="back_tap_ms">%1$dms</string>
