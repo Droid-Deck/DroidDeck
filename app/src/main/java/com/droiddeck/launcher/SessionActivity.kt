@@ -312,6 +312,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         onCancel = { padBridge?.cancelBackQam() },
         holds = { backHold },
     )
+    private val mouseBackInput = com.droiddeck.launcher.input.MouseBackInput(
+        sendRight = { down -> sendSceneButton(PointerGestures.BTN_RIGHT, down) },
+        mouseAttached = ::mouseAttached,
+    )
     private var drawerDirectionKey = KeyEvent.KEYCODE_UNKNOWN
     private var drawerDirectionDownTime = 0L
     private var drawerDirectionDeviceId = -1
@@ -546,6 +550,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             physicalShortcuts.onDeviceRemoved(deviceId)
             Log.i(TAG, "input device $deviceId disconnected")
             backQamInput.onDeviceRemoved(deviceId)
+            mouseBackInput.onDeviceRemoved(deviceId)
             joyConVr?.refresh()
             padBridge?.onDeviceRemoved(deviceId)
             if (::padMouse.isInitialized) padMouse.reset()
@@ -2499,6 +2504,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 return super.dispatchKeyEvent(event)
             }
         }
+        if (event.keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+            Log.i(TAG, String.format(java.util.Locale.ROOT, "back key device=%d (%s) source=0x%x flags=0x%x",
+                event.deviceId, event.device?.name, event.source, event.flags))
+        }
+        val mouseToGuest = !pipUi && !screenKeyTextFocus && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !gestureSettingsOpen &&
+            !SessionState.suspended && !(::loading.isInitialized && (loading.visible || loading.ended))
+        if (mouseBackInput.onKeyEvent(event, mouseToGuest)) return true
         val backToQam = !pipUi && !screenKeyTextFocus && !drawerOpen && !pcKeyboardOpen && !achievementsOpen &&
             SessionState.mode == SessionService.MODE_STEAM && SessionState.running && SessionState.firstFrameSeen &&
             !SessionState.suspended && padBridge?.canHoldQam() == true
@@ -3622,12 +3634,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 if (evdevMouseActive) sendMouseDelta(event.x, event.y) else movePointer(event.x, event.y)
             MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE -> {
                 if (evdevMouseActive) sendMouseDelta(event.x, event.y) else movePointer(event.x, event.y)
-                val button = when (event.actionButton) {
-                    MotionEvent.BUTTON_SECONDARY -> PointerGestures.BTN_RIGHT
-                    MotionEvent.BUTTON_TERTIARY -> PointerGestures.BTN_MIDDLE
-                    else -> PointerGestures.BTN_LEFT
-                }
-                sendSceneButton(button, event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS)
+                guestMouseButton(event.actionButton)?.let { sendSceneButton(it, event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS) }
             }
             MotionEvent.ACTION_SCROLL -> {
                 val v = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
@@ -3637,6 +3644,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             else -> return false
         }
         return true
+    }
+
+    /** Android also sends the Back and Forward buttons as key events, so they are handled as keys. */
+    private fun guestMouseButton(actionButton: Int): Int? = when (actionButton) {
+        MotionEvent.BUTTON_SECONDARY -> PointerGestures.BTN_RIGHT
+        MotionEvent.BUTTON_TERTIARY -> PointerGestures.BTN_MIDDLE
+        MotionEvent.BUTTON_BACK, MotionEvent.BUTTON_FORWARD -> null
+        else -> PointerGestures.BTN_LEFT
     }
 
     private fun mouseAttached(): Boolean = InputDevice.getDeviceIds().any { id ->
@@ -3692,14 +3707,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
                 sendSceneDelta(dx, dy)
             }
-            MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE -> {
-                val button = when (event.actionButton) {
-                    MotionEvent.BUTTON_SECONDARY -> PointerGestures.BTN_RIGHT
-                    MotionEvent.BUTTON_TERTIARY -> PointerGestures.BTN_MIDDLE
-                    else -> PointerGestures.BTN_LEFT
-                }
-                sendSceneButton(button, event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS)
-            }
+            MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE ->
+                guestMouseButton(event.actionButton)?.let { sendSceneButton(it, event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS) }
             MotionEvent.ACTION_SCROLL -> {
                 val v = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
                 if (v != 0f) sendSceneWheel(-Math.round(v))
@@ -4128,6 +4137,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (runtimeRemovalBlocked) { super.onPause(); return }
         physicalShortcuts.clear()
         backQamInput.cancel()
+        mouseBackInput.cancel()
         capturePausedFrame()
         sessionClipboard.stop()
         if (::touchscreenGestures.isInitialized) touchscreenGestures.cancel()
@@ -4517,6 +4527,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         super.onWindowFocusChanged(hasFocus)
         if (!hasFocus) com.droiddeck.launcher.input.HomeButtonShortcuts.cancel(this)
         if (!hasFocus) backQamInput.cancel()
+        if (!hasFocus) mouseBackInput.cancel()
         if (!hasFocus && ::padMouse.isInitialized) padMouse.reset()
         if (runtimeRemovalBlocked) return
         if (!hasFocus) {
