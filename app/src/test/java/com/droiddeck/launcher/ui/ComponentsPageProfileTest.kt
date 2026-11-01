@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -13,6 +14,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.printToString
+import androidx.compose.ui.unit.dp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.session.ComponentsManager
@@ -117,7 +119,9 @@ class ComponentsPageProfileTest {
             .assertIsEnabled()
     }
 
-    @Test fun sameNamedStableRowsFromDifferentSourcesToggleIndependently() {
+    @Test
+    @Config(qualifiers = "w1200dp-h752dp-land")
+    fun sameNamedStableRowsFromDifferentSourcesToggleIndependently() {
         fun item(file: String, source: String, nightly: Boolean, asset: Long) = ComponentsManager.CatalogItem(
             file, "dxvk", if (nightly) ComponentsManager.DD_NIGHTLY else "Dxvk-Linux",
             "https://github.com/$source/releases/download/v1/$file", 100, "sha256:$source",
@@ -130,9 +134,12 @@ class ComponentsPageProfileTest {
         show(comp = "dxvk", catalog = listOf(stableA, stableB, nightlyA, nightlyB))
 
         try {
+            compose.onRoot().assertWidthIsAtLeast(1000.dp)
             compose.onAllNodesWithText("dxvk-3.1.1-linux").assertCountEquals(2)
             val switchA = compose.onNodeWithTag("component-channel:${stableA.id}")
             val switchB = compose.onNodeWithTag("component-channel:${stableB.id}")
+            switchA.assertWidthIsAtLeast(44.dp)
+            switchB.assertWidthIsAtLeast(44.dp)
             switchA.assertIsOff()
             switchB.assertIsOff()
             switchA.performClick()
