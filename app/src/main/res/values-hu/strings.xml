@@ -2106,7 +2106,7 @@
     <string name="display_look_filter">%1$s A méretezést erre állítja: %2$s.</string>
     <string name="display_match_screen">Képernyőhöz illesztés (%1$d×%2$d)</string>
     <string name="display_follow_screen">Képernyő követése (átméreteződik össze- vagy kinyitáskor)</string>
-    <string name="display_follow_screen_scaled">Képernyő követése ÷%1$s</string>
+    <string name="display_follow_screen_scaled">Skálázva %1$s</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Eszközrészletek megjelenítése</string>
     <string name="device_info_hide">Eszközrészletek elrejtése</string>

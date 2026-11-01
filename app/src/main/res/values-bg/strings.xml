@@ -2106,7 +2106,7 @@
     <string name="display_look_filter">%1$s Задава мащабиране на %2$s.</string>
     <string name="display_match_screen">Напасване на екрана (%1$d×%2$d)</string>
     <string name="display_follow_screen">Следване на екрана (преоразмерява при сгъване или разгъване)</string>
-    <string name="display_follow_screen_scaled">Следване на екрана ÷%1$s</string>
+    <string name="display_follow_screen_scaled">Мащабирано %1$s</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Покажи данните за устройството</string>
     <string name="device_info_hide">Скрий данните за устройството</string>

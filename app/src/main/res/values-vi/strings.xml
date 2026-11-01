@@ -2083,7 +2083,7 @@
     <string name="display_look_filter">%1$s Đặt chia tỷ lệ thành %2$s.</string>
     <string name="display_match_screen">Khớp màn hình (%1$d×%2$d)</string>
     <string name="display_follow_screen">Theo màn hình (đổi kích thước khi gập hoặc mở)</string>
-    <string name="display_follow_screen_scaled">Theo màn hình ÷%1$s</string>
+    <string name="display_follow_screen_scaled">Thu nhỏ %1$s</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Hiện chi tiết thiết bị</string>
     <string name="device_info_hide">Ẩn chi tiết thiết bị</string>

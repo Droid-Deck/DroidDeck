@@ -2098,7 +2098,7 @@
     <string name="display_look_filter">%1$s Stellt die Skalierung auf %2$s.</string>
     <string name="display_match_screen">An Bildschirm anpassen (%1$d×%2$d)</string>
     <string name="display_follow_screen">Bildschirm folgen (passt sich beim Auf- und Zuklappen an)</string>
-    <string name="display_follow_screen_scaled">Bildschirm folgen ÷%1$s</string>
+    <string name="display_follow_screen_scaled">Skaliert %1$s</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Gerätedetails anzeigen</string>
     <string name="device_info_hide">Gerätedetails ausblenden</string>

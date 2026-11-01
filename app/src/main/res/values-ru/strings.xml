@@ -2152,7 +2152,7 @@
     <string name="display_look_filter">%1$s Устанавливает масштабирование: %2$s.</string>
     <string name="display_match_screen">По размеру экрана (%1$d×%2$d)</string>
     <string name="display_follow_screen">По экрану (меняется при складывании и раскладывании)</string>
-    <string name="display_follow_screen_scaled">По экрану ÷%1$s</string>
+    <string name="display_follow_screen_scaled">Масштаб %1$s</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Показать сведения об устройстве</string>
     <string name="device_info_hide">Скрыть сведения об устройстве</string>
