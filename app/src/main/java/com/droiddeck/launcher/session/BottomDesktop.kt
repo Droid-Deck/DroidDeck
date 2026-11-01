@@ -252,6 +252,9 @@ object BottomDesktop {
                 guestPid = -1
                 guestGeneration++
                 if (pid > 1) SessionService.stopTerminalProcess(context, pid)
+                imeWatcher?.stopWatching()
+                imeWatcher = null
+                owner = -1
                 setState(State.FAILED)
             }
         }
