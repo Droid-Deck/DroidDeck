@@ -13,6 +13,8 @@ internal object GameJoltSessionProbe {
     private const val MAX_PATHS = 120
     private const val DEPTH = 7
     private val wordsKept = setOf("type", "currency", "status", "key", "message", "error", "reason", "os", "code", "kind", "state", "access", "level")
+    private val noisy = Regex("^\\.(recommendedGames|comments|developer|knownFollowers|posts)")
+    private val ownership = Regex("^\\.(sellables\\[0\\]\\.(?!resource)|game\\.sellable\\.(?!resource)|packages\\[0\\]\\.is_game_owner|microdata)")
     private val interesting = Regex("own|access|purchas|bought|paid|licen|price|amount|sellable|pricing|key|order|library|count|total|has_|is_|can_", RegexOption.IGNORE_CASE)
     private val trailingId = Regex("/(\\d+)/?(?:[?#].*)?$")
 
@@ -59,7 +61,8 @@ internal object GameJoltSessionProbe {
         val top = answer.json?.keys()?.asSequence()?.toList()?.sorted()?.joinToString(",").orEmpty()
         log("$label code=${answer.code} top=[$top] user=${answer.user != null}")
         val map = flat(answer.payload)
-        val picked = map.filter { (path, _) -> interesting.containsMatchIn(path) }.entries.take(MAX_PATHS)
+        logLong("$label ownership", map.filter { (path, _) -> ownership.containsMatchIn(path) }.entries.joinToString(" ") { "${it.key}=${it.value}" })
+        val picked = map.filter { (path, _) -> interesting.containsMatchIn(path) && !noisy.containsMatchIn(path) }.entries.take(MAX_PATHS)
         logLong("$label facts", picked.joinToString(" ") { "${it.key}=${it.value}" })
         logLong("$label paths", map.keys.take(MAX_PATHS).joinToString(" "))
     }
@@ -79,10 +82,11 @@ internal object GameJoltSessionProbe {
         for (path in listOf("/web/auth/check", "/web/dash/shell", "/web/library", "/web/library/playlists", "/web/dash/purchases")) {
             describe(path, GameJoltApi.get(path, cookies))
         }
+        val name = GameJoltAuth.username(app)
         for (kind in listOf("owned", "followed", "developer", "recommended")) {
-            val answer = GameJoltApi.get("/web/library/games/$kind", cookies)
+            val answer = GameJoltApi.get("/web/library/games/$kind/@$name", cookies)
             val games = answer.payload?.optJSONArray("games")
-            log("/web/library/games/$kind code=${answer.code} games=${games?.length() ?: -1} ids=[${ids(games)}] keys=[${answer.payload?.keys()?.asSequence()?.toList()?.sorted()?.joinToString(",").orEmpty()}]")
+            log("/web/library/games/$kind/@user code=${answer.code} games=${games?.length() ?: -1} ids=[${ids(games)}] keys=[${answer.payload?.keys()?.asSequence()?.toList()?.sorted()?.joinToString(",").orEmpty()}]")
         }
         val library = GameJoltApi.get("/web/library", cookies).payload
         val playlists = library?.optJSONArray("playlists") ?: GameJoltApi.get("/web/library/playlists", cookies).payload?.optJSONArray("playlists")
