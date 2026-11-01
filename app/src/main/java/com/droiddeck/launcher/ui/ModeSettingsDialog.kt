@@ -74,6 +74,7 @@ class ModeSettings(
     val mic: Boolean?,
     val gameStorage: String? = null,
     val storageOptions: List<com.droiddeck.launcher.session.GameStorage.Option> = emptyList(),
+    val steamLibraries: List<com.droiddeck.launcher.session.SteamLibraries.Entry> = emptyList(),
     val storageDiagnostics: Boolean = false,
     val fexPreset: String? = null,
     val forceSsbs: Boolean = false,
@@ -126,6 +127,9 @@ class ModeSettingsActions(
     val onGameStorage: (path: String, label: String) -> Unit = { _, _ -> },
     val onPickGameStorageFolder: () -> Unit = {},
     val onStorageDiagnostics: (Boolean) -> Unit = {},
+    val onAddSteamLibrary: () -> Unit = {},
+    val onRenameSteamLibrary: (id: String, label: String) -> Unit = { _, _ -> },
+    val onRemoveSteamLibrary: (id: String) -> Unit = {},
     val onFexPreset: (String) -> Unit = {},
     val onForceSsbs: (Boolean) -> Unit = {},
     val onSyncBackend: (String) -> Unit = {},
@@ -406,6 +410,34 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 stringResource(R.string.mode_storage_diagnostics_hint), s.storageDiagnostics,
                 onChange = a.onStorageDiagnostics,
             )
+        }
+        if (s.gameStorage != null) SettingsGroup(stringResource(R.string.libraries_title), detail = stringResource(R.string.libraries_applies_next)) {
+            var renaming by remember { mutableStateOf<com.droiddeck.launcher.session.SteamLibraries.Entry?>(null) }
+            for (library in s.steamLibraries) {
+                val attached = library.host.isDirectory
+                SettingsRow(library.label, if (attached) library.path else stringResource(R.string.libraries_missing, library.path)) {
+                    Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
+                        SecondaryButton(stringResource(R.string.libraries_rename), compact = true) { renaming = library }
+                        SecondaryButton(stringResource(R.string.edit_remove), compact = true) { a.onRemoveSteamLibrary(library.id) }
+                    }
+                }
+            }
+            SettingsRow(
+                stringResource(R.string.libraries_add),
+                if (s.steamLibraries.size < com.droiddeck.launcher.session.SteamLibraries.MAX) stringResource(R.string.libraries_hint)
+                else stringResource(R.string.libraries_full, com.droiddeck.launcher.session.SteamLibraries.MAX),
+            ) {
+                SecondaryButton(
+                    stringResource(R.string.mode_choose_folder),
+                    enabled = s.steamLibraries.size < com.droiddeck.launcher.session.SteamLibraries.MAX,
+                    onClick = a.onAddSteamLibrary,
+                )
+            }
+            renaming?.let { library ->
+                TextEntryDialog(stringResource(R.string.libraries_rename_title), library.label, onDismiss = { renaming = null }) { name ->
+                    a.onRenameSteamLibrary(library.id, name)
+                }
+            }
         }
     }
     if (tab == SheetTab.STEAM && steam) {

@@ -1237,13 +1237,13 @@ case $mode in
       : > "$compat_restarted"
       compat_restarts=0
       compat_settled() {
-        local app m flags r card=/mnt/droiddeck-sd
+        local app m flags r card=/mnt/droiddeck-sd added=(/mnt/droiddeck-lib/*)
         # The arm64 card library may hold that client's copy of the same title.
-        [ "$steam_x64" = 1 ] && card=/mnt/droiddeck-sd/x86-64
+        [ "$steam_x64" = 1 ] && { card=/mnt/droiddeck-sd/x86-64; added=(/mnt/droiddeck-lib/*/x86-64); }
         while read -r app; do
           [ -n "$app" ] || continue
           m=
-          for r in "$steam_root" "$card"; do
+          for r in "$steam_root" "$card" "${added[@]}"; do
             [ -f "$r/steamapps/appmanifest_$app.acf" ] && { m=$r/steamapps/appmanifest_$app.acf; break; }
           done
           [ -n "$m" ] || return 1
@@ -1312,7 +1312,7 @@ case $mode in
           done
         fi
         if [ "$beat" -le 720 ] && [ "$((beat % 3))" -eq 0 ] && { [ -z "$library_job" ] || ! kill -0 "$library_job" 2>/dev/null; }; then
-          libraries=("$steam_root/steamapps" /mnt/droiddeck/steamapps /mnt/droiddeck-sd/steamapps /root/Games/*/steamapps)
+          libraries=("$steam_root/steamapps" /mnt/droiddeck/steamapps /mnt/droiddeck-sd/steamapps /mnt/droiddeck-lib/*/steamapps /root/Games/*/steamapps)
           seed=; compat=
           seed_due && seed=1
           compat_due && compat=1

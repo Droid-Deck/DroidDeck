@@ -454,6 +454,16 @@
     <string name="mode_storage_internal">Internal only</string>
     <string name="mode_storage_folder">Folder: %1$s</string>
     <string name="mode_second_library">Second library</string>
+    <string name="libraries_title">More Steam libraries</string>
+    <string name="libraries_hint">Folders Steam can install to and play from, each under its own name. Removing one keeps its games on disk.</string>
+    <string name="libraries_add">Add library</string>
+    <string name="libraries_rename">Rename</string>
+    <string name="libraries_rename_title">Library name</string>
+    <string name="libraries_pick">Choose a folder for the library</string>
+    <string name="libraries_full">At most %1$d added libraries</string>
+    <string name="libraries_overlap">That folder is already a library or inside one</string>
+    <string name="libraries_missing">%1$s · not available</string>
+    <string name="libraries_applies_next">Applies from the next Steam session</string>
     <string name="mode_storage_note">Games that stream assets from SD or shared storage may stutter.</string>
     <string name="mode_storage_diagnostics">Storage diagnostics</string>
     <string name="mode_storage_diagnostics_hint">Record allocation results and sampled storage timings in Share logs. May slow installs while enabled. Applies next session.</string>
