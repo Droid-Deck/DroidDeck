@@ -851,6 +851,7 @@
     <string name="setup_gpu_supported">Device supported</string>
     <string name="setup_gpu_untested">Untested GPU</string>
     <string name="setup_gpu_unsupported">GPU not supported</string>
+    <string name="setup_gpu_bridged">GPU via Mali bridge</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
     <string name="setup_gpu_unsupported_detail">Steam needs an Adreno driver; %1$s may show a black screen</string>
