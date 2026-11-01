@@ -101,6 +101,29 @@ class RuntimeInputsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'changed runtime input'):
             runtime.verify(self.root, stale_sources_ok=True)
 
+    def test_dev_loop_accepts_restaged_session_scripts(self):
+        script = self.root / 'tools/linuxfs/overlay/usr/local/bin/droiddeck-test'
+        staged = self.root / 'app/src/main/assets/linuxfs/usr/local/bin/droiddeck-test'
+        for path in (script, staged):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('old script')
+        runtime.record(self.root)
+        script.write_text('new script')
+        staged.write_text('new script')
+        with mock.patch('sys.stderr', new_callable=io.StringIO):
+            runtime.verify(self.root, stale_sources_ok=True)
+        with self.assertRaisesRegex(ValueError, 'sources changed'):
+            runtime.verify(self.root)
+
+    def test_dev_loop_rejects_changed_tracking_pins(self):
+        pins = self.root / 'tools/packs/tracking/release.env'
+        pins.parent.mkdir(parents=True)
+        pins.write_text('OPENCV_VERSION=4.10.0')
+        runtime.record(self.root)
+        pins.write_text('OPENCV_VERSION=4.11.0')
+        with self.assertRaisesRegex(ValueError, 'pins changed'):
+            runtime.verify(self.root, stale_sources_ok=True)
+
     def test_changed_quest_source_rejects_old_outputs(self):
         source = self.root / 'tools/quest/kgsl_compat.c'
         source.parent.mkdir(parents=True)

@@ -31,6 +31,16 @@ SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app
                 'app/src/main/cpp/waylandcomp/src/spatialpose_shm.h',
                 'app/src/main/cpp/adrenotools/src/hook/kgsl.h',
                 'app/src/main/assets/graphics_driver/adrenotools-turnip25.1.0.tzst']
+# Gradle reads these pins directly, so prepared assets built from other pins cannot be reused.
+STRICT_SOURCE_PREFIXES = ('tools/packs/tracking/',)
+
+
+def staged_scripts(root):
+    """Outputs Gradle's stageSessionScripts copies from source on every build."""
+    overlay = root / 'tools/linuxfs/overlay'
+    patterns = ['usr/local/bin/droiddeck-*', 'usr/local/bin/steam-compatibility', 'usr/bin/**/*']
+    return {'assets/linuxfs/' + path.relative_to(overlay).as_posix()
+            for pattern in patterns for path in overlay.glob(pattern) if path.is_file()}
 
 
 def digest(path):
@@ -162,14 +172,18 @@ def verify(root=ROOT, stale_sources_ok=False):
             raise ValueError('Runtime sources changed since preparation. Run tools/build_local.sh.')
         recorded = data.get('sources') or {}
         changed = sorted(name for name in recorded.keys() | current.keys() if recorded.get(name) != current.get(name))
+        pinned = [name for name in changed if name.startswith(STRICT_SOURCE_PREFIXES)]
+        if pinned:
+            raise ValueError('Runtime pins changed since preparation (' + ', '.join(pinned) + '). Run tools/build_local.sh.')
         print('Warning: reusing runtime assets prepared from other sources (run tools/build_local.sh if these matter):\n  '
               + '\n  '.join(changed[:20]) + ('\n  ...' if len(changed) > 20 else ''), file=sys.stderr)
     for name in required():
         if name not in data['outputs']:
             raise ValueError('Runtime manifest missing ' + name)
+    restaged = staged_scripts(root) if stale_sources_ok else set()
     for name, output in data['outputs'].items():
         path = root / output['path']
-        if not path.is_file() or digest(path) != output['sha256']:
+        if not path.is_file() or (digest(path) != output['sha256'] and name not in restaged):
             raise ValueError('Missing or changed runtime input: ' + name + '. Run tools/build_local.sh.')
     if outputs(root) != {name: output['path'] for name, output in data['outputs'].items()}:
         raise ValueError('Runtime file set changed. Run tools/build_local.sh.')
