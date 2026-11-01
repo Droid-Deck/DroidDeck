@@ -42,6 +42,7 @@ object BottomDesktop {
     )
 
     @Volatile private var launch: Launch? = null
+    private val launchLock = Any()
     private val main = Handler(Looper.getMainLooper())
     private val listeners = LinkedHashSet<() -> Unit>()
 
@@ -83,9 +84,11 @@ object BottomDesktop {
         root: File,
         sessionDir: File,
         generation: Int,
+        stillCurrent: () -> Boolean,
     ) {
-        launch = Launch(ArrayList(guest), ArrayList(binds), sessionRoot, hostEnvironment.copyOf(), root, sessionDir, generation,
+        val prepared = Launch(ArrayList(guest), ArrayList(binds), sessionRoot, hostEnvironment.copyOf(), root, sessionDir, generation,
             DesktopCatalog.desktopInstalled(root))
+        synchronized(launchLock) { if (stillCurrent()) launch = prepared }
     }
 
     fun available(): Boolean =
@@ -204,9 +207,11 @@ object BottomDesktop {
 
     fun stop(context: Context, generation: Int? = null) {
         if (Looper.myLooper() != Looper.getMainLooper()) { main.post { stop(context, generation) }; return }
-        val current = launch
-        if (generation != null && current != null && current.generation != generation) return
-        if (generation != null) launch = null
+        synchronized(launchLock) {
+            val current = launch
+            if (generation != null && current != null && current.generation != generation) return
+            if (generation != null) launch = null
+        }
         val pid = guestPid
         guestPid = -1
         guestGeneration++
