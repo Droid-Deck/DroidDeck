@@ -72,22 +72,23 @@ def system_bus_paths():
     if not address:
         return [SYSTEM_BUS]
     paths = []
-    for entry in address.split(";"):
+    for entry in filter(None, address.split(";")):
+        found = None
         if entry.startswith("unix:"):
             for key, _, value in (part.partition("=") for part in entry[len("unix:"):].split(",")):
                 if key == "path" and value:
-                    paths.append(urllib.parse.unquote(value))
+                    found = urllib.parse.unquote_to_bytes(value)
                 elif key == "abstract" and value:
-                    paths.append("\0" + urllib.parse.unquote(value))
+                    found = b"\0" + urllib.parse.unquote_to_bytes(value)
+        if found is None:
+            return None
+        paths.append(found)
     return paths
 
 
 def system_bus_reachable():
-    address = os.environ.get("DBUS_SYSTEM_BUS_ADDRESS", "")
     paths = system_bus_paths()
-    if address and not paths:
-        return True
-    return any(bus_reachable(path) for path in paths)
+    return paths is None or any(bus_reachable(path) for path in paths)
 
 
 def stop_system_bus(bus):
