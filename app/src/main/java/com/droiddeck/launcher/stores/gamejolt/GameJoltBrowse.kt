@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.stores.CatalogItem
+import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.StoresState
 import java.net.URLEncoder
 
@@ -60,8 +61,14 @@ internal object GameJoltBrowse {
 
     class Page(val items: List<CatalogItem>, val code: Int)
 
+    fun effective(query: GameJoltQuery, showMature: Boolean): GameJoltQuery {
+        if (showMature) return query
+        val allowed = query.maturity - "adult"
+        return query.copy(maturity = allowed.ifEmpty { setOf("everyone", "teen") })
+    }
+
     fun page(context: Context, query: GameJoltQuery, page: Int): Page {
-        val qs = queryString(query, page)
+        val qs = queryString(effective(query, SessionPrefs.storesShowMature(context)), page)
         val answer = GameJoltApi.browse(qs, GameJoltAuth.cookies(context))
         val games = answer.payload?.optJSONArray("games")
         val items = if (answer.ok) GameJoltCatalog.items(games) else emptyList()
@@ -84,6 +91,19 @@ internal object GameJoltBrowseState {
 
     private var next = 1
     private var generation = 0
+    private var loadedMature: Boolean? = null
+
+    fun sync(context: Context, showMature: Boolean) {
+        val before = loadedMature ?: return
+        if (before == showMature) return
+        generation++
+        items = emptyList()
+        ended = false
+        failed = false
+        loading = false
+        next = 1
+        more(context)
+    }
 
     fun choose(context: Context, wanted: GameJoltQuery) {
         if (wanted == query) return
@@ -105,6 +125,8 @@ internal object GameJoltBrowseState {
         val mine = generation
         val asked = query
         val page = next
+        val mature = SessionPrefs.storesShowMature(app)
+        loadedMature = mature
         Thread({
             val answer = runCatching { GameJoltBrowse.page(app, asked, page) }.getOrNull()
             StoresState.post {

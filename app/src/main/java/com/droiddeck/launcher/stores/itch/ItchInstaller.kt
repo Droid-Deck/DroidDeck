@@ -4,6 +4,7 @@ import android.content.Context
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
+import com.droiddeck.launcher.stores.StoreArchiveUnpacker
 import com.droiddeck.launcher.stores.StoreExe
 import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoreInstallRoot

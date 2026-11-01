@@ -160,7 +160,12 @@ internal object ItchShelves {
         return out
     }
 
+    private val fieldsLogged = java.util.concurrent.atomic.AtomicBoolean(false)
+
     internal fun item(m: Map<String, String>): CatalogItem? {
+        if (fieldsLogged.compareAndSet(false, true)) {
+            com.droiddeck.launcher.stores.StoresState.logLine("itch.io: a feed item carries fields [${m.keys.joinToString(",")}]")
+        }
         val link = m["link"]?.trim().orEmpty().ifBlank { m["guid"]?.trim().orEmpty() }
         if (link.isBlank()) return null
         val title = m["plainTitle"]?.trim().orEmpty()

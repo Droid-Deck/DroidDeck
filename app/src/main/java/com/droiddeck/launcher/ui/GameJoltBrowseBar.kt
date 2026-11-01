@@ -23,11 +23,12 @@ import com.droiddeck.launcher.stores.gamejolt.GameJoltBrowseState
 import com.droiddeck.launcher.stores.gamejolt.GameJoltQuery
 
 @Composable
-internal fun GameJoltBrowseBar() {
+internal fun GameJoltBrowseBar(showMature: Boolean) {
     val ctx = LocalContext.current
     val query = GameJoltBrowseState.query
     var picking by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { if (GameJoltBrowseState.items.isEmpty()) GameJoltBrowseState.more(ctx) }
+    LaunchedEffect(showMature) { GameJoltBrowseState.sync(ctx, showMature) }
     fun toggle(set: Set<String>, value: String): Set<String> = if (value in set) set - value else set + value
     Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         ChipRow {
@@ -44,7 +45,7 @@ internal fun GameJoltBrowseBar() {
             for (browser in GameJoltBrowse.browsers) BrowseChip(browserLabel(browser), browser in query.browser) { GameJoltBrowseState.choose(ctx, query.copy(browser = toggle(query.browser, browser))) }
         }
         ChipRow {
-            for (maturity in GameJoltBrowse.maturities) BrowseChip(maturityLabel(maturity), maturity in query.maturity) { GameJoltBrowseState.choose(ctx, query.copy(maturity = toggle(query.maturity, maturity))) }
+            for (maturity in GameJoltBrowse.maturities.filter { showMature || it != "adult" }) BrowseChip(maturityLabel(maturity), maturity in query.maturity) { GameJoltBrowseState.choose(ctx, query.copy(maturity = toggle(query.maturity, maturity))) }
         }
         ChipRow {
             for (status in GameJoltBrowse.statuses) BrowseChip(statusLabel(status), status in query.status) { GameJoltBrowseState.choose(ctx, query.copy(status = toggle(query.status, status))) }

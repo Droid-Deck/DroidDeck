@@ -35,6 +35,17 @@ internal object GameJoltApi {
 
     fun pageUrl(slug: String, id: String): String = "$SITE/games/$slug/$id"
 
+    private fun readBounded(input: java.io.InputStream): String {
+        val out = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(16 * 1024)
+        while (out.size() < MAX_BYTES) {
+            val read = input.read(buffer, 0, minOf(buffer.size, MAX_BYTES - out.size()))
+            if (read < 0) break
+            out.write(buffer, 0, read)
+        }
+        return out.toString(Charsets.UTF_8.name())
+    }
+
     private fun send(method: String, path: String, cookies: String, body: String?): GameJoltAnswer {
         var conn: HttpURLConnection? = null
         return try {
@@ -53,7 +64,7 @@ internal object GameJoltApi {
             if (body != null) conn.outputStream.use { it.write(body.toByteArray()) }
             val code = conn.responseCode
             val stream = if (code in 200..399) conn.inputStream else conn.errorStream
-            val text = stream?.use { it.readBytes().take(MAX_BYTES).toByteArray().toString(Charsets.UTF_8) }.orEmpty()
+            val text = stream?.use { readBounded(it) }.orEmpty()
             GameJoltAnswer(code, runCatching { JSONObject(text) }.getOrNull())
         } catch (e: Exception) {
             GameJoltAnswer(0, null)

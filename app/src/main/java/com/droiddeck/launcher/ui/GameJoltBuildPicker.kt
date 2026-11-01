@@ -78,8 +78,9 @@ private fun BuildRow(item: CatalogItem, build: GameJoltBuild, onInstall: () -> U
     val colors = MaterialTheme.colorScheme
     val linux = "linux" in build.platforms && !build.installable
     val canInstall = build.installable && item.isFree
+    val names = build.platforms.map { platformName(it) }
     val detail = listOfNotNull(
-        build.platforms.joinToString(", ") { platformName(it) },
+        names.joinToString(", "),
         build.size.takeIf { it > 0 }?.let { formatBytes(it) },
         build.version.takeIf { it.isNotBlank() },
     ).joinToString(" · ")
