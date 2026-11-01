@@ -7,17 +7,24 @@ internal object DroidDeckHudConfig {
     val DEFAULTS: Map<String, String> = linkedMapOf(
         "hudSize" to "minimal", "hudLocked" to "1", "hudSnap" to "1", "hudScale" to "100", "hudDock" to "none", "hudOpacity" to "80", "hudColor" to "mid",
         "hudOutline" to "40", "hudOutlineAccent" to "1",
-        "showFPS" to "1", "showFPSGraph" to "1", "showCPUUsage" to "1", "showCPULoad" to "1", "showGPULoad" to "1",
-        "showVram" to "1", "showRAM" to "1", "showPower" to "1", "showTemp" to "1", "showBatteryTemp" to "1",
-        "showGpuTemp" to "0", "showBattery" to "0", "showLow1" to "1", "showLow01" to "1", "showLow001" to "1", "fpsDecimal" to "1", "showPerCore" to "1",
-        "showSwap" to "1", "showNet" to "1", "showResolution" to "1", "showProton" to "1", "showSession" to "1",
-        "showClock" to "1", "showEngine" to "1", "showRenderer" to "1", "showGpuModel" to "1",
-        "showLatency" to "1", "showAvg" to "1", "showLow1" to "1", "showLow01" to "1",
-        "showDisplay" to "1", "showHdr" to "1", "hudOrder" to "",
+        "showGpuModel" to "1", "showGPULoad" to "1", "showCPUUsage" to "1", "showCPULoad" to "1",
+        "showPerCore" to "1", "showTemp" to "1", "showBatteryTemp" to "1", "showGpuTemp" to "0",
+        "showVram" to "1", "showRAM" to "1", "showSwap" to "1", "showBattery" to "0", "showPower" to "1",
+        "showFPS" to "1", "showFPSGraph" to "1", "fpsDecimal" to "1",
+        "showLatency" to "1", "showAvg" to "1", "showLow1" to "1", "showLow01" to "1", "showLow001" to "1",
+        "showEngine" to "1", "showRenderer" to "1",
+        "showDisplay" to "1", "showHdr" to "1", "showNet" to "1", "showResolution" to "1",
+        "showProton" to "1", "showSession" to "1", "showClock" to "1", "hudOrder" to "",
         "tempUnit" to "c", "tempBands" to "1", "tempAuto" to "1", "tempRedCpu" to "90", "tempRedGpu" to "90", "tempRedBat" to "48",
     )
 
     private val TWINS = mapOf("showCPUUsage" to "showCPULoad", "showTemp" to "showBatteryTemp", "showEngine" to "showRenderer")
+
+    /** Aliases the HUD reads but never draws as a row of their own; they follow their twin through [TWINS]. */
+    private val NOT_READINGS = setOf("showCPULoad", "showRenderer", "fpsDecimal")
+
+    /** Orders saved before the GPU switch was named after the alias the HUD actually reads. */
+    private val RENAMED = mapOf("showGPU" to "showGPULoad")
 
     fun load(context: Context): MutableMap<String, String> {
         val values = LinkedHashMap(DEFAULTS)
@@ -60,17 +67,14 @@ internal object DroidDeckHudConfig {
         return DEFAULTS
     }
 
-    /** Every metric switch, in the order the HUD lists them before the user moves any. */
-    val ORDER: List<String> = listOf(
-        "showGpuModel", "showGPU", "showCPUUsage", "showPerCore", "showTemp", "showGpuTemp", "showVram",
-        "showRAM", "showSwap", "showBattery", "showBatteryTemp", "showPower", "showFPS", "showFPSGraph",
-        "showLatency", "showAvg", "showLow1", "showLow01", "showLow001", "showEngine", "showDisplay",
-        "showHdr", "showNet", "showResolution", "showProton", "showSession", "showClock",
-    )
+    /** Every metric switch, in the order the HUD lists them before the user moves any. Derived from
+     *  [DEFAULTS], so a switch added there shows up here without a second list to keep in step. */
+    val ORDER: List<String> = DEFAULTS.keys.filter { it.startsWith("show") && it !in NOT_READINGS }
 
-    /** The stored row order with every metric the config knows appended in the default order. */
+    /** The stored row order with every metric the config knows appended in the default order. Rows the
+     *  stored order names but this build does not draw are dropped; rows it does not name are appended. */
     fun order(values: Map<String, String>): List<String> {
-        val stored = values["hudOrder"].orEmpty().split('|').filter { it in ORDER }
+        val stored = values["hudOrder"].orEmpty().split('|').map { RENAMED[it] ?: it }.filter { it in ORDER }
         return stored + ORDER.filter { it !in stored }
     }
 

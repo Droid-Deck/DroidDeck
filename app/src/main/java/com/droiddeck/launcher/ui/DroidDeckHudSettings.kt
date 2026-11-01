@@ -156,16 +156,16 @@ private class HudMetric(val key: String, val label: Int)
 // Wrapper and DX version have nothing to show in DroidDeck.
 private val METRICS = listOf(
     HudMetric("showGpuModel", R.string.hud_metric_gpu_model),
-    HudMetric("showGPU", R.string.hud_metric_gpu),
+    HudMetric("showGPULoad", R.string.hud_metric_gpu),
     HudMetric("showCPUUsage", R.string.hud_metric_cpu),
     HudMetric("showPerCore", R.string.hud_metric_per_core),
     HudMetric("showTemp", R.string.hud_metric_temp),
+    HudMetric("showBatteryTemp", R.string.drawer_hud_battery),
     HudMetric("showGpuTemp", R.string.hud_metric_gpu_temp),
     HudMetric("showVram", R.string.hud_metric_vram),
     HudMetric("showRAM", R.string.hud_metric_ram),
     HudMetric("showSwap", R.string.hud_metric_swap),
     HudMetric("showBattery", R.string.hud_metric_battery),
-    HudMetric("showBatteryTemp", R.string.drawer_hud_battery),
     HudMetric("showPower", R.string.hud_metric_power),
     HudMetric("showFPS", R.string.drawer_hud_fps),
     HudMetric("showFPSGraph", R.string.hud_metric_graph),
@@ -184,5 +184,6 @@ private val METRICS = listOf(
     HudMetric("showClock", R.string.hud_metric_clock),
 )
 
+/** Null for a switch this screen has no label for: the row then shows the key itself. */
 internal fun hudMetricLabel(key: String): Int? =
     METRICS.firstOrNull { it.key == key }?.label
