@@ -654,6 +654,8 @@
     <string name="hud_size_strip">Leiste</string>
     <string name="hud_locked">Position sperren</string>
     <string name="hud_locked_hint">Ziehe das HUD, um es zu verschieben; langes Drücken sperrt oder entsperrt es. Solange es gesperrt ist, funktionieren die Bildschirmsteuerungen darunter weiter.</string>
+    <string name="hud_snap">An Seiten einrasten</string>
+    <string name="hud_snap_hint">Lass das HUD los, und es springt an die nähere Bildschirmseite. Ein Wischen wirft es in diese Richtung.</string>
     <string name="hud_group_look">Aussehen</string>
     <string name="hud_scale">Größe auf dem Bildschirm</string>
     <string name="hud_color_soft">Dezent</string>

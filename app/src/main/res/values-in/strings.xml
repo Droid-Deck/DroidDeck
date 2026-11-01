@@ -652,6 +652,8 @@
     <string name="hud_size_strip">Bilah</string>
     <string name="hud_locked">Kunci posisi</string>
     <string name="hud_locked_hint">Seret HUD untuk memindahkannya; tekan lama untuk mengunci atau membuka kuncinya. Saat terkunci, kontrol layar di bawahnya tetap berfungsi.</string>
+    <string name="hud_snap">Tempel ke sisi</string>
+    <string name="hud_snap_hint">Lepaskan HUD dan HUD akan pindah ke sisi layar yang lebih dekat. Jentikan cepat melemparnya ke arah itu.</string>
     <string name="hud_group_look">Tampilan</string>
     <string name="hud_scale">Ukuran di layar</string>
     <string name="hud_color_soft">Lembut</string>

@@ -641,6 +641,8 @@
     <string name="hud_size_strip">バー</string>
     <string name="hud_locked">位置を固定</string>
     <string name="hud_locked_hint">HUDはドラッグで移動できます。長押しで固定または解除します。固定中も、下にある画面上のコントロールは使えます。</string>
+    <string name="hud_snap">左右に吸着</string>
+    <string name="hud_snap_hint">HUD を離すと、画面の近い方の端に移動します。はじくとその方向へ飛びます。</string>
     <string name="hud_group_look">外観</string>
     <string name="hud_scale">画面上のサイズ</string>
     <string name="hud_color_soft">ソフト</string>

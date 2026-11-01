@@ -656,6 +656,8 @@
     <string name="hud_size_strip">Bară</string>
     <string name="hud_locked">Blochează pe loc</string>
     <string name="hud_locked_hint">Trage HUD-ul pentru a-l muta; o apăsare lungă îl blochează sau îl deblochează. Cât timp e blocat, comenzile de pe ecran de sub el funcționează în continuare.</string>
+    <string name="hud_snap">Fixare în lateral</string>
+    <string name="hud_snap_hint">Eliberează HUD-ul și se mută în partea mai apropiată a ecranului. Un gest rapid îl aruncă în acea direcție.</string>
     <string name="hud_group_look">Aspect</string>
     <string name="hud_scale">Dimensiune pe ecran</string>
     <string name="hud_color_soft">Discretă</string>

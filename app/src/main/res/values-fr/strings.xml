@@ -656,6 +656,8 @@
     <string name="hud_size_strip">Bandeau</string>
     <string name="hud_locked">Verrouiller la position</string>
     <string name="hud_locked_hint">Faites glisser le HUD pour le déplacer ; un appui long le verrouille ou le déverrouille. Tant qu\'il est verrouillé, les commandes à l\'écran situées dessous restent utilisables.</string>
+    <string name="hud_snap">Aimanter sur les côtés</string>
+    <string name="hud_snap_hint">Relâchez le HUD et il rejoint le côté de l’écran le plus proche. Un geste rapide le lance dans cette direction.</string>
     <string name="hud_group_look">Apparence</string>
     <string name="hud_scale">Taille à l\'écran</string>
     <string name="hud_color_soft">Douce</string>

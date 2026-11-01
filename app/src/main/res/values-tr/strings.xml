@@ -654,6 +654,8 @@
     <string name="hud_size_strip">Şerit</string>
     <string name="hud_locked">Yerinde kilitle</string>
     <string name="hud_locked_hint">Taşımak için HUD\'u sürükleyin; uzun basmak onu kilitler veya kilidini açar. Kilitliyken altındaki ekran kontrolleri çalışmaya devam eder.</string>
+    <string name="hud_snap">Yanlara yapıştır</string>
+    <string name="hud_snap_hint">HUD\'u bıraktığınızda ekranın daha yakın tarafına gider. Hızlı bir kaydırma onu o yöne fırlatır.</string>
     <string name="hud_group_look">Görünüm</string>
     <string name="hud_scale">Ekrandaki boyut</string>
     <string name="hud_color_soft">Yumuşak</string>

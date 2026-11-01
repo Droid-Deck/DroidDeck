@@ -57,6 +57,10 @@ public class HudLockController {
         void onTap();
         /** Drag released (unlocked): persist the new (x, y). */
         void onMoved(float x, float y);
+        /** The view moved under a drag (unlocked), with the finger at screen point (rawX, rawY). */
+        default void onDragged(float rawX, float rawY) {}
+        /** The drag ended in a fling (unlocked), in pixels per second; comes just before {@link #onMoved}. */
+        default void onFlung(float velocityX, float velocityY) {}
         /** Lock toggled by long-press: persist {@code hudLocked} + sync the menu chip. */
         void onLockChanged(boolean locked);
         /** Two-finger pinch (unlocked): the change since the previous event, above 1 when the fingers spread. */
@@ -157,6 +161,12 @@ public class HudLockController {
         }
 
         @Override
+        public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+            if (dragging && !locked && !pinched) cb.onFlung(velocityX, velocityY);
+            return true;
+        }
+
+        @Override
         public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
             if (pinched) return true;
             if (locked) {
@@ -167,6 +177,7 @@ public class HudLockController {
             view.setX(startX + (e2.getRawX() - downRawX));
             view.setY(startY + (e2.getRawY() - downRawY));
             dragging = true;
+            cb.onDragged(e2.getRawX(), e2.getRawY());
             return true;
         }
     }

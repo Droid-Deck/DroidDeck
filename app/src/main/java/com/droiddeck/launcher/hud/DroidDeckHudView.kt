@@ -24,9 +24,9 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import android.os.SystemClock
 import android.text.format.DateFormat
-import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import androidx.annotation.VisibleForTesting
 import androidx.compose.ui.graphics.toArgb
 import com.droiddeck.launcher.session.SessionPrefs
@@ -231,6 +231,12 @@ class DroidDeckHudView(context: Context) : View(context) {
     fun setOnLockChangedListener(l: Consumer<Boolean>?) { onLockChangedListener = l }
     private var onDockChangedListener: Consumer<String>? = null
     private var onScaledListener: IntConsumer? = null
+    private var onDraggedListener: BiConsumer<Float, Float>? = null
+    /** The HUD moved under the finger, at that screen point. */
+    fun setOnDraggedListener(l: BiConsumer<Float, Float>?) { onDraggedListener = l }
+    private var onFlungListener: BiConsumer<Float, Float>? = null
+    /** A drag ended in a fling, at this velocity (pixels per second), just before the move is reported. */
+    fun setOnFlungListener(l: BiConsumer<Float, Float>?) { onFlungListener = l }
     fun setOnDockChangedListener(l: Consumer<String>?) { onDockChangedListener = l }
     /** A pinch settled on this size, in percent. */
     fun setOnScaledListener(l: IntConsumer?) { onScaledListener = l }
@@ -238,6 +244,8 @@ class DroidDeckHudView(context: Context) : View(context) {
     private val lockController = HudLockController(context, this, object : HudLockController.Callbacks {
         override fun onTap() { cycleSize() }
         override fun onMoved(x: Float, y: Float) { onMovedListener?.accept(x, y) }
+        override fun onDragged(rawX: Float, rawY: Float) { onDraggedListener?.accept(rawX, rawY) }
+        override fun onFlung(velocityX: Float, velocityY: Float) { onFlungListener?.accept(velocityX, velocityY) }
         override fun onLockChanged(locked: Boolean) { onLockChangedListener?.accept(locked) }
         override fun onPinch(factor: Float) {
             val next = (scale * factor).coerceIn(MIN_SCALE, MAX_SCALE)
@@ -248,23 +256,56 @@ class DroidDeckHudView(context: Context) : View(context) {
         override fun onPinchEnd() { onScaledListener?.accept((scale * 100f).roundToInt()) }
     })
 
-    // A docked tab always takes touches, locked or not: a tap or a pull away from the edge brings the HUD back.
-    private val dockDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-        override fun onDown(e: MotionEvent): Boolean = true
-        override fun onSingleTapUp(e: MotionEvent): Boolean { onDockChangedListener?.accept(DroidDeckHudDock.NONE.token); return true }
-        override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
-            if (e1 == null) return false
-            val inward = when (dock) {
-                DroidDeckHudDock.LEFT -> e2.rawX - e1.rawX
-                DroidDeckHudDock.RIGHT -> e1.rawX - e2.rawX
-                DroidDeckHudDock.TOP -> e2.rawY - e1.rawY
-                DroidDeckHudDock.BOTTOM -> e1.rawY - e2.rawY
-                DroidDeckHudDock.NONE -> 0f
+    // A docked tab always takes touches, locked or not: a tap brings the HUD back, a drag moves the tab.
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+    private var tabDownRawX = 0f
+    private var tabDownRawY = 0f
+    private var tabStartX = 0f
+    private var tabStartY = 0f
+    private var tabDragging = false
+    private var onTabDraggedListener: BiConsumer<Float, Float>? = null
+    private var onTabDroppedListener: Runnable? = null
+    private var onTabDragCancelledListener: Runnable? = null
+    /** The docked tab is dragged: where the finger would put it (x, y in the parent). */
+    fun setOnTabDraggedListener(l: BiConsumer<Float, Float>?) { onTabDraggedListener = l }
+    fun setOnTabDroppedListener(l: Runnable?) { onTabDroppedListener = l }
+    /** The system took the tab's drag away: the tab goes back to where it was docked. */
+    fun setOnTabDragCancelledListener(l: Runnable?) { onTabDragCancelledListener = l }
+
+    private fun onTabTouch(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                tabDownRawX = event.rawX; tabDownRawY = event.rawY
+                tabStartX = x; tabStartY = y
+                tabDragging = false
             }
-            if (inward > 12f * density) onDockChangedListener?.accept(DroidDeckHudDock.NONE.token)
-            return true
+            MotionEvent.ACTION_MOVE -> {
+                val dx = event.rawX - tabDownRawX; val dy = event.rawY - tabDownRawY
+                if (!tabDragging && dx * dx + dy * dy > touchSlop * touchSlop) tabDragging = true
+                if (tabDragging) onTabDraggedListener?.accept(tabStartX + dx, tabStartY + dy)
+            }
+            MotionEvent.ACTION_UP -> {
+                if (tabDragging) { tabDragging = false; onTabDroppedListener?.run() }
+                else onDockChangedListener?.accept(DroidDeckHudDock.NONE.token)
+            }
+            MotionEvent.ACTION_CANCEL -> if (tabDragging) {
+                tabDragging = false
+                onTabDragCancelledListener?.run()
+            }
         }
-    })
+        return true
+    }
+
+    // On the way into the tab or out of it, the tab fades in over the HUD at the tab's true size on screen.
+    private var previewEdge = DroidDeckHudDock.NONE
+    private var previewBlend = 0f
+    internal fun setDockPreview(edge: DroidDeckHudDock, blend: Float) {
+        val b = blend.coerceIn(0f, 1f)
+        if (edge == previewEdge && b == previewBlend) return
+        previewEdge = edge; previewBlend = b
+        invalidate()
+    }
+    internal val dockPreviewBlend: Float get() = previewBlend
 
     // ---- Public surface (symmetric with the other overlays) ---------------
     fun setEngineLabel(s: String?) { if ((s ?: "") != engineLabel) { engineLabel = s ?: ""; post { rebuildAndInvalidate() } } }
@@ -612,10 +653,10 @@ class DroidDeckHudView(context: Context) : View(context) {
     internal fun dockTabSize(): Pair<Float, Float> =
         Pair(runWidth(tabSpans()) + 2f * sp(9f), capHeight(sp(20f)) + 2f * sp(7f))
 
-    private fun drawTab(canvas: Canvas, rect: RectF) {
+    private fun drawTab(canvas: Canvas, rect: RectF, edgeOf: DroidDeckHudDock = dock) {
         val r = sp(8f); val stroke = max(outlineWidth(), sp(1.5f)); val h = stroke / 2f
         val round = floatArrayOf(r, r, r, r, r, r, r, r)
-        val edge = when (dock) {
+        val edge = when (edgeOf) {
             DroidDeckHudDock.LEFT -> intArrayOf(0, 3)
             DroidDeckHudDock.RIGHT -> intArrayOf(1, 2)
             DroidDeckHudDock.TOP -> intArrayOf(0, 1)
@@ -1409,6 +1450,39 @@ class DroidDeckHudView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         if (contentW <= 0f || contentH <= 0f) { lockController.drawBadge(canvas); return }
+        val blend = if (dock == DroidDeckHudDock.NONE && previewEdge != DroidDeckHudDock.NONE) previewBlend else 0f
+        if (blend <= 0f) { drawContent(canvas); return }
+        if (blend < 1f) {
+            canvas.saveLayerAlpha(0f, 0f, width.toFloat(), height.toFloat(), ((1f - blend) * 255f).roundToInt())
+            drawContent(canvas)
+            canvas.restore()
+        }
+        drawTabPreview(canvas, blend)
+    }
+
+    /** The docked tab drawn at its own size in the middle of the view, undoing the view's scale. */
+    private fun drawTabPreview(canvas: Canvas, blend: Float) {
+        val (w, h) = dockTabSize()
+        if (scaleX <= 0f || scaleY <= 0f) return
+        canvas.save()
+        canvas.translate(width / 2f, height / 2f)
+        canvas.scale(1f / scaleX, 1f / scaleY)
+        canvas.translate(-w / 2f, -h / 2f)
+        canvas.saveLayerAlpha(0f, 0f, w, h, (blend * 255f).roundToInt())
+        drawTab(canvas, RectF(0f, 0f, w, h), previewEdge)
+        var x = sp(9f)
+        val baseline = sp(7f) + capHeight(sp(20f))
+        for (span in tabSpans()) {
+            drawPaint.textSize = span.sizePx
+            drawPaint.color = blend(span.color)
+            canvas.drawText(span.text, x, baseline, drawPaint)
+            x += measure(span.text, span.sizePx)
+        }
+        canvas.restore()
+        canvas.restore()
+    }
+
+    private fun drawContent(canvas: Canvas) {
 
         dPanel?.let { panel -> panelFrame(panel)?.let { canvas.drawBitmap(it, 0f, 0f, null) } }
 
@@ -1587,7 +1661,7 @@ class DroidDeckHudView(context: Context) : View(context) {
 
     // Declining the down event hands the whole gesture to the views under the HUD.
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (dock != DroidDeckHudDock.NONE) return dockDetector.onTouchEvent(event)
+        if (dock != DroidDeckHudDock.NONE) return onTabTouch(event)
         if (event.actionMasked == MotionEvent.ACTION_DOWN && lockController.isLocked() &&
             passesTouchAt?.invoke(event.rawX, event.rawY) == true) return false
         return lockController.onTouchEvent(event)
@@ -1598,7 +1672,7 @@ class DroidDeckHudView(context: Context) : View(context) {
     internal val contentWidth: Float get() = contentW
     internal val contentHeight: Float get() = contentH
 
-    internal val isDragging: Boolean get() = lockController.isDragging()
+    internal val isDragging: Boolean get() = lockController.isDragging() || tabDragging
 
     private companion object {
         const val REFRESH_MS = 500L

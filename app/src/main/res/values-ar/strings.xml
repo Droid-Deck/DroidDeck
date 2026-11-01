@@ -662,6 +662,8 @@
     <string name="hud_size_strip">شريط</string>
     <string name="hud_locked">تثبيت في مكانه</string>
     <string name="hud_locked_hint">اسحب HUD لتحريكه؛ والضغط مطولًا يثبّته أو يلغي تثبيته. أثناء تثبيته، تظل عناصر التحكم على الشاشة الموجودة تحته تعمل.</string>
+    <string name="hud_snap">الالتصاق بالجانبين</string>
+    <string name="hud_snap_hint">اترك الواجهة لتنتقل إلى أقرب جانب من الشاشة. اسحبها بسرعة لترميها في ذلك الاتجاه.</string>
     <string name="hud_group_look">المظهر</string>
     <string name="hud_scale">الحجم على الشاشة</string>
     <string name="hud_color_soft">هادئ</string>
