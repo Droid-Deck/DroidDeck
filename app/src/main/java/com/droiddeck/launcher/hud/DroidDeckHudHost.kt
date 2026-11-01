@@ -392,6 +392,7 @@ class DroidDeckHudHost(context: Context) {
             // Out where the tab is: against its edge, or wherever it was pulled to.
             wantX = hud.x; wantY = hud.y
             anchorX = Float.NaN
+            SessionPrefs.setDroidDeckHudPosition(context, wantX, wantY)
         } else {
             val p = hud.parent as? View
             if (p != null) {
