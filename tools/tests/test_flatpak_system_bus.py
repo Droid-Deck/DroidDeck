@@ -100,6 +100,36 @@ class FlatpakSystemBusTest(unittest.TestCase):
         self.module.stop_system_bus(bus)
         self.assertFalse(os.path.exists(work))
 
+    def test_any_reachable_address_in_a_list_counts_as_the_system_bus(self):
+        path = os.path.join(self.tmp, "system")
+        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        server.bind(path)
+        server.listen(1)
+        try:
+            os.environ["DBUS_SYSTEM_BUS_ADDRESS"] = "unix:path=%s;unix:guid=1,path=%s" % (os.path.join(self.tmp, "missing"), path)
+            with mock.patch.object(self.module.subprocess, "Popen", FakeDaemon):
+                self.assertIsNone(self.module.private_system_bus())
+            self.assertEqual([], FakeDaemon.started)
+        finally:
+            server.close()
+            os.unlink(path)
+
+    def test_a_daemon_that_cannot_launch_leaves_no_files_and_warns(self):
+        made = []
+        real = tempfile.mkdtemp
+
+        def mkdtemp(**kwargs):
+            made.append(real(**kwargs))
+            return made[-1]
+
+        with mock.patch.object(self.module.shutil, "which", return_value="/usr/bin/dbus-daemon"), \
+                mock.patch.object(self.module.tempfile, "mkdtemp", mkdtemp), \
+                mock.patch.object(self.module.subprocess, "Popen", side_effect=OSError("exec failed")), \
+                mock.patch.object(self.module, "emit") as emit:
+            self.assertIsNone(self.module.private_system_bus())
+        emit.assert_called_once()
+        self.assertFalse(os.path.exists(made[0]))
+
     def test_without_dbus_daemon_the_command_still_runs_and_warns(self):
         with mock.patch.object(self.module.shutil, "which", return_value=None), \
                 mock.patch.object(self.module, "emit") as emit:
@@ -113,9 +143,13 @@ class FlatpakSystemBusTest(unittest.TestCase):
         self.module.prepare_rootfs = lambda: None
         self.module.install = lambda app_id: calls.append("install") or 0
         self.module.updates = lambda: calls.append("updates") or 0
-        with mock.patch.object(sys, "argv", ["droiddeck-flatpak", "install", "org.example.App"]):
+        with mock.patch.object(sys, "argv", ["droiddeck-flatpak", "install", "org.example.App"]), \
+                mock.patch.object(self.module.signal, "signal") as handler:
             self.assertEqual(0, self.module.main())
         self.assertEqual(["start", "install", "stop:bus"], calls)
+        self.assertEqual(self.module.signal.SIGTERM, handler.call_args[0][0])
+        with self.assertRaises(SystemExit):
+            handler.call_args[0][1](self.module.signal.SIGTERM, None)
         calls.clear()
         with mock.patch.object(sys, "argv", ["droiddeck-flatpak", "updates"]):
             self.assertEqual(0, self.module.main())

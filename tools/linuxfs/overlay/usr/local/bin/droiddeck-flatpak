@@ -2,6 +2,7 @@
 import json
 import os
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -65,11 +66,25 @@ def bus_reachable(path):
         sock.close()
 
 
-def system_bus_path():
+def system_bus_paths():
     address = os.environ.get("DBUS_SYSTEM_BUS_ADDRESS", "")
-    if address.startswith("unix:path="):
-        return address[len("unix:path="):].split(",", 1)[0]
-    return SYSTEM_BUS
+    if not address:
+        return [SYSTEM_BUS]
+    paths = []
+    for entry in address.split(";"):
+        if entry.startswith("unix:"):
+            for key, _, value in (part.partition("=") for part in entry[len("unix:"):].split(",")):
+                if key == "path" and value:
+                    paths.append(value)
+    return paths
+
+
+def system_bus_reachable():
+    address = os.environ.get("DBUS_SYSTEM_BUS_ADDRESS", "")
+    paths = system_bus_paths()
+    if address and not paths:
+        return True
+    return any(bus_reachable(path) for path in paths)
 
 
 def stop_system_bus(bus):
@@ -83,6 +98,10 @@ def stop_system_bus(bus):
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait()
+    remove_bus_files(work, conf, path)
+
+
+def remove_bus_files(work, conf, path):
     for name in (path, conf):
         try:
             os.unlink(name)
@@ -95,19 +114,28 @@ def stop_system_bus(bus):
 
 
 def private_system_bus():
-    if bus_reachable(system_bus_path()):
+    if system_bus_reachable():
         return None
     daemon = shutil.which("dbus-daemon")
     if not daemon:
         emit(e="warning", message="no system bus and no dbus-daemon to start one")
         return None
-    work = tempfile.mkdtemp(prefix="droiddeck-flatpak-bus-")
+    try:
+        work = tempfile.mkdtemp(prefix="droiddeck-flatpak-bus-")
+    except OSError as err:
+        emit(e="warning", message="could not start a private system bus: %s" % err)
+        return None
     conf = os.path.join(work, "bus.conf")
     path = os.path.join(work, "bus")
-    with open(conf, "w") as f:
-        f.write(BUS_CONFIG % path)
-    proc = subprocess.Popen([daemon, "--config-file=" + conf, "--nofork", "--nopidfile"],
-                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        with open(conf, "w") as f:
+            f.write(BUS_CONFIG % path)
+        proc = subprocess.Popen([daemon, "--config-file=" + conf, "--nofork", "--nopidfile"],
+                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError as err:
+        remove_bus_files(work, conf, path)
+        emit(e="warning", message="could not start a private system bus: %s" % err)
+        return None
     bus = (proc, work, conf, path)
     for _ in range(50):
         if bus_reachable(path) or proc.poll() is not None:
@@ -346,6 +374,8 @@ def main():
     if cmd in ("install", "install-bundle", "update"):
         prepare_rootfs()
     bus = private_system_bus() if cmd in BUS_COMMANDS else None
+    if bus:
+        signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(128 + signum))
     try:
         return command(cmd, args)
     finally:
