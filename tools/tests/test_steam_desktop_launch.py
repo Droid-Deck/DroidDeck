@@ -111,10 +111,10 @@ class DesktopSteamLaunchTest(unittest.TestCase):
         self.assertFalse((self.root / 'cache/droiddeck/steam-desktop.lock').exists())
 
     def test_bottom_screen_desktop_starts_its_own_client_when_none_runs(self):
-        self.env['BL_BOTTOM_DESKTOP'] = '1'
+        self.env.update(BL_BOTTOM_DESKTOP='1', DISPLAY=':7')
         result = self.launch('desktop')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.splitlines(), ['1', 'desktop', '', 'steam', 'steam://open/library'])
+        self.assertEqual(result.stdout.splitlines(), ['1', 'desktop', ':7', 'steam', 'steam://open/library'])
 
     def test_second_click_forwards_to_the_x86_64_client_in_its_own_home(self):
         lock = self.root / 'cache/droiddeck/steam-desktop.lock'
