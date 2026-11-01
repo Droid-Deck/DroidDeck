@@ -1964,7 +1964,7 @@
     <string name="bottom_telemetry_balance">Balance</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Turn on a racing game\'s data output (often called telemetry or UDP) to see a live dash here. It stays on this device.</string>
+    <string name="bottom_telemetry_help">Turn on a game\'s data output (often called telemetry or UDP) to see a live dash here. It stays on this device.</string>
     <string name="bottom_telemetry_unknown_format">Port %1$d receives data (%2$d packets of %3$d bytes), but in a format this page cannot read yet.</string>
     <string name="bottom_telemetry_port_busy">Another program already uses port %1$s, so that game cannot show here.</string>
 
