@@ -18,6 +18,10 @@ static _Atomic uint64_t g_busy_ns;
 static VkResult VKAPI_CALL timed_submit(VkQueue queue, uint32_t count, const VkSubmitInfo *infos, VkFence fence) {
     if (!count || !atomic_load(&g_on) || atomic_load(&g_lost)) return g_submit(queue, count, infos, fence);
     pthread_mutex_lock(&g_lock);
+    if (!atomic_load(&g_on) || atomic_load(&g_lost)) {
+        pthread_mutex_unlock(&g_lock);
+        return g_submit(queue, count, infos, fence);
+    }
     if (g_ring.state == 0 && gpuload_ring_setup(&g_ring, &g_v, g_family, g_bits)) atomic_store(&g_timing, 1);
     VkSubmitInfo *mine = NULL;
     uint32_t used = 0;
@@ -78,10 +82,8 @@ JNIEXPORT jlong JNICALL Java_com_droiddeck_launcher_wayland_WaylandCompositor_na
 }
 
 JNIEXPORT void JNICALL Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetGpuTiming(JNIEnv *env, jclass cls, jboolean on) {
-    if (!on) {
-        pthread_mutex_lock(&g_lock);
-        g_was_on = 0;
-        pthread_mutex_unlock(&g_lock);
-    }
+    pthread_mutex_lock(&g_lock);
+    if (!on) g_was_on = 0;
     atomic_store(&g_on, on ? 1 : 0);
+    pthread_mutex_unlock(&g_lock);
 }
