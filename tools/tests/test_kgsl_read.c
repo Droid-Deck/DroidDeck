@@ -95,14 +95,18 @@ int main(void) {
   assert(read_timestamp(3, &timestamp) == 0 && timestamp == 2 && waits == 3);
 
   waits = 0;
-  assert(read_timestamp(3, &timestamp) == 0 && timestamp == 2 && waits == 1);
+  assert(read_timestamp(3, &timestamp) == 0 && timestamp == 2 && waits == 2);
 
   retired = 3;
   waits = 0;
-  assert(read_timestamp(3, &timestamp) == 0 && timestamp == 3 && waits == 1);
+  assert(read_timestamp(3, &timestamp) == 0 && timestamp == 3 && waits == 2);
 
   waits = 0;
-  assert(read_timestamp(3, &timestamp) == 0 && timestamp == 3 && waits == 0);
+  assert(read_timestamp(3, &timestamp) == 0 && timestamp == 3 && waits == 1);
+
+  wait_error = EINVAL;
+  assert(read_timestamp(3, &timestamp) == -1 && errno == EINVAL);
+  wait_error = 0;
 
   submit(4);
   retired = 4;

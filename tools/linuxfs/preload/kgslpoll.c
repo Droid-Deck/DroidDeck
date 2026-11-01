@@ -29,26 +29,32 @@ static void note_submit(unsigned int context_id, unsigned int timestamp) {
     __atomic_store_n(&contexts[context_id].submitted, timestamp, __ATOMIC_RELAXED);
 }
 
+static int wait_retired(int (*real)(int, unsigned long, void *), int fd, uint32_t id, uint32_t timestamp) {
+  /* KGSL reads a timeout of 0 as wait forever. */
+  struct kgsl_device_waittimestamp_ctxtid wait = {.context_id = id, .timestamp = timestamp, .timeout = 1};
+
+  if (real(fd, IOCTL_KGSL_DEVICE_WAITTIMESTAMP_CTXTID, &wait) == 0) return 0;
+  return errno == ETIMEDOUT || errno == ETIME || errno == EINTR || errno == EAGAIN ? 1 : -1;
+}
+
 /* shortcut: an unfinished timestamp sleeps a jiffy per poll, read the memstore instead if Quest's mmap of it is proven */
 static int read_retired(int (*real)(int, unsigned long, void *), int fd,
                         struct kgsl_cmdstream_readtimestamp_ctxtid *read) {
   uint32_t id = read->context_id;
   uint32_t timestamp, submitted;
+  int result;
 
   if (read->type != KGSL_TIMESTAMP_RETIRED || id >= KGSL_CONTEXTS ||
       __atomic_load_n(&contexts[id].owner, __ATOMIC_RELAXED) != fd + 1)
     return -1;
   timestamp = __atomic_load_n(&contexts[id].retired, __ATOMIC_RELAXED);
   submitted = __atomic_load_n(&contexts[id].submitted, __ATOMIC_RELAXED);
+  /* KGSL checks a context's owner on every wait, which catches one that died with a reused descriptor. */
+  if (timestamp != 0 && wait_retired(real, fd, id, timestamp) < 0) return -1;
   while (timestamp != submitted) {
-    /* KGSL reads a timeout of 0 as wait forever. */
-    struct kgsl_device_waittimestamp_ctxtid wait = {
-        .context_id = id, .timestamp = timestamp + 1, .timeout = 1};
-
-    if (real(fd, IOCTL_KGSL_DEVICE_WAITTIMESTAMP_CTXTID, &wait) != 0) {
-      if (errno != ETIMEDOUT && errno != ETIME && errno != EINTR && errno != EAGAIN) return -1;
-      break;
-    }
+    result = wait_retired(real, fd, id, timestamp + 1);
+    if (result < 0) return -1;
+    if (result > 0) break;
     timestamp++;
     __atomic_store_n(&contexts[id].retired, timestamp, __ATOMIC_RELAXED);
   }
