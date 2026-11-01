@@ -720,7 +720,7 @@ diff --git a/hybris/vulkan/compat/bc_commands.c b/hybris/vulkan/compat/bc_comman
 +    PFN_vkCreateDescriptorUpdateTemplate create =
 +        (PFN_vkCreateDescriptorUpdateTemplate)device->resolver(handle, create_name);
 +    VkResult result = create(handle, info, allocator, out);
-+    if (result != VK_SUCCESS || !device->format_mask ||
++    if (result != VK_SUCCESS || !journal_enabled(device) ||
 +        info->templateType != VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_PUSH_DESCRIPTORS ||
 +        info->pipelineBindPoint != VK_PIPELINE_BIND_POINT_COMPUTE)
 +        return result;
@@ -752,7 +752,7 @@ diff --git a/hybris/vulkan/compat/bc_commands.c b/hybris/vulkan/compat/bc_comman
 +    PFN_vkDestroyDescriptorUpdateTemplate destroy =
 +        (PFN_vkDestroyDescriptorUpdateTemplate)device->resolver(handle, name);
 +    destroy(handle, update_template, allocator);
-+    if (device->format_mask)
++    if (journal_enabled(device))
 +        hybris_bc_template_remove(&device->layouts, update_template);
 +}
 +static void VKAPI_CALL destroy_template_core(VkDevice handle,
@@ -780,7 +780,7 @@ diff --git a/hybris/vulkan/compat/bc_commands.c b/hybris/vulkan/compat/bc_comman
 +    PFN_vkCmdPushDescriptorSetKHR call =
 +        (PFN_vkCmdPushDescriptorSetKHR)device->resolver(device->handle, name);
 +    call(handle, point, layout, set, count, writes);
-+    if (device->format_mask && point == VK_PIPELINE_BIND_POINT_COMPUTE)
++    if (journal_enabled(device) && point == VK_PIPELINE_BIND_POINT_COMPUTE)
 +        hybris_bc_save_push_descriptors(&command->state, layout, set, count,
 +            writes, VK_SHADER_STAGE_COMPUTE_BIT, name, 0);
 +}
@@ -804,7 +804,7 @@ diff --git a/hybris/vulkan/compat/bc_commands.c b/hybris/vulkan/compat/bc_comman
 +    PFN_vkCmdPushDescriptorSetWithTemplateKHR call =
 +        (PFN_vkCmdPushDescriptorSetWithTemplateKHR)device->resolver(device->handle, name);
 +    call(handle, update_template, layout, set, data);
-+    if (device->format_mask)
++    if (journal_enabled(device))
 +        hybris_bc_save_push_template(&command->state, update_template, layout,
 +            set, data, NULL, name, 0);
 +}
@@ -834,7 +834,7 @@ diff --git a/hybris/vulkan/compat/bc_commands.c b/hybris/vulkan/compat/bc_comman
 +    PFN_vkCmdPushDescriptorSet2 call =
 +        (PFN_vkCmdPushDescriptorSet2)device->resolver(device->handle, name);
 +    call(handle, info);
-+    if (!device->format_mask || !(info->stageFlags & VK_SHADER_STAGE_COMPUTE_BIT))
++    if (!journal_enabled(device) || !(info->stageFlags & VK_SHADER_STAGE_COMPUTE_BIT))
 +        return;
 +    if (info->pNext) {
 +        if (command->state.error == VK_SUCCESS)
@@ -861,7 +861,7 @@ diff --git a/hybris/vulkan/compat/bc_commands.c b/hybris/vulkan/compat/bc_comman
 +        (PFN_vkCmdPushDescriptorSetWithTemplate2)device->resolver(device->handle,
 +            name);
 +    call(handle, info);
-+    if (device->format_mask)
++    if (journal_enabled(device))
 +        hybris_bc_save_push_template(&command->state,
 +            info->descriptorUpdateTemplate, info->layout, info->set,
 +            info->pData, info->pNext, name, 1);
