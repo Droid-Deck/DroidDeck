@@ -93,6 +93,7 @@ internal object GameJoltSessionProbe {
         for (variant in listOf(
             "maturity=everyone,teen", "f_maturity=everyone,teen", "f_maturity[]=everyone", "f_maturity%5B%5D=everyone",
             "f_maturity[]=everyone&f_maturity[]=teen", "f_maturity%5B%5D=teen", "f_status%5B%5D=complete", "f_os%5B%5D=windows", "f_price=free", "",
+            "section=best&f_price=free", "section=best&f_maturity%5B%5D=everyone", "section=best&f_maturity%5B%5D=everyone&f_maturity%5B%5D=teen", "section=hot&f_os%5B%5D=windows", "section=new&f_status%5B%5D=complete", "section=featured", "section=featured&f_price=free",
         )) {
             val answer = GameJoltApi.browse(variant, cookies)
             val games = answer.payload?.optJSONArray("games")
