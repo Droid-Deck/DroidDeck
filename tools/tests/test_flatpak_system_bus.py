@@ -137,6 +137,8 @@ class FlatpakSystemBusTest(unittest.TestCase):
             self.assertTrue(self.module.system_bus_reachable())
             os.environ["DBUS_SYSTEM_BUS_ADDRESS"] = "tcp:host=127.0.0.1,port=" + "".join("%%%02X" % ord(c) for c in str(port))
             self.assertTrue(self.module.system_bus_reachable())
+            os.environ["DBUS_SYSTEM_BUS_ADDRESS"] = "tcp:host=127.0.0.1,port=000%d" % port
+            self.assertTrue(self.module.system_bus_reachable())
             listener.close()
             self.assertFalse(self.module.system_bus_reachable())
             for bad in ("%C2%B2", "65536", "0", "x"):

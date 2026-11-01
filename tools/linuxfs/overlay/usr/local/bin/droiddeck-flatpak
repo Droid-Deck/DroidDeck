@@ -90,7 +90,7 @@ def system_bus_paths():
                 found = b"\0" + urllib.parse.unquote_to_bytes(values["abstract"])
         elif kind == "tcp":
             port = urllib.parse.unquote(values.get("port", ""))
-            if not re.fullmatch(r"[0-9]{1,5}", port, re.ASCII) or not 0 < int(port) < 65536:
+            if not re.fullmatch(r"[0-9]+", port, re.ASCII) or not 0 < int(port) < 65536:
                 continue
             found = (urllib.parse.unquote(values.get("host", "localhost")), int(port))
         if found is None:
