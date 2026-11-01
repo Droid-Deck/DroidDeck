@@ -26,6 +26,10 @@ internal class FrameStats {
     private var sessionStartNs = 0L
     private var sessionFrames = 0L
 
+    private val slowTimes = LongArray(SLOW_FRAMES)
+    private var slowHead = 0
+    private var slowSize = 0
+
     @Volatile var fps = 0f
         private set
 
@@ -60,6 +64,11 @@ internal class FrameStats {
             if (lowsSize < LOWS_FRAMES) lowsSize++
             if (sessionStartNs == 0L) sessionStartNs = timeNs - frametimeNs
             sessionFrames++
+            if (frametimeNs > SLOW_NS) {
+                slowTimes[slowHead] = timeNs
+                slowHead = (slowHead + 1) % SLOW_FRAMES
+                if (slowSize < SLOW_FRAMES) slowSize++
+            }
         }
         count++
     }
@@ -77,6 +86,8 @@ internal class FrameStats {
         cachedLowsNs = 0L
         sessionStartNs = 0L
         sessionFrames = 0L
+        slowHead = 0
+        slowSize = 0
         fps = 0f
         count++
     }
@@ -105,6 +116,17 @@ internal class FrameStats {
 
     @Synchronized
     fun sessionSeconds(nowNs: Long): Float = if (sessionStartNs == 0L) 0f else (nowNs - sessionStartNs) / 1e9f
+
+    /** Frames slower than 30 fps (pauses left out) in the [windowNs] up to [nowNs]. */
+    @Synchronized
+    fun slowFrames(nowNs: Long, windowNs: Long): Int {
+        var n = 0
+        for (i in 0 until slowSize) {
+            if (nowNs - slowTimes[(slowHead - 1 - i + SLOW_FRAMES) % SLOW_FRAMES] > windowNs) break
+            n++
+        }
+        return n
+    }
 
     class Lows(val low1Fps: Float, val low01Fps: Float, val low001Fps: Float) {
         companion object {
@@ -141,6 +163,8 @@ internal class FrameStats {
         const val FPS_PERIOD_NS = 500_000_000L
         const val LOWS_FRAMES = 8192
         private const val PAUSE_NS = 1_000_000_000L
+        const val SLOW_NS = 33_333_334L
+        private const val SLOW_FRAMES = 512
         private const val LOWS_RECOMPUTE_NS = 250_000_000L
     }
 }

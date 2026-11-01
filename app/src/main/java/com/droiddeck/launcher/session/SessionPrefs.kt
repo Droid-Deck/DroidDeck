@@ -106,6 +106,12 @@ object SessionPrefs {
         prefs(context).edit().putString("statsStrip", id).apply()
     }
 
+    fun statsHud(context: Context): String? = prefs(context).getString("statsHud", null)
+
+    fun setStatsHud(context: Context, id: String) {
+        prefs(context).edit().putString("statsHud", id).apply()
+    }
+
     fun statsSpeedUnit(context: Context): String? = prefs(context).getString("statsSpeedUnit", null)
 
     fun setStatsSpeedUnit(context: Context, id: String) {

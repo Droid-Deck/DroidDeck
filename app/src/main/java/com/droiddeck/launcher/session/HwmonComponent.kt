@@ -108,5 +108,10 @@ class HwmonComponent(val dir: File, private val root: File) : SessionPart() {
 
         private fun readNumber(path: String): Long? =
             runCatching { File(path).readText().trim().toLong() }.getOrNull()?.takeIf { it >= 0 }
+
+        /** The first fan speed file the app can read, or null when there is none. */
+        fun fanSource(): String? = FAN_SOURCES().firstOrNull { readNumber(it) != null }
+
+        fun readRpm(path: String): Long? = readNumber(path)
     }
 }

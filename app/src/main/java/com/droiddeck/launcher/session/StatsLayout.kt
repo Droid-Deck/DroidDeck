@@ -11,6 +11,18 @@ enum class StatsStrip(val id: String) {
     }
 }
 
+/** The bottom-screen HUD shown while no game sends dashboard data; a tap moves to the next one. */
+enum class StatsHud(val id: String) {
+    BIG_FPS("bigfps"), FULL("full"), TILES("tiles"), RINGS("rings"), GRAPHS("graphs"), CORES("cores"),
+    HEAT("heat"), GAME("game"), PACING("pacing"), NIGHT("night"), MEGA("mega");
+
+    fun next(): StatsHud = entries[(ordinal + 1) % entries.size]
+
+    companion object {
+        fun from(id: String?): StatsHud = entries.firstOrNull { it.id == id } ?: BIG_FPS
+    }
+}
+
 /** Speeds on the racing dashes; telemetry arrives in km/h. */
 enum class SpeedUnit(val id: String, val label: String, val perKmh: Float) {
     AUTO("auto", "", 1f), KMH("kmh", "km/h", 1f), MPH("mph", "mph", 0.621371f);

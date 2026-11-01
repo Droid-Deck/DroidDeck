@@ -26,7 +26,7 @@ object SettingsReset {
         "upscaler", "upscaleSharpness", "screenEffects", "textureAnisotropy", "textureLodBias",
         "steamDownloadsInBackground", "steam_offline", "bootMovie", "bootMovieSound", "bootMovieVolume", "bootMovieSeconds",
         "bootMovieApplyNext", "bootMovieSteamSeen",
-        "questDefaultsV1", "telemetryAuto", "telemetryOff", "statsStrip", "statsDash", "statsSpeedUnit",
+        "questDefaultsV1", "telemetryAuto", "telemetryOff", "statsStrip", "statsHud", "statsDash", "statsSpeedUnit",
     )
 
     internal val SESSION_PREFIXES = listOf(
