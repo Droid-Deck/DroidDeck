@@ -655,6 +655,7 @@
     <string name="hud_size_pill">Капсула</string>
     <string name="hud_size_minimal">Мінімальний</string>
     <string name="hud_size_mega">Мега</string>
+    <string name="hud_size_strip">Смуга</string>
     <string name="hud_locked">Закріпити на місці</string>
     <string name="hud_locked_hint">Перетягніть HUD, щоб перемістити його; довге натискання закріплює або відкріплює його. Поки його закріплено, екранні елементи керування під ним працюють і далі.</string>
     <string name="hud_group_look">Вигляд</string>

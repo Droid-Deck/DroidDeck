@@ -653,6 +653,7 @@
     <string name="hud_size_pill">Píldora</string>
     <string name="hud_size_minimal">Mínimo</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">Barra</string>
     <string name="hud_locked">Fijar posición</string>
     <string name="hud_locked_hint">Arrastra el HUD para moverlo; una pulsación larga lo bloquea o lo desbloquea. Mientras está bloqueado, los controles en pantalla que tiene debajo siguen funcionando.</string>
     <string name="hud_group_look">Aspecto</string>

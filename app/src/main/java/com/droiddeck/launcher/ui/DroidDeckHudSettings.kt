@@ -24,6 +24,7 @@ internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (Stri
                 DroidDeckHudSize.PILL to stringResource(R.string.hud_size_pill),
                 DroidDeckHudSize.MINIMAL to stringResource(R.string.hud_size_minimal),
                 DroidDeckHudSize.MEGA to stringResource(R.string.hud_size_mega),
+                DroidDeckHudSize.STRIP to stringResource(R.string.hud_size_strip),
             ),
             size, chipModifier = track("hud-size")) { a.onHudSetting("hudSize", it.token) }
         ToggleRow(host, "hud-locked", stringResource(R.string.hud_locked), stringResource(R.string.hud_locked_hint), on("hudLocked"),
@@ -125,9 +126,10 @@ private val METRICS = listOf(
 )
 
 // Switches a size lists but never draws (DroidDeckHudView): the Pill and Minimal always show the FPS, the
-// Pill has no graph, Tiles has no graph and no 0.01% low.
+// Pill has no graph, Tiles has no graph and no 0.01% low, the Strip always shows the FPS.
 private val HIDDEN = mapOf(
     DroidDeckHudSize.PILL to setOf("FPS", "FPS graph"),
     DroidDeckHudSize.MINIMAL to setOf("FPS"),
     DroidDeckHudSize.TILES to setOf("FPS graph", "0.01% low"),
+    DroidDeckHudSize.STRIP to setOf("FPS"),
 )

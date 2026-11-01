@@ -152,6 +152,8 @@ class DroidDeckHudView(context: Context) : View(context) {
     var dock = DroidDeckHudDock.NONE
         private set
     private var tabRect: RectF? = null
+    // The Strip is a bar across the whole screen, kept against the top or bottom edge.
+    private var stripRect: RectF? = null
     private val tabPath = Path()
 
     // Every size sits in the DroidDeck mark's D: a straight left side, round on the
@@ -534,7 +536,7 @@ class DroidDeckHudView(context: Context) : View(context) {
     // ---- Layout builders --------------------------------------------------
     private fun rebuild() {
         glyphs.clear(); tileRects.clear(); graphRect = null
-        headerMark = null; chipRect = null; dPanel = null; dDividerTop = -1f; tabRect = null
+        headerMark = null; chipRect = null; dPanel = null; dDividerTop = -1f; tabRect = null; stripRect = null
         val s = snap
         if (s == null) { contentW = 0f; contentH = 0f; return }
         if (dock != DroidDeckHudDock.NONE) { buildDockTab(); return }
@@ -544,6 +546,7 @@ class DroidDeckHudView(context: Context) : View(context) {
             DroidDeckHudSize.PILL -> { buildPill(s); intoPanel(sp(10f), header = false) }
             DroidDeckHudSize.MINIMAL -> buildMinimal(s)
             DroidDeckHudSize.MEGA -> { buildMega(s); intoPanel(sp(10f), header = true) }
+            DroidDeckHudSize.STRIP -> buildStrip(s)
         }
     }
 
@@ -1074,6 +1077,94 @@ class DroidDeckHudView(context: Context) : View(context) {
         finishPanel(panel, halfRound = true)
     }
 
+    /**
+     * Full's readouts on one line across the screen: the mark, the FPS, the graph, the lows, then GPU, CPU,
+     * memory, battery, display server and GPU model, with the clock on the right end. Groups that no longer
+     * fit before the clock are left off, from the end.
+     */
+    private fun buildStrip(s: HudMetrics.Snapshot) {
+        val rowPx = sp(11.5f); val unitPx = rowPx * 0.8f; val fpsPx = sp(15f)
+        val padX = sp(10f); val groupGap = sp(13f)
+        val h = sp(26f)
+        val w = ((parent as? View)?.width?.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels).toFloat()
+        val mid = h / 2f
+        val baseline = mid + capHeight(fpsPx) / 2f
+
+        val markH = sp(13f)
+        val markLeft = padX - DroidDeckMark.inkLeftFor(markH)
+        headerMark = RectF(markLeft, mid - markH / 2f, markLeft + DroidDeckMark.widthFor(markH), mid + markH / 2f)
+        var x = markLeft + DroidDeckMark.inkRightFor(markH) + sp(8f)
+
+        var right = w - padX
+        if (showClockTime) {
+            val t = clockTimeString()
+            right -= measure(t, rowPx)
+            glyphs.add(Glyph(right, baseline, t, blend(colDim), rowPx))
+            right -= groupGap
+        }
+
+        val generating = differs(fpsNow)
+        val fps = ArrayList<Span>()
+        if (apiLabel() != "FPS") fps += Span("${apiLabel()} ", colDim, rowPx)
+        fps += Span(fpsText(fpsNow), colValue, if (generating) fpsPx * 0.8f else fpsPx, glow = true)
+        fps += Span("fps", colDim, unitPx)
+        x = placeRun(x, baseline, fps) + groupGap
+
+        if (showGraph) {
+            val gw = sp(72f); val gh = h * 0.55f
+            if (x + gw <= right) {
+                graphRect = RectF(x, mid - gh / 2f, x + gw, mid + gh / 2f)
+                x += gw + groupGap
+            }
+        }
+
+        val groups = ArrayList<List<Span>>()
+        run {
+            val l = ArrayList<Span>()
+            l += Span("1% ", colDim, rowPx); l += Span(lowText(lows.low1Fps) ?: "—", colFps, rowPx)
+            l += Span(" 0.1% ", colDim, rowPx); l += Span(lowText(lows.low01Fps) ?: "—", colFps, rowPx)
+            if (showLow001) { l += Span(" 0.01% ", colDim, rowPx); l += Span(lowText(lows.low001Fps) ?: "—", colFps, rowPx) }
+            groups += l
+        }
+        if (showGPU || showGpuTemp) {
+            val l = arrayListOf(Span("GPU", colGpu, rowPx))
+            if (showGPU) l += Span(" ${s.gpuPercent ?: "—"}%", colGpu, rowPx)
+            if (showGpuTemp && s.gpuTempC != null) { l += Span(" ", colDim, rowPx); l += tempSpans(s.gpuTempC, HudMetrics.TempSensor.GPU, rowPx, unitPx) }
+            groups += l
+        }
+        if (showCPU || showCpuTemp) {
+            val l = arrayListOf(Span("CPU", colCpu, rowPx))
+            if (showCPU) l += Span(" ${s.cpuPercent ?: "—"}%", colCpu, rowPx)
+            if (showCpuTemp && s.cpuTempC != null) { l += Span(" ", colDim, rowPx); l += tempSpans(s.cpuTempC, HudMetrics.TempSensor.CPU, rowPx, unitPx) }
+            groups += l
+        }
+        if (showVram) s.vramText()?.let { groups += listOf(Span("VRAM $it", colVram, rowPx)) }
+        if (showRAM) groups += listOf(Span("RAM ${s.ramPercent.roundToInt()}%", colRam, rowPx))
+        if (showBattery || showPower || showBatteryTemp) {
+            val l = ArrayList<Span>()
+            fun part(spans: List<Span>) {
+                l += if (l.isEmpty()) Span("BAT ", colBat, rowPx) else Span(" ", colDim, rowPx)
+                l += spans
+            }
+            if (showBattery && s.battery.percent != null) part(listOf(Span("${s.battery.percent}%", colBat, rowPx)))
+            if (showBatteryTemp && s.battery.tempC != null)
+                part(tempSpans(s.battery.tempC, HudMetrics.TempSensor.BATTERY, rowPx, unitPx))
+            if (showPower && s.battery.watts > 0f) part(listOf(Span("${fmt1(s.battery.watts)}W", colDim, rowPx)))
+            if (l.isNotEmpty()) groups += l
+        }
+        if (displayServer.isNotBlank()) groups += listOf(Span(displayServer, colDisp, rowPx))
+        if (hdrState != DroidDeckHudHdr.NONE) groups += hdrLine(rowPx)
+        if (showGpuModel && gpuNameText().isNotBlank()) groups += gpuModelSpans(rowPx, colDim, compact = true)
+
+        for (g in groups) {
+            if (x + runWidth(g) > right) break
+            x = placeRun(x, baseline, g) + groupGap
+        }
+
+        stripRect = RectF(0f, 0f, w, h)
+        contentW = w; contentH = h
+    }
+
     private fun capHeight(px: Float): Float {
         measurePaint.textSize = px
         measurePaint.getTextBounds("0", 0, 1, inkRect)
@@ -1263,6 +1354,8 @@ class DroidDeckHudView(context: Context) : View(context) {
 
     // ---- Measure / draw ---------------------------------------------------
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        // The Strip spans the parent, past the side margin the floating sizes keep.
+        if (stripRect != null) { setMeasuredDimension(contentW.roundToInt(), resolveSize(contentH.roundToInt(), heightMeasureSpec)); return }
         setMeasuredDimension(
             resolveSize(contentW.roundToInt(), widthMeasureSpec),
             resolveSize(contentH.roundToInt(), heightMeasureSpec),
@@ -1283,6 +1376,7 @@ class DroidDeckHudView(context: Context) : View(context) {
 
         chipRect?.let { drawChip(canvas, it) }
         tabRect?.let { drawTab(canvas, it) }
+        stripRect?.let { drawStrip(canvas, it) }
 
         // Text
         for (g in glyphs) {
@@ -1322,6 +1416,21 @@ class DroidDeckHudView(context: Context) : View(context) {
         graphPaint.strokeWidth = sp(1.6f)
         graphPaint.color = blend(colGraph)
         canvas.drawPath(graphPath, graphPaint)
+    }
+
+    /** The bar, with the accent line on the side that faces the game (under it at the top, over it at the bottom). */
+    private fun drawStrip(canvas: Canvas, rect: RectF) {
+        headerPaint.shader = null
+        headerPaint.color = panelColor()
+        canvas.drawRect(rect, headerPaint)
+        val stroke = outlineWidth()
+        if (stroke <= 0f) return
+        val line = max(stroke / 2f, density)
+        val p = parent as? View
+        val atBottom = p != null && p.height > 0 && y + height / 2f > p.height / 2f
+        headerPaint.color = withAlpha(outlineColor(), (110 + 145 * outlineIntensity).roundToInt().coerceAtMost(255))
+        if (atBottom) canvas.drawRect(rect.left, rect.top, rect.right, rect.top + line, headerPaint)
+        else canvas.drawRect(rect.left, rect.bottom - line, rect.right, rect.bottom, headerPaint)
     }
 
     private fun outlineWidth(): Float = if (outlineIntensity > 0f) outlineIntensity * sp(3.5f) else 0f
@@ -1438,6 +1547,8 @@ class DroidDeckHudView(context: Context) : View(context) {
             passesTouchAt?.invoke(event.rawX, event.rawY) == true) return false
         return lockController.onTouchEvent(event)
     }
+
+    internal val isStrip: Boolean get() = stripRect != null
 
     internal val contentWidth: Float get() = contentW
     internal val contentHeight: Float get() = contentH

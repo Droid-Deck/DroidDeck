@@ -45,6 +45,7 @@ class DroidDeckHudPanelTest {
         }
         val snapshot = SNAPSHOT
         for (size in DroidDeckHudSize.values()) {
+            if (size == DroidDeckHudSize.STRIP) continue
             val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
             view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to size.token)))
             view.setFrameStats(stats)
@@ -68,6 +69,48 @@ class DroidDeckHudPanelTest {
                 assertTrue("$size graph clears the round side", graph.right <= edge)
             }
         }
+    }
+
+    @Test fun stripIsOneLineAcrossTheParentWithTheClockOnTheRight() {
+        val app = RuntimeEnvironment.getApplication()
+        val parent = FrameLayout(app)
+        val view = DroidDeckHudView(app)
+        parent.addView(view, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT))
+        parent.measure(View.MeasureSpec.makeMeasureSpec(2400, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY))
+        parent.layout(0, 0, 2400, 1080)
+        view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to DroidDeckHudSize.STRIP.token) +
+            ("showBattery" to "1")))
+        view.showForTest(SNAPSHOT, "DXVK", 0L)
+        val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        view.measure(unspecified, unspecified)
+
+        assertTrue(view.isStrip)
+        assertEquals(2400, view.measuredWidth)
+        val lines = view.linesForTest()
+        assertEquals(lines.toString(), 1, lines.size)
+        val line = lines.single()
+        listOf("DXVK", "fps", "GPU", "CPU", "RAM", "BAT 79%").forEach { assertTrue(line, it in line) }
+        assertTrue(line, line.indexOf("DXVK") < line.indexOf("GPU") && line.indexOf("GPU") < line.indexOf("BAT"))
+
+        val bitmap = Bitmap.createBitmap(view.measuredWidth, view.measuredHeight, Bitmap.Config.ARGB_8888)
+        view.layout(0, 0, view.measuredWidth, view.measuredHeight)
+        view.draw(Canvas(bitmap))
+        val png = ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        println("DROIDDECKHUD-STRIP-PNG ${Base64.getEncoder().encodeToString(png.toByteArray())}")
+    }
+
+    @Test fun stripLeavesOffWhatNoLongerFitsBeforeTheClock() {
+        val app = RuntimeEnvironment.getApplication()
+        val parent = FrameLayout(app)
+        val view = DroidDeckHudView(app)
+        parent.addView(view, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT))
+        parent.measure(View.MeasureSpec.makeMeasureSpec(700, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.EXACTLY))
+        parent.layout(0, 0, 700, 400)
+        view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to DroidDeckHudSize.STRIP.token)))
+        view.showForTest(SNAPSHOT, "DXVK", 0L)
+        val line = view.linesForTest().single()
+        assertTrue(line, "fps" in line)
+        assertFalse(line, "BAT" in line)
     }
 
     @Test fun pillShowsEachBatteryPartOnItsOwnSwitch() {

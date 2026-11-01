@@ -651,6 +651,7 @@
     <string name="hud_size_pill">Hap</string>
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">Şerit</string>
     <string name="hud_locked">Yerinde kilitle</string>
     <string name="hud_locked_hint">Taşımak için HUD\'u sürükleyin; uzun basmak onu kilitler veya kilidini açar. Kilitliyken altındaki ekran kontrolleri çalışmaya devam eder.</string>
     <string name="hud_group_look">Görünüm</string>

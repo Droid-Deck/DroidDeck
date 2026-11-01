@@ -651,6 +651,7 @@
     <string name="hud_size_pill">Piller</string>
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">List</string>
     <string name="hud_locked">Lås på plats</string>
     <string name="hud_locked_hint">Dra HUD:en för att flytta den; ett långt tryck låser eller låser upp den. När den är låst fungerar skärmkontrollerna under den fortfarande.</string>
     <string name="hud_group_look">Utseende</string>

@@ -651,6 +651,7 @@
     <string name="hud_size_pill">पिल</string>
     <string name="hud_size_minimal">मिनिमल</string>
     <string name="hud_size_mega">मेगा</string>
+    <string name="hud_size_strip">पट्टी</string>
     <string name="hud_locked">जगह पर लॉक करें</string>
     <string name="hud_locked_hint">HUD को खिसकाने के लिए उसे ड्रैग करें; देर तक दबाने से वह लॉक या अनलॉक होता है। लॉक रहने पर भी उसके नीचे के ऑन-स्क्रीन कंट्रोल काम करते रहते हैं।</string>
     <string name="hud_group_look">लुक</string>

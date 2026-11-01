@@ -651,6 +651,7 @@
     <string name="hud_size_pill">Kapszula</string>
     <string name="hud_size_minimal">Minimális</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">Sáv</string>
     <string name="hud_locked">Rögzítés a helyén</string>
     <string name="hud_locked_hint">Húzd a HUD-ot az áthelyezéshez; hosszú nyomással rögzítheted vagy feloldhatod. Rögzítve is működnek az alatta lévő képernyős vezérlők.</string>
     <string name="hud_group_look">Megjelenés</string>

@@ -23,9 +23,10 @@ enum class DroidDeckHudSize(val token: String, val label: String) {
     TILES("tiles", "Tiles"),
     PILL("pill", "Pill"),
     MINIMAL("minimal", "Minimal"),
-    MEGA("mega", "Mega");
+    MEGA("mega", "Mega"),
+    STRIP("strip", "Strip");
 
-    /** Next size in the tap-cycle: Full → Tiles → Pill → Minimal → Mega → Full. */
+    /** Next size in the tap-cycle: Full → Tiles → Pill → Minimal → Mega → Strip → Full. */
     fun next(): DroidDeckHudSize {
         val all = values()
         return all[(ordinal + 1) % all.size]
@@ -40,7 +41,7 @@ enum class DroidDeckHudSize(val token: String, val label: String) {
     fun supportedChips(): Set<String> = when (this) {
         MINIMAL -> MINIMAL_CHIPS
         PILL -> PILL_CHIPS
-        FULL, TILES -> STANDARD_CHIPS
+        FULL, TILES, STRIP -> STANDARD_CHIPS
         MEGA -> MEGA_CHIPS
     }
 

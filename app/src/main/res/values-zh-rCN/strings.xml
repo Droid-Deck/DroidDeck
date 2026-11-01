@@ -638,6 +638,7 @@
     <string name="hud_size_pill">胶囊</string>
     <string name="hud_size_minimal">极简</string>
     <string name="hud_size_mega">超大</string>
+    <string name="hud_size_strip">横条</string>
     <string name="hud_locked">锁定位置</string>
     <string name="hud_locked_hint">拖动 HUD 可移动位置；长按可锁定或解锁。锁定时，下方的屏幕控件仍可使用。</string>
     <string name="hud_group_look">外观</string>

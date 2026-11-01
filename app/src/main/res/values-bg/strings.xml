@@ -651,6 +651,7 @@
     <string name="hud_size_pill">Хапче</string>
     <string name="hud_size_minimal">Минимален</string>
     <string name="hud_size_mega">Мега</string>
+    <string name="hud_size_strip">Лента</string>
     <string name="hud_locked">Заключване на място</string>
     <string name="hud_locked_hint">Плъзнете HUD, за да го преместите; продължително натискане го заключва или отключва. Докато е заключен, екранните контроли под него продължават да работят.</string>
     <string name="hud_group_look">Визия</string>
