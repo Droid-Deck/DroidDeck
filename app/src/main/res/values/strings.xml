@@ -1985,7 +1985,7 @@
     <string name="bottom_chat_volume">Volume %1$d%%</string>
     <string name="bottom_page_telemetry">In-game stats</string>
     <string name="bottom_hud_group">Bottom screen HUD</string>
-    <string name="bottom_hud_group_detail">The line of numbers on the bottom screen. Works with the top HUD off and does not change it.</string>
+    <string name="bottom_hud_group_detail">Works with the top HUD off and does not change it. The number switches below are for the Line strip: under the tabs, and the Line style above a game\'s dashboard.</string>
     <string name="bottom_hud_hint">The big HUD, the Line strip and the strip under the tabs. A game\'s dashboard stays.</string>
     <string name="bottom_strip_tabs">Strip on every tab</string>
     <string name="bottom_strip_tabs_hint">Shows the line under the tabs while you use the bottom screen.</string>

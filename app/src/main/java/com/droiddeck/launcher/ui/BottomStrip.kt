@@ -46,7 +46,7 @@ internal fun SessionBottomStrip(pageId: String?, fps: () -> Float?) {
     val tempDisplay = remember { HudMetrics.TempDisplay.from(KeyValueSet(DroidDeckHudConfig.encode(DroidDeckHudConfig.load(context)))) }
     LaunchedEffect(frames) {
         while (isActive) {
-            if (frames.poll(System.nanoTime())) frameTick++
+            if (frames.poll(System.nanoTime()) || !frames.live) frameTick++
             delay(STRIP_FRAME_MS)
         }
     }

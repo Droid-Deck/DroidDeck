@@ -150,7 +150,7 @@ internal class FrameStats {
         const val LOWS_FRAMES = 8192
         private const val PAUSE_NS = 1_000_000_000L
         const val SLOW_NS = 33_333_334L
-        private const val SLOW_FRAMES = 512
+        private const val SLOW_FRAMES = 2048
         private const val LOWS_RECOMPUTE_NS = 250_000_000L
     }
 }

@@ -71,11 +71,17 @@ internal object StatsColors {
 
 internal class History(private val capacity: Int) {
     private val values = ArrayDeque<Float>(capacity)
-    fun add(v: Float) {
-        if (values.size == capacity) values.removeFirst()
+    private val times = ArrayDeque<Long>(capacity)
+    fun add(v: Float, atMs: Long = 0L) {
+        if (values.size == capacity) {
+            values.removeFirst()
+            times.removeFirst()
+        }
         values.addLast(v)
+        times.addLast(atMs)
     }
     fun snapshot(): List<Float> = values.toList()
+    fun spanSeconds(nowMs: Long): Int = times.firstOrNull()?.takeIf { it > 0L }?.let { ((nowMs - it) / 1000L).toInt() } ?: 0
 }
 
 private val MARK_RATIO = DroidDeckMark.widthFor(1f)

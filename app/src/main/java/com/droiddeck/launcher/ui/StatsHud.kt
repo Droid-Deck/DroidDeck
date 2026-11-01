@@ -97,6 +97,7 @@ internal class HudData(
     val fahrenheit: Boolean,
     val tempColor: (HudMetrics.TempSensor, Int) -> Color,
     val redC: (HudMetrics.TempSensor) -> Int?,
+    val historySeconds: Int = 0,
 ) {
     val frametimeMs: Float? get() = fps?.takeIf { it > 0f }?.let { 1000f / it }
     val hz: Int get() = if (refreshHz > 0) refreshHz else 60
@@ -122,7 +123,7 @@ internal fun StatsHudView(style: StatsHud, d: HudData, modifier: Modifier, onTap
     val accent = LocalPalette.current.primary
     val night = style == StatsHud.NIGHT
     Box(modifier.clickable(onClick = onTap)) {
-        HudPanel(d.clock, if (style == StatsHud.GRAPHS) stringResource(R.string.stats_hud_last_seconds, d.fpsHistory.size) else null, night, accent) {
+        HudPanel(d.clock, if (style == StatsHud.GRAPHS) stringResource(R.string.stats_hud_last_seconds, d.historySeconds) else null, night, accent) {
             when (style) {
                 StatsHud.BIG_FPS -> BigFps(d, accent)
                 StatsHud.FULL -> Full(d, accent)
@@ -227,6 +228,8 @@ private fun AnnotatedString.Builder.num(value: String, unit: String, size: TextU
 }
 
 private fun AnnotatedString.Builder.gap() = append("  ")
+
+private fun tempLabel(d: HudData, c: Int): String = if (d.fahrenheit) "${c * 9 / 5 + 32}°F" else "$c°C"
 
 private fun AnnotatedString.Builder.temp(d: HudData, sensor: HudMetrics.TempSensor, c: Int?, size: TextUnit) {
     if (c == null) { num("–", "", size); return }
@@ -394,11 +397,11 @@ private fun ColumnScope.Tiles(d: HudData, accent: Color) {
             Tile("FPS", accent, buildAnnotatedString { num(f1(d.fps), "", z) }, "${f1(d.avgFps)} avg · ${f1(d.lows.low1Fps)} 1%", glow = accent)
             Tile("FRAME", HudInk.dim, buildAnnotatedString { num(f1(d.frametimeMs), "ms", z, unitScale = u) }, "max %.1f ms".format(d.graph.maxOrNull() ?: 0f))
             Tile("GPU", StatsColors.gpu, buildAnnotatedString { num(s?.gpuPercent?.toString() ?: "–", "%", z, unitScale = u) },
-                listOfNotNull(s?.gpuTempC?.let { "$it°C" }, s?.gpuClockMhz?.let { "$it MHz" }).joinToString(" · "))
+                listOfNotNull(s?.gpuTempC?.let { tempLabel(d, it) }, s?.gpuClockMhz?.let { "$it MHz" }).joinToString(" · "))
         }
         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Tile("CPU", StatsColors.cpu, buildAnnotatedString { num(s?.cpuPercent?.toString() ?: "–", "%", z, unitScale = u) },
-                listOfNotNull(s?.cpuTempC?.let { "$it°C" }, s?.cpuClockMhz?.let { "$it MHz" }).joinToString(" · "))
+                listOfNotNull(s?.cpuTempC?.let { tempLabel(d, it) }, s?.cpuClockMhz?.let { "$it MHz" }).joinToString(" · "))
             Tile("RAM", StatsColors.ram, buildAnnotatedString { num(s?.ramPercent?.roundToInt()?.toString() ?: "–", "%", z, unitScale = u) },
                 "${gib(s?.ramUsedBytes)} / ${gib(s?.ramTotalBytes)} GiB")
             Tile("VRAM", HudInk.vram, buildAnnotatedString { num(gib(s?.vramUsedBytes), "GiB", z, unitScale = u) }, d.gpuName)
@@ -421,8 +424,8 @@ private fun ColumnScope.Rings(d: HudData, accent: Color) {
         }
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-                Ring(96.dp, s?.gpuPercent?.let { it / 100f }, StatsColors.gpu, "GPU", s?.gpuTempC?.let { "$it°C" }) { Big(s?.gpuPercent?.toString() ?: "–", "%", 20.sp, HudInk.value, false, 0.6f) }
-                Ring(96.dp, s?.cpuPercent?.let { it / 100f }, StatsColors.cpu, "CPU", s?.cpuTempC?.let { "$it°C" }) { Big(s?.cpuPercent?.toString() ?: "–", "%", 20.sp, HudInk.value, false, 0.6f) }
+                Ring(96.dp, s?.gpuPercent?.let { it / 100f }, StatsColors.gpu, "GPU", s?.gpuTempC?.let { tempLabel(d, it) }) { Big(s?.gpuPercent?.toString() ?: "–", "%", 20.sp, HudInk.value, false, 0.6f) }
+                Ring(96.dp, s?.cpuPercent?.let { it / 100f }, StatsColors.cpu, "CPU", s?.cpuTempC?.let { tempLabel(d, it) }) { Big(s?.cpuPercent?.toString() ?: "–", "%", 20.sp, HudInk.value, false, 0.6f) }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
                 Ring(96.dp, s?.ramPercent?.let { it / 100f }, StatsColors.ram, "RAM", s?.let { "${gib(it.ramUsedBytes)} GiB" }) {
@@ -462,7 +465,7 @@ private fun ColumnScope.Cores(d: HudData, accent: Color) {
     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Big(f1(d.fps), "fps", 40.sp, accent, glow = true, unitScale = 0.38f)
         Small(listOfNotNull(d.engine.ifEmpty { null }, d.frametimeMs?.let { "%.1f ms".format(it) },
-            s?.cpuPercent?.let { "CPU $it%" }, s?.cpuTempC?.let { "$it°C" }).joinToString(" · "), 15.sp, modifier = Modifier.padding(bottom = 6.dp))
+            s?.cpuPercent?.let { "CPU $it%" }, s?.cpuTempC?.let { tempLabel(d, it) }).joinToString(" · "), 15.sp, modifier = Modifier.padding(bottom = 6.dp))
     }
     Spacer(Modifier.height(10.dp))
     val gameTag = stringResource(R.string.stats_hud_game_cores)

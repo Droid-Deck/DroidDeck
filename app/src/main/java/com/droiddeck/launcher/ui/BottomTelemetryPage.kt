@@ -226,12 +226,16 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
             device = withContext(Dispatchers.IO) { runCatching { metrics.snapshot() }.getOrNull() }
             fanRpm = fanPath?.let { path -> withContext(Dispatchers.IO) { HwmonComponent.readRpm(path) } }
             val pid = if (frames.live && !frames.steamFocused) frames.pid else 0
-            if (pid > 0 && pid != protonPid) {
-                protonPid = pid
-                proton = withContext(Dispatchers.IO) { DroidDeckHudHost.protonName(pid) } ?: proton
+            if (pid == 0) {
+                protonPid = 0
+                if (!frames.live) proton = null
+            } else if (pid != protonPid) {
+                val name = withContext(Dispatchers.IO) { DroidDeckHudHost.protonName(pid) }
+                proton = name
+                if (name != null) protonPid = pid
             }
             playedSeconds = if (pid > 0 && running != null) withContext(Dispatchers.IO) { processSeconds(pid) } else null
-            currentFps()?.takeIf { it > 0f }?.let { fpsHistory.add(it) }
+            currentFps()?.takeIf { it > 0f }?.let { fpsHistory.add(it, android.os.SystemClock.elapsedRealtime()) }
             device?.let { s ->
                 s.cpuPercent?.let { cpuHistory.add(it.toFloat()) }
                 s.gpuPercent?.let { gpuHistory.add(it.toFloat()) }
@@ -311,6 +315,7 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
                         refreshHz = hz, proton = proton, device = device, gpuName = gpuName, fanRpm = fanRpm,
                         title = title, cover = cover, played = playedSeconds?.let(::playedText), clock = clock,
                         fpsHistory = fpsHistory.snapshot(), cpuHistory = cpuHistory.snapshot(), gpuHistory = gpuHistory.snapshot(),
+                        historySeconds = fpsHistory.spanSeconds(android.os.SystemClock.elapsedRealtime()),
                         coreGroups = coreGroups, gameCores = gameCores, fahrenheit = tempDisplay.fahrenheit,
                         tempColor = { sensor, c ->
                             thresholds[sensor]?.let { Color(HudMetrics.tempColor(c.toFloat(), it, tempDisplay, TEMP_PLAIN)) } ?: Color(TEMP_PLAIN)
