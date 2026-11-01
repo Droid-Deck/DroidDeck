@@ -97,6 +97,7 @@ DroidDeck is [GPL-3.0](LICENSE). Steam and Proton belong to Valve Corporation. V
 - The Xbox Cloud Gaming player uses the WebRTC client of [@unknownskl](https://github.com/unknownskl)'s [Greenlight](https://github.com/unknownskl/greenlight) (MIT), and its offer tweaks and sharpening follow [@redphx](https://github.com/redphx)'s [Better xCloud](https://github.com/redphx/better-xcloud) (MIT). See `tools/xcloud-player/NOTICE.md`.
 - The itch.io butler pack ships butler's `7z.so`, itch.io's build of [7-Zip](https://www.7-zip.org) by Igor Pavlov (LGPL-2.1, unRAR restriction on RAR code), unmodified. Other archives use Apache Commons Compress and the runtime's bsdtar (libarchive).
 - The Store uses [Flatpak](https://github.com/flatpak/flatpak) (LGPL-2.1) through DroidDeck's own bubblewrap shim. Chromium and Electron apps start directly, since [zypak](https://github.com/refi64/zypak) by [@refi64](https://github.com/refi64) (BSD-3-Clause) always uses Flatpak's spawn portal.
+- Folder sync runs [Syncthing](https://github.com/syncthing/syncthing) (MPL-2.0), built from [@researchxxl](https://github.com/researchxxl)'s [syncthing-android](https://github.com/researchxxl/syncthing-android) fork (MPL-2.0).
 
 </details>
 
