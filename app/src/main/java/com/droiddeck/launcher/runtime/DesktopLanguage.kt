@@ -18,7 +18,7 @@ object DesktopLanguage {
 
     internal fun parseIndex(text: String): Map<String, Pack> = text.lineSequence().mapNotNull { line ->
         val parts = line.trim().split(' ')
-        if (parts.size != 3 || !parts[1].matches(Regex("[0-9a-fA-F]{64}"))) return@mapNotNull null
+        if (parts.size != 3 || !parts[0].matches(Regex("[A-Za-z_]+")) || !parts[1].matches(Regex("[0-9a-fA-F]{64}"))) return@mapNotNull null
         Pack(parts[0], parts[1], parts[2].toLongOrNull() ?: return@mapNotNull null)
     }.associateBy { it.locale }
 
@@ -26,7 +26,7 @@ object DesktopLanguage {
     internal fun candidates(locale: Locale): List<String> {
         val region = DesktopLocale.lang(locale).removeSuffix(".UTF-8")
         if (region == DesktopLocale.DEFAULT.removeSuffix(".UTF-8") || region.startsWith("en")) return emptyList()
-        return listOf(region, region.substringBefore('_')).distinct()
+        return listOfNotNull(region, "zh_TW".takeIf { region == "zh_HK" }, region.substringBefore('_')).distinct()
     }
 
     internal fun baseUrl(desktopUrl: String) = desktopUrl.substringBeforeLast('/') + "/"
@@ -34,6 +34,7 @@ object DesktopLanguage {
     private fun marker(root: File, tag: String, name: String) = File(root, ".droiddeck-i18n-$tag-$name")
 
     /** Installs the desktop's translations for [locale]; false when a download failed and is worth retrying. */
+    @Synchronized
     fun ensure(context: Context, locale: Locale): Boolean {
         val root = LinuxRuntime.rootDir(context)
         if (!DesktopCatalog.desktopInstalled(root)) return true

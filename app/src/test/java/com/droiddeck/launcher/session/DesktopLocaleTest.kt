@@ -21,6 +21,19 @@ class DesktopLocaleTest {
         assertEquals("zh_HK.UTF-8", lang("zh-HK"))
     }
 
+    @Test fun chineseScriptBeatsRegion() {
+        assertEquals("zh_CN.UTF-8", lang("zh-Hans-HK"))
+        assertEquals("zh_TW.UTF-8", lang("zh-Hant-CN"))
+        assertEquals("zh_TW.UTF-8", lang("zh-MO"))
+        assertEquals("zh_HK:zh_TW:zh", DesktopLocale.language(Locale.forLanguageTag("zh-HK")))
+    }
+
+    @Test fun systemRegionsSurvive() {
+        assertEquals("en_GB.UTF-8", lang("en-GB"))
+        assertEquals("fr_CA.UTF-8", lang("fr-CA"))
+        assertEquals("de_DE.UTF-8", lang("de-XX"))
+    }
+
     @Test fun everyAppLanguageHasALocale() {
         AppLanguage.supported.forEach { assertTrue(it, lang(it) != DesktopLocale.DEFAULT) }
     }
