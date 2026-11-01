@@ -83,7 +83,7 @@ class ComponentsPageProfileTest {
 
     @Test fun componentSourcesStayDisabledWhileADownloadIsActive() {
         val context = RuntimeEnvironment.getApplication()
-        show(downloads = mapOf("dxvk.wcp" to 42))
+        show(comp = "dxvk", downloads = mapOf("dxvk.wcp" to 42))
 
         compose.onNodeWithContentDescription(context.getString(R.string.sources_component_title))
             .assertIsNotEnabled()
