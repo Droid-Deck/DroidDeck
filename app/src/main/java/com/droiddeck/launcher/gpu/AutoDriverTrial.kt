@@ -48,10 +48,6 @@ object AutoDriverTrial {
 
     fun bad(context: Context): Set<String> = prefs(context).getStringSet("bad", emptySet()).orEmpty()
 
-    /**
-     * Counted before the compositor loads the trial display driver, so a driver that kills the process during
-     * Vulkan init still counts towards a rollback; sessionStarting runs too late for that.
-     */
     fun displayStarting(context: Context, display: String) {
         val p = prefs(context)
         if (p.getString("release", null) == null || p.getString("display", "") != display) return

@@ -71,7 +71,7 @@
     <string name="gesture_key_backspace">退格</string>
     <string name="gesture_key_enter">Enter</string>
     <string name="gesture_key_tab">Tab</string>
-    <string name="gesture_key_space">Space</string>
+    <string name="gesture_key_space">空白鍵</string>
     <string name="gesture_key_delete">刪除</string>
     <string name="gesture_key_insert">插入</string>
     <string name="gesture_key_home">Home</string>

@@ -10,7 +10,6 @@ object RuntimeHealth {
 
     fun brokenLibraryLinks(context: Context): List<String> = brokenLibraryLinks(LinuxRuntime.rootDir(context))
 
-    /** A complete runtime has no library link in usr/lib whose target is missing. */
     fun brokenLibraryLinks(root: File): List<String> =
         listOf("usr/lib", "usr/lib/aarch64-linux-gnu").flatMap { dir ->
             val lib = File(root, dir)

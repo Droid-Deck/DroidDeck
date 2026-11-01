@@ -3,13 +3,6 @@ package com.droiddeck.launcher.hud
 import java.io.File
 import kotlin.math.roundToInt
 
-/**
- * Frame statistics by MangoHud's rules, so the HUD and Steam's performance overlay agree: MangoHud
- * overlay.cpp update_hud_info_with_frametime and hud_elements.cpp fps() / frame_timing(). The FPS is the
- * frames counted over a sampling period of at least 500 ms, the frame time next to it is 1000 / FPS, and
- * the graph holds the last 200 frame times (zeros until filled) on a fixed 0-50 ms scale, min and max
- * taken over those 200. Average and lows are DroidDeck HUD's own readouts.
- */
 internal class FrameStats {
     private val graph = FloatArray(GRAPH_FRAMES)
     private var graphHead = 0
@@ -29,11 +22,9 @@ internal class FrameStats {
     @Volatile var fps = 0f
         private set
 
-    /** Completed sampling periods; MangoHud redraws its readouts when one completes. */
     @Volatile var fpsUpdates = 0L
         private set
 
-    /** Frames added so far; the HUD redraws its graph when this moves. */
     @Volatile var count = 0L
         private set
 
@@ -81,10 +72,8 @@ internal class FrameStats {
         count++
     }
 
-    /** MangoHud's frame time readout: 1000 / FPS. */
     fun frametimeMs(): Float = 1000f / maxOf(fps, 1f)
 
-    /** The graph, oldest first, into [out] (GRAPH_FRAMES long). */
     @Synchronized
     fun graph(out: FloatArray) {
         for (i in 0 until GRAPH_FRAMES) out[i] = graph[(graphHead + i) % GRAPH_FRAMES]
@@ -96,7 +85,6 @@ internal class FrameStats {
     @Synchronized
     fun graphMaxMs(): Float = graph.max()
 
-    /** Average over the frames this session, from the first frame to [nowNs]'s last frame. */
     @Synchronized
     fun averageFps(): Float {
         if (sessionFrames < 2 || lastPresentNs <= sessionStartNs) return 0f
@@ -112,7 +100,6 @@ internal class FrameStats {
         }
     }
 
-    /** FPS at the 99th, 99.9th and 99.99th percentile frame time of the last LOWS_FRAMES frames. */
     fun lows(nowNs: Long): Lows {
         val copy: LongArray
         synchronized(this) {
@@ -145,11 +132,6 @@ internal class FrameStats {
     }
 }
 
-/**
- * Feeds [stats] with the frame times gamescope shares (the ones MangoHud shows). Sessions without the
- * shared file, or where gamescope stopped sending, fall back to the frames DroidDeck's compositor shows,
- * which stop at the screen's refresh rate.
- */
 internal class GameFrameFeed(private val file: File, val stats: FrameStats = FrameStats()) {
     private var handle = 0L
     private var nextOpenNs = 0L
@@ -160,7 +142,7 @@ internal class GameFrameFeed(private val file: File, val stats: FrameStats = Fra
     private val info = IntArray(5)
     @Volatile private var fromGamescope = false
     private var lastCompositorNs = 0L
-    @Volatile private var compositorFrames = 0L     // written by the compositor thread only
+    @Volatile private var compositorFrames = 0L
     private var seenCompositorFrames = 0L
 
     @Volatile var engine = ""
@@ -176,7 +158,6 @@ internal class GameFrameFeed(private val file: File, val stats: FrameStats = Fra
     @Volatile var refreshMilliHz = 0
         private set
 
-    /** Main thread, once per display frame. True when new frames arrived. */
     fun poll(nowNs: Long): Boolean {
         val compositorAdded = compositorFrames != seenCompositorFrames
         seenCompositorFrames = compositorFrames
@@ -185,7 +166,6 @@ internal class GameFrameFeed(private val file: File, val stats: FrameStats = Fra
             nextOpenNs = nowNs + REOPEN_NS
             handle = runCatching { HudFrames.nativeOpen(file.path) }.getOrDefault(0L)
             if (handle == 0L) return compositorAdded
-            // Frames already in the file were written before this reader started.
             HudFrames.nativePoll(handle, frametimes, times)
         }
         val n = HudFrames.nativePoll(handle, frametimes, times)
@@ -199,7 +179,6 @@ internal class GameFrameFeed(private val file: File, val stats: FrameStats = Fra
         } else if (lastRingFrameNs != 0L && nowNs - lastRingFrameNs > LIVE_NS) {
             fromGamescope = false
         }
-        // A new session writes the file again from the start; reopen when gamescope has gone quiet.
         if (n <= 0 && nowNs - maxOf(lastRingFrameNs, nextOpenNs - REOPEN_NS) > STALE_NS) close()
         if (nowNs - lastInfoNs >= INFO_NS) {
             lastInfoNs = nowNs
@@ -208,7 +187,6 @@ internal class GameFrameFeed(private val file: File, val stats: FrameStats = Fra
         return n > 0 || compositorAdded
     }
 
-    /** Compositor thread: one frame shown on the panel. */
     fun onCompositorFrame(nowNs: Long) {
         if (fromGamescope) {
             lastCompositorNs = 0L
@@ -247,8 +225,6 @@ internal class GameFrameFeed(private val file: File, val stats: FrameStats = Fra
         private const val STALE_NS = 5_000_000_000L
         private const val INFO_NS = 500_000_000L
 
-        /** DroidDeck's mangoapp's names for gamescope's engine field (Valve's 20260902.1 build, app/main.cpp
-         *  engine_type_from_str and overlay.h engines); gamescope sends "gamescope" when it knows none. */
         fun engineLabel(name: String): String = when (name) {
             "DXVK" -> "DXVK"
             "vkd3d" -> "VKD3D"

@@ -119,7 +119,7 @@ echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"
 dbus-run-session -- startplasma-wayland
 rc=$?
 echo "== droiddeck-desktop: Plasma ended ($rc)"
-if [ "$rc" -eq 0 ]; then
+if [ "$rc" -eq 0 ] && [ -z "${BL_BOTTOM_DESKTOP:-}" ]; then
   /usr/local/bin/droiddeck-steam-launch bigpicture
   sleep 30
 fi

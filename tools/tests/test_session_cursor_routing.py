@@ -1,4 +1,3 @@
-"""Gamescope composites the cursor only when a Steam session asks for it."""
 import os
 from pathlib import Path
 import re

@@ -22,14 +22,11 @@ class DeckControlsPanelTest {
         val directory = Files.createTempDirectory("deck-panel").toFile()
         try {
             SessionState.deckPad = false
-            // No pad: the Deck layouts (trackpads, grips). A pad without Deck controls: the gamepad layout
-            // (sticks, d-pad, face buttons).
             for (pad in listOf(null, PadBridge(directory))) for (portraitDock in listOf(false, true)) {
                 val name = "pad=${pad != null} portraitDock=$portraitDock"
                 val panel = DeckControlsPanel(RuntimeEnvironment.getApplication(), onClose = {}, onSteamMenu = {}, onQam = {},
                     pad = pad, portraitDock = portraitDock)
                 assertEquals(name, pad == null, panel.deckControls)
-                // The portrait dock sits under a portrait game; its gamepad layout needs a tall panel.
                 val (w, h) = if (portraitDock) 720 to 1000 else 1200 to 480
                 panel.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
                     View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
@@ -41,7 +38,6 @@ class DeckControlsPanelTest {
                     val down = MotionEvent.obtain(0L, 0L, MotionEvent.ACTION_DOWN, x.toFloat(), y.toFloat(), 0)
                     assertEquals("$name ($x, $y)", expected, panel.dispatchTouchEvent(down))
                     down.recycle()
-                    // Cancel rather than lift, so no button fires its action.
                     MotionEvent.obtain(0L, 1L, MotionEvent.ACTION_CANCEL, x.toFloat(), y.toFloat(), 0).also { panel.dispatchTouchEvent(it); it.recycle() }
                     if (expected) taken++ else missed++
                 }

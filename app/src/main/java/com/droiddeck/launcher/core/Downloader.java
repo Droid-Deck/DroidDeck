@@ -91,7 +91,6 @@ public final class Downloader {
             if (isCancelled(cancelled)) return null;
             if (i > 0) Log.i(TAG, "retrying " + url + " via " + sources.get(i));
             Fetch fetch = fetch(sources.get(i), cancelled);
-            // A cancelled fetch says nothing about the source, so it must not count as a failure.
             if (isCancelled(cancelled)) return null;
             if (fetch.body != null) {
                 DownloadSource.INSTANCE.succeeded(sources.get(i));
@@ -103,7 +102,6 @@ public final class Downloader {
         return null;
     }
 
-    /** Fetches without the mirror list, for a URL whose body is a digest the payload is checked against. */
     public static String downloadDirect(String url) {
         return fetch(url).body;
     }
@@ -113,13 +111,11 @@ public final class Downloader {
         return downloadFile(url, destination, resume, null, progress);
     }
 
-    /** Verify each candidate before accepting it, so a bad mirror can fall back. */
     public static boolean downloadFile(String url, File destination, boolean resume, String expectedSha256,
                                        java.util.function.Consumer<Float> progress) {
         return downloadFile(url, destination, resume, expectedSha256, null, progress);
     }
 
-    /** {@code cancelled} is polled while bytes arrive; a cancel stops at once and leaves the partial file for the caller. */
     public static boolean downloadFile(String url, File destination, boolean resume, String expectedSha256,
                                        java.util.function.BooleanSupplier cancelled,
                                        java.util.function.Consumer<Float> progress) {
@@ -128,13 +124,11 @@ public final class Downloader {
         return downloadCandidates(url, sources(url, expectedSha256), destination, resume, expectedSha256, cancelled, progress);
     }
 
-    /** A third-party mirror may only serve bytes that can be checked against a digest from a direct source. */
     static List<String> sources(String url, String expectedSha256) {
         return expectedSha256 == null ? java.util.Collections.singletonList(url) : DownloadSource.INSTANCE.candidates(url);
 
     }
 
-    // Package-private for the local multi-source HTTP test.
     static boolean downloadCandidates(String original, List<String> sources, File destination, boolean resume,
                                       String expectedSha256, java.util.function.Consumer<Float> progress) {
         return downloadCandidates(original, sources, destination, resume, expectedSha256, null, progress);
@@ -149,7 +143,6 @@ public final class Downloader {
             if (isCancelled(cancelled)) return false;
             if (i > 0) Log.i(TAG, "retrying " + original + " via " + source);
             Outcome outcome = attempt(source, destination, resume, identity, expectedSha256, cancelled, progress);
-            // A cancel is not a source failure: no other mirror, and no DownloadSource.failed().
             if (outcome == Outcome.CANCELLED) return false;
             if (outcome == Outcome.DONE) {
                 if (expectedSha256 != null) {
@@ -192,7 +185,6 @@ public final class Downloader {
         return value != null && !value.isEmpty() && !value.startsWith("W/");
     }
 
-    /** Only reuse saved bytes when we persisted a strong validator and their source. */
     private static Identity loadIdentity(File dest, boolean resume, String expectedSha256) {
         Identity identity = new Identity();
         File marker = resumeFile(dest);
@@ -213,7 +205,6 @@ public final class Downloader {
                 return identity;
             }
         } catch (IOException e) {
-            // Legacy partials or interrupted metadata writes have no trustworthy identity.
         }
         if (!discardPartial(dest, identity)) Log.w(TAG, "could not discard unidentified partial " + dest);
         return identity;
@@ -239,7 +230,7 @@ public final class Downloader {
         try (FileOutputStream out = new FileOutputStream(marker)) {
             p.store(out, "DroidDeck partial download validator");
         } catch (IOException e) {
-            marker.delete(); // No valid metadata means no future resume.
+            marker.delete();
             Log.w(TAG, "cannot persist download validator", e);
         }
     }
@@ -252,7 +243,6 @@ public final class Downloader {
         long have = resume && destination.isFile() ? destination.length() : 0;
         try {
             if (have > 0 && (!url.equals(identity.source) || !strongETag(identity.etag))) {
-                // A new source or unvalidated bytes must restart from byte zero.
                 if (!discardPartial(destination, identity)) return Outcome.RETRY;
                 have = 0;
             }
@@ -286,7 +276,6 @@ public final class Downloader {
                 return attempt(url, destination, false, identity, expectedSha256, cancelled, progress);
             }
             if (!appending && have > 0) {
-                // If-Range may legitimately return full 200 when representation changed.
                 if (!discardPartial(destination, identity)) return Outcome.RETRY;
                 have = 0;
             }
@@ -333,14 +322,12 @@ public final class Downloader {
         }
     }
 
-    /** True when a `Content-Range: bytes START-END/TOTAL` header starts exactly at {@code start}. */
     static boolean rangeStartsAt(String contentRange, long start) {
         if (contentRange == null) return false;
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("^\\s*bytes\\s+(\\d+)-\\d+/(?:\\d+|\\*)\\s*$").matcher(contentRange);
         return m.matches() && Long.parseLong(m.group(1)) == start;
     }
 
-    /** The complete length in a `Content-Range` header, or -1 when the header leaves it unknown. */
     static long rangeTotal(String contentRange) {
         if (contentRange == null) return -1;
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("^\\s*bytes\\s+\\d+-\\d+/(\\d+)\\s*$").matcher(contentRange);
@@ -390,7 +377,6 @@ public final class Downloader {
     }
 
     private static HttpURLConnection open(String url, int readTimeoutMs) throws java.io.IOException {
-        // An explicit Proxy routes the connection through the app setting instead of the system-wide proxy.
         Proxy proxy = DownloadSource.INSTANCE.httpProxy();
         HttpURLConnection connection = (HttpURLConnection) (proxy != null
                 ? new URL(url).openConnection(proxy) : new URL(url).openConnection());

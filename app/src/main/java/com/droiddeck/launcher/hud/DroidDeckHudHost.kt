@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import android.animation.ValueAnimator
 import android.view.Choreographer
 import android.view.View
 import android.view.animation.PathInterpolator
@@ -18,10 +19,6 @@ import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
 import kotlin.math.roundToInt
 
-/**
- * DroidDeck HUD on the session screen, in place of the old text HUD: the view, the frame feed from gamescope
- * (MangoHud's frame times) and MangoHud's readings, started with the session's first frame.
- */
 class DroidDeckHudHost(context: Context) {
     private val context = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
@@ -35,6 +32,11 @@ class DroidDeckHudHost(context: Context) {
     private var polling = false
     private var wantX = Float.NaN
     private var wantY = Float.NaN
+    private var anchorX = Float.NaN
+    private var snaps = true
+    private var snapping = false
+    private var previewFade: ValueAnimator? = null
+    private var flingX = 0f
     private var engine = ""
     private var gpuName = ""
     private var protonPid = 0
@@ -43,13 +45,10 @@ class DroidDeckHudHost(context: Context) {
 
     var onPresentingWindowChanged: (() -> Unit)? = null
 
-    /** The frame rate the HUD shows; null while the HUD is off and not counting frames. */
     val liveFps: Float? get() = if (polling) feed.stats.fps else null
 
-    /** The HUD itself changed a setting: a tap cycles the size, a long press locks it. */
     var onConfigChanged: (() -> Unit)? = null
 
-    /** Screen point → whether an on-screen control takes a touch there; a locked HUD lets those through. */
     var passesTouchAt: ((rawX: Float, rawY: Float) -> Boolean)? = null
 
     private val listener = object : WaylandCompositor.GameListener {
@@ -78,7 +77,6 @@ class DroidDeckHudHost(context: Context) {
         get() = SessionPrefs.hudEnabled(context) &&
             !File(Environment.getExternalStorageDirectory(), "Download/droiddeck-no-hud").exists()
 
-    /** Adds the HUD to [root] at [index] (above the game surface, under the session overlay). */
     fun attach(root: FrameLayout, index: Int) {
         if (view != null) return
         val hud = DroidDeckHudView(root.context)
@@ -86,12 +84,29 @@ class DroidDeckHudHost(context: Context) {
         hud.setMangoReadings(readings)
         hud.setGpuModel(cleanGpuName(GpuInfo.detect().displayName(context)))
         hud.onRefresh = Runnable { refreshLabels(hud) }
+        hud.setOnDraggedListener { rawX, rawY ->
+            anchorX = Float.NaN; snapping = false
+            previewFade?.cancel(); previewFade = null
+            stopMotion(hud)
+            shrinkPastEdge(hud, rawX, rawY)
+        }
+        hud.setOnFlungListener { vx, _ -> flingX = vx }
+        hud.setOnTabDraggedListener { x, y -> dragTab(hud, x, y) }
+        hud.setOnTabDroppedListener { dropTab(hud) }
+        hud.setOnTabDragCancelledListener { snapping = false; keepOnScreen(hud) }
         hud.setOnMovedListener { x, y ->
             wantX = x; wantY = y
-            if (!hud.isStrip) dockEdgeFor(hud)?.let { edge -> setDock(hud, edge); return@setOnMovedListener }
+            val vx = flingX
+            flingX = 0f
+            dockEdgeFor(hud)?.let { edge -> setDock(hud, edge); return@setOnMovedListener }
+            stopMotion(hud)
+            fadeDockPreview(hud)
+            if (snaps && !hud.isStrip) { snapToAnchor(hud, vx); return@setOnMovedListener }
+            val fromX = hud.x; val fromY = hud.y
             keepOnScreen(hud)
             wantX = hud.x; wantY = hud.y
             SessionPrefs.setDroidDeckHudPosition(context, hud.x, hud.y)
+            glideFrom(hud, fromX, fromY)
         }
         hud.setOnSizeCycledListener { size -> DroidDeckHudConfig.set(context, "hudSize", size); onConfigChanged?.invoke() }
         hud.setOnDockChangedListener { token -> setDock(hud, DroidDeckHudDock.from(token)) }
@@ -118,7 +133,10 @@ class DroidDeckHudHost(context: Context) {
     }
 
     fun applyConfig() {
-        view?.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.load(context)))
+        val config = DroidDeckHudConfig.load(context)
+        snaps = config["hudSnap"] != "0"
+        if (!snaps) anchorX = Float.NaN
+        view?.applyConfig(DroidDeckHudConfig.encode(config))
     }
 
     fun refresh() {
@@ -143,13 +161,11 @@ class DroidDeckHudHost(context: Context) {
         view?.visibility = View.GONE
     }
 
-    /** Picture-in-picture and similar: keep running, draw nothing. */
     fun setHidden(hide: Boolean) {
         hidden = hide
         applyShown()
     }
 
-    /** The session screen is stopped (another app in front): draw nothing and stop reading sensors. */
     fun setBackgrounded(stopped: Boolean) {
         backgrounded = stopped
         applyShown()
@@ -160,7 +176,6 @@ class DroidDeckHudHost(context: Context) {
         val show = !hidden && !backgrounded
         view?.visibility = if (show) View.VISIBLE else View.GONE
         showing = show
-        // Frames are read once per display frame only while the HUD is drawn.
         if (show != polling) {
             polling = show
             if (show) Choreographer.getInstance().postFrameCallback(frameCallback)
@@ -168,14 +183,11 @@ class DroidDeckHudHost(context: Context) {
         }
     }
 
-    /** A sensor report (DroidDeck HUD's diagnostics) in Downloads/DroidDeck; null when it can't be written. */
     fun exportDiagnostics(): File? = runCatching {
         val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "DroidDeck")
         dir.mkdirs()
         val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.US).format(java.util.Date())
         val file = File(dir, "HUD-diagnostics-$stamp.txt")
-        // Its own reader: the HUD's CPU load is the change since its previous sample, which an export must
-        // not move. Two samples half a second apart, MangoHud's sampling period.
         val metrics = HudMetrics(context)
         metrics.setMangoReadings(MangoReadings(File(context.filesDir, "session"), LinuxRuntime.rootDir(context)))
         metrics.snapshot()
@@ -185,6 +197,7 @@ class DroidDeckHudHost(context: Context) {
             "CPU ${mango.cpuPercent}% ${mango.cpuTempC}°C, GPU ${mango.gpuPercent}% ${mango.gpuClockMhz}MHz ${mango.gpuTempC}°C, " +
             "RAM ${mango.ramUsedText()}/${mango.ramTotalText()}, VRAM ${mango.vramText()}, battery ${mango.battery.percent}% " +
             "${mango.battery.watts}W charging=${mango.battery.charging}\n" +
+            "GPU feeds: ${com.droiddeck.launcher.session.GpuStatsComponent.sources.ifEmpty { "none (no session, or kgsl absent)" }}\n" +
             "CPU temperature zones: ${LinuxRuntime.cpuTempZones().joinToString { it.name }}\n" +
             "Frames: ${if (feed.engine.isNotEmpty() || feed.pid > 0) "gamescope (pid ${feed.pid}, ${feed.engine})" else "compositor"}, " +
             "fps ${feed.stats.fps}\n")
@@ -214,35 +227,136 @@ class DroidDeckHudHost(context: Context) {
         return if (stats.size > 3 && stats[3] > 1f) stats[3] else 0f
     }
 
-    /** The edge the HUD was dropped over, once a good part of it hangs past that edge; null when it stays. */
     private fun dockEdgeFor(v: View): DroidDeckHudDock? {
-        val p = v.parent as? View ?: return null
-        if (p.width <= 0 || p.height <= 0 || v.width <= 0 || v.height <= 0) return null
-        val over = mapOf(
-            DroidDeckHudDock.LEFT to -v.x / v.width,
-            DroidDeckHudDock.RIGHT to (v.x + v.width - p.width) / v.width,
-            DroidDeckHudDock.TOP to -v.y / v.height,
-            DroidDeckHudDock.BOTTOM to (v.y + v.height - p.height) / v.height,
-        ).maxByOrNull { it.value } ?: return null
+        val over = overhang(v) ?: return null
         return over.key.takeIf { over.value >= DOCK_OVERHANG }
     }
 
-    /** Tucks the HUD against [edge] as its FPS tab, or with [DroidDeckHudDock.NONE] brings it back out from where it was docked. */
+    private fun overhang(v: View): Map.Entry<DroidDeckHudDock, Float>? {
+        val p = v.parent as? View ?: return null
+        if (p.width <= 0 || p.height <= 0 || v.width <= 0 || v.height <= 0) return null
+        val strip = (v as? DroidDeckHudView)?.isStrip == true
+        val density = v.resources.displayMetrics.density
+        val w = if (strip) minOf(v.width.toFloat(), STRIP_PULL_ACROSS_DP * density) else v.width.toFloat()
+        val h = if (strip) maxOf(v.height.toFloat(), STRIP_PULL_OFF_DP * density) else v.height.toFloat()
+        return mapOf(
+            DroidDeckHudDock.LEFT to -v.x / w,
+            DroidDeckHudDock.RIGHT to (v.x + v.width - p.width) / w,
+            DroidDeckHudDock.TOP to -v.y / h,
+            DroidDeckHudDock.BOTTOM to (v.y + v.height - p.height) / h,
+        ).maxByOrNull { it.value }
+    }
+
+    private fun dragTab(hud: DroidDeckHudView, x: Float, y: Float) {
+        val p = hud.parent as? View ?: return
+        stopMotion(hud)
+        snapping = false
+        hud.x = x.coerceIn(0f, (p.width - hud.width).toFloat().coerceAtLeast(0f))
+        hud.y = y.coerceIn(0f, (p.height - hud.height).toFloat().coerceAtLeast(0f))
+    }
+
+    private fun dropTab(hud: DroidDeckHudView) {
+        val p = hud.parent as? View ?: return
+        val maxX = (p.width - hud.width).toFloat().coerceAtLeast(0f)
+        val maxY = (p.height - hud.height).toFloat().coerceAtLeast(0f)
+        val pulled = when (hud.dock) {
+            DroidDeckHudDock.LEFT -> hud.x / hud.width
+            DroidDeckHudDock.RIGHT -> (maxX - hud.x) / hud.width
+            DroidDeckHudDock.TOP -> hud.y / hud.height
+            DroidDeckHudDock.BOTTOM -> (maxY - hud.y) / hud.height
+            DroidDeckHudDock.NONE -> 0f
+        }
+        if (pulled >= 1f) { setDock(hud, DroidDeckHudDock.NONE); return }
+        wantX = hud.x; wantY = hud.y
+        val (x, y) = settled(p, hud.dock, hud.width.toFloat(), hud.height.toFloat())
+        wantX = x; wantY = y
+        SessionPrefs.setDroidDeckHudPosition(context, x, y)
+        if (Motion.scale == 0f) { hud.x = x; hud.y = y; return }
+        snapping = true
+        hud.animate().x(x).y(y).setDuration(Motion.ms(220).toLong()).setInterpolator(EASE)
+            .withEndAction { snapping = false }.start()
+    }
+
+    private fun stopMotion(hud: DroidDeckHudView) {
+        hud.animate().setUpdateListener(null)
+        hud.animate().cancel()
+    }
+
+    private fun glideFrom(hud: DroidDeckHudView, fromX: Float, fromY: Float) {
+        if (Motion.scale == 0f || (fromX == hud.x && fromY == hud.y && hud.scaleX == 1f && hud.scaleY == 1f)) {
+            hud.scaleX = 1f; hud.scaleY = 1f
+            return
+        }
+        val toX = hud.x; val toY = hud.y
+        hud.x = fromX; hud.y = fromY
+        snapping = true
+        hud.animate().x(toX).y(toY).scaleX(1f).scaleY(1f).setDuration(Motion.ms(220).toLong()).setInterpolator(EASE)
+            .withEndAction { snapping = false; keepOnScreen(hud) }.start()
+    }
+
+    private fun fadeDockPreview(hud: DroidDeckHudView) {
+        val from = hud.dockPreviewBlend
+        if (from <= 0f) return
+        val edge = overhang(hud)?.key ?: DroidDeckHudDock.NONE
+        if (Motion.scale == 0f) { hud.setDockPreview(DroidDeckHudDock.NONE, 0f); return }
+        previewFade?.cancel()
+        previewFade = ValueAnimator.ofFloat(from, 0f).apply {
+            duration = Motion.ms(200).toLong()
+            addUpdateListener { hud.setDockPreview(edge, it.animatedValue as Float) }
+            start()
+        }
+    }
+
+    private fun snapToAnchor(hud: DroidDeckHudView, vx: Float) {
+        val p = hud.parent as? View ?: return
+        val maxX = (p.width - hud.width).toFloat().coerceAtLeast(0f)
+        val maxY = (p.height - hud.height).toFloat().coerceAtLeast(0f)
+        anchorX = if (hud.x + vx * FLING_REACH_S < maxX / 2f) 0f else 1f
+        wantX = anchorX * maxX
+        wantY = hud.y.coerceIn(0f, maxY)
+        SessionPrefs.setDroidDeckHudPosition(context, wantX, wantY)
+        stopMotion(hud)
+        if (Motion.scale == 0f) {
+            hud.scaleX = 1f; hud.scaleY = 1f
+            hud.x = wantX; hud.y = wantY
+            return
+        }
+        snapping = true
+        hud.animate().x(wantX).y(wantY).scaleX(1f).scaleY(1f).setDuration(Motion.ms(260).toLong()).setInterpolator(EASE)
+            .withEndAction { snapping = false; keepOnScreen(hud) }.start()
+    }
+
+    private fun shrinkPastEdge(hud: DroidDeckHudView, rawX: Float, rawY: Float) {
+        if (hud.dock != DroidDeckHudDock.NONE) return
+        val p = hud.parent as? View ?: return
+        val edge = overhang(hud) ?: return
+        val over = edge.value
+        val t = (over / DOCK_OVERHANG).coerceIn(0f, 1f)
+        val fade = ((t - PREVIEW_FROM) / (1f - PREVIEW_FROM)).coerceIn(0f, 1f)
+        hud.setDockPreview(edge.key, fade * fade * (3f - 2f * fade))
+        val (tabW, tabH) = hud.dockTabSize()
+        val e = t * t * (3f - 2f * t)
+        val at = IntArray(2).also { p.getLocationOnScreen(it) }
+        hud.pivotX = rawX - at[0] - hud.x
+        hud.pivotY = rawY - at[1] - hud.y
+        if (hud.isStrip) {
+            hud.scaleX = 1f + (tabW / hud.width - 1f) * e
+            hud.scaleY = 1f
+            return
+        }
+        val tabScale = maxOf(tabW / hud.width, tabH / hud.height).coerceAtMost(1f)
+        val s = 1f + (tabScale - 1f) * e
+        hud.scaleX = s; hud.scaleY = s
+    }
+
     private fun setDock(hud: DroidDeckHudView, edge: DroidDeckHudDock) {
         if (edge == hud.dock) return
         animateDock(hud, edge) { commitDock(hud, edge) }
     }
 
     private fun commitDock(hud: DroidDeckHudView, edge: DroidDeckHudDock) {
-        if (edge == DroidDeckHudDock.NONE) {
-            when (hud.dock) {
-                DroidDeckHudDock.LEFT -> wantX = 0f
-                DroidDeckHudDock.RIGHT -> wantX = Float.MAX_VALUE
-                DroidDeckHudDock.TOP -> wantY = 0f
-                DroidDeckHudDock.BOTTOM -> wantY = Float.MAX_VALUE
-                DroidDeckHudDock.NONE -> {}
-            }
-        } else {
+        val tabX = hud.x; val tabY = hud.y
+        if (edge != DroidDeckHudDock.NONE) {
             val p = hud.parent as? View
             if (p != null) {
                 wantX = wantX.coerceIn(0f, p.width.toFloat())
@@ -252,35 +366,55 @@ class DroidDeckHudHost(context: Context) {
         }
         DroidDeckHudConfig.set(context, "hudDock", edge.token)
         applyConfig()
+        if (edge == DroidDeckHudDock.NONE) settleOutOfTab(hud, tabX, tabY)
         hud.post { keepOnScreen(hud) }
         onConfigChanged?.invoke()
     }
 
-    /**
-     * One shape contracts into the tab, and the tab expands back out to the HUD: the view is scaled onto the
-     * tab's exact rectangle, and the layouts swap at that same size and place. Timing and curve are the
-     * launcher's own ([Motion]), and off when animations are off.
-     */
-    private fun animateDock(hud: DroidDeckHudView, edge: DroidDeckHudDock, commit: () -> Unit) {
-        hud.animate().cancel()
-        hud.scaleX = 1f; hud.scaleY = 1f; hud.alpha = 1f
+    private fun settleOutOfTab(hud: DroidDeckHudView, tabX: Float, tabY: Float) {
         val p = hud.parent as? View
-        if (Motion.scale == 0f || p == null || !hud.isLaidOut || hud.width <= 0) { commit(); return }
+        val maxX = if (p == null) Float.MAX_VALUE else (p.width - hud.contentWidth).coerceAtLeast(0f)
+        val maxY = if (p == null) Float.MAX_VALUE else (p.height - hud.contentHeight).coerceAtLeast(0f)
+        wantX = tabX.coerceIn(0f, maxX); wantY = tabY.coerceIn(0f, maxY)
+        anchorX = if (snaps && !hud.isStrip && p != null) (if (wantX < maxX / 2f) 0f else 1f) else Float.NaN
+        if (!anchorX.isNaN()) wantX = anchorX * maxX
+        SessionPrefs.setDroidDeckHudPosition(context, wantX, wantY)
+    }
+
+    private fun animateDock(hud: DroidDeckHudView, edge: DroidDeckHudDock, commit: () -> Unit) {
+        stopMotion(hud)
+        previewFade?.cancel(); previewFade = null
+        snapping = false
+        hud.alpha = 1f
+        val p = hud.parent as? View
+        if (Motion.scale == 0f || p == null || !hud.isLaidOut || hud.width <= 0) {
+            hud.scaleX = 1f; hud.scaleY = 1f
+            hud.setDockPreview(DroidDeckHudDock.NONE, 0f)
+            commit(); return
+        }
         if (edge != DroidDeckHudDock.NONE) {
+            val left = hud.x + hud.pivotX * (1f - hud.scaleX); val top = hud.y + hud.pivotY * (1f - hud.scaleY)
+            val shownW = hud.width * hud.scaleX; val shownH = hud.height * hud.scaleY
+            hud.pivotX = 0f; hud.pivotY = 0f
+            hud.x = left; hud.y = top
             val (tabW, tabH) = hud.dockTabSize()
+            wantX = left + (shownW - tabW) / 2f
+            wantY = top + (shownH - tabH) / 2f
             val (tabX, tabY) = settled(p, edge, tabW, tabH)
             val sx = tabW / hud.width; val sy = tabH / hud.height
-            hud.pivotX = pivotFor(hud.x, tabX, sx) - hud.x
-            hud.pivotY = pivotFor(hud.y, tabY, sy) - hud.y
-            hud.animate().scaleX(sx).scaleY(sy).setDuration(Motion.ms(300).toLong()).setInterpolator(EASE)
+            val from = hud.dockPreviewBlend
+            hud.animate().x(tabX).y(tabY).scaleX(sx).scaleY(sy).setDuration(Motion.ms(220).toLong()).setInterpolator(EASE)
+                .setUpdateListener { hud.setDockPreview(edge, from + (1f - from) * it.animatedFraction) }
                 .withEndAction {
+                    hud.animate().setUpdateListener(null)
                     commit()
+                    hud.setDockPreview(DroidDeckHudDock.NONE, 0f)
                     hud.scaleX = 1f; hud.scaleY = 1f
                     hud.x = tabX; hud.y = tabY
-                    hud.alpha = 0.5f
-                    hud.animate().alpha(1f).setDuration(Motion.ms(120).toLong()).start()
                 }.start()
         } else {
+            hud.scaleX = 1f; hud.scaleY = 1f
+            val was = hud.dock
             val tabX = hud.x; val tabY = hud.y
             val tabW = hud.width.toFloat(); val tabH = hud.height.toFloat()
             commit()
@@ -291,15 +425,20 @@ class DroidDeckHudHost(context: Context) {
             hud.pivotX = pivotFor(x, tabX, sx) - x
             hud.pivotY = pivotFor(y, tabY, sy) - y
             hud.scaleX = sx; hud.scaleY = sy
-            hud.animate().scaleX(1f).scaleY(1f).setDuration(Motion.ms(360).toLong()).setInterpolator(EASE).start()
+            hud.setDockPreview(was, 1f)
+            hud.animate().scaleX(1f).scaleY(1f).setDuration(Motion.ms(360).toLong()).setInterpolator(EASE)
+                .setUpdateListener {
+                    val f = (1f - it.animatedFraction / EXPAND_FADE).coerceIn(0f, 1f)
+                    hud.setDockPreview(was, f * f * (3f - 2f * f))
+                }
+                .withEndAction { hud.animate().setUpdateListener(null); hud.setDockPreview(DroidDeckHudDock.NONE, 0f) }
+                .start()
         }
     }
 
-    /** The pivot, in parent coordinates, that scaling by [scale] takes a span starting at [from] onto one starting at [to]. */
     private fun pivotFor(from: Float, to: Float, scale: Float): Float =
         if (scale > 0.999f) from else (to - from * scale) / (1f - scale)
 
-    /** Where a [w] x [h] HUD or tab sits once [keepOnScreen] has settled it against [dock]. */
     private fun settled(p: View, dock: DroidDeckHudDock, w: Float, h: Float): Pair<Float, Float> {
         val maxX = (p.width - w).coerceAtLeast(0f); val maxY = (p.height - h).coerceAtLeast(0f)
         var x = wantX.coerceIn(0f, maxX); var y = wantY.coerceIn(0f, maxY)
@@ -313,15 +452,18 @@ class DroidDeckHudHost(context: Context) {
         return Pair(x, y)
     }
 
-    // The HUD is clamped from where the user left it (wantX/wantY, set on a drop or restore), not from where
-    // it is drawn: a window that shrinks and grows back (picture-in-picture, a fold) must not leave it in the
-    // corner the small window pushed it to.
     private fun keepOnScreen(v: View) {
+        if (snapping) return
         val p = v.parent as? View ?: return
         if (p.width <= 0 || p.height <= 0 || v.width <= 0 || v.height <= 0) return
         if (wantX.isNaN()) { wantX = v.x; wantY = v.y }
         val maxX = (p.width - v.width).toFloat().coerceAtLeast(0f)
         val maxY = (p.height - v.height).toFloat().coerceAtLeast(0f)
+        val anchored = (v as? DroidDeckHudView)?.let { it.dock == DroidDeckHudDock.NONE && !it.isStrip } == true
+        if (snaps && anchored && anchorX.isNaN()) {
+            anchorX = if (wantX.coerceIn(0f, maxX) < maxX / 2f) 0f else 1f
+        }
+        if (snaps && anchored && !anchorX.isNaN()) wantX = anchorX * maxX
         var x = wantX.coerceIn(0f, maxX)
         var y = wantY.coerceIn(0f, maxY)
         if ((v as? DroidDeckHudView)?.isStrip == true) y = if (y + v.height / 2f < p.height / 2f) 0f else maxY
@@ -337,18 +479,19 @@ class DroidDeckHudHost(context: Context) {
     }
 
     companion object {
-        /** How much of the HUD, as a share of its own size, must hang past a screen edge for it to dock there. */
         private const val DOCK_OVERHANG = 0.4f
+        private const val FLING_REACH_S = 0.18f
+        private const val PREVIEW_FROM = 0.55f
+        private const val STRIP_PULL_ACROSS_DP = 600f
+        private const val STRIP_PULL_OFF_DP = 150f
+        private const val EXPAND_FADE = 0.5f
         private val EASE = PathInterpolator(0.2f, 0.8f, 0.2f, 1f)
 
-        /** True while the HUD is on screen; DroidDeck keeps sampling VRAM for it (GpuMemComponent). */
         @Volatile @JvmStatic var showing = false
             private set
 
-        /** "Adreno (TM) 750" as the driver names it, "Adreno 750" as DroidDeck does elsewhere. */
         internal fun cleanGpuName(name: String): String = name.replace("(TM)", "").replace(Regex("\\s+"), " ").trim()
 
-        /** The Proton build of a game process: the first STEAM_COMPAT_TOOL_PATHS entry's folder. */
         internal fun protonName(pid: Int): String? = runCatching {
             val environ = File("/proc/$pid/environ").readBytes().toString(Charsets.UTF_8).split('\u0000')
             val paths = environ.firstOrNull { it.startsWith("STEAM_COMPAT_TOOL_PATHS=") }?.substringAfter('=') ?: return null

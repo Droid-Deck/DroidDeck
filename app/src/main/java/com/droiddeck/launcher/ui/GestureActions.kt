@@ -41,7 +41,6 @@ internal fun filterGestureActions(actions: List<GestureAction>, query: String, g
             action.title.contains(word, ignoreCase = true) || action.id.removePrefix("key_").replace('_', ' ').contains(word, ignoreCase = true)
         }
     }.sortedWith(compareBy<GestureAction> { it.group.ordinal }.thenComparator { a, b ->
-        // Function keys follow their numeric sequence; names use the UI locale.
         if (a.group == GestureActionGroup.FUNCTION) {
             a.id.removePrefix("key_F").toInt().compareTo(b.id.removePrefix("key_F").toInt())
         } else collator.compare(a.title, b.title)

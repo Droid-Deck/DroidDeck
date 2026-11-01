@@ -246,7 +246,6 @@ class DirtTelemetryFixTest(unittest.TestCase):
 
 
 class EgoCorePlanTest(unittest.TestCase):
-    """DiRT 3's restrictions as shipped: plans for 2, 3, 4, 6 and 8+ cores, one core for anything else."""
 
     @staticmethod
     def rule(op, value, worker_map):
@@ -460,7 +459,6 @@ class GameDebugLoggingTest(unittest.TestCase):
                 result = launch([str(probe), verb], {**env, "STEAM_COMPAT_DATA_PATH": str(home / "compatdata" / prefix)})
                 self.assertEqual(result["env"]["PROTON_LOG"], "0")
                 self.assertEqual(result["env"]["WINEDEBUG"], "-all")
-            # Non-Steam shortcuts use the same normalized unsigned compatdata identity.
             result = launch(command, {**env, "STEAM_COMPAT_DATA_PATH": str(home / "compatdata/-1")})
             self.assertEqual(result["env"]["PROTON_LOG"], "1")
             self.assertFalse((home / "never-created").exists())

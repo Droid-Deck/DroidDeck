@@ -178,10 +178,6 @@ static int caller_is_winebus(void *caller) {
   return strstr(info.dli_fname, "winebus.so") != NULL;
 }
 
-/* Wine's HID haptics give every XInput rumble a 1000 ms cutoff and xinput only writes on a change,
- * but XInput motors hold their speed until the next XInputSetState; evdev's length 0 holds until
- * stopped. Only this library, preloaded first, sees winebus as the caller. The length is put back
- * because winebus compares its copy with the next state to decide whether to upload again. */
 __attribute__((visibility("hidden"))) int bl_winebus_rumble_ioctl(int (*real)(int, unsigned long, void *), int fd,
                                                                   unsigned long request, void *arg, void *caller,
                                                                   int *rc) {

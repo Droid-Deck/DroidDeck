@@ -16,7 +16,6 @@ TAG = "droiddeck-app"
 
 
 def account_dir(steam_root):
-    """The most recent account's userdata folder, else the only one that is not 0."""
     users = os.path.join(steam_root, "config", "loginusers.vdf")
     recent, best = None, None
     try:
@@ -243,9 +242,6 @@ ART_SLOTS = (("p", "p"), ("header", ""), ("hero", "_hero"), ("logo", "_logo"))
 
 
 def install_art(acct, games):
-    """Copies each game's art into the client's grid folder under the names it looks for. A file
-    the client already has that this script did not write (art the user set in the client) is
-    left alone; ours are replaced when the source changed and removed when the game lost its art."""
     grid = os.path.join(acct, "config", "grid")
     os.makedirs(grid, exist_ok=True)
     manifest_path = os.path.join(grid, ART_MANIFEST)
@@ -354,7 +350,6 @@ def main():
             if x64_tool:
                 protect = {compat.first_key(os.path.join(tools, e, "compatibilitytool.vdf"), ["compatibilitytools", "compat_tools"]) or e: e
                            for e in (os.listdir(tools) if os.path.isdir(tools) else [])}
-                # Its own state: the arm64 client's state.json lists which of that client's titles follow its default.
                 own = {"default": x64_tool,
                        "directory": os.path.join(os.path.dirname(os.path.abspath(steam_root)), "droiddeck-compat"),
                        "linux_tool": "droiddeck-direct"}

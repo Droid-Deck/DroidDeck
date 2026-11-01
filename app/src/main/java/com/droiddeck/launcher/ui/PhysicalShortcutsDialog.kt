@@ -179,7 +179,6 @@ private fun CaptureShortcutKeys(onKey: (KeyEvent) -> Boolean) {
     val window = (LocalView.current.parent as DialogWindowProvider).window
     DisposableEffect(window) {
         val previous = window.callback
-        // Capture before dialog navigation so Back and gamepad buttons can be assigned.
         window.callback = object : Window.Callback by previous {
             override fun dispatchKeyEvent(event: KeyEvent): Boolean =
                 currentOnKey(event) || previous.dispatchKeyEvent(event)

@@ -66,7 +66,6 @@ internal class FocusGlide(view: View?) {
         private set
 
     fun accepts(view: View): Boolean {
-        // DropdownMenu recreates its popup view after closing.
         if (this.view == null || deferredWindow && this.view !== view && host?.isAttached != true) this.view = view
         return this.view === view
     }

@@ -316,7 +316,6 @@ class GameFolderTest(Temp):
 
 
 def appinfo(apps):
-    """appinfo.vdf as the client writes it (format 29: keys in a string table)."""
     strings = []
 
     def key(name):

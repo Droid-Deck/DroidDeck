@@ -1,3 +1,4 @@
+// The xCloud data-channel protocol is ported from Greenlight by UnknownSKL (Jim Kroon), MIT; see tools/xcloud-player/NOTICE.md.
 package com.droiddeck.launcher.stores.xbox
 
 import org.json.JSONObject
@@ -11,12 +12,6 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 
-/**
- * The xCloud data-channel protocol for the native player, ported from Greenlight's player (UnknownSKL, MIT;
- * tools/xcloud-player/greenlight/lib/channel): chat / control / input / message channels, the message
- * handshake, authorization and gamepad announcements, and the binary input reports. The controller state
- * comes from Android input events ([pad]); rumble reports come back through [onRumble].
- */
 internal class XboxNativeProtocol(
     pc: PeerConnection,
     private val pad: XboxNativePad,
@@ -81,12 +76,10 @@ internal class XboxNativeProtocol(
             "HandshakeAck" -> {
                 handshakeDone = true
                 log("handshake done")
-                // Greenlight's order: authorization (announces controller 0 and removes it), input start, config.
                 send(control, JSONObject().put("message", "authorizationRequest").put("accessKey", "4BDB3609-C1F1-4195-9B37-FEFF45DA8B8E").toString())
                 gamepadChanged(0, true); gamepadChanged(0, false)
                 startInput()
                 sendConfig()
-                // Our controller, after the authorization's add/remove.
                 gamepadChanged(0, true)
                 send(control, JSONObject().put("message", "videoKeyframeRequested").put("ifrRequested", true).toString())
             }
@@ -101,7 +94,6 @@ internal class XboxNativeProtocol(
                 complete(data.optString("id"), "")
                 onServerDisconnect()
             }
-            // The game's own dialogs: accept (Greenlight shows a confirm; the native player has no page).
             "/streaming/systemUi/messages/ShowMessageDialog" -> complete(data.optString("id"), JSONObject().put("Result", 0))
             else -> {}
         }
@@ -134,18 +126,14 @@ internal class XboxNativeProtocol(
     }
 
     private fun startInput() {
-        // Client metadata: max touch points.
         send(input, header(8, 15).apply { put(1.toByte()); flip() })
         loop = timer.scheduleWithFixedDelay({ runCatching { tick() } }, 16, 16, TimeUnit.MILLISECONDS)
     }
 
-    /** Instant controller input: send a report now if the state changed (the 16 ms loop stays as the heartbeat). */
     fun inputChanged() {
-        // At most one extra report every 4 ms (stick motion arrives far faster than that).
         if (handshakeDone && loop != null && System.nanoTime() - lastSentAt > 4_000_000L) timer.execute { runCatching { tick() } }
     }
 
-    /** Greenlight's queue: a gamepad frame when the state changed (sticks past a small threshold) or every 33 ms. */
     @Synchronized
     private fun tick() {
         val state = pad.snapshot()
@@ -154,13 +142,13 @@ internal class XboxNativeProtocol(
         if (!changed && now - lastSentAt < 33_000_000L) return
         lastSent = state; lastSentAt = now
         val packet = header(2, 14 + 1 + 23).apply {
-            put(1.toByte())                    // one frame
-            put(0.toByte())                    // gamepad index
+            put(1.toByte())
+            put(0.toByte())
             putShort(state.buttons.toShort())
             putShort(axis(state.lx)); putShort(axis(-state.ly)); putShort(axis(state.rx)); putShort(axis(-state.ry))
             putShort(trigger(state.lt)); putShort(trigger(state.rt))
-            putInt(1)                          // physical physicality
-            order(ByteOrder.BIG_ENDIAN); putInt(1); order(ByteOrder.LITTLE_ENDIAN)   // virtual physicality (Greenlight writes it big-endian)
+            putInt(1)
+            order(ByteOrder.BIG_ENDIAN); putInt(1); order(ByteOrder.LITTLE_ENDIAN)
             flip()
         }
         send(input, packet)
@@ -171,7 +159,7 @@ internal class XboxNativeProtocol(
 
     private fun onInputData(buffer: DataChannel.Buffer) {
         val data = buffer.data.order(ByteOrder.LITTLE_ENDIAN)
-        if (data.remaining() < 13 || (data.get(0).toInt() and 0xFF) != 128) return   // vibration report
+        if (data.remaining() < 13 || (data.get(0).toInt() and 0xFF) != 128) return
         val strong = (data.get(4).toInt() and 0xFF) / 100f
         val weak = (data.get(5).toInt() and 0xFF) / 100f
         val duration = data.getShort(8).toInt() and 0xFFFF

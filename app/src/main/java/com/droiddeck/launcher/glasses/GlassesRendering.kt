@@ -2,7 +2,6 @@ package com.droiddeck.launcher.glasses
 
 import com.droiddeck.launcher.gpu.Cardboard
 
-/** Share the actual picture mode with settings so controls match the rendered view. */
 internal object GlassesRendering {
     enum class Picture { FLAT, DUPLICATED, VIRTUAL_SCREEN, STEREO }
 
@@ -51,11 +50,7 @@ internal object GlassesRendering {
         outputActive: Boolean,
         steamVrRunning: Boolean,
     ): Cardboard {
-        // Mirror output still uses the glasses' picture and sensors during VR.
         if (!usesGlasses(state, outputActive, steamVrRunning)) {
-            // SteamVR uses the renderer's enabled flag as headset proximity.
-            // A flat phone preview still needs an active HMD and one SBS eye;
-            // otherwise SteamVR enters standby and leaves a frozen frame.
             return if (steamVrRunning && !base.enabled) base.copy(
                 enabled = true,
                 source = Cardboard.SOURCE_SBS,

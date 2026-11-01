@@ -78,10 +78,8 @@ private const val THUNDER_RETRY_MS = 3_000L
 private const val ELITE_MS = 1_000L
 private const val ELITE_SEARCH_MS = 10_000L
 private const val OUTPUT_SCAN_MS = 3_000L
-/** Top strip history: one reading a second for 30 s. */
 private const val PERF_N = 30
 
-/** What arrives on one telemetry port; written only by that port's listener. */
 private class PortTraffic {
     @Volatile var packets = 0L
     @Volatile var length = 0
@@ -208,7 +206,6 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
                 }
             }
             val f = file
-            // Status.json changes while Elite runs; one older than a minute belongs to an earlier session.
             elite = if (f != null && now - f.lastModified() < 60_000L) {
                 withContext(Dispatchers.IO) { runCatching { GameStatusFiles.elite(f.readText()) }.getOrNull() }
             } else null
@@ -335,7 +332,6 @@ private fun httpGet(url: String): String {
 }
 
 
-/** The Steam client the session runs, shown in the strip's top line while no game runs. */
 internal fun steamClientLabel(arch: String): Int = if (arch == "x86_64") R.string.stats_steam_client_x86 else R.string.stats_steam_client_arm
 
 @Composable

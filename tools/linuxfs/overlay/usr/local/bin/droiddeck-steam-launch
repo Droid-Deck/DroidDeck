@@ -25,6 +25,14 @@ if [ "$ui" = desktop ] && [ "${BL_DESKTOP:-}" = 1 ]; then
     client_home=$HOME
     client=("$steam_root/steamrtarm64/steam")
   fi
+  if [ "${BL_BOTTOM_DESKTOP:-}" = 1 ]; then
+    pid=$(cat "$client_home/.steam/steam.pid" 2>/dev/null || true)
+    if [ -p "$client_home/.steam/steam.pipe" ] && [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+      # The top screen's client takes the request, so games open there.
+      exec "${client[@]}" -nobigpicture -no-cef-sandbox \
+        -cef-ozone-platform=x11 -cef-disable-gpu "${url:-steam://open/library}"
+    fi
+  fi
   mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/droiddeck"
   exec 9>"${XDG_CACHE_HOME:-$HOME/.cache}/droiddeck/steam-desktop.lock"
   if ! flock -n 9; then

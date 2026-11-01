@@ -195,6 +195,13 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density" />
 
         <activity
+            android:name=".sync.SyncthingWebActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
+            android:theme="@style/AppTheme" />
+
+        <activity
             android:name=".files.FileManagerActivity"
             android:exported="false"
             android:screenOrientation="user"
@@ -293,6 +300,11 @@
             android:name=".session.SessionService"
             android:exported="false"
             android:stopWithTask="false" />
+        <!-- The compositor's native state is one per process, so the bottom-screen desktop's compositor runs in its own. -->
+        <service
+            android:name=".wayland.BottomDesktopCompositorService"
+            android:process=":bottom_desktop"
+            android:exported="false" />
         <service
             android:name=".runtime.RuntimeInstallService"
             android:exported="false" />
@@ -301,6 +313,10 @@
             android:exported="false" />
         <service
             android:name=".stores.download.StoreDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <service
+            android:name=".sync.SyncthingService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
         <provider

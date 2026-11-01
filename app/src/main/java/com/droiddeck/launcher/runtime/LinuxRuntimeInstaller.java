@@ -244,10 +244,6 @@ public final class LinuxRuntimeInstaller {
         }
     }
 
-    /**
-     * The download is named after the release, so a partial file is only ever resumed for the same
-     * version and checksum, never for a different runtime that happens to share a fixed name.
-     */
     static String archiveName(Release release) {
         String version = release.version.replaceAll("[^A-Za-z0-9._-]", "_");
         String sum = release.sha256.replaceAll("[^A-Za-z0-9]", "");
@@ -255,7 +251,6 @@ public final class LinuxRuntimeInstaller {
         return "linuxfs-" + version + "-" + sum + ".tar.zst";
     }
 
-    /** Removes archives left by other releases and by builds that used the fixed name. */
     private static void deleteOtherArchives(File dir, String keep) {
         File[] files = dir.listFiles((d, name) -> name.startsWith("linuxfs") && name.endsWith(".tar.zst") && !name.equals(keep));
         if (files == null) return;
@@ -264,8 +259,6 @@ public final class LinuxRuntimeInstaller {
 
     private static boolean installOnce(Context context, Release release, ProgressListener listener) {
         File archive = new File(context.getCacheDir(), archiveName(release));
-        // A failed download keeps what it fetched so the next attempt resumes it; anything that
-        // reached verification and failed is not trusted and is removed.
         boolean keepPartial = false;
         try {
             deleteOtherArchives(context.getCacheDir(), archive.getName());
@@ -526,8 +519,6 @@ public final class LinuxRuntimeInstaller {
         }
     }
 
-    // Packages extract over the live runtime and their archives list a link before the file it
-    // names, so a kill mid-way must leave neither a truncated file nor a link to a missing one.
     public static boolean extract(Context context, File archive, File destination, ProgressListener listener) {
         return extract(context, archive, destination, destination, listener);
     }
