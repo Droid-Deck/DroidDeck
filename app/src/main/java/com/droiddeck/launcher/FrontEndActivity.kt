@@ -2203,6 +2203,7 @@ class FrontEndActivity : ComponentActivity() {
                 onRenameSteamLibrary = { id, label ->
                     SteamLibraries.rename(this, id, label)
                     steamLibraries = SteamLibraries.list(this)
+                    refresh()
                 },
                 onRemoveSteamLibrary = { id ->
                     SteamLibraries.remove(this, id)
