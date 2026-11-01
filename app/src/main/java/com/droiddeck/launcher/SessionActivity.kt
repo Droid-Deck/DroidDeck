@@ -728,9 +728,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         })
         scrollTouch = ScrollTouchGestures(PointerGestures.slop(this),
             android.view.ViewConfiguration.get(this).scaledMinimumFlingVelocity.toFloat(), scrollListener)
-        val noCursor = android.view.PointerIcon.getSystemIcon(this, android.view.PointerIcon.TYPE_NULL)
-        root.pointerIcon = noCursor
-        surfaceView.pointerIcon = noCursor
+        applyPlatformPointer(appUiOwnsPointer())
 
         loading = LoadingState(this, steam = loadingMode() == SessionService.MODE_STEAM)
         if (!SessionState.running) {
@@ -829,10 +827,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         isFocusableInTouchMode = true
         defaultFocusHighlightEnabled = false
         setContent {
+            val uiPointer = appUiOwnsPointer()
             androidx.compose.runtime.SideEffect {
                 com.droiddeck.launcher.glasses.GlassesMenuMirror.setSessionMenuVisible(this@SessionActivity,
                     (drawerOpen || achievementsOpen || pcKeyboardOpen) && !pipUi && steamVrStatus != SteamVr.Status.RUNNING)
             }
+            androidx.compose.runtime.SideEffect { applyPlatformPointer(uiPointer) }
             androidx.compose.runtime.DisposableEffect(Unit) {
                 onDispose { com.droiddeck.launcher.glasses.GlassesMenuMirror.setSessionMenuVisible(this@SessionActivity, false) }
             }
@@ -874,7 +874,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
             } else {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize()) {
-                CursorOverlay({ cursorPos }, cursorVisible, resources.displayMetrics.density,
+                CursorOverlay({ cursorPos }, cursorVisible && !uiPointer,
+                    resources.displayMetrics.density,
                     cursorImage, cursorHotX, cursorHotY, cursorImageScale)
                 if (memoryHud.text.isNotEmpty()) HudText(memoryHud.text, hudColor, hudOpacity)
                 val phonePanel = glassesOutputActive && !loading.visible && !drawerOpen && !pcKeyboardOpen
@@ -2189,6 +2190,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         surfaceW = 0
         surfaceH = 0
         glassesOutputActive = false
+        if (CompositorHost.isStarted) WaylandCompositor.nativeSetCursorComposite(false)
         CompositorHost.detach(holder.surface)
     }
 
@@ -2622,7 +2624,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (joyConVr?.onMotionEvent(event) == true) return true
         if (PadBridge.isControllerMotionEvent(event) && padMouseMode() && padMouse.onMotion(event)) return true
         if (padBridge?.onMotionEvent(event) == true) return true
-        if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE) && !drawerOpen && onMouse(event)) return true
+        if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE) && !drawerOpen) {
+            /* The app's own controls get the pointer first. With the picture on the glasses the
+             * phone shows its panel, and hovering or clicking a control there must reach it
+             * instead of moving and clicking the guest pointer on the glasses. Whatever the UI
+             * leaves alone — the rest of the screen — still drives the guest pointer. */
+            if (appUiOwnsPointer()) {
+                if (super.dispatchGenericMotionEvent(event)) return true
+                if (onMouse(event)) return true
+                return false
+            }
+            if (onMouse(event)) return true
+        }
         return super.dispatchGenericMotionEvent(event)
     }
 
@@ -3527,6 +3540,33 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (want) view.requestPointerCapture() else view.releasePointerCapture()
     }
 
+    /** Null until the first application, so the initial state is applied rather than skipped. */
+    private var platformPointerShown: Boolean? = null
+
+    /**
+     * The app's own UI is what the mouse is over, so it needs a pointer of its own: the drawer,
+     * keyboard, achievements and PiP controls, and — once the glasses own the picture — the whole
+     * phone, which then shows [GlassesPhonePanel] instead of the game.
+     */
+    private fun appUiOwnsPointer(): Boolean =
+        drawerOpen || pcKeyboardOpen || achievementsOpen || pipUi || glassesOutputActive
+
+    /**
+     * Over the game neither this app nor Android draws a pointer: the compositor's cursor is the
+     * only one (Compose's on the phone, inside the picture on the glasses). Over the app's own UI
+     * the game gets no pointer events at all, so without this nothing visible follows the mouse
+     * while buttons still highlight and click.
+     */
+    private fun applyPlatformPointer(shown: Boolean) {
+        if (!::sessionRoot.isInitialized || !::surfaceView.isInitialized) return
+        if (shown == platformPointerShown) return
+        platformPointerShown = shown
+        val icon = if (shown) null
+            else android.view.PointerIcon.getSystemIcon(this, android.view.PointerIcon.TYPE_NULL)
+        sessionRoot.pointerIcon = icon
+        surfaceView.pointerIcon = icon
+    }
+
     private fun onCapturedPointer(event: MotionEvent): Boolean {
         if (!pointerLocked || !event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) return false
         notePress(event)
@@ -4213,6 +4253,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun onOutputAttached(holder: SurfaceHolder) {
         if (holder !== outputHolder()) return
         glassesOutputActive = glassesScreen?.holder === holder
+        if (CompositorHost.isStarted) WaylandCompositor.nativeSetCursorComposite(glassesOutputActive)
         // Keep the phone's layout for touch/controller coordinates, but remove
         // its SurfaceView so it cannot retain the last game frame under the hint.
         surfaceView.visibility = if (glassesOutputActive) View.INVISIBLE else View.VISIBLE
