@@ -106,6 +106,12 @@ internal object GameJoltBrowseState {
     private val seenRaw = HashSet<String>()
 
     fun sync(context: Context, showMature: Boolean) {
+        if (!showMature && "adult" in query.maturity) {
+            reset()
+            query = query.copy(maturity = query.maturity - "adult")
+            more(context)
+            return
+        }
         val before = loadedMature ?: return
         if (before != showMature) more(context)
     }
