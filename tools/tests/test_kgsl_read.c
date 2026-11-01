@@ -125,6 +125,11 @@ int main(void) {
   retired = 6;
   assert(read_timestamp(3, &timestamp) == 0 && timestamp == 6);
 
+  submit(8);
+  submit(7);
+  retired = 8;
+  assert(read_timestamp(3, &timestamp) == 0 && timestamp == 8);
+
   create_context(3);
   retired = 0;
   waits = 0;
@@ -133,6 +138,11 @@ int main(void) {
   struct kgsl_drawctxt_destroy destroy = {.drawctxt_id = 3};
   bl_kgsl_track(mock, 42, IOCTL_KGSL_DRAWCTXT_DESTROY, &destroy, &rc);
   assert(read_timestamp(3, &timestamp) == -1 && errno == EACCES);
+
+  struct kgsl_drawctxt_create user = {.flags = KGSL_CONTEXT_USER_GENERATED_TS, .drawctxt_id = 3};
+  bl_kgsl_track(mock, 42, IOCTL_KGSL_DRAWCTXT_CREATE, &user, &rc);
+  waits = 0;
+  assert(read_timestamp(3, &timestamp) == -1 && errno == EACCES && waits == 0);
 
   errno = EACCES;
   assert(read_timestamp(5000, &timestamp) == -1 && errno == EACCES);

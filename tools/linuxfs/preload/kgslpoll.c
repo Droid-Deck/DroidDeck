@@ -25,8 +25,14 @@ static void report_denied(unsigned long request, int error) {
 }
 
 static void note_submit(unsigned int context_id, unsigned int timestamp) {
-  if (context_id < KGSL_CONTEXTS)
-    __atomic_store_n(&contexts[context_id].submitted, timestamp, __ATOMIC_RELAXED);
+  uint32_t known;
+
+  if (context_id >= KGSL_CONTEXTS) return;
+  known = __atomic_load_n(&contexts[context_id].submitted, __ATOMIC_RELAXED);
+  while ((int32_t)(timestamp - known) > 0 &&
+         !__atomic_compare_exchange_n(&contexts[context_id].submitted, &known, timestamp, 1,
+                                      __ATOMIC_RELAXED, __ATOMIC_RELAXED)) {
+  }
 }
 
 static int wait_retired(int (*real)(int, unsigned long, void *), int fd, uint32_t id, uint32_t timestamp) {
@@ -79,9 +85,11 @@ __attribute__((visibility("hidden"))) void bl_kgsl_track(int (*real)(int, unsign
     } else if (request == IOCTL_KGSL_DRAWCTXT_CREATE) {
       const struct kgsl_drawctxt_create *create = arg;
       if (create->drawctxt_id < KGSL_CONTEXTS) {
-        note_submit(create->drawctxt_id, 0);
+        __atomic_store_n(&contexts[create->drawctxt_id].submitted, 0, __ATOMIC_RELAXED);
         __atomic_store_n(&contexts[create->drawctxt_id].retired, 0, __ATOMIC_RELAXED);
-        __atomic_store_n(&contexts[create->drawctxt_id].owner, fd + 1, __ATOMIC_RELAXED);
+        /* User timestamps can leave gaps that would take one wait per integer, so their reads stay failed. */
+        __atomic_store_n(&contexts[create->drawctxt_id].owner,
+                         create->flags & KGSL_CONTEXT_USER_GENERATED_TS ? 0 : fd + 1, __ATOMIC_RELAXED);
       }
     } else if (request == IOCTL_KGSL_DRAWCTXT_DESTROY) {
       const struct kgsl_drawctxt_destroy *destroy = arg;
