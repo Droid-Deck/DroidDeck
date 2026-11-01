@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import itertools
 import json
 import os
 import re
@@ -380,7 +381,237 @@ def steam_launches(target, program, root):
     return os.path.relpath(program, target.install).replace(os.sep, "/").lower() in entry.get("launch", ())
 
 
-def environment(env, target, tool_folder, root, window=False, game_id=None):
+STEAM_ID_FILES = ("steam_appid.txt", "steam_settings/steam_appid.txt")
+STEAM_CLIENT_MARKERS = (b"ISteamClient", b"ISteamApps")
+STEAM_LIBRARY_DIRS = ("bin", "binaries", "x64", "x86", "x86_64", "win64", "win32")
+STEAM_SPACEWAR = 480
+# A launch scans at most this many folders, directory entries, DLL candidates and bytes; a
+# pathological game folder must not delay the launch or hold the launcher open.
+STEAM_SCAN_FOLDERS = 64
+STEAM_SCAN_ENTRIES = 4096
+STEAM_SCAN_FILES = 256
+STEAM_SCAN_BYTES = 256 << 20
+# Real Steam client libraries are far smaller; the cap only stops a huge file from being read.
+STEAM_CLIENT_SCAN = 64 << 20
+
+
+def scan_entries(path):
+    try:
+        with os.scandir(path) as entries:
+            return sorted(itertools.islice(entries, STEAM_SCAN_ENTRIES), key=lambda entry: entry.name)
+    except OSError:
+        return []
+
+
+def entry_is_dir(entry):
+    try:
+        return entry.is_dir()
+    except OSError:
+        return False
+
+
+def steam_folders(target):
+    """Where a game's Steam libraries can sit: beside the exe, at the folder it starts in, one level
+    inside either, and inside the usual bin/x64 folders, since games keep them there. A start folder
+    outside the exe's folder is searched itself; its known containers are searched only when the
+    exe's folder is under one of them, so a shelf's sibling bin is not adopted. A symlinked start
+    folder is resolved first."""
+    folders = []
+    seen = set()
+    install = os.path.realpath(target.install) if target.install else None
+    for root in (target.install, target.start):
+        if not root:
+            continue
+        root = os.path.realpath(root)
+        if not os.path.isdir(root) or root in seen:
+            continue
+        seen.add(root)
+        folders.append(root)
+        restricted = bool(install and root != install and not root.startswith(install.rstrip(os.sep) + os.sep))
+        below = os.path.relpath(install, root).split(os.sep, 1)[0] if restricted else ""
+        above = bool(restricted and below.lower() in STEAM_LIBRARY_DIRS)
+        if restricted and not above:
+            continue
+        for entry in scan_entries(root):
+            if len(folders) >= STEAM_SCAN_FOLDERS:
+                return folders
+            if not entry_is_dir(entry) or entry.name.startswith(".") or entry.path in seen:
+                continue
+            if restricted and entry.name.lower() not in STEAM_LIBRARY_DIRS:
+                continue
+            seen.add(entry.path)
+            folders.append(entry.path)
+            if entry.name.lower() not in STEAM_LIBRARY_DIRS:
+                continue
+            for child in scan_entries(entry.path):
+                if len(folders) >= STEAM_SCAN_FOLDERS:
+                    return folders
+                if entry_is_dir(child) and not child.name.startswith(".") and child.path not in seen:
+                    seen.add(child.path)
+                    folders.append(child.path)
+    return folders
+
+
+def managed_pe(content):
+    """A .NET assembly can carry the interface names in its metadata, but cannot replace the native client."""
+    if not content.startswith(b"MZ") or len(content) < 0x40:
+        return False
+    offset = struct.unpack_from("<I", content, 0x3C)[0]
+    if offset + 24 > len(content) or content[offset:offset + 4] != b"PE\0\0":
+        return False
+    optional = offset + 24
+    if optional + 2 > len(content):
+        return False
+    magic = struct.unpack_from("<H", content, optional)[0]
+    if magic == 0x10B:
+        count, directories = optional + 92, optional + 96
+    elif magic == 0x20B:
+        count, directories = optional + 108, optional + 112
+    else:
+        return False
+    if count + 4 > len(content):
+        return False
+    if struct.unpack_from("<I", content, count)[0] <= 14:
+        return False
+    entry = directories + 14 * 8
+    return entry + 8 <= len(content) and struct.unpack_from("<II", content, entry) != (0, 0)
+
+
+def implements_steam_client(entry, budget):
+    try:
+        if not entry.is_file():
+            return False, budget
+        limit = min(STEAM_CLIENT_SCAN, budget)
+        if limit <= 0 or entry.stat().st_size > limit:
+            return False, budget
+        with open(entry.path, "rb") as library:
+            content = library.read(limit + 1)
+    except OSError:
+        return False, budget
+    spent = len(content)
+    if spent > limit or managed_pe(content):
+        return False, max(0, budget - spent)
+    found = content.startswith(b"MZ") and all(marker in content for marker in STEAM_CLIENT_MARKERS)
+    return found, max(0, budget - spent)
+
+
+def steam_libraries(target):
+    """The Steam libraries a game brings itself, told apart by the interfaces they carry rather than by
+    one file name: a game that switches interfaces of the client on the machine for its own ships these."""
+    found = set()
+    budget = STEAM_SCAN_BYTES
+    files = 0
+    for folder in steam_folders(target):
+        for entry in scan_entries(folder):
+            name = entry.name.lower()
+            if not name.endswith(".dll") or len(name) == 4:
+                continue
+            if files >= STEAM_SCAN_FILES or budget <= 0:
+                return found
+            files += 1
+            matched, budget = implements_steam_client(entry, budget)
+            if matched:
+                found.add(entry.name[:-4])
+    return found
+
+
+def steam_app_id(path):
+    """The app id in a game's own file, when it names a real Steam app rather than Spacewar or a placeholder."""
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, encoding="utf-8-sig", errors="replace") as source:
+            text = source.read(64).strip()
+    except OSError:
+        return None
+    value = text.split(maxsplit=1)[0] if text else ""
+    if not (value.isascii() and value.isdigit()):
+        return None
+    app_id = int(value)
+    return app_id if 0 < app_id < STEAM_APP_LIMIT and app_id != STEAM_SPACEWAR else None
+
+
+def steam_id_folders(target):
+    """The exe's folder, the folder the shortcut starts in, and the folders between them, but not the
+    start folder's other children: a game bundled beside its neighbours must not adopt their app id."""
+    folders, seen = [], set()
+
+    def add(path):
+        if not path:
+            return
+        path = os.path.realpath(path)
+        if path not in seen and os.path.isdir(path):
+            seen.add(path)
+            folders.append(path)
+
+    add(target.install)
+    add(target.start)
+    if target.install and target.start:
+        start = os.path.realpath(target.start)
+        folder = os.path.realpath(target.install)
+        if folder.startswith(start.rstrip(os.sep) + os.sep):
+            while folder != start:
+                parent = os.path.dirname(folder)
+                if parent == folder:
+                    break
+                folder = parent
+                add(folder)
+    return folders
+
+
+def own_steam_id(target):
+    """A game that brings its own Steam service names the app id beside its exe or in the folder the
+    shortcut starts in; a zeroed SteamAppId in the environment takes precedence over that file and
+    fails its Steam init."""
+    return any(steam_app_id(os.path.join(folder, name)) is not None
+               for folder in steam_id_folders(target) for name in STEAM_ID_FILES)
+
+
+def steam_state(target):
+    """The libraries a shortcut brings itself and whether it names its own app id; a Steam title or
+    other program has neither."""
+    if target.kind != "shortcut":
+        return set(), False
+    return steam_libraries(target), own_steam_id(target)
+
+
+# Both launch helpers are staged by name (SessionFiles), so a shared parser would need another
+# staged file; this copy is kept here and in droiddeck-game-env, and the two must change together.
+def merge_overrides(*values):
+    """One entry per DLL, the last setting winning; Wine separates names with commas, spaces
+    or tabs."""
+    modes = {}
+    for value in values:
+        for entry in (value or "").split(";"):
+            name, equals, mode = entry.strip().partition("=")
+            if not equals or not name or '"' in entry or "'" in entry:
+                continue
+            for part in re.split(r"[, \t]+", name):
+                part = part.strip().lower()
+                if part.endswith(".dll"):
+                    part = part[:-4]
+                if part:
+                    modes[part] = mode.strip()
+    return ";".join(name + "=" + mode for name, mode in modes.items())
+
+
+def prefer_game_steam_client(env, state):
+    """Wine answers Steam's libraries with its builtin bridges, which expect the client on the machine and
+    leave a game that brings its own without a working Steam init. The game's libraries come first and the
+    bridge stays out of the way."""
+    steam, _ = state
+    if not steam:
+        return
+    entries = merge_overrides(env.get("WINEDLLOVERRIDES", ""))
+    named = {part.split("=", 1)[0] for part in entries.split(";") if part}
+    added = [name.lower() + "=n,b" for name in sorted(steam) if name.lower() not in named]
+    if "lsteamclient" not in named:
+        added.append("lsteamclient=d")
+    if added:
+        env["WINEDLLOVERRIDES"] = merge_overrides(entries, ";".join(added))
+
+
+def environment(env, target, tool_folder, root, window=False, game_id=None, state=None):
     env = dict(env)
     steamapps = [os.path.join(lib, "steamapps") for lib in libraries(root)]
     env.update({
@@ -391,13 +622,19 @@ def environment(env, target, tool_folder, root, window=False, game_id=None):
         "STEAM_COMPAT_TOOL_PATHS": tool_folder,
         "STEAM_COMPAT_SHADER_PATH": os.path.join(target.library, "steamapps", "shadercache", target.appid),
     })
+    steam, own_id = steam_state(target) if state is None else state
     number = int(target.appid)
     if number < STEAM_APP_LIMIT:
         env.update(SteamAppId=target.appid, SteamGameId=target.appid, SteamOverlayGameId=target.appid,
                    STEAM_COMPAT_APP_ID=target.appid)
     else:
         game = str(number << 32 | 0x02000000)
-        env.update(SteamAppId="0", STEAM_COMPAT_APP_ID="0", SteamGameId=game, SteamOverlayGameId=game)
+        if target.kind == "shortcut" and (steam or own_id):
+            for name in ("SteamAppId", "SteamGameId", "SteamOverlayGameId"):
+                env.pop(name, None)
+            env["STEAM_COMPAT_APP_ID"] = "0"
+        else:
+            env.update(SteamAppId="0", STEAM_COMPAT_APP_ID="0", SteamGameId=game, SteamOverlayGameId=game)
     if game_id:
         env.update(SteamGameId=game_id, SteamOverlayGameId=game_id)
     if window:
@@ -496,8 +733,10 @@ def main(argv):
         return 69
     folder, command = available[name]
     os.makedirs(target.compatdata, exist_ok=True)
-    env = environment(os.environ, target, folder, root, window, game_id)
+    state = steam_state(target)
+    env = environment(os.environ, target, folder, root, window, game_id, state)
     env.update(extra)
+    prefer_game_steam_client(env, state)
     say("%s with %s (%s), %s prefix %s%s" % (program, name, why, target.kind, target.compatdata,
                                               ", without the Steam client" if app is not None else ""))
     try:

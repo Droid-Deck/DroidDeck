@@ -259,6 +259,26 @@ def offline_without_anticheat(command, env):
     return command[:2] + [game] + command[3:]
 
 
+# Both launch helpers are staged by name (SessionFiles), so a shared parser would need another
+# staged file; this copy is kept here and in droiddeck-proton-run, and the two must change together.
+def merge_overrides(*values):
+    """One entry per DLL, the last setting winning; Wine separates names with commas, spaces
+    or tabs."""
+    modes = {}
+    for value in values:
+        for entry in (value or "").split(";"):
+            name, equals, mode = entry.strip().partition("=")
+            if not equals or not name or '"' in entry or "'" in entry:
+                continue
+            for part in re.split(r"[, \t]+", name):
+                part = part.strip().lower()
+                if part.endswith(".dll"):
+                    part = part[:-4]
+                if part:
+                    modes[part] = mode.strip()
+    return ";".join(name + "=" + mode for name, mode in modes.items())
+
+
 def engine_fixes(exe, args):
     game = Game(exe, args)
     env, extra, notes = {}, [], []
@@ -266,8 +286,8 @@ def engine_fixes(exe, args):
         found = check(game)
         if found:
             for name, value in found[0].items():
-                if name == "WINEDLLOVERRIDES" and env.get(name):
-                    value = env[name] + ";" + value
+                if name == "WINEDLLOVERRIDES" and isinstance(value, str):
+                    value = merge_overrides(env.get(name, ""), value)
                 env[name] = value
             extra += found[1]
             notes.append(found[2])
@@ -441,16 +461,25 @@ def apply_config(env, config, app_id, fixes=None):
     result = env.copy()
     entries = dict(config.get("shared", {}))
     for name, value in (fixes or {}).items():
-        if name == "WINEDLLOVERRIDES" and entries.get(name, env.get(name)):
-            value = entries.get(name, env.get(name)) + ";" + value
+        if name == "WINEDLLOVERRIDES" and entries.get(name) and isinstance(value, str):
+            value = merge_overrides(entries[name], value)
         entries[name] = value
-    entries.update(config.get("games", {}).get(app_id, {}))
+    game_entries = dict(config.get("games", {}).get(app_id, {}))
+    if (isinstance(game_entries.get("WINEDLLOVERRIDES"), str)
+            and isinstance(entries.get("WINEDLLOVERRIDES"), str)):
+        game_entries["WINEDLLOVERRIDES"] = merge_overrides(
+            entries["WINEDLLOVERRIDES"], game_entries["WINEDLLOVERRIDES"])
+    entries.update(game_entries)
     for name, value in entries.items():
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
             raise ValueError("invalid environment name")
         if value is None:
             result.pop(name, None)
         elif isinstance(value, str) and "\0" not in value and len(value) <= 8192:
+            # The launcher adds overrides the game needs before this runs; merge the stored setting
+            # into them so each DLL keeps one entry and the stored setting has the last word.
+            if name == "WINEDLLOVERRIDES" and result.get(name):
+                value = merge_overrides(result[name], value)
             result[name] = value
         else:
             raise ValueError("invalid environment value")
@@ -928,8 +957,7 @@ def main():
             command += extra
             components = win_components(env.get("STEAM_COMPAT_DATA_PATH", ""), app_id)
             if components:
-                own = fixes.get("WINEDLLOVERRIDES")
-                fixes["WINEDLLOVERRIDES"] = components + ";" + own if own else components
+                fixes["WINEDLLOVERRIDES"] = merge_overrides(components, fixes.get("WINEDLLOVERRIDES", ""))
             dirt_prefix = dirt_ws2_wanted(command, env)
             if dirt_prefix:
                 own = fixes.get("WINEDLLOVERRIDES")
