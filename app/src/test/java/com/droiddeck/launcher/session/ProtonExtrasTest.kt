@@ -93,6 +93,15 @@ class ProtonExtrasTest {
     }
 
     @Test
+    fun theTestPrereleaseIsPicked() {
+        val releases = JSONArray()
+            .put(droiddeckRelease("11-11.12", prerelease = true))
+            .put(droiddeckRelease("11-11.11", prerelease = true))
+            .put(droiddeckRelease("11-11.10"))
+        assertEquals(ProtonExtras.TEST_RELEASE, ProtonExtras.pickAsset(tool("droiddeck"), releases)?.tag)
+    }
+
+    @Test
     fun versionsCompareByTheirNumbers() {
         val sorted = listOf("GE-Proton11-10", "GE-Proton10-25", "GE-Proton11-9", "GE-Proton11-1")
             .sortedWith { a, b -> ProtonExtras.compareVersions(a, b) }

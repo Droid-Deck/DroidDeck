@@ -16,6 +16,7 @@ object ProtonExtras {
     private const val TAG = "ProtonExtras"
     private const val NEED_BYTES = 4L * 1024 * 1024 * 1024
     private const val RELEASES = "https://api.github.com/repos/%s/releases?per_page=15"
+    internal const val TEST_RELEASE = "DroidDeck-Proton-11-11.11"
     const val CHECK_EVERY_MS = 60L * 60 * 1000
     @Volatile
     var installInProgress = false
@@ -330,7 +331,8 @@ object ProtonExtras {
     internal fun pickAsset(tool: Tool, array: JSONArray): Asset? {
         for (i in 0 until array.length()) {
             val release = array.getJSONObject(i)
-            if (release.optBoolean("draft", false) || release.optBoolean("prerelease", false)) continue
+            if (release.optBoolean("draft", false)) continue
+            if (release.optBoolean("prerelease", false) && release.optString("tag_name") != TEST_RELEASE) continue
             val assets = release.optJSONArray("assets") ?: continue
             val entries = (0 until assets.length()).map { assets.getJSONObject(it) }
             val archive = entries.sortedBy { it.optString("name") }.firstOrNull { tool.assetPattern.containsMatchIn(it.optString("name")) } ?: continue
