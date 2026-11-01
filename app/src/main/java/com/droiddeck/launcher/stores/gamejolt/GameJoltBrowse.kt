@@ -67,18 +67,17 @@ internal object GameJoltBrowse {
         return query.copy(maturity = allowed.ifEmpty { setOf("everyone", "teen") })
     }
 
-    private val diagnosed = java.util.concurrent.atomic.AtomicBoolean(false)
-
     fun page(context: Context, query: GameJoltQuery, page: Int, showMature: Boolean): Page {
         val cookies = GameJoltAuth.cookies(context)
         val asked = effective(query, showMature)
         var answer = fetch(queryString(asked, page), cookies)
-        if (!answer.ok && asked.maturity.isNotEmpty()) {
-            if (diagnosed.compareAndSet(false, true)) diagnose(cookies)
+        var unfiltered = false
+        if (!answer.ok && query.maturity.isEmpty() && asked.maturity.isNotEmpty()) {
             answer = fetch(queryString(asked.copy(maturity = emptySet()), page), cookies)
+            unfiltered = true
         }
-        val items = if (answer.ok) GameJoltCatalog.items(answer.payload?.optJSONArray("games")) else emptyList()
-        return Page(items, answer.code)
+        val all = if (answer.ok) GameJoltCatalog.items(answer.payload?.optJSONArray("games")) else emptyList()
+        return Page(if (unfiltered && !showMature) all.filterNot { it.mature } else all, answer.code)
     }
 
     private fun fetch(qs: String, cookies: String): GameJoltAnswer {
@@ -86,17 +85,6 @@ internal object GameJoltBrowse {
         val games = if (answer.ok) answer.payload?.optJSONArray("games") else null
         StoresState.logLine("Game Jolt browse: ?$qs answered ${answer.code} with ${games?.length() ?: 0} games")
         return answer
-    }
-
-    private fun diagnose(cookies: String) {
-        val variants = listOf(
-            "maturity=everyone,teen", "f_maturity=everyone,teen", "f_maturity[]=everyone", "f_maturity%5B%5D=everyone",
-            "f_maturity[]=everyone&f_maturity[]=teen", "f_maturity%5B%5D=teen", "f_status%5B%5D=complete", "f_os%5B%5D=windows", "f_price=free", "",
-        )
-        for (variant in variants) {
-            val answer = GameJoltApi.browse(variant, cookies)
-            StoresState.logLine("Game Jolt browse check: ?$variant answered ${answer.code} with ${answer.payload?.optJSONArray("games")?.length() ?: 0} games")
-        }
     }
 }
 
