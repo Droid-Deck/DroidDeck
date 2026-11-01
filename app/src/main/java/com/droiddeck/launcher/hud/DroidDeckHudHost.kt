@@ -388,12 +388,8 @@ class DroidDeckHudHost(context: Context) {
     }
 
     private fun commitDock(hud: DroidDeckHudView, edge: DroidDeckHudDock) {
-        if (edge == DroidDeckHudDock.NONE) {
-            // Out where the tab is: against its edge, or wherever it was pulled to.
-            wantX = hud.x; wantY = hud.y
-            anchorX = Float.NaN
-            SessionPrefs.setDroidDeckHudPosition(context, wantX, wantY)
-        } else {
+        val tabX = hud.x; val tabY = hud.y
+        if (edge != DroidDeckHudDock.NONE) {
             val p = hud.parent as? View
             if (p != null) {
                 wantX = wantX.coerceIn(0f, p.width.toFloat())
@@ -403,8 +399,23 @@ class DroidDeckHudHost(context: Context) {
         }
         DroidDeckHudConfig.set(context, "hudDock", edge.token)
         applyConfig()
+        if (edge == DroidDeckHudDock.NONE) settleOutOfTab(hud, tabX, tabY)
         hud.post { keepOnScreen(hud) }
         onConfigChanged?.invoke()
+    }
+
+    /**
+     * Where the HUD comes out of its tab, decided before it expands so it grows straight there: where the tab is
+     * (against its edge, or wherever it was pulled to), and with snapping on, against the nearer side.
+     */
+    private fun settleOutOfTab(hud: DroidDeckHudView, tabX: Float, tabY: Float) {
+        val p = hud.parent as? View
+        val maxX = if (p == null) Float.MAX_VALUE else (p.width - hud.contentWidth).coerceAtLeast(0f)
+        val maxY = if (p == null) Float.MAX_VALUE else (p.height - hud.contentHeight).coerceAtLeast(0f)
+        wantX = tabX.coerceIn(0f, maxX); wantY = tabY.coerceIn(0f, maxY)
+        anchorX = if (snaps && !hud.isStrip && p != null) (if (wantX < maxX / 2f) 0f else 1f) else Float.NaN
+        if (!anchorX.isNaN()) wantX = anchorX * maxX
+        SessionPrefs.setDroidDeckHudPosition(context, wantX, wantY)
     }
 
     /**
