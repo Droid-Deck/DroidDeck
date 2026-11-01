@@ -54,6 +54,8 @@ object SessionState {
     var suspended by mutableStateOf(false)
     var resumeRequested by mutableStateOf(false)
     var resuming by mutableStateOf(false)
+    /** A freeze has begun and has not finished; it already chose which processes it stops. */
+    @Volatile var suspending = false
     var resumeFailures by mutableIntStateOf(0)
     var resumeFailed by mutableStateOf(false)
     var manualPause by mutableStateOf(false)

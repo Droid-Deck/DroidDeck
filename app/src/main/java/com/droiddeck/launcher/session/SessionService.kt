@@ -1617,6 +1617,7 @@ class SessionService : Service() {
         ))
         if (shouldSuspend) {
             freezePending = true
+            SessionState.suspending = true
             freezeCancelled = false
             val freezeSteamToken = steamSleepToken
             val freezeNativeToken = nativeSleepToken
@@ -1624,6 +1625,7 @@ class SessionService : Service() {
                 pageOut = steamSleepToken != null || nativeSleepToken != null || !activityVisible || !screenOn,
             ) { success ->
                 mainHandler.post {
+                    SessionState.suspending = false
                     if (gen != sessionGen || !SessionState.running) return@post
                     suspendOperationPending = false
                     freezePending = false
@@ -1837,6 +1839,7 @@ class SessionService : Service() {
         GameThreadHints.stop()
         suspendOperationPending = false
         freezePending = false
+        SessionState.suspending = false
         launchWatcher?.stopWatching()
         launchWatcher = null
         syncWatcher?.stopWatching()

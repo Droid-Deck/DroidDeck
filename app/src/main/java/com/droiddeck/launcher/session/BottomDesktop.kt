@@ -270,8 +270,8 @@ object BottomDesktop {
             setState(State.FAILED)
             return
         }
-        // The session's freeze has already collected its helpers; a guest started now would run on unfrozen.
-        if (SessionState.suspended) {
+        // A freeze collects its helpers once, when it begins; a guest started after that would run on unfrozen.
+        if (SessionState.suspended || SessionState.suspending) {
             setState(State.OFF)
             return
         }
@@ -321,7 +321,7 @@ object BottomDesktop {
                     setState(State.FAILED)
                     return@post
                 }
-                if (SessionState.suspended) {
+                if (SessionState.suspended || SessionState.suspending) {
                     SessionService.stopTerminalProcess(context, pid)
                     guestPid = -1
                     guestGeneration++
