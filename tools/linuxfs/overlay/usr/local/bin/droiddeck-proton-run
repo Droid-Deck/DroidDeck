@@ -383,7 +383,7 @@ def steam_launch(appid, root):
     library, install = steam_install(appid, root)
     if not install or not os.path.isdir(install):
         return None
-    entry = compat()["appinfo_entries"](os.path.join(root, "appcache", "appinfo.vdf")).get(str(appid), {})
+    entry = compat()["appinfo_entries"](os.path.join(root, "appcache", "appinfo.vdf"), wanted={str(appid)}).get(str(appid), {})
     options = [option for option in entry.get("launch_options", ())
                if not option["betakey"] and (not option["oslist"] or "windows" in option["oslist"])]
     options.sort(key=lambda option: (option["type"] not in ("", "default", "none"),
@@ -409,7 +409,7 @@ def steam_launches(target, program, root):
     """Whether a launch option of the Steam game starts [program]: then Steam should start it."""
     if target.kind != "steam":
         return False
-    entry = compat()["appinfo_entries"](os.path.join(root, "appcache", "appinfo.vdf")).get(target.appid, {})
+    entry = compat()["appinfo_entries"](os.path.join(root, "appcache", "appinfo.vdf"), wanted={target.appid}).get(target.appid, {})
     return os.path.relpath(program, target.install).replace(os.sep, "/").lower() in entry.get("launch", ())
 
 
