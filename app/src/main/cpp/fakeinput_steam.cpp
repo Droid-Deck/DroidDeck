@@ -78,7 +78,6 @@ static constexpr uint8_t GAMEPAD_AXIS_COUNT = 8;
 static constexpr uint8_t GAMEPAD_BUTTON_COUNT = 11;
 static constexpr uint32_t FAKE_INPUT_RING_MAGIC = 0x46494252;
 static constexpr uint32_t FAKE_INPUT_RING_VERSION = 2;
-// Rings hold the 64-bit input_event layout that the arm64 writers use; 32-bit guests convert on read.
 struct RingEvent {
   int64_t sec;
   int64_t usec;
@@ -391,7 +390,6 @@ send_vibration(int strong, int weak, uint16_t duration_ms, uint16_t slot) {
   syscall(SYS_close, sock);
 }
 
-// Must match RumbleComponent.HOLD_MS: play until the slot's next effect or stop.
 static constexpr uint16_t RUMBLE_HOLD_MS = 0xffff;
 
 __attribute__((visibility("hidden"))) static void send_ff_effect(const struct ff_effect &effect, uint16_t slot) {
@@ -1243,7 +1241,6 @@ static constexpr int TRITON_REPORT_ID_BYTES = 1;
 static constexpr int TRITON_STATE_BYTES = 45;
 static constexpr int TRITON_REPORT_INTERVAL_US = 4000;
 static constexpr int TRITON_FEATURE_TIMEOUT_MS = 500;
-// The app clears output_length once it has taken a report; a writer waits this long for that before overwriting.
 static constexpr int TRITON_OUTPUT_TIMEOUT_MS = 50;
 static constexpr const char *TRITON_NAME = "Steam Controller";
 static constexpr const char *TRITON_SERIAL = "DROIDDECKSC01";
@@ -2673,9 +2670,6 @@ __attribute__((visibility("hidden"))) static int triton_get_feature(DeckHidraw &
 static constexpr uint32_t TRITON_HWID = 72;
 static constexpr uint32_t TRITON_FW_TIMESTAMP = 0x6AC686B3;
 
-// Steam compares the controller's firmware with TRITON_FW_TS in its bundled hardwareupdater.cfg (and blocks
-// with a required update below MUST_UPDATE_TRITON_FW_TS), so the emulated pad reports at least the build
-// Steam ships.
 static uint32_t triton_fw_timestamp() {
   static const uint32_t timestamp = [] {
     std::vector<std::string> roots;
@@ -3679,7 +3673,6 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
     Logger::log("Hooking ioctl EVIOCGRAB for event %s\n", event);
     return 0;
   } else if (type == 0x6A && !strncmp(event, "event", 5)) {
-    // Older SDL2 builds treat any JSIOCGNAME answer as a joydev node and skip EVIOCGID, then drop the pad as 0000:0000.
     Logger::log("Rejecting joydev ioctl %d for event %s\n", number, event);
     guard.unlock();
     errno = EINVAL;

@@ -29,7 +29,6 @@ class BootMovieLibraryTest {
 
     private fun movie(name: String) = File(movies, name).also { it.parentFile!!.mkdirs(); it.writeText("movie") }
 
-    /** A movie DroidDeck itself imported: kept in the library, copied into Steam's folder and noted in the list. */
     private fun imported(title: String, source: String = BootMovieLibrary.SOURCE_IMPORT, repo: String? = null): String {
         val staged = File(BootMovieLibrary.libraryDir(app), ".t-${System.nanoTime()}-${Thread.currentThread().id}.staged").also { it.parentFile!!.mkdirs(); it.writeText("movie") }
         return BootMovieLibrary.commit(app, staged, title, source, repo)!!
@@ -258,11 +257,9 @@ class BootMovieLibraryTest {
         steamPicks("b.webm")
         assertTrue(BootMovie.syncFromSteam(app))
         assertEquals("file:b.webm", BootMovie.choice(app))
-        // Picking another one here is not undone by the same Steam setting.
         BootMovie.select(app, "file:a.webm")
         assertFalse(BootMovie.syncFromSteam(app))
         assertEquals("file:a.webm", BootMovie.choice(app))
-        // A new pick inside Steam is adopted again.
         movie("c.webm")
         steamPicks("c.webm")
         assertTrue(BootMovie.syncFromSteam(app))

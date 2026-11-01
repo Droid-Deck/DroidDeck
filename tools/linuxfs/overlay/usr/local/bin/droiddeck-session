@@ -138,7 +138,6 @@ run_gamescope() (
   local status_file child_status compositor_status
   status_file=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/droiddeck-steam-exit.XXXXXX") || exit 73
   trap 'rm -f "$status_file"' EXIT
-  # Gamescope can return success when its primary child crashed.
   BL_STEAM_EXIT_FILE="$status_file" gamescope "$@"
   compositor_status=$?
   if read -r child_status < "$status_file" && [[ $child_status =~ ^[0-9]{1,3}$ ]] \
@@ -305,8 +304,6 @@ if [ -z "${BL_INSIDE:-}" ]; then
       echo "== gamescope: games at ${nested}x${nested_h} stretched to the ${width}x${height} output"
     fi
   fi
-  # Off unless Performance asks for it. Compositing the cursor here adds a second
-  # plane on the phone's compositor; a controller-driven cursor is the reason to turn it on.
   if [ "$mode" = steam ] && [ "${BL_CURSOR_COMPOSITE:-0}" = 1 ]; then
     export gamescope_cursor_composite=2
   fi
@@ -317,7 +314,6 @@ if [ -z "${BL_INSIDE:-}" ]; then
   fi
   if [ "${BL_REFRESH:-0}" -gt 0 ]; then
     args+=(-r "$BL_REFRESH")
-    # -r is the starting rate; gamescope follows the panel when it switches modes later.
     export GAMESCOPE_NESTED_REFRESH_FOLLOWS_HOST=1
   fi
   [ "$mode" = steam ] && [ "${BL_STEAM_UI:-}" != desktop ] && args+=(-e)
@@ -336,10 +332,8 @@ if [ -z "${BL_INSIDE:-}" ]; then
     args+=(--mangoapp)
     echo "== gamescope: mangoapp on ($(command -v mangoapp), config $MANGOHUD_CONFIGFILE)"
   fi
-  # gamescope writes the frame times the app's HUD shows here (patch 0125).
   mkdir -p /run/droiddeck-hud && export DROIDDECK_HUD_FRAMES=/run/droiddeck-hud/frames
   export BL_INSIDE=1
-  # A fixed path: left to itself gamescope creates a new limiter state file on every start.
   rm -f "${XDG_RUNTIME_DIR:-/tmp}"/gamescope-limiter-*
   export GAMESCOPE_LIMITER_FILE="${XDG_RUNTIME_DIR:-/tmp}/droiddeck-gamescope-limiter"
   rm -f "$GAMESCOPE_LIMITER_FILE"
@@ -469,7 +463,6 @@ case $mode in
     steam_cef_gpu=1
     if [ "$steam_x64" = 1 ]; then
       step "checking the Steam client's arm64 parts (first run downloads them, ~1-2 min)"
-      # droiddeck-steam-install removes the repair request: read it first so Repair Steam covers both clients.
       _bl_x64_repair=0
       [ -e "$HOME/.bl-steam-repair" ] && _bl_x64_repair=1
       droiddeck-steam-install || steam_setup_failed $?
@@ -554,7 +547,6 @@ case $mode in
           for _d in /proc/[0-9]*; do
             [ "${_d##*/}" != "$BASHPID" ] || continue
             _args=()
-            # Under FEX the program is FEX's first argument. AppId= is its own argument.
             while IFS= read -r -d '' _c; do _args+=("$_c"); done 2>/dev/null < "$_d/cmdline" || true
             [ "${#_args[@]}" -gt 0 ] || continue
             _name=${_args[0]} _fex=0
@@ -614,7 +606,6 @@ case $mode in
           _bl_rss=$_rss
           echo "$# processes, resident $((_rss / 1024)) MB, in zram $((_swap / 1024)) MB"
         }
-        # Only processes that loaded libblsession are the session's own and answer SIGURG.
         bl_session_others() {
           local _p
           _bl_session=()
@@ -630,8 +621,6 @@ case $mode in
             _pids=("${_bl_pids[@]}")
           fi
         }
-        # Same protocol as SessionSuspendController: an empty ack when the page-out starts, a byte when it is done.
-        # A process whose SIGURG handler was replaced never acks, so it is not waited for after the first 2 s.
         bl_zram_wait() {
           local _p _left _start=$SECONDS
           while [ $((SECONDS - _start)) -lt 12 ]; do
@@ -659,9 +648,6 @@ case $mode in
           bl_zram_pick "$_which"
           step "zRAM: done ($(bl_zram_usage "${_pids[@]}"))"
         }
-        # Proton starts its reaper before the game window; compressing during launch stalls it.
-        # Desktop Steam has no focus.json, so it still uses the game process as its trigger.
-        # A configured RAM cap can still force compression while a game is launching.
         bl_game_focused() {
           if [ "${BL_DESKTOP:-}" = 1 ] || [ -z "${BL_LAUNCH_DIR:-}" ]; then
             return 0
@@ -690,7 +676,6 @@ case $mode in
           bl_zram_scan
           if bl_cap_due; then
             if bl_over_cap; then
-              # A cap below the game's working set cannot be met; paging out again every 30 s only churns.
               if [ "$_bl_capped" -lt 0 ] || [ $((SECONDS - _bl_capped)) -ge "$_bl_backoff" ]; then
                 bl_zram_usage "${_bl_pids[@]}" > /dev/null
                 if [ "$_bl_rss" -ge $((512 * 1024)) ]; then
@@ -879,14 +864,11 @@ case $mode in
       until [ "$(_bl_focused)" = 769 ] || [ "$SECONDS" -ge "$_bl_end" ]; do
         sleep 1
       done
-      # Shortcut CGameIDs are 64-bit; Steam app ids fit in 32 bits and keep the old short delay.
       [ "${#game}" -gt 10 ] && shortcut=1
       [ -n "$shortcut" ] || sleep 4
       echo "== steam: interface up; launching the requested game $game"
       _bl_hand_off
       [ -n "$shortcut" ] || return 0
-      # Steam can drop a shortcut launch it gets before the shortcut's overview exists (large libraries).
-      # A launch can be running before it creates its first window.
       while [ "$(_bl_focused)" = 769 ] && [ "$waited" -lt 20 ]; do
         sleep 1
         waited=$((waited + 1))
@@ -978,13 +960,11 @@ case $mode in
       exit 69
     fi
 
-    # The UI bridge launches SteamVR, which needs the guest agent's library environment.
     _bl_compat_env=(env -u LD_LIBRARY_PATH -u STEAM_RUNTIME -u STEAM_STEAMRT_RECURSION_GUARD)
     [ "${LD_LIBRARY_PATH+x}" ] && _bl_compat_env+=("LD_LIBRARY_PATH=$LD_LIBRARY_PATH")
     [ "${STEAM_RUNTIME+x}" ] && _bl_compat_env+=("STEAM_RUNTIME=$STEAM_RUNTIME")
     [ "${STEAM_STEAMRT_RECURSION_GUARD+x}" ] && _bl_compat_env+=("STEAM_STEAMRT_RECURSION_GUARD=$STEAM_STEAMRT_RECURSION_GUARD")
     export STEAM_RUNTIME=1
-    # A containerized client re-executes itself through pressure-vessel-wrap (bwrap) unless told it is already inside.
     export STEAM_STEAMRT_RECURSION_GUARD=1
     export LD_LIBRARY_PATH=$steam_root/steamrtarm64:$steam_root/steamrtarm64/panorama${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
     export SDL_VIDEO_X11_DGAMOUSE=0
@@ -1238,7 +1218,6 @@ case $mode in
       compat_restarts=0
       compat_settled() {
         local app m flags r card=/mnt/droiddeck-sd added=(/mnt/droiddeck-lib/*)
-        # The arm64 card library may hold that client's copy of the same title.
         [ "$steam_x64" = 1 ] && { card=/mnt/droiddeck-sd/x86-64; added=(/mnt/droiddeck-lib/*/x86-64); }
         while read -r app; do
           [ -n "$app" ] || continue
@@ -1355,7 +1334,6 @@ case $mode in
             lossless_left=0
           elif ! pgrep -x wineserver >/dev/null 2>&1; then
             (
-              # The probe reaches the x86-64 client through the arm64 client's steamclient.so, as the import watcher does.
               if [ "$steam_x64" = 1 ]; then export BL_STEAMCLIENT=$XDG_DATA_HOME/Steam/steamrtarm64/steamclient.so; fi
               answer=$(droiddeck-steam-games probe "$steam_root" 993090 2>/dev/null) || exit 0
               case $answer in
@@ -1415,7 +1393,6 @@ case $mode in
           BL_COMPAT_TOOL=$_bl_x64_tool droiddeck-steam-shortcuts "$steam_root" "$BL_ADDED_GAMES" || true
         fi
       fi
-      # The x86-64 client rewrote config.vdf from memory on exit, over the live passes' mapping.
       if [ "$steam_x64" = 1 ]; then
         [ -z "${_bl_x64_tool:-}" ] ||
           BL_COMPAT_TOOL=$_bl_x64_tool steam-compatibility "$steam_root" --x64 >/dev/null 2>&1 || true

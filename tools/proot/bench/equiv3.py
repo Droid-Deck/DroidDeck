@@ -1,13 +1,3 @@
-"""Fast path equivalence, part three: /proc (self, fd and exe links, readlink as proot answers it,
-realpath through it, opening through fd links), link text naming host paths, creating in
-directories whose host path is long, glue above a binding proot cannot look into, files the
-caller may not stat, trailing slashes, shm_open, accept, passwd lookups and the _FORTIFY_SOURCE
-entry points.
-
-Run under proot with and without the fast path (run-device.sh fpoff / fastpath) and diff the
-output: every line must match. The rig's rootfs is ROOT; run-device.sh binds /cache/fp/perf and
-SHARED at /opt/fpx.
-"""
 import ctypes
 import errno
 import os

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Expose available Steam libraries in Dolphin, retaining the old PCManFM bookmark."""
 import hashlib
 import json
 import os

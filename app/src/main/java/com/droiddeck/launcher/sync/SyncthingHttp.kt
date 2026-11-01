@@ -5,7 +5,6 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 
-/** Just enough HTTP/1.1 to talk to Syncthing over its Unix socket, one request per connection. */
 internal object SyncthingHttp {
     private const val LINE_LIMIT = 16 shl 10
     private const val HEADER_LIMIT = 100
@@ -32,7 +31,6 @@ internal object SyncthingHttp {
         return code to String(body, Charsets.UTF_8)
     }
 
-    /** Reads one CRLF-terminated line, or null at end of stream. */
     fun readLine(input: InputStream): String? {
         val line = ByteArrayOutputStream()
         while (true) {

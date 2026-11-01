@@ -14,7 +14,6 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
     val name = "droiddeck-xbox-${UUID.randomUUID()}"
     private val generation = lifecycle(app, expectedGeneration) { it }
     private val server = LocalServerSocket(name)
-    // Some devices refuse the abstract socket from inside PRoot; the backend then falls back to this keyed loopback port.
     private val loopback = java.net.ServerSocket(0, 8, java.net.InetAddress.getByAddress(byteArrayOf(127, 0, 0, 1)))
     val port: Int get() = loopback.localPort
     val key: String = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
@@ -38,7 +37,6 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
         return false
     }
 
-    /** Also written to the stores log: sign-in runs in its own process, where only that file reaches a shared log. */
     private fun note(text: String) {
         android.util.Log.w("XboxCredentials", text)
         com.droiddeck.launcher.stores.StoreLogFiles.stamped(app, "Xbox credentials: $text")
@@ -84,7 +82,6 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
         } }
     }
 
-    /** Each connection gets its own thread; an accept error is logged and retried instead of silently ending the loop. */
     private fun <S> listen(route: String, accept: () -> S, serve: (S) -> Unit) = Thread({
         var failures = 0
         while (!closed) {
@@ -101,7 +98,6 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
         }
     }, "xbox-credentials-$route").start()
 
-    /** Logs requests that take 2 s or more, and the stage a request is still in after 8 s (the backend waits 30 s). */
     private fun tracked(route: String, block: (step: (String) -> Unit) -> JSONObject): JSONObject {
         val started = android.os.SystemClock.elapsedRealtime()
         val stage = java.util.concurrent.atomic.AtomicReference("auth")
@@ -183,7 +179,6 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
         }
     }
 
-    /** The connecting socket must belong to this app's user; an unreadable table (newer Android) leaves the key as the check. */
     private fun loopbackOwner(peerPort: Int): Boolean {
         val uid = android.os.Process.myUid()
         val rows = listOf("/proc/net/tcp", "/proc/net/tcp6").mapNotNull { runCatching { java.io.File(it).readLines().drop(1) }.getOrNull() }.flatten()

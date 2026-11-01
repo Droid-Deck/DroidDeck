@@ -12,10 +12,6 @@ object CloudSavePaths {
 
     class GogCloudLocation(val name: String, val template: String)
 
-    /**
-     * cloudStorage.enabled with an empty locations list is Galaxy SDK IStorage, whose objects the
-     * API names under a location called `__default`.
-     */
     fun gogSaveFromRemote(enabled: Boolean, locations: List<Pair<String, String>>, clientId: String): GogCloudLocation? {
         if (!enabled) return null
         val named = locations.filter { it.second.isNotEmpty() }

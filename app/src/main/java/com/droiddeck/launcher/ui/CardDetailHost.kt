@@ -40,10 +40,8 @@ import kotlinx.coroutines.delay
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 
-/** A grid of cards with a game page that floods out of the opened card and drains back into it. */
 internal val LocalDetailFloor = compositionLocalOf<() -> Float> { { Float.MAX_VALUE } }
 
-/** How far the host reaches past the page's padding, so a game page can paint to the screen edge and still inset its content. */
 internal class DetailInset(val horizontal: Dp, val top: Dp)
 internal val LocalDetailInset = compositionLocalOf { DetailInset(0.dp, 0.dp) }
 

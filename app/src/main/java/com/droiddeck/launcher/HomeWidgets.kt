@@ -197,7 +197,6 @@ object HomeWidgets {
         if (pendingId == AppWidgetManager.INVALID_APPWIDGET_ID) add(activity, provider.info, null)
     }
 
-    /** Places a widget another app asked for; its own app has already configured it. */
     fun addPinned(activity: Activity, request: LauncherApps.PinItemRequest): Boolean {
         if (pendingId != AppWidgetManager.INVALID_APPWIDGET_ID) return false
         val info = request.getAppWidgetProviderInfo(activity) ?: return false

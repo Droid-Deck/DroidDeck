@@ -69,7 +69,6 @@ object SessionLogShare {
         return zip
     }
 
-    /** Every entry is scrubbed line by line, whatever its size: a raw copy can carry tokens out of the device. */
     private fun addEntry(z: ZipOutputStream, name: String, f: File) {
         z.putNextEntry(ZipEntry(name))
         val w = z.bufferedWriter()

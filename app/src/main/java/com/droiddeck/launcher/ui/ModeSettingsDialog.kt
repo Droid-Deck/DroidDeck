@@ -82,9 +82,7 @@ class ModeSettings(
     val picturePosition: String? = null,
     val stretch16x9: Boolean? = null,
     val steamClientArch: String? = null,
-    /** Steam only: a game launched from the front end returns there when it closes; null hides the row. */
     val returnAfterGame: Boolean? = null,
-    /** Steam only: the client's Shader Pre-Caching setting; null hides the row. */
     val shaderPrecache: Boolean? = null,
     val steamRepairQueued: Boolean = false,
     val mangoapp: Boolean = true,
@@ -160,15 +158,12 @@ class ModeSettingsActions(
     val onDismiss: () -> Unit,
 )
 
-/** "2610 r3" from droiddeck-fex-update's FEX_TAG line (fex-2610-r3), the build x86 programs fall back to. */
 internal fun fexVersionOf(script: String): String? =
     Regex("""(?m)^FEX_TAG=(fex-\d+-r\d+)\s*$""").find(script)?.let { fexVersionOfTag(it.groupValues[1]) }
 
-/** "2610 r5" from a tag such as fex-2610-r5. */
 internal fun fexVersionOfTag(tag: String): String? =
     Regex("""fex-(\d+)-r(\d+)""").matchEntire(tag.trim())?.let { "${it.groupValues[1]} r${it.groupValues[2]}" }
 
-/** The build installed in the runtime, else the one fex.json names, else the one the launcher pins. */
 @Composable
 private fun x64FexVersion(context: android.content.Context): String? = remember {
     val root = com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context)
@@ -229,7 +224,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             }
             if (s.stretch16x9 != null && (com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(s.panelSize) ||
                     com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize))) {
-                val canStretch = s.resolution != com.droiddeck.launcher.session.SessionDisplay.FOLLOW_SCREEN &&
+                val canStretch = !com.droiddeck.launcher.session.SessionDisplay.isFollow(s.resolution) &&
                     com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize)
                 ChoiceRow(host, "game-fit", stringResource(R.string.display_game_fit),
                     stringResource(if (canStretch) R.string.display_game_fit_hint else R.string.display_game_fit_unavailable),
@@ -698,6 +693,26 @@ internal fun CustomResolutionDialog(initial: Pair<Int, Int>?, onSave: (Pair<Int,
                     modifier = Modifier.padding(top = 6.dp),
                 )
             }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(enabled = parsed != null, onClick = { parsed?.let(onSave) }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_use)) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
+    )
+}
+
+@Composable
+internal fun CustomFollowScaleDialog(initial: Float?, onSave: (Float) -> Unit, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf(initial?.let(com.droiddeck.launcher.session.SessionDisplay::formatScale) ?: "") }
+    val parsed = com.droiddeck.launcher.session.SessionDisplay.parseFollowScale(text)
+    com.droiddeck.launcher.ui.GlideAlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.display_follow_screen_scaled, "…")) },
+        text = {
+            androidx.compose.material3.OutlinedTextField(
+                text, { v -> text = v.filter { it.isDigit() || it == '.' || it == ',' }.take(4) },
+                label = { Text("÷") }, singleLine = true, isError = parsed == null && text.isNotEmpty(),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+                modifier = Modifier.focusGlide(),
+            )
         },
         confirmButton = { androidx.compose.material3.TextButton(enabled = parsed != null, onClick = { parsed?.let(onSave) }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_use)) } },
         dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },

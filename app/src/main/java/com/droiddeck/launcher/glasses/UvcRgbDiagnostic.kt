@@ -12,8 +12,6 @@ internal object UvcRgbDiagnostic {
 internal data class UvcStreamHealth(val observationMs: Double, val observedFps: Double,
                                     val maximumGapMs: Double, val healthy: Boolean) {
     companion object {
-        // Health requires the full requested window, 80% of requested FPS, and no gap
-        // (including the final silent interval) above max(250 ms, three frame periods).
         fun assess(metadata: LongArray, requestedFps: Int, durationMs: Int): UvcStreamHealth {
             require(metadata.size == 14 && requestedFps > 0 && durationMs > 0)
             val first = metadata[7]

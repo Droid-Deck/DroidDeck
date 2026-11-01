@@ -25,7 +25,6 @@ object SyncPrefs {
     fun userPaused(context: Context): Boolean = prefs(context).getBoolean("paused", false)
     fun setUserPaused(context: Context, on: Boolean) { prefs(context).edit().putBoolean("paused", on).apply() }
 
-    /** Whether DroidDeck has paused all devices through the API and must resume them. */
     fun pauseApplied(context: Context): Boolean = prefs(context).getBoolean("pause-applied", false)
     fun setPauseApplied(context: Context, on: Boolean) { prefs(context).edit().putBoolean("pause-applied", on).apply() }
 

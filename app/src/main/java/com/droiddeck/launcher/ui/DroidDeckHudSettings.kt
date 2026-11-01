@@ -6,7 +6,6 @@ import androidx.compose.ui.res.stringResource
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.hud.DroidDeckHudSize
 
-/** Bannerlator's DroidDeck HUD settings (DeckOverlaySettings): one row per key of the HUD's config string. */
 @Composable
 internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
     val cfg = a.hudConfig
@@ -97,12 +96,10 @@ internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (Stri
 
 private fun flag(on: Boolean) = if (on) "1" else "0"
 
-// The Pill also draws the battery temperature and watts.
 private val EXTRA = mapOf(DroidDeckHudSize.PILL to setOf("Temp", "Power"))
 
 private class HudMetric(val chip: String, val key: String, val label: Int)
 
-// DroidDeckHudSize.supportedChips() names; Wrapper and DX version have nothing to show in DroidDeck.
 private val METRICS = listOf(
     HudMetric("FPS", "showFPS", R.string.drawer_hud_fps),
     HudMetric("FPS graph", "showFPSGraph", R.string.hud_metric_graph),
@@ -127,8 +124,6 @@ private val METRICS = listOf(
     HudMetric("Clock", "showClock", R.string.hud_metric_clock),
 )
 
-// Switches a size lists but never draws (DroidDeckHudView): the Pill and Minimal always show the FPS, the
-// Pill has no graph, Tiles has no graph and no 0.01% low, the Strip always shows the FPS.
 private val HIDDEN = mapOf(
     DroidDeckHudSize.PILL to setOf("FPS", "FPS graph"),
     DroidDeckHudSize.MINIMAL to setOf("FPS"),

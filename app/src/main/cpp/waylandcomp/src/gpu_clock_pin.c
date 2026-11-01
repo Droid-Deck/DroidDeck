@@ -103,7 +103,6 @@ static bool prepare_pin(void) {
                           (off_t)pin.memory << 12);
     if (commands == MAP_FAILED) return false;
     pin.commands = commands;
-    // A3xx/A4xx use type-3 CP_NOP; newer cores use type-7 with zero odd-parity bits.
     uint32_t *words = commands;
     words[0] = pin.nop;
     words[1] = 0;
@@ -124,7 +123,6 @@ static void *hold_pin(void *unused) {
             if (errno == EINTR || errno == ETIMEDOUT) continue;
             break;
         }
-        // Constraints expire after idle_timer (normally 80 ms); renew with a NOP, keeping devfreq alive.
         usleep(25000);
         if (atomic_load(&running) && !submit_pin()) break;
     }

@@ -17,7 +17,6 @@ import android.widget.FrameLayout
 import com.droiddeck.launcher.BuildConfig
 import com.droiddeck.launcher.QuestXrActivity
 
-/** A faint bottom-right tag on every screen of a test or local build; stable and preview builds draw none. */
 object BuildWatermark {
     private const val TITLE_LIMIT = 80
 

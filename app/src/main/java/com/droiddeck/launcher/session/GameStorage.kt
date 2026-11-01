@@ -17,7 +17,6 @@ object GameStorage {
         val primary = context.getExternalFilesDir(null)?.absolutePath
         val primaryStorage = Environment.getExternalStorageDirectory()?.absolutePath
         return context.getExternalFilesDirs(null).orEmpty().filterNotNull().mapNotNull { dir ->
-            // Non-primary app dirs are usable even when Android reports the volume as non-removable (USB SSDs often do).
             if (primary != null && dir.absolutePath == primary) return@mapNotNull null
             if (!primaryStorage.isNullOrBlank() && dir.absolutePath.startsWith("$primaryStorage/")) return@mapNotNull null
             val volume = try { sm?.getStorageVolume(dir) } catch (e: Exception) { null }

@@ -50,14 +50,12 @@ CONFIG = '''"InstallConfigStore"
 
 
 class X64RepointTest(unittest.TestCase):
-    """steam-compatibility --x64: the x86-64 client's Proton entries go to its arm64 wrapper."""
 
     def setUp(self):
         self.home = tempfile.TemporaryDirectory()
         self.root = Path(self.home.name) / "Steam"
         (self.root / "config").mkdir(parents=True)
         (self.root / "config" / "config.vdf").write_text(CONFIG)
-        # A wrapper of its own whose name starts with "proton": kept, never repointed.
         own = self.root / "compatibilitytools.d" / "proton-cachyos-a64"
         own.mkdir(parents=True)
         (own / "compatibilitytool.vdf").write_text('"compatibilitytools"\n{\n\t"compat_tools"\n\t{\n\t\t"proton-cachyos-a64"\n\t\t{\n\t\t}\n\t}\n}\n')
@@ -82,12 +80,10 @@ class X64RepointTest(unittest.TestCase):
         self.assertEqual(m["550"], "GE-Proton11-7-a64")
         self.assertEqual(m["620"], "proton-cachyos-a64")
         self.assertEqual(m["730"], "steamlinuxruntime")
-        # The arm64 client's own Proton name, which this client ignores.
         self.assertEqual(m["880"], "GE-Proton11-7-a64")
         self.assertEqual(m["0"], "GE-Proton11-7-a64")
 
     def test_repoints_arm64_name_even_with_its_stray_tool(self):
-        # An arm64 compat pass that ran against this client also left its tool folder here.
         stray = self.root / "compatibilitytools.d" / "droiddeck-proton-arm64"
         stray.mkdir(parents=True)
         (stray / "compatibilitytool.vdf").write_text('"compatibilitytools"\n{\n\t"compat_tools"\n\t{\n\t\t"droiddeck-proton-arm64"\n\t\t{\n\t\t}\n\t}\n}\n')

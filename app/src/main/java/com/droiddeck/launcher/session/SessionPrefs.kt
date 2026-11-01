@@ -100,6 +100,13 @@ object SessionPrefs {
         prefs(context).edit().putString("secondScreenPanel", mode).apply()
     }
 
+    /** The bottom-screen desktop takes touch as a trackpad unless the user switched it to direct touch. */
+    fun bottomDesktopDirectTouch(context: Context): Boolean = prefs(context).getBoolean("bottomDesktopDirectTouch", false)
+
+    fun setBottomDesktopDirectTouch(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("bottomDesktopDirectTouch", on).apply()
+    }
+
     fun statsStrip(context: Context): String? = prefs(context).getString("statsStrip", null)
 
     fun setStatsStrip(context: Context, id: String) {
@@ -118,14 +125,12 @@ object SessionPrefs {
         prefs(context).edit().putString("statsDash", id).apply()
     }
 
-    /** In-game stats "Send dashboard data" Automatic: on unless the user switched it off. */
     fun telemetryAuto(context: Context): Boolean = prefs(context).getBoolean("telemetryAuto", true)
 
     fun setTelemetryAuto(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("telemetryAuto", on).apply()
     }
 
-    /** Games the user switched off by hand, as TelemetryOutput keys; Automatic leaves them alone. */
     fun telemetryOff(context: Context): Set<String> = prefs(context).getStringSet("telemetryOff", null)?.toSet().orEmpty()
 
     fun setTelemetryOff(context: Context, keys: Set<String>) {
@@ -156,13 +161,6 @@ object SessionPrefs {
         prefs(context).edit().putString("gameStoresSpeedTier", tier).apply()
     }
 
-    /**
-     * Hidden A/B switch for the Epic installer: "adaptive" (default: native parallel fetch written
-     * straight into staged files), "lookahead" (the native ordered-lookahead engine that caches each
-     * chunk and copies it into staged files), "batch" (the older whole-cache native fetch, then
-     * native assembly; needs about twice the game's size free) or "java" (the bounded Java writer).
-     * No UI; set it in the `session` preferences for benchmarks.
-     */
     fun storesEpicMode(context: Context): String = prefs(context).getString("storesEpicMode", "adaptive") ?: "adaptive"
 
     fun storesShowMature(context: Context): Boolean = prefs(context).getBoolean("storesShowMature", false)
@@ -239,7 +237,6 @@ object SessionPrefs {
         prefs(context).edit().putString("storesInstallTarget", path).apply()
     }
 
-    /** Empty means follow the app/system language for GOG and Epic installs. */
     fun storesInstallLanguage(context: Context): String = prefs(context).getString("storesInstallLanguage", "") ?: ""
 
     fun setStoresInstallLanguage(context: Context, code: String) {
@@ -465,10 +462,6 @@ object SessionPrefs {
             position.takeIf { it in listOf("top", "bottom", "center") } ?: "center").apply()
     }
 
-    /**
-     * After a game launched from the front end (or another launcher's link) closes, the client
-     * exits cleanly and the session returns there, instead of staying in Big Picture.
-     */
     fun returnAfterGame(context: Context): Boolean = prefs(context).getBoolean("returnAfterGame", true)
 
     fun setReturnAfterGame(context: Context, on: Boolean) {
@@ -478,11 +471,6 @@ object SessionPrefs {
     private fun shaderPrecacheApplied(context: Context) =
         java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.bl-shader-precache-applied")
 
-    /**
-     * Shader pre-caching as the launcher last set it, until a session reports it written into the
-     * client's config.vdf; after that the client's own toggle is the user's again. A client that
-     * has never written a config.vdf starts with pre-caching off.
-     */
     fun pendingShaderPrecache(context: Context): Boolean? {
         val prefs = prefs(context)
         if (!prefs.contains("shaderPrecache")) {
@@ -653,7 +641,6 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("gpuClockPin", on).apply()
     }
 
-    /** Whether the game's busiest threads are named to the power HAL for a boost (GameThreadHints). */
     fun gameThreadHints(context: Context): Boolean = prefs(context).getBoolean("gameThreadHints", true)
 
     fun prootNoSeccomp(context: Context): Boolean = prefs(context).getBoolean("prootNoSeccomp", false)
@@ -668,18 +655,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("prootFastPath", on).apply()
     }
 
-    /** gamescope draws the cursor itself. Off by default: on a phone that plane costs frames. */
     fun cursorComposite(context: Context): Boolean = prefs(context).getBoolean("cursorComposite", false)
 
     fun setCursorComposite(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("cursorComposite", on).apply()
     }
 
-    /**
-     * The rootfs ships Termux's unpatched proot. A session uses it only when this file exists,
-     * so a missing add-on pack cannot silently fall back to it.
-     * Path: Android/data/&lt;package&gt;/files/droiddeck-stock-proot
-     */
     @JvmStatic
     fun allowStockProot(context: Context): Boolean =
         context.getExternalFilesDir(null)?.let { File(it, "droiddeck-stock-proot").isFile } == true
@@ -765,7 +746,6 @@ object SessionPrefs {
         )
     }
 
-    /** Extra Proton, Wine and graphics diagnostics for the next game launch; off unless chosen. */
     fun gameDebugLogsEnabled(context: Context): Boolean =
         prefs(context).getBoolean("gameDebugLogsEnabled", false)
 
@@ -874,7 +854,7 @@ object SessionPrefs {
     fun resolutionChoice(context: Context, mode: String, panel: Pair<Int, Int>): String {
         val saved = prefs(context)
         saved.getString("displayResolution.$mode", null)?.let { value ->
-            if (value == SessionDisplay.MATCH_SCREEN || value == SessionDisplay.FOLLOW_SCREEN ||
+            if (value == SessionDisplay.MATCH_SCREEN || SessionDisplay.isFollow(value) ||
                 SessionDisplay.presetHeight(value) != null) return value
             parseResolution(value)?.let { return "${it.first}x${it.second}" }
         }
@@ -887,7 +867,7 @@ object SessionPrefs {
     }
 
     fun setResolutionChoice(context: Context, mode: String, choice: String) {
-        val value = if (choice == SessionDisplay.MATCH_SCREEN || choice == SessionDisplay.FOLLOW_SCREEN ||
+        val value = if (choice == SessionDisplay.MATCH_SCREEN || SessionDisplay.isFollow(choice) ||
                 SessionDisplay.presetHeight(choice) != null) choice else {
             val size = requireNotNull(parseResolution(choice)) { "Invalid resolution" }
             "${size.first}x${size.second}"
@@ -919,7 +899,6 @@ object SessionPrefs {
         prefs(context).edit().putString("steamClientArch", id).apply()
     }
 
-    /** The running session's client, else the selected one: a changed setting applies from the next session. */
     fun activeSteamClientArch(context: Context): String =
         SessionState.steamClientArch?.takeIf { SessionState.running } ?: steamClientArch(context)
 
@@ -937,13 +916,10 @@ object SessionPrefs {
     fun setBootMovieSound(context: Context, on: Boolean) { prefs(context).edit().putBoolean("bootMovieSound", on).apply() }
     fun bootMovieVolume(context: Context): Int = prefs(context).getInt("bootMovieVolume", 100).coerceIn(0, 100)
     fun setBootMovieVolume(context: Context, percent: Int) { prefs(context).edit().putInt("bootMovieVolume", percent.coerceIn(0, 100)).apply() }
-    /** How long the boot movie plays, in seconds; 0 plays all of it. */
     fun bootMovieSeconds(context: Context): Int = prefs(context).getInt("bootMovieSeconds", 0).coerceAtLeast(0)
     fun setBootMovieSeconds(context: Context, seconds: Int) { prefs(context).edit().putInt("bootMovieSeconds", seconds.coerceAtLeast(0)).apply() }
-    /** Set when a movie was picked here, so the next session makes it Steam's startup movie even if Steam had another one. */
     fun bootMovieApplyNext(context: Context): Boolean = prefs(context).getBoolean("bootMovieApplyNext", false)
     fun setBootMovieApplyNext(context: Context, on: Boolean) { prefs(context).edit().putBoolean("bootMovieApplyNext", on).apply() }
-    /** The startup movie path Steam's config held when it was last looked at, so only a change made in Steam is taken over. */
     fun bootMovieSteamSeen(context: Context): String? = prefs(context).getString("bootMovieSteamSeen", null)
     fun setBootMovieSteamSeen(context: Context, path: String) { prefs(context).edit().putString("bootMovieSteamSeen", path).apply() }
     fun bootMovieCustomName(context: Context): String? = prefs(context).getString("bootMovieCustomName", null)
@@ -1107,13 +1083,11 @@ object SessionPrefs {
         prefs(context).edit().putString("theme", id).apply()
     }
 
-    /** The custom Gradient theme's primary and secondary colours (ARGB). */
     fun gradientColors(context: Context): Pair<Int, Int> = prefs(context).let {
         it.getInt("gradientPrimary", com.droiddeck.launcher.ui.Themes.DEFAULT_PRIMARY) to
             it.getInt("gradientSecondary", com.droiddeck.launcher.ui.Themes.DEFAULT_SECONDARY)
     }
 
-    /** How fast the Inner Gamer theme cycles its colours, 1 to 10. */
     fun rgbSpeed(context: Context): Int =
         prefs(context).getInt("innerGamerSpeed", com.droiddeck.launcher.ui.Themes.DEFAULT_RGB_SPEED).coerceIn(1, com.droiddeck.launcher.ui.Themes.RGB_SPEEDS)
 
@@ -1143,18 +1117,11 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("hdr.$mode", on).apply()
     }
 
-    /** Compositor frame limit that releases buffers to the game unpaced. */
     const val FPS_UNPACED = -1
 
-    /** The drawer's frame limit slider: its first stop is Off. */
     const val FPS_LIMIT_OFF = 15
     const val FPS_LIMIT_MAX = 165
 
-    /**
-     * Buffers go back to the game as soon as they are replaced instead of once per refresh;
-     * Steam's Frame Limit in the Quick Access menu caps Steam games, and the drawer's limit caps games
-     * launched without Steam. Mirroring still follows the glasses' refresh rate.
-     */
     const val PIP_FPS = 30
 
     fun compositorFpsLimit(mirrorRefreshLimit: Int, sessionLimit: Int = 0, pip: Boolean = false): Int {

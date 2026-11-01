@@ -563,7 +563,6 @@ object Glasses {
         val device = selected?.first
         val m = selected?.second
         val controllable = m?.let(::canOpenModel) == true
-        // XREAL uses Android's Ethernet sockets, without opening or claiming USB interfaces.
         val permitted = controllable && device != null && (m === XrealModel || usb.hasPermission(device))
         val identity = device?.let {
             GlassesModeState.Device(it.productId, if (permitted) runCatching { it.serialNumber }.getOrNull() else null)
@@ -677,8 +676,6 @@ object Glasses {
     internal fun selectGlassesDisplay(displays: List<Display>, usbPresent: Boolean): Display? {
         val candidates = displays
             .filter { it.displayId != Display.DEFAULT_DISPLAY && it.flags and Display.FLAG_PRESENTATION != 0 }
-        // Android can expose the glasses name on either the logical display or
-        // its product metadata. A generic label on one must not hide the other.
         return candidates.firstOrNull { display ->
             isGlassesDisplayName(display.name) ||
                 (Build.VERSION.SDK_INT >= 31 && display.deviceProductInfo?.let { product ->
@@ -728,7 +725,6 @@ object Glasses {
             if (device.productId == VitureProtocol.PRO2_PRODUCT_ID) {
                 VitureV2Link.open(usb, device, v2Listener(generation))
             } else if ((model as? VitureProtocol.Model)?.needsSdk == true) {
-                // Android can evict cacheDir while the SDK is running.
                 Log.i(TAG, "opening VITURE SDK pid=0x%04X spatial=%s".format(device.productId, spatial))
                 VitureSdkLink.open(usb, device, File(app.noBackupFilesDir, "viture"), sdkListener(generation),
                     (model as? VitureProtocol.Model)?.family, spatial)
@@ -854,7 +850,6 @@ object Glasses {
             if (generation != linkGeneration) return@post
             closeLink()
             publish { it.copy(controlError = app.getString(R.string.glasses_connection_failed)) }
-            // Let a reconnect or explicit Allow retry restart the SDK, not an endless failure loop.
         }
     }
 
@@ -974,7 +969,6 @@ object Glasses {
         }
         if (!s.usable || s.sbs || modeState.pendingStereo) return
         val hz = _settings.value.refreshHz
-        // Native 30 Hz is selected by the Android presentation, without a vendor mode command.
         if (hz == 30 && GlassesRendering.native30HzAvailable(_settings.value, s)) return
         if (glassesMode == m.mode(hz, false, outputResolution())) return
         if (!force) {

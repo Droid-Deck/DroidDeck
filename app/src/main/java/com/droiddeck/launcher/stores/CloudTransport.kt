@@ -47,7 +47,6 @@ internal fun gunzip(data: ByteArray): ByteArray? = try {
     java.util.zip.GZIPInputStream(data.inputStream()).use { it.readBytes() }
 } catch (e: Exception) { null }
 
-/** Same gzip GOG uses on PUT: deflate level 6, mtime 0, OS Unix. */
 internal fun gzipGogPut(data: ByteArray): ByteArray {
     val deflater = Deflater(6, true)
     val raw = ByteArrayOutputStream()
@@ -98,17 +97,14 @@ internal fun isoDate(s: String?): Long {
 
 class NoCloudSaves : Exception("no cloud saves")
 
-/** GOG cloud names are `<location name>/<path under that location>`; the name is not part of the folder. */
 internal fun splitGogName(name: String): Pair<String?, String> {
     val slash = name.indexOf('/')
     return if (slash <= 0 || slash == name.length - 1) null to name
     else name.substring(0, slash) to name.substring(slash + 1)
 }
 
-/** Maps cloud names to paths under the selected location's folder; the chosen location name is returned. */
 internal fun gogRelativeNames(files: List<CloudFile>, location: String?): Pair<String?, List<CloudFile>> {
     val locations = files.mapNotNull { splitGogName(it.name).first }.distinct()
-    // Only infer a location when every name is prefixed; a mixed listing keeps its old shape.
     val allPrefixed = files.isNotEmpty() && files.all { splitGogName(it.name).first != null }
     val chosen = when {
         location != null && (location in locations || allPrefixed) -> location
@@ -167,10 +163,6 @@ class GogCloud(
         return relative(raw)
     }
 
-    /**
-     * The API names every file `<location>/<path>`. The location's folder is the sync root, so the
-     * first segment is dropped. Older builds kept it, writing saves one folder too deep.
-     */
     private fun relative(raw: List<CloudFile>): List<CloudFile> {
         val (chosen, files) = gogRelativeNames(raw, location)
         prefix = chosen?.let { "$it/" }

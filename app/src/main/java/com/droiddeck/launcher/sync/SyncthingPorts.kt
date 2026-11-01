@@ -7,7 +7,6 @@ import java.net.ServerSocket
 data class SyncthingPorts(val sync: Int, val discovery: Int)
 
 object SyncthingPortPicker {
-    // Syncthing's defaults, plus the alternates Syncthing-Fork's debug build uses.
     internal val RESERVED = setOf(8384, 8385, 22000, 22001, 21027, 21028)
     internal const val SYNC = 22100
     internal const val DISCOVERY = 21127
