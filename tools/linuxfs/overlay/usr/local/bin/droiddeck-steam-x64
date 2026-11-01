@@ -736,7 +736,7 @@ if x64_gpu; then
     echo "export FEX_THUNKCONFIG='$X64_HOME/thunks.json'"
     echo "unset LIBGL_ALWAYS_SOFTWARE LIBGL_DRI3_DISABLE GALLIUM_DRIVER"
     for v in $gpu_vars; do
-      eval "val=\${$v-}"; [ -n "$val" ] && printf "export %s='%s'\n" "$v" "$val"
+      eval "val=\${$v-}"; [ -n "$val" ] && printf "export %s='%s'\n" "$v" "${val//\'/\'\\\'\'}"
     done
   } > "$X64_HOME/game-gpu.env"
 fi
