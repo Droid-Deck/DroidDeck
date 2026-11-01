@@ -20,11 +20,13 @@ class BottomScreenGuestsTest {
 
     @After fun clear() = DualScreen.setTaken(emptySet())
 
-    @Test fun onlyTheRetroidPocketDuoWatchesItsBottomScreen() {
+    @Test fun onlyTheRetroidPocketDuoAndAynThorWatchTheirBottomScreen() {
         assertTrue(BottomScreenGuests.supported("Retroid Pocket Duo", 36))
         assertTrue(BottomScreenGuests.supported(" retroid pocket duo ", 33))
         assertFalse(BottomScreenGuests.supported("Retroid Pocket Duo", 32))
-        assertFalse(BottomScreenGuests.supported("AYN Thor", 36))
+        assertTrue(BottomScreenGuests.supported("AYN Thor", 33))
+        assertTrue(BottomScreenGuests.supported("AYN Thor Max", 34))
+        assertFalse(BottomScreenGuests.supported("AYN Odin 2", 36))
         assertFalse(BottomScreenGuests.supported("Pixel 8", 36))
     }
 

@@ -22,7 +22,7 @@ object DualScreen {
     @Volatile private var takenDisplays: Set<Int> = emptySet()
     private val main by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
 
-    fun yieldsBottom(model: String): Boolean = model.trim().equals("retroid pocket duo", ignoreCase = true)
+    fun yieldsBottom(model: String): Boolean = model.trim().lowercase().let { m -> knownModels.any(m::startsWith) }
 
     fun taken(displayId: Int): Boolean = displayId in takenDisplays
 
