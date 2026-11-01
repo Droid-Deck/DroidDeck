@@ -655,6 +655,7 @@
     <string name="hud_size_pill">Pilulka</string>
     <string name="hud_size_minimal">Minimální</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">Lišta</string>
     <string name="hud_locked">Zamknout na místě</string>
     <string name="hud_locked_hint">Přetažením HUD přesunete; dlouhým stiskem ho zamknete nebo odemknete. Když je zamknutý, ovládací prvky na obrazovce pod ním dál fungují.</string>
     <string name="hud_group_look">Vzhled</string>
@@ -2427,6 +2428,9 @@
     <string name="edit_target">Cíl</string>
     <string name="edit_start_in">Spustit v</string>
     <string name="edit_launch_options">Možnosti spuštění</string>
+    <string name="edit_launch_options_steam_hint">Sdíleno s Vlastnostmi ve Steamu: změna na jednom místě se projeví na obou.</string>
+    <string name="edit_launch_options_not_saved">Možnosti spuštění se nepodařilo uložit do Steamu. Zkuste to znovu.</string>
+    <string name="edit_launch_options_desktop">Steam může být otevřený v relaci Plochy. Změňte možnosti spuštění v jeho Vlastnostech, nebo nejdřív relaci ukončete.</string>
     <string name="edit_artwork">Grafika</string>
     <string name="edit_other_exe">Jiný exe…</string>
     <string name="edit_remove">Odstranit</string>

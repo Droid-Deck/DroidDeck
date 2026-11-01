@@ -623,7 +623,7 @@ case $mode in
     fi
     if [ "${BL_ZRAM:-0}" = 1 ]; then
       step "zRAM compression: on"
-      [ "${BL_ZRAM_CLIENT:-1}" = 1 ] || step "zRAM: Steam and the hidden Epic Games Launcher are not compressed while games run (turned off in Performance)"
+      [ "${BL_ZRAM_CLIENT:-1}" = 1 ] || step "zRAM: Steam, the hidden Epic Games Launcher and Battle.net are not compressed while games run (turned off in Performance)"
       _bl_ram_cap=0
       case ${BL_RAM_CAP_MB:-} in
         ''|0) ;;
@@ -633,7 +633,7 @@ case $mode in
       (
         bl_zram_scan() {
           _bl_game=0 _bl_pids=() _bl_others=() _bl_apps=
-          local _d _c _args _name _a _id _fex
+          local _d _c _args _name _a _id _fex _lower _bnet=() _bnet_game=0
           for _d in /proc/[0-9]*; do
             [ "${_d##*/}" != "$BASHPID" ] || continue
             _args=()
@@ -658,14 +658,34 @@ case $mode in
                 ;;
               steam|steamwebhelper) _bl_pids+=("${_d##*/}") ;;
               *)
+                _lower=${_name,,}
                 if [ "$_fex" = 1 ] && grep -qz '^DROIDDECK_EPIC_HIDDEN=1$' "$_d/environ" 2>/dev/null; then
                   _bl_pids+=("${_d##*/}")
+                elif [[ $_lower == [a-z]:[\\/]'program files (x86)'[\\/]battle.net[\\/]* ||
+                        $_lower == [a-z]:[\\/]programdata[\\/]battle.net[\\/]* ]]; then
+                  _bnet+=("${_d##*/}")
                 else
                   _bl_others+=("${_d##*/}")
+                  if [[ $_lower == [a-z]:[\\/]* ]]; then
+                    case ${_lower##*[\\/]} in
+                      agent.exe|conhost.exe|explorer.exe|lsass.exe|plugplay.exe|rpcss.exe|services.exe|start.exe|\
+                      steam.exe|svchost.exe|tabtip.exe|winedevice.exe|rundll32.exe|wineboot.exe|winemenubuilder.exe) ;;
+                      *)
+                        for _a in "${_args[@]:1}"; do
+                          [ "${_a,,}" = -uid ] && _bnet_game=1
+                        done
+                        ;;
+                    esac
+                  fi
                 fi
                 ;;
             esac
           done
+          if [ "$_bnet_game" = 1 ]; then
+            _bl_pids+=("${_bnet[@]}")
+          else
+            _bl_others+=("${_bnet[@]}")
+          fi
         }
         bl_zram_usage() {
           local _p _k _v _u _rss=0 _swap=0

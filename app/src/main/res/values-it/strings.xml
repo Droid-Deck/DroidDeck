@@ -653,6 +653,7 @@
     <string name="hud_size_pill">Pillola</string>
     <string name="hud_size_minimal">Minimo</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">Barra</string>
     <string name="hud_locked">Blocca in posizione</string>
     <string name="hud_locked_hint">Trascina l\'HUD per spostarlo; una pressione prolungata lo blocca o lo sblocca. Mentre è bloccato, i controlli su schermo sotto di esso continuano a funzionare.</string>
     <string name="hud_group_look">Aspetto</string>
@@ -2393,6 +2394,9 @@
     <string name="edit_target">Destinazione</string>
     <string name="edit_start_in">Avvia in</string>
     <string name="edit_launch_options">Opzioni di avvio</string>
+    <string name="edit_launch_options_steam_hint">Condivise con le Proprietà di Steam: una modifica in uno dei due punti compare in entrambi.</string>
+    <string name="edit_launch_options_not_saved">Impossibile salvare le opzioni di avvio in Steam. Riprova.</string>
+    <string name="edit_launch_options_desktop">Steam potrebbe essere aperto nella sessione desktop. Cambia le opzioni di avvio nelle sue Proprietà o chiudi prima la sessione.</string>
     <string name="edit_artwork">Illustrazioni</string>
     <string name="edit_other_exe">Altro exe…</string>
     <string name="edit_remove">Rimuovi</string>

@@ -69,6 +69,14 @@
             </intent-filter>
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/home_button_service" />
         </service>
+        <service android:name=".session.BottomNotificationListener"
+            android:label="@string/bottom_notifications_listener"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
         <receiver android:name=".core.ShortcutsListingReceiver" android:exported="false"
             android:process=":shortcuts_sync">
             <intent-filter>
@@ -105,6 +113,7 @@
             android:exported="true"
             android:screenOrientation="user"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboard|keyboardHidden|navigation">
+            <layout android:defaultWidth="1024dp" android:defaultHeight="640dp" />
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

@@ -651,6 +651,7 @@
     <string name="hud_size_pill">Pille</string>
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">Bjælke</string>
     <string name="hud_locked">Lås fast</string>
     <string name="hud_locked_hint">Træk i HUD for at flytte det; et langt tryk låser eller frigør det. Mens det er låst, virker skærmknapperne under det stadig.</string>
     <string name="hud_group_look">Udseende</string>
@@ -2381,6 +2382,9 @@
     <string name="edit_target">Mål</string>
     <string name="edit_start_in">Start i</string>
     <string name="edit_launch_options">Startindstillinger</string>
+    <string name="edit_launch_options_steam_hint">Delt med Egenskaber i Steam: en ændring det ene sted vises begge steder.</string>
+    <string name="edit_launch_options_not_saved">Startindstillingerne kunne ikke gemmes i Steam. Prøv igen.</string>
+    <string name="edit_launch_options_desktop">Steam kan være åben i skrivebordssessionen. Skift startindstillingerne under dens Egenskaber, eller luk sessionen først.</string>
     <string name="edit_artwork">Grafik</string>
     <string name="edit_other_exe">Anden exe…</string>
     <string name="edit_remove">Fjern</string>

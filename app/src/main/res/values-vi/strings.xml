@@ -649,6 +649,7 @@
     <string name="hud_size_pill">Dạng viên</string>
     <string name="hud_size_minimal">Tối giản</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">Thanh</string>
     <string name="hud_locked">Khóa vị trí</string>
     <string name="hud_locked_hint">Kéo HUD để di chuyển; nhấn giữ để khóa hoặc mở khóa. Khi đã khóa, các nút điều khiển trên màn hình bên dưới vẫn hoạt động.</string>
     <string name="hud_group_look">Giao diện</string>
@@ -2358,6 +2359,9 @@
     <string name="edit_target">Đích</string>
     <string name="edit_start_in">Khởi chạy trong</string>
     <string name="edit_launch_options">Tùy chọn khởi chạy</string>
+    <string name="edit_launch_options_steam_hint">Dùng chung với Thuộc tính của Steam: thay đổi ở một nơi sẽ hiện ở cả hai.</string>
+    <string name="edit_launch_options_not_saved">Không thể lưu tùy chọn khởi chạy vào Steam. Hãy thử lại.</string>
+    <string name="edit_launch_options_desktop">Steam có thể đang mở trong phiên desktop. Hãy đổi tùy chọn khởi chạy trong Thuộc tính của Steam, hoặc đóng phiên trước.</string>
     <string name="edit_artwork">Hình ảnh</string>
     <string name="edit_other_exe">Exe khác…</string>
     <string name="edit_remove">Xóa</string>

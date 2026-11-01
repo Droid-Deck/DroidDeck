@@ -651,6 +651,7 @@
     <string name="hud_size_pill">Piller</string>
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">List</string>
     <string name="hud_locked">Lås på plats</string>
     <string name="hud_locked_hint">Dra HUD:en för att flytta den; ett långt tryck låser eller låser upp den. När den är låst fungerar skärmkontrollerna under den fortfarande.</string>
     <string name="hud_group_look">Utseende</string>
@@ -2381,6 +2382,9 @@
     <string name="edit_target">Mål</string>
     <string name="edit_start_in">Starta i</string>
     <string name="edit_launch_options">Startalternativ</string>
+    <string name="edit_launch_options_steam_hint">Delas med Egenskaper i Steam: en ändring på det ena stället syns på båda.</string>
+    <string name="edit_launch_options_not_saved">Det gick inte att spara startalternativen i Steam. Försök igen.</string>
+    <string name="edit_launch_options_desktop">Steam kan vara öppet i skrivbordssessionen. Ändra startalternativen under Egenskaper där, eller stäng sessionen först.</string>
     <string name="edit_artwork">Bildmaterial</string>
     <string name="edit_other_exe">Annan exe…</string>
     <string name="edit_remove">Ta bort</string>

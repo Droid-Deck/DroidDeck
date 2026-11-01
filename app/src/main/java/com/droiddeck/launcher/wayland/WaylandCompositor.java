@@ -163,6 +163,8 @@ public final class WaylandCompositor {
 
     public static native int nativeCursorSerial();
 
+    public static native void nativeSetCursorComposite(boolean on);
+
     public static final int CURSOR_BUF_INTS = 6 + 256 * 256;
 
     public static native void nativeSendKey(int evdev, int state);

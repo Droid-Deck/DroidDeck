@@ -73,7 +73,9 @@ class SessionService : Service() {
     private var downloadMonitorTask: Runnable? = null
     private var downloadActive = false
     private var clientInstallActive = false
-    @Volatile private var steamLibraryMounts = emptyMap<String, File>()
+    private var steamLibraryMounts: Map<String, File>
+        get() = SessionState.steamLibraryMounts
+        set(value) { SessionState.steamLibraryMounts = value }
     private var suspendDownloadNow = false
     private var suspendPolicy = SessionPrefs.SUSPEND_MANUAL
     private var steamDownloadsInBackground = false
@@ -725,6 +727,20 @@ class SessionService : Service() {
                         SessionEvents.record("session.paged_out", mapOf(
                             "processes" to processes, "unacknowledged" to unacknowledged, "residentMb" to residentKb / 1024,
                             "swapMb" to swapKb / 1024, "swapBeforeMb" to swapBeforeKb / 1024, "ms" to millis,
+                        ))
+                    }
+                },
+                readBackAllowed = { SessionPrefs.ramCapMb(this) == 0 },
+                pagedIn = { processes, swapKb, swapBeforeKb, availableKb, millis ->
+                    if (processes == 0) {
+                        Log.i(TAG, "left ${swapBeforeKb / 1024} MB in zram after resume (RAM cap, or ${availableKb / 1024} MB available is too little)")
+                    } else {
+                        Log.i(TAG, "read back $processes processes in $millis ms: zram ${swapBeforeKb / 1024} -> ${swapKb / 1024} MB")
+                    }
+                    mainHandler.post {
+                        SessionEvents.record("session.paged_in", mapOf(
+                            "processes" to processes, "swapMb" to swapKb / 1024, "swapBeforeMb" to swapBeforeKb / 1024,
+                            "availableMb" to availableKb / 1024, "ms" to millis,
                         ))
                     }
                 },

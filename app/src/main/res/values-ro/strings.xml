@@ -653,6 +653,7 @@
     <string name="hud_size_pill">Pastilă</string>
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">Bară</string>
     <string name="hud_locked">Blochează pe loc</string>
     <string name="hud_locked_hint">Trage HUD-ul pentru a-l muta; o apăsare lungă îl blochează sau îl deblochează. Cât timp e blocat, comenzile de pe ecran de sub el funcționează în continuare.</string>
     <string name="hud_group_look">Aspect</string>
@@ -2404,6 +2405,9 @@
     <string name="edit_target">Țintă</string>
     <string name="edit_start_in">Pornește în</string>
     <string name="edit_launch_options">Opțiuni de lansare</string>
+    <string name="edit_launch_options_steam_hint">Comune cu Proprietățile din Steam: o modificare într-unul dintre locuri apare în ambele.</string>
+    <string name="edit_launch_options_not_saved">Opțiunile de lansare nu au putut fi salvate în Steam. Încearcă din nou.</string>
+    <string name="edit_launch_options_desktop">Steam poate fi deschis în sesiunea desktop. Schimbă opțiunile de lansare din Proprietățile lui sau închide mai întâi sesiunea.</string>
     <string name="edit_artwork">Grafică</string>
     <string name="edit_other_exe">Alt exe…</string>
     <string name="edit_remove">Elimină</string>

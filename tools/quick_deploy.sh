@@ -23,7 +23,8 @@ while IFS= read -r dir; do
 done < <(ls -d "${sdk_dir}"/build-tools/* 2>/dev/null | sort -rV)
 [[ -n "${build_tools}" ]] || { echo "No build-tools with aapt, zipalign and apksigner under ${sdk_dir}." >&2; exit 1; }
 
-./gradlew -q :app:assembleRelease
+# Runtime assets from another branch are fine for a Kotlin/UI loop; CI and releases stay strict.
+./gradlew -q -PallowStaleRuntime=true :app:assembleRelease
 (
     cd "$(dirname "${signing_env}")"
     set -a; . "${signing_env}"; set +a

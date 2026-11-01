@@ -649,6 +649,7 @@
     <string name="hud_size_pill">캡슐</string>
     <string name="hud_size_minimal">미니멀</string>
     <string name="hud_size_mega">메가</string>
+    <string name="hud_size_strip">바</string>
     <string name="hud_locked">위치 고정</string>
     <string name="hud_locked_hint">HUD를 드래그하여 이동하고, 길게 눌러 고정하거나 해제합니다. 고정된 동안에도 아래에 있는 화면 컨트롤은 계속 작동합니다.</string>
     <string name="hud_group_look">외관</string>
@@ -2358,6 +2359,9 @@
     <string name="edit_target">대상</string>
     <string name="edit_start_in">시작 위치</string>
     <string name="edit_launch_options">실행 옵션</string>
+    <string name="edit_launch_options_steam_hint">Steam 속성과 공유됩니다. 어느 한쪽에서 바꾸면 양쪽에 모두 반영됩니다.</string>
+    <string name="edit_launch_options_not_saved">실행 옵션을 Steam에 저장하지 못했습니다. 다시 시도하세요.</string>
+    <string name="edit_launch_options_desktop">데스크톱 세션에서 Steam이 열려 있을 수 있습니다. Steam 속성에서 실행 옵션을 바꾸거나 먼저 세션을 닫으세요.</string>
     <string name="edit_artwork">아트워크</string>
     <string name="edit_other_exe">다른 exe…</string>
     <string name="edit_remove">제거</string>

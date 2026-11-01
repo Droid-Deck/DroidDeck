@@ -638,6 +638,7 @@
     <string name="hud_size_pill">膠囊</string>
     <string name="hud_size_minimal">極簡</string>
     <string name="hud_size_mega">超大</string>
+    <string name="hud_size_strip">橫條</string>
     <string name="hud_locked">鎖定位置</string>
     <string name="hud_locked_hint">拖曳 HUD 可移動位置；長按可鎖定或解鎖。鎖定時，下方的螢幕控制項仍可使用。</string>
     <string name="hud_group_look">外觀</string>
@@ -2326,6 +2327,9 @@
     <string name="edit_target">目標</string>
     <string name="edit_start_in">開始位置</string>
     <string name="edit_launch_options">啟動選項</string>
+    <string name="edit_launch_options_steam_hint">與 Steam 的「內容」共用：在任一處更改，兩處都會更新。</string>
+    <string name="edit_launch_options_not_saved">無法將啟動選項儲存到 Steam。請再試一次。</string>
+    <string name="edit_launch_options_desktop">Steam 可能正在桌面會話中執行。請在 Steam 的「內容」中更改啟動選項，或先關閉該會話。</string>
     <string name="edit_artwork">圖片</string>
     <string name="edit_other_exe">其他 exe…</string>
     <string name="edit_remove">移除</string>

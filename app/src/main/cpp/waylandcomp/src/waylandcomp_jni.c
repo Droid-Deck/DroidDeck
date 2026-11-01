@@ -30,6 +30,7 @@ extern void droiddeck_wayland_send_key(int evdev, int state);
 extern int  droiddeck_focus_takes_touch(void);
 extern int  droiddeck_cursor_input_pos(int *x, int *y);
 extern void droiddeck_wayland_send_scene_input(int type, int a, int b);
+extern void droiddeck_wayland_set_cursor_composite(int on);
 extern void droiddeck_wayland_vsync(int64_t frame_time_ns);
 extern void droiddeck_stream_set(int on);
 extern void droiddeck_stream_frame(AHardwareBuffer *ahb);
@@ -290,6 +291,13 @@ JNIEXPORT jint JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeCursorSerial(JNIEnv *env, jclass clazz) {
     (void)env; (void)clazz;
     return droiddeck_cursor_serial();
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCursorComposite(
+        JNIEnv *env, jclass clazz, jboolean on) {
+    (void)env; (void)clazz;
+    droiddeck_wayland_set_cursor_composite(on ? 1 : 0);
 }
 
 JNIEXPORT void JNICALL

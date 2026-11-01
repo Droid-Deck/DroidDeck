@@ -655,6 +655,7 @@
     <string name="hud_size_pill">Капсула</string>
     <string name="hud_size_minimal">Минимальный</string>
     <string name="hud_size_mega">Мега</string>
+    <string name="hud_size_strip">Полоса</string>
     <string name="hud_locked">Закрепить на месте</string>
     <string name="hud_locked_hint">Перетащите HUD, чтобы переместить его; долгое нажатие закрепляет или открепляет его. Пока он закреплён, экранные элементы управления под ним продолжают работать.</string>
     <string name="hud_group_look">Внешний вид</string>
@@ -2424,6 +2425,9 @@
     <string name="edit_target">Объект</string>
     <string name="edit_start_in">Рабочая папка</string>
     <string name="edit_launch_options">Параметры запуска</string>
+    <string name="edit_launch_options_steam_hint">Общие со «Свойствами» Steam: изменение в одном месте видно в обоих.</string>
+    <string name="edit_launch_options_not_saved">Не удалось сохранить параметры запуска в Steam. Попробуйте ещё раз.</string>
+    <string name="edit_launch_options_desktop">Steam может быть открыт в сессии рабочего стола. Измените параметры запуска в его «Свойствах» или сначала закройте сессию.</string>
     <string name="edit_artwork">Обложки</string>
     <string name="edit_other_exe">Другой exe…</string>
     <string name="edit_remove">Убрать</string>
