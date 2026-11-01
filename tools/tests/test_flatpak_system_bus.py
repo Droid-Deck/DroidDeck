@@ -135,6 +135,8 @@ class FlatpakSystemBusTest(unittest.TestCase):
             port = listener.getsockname()[1]
             os.environ["DBUS_SYSTEM_BUS_ADDRESS"] = "unix:abstract=droiddeck-flatpak-missing-%d;tcp:host=127.0.0.1,port=%d" % (os.getpid(), port)
             self.assertTrue(self.module.system_bus_reachable())
+            os.environ["DBUS_SYSTEM_BUS_ADDRESS"] = "tcp:host=127.0.0.1,port=" + "".join("%%%02X" % ord(c) for c in str(port))
+            self.assertTrue(self.module.system_bus_reachable())
             listener.close()
             self.assertFalse(self.module.system_bus_reachable())
             os.environ["DBUS_SYSTEM_BUS_ADDRESS"] = "launchd:env=DBUS_LAUNCHD_SESSION_BUS_SOCKET"
