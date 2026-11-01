@@ -300,7 +300,7 @@
     <string name="mode_controller_note">Deck: Hurtigmeny-knapp og gyro. Steam Controller: det samme, med gripesensor på bakknappene. DualShock 4 og DualSense: gyro, og styreflatene som styreflate. Xbox 360: åpne Hurtigmenyen med Guide+A.</string>
     <string name="mode_back">Tilbake</string>
     <string name="back_hold">Hold Tilbake for Steam-snarveier</string>
-    <string name="back_hold_hint">Hold Tilbake for å åpne Hurtigtilgang eller lage Steam-kombinasjoner med andre knapper. Slå av for å overlate det til andre apper; trykk og dobbelttrykk virker fortsatt.</string>
+    <string name="back_hold_hint">Hold Tilbake for å åpne Hurtigtilgang eller lage Steam-kombinasjoner med andre knapper. Slå av for å ignorere holdt Tilbake; trykk og dobbelttrykk virker fortsatt.</string>
     <string name="back_native_qam_hint">Hold Tilbake i 700 ms, eller hold Tilbake og trykk en annen knapp for Steam-snarveier.</string>
     <string name="back_double_tap_window">Tidsvindu for dobbelttrykk</string>
     <string name="back_tap_ms">%1$d ms</string>

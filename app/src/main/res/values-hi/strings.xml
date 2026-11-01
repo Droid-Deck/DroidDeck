@@ -300,7 +300,7 @@
     <string name="mode_controller_note">Deck: Quick Access बटन और gyro। Steam Controller: वही, साथ में पीछे के बटन पर ग्रिप सेंस। DualShock 4 और DualSense: gyro, और ट्रैकपैड उनके टचपैड के तौर पर। Xbox 360: Guide+A से Quick Access खोलें।</string>
     <string name="mode_back">बैक</string>
     <string name="back_hold">Steam शॉर्टकट के लिए बैक दबाकर रखें</string>
-    <string name="back_hold_hint">बैक दबाकर रखने से क्विक एक्सेस खुलता है या दूसरे बटनों के साथ Steam कॉम्बो बनते हैं। इसे दूसरे ऐप्स के लिए छोड़ने हेतु बंद करें; टैप और डबल-टैप काम करते रहेंगे।</string>
+    <string name="back_hold_hint">बैक दबाकर रखने से क्विक एक्सेस खुलता है या दूसरे बटनों के साथ Steam कॉम्बो बनते हैं। दबाकर रखने को अनदेखा करने के लिए बंद करें; टैप और डबल-टैप काम करते रहेंगे।</string>
     <string name="back_native_qam_hint">Steam शॉर्टकट के लिए Back को 700 ms तक दबाए रखें, या Back दबाए रखकर कोई दूसरा बटन दबाएं।</string>
     <string name="back_double_tap_window">डबल-टैप विंडो</string>
     <string name="back_tap_ms">%1$d ms</string>

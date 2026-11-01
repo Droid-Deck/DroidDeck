@@ -300,7 +300,7 @@
     <string name="mode_controller_note">Deck : bouton d\'accès rapide et gyroscope. Steam Controller : idem, avec détection de la prise en main sur les boutons arrière. DualShock 4 et DualSense : gyroscope, et les trackpads servent de pavé tactile. Xbox 360 : utilisez Guide+A pour ouvrir l\'accès rapide.</string>
     <string name="mode_back">Retour</string>
     <string name="back_hold">Maintenir Retour pour les raccourcis Steam</string>
-    <string name="back_hold_hint">Maintenir Retour ouvre l’accès rapide ou crée des combinaisons Steam avec d’autres boutons. Désactivez pour le laisser aux autres applis ; l’appui simple et double fonctionnent toujours.</string>
+    <string name="back_hold_hint">Maintenir Retour ouvre l’accès rapide ou crée des combinaisons Steam avec d’autres boutons. Désactivez pour ignorer l’appui long ; l’appui simple et double fonctionnent toujours.</string>
     <string name="back_native_qam_hint">Maintenez Retour pendant 700 ms, ou maintenez Retour et appuyez sur un autre bouton pour les raccourcis Steam.</string>
     <string name="back_double_tap_window">Délai du double appui</string>
     <string name="back_tap_ms">%1$d ms</string>

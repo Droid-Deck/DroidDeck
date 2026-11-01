@@ -300,7 +300,7 @@
     <string name="mode_controller_note">Deck: butang Quick Access dan giro. Steam Controller: sama, dengan grip sense pada butang belakang. DualShock 4 dan DualSense: giro, dan trackpad sebagai pad sentuhnya. Xbox 360: buka Quick Access dengan Guide+A.</string>
     <string name="mode_back">Kembali</string>
     <string name="back_hold">Tahan Kembali untuk pintasan Steam</string>
-    <string name="back_hold_hint">Menahan Kembali membuka Akses Pantas atau membuat kombinasi Steam dengan butang lain. Matikan untuk menyerahkannya kepada apl lain; ketik dan ketik dua kali masih berfungsi.</string>
+    <string name="back_hold_hint">Menahan Kembali membuka Akses Pantas atau membuat kombinasi Steam dengan butang lain. Matikan untuk mengabaikan Kembali yang ditahan; ketik dan ketik dua kali masih berfungsi.</string>
     <string name="back_native_qam_hint">Tahan Kembali selama 700 ms, atau tahan Kembali dan tekan butang lain untuk pintasan Steam.</string>
     <string name="back_double_tap_window">Tempoh ketik dua kali</string>
     <string name="back_tap_ms">%1$d ms</string>

@@ -300,7 +300,7 @@
     <string name="mode_controller_note">Deck: snabbåtkomstknappen och gyro. Steam Controller: samma, med greppkänsla på bakknapparna. DualShock 4 och DualSense: gyro, och styrplattorna som deras pekplatta. Xbox 360: öppna snabbåtkomst med Guide+A.</string>
     <string name="mode_back">Back</string>
     <string name="back_hold">Håll Bakåt för Steam-genvägar</string>
-    <string name="back_hold_hint">Håll Bakåt för att öppna Snabbåtkomst eller göra Steam-kombinationer med andra knappar. Stäng av för att lämna det åt andra appar; tryck och dubbeltryck fungerar fortfarande.</string>
+    <string name="back_hold_hint">Håll Bakåt för att öppna Snabbåtkomst eller göra Steam-kombinationer med andra knappar. Stäng av för att ignorera hållen Bakåt; tryck och dubbeltryck fungerar fortfarande.</string>
     <string name="back_native_qam_hint">Håll Back i 700 ms, eller håll Back och tryck på en annan knapp för Steam-genvägar.</string>
     <string name="back_double_tap_window">Tidsfönster för dubbeltryck</string>
     <string name="back_tap_ms">%1$d ms</string>

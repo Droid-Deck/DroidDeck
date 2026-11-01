@@ -300,7 +300,7 @@
     <string name="mode_controller_note">Deck: Schnellzugriffstaste und Gyro. Steam Controller: dasselbe, mit Griffsensor an den Rücktasten. DualShock 4 und DualSense: Gyro, die Trackpads dienen als deren Touchpad. Xbox 360: Schnellzugriff mit Guide+A öffnen.</string>
     <string name="mode_back">Zurück</string>
     <string name="back_hold">Zurück halten für Steam-Kürzel</string>
-    <string name="back_hold_hint">Zurück halten öffnet den Schnellzugriff oder bildet mit anderen Tasten Steam-Kombinationen. Ausschalten, um es anderen Apps zu überlassen; Tippen und Doppeltippen funktionieren weiter.</string>
+    <string name="back_hold_hint">Zurück halten öffnet den Schnellzugriff oder bildet mit anderen Tasten Steam-Kombinationen. Ausschalten, um gehaltenes Zurück zu ignorieren; Tippen und Doppeltippen funktionieren weiter.</string>
     <string name="back_native_qam_hint">Halte Zurück 700 ms lang gedrückt oder halte Zurück und drücke eine weitere Taste für Steam-Tastenkürzel.</string>
     <string name="back_double_tap_window">Zeitfenster für Doppeltippen</string>
     <string name="back_tap_ms">%1$d ms</string>

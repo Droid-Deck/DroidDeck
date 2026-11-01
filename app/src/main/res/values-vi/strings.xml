@@ -300,7 +300,7 @@
     <string name="mode_controller_note">Deck: nút Quick Access và con quay hồi chuyển. Steam Controller: tương tự, cộng với cảm biến nắm ở các nút phía sau. DualShock 4 và DualSense: con quay hồi chuyển, và touchpad dùng làm bàn di chuột. Xbox 360: mở Quick Access bằng Guide+A.</string>
     <string name="mode_back">Quay lại</string>
     <string name="back_hold">Giữ Quay lại cho phím tắt Steam</string>
-    <string name="back_hold_hint">Giữ Quay lại để mở Truy cập nhanh hoặc tạo tổ hợp Steam với nút khác. Tắt để nhường cho ứng dụng khác; nhấn và nhấn đúp vẫn hoạt động.</string>
+    <string name="back_hold_hint">Giữ Quay lại để mở Truy cập nhanh hoặc tạo tổ hợp Steam với nút khác. Tắt để bỏ qua thao tác giữ; nhấn và nhấn đúp vẫn hoạt động.</string>
     <string name="back_native_qam_hint">Giữ Back 700 ms, hoặc giữ Back và nhấn nút khác để dùng phím tắt Steam.</string>
     <string name="back_double_tap_window">Khoảng thời gian nhấn đúp</string>
     <string name="back_tap_ms">%1$d ms</string>

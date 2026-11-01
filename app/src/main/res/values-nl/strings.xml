@@ -300,7 +300,7 @@
     <string name="mode_controller_note">Deck: knop Snelle toegang en gyro. Steam Controller: hetzelfde, met gripsensor op de achterknoppen. DualShock 4 en DualSense: gyro, en de trackpads als hun touchpad. Xbox 360: open Snelle toegang met Guide+A.</string>
     <string name="mode_back">Terug</string>
     <string name="back_hold">Terug ingedrukt houden voor Steam-sneltoetsen</string>
-    <string name="back_hold_hint">Terug ingedrukt houden opent Snelle toegang of maakt Steam-combinaties met andere knoppen. Zet uit om het aan andere apps over te laten; tikken en dubbeltikken blijven werken.</string>
+    <string name="back_hold_hint">Terug ingedrukt houden opent Snelle toegang of maakt Steam-combinaties met andere knoppen. Zet uit om ingedrukt houden te negeren; tikken en dubbeltikken blijven werken.</string>
     <string name="back_native_qam_hint">Houd Terug 700 ms ingedrukt, of houd Terug ingedrukt en druk op een andere knop voor Steam-sneltoetsen.</string>
     <string name="back_double_tap_window">Tijdvenster voor dubbeltikken</string>
     <string name="back_tap_ms">%1$d ms</string>

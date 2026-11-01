@@ -300,7 +300,7 @@
     <string name="mode_controller_note">Deck: botão de Acesso rápido e giroscópio. Steam Controller: o mesmo, com sensor de pega nos botões traseiros. DualShock 4 e DualSense: giroscópio, e os trackpads como o painel tátil do comando. Xbox 360: abra o Acesso rápido com Guide+A.</string>
     <string name="mode_back">Voltar</string>
     <string name="back_hold">Manter Voltar premido para atalhos do Steam</string>
-    <string name="back_hold_hint">Manter Voltar premido abre o Acesso rápido ou cria combinações do Steam com outros botões. Desative para deixar isso para outras apps; toque e toque duplo continuam a funcionar.</string>
+    <string name="back_hold_hint">Manter Voltar premido abre o Acesso rápido ou cria combinações do Steam com outros botões. Desative para ignorar Voltar premido; toque e toque duplo continuam a funcionar.</string>
     <string name="back_native_qam_hint">Mantenha Voltar premido durante 700 ms, ou mantenha Voltar premido e prima outro botão para atalhos do Steam.</string>
     <string name="back_double_tap_window">Intervalo do toque duplo</string>
     <string name="back_tap_ms">%1$d ms</string>

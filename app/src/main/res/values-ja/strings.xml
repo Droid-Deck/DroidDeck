@@ -299,7 +299,7 @@
     <string name="mode_controller_note">Deck：クイックアクセスボタンとジャイロを提供します。Xbox 360：Guide+Aでクイックアクセスを開きます。</string>
     <string name="mode_back">戻る</string>
     <string name="back_hold">戻る長押しでSteamショートカット</string>
-    <string name="back_hold_hint">戻るを長押しするとクイックアクセスを開くか、他のボタンとSteamの同時押しになります。オフにすると長押しを他のアプリに任せます。タップとダブルタップは引き続き使えます。</string>
+    <string name="back_hold_hint">戻るを長押しするとクイックアクセスを開くか、他のボタンとSteamの同時押しになります。オフにすると長押しを無視します。タップとダブルタップは引き続き使えます。</string>
     <string name="back_native_qam_hint">戻るを700ミリ秒長押しするか、戻るを押したまま別のボタンを押すとSteamのショートカットを使用できます。</string>
     <string name="back_double_tap_window">ダブルタップの間隔</string>
     <string name="back_tap_ms">%1$dミリ秒</string>
