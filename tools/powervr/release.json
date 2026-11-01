@@ -775,9 +775,9 @@
   "format": 1,
   "hybris": {
     "provenance": {
-      "component_ci_run": "https://github.com/wallentx/DroidDeck/actions/runs/41287902018",
+      "component_ci_run": "https://github.com/wallentx/DroidDeck/actions/runs/41288745415",
       "note": "Candidate pin: publish this exact archive and verify its URL before updating release.json.",
-      "producer_commit": "2537046fe47cf02f7d18a7efac8b6c7ea6e9b78e",
+      "producer_commit": "50d58207d6e885c7dbb893b22cac21c592e7d4a7",
       "upstream_source_commit": "7076971ba6a2fe8834cb0f3aaf4ee721cc1b678d"
     },
     "recipe_inputs": {
@@ -794,14 +794,14 @@
       "tools/hybris/patches/0009-tls-capacity-and-icd-diagnostics.patch": "60e330d81ca743a195120c811c61e83827c0980aa8950b6e9243508b742e73d2",
       "tools/hybris/patches/0010-strip-spirv-names.patch": "4b36dd5b77a26370e2c229cc6c8e88432bc118e32eb0834fa643a22aa3ea40ef",
       "tools/hybris/patches/0011-zink-vertex-input-profile.patch": "ce1084ae8671eb79db48c0f8370808ade6a9e9749010644c19b80883873dcbe9",
-      "tools/hybris/patches/0012-track-commands-gate.patch": "fa1a48c34567217ad14223f212fb4a495cd2b4066495d14fff0e1eeb42183ec1",
+      "tools/hybris/patches/0012-track-commands-gate.patch": "d3e5a4d1e5c206e9f85ed1863e27a3ac36846af60c449d2afb42d90737f810ed",
       "tools/hybris/patches/0013-build-snapshot-license.patch": "4093c3ec4dc2bcb18671b5016c4f9147592fd00e59082d7fb5855ca13dee4228",
       "tools/hybris/powervr-hal-version.patch": "9fff26678dc4120bd124fd1cee0d7220c81d7b37ec11e8eafefa5f29a1d06e67",
       "tools/hybris/source.env": "ab2acc2c9dbaf61f011d213a98a2da39e55228d8ddf5c74e2c884bf5273952e4"
     },
-    "sha256": "0d740b1651615b42fdd8615f460af4c5d31991f8219f0449d889375efd4be3bf",
-    "size": 6595325,
-    "tree_sha256": "66a9dad0f73d1033d8fc44086a972eca1e0801b1f21a53f595f5877b013b6de4",
-    "url": "https://github.com/wallentx/DroidDeck/releases/download/hybris-2537046fe47cf02f7d18a7efac8b6c7ea6e9b78e/runtime.tzst"
+    "sha256": "98199f1ff24947b835210ac88ccca581cd92b0c0650fe6a02d3e4c81f4f24afe",
+    "size": 6595565,
+    "tree_sha256": "63e094715dad01869117888b5aee561ccd3ea2b13c9f4c25adf14f7a15d8bb28",
+    "url": "https://github.com/wallentx/DroidDeck/releases/download/hybris-50d58207d6e885c7dbb893b22cac21c592e7d4a7/runtime.tzst"
   }
 }
