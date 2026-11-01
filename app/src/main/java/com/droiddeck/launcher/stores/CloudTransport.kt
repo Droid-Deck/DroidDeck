@@ -5,6 +5,10 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 import java.util.TimeZone
 import java.util.zip.CRC32
@@ -18,7 +22,7 @@ interface CloudTransport {
     fun list(): List<CloudFile>
     fun details(file: CloudFile) {}
     fun get(file: CloudFile): Pair<ByteArray, Long>
-    fun put(files: Map<String, ByteArray>): Map<String, Long>
+    fun put(files: Map<String, ByteArray>, modifiedMs: Map<String, Long> = emptyMap()): Map<String, Long>
 }
 
 private const val TIMEOUT = 30_000
@@ -117,13 +121,23 @@ internal fun gogRelativeNames(files: List<CloudFile>, location: String?): Pair<S
     }
 }
 
+private fun md5Hex(data: ByteArray): String =
+    java.security.MessageDigest.getInstance("MD5").digest(data).joinToString("") { "%02x".format(it) }
+
+private val GOG_STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssxxx", Locale.US)
+
+/** GOG Galaxy parses `X-Object-Meta-LocalLastModified`; objects without it fail as "invalid data". */
+private fun gogStamp(ms: Long): String =
+    Instant.ofEpochMilli(ms).atOffset(ZoneOffset.UTC).truncatedTo(ChronoUnit.SECONDS).format(GOG_STAMP)
+
 class GogCloud(
     private val userId: String,
     private val clientId: String,
     private val token: String,
     private val location: String? = null,
+    baseUrl: String? = null,
 ) : CloudTransport {
-    private val base = "https://cloudstorage.gog.com/v1/$userId/$clientId"
+    private val base = baseUrl ?: "https://cloudstorage.gog.com/v1/$userId/$clientId"
     private val ua = "GOG Galaxy"
     private var prefix: String? = location?.let { "$it/" }
 
@@ -190,12 +204,16 @@ class GogCloud(
         return gogDecodeCloudBody(data, encoding) to modified
     }
 
-    override fun put(files: Map<String, ByteArray>): Map<String, Long> = files.mapValues { (name, data) ->
+    override fun put(files: Map<String, ByteArray>, modifiedMs: Map<String, Long>): Map<String, Long> = files.mapValues { (name, data) ->
+        val body = gzipGogPut(data)
         val c = open("$base/${cloudKey(name)}", "PUT", token, ua)
         c.doOutput = true
         c.setRequestProperty("Content-Type", "application/octet-stream")
-        c.setFixedLengthStreamingMode(data.size)
-        c.outputStream.use { it.write(data) }
+        c.setRequestProperty("Content-Encoding", "gzip")
+        c.setRequestProperty("Etag", md5Hex(body))
+        c.setRequestProperty("X-Object-Meta-LocalLastModified", gogStamp(modifiedMs[name] ?: System.currentTimeMillis()))
+        c.setFixedLengthStreamingMode(body.size)
+        c.outputStream.use { it.write(body) }
         val code = c.responseCode
         c.disconnect()
         if (code !in 200..299) throw java.io.IOException("GOG cloud put HTTP $code")
@@ -208,6 +226,6 @@ class EpicCloud(private val accountId: String, private val appName: String, priv
 
     override fun get(file: CloudFile): Pair<ByteArray, Long> = com.droiddeck.launcher.stores.epic.EpicSaveSync.read(file)
 
-    override fun put(files: Map<String, ByteArray>): Map<String, Long> =
+    override fun put(files: Map<String, ByteArray>, modifiedMs: Map<String, Long>): Map<String, Long> =
         com.droiddeck.launcher.stores.epic.EpicSaveSync.write(token, accountId, appName, files)
 }

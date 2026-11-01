@@ -276,6 +276,16 @@ the prefix's user folder appears, within a minute. Every path logs
   `%LocalAppData%/GOG.com/Galaxy/Applications/<clientId>/Storage/Shared/Files`. It goes through the
   same location-qualified handling below. GET peels gzip when `Content-Encoding` is gzip, or when
   the object round-trips as GOG's PUT gzip (deflate 6, mtime 0); a gzip-format save is left intact.
+  PUT mirrors Galaxy's `CloudStorageCompressingClient`: each object is gzipped (deflate 6, mtime 0)
+  and sent with `Content-Encoding: gzip`, an `Etag` of the compressed bytes and
+  `X-Object-Meta-LocalLastModified` (`yyyy-MM-dd'T'HH:mm:ss+00:00`, from the local file mtime).
+  Galaxy's `CloudStorageRemoteClient` rejects an object without that metadata as `invalid data`
+  before it ever decompresses it; a live probe showed gzip + metadata downloads, while gzip alone,
+  or `User-Agent` metadata alone, fails. Objects older builds uploaded raw lack it, so
+  `CloudPlan.upSend` resends those unchanged files once. Automatic repair does not resend
+  conflicts; ordinary local changes still upload through `plan.transfer`.
+  An explicit forced upload sends every local GOG file, including unchanged files the service gives
+  no hash for, so a manual repair rewrites the whole folder.
 - **GOG names are location-qualified:** the cloud API lists `saves/user1.dat`, where `saves` is the
   `name` of the selected `cloudStorage.locations` entry and the folder is that entry's `location`
   (`.../Hollow Knight Silksong/default`). `GogCloud` strips the location segment for the local path

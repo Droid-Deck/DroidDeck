@@ -374,18 +374,27 @@ object CloudSaves {
         val remote = remote(cloud) { it in files }
         val local = files.mapValues { CloudPlan.Local(md5(it.value)) }
         val plan = CloudPlan.up(local, remote.mapValues { CloudPlan.Remote(it.value.md5, it.value.modifiedMs) }, base)
-        val send = if (force) plan.transfer + plan.conflicts else plan.transfer
+        val send = CloudPlan.upSend(plan, force, cloud is GogCloud, files.keys)
         val next = HashMap(base)
         for (name in plan.same) remote[name]?.let { r -> next[name] = CloudPlan.Entry(local.getValue(name).md5, r.md5, r.modifiedMs) }
         if (send.isNotEmpty()) {
             backupCloud(context, store, id, cloud, send.mapNotNull { remote[it] })
-            val data = send.associateWith { files.getValue(it).readBytes() }
-            val stamped = cloud.put(data)
+            val stamped = HashMap<String, Long>()
+            if (cloud is GogCloud) {
+                // One file at a time: gzip needs a full-size buffer and the uploads can be large.
+                for (name in send) {
+                    val f = files.getValue(name)
+                    stamped += cloud.put(mapOf(name to f.readBytes()), mapOf(name to f.lastModified()))
+                }
+            } else {
+                val data = send.associateWith { files.getValue(it).readBytes() }
+                stamped += cloud.put(data, send.associateWith { files.getValue(it).lastModified() })
+            }
             for ((name, t) in stamped) if (t > 0) files[name]?.setLastModified(t)
-            val after = remote(cloud) { it in data }
-            for (name in data.keys) {
+            val after = remote(cloud) { it in send }
+            for (name in send) {
                 val r = after[name]
-                next[name] = CloudPlan.Entry(md5(data.getValue(name)), r?.md5, r?.modifiedMs ?: stamped[name] ?: -1L)
+                next[name] = CloudPlan.Entry(local.getValue(name).md5, r?.md5, r?.modifiedMs ?: stamped[name] ?: -1L)
             }
         }
         saveBaseline(context, store, id, next)
