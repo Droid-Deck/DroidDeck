@@ -53,6 +53,93 @@ def file_diff(patch, name):
 
 
 class HybrisVendorCompatibilityTest(unittest.TestCase):
+    def test_command_tracking_uses_effective_device_policy(self):
+        source_value = os.environ.get("HYBRIS_VENDOR_SOURCE")
+        if not source_value:
+            self.skipTest("set HYBRIS_VENDOR_SOURCE to the clean pinned libhybris checkout")
+        compiler = shutil.which(os.environ.get("CC", "cc"))
+        self.assertIsNotNone(compiler)
+        with tempfile.TemporaryDirectory(prefix="droiddeck-tracking-policy-") as directory:
+            checkout = Path(directory) / "libhybris"
+            subprocess.run(["git", "clone", "-q", "--no-hardlinks", source_value, str(checkout)], check=True)
+            for patch in [ROOT / "tools/hybris/powervr-hal-version.patch",
+                          *sorted((ROOT / "tools/hybris/patches").glob("*.patch"))]:
+                subprocess.run(["git", "-C", str(checkout), "apply", "--check", str(patch)], check=True)
+                subprocess.run(["git", "-C", str(checkout), "apply", str(patch)], check=True)
+            device = (checkout / "hybris/vulkan/layer/device.c").read_text()
+            polygon = device[device.index("static int polygon_tracking("):device.index("\nstruct device_state {")]
+            start = device.index("    if (!state) return VK_ERROR_OUT_OF_HOST_MEMORY;")
+            start = device.index("\n", start) + 1
+            end = device.index("    if (allocator) state->allocator = *allocator;", start)
+            initializer = device[start:end]
+            program_source = Path(directory) / "tracking.c"
+            program_source.write_text(r'''
+#define VK_NO_PROTOTYPES
+#include <assert.h>
+#include <stdint.h>
+#include "application_policy.h"
+static int polygon_emulated;
+int hybris_shader_polygon_emulated(VkPhysicalDevice physical)
+{ (void)physical; return polygon_emulated; }
+''' + polygon + r'''
+struct instance { unsigned application_policy; uint64_t generation; };
+struct tracked_device { void *resolver; VkPhysicalDevice physical; unsigned application_policy;
+    int track_commands; uint64_t instance_generation; };
+struct device_state { struct tracked_device device; int custom_allocator; };
+static struct device_state make_state(unsigned policy, const VkDeviceCreateInfo *info)
+{
+    struct instance instance = {.application_policy = policy};
+    struct device_state storage, *state = &storage;
+    void *resolver = 0, *allocator = 0;
+    VkPhysicalDevice physical = VK_NULL_HANDLE;
+''' + initializer + r'''
+    return *state;
+}
+int main(void)
+{
+    const unsigned policy = HYBRIS_APP_HOST_UPLOAD_FLUSH | HYBRIS_APP_RENDERING_SEGMENTS |
+        HYBRIS_APP_HOST_READBACK_INVALIDATE;
+    const char *unsupported[] = {"VK_FAKE_unsupported"};
+    VkDeviceCreateInfo info = {.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+        .enabledExtensionCount = 1, .ppEnabledExtensionNames = unsupported};
+    struct device_state state = make_state(policy, &info);
+    assert(!state.device.application_policy && !state.device.track_commands);
+    info.enabledExtensionCount = 0;
+    state = make_state(policy, &info);
+    assert(state.device.application_policy == policy && state.device.track_commands);
+    VkDeviceGroupDeviceCreateInfo group = {.sType = VK_STRUCTURE_TYPE_DEVICE_GROUP_DEVICE_CREATE_INFO,
+        .physicalDeviceCount = 2};
+    info.pNext = &group;
+    state = make_state(HYBRIS_APP_RENDERING_SEGMENTS, &info);
+    assert(!state.device.application_policy && !state.device.track_commands);
+    VkPhysicalDeviceFeatures features = {.fillModeNonSolid = VK_TRUE};
+    info.pEnabledFeatures = &features; polygon_emulated = 1;
+    state = make_state(policy, &info);
+    assert(state.device.track_commands);
+    info.enabledExtensionCount = 1;
+    state = make_state(policy, &info);
+    assert(!state.device.application_policy && state.device.track_commands);
+    VkPhysicalDeviceFeatures2 features2 = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        .features.fillModeNonSolid = VK_TRUE};
+    info.pEnabledFeatures = 0; info.pNext = &features2;
+    state = make_state(policy, &info);
+    assert(!state.device.application_policy && state.device.track_commands);
+    polygon_emulated = 0;
+    state = make_state(policy, &info);
+    assert(!state.device.track_commands);
+    return 0;
+}
+''')
+            compat = checkout / "hybris/vulkan/compat"
+            program = Path(directory) / "tracking-test"
+            built = subprocess.run([compiler, "-std=gnu11", "-Wall", "-Wextra", "-Werror",
+                                    "-I", str(vulkan_include()), "-I", str(compat), str(program_source),
+                                    str(compat / "application_policy.c"), "-o", str(program)],
+                                   capture_output=True, text=True)
+            self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
+            ran = subprocess.run([str(program)], capture_output=True, text=True, timeout=30)
+            self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
+
     def test_explicit_hal_environment_is_prepared_before_dlopen(self):
         icd_patch = file_diff(PATCH, "hybris/vulkan/icd/icd.c")
         explicit = icd_patch.index("if (path && path[0])")

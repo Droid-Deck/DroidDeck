@@ -22,7 +22,11 @@ index d0b36eec..a97981fa 100644
  struct device_state {
      struct hybris_layer_device device;
      struct hybris_layer_command_dispatch recording;
-@@ -96,7 +107,8 @@ VkResult VKAPI_CALL hybris_layer_create_device(VkPhysicalDevice physical,
+@@ -94,9 +105,11 @@ VkResult VKAPI_CALL hybris_layer_create_device(VkPhysicalDevice physical,
++    unsigned application_policy = hybris_application_device_policy(instance.application_policy, info);
+     *state = (struct device_state){.device = {.resolver = resolver, .physical = physical,
+-        .application_policy = hybris_application_device_policy(instance.application_policy, info),
++        .application_policy = application_policy,
 -        /* Resource lifetime/ownership is shared infrastructure, not an
 -         * application-specific rendering workaround. Flush/readback changes
 -         * remain gated by application_policy inside their own hooks. */
@@ -31,7 +35,7 @@ index d0b36eec..a97981fa 100644
 +         * (upload flush, readback) and polygon-mode emulation. Every tracked
 +         * bind/draw/viewport/query takes the command registry mutex, which cost
 +         * ~10% of a Unity menu's frame rate on PowerVR with neither in use. */
-+        .track_commands = instance.application_policy != 0 || polygon_tracking(physical, info),
++        .track_commands = application_policy != 0 || polygon_tracking(physical, info),
          .instance_generation = instance.generation}, .custom_allocator = allocator != NULL};
      if (allocator) state->allocator = *allocator;
      pthread_mutex_lock(&guard);
