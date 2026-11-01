@@ -3453,6 +3453,8 @@
     <string name="stores_gamejolt_download_failed">Game Jolt answered HTTP %1$d</string>
     <string name="stores_gamejolt_pick_failed">Could not load the downloads from Game Jolt</string>
     <string name="stores_gamejolt_build_open">Open on Game Jolt</string>
+    <string name="stores_gamejolt_download_unreachable">Could not reach Game Jolt</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt did not give a download link</string>
     <string name="stores_gamejolt_archive">%1$s archives are not supported</string>
     <string name="stores_gamejolt_extract_failed">Could not extract the download (exit %1$d)</string>
     <string name="stores_gamejolt_section_featured">Featured</string>

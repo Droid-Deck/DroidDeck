@@ -3414,11 +3414,11 @@
     <string name="stores_gamejolt_not_owned">Ei Game Jolt-kirjastossasi</string>
     <string name="stores_gamejolt_no_build">Ei Windows-latausta tälle pelille</string>
     <string name="stores_gamejolt_no_exe">Latauksesta ei löytynyt Windows-peliä</string>
-    <string name="stores_gamejolt_no_game">Peliä ei löytynyt Game Joltsta</string>
-    <string name="stores_gamejolt_browse_failed">Pelien lataaminen Game Jolt:sta epäonnistui</string>
+    <string name="stores_gamejolt_no_game">Peliä ei löytynyt Game Joltista</string>
+    <string name="stores_gamejolt_browse_failed">Pelien lataaminen Game Joltista epäonnistui</string>
     <string name="stores_gamejolt_download_failed">Game Jolt vastasi HTTP %1$d</string>
-    <string name="stores_gamejolt_pick_failed">Latausten haku Game Joltsta epäonnistui</string>
-    <string name="stores_gamejolt_build_open">Avaa Game Joltssa</string>
+    <string name="stores_gamejolt_pick_failed">Latausten haku Game Joltista epäonnistui</string>
+    <string name="stores_gamejolt_build_open">Avaa Game Joltissa</string>
     <string name="stores_gamejolt_archive">%1$s-arkistot eivät ole tuettuja</string>
     <string name="stores_gamejolt_extract_failed">Latausta ei voitu purkaa (koodi %1$d)</string>
 </resources>

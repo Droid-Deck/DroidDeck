@@ -30,9 +30,6 @@ internal object GameJoltApi {
 
     fun browse(queryString: String, cookies: String): GameJoltAnswer = get("/web/discover/games?$queryString", cookies)
 
-    fun downloadUrl(buildId: String, cookies: String): String? =
-        post("/web/discover/games/builds/get-download-url/$buildId", cookies).payload?.optString("url")?.takeIf { it.startsWith("https://") }
-
     fun pageUrl(slug: String, id: String): String = "$SITE/games/$slug/$id"
 
     private fun readBounded(input: java.io.InputStream): String {
