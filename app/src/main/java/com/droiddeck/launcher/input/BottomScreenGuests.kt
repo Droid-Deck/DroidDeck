@@ -46,6 +46,7 @@ class BottomScreenWatch(private val service: AccessibilityService) {
     private val arrivals = ConcurrentHashMap<Int, Arrival>()
     private val own = service.packageName
     private var homes: Set<String> = emptySet()
+    private var holders: Map<Int, String?> = emptyMap()
     private val check = Runnable { evaluate() }
 
     fun start() {
@@ -82,7 +83,7 @@ class BottomScreenWatch(private val service: AccessibilityService) {
     private fun evaluate() {
         val all = runCatching { service.windowsOnAllDisplays }.getOrNull() ?: return
         val displays = service.getSystemService(DisplayManager::class.java) ?: return
-        val taken = mutableSetOf<Int>()
+        val taken = mutableMapOf<Int, String?>()
         for (i in 0 until all.size()) {
             val id = all.keyAt(i)
             if (id == Display.DEFAULT_DISPLAY) continue
@@ -95,12 +96,11 @@ class BottomScreenWatch(private val service: AccessibilityService) {
             val top = BottomScreenGuests.classify(topPkg, own, homes)
             val arrival = arrivals[id]?.takeUnless { a -> a.pkg in homes || windows.any { it.id == a.windowId } }
             if (top != BottomScreenGuests.Top.OWN || arrival == null) arrivals.remove(id)
-            if (BottomScreenGuests.taken(top, arrival != null)) {
-                taken += id
-                Log.i(TAG, "display $id taken by ${if (top == BottomScreenGuests.Top.GUEST) topPkg else arrival?.pkg}")
-            }
+            if (BottomScreenGuests.taken(top, arrival != null)) taken[id] = if (top == BottomScreenGuests.Top.GUEST) topPkg else arrival?.pkg
         }
-        DualScreen.setTaken(taken)
+        if (taken != holders) Log.i(TAG, "bottom screen holders: $taken")
+        holders = taken
+        DualScreen.setTaken(taken.keys)
     }
 
     private fun cover(window: AccessibilityWindowInfo, display: Display): Float {
