@@ -39,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -110,7 +111,7 @@ internal fun HudReadingsDialog(
                         val held = index == dragging
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth().height(ROW_HEIGHT)
+                            modifier = Modifier.fillMaxWidth().height(ROW_HEIGHT).testTag("hud-row-$key")
                                 .zIndex(if (held) 1f else 0f)
                                 .graphicsLayer { translationY = if (held) dragOffset else 0f }
                                 .then(if (held) Modifier else Modifier.animateItemPlacement())
@@ -123,7 +124,7 @@ internal fun HudReadingsDialog(
                         ) {
                             Box(
                                 contentAlignment = Alignment.Center,
-                                modifier = Modifier.size(width = 40.dp, height = ROW_HEIGHT)
+                                modifier = Modifier.size(width = 40.dp, height = ROW_HEIGHT).testTag("hud-handle-$key")
                                     .pointerInput(Unit) {
                                         detectDragGestures(
                                             onDragStart = { dragging = index; dragOffset = 0f },
