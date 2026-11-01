@@ -34,4 +34,40 @@ static inline int kgsl_busy_sample(const volatile uint32_t *memstore, int first,
     return busy;
 }
 
+// Hardware-scheduled kernels (every gen8 GPU and some gen7 ones: .gpudev = *_hwsched_gpudev in adreno-gpulist.h)
+// leave the ringbuffer entries at 0. The GMU firmware writes each context's own entry instead
+// (gen8_hwsched_hfi.c send_context_pointers). Context ids run from 1 below the ringbuffer entries, lowest free first,
+// and kgsl zeroes an entry when its context is created or destroyed.
+#define KGSL_BUSY_MAX_LIVE 64
+
+// Collects the contexts worth sampling: entries whose start stamp changed since the previous scan (seen[], one per
+// entry below first) or that are busy now. Returns how many ids went into live[].
+static inline int kgsl_busy_scan_contexts(const volatile uint32_t *memstore, int first, uint32_t *seen, int *live, int max_live) {
+    int n = 0;
+    for (int id = 1; id < first; id++) {
+        const volatile uint32_t *entry = memstore + (size_t)id * KGSL_BUSY_ENTRY_WORDS;
+        uint32_t sop = entry[KGSL_BUSY_SOP], eop = entry[KGSL_BUSY_EOP];
+        int changed = sop != seen[id];
+        seen[id] = sop;
+        if ((changed || sop != eop) && n < max_live) live[n++] = id;
+    }
+    return n;
+}
+
+// 1 when a live context has a submission between its start and end timestamps. *moved is set when a start
+// timestamp differs from last[] (indexed by context id), which then holds the new ones.
+static inline int kgsl_busy_sample_contexts(const volatile uint32_t *memstore, const int *live, int count, uint32_t *last, int *moved) {
+    int busy = 0;
+    for (int i = 0; i < count; i++) {
+        const volatile uint32_t *entry = memstore + (size_t)live[i] * KGSL_BUSY_ENTRY_WORDS;
+        uint32_t sop = entry[KGSL_BUSY_SOP], eop = entry[KGSL_BUSY_EOP];
+        if (sop != eop) busy = 1;
+        if (sop != last[live[i]]) {
+            *moved = 1;
+            last[live[i]] = sop;
+        }
+    }
+    return busy;
+}
+
 #endif

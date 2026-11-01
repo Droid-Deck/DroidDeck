@@ -31,6 +31,8 @@ class GpuStatsComponent(val dir: File, private val root: File) : SessionPart() {
 
     fun prepare(): Boolean {
         sources = ""
+        KgslBusy.status = "not tried"
+        KgslClock.status = "not tried"
         if (!File(KGSL).exists()) return false
         val unreadable = MANGOHUD_FILES.any { File(KGSL, it).let { f -> f.exists() && !f.canRead() } }
         // Where SELinux hides the kgsl nodes completely (exists() is false too), the layer and cycle-counter feeds stand in.
@@ -96,6 +98,7 @@ class GpuStatsComponent(val dir: File, private val root: File) : SessionPart() {
                 if (load.failed) {
                     memstore?.close()
                     memstore = null
+                    KgslBusy.status += ", but the stamps never moved"
                     Log.i(TAG, "hud: kgsl memstore timestamps never moved; GPU load from Vulkan timing")
                 } else if (load.working) {
                     Log.i(TAG, "hud: GPU load from the kgsl memstore (all GPU work)")
@@ -338,6 +341,12 @@ class GpuStatsComponent(val dir: File, private val root: File) : SessionPart() {
 
         /** Where the running session's GPU feeds come from, for the HUD diagnostics export. */
         @Volatile var sources = ""
+
+        /** Why the no-root GPU readers work or not, for the HUD diagnostics export; empty where they were not needed. */
+        fun readerStatus(): String =
+            if (KgslBusy.status == "not tried" && KgslClock.status == "not tried") ""
+            else "kgsl memstore ${KgslBusy.status}; GPU cycle counter ${KgslClock.status}"
+
         private const val STALE_MS = 30_000L
 
         fun guestLoadDir(root: File) = File(root, GUEST_LOAD_DIR.removePrefix("/"))
