@@ -122,8 +122,10 @@ object ProtonExtras {
         }
     }
 
-    internal fun testReleaseMissing(cache: JSONObject): Boolean =
-        cache.optJSONObject(OWN)?.optString("tag") != TEST_RELEASE
+    internal fun testReleaseMissing(cache: JSONObject): Boolean {
+        val tag = cache.optJSONObject(OWN)?.optString("tag").orEmpty()
+        return tag.isEmpty() || compareVersions(tag, TEST_RELEASE) < 0
+    }
 
     private fun record(context: Context, tool: Tool, dir: String?, tag: String) {
         runCatching {

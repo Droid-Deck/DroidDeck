@@ -106,6 +106,7 @@ class ProtonExtrasTest {
         assertTrue(ProtonExtras.testReleaseMissing(JSONObject()))
         assertTrue(ProtonExtras.testReleaseMissing(JSONObject().put("droiddeck", JSONObject().put("tag", "DroidDeck-Proton-11-11.10"))))
         assertFalse(ProtonExtras.testReleaseMissing(JSONObject().put("droiddeck", JSONObject().put("tag", ProtonExtras.TEST_RELEASE))))
+        assertFalse(ProtonExtras.testReleaseMissing(JSONObject().put("droiddeck", JSONObject().put("tag", "DroidDeck-Proton-11-12"))))
     }
 
     @Test
