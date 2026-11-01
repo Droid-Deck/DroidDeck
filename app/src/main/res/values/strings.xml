@@ -1881,6 +1881,13 @@
     <string name="second_mode_terminal">Terminal</string>
     <string name="second_mode_deck_controls">Deck grips + trackpads</string>
     <string name="second_mode_dashboard">Dashboard</string>
+    <string name="second_mode_desktop">Desktop</string>
+    <string name="bottom_desktop_start">Start the desktop</string>
+    <string name="bottom_desktop_stop">Close the desktop</string>
+    <string name="bottom_desktop_starting">Starting the KDE desktop…</string>
+    <string name="bottom_desktop_ended">The desktop closed.</string>
+    <string name="bottom_desktop_failed">The desktop couldn\'t start. Its logs are in this session\'s bottom-desktop folder.</string>
+    <string name="bottom_desktop_off">The desktop is closed.</string>
     <string name="bottom_dashboard_empty">Nothing to show here yet.</string>
     <string name="bottom_page_downloads">Downloads</string>
     <string name="bottom_downloads_none">No downloads running.</string>

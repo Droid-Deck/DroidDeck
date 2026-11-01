@@ -67,7 +67,6 @@ import com.droiddeck.launcher.gpu.ScreenEffectLooks
 import com.droiddeck.launcher.gpu.ScreenEffects
 import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.gpu.TurnipDriver
-import com.droiddeck.launcher.input.EvdevKeys
 import com.droiddeck.launcher.input.HomeGuideInput
 import com.droiddeck.launcher.input.InputSpace
 import com.droiddeck.launcher.input.KeyboardHost
@@ -1195,6 +1194,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             fexPreset = fexPreset,
             secondScreenMode = secondScreenMode,
             dashboardAvailable = bottomPages().isNotEmpty(),
+            desktopAvailable = com.droiddeck.launcher.session.BottomDesktop.available(),
             secondScreenDisplays = secondScreenDisplays,
             selectedSecondScreenDisplay = selectedSecondScreenDisplay,
             onHud = { on -> SessionPrefs.setHudEnabled(this@SessionActivity, on); hudOn = on; hud.refresh() },
@@ -2604,27 +2604,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (CompositorHost.isStarted && event.keyCode != KeyEvent.KEYCODE_BACK && !fromController) {
             val down = event.action == KeyEvent.ACTION_DOWN
             if (down && event.repeatCount > 0) return true
-            if (down || event.action == KeyEvent.ACTION_UP) {
-                var evdev = EvdevKeys.fromKeyCode(event.keyCode)
-                val ch = event.unicodeChar
-                val plain = if (ch > 0) EvdevKeys.unshiftedChar(ch) else 0
-                if (evdev <= 0 && ch > 0) {
-                    val code = EvdevKeys.fromKeyCode(EvdevKeys.keycodeForChar(if (plain != 0) plain else ch))
-                    if (code > 0) evdev = code
-                }
-                val shiftEvdev = if (evdev > 0 && plain != 0 && event.deviceId <= 0) 42 else 0
-                if (evdev <= 0 && event.scanCode > 0) evdev = event.scanCode
-                if (evdev > 0) {
-                    if (down) {
-                        if (shiftEvdev != 0) sendGuestKey(shiftEvdev, true)
-                        sendGuestKey(evdev, true)
-                    } else {
-                        sendGuestKey(evdev, false)
-                        if (shiftEvdev != 0) sendGuestKey(shiftEvdev, false)
-                    }
-                    return true
-                }
-            }
+            if (com.droiddeck.launcher.input.GuestKeys.send(event, ::sendGuestKey)) return true
         }
         return super.dispatchKeyEvent(event)
     }
@@ -3074,7 +3054,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (secondScreenDisplays.none { it.id == target.displayId }) return
         SessionState.secondScreenAutoOpened = true
         selectedSecondScreenDisplay = target.displayId
-        selectSecondScreenMode(SecondScreenMode.opening(SessionPrefs.secondScreenPanel(this), SessionState.deckPad, bottomPages().isNotEmpty()))
+        selectSecondScreenMode(SecondScreenMode.opening(SessionPrefs.secondScreenPanel(this), SessionState.deckPad, bottomPages().isNotEmpty(),
+            com.droiddeck.launcher.session.BottomDesktop.available()))
         dualControlsProvisional = ::loading.isInitialized && loading.visible
     }
 
@@ -3082,7 +3063,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!dualControlsProvisional || pipUi || !started || (::loading.isInitialized && loading.visible)) return
         dualControlsProvisional = false
         if (secondScreenMode == SecondScreenMode.NONE) return
-        val wanted = SecondScreenMode.opening(SessionPrefs.secondScreenPanel(this), SessionState.deckPad, bottomPages().isNotEmpty())
+        val wanted = SecondScreenMode.opening(SessionPrefs.secondScreenPanel(this), SessionState.deckPad, bottomPages().isNotEmpty(),
+            com.droiddeck.launcher.session.BottomDesktop.available())
         if (wanted != secondScreenMode) selectSecondScreenMode(wanted) else secondScreenPresentation?.retryTerminal()
     }
 

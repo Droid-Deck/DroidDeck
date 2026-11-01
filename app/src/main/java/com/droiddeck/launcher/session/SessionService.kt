@@ -577,6 +577,7 @@ class SessionService : Service() {
             add("-c")
             add("cd \"\$HOME\" && exec /bin/bash -i")
         }
+        val desktopGuest = ArrayList(guest)
         guest.add(LinuxRuntime.SESSION_SCRIPT)
         guest.add(SessionState.mode)
         if (SessionState.mode == MODE_STEAM) SessionState.steamUrl?.takeIf { it.startsWith("steam://") }?.let {
@@ -643,6 +644,9 @@ class SessionService : Service() {
         }
         if (gen == sessionGen && SessionState.running) {
             SessionTerminal.prepare(terminalCommand, terminalHostEnvironment.map { (key, value) -> "$key=$value" }.toTypedArray(), root, gen)
+            val (fastPathName, _) = ProotFastPath.hostEnv("")
+            BottomDesktop.prepare(desktopGuest, binds, sessionRoot,
+                hostEnv.asArray().filterNot { it.startsWith("$fastPathName=") }.toTypedArray(), root, sessionDir, gen)
         }
 
         if (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP) OfflineMode.apply(this, root)
@@ -1839,6 +1843,7 @@ class SessionService : Service() {
             auxiliaryProcesses.toMap().also { auxiliaryProcesses.clear() }
         }
         SessionTerminal.clear(sessionGen)
+        BottomDesktop.stop(this, sessionGen)
         val controller = suspendController
         suspendController = null
         if (ended != null) {

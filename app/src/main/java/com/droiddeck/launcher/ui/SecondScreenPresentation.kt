@@ -34,6 +34,7 @@ import com.droiddeck.launcher.input.PointerGestures
 import com.droiddeck.launcher.input.SecondScreenMode
 import com.droiddeck.launcher.input.TouchpadGestures
 import com.droiddeck.launcher.SessionActivity
+import com.droiddeck.launcher.session.BottomDesktop
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.SessionTerminal
@@ -199,7 +200,8 @@ class SecondScreenPresentation(
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        val ownKeys = currentMode == SecondScreenMode.TERMINAL || currentMode == SecondScreenMode.DASHBOARD
+        val ownKeys = currentMode == SecondScreenMode.TERMINAL || currentMode == SecondScreenMode.DASHBOARD ||
+            currentMode == SecondScreenMode.DESKTOP
         val forward = menuShown || !ownKeys || PadBridge.isControllerKeyEvent(event)
         if (forward && sessionActivity.dispatchKeyEvent(event)) return true
         return super.dispatchKeyEvent(event)
@@ -231,6 +233,7 @@ class SecondScreenPresentation(
         val mode = when {
             currentMode == SecondScreenMode.DECK_CONTROLS && !SessionState.deckPad -> SecondScreenMode.NONE
             currentMode == SecondScreenMode.DASHBOARD && dashboard == null -> SecondScreenMode.NONE
+            currentMode == SecondScreenMode.DESKTOP && !BottomDesktop.available() -> SecondScreenMode.NONE
             else -> currentMode
         }
         if (mode == SecondScreenMode.NONE) return
@@ -240,6 +243,8 @@ class SecondScreenPresentation(
             SecondScreenMode.TERMINAL -> renderTerminal()
             SecondScreenMode.DECK_CONTROLS -> root.addView(DeckControlsPanel(context, onClose, onSteamMenu, onQam, pad, onMenu = onMenu), weightParams())
             SecondScreenMode.DASHBOARD -> renderDashboard()
+            SecondScreenMode.DESKTOP -> root.addView(BottomDesktopPanel(context, onClose, onMenu,
+                (onSteamMenu to onQam).takeIf { SessionState.mode == SessionService.MODE_STEAM }), weightParams())
             SecondScreenMode.NONE -> Unit
         }
     }
