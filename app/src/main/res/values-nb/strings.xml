@@ -655,7 +655,7 @@
     <string name="hud_locked">Lås på plass</string>
     <string name="hud_locked_hint">Dra HUD-en for å flytte den; et langt trykk låser eller låser den opp. Mens den er låst, fungerer skjermkontrollene under den fortsatt.</string>
     <string name="hud_snap">Fest til kanter</string>
-    <string name="hud_snap_hint">Slipp HUD-en, så flytter den seg til nærmeste kant, hjørne eller midten. Et raskt sveip kaster den den veien.</string>
+    <string name="hud_snap_hint">Slipp HUD-en, så flytter den seg til nærmeste kant eller hjørne. Et raskt sveip kaster den den veien.</string>
     <string name="hud_group_look">Utseende</string>
     <string name="hud_scale">Størrelse på skjermen</string>
     <string name="hud_color_soft">Myk</string>

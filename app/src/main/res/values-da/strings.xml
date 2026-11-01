@@ -655,7 +655,7 @@
     <string name="hud_locked">Lås fast</string>
     <string name="hud_locked_hint">Træk i HUD for at flytte det; et langt tryk låser eller frigør det. Mens det er låst, virker skærmknapperne under det stadig.</string>
     <string name="hud_snap">Fastgør til kanter</string>
-    <string name="hud_snap_hint">Slip HUD\'en, så flytter den sig til nærmeste kant, hjørne eller midten. Et hurtigt stryg kaster den i den retning.</string>
+    <string name="hud_snap_hint">Slip HUD\'en, så flytter den sig til nærmeste kant eller hjørne. Et hurtigt stryg kaster den i den retning.</string>
     <string name="hud_group_look">Udseende</string>
     <string name="hud_scale">Størrelse på skærmen</string>
     <string name="hud_color_soft">Blød</string>

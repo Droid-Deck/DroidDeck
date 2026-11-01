@@ -653,7 +653,7 @@
     <string name="hud_locked">Kunci di tempat</string>
     <string name="hud_locked_hint">Seret HUD untuk mengalihkannya; tekan lama untuk mengunci atau membuka kuncinya. Semasa dikunci, kawalan skrin di bawahnya masih berfungsi.</string>
     <string name="hud_snap">Lekap ke tepi</string>
-    <string name="hud_snap_hint">Lepaskan HUD dan ia akan beralih ke tepi, sudut atau tengah yang terdekat. Kuis pantas melemparkannya ke arah itu.</string>
+    <string name="hud_snap_hint">Lepaskan HUD dan ia akan beralih ke tepi atau sudut yang terdekat. Kuis pantas melemparkannya ke arah itu.</string>
     <string name="hud_group_look">Rupa</string>
     <string name="hud_scale">Saiz pada skrin</string>
     <string name="hud_color_soft">Lembut</string>

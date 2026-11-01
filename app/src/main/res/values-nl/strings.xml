@@ -655,7 +655,7 @@
     <string name="hud_locked">Vastzetten</string>
     <string name="hud_locked_hint">Sleep de HUD om hem te verplaatsen; lang drukken zet hem vast of los. Zolang hij vastzit, blijven de schermknoppen eronder werken.</string>
     <string name="hud_snap">Vastklikken aan randen</string>
-    <string name="hud_snap_hint">Laat de HUD los en hij gaat naar de dichtstbijzijnde rand, hoek of het midden. Met een snelle veeg gooi je hem die kant op.</string>
+    <string name="hud_snap_hint">Laat de HUD los en hij gaat naar de dichtstbijzijnde rand of hoek. Met een snelle veeg gooi je hem die kant op.</string>
     <string name="hud_group_look">Weergave</string>
     <string name="hud_scale">Grootte op scherm</string>
     <string name="hud_color_soft">Zacht</string>

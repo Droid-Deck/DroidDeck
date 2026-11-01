@@ -679,7 +679,7 @@
     <string name="hud_locked">Lock in place</string>
     <string name="hud_locked_hint">Drag the HUD to move it; a long press locks or unlocks it. While it is locked, on-screen controls under it still work.</string>
     <string name="hud_snap">Snap to edges</string>
-    <string name="hud_snap_hint">Let go of the HUD and it moves to the nearest edge, corner or the middle. A flick throws it that way.</string>
+    <string name="hud_snap_hint">Let go of the HUD and it moves to the nearest edge or corner. A flick throws it that way.</string>
     <string name="hud_group_look">Look</string>
     <string name="hud_scale">Size on screen</string>
     <string name="hud_color_soft">Soft</string>

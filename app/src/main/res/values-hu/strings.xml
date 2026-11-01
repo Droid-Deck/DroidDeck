@@ -655,7 +655,7 @@
     <string name="hud_locked">Rögzítés a helyén</string>
     <string name="hud_locked_hint">Húzd a HUD-ot az áthelyezéshez; hosszú nyomással rögzítheted vagy feloldhatod. Rögzítve is működnek az alatta lévő képernyős vezérlők.</string>
     <string name="hud_snap">Igazítás a szélekhez</string>
-    <string name="hud_snap_hint">Engedd el a HUD-ot, és a legközelebbi szélhez, sarokhoz vagy középre ugrik. Egy gyors pöccintés abba az irányba dobja.</string>
+    <string name="hud_snap_hint">Engedd el a HUD-ot, és a legközelebbi szélhez vagy sarokhoz ugrik. Egy gyors pöccintés abba az irányba dobja.</string>
     <string name="hud_group_look">Megjelenés</string>
     <string name="hud_scale">Méret a képernyőn</string>
     <string name="hud_color_soft">Lágy</string>

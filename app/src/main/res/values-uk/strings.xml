@@ -659,7 +659,7 @@
     <string name="hud_locked">Закріпити на місці</string>
     <string name="hud_locked_hint">Перетягніть HUD, щоб перемістити його; довге натискання закріплює або відкріплює його. Поки його закріплено, екранні елементи керування під ним працюють і далі.</string>
     <string name="hud_snap">Прилипання до країв</string>
-    <string name="hud_snap_hint">Відпустіть HUD, і він переміститься до найближчого краю, кута або в центр. Різкий жест відкине його в той бік.</string>
+    <string name="hud_snap_hint">Відпустіть HUD, і він переміститься до найближчого краю або кута. Різкий жест відкине його в той бік.</string>
     <string name="hud_group_look">Вигляд</string>
     <string name="hud_scale">Розмір на екрані</string>
     <string name="hud_color_soft">М\'який</string>

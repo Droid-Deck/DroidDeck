@@ -657,7 +657,7 @@
     <string name="hud_locked">Fijar posición</string>
     <string name="hud_locked_hint">Arrastra el HUD para moverlo; una pulsación larga lo bloquea o lo desbloquea. Mientras está bloqueado, los controles en pantalla que tiene debajo siguen funcionando.</string>
     <string name="hud_snap">Ajustar a los bordes</string>
-    <string name="hud_snap_hint">Al soltar el HUD, se mueve al borde, la esquina o el centro más cercano. Un gesto rápido lo lanza en esa dirección.</string>
+    <string name="hud_snap_hint">Al soltar el HUD, se mueve al borde o la esquina más cercanos. Un gesto rápido lo lanza en esa dirección.</string>
     <string name="hud_group_look">Aspecto</string>
     <string name="hud_scale">Tamaño en pantalla</string>
     <string name="hud_color_soft">Suave</string>

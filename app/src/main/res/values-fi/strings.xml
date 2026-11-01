@@ -655,7 +655,7 @@
     <string name="hud_locked">Lukitse paikalleen</string>
     <string name="hud_locked_hint">Siirrä HUD:ia vetämällä; pitkä painallus lukitsee tai vapauttaa sen. Lukittuna sen alla olevat näytön ohjaimet toimivat edelleen.</string>
     <string name="hud_snap">Kiinnitä reunoihin</string>
-    <string name="hud_snap_hint">Kun päästät HUDista irti, se siirtyy lähimpään reunaan, kulmaan tai keskelle. Nopea pyyhkäisy heittää sen siihen suuntaan.</string>
+    <string name="hud_snap_hint">Kun päästät HUDista irti, se siirtyy lähimpään reunaan tai kulmaan. Nopea pyyhkäisy heittää sen siihen suuntaan.</string>
     <string name="hud_group_look">Ulkoasu</string>
     <string name="hud_scale">Koko näytöllä</string>
     <string name="hud_color_soft">Pehmeä</string>

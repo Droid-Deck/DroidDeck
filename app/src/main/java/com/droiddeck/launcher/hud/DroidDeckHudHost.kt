@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import android.animation.ValueAnimator
 import android.view.Choreographer
 import android.view.View
 import android.view.animation.PathInterpolator
@@ -16,7 +17,6 @@ import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.ui.Motion
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -36,8 +36,8 @@ class DroidDeckHudHost(context: Context) {
     private var polling = false
     private var wantX = Float.NaN
     private var wantY = Float.NaN
-    // With snapping on, the HUD keeps to one of nine spots: these are its share of the free space across and
-    // down (0, 0.5 or 1), so it stays against its edge or in the middle when its size changes. NaN = not snapped.
+    // With snapping on, the HUD keeps to a corner or an edge middle: these are its share of the free space across
+    // and down (0, 0.5 or 1), so it stays there when its size changes. NaN = not snapped.
     private var anchorX = Float.NaN
     private var anchorY = Float.NaN
     private var snaps = true
@@ -100,11 +100,14 @@ class DroidDeckHudHost(context: Context) {
             shrinkPastEdge(hud, rawX, rawY)
         }
         hud.setOnFlungListener { vx, vy -> flingX = vx; flingY = vy }
+        hud.setOnTabDraggedListener { x, y -> dragTab(hud, x, y) }
+        hud.setOnTabDroppedListener { dropTab(hud) }
         hud.setOnMovedListener { x, y ->
             wantX = x; wantY = y
             val vx = flingX; val vy = flingY
             flingX = 0f; flingY = 0f
             if (!hud.isStrip) dockEdgeFor(hud)?.let { edge -> setDock(hud, edge); return@setOnMovedListener }
+            fadeDockPreview(hud)
             if (snaps && !hud.isStrip) { snapToAnchor(hud, vx, vy); return@setOnMovedListener }
             if (hud.scaleX != 1f) hud.animate().scaleX(1f).scaleY(1f).setDuration(Motion.ms(200).toLong()).setInterpolator(EASE).start()
             keepOnScreen(hud)
@@ -253,17 +256,67 @@ class DroidDeckHudHost(context: Context) {
         ).maxByOrNull { it.value }
     }
 
+    /** The closest of the corners and edge middles to (x, y), as shares of the free space (maxX, maxY). */
+    private fun nearestAnchor(x: Float, y: Float, maxX: Float, maxY: Float): Pair<Float, Float> {
+        val spots = listOf(0f, 0.5f, 1f).flatMap { ax -> listOf(0f, 0.5f, 1f).map { ay -> ax to ay } }
+            .filter { it != 0.5f to 0.5f }
+        return spots.minBy { (ax, ay) -> (ax * maxX - x).let { it * it } + (ay * maxY - y).let { it * it } }
+    }
+
+    /** The tab follows the finger along its edge and away from it, staying on screen. */
+    private fun dragTab(hud: DroidDeckHudView, x: Float, y: Float) {
+        val p = hud.parent as? View ?: return
+        hud.animate().cancel()
+        hud.x = x.coerceIn(0f, (p.width - hud.width).toFloat().coerceAtLeast(0f))
+        hud.y = y.coerceIn(0f, (p.height - hud.height).toFloat().coerceAtLeast(0f))
+    }
+
+    /** A tab pulled out by more than its own size comes out as the HUD there; a shorter pull slides it back onto its edge. */
+    private fun dropTab(hud: DroidDeckHudView) {
+        val p = hud.parent as? View ?: return
+        val maxX = (p.width - hud.width).toFloat().coerceAtLeast(0f)
+        val maxY = (p.height - hud.height).toFloat().coerceAtLeast(0f)
+        val pulled = when (hud.dock) {
+            DroidDeckHudDock.LEFT -> hud.x / hud.width
+            DroidDeckHudDock.RIGHT -> (maxX - hud.x) / hud.width
+            DroidDeckHudDock.TOP -> hud.y / hud.height
+            DroidDeckHudDock.BOTTOM -> (maxY - hud.y) / hud.height
+            DroidDeckHudDock.NONE -> 0f
+        }
+        if (pulled >= 1f) { setDock(hud, DroidDeckHudDock.NONE); return }
+        wantX = hud.x; wantY = hud.y
+        val (x, y) = settled(p, hud.dock, hud.width.toFloat(), hud.height.toFloat())
+        wantX = x; wantY = y
+        SessionPrefs.setDroidDeckHudPosition(context, x, y)
+        if (Motion.scale == 0f) { hud.x = x; hud.y = y; return }
+        snapping = true
+        hud.animate().x(x).y(y).setDuration(Motion.ms(220).toLong()).setInterpolator(EASE)
+            .withEndAction { snapping = false }.start()
+    }
+
+    /** A drop short of docking fades the tab preview back out. */
+    private fun fadeDockPreview(hud: DroidDeckHudView) {
+        val from = hud.dockPreviewBlend
+        if (from <= 0f) return
+        val edge = overhang(hud)?.key ?: DroidDeckHudDock.NONE
+        if (Motion.scale == 0f) { hud.setDockPreview(DroidDeckHudDock.NONE, 0f); return }
+        ValueAnimator.ofFloat(from, 0f).apply {
+            duration = Motion.ms(200).toLong()
+            addUpdateListener { hud.setDockPreview(edge, it.animatedValue as Float) }
+            start()
+        }
+    }
+
     /**
-     * Dropped, the HUD glides to the nearest of nine spots (each edge, each corner, the middle) as a picture-in-picture
+     * Dropped, the HUD glides to the nearest corner or edge middle as a picture-in-picture
      * window does, carried toward where a fling throws it.
      */
     private fun snapToAnchor(hud: DroidDeckHudView, vx: Float, vy: Float) {
         val p = hud.parent as? View ?: return
         val maxX = (p.width - hud.width).toFloat().coerceAtLeast(0f)
         val maxY = (p.height - hud.height).toFloat().coerceAtLeast(0f)
-        fun nearest(at: Float, max: Float) = if (max <= 0f) 0f else listOf(0f, 0.5f, 1f).minBy { abs(it * max - at) }
-        anchorX = nearest(hud.x + vx * FLING_REACH_S, maxX)
-        anchorY = nearest(hud.y + vy * FLING_REACH_S, maxY)
+        val (ax, ay) = nearestAnchor(hud.x + vx * FLING_REACH_S, hud.y + vy * FLING_REACH_S, maxX, maxY)
+        anchorX = ax; anchorY = ay
         wantX = anchorX * maxX; wantY = anchorY * maxY
         SessionPrefs.setDroidDeckHudPosition(context, wantX, wantY)
         hud.animate().cancel()
@@ -284,8 +337,11 @@ class DroidDeckHudHost(context: Context) {
     private fun shrinkPastEdge(hud: DroidDeckHudView, rawX: Float, rawY: Float) {
         if (hud.dock != DroidDeckHudDock.NONE || hud.isStrip) return
         val p = hud.parent as? View ?: return
-        val over = overhang(hud)?.value ?: return
+        val edge = overhang(hud) ?: return
+        val over = edge.value
         val t = (over / DOCK_OVERHANG).coerceIn(0f, 1f)
+        val fade = ((t - PREVIEW_FROM) / (1f - PREVIEW_FROM)).coerceIn(0f, 1f)
+        hud.setDockPreview(edge.key, fade * fade * (3f - 2f * fade))
         val (tabW, tabH) = hud.dockTabSize()
         val tabScale = maxOf(tabW / hud.width, tabH / hud.height).coerceAtMost(1f)
         val s = 1f + (tabScale - 1f) * t * t * (3f - 2f * t)
@@ -303,13 +359,9 @@ class DroidDeckHudHost(context: Context) {
 
     private fun commitDock(hud: DroidDeckHudView, edge: DroidDeckHudDock) {
         if (edge == DroidDeckHudDock.NONE) {
-            when (hud.dock) {
-                DroidDeckHudDock.LEFT -> wantX = 0f
-                DroidDeckHudDock.RIGHT -> wantX = Float.MAX_VALUE
-                DroidDeckHudDock.TOP -> wantY = 0f
-                DroidDeckHudDock.BOTTOM -> wantY = Float.MAX_VALUE
-                DroidDeckHudDock.NONE -> {}
-            }
+            // Out where the tab is: against its edge, or wherever it was pulled to.
+            wantX = hud.x; wantY = hud.y
+            anchorX = Float.NaN; anchorY = Float.NaN
         } else {
             val p = hud.parent as? View
             if (p != null) {
@@ -336,6 +388,7 @@ class DroidDeckHudHost(context: Context) {
         val p = hud.parent as? View
         if (Motion.scale == 0f || p == null || !hud.isLaidOut || hud.width <= 0) {
             hud.scaleX = 1f; hud.scaleY = 1f
+            hud.setDockPreview(DroidDeckHudDock.NONE, 0f)
             commit(); return
         }
         if (edge != DroidDeckHudDock.NONE) {
@@ -349,16 +402,19 @@ class DroidDeckHudHost(context: Context) {
             wantY = top + (shownH - tabH) / 2f
             val (tabX, tabY) = settled(p, edge, tabW, tabH)
             val sx = tabW / hud.width; val sy = tabH / hud.height
+            val from = hud.dockPreviewBlend
             hud.animate().x(tabX).y(tabY).scaleX(sx).scaleY(sy).setDuration(Motion.ms(220).toLong()).setInterpolator(EASE)
+                .setUpdateListener { hud.setDockPreview(edge, from + (1f - from) * it.animatedFraction) }
                 .withEndAction {
+                    hud.animate().setUpdateListener(null)
                     commit()
+                    hud.setDockPreview(DroidDeckHudDock.NONE, 0f)
                     hud.scaleX = 1f; hud.scaleY = 1f
                     hud.x = tabX; hud.y = tabY
-                    hud.alpha = 0.5f
-                    hud.animate().alpha(1f).setDuration(Motion.ms(120).toLong()).start()
                 }.start()
         } else {
             hud.scaleX = 1f; hud.scaleY = 1f
+            val was = hud.dock
             val tabX = hud.x; val tabY = hud.y
             val tabW = hud.width.toFloat(); val tabH = hud.height.toFloat()
             commit()
@@ -369,7 +425,14 @@ class DroidDeckHudHost(context: Context) {
             hud.pivotX = pivotFor(x, tabX, sx) - x
             hud.pivotY = pivotFor(y, tabY, sy) - y
             hud.scaleX = sx; hud.scaleY = sy
-            hud.animate().scaleX(1f).scaleY(1f).setDuration(Motion.ms(360).toLong()).setInterpolator(EASE).start()
+            hud.setDockPreview(was, 1f)
+            hud.animate().scaleX(1f).scaleY(1f).setDuration(Motion.ms(360).toLong()).setInterpolator(EASE)
+                .setUpdateListener {
+                    val f = (1f - it.animatedFraction / EXPAND_FADE).coerceIn(0f, 1f)
+                    hud.setDockPreview(was, f * f * (3f - 2f * f))
+                }
+                .withEndAction { hud.animate().setUpdateListener(null); hud.setDockPreview(DroidDeckHudDock.NONE, 0f) }
+                .start()
         }
     }
 
@@ -403,8 +466,8 @@ class DroidDeckHudHost(context: Context) {
         val maxY = (p.height - v.height).toFloat().coerceAtLeast(0f)
         val anchored = (v as? DroidDeckHudView)?.let { it.dock == DroidDeckHudDock.NONE && !it.isStrip } == true
         if (snaps && anchored && anchorX.isNaN()) {
-            anchorX = if (maxX <= 0f) 0f else listOf(0f, 0.5f, 1f).minBy { abs(it * maxX - wantX.coerceIn(0f, maxX)) }
-            anchorY = if (maxY <= 0f) 0f else listOf(0f, 0.5f, 1f).minBy { abs(it * maxY - wantY.coerceIn(0f, maxY)) }
+            val (ax, ay) = nearestAnchor(wantX.coerceIn(0f, maxX), wantY.coerceIn(0f, maxY), maxX, maxY)
+            anchorX = ax; anchorY = ay
         }
         if (snaps && anchored && !anchorX.isNaN()) { wantX = anchorX * maxX; wantY = anchorY * maxY }
         var x = wantX.coerceIn(0f, maxX)
@@ -426,6 +489,10 @@ class DroidDeckHudHost(context: Context) {
         private const val DOCK_OVERHANG = 0.4f
         /** How far ahead a fling carries the HUD when picking the spot it snaps to, as seconds of its speed. */
         private const val FLING_REACH_S = 0.18f
+        /** How far toward docking a drag goes, as a share of the way, before the tab starts to fade in over the HUD. */
+        private const val PREVIEW_FROM = 0.55f
+        /** The share of the expand animation over which the tab fades out to the HUD. */
+        private const val EXPAND_FADE = 0.5f
         private val EASE = PathInterpolator(0.2f, 0.8f, 0.2f, 1f)
 
         /** True while the HUD is on screen; DroidDeck keeps sampling VRAM for it (GpuMemComponent). */

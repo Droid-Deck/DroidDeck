@@ -657,7 +657,7 @@
     <string name="hud_locked">Verrouiller la position</string>
     <string name="hud_locked_hint">Faites glisser le HUD pour le déplacer ; un appui long le verrouille ou le déverrouille. Tant qu\'il est verrouillé, les commandes à l\'écran situées dessous restent utilisables.</string>
     <string name="hud_snap">Aimanter aux bords</string>
-    <string name="hud_snap_hint">Relâchez le HUD et il rejoint le bord, le coin ou le centre le plus proche. Un geste rapide le lance dans cette direction.</string>
+    <string name="hud_snap_hint">Relâchez le HUD et il rejoint le bord ou le coin le plus proche. Un geste rapide le lance dans cette direction.</string>
     <string name="hud_group_look">Apparence</string>
     <string name="hud_scale">Taille à l\'écran</string>
     <string name="hud_color_soft">Douce</string>

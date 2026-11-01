@@ -655,7 +655,7 @@
     <string name="hud_locked">Заключване на място</string>
     <string name="hud_locked_hint">Плъзнете HUD, за да го преместите; продължително натискане го заключва или отключва. Докато е заключен, екранните контроли под него продължават да работят.</string>
     <string name="hud_snap">Залепване към ръбовете</string>
-    <string name="hud_snap_hint">Пуснете HUD и той отива до най-близкия ръб, ъгъл или в средата. Бързо плъзване го хвърля в тази посока.</string>
+    <string name="hud_snap_hint">Пуснете HUD и той отива до най-близкия ръб или ъгъл. Бързо плъзване го хвърля в тази посока.</string>
     <string name="hud_group_look">Визия</string>
     <string name="hud_scale">Размер на екрана</string>
     <string name="hud_color_soft">Мек</string>
