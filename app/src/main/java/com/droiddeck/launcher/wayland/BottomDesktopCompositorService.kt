@@ -18,6 +18,8 @@ import java.io.File
  */
 class BottomDesktopCompositorService : Service() {
     private var client: Messenger? = null
+    /** Echoed in every reply, so the session process can tell replies to an earlier attach apart. */
+    @Volatile private var attachTag = 0
 
     private val handler = object : Handler(Looper.getMainLooper()) {
         override fun handleMessage(msg: Message) {
@@ -57,6 +59,7 @@ class BottomDesktopCompositorService : Service() {
         val surface = msg.obj as? Surface ?: return
         val data = msg.data ?: return
         client = msg.replyTo
+        attachTag = msg.arg1
         val runtimeDir = File(data.getString(KEY_RUNTIME_DIR) ?: return).apply { mkdirs() }
         val width = data.getInt(KEY_WIDTH)
         val height = data.getInt(KEY_HEIGHT)
@@ -81,9 +84,9 @@ class BottomDesktopCompositorService : Service() {
         reply(MSG_ATTACHED)
     }
 
-    private fun reply(what: Int, arg1: Int = 0) {
+    private fun reply(what: Int) {
         val target = client ?: return
-        runCatching { target.send(Message.obtain(null, what, arg1, 0)) }
+        runCatching { target.send(Message.obtain(null, what, attachTag, 0)) }
             .onFailure { Log.w(TAG, "the session process did not take message $what", it) }
     }
 

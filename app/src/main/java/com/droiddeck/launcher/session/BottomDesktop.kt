@@ -68,6 +68,7 @@ object BottomDesktop {
 
     private val replies = Messenger(object : Handler(Looper.getMainLooper()) {
         override fun handleMessage(msg: Message) {
+            if (msg.arg1 != owner) return
             when (msg.what) {
                 Comp.MSG_ATTACHED -> {
                     service?.let { send(it, Message.obtain(null, Comp.MSG_CURSOR, if (cursorShown) 1 else 0, 0)) }
@@ -149,6 +150,7 @@ object BottomDesktop {
         outputSize = width to height
         val dir = File(current.sessionDir, "bottom-desktop").apply { mkdirs() }
         val msg = Message.obtain(null, Comp.MSG_ATTACH).apply {
+            arg1 = owner
             obj = surface
             replyTo = replies
             data = Bundle().apply {
