@@ -17,6 +17,8 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         com.droiddeck.launcher.ui.Themes.loadGradient(this)
+        com.droiddeck.launcher.ui.BuildWatermark.install(this)
+        HomeApp.trackRecents(this)
         // Helper processes must not initialize the main USB provider or guest graphics context.
         val process = if (android.os.Build.VERSION.SDK_INT >= 28) Application.getProcessName()
             else (getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager)
@@ -34,8 +36,10 @@ class App : Application() {
             com.droiddeck.launcher.stores.StoresState.init(this)
             return
         }
-        if (process == "$packageName:vr_recovery" || process == "$packageName:rgb_diagnostic") return
+        if (process == "$packageName:vr_recovery" || process == "$packageName:rgb_diagnostic" ||
+            process == "$packageName:shortcuts_sync") return
         CrashHandler.install(this)
+        com.droiddeck.launcher.core.SteamIntegration.syncShortcutsListing(this)
         com.droiddeck.launcher.session.QuestExperimental.initialize(this)
         com.droiddeck.launcher.session.SessionPrefs.applyNtsyncDefault(this)
         com.droiddeck.launcher.session.SessionPrefs.settleGpuDriverMode(this)
@@ -53,6 +57,7 @@ class App : Application() {
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.epic.EpicBackend)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.amazon.AmazonBackend)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.itch.ItchBackend)
+        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.gamejolt.GameJoltBackend)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.xbox.XboxBackend)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.battlenet.BattleNetBackend)
     }

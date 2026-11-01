@@ -6,6 +6,7 @@ import os
 import signal
 import socket
 import struct
+import subprocess
 import sys
 
 SOCKET_FILE = "/etc/droiddeck/bwrap-socket"
@@ -23,6 +24,11 @@ def socket_name():
 
 
 SOCKET = socket_name()
+FEX_DIR = "/run/droiddeck-fex"
+OWN_FEX = "/usr/local"
+X86_MACHINES = (3, 62)
+ARM_LIBS = "/usr/lib/aarch64-linux-gnu"
+ARM_LOADER = "/usr/lib/ld-linux-aarch64.so.1"
 VERSION = "bubblewrap 0.11.0 (droiddeck)"
 
 NO_ARG = {
@@ -91,6 +97,7 @@ class Spec:
         self.lock_files = []
         self.command = []
         self.argv0 = None
+        self.env_tool = None
 
 
 def parse(argv):
@@ -217,6 +224,134 @@ def host_path(s, path):
     return path
 
 
+def sandbox_link(s, path):
+    for op in reversed(s.ops):
+        if op.get("dest", "").rstrip("/") != path:
+            continue
+        if op["t"] == "symlink":
+            return op["target"]
+        if op["t"] == "bind":
+            return None
+        break
+    here = sandbox_source(s, path)
+    return os.readlink(here) if os.path.islink(here) else None
+
+
+def sandbox_source(s, path):
+    for op in reversed(s.ops):
+        if op["t"] != "bind":
+            continue
+        dest = op["dest"].rstrip("/")
+        if path == dest or path.startswith(dest + "/"):
+            return real(op["src"]).rstrip("/") + path[len(dest):]
+    return path
+
+
+def sandbox_file(s, path):
+    parts = [p for p in path.split("/") if p]
+    done = "/"
+    hops = 0
+    i = 0
+    while i < len(parts):
+        step = os.path.join(done, parts[i])
+        link = sandbox_link(s, step)
+        if link is None:
+            done = step
+            i += 1
+            continue
+        hops += 1
+        if hops > 40:
+            return None
+        base = "/" if link.startswith("/") else done
+        parts = [p for p in os.path.normpath(os.path.join(base, link)).split("/") if p] + parts[i + 1:]
+        done = "/"
+        i = 0
+    here = sandbox_source(s, done)
+    return here if os.path.isfile(here) else None
+
+
+def program_path(s, program):
+    if "/" in program:
+        return os.path.normpath(os.path.join(s.cwd or "/", program))
+    for folder in s.env.get("PATH", "/usr/bin:/bin").split(":"):
+        if not folder:
+            continue
+        candidate = os.path.normpath(os.path.join(s.cwd or "/", folder, program))
+        if sandbox_file(s, candidate):
+            return candidate
+    return None
+
+
+def machine(s, path, depth=0):
+    here = sandbox_file(s, path)
+    if here is None:
+        return None
+    try:
+        with open(here, "rb") as f:
+            head = f.read(256)
+    except OSError:
+        return None
+    if head[:4] == b"\x7fELF" and len(head) >= 20:
+        return struct.unpack("<H" if head[5] == 1 else ">H", head[18:20])[0]
+    if head[:2] == b"#!" and depth < 4:
+        words = head[2:].split(b"\n")[0].split()
+        if words:
+            return machine(s, words[0].decode("utf-8", "replace"), depth + 1)
+    return None
+
+
+def own_fex():
+    return all(os.access(os.path.join(OWN_FEX, "bin", name), os.X_OK) for name in ("FEX", "FEXServer")) \
+        and os.path.isfile(os.path.join(OWN_FEX, "lib", "libxxhash.so.0"))
+
+
+def fex_ready():
+    if own_fex():
+        return True
+    try:
+        subprocess.call([os.path.join(OWN_FEX, "bin", "droiddeck-fex-update")], stdout=sys.stderr)
+    except OSError:
+        return False
+    return own_fex()
+
+
+def start_fex_server():
+    try:
+        subprocess.Popen([os.path.join(OWN_FEX, "bin", "FEXServer"), "-p", "30"], stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError as e:
+        sys.stderr.write("bwrap: could not start FEXServer: %s\n" % e)
+
+
+def through_fex(s):
+    program = program_path(s, s.command[0])
+    if program is None or machine(s, program) not in X86_MACHINES:
+        return False
+    if not fex_ready():
+        sys.stderr.write("bwrap: %s is an x86 program and FEX is not installed\n" % program)
+        return False
+    for src, dest in ((os.path.join(OWN_FEX, "bin", "FEX"), FEX_DIR + "/bin/FEX"),
+                      (os.path.join(OWN_FEX, "bin", "FEXServer"), FEX_DIR + "/bin/FEXServer"),
+                      (os.path.join(OWN_FEX, "lib", "libxxhash.so.0"), FEX_DIR + "/lib/libxxhash.so.0"),
+                      ("/usr/bin/env", FEX_DIR + "/bin/env"),
+                      (ARM_LIBS, ARM_LIBS),
+                      (real(ARM_LOADER), ARM_LOADER)):
+        s.ops.append({"t": "bind", "src": src, "dest": dest, "try": False, "ro": True})
+    data = s.env.get("XDG_CACHE_HOME") or "/tmp"
+    s.env["FEX_APP_CONFIG_LOCATION"] = FEX_DIR + "/config/"
+    s.env["FEX_APP_DATA_LOCATION"] = data + "/droiddeck-fex/"
+    s.env["FEX_APP_CACHE_LOCATION"] = data + "/droiddeck-fex/cache/"
+    for name in ("FEX_ROOTFS", "FEX_THUNKHOSTLIBS", "FEX_THUNKGUESTLIBS", "FEX_THUNKCONFIG", "FEX_PORTABLE",
+                 "GLIBC_TUNABLES", "MESA_LOADER_DRIVER_OVERRIDE", "GALLIUM_DRIVER", "VK_ICD_FILENAMES",
+                 "VK_DRIVER_FILES"):
+        s.env.pop(name, None)
+    s.command = [FEX_DIR + "/bin/FEX", program] + s.command[1:]
+    s.argv0 = None
+    s.env_tool = FEX_DIR + "/bin/env"
+    start_fex_server()
+    return True
+
+
 def hold_locks(s):
     for path in s.lock_files:
         try:
@@ -290,6 +425,8 @@ def run_by_app(s):
     if s.argv0:
         argv[0] = s.argv0
     request = {"argv": argv, "env": s.env, "cwd": s.cwd or "/", "ops": ops}
+    if s.env_tool:
+        request["envTool"] = s.env_tool
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
         sock.connect(SOCKET)
@@ -333,8 +470,9 @@ def main():
     hold_locks(s)
     if remaps_nothing(s):
         run_here(s)
-    else:
-        run_by_app(s)
+        return
+    through_fex(s)
+    run_by_app(s)
 
 
 if __name__ == "__main__":

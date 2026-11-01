@@ -6,26 +6,28 @@ import android.os.Handler
 import android.os.Looper
 import android.view.Choreographer
 import android.view.View
+import android.view.animation.PathInterpolator
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.ui.Motion
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
 import kotlin.math.roundToInt
 
 /**
- * FusionHUD on the session screen, in place of the old text HUD: the view, the frame feed from gamescope
+ * DroidDeck HUD on the session screen, in place of the old text HUD: the view, the frame feed from gamescope
  * (MangoHud's frame times) and MangoHud's readings, started with the session's first frame.
  */
-class FusionHudHost(context: Context) {
+class DroidDeckHudHost(context: Context) {
     private val context = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
     private val feed = GameFrameFeed(File(LinuxRuntime.rootDir(this.context), HudFrames.PATH))
     private val readings = MangoReadings(File(this.context.filesDir, "session"), LinuxRuntime.rootDir(this.context))
-    private var view: FusionHudView? = null
+    private var view: DroidDeckHudView? = null
     private var parent: ViewGroup? = null
     private var running = false
     private var hidden = false
@@ -49,7 +51,7 @@ class FusionHudHost(context: Context) {
 
     private val listener = object : WaylandCompositor.GameListener {
         override fun onGameSurface(window: String?, gpuName: String?) {
-            if (!gpuName.isNullOrBlank()) handler.post { this@FusionHudHost.gpuName = cleanGpuName(gpuName) }
+            if (!gpuName.isNullOrBlank()) handler.post { this@DroidDeckHudHost.gpuName = cleanGpuName(gpuName) }
             if (window != null && window != lastWindow) {
                 lastWindow = window
                 handler.post { onPresentingWindowChanged?.invoke() }
@@ -76,20 +78,26 @@ class FusionHudHost(context: Context) {
     /** Adds the HUD to [root] at [index] (above the game surface, under the session overlay). */
     fun attach(root: FrameLayout, index: Int) {
         if (view != null) return
-        val hud = FusionHudView(root.context)
+        val hud = DroidDeckHudView(root.context)
         hud.setFrameStats(feed.stats)
         hud.setMangoReadings(readings)
         hud.setGpuModel(cleanGpuName(GpuInfo.detect().displayName(context)))
         hud.onRefresh = Runnable { refreshLabels(hud) }
         hud.setOnMovedListener { x, y ->
             wantX = x; wantY = y
+            dockEdgeFor(hud)?.let { edge -> setDock(hud, edge); return@setOnMovedListener }
             keepOnScreen(hud)
             wantX = hud.x; wantY = hud.y
-            SessionPrefs.setFusionHudPosition(context, hud.x, hud.y)
+            SessionPrefs.setDroidDeckHudPosition(context, hud.x, hud.y)
         }
-        hud.setOnSizeCycledListener { size -> FusionHudConfig.set(context, "hudSize", size); onConfigChanged?.invoke() }
+        hud.setOnSizeCycledListener { size -> DroidDeckHudConfig.set(context, "hudSize", size); onConfigChanged?.invoke() }
+        hud.setOnDockChangedListener { token -> setDock(hud, DroidDeckHudDock.from(token)) }
+        hud.setOnScaledListener { percent ->
+            DroidDeckHudConfig.set(context, "hudScale", percent.toString())
+            onConfigChanged?.invoke()
+        }
         hud.setOnLockChangedListener { locked ->
-            FusionHudConfig.set(context, "hudLocked", if (locked) "1" else "0")
+            DroidDeckHudConfig.set(context, "hudLocked", if (locked) "1" else "0")
             onConfigChanged?.invoke()
         }
         hud.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> if (!hud.isDragging) keepOnScreen(hud) }
@@ -100,14 +108,14 @@ class FusionHudHost(context: Context) {
             leftMargin = margin
             topMargin = margin
         })
-        SessionPrefs.fusionHudPosition(context)?.let { (x, y) -> wantX = x; wantY = y; hud.post { keepOnScreen(hud) } }
+        SessionPrefs.droidDeckHudPosition(context)?.let { (x, y) -> wantX = x; wantY = y; hud.post { keepOnScreen(hud) } }
         view = hud
         parent = root
         applyConfig()
     }
 
     fun applyConfig() {
-        view?.applyConfig(FusionHudConfig.encode(FusionHudConfig.load(context)))
+        view?.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.load(context)))
     }
 
     fun refresh() {
@@ -157,7 +165,7 @@ class FusionHudHost(context: Context) {
         }
     }
 
-    /** A sensor report (FusionHUD's diagnostics) in Downloads/DroidDeck; null when it can't be written. */
+    /** A sensor report (DroidDeck HUD's diagnostics) in Downloads/DroidDeck; null when it can't be written. */
     fun exportDiagnostics(): File? = runCatching {
         val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "DroidDeck")
         dir.mkdirs()
@@ -180,7 +188,7 @@ class FusionHudHost(context: Context) {
         file
     }.getOrNull()
 
-    private fun refreshLabels(hud: FusionHudView) {
+    private fun refreshLabels(hud: DroidDeckHudView) {
         if (feed.engine.isNotBlank() && !feed.steamFocused) engine = feed.engine
         hud.setEngineLabel(engine)
         if (gpuName.isNotBlank()) hud.setGpuModel(gpuName)
@@ -203,6 +211,105 @@ class FusionHudHost(context: Context) {
         return if (stats.size > 3 && stats[3] > 1f) stats[3] else 0f
     }
 
+    /** The edge the HUD was dropped over, once a good part of it hangs past that edge; null when it stays. */
+    private fun dockEdgeFor(v: View): DroidDeckHudDock? {
+        val p = v.parent as? View ?: return null
+        if (p.width <= 0 || p.height <= 0 || v.width <= 0 || v.height <= 0) return null
+        val over = mapOf(
+            DroidDeckHudDock.LEFT to -v.x / v.width,
+            DroidDeckHudDock.RIGHT to (v.x + v.width - p.width) / v.width,
+            DroidDeckHudDock.TOP to -v.y / v.height,
+            DroidDeckHudDock.BOTTOM to (v.y + v.height - p.height) / v.height,
+        ).maxByOrNull { it.value } ?: return null
+        return over.key.takeIf { over.value >= DOCK_OVERHANG }
+    }
+
+    /** Tucks the HUD against [edge] as its FPS tab, or with [DroidDeckHudDock.NONE] brings it back out from where it was docked. */
+    private fun setDock(hud: DroidDeckHudView, edge: DroidDeckHudDock) {
+        if (edge == hud.dock) return
+        animateDock(hud, edge) { commitDock(hud, edge) }
+    }
+
+    private fun commitDock(hud: DroidDeckHudView, edge: DroidDeckHudDock) {
+        if (edge == DroidDeckHudDock.NONE) {
+            when (hud.dock) {
+                DroidDeckHudDock.LEFT -> wantX = 0f
+                DroidDeckHudDock.RIGHT -> wantX = Float.MAX_VALUE
+                DroidDeckHudDock.TOP -> wantY = 0f
+                DroidDeckHudDock.BOTTOM -> wantY = Float.MAX_VALUE
+                DroidDeckHudDock.NONE -> {}
+            }
+        } else {
+            val p = hud.parent as? View
+            if (p != null) {
+                wantX = wantX.coerceIn(0f, p.width.toFloat())
+                wantY = wantY.coerceIn(0f, p.height.toFloat())
+            }
+            SessionPrefs.setDroidDeckHudPosition(context, wantX, wantY)
+        }
+        DroidDeckHudConfig.set(context, "hudDock", edge.token)
+        applyConfig()
+        hud.post { keepOnScreen(hud) }
+        onConfigChanged?.invoke()
+    }
+
+    /**
+     * One shape contracts into the tab, and the tab expands back out to the HUD: the view is scaled onto the
+     * tab's exact rectangle, and the layouts swap at that same size and place. Timing and curve are the
+     * launcher's own ([Motion]), and off when animations are off.
+     */
+    private fun animateDock(hud: DroidDeckHudView, edge: DroidDeckHudDock, commit: () -> Unit) {
+        hud.animate().cancel()
+        hud.scaleX = 1f; hud.scaleY = 1f; hud.alpha = 1f
+        val p = hud.parent as? View
+        if (Motion.scale == 0f || p == null || !hud.isLaidOut || hud.width <= 0) { commit(); return }
+        if (edge != DroidDeckHudDock.NONE) {
+            val (tabW, tabH) = hud.dockTabSize()
+            val (tabX, tabY) = settled(p, edge, tabW, tabH)
+            val sx = tabW / hud.width; val sy = tabH / hud.height
+            hud.pivotX = pivotFor(hud.x, tabX, sx) - hud.x
+            hud.pivotY = pivotFor(hud.y, tabY, sy) - hud.y
+            hud.animate().scaleX(sx).scaleY(sy).setDuration(Motion.ms(300).toLong()).setInterpolator(EASE)
+                .withEndAction {
+                    commit()
+                    hud.scaleX = 1f; hud.scaleY = 1f
+                    hud.x = tabX; hud.y = tabY
+                    hud.alpha = 0.5f
+                    hud.animate().alpha(1f).setDuration(Motion.ms(120).toLong()).start()
+                }.start()
+        } else {
+            val tabX = hud.x; val tabY = hud.y
+            val tabW = hud.width.toFloat(); val tabH = hud.height.toFloat()
+            commit()
+            val w = hud.contentWidth; val h = hud.contentHeight
+            val (x, y) = settled(p, DroidDeckHudDock.NONE, w, h)
+            hud.x = x; hud.y = y
+            val sx = tabW / w; val sy = tabH / h
+            hud.pivotX = pivotFor(x, tabX, sx) - x
+            hud.pivotY = pivotFor(y, tabY, sy) - y
+            hud.scaleX = sx; hud.scaleY = sy
+            hud.animate().scaleX(1f).scaleY(1f).setDuration(Motion.ms(360).toLong()).setInterpolator(EASE).start()
+        }
+    }
+
+    /** The pivot, in parent coordinates, that scaling by [scale] takes a span starting at [from] onto one starting at [to]. */
+    private fun pivotFor(from: Float, to: Float, scale: Float): Float =
+        if (scale > 0.999f) from else (to - from * scale) / (1f - scale)
+
+    /** Where a [w] x [h] HUD or tab sits once [keepOnScreen] has settled it against [dock]. */
+    private fun settled(p: View, dock: DroidDeckHudDock, w: Float, h: Float): Pair<Float, Float> {
+        val maxX = (p.width - w).coerceAtLeast(0f); val maxY = (p.height - h).coerceAtLeast(0f)
+        var x = wantX.coerceIn(0f, maxX); var y = wantY.coerceIn(0f, maxY)
+        when (dock) {
+            DroidDeckHudDock.LEFT -> x = 0f
+            DroidDeckHudDock.RIGHT -> x = maxX
+            DroidDeckHudDock.TOP -> y = 0f
+            DroidDeckHudDock.BOTTOM -> y = maxY
+            DroidDeckHudDock.NONE -> {}
+        }
+        return Pair(x, y)
+    }
+
     // The HUD is clamped from where the user left it (wantX/wantY, set on a drop or restore), not from where
     // it is drawn: a window that shrinks and grows back (picture-in-picture, a fold) must not leave it in the
     // corner the small window pushed it to.
@@ -212,13 +319,24 @@ class FusionHudHost(context: Context) {
         if (wantX.isNaN()) { wantX = v.x; wantY = v.y }
         val maxX = (p.width - v.width).toFloat().coerceAtLeast(0f)
         val maxY = (p.height - v.height).toFloat().coerceAtLeast(0f)
-        val x = wantX.coerceIn(0f, maxX)
-        val y = wantY.coerceIn(0f, maxY)
+        var x = wantX.coerceIn(0f, maxX)
+        var y = wantY.coerceIn(0f, maxY)
+        when (v.let { it as? DroidDeckHudView }?.dock) {
+            DroidDeckHudDock.LEFT -> x = 0f
+            DroidDeckHudDock.RIGHT -> x = maxX
+            DroidDeckHudDock.TOP -> y = 0f
+            DroidDeckHudDock.BOTTOM -> y = maxY
+            else -> {}
+        }
         if (v.x != x) v.x = x
         if (v.y != y) v.y = y
     }
 
     companion object {
+        /** How much of the HUD, as a share of its own size, must hang past a screen edge for it to dock there. */
+        private const val DOCK_OVERHANG = 0.4f
+        private val EASE = PathInterpolator(0.2f, 0.8f, 0.2f, 1f)
+
         /** True while the HUD is on screen; DroidDeck keeps sampling VRAM for it (GpuMemComponent). */
         @Volatile @JvmStatic var showing = false
             private set

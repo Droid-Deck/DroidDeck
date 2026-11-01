@@ -109,9 +109,14 @@ internal object ItchLibrary {
     private fun JSONObject.text(snake: String, camel: String): String =
         optString(snake).ifBlank { optString(camel) }
 
+    private val fieldsLogged = java.util.concurrent.atomic.AtomicBoolean(false)
+
     internal fun item(game: JSONObject, downloadKeyId: String): CatalogItem? {
         val gameId = game.optLong("id")
         if (gameId <= 0L) return null
+        if (fieldsLogged.compareAndSet(false, true)) {
+            com.droiddeck.launcher.stores.StoresState.logLine("itch.io: a game object carries keys [${game.keys().asSequence().joinToString(",")}] and traits [${game.optJSONArray("traits")?.let { a -> (0 until a.length()).joinToString(",") { a.optString(it) } }.orEmpty()}]")
+        }
         val user = game.optJSONObject("user")
         val url = game.optString("url").ifBlank {
             val owner = user?.optString("username").orEmpty()

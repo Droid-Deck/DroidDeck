@@ -92,8 +92,8 @@ import com.droiddeck.launcher.input.TouchscreenGestures
 import com.droiddeck.launcher.input.ScrollTouchGestures
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.LoadingState
-import com.droiddeck.launcher.hud.FusionHudConfig
-import com.droiddeck.launcher.hud.FusionHudHost
+import com.droiddeck.launcher.hud.DroidDeckHudConfig
+import com.droiddeck.launcher.hud.DroidDeckHudHost
 import com.droiddeck.launcher.session.PerfMode
 import com.droiddeck.launcher.session.SteamRepair
 import com.droiddeck.launcher.session.GameEnvironmentStore
@@ -161,7 +161,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var surfaceView: SurfaceView
     private lateinit var sessionOverlay: ComposeView
     private lateinit var loading: LoadingState
-    private lateinit var hud: FusionHudHost
+    private lateinit var hud: DroidDeckHudHost
     private lateinit var memoryHud: com.droiddeck.launcher.session.MemoryHud
     private var padBridge: PadBridge? = null
     private val physicalShortcuts = PhysicalShortcutRouter()
@@ -464,6 +464,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
     private var selectedSecondScreenDisplay by mutableStateOf(SessionState.secondScreenDisplay)
     private var started = false
+    private var dualControlsProvisional: Boolean
+        get() = SessionState.secondScreenProvisional
+        set(value) { SessionState.secondScreenProvisional = value }
     private var sessionActivityDisplayId = Display.DEFAULT_DISPLAY
     private lateinit var displayManager: DisplayManager
     private var secondScreenPresentation: SecondScreenPresentation? = null
@@ -580,6 +583,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             SessionState.steamUi = intent.getStringExtra(SessionService.EXTRA_STEAM_UI)
             SessionState.steamUrl = intent.getStringExtra(SessionService.EXTRA_STEAM_URL)
             SessionState.steamVr = intent.getBooleanExtra(EXTRA_STEAMVR, false)
+            SessionState.secondScreenAutoOpened = false
+            SessionState.secondScreenProvisional = false
         } else if (intent.getBooleanExtra(EXTRA_STEAMVR, false) && SessionState.mode == SessionService.MODE_STEAM) {
             SessionState.steamVr = true
         }
@@ -741,8 +746,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             val needProton = protonUser && com.droiddeck.launcher.runtime.DesktopCatalog.protonSeedNeeded(this)
             if (needRuntime || needResume || needDesktop || needProton) installThenStart(needRuntime, needDesktop, needProton, needResume)
         }
-        hud = FusionHudHost(this)
-        hud.onConfigChanged = { hudConfig = FusionHudConfig.load(this) }
+        hud = DroidDeckHudHost(this)
+        hud.onConfigChanged = { hudConfig = DroidDeckHudConfig.load(this) }
         hud.passesTouchAt = ::controlTakesTouchAt
         hud.attach(root, root.childCount)
         memoryHud = com.droiddeck.launcher.session.MemoryHud(this)
@@ -1175,8 +1180,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             secondScreenDisplays = secondScreenDisplays,
             selectedSecondScreenDisplay = selectedSecondScreenDisplay,
             onHud = { on -> SessionPrefs.setHudEnabled(this@SessionActivity, on); hudOn = on; hud.refresh() },
-            onHudSetting = { key, value -> hudConfig = FusionHudConfig.set(this@SessionActivity, key, value); hud.applyConfig() },
-            onHudReset = { hudConfig = FusionHudConfig.reset(this@SessionActivity); hud.applyConfig() },
+            onHudSetting = { key, value -> hudConfig = DroidDeckHudConfig.set(this@SessionActivity, key, value); hud.applyConfig() },
+            onHudReset = { hudConfig = DroidDeckHudConfig.reset(this@SessionActivity); hud.applyConfig() },
             onHudExport = { exportHudDiagnostics() },
             onUpscaler = { m ->
                 SessionPrefs.setUpscaler(this@SessionActivity, m); upscaler = m
@@ -1816,7 +1821,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         unfoldedControlsWithController = SessionPrefs.unfoldedControlsWithController(this)
         picturePosition = SessionPrefs.picturePosition(this)
         hudOn = SessionPrefs.hudEnabled(this)
-        hudConfig = FusionHudConfig.load(this)
+        hudConfig = DroidDeckHudConfig.load(this)
         hudColor = SessionPrefs.hudColor(this)
         hudOpacity = SessionPrefs.hudOpacity(this)
         upscaler = SessionPrefs.upscaler(this)
@@ -3030,6 +3035,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         SessionState.secondScreenAutoOpened = true
         selectedSecondScreenDisplay = target.displayId
         selectSecondScreenMode(SecondScreenMode.opening(SessionPrefs.secondScreenPanel(this), SessionState.deckPad))
+        dualControlsProvisional = ::loading.isInitialized && loading.visible
+    }
+
+    private fun settleDualScreenControls() {
+        if (!dualControlsProvisional || pipUi || !started || (::loading.isInitialized && loading.visible)) return
+        dualControlsProvisional = false
+        if (secondScreenMode == SecondScreenMode.NONE) return
+        val wanted = SecondScreenMode.opening(SessionPrefs.secondScreenPanel(this), SessionState.deckPad)
+        if (wanted != secondScreenMode) selectSecondScreenMode(wanted) else secondScreenPresentation?.retryTerminal()
     }
 
     private fun selectSecondScreenDisplay(displayId: Int) {
@@ -3040,6 +3054,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun selectSecondScreenMode(mode: SecondScreenMode) {
+        dualControlsProvisional = false
         if (mode == SecondScreenMode.NONE) {
             closeSecondScreen(reset = true)
             return
@@ -3818,7 +3833,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             updateOnScreenControls()
             if (resumed) { sessionClipboard.start(); updatePadMotion() }
-            if (started) refreshSecondScreenDisplays()
+            if (started) {
+                settleDualScreenControls()
+                refreshSecondScreenDisplays()
+            }
             if (CompositorHost.isStarted) applyFrameGen()
         }
     }
@@ -3854,9 +3872,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         for (name in arrayOf("peak_refresh_rate", "min_refresh_rate")) {
             contentResolver.registerContentObserver(android.provider.Settings.System.getUriFor(name), false, refreshSettingObserver)
         }
+        settleDualScreenControls()
         refreshSecondScreenDisplays()
         if (secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
-        else if (::loading.isInitialized && !loading.visible) openDualScreenControls()
+        else openDualScreenControls()
         startedScreens++
         SessionService.setActivityVisible(this, true, sessionActivityDisplayId)
         Glasses.rescan()
@@ -4384,7 +4403,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             loading.visible = false
             hud.start()
             memoryHud.start()
-            if (started) openDualScreenControls()
+            if (started) {
+                settleDualScreenControls()
+                openDualScreenControls()
+            }
         }
     }
 

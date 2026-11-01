@@ -3,14 +3,14 @@ package com.droiddeck.launcher.hud
 import android.content.Context
 import com.droiddeck.launcher.session.SessionPrefs
 
-/** FusionHUD's settings as one "key=value,…" string (FusionHudView.applyConfig), stored in SessionPrefs. */
-internal object FusionHudConfig {
+/** DroidDeck HUD's settings as one "key=value,…" string (DroidDeckHudView.applyConfig), stored in SessionPrefs. */
+internal object DroidDeckHudConfig {
     /**
-     * Bannerlator's Fusion defaults (DeckOverlaySettings), with the FPS graph from the old DroidDeck HUD. The HUD starts
+     * Bannerlator's defaults (DeckOverlaySettings), with the FPS graph from the old DroidDeck HUD. The HUD starts
      * locked, so like the old HUD it lets touches through until it is unlocked to move it.
      */
     val DEFAULTS: Map<String, String> = linkedMapOf(
-        "hudSize" to "minimal", "hudLocked" to "1", "hudScale" to "100", "hudOpacity" to "80", "hudColor" to "mid",
+        "hudSize" to "minimal", "hudLocked" to "1", "hudScale" to "100", "hudDock" to "none", "hudOpacity" to "80", "hudColor" to "mid",
         "hudOutline" to "40", "hudOutlineAccent" to "1",
         "showFPS" to "1", "showFPSGraph" to "1", "showCPUUsage" to "1", "showCPULoad" to "1", "showGPULoad" to "1",
         "showVram" to "1", "showRAM" to "1", "showPower" to "1", "showTemp" to "1", "showBatteryTemp" to "1",
@@ -25,7 +25,7 @@ internal object FusionHudConfig {
 
     fun load(context: Context): MutableMap<String, String> {
         val values = LinkedHashMap(DEFAULTS)
-        val stored = SessionPrefs.fusionHudConfig(context)
+        val stored = SessionPrefs.droidDeckHudConfig(context)
         if (stored == null) {
             values["showFPS"] = flag(SessionPrefs.hudShowFps(context))
             values["showFPSGraph"] = flag(SessionPrefs.hudShowGraph(context))
@@ -43,12 +43,12 @@ internal object FusionHudConfig {
         if (key !in DEFAULTS) return values
         values[key] = value
         TWINS[key]?.let { values[it] = value }
-        SessionPrefs.setFusionHudConfig(context, encode(values))
+        SessionPrefs.setDroidDeckHudConfig(context, encode(values))
         return values
     }
 
     fun reset(context: Context): Map<String, String> {
-        SessionPrefs.setFusionHudConfig(context, encode(DEFAULTS))
+        SessionPrefs.setDroidDeckHudConfig(context, encode(DEFAULTS))
         return DEFAULTS
     }
 

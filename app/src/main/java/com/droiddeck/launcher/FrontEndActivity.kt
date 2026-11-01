@@ -195,7 +195,7 @@ class FrontEndActivity : ComponentActivity() {
     private var navRequest by mutableStateOf<String?>(null)
     private var storesShowMature by mutableStateOf(false)
     private var storesSort by mutableStateOf(SessionPrefs.STORES_SORTS.first())
-    private var storesView by mutableStateOf(SessionPrefs.STORES_VIEWS.first())
+    private var storesView by mutableStateOf(SessionPrefs.DEFAULT_STORES_VIEW)
     private var mic by mutableStateOf(false)
     private var wifiDiscovery by mutableStateOf(false)
     private var wifiDiscoveryPermission by mutableStateOf(false)
@@ -324,7 +324,10 @@ class FrontEndActivity : ComponentActivity() {
             SteamIntegration.Feature.SHORTCUTS -> {
                 if (!integrationState.shortcuts) shortcutsTried = true
                 if (!HomeApp.isDefault(this)) configureIntegration(SteamIntegration.Feature.HOME)
-                else integrationSettings(SteamIntegration.shortcutSettings(this), android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                else {
+                    SteamIntegration.setShortcutsListed(this, true)
+                    integrationSettings(SteamIntegration.shortcutSettings(this), android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                }
             }
         }
     }
@@ -1571,9 +1574,28 @@ class FrontEndActivity : ComponentActivity() {
         startSession(Intent(this, SessionActivity::class.java).putExtra(SessionActivity.EXTRA_STEAMVR, steamVr), steamSession = true)
     }
 
+    @Suppress("OVERRIDE_DEPRECATION")
+    override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
+        val outside = com.droiddeck.launcher.ui.DualScreenPanel.shownOn >= 0 &&
+            com.droiddeck.launcher.ui.DualScreenPanel.opensOutside(packageName, intent.component?.packageName ?: intent.`package` ?: intent.resolveActivity(packageManager)?.packageName)
+        if (outside) {
+            com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, true)
+            window.decorView.postDelayed({ if (hasWindowFocus()) com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false) }, 1500)
+        }
+        try {
+            super.startActivityForResult(intent, requestCode, options)
+        } catch (e: RuntimeException) {
+            if (outside) com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
+            throw e
+        }
+    }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) applyLauncherFullscreen()
+        if (hasFocus) {
+            com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
+            applyLauncherFullscreen()
+        }
     }
 
     private fun applyLauncherFullscreen() {
@@ -1632,6 +1654,7 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onPause() {
         compatLaunchVisible = false
+        if (android.os.Build.VERSION.SDK_INT >= 29) com.droiddeck.launcher.ui.DualScreenPanel.ownerPaused(taskId, true)
         super.onPause()
     }
 
@@ -1639,9 +1662,11 @@ class FrontEndActivity : ComponentActivity() {
         super.onResume()
         compatLaunchVisible = true
         com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
+        com.droiddeck.launcher.ui.DualScreenPanel.ownerPaused(taskId, false)
         orientation = SessionPrefs.orientation(this)
         launcherOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
         requestedOrientation = launcherOrientation
+        SteamIntegration.syncShortcutsListing(this)
         refreshWifiDiscovery()
         com.droiddeck.launcher.stores.StoresState.refresh(this)
         com.droiddeck.launcher.stores.StoresState.libraryListener = { refreshAddedGames(); refresh() }

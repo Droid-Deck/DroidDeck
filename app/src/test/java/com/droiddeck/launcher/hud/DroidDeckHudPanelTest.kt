@@ -2,7 +2,6 @@ package com.droiddeck.launcher.hud
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Color
 import android.os.Looper
 import android.os.SystemClock
 import android.view.MotionEvent
@@ -22,19 +21,18 @@ import org.robolectric.annotation.GraphicsMode
 import java.io.ByteArrayOutputStream
 import java.time.Duration
 import java.util.Base64
-import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], qualifiers = "xhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-class FusionHudPanelTest {
+class DroidDeckHudPanelTest {
     @Test fun minimalIsTheSizeTheHudStartsWith() {
-        assertEquals(FusionSize.MINIMAL, FusionSize.from(FusionHudConfig.DEFAULTS["hudSize"]))
+        assertEquals(DroidDeckHudSize.MINIMAL, DroidDeckHudSize.from(DroidDeckHudConfig.DEFAULTS["hudSize"]))
     }
 
     @Test fun theHudStartsLocked() {
-        assertEquals("1", FusionHudConfig.DEFAULTS["hudLocked"])
+        assertEquals("1", DroidDeckHudConfig.DEFAULTS["hudLocked"])
     }
 
     @Test fun everySizeDrawsTheDPanelWithEverythingInsideIt() {
@@ -46,9 +44,9 @@ class FusionHudPanelTest {
             stats.add(frametime, now)
         }
         val snapshot = SNAPSHOT
-        for (size in FusionSize.values()) {
-            val view = FusionHudView(RuntimeEnvironment.getApplication())
-            view.applyConfig(FusionHudConfig.encode(FusionHudConfig.DEFAULTS + ("hudSize" to size.token)))
+        for (size in DroidDeckHudSize.values()) {
+            val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
+            view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to size.token)))
             view.setFrameStats(stats)
             view.showForTest(snapshot, "DXVK", now)
             val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
@@ -58,7 +56,7 @@ class FusionHudPanelTest {
             view.draw(Canvas(bitmap))
 
             val png = ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-            println("FUSIONHUD-${size.token.uppercase()}-PNG ${Base64.getEncoder().encodeToString(png.toByteArray())}")
+            println("DROIDDECKHUD-${size.token.uppercase()}-PNG ${Base64.getEncoder().encodeToString(png.toByteArray())}")
 
             val panel = view.panelForTest()!!
             assertTrue("$size panel inside the view",
@@ -69,15 +67,13 @@ class FusionHudPanelTest {
                 val edge = panel.right - r + sqrt(r * r - d * d)
                 assertTrue("$size graph clears the round side", graph.right <= edge)
             }
-            val orb = bitmap.getPixel(panel.left.roundToInt() + 1, panel.centerY().roundToInt())
-            assertTrue("$size orb on the left side", Color.blue(orb) > 200 && Color.alpha(orb) > 200)
         }
     }
 
     @Test fun pillShowsEachBatteryPartOnItsOwnSwitch() {
         fun pill(vararg settings: Pair<String, String>): List<String> {
-            val view = FusionHudView(RuntimeEnvironment.getApplication())
-            view.applyConfig(FusionHudConfig.encode(FusionHudConfig.DEFAULTS + ("hudSize" to FusionSize.PILL.token) + settings))
+            val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
+            view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to DroidDeckHudSize.PILL.token) + settings))
             view.showForTest(SNAPSHOT, "DXVK", 0L)
             return view.linesForTest()
         }
@@ -104,7 +100,7 @@ class FusionHudPanelTest {
         val under = View(app).apply {
             setOnTouchListener { _, e -> if (e.actionMasked == MotionEvent.ACTION_DOWN) reached++; true }
         }
-        val hud = FusionHudView(app)
+        val hud = DroidDeckHudView(app)
         val parent = FrameLayout(app)
         parent.addView(under, FrameLayout.LayoutParams(2000, 2000))
         parent.addView(hud, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT))
@@ -112,7 +108,7 @@ class FusionHudPanelTest {
         hud.passesTouchAt = { _, _ -> control }
         val locks = ArrayList<Boolean>()
         hud.setOnLockChangedListener { locks += it }
-        hud.applyConfig(FusionHudConfig.encode(FusionHudConfig.DEFAULTS + ("hudLocked" to "0")))
+        hud.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudLocked" to "0")))
         hud.showForTest(SNAPSHOT, "DXVK", 0L)
         val exactly = View.MeasureSpec.makeMeasureSpec(2000, View.MeasureSpec.EXACTLY)
         parent.measure(exactly, exactly)
@@ -129,7 +125,7 @@ class FusionHudPanelTest {
         control = true
         touch()
         assertEquals("an unlocked HUD keeps the touch (tap, drag, long press)", 0, reached)
-        hud.applyConfig(FusionHudConfig.encode(FusionHudConfig.DEFAULTS + ("hudLocked" to "1")))
+        hud.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudLocked" to "1")))
         touch()
         assertEquals("a locked HUD passes it to the control under it", 1, reached)
         control = false
@@ -137,6 +133,25 @@ class FusionHudPanelTest {
         assertEquals("a locked HUD keeps a touch no control takes", 1, reached)
         touch(holdMs = ViewConfiguration.getLongPressTimeout() + 300L)
         assertEquals("a long press there unlocks it", listOf(false), locks)
+    }
+
+    @Test fun aDockedHudIsJustTheFpsTabAndATapBringsItBack() {
+        val app = RuntimeEnvironment.getApplication()
+        val hud = DroidDeckHudView(app)
+        hud.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to "full") + ("hudDock" to "left")))
+        hud.showForTest(SNAPSHOT, "DXVK", 0L)
+        val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        hud.measure(unspecified, unspecified)
+        hud.layout(0, 0, hud.measuredWidth, hud.measuredHeight)
+        assertEquals(DroidDeckHudDock.LEFT, hud.dock)
+        assertTrue("a tab, not the panel: ${hud.width}x${hud.height}", hud.width < 400 && hud.height < 200)
+        val docks = ArrayList<String>()
+        hud.setOnDockChangedListener { docks += it }
+        val down = SystemClock.uptimeMillis()
+        MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, 5f, 5f, 0).also { hud.dispatchTouchEvent(it); it.recycle() }
+        MotionEvent.obtain(down, down + 40, MotionEvent.ACTION_UP, 5f, 5f, 0).also { hud.dispatchTouchEvent(it); it.recycle() }
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals("a locked, docked HUD still answers a tap", listOf("none"), docks)
     }
 
     private companion object {

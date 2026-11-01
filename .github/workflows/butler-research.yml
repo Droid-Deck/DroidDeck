@@ -1,0 +1,83 @@
+name: Butler research
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  research:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - name: Download butler for linux arm64
+        run: |
+          set -euo pipefail
+          note() { local t=${1//'%'/'%25'}; t=${t//$'\n'/'%0A'}; echo "::notice title=$2::$t"; }
+          mkdir -p b && cd b
+          curl -fsSL -D headers.txt -o butler.zip "https://broth.itch.zone/butler/linux-arm64/LATEST/archive/default"
+          unzip -q butler.zip
+          chmod +x butler
+          note "$(sha256sum butler.zip; sha256sum butler; file butler; ls -l; grep -i -E '^(HTTP|location|content-)' headers.txt)" "download"
+          note "$(./butler version 2>&1 || true)" "version"
+          note "$(./butler --help 2>&1 | head -60 || true)" "commands"
+
+      - name: Option listings
+        run: |
+          cd b
+          note() { local t=${1//'%'/'%25'}; t=${t//$'\n'/'%0A'}; echo "::notice title=$2::$t"; }
+          note "$(./butler apply --help 2>&1 | head -60 || true)" "apply"
+          note "$(./butler heal --help 2>&1 | head -60 || true)" "heal"
+          note "$(./butler verify --help 2>&1 | head -60 || true)" "verify"
+          note "$(./butler dl --help 2>&1 | head -40 || true)" "dl"
+          note "$(./butler sign --help 2>&1 | head -40 || true)" "sign"
+
+      - name: Request formats inside butler
+        run: |
+          cd b
+          note() { local t=${1//'%'/'%25'}; t=${t//$'\n'/'%0A'}; echo "::notice title=$2::$t"; }
+          strings -n 6 butler | grep -E '/(builds|uploads|wharf)/|upgrade-paths|download_key_id|uuid=' | sort -u | head -80 > found.txt || true
+          note "$(cat found.txt)" "urls"
+          note "$(strings -n 6 butler | grep -i -E 'download/|/download' | sort -u | head -40 || true)" "download"
+          note "$(./butler diff --help 2>&1 | head -40 || true)" "diff"
+          note "$(./butler singlediff --help 2>&1 | head -30 || true)" "singlediff"
+
+      - name: Versioned download and glibc need
+        run: |
+          cd b
+          note() { local t=${1//'%'/'%25'}; t=${t//$'\n'/'%0A'}; echo "::notice title=$2::$t"; }
+          v=$(./butler version | sed -n 's/^v\([0-9.]*\),.*/\1/p')
+          mkdir -p pinned
+          code=$(curl -sS -L -o pinned/butler.zip -w '%{http_code} %{url_effective}' "https://broth.itch.zone/butler/linux-arm64/$v/archive/default" || true)
+          nl=$'\n'
+          note "version=$v${nl}$code${nl}$(sha256sum pinned/butler.zip 2>&1)${nl}latest zip: $(sha256sum butler.zip | cut -d' ' -f1)" "versioned"
+          note "$(objdump -T butler | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -3; ldd butler 2>&1 | head -8; ldd 7z.so 2>&1 | head -8; ldd libc7zip.so 2>&1 | head -8)" "glibc"
+          note "$(curl -sSI https://broth.itch.zone/butler/linux-arm64/LATEST/archive/default | head -15)" "latest-headers"
+
+      - name: Apply semantics
+        run: |
+          cd b
+          nl=$'\n'
+          note() { local t=${1//'%'/'%25'}; t=${t//$'\n'/'%0A'}; echo "::notice title=$2::$t"; }
+          mkdir -p old new
+          head -c 300000 /dev/urandom > old/big.bin
+          echo one > old/same.txt; echo two > old/changed.txt; echo gone > old/removed.txt
+          mkdir -p old/sub new/sub
+          echo keep > old/sub/x.txt; echo keep > new/sub/x.txt
+          cp old/big.bin new/big.bin; printf 'extra' >> new/big.bin
+          echo one > new/same.txt; echo TWO > new/changed.txt; echo added > new/added.txt
+          ./butler diff old new patch.pwr 2>&1 | tail -3
+          mkdir -p stage1 out1
+          ./butler apply --staging-dir stage1 -d out1 patch.pwr old 2>&1 | tail -5
+          note "apply -d out1:${nl}old: $(cd old && find . -type f | sort | tr '\n' ' ')${nl}out1: $(cd out1 && find . -type f | sort | tr '\n' ' ')${nl}changed in old: $(cat old/changed.txt)${nl}changed in out1: $(cat out1/changed.txt 2>&1)${nl}same in out1: $(cat out1/same.txt 2>&1)" "apply-to-dir"
+          cp -r old inplace; mkdir -p stage2
+          ./butler apply --staging-dir stage2 patch.pwr inplace 2>&1 | tail -5
+          note "apply in place:${nl}inplace: $(cd inplace && find . -type f | sort | tr '\n' ' ')${nl}changed: $(cat inplace/changed.txt)" "apply-in-place"
+          echo stray > old/save.dat
+          cp -r old stray; mkdir -p stage3 out3
+          ./butler apply --staging-dir stage3 -d out3 patch.pwr stray 2>&1 | tail -5
+          note "stray file in old:${nl}out3: $(cd out3 && find . -type f | sort | tr '\n' ' ')${nl}stray: $(cd stray && find . -type f | sort | tr '\n' ' ')" "apply-stray"
+          echo tampered > old/changed.txt; mkdir -p stage4 out4
+          ./butler apply --staging-dir stage4 -d out4 patch.pwr old 2>&1 | tail -6 > fail.txt; echo "exit=$?" >> fail.txt
+          note "$(cat fail.txt)" "apply-modified-old"

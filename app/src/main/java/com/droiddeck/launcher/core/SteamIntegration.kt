@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
@@ -53,6 +54,33 @@ object SteamIntegration {
                 .unsafeCheckOpNoThrow("android:access_restricted_settings", android.os.Process.myUid(), context.packageName)
         }.getOrDefault(android.app.AppOpsManager.MODE_ALLOWED)
         return mode == android.app.AppOpsManager.MODE_ERRORED || mode == android.app.AppOpsManager.MODE_IGNORED
+    }
+
+    private fun shortcutsComponent(context: Context) = ComponentName(context, HomeButtonService::class.java)
+
+    fun shortcutsChosen(context: Context): Boolean = shortcutsSelection(context) == true
+
+    private fun shortcutsSelection(context: Context): Boolean? {
+        val target = shortcutsComponent(context)
+        val enabled = runCatching {
+            Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+        }.getOrElse { return null }.orEmpty()
+        return enabled.split(':').any { ComponentName.unflattenFromString(it.trim()) == target }
+    }
+
+    fun setShortcutsListed(context: Context, listed: Boolean) {
+        val packages = context.packageManager
+        val component = shortcutsComponent(context)
+        val state = if (listed) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+        runCatching {
+            if (packages.getComponentEnabledSetting(component) != state) {
+                packages.setComponentEnabledSetting(component, state, PackageManager.DONT_KILL_APP)
+            }
+        }
+    }
+
+    fun syncShortcutsListing(context: Context) {
+        shortcutsSelection(context)?.let { setShortcutsListed(context, it) }
     }
 
     fun dismissSuggestion(context: Context) {

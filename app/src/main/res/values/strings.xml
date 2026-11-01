@@ -725,7 +725,6 @@
     <string name="hud_export_failed">Couldn\'t save the HUD report.</string>
     <string name="hud_reset">Reset HUD settings</string>
     <string name="hud_reset_button">Reset</string>
-    <string name="hud_credit">FusionHUD by The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Scaling mode</string>
     <string name="drawer_scaling_sharpness">Scaling sharpness</string>
     <string name="drawer_effects">Screen effects</string>
@@ -1792,6 +1791,8 @@
     <string name="fm_accept">Accept</string>
     <string name="fm_decline">Decline</string>
     <string name="fm_drive_not_readable">%1$s is mounted but not readable right now</string>
+    <string name="fm_drive_access_title">Allow access to %1$s</string>
+    <string name="fm_drive_access_text">Android lets DroidDeck see this drive but not read it. Turn on All files access for DroidDeck, then come back.</string>
     <string name="fm_list_view">List view</string>
     <string name="fm_grid_view">Grid view</string>
     <string name="fm_search">Search</string>
@@ -1904,6 +1905,7 @@
     <string name="flatpakmgr_not_ready">Set up Flatpak first</string>
     <string name="flatpakmgr_starting">Starting</string>
     <string name="flatpakmgr_exit_status">Flatpak exited with status %1$d</string>
+    <string name="flatpakmgr_wrong_arch">%1$s is built for %2$s, which DroidDeck can\'t run. Flatpak apps here need an ARM64 or x86_64 build.</string>
     <string name="flatpakmgr_installing">Installing %1$s</string>
     <string name="flatpakmgr_updating">Updating %1$s</string>
     <string name="flatpakmgr_removing">Removing %1$s</string>
@@ -3443,4 +3445,27 @@
     <string name="steam_import_names_more">%1$s and %2$d more</string>
     <string name="steam_import_now">Restart now</string>
     <string name="steam_import_later">Later</string>
+    <string name="stores_gamejolt_not_owned">Not in your Game Jolt library</string>
+    <string name="stores_gamejolt_no_build">No Windows download for this game</string>
+    <string name="stores_gamejolt_no_exe">No Windows game found in the download</string>
+    <string name="stores_gamejolt_no_game">Could not find this game on Game Jolt</string>
+    <string name="stores_gamejolt_browse_failed">Could not load games from Game Jolt</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt answered HTTP %1$d</string>
+    <string name="stores_gamejolt_pick_failed">Could not load the downloads from Game Jolt</string>
+    <string name="stores_gamejolt_build_open">Open on Game Jolt</string>
+    <string name="stores_gamejolt_archive">%1$s archives are not supported</string>
+    <string name="stores_gamejolt_extract_failed">Could not extract the download (exit %1$d)</string>
+    <string name="stores_gamejolt_section_featured">Featured</string>
+    <string name="stores_gamejolt_section_hot">Hot</string>
+    <string name="stores_gamejolt_section_best">Best</string>
+    <string name="stores_gamejolt_section_new">New</string>
+    <string name="stores_gamejolt_price_under_30">$30 or less</string>
+    <string name="stores_gamejolt_os_other">Other</string>
+    <string name="stores_gamejolt_maturity_everyone">All ages</string>
+    <string name="stores_gamejolt_maturity_teen">Teen</string>
+    <string name="stores_gamejolt_maturity_adult">Mature</string>
+    <string name="stores_gamejolt_status_complete">Complete</string>
+    <string name="stores_gamejolt_status_early">Early access</string>
+    <string name="stores_gamejolt_status_devlog">Devlog</string>
+    <string name="stores_gamejolt_partners">Partner games</string>
 </resources>

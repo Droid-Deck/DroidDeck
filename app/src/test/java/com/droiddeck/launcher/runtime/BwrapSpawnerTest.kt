@@ -119,6 +119,27 @@ class BwrapSpawnerPlanTest {
         assertEquals("org.example.Game", plan.env["FLATPAK_ID"])
     }
 
+    @Test fun sandboxesStartThroughTheirOwnEnvByDefault() {
+        val plan = BwrapSpawner.plan(RuntimeEnvironment.getApplication(), request(op("t" to "dir", "dest" to "/tmp")), dir)
+        assertEquals("/usr/bin/env", plan.envTool)
+    }
+
+    @Test fun fexSandboxesStartThroughTheEnvTheyBringAndSkipArmPreloads() {
+        val context = RuntimeEnvironment.getApplication()
+        val rootfs = LinuxRuntime.rootDir(context)
+        val lib = File(rootfs, "usr/local/lib/libblsession.so").apply { parentFile?.mkdirs(); writeText("") }
+        val preload = File(rootfs, "etc/ld.so.preload").apply { parentFile?.mkdirs(); writeText("/usr/local/lib/libblsession.so\n") }
+        try {
+            val plan = BwrapSpawner.plan(context, request(op("t" to "dir", "dest" to "/tmp"))
+                .put("envTool", "/run/droiddeck-fex/bin/env"), dir)
+            assertEquals("/run/droiddeck-fex/bin/env", plan.envTool)
+            assertFalse(plan.env.containsKey("LD_PRELOAD"))
+            assertFalse(plan.binds.any { it.guest.startsWith("/run/droiddeck-preload") })
+        } finally {
+            listOf(lib, preload).forEach { it.delete() }
+        }
+    }
+
     @Test fun sandboxedAppsSeeTheSessionsNetworkLink() {
         val context = RuntimeEnvironment.getApplication()
         val rootfs = LinuxRuntime.rootDir(context)

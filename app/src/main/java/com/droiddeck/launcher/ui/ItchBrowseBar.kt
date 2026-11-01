@@ -83,7 +83,7 @@ internal fun ItchLoadMore() {
 }
 
 @Composable
-private fun ChipRow(content: @Composable () -> Unit) {
+internal fun ChipRow(content: @Composable () -> Unit) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).selectableGroup(),
@@ -91,7 +91,7 @@ private fun ChipRow(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun BrowseChip(label: String, selected: Boolean, onClick: () -> Unit) {
+internal fun BrowseChip(label: String, selected: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val shape = RoundedCornerShape(8.dp)

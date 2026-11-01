@@ -22,6 +22,7 @@ import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -70,6 +71,56 @@ class SessionSecondScreenTest {
         }
         compose.runOnIdle { assertEquals(SessionDrawerPage.CONTROLLER, page) }
         compose.onNodeWithText(context.getString(R.string.second_mode_keyboard_trackpad)).assertDoesNotExist()
+    }
+
+    @Test fun provisionalBottomScreenPanelSettlesOnlyOnceTheSessionIsInFront() {
+        SessionState.mode = SessionService.MODE_STEAM
+        val previousMode = SessionState.secondScreenMode
+        val previousProvisional = SessionState.secondScreenProvisional
+        SessionState.secondScreenMode = SecondScreenMode.NONE
+        try {
+            val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
+            val pip: MutableState<Boolean> = ReflectionHelpers.getField(activity, "pipUi\$delegate")
+            fun settle() = ReflectionHelpers.callInstanceMethod<Unit>(activity, "settleDualScreenControls")
+            SessionState.secondScreenProvisional = true
+            ReflectionHelpers.setField(activity, "started", true)
+            pip.value = true
+            settle()
+            assertTrue(SessionState.secondScreenProvisional)
+            pip.value = false
+            ReflectionHelpers.setField(activity, "started", false)
+            settle()
+            assertTrue(SessionState.secondScreenProvisional)
+            ReflectionHelpers.setField(activity, "started", true)
+            settle()
+            assertFalse(SessionState.secondScreenProvisional)
+        } finally {
+            SessionState.secondScreenMode = previousMode
+            SessionState.secondScreenProvisional = previousProvisional
+        }
+    }
+
+    @Test fun terminalOpenedBeforeItWasReadyIsRetriedButOtherPanelsAreLeftAlone() {
+        SessionState.mode = SessionService.MODE_STEAM
+        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
+        val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
+        val panel = SecondScreenPresentation(activity, display, { _, _, _, _ -> }, { _, _ -> }, {}, {}, {}, {})
+        try {
+            panel.show()
+            panel.showMode(SecondScreenMode.KEYBOARD_TRACKPAD)
+            val root = panel.window!!.decorView
+            val trackpad = descendants(root).toList()
+            panel.retryTerminal()
+            assertEquals(trackpad, descendants(root).toList())
+            panel.showMode(SecondScreenMode.TERMINAL)
+            val notReady = context.getString(R.string.second_terminal_not_ready)
+            val before = descendants(root).filter { (it as? TextView)?.text == notReady }.single()
+            panel.retryTerminal()
+            val after = descendants(root).filter { (it as? TextView)?.text == notReady }.single()
+            assertTrue(before !== after)
+        } finally {
+            panel.closeControls()
+        }
     }
 
     @Test fun desktopTrackpadOmitsSteamShortcuts() = checkShortcuts(steam = false)

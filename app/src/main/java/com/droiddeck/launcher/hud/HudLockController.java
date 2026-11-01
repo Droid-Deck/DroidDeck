@@ -22,6 +22,7 @@ import android.graphics.RectF;
 import android.os.SystemClock;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import android.view.View;
 
 import java.util.function.BiConsumer;
@@ -29,17 +30,17 @@ import java.util.function.Consumer;
 
 /**
  * Shared touch + lock behaviour for every in-game performance HUD (classic FrameRating(+Horizontal),
- * GameHub PerfHudView, GameNative PerformanceHudView, and the Fusion HUD). One place so the four
+ * GameHub PerfHudView, GameNative PerformanceHudView, and the DroidDeck HUD). One place so the four
  * overlays can't drift:
  *
  * <ul>
  *   <li><b>tap</b> → {@link Callbacks#onTap()} (orientation-toggle for the first three; size-cycle for
- *       Fusion) — a no-op that only re-flashes the lock badge while locked.</li>
+ *       the DroidDeck HUD) — a no-op that only re-flashes the lock badge while locked.</li>
  *   <li><b>drag</b> → moves the host view and, on release, {@link Callbacks#onMoved} to persist the
  *       position — disabled (frozen) while locked.</li>
  *   <li><b>long-press</b> → toggles {@code hudLocked}, persisted via {@link Callbacks#onLockChanged}
  *       and kept in sync with the "Lock in place" menu chip. Works locked or unlocked (so a long-press
- *       always unlocks); a locked {@code FusionHudView} passes touches on only over on-screen controls.</li>
+ *       always unlocks); a locked {@code DroidDeckHudView} passes touches on only over on-screen controls.</li>
  * </ul>
  *
  * <p>On every lock/unlock (and on a blocked gesture while locked) a small padlock badge fades in →
@@ -52,12 +53,16 @@ import java.util.function.Consumer;
 public class HudLockController {
 
     public interface Callbacks {
-        /** Unlocked single tap: orientation-toggle (classic/gamehub/gamenative) or size-cycle (fusion). */
+        /** Unlocked single tap: orientation-toggle (classic/gamehub/gamenative) or size-cycle (DroidDeck HUD). */
         void onTap();
         /** Drag released (unlocked): persist the new (x, y). */
         void onMoved(float x, float y);
         /** Lock toggled by long-press: persist {@code hudLocked} + sync the menu chip. */
         void onLockChanged(boolean locked);
+        /** Two-finger pinch (unlocked): the change since the previous event, above 1 when the fingers spread. */
+        default void onPinch(float factor) {}
+        /** The fingers came off a pinch: persist the new size. */
+        default void onPinchEnd() {}
     }
 
     // Fade timing (ms): in → hold → out. Lock/unlock hold ~1.5 s; a blocked-gesture re-flash is shorter.
@@ -70,12 +75,15 @@ public class HudLockController {
     private final View view;
     private final Callbacks cb;
     private final GestureDetector detector;
+    private final ScaleGestureDetector scaleDetector;
 
     private boolean locked = false;
 
     // Drag state
     private float downRawX, downRawY, startX, startY;
     private boolean dragging = false;
+    // A pinch ends the gesture's drag and tap: the finger left down after it must not move the HUD.
+    private boolean pinched = false;
 
     // Fade state
     private long fadeStart = 0;
@@ -90,6 +98,8 @@ public class HudLockController {
         this.cb = cb;
         this.detector = new GestureDetector(context, new Listener());
         this.detector.setIsLongpressEnabled(true);
+        this.scaleDetector = new ScaleGestureDetector(context, new PinchListener());
+        this.scaleDetector.setQuickScaleEnabled(false);
         iconFill.setStyle(Paint.Style.FILL);
         iconStroke.setStyle(Paint.Style.STROKE);
         iconStroke.setStrokeCap(Paint.Cap.ROUND);
@@ -105,6 +115,7 @@ public class HudLockController {
 
     /** Feed from the host view's onTouchEvent. Always consumes (mirrors the legacy manual handlers). */
     public boolean onTouchEvent(MotionEvent event) {
+        scaleDetector.onTouchEvent(event);
         detector.onTouchEvent(event);
         int action = event.getActionMasked();
         if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
@@ -122,6 +133,7 @@ public class HudLockController {
             startX = view.getX();
             startY = view.getY();
             dragging = false;
+            pinched = false;
             return true;
         }
 
@@ -135,6 +147,7 @@ public class HudLockController {
 
         @Override
         public boolean onSingleTapUp(MotionEvent e) {
+            if (pinched) return true;
             if (locked) {
                 flash(true, HOLD_REFLASH_MS);   // intentionally locked — remind the user
             } else {
@@ -145,6 +158,7 @@ public class HudLockController {
 
         @Override
         public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
+            if (pinched) return true;
             if (locked) {
                 if (!dragging) flash(true, HOLD_REFLASH_MS);
                 dragging = true;   // mark so the blocked drag doesn't fall through to a tap
@@ -154,6 +168,27 @@ public class HudLockController {
             view.setY(startY + (e2.getRawY() - downRawY));
             dragging = true;
             return true;
+        }
+    }
+
+    private final class PinchListener extends ScaleGestureDetector.SimpleOnScaleGestureListener {
+        @Override
+        public boolean onScaleBegin(ScaleGestureDetector d) {
+            if (locked) return false;
+            pinched = true;
+            dragging = false;
+            return true;
+        }
+
+        @Override
+        public boolean onScale(ScaleGestureDetector d) {
+            cb.onPinch(d.getScaleFactor());
+            return true;
+        }
+
+        @Override
+        public void onScaleEnd(ScaleGestureDetector d) {
+            cb.onPinchEnd();
         }
     }
 

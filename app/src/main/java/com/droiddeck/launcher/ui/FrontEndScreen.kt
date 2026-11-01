@@ -166,7 +166,7 @@ class FrontEndState(
     val sgdbUserKey: Boolean = false,
     val storesShowMature: Boolean = false,
     val storesSort: String = SessionPrefs.STORES_SORTS.first(),
-    val storesView: String = SessionPrefs.STORES_VIEWS.first(),
+    val storesView: String = SessionPrefs.DEFAULT_STORES_VIEW,
     val storeDownloadsActive: Int = 0,
     val updates: UpdatesState = UpdatesState(),
 )
@@ -706,6 +706,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         StoreTheme(com.droiddeck.launcher.stores.Store.XBOX) { XboxStoreDialogs() }
         com.droiddeck.launcher.stores.StoresState.pendingInstall?.let { item -> StoreTheme(item.store) { InstallWhere(item) } }
         com.droiddeck.launcher.stores.StoresState.itchPicking?.let { item -> StoreTheme(item.store) { ItchBuildPicker(item) { com.droiddeck.launcher.stores.StoresState.itchPicking = null } } }
+        com.droiddeck.launcher.stores.StoresState.gameJoltPicking?.let { item -> StoreTheme(item.store) { GameJoltBuildPicker(item) { com.droiddeck.launcher.stores.StoresState.gameJoltPicking = null } } }
         StepsLayer(screenAt)
 
         appToChooseDisplay?.let { app ->

@@ -485,7 +485,7 @@ internal fun GameActions(
                 }
                 if (!item.accessible) SecondaryButton(buyLabel(item)) { openStoreUrl(ctx, item) }
             }
-            item != null && item.store == Store.ITCH && item.isFree -> {
+            item != null && (item.store == Store.ITCH || item.store == Store.GAMEJOLT) && item.isFree -> {
                 InstallButton(stringResource(R.string.stores_install), leadOn) { StoresState.requestInstall(ctx, item) }
                 SecondaryButton(stringResource(R.string.stores_view_on, item.store.shortLabel)) { openStoreUrl(ctx, item) }
             }
