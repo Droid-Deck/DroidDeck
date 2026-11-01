@@ -12,6 +12,8 @@ internal object DroidDeckHudConfig {
         "showGpuTemp" to "0", "showBattery" to "0", "showLow1" to "1", "showLow01" to "1", "showLow001" to "1", "fpsDecimal" to "1", "showPerCore" to "1",
         "showSwap" to "1", "showNet" to "1", "showResolution" to "1", "showProton" to "1", "showSession" to "1",
         "showClock" to "1", "showEngine" to "1", "showRenderer" to "1", "showGpuModel" to "1",
+        "showLatency" to "1", "showAvg" to "1", "showLow1" to "1", "showLow01" to "1",
+        "showDisplay" to "1", "showHdr" to "1", "hudOrder" to "",
         "tempUnit" to "c", "tempBands" to "1", "tempAuto" to "1", "tempRedCpu" to "90", "tempRedGpu" to "90", "tempRedBat" to "48",
     )
 
@@ -44,6 +46,32 @@ internal object DroidDeckHudConfig {
     fun reset(context: Context): Map<String, String> {
         SessionPrefs.setDroidDeckHudConfig(context, encode(DEFAULTS))
         return DEFAULTS
+    }
+
+    /** Every metric switch, in the order the HUD lists them before the user moves any. */
+    val ORDER: List<String> = listOf(
+        "showGpuModel", "showGPU", "showCPUUsage", "showPerCore", "showTemp", "showGpuTemp", "showVram",
+        "showRAM", "showSwap", "showBattery", "showBatteryTemp", "showPower", "showFPS", "showFPSGraph",
+        "showLatency", "showAvg", "showLow1", "showLow01", "showLow001", "showEngine", "showDisplay",
+        "showHdr", "showNet", "showResolution", "showProton", "showSession", "showClock",
+    )
+
+    /** The stored row order with every metric the config knows appended in the default order. */
+    fun order(values: Map<String, String>): List<String> {
+        val stored = values["hudOrder"].orEmpty().split('|').filter { it in ORDER }
+        return stored + ORDER.filter { it !in stored }
+    }
+
+    fun move(context: Context, key: String, up: Boolean): Map<String, String> {
+        val values = load(context)
+        val order = order(values).toMutableList()
+        val from = order.indexOf(key)
+        val to = from + if (up) -1 else 1
+        if (from < 0 || to !in order.indices) return values
+        order.add(to, order.removeAt(from))
+        values["hudOrder"] = order.joinToString("|")
+        SessionPrefs.setDroidDeckHudConfig(context, encode(values))
+        return values
     }
 
     private fun flag(on: Boolean) = if (on) "1" else "0"

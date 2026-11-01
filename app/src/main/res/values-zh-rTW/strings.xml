@@ -3631,4 +3631,10 @@
 
     <string name="theme_white_red">緋紅之雪</string>
     
+    <string name="hud_metric_latency">幀時間</string>
+    <string name="hud_metric_avg">平均幀率</string>
+    <string name="hud_metric_display">顯示服務</string>
+    <string name="hud_metric_hdr">HDR 狀態</string>
+    <string name="hud_move_up">上移</string>
+    <string name="hud_move_down">下移</string>
 </resources>

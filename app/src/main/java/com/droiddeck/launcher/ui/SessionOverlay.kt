@@ -256,6 +256,7 @@ class DrawerActions(
     val selectedSecondScreenDisplay: Int,
     val onHud: (Boolean) -> Unit,
     val onHudSetting: (String, String) -> Unit = { _, _ -> },
+    val onHudMove: (String, Boolean) -> Unit = { _, _ -> },
     val onHudReset: () -> Unit = {},
     val onHudExport: () -> Unit = {},
     val onFrameGenPick: (FrameGen.Mode) -> Unit,

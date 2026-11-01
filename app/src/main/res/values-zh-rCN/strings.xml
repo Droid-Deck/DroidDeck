@@ -3632,4 +3632,10 @@
 
     <string name="theme_white_red">猩红之雪</string>
     
+    <string name="hud_metric_latency">帧时间</string>
+    <string name="hud_metric_avg">平均帧率</string>
+    <string name="hud_metric_display">显示服务</string>
+    <string name="hud_metric_hdr">HDR 状态</string>
+    <string name="hud_move_up">上移</string>
+    <string name="hud_move_down">下移</string>
 </resources>

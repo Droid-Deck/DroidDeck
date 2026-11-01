@@ -1253,6 +1253,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             selectedSecondScreenDisplay = selectedSecondScreenDisplay,
             onHud = { on -> SessionPrefs.setHudEnabled(this@SessionActivity, on); hudOn = on; hud.refresh() },
             onHudSetting = { key, value -> hudConfig = DroidDeckHudConfig.set(this@SessionActivity, key, value); hud.applyConfig() },
+            onHudMove = { key, up -> hudConfig = DroidDeckHudConfig.move(this@SessionActivity, key, up); hud.applyConfig() },
             onHudReset = { hudConfig = DroidDeckHudConfig.reset(this@SessionActivity); hud.applyConfig() },
             onHudExport = { exportHudDiagnostics() },
             onUpscaler = { m ->
