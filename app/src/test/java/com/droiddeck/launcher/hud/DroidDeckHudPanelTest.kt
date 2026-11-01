@@ -113,6 +113,31 @@ class DroidDeckHudPanelTest {
         assertFalse(line, "BAT" in line)
     }
 
+    @Test fun stripFollowsTheHudScaleInHeightAndKeepsTheFullWidth() {
+        val app = RuntimeEnvironment.getApplication()
+        val parent = FrameLayout(app)
+        val view = DroidDeckHudView(app)
+        parent.addView(view, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT))
+        parent.measure(View.MeasureSpec.makeMeasureSpec(2400, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY))
+        parent.layout(0, 0, 2400, 1080)
+        fun at(scale: Int): Pair<Float, Float> {
+            view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to DroidDeckHudSize.STRIP.token) +
+                ("hudScale" to scale.toString())))
+            view.showForTest(SNAPSHOT, "DXVK", 0L)
+            val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            view.measure(unspecified, unspecified)
+            view.layout(0, 0, view.measuredWidth, view.measuredHeight)
+            val bitmap = Bitmap.createBitmap(view.measuredWidth, view.measuredHeight, Bitmap.Config.ARGB_8888)
+            view.draw(Canvas(bitmap))
+            val png = ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            println("DROIDDECKHUD-STRIP$scale-PNG ${Base64.getEncoder().encodeToString(png.toByteArray())}")
+            return Pair(view.contentWidth, view.contentHeight)
+        }
+        val small = at(70); val big = at(150)
+        assertEquals(2400f, small.first); assertEquals(2400f, big.first)
+        assertEquals(big.second / small.second, 150f / 70f, 0.01f)
+    }
+
     @Test fun pillShowsEachBatteryPartOnItsOwnSwitch() {
         fun pill(vararg settings: Pair<String, String>): List<String> {
             val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
