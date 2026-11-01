@@ -3030,6 +3030,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val oldIds = secondScreenDisplays.map { it.id }.toSet()
         secondScreenDisplays = candidates
         val newIds = candidates.map { it.id }.toSet()
+        if (started && oldIds.isEmpty() && newIds.isNotEmpty()) {
+            // Automatic otherwise runs on focus changes only, while a second screen is there.
+            val game = gestureGame
+            Thread({
+                runCatching { com.droiddeck.launcher.session.TelemetryOutput.applyAutomatic(this@SessionActivity, game) }
+            }, "dashboard-data-automatic").start()
+        }
         if (secondScreenMode != SecondScreenMode.NONE && oldIds.isNotEmpty() && selectedSecondScreenDisplay !in newIds) {
             closeSecondScreen(reset = true)
             SessionState.secondScreenAutoOpened = false
@@ -3178,9 +3185,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     /** Copies the game frame (no overlay) at the size it is shown and saves it to Pictures/DroidDeck. */
     private fun captureScreenshot(onDone: (Boolean) -> Unit) {
-        val width = if (::surfaceView.isInitialized) surfaceView.width else 0
-        val height = if (::surfaceView.isInitialized) surfaceView.height else 0
-        if (width <= 0 || height <= 0 || surfaceView.holder.surface?.isValid != true) {
+        // With the glasses as the output the game is drawn on their surface; the phone's surface is hidden then.
+        val source = if (glassesOutputActive) glassesScreen?.surfaceView else if (::surfaceView.isInitialized) surfaceView else null
+        val width = source?.width ?: 0
+        val height = source?.height ?: 0
+        if (source == null || width <= 0 || height <= 0 || source.holder.surface?.isValid != true) {
             onDone(false)
             return
         }
@@ -3191,7 +3200,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return
         }
         try {
-            android.view.PixelCopy.request(surfaceView, bitmap, { result ->
+            android.view.PixelCopy.request(source, bitmap, { result ->
                 if (result != android.view.PixelCopy.SUCCESS) {
                     bitmap.recycle()
                     onDone(false)

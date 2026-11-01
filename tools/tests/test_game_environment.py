@@ -187,6 +187,24 @@ class DirtTelemetryFixTest(unittest.TestCase):
         self.assertEqual(os.readlink(self.target), str(self.own))
         self.assertFalse(os.path.lexists(saved))
 
+    def test_a_native_ws2_32_goes_back_as_it_was_after_a_proton_switch(self):
+        self.target.unlink()
+        self.target.write_bytes(b"MZ a mod's own ws2_32")
+        MODULE["swap_dirt_ws2"](self.prefix)
+        other = Path(self.tmp.name) / "GE-Proton/proton"
+        (other.parent / "files/lib/wine/i386-windows").mkdir(parents=True)
+        (other.parent / "files/lib/wine/i386-windows/ws2_32.dll").write_bytes(b"MZ GE wine ws2_32")
+        other.write_text("")
+        self.assertTrue(MODULE["restore_dirt_ws2"](self.prefix, other))
+        self.assertFalse(self.target.is_symlink())
+        self.assertEqual(self.target.read_bytes(), b"MZ a mod's own ws2_32")
+
+    def test_start_gives_the_signal_handlers_back(self):
+        import signal
+        before = {s: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)}
+        MODULE["start"]([sys.executable, "-c", "pass"], dict(os.environ), None, lambda: None)
+        self.assertEqual(before, {s: signal.getsignal(s) for s in before})
+
     def test_start_puts_the_file_back_after_the_game_exits(self):
         calls = []
         code = MODULE["start"]([sys.executable, "-c", "raise SystemExit(3)"], dict(os.environ), None, lambda: calls.append("restored"))
