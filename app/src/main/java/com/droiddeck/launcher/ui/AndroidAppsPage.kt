@@ -738,16 +738,23 @@ private fun FolderSheet(
     val firstApp = remember { FocusRequester() }
     val inputMode = LocalInputModeManager.current.inputMode
     val ff = LocalFrontFocus.current
+    val grid = rememberLazyGridState()
+    var closing by remember { mutableStateOf(false) }
     LaunchedEffect(renaming, inputMode) {
-        if (!renaming && inputMode == InputMode.Keyboard && apps.isNotEmpty()) {
+        if (!renaming && !closing && inputMode == InputMode.Keyboard && apps.isNotEmpty()) {
+            grid.scrollToItem(0)
             repeat(2) { androidx.compose.runtime.withFrameNanos { } }
-            runCatching { firstApp.requestFocus() }
+            if (!closing) runCatching { firstApp.requestFocus() }
         }
     }
     val close = {
+        closing = true
         if (renaming) commit()
         onClose()
-        if (inputMode == InputMode.Keyboard) runCatching { ff?.items?.get("tile:folder:${folder.id}")?.requestFocus() }
+        if (inputMode == InputMode.Keyboard && ff != null) {
+            runCatching { ff.items.getValue("tile:folder:${folder.id}").requestFocus() }
+                .onFailure { runCatching { ff.firstTile.requestFocus() } }
+        }
     }
     BackHandler { close() }
     Box(
@@ -788,6 +795,7 @@ private fun FolderSheet(
                 }
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(92.dp),
+                    state = grid,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
