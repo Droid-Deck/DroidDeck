@@ -3,19 +3,17 @@ package com.droiddeck.launcher.ui
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -28,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -36,21 +35,24 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import androidx.compose.ui.zIndex
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.hud.DroidDeckHudConfig
 
+private val ROW_HEIGHT = 44.dp
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun HudReadingsDialog(
+    visible: List<String>,
     initialOrder: List<String>,
     initialOn: Map<String, Boolean>,
     onDismiss: () -> Unit,
@@ -58,76 +60,88 @@ internal fun HudReadingsDialog(
 ) {
     val shown = rememberShown(onDismiss)
     val close = { shown.targetState = false }
-    val order = remember { mutableStateListOf<String>().apply { addAll(initialOrder) } }
+    val order = remember { mutableStateListOf<String>().apply { addAll(initialOrder.filter { it in visible }) } }
     val enabled = remember { mutableStateMapOf<String, Boolean>() }
     remember(initialOn) { for (key in initialOrder) enabled[key] = initialOn[key] == true; true }
+    val rowPx = with(LocalDensity.current) { ROW_HEIGHT.toPx() }
+
+    var draggingKey by remember { mutableStateOf<String?>(null) }
+    var dragDy by remember { mutableFloatStateOf(0f) }
+    var dragFrom by remember { mutableIntStateOf(-1) }
 
     AppDialog(shown, close, "hudReadings", wide = false, scrollable = false) {
         val state = rememberLazyListState()
-        var draggingKey by remember { mutableStateOf<String?>(null) }
-        var dragOffset by remember { mutableFloatStateOf(0f) }
-        var rowHeight by remember { mutableFloatStateOf(0f) }
-        BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val listMax = (maxHeight * 0.62f).coerceAtLeast(120.dp)
-        val beside = maxWidth >= 600.dp || maxWidth > maxHeight
-        val save = { onSave(enabled.toMap(), order.toList()); close() }
+        // Rows this size does not draw keep their slots: only the visible ones are re-sequenced, so switching
+    // to another size finds its own order untouched.
+    val merged = {
+        val moved = order.toList()
+        var i = 0
+        initialOrder.map { if (it in visible) moved[i++] else it }
+    }
+    val save = { onSave(enabled.toMap(), merged()); close() }
         val restore = {
             onSave(DroidDeckHudConfig.DEFAULTS.mapValues { it.value == "1" }, DroidDeckHudConfig.ORDER)
             close()
         }
-        val list = @Composable { m: Modifier ->
-            LazyColumn(state = state, modifier = m.heightIn(max = listMax)) {
-            itemsIndexed(order, key = { _, key -> key }) { index, key ->
-                val dragged = draggingKey == key
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().height(ROW_HEIGHT)
-                        .graphicsLayer { translationY = if (dragged) dragOffset else 0f }
-                        .zIndex(if (dragged) 1f else 0f)
-                        .clip(Shape12)
-                        .background(if (dragged) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface)
-                        .onSizeChanged { if (rowHeight <= 0f) rowHeight = it.height.toFloat() }
-                        .padding(start = 4.dp, end = 6.dp),
-                ) {
-                    DragHandle(onStart = { draggingKey = key; dragOffset = 0f },
-                        onDrag = { amount ->
-                            dragOffset += amount
-                            val h = rowHeight
-                            if (h <= 0f) return@DragHandle
-                            while (dragOffset > h * 0.5f) {
-                                val at = order.indexOf(key)
-                                if (at < 0 || at >= order.size - 1) break
-                                order.add(at + 1, order.removeAt(at))
-                                dragOffset -= h
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val listH = (maxHeight * 0.72f).coerceAtLeast(140.dp)
+            val beside = maxWidth >= 600.dp || maxWidth > maxHeight
+            val list = @Composable { m: Modifier ->
+                LazyColumn(state = state, modifier = m) {
+                    itemsIndexed(order, key = { _, key -> key }) { index, key ->
+                        val dragged = draggingKey == key
+                        val slot = if (dragged) (dragFrom + (dragDy / rowPx).roundToInt()).coerceIn(0, order.size - 1) else index
+                        val shift = when {
+                            dragged -> 0f
+                            draggingKey == null -> 0f
+                            else -> {
+                                val from = dragFrom
+                                when {
+                                    from < slot && index in (from + 1)..slot -> -rowPx
+                                    from > slot && index in slot until from -> rowPx
+                                    else -> 0f
+                                }
                             }
-                            while (dragOffset < -h * 0.5f) {
-                                val at = order.indexOf(key)
-                                if (at <= 0) break
-                                order.add(at - 1, order.removeAt(at))
-                                dragOffset += h
-                            }
-                        },
-                        onEnd = { draggingKey = null; dragOffset = 0f })
-                    val label = hudMetricLabel(key)
-                    Text(if (label != null) stringResource(label) else key,
-                        fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground, maxLines = 1,
-                        modifier = Modifier.weight(1f).padding(start = 2.dp))
-                    ToggleSwitch(enabled[key] == true, true, null) { enabled[key] = !(enabled[key] == true) }
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().height(ROW_HEIGHT)
+                                .graphicsLayer { translationY = if (dragged) dragDy else shift }
+                                .zIndex(if (dragged) 1f else 0f)
+                                .clip(Shape12)
+                                .background(if (dragged) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface)
+                                .padding(start = 4.dp, end = 6.dp),
+                        ) {
+                            DragHandle(
+                                onStart = { draggingKey = key; dragFrom = index; dragDy = 0f },
+                                onDrag = { dy -> dragDy = (dragDy + dy).coerceIn(-dragFrom * rowPx, (order.size - 1 - dragFrom) * rowPx) },
+                                onEnd = {
+                                    val to = (dragFrom + (dragDy / rowPx).roundToInt()).coerceIn(0, order.size - 1)
+                                    val at = order.indexOf(key)
+                                    if (at >= 0 && to != at) order.add(to, order.removeAt(at))
+                                    draggingKey = null; dragDy = 0f; dragFrom = -1
+                                },
+                            )
+                            val label = hudMetricLabel(key)
+                            Text(if (label != null) stringResource(label) else key,
+                                fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground, maxLines = 1,
+                                modifier = Modifier.weight(1f).padding(start = 2.dp))
+                            ToggleSwitch(enabled[key] == true, true, null) { enabled[key] = !(enabled[key] == true) }
+                        }
+                    }
                 }
             }
+            val ok = @Composable { PrimaryButton(stringResource(R.string.common_ok), compact = true, onClick = save) }
+            val reset = @Composable { SecondaryButton(stringResource(R.string.hud_reset_button), compact = true, onClick = restore) }
+            if (beside) Row {
+                list(Modifier.weight(1f).height(listH))
+                Column(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { ok(); reset() }
+            } else Column {
+                list(Modifier.weight(1f).fillMaxWidth().height(listH))
+                Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.weight(1f)); ok(); reset()
+                }
             }
-        }
-        val ok = @Composable { PrimaryButton(stringResource(R.string.common_ok), compact = true, onClick = save) }
-        val reset = @Composable { SecondaryButton(stringResource(R.string.hud_reset_button), compact = true, onClick = restore) }
-        if (beside) Row {
-            list(Modifier.weight(1f))
-            Column(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { ok(); reset() }
-        } else Column {
-            list(Modifier.fillMaxWidth())
-            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(Modifier.weight(1f)); ok(); reset()
-            }
-        }
         }
     }
 }
@@ -153,5 +167,3 @@ private fun DragHandle(onStart: () -> Unit, onDrag: (Float) -> Unit, onEnd: () -
         Icon(Icons.Filled.DragHandle, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
     }
 }
-
-private val ROW_HEIGHT = 44.dp

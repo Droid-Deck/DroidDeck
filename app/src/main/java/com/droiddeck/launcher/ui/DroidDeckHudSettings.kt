@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -10,11 +11,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.hud.DroidDeckHudConfig
 import com.droiddeck.launcher.hud.DroidDeckHudSize
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.StripMetric
+import com.droiddeck.launcher.hud.DroidDeckHudView
 
 @Composable
 internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
@@ -66,7 +69,13 @@ internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (Stri
     SettingsGroup(stringResource(R.string.hud_group_metrics)) {
         ActionRow(stringResource(R.string.hud_group_metrics), null, stringResource(R.string.common_edit),
             onClick = { editing = true }, modifier = track("hud-readings"))
+        val rows = DroidDeckHudView.rowsFor(DroidDeckHudSize.from(cfg["hudSize"]), cfg)
+        SettingsRow(stringResource(R.string.hud_readings_shown), null) {
+            Text(stringResource(R.string.hud_readings_count, rows.count { on(it) }, rows.size),
+                fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         if (editing) HudReadingsDialog(
+            visible = rows,
             initialOrder = DroidDeckHudConfig.order(cfg),
             initialOn = DroidDeckHudConfig.order(cfg).associateWith { on(it) },
             onDismiss = { editing = false },
