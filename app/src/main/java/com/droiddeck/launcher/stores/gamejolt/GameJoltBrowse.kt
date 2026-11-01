@@ -67,8 +67,8 @@ internal object GameJoltBrowse {
         return query.copy(maturity = allowed.ifEmpty { setOf("everyone", "teen") })
     }
 
-    fun page(context: Context, query: GameJoltQuery, page: Int): Page {
-        val qs = queryString(effective(query, SessionPrefs.storesShowMature(context)), page)
+    fun page(context: Context, query: GameJoltQuery, page: Int, showMature: Boolean): Page {
+        val qs = queryString(effective(query, showMature), page)
         val answer = GameJoltApi.browse(qs, GameJoltAuth.cookies(context))
         val games = answer.payload?.optJSONArray("games")
         val items = if (answer.ok) GameJoltCatalog.items(games) else emptyList()
@@ -95,40 +95,38 @@ internal object GameJoltBrowseState {
 
     fun sync(context: Context, showMature: Boolean) {
         val before = loadedMature ?: return
-        if (before == showMature) return
+        if (before != showMature) more(context)
+    }
+
+    private fun reset() {
         generation++
         items = emptyList()
         ended = false
         failed = false
         loading = false
         next = 1
-        more(context)
     }
 
     fun choose(context: Context, wanted: GameJoltQuery) {
         if (wanted == query) return
-        generation++
+        reset()
         query = wanted
-        items = emptyList()
-        ended = false
-        failed = false
-        loading = false
-        next = 1
         more(context)
     }
 
     fun more(context: Context, retry: Boolean = false) {
+        val app = context.applicationContext
+        val mature = SessionPrefs.storesShowMature(app)
+        if (loadedMature != null && loadedMature != mature) reset()
         if (loading || ended || (failed && !retry)) return
         loading = true
         failed = false
-        val app = context.applicationContext
         val mine = generation
         val asked = query
         val page = next
-        val mature = SessionPrefs.storesShowMature(app)
         loadedMature = mature
         Thread({
-            val answer = runCatching { GameJoltBrowse.page(app, asked, page) }.getOrNull()
+            val answer = runCatching { GameJoltBrowse.page(app, asked, page, mature) }.getOrNull()
             StoresState.post {
                 if (mine != generation) return@post
                 loading = false
