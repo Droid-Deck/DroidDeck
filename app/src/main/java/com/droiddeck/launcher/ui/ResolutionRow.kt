@@ -20,13 +20,14 @@ fun ResolutionRow(
     val size = SessionDisplay.resolveChoice(panel, choice, portrait)
     val screen = SessionDisplay.resolveChoice(panel, SessionDisplay.MATCH_SCREEN, portrait)
     val choices = SessionDisplay.resolutionOptions(panel)
-    val selected = if (choice == SessionDisplay.FOLLOW_SCREEN) choice
+    val selected = if (SessionDisplay.isFollow(choice)) choice
         else if (size == screen) SessionDisplay.MATCH_SCREEN else choice
     var editCustom by remember { mutableStateOf(false) }
     val options = choices.map { value ->
         val dimensions = SessionDisplay.resolveChoice(panel, value, portrait)
         value to if (value == SessionDisplay.MATCH_SCREEN) stringResource(R.string.display_match_screen, screen.first, screen.second)
         else if (value == SessionDisplay.FOLLOW_SCREEN) stringResource(R.string.display_follow_screen)
+        else if (SessionDisplay.isFollow(value)) stringResource(R.string.display_follow_screen_scaled, SessionDisplay.followScale(value) ?: 1)
         else if (value == SessionDisplay.DEFAULT_RESOLUTION) stringResource(R.string.mode_res_default, "${dimensions.first}×${dimensions.second}")
         else "${dimensions.first}×${dimensions.second}"
     } + (custom to if (selected in choices) stringResource(R.string.mode_res_custom)

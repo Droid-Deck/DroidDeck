@@ -7,6 +7,8 @@ object SessionDisplay {
     const val MATCH_SCREEN = "screen"
     const val FOLLOW_SCREEN = "follow"
     const val FOLLOW_MIN_SIDE = 480
+    val FOLLOW_SCALES = listOf(2, 3, 4)
+    private const val FOLLOW_SCALED_PREFIX = "follow/"
 
     const val DEFAULT_RESOLUTION = "720p"
     private val PRESET_HEIGHTS = listOf(720, 900, 1080)
@@ -14,12 +16,24 @@ object SessionDisplay {
     fun presetHeight(choice: String): Int? =
         if (choice.endsWith("p")) choice.dropLast(1).toIntOrNull()?.takeIf { it > 0 } else null
 
+    fun followScaled(scale: Int): String = FOLLOW_SCALED_PREFIX + scale
+
+    fun isFollow(choice: String): Boolean = followScale(choice) != null
+
+    fun followScale(choice: String): Int? = when {
+        choice == FOLLOW_SCREEN -> 1
+        choice.startsWith(FOLLOW_SCALED_PREFIX) ->
+            choice.removePrefix(FOLLOW_SCALED_PREFIX).toIntOrNull()?.takeIf { it in FOLLOW_SCALES }
+        else -> null
+    }
+
     fun screenSize(panel: Pair<Int, Int>): Pair<Int, Int> =
         (maxOf(panel.first, panel.second) and 1.inv()) to (minOf(panel.first, panel.second) and 1.inv())
 
     fun resolveChoice(panel: Pair<Int, Int>, choice: String, portrait: Boolean = false): Pair<Int, Int> {
         fun orient(size: Pair<Int, Int>) = if (portrait) size.second to size.first else size
-        if (choice == MATCH_SCREEN || choice == FOLLOW_SCREEN) return orient(screenSize(panel))
+        if (choice == MATCH_SCREEN) return orient(screenSize(panel))
+        followScale(choice)?.let { return orient(scaledDown(screenSize(panel), it)) }
         presetHeight(choice)?.let { return orient(resolve(panel, it, SessionPrefs.SHAPE_AUTO)) }
         val parts = choice.split('x').map { it.toIntOrNull() }
         return if (parts.size == 2 && parts.all { it != null && it > 0 }) parts[0]!! to parts[1]!!
@@ -29,13 +43,16 @@ object SessionDisplay {
     fun resolutionOptions(panel: Pair<Int, Int>): List<String> {
         val panelHeight = minOf(panel.first, panel.second)
         return PRESET_HEIGHTS.filter { it <= panelHeight }.map { "${it}p" }
-            .filter { resolveChoice(panel, it) != screenSize(panel) } + MATCH_SCREEN + FOLLOW_SCREEN
+            .filter { resolveChoice(panel, it) != screenSize(panel) } + MATCH_SCREEN + FOLLOW_SCREEN + FOLLOW_SCALES.map(::followScaled)
     }
 
-    fun followSize(width: Int, height: Int, controlsBelow: Boolean = false): Pair<Int, Int>? =
+    fun followSize(width: Int, height: Int, controlsBelow: Boolean = false, scale: Int = 1): Pair<Int, Int>? =
         if (width <= 0 || height <= 0 ||
             (if (controlsBelow) width else minOf(width, height)) < FOLLOW_MIN_SIDE) null
-        else (width and 1.inv()) to (height and 1.inv())
+        else scaledDown(width to height, scale)
+
+    private fun scaledDown(size: Pair<Int, Int>, scale: Int): Pair<Int, Int> =
+        (size.first / scale and 1.inv()) to (size.second / scale and 1.inv())
 
     const val UNFOLDED_MAX_GAME_SHARE = 0.8f
 

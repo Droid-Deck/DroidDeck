@@ -2083,6 +2083,7 @@
     <string name="display_look_filter">%1$s ตั้งการปรับขนาดเป็น %2$s</string>
     <string name="display_match_screen">พอดีหน้าจอ (%1$d×%2$d)</string>
     <string name="display_follow_screen">ตามหน้าจอ (ปรับขนาดเมื่อพับหรือกาง)</string>
+    <string name="display_follow_screen_scaled">ตามหน้าจอ ÷%1$d</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">แสดงรายละเอียดอุปกรณ์</string>
     <string name="device_info_hide">ซ่อนรายละเอียดอุปกรณ์</string>

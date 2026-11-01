@@ -4,6 +4,8 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SessionDisplayTest {
+    private val scaledFollow = listOf("follow/2", "follow/3", "follow/4")
+
     @Test fun portraitPresetsSwapTheOutputAndRetainTheResolutionCap() {
         assertEquals(720 to 1280, SessionDisplay.resolveChoice(1920 to 1080, "720p", portrait = true))
         assertEquals(900 to 1600, SessionDisplay.resolveChoice(1080 to 1920, "900p", portrait = true))
@@ -40,13 +42,13 @@ class SessionDisplayTest {
 
     @Test fun optionsListTheHeightsThePanelCanShowThenThePanel() {
         val thor = SessionDisplay.resolutionOptions(1920 to 1080)
-        assertEquals(listOf("720p", "900p", SessionDisplay.MATCH_SCREEN, SessionDisplay.FOLLOW_SCREEN), thor)
-        assertEquals(listOf("720p", "900p", SessionDisplay.MATCH_SCREEN, SessionDisplay.FOLLOW_SCREEN),
+        assertEquals(listOf("720p", "900p", SessionDisplay.MATCH_SCREEN, SessionDisplay.FOLLOW_SCREEN) + scaledFollow, thor)
+        assertEquals(listOf("720p", "900p", SessionDisplay.MATCH_SCREEN, SessionDisplay.FOLLOW_SCREEN) + scaledFollow,
             SessionDisplay.resolutionOptions(2400 to 1080))
-        assertEquals(listOf("720p", "900p", "1080p", SessionDisplay.MATCH_SCREEN, SessionDisplay.FOLLOW_SCREEN),
+        assertEquals(listOf("720p", "900p", "1080p", SessionDisplay.MATCH_SCREEN, SessionDisplay.FOLLOW_SCREEN) + scaledFollow,
             SessionDisplay.resolutionOptions(3120 to 1440))
         val small = SessionDisplay.resolutionOptions(1280 to 720)
-        assertEquals(listOf(SessionDisplay.MATCH_SCREEN, SessionDisplay.FOLLOW_SCREEN), small)
+        assertEquals(listOf(SessionDisplay.MATCH_SCREEN, SessionDisplay.FOLLOW_SCREEN) + scaledFollow, small)
         assertEquals(1280 to 720, SessionDisplay.resolveChoice(1280 to 720, SessionDisplay.MATCH_SCREEN))
         assertEquals(2560 to 1440, SessionDisplay.resolveChoice(2560 to 1440, SessionDisplay.MATCH_SCREEN))
     }
@@ -103,6 +105,24 @@ class SessionDisplayTest {
         assertEquals(1968 to 2184, SessionDisplay.followSize(1968, 2184))
         assertEquals(2184 to 1968, SessionDisplay.followSize(2185, 1969))
         assertNull(SessionDisplay.followSize(640, 360))
+    }
+
+    @Test fun scaledFollowDividesTheWindowAndStaysEven() {
+        assertEquals(1260 to 540, SessionDisplay.resolveChoice(1080 to 2520, "follow/2"))
+        assertEquals(540 to 1260, SessionDisplay.resolveChoice(2520 to 1080, "follow/2", portrait = true))
+        assertEquals(1092 to 984, SessionDisplay.followSize(2185, 1969, scale = 2))
+        assertEquals(656 to 728, SessionDisplay.followSize(1968, 2184, scale = 3))
+        assertNull(SessionDisplay.followSize(640, 360, scale = 2))
+    }
+
+    @Test fun onlyKnownFollowChoicesCountAsFollow() {
+        assertEquals(1, SessionDisplay.followScale(SessionDisplay.FOLLOW_SCREEN))
+        assertEquals(3, SessionDisplay.followScale("follow/3"))
+        assertEquals("follow/2", SessionDisplay.followScaled(2))
+        assertNull(SessionDisplay.followScale("follow/1"))
+        assertNull(SessionDisplay.followScale("follow/x"))
+        assertNull(SessionDisplay.followScale("720p"))
+        assertFalse(SessionDisplay.isFollow(SessionDisplay.MATCH_SCREEN))
     }
 
     @Test fun aPhoneCanFollowTheShortGameAreaAboveItsControls() {

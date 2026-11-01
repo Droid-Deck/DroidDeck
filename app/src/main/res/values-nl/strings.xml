@@ -2106,6 +2106,7 @@
     <string name="display_look_filter">%1$s Zet schaling op %2$s.</string>
     <string name="display_match_screen">Schermformaat (%1$d×%2$d)</string>
     <string name="display_follow_screen">Scherm volgen (past formaat aan bij vouwen of uitvouwen)</string>
+    <string name="display_follow_screen_scaled">Scherm volgen ÷%1$d</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Apparaatgegevens tonen</string>
     <string name="device_info_hide">Apparaatgegevens verbergen</string>
