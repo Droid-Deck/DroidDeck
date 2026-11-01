@@ -1,7 +1,12 @@
 #!/usr/bin/python3
 import json
 import os
+import shutil
+import socket
+import subprocess
 import sys
+import tempfile
+import time
 
 os.environ.setdefault("FLATPAK_BWRAP", "/usr/local/bin/droiddeck-bwrap")
 
@@ -11,6 +16,22 @@ gi.require_version("Flatpak", "1.0")
 from gi.repository import Flatpak, Gio, GLib
 
 REMOTE = "flathub"
+SYSTEM_BUS = "/run/dbus/system_bus_socket"
+BUS_COMMANDS = ("install", "install-bundle", "uninstall", "update", "prune")
+BUS_CONFIG = """<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+<busconfig>
+  <type>system</type>
+  <listen>unix:path=%s</listen>
+  <auth>EXTERNAL</auth>
+  <policy context="default">
+    <allow user="*"/>
+    <allow own="*"/>
+    <allow send_destination="*"/>
+    <allow receive_sender="*"/>
+  </policy>
+</busconfig>
+"""
 
 
 def prepare_rootfs():
@@ -31,6 +52,73 @@ def prepare_rootfs():
                 dst.write(data)
     except OSError as err:
         emit(e="warning", message="could not prepare %s: %s" % (target, err))
+
+
+def bus_reachable(path):
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        sock.connect(path)
+        return True
+    except OSError:
+        return False
+    finally:
+        sock.close()
+
+
+def system_bus_path():
+    address = os.environ.get("DBUS_SYSTEM_BUS_ADDRESS", "")
+    if address.startswith("unix:path="):
+        return address[len("unix:path="):].split(",", 1)[0]
+    return SYSTEM_BUS
+
+
+def stop_system_bus(bus):
+    if not bus:
+        return
+    proc, work, conf, path = bus
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+    for name in (path, conf):
+        try:
+            os.unlink(name)
+        except OSError:
+            pass
+    try:
+        os.rmdir(work)
+    except OSError:
+        pass
+
+
+def private_system_bus():
+    if bus_reachable(system_bus_path()):
+        return None
+    daemon = shutil.which("dbus-daemon")
+    if not daemon:
+        emit(e="warning", message="no system bus and no dbus-daemon to start one")
+        return None
+    work = tempfile.mkdtemp(prefix="droiddeck-flatpak-bus-")
+    conf = os.path.join(work, "bus.conf")
+    path = os.path.join(work, "bus")
+    with open(conf, "w") as f:
+        f.write(BUS_CONFIG % path)
+    proc = subprocess.Popen([daemon, "--config-file=" + conf, "--nofork", "--nopidfile"],
+                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    bus = (proc, work, conf, path)
+    for _ in range(50):
+        if bus_reachable(path) or proc.poll() is not None:
+            break
+        time.sleep(0.1)
+    if not bus_reachable(path):
+        stop_system_bus(bus)
+        emit(e="warning", message="the private system bus did not start")
+        return None
+    os.environ["DBUS_SYSTEM_BUS_ADDRESS"] = "unix:path=" + path
+    return bus
 
 
 def emit(**kw):
@@ -257,6 +345,14 @@ def main():
     cmd, args = sys.argv[1], sys.argv[2:]
     if cmd in ("install", "install-bundle", "update"):
         prepare_rootfs()
+    bus = private_system_bus() if cmd in BUS_COMMANDS else None
+    try:
+        return command(cmd, args)
+    finally:
+        stop_system_bus(bus)
+
+
+def command(cmd, args):
     if cmd == "install" and args:
         return install(args[0])
     if cmd == "install-bundle" and args:
