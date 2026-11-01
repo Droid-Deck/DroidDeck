@@ -16,21 +16,18 @@
 #include <unistd.h>
 
 #include "../adrenotools/src/hook/kgsl.h"
+#include "kgsl_layout.h"
 
 #define CP_TYPE7_PKT 0x70000000u
 #define CP_NOP 0x10u
 #define CP_REG_TO_MEM 0x3eu
-#define CP_ALWAYS_ON_COUNTER 0x980u
-#define RBBM_ALWAYS_COUNT 0u
-// gen7 CP protection marks registers 0x000-0x4ff readable by command buffers (adreno-gpulist.h); a counter
-// kgsl places anywhere else is not read.
-#define READABLE_LAST 0x4ffu
 #define XO_HZ 19200000.0
 #define NOP_DWORDS 0x3fffu
 #define NOP_BLOCKS 4
 
 struct sampler {
     int fd;
+    const struct kgsl_layout *layout;
     unsigned context;
     unsigned counter_reg;
     struct kgsl_gpumem_alloc_id ib, out;
@@ -60,7 +57,7 @@ static void sampler_close(struct sampler *s) {
         if (s->out.id) { struct kgsl_gpumem_free_id f = {.id = s->out.id}; ioctl(s->fd, IOCTL_KGSL_GPUMEM_FREE_ID, &f); }
         if (s->context) { struct kgsl_drawctxt_destroy d = {.drawctxt_id = s->context}; ioctl(s->fd, IOCTL_KGSL_DRAWCTXT_DESTROY, &d); }
         if (s->counter_reg) {
-            struct kgsl_perfcounter_put p = {.groupid = KGSL_PERFCOUNTER_GROUP_RBBM, .countable = RBBM_ALWAYS_COUNT};
+            struct kgsl_perfcounter_put p = {.groupid = KGSL_PERFCOUNTER_GROUP_RBBM, .countable = s->layout->cycles};
             ioctl(s->fd, IOCTL_KGSL_PERFCOUNTER_PUT, &p);
         }
         close(s->fd);
@@ -69,7 +66,7 @@ static void sampler_close(struct sampler *s) {
 }
 
 static void emit_reads(struct sampler *s, size_t *n, unsigned pass) {
-    const unsigned regs[2] = {CP_ALWAYS_ON_COUNTER, s->counter_reg};
+    const unsigned regs[2] = {s->layout->always_on, s->counter_reg};
     for (unsigned k = 0; k < 2; k++) {
         uint64_t dst = s->out.gpuaddr + (uint64_t)(pass * 2 + k) * sizeof(uint64_t);
         s->ib_map[(*n)++] = pkt7(CP_REG_TO_MEM, 3);
@@ -85,10 +82,16 @@ static int sampler_open(struct sampler **out) {
     if (!s) return -ENOMEM;
     s->fd = open("/dev/kgsl-3d0", O_RDWR | O_CLOEXEC);
     if (s->fd < 0) { int e = -errno; s->fd = -1; sampler_close(s); return e; }
-    struct kgsl_perfcounter_get get = {.groupid = KGSL_PERFCOUNTER_GROUP_RBBM, .countable = RBBM_ALWAYS_COUNT};
+    struct kgsl_devinfo info;
+    memset(&info, 0, sizeof(info));
+    struct kgsl_device_getproperty prop = {.type = KGSL_PROP_DEVICE_INFO, .value = &info, .sizebytes = sizeof(info)};
+    if (ioctl(s->fd, IOCTL_KGSL_DEVICE_GETPROPERTY, &prop)) { int e = -errno; sampler_close(s); return e; }
+    s->layout = kgsl_layout_for(info.chip_id);
+    if (!s->layout) { sampler_close(s); return -ENOTSUP; }
+    struct kgsl_perfcounter_get get = {.groupid = KGSL_PERFCOUNTER_GROUP_RBBM, .countable = s->layout->cycles};
     if (ioctl(s->fd, IOCTL_KGSL_PERFCOUNTER_GET, &get)) { int e = -errno; sampler_close(s); return e; }
     s->counter_reg = get.offset;
-    if (!get.offset || get.offset > READABLE_LAST) { sampler_close(s); return -ERANGE; }
+    if (!get.offset || get.offset > s->layout->readable_last) { sampler_close(s); return -ERANGE; }
     struct kgsl_drawctxt_create ctx = {.flags = KGSL_CONTEXT_NO_GMEM_ALLOC | KGSL_CONTEXT_PREAMBLE};
     if (ioctl(s->fd, IOCTL_KGSL_DRAWCTXT_CREATE, &ctx)) { int e = -errno; sampler_close(s); return e; }
     s->context = ctx.drawctxt_id;

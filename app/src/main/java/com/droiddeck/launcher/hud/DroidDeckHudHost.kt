@@ -193,11 +193,15 @@ class DroidDeckHudHost(context: Context) {
         metrics.snapshot()
         Thread.sleep(500)
         val mango = metrics.snapshot()
+        fun shown(value: Any?, unit: String) = if (value == null) "none" else "$value$unit"
+        val readers = com.droiddeck.launcher.session.GpuStatsComponent.readerStatus()
         file.writeText(metrics.also { it.setMangoReadings(null) }.buildDiagnosticsReport(context) + "\n== As the HUD shows them (MangoHud's sources) ==\n" +
-            "CPU ${mango.cpuPercent}% ${mango.cpuTempC}°C, GPU ${mango.gpuPercent}% ${mango.gpuClockMhz}MHz ${mango.gpuTempC}°C, " +
+            "CPU ${shown(mango.cpuPercent, "%")} ${shown(mango.cpuTempC, "°C")}, GPU ${shown(mango.gpuPercent, "%")} " +
+            "${shown(mango.gpuClockMhz, "MHz")} ${shown(mango.gpuTempC, "°C")}, " +
             "RAM ${mango.ramUsedText()}/${mango.ramTotalText()}, VRAM ${mango.vramText()}, battery ${mango.battery.percent}% " +
             "${mango.battery.watts}W charging=${mango.battery.charging}\n" +
             "GPU feeds: ${com.droiddeck.launcher.session.GpuStatsComponent.sources.ifEmpty { "none (no session, or kgsl absent)" }}\n" +
+            (if (readers.isNotEmpty()) "GPU readers without root: $readers\n" else "") +
             "CPU temperature zones: ${LinuxRuntime.cpuTempZones().joinToString { it.name }}\n" +
             "Frames: ${if (feed.engine.isNotEmpty() || feed.pid > 0) "gamescope (pid ${feed.pid}, ${feed.engine})" else "compositor"}, " +
             "fps ${feed.stats.fps}\n")

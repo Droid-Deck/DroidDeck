@@ -1,4 +1,4 @@
-"""Exercise the HUD's kgsl memstore busy sampling (app/src/main/cpp/gpuclock/kgsl_busy.h)."""
+"""Exercise the HUD's kgsl memstore busy sampling and counter layout (app/src/main/cpp/gpuclock)."""
 import os
 from pathlib import Path
 import shutil
@@ -27,6 +27,8 @@ class KgslBusyTest(unittest.TestCase):
         result = subprocess.run([str(self.binary)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('PASS: kgsl memstore busy', result.stdout)
+        self.assertIn('PASS: kgsl memstore contexts', result.stdout)
+        self.assertIn('PASS: kgsl counter layout', result.stdout)
 
 
 if __name__ == '__main__':
