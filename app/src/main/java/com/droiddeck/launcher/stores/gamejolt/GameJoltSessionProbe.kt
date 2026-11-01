@@ -14,6 +14,7 @@ internal object GameJoltSessionProbe {
     private const val DEPTH = 7
     private const val MAX_PACKAGES = 12
     private const val PRICE_SAMPLE = 14
+    private const val PRICINGS_PER_GAME = 3
     private val wordsKept = setOf("type", "currency", "status", "key", "message", "error", "reason", "os", "code", "kind", "state", "access", "level")
     private val noisy = Regex("^\\.(recommendedGames|comments|developer|knownFollowers|posts)")
     private val ownership = Regex("^\\.(sellables\\[0\\]\\.(?!resource)|game\\.sellable\\.(?!resource)|microdata)")
@@ -103,15 +104,23 @@ internal object GameJoltSessionProbe {
         for (variant in listOf("f_price=sale", "f_price=paid", "f_price=5-less")) {
             val answer = GameJoltApi.browse(variant, cookies)
             val games = answer.payload?.optJSONArray("games")
+            val keys = sortedSetOf<String>()
             val sample = games?.let { list ->
                 (0 until minOf(list.length(), PRICE_SAMPLE)).joinToString(" ") { index ->
                     val game = list.optJSONObject(index)
                     val sellable = game?.optJSONObject("sellable")
                     val prices = sellable?.optJSONArray("pricings")
-                    val shown = prices?.let { p -> (0 until p.length()).joinToString("|") { i -> p.optJSONObject(i)?.let { o -> "${o.opt("amount")}/${o.opt("currency_code")}/${o.opt("country_code")}/${o.opt("promotional")}/keys=${o.keys().asSequence().toList().sorted().joinToString("+")}" }.orEmpty() } }
-                    "${game?.optLong("id")}:${sellable?.opt("type")}:[$shown]"
+                    val count = prices?.length() ?: 0
+                    val shown = (0 until minOf(count, PRICINGS_PER_GAME)).joinToString("|") { i ->
+                        prices?.optJSONObject(i)?.let { o ->
+                            keys.addAll(o.keys().asSequence())
+                            "${o.opt("amount")}/${o.opt("currency_code")}/${o.opt("country_code")}/${o.opt("promotional")}"
+                        }.orEmpty()
+                    }
+                    "${game?.optLong("id")}:${sellable?.opt("type")}:n=$count[$shown]"
                 }
             }.orEmpty()
+            log("browse prices ?$variant pricing keys=[${keys.joinToString("+")}]")
             logLong("browse prices ?$variant code=${answer.code} games=${games?.length() ?: 0}", sample)
         }
         val name = GameJoltAuth.username(app)
