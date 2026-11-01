@@ -261,6 +261,7 @@ class WinComponentsTest(unittest.TestCase):
 
     def test_overrides_value_last_word_wins_and_refuses_junk(self):
         self.assertEqual(MODULE["overrides_value"](["a", "b=n", "a=b", "bad;name", "c=x"]), "b=n;a=b")
+        self.assertEqual(MODULE["overrides_value"](["mscoree=n"]), "mscoree=n,b")
 
 
 class PendingWaitTest(unittest.TestCase):
