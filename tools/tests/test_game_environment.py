@@ -159,6 +159,22 @@ class DirtTelemetryFixTest(unittest.TestCase):
         self.assertEqual(os.readlink(self.target), str(self.own))
         self.assertFalse(os.path.lexists(self.target.with_name("ws2_32.dll.droiddeck-original")))
 
+    def test_a_proton_that_cannot_start_leaves_the_prefix_as_it_was(self):
+        self.config("DiRT Showdown", self.SHOWDOWN_ON)
+        self.proton.write_text("not a program")
+        self.proton.chmod(0o644)
+        runner = Path(self.tmp.name) / "run.py"
+        runner.write_text("import runpy, sys\nmain = runpy.run_path(sys.argv[1])['main']\nmain.__globals__['DIRT_WS2'] = sys.argv[2]\n"
+                          "sys.argv = [sys.argv[1]] + sys.argv[3:]\nsys.exit(main())\n")
+        home = Path(self.tmp.name) / "home"
+        home.mkdir()
+        result = subprocess.run([sys.executable, str(runner), str(BIN / "droiddeck-game-env"), str(self.stand_in), *self.command()],
+            env={**os.environ, "HOME": str(home), "STEAM_COMPAT_DATA_PATH": str(self.prefix)}, text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("DiRT telemetry fix: ws2_32 stand-in", result.stderr)
+        self.assertEqual(os.readlink(self.target), str(self.own))
+        self.assertFalse(os.path.lexists(self.target.with_name("ws2_32.dll.droiddeck-original")))
+
     def test_launch_with_telemetry_off_leaves_the_prefix_alone(self):
         self.config("DiRT Showdown", self.SHOWDOWN_DEFAULT)
         self.proton.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('WINEDLLOVERRIDES', ''))\n")

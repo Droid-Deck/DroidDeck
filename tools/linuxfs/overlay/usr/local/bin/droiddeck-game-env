@@ -998,7 +998,16 @@ def main():
             print("droiddeck-game-env: %s could not start (%s); stock launch" % (launch[0], error), file=sys.stderr)
             launch, launch_env = command, without_pack(launch_env, env)
             record_stock(sync, launch, launch_env)
-    return start(launch, launch_env, digest, after)
+    try:
+        return start(launch, launch_env, digest, after)
+    except OSError:
+        if after:
+            try:
+                after()
+            except OSError as error:
+                print("droiddeck-game-env: DiRT telemetry fix: prefix ws2_32 not put back (%s); the next launch does it" % error,
+                      file=sys.stderr)
+        raise
 
 
 if __name__ == "__main__":
