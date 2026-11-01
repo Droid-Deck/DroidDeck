@@ -800,6 +800,12 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertTrue(notes)
         self.assertEqual(MODULE["engine_fixes"]("/game/Game/DarkSoulsII.exe", []), ({}, [], []))
 
+    def test_little_nightmares_keeps_its_render_thread(self):
+        env, extra, notes = MODULE["engine_fixes"]("/game/Little Nightmares/Atlas/Binaries/Win64/LittleNightmares.exe", [])
+        self.assertEqual((env, extra), ({"PROTONFIXES_DISABLE": "1"}, []))
+        self.assertTrue(notes)
+        self.assertEqual(MODULE["engine_fixes"]("/game/Little Nightmares II/Moonlight/Binaries/Win64/LittleNightmaresII.exe", []), ({}, [], []))
+
     def test_game_cores_are_parsed_from_lists_and_ranges(self):
         parse = MODULE["parse_cores"]
         self.assertEqual(parse("0-3,6"), {0, 1, 2, 3, 6})
