@@ -42,7 +42,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -70,20 +69,8 @@ internal fun HudReadingsDialog(
         var rowHeight by remember { mutableFloatStateOf(0f) }
         BoxWithConstraints(Modifier.fillMaxWidth()) {
         val listMax = (maxHeight * 0.62f).coerceAtLeast(120.dp)
-        Column {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(stringResource(R.string.hud_group_metrics), fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onBackground, maxLines = 1, modifier = Modifier.weight(1f))
-            SecondaryButton(stringResource(R.string.hud_reset_button), compact = true, onClick = {
-                onSave(DroidDeckHudConfig.DEFAULTS.mapValues { it.value == "1" }, DroidDeckHudConfig.ORDER)
-                close()
-            })
-            PrimaryButton(stringResource(R.string.common_ok), compact = true, onClick = {
-                onSave(enabled.toMap(), order.toList()); close()
-            })
-        }
-        Spacer(Modifier.height(8.dp))
-        LazyColumn(state = state, modifier = Modifier.fillMaxWidth().heightIn(max = listMax)) {
+        Row {
+        LazyColumn(state = state, modifier = Modifier.weight(1f).heightIn(max = listMax)) {
             itemsIndexed(order, key = { _, key -> key }) { index, key ->
                 val dragged = draggingKey == key
                 Row(
@@ -122,6 +109,16 @@ internal fun HudReadingsDialog(
                     ToggleSwitch(enabled[key] == true, true, null) { enabled[key] = !(enabled[key] == true) }
                 }
             }
+        }
+        Spacer(Modifier.width(8.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            PrimaryButton(stringResource(R.string.common_ok), compact = true, onClick = {
+                onSave(enabled.toMap(), order.toList()); close()
+            })
+            SecondaryButton(stringResource(R.string.hud_reset_button), compact = true, onClick = {
+                onSave(DroidDeckHudConfig.DEFAULTS.mapValues { it.value == "1" }, DroidDeckHudConfig.ORDER)
+                close()
+            })
         }
         }
         }
