@@ -48,10 +48,8 @@ object Syncthing {
     var apiKeyTail by mutableStateOf<String?>(null); private set
     var userPaused by mutableStateOf(false); private set
     var autoPause by mutableStateOf<AutoPause?>(null); private set
-    /** Whether Syncthing has confirmed every device is paused, as opposed to a pause only being requested. */
     var devicesPaused by mutableStateOf(false); private set
     val pauseRequested get() = userPaused || autoPause != null
-    /** Bumped to ask the Setup page to show the Sync tab. */
     var openRequests by mutableStateOf(0)
         private set
     var openPending = false
@@ -63,7 +61,6 @@ object Syncthing {
 
     val needsAttention get() = phase == Phase.FAILED || snapshot?.needsAttention == true
 
-    /** Called on the main thread whenever the state above changes; the background service follows it. */
     @Volatile var onChange: (() -> Unit)? = null
 
     private val main = Handler(Looper.getMainLooper())
@@ -87,7 +84,6 @@ object Syncthing {
     private fun guiSocket(context: Context) = File(home(context), "gui.sock")
     private fun binary(context: Context) = File(context.applicationInfo.nativeLibraryDir, "libsyncthingnative.so")
 
-    /** DroidDeck's own storage: its private data directory and its folder on each shared volume. */
     fun storageRoots(context: Context): List<File> =
         listOf(context.dataDir) + context.getExternalFilesDirs(null).filterNotNull().mapNotNull { it.parentFile }
 
@@ -138,7 +134,6 @@ object Syncthing {
         worker.execute { api?.let { applyPause(it) } }
     }
 
-    /** Starts or stops Syncthing to match the settings and whether DroidDeck is on screen. */
     fun evaluate() {
         if (Looper.myLooper() != Looper.getMainLooper()) { main.post { evaluate() }; return }
         val enabled = SyncPrefs.enabled(app)
@@ -200,7 +195,6 @@ object Syncthing {
         }
     }
 
-    /** Adds a folder at [path] shared with [devices]; pass the offered folder's [id] to accept a share. */
     fun addFolder(context: Context, path: File, label: String, devices: List<String>, id: String = newFolderId(), onDone: (Boolean) -> Unit) {
         worker.execute {
             val ok = runCatching {
@@ -228,14 +222,12 @@ object Syncthing {
         worker.execute { api?.let { a -> runCatching { a.removeFolder(id) }.onFailure { Log.w(TAG, "remove $id failed", it) } } }
     }
 
-    /** Starts a loopback proxy for the in-app web UI, which can't reach Syncthing's private socket itself. */
     fun webUiProxy(context: Context): SyncthingProxy? {
         if (phase != Phase.RUNNING) return null
         val token = Base64.encodeToString("${SyncthingConfig.GUI_USER}:${SyncPrefs.guiPassword(context)}".toByteArray(), Base64.NO_WRAP)
         return runCatching { SyncthingProxy(guiSocket(context), "Basic $token") }.onFailure { Log.w(TAG, "web UI proxy failed", it) }.getOrNull()
     }
 
-    /** UI screens showing live status call this so the status refreshes faster while they're visible. */
     fun watch(): () -> Unit {
         watchers.incrementAndGet()
         return { watchers.decrementAndGet() }
@@ -456,7 +448,6 @@ object Syncthing {
         java.time.OffsetDateTime.parse(s).toInstant().toEpochMilli().takeIf { it > 86_400_000L }
     }.getOrNull()
 
-    /** Pauses any folder outside DroidDeck's storage as soon as Syncthing saves its config, and stops Syncthing if it can't. */
     private fun enforce(gen: Int, guard: SyncthingGuard) {
         var since = 0L
         var pending = true
@@ -509,7 +500,6 @@ object Syncthing {
         }
     }
 
-    // Runs from the worker, poll and enforce threads; serialised so an older decision can't land after a newer one.
     private fun applyPause(client: SyncthingApi) = synchronized(pauseLock) {
         val context = app
         val auto = autoPauseReason()
@@ -524,7 +514,6 @@ object Syncthing {
         if (want && !held && pauseFailures.get() >= ENFORCE_ATTEMPTS) failClosed(generation, IllegalStateException(FAILURE_PAUSE), FAILURE_PAUSE)
     }
 
-    // An unreadable peer list counts as unpaused, so a required pause is reasserted rather than assumed.
     private fun hasUnpausedPeer(client: SyncthingApi): Boolean = runCatching {
         val myId = client.myId()
         val devices = client.devices()

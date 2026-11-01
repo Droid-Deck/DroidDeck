@@ -2,7 +2,6 @@ package com.droiddeck.launcher.sync
 
 import java.io.File
 
-/** Decides which Syncthing folder paths stay inside DroidDeck's own storage. */
 class SyncthingGuard(private val home: File, roots: List<File>, forbidden: List<File>) {
     private val roots = roots.map { it.canonicalFile }
     private val forbidden = forbidden.map { it.canonicalFile }
@@ -20,7 +19,6 @@ class SyncthingGuard(private val home: File, roots: List<File>, forbidden: List<
         return roots.any { within(target, it) } && forbidden.none { within(target, it) || within(it, target) }
     }
 
-    /** Whether [dir] can be opened while looking for a folder: inside DroidDeck's storage and outside Syncthing's own files. */
     fun browsable(dir: File): Boolean {
         val target = runCatching { dir.canonicalFile }.getOrNull() ?: return false
         return roots.any { within(target, it) } && forbidden.none { within(target, it) }

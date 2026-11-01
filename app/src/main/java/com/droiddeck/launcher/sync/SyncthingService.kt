@@ -13,7 +13,6 @@ import com.droiddeck.launcher.FrontEndActivity
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.download.StoreDownloadService
 
-/** Keeps the app process, and with it Syncthing, alive while "Run in the background" is chosen. */
 class SyncthingService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 

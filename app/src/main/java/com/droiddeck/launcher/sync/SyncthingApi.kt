@@ -29,7 +29,6 @@ class SyncthingApi(val socket: File, private val apiKey: String) {
 
     private fun merge(path: String, change: JSONObject.() -> Unit) = send("PUT", path, get(path).apply(change))
 
-    /** Long-polls for config saves; returns the last event id seen, or [since] on timeout. */
     fun waitForConfigSaved(since: Long, timeoutSeconds: Int): Pair<Long, Boolean> {
         val events = JSONArray(request("GET", "/rest/events?events=ConfigSaved&since=$since&timeout=$timeoutSeconds", null, (timeoutSeconds + 10) * 1000))
         if (events.length() == 0) return since to false
