@@ -112,6 +112,9 @@ function field(text, name) {
   return m ? m[1] : "";
 }
 
+var CHINA = {osi: "osic", s2: "s2_cn", anbs: "anbs_cn", diablo3: "d3cn"};
+var CHINA_PRODUCT = {osi: "osic", diablo3: "d3cn"};
+
 function install() {
   var form = call("POST", "/install", '{"uid":"' + uid + '","instructions_patch_url":"http://' + zone + '.patch.battle.net:1119/' +
     product + '","instructions_product":"NGDP","monitor_pid":12345,"priority":{"insert_at_head":true,"value":900}}');
@@ -165,6 +168,13 @@ try {
   token = field(agent, "authorization");
   zone = field(agent, "region") || "us";
   if (!token) throw new Error("no authorization from the agent");
+  // The China client installs these under uids and products of its own; s2_cn and anbs_cn have no repository of their own.
+  if (zone == "cn" && action == "install" && CHINA[uid]) {
+    product = CHINA_PRODUCT[uid] || product;
+    uid = CHINA[uid];
+    country = "CHN";
+    region = "CN";
+  }
   if (action == "install") install(); else if (action == "update") update(); else uninstall();
 } catch (e) {
   save(".error", e.message || "the agent stopped answering");
