@@ -103,6 +103,7 @@ class DroidDeckHudHost(context: Context) {
         hud.setOnFlungListener { vx, _ -> flingX = vx }
         hud.setOnTabDraggedListener { x, y -> dragTab(hud, x, y) }
         hud.setOnTabDroppedListener { dropTab(hud) }
+        hud.setOnTabDragCancelledListener { snapping = false; keepOnScreen(hud) }
         hud.setOnMovedListener { x, y ->
             wantX = x; wantY = y
             val vx = flingX
@@ -268,6 +269,7 @@ class DroidDeckHudHost(context: Context) {
     private fun dragTab(hud: DroidDeckHudView, x: Float, y: Float) {
         val p = hud.parent as? View ?: return
         stopMotion(hud)
+        snapping = false
         hud.x = x.coerceIn(0f, (p.width - hud.width).toFloat().coerceAtLeast(0f))
         hud.y = y.coerceIn(0f, (p.height - hud.height).toFloat().coerceAtLeast(0f))
     }

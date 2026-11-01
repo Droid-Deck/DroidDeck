@@ -259,9 +259,12 @@ class DroidDeckHudView(context: Context) : View(context) {
     private var tabDragging = false
     private var onTabDraggedListener: BiConsumer<Float, Float>? = null
     private var onTabDroppedListener: Runnable? = null
+    private var onTabDragCancelledListener: Runnable? = null
     /** The docked tab is dragged: where the finger would put it (x, y in the parent). */
     fun setOnTabDraggedListener(l: BiConsumer<Float, Float>?) { onTabDraggedListener = l }
     fun setOnTabDroppedListener(l: Runnable?) { onTabDroppedListener = l }
+    /** The system took the tab's drag away: the tab goes back to where it was docked. */
+    fun setOnTabDragCancelledListener(l: Runnable?) { onTabDragCancelledListener = l }
 
     private fun onTabTouch(event: MotionEvent): Boolean {
         when (event.actionMasked) {
@@ -281,7 +284,7 @@ class DroidDeckHudView(context: Context) : View(context) {
             }
             MotionEvent.ACTION_CANCEL -> if (tabDragging) {
                 tabDragging = false
-                x = tabStartX; y = tabStartY
+                onTabDragCancelledListener?.run()
             }
         }
         return true
