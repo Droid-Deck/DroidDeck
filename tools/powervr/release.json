@@ -775,14 +775,14 @@
   "format": 1,
   "hybris": {
     "provenance": {
-      "component_ci_run": "https://github.com/wallentx/DroidDeck/actions/runs/41393469130",
+      "component_ci_run": "https://github.com/wallentx/DroidDeck/actions/runs/41396443153",
       "note": "Candidate pin: publish this exact archive and verify its URL before updating release.json.",
-      "producer_commit": "b4b9bf62c54f04e2379d3b3d485f13b06f9098e1",
+      "producer_commit": "38fde9ccd72ddd0a851c4f3659530eb44d4637f5",
       "upstream_source_commit": "aee1f6ab3483a6babc41b0def751cfeb0ace24f2",
       "vulkan_headers_commit": "8d6039a455a7ecc7d2a592ff97f62db4e59b70bf"
     },
     "recipe_inputs": {
-      "tools/hybris/build_runtime.sh": "be172c1048190fed16d85e0c646c031da73220dca0e113dc4bf3eee1d3a8aae2",
+      "tools/hybris/build_runtime.sh": "c058f22f2bcdb355478807dc5635c427d9144dee90a84bde3153eccfb3de1938",
       "tools/hybris/component_record.py": "8835ace515293988eef312099b2a1519874244a670c1c4035713ca31b54104dc",
       "tools/hybris/patches/0001-dxvk-bc-profile.patch": "8ad83be7c13b7c7a92c02899e4873b4224aad4640eb0d1a46d946c7d497b3816",
       "tools/hybris/patches/0002-vendor-compatibility.patch": "e1b3fa817d5d45b82aa9be8b1e67a283746d0f4c5ff32676ba3b6b3096c68a82",
@@ -797,14 +797,14 @@
       "tools/hybris/patches/0011-zink-vertex-input-profile.patch": "0f3bc20d183a1cf4329ea6871caf9748970d5db179d3bb1dfbcf03e45019c0f5",
       "tools/hybris/patches/0013-build-snapshot-license.patch": "23dc1e804b09f6acbe21f74151fe51eb5e6b5aa1f3b6d44f163dfca9b3ddd75f",
       "tools/hybris/patches/0014-pinned-vulkan-headers.patch": "8d4270244551d55f2ad4abbe14c97b70b994c2a610b4a997025ebd1234bc7ff8",
-      "tools/hybris/patches/0015-exact-cull-distance.patch": "b64cb5d9fb2fe883c3829d4ad87ab02ca8f26c8e0a1b11006cea5267f67478e8",
+      "tools/hybris/patches/0015-exact-cull-distance.patch": "4cb5974d535ae63c0ab9a981fc80f9fcde9b1bcb3d6d3f96262d48881924495e",
       "tools/hybris/patches/0016-baseline-probe-head.patch": "c31eae8c3cb2ee6ecf1de7a7f67892cbde6cf1af9edd772de75f122e12943968",
       "tools/hybris/powervr-hal-version.patch": "9fff26678dc4120bd124fd1cee0d7220c81d7b37ec11e8eafefa5f29a1d06e67",
       "tools/hybris/source.env": "e8a4ac39c52b4285aa72286d07fad6a186ec724b4634d8f909b21ec5de2adcbb"
     },
-    "sha256": "c984626127868a42439ccb5754cdd8c6d0b8fade59610b78f70f717ab6324698",
-    "size": 6770179,
-    "tree_sha256": "82b0701a36af82f810bb1dbf1e54eb319e10f0ec468f443f3cf48464fb3a1d4e",
-    "url": "https://github.com/wallentx/DroidDeck/releases/download/hybris-b4b9bf62c54f04e2379d3b3d485f13b06f9098e1/runtime.tzst"
+    "sha256": "6c28d6aaa657e70f1d53e09239a163143f54038230d60d5aec0368971d7b9001",
+    "size": 6773452,
+    "tree_sha256": "14a600423970b2cd30c8cbee67626d50340a271d3e8e851f6b95e547f8d9a421",
+    "url": "https://github.com/wallentx/DroidDeck/releases/download/hybris-38fde9ccd72ddd0a851c4f3659530eb44d4637f5/runtime.tzst"
   }
 }
