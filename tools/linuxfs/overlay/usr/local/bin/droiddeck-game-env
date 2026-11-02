@@ -247,11 +247,25 @@ PZ_JVM_FLAGS = ("-XX:+UseG1GC", "-XX:TieredStopAtLevel=1")
 
 
 def zomboid_vm_args(args):
-    updated = [arg for arg in args if arg != "-XX:+UseZGC"]
+    updated = [arg for arg in args if not re.fullmatch(r"-XX:\+Use\w*GC", arg) or arg == "-XX:+UseG1GC"]
     for flag in PZ_JVM_FLAGS:
         if flag not in updated:
             updated.append(flag)
     return updated
+
+
+def zomboid_rewrite(node):
+    changed = False
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "vmArgs" and isinstance(value, list) and all(isinstance(arg, str) for arg in value):
+                updated = zomboid_vm_args(value)
+                if updated != value:
+                    node[key] = updated
+                    changed = True
+            elif isinstance(value, dict):
+                changed |= zomboid_rewrite(value)
+    return changed
 
 
 def project_zomboid_jvm(command):
@@ -264,13 +278,8 @@ def project_zomboid_jvm(command):
     try:
         with settings.open(encoding="utf-8-sig") as source:
             data = json.load(source)
-        args = data.get("vmArgs")
-        if not isinstance(args, list) or not all(isinstance(arg, str) for arg in args):
+        if not zomboid_rewrite(data):
             return
-        updated = zomboid_vm_args(args)
-        if updated == args:
-            return
-        data["vmArgs"] = updated
         handle, staged = tempfile.mkstemp(prefix=".droiddeck-", dir=settings.parent)
         try:
             with os.fdopen(handle, "w", encoding="utf-8") as target:

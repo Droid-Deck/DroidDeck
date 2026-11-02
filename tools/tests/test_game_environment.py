@@ -2047,6 +2047,17 @@ class ProjectZomboidJvmTest(unittest.TestCase):
             MODULE["project_zomboid_jvm"](command)
             self.assertEqual(settings.read_text(), before)
 
+    def test_other_collectors_and_windows_specific_lists_are_rewritten(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            settings, command = self.launch(tmp)
+            settings.write_text(json.dumps({"vmArgs": ["-XX:+UseParallelGC", "-Xmx1g"],
+                                            "windows": {"10.0.17134": {"vmArgs": ["-XX:+UseZGC", "-XX:+UseG1GC"]}}}))
+            MODULE["project_zomboid_jvm"](command)
+            data = json.loads(settings.read_text())
+            flags = ["-XX:+UseG1GC", "-XX:TieredStopAtLevel=1"]
+            self.assertEqual(data["vmArgs"], ["-Xmx1g"] + flags)
+            self.assertEqual(data["windows"]["10.0.17134"]["vmArgs"], flags)
+
     def test_other_games_and_unreadable_files_are_left_alone(self):
         with tempfile.TemporaryDirectory() as tmp:
             settings, command = self.launch(tmp, stem="Other")
