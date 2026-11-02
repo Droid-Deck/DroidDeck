@@ -55,7 +55,14 @@ static void VKAPI_CALL physical_formats(VkPhysicalDevice physical, VkFormat form
 {
     (void)physical; (void)format;
     *out = (VkFormatProperties){.optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+        VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT |
         VK_FORMAT_FEATURE_TRANSFER_SRC_BIT | VK_FORMAT_FEATURE_TRANSFER_DST_BIT};
+}
+static void VKAPI_CALL physical_features(VkPhysicalDevice physical,
+    VkPhysicalDeviceFeatures *out)
+{
+    (void)physical;
+    *out = (VkPhysicalDeviceFeatures){.shaderStorageImageExtendedFormats = VK_TRUE};
 }
 static void VKAPI_CALL physical_features2(VkPhysicalDevice physical,
     VkPhysicalDeviceFeatures2 *out)
@@ -74,6 +81,7 @@ static PFN_vkVoidFunction VKAPI_CALL physical_resolver(VkInstance instance, cons
 #define PHYSICAL_ENTRY(text, function) if (!strcmp(name, text)) return (PFN_vkVoidFunction)function
     PHYSICAL_ENTRY("vkGetPhysicalDeviceProperties", physical_properties);
     PHYSICAL_ENTRY("vkGetPhysicalDeviceProperties2", physical_features2);
+    PHYSICAL_ENTRY("vkGetPhysicalDeviceFeatures", physical_features);
     PHYSICAL_ENTRY("vkGetPhysicalDeviceFeatures2", physical_features2);
     PHYSICAL_ENTRY("vkGetPhysicalDeviceQueueFamilyProperties", physical_queues);
     PHYSICAL_ENTRY("vkGetPhysicalDeviceFormatProperties", physical_formats);
@@ -94,8 +102,8 @@ VkResult hybris_bc_device_add(VkDevice d, PFN_vkGetDeviceProcAddr r,
     const VkPhysicalDeviceMemoryProperties *m, const VkPhysicalDeviceProperties *p,
     unsigned mask, unsigned rgb, const VkAllocationCallbacks *a)
 { (void)d; (void)r; (void)m; (void)p; (void)mask; (void)rgb; (void)a; return VK_SUCCESS; }
-VkFormat hybris_bc_image_format(VkFormat format, unsigned rgb_mask)
-{ (void)rgb_mask; return format >= VK_FORMAT_BC1_RGB_UNORM_BLOCK && format <= VK_FORMAT_BC7_SRGB_BLOCK ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_UNDEFINED; }
+VkFormat hybris_bc_image_format(VkFormat format)
+{ return format >= VK_FORMAT_BC1_RGB_UNORM_BLOCK && format <= VK_FORMAT_BC7_SRGB_BLOCK ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_UNDEFINED; }
 int hybris_bc_srgb_family(VkFormat format) { (void)format; return 1; }
 int hybris_bc_view_compatible(VkFormat image, VkFormat view) { return image == view; }
 PFN_vkVoidFunction hybris_bc_resources_proc(const char *name) { (void)name; return NULL; }

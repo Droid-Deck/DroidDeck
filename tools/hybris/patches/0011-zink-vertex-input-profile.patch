@@ -1,4 +1,5 @@
 diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
+index 7fe5b5b..a2c4b4d 100644
 --- a/hybris/vulkan/Makefile.am
 +++ b/hybris/vulkan/Makefile.am
 @@ -13,6 +13,7 @@ lib_LTLIBRARIES = \
@@ -6,11 +7,12 @@ diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
  libVkLayer_hybris_compat_la_SOURCES = layer/entry.c layer/device.c layer/physical.c layer/commands.c layer/layer.h \
      layer/device_features.c layer/device_features.h layer/device_create_sizes.inc \
 +    compat/zink_profile.c compat/zink_profile.h \
-     compat/bc_decode.c compat/bc_decode.h compat/shaders/bc_decode.inc \
-     compat/bc_image.c compat/bc_image.h compat/bc_command_state.c compat/bc_command_state.h compat/bc_vulkan_compat.h compat/bc_transfer.c compat/bc_transfer.h \
-     compat/bc_context.c compat/bc_context.h compat/bc_commands.c compat/bc_resources.c compat/bc_record.c compat/bc_barriers.c compat/bc_image_copy.c compat/bc_policy.c compat/bc_policy.h \
+     compat/spirv_mali.c compat/spirv_mali.h \
+     compat/maintenance5.c compat/maintenance5.h \
+     compat/dynamic_rendering.c compat/dynamic_rendering.h \
 diff --git a/hybris/vulkan/compat/zink_profile.c b/hybris/vulkan/compat/zink_profile.c
 new file mode 100644
+index 0000000..494a8ff
 --- /dev/null
 +++ b/hybris/vulkan/compat/zink_profile.c
 @@ -0,0 +1,62 @@
@@ -78,6 +80,7 @@ new file mode 100644
 +}
 diff --git a/hybris/vulkan/compat/zink_profile.h b/hybris/vulkan/compat/zink_profile.h
 new file mode 100644
+index 0000000..d8c4517
 --- /dev/null
 +++ b/hybris/vulkan/compat/zink_profile.h
 @@ -0,0 +1,15 @@
@@ -97,9 +100,10 @@ new file mode 100644
 +void hybris_zink_profile_features2(VkPhysicalDeviceFeatures2 *features);
 +#endif
 diff --git a/hybris/vulkan/layer/entry.c b/hybris/vulkan/layer/entry.c
+index 5289686..ef2b3af 100644
 --- a/hybris/vulkan/layer/entry.c
 +++ b/hybris/vulkan/layer/entry.c
-@@ -4,6 +4,7 @@
+@@ -6,6 +6,7 @@
  #include "../compat/application_policy.h"
  #include "../compat/scaled_vertex.h"
  #include "../compat/vendor_compat.h"
@@ -107,7 +111,7 @@ diff --git a/hybris/vulkan/layer/entry.c b/hybris/vulkan/layer/entry.c
  #include <vulkan/vk_layer.h>
  #include <pthread.h>
  #include <stdio.h>
-@@ -22,6 +23,9 @@ struct instance_state {
+@@ -24,6 +25,9 @@ struct instance_state {
      uint32_t api_version;
      VkAllocationCallbacks allocator;
      int custom_allocator;
@@ -117,7 +121,7 @@ diff --git a/hybris/vulkan/layer/entry.c b/hybris/vulkan/layer/entry.c
      struct instance_state *next;
  };
  static pthread_mutex_t guard = PTHREAD_MUTEX_INITIALIZER;
-@@ -116,7 +120,17 @@ static VkResult VKAPI_CALL create_instance(const VkInstanceCreateInfo *info,
+@@ -118,7 +122,17 @@ static VkResult VKAPI_CALL create_instance(const VkInstanceCreateInfo *info,
      state->generation = ++next_generation;
      pthread_mutex_unlock(&guard);
      link->u.pLayerInfo = link->u.pLayerInfo->pNext;
@@ -136,7 +140,7 @@ diff --git a/hybris/vulkan/layer/entry.c b/hybris/vulkan/layer/entry.c
      if (result != VK_SUCCESS) { hybris_scaled_free(allocator, state); return result; }
      state->handle = *out;
      state->key = hybris_layer_dispatch_key(*out);
-@@ -142,6 +156,51 @@ static void VKAPI_CALL destroy_instance(VkInstance handle, const VkAllocationCal
+@@ -144,6 +158,51 @@ static void VKAPI_CALL destroy_instance(VkInstance handle, const VkAllocationCal
      hybris_scaled_free(retired->custom_allocator ? &retired->allocator : NULL, retired);
  }
  
@@ -188,12 +192,12 @@ diff --git a/hybris/vulkan/layer/entry.c b/hybris/vulkan/layer/entry.c
  static PFN_vkVoidFunction VKAPI_CALL get_instance_proc(VkInstance instance, const char *name)
  {
      if (!name) return NULL;
-@@ -163,7 +222,8 @@ static PFN_vkVoidFunction VKAPI_CALL get_instance_proc(VkInstance instance, cons
+@@ -166,7 +225,8 @@ static PFN_vkVoidFunction VKAPI_CALL get_instance_proc(VkInstance instance, cons
       * Every command wrapper checks the actual device again before changing it. */
      PFN_vkVoidFunction intercepted = hybris_layer_physical_proc(name);
-     if (!intercepted) intercepted = hybris_layer_device_dispatch(name, state.policy != 0);
--    return intercepted ? intercepted : (next ? next : vendor_alias);
-+    PFN_vkVoidFunction function = intercepted ? intercepted : (next ? next : vendor_alias);
+     if (!intercepted) intercepted = hybris_layer_device_dispatch(name, 1);
+-    return intercepted ? intercepted : (vendor_alias ? vendor_alias : next);
++    PFN_vkVoidFunction function = intercepted ? intercepted : (vendor_alias ? vendor_alias : next);
 +    return state.zink_profile && function ? zink_wrap(instance, name, function) : function;
  }
  static PFN_vkVoidFunction VKAPI_CALL get_physical_proc(VkInstance instance, const char *name)

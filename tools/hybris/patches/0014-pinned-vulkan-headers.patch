@@ -1,0 +1,146 @@
+diff --git a/tools/build-aarch64.sh b/tools/build-aarch64.sh
+index 3f3fd4d..4f8b7d3 100755
+--- a/tools/build-aarch64.sh
++++ b/tools/build-aarch64.sh
+@@ -6,6 +6,8 @@ set -euo pipefail
+ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ OUT="$ROOT/tests/baseline/build"
+ HEADERS=""
++VULKAN_HEADERS="${VULKAN_HEADERS_DIR:-}"
++VULKAN_HEADERS_COMMIT="${VULKAN_HEADERS_COMMIT:-}"
+ PROTOCOLS="${ARLINUX_WSI_PROTOCOL_DIR:-$ROOT/../../protocols}"
+ CLEAN=0
+ DEBUG_BUILD=0
+@@ -69,6 +71,21 @@ if [[ ! -f "$HEADERS/android-config.h" || ! -f "$HEADERS/android-version.h" ]];
+     exit 2
+ fi
+ 
++VULKAN_MOUNT=()
++VULKAN_OPTIONS=()
++VULKAN_INPUT_OPTIONS=()
++if [[ -n "$VULKAN_HEADERS" ]]; then
++    if [[ ! -f "$VULKAN_HEADERS/vulkan/vulkan_core.h" ]]; then
++        echo "Vulkan headers missing vulkan/vulkan_core.h: $VULKAN_HEADERS" >&2
++        exit 2
++    fi
++    if [[ ! "$VULKAN_HEADERS_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
++        echo "VULKAN_HEADERS_COMMIT must identify the supplied Vulkan headers" >&2
++        exit 2
++    fi
++    VULKAN_OPTIONS=(--vulkan-headers "$VULKAN_HEADERS" --vulkan-headers-revision "$VULKAN_HEADERS_COMMIT")
++fi
++
+ if [[ -z "${BUILDER_IMAGE:-}" ]]; then
+     BUILDER_IMAGE="$("$ROOT/tools/ensure-builder.sh")"
+ fi
+@@ -84,9 +101,16 @@ CACHE_OPTIONS=()
+ if [[ "$INCREMENTAL" = 1 && "$CLEAN" != 1 ]]; then CACHE_OPTIONS+=(--incremental); fi
+ if [[ "$DEBUG_BUILD" = 1 ]]; then CACHE_OPTIONS+=(--debug); fi
+ python3 "$ROOT/tools/prepare-build.py" prepare --root "$ROOT" --out "$OUT" \
+-    --headers "$HEADERS" --protocols "$PROTOCOLS" --builder "$BUILDER_ID" --started "$BUILD_STARTED" "${CACHE_OPTIONS[@]}"
++    --headers "$HEADERS" --protocols "$PROTOCOLS" --builder "$BUILDER_ID" --started "$BUILD_STARTED" \
++    "${VULKAN_OPTIONS[@]}" "${CACHE_OPTIONS[@]}"
+ CACHE_MODE="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["mode"])' "$OUT/build-report.json")"
+ 
++if [[ -n "$VULKAN_HEADERS" ]]; then
++    VULKAN_HEADERS_ABS="$(cd "$OUT/vulkan-headers" && pwd)"
++    VULKAN_MOUNT=(--volume "$VULKAN_HEADERS_ABS:/vulkan-headers:ro,Z")
++    VULKAN_INPUT_OPTIONS=(--vulkan-headers "$VULKAN_HEADERS_ABS" --vulkan-headers-revision "$VULKAN_HEADERS_COMMIT")
++fi
++
+ HEADERS_ABS="$(cd "$HEADERS_COPY" && pwd)"
+ OUT_ABS="$(cd "$OUT" && pwd)"
+ SRC_ABS="$(cd "$SRC_COPY" && pwd)"
+@@ -98,10 +122,11 @@ if [[ -n "$(git -C "$ROOT" status --porcelain 2>/dev/null || true)" ]]; then
+ fi
+ python3 "$ROOT/tools/build_inputs.py" --source "$OUT/inputs" --headers "$HEADERS_COPY" \
+     --recipe "$ROOT/tools/container/Containerfile.aarch64" --image-id "$BUILDER_ID" \
+-    --build-script "$ROOT/tools/build-aarch64.sh" \
++    --build-script "$ROOT/tools/build-aarch64.sh" "${VULKAN_INPUT_OPTIONS[@]}" \
+     --out "$OUT/build-inputs.json"
+ 
+ "$CONTAINER_ENGINE" run --rm --network host --userns=keep-id \
++    "${VULKAN_MOUNT[@]}" \
+     --volume "$SRC_ABS:/src:Z" \
+     --volume "$HEADERS_ABS:/headers:ro,Z" \
+     --volume "$OUT_ABS:/out:Z" \
+@@ -137,7 +162,11 @@ export CC="$CC_BIN" CXX="$CXX_BIN"
+ export AR="${HOST_TRIPLE}-ar" STRIP="${HOST_TRIPLE}-strip"
+ export RANLIB="${HOST_TRIPLE}-ranlib" LD="${HOST_TRIPLE}-ld"
+ export NM="${HOST_TRIPLE}-nm" OBJDUMP="${HOST_TRIPLE}-objdump"
+-export CPPFLAGS="-idirafter /usr/include"
++if [[ -f /vulkan-headers/vulkan/vulkan_core.h ]]; then
++    export CPPFLAGS="-I/vulkan-headers -idirafter /usr/include"
++else
++    export CPPFLAGS="-idirafter /usr/include"
++fi
+ # Platform wrappers intentionally depend on libraries resolved later.
+ export LDFLAGS="-Wl,--no-as-needed"
+ if [[ ! -x "$BUILD_DIR/configure" ]]; then
+diff --git a/tools/build_inputs.py b/tools/build_inputs.py
+index 52890af..88de817 100644
+--- a/tools/build_inputs.py
++++ b/tools/build_inputs.py
+@@ -30,6 +30,8 @@ def main():
+     parser = argparse.ArgumentParser(description=__doc__)
+     parser.add_argument('--source', type=Path, required=True)
+     parser.add_argument('--headers', type=Path, required=True)
++    parser.add_argument('--vulkan-headers', type=Path)
++    parser.add_argument('--vulkan-headers-revision')
+     parser.add_argument('--recipe', type=Path, required=True)
+     parser.add_argument('--image-id', required=True)
+     parser.add_argument('--build-script', type=Path, required=True)
+@@ -42,6 +44,11 @@ def main():
+                     'repository_recipe_sha256': hashlib.sha256(args.recipe.read_bytes()).hexdigest(),
+                     'build_script_sha256': hashlib.sha256(args.build_script.read_bytes()).hexdigest()},
+     }
++    if args.vulkan_headers:
++        payload['vulkan_headers'] = {
++            'revision': args.vulkan_headers_revision,
++            **tree_identity(args.vulkan_headers),
++        }
+     args.out.write_text(json.dumps(payload, indent=2) + '\n')
+ 
+ 
+diff --git a/tools/prepare-build.py b/tools/prepare-build.py
+index e9475c1..de9d16e 100644
+--- a/tools/prepare-build.py
++++ b/tools/prepare-build.py
+@@ -51,10 +51,28 @@ def prepare(args):
+     if headers.exists():
+         shutil.rmtree(headers)
+     headers_next.replace(headers)
++    vulkan_header_identity = None
++    if args.vulkan_headers:
++        vulkan_headers = out / 'vulkan-headers'
++        vulkan_headers_next = out / 'vulkan-headers-next'
++        source_headers = args.vulkan_headers.resolve()
++        if out.is_relative_to(source_headers) or source_headers.is_relative_to(vulkan_headers_next):
++            raise ValueError('Vulkan header source overlaps the output staging directory')
++        if vulkan_headers_next.exists():
++            shutil.rmtree(vulkan_headers_next)
++        shutil.copytree(source_headers, vulkan_headers_next, symlinks=True,
++                        ignore=shutil.ignore_patterns('.git'))
++        if vulkan_headers.exists():
++            shutil.rmtree(vulkan_headers)
++        vulkan_headers_next.replace(vulkan_headers)
++        vulkan_header_identity = tree_identity(vulkan_headers)
+     source = tree_identity(snapshot)
+     header_identity = tree_identity(headers)
+     key = {'version': 1, 'builder': args.builder, 'debug': args.debug,
+            'headers': header_identity['sha256'],
++           'vulkan_headers': ({'revision': args.vulkan_headers_revision,
++                               'sha256': vulkan_header_identity['sha256']}
++                              if vulkan_header_identity else None),
+            'build_script': digest(root / 'tools/build-aarch64.sh'),
+            'prepare_script': digest(Path(__file__)),
+            'input_script': digest(root / 'tools/build_inputs.py')}
+@@ -136,6 +154,8 @@ prepare_parser.add_argument('--root', type=Path, required=True)
+ prepare_parser.add_argument('--out', type=Path, required=True)
+ prepare_parser.add_argument('--protocols', type=Path, required=True)
+ prepare_parser.add_argument('--headers', type=Path, required=True)
++prepare_parser.add_argument('--vulkan-headers', type=Path)
++prepare_parser.add_argument('--vulkan-headers-revision')
+ prepare_parser.add_argument('--builder', required=True)
+ prepare_parser.add_argument('--debug', action='store_true')
+ prepare_parser.add_argument('--incremental', action='store_true')

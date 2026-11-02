@@ -34,6 +34,10 @@ def record(data, root, url, commit, run_url):
                   if line and not line.startswith("#"))
     if runtime.read(entries, "source-commit").decode().strip() != source["HYBRIS_REVISION"]:
         raise ValueError("component was built from a different libhybris revision")
+    if runtime.read(entries, "vulkan-headers-commit").decode().strip() != source["VULKAN_HEADERS_REVISION"]:
+        raise ValueError("component was built with a different Vulkan-Headers revision")
+    if not runtime.read(entries, "licenses/Vulkan-Headers-LICENSE.md"):
+        raise ValueError("empty Vulkan-Headers license")
     # The producer's ELF hashes precede the packaging RPATH edits. Preserve that
     # manifest, check its source/inventory, and verify packaged bytes separately.
     manifest = json.loads(runtime.read(entries, "build-manifest.json"))
@@ -41,6 +45,11 @@ def record(data, root, url, commit, run_url):
             or not manifest.get("compiler") or manifest["compiler"] == "unknown"
             or not isinstance(manifest.get("build_inputs"), dict) or not manifest["build_inputs"]):
         raise ValueError("component build manifest lacks matching source/compiler provenance")
+    vulkan_inputs = manifest["build_inputs"].get("vulkan_headers")
+    if (not isinstance(vulkan_inputs, dict)
+            or vulkan_inputs.get("revision") != source["VULKAN_HEADERS_REVISION"]
+            or not re.fullmatch(r"[0-9a-f]{64}", vulkan_inputs.get("sha256", ""))):
+        raise ValueError("component build manifest lacks matching Vulkan-Headers provenance")
     inventory = manifest.get("elfs")
     if not isinstance(inventory, list) or not inventory:
         raise ValueError("component build manifest lacks its ELF inventory")
@@ -87,6 +96,7 @@ def record(data, root, url, commit, run_url):
             "producer_commit": commit,
             "component_ci_run": run_url,
             "upstream_source_commit": source["HYBRIS_REVISION"],
+            "vulkan_headers_commit": source["VULKAN_HEADERS_REVISION"],
             "note": "Candidate pin: publish this exact archive and verify its URL before updating release.json.",
         },
     }

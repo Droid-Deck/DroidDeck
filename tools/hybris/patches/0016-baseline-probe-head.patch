@@ -1,0 +1,185 @@
+diff --git a/tests/baseline/build-cull.sh b/tests/baseline/build-cull.sh
+index 1d0c8d0..481c52a 100755
+--- a/tests/baseline/build-cull.sh
++++ b/tests/baseline/build-cull.sh
+@@ -6,8 +6,9 @@ mkdir -p "$out"
+ compat="$repo/hybris/vulkan/compat"
+ "${HOST_CC:-cc}" -O2 -Wall -Wextra -Werror -ffunction-sections -I"$compat" \
+     "$repo/tests/baseline/primitive_adapter_check.c" "$compat/primitive_adapter.c" \
+-    "$compat/spirv_clip.c" "$compat/spirv_builtins.c" "$compat/spirv_entry.c" \
+-    "$compat/spirv_decorations.c" -Wl,--gc-sections -o "$out/primitive-adapter-check"
++    "$compat/distance_lowering.c" "$compat/spirv_entry.c" "$compat/spirv_decorations.c" \
++    "$compat/malibridge/spirv_edit.c" "$compat/malibridge/spirv_clip.c" \
++    "$compat/malibridge/spirv_pervertex.c" -Wl,--gc-sections -o "$out/primitive-adapter-check"
+ for mode in triangles block point-input point-input-block line-input line-input-block lines lines-block; do
+     "$out/primitive-adapter-check" "$mode" "$out/$mode.spv"
+     spirv-val --target-env vulkan1.1 "$out/$mode.spv"
+diff --git a/tests/baseline/build.sh b/tests/baseline/build.sh
+index 017bc7f..00616ad 100755
+--- a/tests/baseline/build.sh
++++ b/tests/baseline/build.sh
+@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
+ ROOT="$(cd ../.. && pwd)"
+ OUT="${OUT:-$PWD/build}"
+ BUNDLE="$OUT/bundle"
+-SOURCES=(compat/spirv_clip.c compat/spirv_builtins.c compat/spirv_entry.c compat/spirv_decorations.c probe_vertex_store.c probe_vertex_policy.c probe_point_size.c probe_bc_images.c probe_bc.c compat/bc_decode.c probe_native_buffer.c probe_scaled.c probe_memory_ranges.c probe_timeline.c probe_timeline_queues.c render_path.c probe_render_owners.c probe_render_segments.c probe.c probe_stdio.c probe_common.c probe_egl.c probe_egl_lifecycle.c probe_vulkan.c probe_dispatch.c
++SOURCES=(probe_vertex_store.c probe_vertex_policy.c probe_point_size.c probe_bc_images.c probe_bc.c compat/bc_decode.c probe_native_buffer.c probe_scaled.c probe_memory_ranges.c probe_timeline.c probe_timeline_queues.c render_path.c probe_render_owners.c probe_render_segments.c probe.c probe_stdio.c probe_common.c probe_egl.c probe_egl_lifecycle.c probe_vulkan.c probe_dispatch.c
+          probe_icd_version.c probe_tls_mrs.c probe_namespaces.c probe_groups.c probe_lifecycle.c probe_vulkan_init.c probe_alloc.c probe_lock_init.c probe_cond_init.c probe_cond_clock.c probe_shared_unavailable.c probe_tls_bounds.c probe_tls_destructor.c probe_caps.c probe_caps2.c probe_blender_vk.c probe_properties2.c probe_widget.c probe_validation.c)
+ SOURCES+=(compat/primitive_adapter.c)
+ HYBRIS_LIB="${HYBRIS_LIB:-$OUT/install/usr/lib/hybris}"
+@@ -32,7 +32,7 @@ mkdir -p "$PROBE_SRC/shaders" "$PROBE_SRC/compat/shaders" "$PROBE_SRC/reference"
+ cp -r reference/bc7 reference/bc6h "$PROBE_SRC/reference/"
+ cp "$ROOT/hybris/vulkan/compat/"bc_decode.{c,h} "$PROBE_SRC/compat/"
+ cp "$ROOT/hybris/vulkan/compat/"primitive_adapter.{c,h} "$PROBE_SRC/compat/"
+-cp "$ROOT/hybris/vulkan/compat/"{spirv_clip.c,spirv_builtins.c,spirv_entry.c,spirv_decorations.c,clip_distance.h,spirv_builtins.h,spirv_entry.h,spirv_decorations.h,scaled_vertex.h,spirv_literals.inc,spirv_results.inc} "$PROBE_SRC/compat/"
++cp "$ROOT/hybris/vulkan/compat/scaled_vertex.h" "$PROBE_SRC/compat/"
+ cp "$ROOT/hybris/vulkan/compat/shaders/"*.glsl "$ROOT/hybris/vulkan/compat/shaders/"LICENSE.bcdec "$ROOT/hybris/vulkan/compat/shaders/"bc_decode.{comp,inc} "$ROOT/hybris/vulkan/compat/shaders/generate-bc.py" "$ROOT/hybris/vulkan/compat/shaders/MALIBRIDGE.md" "$ROOT/hybris/vulkan/compat/shaders/NOTICE.MaliBridge" "$PROBE_SRC/compat/shaders/"
+ cp bc_half_verify.h bc6h_fixture.inc bc7_fixture.inc widget_pipeline.h bc_image_verify.h bc_fixture.h native_buffer_render.h native_buffer_fixture.h scaled_divisor.h scaled_fixture.h allocation_fixture.h render_path.h tls_fixture.cpp sync_fixture.h stdio_fixture.h widget_fixture.h "$PROBE_SRC/"
+ for source in "${SOURCES[@]}"; do
+diff --git a/tests/baseline/cull-device-features-check.c b/tests/baseline/cull-device-features-check.c
+index b1a81a9..39bdc5c 100755
+--- a/tests/baseline/cull-device-features-check.c
++++ b/tests/baseline/cull-device-features-check.c
+@@ -3,13 +3,27 @@
+ #include <stdio.h>
+ #include <string.h>
+ #include "device_features.h"
++#include "robustness2.h"
+ 
+ static int active;
+ int hybris_clip_active(VkPhysicalDevice p) { (void)p; return 0; }
+ int hybris_vertex_stores_active(VkPhysicalDevice p) { (void)p; return 0; }
+ int hybris_bc_complete(VkPhysicalDevice p) { (void)p; return 0; }
++void hybris_bc_enable_transcode_features(VkPhysicalDevice p, VkPhysicalDeviceFeatures *f)
++{ (void)p; (void)f; }
+ int hybris_cull_active(VkPhysicalDevice p) { (void)p; return active; }
+ int hybris_shader_polygon_emulated(VkPhysicalDevice p) { (void)p; return 0; }
++VkResult hybris_robustness2_policy(VkPhysicalDevice p, struct hybris_robustness2_policy *out)
++{ (void)p; memset(out, 0, sizeof(*out)); return VK_SUCCESS; }
++int hybris_maintenance5_emulated(VkPhysicalDevice p) { (void)p; return 0; }
++int hybris_dynamic_emulated(VkPhysicalDevice p) { (void)p; return 0; }
++int hybris_dynamic_native_extension(VkPhysicalDevice p, const char *n)
++{ (void)p; (void)n; return 0; }
++int hybris_dual_source_active(VkPhysicalDevice p) { (void)p; return 0; }
++int hybris_multidraw_active(VkPhysicalDevice p) { (void)p; return 0; }
++int hybris_multiviewport_active(VkPhysicalDevice p) { (void)p; return 0; }
++int hybris_bc_astc_hdr(VkPhysicalDevice p) { (void)p; return 0; }
++int hybris_stage_point_active(VkPhysicalDevice p) { (void)p; return 0; }
+ 
+ int main(void)
+ {
+diff --git a/tests/baseline/primitive_adapter_check.c b/tests/baseline/primitive_adapter_check.c
+index 50458ea..8d1878f 100755
+--- a/tests/baseline/primitive_adapter_check.c
++++ b/tests/baseline/primitive_adapter_check.c
+@@ -1,7 +1,7 @@
+ /* SPDX-License-Identifier: Apache-2.0 */
+ #include <stdio.h>
+ #include <string.h>
+-#include "clip_distance.h"
++#include "distance_lowering.h"
+ #include "primitive_adapter.h"
+ #include "shaders/primitive.inc"
+ int main(int argc, char **argv) {
+@@ -15,32 +15,37 @@ int main(int argc, char **argv) {
+         .front_face = argc > 1 && strstr(argv[1], "cw") ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE,
+         .viewport_inverted = argc > 1 && strstr(argv[1], "flip") != NULL,
+     };
+-    uint32_t *vertex = NULL, *geometry = NULL;
+-    size_t vertex_size = 0, geometry_size = 0;
+-    unsigned rewritten = 0;
+-    uint32_t location = 0, count = 0;
++    uint32_t *geometry = NULL;
++    size_t geometry_size = 0;
+     const char *reason = NULL;
+     const uint32_t *input = block ? primitive_cull_block_vertex_spv : primitive_cull_vertex_spv;
+     size_t input_size = block ? sizeof(primitive_cull_block_vertex_spv) : sizeof(primitive_cull_vertex_spv);
+-    VkResult result = hybris_spirv_cull_plan(input, input_size, NULL, 0, &location, &count);
+-    if (result || count != 2) return 1;
+-    result = hybris_spirv_cull_vertex(input, input_size, location, NULL, &vertex, &vertex_size, &rewritten);
+-    if (result || !rewritten || !vertex) return 1;
+-    result = hybris_spirv_primitive_adapter_topology(vertex, vertex_size, location, count, topology, edges,
++    struct hybris_distance_code lowered = {0};
++    const struct hybris_distance_stage stage = {
++        VK_SHADER_STAGE_VERTEX_BIT, "main", input, input_size};
++    VkResult result = hybris_distance_pipeline(2u, 0, 1, &stage, NULL, &lowered, &reason);
++    if (result || !lowered.code || !lowered.cull_used || lowered.cull_count != 2) {
++        fprintf(stderr, "lowering result=%d code=%p used=%d location=%u count=%u reason=%s\n",
++            result, (void *)lowered.code, lowered.cull_used, lowered.cull_location,
++            lowered.cull_count, reason ? reason : "none");
++        return 1;
++    }
++    result = hybris_spirv_primitive_adapter_topology(lowered.code, lowered.size,
++        lowered.cull_location, lowered.cull_count, topology, edges,
+         edges ? &faces : NULL, NULL, &geometry, &geometry_size, &reason);
+     if (result) { fprintf(stderr, "adapter result=%d reason=%s\n", result, reason); return 1; }
+     uint32_t *invalid = NULL;
+     size_t invalid_size = 0;
+     const char *invalid_reason = NULL;
+-    if (hybris_spirv_primitive_adapter(vertex, vertex_size, 5, 2, edges,
++    if (hybris_spirv_primitive_adapter(lowered.code, lowered.size, 5, 2, edges,
+         NULL, NULL, &invalid, &invalid_size, &invalid_reason) != VK_ERROR_FEATURE_NOT_PRESENT || invalid || invalid_size)
+         return 1;
+-    if (hybris_spirv_primitive_adapter(vertex, vertex_size, location, 3, edges,
++    if (hybris_spirv_primitive_adapter(lowered.code, lowered.size, lowered.cull_location, 3, edges,
+         NULL, NULL, &invalid, &invalid_size, &invalid_reason) != VK_ERROR_FEATURE_NOT_PRESENT || invalid || invalid_size)
+         return 1;
+     FILE *file = fopen(argc > 2 ? argv[2] : "/tmp/arlinux-adapter.spv", "wb");
+     if (!file || fwrite(geometry, 1, geometry_size, file) != geometry_size) return 1;
+-    fclose(file); free(vertex); free(geometry);
++    fclose(file); hybris_scaled_free(NULL, lowered.code); free(geometry);
+     printf("PRIMITIVE_ADAPTER block=%d edges=%d bytes=%zu unsupported=ok\n", block, edges, geometry_size);
+     return 0;
+ }
+diff --git a/tests/baseline/probe_scaled.c b/tests/baseline/probe_scaled.c
+index e8265d7..768a54c 100644
+--- a/tests/baseline/probe_scaled.c
++++ b/tests/baseline/probe_scaled.c
+@@ -4,7 +4,6 @@
+ #include "scaled_fixture.h"
+ #include "scaled_divisor.h"
+ #include "shaders/primitive.inc"
+-#include "clip_distance.h"
+ #include "primitive_adapter.h"
+ enum { kScaledImage = 16 };
+ int scaled_vertex_probe(int validate, int route, const char *mode) {
+@@ -42,6 +41,10 @@ int scaled_vertex_probe(int validate, int route, const char *mode) {
+     if (!automatic || lines) { puts("PRIMITIVE combined clip requires automatic triangle mode"); return 1; }
+     shader = strstr(mode, "-block") ? &primitive_clip_block_shader : &primitive_clip_shader;
+   }
++  if (primitive && !automatic && !no_cull) {
++    puts("PRIMITIVE_UNSUPPORTED manual CullDistance extraction was removed; use an -automatic mode");
++    return 3;
++  }
+   const int multiple = shader->multiple, aggregate = shader->aggregate, specialized = shader->specialized;
+   const unsigned instance_mode = shader->instance_mode;
+   const int dynamic_stride = strstr(mode, "divisor-stride") != NULL;
+@@ -312,20 +315,7 @@ int scaled_vertex_probe(int validate, int route, const char *mode) {
+   VkShaderModuleCreateInfo fs_ci = {.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+     .codeSize = sizeof(kScaledFragSpv), .pCode = kScaledFragSpv};
+   VkShaderModule vs, fs, gs = VK_NULL_HANDLE;
+-  uint32_t *primitive_code = NULL;
+   uint32_t primitive_location = 0, primitive_distances = 0;
+-  if (primitive && !automatic && !no_cull) {
+-    size_t size = 0;
+-    unsigned rewritten = 0;
+-    CHECK(hybris_spirv_cull_plan(shader->code, shader->size, fs_ci.pCode, fs_ci.codeSize,
+-      &primitive_location, &primitive_distances));
+-    if (!primitive_distances) { puts("PRIMITIVE expected active CullDistance"); return 1; }
+-    CHECK(hybris_spirv_cull_vertex(shader->code, shader->size, primitive_location, &callbacks,
+-      &primitive_code, &size, &rewritten));
+-    if (!primitive_code || !rewritten) { puts("PRIMITIVE CullDistance extraction failed"); return 1; }
+-    vs_ci.pCode = primitive_code;
+-    vs_ci.codeSize = size;
+-  }
+   CHECK(p_vkCreateShaderModule(device, &vs_ci, &callbacks, &vs));
+   if (multiple) fs = vs;
+   else CHECK(p_vkCreateShaderModule(device, &fs_ci, &callbacks, &fs));
+@@ -340,7 +330,6 @@ int scaled_vertex_probe(int validate, int route, const char *mode) {
+     CHECK(p_vkCreateShaderModule(device, &gs_ci, &callbacks, &gs));
+     hybris_scaled_free(&callbacks, geometry);
+   }
+-  hybris_scaled_free(&callbacks, primitive_code);
+   VkPushConstantRange push = {VK_SHADER_STAGE_VERTEX_BIT, 0, instance_mode ? 80 : aggregate ? 64 : 16};
+   if (primitive) push.size = 20;
+   VkPipelineLayoutCreateInfo pl_ci = {.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,

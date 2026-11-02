@@ -922,9 +922,28 @@ jobs:
         run: test "$(git rev-parse 'HEAD^{tree}')" = "$XBOX_SOURCE_TREE"
       - name: Install Python test dependencies
         timeout-minutes: 7
-        run: bash tools/ci/install-ubuntu-packages.sh python3-yaml gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user libvulkan-dev mesa-vulkan-drivers
+        run: bash tools/ci/install-ubuntu-packages.sh python3-yaml gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user libvulkan-dev mesa-vulkan-drivers spirv-tools
       - name: Resolve the pinned Android NDK
         run: bash tools/ci/resolve-ndk.sh
+
+      - name: Prepare pinned libhybris source tests
+        run: |
+          set -euo pipefail
+          . tools/hybris/source.env
+          test_root="$RUNNER_TEMP/libhybris-source-tests"
+          fetch() {
+            git init -q "$3"
+            git -C "$3" fetch --depth=1 "$1" "$2"
+            git -C "$3" checkout -q --detach FETCH_HEAD
+            test "$(git -C "$3" rev-parse HEAD)" = "$2"
+          }
+          fetch https://github.com/taowen/libhybris.git "$HYBRIS_REVISION" "$test_root/libhybris"
+          fetch https://github.com/KhronosGroup/Vulkan-Headers.git "$VULKAN_HEADERS_REVISION" "$test_root/vulkan-headers"
+          test -f "$test_root/vulkan-headers/include/vulkan/vulkan.h"
+          for variable in HYBRIS_VENDOR_SOURCE HYBRIS_CLIP_SOURCE HYBRIS_PUSH_SOURCE HYBRIS_PLACED_SOURCE HYBRIS_TLS_SOURCE; do
+            printf '%s=%s\n' "$variable" "$test_root/libhybris" >> "$GITHUB_ENV"
+          done
+          printf 'VULKAN_INCLUDE=%s\n' "$test_root/vulkan-headers/include" >> "$GITHUB_ENV"
 
       - name: Check Quest tracking IPC
         run: |

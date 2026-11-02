@@ -1,4 +1,5 @@
 diff --git a/hybris/common/Makefile.am b/hybris/common/Makefile.am
+index e32efa9..e210f5a 100644
 --- a/hybris/common/Makefile.am
 +++ b/hybris/common/Makefile.am
 @@ -27,6 +27,8 @@ endif
@@ -11,6 +12,7 @@ diff --git a/hybris/common/Makefile.am b/hybris/common/Makefile.am
  	vendor_compat.h \
  	mali_quirks.c \
 diff --git a/hybris/common/hooks.c b/hybris/common/hooks.c
+index 09d6c51..b1ffaba 100644
 --- a/hybris/common/hooks.c
 +++ b/hybris/common/hooks.c
 @@ -88,6 +88,7 @@ extern int my_property_list(void (*propfn)(const char *key, const char *value, v
@@ -66,6 +68,7 @@ diff --git a/hybris/common/hooks.c b/hybris/common/hooks.c
      HOOK_DIRECT_NO_DEBUG(wmemcmp),
 diff --git a/hybris/common/mali_mapping.c b/hybris/common/mali_mapping.c
 new file mode 100644
+index 0000000..4e1f942
 --- /dev/null
 +++ b/hybris/common/mali_mapping.c
 @@ -0,0 +1,91 @@
@@ -162,6 +165,7 @@ new file mode 100644
 +}
 diff --git a/hybris/common/mali_mapping.h b/hybris/common/mali_mapping.h
 new file mode 100644
+index 0000000..2d4f1cc
 --- /dev/null
 +++ b/hybris/common/mali_mapping.h
 @@ -0,0 +1,14 @@
@@ -180,6 +184,7 @@ new file mode 100644
 +int hybris_mali_munmap(void *, size_t);
 +#endif
 diff --git a/hybris/include/hybris/common/hooks.h b/hybris/include/hybris/common/hooks.h
+index 8ba212f..f238c28 100644
 --- a/hybris/include/hybris/common/hooks.h
 +++ b/hybris/include/hybris/common/hooks.h
 @@ -31,6 +31,12 @@ typedef void* (*hybris_hook_cb)(const char *symbol_name, const char *requester);

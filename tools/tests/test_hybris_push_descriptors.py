@@ -21,6 +21,36 @@ def vulkan_include():
 
 
 class HybrisPushDescriptorTest(unittest.TestCase):
+    def test_null_descriptor_routes_reach_bc_journal(self):
+        source_value = os.environ.get("HYBRIS_PUSH_SOURCE")
+        if not source_value:
+            self.skipTest("set HYBRIS_PUSH_SOURCE to the clean pinned libhybris checkout")
+        with tempfile.TemporaryDirectory(prefix="droiddeck-hybris-route-") as directory:
+            checkout = Path(directory) / "libhybris"
+            subprocess.run(["git", "clone", "-q", "--no-hardlinks", source_value, str(checkout)], check=True)
+            for patch in sorted((ROOT / "tools/hybris/patches").glob("*.patch")):
+                subprocess.run(["git", "-C", str(checkout), "apply", "--check", str(patch)], check=True)
+                subprocess.run(["git", "-C", str(checkout), "apply", str(patch)], check=True)
+            device = (checkout / "hybris/vulkan/layer/device.c").read_text()
+            nulls = (checkout / "hybris/vulkan/compat/null_descriptors.c").read_text()
+            attach = device.index("hybris_bc_attach_device")
+            null_attach = device.index("hybris_null_attach", attach)
+            self.assertLess(attach, null_attach)
+            base = device[device.index("static PFN_vkVoidFunction resolve_base"):
+                          device.index("static PFN_vkVoidFunction resolve_legacy")]
+            self.assertIn("hybris_bc_proc(name)", base)
+            variants = ("CmdPushDescriptorSet", "CmdPushDescriptorSet2",
+                        "CmdPushDescriptorSetWithTemplate", "CmdPushDescriptorSetWithTemplate2")
+            for suffix in ("", "KHR"):
+                for variant in variants:
+                    name = f"vk{variant}{suffix}"
+                    with self.subTest(name=name):
+                        self.assertIn(f'!strcmp(name,"{name}")', nulls)
+                        route = f"route_{variant}{suffix}"
+                        start = nulls.index(f"static void VKAPI_CALL {route}")
+                        end = nulls.index("\n}", start)
+                        self.assertIn(f'hybris_layer_handle_inner_proc(cb,"{name}")', nulls[start:end])
+
     def test_patched_production_push_descriptor_journal(self):
         source_value = os.environ.get("HYBRIS_PUSH_SOURCE")
         if not source_value:

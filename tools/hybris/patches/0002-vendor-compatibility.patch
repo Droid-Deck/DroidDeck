@@ -1,4 +1,5 @@
 diff --git a/hybris/common/Makefile.am b/hybris/common/Makefile.am
+index 7fb8f5d..e32efa9 100644
 --- a/hybris/common/Makefile.am
 +++ b/hybris/common/Makefile.am
 @@ -27,6 +27,8 @@ endif
@@ -12,6 +13,7 @@ diff --git a/hybris/common/Makefile.am b/hybris/common/Makefile.am
  	bionic_stdio.c \
 diff --git a/hybris/common/vendor_compat.c b/hybris/common/vendor_compat.c
 new file mode 100644
+index 0000000..d259d0f
 --- /dev/null
 +++ b/hybris/common/vendor_compat.c
 @@ -0,0 +1,56 @@
@@ -73,6 +75,7 @@ new file mode 100644
 +}
 diff --git a/hybris/common/vendor_compat.h b/hybris/common/vendor_compat.h
 new file mode 100644
+index 0000000..daa2f17
 --- /dev/null
 +++ b/hybris/common/vendor_compat.h
 @@ -0,0 +1,6 @@
@@ -83,9 +86,10 @@ new file mode 100644
 + * Vulkan HAL, so its constructors and callbacks observe the same snapshot. */
 +int hybris_vendor_compat_prepare_vulkan_hal(const char *path);
 diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
+index 1b738fe..ea645fe 100644
 --- a/hybris/vulkan/Makefile.am
 +++ b/hybris/vulkan/Makefile.am
-@@ -16,6 +16,7 @@ libVkLayer_hybris_compat_la_SOURCES = layer/entry.c layer/device.c layer/physica
+@@ -23,6 +23,7 @@ libVkLayer_hybris_compat_la_SOURCES = layer/entry.c layer/device.c layer/physica
      compat/bc_image.c compat/bc_image.h compat/bc_command_state.c compat/bc_command_state.h compat/bc_transfer.c compat/bc_transfer.h \
      compat/bc_context.c compat/bc_context.h compat/bc_commands.c compat/bc_resources.c compat/bc_record.c compat/bc_barriers.c compat/bc_image_copy.c compat/bc_policy.c compat/bc_policy.h \
      compat/application_policy.c compat/application_policy.h \
@@ -94,6 +98,7 @@ diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
      compat/readback_record.c compat/readback_submit.c compat/readback.h \
      compat/vertex_stores.c compat/vertex_stores.h compat/spirv_discard.c \
 diff --git a/hybris/vulkan/compat/bc_policy.c b/hybris/vulkan/compat/bc_policy.c
+index b311286..925a174 100644
 --- a/hybris/vulkan/compat/bc_policy.c
 +++ b/hybris/vulkan/compat/bc_policy.c
 @@ -4,6 +4,8 @@
@@ -105,7 +110,7 @@ diff --git a/hybris/vulkan/compat/bc_policy.c b/hybris/vulkan/compat/bc_policy.c
  #include <stddef.h>
  #include <stdlib.h>
  #include <string.h>
-@@ -192,6 +194,7 @@ int hybris_bc_format_properties(VkPhysicalDevice physical, VkFormat format, VkFo
+@@ -208,6 +210,7 @@ int hybris_bc_format_properties(VkPhysicalDevice physical, VkFormat format, VkFo
       * use the driver's existing conversion/filtering path without a new
       * command wrapper. Destination blits remain unsupported: they would need
       * to update the compressed backing as well as the decoded image. */
@@ -115,6 +120,7 @@ diff --git a/hybris/vulkan/compat/bc_policy.c b/hybris/vulkan/compat/bc_policy.c
  /* The DXVK profile implements Vulkan 1.3 plus maintenance6. Do not expose 1.4 core
 diff --git a/hybris/vulkan/compat/vendor_compat.c b/hybris/vulkan/compat/vendor_compat.c
 new file mode 100644
+index 0000000..216d90d
 --- /dev/null
 +++ b/hybris/vulkan/compat/vendor_compat.c
 @@ -0,0 +1,565 @@
@@ -685,6 +691,7 @@ new file mode 100644
 +}
 diff --git a/hybris/vulkan/compat/vendor_compat.h b/hybris/vulkan/compat/vendor_compat.h
 new file mode 100644
+index 0000000..b3a8371
 --- /dev/null
 +++ b/hybris/vulkan/compat/vendor_compat.h
 @@ -0,0 +1,36 @@
@@ -725,6 +732,7 @@ new file mode 100644
 +    PFN_vkGetInstanceProcAddr resolver, const char *name);
 +PFN_vkVoidFunction hybris_vendor_device_alias_proc(VkDevice device, const char *name);
 diff --git a/hybris/vulkan/icd/icd.c b/hybris/vulkan/icd/icd.c
+index b45d0e5..7dac792 100644
 --- a/hybris/vulkan/icd/icd.c
 +++ b/hybris/vulkan/icd/icd.c
 @@ -9,6 +9,7 @@
@@ -747,29 +755,30 @@ diff --git a/hybris/vulkan/icd/icd.c b/hybris/vulkan/icd/icd.c
           * default namespace cannot open vendor HALs. Use the exported SP-HAL
           * namespace just as Android's Vulkan loader does. Older/no-config
 diff --git a/hybris/vulkan/layer/device.c b/hybris/vulkan/layer/device.c
+index 1496845..2995095 100644
 --- a/hybris/vulkan/layer/device.c
 +++ b/hybris/vulkan/layer/device.c
-@@ -14,6 +14,7 @@
+@@ -18,6 +18,7 @@
  #include "../compat/memory_visibility.h"
- #include "../compat/polygon_layouts.h"
  #include "../compat/polygon_pipeline.h"
+ #include "../compat/null_descriptors.h"
 +#include "../compat/vendor_compat.h"
  #include <vulkan/vk_layer.h>
  #include <pthread.h>
  #include <stdio.h>
-@@ -63,8 +64,9 @@ static PFN_vkVoidFunction resolve_inner(const struct hybris_layer_device *device
+@@ -67,8 +68,9 @@ static PFN_vkVoidFunction resolve_base(const struct hybris_layer_device *device,
  {
      if (!hybris_shader_device_proc_allowed(device->handle, name)) return NULL;
      PFN_vkVoidFunction next = device->resolver(device->handle, name);
 -    if (!next) return NULL;
--    PFN_vkVoidFunction compat = hybris_bc_proc(name);
+-    PFN_vkVoidFunction compat=device->multi_draw?hybris_multidraw_proc(name):NULL;
 +    if (!next) return hybris_vendor_device_alias_proc(device->handle, name);
 +    PFN_vkVoidFunction compat = hybris_vendor_device_proc(name);
-+    if (!compat) compat = hybris_bc_proc(name);
++    if (!compat && device->multi_draw) compat = hybris_multidraw_proc(name);
+     if(!compat)compat=hybris_bc_proc(name);
      if (!compat) compat = hybris_shader_cleanup_proc(name);
      if (!compat) compat = hybris_shader_proc(name);
-     if (!compat) compat = hybris_vertex_stores_proc(name);
-@@ -106,19 +108,31 @@ VkResult VKAPI_CALL hybris_layer_create_device(VkPhysicalDevice physical,
+@@ -140,21 +142,32 @@ VkResult VKAPI_CALL hybris_layer_create_device(VkPhysicalDevice physical,
      state->device.generation = ++next_generation;
      pthread_mutex_unlock(&guard);
      link->u.pLayerInfo = link->u.pLayerInfo->pNext;
@@ -797,42 +806,51 @@ diff --git a/hybris/vulkan/layer/device.c b/hybris/vulkan/layer/device.c
 +    if (result == VK_SUCCESS)
 +        result = hybris_vendor_attach_device(*out, physical, resolver, &vendor.info, allocator);
 +    hybris_vendor_release_device_create(&vendor, allocator);
+     if(result==VK_SUCCESS)result=hybris_null_attach(&state->device,resolve_base,info);
+     if(result==VK_SUCCESS)result=hybris_dynamic_attach(&state->device,resolve_legacy,info);
      if (result != VK_SUCCESS) {
-         hybris_shader_device_destroy(*out);
+         hybris_null_release(*out);
 +        hybris_vendor_release_device(*out);
-+        hybris_bc_device_remove(*out);
+         hybris_bc_device_remove(*out);
+         hybris_shader_device_destroy(*out);
          ((PFN_vkDestroyDevice)resolver(*out, "vkDestroyDevice"))(*out, allocator);
-         *out = VK_NULL_HANDLE;
-         hybris_scaled_free(allocator, state);
-@@ -160,6 +174,7 @@ void VKAPI_CALL hybris_layer_destroy_device(VkDevice handle, const VkAllocationC
-     /* Cleanup uses the live registry; remove the entry only after its children.
+@@ -199,6 +212,7 @@ void VKAPI_CALL hybris_layer_destroy_device(VkDevice handle, const VkAllocationC
       * Device destruction is externally synchronized by Vulkan. */
      hybris_memory_visibility_release_device(handle);
+     hybris_null_release(handle);
 +    hybris_vendor_release_device(handle);
      hybris_layer_commands_release_device(handle);
-     hybris_polygon_pipelines_release_device(handle);
-     hybris_polygon_layouts_release_device(handle);
-@@ -190,6 +205,7 @@ PFN_vkVoidFunction hybris_layer_device_dispatch(const char *name, int track_comm
+     struct hybris_layer_device dynamic_device;
+     if(hybris_layer_lookup_device(handle,&dynamic_device))hybris_dynamic_release(dynamic_device.dynamic_rendering);
+@@ -232,6 +246,7 @@ PFN_vkVoidFunction hybris_layer_device_dispatch(const char *name, int track_comm
          if (!compat) compat = hybris_layer_commands_proc(name);
          if (!compat) compat = hybris_memory_visibility_proc(name);
      }
 +    if (!compat) compat = hybris_vendor_device_proc(name);
-     if (!compat) compat = hybris_bc_proc(name);
-     if (!compat) compat = hybris_shader_cleanup_proc(name);
-     if (!compat) compat = hybris_shader_proc(name);
-@@ -202,7 +218,7 @@ PFN_vkVoidFunction VKAPI_CALL hybris_layer_get_device_proc(VkDevice handle, cons
+     if (!compat) compat = hybris_maintenance5_dispatch(name);
+     if (!compat) compat = hybris_dynamic_dispatch(name);
+     if (!compat) compat = hybris_null_dispatch(name);
+@@ -247,12 +262,13 @@ PFN_vkVoidFunction VKAPI_CALL hybris_layer_get_device_proc(VkDevice handle, cons
      if (!name || !hybris_layer_lookup_device(handle, &device) ||
          !hybris_shader_device_proc_allowed(handle, name)) return NULL;
      PFN_vkVoidFunction next = device.resolver(handle, name);
--    if (!next) return NULL;
-+    if (!next) return hybris_vendor_device_alias_proc(handle, name);
++    PFN_vkVoidFunction vendor_alias = hybris_vendor_device_alias_proc(handle, name);
+     int static_vertices = hybris_layer_vertex_buffers2_proc(name) && device.track_commands &&
+                           device.recording->CmdBindVertexBuffers;
+-    if (!next && !static_vertices && !hybris_dynamic_proc(&device,name) &&
++    if (!next && !vendor_alias && !static_vertices && !hybris_dynamic_proc(&device,name) &&
+         !(device.maintenance5 && hybris_maintenance5_added_proc(name))) return NULL;
      if (!strcmp(name, "vkGetDeviceProcAddr")) return (PFN_vkVoidFunction)hybris_layer_get_device_proc;
      if (!strcmp(name, "vkDestroyDevice")) return (PFN_vkVoidFunction)hybris_layer_destroy_device;
      PFN_vkVoidFunction compat = hybris_layer_device_dispatch(name, device.track_commands);
+-    return compat ? compat : next;
++    return compat ? compat : (vendor_alias ? vendor_alias : next);
+ }
 diff --git a/hybris/vulkan/layer/entry.c b/hybris/vulkan/layer/entry.c
+index d720279..81604be 100644
 --- a/hybris/vulkan/layer/entry.c
 +++ b/hybris/vulkan/layer/entry.c
-@@ -3,6 +3,7 @@
+@@ -5,6 +5,7 @@
  #include "layer.h"
  #include "../compat/application_policy.h"
  #include "../compat/scaled_vertex.h"
@@ -840,22 +858,23 @@ diff --git a/hybris/vulkan/layer/entry.c b/hybris/vulkan/layer/entry.c
  #include <vulkan/vk_layer.h>
  #include <pthread.h>
  #include <stdio.h>
-@@ -153,23 +154,28 @@ static PFN_vkVoidFunction VKAPI_CALL get_instance_proc(VkInstance instance, cons
+@@ -155,7 +156,9 @@ static PFN_vkVoidFunction VKAPI_CALL get_instance_proc(VkInstance instance, cons
      struct instance_state state;
      if (!instance || !instance_snapshot(instance, &state)) return NULL;
      PFN_vkVoidFunction next = state.resolver(instance, name);
--    if (!next) return NULL;
+-    if (!next && !hybris_layer_vertex_buffers2_proc(name) && !hybris_maintenance5_added_proc(name) && strcmp(name,"vkCmdBeginRendering") && strcmp(name,"vkCmdBeginRenderingKHR") &&
 +    PFN_vkVoidFunction vendor_alias = hybris_vendor_instance_alias_proc(
 +        state.handle, state.resolver, name);
-+    if (!next && !vendor_alias) return NULL;
++    if (!next && !vendor_alias && !hybris_layer_vertex_buffers2_proc(name) && !hybris_maintenance5_added_proc(name) && strcmp(name,"vkCmdBeginRendering") && strcmp(name,"vkCmdBeginRenderingKHR") &&
+         strcmp(name,"vkCmdEndRendering") && strcmp(name,"vkCmdEndRenderingKHR")) return NULL;
      if (!strcmp(name, "vkDestroyInstance")) return (PFN_vkVoidFunction)destroy_instance;
      if (!strcmp(name, "vkDestroyDevice")) return (PFN_vkVoidFunction)hybris_layer_destroy_device;
-     /* GIPA is instance-scoped, so a device's policy cannot select the address.
+@@ -163,16 +166,19 @@ static PFN_vkVoidFunction VKAPI_CALL get_instance_proc(VkInstance instance, cons
       * Every command wrapper checks the actual device again before changing it. */
      PFN_vkVoidFunction intercepted = hybris_layer_physical_proc(name);
-     if (!intercepted) intercepted = hybris_layer_device_dispatch(name, state.policy != 0);
+     if (!intercepted) intercepted = hybris_layer_device_dispatch(name, 1);
 -    return intercepted ? intercepted : next;
-+    return intercepted ? intercepted : (next ? next : vendor_alias);
++    return intercepted ? intercepted : (vendor_alias ? vendor_alias : next);
  }
  static PFN_vkVoidFunction VKAPI_CALL get_physical_proc(VkInstance instance, const char *name)
  {
@@ -869,28 +888,29 @@ diff --git a/hybris/vulkan/layer/entry.c b/hybris/vulkan/layer/entry.c
 +    if (!next && !vendor_alias) return NULL;
      PFN_vkVoidFunction compat = hybris_layer_physical_proc(name);
 -    return compat ? compat : next;
-+    return compat ? compat : (next ? next : vendor_alias);
++    return compat ? compat : (vendor_alias ? vendor_alias : next);
  }
  
  __attribute__((visibility("default"))) VkResult VKAPI_CALL
 diff --git a/hybris/vulkan/layer/physical.c b/hybris/vulkan/layer/physical.c
+index d4f5dc2..80c30e6 100644
 --- a/hybris/vulkan/layer/physical.c
 +++ b/hybris/vulkan/layer/physical.c
-@@ -6,6 +6,7 @@
- #include "../compat/shader_policy.h"
+@@ -10,6 +10,7 @@
  #include "../compat/bc_policy.h"
  #include "../compat/clip_distance.h"
+ #include "../compat/robustness2.h"
 +#include "../compat/vendor_compat.h"
  #include <stdlib.h>
  #include <string.h>
  
-@@ -89,7 +90,8 @@ static VkResult VKAPI_CALL enumerate_device_extensions(VkPhysicalDevice physical
+@@ -124,7 +125,8 @@ static VkResult VKAPI_CALL enumerate_device_extensions(VkPhysicalDevice physical
  
  PFN_vkVoidFunction hybris_layer_physical_proc(const char *name)
  {
--    PFN_vkVoidFunction function = hybris_clip_policy_proc(name);
+-    PFN_vkVoidFunction function = hybris_robustness2_physical_proc(name);
 +    PFN_vkVoidFunction function = hybris_vendor_physical_proc(name);
-+    if (!function) function = hybris_clip_policy_proc(name);
++    if (!function) function = hybris_robustness2_physical_proc(name);
+     if(!function)function = hybris_clip_policy_proc(name);
      if (!function) function = hybris_shader_policy_proc(name);
      if (!function) function = hybris_bc_policy_proc(name);
-     if (function) return function;

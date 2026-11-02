@@ -23,7 +23,6 @@ ROOT = Path(__file__).resolve().parents[2]
 PATCH = ROOT / "tools/hybris/patches/0002-vendor-compatibility.patch"
 HELPER = Path(__file__).with_name("hybris_vendor_compat_test.c")
 FEATURE_HELPER = Path(__file__).with_name("hybris_vendor_device_features_test.c")
-FEATURE_BASE = Path(__file__).with_name("hybris_vendor_device_features_base.c")
 
 def added_file(patch, name):
     lines = patch.read_text().splitlines()
@@ -62,6 +61,24 @@ class HybrisVendorCompatibilityTest(unittest.TestCase):
         reject = physical.index('if (!strcmp(name, "vkGetCalibratedTimestampsKHR")) return NULL;')
         resolve = physical.index("state.physical_resolver")
         self.assertLess(reject, resolve)
+        source_value = os.environ.get("HYBRIS_VENDOR_SOURCE")
+        if source_value:
+            with tempfile.TemporaryDirectory(prefix="droiddeck-entry-routing-") as directory:
+                checkout = Path(directory) / "libhybris"
+                subprocess.run(["git", "clone", "-q", "--no-hardlinks", source_value, str(checkout)], check=True)
+                for patch in [ROOT / "tools/hybris/powervr-hal-version.patch",
+                              *sorted((ROOT / "tools/hybris/patches").glob("*.patch"))]:
+                    subprocess.run(["git", "-C", str(checkout), "apply", "--check", str(patch)], check=True)
+                    subprocess.run(["git", "-C", str(checkout), "apply", str(patch)], check=True)
+                final = (checkout / "hybris/vulkan/layer/entry.c").read_text()
+                instance = final[final.index("static PFN_vkVoidFunction VKAPI_CALL get_instance_proc"):
+                                 final.index("static PFN_vkVoidFunction VKAPI_CALL get_physical_proc")]
+                physical = final[final.index("static PFN_vkVoidFunction VKAPI_CALL get_physical_proc"):]
+                self.assertIn("hybris_vendor_instance_alias_proc", instance)
+                self.assertNotIn("hybris_vendor_physical_alias_proc", instance)
+                reject = physical.index('if (!strcmp(name, "vkGetCalibratedTimestampsKHR")) return NULL;')
+                resolve = physical.index("state.physical_resolver")
+                self.assertLess(reject, resolve)
 
     def test_command_tracking_uses_effective_device_policy(self):
         source_value = os.environ.get("HYBRIS_VENDOR_SOURCE")
@@ -77,6 +94,46 @@ class HybrisVendorCompatibilityTest(unittest.TestCase):
                 subprocess.run(["git", "-C", str(checkout), "apply", "--check", str(patch)], check=True)
                 subprocess.run(["git", "-C", str(checkout), "apply", str(patch)], check=True)
             device = (checkout / "hybris/vulkan/layer/device.c").read_text()
+            if "static int polygon_tracking(" not in device:
+                self.assertIn(".track_commands = 1,", device)
+                start = device.index("\nPFN_vkVoidFunction hybris_layer_device_dispatch(") + 1
+                end = device.index("\nPFN_vkVoidFunction VKAPI_CALL hybris_layer_get_device_proc", start)
+                dispatch = device[start:end]
+                program_source = Path(directory) / "tracking.c"
+                program_source.write_text(r'''
+#define VK_NO_PROTOTYPES
+#include <assert.h>
+#include <stdint.h>
+#include <string.h>
+#include <vulkan/vulkan.h>
+static PFN_vkVoidFunction result(uintptr_t value) { return (PFN_vkVoidFunction)value; }
+static PFN_vkVoidFunction hybris_layer_commands_proc(const char *n) { return !strcmp(n, "record") ? result(1) : 0; }
+static PFN_vkVoidFunction hybris_memory_visibility_proc(const char *n) { (void)n; return 0; }
+static PFN_vkVoidFunction hybris_vendor_device_proc(const char *n) { (void)n; return 0; }
+static PFN_vkVoidFunction hybris_maintenance5_dispatch(const char *n) { return !strcmp(n, "maintenance5") ? result(2) : 0; }
+static PFN_vkVoidFunction hybris_dynamic_dispatch(const char *n) { return !strcmp(n, "dynamic") ? result(3) : 0; }
+static PFN_vkVoidFunction hybris_null_dispatch(const char *n) { (void)n; return 0; }
+static PFN_vkVoidFunction hybris_bc_proc(const char *n) { (void)n; return 0; }
+static PFN_vkVoidFunction hybris_shader_cleanup_proc(const char *n) { (void)n; return 0; }
+static PFN_vkVoidFunction hybris_shader_proc(const char *n) { (void)n; return 0; }
+static PFN_vkVoidFunction hybris_vertex_stores_proc(const char *n) { (void)n; return 0; }
+''' + dispatch + r'''
+int main(void) {
+    assert(!hybris_layer_device_dispatch("record", 0));
+    assert(hybris_layer_device_dispatch("record", 1) == result(1));
+    assert(hybris_layer_device_dispatch("maintenance5", 0) == result(2));
+    assert(hybris_layer_device_dispatch("dynamic", 0) == result(3));
+    return 0;
+}
+''')
+                program = Path(directory) / "tracking-test"
+                built = subprocess.run([compiler, "-std=gnu11", "-Wall", "-Wextra", "-Werror",
+                                        "-I", str(vulkan_include()), str(program_source), "-o", str(program)],
+                                       capture_output=True, text=True)
+                self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
+                ran = subprocess.run([str(program)], capture_output=True, text=True, timeout=30)
+                self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
+                return
             polygon = device[device.index("static int polygon_tracking("):device.index("\nstruct device_state {")]
             start = device.index("    if (!state) return VK_ERROR_OUT_OF_HOST_MEMORY;")
             start = device.index("\n", start) + 1
@@ -223,6 +280,9 @@ int main(void)
             self.assertIn("hybris environment preparation retried", retried.stdout)
 
     def test_device_feature_copy_preserves_input_and_fails_closed(self):
+        source_value = os.environ.get("HYBRIS_VENDOR_SOURCE")
+        if not source_value:
+            self.skipTest("set HYBRIS_VENDOR_SOURCE to the clean pinned libhybris checkout")
         compiler = shutil.which(os.environ.get("CC", "cc"))
         self.assertIsNotNone(compiler, "a C compiler is required")
         include = vulkan_include()
@@ -230,58 +290,17 @@ int main(void)
                         "Vulkan headers are required")
         with tempfile.TemporaryDirectory(prefix="droiddeck-hybris-features-") as directory:
             checkout = Path(directory) / "libhybris"
-            source_value = os.environ.get("HYBRIS_VENDOR_SOURCE")
-            if source_value:
-                source = Path(source_value)
-                self.assertTrue((source / "hybris/vulkan/layer/device_features.c").is_file(),
-                                "HYBRIS_VENDOR_SOURCE must be a pristine pinned libhybris checkout")
-                subprocess.run(["git", "clone", "-q", "--no-hardlinks", str(source), str(checkout)],
-                               check=True)
-                for patch in [ROOT / "tools/hybris/powervr-hal-version.patch",
-                              ROOT / "tools/hybris/patches/0001-dxvk-bc-profile.patch", PATCH]:
-                    applied = subprocess.run(["git", "-C", str(checkout), "apply", "--check", str(patch)],
-                                             capture_output=True, text=True)
-                    self.assertEqual(applied.returncode, 0, applied.stdout + applied.stderr)
-                    subprocess.run(["git", "-C", str(checkout), "apply", str(patch)], check=True)
-            else:
-                layer = checkout / "hybris/vulkan/layer"
-                compat = checkout / "hybris/vulkan/compat"
-                layer.mkdir(parents=True)
-                compat.mkdir()
-                shutil.copyfile(FEATURE_BASE, layer / "device_features.c")
-                (layer / "device_features.h").write_text(
-                    "#pragma once\n#include <vulkan/vulkan.h>\n"
-                    "struct hybris_device_features { VkDeviceCreateInfo info; VkPhysicalDeviceFeatures features; "
-                    "VkBaseOutStructure *copies; const void *suffix; };\n"
-                    "VkResult hybris_device_features_prepare(VkPhysicalDevice, const VkDeviceCreateInfo *, "
-                    "const VkAllocationCallbacks *, struct hybris_device_features *);\n"
-                    "void hybris_device_features_release(struct hybris_device_features *, "
-                    "const VkAllocationCallbacks *);\n")
-                (layer / "device_create_sizes.inc").write_text(
-                    "case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES: "
-                    "return sizeof(VkPhysicalDeviceTimelineSemaphoreFeatures);\n"
-                    "case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2: "
-                    "return sizeof(VkPhysicalDeviceFeatures2);\n")
-                for name, declaration in {
-                    "vertex_stores.h": "int hybris_vertex_stores_active(VkPhysicalDevice);",
-                    "clip_distance.h": "int hybris_clip_active(VkPhysicalDevice); int hybris_cull_active(VkPhysicalDevice);",
-                    "bc_policy.h": ("int hybris_bc_complete(VkPhysicalDevice); void hybris_bc_enable_transcode_features("
-                        "VkPhysicalDevice, VkPhysicalDeviceFeatures *);"),
-                    "shader_dispatch.h": "int hybris_shader_polygon_emulated(VkPhysicalDevice);",
-                    "scaled_vertex.h": ("void *hybris_scaled_alloc(const VkAllocationCallbacks *, size_t, "
-                        "VkSystemAllocationScope); void hybris_scaled_free(const VkAllocationCallbacks *, void *);"),
-                }.items():
-                    (compat / name).write_text("#pragma once\n#include <vulkan/vulkan.h>\n#include <stddef.h>\n" +
-                                               declaration + "\n")
-                patch_file = Path(directory) / "device-features.patch"
-                target = "hybris/vulkan/layer/device_features.c"
-                patch_file.write_text(file_diff(PATCH, target) if f"b/{target}" in PATCH.read_text() else "")
-                # Upstream's device_features.c now implements the BC feature itself; the patch may not touch it.
-                if patch_file.read_text():
-                    applied = subprocess.run(["git", "-C", str(checkout), "apply", "--check", str(patch_file)],
-                                             capture_output=True, text=True)
-                    self.assertEqual(applied.returncode, 0, applied.stdout + applied.stderr)
-                    subprocess.run(["git", "-C", str(checkout), "apply", str(patch_file)], check=True)
+            source = Path(source_value)
+            self.assertTrue((source / "hybris/vulkan/layer/device_features.c").is_file(),
+                            "HYBRIS_VENDOR_SOURCE must be a pristine pinned libhybris checkout")
+            subprocess.run(["git", "clone", "-q", "--no-hardlinks", str(source), str(checkout)],
+                           check=True)
+            for patch in [ROOT / "tools/hybris/powervr-hal-version.patch",
+                          ROOT / "tools/hybris/patches/0001-dxvk-bc-profile.patch", PATCH]:
+                applied = subprocess.run(["git", "-C", str(checkout), "apply", "--check", str(patch)],
+                                         capture_output=True, text=True)
+                self.assertEqual(applied.returncode, 0, applied.stdout + applied.stderr)
+                subprocess.run(["git", "-C", str(checkout), "apply", str(patch)], check=True)
             program = Path(directory) / "device-features-test"
             built = subprocess.run([
                 compiler, "-std=gnu11", "-Wall", "-Wextra", "-Werror",

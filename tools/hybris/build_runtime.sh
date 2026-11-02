@@ -16,6 +16,14 @@ fetch() {
 }
 fetch https://github.com/taowen/libhybris.git "$HYBRIS_REVISION" "$work/libhybris"
 fetch https://github.com/taowen/arlinux-rootfs.git "$PROTOCOL_REVISION" "$work/rootfs"
+fetch https://github.com/KhronosGroup/Vulkan-Headers.git "$VULKAN_HEADERS_REVISION" "$work/vulkan-headers"
+export VULKAN_INCLUDE="$work/vulkan-headers/include"
+for symbol in VK_KHR_ROBUSTNESS_2_EXTENSION_NAME VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES; do
+  if ! grep -q "$symbol" "$VULKAN_INCLUDE/vulkan/vulkan_core.h"; then
+    echo "Pinned Vulkan-Headers $VULKAN_HEADERS_REVISION lacks required declaration $symbol" >&2
+    exit 1
+  fi
+done
 HYBRIS_TLS_SOURCE="$work/libhybris" python3 -m unittest discover \
   -s "$root/tools/tests" -p test_hybris_tls_capacity.py
 # The feature-chain regression compiles patched production source. Supply the
@@ -30,19 +38,13 @@ python3 -m unittest discover \
   -s "$root/tools/tests" -p test_hybris_inline_shader.py
 HYBRIS_CLIP_SOURCE="$work/libhybris" python3 -m unittest discover \
   -s "$root/tools/tests" -p test_hybris_clip_shader.py
-export CONTAINER_ENGINE=podman
-builder_image="${BUILDER_IMAGE:-}"
-if [[ -z "$builder_image" ]]; then
-  builder_image="$("$work/libhybris/tools/ensure-builder.sh")"
-fi
-mkdir -p "$work/vulkan-headers"
-"$CONTAINER_ENGINE" run --rm --network none "$builder_image" \
-  tar -C /usr/include -cf - vulkan vk_video | tar -C "$work/vulkan-headers" -xf -
-HYBRIS_PUSH_SOURCE="$work/libhybris" VULKAN_INCLUDE="$work/vulkan-headers" python3 -m unittest discover \
+HYBRIS_CLIP_SOURCE="$work/libhybris" python3 -m unittest discover \
+  -s "$root/tools/tests" -p test_hybris_cull_policy.py
+HYBRIS_PUSH_SOURCE="$work/libhybris" python3 -m unittest discover \
   -s "$root/tools/tests" -p test_hybris_push_descriptors.py
-VULKAN_INCLUDE="$work/vulkan-headers" python3 -m unittest discover \
+python3 -m unittest discover \
   -s "$root/tools/tests" -p test_hybris_strip_names.py
-VULKAN_INCLUDE="$work/vulkan-headers" python3 -m unittest discover \
+python3 -m unittest discover \
   -s "$root/tools/tests" -p test_hybris_zink_profile.py
 git -C "$work/libhybris" apply --check "$root/tools/hybris/powervr-hal-version.patch"
 git -C "$work/libhybris" apply "$root/tools/hybris/powervr-hal-version.patch"
@@ -52,8 +54,15 @@ for patch in "$root"/tools/hybris/patches/*.patch; do
 done
 # Include new source files in the patch shipped with the runtime's licenses.
 git -C "$work/libhybris" add --intent-to-add .
+export CONTAINER_ENGINE=podman
+builder_image="${BUILDER_IMAGE:-}"
+if [[ -z "$builder_image" ]]; then
+  builder_image="$("$work/libhybris/tools/ensure-builder.sh")"
+fi
+export BUILDER_IMAGE="$builder_image"
 export ARLINUX_WSI_PROTOCOL_DIR="$work/libhybris/arlinux/graphics-protocols"
-"$work/libhybris/tools/build-aarch64.sh" --out "$work/build"
+VULKAN_HEADERS_DIR="$VULKAN_INCLUDE" VULKAN_HEADERS_COMMIT="$VULKAN_HEADERS_REVISION" \
+  "$work/libhybris/tools/build-aarch64.sh" --out "$work/build"
 
 ndk="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-}}}"
 if [[ -z "$ndk" ]]; then
@@ -69,6 +78,8 @@ cp "$work/build/bundle/probe-glibc" "$work/build/bundle/probe-manifest.json" "$o
 
 mkdir -p "$work/package/lib" "$work/package/licenses"
 python3 "$root/tools/hybris/component_record.py" --write-recipe "$work/package/build-recipe.json"
+printf '%s\n' "$VULKAN_HEADERS_REVISION" > "$work/package/vulkan-headers-commit"
+cp "$work/vulkan-headers/LICENSE.md" "$work/package/licenses/Vulkan-Headers-LICENSE.md"
 cp -a "$work/build/install/usr/lib/hybris/." "$work/package/lib/"
 find "$work/package/lib" -name '*.la' -delete
 rm -rf "$work/package/lib/include" "$work/package/lib/pkgconfig" "$work/package/lib/bin"

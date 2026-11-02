@@ -1,4 +1,5 @@
 diff --git a/hybris/vulkan/compat/bc_policy.c b/hybris/vulkan/compat/bc_policy.c
+index 72aca7c..b311286 100644
 --- a/hybris/vulkan/compat/bc_policy.c
 +++ b/hybris/vulkan/compat/bc_policy.c
 @@ -4,6 +4,7 @@
@@ -29,7 +30,7 @@ diff --git a/hybris/vulkan/compat/bc_policy.c b/hybris/vulkan/compat/bc_policy.c
  #define PHYSICAL_PROC(name) PFN_vk##name name = (PFN_vk##name)context.resolver(context.instance, "vk" #name)
  void hybris_bc_enable_transcode_features(VkPhysicalDevice physical, VkPhysicalDeviceFeatures *features)
  {
-@@ -96,7 +104,8 @@ unsigned hybris_bc_physical_mask(VkPhysicalDevice physical)
+@@ -130,7 +138,8 @@ unsigned hybris_bc_physical_mask(VkPhysicalDevice physical)
      VkPhysicalDeviceProperties properties;
      GetPhysicalDeviceProperties(physical, &properties);
      /* Core 1.4 includes descriptor-state commands that are not intercepted yet. */
@@ -39,7 +40,7 @@ diff --git a/hybris/vulkan/compat/bc_policy.c b/hybris/vulkan/compat/bc_policy.c
          properties.limits.maxStorageBufferRange < 256 ||
          properties.limits.minStorageBufferOffsetAlignment >= properties.limits.maxStorageBufferRange) return 0;
      uint32_t count = 0;
-@@ -185,6 +194,33 @@ int hybris_bc_format_properties(VkPhysicalDevice physical, VkFormat format, VkFo
+@@ -201,6 +210,33 @@ int hybris_bc_format_properties(VkPhysicalDevice physical, VkFormat format, VkFo
       * to update the compressed backing as well as the decoded image. */
      return 1;
  }
@@ -73,7 +74,7 @@ diff --git a/hybris/vulkan/compat/bc_policy.c b/hybris/vulkan/compat/bc_policy.c
  int hybris_bc_extension_allowed(const char *name)
  {
      static const char *const unsupported[] = {
-@@ -213,6 +249,9 @@ static unsigned unsupported_feature_count(VkStructureType type)
+@@ -229,6 +265,9 @@ static unsigned unsupported_feature_count(VkStructureType type)
      /* Per-stage descriptor binding and inline pipeline layouts cannot be
       * restored by the compute-state journal. maintenance6 alone needs neither. */
      case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PER_STAGE_DESCRIPTOR_SET_FEATURES_NV: return 2;
@@ -83,7 +84,7 @@ diff --git a/hybris/vulkan/compat/bc_policy.c b/hybris/vulkan/compat/bc_policy.c
  #ifdef VK_KHR_maintenance8
      case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_8_FEATURES_KHR: return 1;
  #endif
-@@ -437,6 +476,9 @@ PFN_vkVoidFunction hybris_bc_policy_proc(const char *name)
+@@ -450,6 +489,9 @@ PFN_vkVoidFunction hybris_bc_policy_proc(const char *name)
      static const struct { const char *name; PFN_vkVoidFunction function; } commands[] = {
  #define ENTRY(name, function) {"vk" #name, (PFN_vkVoidFunction)function}
          ENTRY(GetPhysicalDeviceQueueFamilyProperties, queue_properties),
@@ -94,9 +95,10 @@ diff --git a/hybris/vulkan/compat/bc_policy.c b/hybris/vulkan/compat/bc_policy.c
          ENTRY(GetPhysicalDeviceQueueFamilyProperties2KHR, queue_properties2_khr),
          ENTRY(GetPhysicalDeviceSparseImageFormatProperties, sparse_properties),
 diff --git a/hybris/vulkan/compat/shader_policy.c b/hybris/vulkan/compat/shader_policy.c
+index d05be7c..9206bea 100644
 --- a/hybris/vulkan/compat/shader_policy.c
 +++ b/hybris/vulkan/compat/shader_policy.c
-@@ -105,7 +105,8 @@ static void properties2(VkPhysicalDevice physical, VkPhysicalDeviceProperties2 *
+@@ -153,7 +153,8 @@ static void properties2(VkPhysicalDevice physical, VkPhysicalDeviceProperties2 *
  {
      struct hybris_layer_physical context;
      if (!hybris_layer_lookup_physical(physical, &context)) return;
@@ -104,5 +106,5 @@ diff --git a/hybris/vulkan/compat/shader_policy.c b/hybris/vulkan/compat/shader_
 +    PFN_vkGetPhysicalDeviceProperties2 query = (PFN_vkGetPhysicalDeviceProperties2)hybris_bc_policy_proc(name);
 +    if (!query) query = (PFN_vkGetPhysicalDeviceProperties2)context.resolver(context.instance, name);
      query(physical, out);
-     VkPhysicalDeviceVertexAttributeDivisorPropertiesEXT *legacy = NULL;
-     for (VkBaseOutStructure *node = out->pNext; node; node = node->pNext)
+     hybris_maintenance5_properties(physical,out);
+     filter_float_controls(physical,out,query);

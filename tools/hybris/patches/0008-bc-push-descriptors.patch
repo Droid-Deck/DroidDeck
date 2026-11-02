@@ -1,9 +1,10 @@
 diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
+index 008da95..0cbeee7 100644
 --- a/hybris/vulkan/Makefile.am
 +++ b/hybris/vulkan/Makefile.am
-@@ -14,7 +14,7 @@ lib_LTLIBRARIES = \
- libVkLayer_hybris_compat_la_SOURCES = layer/entry.c layer/device.c layer/physical.c layer/commands.c layer/layer.h \
-     layer/device_features.c layer/device_features.h layer/device_create_sizes.inc \
+@@ -21,7 +21,7 @@ libVkLayer_hybris_compat_la_SOURCES = layer/entry.c layer/device.c layer/physica
+     compat/multiviewport.c compat/multiviewport.h \
+     compat/robustness2.c compat/robustness2.h compat/null_descriptors.c compat/null_descriptors.h compat/null_map.h \
      compat/bc_decode.c compat/bc_decode.h compat/shaders/bc_decode.inc \
 -    compat/bc_image.c compat/bc_image.h compat/bc_command_state.c compat/bc_command_state.h compat/bc_transfer.c compat/bc_transfer.h \
 +    compat/bc_image.c compat/bc_image.h compat/bc_command_state.c compat/bc_command_state.h compat/bc_vulkan_compat.h compat/bc_transfer.c compat/bc_transfer.h \
@@ -11,6 +12,7 @@ diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
      compat/application_policy.c compat/application_policy.h \
      compat/vendor_compat.c compat/vendor_compat.h \
 diff --git a/hybris/vulkan/compat/bc_command_state.c b/hybris/vulkan/compat/bc_command_state.c
+index ddd17ac..efaaa87 100644
 --- a/hybris/vulkan/compat/bc_command_state.c
 +++ b/hybris/vulkan/compat/bc_command_state.c
 @@ -21,18 +21,245 @@ static size_t layout_bucket(VkPipelineLayout handle)
@@ -652,6 +654,7 @@ diff --git a/hybris/vulkan/compat/bc_command_state.c b/hybris/vulkan/compat/bc_c
      }
      /* Preserve the complete stage mask required by each layout's ranges.
 diff --git a/hybris/vulkan/compat/bc_command_state.h b/hybris/vulkan/compat/bc_command_state.h
+index 395ede8..f178909 100644
 --- a/hybris/vulkan/compat/bc_command_state.h
 +++ b/hybris/vulkan/compat/bc_command_state.h
 @@ -1,10 +1,11 @@
@@ -704,6 +707,7 @@ diff --git a/hybris/vulkan/compat/bc_command_state.h b/hybris/vulkan/compat/bc_c
   * return state->error from EndCommandBuffer if a void recording hook failed. */
  void hybris_bc_restore_compute(struct hybris_bc_command_state *state, VkCommandBuffer command);
 diff --git a/hybris/vulkan/compat/bc_commands.c b/hybris/vulkan/compat/bc_commands.c
+index c15bdb0..ddd697c 100644
 --- a/hybris/vulkan/compat/bc_commands.c
 +++ b/hybris/vulkan/compat/bc_commands.c
 @@ -177,6 +177,59 @@ static void VKAPI_CALL destroy_layout(VkDevice handle, VkPipelineLayout layout,
@@ -900,9 +904,10 @@ diff --git a/hybris/vulkan/compat/bc_commands.c b/hybris/vulkan/compat/bc_comman
      };
      for (size_t i = 0; i < sizeof(commands) / sizeof(commands[0]); ++i)
 diff --git a/hybris/vulkan/compat/bc_policy.c b/hybris/vulkan/compat/bc_policy.c
+index 925a174..7ab4cf0 100644
 --- a/hybris/vulkan/compat/bc_policy.c
 +++ b/hybris/vulkan/compat/bc_policy.c
-@@ -227,7 +227,7 @@ static void VKAPI_CALL properties2_khr(VkPhysicalDevice physical, VkPhysicalDevi
+@@ -243,7 +243,7 @@ static void VKAPI_CALL properties2_khr(VkPhysicalDevice physical, VkPhysicalDevi
  int hybris_bc_extension_allowed(const char *name)
  {
      static const char *const unsupported[] = {
@@ -913,6 +918,7 @@ diff --git a/hybris/vulkan/compat/bc_policy.c b/hybris/vulkan/compat/bc_policy.c
          "VK_NV_device_generated_commands", "VK_NV_device_generated_commands_compute",
 diff --git a/hybris/vulkan/compat/bc_vulkan_compat.h b/hybris/vulkan/compat/bc_vulkan_compat.h
 new file mode 100644
+index 0000000..c79e476
 --- /dev/null
 +++ b/hybris/vulkan/compat/bc_vulkan_compat.h
 @@ -0,0 +1,22 @@
@@ -939,6 +945,7 @@ new file mode 100644
 +
 +#endif
 diff --git a/tests/baseline/bc-images.md b/tests/baseline/bc-images.md
+index 50c5b9b..6f69b23 100644
 --- a/tests/baseline/bc-images.md
 +++ b/tests/baseline/bc-images.md
 @@ -44,11 +44,13 @@ When emulation is active, pipeline statistics and protected memory are disabled;

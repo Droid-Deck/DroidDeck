@@ -1,5 +1,6 @@
 diff --git a/LICENSE.placed-memory b/LICENSE.placed-memory
 new file mode 100644
+index 0000000..b037374
 --- /dev/null
 +++ b/LICENSE.placed-memory
 @@ -0,0 +1,21 @@
@@ -25,6 +26,7 @@ new file mode 100644
 +OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 +SOFTWARE.
 diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
+index ea645fe..91fbf43 100644
 --- a/hybris/vulkan/Makefile.am
 +++ b/hybris/vulkan/Makefile.am
 @@ -6,7 +6,8 @@ bclicense_DATA = $(srcdir)/../../LICENSE.GPL3 compat/shaders/MALIBRIDGE.md compa
@@ -37,7 +39,7 @@ diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
  
  # Explicit loader layer, independent of Android linker/HAL/WSI libraries.
  # Its manifest is colocated with the DSO; opt in using VK_LAYER_PATH.
-@@ -40,7 +41,12 @@ libVkLayer_hybris_compat_la_CFLAGS = -fvisibility=hidden
+@@ -45,7 +46,12 @@ libVkLayer_hybris_compat_la_CFLAGS = -fvisibility=hidden
  # loader unloading its last instance. All per-instance/device state is freed.
  libVkLayer_hybris_compat_la_LDFLAGS = -module -avoid-version -no-undefined -pthread -Wl,-z,nodelete
  layerdir = $(libdir)
@@ -51,17 +53,18 @@ diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
  
  libvulkan_la_SOURCES = \
  	vulkan.c \
-@@ -73,7 +79,7 @@ libvulkan_la_LDFLAGS = \
+@@ -78,7 +84,7 @@ libvulkan_la_LDFLAGS = \
  
  # Optional standard-loader backend; no default ICD JSON is installed.
  libhybris_vulkan_icd_la_SOURCES = icd/icd.c icd/instance.c icd/instance.h icd/device.c icd/device.h icd/wsi.c icd/wsi.h icd/swapchain.c icd/swapchain.h icd/vk_android_native_buffer.h icd/hwvulkan.h icd/physical_commands.inc
--EXTRA_DIST = compat/shaders/bc_tables.glsl compat/shaders/astc_tables.glsl compat/shaders/astc_enc.glsl compat/shaders/etc2_enc.glsl compat/shaders/eac_enc.glsl compat/shaders/MALIBRIDGE.md compat/shaders/LICENSE.bcdec icd/README.md compat/shaders/bc_decode.comp compat/shaders/generate-bc.py compat/shaders/polygon_indices.comp compat/shaders/generate-polygon.py layer/VkLayer_hybris_compat.json
-+EXTRA_DIST = placed/VkLayer_DROIDDECK_placed_memory.json compat/shaders/bc_tables.glsl compat/shaders/astc_tables.glsl compat/shaders/astc_enc.glsl compat/shaders/etc2_enc.glsl compat/shaders/eac_enc.glsl compat/shaders/MALIBRIDGE.md compat/shaders/LICENSE.bcdec icd/README.md compat/shaders/bc_decode.comp compat/shaders/generate-bc.py compat/shaders/polygon_indices.comp compat/shaders/generate-polygon.py layer/VkLayer_hybris_compat.json
+-EXTRA_DIST = compat/shaders/astc_repack.glsl compat/shaders/LICENSE.PanVK compat/shaders/bc_tables.glsl compat/shaders/astc_tables.glsl compat/shaders/astc_enc.glsl compat/shaders/etc2_enc.glsl compat/shaders/eac_enc.glsl compat/shaders/astc_hdr_enc.glsl compat/shaders/astcn_enc.glsl compat/shaders/MALIBRIDGE.md compat/shaders/LICENSE.bcdec icd/README.md compat/shaders/bc_decode.comp compat/shaders/generate-bc.py compat/shaders/polygon_indices.comp compat/shaders/generate-polygon.py layer/VkLayer_hybris_compat.json
++EXTRA_DIST = placed/VkLayer_DROIDDECK_placed_memory.json compat/shaders/astc_repack.glsl compat/shaders/LICENSE.PanVK compat/shaders/bc_tables.glsl compat/shaders/astc_tables.glsl compat/shaders/astc_enc.glsl compat/shaders/etc2_enc.glsl compat/shaders/eac_enc.glsl compat/shaders/astc_hdr_enc.glsl compat/shaders/astcn_enc.glsl compat/shaders/MALIBRIDGE.md compat/shaders/LICENSE.bcdec icd/README.md compat/shaders/bc_decode.comp compat/shaders/generate-bc.py compat/shaders/polygon_indices.comp compat/shaders/generate-polygon.py layer/VkLayer_hybris_compat.json
  libhybris_vulkan_icd_la_CFLAGS = $(libvulkan_la_CFLAGS) -fvisibility=hidden
  libhybris_vulkan_icd_la_CXXFLAGS = $(libvulkan_la_CXXFLAGS) -fvisibility=hidden
  libhybris_vulkan_icd_la_LDFLAGS = \
 diff --git a/hybris/vulkan/placed/VkLayer_DROIDDECK_placed_memory.json b/hybris/vulkan/placed/VkLayer_DROIDDECK_placed_memory.json
 new file mode 100644
+index 0000000..ea7e4c1
 --- /dev/null
 +++ b/hybris/vulkan/placed/VkLayer_DROIDDECK_placed_memory.json
 @@ -0,0 +1,14 @@
@@ -81,6 +84,7 @@ new file mode 100644
 +}
 diff --git a/hybris/vulkan/placed/chain_sizes.h b/hybris/vulkan/placed/chain_sizes.h
 new file mode 100644
+index 0000000..2185362
 --- /dev/null
 +++ b/hybris/vulkan/placed/chain_sizes.h
 @@ -0,0 +1,576 @@
@@ -662,6 +666,7 @@ new file mode 100644
 +case VK_STRUCTURE_TYPE_MEMORY_OPAQUE_CAPTURE_ADDRESS_ALLOCATE_INFO: return sizeof(VkMemoryOpaqueCaptureAddressAllocateInfo);
 diff --git a/hybris/vulkan/placed/placed_layer.c b/hybris/vulkan/placed/placed_layer.c
 new file mode 100644
+index 0000000..15bf8f5
 --- /dev/null
 +++ b/hybris/vulkan/placed/placed_layer.c
 @@ -0,0 +1,1787 @@
@@ -2454,6 +2459,7 @@ new file mode 100644
 +}
 diff --git a/hybris/vulkan/placed/vulkan_compat.h b/hybris/vulkan/placed/vulkan_compat.h
 new file mode 100644
+index 0000000..4d8fc8c
 --- /dev/null
 +++ b/hybris/vulkan/placed/vulkan_compat.h
 @@ -0,0 +1,39 @@

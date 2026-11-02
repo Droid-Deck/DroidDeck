@@ -1,8 +1,9 @@
 diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
+index 0cbeee7..7fe5b5b 100644
 --- a/hybris/vulkan/Makefile.am
 +++ b/hybris/vulkan/Makefile.am
-@@ -35,6 +35,7 @@ libVkLayer_hybris_compat_la_SOURCES = layer/entry.c layer/device.c layer/physica
-     compat/polygon_buffers.c compat/polygon_buffers.h \
+@@ -40,6 +40,7 @@ libVkLayer_hybris_compat_la_SOURCES = layer/entry.c layer/device.c layer/physica
+     compat/polygon_record.c compat/polygon_record.h compat/polygon_submit.c \
      compat/shader_policy.c compat/shader_policy.h \
      compat/shader_cleanup.c compat/shader_cleanup.h compat/spirv_builtins.c compat/spirv_builtins.h \
 +    compat/spirv_names.c compat/spirv_names.h \
@@ -10,6 +11,7 @@ diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
  libVkLayer_hybris_compat_la_CFLAGS = -fvisibility=hidden
  # Keep process-wide policy initialization and lifetime generations across the
 diff --git a/hybris/vulkan/compat/shader_cleanup.c b/hybris/vulkan/compat/shader_cleanup.c
+index 6b4fe4b..6671965 100644
 --- a/hybris/vulkan/compat/shader_cleanup.c
 +++ b/hybris/vulkan/compat/shader_cleanup.c
 @@ -3,6 +3,7 @@
@@ -100,6 +102,7 @@ diff --git a/hybris/vulkan/compat/shader_cleanup.c b/hybris/vulkan/compat/shader
      }
      result = create(device, &changed, allocator, module);
 diff --git a/hybris/vulkan/compat/shader_cleanup.h b/hybris/vulkan/compat/shader_cleanup.h
+index 88f15cf..eb6a920 100644
 --- a/hybris/vulkan/compat/shader_cleanup.h
 +++ b/hybris/vulkan/compat/shader_cleanup.h
 @@ -3,6 +3,10 @@
@@ -114,9 +117,10 @@ diff --git a/hybris/vulkan/compat/shader_cleanup.h b/hybris/vulkan/compat/shader
      const VkShaderModuleCreateInfo *info, const VkAllocationCallbacks *allocator, VkShaderModule *module);
  PFN_vkVoidFunction hybris_shader_cleanup_proc(const char *name);
 diff --git a/hybris/vulkan/compat/shader_dispatch.c b/hybris/vulkan/compat/shader_dispatch.c
+index 6ab43be..839ae23 100644
 --- a/hybris/vulkan/compat/shader_dispatch.c
 +++ b/hybris/vulkan/compat/shader_dispatch.c
-@@ -596,8 +596,7 @@ static VkResult convert_pipeline(struct shader_device *device, VkGraphicsPipelin
+@@ -545,8 +545,7 @@ static VkResult convert_pipeline(struct shader_device *device, VkGraphicsPipelin
          if (hybris_shader_cleanup_enabled()) {
              uint32_t *clean = NULL;
              size_t clean_size = 0;
@@ -128,6 +132,7 @@ diff --git a/hybris/vulkan/compat/shader_dispatch.c b/hybris/vulkan/compat/shade
          }
 diff --git a/hybris/vulkan/compat/spirv_names.c b/hybris/vulkan/compat/spirv_names.c
 new file mode 100644
+index 0000000..86d5ff4
 --- /dev/null
 +++ b/hybris/vulkan/compat/spirv_names.c
 @@ -0,0 +1,63 @@
@@ -196,6 +201,7 @@ new file mode 100644
 +}
 diff --git a/hybris/vulkan/compat/spirv_names.h b/hybris/vulkan/compat/spirv_names.h
 new file mode 100644
+index 0000000..4f78aa5
 --- /dev/null
 +++ b/hybris/vulkan/compat/spirv_names.h
 @@ -0,0 +1,12 @@

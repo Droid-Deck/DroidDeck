@@ -19,7 +19,8 @@ class HybrisComponentRecordTest(unittest.TestCase):
                      "patches/0001-existing.patch", "patches/0002-new-vendor.patch"):
             path = self.root / "tools/hybris" / name
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("HYBRIS_REVISION=source123\n" if name == "source.env" else name)
+            path.write_text("HYBRIS_REVISION=source123\nVULKAN_HEADERS_REVISION=headers123\n"
+                            if name == "source.env" else name)
         elf = bytearray(64)
         elf[:6], elf[18:20] = b"\x7fELF\x02\x01", b"\xb7\x00"
         self.entries = {name: ("file", 0o755, bytes(elf)) for name in component.runtime.REQUIRED_LIBRARIES
@@ -29,13 +30,16 @@ class HybrisComponentRecordTest(unittest.TestCase):
                 "name": "VK_LAYER_DROIDDECK_placed_memory", "type": "GLOBAL",
                 "library_path": "./libVkLayer_DROIDDECK_placed_memory.so"}})),
             "source-commit": ("file", 0o644, b"source123\n"),
+            "vulkan-headers-commit": ("file", 0o644, b"headers123\n"),
+            "licenses/Vulkan-Headers-LICENSE.md": ("file", 0o644, b"Khronos header license\n"),
             "licenses/powervr.patch": ("file", 0o644, b"patched source"),
             "licenses/libhybris-source.tar.zst": ("file", 0o644, b"source archive"),
             "licenses/wayland-android.xml": ("file", 0o644, b"protocol source/license"),
             "build-recipe.json": ("file", 0o644, component.runtime.json_bytes(component.recipe_inputs(self.root))),
         })
         self.manifest = {"source_commit": "source123", "compiler": "original compiler",
-                         "build_inputs": {"source": "build snapshot"},
+                         "build_inputs": {"source": "build snapshot", "vulkan_headers": {
+                             "revision": "headers123", "sha256": "b" * 64}},
                          "elfs": [{"tree": "hybris", "path": name.removeprefix("lib/"), "sha256": "a" * 64}
                                   for name in self.entries if name.startswith("lib/")
                                   and self.entries[name][2].startswith(b"\x7fELF")]}
@@ -55,6 +59,7 @@ class HybrisComponentRecordTest(unittest.TestCase):
         record = self.record()
         self.assertEqual(record["tree_sha256"], component.runtime.tree_digest(self.entries))
         self.assertEqual(record["provenance"]["upstream_source_commit"], "source123")
+        self.assertEqual(record["provenance"]["vulkan_headers_commit"], "headers123")
         self.assertEqual(record["provenance"]["producer_commit"], "producer123")
         self.assertIn("tools/hybris/patches/0002-new-vendor.patch", record["recipe_inputs"])
         self.assertEqual(len(record["recipe_inputs"]), 6)
@@ -63,6 +68,18 @@ class HybrisComponentRecordTest(unittest.TestCase):
     def test_rejects_a_different_source_revision(self):
         self.entries["source-commit"] = ("file", 0o644, b"other-source\n")
         with self.assertRaisesRegex(ValueError, "different libhybris revision"):
+            self.record()
+
+    def test_rejects_wrong_vulkan_header_revision_or_missing_license(self):
+        self.entries["vulkan-headers-commit"] = ("file", 0o644, b"other-headers\n")
+        with self.assertRaisesRegex(ValueError, "different Vulkan-Headers revision"):
+            self.record()
+        self.entries["vulkan-headers-commit"] = ("file", 0o644, b"headers123\n")
+        del self.entries["licenses/Vulkan-Headers-LICENSE.md"]
+        with self.assertRaisesRegex(ValueError, "missing runtime file"):
+            self.record()
+        self.entries["licenses/Vulkan-Headers-LICENSE.md"] = ("file", 0o644, b"")
+        with self.assertRaisesRegex(ValueError, "empty Vulkan-Headers license"):
             self.record()
 
     def test_rejects_a_stale_patch_stack(self):
@@ -85,6 +102,17 @@ class HybrisComponentRecordTest(unittest.TestCase):
     def test_rejects_empty_or_wrong_source_manifest(self):
         self.entries["build-manifest.json"] = ("file", 0o644, b"{}")
         with self.assertRaisesRegex(ValueError, "source/compiler provenance"):
+            self.record()
+
+    def test_rejects_missing_or_wrong_vulkan_header_provenance(self):
+        del self.manifest["build_inputs"]["vulkan_headers"]
+        self.entries["build-manifest.json"] = ("file", 0o644, component.runtime.json_bytes(self.manifest))
+        with self.assertRaisesRegex(ValueError, "matching Vulkan-Headers provenance"):
+            self.record()
+        self.manifest["build_inputs"]["vulkan_headers"] = {
+            "revision": "other-headers", "sha256": "b" * 64}
+        self.entries["build-manifest.json"] = ("file", 0o644, component.runtime.json_bytes(self.manifest))
+        with self.assertRaisesRegex(ValueError, "matching Vulkan-Headers provenance"):
             self.record()
         self.manifest["source_commit"] = "other-source"
         self.entries["build-manifest.json"] = ("file", 0o644, component.runtime.json_bytes(self.manifest))

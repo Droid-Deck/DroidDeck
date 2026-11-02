@@ -1,4 +1,5 @@
 #include "device_features.h"
+#include "robustness2.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,6 +12,17 @@ int hybris_bc_complete(VkPhysicalDevice physical) { return full_bc; }
 void hybris_bc_enable_transcode_features(VkPhysicalDevice physical, VkPhysicalDeviceFeatures *features) {}
 int hybris_cull_active(VkPhysicalDevice physical) { return 0; }
 int hybris_shader_polygon_emulated(VkPhysicalDevice physical) { return 0; }
+VkResult hybris_robustness2_policy(VkPhysicalDevice physical,
+    struct hybris_robustness2_policy *out) { (void)physical; memset(out, 0, sizeof(*out)); return VK_SUCCESS; }
+int hybris_maintenance5_emulated(VkPhysicalDevice physical) { (void)physical; return 0; }
+int hybris_dynamic_emulated(VkPhysicalDevice physical) { (void)physical; return 0; }
+int hybris_dynamic_native_extension(VkPhysicalDevice physical, const char *name)
+{ (void)physical; (void)name; return 0; }
+int hybris_dual_source_active(VkPhysicalDevice physical) { (void)physical; return 0; }
+int hybris_multidraw_active(VkPhysicalDevice physical) { (void)physical; return 0; }
+int hybris_multiviewport_active(VkPhysicalDevice physical) { (void)physical; return 0; }
+int hybris_bc_astc_hdr(VkPhysicalDevice physical) { (void)physical; return 0; }
+int hybris_stage_point_active(VkPhysicalDevice physical) { (void)physical; return 0; }
 void *hybris_scaled_alloc(const VkAllocationCallbacks *allocator, size_t size,
     VkSystemAllocationScope scope) { return calloc(1, size); }
 void hybris_scaled_free(const VkAllocationCallbacks *allocator, void *memory) { free(memory); }

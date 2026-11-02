@@ -1,5 +1,5 @@
 diff --git a/tools/prepare-build.py b/tools/prepare-build.py
-index d505ea23..ef7cbccc 100644
+index d505ea2..e9475c1 100644
 --- a/tools/prepare-build.py
 +++ b/tools/prepare-build.py
 @@ -32,6 +32,8 @@ def prepare(args):
