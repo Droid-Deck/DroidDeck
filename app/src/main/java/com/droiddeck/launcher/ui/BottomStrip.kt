@@ -27,7 +27,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import java.io.File
 
-private const val STRIP_FRAME_MS = 100L
+private const val STRIP_FRAME_MS = 33L
 private const val STRIP_METRICS_MS = 500L
 private const val STRIP_TEMP_PLAIN = 0xFFF2F5F9.toInt()
 
