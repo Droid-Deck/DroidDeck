@@ -154,6 +154,27 @@ class ProtonMenuAutoTest {
         assertEquals(-1, menu.protonPercent)
     }
 
+    @Test fun aHiddenUninstalledDroidDeckSourceDoesNotBlockOtherProtonUpdates() {
+        install("GE-Proton11-11")
+        install("proton-cachyos-11-11")
+        val ownRepository = ProtonExtras.tools.single { it.id == ProtonExtras.OWN }.repo
+        ProtonExtras.saveSources(activity, ProtonExtras.sources(activity).map {
+            it.copy(hidden = it.repository == ownRepository)
+        })
+        assertTrue(ProtonExtras.displayTools(activity).none { it.id == ProtonExtras.OWN })
+        menu.installer = { tool, _ ->
+            attempts.add(tool.id)
+            install("${tool.prefix}-11-12")
+            null
+        }
+
+        menu.ensureAutoUpdates()
+
+        waitUntil { attempts.size == 2 && menu.protonBusyId == null }
+        assertEquals(listOf("ge", "cachyos"), attempts)
+        assertTrue(ProtonExtras.displayTools(activity).none { it.id == ProtonExtras.OWN })
+    }
+
     @Test fun anUninstalledRuntimeOrCurrentProtonDoesNotStartADownload() {
         install("DroidDeck-Proton-11-12")
         menu.installer = { tool, _ -> attempts.add(tool.id); null }

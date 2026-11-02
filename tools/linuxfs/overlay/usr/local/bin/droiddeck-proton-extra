@@ -115,7 +115,8 @@ def validate_archive(tarball):
                 if expanded > MAX_EXPANDED_BYTES:
                     raise SystemExit("droiddeck-proton-extra: archive expands beyond its limit")
             if member.issym() or member.islnk():
-                target = posixpath.normpath(posixpath.join(posixpath.dirname(normalized), member.linkname))
+                base = "" if member.islnk() else posixpath.dirname(normalized)
+                target = posixpath.normpath(posixpath.join(base, member.linkname))
                 if (not member.linkname or member.linkname.startswith("/") or target == ".." or target.startswith("../")):
                     raise SystemExit("droiddeck-proton-extra: unsafe archive link")
 

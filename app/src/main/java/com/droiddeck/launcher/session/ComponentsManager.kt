@@ -1230,7 +1230,9 @@ object ComponentsManager {
         legacy: Catalog?,
     ): Catalog? {
         if (source.repository != NIGHTLIES || source.id != RepositorySources.source(NIGHTLIES).id) return null
-        val rows = legacy?.items.orEmpty().filter { it.comp == comp }.map { old ->
+        val rows = legacy?.items.orEmpty().filter {
+            it.comp == comp && releaseUrlMatches(NIGHTLIES, it.release, it.file, it.url)
+        }.map { old ->
             val sha = old.digest.substringAfter(':')
             val forced = FORCED_PACKAGES.any { it.comp == comp && it.file == old.file && it.release == old.release }
             val local = if (forced) safeName(old.file) else "$sha-${source.id}.wcp"
@@ -1366,7 +1368,9 @@ object ComponentsManager {
             }
             return item.copy(localFile = "${item.digest.substringAfter(':')}-${item.sourceId}-remote.wcp")
         }
-        if (item.repository != NIGHTLIES || item.sourceId != RepositorySources.source(NIGHTLIES).id) return item
+        val builtIn = item.repository in DOWNLOAD_REPOS &&
+            item.sourceId == RepositorySources.source(item.repository).id
+        if (!builtIn) return item
         val legacy = File(packagesDir(context), safeName(item.file))
         if (!legacy.isFile || legacy == preferred || legacy.length() != item.size) return item
         if (!receiptMatches(legacy, item) && !matchesCatalogPackage(context, legacy, item)) return item
