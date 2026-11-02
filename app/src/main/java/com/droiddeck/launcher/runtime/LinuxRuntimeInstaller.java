@@ -130,7 +130,8 @@ public final class LinuxRuntimeInstaller {
         }
         if (!owner) return join(job, listener);
         try {
-            job.ok = installOnce(context.getApplicationContext(), release, new ProgressListener() {
+            Context app = context.getApplicationContext();
+            ProgressListener progress = new ProgressListener() {
                 @Override public void onProgress(String stage, int percent) {
                     onProgress(Step.OTHER, stage, percent);
                 }
@@ -141,13 +142,26 @@ public final class LinuxRuntimeInstaller {
                     job.percent = percent;
                     for (ProgressListener l : job.listeners) l.onProgress(step, stage, percent);
                 }
-            });
+            };
+            boolean desktop = installedVersion(app) != null && DesktopCatalog.INSTANCE.desktopInstalled(app);
+            job.ok = installOnce(app, release, progress);
+            if (job.ok && desktop) keepDesktop(app, progress);
             return job.ok;
         } finally {
             synchronized (JOB_LOCK) {
                 running = null;
             }
             job.done.countDown();
+        }
+    }
+
+    private static void keepDesktop(Context context, ProgressListener progress) {
+        try {
+            String problem = DesktopCatalog.INSTANCE.install(context, DesktopCatalog.INSTANCE.desktopEntry(context), progress);
+            if (problem == null) Log.i(TAG, "desktop installed again for the new runtime");
+            else Log.w(TAG, "desktop not installed again for the new runtime: " + problem);
+        } catch (RuntimeException e) {
+            Log.w(TAG, "desktop not installed again for the new runtime", e);
         }
     }
 
