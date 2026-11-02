@@ -2086,7 +2086,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val live = windowOutputSize(holder.surfaceFrame.width(), holder.surfaceFrame.height())
         val size = live ?: if (SessionState.running) previous else glassesOutputSize() ?: outputSize()
         SessionState.outputSize = size
-        if (!SessionState.running) SessionState.refreshHz = refreshHz()
+        if (!SessionState.running) SessionState.refreshHz = refreshHz(holder)
         val panel = panelBounds()
         SessionState.upscaleRatio = maxOf(panel.width(), panel.height()).toFloat() / maxOf(size.first, size.second).coerceAtLeast(1)
         Thread({
@@ -2136,7 +2136,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         CompositorHost.startOrAttach(
             this, holder.surface, runtimeDir.path,
             driverId?.let { turnip.driverPath(it) }, driverId?.let { turnip.libraryName(it) },
-            applicationInfo.nativeLibraryDir, size.first, size.second, refreshHz(), outputFpsLimit(),
+            applicationInfo.nativeLibraryDir, size.first, size.second, refreshHz(holder), outputFpsLimit(),
         )
         onOutputAttached(holder)
         if (SessionState.running && size != previous) {
@@ -2273,7 +2273,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         else SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
     }
 
-    private fun refreshHz(): Float {
+    private fun refreshHz(holder: SurfaceHolder? = null): Float {
+        bottomGame?.takeIf { if (holder != null) holder === it.holder else bottomOutputActive }
+            ?.hz?.takeIf { it > 1f }?.let { return minOf(it, PerfMode.peakRefreshCap(this)) }
         glassesScreen?.hz?.takeIf { it > 1f }?.let { return it }
         val display = if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay
         val wanted = window.attributes.preferredDisplayModeId
