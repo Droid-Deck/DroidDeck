@@ -457,7 +457,7 @@ class EpicClientTest {
         assertEquals("/root/Games/Stores/Epic", EpicClient.prepareInstallDir(context))
     }
 
-    @Test fun aDisconnectedDefaultFolderKeepsTheLauncherInstallDir() {
+    @Test fun aDisconnectedDefaultFolderMovesTheLauncherInstallDirToInternal() {
         val context = org.robolectric.RuntimeEnvironment.getApplication()
         val previousStorage = com.droiddeck.launcher.session.SessionPrefs.defaultStorage(context)
         val previousFolder = com.droiddeck.launcher.session.SessionPrefs.defaultStorageFolder(context)
@@ -470,8 +470,8 @@ class EpicClientTest {
         com.droiddeck.launcher.session.SessionPrefs.setDefaultStorageFolder(
             context, File(context.filesDir, "missing-${System.nanoTime()}").path, "SSD")
         try {
-            assertEquals(current, EpicClient.prepareInstallDir(context))
-            assertEquals(current, org.json.JSONObject(settings.readText()).getString("defaultInstallDir"))
+            assertEquals("/root/Games/Stores/Epic", EpicClient.prepareInstallDir(context))
+            assertEquals("/root/Games/Stores/Epic", org.json.JSONObject(settings.readText()).getString("defaultInstallDir"))
         } finally {
             com.droiddeck.launcher.session.SessionPrefs.setDefaultStorage(context, previousStorage)
             if (previousFolder.isBlank()) com.droiddeck.launcher.session.SessionPrefs.clearDefaultStorageFolder(context)

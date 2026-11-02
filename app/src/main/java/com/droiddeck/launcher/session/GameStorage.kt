@@ -48,9 +48,18 @@ object GameStorage {
         return when {
             pref == SessionPrefs.GAME_STORAGE_OFF -> null
             pref.isEmpty() -> options(context).firstOrNull()?.let { Option(it.name, it.path) }
-            else -> Option(SessionPrefs.gameStorageLabel(context), pref)
+            else -> Option(SessionPrefs.gameStorageLabel(context), pref).takeIf { attached(File(pref)) }
         }
     }
+
+    fun disconnected(context: Context): Boolean {
+        val pref = SessionPrefs.gameStorage(context)
+        return pref.isNotEmpty() && pref != SessionPrefs.GAME_STORAGE_OFF && !attached(File(pref))
+    }
+
+    internal fun attached(path: File): Boolean =
+        path.isDirectory || path.parentFile?.isDirectory == true ||
+            runCatching { Environment.getExternalStorageState(path) }.getOrNull() == Environment.MEDIA_MOUNTED
 
     const val X64_CARD_DIR = "x86-64"
     const val X64_CARD_GUEST = "/mnt/droiddeck-sd/$X64_CARD_DIR"
