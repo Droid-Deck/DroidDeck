@@ -245,6 +245,9 @@ class DrawerActions(
     val textureAnisotropy: Int? = 0,
     val textureLodBias: String? = TextureFiltering.LOD_BIAS_OFF,
     val secondScreenMode: SecondScreenMode,
+    val gameOnBottom: Boolean = false,
+    val gameSwapAvailable: Boolean = false,
+    val onGameOnBottom: (Boolean) -> Unit = {},
     val dashboardAvailable: Boolean = false,
     val desktopAvailable: Boolean = false,
     val secondScreenDisplays: List<SecondScreenDisplay>,
@@ -1175,6 +1178,11 @@ private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) 
         if (a.secondScreenDisplays.size > 1) ChoiceRow(host, "second-screen-display", stringResource(R.string.drawer_page_display), null,
             a.secondScreenDisplays.map { it.id to it.label }, a.selectedSecondScreenDisplay,
             chipModifier = track("second-screen-display"), onPick = a.onSecondScreenDisplay)
+    }
+    if (a.gameSwapAvailable || a.gameOnBottom) SettingsGroup(stringResource(R.string.swap_game_screen_group)) {
+        ChoiceRow(host, "game-screen", stringResource(R.string.swap_game_screen), null,
+            listOf(false to stringResource(R.string.swap_game_screen_top), true to stringResource(R.string.swap_game_screen_bottom)),
+            a.gameOnBottom, chipModifier = track("game-screen"), onPick = a.onGameOnBottom)
     }
 }
 

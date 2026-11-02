@@ -1903,6 +1903,12 @@
     <string name="bottom_desktop_failed">The desktop couldn\'t start. Its logs are in this session\'s bottom-desktop folder.</string>
     <string name="bottom_desktop_off">The desktop is closed.</string>
     <string name="bottom_dashboard_empty">Nothing to show here yet.</string>
+    <string name="swap_screens">Swap screens</string>
+    <string name="swap_screens_unavailable">The bottom screen is not free right now</string>
+    <string name="swap_game_screen_group">Game screen</string>
+    <string name="swap_game_screen">Show the game on</string>
+    <string name="swap_game_screen_top">Top screen</string>
+    <string name="swap_game_screen_bottom">Bottom screen</string>
     <string name="bottom_page_downloads">Downloads</string>
     <string name="bottom_downloads_none">No downloads running.</string>
     <string name="bottom_downloads_steam">Steam</string>
