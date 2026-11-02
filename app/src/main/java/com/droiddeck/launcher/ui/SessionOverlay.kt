@@ -315,6 +315,8 @@ class DrawerActions(
     val onStopFrom: ((androidx.compose.ui.geometry.Rect?) -> Unit)? = null,
     val onClose: () -> Unit,
     val components: ComponentsManager.Snapshot? = null,
+    val runtimeManagedDxvk: Boolean = false,
+    val systemDriverName: String = "",
     val onComponentsRefresh: () -> Unit = {},
     val componentCatalog: List<ComponentsManager.CatalogItem> = emptyList(),
     val componentCatalogAt: Long = 0,
@@ -1360,7 +1362,11 @@ private fun SelectedGameProfileGroup(host: MenuHost, a: DrawerActions, track: (S
             for (component in ComponentsManager.COMPONENTS) {
                 val value = profile.components.getValue(component)
                 if (!value.inherited) {
-                    ProfileSummaryRow(ComponentsManager.LABEL.getValue(component), profileValueLabel(value))
+                    ProfileSummaryRow(
+                        ComponentsManager.LABEL.getValue(component),
+                        if (ComponentsManager.runtimeManaged(component, a.runtimeManagedDxvk)) stringResource(R.string.gpu_system_driver, a.systemDriverName)
+                        else profileValueLabel(value),
+                    )
                 }
             }
             if (profile.startWithoutSteam) {
@@ -1469,20 +1475,23 @@ private fun ComponentsDrawerPage(host: MenuHost, a: DrawerActions, track: (Strin
             )
             for (comp in ComponentsManager.COMPONENTS) {
                 val value = gameProfile.components.getValue(comp)
+                val managedDxvk = ComponentsManager.runtimeManaged(comp, a.runtimeManagedDxvk)
                 val options: List<Pair<String?, String>> =
                     listOf(null to stringResource(R.string.comp_game_use_general)) +
-                        snap.packages.filter { it.comp == comp }.map { it.file to it.version }
+                        if (managedDxvk) emptyList() else snap.packages.filter { it.comp == comp }.map { it.file to it.version }
                 DrawerStackedChoice(
                     host = host,
                     key = "game-cmp-$comp",
                     label = ComponentsManager.LABEL.getValue(comp),
-                    hint = if (value.inherited) {
+                    hint = if (managedDxvk) stringResource(R.string.cmgr_system_dxvk_managed, a.systemDriverName) else if (value.inherited) {
                         stringResource(R.string.drawer_component_inherited, value.value)
                     } else {
                         null
                     },
                     options = options,
                     selected = gameProfile.componentFiles[comp],
+                    enabled = !managedDxvk || gameProfile.componentFiles[comp] != null,
+                    valueLabel = if (managedDxvk) stringResource(R.string.gpu_system_driver, a.systemDriverName) else null,
                     chipModifier = track("cmp-$comp"),
                     onPick = { file -> a.onGameComponent(gameProfile.appId, comp, file) },
                 )
@@ -1517,7 +1526,11 @@ private fun ComponentsDrawerPage(host: MenuHost, a: DrawerActions, track: (Strin
                 for (comp in ComponentsManager.COMPONENTS) {
                     Row(modifier = Modifier.fillMaxWidth().padding(top = 3.dp)) {
                         Text(ComponentsManager.LABEL.getValue(comp), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.width(96.dp))
-                        Text(r.components.getValue(comp).inUse, fontSize = 12.sp, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            if (ComponentsManager.runtimeManaged(comp, a.runtimeManagedDxvk)) stringResource(R.string.gpu_system_driver, a.systemDriverName)
+                            else r.components.getValue(comp).inUse,
+                            fontSize = 12.sp, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
             }
@@ -1545,16 +1558,21 @@ private fun ComponentsDrawerPage(host: MenuHost, a: DrawerActions, track: (Strin
         val build = ComponentsManager.safeName(p.version)
         for (comp in ComponentsManager.COMPONENTS) {
             val st = view.components.getValue(comp)
+            val managedDxvk = ComponentsManager.runtimeManaged(comp, a.runtimeManagedDxvk)
             val originals = view.originals.filter { it.comp == comp }
             val options = originals.map { "orig:${it.protonVersion}" to (if (it.protonVersion == build) originalLabel else stringResource(R.string.comp_original, it.protonVersion)) } +
                 snap.packages.filter { it.comp == comp }.map { it.file to it.version }
-            if (options.isEmpty()) continue
+            if (options.isEmpty() && !managedDxvk) continue
             val current = st.activeFile ?: "orig:$build"
             val shown = options.firstOrNull { it.first == current }?.second
             DrawerStackedChoice(
                 host, "cmp-$comp", ComponentsManager.LABEL.getValue(comp),
-                st.queued?.let { stringResource(R.string.comp_next_queued, it) } ?: st.inUse.takeIf { it != shown },
+                if (managedDxvk) stringResource(R.string.cmgr_system_dxvk_managed, a.systemDriverName) +
+                    (st.queued?.let { "\n" + stringResource(R.string.cmgr_powervr_dxvk_queued, it) } ?: "")
+                else st.queued?.let { stringResource(R.string.comp_next_queued, it) } ?: st.inUse.takeIf { it != shown },
                 options, current,
+                enabled = !managedDxvk,
+                valueLabel = if (managedDxvk) stringResource(R.string.gpu_system_driver, a.systemDriverName) else null,
                 note = if (view.inUseByGame) stringResource(R.string.comp_waits_long) else stringResource(R.string.comp_applies_long),
                 chipModifier = track("cmp-$comp"),
                 onPick = { v -> if (v != current || st.queued != null) a.onComponentSwap(p.id, comp, v) },
@@ -1607,17 +1625,17 @@ internal fun ComponentDownloadsDrawerGroup(
                         title = ComponentsManager.LABEL.getValue(comp)) { firstItemFocus ->
                         val pairs = ComponentsManager.nightlyPairs(items)
                         val rows = items.filter { it !in pairs.values }
-                        fun shown(row: ComponentsManager.CatalogItem) = pairs[row]?.takeIf { nightlyPicked[row.file] == true } ?: row
-                        val firstAvailable = rows.firstOrNull { shown(it).let { s -> ComponentsManager.safeName(s.file) !in installed && s.file !in downloads } }
+                        fun shown(row: ComponentsManager.CatalogItem) = pairs[row]?.takeIf { nightlyPicked[row.id] == true } ?: row
+                        val firstAvailable = rows.firstOrNull { shown(it).let { s -> ComponentsManager.safeName(s.localFile) !in installed && s.id !in downloads } }
                         rows.forEach { row ->
                             val item = shown(row)
                             val nightly = pairs[row]
-                            val stored = ComponentsManager.safeName(item.file) in installed
-                            val progress = downloads[item.file]
+                            val stored = ComponentsManager.safeName(item.localFile) in installed
+                            val progress = downloads[item.id]
                             val choose = @Composable { rowModifier: Modifier ->
                                 MenuItem(item.file.removeSuffix(".wcp"), checked = stored,
                                     enabled = !stored && progress == null,
-                                    detail = when {
+                                    detail = item.repository + " · " + when {
                                         stored -> stringResource(R.string.wincomp_downloaded)
                                         progress != null -> if (progress < 0) stringResource(R.string.wincomp_downloading, item.file.removeSuffix(".wcp")) else "$progress%"
                                         else -> item.release + " · " + stringResource(R.string.common_size_mb, item.size / 1048576.0)
@@ -1635,7 +1653,7 @@ internal fun ComponentDownloadsDrawerGroup(
                                 TabStrip(
                                     listOf(stringResource(R.string.comp_channel_stable), stringResource(R.string.comp_channel_nightly)),
                                     selected = if (item === nightly) 1 else 0,
-                                    onSelect = { nightlyPicked[row.file] = it == 1 },
+                                    onSelect = { nightlyPicked[row.id] = it == 1 },
                                     bumpers = false, compact = true, modifier = Modifier.padding(start = 6.dp, end = 4.dp),
                                 )
                             }
@@ -1648,7 +1666,8 @@ internal fun ComponentDownloadsDrawerGroup(
             stringResource(if (catalogAt == 0L) R.string.comp_refresh_to_list else R.string.comp_nothing_new),
             fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(14.dp),
         )
-        for ((file, progress) in downloads) {
+        for ((id, progress) in downloads) {
+            val file = catalog.firstOrNull { it.id == id }?.file ?: id
             Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
                 Text(stringResource(R.string.wincomp_downloading, file.removeSuffix(".wcp")),
                     fontSize = 12.sp, color = colors.onSurfaceVariant)
@@ -1667,11 +1686,11 @@ internal fun ComponentDownloadsDrawerGroup(
 private fun <T> DrawerStackedChoice(
     host: MenuHost, key: String, label: String, hint: String?,
     options: List<Pair<T, String>>, selected: T, note: String? = null,
-    chipModifier: Modifier = Modifier, onPick: (T) -> Unit,
+    chipModifier: Modifier = Modifier, enabled: Boolean = true, valueLabel: String? = null, onPick: (T) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val open = host.open == key
+    val open = host.open == key && enabled
     Column(
         modifier = Modifier.fillMaxWidth()
             .background(if (open) pal.signal.copy(alpha = 0.10f) else Color.Transparent)
@@ -1679,7 +1698,7 @@ private fun <T> DrawerStackedChoice(
     ) {
         Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
         Box(modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-            ValueChip(options.firstOrNull { it.first == selected }?.second ?: "-", open, modifier = chipModifier.fillMaxWidth()) {
+            ValueChip(valueLabel ?: options.firstOrNull { it.first == selected }?.second ?: "-", open, enabled = enabled, modifier = chipModifier.fillMaxWidth()) {
                 host.open = if (open) null else key
             }
             AnchoredMenu(open, onDismiss = { if (host.open == key) host.open = null }, title = label, note = note) { firstItemFocus ->

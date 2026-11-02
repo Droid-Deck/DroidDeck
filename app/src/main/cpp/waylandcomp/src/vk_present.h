@@ -2,6 +2,7 @@
 #define VK_PRESENT_H
 #include <stdint.h>
 #include <android/native_window.h>
+#include <android/hardware_buffer.h>
 void vk_present_set_driver(const char *driver_path, const char *library_name,
                            const char *native_lib_dir);
 
@@ -20,6 +21,11 @@ int vkp_scene_to_output(double sx, double sy, double *ox, double *oy);
 void vkp_output_size(int *w, int *h);
 
 struct vkp_image;
+
+int vkp_android_buffer_supported(void);
+struct vkp_image *vkp_image_from_android_buffer(AHardwareBuffer *buffer);
+int vkp_output_ahb_supported(void);
+struct vkp_image *vkp_image_import_output_ahb(AHardwareBuffer *buffer, int w, int h, uint32_t ahb_format);
 
 #define VKP_MOD_LINEAR          0x0000000000000000ULL
 #define VKP_MOD_QCOM_COMPRESSED 0x0500000000000001ULL

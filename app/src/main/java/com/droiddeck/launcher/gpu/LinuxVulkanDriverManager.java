@@ -42,6 +42,10 @@ public class LinuxVulkanDriverManager {
         return new File(rootDir, id);
     }
 
+    public static boolean isDriverLibraryName(String name) {
+        return name.startsWith("libvulkan_") && name.endsWith(".so") && name.indexOf('/') < 0 && name.indexOf('\\') < 0;
+    }
+
     public boolean isInstalled(String id) {
         if (id == null || id.isEmpty() || id.contains("/") || id.contains("..")) return false;
         File dir = getDriverDir(id);
@@ -107,8 +111,8 @@ public class LinuxVulkanDriverManager {
                     if (entry.isDirectory()) continue;
                     String base = new File(entry.getName()).getName();
                     if (base.isEmpty()) continue;
-                    if (base.startsWith("libvulkan_freedreno") && base.endsWith(".so")) {
-                        if (soName != null) Log.w(TAG, "zip has several libvulkan_freedreno*.so; using the first (" + soName + ")");
+                    if (isDriverLibraryName(base)) {
+                        if (soName != null) Log.w(TAG, "zip has several Vulkan ICD libraries; using the first (" + soName + ")");
                         else {
                             Files.copy(zis, new File(tmpDir, LIB_NAME).toPath(), StandardCopyOption.REPLACE_EXISTING);
                             soName = base;

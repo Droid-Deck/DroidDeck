@@ -342,6 +342,8 @@
     <string name="mode_client">Klient</string>
     <string name="mode_mangoapp">Ydelsesoverlay</string>
     <string name="mode_mangoapp_hint">Slå fra, hvis spil går ned eller bliver sorte i Deck-tilstand. Gælder fra næste session.</string>
+    <string name="mode_steam_ui_software">Software-Steam-brugerflade</string>
+    <string name="mode_steam_ui_software_hint">Tegner Steams menuer med CPU\'en i stedet for GPU\'en. Langsommere; slå til, hvis Steams brugerflade fryser eller viser ødelagte felter. Gælder fra næste session.</string>
     <string name="mode_return_after_game">Vend tilbage til DroidDeck efter et spil</string>
     <string name="mode_return_after_game_hint">Når et spil, du startede fra DroidDeck eller en anden launcher, lukkes, afslutter Steam pænt (cloud-gemninger afsluttes først), og du vender tilbage dertil. Fra: bliv i Steam.</string>
     <string name="mode_shader_precache">Shader-forhåndscaching</string>

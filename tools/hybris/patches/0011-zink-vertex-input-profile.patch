@@ -1,0 +1,200 @@
+diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
+--- a/hybris/vulkan/Makefile.am
++++ b/hybris/vulkan/Makefile.am
+@@ -13,6 +13,7 @@ lib_LTLIBRARIES = \
+ # Its manifest is colocated with the DSO; opt in using VK_LAYER_PATH.
+ libVkLayer_hybris_compat_la_SOURCES = layer/entry.c layer/device.c layer/physical.c layer/commands.c layer/layer.h \
+     layer/device_features.c layer/device_features.h layer/device_create_sizes.inc \
++    compat/zink_profile.c compat/zink_profile.h \
+     compat/bc_decode.c compat/bc_decode.h compat/shaders/bc_decode.inc \
+     compat/bc_image.c compat/bc_image.h compat/bc_command_state.c compat/bc_command_state.h compat/bc_vulkan_compat.h compat/bc_transfer.c compat/bc_transfer.h \
+     compat/bc_context.c compat/bc_context.h compat/bc_commands.c compat/bc_resources.c compat/bc_record.c compat/bc_barriers.c compat/bc_image_copy.c compat/bc_policy.c compat/bc_policy.h \
+diff --git a/hybris/vulkan/compat/zink_profile.c b/hybris/vulkan/compat/zink_profile.c
+new file mode 100644
+--- /dev/null
++++ b/hybris/vulkan/compat/zink_profile.c
+@@ -0,0 +1,62 @@
++/* SPDX-License-Identifier: Apache-2.0 */
++#define VK_NO_PROTOTYPES
++#include "zink_profile.h"
++#include <pthread.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/auxv.h>
++
++static pthread_once_t config_once = PTHREAD_ONCE_INIT;
++static int enabled;
++static void configure(void)
++{
++    if (getauxval(AT_SECURE)) return;
++    /* HYBRIS_VULKAN_COMPAT_ZINK_PROFILE=0 keeps the driver's profile, =1 forces this on any HAL.
++     * Unset: only on the PowerVR HAL, the one whose blob is known to carry the profile. */
++    const char *value = getenv("HYBRIS_VULKAN_COMPAT_ZINK_PROFILE");
++    const char *hal = getenv("HYBRIS_VULKAN_HAL");
++    enabled = value ? strcmp(value, "0") != 0 : hal && strstr(hal, "powervr") != NULL;
++}
++
++const char *hybris_zink_profile_engine(const VkApplicationInfo *application)
++{
++    pthread_once(&config_once, configure);
++    if (!enabled || !application || !application->pEngineName || strcmp(application->pEngineName, "mesa zink"))
++        return NULL;
++    static int logged;
++    if (!__atomic_exchange_n(&logged, 1, __ATOMIC_RELAXED))
++        fprintf(stderr, "HYBRIS_ZINK_PROFILE engine \"mesa zink\" presented as \"Mesa zink\"; vertex input dynamic state kept\n");
++    /* the blob matches "mesa zink" case-sensitively, anywhere in the name */
++    return "Mesa zink";
++}
++
++void hybris_zink_profile_features(VkPhysicalDeviceFeatures *f)
++{
++    f->sparseBinding = f->sparseResidencyBuffer = f->sparseResidencyImage2D = f->sparseResidencyImage3D = VK_FALSE;
++    f->sparseResidency2Samples = f->sparseResidency4Samples = f->sparseResidency8Samples = VK_FALSE;
++    f->sparseResidency16Samples = f->sparseResidencyAliased = VK_FALSE;
++}
++
++/* Measured on DXT-48-1536 driver 25.3@6908880 (engine "mesa zink" vs another name, same chain). The
++ * profile also turns on primitivesGeneratedQueryWithNonZeroStreams and geometryStreams; those cannot
++ * be restored from here, and Zink still reports GL 4.6 without them. */
++void hybris_zink_profile_features2(VkPhysicalDeviceFeatures2 *features)
++{
++    hybris_zink_profile_features(&features->features);
++    for (VkBaseOutStructure *node = features->pNext; node; node = node->pNext) {
++        if (node->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT) {
++            ((VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT *)node)->graphicsPipelineLibrary = VK_FALSE;
++        } else if (node->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_3_FEATURES_EXT) {
++            VkPhysicalDeviceExtendedDynamicState3FeaturesEXT *eds3 = (void *)node;
++            eds3->extendedDynamicState3TessellationDomainOrigin = VK_FALSE;
++            eds3->extendedDynamicState3DepthClampEnable = VK_FALSE;
++            eds3->extendedDynamicState3PolygonMode = VK_FALSE;
++            eds3->extendedDynamicState3SampleMask = VK_FALSE;
++            eds3->extendedDynamicState3AlphaToOneEnable = VK_FALSE;
++            eds3->extendedDynamicState3DepthClipEnable = VK_FALSE;
++            eds3->extendedDynamicState3ProvokingVertexMode = VK_FALSE;
++            eds3->extendedDynamicState3LineRasterizationMode = VK_FALSE;
++        }
++    }
++}
+diff --git a/hybris/vulkan/compat/zink_profile.h b/hybris/vulkan/compat/zink_profile.h
+new file mode 100644
+--- /dev/null
++++ b/hybris/vulkan/compat/zink_profile.h
+@@ -0,0 +1,15 @@
++/* SPDX-License-Identifier: Apache-2.0 */
++#ifndef HYBRIS_ZINK_PROFILE_H
++#define HYBRIS_ZINK_PROFILE_H
++#include <vulkan/vulkan.h>
++/* The PowerVR blob gives engine "mesa zink" an application profile. Besides other feature changes,
++ * it hides vertexInputDynamicState, and without dynamic vertex input Mesa 26.2's Zink keeps a stale
++ * pipeline when only vertex formats change between draws (LÖVE's glyph quads read their unorm16
++ * texcoords as float, so all text is invisible). Zink is presented to the driver under another
++ * engine name, and every other feature the profile hides stays hidden. */
++/* The engine name to create the instance with instead, or NULL to keep the application's. */
++const char *hybris_zink_profile_engine(const VkApplicationInfo *application);
++/* Clear what the profile hides, except vertexInputDynamicState. */
++void hybris_zink_profile_features(VkPhysicalDeviceFeatures *features);
++void hybris_zink_profile_features2(VkPhysicalDeviceFeatures2 *features);
++#endif
+diff --git a/hybris/vulkan/layer/entry.c b/hybris/vulkan/layer/entry.c
+--- a/hybris/vulkan/layer/entry.c
++++ b/hybris/vulkan/layer/entry.c
+@@ -4,6 +4,7 @@
+ #include "../compat/application_policy.h"
+ #include "../compat/scaled_vertex.h"
+ #include "../compat/vendor_compat.h"
++#include "../compat/zink_profile.h"
+ #include <vulkan/vk_layer.h>
+ #include <pthread.h>
+ #include <stdio.h>
+@@ -22,6 +23,9 @@ struct instance_state {
+     uint32_t api_version;
+     VkAllocationCallbacks allocator;
+     int custom_allocator;
++    int zink_profile;
++    PFN_vkGetPhysicalDeviceFeatures features;
++    PFN_vkGetPhysicalDeviceFeatures2 features2, features2_khr;
+     struct instance_state *next;
+ };
+ static pthread_mutex_t guard = PTHREAD_MUTEX_INITIALIZER;
+@@ -116,7 +120,17 @@ static VkResult VKAPI_CALL create_instance(const VkInstanceCreateInfo *info,
+     state->generation = ++next_generation;
+     pthread_mutex_unlock(&guard);
+     link->u.pLayerInfo = link->u.pLayerInfo->pNext;
+-    VkResult result = create(info, allocator, out);
++    VkInstanceCreateInfo renamed;
++    VkApplicationInfo application;
++    const char *engine = hybris_zink_profile_engine(info->pApplicationInfo);
++    if (engine) {
++        application = *info->pApplicationInfo;
++        application.pEngineName = engine;
++        renamed = *info;
++        renamed.pApplicationInfo = &application;
++        state->zink_profile = 1;
++    }
++    VkResult result = create(engine ? &renamed : info, allocator, out);
+     if (result != VK_SUCCESS) { hybris_scaled_free(allocator, state); return result; }
+     state->handle = *out;
+     state->key = hybris_layer_dispatch_key(*out);
+@@ -142,6 +156,51 @@ static void VKAPI_CALL destroy_instance(VkInstance handle, const VkAllocationCal
+     hybris_scaled_free(retired->custom_allocator ? &retired->allocator : NULL, retired);
+ }
+ 
++/* Instances whose Zink engine name was changed: hide what the driver's Zink profile would have. */
++static void VKAPI_CALL zink_features(VkPhysicalDevice physical, VkPhysicalDeviceFeatures *out)
++{
++    struct instance_state state;
++    if (!instance_snapshot(physical, &state) || !state.features) return;
++    state.features(physical, out);
++    hybris_zink_profile_features(out);
++}
++static void VKAPI_CALL zink_features2(VkPhysicalDevice physical, VkPhysicalDeviceFeatures2 *out)
++{
++    struct instance_state state;
++    if (!instance_snapshot(physical, &state) || !state.features2) return;
++    state.features2(physical, out);
++    hybris_zink_profile_features2(out);
++}
++static void VKAPI_CALL zink_features2_khr(VkPhysicalDevice physical, VkPhysicalDeviceFeatures2 *out)
++{
++    struct instance_state state;
++    if (!instance_snapshot(physical, &state) || !state.features2_khr) return;
++    state.features2_khr(physical, out);
++    hybris_zink_profile_features2(out);
++}
++static PFN_vkVoidFunction zink_wrap(VkInstance instance, const char *name, PFN_vkVoidFunction function)
++{
++    PFN_vkVoidFunction wrapper = NULL;
++    void *key = hybris_layer_dispatch_key(instance);
++    pthread_mutex_lock(&guard);
++    for (struct instance_state *state = instances; state; state = state->next) {
++        if (state->key != key) continue;
++        if (!strcmp(name, "vkGetPhysicalDeviceFeatures")) {
++            state->features = (PFN_vkGetPhysicalDeviceFeatures)function;
++            wrapper = (PFN_vkVoidFunction)zink_features;
++        } else if (!strcmp(name, "vkGetPhysicalDeviceFeatures2")) {
++            state->features2 = (PFN_vkGetPhysicalDeviceFeatures2)function;
++            wrapper = (PFN_vkVoidFunction)zink_features2;
++        } else if (!strcmp(name, "vkGetPhysicalDeviceFeatures2KHR")) {
++            state->features2_khr = (PFN_vkGetPhysicalDeviceFeatures2)function;
++            wrapper = (PFN_vkVoidFunction)zink_features2_khr;
++        }
++        break;
++    }
++    pthread_mutex_unlock(&guard);
++    return wrapper ? wrapper : function;
++}
++
+ static PFN_vkVoidFunction VKAPI_CALL get_instance_proc(VkInstance instance, const char *name)
+ {
+     if (!name) return NULL;
+@@ -163,7 +222,8 @@ static PFN_vkVoidFunction VKAPI_CALL get_instance_proc(VkInstance instance, cons
+      * Every command wrapper checks the actual device again before changing it. */
+     PFN_vkVoidFunction intercepted = hybris_layer_physical_proc(name);
+     if (!intercepted) intercepted = hybris_layer_device_dispatch(name, state.policy != 0);
+-    return intercepted ? intercepted : (next ? next : vendor_alias);
++    PFN_vkVoidFunction function = intercepted ? intercepted : (next ? next : vendor_alias);
++    return state.zink_profile && function ? zink_wrap(instance, name, function) : function;
+ }
+ static PFN_vkVoidFunction VKAPI_CALL get_physical_proc(VkInstance instance, const char *name)
+ {

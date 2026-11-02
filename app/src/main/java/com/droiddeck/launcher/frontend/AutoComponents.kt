@@ -276,6 +276,7 @@ object AutoComponents {
     internal fun signature(context: Context, game: Library.SteamGame): String {
         val folder = game.gameFiles
         val parts = listOfNotNull(
+            "font-requirements-v1",
             DETECTORS,
             folder?.lastModified(),
             folder?.let { SteamRedists.manifest(it, game.appId)?.lastModified() },

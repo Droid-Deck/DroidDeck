@@ -342,6 +342,8 @@
     <string name="mode_client">Πελάτης</string>
     <string name="mode_mangoapp">Επικάλυψη απόδοσης</string>
     <string name="mode_mangoapp_hint">Απενεργοποιήστε το αν τα παιχνίδια κολλάνε ή μαυρίζει η οθόνη σε λειτουργία Deck. Εφαρμόζεται στην επόμενη συνεδρία.</string>
+    <string name="mode_steam_ui_software">Διεπαφή Steam μέσω λογισμικού</string>
+    <string name="mode_steam_ui_software_hint">Σχεδιάζει τα μενού του Steam με τον επεξεργαστή αντί για την GPU. Πιο αργό· ενεργοποιήστε το αν η διεπαφή του Steam παγώνει ή δείχνει χαλασμένα πλακίδια. Ισχύει από την επόμενη συνεδρία.</string>
     <string name="mode_return_after_game">Επιστροφή στο DroidDeck μετά από παιχνίδι</string>
     <string name="mode_return_after_game_hint">Όταν κλείνει ένα παιχνίδι που ξεκινήσατε από το DroidDeck ή άλλο launcher, το Steam τερματίζεται κανονικά (πρώτα ολοκληρώνονται οι αποθηκεύσεις στο cloud) και επιστρέφετε εκεί. Ανενεργό: παραμένετε στο Steam.</string>
     <string name="mode_shader_precache">Προ-αποθήκευση shader</string>

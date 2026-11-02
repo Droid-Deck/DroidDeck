@@ -342,6 +342,8 @@
     <string name="mode_client">Клиент</string>
     <string name="mode_mangoapp">Насложен слой за производителност</string>
     <string name="mode_mangoapp_hint">Изключете, ако игрите забиват или екранът става черен в режим Deck. Прилага се от следващата сесия.</string>
+    <string name="mode_steam_ui_software">Софтуерен интерфейс на Steam</string>
+    <string name="mode_steam_ui_software_hint">Рисува менютата на Steam с процесора вместо с GPU. По-бавно; включете, ако интерфейсът на Steam замръзва или показва счупени плочки. Прилага се от следващата сесия.</string>
     <string name="mode_return_after_game">Връщане в DroidDeck след игра</string>
     <string name="mode_return_after_game_hint">Когато игра, стартирана от DroidDeck или друг стартер, се затвори, Steam излиза правилно (първо се довършват облачните записи) и се връщате там. Изключено: оставате в Steam.</string>
     <string name="mode_shader_precache">Предварително кеширане на шейдъри</string>

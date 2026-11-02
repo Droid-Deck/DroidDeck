@@ -342,6 +342,8 @@
     <string name="mode_client">Klient</string>
     <string name="mode_mangoapp">Nakładka wydajności</string>
     <string name="mode_mangoapp_hint">Wyłącz, jeśli gry ulegają awarii lub mają czarny ekran w trybie Deck. Działa od następnej sesji.</string>
+    <string name="mode_steam_ui_software">Programowy interfejs Steam</string>
+    <string name="mode_steam_ui_software_hint">Rysuje menu Steam procesorem zamiast GPU. Wolniej; włącz, jeśli interfejs Steam się zawiesza lub pokazuje uszkodzone kafelki. Działa od następnej sesji.</string>
     <string name="mode_return_after_game">Wracaj do DroidDeck po grze</string>
     <string name="mode_return_after_game_hint">Gdy zamkniesz grę uruchomioną z DroidDeck lub innego launchera, Steam poprawnie się zamyka (najpierw kończy zapis w chmurze) i wracasz tam. Wyłączone: zostajesz w Steam.</string>
     <string name="mode_shader_precache">Wstępne buforowanie shaderów</string>

@@ -66,6 +66,7 @@ class SettingsResetTest {
         assertTrue(SessionPrefs.hudShowGraph(app))
         assertEquals(SessionPrefs.HUD_COLOR_MINT, SessionPrefs.hudColor(app))
         assertEquals(SessionPrefs.HUD_OPACITY_DEFAULT, SessionPrefs.hudOpacity(app))
+
         assertNull(SessionPrefs.droidDeckHudConfig(app))
         assertNull(SessionPrefs.droidDeckHudPosition(app))
         assertEquals(100, ControllerPrefs.read(app).opacity)

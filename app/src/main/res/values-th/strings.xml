@@ -342,6 +342,8 @@
     <string name="mode_client">ไคลเอนต์</string>
     <string name="mode_mangoapp">โอเวอร์เลย์แสดงประสิทธิภาพ</string>
     <string name="mode_mangoapp_hint">ปิดหากเกมขัดข้องหรือจอดำในโหมด Deck จะมีผลในเซสชันถัดไป</string>
+    <string name="mode_steam_ui_software">UI ของ Steam แบบซอฟต์แวร์</string>
+    <string name="mode_steam_ui_software_hint">วาดเมนูของ Steam ด้วย CPU แทน GPU ช้ากว่า เปิดใช้หาก UI ของ Steam ค้างหรือแสดงไทล์เสีย มีผลในเซสชันถัดไป</string>
     <string name="mode_return_after_game">กลับไปที่ DroidDeck หลังเล่นเกม</string>
     <string name="mode_return_after_game_hint">เมื่อเกมที่คุณเริ่มจาก DroidDeck หรือตัวเปิดเกมอื่นปิดลง Steam จะออกอย่างเรียบร้อย (บันทึกบนคลาวด์เสร็จก่อน) แล้วคุณจะกลับไปที่นั่น ปิด: อยู่ใน Steam ต่อ</string>
     <string name="mode_shader_precache">แคชเชเดอร์ล่วงหน้า</string>

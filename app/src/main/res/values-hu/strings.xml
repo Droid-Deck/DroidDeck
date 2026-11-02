@@ -342,6 +342,8 @@
     <string name="mode_client">Kliens</string>
     <string name="mode_mangoapp">Teljesítmény-overlay</string>
     <string name="mode_mangoapp_hint">Kapcsolja ki, ha a játékok összeomlanak vagy elfeketednek Deck módban. A következő munkamenettől érvényes.</string>
+    <string name="mode_steam_ui_software">Szoftveres Steam-felület</string>
+    <string name="mode_steam_ui_software_hint">A Steam menüit a processzor rajzolja a GPU helyett. Lassabb; kapcsolja be, ha a Steam felülete lefagy vagy hibás csempéket mutat. A következő munkamenettől érvényes.</string>
     <string name="mode_return_after_game">Visszatérés a DroidDeckbe játék után</string>
     <string name="mode_return_after_game_hint">Amikor egy a DroidDeckből vagy más indítóból elindított játék bezárul, a Steam szabályosan kilép (előbb befejeződnek a felhőmentések), és oda tér vissza. Ki: a Steamben marad.</string>
     <string name="mode_shader_precache">Shader-előgyorsítótárazás</string>

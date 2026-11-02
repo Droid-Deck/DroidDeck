@@ -42,6 +42,9 @@ done
 aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wl,-soname,libtracefs.so.1 \
   -o "$M/libtracefs.so.1" tools/mangoapp/libtracefs-shim.c
 aarch64-linux-gnu-strip --strip-unneeded "$M/libtracefs.so.1"
+aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -o "$M/libsysfs-listing-shim.so" \
+  tools/mangoapp/sysfs-listing-shim.c -ldl
+aarch64-linux-gnu-strip --strip-unneeded "$M/libsysfs-listing-shim.so"
 install -Dm644 tools/mangoapp/mangoapp "$D/usr/local/bin/mangoapp"
 rm -rf mango-pkgs
 ls -l "$M"

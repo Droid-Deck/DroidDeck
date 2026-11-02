@@ -342,6 +342,8 @@
     <string name="mode_client">Client</string>
     <string name="mode_mangoapp">Suprapunere de performanță</string>
     <string name="mode_mangoapp_hint">Dezactivează dacă jocurile se blochează sau ecranul devine negru în modul Deck. Se aplică la sesiunea următoare.</string>
+    <string name="mode_steam_ui_software">Interfață Steam software</string>
+    <string name="mode_steam_ui_software_hint">Desenează meniurile Steam cu procesorul în loc de GPU. Mai lent; activează dacă interfața Steam îngheață sau afișează plăci stricate. Se aplică din sesiunea următoare.</string>
     <string name="mode_return_after_game">Revino la DroidDeck după un joc</string>
     <string name="mode_return_after_game_hint">Când un joc pornit din DroidDeck sau din alt launcher se închide, Steam iese curat (salvările în cloud se termină întâi) și revii acolo. Dezactivat: rămâi în Steam.</string>
     <string name="mode_shader_precache">Pre-cache pentru shadere</string>

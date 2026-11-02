@@ -83,6 +83,32 @@ def buildBranch = providers.environmentVariable('GITHUB_HEAD_REF').getOrNull()?.
 def escapeJava = { String value -> value.replace('\\', '\\\\').replace('"', '\\"').replace('\n', ' ').replace('\r', ' ') }
 def ciBuild = providers.environmentVariable('GITHUB_ACTIONS').getOrNull() == 'true'
 def releaseSigner = rootProject.file('keystore/release-signer.sha256').text.trim()
+def localComponentOrigin = gitValue(['remote', 'get-url', '--push', 'origin']) ?: ''
+def componentOriginMatch = localComponentOrigin =~ /^(?:https:\/\/github\.com\/|git@github\.com:)([A-Za-z0-9-]+\/[A-Za-z0-9_.-]+?)(?:\.git)?$/
+def localComponentRepository = componentOriginMatch.matches() ? componentOriginMatch.group(1) : 'Droid-Deck/DroidDeck'
+def componentRepository = providers.gradleProperty('componentRepository')
+    .orElse(providers.environmentVariable('DROIDDECK_COMPONENT_REPOSITORY'))
+    .orElse(providers.environmentVariable('GITHUB_REPOSITORY')).orElse(localComponentRepository).get()
+if (!(componentRepository ==~ /[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_.-]{1,100}/)) {
+    throw new GradleException('componentRepository must be a GitHub owner/repository')
+}
+def componentBootstrapFile = rootProject.file('tools/powervr/component-bootstrap.json')
+def componentBootstrap = componentBootstrapFile.exists()
+    ? new groovy.json.JsonSlurper().parse(componentBootstrapFile) : [:]
+if (!componentRepository.equalsIgnoreCase(componentBootstrap.repository?.toString() ?: '')) componentBootstrap = [:]
+def componentRepositoryId = componentBootstrap.repositoryId ?: 0L
+if (!(componentRepositoryId instanceof Number) || componentRepositoryId < 0) {
+    throw new GradleException('Invalid component bootstrap repository ID')
+}
+def bootstrapProfiles = ['powervr', 'xclipse', 'mali'].collectEntries { profile ->
+    def pin = componentBootstrap.profiles?.get(profile) ?: [:]
+    def tag = pin.tag ?: ''
+    def checksum = pin.manifestSha256 ?: ''
+    if (!(tag ==~ /[A-Za-z0-9._\/-]*/) || !(checksum ==~ /(?:[a-f0-9]{64})?/)) {
+        throw new GradleException('Invalid component bootstrap pin for ' + profile)
+    }
+    [(profile): [tag: tag, checksum: checksum]]
+}
 def commitTime = (gitValue(['show', '-s', '--format=%ct', '--end-of-options', sourceCommit]) ?: '0').with { it.isLong() ? it : '0' }
 def desktopKde = rootProject.file('tools/desktop-kde/release.env').readLines()
     .findAll { it.contains('=') && !it.startsWith('#') }
@@ -140,6 +166,12 @@ android {
         buildConfigField "String", "BUILD_BRANCH", "\"${escapeJava(buildBranch)}\""
         buildConfigField "boolean", "CI_BUILD", "${ciBuild}"
         buildConfigField "String", "RELEASE_SIGNER", "\"${releaseSigner}\""
+        buildConfigField "String", "COMPONENT_REPOSITORY", "\"${componentRepository}\""
+        buildConfigField "long", "COMPONENT_REPOSITORY_ID", "${componentRepositoryId}L"
+        bootstrapProfiles.each { profile, pin ->
+            buildConfigField "String", "SYSTEM_VULKAN_${profile.toUpperCase(Locale.ROOT)}_BOOTSTRAP_TAG", "\"${pin.tag}\""
+            buildConfigField "String", "SYSTEM_VULKAN_${profile.toUpperCase(Locale.ROOT)}_BOOTSTRAP_MANIFEST_SHA256", "\"${pin.checksum}\""
+        }
         buildConfigField "long", "COMMIT_TIME", "${commitTime}L * 1000L"
         buildConfigField "String", "VARIANT_SUFFIXES", "\"${variantSuffixes}\""
         buildConfigField "String", "SGDB_API_KEY", "\"${System.getenv("SGDB_API_KEY") ?: project.findProperty("sgdbApiKey") ?: ""}\""
@@ -269,7 +301,7 @@ tasks.named('preBuild').configure { dependsOn(stageSessionScripts) }
 def runtimeAssetsDir = layout.buildDirectory.dir('runtimeAssets')
 def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
     dependsOn(stageSessionScripts)
-    from(layout.projectDirectory.dir('src/main/assets')) { exclude 'pulseaudio.tzst' }
+    from(layout.projectDirectory.dir('src/main/assets')) { exclude 'pulseaudio.tzst', 'hybris/**' }
     from(rootProject.file('tools/linuxfs/innoextract'))
     from(layout.buildDirectory.dir('prepared-assets'))
     into(runtimeAssetsDir)
@@ -346,6 +378,7 @@ if (!skipRust) android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir)
 tasks.named('preBuild').configure { dependsOn(buildRustStores) }
 
 dependencies {
+    implementation 'com.android.tools.build:apksig:8.8.0'
     implementation "org.opencv:opencv:${trackingPack.OPENCV_VERSION}"
     implementation 'org.khronos.openxr:openxr_loader_for_android:1.1.49'
     implementation 'com.github.luben:zstd-jni:1.5.7-4@aar'

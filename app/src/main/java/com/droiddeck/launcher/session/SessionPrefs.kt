@@ -8,6 +8,8 @@ import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.core.TextureFiltering
 import com.droiddeck.launcher.gpu.Cardboard
 import com.droiddeck.launcher.gpu.ScreenEffects
+import com.droiddeck.launcher.gpu.SystemVulkanDriver
+import com.droiddeck.launcher.gpu.TurnipDriver
 import org.json.JSONObject
 import java.io.File
 
@@ -442,6 +444,7 @@ object SessionPrefs {
     const val GPU_DRIVERS_AUTO = "auto"
     const val GPU_DRIVERS_MANUAL = "manual"
     const val GPU_DRIVERS_MIX = "mix"
+    const val GPU_DRIVERS_PAIR = "pair"
 
     const val TP_UBWC_AUTO = "auto"
     const val TP_UBWC_ON = "on"
@@ -468,6 +471,14 @@ object SessionPrefs {
         if (p.contains("gpuDriverMode")) return
         val chosen = androidDriver(context).isNotEmpty() || linuxDriver(context).isNotEmpty()
         p.edit().putString("gpuDriverMode", if (chosen) GPU_DRIVERS_MANUAL else GPU_DRIVERS_AUTO).apply()
+    }
+
+    @JvmStatic
+    fun ensureSystemVulkanAutoDrivers(context: Context) = ensureSystemVulkanAutoDrivers(context, SystemVulkanDriver.isSupportedGpu())
+
+    internal fun ensureSystemVulkanAutoDrivers(context: Context, systemVulkan: Boolean) {
+        if (!systemVulkan || gpuDriverMode(context) != GPU_DRIVERS_AUTO) return
+        prefs(context).edit().putString("linuxDriver", "").putString("androidDriver", TurnipDriver.AUTO).apply()
     }
 
     fun gpuAutoInstalled(context: Context): Set<String> =
@@ -735,6 +746,9 @@ object SessionPrefs {
     fun vsyncThread(context: Context): Boolean = prefs(context).getBoolean("vsyncThread", true)
     fun renderOnCommit(context: Context): Boolean = prefs(context).getBoolean("renderOnCommit", true)
     fun setMangoapp(context: Context, on: Boolean) { prefs(context).edit().putBoolean("mangoapp", on).apply() }
+
+    fun steamUiSoftware(context: Context): Boolean = prefs(context).getBoolean("steamUiSoftware", false)
+    fun setSteamUiSoftware(context: Context, on: Boolean) { prefs(context).edit().putBoolean("steamUiSoftware", on).apply() }
 
     fun zinkLazy(context: Context): Boolean = prefs(context).getBoolean("zinkLazy", true)
 

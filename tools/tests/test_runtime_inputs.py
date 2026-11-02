@@ -1,6 +1,7 @@
 import importlib.util
 import gzip
 import io
+import json
 from pathlib import Path, PureWindowsPath
 import subprocess
 import tarfile
@@ -15,11 +16,108 @@ runtime = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(runtime)
 
 
+class SyncthingSourceTest(unittest.TestCase):
+    relative = 'tools/syncthing/syncthing-android'
+    pinned = 'f8819078e7dec1e8a954eec839febd9f7385294e'
+
+    @staticmethod
+    def result(stdout=b'', returncode=0):
+        return subprocess.CompletedProcess([], returncode, stdout, '')
+
+    def clean_calls(self, root, diff=b'', untracked=b''):
+        checkout = root / self.relative
+        nested = checkout / 'syncthing/src/github.com/syncthing/syncthing'
+        recursive = (f' {self.pinned} {self.relative} (heads/main)\n'
+                     f' {"a" * 40} {self.relative}/syncthing (heads/main)\n').encode()
+        return [
+            self.result(f'160000 {self.pinned} 0\t{self.relative}\n'.encode()),
+            self.result((str(checkout.resolve()) + '\n').encode()),
+            self.result((self.pinned + '\n').encode()),
+            self.result(recursive),
+            self.result((str(nested.resolve()) + '\n').encode()),
+            self.result(("a" * 40 + '\n').encode()),
+            self.result(diff),
+            self.result(untracked),
+        ]
+
+    def test_pinned_initialized_syncthing_recipe_is_attested_without_tree_scan(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with mock.patch.object(runtime.subprocess, 'run',
+                                   side_effect=self.clean_calls(root)) as run:
+                sources = runtime.syncthing_sources(root)
+        self.assertEqual(set(sources), {self.relative + suffix for suffix in
+            ['/.gitlink', '/.checkout', '/.submodules', '/.source-head',
+             '/.source-diff', '/.source-untracked']})
+        self.assertEqual(run.call_count, 8)
+        self.assertIn('tools/syncthing/build.sh', runtime.SOURCE_PATHS)
+        self.assertIn(self.relative + '/gradle/libs.versions.toml', runtime.SOURCE_PATHS)
+        self.assertNotIn('tools/syncthing', runtime.SOURCE_PATHS)
+
+    def test_syncthing_checkout_and_dirty_source_are_attested(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            nested = root / self.relative / 'syncthing/src/github.com/syncthing/syncthing'
+            nested.mkdir(parents=True)
+            (nested / 'local.go').write_text('local change')
+            calls = self.clean_calls(root, diff=b'diff --git a/a b/a\n', untracked=b'local.go\0')
+            calls[2] = self.result(("0" * 40 + '\n').encode())
+            with mock.patch.object(runtime.subprocess, 'run', side_effect=calls):
+                sources = runtime.syncthing_sources(root)
+        self.assertNotEqual(sources[self.relative + '/.gitlink'],
+                            sources[self.relative + '/.checkout'])
+        self.assertNotEqual(sources[self.relative + '/.source-diff'],
+                            runtime.hashlib.sha256().hexdigest())
+        self.assertNotEqual(sources[self.relative + '/.source-untracked'],
+                            runtime.hashlib.sha256().hexdigest())
+
+    def test_submodule_descriptions_do_not_change_source_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first_calls = self.clean_calls(root)
+            second_calls = self.clean_calls(root)
+            second_calls[3] = self.result(
+                second_calls[3].stdout.replace(b'(heads/main)', b'(v2.0.0-3-g1234567)'))
+            with mock.patch.object(runtime.subprocess, 'run', side_effect=first_calls):
+                first = runtime.syncthing_sources(root)
+            with mock.patch.object(runtime.subprocess, 'run', side_effect=second_calls):
+                second = runtime.syncthing_sources(root)
+        self.assertEqual(first[self.relative + '/.submodules'],
+                         second[self.relative + '/.submodules'])
+
+    def test_submodule_status_preserves_paths_with_spaces(self):
+        object_id = b'a' * 40
+        first = runtime.normalized_submodule_status(
+            b' ' + object_id + b' repo nested/path with spaces (heads/main)\n')
+        second = runtime.normalized_submodule_status(
+            b' ' + object_id + b' repo nested/path with spaces (v2.0.0-3-g1234567)\n')
+        other = runtime.normalized_submodule_status(
+            b' ' + object_id + b' repo nested/path with changes (heads/main)\n')
+        self.assertEqual(first, second)
+        self.assertIn(b'repo nested/path with spaces', first)
+        self.assertNotEqual(first, other)
+
+    def test_syncthing_nested_submodules_must_be_initialized(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            calls = self.clean_calls(root)
+            calls[3] = self.result(b'-' + calls[3].stdout[1:])
+            with mock.patch.object(runtime.subprocess, 'run', side_effect=calls):
+                with self.assertRaisesRegex(ValueError, 'uninitialized submodule'):
+                    runtime.syncthing_sources(root)
+
+
 class RuntimeInputsTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        syncthing = mock.patch.object(runtime, 'syncthing_sources', return_value={
+            'tools/syncthing/syncthing-android/.gitlink': 'a' * 64,
+            'tools/syncthing/syncthing-android/.submodules': 'b' * 64,
+        })
+        syncthing.start()
+        self.addCleanup(syncthing.stop)
         paths = runtime.outputs(self.root)
         for name in runtime.required():
             path = self.root / paths.get(name, 'app/src/main/' + name)
@@ -77,6 +175,11 @@ class RuntimeInputsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'libproot.so'):
             runtime.record(self.root)
 
+    def test_missing_syncthing_cannot_be_attested(self):
+        (self.root / 'app/src/main/jniLibs/arm64-v8a/libsyncthingnative.so').unlink()
+        with self.assertRaisesRegex(ValueError, 'libsyncthingnative.so'):
+            runtime.record(self.root)
+
     def test_base_audio_without_compiled_sinks_is_rejected(self):
         self.audio(['pactl'])
         with self.assertRaisesRegex(ValueError, 'module-aaudio-sink'):
@@ -121,6 +224,13 @@ class RuntimeInputsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'changed runtime input'):
             runtime.verify(self.root)
 
+    def test_modified_syncthing_binary_is_rejected(self):
+        runtime.record(self.root)
+        (self.root / 'app/src/main/jniLibs/arm64-v8a/libsyncthingnative.so').write_bytes(
+            b'changed syncthing')
+        with self.assertRaisesRegex(ValueError, 'libsyncthingnative.so'):
+            runtime.verify(self.root)
+
     def test_an_old_apk_is_rejected_even_when_staging_is_current(self):
         runtime.record(self.root)
         data = runtime.verify(self.root)
@@ -134,6 +244,20 @@ class RuntimeInputsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'stale runtime input'):
             runtime.check_apk(apk, self.root)
 
+    def test_apk_with_stale_syncthing_is_rejected(self):
+        runtime.record(self.root)
+        data = runtime.verify(self.root)
+        apk = self.root / 'stale-syncthing.apk'
+        with ZipFile(apk, 'w') as package:
+            for name, output in data['outputs'].items():
+                if not self.in_apk(name):
+                    continue
+                content = b'stale syncthing' if name.endswith('/libsyncthingnative.so') else \
+                    (self.root / output['path']).read_bytes()
+                package.writestr(name, content)
+        with self.assertRaisesRegex(ValueError, 'stale runtime input: lib/arm64-v8a/libsyncthingnative.so'):
+            runtime.check_apk(apk, self.root)
+
     def test_complete_current_payload_passes(self):
         runtime.record(self.root)
         data = runtime.verify(self.root)
@@ -143,6 +267,52 @@ class RuntimeInputsTest(unittest.TestCase):
                 if self.in_apk(name):
                     package.writestr(name, (self.root / output['path']).read_bytes())
         runtime.check_apk(apk, self.root)
+
+    def require_system_vulkan(self):
+        config = self.root / runtime.SYSTEM_VULKAN_COMPONENT_CONFIG
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text('{}\n')
+        release = self.root / 'tools/gamescope/release.env'
+        release.parent.mkdir(parents=True, exist_ok=True)
+        release.write_text('GAMESCOPE_TAG=gamescope-3.16.29-p13\n')
+
+    @staticmethod
+    def compatible_gamescope():
+        return b'\x7fELF' + b'\0'.join(runtime.SYSTEM_VULKAN_GAMESCOPE_MARKERS)
+
+    def gamescope_path(self):
+        return self.root / runtime.outputs(self.root)[runtime.GAMESCOPE]
+
+    def test_system_vulkan_rejects_stock_gamescope_while_recording(self):
+        self.require_system_vulkan()
+        self.gamescope_path().write_bytes(b'\x7fELFstock gamescope p13')
+        with self.assertRaisesRegex(ValueError, 'nested-swapchain fallbacks'):
+            runtime.record(self.root)
+
+    def test_system_vulkan_accepts_gamescope_with_nested_swapchain_fallbacks(self):
+        self.require_system_vulkan()
+        self.gamescope_path().write_bytes(self.compatible_gamescope())
+        runtime.record(self.root)
+        runtime.check_apk(self.current_apk(self.root / 'compatible.apk'), self.root)
+
+    def test_apk_rejects_hash_valid_gamescope_without_system_vulkan_fallbacks(self):
+        self.require_system_vulkan()
+        self.gamescope_path().write_bytes(self.compatible_gamescope())
+        runtime.record(self.root)
+        stock = b'\x7fELFstock gamescope p13'
+        self.gamescope_path().write_bytes(stock)
+        manifest = self.root / runtime.MANIFEST
+        data = json.loads(manifest.read_text())
+        data['outputs'][runtime.GAMESCOPE]['sha256'] = runtime.digest(self.gamescope_path())
+        manifest.write_text(json.dumps(data))
+        data = runtime.verify(self.root)
+        apk = self.root / 'stock.apk'
+        with ZipFile(apk, 'w') as package:
+            for name, output in data['outputs'].items():
+                if self.in_apk(name):
+                    package.writestr(name, (self.root / output['path']).read_bytes())
+        with self.assertRaisesRegex(ValueError, 'nested-swapchain fallbacks'):
+            runtime.check_apk(apk, self.root)
 
     def current_apk(self, path, extra=None):
         runtime.record(self.root)

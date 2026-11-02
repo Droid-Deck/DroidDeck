@@ -342,6 +342,8 @@
     <string name="mode_client">Client</string>
     <string name="mode_mangoapp">Prestatie-overlay</string>
     <string name="mode_mangoapp_hint">Zet dit uit als games crashen of zwart worden in de Deck-modus. Geldt vanaf de volgende sessie.</string>
+    <string name="mode_steam_ui_software">Steam-interface in software</string>
+    <string name="mode_steam_ui_software_hint">Tekent de menu\'s van Steam met de CPU in plaats van de GPU. Trager; zet aan als de Steam-interface vastloopt of kapotte tegels toont. Geldt vanaf de volgende sessie.</string>
     <string name="mode_return_after_game">Na een game terug naar DroidDeck</string>
     <string name="mode_return_after_game_hint">Als een game die je vanuit DroidDeck of een andere launcher hebt gestart sluit, stopt Steam netjes (cloudopslag wordt eerst afgerond) en ga je daarheen terug. Uit: in Steam blijven.</string>
     <string name="mode_shader_precache">Shaders vooraf cachen</string>

@@ -342,6 +342,8 @@
     <string name="mode_client">क्लाइंट</string>
     <string name="mode_mangoapp">परफ़ॉर्मेंस ओवरले</string>
     <string name="mode_mangoapp_hint">Deck मोड में गेम क्रैश होने या काली स्क्रीन होने पर इसे बंद करें। अगले सेशन से लागू होता है।</string>
+    <string name="mode_steam_ui_software">सॉफ़्टवेयर Steam UI</string>
+    <string name="mode_steam_ui_software_hint">Steam के मेनू GPU की बजाय CPU से बनाता है। धीमा है; अगर Steam UI रुक जाए या टूटी टाइलें दिखाए तो चालू करें। अगले सत्र से लागू होता है।</string>
     <string name="mode_return_after_game">गेम के बाद DroidDeck पर लौटें</string>
     <string name="mode_return_after_game_hint">जब DroidDeck या किसी दूसरे लॉन्चर से शुरू किया गेम बंद होता है, तो Steam ठीक से बंद होता है (क्लाउड सेव पहले पूरे होते हैं) और आप वहीं लौट जाते हैं। बंद: Steam में ही रहें।</string>
     <string name="mode_shader_precache">शेडर प्री-कैशिंग</string>

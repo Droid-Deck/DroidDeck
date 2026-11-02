@@ -342,6 +342,8 @@
     <string name="mode_client">العميل</string>
     <string name="mode_mangoapp">تراكب الأداء</string>
     <string name="mode_mangoapp_hint">أوقفه إذا تعطلت الألعاب أو أصبحت شاشتها سوداء في وضع Deck. يُطبَّق في الجلسة التالية.</string>
+    <string name="mode_steam_ui_software">واجهة Steam البرمجية</string>
+    <string name="mode_steam_ui_software_hint">يرسم قوائم Steam على المعالج بدل معالج الرسوميات. أبطأ؛ فعّله إذا تجمّدت واجهة Steam أو ظهرت مربعات مشوهة. يُطبَّق في الجلسة التالية.</string>
     <string name="mode_return_after_game">العودة إلى DroidDeck بعد اللعبة</string>
     <string name="mode_return_after_game_hint">عند إغلاق لعبة بدأتها من DroidDeck أو من مشغّل آخر، يُغلَق Steam بشكل سليم (بعد اكتمال الحفظ السحابي) وتعود إلى هناك. عند الإيقاف: تبقى في Steam.</string>
     <string name="mode_shader_precache">التخزين المسبق للمظلِّلات</string>

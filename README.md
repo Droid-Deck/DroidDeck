@@ -5,7 +5,7 @@
   </picture>
 </p>
 
-DroidDeck brings the SteamOS experience to Android: Steam Gaming Mode, full Linux desktop, integration with GOG, Epic Games, Xbox, and other storefronts, Steam VR, and more!
+DroidDeck brings the SteamOS experience to Android: Steam Gaming Mode, Windows games through Valve's ARM64 Proton, a Linux desktop, and integration with GOG, Epic Games, Xbox, and other storefronts.
 
 <p align="center"><b>100% open source. No ads. No telemetry. No source withheld.</b></p>
 
@@ -25,7 +25,7 @@ DroidDeck brings the SteamOS experience to Android: Steam Gaming Mode, full Linu
 
 <p align="center"><img src="docs/media/steam-to-desktop.gif" width="100%" alt="On a Retroid Pocket Duo: Play Steam from the DroidDeck launcher, open Pac-Man in Steam Big Picture and play it, exit the game, then Switch to Desktop from the Power menu"></p>
 
-> DroidDeck has no website. Only download it from this repository's [Releases](https://github.com/Droid-Deck/DroidDeck/releases).
+> This experimental fork publishes builds in its [Releases](https://github.com/wallentx/DroidDeck/releases); upstream publishes its own [releases](https://github.com/Droid-Deck/DroidDeck/releases).
 
 <p align="center">
   <img src="docs/releases/media/0.6.7/library.gif" width="49%" alt="The Library switching source chips, changing the card size and opening the Filter menu">
@@ -36,10 +36,12 @@ DroidDeck brings the SteamOS experience to Android: Steam Gaming Mode, full Linu
 
 ## Install
 
-1. Android 9 or newer on Adreno 730 or newer, or any 8xx. Adreno 6xx is experimental. Mali, Xclipse, PowerVR and Adreno 710 are unsupported. No root needed.
+1. Android 9 or newer. Adreno 730 or newer and 8xx are supported; Adreno 6xx, PowerVR, Xclipse and Mali are experimental, and compatibility varies by device. Adreno 710 is unsupported. No root needed.
 2. About 3 GB free for the runtime, plus 1.1 GB for the desktop and emulators.
-3. Install the [APK](https://github.com/Droid-Deck/DroidDeck/releases/download/0.6.7/DroidDeck-0.6.7.apk), install the Linux runtime, press **Play** and sign in to Steam.
+3. Install an [APK from this fork’s releases](https://github.com/wallentx/DroidDeck/releases), install the Linux runtime, press **Play** and sign in to Steam.
 4. On Android 14 and newer, turn on **Disable child process restrictions** in Developer options. On Android 12 and 13, Steam's first launch shows a **Fix it for me** button that walks you through it.
+
+System Vulkan components download separately for the detected GPU. Use **Sources** beside Refresh to manage repositories for each component and app updates; see [component sources](docs/component-sources.md).
 
 Smart glasses setup is in the [support matrix](docs/smart-glasses-support.md). Release notes are in [docs/releases](docs/releases).
 

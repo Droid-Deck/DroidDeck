@@ -1,0 +1,54 @@
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -1851,16 +1851,22 @@
+ 		commit->fifo = false;
+ 	}
+ 
+-	if ( gamescope::OwningRc<CVulkanTexture> pTexture = s_BufferMemos.LookupVulkanTexture( buf ) )
+-	{
+-		// Going from OwningRc -> Rc now.
+-		commit->vulkanTex = pTexture;
+-		return commit;
+-	}
+-
+ 	struct wlr_dmabuf_attributes dmabuf = {0};
++	const bool bIsDmabuf = wlr_buffer_get_dmabuf( buf, &dmabuf );
++	// DMA-BUF textures reference the producer's live allocation. SHM textures are
++	// snapshots uploaded into separate memory and must be refreshed every commit.
++	if ( bIsDmabuf )
++	{
++		if ( gamescope::OwningRc<CVulkanTexture> pTexture = s_BufferMemos.LookupVulkanTexture( buf ) )
++		{
++			// Going from OwningRc -> Rc now.
++			commit->vulkanTex = pTexture;
++			return commit;
++		}
++	}
++
+ 	gamescope::OwningRc<gamescope::IBackendFb> pBackendFb;
+-	if ( wlr_buffer_get_dmabuf( buf, &dmabuf ) )
++	if ( bIsDmabuf )
+ 	{
+ 		pBackendFb = GetBackend()->ImportDmabufToBackend( &dmabuf );
+ 	}
+@@ -1874,7 +1880,8 @@
+ 
+ 	commit->vulkanTex = pOwnedTexture;
+ 
+-	s_BufferMemos.MemoizeBuffer( buf, std::move( pOwnedTexture ) );
++	if ( bIsDmabuf )
++		s_BufferMemos.MemoizeBuffer( buf, std::move( pOwnedTexture ) );
+ 
+ 	return commit;
+ }
+@@ -8599,7 +8606,8 @@
+ 		} );
+ 	if ( commitSync.source == gamescope::BufferCommitSyncSource::SynchronousUpload )
+ 	{
+-		// vulkan_create_texture_from_wlr_buffer waited for this SHM upload to finish.
++		// Every SHM commit is uploaded synchronously; only DMA-BUF textures are memoized.
++		// vulkan_create_texture_from_wlr_buffer waited for this upload to finish.
+ 		// Exporting its image memory as a DMA-BUF does not produce a sync fence and can
+ 		// return an invalid fd on drivers that do not export the allocation.
+ 		static bool loggedSynchronousUpload = false;

@@ -342,6 +342,8 @@
     <string name="mode_client">Client</string>
     <string name="mode_mangoapp">Leistungs-Overlay</string>
     <string name="mode_mangoapp_hint">Deaktivieren, wenn Spiele im Deck-Modus abstürzen oder schwarz werden. Gilt ab der nächsten Sitzung.</string>
+    <string name="mode_steam_ui_software">Steam-Oberfläche in Software</string>
+    <string name="mode_steam_ui_software_hint">Zeichnet die Steam-Menüs mit der CPU statt der GPU. Langsamer; einschalten, wenn die Steam-Oberfläche einfriert oder kaputte Kacheln zeigt. Gilt ab der nächsten Sitzung.</string>
     <string name="mode_return_after_game">Nach einem Spiel zu DroidDeck zurückkehren</string>
     <string name="mode_return_after_game_hint">Wenn ein Spiel, das du über DroidDeck oder einen anderen Launcher gestartet hast, beendet wird, schließt Steam sauber (Cloud-Speicherstände werden zuerst fertig) und du kehrst dorthin zurück. Aus: in Steam bleiben.</string>
     <string name="mode_shader_precache">Shader-Vorab-Caching</string>

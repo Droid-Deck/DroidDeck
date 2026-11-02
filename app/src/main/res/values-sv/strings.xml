@@ -342,6 +342,8 @@
     <string name="mode_client">Klient</string>
     <string name="mode_mangoapp">Prestandaöverlägg</string>
     <string name="mode_mangoapp_hint">Stäng av om spel kraschar eller blir svarta i Deck-läge. Gäller från nästa session.</string>
+    <string name="mode_steam_ui_software">Programvarubaserat Steam-gränssnitt</string>
+    <string name="mode_steam_ui_software_hint">Ritar Steams menyer med processorn i stället för grafikprocessorn. Långsammare; slå på om Steams gränssnitt fryser eller visar trasiga rutor. Gäller från nästa session.</string>
     <string name="mode_return_after_game">Återgå till DroidDeck efter ett spel</string>
     <string name="mode_return_after_game_hint">När ett spel du startade från DroidDeck eller en annan launcher stängs avslutas Steam korrekt (molnsparningar slutförs först) och du kommer tillbaka dit. Av: stanna i Steam.</string>
     <string name="mode_shader_precache">Förhandscachning av shaders</string>

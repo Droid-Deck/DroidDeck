@@ -342,6 +342,8 @@
     <string name="mode_client">Klient</string>
     <string name="mode_mangoapp">Výkonový overlay</string>
     <string name="mode_mangoapp_hint">Vypněte, pokud hry v režimu Deck padají nebo zčernají. Použije se od příští relace.</string>
+    <string name="mode_steam_ui_software">Softwarové rozhraní Steamu</string>
+    <string name="mode_steam_ui_software_hint">Vykresluje nabídky Steamu procesorem místo GPU. Pomalejší; zapněte, pokud rozhraní Steamu zamrzá nebo zobrazuje rozbité dlaždice. Projeví se v příští relaci.</string>
     <string name="mode_return_after_game">Po hře se vrátit do DroidDeck</string>
     <string name="mode_return_after_game_hint">Když se zavře hra spuštěná z DroidDeck nebo jiného launcheru, Steam se čistě ukončí (nejprve dokončí cloudová uložení) a vrátíte se tam. Vypnuto: zůstanete ve Steamu.</string>
     <string name="mode_shader_precache">Předběžné ukládání shaderů</string>

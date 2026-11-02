@@ -5,6 +5,7 @@ import os
 import re
 import runpy
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -887,6 +888,7 @@ def wait_forwarding_signals(process):
 
 
 def start(launch, launch_env, digest, after=None):
+    launch, launch_env = system_graphics_launch(launch, launch_env)
     if after:
         process = subprocess.Popen(launch, env=launch_env)
         try:
@@ -903,6 +905,257 @@ def start(launch, launch_env, digest, after=None):
             record_install_scripts(digest, launch_env)
         return code
     return os.execvpe(launch[0], launch, launch_env)
+
+
+class SystemGraphicsError(ValueError):
+    pass
+
+
+PLACED_MEMORY_SETTING = "DROIDDECK_EXPERIMENTAL_PLACED_MEMORY"
+PLACED_MEMORY_LAYER = "VK_LAYER_DROIDDECK_placed_memory"
+PLACED_MEMORY_LIBRARY = "libVkLayer_DROIDDECK_placed_memory.so"
+PLACED_MEMORY_MANIFEST = "VkLayer_DROIDDECK_placed_memory.json"
+
+
+def is_i386_pe_executable(program):
+    """Classify a regular PE32 executable from bounded metadata, never its name."""
+    try:
+        descriptor = os.open(program, os.O_RDONLY | os.O_NONBLOCK)
+        with os.fdopen(descriptor, "rb") as stream:
+            metadata = os.fstat(stream.fileno())
+            if not stat.S_ISREG(metadata.st_mode):
+                return False
+            dos = stream.read(64)
+            if len(dos) != 64 or dos[:2] != b"MZ":
+                return False
+            offset = int.from_bytes(dos[60:64], "little")
+            if not 64 <= offset <= 1024 * 1024 or offset + 24 > metadata.st_size:
+                return False
+            stream.seek(offset)
+            header = stream.read(24)
+            if len(header) != 24 or header[:4] != b"PE\0\0":
+                return False
+            machine = int.from_bytes(header[4:6], "little")
+            sections = int.from_bytes(header[6:8], "little")
+            optional_size = int.from_bytes(header[20:22], "little")
+            flags = int.from_bytes(header[22:24], "little")
+            if (machine != 0x14c or not flags & 0x2 or flags & 0x2000 or
+                    not 1 <= sections <= 96 or not 96 <= optional_size <= 4096 or
+                    offset + 24 + optional_size + sections * 40 > metadata.st_size):
+                return False
+            optional = stream.read(96)
+            return (len(optional) == 96 and optional[:2] == b"\x0b\x01" and
+                    int.from_bytes(optional[92:96], "little") <= (optional_size - 96) // 8)
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def system_icd_selected(directory, env):
+    """An explicit manual ICD selection must not receive an automatic layer."""
+    if env.get("VK_ADD_DRIVER_FILES"):
+        return False
+    selected = env.get("VK_DRIVER_FILES") or env.get("VK_ICD_FILENAMES")
+    if not selected:
+        return True
+    paths = selected.split(os.pathsep)
+    try:
+        return len(paths) == 1 and Path(paths[0]).resolve() == (directory / "icd.json").resolve()
+    except (OSError, ValueError):
+        return False
+
+
+def proton_executable_path(program, env):
+    if not re.match(r"^[A-Za-z]:", program):
+        return program
+    if len(program) < 3 or program[2] not in "\\/":
+        return None
+    prefix = env.get("STEAM_COMPAT_DATA_PATH")
+    if not prefix or not os.path.isabs(prefix):
+        return None
+    relative = Path(program[2:].replace("\\", "/").lstrip("/"))
+    if ".." in relative.parts:
+        return None
+    drive = Path(prefix) / "pfx/dosdevices" / (program[0].lower() + ":")
+    return str(drive / relative) if drive.is_symlink() else None
+
+
+def placed_memory_requested(command, directory, env):
+    setting = env.get(PLACED_MEMORY_SETTING)
+    gpu = env.get("DROIDDECK_SYSTEM_VULKAN_GPU")
+    managed_mali = (gpu == "mali" and env.get("DROIDDECK_SYSTEM_VULKAN_DXVK") == "managed" and
+                    env.get("DROIDDECK_HYBRIS_DXVK") == "dxvk-mali" and env.get("DXVK_MALI_COMPAT") == "1")
+    if setting not in (None, "1") or (setting != "1" and gpu != "powervr" and not managed_mali):
+        return False
+    program = proton_executable_path(command[2], env)
+    if not program or Path(program).name.lower() in ("steam.exe", "steamwebhelper.exe", "iscriptevaluator.exe"):
+        return False
+    return (Path(command[0]).name == "proton" and system_icd_selected(directory, env) and
+            is_i386_pe_executable(program))
+
+
+def validate_placed_memory(directory):
+    library = directory / "lib" / PLACED_MEMORY_LIBRARY
+    manifest = directory / "lib" / PLACED_MEMORY_MANIFEST
+    try:
+        for path in (library, manifest):
+            if not path.is_file() or not path.stat().st_size:
+                raise SystemGraphicsError("missing system Vulkan placed-memory component: %s" % path.name)
+        with manifest.open("rb") as stream:
+            data = stream.read(65537)
+        if len(data) > 65536:
+            raise SystemGraphicsError("system Vulkan placed-memory manifest exceeds 64 KiB")
+        document = json.loads(data)
+        layer = document.get("layer") if isinstance(document, dict) else None
+        if (not isinstance(layer, dict) or layer.get("name") != PLACED_MEMORY_LAYER or
+                layer.get("type") != "GLOBAL" or
+                layer.get("library_path") not in (PLACED_MEMORY_LIBRARY, "./" + PLACED_MEMORY_LIBRARY)):
+            raise SystemGraphicsError("invalid system Vulkan placed-memory manifest: %s" % manifest.name)
+    except (OSError, ValueError, UnicodeError) as error:
+        if isinstance(error, SystemGraphicsError):
+            raise
+        raise SystemGraphicsError("system Vulkan placed-memory component is unreadable: %s" % error) from error
+
+
+def ordered_values(*values):
+    result = []
+    for value in values:
+        for item in value.split(os.pathsep):
+            if item and item not in result:
+                result.append(item)
+    return result
+
+
+def game_layers(env):
+    configured = env.get("DROIDDECK_HYBRIS_LAYERS", "VK_LAYER_HYBRIS_compat")
+    inherited = env.get("VK_INSTANCE_LAYERS", "")
+    session = ordered_values("VK_LAYER_window_system_integration",
+                             env.get("DROIDDECK_HYBRIS_SESSION_LAYERS", "VK_LAYER_HYBRIS_compat"))
+    # Inherited session layers give way to the game profile. A caller's extra
+    # layers instead retain their placement around existing compatibility layers.
+    if any(name not in session for name in ordered_values(inherited)):
+        return ordered_values("VK_LAYER_window_system_integration", inherited, configured)
+    return ordered_values("VK_LAYER_window_system_integration", configured)
+
+
+def system_graphics_launch(command, env):
+    """Use the APK's system Vulkan compatibility files only for actual Proton game launches."""
+    runtime = env.get("DROIDDECK_SYSTEM_VULKAN_RUNTIME") or env.get("DROIDDECK_POWERVR_RUNTIME")
+    if not runtime or not game_id(env) or len(command) < 3 or command[1] != "waitforexitandrun":
+        return command, env
+    directory = Path(runtime)
+    if not directory.is_absolute():
+        raise SystemGraphicsError("system Vulkan runtime path is not absolute")
+    # Old launchers only identify the GPU. New profiles choose presentation and DXVK independently.
+    legacy_mali = env.get("DROIDDECK_SYSTEM_VULKAN_GPU") == "mali"
+    presentation = env.get("DROIDDECK_SYSTEM_VULKAN_PRESENTATION") or ("x11-shm" if legacy_mali else "native")
+    dxvk = env.get("DROIDDECK_SYSTEM_VULKAN_DXVK") or ("user" if legacy_mali else "managed")
+    if presentation not in ("native", "x11-shm"):
+        raise SystemGraphicsError("invalid system Vulkan presentation: %s" % presentation)
+    if dxvk not in ("managed", "user"):
+        raise SystemGraphicsError("invalid system Vulkan DXVK policy: %s" % dxvk)
+    required = (
+        "wsi/libVkLayer_window_system_integration.so",
+        "wsi/VkLayer_window_system_integration.json", "lib/libVkLayer_hybris_compat.so",
+    )
+    if dxvk == "managed":
+        # run-proton.py picks the same payload; Xclipse needs at most 128 bytes of push data.
+        payload = env.get("DROIDDECK_HYBRIS_DXVK") or "dxvk"
+        if not payload.startswith("dxvk") or "/" in payload:
+            raise SystemGraphicsError("invalid DXVK payload name: %s" % payload)
+        native_architectures = ("i386-windows", "x86_64-windows", "aarch64-windows")
+        native_layout = payload == "dxvk-mali" or any((directory / payload / arch).exists()
+                                                     for arch in native_architectures)
+        architectures = native_architectures if native_layout else ("x32", "x64")
+        required += ("run-proton.py", *("%s/%s/%s.dll" % (payload, arch, name) for arch in architectures
+                                      for name in ("d3d8", "d3d9", "d3d10core", "d3d11", "dxgi")))
+    try:
+        for name in required:
+            path = directory / name
+            if not path.is_file() or not path.stat().st_size:
+                raise SystemGraphicsError("missing system Vulkan component: %s" % name)
+        wrapper = directory / "run-proton.py"
+        if dxvk == "managed" and not os.access(wrapper, os.X_OK):
+            raise SystemGraphicsError("system Vulkan Proton wrapper is not executable")
+    except OSError as error:
+        raise SystemGraphicsError("system Vulkan component is unreadable: %s" % error) from error
+    result = dict(env)
+    layers = game_layers(env)
+    if placed_memory_requested(command, directory, env):
+        validate_placed_memory(directory)
+        # Move only this layer: all caller-selected layers retain their order,
+        # and the placed-memory bridge sees hybris compat's translated resources.
+        layers = [name for name in layers if name != PLACED_MEMORY_LAYER] + [PLACED_MEMORY_LAYER]
+        result[PLACED_MEMORY_SETTING] = "1"
+    result.update({
+        "VK_LAYER_PATH": os.pathsep.join(ordered_values(str(directory / "wsi"), str(directory / "lib"),
+                                                       env.get("DROIDDECK_HYBRIS_LAYER_PATH", ""),
+                                                       env.get("VK_LAYER_PATH", ""))),
+        "VK_INSTANCE_LAYERS": os.pathsep.join(layers),
+        "ENABLE_GAMESCOPE_WSI": "0",
+        "VK_LOADER_LAYERS_DISABLE": "*gamescope*",
+        "DISABLE_VK_LAYER_VALVE_steam_fossilize_1": "1",
+    })
+    if presentation == "x11-shm":
+        # A profile without working DRI3 keeps GPU rendering and presents via X11 SHM.
+        result["WSI_X11_FORCE_SHM"] = "1"
+    if dxvk == "managed":
+        result["HYBRIS_BC_TEXTURES"] = "dxvk"
+        result.pop("PROTON_USE_WINED3D", None)
+        command = [str(wrapper), *command]
+    for name in ("DISABLE_WSI_LAYER", "ENABLE_VK_LAYER_VALVE_steam_fossilize_1"):
+        result.pop(name, None)
+    return command, result
+
+
+def exec_proton(command, env):
+    # Synchronization selection has already picked the actual Proton executable.
+    command, env = system_graphics_launch(command, env)
+    os.execvpe(command[0], command, env)
+
+
+def call_proton(command, env):
+    # Xbox must retain this process until the game exits so its lease can be released.
+    command, env = system_graphics_launch(command, env)
+    return subprocess.call(command, env=env)
+
+
+def proton_launchable(command):
+    try:
+        return bool(command and Path(command[0]).is_file() and
+                    os.access(command[0], os.R_OK | os.X_OK))
+    except (OSError, TypeError, ValueError):
+        return False
+
+
+def xbox_proton_runner(selected_command, stock_command, stock_env, sync):
+    using_stock = False
+    selected_checked = False
+
+    def run(command, env):
+        nonlocal selected_checked, using_stock
+        record_fallback = False
+        if not selected_checked:
+            selected_checked = True
+            if selected_command[0] != stock_command[0] and not proton_launchable(selected_command):
+                using_stock = True
+                record_fallback = True
+        if using_stock:
+            command = [stock_command[0], *command[1:]]
+            env = without_pack(env, stock_env)
+            if record_fallback:
+                record_stock(sync, command, env)
+        try:
+            return call_proton(command, env)
+        except OSError:
+            if using_stock or selected_command[0] == stock_command[0]:
+                raise
+            using_stock = True
+            command = [stock_command[0], *command[1:]]
+            env = without_pack(env, stock_env)
+            record_stock(sync, command, env)
+            return call_proton(command, env)
+
+    return run
 
 
 def main():
@@ -984,13 +1237,17 @@ def main():
             note = "no thread plan added for this core count (%s)" % error
         if note:
             print("droiddeck-game-env: " + note, file=sys.stderr)
+    sync = load_sync()
+    launch, launch_env = select_sync(command, env, sync)
     try:
         xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))
     except Exception as error:
         print("droiddeck-game-env: Xbox support unavailable (%s); stock launch" % error, file=sys.stderr)
-        xbox = {"launch": lambda command, env: None}
+        xbox = {"launch": lambda command, env, runner=None: None}
     try:
-        xbox_result = xbox["launch"](command, env)
+        xbox_result = xbox["launch"](
+            launch, launch_env, xbox_proton_runner(launch, command, env, sync)
+        )
     except (OSError, ValueError, KeyError, RuntimeError) as error:
         print("droiddeck-game-env: Xbox launch could not start (%s)" % error, file=sys.stderr)
         return 1
@@ -1016,8 +1273,6 @@ def main():
                 except OSError as undo:
                     print("droiddeck-game-env: DiRT telemetry fix: prefix ws2_32 not put back (%s); Wine uses its own copy "
                           "and the next launch puts the file back" % undo, file=sys.stderr)
-    sync = load_sync()
-    launch, launch_env = select_sync(command, env, sync)
     if launch[0] != command[0]:
         try:
             return start(launch, launch_env, digest, after)
@@ -1038,4 +1293,8 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except SystemGraphicsError as error:
+        print("droiddeck-game-env: system Vulkan graphics runtime unavailable (%s)" % error, file=sys.stderr)
+        sys.exit(1)

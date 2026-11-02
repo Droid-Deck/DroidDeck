@@ -1,0 +1,27 @@
+diff --git a/hybris/vulkan/compat/spirv_clip.c b/hybris/vulkan/compat/spirv_clip.c
+--- a/hybris/vulkan/compat/spirv_clip.c
++++ b/hybris/vulkan/compat/spirv_clip.c
+@@ -369,9 +369,9 @@ static VkResult distance_vertex(const uint32_t *code, size_t size, uint32_t loca
+         /* Translate only the selected distance kind. The other kind retains
+          * its own BuiltIn decoration and semantics. */
+         if (op == 71 && n == 4 && p[2] == 11 && p[3] == builtin) { at += n; continue; }
+-        if (!deco_done && op != 17 && op != 11 && op != 14 && op != 15 && op != 16 &&
++        if (!deco_done && op != 17 && op != 11 && op != 14 && op != 15 && op != 16 && op != 331 &&
+             op != 71 && op != 72 && op != 6 && op != 5 && op != 7 && op != 8 && op != 10 &&
+-            op != 3 && op != 4) {
++            op != 2 && op != 3 && op != 4 && op != 330) {
+             if (!emit_ins(&out, 71, 4, dec, allocator)) { status = VK_ERROR_OUT_OF_HOST_MEMORY; goto done; }
+             deco_done = 1;
+         }
+@@ -592,9 +592,9 @@ VkResult hybris_spirv_clip_fragment(const uint32_t *code, size_t size, uint32_t
+         const uint32_t *p = code + at;
+         uint32_t n = p[0] >> 16, op = p[0] & 65535;
+         if (!n || n > words_n - at) { status = VK_ERROR_UNKNOWN; goto done; }
+-        if (!deco_done && op != 17 && op != 11 && op != 14 && op != 15 && op != 16 &&
++        if (!deco_done && op != 17 && op != 11 && op != 14 && op != 15 && op != 16 && op != 331 &&
+             op != 71 && op != 72 && op != 6 && op != 5 && op != 7 && op != 8 && op != 10 &&
+-            op != 3 && op != 4) {
++            op != 2 && op != 3 && op != 4 && op != 330) {
+             if (!emit_ins(&out, 71, 4, dec, allocator)) { status = VK_ERROR_OUT_OF_HOST_MEMORY; goto done; }
+             deco_done = 1;
+         }

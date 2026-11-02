@@ -64,6 +64,41 @@ library list, before anything is published.
   refresh output they now wait for it too, for at most `external_overlay_hold_cycles` refreshes (4,
   so 30 fps at 120 Hz still merges), and are painted on their own after that.
 
+The system GPU paths use the existing SDL/Wayland swapchain backend. Their additional patches are:
+
+- `0120-nested-swapchain-capability-fallback.patch`: negotiate the surface's usages, mutable-format
+  support, image count, alpha and extent; use offscreen composition and GPU copies when required.
+- `0121-powervr-single-pixel-rcas.patch`: use the existing single-pixel RCAS shader on PowerVR,
+  where the quad variant fails compilation.
+- `0122-powervr-linear-dmabuf-import.patch`: retain the explicit linear layout when PowerVR
+  rejects the mutable-format query, and intersect imported-image and FD memory-type masks.
+- `0123-powervr-rgba-copy-surface.patch`: require an advertised RGBA SDR copy surface matching
+  the shader's `rgba8` storage view. The tested workaround leaves other vendors, HDR and direct
+  composition unchanged; it does not restrict game-facing BGRA formats.
+- `0124-sdl-preserve-explicit-refresh.patch` and `0125-sdl-wait-before-present.patch`: preserve
+  configured refresh across SDL events and finish composition before presenting without a
+  render-finished semaphore. The build runs the focused capability, format and refresh tests.
+- `0126-shm-commit-ready.patch`: mark an SHM texture ready after its synchronous upload instead
+  of exporting image memory and treating the returned DMA-BUF fd as a sync fence. Explicit
+  acquire events and real DMA-BUF commits retain their existing wait paths. The build compiles
+  and runs the extracted production dispatch against SHM, explicit-acquire and DMA-BUF mocks.
+- `0127-refresh-shm-buffer-contents.patch`: upload a fresh texture for every SHM commit. The
+  texture cache remains enabled for DMA-BUF imports, which reference the producer's allocation;
+  SHM imports are snapshots and otherwise replay old pixels when a client reuses its buffers.
+  The build tests the production import function with reused buffers and retained older commits.
+- `0128-keep-swapchain-shm-textures-internal.patch`: keep SHM uploads internal on Vulkan-swapchain
+  backends, which sample them locally rather than consuming exported input buffers. This avoids
+  unsupported DMA-BUF allocations, optimal-image layout queries and foreign ownership transfers
+  on the SDL path. Backends that forward or scan out input buffers retain their export behavior.
+  The build tests the actual SHM texture flags for both backend types.
+- `0129-keep-swapchain-cursors-internal.patch`: keep Xwayland SHM cursor textures internal on
+  Vulkan-swapchain backends. The trace proves generic `CVulkanTexture` DMA-BUF-attribute cleanup
+  closed fd 0 after Wayland assigned it to Xwayland SHM; it does not identify an individual cursor
+  allocation or driver return as that source. SDL samples its cursor texture locally, so this removes
+  the remaining cursor external-FD ownership path. Cursor textures remain exportable for
+  hardware-plane and forwarding backends, and the existing linear requirement for a hardware cursor
+  plane is unchanged. The build tests the extracted production flags; device validation is pending.
+
 Sixteen more of Armada's patches are DRM/lease/HDR-on-KMS work for a native display, which this
 app's Wayland-hosted gamescope never reaches, or need a newer gamescope than the runtime has.
 
@@ -209,3 +244,12 @@ the connector's windows (`mangoapp_nudge_app_frame`). With `DROIDDECK_HUD_FRAMES
 sets `/run/droiddeck-hud/frames`), gamescope maps that file and writes the same commits of connector 0,
 whether or not a mangoapp runs, plus the focused pid, output size, refresh, Steam focus and engine name.
 The layout is in the comment above `droiddeck_hud_frames_map`; the app reads it in `hudframes.c`.
+
+## 0126 SHM: complete synchronously uploaded buffers without a fence
+
+SHM buffers are uploaded before the commit is queued, so they are marked ready without
+exporting the texture's memory as a fence. DMA-BUFs and explicit acquire fences keep their
+normal synchronization; already-ready DMA-BUFs still skip duplication when the upstream
+ready-at-import check is enabled. Ready commits enter the same-pass completion queue even
+when that optional polling check is disabled. Fence ownership, shared completion lists, and
+DroidDeck HUD frame reporting follow the preceding 0123–0125 patches.

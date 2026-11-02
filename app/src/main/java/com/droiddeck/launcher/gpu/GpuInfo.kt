@@ -24,7 +24,18 @@ data class GpuInfo(
         A7XX("Adreno 7xx"),
         A6XX("Adreno 6xx"),
         ADRENO_UNKNOWN("Adreno"),
+        POWERVR("PowerVR"),
+        XCLIPSE("Xclipse"),
+        MALI("Mali"),
         NOT_ADRENO("Not an Adreno GPU");
+
+        val systemProfile: SystemVulkanDriver.Profile?
+            get() = when (this) {
+                POWERVR -> SystemVulkanDriver.Profile.POWERVR
+                XCLIPSE -> SystemVulkanDriver.Profile.XCLIPSE
+                MALI -> SystemVulkanDriver.Profile.MALI
+                else -> null
+            }
 
         fun label(context: Context): String = if (this == NOT_ADRENO) context.getString(R.string.gpuinfo_not_adreno) else label
     }
@@ -47,21 +58,27 @@ data class GpuInfo(
     val supportText: String
         get() = when (support) {
             Support.TESTED -> "Supported"
-            Support.UNTESTED -> if (isA850) "Experimental Adreno 850 support: requires compatible experimental display and game drivers; not verified on this device"
-                else if (family == Family.A7XX_LOW) "Experimental: its drivers are test builds"
-                else "Outside tested hardware (Adreno 650, 725 and newer): it may not run"
-            Support.UNSUPPORTED -> "Not supported: DroidDeck needs an Adreno (Snapdragon) GPU"
+            Support.UNTESTED -> when {
+                family.systemProfile != null && family == Family.POWERVR -> "System ${family.systemProfile!!.gpuName} driver: compatibility varies by device"
+                family.systemProfile != null -> "Experimental system ${family.systemProfile!!.gpuName} driver: compatibility varies by device"
+                isA850 -> "Experimental Adreno 850 support: requires compatible experimental display and game drivers; not verified on this device"
+                family == Family.A7XX_LOW -> "Experimental: its drivers are test builds"
+                else -> "Outside tested hardware (Adreno 650, 725 and newer): it may not run"
+            }
+            Support.UNSUPPORTED -> "Not supported: no compatible graphics backend is available for this GPU"
         }
 
     fun supportText(context: Context): String = context.getString(when (support) {
         Support.TESTED -> R.string.gpuinfo_supported
         Support.UNTESTED -> when {
+            family == Family.POWERVR -> R.string.gpuinfo_system_driver
+            family == Family.XCLIPSE || family == Family.MALI -> R.string.gpuinfo_system_experimental
             isA850 -> R.string.gpuinfo_a850_experimental
             family == Family.A7XX_LOW -> R.string.gpuinfo_experimental
             else -> R.string.gpuinfo_below_tested
         }
         Support.UNSUPPORTED -> R.string.gpuinfo_unsupported
-    })
+    }, family.systemProfile?.gpuName.orEmpty())
 
     fun displayName(context: Context): String = if (name == UNNAMED) context.getString(R.string.gpu_this_gpu) else name
 
@@ -73,16 +90,28 @@ data class GpuInfo(
             val raw = FileUtils.readString(File("/sys/class/kgsl/kgsl-3d0/gpu_model"))?.trim()
             val chipId = FileUtils.readString(File("/sys/class/kgsl/kgsl-3d0/gpu_chipid"))?.trim().orEmpty()
             val soc = if (adreno) SocNames.label() else ""
+            val fromKernel = raw?.let { threeDigits(it) } ?: 0
+            val fromVulkan = if (fromKernel > 0 || !adreno) 0 else VulkanInfo.cachedOrNull()?.get("device")?.let { threeDigits(it) } ?: 0
+            val fromPlatform = if (fromKernel > 0 || fromVulkan > 0 || !adreno) 0 else platformModel()
+            val model = maxOf(fromKernel, fromVulkan, fromPlatform)
+            val source = when {
+                fromKernel > 0 -> "kernel"
+                fromVulkan > 0 -> "vulkan"
+                fromPlatform > 0 -> "platform"
+                else -> ""
+            }
             val platformGpuModel = if (adreno) platformModel() else 0
-            val (model, source) = if (adreno) modelFromNames(
-                raw,
-                { VulkanInfo.cachedOrNull()?.get("device") },
-                { platformGpuModel },
-            ) else 0 to ""
-            val family = familyOf(adreno, model)
+            val family = familyOf(adreno, model, SystemVulkanDriver.profile())
+            val systemGpuName = family.systemProfile?.gpuName
             val samsung = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
             return GpuInfo(
-                name = if (!adreno) Build.HARDWARE.ifBlank { UNNAMED } else if (model > 0) "Adreno $model" else "Adreno",
+                name = when {
+                    systemGpuName != null -> VulkanInfo.cachedOrNull()?.get("device")
+                        ?.takeIf { it.contains(systemGpuName, ignoreCase = true) } ?: systemGpuName
+                    !adreno -> Build.HARDWARE.ifBlank { UNNAMED }
+                    model > 0 -> "Adreno $model"
+                    else -> "Adreno"
+                },
                 model = model, family = family, soc = soc,
                 oneUi8Gen2 = samsung && model == 740,
                 kgslName = raw.orEmpty(), modelSource = source, kgslChipId = chipId,
@@ -124,7 +153,12 @@ data class GpuInfo(
             ""
         }
 
-        internal fun familyOf(adreno: Boolean, model: Int): Family = when {
+        internal fun familyOf(adreno: Boolean, model: Int, systemProfile: SystemVulkanDriver.Profile? = null): Family = when {
+            !adreno && systemProfile != null -> when (systemProfile) {
+                SystemVulkanDriver.Profile.POWERVR -> Family.POWERVR
+                SystemVulkanDriver.Profile.XCLIPSE -> Family.XCLIPSE
+                SystemVulkanDriver.Profile.MALI -> Family.MALI
+            }
             !adreno -> Family.NOT_ADRENO
             model == 0 -> Family.ADRENO_UNKNOWN
             model >= 800 -> Family.A8XX

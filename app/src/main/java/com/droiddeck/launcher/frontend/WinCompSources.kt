@@ -3,13 +3,14 @@ package com.droiddeck.launcher.frontend
 import android.content.Context
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreGameSidecar
+import com.droiddeck.launcher.session.WinFontComponents
 import com.droiddeck.launcher.session.WinComponents
 import org.json.JSONObject
 import java.io.File
 import java.util.Locale
 
 object WinCompSources {
-    enum class Origin { STEAM, GOG, EPIC, AMAZON, STEAM_NAME, FOLDER, XBOX }
+    enum class Origin { STEAM, GOG, EPIC, AMAZON, STEAM_NAME, FOLDER, KNOWN_GAME, XBOX }
 
     data class Finding(val component: String?, val original: String, val origin: Origin, val auto: Boolean, val args: List<String> = emptyList())
 
@@ -78,9 +79,13 @@ object WinCompSources {
         val pairs = (if (local.isNotEmpty()) local.map { it.componentName to it.label }
         else SteamAppInfo.info(context, appId)?.let { steamDepots(it.sharedDepots) }.orEmpty()) +
             SteamRedists.installScript(gameDir) + SteamRedists.SCRIPTED[appId].orEmpty()
-        return pairs.distinctBy { it.first.removeSuffix("_dll") }.map { (component, label) ->
+        val listed = pairs.map { (component, label) ->
             Finding(component, label, if (auto) Origin.STEAM else Origin.STEAM_NAME, auto, listOf(label, gameName, appId.toString()))
-        }
+        }.distinctBy { it.component?.removeSuffix("_dll") }
+        val fonts = if (auto) WinFontComponents.requiredBy(appId).map { component ->
+            Finding(component, "Source interface fonts", Origin.KNOWN_GAME, true, listOf(gameName, appId.toString()))
+        } else emptyList()
+        return listed + fonts
     }
 
     fun forGame(context: Context, game: Library.SteamGame): List<Finding> {

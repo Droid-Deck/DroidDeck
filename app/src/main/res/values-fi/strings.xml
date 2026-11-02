@@ -342,6 +342,8 @@
     <string name="mode_client">Asiakasohjelma</string>
     <string name="mode_mangoapp">Suorituskyvyn peittokuva</string>
     <string name="mode_mangoapp_hint">Poista käytöstä, jos pelit kaatuvat tai näyttö mustuu Deck-tilassa. Tulee voimaan seuraavassa istunnossa.</string>
+    <string name="mode_steam_ui_software">Steamin ohjelmistokäyttöliittymä</string>
+    <string name="mode_steam_ui_software_hint">Piirtää Steamin valikot suorittimella näytönohjaimen sijaan. Hitaampi; ota käyttöön, jos Steamin käyttöliittymä jäätyy tai näyttää rikkinäisiä ruutuja. Tulee voimaan seuraavassa istunnossa.</string>
     <string name="mode_return_after_game">Palaa DroidDeckiin pelin jälkeen</string>
     <string name="mode_return_after_game_hint">Kun DroidDeckistä tai muusta käynnistimestä aloittamasi peli sulkeutuu, Steam sulkeutuu hallitusti (pilvitallennukset valmistuvat ensin) ja palaat sinne. Pois: pysy Steamissa.</string>
     <string name="mode_shader_precache">Sävyttimien esivälimuistitus</string>

@@ -342,6 +342,8 @@
     <string name="mode_client">Klien</string>
     <string name="mode_mangoapp">Overlay prestasi</string>
     <string name="mode_mangoapp_hint">Matikan jika permainan ranap atau skrin hitam dalam mod Deck. Berkuat kuasa pada sesi seterusnya.</string>
+    <string name="mode_steam_ui_software">UI Steam perisian</string>
+    <string name="mode_steam_ui_software_hint">Melukis menu Steam dengan CPU, bukan GPU. Lebih perlahan; hidupkan jika UI Steam membeku atau menunjukkan jubin rosak. Berkuat kuasa pada sesi seterusnya.</string>
     <string name="mode_return_after_game">Kembali ke DroidDeck selepas permainan</string>
     <string name="mode_return_after_game_hint">Apabila permainan yang anda mulakan dari DroidDeck atau pelancar lain ditutup, Steam keluar dengan bersih (simpanan awan selesai dahulu) dan anda kembali ke sana. Mati: kekal dalam Steam.</string>
     <string name="mode_shader_precache">Pra-cache shader</string>

@@ -342,6 +342,8 @@
     <string name="mode_client">Клієнт</string>
     <string name="mode_mangoapp">Оверлей продуктивності</string>
     <string name="mode_mangoapp_hint">Вимкніть, якщо в режимі Deck ігри вилітають або показують чорний екран. Застосовується в наступному сеансі.</string>
+    <string name="mode_steam_ui_software">Програмний інтерфейс Steam</string>
+    <string name="mode_steam_ui_software_hint">Малює меню Steam процесором замість GPU. Повільніше; увімкніть, якщо інтерфейс Steam зависає або показує биті плитки. Застосовується з наступного сеансу.</string>
     <string name="mode_return_after_game">Повертатися в DroidDeck після гри</string>
     <string name="mode_return_after_game_hint">Коли гра, запущена з DroidDeck або іншого лаунчера, закривається, Steam коректно завершує роботу (спершу завершується збереження в хмару), і ви повертаєтеся туди. Вимкнено: залишатися в Steam.</string>
     <string name="mode_shader_precache">Попереднє кешування шейдерів</string>

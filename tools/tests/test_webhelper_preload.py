@@ -61,6 +61,19 @@ class WebhelperPreloadTest(unittest.TestCase):
         args = [WEBHELPER, "--enable-features=A"]
         self.assertEqual(self.argv(*args, spec="stock"), args)
 
+    def test_software_gpu_flags_survive_process_consolidation(self):
+        args = [WEBHELPER, "--disable-gpu", "--disable-gpu-compositing"]
+        for spec in (None, "stock"):
+            with self.subTest(spec=spec):
+                out = self.argv(*args, spec=spec)
+                self.assertEqual(out[:len(args)], args)
+                self.assertEqual(out.count("--disable-gpu"), 1)
+                self.assertEqual(out.count("--disable-gpu-compositing"), 1)
+                if spec is None:
+                    self.assertIn("--in-process-gpu", out)
+                else:
+                    self.assertEqual(out, args)
+
     def test_an_empty_setting_means_the_default(self):
         self.assertIn("--no-zygote", self.argv(WEBHELPER, spec=""))
 
