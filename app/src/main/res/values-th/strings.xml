@@ -3609,7 +3609,6 @@
     <string name="stores_gamejolt_maturity_adult">ผู้ใหญ่</string>
     <string name="stores_gamejolt_status_complete">เสร็จสมบูรณ์</string>
     <string name="stores_gamejolt_status_early">เข้าถึงก่อนใคร</string>
-    <string name="stores_gamejolt_status_devlog">บันทึกการพัฒนา</string>
     <string name="stores_gamejolt_partners">เกมของพาร์ตเนอร์</string>
     <string name="stores_gamejolt_filter_browser">เบราว์เซอร์</string>
     <string name="stores_gamejolt_filter_maturity">ระดับเนื้อหา</string>

@@ -3637,7 +3637,6 @@
     <string name="stores_gamejolt_maturity_adult">Vuxna</string>
     <string name="stores_gamejolt_status_complete">Färdigt</string>
     <string name="stores_gamejolt_status_early">Tidig åtkomst</string>
-    <string name="stores_gamejolt_status_devlog">Devlog</string>
     <string name="stores_gamejolt_partners">Partnerspel</string>
     <string name="stores_gamejolt_filter_browser">Webbläsare</string>
     <string name="stores_gamejolt_filter_maturity">Åldersgräns</string>

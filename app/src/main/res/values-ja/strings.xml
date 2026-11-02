@@ -3609,7 +3609,6 @@
     <string name="stores_gamejolt_maturity_adult">成人向け</string>
     <string name="stores_gamejolt_status_complete">完成</string>
     <string name="stores_gamejolt_status_early">アーリーアクセス</string>
-    <string name="stores_gamejolt_status_devlog">開発ログ</string>
     <string name="stores_gamejolt_partners">パートナーのゲーム</string>
     <string name="stores_gamejolt_filter_browser">ブラウザ</string>
     <string name="stores_gamejolt_filter_maturity">対象年齢</string>

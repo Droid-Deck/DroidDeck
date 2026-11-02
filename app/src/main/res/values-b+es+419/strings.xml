@@ -3647,7 +3647,6 @@
     <string name="stores_gamejolt_maturity_adult">Maduro</string>
     <string name="stores_gamejolt_status_complete">Completo</string>
     <string name="stores_gamejolt_status_early">Acceso anticipado</string>
-    <string name="stores_gamejolt_status_devlog">Devlog</string>
     <string name="stores_gamejolt_partners">Juegos de socios</string>
     <string name="stores_gamejolt_filter_browser">Navegador</string>
     <string name="stores_gamejolt_filter_maturity">Clasificación</string>

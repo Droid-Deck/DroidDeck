@@ -3637,7 +3637,6 @@
     <string name="stores_gamejolt_maturity_adult">Yetişkin</string>
     <string name="stores_gamejolt_status_complete">Tamamlandı</string>
     <string name="stores_gamejolt_status_early">Erken erişim</string>
-    <string name="stores_gamejolt_status_devlog">Geliştirici günlüğü</string>
     <string name="stores_gamejolt_partners">Ortak oyunlar</string>
     <string name="stores_gamejolt_filter_browser">Tarayıcı</string>
     <string name="stores_gamejolt_filter_maturity">Yaş sınırı</string>

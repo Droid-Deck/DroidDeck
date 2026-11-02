@@ -3637,7 +3637,6 @@
     <string name="stores_gamejolt_maturity_adult">Erwachsene</string>
     <string name="stores_gamejolt_status_complete">Fertig</string>
     <string name="stores_gamejolt_status_early">Early Access</string>
-    <string name="stores_gamejolt_status_devlog">Devlog</string>
     <string name="stores_gamejolt_partners">Partnerspiele</string>
     <string name="stores_gamejolt_filter_browser">Browser</string>
     <string name="stores_gamejolt_filter_maturity">Altersfreigabe</string>

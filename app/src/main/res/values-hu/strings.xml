@@ -3637,7 +3637,6 @@
     <string name="stores_gamejolt_maturity_adult">Felnőtt</string>
     <string name="stores_gamejolt_status_complete">Kész</string>
     <string name="stores_gamejolt_status_early">Korai hozzáférés</string>
-    <string name="stores_gamejolt_status_devlog">Fejlesztési napló</string>
     <string name="stores_gamejolt_partners">Partnerjátékok</string>
     <string name="stores_gamejolt_filter_browser">Böngésző</string>
     <string name="stores_gamejolt_filter_maturity">Korhatár</string>

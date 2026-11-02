@@ -21,7 +21,8 @@ cookies and the user keys, never their values.
 Browse queries (`GameJoltBrowse.queryString`): `section=` is always sent first (featured, hot, best, new).
 Game Jolt answers 404 to any browse request without it, even an empty one. The rest are `tag=`, `f_price=`,
 and `f_os[]`, `f_browser[]`, `f_maturity[]`, `f_status[]`, `f_partners[]`, `page=`. Every page logs its query,
-status and game count. The filters are drop-down menus (`BrowseDropdown`, shared with the itch bar). With mature
+status and game count. The filters are drop-down menus (`BrowseDropdown`, shared with the itch bar). Devlog games have no playable
+copy, so the status filter only offers complete and early access, and a browse always asks for those two. With mature
 content off, `adult` is stripped from the query, including a stored one.
 
 ## Prices

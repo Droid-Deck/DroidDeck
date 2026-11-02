@@ -98,6 +98,7 @@ import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.StoreLanguage
 import com.droiddeck.launcher.stores.StoreSizes
 import com.droiddeck.launcher.stores.StoresState
+import com.droiddeck.launcher.stores.gamejolt.GameJoltApi
 import com.droiddeck.launcher.stores.battlenet.BattleNetInstall
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadState
@@ -139,7 +140,7 @@ internal enum class GameTab { ABOUT, ACHIEVEMENTS, LAUNCH, SAVES, INSTALL }
 
 @Composable
 internal fun GameDetail(
-    key: String, s: FrontEndState, a: FrontEndActions, lead: FocusRequester, backLabel: String, hopRail: String?, onBack: () -> Unit,
+    key: String, s: FrontEndState, a: FrontEndActions, lead: FocusRequester, backLabel: String, hopRail: String?, onBack: () -> Unit, inStore: Boolean = false,
 ) {
     val narrow = LocalNarrowPane.current
     val stacked = narrow || LocalConfiguration.current.screenWidthDp < 700
@@ -416,6 +417,11 @@ internal fun GameActions(
                 if (store == Store.ITCH && installed != null) ItchUpdateButton(installed, download == null && StoresState.uninstalling[installed.key] == null)
                 if (store == Store.GAMEJOLT && installed != null) GameJoltUpdateButton(installed, download == null && StoresState.uninstalling[installed.key] == null)
                 if (store == Store.GAMEJOLT && installed != null) GameJoltVersionButton(installed, download == null && StoresState.uninstalling[installed.key] == null)
+                if (inStore && store == Store.GAMEJOLT && installed != null) {
+                    SecondaryButton(stringResource(R.string.stores_view_on, Store.GAMEJOLT.shortLabel)) {
+                        openUrl(ctx, item?.storeUrl.orEmpty().ifBlank { GameJoltApi.pageUrl("game", installed.sidecar.id) })
+                    }
+                }
                 if (store == Store.GOG && installed != null) GogMaintenanceActions(installed)
                 if (store == Store.XBOX && id != null) XboxInstalledStream(id, game?.name ?: item?.title.orEmpty(), item)
                 if (store == Store.XBOX && installed != null && id != null) {

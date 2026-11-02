@@ -3711,7 +3711,6 @@
     <string name="stores_gamejolt_maturity_adult">Dla dorosłych</string>
     <string name="stores_gamejolt_status_complete">Ukończone</string>
     <string name="stores_gamejolt_status_early">Wczesny dostęp</string>
-    <string name="stores_gamejolt_status_devlog">Devlog</string>
     <string name="stores_gamejolt_partners">Gry partnerów</string>
     <string name="stores_gamejolt_filter_browser">Przeglądarka</string>
     <string name="stores_gamejolt_filter_maturity">Kategoria wiekowa</string>

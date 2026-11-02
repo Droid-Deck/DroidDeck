@@ -390,7 +390,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                     }
                 }
             },
-        ) { key -> GameDetail(key, s, a, heroFocus, backLabel, hopRail = null, onBack = { closeGame() }) }
+        ) { key -> GameDetail(key, s, a, heroFocus, backLabel, hopRail = null, onBack = { closeGame() }, inStore = true) }
     }
     FlightLayer(hostAt)
     StoresMotion.step?.let { ask ->

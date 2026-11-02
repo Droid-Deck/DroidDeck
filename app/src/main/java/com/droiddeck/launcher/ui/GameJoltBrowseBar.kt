@@ -152,7 +152,6 @@ private fun maturityLabel(maturity: String): String = stringResource(
 private fun statusLabel(status: String): String = stringResource(
     when (status) {
         "complete" -> R.string.stores_gamejolt_status_complete
-        "wip" -> R.string.stores_gamejolt_status_early
-        else -> R.string.stores_gamejolt_status_devlog
+        else -> R.string.stores_gamejolt_status_early
     },
 )

@@ -3637,7 +3637,6 @@
     <string name="stores_gamejolt_maturity_adult">Volwassenen</string>
     <string name="stores_gamejolt_status_complete">Voltooid</string>
     <string name="stores_gamejolt_status_early">Early access</string>
-    <string name="stores_gamejolt_status_devlog">Devlog</string>
     <string name="stores_gamejolt_partners">Partnerspellen</string>
     <string name="stores_gamejolt_filter_browser">Browser</string>
     <string name="stores_gamejolt_filter_maturity">Leeftijdsklasse</string>

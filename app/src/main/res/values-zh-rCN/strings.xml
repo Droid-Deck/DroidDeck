@@ -3609,7 +3609,6 @@
     <string name="stores_gamejolt_maturity_adult">成人</string>
     <string name="stores_gamejolt_status_complete">已完成</string>
     <string name="stores_gamejolt_status_early">抢先体验</string>
-    <string name="stores_gamejolt_status_devlog">开发日志</string>
     <string name="stores_gamejolt_partners">合作伙伴游戏</string>
     <string name="stores_gamejolt_filter_browser">浏览器</string>
     <string name="stores_gamejolt_filter_maturity">内容分级</string>

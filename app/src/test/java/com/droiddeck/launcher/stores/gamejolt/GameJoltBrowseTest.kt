@@ -22,6 +22,13 @@ class GameJoltBrowseTest {
             qs(GameJoltQuery(browser = setOf("html"), maturity = setOf("everyone"), status = setOf("complete"), partners = true)))
     }
 
+    @Test fun devlogGamesAreNeverAskedFor() {
+        assertEquals(setOf("complete", "wip"), GameJoltBrowse.effective(GameJoltQuery(), true).status)
+        assertEquals(setOf("complete", "wip"), GameJoltBrowse.effective(GameJoltQuery(status = setOf("devlog")), true).status)
+        assertEquals(setOf("wip"), GameJoltBrowse.effective(GameJoltQuery(status = setOf("wip", "devlog")), false).status)
+        assertEquals("section=featured&f_status%5B%5D=complete&f_status%5B%5D=wip", qs(GameJoltBrowse.effective(GameJoltQuery(), true).copy(maturity = emptySet())))
+    }
+
     @Test fun tagsAreSluggedAndRepeatable() {
         assertEquals("co-op", GameJoltBrowse.tagSlug("  Co-Op "))
         assertEquals("section=featured&tag=action&tag=co-op", qs(GameJoltQuery(tags = listOf("Action", "co op"))))

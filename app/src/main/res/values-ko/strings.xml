@@ -3609,7 +3609,6 @@
     <string name="stores_gamejolt_maturity_adult">성인</string>
     <string name="stores_gamejolt_status_complete">완성</string>
     <string name="stores_gamejolt_status_early">앞서 해보기</string>
-    <string name="stores_gamejolt_status_devlog">개발 일지</string>
     <string name="stores_gamejolt_partners">파트너 게임</string>
     <string name="stores_gamejolt_filter_browser">브라우저</string>
     <string name="stores_gamejolt_filter_maturity">연령 등급</string>

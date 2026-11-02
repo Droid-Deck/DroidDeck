@@ -3713,7 +3713,6 @@
     <string name="stores_gamejolt_maturity_adult">Mature</string>
     <string name="stores_gamejolt_status_complete">Complete</string>
     <string name="stores_gamejolt_status_early">Early access</string>
-    <string name="stores_gamejolt_status_devlog">Devlog</string>
     <string name="stores_gamejolt_partners">Partner games</string>
     <string name="stores_gamejolt_filter_browser">Browser</string>
     <string name="stores_gamejolt_filter_maturity">Maturity</string>

@@ -39,7 +39,7 @@ internal object GameJoltBrowse {
     val systems = listOf("windows", "mac", "linux", "other")
     val browsers = listOf("html", "flash", "unity")
     val maturities = listOf("everyone", "teen", "adult")
-    val statuses = listOf("complete", "wip", "devlog")
+    val statuses = listOf("complete", "wip")
 
     fun tagSlug(tag: String): String = tag.trim().lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')
 
@@ -62,9 +62,10 @@ internal object GameJoltBrowse {
     class Page(val items: List<CatalogItem>, val code: Int, val rawIds: List<String>)
 
     fun effective(query: GameJoltQuery, showMature: Boolean): GameJoltQuery {
-        if (showMature) return query
-        val allowed = query.maturity - "adult"
-        return query.copy(maturity = allowed.ifEmpty { setOf("everyone", "teen") })
+        val playable = query.copy(status = query.status.filterTo(HashSet()) { it in statuses }.ifEmpty { statuses.toSet() })
+        if (showMature) return playable
+        val allowed = playable.maturity - "adult"
+        return playable.copy(maturity = allowed.ifEmpty { setOf("everyone", "teen") })
     }
 
     fun page(context: Context, query: GameJoltQuery, page: Int, showMature: Boolean): Page {

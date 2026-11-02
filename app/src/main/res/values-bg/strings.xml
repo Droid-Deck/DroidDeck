@@ -3637,7 +3637,6 @@
     <string name="stores_gamejolt_maturity_adult">За възрастни</string>
     <string name="stores_gamejolt_status_complete">Завършени</string>
     <string name="stores_gamejolt_status_early">Ранен достъп</string>
-    <string name="stores_gamejolt_status_devlog">Дневник на разработката</string>
     <string name="stores_gamejolt_partners">Игри на партньори</string>
     <string name="stores_gamejolt_filter_browser">Браузър</string>
     <string name="stores_gamejolt_filter_maturity">Зрялост</string>
