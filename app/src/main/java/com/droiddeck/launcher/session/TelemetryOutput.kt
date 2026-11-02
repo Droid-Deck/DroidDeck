@@ -4,17 +4,11 @@ import android.content.Context
 import com.droiddeck.launcher.frontend.Library
 import java.io.File
 
-/**
- * Codemasters games keep their UDP / motion output in My Games/<game>/hardwaresettings/hardware_settings_config.xml
- * inside the game's Proton prefix and read it when the game starts. Turning it on points that element at the
- * In-game stats listener; the file as it was is kept beside it, and its element is put back when turned off.
- */
 object TelemetryOutput {
     data class Game(val name: String, val prefixId: String, val file: File, val on: Boolean)
 
     data class MenuGame(val name: String, val setting: String, val port: Int)
 
-    /** Games whose output is only a setting in the game's own menus, by Steam app id. */
     val MENU_GAMES: Map<Int, MenuGame> = mapOf(
         1293830 to MenuGame("Forza Horizon 4", "Data Out", GameTelemetry.FORZA_PORT),
         1551360 to MenuGame("Forza Horizon 5", "Data Out", GameTelemetry.FORZA_PORT),
@@ -28,7 +22,6 @@ object TelemetryOutput {
     private const val ADDRESS = "127.0.0.1"
     private const val EXTRADATA = "3"
     private val TAGS = listOf("udp", "motion")
-    // Byte-for-byte: every byte maps to one char and back, whatever the file's own encoding is.
     private val BYTES = Charsets.ISO_8859_1
 
     fun scan(compatdata: List<File>): List<Game> = compatdata.asSequence()
@@ -43,7 +36,6 @@ object TelemetryOutput {
         .sortedBy { it.name.lowercase() }
         .toList()
 
-    /** Turns the game's output on or off; false when the file could not be read or written. */
     fun set(game: Game, on: Boolean): Boolean = runCatching {
         val file = game.file
         val original = File(file.path + ORIGINAL_SUFFIX)
@@ -62,7 +54,6 @@ object TelemetryOutput {
         true
     }.getOrDefault(false)
 
-    /** Automatic: turns the output on for every found game the user has not switched off and that is not running. */
     fun applyAutomatic(context: Context, running: String?) {
         if (!SessionPrefs.telemetryAuto(context)) return
         automaticTargets(scan(Library.compatdataDirs(context)), SessionPrefs.telemetryOff(context), running).forEach { set(it, true) }
@@ -73,11 +64,9 @@ object TelemetryOutput {
     internal fun automaticTargets(games: List<Game>, off: Set<String>, running: String?): List<Game> =
         games.filter { !it.on && key(it) !in off && !isRunning(it.prefixId, running) }
 
-    /** Games DroidDeck changed, which go back to their own setting when Automatic is switched off. */
     internal fun restoreTargets(games: List<Game>, running: String?): List<Game> =
         games.filter { File(it.file.path + ORIGINAL_SUFFIX).isFile && !isRunning(it.prefixId, running) }
 
-    /** Whether [running] (the focused Steam app id, or another key for non-Steam programs) may be the game in [prefixId]. */
     internal fun isRunning(prefixId: String, running: String?): Boolean {
         val id = running?.toLongOrNull() ?: return running != null
         return prefixId == id.toString() || prefixId == id.toInt().toString()

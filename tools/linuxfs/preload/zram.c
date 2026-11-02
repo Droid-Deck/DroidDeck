@@ -126,8 +126,6 @@ static void zr_walk(int compress) {
   zr_sys(SYS_close, maps);
 }
 
-// Before it stops a session for suspend, the app waits for <ZR_CTL>.ack.<pid> to appear (the handler
-// runs here, not one a program installed over it) and then to hold a byte (the page-out finished).
 static void zr_ack(int done) {
   static const char suffix[] = ".ack.";
   char path[sizeof(ZR_CTL) + sizeof(suffix) + 20];

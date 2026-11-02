@@ -37,11 +37,7 @@
          SubCommand::Achievements { title_id, json } => commands::achievements::run(&tokens, title_id, json).await,
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/cloud_token.rs
-@@ -0,0 +1,237 @@
-+//! Xbox Cloud Gaming streaming token for the stored account (DroidDeck). Same bearer
-+//! RPS -> Xbox user -> XSTS exchange as the profile read, for the cloud gaming relying party,
-+//! then the streaming service's user login (as xbox.com and Greenlight's xal-node do).
-+//! Never provisions a device or opens login.
+@@ -0,0 +1,226 @@
 +use std::{process::ExitCode, time::Duration};
 +use serde_json::{Value, json};
 +use xodus::{models::{live::ExchangeUserTokenOutcome, secrets::Token, soap}, tokens::TokenManager};
@@ -49,7 +45,6 @@
 +const GSSV_RELYING_PARTY: &str = "http://gssv.xboxlive.com/";
 +const OFFERINGS: [&str; 2] = ["xgpuweb", "xgpuwebf2p"];
 +
-+/// The stored account's compact Microsoft account ticket for one service target and policy.
 +async fn ticket(tokens: &TokenManager, client: &reqwest::Client, target: &str, policy: soap::PolicyReference) -> Result<(String, String), &'static str> {
 +    let (account, device, user) = super::session::prepare(tokens, client).await.map_err(|stage| {
 +        super::session::diagnostic(stage); stage
@@ -63,9 +58,6 @@
 +        ExchangeUserTokenOutcome::Issued(soap::BodyContent::RequestSecurityTokenResponse(response)) => *response,
 +        _ => return Err("msa-response"),
 +    };
-+    // Only accept compact forms here and reject incomplete token responses. The cloud
-+    // transfer purpose answers with a login proof token, which is what /connect takes (Greenlight
-+    // sends the MSAL response's "lpt").
 +    let kind = response.token_type.clone();
 +    if kind == "urn:passport:loginprooftoken" {
 +        let shape = match (&response.requested_security_token.binary_security_token, &response.requested_security_token.encrypted_data) {
@@ -97,8 +89,6 @@
 +    Ok((account, xsts.token))
 +}
 +
-+/// The Microsoft account token a cloud session's /connect step takes (xbox.com asks MSAL for
-+/// "service::http://Passport.NET/purpose::PURPOSE_XBOX_CLOUD_CONSOLE_TRANSFER_TOKEN").
 +async fn transfer_token(tokens: &TokenManager, client: &reqwest::Client) -> Result<String, &'static str> {
 +    let policy = soap::PolicyReference { uri: "PURPOSE_XBOX_CLOUD_CONSOLE_TRANSFER_TOKEN".into(), val: String::default() };
 +    Ok(ticket(tokens, client, "http://Passport.NET/purpose", policy).await?.1)
@@ -153,7 +143,6 @@
 +        let xsts = &xsts;
 +        async move { request_offering(client, &endpoint, xsts, offering).await }
 +    }).await?;
-+    // Diagnostic lines are letters and dashes only (the app's allow-list).
 +    eprintln!("NEXUS_SESSION_DIAGNOSTIC_V1 gssv-login-ok-{}", if offering == "xgpuweb" { "gamepass" } else { "free" });
 +    let transfer = transfer_token(tokens, &client).await;
 +    eprintln!("NEXUS_SESSION_DIAGNOSTIC_V1 transfer-token-{}", if transfer.is_ok() { "ok" } else { "missing" });

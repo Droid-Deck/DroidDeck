@@ -26,6 +26,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.foundation.shape.CircleShape
@@ -371,11 +372,12 @@ fun MenuItem(
             .background(if (hot && enabled) Color.White.copy(alpha = 0.07f) else Color.Transparent)
             .glideBorder(hot && enabled, RoundedCornerShape(8.dp), pal.signal)
             .alpha(if (enabled) 1f else 0.4f)
+            .semantics { selected = checked }
             .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, enabled = enabled, onClick = onClick)
             .controllerConfirm(enabled = enabled, onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 9.dp),
     ) {
-        Text("✓", fontSize = 12.sp, color = pal.signal, modifier = Modifier.width(18.dp).alpha(if (checked) 1f else 0f))
+        Text("✓", fontSize = 12.sp, color = pal.signal, modifier = Modifier.width(18.dp).alpha(if (checked) 1f else 0f).clearAndSetSemantics {})
         if (leading != null) {
             leading()
             Spacer(Modifier.width(8.dp))
@@ -489,10 +491,11 @@ fun <T> ChoiceRow(
     options: List<Pair<T, String>>, selected: T, enabled: Boolean = true, note: String? = null,
     chipModifier: Modifier = Modifier,
     hintLines: Int? = null,
+    stacked: Boolean = false,
     onPick: (T) -> Unit,
 ) {
     val open = host.open == key
-    SettingsRow(label, hint, highlighted = open, hintLines = hintLines) {
+    SettingsRow(label, hint, highlighted = open, hintLines = hintLines, stacked = stacked) {
         Box {
             ValueChip(options.firstOrNull { it.first == selected }?.second ?: "-", open, enabled, modifier = chipModifier.testTag("setting-$key")) { host.open = if (open) null else key }
             AnchoredMenu(open, onDismiss = { if (host.open == key) host.open = null }, title = label, note = note) { firstItemFocus ->

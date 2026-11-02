@@ -8,20 +8,12 @@ import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
-/** A cookie for one https host, in the form CookieManager.setCookie takes. */
 data class WebCookie(val host: String, val header: String)
 
-/**
- * The web sign-in the Steam client in the session already has, so the bottom-screen chat opens signed in.
- * Steam's built-in browser keeps it in its Chromium cookie store under config/htmlcache. With no keyring
- * (SteamOS and DroidDeck) Chromium encrypts values as "v10": AES-128-CBC, key PBKDF2-SHA1("peanuts",
- * "saltysalt", 1 round), IV of 16 spaces. Values are never logged.
- */
 object SteamWebLogin {
     val HOSTS = listOf("steamcommunity.com", "steam-chat.com")
     private const val COOKIES = "config/htmlcache/Default/Cookies"
     private const val V10 = "v10"
-    // From cookie store version 24 Chromium puts the SHA-256 of the host before each value.
     private const val HOST_HASH_VERSION = 24
     private const val HOST_HASH_BYTES = 32
 
@@ -39,19 +31,16 @@ object SteamWebLogin {
         String(value, Charsets.UTF_8)
     }.getOrNull()
 
-    /** Steam's own pages send the sign-in with its "||" separator percent-encoded. */
     internal fun header(name: String, value: String, httpOnly: Boolean): String {
         val v = if (name == "steamLoginSecure") value.replace("||", "%7C%7C") else value
         return "$name=$v; Path=/; Secure" + if (httpOnly) "; HttpOnly" else ""
     }
 
-    /** Empty when the client has no web sign-in, for example before the first login. */
     fun read(runtimeRoot: File, client: String?, scratch: File): List<WebCookie> {
         val homes = client?.let { listOf(if (it == "x86_64") SteamDownloadMonitor.STEAM_HOMES[1] else SteamDownloadMonitor.STEAM_HOMES[0]) }
             ?: SteamDownloadMonitor.STEAM_HOMES
         val store = homes.map { File(runtimeRoot, "$it/$COOKIES") }.filter { it.isFile }.maxByOrNull { it.lastModified() }
             ?: return emptyList()
-        // A copy, journal included: Steam keeps the store open and may be in the middle of a write.
         scratch.deleteRecursively()
         if (!scratch.mkdirs()) return emptyList()
         return try {

@@ -38,4 +38,15 @@ class SecondScreenModeTest {
         assertEquals(SecondScreenMode.DECK_CONTROLS, SecondScreenMode.opening("dashboard", deckPad = true, dashboard = false))
         assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening("dashboard", deckPad = false))
     }
+
+    @Test fun theDesktopOpensAgainOnlyWhileItCanRun() {
+        assertEquals(SecondScreenMode.DESKTOP, SecondScreenMode.opening("desktop", deckPad = true, dashboard = true, desktop = true))
+        assertEquals(SecondScreenMode.DECK_CONTROLS, SecondScreenMode.opening("desktop", deckPad = true, dashboard = true))
+        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening("desktop", deckPad = false))
+    }
+
+    @Test fun withNothingRememberedTheDesktopIsNeverPicked() {
+        assertEquals(SecondScreenMode.DASHBOARD, SecondScreenMode.opening(null, deckPad = false, dashboard = true, desktop = true))
+        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening(null, deckPad = false, desktop = true))
+    }
 }

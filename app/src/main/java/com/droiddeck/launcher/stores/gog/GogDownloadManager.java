@@ -62,7 +62,6 @@ public final class GogDownloadManager {
         public final long bytes;
         public List<String> dependencies = new ArrayList<>();
         public boolean dependenciesRead = false;
-        /** Language actually written, after the manifest's depot list resolved the request. Null for builds that have no language depots. */
         public String language;
         Result(String exeRelative, String buildId, long bytes) { this.exeRelative = exeRelative; this.buildId = buildId; this.bytes = bytes; }
     }
@@ -71,7 +70,6 @@ public final class GogDownloadManager {
         InstallException(String message) { super(message); }
     }
 
-    /** A failure of the offline-installer fallback; its partial files can be discarded. */
     public static final class InstallerException extends InstallException {
         InstallerException(String message) { super(message); }
     }
@@ -311,7 +309,6 @@ public final class GogDownloadManager {
         return StoreLanguage.depotMatchesResolved(listed, resolved);
     }
 
-    /** Language codes listed on this product's Windows gen2 depots, excluding `*`. */
     public static List<String> listLanguages(Context ctx, String gameId) {
         try {
             String token = GogAuth.validToken(ctx);
@@ -497,12 +494,6 @@ public final class GogDownloadManager {
         }
     }
 
-    /**
-     * GOG's Windows installer is a 32-bit Inno Setup stub. On ARM64 it runs through
-     * Proton/FEX, where its path strings are corrupted before CreateFileW (observed on
-     * Wine 11 + FEX: "Path not found"). Extracting the same files with innoextract in
-     * the Linux guest avoids that path entirely.
-     */
     private static void extractInstaller(Context ctx, File installPath, String setupName, Callback cb, AtomicBoolean cancelled) throws InstallException {
         String guestDir = AddedGames.INSTANCE.guestPath(ctx, installPath);
         if (guestDir == null || guestDir.isEmpty()) {
@@ -531,11 +522,6 @@ public final class GogDownloadManager {
         InstallerPart(String url, String filename, long size) { this.url = url; this.filename = filename; this.size = size; }
     }
 
-    /**
-     * Every file of the first usable Windows installer. GOG lists a setup stub and its data parts as
-     * separate files, often without a filename; the parts are named after the stub so the installer
-     * finds them when launched (setup_&lt;id&gt;.exe, setup_&lt;id&gt;-1.bin, ...).
-     */
     static List<InstallerPart> installerParts(JSONObject downloads, String gameId) {
         List<InstallerPart> out = new ArrayList<>();
         if (downloads == null) return out;

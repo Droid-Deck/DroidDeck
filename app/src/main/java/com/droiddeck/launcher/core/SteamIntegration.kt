@@ -45,8 +45,6 @@ object SteamIntegration {
         suggested = !SessionPrefs.sessionPrefs(context).getBoolean("steam_integration_seen", false),
     )
 
-    // Android 13+ blocks accessibility services for sideloaded APKs until the user allows restricted settings in App info.
-    // MODE_DEFAULT is inconclusive on Android 15, so only an explicit denial counts here.
     private fun restrictedSettings(context: Context): Boolean {
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return false
         val mode = runCatching {
@@ -90,7 +88,6 @@ object SteamIntegration {
     fun brightnessSettings(context: Context) = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS,
         Uri.parse("package:${context.packageName}"))
 
-    // ACCESSIBILITY_DETAILS_SETTINGS is restricted to system apps; the fragment args key highlights our entry in the list.
     fun shortcutSettings(context: Context): Intent {
         val service = ComponentName(context, HomeButtonService::class.java).flattenToString()
         return Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)

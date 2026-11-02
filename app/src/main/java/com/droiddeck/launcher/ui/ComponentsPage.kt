@@ -930,7 +930,6 @@ private fun availableFor(l: String, catalog: List<CatalogItem>, snapshot: Snapsh
     return catalog.filter { it.comp == l && ComponentsManager.safeName(it.file) !in stored }
 }
 
-// The rows to show: each stable row carries its paired nightly (if any), and a paired nightly has no row of its own.
 private fun availableRows(l: String, catalog: List<CatalogItem>, snapshot: Snapshot?): List<Pair<CatalogItem, CatalogItem?>> {
     val available = availableFor(l, catalog, snapshot)
     val pairs = ComponentsManager.nightlyPairs(available)
@@ -1456,7 +1455,6 @@ private fun GetLine(
     Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
 }
 
-// Stable | Nightly in the same box as SmallButton: one focus stop, A (or a tap) flips it.
 @Composable
 private fun ChannelToggle(nightly: Boolean, enabled: Boolean, onFlip: () -> Unit) {
     val colors = MaterialTheme.colorScheme

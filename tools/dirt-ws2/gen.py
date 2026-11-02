@@ -1,8 +1,3 @@
-"""ws2_32 stand-in helpers.
-
-gen.py generate SRC OUT  writes OUT/thunks.c (one jump per export) and OUT/ws2_32.def from SRC/ws2_32-exports.txt.
-gen.py verify SRC DLL    checks that DLL exports exactly the ordinals and names in SRC/ws2_32-exports.txt.
-"""
 import struct
 import sys
 from pathlib import Path

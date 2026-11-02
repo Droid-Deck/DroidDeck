@@ -11,7 +11,6 @@ object LogRedactor {
             size > 32
     }
 
-    // Android matchers own native state, so reuse them instead of creating one for every log line.
     private val matchers = object : ThreadLocal<MatcherCache>() {
         override fun initialValue(): MatcherCache = MatcherCache()
     }
@@ -145,7 +144,6 @@ object LogRedactor {
             val needs = name.lowercase().takeIf { name.all { it.code < 0x80 } }
             Learned(Regex("(?i)(?<![A-Za-z0-9_])" + Regex.escape(name) + "(?![A-Za-z0-9_])"), needs)
         }
-        // A file that could not be read keeps the names learned from it before.
         accounts = if (unread) (accounts + learned).distinctBy { it.regex.pattern } else learned
     }
 
@@ -228,7 +226,6 @@ object LogRedactor {
         return out
     }
 
-    /** The at-rest rewrite reads a file into memory twice; larger logs are only scrubbed on the way out. */
     const val IN_MEMORY_SCRUB_MAX = 64L * 1024 * 1024
 
     fun isBinary(file: java.io.File): Boolean = try {
@@ -240,8 +237,6 @@ object LogRedactor {
     } catch (e: Exception) {
         true
     }
-
-    fun isText(file: java.io.File): Boolean = file.isFile && file.length() < IN_MEMORY_SCRUB_MAX && !isBinary(file)
 
     const val RULES_VERSION = 3
 

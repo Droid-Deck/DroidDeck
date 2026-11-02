@@ -1,5 +1,4 @@
-// Adapted from informalTechCode/RayNeo-Air-Series-3DoF-Scaffold (Apache-2.0).
-// See docs/third-party/rayneo/. Returns scaffold quaternions in (w, x, y, z) order.
+// Adapted from informalTechCode/RayNeo-Air-Series-3DoF-Scaffold (Apache-2.0); see docs/third-party/rayneo/ for license and attribution.
 package com.droiddeck.launcher.glasses
 
 import kotlin.math.cos
@@ -123,10 +122,6 @@ internal class RayNeoOrientationFilter(
     private var lastRealtimeNs: Long = 0L
 
     companion object {
-        /** Scaffold: right +X, up +Y, back +Z. VITURE: right -Y, up +Z, back -X.
-         * Conjugate by HeadPose.GLASSES_AXES before entering the unchanged VITURE pose path.
-         * This is a basis conversion, not a projection or seated-origin adjustment.
-         */
         fun glassesPose(wxyz: FloatArray): FloatArray =
             floatArrayOf(-wxyz[3], -wxyz[1], wxyz[2], wxyz[0])
     }
@@ -168,8 +163,6 @@ internal class RayNeoOrientationFilter(
         if (accelNorm > 1e-3f) {
             val measuredUp = accel.normalized()
             if (!gravityInitialized) {
-                // Align gravity before publishing the first pose. Starting at
-                // identity and settling after recenter can rotate the horizon.
                 val axis = measuredUp.cross(worldUp)
                 q = if (measuredUp.y < -0.9999f) {
                     Quaternion.fromAxisAngle(Vec3(1f, 0f, 0f), Math.PI.toFloat())
@@ -179,7 +172,6 @@ internal class RayNeoOrientationFilter(
                 gravityInitialized = true
             }
             val predictedUp = q.conjugate().rotate(worldUp).normalized()
-            // q maps body to world: measured x predicted reduces gravity error.
             val correction = measuredUp.cross(predictedUp)
             gyro += correction * accelGain
         }

@@ -287,7 +287,6 @@ private fun ArtOnlyEditor(
     if (logoOpen && loaded != null) LogoPositionHost(chosen, arts, loaded, onBack = { logoOpen = false }, onCloseAll = { logoOpen = false; close() }) { version++; onChanged() }
 }
 
-/** The position as last read; null until it has been read, so the screen never opens on a guess and saves it over the real one. */
 private class LoadedPosition(val value: LogoPosition.Value?)
 
 @Composable
@@ -300,7 +299,6 @@ private fun rememberLogoPosition(target: ArtTarget?, version: Int): LoadedPositi
     return position
 }
 
-/** The "Adjust logo" screen for [target], over the game's background and logo as they are now. */
 @Composable
 private fun LogoPositionHost(
     target: ArtTarget, arts: List<AddedGameArt.SlotState>, start: LoadedPosition,

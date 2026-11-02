@@ -10,8 +10,6 @@ ROOT = Path(__file__).resolve().parents[2]
 @unittest.skipUnless(shutil.which('cc'), 'needs a C compiler')
 class QuestBackdropTest(unittest.TestCase):
     def test_first_frame_requires_client_content(self):
-        # Compile the real entrypoint with controlled layer outcomes, including the
-        # successful no-op that previously dismissed the loading UI on a black frame.
         source = (ROOT / 'app/src/main/cpp/waylandcomp/src/vk_present.c').read_text()
         start = source.index('\nint vkp_render(')
         end = source.index('\nint vkp_render_hdr(', start)

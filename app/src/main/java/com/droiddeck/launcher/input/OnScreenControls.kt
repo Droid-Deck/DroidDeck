@@ -672,7 +672,6 @@ class OnScreenControls(
     private fun closestSnap(position: Float, targets: List<Float>): Float? =
         targets.minByOrNull { abs(position - it) }?.takeIf { abs(position - it) <= dp(SNAP_DP) }
 
-    /** Whether a finger going down at ([x], [y]) lands on something here, as [onTouchEvent] decides it. */
     fun takesTouchAt(x: Float, y: Float): Boolean =
         editing || keyboardContains(x, y) || (!buttonsOnly && quickContains(x, y)) ||
             (!quickHidden && (controlAt(x, y) ?: adaptiveStickAt(x, y)) != null)

@@ -38,10 +38,6 @@ BUS_CONFIG = """<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Config
 
 
 def prepare_rootfs():
-    """Some runtimes (KDE 6.10) ship etc/resolv.conf as a link to /run/host/monitor/resolv.conf.
-    Deploying one, Flatpak removes that link only if GIO reports it existing, and GIO follows it:
-    dangling here, it was left in place and making Flatpak's own link failed ("File exists").
-    With the target present in the rootfs the link resolves and the deploy goes through."""
     target = "/run/host/monitor/resolv.conf"
     try:
         if not os.path.exists(target):
@@ -177,7 +173,6 @@ def installation():
 
 
 def app_ref(inst, app_id):
-    """The installed ref of an app, or None."""
     for ref in inst.list_installed_refs_by_kind(Flatpak.RefKind.APP, None):
         if ref.get_name() == app_id:
             return ref
@@ -281,7 +276,6 @@ def install(app_id):
 
 
 def install_bundle(path):
-    """A single-file bundle (flatpak build-bundle), for apps Flathub does not carry."""
     inst = installation()
     bundle = Gio.File.new_for_path(path)
     try:

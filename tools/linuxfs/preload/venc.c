@@ -1,4 +1,3 @@
-/* /dev/video-enc0 for Steam's Remote Play V4L2 encoder stage, backed by the app's MediaCodec encoder. */
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <errno.h>
@@ -587,7 +586,6 @@ __attribute__((visibility("hidden"))) void bl_venc_closed(int fd) {
     vn_free_queue(&v->raw);
     vn_free_queue(&v->coded);
     v->used = 0;
-    /* A forked child closing its inherited copy must not end the stream for the parent. */
     if (__atomic_sub_fetch(&vn_open_count, 1, __ATOMIC_RELEASE) == 0 && v->owner == getpid()) vn_marker(0);
     pthread_mutex_unlock(&vn_lock);
 }

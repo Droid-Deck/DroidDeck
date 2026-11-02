@@ -31,7 +31,6 @@ class BottomDashboardTest {
     }
 
     @Test fun tabNamesShowOnlyWhileEveryTabFits() {
-        // Retroid Pocket Duo bottom panel: 1280x960 at 320 dpi = 640 dp wide.
         assertTrue(bottomTabsWithLabels(640f, 4))
         assertFalse(bottomTabsWithLabels(640f, 5))
         assertFalse(bottomTabsWithLabels(360f, 3))

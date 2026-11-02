@@ -1,15 +1,4 @@
 #!/usr/bin/env python3
-"""Generate removal inventories from checksum-pinned published archives.
-
-Usage: removal-manifests.py <LXQt tar.zst> <KDE r1 tar.zst> <KDE r2 tar.zst>
-                           <emulators tar.zst> <verified KDE package cache> <output dir>
-                           <verified LXQt package cache>
-       removal-manifests.py --add <KDE tar.zst> <tag> <sha256> <verified KDE package cache> <output dir>
-Removal includes desktop applications/themes and our overlay, not their shared dependencies.
-The KDE cache is verified against the published desktop-kde.packages.txt before use.
-The LXQt cache contains the signed application packages listed by desktop.packages.txt;
-verify their Arch Linux ARM Build System signatures before generating the inventory.
-"""
 import gzip
 import hashlib
 import json

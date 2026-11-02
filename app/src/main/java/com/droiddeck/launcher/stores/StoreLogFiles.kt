@@ -26,7 +26,6 @@ object StoreLogFiles {
 
     private val CLOCK = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
 
-    /** Appends [text] with a time stamp. Works in any of the app's processes. */
     fun stamped(context: Context, text: String) = append(context, "${synchronized(CLOCK) { CLOCK.format(Date()) }}  $text")
 
     fun append(context: Context, line: String) {

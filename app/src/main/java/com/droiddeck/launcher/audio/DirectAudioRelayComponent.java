@@ -118,7 +118,6 @@ public class DirectAudioRelayComponent extends SessionPart {
         }
     }
 
-    // Android keeps the input stream's wake lock while a frozen helper still has it started.
     public boolean awaitMicReleased(long timeoutMs) {
         long deadline = System.currentTimeMillis() + timeoutMs;
         synchronized (micLock) {

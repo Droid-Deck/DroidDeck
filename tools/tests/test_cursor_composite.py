@@ -1,4 +1,3 @@
-"""Exercise the compositor's real cursor placement rule for glasses output."""
 import os
 from pathlib import Path
 import re

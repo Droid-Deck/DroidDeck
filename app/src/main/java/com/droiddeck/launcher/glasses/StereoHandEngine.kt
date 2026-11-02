@@ -383,7 +383,6 @@ internal class StereoHandEngine(private val context: Context, private val token:
                     message=context.getString(R.string.spatial_frame_changed)
                     calibrationProgress = calibrationProgress.copy(collecting = false, capturing = false, captureMessage = message)
                 }
-                // The callback pose's basis is undocumented; use canonical GL pose history.
                 val observation=HandObservation(time,generation,trackingFrame)
                 var captureHead=observation.headPose(SpatialTracking.session,metadata[6]>0)
                 val w=metadata[0].toInt();val h=metadata[1].toInt()
@@ -499,7 +498,6 @@ internal class StereoHandEngine(private val context: Context, private val token:
                     dl=pair.first.hands;dr=pair.second.hands
                     if(scheduled) inferenceSchedule.observe(stamp,dl.map { it.side },dr.map { it.side },pair.first.rawCount,pair.second.rawCount)
                     val inferenceMs=(System.nanoTime()-inferenceStart)/1e6f
-                    // VIO callbacks can arrive during inference; verify this exact camera stamp before publishing.
                     captureHead=observation.headPose(SpatialTracking.session,
                         metadata[6]>0 || VitureSdk.nativeCameraSynchronized(token,metadata[2]))
                     val hands=Array(2) { SpatialHand() }
@@ -631,7 +629,7 @@ internal class StereoHandEngine(private val context: Context, private val token:
                     SpatialTracking.publish(System.nanoTime())
                 }
             }
-        } catch(e: InterruptedException) { /* Shutdown interrupts the idle wait. */ }
+        } catch(e: InterruptedException) { }
         catch(e: Throwable) {
             message=context.getString(R.string.spatial_hand_error, e.message.orEmpty())
             val unavailable=HandObservationDiagnostic(HandObservationOutcome.INFERENCE_UNAVAILABLE)
