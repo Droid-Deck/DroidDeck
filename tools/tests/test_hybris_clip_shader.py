@@ -8,6 +8,7 @@ import struct
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 if __package__:
     from .test_hybris_vendor_compat import vulkan_include
@@ -17,6 +18,44 @@ else:
 ROOT = Path(__file__).resolve().parents[2]
 WORD = ctypes.c_uint32
 WORD_POINTER = ctypes.POINTER(WORD)
+
+
+def strict_c_flags_from_macros(macros):
+    flags = ["-std=gnu11", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
+    names = {line.split()[1] for line in macros.splitlines()
+             if line.startswith("#define ") and len(line.split()) >= 2}
+    if "__clang__" in names:
+        return flags + ["-Wno-tautological-constant-out-of-range-compare"]
+    if "__GNUC__" in names:
+        return flags + ["-Wno-type-limits"]
+    return flags
+
+
+def strict_c_flags(compiler):
+    macros = subprocess.run([compiler, "-dM", "-E", "-x", "c", "-"], input="",
+                            capture_output=True, text=True, check=True).stdout
+    return strict_c_flags_from_macros(macros)
+
+
+class StrictCompilerFlagsTest(unittest.TestCase):
+    def test_clang_wins_over_gcc_compatibility_macros(self):
+        self.assertIn("-Wno-tautological-constant-out-of-range-compare",
+                      strict_c_flags_from_macros("#define __clang__ 1\n#define __GNUC__ 4\n"))
+        self.assertNotIn("-Wno-type-limits",
+                         strict_c_flags_from_macros("#define __clang__ 1\n#define __GNUC__ 4\n"))
+
+    def test_gcc_preprocessor_macros_select_gcc_warning_name(self):
+        self.assertIn("-Wno-type-limits", strict_c_flags_from_macros("#define __GNUC__ 13\n"))
+
+    def test_unidentified_compiler_keeps_strict_defaults(self):
+        self.assertNotIn("-Wno-type-limits", strict_c_flags_from_macros("#define __STDC__ 1\n"))
+
+    @mock.patch.object(subprocess, "run")
+    def test_generic_ubuntu_cc_is_classified_from_preprocessor_not_program_name(self, run):
+        run.return_value = subprocess.CompletedProcess([], 0, "#define __GNUC__ 13\n", "")
+        flags = strict_c_flags("cc")
+        self.assertIn("-Wno-type-limits", flags)
+        self.assertEqual(run.call_args.args[0], ["cc", "-dM", "-E", "-x", "c", "-"])
 
 
 class DistanceCode(ctypes.Structure):
@@ -172,7 +211,7 @@ class HybrisClipShaderTest(unittest.TestCase):
             "{ (void)a; free(p); }\n")
         library = cls.directory / "distance.so"
         built = subprocess.run([
-            cls.compiler, "-shared", "-fPIC", "-std=gnu11", "-Wall", "-Wextra", "-Werror",
+            cls.compiler, "-shared", "-fPIC", *strict_c_flags(cls.compiler),
             "-I", str(vulkan_include()), "-I", str(source),
             str(source / "distance_lowering.c"), str(source / "spirv_entry.c"),
             str(source / "spirv_decorations.c"), str(source / "spirv_builtins.c"),
@@ -348,8 +387,7 @@ class HybrisClipShaderTest(unittest.TestCase):
         helper = ROOT / "tools/tests/hybris_cull_dispatch_test.c"
         program = self.directory / "cull-dispatch-test"
         built = subprocess.run([
-            self.compiler, "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter",
-            "-Wno-tautological-constant-out-of-range-compare",
+            self.compiler, *strict_c_flags(self.compiler),
             "-I", str(vulkan_include()), "-I", str(source), str(helper),
             *(str(source / name) for name in
               ("distance_lowering.c", "spirv_entry.c", "spirv_decorations.c", "spirv_builtins.c",

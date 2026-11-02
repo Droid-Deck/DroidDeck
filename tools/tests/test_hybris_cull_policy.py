@@ -8,8 +8,10 @@ import tempfile
 import unittest
 
 if __package__:
+    from .test_hybris_clip_shader import strict_c_flags
     from .test_hybris_vendor_compat import vulkan_include
 else:
+    from test_hybris_clip_shader import strict_c_flags
     from test_hybris_vendor_compat import vulkan_include
 
 
@@ -39,8 +41,7 @@ class HybrisCullPolicyTest(unittest.TestCase):
             helper = ROOT / "tools/tests/hybris_cull_policy_test.c"
             program = Path(directory) / "cull-policy-test"
             built = subprocess.run([
-                compiler, "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter",
-                "-Wno-tautological-constant-out-of-range-compare",
+                compiler, *strict_c_flags(compiler),
                 "-I", str(include), "-I", str(compat), "-I", str(layer), str(helper),
                 str(compat / "shader_policy.c"), str(layer / "physical.c"),
                 "-o", str(program)], capture_output=True, text=True)
