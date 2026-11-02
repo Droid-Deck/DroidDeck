@@ -1483,10 +1483,10 @@ class DroidDeckHudView(context: Context) : View(context) {
     internal val isDragging: Boolean get() = lockController.isDragging() || tabDragging
 
     private companion object {
-        const val TAB_NUM_SP = 10f
-        const val TAB_LABEL_SP = 6f
-        const val TAB_PAD_X_SP = 5f
-        const val TAB_PAD_Y_SP = 4f
+        const val TAB_NUM_SP = 15f
+        const val TAB_LABEL_SP = 7.25f
+        const val TAB_PAD_X_SP = 7f
+        const val TAB_PAD_Y_SP = 5.5f
         const val REFRESH_MS = 500L
         private const val HUE_IDLE_MS = 500L
         const val MIN_SCALE = 0.5f
