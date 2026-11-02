@@ -424,6 +424,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var glassesOutputActive by mutableStateOf(false)
     private var bottomGame: com.droiddeck.launcher.ui.BottomGameScreen? = null
     private var bottomOutputActive by mutableStateOf(false)
+    private val topDesktopKeys = mutableSetOf<Pair<Int, Int>>()
     private var gameOnBottom by mutableStateOf(SessionState.gameOnBottom)
     private var bottomSwapAvailable by mutableStateOf(false)
     private var pausedFrame by mutableStateOf<com.droiddeck.launcher.ui.PausedFrame?>(null)
@@ -532,7 +533,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun followPanelRefresh(displayId: Int) {
         if (!CompositorHost.isStarted) return
-        val output = glassesScreen?.display
+        val output = bottomGame?.takeIf { bottomOutputActive }?.display ?: glassesScreen?.display
             ?: (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay) ?: return
         if (output.displayId != displayId) return
         applyOutputPacing()
@@ -2627,7 +2628,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return true
         }
         if ((pcKeyboardOpen || achievementsOpen) && fromController) return super.dispatchKeyEvent(event)
-        if (!fromController && event.keyCode != KeyEvent.KEYCODE_BACK && topDesktopFocused() && super.dispatchKeyEvent(event)) return true
+        if (!fromController && event.keyCode != KeyEvent.KEYCODE_BACK && sendToTopDesktop(event)) return true
         if (joyConVr?.onKeyEvent(event) == true) return true
         if (fromController && event.keyCode != KeyEvent.KEYCODE_BACK && padMouseMode() && padMouse.onKey(event)) return true
         if (event.keyCode != KeyEvent.KEYCODE_BACK && padBridge?.onKeyEvent(event) == true) return true
@@ -2637,6 +2638,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (com.droiddeck.launcher.input.GuestKeys.send(event, ::sendGuestKey)) return true
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    private fun sendToTopDesktop(event: KeyEvent): Boolean {
+        val key = event.deviceId to event.keyCode
+        val owned = if (event.action == KeyEvent.ACTION_UP) topDesktopKeys.remove(key) else topDesktopFocused()
+        if (!owned || !super.dispatchKeyEvent(event)) return false
+        if (event.action == KeyEvent.ACTION_DOWN) topDesktopKeys += key
+        return true
     }
 
     private fun topDesktopFocused(): Boolean {
@@ -3683,7 +3692,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var platformPointerShown: Boolean? = null
 
     private fun appUiOwnsPointer(): Boolean =
-        drawerOpen || pcKeyboardOpen || achievementsOpen || pipUi || glassesOutputActive
+        drawerOpen || pcKeyboardOpen || achievementsOpen || pipUi || glassesOutputActive || bottomOutputActive
 
     private fun applyPlatformPointer(shown: Boolean) {
         if (!::sessionRoot.isInitialized || !::surfaceView.isInitialized) return
