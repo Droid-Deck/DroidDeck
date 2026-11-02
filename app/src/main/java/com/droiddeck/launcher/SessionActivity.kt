@@ -425,6 +425,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var bottomGame: com.droiddeck.launcher.ui.BottomGameScreen? = null
     private var bottomOutputActive by mutableStateOf(false)
     private val topDesktopKeys = mutableSetOf<Pair<Int, Int>>()
+    private var bottomRecoveries = 0
     private var gameOnBottom by mutableStateOf(SessionState.gameOnBottom)
     private var bottomSwapAvailable by mutableStateOf(false)
     private var pausedFrame by mutableStateOf<com.droiddeck.launcher.ui.PausedFrame?>(null)
@@ -2233,7 +2234,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         if (holder !== outputHolder()) return
-        cancelTouchGestures()
+        cancelOutputTouches()
         surfaceW = 0
         surfaceH = 0
         glassesOutputActive = false
@@ -4394,6 +4395,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (holder !== outputHolder()) return
         glassesOutputActive = glassesScreen?.holder === holder
         bottomOutputActive = bottomGame?.holder === holder
+        if (bottomOutputActive) bottomRecoveries = 0
         if (CompositorHost.isStarted) WaylandCompositor.nativeSetCursorComposite(glassesOutputActive || bottomOutputActive)
         surfaceView.visibility = if (glassesOutputActive || bottomOutputActive) View.INVISIBLE else View.VISIBLE
         Log.i(TAG, "compositor output attached: " +
@@ -4488,6 +4490,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         Log.i(TAG, "bottom screen surface gone - game back on the top screen")
         restoreTopOutput(screen)
         runCatching { screen.dismiss() }
+        refreshSecondScreenDisplays()
+        if (++bottomRecoveries <= BOTTOM_RECOVERY_TRIES) uiHandler.postDelayed({ updateBottomGame() }, BOTTOM_RECOVERY_MS)
     }
 
     private fun restoreTopOutput(screen: com.droiddeck.launcher.ui.BottomGameScreen) {
@@ -4829,6 +4833,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         private const val PAUSED_FRAME_REDRAW_MS = 150L
         private const val SETTINGS_WATCH_MS = 1_000L
         private const val SETTINGS_WATCH_CHECKS = 600
+        private const val BOTTOM_RECOVERY_MS = 1_000L
+        private const val BOTTOM_RECOVERY_TRIES = 3
         private const val TAG = "SessionActivity"
         private var startedScreens = 0
         @Volatile private var activeInstallWorker: Any? = null
