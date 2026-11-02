@@ -502,7 +502,15 @@ class ForcedPackageTest {
 
     @Test fun theCachedListingIsUsedBeforeRefreshing() {
         writeCatalog()
-        assertEquals(cachedUrl, ComponentsManager.catalogItem(context, dxvk2, "Dxvk-Linux")?.url)
+        val refresher = ComponentsManager.catalogRefresher
+        var refreshes = 0
+        try {
+            ComponentsManager.catalogRefresher = { _, _, _ -> refreshes++; emptyList() }
+            assertEquals(cachedUrl, ComponentsManager.catalogItem(context, dxvk2, "Dxvk-Linux")?.url)
+            assertEquals(0, refreshes)
+        } finally {
+            ComponentsManager.catalogRefresher = refresher
+        }
     }
 
     @Test fun aCacheMissReadsTheRefreshedListingOnce() {
@@ -593,7 +601,7 @@ class ForcedPackageTest {
         state.writeText(JSONObject().put("active", active).put("queued", JSONObject()).toString())
     }
 
-    private val cachedUrl = "https://github.com/The412Banner/Nightlies/releases/download/Dxvk-Linux/$dxvk2?cached=1"
+    private val cachedUrl = "https://github.com/The412Banner/Nightlies/releases/download/Dxvk-Linux/$dxvk2"
 
     private fun writeCatalog() {
         val cache = File(context.filesDir, "components/catalog.json")
