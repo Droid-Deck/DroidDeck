@@ -33,9 +33,10 @@ import com.droiddeck.launcher.session.BottomDesktop
 @SuppressLint("ViewConstructor")
 class BottomDesktopPanel(
     context: Context,
-    onClose: () -> Unit,
+    onClose: (() -> Unit)?,
     onMenu: (() -> Unit)?,
     steamButtons: Pair<() -> Unit, () -> Unit>?,
+    onSwap: (() -> Unit)? = null,
 ) : LinearLayout(context), SurfaceHolder.Callback {
     private lateinit var surfaceView: SurfaceView
     private val area = FrameLayout(context).apply { clipChildren = true }
@@ -66,7 +67,7 @@ class BottomDesktopPanel(
         setBackgroundColor(Color.BLACK)
         isFocusable = true
         isFocusableInTouchMode = true
-        addView(bar(onClose, onMenu, steamButtons), LayoutParams(-1, -2))
+        addView(bar(onClose, onMenu, steamButtons, onSwap), LayoutParams(-1, -2))
         area.addView(keyboardHost)
         addSurface()
         area.addView(status, FrameLayout.LayoutParams(-1, -1))
@@ -83,7 +84,7 @@ class BottomDesktopPanel(
         area.addView(surfaceView, 1, FrameLayout.LayoutParams(fullWidth.takeIf { it > 0 } ?: -1, fullHeight.takeIf { it > 0 } ?: -1))
     }
 
-    private fun bar(onClose: () -> Unit, onMenu: (() -> Unit)?, steamButtons: Pair<() -> Unit, () -> Unit>?): View {
+    private fun bar(onClose: (() -> Unit)?, onMenu: (() -> Unit)?, steamButtons: Pair<() -> Unit, () -> Unit>?, onSwap: (() -> Unit)?): View {
         val bar = LinearLayout(context).apply {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -91,7 +92,7 @@ class BottomDesktopPanel(
             setBackgroundColor(Color.BLACK)
         }
         fun gap() = View(context).apply { layoutParams = LayoutParams(dp(6), 1) }
-        bar.addView(DeckControlsPanel.roundButton(context, "×", context.getString(R.string.deck_close), onClose))
+        onClose?.let { bar.addView(DeckControlsPanel.roundButton(context, "×", context.getString(R.string.deck_close), it)) }
         title = TextView(context).apply {
             textSize = 14f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
@@ -106,6 +107,10 @@ class BottomDesktopPanel(
         bar.addView(gap())
         bar.addView(DeckControlsPanel.iconButton(context, R.drawable.ic_bottom_keyboard,
             context.getString(R.string.second_show_keyboard)) { keyboardHost.toggle() })
+        onSwap?.let {
+            bar.addView(gap())
+            bar.addView(DeckControlsPanel.iconButton(context, R.drawable.ic_bottom_swap, context.getString(R.string.swap_screens), it))
+        }
         onMenu?.let {
             bar.addView(gap())
             bar.addView(DeckControlsPanel.menuButton(context, it))
@@ -208,7 +213,10 @@ class BottomDesktopPanel(
         if (w != fullWidth || h > fullHeight || !keyboardHost.shown) {
             fullWidth = w
             fullHeight = h
-            surfaceView.layoutParams = FrameLayout.LayoutParams(w, h)
+            val (desktopW, desktopH) = BottomDesktop.outputSizeFor(w, h)
+            val (fitW, fitH) = fitDesktop(w, h, desktopW, desktopH)
+            surfaceView.layoutParams = if (fitW == w && fitH == h) FrameLayout.LayoutParams(w, h)
+            else FrameLayout.LayoutParams(fitW, fitH, Gravity.CENTER_HORIZONTAL).apply { topMargin = (h - fitH) / 2 }
         }
         pan()
     }
@@ -231,7 +239,7 @@ class BottomDesktopPanel(
         if (holder !== surfaceView.holder) return
         attached = false
         surfaceUsed = false
-        BottomDesktop.detach()
+        BottomDesktop.detach(holder.surface)
     }
 
     private fun attach(holder: SurfaceHolder) {
@@ -342,4 +350,16 @@ class BottomDesktopPanel(
         const val AXIS_UNITS_PER_PIXEL = 3f
         const val TEXT_FIELD_TAP_MS = 1_000L
     }
+}
+
+/**
+ * The size the desktop's picture takes inside a [areaW]x[areaH] panel. A running desktop keeps its size, so on a
+ * panel of another shape (the top screen after a swap) it is fitted whole instead of stretched.
+ */
+internal fun fitDesktop(areaW: Int, areaH: Int, desktopW: Int, desktopH: Int): Pair<Int, Int> {
+    if (areaW <= 0 || areaH <= 0 || desktopW <= 0 || desktopH <= 0) return areaW to areaH
+    val scale = minOf(areaW / desktopW.toFloat(), areaH / desktopH.toFloat())
+    val w = (desktopW * scale).toInt()
+    val h = (desktopH * scale).toInt()
+    return if (areaW - w <= 4 && areaH - h <= 4) areaW to areaH else w to h
 }

@@ -62,6 +62,7 @@ object BottomDesktop {
     val suspendPid: Int get() = guestPid
     private var guestGeneration = 0
     private var outputSize = 0 to 0
+    private var attachedSurface: Surface? = null
     private var cursorShown = false
     /** The session generation whose launch the running compositor and guest belong to; -1 when none. */
     private var owner = -1
@@ -148,6 +149,7 @@ object BottomDesktop {
         appContext = context.applicationContext
         owner = current.generation
         outputSize = width to height
+        attachedSurface = surface
         val dir = File(current.sessionDir, "bottom-desktop").apply { mkdirs() }
         val msg = Message.obtain(null, Comp.MSG_ATTACH).apply {
             arg1 = owner
@@ -169,7 +171,10 @@ object BottomDesktop {
         }
     }
 
-    fun detach() {
+    /** [surface]: the panel's surface; a panel that already lost the desktop to a newer one leaves it alone. */
+    fun detach(surface: Surface? = null) {
+        if (surface != null && attachedSurface != null && surface !== attachedSurface) return
+        attachedSurface = null
         pendingAttach = null
         service?.let { send(it, Message.obtain(null, Comp.MSG_DETACH)) }
     }

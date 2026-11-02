@@ -3148,6 +3148,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         menu = {
             DroidDeckTheme { SessionMenu(docked = true) }
         },
+        onSwap = if (com.droiddeck.launcher.input.DualScreen.builtIn(target)) ({ putGameOnBottom(true) }) else null,
         dashboard = if (bottomPages().isEmpty()) null else ({
             DroidDeckTheme {
                 BottomDashboard(
@@ -4464,7 +4465,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             Modifier.fillMaxSize().background(androidx.compose.material3.MaterialTheme.colorScheme.background)
                 .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } },
         ) {
-            if (pages.isNotEmpty()) BottomDashboard(
+            if (secondScreenMode == SecondScreenMode.DESKTOP && com.droiddeck.launcher.session.BottomDesktop.available()) {
+                androidx.compose.ui.viewinterop.AndroidView(
+                    factory = { context ->
+                        com.droiddeck.launcher.ui.BottomDesktopPanel(context, null, { drawerOpen = true },
+                            (({ tapSteamButton() }) to ({ tapQam() })).takeIf { SessionState.mode == SessionService.MODE_STEAM }, swapBack)
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else if (pages.isNotEmpty()) BottomDashboard(
                 pages, com.droiddeck.launcher.ui.SessionBottomTab.picked(SessionState.sessionId),
                 gameStarts = gameStarts,
                 onPage = { com.droiddeck.launcher.ui.SessionBottomTab.pick(SessionState.sessionId, it) },
