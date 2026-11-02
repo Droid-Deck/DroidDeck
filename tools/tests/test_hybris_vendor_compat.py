@@ -53,6 +53,16 @@ def file_diff(patch, name):
 
 
 class HybrisVendorCompatibilityTest(unittest.TestCase):
+    def test_calibrated_device_command_stays_out_of_physical_proc_addr(self):
+        entry = file_diff(PATCH, "hybris/vulkan/layer/entry.c")
+        instance = entry[entry.index("static PFN_vkVoidFunction VKAPI_CALL get_instance_proc"):
+                         entry.index("static PFN_vkVoidFunction VKAPI_CALL get_physical_proc")]
+        physical = entry[entry.index("static PFN_vkVoidFunction VKAPI_CALL get_physical_proc"):]
+        self.assertIn("hybris_vendor_instance_alias_proc", instance)
+        reject = physical.index('if (!strcmp(name, "vkGetCalibratedTimestampsKHR")) return NULL;')
+        resolve = physical.index("state.physical_resolver")
+        self.assertLess(reject, resolve)
+
     def test_command_tracking_uses_effective_device_policy(self):
         source_value = os.environ.get("HYBRIS_VENDOR_SOURCE")
         if not source_value:
