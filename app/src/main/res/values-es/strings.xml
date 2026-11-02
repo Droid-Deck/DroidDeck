@@ -884,13 +884,9 @@
     <string name="setup_fullscreen">Pantalla completa</string>
     <string name="setup_fullscreen_on">Oculta las barras de estado y navegación de Android</string>
     <string name="setup_fullscreen_off">Muestra las barras de estado y navegación de Android</string>
-    <string name="setup_dual_screen">Pantalla doble</string>
-    <string name="setup_dual_screen_hint">Automático usa la segunda pantalla en consolas portátiles que la llevan integrada. Activado usa cualquier segunda pantalla. Desactivado lo mantiene todo en una pantalla.</string>
     <string name="setup_dual_screen_auto">Automático</string>
     <string name="setup_dual_screen_on">Activado</string>
     <string name="setup_dual_screen_off">Desactivado</string>
-    <string name="setup_dual_screen_menu">Menú en la pantalla inferior</string>
-    <string name="setup_dual_screen_menu_hint">Mueve las secciones y el menú del juego a la segunda pantalla y se escribe allí, para que la pantalla superior mantenga la vista completa. L2 y R2 cambian de sección.</string>
     <string name="setup_dual_screen_controls">Controles en la pantalla inferior en juegos</string>
     <string name="setup_dual_screen_controls_hint">Abre el trackpad y el teclado en la segunda pantalla al iniciar una sesión.</string>
     <string name="dual_typing_title">Escribiendo en la pantalla superior</string>

@@ -881,13 +881,9 @@
     <string name="setup_fullscreen">Volledig scherm</string>
     <string name="setup_fullscreen_on">Verbergt de statusbalk en navigatiebalk van Android</string>
     <string name="setup_fullscreen_off">Toont de statusbalk en navigatiebalk van Android</string>
-    <string name="setup_dual_screen">Dubbel scherm</string>
-    <string name="setup_dual_screen_hint">Automatisch gebruikt het tweede scherm op handhelds met een ingebouwd scherm. Aan gebruikt elk tweede scherm. Uit houdt alles op één scherm.</string>
     <string name="setup_dual_screen_auto">Automatisch</string>
     <string name="setup_dual_screen_on">Aan</string>
     <string name="setup_dual_screen_off">Uit</string>
-    <string name="setup_dual_screen_menu">Menu op het onderste scherm</string>
-    <string name="setup_dual_screen_menu_hint">Verplaatst de onderdelen en het menu in het spel naar het tweede scherm en typt daar, zodat het bovenste scherm het volledige beeld houdt. L2 en R2 wisselen van onderdeel.</string>
     <string name="setup_dual_screen_controls">Bediening op het onderste scherm in games</string>
     <string name="setup_dual_screen_controls_hint">Opent het trackpad en toetsenbord op het tweede scherm wanneer een sessie start.</string>
     <string name="dual_typing_title">Typen voor het bovenste scherm</string>

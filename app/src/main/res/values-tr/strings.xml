@@ -873,13 +873,9 @@
     <string name="setup_fullscreen">Tam ekran</string>
     <string name="setup_fullscreen_on">Android durum ve gezinme çubuklarını gizler</string>
     <string name="setup_fullscreen_off">Android durum ve gezinme çubuklarını gösterir</string>
-    <string name="setup_dual_screen">Çift ekran</string>
-    <string name="setup_dual_screen_hint">Otomatik, dahili ikinci ekranı olan el konsollarında ikinci ekranı kullanır. Açık, herhangi bir ikinci ekranı kullanır. Kapalı, her şeyi tek ekranda tutar.</string>
     <string name="setup_dual_screen_auto">Otomatik</string>
     <string name="setup_dual_screen_on">Açık</string>
     <string name="setup_dual_screen_off">Kapalı</string>
-    <string name="setup_dual_screen_menu">Alt ekran menüsü</string>
-    <string name="setup_dual_screen_menu_hint">Bölümleri ve oyun içi menüyü ikinci ekrana taşır ve yazma orada yapılır, böylece üst ekran tam görünümü korur. L2 ve R2 bölümler arasında geçiş yapar.</string>
     <string name="setup_dual_screen_controls">Oyunlarda alt ekran kontrolleri</string>
     <string name="setup_dual_screen_controls_hint">Bir oturum başladığında ikinci ekranda dokunmatik yüzeyi ve klavyeyi açar.</string>
     <string name="dual_typing_title">Üst ekran için yazılıyor</string>

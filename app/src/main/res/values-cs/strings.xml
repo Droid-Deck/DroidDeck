@@ -887,13 +887,9 @@
     <string name="setup_fullscreen">Celá obrazovka</string>
     <string name="setup_fullscreen_on">Skryje stavový a navigační panel Androidu</string>
     <string name="setup_fullscreen_off">Zobrazí stavový a navigační panel Androidu</string>
-    <string name="setup_dual_screen">Dvě obrazovky</string>
-    <string name="setup_dual_screen_hint">Automaticky používá druhou obrazovku na kapesních zařízeních, která ji mají vestavěnou. Zapnuto používá jakýkoli druhý displej. Vypnuto nechá vše na jedné obrazovce.</string>
     <string name="setup_dual_screen_auto">Automaticky</string>
     <string name="setup_dual_screen_on">Zapnuto</string>
     <string name="setup_dual_screen_off">Vypnuto</string>
-    <string name="setup_dual_screen_menu">Nabídka na spodní obrazovce</string>
-    <string name="setup_dual_screen_menu_hint">Přesune sekce a herní nabídku na druhou obrazovku a píše se tam, takže horní obrazovka zůstane celá volná. L2 a R2 přepínají sekce.</string>
     <string name="setup_dual_screen_controls">Ovládání na spodní obrazovce ve hrách</string>
     <string name="setup_dual_screen_controls_hint">Při spuštění relace otevře touchpad a klávesnici na druhé obrazovce.</string>
     <string name="dual_typing_title">Psaní pro horní obrazovku</string>

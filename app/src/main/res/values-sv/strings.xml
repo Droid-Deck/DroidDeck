@@ -881,13 +881,9 @@
     <string name="setup_fullscreen">Helskärm</string>
     <string name="setup_fullscreen_on">Döljer Androids statusfält och navigeringsfält</string>
     <string name="setup_fullscreen_off">Visar Androids statusfält och navigeringsfält</string>
-    <string name="setup_dual_screen">Dubbelskärm</string>
-    <string name="setup_dual_screen_hint">Automatiskt använder den andra skärmen på handhållna enheter med en inbyggd andra skärm. På använder vilken andra skärm som helst. Av håller allt på en skärm.</string>
     <string name="setup_dual_screen_auto">Automatiskt</string>
     <string name="setup_dual_screen_on">På</string>
     <string name="setup_dual_screen_off">Av</string>
-    <string name="setup_dual_screen_menu">Meny på nedre skärmen</string>
-    <string name="setup_dual_screen_menu_hint">Flyttar avsnitten och menyn i spelet till den andra skärmen och skrivandet sker där, så att den övre skärmen behåller hela vyn. L2 och R2 byter avsnitt.</string>
     <string name="setup_dual_screen_controls">Kontroller på nedre skärmen i spel</string>
     <string name="setup_dual_screen_controls_hint">Öppnar styrplattan och tangentbordet på den andra skärmen när en session startar.</string>
     <string name="dual_typing_title">Skriver för den övre skärmen</string>

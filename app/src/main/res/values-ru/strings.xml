@@ -887,13 +887,9 @@
     <string name="setup_fullscreen">Полноэкранный режим</string>
     <string name="setup_fullscreen_on">Скрывает строку состояния и панель навигации Android</string>
     <string name="setup_fullscreen_off">Показывает строку состояния и панель навигации Android</string>
-    <string name="setup_dual_screen">Два экрана</string>
-    <string name="setup_dual_screen_hint">Автоматически — использует второй экран на портативных устройствах со встроенным вторым экраном. Вкл. — использует любой второй дисплей. Выкл. — всё остаётся на одном экране.</string>
     <string name="setup_dual_screen_auto">Автоматически</string>
     <string name="setup_dual_screen_on">Вкл.</string>
     <string name="setup_dual_screen_off">Выкл.</string>
-    <string name="setup_dual_screen_menu">Меню на нижнем экране</string>
-    <string name="setup_dual_screen_menu_hint">Переносит разделы и меню в игре на второй экран, и ввод выполняется там, поэтому верхний экран остаётся полностью свободным. L2 и R2 переключают разделы.</string>
     <string name="setup_dual_screen_controls">Управление на нижнем экране в играх</string>
     <string name="setup_dual_screen_controls_hint">Открывает тачпад и клавиатуру на втором экране при запуске сеанса.</string>
     <string name="dual_typing_title">Ввод для верхнего экрана</string>
