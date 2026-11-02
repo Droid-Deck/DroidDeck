@@ -26,6 +26,7 @@ import com.droiddeck.launcher.stores.InstalledStoreGame
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.formatBytes
+import com.droiddeck.launcher.stores.gamejolt.GameJoltApi
 import com.droiddeck.launcher.stores.gamejolt.GameJoltBuild
 import com.droiddeck.launcher.stores.gamejolt.GameJoltBuilds
 import kotlinx.coroutines.Dispatchers
@@ -38,23 +39,24 @@ internal fun GameJoltVersionButton(installed: InstalledStoreGame, enabled: Boole
     SecondaryButton(stringResource(R.string.stores_itch_pick_title), enabled = enabled) {
         val sidecar = installed.sidecar
         val paid = sidecar.extra["paid"] == "1"
-        val owned = StoresState.library[Store.GAMEJOLT].orEmpty().any { it.id == sidecar.id && it.owned }
         StoresState.gameJoltPicking = CatalogItem(
-            store = Store.GAMEJOLT, id = sidecar.id, title = sidecar.title, imageUrl = sidecar.cover, isFree = !paid, owned = owned,
+            store = Store.GAMEJOLT, id = sidecar.id, title = sidecar.title, imageUrl = sidecar.cover, isFree = !paid,
+            storeUrl = GameJoltApi.pageUrl("game", sidecar.id),
             extra = mapOf("gameId" to (sidecar.extra["gameId"] ?: sidecar.id), CHOOSE to "1"),
         )
     }
 }
 
 @Composable
-internal fun GameJoltBuildPicker(item: CatalogItem, onDismiss: () -> Unit) {
+internal fun GameJoltBuildPicker(requested: CatalogItem, onDismiss: () -> Unit) {
+    val item = requested.copy(owned = requested.owned || StoresState.library[Store.GAMEJOLT].orEmpty().any { it.id == requested.id && it.owned })
     val ctx = LocalContext.current
     val app = ctx.applicationContext
     val colors = MaterialTheme.colorScheme
     val shown = rememberShown(onDismiss)
     val close = { shown.targetState = false }
-    var loaded by remember(item) { mutableStateOf<List<GameJoltBuild>?>(null) }
-    var failed by remember(item) { mutableStateOf(false) }
+    var loaded by remember(requested) { mutableStateOf<List<GameJoltBuild>?>(null) }
+    var failed by remember(requested) { mutableStateOf(false) }
 
     val install: (GameJoltBuild) -> Unit = install@{ build ->
         if (!shown.targetState) return@install
@@ -66,7 +68,7 @@ internal fun GameJoltBuildPicker(item: CatalogItem, onDismiss: () -> Unit) {
         StoresState.requestInstall(ctx, tagged)
     }
 
-    LaunchedEffect(item) {
+    LaunchedEffect(requested) {
         val gameId = item.extra["gameId"].orEmpty().ifEmpty { item.id }
         val result = withContext(Dispatchers.IO) { GameJoltBuilds.load(app, gameId) }
         if (result == null) { failed = true; return@LaunchedEffect }

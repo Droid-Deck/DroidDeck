@@ -166,7 +166,7 @@ internal object GameJoltUpdates {
         val root = game.folder.parentFile?.parentFile ?: return
         val item = CatalogItem(
             Store.GAMEJOLT, game.sidecar.id, game.sidecar.title, game.sidecar.hero, tallImageUrl = game.sidecar.cover,
-            owned = true, extra = game.sidecar.extra + ("buildId" to update.buildId),
+            isFree = game.sidecar.extra["paid"] != "1", owned = true, extra = game.sidecar.extra + ("buildId" to update.buildId),
         )
         StoresState.install(app, item, root)
     }
