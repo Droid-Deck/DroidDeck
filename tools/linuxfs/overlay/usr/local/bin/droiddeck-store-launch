@@ -357,6 +357,27 @@ GOG_ROOTS = {"HKEY_LOCAL_MACHINE": "HKEY_LOCAL_MACHINE", "HKLM": "HKEY_LOCAL_MAC
              "HKEY_CLASSES_ROOT": "HKEY_CLASSES_ROOT", "HKCR": "HKEY_CLASSES_ROOT"}
 WINE_USER = "C:\\users\\steamuser"
 
+# GOG completes some installs by running a support installer from the game folder (the
+# goggame-<id>.script "Execute" action). Under ARM64 FEX that 32-bit self-extractor stops at
+# "Path not found", so the values it would write are applied here instead. Only products GOG
+# ships no setRegistry action for are listed; a script's own entries always win.
+# The Witcher: Enhanced Edition (#694) exits during startup unless the installer's
+# HKLM\Software\CD Projekt Red\The Witcher keys exist - the same ones The Witcher's own
+# setup writes (InstallFolder, RegionVersion, IsDjinniInstalled) plus its language.
+GOG_INSTALL_REGISTRY = {
+    "1207658924": [
+        ("HKLM", "Software\\CD Projekt Red\\The Witcher", "InstallFolder", "string", "{app}\\"),
+        ("HKLM", "Software\\CD Projekt Red\\The Witcher", "RegionVersion", "string", "US"),
+        ("HKLM", "Software\\CD Projekt Red\\The Witcher", "IsDjinniInstalled", "dword", 1),
+        ("HKLM", "Software\\CD Projekt Red\\The Witcher", "Language", "string", "{language}"),
+        ("HKCU", "Software\\CD Projekt RED\\Witcher\\Settings", "TextLanguage", "string", "{language}"),
+        ("HKCU", "Software\\CD Projekt RED\\Witcher\\Settings", "VoiceLanguage", "string", "{language}"),
+    ],
+}
+# The Witcher's text and voice language IDs, from its installer's registry data.
+GOG_LANGUAGE_IDS = {"en": 3, "fr": 11, "de": 10, "es": 12, "it": 13, "ru": 14, "cs": 15, "hu": 16,
+                    "zh": 21, "pl": 5}
+
 
 def gog_paths(folder, product):
     app = windows_path(str(folder))
@@ -416,8 +437,94 @@ def gog_entry(arguments, paths):
         return None
 
 
-def gog_registry(folder):
-    entries, skipped = [], 0
+def gog_installed_products(folder):
+    products = {}
+    for info in sorted(Path(folder).glob("goggame-*.info")):
+        product = info.name[len("goggame-"):-len(".info")]
+        if not product.isdigit():
+            continue
+        try:
+            products[product] = json.loads(info.read_text(encoding="utf-8-sig"))
+        except (OSError, ValueError):
+            products[product] = {}
+    return products
+
+
+def gog_language_id(info):
+    languages = info.get("languages") if isinstance(info, dict) else None
+    if isinstance(languages, str):
+        languages = [languages]
+    code = str(languages[0]).lower()[:2] if isinstance(languages, list) and languages else ""
+    return GOG_LANGUAGE_IDS.get(code, GOG_LANGUAGE_IDS["en"])
+
+
+GOG_VALUE_HIVES = {"hklm": "local_machine", "hkey_local_machine": "local_machine",
+                   "hkcu": "current_user", "hkey_current_user": "current_user",
+                   "hkcr": "classes_root", "hkey_classes_root": "classes_root"}
+
+
+def gog_value_key(root, section, name, view32=True):
+    """A registry value's identity, keeping the root and the 32-bit view apart.
+
+    The fallback import always targets the 32-bit view (`/reg:32`), which Wine keeps under
+    `Software\\Wow6432Node` for HKLM: a native HKLM value must not pass for the 32-bit one.
+    HKCU\\Software is shared by both views, so its values read the same either way.
+    """
+    text = section.replace("\\\\", "\\").strip("\\").lower()
+    hive = GOG_VALUE_HIVES.get(root.lower(), root.lower())
+    if text.startswith("software\\wow6432node\\"):
+        text = text[len("software\\wow6432node\\"):]
+    elif hive == "local_machine" and not view32 and text.startswith("software\\"):
+        text = "native\\" + text
+    elif text.startswith("software\\"):
+        text = text[len("software\\"):]
+    return "%s|%s|%s" % (hive, text, name.lower())
+
+
+def gog_registry_values(pfx):
+    """Values already in the prefix, so install defaults never overwrite a player's choice."""
+    values = set()
+    for file, root in (("system.reg", "hklm"), ("user.reg", "hkcu")):
+        try:
+            lines = (pfx / file).read_text(encoding="utf-8", errors="ignore").splitlines()
+        except OSError:
+            continue
+        section = ""
+        for line in lines:
+            if line.startswith("["):
+                end = line.find("]")
+                section = line[1:end] if end > 0 else line[1:]
+                continue
+            match = re.match(r'^"([^"]+)"=', line)
+            if match and section:
+                values.add(gog_value_key(root, section, match.group(1), view32=False))
+    return values
+
+
+def gog_scripted_products(folder):
+    products = set()
+    for script in sorted(Path(folder).glob(GOG_SCRIPTS)):
+        try:
+            actions = json.loads(script.read_text(encoding="utf-8-sig")).get("actions")
+        except (OSError, ValueError, AttributeError):
+            continue
+        if isinstance(actions, list) and any(
+                isinstance(action, dict) and isinstance(action.get("install"), dict)
+                and action["install"].get("action") == "setRegistry" for action in actions):
+            products.add(script.name[len("goggame-"):-len(".script")])
+    return products
+
+
+def gog_expected_values(folder):
+    """The fallback values a launch must find, so the marker never hides one that was deleted."""
+    scripted = gog_scripted_products(folder)
+    return [gog_value_key(root, subkey, name) for product in gog_installed_products(folder)
+            if product in GOG_INSTALL_REGISTRY and product not in scripted
+            for root, subkey, name, _kind, _value in GOG_INSTALL_REGISTRY[product]]
+
+
+def gog_registry(folder, existing=()):
+    entries, skipped, scripted = [], 0, set()
     for script in sorted(Path(folder).glob(GOG_SCRIPTS)):
         product = script.name[len("goggame-"):-len(".script")]
         try:
@@ -434,11 +541,28 @@ def gog_registry(folder):
                 skipped += 1
             else:
                 entries.append(entry)
+                scripted.add(product)
+    for product, info in gog_installed_products(folder).items():
+        if product in scripted or product not in GOG_INSTALL_REGISTRY:
+            continue
+        paths = dict(gog_paths(folder, product), language=str(gog_language_id(info)))
+        for root, subkey, name, kind, value in GOG_INSTALL_REGISTRY[product]:
+            if gog_value_key(root, subkey, name) in existing:
+                continue
+            entry = gog_entry({"root": root, "subkey": subkey, "valueName": name,
+                               "valueType": kind, "valueData": value}, paths)
+            if entry is None:
+                skipped += 1
+            else:
+                entries.append(entry)
     return entries, skipped
 
 
 def apply_gog_registry(folder, compat_data, proton, timeout=90, installation=None):
-    entries, skipped = gog_registry(folder)
+    pfx = Path(compat_data) / "pfx" if compat_data else None
+    existing = gog_registry_values(pfx) if pfx else set()
+    entries, skipped = gog_registry(folder, existing)
+    expected = gog_expected_values(folder)
     if installation:
         product = str(installation["id"])
         if not product.isdigit():
@@ -465,10 +589,10 @@ def apply_gog_registry(folder, compat_data, proton, timeout=90, installation=Non
         return "no-proton" + note
     text = "Windows Registry Editor Version 5.00\r\n\r\n" + "".join(entry + "\r\n\r\n" for entry in entries)
     stamp = hashlib.sha256(text.encode("utf-8")).hexdigest()
-    pfx = Path(compat_data) / "pfx"
     marker = pfx / GOG_REGISTRY_MARK
     try:
-        if marker.is_file() and marker.read_text() == stamp and (pfx / "system.reg").is_file():
+        if (marker.is_file() and marker.read_text() == stamp and (pfx / "system.reg").is_file()
+                and set(expected) <= existing):
             return "ready" + note
         Path(compat_data).mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="droiddeck-gog-") as tmp:

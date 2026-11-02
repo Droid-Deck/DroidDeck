@@ -233,6 +233,17 @@ picker. Its launcher sets five FuelPump variables frozen at install time: `FUEL_
 `AMAZON_GAMES_FUEL_DISPLAY_NAME` (the account name, `Player` without one). No Amazon Games SDK files
 are deployed into the prefix and `fuel.json` `PostInstall` steps are not run.
 
+GOG's registry data reaches the prefix before Proton starts: a `goggame-<id>.script` install action
+with `setRegistry` becomes a `.reg` import through the game's own Proton (`reg.exe import /reg:32`),
+once per script revision - `.droiddeck-gog-registry` in the prefix holds the import's hash - and a
+failed import is retried on the next launch. GOG completes some installs by running a support
+installer from the game folder (the script's `Execute` action); under ARM64 FEX that 32-bit
+self-extractor stops at "Path not found", so the values it installs are applied from
+`GOG_INSTALL_REGISTRY` in `droiddeck-store-launch` instead: The Witcher: Enhanced Edition's
+`HKLM\Software\CD Projekt Red\The Witcher` block and its text/voice languages (#694), without which
+`witcher.exe` exits during startup. The language comes from the installed product's
+`goggame-<id>.info`, and a script's own `setRegistry` entries always win over the built-in table.
+
 A game's web links reach Android: `droiddeck-store-launch` sets the prefix's
 `HKCU\Software\Wine\WineBrowser` `Browsers` to `/usr/local/bin/droiddeck-open-url`, which is also
 `xdg-open` first on the game's PATH, and hands http(s) addresses to the app, which opens them in
