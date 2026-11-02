@@ -143,7 +143,7 @@ public final class LinuxRuntimeInstaller {
                     for (ProgressListener l : job.listeners) l.onProgress(step, stage, percent);
                 }
             };
-            boolean desktop = installedVersion(app) != null && DesktopCatalog.INSTANCE.desktopInstalled(app);
+            boolean desktop = DesktopCatalog.INSTANCE.desktopInstalled(app);
             job.ok = installOnce(app, release, progress);
             if (job.ok && desktop) keepDesktop(app, progress);
             return job.ok;
@@ -156,13 +156,25 @@ public final class LinuxRuntimeInstaller {
     }
 
     private static void keepDesktop(Context context, ProgressListener progress) {
+        String problem;
         try {
-            String problem = DesktopCatalog.INSTANCE.install(context, DesktopCatalog.INSTANCE.desktopEntry(context), progress);
-            if (problem == null) Log.i(TAG, "desktop installed again for the new runtime");
-            else Log.w(TAG, "desktop not installed again for the new runtime: " + problem);
+            problem = DesktopCatalog.INSTANCE.install(context, DesktopCatalog.INSTANCE.desktopEntry(context), progress);
         } catch (RuntimeException e) {
-            Log.w(TAG, "desktop not installed again for the new runtime", e);
+            problem = e.toString();
         }
+        if (problem == null) {
+            Log.i(TAG, "desktop installed again for the new runtime");
+            return;
+        }
+        Log.w(TAG, "desktop not installed again for the new runtime: " + problem);
+        boolean started = false;
+        for (DesktopCatalog.Entry entry : DesktopCatalog.INSTANCE.interrupted(context)) {
+            if (DesktopCatalog.DESKTOP_ID.equals(entry.getId())) started = true;
+        }
+        if (!started) return;
+        String undone = DesktopCatalog.INSTANCE.removeDesktop(context, progress);
+        if (undone == null) Log.i(TAG, "rolled back the partial desktop install");
+        else Log.w(TAG, "could not roll back the partial desktop install: " + undone);
     }
 
     public static boolean isInstalling() {
