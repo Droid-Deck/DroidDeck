@@ -53,7 +53,6 @@ internal class StoreArchiveUnpacker(
         return if (path == root || path.startsWith(root + File.separator)) file else null
     }
 
-    // No JVM library reads RAR5; the runtime's bsdtar (libarchive) does.
     private fun unrar(archive: File, handle: DownloadQueue.JobHandle, kind: String) {
         if (!LinuxRuntime.isInstalled(app)) throw IllegalStateException(app.getString(unsupported, kind))
         val binds = if (listOf(app.filesDir, app.cacheDir).any { work.absolutePath.startsWith(it.absolutePath + "/") }) null
@@ -197,8 +196,6 @@ internal class StoreArchiveUnpacker(
         FileInputStream(source).use { input -> FileOutputStream(target).use { out -> input.copyTo(out, 128 * 1024) } }
     }
 
-    // Streaming readers stop silently on zips whose data descriptors disagree with the local headers;
-    // the central directory is authoritative.
     private fun unzip(archive: File, handle: DownloadQueue.JobHandle) {
         val total = archive.length()
         var written = 0L

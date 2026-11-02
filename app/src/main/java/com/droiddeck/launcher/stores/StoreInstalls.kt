@@ -19,7 +19,6 @@ object StoreInstalls {
         StoreGameSidecar(store, id, title, exe = "", cover = cover, hero = hero, state = StoreGameSidecar.STATE_INSTALLING).write(folder)
     }
 
-    /** Epic commits verified files individually, not a whole-game transaction. Keep updates resumable. */
     @JvmStatic
     fun markUpdating(folder: File) {
         val before = StoreGameSidecar.read(folder) ?: return

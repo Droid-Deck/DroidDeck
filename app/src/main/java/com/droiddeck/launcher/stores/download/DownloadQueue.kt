@@ -142,7 +142,6 @@ object DownloadQueue {
         advance(app)
     }
 
-    /** Immediately records a failed download (e.g. from pre-flight storage check). */
     fun recordFailed(context: Context, entry: DownloadEntry, error: String, retry: (() -> Unit)? = null) {
         val app = context.applicationContext
         val now = System.currentTimeMillis()
@@ -196,7 +195,6 @@ object DownloadQueue {
             renumber()
             publishLocked()
         }
-        // A preflight retry rechecks storage and enqueues the real backend, never a running placeholder.
         if (retry != null) { retry(); return }
         StoresState.logLine("resumed \"${entry(key)?.name}\"")
         advance(app)

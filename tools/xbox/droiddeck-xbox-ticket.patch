@@ -1,14 +1,12 @@
 --- a/crates/xodus/src/models/secrets.rs
 +++ b/crates/xodus/src/models/secrets.rs
-@@ -80,9 +80,17 @@
+@@ -80,9 +80,13 @@
      }
  }
  
 -/// Store and licensing services reject delegation-compact tickets in the "d="
 -/// form that Xbox Live sign-in needs (InvalidMsaTicketFormat) and accept the
 -/// same value as "t=". Convert only where a ticket is sent to those services.
-+// Xbox accepts compact JWE tickets without the delegation prefix; opaque
-+// delegation tickets keep their original wire representation.
 +pub fn xbox_ticket(ticket: String) -> String {
 +    match ticket.strip_prefix("d=") {
 +        Some(raw) if is_compact_jwe(raw) => raw.to_owned(),
@@ -16,8 +14,6 @@
 +    }
 +}
 +
-+/// Store services accept delegation-compact tickets in the "t=" form.
-+/// Convert only where a ticket is sent to those services.
  pub fn store_ticket(ticket: String) -> String {
      match ticket.strip_prefix("d=") {
          Some(value) => format!("t={value}"),

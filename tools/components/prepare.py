@@ -1,4 +1,3 @@
-"""One entry point for runtime recipes, cache identities and verified job handoff."""
 import argparse
 import hashlib
 import json

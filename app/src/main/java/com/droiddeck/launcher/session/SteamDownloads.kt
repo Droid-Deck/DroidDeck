@@ -3,7 +3,6 @@ package com.droiddeck.launcher.session
 import java.io.File
 import java.io.RandomAccessFile
 
-/** A Steam download or update the client is working on. [total] is 0 while Steam has not sized it yet. */
 data class SteamDownload(
     val appId: String,
     val name: String,
@@ -13,7 +12,6 @@ data class SteamDownload(
     val paused: Boolean = false,
 )
 
-/** Reads Steam's own appmanifests and content log, the same files [SteamDownloadMonitor] watches. */
 object SteamDownloads {
     fun read(runtimeRoot: File, mounts: Map<String, File> = emptyMap(), client: String? = null): List<SteamDownload> {
         val names = HashMap<String, String>()
@@ -32,7 +30,6 @@ object SteamDownloads {
         return apps + shaders
     }
 
-    /** The arm64 and x86-64 Steam homes can both hold an unfinished manifest of one app; the page keys rows by app. */
     internal fun onePerApp(downloads: List<SteamDownload>): List<SteamDownload> =
         downloads.groupBy { it.appId }.values.map { same -> same.maxBy { it.done } }
 
@@ -46,7 +43,6 @@ object SteamDownloads {
         return SteamDownload(id, name, done, total, paused = (flags and UPDATE_PAUSED) != 0L)
     }
 
-    /** App ids whose latest shader-cache line in the content log says the update is still running. */
     internal fun runningShaderUpdates(lines: Sequence<String>): List<String> {
         val state = LinkedHashMap<String, Boolean>()
         for (line in lines) {

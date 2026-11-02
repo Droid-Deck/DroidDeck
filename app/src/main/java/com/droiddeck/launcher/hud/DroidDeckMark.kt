@@ -5,7 +5,6 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 
-/** artwork/droiddeck-mark.svg: the split D with its circular cut-out and the blue orb. */
 internal object DroidDeckMark {
     private const val VIEW_X = -55.98f
     const val VIEW_W = 239.92f
@@ -36,7 +35,6 @@ internal object DroidDeckMark {
 
     fun widthFor(height: Float): Float = height * VIEW_W / VIEW_H
 
-    /** Where the drawn mark starts and ends inside [widthFor]: the artwork has empty space on both sides. */
     fun inkLeftFor(height: Float): Float = (-31.98f - VIEW_X) * height / VIEW_H
     fun inkRightFor(height: Float): Float = (175.93f - VIEW_X) * height / VIEW_H
 

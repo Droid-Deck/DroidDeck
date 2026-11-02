@@ -1,4 +1,3 @@
-"""Exercise the Windows launcher without building an APK or contacting a phone."""
 import os
 from pathlib import Path
 import shutil

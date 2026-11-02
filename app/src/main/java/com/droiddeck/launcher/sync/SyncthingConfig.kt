@@ -37,7 +37,6 @@ object SyncthingConfig {
         val root = doc.documentElement
         val gui = root.child("gui") ?: doc.createElement("gui").also { root.appendChild(it) }
         gui.setAttribute("tls", "false")
-        // An absolute path makes Syncthing listen on a Unix socket, which other apps can't reach in our private storage.
         gui.set("address", guiSocket)
         gui.set("unixSocketPermissions", "600")
         val options = root.child("options") ?: doc.createElement("options").also { root.appendChild(it) }

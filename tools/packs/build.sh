@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Builds the add-on packs the app downloads on first use instead of shipping in the APK:
-#   proot.tar.zst     the patched proot and its loader (built by tools/proot)
-#   directaudio.tar.zst  the Wine DirectAudio drivers (fetched by tools/directaudio/fetch.sh)
-#   tracking.tar.zst  hand-tracking models and the OpenCV/MediaPipe native libraries
-#   xbox.tar.zst      the Xbox backend (built by tools/xbox) for /usr/local/lib/droiddeck-xbox
-#   comet.tar.zst     the GOG Galaxy companion (built by tools/comet) for /usr/local/lib/droiddeck-comet
-# Only CI publishes these (.github/workflows/publish-packs.yml); the APK built from the same
-# directory pins each pack's SHA-256.
-# Usage: tools/packs/build.sh <out-dir>
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)

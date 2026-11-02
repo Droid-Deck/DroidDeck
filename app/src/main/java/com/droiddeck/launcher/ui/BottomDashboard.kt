@@ -45,7 +45,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 
-/** A page the bottom screen can show while the game runs on the main screen. */
 class BottomPage(
     val id: String,
     @StringRes val label: Int,
@@ -56,10 +55,6 @@ class BottomPage(
 internal fun pickBottomPage(remembered: String?, ids: List<String>): String? =
     ids.firstOrNull { it == remembered } ?: ids.firstOrNull { it == DEFAULT_PAGE } ?: ids.firstOrNull()
 
-/**
- * The tab picked during one session. Each Steam session starts with no pick, so the dashboard opens on Chat; reopened
- * later in the same session it shows the tab picked last.
- */
 internal object SessionBottomTab {
     private var session: String? = null
     private var tab: String? = null
@@ -74,13 +69,11 @@ internal object SessionBottomTab {
     }
 }
 
-/** The page a game start switches to; not remembered as the user's pick. */
 internal fun pageForGameStart(ids: List<String>): String? = GAME_PAGE.takeIf { it in ids }
 
 private const val DEFAULT_PAGE = "chat"
 private const val GAME_PAGE = "telemetry"
 
-/** Tabs show their names while every tab still fits at [TAB_WIDTH]; otherwise only the open tab keeps its name. */
 internal fun bottomTabsWithLabels(widthDp: Float, tabs: Int): Boolean = tabs * TAB_WIDTH + 2 * BAR_BUTTON <= widthDp
 
 private const val TAB_WIDTH = 132f
@@ -94,6 +87,7 @@ fun BottomDashboard(
     onClose: () -> Unit,
     onMenu: (() -> Unit)?,
     gameStarts: Int = 0,
+    strip: (@Composable (String?) -> Unit)? = null,
 ) {
     val colors = MaterialTheme.colorScheme
     var current by remember { mutableStateOf(pickBottomPage(remembered, pages.map { it.id })) }
@@ -117,6 +111,7 @@ fun BottomDashboard(
                 }
                 if (onMenu != null) BarButton(Icons.Outlined.Menu, stringResource(R.string.touch_droiddeck_menu), "bottom-menu", onMenu)
             }
+            strip?.invoke(page?.id)
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (page != null) page.content()
                 else Text(stringResource(R.string.bottom_dashboard_empty), fontSize = 15.sp, color = colors.onSurfaceVariant,

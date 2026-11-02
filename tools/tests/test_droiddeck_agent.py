@@ -1,4 +1,3 @@
-"""The guest agent: its request files, exec, errors and the DevTools client, without a session."""
 import base64
 import hashlib
 import importlib.machinery
@@ -26,7 +25,6 @@ loader.exec_module(agent)
 
 
 class FakeDevTools(threading.Thread):
-    """GET /json lists one target; its WebSocket answers Runtime.evaluate the way Chromium does."""
 
     def __init__(self, answer):
         super().__init__(daemon=True)
@@ -857,7 +855,6 @@ class VrFocusTest(unittest.TestCase):
         self.assertEqual(focus.order([42, 9, 7], [7, 42], None), [9, 7])
         self.assertIsNone(focus.order([9, 7], [7], 42))
         self.assertEqual(focus.order([9, 7], [7, 42], 42), [42, 9, 7])
-        # Do not overwrite a different focus order installed after our last write.
         self.assertIsNone(focus.order([123, 7], [7, 42], None))
 
     def test_scene_requires_live_server_and_game_environment(self):

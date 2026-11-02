@@ -9,12 +9,10 @@
  #include <sys/stat.h>
  // For limiter file.
  #include <time.h>
-@@ -476,6 +478,34 @@
+@@ -476,6 +478,32 @@
      // Cached for comparison.
      std::optional<VkRect2D> cachedWindowRect;
  
-+    // canBypassXWayland costs several X round trips; at present time it is refreshed at most
-+    // every DROIDDECK_WSI_BYPASS_CHECK_MS (default 0 = every present; DroidDeck's Performance mode sets 100).
 +    std::optional<bool> presentBypass;
 +    bool presentBypassHdr = false;
 +    uint64_t presentBypassNs = 0;
@@ -44,7 +42,7 @@
      bool isWayland() const {
        // Is native Wayland?
        return connection == nullptr;
-@@ -1597,7 +1627,7 @@
+@@ -1597,7 +1625,7 @@
              continue;
            }
  

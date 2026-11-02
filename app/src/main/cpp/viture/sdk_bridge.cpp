@@ -30,7 +30,6 @@
 #include "stereo_frame_gate.h"
 
 namespace {
-// SDK callbacks have no user-data parameter. Only one provider may exist at a time.
 std::mutex api_mutex;
 std::mutex pose_mutex;
 std::array<float, 4> latest_pose{};
@@ -64,7 +63,6 @@ void on_pose(float* data, uint64_t) {
     std::lock_guard<std::mutex> lock(pose_mutex);
     if (!accepting_pose) return;
     std::copy_n(data + 3, 4, latest_pose.begin());
-    // SDK device ticks are not Android's elapsed-realtime clock.
     latest_time = now_ns();
 }
 
@@ -234,8 +232,6 @@ int set_display(Session& s, int standard) {
     if (mode == 0) {
         int rc = xr_device_provider_set_display_mode(s.device, standard);
         if (rc != VITURE_GLASSES_ERROR_NOT_SUPPORTED) return rc;
-        // Older Beast firmware exposes fewer bypass modes. Fall back to its
-        // separate native table only when the SDK explicitly rejects the mode.
     }
     const int native = droiddeck::viture::to_native_mode(standard);
     if (native < 0) return native;

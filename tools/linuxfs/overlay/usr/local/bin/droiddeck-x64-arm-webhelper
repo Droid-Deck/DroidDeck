@@ -1,5 +1,4 @@
 #!/bin/bash
-# The arm64 client's web helper for the x86-64 client, run natively: FEX hands this arm64 program to the CPU.
 x64_home=$HOME
 arm=/root/.local/share/Steam/steamrtarm64
 

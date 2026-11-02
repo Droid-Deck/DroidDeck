@@ -21,7 +21,6 @@ internal object PageSwipe {
     var direction by mutableIntStateOf(0)
 }
 
-// Runs on the Final pass so carousels, sliders, scrollers and widgets that consumed the drag keep it.
 @Composable
 internal fun Modifier.pageSwipe(enabled: () -> Boolean, onSwipe: (Int) -> Unit): Modifier {
     val enabledNow by rememberUpdatedState(enabled)

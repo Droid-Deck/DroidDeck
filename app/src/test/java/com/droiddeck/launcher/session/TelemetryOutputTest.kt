@@ -12,7 +12,6 @@ import java.io.File
 class TelemetryOutputTest {
     @get:Rule val tmp = TemporaryFolder()
 
-    // DiRT Showdown's own line, as found in its prefix on the Retroid Pocket Duo.
     private val showdown = "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n<hardware_settings_config>\n" +
         "\t<audio mono=\"false\" />\n\t<motion enabled=\"true\" ip=\"dbox\" port=\"20777\" delay=\"1\" extradata=\"0\" />\n" +
         "</hardware_settings_config>\n"

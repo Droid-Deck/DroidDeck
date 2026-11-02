@@ -113,7 +113,6 @@ import com.droiddeck.launcher.stores.sortGames
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 
-/** One owned game: installed ones carry their [game], store products not installed yet only their [item]. */
 internal class LibraryEntry(
     val key: String, val source: String, val title: String,
     val game: Library.SteamGame?, val item: CatalogItem?, val installed: Boolean,
@@ -121,7 +120,6 @@ internal class LibraryEntry(
     val storeKey: String? get() = item?.key ?: game?.storeId?.let { "${game.source}:$it" }
 }
 
-/** Installed games first claim their store product, so a game owned and installed shows once. */
 internal fun libraryEntries(
     games: List<Library.SteamGame>, owned: Map<Store, List<CatalogItem>>, installedStore: Set<String>,
 ): List<LibraryEntry> {
@@ -160,7 +158,6 @@ internal fun librarySources(entries: List<LibraryEntry>, order: List<String>): L
     (listOf(Library.SOURCE_STEAM) + arrangeStoreTabs(order, emptySet()).map { it.store.id } + Library.ADDED)
         .filter { source -> entries.any { it.source == source } }
 
-/** Survives leaving the page, so Stores can open the Library on one store's owned games. */
 internal object LibraryDisplay {
     val scales = listOf(0.75f, 0.875f, 1f, 1.2f, 1.45f)
     var level by mutableIntStateOf(2)
@@ -813,7 +810,6 @@ internal fun HeaderIconButton(description: String, icon: androidx.compose.ui.gra
     ) { Icon(icon, null, tint = if (hot) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
 }
 
-/** Choosing Library in the rail lands on the first game, as Play Steam does on the Steam page. */
 @Composable
 internal fun Modifier.paneEntry(): Modifier {
     val ff = LocalFrontFocus.current ?: return this

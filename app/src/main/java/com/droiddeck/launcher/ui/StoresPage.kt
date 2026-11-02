@@ -809,14 +809,6 @@ private fun SignInButton(store: Store, large: Boolean = false) {
     }
 }
 
-@Composable
-internal fun StoreLogo(store: Store, size: Dp) {
-    val c = sourceColours(store.id)
-    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(size).clip(Shape14).background(c.fill).border(1.dp, c.dot.copy(alpha = 0.5f), Shape14)) {
-        Text(store.shortLabel, fontSize = (size.value / 4).sp, fontWeight = FontWeight.Black, color = c.ink, maxLines = 1)
-    }
-}
-
 
 @Composable
 private fun Storefront(
@@ -867,7 +859,6 @@ private fun Storefront(
     val focus = LocalFrontFocus.current
     val scope = rememberCoroutineScope()
     val searching = q.isNotEmpty() || browsing || catalog
-    // A bar only while there is nothing else to look at: no shelves yet and no search results.
     val bareTab = if (searching) visible.isEmpty() else shelves == null || shelves.isEmpty
     val barLine = StoresState.status[store]?.takeIf { bareTab && syncCount(it) != null }
     val itchBar = store == Store.ITCH && q.isEmpty()
@@ -1430,15 +1421,6 @@ internal fun ConfirmButton(label: String, confirm: String, compact: Boolean = fa
     var armed by remember { mutableStateOf(false) }
     LaunchedEffect(armed) { if (armed) { kotlinx.coroutines.delay(4000); armed = false } }
     SecondaryButton(if (armed) confirm else label, compact = compact) { if (!armed) armed = true else { armed = false; onConfirm() } }
-}
-
-@Composable
-internal fun stageLabel(stage: DownloadStage): String = when (stage) {
-    DownloadStage.MANIFEST -> stringResource(R.string.stores_stage_manifest)
-    DownloadStage.DOWNLOAD -> stringResource(R.string.stores_stage_download)
-    DownloadStage.VERIFY -> stringResource(R.string.stores_stage_verify)
-    DownloadStage.INSTALL -> stringResource(R.string.stores_stage_install)
-    DownloadStage.DONE -> stringResource(R.string.stores_stage_done)
 }
 
 internal fun openStoreUrl(ctx: android.content.Context, item: CatalogItem) = openUrl(ctx, item.storeUrl)

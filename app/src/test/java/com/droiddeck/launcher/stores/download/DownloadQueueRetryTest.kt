@@ -75,7 +75,6 @@ class DownloadQueueRetryTest {
             DownloadQueue.clear(app, item.key)
             assertNull(DownloadQueue.entry(item.key))
 
-            // A card resume (including the restored paused path) must retain its real target.
             val card = File(app.filesDir, "retry-card").apply { mkdirs() }
             SessionPrefs.setGameStorage(app, card.path, "Card")
             val target = File(card, "Games")

@@ -1,5 +1,3 @@
-// DroidDeck cloud player page: runs one Xbox Cloud Gaming session. Every request to Microsoft goes
-// through the app (DDCloud), which holds the tokens; this page only does WebRTC, video, sound and input.
 import xCloudPlayer from './greenlight/lib/player'
 import Gamepad from './greenlight/lib/input/gamepad'
 import { EffectRenderer, Effects, needsRenderer } from './renderer'
@@ -9,21 +7,19 @@ import { capVideoBitrate, preferH264Profile } from './sdp-tweaks'
 interface Reply { status: number, body: string }
 declare const DDCloud: { call(id: number, op: string, arg: string): void, status(text: string): void, failed(stage: string, detail: string): void, playing(): void, log(text: string): void, settings(): string }
 
-/** The player settings the app hands over (XboxCloudSettings.toJson); stream-start ones are applied by the app. */
 interface Settings extends Effects {
-    bitrateMbps: number      // 0 = Microsoft's own limit
-    codec: string            // 'default' | 'high' | 'normal' | 'low'
+    bitrateMbps: number
+    codec: string
     preventDrops: boolean
-    statsLevel: number       // 0 off, 1 fps, 2 basic, 3 detailed, 4 full
-    statsLayout: string      // 'horizontal' | 'vertical'
-    statsCorner: string      // 'right' | 'left'
-    server: string           // the region's host, for the full overlay
-    volume: number           // 100..300 %
-    rumble: number           // 0..100 %
+    statsLevel: number
+    statsLayout: string
+    statsCorner: string
+    server: string
+    volume: number
+    rumble: number
 }
 let settings: Settings = JSON.parse(DDCloud.settings())
 
-// Codec profile and bitrate cap go into our offer (Better xCloud's approach).
 const nativeSetLocalDescription = RTCPeerConnection.prototype.setLocalDescription
 RTCPeerConnection.prototype.setLocalDescription = function (this: RTCPeerConnection, description?: RTCLocalSessionDescriptionInit) {
     if (description?.sdp) {
@@ -34,7 +30,6 @@ RTCPeerConnection.prototype.setLocalDescription = function (this: RTCPeerConnect
 } as typeof RTCPeerConnection.prototype.setLocalDescription
 ;(window as any).__ddRumble = settings.rumble / 100
 
-// Page errors go to the app's Xbox log (no tokens ever reach this page).
 window.addEventListener('error', event => DDCloud.log(`error: ${event.message} @${event.lineno}`))
 window.addEventListener('unhandledrejection', event => DDCloud.log(`rejection: ${String(event.reason).slice(0, 200)}`))
 window.addEventListener('gamepadconnected', event => DDCloud.log(`controller: ${event.gamepad.id.slice(0, 60)} mapping=${event.gamepad.mapping || 'none'} buttons=${event.gamepad.buttons.length} axes=${event.gamepad.axes.length}`))
@@ -112,8 +107,6 @@ async function run() {
     player.init()
     const pc = player._peerConnection
 
-    // "Stop quality drops": report a short decode time so the server does not lower the resolution
-    // for a slow decoder (Better xCloud's patchStreamMetadata).
     const input = player._channels.input as any
     const queueMetadata = input.queueMetadataFrame.bind(input)
     input.queueMetadataFrame = (frame: any) => {
@@ -125,7 +118,6 @@ async function run() {
         queueMetadata(frame)
     }
 
-    // Volume above 100 %: the stream's sound goes through a gain node instead of the <audio> element.
     let gain: GainNode | undefined
     let audioStream: MediaStream | undefined
     const applyVolume = () => {
@@ -154,7 +146,6 @@ async function run() {
             catch (error) { DDCloud.log(`effects unavailable: ${String(error).slice(0, 200)}`) }
         } else renderer.resume(settings)
     }
-    // Live changes from the in-player menu.
     ;(window as any).__ddApply = (json: string) => {
         settings = JSON.parse(json)
         ;(window as any).__ddRumble = settings.rumble / 100
@@ -166,7 +157,6 @@ async function run() {
         if (pc.connectionState === 'connected') {
             show(''); DDCloud.playing()
             stats.show(settings.statsLevel, settings.statsLayout === 'vertical', settings.server, settings.statsCorner === 'left')
-            // The video element exists once its track arrived; give it a moment for its first frame.
             setTimeout(applyEffects, 500)
         }
         else if (pc.connectionState === 'failed') DDCloud.failed('webrtc', 'connection failed')
@@ -186,8 +176,6 @@ async function run() {
     const ice = expect('ice', await call('ice', local))
     player.setRemoteIceCandidates(JSON.parse(JSON.parse(ice.body).exchangeResponse))
 
-    // The control channel's authorization (sent on the message handshake) announces controller 0 and
-    // then removes it, clearing any handler attached before; attach the controller after that.
     const handshake = Date.now()
     while (!player._channels.message._handshakeCompleted && Date.now() - handshake < 20_000) await sleep(100)
     DDCloud.log(`handshake ${player._channels.message._handshakeCompleted ? 'done' : 'missing'} after ${Date.now() - handshake} ms`)
@@ -195,15 +183,12 @@ async function run() {
     const pad = new Gamepad(0, { enable_keyboard: false })
     pad.attach(player)
     DDCloud.log(`controllers at attach: ${Array.from(navigator.getGamepads()).filter(Boolean).length}`)
-    // The app's "Xbox button" (in the leave dialog) presses Nexus for a moment.
     ;(window as any).__ddNexus = () => { pad.sendButtonState('Nexus', 1); setTimeout(() => pad.sendButtonState('Nexus', 0), 200) }
-    // The app's menu button / a controller's Guide button: Nexus follows the physical button.
     ;(window as any).__ddButton = (name: string, value: number) => pad.sendButtonState(name, value)
-    // The in-player menu pauses controller input to the game while it is open.
     ;(window as any).__ddInput = (enabled: boolean) => { if (enabled) pad.onWindowFocus(); else pad.onWindowBlur() }
 
     setInterval(() => { call('keepalive') }, 30_000)
-    ;(window as any).__ddStop = () => { try { renderer?.destroy(); stats.destroy(); pad.detach(); player.destroy() } catch (e) { /* closing anyway */ } }
+    ;(window as any).__ddStop = () => { try { renderer?.destroy(); stats.destroy(); pad.detach(); player.destroy() } catch (e) { } }
 }
 
 run().catch((error: unknown) => {

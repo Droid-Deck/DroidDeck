@@ -1,5 +1,4 @@
 #!/usr/bin/python3
-"""Honor a desktop launch even when Steam remembers Big Picture from its last session."""
 import os
 from pathlib import Path
 import runpy

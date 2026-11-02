@@ -4,15 +4,12 @@ import android.content.Context
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreAccounts
 import com.droiddeck.launcher.stores.StoresState
-/** Keeps the account's Xbox gamertag in its record so the Stores page can show it instead of the sign-in email. */
 internal object XboxGamertag {
-    /** `xodus-cli profile` allows itself 45 s, and starting it through PRoot adds to that. */
     private const val TIMEOUT_SECONDS = 75L
     private val triedGeneration = java.util.concurrent.atomic.AtomicReference<String?>(null)
 
     internal fun valid(value: String): Boolean = value.isNotEmpty() && value.length <= 64 && value.none { it.isISOControl() }
 
-    /** Reads the gamertag with `xodus-cli profile` and stores it; false when Xbox didn't return one. */
     fun refresh(app: Context, credentialGeneration: String? = null): Boolean = try {
         val gamertag = Xodus.run(app, listOf("profile", "--json"), timeout = TIMEOUT_SECONDS, credentialGeneration = credentialGeneration)
             .optString("gamertag").trim()
@@ -29,7 +26,6 @@ internal object XboxGamertag {
         false
     }
 
-    /** Fetches a missing gamertag once per signed-in account, on its own thread so it never holds up a library sync. */
     fun ensure(app: Context) {
         Thread({
             runCatching {

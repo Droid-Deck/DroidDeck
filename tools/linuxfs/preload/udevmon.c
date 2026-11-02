@@ -195,8 +195,8 @@ static unsigned murmur_hash2(const char *key, size_t len) {
     len -= 4;
   }
   switch (len) {
-  case 3: h ^= data[2] << 16; /* fallthrough */
-  case 2: h ^= data[1] << 8; /* fallthrough */
+  case 3: h ^= data[2] << 16; __attribute__((fallthrough));
+  case 2: h ^= data[1] << 8; __attribute__((fallthrough));
   case 1: h ^= data[0]; h *= m;
   }
   h ^= h >> 13;

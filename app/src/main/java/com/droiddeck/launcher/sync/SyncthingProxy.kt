@@ -15,12 +15,7 @@ import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Semaphore
 
-/**
- * Bridges the in-app WebView to Syncthing's Unix socket while the web UI is open. Any app can connect to a
- * loopback port, so requests without this session's cookie are refused before they reach Syncthing.
- */
 class SyncthingProxy(private val socket: File, private val auth: String) : Closeable {
-    // Android's getLoopbackAddress() is ::1, but the WebView is pointed at 127.0.0.1.
     private val server = ServerSocket(0, 16, InetAddress.getByAddress(byteArrayOf(127, 0, 0, 1)))
     private val token = SyncPrefs.randomToken()
     val url = "http://127.0.0.1:${server.localPort}/"
@@ -82,7 +77,6 @@ class SyncthingProxy(private val socket: File, private val auth: String) : Close
             val kept = if (name.equals("Cookie", ignoreCase = true)) withoutToken(value) else value
             if (kept.isNotEmpty()) head.append(name).append(": ").append(kept).append("\r\n")
         }
-        // One request per connection keeps every request behind serve's cookie check.
         head.append("Authorization: ").append(auth).append("\r\nConnection: close\r\n\r\n")
         upstream.outputStream.write(head.toString().toByteArray(Charsets.ISO_8859_1))
         Thread({ runCatching { input.copyTo(upstream.outputStream) } }, "syncthing-proxy-body").apply { isDaemon = true }.start()
@@ -98,7 +92,6 @@ class SyncthingProxy(private val socket: File, private val auth: String) : Close
 
     private fun withoutToken(header: String) = cookies(header).filter { !it.startsWith("$COOKIE=") }.joinToString("; ")
 
-    /** Bounds the whole request line and headers by one deadline, so a slow client can't hold a worker. */
     private class HeadDeadline(private val client: Socket, input: InputStream, private val until: Long) : FilterInputStream(input) {
         @Volatile private var lifted = false
 

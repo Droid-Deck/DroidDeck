@@ -72,11 +72,6 @@ static inline bool droiddeck_proot_statx_fill_mnt_id(pid_t pid, int fd,
   int n = snprintf(tracee_fd_path, sizeof tracee_fd_path, "/proc/%ld/fd/%d", (long)pid, fd);
   if (n < 0 || (size_t)n >= sizeof tracee_fd_path) return false;
 
-  /* Another thread sharing the tracee's fd table can close/reuse fd after statx returns. Pin the
-   * current referent, then require both device and inode to match statx before trusting its mount.
-   * Read fdinfo from our pin so a later tracee fd reuse cannot change which mount ID is observed.
-   * A same-inode bind-mount alias has the same device/inode pair; at this exit stop we cannot
-   * distinguish that rare concurrent replacement from the mount used by the completed syscall. */
   int pinned = open(tracee_fd_path, O_PATH | O_CLOEXEC);
   if (pinned < 0) return false;
   struct stat st;
