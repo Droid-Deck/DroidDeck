@@ -854,7 +854,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             androidx.compose.runtime.DisposableEffect(Unit) {
                 onDispose { com.droiddeck.launcher.glasses.GlassesMenuMirror.setSessionMenuVisible(this@SessionActivity, false) }
             }
-            androidx.compose.runtime.LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, pipUi) { updatePointerCapture() }
+            androidx.compose.runtime.LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, pipUi, bottomOutputActive) { updatePointerCapture() }
             androidx.compose.runtime.LaunchedEffect(bottomOutputActive) { hud.setHidden(pipUi || bottomOutputActive) }
             androidx.compose.runtime.LaunchedEffect(pipUi) {
                 hud.setHidden(pipUi || bottomOutputActive)
@@ -3684,7 +3684,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun updatePointerCapture() {
         if (!::surfaceView.isInitialized) return
         val view = window.decorView
-        val want = pointerLocked && resumed && hasWindowFocus() && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !pipUi && mouseAttached()
+        val want = pointerLocked && resumed && hasWindowFocus() && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !pipUi && !bottomOutputActive && mouseAttached()
         if (want == view.hasPointerCapture()) return
         if (want) view.requestPointerCapture() else view.releasePointerCapture()
     }
