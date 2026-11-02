@@ -648,6 +648,10 @@ class SessionService : Service() {
         }
 
         if (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP) OfflineMode.apply(this, root)
+        if (SessionState.mode == MODE_DESKTOP) {
+            runCatching { com.droiddeck.launcher.runtime.DesktopLanguage.ensure(this, com.droiddeck.launcher.core.AppLanguage.effective(this)) }
+                .onFailure { Log.w(TAG, "desktop language pack: $it") }
+        }
 
         val networkLink = LinuxNetworkLinkComponent(this, root)
         networkLink.attach(this)
@@ -777,7 +781,13 @@ class SessionService : Service() {
         guest.add("USER=root")
         guest.add("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games")
         guest.add("TERM=xterm-256color")
-        guest.add("LANG=C.UTF-8")
+        if (SessionState.mode == MODE_DESKTOP) {
+            val appLocale = com.droiddeck.launcher.core.AppLanguage.effective(this)
+            guest.add("LANG=" + DesktopLocale.lang(appLocale))
+            DesktopLocale.language(appLocale)?.let { guest.add("LANGUAGE=$it") }
+        } else {
+            guest.add("LANG=C.UTF-8")
+        }
         guest.add("BL_STEAM_LANGUAGE=" + SteamLanguage.forLocale(
             com.droiddeck.launcher.core.AppLanguage.effective(this),
             com.droiddeck.launcher.core.AppLanguage.system(this).country,
