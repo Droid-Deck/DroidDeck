@@ -67,11 +67,11 @@ int main(void) {
     assert(kgsl_busy_sample_contexts(memstore, live, count, ctx_last, &moved) == 1);
     assert(moved == 1 && ctx_last[9] == 21);
 
-    // Idle and unchanged since the last scan: dropped. Busy or newly started: kept.
+    // Busy or newly started contexts come first; idle ones that have run work stay in the list.
     stamp(9, 21, 21);
     stamp(5, 2, 1);
     count = kgsl_busy_scan_contexts(memstore, first, seen, live, KGSL_BUSY_MAX_LIVE);
-    assert(count == 1 && live[0] == 5);
+    assert(count == 4 && live[0] == 5 && live[1] == 3 && live[2] == 9 && live[3] == first - 1);
     moved = 0;
     assert(kgsl_busy_sample_contexts(memstore, live, count, ctx_last, &moved) == 1);
     assert(moved == 1);
@@ -89,6 +89,14 @@ int main(void) {
     assert(kgsl_busy_scan_contexts(memstore, first, seen, live, KGSL_BUSY_MAX_LIVE) == 0);
     for (int id = 1; id <= KGSL_BUSY_MAX_LIVE + 10; id++) stamp(id, 1, 1);
     assert(kgsl_busy_scan_contexts(memstore, first, seen, live, KGSL_BUSY_MAX_LIVE) == KGSL_BUSY_MAX_LIVE);
+    assert(kgsl_busy_scan_contexts(memstore, first, seen, live, KGSL_BUSY_MAX_LIVE) == KGSL_BUSY_MAX_LIVE);
+    stamp(KGSL_BUSY_MAX_LIVE + 5, 2, 1);
+    assert(kgsl_busy_scan_contexts(memstore, first, seen, live, KGSL_BUSY_MAX_LIVE) == KGSL_BUSY_MAX_LIVE);
+    assert(live[0] == KGSL_BUSY_MAX_LIVE + 5);
+    stamp(KGSL_BUSY_MAX_LIVE + 5, 0, 0);
+    count = kgsl_busy_scan_contexts(memstore, first, seen, live, KGSL_BUSY_MAX_LIVE);
+    count = kgsl_busy_scan_contexts(memstore, first, seen, live, KGSL_BUSY_MAX_LIVE);
+    for (int i = 0; i < count; i++) assert(live[i] != KGSL_BUSY_MAX_LIVE + 5);
     puts("PASS: kgsl memstore contexts");
 
     assert(kgsl_layout_for(0x44050001u) == &KGSL_LAYOUT_A8XX);  // Adreno 830

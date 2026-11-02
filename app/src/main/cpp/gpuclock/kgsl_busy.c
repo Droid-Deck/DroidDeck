@@ -16,7 +16,7 @@
 #include "kgsl_busy.h"
 
 #define SAMPLE_NS 1000000L
-// Context mode: how many samples between scans for the contexts that are submitting work.
+// Context mode: how many samples between scans of the context entries.
 #define SCAN_EVERY 200
 
 enum { MODE_RINGBUFFER = 1, MODE_CONTEXTS = 2 };

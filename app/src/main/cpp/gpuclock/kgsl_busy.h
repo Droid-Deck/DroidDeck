@@ -40,17 +40,21 @@ static inline int kgsl_busy_sample(const volatile uint32_t *memstore, int first,
 // and kgsl zeroes an entry when its context is created or destroyed.
 #define KGSL_BUSY_MAX_LIVE 64
 
-// Collects the contexts worth sampling: entries whose start stamp changed since the previous scan (seen[], one per
-// entry below first) or that are busy now. Returns how many ids went into live[].
+// Collects the contexts to sample: every entry below first with a non-zero start stamp (kgsl zeroes an entry when its
+// context is created or destroyed). Entries whose start stamp changed since the previous scan (seen[]) or that are
+// busy now come first, so the max_live cap only drops idle ones. Returns how many ids went into live[].
 static inline int kgsl_busy_scan_contexts(const volatile uint32_t *memstore, int first, uint32_t *seen, int *live, int max_live) {
-    int n = 0;
+    int n = 0, idle = 0;
+    int idle_ids[KGSL_BUSY_MAX_LIVE];
     for (int id = 1; id < first; id++) {
         const volatile uint32_t *entry = memstore + (size_t)id * KGSL_BUSY_ENTRY_WORDS;
         uint32_t sop = entry[KGSL_BUSY_SOP], eop = entry[KGSL_BUSY_EOP];
         int changed = sop != seen[id];
         seen[id] = sop;
         if ((changed || sop != eop) && n < max_live) live[n++] = id;
+        else if (sop != 0 && idle < KGSL_BUSY_MAX_LIVE) idle_ids[idle++] = id;
     }
+    for (int i = 0; i < idle && n < max_live; i++) live[n++] = idle_ids[i];
     return n;
 }
 
