@@ -40,7 +40,6 @@ struct block {
     struct block *next;
     VkDeviceMemory memory;
     uint64_t size;
-    uint32_t heap;
 };
 
 struct dev {
@@ -51,7 +50,7 @@ struct dev {
     PFN_vkAllocateMemory allocate;
     PFN_vkFreeMemory release;
     VkPhysicalDeviceMemoryProperties memory;
-    uint64_t used[VK_MAX_MEMORY_HEAPS];
+    uint64_t used;
     struct block *blocks[BUCKETS];
 };
 
@@ -143,7 +142,7 @@ static VkResult VKAPI_CALL AllocateMemory(VkDevice device, const VkMemoryAllocat
     struct block *b = held ? calloc(1, sizeof(*b)) : NULL;
     if (held) {
         pthread_mutex_lock(&g_lock);
-        int fits = b && vramcap_reserve(&d->used[heap], g_cap, info->allocationSize);
+        int fits = b && vramcap_reserve(&d->used, g_cap, info->allocationSize);
         pthread_mutex_unlock(&g_lock);
         if (!fits) {
             free(b);
@@ -156,12 +155,11 @@ static VkResult VKAPI_CALL AllocateMemory(VkDevice device, const VkMemoryAllocat
     if (r == VK_SUCCESS) {
         b->memory = *out;
         b->size = info->allocationSize;
-        b->heap = heap;
         b->next = d->blocks[bucket(*out)];
         d->blocks[bucket(*out)] = b;
         b = NULL;
     } else {
-        vramcap_release(&d->used[heap], info->allocationSize);
+        vramcap_release(&d->used, info->allocationSize);
     }
     pthread_mutex_unlock(&g_lock);
     free(b);
@@ -178,7 +176,7 @@ static void VKAPI_CALL FreeMemory(VkDevice device, VkDeviceMemory memory, const 
             if ((*p)->memory == memory) {
                 found = *p;
                 *p = found->next;
-                vramcap_release(&d->used[found->heap], found->size);
+                vramcap_release(&d->used, found->size);
                 break;
             }
         pthread_mutex_unlock(&g_lock);
