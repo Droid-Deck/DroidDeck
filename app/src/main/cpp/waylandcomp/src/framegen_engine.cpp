@@ -140,7 +140,8 @@ void fge_device_ready(PFN_vkGetInstanceProcAddr gipa, VkInstance inst, VkPhysica
 int fge_caps_ok(int kind) {
     if (!g_ready) return 0;
     if (kind == 1) return g_caps.storageOnSwapchainFormat ? 1 : 0;
-    if (kind == kKindWfg) return g_gipa && g_inst ? 1 : 0;
+    // WFG's shaders store to rg16f/r16f/rg32f, which need the extended formats enabled here.
+    if (kind == kKindWfg) return g_gipa && g_inst && g_caps.featuresEnabled ? 1 : 0;
     return g_caps.supported() ? 1 : 0;
 }
 
