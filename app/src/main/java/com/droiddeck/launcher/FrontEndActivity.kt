@@ -461,7 +461,7 @@ class FrontEndActivity : ComponentActivity() {
     private var fexPreset by mutableStateOf("")
     private var forceSsbs by mutableStateOf(false)
     private var steamClientArch by mutableStateOf("arm64")
-    private var runSteamAtStartup by mutableStateOf(false)
+    private var startupSession by mutableStateOf(SessionPrefs.STARTUP_OFF)
     private var bootMovie by mutableStateOf(com.droiddeck.launcher.session.BootMovie.DROIDDECK_30)
     private var bootMovieSound by mutableStateOf(true)
     private var bootMovieCustomName by mutableStateOf<String?>(null)
@@ -1523,7 +1523,7 @@ class FrontEndActivity : ComponentActivity() {
         }
         }
 
-        if (savedInstanceState == null) ui.post { startSteamAtStartupIfEnabled() }
+        if (savedInstanceState == null) ui.post { startSteamAtStartupIfEnabled(cold = true) }
         else {
             restoreCompatLaunch(savedInstanceState)
             pendingSwitch = savedIntent(savedInstanceState, KEY_PENDING_SWITCH)
@@ -1566,9 +1566,14 @@ class FrontEndActivity : ComponentActivity() {
         startSteamAtStartupIfEnabled()
     }
 
-    private fun startSteamAtStartupIfEnabled() {
-        if (intent.action != Intent.ACTION_MAIN) return
-        if (SessionPrefs.runSteamAtStartup(this) && !isFinishing && !isDestroyed) startSteamSession()
+    private fun startSteamAtStartupIfEnabled(cold: Boolean = false) {
+        if (intent.action != Intent.ACTION_MAIN && !(cold && intent.action == null)) return
+        if (isFinishing || isDestroyed) return
+        when (SessionPrefs.startupSession(this)) {
+            SessionPrefs.STARTUP_STEAM -> startSteamSession()
+            SessionPrefs.STARTUP_DESKTOP -> startSession(Intent(this, SessionActivity::class.java)
+                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP))
+        }
     }
 
     private fun playSteam() {
@@ -2146,7 +2151,7 @@ class FrontEndActivity : ComponentActivity() {
                 steamRepairQueued = steamRepairQueued,
                 mangoapp = mangoapp,
                 steamController = if (mode == SessionService.MODE_STEAM) steamController else null,
-                runSteamAtStartup = mode == SessionService.MODE_STEAM && runSteamAtStartup,
+                startupSession = startupSession,
                 bootMovie = if (mode == SessionService.MODE_STEAM) bootMovie else null,
                 bootMovieSound = bootMovieSound,
                 bootMovieCustomName = bootMovieCustomName,
@@ -2236,9 +2241,9 @@ class FrontEndActivity : ComponentActivity() {
                 onReturnAfterGame = { on -> SessionPrefs.setReturnAfterGame(this, on); returnAfterGame = on },
                 onShaderPrecache = { on -> SessionPrefs.setShaderPrecache(this, on); shaderPrecache = on },
                 onSteamController = { id -> SessionPrefs.setSteamController(this, id); steamController = id },
-                onRunSteamAtStartup = { on ->
-                    SessionPrefs.setRunSteamAtStartup(this, on)
-                    runSteamAtStartup = on
+                onStartupSession = { id ->
+                    SessionPrefs.setStartupSession(this, id)
+                    startupSession = id
                 },
                 onBootMovie = { id -> com.droiddeck.launcher.session.BootMovie.select(this, id); loadBootMovie() },
                 onBootMovieSound = { on -> SessionPrefs.setBootMovieSound(this, on); bootMovieSound = on },
@@ -2429,7 +2434,7 @@ class FrontEndActivity : ComponentActivity() {
         returnAfterGame = SessionPrefs.returnAfterGame(this)
         loadShaderPrecache(mode)
         steamController = SessionPrefs.steamController(this)
-        runSteamAtStartup = SessionPrefs.runSteamAtStartup(this)
+        startupSession = SessionPrefs.startupSession(this)
         loadBootMovie()
         hdrOn = SessionPrefs.hdr(this, mode)
         upscaler = SessionPrefs.upscaler(this)

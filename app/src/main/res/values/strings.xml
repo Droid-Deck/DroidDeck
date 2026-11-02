@@ -342,8 +342,8 @@
     <string name="mode_background_downloads_hint">Delay background suspension while Steam is actively downloading.</string>
     <string name="mode_suspend_note">Auto pauses in the background and resumes when shown. Manual waits for Resume. Never keeps running.</string>
     <string name="mode_startup">Startup</string>
-    <string name="mode_steam_startup">Start Steam with DroidDeck</string>
-    <string name="mode_steam_startup_hint">Opens the Steam session when DroidDeck launches.</string>
+    <string name="mode_startup_session">Open at launch</string>
+    <string name="mode_startup_session_hint">Starts this session when DroidDeck launches.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Checking for releases…</string>
     <string name="mode_decky_ready">Ready to install %1$s.</string>

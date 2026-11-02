@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">Adia a suspensão em segundo plano enquanto o Steam está a transferir.</string>
     <string name="mode_suspend_note">Automático: pausa em segundo plano e retoma ao voltar a ser apresentada. Manual: aguarda por Retomar. Nunca: continua em execução.</string>
     <string name="mode_startup">Arranque</string>
-    <string name="mode_steam_startup">Iniciar o Steam com o DroidDeck</string>
-    <string name="mode_steam_startup_hint">Abre a sessão do Steam quando o DroidDeck é iniciado.</string>
+    <string name="mode_startup_session">Abrir ao iniciar</string>
+    <string name="mode_startup_session_hint">Inicia esta sessão quando o DroidDeck é aberto.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">A procurar versões…</string>
     <string name="mode_decky_ready">Pronto para instalar %1$s.</string>
