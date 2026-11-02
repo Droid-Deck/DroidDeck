@@ -1102,7 +1102,7 @@ class SessionService : Service() {
         // getExternalFilesDirs never lists it: vold mounts USB-OTG at /mnt/media_rw but hides it from apps.
         // Skip it when the same drive is already covered, or Steam would list it twice.
         val usb = if (SessionPrefs.gameStorage(this) != SessionPrefs.GAME_STORAGE_OFF) {
-            GameStorage.usbDrive(this)?.takeUnless { drive -> usbCovered(drive, library?.let(::File)) }
+            GameStorage.usbDrive(this)?.takeUnless { drive -> usbCovered(drive, library?.let { File(it.path) }) }
                 ?.let { GameStorage.Library(it, SecondaryLibrary.USB_GUEST, GameStorage.usbLabel(this)) }
         } else null
         if (usb != null) {
