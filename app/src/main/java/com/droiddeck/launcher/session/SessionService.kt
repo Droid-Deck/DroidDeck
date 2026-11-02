@@ -1111,7 +1111,6 @@ class SessionService : Service() {
             steamLibraryMounts = steamLibraryMounts + (usb.guest to usb.host)
         }
         val gamesLibraries = listOfNotNull(usb) + GameStorage.gamesFolderLibraries(this)
-        val gamesLibraries = GameStorage.gamesFolderLibraries(this)
         if (gamesLibraries.isNotEmpty()) {
             var room = if (ProotFastPath.enabled(this)) {
                 ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
