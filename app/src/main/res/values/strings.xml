@@ -1908,7 +1908,7 @@
     <string name="swap_screens_unavailable">The bottom screen is not free right now</string>
     <string name="swap_game_screen_group">Game screen</string>
     <string name="swap_game_screen">Show the game on</string>
-    <string name="swap_game_screen_hint">Bottom moves the game to the bottom screen and the Dashboard to the top screen</string>
+    <string name="swap_game_screen_hint">Bottom moves the game to the bottom screen and the Desktop or Dashboard to the top screen</string>
     <string name="swap_game_screen_top">Top screen</string>
     <string name="swap_game_screen_bottom">Bottom screen</string>
     <string name="bottom_page_downloads">Downloads</string>
