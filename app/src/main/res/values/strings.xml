@@ -464,6 +464,12 @@
     <string name="libraries_overlap">That folder is already a library or inside one</string>
     <string name="libraries_missing">%1$s · not available</string>
     <string name="libraries_applies_next">Applies from the next Steam session</string>
+    <string name="libraries_found_hint">Found on this device · %1$s · %2$s</string>
+    <string name="libraries_add_found">Add</string>
+    <string name="libraries_access_title">Find libraries on internal storage</string>
+    <string name="libraries_access_hint">Allow all files access so DroidDeck can see Steam libraries other apps keep on internal storage</string>
+    <string name="libraries_access_allow">Allow</string>
+    <string name="libraries_used_inner">Added %1$s, the Steam library inside the folder you chose</string>
     <string name="mode_storage_note">Games that stream assets from SD or shared storage may stutter.</string>
     <string name="mode_storage_diagnostics">Storage diagnostics</string>
     <string name="mode_storage_diagnostics_hint">Record allocation results and sampled storage timings in Share logs. May slow installs while enabled. Applies next session.</string>
