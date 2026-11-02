@@ -43,7 +43,9 @@ void main() {
     int candCount = 0;
     float bestSsd = -1.0;
 
-    ivec2 s0 = ivec2(pix.x / 3, pix.y / 3) - 2;
+    // Clamped to the last patch: a level one past a multiple of the stride (373 px at 1080p and
+    // a 210 px field) has a last column with no patch inside the window, and would get no flow.
+    ivec2 s0 = min(ivec2(pix.x / 3, pix.y / 3) - 2, sparseSize - 1);
     for (int dy = 0; dy <= 2; dy++) {
         for (int dx = 0; dx <= 2; dx++) {
             ivec2 s = s0 + ivec2(dx, dy);

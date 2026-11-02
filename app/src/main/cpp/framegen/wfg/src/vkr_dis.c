@@ -881,7 +881,8 @@ static bool dis_create_pipelines(VkrDis* d) {
     d->pass_splat.pipeline = dis_create_compute_pipeline_with_layout(d, dis_splat_comp, dis_splat_comp_size, d->vr_pipeline_layout, NULL);
     d->pass_fill.pipeline = dis_create_compute_pipeline_with_layout(d, dis_fill_comp, dis_fill_comp_size, d->vr_pipeline_layout, NULL);
 
-    if (!d->pass_gradient.pipeline || !d->pass_inverse.pipeline || !d->pass_propagate.pipeline ||
+    if (!d->pass_luma.pipeline ||
+        !d->pass_gradient.pipeline || !d->pass_inverse.pipeline || !d->pass_propagate.pipeline ||
         !d->pass_densify.pipeline || !d->pass_interp.pipeline ||
         !d->pass_vr_prep.pipeline || !d->pass_vr_d1.pipeline || !d->pass_vr_d2.pipeline ||
         !d->pass_vr_w.pipeline || !d->pass_vr_coef.pipeline || !d->pass_vr_sor.pipeline ||
@@ -1584,6 +1585,7 @@ static const char* dis_format_name(VkFormat f) {
         case VK_FORMAT_R32G32_SFLOAT: return "R32G32_SFLOAT";
         case VK_FORMAT_R16G16_SFLOAT: return "R16G16_SFLOAT";
         case VK_FORMAT_R32G32B32A32_SFLOAT: return "R32G32B32A32_SFLOAT";
+        case VK_FORMAT_R16G16B16A16_SFLOAT: return "R16G16B16A16_SFLOAT";
         case VK_FORMAT_R8G8B8A8_UNORM: return "R8G8B8A8_UNORM";
         case VK_FORMAT_UNDEFINED: return "none";
         default: return "format";
@@ -1623,10 +1625,14 @@ static bool dis_audit_formats(VkrDis* d) {
         VkFormatFeatureFlags need;
         const char* purpose;
     } reqs[] = {
-        {VK_FORMAT_R32G32_SFLOAT, STORE | READ, "optical flow"},
-        {VK_FORMAT_R16G16_SFLOAT, STORE | READ, "interpolation flow"},
-        {VK_FORMAT_R32G32B32A32_SFLOAT, STORE | READ, "sparse flow and refinement"},
-        {VK_FORMAT_R32_SFLOAT, STORE | READ, "refinement weights"},
+        // Every float plane is read through the one linear sampler somewhere (the prior and
+        // Farneback fields in the search, the polynomial sums, the packed field and history in
+        // the fill and interpolation), so each needs linear filtering, not just sampling.
+        {VK_FORMAT_R32G32_SFLOAT, STORE | READ | FILTER, "optical flow"},
+        {VK_FORMAT_R16G16_SFLOAT, STORE | READ | FILTER, "interpolation flow"},
+        {VK_FORMAT_R32G32B32A32_SFLOAT, STORE | READ | FILTER, "sparse flow and refinement"},
+        {VK_FORMAT_R32_SFLOAT, STORE | READ | FILTER, "refinement weights"},
+        {VK_FORMAT_R16G16B16A16_SFLOAT, STORE | READ | FILTER, "packed flow and history"},
         {VK_FORMAT_R8G8B8A8_UNORM, STORE | VK_FORMAT_FEATURE_BLIT_SRC_BIT,
          "interpolated output"},
         {d->luma_format, STORE | READ | FILTER, "luminance plane"},
