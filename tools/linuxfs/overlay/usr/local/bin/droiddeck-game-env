@@ -465,10 +465,9 @@ def apply_config(env, config, app_id, fixes=None):
             value = merge_overrides(entries[name], value)
         entries[name] = value
     game_entries = dict(config.get("games", {}).get(app_id, {}))
-    if (isinstance(game_entries.get("WINEDLLOVERRIDES"), str)
-            and isinstance(entries.get("WINEDLLOVERRIDES"), str)):
-        game_entries["WINEDLLOVERRIDES"] = merge_overrides(
-            entries["WINEDLLOVERRIDES"], game_entries["WINEDLLOVERRIDES"])
+    stored, own = entries.get("WINEDLLOVERRIDES"), game_entries.get("WINEDLLOVERRIDES")
+    if isinstance(stored, str) and isinstance(own, str) and stored and own:
+        game_entries["WINEDLLOVERRIDES"] = merge_overrides(stored, own)
     entries.update(game_entries)
     for name, value in entries.items():
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
@@ -477,8 +476,9 @@ def apply_config(env, config, app_id, fixes=None):
             result.pop(name, None)
         elif isinstance(value, str) and "\0" not in value and len(value) <= 8192:
             # The launcher adds overrides the game needs before this runs; merge the stored setting
-            # into them so each DLL keeps one entry and the stored setting has the last word.
-            if name == "WINEDLLOVERRIDES" and result.get(name):
+            # into them so each DLL keeps one entry and the stored setting has the last word. An
+            # empty stored value keeps none of them.
+            if name == "WINEDLLOVERRIDES" and value and result.get(name):
                 value = merge_overrides(result[name], value)
             result[name] = value
         else:
