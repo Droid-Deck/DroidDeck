@@ -195,7 +195,9 @@ class BottomDesktopPanel(
             addSurface()
             return
         }
-        if (attached) syncSurface(surfaceView.holder)
+        if (!attached) return
+        attached = false
+        syncSurface(surfaceView.holder)
     }
 
     private fun showState() {
