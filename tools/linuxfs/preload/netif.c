@@ -8,6 +8,10 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <ifaddrs.h>
+#include <linux/if_addr.h>
+#include <linux/if_link.h>
+#include <linux/netlink.h>
+#include <linux/rtnetlink.h>
 #include <net/if.h>
 #include <net/if_arp.h>
 #include <netpacket/packet.h>
@@ -618,4 +622,585 @@ FILE *fopen64(const char *path, const char *mode) {
     static fopen_fn real;
     if (real == NULL) real = (fopen_fn) dlsym(RTLD_NEXT, "fopen64");
     return open_stream(real, path, mode, __builtin_return_address(0));
+}
+
+#define NL_SOCKETS 8
+#define NL_REQUEST_MAX 1024
+#define NL_REPLY_MAX 4096
+
+#ifndef IFF_LOWER_UP
+#define IFF_LOWER_UP 0x10000
+#endif
+
+#ifndef IF_OPER_UP
+#define IF_OPER_UP 6
+#endif
+
+#ifndef SO_DOMAIN
+#define SO_DOMAIN 39
+#endif
+
+struct nl_socket {
+    int fd;
+    int peer;
+    unsigned port;
+};
+
+struct nl_reply {
+    unsigned char data[NL_REPLY_MAX];
+    size_t len;
+};
+
+static struct nl_socket nl_sockets[NL_SOCKETS];
+static pthread_mutex_t nl_sockets_lock = PTHREAD_MUTEX_INITIALIZER;
+static __thread unsigned nl_reply_port;
+
+static void nl_lock_before_fork(void) { pthread_mutex_lock(&nl_sockets_lock); }
+static void nl_unlock_after_fork(void) { pthread_mutex_unlock(&nl_sockets_lock); }
+static void nl_reset_after_fork(void) { pthread_mutex_init(&nl_sockets_lock, NULL); }
+
+__attribute__((constructor)) static void nl_sockets_init(void) {
+    for (int i = 0; i < NL_SOCKETS; i++) nl_sockets[i].fd = nl_sockets[i].peer = -1;
+    pthread_atfork(nl_lock_before_fork, nl_unlock_after_fork, nl_reset_after_fork);
+}
+
+static int nl_unix_socket(int fd) {
+    static int (*real_getsockopt)(int, int, int, void *, socklen_t *);
+    int domain = 0;
+    socklen_t len = sizeof(domain);
+    if (real_getsockopt == NULL)
+        real_getsockopt = (int (*)(int, int, int, void *, socklen_t *))
+                dlsym(RTLD_NEXT, "getsockopt");
+    if (real_getsockopt == NULL) return 1;
+    return real_getsockopt(fd, SOL_SOCKET, SO_DOMAIN, &domain, &len) == 0 && domain == AF_UNIX;
+}
+
+static int nl_peer_of(int fd) {
+    int peer = -1;
+    pthread_mutex_lock(&nl_sockets_lock);
+    for (int i = 0; i < NL_SOCKETS; i++) {
+        if (nl_sockets[i].fd == fd) {
+            if (nl_unix_socket(fd)) {
+                peer = nl_sockets[i].peer;
+            } else {
+                nl_sockets[i].fd = nl_sockets[i].peer = -1;
+            }
+            break;
+        }
+    }
+    pthread_mutex_unlock(&nl_sockets_lock);
+    return peer;
+}
+
+static unsigned nl_port_of(int fd) {
+    unsigned port = 0;
+    pthread_mutex_lock(&nl_sockets_lock);
+    for (int i = 0; i < NL_SOCKETS; i++) {
+        if (nl_sockets[i].fd == fd) {
+            port = nl_sockets[i].port;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&nl_sockets_lock);
+    return port;
+}
+
+__attribute__((visibility("hidden"))) int bl_nl_socket(int *fd);
+__attribute__((visibility("hidden"))) int bl_nl_bind(int fd, const struct sockaddr *addr,
+                                                     socklen_t len, int *rc);
+__attribute__((visibility("hidden"))) int bl_nl_getsockname(int fd, struct sockaddr *addr,
+                                                            socklen_t *len, int *rc);
+__attribute__((visibility("hidden"))) int bl_nl_owns(int fd);
+__attribute__((visibility("hidden"))) void bl_nl_closed(int fd);
+__attribute__((visibility("hidden"))) int bl_nl_recvmsg(int fd, struct msghdr *msg, int flags,
+                                                        ssize_t (*real)(int, struct msghdr *, int),
+                                                        ssize_t *rc);
+
+int bl_nl_owns(int fd) { return nl_peer_of(fd) >= 0; }
+
+int bl_nl_socket(int *fd) {
+    int pair[2], slot = -1;
+    if (socketpair(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0, pair) != 0) {
+        *fd = -1;
+        return 1;
+    }
+    pthread_mutex_lock(&nl_sockets_lock);
+    for (int i = 0; i < NL_SOCKETS; i++) {
+        if (nl_sockets[i].fd < 0) {
+            slot = i;
+            break;
+        }
+    }
+    if (slot >= 0) {
+        nl_sockets[slot].fd = pair[0];
+        nl_sockets[slot].peer = pair[1];
+        nl_sockets[slot].port = (unsigned) getpid();
+    }
+    pthread_mutex_unlock(&nl_sockets_lock);
+    if (slot < 0) {
+        close(pair[0]);
+        close(pair[1]);
+        errno = EMFILE;
+        *fd = -1;
+        return 1;
+    }
+    *fd = pair[0];
+    return 1;
+}
+
+int bl_nl_bind(int fd, const struct sockaddr *addr, socklen_t len, int *rc) {
+    const struct sockaddr_nl *nl;
+    if (!bl_nl_owns(fd)) return 0;
+    if (addr == NULL || len < sizeof(struct sockaddr_nl) || addr->sa_family != AF_NETLINK) {
+        errno = EINVAL;
+        *rc = -1;
+        return 1;
+    }
+    nl = (const struct sockaddr_nl *) addr;
+    if (nl->nl_groups != 0) {
+        errno = EACCES;
+        *rc = -1;
+        return 1;
+    }
+    if (nl->nl_pid != 0) {
+        pthread_mutex_lock(&nl_sockets_lock);
+        for (int i = 0; i < NL_SOCKETS; i++) {
+            if (nl_sockets[i].fd == fd) {
+                nl_sockets[i].port = nl->nl_pid;
+                break;
+            }
+        }
+        pthread_mutex_unlock(&nl_sockets_lock);
+    }
+    *rc = 0;
+    return 1;
+}
+
+int bl_nl_getsockname(int fd, struct sockaddr *addr, socklen_t *len, int *rc) {
+    struct sockaddr_nl nl;
+    socklen_t size;
+    if (!bl_nl_owns(fd)) return 0;
+    if (addr == NULL || len == NULL) {
+        errno = EFAULT;
+        *rc = -1;
+        return 1;
+    }
+    memset(&nl, 0, sizeof(nl));
+    nl.nl_family = AF_NETLINK;
+    nl.nl_pid = nl_port_of(fd);
+    if (nl.nl_pid == 0) nl.nl_pid = (unsigned) getpid();
+    size = *len < sizeof(nl) ? *len : (socklen_t) sizeof(nl);
+    memcpy(addr, &nl, size);
+    *len = sizeof(nl);
+    *rc = 0;
+    return 1;
+}
+
+void bl_nl_closed(int fd) {
+    int peer = -1;
+    pthread_mutex_lock(&nl_sockets_lock);
+    for (int i = 0; i < NL_SOCKETS; i++) {
+        if (nl_sockets[i].fd == fd) {
+            peer = nl_sockets[i].peer;
+            nl_sockets[i].fd = nl_sockets[i].peer = -1;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&nl_sockets_lock);
+    if (peer >= 0) {
+        static int (*real_close)(int);
+        if (real_close == NULL) real_close = (int (*)(int)) dlsym(RTLD_NEXT, "close");
+        if (real_close) real_close(peer);
+    }
+}
+
+int bl_nl_recvmsg(int fd, struct msghdr *msg, int flags,
+                  ssize_t (*real)(int, struct msghdr *, int), ssize_t *rc) {
+    ssize_t result;
+    if (!bl_nl_owns(fd)) return 0;
+    result = real(fd, msg, flags);
+    if (result >= 0 && msg && msg->msg_name) {
+        struct sockaddr_nl nl;
+        memset(&nl, 0, sizeof(nl));
+        nl.nl_family = AF_NETLINK;
+        memcpy(msg->msg_name, &nl, sizeof(nl));
+        msg->msg_namelen = sizeof(nl);
+    }
+    *rc = result;
+    return 1;
+}
+
+static unsigned char *reply_start(struct nl_reply *out, uint16_t type, uint16_t flags,
+                                  uint32_t seq, size_t payload) {
+    size_t offset = NLMSG_ALIGN(out->len);
+    struct nlmsghdr *header;
+    if (offset + NLMSG_SPACE(payload) > sizeof(out->data)) return NULL;
+    header = (struct nlmsghdr *) (out->data + offset);
+    memset(header, 0, NLMSG_SPACE(payload));
+    header->nlmsg_len = NLMSG_LENGTH(payload);
+    header->nlmsg_type = type;
+    header->nlmsg_flags = flags;
+    header->nlmsg_seq = seq;
+    header->nlmsg_pid = nl_reply_port;
+    out->len = offset + NLMSG_ALIGN(header->nlmsg_len);
+    return (unsigned char *) header;
+}
+
+static void reply_attr(struct nl_reply *out, unsigned char *message, int type,
+                       const void *data, size_t len) {
+    struct nlmsghdr *header = (struct nlmsghdr *) message;
+    size_t base = (size_t) (message - out->data);
+    size_t offset = NLMSG_ALIGN(header->nlmsg_len);
+    size_t total = RTA_ALIGN(RTA_LENGTH(len));
+    struct rtattr *attr;
+    if (base + offset + total > sizeof(out->data)) return;
+    attr = (struct rtattr *) (message + offset);
+    attr->rta_type = (unsigned short) type;
+    attr->rta_len = (unsigned short) RTA_LENGTH(len);
+    if (len > 0) memcpy(RTA_DATA(attr), data, len);
+    header->nlmsg_len = (unsigned) (offset + total);
+    out->len = base + NLMSG_ALIGN(header->nlmsg_len);
+}
+
+static void reply_done(struct nl_reply *out, uint32_t seq) {
+    unsigned char *message = reply_start(out, NLMSG_DONE, NLM_F_MULTI, seq, sizeof(int));
+    int code = 0;
+    if (message == NULL) return;
+    memcpy(NLMSG_DATA((struct nlmsghdr *) message), &code, sizeof(code));
+}
+
+static void reply_error(struct nl_reply *out, const struct nlmsghdr *request, int error) {
+    unsigned char *message = reply_start(out, NLMSG_ERROR, 0, request->nlmsg_seq,
+                                         sizeof(struct nlmsgerr));
+    struct nlmsgerr *reply;
+    if (message == NULL) return;
+    reply = (struct nlmsgerr *) NLMSG_DATA((struct nlmsghdr *) message);
+    memset(reply, 0, sizeof(*reply));
+    reply->error = error;
+    reply->msg = *request;
+}
+
+static void network_of(const struct link_addr *addr, unsigned char *out) {
+    unsigned char mask[16];
+    int len = addr->family == AF_INET ? 4 : 16;
+    prefix_mask(addr->family, addr->prefix, mask);
+    for (int i = 0; i < len; i++) out[i] = (unsigned char) (addr->bytes[i] & mask[i]);
+}
+
+static void broadcast_of(const struct link_addr *addr, unsigned char *out) {
+    unsigned char mask[16];
+    prefix_mask(AF_INET, addr->prefix, mask);
+    for (int i = 0; i < 4; i++) out[i] = (unsigned char) (addr->bytes[i] | (unsigned char) ~mask[i]);
+}
+
+static const struct link_addr *first_addr(const struct link *link, int family) {
+    for (int i = 0; i < link->addr_count; i++) {
+        if (link->addrs[i].family == family) return &link->addrs[i];
+    }
+    return NULL;
+}
+
+static void reply_link(struct nl_reply *out, const struct link *link, int loopback,
+                       uint32_t seq, uint16_t flags) {
+    struct ifinfomsg info;
+    const char *name;
+    unsigned mtu;
+    unsigned char state = IF_OPER_UP;
+    unsigned char *message;
+    memset(&info, 0, sizeof(info));
+    info.ifi_family = AF_UNSPEC;
+    info.ifi_type = loopback ? ARPHRD_LOOPBACK : ARPHRD_ETHER;
+    info.ifi_index = loopback ? LO_INDEX : (link ? (int) link->index : 2);
+    info.ifi_flags = IFF_UP | IFF_RUNNING | IFF_LOWER_UP
+            | (loopback ? IFF_LOOPBACK : (IFF_BROADCAST | IFF_MULTICAST));
+    info.ifi_change = 0xffffffff;
+    message = reply_start(out, RTM_NEWLINK, flags, seq, sizeof(info));
+    if (message == NULL) return;
+    memcpy(NLMSG_DATA((struct nlmsghdr *) message), &info, sizeof(info));
+    name = loopback ? LO_NAME : (link ? link->name : "eth0");
+    mtu = loopback ? LO_MTU : (unsigned) (link ? link->mtu : 1500);
+    reply_attr(out, message, IFLA_IFNAME, name, strlen(name) + 1);
+    reply_attr(out, message, IFLA_MTU, &mtu, sizeof(mtu));
+    reply_attr(out, message, IFLA_OPERSTATE, &state, sizeof(state));
+    if (!loopback && link && (link->mac[0] | link->mac[1] | link->mac[2]
+                              | link->mac[3] | link->mac[4] | link->mac[5])) {
+        reply_attr(out, message, IFLA_ADDRESS, link->mac, 6);
+    }
+}
+
+static void reply_addr(struct nl_reply *out, const struct link_addr *addr, unsigned index,
+                       int loopback, uint32_t seq, uint16_t flags) {
+    struct ifaddrmsg info;
+    int size = addr->family == AF_INET ? 4 : 16;
+    unsigned char *message;
+    memset(&info, 0, sizeof(info));
+    info.ifa_family = (unsigned char) addr->family;
+    info.ifa_prefixlen = (unsigned char) addr->prefix;
+    info.ifa_flags = IFA_F_PERMANENT;
+    info.ifa_scope = (unsigned char) (loopback ? RT_SCOPE_HOST
+            : (is_link_local(addr) ? RT_SCOPE_LINK : RT_SCOPE_UNIVERSE));
+    info.ifa_index = index;
+    message = reply_start(out, RTM_NEWADDR, flags, seq, sizeof(info));
+    if (message == NULL) return;
+    memcpy(NLMSG_DATA((struct nlmsghdr *) message), &info, sizeof(info));
+    reply_attr(out, message, IFA_LOCAL, addr->bytes, size);
+    reply_attr(out, message, IFA_ADDRESS, addr->bytes, size);
+    if (!loopback && addr->family == AF_INET && addr->prefix <= 30) {
+        unsigned char broadcast[4];
+        broadcast_of(addr, broadcast);
+        reply_attr(out, message, IFA_BROADCAST, broadcast, 4);
+    }
+}
+
+static void reply_route(struct nl_reply *out, int family, int destination_length,
+                        const unsigned char *destination, const unsigned char *gateway,
+                        const unsigned char *source, unsigned index, int protocol, int scope,
+                        uint32_t seq, uint16_t flags) {
+    struct rtmsg info;
+    int size = family == AF_INET ? 4 : 16;
+    unsigned char *message;
+    memset(&info, 0, sizeof(info));
+    info.rtm_family = (unsigned char) family;
+    info.rtm_dst_len = (unsigned char) destination_length;
+    info.rtm_table = RT_TABLE_MAIN;
+    info.rtm_protocol = (unsigned char) protocol;
+    info.rtm_scope = (unsigned char) scope;
+    info.rtm_type = RTN_UNICAST;
+    message = reply_start(out, RTM_NEWROUTE, flags, seq, sizeof(info));
+    if (message == NULL) return;
+    memcpy(NLMSG_DATA((struct nlmsghdr *) message), &info, sizeof(info));
+    if (destination_length > 0 && destination) reply_attr(out, message, RTA_DST, destination, size);
+    if (gateway) reply_attr(out, message, RTA_GATEWAY, gateway, size);
+    if (source) reply_attr(out, message, RTA_PREFSRC, source, size);
+    reply_attr(out, message, RTA_OIF, &index, sizeof(index));
+}
+
+static void reply_addrs(struct nl_reply *out, const struct link *link, int family, uint32_t seq) {
+    if (family == AF_UNSPEC || family == AF_INET)
+        reply_addr(out, &LO_V4, LO_INDEX, 1, seq, NLM_F_MULTI);
+    if (family == AF_UNSPEC || family == AF_INET6)
+        reply_addr(out, &LO_V6, LO_INDEX, 1, seq, NLM_F_MULTI);
+    if (link == NULL) return;
+    for (int i = 0; i < link->addr_count; i++) {
+        if (family != AF_UNSPEC && link->addrs[i].family != family) continue;
+        reply_addr(out, &link->addrs[i], link->index, 0, seq, NLM_F_MULTI);
+    }
+}
+
+static void reply_routes(struct nl_reply *out, const struct link *link, int family, uint32_t seq) {
+    if (link == NULL) return;
+    for (int pass = 0; pass < 2; pass++) {
+        int current = pass == 0 ? AF_INET : AF_INET6;
+        const struct link_addr *source;
+        if (family != AF_UNSPEC && family != current) continue;
+        source = first_addr(link, current);
+        for (int i = 0; i < link->gateway_count; i++) {
+            if (link->gateways[i].family != current) continue;
+            reply_route(out, current, 0, NULL, link->gateways[i].bytes,
+                        source ? source->bytes : NULL, link->index, RTPROT_STATIC,
+                        RT_SCOPE_UNIVERSE, seq, NLM_F_MULTI);
+        }
+        for (int i = 0; i < link->addr_count; i++) {
+            unsigned char network[16];
+            if (link->addrs[i].family != current) continue;
+            network_of(&link->addrs[i], network);
+            reply_route(out, current, link->addrs[i].prefix, network, NULL,
+                        link->addrs[i].bytes, link->index, RTPROT_KERNEL,
+                        RT_SCOPE_LINK, seq, NLM_F_MULTI);
+        }
+    }
+}
+
+static const struct rtattr *request_attr(const struct nlmsghdr *request, size_t offset, int type) {
+    int length;
+    const struct rtattr *attr;
+    if (request->nlmsg_len < NLMSG_HDRLEN + offset) return NULL;
+    length = (int) (request->nlmsg_len - NLMSG_HDRLEN - offset);
+    attr = (const struct rtattr *) ((const unsigned char *) NLMSG_DATA(request) + offset);
+    for (; RTA_OK(attr, length); attr = RTA_NEXT(attr, length)) {
+        if ((int) attr->rta_type == type) return attr;
+    }
+    return NULL;
+}
+
+static void reply_route_get(struct nl_reply *out, const struct link *link,
+                            const struct nlmsghdr *request) {
+    const struct rtmsg *info = (const struct rtmsg *) NLMSG_DATA(request);
+    int family = request->nlmsg_len >= NLMSG_LENGTH(sizeof(struct rtmsg)) ? info->rtm_family : AF_INET;
+    int size = family == AF_INET ? 4 : 16;
+    const struct rtattr *destination = request_attr(request, sizeof(struct rtmsg), RTA_DST);
+    const struct link_addr *gateway = NULL;
+    const struct link_addr *source;
+    if (family != AF_INET && family != AF_INET6) family = AF_INET;
+    size = family == AF_INET ? 4 : 16;
+    for (int i = 0; link && i < link->gateway_count; i++) {
+        if (link->gateways[i].family == family) {
+            gateway = &link->gateways[i];
+            break;
+        }
+    }
+    if (gateway == NULL) {
+        reply_error(out, request, -ENETUNREACH);
+        return;
+    }
+    source = first_addr(link, family);
+    reply_route(out, family, family == AF_INET ? 32 : 128,
+                destination && RTA_PAYLOAD(destination) >= (size_t) size ? RTA_DATA(destination) : NULL,
+                gateway->bytes, source ? source->bytes : NULL, link->index, RTPROT_STATIC,
+                RT_SCOPE_UNIVERSE, request->nlmsg_seq, 0);
+}
+
+static void reply_request(const struct nlmsghdr *request, const struct link *link,
+                          struct nl_reply *out) {
+    int dump = (request->nlmsg_flags & NLM_F_DUMP) != 0;
+    uint16_t flags = dump ? NLM_F_MULTI : 0;
+    switch (request->nlmsg_type) {
+    case RTM_GETLINK: {
+        int index = 0;
+        if (request->nlmsg_len >= NLMSG_LENGTH(sizeof(struct ifinfomsg)))
+            index = ((const struct ifinfomsg *) NLMSG_DATA(request))->ifi_index;
+        if (dump) {
+            reply_link(out, NULL, 1, request->nlmsg_seq, flags);
+            if (link) reply_link(out, link, 0, request->nlmsg_seq, flags);
+            reply_done(out, request->nlmsg_seq);
+        } else if (index == 0) {
+            reply_error(out, request, -EINVAL);
+        } else if (index == LO_INDEX || (link && index == (int) link->index)) {
+            reply_link(out, link, index == LO_INDEX, request->nlmsg_seq, 0);
+        } else {
+            reply_error(out, request, -ENODEV);
+        }
+        break;
+    }
+    case RTM_GETADDR: {
+        int family = AF_UNSPEC;
+        if (request->nlmsg_len >= NLMSG_LENGTH(sizeof(struct ifaddrmsg)))
+            family = ((const struct ifaddrmsg *) NLMSG_DATA(request))->ifa_family;
+        if (dump) {
+            reply_addrs(out, link, family, request->nlmsg_seq);
+            reply_done(out, request->nlmsg_seq);
+        } else {
+            reply_error(out, request, -EOPNOTSUPP);
+        }
+        break;
+    }
+    case RTM_GETROUTE: {
+        int family = AF_UNSPEC;
+        if (request->nlmsg_len >= NLMSG_LENGTH(sizeof(struct rtmsg)))
+            family = ((const struct rtmsg *) NLMSG_DATA(request))->rtm_family;
+        if (dump) {
+            reply_routes(out, link, family, request->nlmsg_seq);
+            reply_done(out, request->nlmsg_seq);
+        } else {
+            reply_route_get(out, link, request);
+        }
+        break;
+    }
+    case RTM_GETNEIGH:
+        if (dump) reply_done(out, request->nlmsg_seq);
+        else reply_error(out, request, -EOPNOTSUPP);
+        break;
+    default:
+        reply_error(out, request, -EPERM);
+        break;
+    }
+}
+
+static void build_reply(const void *data, size_t len, struct nl_reply *out) {
+    struct link link;
+    int have = load_link(&link);
+    size_t offset = 0;
+    out->len = 0;
+    while (offset + sizeof(struct nlmsghdr) <= len) {
+        const struct nlmsghdr *request =
+                (const struct nlmsghdr *) ((const unsigned char *) data + offset);
+        if (request->nlmsg_len < sizeof(struct nlmsghdr) || offset + request->nlmsg_len > len)
+            break;
+        reply_request(request, have ? &link : NULL, out);
+        offset += NLMSG_ALIGN(request->nlmsg_len);
+    }
+}
+
+static ssize_t send_raw(int fd, const void *data, size_t len) {
+    static ssize_t (*real)(int, const void *, size_t, int);
+    if (real == NULL) real = (ssize_t (*)(int, const void *, size_t, int)) dlsym(RTLD_NEXT, "send");
+    if (real == NULL) {
+        errno = ENOSYS;
+        return -1;
+    }
+    return real(fd, data, len, MSG_NOSIGNAL);
+}
+
+static int deliver(int fd, const void *data, size_t len, ssize_t *rc) {
+    struct nl_reply reply;
+    int peer = nl_peer_of(fd);
+    if (peer < 0) return 0;
+    nl_reply_port = nl_port_of(fd);
+    build_reply(data, len, &reply);
+    if (reply.len == 0) {
+        struct nlmsghdr *request = (struct nlmsghdr *) data;
+        if (len < sizeof(struct nlmsghdr)) {
+            errno = EINVAL;
+            *rc = -1;
+            return 1;
+        }
+        reply.len = 0;
+        reply_error(&reply, request, -EOPNOTSUPP);
+    }
+    *rc = send_raw(peer, reply.data, reply.len) < 0 ? -1 : (ssize_t) len;
+    return 1;
+}
+
+static int collect(struct msghdr *msg, unsigned char *buffer, size_t capacity, size_t *length) {
+    size_t used = 0;
+    if (msg == NULL || msg->msg_iov == NULL) return 0;
+    for (size_t i = 0; i < msg->msg_iovlen; i++) {
+        const struct iovec *part = &msg->msg_iov[i];
+        if (part->iov_base == NULL || part->iov_len == 0) continue;
+        if (used + part->iov_len > capacity) return 0;
+        memcpy(buffer + used, part->iov_base, part->iov_len);
+        used += part->iov_len;
+    }
+    *length = used;
+    return used > 0;
+}
+
+static int sendmsg_request(int fd, const struct msghdr *msg, ssize_t *rc) {
+    unsigned char buffer[NL_REQUEST_MAX];
+    size_t length = 0;
+    if (!collect((struct msghdr *) msg, buffer, sizeof(buffer), &length)) return 0;
+    return deliver(fd, buffer, length, rc);
+}
+
+ssize_t sendmsg(int fd, const struct msghdr *msg, int flags) {
+    static ssize_t (*real)(int, const struct msghdr *, int);
+    ssize_t rc;
+    if (bl_nl_owns(fd) && sendmsg_request(fd, msg, &rc)) return rc;
+    if (real == NULL) real = (ssize_t (*)(int, const struct msghdr *, int)) dlsym(RTLD_NEXT, "sendmsg");
+    if (real == NULL) {
+        errno = ENOSYS;
+        return -1;
+    }
+    return real(fd, msg, flags);
+}
+
+ssize_t sendto(int fd, const void *buffer, size_t length, int flags,
+               const struct sockaddr *addr, socklen_t addrlen) {
+    static ssize_t (*real)(int, const void *, size_t, int, const struct sockaddr *, socklen_t);
+    ssize_t rc;
+    if (bl_nl_owns(fd) && deliver(fd, buffer, length, &rc)) return rc;
+    if (real == NULL)
+        real = (ssize_t (*)(int, const void *, size_t, int, const struct sockaddr *, socklen_t))
+                dlsym(RTLD_NEXT, "sendto");
+    if (real == NULL) {
+        errno = ENOSYS;
+        return -1;
+    }
+    return real(fd, buffer, length, flags, addr, addrlen);
+}
+
+ssize_t send(int fd, const void *buffer, size_t length, int flags) {
+    ssize_t rc;
+    if (bl_nl_owns(fd) && deliver(fd, buffer, length, &rc)) return rc;
+    return send_raw(fd, buffer, length);
 }

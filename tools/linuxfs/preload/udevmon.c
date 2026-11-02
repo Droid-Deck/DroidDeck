@@ -102,6 +102,11 @@ static int make_stand_in(int type) {
   return -1;
 }
 
+__attribute__((visibility("hidden"))) int bl_nl_socket(int *fd);
+__attribute__((visibility("hidden"))) int bl_nl_owns(int fd);
+__attribute__((visibility("hidden"))) int bl_nl_getsockname(int fd, struct sockaddr *addr,
+                                                            socklen_t *len, int *rc);
+
 int socket(int domain, int type, int protocol) {
   static int (*real_socket)(int, int, int);
   int fd;
@@ -110,6 +115,11 @@ int socket(int domain, int type, int protocol) {
   if (real_socket == NULL) {
     errno = ENOSYS;
     return -1;
+  }
+  if (domain == AF_NETLINK && protocol == NETLINK_ROUTE) {
+    int route_fd;
+    bl_nl_socket(&route_fd);
+    return route_fd;
   }
   fd = real_socket(domain, type, protocol);
   if (fd >= 0 || domain != AF_NETLINK || protocol != NETLINK_KOBJECT_UEVENT)
@@ -129,7 +139,9 @@ __attribute__((visibility("hidden"))) int bl_udevmon_stand_in(int fd) {
 int getsockname(int fd, struct sockaddr *addr, socklen_t *len) {
   static int (*real_getsockname)(int, struct sockaddr *, socklen_t *);
   struct sockaddr_nl nl;
+  int route_rc;
 
+  if (bl_nl_getsockname(fd, addr, len, &route_rc)) return route_rc;
   if (is_stand_in(fd)) {
     if (addr == NULL || len == NULL) {
       errno = EFAULT;
@@ -153,6 +165,7 @@ int getsockname(int fd, struct sockaddr *addr, socklen_t *len) {
 int setsockopt(int fd, int level, int optname, const void *optval, socklen_t optlen) {
   static int (*real_setsockopt)(int, int, int, const void *, socklen_t);
 
+  if (bl_nl_owns(fd) && (level == SOL_NETLINK || level == SOL_SOCKET)) return 0;
   if (is_stand_in(fd)) {
     if (level == SOL_NETLINK)
       return 0;
