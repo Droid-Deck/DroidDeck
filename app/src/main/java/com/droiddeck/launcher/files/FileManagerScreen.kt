@@ -499,9 +499,10 @@ fun FileManagerScreen(
     }
     val drives = remember(storageTick) { StorageRoots.list(context) }
     var accessDrive by remember { mutableStateOf<String?>(null) }
+    var staleDrive by remember { mutableStateOf<String?>(null) }
     fun unreadable(drive: StorageRoot) {
         if (AllFilesAccess.missing()) accessDrive = drive.label
-        else Toast.makeText(context, context.getString(R.string.fm_drive_not_readable, drive.label), Toast.LENGTH_SHORT).show()
+        else staleDrive = drive.label
     }
     accessDrive?.let { label ->
         OutlinedAlertDialog(
@@ -515,6 +516,20 @@ fun FileManagerScreen(
                 }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.upd_open_settings)) }
             },
             dismissButton = { TextButton(onClick = { accessDrive = null }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
+        )
+    }
+    staleDrive?.let { label ->
+        OutlinedAlertDialog(
+            onDismissRequest = { staleDrive = null },
+            title = { Text(stringResource(R.string.fm_drive_stale_title, label)) },
+            text = { Text(stringResource(R.string.fm_drive_stale_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    staleDrive = null
+                    AllFilesAccess.restartApp(context)
+                }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.fm_drive_restart_now)) }
+            },
+            dismissButton = { TextButton(onClick = { staleDrive = null }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
     val linuxRoot = remember(storageTick) {

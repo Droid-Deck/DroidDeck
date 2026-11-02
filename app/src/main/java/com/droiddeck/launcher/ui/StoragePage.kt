@@ -53,6 +53,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -68,6 +69,13 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.droiddeck.launcher.files.AllFilesAccess
+import com.droiddeck.launcher.files.OutlinedAlertDialog
+import com.droiddeck.launcher.ui.focusGlide
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -159,9 +167,21 @@ private fun DefaultStorageGroup() {
     var value by remember { mutableStateOf(SessionPrefs.defaultStorage(ctx)) }
     var open by remember { mutableStateOf(false) }
     var revision by remember { mutableIntStateOf(0) }
+    var staleFolder by remember { mutableStateOf<String?>(null) }
+    // Detection runs once per composition key: re-run it when coming back from settings,
+    // or an SSD approved there stays invisible until the app is restarted for other reasons.
+    var resumeTick by remember { mutableIntStateOf(0) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) resumeTick++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val customPath = SessionPrefs.defaultStorageFolder(ctx)
-    val customTarget = remember(customPath, revision) { StoreInstallRoot.customTarget(ctx) }
-    val detected = remember(customPath, revision) { StoreInstallRoot.detectedExternalTarget(ctx) }
+    val customTarget = remember(customPath, revision, resumeTick) { StoreInstallRoot.customTarget(ctx) }
+    val detected = remember(customPath, revision, resumeTick) { StoreInstallRoot.detectedExternalTarget(ctx) }
     val customLabel = SessionPrefs.defaultStorageFolderLabel(ctx).ifBlank {
         customPath.takeIf { it.isNotBlank() }?.let { File(it).name }.orEmpty()
     }
@@ -170,7 +190,10 @@ private fun DefaultStorageGroup() {
         val path = InAppFilePicker.pickedPath(result.data) ?: return@rememberLauncherForActivityResult
         val problem = StoreInstallRoot.prepareDefaultFolder(ctx, File(path))
         if (problem != null) {
-            Toast.makeText(ctx, ctx.getString(R.string.main_storage_not_usable, problem), Toast.LENGTH_LONG).show()
+            // Permission granted but the folder still not writable: the running process holds
+            // the pre-grant storage view. Offer the restart that fixes it instead of a dead end.
+            if (!AllFilesAccess.missing()) staleFolder = File(path).name.ifBlank { path }
+            else Toast.makeText(ctx, ctx.getString(R.string.main_storage_not_usable, problem), Toast.LENGTH_LONG).show()
             return@rememberLauncherForActivityResult
         }
         SessionPrefs.setDefaultStorageFolder(ctx, path, StoreInstallRoot.folderLabel(ctx, File(path)))
@@ -257,6 +280,20 @@ private fun DefaultStorageGroup() {
                 }
             }
         }
+    }
+    staleFolder?.let { label ->
+        OutlinedAlertDialog(
+            onDismissRequest = { staleFolder = null },
+            title = { Text(stringResource(R.string.fm_drive_stale_title, label)) },
+            text = { Text(stringResource(R.string.fm_drive_stale_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    staleFolder = null
+                    AllFilesAccess.restartApp(ctx)
+                }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.fm_drive_restart_now)) }
+            },
+            dismissButton = { TextButton(onClick = { staleFolder = null }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
+        )
     }
 }
 
