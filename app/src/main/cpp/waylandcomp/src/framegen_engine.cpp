@@ -36,8 +36,8 @@ int g_kind = -1;
 char g_build[96] = "";
 
 constexpr int kKindWfg = 2;
-// WFG's Fast preset: the flow field's short side in pixels.
-constexpr uint32_t kWfgFlowSide = 180;
+// The flow field's short side in pixels, between WFG's Fast (180) and Balanced (252) presets.
+constexpr uint32_t kWfgFlowSide = 210;
 PFN_vkGetInstanceProcAddr g_gipa = nullptr;
 VkInstance g_inst = VK_NULL_HANDLE;
 VkrDis *g_wfg = nullptr;
