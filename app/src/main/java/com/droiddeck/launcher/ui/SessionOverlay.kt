@@ -29,9 +29,11 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material.icons.outlined.Dashboard
+import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.AutoFixHigh
 import androidx.compose.material.icons.outlined.ExpandMore
@@ -221,6 +223,8 @@ class DrawerActions(
     val micAvailable: Boolean = false,
     val micEnabled: Boolean = false,
     val onMicEnabled: (Boolean) -> Unit = {},
+    val backHold: Boolean = true,
+    val onBackHold: (Boolean) -> Unit = {},
     val backActionsInverted: Boolean,
     val backDoubleTapMs: Int = 500,
     val onBackDoubleTapMs: (Int) -> Unit = {},
@@ -242,6 +246,7 @@ class DrawerActions(
     val textureLodBias: String? = TextureFiltering.LOD_BIAS_OFF,
     val secondScreenMode: SecondScreenMode,
     val dashboardAvailable: Boolean = false,
+    val desktopAvailable: Boolean = false,
     val secondScreenDisplays: List<SecondScreenDisplay>,
     val selectedSecondScreenDisplay: Int,
     val onHud: (Boolean) -> Unit,
@@ -471,8 +476,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         SteamActionPill(
                             stringResource(R.string.common_close), Icons.Outlined.Close, focus.track(page, "close"),
                         ) { host.open = null; a.onClose() }
-                        Spacer(Modifier.width(4.dp))
-                        BottomScreenModes(a, focus.track(page, "bottom-modes")) { host.open = null }
                     }
                     Spacer(Modifier.weight(1f))
                     SteamActionPill(
@@ -641,6 +644,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                             chipModifier = focus.track(page, "keyboard-button"), onChange = a.onKeyboardButton)
                                     }
                                 }
+                                if (a.steam) ToggleRow(host, "back-hold", stringResource(R.string.back_hold),
+                                    stringResource(R.string.back_hold_hint), a.backHold,
+                                    chipModifier = focus.track(page, "back-hold"), onChange = a.onBackHold)
                                 if (a.steam) ChoiceRow(host, "back-actions", stringResource(R.string.mode_back), null,
                                     listOf(false to stringResource(SessionPrefs.BACK_MENU_THEN_QAM), true to stringResource(SessionPrefs.BACK_QAM_THEN_MENU)),
                                     a.backActionsInverted, chipModifier = focus.track(page, "back-actions"), onPick = a.onBackActionsInverted)
@@ -869,68 +875,15 @@ private fun StopSessionButton(modifier: Modifier = Modifier, onClick: () -> Unit
     val fill by animateColorAsState(if (hot) colors.error.copy(alpha = 0.18f) else Color.Transparent, Motion.tw(220), label = "dangerFill")
     val shape = RoundedCornerShape(20.dp)
     val stopDescription = stringResource(R.string.stop_session)
-    val stopLabel = stringResource(R.string.drawer_stop)
-    var iconOnly by remember(stopLabel, androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp) { mutableStateOf(false) }
     Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = modifier.heightIn(min = 44.dp).semantics { contentDescription = stopDescription }.testTag("drawer-stop")
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
+        modifier = modifier.heightIn(min = 44.dp).widthIn(min = 44.dp).semantics { contentDescription = stopDescription }.testTag("drawer-stop")
             .clip(shape).background(fill).glideBorder(hot, shape, colors.error.copy(alpha = 0.9f), colors.error.copy(alpha = 0.55f))
             .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = onClick)
             .controllerConfirm(onClick = onClick)
-            .padding(start = 12.dp, end = 14.dp),
+            .padding(horizontal = 12.dp),
     ) {
         Icon(Icons.Outlined.PowerSettingsNew, contentDescription = null, tint = colors.error, modifier = Modifier.size(18.dp))
-        if (!iconOnly) Text(
-            stopLabel, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.error,
-            maxLines = 1, softWrap = false, onTextLayout = { if (it.hasVisualOverflow) iconOnly = true },
-        )
-    }
-}
-
-@Composable
-private fun BottomScreenModes(a: DrawerActions, modifier: Modifier, onPick: () -> Unit) {
-    val pal = LocalPalette.current
-    val colors = MaterialTheme.colorScheme
-    val modes = buildList {
-        if (com.droiddeck.launcher.session.SessionState.deckPad) add(SecondScreenMode.DECK_CONTROLS to Icons.Outlined.SportsEsports)
-        add(SecondScreenMode.KEYBOARD_TRACKPAD to Icons.Outlined.Keyboard)
-        add(SecondScreenMode.TERMINAL to Icons.Outlined.Terminal)
-        if (a.dashboardAvailable) add(SecondScreenMode.DASHBOARD to Icons.Outlined.Dashboard)
-    }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = modifier.focusGroup().clip(RoundedCornerShape(26.dp)).border(1.dp, pal.line, RoundedCornerShape(26.dp)).padding(4.dp),
-    ) {
-        modes.forEach { (mode, icon) ->
-            val selected = a.secondScreenMode == mode
-            val source = remember { MutableInteractionSource() }
-            val hot = source.collectIsFocusedAsState().value || source.collectIsHoveredAsState().value
-            val shape = RoundedCornerShape(20.dp)
-            val pick = { onPick(); a.onSecondScreenMode(mode) }
-            val label = stringResource(mode.label)
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.size(width = 52.dp, height = 40.dp).semantics { contentDescription = label }
-                    .clip(shape)
-                    .background(when {
-                        selected -> pal.signal
-                        hot -> pal.signal.copy(alpha = 0.14f)
-                        else -> Color.Transparent
-                    })
-                    .glideBorder(hot, shape, pal.signal)
-                    .hoverable(source)
-                    .selectable(selected, interactionSource = source, indication = LocalIndication.current, role = Role.Tab, onClick = pick)
-                    .controllerConfirm(onClick = pick),
-            ) {
-                Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp),
-                    tint = when {
-                        selected -> colors.background
-                        hot -> pal.signal
-                        else -> colors.onBackground
-                    })
-            }
-        }
     }
 }
 
@@ -1194,7 +1147,8 @@ private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) 
     val pal = LocalPalette.current
     val modes = listOf(SecondScreenMode.NONE, SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL) +
         (if (com.droiddeck.launcher.session.SessionState.deckPad) listOf(SecondScreenMode.DECK_CONTROLS) else emptyList()) +
-        (if (a.dashboardAvailable) listOf(SecondScreenMode.DASHBOARD) else emptyList())
+        (if (a.dashboardAvailable) listOf(SecondScreenMode.DASHBOARD) else emptyList()) +
+        (if (a.desktopAvailable) listOf(SecondScreenMode.DESKTOP) else emptyList())
     SettingsGroup(stringResource(R.string.drawer_second_screen_mode)) {
         Column(Modifier.fillMaxWidth().selectableGroup()) {
             modes.forEach { mode ->
@@ -1596,7 +1550,6 @@ internal fun ComponentDownloadsDrawerGroup(
                     }
                     AnchoredMenu(open, onDismiss = { if (host.open == key) host.open = null },
                         title = ComponentsManager.LABEL.getValue(comp)) { firstItemFocus ->
-                        // A nightly paired with a stable build rides on that row; Stable/Nightly tabs beside the row pick which one.
                         val pairs = ComponentsManager.nightlyPairs(items)
                         val rows = items.filter { it !in pairs.values }
                         fun shown(row: ComponentsManager.CatalogItem) = pairs[row]?.takeIf { nightlyPicked[row.id] == true } ?: row

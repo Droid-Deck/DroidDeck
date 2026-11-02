@@ -44,7 +44,6 @@ object SessionPaths {
 
     fun current(): File? = dir
 
-    /** Whether the current session folder will survive teardown. No session means the next one can retain logs. */
     fun currentSessionLogsRetained(context: Context): Boolean =
         dir?.let { it.parentFile == SessionFiles.logDirectory(context) } ?: true
 

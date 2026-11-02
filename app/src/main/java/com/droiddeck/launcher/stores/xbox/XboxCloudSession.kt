@@ -6,7 +6,6 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** Streaming-service tokens stay in memory only. Request shapes follow Greenlight / xal-node by unknownskl (MIT). */
 internal object XboxCloudSession {
     class Region(val name: String, val baseUri: String, val isDefault: Boolean)
 
@@ -22,7 +21,6 @@ internal object XboxCloudSession {
 
     @Volatile private var cached: Session? = null
 
-    /** One fetch at a time (about 20 s: two ticket exchanges); a second caller waits and gets the same tokens. */
     @Synchronized
     fun get(app: Context, account: String): Session {
         cached?.takeIf { it.account == account && it.fresh }?.let { return it }
@@ -39,10 +37,6 @@ internal object XboxCloudSession {
 
     fun clear() { cached = null; titleIds = null }
 
-    /**
-     * For the native player's own process: the main process's tokens (it keeps them, and fetches them ahead while a
-     * cloud game's page is open), handed over in memory through XboxCloudTokenService; null if that is not reachable.
-     */
     fun fromMainProcess(app: Context, account: String, timeoutSeconds: Long = 90): Session? {
         cached?.takeIf { it.account == account && it.fresh }?.let { return it }
         val reply = XboxCloudTokenService.request(app, account, timeoutSeconds) ?: return null

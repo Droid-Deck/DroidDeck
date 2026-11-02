@@ -6,7 +6,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 
-/** What SteamVR sees for the game pad. The driver reads the file once, when SteamVR starts. */
 object VrControllers {
     enum class Emulate(val key: String) { OFF("off"), INDEX("index"), TOUCH("touch"), VIVE("vive") }
 
@@ -46,7 +45,6 @@ object VrControllers {
     fun encode(settings: Settings): String =
         "emulate=${settings.emulate.key}\nsticks=${if (settings.sticksMoveHands) "hands" else "game"}\n"
 
-    /** Writes into the session's runtime dir, which the guest sees as /run/droiddeck. */
     fun publish(context: Context) {
         runCatching {
             val dir = File(context.filesDir, ".wayland-rt").apply { mkdirs() }

@@ -39,7 +39,6 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.BottomNotifications
 import kotlinx.coroutines.delay
 
-/** DroidDeck's own switch on Android 11 and later; the list of all apps before that. */
 internal fun notificationAccessIntent(context: android.content.Context): Intent =
     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
         Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS).putExtra(

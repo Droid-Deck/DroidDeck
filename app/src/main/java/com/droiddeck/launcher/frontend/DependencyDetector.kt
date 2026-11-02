@@ -54,21 +54,6 @@ object DependencyDetector {
         "d3dx9", "d3dx11", "xact", "xact_x64", "xna31", "xna40", "physx", "oalinst", "XLiveRedist",
     )
 
-    fun detectForExe(exeFile: File): List<Recommendation> {
-        val start = exeFile.absoluteFile.parentFile ?: return emptyList()
-        var d: File? = start
-        var depth = 0
-        while (d != null && depth < 4) {
-            val hasRedistContainer = try {
-                d.listFiles()?.any { it.isDirectory && REDIST_DIR_RE.matches(it.name.lowercase(Locale.US)) } == true
-            } catch (_: Throwable) { false }
-            if (hasRedistContainer) return detect(d)
-            d = d.parentFile
-            depth++
-        }
-        return detect(start)
-    }
-
     fun detect(gameDir: File): List<Recommendation> {
         if (!gameDir.isDirectory) return emptyList()
         val hits = LinkedHashMap<String, Recommendation>()

@@ -43,7 +43,6 @@ import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlin.math.min
 
-/** A small colour square; pressing it opens the colour picker. */
 @Composable
 internal fun ColorCube(color: Color, description: String, focus: FocusRequester? = null, onClick: () -> Unit) {
     val pal = LocalPalette.current
@@ -59,7 +58,6 @@ internal fun ColorCube(color: Color, description: String, focus: FocusRequester?
     )
 }
 
-/** Colour wheel (touch), hue / saturation / brightness sliders (controller and touch) and a hex box for one colour. */
 @Composable
 internal fun ColorPickerDialog(title: String, initial: Int, onDismiss: () -> Unit, onApply: (Int) -> Unit) {
     val shown = rememberShown(onDismiss)
@@ -117,7 +115,6 @@ private fun Swatch(color: Color) {
     Box(Modifier.size(48.dp).clip(shape).background(color).border(1.dp, LocalPalette.current.line2, shape))
 }
 
-/** Hue around the circle and saturation out from the middle, at full brightness; brightness has its own slider. */
 @Composable
 private fun ColorWheel(hue: Float, sat: Float, value: Float, onPick: (hue: Float, sat: Float) -> Unit) {
     val rim = MaterialTheme.colorScheme.onBackground

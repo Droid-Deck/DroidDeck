@@ -18,12 +18,10 @@ class MangoReadingsTest {
     @Test fun cpuLoadFollowsMangoHudsFormulaAndTruncates() {
         val stat = File(tmp.root, "stat")
         val m = readings()
-        // user nice system idle iowait irq softirq steal guest guest_nice
         stat.writeText("cpu  1000 100 500 8000 400 50 50 0 200 0\ncpu0 500 50 250 4000 200 25 25 0 100 0\ncpu1 500 50 250 4000 200 25 25 0 100 0\nintr 0\n")
         m.cpu(stat)
         stat.writeText("cpu  1500 100 700 8600 500 60 70 10 300 0\ncpu0 900 50 400 4100 250 30 35 10 200 0\ncpu1 600 50 300 4500 250 30 35 0 100 0\nintr 0\n")
         val cpu = m.cpu(stat)!!
-        // busy = user-guest 400 + nice 0 + system+irq+softirq 230 + steal 10 + guest 100 = 740 of 1440 (idle+iowait 700)
         assertEquals((740 * 100f / 1440).toInt(), cpu.percent)
         assertEquals(51, cpu.percent)
         assertArrayEquals(intArrayOf(((300 + 165 + 10 + 100) * 100f / (300 + 165 + 10 + 100 + 150)).toInt(), ((100 + 65) * 100f / (100 + 65 + 550)).toInt()), cpu.perCore)

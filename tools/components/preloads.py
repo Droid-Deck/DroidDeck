@@ -1,4 +1,3 @@
-"""Reuse reviewed preload snapshots; changed snapshots must prove their main-build origin."""
 import argparse
 import gzip
 import http.client
@@ -147,7 +146,6 @@ def producer_sources(group, commit, root=ROOT):
         name = 'arm64-preloads' if group == 'arm64' else 'x86-preloads'
         patterns = definitions[name]['source_inputs']
     else:
-        # Older approved builds kept ARM64 commands inline, before the Vulkan/VR build.
         if group == 'arm64':
             text = run('git', 'show', f'{commit}:.github/workflows/build.yml', root=root).decode()
             text = text[text.index('          aarch64-linux-gnu-g++ -shared'):]

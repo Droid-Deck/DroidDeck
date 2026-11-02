@@ -15,7 +15,6 @@ object SteamRedists {
         "228989" to ("vcredist2022_dll" to "VC++ 2022"),
         "228990" to ("d3dx9" to "DirectX (June 2010)"),
     )
-    /** Redists a game's own install script runs on Windows that its shared depots don't name. */
     val SCRIPTED = mapOf(
         72850 to listOf("xact" to "DirectX XACT audio"),
         489830 to listOf("xact_x64" to "DirectX XACT audio (64-bit)"),
@@ -28,7 +27,6 @@ object SteamRedists {
         return File(steamapps, "appmanifest_$appId.acf").takeIf { it.isFile }
     }
 
-    /** Redists the game's own install script has Steam run on Windows, from its "Run Process" entries. */
     fun installScript(gameDir: File?): List<Pair<String, String>> =
         gameDir?.listFiles { f ->
             f.isFile && f.length() < 1L shl 20 && f.name.lowercase().let { it.startsWith("installscript") && it.endsWith(".vdf") }

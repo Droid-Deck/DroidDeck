@@ -1,27 +1,4 @@
 #!/usr/bin/python3
-"""Windows components (OpenAL, d3dx, XAudio, ...) for a game's Proton prefix.
-
-The app installs each component under STORE/<id>: its files in system32/ (64-bit) and syswow64/
-(32-bit) as Windows lays them out, and component.json naming the overrides that make Wine load
-them instead of its own ("name" for native-then-builtin, or "name=n" with Wine's own letters) and
-the components it bundles ("requires"). The ids are Bannerlator's catalog names (xaudio2.7,
-oalinst_dll...). The user picks components per game; the picks are in SELECTION as
-{"version": 1, "games": {"<appid>": ["oalinst_dll", ...]}}.
-
-A component installed from a Windows Installer package (droiddeck-msi-install) also has drive_c/,
-its files at their Windows paths (Program Files, the .NET GAC, winsxs...), and registry.json, the
-values its package writes.
-
-droiddeck-game-env calls apply() before every game launch. It copies what is missing or changed
-into compatdata/<appid>/pfx, writes the components' registry values into the prefix's registry
-files (system.reg, user.reg) and returns the overrides for WINEDLLOVERRIDES, so Wine never has to
-be running. A prefix Proton has not made yet gets the registry values on the launch after.
-
-Proton leaves the files alone afterwards: its builtin refresh (update_builtin_libs) replaces only
-files that are its own builtins, and a new prefix is built around files already there (copy_pfx
-skips them). The one case that removes them is a launch on an older Proton than the prefix's,
-which deletes every file Proton once placed - and the next launch's apply() puts ours back.
-"""
 import json
 import os
 import re
@@ -62,7 +39,6 @@ def wanted(app_id, selection=SELECTION):
 
 
 def component(store, cid):
-    """The component's overrides, its files as (relative path, source) and the ids it bundles, or None if not installed."""
     root = Path(store) / cid
     try:
         with open(root / "component.json", encoding="utf-8") as source:
@@ -87,7 +63,6 @@ def component(store, cid):
 
 
 def registry_values(root):
-    """The component's registry values (registry.json), the ones that are well formed."""
     try:
         with open(Path(root) / "registry.json", encoding="utf-8") as source:
             values = json.load(source).get("values", [])
@@ -102,7 +77,6 @@ def registry_values(root):
 
 
 def expand(store, ids, saved=None):
-    """The picks with everything they bundle, each once, a bundle's parts before it."""
     out, seen = [], set()
     saved = saved if isinstance(saved, dict) else {}
 
@@ -122,7 +96,6 @@ def expand(store, ids, saved=None):
 
 
 def spelled(path):
-    """path with each folder that exists spelled as the prefix spells it (Windows names ignore case)."""
     parts = path.parts
     current = Path(parts[0])
     for part in parts[1:]:
@@ -141,7 +114,6 @@ def spelled(path):
 
 
 def existing(path):
-    """The file at path as the prefix spells it: Windows names ignore case, the filesystem may not."""
     folder = spelled(path.parent)
     path = folder / path.name
     try:
@@ -165,7 +137,6 @@ def same(src, dst):
 
 
 def builtin(path):
-    """Proton's own: a symlink into its files, or a Wine DLL that says so in its DOS stub."""
     if path.is_symlink():
         return True
     try:
@@ -177,7 +148,6 @@ def builtin(path):
 
 
 def place(src, target, backup=None):
-    """Copies src over target unless it is already there; a file of someone else's goes to backup first."""
     target = spelled(target.parent) / target.name
     target.parent.mkdir(parents=True, exist_ok=True)
     found = existing(target)
@@ -195,7 +165,6 @@ def place(src, target, backup=None):
 
 
 def reg_escape(text, extra=""):
-    """A string as Wine's registry files write it."""
     out = []
     for ch in text:
         if ch == "\\" or ch == '"' or ch in extra:
@@ -240,7 +209,6 @@ def reg_key_line(key):
 
 
 def reg_value_line(name, kind, data):
-    """name=data as one registry file line; None for a kind that has no line of its own."""
     head = "@" if name == "" else '"%s"' % reg_escape(name)
     if kind == "sz":
         return '%s="%s"' % (head, reg_escape(str(data)))
@@ -258,13 +226,11 @@ def reg_value_line(name, kind, data):
 
 
 def reg_string(line):
-    """The text of a string value line (plain or str(2)), or None for any other kind."""
     match = re.match(r'^(?:@|"(?:[^"\\]|\\.)*")=(?:str\(2\):)?"((?:[^"\\]|\\.)*)"\s*$', line)
     return reg_unescape(match.group(1)) if match else None
 
 
 class RegistryFile:
-    """One of a prefix's registry files, as Wine keeps them: [key] sections of name=value lines."""
 
     def __init__(self, path):
         self.path = Path(path)
@@ -291,7 +257,6 @@ class RegistryFile:
                     self.links[current.lower()] = target
 
     def link_target(self, number, root):
-        """Where the link key whose "#link" line is at number leads, relative to this file's root."""
         for at in range(number + 1, min(number + 8, len(self.lines))):
             line = self.lines[at]
             if line.startswith("["):
@@ -312,7 +277,6 @@ class RegistryFile:
         return None
 
     def resolve(self, key):
-        """The key Wine really keeps key in: a path through a link key leads to the link's target."""
         key = key.strip("\\")
         for _ in range(8):
             lower = key.lower()
@@ -338,7 +302,6 @@ class RegistryFile:
         return None if end is None else reg_unescape(line[1:end])
 
     def section(self, key):
-        """(start, end) line numbers of the key's values, or None."""
         start = self.index.get(self.resolve(key).lower())
         if start is None:
             return None
@@ -355,7 +318,6 @@ class RegistryFile:
         return reg_unescape(match.group(1)).lower() if match else None
 
     def find(self, key, name):
-        """(first, last + 1) of the value's lines, or None."""
         span = self.section(key)
         if span is None:
             return None
@@ -389,7 +351,6 @@ class RegistryFile:
         self.changed = True
 
     def put(self, key, name, raw):
-        """Sets the value's line(s) to raw, or removes the value when raw is None; True if that changed it."""
         found = self.find(key, name)
         if raw is None:
             if found is None:
@@ -432,8 +393,6 @@ class RegistryFile:
 
 
 def list_line(name, current, item, separator, add, at_end=True):
-    """current (a string value line) with item added to or taken out of its list, None if it had
-    nothing else; a value that is not a string is left as it is."""
     text = reg_string(current) if current is not None else ""
     if text is None:
         return current
@@ -447,9 +406,6 @@ def list_line(name, current, item, separator, add, at_end=True):
 
 
 def apply_registry(pfx, values, state, held=()):
-    """Writes the picked components' registry values into the prefix and takes out the ones of
-    components turned off: a value goes back to what it was before, an entry added to a list such
-    as PATH just leaves the list. Returns (values written, notes)."""
     files = {}
     for hive, name in HIVES.items():
         if (pfx / name).is_file():
@@ -518,7 +474,6 @@ def save_state(compat, state):
 
 
 def pending_for(app_id, pending=PENDING):
-    """The component ids the app is still getting ready for app_id; empty when none (or no file)."""
     try:
         with open(pending, encoding="utf-8") as source:
             ids = json.load(source).get("games", {}).get(str(app_id), [])
@@ -528,9 +483,6 @@ def pending_for(app_id, pending=PENDING):
 
 
 def wait_for_pending(app_id, pending=PENDING, store=STORE, timeout=PENDING_WAIT, sleep=time.sleep, clock=time.monotonic):
-    """Waits (at most timeout seconds) for the components still being got ready for app_id to be in
-    the store or dropped from the pending list. No wait at all when nothing is pending. Returns a
-    note for the log, or None."""
     def missing():
         return [cid for cid in pending_for(app_id, pending) if component(store, cid) is None]
     left = missing()
@@ -548,7 +500,6 @@ def wait_for_pending(app_id, pending=PENDING, store=STORE, timeout=PENDING_WAIT,
 
 
 def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING, wait=wait_for_pending):
-    """Brings the prefix in line with the game's picks. Returns (overrides, notes)."""
     compat = Path(compat_path)
     pfx = compat / "pfx"
     waited = wait(app_id, pending, store) if wait else None
@@ -642,7 +593,6 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
 
 
 def overrides_value(names):
-    """WINEDLLOVERRIDES entries: native-then-builtin unless the component says otherwise; the last word on a DLL wins."""
     modes = {}
     for entry in names:
         name, _, mode = entry.partition("=")

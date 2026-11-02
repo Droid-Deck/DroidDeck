@@ -11,7 +11,7 @@ object OrphanReaper {
 
     fun release(pid: Int) { kept.remove(pid) }
 
-    fun reap(reason: String): Int {
+    fun reap(reason: String, matching: (String) -> Boolean = { true }): Int {
         val me = android.os.Process.myPid()
         val uid = android.os.Process.myUid()
         val spared = descendants(kept)
@@ -21,6 +21,7 @@ object OrphanReaper {
             if (pid == me || pid <= 1 || pid in spared) return@forEach
             if (uidOf(pid) != uid) return@forEach
             val name = try { File(entry, "cmdline").readText().substringBefore('\u0000') } catch (e: Exception) { "?" }
+            if (!matching(name)) return@forEach
             try {
                 android.os.Process.killProcess(pid)
                 killed++

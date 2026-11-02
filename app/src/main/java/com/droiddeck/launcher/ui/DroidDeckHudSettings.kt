@@ -1,12 +1,18 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.hud.DroidDeckHudSize
+import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.StripMetric
 
-/** Bannerlator's DroidDeck HUD settings (DeckOverlaySettings): one row per key of the HUD's config string. */
 @Composable
 internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
     val cfg = a.hudConfig
@@ -29,7 +35,10 @@ internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (Stri
             size, chipModifier = track("hud-size")) { a.onHudSetting("hudSize", it.token) }
         ToggleRow(host, "hud-locked", stringResource(R.string.hud_locked), stringResource(R.string.hud_locked_hint), on("hudLocked"),
             chipModifier = track("hud-locked")) { a.onHudSetting("hudLocked", flag(it)) }
+        ToggleRow(host, "hud-snap", stringResource(R.string.hud_snap), stringResource(R.string.hud_snap_hint), on("hudSnap"),
+            chipModifier = track("hud-snap")) { a.onHudSetting("hudSnap", flag(it)) }
     }
+    if (a.dashboardAvailable && a.secondScreenDisplays.isNotEmpty()) BottomStripSettings(host, track)
     if (!a.hudOn) return
 
     SettingsGroup(stringResource(R.string.hud_group_look)) {
@@ -95,12 +104,51 @@ internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (Stri
 
 private fun flag(on: Boolean) = if (on) "1" else "0"
 
-// The Pill also draws the battery temperature and watts.
+@Composable
+private fun BottomStripSettings(host: MenuHost, track: (String) -> Modifier) {
+    val context = LocalContext.current
+    var hudOn by remember { mutableStateOf(SessionPrefs.bottomHud(context)) }
+    var onTabs by remember { mutableStateOf(SessionPrefs.bottomStripOnTabs(context)) }
+    var shown by remember { mutableStateOf(SessionPrefs.bottomStripMetrics(context)) }
+    SettingsGroup(stringResource(R.string.bottom_hud_group)) {
+        ToggleRow(host, "bottom-hud", stringResource(R.string.bottom_hud_group), null, hudOn,
+            chipModifier = track("bottom-hud")) { on ->
+            hudOn = on
+            SessionPrefs.setBottomHud(context, on)
+        }
+        ToggleRow(host, "bottom-strip-tabs", stringResource(R.string.bottom_strip_tabs), null, onTabs,
+            enabled = hudOn, chipModifier = track("bottom-strip-tabs")) { on ->
+            onTabs = on
+            SessionPrefs.setBottomStripOnTabs(context, on)
+        }
+        for ((metric, label) in BOTTOM_STRIP_ROWS) {
+            ToggleRow(host, "bottom-strip-${metric.id}", stringResource(label), null, metric in shown,
+                enabled = hudOn, chipModifier = track("bottom-strip-${metric.id}")) { on ->
+                shown = if (on) shown + metric else shown - metric
+                SessionPrefs.setBottomStripMetric(context, metric, on)
+            }
+        }
+    }
+}
+
+private val BOTTOM_STRIP_ROWS = listOf(
+    StripMetric.ENGINE to R.string.hud_metric_engine,
+    StripMetric.GRAPH to R.string.hud_metric_graph,
+    StripMetric.LOWS to R.string.bottom_strip_lows,
+    StripMetric.LOW001 to R.string.hud_metric_low001,
+    StripMetric.GPU to R.string.hud_metric_gpu,
+    StripMetric.GPU_TEMP to R.string.hud_metric_gpu_temp,
+    StripMetric.CPU to R.string.hud_metric_cpu,
+    StripMetric.CPU_TEMP to R.string.bottom_strip_cpu_temp,
+    StripMetric.VRAM to R.string.hud_metric_vram,
+    StripMetric.RAM to R.string.hud_metric_ram,
+    StripMetric.CLOCK to R.string.hud_metric_clock,
+)
+
 private val EXTRA = mapOf(DroidDeckHudSize.PILL to setOf("Temp", "Power"))
 
 private class HudMetric(val chip: String, val key: String, val label: Int)
 
-// DroidDeckHudSize.supportedChips() names; Wrapper and DX version have nothing to show in DroidDeck.
 private val METRICS = listOf(
     HudMetric("FPS", "showFPS", R.string.drawer_hud_fps),
     HudMetric("FPS graph", "showFPSGraph", R.string.hud_metric_graph),
@@ -125,8 +173,6 @@ private val METRICS = listOf(
     HudMetric("Clock", "showClock", R.string.hud_metric_clock),
 )
 
-// Switches a size lists but never draws (DroidDeckHudView): the Pill and Minimal always show the FPS, the
-// Pill has no graph, Tiles has no graph and no 0.01% low, the Strip always shows the FPS.
 private val HIDDEN = mapOf(
     DroidDeckHudSize.PILL to setOf("FPS", "FPS graph"),
     DroidDeckHudSize.MINIMAL to setOf("FPS"),

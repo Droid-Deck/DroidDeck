@@ -36,12 +36,6 @@ fun screenKeyDirections(shape: Int): List<String> = when (shape) {
     else -> emptyList()
 }
 
-val SCREEN_KEY_SHAPES =
-    listOf(
-        SCREEN_KEY_PILL, SCREEN_KEY_ROUND, SCREEN_KEY_CIRCLE, SCREEN_KEY_RECT,
-        SCREEN_KEY_TRIGGER, SCREEN_KEY_DPAD, SCREEN_KEY_STICK,
-    )
-
 data class ScreenKey(
     val codes: List<Int>,
     val x: Float,
@@ -55,9 +49,4 @@ data class ScreenKey(
     val toggle: Boolean = false,
     val labels: Boolean = true,
 ) {
-    fun shownLabel(context: Context): String = when {
-        text.isNotEmpty() -> text
-        glyph.isNotEmpty() -> glyph
-        else -> screenKeyLabel(context, codes)
-    }
 }

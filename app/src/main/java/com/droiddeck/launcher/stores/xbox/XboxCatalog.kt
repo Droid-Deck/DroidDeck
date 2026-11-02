@@ -10,7 +10,6 @@ import java.time.Instant
 internal object XboxCatalog {
     private val productId = Regex("[A-Z0-9]{12}")
     private val plans = setOf("CFQ7TTC0KGQ8", "CFQ7TTC0KHS0", "CFQ7TTC0P85B", "CFQ7TTC0K5DJ", "CFQ7TTC0K6L8", "CFQ7TTC10QFD")
-    /** Plans whose store offers advertise PC games. Library entitlements under any active plan count, as the backend resolves a PC package for them. */
     private val pcPlans = mapOf(
         "CFQ7TTC0KGQ8" to "PC Game Pass",
         "CFQ7TTC0KHS0" to "Game Pass Ultimate",
@@ -137,7 +136,6 @@ internal object XboxCatalog {
     private const val CLOUD_GAME_PASS = "29a81209-df6f-41fd-a528-2ae6b91f719c"
     private const val CLOUD_ALL = "ce573635-7c18-4d0c-9d68-90b932393470"
 
-    /** Microsoft's public cloud lists (catalog.gamepass.com "sigls"; ids as Better xCloud by redphx, MIT, uses them). */
     fun cloudCatalog(market: String = Xodus.market()): XboxCloudCatalog =
         XboxCloudCatalog(cloudList(CLOUD_GAME_PASS, market), cloudList(CLOUD_ALL, market))
 
@@ -169,7 +167,6 @@ val CatalogItem.xboxPc: Boolean get() = extra["pc"] != "0"
 val CatalogItem.xboxCloud: Boolean get() = extra["cloud"] == "1"
 val CatalogItem.xboxCloudId: String get() = extra["cloudId"]?.takeIf { it.isNotEmpty() } ?: id
 
-/** Microsoft lists console and PC editions as separate products; a cloud-only one with a PC game's title folds into that card. */
 internal fun mergeEditions(games: List<CatalogItem>): List<CatalogItem> {
     fun key(title: String) = title.lowercase().replace(Regex("[^a-z0-9]+"), "")
     val cloudOnly = games.filter { !it.xboxPc && it.xboxCloud }.groupBy { key(it.title) }

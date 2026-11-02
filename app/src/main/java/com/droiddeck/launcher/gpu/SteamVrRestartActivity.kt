@@ -14,7 +14,6 @@ import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.session.SessionService
 import org.json.JSONObject
 
-/** A visible, private process survives destruction of the app's native graphics context. */
 class SteamVrRestartActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,7 +40,6 @@ class SteamVrRestartActivity : Activity() {
             }, SystemClock::elapsedRealtime, SystemClock::sleep)
             if (shutdown != SteamVrRecoveryPolicy.Shutdown.COMPLETE)
                 android.util.Log.w("SteamVrRecovery", "Restarting before the session finished stopping: $shutdown")
-            // Only the verified main process, never a caller-supplied PID or an external app.
             Process.killProcess(main.pid)
             val exited = SystemClock.elapsedRealtime() + 5000
             while (java.io.File("/proc/${main.pid}").exists() && SystemClock.elapsedRealtime() < exited) SystemClock.sleep(50)

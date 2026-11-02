@@ -128,8 +128,6 @@ object DualScreenPanel {
         val host = context as? ComponentActivity
         val target = host?.getSystemService(Context.DISPLAY_SERVICE)
             ?.let { (it as android.hardware.display.DisplayManager).getDisplay(display) }
-        // A second-display activity makes the system launcher treat its bottom home as lost and bring itself forward;
-        // a presentation belongs to this task and leaves that home alone.
         if (host != null && target != null) {
             val shown = runCatching { DualScreenPresentation(host, target).also { it.show() } }
             if (shown.isSuccess) {
@@ -170,7 +168,6 @@ object DualScreenPanel {
         return true
     }
 
-    // The panel resumes when an app opens over the owner on the primary screen; pulling the owner back would hide that app.
     fun yieldTo(task: Int, app: Boolean) {
         if (ownerTask == task) ownerYielded = app
     }

@@ -7,7 +7,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** The account listing: everything the tab needs to draw a library before a product is asked about. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class GogListingTest {

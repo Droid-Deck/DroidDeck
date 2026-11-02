@@ -5,6 +5,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SteamLibraries
 import com.droiddeck.launcher.session.SecondaryLibrary
 import java.io.File
 
@@ -87,13 +88,14 @@ object Library {
 
     internal fun steamLibraries(context: Context, arch: String = SessionPrefs.activeSteamClientArch(context)): List<Pair<File, String>> {
         val root = SessionPrefs.steamRoot(context, arch)
-        // The session gives the x86-64 client only its card folder; the games folders stay the arm64 client's.
         val card = GameStorage.effective(context)
-        if (arch == "x86_64") return listOfNotNull(root to "internal", card?.let { File(it.path, GameStorage.X64_CARD_DIR) to it.label })
+        val added = SteamLibraries.list(context).filter { it.host.isDirectory }
+        if (arch == "x86_64") return listOfNotNull(root to "internal", card?.let { File(it.path, GameStorage.X64_CARD_DIR) to it.label }) +
+            added.map { it.x64Host to it.label }
         return listOfNotNull(
             root to "internal",
             card?.let { File(it.path) to it.label },
-        ) + GameStorage.gamesFolderLibraries(context).map { it.host to it.label }
+        ) + added.map { it.host to it.label } + GameStorage.gamesFolderLibraries(context).map { it.host to it.label }
     }
 
     fun protonPrefix(
@@ -106,7 +108,6 @@ object Library {
             .firstOrNull { it.isDirectory }
     }
 
-    /** Every steamapps/compatdata folder, in the libraries [protonPrefix] searches. */
     fun compatdataDirs(context: Context, libraries: List<File> = steamLibraries(context).map { it.first }): List<File> =
         prefixRoots(context, libraries).map { File(it, "steamapps/compatdata") }.filter { it.isDirectory }
 
@@ -179,7 +180,6 @@ object Library {
         }
     }
 
-    /** Apps the user hid (the "hidden" collection) or marked private in Steam. */
     internal fun concealedSteamApps(root: File): Set<Long> {
         val config = AddedGames.accountConfig(root) ?: return emptySet()
         val hidden = runCatching {
@@ -220,7 +220,6 @@ object Library {
         return (steam + own.map { g -> addedGame(context, g, roots, played[g.appId] ?: 0L) }).distinctBy { it.gameId }
     }
 
-    /** Steam's LastPlayTime for each non-Steam shortcut, by its unsigned shortcut app id. */
     internal fun shortcutsLastPlayed(root: File): Map<Long, Long> = runCatching {
         val config = AddedGames.accountConfig(root) ?: return emptyMap()
         val bytes = File(config, "shortcuts.vdf").takeIf { it.isFile }?.readBytes() ?: return emptyMap()

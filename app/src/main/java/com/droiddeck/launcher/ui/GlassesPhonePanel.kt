@@ -28,7 +28,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 
-/** Actions for the phone while the picture is on the glasses. Null hides the button. */
 internal class GlassesPhoneActions(
     val onRecenter: (() -> Unit)?,
     val onRecenterJoyCons: (() -> Unit)?,

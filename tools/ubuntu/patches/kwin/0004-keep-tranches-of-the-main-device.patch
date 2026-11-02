@@ -10,7 +10,7 @@ Subject: [PATCH] Keep dmabuf tranches that target the main device
 diff --git a/src/wayland-client/linuxdmabuf.cpp b/src/wayland-client/linuxdmabuf.cpp
 --- a/src/wayland-client/linuxdmabuf.cpp
 +++ b/src/wayland-client/linuxdmabuf.cpp
-@@ -130,15 +130,17 @@
+@@ -130,15 +130,16 @@
          drmFreeDevice(&mainDevice);
          drmFreeDevice(&trancheDevice);
      });
@@ -30,7 +30,6 @@ diff --git a/src/wayland-client/linuxdmabuf.cpp b/src/wayland-client/linuxdmabuf
 +            return;
 +        }
 +        if (!drmDevicesEqual(mainDevice, trancheDevice)) {
-+            // TODO take multi GPU handling into account as well
 +            qCDebug(KWIN_WAYLAND_CLIENT, "Ignoring tranche from non-main device");
 +            return;
 +        }

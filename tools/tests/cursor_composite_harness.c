@@ -29,15 +29,12 @@ int main(void) {
     assert(cursor_scene_positions(3840, CARDBOARD_SOURCE_SBS, 1920, 0, out) == 2);
     assert(out[0] == 1920 && out[1] == 0);
 
-    /* A hotspot that pushes the image across the seam must not move the mirror to the
-     * other eye: the pointer decides the eye, the hotspot only shifts the image. */
     assert(cursor_scene_positions(1920, CARDBOARD_SOURCE_SBS, 960, 32, out) == 2);
     assert(out[0] == 928 && out[1] == -32);
 
     assert(cursor_scene_positions(1920, CARDBOARD_SOURCE_SBS, 959, 32, out) == 2);
     assert(out[0] == 927 && out[1] == 1887);
 
-    /* Each copy is cropped to its own eye, so nothing bleeds into the other eye's half. */
     assert(cursor_clip_to_eye(1920, -1, 100, 32, &dx, &sx, &dw) == 1);
     assert(dx == 100 && sx == 0 && dw == 32);
 

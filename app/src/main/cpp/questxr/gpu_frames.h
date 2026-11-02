@@ -76,7 +76,6 @@ public:
         }
         lastFrame_ = frame.header.frame_id;
         if (state == XrGpuFrameState::Stale) {
-            // No GPU read was submitted, so the producer can safely reclaim a dropped frame.
             dropped_++;
             if (!xr_gpu_send(peer_, &frame.header.frame_id, sizeof(frame.header.frame_id))) Disconnect();
             return false;
@@ -88,7 +87,6 @@ public:
         glBindImageTexture(0, raw_, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
         glDispatchCompute((width_ + 7) / 8, (height_ + 7) / 8, 1);
         glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT | GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-        // The producer may overwrite this slot only after the native GPU has finished reading it.
         glFinish();
         if (glGetError() != GL_NO_ERROR) { rejected_++; Disconnect(); return false; }
         if (!xr_gpu_send(peer_, &frame.header.frame_id, sizeof(frame.header.frame_id))) Disconnect();
