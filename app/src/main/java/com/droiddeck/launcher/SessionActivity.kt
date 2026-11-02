@@ -2751,15 +2751,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun dockDrawer(): Boolean {
         if (pipUi || !started || glassesScreen != null || !::displayManager.isInitialized) return false
-        if (!SessionPrefs.dualScreenLauncher(this)) return false
-        val target = com.droiddeck.launcher.input.DualScreen.display(this, displayManager, shownOnDisplayId) ?: return false
+        val target = com.droiddeck.launcher.input.DualScreen.sessionDisplay(this, displayManager, shownOnDisplayId) ?: return false
         if (secondScreenDisplays.none { it.id == target.displayId }) return false
         val shown = secondScreenPresentation?.display?.displayId
         return shown == null || shown == target.displayId
     }
 
     private fun openDockedMenu(): Boolean {
-        val target = com.droiddeck.launcher.input.DualScreen.display(this, displayManager, shownOnDisplayId) ?: return false
+        val target = com.droiddeck.launcher.input.DualScreen.sessionDisplay(this, displayManager, shownOnDisplayId) ?: return false
         return try {
             val presentation = secondScreenPresentation ?: secondScreenPresentation(target).also {
                 selectedSecondScreenDisplay = target.displayId
@@ -3044,7 +3043,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun openDualScreenControls() {
         if (SessionState.secondScreenAutoOpened || secondScreenMode != SecondScreenMode.NONE || pipUi) return
         if (!SessionPrefs.dualScreenSessionControls(this)) return
-        val target = com.droiddeck.launcher.input.DualScreen.display(this, displayManager, shownOnDisplayId) ?: return
+        val target = com.droiddeck.launcher.input.DualScreen.sessionDisplay(this, displayManager, shownOnDisplayId) ?: return
         if (secondScreenDisplays.none { it.id == target.displayId }) return
         SessionState.secondScreenAutoOpened = true
         selectedSecondScreenDisplay = target.displayId
@@ -3303,7 +3302,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun openBottomKeyboard() {
         if (!started) return
         if (secondScreenPresentation?.showsKeyboard != true && dockDrawer()) {
-            val target = com.droiddeck.launcher.input.DualScreen.display(this, displayManager, shownOnDisplayId) ?: return
+            val target = com.droiddeck.launcher.input.DualScreen.sessionDisplay(this, displayManager, shownOnDisplayId) ?: return
             if (drawerOpen) drawerOpen = false
             typingReturnMode = secondScreenMode
             selectedSecondScreenDisplay = target.displayId

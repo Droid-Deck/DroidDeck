@@ -878,13 +878,9 @@
     <string name="setup_fullscreen">Layar penuh</string>
     <string name="setup_fullscreen_on">Menyembunyikan bilah status dan navigasi Android</string>
     <string name="setup_fullscreen_off">Menampilkan bilah status dan navigasi Android</string>
-    <string name="setup_dual_screen">Layar ganda</string>
-    <string name="setup_dual_screen_hint">Otomatis memakai layar kedua pada perangkat genggam yang memiliki layar bawaan. Aktif memakai layar kedua apa pun. Nonaktif membuat semuanya tetap di satu layar.</string>
     <string name="setup_dual_screen_auto">Otomatis</string>
     <string name="setup_dual_screen_on">Aktif</string>
     <string name="setup_dual_screen_off">Nonaktif</string>
-    <string name="setup_dual_screen_menu">Menu layar bawah</string>
-    <string name="setup_dual_screen_menu_hint">Memindahkan bagian dan menu dalam game ke layar kedua dan mengetik di sana, agar layar atas tetap menampilkan tampilan penuh. L2 dan R2 berpindah bagian.</string>
     <string name="setup_dual_screen_controls">Kontrol layar bawah dalam game</string>
     <string name="setup_dual_screen_controls_hint">Membuka trackpad dan keyboard di layar kedua saat sesi dimulai.</string>
     <string name="dual_typing_title">Mengetik untuk layar atas</string>

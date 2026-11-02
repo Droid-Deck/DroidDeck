@@ -86,12 +86,26 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("animations", on).apply()
     }
 
-    fun dualScreenMode(context: Context): String =
-        prefs(context).getString("dualScreenMode", null)?.takeIf { it in com.droiddeck.launcher.input.DualScreen.modes }
-            ?: com.droiddeck.launcher.input.DualScreen.MODE_AUTO
+    private fun savedDualScreenMode(context: Context, key: String): String? =
+        prefs(context).getString(key, null)?.takeIf { it in com.droiddeck.launcher.input.DualScreen.modes }
+
+    private fun legacyDualScreenMode(context: Context): String =
+        if (!prefs(context).getBoolean("dualScreenLauncher", true)) com.droiddeck.launcher.input.DualScreen.MODE_OFF
+        else savedDualScreenMode(context, "dualScreenMode") ?: com.droiddeck.launcher.input.DualScreen.MODE_AUTO
+
+    fun dualScreenMode(context: Context): String = legacyDualScreenMode(context)
 
     fun setDualScreenMode(context: Context, mode: String) {
-        prefs(context).edit().putString("dualScreenMode", mode).apply()
+        val sessions = dualScreenSessionMode(context)
+        prefs(context).edit().remove("dualScreenLauncher").putString("dualScreenMode", mode).putString("dualScreenSessionMode", sessions).apply()
+    }
+
+    fun dualScreenSessionMode(context: Context): String =
+        savedDualScreenMode(context, "dualScreenSessionMode") ?: legacyDualScreenMode(context)
+
+    fun setDualScreenSessionMode(context: Context, mode: String) {
+        val launcher = dualScreenMode(context)
+        prefs(context).edit().remove("dualScreenLauncher").putString("dualScreenMode", launcher).putString("dualScreenSessionMode", mode).apply()
     }
 
     fun secondScreenPanel(context: Context): String? = prefs(context).getString("secondScreenPanel", null)
@@ -135,12 +149,6 @@ object SessionPrefs {
 
     fun setTelemetryOff(context: Context, keys: Set<String>) {
         prefs(context).edit().putStringSet("telemetryOff", keys.toSet()).apply()
-    }
-
-    fun dualScreenLauncher(context: Context): Boolean = prefs(context).getBoolean("dualScreenLauncher", true)
-
-    fun setDualScreenLauncher(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("dualScreenLauncher", on).apply()
     }
 
     fun dualScreenSessionControls(context: Context): Boolean = prefs(context).getBoolean("dualScreenSessionControls", true)

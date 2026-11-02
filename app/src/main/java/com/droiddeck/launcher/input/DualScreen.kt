@@ -78,8 +78,11 @@ object DualScreen {
             (x.max - x.min + 1f).roundToInt() to (y.max - y.min + 1f).roundToInt()
         }
 
-    fun display(context: Context, displayManager: DisplayManager, primaryDisplayId: Int): Display? =
-        when (SessionPrefs.dualScreenMode(context)) {
+    fun sessionDisplay(context: Context, displayManager: DisplayManager, primaryDisplayId: Int): Display? =
+        display(context, displayManager, primaryDisplayId, SessionPrefs.dualScreenSessionMode(context))
+
+    fun display(context: Context, displayManager: DisplayManager, primaryDisplayId: Int, mode: String = SessionPrefs.dualScreenMode(context)): Display? =
+        when (mode) {
             MODE_OFF -> null
             MODE_ON -> internalDisplay(displayManager, primaryDisplayId) ?: anyDisplay(displayManager, primaryDisplayId)
             else -> builtInDisplay(displayManager, primaryDisplayId)

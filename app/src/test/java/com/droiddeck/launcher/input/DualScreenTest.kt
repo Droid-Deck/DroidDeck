@@ -66,4 +66,19 @@ class DualScreenTest {
         SessionPrefs.setDualScreenMode(context, DualScreen.MODE_OFF)
         assertEquals(DualScreen.MODE_OFF, SessionPrefs.dualScreenMode(context))
     }
+
+    @Test fun launcherAndSessionsKeepSeparateModes() {
+        SessionPrefs.setDualScreenMode(context, DualScreen.MODE_OFF)
+        assertEquals(DualScreen.MODE_OFF, SessionPrefs.dualScreenMode(context))
+        assertEquals(DualScreen.MODE_AUTO, SessionPrefs.dualScreenSessionMode(context))
+        SessionPrefs.setDualScreenSessionMode(context, DualScreen.MODE_ON)
+        assertEquals(DualScreen.MODE_OFF, SessionPrefs.dualScreenMode(context))
+        assertEquals(DualScreen.MODE_ON, SessionPrefs.dualScreenSessionMode(context))
+    }
+
+    @Test fun anOldDisabledMenuToggleTurnsBothOff() {
+        context.getSharedPreferences("session", Context.MODE_PRIVATE).edit().putBoolean("dualScreenLauncher", false).commit()
+        assertEquals(DualScreen.MODE_OFF, SessionPrefs.dualScreenMode(context))
+        assertEquals(DualScreen.MODE_OFF, SessionPrefs.dualScreenSessionMode(context))
+    }
 }
