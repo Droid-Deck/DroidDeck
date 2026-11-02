@@ -17,7 +17,7 @@ class SteamVrDeviceLossLogTest {
         assertFalse(log.poll())
         file.appendText("-4\n")
         assertTrue(log.poll())
-        assertTrue(log.poll()) // Keep pending until the activity is foreground.
+        assertTrue(log.poll())
     }
 
     @Test fun onlyExplicitDeviceLossTriggersRecovery() {

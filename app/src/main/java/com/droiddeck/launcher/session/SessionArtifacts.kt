@@ -31,7 +31,6 @@ object SessionArtifacts {
     private val collectingDone = collectingLock.newCondition()
     private val collecting = HashSet<File>()
 
-    /** Recovery leaves [dir] alone from the stop until [collect] has finished it. */
     fun collectionStarted(dir: File) {
         collectingLock.lock()
         try { collecting.add(dir) } finally { collectingLock.unlock() }
@@ -317,7 +316,6 @@ object SessionArtifacts {
         runCatching { File(dir, CLIENT_FILE).writeText("$arch\n") }
     }
 
-    /** The Steam client a session ran, when it recorded one. */
     internal fun recordedClient(dir: File): String? =
         runCatching { File(dir, CLIENT_FILE).readText().trim() }.getOrNull()?.takeIf { it == "arm64" || it == "x86_64" }
 

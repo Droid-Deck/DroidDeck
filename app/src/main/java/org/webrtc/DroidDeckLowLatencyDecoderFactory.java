@@ -19,31 +19,14 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 
-/**
- * DroidDeck's hardware video decoder factory for the native Xbox Cloud Gaming player. It builds WebRTC's own
- * AndroidVideoDecoder (hence this package) around a MediaCodec wrapper that can:
- *  - ask the decoder for low-latency output (Android's KEY_LOW_LATENCY and Qualcomm's low-latency / picture-order
- *    vendor keys; unknown keys are ignored, and a decoder that refuses them is configured without them);
- *  - for zero-copy, decode straight onto the player's SurfaceView instead of WebRTC's texture, rendering every
- *    output buffer there (no GL copy, no compositor; WebRTC then gets no decoded frames to draw).
- * Without either option it behaves like WebRTC's HardwareVideoDecoderFactory.
- * The route is switchable while the decoder runs (setOutputSurface): {@link #useScreen} sends frames straight to the
- * screen (zero-copy) or, with null, back to WebRTC's texture (for the Vulkan compositor and frame generation);
- * {@link #setZeroCopySurface} moves a zero-copy decoder to a stand-in surface while the screen surface is gone.
- * The factory also reports the decoded size and the decode time (input queued to output ready), which WebRTC's
- * stats lack in zero-copy.
- */
 public class DroidDeckLowLatencyDecoderFactory implements VideoDecoderFactory {
-    /** Counts frames sent to the display in zero-copy mode (WebRTC's own stats see none). */
     public interface FrameCounter { void onFrameShown(); }
 
     private final HardwareVideoDecoderFactory hardware;
     private final EglBase.Context sharedContext;
     private final boolean lowLatency;
-    /** Frames go to {@link #zeroCopySurface} (the screen or the stand-in), not WebRTC's texture. */
     private volatile boolean zeroCopy;
     private volatile Surface zeroCopySurface;
-    /** Back on WebRTC's texture: render the next buffer there, so WebRTC's pending texture frame completes. */
     private volatile boolean renderNext;
     private final FrameCounter counter;
     private volatile Wrapper live;
@@ -64,19 +47,11 @@ public class DroidDeckLowLatencyDecoderFactory implements VideoDecoderFactory {
         this.counter = counter;
     }
 
-    /**
-     * Zero-copy: the surface to decode onto from now on; null = a stand-in that drops every frame (the screen
-     * surface is being destroyed). Must be called before a destroyed surface's callback returns.
-     */
     public synchronized void setZeroCopySurface(Surface surface) {
         if (!zeroCopy) return;
         moveTo(surface != null ? surface : standInSurface(), surface != null ? "the screen" : "a stand-in");
     }
 
-    /**
-     * Switch the route live: a surface = zero-copy onto it; null = WebRTC's texture again. Returns false when the
-     * decoder refused the new surface (the route is then unchanged).
-     */
     public synchronized boolean useScreen(Surface screen) {
         if (screen != null) {
             Wrapper w = live;
@@ -120,12 +95,10 @@ public class DroidDeckLowLatencyDecoderFactory implements VideoDecoderFactory {
         return standIn.getSurface();
     }
 
-    /** The decoder's picture size, or null before the first decoder is configured. */
     public String videoSize() {
         return width > 0 ? width + "x" + height : null;
     }
 
-    /** Average decode time since the last call, in ms (-1 when no frame was decoded in between). */
     public double takeDecodeMs() {
         synchronized (decodeLock) {
             double avg = decodeCount > 0 ? decodeSumMs / decodeCount : -1;
@@ -170,10 +143,8 @@ public class DroidDeckLowLatencyDecoderFactory implements VideoDecoderFactory {
         }
     }
 
-    /** MediaCodec itself (not WebRTC's wrapper) so the output surface can be changed while it runs. */
     private class Wrapper implements MediaCodecWrapper {
         final MediaCodec raw;
-        /** WebRTC's texture surface, the route back from zero-copy. */
         Surface texture;
         Wrapper(MediaCodec raw) { this.raw = raw; }
 
@@ -207,8 +178,6 @@ public class DroidDeckLowLatencyDecoderFactory implements VideoDecoderFactory {
             if (from.containsKey(key)) to.setInteger(key, from.getInteger(key));
         }
 
-        // Zero-copy: AndroidVideoDecoder renders one buffer to its texture and drops the rest until the texture
-        // hands the frame back, which never happens with the display surface; show every buffer instead.
         @Override public void releaseOutputBuffer(int index, boolean render) {
             if (zeroCopy) { raw.releaseOutputBuffer(index, true); if (counter != null) counter.onFrameShown(); }
             else if (renderNext) { renderNext = false; raw.releaseOutputBuffer(index, true); }

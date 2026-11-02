@@ -48,7 +48,6 @@ object SteamStorage {
         )
     }
 
-    /** The folder alone does not mean installed: Decky's CEF marker creates it. */
     fun x64ClientPresent(root: File): Boolean = File(root, "steamrt64/steam").isFile ||
         File(root, "package/droiddeck-installed").isFile || File(root, "steamapps").isDirectory
 
@@ -58,7 +57,6 @@ object SteamStorage {
 
     private val PENDING_MANIFEST = Regex("appmanifest_(\\d+)\\.acf\\..+")
 
-    // A partial download has no manifest yet, only a temporary one and its staging folder.
     fun manifests(library: File): Listing? {
         val apps = File(library, "steamapps")
         val names = apps.list() ?: return null
@@ -91,8 +89,6 @@ object SteamStorage {
 
     enum class Kind { ARM_PROTON, REQUIRED, OLD_RUNTIME, X86_PROTON }
 
-    // DroidDeck's ARM64 Steam client cannot run Valve's x86 Protons, and its own Proton and FEX tools
-    // replace the scout and soldier container runtimes.
     fun kind(m: Manifest): Kind {
         val dir = m.installDir.orEmpty()
         return when {
@@ -146,7 +142,6 @@ object SteamStorage {
 
     private val ARM_IN_NAME = Regex("arm64|aarch64")
 
-    // The x86-64 client ignores tools named for arm64; droiddeck-steam-x64 names its wrappers with a64 instead.
     fun x64ToolName(name: String): String = name.replace(ARM_IN_NAME, "a64")
 
     class ToolUse(val mappings: Map<String, String>, val installed: Set<String>, val x64: Boolean = false) {

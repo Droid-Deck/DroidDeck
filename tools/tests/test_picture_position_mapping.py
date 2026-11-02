@@ -1,4 +1,3 @@
-"""Test the renderer's actual map and inverse map without a Vulkan device."""
 import os
 from pathlib import Path
 import shutil

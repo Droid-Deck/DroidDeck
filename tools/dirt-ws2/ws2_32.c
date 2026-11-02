@@ -1,9 +1,4 @@
-/* ws2_32.dll stand-in for DiRT 3 and DiRT Showdown (32-bit).
- *
- * Both games close their motion telemetry UDP socket at the end of a race (and when leaving Joyride) and keep
- * calling sendto() on it; the WSAENOTSOCK (10038) failure stops the game. Every export here jumps to the
- * same-ordinal export of Wine's own ws2_32.dll, except that a sendto() failing with 10038 reports 0 bytes sent.
- * Same behaviour as DiRTTelemetryErrorFix by RoccoC (MIT), based on the fix by Carsten Gottschling. */
+/* Same behaviour as DiRTTelemetryErrorFix by RoccoC (MIT), based on the fix by Carsten Gottschling. */
 
 typedef unsigned short WCHAR;
 typedef unsigned long DWORD;
@@ -21,7 +16,6 @@ __attribute__((dllimport)) UINT WINAPI GetSystemDirectoryW(WCHAR *buffer, UINT s
 __attribute__((dllimport)) DWORD WINAPI GetEnvironmentVariableW(const WCHAR *name, WCHAR *buffer, DWORD size);
 __attribute__((dllimport)) DWORD WINAPI GetFileAttributesW(const WCHAR *name);
 
-/* droiddeck-game-env recognises a swapped-in copy by this text. */
 __attribute__((used)) const char dirtfix_marker[] = "droiddeck-dirt-ws2_32";
 
 extern const unsigned short dirtfix_ordinals[];
@@ -59,8 +53,6 @@ static void append_number(WCHAR *dst, UINT n)
     append(dst, digits + i);
 }
 
-/* When this file replaces the prefix's syswow64\ws2_32.dll, Wine's own copy is the i386-windows\ws2_32.dll in one
- * of the builtin DLL folders Wine lists in WINEDLLDIR0, WINEDLLDIR1, ... as NT paths (\??\Z:\...). */
 static HMODULE load_wine_ws2_32(HMODULE self)
 {
     WCHAR name[24], path[600];

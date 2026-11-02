@@ -12,12 +12,10 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** A screenshot for the bottom-screen gallery: one DroidDeck took (a MediaStore [uri]) or one Steam saved (a [file]). */
 data class BottomShot(val uri: Uri?, val file: File?, val takenAt: Long, val steam: Boolean) {
     val model: Any get() = uri ?: file!!
 }
 
-/** Game frames DroidDeck saves to Pictures/DroidDeck, plus the screenshots Steam keeps under userdata. */
 object BottomScreenshots {
     private const val FOLDER = "DroidDeck"
     private const val QUALITY = 95
@@ -58,7 +56,6 @@ object BottomScreenshots {
         }
     }.getOrDefault(false)
 
-    /** Newest first, at most [LIMIT]. */
     fun list(context: Context, runtimeRoot: File): List<BottomShot> =
         (own(context) + steam(runtimeRoot)).sortedByDescending { it.takenAt }.take(LIMIT)
 
@@ -85,7 +82,6 @@ object BottomScreenshots {
         shots
     }.getOrDefault(emptyList())
 
-    /** The .jpg files in userdata/<account>/760/remote/<app>/screenshots of each Steam home; the thumbnails folder is skipped. */
     internal fun steam(runtimeRoot: File): List<BottomShot> =
         SteamDownloadMonitor.STEAM_HOMES.flatMap { home ->
             File(runtimeRoot, "$home/userdata").listFiles { f -> f.isDirectory }.orEmpty().flatMap { account ->

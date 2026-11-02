@@ -56,7 +56,6 @@ class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart
             val timeToEmptyS = if (discharging && chargeNowUah > 0 && abs(currentAvgUa) > 0) chargeNowUah * 3600L / abs(currentAvgUa) else 0L
             val charging = status == BatteryManager.BATTERY_STATUS_CHARGING
             val timeToFullS = if (charging && chargeFullUah > chargeNowUah && abs(currentAvgUa) > 0) (chargeFullUah - chargeNowUah) * 3600L / abs(currentAvgUa) else 0L
-            // Android can keep reporting charging at 100%; Linux reports Full there, and Steam shows 99% until it does.
             val statusText = when (status) {
                 BatteryManager.BATTERY_STATUS_CHARGING -> if (pct >= 100) "Full" else "Charging"
                 BatteryManager.BATTERY_STATUS_DISCHARGING -> "Discharging"
@@ -127,9 +126,6 @@ class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart
 
     companion object {
         private const val TAG = "SessionService"
-        // CURRENT_NOW/CURRENT_AVERAGE are documented as µA, but Samsung and other vendors report mA,
-        // which made every lifetime estimate 1000x too long. No real µA reading under load is below 10 mA,
-        // and no mA reading is above 10 A, so anything smaller than 10_000 is taken as mA.
         private const val MILLIAMP_CEILING = 10_000L
 
         internal fun toMicroamps(raw: Long): Long = if (abs(raw) < MILLIAMP_CEILING) raw * 1000L else raw

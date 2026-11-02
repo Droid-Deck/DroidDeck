@@ -34,7 +34,6 @@ object ComponentsManager {
         "Dxvk-gplasync-Linux" to "dxvk",
         "Vkd3d-proton-Linux" to "vkd3d",
     )
-    // DD_NIGHTLY holds every component in one release; the file name says which.
     private val NIGHTLY_PREFIXES = linkedMapOf("DD-dxvk-" to "dxvk", "DD-vkd3d-proton-" to "vkd3d", "DD-FEXCore-" to "fex")
     private val SOURCES = RELEASES.keys.map { NIGHTLIES to it } + (DD_COMPONENTS to DD_NIGHTLY)
     private val DOWNLOAD_REPOS = listOf(NIGHTLIES, DD_COMPONENTS)
@@ -976,12 +975,9 @@ object ComponentsManager {
     internal fun assetComp(release: String, name: String): String? =
         RELEASES[release] ?: if (release == DD_NIGHTLY) NIGHTLY_PREFIXES.entries.firstOrNull { name.startsWith(it.key) }?.value else null
 
-    // Per component: the stable packages newest first, then the nightlies.
     internal val CATALOG_ORDER: Comparator<CatalogItem> =
         compareBy<CatalogItem> { it.comp }.thenBy { it.release == DD_NIGHTLY }.then(newestFirst { it.file })
 
-    // A nightly DD-<flavor>-<version>[+N]-nightly.wcp pairs with the newest stable <flavor>-<version>[-<rev>]-linux.wcp
-    // in the same list, so the stable row can offer it behind a Stable/Nightly switch. Unpaired nightlies keep their own row.
     internal fun nightlyPairs(items: List<CatalogItem>): Map<CatalogItem, CatalogItem> {
         val stable = items.filter { it.release != DD_NIGHTLY }
         return items.filter { it.release == DD_NIGHTLY }.mapNotNull { n ->

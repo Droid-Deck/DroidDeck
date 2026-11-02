@@ -177,7 +177,6 @@ internal fun StoreGameFacts(developer: String, publisher: String, releaseDate: S
     }
 }
 
-/** The headline scores, small enough to sit inside the action capsule. */
 @Composable
 internal fun CapsuleScores(scores: GameScores, modifier: Modifier = Modifier) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = modifier) {
@@ -216,7 +215,6 @@ private fun CapsuleStat(label: String, link: String?, showLabel: Boolean = true,
     }
 }
 
-/** Credits and times as label and value rows, for the details panel. */
 @Composable
 internal fun StoreDetailRows(developer: String, publisher: String, releaseDate: String, scores: GameScores) {
     val released = remember(releaseDate) { GameFacts.releaseLabel(releaseDate) }

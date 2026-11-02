@@ -9,9 +9,7 @@ class GameThreadHintsTest {
     @Test fun `a thread joins above 60 percent and leaves under 15`() {
         assertEquals(emptySet<Int>(), GameThreadHints.pick(emptySet(), mapOf(1 to 0.55)))
         assertEquals(setOf(1), GameThreadHints.pick(emptySet(), mapOf(1 to 0.68)))
-        // Faster where it was moved, or capped by the display, it stays boosted at 25%...
         assertEquals(setOf(1), GameThreadHints.pick(setOf(1), mapOf(1 to 0.25)))
-        // ...and is let go once it idles.
         assertEquals(emptySet<Int>(), GameThreadHints.pick(setOf(1), mapOf(1 to 0.1)))
     }
 
@@ -28,8 +26,8 @@ class GameThreadHintsTest {
         assertTrue(GameThreadHints.holdsPace(119.0, 120.0))
         assertTrue(GameThreadHints.holdsPace(60.5, 120.0))
         assertTrue(GameThreadHints.holdsPace(30.0, 120.0))
-        assertFalse(GameThreadHints.holdsPace(92.0, 120.0))   // falling behind: boost
+        assertFalse(GameThreadHints.holdsPace(92.0, 120.0))
         assertFalse(GameThreadHints.holdsPace(105.0, 120.0))
-        assertFalse(GameThreadHints.holdsPace(3.0, 120.0))    // headless or loading: boost
+        assertFalse(GameThreadHints.holdsPace(3.0, 120.0))
     }
 }

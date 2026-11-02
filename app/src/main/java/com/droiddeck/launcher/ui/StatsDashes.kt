@@ -58,12 +58,10 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 private val DASH_H = 290.dp
-/** Pedal and speed trace length: 150 readings at the page's 66 ms draw rate, about 10 s. */
 internal const val TRACE_N = 150
 
 internal class TraceData(val throttle: List<Float>, val brake: List<Float>, val speed: List<Float>)
 
-/** The racing dash in [style] with speeds in [unit] (km/h or mph); a tap moves to the next one. */
 @Composable
 internal fun RaceDashView(style: StatsDash, t: Telemetry, trace: TraceData, unit: SpeedUnit, onTap: () -> Unit) {
     Box(Modifier.fillMaxWidth().clickable(onClick = onTap)) {
@@ -87,7 +85,6 @@ private const val DIAL_SWEEP = 250f
 
 private fun dialAngle(v: Float, max: Float) = DIAL_START + DIAL_SWEEP * (v / max).coerceIn(0f, 1f)
 
-/** A 250° dial face: track, optional red zone from [red], ticks and numbers every [major]. */
 private fun DrawScope.dialFace(
     cx: Float, cy: Float, r: Float, max: Float, major: Float, label: (Float) -> String,
     measurer: TextMeasurer, labelStyle: TextStyle, tick: Color, minor: Color, track: Color, red: Float?, redColor: Color,
@@ -468,7 +465,6 @@ private fun EdgeBar(value: Float?, color: Color) {
     }
 }
 
-/** War Thunder's own labels the Flight layout places; others stay in the list. */
 internal object FlightLabels {
     const val IAS = "IAS, km/h"
     const val ALTITUDE = "H, m"
@@ -573,7 +569,6 @@ private fun Pips(pips: List<Int>, modifier: Modifier) {
         val pipH = (size.height - labelH) / 4f - 4.dp.toPx()
         for (col in 0 until 3) {
             val x = col * colW + (colW - pipW) / 2f
-            // Status.json counts half pips: 0..8 per system.
             val value = pips[col] / 2f
             for (i in 0 until 4) {
                 val y = size.height - labelH - (i + 1) * (pipH + 4.dp.toPx())

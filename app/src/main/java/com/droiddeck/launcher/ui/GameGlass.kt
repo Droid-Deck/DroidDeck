@@ -55,13 +55,8 @@ import coil.request.ImageRequest
 import coil.size.Precision
 import kotlin.math.max
 
-/** Buttons in a capsule render as pills; elsewhere they keep their rounded-rectangle shape. */
 internal val LocalPillButtons = compositionLocalOf { false }
 
-/**
- * The page's blurred art, shared so frosted surfaces can draw the part of it behind them.
- * Coordinates are read when drawing, so a surface and the backdrop always agree on where they are.
- */
 internal class GlassBackdrop {
     var painter: Painter? = null
     var coords: LayoutCoordinates? = null
@@ -79,7 +74,6 @@ internal class GlassBackdrop {
         scope.drawCover(art, size, if (light) LightAmbient else DarkAmbient)
     }
 
-    /** Drawn inside a layer, so it fades what was painted before it toward the page's end. */
     fun fadeBottom(scope: DrawScope, size: Size) {
         val fade = minOf(size.height * 0.5f, with(scope) { 240.dp.toPx() })
         if (size.height <= 0f) return
@@ -121,7 +115,6 @@ private fun ambientRequest(ctx: android.content.Context, model: Any?): ImageRequ
 
 private const val AmbientPixels = 6
 
-/** How washed-out the art is: average brightness less its saturation, from a tiny decode, so pale art is dimmed while dark and vivid art are left alone. */
 @Composable
 private fun rememberArtBrightness(model: Any?): Float {
     val ctx = LocalContext.current
@@ -148,10 +141,6 @@ private fun rememberArtBrightness(model: Any?): Float {
 private const val SamplePixels = 8
 private const val SaturationWeight = 0.6
 
-/**
- * A page whose game art fills the background: a blurred wash behind everything and the sharp art
- * across the top, fading into the page. Surfaces inside draw frosted glass over the wash.
- */
 @Composable
 internal fun GameBackdrop(
     art: Any?, ambient: Any?, fallbackHue: Float,
@@ -241,7 +230,6 @@ private fun ArtLayer(model: Any?, sample: Any?, fadeTop: Boolean, onPlaced: (and
 private val ArtMin = 220.dp
 private val ArtMax = 340.dp
 
-/** A frosted surface: the page's wash behind it, a dark tint, and a thin rim. Plain surface when there is no backdrop. */
 @Composable
 internal fun Modifier.glass(shape: Shape, lift: Float = 0f): Modifier {
     val g = LocalGlass.current

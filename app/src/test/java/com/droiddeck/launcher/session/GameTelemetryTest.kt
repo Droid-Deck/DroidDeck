@@ -16,12 +16,12 @@ class GameTelemetryTest {
 
     @Test fun codemastersFloatsBecomeADash() {
         val data = packet(264) {
-            putFloat(7 * 4, 25f)          // m/s
+            putFloat(7 * 4, 25f)
             putFloat(29 * 4, 0.8f)
             putFloat(31 * 4, 0.1f)
             putFloat(33 * 4, 3f)
             putFloat(36 * 4, 1f)
-            putFloat(37 * 4, 650f)        // rpm / 10
+            putFloat(37 * 4, 650f)
             putFloat(63 * 4, 800f)
             putFloat(45 * 4, 30f)
             putFloat(46 * 4, 60f)
@@ -35,7 +35,6 @@ class GameTelemetryTest {
         assertEquals(0.5f, t.fuel!!, 0.001f)
     }
 
-    // Values from a DiRT Showdown packet recorded on a Retroid Pocket Duo (extradata 3 still sends 152 bytes there).
     @Test fun codemastersShortPacketFromDirtShowdown() {
         val data = packet(152) {
             putFloat(1 * 4, 80.085f)
@@ -124,7 +123,6 @@ class GameTelemetryTest {
         assertNull(GameTelemetry.parse(1234, ByteArray(400), 400))
     }
 
-    // DiRT Showdown's 38 floats already carry steering and both G-forces.
     @Test fun codemastersGForceAndSteering() {
         val data = packet(152) {
             putFloat(30 * 4, -0.5f)
@@ -181,7 +179,6 @@ class GameTelemetryTest {
         assertEquals(GameTelemetry.DL_SHIFT or GameTelemetry.DL_ABS, t.lights)
     }
 
-    // BeamNG leaves some OutGauge fields at zero; those stay hidden.
     @Test fun outGaugeZeroFieldsStayHidden() {
         val t = GameTelemetry.parse(GameTelemetry.OUTGAUGE_PORT, packet(92) { put(10, 2) }, 92)!!
         assertNull(t.turboBar)

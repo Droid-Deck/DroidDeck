@@ -7,7 +7,6 @@ import org.junit.Test
 class SteamWebLoginTest {
     private fun hex(s: String) = ByteArray(s.length / 2) { s.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
 
-    // Made with: openssl enc -aes-128-cbc -K <PBKDF2-SHA1("peanuts","saltysalt",1)> -iv <16 spaces>, prefixed "v10".
     @Test fun chromiumV10ValuesDecrypt() {
         val encrypted = hex("7631300b9cf0a6eee9cf1aaac601b85ca37cf9fe9e67078564f0e05835ae2aa3d9b0ab")
         assertEquals("0123456789abcdef01234567", SteamWebLogin.decrypt(encrypted, hostHashed = false))

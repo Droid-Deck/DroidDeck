@@ -4,7 +4,6 @@ plugins {
 apply plugin: 'kotlin-android'
 apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 
-// Machine-specific tooling and optional CI-prepared inputs stay out of version control.
 def localBuildOptions = new Properties()
 def localBuildOptionsFile = rootProject.layout.projectDirectory.file('local.properties')
 if (localBuildOptionsFile.asFile.exists()) {
@@ -98,8 +97,6 @@ def addonPacks = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler']
     def pack = file("build/packs/${name}.tar.zst")
     if (!pack.isFile()) {
         if (ciBuild) throw new GradleException("Add-on pack ${pack} is missing: run tools/packs/build.sh app/build/packs")
-        // A source build that did not compile proot still pins a published pack, so the app
-        // downloads the patched binary instead of falling back to the rootfs copy.
         if (name == 'proot' && prootPackPin.PROOT_PACK_SHA256) {
             return [(name): [sha256: prootPackPin.PROOT_PACK_SHA256, size: (prootPackPin.PROOT_PACK_SIZE ?: '0') as long]]
         }
@@ -208,7 +205,6 @@ android {
     }
 
     androidResources {
-        // aapt's default ignore list, plus the trees shipped as add-on packs (tools/packs).
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:<dir>droiddeck-xbox:<dir>droiddeck-comet:<dir>directaudio'
     }
 
@@ -219,7 +215,6 @@ android {
         jniLibs {
             useLegacyPackaging = true
             pickFirsts += ['**/libtermux.so']
-            // Shipped in the proot and tracking packs (tools/packs) and run or loaded from there.
             excludes += ['**/libproot.so', '**/libproot-loader.so', '**/libopencv_java4.so', '**/libmediapipe_tasks_jni.so']
         }
     }
@@ -238,7 +233,6 @@ android {
                 outputs.upToDateWhen { false }
                 outputs.doNotCacheIf('CI executes the test suite on every run') { true }
             }
-            // Robolectric keeps a sandbox per SDK level the tests ask for; seven no longer fit in Gradle's default 512 MB.
             maxHeapSize = '2g'
             maxParallelForks = 2
             def logTarget = providers.systemProperty('robolectric.logging').orNull
@@ -255,7 +249,6 @@ android {
     }
 }
 
-// Vendor binaries remain in the user's SDK directory; never vendor them into Git.
 if (vitureSdkDir) {
     android.sourceSets.main.jniLibs.srcDir(new File(vitureSdkDir, 'android'))
     def stageVitureNotices = tasks.register('stageVitureNotices', Copy) {
@@ -300,7 +293,6 @@ def stageGogNotices = tasks.register('stageGogNotices', Copy) {
 android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('gogNotices'))
 tasks.named('preBuild').configure { dependsOn(stageGogNotices) }
 
-// CI publishes its packs; a local build pins packs nobody hosts (see addonPacks), so the APK carries them.
 if (!ciBuild) {
     def stageLocalPacks = tasks.register('stageLocalPacks', Sync) {
         from(layout.buildDirectory.dir('packs')) { include '*.tar.zst' }
@@ -374,11 +366,11 @@ dependencies {
     implementation 'androidx.camera:camera-camera2:1.4.2'
     implementation 'androidx.camera:camera-lifecycle:1.4.2'
     implementation 'androidx.webkit:webkit:1.12.1'
-    // Google's WebRTC (BSD) for the native Xbox Cloud Gaming player (XboxNativePlayerActivity).
     implementation 'io.github.webrtc-sdk:android:125.6422.07'
     implementation("com.google.mediapipe:tasks-vision:${trackingPack.MEDIAPIPE_VERSION}") {
         exclude group: 'com.google.auto.value', module: 'auto-value'
     }
+    implementation 'com.google.zxing:core:3.5.3'
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.16.1'

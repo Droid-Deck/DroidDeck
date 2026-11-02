@@ -6,18 +6,9 @@ import com.droiddeck.launcher.session.SessionPrefs
 import org.json.JSONArray
 import java.util.Locale
 
-/**
- * Language for a third-party store install ([Store.GOG], [Store.EPIC]): the app/system locale by
- * default, or the code the user picked in the install dialog / store settings.
- *
- * GOG depots and Epic install tags use overlapping but not identical codes (`en` vs `en-US`,
- * `nb` vs `no`). Matching is on the language part plus a few aliases, so a Polish phone selects
- * `pl-PL` depots without the user having to know the store's spelling.
- */
 object StoreLanguage {
     const val EXTRA = "installLanguage"
 
-    /** Codes the settings list and Epic's tag table share; GOG often uses the same with a region. */
     val KNOWN: List<String> = listOf(
         "en", "pl", "de", "fr", "es", "es-419", "pt", "pt-BR", "it", "ru", "uk", "cs", "hu",
         "nl", "sv", "da", "fi", "nb", "ro", "bg", "el", "tr", "ar", "th", "vi", "ja", "ko",
@@ -36,7 +27,6 @@ object StoreLanguage {
 
     fun selectable(store: Store): Boolean = store == Store.GOG || store == Store.EPIC
 
-    /** Tag actually sent to the store: settings override, else the app/system locale. */
     @JvmStatic
     fun preferredCode(context: Context): String {
         val chosen = SessionPrefs.storesInstallLanguage(context)
@@ -68,10 +58,6 @@ object StoreLanguage {
 
     fun fallbackList(store: Store): List<String> = if (selectable(store)) KNOWN else emptyList()
 
-    /**
-     * One code from [available]. An exact normalized code wins (`pl-PL` over `pl`). A base-language
-     * match is used only when that exact code is not offered, then English, then the first code.
-     */
     @JvmStatic
     fun pick(available: List<String>, preferred: String): String {
         if (available.isEmpty()) return preferred
@@ -82,11 +68,6 @@ object StoreLanguage {
             ?: available.first()
     }
 
-    /**
-     * True when a GOG depot whose `languages` array is [listed] overlaps [chosen], including a
-     * base-language match (`pl` accepts `pl-PL`). Shared depots (`*`, empty, missing) always match.
-     * Install selection uses [depotMatchesResolved] after [pick] has chosen a single code.
-     */
     @JvmStatic
     fun depotAccepted(listed: Array<String>?, chosen: String): Boolean {
         if (listed.isNullOrEmpty()) return true
@@ -97,10 +78,6 @@ object StoreLanguage {
         }
     }
 
-    /**
-     * True when [listed] is shared, or contains the one code [resolved] already selected.
-     * `pl-PL` does not also keep a `pl` depot.
-     */
     @JvmStatic
     fun depotMatchesResolved(listed: Array<String>?, resolved: String): Boolean {
         if (listed.isNullOrEmpty()) return true
@@ -109,7 +86,6 @@ object StoreLanguage {
         return listed.any { primary(it) == want }
     }
 
-    /** Normalized code without collapsing to the base language. `pl-PL` stays `pl-pl`. */
     internal fun primary(code: String): String? {
         val raw = code.trim().lowercase().replace('_', '-')
         if (raw.isEmpty()) return null

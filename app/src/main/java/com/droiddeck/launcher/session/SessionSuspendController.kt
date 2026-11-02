@@ -26,9 +26,7 @@ internal class SessionSuspendController(
     private val nowNanos: () -> Long = System::nanoTime,
     private val pagedOut: (processes: Int, unacknowledged: Int, residentKb: Long, swapKb: Long, swapBeforeKb: Long, millis: Long) -> Unit =
         { _, _, _, _, _, _ -> },
-    // False with a RAM cap set: the user asked for the session to use less memory, so nothing is read back.
     private val readBackAllowed: () -> Boolean = { true },
-    // processes is 0 when the read-back was skipped: a RAM cap, or MemAvailable could not take it.
     private val pagedIn: (processes: Int, swapKb: Long, swapBeforeKb: Long, availableKb: Long, millis: Long) -> Unit =
         { _, _, _, _, _ -> },
 ) {
@@ -113,12 +111,10 @@ internal class SessionSuspendController(
                 if (interrupted) Thread.currentThread().interrupt()
             }
             completion(complete)
-            // A cancelled or failed freeze leaves the game running with whatever the page-out already moved.
             if (!complete && frozen.isEmpty() && !interrupted) readBack()
         }, { completion(false) })
     }
 
-    // A freeze still queued or paging out stops before its next SIGSTOP pass and rolls back.
     fun cancelFreeze() {
         cancelled = true
     }
@@ -252,7 +248,6 @@ internal class SessionSuspendController(
     }
 
     private fun stoppedSnapshot(records: List<ProcessRecord>, root: ProcessRecord): Map<TaskIdentity, Long>? {
-        // PRoot can leave the leader stopped while native worker threads keep running.
         val tasks = LinkedHashMap<TaskIdentity, Long>()
         var stopped = true
         for (record in records) {
@@ -279,9 +274,6 @@ internal class SessionSuspendController(
         return tasks.takeIf { stopped && it.isNotEmpty() }
     }
 
-    // A stopped process cannot run libblsession's SIGURG handler, so the page-out has to finish
-    // before the stop. Android's low-memory killer otherwise finds the frozen game resident in RAM
-    // with most of zram still free.
     private fun pageOut(records: MutableMap<Pair<Int, Long>, ProcessRecord>, root: Int, helpers: List<Int>) {
         val control = zramControl?.takeIf { it.isFile } ?: return
         try {
@@ -304,8 +296,6 @@ internal class SessionSuspendController(
         val start = nowMillis()
         val before = memoryKb(targets)
         for (record in targets) send(record, SIGURG)
-        // A program can replace libblsession's SIGURG handler (PyInstaller's bootloader, the Go runtime);
-        // such a process never creates its ack and is not waited for once the start window has passed.
         val waiting = targets.toMutableList()
         while (!closing && !cancelled && nowMillis() - start < PAGE_OUT_TIMEOUT_MS) {
             val started = nowMillis() - start >= PAGE_OUT_START_MS
@@ -319,13 +309,6 @@ internal class SessionSuspendController(
         pagedOut(targets.size, unacknowledged, after.first, after.second, before.second, nowMillis() - start)
     }
 
-    // Left in zram, the paged-out memory comes back one major fault at a time while the game runs; in a heavy
-    // game that is hundreds of faults per frame and stalls of a quarter second and more, long after the resume.
-    // libblsession's handler reads back only the swapped pages (mode 0, as the session script does for the client).
-    // The handler runs on whichever thread takes the signal, so that thread pauses for the read-back,
-    // once and right after the resume instead of mid-game.
-    // It signals even with nothing in zram yet: after a cancelled freeze a page-out handler may not have started,
-    // and it reads the mode only when it starts, so it reads back instead of paging out.
     private fun readBack() {
         val targets = pagedOutTargets.filterNot { isGone(it) }
         pagedOutTargets = emptyList()
@@ -360,15 +343,10 @@ internal class SessionSuspendController(
         pagedIn(targets.size, swap, before, available, nowMillis() - start)
     }
 
-    // Reading back moves the swap into resident memory, out of MemAvailable. On a device short on memory that
-    // could push Android's low-memory killer onto DroidDeck itself, so the memory comes back only when
-    // MemAvailable is at least twice the swap and keeps 1 GB or a tenth of MemTotal, whichever is more, after it.
-    // Otherwise it stays in zram and faults back in as the game touches it, as before.
     private fun canTake(swapKb: Long, totalKb: Long, availableKb: Long): Boolean =
         availableKb >= swapKb * READ_BACK_AVAILABLE_FACTOR &&
             availableKb - swapKb >= maxOf(READ_BACK_HEADROOM_KB, totalKb / READ_BACK_TOTAL_SHARE)
 
-    // MemTotal and MemAvailable, 0 when unreadable (which skips the read-back).
     private fun meminfoKb(): Pair<Long, Long> = try {
         val values = HashMap<String, Long>()
         File(procRoot, "meminfo").forEachLine { line ->
@@ -402,9 +380,6 @@ internal class SessionSuspendController(
         return resident to swap
     }
 
-    // PRoot traces every guest. A stop sent while it runs becomes a group stop that it restarts
-    // thread by thread; once it is stopped, each thread that takes a SIGSTOP stays parked in its
-    // signal-delivery stop. So the roots stop first and every guest thread gets its own SIGSTOP.
     private fun stop(records: List<ProcessRecord>) {
         for (record in records.filter { it.role == Role.SESSION_ROOT }) send(record, SIGSTOP)
         for (record in records.filter { it.role == Role.HELPER_ROOT }) send(record, SIGSTOP)
@@ -469,7 +444,6 @@ internal class SessionSuspendController(
         val current = try { readProcess(record.pid) } catch (_: Exception) { return false }
         if (current == null || current.started != record.started) return true
         if (current.state == 'T' || current.state == 't') return false
-        // A traced worker in 't' is usually PRoot handling a system call; 'T' is a job-control stop.
         return File(procRoot, "${record.pid}/task").listFiles().orEmpty().none { entry ->
             entry.name.toIntOrNull() != null &&
                 try { readStat(File(entry, "stat"))[0].first() == 'T' } catch (_: IOException) { false }

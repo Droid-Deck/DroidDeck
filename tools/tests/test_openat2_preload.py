@@ -9,8 +9,6 @@ import unittest
 PRELOAD = Path(__file__).resolve().parents[1] / "linuxfs/preload"
 FASTPATH = Path(__file__).resolve().parents[1] / "proot/fastpath/fastpath.c"
 
-# Opens each "<dirfd>\t<flags>\t<path>" case with openat2(RESOLVE_IN_ROOT) as FEX does: first through the kernel's own
-# openat2 on argv[1] when it has one, then, with openat2 failing ENOSYS as under proot, through the preload on argv[2].
 PROGRAM = r"""
 #define _GNU_SOURCE
 #include <dlfcn.h>
@@ -225,7 +223,6 @@ int main(int argc, char **argv) {
 
 O_PATH = getattr(os, "O_PATH", 0o10000000)
 
-# (dirfd: r = the tree, o = "/"), flags, path, expected: a path in the tree, an errno name, or "proc" for a file outside it.
 CASES = [
     ("r", os.O_RDONLY, "etc/alternatives/hn", "etc/hostname"),
     ("r", os.O_RDONLY, "/lib64/x86_64-linux-gnu/libfoo.so.1", "usr/lib/x86_64-linux-gnu/libfoo.so.1.2"),
@@ -256,7 +253,6 @@ CASES = [
     ("o", os.O_RDONLY, "proc/self/status", "proc"),
 ]
 
-# Only the preload: an absolute link to a path missing in the tree but present outside it, as droiddeck-fex's rootfs has.
 HOST_CASES = [
     ("r", os.O_RDONLY, "lib/x86_64-linux-gnu/libbar.so.2", "host:libbar.so.2"),
     ("r", os.O_RDONLY, "hostdir/sub/data", "host:sub/data"),

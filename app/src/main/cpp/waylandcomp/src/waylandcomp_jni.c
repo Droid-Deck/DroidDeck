@@ -698,7 +698,6 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetGpuTurbo(JNIEnv *
         jclass error = (*env)->FindClass(env, "java/lang/IllegalStateException");
         if (error) (*env)->ThrowNew(env, error, strerror(saved_errno));
     }
-    // Clear a legacy global pin when recovering its marker after an app upgrade or crash.
     if (on != JNI_TRUE) adrenotools_set_turbo(false);
 }
 
@@ -725,7 +724,6 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboardSpatialP
     vkp_cardboard_set_spatial_pose(m, p, live ? 1 : 0);
 }
 
-/* The Xbox Cloud Gaming native player: its decoded frames are the whole scene (no Wayland clients). */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeStreamMode(JNIEnv *env, jclass clazz, jboolean on) {
     droiddeck_stream_set(on ? 1 : 0);

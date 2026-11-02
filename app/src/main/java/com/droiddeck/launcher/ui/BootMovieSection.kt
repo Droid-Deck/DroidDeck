@@ -91,16 +91,12 @@ import java.io.File
 
 private enum class MovieTab { INSTALLED, IMPORT, REPO, SOUND }
 
-/** Downloads run here rather than in a tab, so switching tabs or closing the settings does not cancel one halfway. */
 private val installScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-/** The downloads under way, by post id and percent; kept here so they are still known when the tab or the settings come back. */
 private val installProgress = mutableStateMapOf<String, Int>()
 
-/** What the movie list looks like right now: every movie and the one Steam will play. */
 private class MovieSnapshot(val entries: List<BootMovieLibrary.Entry>, val selected: String)
 
-/** The movie list, read again every couple of seconds so a movie picked, added or removed inside Steam shows up here too. */
 @Composable
 private fun rememberMovies(refresh: Int, onSelectionChanged: () -> Unit): MovieSnapshot? {
     val app = LocalContext.current.applicationContext
@@ -143,7 +139,6 @@ private fun TabChip(label: String, selected: Boolean, modifier: Modifier = Modif
     }
 }
 
-/** The "Boot movie" settings group: Installed movies, Import your own movies, SteamDeckRepo and Sound. */
 @Composable
 internal fun BootMovieGroup(s: ModeSettings, a: ModeSettingsActions, host: MenuHost) {
     var tab by rememberSaveable { mutableStateOf(MovieTab.INSTALLED) }
@@ -179,7 +174,6 @@ private fun InstalledTab(a: ModeSettingsActions) {
     val app = LocalContext.current.applicationContext
     val scope = rememberCoroutineScope()
     var saving by remember { mutableStateOf(false) }
-    // The report is for bug reports, so it shows only while Debugging tools is on (read each time this tab opens).
     val debugging = remember { com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(app) }
     if (debugging) {
         SettingsRow(stringResource(R.string.boot_movie_report), stringResource(R.string.boot_movie_report_hint)) {
@@ -222,7 +216,6 @@ private fun movieSourceLabel(source: String): String = stringResource(
     },
 )
 
-/** The installed movies as a list with covers; the one Steam plays is highlighted, and the list follows changes made in Steam. */
 @Composable
 private fun InstalledMoviesDialog(a: ModeSettingsActions, onDismiss: () -> Unit) {
     val app = LocalContext.current.applicationContext
@@ -497,10 +490,8 @@ private fun RepoTab(a: ModeSettingsActions) {
     }
 }
 
-/** Downloads [post] and puts it among the installed movies; returns a message when it failed, null when it worked. */
 private fun install(app: android.content.Context, post: SteamDeckRepo.Post, onProgress: (Int) -> Unit): String? {
     val folder = File(app.cacheDir, "boot-movie-download").apply { mkdirs() }
-    // Leftovers of a download that was cut short are cleared, and every download has a file of its own.
     folder.listFiles()?.forEach { if (System.currentTimeMillis() - it.lastModified() > 60 * 60 * 1000L) it.delete() }
     val file = File.createTempFile("movie-", ".webm", folder)
     return try {
@@ -563,7 +554,6 @@ private const val AFTER_OPEN = 3
 private const val AFTER_INSTALL = 1
 private const val AFTER_USE = 2
 
-/** Install and Use are different buttons in turn, and the button is disabled while installing; it takes focus back for the controller. */
 @Composable
 private fun RepoAction(
     installed: Boolean, inUse: Boolean, percent: Int?, busy: Boolean, modifier: Modifier, onInstall: () -> Unit, onUse: () -> Unit,
@@ -593,7 +583,6 @@ private fun RepoAction(
     )
 }
 
-/** A movie from SteamDeckRepo played straight from the site, so it can be checked before it is installed. */
 @Composable
 private fun PreviewDialog(
     post: SteamDeckRepo.Post, installed: Boolean, inUse: Boolean, percent: Int?, busy: Boolean,
@@ -674,7 +663,6 @@ private fun MoviePreview(url: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** A dialog with one text box, for a search term or a page number; the Android keyboard comes up with it. */
 @Composable
 internal fun TextEntryDialog(
     title: String, initial: String, number: Boolean, confirm: String, onSubmit: (String) -> Unit, onDismiss: () -> Unit,
@@ -697,7 +685,6 @@ internal fun TextEntryDialog(
     }
 }
 
-/** Page buttons around the current page, which opens a box to type another page into; first and last page show their numbers. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun RepoPager(page: Int, last: Int?, hasMore: Boolean, onPage: (Int) -> Unit, onJump: () -> Unit) {

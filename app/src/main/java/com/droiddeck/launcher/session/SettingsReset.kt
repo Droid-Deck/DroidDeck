@@ -11,8 +11,8 @@ object SettingsReset {
     private const val TAG = "SettingsReset"
 
     internal val SESSION_KEYS = setOf(
-        "orientation", "launcherFullscreen", "animations", "theme", "runSteamAtStartup", "addedGamesArt",
-        "dualScreenMode", "dualScreenLauncher", "dualScreenSessionControls",
+        "orientation", "launcherFullscreen", "animations", "theme", "runSteamAtStartup", "startupSession", "addedGamesArt",
+        "dualScreenMode", "dualScreenSessionMode", "dualScreenLauncher", "dualScreenSessionControls",
         "gameStoresEnabled", "gameStoresSpeedTier", "gameStoresParallel", "storesOpenTab", "storesShowMature",
         "storesInstallLanguage",
         "hud", "hudDeck", "hudFps", "hudBattery", "hudGraph", "hudColor", "hudOpacity", "__KEEP_droidDeckHud__", "__KEEP_droidDeckHudPos__", "backHold", "backActionsInverted", "backDoubleTapMs", "touch", "osc", "shape", "steamController",
@@ -26,7 +26,7 @@ object SettingsReset {
         "upscaler", "upscaleSharpness", "screenEffects", "textureAnisotropy", "textureLodBias",
         "steamDownloadsInBackground", "steam_offline", "bootMovie", "bootMovieSound", "bootMovieVolume", "bootMovieSeconds",
         "bootMovieApplyNext", "bootMovieSteamSeen",
-        "questDefaultsV1", "telemetryAuto", "telemetryOff", "statsStrip", "statsDash", "statsSpeedUnit",
+        "questDefaultsV1", "telemetryAuto", "telemetryOff", "statsStrip", "statsHud", "bottomHud", "bottomStripMetrics", "bottomStripTabs", "statsDash", "statsSpeedUnit",
     )
 
     internal val SESSION_PREFIXES = listOf(

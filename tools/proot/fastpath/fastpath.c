@@ -913,7 +913,6 @@ static void fill_statx(struct statx *out, const struct stat *st) {
   out->stx_dev_minor = dev_minor(st->st_dev);
 }
 
-/* Emulate statx on older kernels < 4.11 */
 static long statx_call(int dirfd, const char *path, int flags, unsigned mask, struct statx *out) {
   struct stat st;
   long rs;
@@ -1374,7 +1373,6 @@ int inotify_add_watch(int fd, const char *path, uint32_t mask) {
 }
 
 
-/* The kernel reports a socket named through /proc/self/fd/N/<name> under that name: map it back, per socket. */
 enum { LONG_SELF, LONG_PEER };
 static struct { unsigned long ino; int kind; char name[sizeof ((struct sockaddr_un *)0)->sun_path]; char guest[sizeof ((struct sockaddr_un *)0)->sun_path]; } long_names[64];
 static unsigned long_next;
@@ -1453,7 +1451,6 @@ static long socket_address(const struct sockaddr *addr, socklen_t len, int follo
   memset(out, 0, sizeof *out);
   out->sun_family = AF_UNIX;
   if (hlen >= room) {
-    /* proot would bind it to a temporary name the fast path cannot see: name it through its directory. */
     char *slash = strrchr(r.host, '/');
     if (!slash || slash == r.host) return FP_SLOW;
     *slash = 0;

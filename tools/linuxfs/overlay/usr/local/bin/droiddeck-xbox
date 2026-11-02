@@ -1,5 +1,4 @@
 #!/usr/bin/python3
-"""Licensed Xbox launches through Xodus and the game's selected ARM64 Proton."""
 import hmac
 import json
 import os
