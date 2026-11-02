@@ -1190,7 +1190,6 @@
     <string name="gpu_none_listed">ยังไม่มีไดรเวอร์ในรายการ รีเฟรชเพื่อค้นหา</string>
     <string name="gpu_hide_other">ซ่อนไดรเวอร์สำหรับ GPU อื่น</string>
     <string name="gpu_show_other">แสดงไดรเวอร์สำหรับ GPU อื่น</string>
-    <string name="gpu_advanced">ขั้นสูง</string>
     <string name="gpu_ubwc_title">ความเข้ากันได้ของ UBWC</string>
     <string name="gpu_ubwc_hint">ลองเปิดหรือปิดหาก Steam หรือ Android แสดงเป็นแถบลายหรือกะพริบ มีผลกับไดรเวอร์ทั้งสองหลังรีสตาร์ท DroidDeck</string>
     <string name="gpu_ubwc_restart">รีสตาร์ท DroidDeck เพื่อใช้การเปลี่ยนแปลง</string>

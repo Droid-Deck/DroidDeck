@@ -1196,7 +1196,6 @@
     <string name="gpu_none_listed">Все още няма изброени драйвери. Обновете, за да ги потърсите.</string>
     <string name="gpu_hide_other">Скриване на драйверите за други GPU</string>
     <string name="gpu_show_other">Показване на драйверите за други GPU</string>
-    <string name="gpu_advanced">Разширени</string>
     <string name="gpu_ubwc_title">Съвместимост с UBWC</string>
     <string name="gpu_ubwc_hint">Опитайте Вкл. или Изкл., ако Steam или Android показва ивици или трептене. Прилага се и за двата драйвера след рестартиране на DroidDeck.</string>
     <string name="gpu_ubwc_restart">Рестартирайте DroidDeck, за да се приложи.</string>

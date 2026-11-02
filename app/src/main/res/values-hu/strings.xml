@@ -1196,7 +1196,6 @@
     <string name="gpu_none_listed">Még nincs felsorolt illesztőprogram. Frissítsen a kereséshez.</string>
     <string name="gpu_hide_other">Más GPU-k illesztőprogramjainak elrejtése</string>
     <string name="gpu_show_other">Más GPU-k illesztőprogramjainak megjelenítése</string>
-    <string name="gpu_advanced">Speciális</string>
     <string name="gpu_ubwc_title">UBWC-kompatibilitás</string>
     <string name="gpu_ubwc_hint">Próbálja a Be vagy Ki beállítást, ha a Steam vagy az Android csíkokat vagy villódzást mutat. A DroidDeck újraindítása után mindkét illesztőprogramra érvényes.</string>
     <string name="gpu_ubwc_restart">Indítsa újra a DroidDecket az alkalmazáshoz.</string>

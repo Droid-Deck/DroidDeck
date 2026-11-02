@@ -1303,7 +1303,6 @@
     <string name="gpu_none_listed">No drivers listed yet. Refresh to look for them.</string>
     <string name="gpu_hide_other">Hide drivers for other GPUs</string>
     <string name="gpu_show_other">Show drivers for other GPUs</string>
-    <string name="gpu_advanced">Advanced</string>
     <string name="gpu_ubwc_title">UBWC compatibility</string>
     <string name="gpu_ubwc_hint">Try On or Off if Steam or Android shows stripes or flickering. Applies to both drivers after restarting DroidDeck.</string>
     <string name="gpu_ubwc_restart">Restart DroidDeck to apply.</string>

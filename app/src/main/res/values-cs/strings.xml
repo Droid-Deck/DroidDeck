@@ -1208,7 +1208,6 @@
     <string name="gpu_none_listed">Zatím žádné ovladače. Obnovte, aby se vyhledaly.</string>
     <string name="gpu_hide_other">Skrýt ovladače pro jiné GPU</string>
     <string name="gpu_show_other">Zobrazit ovladače pro jiné GPU</string>
-    <string name="gpu_advanced">Pokročilé</string>
     <string name="gpu_ubwc_title">Kompatibilita UBWC</string>
     <string name="gpu_ubwc_hint">Pokud Steam nebo Android zobrazuje pruhy nebo blikání, zkuste Zapnuto nebo Vypnuto. Platí pro oba ovladače po restartu DroidDeck.</string>
     <string name="gpu_ubwc_restart">Pro použití restartujte DroidDeck.</string>

@@ -1188,7 +1188,6 @@
     <string name="gpu_none_listed">Noch keine Treiber aufgeführt. Aktualisiere, um danach zu suchen.</string>
     <string name="gpu_hide_other">Treiber für andere GPUs ausblenden</string>
     <string name="gpu_show_other">Treiber für andere GPUs anzeigen</string>
-    <string name="gpu_advanced">Erweitert</string>
     <string name="gpu_ubwc_title">UBWC-Kompatibilität</string>
     <string name="gpu_ubwc_hint">Probiere An oder Aus, wenn Steam oder Android Streifen oder Flackern zeigt. Gilt für beide Treiber nach einem Neustart von DroidDeck.</string>
     <string name="gpu_ubwc_restart">Starte DroidDeck neu, um dies anzuwenden.</string>

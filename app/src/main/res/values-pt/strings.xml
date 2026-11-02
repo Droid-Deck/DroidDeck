@@ -1194,7 +1194,6 @@
     <string name="gpu_none_listed">Nenhum driver listado ainda. Atualize para procurá-los.</string>
     <string name="gpu_hide_other">Ocultar drivers de outras GPUs</string>
     <string name="gpu_show_other">Mostrar drivers de outras GPUs</string>
-    <string name="gpu_advanced">Avançado</string>
     <string name="gpu_ubwc_title">Compatibilidade com UBWC</string>
     <string name="gpu_ubwc_hint">Experimente Ativado ou Desativado se a Steam ou o Android mostrarem listras ou cintilação. Vale para os dois drivers após reiniciar o DroidDeck.</string>
     <string name="gpu_ubwc_restart">Reinicie o DroidDeck para aplicar.</string>

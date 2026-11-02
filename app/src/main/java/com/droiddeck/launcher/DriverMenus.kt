@@ -75,9 +75,11 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         mode = uiMode, display = displaySlot(), runtime = runtimeSlot(),
         canRestart = !sessionRunning,
         checkedAt = TurnipReleases.cached(activity)?.checkedAt ?: 0L,
-        tpUbwcMode = tpUbwcMode.takeIf { gpu.model == 740 },
-        tpUbwcRestartRequired = com.droiddeck.launcher.gpu.TpUbwcHint.restartRequired(activity),
     )
+
+    fun tpUbwcModeForDevice(): String? = tpUbwcMode.takeIf { gpu.model == 740 }
+
+    fun tpUbwcRestartRequired(): Boolean = com.droiddeck.launcher.gpu.TpUbwcHint.restartRequired(activity)
 
     fun chooseTpUbwcMode(mode: String) {
         if (gpu.model != 740) return

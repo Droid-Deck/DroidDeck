@@ -1190,7 +1190,6 @@
     <string name="gpu_none_listed">Chưa có driver nào được liệt kê. Làm mới để tìm.</string>
     <string name="gpu_hide_other">Ẩn driver cho GPU khác</string>
     <string name="gpu_show_other">Hiện driver cho GPU khác</string>
-    <string name="gpu_advanced">Nâng cao</string>
     <string name="gpu_ubwc_title">Tương thích UBWC</string>
     <string name="gpu_ubwc_hint">Thử Bật hoặc Tắt nếu Steam hoặc Android hiện sọc hay nhấp nháy. Áp dụng cho cả hai driver sau khi khởi động lại DroidDeck.</string>
     <string name="gpu_ubwc_restart">Khởi động lại DroidDeck để áp dụng.</string>

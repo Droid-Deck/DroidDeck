@@ -1188,7 +1188,6 @@
     <string name="gpu_none_listed">Henüz listelenen sürücü yok. Aramak için yenileyin.</string>
     <string name="gpu_hide_other">Diğer GPU\'lara ait sürücüleri gizle</string>
     <string name="gpu_show_other">Diğer GPU\'lara ait sürücüleri göster</string>
-    <string name="gpu_advanced">Gelişmiş</string>
     <string name="gpu_ubwc_title">UBWC uyumluluğu</string>
     <string name="gpu_ubwc_hint">Steam veya Android\'de şeritler ya da titreme görülürse Açık veya Kapalı\'yı deneyin. DroidDeck yeniden başlatıldıktan sonra iki sürücüye de uygulanır.</string>
     <string name="gpu_ubwc_restart">Uygulamak için DroidDeck\'i yeniden başlatın.</string>

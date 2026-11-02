@@ -1208,7 +1208,6 @@
     <string name="gpu_none_listed">Драйверів у списку ще немає. Оновіть, щоб їх знайти.</string>
     <string name="gpu_hide_other">Приховати драйвери для інших GPU</string>
     <string name="gpu_show_other">Показати драйвери для інших GPU</string>
-    <string name="gpu_advanced">Додатково</string>
     <string name="gpu_ubwc_title">Сумісність UBWC</string>
     <string name="gpu_ubwc_hint">Спробуйте «Увімк.» або «Вимк.», якщо в Steam чи Android зʼявляються смуги або мерехтіння. Застосовується до обох драйверів після перезапуску DroidDeck.</string>
     <string name="gpu_ubwc_restart">Перезапустіть DroidDeck, щоб застосувати.</string>

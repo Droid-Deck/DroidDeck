@@ -1196,7 +1196,6 @@
     <string name="gpu_none_listed">Δεν υπάρχουν ακόμα προγράμματα οδήγησης. Ανανεώστε για να τα αναζητήσετε.</string>
     <string name="gpu_hide_other">Απόκρυψη προγραμμάτων οδήγησης για άλλες GPU</string>
     <string name="gpu_show_other">Εμφάνιση προγραμμάτων οδήγησης για άλλες GPU</string>
-    <string name="gpu_advanced">Για προχωρημένους</string>
     <string name="gpu_ubwc_title">Συμβατότητα UBWC</string>
     <string name="gpu_ubwc_hint">Δοκιμάστε Ενεργό ή Ανενεργό αν το Steam ή το Android εμφανίζει γραμμές ή τρεμόπαιγμα. Ισχύει και για τα δύο προγράμματα οδήγησης μετά την επανεκκίνηση του DroidDeck.</string>
     <string name="gpu_ubwc_restart">Κάντε επανεκκίνηση του DroidDeck για εφαρμογή.</string>
