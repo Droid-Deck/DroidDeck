@@ -1084,6 +1084,17 @@ class SessionService : Service() {
         }
         val libraries = ArrayList<Pair<String, String>>()
         if (storageDiagnosticLibrary != null && library != null) libraries.add(SecondaryLibrary.CARD_GUESTS[0] to library.label)
+        // A hidden USB drive is a library of its own beside the card, bound like a Games folder.
+        // getExternalFilesDirs never lists it: vold mounts USB-OTG at /mnt/media_rw but hides it from apps.
+        val usb = if (SessionPrefs.gameStorage(this) != SessionPrefs.GAME_STORAGE_OFF) {
+            GameStorage.usbDrive(this)?.let { GameStorage.Library(it, SecondaryLibrary.USB_GUEST, GameStorage.usbLabel(this)) }
+        } else null
+        if (usb != null) {
+            File(LinuxRuntime.rootDir(this), usb.guest.removePrefix("/")).mkdirs()
+            binds.add(usb.host.path + ":" + usb.guest)
+            steamLibraryMounts = steamLibraryMounts + (usb.guest to usb.host)
+        }
+        val gamesLibraries = listOfNotNull(usb) + GameStorage.gamesFolderLibraries(this)
         val gamesLibraries = GameStorage.gamesFolderLibraries(this)
         if (gamesLibraries.isNotEmpty()) {
             var room = if (ProotFastPath.enabled(this)) {

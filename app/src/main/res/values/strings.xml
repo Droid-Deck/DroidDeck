@@ -1812,6 +1812,7 @@
     <string name="fm_drive_stale_text">All files access is on, but Android has not refreshed it for the running app yet. Restart DroidDeck and the drive will open. If a session is running, stop it first.</string>
     <string name="fm_drive_restart_now">Restart now</string>
     <string name="fm_restart_while_running">Stop the session first, then restart DroidDeck</string>
+    <string name="usb_root_volume">USB drive</string>
     <string name="fm_list_view">List view</string>
     <string name="fm_grid_view">Grid view</string>
     <string name="fm_search">Search</string>

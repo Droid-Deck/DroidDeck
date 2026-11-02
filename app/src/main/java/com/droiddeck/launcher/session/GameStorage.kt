@@ -25,6 +25,40 @@ object GameStorage {
         }
     }
 
+    /** USB drives vold mounts at /mnt/media_rw but hides from apps; SD cards are visible. */
+    private fun hiddenUsb(context: Context): List<File> {
+        val visible = visibleVolumes(context)
+        return mountPoints()
+            .filter { it.startsWith("/mnt/media_rw/") && it.count { c -> c == '/' } == 3 && it.substringAfterLast('/') !in visible }
+            .distinct().map(::File)
+    }
+
+    /** This process's mount points, from /proc/self/mountinfo; empty if unreadable. */
+    fun mountPoints(): List<String> = try {
+        File("/proc/self/mountinfo").readLines().mapNotNull { it.split(' ').getOrNull(4) }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    /** UUIDs of volumes the app already has a /storage/<uuid> path for (SD cards), offered through that. */
+    fun visibleVolumes(context: Context): Set<String> =
+        context.getExternalFilesDirs(null).orEmpty().filterNotNull()
+            .mapNotNull { it.path.removePrefix("/storage/").substringBefore('/').takeIf { u -> u != "emulated" } }.toSet()
+
+    private fun onUsb(context: Context, dir: File): Boolean {
+        val hidden = hiddenUsb(context)
+        if (hidden.any { dir.startsWith(it) }) return true
+        val path = dir.path
+        return path.startsWith("/storage/") &&
+            hidden.any { File("/mnt/media_rw/" + path.removePrefix("/storage/")).startsWith(it) }
+    }
+
+    /** The hidden USB drive, if writable; the first one only. Needs All files access plus a fresh process. */
+    fun usbDrive(context: Context): File? =
+        hiddenUsb(context).firstOrNull { it.canWrite() }
+
+    fun usbLabel(context: Context): String = context.getString(R.string.usb_root_volume)
+
     fun free(dir: File): String = try {
         FileUtils.sizeToString(StatFs(dir.path).availableBytes)
     } catch (e: Exception) {
@@ -66,7 +100,8 @@ object GameStorage {
         val sm = context.getSystemService(StorageManager::class.java)
         return AddedGames.roots(context).mapNotNull { root ->
             val host = canonical(root.host)
-            if (!hasInstalledGames(root.host)) return@mapNotNull null
+            // A folder on the hidden USB drive is covered by the drive's own library entry.
+            if (!hasInstalledGames(root.host) || onUsb(context, root.host)) return@mapNotNull null
             if ('"' in root.guest || '\\' in root.guest || !root.host.isDirectory || !root.host.canWrite()) return@mapNotNull null
             if (card != null && (host == card || host.startsWith("$card/") || card.startsWith("$host/"))) return@mapNotNull null
             if (added.any { SteamLibraries.overlaps(it, host) }) return@mapNotNull null
