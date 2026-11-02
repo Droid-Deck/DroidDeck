@@ -411,7 +411,6 @@ internal fun GameActions(
                     if (compactMenu) GameMoreMenu(game, a) else {
                         FileButtons(game, a)
                         GameShortcutMenu(game, a)
-                        EditArtButton(game)
                     }
                 }
                 if (store == Store.ITCH && installed != null) ItchUpdateButton(installed, download == null && StoresState.uninstalling[installed.key] == null)
@@ -444,6 +443,7 @@ internal fun GameActions(
                     }
                     SecondaryButton(stringResource(R.string.bnet_open)) { a.onBattleNet() }
                 }
+                if (game != null && !compactMenu) EditArtButton(game)
             }
             download != null -> {
                 ActionChip(downloadLabel(download), ok = false)
