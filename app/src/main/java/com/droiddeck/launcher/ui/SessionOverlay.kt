@@ -472,13 +472,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
                 ) {
-                    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f)) {
-                    val rowWidth = maxWidth
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.widthIn(min = rowWidth).horizontalScroll(rememberScrollState()),
-                    ) {
                     if (docked) {
                         SteamActionPill(
                             stringResource(R.string.common_close), Icons.Outlined.Close, focus.track(page, "close"),
@@ -516,8 +509,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                             if (!qamStartedOnPress) a.onQam.invoke()
                             qamStartedOnPress = false
                         }
-                    }
-                    }
                     }
                     StopSessionButton(modifier = focus.track(page, "stop").onGloballyPositioned { stopCoords = it }) { host.open = null; confirmStop = true }
                 }
