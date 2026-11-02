@@ -74,6 +74,7 @@ import com.droiddeck.launcher.frontend.GameFileSync
 import com.droiddeck.launcher.frontend.GameLaunchIntent
 import com.droiddeck.launcher.ui.DroidDeckTheme
 import com.droiddeck.launcher.ui.RomsDialog
+import com.droiddeck.launcher.files.AllFilesAccess
 import com.droiddeck.launcher.files.InAppFilePicker
 import com.droiddeck.launcher.session.SessionArtifacts
 import com.droiddeck.launcher.session.SessionPhase
@@ -504,7 +505,18 @@ class FrontEndActivity : ComponentActivity() {
                 steamLibraries = SteamLibraries.list(this)
                 refresh()
                 if (result is SteamLibraries.AddResult.Refused) {
-                    android.widget.Toast.makeText(this, getString(R.string.main_storage_not_usable, result.reason), android.widget.Toast.LENGTH_LONG).show()
+                    // With permission granted a refusal means the process still holds the pre-grant storage view.
+                    if (!AllFilesAccess.missing()) {
+                        val name = java.io.File(path).name.ifBlank { path }
+                        android.app.AlertDialog.Builder(this)
+                            .setTitle(getString(R.string.fm_drive_stale_title, name))
+                            .setMessage(getString(R.string.fm_drive_stale_text))
+                            .setPositiveButton(R.string.fm_drive_restart_now) { _, _ -> AllFilesAccess.restartApp(this) }
+                            .setNegativeButton(R.string.common_cancel, null)
+                            .show()
+                    } else {
+                        android.widget.Toast.makeText(this, getString(R.string.main_storage_not_usable, result.reason), android.widget.Toast.LENGTH_LONG).show()
+                    }
                 }
             }
         }, "steam-library-add").start()
@@ -2471,7 +2483,18 @@ class FrontEndActivity : ComponentActivity() {
         if (path.isNotEmpty() && path != SessionPrefs.GAME_STORAGE_OFF) {
             val problem = GameStorage.prepare(this, path)
             if (problem != null) {
-                android.widget.Toast.makeText(this, getString(R.string.main_storage_not_usable, problem), android.widget.Toast.LENGTH_LONG).show()
+                // With permission granted this means the process still holds the pre-grant storage view.
+                if (!AllFilesAccess.missing()) {
+                    val name = java.io.File(path).name.ifBlank { path }
+                    android.app.AlertDialog.Builder(this)
+                        .setTitle(getString(R.string.fm_drive_stale_title, name))
+                        .setMessage(getString(R.string.fm_drive_stale_text))
+                        .setPositiveButton(R.string.fm_drive_restart_now) { _, _ -> AllFilesAccess.restartApp(this) }
+                        .setNegativeButton(R.string.common_cancel, null)
+                        .show()
+                } else {
+                    android.widget.Toast.makeText(this, getString(R.string.main_storage_not_usable, problem), android.widget.Toast.LENGTH_LONG).show()
+                }
                 return
             }
         }
