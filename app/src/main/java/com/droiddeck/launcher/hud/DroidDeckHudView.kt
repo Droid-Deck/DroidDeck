@@ -125,6 +125,7 @@ class DroidDeckHudView(context: Context) : View(context) {
     private var accent = 0xFF1A9FFF.toInt()
     private var surfaceRgb = 0x121417
     private var headerMark: RectF? = null
+    private var headerWordmark: RectF? = null
     private var chipRect: RectF? = null
 
     var dock = DroidDeckHudDock.NONE
@@ -167,12 +168,9 @@ class DroidDeckHudView(context: Context) : View(context) {
         color = colGraph
     }
     private val headerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
-    private val wordmarkPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
-    }
 
-    private class Glyph(val x: Float, val baseline: Float, val text: String, val color: Int, val sizePx: Float, val sans: Boolean = false, val glow: Boolean = false) {
-        fun moved(dx: Float, dy: Float) = Glyph(x + dx, baseline + dy, text, color, sizePx, sans, glow)
+    private class Glyph(val x: Float, val baseline: Float, val text: String, val color: Int, val sizePx: Float, val glow: Boolean = false) {
+        fun moved(dx: Float, dy: Float) = Glyph(x + dx, baseline + dy, text, color, sizePx, glow)
     }
     private class Span(val text: String, val color: Int, val sizePx: Float, val glow: Boolean = false)
     private class HudRow(val label: Span, val vals: List<Span>, val inline: Boolean = false)
@@ -523,7 +521,7 @@ class DroidDeckHudView(context: Context) : View(context) {
 
     private fun rebuild() {
         glyphs.clear(); tileRects.clear(); graphRect = null
-        headerMark = null; chipRect = null; dPanel = null; dDividerTop = -1f; tabRect = null; stripRect = null
+        headerMark = null; headerWordmark = null; chipRect = null; dPanel = null; dDividerTop = -1f; tabRect = null; stripRect = null
         val s = snap
         if (s == null) { contentW = 0f; contentH = 0f; return }
         if (dock != DroidDeckHudDock.NONE) { buildDockTab(); return }
@@ -576,24 +574,18 @@ class DroidDeckHudView(context: Context) : View(context) {
 
     private fun footerClock(): Boolean = showClockTime && size == DroidDeckHudSize.PILL
 
-    private fun measureSans(text: String, sizePx: Float): Float { wordmarkPaint.textSize = sizePx; return wordmarkPaint.measureText(text) }
-
     private fun panelInset() = sp(8f)
     private fun panelLeft() = sp(13f)
     private fun contentLeft() = panelLeft() + sp(16f)
 
     private fun addPanelHeader(left: Float, inner: Float): Pair<Float, Float> {
-        val wordPx = sp(10f); val clockPx = sp(9.5f); val gapH = sp(7f)
-        wordmarkPaint.textSize = wordPx
-        val markH = wordmarkPaint.fontMetrics.let { it.descent - it.ascent } * 0.95f
+        val clockPx = sp(9.5f); val gapH = sp(7f)
+        val wordH = sp(12f)
         val markTop = inner + gapH
-        val markLeft = left - DroidDeckMark.inkLeftFor(markH)
-        headerMark = RectF(markLeft, markTop, markLeft + DroidDeckMark.widthFor(markH), markTop + markH)
-        val midY = markTop + markH / 2f
-        var x = markLeft + DroidDeckMark.inkRightFor(markH) + sp(6f)
-        wordmarkPaint.getTextBounds("DroidDeck", 0, 9, inkRect)
-        glyphs.add(Glyph(x, midY - inkRect.exactCenterY(), "DroidDeck", blend(colValue), wordPx, sans = true))
-        x += measureSans("DroidDeck", wordPx)
+        val wordW = WordmarkArt.widthFor(wordH)
+        headerWordmark = RectF(left, markTop, left + wordW, markTop + wordH)
+        val midY = markTop + wordH / 2f
+        var x = left + wordW
         if (showClockTime) {
             measurePaint.textSize = clockPx
             measurePaint.getTextBounds("0", 0, 1, inkRect)
@@ -605,7 +597,7 @@ class DroidDeckHudView(context: Context) : View(context) {
             glyphs.add(Glyph(x, base, t, blend(colDim), clockPx))
             x += measure(t, clockPx)
         }
-        dDividerTop = markTop + markH + gapH
+        dDividerTop = markTop + wordH + gapH
         return Pair(dDividerTop + max(1f, density), x)
     }
 
@@ -647,7 +639,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         }
         var right = panel.right
         for (g in glyphs) {
-            val paint = if (g.sans) wordmarkPaint else measurePaint
+            val paint = measurePaint
             paint.textSize = g.sizePx
             paint.getTextBounds(g.text, 0, g.text.length, inkRect)
             if (inkRect.isEmpty) continue
@@ -1319,7 +1311,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         stripRect?.let { drawStrip(canvas, it) }
 
         for (g in glyphs) {
-            val paint = if (g.sans) wordmarkPaint else drawPaint
+            val paint = drawPaint
             paint.textSize = g.sizePx
             paint.color = g.color
             if (g.glow) paint.setShadowLayer(sp(6f), 0f, 0f, withAlpha(colGraph, 217))
@@ -1327,6 +1319,7 @@ class DroidDeckHudView(context: Context) : View(context) {
             if (g.glow) paint.clearShadowLayer()
         }
         headerMark?.let { DroidDeckMark.draw(canvas, it.left, it.top, it.height(), blend(colValue), accent) }
+        headerWordmark?.let { WordmarkArt.draw(canvas, it.left, it.top, it.height(), blend(colValue), accent) }
 
         graphRect?.let { drawGraph(canvas, it) }
 
@@ -1416,10 +1409,6 @@ class DroidDeckHudView(context: Context) : View(context) {
             headerPaint.color = withAlpha(accent, 90)
             c.drawRect(panel.left, dDividerTop, roundEdgeX(panel, dDividerTop, stroke), dividerBottom, headerPaint)
         }
-        val halfRound = dRadius >= panel.height() / 2f - 0.5f
-        val wmH = if (halfRound) panel.height() * 0.92f else min(panel.height(), panel.width()) * 0.55f
-        DroidDeckMark.draw(c, panel.right - DroidDeckMark.widthFor(wmH) - (if (halfRound) panel.height() * 0.02f else sp(10f)),
-            panel.centerY() - wmH / 2f, wmH, Color.argb(20, 255, 255, 255), withAlpha(accent, 20))
         c.restore()
         if (stroke > 0f) {
             val h = stroke / 2f
