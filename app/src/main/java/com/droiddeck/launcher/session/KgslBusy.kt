@@ -10,6 +10,7 @@ object KgslBusy {
     private const val TAG = "SessionService"
 
     @JvmStatic private external fun nativeOpen(error: IntArray): Long
+    @JvmStatic private external fun nativeMode(handle: Long): Int
     @JvmStatic private external fun nativeRun(handle: Long, on: Boolean)
     @JvmStatic private external fun nativeRead(handle: Long, out: LongArray): Boolean
     @JvmStatic private external fun nativeClose(handle: Long)
@@ -24,7 +25,10 @@ object KgslBusy {
             if (handle != 0L) nativeRun(handle, on)
         }
 
-        /** Running totals: busy samples, samples, samples in which a ringbuffer started new work. */
+        /** Which memstore entries are watched: [MODE_RINGBUFFER] or [MODE_CONTEXTS] (hardware-scheduled kernels). */
+        val mode: Int = if (handle != 0L) runCatching { nativeMode(handle) }.getOrDefault(0) else 0
+
+        /** Running totals: busy samples, samples, samples in which a ringbuffer or context started new work. */
         @Synchronized fun counts(): LongArray? {
             if (handle == 0L) return null
             val out = LongArray(3)
@@ -37,14 +41,27 @@ object KgslBusy {
         }
     }
 
+    const val MODE_RINGBUFFER = 1
+    const val MODE_CONTEXTS = 2
+
+    /** What the last [open] found, for the HUD diagnostics export. */
+    @Volatile var status = "not tried"
+
     fun open(): Reader? {
-        if (!loaded) return null
+        if (!loaded) {
+            status = "gpuclock library did not load"
+            return null
+        }
         val error = IntArray(1)
         val handle = runCatching { nativeOpen(error) }.getOrDefault(0L)
         if (handle == 0L) {
+            status = "open failed: ${KgslErrors.describe(error[0])}"
             Log.i(TAG, "hud: no GPU load from the kgsl memstore (open error ${error[0]})")
             return null
         }
-        return Reader(handle)
+        val reader = Reader(handle)
+        status = if (reader.mode == MODE_CONTEXTS) "per-context stamps (hardware-scheduled kernel)" else "ringbuffer stamps"
+        Log.i(TAG, "hud: kgsl memstore reader uses $status")
+        return reader
     }
 }
