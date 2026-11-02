@@ -1,244 +1,159 @@
-# openMali 工作区记录
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="artwork/droiddeck-banner-dark.svg">
+    <img alt="DroidDeck" src="artwork/droiddeck-banner-light.svg" width="100%">
+  </picture>
+</p>
 
-> 本文件记录 2026-10-31 ~ 2026-11-01 在本机与小米平板上的 MaliBridge + DroidDeck 0.6.7 合并、构建、调试和性能测试结果。  
-> 这是本地工程记录，不是上游发布文档。未特别说明的 APK 均为 testkey 签名。
+DroidDeck brings the SteamOS experience to Android: Steam Gaming Mode, full Linux desktop, integration with GOG, Epic Games, Xbox, and other storefronts, Steam VR, and more!
 
-## 1. 目标与结论
+<p align="center"><b>100% open source. No ads. No telemetry. No source withheld.</b></p>
 
-- 目标：把 MaliBridge v0.5.4.2 的 Mali GPU 支持合并进 DroidDeck 0.6.7 主线，构建可安装 APK，并在平板上进入桌面、跑通 Steam 和性能测试。
-- 已做到：
-  - 0.6.7 + MaliBridge v0.5.4.2 的合并包可安装。
-  - Ubuntu rc4 运行时 + 内置最新 proot + KWin Zink/Mali 桥接，成功进入 KDE 桌面。
-  - Steam 客户端下载/更新 100% 完成，进入 Steam 大屏幕登录页（二维码/账号密码）。
-  - 完成 CPU、GPU、IO、内存、温度基线测试。
-- 关键结论：Mali 桥接本身没有成为瓶颈；真正的问题集中在 **运行时 DNS、proot 与 KWin 渲染栈**。当前 rc4 + packaged proot + render-node 是已验证可用的组合。
+<p align="center">
+  <a href="https://github.com/Droid-Deck/DroidDeck/releases/download/0.6.7/DroidDeck-0.6.7.apk"><img src="https://img.shields.io/badge/Download-DroidDeck%200.6.7%20APK-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Download DroidDeck 0.6.7"></a>
+  <a href="https://discord.gg/JRGAvawjsm"><img src="https://img.shields.io/badge/Discord-Join%20us-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join the DroidDeck Discord"></a>
+</p>
 
-## 2. 设备与环境
+<p align="center">
+  <a href="https://www.star-history.com/droid-deck/droiddeck"><img src="https://api.star-history.com/badge?repo=Droid-Deck/DroidDeck&type=rank&theme=dark" alt="Star History Rank"></a>
+</p>
 
-- 设备：Xiaomi M367FC，SoC xring_o3_asic，GPU Mali-G2-Ultra-NX MC16，Android 17，内核 6.18.21。
-- CPU：10 核；内存 15.7 GB；存储 229 GB；屏幕 3408x2272；120 Hz。
-- Mali 驱动：ARM proprietary，Vulkan 1.4.345；桥接暴露 1.4.341。
-- 新 App：com.droiddeck.launcher，DroidDeck 0.6.7，versionCode 25（0.6.7-dnsfix-v25），testkey。
-- 旧 App：com.droiddeck.launcher.mali，DroidDeck-MaliBridge v0.5.4.2，versionCode 5042；保留用于对比，桌面可用。
+<p align="center">
+  <a href="https://trendshift.io/repositories/267852"><img src="https://trendshift.io/api/badge/trendshift/repositories/267852/daily?language=C" alt="Droid-Deck%2FDroidDeck | Trendshift" width="250" height="55"></a>
+  <a href="https://trendshift.io/repositories/267852"><img src="https://trendshift.io/api/badge/trendshift/repositories/267852/daily?language=Kotlin" alt="Droid-Deck%2FDroidDeck | Trendshift" width="250" height="55"></a>
+</p>
 
-## 3. 关键路径
+<p align="center"><img src="docs/media/steam-to-desktop.gif" width="100%" alt="On a Retroid Pocket Duo: Play Steam from the DroidDeck launcher, open Pac-Man in Steam Big Picture and play it, exit the game, then Switch to Desktop from the Power menu"></p>
 
-- 新工程：/home/g/openMali/DroidDeck
-- MaliBridge 子模块：/home/g/openMali/DroidDeck/external/MaliBridge，v0.5.4.2，提交 95a1e60
-- 合并基线：main 69ffc096，tag mali-0.6.7-v0.5.4.2
-- 旧版源码：/home/g/openMali/reference/mali0542-src
-- 旧版 APK：/home/g/openMali/reference/DroidDeck-MaliBridge-v0.5.4.2.apk
-- 最终 APK：/home/g/openMali/output/DroidDeck-0.6.7-Mali-rc4.apk
-- 基准/参考工具：/home/g/openMali/reference/vkbridge-bench，/home/g/openMali/reference/oldapk
+> DroidDeck has no website. Only download it from this repository's [Releases](https://github.com/Droid-Deck/DroidDeck/releases).
 
-## 4. 已验证的修改
+<p align="center">
+  <img src="docs/releases/media/0.6.7/library.gif" width="49%" alt="The Library switching source chips, changing the card size and opening the Filter menu">
+  <img src="docs/releases/media/0.3.0/in-game.gif" width="49%" alt="A Windows game running through Proton with the on-screen controls">
+  <img src="docs/releases/media/0.4.0/multi-controller.gif" width="49%" alt="Two controllers playing split screen on one handheld">
+  <img src="docs/releases/media/0.6.7/ubuntu-desktop-discover.jpg" width="49%" alt="The Kubuntu desktop with Discover open">
+</p>
 
-### 4.1 运行时与 proot
+## Install
 
-- 运行时 catalog 从 Debian linuxfs.json(r9) 切到 Ubuntu：
-  - app/src/main/java/com/droiddeck/launcher/runtime/LinuxRuntimeInstaller.java
-  - CATALOG_URL = .../linuxfs-ubuntu.json
-- 实际安装：ubuntu-r1-rc4；运行时约 3 GB；桌面栈另下载约 898 MB。
-- APK 不再排除 proot，改为内置最新官方 pack：
-  - pack-proot-172bb48b00150b42
-  - 压缩包 SHA-256：172bb48b00150b4292ba171089abecdf7243c06edddd68bf42dddb8c5bb24e4e
-  - app/src/main/jniLibs/arm64-v8a/libproot.so（246,512 B）
-  - app/src/main/jniLibs/arm64-v8a/libproot-loader.so（18,136 B）
-  - app/build.gradle 移除 libproot.so / libproot-loader.so 的 excludes
-- LinuxRuntime：
-  - 优先使用 nativeLibraryDir 中的 packaged proot/loader。
-  - 新增 PROOT_PACKAGED 来源；isInstalled 接受 packaged proot。
-  - prootSource 显示 packaged；ProotFastPath 只允许 PROOT_PACK，因此当前 fast path 关闭。
-- 旧 r9 + 旧 session/helper/host 的 0.6.7 组合已尝试但放弃：
-  - KWin 曾能打开 3408x2272 窗口，但新 host 不显示、会话不稳定。
-  - 该路线不作为最终方案。
+1. Android 9 or newer on Adreno 730 or newer, or any 8xx. Adreno 6xx is experimental. Mali, Xclipse, PowerVR and Adreno 710 are unsupported. No root needed.
+2. About 3 GB free for the runtime, plus 1.1 GB for the desktop and emulators.
+3. Install the [APK](https://github.com/Droid-Deck/DroidDeck/releases/download/0.6.7/DroidDeck-0.6.7.apk), install the Linux runtime, press **Play** and sign in to Steam.
+4. On Android 14 and newer, turn on **Disable child process restrictions** in Developer options. On Android 12 and 13, Steam's first launch shows a **Fix it for me** button that walks you through it.
 
-### 4.2 proot fast path 实验
+Smart glasses setup is in the [support matrix](docs/smart-glasses-support.md). Release notes are in [docs/releases](docs/releases).
 
-- 临时允许 packaged proot 走 fast path，实测反而更慢：
-  - fast path off（当前）：sha256 256 MB 207 ms，gzip -1 405 ms，read 3.9 GB/s。
-  - fast path on：sha256 259 ms，gzip 461 ms，read 3.8 GB/s。
-- 结论：该 pack 的 fast path 对 CPU/IO 是负优化，已恢复默认关闭；源码 ProotFastPath 也恢复为只允许 PROOT_PACK。
+Help, Preview builds and device reports are on [Discord](https://discord.gg/JRGAvawjsm). For bugs, post in **#bug-reports** with the zip from **Share logs**.
 
-### 4.3 桌面 / KWin / Mali 桥接
+## Build
 
-- tools/linuxfs/desktop/droiddeck-desktop 的 KWin OpenGL 分支：
-  - 设置 KWIN_COMPOSE=O2、MESA_LOADER_DRIVER_OVERRIDE=zink、GALLIUM_DRIVER=zink、LIBGL_KOPPER_DRI2=true。
-  - KWIN_RENDER_NODES 自动选择 /dev/dri/renderD0、/dev/dri/renderD307 或任意 /dev/dri/renderD*。
-  - 在平板上实际使用 /dev/dri/renderD307（由 /dev/mali0 绑定）。
-- /usr/share/droiddeck/kwin-compositor 为 opengl。
-- 效果：
-  - DroidDeckWayland 日志出现 [window] opened KDE Wayland Compositor 1280x720。
-  - host 统计出现 GPU frames，不再出现 kwin software fallback / black picture。
-  - KDE 桌面、任务栏、应用菜单正常。
-- 分辨率：
-  - displayResolution.lxqt 设为 720p（1280x720）。
-  - 720p 与 900p 的 vkgears 都是约 119.8 FPS，说明 GPU 已到 120 Hz 上限；720p 只减少缩放/带宽。
-- Steam 大屏幕模式：
-  - app 的“游玩 Steam”使用 gamescope/Big Picture。
-  - DroidDeckWayland 日志：Steam 大屏幕模式 1280x720，86.4 fps，875 GPU frames。
-  - 可用 Steam 登录页。
+Needs Docker, Java 17, the Android SDK and NDK, Rust via rustup, GitHub CLI, Python 3 and `zstd`.
 
-### 4.4 UI / 桥接文案
+```bash
+tools/build_local.sh
+```
 
-- GpuInfo 恢复 bridge-aware supportText(bridge)，新增 gpuinfo_bridge / gpuinfo_bridge_off 字符串。
-- DeviceInfo / DeviceReport / DriverMenus 使用当前 Mali 桥接状态显示支持文案。
-- LinuxRuntime 恢复 bridgeStandIn 的 DRM render node 回退逻辑。
-- 注意：Setup 顶部仍可能显示“GPU 不受支持”的旧标签（GpuDriversState 的 unsupported 标志），但下方已显示“实验性 Vulkan 桥接已开启”，桥接实际工作正常。
+The APK lands in `app/build/outputs/apk/release/`. Install it with `tools/deploy_local.sh`. After the first run, `./gradlew :app:assembleRelease` reuses the prepared inputs. Unit tests run with `./gradlew -PskipRust=true :app:testDebugUnitTest`, and the helper and preload suite with `bash tools/test_local.sh`.
 
-## 5. DNS 与 Steam
+On Windows, see `tools/run_windows.ps1` and `tools/prepare_windows_runtime.py`.
 
-### 5.1 根因
+## Limits
 
-- guest /etc/resolv.conf 被写成：
-  - 1.1.1.1
-  - 8.8.8.8
-  - 2001:4860:4860::8888
-- 当前网络下这些公共 DNS 解析超时：
-  - curl: (28) Resolving timed out after 10001 milliseconds
-- 设备实际 WiFi DNS 是 192.168.1.1；guest 改用该 DNS 后：
-  - getent 能解析 client-update.steamstatic.com。
-  - curl -I https://client-update.steamstatic.com/steam_client_linuxarm64 返回 200。
-- 结论：Steam 下载失败是 DNS，不是 Steam/GPU/代理。
+Compatibility and performance vary by device. Desktop compositing is software rendered, and Firefox sandboxing is reduced under proot.
 
-### 5.2 已修复：App 自动获取本地 DNS
+## Credits and licence
 
-- 修改 app/src/main/java/com/droiddeck/launcher/runtime/LinuxNetworkLinkComponent.kt：
-  - 新增 localDnsServers()，用 ConnectivityManager.allNetworks 遍历 WiFi/Ethernet 网络（排除 VPN）。
-  - 收集这些网络的 DNS，并把默认路由 gateway 作为本地 DNS 兜底。
-  - 私有地址（192.168/10.x）和 IPv4 优先。
-  - writeResolver 的顺序：localDnsServers() + 当前 active network DNS + 公共 DNS 兜底。
-- 验证（2026-11-01，dnsfix APK）：
-  - logcat：LinuxNetworkLink: resolver: 192.168.1.1 8.8.8.8 1.1.1.1 2001:4860:4860::8888
-  - guest /etc/resolv.conf 第一行是 nameserver 192.168.1.1。
-  - getent hosts store.steampowered.com 正常；curl -I https://store.steampowered.com 返回 200。
-  - 旧 guest DNS 守护 /root/.config/plasma-workspace/env/01-dns-guard.sh 已删除；没有守护进程仍正常。
-- 说明：只取 WiFi/Ethernet 的本地 DNS；没有 WiFi/Ethernet 时回退到 active network/公共 DNS。VPN 的 10.10.14.1 不会被误当 DNS。
+DroidDeck is [GPL-3.0](LICENSE). Steam and Proton belong to Valve Corporation. VITURE, RayNeo, XREAL, Rokid, REDMAGIC, Nintendo Switch and Joy-Con are trademarks of their owners. This project is not affiliated with any of them.
 
-### 5.3 Steam 客户端修复
+<details>
+<summary><b>Runtime, Wine and Proton</b></summary>
 
-- Steam 主程序下载后权限为 666：
-  - /root/.local/share/Steam/steamrtarm64/steam
-  - 需 chmod +x；更新后变为 700 也可执行。
-- 需要数据目录软链接：
-  - /root/.steam/steam -> /root/.local/share/Steam
-  - /root/.steam/root -> /root/.local/share/Steam
-- stale pid：
-  - /root/.steam/steam.pid 可能残留已死 PID，导致 “Steam is already running”；启动前删除。
-- 不要在 Konsole 里用桌面 UI 方式启动 steam：
-  - 会走 Xwayland/CEF，遇到 XRRGetOutputInfo() is not available / 无窗口。
-  - 应从 DroidDeck 的“游玩 Steam”启动 Big Picture/gamescope。
-- 已验证（2026-11-01）：
-  - Steam 客户端更新 575,927 KB 到 100%。
-  - Big Picture 已登录，库中显示 Shadow of the Tomb Raider 等游戏。
-  - 32 位 steamrtarm32/steam-runtime-launcher-service 缺失的日志仍会出现，但 Big Picture 可用；游戏启动尚未验证。
+- Runtime, shim, input and controller work build on WinNative and Bannerlator by maxjivi05.
+- mmap ring buffer controller input by ribbit384 ([WinNative #345](https://github.com/WinNative-Emu/WinNative/pull/345)).
+- [FEX](https://github.com/FEX-Emu/FEX) (MIT) runs x86 code. DroidDeck's build puts the platform name under `AT_PLATFORM` so [sharun](https://github.com/VHSgunzo/sharun) AppImages by VHSgunzo (MIT) start through its [userland-execve](https://crates.io/crates/userland-execve) loader (MIT). FEX's code disk cache was checked in its source.
+- x86 AppImages, and arm64 ones whose runtime can't unpack on Android, are unpacked with [uruntime](https://github.com/VHSgunzo/uruntime) by VHSgunzo (MIT), shipped unmodified with its licence.
+- x86 programs linking OpenSSL 3 use the copy in the [Steam Linux Runtime 4.0](https://gitlab.steamos.cloud/steamrt/steamrt). x86 Linux games get the `/etc/asound.conf` that [pressure-vessel](https://gitlab.steamos.cloud/steamrt/steam-runtime-tools) writes.
+- `WriteProcessMemory` hooks fall back to `/proc/<pid>/mem` the way [Wine](https://gitlab.winehq.org/wine/wine)'s `server/ptrace.c` did before Wine 11.
+- Wine write watches use userfaultfd support in [Proton](https://github.com/ValveSoftware/wine)'s `dlls/ntdll/unix/virtual.c` (LGPL-2.1-or-later). libblsession supplies the arm64 syscall number and answers `PAGEMAP_SCAN` from `/proc/self/pagemap`.
+- libblsession runs Wine's arm64 `SIGUSR2` context handler (`dlls/ntdll/unix/signal_arm64.c`, LGPL-2.1-or-later) in place on a frame laid out like [Linux](https://github.com/torvalds/linux)'s `arch/arm64/kernel/signal.c`, and serves `fill_vm_counters` in `dlls/ntdll/unix/process.c` the kernel's own `/proc/<pid>/status`.
+- droiddeck-ntsync follows the [Linux](https://github.com/torvalds/linux) ntsync semantics in `Documentation/userspace-api/ntsync.rst` (GPL-2.0).
+- The proot fast path orders bindings like [PRoot](https://github.com/proot-me/proot)'s `path/binding.c` (GPL-2.0-or-later).
+- DiRT 3 and DiRT Showdown keep their telemetry socket the way RoccoC's DiRTTelemetryErrorFix (MIT) does, based on the fix by Carsten Gottschling.
+- Games use [Mesa](https://gitlab.freedesktop.org/mesa/mesa) Turnip's per render pass memory choice. The Steam client keeps `TU_DEBUG=sysmem`.
+- Black Ops III and Dark Souls Remastered start without [umu-protonfixes](https://github.com/Open-Wine-Components/umu-protonfixes) (BSD-2-Clause), whose `311210.py` and `570940.py` fail under ARM64 Proton.
+- [ReSkate](https://github.com/Dingo-Shenanigans/ReSkate) (GPL-3.0) by Dingo Shenanigans uses the launch option from its README and D3D12 feature level 12_1.
+- The arm64 client's sign in was checked by reading Steam's saved token with the `ConnectCache` format from [deadlock-api-ingest](https://github.com/deadlock-api/deadlock-api-ingest).
 
-## 6. 性能测试
+</details>
 
-### 6.1 存储 IO
+<details>
+<summary><b>Stores</b></summary>
 
-| 路径 | 写 | 读 |
-|---|---:|---:|
-| Android /data/local/tmp | 1.0 GB/s | 4.7 GB/s |
-| Android /sdcard | 0.94 GB/s | 4.3 GB/s |
-| Guest proot（fast path off） | 1.2 GB/s | 3.9 GB/s |
+- Epic Games and GOG build on [Phobos](https://github.com/phobos665)'s adaptation of [Legendary](https://github.com/legendary-gl/legendary) and [gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl). GOG install script registry entries are read the way [Heroic Games Launcher](https://github.com/Heroic-Games-Launcher/HeroicGamesLauncher) (GPL-3.0) reads them.
+- Epic's official Linux launcher preview runs through FEX. That setup is outside Epic's listed Linux support.
+- Battle.net is by [@kayakyakr](https://github.com/kayakyakr). It runs Blizzard's own client in Proton (downloaded from Blizzard, not included) and shows key art from the [Battle.net Shop](https://shop.battle.net). Without Steam, its games see the pad as an Xbox 360 controller via `PROTON_SPOOF_STEAMINPUT_VIDPID` in [Proton](https://github.com/ValveSoftware/wine)'s `dlls/winebus.sys`.
+- Battle.net installs drive Blizzard's Agent the way [@barncastle](https://github.com/barncastle)'s [Battle.Net-Installer](https://github.com/barncastle/Battle.Net-Installer) does, with requests from [wowdev.wiki](https://wowdev.wiki/Agent). Read without taking code: [@mubaraknumann](https://github.com/mubaraknumann)'s [unifideck](https://github.com/mubaraknumann/unifideck), [@djmittens](https://github.com/djmittens)'s [neo-mittens](https://github.com/djmittens/neo-mittens) `bnetswitch`, [@BCD1210](https://github.com/BCD1210)'s [soju](https://github.com/BCD1210/soju) and [Lutris](https://github.com/lutris/lutris)'s `product.db` reader.
+- Xbox games load [@domsvoboda](https://github.com/domsvoboda)'s [xodus-nexus](https://github.com/domsvoboda/xodus-nexus) modules (LGPL-2.1-or-later), including `wintypes.dll`. Minecraft's GameInput setup was checked against [@Wyze3306](https://github.com/Wyze3306)'s [BedrockOnLinux](https://github.com/Wyze3306/BedrockOnLinux) (MIT).
+- The Xbox Cloud Gaming player uses the WebRTC client of [@unknownskl](https://github.com/unknownskl)'s [Greenlight](https://github.com/unknownskl/greenlight) (MIT), and its offer tweaks and sharpening follow [@redphx](https://github.com/redphx)'s [Better xCloud](https://github.com/redphx/better-xcloud) (MIT). See `tools/xcloud-player/NOTICE.md`.
+- The itch.io butler pack ships butler's `7z.so`, itch.io's build of [7-Zip](https://www.7-zip.org) by Igor Pavlov (LGPL-2.1, unRAR restriction on RAR code), unmodified. Other archives use Apache Commons Compress and the runtime's bsdtar (libarchive).
+- The Store uses [Flatpak](https://github.com/flatpak/flatpak) (LGPL-2.1) through DroidDeck's own bubblewrap shim. Chromium and Electron apps start directly, since [zypak](https://github.com/refi64/zypak) by [@refi64](https://github.com/refi64) (BSD-3-Clause) always uses Flatpak's spawn portal.
+- Folder sync runs [Syncthing](https://github.com/syncthing/syncthing) (MPL-2.0), built from [@researchxxl](https://github.com/researchxxl)'s [syncthing-android](https://github.com/researchxxl/syncthing-android) fork (MPL-2.0).
 
-Guest 读取比 host 低约 17%，是 proot 路径开销；写入不慢。
+</details>
 
-### 6.2 CPU
+<details>
+<summary><b>Audio, video and HUD</b></summary>
 
-| 项目 | Host | Guest |
-|---|---:|---:|
-| sha256 256 MB 单线程 | 267 ms | 207 ms |
-| sha256 4x256 MB 4 线程 | 256 ms（约 4 GB/s 聚合） | 216 ms（约 4.7 GB/s 聚合） |
-| gzip -1 256 MB | 307 ms | 405 ms（+32%） |
+- Steam audio goes through [@The412Banner](https://github.com/The412Banner)'s [DirectAudio](https://github.com/The412Banner/directaudio) PulseAudio sink (LGPL-2.1-or-later), built from `tools/directaudio/sink`.
+- The DroidDeck HUD is [@The412Banner](https://github.com/The412Banner)'s [FusionHUD](https://github.com/The412Banner/FusionHUD) (GPL-3.0 with an attribution term). Its readings match Valve's [MangoHud](https://github.com/flightlessmango/MangoHud) build (MIT), with frame times from gamescope patch 0125.
+- The HUD's CPU, GPU load, thermal and battery readers come from [@xXJSONDeruloXx](https://github.com/xXJSONDeruloXx)'s work.
+- LSFG frame generation comes from Camille LaVey and the [Eden](https://eden-emu.dev) project, following [lsfg-vk](https://github.com/PancakeTAS/lsfg-vk), ported by [@maxjivi05](https://github.com/maxjivi05). It needs your own copy of [Lossless Scaling](https://store.steampowered.com/app/993090/) and ships none of its shaders.
+- Remote Play decodes through Android's MediaCodec or the [FFmpeg](https://ffmpeg.org) (LGPL-2.1-or-later) in Steam's runtime. Qualcomm low latency settings follow [Moonlight](https://github.com/moonlight-stream/moonlight-android) (GPL-3.0).
+- [PipeWire](https://gitlab.freedesktop.org/pipewire/pipewire) (MIT) sockets use the settings in its `module-access.c`, and [WirePlumber](https://gitlab.freedesktop.org/pipewire/wireplumber) (MIT) keeps those clients at full permissions.
 
-注意：host/guest 的 sha256 实现不同，不能直接比较；gzip 更接近，proot 下约慢 30%。
+</details>
 
-### 6.3 GPU
+<details>
+<summary><b>Desktop</b></summary>
 
-- vkgears：119.86 FPS（600 帧/5 秒），720p 与 900p 基本一致，已到 120 Hz 上限。
-- 早期桥接基准：128 MiB copy 20.5 GB/s；空 submit 约 70 µs；4 KiB copy+submit 约 285 µs。
-- Steam Big Picture：1280x720，约 86.4 fps，875 GPU frames。
-- vkcube 在纹理路径触发断言（demo_prepare_texture_image），属于桥接兼容性问题，不是性能问题。
+- The KDE pacman repository snapshots [Arch Linux ARM](https://archlinuxarm.org) and installs with [pacman](https://gitlab.archlinux.org/pacman/pacman) (GPL-2.0-or-later).
+- [KWin](https://invent.kde.org/plasma/kwin) (GPL-2.0-or-later) is patched to pass on the scroll data its `wayland_backend.cpp` leaves as a TODO.
+- Read without taking code: [Qt](https://code.qt.io/cgit/qt/qtbase.git)'s `qwaylandinputdevice.cpp` and `qguiapplication.cpp`, [Konsole](https://invent.kde.org/utilities/konsole)'s `TerminalDisplay.cpp`, and [Mesa](https://gitlab.freedesktop.org/mesa/mesa)'s `u_threaded_context.c` and `zink_resource.c`.
+- The Steam Keyboard window rule follows Valve's `steamdeck-kde-presets` with [Bazzite](https://github.com/ublue-os/bazzite)'s `0001-steam-virtual-keyboard.patch`.
+- Steam's Browse buttons open a GTK 3 file chooser via PyGObject (LGPL-2.1-or-later), shown over Steam by [gamescope](https://github.com/ValveSoftware/gamescope) (BSD-2-Clause) through `GetAppIdFromReaper`.
+- The AYN Odin 2 phantom second display was confirmed by [@SapphireRhodonite](https://github.com/SapphireRhodonite)'s [WatermelonDS 0.0.5](https://github.com/SapphireRhodonite/WatermelonDS/releases/tag/0.0.5) notes and [iiSU #363](https://github.com/iisu-network/iiSU/issues/363), without taking their code.
 
-### 6.4 温度 / 内存
+</details>
 
-- CPU 29–33 °C，GPU 31–46.5 °C，Thermal Status 0，无节流。
-- 电池约 28 °C，64%。
-- 内存：15.7 GB 总，约 8.3 GB 已用，7.1 GB 可用，swap 约 2.6 GB。
-- 没有内存告急，但 swap 偏高；游戏前可重启/关闭后台。
+<details>
+<summary><b>Smart glasses</b></summary>
 
-### 6.5 v25 复测（2026-11-01 18:32）
+- Builds on WinNative's VITURE work. Protocol checked against [@wheaney](https://github.com/wheaney)'s [XRLinuxDriver](https://github.com/wheaney/XRLinuxDriver), [@badicsalex](https://github.com/badicsalex)'s [ar-drivers-rs](https://github.com/badicsalex/ar-drivers-rs) and [go-macos/iokit](https://pkg.go.dev/github.com/go-macos/iokit/viture). The optional VITURE SDK is not included.
+- The VITURE protocol V2 frames adapt [@elasticjava](https://github.com/elasticjava)'s [viture-v2](https://github.com/elasticjava/viture-v2) (MIT) by Holger Bartnick. See `docs/third-party/viture-v2`.
+- RayNeo adapts [@informalTechCode](https://github.com/informalTechCode)'s [RayNeo-Air-Series-3DoF-Scaffold](https://github.com/informalTechCode/RayNeo-Air-Series-3DoF-Scaffold) (Apache-2.0) and references [@verncat](https://github.com/verncat)'s [RayNeo-Air-3S-Pro-OpenVR](https://github.com/verncat/RayNeo-Air-3S-Pro-OpenVR) (MIT) and [Monado](https://gitlab.freedesktop.org/monado/monado) (BSL-1.0). See [docs/third-party/rayneo](docs/third-party/rayneo/README.md).
+- XREAL 1S references XRLinuxDriver and [xrealOneDeviceKit](https://github.com/wheaney/xrealOneDeviceKit) by @wheaney, [@rohitsangwan01](https://github.com/rohitsangwan01)'s [xreal_one_driver](https://github.com/rohitsangwan01/xreal_one_driver) (MIT) and [@0xcaff](https://github.com/0xcaff)'s [xr-tools](https://github.com/0xcaff/xr-tools).
+- Rokid follows ar-drivers-rs, @badicsalex's [Void Computing write-ups](https://voidcomputing.hu/blog/worse-better-prettier/) and Monado's Rokid driver.
+- REDMAGIC display findings draw on [@mekhontsev](https://github.com/mekhontsev)'s [MagicDesk investigation](https://github.com/mekhontsev/magicdesk/blob/main/docs/xr-resolution-fix.md) and [@Coding-BR](https://github.com/Coding-BR)'s [decompiled Nubia kernel](https://github.com/Coding-BR/android_kernel_nubia_sm8850_qwjujube).
 
-环境：DroidDeck v25；GPU/IO 在 lxqt 桌面 1920x1080@120 测，CPU 分别测桌面和 Steam 会话；游戏 FPS 取自 Terraria 世界内 HUD。Thermal Status 0，CPU 32.8 °C，GPU max 34.8–46.5 °C，电池 31.8 °C / 92%。
+</details>
 
-| 项目 | v25 实测 | 说明 |
-|---|---:|---|
-| sha256 256 MB 单线程 | 桌面 283–322 ms；Steam 219–241 ms | Steam 会话约 230 ms，接近此前 207 ms |
-| gzip -1 256 MB | 桌面 514–534 ms；Steam 355–357 ms | Steam 会话约 356 ms；此前约 405 ms |
-| sha256 4×256 MB | Steam 222–269 ms；桌面 262–275 ms | 4 线程 |
-| Host /data/local/tmp O_DIRECT | 写 1060 / 读 1450 MB/s | 绕过 page cache |
-| Guest /root ext4 | 写 876 / 读 2337 MB/s | fdatasync；O_DIRECT 写 1270 MB/s |
-| Guest /root/Storage | 写 920 / 读 3029 MB/s | 读受 page cache 影响 |
-| vkgears 1280x720 | 115.8 FPS，p50 111.1，p99 25 ms | 4 秒采样 |
-| vkgears 1920x1080 | 113.2 FPS，p99 31 ms | 2 秒采样 |
-| Terraria 1280x720@120 | 59.9 FPS，AVG 49.3，1% 22.7 | HUD；CPU 36% / 2668 MHz / 33 °C，GPU 1% |
-| 内存 | 总 15.7 GB，可用 8.7 GB | Guest 已用 6.7 GB，swap 2.2 GB |
+<details>
+<summary><b>VR, Joy-Con and hand tracking</b></summary>
 
-结论：GPU 与之前 119.86 FPS 基本一致（低约 3–4%），Terraria 稳定 60 FPS；IO 正常；测试期间无热节流。CPU 在 Steam 会话约 230 ms / 356 ms，接近或优于此前 207 ms / 405 ms；桌面会话因升频状态较低，v25 无 CPU 回归。
+- Joy-Con VR ports the arm model from Google's [GVR SDK for Unity](https://github.com/googlevr/gvr-unity-sdk) (Apache-2.0) and adapts the hand skeleton from Valve's [OpenVR](https://github.com/ValveSoftware/openvr) `handskeletonsimulation` sample (BSD-3-Clause), which follows Moshi Turner's work in Monado. Index offsets come from Monado's `vive_poses.c` (BSL-1.0).
+- Joy-Con research: Linux's [hid-nintendo](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-nintendo.c) by Daniel J. Ogorchock, [@dekuNukem](https://github.com/dekuNukem)'s [Nintendo_Switch_Reverse_Engineering](https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering), [SDL](https://github.com/libsdl-org/SDL) and AOSP. Checked against [ALVR](https://github.com/alvr-org/ALVR), [OpenComposite](https://gitlab.com/znixian/OpenOVR), [PSMoveSteamVRBridge](https://github.com/HipsterSloth/PSMoveSteamVRBridge), [@F8LEFT](https://github.com/F8LEFT)'s [JoyConVr](https://github.com/F8LEFT/JoyConVr), [@krnelpan1c](https://github.com/krnelpan1c)'s [Daydream-Controller-SteamVR](https://github.com/krnelpan1c/Daydream-Controller-SteamVR), [@yoyobuae](https://github.com/yoyobuae)'s [joyconvr](https://github.com/yoyobuae/joyconvr), [Moonlight](https://github.com/moonlight-stream/moonlight-android) and [Dolphin](https://github.com/dolphin-emu/dolphin). See [docs/third-party/joycon](docs/third-party/joycon/README.md).
+- Camera hand tracking runs Google's [MediaPipe](https://github.com/google-ai-edge/mediapipe) Pose Landmarker (Lite), BlazePose GHUM 3D and Hand Landmarker (Apache-2.0) on [CameraX](https://developer.android.com/jetpack/androidx/releases/camera) frames (Apache-2.0), with usage reports off. Checked against JoyConVr's camera app (MIT).
+- Tracking math: the GVR arm model's accelerometer mode, Eric Foxlin's zero velocity updates, Frosio, Pedersini and Borghese's accelerometer autocalibration, a Kalman filter (Kalman, 1960), Horn's quaternion method (1987) and the 1€ filter (Casiez, Roussel and Vogel, 2012).
+- Gestures follow [ALVR](https://github.com/alvr-org/ALVR)'s `hand_gestures.rs` (MIT) and Meta Quest's menu pinch, tuned on [HaGRID](https://github.com/hukenovs/hagrid) photos (CC BY-SA 4.0, not included).
+- The glove model follows OpenVR's render model reference, is meshed with surface nets (Gibson, 1998; Mikola Lysenko), and uses Inigo Quilez's smooth minimum, distance field ambient occlusion and polygon distance (MIT). See [docs/third-party/handtracking](docs/third-party/handtracking/README.md).
 
-## 7. 构建与安装
+</details>
 
-- 构建：
-  - cd /home/g/openMali/DroidDeck
-  - ./gradlew :app:assembleRelease -PndkVersion=27.3.13750724
-- 修改 runtime inputs 后先记录：
-  - python3 tools/release/runtime_inputs.py record
-- APK（DNS 自动修复 + GPU 状态文案 + HUD/CPU 温度 + mscoree 兜底，当前安装）：
-  - /home/g/openMali/output/DroidDeck-0.6.7-Mali-rc4-dnsfix-v25.apk
-  - 76 MB；versionCode 25；versionName 0.6.7-dnsfix-v25
-  - SHA-256 9808a8ab17f2d9a39e0b3abc9a05c2ee1c07ec7f4ac7cfa77866b2229fb6eb82
-  - 上一版保留：v24（SHA-256 56b0ab03c0120c2a7a6ad0e4ed8d30a748021d7fe9e99a13b60f62a41e13b5e0）、v23（SHA-256 b0fadc5c...）、v22（SHA-256 69cd4f5f...）、v21（SHA-256 508294a6...）、v20（SHA-256 afd1ce12...）、v19（SHA-256 f63f4eae...）、v18（SHA-256 cc469703...）、v16 DroidDeck-0.6.7-Mali-rc4-dnsfix.apk（SHA-256 6c5f8c1f...）和 DroidDeck-0.6.7-Mali-rc4.apk（无 App 内 DNS 修复，SHA-256 c58fcc58...）。
-  - testkey 签名；官方 release 私钥不在本机。
-- MIUI 安装：
-  - 对已安装的旧包，adb push + adb shell pm install -r 可更新。
-  - 对全新安装，MIUI 会报 INSTALL_FAILED_USER_RESTRICTED；需用文件管理器打开 APK，走 PackageInstaller，并在“是否允许 Shell 安装应用”点允许。
-  - 官方 0.6.9 是 release key，testkey 包不能就地升级/降级；必须完整卸载，App 数据会被清空。
+## Star history
 
-## 8. 当前安装状态
-
-- com.droiddeck.launcher：0.6.7-dnsfix-v25（versionCode 25，testkey），2026-11-01 18:25 就地更新安装，App 数据保留。
-- GPU 状态：Setup 概览显示“GPU 通过 Mali 桥接”，绿色通过；不再显示“GPU 不受支持”。实现为 FrontEndSetup 的 gpuOk 包含 s.vkBridge，并新增 setup_gpu_bridged 文案。
-- 修复“清数据重启后 GPU 菜单消失”：showChecks 默认值从 false 改为 s.vkBridge；桥接开启时详情默认展开，GPU 行直接可见。已在 pm clear 后重新启动验证。
-- HUD：XRing/Mali 的 GPU load/clock/temp/thermal sysfs 对普通 App 拒绝访问，日志为 thermal zones 0、gpu load none、kgsl gpubusy refused。v21 在无数据时隐藏 GPU 统计行、VRAM=0 时隐藏 VRAM，只保留 GPU 型号；真正 GPU% / 温度 / 共享显存需要 root 或厂商遥测。
-- HUD 分辨率/卡死：v22 的 RES 不再用 Android displayMetrics 兜底，改用会话逻辑分辨率；桌面模式隐藏游戏 HUD，Steam/游戏模式显示。实测 Steam 下 HUD 为 RES 1280x720 @ 120Hz、FPS 42.8 / AVG 53.0。
-- CPU 温度/频率：v23 增加 USB/adb 辅助的 CPU 温度输入（/sdcard/DroidDeck/cpu-temp，由 update_cpu_temp.sh 每 2 秒写 cpu_therm）；v24 把 HUD 的 CPU 行顺序改为“占用 → 频率 → 温度”，Full/Mega/Tiles 三种布局都生效。
-- 安装方式：官方 0.6.9（release key）与 testkey 不兼容，完整卸载 0.6.9 后通过 PackageInstaller 安装；App 数据已被清空，当前是全新状态（首次启动显示配置页）。
-- DNS 自动修复已在 APK 内；运行时 ubuntu-r1-rc4、Mali 桥接、proot、桌面需要重新下载/配置；此前 Steam Big Picture 和 1280x720 KWin 已验证，但当前新数据需重新登录。
-- com.droiddeck.launcher.mali：旧 0.5.4.2 仍安装，桌面可用，用于对比。
-- 注意：Steam chmod/软链接/pid 清理仍是 guest 运行时修改；清除 App 数据或重装运行时会丢失。
-- Terraria 1.4.5.8 启动修复（2026-11-01）：`dotnet40` 组件把 `WINEDLLOVERRIDES` 设为 `mscoree=n`，但该组件没有原生 `mscoree.dll`，Wine 报 `mscoree.dll not found` 后直接退出。v25 的 `droiddeck-wincomponents` 对 `mscoree=n` 自动追加 builtin 回退（`mscoree=n,b`）；`dotnet40` 仍启用时，Terraria 已稳定进入世界并显示 HUD。
-
-## 9. 已知问题 / 下一步
-
-1. DNS 自动修复已完成（见 5.2）；仍需在不同 WiFi/无 WiFi 环境下回归，确认 localDnsServers 的回退行为。
-2. Steam 桌面 UI 在 Xwayland 下仍可能无窗口；继续使用“游玩 Steam”/Big Picture，不要用 Konsole 直接 steam。
-3. Steam 32 位组件 steamrtarm32 / steam-runtime-launcher-service 缺失；Big Picture 可用。Terraria 1.4.5.8 已进入世界，其他游戏仍待验证。
-4. vkcube 纹理断言是桥接兼容性 bug，可单独排查。
-5. 真实游戏帧率/Proton/DXVK 尚未测试；当前性能数据主要是桌面、vkgears、IO/CPU。
-6. 仍是 testkey；如需官方升级安装，需要官方 release keystore。
-7. 官方 0.6.9 与 testkey 不兼容：只能完整卸载后安装，App 数据会丢；官方 APK 备份在 /tmp/installed-069.apk（宿主）和 /sdcard/Download/DroidDeck-0.6.9.apk（平板），回滚同样要先卸载。
-8. HUD 的 Mali GPU load/temp/VRAM 受驱动 sysfs 权限限制；除非 root/厂商接口，普通 App 无法获取。v21 已移除误导性的 GPU - 和 VRAM 0.0，保留 GPU 型号。
-
-## 10. 已放弃 / 不再使用
-
-- r9 + 旧 session/helper/host 组合：KWin 窗口不稳定/黑屏，放弃。
-- proot fast path：实测负优化，关闭。
-- 代理强制给 Steam：本地 DNS 直连更稳定；Steam 更新器对 proxy 环境并不可靠。
-
-## 截图
-
-Terraria 1.4.5.8 在 DroidDeck v25 + Mali 桥接 + Wine Mono 下进入世界。HUD 的 CPU 行是“占用 → 频率 → 温度”：
-
-![DroidDeck v25 HUD / Terraria](docs/images/droiddeck-hud-v25-terraria.png)
+<a href="https://www.star-history.com/#Droid-Deck/DroidDeck&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Droid-Deck/DroidDeck&type=Date&theme=dark">
+    <img alt="Star history chart" src="https://api.star-history.com/svg?repos=Droid-Deck/DroidDeck&type=Date" width="100%">
+  </picture>
+</a>
