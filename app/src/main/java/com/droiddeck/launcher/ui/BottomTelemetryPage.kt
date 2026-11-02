@@ -455,8 +455,7 @@ private fun httpGet(url: String): String {
     }
 }
 
-
-
+internal fun steamClientLabel(arch: String): Int = if (arch == "x86_64") R.string.stats_steam_client_x86 else R.string.stats_steam_client_arm
 
 @Composable
 private fun SwitchRow(title: String, hint: String?, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
