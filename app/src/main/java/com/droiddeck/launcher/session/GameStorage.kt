@@ -57,6 +57,14 @@ object GameStorage {
     fun usbDrive(context: Context): File? =
         hiddenUsb(context).firstOrNull { it.canWrite() }
 
+    /** Volume identity shared by its /storage and /mnt/media_rw legs, so both spellings match. */
+    internal fun volumeUuid(path: String): String? = when {
+        path.startsWith("/storage/") ->
+            path.removePrefix("/storage/").substringBefore('/').takeIf { it != "emulated" && it != "self" }
+        path.startsWith("/mnt/media_rw/") -> path.removePrefix("/mnt/media_rw/").substringBefore('/')
+        else -> null
+    }
+
     fun usbLabel(context: Context): String = context.getString(R.string.usb_root_volume)
 
     fun free(dir: File): String = try {

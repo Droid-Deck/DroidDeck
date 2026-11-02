@@ -960,6 +960,20 @@ class SessionService : Service() {
         SessionState.fakeInputDir = fakeInputDir
     }
 
+    /** The auto-bound USB drive must not duplicate the card or a manually added Steam library. */
+    private fun usbCovered(drive: File, card: File?): Boolean {
+        val canon = runCatching { drive.canonicalPath }.getOrDefault(drive.absolutePath)
+        val uuid = GameStorage.volumeUuid(canon) ?: GameStorage.volumeUuid(drive.absolutePath)
+        fun matches(other: File, otherPath: String): Boolean {
+            val otherCanon = runCatching { other.canonicalPath }.getOrDefault(otherPath)
+            if (SteamLibraries.overlaps(canon, otherCanon)) return true
+            val otherUuid = GameStorage.volumeUuid(otherCanon) ?: GameStorage.volumeUuid(otherPath)
+            return uuid != null && uuid == otherUuid
+        }
+        if (card != null && matches(card, card.absolutePath)) return true
+        return SteamLibraries.list(this).any { matches(it.host, it.path) }
+    }
+
     private fun sessionBinds(
         controllersOn: Boolean,
         fakeInputDir: File,
@@ -1086,8 +1100,10 @@ class SessionService : Service() {
         if (storageDiagnosticLibrary != null && library != null) libraries.add(SecondaryLibrary.CARD_GUESTS[0] to library.label)
         // A hidden USB drive is a library of its own beside the card, bound like a Games folder.
         // getExternalFilesDirs never lists it: vold mounts USB-OTG at /mnt/media_rw but hides it from apps.
+        // Skip it when the same drive is already covered, or Steam would list it twice.
         val usb = if (SessionPrefs.gameStorage(this) != SessionPrefs.GAME_STORAGE_OFF) {
-            GameStorage.usbDrive(this)?.let { GameStorage.Library(it, SecondaryLibrary.USB_GUEST, GameStorage.usbLabel(this)) }
+            GameStorage.usbDrive(this)?.takeUnless { drive -> usbCovered(drive, library?.let(::File)) }
+                ?.let { GameStorage.Library(it, SecondaryLibrary.USB_GUEST, GameStorage.usbLabel(this)) }
         } else null
         if (usb != null) {
             File(LinuxRuntime.rootDir(this), usb.guest.removePrefix("/")).mkdirs()
