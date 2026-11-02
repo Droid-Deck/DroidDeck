@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">Steam이 다운로드 중일 때는 백그라운드 일시 중지를 미룹니다.</string>
     <string name="mode_suspend_note">자동: 백그라운드에서 일시 중지되고 다시 표시되면 재개됩니다. 수동: \"재개\"를 탭할 때까지 기다립니다. 안 함: 계속 실행됩니다.</string>
     <string name="mode_startup">시작</string>
-    <string name="mode_steam_startup">DroidDeck을 열 때 Steam 시작</string>
-    <string name="mode_steam_startup_hint">DroidDeck이 시작될 때 Steam 세션을 엽니다.</string>
+    <string name="mode_startup_session">실행 시 열기</string>
+    <string name="mode_startup_session_hint">DroidDeck을 실행할 때 이 세션을 시작합니다.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">릴리스 확인 중…</string>
     <string name="mode_decky_ready">%1$s을(를) 설치할 준비가 되었습니다.</string>
@@ -878,13 +878,9 @@
     <string name="setup_fullscreen">전체 화면</string>
     <string name="setup_fullscreen_on">Android 상태 표시줄 및 탐색 표시줄 숨기기</string>
     <string name="setup_fullscreen_off">Android 상태 표시줄 및 탐색 표시줄 표시</string>
-    <string name="setup_dual_screen">듀얼 화면</string>
-    <string name="setup_dual_screen_hint">자동은 두 번째 화면이 내장된 휴대용 기기에서 그 화면을 사용합니다. 켜기는 모든 두 번째 디스플레이를 사용합니다. 끄기는 모든 것을 한 화면에 둡니다.</string>
     <string name="setup_dual_screen_auto">자동</string>
     <string name="setup_dual_screen_on">켜기</string>
     <string name="setup_dual_screen_off">끄기</string>
-    <string name="setup_dual_screen_menu">하단 화면 메뉴</string>
-    <string name="setup_dual_screen_menu_hint">섹션과 게임 중 메뉴를 두 번째 화면으로 옮기고 입력도 그곳에서 하므로 상단 화면은 전체 보기를 유지합니다. L2와 R2로 섹션을 전환합니다.</string>
     <string name="setup_dual_screen_controls">게임 중 하단 화면 컨트롤</string>
     <string name="setup_dual_screen_controls_hint">세션이 시작되면 두 번째 화면에 트랙패드와 키보드를 엽니다.</string>
     <string name="dual_typing_title">상단 화면에 입력 중</string>
@@ -1780,8 +1776,6 @@
     <string name="stats_trace">스로틀 및 브레이크, 최근 10 s</string>
     <string name="stats_speed_chart">속도, %1$s</string>
     <string name="stats_gear">기어</string>
-    <string name="stats_speed_units">속도 단위</string>
-    <string name="stats_speed_units_auto">자동(%1$s)</string>
     <string name="stats_steam_client_arm">Steam 클라이언트 ARM</string>
     <string name="stats_steam_client_x86">Steam 클라이언트 x86</string>
     <string name="stats_throttle">스로틀</string>
@@ -1799,7 +1793,6 @@
     <string name="stats_fuel_t">연료, t</string>
     <string name="stats_fuel_main">메인 %1$s t</string>
     <string name="stats_fuel_reserve">예비 %1$s t</string>
-    <string name="stats_tap_hint">상단 막대나 계기판을 탭하면 스타일이 바뀝니다.</string>
     <string name="bottom_telemetry_send_title">계기판 데이터 보내기</string>
     <string name="bottom_telemetry_send_auto">자동</string>
     <string name="bottom_telemetry_send_auto_hint">나중에 발견된 게임을 포함해 여기에 나열된 모든 게임에서 켭니다. 직접 끈 게임은 꺼진 상태로 유지됩니다.</string>
@@ -1838,7 +1831,6 @@
     <string name="bottom_telemetry_balance">잔액</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">레이싱 게임의 데이터 출력(흔히 텔레메트리 또는 UDP라고 함)을 켜면 여기에서 실시간 계기판을 볼 수 있습니다. 데이터는 이 기기에만 남습니다.</string>
     <string name="bottom_telemetry_unknown_format">포트 %1$d에서 데이터를 받고 있지만(%3$d바이트 패킷 %2$d개), 이 페이지가 아직 읽을 수 없는 형식입니다.</string>
     <string name="bottom_telemetry_port_busy">다른 프로그램이 이미 포트 %1$s을(를) 사용하고 있어 해당 게임을 여기에 표시할 수 없습니다.</string>
 
@@ -3609,4 +3601,26 @@
     <string name="second_mode_desktop">데스크톱</string>
     <string name="bottom_desktop_mode_trackpad">터치패드</string>
     <string name="bottom_desktop_title">데스크톱 · %1$s</string>
+    <string name="setup_dual_screen_launcher">듀얼 화면 런처</string>
+    <string name="setup_dual_screen_launcher_hint">자동은 런처 항목(Steam, 라이브러리, 스토어 등)을 내장 보조 화면에 표시합니다. 켜기는 모든 보조 화면을 사용합니다. 끄기는 런처를 한 화면에 유지합니다.</string>
+    <string name="setup_dual_screen_sessions">듀얼 화면 세션</string>
+    <string name="setup_dual_screen_sessions_hint">자동은 게임 메뉴를 오버레이 대신 내장 보조 화면에 표시합니다. 켜기는 모든 보조 화면을 사용합니다. 끄기는 메뉴를 게임 화면에 유지하며 메뉴에서 보조 화면을 선택할 수도 있습니다.</string>
+    <string name="stats_hud_frametime">프레임 시간</string>
+    <string name="stats_hud_last_seconds">최근 %1$d초</string>
+    <string name="stats_hud_avg_frame">평균 프레임</string>
+    <string name="stats_hud_low" formatted="false">하위 1 %</string>
+    <string name="stats_hud_slow_frames">33 ms 초과 프레임</string>
+    <string name="stats_hud_per_minute">%1$d / 분</string>
+    <string name="stats_hud_playing_for">플레이 시간: %1$s</string>
+    <string name="stats_hud_core_group">%1$d개 코어, 최대 %2$s GHz</string>
+    <string name="stats_hud_core_group_unknown">%1$d개 코어</string>
+    <string name="stats_hud_fps_of">%1$d Hz에서의 FPS</string>
+    <string name="stats_hud_red_mark">빨간 표시는 HUD가 온도를 빨간색으로 표시하는 지점입니다.</string>
+    <string name="stats_hud_whole_device">기기 전체</string>
+    <string name="bottom_hud_group">하단 화면 HUD</string>
+    <string name="bottom_strip_tabs">모든 탭에 스트립</string>
+    <string name="bottom_strip_lows" formatted="false">하위 1 % 및 0.1 %</string>
+    <string name="bottom_strip_cpu_temp">CPU 온도</string>
+    <string name="stats_hud_battery_temp">배터리</string>
+    <string name="stats_hud_game_cores">게임</string>
 </resources>

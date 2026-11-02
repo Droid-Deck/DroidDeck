@@ -40,7 +40,7 @@ class RuntimeInstallRollbackTest {
 
     private data class Attempt(val root: File, val staging: File, val old: File, val result: Boolean)
 
-    private fun attempt(failRollback: Boolean): Attempt {
+    private fun attempt(failRollback: Boolean, cancelAfterExtraction: Boolean = false): Attempt {
         val files = tmp.newFolder("files")
         val cache = tmp.newFolder("cache")
         val context = object : ContextWrapper(RuntimeEnvironment.getApplication()) {
@@ -68,8 +68,10 @@ class RuntimeInstallRollbackTest {
         val payload = ByteArrayOutputStream().also { bytes ->
             ZstdCompressorOutputStream(bytes).use { zstd ->
                 TarArchiveOutputStream(zstd).use { tar ->
-                    for ((name, value) in listOf("root/.bashrc" to "shipped home", "usr/bin/new" to "new runtime",
-                            "opt/appimages/user/block" to "shipped app")) {
+                    val entries = mutableListOf("root/.bashrc" to "shipped home", "usr/bin/new" to "new runtime",
+                        "opt/appimages/user/block" to "shipped app")
+                    if (cancelAfterExtraction) repeat(1997) { entries += "usr/share/test-$it" to "data" }
+                    for ((name, value) in entries) {
                         val data = value.toByteArray()
                         tar.putArchiveEntry(TarArchiveEntry(name).apply { size = data.size.toLong() })
                         tar.write(data)
@@ -81,7 +83,7 @@ class RuntimeInstallRollbackTest {
         val digest = MessageDigest.getInstance("SHA-256").digest(payload).joinToString("") { "%02x".format(it) }
         val faultSeen = AtomicBoolean()
         RuntimeFileTree.refuseForTest = Predicate { path ->
-            if (path == File(staging, "opt/appimages/user/block").toPath() && faultSeen.compareAndSet(false, true)) {
+            if (!cancelAfterExtraction && path == File(staging, "opt/appimages/user/block").toPath() && faultSeen.compareAndSet(false, true)) {
                 if (failRollback) put(old, "root/rollback-block", "concurrent data")
                 true
             } else failRollback && path == File(old, "root/rollback-block").toPath()
@@ -105,14 +107,33 @@ class RuntimeInstallRollbackTest {
         }.apply { isDaemon = true; start() }
         try {
             val release = LinuxRuntimeInstaller.Release("synthetic", "http://127.0.0.1:${server.localPort}/runtime.tar.zst", digest, payload.size.toLong())
-            val result = LinuxRuntimeInstaller.install(context, release, null)
-            assertTrue("the intended carry fault was not reached", faultSeen.get())
+            var extractionUpdates = 0
+            val result = LinuxRuntimeInstaller.install(context, release) { stage, _ ->
+                if (cancelAfterExtraction && stage == context.getString(com.droiddeck.launcher.R.string.rtinst_extracting) &&
+                    ++extractionUpdates == 2) Thread.currentThread().interrupt()
+            }
+            if (cancelAfterExtraction) {
+                assertEquals(2, extractionUpdates)
+                assertTrue(Thread.currentThread().isInterrupted)
+                assertFalse(faultSeen.get())
+            } else assertTrue("the intended carry fault was not reached", faultSeen.get())
             return Attempt(root, staging, old, result)
         } finally {
+            Thread.interrupted()
             server.close()
             thread.join(1000)
             RuntimeFileTree.refuseForTest = null
         }
+    }
+
+    @Test fun cancellationAfterExtractionRemovesTheCandidateAndKeepsTheOriginalRuntime() {
+        val attempt = attempt(failRollback = false, cancelAfterExtraction = true)
+        assertFalse(attempt.result)
+        assertFalse(attempt.staging.exists())
+        assertFalse(attempt.old.exists())
+        assertEquals("original user data", File(attempt.root, "root/save.dat").readText())
+        assertEquals("original app", File(attempt.root, "opt/appimages/user/game/app.AppImage").readText())
+        assertEquals("previous runtime", File(attempt.root, "usr/bin/usable").readText())
     }
 
     @Test fun aFailedCarryAndFailedRollbackKeepTheOnlyStagedCopy() {

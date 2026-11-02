@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">Відкладає призупинення у фоні, поки Steam активно щось завантажує.</string>
     <string name="mode_suspend_note">«Авто» призупиняє сеанс у фоні й відновлює, коли додаток знову на екрані. «Вручну» чекає на «Відновити». «Ніколи» — сеанс працює далі.</string>
     <string name="mode_startup">Запуск</string>
-    <string name="mode_steam_startup">Запускати Steam разом із DroidDeck</string>
-    <string name="mode_steam_startup_hint">Відкриває сеанс Steam під час запуску DroidDeck.</string>
+    <string name="mode_startup_session">Відкривати під час запуску</string>
+    <string name="mode_startup_session_hint">Запускає цей сеанс під час запуску DroidDeck.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Пошук випусків…</string>
     <string name="mode_decky_ready">Можна встановити %1$s.</string>
@@ -887,13 +887,9 @@
     <string name="setup_fullscreen">Повний екран</string>
     <string name="setup_fullscreen_on">Приховує рядок стану та панель навігації Android</string>
     <string name="setup_fullscreen_off">Показує рядок стану та панель навігації Android</string>
-    <string name="setup_dual_screen">Два екрани</string>
-    <string name="setup_dual_screen_hint">Автоматично — використовує другий екран на портативних пристроях із вбудованим другим екраном. Увімк. — використовує будь-який другий дисплей. Вимк. — усе лишається на одному екрані.</string>
     <string name="setup_dual_screen_auto">Автоматично</string>
     <string name="setup_dual_screen_on">Увімк.</string>
     <string name="setup_dual_screen_off">Вимк.</string>
-    <string name="setup_dual_screen_menu">Меню на нижньому екрані</string>
-    <string name="setup_dual_screen_menu_hint">Переносить розділи та меню в грі на другий екран, і введення відбувається там, тож верхній екран лишається повністю вільним. L2 і R2 перемикають розділи.</string>
     <string name="setup_dual_screen_controls">Керування на нижньому екрані в іграх</string>
     <string name="setup_dual_screen_controls_hint">Відкриває тачпад і клавіатуру на другому екрані під час запуску сеансу.</string>
     <string name="dual_typing_title">Введення для верхнього екрана</string>
@@ -1846,8 +1842,6 @@
     <string name="stats_trace">Газ і гальмо, останні 10 s</string>
     <string name="stats_speed_chart">Швидкість, %1$s</string>
     <string name="stats_gear">Передача</string>
-    <string name="stats_speed_units">Одиниці швидкості</string>
-    <string name="stats_speed_units_auto">Автоматично (%1$s)</string>
     <string name="stats_steam_client_arm">Клієнт Steam ARM</string>
     <string name="stats_steam_client_x86">Клієнт Steam x86</string>
     <string name="stats_throttle">Газ</string>
@@ -1865,7 +1859,6 @@
     <string name="stats_fuel_t">Пальне, t</string>
     <string name="stats_fuel_main">Основне %1$s t</string>
     <string name="stats_fuel_reserve">Резерв %1$s t</string>
-    <string name="stats_tap_hint">Торкніться верхньої смуги або панелі, щоб змінити її стиль.</string>
     <string name="bottom_telemetry_send_title">Надсилати дані для панелі</string>
     <string name="bottom_telemetry_send_auto">Автоматично</string>
     <string name="bottom_telemetry_send_auto_hint">Вмикає це для кожної гри в цьому списку, зокрема для знайдених пізніше. Ігри, які ви вимкнете, лишаються вимкненими.</string>
@@ -1904,7 +1897,6 @@
     <string name="bottom_telemetry_balance">Баланс</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Увімкніть виведення даних у гоночній грі (часто це називається телеметрією або UDP), щоб бачити тут живу панель. Дані лишаються на цьому пристрої.</string>
     <string name="bottom_telemetry_unknown_format">Порт %1$d отримує дані (пакетів: %2$d, по %3$d байт), але у форматі, який ця сторінка ще не вміє читати.</string>
     <string name="bottom_telemetry_port_busy">Порт %1$s уже використовує інша програма, тому ця гра не може відображатися тут.</string>
 
@@ -3711,4 +3703,26 @@
     <string name="second_mode_desktop">Робочий стіл</string>
     <string name="bottom_desktop_mode_trackpad">Трекпад</string>
     <string name="bottom_desktop_title">Робочий стіл · %1$s</string>
+    <string name="setup_dual_screen_launcher">Лаунчер на двох екранах</string>
+    <string name="setup_dual_screen_launcher_hint">Автоматично розміщує розділи лаунчера (Steam, Бібліотека, Крамниці та інші) на вбудованому другому екрані. Увімкнено використовує будь-який другий екран. Вимкнено залишає лаунчер на одному екрані.</string>
+    <string name="setup_dual_screen_sessions">Сеанси на двох екранах</string>
+    <string name="setup_dual_screen_sessions_hint">Автоматично розміщує меню гри на вбудованому другому екрані замість накладання. Увімкнено використовує будь-який другий екран. Вимкнено залишає меню на екрані гри; з нього й далі можна вибрати другий екран.</string>
+    <string name="stats_hud_frametime">Час кадру</string>
+    <string name="stats_hud_last_seconds">останні %1$d с</string>
+    <string name="stats_hud_avg_frame">середній кадр</string>
+    <string name="stats_hud_low" formatted="false">нижній 1 %</string>
+    <string name="stats_hud_slow_frames">кадри понад 33 мс</string>
+    <string name="stats_hud_per_minute">%1$d / хв</string>
+    <string name="stats_hud_playing_for">Час гри: %1$s</string>
+    <string name="stats_hud_core_group">%1$d ядер, до %2$s ГГц</string>
+    <string name="stats_hud_core_group_unknown">%1$d ядер</string>
+    <string name="stats_hud_fps_of">FPS за %1$d Гц</string>
+    <string name="stats_hud_red_mark">Червона позначка вказує, де HUD показує температуру червоним.</string>
+    <string name="stats_hud_whole_device">увесь пристрій</string>
+    <string name="bottom_hud_group">HUD нижнього екрана</string>
+    <string name="bottom_strip_tabs">Смуга на кожній вкладці</string>
+    <string name="bottom_strip_lows" formatted="false">нижні 1 % і 0,1 %</string>
+    <string name="bottom_strip_cpu_temp">Температура ЦП</string>
+    <string name="stats_hud_battery_temp">Батарея</string>
+    <string name="stats_hud_game_cores">Гра</string>
 </resources>

@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">Stel onderbreken op de achtergrond uit zolang Steam actief downloadt.</string>
     <string name="mode_suspend_note">Automatisch pauzeert op de achtergrond en hervat zodra de app weer zichtbaar is. Handmatig wacht op Hervatten. Nooit laat alles doorlopen.</string>
     <string name="mode_startup">Opstarten</string>
-    <string name="mode_steam_startup">Steam starten met DroidDeck</string>
-    <string name="mode_steam_startup_hint">Opent de Steam-sessie als DroidDeck start.</string>
+    <string name="mode_startup_session">Openen bij start</string>
+    <string name="mode_startup_session_hint">Start deze sessie wanneer DroidDeck start.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Zoeken naar releases…</string>
     <string name="mode_decky_ready">Klaar om %1$s te installeren.</string>
@@ -881,13 +881,9 @@
     <string name="setup_fullscreen">Volledig scherm</string>
     <string name="setup_fullscreen_on">Verbergt de statusbalk en navigatiebalk van Android</string>
     <string name="setup_fullscreen_off">Toont de statusbalk en navigatiebalk van Android</string>
-    <string name="setup_dual_screen">Dubbel scherm</string>
-    <string name="setup_dual_screen_hint">Automatisch gebruikt het tweede scherm op handhelds met een ingebouwd scherm. Aan gebruikt elk tweede scherm. Uit houdt alles op één scherm.</string>
     <string name="setup_dual_screen_auto">Automatisch</string>
     <string name="setup_dual_screen_on">Aan</string>
     <string name="setup_dual_screen_off">Uit</string>
-    <string name="setup_dual_screen_menu">Menu op het onderste scherm</string>
-    <string name="setup_dual_screen_menu_hint">Verplaatst de onderdelen en het menu in het spel naar het tweede scherm en typt daar, zodat het bovenste scherm het volledige beeld houdt. L2 en R2 wisselen van onderdeel.</string>
     <string name="setup_dual_screen_controls">Bediening op het onderste scherm in games</string>
     <string name="setup_dual_screen_controls_hint">Opent het trackpad en toetsenbord op het tweede scherm wanneer een sessie start.</string>
     <string name="dual_typing_title">Typen voor het bovenste scherm</string>
@@ -1802,8 +1798,6 @@
     <string name="stats_trace">Gas en rem, laatste 10 s</string>
     <string name="stats_speed_chart">Snelheid, %1$s</string>
     <string name="stats_gear">Versnelling</string>
-    <string name="stats_speed_units">Snelheidseenheid</string>
-    <string name="stats_speed_units_auto">Automatisch (%1$s)</string>
     <string name="stats_steam_client_arm">Steam-client ARM</string>
     <string name="stats_steam_client_x86">Steam-client x86</string>
     <string name="stats_throttle">Gas</string>
@@ -1821,7 +1815,6 @@
     <string name="stats_fuel_t">Brandstof, t</string>
     <string name="stats_fuel_main">Hoofdtank %1$s t</string>
     <string name="stats_fuel_reserve">Reserve %1$s t</string>
-    <string name="stats_tap_hint">Tik op de bovenste balk of het dashboard om de stijl te wijzigen.</string>
     <string name="bottom_telemetry_send_title">Dashboardgegevens verzenden</string>
     <string name="bottom_telemetry_send_auto">Automatisch</string>
     <string name="bottom_telemetry_send_auto_hint">Zet het aan voor elke game in deze lijst, ook voor games die later worden gevonden. Games die je uitzet, blijven uit.</string>
@@ -1860,7 +1853,6 @@
     <string name="bottom_telemetry_balance">Saldo</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Zet de gegevensuitvoer van een racegame aan (vaak telemetrie of UDP genoemd) om hier een live dashboard te zien. De gegevens blijven op dit apparaat.</string>
     <string name="bottom_telemetry_unknown_format">Poort %1$d ontvangt gegevens (%2$d pakketten van %3$d bytes), maar in een formaat dat deze pagina nog niet kan lezen.</string>
     <string name="bottom_telemetry_port_busy">Een ander programma gebruikt poort %1$s al, dus die game kan hier niet worden getoond.</string>
 
@@ -3637,4 +3629,26 @@
     <string name="second_mode_desktop">Desktop</string>
     <string name="bottom_desktop_mode_trackpad">Trackpad</string>
     <string name="bottom_desktop_title">Desktop · %1$s</string>
+    <string name="setup_dual_screen_launcher">Launcher op twee schermen</string>
+    <string name="setup_dual_screen_launcher_hint">Automatisch zet de launcheronderdelen (Steam, Bibliotheek, Winkels en andere) op het ingebouwde tweede scherm. Aan gebruikt elk tweede scherm. Uit houdt de launcher op één scherm.</string>
+    <string name="setup_dual_screen_sessions">Sessies op twee schermen</string>
+    <string name="setup_dual_screen_sessions_hint">Automatisch zet het spelmenu op het ingebouwde tweede scherm in plaats van als overlay. Aan gebruikt elk tweede scherm. Uit houdt het menu op het spelscherm; daarin kun je nog een tweede scherm kiezen.</string>
+    <string name="stats_hud_frametime">Frametijd</string>
+    <string name="stats_hud_last_seconds">laatste %1$d s</string>
+    <string name="stats_hud_avg_frame">gemiddeld frame</string>
+    <string name="stats_hud_low" formatted="false">laagste 1 %</string>
+    <string name="stats_hud_slow_frames">frames boven 33 ms</string>
+    <string name="stats_hud_per_minute">%1$d / min</string>
+    <string name="stats_hud_playing_for">Speeltijd: %1$s</string>
+    <string name="stats_hud_core_group">%1$d kernen, tot %2$s GHz</string>
+    <string name="stats_hud_core_group_unknown">%1$d kernen</string>
+    <string name="stats_hud_fps_of">FPS bij %1$d Hz</string>
+    <string name="stats_hud_red_mark">De rode markering geeft aan waar de HUD de temperatuur rood toont.</string>
+    <string name="stats_hud_whole_device">hele apparaat</string>
+    <string name="bottom_hud_group">HUD op onderste scherm</string>
+    <string name="bottom_strip_tabs">Strook op elk tabblad</string>
+    <string name="bottom_strip_lows" formatted="false">laagste 1 % en 0,1 %</string>
+    <string name="bottom_strip_cpu_temp">CPU-temperatuur</string>
+    <string name="stats_hud_battery_temp">Accu</string>
+    <string name="stats_hud_game_cores">Spel</string>
 </resources>

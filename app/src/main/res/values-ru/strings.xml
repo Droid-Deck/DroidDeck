@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">Откладывает приостановку в фоне, пока Steam что-то скачивает.</string>
     <string name="mode_suspend_note">Авто: пауза в фоне и возобновление при показе. Вручную: ждет нажатия «Продолжить». Никогда: сессия продолжает работать.</string>
     <string name="mode_startup">Запуск</string>
-    <string name="mode_steam_startup">Запускать Steam при открытии DroidDeck</string>
-    <string name="mode_steam_startup_hint">Открывает сессию Steam при запуске DroidDeck.</string>
+    <string name="mode_startup_session">Открывать при запуске</string>
+    <string name="mode_startup_session_hint">Запускает этот сеанс при запуске DroidDeck.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Проверка выпусков…</string>
     <string name="mode_decky_ready">Готово к установке %1$s.</string>
@@ -887,13 +887,9 @@
     <string name="setup_fullscreen">Полноэкранный режим</string>
     <string name="setup_fullscreen_on">Скрывает строку состояния и панель навигации Android</string>
     <string name="setup_fullscreen_off">Показывает строку состояния и панель навигации Android</string>
-    <string name="setup_dual_screen">Два экрана</string>
-    <string name="setup_dual_screen_hint">Автоматически — использует второй экран на портативных устройствах со встроенным вторым экраном. Вкл. — использует любой второй дисплей. Выкл. — всё остаётся на одном экране.</string>
     <string name="setup_dual_screen_auto">Автоматически</string>
     <string name="setup_dual_screen_on">Вкл.</string>
     <string name="setup_dual_screen_off">Выкл.</string>
-    <string name="setup_dual_screen_menu">Меню на нижнем экране</string>
-    <string name="setup_dual_screen_menu_hint">Переносит разделы и меню в игре на второй экран, и ввод выполняется там, поэтому верхний экран остаётся полностью свободным. L2 и R2 переключают разделы.</string>
     <string name="setup_dual_screen_controls">Управление на нижнем экране в играх</string>
     <string name="setup_dual_screen_controls_hint">Открывает тачпад и клавиатуру на втором экране при запуске сеанса.</string>
     <string name="dual_typing_title">Ввод для верхнего экрана</string>
@@ -1846,8 +1842,6 @@
     <string name="stats_trace">Газ и тормоз за последние 10 s</string>
     <string name="stats_speed_chart">Скорость, %1$s</string>
     <string name="stats_gear">Передача</string>
-    <string name="stats_speed_units">Единицы скорости</string>
-    <string name="stats_speed_units_auto">Автоматически (%1$s)</string>
     <string name="stats_steam_client_arm">Клиент Steam ARM</string>
     <string name="stats_steam_client_x86">Клиент Steam x86</string>
     <string name="stats_throttle">Газ</string>
@@ -1865,7 +1859,6 @@
     <string name="stats_fuel_t">Топливо, t</string>
     <string name="stats_fuel_main">Основное %1$s t</string>
     <string name="stats_fuel_reserve">Резерв %1$s t</string>
-    <string name="stats_tap_hint">Коснитесь верхней полосы или панели, чтобы сменить ее стиль.</string>
     <string name="bottom_telemetry_send_title">Передавать данные на дашборд</string>
     <string name="bottom_telemetry_send_auto">Автоматически</string>
     <string name="bottom_telemetry_send_auto_hint">Включает передачу для всех игр в этом списке, в том числе найденных позже. Игры, для которых вы ее выключили, остаются выключенными.</string>
@@ -1904,7 +1897,6 @@
     <string name="bottom_telemetry_balance">Баланс</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Включите вывод данных в гоночной игре (часто он называется телеметрией или UDP), чтобы видеть здесь приборную панель в реальном времени. Данные остаются на этом устройстве.</string>
     <string name="bottom_telemetry_unknown_format">Порт %1$d получает данные (пакетов: %2$d, размер: %3$d байт), но в формате, который эта страница пока не умеет читать.</string>
     <string name="bottom_telemetry_port_busy">Порт %1$s уже занят другой программой, поэтому эта игра не может отображаться здесь.</string>
 
@@ -3711,4 +3703,26 @@
     <string name="second_mode_desktop">Рабочий стол</string>
     <string name="bottom_desktop_mode_trackpad">Тачпад</string>
     <string name="bottom_desktop_title">Рабочий стол · %1$s</string>
+    <string name="setup_dual_screen_launcher">Лаунчер на двух экранах</string>
+    <string name="setup_dual_screen_launcher_hint">Автоматически размещает разделы лаунчера (Steam, Библиотека, Магазины и другие) на встроенном втором экране. Вкл. использует любой второй экран. Выкл. оставляет лаунчер на одном экране.</string>
+    <string name="setup_dual_screen_sessions">Сеансы на двух экранах</string>
+    <string name="setup_dual_screen_sessions_hint">Автоматически размещает меню игры на встроенном втором экране вместо наложения. Вкл. использует любой второй экран. Выкл. оставляет меню на экране игры; из него по-прежнему можно выбрать второй экран.</string>
+    <string name="stats_hud_frametime">Время кадра</string>
+    <string name="stats_hud_last_seconds">последние %1$d с</string>
+    <string name="stats_hud_avg_frame">средний кадр</string>
+    <string name="stats_hud_low" formatted="false">нижний 1 %</string>
+    <string name="stats_hud_slow_frames">кадры дольше 33 мс</string>
+    <string name="stats_hud_per_minute">%1$d / мин</string>
+    <string name="stats_hud_playing_for">Время игры: %1$s</string>
+    <string name="stats_hud_core_group">%1$d ядер, до %2$s ГГц</string>
+    <string name="stats_hud_core_group_unknown">%1$d ядер</string>
+    <string name="stats_hud_fps_of">FPS при %1$d Гц</string>
+    <string name="stats_hud_red_mark">Красная отметка указывает, где HUD показывает температуру красным.</string>
+    <string name="stats_hud_whole_device">всё устройство</string>
+    <string name="bottom_hud_group">HUD нижнего экрана</string>
+    <string name="bottom_strip_tabs">Полоса на каждой вкладке</string>
+    <string name="bottom_strip_lows" formatted="false">нижние 1 % и 0,1 %</string>
+    <string name="bottom_strip_cpu_temp">Температура ЦП</string>
+    <string name="stats_hud_battery_temp">Батарея</string>
+    <string name="stats_hud_game_cores">Игра</string>
 </resources>

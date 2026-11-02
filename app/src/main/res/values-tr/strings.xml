@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">Steam etkin olarak indirme yaparken arka planda askıya almayı erteler.</string>
     <string name="mode_suspend_note">Otomatik: arka planda duraklatır, gösterilince devam eder. Manuel: Devam et\'i bekler. Asla: çalışmaya devam eder.</string>
     <string name="mode_startup">Başlangıç</string>
-    <string name="mode_steam_startup">Steam\'i DroidDeck ile başlat</string>
-    <string name="mode_steam_startup_hint">DroidDeck açıldığında Steam oturumunu açar.</string>
+    <string name="mode_startup_session">Açılışta başlat</string>
+    <string name="mode_startup_session_hint">DroidDeck açıldığında bu oturumu başlatır.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Sürümler kontrol ediliyor…</string>
     <string name="mode_decky_ready">%1$s yüklenmeye hazır.</string>
@@ -873,13 +873,9 @@
     <string name="setup_fullscreen">Tam ekran</string>
     <string name="setup_fullscreen_on">Android durum ve gezinme çubuklarını gizler</string>
     <string name="setup_fullscreen_off">Android durum ve gezinme çubuklarını gösterir</string>
-    <string name="setup_dual_screen">Çift ekran</string>
-    <string name="setup_dual_screen_hint">Otomatik, dahili ikinci ekranı olan el konsollarında ikinci ekranı kullanır. Açık, herhangi bir ikinci ekranı kullanır. Kapalı, her şeyi tek ekranda tutar.</string>
     <string name="setup_dual_screen_auto">Otomatik</string>
     <string name="setup_dual_screen_on">Açık</string>
     <string name="setup_dual_screen_off">Kapalı</string>
-    <string name="setup_dual_screen_menu">Alt ekran menüsü</string>
-    <string name="setup_dual_screen_menu_hint">Bölümleri ve oyun içi menüyü ikinci ekrana taşır ve yazma orada yapılır, böylece üst ekran tam görünümü korur. L2 ve R2 bölümler arasında geçiş yapar.</string>
     <string name="setup_dual_screen_controls">Oyunlarda alt ekran kontrolleri</string>
     <string name="setup_dual_screen_controls_hint">Bir oturum başladığında ikinci ekranda dokunmatik yüzeyi ve klavyeyi açar.</string>
     <string name="dual_typing_title">Üst ekran için yazılıyor</string>
@@ -1794,8 +1790,6 @@
     <string name="stats_trace">Gaz ve fren, son 10 s</string>
     <string name="stats_speed_chart">Hız, %1$s</string>
     <string name="stats_gear">Vites</string>
-    <string name="stats_speed_units">Hız birimi</string>
-    <string name="stats_speed_units_auto">Otomatik (%1$s)</string>
     <string name="stats_steam_client_arm">Steam İstemcisi ARM</string>
     <string name="stats_steam_client_x86">Steam İstemcisi x86</string>
     <string name="stats_throttle">Gaz</string>
@@ -1813,7 +1807,6 @@
     <string name="stats_fuel_t">Yakıt, t</string>
     <string name="stats_fuel_main">Ana %1$s t</string>
     <string name="stats_fuel_reserve">Yedek %1$s t</string>
-    <string name="stats_tap_hint">Stilini değiştirmek için üst şeride veya göstergeye dokunun.</string>
     <string name="bottom_telemetry_send_title">Gösterge verilerini gönder</string>
     <string name="bottom_telemetry_send_auto">Otomatik</string>
     <string name="bottom_telemetry_send_auto_hint">Sonradan bulunanlar dahil, burada listelenen her oyun için açar. Kapattığınız oyunlar kapalı kalır.</string>
@@ -1852,7 +1845,6 @@
     <string name="bottom_telemetry_balance">Bakiye</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Burada canlı bir gösterge görmek için yarış oyununun veri çıkışını (genellikle telemetri veya UDP olarak geçer) açın. Veriler bu cihazda kalır.</string>
     <string name="bottom_telemetry_unknown_format">%1$d portu veri alıyor (%3$d baytlık %2$d paket), ancak bu sayfanın henüz okuyamadığı bir biçimde.</string>
     <string name="bottom_telemetry_port_busy">%1$s portunu zaten başka bir program kullanıyor, bu yüzden o oyun burada gösterilemez.</string>
 
@@ -3637,4 +3629,26 @@
     <string name="second_mode_desktop">Masaüstü</string>
     <string name="bottom_desktop_mode_trackpad">Dokunmatik yüzey</string>
     <string name="bottom_desktop_title">Masaüstü · %1$s</string>
+    <string name="setup_dual_screen_launcher">Çift ekran başlatıcı</string>
+    <string name="setup_dual_screen_launcher_hint">Otomatik, başlatıcı bölümlerini (Steam, Kitaplık, Mağazalar ve diğerleri) yerleşik ikinci ekrana koyar. Açık, herhangi bir ikinci ekranı kullanır. Kapalı, başlatıcıyı tek ekranda tutar.</string>
+    <string name="setup_dual_screen_sessions">Çift ekran oturumlar</string>
+    <string name="setup_dual_screen_sessions_hint">Otomatik, oyun menüsünü üst üste bindirmek yerine yerleşik ikinci ekrana yerleştirir. Açık, herhangi bir ikinci ekranı kullanır. Kapalı, menüyü oyun ekranında tutar; menüden yine ikinci bir ekran seçebilirsiniz.</string>
+    <string name="stats_hud_frametime">Kare süresi</string>
+    <string name="stats_hud_last_seconds">son %1$d sn</string>
+    <string name="stats_hud_avg_frame">ortalama kare</string>
+    <string name="stats_hud_low" formatted="false">en düşük %1</string>
+    <string name="stats_hud_slow_frames">33 ms üzeri kareler</string>
+    <string name="stats_hud_per_minute">%1$d / dk</string>
+    <string name="stats_hud_playing_for">Oyun süresi: %1$s</string>
+    <string name="stats_hud_core_group">%1$d çekirdek, en fazla %2$s GHz</string>
+    <string name="stats_hud_core_group_unknown">%1$d çekirdek</string>
+    <string name="stats_hud_fps_of">%1$d Hz için FPS</string>
+    <string name="stats_hud_red_mark">Kırmızı işaret, HUD’nin sıcaklığı kırmızı gösterdiği yeri belirtir.</string>
+    <string name="stats_hud_whole_device">tüm cihaz</string>
+    <string name="bottom_hud_group">Alt ekran HUD</string>
+    <string name="bottom_strip_tabs">Her sekmede şerit</string>
+    <string name="bottom_strip_lows" formatted="false">en düşük %1 ve %0,1</string>
+    <string name="bottom_strip_cpu_temp">CPU sıcaklığı</string>
+    <string name="stats_hud_battery_temp">Pil</string>
+    <string name="stats_hud_game_cores">Oyun</string>
 </resources>

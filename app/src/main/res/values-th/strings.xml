@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">เลื่อนการหยุดพื้นหลังชั่วคราวออกไปขณะ Steam กำลังดาวน์โหลดอยู่</string>
     <string name="mode_suspend_note">อัตโนมัติจะหยุดชั่วคราวเมื่ออยู่ในพื้นหลังและดำเนินการต่อเมื่อแสดงผล กำหนดเองรอการกดดำเนินการต่อ ไม่มีวันทำงานต่อเนื่องตลอด</string>
     <string name="mode_startup">การเริ่มทำงาน</string>
-    <string name="mode_steam_startup">เริ่ม Steam พร้อมกับ DroidDeck</string>
-    <string name="mode_steam_startup_hint">เปิดเซสชัน Steam เมื่อ DroidDeck เริ่มทำงาน</string>
+    <string name="mode_startup_session">เปิดเมื่อเริ่มต้น</string>
+    <string name="mode_startup_session_hint">เริ่มเซสชันนี้เมื่อเปิด DroidDeck</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">กำลังค้นหารุ่นที่เผยแพร่…</string>
     <string name="mode_decky_ready">พร้อมติดตั้ง %1$s</string>
@@ -878,13 +878,9 @@
     <string name="setup_fullscreen">เต็มจอ</string>
     <string name="setup_fullscreen_on">ซ่อนแถบสถานะและแถบนำทางของ Android</string>
     <string name="setup_fullscreen_off">แสดงแถบสถานะและแถบนำทางของ Android</string>
-    <string name="setup_dual_screen">หน้าจอคู่</string>
-    <string name="setup_dual_screen_hint">อัตโนมัติจะใช้หน้าจอที่สองบนเครื่องพกพาที่มีหน้าจอที่สองในตัว เปิดจะใช้หน้าจอที่สองใดก็ได้ ปิดจะแสดงทุกอย่างบนหน้าจอเดียว</string>
     <string name="setup_dual_screen_auto">อัตโนมัติ</string>
     <string name="setup_dual_screen_on">เปิด</string>
     <string name="setup_dual_screen_off">ปิด</string>
-    <string name="setup_dual_screen_menu">เมนูหน้าจอล่าง</string>
-    <string name="setup_dual_screen_menu_hint">ย้ายส่วนต่าง ๆ และเมนูระหว่างเล่นเกมไปที่หน้าจอที่สองและพิมพ์ที่นั่น เพื่อให้หน้าจอบนแสดงเต็มพื้นที่ L2 และ R2 ใช้สลับส่วน</string>
     <string name="setup_dual_screen_controls">ปุ่มควบคุมหน้าจอล่างในเกม</string>
     <string name="setup_dual_screen_controls_hint">เปิดแทร็กแพดและแป้นพิมพ์บนหน้าจอที่สองเมื่อเริ่มเซสชัน</string>
     <string name="dual_typing_title">กำลังพิมพ์ให้หน้าจอบน</string>
@@ -1780,8 +1776,6 @@
     <string name="stats_trace">คันเร่งและเบรก 10 s ล่าสุด</string>
     <string name="stats_speed_chart">ความเร็ว, %1$s</string>
     <string name="stats_gear">เกียร์</string>
-    <string name="stats_speed_units">หน่วยความเร็ว</string>
-    <string name="stats_speed_units_auto">อัตโนมัติ (%1$s)</string>
     <string name="stats_steam_client_arm">ไคลเอนต์ Steam ARM</string>
     <string name="stats_steam_client_x86">ไคลเอนต์ Steam x86</string>
     <string name="stats_throttle">คันเร่ง</string>
@@ -1799,7 +1793,6 @@
     <string name="stats_fuel_t">เชื้อเพลิง, t</string>
     <string name="stats_fuel_main">หลัก %1$s t</string>
     <string name="stats_fuel_reserve">สำรอง %1$s t</string>
-    <string name="stats_tap_hint">แตะแถบด้านบนหรือหน้าปัดเพื่อเปลี่ยนรูปแบบ</string>
     <string name="bottom_telemetry_send_title">ส่งข้อมูลแดชบอร์ด</string>
     <string name="bottom_telemetry_send_auto">อัตโนมัติ</string>
     <string name="bottom_telemetry_send_auto_hint">เปิดใช้สำหรับทุกเกมที่แสดงที่นี่ รวมถึงเกมที่พบในภายหลัง เกมที่คุณปิดไว้จะยังคงปิดอยู่</string>
@@ -1838,7 +1831,6 @@
     <string name="bottom_telemetry_balance">ยอดเงิน</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">เปิดการส่งออกข้อมูลของเกมแข่งรถ (มักเรียกว่าเทเลเมทรีหรือ UDP) เพื่อดูหน้าปัดแบบสดที่นี่ ข้อมูลจะอยู่บนอุปกรณ์นี้เท่านั้น</string>
     <string name="bottom_telemetry_unknown_format">พอร์ต %1$d ได้รับข้อมูล (%2$d แพ็กเก็ต ขนาด %3$d ไบต์) แต่อยู่ในรูปแบบที่หน้านี้ยังอ่านไม่ได้</string>
     <string name="bottom_telemetry_port_busy">มีโปรแกรมอื่นใช้พอร์ต %1$s อยู่แล้ว เกมนั้นจึงแสดงที่นี่ไม่ได้</string>
 
@@ -3609,4 +3601,26 @@
     <string name="second_mode_desktop">เดสก์ท็อป</string>
     <string name="bottom_desktop_mode_trackpad">แทร็กแพด</string>
     <string name="bottom_desktop_title">เดสก์ท็อป · %1$s</string>
+    <string name="setup_dual_screen_launcher">ตัวเปิดใช้สองหน้าจอ</string>
+    <string name="setup_dual_screen_launcher_hint">อัตโนมัติจะแสดงส่วนต่าง ๆ ของตัวเปิดใช้ (Steam คลัง ร้านค้า และอื่น ๆ) บนหน้าจอที่สองในตัว เปิดใช้หน้าจอที่สองใดก็ได้ ปิดแสดงตัวเปิดใช้บนหน้าจอเดียว</string>
+    <string name="setup_dual_screen_sessions">เซสชันสองหน้าจอ</string>
+    <string name="setup_dual_screen_sessions_hint">อัตโนมัติจะแสดงเมนูเกมบนหน้าจอที่สองในตัวแทนการแสดงทับ เปิดใช้หน้าจอที่สองใดก็ได้ ปิดแสดงเมนูบนหน้าจอเกม แต่ยังเลือกหน้าจอที่สองจากเมนูได้</string>
+    <string name="stats_hud_frametime">เวลาเฟรม</string>
+    <string name="stats_hud_last_seconds">%1$d วินาทีล่าสุด</string>
+    <string name="stats_hud_avg_frame">เฟรมเฉลี่ย</string>
+    <string name="stats_hud_low" formatted="false">1 % ต่ำสุด</string>
+    <string name="stats_hud_slow_frames">เฟรมนานกว่า 33 ms</string>
+    <string name="stats_hud_per_minute">%1$d / นาที</string>
+    <string name="stats_hud_playing_for">เวลาเล่น: %1$s</string>
+    <string name="stats_hud_core_group">%1$d คอร์ สูงสุด %2$s GHz</string>
+    <string name="stats_hud_core_group_unknown">%1$d คอร์</string>
+    <string name="stats_hud_fps_of">FPS ที่ %1$d Hz</string>
+    <string name="stats_hud_red_mark">เครื่องหมายสีแดงระบุจุดที่ HUD แสดงอุณหภูมิเป็นสีแดง</string>
+    <string name="stats_hud_whole_device">ทั้งอุปกรณ์</string>
+    <string name="bottom_hud_group">HUD หน้าจอล่าง</string>
+    <string name="bottom_strip_tabs">แถบในทุกแท็บ</string>
+    <string name="bottom_strip_lows" formatted="false">1 % และ 0.1 % ต่ำสุด</string>
+    <string name="bottom_strip_cpu_temp">อุณหภูมิ CPU</string>
+    <string name="stats_hud_battery_temp">แบตเตอรี่</string>
+    <string name="stats_hud_game_cores">เกม</string>
 </resources>

@@ -342,8 +342,8 @@
     <string name="mode_background_downloads_hint">Delay background suspension while Steam is actively downloading.</string>
     <string name="mode_suspend_note">Auto pauses in the background and resumes when shown. Manual waits for Resume. Never keeps running.</string>
     <string name="mode_startup">Startup</string>
-    <string name="mode_steam_startup">Start Steam with DroidDeck</string>
-    <string name="mode_steam_startup_hint">Opens the Steam session when DroidDeck launches.</string>
+    <string name="mode_startup_session">Open at launch</string>
+    <string name="mode_startup_session_hint">Starts this session when DroidDeck launches.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Checking for releases…</string>
     <string name="mode_decky_ready">Ready to install %1$s.</string>
@@ -942,13 +942,13 @@
     <string name="setup_fullscreen">Fullscreen</string>
     <string name="setup_fullscreen_on">Hides the Android status and navigation bars</string>
     <string name="setup_fullscreen_off">Shows the Android status and navigation bars</string>
-    <string name="setup_dual_screen">Dual screen</string>
-    <string name="setup_dual_screen_hint">Automatic uses the second screen on handhelds with a built-in one. On uses any second display. Off keeps the launcher and games on one screen; you can still pick a second screen from the session menu.</string>
+    <string name="setup_dual_screen_launcher">Dual screen launcher</string>
+    <string name="setup_dual_screen_launcher_hint">Automatic puts the launcher sections (Steam, Library, Stores and the rest) on the second screen of handhelds with a built-in one. On uses any second display. Off keeps the launcher on one screen.</string>
+    <string name="setup_dual_screen_sessions">Dual screen sessions</string>
+    <string name="setup_dual_screen_sessions_hint">Automatic docks the in-game menu on the built-in second screen instead of a pop-over. On uses any second display. Off keeps the menu on the game screen; you can still pick a second screen from it.</string>
     <string name="setup_dual_screen_auto">Automatic</string>
     <string name="setup_dual_screen_on">On</string>
     <string name="setup_dual_screen_off">Off</string>
-    <string name="setup_dual_screen_menu">Bottom screen menu</string>
-    <string name="setup_dual_screen_menu_hint">Moves the sections and the in-game menu to the second screen and types there, so the top screen keeps the full view. L2 and R2 switch sections.</string>
     <string name="setup_dual_screen_controls">Bottom screen controls in games</string>
     <string name="setup_dual_screen_controls_hint">Opens the trackpad and keyboard on the second screen when a session starts.</string>
     <string name="dual_typing_title">Typing on the top screen</string>
@@ -1927,8 +1927,6 @@
     <string name="stats_trace">Throttle and brake, last 10 s</string>
     <string name="stats_speed_chart">Speed, %1$s</string>
     <string name="stats_gear">Gear</string>
-    <string name="stats_speed_units">Speed units</string>
-    <string name="stats_speed_units_auto">Automatic (%1$s)</string>
     <string name="stats_steam_client_arm">Steam Client ARM</string>
     <string name="stats_steam_client_x86">Steam Client x86</string>
     <string name="stats_throttle">Throttle</string>
@@ -1946,7 +1944,20 @@
     <string name="stats_fuel_t">Fuel, t</string>
     <string name="stats_fuel_main">Main %1$s t</string>
     <string name="stats_fuel_reserve">Reserve %1$s t</string>
-    <string name="stats_tap_hint">Tap the top strip or the dash to change its style.</string>
+    <string name="stats_hud_frametime">Frame time</string>
+    <string name="stats_hud_last_seconds">last %1$d s</string>
+    <string name="stats_hud_avg_frame">avg frame</string>
+    <string name="stats_hud_low" formatted="false">1 percent low</string>
+    <string name="stats_hud_slow_frames">frames over 33 ms</string>
+    <string name="stats_hud_per_minute">%1$d / min</string>
+    <string name="stats_hud_playing_for">Playing for %1$s</string>
+    <string name="stats_hud_core_group">%1$d cores, up to %2$s GHz</string>
+    <string name="stats_hud_core_group_unknown">%1$d cores</string>
+    <string name="stats_hud_game_cores">game</string>
+    <string name="stats_hud_fps_of">FPS of %1$d Hz</string>
+    <string name="stats_hud_red_mark">The red mark is where the HUD shows the temperature in red.</string>
+    <string name="stats_hud_whole_device">whole device</string>
+    <string name="stats_hud_battery_temp">battery</string>
     <string name="bottom_telemetry_send_title">Send dashboard data</string>
     <string name="bottom_telemetry_send_auto">Automatic</string>
     <string name="bottom_telemetry_send_auto_hint">Turns it on for every game listed here, including games found later. Games you switch off stay off.</string>
@@ -1970,6 +1981,10 @@
     <string name="bottom_chat_mic_unavailable">Mic is off for this game. To talk, turn on Microphone in DroidDeck\'s Steam settings (Audio) and start the game again.</string>
     <string name="bottom_chat_volume">Volume %1$d%%</string>
     <string name="bottom_page_telemetry">In-game stats</string>
+    <string name="bottom_hud_group">Bottom screen HUD</string>
+    <string name="bottom_strip_tabs">Strip on every tab</string>
+    <string name="bottom_strip_lows" formatted="false">1% and 0.1% lows</string>
+    <string name="bottom_strip_cpu_temp">CPU temperature</string>
     <string name="bottom_telemetry_fps">FPS</string>
     <string name="bottom_telemetry_cpu">CPU</string>
     <string name="bottom_telemetry_gpu">GPU</string>
@@ -1985,7 +2000,6 @@
     <string name="bottom_telemetry_balance">Balance</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Turn on a game\'s data output (often called telemetry or UDP) to see a live dash here. It stays on this device.</string>
     <string name="bottom_telemetry_unknown_format">Port %1$d receives data (%2$d packets of %3$d bytes), but in a format this page cannot read yet.</string>
     <string name="bottom_telemetry_port_busy">Another program already uses port %1$s, so that game cannot show here.</string>
 

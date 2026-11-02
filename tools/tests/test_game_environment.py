@@ -873,6 +873,38 @@ class GameEnvironmentTest(unittest.TestCase):
             (game / "D3DGear64.DLL").unlink()
             self.assertEqual(MODULE["engine_fixes"](str(game / "TheCrew2.exe"), []), ({}, [], []))
 
+    def test_doom_2016_keeps_the_swapchain_image_count_it_asks_for(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp) / "DOOM (2016)"
+            game.mkdir()
+            for name in ("DOOMx64.exe", "DOOMx64vk.exe", "Galaxy64.dll"):
+                (game / name).touch()
+            images = {
+                "GAMESCOPE_WSI_MIN_IMAGE_COUNT": None,
+                "GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT": None,
+                "vk_x11_strict_image_count": "true",
+            }
+            for exe in ("DOOMx64.exe", "DOOMx64vk.exe"):
+                env, extra, notes = MODULE["engine_fixes"](str(game / exe), [])
+                self.assertEqual((env, extra), (images, []))
+                self.assertTrue(notes)
+            launched = {"GAMESCOPE_WSI_MIN_IMAGE_COUNT": "8", "GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT": "1"}
+            result = MODULE["apply_config"](launched, {"version": 1}, "3566086475", env)
+            self.assertNotIn("GAMESCOPE_WSI_MIN_IMAGE_COUNT", result)
+            self.assertNotIn("GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT", result)
+            self.assertEqual(result["vk_x11_strict_image_count"], "true")
+            config = {"version": 1, "games": {"3566086475": {"GAMESCOPE_WSI_MIN_IMAGE_COUNT": "3"}}}
+            self.assertEqual(MODULE["apply_config"](launched, config, "3566086475", env)["GAMESCOPE_WSI_MIN_IMAGE_COUNT"], "3")
+            eternal = Path(tmp) / "DOOMEternal"
+            eternal.mkdir()
+            (eternal / "DOOMEternalx64vk.exe").touch()
+            self.assertEqual(MODULE["engine_fixes"](str(eternal / "DOOMEternalx64vk.exe"), []), ({}, [], []))
+            other = Path(tmp) / "Other"
+            other.mkdir()
+            for name in ("Other.exe", "DOOMx64vk.exe"):
+                (other / name).touch()
+            self.assertEqual(MODULE["engine_fixes"](str(other / "Other.exe"), []), ({}, [], []))
+
     def test_dll_overrides_from_several_fixes_are_all_kept(self):
         with tempfile.TemporaryDirectory() as tmp:
             for name in ("Game.exe", "Game.pck", "GodotSharp.dll", "libsentry.windows.release.x86_64.dll", "d3dgear64.dll"):

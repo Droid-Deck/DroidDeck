@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">Elhalasztja a háttérbeli felfüggesztést, amíg a Steam aktívan letölt.</string>
     <string name="mode_suspend_note">Az Automatikus szüneteltet a háttérben, és megjelenéskor folytatja. A Manuális megvárja a Folytatást. A Soha mindig futva tartja.</string>
     <string name="mode_startup">Indítás</string>
-    <string name="mode_steam_startup">Steam indítása a DroidDeckkel</string>
-    <string name="mode_steam_startup_hint">Megnyitja a Steam-munkamenetet a DroidDeck indulásakor.</string>
+    <string name="mode_startup_session">Megnyitás indításkor</string>
+    <string name="mode_startup_session_hint">A DroidDeck indulásakor elindítja ezt a munkamenetet.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Kiadások keresése…</string>
     <string name="mode_decky_ready">Készen áll a %1$s telepítésére.</string>
@@ -881,13 +881,9 @@
     <string name="setup_fullscreen">Teljes képernyő</string>
     <string name="setup_fullscreen_on">Elrejti az Android állapot- és navigációs sávokat</string>
     <string name="setup_fullscreen_off">Megjeleníti az Android állapot- és navigációs sávokat</string>
-    <string name="setup_dual_screen">Két képernyő</string>
-    <string name="setup_dual_screen_hint">Az Automatikus a beépített második képernyővel rendelkező kézikonzolokon használja a második képernyőt. A Be bármilyen második kijelzőt használ. A Ki mindent egy képernyőn tart.</string>
     <string name="setup_dual_screen_auto">Automatikus</string>
     <string name="setup_dual_screen_on">Be</string>
     <string name="setup_dual_screen_off">Ki</string>
-    <string name="setup_dual_screen_menu">Menü az alsó képernyőn</string>
-    <string name="setup_dual_screen_menu_hint">A szakaszokat és a játék közbeni menüt a második képernyőre helyezi, és ott történik a gépelés, így a felső képernyő teljes nézetet kap. Az L2 és R2 vált szakaszt.</string>
     <string name="setup_dual_screen_controls">Alsó képernyős vezérlők játékokban</string>
     <string name="setup_dual_screen_controls_hint">Munkamenet indításakor megnyitja az érintőpadot és a billentyűzetet a második képernyőn.</string>
     <string name="dual_typing_title">Gépelés a felső képernyőre</string>
@@ -1802,8 +1798,6 @@
     <string name="stats_trace">Gáz és fék, utolsó 10 s</string>
     <string name="stats_speed_chart">Sebesség, %1$s</string>
     <string name="stats_gear">Fokozat</string>
-    <string name="stats_speed_units">Sebesség mértékegysége</string>
-    <string name="stats_speed_units_auto">Automatikus (%1$s)</string>
     <string name="stats_steam_client_arm">Steam-kliens ARM</string>
     <string name="stats_steam_client_x86">Steam-kliens x86</string>
     <string name="stats_throttle">Gáz</string>
@@ -1821,7 +1815,6 @@
     <string name="stats_fuel_t">Üzemanyag, t</string>
     <string name="stats_fuel_main">Fő %1$s t</string>
     <string name="stats_fuel_reserve">Tartalék %1$s t</string>
-    <string name="stats_tap_hint">Koppintson a felső sávra vagy a műszerfalra a stílus módosításához.</string>
     <string name="bottom_telemetry_send_title">Műszerfal-adatok küldése</string>
     <string name="bottom_telemetry_send_auto">Automatikus</string>
     <string name="bottom_telemetry_send_auto_hint">Bekapcsolja az itt felsorolt összes játéknál, a később talált játékokat is beleértve. A kikapcsolt játékok kikapcsolva maradnak.</string>
@@ -1860,7 +1853,6 @@
     <string name="bottom_telemetry_balance">Egyenleg</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Kapcsolja be egy autóversenyes játék adatkimenetét (gyakran telemetria vagy UDP néven szerepel), hogy itt élő műszerfalat lásson. Az adatok ezen az eszközön maradnak.</string>
     <string name="bottom_telemetry_unknown_format">A(z) %1$d port adatokat fogad (%2$d csomag, egyenként %3$d bájt), de olyan formátumban, amelyet ez az oldal még nem tud olvasni.</string>
     <string name="bottom_telemetry_port_busy">A(z) %1$s portot már egy másik program használja, ezért az a játék itt nem jeleníthető meg.</string>
 
@@ -3637,4 +3629,26 @@
     <string name="second_mode_desktop">Asztal</string>
     <string name="bottom_desktop_mode_trackpad">Érintőpad</string>
     <string name="bottom_desktop_title">Asztal · %1$s</string>
+    <string name="setup_dual_screen_launcher">Indító két kijelzőn</string>
+    <string name="setup_dual_screen_launcher_hint">Az Automatikus az indító részeit (Steam, Könyvtár, Áruházak és mások) a beépített második kijelzőre helyezi. A Be bármely második kijelzőt használja. A Ki egy kijelzőn tartja az indítót.</string>
+    <string name="setup_dual_screen_sessions">Munkamenetek két kijelzőn</string>
+    <string name="setup_dual_screen_sessions_hint">Az Automatikus a játékmenüt a beépített második kijelzőre helyezi átfedés helyett. A Be bármely második kijelzőt használja. A Ki a játék kijelzőjén tartja a menüt; abból továbbra is választható második kijelző.</string>
+    <string name="stats_hud_frametime">Képkockaidő</string>
+    <string name="stats_hud_last_seconds">utolsó %1$d mp</string>
+    <string name="stats_hud_avg_frame">átlagos képkocka</string>
+    <string name="stats_hud_low" formatted="false">legalacsonyabb 1 %</string>
+    <string name="stats_hud_slow_frames">33 ms feletti képkockák</string>
+    <string name="stats_hud_per_minute">%1$d / perc</string>
+    <string name="stats_hud_playing_for">Játékidő: %1$s</string>
+    <string name="stats_hud_core_group">%1$d mag, legfeljebb %2$s GHz</string>
+    <string name="stats_hud_core_group_unknown">%1$d mag</string>
+    <string name="stats_hud_fps_of">FPS %1$d Hz mellett</string>
+    <string name="stats_hud_red_mark">A piros jelzés mutatja, hol jeleníti meg a HUD pirossal a hőmérsékletet.</string>
+    <string name="stats_hud_whole_device">teljes eszköz</string>
+    <string name="bottom_hud_group">Alsó kijelző HUD</string>
+    <string name="bottom_strip_tabs">Sáv minden lapon</string>
+    <string name="bottom_strip_lows" formatted="false">legalacsonyabb 1 % és 0,1 %</string>
+    <string name="bottom_strip_cpu_temp">CPU-hőmérséklet</string>
+    <string name="stats_hud_battery_temp">Akkumulátor</string>
+    <string name="stats_hud_game_cores">Játék</string>
 </resources>

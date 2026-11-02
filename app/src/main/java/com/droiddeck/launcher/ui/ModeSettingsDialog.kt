@@ -89,7 +89,7 @@ class ModeSettings(
     val steamController: String? = null,
     val unfoldedControls: Boolean? = null,
     val unfoldedControlsWithController: Boolean = false,
-    val runSteamAtStartup: Boolean = false,
+    val startupSession: String = SessionPrefs.STARTUP_OFF,
     val bootMovie: String? = null,
     val bootMovieSound: Boolean = true,
     val bootMovieCustomName: String? = null,
@@ -141,7 +141,7 @@ class ModeSettingsActions(
     val onSteamController: (String) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
-    val onRunSteamAtStartup: (Boolean) -> Unit = {},
+    val onStartupSession: (String) -> Unit = {},
     val onBootMovie: (String) -> Unit = {},
     val onBootMovieSound: (Boolean) -> Unit = {},
     val onImportBootMovie: () -> Unit = {},
@@ -355,11 +355,15 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             ToggleRow(host, "pip-auto", stringResource(R.string.pip_auto), null,
                 s.pipAutoEnter, onChange = a.onPipAutoEnter)
         }
-        if (steam) SettingsGroup(stringResource(R.string.mode_startup)) {
-            ToggleRow(
-                host, "steam-startup", stringResource(R.string.mode_steam_startup),
-                stringResource(R.string.mode_steam_startup_hint),
-                s.runSteamAtStartup, onChange = a.onRunSteamAtStartup,
+        SettingsGroup(stringResource(R.string.mode_startup)) {
+            ChoiceRow(
+                host, "startup-session", stringResource(R.string.mode_startup_session),
+                stringResource(R.string.mode_startup_session_hint),
+                listOf(
+                    SessionPrefs.STARTUP_OFF to stringResource(R.string.common_never),
+                    SessionPrefs.STARTUP_STEAM to stringResource(R.string.rail_steam),
+                    SessionPrefs.STARTUP_DESKTOP to stringResource(R.string.rail_desktop),
+                ), s.startupSession, onPick = a.onStartupSession,
             )
         }
         extras.performance()

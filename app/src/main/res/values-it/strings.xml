@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">Ritarda la sospensione in background mentre Steam sta scaricando.</string>
     <string name="mode_suspend_note">Auto mette in pausa in background e riprende quando l\'app torna visibile. Manuale attende Riprendi. Mai lascia tutto in esecuzione.</string>
     <string name="mode_startup">Avvio</string>
-    <string name="mode_steam_startup">Avvia Steam con DroidDeck</string>
-    <string name="mode_steam_startup_hint">Apre la sessione Steam all\'avvio di DroidDeck.</string>
+    <string name="mode_startup_session">Apri all\'avvio</string>
+    <string name="mode_startup_session_hint">Avvia questa sessione all\'avvio di DroidDeck.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Ricerca di release…</string>
     <string name="mode_decky_ready">Pronto per installare %1$s.</string>
@@ -876,13 +876,9 @@
     <string name="setup_fullscreen">Schermo intero</string>
     <string name="setup_fullscreen_on">Nasconde la barra di stato e la barra di navigazione di Android</string>
     <string name="setup_fullscreen_off">Mostra la barra di stato e la barra di navigazione di Android</string>
-    <string name="setup_dual_screen">Doppio schermo</string>
-    <string name="setup_dual_screen_hint">Automatico usa il secondo schermo sulle console portatili che ne hanno uno integrato. Attivo usa qualsiasi secondo schermo. Disattivo tiene tutto su un solo schermo.</string>
     <string name="setup_dual_screen_auto">Automatico</string>
     <string name="setup_dual_screen_on">Attivo</string>
     <string name="setup_dual_screen_off">Disattivo</string>
-    <string name="setup_dual_screen_menu">Menu sullo schermo inferiore</string>
-    <string name="setup_dual_screen_menu_hint">Sposta le sezioni e il menu di gioco sul secondo schermo e si digita lì, così lo schermo superiore mantiene la vista completa. L2 e R2 cambiano sezione.</string>
     <string name="setup_dual_screen_controls">Controlli sullo schermo inferiore nei giochi</string>
     <string name="setup_dual_screen_controls_hint">Apre il trackpad e la tastiera sul secondo schermo all\'avvio di una sessione.</string>
     <string name="dual_typing_title">Digitazione per lo schermo superiore</string>
@@ -1816,8 +1812,6 @@
     <string name="stats_trace">Acceleratore e freno, ultimi 10 s</string>
     <string name="stats_speed_chart">Velocità, %1$s</string>
     <string name="stats_gear">Marcia</string>
-    <string name="stats_speed_units">Unità di velocità</string>
-    <string name="stats_speed_units_auto">Automatico (%1$s)</string>
     <string name="stats_steam_client_arm">Client Steam ARM</string>
     <string name="stats_steam_client_x86">Client Steam x86</string>
     <string name="stats_throttle">Acceleratore</string>
@@ -1835,7 +1829,6 @@
     <string name="stats_fuel_t">Carburante, t</string>
     <string name="stats_fuel_main">Principale %1$s t</string>
     <string name="stats_fuel_reserve">Riserva %1$s t</string>
-    <string name="stats_tap_hint">Tocca la barra superiore o il cruscotto per cambiarne lo stile.</string>
     <string name="bottom_telemetry_send_title">Invia dati al cruscotto</string>
     <string name="bottom_telemetry_send_auto">Automatico</string>
     <string name="bottom_telemetry_send_auto_hint">Lo attiva per ogni gioco elencato qui, compresi i giochi trovati in seguito. I giochi che disattivi restano disattivati.</string>
@@ -1874,7 +1867,6 @@
     <string name="bottom_telemetry_balance">Saldo</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Attiva l\'output dati di un gioco di corse (spesso chiamato telemetria o UDP) per vedere qui un cruscotto in tempo reale. I dati restano su questo dispositivo.</string>
     <string name="bottom_telemetry_unknown_format">La porta %1$d riceve dati (%2$d pacchetti da %3$d byte), ma in un formato che questa pagina non sa ancora leggere.</string>
     <string name="bottom_telemetry_port_busy">Un altro programma usa già la porta %1$s, quindi quel gioco non può essere mostrato qui.</string>
 
@@ -3674,4 +3666,26 @@
     <string name="second_mode_desktop">Desktop</string>
     <string name="bottom_desktop_mode_trackpad">Trackpad</string>
     <string name="bottom_desktop_title">Desktop · %1$s</string>
+    <string name="setup_dual_screen_launcher">Launcher su due schermi</string>
+    <string name="setup_dual_screen_launcher_hint">Automatico mostra le sezioni del launcher (Steam, Libreria, Negozi e altre) sul secondo schermo integrato. Attivo usa qualsiasi secondo schermo. Disattivo mantiene il launcher su uno schermo.</string>
+    <string name="setup_dual_screen_sessions">Sessioni su due schermi</string>
+    <string name="setup_dual_screen_sessions_hint">Automatico mostra il menu di gioco sul secondo schermo integrato anziché in sovrimpressione. Attivo usa qualsiasi secondo schermo. Disattivo mantiene il menu sullo schermo di gioco; da lì puoi ancora scegliere un secondo schermo.</string>
+    <string name="stats_hud_frametime">Tempo fotogramma</string>
+    <string name="stats_hud_last_seconds">ultimi %1$d s</string>
+    <string name="stats_hud_avg_frame">fotogramma medio</string>
+    <string name="stats_hud_low" formatted="false">1 % più basso</string>
+    <string name="stats_hud_slow_frames">fotogrammi oltre 33 ms</string>
+    <string name="stats_hud_per_minute">%1$d / min</string>
+    <string name="stats_hud_playing_for">Tempo di gioco: %1$s</string>
+    <string name="stats_hud_core_group">%1$d core, fino a %2$s GHz</string>
+    <string name="stats_hud_core_group_unknown">%1$d core</string>
+    <string name="stats_hud_fps_of">FPS su %1$d Hz</string>
+    <string name="stats_hud_red_mark">Il segno rosso indica dove il HUD mostra la temperatura in rosso.</string>
+    <string name="stats_hud_whole_device">intero dispositivo</string>
+    <string name="bottom_hud_group">HUD dello schermo inferiore</string>
+    <string name="bottom_strip_tabs">Barra in ogni scheda</string>
+    <string name="bottom_strip_lows" formatted="false">1 % e 0,1 % più bassi</string>
+    <string name="bottom_strip_cpu_temp">Temperatura CPU</string>
+    <string name="stats_hud_battery_temp">Batteria</string>
+    <string name="stats_hud_game_cores">Gioco</string>
 </resources>

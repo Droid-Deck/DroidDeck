@@ -5,16 +5,30 @@ import org.junit.Test
 
 class StatsLayoutTest {
     @Test fun unknownIdsFallBackToTheDefaults() {
-        assertEquals(StatsStrip.PANEL, StatsStrip.from(null))
+        assertEquals(StatsStrip.LINE, StatsStrip.from(null))
+        assertEquals(StatsStrip.LINE, StatsStrip.from("gone"))
+        assertEquals(StatsStrip.PANEL, StatsStrip.from("panel"))
         assertEquals(StatsStrip.RINGS, StatsStrip.from("rings"))
         assertEquals(StatsDash.AUTO, StatsDash.from("gone"))
         assertEquals(StatsDash.TRACE, StatsDash.from("trace"))
     }
 
     @Test fun tappingTheStripCyclesThroughEveryStyle() {
+        assertEquals(StatsStrip.PANEL, StatsStrip.LINE.next())
         assertEquals(StatsStrip.TILES, StatsStrip.PANEL.next())
         assertEquals(StatsStrip.RINGS, StatsStrip.TILES.next())
-        assertEquals(StatsStrip.PANEL, StatsStrip.RINGS.next())
+        assertEquals(StatsStrip.LINE, StatsStrip.RINGS.next())
+    }
+
+    @Test fun stripNumbersStartWithEverythingButTheGpuTemperature() {
+        assertEquals(StripMetric.entries.toSet() - StripMetric.GPU_TEMP, StripMetric.parse(null))
+    }
+
+    @Test fun stripNumbersSurviveSavingAndSkipUnknownIds() {
+        val picked = setOf(StripMetric.GPU, StripMetric.RAM, StripMetric.CLOCK)
+        assertEquals(picked, StripMetric.parse(StripMetric.encode(picked)))
+        assertEquals(setOf(StripMetric.CPU), StripMetric.parse("cpu,gone, "))
+        assertEquals(emptySet<StripMetric>(), StripMetric.parse(""))
     }
 
     @Test fun autoPicksTheDashByTheGamesFormat() {

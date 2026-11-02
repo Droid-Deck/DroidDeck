@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">Opóźnia wstrzymanie w tle, gdy Steam aktywnie pobiera.</string>
     <string name="mode_suspend_note">„Auto” wstrzymuje w tle i wznawia po powrocie. „Ręcznie” czeka na „Wznów”. „Nigdy” nie przerywa działania.</string>
     <string name="mode_startup">Uruchamianie</string>
-    <string name="mode_steam_startup">Uruchamiaj Steam z DroidDeck</string>
-    <string name="mode_steam_startup_hint">Otwiera sesję Steam przy uruchomieniu DroidDeck.</string>
+    <string name="mode_startup_session">Otwórz przy uruchomieniu</string>
+    <string name="mode_startup_session_hint">Uruchamia tę sesję po uruchomieniu DroidDeck.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Sprawdzanie wydań…</string>
     <string name="mode_decky_ready">Gotowe do instalacji: %1$s.</string>
@@ -887,13 +887,9 @@
     <string name="setup_fullscreen">Pełny ekran</string>
     <string name="setup_fullscreen_on">Ukrywa systemowe paski stanu i nawigacji</string>
     <string name="setup_fullscreen_off">Pokazuje systemowe paski stanu i nawigacji</string>
-    <string name="setup_dual_screen">Dwa ekrany</string>
-    <string name="setup_dual_screen_hint">Automatycznie używa drugiego ekranu w urządzeniach przenośnych, które mają go wbudowanego. Włączone używa dowolnego drugiego wyświetlacza. Wyłączone zostawia wszystko na jednym ekranie.</string>
     <string name="setup_dual_screen_auto">Automatycznie</string>
     <string name="setup_dual_screen_on">Włączone</string>
     <string name="setup_dual_screen_off">Wyłączone</string>
-    <string name="setup_dual_screen_menu">Menu na dolnym ekranie</string>
-    <string name="setup_dual_screen_menu_hint">Przenosi sekcje i menu w grze na drugi ekran i tam odbywa się pisanie, dzięki czemu górny ekran zachowuje pełny widok. L2 i R2 przełączają sekcje.</string>
     <string name="setup_dual_screen_controls">Sterowanie na dolnym ekranie w grach</string>
     <string name="setup_dual_screen_controls_hint">Otwiera gładzik i klawiaturę na drugim ekranie po rozpoczęciu sesji.</string>
     <string name="dual_typing_title">Pisanie dla górnego ekranu</string>
@@ -1846,8 +1842,6 @@
     <string name="stats_trace">Gaz i hamulec, ostatnie 10 s</string>
     <string name="stats_speed_chart">Prędkość, %1$s</string>
     <string name="stats_gear">Bieg</string>
-    <string name="stats_speed_units">Jednostki prędkości</string>
-    <string name="stats_speed_units_auto">Automatycznie (%1$s)</string>
     <string name="stats_steam_client_arm">Klient Steam ARM</string>
     <string name="stats_steam_client_x86">Klient Steam x86</string>
     <string name="stats_throttle">Gaz</string>
@@ -1865,7 +1859,6 @@
     <string name="stats_fuel_t">Paliwo, t</string>
     <string name="stats_fuel_main">Główne %1$s t</string>
     <string name="stats_fuel_reserve">Rezerwa %1$s t</string>
-    <string name="stats_tap_hint">Dotknij górnego paska lub zegarów, aby zmienić ich wygląd.</string>
     <string name="bottom_telemetry_send_title">Wysyłaj dane do panelu</string>
     <string name="bottom_telemetry_send_auto">Automatycznie</string>
     <string name="bottom_telemetry_send_auto_hint">Włącza wysyłanie dla każdej gry z tej listy, także dla gier znalezionych później. Gry, które wyłączysz, pozostaną wyłączone.</string>
@@ -1904,7 +1897,6 @@
     <string name="bottom_telemetry_balance">Saldo</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Włącz wyjście danych w grze wyścigowej (często nazywane telemetrią lub UDP), aby zobaczyć tu zegary na żywo. Dane nie opuszczają tego urządzenia.</string>
     <string name="bottom_telemetry_unknown_format">Port %1$d odbiera dane (%2$d pakietów po %3$d bajtów), ale w formacie, którego ta strona jeszcze nie odczytuje.</string>
     <string name="bottom_telemetry_port_busy">Port %1$s jest już używany przez inny program, więc tej gry nie da się tu pokazać.</string>
 
@@ -3711,4 +3703,26 @@
     <string name="second_mode_desktop">Pulpit</string>
     <string name="bottom_desktop_mode_trackpad">Trackpad</string>
     <string name="bottom_desktop_title">Pulpit · %1$s</string>
+    <string name="setup_dual_screen_launcher">Launcher na dwóch ekranach</string>
+    <string name="setup_dual_screen_launcher_hint">Automatycznie umieszcza sekcje launchera (Steam, Biblioteka, Sklepy i inne) na wbudowanym drugim ekranie. Włączone używa dowolnego drugiego ekranu. Wyłączone pozostawia launcher na jednym ekranie.</string>
+    <string name="setup_dual_screen_sessions">Sesje na dwóch ekranach</string>
+    <string name="setup_dual_screen_sessions_hint">Automatycznie umieszcza menu gry na wbudowanym drugim ekranie zamiast jako nakładkę. Włączone używa dowolnego drugiego ekranu. Wyłączone pozostawia menu na ekranie gry; nadal można w nim wybrać drugi ekran.</string>
+    <string name="stats_hud_frametime">Czas klatki</string>
+    <string name="stats_hud_last_seconds">ostatnie %1$d s</string>
+    <string name="stats_hud_avg_frame">średnia klatka</string>
+    <string name="stats_hud_low" formatted="false">najniższy 1 %</string>
+    <string name="stats_hud_slow_frames">klatki powyżej 33 ms</string>
+    <string name="stats_hud_per_minute">%1$d / min</string>
+    <string name="stats_hud_playing_for">Czas gry: %1$s</string>
+    <string name="stats_hud_core_group">%1$d rdzeni, do %2$s GHz</string>
+    <string name="stats_hud_core_group_unknown">%1$d rdzeni</string>
+    <string name="stats_hud_fps_of">FPS przy %1$d Hz</string>
+    <string name="stats_hud_red_mark">Czerwony znacznik wskazuje, gdzie HUD wyświetla temperaturę na czerwono.</string>
+    <string name="stats_hud_whole_device">całe urządzenie</string>
+    <string name="bottom_hud_group">HUD dolnego ekranu</string>
+    <string name="bottom_strip_tabs">Pasek na każdej karcie</string>
+    <string name="bottom_strip_lows" formatted="false">najniższe 1 % i 0,1 %</string>
+    <string name="bottom_strip_cpu_temp">Temperatura CPU</string>
+    <string name="stats_hud_battery_temp">Bateria</string>
+    <string name="stats_hud_game_cores">Gra</string>
 </resources>

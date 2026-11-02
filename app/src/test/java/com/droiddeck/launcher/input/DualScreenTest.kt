@@ -29,6 +29,7 @@ class DualScreenTest {
     @Test fun knownModelsCountWhenTheTypeIsHidden() {
         assertTrue(DualScreen.isBuiltIn(null, "Retroid Pocket Duo"))
         assertTrue(DualScreen.isBuiltIn(null, " AYN Thor "))
+        assertTrue(DualScreen.isBuiltIn(null, "AYN Thor Max"))
         assertFalse(DualScreen.isBuiltIn(null, "Pixel 8"))
     }
 
@@ -64,5 +65,20 @@ class DualScreenTest {
         assertEquals(DualScreen.MODE_AUTO, SessionPrefs.dualScreenMode(context))
         SessionPrefs.setDualScreenMode(context, DualScreen.MODE_OFF)
         assertEquals(DualScreen.MODE_OFF, SessionPrefs.dualScreenMode(context))
+    }
+
+    @Test fun launcherAndSessionsKeepSeparateModes() {
+        SessionPrefs.setDualScreenMode(context, DualScreen.MODE_OFF)
+        assertEquals(DualScreen.MODE_OFF, SessionPrefs.dualScreenMode(context))
+        assertEquals(DualScreen.MODE_AUTO, SessionPrefs.dualScreenSessionMode(context))
+        SessionPrefs.setDualScreenSessionMode(context, DualScreen.MODE_ON)
+        assertEquals(DualScreen.MODE_OFF, SessionPrefs.dualScreenMode(context))
+        assertEquals(DualScreen.MODE_ON, SessionPrefs.dualScreenSessionMode(context))
+    }
+
+    @Test fun anOldDisabledMenuToggleTurnsBothOff() {
+        context.getSharedPreferences("session", Context.MODE_PRIVATE).edit().putBoolean("dualScreenLauncher", false).commit()
+        assertEquals(DualScreen.MODE_OFF, SessionPrefs.dualScreenMode(context))
+        assertEquals(DualScreen.MODE_OFF, SessionPrefs.dualScreenSessionMode(context))
     }
 }

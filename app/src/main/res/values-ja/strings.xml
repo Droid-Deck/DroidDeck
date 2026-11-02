@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">Steamがダウンロード中は、バックグラウンドでの一時停止を遅らせます。</string>
     <string name="mode_suspend_note">自動ではバックグラウンドで一時停止し、表示すると再開します。手動では「再開」をタップするまで待機します。「しない」では実行し続けます。</string>
     <string name="mode_startup">起動</string>
-    <string name="mode_steam_startup">DroidDeck起動時にSteamを起動</string>
-    <string name="mode_steam_startup_hint">DroidDeckの起動時にSteamセッションを開きます。</string>
+    <string name="mode_startup_session">起動時に開く</string>
+    <string name="mode_startup_session_hint">DroidDeck の起動時にこのセッションを開始します。</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">リリースを確認中…</string>
     <string name="mode_decky_ready">%1$sをインストールする準備ができました。</string>
@@ -878,13 +878,9 @@
     <string name="setup_fullscreen">全画面</string>
     <string name="setup_fullscreen_on">Androidのステータスバーとナビゲーションバーを非表示</string>
     <string name="setup_fullscreen_off">Androidのステータスバーとナビゲーションバーを表示</string>
-    <string name="setup_dual_screen">デュアル画面</string>
-    <string name="setup_dual_screen_hint">自動では、2画面目を内蔵した携帯機でその画面を使います。オンではどの2画面目でも使います。オフではすべてを1画面に表示します。</string>
     <string name="setup_dual_screen_auto">自動</string>
     <string name="setup_dual_screen_on">オン</string>
     <string name="setup_dual_screen_off">オフ</string>
-    <string name="setup_dual_screen_menu">下画面メニュー</string>
-    <string name="setup_dual_screen_menu_hint">セクションとゲーム中のメニューを2画面目に移し、入力もそこで行うため、上画面は全体表示のままになります。L2とR2でセクションを切り替えます。</string>
     <string name="setup_dual_screen_controls">ゲーム中の下画面コントロール</string>
     <string name="setup_dual_screen_controls_hint">セッション開始時に2画面目にトラックパッドとキーボードを開きます。</string>
     <string name="dual_typing_title">上画面に入力中</string>
@@ -1780,8 +1776,6 @@
     <string name="stats_trace">スロットルとブレーキ（直近10 s）</string>
     <string name="stats_speed_chart">速度（%1$s）</string>
     <string name="stats_gear">ギア</string>
-    <string name="stats_speed_units">速度の単位</string>
-    <string name="stats_speed_units_auto">自動（%1$s）</string>
     <string name="stats_steam_client_arm">Steamクライアント ARM</string>
     <string name="stats_steam_client_x86">Steamクライアント x86</string>
     <string name="stats_throttle">スロットル</string>
@@ -1799,7 +1793,6 @@
     <string name="stats_fuel_t">燃料（t）</string>
     <string name="stats_fuel_main">メイン %1$s t</string>
     <string name="stats_fuel_reserve">予備 %1$s t</string>
-    <string name="stats_tap_hint">上部のバーまたはダッシュをタップすると、表示スタイルを変更できます。</string>
     <string name="bottom_telemetry_send_title">ダッシュボード用データを送信</string>
     <string name="bottom_telemetry_send_auto">自動</string>
     <string name="bottom_telemetry_send_auto_hint">ここに表示されているすべてのゲーム（後から見つかったゲームを含む）でオンにします。オフにしたゲームはオフのままです。</string>
@@ -1838,7 +1831,6 @@
     <string name="bottom_telemetry_balance">残高</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">レースゲームのデータ出力（テレメトリーやUDPと呼ばれることが多い）をオンにすると、ここにライブダッシュが表示されます。データはこのデバイス内にとどまります。</string>
     <string name="bottom_telemetry_unknown_format">ポート%1$dでデータを受信していますが（%3$dバイトのパケット%2$d個）、このページではまだ読み取れない形式です。</string>
     <string name="bottom_telemetry_port_busy">別のプログラムがすでにポート%1$sを使用しているため、そのゲームはここに表示できません。</string>
 
@@ -3609,4 +3601,26 @@
     <string name="second_mode_desktop">デスクトップ</string>
     <string name="bottom_desktop_mode_trackpad">トラックパッド</string>
     <string name="bottom_desktop_title">デスクトップ · %1$s</string>
+    <string name="setup_dual_screen_launcher">2画面ランチャー</string>
+    <string name="setup_dual_screen_launcher_hint">自動ではランチャーの各項目（Steam、ライブラリ、ストアなど）を内蔵の第2画面に表示します。オンでは任意の第2画面を使用します。オフではランチャーを1画面に表示します。</string>
+    <string name="setup_dual_screen_sessions">2画面セッション</string>
+    <string name="setup_dual_screen_sessions_hint">自動ではゲームメニューを重ねて表示せず、内蔵の第2画面に配置します。オンでは任意の第2画面を使用します。オフではゲーム画面にメニューを表示しますが、メニューから第2画面を選択することもできます。</string>
+    <string name="stats_hud_frametime">フレーム時間</string>
+    <string name="stats_hud_last_seconds">直近%1$d秒</string>
+    <string name="stats_hud_avg_frame">平均フレーム</string>
+    <string name="stats_hud_low" formatted="false">下位1 %</string>
+    <string name="stats_hud_slow_frames">33 msを超えるフレーム</string>
+    <string name="stats_hud_per_minute">%1$d / 分</string>
+    <string name="stats_hud_playing_for">プレイ時間：%1$s</string>
+    <string name="stats_hud_core_group">%1$dコア、最大%2$s GHz</string>
+    <string name="stats_hud_core_group_unknown">%1$dコア</string>
+    <string name="stats_hud_fps_of">%1$d Hzに対するFPS</string>
+    <string name="stats_hud_red_mark">赤い印はHUDが温度を赤く表示する位置を示します。</string>
+    <string name="stats_hud_whole_device">デバイス全体</string>
+    <string name="bottom_hud_group">下画面HUD</string>
+    <string name="bottom_strip_tabs">すべてのタブにストリップ</string>
+    <string name="bottom_strip_lows" formatted="false">下位1 %と0.1 %</string>
+    <string name="bottom_strip_cpu_temp">CPU温度</string>
+    <string name="stats_hud_battery_temp">バッテリー</string>
+    <string name="stats_hud_game_cores">ゲーム</string>
 </resources>

@@ -318,7 +318,12 @@ public final class LinuxRuntimeInstaller {
                 RuntimeFileTree.delete(staging, null);
                 return false;
             }
-            requireNotInterrupted();
+            try {
+                requireNotInterrupted();
+            } catch (InterruptedIOException e) {
+                discard(staging, null);
+                throw e;
+            }
             FileUtils.writeString(new File(staging, VERSION_FILE), release.version);
 
             if (!discard(old, null)) {

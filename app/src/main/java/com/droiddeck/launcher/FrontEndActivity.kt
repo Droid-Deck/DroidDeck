@@ -461,7 +461,7 @@ class FrontEndActivity : ComponentActivity() {
     private var fexPreset by mutableStateOf("")
     private var forceSsbs by mutableStateOf(false)
     private var steamClientArch by mutableStateOf("arm64")
-    private var runSteamAtStartup by mutableStateOf(false)
+    private var startupSession by mutableStateOf(SessionPrefs.STARTUP_OFF)
     private var bootMovie by mutableStateOf(com.droiddeck.launcher.session.BootMovie.DROIDDECK_30)
     private var bootMovieSound by mutableStateOf(true)
     private var bootMovieCustomName by mutableStateOf<String?>(null)
@@ -552,7 +552,7 @@ class FrontEndActivity : ComponentActivity() {
     private var dualDisplayId by mutableStateOf(-1)
     private var dualScreenDevice by mutableStateOf(false)
     private var dualScreenMode by mutableStateOf(com.droiddeck.launcher.input.DualScreen.MODE_AUTO)
-    private var dualScreenLauncher by mutableStateOf(true)
+    private var dualScreenSessions by mutableStateOf(com.droiddeck.launcher.input.DualScreen.MODE_AUTO)
     private var dualScreenControls by mutableStateOf(true)
     private var launcherStarted = false
     private lateinit var displayManager: DisplayManager
@@ -561,6 +561,7 @@ class FrontEndActivity : ComponentActivity() {
         override fun onDisplayRemoved(displayId: Int) = refreshSecondScreenDisplays()
         override fun onDisplayChanged(displayId: Int) = refreshSecondScreenDisplays()
     }
+    private val bottomScreenListener: () -> Unit = { refreshSecondScreenDisplays() }
     private val secondScreenTouchListener = object : android.hardware.input.InputManager.InputDeviceListener {
         override fun onInputDeviceAdded(deviceId: Int) = refreshSecondScreenDisplays()
         override fun onInputDeviceRemoved(deviceId: Int) = refreshSecondScreenDisplays()
@@ -1086,7 +1087,7 @@ class FrontEndActivity : ComponentActivity() {
                         dualScreen = dualDisplayId >= 0 && com.droiddeck.launcher.ui.DualScreenPanel.available,
                         dualScreenDevice = dualScreenDevice,
                         dualScreenMode = dualScreenMode,
-                        dualScreenLauncher = dualScreenLauncher,
+                        dualScreenSessions = dualScreenSessions,
                         dualScreenControls = dualScreenControls,
                         packages = packageRows,
                         packageCatalogLoading = catalogLoading,
@@ -1323,8 +1324,8 @@ class FrontEndActivity : ComponentActivity() {
                             SessionPrefs.setDualScreenMode(this, mode)
                             refreshSecondScreenDisplays()
                         },
-                        onDualScreenLauncher = { on ->
-                            SessionPrefs.setDualScreenLauncher(this, on)
+                        onDualScreenSessions = { mode ->
+                            SessionPrefs.setDualScreenSessionMode(this, mode)
                             refreshSecondScreenDisplays()
                         },
                         onDualScreenControls = { on ->
@@ -1532,7 +1533,7 @@ class FrontEndActivity : ComponentActivity() {
         }
         }
 
-        if (savedInstanceState == null) ui.post { startSteamAtStartupIfEnabled() }
+        if (savedInstanceState == null) ui.post { startSteamAtStartupIfEnabled(cold = true) }
         else {
             restoreCompatLaunch(savedInstanceState)
             pendingSwitch = savedIntent(savedInstanceState, KEY_PENDING_SWITCH)
@@ -1601,9 +1602,14 @@ class FrontEndActivity : ComponentActivity() {
         startSteamAtStartupIfEnabled()
     }
 
-    private fun startSteamAtStartupIfEnabled() {
-        if (intent.action != Intent.ACTION_MAIN) return
-        if (SessionPrefs.runSteamAtStartup(this) && !isFinishing && !isDestroyed) startSteamSession()
+    private fun startSteamAtStartupIfEnabled(cold: Boolean = false) {
+        if (intent.action != Intent.ACTION_MAIN && !(cold && intent.action == null)) return
+        if (isFinishing || isDestroyed) return
+        when (SessionPrefs.startupSession(this)) {
+            SessionPrefs.STARTUP_STEAM -> startSteamSession()
+            SessionPrefs.STARTUP_DESKTOP -> startSession(Intent(this, SessionActivity::class.java)
+                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP))
+        }
     }
 
     private fun playSteam() {
@@ -1792,6 +1798,7 @@ class FrontEndActivity : ComponentActivity() {
             addDataScheme("file")
         })
         displayManager.registerDisplayListener(secondScreenDisplayListener, ui)
+        com.droiddeck.launcher.input.DualScreen.watchTaken(bottomScreenListener)
         getSystemService(android.hardware.input.InputManager::class.java)?.registerInputDeviceListener(secondScreenTouchListener, ui)
         launcherStarted = true
         refreshSecondScreenDisplays()
@@ -1836,6 +1843,7 @@ class FrontEndActivity : ComponentActivity() {
         com.droiddeck.launcher.stores.StoresState.libraryListener = null
         com.droiddeck.launcher.stores.battlenet.BattleNetClient.opener = null
         displayManager.unregisterDisplayListener(secondScreenDisplayListener)
+        com.droiddeck.launcher.input.DualScreen.unwatchTaken(bottomScreenListener)
         getSystemService(android.hardware.input.InputManager::class.java)?.unregisterInputDeviceListener(secondScreenTouchListener)
         launcherStarted = false
         com.droiddeck.launcher.ui.DualScreenPanel.hide(taskId)
@@ -1874,10 +1882,10 @@ class FrontEndActivity : ComponentActivity() {
         dualScreenMode = SessionPrefs.dualScreenMode(this)
         secondScreenDisplays = SecondScreenDisplays.available(displayManager, ownDisplayId)
         dualScreenDevice = com.droiddeck.launcher.input.DualScreen.anyDisplay(displayManager, ownDisplayId) != null
-        dualScreenLauncher = SessionPrefs.dualScreenLauncher(this)
+        dualScreenSessions = SessionPrefs.dualScreenSessionMode(this)
         dualScreenControls = SessionPrefs.dualScreenSessionControls(this)
         val target = com.droiddeck.launcher.input.DualScreen.display(this, displayManager, ownDisplayId)
-        dualDisplayId = if (dualScreenLauncher) target?.displayId ?: -1 else -1
+        dualDisplayId = target?.displayId ?: -1
         syncDualPanel()
     }
 
@@ -2202,7 +2210,7 @@ class FrontEndActivity : ComponentActivity() {
                 steamRepairQueued = steamRepairQueued,
                 mangoapp = mangoapp,
                 steamController = if (mode == SessionService.MODE_STEAM) steamController else null,
-                runSteamAtStartup = mode == SessionService.MODE_STEAM && runSteamAtStartup,
+                startupSession = startupSession,
                 bootMovie = if (mode == SessionService.MODE_STEAM) bootMovie else null,
                 bootMovieSound = bootMovieSound,
                 bootMovieCustomName = bootMovieCustomName,
@@ -2292,9 +2300,9 @@ class FrontEndActivity : ComponentActivity() {
                 onReturnAfterGame = { on -> SessionPrefs.setReturnAfterGame(this, on); returnAfterGame = on },
                 onShaderPrecache = { on -> SessionPrefs.setShaderPrecache(this, on); shaderPrecache = on },
                 onSteamController = { id -> SessionPrefs.setSteamController(this, id); steamController = id },
-                onRunSteamAtStartup = { on ->
-                    SessionPrefs.setRunSteamAtStartup(this, on)
-                    runSteamAtStartup = on
+                onStartupSession = { id ->
+                    SessionPrefs.setStartupSession(this, id)
+                    startupSession = id
                 },
                 onBootMovie = { id -> com.droiddeck.launcher.session.BootMovie.select(this, id); loadBootMovie() },
                 onBootMovieSound = { on -> SessionPrefs.setBootMovieSound(this, on); bootMovieSound = on },
@@ -2485,7 +2493,7 @@ class FrontEndActivity : ComponentActivity() {
         returnAfterGame = SessionPrefs.returnAfterGame(this)
         loadShaderPrecache(mode)
         steamController = SessionPrefs.steamController(this)
-        runSteamAtStartup = SessionPrefs.runSteamAtStartup(this)
+        startupSession = SessionPrefs.startupSession(this)
         loadBootMovie()
         hdrOn = SessionPrefs.hdr(this, mode)
         upscaler = SessionPrefs.upscaler(this)

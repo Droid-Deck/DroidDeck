@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">Skjut upp bakgrundspausning medan Steam aktivt laddar ned.</string>
     <string name="mode_suspend_note">Auto pausar i bakgrunden och återupptar när den visas. Manuell väntar på Återuppta. Aldrig fortsätter köra.</string>
     <string name="mode_startup">Uppstart</string>
-    <string name="mode_steam_startup">Starta Steam med DroidDeck</string>
-    <string name="mode_steam_startup_hint">Öppnar Steam-sessionen när DroidDeck startar.</string>
+    <string name="mode_startup_session">Öppna vid start</string>
+    <string name="mode_startup_session_hint">Startar den här sessionen när DroidDeck startar.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Söker efter utgåvor…</string>
     <string name="mode_decky_ready">Redo att installera %1$s.</string>
@@ -881,13 +881,9 @@
     <string name="setup_fullscreen">Helskärm</string>
     <string name="setup_fullscreen_on">Döljer Androids statusfält och navigeringsfält</string>
     <string name="setup_fullscreen_off">Visar Androids statusfält och navigeringsfält</string>
-    <string name="setup_dual_screen">Dubbelskärm</string>
-    <string name="setup_dual_screen_hint">Automatiskt använder den andra skärmen på handhållna enheter med en inbyggd andra skärm. På använder vilken andra skärm som helst. Av håller allt på en skärm.</string>
     <string name="setup_dual_screen_auto">Automatiskt</string>
     <string name="setup_dual_screen_on">På</string>
     <string name="setup_dual_screen_off">Av</string>
-    <string name="setup_dual_screen_menu">Meny på nedre skärmen</string>
-    <string name="setup_dual_screen_menu_hint">Flyttar avsnitten och menyn i spelet till den andra skärmen och skrivandet sker där, så att den övre skärmen behåller hela vyn. L2 och R2 byter avsnitt.</string>
     <string name="setup_dual_screen_controls">Kontroller på nedre skärmen i spel</string>
     <string name="setup_dual_screen_controls_hint">Öppnar styrplattan och tangentbordet på den andra skärmen när en session startar.</string>
     <string name="dual_typing_title">Skriver för den övre skärmen</string>
@@ -1802,8 +1798,6 @@
     <string name="stats_trace">Gas och broms, senaste 10 s</string>
     <string name="stats_speed_chart">Hastighet, %1$s</string>
     <string name="stats_gear">Växel</string>
-    <string name="stats_speed_units">Hastighetsenhet</string>
-    <string name="stats_speed_units_auto">Automatisk (%1$s)</string>
     <string name="stats_steam_client_arm">Steam-klient ARM</string>
     <string name="stats_steam_client_x86">Steam-klient x86</string>
     <string name="stats_throttle">Gas</string>
@@ -1821,7 +1815,6 @@
     <string name="stats_fuel_t">Bränsle, t</string>
     <string name="stats_fuel_main">Huvudtank %1$s t</string>
     <string name="stats_fuel_reserve">Reserv %1$s t</string>
-    <string name="stats_tap_hint">Tryck på den övre remsan eller instrumentpanelen för att byta stil.</string>
     <string name="bottom_telemetry_send_title">Skicka data till instrumentpanelen</string>
     <string name="bottom_telemetry_send_auto">Automatiskt</string>
     <string name="bottom_telemetry_send_auto_hint">Slår på det för alla spel i listan, även spel som hittas senare. Spel som du stänger av förblir avstängda.</string>
@@ -1860,7 +1853,6 @@
     <string name="bottom_telemetry_balance">Saldo</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Slå på datautmatning i ett racingspel (kallas ofta telemetri eller UDP) för att se en liveinstrumentpanel här. Datan stannar på den här enheten.</string>
     <string name="bottom_telemetry_unknown_format">Port %1$d tar emot data (%2$d paket på %3$d byte), men i ett format som den här sidan inte kan läsa än.</string>
     <string name="bottom_telemetry_port_busy">Ett annat program använder redan port %1$s, så det spelet kan inte visas här.</string>
 
@@ -3637,4 +3629,26 @@
     <string name="second_mode_desktop">Skrivbord</string>
     <string name="bottom_desktop_mode_trackpad">Styrplatta</string>
     <string name="bottom_desktop_title">Skrivbord · %1$s</string>
+    <string name="setup_dual_screen_launcher">Startare på två skärmar</string>
+    <string name="setup_dual_screen_launcher_hint">Automatiskt visar startarens avsnitt (Steam, Bibliotek, Butiker och andra) på den inbyggda andra skärmen. På använder valfri andra skärm. Av håller startaren på en skärm.</string>
+    <string name="setup_dual_screen_sessions">Sessioner på två skärmar</string>
+    <string name="setup_dual_screen_sessions_hint">Automatiskt visar spelmenyn på den inbyggda andra skärmen i stället för som överlägg. På använder valfri andra skärm. Av håller menyn på spelskärmen; du kan fortfarande välja en andra skärm därifrån.</string>
+    <string name="stats_hud_frametime">Bildrutetid</string>
+    <string name="stats_hud_last_seconds">senaste %1$d s</string>
+    <string name="stats_hud_avg_frame">genomsnittlig bildruta</string>
+    <string name="stats_hud_low" formatted="false">lägsta 1 %</string>
+    <string name="stats_hud_slow_frames">bildrutor över 33 ms</string>
+    <string name="stats_hud_per_minute">%1$d / min</string>
+    <string name="stats_hud_playing_for">Speltid: %1$s</string>
+    <string name="stats_hud_core_group">%1$d kärnor, upp till %2$s GHz</string>
+    <string name="stats_hud_core_group_unknown">%1$d kärnor</string>
+    <string name="stats_hud_fps_of">FPS vid %1$d Hz</string>
+    <string name="stats_hud_red_mark">Den röda markeringen visar var HUD visar temperaturen i rött.</string>
+    <string name="stats_hud_whole_device">hela enheten</string>
+    <string name="bottom_hud_group">HUD på nedre skärmen</string>
+    <string name="bottom_strip_tabs">Remsa på varje flik</string>
+    <string name="bottom_strip_lows" formatted="false">lägsta 1 % och 0,1 %</string>
+    <string name="bottom_strip_cpu_temp">CPU-temperatur</string>
+    <string name="stats_hud_battery_temp">Batteri</string>
+    <string name="stats_hud_game_cores">Spel</string>
 </resources>

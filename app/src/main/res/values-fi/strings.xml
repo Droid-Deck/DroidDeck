@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">Viivästytä taustakeskeytystä, kun Steam lataa aktiivisesti.</string>
     <string name="mode_suspend_note">Automaattinen keskeyttää taustalla ja jatkaa, kun sovellus tulee näkyviin. Manuaalinen odottaa Jatka-painiketta. Ei koskaan pitää sovelluksen aina käynnissä.</string>
     <string name="mode_startup">Käynnistys</string>
-    <string name="mode_steam_startup">Käynnistä Steam DroidDeckin kanssa</string>
-    <string name="mode_steam_startup_hint">Avaa Steam-istunnon, kun DroidDeck käynnistyy.</string>
+    <string name="mode_startup_session">Avaa käynnistyksessä</string>
+    <string name="mode_startup_session_hint">Käynnistää tämän istunnon, kun DroidDeck avataan.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Tarkistetaan julkaisuja…</string>
     <string name="mode_decky_ready">Valmiina asentamaan %1$s.</string>
@@ -881,13 +881,9 @@
     <string name="setup_fullscreen">Koko näyttö</string>
     <string name="setup_fullscreen_on">Piilottaa Androidin tila- ja navigointipalkit</string>
     <string name="setup_fullscreen_off">Näyttää Androidin tila- ja navigointipalkit</string>
-    <string name="setup_dual_screen">Kaksi näyttöä</string>
-    <string name="setup_dual_screen_hint">Automaattinen käyttää toista näyttöä kämmenlaitteissa, joissa sellainen on sisäänrakennettuna. Päällä käyttää mitä tahansa toista näyttöä. Pois pitää kaiken yhdellä näytöllä.</string>
     <string name="setup_dual_screen_auto">Automaattinen</string>
     <string name="setup_dual_screen_on">Päällä</string>
     <string name="setup_dual_screen_off">Pois</string>
-    <string name="setup_dual_screen_menu">Alanäytön valikko</string>
-    <string name="setup_dual_screen_menu_hint">Siirtää osiot ja pelin aikaisen valikon toiselle näytölle ja kirjoitus tehdään siellä, joten yläruutu säilyttää koko näkymän. L2 ja R2 vaihtavat osiota.</string>
     <string name="setup_dual_screen_controls">Alanäytön ohjaimet peleissä</string>
     <string name="setup_dual_screen_controls_hint">Avaa kosketuslevyn ja näppäimistön toiselle näytölle, kun istunto alkaa.</string>
     <string name="dual_typing_title">Kirjoitus yläruudulle</string>
@@ -1802,8 +1798,6 @@
     <string name="stats_trace">Kaasu ja jarru, viimeiset 10 s</string>
     <string name="stats_speed_chart">Nopeus, %1$s</string>
     <string name="stats_gear">Vaihde</string>
-    <string name="stats_speed_units">Nopeuden yksiköt</string>
-    <string name="stats_speed_units_auto">Automaattinen (%1$s)</string>
     <string name="stats_steam_client_arm">Steam-asiakasohjelma ARM</string>
     <string name="stats_steam_client_x86">Steam-asiakasohjelma x86</string>
     <string name="stats_throttle">Kaasu</string>
@@ -1821,7 +1815,6 @@
     <string name="stats_fuel_t">Polttoaine, t</string>
     <string name="stats_fuel_main">Päätankki %1$s t</string>
     <string name="stats_fuel_reserve">Varatankki %1$s t</string>
-    <string name="stats_tap_hint">Napauta yläpalkkia tai kojelautaa vaihtaaksesi sen tyyliä.</string>
     <string name="bottom_telemetry_send_title">Lähetä kojelaudan tiedot</string>
     <string name="bottom_telemetry_send_auto">Automaattinen</string>
     <string name="bottom_telemetry_send_auto_hint">Kytkee sen päälle jokaiselle tässä luetellulle pelille, myös myöhemmin löytyville. Pois kytkemäsi pelit pysyvät pois päältä.</string>
@@ -1860,7 +1853,6 @@
     <string name="bottom_telemetry_balance">Saldo</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Kytke kilpa-ajopelin datan ulostulo päälle (usein nimeltään telemetria tai UDP), niin näet täällä reaaliaikaisen kojelaudan. Tiedot pysyvät tällä laitteella.</string>
     <string name="bottom_telemetry_unknown_format">Portti %1$d vastaanottaa dataa (%2$d pakettia, kukin %3$d tavua), mutta muodossa, jota tämä sivu ei vielä osaa lukea.</string>
     <string name="bottom_telemetry_port_busy">Toinen ohjelma käyttää jo porttia %1$s, joten peliä ei voida näyttää täällä.</string>
 
@@ -3637,4 +3629,26 @@
     <string name="second_mode_desktop">Työpöytä</string>
     <string name="bottom_desktop_mode_trackpad">Kosketuslevy</string>
     <string name="bottom_desktop_title">Työpöytä · %1$s</string>
+    <string name="setup_dual_screen_launcher">Käynnistin kahdella näytöllä</string>
+    <string name="setup_dual_screen_launcher_hint">Automaattinen näyttää käynnistimen osiot (Steam, Kirjasto, Kaupat ja muut) sisäisellä toisella näytöllä. Päällä käyttää mitä tahansa toista näyttöä. Pois pitää käynnistimen yhdellä näytöllä.</string>
+    <string name="setup_dual_screen_sessions">Istunnot kahdella näytöllä</string>
+    <string name="setup_dual_screen_sessions_hint">Automaattinen näyttää pelivalikon sisäisellä toisella näytöllä peittokuvan sijaan. Päällä käyttää mitä tahansa toista näyttöä. Pois pitää valikon pelinäytöllä; siitä voi silti valita toisen näytön.</string>
+    <string name="stats_hud_frametime">Ruutuaika</string>
+    <string name="stats_hud_last_seconds">viimeiset %1$d s</string>
+    <string name="stats_hud_avg_frame">keskimääräinen ruutu</string>
+    <string name="stats_hud_low" formatted="false">alin 1 %</string>
+    <string name="stats_hud_slow_frames">yli 33 ms:n ruudut</string>
+    <string name="stats_hud_per_minute">%1$d / min</string>
+    <string name="stats_hud_playing_for">Peliaika: %1$s</string>
+    <string name="stats_hud_core_group">%1$d ydintä, enintään %2$s GHz</string>
+    <string name="stats_hud_core_group_unknown">%1$d ydintä</string>
+    <string name="stats_hud_fps_of">FPS %1$d Hz:n taajuudella</string>
+    <string name="stats_hud_red_mark">Punainen merkki näyttää kohdan, jossa HUD näyttää lämpötilan punaisena.</string>
+    <string name="stats_hud_whole_device">koko laite</string>
+    <string name="bottom_hud_group">Alanäytön HUD</string>
+    <string name="bottom_strip_tabs">Palkki joka välilehdellä</string>
+    <string name="bottom_strip_lows" formatted="false">alimmat 1 % ja 0,1 %</string>
+    <string name="bottom_strip_cpu_temp">CPU:n lämpötila</string>
+    <string name="stats_hud_battery_temp">Akku</string>
+    <string name="stats_hud_game_cores">Peli</string>
 </resources>
