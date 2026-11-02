@@ -125,6 +125,17 @@ def arkham_city_x87(game):
 
 
 @fix
+def doom_2016_swapchain_images(game):
+    if "doomx64vk.exe" in game.files and game.stem in ("doomx64", "doomx64vk"):
+        images = {
+            "GAMESCOPE_WSI_MIN_IMAGE_COUNT": None,
+            "GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT": None,
+            "vk_x11_strict_image_count": "true",
+        }
+        return images, [], "DOOM (2016): the swapchain keeps the image count the game asks for"
+
+
+@fix
 def teardown_vsync(game):
     if game.stem == "teardown":
         return {"vblank_mode": "2"}, [], "Teardown: OpenGL keeps the game's own vsync"
