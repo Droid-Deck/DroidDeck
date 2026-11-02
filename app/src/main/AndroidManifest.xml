@@ -68,6 +68,24 @@
         <meta-data android:name="android.game_mode_config" android:resource="@xml/game_mode_config" />
         <service android:name=".glasses.LumaRgbCaptureService" android:exported="false"
             android:process=":rgb_diagnostic" />
+        <service android:name=".wallpaper.DesktopWallpaperService"
+            android:label="@string/desktop_wallpaper_label"
+            android:permission="android.permission.BIND_WALLPAPER"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data android:name="android.service.wallpaper" android:resource="@xml/desktop_wallpaper" />
+        </service>
+        <service android:name=".wallpaper.SteamWallService"
+            android:label="@string/steam_wall_label"
+            android:permission="android.permission.BIND_WALLPAPER"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data android:name="android.service.wallpaper" android:resource="@xml/steam_wall_wallpaper" />
+        </service>
         <service android:name=".input.HomeButtonService"
             android:label="@string/integration_shortcuts_service"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
