@@ -112,7 +112,6 @@ static int reader_open(struct reader **out) {
         r->ctx_last = calloc((size_t)r->first, sizeof(uint32_t));
         if (!r->seen || !r->ctx_last) { reader_close(r); return -ENOMEM; }
         r->live_count = kgsl_busy_scan_contexts(r->map, r->first, r->seen, r->live, KGSL_BUSY_MAX_LIVE);
-        if (r->live_count == 0) { reader_close(r); return -ENODATA; }
         kgsl_busy_sample_contexts(r->map, r->live, r->live_count, r->ctx_last, &moved);
         r->mode = MODE_CONTEXTS;
     }

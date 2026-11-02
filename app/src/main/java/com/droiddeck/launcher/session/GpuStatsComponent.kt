@@ -117,7 +117,9 @@ class GpuStatsComponent(val dir: File, private val root: File) : SessionPart() {
     }
 
     private fun memstoreSource(): String = when {
-        memstoreLoad?.working == true -> "kgsl memstore ringbuffer timestamps (all GPU work)"
+        memstoreLoad?.working == true ->
+            if (memstore?.mode == KgslBusy.MODE_CONTEXTS) "kgsl memstore per-context timestamps (all GPU work)"
+            else "kgsl memstore ringbuffer timestamps (all GPU work)"
         memstoreLoad?.failed == true -> LAYER_SOURCE
         else -> "kgsl memstore once its timestamps move; until then $LAYER_SOURCE"
     }
