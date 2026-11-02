@@ -1523,7 +1523,7 @@ class FrontEndActivity : ComponentActivity() {
         }
         }
 
-        if (savedInstanceState == null) ui.post { startSteamAtStartupIfEnabled() }
+        if (savedInstanceState == null) ui.post { startSteamAtStartupIfEnabled(cold = true) }
         else {
             restoreCompatLaunch(savedInstanceState)
             pendingSwitch = savedIntent(savedInstanceState, KEY_PENDING_SWITCH)
@@ -1566,8 +1566,8 @@ class FrontEndActivity : ComponentActivity() {
         startSteamAtStartupIfEnabled()
     }
 
-    private fun startSteamAtStartupIfEnabled() {
-        if (intent.action != Intent.ACTION_MAIN) return
+    private fun startSteamAtStartupIfEnabled(cold: Boolean = false) {
+        if (intent.action != Intent.ACTION_MAIN && !(cold && intent.action == null)) return
         if (isFinishing || isDestroyed) return
         when (SessionPrefs.startupSession(this)) {
             SessionPrefs.STARTUP_STEAM -> startSteamSession()
