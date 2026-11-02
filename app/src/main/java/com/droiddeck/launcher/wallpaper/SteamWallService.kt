@@ -6,7 +6,7 @@ import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
 import android.os.Handler
-import android.os.Looper
+import android.os.HandlerThread
 import android.os.SystemClock
 import android.service.wallpaper.WallpaperService
 import android.view.SurfaceHolder
@@ -19,11 +19,12 @@ class SteamWallService : WallpaperService() {
     override fun onCreateEngine(): Engine = WallEngine()
 
     private inner class WallEngine : Engine() {
-        private val handler = Handler(Looper.getMainLooper())
+        private val thread = HandlerThread("steam-wall").also { it.start() }
+        private val handler = Handler(thread.looper)
         private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
         private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
         private val rect = RectF()
-        private var visible = false
+        @Volatile private var visible = false
         private var origin = 0L
         private val tick = object : Runnable {
             override fun run() {
@@ -41,13 +42,23 @@ class SteamWallService : WallpaperService() {
             }
         }
 
-        override fun onSurfaceRedrawNeeded(holder: SurfaceHolder) = draw()
+        override fun onSurfaceRedrawNeeded(holder: SurfaceHolder) {
+            handler.post { draw() }
+        }
 
-        override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = draw()
+        override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+            handler.post { draw() }
+        }
+
+        override fun onSurfaceDestroyed(holder: SurfaceHolder) {
+            visible = false
+            handler.removeCallbacks(tick)
+        }
 
         override fun onDestroy() {
             visible = false
-            handler.removeCallbacks(tick)
+            handler.removeCallbacksAndMessages(null)
+            thread.quitSafely()
         }
 
         private fun draw() {
