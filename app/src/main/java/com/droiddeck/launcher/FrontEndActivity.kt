@@ -498,6 +498,7 @@ class FrontEndActivity : ComponentActivity() {
     private var steamLibraries by mutableStateOf<List<SteamLibraries.Entry>>(emptyList())
     private var foundSteamLibraries by mutableStateOf<List<SteamLibraries.Found>>(emptyList())
     private var allFilesAccessMissing by mutableStateOf(false)
+    private var steamLibraryScan = 0
     private val pickSteamLibrary = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         val path = if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data) else null
         if (path != null) addSteamLibrary(path)
@@ -506,10 +507,9 @@ class FrontEndActivity : ComponentActivity() {
     private fun addSteamLibrary(path: String) {
         Thread({
             val result = SteamLibraries.add(this, path)
-            val found = SteamLibraries.found(this)
             ui.post {
                 steamLibraries = SteamLibraries.list(this)
-                foundSteamLibraries = found
+                refreshFoundSteamLibraries()
                 refresh()
                 when {
                     result is SteamLibraries.AddResult.Refused ->
@@ -523,9 +523,10 @@ class FrontEndActivity : ComponentActivity() {
 
     private fun refreshFoundSteamLibraries() {
         allFilesAccessMissing = com.droiddeck.launcher.files.AllFilesAccess.missing()
+        val scan = ++steamLibraryScan
         Thread({
             val found = SteamLibraries.found(this)
-            ui.post { foundSteamLibraries = found }
+            ui.post { if (scan == steamLibraryScan) foundSteamLibraries = found }
         }, "steam-library-scan").start()
     }
     private var romsDir by mutableStateOf<String?>(null)

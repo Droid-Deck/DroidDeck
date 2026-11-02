@@ -77,7 +77,7 @@ object SteamLibraries {
         canonical(SessionPrefs.steamRoot(context, "arm64")),
     )
 
-    class Found(val path: String, val label: String, val games: Int)
+    class Found(val path: String, val shown: String, val label: String, val games: Int)
 
     /** Reads storage; call off the main thread. */
     fun found(context: Context): List<Found> {
@@ -88,7 +88,7 @@ object SteamLibraries {
             if (!root.readable) continue
             for (dir in candidates(rawView(root.dir), SCAN_DEPTH)) {
                 val games = gameCount(dir)
-                if (games > 0 && taken.none { overlaps(it, canonical(dir)) }) hits += dir to games
+                if (games > 0 && File(dir, "steamapps").canWrite() && taken.none { overlaps(it, canonical(dir)) }) hits += dir to games
             }
         }
         val picked = ArrayList<Pair<File, Int>>()
@@ -97,7 +97,7 @@ object SteamLibraries {
         }
         return picked.map { (dir, games) ->
             val shown = File(storagePath(dir.path))
-            Found(shown.path, defaultLabel(context, shown), games)
+            Found(dir.path, shown.path, defaultLabel(context, shown), games)
         }
     }
 
@@ -139,7 +139,8 @@ object SteamLibraries {
         synchronized(lock) { save(context, list(context).filterNot { it.id == id }) }
     }
 
-    fun defaultLabel(context: Context, folder: File): String {
+    fun defaultLabel(context: Context, picked: File): String {
+        val folder = File(storagePath(picked.path))
         val volume = try {
             context.getSystemService(StorageManager::class.java)?.getStorageVolume(folder)?.getDescription(context)
         } catch (e: Exception) {

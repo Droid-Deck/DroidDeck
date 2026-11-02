@@ -428,7 +428,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             if (s.steamLibraries.size < com.droiddeck.launcher.session.SteamLibraries.MAX) for (found in s.foundSteamLibraries) {
                 SettingsRow(
                     found.label,
-                    stringResource(R.string.libraries_found_hint, pluralStringResource(R.plurals.mode_added_count, found.games, found.games), found.path),
+                    stringResource(R.string.libraries_found_hint, pluralStringResource(R.plurals.mode_added_count, found.games, found.games), found.shown),
                 ) {
                     SecondaryButton(stringResource(R.string.libraries_add_found), compact = true) { a.onAddFoundSteamLibrary(found.path) }
                 }
