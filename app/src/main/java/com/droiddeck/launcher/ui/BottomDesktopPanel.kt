@@ -358,8 +358,8 @@ class BottomDesktopPanel(
  */
 internal fun fitDesktop(areaW: Int, areaH: Int, desktopW: Int, desktopH: Int): Pair<Int, Int> {
     if (areaW <= 0 || areaH <= 0 || desktopW <= 0 || desktopH <= 0) return areaW to areaH
-    val scale = minOf(areaW / desktopW.toFloat(), areaH / desktopH.toFloat())
-    val w = (desktopW * scale).toInt()
-    val h = (desktopH * scale).toInt()
+    val widthLimited = areaW.toLong() * desktopH <= areaH.toLong() * desktopW
+    val w = if (widthLimited) areaW else (desktopW.toLong() * areaH / desktopH).toInt()
+    val h = if (widthLimited) (desktopH.toLong() * areaW / desktopW).toInt() else areaH
     return if (areaW - w <= 4 && areaH - h <= 4) areaW to areaH else w to h
 }
