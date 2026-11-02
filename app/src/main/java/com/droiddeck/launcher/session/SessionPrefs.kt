@@ -113,6 +113,31 @@ object SessionPrefs {
         prefs(context).edit().putString("statsStrip", id).apply()
     }
 
+    fun bottomStripMetrics(context: Context): Set<StripMetric> = StripMetric.parse(prefs(context).getString("bottomStripMetrics", null))
+
+    fun setBottomStripMetric(context: Context, metric: StripMetric, on: Boolean) {
+        val now = bottomStripMetrics(context).let { if (on) it + metric else it - metric }
+        prefs(context).edit().putString("bottomStripMetrics", StripMetric.encode(now)).apply()
+    }
+
+    fun bottomHud(context: Context): Boolean = prefs(context).getBoolean("bottomHud", true)
+
+    fun setBottomHud(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("bottomHud", on).apply()
+    }
+
+    fun bottomStripOnTabs(context: Context): Boolean = prefs(context).getBoolean("bottomStripTabs", true)
+
+    fun setBottomStripOnTabs(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("bottomStripTabs", on).apply()
+    }
+
+    fun statsHud(context: Context): String? = prefs(context).getString("statsHud", null)
+
+    fun setStatsHud(context: Context, id: String) {
+        prefs(context).edit().putString("statsHud", id).apply()
+    }
+
     fun statsSpeedUnit(context: Context): String? = prefs(context).getString("statsSpeedUnit", null)
 
     fun setStatsSpeedUnit(context: Context, id: String) {

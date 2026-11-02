@@ -1,12 +1,38 @@
 package com.droiddeck.launcher.session
 
 enum class StatsStrip(val id: String) {
-    PANEL("panel"), TILES("tiles"), RINGS("rings");
+    LINE("line"), PANEL("panel"), TILES("tiles"), RINGS("rings");
 
     fun next(): StatsStrip = entries[(ordinal + 1) % entries.size]
 
     companion object {
-        fun from(id: String?): StatsStrip = entries.firstOrNull { it.id == id } ?: PANEL
+        fun from(id: String?): StatsStrip = entries.firstOrNull { it.id == id } ?: LINE
+    }
+}
+
+enum class StripMetric(val id: String, val defaultOn: Boolean = true) {
+    ENGINE("engine"), GRAPH("graph"), LOWS("lows"), LOW001("low001"), GPU("gpu"), GPU_TEMP("gputemp", false),
+    CPU("cpu"), CPU_TEMP("cputemp"), VRAM("vram"), RAM("ram"), CLOCK("clock");
+
+    companion object {
+        val defaults: Set<StripMetric> = entries.filter { it.defaultOn }.toSet()
+
+        fun parse(saved: String?): Set<StripMetric> =
+            if (saved == null) defaults
+            else saved.split(',').mapNotNull { id -> entries.firstOrNull { it.id == id.trim() } }.toSet()
+
+        fun encode(on: Set<StripMetric>): String = entries.filter { it in on }.joinToString(",") { it.id }
+    }
+}
+
+enum class StatsHud(val id: String) {
+    BIG_FPS("bigfps"), FULL("full"), TILES("tiles"), RINGS("rings"), GRAPHS("graphs"), CORES("cores"),
+    HEAT("heat"), GAME("game"), PACING("pacing"), NIGHT("night"), MEGA("mega");
+
+    fun next(): StatsHud = entries[(ordinal + 1) % entries.size]
+
+    companion object {
+        fun from(id: String?): StatsHud = entries.firstOrNull { it.id == id } ?: BIG_FPS
     }
 }
 
