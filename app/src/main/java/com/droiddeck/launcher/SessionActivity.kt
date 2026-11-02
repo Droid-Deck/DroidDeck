@@ -2240,6 +2240,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         bottomOutputActive = false
         if (CompositorHost.isStarted) WaylandCompositor.nativeSetCursorComposite(false)
         CompositorHost.detach(holder.surface)
+        bottomGame?.takeIf { it.holder === holder }?.let { screen -> uiHandler.post { recoverBottomOutput(screen) } }
     }
 
     private fun cancelTouchGestures() {
@@ -4446,6 +4447,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val shown = if (want) target else null
         val current = bottomGame
         if (current != null && current.display.displayId == shown?.displayId) return
+        if (current != null || shown != null) cancelOutputTouches()
         if (current != null) {
             restoreTopOutput(current)
             runCatching { current.dismiss() }
@@ -4472,6 +4474,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (bottomGame === screen) Log.i(TAG, "requested game output on the bottom screen (display ${shown.displayId})")
         }
         refreshSecondScreenDisplays()
+    }
+
+    private fun cancelOutputTouches() {
+        cancelTouchGestures()
+        if (::directTouchHold.isInitialized) directTouchHold.cancel()
+        if (::twoFingerGestures.isInitialized) twoFingerGestures.cancel()
+        if (CompositorHost.isStarted && deliversTouches(routedTouchMode)) WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
+    }
+
+    private fun recoverBottomOutput(screen: com.droiddeck.launcher.ui.BottomGameScreen) {
+        if (bottomGame !== screen || bottomOutputActive || !started || screen.holder.surface?.isValid == true) return
+        Log.i(TAG, "bottom screen surface gone - game back on the top screen")
+        restoreTopOutput(screen)
+        runCatching { screen.dismiss() }
     }
 
     private fun restoreTopOutput(screen: com.droiddeck.launcher.ui.BottomGameScreen) {
