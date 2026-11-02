@@ -168,8 +168,8 @@ private fun DefaultStorageGroup() {
     var open by remember { mutableStateOf(false) }
     var revision by remember { mutableIntStateOf(0) }
     var staleFolder by remember { mutableStateOf<String?>(null) }
-    // Detection runs once per composition key: re-run it when coming back from settings,
-    // or an SSD approved there stays invisible until the app is restarted for other reasons.
+    // Detection is cached per composition key; re-run it on resume or an SSD approved
+    // in settings stays invisible.
     var resumeTick by remember { mutableIntStateOf(0) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -190,8 +190,7 @@ private fun DefaultStorageGroup() {
         val path = InAppFilePicker.pickedPath(result.data) ?: return@rememberLauncherForActivityResult
         val problem = StoreInstallRoot.prepareDefaultFolder(ctx, File(path))
         if (problem != null) {
-            // Permission granted but the folder still not writable: the running process holds
-            // the pre-grant storage view. Offer the restart that fixes it instead of a dead end.
+            // With permission granted this means the process still holds the pre-grant storage view.
             if (!AllFilesAccess.missing()) staleFolder = File(path).name.ifBlank { path }
             else Toast.makeText(ctx, ctx.getString(R.string.main_storage_not_usable, problem), Toast.LENGTH_LONG).show()
             return@rememberLauncherForActivityResult

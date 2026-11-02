@@ -1031,8 +1031,7 @@ class SessionService : Service() {
                 }
             } else {
                 Log.w(TAG, "game storage: $problem; internal only this session")
-                // The guest starts without the SSD then, so Steam cannot list it. Say so out loud:
-                // otherwise the user only discovers the missing drive inside Steam's storage settings.
+                // Without the SSD bind the session is internal-only and Steam lists no external drive.
                 mainHandler.post {
                     Toast.makeText(this, getString(R.string.main_storage_not_usable, problem), Toast.LENGTH_LONG).show()
                 }

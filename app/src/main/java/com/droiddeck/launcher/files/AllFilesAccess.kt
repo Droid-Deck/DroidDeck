@@ -22,9 +22,8 @@ object AllFilesAccess {
         }
     }
 
-    /** Android applies newly granted file access to a running process only after a restart:
-    a drive that stays unreadable with the permission granted needs this, not another trip
-    to settings. Refuses while a session runs so a guest is never killed underneath. */
+    /** Android applies granted file access to a running process only after a restart.
+    Refuses while a session runs. */
     fun restartApp(context: Context) {
         if (SessionState.running) {
             Toast.makeText(context, R.string.fm_restart_while_running, Toast.LENGTH_LONG).show()
