@@ -841,6 +841,9 @@ object SessionPrefs {
     fun battleNetNoSteamSet(context: Context): Boolean = prefs(context).getBoolean("battleNetNoSteamSet", false)
     fun setBattleNetNoSteamSet(context: Context) { prefs(context).edit().putBoolean("battleNetNoSteamSet", true).apply() }
 
+    fun battleNetFolder(context: Context, code: String): String? = prefs(context).getString("battleNetFolder:$code", null)
+    fun setBattleNetFolder(context: Context, code: String, path: String) { prefs(context).edit().putString("battleNetFolder:$code", path).apply() }
+
     fun clearCachedApps(context: Context): Boolean = prefs(context).getBoolean("clearCachedApps", false)
     fun setClearCachedApps(context: Context, on: Boolean) { prefs(context).edit().putBoolean("clearCachedApps", on).apply() }
 
