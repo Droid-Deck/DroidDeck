@@ -25,13 +25,13 @@ class SteamWallService : WallpaperService() {
         private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
         private val rect = RectF()
         private val lock = Any()
+        private val redraw = Runnable { draw() }
         private var visible = false
         private var surfaceLive = false
         private var origin = 0L
         private val tick = object : Runnable {
             override fun run() {
-                draw()
-                if (visible) handler.postDelayed(this, FRAME_MS)
+                if (draw() && visible) handler.postDelayed(this, FRAME_MS)
             }
         }
 
@@ -48,36 +48,48 @@ class SteamWallService : WallpaperService() {
 
         override fun onSurfaceCreated(holder: SurfaceHolder) {
             synchronized(lock) { surfaceLive = true }
+            handler.post {
+                handler.removeCallbacks(tick)
+                if (visible) handler.post(tick)
+            }
         }
 
         override fun onSurfaceRedrawNeeded(holder: SurfaceHolder) {
-            handler.post { draw() }
+            handler.removeCallbacks(redraw)
+            handler.post(redraw)
         }
 
         override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-            handler.post { draw() }
+            handler.removeCallbacks(redraw)
+            handler.post(redraw)
         }
 
         override fun onSurfaceDestroyed(holder: SurfaceHolder) {
-            handler.removeCallbacksAndMessages(null)
+            handler.removeCallbacks(tick)
+            handler.removeCallbacks(redraw)
             synchronized(lock) { surfaceLive = false }
         }
 
         override fun onDestroy() {
-            handler.removeCallbacksAndMessages(null)
             synchronized(lock) { surfaceLive = false }
+            handler.post {
+                visible = false
+                handler.removeCallbacks(tick)
+                handler.removeCallbacks(redraw)
+            }
             thread.quitSafely()
         }
 
-        private fun draw() {
+        private fun draw(): Boolean {
             synchronized(lock) {
-                if (!surfaceLive) return
-                val canvas = surfaceHolder.lockCanvas() ?: return
+                if (!surfaceLive) return false
+                val canvas = surfaceHolder.lockCanvas() ?: return false
                 try {
                     render(canvas, canvas.width.toFloat(), canvas.height.toFloat())
                 } finally {
                     surfaceHolder.unlockCanvasAndPost(canvas)
                 }
+                return true
             }
         }
 
