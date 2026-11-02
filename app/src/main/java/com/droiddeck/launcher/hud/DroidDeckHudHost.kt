@@ -13,7 +13,10 @@ import android.widget.FrameLayout
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.session.SessionDisplay
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SessionService
+import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.ui.Motion
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
@@ -56,7 +59,10 @@ class DroidDeckHudHost(context: Context) {
             if (!gpuName.isNullOrBlank()) handler.post { this@DroidDeckHudHost.gpuName = cleanGpuName(gpuName) }
             if (window != null && window != lastWindow) {
                 lastWindow = window
-                handler.post { onPresentingWindowChanged?.invoke() }
+                handler.post {
+                    onPresentingWindowChanged?.invoke()
+                    applyShown()
+                }
             }
         }
 
@@ -173,7 +179,7 @@ class DroidDeckHudHost(context: Context) {
 
     private fun applyShown() {
         if (!running) return
-        val show = !hidden && !backgrounded
+        val show = !hidden && !backgrounded && SessionState.mode != SessionService.MODE_DESKTOP
         view?.visibility = if (show) View.VISIBLE else View.GONE
         showing = show
         if (show != polling) {
@@ -204,14 +210,22 @@ class DroidDeckHudHost(context: Context) {
         file
     }.getOrNull()
 
+    private fun sessionResolution(): String {
+        val panel = SessionDisplay.panelSize(context)
+        val choice = SessionPrefs.resolutionChoice(context, SessionState.mode, panel)
+        val (width, height) = SessionDisplay.resolveChoice(panel, choice)
+        return "${width}x${height}"
+    }
+
     private fun refreshLabels(hud: DroidDeckHudView) {
         if (feed.engine.isNotBlank() && !feed.steamFocused) engine = feed.engine
         hud.setEngineLabel(engine)
         if (gpuName.isNotBlank()) hud.setGpuModel(gpuName)
-        hud.setResolution(if (feed.outputWidth > 0 && feed.outputHeight > 0) buildString {
+        val feedResolution = if (feed.outputWidth > 0 && feed.outputHeight > 0) buildString {
             append(feed.outputWidth).append('x').append(feed.outputHeight)
             if (feed.refreshMilliHz > 0) append(" @ ").append((feed.refreshMilliHz + 499) / 1000).append("Hz")
-        } else "")
+        } else ""
+        hud.setResolution(feedResolution.ifBlank { sessionResolution() })
         val pid = feed.pid
         if (pid > 0 && pid != protonPid) {
             protonPid = pid

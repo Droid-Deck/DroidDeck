@@ -381,6 +381,26 @@ static int sniff_modifier(const struct droiddeck_native_handle *h, uint64_t *mod
     return 1;
 }
 
+#define SC_MOD_GRALLOC (~0ULL - 1)
+
+static const char *pool_kind(uint64_t mod) {
+    return mod == MOD_QCOM_COMPRESSED ? "UBWC" : mod == SC_MOD_GRALLOC ? "gralloc-laid-out" : "linear";
+}
+
+static void describe_handle(const struct droiddeck_native_handle *h, char *out, size_t n) {
+    size_t o = 0;
+    out[0] = 0;
+    if (!h) { snprintf(out, n, "no handle"); return; }
+    for (int i = 0; i < h->numFds && i < 4 && o < n; i++) {
+        off_t sz = lseek(h->data[i], 0, SEEK_END);
+        if (sz >= 0) lseek(h->data[i], 0, SEEK_SET);
+        o += (size_t)snprintf(out + o, n - o, "%sfd%d %lld bytes", i ? ", " : "", i, (long long)sz);
+    }
+    if (o < n) o += (size_t)snprintf(out + o, n - o, "; ints");
+    for (int i = 0; i < h->numInts && i < 8 && o < n; i++)
+        o += (size_t)snprintf(out + o, n - o, " %#x", (unsigned)h->data[h->numFds + i]);
+}
+
 static int g_alloc_failed;
 
 enum { TIER_UBWC, TIER_PLAIN, TIER_LINEAR };
@@ -416,22 +436,54 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
         AHardwareBuffer_Desc got; AHardwareBuffer_describe(ahb, &got);
         const struct droiddeck_native_handle *nh = api.getNativeHandle(ahb);
         uint64_t mod = MOD_LINEAR;
-        if (!sniff_modifier(nh, &mod)) {
-            if (tier < TIER_LINEAR) {
+        struct vkp_image *img = NULL;
+        const char *path;
+        char info[160] = "";
+        if (sniff_modifier(nh, &mod)) {
+            img = vkp_image_import_dmabuf(nh->data[0], fmt == AHB_RGB10A2 ? DRM_ABGR2101010 : DRM_ABGR8888, mod, w, h,
+                                          got.stride * 4, 0, 1);
+            path = "dma-buf (QTI handle)";
+        } else {
+            if (tier == TIER_UBWC) {
+                char hd[256];
+                describe_handle(nh, hd, sizeof(hd));
+                droiddeck_log("layer", "%s: gralloc handle is not a QTI one (%d fds, %d ints: %s): no UBWC request; "
+                           "pool buffers are imported %s", l->name, nh ? nh->numFds : -1, nh ? nh->numInts : -1, hd,
+                           vkp_can_import_ahb() ? "as AHardwareBuffers (the driver takes gralloc's own layout)"
+                                                : "as linear dma-bufs (this driver has no AHardwareBuffer import)");
                 AHardwareBuffer_release(ahb);
-                l->alloc_tier = TIER_LINEAR;
-                droiddeck_log("layer", "%s: gralloc handle layout unknown (%d fds, %d ints): using linear pool buffers",
-                           l->name, nh ? nh->numFds : -1, nh ? nh->numInts : -1);
+                l->alloc_tier = vkp_can_import_ahb() ? TIER_PLAIN : TIER_LINEAR;
                 continue;
             }
-            mod = MOD_LINEAR;
+            mod = SC_MOD_GRALLOC;
+            path = "AHardwareBuffer";
+            img = vkp_image_import_ahb(ahb, info, sizeof(info));
+            if (!img && tier == TIER_LINEAR) {
+                const off_t need = (off_t)got.stride * 4 * h;
+                int fd = -1, which = -1;
+                for (int i = 0; nh && i < nh->numFds; i++) {
+                    off_t sz = lseek(nh->data[i], 0, SEEK_END);
+                    if (sz >= 0) lseek(nh->data[i], 0, SEEK_SET);
+                    if (sz >= need) { fd = nh->data[i]; which = i; break; }
+                }
+                if (fd < 0 && nh && nh->numFds > 0) { fd = nh->data[0]; which = 0; }
+                mod = MOD_LINEAR;
+                path = "linear dma-buf";
+                img = fd >= 0 ? vkp_image_import_dmabuf(fd, fmt == AHB_RGB10A2 ? DRM_ABGR2101010 : DRM_ABGR8888, mod,
+                                                        w, h, got.stride * 4, 0, 1) : NULL;
+                snprintf(info, sizeof(info), "handle fd %d of %d", which, nh ? nh->numFds : 0);
+                if (vkp_can_import_ahb())
+                    droiddeck_log("layer", "%s: AHardwareBuffer import failed: the linear dma-buf in the handle's fd %d "
+                               "(of %d) -> %s", l->name, which, nh ? nh->numFds : 0, img ? "imported" : "failed too");
+            }
         }
-        int fd = (nh && nh->numFds > 0) ? nh->data[0] : -1;
-        struct vkp_image *img = fd >= 0 ? vkp_image_import_dmabuf(fd, fmt == AHB_RGB10A2 ? DRM_ABGR2101010 : DRM_ABGR8888,
-                                                                  mod, w, h, got.stride * 4, 0, 1) : NULL;
         if (!img) {
-            droiddeck_log("layer", "%s: import of a %s %dx%d pool buffer (stride %u px) into the compositor's Turnip failed",
-                       l->name, mod == MOD_QCOM_COMPRESSED ? "UBWC" : "linear", w, h, got.stride);
+            char hd[256];
+            describe_handle(nh, hd, sizeof(hd));
+            droiddeck_log("layer", "%s: import of a %s %dx%d pool buffer (stride %u px, %s, usage %#llx) into the "
+                       "compositor's Turnip failed via %s; gralloc handle %d fds / %d ints: %s", l->name,
+                       pool_kind(mod), w, h, got.stride, tier_name(tier), (unsigned long long)got.usage, path,
+                       nh ? nh->numFds : -1, nh ? nh->numInts : -1, hd);
             AHardwareBuffer_release(ahb);
             if (tier < TIER_LINEAR) { l->alloc_tier = tier + 1; continue; }
             g_alloc_failed = 1;
@@ -442,10 +494,11 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
         if (l->logged_w != w || l->logged_h != h || l->logged_fmt != fmt || l->logged_mod != mod ||
             l->logged_tier != tier) {
             l->logged_w = w; l->logged_h = h; l->logged_fmt = fmt; l->logged_mod = mod; l->logged_tier = tier;
-            droiddeck_log("layer", "%s: pool buffers %dx%d%s: %s (%s), stride %u px, up to %d buffers (gralloc handle %d fds / %d ints)",
-                       l->name, w, h, fmt == AHB_RGB10A2 ? " 10-bit RGBA1010102" : "",
-                       mod == MOD_QCOM_COMPRESSED ? "UBWC (QCOM_COMPRESSED)" : "linear", tier_name(tier),
-                       got.stride, l->pool_n, nh ? nh->numFds : -1, nh ? nh->numInts : -1);
+            droiddeck_log("layer", "%s: pool buffers %dx%d%s: %s (%s), stride %u px, up to %d buffers (gralloc handle %d fds / "
+                       "%d ints), imported as %s%s%s%s", l->name, w, h, fmt == AHB_RGB10A2 ? " 10-bit RGBA1010102" : "",
+                       mod == MOD_QCOM_COMPRESSED ? "UBWC (QCOM_COMPRESSED)" : pool_kind(mod), tier_name(tier),
+                       got.stride, l->pool_n, nh ? nh->numFds : -1, nh ? nh->numInts : -1, path,
+                       info[0] ? " (" : "", info, info[0] ? ")" : "");
         }
         return 0;
     }
@@ -814,7 +867,7 @@ int sc_layer_present(struct vkp_image *src, int scene_w, int scene_h, const stru
         l->first_logged = 1;
         droiddeck_log("layer", "presenting %dx%d game frames on their own SurfaceControl layer (%s pool, %d buffers); "
                    "HUD and pointer stay Android views above it", sw, sh,
-                   l->pool_modifier == MOD_QCOM_COMPRESSED ? "UBWC" : "linear", l->pool_n);
+                   pool_kind(l->pool_modifier), l->pool_n);
     }
     vkp_signal_first_frame();
     return 0;
@@ -836,7 +889,7 @@ int sc_layer_present_pass(const struct vkp_draw *draws, int n, int scene_w, int 
         l->first_logged = 1;
         droiddeck_log("layer", "presenting %dx%d frames on their own SurfaceControl layer (%s pool, %d buffers); "
                    "HUD and pointer stay Android views above it", rw, rh,
-                   l->pool_modifier == MOD_QCOM_COMPRESSED ? "UBWC" : "linear", l->pool_n);
+                   pool_kind(l->pool_modifier), l->pool_n);
     }
     vkp_signal_first_frame();
     return 0;
@@ -874,12 +927,12 @@ int sc_layer_present_hdr_scene(const struct vkp_draw *draws, int n, const struct
         if (tm)
             droiddeck_log("color", "tone-mapped picture on the game's display layer: %dx%d, %s 8-bit buffers, untagged "
                        "(sRGB) - HDR output is switched off", rw, rh,
-                       l->pool_modifier == MOD_QCOM_COMPRESSED ? "UBWC" : "linear");
+                       pool_kind(l->pool_modifier));
         else {
             char cov[96];
             coverage_text(l, cov, sizeof(cov));
             droiddeck_log("color", "HDR picture on its own display layer: %dx%d, %s %s buffers, tagged %s%s%s", rw, rh,
-                       l->pool_modifier == MOD_QCOM_COMPRESSED ? "UBWC" : "linear",
+                       pool_kind(l->pool_modifier),
                        g_hdr_pool_fmt == AHB_RGB10A2 ? "10-bit" : "8-bit",
                        color && color->dataspace == DROIDDECK_ADATASPACE_BT2020_PQ ? "BT2020_PQ" : "HDR",
                        cov[0] ? ", " : "", cov);

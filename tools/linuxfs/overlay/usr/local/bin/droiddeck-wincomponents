@@ -599,7 +599,11 @@ def overrides_value(names):
         name = name.strip().lower()
         if name and re.fullmatch(r"[a-z0-9._-]+", name) and re.fullmatch(r"[nb,]*", mode):
             modes.pop(name, None)
-            modes[name] = mode if "=" in entry else "n,b"
+            mode = mode if "=" in entry else "n,b"
+            # dotnet40 has no native mscoree.dll; native-only would hide Wine's loader and fail IL-only apps.
+            if name == "mscoree" and mode == "n":
+                mode = "n,b"
+            modes[name] = mode
     return ";".join("%s=%s" % item for item in modes.items())
 
 

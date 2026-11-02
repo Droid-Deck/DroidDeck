@@ -522,6 +522,7 @@ class SessionService : Service() {
             components.add(encoder)
             guest.add("BL_VENC_SOCKET=" + encoder.socket.absolutePath)
         }
+        startVkBridge(guest, sessionDir)
 
         guest.add("BL_WIDTH=" + size.first)
         guest.add("BL_HEIGHT=" + size.second)
@@ -801,7 +802,7 @@ class SessionService : Service() {
                 ?: SessionPrefs.androidDriver(this),
             linuxDriverId,
         )
-        LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId)
+        if (!com.droiddeck.launcher.core.DeviceSupport.vkBridge(this)) LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId)
             ?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
         val tuOverride = tuDebugOverride()
         val tuDriver = sysmemDriver(linuxDriverId)
@@ -855,6 +856,27 @@ class SessionService : Service() {
 
     private fun noSteamGame(): Boolean =
         SessionState.mode == MODE_RUN && SessionState.program in setOf(NoSteamLaunch.PROTON_RUN, NoSteamLaunch.EPIC, NoSteamLaunch.BATTLENET)
+
+    private fun startVkBridge(guest: MutableList<String>, sessionDir: File) {
+        if (!com.droiddeck.launcher.core.DeviceSupport.vkBridge(this)) return
+        val socket = File(filesDir, "vkbridge/server.sock")
+        val bridge = com.droiddeck.launcher.gpu.VkBridgeComponent(socket, File(sessionDir, "vkbridge-server.log"))
+        bridge.attach(this)
+        components.add(bridge)
+        com.droiddeck.launcher.gpu.ClockLogComponent(File(sessionDir, "vkbridge-clocks.log")).let {
+            it.attach(this)
+            components.add(it)
+        }
+        guest.add("BL_VKBRIDGE=1")
+        guest.add("VKBRIDGE_SOCKET=" + socket.path)
+        guest.add("VKBRIDGE_CLIENT_LOG=" + File(sessionDir, "vkbridge-client.log").path)
+        guest.add("VKBRIDGE_MODE=" + SessionPrefs.vkBridgeMode(this))
+        LinuxRuntime.gpuStandIn(this)?.let { node ->
+            guest.add("BL_DRM_STANDIN=$node")
+            LinuxRuntime.deviceNumbers(node)?.let { guest.add("VKBRIDGE_DRM_RENDER=$it") }
+        }
+        Log.i(TAG, "vkbridge: on (${com.droiddeck.launcher.core.DeviceSupport.gpuName(this)}, ${SessionPrefs.vkBridgeMode(this)} mode), socket $socket")
+    }
 
     private fun startAudio(guest: MutableList<String>, sessionDir: File, directAudioPack: Boolean): PulseAudioComponent {
         val wantsDirectAudio = directAudioPack &&

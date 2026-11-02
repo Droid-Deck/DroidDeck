@@ -63,6 +63,8 @@ public final class LinuxRuntime {
 
     private static final String HOST_DIR = "opt/android-host";
     public static final String PROOT_PACK = "add-on pack";
+    public static final String PROOT_PACKAGED = "packaged";
+    /** Termux's unpatched proot inside the rootfs. Developer switch only. */
     public static final String PROOT_ROOTFS = "rootfs fallback";
     public static final String PROOT_MISSING = "missing";
 
@@ -78,17 +80,31 @@ public final class LinuxRuntime {
         return rootfsProot(context).isFile() && rootfsLoader(context).isFile();
     }
 
+    private static File packagedProot(Context context) {
+        return new File(context.getApplicationInfo().nativeLibraryDir, "libproot.so");
+    }
+
+    private static File packagedLoader(Context context) {
+        return new File(context.getApplicationInfo().nativeLibraryDir, "libproot-loader.so");
+    }
+
+    private static boolean packagedProotReady(Context context) {
+        return packagedProot(context).isFile() && packagedLoader(context).isFile();
+    }
+
     public static boolean patchedProot(Context context) {
-        return AddonPack.PROOT.installed(context);
+        return packagedProotReady(context) || AddonPack.PROOT.installed(context);
     }
 
     public static File prootBinary(Context context) {
+        if (packagedProotReady(context)) return packagedProot(context);
         if (AddonPack.PROOT.installed(context)) return AddonPack.PROOT.file(context, "libproot.so");
         if (SessionPrefs.allowStockProot(context)) return rootfsProot(context);
         return AddonPack.PROOT.file(context, "libproot.so");
     }
 
     public static File prootLoader(Context context) {
+        if (packagedProotReady(context)) return packagedLoader(context);
         if (AddonPack.PROOT.installed(context)) return AddonPack.PROOT.file(context, "libproot-loader.so");
         if (SessionPrefs.allowStockProot(context)) return rootfsLoader(context);
         return AddonPack.PROOT.file(context, "libproot-loader.so");
@@ -97,6 +113,8 @@ public final class LinuxRuntime {
     public static String prootSource(Context context) {
         File bin = prootBinary(context);
         if (!bin.isFile()) return PROOT_MISSING;
+        if (packagedProotReady(context)
+                && bin.getPath().equals(packagedProot(context).getPath())) return PROOT_PACKAGED;
         if (AddonPack.PROOT.installed(context)
                 && bin.getPath().equals(AddonPack.PROOT.file(context, "libproot.so").getPath())) return PROOT_PACK;
         return PROOT_ROOTFS;
@@ -108,7 +126,7 @@ public final class LinuxRuntime {
     }
 
     public static boolean isInstalled(Context context) {
-        return hasRootfs(context) && (patchedProot(context) || rootfsProotReady(context));
+        return hasRootfs(context) && (packagedProotReady(context) || patchedProot(context) || rootfsProotReady(context));
     }
 
     public static boolean hasRootfs(Context context) {
@@ -278,10 +296,42 @@ public final class LinuxRuntime {
         return false;
     }
 
+    static final String MALI_DEVICE = "/dev/mali0";
+
+    static final String[] DRM_RENDER_NODES = {
+        "/dev/dri/renderD128", "/dev/dri/renderD129", "/dev/dri/renderD130", "/dev/dri/renderD131",
+    };
+
+    public static String gpuStandIn(Context context) {
+        if (new File(KGSL_DEVICE).exists()) return KGSL_DEVICE;
+        if (!com.droiddeck.launcher.core.DeviceSupport.INSTANCE.vkBridge(context)) return null;
+        return bridgeStandIn(path -> new File(path).exists());
+    }
+
+    static String bridgeStandIn(java.util.function.Predicate<String> exists) {
+        if (exists.test(MALI_DEVICE)) return MALI_DEVICE;
+        for (String node : DRM_RENDER_NODES) if (exists.test(node)) return node;
+        return null;
+    }
+
+    public static String deviceNumbers(String path) {
+        try {
+            long dev = Os.stat(path).st_rdev;
+            long major = ((dev >> 8) & 0xfff) | ((dev >> 32) & ~0xfffL);
+            long minor = (dev & 0xff) | ((dev >> 12) & ~0xffL);
+            return major + ":" + minor;
+        } catch (ErrnoException e) {
+            return null;
+        }
+    }
+
     private static void bindGpuNode(Context context, List<String> cmd) {
+        String standIn = gpuStandIn(context);
+        if (standIn == null) return;
+        boolean kgsl = standIn.equals(KGSL_DEVICE);
         StructStat st;
         try {
-            st = Os.stat(KGSL_DEVICE);
+            st = Os.stat(standIn);
         } catch (ErrnoException e) {
             return;
         }
@@ -301,13 +351,14 @@ public final class LinuxRuntime {
             Files.write(new File(drm, "dev").toPath(),
                     (major + ":" + minor + "\n").getBytes(StandardCharsets.UTF_8));
             Files.write(new File(device, "uevent").toPath(),
-                    "DRIVER=kgsl-3d0\nMODALIAS=platform:kgsl-3d0\n".getBytes(StandardCharsets.UTF_8));
+                    (kgsl ? "DRIVER=kgsl-3d0\nMODALIAS=platform:kgsl-3d0\n" : "DRIVER=mali\nMODALIAS=platform:mali\n")
+                            .getBytes(StandardCharsets.UTF_8));
             File subsystem = new File(device, "subsystem");
             if (!Files.isSymbolicLink(subsystem.toPath())) {
                 Os.symlink("/sys/bus/platform", subsystem.getPath());
             }
             File driver = new File(device, "driver");
-            if (!Files.isSymbolicLink(driver.toPath())) {
+            if (kgsl && !Files.isSymbolicLink(driver.toPath())) {
                 Os.symlink("/sys/bus/platform/drivers/msm_drm", driver.getPath());
             }
         } catch (IOException | ErrnoException e) {
@@ -315,7 +366,7 @@ public final class LinuxRuntime {
         }
         bind(cmd, new File(base, "sys").getPath() + ":/sys/dev/char");
         bind(cmd, dri.getPath() + ":/dev/dri");
-        bind(cmd, KGSL_DEVICE + ":/dev/dri/" + node);
+        bind(cmd, standIn + ":/dev/dri/" + node);
         bindDrmClass(base, cmd, node, major + ":" + minor);
     }
 
