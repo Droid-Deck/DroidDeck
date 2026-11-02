@@ -775,9 +775,9 @@
   "format": 1,
   "hybris": {
     "provenance": {
-      "component_ci_run": "https://github.com/wallentx/DroidDeck/actions/runs/41396443153",
+      "component_ci_run": "https://github.com/wallentx/DroidDeck/actions/runs/41401237977",
       "note": "Candidate pin: publish this exact archive and verify its URL before updating release.json.",
-      "producer_commit": "38fde9ccd72ddd0a851c4f3659530eb44d4637f5",
+      "producer_commit": "9174bbb7e00d6bd23c506207d0ad71e05beb3800",
       "upstream_source_commit": "aee1f6ab3483a6babc41b0def751cfeb0ace24f2",
       "vulkan_headers_commit": "8d6039a455a7ecc7d2a592ff97f62db4e59b70bf"
     },
@@ -785,7 +785,7 @@
       "tools/hybris/build_runtime.sh": "c058f22f2bcdb355478807dc5635c427d9144dee90a84bde3153eccfb3de1938",
       "tools/hybris/component_record.py": "8835ace515293988eef312099b2a1519874244a670c1c4035713ca31b54104dc",
       "tools/hybris/patches/0001-dxvk-bc-profile.patch": "8ad83be7c13b7c7a92c02899e4873b4224aad4640eb0d1a46d946c7d497b3816",
-      "tools/hybris/patches/0002-vendor-compatibility.patch": "e1b3fa817d5d45b82aa9be8b1e67a283746d0f4c5ff32676ba3b6b3096c68a82",
+      "tools/hybris/patches/0002-vendor-compatibility.patch": "1158941fddcc94447a328ca96b1d9224599a61c56c3a889da6e038f10809ae23",
       "tools/hybris/patches/0003-placed-memory-layer.patch": "680baf1d4088c88680b278361adc0852309b13be8898ab5cf52b1a55db4cc996",
       "tools/hybris/patches/0004-mali-mapping-lock.patch": "61b027b12d3ad0263b36b12fd7df8c3f15b9c0ce1f4aa39658b13e027a54e2ab",
       "tools/hybris/patches/0005-inline-shader-modules.patch": "30efc4cc1b9122921fd2b34672b2c343fdb0ca89b7aa7adf53eec08fcf6db507",
@@ -802,9 +802,9 @@
       "tools/hybris/powervr-hal-version.patch": "9fff26678dc4120bd124fd1cee0d7220c81d7b37ec11e8eafefa5f29a1d06e67",
       "tools/hybris/source.env": "e8a4ac39c52b4285aa72286d07fad6a186ec724b4634d8f909b21ec5de2adcbb"
     },
-    "sha256": "6c28d6aaa657e70f1d53e09239a163143f54038230d60d5aec0368971d7b9001",
-    "size": 6773452,
-    "tree_sha256": "14a600423970b2cd30c8cbee67626d50340a271d3e8e851f6b95e547f8d9a421",
-    "url": "https://github.com/wallentx/DroidDeck/releases/download/hybris-38fde9ccd72ddd0a851c4f3659530eb44d4637f5/runtime.tzst"
+    "sha256": "fea1f1b0a1f070983bfb7545dbb42f48a9e3754846de7e881e89009387c0c899",
+    "size": 6771650,
+    "tree_sha256": "f007dc78081c5bfdcef2f5efa310052dd6250bb14411490952744bf6758ecfa0",
+    "url": "https://github.com/wallentx/DroidDeck/releases/download/hybris-9174bbb7e00d6bd23c506207d0ad71e05beb3800/runtime.tzst"
   }
 }
