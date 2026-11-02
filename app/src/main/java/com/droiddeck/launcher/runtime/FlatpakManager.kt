@@ -19,7 +19,7 @@ object FlatpakManager {
     @Volatile var busy: String? = null
         private set
 
-    class App(val id: String, val name: String, val icon: File?, val branch: String, val summary: String?)
+    class App(val id: String, val name: String, val icon: File?, val branch: String, val summary: String?, val arch: String = "aarch64")
 
     fun ready(context: Context): Boolean {
         val root = LinuxRuntime.rootDir(context)
@@ -33,24 +33,33 @@ object FlatpakManager {
         else -> "aarch64"
     }
 
+    internal fun arches(native: String = arch()): List<String> = if (native == "aarch64") listOf("aarch64", "x86_64") else listOf(native)
+
+    internal fun installedBranch(appDir: File, native: String = arch()): Pair<String, File>? =
+        arches(native).firstNotNullOfOrNull { arch ->
+            File(appDir, arch).listFiles()?.firstOrNull { File(it, "active").exists() }?.let { arch to it }
+        }
+
+    fun foreign(app: App, native: String = arch()): Boolean = app.arch != native
+
+    fun launchArgs(app: App, native: String = arch()): List<String> = if (foreign(app, native)) listOf("--arch=${app.arch}", app.id) else listOf(app.id)
+
     fun installedApps(context: Context): List<App> {
         val apps = File(LinuxRuntime.rootDir(context), "$USER_DIR/app")
-        val arch = arch()
         return apps.listFiles()?.mapNotNull { dir ->
             val id = dir.name
-            val archDir = File(dir, arch)
-            val branch = archDir.listFiles()?.firstOrNull { File(it, "active").exists() } ?: return@mapNotNull null
+            val (arch, branch) = installedBranch(dir) ?: return@mapNotNull null
             val active = File(branch, "active")
             val export = File(active, "export/share")
             val desktop = FileUtils.readString(File(export, "applications/$id.desktop"))
             val name = desktop?.let { entry(it, "Name") } ?: id.substringAfterLast('.')
             val summary = desktop?.let { entry(it, "Comment") }
-            App(id, name, icon(export, id), branch.name, summary)
+            App(id, name, icon(export, id), branch.name, summary, arch)
         }?.sortedBy { it.name.lowercase() } ?: emptyList()
     }
 
     fun isInstalled(context: Context, id: String): Boolean =
-        File(LinuxRuntime.rootDir(context), "$USER_DIR/app/$id/${arch()}").listFiles()?.any { File(it, "active").exists() } == true
+        installedBranch(File(LinuxRuntime.rootDir(context), "$USER_DIR/app/$id")) != null
 
     private fun entry(desktop: String, key: String): String? {
         var inMain = false
@@ -117,7 +126,11 @@ object FlatpakManager {
                 when (o.optString("e")) {
                     "op" -> { step = stage(context, o); onProgress(step, overall(o, 0)) }
                     "progress" -> onProgress(step, overall(o, o.optInt("percent")))
-                    "error" -> { error = o.optString("message"); Log.w(TAG, "$verb $id: $error") }
+                    "error" -> {
+                        error = if (o.optString("code") == "arch") context.getString(R.string.flatpakmgr_wrong_arch, o.optString("id"), o.optString("arch"))
+                            else o.optString("message")
+                        Log.w(TAG, "$verb $id: ${o.optString("message")}")
+                    }
                     "warning" -> Log.w(TAG, "$verb $id: ${o.optString("message")}")
                     "done" -> onDone(o)
                 }

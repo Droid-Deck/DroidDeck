@@ -85,3 +85,127 @@ the patched component retained 1/20, then 0 after destruction. The unassigned
 control retained 20/20 and then 0. In Backpack Battles, two batches of ten touch
 drags leaked 188 and 197 SHM descriptors before the fix; the same batches added
 zero after the fix (112 total descriptors before and after each batch).
+
+## 0117 WSI: cache the present-time Xwayland bypass check
+
+`QueuePresentKHR` in the WSI layer calls `canBypassXWayland` for every swapchain on
+every present. Each call makes several synchronous X requests (window geometry,
+`_WINE_ALLOW_FLIP`, parent window, a child-window scan, the toplevel window). At
+high frame rates that is thousands of round trips a second: on an AYANEO Pocket FIT
+running AIO Graphics Test uncapped, Xwayland used 24-32% of a core and the game's
+present thread sat about half idle.
+
+The patch can keep the result for `DROIDDECK_WSI_BYPASS_CHECK_MS` milliseconds. Unset
+or 0 keeps the per-present check; the app sets 100. With 100, a window resize or a flip/obscure change is seen up to 100 ms
+later than before; surface creation and capability queries still check every time.
+
+## 0118 Wayland: preserve signed plane positions
+
+Fill scaling and Steam magnification can place the image at negative x/y coordinates.
+The Wayland backend converted these signed positions through an unsigned size helper:
+at host scale 120, -120 became 35791275 and the image moved off-screen while overlays
+could remain visible. A separate signed conversion uses a 64-bit intermediate and
+retains the existing ceiling convention; viewport sizes keep their original helper.
+
+The component build runs `wayland_scaling` for negative crop offsets, positive/zero
+positions, fractional host scales and wide intermediates. This patch may be worth
+upstreaming: the same unsigned position calls were present in ValveSoftware/gamescope
+3.16.29 and master `d175688ad4ec490dc7b0695c5c62f8807684a1f1` when checked on
+2026-10-26. Carry it here until an upstream release containing the fix is adopted.
+
+Device validation on AYN Thor (1280x720 session, 1920x1080 Android output):
+800x600 and 1600x600 source windows retained their image through Auto, Fit,
+Stretch, Fill, Integer and 2x Steam magnification, including returning to Fit.
+The old component lost the image in Fill and magnification. The tested executable
+matches the pinned p14 archive and the locally assembled APK. Hardware checks used
+native Gamescope properties; the physical Back+LB shortcut was not independently
+confirmed. The original APK and runtime were restored after validation.
+
+## 0119 WSI: default image count while the frame limiter runs
+
+The app sets `GAMESCOPE_WSI_MIN_IMAGE_COUNT=8` so an uncapped game keeps drawing while
+gamescope turns its buffers around. With Steam's Frame Limit on, gamescope forces FIFO,
+and the layer always hands the driver MAILBOX, so a game with eight images could queue
+up to seven frames inside gamescope before it blocked: each one adds a frame of input
+latency at the limited rate.
+
+While the limiter forces FIFO, the layer now reports and enforces its default minimum
+of 3 images instead of the raised count; with the limiter off it uses the raised count
+as before. DXVK and VKD3D-Proton already recreate their swapchain when the limiter
+changes (the layer returns `VK_ERROR_OUT_OF_DATE_KHR`), so their image count follows
+the Quick Access menu. Other apps keep their swapchain on a limiter change; they now
+get `VK_SUBOPTIMAL_KHR` while their image count no longer matches, unless the layer
+marks them as not taking it (`NoSuboptimal`).
+
+## 0120 Wayland: nested refresh follows the host
+
+`-r` fixes the refresh gamescope paces at, and the frame limiter and Steam's Frame Limit
+slider use the same value. The app passes the panel refresh at session start, so a
+panel switched to another mode during the session (for example in the device's own
+quick settings) left gamescope pacing at the old rate until the next session; only the
+reported output refresh changed.
+
+With `GAMESCOPE_NESTED_REFRESH_FOLLOWS_HOST=1`, a refresh the host compositor reports
+through presentation feedback replaces the `-r` value, so pacing and the limiter switch
+with the panel. `-r` still sets the starting rate, which avoids gamescope assuming
+60 Hz until the first frame is shown. When the refresh changes, gamescope also sends
+its `gamescope_control` display information to Steam again; Steam otherwise reads it
+only when it binds.
+
+A host mode switch can report a passing rate for a few frames (72 Hz between 144 and
+120 Hz on the AYANEO Pocket FIT), so with following on a new rate is taken once it has
+been reported for 300 ms. Without the variable the reported rate is taken at once, as
+upstream does.
+
+The rate comes from the feedback of a frame gamescope presents, so with nothing moving
+on screen no feedback arrived and the old rate stayed. With following on, gamescope
+presents once when the host's `wl_output` mode changes (DroidDeck's compositor sends
+the new mode) and keeps presenting while a new rate is pending (since p16).
+
+## 0121 Xwayland: skip the X tree walk for a repeated window override
+
+The WSI layer sends `override_window_content` on every present of an X11 swapchain.
+gamescope first walked from that window to its top-level window with `XQueryTree`, one
+blocking X round trip per level under the wlserver lock, and only then noticed that the
+same swapchain already overrides that window. At thousands of frames per second that is
+thousands of round trips to Xwayland every second.
+
+The override now remembers the window it was asked for. When the same swapchain and
+surface ask for the same window again within 100 ms, the request returns at once; after
+100 ms the walk runs again, so a window that moved to another top level is still found.
+
+## 0122 Wayland: wake steamcompmgr after reading host events
+
+Backport of upstream commit 2962992 by Matthew Schwartz (ValveSoftware/gamescope).
+The nested Wayland backend's input thread reads the host display, but steamcompmgr
+does not watch that file descriptor, so buffer releases and presentation feedback
+queued by that read could wait up to one refresh for steamcompmgr's next poll. The
+input thread now wakes steamcompmgr after each read.
+
+## 0123 commit: fence lifetime fixes from upstream
+
+Backport of upstream commits 0efe47c and 666c52b by Matthew Schwartz (ValveSoftware/gamescope).
+Pending commits share ownership of their completion list with the Xwayland context, so a late
+fence signal can no longer append to a list freed with the context; and a commit being destroyed
+no longer hands the image waiter a new reference to itself. Both touch the code 0124 changes.
+
+## 0124 commit: mark a finished frame done at import
+
+Every game frame took two passes of steamcompmgr's loop: the import duplicated the buffer's
+fence and handed the commit to the image waiter (epoll add), then the waiter thread saw the fence
+signalled, removed and closed it and woke steamcompmgr again to handle the finished commit.
+`update_wayland_res` now polls the fence without waiting first. A frame that is already finished
+is marked done at once - no duplicate fence, no epoll add or delete, no waiter wake - and the main
+loop handles it in the same pass, after the import (FIFO commits still wait for a vblank). The
+`commit_ready_check` convar (default on, `gamescopectl commit_ready_check 0`) turns it off; the
+`xwm` log counts fences ready at import and waited for, every 10 s.
+
+## 0125 steamcompmgr: share mangoapp's frame times with DroidDeck's HUD
+
+DroidDeck's in-app HUD shows the same frame rate and frame times as Steam's performance overlay.
+DroidDeck's mangoapp (Valve's 20260902.1 build) reads the field at byte 16 of gamescope's messages as
+its frame time; gamescope 3.16.29 puts `app_frametime_ns` there, the time between signalled commits of
+the connector's windows (`mangoapp_nudge_app_frame`). With `DROIDDECK_HUD_FRAMES` set (droiddeck-session
+sets `/run/droiddeck-hud/frames`), gamescope maps that file and writes the same commits of connector 0,
+whether or not a mangoapp runs, plus the focused pid, output size, refresh, Steam focus and engine name.
+The layout is in the comment above `droiddeck_hud_frames_map`; the app reads it in `hudframes.c`.

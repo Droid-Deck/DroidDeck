@@ -14,9 +14,11 @@ object GameStorage {
 
     fun options(context: Context): List<Option> {
         val sm = context.getSystemService(StorageManager::class.java)
+        val primary = context.getExternalFilesDir(null)?.absolutePath
+        val primaryStorage = Environment.getExternalStorageDirectory()?.absolutePath
         return context.getExternalFilesDirs(null).orEmpty().filterNotNull().mapNotNull { dir ->
-            val removable = try { Environment.isExternalStorageRemovable(dir) } catch (e: Exception) { false }
-            if (!removable) return@mapNotNull null
+            if (primary != null && dir.absolutePath == primary) return@mapNotNull null
+            if (!primaryStorage.isNullOrBlank() && dir.absolutePath.startsWith("$primaryStorage/")) return@mapNotNull null
             val volume = try { sm?.getStorageVolume(dir) } catch (e: Exception) { null }
             val name = volume?.getDescription(context)?.takeIf { it.isNotBlank() && !it.equals("android", true) } ?: context.getString(R.string.gstore_sd_card)
             Option(context.getString(R.string.gstore_volume_free, name, free(dir)), File(dir, "steam").absolutePath, name)
@@ -60,12 +62,14 @@ object GameStorage {
     fun gamesFolderLibraries(context: Context): List<Library> {
         if (SessionPrefs.gameStorage(context).isNotEmpty()) return emptyList()
         val card = effective(context)?.let { canonical(File(it.path)) }
+        val added = SteamLibraries.list(context).map { canonical(it.host) }
         val sm = context.getSystemService(StorageManager::class.java)
         return AddedGames.roots(context).mapNotNull { root ->
             val host = canonical(root.host)
             if (!hasInstalledGames(root.host)) return@mapNotNull null
             if ('"' in root.guest || '\\' in root.guest || !root.host.isDirectory || !root.host.canWrite()) return@mapNotNull null
             if (card != null && (host == card || host.startsWith("$card/") || card.startsWith("$host/"))) return@mapNotNull null
+            if (added.any { SteamLibraries.overlaps(it, host) }) return@mapNotNull null
             val volume = try { sm?.getStorageVolume(root.host)?.getDescription(context) } catch (e: Exception) { null }
             val name = root.host.name.ifEmpty { context.getString(R.string.gstore_folder) }
             val label = if (volume.isNullOrBlank()) name else context.getString(R.string.gstore_folder_on_volume, name, volume)

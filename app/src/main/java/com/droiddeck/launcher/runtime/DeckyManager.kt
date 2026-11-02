@@ -23,7 +23,6 @@ object DeckyManager {
     private const val PATH = "root/homebrew/services/PluginLoader"
     private const val VERSION = "root/homebrew/services/.droiddeck-decky-version"
     private const val SETTINGS = "root/homebrew/settings/loader.json"
-    // droiddeck-session reads the marker from the root of the client it runs.
     private val CEF_REMOTE_DEBUG_MARKERS = listOf(
         "root/.local/share/Steam/.cef-enable-remote-debugging",
         "root/.droiddeck-x64/.local/share/Steam/.cef-enable-remote-debugging",
@@ -58,7 +57,6 @@ object DeckyManager {
         check(staged.renameTo(file)) { "cannot write ${file.path}" }
     }
 
-    // Mirrors Decky's updater: Stable takes the newest non-prerelease tag, Prerelease the newest tag of either kind.
     fun latest(channels: ReleaseChannels, branch: Int): Release? =
         if (branch == BRANCH_STABLE) channels.stable.firstOrNull() else channels.all.firstOrNull()
 

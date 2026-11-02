@@ -1,0 +1,3 @@
+[submodule "tools/syncthing/syncthing-android"]
+	path = tools/syncthing/syncthing-android
+	url = https://github.com/researchxxl/syncthing-android

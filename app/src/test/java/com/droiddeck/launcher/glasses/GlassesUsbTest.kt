@@ -16,7 +16,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
+import com.droiddeck.launcher.core.DroidDeckTestRunner as RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
@@ -267,6 +267,17 @@ class GlassesUsbTest {
         assertEquals("Rokid Max", max?.name)
         assertEquals(null, Glasses.deviceModel(device(0x162f, 0x04d2, "Generic HID")))
         assertTrue(Glasses.isGlassesDisplayName("Rokid Max"))
+    }
+
+    @Test fun rokidMax2RequestsPermissionForItsOwnProductId() {
+        val max2 = device(0x2002, 0x04d2, "Rokid Max2")
+        manager.devices[max2.deviceName] = max2
+        refresh(ask = true)
+        assertEquals("Rokid Max2", state.value.model)
+        assertTrue(state.value.controllable)
+        assertEquals(listOf(max2), manager.requests)
+        assertTrue(Glasses.isGlassesDisplayName("Rokid Max 2"))
+        assertEquals(null, Glasses.deviceModel(device(0x2002, 0x04d2, "Generic HID")))
     }
 
     private fun device(pid: Int, vid: Int = VitureProtocol.VENDOR_ID, name: String = "VITURE device"): UsbDevice = ReflectionHelpers.callConstructor(

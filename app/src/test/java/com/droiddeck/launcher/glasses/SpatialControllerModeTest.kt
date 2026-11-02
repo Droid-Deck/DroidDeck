@@ -3,10 +3,11 @@ package com.droiddeck.launcher.glasses
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import org.junit.After
+import org.junit.Before
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
+import com.droiddeck.launcher.core.DroidDeckTestRunner as RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
@@ -14,6 +15,8 @@ import org.robolectric.annotation.Config
 class SpatialControllerModeTest {
     private fun snapshot(): ByteBuffer = (SpatialTracking::class.java.getDeclaredField("buffer")
         .apply { isAccessible = true }.get(null) as ByteBuffer).duplicate().order(ByteOrder.LITTLE_ENDIAN)
+
+    @Before fun outputOnGlasses() = SpatialTracking.setOutputUsesGlasses(true)
 
     @After fun cleanUp() {
         SpatialTracking.setSteadyHandAim(false)

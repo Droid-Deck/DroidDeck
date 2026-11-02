@@ -11,7 +11,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
+import com.droiddeck.launcher.core.DroidDeckTestRunner as RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import java.io.File
 
@@ -61,6 +61,8 @@ class NoSteamLaunchTest {
             listOf("--app", "2733369024", "--dir", game.guestDir, "--options", "-windowed", "--", game.guestExe),
             added.args,
         )
+        val plain = NoSteamLaunch.addedCommand(AddedGames.Game(game.folder, game.name, game.exe, game.guestExe, game.guestDir, 2733369024L, 0L, emptyList(), source = "gog"))
+        assertEquals(listOf("--app", "2733369024", "--dir", game.guestDir, "--", game.guestExe), plain.args)
         assertNull(NoSteamLaunch.command(shortcut, null))
         val steam = NoSteamLaunch.command(steamGame, null)!!
         assertEquals(listOf("--app", "413150"), steam.args)

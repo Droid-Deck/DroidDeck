@@ -9,7 +9,7 @@ import android.view.MotionEvent
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
+import com.droiddeck.launcher.core.DroidDeckTestRunner as RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
@@ -82,6 +82,20 @@ class PadBridgeRoutingTest {
             assertFalse(PadBridge.isControllerKeyEvent(key(phantom, KeyEvent.KEYCODE_BUTTON_A, KeyEvent.ACTION_DOWN)))
         }
         assertFalse(PadBridge.anyControllerConnected())
+    }
+
+    @Test fun homeShortcutsIgnoreHomeFromSystemKeys() {
+        val gpio = device(InputDevice.SOURCE_KEYBOARD, InputDevice.KEYBOARD_TYPE_NON_ALPHABETIC, name = "gpio-keys")
+        val pad = device(InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_KEYBOARD, InputDevice.KEYBOARD_TYPE_NON_ALPHABETIC)
+        assertFalse(PadBridge.isControllerKeyEvent(key(gpio, KeyEvent.KEYCODE_HOME, KeyEvent.ACTION_DOWN)))
+        assertTrue(PadBridge.isControllerKeyEvent(key(pad, KeyEvent.KEYCODE_HOME, KeyEvent.ACTION_DOWN)))
+        val owner = Any()
+        HomeButtonShortcuts.attach(owner, { true }, { fail("system Home must not press Guide") }, {})
+        try {
+            for (action in listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP)) {
+                assertFalse(HomeButtonShortcuts.onKeyEvent(RuntimeEnvironment.getApplication(), key(gpio, KeyEvent.KEYCODE_HOME, action)))
+            }
+        } finally { HomeButtonShortcuts.detach(owner) }
     }
 
     @Test fun keyAndMotionOwnershipDoesNotFollowEverySourceOnTheDevice() {

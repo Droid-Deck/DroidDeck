@@ -39,7 +39,10 @@ class StoreDownloadService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         instance = this
-        startForegroundCompat(build())
+        if (!startForegroundCompat(build())) {
+            onTimeout(startId, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            return START_NOT_STICKY
+        }
         val key = intent?.getStringExtra(EXTRA_KEY)
         when (intent?.action) {
             ACTION_PAUSE -> key?.let {
@@ -155,10 +158,9 @@ class StoreDownloadService : Service() {
         wakeAt = 0L
     }
 
-    private fun startForegroundCompat(n: Notification) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) startForeground(ID, n, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-        else startForeground(ID, n)
-    }
+    private fun startForegroundCompat(n: Notification): Boolean =
+        com.droiddeck.launcher.core.ForegroundServices.start(this, ID, n,
+            android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
 
     private fun stopNow() {
         releaseLocks()

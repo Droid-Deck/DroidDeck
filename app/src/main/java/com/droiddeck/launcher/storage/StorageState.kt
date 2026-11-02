@@ -115,7 +115,6 @@ object StorageState {
         }, "storage-remove-tool").start()
     }
 
-    // Every action works from a fresh scan so nothing is deleted on the strength of an older one.
     private fun act(context: Context, name: String, action: (Context, StorageReport) -> Boolean, onDone: (Long?) -> Unit = {}) {
         if (cleaning || SessionState.running) { onDone(null); return }
         val app = context.applicationContext
@@ -134,10 +133,16 @@ object StorageState {
         }, "storage-$name").start()
     }
 
-    // A game can be installed in both Steam clients, and an id can be left over in several libraries.
     fun clearShaders(context: Context, appId: Int, x64: Boolean = false) = act(context, "shaders-$appId", { _, fresh ->
         val dir = fresh.games.firstOrNull { it.appId == appId && it.x64 == x64 }?.shaderDir ?: return@act false
         FileOps.delete(dir)
+    })
+
+    fun resetPrefix(context: Context, game: GameUsage) = act(context, "prefix-${game.appId}", { _, fresh ->
+        val dir = fresh.games.firstOrNull { it.appId == game.appId && it.x64 == game.x64 && it.prefixDir?.path == game.prefixDir?.path }
+            ?.prefixDir ?: error("prefix not found")
+        check(FileOps.delete(dir)) { "cannot delete $dir" }
+        true
     })
 
     fun removeLeftover(context: Context, l: Leftover) = act(context, "leftover-${l.appId}", { _, fresh ->
@@ -197,7 +202,6 @@ object StorageState {
         }
     }
 
-    // Steam treats an app as installed while its manifest exists, so the manifest goes first.
     private fun deleteTool(tool: ToolUsage) {
         tool.manifests.forEach { check(!it.exists() || it.delete()) { "cannot delete $it" } }
         tool.dirs.forEach { FileOps.delete(it) }

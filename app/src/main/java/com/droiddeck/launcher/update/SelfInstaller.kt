@@ -57,7 +57,6 @@ object SelfInstaller {
         }
         @Suppress("DEPRECATION")
         val flags = if (Build.VERSION.SDK_INT >= 28) {
-            // Android 9 and 10 only collect an archive's certificates when GET_SIGNATURES is set.
             PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES
         } else {
             PackageManager.GET_SIGNATURES
@@ -91,7 +90,7 @@ object SelfInstaller {
         }
     }
 
-    fun install(context: Context, apk: File) {
+    fun install(context: Context, apk: File, onSession: (Int) -> Unit = {}) {
         val installer = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
             setAppPackageName(context.packageName)
@@ -108,7 +107,19 @@ object SelfInstaller {
             }
             val status = Intent(ACTION_STATUS).setPackage(context.packageName)
             val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
+            onSession(id)
             session.commit(PendingIntent.getBroadcast(context, id, status, flags).intentSender)
+        }
+    }
+
+    fun safeConfirmIntent(context: Context, confirm: Intent): Intent? {
+        val target = confirm.resolveActivity(context.packageManager) ?: return null
+        val info = runCatching { context.packageManager.getApplicationInfo(target.packageName, 0) }.getOrNull() ?: return null
+        if (info.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM == 0) return null
+        return Intent(confirm).setComponent(target).apply {
+            flags = flags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or Intent.FLAG_GRANT_PREFIX_URI_PERMISSION).inv()
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
     }
 

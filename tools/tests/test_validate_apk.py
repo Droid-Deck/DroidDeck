@@ -28,7 +28,8 @@ class ValidateApkTest(unittest.TestCase):
     def git(self, *args):
         return subprocess.check_output(["git", "-C", self.root, *args], text=True).strip()
 
-    def validate(self, message="Source change", body="", result="success", stale=False, completed=False, filename="source.kt"):
+    def validate(self, message="Source change", body="", result="success", stale=False, completed=False, filename="source.kt", permission="write", role_name="write"):
+        (self.root / filename).parent.mkdir(parents=True, exist_ok=True)
         (self.root / filename).write_text(message)
         self.git("add", filename)
         self.git("commit", "--allow-empty", "-qm", message)
@@ -42,6 +43,8 @@ class ValidateApkTest(unittest.TestCase):
         path.write_text(json.dumps(event))
 
         def api(path, *args):
+            if path.endswith("/collaborators/human/permission"):
+                return {"permission": permission, "role_name": role_name}
             if "/statuses/" in path:
                 self.statuses.append(dict(value.split("=", 1) for value in args if "=" in value))
                 return {}
@@ -94,6 +97,19 @@ class ValidateApkTest(unittest.TestCase):
 
     def test_documentation_passes_without_waiting_for_a_skipped_build(self):
         self.validate(filename="README.md", result="pending")
+        self.assertEqual(self.statuses[-1]["state"], "success")
+
+    def test_trusted_list_requires_maintainer_pr_opener(self):
+        with self.assertRaisesRegex(RuntimeError, "Only a maintainer"):
+            self.validate(filename=".github/trusted-test-builds.txt")
+        self.assertEqual(self.statuses[-1]["state"], "failure")
+
+    def test_maintainer_can_change_trusted_list(self):
+        self.validate(filename=".github/trusted-test-builds.txt", permission="write", role_name="maintain")
+        self.assertEqual(self.statuses[-1]["state"], "success")
+
+    def test_admin_can_change_trusted_list(self):
+        self.validate(filename=".github/trusted-test-builds.txt", permission="admin", role_name="admin")
         self.assertEqual(self.statuses[-1]["state"], "success")
 
     def test_renaming_code_to_documentation_still_requires_compilation(self):

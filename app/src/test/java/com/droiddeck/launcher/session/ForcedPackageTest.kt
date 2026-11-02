@@ -12,7 +12,7 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
+import com.droiddeck.launcher.core.DroidDeckTestRunner as RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.File
@@ -27,6 +27,17 @@ class ForcedPackageTest {
         context = RuntimeEnvironment.getApplication()
         File(context.filesDir, "components").deleteRecursively()
         LinuxRuntime.rootDir(context).deleteRecursively()
+    }
+
+    @Test fun unpackedCacheNameCannotEscapeStoreDirectory() {
+        assertEquals("dxvk-2.7.1-linux", ComponentsManager.unpackedCacheKey(dxvk2))
+        for (filename in listOf("..wcp", "...wcp")) {
+            try {
+                ComponentsManager.unpackedCacheKey(filename)
+                fail("Expected cache traversal name to be rejected: $filename")
+            } catch (_: IllegalArgumentException) {
+            }
+        }
     }
 
     @Test fun adreno6xxForcesDxvk2AndNothingElseDoes() {

@@ -7,7 +7,9 @@ importer as Added Games. Existing Steam manifests are preserved.
 `droiddeck-steam-games watch` runs beside the client. It identifies a game by an
 existing manifest's install directory, a `steam_appid.txt` beside the game or selected
 executable, or a unique normalized title from Steam's store search with an explicit
-country. Matching also accepts the terminal Windows Edition and INTERGRADE suffixes;
+country. A `steam_appid.txt` naming 480 (Spacewar, the Steamworks SDK sample that Steam
+emulators and multiplayer fixes use in place of the game) identifies nothing; the
+launcher's artwork matching ignores it too. Matching also accepts the terminal Windows Edition and INTERGRADE suffixes;
 multiple matches still remain unresolved. Artwork's fuzzy matching is deliberately not
 used for identity. Ambiguous or unresolved titles remain non-Steam games.
 
@@ -42,11 +44,27 @@ the earlier importer are migrated, with the matching source symlink still presen
 registration fails, the game remains a shortcut. Once Steam takes over an install,
 manage it in Steam; forgetting an Added Games folder only removes its shortcuts.
 
+An import is undone (its symlink and manifest, never the folder) when the folder was
+imported as Spacewar, or when a snapshot of the folder's current files names another app.
+The folder is then imported as that app if the account owns it, else it is a shortcut
+again. A failed title lookup undoes nothing. The launcher likewise drops artwork it
+fetched for the app the files named before and fetches it again; pictures the user chose
+are kept.
+
 The account's `.droiddeck-routes.json` maps shortcut IDs to real Steam app IDs so the
 Android launcher uses the same title and Proton prefix as Steam. Other accounts do not
 inherit those routes. Managed shortcuts are replaced; user-created shortcuts and
 unreadable shortcut files are preserved. Both routes use the existing ARM64 Proton
 registration.
+
+## Launcher artwork
+
+The installed Steam game scan lists each game's `appcache/librarycache/<appid>`
+directory once for its cover, background, icon and logo. Filename preference is
+checked before directory preference: the app folder, then hash folders sorted by
+name. Hash-named fallback icons are still taken only from the app folder in its
+listing order. The directory snapshot is not kept between scans, so the next
+scan sees new artwork folders.
 
 ## Validation
 

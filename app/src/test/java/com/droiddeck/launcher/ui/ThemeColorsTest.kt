@@ -11,7 +11,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
+import com.droiddeck.launcher.core.DroidDeckTestRunner as RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
@@ -131,5 +131,41 @@ class ThemeColorsTest {
     @Test fun theGradientIsAChoiceInTheThemeList() {
         assertTrue(Themes.all.any { it.id == Themes.GRADIENT })
         assertEquals(Themes.GRAPHITE, Themes.byId("nonsense").id)
+    }
+
+    @Test fun innerGamerSitsJustAboveGradientInTheThemeList() {
+        val ids = Themes.all.map { it.id }
+        assertEquals(ids.indexOf(Themes.GRADIENT) - 1, ids.indexOf(Themes.INNER_GAMER))
+    }
+
+    @Test fun innerGamerButtonTextIsReadableAlongTheGradientAtEveryHue() {
+        var hue = 0f
+        while (hue < 360f) {
+            val p = Themes.innerGamer(hue)
+            assertEquals(Themes.INNER_GAMER, p.id)
+            for (i in 0..100) {
+                val f = i / 100f
+                val blend = Color(
+                    p.primary.red + (p.primary2.red - p.primary.red) * f,
+                    p.primary.green + (p.primary2.green - p.primary.green) * f,
+                    p.primary.blue + (p.primary2.blue - p.primary.blue) * f,
+                )
+                assertTrue("hue $hue at $f", contrast(p.onPrimary, blend) >= 4.49f)
+            }
+            hue += Themes.RGB_HUE_STEP
+        }
+    }
+
+    @Test fun innerGamerFollowsTheHueAndTheSpeedIsSavedAndKeptInRange() {
+        Themes.moveRgbHue(120f)
+        assertEquals(Themes.innerGamer(120f).primary, Themes.byId(Themes.INNER_GAMER).primary)
+        Themes.setRgbSpeed(app, 7)
+        assertEquals(7, SessionPrefs.rgbSpeed(app))
+        Themes.setRgbSpeed(app, 99)
+        assertEquals(Themes.RGB_SPEEDS, Themes.rgbSpeed)
+        Themes.setRgbSpeed(app, 0)
+        assertEquals(1, SessionPrefs.rgbSpeed(app))
+        Themes.setRgbSpeed(app, 1)
+        assertTrue(Themes.rgbCycleMillis(1) > Themes.rgbCycleMillis(10))
     }
 }

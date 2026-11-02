@@ -24,7 +24,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
+import com.droiddeck.launcher.core.DroidDeckTestRunner as RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
@@ -144,7 +144,7 @@ class GlobalGlassesSettingsTest {
                             onRoms = {}, onFiles = {}, onLogs = {}, onOffline = {},
                             onWirelessAdbPair = { _, _, _, _ -> }, onWirelessAdbApply = { _, _, _, _ -> },
                             onSetPhantomProcessLimit = { _, _ -> },
-                        ), onOpenDeveloperOptions = {}, onRequestWirelessAdb = {})
+                        ), onOpenDeveloperOptions = {}, onRequestWirelessAdb = {}, onPairWirelessDebugging = {})
                     }
                 }
             }

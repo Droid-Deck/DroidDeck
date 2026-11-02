@@ -8,7 +8,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
+import com.droiddeck.launcher.core.DroidDeckTestRunner as RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
@@ -93,7 +93,6 @@ class GlassesDisplayTest {
     @Test fun gtMaxSmartGlassesEdidUsesTheSameOutputSelectionAsViture() {
         val panel = display("SmartGlasses", productName = "SmartGlasses", productId = "980")
         assertEquals(panel.displayId, Glasses.selectGlassesDisplay(listOf(panel), usbPresent = true)?.displayId)
-        // The display remains usable while USB control reconnects during a mode switch.
         assertEquals(panel.displayId, Glasses.selectGlassesDisplay(listOf(panel), usbPresent = false)?.displayId)
     }
 
@@ -126,7 +125,6 @@ class GlassesDisplayTest {
         }
     }
 
-    // Robolectric exposes display names and flags, but has no product-metadata setter.
     @Implements(Display::class)
     class ProductMetadataDisplay : ShadowDisplay() {
         var productMetadata: DeviceProductInfo? = null

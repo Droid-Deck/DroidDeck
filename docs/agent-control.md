@@ -113,6 +113,10 @@ tools/droiddeckctl env set DXVK_HUD=fps
 tools/droiddeckctl env list
 tools/droiddeckctl env clear [next|persistent|all]
 tools/droiddeckctl override gamescope ./gamescope
+tools/droiddeckctl override libblfastpath.so ./libblfastpath.so
+tools/droiddeckctl proot-profile enable --slow-us 1000
+tools/droiddeckctl proot-profile disable
+tools/droiddeckctl proot-profile report ./session.log --sort wall
 tools/droiddeckctl prefs get session
 tools/droiddeckctl prefs set session some_key true --type bool
 
@@ -338,8 +342,11 @@ Automator show them:
 
 | Tag | Where |
 |---|---|
-| `rail-steam`, `rail-games`, `rail-desktop`, `rail-store`, `rail-components`, `rail-android-apps`, `rail-setup`, `rail-updates` | the front end's rail |
-| `play-steam` | Play on the Steam and Games pages |
+| `rail-steam`, `rail-games` (the Library), `rail-desktop`, `rail-store`, `rail-components`, `rail-android-apps`, `rail-setup`, `rail-updates` | the front end's rail |
+| `play-steam` | Play on the Steam page, and on the Library when it has no games |
+| `library-source-<source>` | the Library's source filter chips (`all`, `steam`, `gog`, ...) |
+| `game-tab-<about\|achievements\|launch\|saves\|install>` | the open tab of a game page |
+| `stores-profile`, `stores-epic-launcher` | a store's profile strip, and the Epic Games Launcher row in Epic's |
 | `setting-<key>` | every toggle and choice row, by its key (`setting-logs`, `setting-agent-commands`, ...) |
 | `tab-<n>` | a page's tab strip (Setup's Overview, Controller, Session, Launcher...), by position |
 | `drawer-tab-controller`, `-second_screen`, `-display`, `-effects`, `-vr`, `-games`, `-session` | the session drawer's pages |
@@ -364,3 +371,14 @@ sees it, and quits it: the test that catches a game left behind Steam's loading 
 shows up in some fraction of launches. A game with a launcher of its own needs the launcher pressed
 through first, since the launcher window carries the game's app id too:
 `tools/scenarios/skyrim-launcher-focus.json` taps Skyrim's Play before checking.
+
+## PRoot performance experiments
+
+`proot-profile enable` queues handler profiling for the next session using the existing debugging
+consent gate. Counters and bounded slow samples appear in `session.log`; `proot-profile report`
+ranks a saved local log without ADB. This measures PRoot handler work, not full syscall latency.
+`override libblfastpath.so FILE` selects a glibc ARM64 shared library in the next session's preload
+list, reports its SHA-256, and refuses installation until the current session stops. It lasts for
+one session; the next session stages the bundled library again. See
+[the profiling workflow](development/proot-performance.md#finding-the-next-fast-path) for timing
+boundaries, build commands, path diagnostics, and A/B validation.

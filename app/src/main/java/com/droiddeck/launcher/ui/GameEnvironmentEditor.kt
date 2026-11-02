@@ -101,7 +101,8 @@ internal fun GameEnvironmentEditor(byPad: Boolean, initialScope: String = "", on
     LaunchedEffect(Unit) {
         runCatching {
             withContext(Dispatchers.IO) {
-                GameEnvironmentStore.read(context) to Library.steamGames(context).map { it.appId.toString() to it.name }
+                GameEnvironmentStore.read(context) to Library.steamGames(context).map { it.appId.toString() to it.name } +
+                    listOfNotNull(com.droiddeck.launcher.runtime.BattleNet.profile(context))
             }
         }.onSuccess { (settings, installed) -> config = settings; games = installed }
             .onFailure { error = true }

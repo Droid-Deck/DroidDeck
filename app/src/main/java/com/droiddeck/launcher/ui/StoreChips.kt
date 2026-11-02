@@ -31,6 +31,7 @@ internal fun sourceColours(source: String): SourceColours = when (source) {
     Store.AMAZON.id -> SourceColours(Color(0xFF3A2A0A), Color(0xFFFFC266), Color(0xFFFF9900))
     Store.XBOX.id -> SourceColours(Color(0xFF17381B), Color(0xFFC6EDC2), Color(0xFF70C850))
     Store.ITCH.id -> SourceColours(Color(0xFF3A1A1E), Color(0xFFFFB3B3), Color(0xFFFF5C5C))
+    Store.BATTLENET.id -> SourceColours(Color(0xFF0A2440), Color(0xFF9DD1FF), Color(0xFF148EFF))
     Library.SOURCE_STEAM -> SourceColours(Color(0xFF16293D), Color(0xFF7CC4FF), Color(0xFF1A9FFF))
     FLATHUB -> SourceColours(Color(0xFF0B2E2B), Color(0xFF9FE3DD), FlathubTeal)
     else -> SourceColours(Color(0xFF1A1D22), Color(0xFF9AA3AF), Color(0xFF9AA3AF))
@@ -44,6 +45,7 @@ internal fun sourceLabel(source: String): String = when (source) {
     Store.AMAZON.id -> Store.AMAZON.label
     Store.XBOX.id -> Store.XBOX.label
     Store.ITCH.id -> Store.ITCH.label
+    Store.BATTLENET.id -> Store.BATTLENET.label
     else -> stringResource(R.string.source_added)
 }
 

@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -47,10 +48,16 @@ public final class TurnipDriver {
 
     private final Context context;
     private final File contentDir;
+    private final Supplier<GpuInfo> gpuDetector;
 
     public TurnipDriver(Context context) {
+        this(context, GpuInfo.Companion::detect);
+    }
+
+    TurnipDriver(Context context, Supplier<GpuInfo> gpuDetector) {
         this.context = context;
         this.contentDir = new File(context.getFilesDir(), "graphics_driver");
+        this.gpuDetector = gpuDetector;
     }
 
     public String driverPath(String driverId) {
@@ -284,7 +291,12 @@ public final class TurnipDriver {
         }
         String quest = QuestExperimental.INSTANCE.defaultAndroidDriver();
         if (quest != null) return quest;
-        int model = GpuInfo.Companion.detect().getModel();
+        GpuInfo gpu = gpuDetector.get();
+        if (gpu.getFamily() == GpuInfo.Family.NOT_ADRENO) {
+            Log.i(TAG, "not an Adreno GPU; leaving the display driver to the system");
+            return null;
+        }
+        int model = gpu.getModel();
         Log.i(TAG, "gpu model: " + (model == 0 ? "unknown" : model));
         return chooseByModel(model, android.os.Build.VERSION.SDK_INT);
     }

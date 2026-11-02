@@ -31,14 +31,14 @@ class XboxBuildSourceTest(unittest.TestCase):
             git('switch', '-q', 'main')
             (root / 'backend').write_text('merged backend')
             git('commit', '-qam', 'backend changed after branch')
-            for name in ('xbox', 'apk'):
+            for name in ('source', 'xbox', 'components', 'apk', 'tests', 'dispatch'):
                 git('clone', '-q', str(root), str(root / name))
                 git('checkout', '-q', head, cwd=root / name)
             output = root / 'output'
             env['GITHUB_OUTPUT'] = str(output)
-            subprocess.run(['bash', '-c', step('xbox', 'Pin and merge the APK source')], cwd=root / 'xbox', env=env, check=True, capture_output=True)
+            subprocess.run(['bash', '-c', step('source', 'Pin and merge the APK source')], cwd=root / 'source', env=env, check=True, capture_output=True)
             base = output.read_text().strip().split('=', 1)[1]
-            tree = git('rev-parse', 'HEAD^{tree}', cwd=root / 'xbox')
+            tree = git('rev-parse', 'HEAD^{tree}', cwd=root / 'source')
             (root / 'backend').write_text('newer main, after backend build')
             git('commit', '-qam', 'main advanced again')
             env.update(BUILD_BASE_SHA=base, XBOX_SOURCE_TREE=tree)
@@ -46,3 +46,19 @@ class XboxBuildSourceTest(unittest.TestCase):
             subprocess.run(['bash', '-c', step('build', 'Verify backend and APK source match')], cwd=root / 'apk', env=env, check=True, capture_output=True)
             self.assertEqual((root / 'apk/backend').read_text(), 'merged backend')
             self.assertEqual(git('rev-parse', 'HEAD^{tree}', cwd=root / 'apk'), tree)
+
+            subprocess.run(['bash', '-c', step('python-tests', 'Merge the pinned APK base')], cwd=root / 'tests', env=env, check=True, capture_output=True)
+            subprocess.run(['bash', '-c', step('python-tests', 'Verify backend and test source match')], cwd=root / 'tests', env=env, check=True, capture_output=True)
+            self.assertEqual(git('rev-parse', 'HEAD^{tree}', cwd=root / 'tests'), tree)
+
+            env['SOURCE_TREE'] = tree
+            for job in ('xbox', 'components'):
+                subprocess.run(['bash', '-c', step(job, 'Merge the pinned APK base')], cwd=root / job, env=env, check=True, capture_output=True)
+                subprocess.run(['bash', '-c', step(job, 'Verify pinned source tree')], cwd=root / job, env=env, check=True, capture_output=True)
+                self.assertEqual(git('rev-parse', 'HEAD^{tree}', cwd=root / job), tree)
+
+            trusted = root / 'trusted-output'
+            env['GITHUB_OUTPUT'] = str(trusted)
+            subprocess.run(['bash', '-c', step('source', 'Resolve trusted manifest base')], cwd=root / 'dispatch', env=env, check=True, capture_output=True)
+            self.assertEqual(trusted.read_text().strip(), 'base-sha=' + git('rev-parse', 'main'))
+            self.assertNotEqual(git('rev-parse', 'HEAD', cwd=root / 'dispatch'), git('rev-parse', 'main'))

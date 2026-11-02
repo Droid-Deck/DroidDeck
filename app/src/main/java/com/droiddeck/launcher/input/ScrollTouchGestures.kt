@@ -86,27 +86,14 @@ class ScrollTouchGestures(
                 lastY = startY
                 tracker = VelocityTracker.obtain().also { it.addMovement(event) }
                 listener.onMove(startX, startY)
-                handler.postDelayed(longPress, HOLD_MS)
+                handler.postDelayed(longPress, TouchTiming.HOLD_MS)
             }
             MotionEvent.ACTION_MOVE -> {
                 val index = event.findPointerIndex(pointerId).takeIf { it >= 0 } ?: return true
                 tracker?.addMovement(event)
-                val x = event.getX(index)
-                val y = event.getY(index)
-                if (!scrolling && !dragging && hypot(x - startX, y - startY) > slopPx) {
-                    handler.removeCallbacks(longPress)
-                    if (held) {
-                        dragging = true
-                        listener.onButton(PointerGestures.BTN_LEFT, true)
-                    } else {
-                        scrolling = true
-                        vertical = abs(y - startY) >= abs(x - startX)
-                        lastX = startX
-                        lastY = startY
-                    }
-                }
-                if (dragging) listener.onMove(x, y)
-                follow(event, x, y)
+                for (h in 0 until event.historySize)
+                    sample(event.getHistoricalX(index, h), event.getHistoricalY(index, h), event.getHistoricalEventTime(h))
+                sample(event.getX(index), event.getY(index), event.eventTime)
             }
             MotionEvent.ACTION_POINTER_UP -> {
                 if (event.getPointerId(event.actionIndex) == pointerId) cancel()
@@ -115,7 +102,7 @@ class ScrollTouchGestures(
                 handler.removeCallbacks(longPress)
                 if (pointerId == -1 || event.getPointerId(0) != pointerId) return true
                 tracker?.addMovement(event)
-                follow(event, event.x, event.y)
+                follow(event.x, event.y, event.eventTime)
                 when {
                     scrolling -> tracker?.takeIf { event.eventTime - movedAt <= FLING_STILL_MS }?.let { t ->
                         t.computeCurrentVelocity(1000)
@@ -139,9 +126,26 @@ class ScrollTouchGestures(
         return true
     }
 
-    private fun follow(event: MotionEvent, x: Float, y: Float) {
+    private fun sample(x: Float, y: Float, t: Long) {
+        if (!scrolling && !dragging && hypot(x - startX, y - startY) > slopPx) {
+            handler.removeCallbacks(longPress)
+            if (held) {
+                dragging = true
+                listener.onButton(PointerGestures.BTN_LEFT, true)
+            } else {
+                scrolling = true
+                vertical = abs(y - startY) >= abs(x - startX)
+                lastX = startX
+                lastY = startY
+            }
+        }
+        if (dragging) listener.onMove(x, y)
+        follow(x, y, t)
+    }
+
+    private fun follow(x: Float, y: Float, t: Long) {
         if (!scrolling || (x == lastX && y == lastY)) return
-        movedAt = event.eventTime
+        movedAt = t
         if (vertical) listener.onScroll(0f, lastY - y) else listener.onScroll(lastX - x, 0f)
         lastX = x
         lastY = y
@@ -151,7 +155,7 @@ class ScrollTouchGestures(
         releaseClick()
         listener.onButton(button, true)
         clicked = button
-        handler.postDelayed(clickUp, CLICK_MS)
+        handler.postDelayed(clickUp, TouchTiming.CLICK_MS)
     }
 
     private fun releaseClick() {
@@ -181,8 +185,6 @@ class ScrollTouchGestures(
             return if (pixels < 0) -units else units
         }
 
-        private const val HOLD_MS = 500L
-        private const val CLICK_MS = 50L
         private const val FLING_TIME_S = 0.45f
         private const val FLING_STOP_PX = 40f
         private const val FLING_STILL_MS = 60L

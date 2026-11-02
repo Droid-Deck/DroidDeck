@@ -11,7 +11,7 @@ import androidx.compose.ui.test.assertCountEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
+import com.droiddeck.launcher.core.DroidDeckTestRunner as RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.util.Locale
 

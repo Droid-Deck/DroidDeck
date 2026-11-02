@@ -52,6 +52,11 @@ class SteamControllerBle(private val context: Context) {
 
     private fun connect() {
         if (!running || gatt != null) return
+        if (android.os.Build.VERSION.SDK_INT >= 31 &&
+            !com.droiddeck.launcher.core.AppPermissions.granted(context, android.Manifest.permission.BLUETOOTH_CONNECT)) {
+            handler.postDelayed(::connect, RETRY_MS)
+            return
+        }
         if (SessionState.suspended) {
             handler.postDelayed(::connect, RETRY_MS)
             return
@@ -86,8 +91,8 @@ class SteamControllerBle(private val context: Context) {
         outputReports.clear()
         connected = false
         FakeInputWriter.setTritonConnected(SLOT, false)
-        g.disconnect()
-        g.close()
+        runCatching { g.disconnect() }
+        runCatching { g.close() }
         release()
         Log.i(TAG, "disconnected: $why")
         listener?.invoke()

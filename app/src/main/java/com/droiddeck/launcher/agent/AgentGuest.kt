@@ -22,6 +22,14 @@ object AgentGuest {
         private set
     var steamKeyboard by mutableStateOf(false)
         private set
+    var desktopTextField by mutableStateOf(false)
+        private set
+    var keyboardRequests by mutableIntStateOf(0)
+        private set
+    var keyboardDismissals by mutableIntStateOf(0)
+        private set
+    @Volatile private var keyboardRoute = false
+    @Volatile private var routeDir: File? = null
     private const val TAG = "AgentGuest"
     private const val POLL_MS = 50L
     private val lock = Any()
@@ -35,10 +43,12 @@ object AgentGuest {
             observer?.stopWatching()
             observer = null
             lastFocusKey = null
-            main.post { steamKeyboard = false }
+            main.post { steamKeyboard = false; desktopTextField = false }
             val dir = dir(context)
             dir.deleteRecursively()
             dir.mkdirs()
+            routeDir = dir
+            writeKeyboardRoute(dir, keyboardRoute)
             @Suppress("DEPRECATION")
             observer = object : FileObserver(dir.path, MOVED_TO or CLOSE_WRITE) {
                 override fun onEvent(event: Int, path: String?) {
@@ -48,6 +58,9 @@ object AgentGuest {
                         }
                         "focus.json" -> readJson(File(dir, path))?.let(::recordFocus)
                         "keyboard.json" -> readJson(File(dir, path))?.let { recordKeyboard(this, it) }
+                        "ime.json" -> readJson(File(dir, path))?.let { recordTextField(this, it) }
+                        "keyboard-request.json" -> readJson(File(dir, path))?.let { recordKeyboardRequest(this) }
+                        "keyboard-dismiss.json" -> readJson(File(dir, path))?.let { recordKeyboardDismiss(this) }
                     }
                 }
             }.also { it.startWatching() }
@@ -58,8 +71,44 @@ object AgentGuest {
         synchronized(lock) {
             observer?.stopWatching()
             observer = null
-            main.post { steamKeyboard = false }
+            main.post { steamKeyboard = false; desktopTextField = false }
         }
+    }
+
+    fun routeKeyboard(context: Context, bottom: Boolean) {
+        synchronized(lock) {
+            if (keyboardRoute == bottom) return
+            keyboardRoute = bottom
+            writeKeyboardRoute(routeDir ?: dir(context), bottom)
+        }
+    }
+
+    private fun writeKeyboardRoute(dir: File, bottom: Boolean) {
+        val file = File(dir, "keyboard-route")
+        runCatching {
+            if (!bottom) file.delete()
+            else if (dir.isDirectory) {
+                val temp = File(dir, "keyboard-route.tmp")
+                temp.writeText("bottom")
+                if (!temp.renameTo(file)) temp.delete()
+            }
+        }.onFailure { Log.w(TAG, "keyboard route not written", it) }
+    }
+
+    private fun recordKeyboardRequest(source: FileObserver) {
+        synchronized(lock) {
+            if (source !== observer) return
+            main.post { keyboardRequests++ }
+        }
+        SessionEvents.record("keyboard.requested", emptyMap())
+    }
+
+    private fun recordKeyboardDismiss(source: FileObserver) {
+        synchronized(lock) {
+            if (source !== observer) return
+            main.post { keyboardDismissals++ }
+        }
+        SessionEvents.record("keyboard.dismissed", emptyMap())
     }
 
     private fun recordKeyboard(source: FileObserver, snapshot: JSONObject) {
@@ -69,6 +118,15 @@ object AgentGuest {
             main.post { steamKeyboard = showing }
         }
         SessionEvents.record("keyboard.changed", mapOf("steamKeyboard" to showing, "seq" to snapshot.optInt("seq")))
+    }
+
+    private fun recordTextField(source: FileObserver, snapshot: JSONObject) {
+        val focused = snapshot.optBoolean("textField")
+        synchronized(lock) {
+            if (source !== observer) return
+            main.post { desktopTextField = focused }
+        }
+        SessionEvents.record("ime.changed", mapOf("textField" to focused, "seq" to snapshot.optInt("seq")))
     }
 
     private fun recordFocus(snapshot: JSONObject) {

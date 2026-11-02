@@ -21,6 +21,9 @@ serde_json = { version = "1", features = ["preserve_order"] }
 sha1 = "0.10"
 sha2 = "0.10"
 
+[build-dependencies]
+cc = "1"
+
 [profile.release]
 codegen-units = 1
 lto = "thin"

@@ -1,10 +1,8 @@
 plugins {
     id 'com.android.application'
 }
-apply plugin: 'kotlin-android'
 apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 
-// Machine-specific tooling and optional CI-prepared inputs stay out of version control.
 def localBuildOptions = new Properties()
 def localBuildOptionsFile = rootProject.layout.projectDirectory.file('local.properties')
 if (localBuildOptionsFile.asFile.exists()) {
@@ -78,19 +76,29 @@ def escapedBuildLabel = buildLabel.replace('\\', '\\\\').replace('"', '\\"')
 def sourceCommit = providers.environmentVariable('DROIDDECK_SOURCE_COMMIT').getOrNull()
     ?: providers.environmentVariable('GITHUB_SHA').getOrNull() ?: gitValue(['rev-parse', 'HEAD']) ?: ''
 def prNumber = (providers.environmentVariable('DROIDDECK_PR_NUMBER').getOrNull() ?: '0').with { it.isInteger() ? it : '0' }
+def prTitle = providers.environmentVariable('DROIDDECK_PR_TITLE').getOrNull() ?: ''
+def buildBranch = providers.environmentVariable('GITHUB_HEAD_REF').getOrNull()?.trim()
+    ?: gitValue(['branch', '--show-current']) ?: ''
+def escapeJava = { String value -> value.replace('\\', '\\\\').replace('"', '\\"').replace('\n', ' ').replace('\r', ' ') }
 def ciBuild = providers.environmentVariable('GITHUB_ACTIONS').getOrNull() == 'true'
 def releaseSigner = rootProject.file('keystore/release-signer.sha256').text.trim()
-def commitTime = (gitValue(['show', '-s', '--format=%ct', 'HEAD']) ?: '0').with { it.isLong() ? it : '0' }
+def commitTime = (gitValue(['show', '-s', '--format=%ct', '--end-of-options', sourceCommit]) ?: '0').with { it.isLong() ? it : '0' }
 def desktopKde = rootProject.file('tools/desktop-kde/release.env').readLines()
     .findAll { it.contains('=') && !it.startsWith('#') }
     .collectEntries { def kv = it.split('=', 2); [(kv[0].trim()): kv[1].trim()] }
 def trackingPack = rootProject.file('tools/packs/tracking/release.env').readLines()
     .findAll { it.contains('=') && !it.startsWith('#') }
     .collectEntries { def kv = it.split('=', 2); [(kv[0].trim()): kv[1].trim()] }
-def addonPacks = ['proot', 'directaudio', 'tracking', 'xbox', 'comet'].collectEntries { name ->
+def prootPackPin = rootProject.file('tools/packs/proot/release.env').readLines()
+    .findAll { it.contains('=') && !it.startsWith('#') }
+    .collectEntries { def kv = it.split('=', 2); [(kv[0].trim()): kv[1].trim()] }
+def addonPacks = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler'].collectEntries { name ->
     def pack = file("build/packs/${name}.tar.zst")
     if (!pack.isFile()) {
         if (ciBuild) throw new GradleException("Add-on pack ${pack} is missing: run tools/packs/build.sh app/build/packs")
+        if (name == 'proot' && prootPackPin.PROOT_PACK_SHA256) {
+            return [(name): [sha256: prootPackPin.PROOT_PACK_SHA256, size: (prootPackPin.PROOT_PACK_SIZE ?: '0') as long]]
+        }
         return [(name): [sha256: '', size: 0L]]
     }
     def digest = java.security.MessageDigest.getInstance('SHA-256')
@@ -115,18 +123,20 @@ def variantSuffixes = rootProject.file('tools/release/variants.txt').readLines()
 
 android {
     namespace 'com.droiddeck.launcher'
-    compileSdk 36
+    compileSdk 37
     ndkVersion project.findProperty('ndkVersion') ?: '27.3.13750724'
 
     defaultConfig {
         applicationId "com.droiddeck.launcher"
         minSdkVersion 26
-        targetSdkVersion 36
-        versionCode 15
-        versionName "0.6.0"
+        targetSdkVersion 37
+        versionCode 17
+        versionName "0.6.9"
         buildConfigField "String", "BUILD_LABEL", "\"${escapedBuildLabel}\""
         buildConfigField "String", "SOURCE_COMMIT", "\"${sourceCommit}\""
         buildConfigField "int", "PR_NUMBER", "${prNumber}"
+        buildConfigField "String", "PR_TITLE", "\"${escapeJava(prTitle)}\""
+        buildConfigField "String", "BUILD_BRANCH", "\"${escapeJava(buildBranch)}\""
         buildConfigField "boolean", "CI_BUILD", "${ciBuild}"
         buildConfigField "String", "RELEASE_SIGNER", "\"${releaseSigner}\""
         buildConfigField "long", "COMMIT_TIME", "${commitTime}L * 1000L"
@@ -194,7 +204,6 @@ android {
     }
 
     androidResources {
-        // aapt's default ignore list, plus the trees shipped as add-on packs (tools/packs).
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:<dir>droiddeck-xbox:<dir>droiddeck-comet:<dir>directaudio'
     }
 
@@ -205,8 +214,7 @@ android {
         jniLibs {
             useLegacyPackaging = true
             pickFirsts += ['**/libtermux.so']
-            // Shipped in the proot and tracking packs (tools/packs) and run or loaded from there.
-            excludes += ['**/libproot.so', '**/libproot-loader.so', '**/libopencv_java4.so', '**/libmediapipe_tasks_jni.so']
+            excludes += ['**/libopencv_java4.so', '**/libmediapipe_tasks_jni.so']
         }
     }
 
@@ -220,8 +228,21 @@ android {
         unitTests.returnDefaultValues = true
         unitTests.includeAndroidResources = true
         unitTests.all {
-            // Robolectric keeps a sandbox per SDK level the tests ask for; seven no longer fit in Gradle's default 512 MB.
+            if (ciBuild) {
+                outputs.upToDateWhen { false }
+                outputs.doNotCacheIf('CI executes the test suite on every run') { true }
+            }
+            jvmArgs '--add-opens=java.base/java.lang=ALL-UNNAMED',
+                '--add-opens=java.base/java.util=ALL-UNNAMED',
+                '--add-opens=java.base/java.io=ALL-UNNAMED',
+                '--add-opens=java.base/java.net=ALL-UNNAMED',
+                '--add-opens=java.base/java.security=ALL-UNNAMED',
+                '--add-opens=java.base/java.text=ALL-UNNAMED',
+                '--add-opens=java.base/jdk.internal.access=ALL-UNNAMED',
+                '--add-opens=java.desktop/java.awt.font=ALL-UNNAMED',
+                '--add-opens=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED'
             maxHeapSize = '2g'
+            maxParallelForks = 2
             def logTarget = providers.systemProperty('robolectric.logging').orNull
             if (logTarget != null) systemProperty 'robolectric.logging', logTarget
         }
@@ -231,12 +252,8 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = '17'
-    }
 }
 
-// Vendor binaries remain in the user's SDK directory; never vendor them into Git.
 if (vitureSdkDir) {
     android.sourceSets.main.jniLibs.srcDir(new File(vitureSdkDir, 'android'))
     def stageVitureNotices = tasks.register('stageVitureNotices', Copy) {
@@ -258,25 +275,44 @@ def runtimeAssetsDir = layout.buildDirectory.dir('runtimeAssets')
 def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
     dependsOn(stageSessionScripts)
     from(layout.projectDirectory.dir('src/main/assets')) { exclude 'pulseaudio.tzst' }
+    from(rootProject.file('tools/linuxfs/innoextract'))
     from(layout.buildDirectory.dir('prepared-assets'))
     into(runtimeAssetsDir)
 }
 android.sourceSets.main.assets.setSrcDirs([runtimeAssetsDir])
-if (vitureSdkDir) android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('vitureAssets'))
+if (vitureSdkDir) android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('vitureAssets').get().asFile)
 if (uvcDir) {
     def stageUvcNotices = tasks.register('stageUvcNotices', Copy) {
         from(new File(uvcDir, 'licenses'))
         into(layout.buildDirectory.dir('uvcAssets/licenses/uvc'))
     }
     tasks.named('preBuild').configure { dependsOn(stageUvcNotices) }
-    android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('uvcAssets'))
+    android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('uvcAssets').get().asFile)
 }
 tasks.named('preBuild').configure { dependsOn(stageRuntimeAssets) }
+
+def stageGogNotices = tasks.register('stageGogNotices', Copy) {
+    from(layout.projectDirectory.dir('src/main/rust/stores/vendor/xdelta3')) { include 'LICENSE', 'README.droiddeck.md' }
+    into(layout.buildDirectory.dir('gogNotices/licenses/xdelta3'))
+}
+android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('gogNotices').get().asFile)
+tasks.named('preBuild').configure { dependsOn(stageGogNotices) }
+
+if (!ciBuild) {
+    def stageLocalPacks = tasks.register('stageLocalPacks', Sync) {
+        from(layout.buildDirectory.dir('packs')) { include '*.tar.zst' }
+        into(layout.buildDirectory.dir('localPackAssets/packs'))
+    }
+    android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('localPackAssets').get().asFile)
+    tasks.named('preBuild').configure { dependsOn(stageLocalPacks) }
+}
 
 def verifyRuntimeInputs = tasks.register('verifyRuntimeInputs', Exec) {
     mustRunAfter(stageSessionScripts, stageRuntimeAssets)
     workingDir rootProject.projectDir
-    commandLine pythonExecutable, 'tools/release/runtime_inputs.py', 'verify'
+    def allowStale = (project.findProperty('allowStaleRuntime')
+        ?: localBuildOptions.getProperty('droiddeck.allowStaleRuntime', 'false')).toString().toBoolean()
+    commandLine([pythonExecutable, 'tools/release/runtime_inputs.py', 'verify'] + (allowStale ? ['--allow-stale-sources'] : []))
 }
 tasks.configureEach { task ->
     if (task.name in ['packageDebug', 'packageRelease']) task.dependsOn(verifyRuntimeInputs)
@@ -290,6 +326,8 @@ def buildRustStores = tasks.register('buildRustStores', Exec) {
     description = 'Cross-compiles the store download engines (libdroiddeckstores.so) with cargo-ndk.'
     onlyIf { !skipRust }
     inputs.dir(rustCrateDir.dir('src'))
+    inputs.dir(rustCrateDir.dir('vendor'))
+    inputs.file(rustCrateDir.file('build.rs'))
     inputs.files(rustCrateDir.file('Cargo.toml'), rustCrateDir.file('Cargo.lock'))
     inputs.property('ndkVersion', android.ndkVersion)
     if (!skipRust) inputs.property('rustToolchain', providers.exec {
@@ -300,7 +338,7 @@ def buildRustStores = tasks.register('buildRustStores', Exec) {
     workingDir rustCrateDir
     def cargoBin = "${System.getProperty('user.home')}/.cargo/bin"
     environment 'PATH', "${cargoBin}${File.pathSeparator}${System.getenv('PATH')}"
-    environment 'ANDROID_NDK_HOME', android.ndkDirectory.absolutePath
+    environment 'ANDROID_NDK_HOME', androidComponents.sdkComponents.ndkDirectory.get().asFile.absolutePath
     environment 'CARGO_TERM_COLOR', 'never'
     if (!skipRust) environment 'RUSTC', providers.exec {
         commandLine 'rustup', 'which', '--toolchain', 'stable', 'rustc'
@@ -309,7 +347,7 @@ def buildRustStores = tasks.register('buildRustStores', Exec) {
         '--output-dir', rustJniLibsDir.get().asFile.absolutePath,
         'build', '--release', '--locked'
 }
-if (!skipRust) android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir)
+if (!skipRust) android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir.get().asFile)
 tasks.named('preBuild').configure { dependsOn(buildRustStores) }
 
 dependencies {
@@ -318,9 +356,16 @@ dependencies {
     implementation 'com.github.luben:zstd-jni:1.5.7-4@aar'
     implementation 'org.apache.commons:commons-compress:1.27.1'
     implementation 'org.tukaani:xz:1.10'
-    implementation platform('androidx.compose:compose-bom:2024.02.00')
+    implementation platform('androidx.compose:compose-bom:2025.02.00')
     implementation 'androidx.compose.ui:ui'
-    implementation 'androidx.compose.material3:material3'
+    implementation('androidx.compose.material3:material3') {
+        version { strictly '1.2.0' }
+    }
+    constraints {
+        implementation('androidx.compose.material3:material3-android') {
+            version { strictly '1.2.0' }
+        }
+    }
     implementation 'androidx.compose.ui:ui-tooling-preview'
     debugImplementation 'androidx.compose.ui:ui-tooling'
     implementation 'androidx.activity:activity-compose:1.8.2'
@@ -333,12 +378,34 @@ dependencies {
     implementation 'androidx.camera:camera-camera2:1.4.2'
     implementation 'androidx.camera:camera-lifecycle:1.4.2'
     implementation 'androidx.webkit:webkit:1.12.1'
+    implementation 'io.github.webrtc-sdk:android:125.6422.07'
     implementation("com.google.mediapipe:tasks-vision:${trackingPack.MEDIAPIPE_VERSION}") {
         exclude group: 'com.google.auto.value', module: 'auto-value'
     }
+    implementation 'com.google.zxing:core:3.5.3'
 
     testImplementation 'junit:junit:4.13.2'
-    testImplementation 'org.robolectric:robolectric:4.16.1'
+    testImplementation 'org.robolectric:robolectric:4.17'
     testImplementation 'androidx.compose.ui:ui-test-junit4'
-    testRuntimeOnly 'com.github.luben:zstd-jni:1.5.7-4@jar'
+
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
+}
+
+androidComponents {
+    beforeVariants(selector().all()) { variant ->
+        variant.enableUnitTest = true
+    }
+}
+
+configurations { hostZstd }
+dependencies { hostZstd 'com.github.luben:zstd-jni:1.5.7-4@jar' }
+androidComponents.onVariants(androidComponents.selector().all()) { variant ->
+    variant.unitTest?.configureTestTask { test ->
+        test.classpath = files(configurations.hostZstd) + test.classpath.filter { !it.name.contains("zstd-jni") }
+    }
 }

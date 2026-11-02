@@ -1,0 +1,54 @@
+diff --git a/layer/VkLayer_FROG_gamescope_wsi.cpp b/layer/VkLayer_FROG_gamescope_wsi.cpp
+index ea4ba84..46d086c 100644
+--- a/layer/VkLayer_FROG_gamescope_wsi.cpp
++++ b/layer/VkLayer_FROG_gamescope_wsi.cpp
+@@ -201,6 +201,10 @@ namespace GamescopeWSILayer {
+     return s_minImageCount;
+   }
+ 
++  static uint32_t getMinImageCount(bool forcingFifo) {
++    return forcingFifo ? std::min(getMinImageCount(), 3u) : getMinImageCount();
++  }
++
+   static bool getEnsureMinImageCount() {
+     static bool s_ensureMinImageCount = []() -> bool {
+       if (auto ensure = parseEnv<bool>("GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT")) {
+@@ -984,7 +988,7 @@ namespace GamescopeWSILayer {
+ 
+         pSurfaceCapabilities->currentExtent = rect->extent;
+       }
+-      pSurfaceCapabilities->minImageCount = getMinImageCount();
++      pSurfaceCapabilities->minImageCount = getMinImageCount(gamescopeIsForcingFifo(gamescopeSurface->waylandObjects));
+ 
+       return VK_SUCCESS;
+     }
+@@ -1027,7 +1031,7 @@ namespace GamescopeWSILayer {
+ 
+         pSurfaceCapabilities->surfaceCapabilities.currentExtent = rect->extent;
+       }
+-      pSurfaceCapabilities->surfaceCapabilities.minImageCount = getMinImageCount();
++      pSurfaceCapabilities->surfaceCapabilities.minImageCount = getMinImageCount(gamescopeIsForcingFifo(gamescopeSurface->waylandObjects));
+ 
+       return VK_SUCCESS;
+     }
+@@ -1305,7 +1309,7 @@ namespace GamescopeWSILayer {
+ 
+       uint32_t minImageCount = swapchainInfo.minImageCount;
+       if (getEnsureMinImageCount())
+-        minImageCount = std::max(getMinImageCount(), minImageCount);
++        minImageCount = std::max(getMinImageCount(gamescopeIsForcingFifo(gamescopeSurface->waylandObjects)), minImageCount);
+       swapchainInfo.minImageCount = minImageCount;
+ 
+       fprintf(stderr, "[Gamescope WSI] Creating swapchain for xid: 0x%0x - oldSwapchain: %p - provided minImageCount: %u - minImageCount: %u - format: %s - colorspace: %s - flip: %s\n",
+@@ -1627,6 +1631,11 @@ namespace GamescopeWSILayer {
+             continue;
+           }
+ 
++          if (!frameLimiterAware && gamescopeSwapchain->forceFifo != forceFifo &&
++              getMinImageCount(true) != getMinImageCount(false) &&
++              !(gamescopeSurface->flags & GamescopeLayerClient::Flag::NoSuboptimal))
++            UpdateSwapchainResult(VK_SUBOPTIMAL_KHR);
++
+           const bool canBypass = gamescopeSurface->canBypassXWaylandAtPresent(gamescopeSwapchain->isHdrColorspace);
+           if (canBypass != gamescopeSwapchain->isBypassingXWayland) {
+             if (canBypass) {

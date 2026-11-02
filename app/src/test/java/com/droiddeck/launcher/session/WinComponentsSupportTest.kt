@@ -5,7 +5,7 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
+import com.droiddeck.launcher.core.DroidDeckTestRunner as RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
@@ -29,6 +29,14 @@ class WinComponentsSupportTest {
             step("override_dll", "dll" to "msxml3", "type" to "native"), step("install_msi", "url" to "$base/msxml3.msi"))))
         assertEquals(Support.READY, support(component("powershell_core",
             step("install_msi", "url" to "$base/ps-x86.msi"), step("install_msi", "url" to "$base/ps-x64.msi"))))
+    }
+
+    @Test fun builtInArm64RuntimeIsRegistryOnlyInBothViews() {
+        val c = WinComponents.builtInArm64Runtime()
+        assertEquals(Support.READY, support(c))
+        assertEquals(12, c.steps.count { it.action == "set_register_key" })
+        assertEquals(setOf("HKLM\\Software\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\arm64",
+            "HKLM\\Software\\Wow6432Node\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\arm64"), c.steps.map { it.str("key") }.toSet())
     }
 
     @Test fun installerWrappersInstallHere() {

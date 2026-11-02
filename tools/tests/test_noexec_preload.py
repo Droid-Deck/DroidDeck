@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 import shutil
 import subprocess
@@ -11,6 +12,7 @@ PROGRAM = r"""
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/mman.h>
 
 int main(int argc, char **argv) {
@@ -43,7 +45,7 @@ class NoexecPreloadTest(unittest.TestCase):
         cls.tmp = Path(tempfile.mkdtemp())
         cls.lib = cls.tmp / "libnoexec.so"
         subprocess.run(["cc", "-O2", "-Wall", "-Werror", "-fPIC", "-shared", "-pthread", "-DNOEXEC_TEST", "-o", str(cls.lib),
-                        str(PRELOAD / "noexec.c"), str(PRELOAD / "fsync.c"), str(PRELOAD / "robust.c"), str(PRELOAD / "writewatch.c"), "-ldl"], check=True)
+                        str(PRELOAD / "noexec.c"), str(PRELOAD / "fsync.c"), str(PRELOAD / "robust.c"), str(PRELOAD / "writewatch.c"), str(PRELOAD / "clockpause.c"), "-ldl"], check=True)
         source = cls.tmp / "program.c"
         source.write_text(PROGRAM)
         for name in ("FEX", "game"):
@@ -75,6 +77,7 @@ EXECMOD = r"""
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
@@ -97,6 +100,14 @@ static int private_file(void *addr) {
   return found;
 }
 
+void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off) {
+  if ((flags & MAP_ANONYMOUS) && getenv("DROIDDECK_TEST_FAIL_ANON")) {
+    errno = ENOMEM;
+    return MAP_FAILED;
+  }
+  return (void *)syscall(SYS_mmap, addr, len, prot, flags, fd, off);
+}
+
 int mprotect(void *addr, size_t len, int prot) {
   if ((prot & PROT_EXEC) && private_file(addr)) {
     errno = EACCES;
@@ -110,6 +121,7 @@ CALLER = r"""
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -127,27 +139,28 @@ int main(int argc, char **argv) {
   printf("protect %d\n", result ? errno : 0);
   __builtin___clear_cache((char *)code, (char *)code + 4096);
   if (!result) printf("call %d\n", ((int (*)(void))(code + 64))());
+  if (result && getenv("DROIDDECK_TEST_WRITE_AFTER_FAILURE")) code[0] = 9;
   printf("data %d\n", code[0]);
   char line[512];
   FILE *maps = fopen("/proc/self/maps", "r");
   while (maps && fgets(line, sizeof line, maps)) {
     unsigned long lo, hi;
     if (sscanf(line, "%lx-%lx", &lo, &hi) == 2 && (unsigned long)code >= lo && (unsigned long)code < hi)
-      printf("shared %d\n", strstr(line, ".droiddeck-rx") != NULL);
+      printf("shared %d\n", strstr(line, getenv("DROIDDECK_NOEXEC_CACHE_DIR")) != NULL);
   }
   return 0;
 }
 """
 
 
-@unittest.skipUnless(shutil.which("cc") and os.uname().sysname == "Linux", "needs cc on Linux")
+@unittest.skipUnless(sys.platform == "linux" and shutil.which("cc"), "needs cc on Linux")
 class ExecmodRebakeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = Path(tempfile.mkdtemp())
         cls.lib = cls.tmp / "libnoexec.so"
         subprocess.run(["cc", "-O2", "-Wall", "-Werror", "-fPIC", "-shared", "-pthread", "-DNOEXEC_TEST", "-o", str(cls.lib),
-                        str(PRELOAD / "noexec.c"), str(PRELOAD / "fsync.c"), str(PRELOAD / "robust.c"), "-ldl"], check=True)
+                        str(PRELOAD / "noexec.c"), str(PRELOAD / "fsync.c"), str(PRELOAD / "robust.c"), str(PRELOAD / "clockpause.c"), str(PRELOAD / "writewatch.c"), "-ldl"], check=True)
         (cls.tmp / "execmod.c").write_text(EXECMOD)
         cls.execmod = cls.tmp / "libexecmod.so"
         subprocess.run(["cc", "-O2", "-fPIC", "-shared", "-o", str(cls.execmod), str(cls.tmp / "execmod.c")], check=True)
@@ -168,9 +181,10 @@ class ExecmodRebakeTest(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp / self._testMethodName, ignore_errors=True)
 
-    def run_with(self, *libs):
+    def run_with(self, *libs, extra=None):
         env = dict(os.environ, LD_PRELOAD=":".join(str(lib) for lib in libs),
                    DROIDDECK_NOEXEC_CACHE_DIR=str(self.cache))
+        env.update(extra or {})
         result = subprocess.run([str(self.caller), str(self.image)], env=env, capture_output=True, text=True, check=True)
         return result.stdout.split()
 
@@ -179,7 +193,30 @@ class ExecmodRebakeTest(unittest.TestCase):
 
     def test_processes_share_one_copy_of_the_code(self):
         self.run_with(self.lib, self.execmod)
+        cached = next(self.cache.iterdir())
+        before = cached.stat()
         self.run_with(self.lib, self.execmod)
+        after = cached.stat()
+        self.assertEqual((before.st_ino, before.st_mtime_ns), (after.st_ino, after.st_mtime_ns))
+        self.assertEqual(len(os.listdir(self.cache)), 1)
+
+    def test_unavailable_cache_uses_executable_anonymous_memory(self):
+        self.cache = self.tmp / "missing-parent" / ".droiddeck-rx"
+        self.assertEqual(self.run_with(self.lib, self.execmod), ["protect", "0", "call", "42", "data", "7", "shared", "0"])
+
+    def test_failed_fallback_preserves_original_writable_mapping(self):
+        self.cache = self.tmp / "missing-parent" / ".droiddeck-rx"
+        self.assertEqual(self.run_with(self.lib, self.execmod, extra={
+            "DROIDDECK_TEST_FAIL_ANON": "1", "DROIDDECK_TEST_WRITE_AFTER_FAILURE": "1"
+        }), ["protect", "13", "data", "9", "shared", "0"])
+
+    def test_concurrent_processes_can_execute_the_same_relocated_code(self):
+        env = dict(os.environ, LD_PRELOAD=f"{self.lib}:{self.execmod}", DROIDDECK_NOEXEC_CACHE_DIR=str(self.cache))
+        children = [subprocess.Popen([str(self.caller), str(self.image)], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) for _ in range(8)]
+        for child in children:
+            output, error = child.communicate(timeout=10)
+            self.assertEqual(child.returncode, 0, error)
+            self.assertIn("call 42", output)
         self.assertEqual(len(os.listdir(self.cache)), 1)
 
     def test_without_the_preload_the_refusal_stands(self):

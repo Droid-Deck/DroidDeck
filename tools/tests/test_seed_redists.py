@@ -45,6 +45,26 @@ VULKAN_SCRIPT = r'''"InstallScript"
 '''
 
 
+UBISOFT_SCRIPT = r'''"installscript"
+{
+	"Run Process"
+	{
+		"Ubisoft Connect PC Client"
+		{
+			"process 1"		"%INSTALLDIR%\\UbisoftConnectInstaller.exe"
+			"command 1"		"/S"
+		}
+		"easyanticheat"
+		{
+			"HasRunKey"		"HKEY_CURRENT_USER\\SOFTWARE\\Ubisoft\\WatchDogs2EAC"
+			"process 1"		"%INSTALLDIR%\\EasyAntiCheat\\InstallWD2EAC.cmd"
+			"command 1"		""
+		}
+	}
+}
+'''
+
+
 class SeedRedistsTest(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -352,6 +372,34 @@ class SeedRedistsTest(unittest.TestCase):
         self.run_seed()
         self.assertEqual(self.reg.read_text().count('"Vulkan111080"'), 2)
 
+
+    def ubisoft(self):
+        script = self.tmp / "legacycompat/evaluatorscript_447040.vdf"
+        script.parent.mkdir(parents=True)
+        script.write_text('"evaluatorscript"\n{\n\t"appid"\t\t"447040"\n\t"1"\n'
+                          + "\n".join("\t" + line for line in UBISOFT_SCRIPT.splitlines()) + "\n}\n")
+        env = dict(os.environ, DROIDDECK_LIBRARIES="", DROIDDECK_SEED_SCRIPTS=str(script))
+        return subprocess.run(["bash", str(SCRIPT), str(self.steam)], env=env, capture_output=True, text=True, check=True)
+
+    def test_the_ubisoft_connect_installer_is_left_to_run(self):
+        self.ubisoft()
+        self.assertIn('"easyanticheat"=dword:00000001', self.user.read_text())
+        self.assertNotIn("Ubisoft Connect PC Client", self.reg.read_text())
+        self.assertNotIn("Ubisoft Connect PC Client", (self.reg.parent / ".droiddeck-redists").read_text())
+
+    def test_a_ubisoft_connect_marker_an_earlier_seeding_wrote_comes_out(self):
+        marker = "HKEY_LOCAL_MACHINE\\\\Software\\\\Valve\\\\Steam\\\\Apps\\\\447040\tUbisoft Connect PC Client"
+        self.reg.write_text(
+            "WINE REGISTRY Version 2\n"
+            "\n[Software\\\\Valve\\\\Steam\\\\Apps\\\\447040] 1791729070\n"
+            '"Ubisoft Connect PC Client"=dword:00000001\n'
+            "\n[Software\\\\Wow6432Node\\\\Valve\\\\Steam\\\\Apps\\\\447040] 1791729070\n"
+            '"Ubisoft Connect PC Client"=dword:00000001\n')
+        (self.reg.parent / ".droiddeck-redists").write_text(marker + "\n")
+        result = self.ubisoft()
+        self.assertNotIn("Ubisoft Connect PC Client", self.reg.read_text())
+        self.assertNotIn("Ubisoft Connect PC Client", (self.reg.parent / ".droiddeck-redists").read_text())
+        self.assertIn("Ubisoft Connect markers out", result.stdout)
 
 if __name__ == "__main__":
     unittest.main()

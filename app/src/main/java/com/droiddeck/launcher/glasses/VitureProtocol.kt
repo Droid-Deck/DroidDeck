@@ -81,7 +81,6 @@ object VitureProtocol {
         }
     }
 
-    /** SDK validates the PID before returning this market name. Never guess a new PID. */
     fun sdkModel(marketName: String): Model? {
         val family = when (marketName) {
             "One", "Lite" -> Family.ONE

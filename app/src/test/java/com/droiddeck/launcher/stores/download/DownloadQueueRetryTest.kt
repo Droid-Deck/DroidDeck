@@ -12,7 +12,7 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.json.JSONArray
-import org.robolectric.RobolectricTestRunner
+import com.droiddeck.launcher.core.DroidDeckTestRunner as RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowStatFs
@@ -75,7 +75,6 @@ class DownloadQueueRetryTest {
             DownloadQueue.clear(app, item.key)
             assertNull(DownloadQueue.entry(item.key))
 
-            // A card resume (including the restored paused path) must retain its real target.
             val card = File(app.filesDir, "retry-card").apply { mkdirs() }
             SessionPrefs.setGameStorage(app, card.path, "Card")
             val target = File(card, "Games")

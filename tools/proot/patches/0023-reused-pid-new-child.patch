@@ -1,0 +1,51 @@
+From 3e47c091e500b274b255d9b8d326236744aa4347 Mon Sep 17 00:00:00 2001
+From: maxjivi05 <maxjividen@gmail.com>
+Date: Wed, 28 Oct 2026 16:27:14 -0400
+Subject: [PATCH] tracee: replace a stale tracee when the kernel reuses its pid
+ for a new child
+
+---
+ src/tracee/tracee.c | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/src/tracee/tracee.c b/src/tracee/tracee.c
+index 5029bbc..cbadaec 100644
+--- a/src/tracee/tracee.c
++++ b/src/tracee/tracee.c
+@@ -57,6 +57,8 @@ static Tracees buckets[TRACEE_BUCKETS];
+ 
+ static bool terminations_pending = false;
+ 
++static Tracees reused_pid_tracees;
++
+ static Tracees *bucket_of(pid_t pid)
+ {
+ 	return &buckets[(unsigned int) pid % TRACEE_BUCKETS];
+@@ -599,6 +601,24 @@ static int new_child_setup(Tracee *parent, unsigned long pid, word_t clone_flags
+ 	Tracee *child;
+ 
+ 	child = get_tracee(parent, (pid_t) pid, true);
++	if (child != NULL
++	    && (child->exe != NULL
++		|| child->fs->cwd != NULL
++		|| child->qemu != NULL
++		|| child->glue != NULL
++		|| child->parent != NULL
++		|| child->as_ptracee.ptracer != NULL)) {
++		note(parent, WARNING, USER,
++		     "pid %lu was reused before its previous task was released",
++		     pid);
++		LIST_REMOVE(child, bucket_link);
++		LIST_INSERT_HEAD(&reused_pid_tracees, child, bucket_link);
++		if (child->as_ptracee.ptracer != NULL)
++			detach_from_ptracer(child);
++		child->terminated = true;
++		terminations_pending = true;
++		child = new_tracee((pid_t) pid);
++	}
+ 	if (child == NULL) {
+ 		note(parent, WARNING, SYSTEM, "running out of memory");
+ 		return -ENOMEM;
+-- 
+2.43.0
+

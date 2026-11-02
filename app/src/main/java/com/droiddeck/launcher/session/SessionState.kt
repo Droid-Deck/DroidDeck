@@ -2,6 +2,7 @@ package com.droiddeck.launcher.session
 
 import java.io.File
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
@@ -37,6 +38,9 @@ object SessionState {
     var installing: String? = null
 
     @Volatile
+    var installCancellation: com.droiddeck.launcher.core.Downloader.Cancellation? = null
+
+    @Volatile
     var stopRequested = false
 
     @Volatile
@@ -45,20 +49,29 @@ object SessionState {
     var activityDisplayId = 0
     @Volatile
     var runtimeDriver: String? = null
+    var micAvailable by mutableStateOf(false)
+    var micEnabled by mutableStateOf(false)
     var suspended by mutableStateOf(false)
+    var resumeRequested by mutableStateOf(false)
+    var resuming by mutableStateOf(false)
+    /** A freeze has begun and has not finished; it already chose which processes it stops. */
+    @Volatile var suspending = false
+    var resumeFailures by mutableIntStateOf(0)
+    var resumeFailed by mutableStateOf(false)
+    var manualPause by mutableStateOf(false)
     @Volatile var pipActive = false
     @Volatile
     var program: String? = null
     @Volatile
     var programArgs: List<String> = emptyList()
     @Volatile
+    var gameId: String? = null
+    @Volatile
     var steamUi: String? = null
     @Volatile
     var steamUrl: String? = null
     @Volatile
     var steamClientArch: String? = null
-    // A Play SteamVR request can arrive while an existing session is visible.
-    // Wake the status/launch effect even if no glasses surface has attached yet.
     var steamVr by mutableStateOf(false)
     var relaunch: android.content.Intent? = null
     @JvmStatic var hdr = false
@@ -78,6 +91,10 @@ object SessionState {
 
     @Volatile var secondScreenMode = com.droiddeck.launcher.input.SecondScreenMode.NONE
     @Volatile var secondScreenDisplay = -1
+    @Volatile var secondScreenAutoOpened = false
+    @Volatile var secondScreenProvisional = false
+
+    @Volatile var steamLibraryMounts: Map<String, java.io.File> = emptyMap()
 
     @Volatile
     var mode = "steam"
@@ -87,6 +104,7 @@ object SessionState {
 
     @Volatile
     var followScreen = false
+    var followScale = 1f
 
     @Volatile
     var refreshHz: Float = 60f

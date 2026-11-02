@@ -17,7 +17,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
-import org.robolectric.RobolectricTestRunner
+import com.droiddeck.launcher.core.DroidDeckTestRunner as RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
@@ -251,8 +251,6 @@ class GlassesSteamVrTest {
             .set(activity, LoadingState(activity).apply { visible = false })
         SessionState.steamVr = true
         SessionState.mode = SessionService.MODE_STEAM
-        // Hold the external worker so status transitions can be exercised
-        // without launching a Linux runtime from the host test process.
         val worker = SessionActivity::class.java.getDeclaredField("steamVrWorker")
             .apply { isAccessible = true }.get(null) as ThreadPoolExecutor
         val blocked = CountDownLatch(1)

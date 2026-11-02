@@ -22,17 +22,18 @@ class FileManagerActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        requestedOrientation = com.droiddeck.launcher.session.SessionPrefs.orientation(this)
+        requestedOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            com.droiddeck.launcher.core.AllFilesAccess.ask(this)
-        } else if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE), 1)
+            com.droiddeck.launcher.files.AllFilesAccess.ask(this)
+        } else if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED ||
+            checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE), 1)
         }
         val initialDir = intent.getStringExtra(EXTRA_START_DIR)?.let(::File)
         setContent {
             DroidDeckTheme(appScale = com.droiddeck.launcher.core.AppUiPrefs.scale(this)) {
                 Surface(modifier = Modifier.fillMaxSize().systemBarsPadding(), color = MaterialTheme.colorScheme.background) {
-                    FileManagerScreen(initialDir = initialDir)
+                    FileManagerScreen(initialDir = initialDir, onExit = { finish() })
                 }
             }
         }

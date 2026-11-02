@@ -251,7 +251,7 @@ internal object EpicClientLibrary {
                 SessionPrefs.addedGameStoredAppId(app, oldFolder.path)?.let { SteamLiveShortcuts.remove(app, it) }
                 changed = true
             }
-            val next = StoreGameSidecar(
+            val next = withLaunchArgs(StoreGameSidecar(
                 Store.EPIC, appName, item.optString("DisplayName").ifEmpty { appName }, exe,
                 installVersion = item.optString("AppVersionString"), installedAt = existing?.installedAt?.takeIf { it > 0 } ?: folder.lastModified(),
                 cover = existing?.cover, hero = existing?.hero,
@@ -260,7 +260,7 @@ internal object EpicClientLibrary {
                 epic = existing?.epic ?: com.droiddeck.launcher.stores.EpicOptions(),
                 cloud = existing?.cloud ?: true,
                 launcher = StoreLaunch.LAUNCHER,
-            )
+            ), commandArgs(item.optString("LaunchCommand")))
             val sidecarChanged = existing?.toJson()?.toString(2) != next.toJson().toString(2)
             val launcher = File(folder, StoreLaunch.LAUNCHER)
             if (sidecarChanged || runCatching { launcher.readText() }.getOrNull() != StoreLaunch.launcherText(next)) {
@@ -328,6 +328,7 @@ internal object EpicClientLibrary {
             .put("CatalogItemId", record.optString("itemId"))
             .put("InstallLocation", dir)
             .put("LaunchExecutable", record.optString("launchExecutable"))
+            .put("LaunchCommand", record.optString("launchCommand"))
             .put("AppVersionString", record.optString("version"))
             .put("SidecarDeploymentId", record.optJSONObject("sidecar")?.optString("deploymentId").orEmpty())
             .put("DisplayName", title?.takeIf(String::isNotBlank) ?: dir.substringAfterLast('/'))
@@ -358,7 +359,11 @@ internal object EpicClientLibrary {
                 write(File(manifests, "$guid.item"), item(install, tags, ownership == true).toString(2))
                 runCatching { egstore(install, guid) { token } }.onFailure { Log.w(TAG, "${install.appName}: .egstore not written (${it.javaClass.simpleName})") }
                 after.put(install.appName, JSONObject().put("guid", guid).put("signature", install.signature).apply { if (ownership != null) put("ownership", ownership) })
-                StoreGameSidecar.read(install.folder)?.let { StoreLaunch.refreshLauncher(install.folder, it) }
+                StoreGameSidecar.read(install.folder)?.let { sidecar ->
+                    val next = runCatching { manifestArgs(install, guid) }.getOrNull()?.let { withLaunchArgs(sidecar, it) } ?: sidecar
+                    if (next !== sidecar) next.write(install.folder)
+                    StoreLaunch.refreshLauncher(install.folder, next)
+                }
             }
             for (name in before.keys().asSequence().toList()) {
                 if (after.has(name)) continue
@@ -374,6 +379,33 @@ internal object EpicClientLibrary {
             Log.w(TAG, "registration failed: ${e.javaClass.simpleName}: ${e.message}")
         }
         return changed
+    }
+
+    private const val LAUNCH_ARGS = "launchArgs"
+
+    private fun manifestArgs(install: Install, guid: String): List<String>? {
+        val manifest = File(install.folder, ".egstore/$guid.manifest").takeIf { it.isFile } ?: return null
+        val launch = EpicNative.inspect(manifest.readBytes(), JSONObject().put("op", "launch")) ?: return null
+        val build = launch.optString("buildVersion")
+        if (install.version.isNotEmpty() && build != install.version) return null
+        val args = launch.optJSONArray("args") ?: return null
+        return List(args.length()) { args.optString(it) }.filter { it.isNotEmpty() }
+    }
+
+    private fun commandArgs(command: String): List<String> {
+        if (command.isBlank()) return emptyList()
+        val args = EpicNative.call("launch.split", JSONObject().put("command", command))?.optJSONArray("args") ?: return emptyList()
+        return List(args.length()) { args.optString(it) }.filter { it.isNotEmpty() }
+    }
+
+    internal fun withLaunchArgs(sidecar: StoreGameSidecar, args: List<String>): StoreGameSidecar {
+        val previous = sidecar.extra[LAUNCH_ARGS]?.split('\n')?.filter { it.isNotEmpty() }.orEmpty()
+        val kept = sidecar.args.filterNot { it in previous }
+        val added = args.filterNot { it in kept }
+        val next = kept + added
+        val extra = LinkedHashMap(sidecar.extra).apply { if (added.isEmpty()) remove(LAUNCH_ARGS) else put(LAUNCH_ARGS, added.joinToString("\n")) }
+        if (next == sidecar.args && extra == sidecar.extra) return sidecar
+        return sidecar.copy(args = next, extra = extra)
     }
 
     private fun ownershipToken(token: String, install: Install): Boolean? =

@@ -1,11 +1,5 @@
 name: Publish add-on packs
 
-# The add-on packs (tools/packs/build.sh) a Build APK run made, published to DroidDeck-Components under
-# content-addressed tags (pack-<name>-<first 16 hex of sha256>). The APK from that run pins each pack's
-# SHA-256 and downloads it from that tag. A tag is created once and never replaced.
-# Only main and release builds publish here; a PR test build attaches the packs main has not published
-# to its pr-N release on DroidDeck-CI (pr-release-publish.yml), which is deleted when the PR closes.
-
 on:
   workflow_call:
     inputs:
@@ -61,7 +55,7 @@ jobs:
               jq -r --arg n "$2" '.assets // [] | .[] | select(.name == $n) | .digest // empty'
           }
           commit=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" --jq .head_sha 2>/dev/null || echo "$GITHUB_SHA")
-          for name in proot directaudio tracking xbox comet; do
+          for name in proot directaudio tracking xbox comet butler; do
             file="packs/$name.tar.zst"
             [ -f "$file" ] || { echo "::error::$name.tar.zst is missing from Build APK run $BUILD_RUN"; exit 1; }
             sha=$(sha256sum "$file" | cut -d' ' -f1)

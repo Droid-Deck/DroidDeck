@@ -11,7 +11,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
+import com.droiddeck.launcher.core.DroidDeckTestRunner as RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.File
@@ -37,6 +37,28 @@ class GameLogoTest {
         File(cache, "730").mkdirs()
         File(cache, "730/logo.png").writeBytes(ByteArray(0))
         assertNull(Library.steamCacheImage(cache, 730, Library.STEAM_LOGOS))
+    }
+
+    @Test fun aSteamScanKeepsEveryArtworkSlotAndSeesNewHashDirectories() {
+        val root = SessionPrefs.steamRoot(app, "arm64")
+        File(root, "steamapps/appmanifest_620.acf").apply {
+            parentFile!!.mkdirs()
+            writeText("\"AppState\"\n{\n\"name\" \"Portal 2\"\n\"StateFlags\" \"4\"\n}\n")
+        }
+        val cache = File(root, "appcache/librarycache/620")
+        fun cached(path: String) = File(cache, path).apply {
+            parentFile!!.mkdirs()
+            writeBytes(byteArrayOf(1))
+        }
+        val cover = cached("library_capsule.jpg")
+        val hero = cached("hash/library_hero.jpg")
+        val icon = cached("${"a".repeat(40)}.jpg")
+        val game = Library.steamGames(app, arch = "arm64").single()
+        assertEquals(listOf(cover, hero, icon, null), listOf(game.art, game.hero, game.icon, game.logo))
+
+        val logo = cached("new-hash/logo.png")
+        val refreshed = Library.steamGames(app, arch = "arm64").single()
+        assertEquals(listOf(cover, hero, icon, logo), listOf(refreshed.art, refreshed.hero, refreshed.icon, refreshed.logo))
     }
 
     @Test fun aChosenLogoWinsOverSteamsAndKeepsTheRest() {

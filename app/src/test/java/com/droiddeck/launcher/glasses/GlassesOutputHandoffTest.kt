@@ -12,7 +12,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
-import org.robolectric.RobolectricTestRunner
+import com.droiddeck.launcher.core.DroidDeckTestRunner as RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
@@ -30,7 +30,6 @@ class GlassesOutputHandoffTest {
     private lateinit var screen: GlassesScreen
 
     @Before fun setup() {
-        // Exercise the output lifecycle without starting the native Linux runtime.
         activity = Robolectric.buildActivity(SessionActivity::class.java).get()
         phone = SurfaceView(activity)
         ReflectionHelpers.setField(activity, "surfaceView", phone)
@@ -46,7 +45,7 @@ class GlassesOutputHandoffTest {
     @Test fun selectingGlassesDoesNotHidePhoneOrClaimOutputBeforeAttachment() {
         assertFalse(active())
         assertEquals(View.VISIBLE, phone.visibility)
-        attach(phone.holder) // A late phone callback must not complete the handoff.
+        attach(phone.holder)
         assertFalse(active())
         assertEquals(View.VISIBLE, phone.visibility)
     }

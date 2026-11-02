@@ -11,7 +11,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
+import com.droiddeck.launcher.core.DroidDeckTestRunner as RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.File
@@ -237,5 +237,18 @@ class SteamGridTest {
         assertEquals(5, names.toSet().size)
         assertEquals(names.sorted(), names)
         assertEquals(5L, AddedGameArt.chosen(dir, AddedGameArt.Slot.COVER)?.length())
+    }
+
+    @Test fun aChoiceSurvivesTheGridFolderBeingWipedAndIsPlacedAgain() {
+        File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
+        val picked = image("mine.png", 12)
+        SteamGameArt.choose(app, game(), AddedGameArt.Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, picked.path, picked.path))
+        assertEquals(12L, File(grid, "620p.png").length())
+
+        assertTrue(grid.deleteRecursively())
+        grid.mkdirs()
+        assertFalse(SteamGrid.sync(app, listOf(target())))
+        assertEquals(12L, SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.COVER)?.length())
+        assertEquals(12L, File(grid, "620p.png").length())
     }
 }

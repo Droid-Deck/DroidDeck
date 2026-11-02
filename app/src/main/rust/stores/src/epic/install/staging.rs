@@ -1,18 +1,56 @@
+use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use sha1::{Digest, Sha1};
+
+use crate::epic::manifest::Sha1 as Hash;
+
 pub const DIR_NAME: &str = ".droiddeck-epic-staging";
 pub const OWNER_FILE: &str = "owner";
 pub const OWNER_MARKER: &[u8] = b"DroidDeck Epic staging v1\n";
 const SUFFIX: &str = ".stage";
+pub const PARTIAL_SUFFIX: &str = ".part";
+const LIST_SUFFIX: &str = ".part.list";
 
 static SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 pub fn conflicts(manifest_path: &str) -> bool {
     let first = manifest_path.trim_start_matches('/').split('/').next().unwrap_or("");
     first.eq_ignore_ascii_case(DIR_NAME)
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+pub fn partial_name(path: &str, size: u64, sha1: Option<Hash>) -> String {
+    let id: Hash = Sha1::digest(path.as_bytes()).into();
+    let content = sha1.map(|h| hex(&h)).unwrap_or_else(|| "0".into());
+    format!("{}-{content}-{size}{PARTIAL_SUFFIX}", hex(&id[..8]))
+}
+
+pub fn list_path(partial: &Path) -> PathBuf {
+    let mut name = partial.as_os_str().to_owned();
+    name.push(".list");
+    PathBuf::from(name)
+}
+
+pub fn remove_partial(partial: &Path) {
+    let _ = fs::remove_file(partial);
+    let _ = fs::remove_file(list_path(partial));
+}
+
+pub fn partials(dir: &Path) -> HashMap<String, PathBuf> {
+    let Ok(entries) = fs::read_dir(dir) else { return HashMap::new() };
+    entries
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.ends_with(PARTIAL_SUFFIX))
+        .map(|n| (n.clone(), dir.join(n)))
+        .collect()
 }
 
 pub fn unique_name() -> String {
@@ -82,6 +120,8 @@ pub fn recover(game_dir: &Path) -> Result<PathBuf, String> {
         } else if name.ends_with(SUFFIX) {
             stale.push(path);
             others += 1;
+        } else if name.ends_with(PARTIAL_SUFFIX) || name.ends_with(LIST_SUFFIX) {
+            others += 1;
         } else {
             return refuse("it holds an unexpected file");
         }
@@ -130,8 +170,13 @@ mod tests {
         fs::write(dir.join("file-1.stage"), b"x").unwrap();
         fs::write(dir.join("stream-1-2-3.stage"), b"y").unwrap();
         fs::write(game.join("keep.stage"), b"z").unwrap();
+        let partial = partial_name("Game/a.pak", 10, None);
+        fs::write(dir.join(&partial), b"p").unwrap();
+        fs::write(list_path(&dir.join(&partial)), b"0\n").unwrap();
         recover(&game).unwrap();
-        assert_eq!(fs::read_dir(&dir).unwrap().count(), 1);
+        assert_eq!(fs::read_dir(&dir).unwrap().count(), 3);
+        assert_eq!(partials(&dir).into_keys().collect::<Vec<_>>(), vec![partial.clone()]);
+        remove_partial(&dir.join(&partial));
         assert!(game.join("keep.stage").exists());
         remove_if_idle(&dir);
         assert!(!dir.exists());
@@ -170,5 +215,9 @@ mod tests {
         let (a, b) = (unique_name(), unique_name());
         assert_ne!(a, b);
         assert!(a.ends_with(".stage"));
+        let p = partial_name("Game/a.pak", 10, Some([0xab; 20]));
+        assert!(p.ends_with(&format!("-{}-10.part", "ab".repeat(20))));
+        assert_ne!(p, partial_name("Game/b.pak", 10, Some([0xab; 20])));
+        assert_ne!(p, partial_name("Game/a.pak", 10, Some([0xac; 20])));
     }
 }

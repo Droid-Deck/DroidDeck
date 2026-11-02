@@ -14,17 +14,18 @@ import com.droiddeck.launcher.R
 
 class RuntimeInstallService : Service() {
     @Volatile private var activeWork: Thread? = null
-    @Volatile private var timedOut = false
+    @Volatile private var generation = 0L
     override fun attachBaseContext(newBase: android.content.Context) =
         super.attachBaseContext(com.droiddeck.launcher.core.AppLanguage.wrap(newBase))
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onTimeout(startId: Int, fgsType: Int) {
-        timedOut = true
+        generation++
         LinuxRuntimeInstaller.cancelActiveOperation()
         activeWork?.interrupt()
-        stopForeground(STOP_FOREGROUND_DETACH)
+        packageWorkers.keys.forEach { it.interrupt() }
+        stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
@@ -32,23 +33,28 @@ class RuntimeInstallService : Service() {
         if (intent?.action == ACTION_PACKAGE) return holdPackage(startId)
         val removal = intent?.action == ACTION_REMOVE
         val release = intent?.let(::releaseFrom)
-        startForeground(NOTIFICATION_ID, notification(getString(if (LinuxRuntimeInstaller.isMaintaining()) R.string.desktop_removing else if (removal) R.string.rtinst_removing else R.string.user_apps_starting), -1))
+        if (!com.droiddeck.launcher.core.ForegroundServices.start(this, NOTIFICATION_ID,
+                notification(getString(if (LinuxRuntimeInstaller.isMaintaining()) R.string.desktop_removing else if (removal) R.string.rtinst_removing else R.string.user_apps_starting), -1))) {
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
         if (release == null && !removal) {
             stopSelf(startId)
             return START_NOT_STICKY
         }
+        val workGeneration = ++generation
         activeWork = Thread({
             val manager = getSystemService(NotificationManager::class.java)
             var shown = ""
             val progress = LinuxRuntimeInstaller.ProgressListener { stage, percent ->
-                if ("$stage:$percent" != shown) {
+                if (workGeneration == generation && "$stage:$percent" != shown) {
                     shown = "$stage:$percent"
                     manager?.notify(NOTIFICATION_ID, notification(stage, percent))
                 }
             }
             if (removal) LinuxRuntimeInstaller.attach(progress)
             else LinuxRuntimeInstaller.install(applicationContext, release!!, progress)
-            if (!timedOut) {
+            if (workGeneration == generation) {
                 @Suppress("DEPRECATION")
                 stopForeground(true)
                 stopSelf(startId)
@@ -58,11 +64,16 @@ class RuntimeInstallService : Service() {
     }
 
     private fun holdPackage(startId: Int): Int {
-        startForeground(NOTIFICATION_ID, notification(packageStage, packagePercent, packageTitle))
+        if (!com.droiddeck.launcher.core.ForegroundServices.start(this, NOTIFICATION_ID, notification(packageStage, packagePercent, packageTitle))) {
+            packageWorkers.keys.forEach { it.interrupt() }
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
+        val workGeneration = ++generation
         Thread({
             val manager = getSystemService(NotificationManager::class.java)
             var shown = ""
-            while (packageHolds.get() > 0) {
+            while (packageHolds.get() > 0 && workGeneration == generation) {
                 val now = "$packageStage:$packagePercent"
                 if (now != shown) {
                     shown = now
@@ -70,9 +81,11 @@ class RuntimeInstallService : Service() {
                 }
                 Thread.sleep(500)
             }
-            @Suppress("DEPRECATION")
-            stopForeground(true)
-            stopSelf(startId)
+            if (workGeneration == generation) {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+                stopSelf(startId)
+            }
         }, "package-install").start()
         return START_NOT_STICKY
     }
@@ -107,6 +120,7 @@ class RuntimeInstallService : Service() {
         private const val ACTION_REMOVE = "com.droiddeck.launcher.REMOVE_RUNTIME"
         private const val ACTION_PACKAGE = "com.droiddeck.launcher.INSTALL_PACKAGE"
         private val packageHolds = java.util.concurrent.atomic.AtomicInteger()
+        private val packageWorkers = java.util.concurrent.ConcurrentHashMap<Thread, java.util.concurrent.atomic.AtomicInteger>()
         @Volatile private var packageTitle = ""
         @Volatile private var packageStage = ""
         @Volatile private var packagePercent = -1
@@ -129,17 +143,23 @@ class RuntimeInstallService : Service() {
             if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent) else context.startService(intent)
         }
 
-        /** Keeps the process in the foreground until the returned release runs, so closing the app does not stop the install. */
         fun holdForPackage(context: Context, title: String): () -> Unit {
             packageTitle = title
             packageStage = title
             packagePercent = -1
             packageHolds.incrementAndGet()
+            val worker = Thread.currentThread()
+            packageWorkers.compute(worker) { _, count -> (count ?: java.util.concurrent.atomic.AtomicInteger()).also { it.incrementAndGet() } }
             val intent = Intent(context, RuntimeInstallService::class.java).setAction(ACTION_PACKAGE)
             runCatching { if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent) else context.startService(intent) }
                 .onFailure { android.util.Log.w("RuntimeInstallService", "package install runs without a foreground service: $it") }
             val released = java.util.concurrent.atomic.AtomicBoolean()
-            return { if (released.compareAndSet(false, true)) packageHolds.decrementAndGet() }
+            return {
+                if (released.compareAndSet(false, true)) {
+                    packageHolds.decrementAndGet()
+                    packageWorkers.computeIfPresent(worker) { _, count -> if (count.decrementAndGet() == 0) null else count }
+                }
+            }
         }
 
         fun packageProgress(stage: String, percent: Int) {

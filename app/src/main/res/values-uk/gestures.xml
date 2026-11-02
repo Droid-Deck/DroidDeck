@@ -2,7 +2,6 @@
 <resources>
     <string name="mode_touch_gestures">Жести</string>
     <string name="gesture_settings">Налаштування сенсорних жестів</string>
-    <string name="gesture_settings_hint">Налаштуйте жести миші та клавіатури. Щоб використовувати їх, виберіть режим дотику «Жести».</string>
     <string name="gesture_tap">Дотик</string>
     <string name="gesture_drag">Перетягування одним пальцем</string>
     <string name="gesture_long_press">Тривале натискання</string>
@@ -15,6 +14,8 @@
     <string name="gesture_three_hold">Утримання трьома пальцями</string>
     <string name="gesture_pinch">Масштабування щипком</string>
     <string name="gesture_hold_button">Утримувати кнопку натиснутою</string>
+    <string name="gesture_hold_left">Утримувати ліву кнопку натиснутою</string>
+    <string name="gesture_hold_right">Утримувати праву кнопку натиснутою</string>
     <string name="gesture_click_once">Одне клацання</string>
     <string name="gesture_hold_delay">Затримка утримання</string>
     <string name="gesture_double_delay">Інтервал подвійного дотику</string>

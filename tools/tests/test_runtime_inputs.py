@@ -48,13 +48,14 @@ class RuntimeInputsTest(unittest.TestCase):
         for name, (pack, rel) in runtime.PACKED_FILES.items():
             proot[rel] = (self.root / runtime.outputs(self.root)[name]).read_bytes()
         self.pack('proot', proot)
+        self.pack('butler', {'butler': b'butler', '7z.so': b'7z', 'libc7zip.so': b'c7zip', 'version': b'15.32.0'})
         for prefix, name in runtime.PACKED.items():
             base = self.root / 'app/src/main' / prefix
             self.pack(name, {path.relative_to(base).as_posix(): path.read_bytes() for path in base.rglob('*') if path.is_file()})
 
     @staticmethod
     def in_apk(name):
-        return name not in runtime.PACKED_FILES and not any(name.startswith(prefix) for prefix in runtime.PACKED)
+        return not any(name.startswith(prefix) for prefix in runtime.PACKED)
 
     def audio(self, names):
         stream = io.BytesIO()
@@ -66,10 +67,16 @@ class RuntimeInputsTest(unittest.TestCase):
         path = self.root / 'app/build/prepared-assets/pulseaudio.tzst'
         path.write_bytes(subprocess.run(['zstd', '-q', '-c'], input=stream.getvalue(), capture_output=True, check=True).stdout)
 
-    def test_an_apk_still_carrying_proot_is_rejected(self):
-        apk = self.current_apk(self.root / 'bundled.apk', {'lib/arm64-v8a/libproot.so': b'prepared runtime'})
-        with self.assertRaisesRegex(ValueError, 'proot pack provides'):
-            runtime.check_apk(apk, self.root)
+    def test_an_apk_must_carry_the_matching_proot_loader_pair(self):
+        apk = self.current_apk(self.root / 'bundled.apk')
+        runtime.check_apk(apk, self.root)
+        missing = self.root / 'missing-loader.apk'
+        with ZipFile(apk) as source, ZipFile(missing, 'w') as destination:
+            for name in source.namelist():
+                if name != 'lib/arm64-v8a/libproot-loader.so':
+                    destination.writestr(name, source.read(name))
+        with self.assertRaisesRegex(ValueError, 'kernel-executed runtime input'):
+            runtime.check_apk(missing, self.root)
 
     def test_missing_proot_cannot_be_attested(self):
         (self.root / 'app/src/main/jniLibs/arm64-v8a/libproot.so').unlink()
@@ -86,6 +93,19 @@ class RuntimeInputsTest(unittest.TestCase):
         self.source.write_text('new implementation')
         with self.assertRaisesRegex(ValueError, 'sources changed'):
             runtime.verify(self.root)
+
+    def test_dev_loop_can_reuse_assets_from_other_sources(self):
+        runtime.record(self.root)
+        self.source.write_text('new implementation')
+        with mock.patch('sys.stderr', new_callable=io.StringIO) as stderr:
+            runtime.verify(self.root, stale_sources_ok=True)
+        self.assertIn('tools/linuxfs/preload/test.c', stderr.getvalue())
+
+    def test_dev_loop_still_rejects_changed_outputs(self):
+        runtime.record(self.root)
+        (self.root / 'app/src/main/jniLibs/arm64-v8a/libproot.so').write_bytes(b'old APK binary')
+        with self.assertRaisesRegex(ValueError, 'changed runtime input'):
+            runtime.verify(self.root, stale_sources_ok=True)
 
     def test_changed_quest_source_rejects_old_outputs(self):
         source = self.root / 'tools/quest/kgsl_compat.c'

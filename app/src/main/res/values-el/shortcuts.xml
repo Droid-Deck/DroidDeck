@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">Συντομεύσεις φυσικών κουμπιών</string>
+    <string name="shortcuts_dd_menu">Μενού DroidDeck</string>
+    <string name="shortcuts_capture">Αντιστοίχιση: %1$s</string>
+    <string name="shortcuts_press">Πατήστε και αφήστε ένα κουμπί. Η αντιστοίχιση αποθηκεύεται αυτόματα.</string>
+    <string name="shortcuts_release">Αφήστε το κουμπί για συνέχεια.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">Αυτό το κουμπί έχει ήδη αντιστοιχιστεί σε: %1$s</string>
+    <string name="shortcuts_save">Επαναντιστοίχιση</string>
+    <string name="shortcuts_retry">Δοκιμή άλλου κουμπιού</string>
+    <string name="shortcuts_limitations">Το κουμπί Αρχική και ορισμένα επιπλέον κουμπιά ενδέχεται να μην είναι διαθέσιμα.</string>
+</resources>

@@ -21,9 +21,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from adb_device import DeviceResolutionError, resolve_serial
+from proot_profile import report as proot_profile_report
 
 
-# tools/release/variants.txt: the same app also ships as other packages (e.g. com.antutu.benchmark.full).
 PACKAGE = os.environ.get("DROIDDECK_PACKAGE", "com.droiddeck.launcher")
 AUTHORITY = f"content://{PACKAGE}.agent"
 PACKAGE_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+")
@@ -35,6 +35,13 @@ class ControlError(RuntimeError):
     def __init__(self, message: str, code: str = "COMMAND_FAILED") -> None:
         super().__init__(message)
         self.code = code
+
+
+def profile_slow_us(value: str) -> int:
+    number = int(value)
+    if not 1 <= number <= 1_000_000_000:
+        raise argparse.ArgumentTypeError("--slow-us must be between 1 and 1000000000")
+    return number
 
 
 def adb_path(configured: str | None) -> str:
@@ -107,7 +114,6 @@ def provider_call(adb: str, serial: str, method: str, arg: str | None = None, re
 
 
 def checked(response: dict, default_code: str) -> dict:
-    """A provider or guest answer, raised as a ControlError when it carries ok: false."""
     if response.get("ok") is False:
         error = response.get("error", {})
         raise ControlError(error.get("message", default_code), error.get("code", default_code))
@@ -158,7 +164,6 @@ def get_state(adb: str, serial: str) -> dict:
 
 
 def wait_until(adb: str, serial: str, describe: str, done, timeout: float, poll: float = 1.0) -> dict:
-    """Poll state until done(state) is true. A failed session ends the wait at once."""
     deadline = time.monotonic() + timeout
     while True:
         state = get_state(adb, serial)
@@ -195,8 +200,6 @@ def wait_for_phase(adb: str, serial: str, wanted: str, timeout: float) -> dict:
 
 
 def focused(state: dict, app_id: int | None) -> bool:
-    """The game has focus the way a player sees it: gamescope focuses it and it is in the list the
-    Steam client orders the base layer from. app_id None means any game (not the client)."""
     focus = state.get("session", {}).get("focus") or {}
     current = focus.get("focusedApp")
     if app_id is None:
@@ -224,7 +227,6 @@ def add_serial(response: dict, serial: str) -> dict:
 
 
 def displays(adb: str, serial: str) -> list[dict]:
-    """Logical displays with the SurfaceFlinger (physical) id screencap and screenrecord want."""
     result = run_adb(adb, serial, "shell", "dumpsys", "display", timeout=30)
     text = result.stdout.decode(errors="replace")
     devices = dict(re.findall(r'DisplayDeviceInfo\{"([^"]+)": uniqueId="local:(\d+)"', text))
@@ -292,14 +294,6 @@ def record(adb: str, serial: str, path: str, seconds: float, display: int | None
 
 
 def pacing_summary(text: str, package: str = PACKAGE) -> dict:
-    """What reached the panel, from a `dumpsys SurfaceFlinger --timestats -dump`.
-
-    The game is on the compositor's own layer (droiddeck_wayland_game) when it has one, otherwise on
-    the session's SurfaceView. SurfaceFlinger keeps one record per layer AND refresh rate, so a panel
-    that switches between 60 and 120 Hz mid-capture splits the same layer into several records: they
-    are summed. A game's own fps counter does not show any of this - it counts frames handed over, not
-    frames shown, and 60 handed over can be 48 on screen with one in four held for two refreshes.
-    """
     records = {"game": [], "surface": []}
     for part in re.split(r"^displayRefreshRate = ", text, flags=re.M)[1:]:
         rate = re.match(r"(\d+)", part)
@@ -321,7 +315,6 @@ def pacing_summary(text: str, package: str = PACKAGE) -> dict:
         for ms, count in bins.items():
             histogram[ms] = histogram.get(ms, 0) + count
         if bins:
-            # SurfaceFlinger bins by whole milliseconds, so one cadence spans two buckets (16.7 ms: 16 and 17).
             mode = max(bins, key=bins.get)
             off += sum(count for ms, count in bins.items() if abs(ms - mode) > 1)
     intervals = sum(histogram.values())
@@ -338,7 +331,6 @@ def pacing_summary(text: str, package: str = PACKAGE) -> dict:
 
 
 def pacing(adb: str, serial: str, seconds: float) -> dict:
-    """Frames on screen and their intervals over `seconds`, from SurfaceFlinger's timestats."""
     seconds = max(1.0, min(600.0, seconds))
     timestats = ("shell", "dumpsys", "SurfaceFlinger", "--timestats")
     try:
@@ -479,7 +471,6 @@ def xr_capture(adb: str, serial: str, destination: Path, timeout: float) -> dict
             except (OSError, EOFError, zlib.error) as error:
                 raise ControlError('Incomplete compressed XR image', 'XR_CAPTURE_FAILED') from error
             images[eye] = xr_ppm_to_png(pixels, linear=eye == 'source' and metadata.get('sourceColorSpace') == 'linear')
-        # Detect overlapping captures before publishing images with another request's metadata.
         check = run_adb(adb, serial, 'shell', 'cat', remote + '.json')
         try:
             unchanged = json.loads(check.stdout).get('id') == token
@@ -627,6 +618,10 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
             if args.ui_op == "set-text":
                 request["text"] = args.text
         return add_serial(checked(provider_call(adb, serial, "ui", request=request), "UI_FAILED"), serial)
+
+    if command == "proot-profile":
+        lines = ["PROOT_PROFILE=1", f"PROOT_PROFILE_SLOW_US={args.slow_us}"] if args.profile_op == "enable" else ["PROOT_PROFILE=0"]
+        return add_serial(checked(provider_call(adb, serial, "env", request={"op": "set", "lines": lines, "persistent": False}), "ENV_FAILED"), serial)
 
     if command == "env":
         if args.env_op == "set":
@@ -828,6 +823,16 @@ def build_parser() -> argparse.ArgumentParser:
         if name == "set-text":
             op.add_argument("--text", required=True)
 
+    profile = commands.add_parser("proot-profile", help="profile PRoot syscall handlers in the next session, or rank a saved log")
+    profile_ops = profile.add_subparsers(dest="profile_op", required=True)
+    profile_enable = profile_ops.add_parser("enable", help="enable counters and bounded slow samples for the next session")
+    profile_enable.add_argument("--slow-us", type=profile_slow_us, default=1000, metavar="US")
+    profile_ops.add_parser("disable", help="disable profiling for the next session")
+    profile_report = profile_ops.add_parser("report", help="read a local session.log without a device")
+    profile_report.add_argument("path", type=Path)
+    profile_report.add_argument("--sort", choices=["wall", "cpu", "calls"], default="wall")
+    profile_report.add_argument("--limit", type=int, default=20)
+
     env = commands.add_parser("env", help="session environment lines (debugging tools)")
     env_ops = env.add_subparsers(dest="env_op", required=True)
     env_ops.add_parser("list")
@@ -837,7 +842,7 @@ def build_parser() -> argparse.ArgumentParser:
     env_clear = env_ops.add_parser("clear")
     env_clear.add_argument("scope", nargs="?", choices=["next", "persistent", "all"], default="next")
 
-    override = commands.add_parser("override", help="put a binary first on the next session's PATH (debugging tools)")
+    override = commands.add_parser("override", help="override a program or libblfastpath.so for the next session (debugging tools)")
     override.add_argument("name", help="the program name, e.g. gamescope")
     override.add_argument("path", help="the local file to push")
 
@@ -939,8 +944,17 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     serial = None
     try:
-        if not PACKAGE_NAME.fullmatch(PACKAGE):  # it reaches the device shell through `am start` and `content call`
+        if not PACKAGE_NAME.fullmatch(PACKAGE):
             raise ControlError(f"DROIDDECK_PACKAGE is not an Android package name: {PACKAGE!r}", "INVALID_REQUEST")
+        if args.command == "proot-profile" and args.profile_op == "report":
+            if args.limit < 1:
+                raise ControlError("--limit must be positive", "INVALID_ARGUMENTS")
+            try:
+                result = proot_profile_report(args.path.expanduser(), args.sort, args.limit)
+            except OSError as exc:
+                raise ControlError(str(exc), "FILE_IO") from exc
+            print(json.dumps(result, indent=2, sort_keys=True))
+            return 0
         adb = adb_path(args.adb)
         serial = resolve_serial(adb, args.serial, log=True)
         result = execute(args, adb, serial)

@@ -203,6 +203,30 @@ class ShortcutsTest(unittest.TestCase):
         self.assertEqual('-vulkan', steam['LaunchOptions'])
         self.assertEqual('Mine', steam['AppName'])
 
+    def users(self, *blocks):
+        body = ''.join('\t"%d"\n\t{\n%s\t}\n' % (76561197960265728 + acct, ''.join('\t\t"%s"\t\t"%s"\n' % kv for kv in keys.items()))
+                       for acct, keys in blocks)
+        (self.steam / 'config').mkdir(exist_ok=True)
+        (self.steam / 'config/loginusers.vdf').write_text('"users"\n{\n%s}\n' % body)
+        (self.steam / 'userdata/456/config').mkdir(parents=True, exist_ok=True)
+
+    def test_the_account_marked_most_recent_is_used(self):
+        self.users((123, dict(MostRecent='1', AutoLogin='0', timestamp='100')), (456, dict(MostRecent='0', AutoLogin='1', timestamp='200')))
+        self.assertEqual(str(self.steam / 'userdata/123'), shortcuts.account_dir(str(self.steam)))
+
+    def test_without_most_recent_the_account_that_signs_in_is_used(self):
+        self.users((123, dict(AutoLogin='1', timestamp='100')), (456, dict(AutoLogin='0', timestamp='200')))
+        self.assertEqual(str(self.steam / 'userdata/123'), shortcuts.account_dir(str(self.steam)))
+        self.assertIn(APPID, self.run_writer(self.game()))
+
+    def test_without_either_mark_the_account_used_last_is_used(self):
+        self.users((456, dict(AutoLogin='0', timestamp='100')), (123, dict(AutoLogin='0', timestamp='200')))
+        self.assertEqual(str(self.steam / 'userdata/123'), shortcuts.account_dir(str(self.steam)))
+
+    def test_two_accounts_without_any_mark_write_nothing(self):
+        self.users((123, dict(AccountName='a')), (456, dict(AccountName='b')))
+        self.assertIsNone(shortcuts.account_dir(str(self.steam)))
+
     def test_an_older_record_without_launch_options_still_takes_the_apps(self):
         self.run_writer(self.game())
         record = self.record()

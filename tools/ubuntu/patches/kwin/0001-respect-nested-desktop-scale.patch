@@ -1,0 +1,183 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: maxjivi05 <maxjividen@gmail.com>
+Date: Wed, 28 Oct 2026 07:28:38 -0400
+Subject: [PATCH] Respect nested desktop scale
+
+---
+ src/backends/wayland/wayland_backend.cpp     | 34 +++++++++++++++++++++++-----
+ src/backends/wayland/wayland_egl_backend.cpp |  4 +++-
+ src/backends/wayland/wayland_layer.cpp       |  2 +-
+ src/backends/wayland/wayland_output.cpp      | 26 ++++++++++++++++----
+ src/backends/wayland/wayland_output.h        |  2 ++
+ 5 files changed, 55 insertions(+), 13 deletions(-)
+
+diff --git a/src/backends/wayland/wayland_backend.cpp b/src/backends/wayland/wayland_backend.cpp
+index 557156e..1f88013 100644
+--- a/src/backends/wayland/wayland_backend.cpp
++++ b/src/backends/wayland/wayland_backend.cpp
+@@ -105,8 +105,10 @@ WaylandInputDevice::WaylandInputDevice(KWayland::Client::Pointer *pointer, Wayla
+         WaylandOutput *output = m_seat->backend()->findOutput(m_pointer->enteredSurface());
+         Q_ASSERT(output);
+         const auto subsurface = m_seat->backend()->findSubSurface(m_pointer->enteredSurface());
+-        const QPointF absolutePos = output->position() + relativeToSurface
+-            + (subsurface ? subsurface->position() : QPoint());
++        const QPointF hostPosition = relativeToSurface + (subsurface ? subsurface->position() : QPoint());
++        const QPointF absolutePos = qEnvironmentVariableIsSet("DROIDDECK_NESTED_SCALE")
++            ? output->mapToOutput(hostPosition)
++            : output->position() + hostPosition;
+         Q_EMIT pointerMotionAbsolute(absolutePos, std::chrono::milliseconds(time), this);
+     });
+     connect(pointer, &Pointer::buttonStateChanged, this, [this](quint32 serial, quint32 time, quint32 button, Pointer::ButtonState nativeState) {
+@@ -180,7 +182,15 @@ WaylandInputDevice::WaylandInputDevice(KWayland::Client::RelativePointer *relati
+     , m_relativePointer(relativePointer)
+ {
+     connect(relativePointer, &RelativePointer::relativeMotion, this, [this](const QSizeF &delta, const QSizeF &deltaNonAccelerated, quint64 timestamp) {
+-        Q_EMIT pointerMotion(sizeToPoint(delta), sizeToPoint(deltaNonAccelerated), std::chrono::microseconds(timestamp), this);
++        const auto pointer = m_seat->pointerDevice();
++        const auto output = pointer && pointer->m_pointer
++            ? m_seat->backend()->findOutput(pointer->m_pointer->enteredSurface()) : nullptr;
++        const auto toOutput = [output](const QSizeF &hostDelta) {
++            return output && qEnvironmentVariableIsSet("DROIDDECK_NESTED_SCALE")
++                ? output->mapToOutput(sizeToPoint(hostDelta)) - output->mapToOutput(QPointF())
++                : sizeToPoint(hostDelta);
++        };
++        Q_EMIT pointerMotion(toOutput(delta), toOutput(deltaNonAccelerated), std::chrono::microseconds(timestamp), this);
+     });
+ }
+ 
+@@ -197,13 +207,21 @@ WaylandInputDevice::WaylandInputDevice(KWayland::Client::Touch *touch, WaylandSe
+     connect(touch, &Touch::sequenceStarted, this, [this](TouchPoint *tp) {
+         auto o = m_seat->backend()->findOutput(tp->surface());
+         Q_ASSERT(o);
+-        const QPointF position = o->position() + tp->position();
++        const auto subsurface = m_seat->backend()->findSubSurface(tp->surface());
++        const QPointF hostPosition = tp->position() + (subsurface ? subsurface->position() : QPoint());
++        const QPointF position = qEnvironmentVariableIsSet("DROIDDECK_NESTED_SCALE")
++            ? o->mapToOutput(hostPosition)
++            : o->position() + tp->position();
+         Q_EMIT touchDown(tp->id(), position, std::chrono::milliseconds(tp->time()), this);
+     });
+     connect(touch, &Touch::pointAdded, this, [this](TouchPoint *tp) {
+         auto o = m_seat->backend()->findOutput(tp->surface());
+         Q_ASSERT(o);
+-        const QPointF position = o->position() + tp->position();
++        const auto subsurface = m_seat->backend()->findSubSurface(tp->surface());
++        const QPointF hostPosition = tp->position() + (subsurface ? subsurface->position() : QPoint());
++        const QPointF position = qEnvironmentVariableIsSet("DROIDDECK_NESTED_SCALE")
++            ? o->mapToOutput(hostPosition)
++            : o->position() + tp->position();
+         Q_EMIT touchDown(tp->id(), position, std::chrono::milliseconds(tp->time()), this);
+     });
+     connect(touch, &Touch::pointRemoved, this, [this](TouchPoint *tp) {
+@@ -212,7 +230,11 @@ WaylandInputDevice::WaylandInputDevice(KWayland::Client::Touch *touch, WaylandSe
+     connect(touch, &Touch::pointMoved, this, [this](TouchPoint *tp) {
+         auto o = m_seat->backend()->findOutput(tp->surface());
+         Q_ASSERT(o);
+-        const QPointF position = o->position() + tp->position();
++        const auto subsurface = m_seat->backend()->findSubSurface(tp->surface());
++        const QPointF hostPosition = tp->position() + (subsurface ? subsurface->position() : QPoint());
++        const QPointF position = qEnvironmentVariableIsSet("DROIDDECK_NESTED_SCALE")
++            ? o->mapToOutput(hostPosition)
++            : o->position() + tp->position();
+         Q_EMIT touchMotion(tp->id(), position, std::chrono::milliseconds(tp->time()), this);
+     });
+ }
+diff --git a/src/backends/wayland/wayland_egl_backend.cpp b/src/backends/wayland/wayland_egl_backend.cpp
+index 66ae1b2..fb17c31 100644
+--- a/src/backends/wayland/wayland_egl_backend.cpp
++++ b/src/backends/wayland/wayland_egl_backend.cpp
+@@ -204,7 +204,9 @@ bool WaylandEglCursorLayer::doEndFrame(const Region &renderedDeviceRegion, const
+     wl_buffer *buffer = m_backend->backend()->importBuffer(m_buffer->buffer());
+     Q_ASSERT(buffer);
+ 
+-    static_cast<WaylandOutput *>(m_output.get())->cursor()->update(buffer, m_buffer->buffer()->size() / m_output->scale(), (hotspot() / m_output->scale()).toPoint());
++    auto output = static_cast<WaylandOutput *>(m_output.get());
++    output->cursor()->update(buffer, m_buffer->buffer()->size() / output->presentationScale(),
++                             (hotspot() / output->presentationScale()).toPoint());
+ 
+     EGLNativeFence releaseFence{m_backend->eglDisplayObject()};
+     m_swapchain->release(m_buffer, releaseFence.takeFileDescriptor());
+diff --git a/src/backends/wayland/wayland_layer.cpp b/src/backends/wayland/wayland_layer.cpp
+index 1bc003e..15b1624 100644
+--- a/src/backends/wayland/wayland_layer.cpp
++++ b/src/backends/wayland/wayland_layer.cpp
+@@ -93,7 +93,7 @@ void WaylandLayer::commit(PresentationMode presentationMode)
+     // this is a bit annoying, we need a new Wayland protocol
+     // to do this properly with fractional scaling. Until we
+     // have that, it may cause blurriness in some cases!
+-    const Rect logicalTarget = targetRect().scaled(1.0 / m_output->scale()).rounded();
++    const Rect logicalTarget = targetRect().scaled(1.0 / static_cast<WaylandOutput *>(m_output.get())->presentationScale()).rounded();
+     if (m_viewport) {
+         m_viewport->setSource(sourceRect());
+         m_viewport->setDestination(logicalTarget.size());
+diff --git a/src/backends/wayland/wayland_output.cpp b/src/backends/wayland/wayland_output.cpp
+index e435266..2bc8ee9 100644
+--- a/src/backends/wayland/wayland_output.cpp
++++ b/src/backends/wayland/wayland_output.cpp
+@@ -312,7 +312,7 @@ bool WaylandOutput::present(const QList<OutputLayer *> &layersToUpdate, const st
+         m_surface->attachBuffer(buffer);
+         m_mapped = true;
+     }
+-    m_viewport->setDestination(QSize(std::round(modeSize().width() / scale()), std::round(modeSize().height() / scale())));
++    m_viewport->setDestination(QSize(std::round(modeSize().width() / presentationScale()), std::round(modeSize().height() / presentationScale())));
+     m_surface->setScale(1);
+     // commit the subsurfaces before the main surface
+     for (OutputLayer *layer : layersToUpdate) {
+@@ -375,9 +375,10 @@ void WaylandOutput::applyChanges(const OutputConfiguration &config)
+     next.enabled = props->enabled.value_or(m_state.enabled);
+     next.transform = props->transform.value_or(m_state.transform);
+     next.position = props->pos.value_or(m_state.position);
+-    // intentionally ignored, as it would get overwritten
+-    // with the fractional scale protocol anyways
+-    // next.scale = props->scale.value_or(m_state.scale);
++    if (qEnvironmentVariableIsSet("DROIDDECK_NESTED_SCALE")) {
++        next.scale = props->scale.value_or(m_state.scale);
++        next.scaleSetting = props->scaleSetting.value_or(m_state.scaleSetting);
++    }
+     next.desiredModeSize = props->desiredModeSize.value_or(m_state.desiredModeSize);
+     next.desiredModeRefreshRate = props->desiredModeRefreshRate.value_or(m_state.desiredModeRefreshRate);
+     next.desiredModeFlags = props->desiredModeFlags.value_or(m_state.desiredModeFlags);
+@@ -395,6 +396,19 @@ void WaylandOutput::applyChanges(const OutputConfiguration &config)
+     setState(next);
+ }
+ 
++qreal WaylandOutput::presentationScale() const
++{
++    return qEnvironmentVariableIsSet("DROIDDECK_NESTED_SCALE") ? m_pendingScale : scale();
++}
++
++QPointF WaylandOutput::mapToOutput(const QPointF &hostPosition) const
++{
++    const QPointF inPanel = hostPosition * presentationScale() / scale();
++    const QSizeF panelSize = QSize(std::round(modeSize().width() / scale()),
++                                   std::round(modeSize().height() / scale()));
++    return position() + transform().inverted().map(inPanel, panelSize);
++}
++
+ bool WaylandOutput::isReady() const
+ {
+     return m_ready;
+@@ -468,7 +482,9 @@ void WaylandOutput::applyConfigure(const QSize &size, quint32 serial)
+         State next = m_state;
+         next.modes = {mode};
+         next.currentMode = mode;
+-        next.scale = m_pendingScale;
++        if (!qEnvironmentVariableIsSet("DROIDDECK_NESTED_SCALE")) {
++            next.scale = m_pendingScale;
++        }
+         setState(next);
+ 
+         Q_EMIT m_backend->outputsQueried();
+diff --git a/src/backends/wayland/wayland_output.h b/src/backends/wayland/wayland_output.h
+index 7c30ce3..d9dcb0c 100644
+--- a/src/backends/wayland/wayland_output.h
++++ b/src/backends/wayland/wayland_output.h
+@@ -86,6 +86,8 @@ public:
+ 
+     void init(const QSize &pixelSize, qreal scale, bool fullscreen);
+ 
++    qreal presentationScale() const;
++    QPointF mapToOutput(const QPointF &hostPosition) const;
+     bool isReady() const;
+     KWayland::Client::Surface *surface() const;
+     WaylandCursor *cursor() const;

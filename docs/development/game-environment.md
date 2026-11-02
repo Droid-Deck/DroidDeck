@@ -52,6 +52,67 @@ environment entries and is intentionally narrower than **Reset game profile**.
 Values are literal strings, with no shell expansion; quotes are only needed when
 the consuming program expects them.
 
+## Game debug logs
+
+Under **Setup > Diagnostics**, enable **Session logs** and **Game debug logs**
+before reproducing a Windows game problem. Game debug logs is off by default and
+is available when Session logs is enabled. It applies to the next game launch through DroidDeck's
+Valve or third-party Proton wrapper, including added games and store shortcuts.
+A running game must be restarted. If the current session began with Session logs
+disabled, restart that session first: its existing log folder is disposable, and
+the UI shows a restart reminder instead of enabling logs that would be discarded.
+
+| Generated setting | Effective value while enabled |
+| --- | --- |
+| `PROTON_LOG` | `1` |
+| `PROTON_LOG_DIR`, `PROTON_CRASH_REPORT_DIR`, `DXVK_LOG_PATH` | The actual session log directory |
+| `DXVK_LOG_LEVEL` | `debug` |
+| `VKD3D_DEBUG` | `info` |
+| `WINEDEBUG` | Valid custom channels plus Proton's standard diagnostic channels |
+
+Diagnostics take precedence over conflicting inherited, shared, or per-game log
+settings while the switch is on. Wine channel selectors are normalized and
+deduplicated with the last selector winning; required exception, module, and
+timestamp channels are applied last, including when a profile contains `-all`.
+Custom channels from `PROTON_LOG` are retained when valid. Malformed channel tokens
+are omitted; an oversized list falls back to the standard diagnostic channels.
+
+Saved profiles and Steam launch options are unchanged. The launcher merges a
+process-environment map, so every variable has one value and paths containing
+spaces, quotes, or shell characters stay literal. Existing arguments and
+`%command%` are not reconstructed. Disabling the switch restores the user's normal
+settings on the next launch. It does not change Steam probes or native Linux
+programs, whose ordinary output remains in the session log.
+
+After reproducing once, stop the session and use **Latest session logs > Share
+logs**. The archive includes the generated Wine/Proton and graphics logs. Debug
+logging can reduce performance and consume storage; disable it after collecting
+the report. If the session log directory is unavailable, the launcher reports
+that diagnostics were skipped instead of writing uncollected files elsewhere.
+
+A Unity game under FEX (`UnityPlayer.dll` for Windows builds under Proton,
+`UnityPlayer.so` or `GameAssembly.so` for native Linux builds started by
+**Linux x86 (FEX)**) keeps FEX's TSO on when the Default profile's FEX preset
+turns it off: without TSO such games can deadlock or crash (seen with Megabonk
+and Crab Game). A FEX preset chosen for the game itself still applies.
+
+Games launched through Proton get `vblank_mode=0`, so OpenGL does not wait for
+each screen refresh. Wine asks for a swap interval of 1 on every OpenGL window, and WineD3D's front-buffer
+drawing (DirectDraw, Direct3D 1–7) never lowers it, so those games ran at the
+refresh rate even with no frame limit (AIO Direct3D 7: 144 fps at 144 Hz, about
+2,260 with the wait off). Steam's Frame Limit still holds a game: while it is on,
+gamescope's WSI layer presents every swapchain in FIFO at the limit. A
+`vblank_mode` from the launch options or the environment editor is kept, and
+**Remove** in the editor leaves Mesa's own default.
+
+A game launch (`waitforexitandrun`) also gets
+`GAMESCOPE_WSI_MIN_IMAGE_COUNT=8` and `GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT=1`,
+so an uncapped game keeps drawing while gamescope turns buffers around. The
+session itself no longer sets them: the Steam client's UI renders through the
+same WSI layer, and with eight images and no frame limit it drew flat out
+(about 240 frames a second at 120 Hz) and heated the device. Values set in the
+launch options or the environment editor are kept.
+
 ## Defaults and available suggestions
 
 The initial configuration enables Mesa shader caching with
@@ -92,7 +153,7 @@ custom components can support a different set of options. Android Wine wrapper,
 ALSA-server, Box64 and patched async-DXVK options are identified in the editor as
 requiring a different/custom component; custom entries remain allowed. The old
 `DXVK_FRAME_RATE` environment variable was removed from current DXVK, so it is
-not offered as a suggestion. Prefer the session frame limiter for ordinary play.
+not offered as a suggestion. Prefer Steam's Quick Access menu frame limiter for ordinary play.
 
 ## Launch path and references
 

@@ -60,4 +60,46 @@ class DesktopMaintenanceTest {
         assertTrue(LinuxRuntimeInstaller.beginMaintenance(null, "retry")!!.run(null) { null })
         assertNull(LinuxRuntimeInstaller.removalError())
     }
+    @Test(timeout = 15000) fun timeoutInterruptsTheMaintenanceOwnerAndReleasesTheReservation() {
+        SessionState.running = false
+        SessionState.phase = SessionPhase.IDLE
+        val operation = LinuxRuntimeInstaller.beginMaintenance(null, "Maintenance")!!
+        val entered = CountDownLatch(1)
+        val result = java.util.concurrent.atomic.AtomicReference<Boolean>()
+        val worker = Thread {
+            result.set(operation.run(null) {
+                entered.countDown()
+                CountDownLatch(1).await()
+                null
+            })
+        }
+        worker.start()
+        try {
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
+            LinuxRuntimeInstaller.cancelActiveOperation()
+            worker.join(5000)
+            assertFalse(worker.isAlive)
+            assertEquals(false, result.get())
+            assertFalse(LinuxRuntimeInstaller.isBusy())
+        } finally {
+            worker.interrupt()
+            worker.join(5000)
+        }
+    }
+
+    @Test(timeout = 15000) fun cancellationBeforeWorkerStartNeverRunsMaintenanceWork() {
+        SessionState.running = false
+        SessionState.phase = SessionPhase.IDLE
+        val operation = LinuxRuntimeInstaller.beginMaintenance(null, "Maintenance")!!
+        LinuxRuntimeInstaller.cancelActiveOperation()
+        val entered = java.util.concurrent.atomic.AtomicBoolean()
+        val result = java.util.concurrent.atomic.AtomicReference<Boolean>()
+        val worker = Thread { result.set(operation.run(null) { entered.set(true); null }) }
+        worker.start()
+        worker.join(5000)
+        assertFalse(worker.isAlive)
+        assertFalse(entered.get())
+        assertEquals(false, result.get())
+        assertFalse(LinuxRuntimeInstaller.isBusy())
+    }
 }

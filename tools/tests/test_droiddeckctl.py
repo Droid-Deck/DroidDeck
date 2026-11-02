@@ -1,4 +1,3 @@
-"""droiddeckctl and droiddeck-scenario against a fake adb: the JSON contract and exit codes."""
 import base64
 import contextlib
 import importlib.machinery
@@ -88,8 +87,6 @@ def timestats_record(name, frames, histogram, hz):
             f"present2present histogram is as below:\n{bins}\nlatch2present histogram is as below:\n8ms={frames}\n")
 
 
-# A capture where the panel went from 60 to 120 Hz: the game layer is split in two records. The
-# activity's own window and an unrelated app draw too, and must not count.
 TIMESTATS_SPLIT = "SurfaceFlinger TimeStats:\ntotalFrames = 2000\n" + "".join([
     timestats_record("droiddeck_wayland_game#6110", 900, {16: 700, 33: 199}, 60),
     timestats_record("droiddeck_wayland_game#6110", 900, {16: 850, 25: 49}, 120),
@@ -99,7 +96,6 @@ TIMESTATS_SPLIT = "SurfaceFlinger TimeStats:\ntotalFrames = 2000\n" + "".join([
     timestats_record("StatusBar#106", 1, {}, 60),
 ])
 
-# A build that presents the game on the session's SurfaceView instead of a layer of its own.
 TIMESTATS_SURFACEVIEW = "SurfaceFlinger TimeStats:\n" + "".join([
     timestats_record("a1b2c3 SurfaceView[com.droiddeck.launcher/com.droiddeck.launcher.SessionActivity]#77",
                      1800, {16: 1796, 33: 3}, 120),
@@ -155,7 +151,7 @@ class DroiddeckctlTest(FakeAdbTest):
         with unittest.mock.patch.dict(os.environ, {"DROIDDECK_PACKAGE": "com.antutu.benchmark.full"}):
             variant = load("droiddeckctl")
         self.assertEqual("content://com.antutu.benchmark.full.agent", variant.AUTHORITY)
-        with self.assertRaises(variant.ControlError):  # the fake adb does not answer `am start`
+        with self.assertRaises(variant.ControlError):
             variant.start_agent_activity(str(self.adb), "fake-1", {"mode": "steam"})
         started = [e["args"] for e in self.calls() if e["args"][:3] == ["shell", "am", "start"]]
         self.assertIn("com.antutu.benchmark.full/com.droiddeck.launcher.agent.AgentStartActivity", started[0])
@@ -412,6 +408,21 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual(0, code)
         self.assertEqual("Awake", out["wakefulness"])
         self.assertIn(["shell", "input", "keyevent", "KEYCODE_WAKEUP"], [c["args"] for c in self.calls()])
+
+    def test_proot_profile_queues_only_the_next_session(self):
+        self.configure({"env": {"ok": True}})
+        code, out = self.run_ctl("proot-profile", "enable", "--slow-us", "250")
+        self.assertEqual(0, code, out)
+        self.assertEqual({"op": "set", "lines": ["PROOT_PROFILE=1", "PROOT_PROFILE_SLOW_US=250"], "persistent": False},
+                         self.calls("env")[0]["request"])
+
+    def test_proot_profile_report_needs_no_adb_or_device(self):
+        path = self.dir / "session.log"
+        path.write_text('ordinary log')
+        with unittest.mock.patch.object(ctl, "adb_path", side_effect=AssertionError("must stay offline")):
+            code, out = self.run_ctl("proot-profile", "report", str(path))
+        self.assertEqual(0, code, out)
+        self.assertFalse(out["hasCounters"])
 
     def test_override_pushes_to_the_inbox_first(self):
         self.configure({

@@ -8,19 +8,18 @@ import com.droiddeck.launcher.stores.gog.GogAuth
 internal object LoginFlows {
     private const val TAG = "StoreLogin"
 
-    fun forStore(store: Store, state: String): StoreLoginActivity.Flow? = when (store) {
-        Store.GOG -> GogFlow(state)
+    fun forStore(store: Store, state: String, browserUserAgent: String): StoreLoginActivity.Flow? = when (store) {
+        Store.GOG -> GogFlow(state, browserUserAgent)
         Store.EPIC -> epicFlow()
         Store.AMAZON -> amazonFlow()
-        Store.ITCH, Store.XBOX -> null
+        Store.ITCH, Store.XBOX, Store.BATTLENET -> null
     }
 
     @Volatile var epicFlow: () -> StoreLoginActivity.Flow? = { null }
     @Volatile var amazonFlow: () -> StoreLoginActivity.Flow? = { null }
 
-    private class GogFlow(private val state: String) : StoreLoginActivity.Flow {
+    private class GogFlow(private val state: String, override val userAgent: String) : StoreLoginActivity.Flow {
         override val startUrl: String get() = GogAuth.authUrl(state)
-        override val userAgent: String get() = GogAuth.GALAXY_UA
         override fun isRedirect(url: String): Boolean = url.startsWith(GogAuth.REDIRECT_PREFIX)
 
         override fun forgetSignIn(done: () -> Unit) {

@@ -108,7 +108,7 @@ internal object ItchShelves {
         return shelves.takeUnless { it.isEmpty }
     }
 
-    private fun open(url: String): Pair<Int, String?> {
+    internal fun open(url: String): Pair<Int, String?> {
         var conn: HttpURLConnection? = null
         return try {
             conn = (URL(url).openConnection() as HttpURLConnection).apply {

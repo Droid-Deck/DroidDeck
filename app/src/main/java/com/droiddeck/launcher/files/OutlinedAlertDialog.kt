@@ -1,7 +1,7 @@
 package com.droiddeck.launcher.files
 
 import androidx.compose.foundation.border
-import androidx.compose.material3.AlertDialog
+import com.droiddeck.launcher.ui.GlideAlertDialog as AlertDialog
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable

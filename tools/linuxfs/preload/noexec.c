@@ -43,7 +43,7 @@ __attribute__((constructor)) static void noexec_init(void) {
   real_mprotect = (int (*)(void *, size_t, int))dlsym(RTLD_NEXT, "mprotect");
 }
 
-static int private_file_mapping(uintptr_t start, uintptr_t end) {
+static int private_file_mapping(uintptr_t start, uintptr_t end, int *original_prot) {
   int fd = (int)syscall(SYS_openat, AT_FDCWD, "/proc/self/maps", O_RDONLY | O_CLOEXEC);
   if (fd < 0) return 0;
   char buf[4096], line[1024];
@@ -67,6 +67,9 @@ static int private_file_mapping(uintptr_t start, uintptr_t end) {
       char *path = strchr(perms, '/');
       struct statvfs vfs;
       found = path && !(statvfs(path, &vfs) == 0 && (vfs.f_flag & ST_NOEXEC));
+      if (found) *original_prot = (perms[0] == 'r' ? PROT_READ : 0) |
+                                (perms[1] == 'w' ? PROT_WRITE : 0) |
+                                (perms[2] == 'x' ? PROT_EXEC : 0);
     }
   }
   syscall(SYS_close, fd);
@@ -119,12 +122,11 @@ static int write_all(int fd, const unsigned char *p, size_t len) {
 static int rebake_shared(void *addr, size_t len, int prot) {
   const char *directory = rx_directory();
   size_t directory_len = strlen(directory);
-  if (!directory_len || directory_len + 40 >= PATH_MAX) return -1;
+  if (!directory_len || directory_len + 52 >= PATH_MAX) return -1;
   char path[PATH_MAX], staged[PATH_MAX];
   char *end = path + directory_len;
   memcpy(path, directory, directory_len);
   if (end[-1] != '/') *end++ = '/';
-  *end++ = '/';
   end = put_hex(end, fnv1a(addr, len));
   *end++ = '-';
   end = put_hex(end, len);
@@ -155,16 +157,20 @@ static int rebake_shared(void *addr, size_t len, int prot) {
   return mapped == (long)addr ? 0 : -1;
 }
 
-static int rebake(void *addr, size_t len, int prot) {
+static int rebake(void *addr, size_t len, int prot, int original_prot) {
   size_t page = getauxval(AT_PAGESZ);
   if (page) len = (len + page - 1) & ~(page - 1);
   if (real_mprotect(addr, len, PROT_READ)) return -1;
   if (!rebake_shared(addr, len, prot)) return 0;
   void *copy = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  if (copy == MAP_FAILED) return -1;
+  if (copy == MAP_FAILED) {
+    real_mprotect(addr, len, original_prot);
+    return -1;
+  }
   memcpy(copy, addr, len);
   if (mmap(addr, len, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) == MAP_FAILED) {
     munmap(copy, len);
+    real_mprotect(addr, len, original_prot);
     return -1;
   }
   memcpy(addr, copy, len);
@@ -179,8 +185,12 @@ int mprotect(void *addr, size_t len, int prot) {
   if (result && errno == EACCES && (prot & PROT_EXEC)) {
     if (in_fex()) {
       result = real_mprotect(addr, len, prot & ~PROT_EXEC);
-    } else if (len && private_file_mapping((uintptr_t)addr, (uintptr_t)addr + len)) {
-      result = rebake(addr, len, prot);
+    } else {
+      int original_prot;
+      if (len && (uintptr_t)addr <= UINTPTR_MAX - len &&
+          private_file_mapping((uintptr_t)addr, (uintptr_t)addr + len, &original_prot)) {
+        result = rebake(addr, len, prot, original_prot);
+      }
     }
     if (result) errno = EACCES;
   }

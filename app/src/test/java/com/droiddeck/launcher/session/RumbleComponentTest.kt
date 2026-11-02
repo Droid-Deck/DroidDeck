@@ -16,7 +16,7 @@ import org.junit.Before
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
+import com.droiddeck.launcher.core.DroidDeckTestRunner as RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
@@ -113,6 +113,22 @@ class RumbleComponentTest {
         idle(RumbleComponent.KEEPALIVE_MS * 4 + 100)
         assertEquals("the keepalive restarted the motors after a stop", 5, pad.played.size)
         assertFalse(pad.vibrating)
+    }
+
+    @Test fun quietingStopsAHeldEffectAndDropsEffectsUntilLifted() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { pad }
+        activeController(PAD_ID)
+        effect(strong = 40000, weak = 20000, ms = RumbleComponent.HOLD_MS)
+        rumble.quiet(true)
+        assertFalse(pad.vibrating)
+        idle(RumbleComponent.KEEPALIVE_MS * 4 + 100)
+        assertEquals("the keepalive restarted the motors while quiet", 1, pad.played.size)
+        effect(strong = 40000, weak = 20000)
+        assertFalse("an effect played while quiet", pad.vibrating)
+        rumble.quiet(false)
+        effect(strong = 40000, weak = 20000)
+        assertTrue(pad.vibrating)
     }
 
     @Test fun aHeldEffectFollowsTheGamesNewStrength() {

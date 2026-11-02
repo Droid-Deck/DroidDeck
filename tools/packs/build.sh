@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Builds the add-on packs the app downloads on first use instead of shipping in the APK:
-#   proot.tar.zst     the patched proot and its loader (built by tools/proot)
-#   directaudio.tar.zst  the Wine DirectAudio drivers (fetched by tools/directaudio/fetch.sh)
-#   tracking.tar.zst  hand-tracking models and the OpenCV/MediaPipe native libraries
-#   xbox.tar.zst      the Xbox backend (built by tools/xbox) for /usr/local/lib/droiddeck-xbox
-#   comet.tar.zst     the GOG Galaxy companion (built by tools/comet) for /usr/local/lib/droiddeck-comet
-# Only CI publishes these (.github/workflows/publish-packs.yml); the APK built from the same
-# directory pins each pack's SHA-256.
-# Usage: tools/packs/build.sh <out-dir>
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -18,6 +9,8 @@ out=$(cd "$out" && pwd)
 linuxfs="$repo/app/src/main/assets/linuxfs/usr/local/lib"
 # shellcheck source=tracking/release.env
 source "$here/tracking/release.env"
+# shellcheck source=butler/release.env
+source "$here/butler/release.env"
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -25,14 +18,7 @@ trap 'rm -rf "$work"' EXIT
 sha256() { if command -v sha256sum >/dev/null; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi; }
 
 fetch() {
-    local url=$1 expected=$2 dest=$3
-    curl -fsSL --retry 4 -o "$dest" "$url"
-    local actual
-    actual=$(sha256 "$dest")
-    if [ "$actual" != "$expected" ]; then
-        echo "checksum mismatch for $url: $actual" >&2
-        exit 1
-    fi
+    bash "$here/fetch-verified.sh" "$@"
 }
 
 pack() {
@@ -90,3 +76,10 @@ pack tracking "$work/tracking" hand_landmarker.task hand_landmarker_lite.task po
     libopencv_java4.so libmediapipe_tasks_jni.so
 pack xbox "$linuxfs/droiddeck-xbox" version xodus-cli xodus-service
 pack comet "$linuxfs/droiddeck-comet" version comet
+
+mkdir "$work/butler"
+fetch "https://broth.itch.zone/butler/linux-arm64/${BUTLER_VERSION}/archive/default" \
+    "$BUTLER_ZIP_SHA256" "$work/butler.zip"
+unzip -q -j "$work/butler.zip" butler 7z.so libc7zip.so -d "$work/butler"
+printf '%s\n' "$BUTLER_VERSION" > "$work/butler/version"
+pack butler "$work/butler" version butler 7z.so libc7zip.so

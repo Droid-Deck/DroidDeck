@@ -314,3 +314,93 @@ it needs `patches/0014`, enabled with `PROOT_FASTPATH=1`.
   and `PROOT_FP_STATS` hit rates for steam, steamwebhelper, wine and wineserver.
 - **FEX**, inside Proton as a DLL, translates x86 path syscalls through glibc's `syscall()`, not the
   wrappers, so they still trap. A `syscall()` hook could route `openat` and `newfstatat` there too.
+
+## Finding the next fast path
+
+The prototype notes above describe the original experiments. Main now includes the fast path,
+expanded wrappers, FEX raw-open routing ([#1283](https://github.com/Droid-Deck/DroidDeck/pull/1283)),
+and SD-library bind-name resolution ([#1331](https://github.com/Droid-Deck/DroidDeck/pull/1331)).
+Those fixes show why wrapper hit rates alone are insufficient: a caller can bypass the wrappers,
+or repeatedly hit a path the wrappers cannot resolve.
+
+### Opt-in tracer profiling
+
+With **Setup > Diagnostics > Debugging tools** enabled, queue profiling for one session:
+
+```sh
+tools/droiddeckctl proot-profile enable --slow-us 1000
+tools/droiddeckctl start steam --wait
+# Reproduce the startup, game load, or streaming workload.
+tools/droiddeckctl stop
+tools/droiddeckctl logs latest ./profile-run
+tools/droiddeckctl proot-profile report ./profile-run/session.log --sort wall
+# Also inspect --sort cpu and --sort calls.
+```
+
+`PROOT_PROFILE=1` is forwarded from the session environment to the host tracer. Patch 0018 records
+entry/exit **handler visits**, including PRoot's chained calls, by portable syscall name. It emits
+`proot-profile` JSON lines to the existing `session.log`: cumulative totals every five seconds while
+handling calls, totals at normal exit, and up to 32 slow-handler samples per five-second window exceeding `PROOT_PROFILE_SLOW_US`
+(default 1,000 microseconds). The report uses each counter's last snapshot rather than adding
+snapshots together and retains the most recent 128 slow samples. Logs can be pulled and reported while the session is running; final totals can
+be lost if the tracer is killed. An empty report (`hasCounters: false`) is not evidence of zero
+PRoot cost: check for the `start` record and that the installed PRoot pack contains patch 0018.
+
+**What the clocks mean:** handler wall time includes PRoot's path translation, filesystem waits
+inside the tracer, and time the tracer is descheduled inside the handler. Thread CPU time measures
+CPU used by that handler. Neither clock includes the tracee's subsequent kernel syscall, the
+wake-up/queue delay before handler entry, or work outside `translate_syscall` (such as standalone
+SIGSYS emulation, signal delivery, and process-event handling). Fast-path calls that avoid PRoot
+are absent. Counts are handler visits, not a count of all guest syscalls. No extra ptrace stops or
+syscall-exit interception are enabled for profiling. Profiling still costs clock reads, counters,
+and log output; turn it off for final performance measurements.
+
+Rank cumulative time and frequency before chasing individual outliers. High handler CPU suggests
+translation work; high handler wall with low CPU suggests filesystem or scheduling waits. Neither
+proves how much a new fast path would save. Reproduce with the same app/PRoot/library build,
+workload, storage, CPU policy, and cache state, then alternate A/B runs and measure the real load
+milestone without profiling too. Keep `PROOT_FP_OFF=1` runs for correctness comparisons.
+
+For path context, the existing `PROOT_FP_LOG=/tmp/fastpath-misses.log` logs wrapper fallbacks and
+`PROOT_FP_STATS=1` prints per-process hit/miss counts at normal exit. These are separate opt-ins:
+miss logging writes on every fallback, may contain personal paths, and cannot see callers that
+bypass the wrappers. Capture it separately from the session artifact folder. The new profiler
+records syscall names, numeric IDs, and timings without paths or arguments.
+
+### Test a replacement library without rebuilding the APK
+
+Build a **glibc ARM64** library using the same toolchain as the shipped fast path:
+
+```sh
+docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" \
+  -v "$PWD:/src" -w /src droiddeck-local-cross:24.04-v3 \
+  aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
+  -o /src/libblfastpath.so tools/proot/fastpath/fastpath.c -ldl
+
+tools/droiddeckctl stop
+tools/droiddeckctl override libblfastpath.so ./libblfastpath.so
+tools/droiddeckctl proot-profile enable
+tools/droiddeckctl start steam --wait
+```
+
+The existing override bridge now recognizes `libblfastpath.so`: it checks ELF class, endianness,
+type, and machine, reports SHA-256, and selects that file in `/etc/ld.so.preload` for one session.
+It rejects installation while a session is active. This is an architecture check, not validation
+of libc compatibility or the library's behavior. The fast path still requires its normal enabled
+setting and the patched PRoot pack. Its basename stays `libblfastpath.so`, so `libblsession`'s FEX
+routing finds it. Guest-command restaging retains the active selection. After stopping, the next
+session stages the bundled preload again; `env clear all` cancels queued overrides.
+
+This replaces a library **for a fresh session**. It does not rebind already-resolved symbols in
+running Wine/FEX processes, unload old code, or load arbitrary plug-ins through a new ABI. True
+in-process patching would need an explicit dispatch API and synchronization across every process.
+[The dynamic loader](https://man7.org/linux/man-pages/man3/dlopen.3.html) resolves symbols within each process.
+For now, restarting the session avoids those lifetime and binding problems while removing APK
+build/install time from a fast-path iteration. Changes to the trampoline/filter contract still
+require a matching PRoot build, not just a library swap. The profiler itself also needs a new
+PRoot pack; CI builds and pins that pack alongside the APK.
+
+The next useful extensions are bounded path sampling tied to handler time, separate process/signal
+stop counters, and scenario reports that compare the same game-load milestone across builds.
+Keep candidate fast paths behind equivalence tests: a slow symlink, `/proc` lookup, unsupported
+flag, or ambiguous bind must retain PRoot's semantics.

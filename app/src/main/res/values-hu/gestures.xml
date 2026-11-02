@@ -2,7 +2,6 @@
 <resources>
     <string name="mode_touch_gestures">Gesztusok</string>
     <string name="gesture_settings">Érintési gesztusok beállításai</string>
-    <string name="gesture_settings_hint">Szabd testre az egér- és billentyűzetgesztusokat. Használatukhoz válaszd a Gesztusok érintési módot.</string>
     <string name="gesture_tap">Koppintás</string>
     <string name="gesture_drag">Húzás egy ujjal</string>
     <string name="gesture_long_press">Hosszú nyomás</string>
@@ -15,6 +14,8 @@
     <string name="gesture_three_hold">Nyomva tartás három ujjal</string>
     <string name="gesture_pinch">Csippentéses nagyítás</string>
     <string name="gesture_hold_button">Gomb nyomva tartása</string>
+    <string name="gesture_hold_left">Bal gomb nyomva tartása</string>
+    <string name="gesture_hold_right">Jobb gomb nyomva tartása</string>
     <string name="gesture_click_once">Egyszeri kattintás</string>
     <string name="gesture_hold_delay">Nyomva tartás késleltetése</string>
     <string name="gesture_double_delay">Dupla koppintás időköze</string>

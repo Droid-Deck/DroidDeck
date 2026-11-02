@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=DroidDeck software restore
+Exec=/usr/share/droiddeck/apt/restore
+NoDisplay=true
+X-KDE-autostart-phase=2
+OnlyShowIn=KDE;

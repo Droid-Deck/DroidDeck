@@ -9,7 +9,7 @@ import java.time.Duration
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
+import com.droiddeck.launcher.core.DroidDeckTestRunner as RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
@@ -102,7 +102,6 @@ class RayNeoLinkTest {
                 val cmd = bytes[1].toInt() and 0xff
                 commands += cmd
                 if (gtTraffic && cmd in listOf(0, 1)) {
-                    // Notifications and unrelated ACKs can precede the requested response.
                     for (other in listOf(0x08, 6, 7, 0x50)) {
                         responses += ByteArray(64).apply {
                             this[0] = 0x99.toByte(); this[1] = 0xc8.toByte(); this[2] = 64

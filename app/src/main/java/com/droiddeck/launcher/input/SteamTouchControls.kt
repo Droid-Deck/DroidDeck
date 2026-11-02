@@ -93,13 +93,18 @@ class SteamTouchControls(
     private var opened = 0
     private var elements: List<Element> = emptyList()
     private var tint = Color.WHITE
-    private var alphaScale = 0.45f
+    private var alphaScale = 0.99f
+    var style: Pair<Int, Float> = Color.WHITE to 0.99f
+        private set
+    var onStyle: (() -> Unit)? = null
 
     private class Visual(val ref: SteamTouchBindings.Ref?, val binding: SteamTouchBindings.Binding?)
     private var visuals: Map<Int, List<Visual>> = emptyMap()
 
     private class Finger(val element: Element?, var x: Float, var y: Float, val toolbar: Int = -1)
     private val fingers = HashMap<Int, Finger>()
+    private var forwardedPointerBits = 0
+    var onTouchMiss: ((MotionEvent) -> Unit)? = null
 
     private var editing = false
     private var editElements: MutableList<Element> = mutableListOf()
@@ -107,7 +112,6 @@ class SteamTouchControls(
     private var selected = -1
     private var dragOffset = 0f to 0f
     private var pinchStart = 0f
-    private var pinchScale = 1f
     private var saving = false
     private val pendingBindings = HashMap<SteamTouchBindings.Ref, SteamTouchBindings.Binding>()
     private var pendingColor: FloatArray? = null
@@ -191,6 +195,8 @@ class SteamTouchControls(
     private fun applyColor(color: FloatArray?) {
         tint = if (color != null) Color.rgb((color[0] * 255).toInt(), (color[1] * 255).toInt(), (color[2] * 255).toInt()) else Color.WHITE
         alphaScale = ((color?.get(3) ?: 0.45f) * 2.2f).coerceIn(0.15f, 1f)
+        style = tint to alphaScale
+        onStyle?.invoke()
     }
 
     private fun rebuildVisuals() {
@@ -236,6 +242,8 @@ class SteamTouchControls(
 
     private fun hit(list: List<Element>, x: Float, y: Float): Element? =
         list.filter { reach(it, x, y) <= 1.15f }.minByOrNull { reach(it, x, y) }
+
+    fun takesTouchAt(x: Float, y: Float): Boolean = editing || menuOpen || hit(live(), x, y) != null
 
     private fun live(): List<Element> =
         if (shakenAway) emptyList() else if (options.inputMode == SteamTouchConfig.INPUT_MOUSE) elements.filter { it.type == SteamTouchConfig.THUMB } else elements
@@ -338,17 +346,6 @@ class SteamTouchControls(
         canvas.drawPath(markD, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ink })
         canvas.drawCircle(63.98f, 111.86f, 55.98f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = accent; this.alpha = alpha })
         canvas.restore()
-    }
-
-    private fun drawSteamMark(canvas: Canvas, x: Float, y: Float, r: Float, color: Int) {
-        val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color; style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
-        p.strokeWidth = r * 0.16f
-        canvas.drawCircle(x + r * 0.28f, y - r * 0.18f, r * 0.27f, p)
-        canvas.drawCircle(x + r * 0.28f, y - r * 0.18f, r * 0.1f, Paint(p).apply { style = Paint.Style.FILL })
-        canvas.drawCircle(x - r * 0.3f, y + r * 0.3f, r * 0.17f, p)
-        p.strokeWidth = r * 0.2f
-        canvas.drawLine(x + r * 0.1f, y - r * 0.02f, x - r * 0.2f, y + r * 0.22f, p)
-        canvas.drawLine(x - r * 0.45f, y + r * 0.28f, x - r * 0.95f, y + r * 0.1f, p)
     }
 
     private fun drawFace(canvas: Canvas, type: Int, binding: SteamTouchBindings.Binding?, x: Float, y: Float, r: Float,
@@ -624,7 +621,17 @@ class SteamTouchControls(
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 val x = event.getX(index)
                 val y = event.getY(index)
-                val e = hit(live(), x, y) ?: return event.actionMasked == MotionEvent.ACTION_POINTER_DOWN
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) forwardedPointerBits = 0
+                val e = hit(live(), x, y)
+                if (e == null) {
+                    if (event.actionMasked == MotionEvent.ACTION_DOWN) return false
+                    if (onTouchMiss != null) {
+                        forwardedPointerBits = forwardedPointerBits or (1 shl event.getPointerId(index))
+                        forwardPointers(event, forwardedPointerBits)
+                    }
+                    return true
+                }
+                if (forwardedPointerBits != 0) forwardPointers(event, forwardedPointerBits)
                 fingers[event.getPointerId(index)] = Finger(e, x, y)
                 if (feedback) performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                 requestUnbufferedDispatch(event)
@@ -632,6 +639,7 @@ class SteamTouchControls(
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
+                if (forwardedPointerBits != 0) forwardPointers(event, forwardedPointerBits)
                 for (i in 0 until event.pointerCount) {
                     val f = fingers[event.getPointerId(i)] ?: continue
                     f.x = event.getX(i)
@@ -650,12 +658,14 @@ class SteamTouchControls(
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
                 val id = event.getPointerId(index)
+                if (forwardedPointerBits != 0) forwardPointers(event, forwardedPointerBits)
+                forwardedPointerBits = if (event.actionMasked == MotionEvent.ACTION_CANCEL) 0 else forwardedPointerBits and (1 shl id).inv()
                 val f = fingers.remove(id)
                 if (event.actionMasked == MotionEvent.ACTION_CANCEL) fingers.clear()
                 val e = f?.element
                 if (event.actionMasked != MotionEvent.ACTION_CANCEL && e != null && reach(e, event.getX(index), event.getY(index)) <= 1.3f) {
                     when (e.type) {
-                        SteamTouchConfig.THUMB -> openMenu()
+                        SteamTouchConfig.THUMB -> { cancelForwarded(event); openMenu() }
                         SteamTouchConfig.KEYBOARD -> onKeyboard()
                         SteamTouchConfig.PASTE -> onPaste()
                     }
@@ -667,6 +677,25 @@ class SteamTouchControls(
         return true
     }
 
+
+    private fun cancelForwarded(event: MotionEvent) {
+        val split = event.pointerSubset(forwardedPointerBits).also { forwardedPointerBits = 0 } ?: return
+        split.action = MotionEvent.ACTION_CANCEL
+        try {
+            onTouchMiss?.invoke(split)
+        } finally {
+            split.recycle()
+        }
+    }
+
+    private fun forwardPointers(event: MotionEvent, pointerIdBits: Int) {
+        val split = event.pointerSubset(pointerIdBits) ?: return
+        try {
+            onTouchMiss?.invoke(split)
+        } finally {
+            split.recycle()
+        }
+    }
 
     val isEditing get() = editing
 
@@ -813,19 +842,6 @@ class SteamTouchControls(
         invalidate()
     }
 
-    private fun controlName(type: Int) = when (type) {
-        SteamTouchConfig.DPAD -> context.getString(R.string.touch_dpad)
-        SteamTouchConfig.JOYSTICK_LEFT -> context.getString(R.string.touch_left_stick)
-        SteamTouchConfig.JOYSTICK_RIGHT -> context.getString(R.string.touch_right_stick)
-        SteamTouchConfig.TRACKPAD_LEFT -> context.getString(R.string.deck_left_trackpad)
-        SteamTouchConfig.TRACKPAD_RIGHT -> context.getString(R.string.deck_right_trackpad)
-        SteamTouchConfig.TRACKPAD_CENTER -> context.getString(R.string.deck_surface_trackpad)
-        SteamTouchConfig.STEAM -> "Steam"
-        SteamTouchConfig.THUMB -> context.getString(R.string.touch_menu)
-        SteamTouchConfig.KEYBOARD -> context.getString(R.string.touch_keyboard)
-        else -> label(type)
-    }
-
     private fun moreMenu() {
         val host = parent as? android.view.ViewGroup ?: return
         val density = resources.displayMetrics.density
@@ -964,7 +980,7 @@ class SteamTouchControls(
         BIG_PICTURE -> "Steam"
         else -> gameNames[appId] ?: run {
             val app = appId
-            gameNames[app] = context.getString(R.string.touch_app_id, Integer.toUnsignedLong(app))
+            gameNames[app] = context.getString(R.string.touch_app_id, Integer.toUnsignedLong(app).toString())
             loader.execute {
                 val name = SteamTouchConfig.gameName(context, app) ?: return@execute
                 handler.post { gameNames[app] = name; invalidate() }
