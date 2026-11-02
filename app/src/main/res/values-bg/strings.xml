@@ -1802,8 +1802,6 @@
     <string name="stats_trace">Газ и спирачка, последните 10 s</string>
     <string name="stats_speed_chart">Скорост, %1$s</string>
     <string name="stats_gear">Предавка</string>
-    <string name="stats_speed_units">Единици за скорост</string>
-    <string name="stats_speed_units_auto">Автоматично (%1$s)</string>
     <string name="stats_steam_client_arm">Steam клиент ARM</string>
     <string name="stats_steam_client_x86">Steam клиент x86</string>
     <string name="stats_throttle">Газ</string>
@@ -1821,7 +1819,6 @@
     <string name="stats_fuel_t">Гориво, t</string>
     <string name="stats_fuel_main">Основно %1$s t</string>
     <string name="stats_fuel_reserve">Резерв %1$s t</string>
-    <string name="stats_tap_hint">Докоснете горната лента или таблото, за да смените стила му.</string>
     <string name="bottom_telemetry_send_title">Изпращане на данни за таблото</string>
     <string name="bottom_telemetry_send_auto">Автоматично</string>
     <string name="bottom_telemetry_send_auto_hint">Включва го за всяка игра от списъка тук, включително игри, открити по-късно. Игрите, които изключите, остават изключени.</string>
@@ -1860,7 +1857,6 @@
     <string name="bottom_telemetry_balance">Баланс</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Включете извеждането на данни в състезателна игра (често наричано телеметрия или UDP), за да виждате тук табло на живо. Данните остават на това устройство.</string>
     <string name="bottom_telemetry_unknown_format">Порт %1$d получава данни (%2$d пакета по %3$d байта), но във формат, който тази страница все още не може да чете.</string>
     <string name="bottom_telemetry_port_busy">Друга програма вече използва порт %1$s, затова тази игра не може да се показва тук.</string>
 

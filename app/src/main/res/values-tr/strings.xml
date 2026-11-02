@@ -1794,8 +1794,6 @@
     <string name="stats_trace">Gaz ve fren, son 10 s</string>
     <string name="stats_speed_chart">Hız, %1$s</string>
     <string name="stats_gear">Vites</string>
-    <string name="stats_speed_units">Hız birimi</string>
-    <string name="stats_speed_units_auto">Otomatik (%1$s)</string>
     <string name="stats_steam_client_arm">Steam İstemcisi ARM</string>
     <string name="stats_steam_client_x86">Steam İstemcisi x86</string>
     <string name="stats_throttle">Gaz</string>
@@ -1813,7 +1811,6 @@
     <string name="stats_fuel_t">Yakıt, t</string>
     <string name="stats_fuel_main">Ana %1$s t</string>
     <string name="stats_fuel_reserve">Yedek %1$s t</string>
-    <string name="stats_tap_hint">Stilini değiştirmek için üst şeride veya göstergeye dokunun.</string>
     <string name="bottom_telemetry_send_title">Gösterge verilerini gönder</string>
     <string name="bottom_telemetry_send_auto">Otomatik</string>
     <string name="bottom_telemetry_send_auto_hint">Sonradan bulunanlar dahil, burada listelenen her oyun için açar. Kapattığınız oyunlar kapalı kalır.</string>
@@ -1852,7 +1849,6 @@
     <string name="bottom_telemetry_balance">Bakiye</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Burada canlı bir gösterge görmek için yarış oyununun veri çıkışını (genellikle telemetri veya UDP olarak geçer) açın. Veriler bu cihazda kalır.</string>
     <string name="bottom_telemetry_unknown_format">%1$d portu veri alıyor (%3$d baytlık %2$d paket), ancak bu sayfanın henüz okuyamadığı bir biçimde.</string>
     <string name="bottom_telemetry_port_busy">%1$s portunu zaten başka bir program kullanıyor, bu yüzden o oyun burada gösterilemez.</string>
 

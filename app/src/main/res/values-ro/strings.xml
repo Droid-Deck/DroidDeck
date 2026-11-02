@@ -1824,8 +1824,6 @@
     <string name="stats_trace">Accelerație și frână, ultimele 10 s</string>
     <string name="stats_speed_chart">Viteză, %1$s</string>
     <string name="stats_gear">Treaptă</string>
-    <string name="stats_speed_units">Unități de viteză</string>
-    <string name="stats_speed_units_auto">Automat (%1$s)</string>
     <string name="stats_steam_client_arm">Client Steam ARM</string>
     <string name="stats_steam_client_x86">Client Steam x86</string>
     <string name="stats_throttle">Accelerație</string>
@@ -1843,7 +1841,6 @@
     <string name="stats_fuel_t">Combustibil, t</string>
     <string name="stats_fuel_main">Principal %1$s t</string>
     <string name="stats_fuel_reserve">Rezervă %1$s t</string>
-    <string name="stats_tap_hint">Atinge banda de sus sau bordul pentru a-i schimba stilul.</string>
     <string name="bottom_telemetry_send_title">Trimite date pentru tabloul de bord</string>
     <string name="bottom_telemetry_send_auto">Automat</string>
     <string name="bottom_telemetry_send_auto_hint">Activează trimiterea pentru fiecare joc din listă, inclusiv pentru jocurile găsite mai târziu. Jocurile pe care le dezactivezi rămân dezactivate.</string>
@@ -1882,7 +1879,6 @@
     <string name="bottom_telemetry_balance">Sold</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Activează ieșirea de date a unui joc de curse (numită adesea telemetrie sau UDP) pentru a vedea aici un bord în timp real. Datele rămân pe acest dispozitiv.</string>
     <string name="bottom_telemetry_unknown_format">Portul %1$d primește date (%2$d pachete de %3$d octeți), dar într-un format pe care această pagină nu îl poate citi încă.</string>
     <string name="bottom_telemetry_port_busy">Alt program folosește deja portul %1$s, așa că acel joc nu poate fi afișat aici.</string>
 

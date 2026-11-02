@@ -1802,8 +1802,6 @@
     <string name="stats_trace">Γκάζι και φρένο, τελευταία 10 s</string>
     <string name="stats_speed_chart">Ταχύτητα, %1$s</string>
     <string name="stats_gear">Σχέση</string>
-    <string name="stats_speed_units">Μονάδες ταχύτητας</string>
-    <string name="stats_speed_units_auto">Αυτόματα (%1$s)</string>
     <string name="stats_steam_client_arm">Πελάτης Steam ARM</string>
     <string name="stats_steam_client_x86">Πελάτης Steam x86</string>
     <string name="stats_throttle">Γκάζι</string>
@@ -1821,7 +1819,6 @@
     <string name="stats_fuel_t">Καύσιμο, t</string>
     <string name="stats_fuel_main">Κύριο %1$s t</string>
     <string name="stats_fuel_reserve">Εφεδρικό %1$s t</string>
-    <string name="stats_tap_hint">Πατήστε τη λωρίδα στο πάνω μέρος ή τον πίνακα οργάνων για να αλλάξετε το στυλ του.</string>
     <string name="bottom_telemetry_send_title">Αποστολή δεδομένων πίνακα</string>
     <string name="bottom_telemetry_send_auto">Αυτόματα</string>
     <string name="bottom_telemetry_send_auto_hint">Το ενεργοποιεί για κάθε παιχνίδι της λίστας, μαζί και όσα βρεθούν αργότερα. Τα παιχνίδια που απενεργοποιείτε παραμένουν ανενεργά.</string>
@@ -1860,7 +1857,6 @@
     <string name="bottom_telemetry_balance">Υπόλοιπο</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Ενεργοποιήστε την έξοδο δεδομένων ενός αγωνιστικού παιχνιδιού (συχνά λέγεται τηλεμετρία ή UDP) για να δείτε εδώ ζωντανό πίνακα οργάνων. Τα δεδομένα μένουν σε αυτή τη συσκευή.</string>
     <string name="bottom_telemetry_unknown_format">Η θύρα %1$d λαμβάνει δεδομένα (%2$d πακέτα των %3$d byte), αλλά σε μορφή που αυτή η σελίδα δεν μπορεί ακόμα να διαβάσει.</string>
     <string name="bottom_telemetry_port_busy">Ένα άλλο πρόγραμμα χρησιμοποιεί ήδη τη θύρα %1$s, οπότε αυτό το παιχνίδι δεν μπορεί να εμφανιστεί εδώ.</string>
 

@@ -1780,8 +1780,6 @@
     <string name="stats_trace">油門和剎車，最近 10 s</string>
     <string name="stats_speed_chart">速度，%1$s</string>
     <string name="stats_gear">檔位</string>
-    <string name="stats_speed_units">速度單位</string>
-    <string name="stats_speed_units_auto">自動（%1$s）</string>
     <string name="stats_steam_client_arm">Steam 用戶端 ARM</string>
     <string name="stats_steam_client_x86">Steam 用戶端 x86</string>
     <string name="stats_throttle">油門</string>
@@ -1799,7 +1797,6 @@
     <string name="stats_fuel_t">燃料，t</string>
     <string name="stats_fuel_main">主油箱 %1$s t</string>
     <string name="stats_fuel_reserve">備用 %1$s t</string>
-    <string name="stats_tap_hint">點按頂部橫條或儀表即可變更其樣式。</string>
     <string name="bottom_telemetry_send_title">傳送儀表板資料</string>
     <string name="bottom_telemetry_send_auto">自動</string>
     <string name="bottom_telemetry_send_auto_hint">為這裡列出的所有遊戲開啟，包括之後找到的遊戲。你關閉的遊戲會維持關閉。</string>
@@ -1838,7 +1835,6 @@
     <string name="bottom_telemetry_balance">餘額</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">開啟賽車遊戲的資料輸出（通常稱為遙測或 UDP），即可在此查看即時儀表。資料只會留在這部裝置上。</string>
     <string name="bottom_telemetry_unknown_format">連接埠 %1$d 正在接收資料（%2$d 個 %3$d 位元組的封包），但此頁面目前還無法讀取這種格式。</string>
     <string name="bottom_telemetry_port_busy">其他程式已在使用連接埠 %1$s，因此該遊戲無法在此顯示。</string>
 

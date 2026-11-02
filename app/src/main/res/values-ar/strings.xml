@@ -1890,8 +1890,6 @@
     <string name="stats_trace">دواسة الوقود والمكابح، آخر 10 s</string>
     <string name="stats_speed_chart">السرعة، %1$s</string>
     <string name="stats_gear">الترس</string>
-    <string name="stats_speed_units">وحدات السرعة</string>
-    <string name="stats_speed_units_auto">تلقائي (%1$s)</string>
     <string name="stats_steam_client_arm">عميل Steam ARM</string>
     <string name="stats_steam_client_x86">عميل Steam x86</string>
     <string name="stats_throttle">دواسة الوقود</string>
@@ -1909,7 +1907,6 @@
     <string name="stats_fuel_t">الوقود، t</string>
     <string name="stats_fuel_main">الرئيسي %1$s t</string>
     <string name="stats_fuel_reserve">الاحتياطي %1$s t</string>
-    <string name="stats_tap_hint">انقر على الشريط العلوي أو لوحة العدادات لتغيير نمطها.</string>
     <string name="bottom_telemetry_send_title">إرسال بيانات لوحة العدادات</string>
     <string name="bottom_telemetry_send_auto">تلقائي</string>
     <string name="bottom_telemetry_send_auto_hint">يفعّلها لكل لعبة مدرجة هنا، بما في ذلك الألعاب التي يُعثر عليها لاحقًا. تبقى الألعاب التي توقفها متوقفة.</string>
@@ -1948,7 +1945,6 @@
     <string name="bottom_telemetry_balance">الرصيد</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">فعِّل إخراج البيانات في لعبة السباق (يُسمّى غالبًا القياس عن بُعد أو UDP) لرؤية لوحة عدادات حية هنا. تبقى البيانات على هذا الجهاز.</string>
     <string name="bottom_telemetry_unknown_format">يستقبل المنفذ %1$d بيانات (%2$d حزمة بحجم %3$d بايت)، لكن بتنسيق لا تستطيع هذه الصفحة قراءته بعد.</string>
     <string name="bottom_telemetry_port_busy">يستخدم برنامج آخر المنفذ %1$s بالفعل، لذا لا يمكن عرض تلك اللعبة هنا.</string>
 

@@ -1816,8 +1816,6 @@
     <string name="stats_trace">Acceleratore e freno, ultimi 10 s</string>
     <string name="stats_speed_chart">Velocità, %1$s</string>
     <string name="stats_gear">Marcia</string>
-    <string name="stats_speed_units">Unità di velocità</string>
-    <string name="stats_speed_units_auto">Automatico (%1$s)</string>
     <string name="stats_steam_client_arm">Client Steam ARM</string>
     <string name="stats_steam_client_x86">Client Steam x86</string>
     <string name="stats_throttle">Acceleratore</string>
@@ -1835,7 +1833,6 @@
     <string name="stats_fuel_t">Carburante, t</string>
     <string name="stats_fuel_main">Principale %1$s t</string>
     <string name="stats_fuel_reserve">Riserva %1$s t</string>
-    <string name="stats_tap_hint">Tocca la barra superiore o il cruscotto per cambiarne lo stile.</string>
     <string name="bottom_telemetry_send_title">Invia dati al cruscotto</string>
     <string name="bottom_telemetry_send_auto">Automatico</string>
     <string name="bottom_telemetry_send_auto_hint">Lo attiva per ogni gioco elencato qui, compresi i giochi trovati in seguito. I giochi che disattivi restano disattivati.</string>
@@ -1874,7 +1871,6 @@
     <string name="bottom_telemetry_balance">Saldo</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Attiva l\'output dati di un gioco di corse (spesso chiamato telemetria o UDP) per vedere qui un cruscotto in tempo reale. I dati restano su questo dispositivo.</string>
     <string name="bottom_telemetry_unknown_format">La porta %1$d riceve dati (%2$d pacchetti da %3$d byte), ma in un formato che questa pagina non sa ancora leggere.</string>
     <string name="bottom_telemetry_port_busy">Un altro programma usa già la porta %1$s, quindi quel gioco non può essere mostrato qui.</string>
 

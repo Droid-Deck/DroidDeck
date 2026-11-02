@@ -1802,8 +1802,6 @@
     <string name="stats_trace">Gass og brems, siste 10 s</string>
     <string name="stats_speed_chart">Fart, %1$s</string>
     <string name="stats_gear">Gir</string>
-    <string name="stats_speed_units">Fartsenheter</string>
-    <string name="stats_speed_units_auto">Automatisk (%1$s)</string>
     <string name="stats_steam_client_arm">Steam-klient ARM</string>
     <string name="stats_steam_client_x86">Steam-klient x86</string>
     <string name="stats_throttle">Gass</string>
@@ -1821,7 +1819,6 @@
     <string name="stats_fuel_t">Drivstoff, t</string>
     <string name="stats_fuel_main">Hoved %1$s t</string>
     <string name="stats_fuel_reserve">Reserve %1$s t</string>
-    <string name="stats_tap_hint">Trykk på den øverste stripen eller dashbordet for å endre stilen.</string>
     <string name="bottom_telemetry_send_title">Send dashborddata</string>
     <string name="bottom_telemetry_send_auto">Automatisk</string>
     <string name="bottom_telemetry_send_auto_hint">Slår det på for alle spill som er oppført her, også spill som blir funnet senere. Spill du slår av, forblir av.</string>
@@ -1860,7 +1857,6 @@
     <string name="bottom_telemetry_balance">Saldo</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Slå på datautgangen i et racingspill (ofte kalt telemetri eller UDP) for å se et direkte dashbord her. Dataene blir på denne enheten.</string>
     <string name="bottom_telemetry_unknown_format">Port %1$d mottar data (%2$d pakker på %3$d byte), men i et format denne siden ikke kan lese ennå.</string>
     <string name="bottom_telemetry_port_busy">Et annet program bruker allerede port %1$s, så det spillet kan ikke vises her.</string>
 

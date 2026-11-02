@@ -1802,8 +1802,6 @@
     <string name="stats_trace">Gáz és fék, utolsó 10 s</string>
     <string name="stats_speed_chart">Sebesség, %1$s</string>
     <string name="stats_gear">Fokozat</string>
-    <string name="stats_speed_units">Sebesség mértékegysége</string>
-    <string name="stats_speed_units_auto">Automatikus (%1$s)</string>
     <string name="stats_steam_client_arm">Steam-kliens ARM</string>
     <string name="stats_steam_client_x86">Steam-kliens x86</string>
     <string name="stats_throttle">Gáz</string>
@@ -1821,7 +1819,6 @@
     <string name="stats_fuel_t">Üzemanyag, t</string>
     <string name="stats_fuel_main">Fő %1$s t</string>
     <string name="stats_fuel_reserve">Tartalék %1$s t</string>
-    <string name="stats_tap_hint">Koppintson a felső sávra vagy a műszerfalra a stílus módosításához.</string>
     <string name="bottom_telemetry_send_title">Műszerfal-adatok küldése</string>
     <string name="bottom_telemetry_send_auto">Automatikus</string>
     <string name="bottom_telemetry_send_auto_hint">Bekapcsolja az itt felsorolt összes játéknál, a később talált játékokat is beleértve. A kikapcsolt játékok kikapcsolva maradnak.</string>
@@ -1860,7 +1857,6 @@
     <string name="bottom_telemetry_balance">Egyenleg</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Kapcsolja be egy autóversenyes játék adatkimenetét (gyakran telemetria vagy UDP néven szerepel), hogy itt élő műszerfalat lásson. Az adatok ezen az eszközön maradnak.</string>
     <string name="bottom_telemetry_unknown_format">A(z) %1$d port adatokat fogad (%2$d csomag, egyenként %3$d bájt), de olyan formátumban, amelyet ez az oldal még nem tud olvasni.</string>
     <string name="bottom_telemetry_port_busy">A(z) %1$s portot már egy másik program használja, ezért az a játék itt nem jeleníthető meg.</string>
 

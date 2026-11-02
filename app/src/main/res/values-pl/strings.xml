@@ -1846,8 +1846,6 @@
     <string name="stats_trace">Gaz i hamulec, ostatnie 10 s</string>
     <string name="stats_speed_chart">Prędkość, %1$s</string>
     <string name="stats_gear">Bieg</string>
-    <string name="stats_speed_units">Jednostki prędkości</string>
-    <string name="stats_speed_units_auto">Automatycznie (%1$s)</string>
     <string name="stats_steam_client_arm">Klient Steam ARM</string>
     <string name="stats_steam_client_x86">Klient Steam x86</string>
     <string name="stats_throttle">Gaz</string>
@@ -1865,7 +1863,6 @@
     <string name="stats_fuel_t">Paliwo, t</string>
     <string name="stats_fuel_main">Główne %1$s t</string>
     <string name="stats_fuel_reserve">Rezerwa %1$s t</string>
-    <string name="stats_tap_hint">Dotknij górnego paska lub zegarów, aby zmienić ich wygląd.</string>
     <string name="bottom_telemetry_send_title">Wysyłaj dane do panelu</string>
     <string name="bottom_telemetry_send_auto">Automatycznie</string>
     <string name="bottom_telemetry_send_auto_hint">Włącza wysyłanie dla każdej gry z tej listy, także dla gier znalezionych później. Gry, które wyłączysz, pozostaną wyłączone.</string>
@@ -1904,7 +1901,6 @@
     <string name="bottom_telemetry_balance">Saldo</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Włącz wyjście danych w grze wyścigowej (często nazywane telemetrią lub UDP), aby zobaczyć tu zegary na żywo. Dane nie opuszczają tego urządzenia.</string>
     <string name="bottom_telemetry_unknown_format">Port %1$d odbiera dane (%2$d pakietów po %3$d bajtów), ale w formacie, którego ta strona jeszcze nie odczytuje.</string>
     <string name="bottom_telemetry_port_busy">Port %1$s jest już używany przez inny program, więc tej gry nie da się tu pokazać.</string>
 
