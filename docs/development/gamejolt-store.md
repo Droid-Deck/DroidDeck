@@ -37,8 +37,8 @@ currency) formats as `$12.34`, another currency as `12.34 EUR`. `CatalogItem` ca
 the refresh action) and merges the games into the store library as owned. `GameJoltCollections` lists the
 read-only collections: followed games (`/web/library/games/followed/@<user>`) and the account's playlists
 (`/web/library/games/playlist/<id>`). The Library page shows them through the same `CollectionsButton` as itch.
-Ownership comes from `sellables[0].is_owned`; `packages[0].is_game_owner` is not reliable. Like every other store,
-Game Jolt and Itch.io only appear among the Library chips when they have games in the list.
+Ownership comes from `sellables[0].is_owned`; `packages[0].is_game_owner` is not reliable. Library chips list a store when it has games in
+the list; a signed-in Game Jolt account keeps its chip so its collections stay reachable.
 
 ## Builds and installs
 
