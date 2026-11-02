@@ -18,6 +18,19 @@ COMPAT = runpy.run_path(os.path.join(HERE, "steam-compatibility"))
 BINDING = "droiddeckCompatChanged"
 BRIGHTNESS_BINDING = "droiddeckBrightnessChanged"
 CONTROLS_DIR = "/etc/droiddeck-device-controls"
+LIBRARY_ART_JS = r"""
+(() => {
+  if (window.__droiddeckLibraryArt) return "present";
+  const store = typeof appStore === "object" ? appStore : null;
+  if (typeof store?.BHasCachedLibraryAsset !== "function") return "unavailable";
+  // The client reports which cached assets exist only after a logon that reaches Steam; before that every app reads as
+  // uncached and the UI asks the CDN, which is blank offline. The native check still runs, so misses are still reported.
+  const native = store.BHasCachedLibraryAsset.bind(store);
+  store.BHasCachedLibraryAsset = (appid, version, type) => native(appid, version, type) || !version;
+  window.__droiddeckLibraryArt = true;
+  return "installed";
+})()
+"""
 BRIGHTNESS_JS = r"""
 (() => {
   if (window.__droiddeckBrightness) return "present";
@@ -851,6 +864,7 @@ class Helper:
             if self.files_only:
                 page.call("Runtime.addBinding", {"name": FILE_BINDING})
                 page.evaluate(FILE_JS)
+                page.evaluate(LIBRARY_ART_JS)
                 self.page = page
                 self.controls_state = None
                 self.controls_installed = False
@@ -861,6 +875,7 @@ class Helper:
             page.evaluate(VR_JS)
             page.call("Runtime.addBinding", {"name": FILE_BINDING})
             page.evaluate(FILE_JS)
+            page.evaluate(LIBRARY_ART_JS)
             try:
                 page.evaluate(TOUR_JS)
             except RuntimeError:
