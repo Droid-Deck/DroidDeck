@@ -1929,7 +1929,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 if (problem == null) SessionEvents.record("package.ready") else failedComponent = "package"
             }
             if (problem == null && desktop && !SessionState.stopRequested &&
-                !(runtime && com.droiddeck.launcher.runtime.DesktopCatalog.desktopInstalled(this))) {
+                !((runtime || resume) && com.droiddeck.launcher.runtime.DesktopCatalog.desktopInstalled(this))) {
                 if (activeInstallWorker === worker) SessionState.installing = "desktop"
                 SessionEvents.transition(SessionPhase.INSTALLING_RUNTIME, "desktop.installing", mapOf("component" to "desktop"))
                 problem = installDesktop()
