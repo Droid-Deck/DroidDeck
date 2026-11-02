@@ -870,10 +870,9 @@ public class HudMetrics {
 
     private long[] lastCoreTotal = null;
     private long[] lastCoreIdle = null;
-    /** Whether the last per-core reading came from /proc/stat for every core (false: clock speed estimate). */
-    private volatile boolean perCoreFromStat = false;
-    /** Whether the clock speed estimate supplied at least one core of the last per-core reading. */
-    private volatile boolean perCoreEstimated = false;
+    private static final int PER_CORE_STAT = 1, PER_CORE_ESTIMATE = 2;
+    /** Sources of the last per-core reading: PER_CORE_STAT and/or PER_CORE_ESTIMATE (clock speed); 0 when no core was read. */
+    private volatile int perCoreSources = 0;
 
     public int[] readPerCorePercent() {
         int cores = Runtime.getRuntime().availableProcessors();
@@ -913,19 +912,20 @@ public class HudMetrics {
                 }
             }
         } catch (Exception ignored) {}
-        boolean fromStat = out.length > 0, estimated = false;
+        int sources = 0;
         for (int i = 0; i < out.length; i++) {
-            if (out[i] >= 0) continue;
-            fromStat = false;
+            if (out[i] >= 0) {
+                sources |= PER_CORE_STAT;
+                continue;
+            }
             Long cur = readLongFromLine("/sys/devices/system/cpu/cpu" + i + "/cpufreq/scaling_cur_freq");
             Long max = readLongFromLine("/sys/devices/system/cpu/cpu" + i + "/cpufreq/cpuinfo_max_freq");
             if (cur != null && max != null && max > 0L) {
                 out[i] = clampPercent((int) ((Math.max(0L, Math.min(cur, max)) * 100L) / max));
-                estimated = true;
+                sources |= PER_CORE_ESTIMATE;
             }
         }
-        perCoreFromStat = fromStat;
-        perCoreEstimated = estimated;
+        perCoreSources = sources;
         return out;
     }
 
@@ -1018,9 +1018,11 @@ public class HudMetrics {
             int v = s.perCorePercent[i];
             cores.append('c').append(i).append('=').append(v < 0 ? "?" : (v + "%"));
         }
-        if (s.perCorePercent.length > 0 && (perCoreFromStat || perCoreEstimated))
-            metricHit(sb, "Per-core %", cores.toString(), perCoreFromStat ? "/proc/stat (per-cpu lines)"
-                : "scaling_cur_freq / cpuinfo_max_freq (clock estimate)");
+        int coreSources = perCoreSources;
+        if (s.perCorePercent.length > 0 && coreSources != 0)
+            metricHit(sb, "Per-core %", cores.toString(), coreSources == PER_CORE_STAT ? "/proc/stat (per-cpu lines)"
+                : coreSources == PER_CORE_ESTIMATE ? "scaling_cur_freq / cpuinfo_max_freq (clock estimate)"
+                : "/proc/stat (per-cpu lines); scaling_cur_freq / cpuinfo_max_freq (clock estimate) for the other cores");
         else
             metricMiss(sb, "Per-core %", "/proc/stat", "/sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq");
 
