@@ -111,6 +111,41 @@ class ProtonExtraTest(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "unsafe archive link"):
                 EXTRA["validate_archive"](str(tarball))
 
+    def test_archive_rejects_a_hard_link_escaping_the_archive_root(self):
+        for target in ("../outside", "a/../../outside"):
+            with self.subTest(target=target), tempfile.TemporaryDirectory() as tmp:
+                tarball = Path(tmp) / "unsafe.tar.gz"
+                with tarfile.open(tarball, "w:gz") as tar:
+                    link = tarfile.TarInfo("a/b/c/link")
+                    link.type = tarfile.LNKTYPE
+                    link.linkname = target
+                    tar.addfile(link)
+                with self.assertRaisesRegex(SystemExit, "unsafe archive link"):
+                    EXTRA["validate_archive"](str(tarball))
+
+    def test_archive_accepts_a_hard_link_relative_to_the_archive_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tarball = Path(tmp) / "safe.tar.gz"
+            with tarfile.open(tarball, "w:gz") as tar:
+                target = tarfile.TarInfo("Proton/files/bin/tool")
+                target.size = 4
+                tar.addfile(target, io.BytesIO(b"tool"))
+                link = tarfile.TarInfo("Proton/files/bin/link")
+                link.type = tarfile.LNKTYPE
+                link.linkname = target.name
+                tar.addfile(link)
+            EXTRA["validate_archive"](str(tarball))
+
+    def test_archive_accepts_a_symlink_relative_to_its_parent_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tarball = Path(tmp) / "safe.tar.gz"
+            with tarfile.open(tarball, "w:gz") as tar:
+                link = tarfile.TarInfo("Proton/bin/tool")
+                link.type = tarfile.SYMTYPE
+                link.linkname = "../files/tool"
+                tar.addfile(link)
+            EXTRA["validate_archive"](str(tarball))
+
     def test_source_identity_namespaces_the_internal_steam_tool(self):
         with tempfile.TemporaryDirectory() as tmp:
             tree = Path(tmp) / "GE-Proton"

@@ -197,6 +197,77 @@ class ComponentsCatalogSourcesTest {
     }
 
     @Test
+    fun legacyFallbackDoesNotAttachAnotherRepositorysNightlyToNightlies() {
+        val name = "DD-dxvk-3.1.1+153-nightly.wcp"
+        val repository = "droid-deck/droiddeck-components"
+        val rows = ComponentsManager.sources(context, "dxvk")
+        val source = ComponentsManager.saveSources(context, "dxvk", rows.map { it.copy(hidden = false) })
+            .single { it.repository == repository }
+        val bound = RepositorySources.bind(
+            context, ComponentsManager.sourceScope("dxvk"), ComponentsManager.sourceBuiltIns("dxvk"),
+            source, 1234L,
+            RepositorySources.generation(context, ComponentsManager.sourceScope("dxvk"), ComponentsManager.sourceBuiltIns("dxvk")),
+        )
+        val nightly = item("dxvk", bound, name).copy(
+            release = "linux-nightly",
+            url = GitHubArtifacts.releaseAssetUrl(repository, "linux-nightly", name),
+        )
+        writeLegacyCatalog(listOf(
+            legacyItem("dxvk", "dxvk.wcp"),
+            legacyItem("dxvk", name).put("release", nightly.release).put("url", nightly.url),
+        ))
+        ComponentsManager.catalogRefresher = { _, comp, configured ->
+            if (comp == "dxvk" && configured.id == bound.id) listOf(nightly) else throw IOException("offline")
+        }
+
+        val fresh = ComponentsManager.catalog(context, true)
+        assertEquals(listOf(nightly), fresh.items.filter { it.file == name })
+        assertEquals("the412banner/nightlies", fresh.items.single { it.file == "dxvk.wcp" }.repository)
+        assertEquals(fresh.items, ComponentsManager.catalog(context, false).items)
+    }
+
+    @Test
+    fun verifiedDroidDeckNightliesReuseLegacyFilenamesWithoutAdoptingUnverifiedFiles() {
+        val repository = "droid-deck/droiddeck-components"
+        val source = ComponentsManager.saveSources(context, "dxvk", ComponentsManager.sources(context, "dxvk").map {
+            it.copy(hidden = it.repository != repository)
+        }).single { !it.hidden }
+        val bound = RepositorySources.bind(
+            context, ComponentsManager.sourceScope("dxvk"), ComponentsManager.sourceBuiltIns("dxvk"),
+            source, 1234L,
+            RepositorySources.generation(context, ComponentsManager.sourceScope("dxvk"), ComponentsManager.sourceBuiltIns("dxvk")),
+        )
+        val packages = File(context.filesDir, "components/packages")
+        val catalogItems = listOf("matching", "digest-mismatch", "component-mismatch").map { scenario ->
+            val name = "DD-dxvk-$scenario-nightly.wcp"
+            val stored = File(packages, name)
+            writeWcp(stored, scenario, if (scenario == "component-mismatch") "VKD3D-Linux" else "DXVK-Linux")
+            val digest = if (scenario == "digest-mismatch") "a".repeat(64) else Hashes.sha256(stored)
+            item("dxvk", bound, name).copy(
+                release = "linux-nightly",
+                url = GitHubArtifacts.releaseAssetUrl(repository, "linux-nightly", name),
+                size = stored.length(), digest = "sha256:$digest", localFile = "$digest-${bound.id}.wcp",
+            )
+        }
+        ComponentsManager.catalogRefresher = { _, comp, configured ->
+            if (comp == "dxvk" && configured.id == bound.id) catalogItems else throw IOException("offline")
+        }
+
+        val fresh = ComponentsManager.catalog(context, true)
+        val matching = fresh.items.single { it.file == "DD-dxvk-matching-nightly.wcp" }
+        assertEquals(matching.file, matching.localFile)
+        val receipt = JSONObject(File(packages, matching.file + ".source.json").readText())
+        assertEquals(repository, receipt.getString("repository"))
+        assertEquals(bound.id, receipt.getString("sourceId"))
+        for (item in fresh.items.filter { it != matching }) {
+            assertNotEquals(item.file, item.localFile)
+            assertFalse(File(packages, item.file + ".source.json").exists())
+        }
+        assertEquals(fresh.items, ComponentsManager.catalog(context, false).items)
+        assertEquals(3, packages.listFiles().orEmpty().count { it.extension == "wcp" })
+    }
+
+    @Test
     fun verifiedLegacyPackageSuppressesDuplicateUntilALocalImportReplacesItsBytes() {
         val oldName = "dxvk-legacy.wcp"
         val stored = File(context.filesDir, "components/packages/$oldName")
@@ -470,9 +541,9 @@ class ComponentsCatalogSourcesTest {
             .put("fetchedAt", 123L).toString())
     }
 
-    private fun writeWcp(file: File, description: String) {
+    private fun writeWcp(file: File, description: String, type: String = "DXVK-Linux") {
         file.parentFile!!.mkdirs()
-        val profile = JSONObject().put("type", "DXVK-Linux").put("versionName", "2.0")
+        val profile = JSONObject().put("type", type).put("versionName", "2.0")
             .put("description", description).toString().toByteArray()
         TarArchiveOutputStream(ZstdOutputStream(file.outputStream())).use { tar ->
             tar.putArchiveEntry(TarArchiveEntry("./profile.json").apply { size = profile.size.toLong() })
