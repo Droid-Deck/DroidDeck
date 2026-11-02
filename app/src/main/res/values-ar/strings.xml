@@ -593,7 +593,7 @@
     <string name="perf_ram_cap_hint">يُطبَّق أثناء تشغيل عميل Steam، في جلسة Steam أو من سطح المكتب. عندما تستخدم الجلسة أكثر من هذا الحد، يُضغط Steam ثم عمليات الجلسة المدعومة الأخرى في zRAM. حد مرن: لا يُغلَق شيء، لكن قد تتقطّع الألعاب أثناء استعادة الصفحات.</string>
     <string name="perf_ram_cap_unavailable">يتطلب مساحة تبديل zRAM، وهي غير متوفرة على هذا الجهاز.</string>
     <string name="perf_vram_cap">حد VRAM</string>
-    <string name="perf_vram_cap_hint">ذاكرة الفيديو التي يُبلغ بها DXVK ألعاب Direct3D، فتخصّص للأنسجة مساحة أقل. تظل إعدادات DXVK الخاصة باللعبة هي الأولى. يسري في الجلسة التالية.</string>
+    <string name="perf_vram_cap_hint">يُبقي اللعبة ضمن هذا القدر من ذاكرة الفيديو: ترى ألعاب Direct3D 9 إلى 12 ميزانية أصغر، وتفشل أي عمليات تخصيص تتجاوزه. يسري في الجلسة التالية.</string>
     <string name="perf_gpuclock">تثبيت GPU على أعلى تردد له</string>
     <string name="perf_gpuclock_hint">لـ Adreno فقط. تقطّع أقل، مع استهلاك أكبر للبطارية والحرارة.</string>
     <string name="perf_fixes">إصلاحات الجلسة</string>

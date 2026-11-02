@@ -585,7 +585,7 @@
     <string name="perf_ram_cap_hint">Gäller medan Steam-klienten körs, i Steam-läge eller från skrivbordet. När sessionen använder mer än detta komprimeras Steam och sedan sessionens övriga processer som stöds till zRAM. En mjuk gräns: inget stängs, men spel kan hacka medan sidor läses tillbaka.</string>
     <string name="perf_ram_cap_unavailable">Kräver zRAM-swap, vilket den här enheten saknar.</string>
     <string name="perf_vram_cap">VRAM-gräns</string>
-    <string name="perf_vram_cap_hint">Videominnet som DXVK rapporterar till Direct3D-spel, så att de budgeterar texturer för mindre. Ett spels egna DXVK-inställningar har företräde. Börjar gälla vid nästa session.</string>
+    <string name="perf_vram_cap_hint">Håller ett spel inom så här mycket videominne: Direct3D 9 till 12-spel ser en mindre budget, och allokeringar över den misslyckas. Börjar gälla vid nästa session.</string>
     <string name="perf_gpuclock">Håll GPU:n på dess högsta klockfrekvens</string>
     <string name="perf_gpuclock_hint">Bara Adreno. Färre hack, högre batteriförbrukning och mer värme.</string>
     <string name="perf_fixes">Sessionsfixar</string>

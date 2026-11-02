@@ -589,7 +589,7 @@
     <string name="perf_ram_cap_hint">Platí, když běží klient Steam, v režimu Steam nebo z Plochy. Když relace použije víc, zkomprimuje se do zRAM Steam a poté další podporované procesy relace. Měkký limit: nic se nezavře, ale hry mohou trhat, než se stránky načtou zpět.</string>
     <string name="perf_ram_cap_unavailable">Vyžaduje swap zRAM, který toto zařízení nemá.</string>
     <string name="perf_vram_cap">Limit VRAM</string>
-    <string name="perf_vram_cap_hint">Video paměť, kterou DXVK hlásí hrám Direct3D, aby počítaly s menším rozpočtem na textury. Vlastní nastavení DXVK hry mají přednost. Použije se od příští relace.</string>
+    <string name="perf_vram_cap_hint">Drží hru v tomto množství video paměti: hry Direct3D 9 až 12 vidí menší rozpočet a alokace nad ním selžou. Použije se od příští relace.</string>
     <string name="perf_gpuclock">Udržet GPU na nejvyšších taktech</string>
     <string name="perf_gpuclock_hint">Jen Adreno. Méně zadrhávání, více spotřeby baterie a tepla.</string>
     <string name="perf_fixes">Opravy relace</string>

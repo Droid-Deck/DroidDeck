@@ -583,7 +583,7 @@
     <string name="perf_ram_cap_hint">在 Steam 客户端运行时生效，无论是 Steam 模式还是从桌面启动。会话使用量超过此值时，会先将 Steam、再将会话中其他受支持的进程压缩到 zRAM。这是软上限：不会关闭任何进程，但在页面读回时游戏可能卡顿。</string>
     <string name="perf_ram_cap_unavailable">需要 zRAM 交换空间，但此设备不支持。</string>
     <string name="perf_vram_cap">VRAM 上限</string>
-    <string name="perf_vram_cap_hint">DXVK 向 Direct3D 游戏报告的显存大小，使游戏按更少的显存分配纹理。游戏自身的 DXVK 设置仍然优先。下次会话时生效。</string>
+    <string name="perf_vram_cap_hint">将游戏限制在这么多显存内：Direct3D 9 至 12 的游戏会看到更小的预算，超出的分配会失败。下次会话时生效。</string>
     <string name="perf_gpuclock">把 GPU 锁定在最高频率</string>
     <string name="perf_gpuclock_hint">仅限 Adreno。卡顿更少，但更耗电、更发热。</string>
     <string name="perf_fixes">会话修复</string>

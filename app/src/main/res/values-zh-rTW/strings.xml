@@ -583,7 +583,7 @@
     <string name="perf_ram_cap_hint">在 Steam 用戶端執行時生效，無論是 Steam 模式或從桌面啟動。當工作階段的用量超過此值時，會先將 Steam、再將工作階段中其他受支援的程序壓縮到 zRAM。這是軟性上限：不會關閉任何程式，但在分頁讀回時遊戲可能會卡頓。</string>
     <string name="perf_ram_cap_unavailable">需要 zRAM 交換空間，但這部裝置沒有。</string>
     <string name="perf_vram_cap">VRAM 上限</string>
-    <string name="perf_vram_cap_hint">DXVK 向 Direct3D 遊戲回報的顯示記憶體，讓遊戲以較少的量規劃紋理。遊戲本身的 DXVK 設定仍優先。下次工作階段生效。</string>
+    <string name="perf_vram_cap_hint">將遊戲限制在這麼多顯示記憶體內：Direct3D 9 至 12 的遊戲會看到較小的預算，超出的分配會失敗。下次工作階段生效。</string>
     <string name="perf_gpuclock">讓 GPU 保持最高頻率</string>
     <string name="perf_gpuclock_hint">僅適用於 Adreno。卡頓更少，但耗電和發熱更多。</string>
     <string name="perf_fixes">工作階段修復</string>

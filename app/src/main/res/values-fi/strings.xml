@@ -585,7 +585,7 @@
     <string name="perf_ram_cap_hint">Koskee aikaa, jolloin Steam-asiakasohjelma on käynnissä, Steam-tilassa tai työpöydältä. Kun istunto käyttää tätä enemmän, Steam ja sen jälkeen istunnon muut tuetut prosessit pakataan zRAMiin. Pehmeä raja: mitään ei suljeta, mutta pelit voivat nykiä, kun sivuja luetaan takaisin.</string>
     <string name="perf_ram_cap_unavailable">Vaatii zRAM-swapin, jota tässä laitteessa ei ole.</string>
     <string name="perf_vram_cap">VRAM-raja</string>
-    <string name="perf_vram_cap_hint">Videomuisti, jonka DXVK ilmoittaa Direct3D-peleille, jotta ne mitoittavat tekstuurit pienemmälle. Pelin omat DXVK-asetukset menevät edelle. Tulee voimaan seuraavassa istunnossa.</string>
+    <string name="perf_vram_cap_hint">Pitää pelin tässä videomuistin määrässä: Direct3D 9 – 12 -pelit näkevät pienemmän budjetin, ja sen ylittävät varaukset epäonnistuvat. Tulee voimaan seuraavassa istunnossa.</string>
     <string name="perf_gpuclock">Pidä GPU huippukellotaajuudessaan</string>
     <string name="perf_gpuclock_hint">Vain Adreno. Vähemmän nykäyksiä, enemmän akun kulutusta ja lämpöä.</string>
     <string name="perf_fixes">Istunnon korjaukset</string>

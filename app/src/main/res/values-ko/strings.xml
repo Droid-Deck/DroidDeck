@@ -583,7 +583,7 @@
     <string name="perf_ram_cap_hint">Steam 모드나 데스크톱에서 Steam 클라이언트가 실행되는 동안 적용됩니다. 세션이 이 값보다 많이 사용하면 Steam과 세션의 다른 지원 프로세스를 차례로 zRAM으로 압축합니다. 소프트 제한이므로 종료되는 것은 없지만, 페이지를 다시 읽어 들이는 동안 게임이 끊길 수 있습니다.</string>
     <string name="perf_ram_cap_unavailable">zRAM 스왑이 필요하지만 이 기기에는 없습니다.</string>
     <string name="perf_vram_cap">VRAM 제한</string>
-    <string name="perf_vram_cap_hint">DXVK가 Direct3D 게임에 보고하는 비디오 메모리로, 게임이 더 적은 양에 맞춰 텍스처를 할당합니다. 게임 자체의 DXVK 설정이 우선합니다. 다음 세션에 적용됩니다.</string>
+    <string name="perf_vram_cap_hint">게임이 사용할 수 있는 비디오 메모리를 이 크기로 제한합니다. Direct3D 9~12 게임은 더 작은 예산을 보게 되며, 이를 넘는 할당은 실패합니다. 다음 세션에 적용됩니다.</string>
     <string name="perf_gpuclock">GPU를 최고 클럭으로 유지</string>
     <string name="perf_gpuclock_hint">Adreno에만 해당됩니다. 끊김이 줄어들지만 전력 소모와 발열이 증가합니다.</string>
     <string name="perf_fixes">세션 수정</string>

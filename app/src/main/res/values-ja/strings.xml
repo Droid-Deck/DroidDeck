@@ -583,7 +583,7 @@
     <string name="perf_ram_cap_hint">Steamモードでもデスクトップからでも、Steamクライアントの実行中に適用されます。セッションの使用量がこの値を超えると、Steam、次にセッション内の対応する他のプロセスがzRAMに圧縮されます。ソフトな上限のため何も終了されませんが、ページの読み戻し中にゲームがカクつくことがあります。</string>
     <string name="perf_ram_cap_unavailable">zRAMスワップが必要ですが、このデバイスにはありません。</string>
     <string name="perf_vram_cap">VRAM上限</string>
-    <string name="perf_vram_cap_hint">DXVKがDirect3Dゲームに報告するビデオメモリ量です。ゲームはこれに合わせてテクスチャ量を抑えます。ゲーム独自のDXVK設定が優先されます。次回のセッションから有効になります。</string>
+    <string name="perf_vram_cap_hint">ゲームが使えるビデオメモリをこの量に制限します。Direct3D 9〜12のゲームにはより小さい予算が見え、それを超える割り当ては失敗します。次回のセッションから有効になります。</string>
     <string name="perf_gpuclock">GPUを最高クロックに保つ</string>
     <string name="perf_gpuclock_hint">Adrenoのみ。スタッターは減りますが、消費電力と発熱が増えます。</string>
     <string name="perf_fixes">セッション修正</string>
