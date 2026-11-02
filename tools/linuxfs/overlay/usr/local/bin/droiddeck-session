@@ -249,7 +249,8 @@ if [ "${BL_VKBRIDGE:-0}" = 1 ]; then
     fi
     echo "== vulkan driver: Mali bridge ($bl_vkb_icd, server at $VKBRIDGE_SOCKET)"
   else
-    echo "== vulkan driver: Mali bridge requested but NOT usable (icd $bl_vkb_icd, socket ${VKBRIDGE_SOCKET:-unset}; missing:$bl_vkb_missing); this GPU will show a black screen"
+    echo "== vulkan driver: Mali bridge requested but NOT usable (icd $bl_vkb_icd, socket ${VKBRIDGE_SOCKET:-unset}; missing:$bl_vkb_missing)"
+    [ -n "${BL_INSIDE:-}" ] || exit 69
   fi
   unset bl_vkb_icd bl_vkb_missing
 fi

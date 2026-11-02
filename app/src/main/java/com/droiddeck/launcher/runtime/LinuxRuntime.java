@@ -63,8 +63,6 @@ public final class LinuxRuntime {
 
     private static final String HOST_DIR = "opt/android-host";
     public static final String PROOT_PACK = "add-on pack";
-    public static final String PROOT_PACKAGED = "packaged";
-    /** Termux's unpatched proot inside the rootfs. Developer switch only. */
     public static final String PROOT_ROOTFS = "rootfs fallback";
     public static final String PROOT_MISSING = "missing";
 
@@ -80,31 +78,17 @@ public final class LinuxRuntime {
         return rootfsProot(context).isFile() && rootfsLoader(context).isFile();
     }
 
-    private static File packagedProot(Context context) {
-        return new File(context.getApplicationInfo().nativeLibraryDir, "libproot.so");
-    }
-
-    private static File packagedLoader(Context context) {
-        return new File(context.getApplicationInfo().nativeLibraryDir, "libproot-loader.so");
-    }
-
-    private static boolean packagedProotReady(Context context) {
-        return packagedProot(context).isFile() && packagedLoader(context).isFile();
-    }
-
     public static boolean patchedProot(Context context) {
-        return packagedProotReady(context) || AddonPack.PROOT.installed(context);
+        return AddonPack.PROOT.installed(context);
     }
 
     public static File prootBinary(Context context) {
-        if (packagedProotReady(context)) return packagedProot(context);
         if (AddonPack.PROOT.installed(context)) return AddonPack.PROOT.file(context, "libproot.so");
         if (SessionPrefs.allowStockProot(context)) return rootfsProot(context);
         return AddonPack.PROOT.file(context, "libproot.so");
     }
 
     public static File prootLoader(Context context) {
-        if (packagedProotReady(context)) return packagedLoader(context);
         if (AddonPack.PROOT.installed(context)) return AddonPack.PROOT.file(context, "libproot-loader.so");
         if (SessionPrefs.allowStockProot(context)) return rootfsLoader(context);
         return AddonPack.PROOT.file(context, "libproot-loader.so");
@@ -113,8 +97,6 @@ public final class LinuxRuntime {
     public static String prootSource(Context context) {
         File bin = prootBinary(context);
         if (!bin.isFile()) return PROOT_MISSING;
-        if (packagedProotReady(context)
-                && bin.getPath().equals(packagedProot(context).getPath())) return PROOT_PACKAGED;
         if (AddonPack.PROOT.installed(context)
                 && bin.getPath().equals(AddonPack.PROOT.file(context, "libproot.so").getPath())) return PROOT_PACK;
         return PROOT_ROOTFS;
@@ -126,7 +108,7 @@ public final class LinuxRuntime {
     }
 
     public static boolean isInstalled(Context context) {
-        return hasRootfs(context) && (packagedProotReady(context) || patchedProot(context) || rootfsProotReady(context));
+        return hasRootfs(context) && (patchedProot(context) || rootfsProotReady(context));
     }
 
     public static boolean hasRootfs(Context context) {

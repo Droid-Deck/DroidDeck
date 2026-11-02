@@ -252,7 +252,10 @@ class LinuxNetworkLinkComponent(
     }
 
     private fun localDnsServers(): List<String> {
+        val active = connectivity.activeNetwork?.let { connectivity.getNetworkCapabilities(it) }
+        if (active?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true) return emptyList()
         val servers = LinkedHashSet<String>()
+        val gateways = LinkedHashSet<String>()
         for (network in connectivity.allNetworks) {
             val capabilities = connectivity.getNetworkCapabilities(network) ?: continue
             if (!capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) continue
@@ -265,14 +268,12 @@ class LinuxNetworkLinkComponent(
             }
             link.routes.firstOrNull { it.isDefaultRoute }?.gateway?.let { gateway ->
                 if (gateway is Inet4Address && !gateway.isLoopbackAddress && !gateway.isAnyLocalAddress) {
-                    gateway.hostAddress?.substringBefore('%')?.let { servers.add(it) }
+                    gateway.hostAddress?.substringBefore('%')?.let { gateways.add(it) }
                 }
             }
         }
-        return servers.sortedWith(compareBy<String>(
-            { if (it.startsWith("192.168.") || it.startsWith("10.")) 0 else 1 },
-            { if (it.contains(':')) 1 else 0 },
-        )).take(6)
+        val order = compareBy<String>({ if (it.contains(':')) 1 else 0 })
+        return servers.sortedWith(order) + gateways.sortedWith(order)
     }
 
     private fun writeResolver(properties: LinkProperties?) {
@@ -280,7 +281,7 @@ class LinuxNetworkLinkComponent(
             .filter { !it.isLinkLocalAddress && !it.isLoopbackAddress && !it.isAnyLocalAddress }
             .sortedBy { if (it is Inet4Address) 0 else 1 }
             .mapNotNull { it.hostAddress?.substringBefore('%') }
-        val servers = (localDnsServers() + own + listOf("8.8.8.8", "1.1.1.1", "2001:4860:4860::8888")).distinct().take(6)
+        val servers = (own + localDnsServers() + listOf("8.8.8.8", "1.1.1.1", "2001:4860:4860::8888")).distinct().take(6)
         val text = buildString {
             append("# Written by the app from the device's active network; edits are overwritten.\n")
             for (server in servers) append("nameserver $server\n")

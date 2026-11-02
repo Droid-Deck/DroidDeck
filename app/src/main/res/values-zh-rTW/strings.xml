@@ -3620,4 +3620,7 @@
     <string name="stores_gamejolt_filter_status">狀態</string>
     <string name="stores_gamejolt_filter_partners">合作夥伴</string>
     <string name="stores_gamejolt_followed">已追蹤的遊戲</string>
+    <string name="setup_gpu_bridged">GPU 透過 Mali 橋接</string>
+    <string name="gpuinfo_bridge">透過 Mali 橋接執行，使用手機內建的 Vulkan 驅動程式</string>
+    <string name="gpuinfo_bridge_off">關閉 Mali 橋接時不受支援：Turnip 需要 Adreno（Snapdragon）GPU</string>
 </resources>

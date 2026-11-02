@@ -65,7 +65,7 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
     private fun externalCpuTemp(): Int? {
         val file = File(Environment.getExternalStorageDirectory(), "DroidDeck/cpu-temp")
         if (!file.isFile || System.currentTimeMillis() - file.lastModified() > CPU_TEMP_FRESH_MS) return null
-        return readFloat(file)?.roundToInt()?.takeIf { it in -20..150 }
+        return readFloat(file)?.takeIf { it.isFinite() && it in -20f..150f }?.roundToInt()
     }
 
     fun gpuPercent(): Int? {

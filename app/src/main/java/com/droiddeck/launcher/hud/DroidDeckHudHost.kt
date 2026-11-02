@@ -13,7 +13,6 @@ import android.widget.FrameLayout
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.runtime.LinuxRuntime
-import com.droiddeck.launcher.session.SessionDisplay
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
@@ -179,9 +178,10 @@ class DroidDeckHudHost(context: Context) {
 
     private fun applyShown() {
         if (!running) return
-        val show = !hidden && !backgrounded && SessionState.mode != SessionService.MODE_DESKTOP
-        view?.visibility = if (show) View.VISIBLE else View.GONE
-        showing = show
+        val show = !hidden && !backgrounded
+        val visible = show && SessionState.mode != SessionService.MODE_DESKTOP
+        view?.visibility = if (visible) View.VISIBLE else View.GONE
+        showing = visible
         if (show != polling) {
             polling = show
             if (show) Choreographer.getInstance().postFrameCallback(frameCallback)
@@ -215,9 +215,7 @@ class DroidDeckHudHost(context: Context) {
     }.getOrNull()
 
     private fun sessionResolution(): String {
-        val panel = SessionDisplay.panelSize(context)
-        val choice = SessionPrefs.resolutionChoice(context, SessionState.mode, panel)
-        val (width, height) = SessionDisplay.resolveChoice(panel, choice)
+        val (width, height) = SessionState.outputSize
         return "${width}x${height}"
     }
 

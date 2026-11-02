@@ -107,13 +107,13 @@
   - 新增 localDnsServers()，用 ConnectivityManager.allNetworks 遍历 WiFi/Ethernet 网络（排除 VPN）。
   - 收集这些网络的 DNS，并把默认路由 gateway 作为本地 DNS 兜底。
   - 私有地址（192.168/10.x）和 IPv4 优先。
-  - writeResolver 的顺序：localDnsServers() + 当前 active network DNS + 公共 DNS 兜底。
+  - writeResolver 的顺序：当前 active network DNS + localDnsServers() + 公共 DNS 兜底。
 - 验证（2026-11-01，dnsfix APK）：
   - logcat：LinuxNetworkLink: resolver: 192.168.1.1 8.8.8.8 1.1.1.1 2001:4860:4860::8888
   - guest /etc/resolv.conf 第一行是 nameserver 192.168.1.1。
   - getent hosts store.steampowered.com 正常；curl -I https://store.steampowered.com 返回 200。
   - 旧 guest DNS 守护 /root/.config/plasma-workspace/env/01-dns-guard.sh 已删除；没有守护进程仍正常。
-- 说明：只取 WiFi/Ethernet 的本地 DNS；没有 WiFi/Ethernet 时回退到 active network/公共 DNS。VPN 的 10.10.14.1 不会被误当 DNS。
+- 说明：localDnsServers() 只取 WiFi/Ethernet 的 DNS，网关排在各 DNS 之后；active network 是 VPN 时不追加本地 DNS，只用 VPN 自己的 DNS。
 
 ### 5.3 Steam 客户端修复
 
