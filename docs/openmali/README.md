@@ -213,7 +213,7 @@ Guest 读取比 host 低约 17%，是 proot 路径开销；写入不慢。
 - 修复“清数据重启后 GPU 菜单消失”：showChecks 默认值从 false 改为 s.vkBridge；桥接开启时详情默认展开，GPU 行直接可见。已在 pm clear 后重新启动验证。
 - HUD：XRing/Mali 的 GPU load/clock/temp/thermal sysfs 对普通 App 拒绝访问，日志为 thermal zones 0、gpu load none、kgsl gpubusy refused。v21 在无数据时隐藏 GPU 统计行、VRAM=0 时隐藏 VRAM，只保留 GPU 型号；真正 GPU% / 温度 / 共享显存需要 root 或厂商遥测。
 - HUD 分辨率/卡死：v22 的 RES 不再用 Android displayMetrics 兜底，改用会话逻辑分辨率；桌面模式隐藏游戏 HUD，Steam/游戏模式显示。实测 Steam 下 HUD 为 RES 1280x720 @ 120Hz、FPS 42.8 / AVG 53.0。
-- CPU 温度/频率：v23 增加 USB/adb 辅助的 CPU 温度输入（/sdcard/DroidDeck/cpu-temp，由 update_cpu_temp.sh 每 2 秒写 cpu_therm）；v24 把 HUD 的 CPU 行顺序改为“占用 → 频率 → 温度”，Full/Mega/Tiles 三种布局都生效。
+- CPU 温度/频率：v23 增加 USB/adb 辅助的 CPU 温度输入（/sdcard/DroidDeck/cpu-temp，由开发者在主机侧每 2 秒写入 cpu_therm，仓库不附带该脚本）；v24 把 HUD 的 CPU 行顺序改为“占用 → 频率 → 温度”，Full/Mega/Tiles 三种布局都生效。
 - 安装方式：官方 0.6.9（release key）与 testkey 不兼容，完整卸载 0.6.9 后通过 PackageInstaller 安装；App 数据已被清空，当前是全新状态（首次启动显示配置页）。
 - DNS 自动修复已在 APK 内；运行时 ubuntu-r1-rc4、Mali 桥接、proot、桌面需要重新下载/配置；此前 Steam Big Picture 和 1280x720 KWin 已验证，但当前新数据需重新登录。
 - com.droiddeck.launcher.mali：旧 0.5.4.2 仍安装，桌面可用，用于对比。

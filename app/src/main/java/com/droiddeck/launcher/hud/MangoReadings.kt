@@ -61,7 +61,7 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
         return if (count == 0) null else (sum / count).toInt()
     }
 
-    /** Optional ADB helper feed: /sdcard/DroidDeck/cpu-temp, refreshed by tools/update_cpu_temp.sh. */
+    /** Optional ADB helper feed: /sdcard/DroidDeck/cpu-temp, written from the host while a session runs. */
     private fun externalCpuTemp(): Int? {
         val file = File(Environment.getExternalStorageDirectory(), "DroidDeck/cpu-temp")
         if (!file.isFile || System.currentTimeMillis() - file.lastModified() > CPU_TEMP_FRESH_MS) return null

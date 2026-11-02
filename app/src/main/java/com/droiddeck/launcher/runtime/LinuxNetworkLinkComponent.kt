@@ -266,11 +266,9 @@ class LinuxNetworkLinkComponent(
                 if (address.isLinkLocalAddress || address.isLoopbackAddress || address.isAnyLocalAddress) continue
                 address.hostAddress?.substringBefore('%')?.let { servers.add(it) }
             }
-            link.routes.firstOrNull { it.isDefaultRoute }?.gateway?.let { gateway ->
-                if (gateway is Inet4Address && !gateway.isLoopbackAddress && !gateway.isAnyLocalAddress) {
-                    gateway.hostAddress?.substringBefore('%')?.let { gateways.add(it) }
-                }
-            }
+            link.routes.firstOrNull {
+                it.isDefaultRoute && (it.gateway as? Inet4Address)?.let { g -> !g.isLoopbackAddress && !g.isAnyLocalAddress } == true
+            }?.gateway?.hostAddress?.substringBefore('%')?.let { gateways.add(it) }
         }
         val order = compareBy<String>({ if (it.contains(':')) 1 else 0 })
         return servers.sortedWith(order) + gateways.sortedWith(order)
@@ -281,7 +279,8 @@ class LinuxNetworkLinkComponent(
             .filter { !it.isLinkLocalAddress && !it.isLoopbackAddress && !it.isAnyLocalAddress }
             .sortedBy { if (it is Inet4Address) 0 else 1 }
             .mapNotNull { it.hostAddress?.substringBefore('%') }
-        val servers = (own + localDnsServers() + listOf("8.8.8.8", "1.1.1.1", "2001:4860:4860::8888")).distinct().take(6)
+        val network = (own + localDnsServers()).distinct()
+        val servers = (network.take(2) + listOf("8.8.8.8", "1.1.1.1", "2001:4860:4860::8888") + network.drop(2)).distinct().take(6)
         val text = buildString {
             append("# Written by the app from the device's active network; edits are overwritten.\n")
             for (server in servers) append("nameserver $server\n")
