@@ -467,7 +467,7 @@ class SessionService : Service() {
             } else {
                 val message = getString(R.string.session_proot_missing)
                 Log.e(TAG, "$message (pack ready=$prootPack)")
-                SessionEvents.fail("PROOT_MISSING", message, -1)
+                failSession(gen, "PROOT_MISSING", message, -1)
                 stopSession(-1, gen)
                 return
             }
@@ -699,7 +699,7 @@ class SessionService : Service() {
             SessionEvents.guestStarted(pid)
         } else {
             SessionEvents.record("guest.start_failed", mapOf("pid" to pid))
-            SessionEvents.fail("GUEST_START_FAILED", "The guest process could not be started", pid)
+            failSession(gen, "GUEST_START_FAILED", "The guest process could not be started", pid)
             stopSession(-1, gen)
             return
         }
@@ -1855,16 +1855,23 @@ class SessionService : Service() {
         }, "tracer-priority").start()
     }
 
+    private fun failSession(gen: Int, code: String, message: String, status: Int?) {
+        synchronized(stopLock) {
+            if (gen == sessionGen) SessionEvents.fail(code, message, status)
+        }
+    }
+
     private fun stopSession(status: Int, gen: Int? = null) {
         if (gen != null && gen != sessionGen) {
             Log.i(TAG, "ignoring a stop from session $gen; session $sessionGen is current")
             return
         }
-        cancelQueuedSteamGame()
-        gameExitWatchToken++
         completeNativeSleep()
         val (ended, endedArch) = synchronized(stopLock) {
-            if (!SessionState.running || (gen != null && gen != sessionGen)) return
+            if (gen != null && gen != sessionGen) return
+            cancelQueuedSteamGame()
+            gameExitWatchToken++
+            if (!SessionState.running) return
             SessionEvents.record("guest.exited", mapOf("status" to status))
             SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
             SessionState.running = false
