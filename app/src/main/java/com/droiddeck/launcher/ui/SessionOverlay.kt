@@ -1180,7 +1180,7 @@ private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) 
             chipModifier = track("second-screen-display"), onPick = a.onSecondScreenDisplay)
     }
     if (a.gameSwapAvailable || a.gameOnBottom) SettingsGroup(stringResource(R.string.swap_game_screen_group)) {
-        ChoiceRow(host, "game-screen", stringResource(R.string.swap_game_screen), stringResource(R.string.swap_game_screen_hint),
+        ChoiceRow(host, "game-screen", stringResource(R.string.swap_game_screen), null,
             listOf(false to stringResource(R.string.swap_game_screen_top), true to stringResource(R.string.swap_game_screen_bottom)),
             a.gameOnBottom, chipModifier = track("game-screen"), onPick = a.onGameOnBottom)
     }
