@@ -180,6 +180,12 @@ class FrontEndActivity : ComponentActivity() {
     private var phantomWarning by mutableStateOf<String?>(null)
     private var phantomProcessStatus by mutableStateOf(PhantomProcessStatus.NOT_APPLICABLE)
     private var showPhantomGate by mutableStateOf(false)
+    private var blockedStorage by mutableStateOf<BlockedStorage?>(null)
+    private var pendingSessionIntent by mutableStateOf<Intent?>(null)
+
+    private data class BlockedStorage(val kind: Kind, val label: String, val problem: String?) {
+        enum class Kind { ACCESS, RESTART, ERROR }
+    }
     private var directAudio by mutableStateOf(false)
     private var picturePosition by mutableStateOf("center")
     private var stretch16x9 by mutableStateOf(false)
@@ -1503,6 +1509,36 @@ class FrontEndActivity : ComponentActivity() {
                         onDismiss = { lowSpace = null },
                     )
                 }
+                blockedStorage?.let { blocked ->
+                    ConfirmDialog(
+                        title = when (blocked.kind) {
+                            BlockedStorage.Kind.ACCESS -> androidx.compose.ui.res.stringResource(R.string.fm_drive_access_title, blocked.label)
+                            BlockedStorage.Kind.RESTART -> androidx.compose.ui.res.stringResource(R.string.fm_drive_stale_title, blocked.label)
+                            BlockedStorage.Kind.ERROR -> androidx.compose.ui.res.stringResource(R.string.storage_blocked_title)
+                        },
+                        text = when (blocked.kind) {
+                            BlockedStorage.Kind.ACCESS -> androidx.compose.ui.res.stringResource(R.string.fm_drive_access_text)
+                            BlockedStorage.Kind.RESTART -> androidx.compose.ui.res.stringResource(R.string.fm_drive_stale_text)
+                            BlockedStorage.Kind.ERROR -> blocked.problem.orEmpty()
+                        },
+                        confirm = when (blocked.kind) {
+                            BlockedStorage.Kind.ACCESS -> androidx.compose.ui.res.stringResource(R.string.upd_open_settings)
+                            BlockedStorage.Kind.RESTART -> androidx.compose.ui.res.stringResource(R.string.fm_drive_restart_now)
+                            BlockedStorage.Kind.ERROR -> androidx.compose.ui.res.stringResource(R.string.storage_blocked_continue)
+                        },
+                        onConfirm = {
+                            val next = pendingSessionIntent
+                            blockedStorage = null
+                            pendingSessionIntent = null
+                            when (blocked.kind) {
+                                BlockedStorage.Kind.ACCESS -> AllFilesAccess.open(this@FrontEndActivity)
+                                BlockedStorage.Kind.RESTART -> AllFilesAccess.restartApp(this@FrontEndActivity)
+                                BlockedStorage.Kind.ERROR -> if (next != null) startActivity(next)
+                            }
+                        },
+                        onDismiss = { blockedStorage = null; pendingSessionIntent = null },
+                    )
+                }
                 com.droiddeck.launcher.ui.HandCameraHost(
                     check = placementCheck,
                     onAskPermission = { cameraPermission.launch(Manifest.permission.CAMERA) },
@@ -2479,8 +2515,34 @@ class FrontEndActivity : ComponentActivity() {
         }, "mode-settings").start()
     }
 
-    private fun setGameStorage(path: String, label: String) {
-        if (path.isNotEmpty() && path != SessionPrefs.GAME_STORAGE_OFF) {
+    /** Pre-flight for the session bind: a configured game storage that fails its write probe
+    would start the session internal-only, so Steam never lists the drive. Classify instead of
+    toasting: missing permission, stale pre-grant storage view, or a genuine drive problem. */
+    private fun checkGameStorage(): BlockedStorage? {
+        val pref = SessionPrefs.gameStorage(this)
+        if (pref.isNotEmpty() && pref != SessionPrefs.GAME_STORAGE_OFF) {
+            GameStorage.prepare(this, pref)?.let { problem ->
+                return classifyStorage(SessionPrefs.gameStorageLabel(this).ifBlank { File(pref).name }, pref, problem)
+            }
+        }
+        for (entry in SteamLibraries.list(this)) {
+            GameStorage.prepare(this, entry.path)?.let { problem ->
+                return classifyStorage(entry.label, entry.path, problem)
+            }
+        }
+        return null
+    }
+
+    private fun classifyStorage(label: String, path: String, problem: String): BlockedStorage {
+        val kind = when {
+            AllFilesAccess.missing() -> BlockedStorage.Kind.ACCESS
+            !File(path).canRead() -> BlockedStorage.Kind.RESTART
+            else -> BlockedStorage.Kind.ERROR
+        }
+        return BlockedStorage(kind, label, problem)
+    }
+
+    private fun setGameStorage(path: String, label: String) {        if (path.isNotEmpty() && path != SessionPrefs.GAME_STORAGE_OFF) {
             val problem = GameStorage.prepare(this, path)
             if (problem != null) {
                 // With permission granted this means the process still holds the pre-grant storage view.
@@ -2682,6 +2744,14 @@ class FrontEndActivity : ComponentActivity() {
         if (steamSession && PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
             showPhantomGate = true
             return false
+        }
+        if (!SessionState.running) {
+            val blocked = checkGameStorage()
+            if (blocked != null) {
+                blockedStorage = blocked
+                pendingSessionIntent = intent
+                return false
+            }
         }
         val warn = installed == null && !com.droiddeck.launcher.core.DeviceSupport.adreno()
         if (warn && available != null) { showNonAdreno = available; return false }
