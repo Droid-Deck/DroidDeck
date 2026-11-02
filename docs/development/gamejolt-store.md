@@ -38,7 +38,7 @@ the refresh action) and merges the games into the store library as owned. `GameJ
 read-only collections: followed games (`/web/library/games/followed/@<user>`) and the account's playlists
 (`/web/library/games/playlist/<id>`). The Library page shows them through the same `CollectionsButton` as itch.
 Ownership comes from `sellables[0].is_owned`; `packages[0].is_game_owner` is not reliable. Library chips list a store when it has games in
-the list; a signed-in Game Jolt account keeps its chip so its collections stay reachable.
+the list; a signed-in Itch.io or Game Jolt account keeps its chip, in store order, so its collections stay reachable.
 
 ## Builds and installs
 

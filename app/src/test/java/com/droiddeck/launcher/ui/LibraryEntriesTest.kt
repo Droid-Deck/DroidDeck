@@ -89,7 +89,7 @@ class LibraryEntriesTest {
 
     @Test fun aSignedInStoreWithNoGamesKeepsItsPlaceInTheStoreOrder() {
         val entries = listOf("steam", "xbox").map { LibraryEntry(it, it, it, null, null, true) }
-        assertEquals(listOf("steam", "xbox", "gamejolt"), librarySources(entries, listOf("xbox", "itch", "gamejolt"), setOf("gamejolt")))
+        assertEquals(listOf("steam", "xbox", "itch", "gamejolt"), librarySources(entries, listOf("xbox", "itch", "gamejolt"), setOf("itch", "gamejolt")))
     }
 
     @Test fun gameKeysNameEitherAnAppOrAStoreProduct() {
