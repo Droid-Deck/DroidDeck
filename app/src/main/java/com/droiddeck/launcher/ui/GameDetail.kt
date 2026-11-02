@@ -234,7 +234,7 @@ internal fun GameDetail(
                         color = MaterialTheme.colorScheme.error, maxLines = 3, overflow = TextOverflow.Ellipsis,
                     )
                     Spacer(Modifier.height(2.dp))
-                    GameCapsule(scores) { GameActions(store, id, game, item, installed, s, a, Modifier.focusRequester(lead), compactMenu = stacked) }
+                    GameCapsule(scores) { GameActions(store, id, game, item, installed, s, a, Modifier.focusRequester(lead), compactMenu = stacked, inStore = inStore) }
                 }
             }
             if (StoresMotion.heroLands) header() else Rise(1) { header() }
@@ -384,7 +384,7 @@ private fun GameTitle(title: String, logo: Any?, titleSize: TextUnit) {
 @Composable
 internal fun GameActions(
     store: Store?, id: String?, game: Library.SteamGame?, item: CatalogItem?, installed: InstalledStoreGame?,
-    s: FrontEndState, a: FrontEndActions, leadOn: Modifier, compactMenu: Boolean = false,
+    s: FrontEndState, a: FrontEndActions, leadOn: Modifier, compactMenu: Boolean = false, inStore: Boolean = false,
 ) {
     val ctx = LocalContext.current
     val storeKey = if (store != null && id != null) "${store.id}:$id" else null
