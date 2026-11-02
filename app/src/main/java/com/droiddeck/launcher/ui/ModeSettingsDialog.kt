@@ -75,6 +75,8 @@ class ModeSettings(
     val gameStorage: String? = null,
     val storageOptions: List<com.droiddeck.launcher.session.GameStorage.Option> = emptyList(),
     val steamLibraries: List<com.droiddeck.launcher.session.SteamLibraries.Entry> = emptyList(),
+    val foundSteamLibraries: List<com.droiddeck.launcher.session.SteamLibraries.Found> = emptyList(),
+    val allFilesAccessMissing: Boolean = false,
     val storageDiagnostics: Boolean = false,
     val fexPreset: String? = null,
     val forceSsbs: Boolean = false,
@@ -126,6 +128,8 @@ class ModeSettingsActions(
     val onPickGameStorageFolder: () -> Unit = {},
     val onStorageDiagnostics: (Boolean) -> Unit = {},
     val onAddSteamLibrary: () -> Unit = {},
+    val onAddFoundSteamLibrary: (path: String) -> Unit = {},
+    val onAllowAllFilesAccess: () -> Unit = {},
     val onRenameSteamLibrary: (id: String, label: String) -> Unit = { _, _ -> },
     val onRemoveSteamLibrary: (id: String) -> Unit = {},
     val onFexPreset: (String) -> Unit = {},
@@ -419,6 +423,19 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                         SecondaryButton(stringResource(R.string.libraries_rename), compact = true) { renaming = library }
                         SecondaryButton(stringResource(R.string.edit_remove), compact = true) { a.onRemoveSteamLibrary(library.id) }
                     }
+                }
+            }
+            if (s.steamLibraries.size < com.droiddeck.launcher.session.SteamLibraries.MAX) for (found in s.foundSteamLibraries) {
+                SettingsRow(
+                    found.label,
+                    stringResource(R.string.libraries_found_hint, pluralStringResource(R.plurals.mode_added_count, found.games, found.games), found.path),
+                ) {
+                    SecondaryButton(stringResource(R.string.libraries_add_found), compact = true) { a.onAddFoundSteamLibrary(found.path) }
+                }
+            }
+            if (s.allFilesAccessMissing && s.steamLibraries.size < com.droiddeck.launcher.session.SteamLibraries.MAX) {
+                SettingsRow(stringResource(R.string.libraries_access_title), stringResource(R.string.libraries_access_hint)) {
+                    SecondaryButton(stringResource(R.string.libraries_access_allow), compact = true, onClick = a.onAllowAllFilesAccess)
                 }
             }
             SettingsRow(
