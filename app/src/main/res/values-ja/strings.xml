@@ -1780,8 +1780,6 @@
     <string name="stats_trace">スロットルとブレーキ（直近10 s）</string>
     <string name="stats_speed_chart">速度（%1$s）</string>
     <string name="stats_gear">ギア</string>
-    <string name="stats_speed_units">速度の単位</string>
-    <string name="stats_speed_units_auto">自動（%1$s）</string>
     <string name="stats_steam_client_arm">Steamクライアント ARM</string>
     <string name="stats_steam_client_x86">Steamクライアント x86</string>
     <string name="stats_throttle">スロットル</string>
@@ -1799,7 +1797,6 @@
     <string name="stats_fuel_t">燃料（t）</string>
     <string name="stats_fuel_main">メイン %1$s t</string>
     <string name="stats_fuel_reserve">予備 %1$s t</string>
-    <string name="stats_tap_hint">上部のバーまたはダッシュをタップすると、表示スタイルを変更できます。</string>
     <string name="bottom_telemetry_send_title">ダッシュボード用データを送信</string>
     <string name="bottom_telemetry_send_auto">自動</string>
     <string name="bottom_telemetry_send_auto_hint">ここに表示されているすべてのゲーム（後から見つかったゲームを含む）でオンにします。オフにしたゲームはオフのままです。</string>
@@ -1838,7 +1835,6 @@
     <string name="bottom_telemetry_balance">残高</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">レースゲームのデータ出力（テレメトリーやUDPと呼ばれることが多い）をオンにすると、ここにライブダッシュが表示されます。データはこのデバイス内にとどまります。</string>
     <string name="bottom_telemetry_unknown_format">ポート%1$dでデータを受信していますが（%3$dバイトのパケット%2$d個）、このページではまだ読み取れない形式です。</string>
     <string name="bottom_telemetry_port_busy">別のプログラムがすでにポート%1$sを使用しているため、そのゲームはここに表示できません。</string>
 

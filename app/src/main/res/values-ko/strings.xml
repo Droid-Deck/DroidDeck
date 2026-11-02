@@ -1780,8 +1780,6 @@
     <string name="stats_trace">스로틀 및 브레이크, 최근 10 s</string>
     <string name="stats_speed_chart">속도, %1$s</string>
     <string name="stats_gear">기어</string>
-    <string name="stats_speed_units">속도 단위</string>
-    <string name="stats_speed_units_auto">자동(%1$s)</string>
     <string name="stats_steam_client_arm">Steam 클라이언트 ARM</string>
     <string name="stats_steam_client_x86">Steam 클라이언트 x86</string>
     <string name="stats_throttle">스로틀</string>
@@ -1799,7 +1797,6 @@
     <string name="stats_fuel_t">연료, t</string>
     <string name="stats_fuel_main">메인 %1$s t</string>
     <string name="stats_fuel_reserve">예비 %1$s t</string>
-    <string name="stats_tap_hint">상단 막대나 계기판을 탭하면 스타일이 바뀝니다.</string>
     <string name="bottom_telemetry_send_title">계기판 데이터 보내기</string>
     <string name="bottom_telemetry_send_auto">자동</string>
     <string name="bottom_telemetry_send_auto_hint">나중에 발견된 게임을 포함해 여기에 나열된 모든 게임에서 켭니다. 직접 끈 게임은 꺼진 상태로 유지됩니다.</string>
@@ -1838,7 +1835,6 @@
     <string name="bottom_telemetry_balance">잔액</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">레이싱 게임의 데이터 출력(흔히 텔레메트리 또는 UDP라고 함)을 켜면 여기에서 실시간 계기판을 볼 수 있습니다. 데이터는 이 기기에만 남습니다.</string>
     <string name="bottom_telemetry_unknown_format">포트 %1$d에서 데이터를 받고 있지만(%3$d바이트 패킷 %2$d개), 이 페이지가 아직 읽을 수 없는 형식입니다.</string>
     <string name="bottom_telemetry_port_busy">다른 프로그램이 이미 포트 %1$s을(를) 사용하고 있어 해당 게임을 여기에 표시할 수 없습니다.</string>
 

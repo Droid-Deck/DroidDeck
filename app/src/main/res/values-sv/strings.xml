@@ -1802,8 +1802,6 @@
     <string name="stats_trace">Gas och broms, senaste 10 s</string>
     <string name="stats_speed_chart">Hastighet, %1$s</string>
     <string name="stats_gear">Växel</string>
-    <string name="stats_speed_units">Hastighetsenhet</string>
-    <string name="stats_speed_units_auto">Automatisk (%1$s)</string>
     <string name="stats_steam_client_arm">Steam-klient ARM</string>
     <string name="stats_steam_client_x86">Steam-klient x86</string>
     <string name="stats_throttle">Gas</string>
@@ -1821,7 +1819,6 @@
     <string name="stats_fuel_t">Bränsle, t</string>
     <string name="stats_fuel_main">Huvudtank %1$s t</string>
     <string name="stats_fuel_reserve">Reserv %1$s t</string>
-    <string name="stats_tap_hint">Tryck på den övre remsan eller instrumentpanelen för att byta stil.</string>
     <string name="bottom_telemetry_send_title">Skicka data till instrumentpanelen</string>
     <string name="bottom_telemetry_send_auto">Automatiskt</string>
     <string name="bottom_telemetry_send_auto_hint">Slår på det för alla spel i listan, även spel som hittas senare. Spel som du stänger av förblir avstängda.</string>
@@ -1860,7 +1857,6 @@
     <string name="bottom_telemetry_balance">Saldo</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Slå på datautmatning i ett racingspel (kallas ofta telemetri eller UDP) för att se en liveinstrumentpanel här. Datan stannar på den här enheten.</string>
     <string name="bottom_telemetry_unknown_format">Port %1$d tar emot data (%2$d paket på %3$d byte), men i ett format som den här sidan inte kan läsa än.</string>
     <string name="bottom_telemetry_port_busy">Ett annat program använder redan port %1$s, så det spelet kan inte visas här.</string>
 

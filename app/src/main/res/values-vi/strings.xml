@@ -1780,8 +1780,6 @@
     <string name="stats_trace">Ga và phanh, 10 s gần nhất</string>
     <string name="stats_speed_chart">Tốc độ, %1$s</string>
     <string name="stats_gear">Số</string>
-    <string name="stats_speed_units">Đơn vị tốc độ</string>
-    <string name="stats_speed_units_auto">Tự động (%1$s)</string>
     <string name="stats_steam_client_arm">Client Steam ARM</string>
     <string name="stats_steam_client_x86">Client Steam x86</string>
     <string name="stats_throttle">Ga</string>
@@ -1799,7 +1797,6 @@
     <string name="stats_fuel_t">Nhiên liệu, t</string>
     <string name="stats_fuel_main">Chính %1$s t</string>
     <string name="stats_fuel_reserve">Dự trữ %1$s t</string>
-    <string name="stats_tap_hint">Nhấn vào dải phía trên hoặc bảng đồng hồ để đổi kiểu hiển thị.</string>
     <string name="bottom_telemetry_send_title">Gửi dữ liệu bảng đồng hồ</string>
     <string name="bottom_telemetry_send_auto">Tự động</string>
     <string name="bottom_telemetry_send_auto_hint">Bật cho mọi game trong danh sách này, kể cả game được tìm thấy sau này. Game bạn đã tắt sẽ vẫn tắt.</string>
@@ -1838,7 +1835,6 @@
     <string name="bottom_telemetry_balance">Số dư</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Bật xuất dữ liệu của game đua xe (thường gọi là telemetry hoặc UDP) để xem bảng đồng hồ trực tiếp ở đây. Dữ liệu chỉ ở trên thiết bị này.</string>
     <string name="bottom_telemetry_unknown_format">Cổng %1$d đang nhận dữ liệu (%2$d gói, mỗi gói %3$d byte), nhưng ở định dạng mà trang này chưa đọc được.</string>
     <string name="bottom_telemetry_port_busy">Một chương trình khác đang dùng cổng %1$s, nên game đó không thể hiển thị ở đây.</string>
 

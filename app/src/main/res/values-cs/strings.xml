@@ -1846,8 +1846,6 @@
     <string name="stats_trace">Plyn a brzda, posledních 10 s</string>
     <string name="stats_speed_chart">Rychlost, %1$s</string>
     <string name="stats_gear">Rychlostní stupeň</string>
-    <string name="stats_speed_units">Jednotky rychlosti</string>
-    <string name="stats_speed_units_auto">Automaticky (%1$s)</string>
     <string name="stats_steam_client_arm">Klient Steam ARM</string>
     <string name="stats_steam_client_x86">Klient Steam x86</string>
     <string name="stats_throttle">Plyn</string>
@@ -1865,7 +1863,6 @@
     <string name="stats_fuel_t">Palivo, t</string>
     <string name="stats_fuel_main">Hlavní %1$s t</string>
     <string name="stats_fuel_reserve">Rezerva %1$s t</string>
-    <string name="stats_tap_hint">Klepnutím na horní pruh nebo palubní desku změníte jejich styl.</string>
     <string name="bottom_telemetry_send_title">Odesílat data pro palubní desku</string>
     <string name="bottom_telemetry_send_auto">Automaticky</string>
     <string name="bottom_telemetry_send_auto_hint">Zapne to pro každou zde uvedenou hru, včetně her nalezených později. Hry, které vypnete, zůstanou vypnuté.</string>
@@ -1904,7 +1901,6 @@
     <string name="bottom_telemetry_balance">Zůstatek</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Zapněte v závodní hře výstup dat (často nazývaný telemetrie nebo UDP) a uvidíte zde živou palubní desku. Data zůstávají v tomto zařízení.</string>
     <string name="bottom_telemetry_unknown_format">Port %1$d přijímá data (%2$d paketů po %3$d bajtech), ale ve formátu, který tato stránka zatím neumí přečíst.</string>
     <string name="bottom_telemetry_port_busy">Port %1$s již používá jiný program, takže se zde tato hra nemůže zobrazit.</string>
 

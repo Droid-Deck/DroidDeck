@@ -1780,8 +1780,6 @@
     <string name="stats_trace">คันเร่งและเบรก 10 s ล่าสุด</string>
     <string name="stats_speed_chart">ความเร็ว, %1$s</string>
     <string name="stats_gear">เกียร์</string>
-    <string name="stats_speed_units">หน่วยความเร็ว</string>
-    <string name="stats_speed_units_auto">อัตโนมัติ (%1$s)</string>
     <string name="stats_steam_client_arm">ไคลเอนต์ Steam ARM</string>
     <string name="stats_steam_client_x86">ไคลเอนต์ Steam x86</string>
     <string name="stats_throttle">คันเร่ง</string>
@@ -1799,7 +1797,6 @@
     <string name="stats_fuel_t">เชื้อเพลิง, t</string>
     <string name="stats_fuel_main">หลัก %1$s t</string>
     <string name="stats_fuel_reserve">สำรอง %1$s t</string>
-    <string name="stats_tap_hint">แตะแถบด้านบนหรือหน้าปัดเพื่อเปลี่ยนรูปแบบ</string>
     <string name="bottom_telemetry_send_title">ส่งข้อมูลแดชบอร์ด</string>
     <string name="bottom_telemetry_send_auto">อัตโนมัติ</string>
     <string name="bottom_telemetry_send_auto_hint">เปิดใช้สำหรับทุกเกมที่แสดงที่นี่ รวมถึงเกมที่พบในภายหลัง เกมที่คุณปิดไว้จะยังคงปิดอยู่</string>
@@ -1838,7 +1835,6 @@
     <string name="bottom_telemetry_balance">ยอดเงิน</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">เปิดการส่งออกข้อมูลของเกมแข่งรถ (มักเรียกว่าเทเลเมทรีหรือ UDP) เพื่อดูหน้าปัดแบบสดที่นี่ ข้อมูลจะอยู่บนอุปกรณ์นี้เท่านั้น</string>
     <string name="bottom_telemetry_unknown_format">พอร์ต %1$d ได้รับข้อมูล (%2$d แพ็กเก็ต ขนาด %3$d ไบต์) แต่อยู่ในรูปแบบที่หน้านี้ยังอ่านไม่ได้</string>
     <string name="bottom_telemetry_port_busy">มีโปรแกรมอื่นใช้พอร์ต %1$s อยู่แล้ว เกมนั้นจึงแสดงที่นี่ไม่ได้</string>
 

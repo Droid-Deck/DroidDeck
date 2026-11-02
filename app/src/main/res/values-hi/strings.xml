@@ -1802,8 +1802,6 @@
     <string name="stats_trace">थ्रॉटल और ब्रेक, पिछले 10 s</string>
     <string name="stats_speed_chart">स्पीड, %1$s</string>
     <string name="stats_gear">गियर</string>
-    <string name="stats_speed_units">स्पीड की इकाई</string>
-    <string name="stats_speed_units_auto">ऑटोमैटिक (%1$s)</string>
     <string name="stats_steam_client_arm">Steam क्लाइंट ARM</string>
     <string name="stats_steam_client_x86">Steam क्लाइंट x86</string>
     <string name="stats_throttle">थ्रॉटल</string>
@@ -1821,7 +1819,6 @@
     <string name="stats_fuel_t">फ़्यूल, t</string>
     <string name="stats_fuel_main">मुख्य %1$s t</string>
     <string name="stats_fuel_reserve">रिज़र्व %1$s t</string>
-    <string name="stats_tap_hint">स्टाइल बदलने के लिए ऊपर की पट्टी या डैश पर टैप करें।</string>
     <string name="bottom_telemetry_send_title">डैशबोर्ड डेटा भेजें</string>
     <string name="bottom_telemetry_send_auto">ऑटोमैटिक</string>
     <string name="bottom_telemetry_send_auto_hint">यहां दिए हर गेम के लिए इसे चालू करता है, बाद में मिलने वाले गेम भी शामिल हैं। जिन गेम को आप बंद करते हैं, वे बंद ही रहते हैं।</string>
@@ -1860,7 +1857,6 @@
     <string name="bottom_telemetry_balance">बैलेंस</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">यहां लाइव डैश देखने के लिए किसी रेसिंग गेम का डेटा आउटपुट (अक्सर टेलीमेट्री या UDP कहलाता है) चालू करें। यह इसी डिवाइस पर रहता है।</string>
     <string name="bottom_telemetry_unknown_format">पोर्ट %1$d पर डेटा आ रहा है (%3$d बाइट के %2$d पैकेट), लेकिन ऐसे फ़ॉर्मैट में जिसे यह पेज अभी पढ़ नहीं सकता।</string>
     <string name="bottom_telemetry_port_busy">पोर्ट %1$s को कोई दूसरा प्रोग्राम पहले से इस्तेमाल कर रहा है, इसलिए वह गेम यहां नहीं दिख सकता।</string>
 

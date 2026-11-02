@@ -1927,8 +1927,6 @@
     <string name="stats_trace">Throttle and brake, last 10 s</string>
     <string name="stats_speed_chart">Speed, %1$s</string>
     <string name="stats_gear">Gear</string>
-    <string name="stats_speed_units">Speed units</string>
-    <string name="stats_speed_units_auto">Automatic (%1$s)</string>
     <string name="stats_steam_client_arm">Steam Client ARM</string>
     <string name="stats_steam_client_x86">Steam Client x86</string>
     <string name="stats_throttle">Throttle</string>
@@ -1946,7 +1944,6 @@
     <string name="stats_fuel_t">Fuel, t</string>
     <string name="stats_fuel_main">Main %1$s t</string>
     <string name="stats_fuel_reserve">Reserve %1$s t</string>
-    <string name="stats_tap_hint">Tap the HUD, the top strip or the dash to change its style.</string>
     <string name="stats_hud_frametime">Frame time</string>
     <string name="stats_hud_last_seconds">last %1$d s</string>
     <string name="stats_hud_avg_frame">avg frame</string>
@@ -2003,7 +2000,6 @@
     <string name="bottom_telemetry_balance">Balance</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Turn on a game\'s data output (often called telemetry or UDP) to see a live dash here. It stays on this device.</string>
     <string name="bottom_telemetry_unknown_format">Port %1$d receives data (%2$d packets of %3$d bytes), but in a format this page cannot read yet.</string>
     <string name="bottom_telemetry_port_busy">Another program already uses port %1$s, so that game cannot show here.</string>
 

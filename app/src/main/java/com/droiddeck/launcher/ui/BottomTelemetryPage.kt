@@ -132,7 +132,7 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
     var unknown by remember { mutableStateOf<List<UnknownTraffic>>(emptyList()) }
     var strip by remember { mutableStateOf(StatsStrip.from(SessionPrefs.statsStrip(context))) }
     var dash by remember { mutableStateOf(StatsDash.from(SessionPrefs.statsDash(context))) }
-    var speedUnit by remember { mutableStateOf(SpeedUnit.from(SessionPrefs.statsSpeedUnit(context))) }
+    val speedUnit = SpeedUnit.from(SessionPrefs.statsSpeedUnit(context))
     val shownUnit = speedUnit.resolve(Resources.getSystem().configuration.locales[0].country)
     val fpsHistory = remember { History(PERF_N) }
     val cpuHistory = remember { History(PERF_N) }
@@ -374,10 +374,6 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
                     ))
                 }
             }
-            if (race == null && thunder.isEmpty() && elite == null && running == null) {
-                Text(stringResource(R.string.bottom_telemetry_help),
-                    fontSize = 14.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp))
-            }
             if (outputs.isNotEmpty() || menuGames.isNotEmpty()) TelemetryCard(stringResource(R.string.bottom_telemetry_send_title)) {
                 if (outputs.isNotEmpty()) SwitchRow(stringResource(R.string.bottom_telemetry_send_auto), stringResource(R.string.bottom_telemetry_send_auto_hint), auto, true) { want ->
                     scope.launch {
@@ -420,12 +416,6 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
                 Text(stringResource(R.string.bottom_telemetry_port_busy, busyPorts.sorted().joinToString()), fontSize = 13.sp,
                     color = colors.error, modifier = Modifier.padding(horizontal = 4.dp))
             }
-            ChoiceRow(stringResource(R.string.stats_speed_units),
-                if (speedUnit == SpeedUnit.AUTO) stringResource(R.string.stats_speed_units_auto, shownUnit.label) else speedUnit.label) {
-                speedUnit = speedUnit.next()
-                SessionPrefs.setStatsSpeedUnit(context, speedUnit.id)
-            }
-            Text(stringResource(R.string.stats_tap_hint), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp))
         }
     }
 }
@@ -466,17 +456,7 @@ private fun httpGet(url: String): String {
 }
 
 
-internal fun steamClientLabel(arch: String): Int = if (arch == "x86_64") R.string.stats_steam_client_x86 else R.string.stats_steam_client_arm
 
-@Composable
-private fun ChoiceRow(title: String, value: String, onClick: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    Row(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick).padding(horizontal = 4.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        Text(title, fontSize = 15.sp, color = colors.onBackground, modifier = Modifier.weight(1f))
-        Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = LocalPalette.current.primary)
-    }
-}
 
 @Composable
 private fun SwitchRow(title: String, hint: String?, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {

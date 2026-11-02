@@ -1794,8 +1794,6 @@
     <string name="stats_trace">Gas und Bremse, letzte 10 s</string>
     <string name="stats_speed_chart">Geschwindigkeit, %1$s</string>
     <string name="stats_gear">Gang</string>
-    <string name="stats_speed_units">Geschwindigkeitseinheit</string>
-    <string name="stats_speed_units_auto">Automatisch (%1$s)</string>
     <string name="stats_steam_client_arm">Steam-Client ARM</string>
     <string name="stats_steam_client_x86">Steam-Client x86</string>
     <string name="stats_throttle">Gas</string>
@@ -1813,7 +1811,6 @@
     <string name="stats_fuel_t">Treibstoff, t</string>
     <string name="stats_fuel_main">Haupttank %1$s t</string>
     <string name="stats_fuel_reserve">Reserve %1$s t</string>
-    <string name="stats_tap_hint">Tippe auf die obere Leiste oder die Instrumentenanzeige, um ihren Stil zu ändern.</string>
     <string name="bottom_telemetry_send_title">Dashboard-Daten senden</string>
     <string name="bottom_telemetry_send_auto">Automatisch</string>
     <string name="bottom_telemetry_send_auto_hint">Schaltet es für jedes hier aufgeführte Spiel ein, auch für später gefundene Spiele. Spiele, die du ausschaltest, bleiben aus.</string>
@@ -1852,7 +1849,6 @@
     <string name="bottom_telemetry_balance">Guthaben</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Aktiviere die Datenausgabe eines Rennspiels (oft Telemetrie oder UDP genannt), um hier ein Live-Cockpit zu sehen. Die Daten bleiben auf diesem Gerät.</string>
     <string name="bottom_telemetry_unknown_format">Port %1$d empfängt Daten (%2$d Pakete mit %3$d Bytes), aber in einem Format, das diese Seite noch nicht lesen kann.</string>
     <string name="bottom_telemetry_port_busy">Ein anderes Programm verwendet bereits Port %1$s, daher kann dieses Spiel hier nicht angezeigt werden.</string>
 

@@ -1824,8 +1824,6 @@
     <string name="stats_trace">Accélérateur et frein, 10 dernières s</string>
     <string name="stats_speed_chart">Vitesse, %1$s</string>
     <string name="stats_gear">Rapport</string>
-    <string name="stats_speed_units">Unités de vitesse</string>
-    <string name="stats_speed_units_auto">Automatique (%1$s)</string>
     <string name="stats_steam_client_arm">Client Steam ARM</string>
     <string name="stats_steam_client_x86">Client Steam x86</string>
     <string name="stats_throttle">Accélérateur</string>
@@ -1843,7 +1841,6 @@
     <string name="stats_fuel_t">Carburant, t</string>
     <string name="stats_fuel_main">Principal %1$s t</string>
     <string name="stats_fuel_reserve">Réserve %1$s t</string>
-    <string name="stats_tap_hint">Appuyez sur la bande supérieure ou sur le tableau de bord pour changer son style.</string>
     <string name="bottom_telemetry_send_title">Envoyer les données du tableau de bord</string>
     <string name="bottom_telemetry_send_auto">Automatique</string>
     <string name="bottom_telemetry_send_auto_hint">L\'active pour chaque jeu listé ici, y compris les jeux trouvés plus tard. Les jeux que vous désactivez restent désactivés.</string>
@@ -1882,7 +1879,6 @@
     <string name="bottom_telemetry_balance">Solde</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Activez la sortie de données d\'un jeu de course (souvent appelée télémétrie ou UDP) pour voir ici un tableau de bord en direct. Les données restent sur cet appareil.</string>
     <string name="bottom_telemetry_unknown_format">Le port %1$d reçoit des données (%2$d paquets de %3$d octets), mais dans un format que cette page ne sait pas encore lire.</string>
     <string name="bottom_telemetry_port_busy">Un autre programme utilise déjà le port %1$s ; ce jeu ne peut donc pas s\'afficher ici.</string>
 

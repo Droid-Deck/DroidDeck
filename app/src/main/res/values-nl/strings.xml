@@ -1802,8 +1802,6 @@
     <string name="stats_trace">Gas en rem, laatste 10 s</string>
     <string name="stats_speed_chart">Snelheid, %1$s</string>
     <string name="stats_gear">Versnelling</string>
-    <string name="stats_speed_units">Snelheidseenheid</string>
-    <string name="stats_speed_units_auto">Automatisch (%1$s)</string>
     <string name="stats_steam_client_arm">Steam-client ARM</string>
     <string name="stats_steam_client_x86">Steam-client x86</string>
     <string name="stats_throttle">Gas</string>
@@ -1821,7 +1819,6 @@
     <string name="stats_fuel_t">Brandstof, t</string>
     <string name="stats_fuel_main">Hoofdtank %1$s t</string>
     <string name="stats_fuel_reserve">Reserve %1$s t</string>
-    <string name="stats_tap_hint">Tik op de bovenste balk of het dashboard om de stijl te wijzigen.</string>
     <string name="bottom_telemetry_send_title">Dashboardgegevens verzenden</string>
     <string name="bottom_telemetry_send_auto">Automatisch</string>
     <string name="bottom_telemetry_send_auto_hint">Zet het aan voor elke game in deze lijst, ook voor games die later worden gevonden. Games die je uitzet, blijven uit.</string>
@@ -1860,7 +1857,6 @@
     <string name="bottom_telemetry_balance">Saldo</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Zet de gegevensuitvoer van een racegame aan (vaak telemetrie of UDP genoemd) om hier een live dashboard te zien. De gegevens blijven op dit apparaat.</string>
     <string name="bottom_telemetry_unknown_format">Poort %1$d ontvangt gegevens (%2$d pakketten van %3$d bytes), maar in een formaat dat deze pagina nog niet kan lezen.</string>
     <string name="bottom_telemetry_port_busy">Een ander programma gebruikt poort %1$s al, dus die game kan hier niet worden getoond.</string>
 

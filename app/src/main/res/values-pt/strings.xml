@@ -1816,8 +1816,6 @@
     <string name="stats_trace">Acelerador e freio, últimos 10 s</string>
     <string name="stats_speed_chart">Velocidade, %1$s</string>
     <string name="stats_gear">Marcha</string>
-    <string name="stats_speed_units">Unidade de velocidade</string>
-    <string name="stats_speed_units_auto">Automático (%1$s)</string>
     <string name="stats_steam_client_arm">Cliente Steam ARM</string>
     <string name="stats_steam_client_x86">Cliente Steam x86</string>
     <string name="stats_throttle">Acelerador</string>
@@ -1835,7 +1833,6 @@
     <string name="stats_fuel_t">Combustível, t</string>
     <string name="stats_fuel_main">Principal %1$s t</string>
     <string name="stats_fuel_reserve">Reserva %1$s t</string>
-    <string name="stats_tap_hint">Toque na faixa superior ou no painel para mudar o estilo.</string>
     <string name="bottom_telemetry_send_title">Enviar dados para o painel</string>
     <string name="bottom_telemetry_send_auto">Automático</string>
     <string name="bottom_telemetry_send_auto_hint">Ativa para todos os jogos listados aqui, incluindo os encontrados depois. Os jogos que você desativar continuam desativados.</string>
@@ -1874,7 +1871,6 @@
     <string name="bottom_telemetry_balance">Saldo</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Ative a saída de dados de um jogo de corrida (muitas vezes chamada de telemetria ou UDP) para ver um painel ao vivo aqui. Os dados ficam neste dispositivo.</string>
     <string name="bottom_telemetry_unknown_format">A porta %1$d está recebendo dados (%2$d pacotes de %3$d bytes), mas em um formato que esta página ainda não consegue ler.</string>
     <string name="bottom_telemetry_port_busy">Outro programa já usa a porta %1$s, então esse jogo não pode aparecer aqui.</string>
 

@@ -1802,8 +1802,6 @@
     <string name="stats_trace">Kaasu ja jarru, viimeiset 10 s</string>
     <string name="stats_speed_chart">Nopeus, %1$s</string>
     <string name="stats_gear">Vaihde</string>
-    <string name="stats_speed_units">Nopeuden yksiköt</string>
-    <string name="stats_speed_units_auto">Automaattinen (%1$s)</string>
     <string name="stats_steam_client_arm">Steam-asiakasohjelma ARM</string>
     <string name="stats_steam_client_x86">Steam-asiakasohjelma x86</string>
     <string name="stats_throttle">Kaasu</string>
@@ -1821,7 +1819,6 @@
     <string name="stats_fuel_t">Polttoaine, t</string>
     <string name="stats_fuel_main">Päätankki %1$s t</string>
     <string name="stats_fuel_reserve">Varatankki %1$s t</string>
-    <string name="stats_tap_hint">Napauta yläpalkkia tai kojelautaa vaihtaaksesi sen tyyliä.</string>
     <string name="bottom_telemetry_send_title">Lähetä kojelaudan tiedot</string>
     <string name="bottom_telemetry_send_auto">Automaattinen</string>
     <string name="bottom_telemetry_send_auto_hint">Kytkee sen päälle jokaiselle tässä luetellulle pelille, myös myöhemmin löytyville. Pois kytkemäsi pelit pysyvät pois päältä.</string>
@@ -1860,7 +1857,6 @@
     <string name="bottom_telemetry_balance">Saldo</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Kytke kilpa-ajopelin datan ulostulo päälle (usein nimeltään telemetria tai UDP), niin näet täällä reaaliaikaisen kojelaudan. Tiedot pysyvät tällä laitteella.</string>
     <string name="bottom_telemetry_unknown_format">Portti %1$d vastaanottaa dataa (%2$d pakettia, kukin %3$d tavua), mutta muodossa, jota tämä sivu ei vielä osaa lukea.</string>
     <string name="bottom_telemetry_port_busy">Toinen ohjelma käyttää jo porttia %1$s, joten peliä ei voida näyttää täällä.</string>
 
