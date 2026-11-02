@@ -2273,7 +2273,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         else SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
     }
 
-    private fun refreshHz(holder: SurfaceHolder? = null): Float {
+    private fun refreshHz(): Float = refreshHz(null)
+
+    private fun refreshHz(holder: SurfaceHolder?): Float {
         bottomGame?.takeIf { if (holder != null) holder === it.holder else bottomOutputActive }
             ?.hz?.takeIf { it > 1f }?.let { return minOf(it, PerfMode.peakRefreshCap(this)) }
         glassesScreen?.hz?.takeIf { it > 1f }?.let { return it }
