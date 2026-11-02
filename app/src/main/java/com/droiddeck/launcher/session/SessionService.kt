@@ -1980,6 +1980,8 @@ class SessionService : Service() {
             (getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.unregisterDisplayListener(displayListener)
             displayListenerRegistered = false
         }
+        downloadMonitorTask?.let(mainHandler::removeCallbacks)
+        downloadMonitorTask = null
         downloadMonitorExecutor.shutdown()
         super.onDestroy()
     }
