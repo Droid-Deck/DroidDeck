@@ -6,6 +6,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+@org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
+@org.robolectric.annotation.Config(sdk = [33], application = android.app.Application::class)
 class GameJoltUpdatesTest {
     private fun build(id: String, pkg: String, stamp: String, windows: Boolean = true, name: String = "game.zip") =
         GameJoltBuild(id, pkg, "Main", "1.0", name, 100L, stamp, if (windows) setOf("windows") else setOf("linux"), "", "")

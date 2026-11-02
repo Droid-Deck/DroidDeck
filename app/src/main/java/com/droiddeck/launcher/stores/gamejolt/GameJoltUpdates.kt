@@ -33,9 +33,10 @@ internal object GameJoltUpdates {
     internal fun evaluate(builds: List<GameJoltBuild>?, buildId: String, packageId: String, version: String): GameJoltUpdate? {
         if (builds == null || buildId.isBlank()) return null
         val installable = builds.filter { it.installable }
-        val same = installable.firstOrNull { it.packageId == packageId }
-        if (same != null) {
-            if (same.id == buildId || !newer(same, buildId, version)) return null
+        val samePackage = installable.filter { it.packageId == packageId }
+        if (samePackage.isNotEmpty()) {
+            if (samePackage.any { it.id == buildId }) return null
+            val same = samePackage.firstOrNull { newer(it, buildId, version) } ?: return null
             return GameJoltUpdate(same.id, same.stamp, same.filename, false)
         }
         val next = installable.firstOrNull() ?: return null

@@ -6,6 +6,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
+@org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
+@org.robolectric.annotation.Config(sdk = [33], application = android.app.Application::class)
 class GameJoltPricingTest {
     private fun pricing(amount: Long, promotional: Boolean = false, currency: Any = JSONObject.NULL) =
         JSONObject().put("amount", amount).put("promotional", promotional).put("currency_code", currency)

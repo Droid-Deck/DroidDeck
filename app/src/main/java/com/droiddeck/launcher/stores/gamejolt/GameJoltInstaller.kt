@@ -80,7 +80,7 @@ internal class GameJoltInstaller(
             installedAt = System.currentTimeMillis(),
             cover = item.imageUrl,
             hero = item.imageUrl,
-            extra = mapOf("gameId" to gameId, "buildId" to build.id, "packageId" to build.packageId),
+            extra = mapOf("gameId" to gameId, "buildId" to build.id, "packageId" to build.packageId) + (if (item.isFree) emptyMap() else mapOf("paid" to "1")),
             cloud = false,
         )
         StoreInstalls.complete(app, folder, sidecar) { done, steps -> handle.stageProgress(done.toLong(), steps.toLong()) }

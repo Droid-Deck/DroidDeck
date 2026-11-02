@@ -37,8 +37,10 @@ private const val CHOOSE = "choose"
 internal fun GameJoltVersionButton(installed: InstalledStoreGame, enabled: Boolean) {
     SecondaryButton(stringResource(R.string.stores_itch_pick_title), enabled = enabled) {
         val sidecar = installed.sidecar
+        val paid = sidecar.extra["paid"] == "1"
+        val owned = StoresState.library[Store.GAMEJOLT].orEmpty().any { it.id == sidecar.id && it.owned }
         StoresState.gameJoltPicking = CatalogItem(
-            store = Store.GAMEJOLT, id = sidecar.id, title = sidecar.title, imageUrl = sidecar.cover, isFree = true,
+            store = Store.GAMEJOLT, id = sidecar.id, title = sidecar.title, imageUrl = sidecar.cover, isFree = !paid, owned = owned,
             extra = mapOf("gameId" to (sidecar.extra["gameId"] ?: sidecar.id), CHOOSE to "1"),
         )
     }
@@ -69,7 +71,7 @@ internal fun GameJoltBuildPicker(item: CatalogItem, onDismiss: () -> Unit) {
         val result = withContext(Dispatchers.IO) { GameJoltBuilds.load(app, gameId) }
         if (result == null) { failed = true; return@LaunchedEffect }
         loaded = result
-        if (item.isFree && item.extra[CHOOSE] != "1" && shown.targetState) result.singleOrNull()?.takeIf { it.installable }?.let { install(it) }
+        if ((item.isFree || item.owned) && item.extra[CHOOSE] != "1" && shown.targetState) result.singleOrNull()?.takeIf { it.installable }?.let { install(it) }
     }
 
     AppDialog(shown, close, "gameJoltBuilds", wide = false, maxWidth = 460.dp) {
@@ -92,7 +94,7 @@ private fun BuildRow(item: CatalogItem, build: GameJoltBuild, onInstall: () -> U
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val linux = "linux" in build.platforms && !build.installable
-    val canInstall = build.installable && item.isFree
+    val canInstall = build.installable && (item.isFree || item.owned)
     val names = build.platforms.map { platformName(it) }
     val detail = listOfNotNull(
         names.joinToString(", "),

@@ -3599,7 +3599,7 @@
     <string name="stores_gamejolt_download_unreachable">Tidak dapat menghubungi Game Jolt</string>
     <string name="stores_gamejolt_download_no_link">Game Jolt tidak memberikan tautan unduhan</string>
     <string name="stores_gamejolt_section_featured">Unggulan</string>
-    <string name="stores_gamejolt_section_hot">Hangat</string>
+    <string name="stores_gamejolt_section_hot">Sedang tren</string>
     <string name="stores_gamejolt_section_best">Terbaik</string>
     <string name="stores_gamejolt_section_new">Baru</string>
     <string name="stores_gamejolt_price_under_30">$30 atau kurang</string>
@@ -3612,7 +3612,7 @@
     <string name="stores_gamejolt_status_devlog">Devlog</string>
     <string name="stores_gamejolt_partners">Game mitra</string>
     <string name="stores_gamejolt_filter_browser">Peramban</string>
-    <string name="stores_gamejolt_filter_maturity">Kematangan</string>
+    <string name="stores_gamejolt_filter_maturity">Klasifikasi usia</string>
     <string name="stores_gamejolt_filter_status">Status</string>
     <string name="stores_gamejolt_filter_partners">Mitra</string>
     <string name="stores_gamejolt_followed">Game yang diikuti</string>
