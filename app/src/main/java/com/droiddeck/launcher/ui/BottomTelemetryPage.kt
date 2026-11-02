@@ -316,9 +316,7 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
                         refreshHz = hz, proton = proton, device = device, gpuName = gpuName, fanRpm = fanRpm,
                         title = title, cover = cover, played = playedSeconds?.let(::playedText), clock = clock,
                         fpsHistory = fpsHistory.snapshot(), cpuHistory = cpuHistory.snapshot(), gpuHistory = gpuHistory.snapshot(),
-                        historySeconds = android.os.SystemClock.elapsedRealtime().let { now ->
-                            maxOf(fpsHistory.spanSeconds(now), cpuHistory.spanSeconds(now), gpuHistory.spanSeconds(now))
-                        },
+                        historySeconds = maxOf(fpsHistory.spanSeconds(), cpuHistory.spanSeconds(), gpuHistory.spanSeconds()),
                         coreGroups = coreGroups, gameCores = gameCores, fahrenheit = tempDisplay.fahrenheit,
                         tempColor = { sensor, c ->
                             thresholds[sensor]?.let { Color(HudMetrics.tempColor(c.toFloat(), it, tempDisplay, TEMP_PLAIN)) } ?: Color(TEMP_PLAIN)

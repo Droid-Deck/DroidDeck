@@ -81,7 +81,11 @@ internal class History(private val capacity: Int) {
         times.addLast(atMs)
     }
     fun snapshot(): List<Float> = values.toList()
-    fun spanSeconds(nowMs: Long): Int = times.firstOrNull()?.takeIf { it > 0L }?.let { ((nowMs - it) / 1000L).toInt() } ?: 0
+    fun spanSeconds(): Int {
+        val first = times.firstOrNull()?.takeIf { it > 0L } ?: return 0
+        val last = times.last()
+        return ((last - first + 500L) / 1000L).toInt()
+    }
 }
 
 private val MARK_RATIO = DroidDeckMark.widthFor(1f)
