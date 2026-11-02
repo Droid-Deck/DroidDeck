@@ -609,8 +609,6 @@ fn classify_reqwest_error(err: &reqwest::Error) -> FetchFailKind {
     } else if err.is_connect() {
         FetchFailKind::Connect
     } else if err.is_body() || err.is_decode() {
-        // A truncated or undecodable body comes from the CDN, not the request. Rest that host so
-        // the retry goes to another mirror instead of reading the same bad object again.
         FetchFailKind::ServerFault
     } else {
         FetchFailKind::Other
@@ -1424,9 +1422,6 @@ impl FetchScheduler {
         };
         h.samples = h.samples.saturating_add(1);
         h.consecutive_errors = 0;
-        // A success can belong to a request that was already in flight when another response from
-        // this host failed. Keep a server-fault cooldown until it expires instead of clearing it
-        // early and sending the retry straight back to the same mirror.
         if let Some(fault) = h.fault_until.filter(|until| *until > now) {
             h.cooldown_until = Some(h.cooldown_until.map_or(fault, |current| current.max(fault)));
         } else {

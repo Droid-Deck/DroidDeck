@@ -1,5 +1,3 @@
-/* Exercise the production vkp_render entrypoint without Android/Vulkan hardware.
- * The Python runner extracts that function verbatim into the included file. */
 #include <assert.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -18,8 +16,6 @@ static void vkp_signal_first_frame(void) { first_frames++; }
 static int vkp_base_black(int w, int h) { base_calls++; return base_result; }
 static int sc_layer_present_pass(const struct vkp_draw *draws, int n, int w, int h) {
     pass_calls++;
-    /* Production sc_layer_present_pass signals only after a content submission.
-     * Its no-op results (off-screen geometry or pool exhaustion) also return 0. */
     if (pass_result == 0 && pass_shown) vkp_signal_first_frame();
     return pass_result;
 }
@@ -40,12 +36,10 @@ int main(void) {
     for (int i = 0; i < 3; i++) assert(vkp_render(1280, 720, NULL, 0) == 0);
     assert(base_calls == 3 && pass_calls == 0 && first_frames == 0);
 
-    /* An accepted layer operation is not necessarily a displayed client frame. */
     reset();
     assert(vkp_render(1280, 720, &draw, 1) == 0);
     assert(pass_calls == 1 && base_calls == 1 && first_frames == 0);
 
-    /* Content is the sole owner of the notification, with no second backdrop event. */
     reset(); pass_shown = 1;
     assert(vkp_render(1280, 720, &draw, 1) == 0);
     assert(first_frames == 1);
@@ -59,7 +53,6 @@ int main(void) {
     assert(vkp_render(1280, 720, NULL, 0) == -1);
     assert(first_frames == 0);
 
-    /* Existing routes remain responsible for their own notifications. */
     for (int mode = 0; mode < 3; mode++) {
         reset();
         if (mode == 0) quest = 0;

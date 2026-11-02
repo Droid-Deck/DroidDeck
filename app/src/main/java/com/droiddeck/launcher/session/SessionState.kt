@@ -57,6 +57,8 @@ object SessionState {
     var suspended by mutableStateOf(false)
     var resumeRequested by mutableStateOf(false)
     var resuming by mutableStateOf(false)
+    /** A freeze has begun and has not finished; it already chose which processes it stops. */
+    @Volatile var suspending = false
     var resumeFailures by mutableIntStateOf(0)
     var resumeFailed by mutableStateOf(false)
     var manualPause by mutableStateOf(false)
@@ -73,8 +75,6 @@ object SessionState {
     var steamUrl: String? = null
     @Volatile
     var steamClientArch: String? = null
-    // A Play SteamVR request can arrive while an existing session is visible.
-    // Wake the status/launch effect even if no glasses surface has attached yet.
     var steamVr by mutableStateOf(false)
     var relaunch: android.content.Intent? = null
     @JvmStatic var hdr = false
@@ -97,7 +97,6 @@ object SessionState {
     @Volatile var secondScreenAutoOpened = false
     @Volatile var secondScreenProvisional = false
 
-    /** Guest library paths on removable storage and the host folders they are mounted from, set by SessionService. */
     @Volatile var steamLibraryMounts: Map<String, java.io.File> = emptyMap()
 
     @Volatile
@@ -108,6 +107,7 @@ object SessionState {
 
     @Volatile
     var followScreen = false
+    var followScale = 1f
 
     @Volatile
     var refreshHz: Float = 60f
@@ -115,7 +115,6 @@ object SessionState {
     @Volatile
     var upscaleRatio: Float = 0f
 
-    /** Frame limit chosen in the drawer for a game launched without Steam; 0 is off. */
     @Volatile
     var fpsLimit: Int = 0
 

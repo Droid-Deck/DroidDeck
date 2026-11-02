@@ -71,7 +71,6 @@ class QuestXrActivity : NativeActivity() {
                     }
                 } finally {
                     synchronized(steamVrLock) {
-                        // A retiring activity must not stop a replacement's SteamVR session.
                         if (steamVrOwner === this) {
                             if (sessionAlive()) SteamVr.run(this, "stop")
                             steamVrOwner = null

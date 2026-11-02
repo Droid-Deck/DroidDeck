@@ -15,7 +15,7 @@ object SettingsReset {
         "dualScreenMode", "dualScreenLauncher", "dualScreenSessionControls",
         "gameStoresEnabled", "gameStoresSpeedTier", "gameStoresParallel", "storesOpenTab", "storesShowMature",
         "storesInstallLanguage",
-        "hud", "hudDeck", "hudFps", "hudBattery", "hudGraph", "hudColor", "hudOpacity", "__KEEP_droidDeckHud__", "__KEEP_droidDeckHudPos__", "backActionsInverted", "backDoubleTapMs", "touch", "osc", "shape", "steamController",
+        "hud", "hudDeck", "hudFps", "hudBattery", "hudGraph", "hudColor", "hudOpacity", "__KEEP_droidDeckHud__", "__KEEP_droidDeckHudPos__", "backHold", "backActionsInverted", "backDoubleTapMs", "touch", "osc", "shape", "steamController",
         "gamepadLeft", "gamepadRight", "pipAutoEnter", "unfoldedControls", "unfoldedControlsWithController",
         "stretch16x9", "picturePosition", "railLabels",
         "gpuDriverMode", "androidDriver", "linuxDriver", "linuxDriver.steam", "linuxDriver.desktop",
@@ -26,7 +26,7 @@ object SettingsReset {
         "upscaler", "upscaleSharpness", "screenEffects", "textureAnisotropy", "textureLodBias",
         "steamDownloadsInBackground", "steam_offline", "bootMovie", "bootMovieSound", "bootMovieVolume", "bootMovieSeconds",
         "bootMovieApplyNext", "bootMovieSteamSeen",
-        "questDefaultsV1", "telemetryAuto", "telemetryOff", "statsStrip", "statsDash", "statsSpeedUnit",
+        "questDefaultsV1", "telemetryAuto", "telemetryOff", "statsStrip", "statsHud", "bottomHud", "bottomStripMetrics", "bottomStripTabs", "statsDash", "statsSpeedUnit",
     )
 
     internal val SESSION_PREFIXES = listOf(

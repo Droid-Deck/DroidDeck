@@ -9,8 +9,6 @@ PACKAGE = 'com.droiddeck.launcher'
 
 class SignApkRenamesTest(unittest.TestCase):
     def test_variants_rename_every_authority_and_task_named_after_the_package(self):
-        # sign-apk.sh renames a fixed list of names for the pubg/antutu/ludashi variants and fails the
-        # main build on any authority or task affinity it leaves on the base package; PR builds do not sign.
         manifest = (ROOT / 'app/src/main/AndroidManifest.xml').read_text()
         names = set()
         for attribute in ('authorities', 'taskAffinity'):

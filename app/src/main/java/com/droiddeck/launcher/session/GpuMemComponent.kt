@@ -21,7 +21,8 @@ class GpuMemComponent(private val file: File, private val root: File) : SessionP
         thread = Thread({
             while (running) {
                 try { Thread.sleep(PERIOD_MS) } catch (e: InterruptedException) { break }
-                if (running && (OverlayShown.check(root) || com.droiddeck.launcher.hud.DroidDeckHudHost.showing)) sample()?.let { write(it) }
+                if (running && (OverlayShown.check(root) || com.droiddeck.launcher.hud.DroidDeckHudHost.showing ||
+                        com.droiddeck.launcher.hud.BottomHudPresence.showing)) sample()?.let { write(it) }
             }
         }, "gpu-mem").apply { isDaemon = true; start() }
     }

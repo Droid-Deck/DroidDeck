@@ -1,4 +1,3 @@
-# Sourced by the build scripts: picks the Docker platform and the matching cross-build image.
 docker_platform=${DROIDDECK_DOCKER_PLATFORM:-}
 if [[ -z "${docker_platform}" ]]; then
     case "$(uname -m)" in arm64|aarch64) docker_platform=linux/arm64 ;; *) docker_platform=linux/amd64 ;; esac

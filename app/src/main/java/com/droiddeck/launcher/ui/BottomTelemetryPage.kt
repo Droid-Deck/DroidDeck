@@ -1,9 +1,13 @@
 package com.droiddeck.launcher.ui
 
+import android.content.Context
 import android.content.res.Resources
+import android.system.Os
+import android.system.OsConstants
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -22,6 +26,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -41,18 +46,30 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.core.CpuCores
+import com.droiddeck.launcher.frontend.AddedGameArt
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.frontend.SteamGameArt
+import com.droiddeck.launcher.gpu.GpuInfo
+import com.droiddeck.launcher.hud.DroidDeckHudConfig
+import com.droiddeck.launcher.hud.DroidDeckHudHost
+import com.droiddeck.launcher.hud.FrameStats
+import com.droiddeck.launcher.hud.GameFrameFeed
+import com.droiddeck.launcher.hud.HudFrames
 import com.droiddeck.launcher.hud.HudMetrics
+import com.droiddeck.launcher.hud.KeyValueSet
 import com.droiddeck.launcher.hud.MangoReadings
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.GameStatusFiles
 import com.droiddeck.launcher.session.GameTelemetry
+import com.droiddeck.launcher.session.HwmonComponent
 import com.droiddeck.launcher.input.SteamTouchConfig
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.SpeedUnit
 import com.droiddeck.launcher.session.StatsDash
+import com.droiddeck.launcher.session.StatsHud
 import com.droiddeck.launcher.session.StatsStrip
 import com.droiddeck.launcher.session.Telemetry
 import com.droiddeck.launcher.session.TelemetryOutput
@@ -72,16 +89,17 @@ import java.util.concurrent.atomic.AtomicReference
 
 private const val DRAW_MS = 66L
 private const val TELEMETRY_STALE_MS = 3_000L
-private const val METRICS_MS = 1_000L
+private const val METRICS_MS = 500L
 private const val THUNDER_MS = 500L
 private const val THUNDER_RETRY_MS = 3_000L
 private const val ELITE_MS = 1_000L
 private const val ELITE_SEARCH_MS = 10_000L
 private const val OUTPUT_SCAN_MS = 3_000L
-/** Top strip history: one reading a second for 30 s. */
-private const val PERF_N = 30
+private const val PERF_N = 60
+private const val FRAME_MS = 100L
+private const val MINUTE_NS = 60_000_000_000L
+private const val TEMP_PLAIN = 0xFFF2F5F9.toInt()
 
-/** What arrives on one telemetry port; written only by that port's listener. */
 private class PortTraffic {
     @Volatile var packets = 0L
     @Volatile var length = 0
@@ -114,7 +132,7 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
     var unknown by remember { mutableStateOf<List<UnknownTraffic>>(emptyList()) }
     var strip by remember { mutableStateOf(StatsStrip.from(SessionPrefs.statsStrip(context))) }
     var dash by remember { mutableStateOf(StatsDash.from(SessionPrefs.statsDash(context))) }
-    var speedUnit by remember { mutableStateOf(SpeedUnit.from(SessionPrefs.statsSpeedUnit(context))) }
+    val speedUnit = SpeedUnit.from(SessionPrefs.statsSpeedUnit(context))
     val shownUnit = speedUnit.resolve(Resources.getSystem().configuration.locales[0].country)
     val fpsHistory = remember { History(PERF_N) }
     val cpuHistory = remember { History(PERF_N) }
@@ -126,6 +144,21 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
     var perfTick by remember { mutableIntStateOf(0) }
     var traceTick by remember { mutableIntStateOf(0) }
     var clock by remember { mutableStateOf("") }
+    val frames = remember { GameFrameFeed(File(LinuxRuntime.rootDir(context), HudFrames.PATH)) }
+    DisposableEffect(frames) { onDispose { frames.close() } }
+    val currentFps = { if (frames.live) frames.stats.fps else fps() }
+    var hud by remember { mutableStateOf(StatsHud.from(SessionPrefs.statsHud(context))) }
+    var hudOn by remember { mutableStateOf(SessionPrefs.bottomHud(context)) }
+    var hudTick by remember { mutableIntStateOf(0) }
+    var fanRpm by remember { mutableStateOf<Long?>(null) }
+    var gpuName by remember { mutableStateOf("") }
+    var proton by remember { mutableStateOf<String?>(null) }
+    var playedSeconds by remember { mutableStateOf<Long?>(null) }
+    var cover by remember { mutableStateOf<File?>(null) }
+    var coreGroups by remember { mutableStateOf<List<CoreGroup>>(emptyList()) }
+    var thresholds by remember { mutableStateOf<Map<HudMetrics.TempSensor, HudMetrics.Thresholds>>(emptyMap()) }
+    val tempDisplay = remember { HudMetrics.TempDisplay.from(KeyValueSet(DroidDeckHudConfig.encode(DroidDeckHudConfig.load(context)))) }
+    val gameCores = remember { CpuCores.parse(SessionPrefs.gameCpus(context)) }
 
     LaunchedEffect(Unit) {
         for (port in GameTelemetry.PORTS) launch(Dispatchers.IO) {
@@ -169,22 +202,49 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
                 speedTrace.add(r.speedKmh ?: 0f)
                 traceTick++
             }
-            fpsNow = fps()
+            fpsNow = currentFps()
             unknown = traffic.filter { (_, t) -> t.packets > 0 && !t.readable }.map { (port, t) -> UnknownTraffic(port, t.packets, t.length) }
             delay(DRAW_MS)
         }
     }
+    LaunchedEffect(frames) {
+        while (isActive) {
+            if (frames.poll(System.nanoTime())) hudTick++
+            delay(FRAME_MS)
+        }
+    }
     LaunchedEffect(Unit) {
         val metrics = HudMetrics(context).apply { setMangoReadings(MangoReadings(File(context.filesDir, "session"), LinuxRuntime.rootDir(context))) }
+        val fanPath = withContext(Dispatchers.IO) { runCatching { HwmonComponent.fanSource() }.getOrNull() }
+        gpuName = withContext(Dispatchers.IO) { runCatching { GpuInfo.detect().displayName(context) }.getOrDefault("") }
+        coreGroups = withContext(Dispatchers.IO) { coreGroups() }
+        thresholds = withContext(Dispatchers.IO) {
+            HudMetrics.TempSensor.values().mapNotNull { sensor -> runCatching { sensor to metrics.resolveThresholds(sensor, tempDisplay) }.getOrNull() }.toMap()
+        }
+        var protonPid = 0
         while (isActive) {
             device = withContext(Dispatchers.IO) { runCatching { metrics.snapshot() }.getOrNull() }
-            fps()?.takeIf { it > 0f }?.let { fpsHistory.add(it) }
+            fanRpm = fanPath?.let { path -> withContext(Dispatchers.IO) { HwmonComponent.readRpm(path) } }
+            val pid = if (frames.live && !frames.steamFocused) frames.pid else 0
+            if (pid == 0) {
+                protonPid = 0
+                if (!frames.live) proton = null
+            } else if (pid != protonPid) {
+                val name = withContext(Dispatchers.IO) { DroidDeckHudHost.protonName(pid) }
+                proton = name
+                if (name != null) protonPid = pid
+            }
+            playedSeconds = if (pid > 0 && running != null) withContext(Dispatchers.IO) { processSeconds(pid) } else null
+            val sampledAt = android.os.SystemClock.elapsedRealtime()
+            currentFps()?.takeIf { it > 0f }?.let { fpsHistory.add(it, sampledAt) }
             device?.let { s ->
-                s.cpuPercent?.let { cpuHistory.add(it.toFloat()) }
-                s.gpuPercent?.let { gpuHistory.add(it.toFloat()) }
+                s.cpuPercent?.let { cpuHistory.add(it.toFloat(), sampledAt) }
+                s.gpuPercent?.let { gpuHistory.add(it.toFloat(), sampledAt) }
                 s.battery?.watts?.takeIf { it > 0f }?.let { wattsHistory.add(it) }
             }
             clock = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date())
+            hudOn = SessionPrefs.bottomHud(context)
+            if (hudOn) com.droiddeck.launcher.hud.BottomHudPresence.beat()
             perfTick++
             delay(METRICS_MS)
         }
@@ -208,7 +268,6 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
                 }
             }
             val f = file
-            // Status.json changes while Elite runs; one older than a minute belongs to an earlier session.
             elite = if (f != null && now - f.lastModified() < 60_000L) {
                 withContext(Dispatchers.IO) { runCatching { GameStatusFiles.elite(f.readText()) }.getOrNull() }
             } else null
@@ -224,6 +283,7 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
         val id = running?.toLongOrNull()
         gameName = if (id == null) null
             else withContext(Dispatchers.IO) { runCatching { SteamTouchConfig.gameName(context, id.toInt()) }.getOrNull() }
+        cover = if (id == null) null else withContext(Dispatchers.IO) { runCatching { gameCover(context, id.toInt()) }.getOrNull() }
     }
     LaunchedEffect(rescan) {
         while (isActive) {
@@ -233,94 +293,155 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
         }
     }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        perfTick.let {
-            StatsStripView(strip, StripData(fpsNow, device, fpsHistory.snapshot(), cpuHistory.snapshot(), gpuHistory.snapshot(), wattsHistory.snapshot(), clock,
-                if (running != null) gameName else steamClient?.let { stringResource(steamClientLabel(it)) })) {
-                strip = strip.next()
-                SessionPrefs.setStatsStrip(context, strip.id)
-            }
-        }
-        race?.let { r ->
-            val shown = dash.resolve(r.source)
-            traceTick.let {
-                RaceDashView(shown, r, TraceData(throttleTrace.snapshot(), brakeTrace.snapshot(), speedTrace.snapshot()), shownUnit) {
-                    dash = StatsDash.tapped(shown)
-                    SessionPrefs.setStatsDash(context, dash.id)
-                }
-            }
-        }
-        if (thunder.isNotEmpty()) {
-            if (FlightLabels.drawable(thunder)) FlightDash(thunder)
-            else TelemetryCard(stringResource(R.string.bottom_telemetry_war_thunder)) { ValueGrid(thunder.take(GameStatusFiles.WAR_THUNDER_ROWS)) }
-        }
-        elite?.let { e ->
-            if (e.pips != null || e.fuelMain != null) ShipDash(e)
-            else TelemetryCard(stringResource(R.string.bottom_telemetry_elite)) {
-                ValueGrid(listOfNotNull(
-                    e.fuelMain?.let { stringResource(R.string.bottom_telemetry_fuel) to "%.1f t".format(it) },
-                    e.cargo?.let { stringResource(R.string.bottom_telemetry_cargo) to "%.0f t".format(it) },
-                    e.pips?.takeIf { it.size == 3 }?.let { p ->
-                        stringResource(R.string.bottom_telemetry_pips) to p.joinToString(" · ") { "%.1f".format(it / 2f) }
-                    },
-                    e.legal?.let { stringResource(R.string.bottom_telemetry_legal) to it },
-                    e.balance?.let { stringResource(R.string.bottom_telemetry_balance) to "%,d CR".format(it) },
-                ))
-            }
-        }
-        if (race == null && thunder.isEmpty() && elite == null) {
-            Text(stringResource(R.string.bottom_telemetry_help),
-                fontSize = 14.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp))
-        }
-        if (outputs.isNotEmpty() || menuGames.isNotEmpty()) TelemetryCard(stringResource(R.string.bottom_telemetry_send_title)) {
-            if (outputs.isNotEmpty()) SwitchRow(stringResource(R.string.bottom_telemetry_send_auto), stringResource(R.string.bottom_telemetry_send_auto_hint), auto, true) { want ->
-                scope.launch {
-                    withContext(Dispatchers.IO) {
-                        SessionPrefs.setTelemetryAuto(context, want)
-                        if (want) TelemetryOutput.applyAutomatic(context, running)
-                        else TelemetryOutput.restoreTargets(outputs, running).forEach { TelemetryOutput.set(it, false) }
+    val title = if (running != null) gameName else steamClient?.let { stringResource(steamClientLabel(it)) }
+    val noData = race == null && thunder.isEmpty() && elite == null
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val viewport = maxHeight
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (!hudOn) Unit
+            else if (noData) hudTick.let {
+                perfTick.let {
+                    val now = System.nanoTime()
+                    val live = frames.live
+                    val stats = frames.stats
+                    val graph = FloatArray(FrameStats.GRAPH_FRAMES).also { if (live) stats.graph(it) }
+                    val hz = (frames.refreshMilliHz + 499) / 1000
+                    val data = HudData(
+                        fps = fpsNow, avgFps = if (live) stats.averageFps() else null, lows = if (live) stats.lows(now) else FrameStats.Lows.EMPTY,
+                        graph = graph, slowPerMinute = if (live) stats.slowFrames(now, MINUTE_NS) else null,
+                        engine = if (live && !frames.steamFocused) frames.engine else "",
+                        resolution = if (frames.outputWidth > 0 && frames.outputHeight > 0) {
+                            "${frames.outputWidth}x${frames.outputHeight}" + (if (hz > 0) " @ ${hz}Hz" else "")
+                        } else "",
+                        refreshHz = hz, proton = proton, device = device, gpuName = gpuName, fanRpm = fanRpm,
+                        title = title, cover = cover, played = playedSeconds?.let(::playedText), clock = clock,
+                        fpsHistory = fpsHistory.snapshot(), cpuHistory = cpuHistory.snapshot(), gpuHistory = gpuHistory.snapshot(),
+                        historySeconds = maxOf(fpsHistory.spanSeconds(), cpuHistory.spanSeconds(), gpuHistory.spanSeconds()),
+                        coreGroups = coreGroups, gameCores = gameCores, fahrenheit = tempDisplay.fahrenheit,
+                        tempColor = { sensor, c ->
+                            thresholds[sensor]?.let { Color(HudMetrics.tempColor(c.toFloat(), it, tempDisplay, TEMP_PLAIN)) } ?: Color(TEMP_PLAIN)
+                        },
+                        redC = { thresholds[it]?.redC },
+                    )
+                    StatsHudView(hud, data, Modifier.fillMaxWidth().height(viewport)) {
+                        hud = hud.next()
+                        SessionPrefs.setStatsHud(context, hud.id)
                     }
-                    auto = want
-                    rescan++
+                }
+            } else hudTick.let {
+                perfTick.let {
+                    val live = frames.live
+                    val graph = FloatArray(FrameStats.GRAPH_FRAMES).also { if (live) frames.stats.graph(it) }
+                    val data = StripData(
+                        fpsNow, device, fpsHistory.snapshot(), cpuHistory.snapshot(), gpuHistory.snapshot(), wattsHistory.snapshot(), clock, title,
+                        engine = if (live && !frames.steamFocused) frames.engine else "",
+                        lows = if (live) frames.stats.lows(System.nanoTime()) else null, graph = graph,
+                        metrics = SessionPrefs.bottomStripMetrics(context), fahrenheit = tempDisplay.fahrenheit,
+                        tempColor = { sensor, c ->
+                            thresholds[sensor]?.let { Color(HudMetrics.tempColor(c.toFloat(), it, tempDisplay, TEMP_PLAIN)) } ?: Color(TEMP_PLAIN)
+                        },
+                    )
+                    StatsStripView(strip, data) {
+                        strip = strip.next()
+                        SessionPrefs.setStatsStrip(context, strip.id)
+                    }
                 }
             }
-            for (game in outputs) {
-                val locked = TelemetryOutput.isRunning(game.prefixId, running)
-                val hint = if (locked) stringResource(R.string.bottom_telemetry_send_close, game.name) else null
-                SwitchRow(game.name, hint, game.on, !locked) { want ->
+            race?.let { r ->
+                val shown = dash.resolve(r.source)
+                traceTick.let {
+                    RaceDashView(shown, r, TraceData(throttleTrace.snapshot(), brakeTrace.snapshot(), speedTrace.snapshot()), shownUnit) {
+                        dash = StatsDash.tapped(shown)
+                        SessionPrefs.setStatsDash(context, dash.id)
+                    }
+                }
+            }
+            if (thunder.isNotEmpty()) {
+                if (FlightLabels.drawable(thunder)) FlightDash(thunder)
+                else TelemetryCard(stringResource(R.string.bottom_telemetry_war_thunder)) { ValueGrid(thunder.take(GameStatusFiles.WAR_THUNDER_ROWS)) }
+            }
+            elite?.let { e ->
+                if (e.pips != null || e.fuelMain != null) ShipDash(e)
+                else TelemetryCard(stringResource(R.string.bottom_telemetry_elite)) {
+                    ValueGrid(listOfNotNull(
+                        e.fuelMain?.let { stringResource(R.string.bottom_telemetry_fuel) to "%.1f t".format(it) },
+                        e.cargo?.let { stringResource(R.string.bottom_telemetry_cargo) to "%.0f t".format(it) },
+                        e.pips?.takeIf { it.size == 3 }?.let { p ->
+                            stringResource(R.string.bottom_telemetry_pips) to p.joinToString(" · ") { "%.1f".format(it / 2f) }
+                        },
+                        e.legal?.let { stringResource(R.string.bottom_telemetry_legal) to it },
+                        e.balance?.let { stringResource(R.string.bottom_telemetry_balance) to "%,d CR".format(it) },
+                    ))
+                }
+            }
+            if (outputs.isNotEmpty() || menuGames.isNotEmpty()) TelemetryCard(stringResource(R.string.bottom_telemetry_send_title)) {
+                if (outputs.isNotEmpty()) SwitchRow(stringResource(R.string.bottom_telemetry_send_auto), stringResource(R.string.bottom_telemetry_send_auto_hint), auto, true) { want ->
                     scope.launch {
-                        val ok = withContext(Dispatchers.IO) {
-                            val key = TelemetryOutput.key(game)
-                            val off = SessionPrefs.telemetryOff(context)
-                            SessionPrefs.setTelemetryOff(context, if (want) off - key else off + key)
-                            TelemetryOutput.set(game, want)
+                        withContext(Dispatchers.IO) {
+                            SessionPrefs.setTelemetryAuto(context, want)
+                            if (want) TelemetryOutput.applyAutomatic(context, running)
+                            else TelemetryOutput.restoreTargets(outputs, running).forEach { TelemetryOutput.set(it, false) }
                         }
-                        outputFailed = if (ok) null else game.name
+                        auto = want
                         rescan++
                     }
                 }
+                for (game in outputs) {
+                    val locked = TelemetryOutput.isRunning(game.prefixId, running)
+                    val hint = if (locked) stringResource(R.string.bottom_telemetry_send_close, game.name) else null
+                    SwitchRow(game.name, hint, game.on, !locked) { want ->
+                        scope.launch {
+                            val ok = withContext(Dispatchers.IO) {
+                                val key = TelemetryOutput.key(game)
+                                val off = SessionPrefs.telemetryOff(context)
+                                SessionPrefs.setTelemetryOff(context, if (want) off - key else off + key)
+                                TelemetryOutput.set(game, want)
+                            }
+                            outputFailed = if (ok) null else game.name
+                            rescan++
+                        }
+                    }
+                }
+                for (game in menuGames) {
+                    Text(stringResource(R.string.bottom_telemetry_send_menu, game.name, game.setting, game.port), fontSize = 13.sp, color = colors.onSurfaceVariant)
+                }
+                if (outputs.isNotEmpty()) Text(stringResource(R.string.bottom_telemetry_send_note), fontSize = 12.sp, color = colors.onSurfaceVariant)
+                outputFailed?.let { Text(stringResource(R.string.bottom_telemetry_send_failed, it), fontSize = 12.sp, color = colors.error) }
             }
-            for (game in menuGames) {
-                Text(stringResource(R.string.bottom_telemetry_send_menu, game.name, game.setting, game.port), fontSize = 13.sp, color = colors.onSurfaceVariant)
+            for (u in unknown) {
+                Text(stringResource(R.string.bottom_telemetry_unknown_format, u.port, u.packets, u.length), fontSize = 13.sp,
+                    color = colors.error, modifier = Modifier.padding(horizontal = 4.dp))
             }
-            if (outputs.isNotEmpty()) Text(stringResource(R.string.bottom_telemetry_send_note), fontSize = 12.sp, color = colors.onSurfaceVariant)
-            outputFailed?.let { Text(stringResource(R.string.bottom_telemetry_send_failed, it), fontSize = 12.sp, color = colors.error) }
+            if (busyPorts.isNotEmpty()) {
+                Text(stringResource(R.string.bottom_telemetry_port_busy, busyPorts.sorted().joinToString()), fontSize = 13.sp,
+                    color = colors.error, modifier = Modifier.padding(horizontal = 4.dp))
+            }
         }
-        for (u in unknown) {
-            Text(stringResource(R.string.bottom_telemetry_unknown_format, u.port, u.packets, u.length), fontSize = 13.sp,
-                color = colors.error, modifier = Modifier.padding(horizontal = 4.dp))
-        }
-        if (busyPorts.isNotEmpty()) {
-            Text(stringResource(R.string.bottom_telemetry_port_busy, busyPorts.sorted().joinToString()), fontSize = 13.sp,
-                color = colors.error, modifier = Modifier.padding(horizontal = 4.dp))
-        }
-        ChoiceRow(stringResource(R.string.stats_speed_units),
-            if (speedUnit == SpeedUnit.AUTO) stringResource(R.string.stats_speed_units_auto, shownUnit.label) else speedUnit.label) {
-            speedUnit = speedUnit.next()
-            SessionPrefs.setStatsSpeedUnit(context, speedUnit.id)
-        }
-        Text(stringResource(R.string.stats_tap_hint), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp))
     }
+}
+
+private fun processSeconds(pid: Int): Long? = runCatching {
+    val fields = File("/proc/$pid/stat").readText().substringAfterLast(')').trim().split(' ')
+    val startTicks = fields[19].toLong()
+    val uptime = File("/proc/uptime").readText().substringBefore(' ').toDouble()
+    (uptime - startTicks.toDouble() / Os.sysconf(OsConstants._SC_CLK_TCK)).toLong()
+}.getOrNull()?.takeIf { it >= 0 }
+
+private fun playedText(seconds: Long): String =
+    if (seconds >= 3600) "%d:%02d:%02d".format(seconds / 3600, seconds / 60 % 60, seconds % 60) else "%d:%02d".format(seconds / 60, seconds % 60)
+
+private fun gameCover(context: Context, appId: Int): File? =
+    SteamGameArt.chosenFile(context, appId, AddedGameArt.Slot.COVER)
+        ?: Library.steamCacheImage(File(SessionPrefs.activeSteamRoot(context), "appcache/librarycache"), appId, listOf("library_capsule.jpg", "library_600x900.jpg"))
+
+private fun coreGroups(): List<CoreGroup> {
+    val out = mutableListOf<CoreGroup>()
+    for (core in CpuCores.all) {
+        val ghz = CpuCores.maxGhz(core)
+        val last = out.lastOrNull()
+        if (last != null && last.maxGhz == ghz) out[out.lastIndex] = CoreGroup(last.cores + core, ghz) else out += CoreGroup(listOf(core), ghz)
+    }
+    return out
 }
 
 private fun httpGet(url: String): String {
@@ -334,19 +455,7 @@ private fun httpGet(url: String): String {
     }
 }
 
-
-/** The Steam client the session runs, shown in the strip's top line while no game runs. */
 internal fun steamClientLabel(arch: String): Int = if (arch == "x86_64") R.string.stats_steam_client_x86 else R.string.stats_steam_client_arm
-
-@Composable
-private fun ChoiceRow(title: String, value: String, onClick: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    Row(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick).padding(horizontal = 4.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        Text(title, fontSize = 15.sp, color = colors.onBackground, modifier = Modifier.weight(1f))
-        Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = LocalPalette.current.primary)
-    }
-}
 
 @Composable
 private fun SwitchRow(title: String, hint: String?, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {

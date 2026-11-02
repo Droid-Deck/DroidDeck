@@ -36,7 +36,6 @@ def fetch_json(url):
 
 
 def pick_asset(source):
-    """(release tag, asset url, sha512 url or None) for the newest full release with an ARM64 build."""
     repo, pattern = SOURCES[source]
     for release in fetch_json(RELEASES % repo + "?per_page=15"):
         if release.get("draft") or release.get("prerelease"):
@@ -63,8 +62,6 @@ def release_asset(source, tag):
 
 
 def download(url, path):
-    """Resumable, because this is hundreds of megabytes over a phone's connection. curl is used
-    rather than urllib so a retry continues rather than starting again."""
     log("downloading %s" % os.path.basename(path))
     rc = subprocess.call([
         "curl", "-fL", "--retry", "5", "--retry-delay", "3", "--retry-connrefused",

@@ -289,7 +289,6 @@ static struct wl_event_source *g_fallback_timer;
 static int g_fallback_armed;
 
 volatile int g_fps_limit;
-/* fps limit -1 (phone output, not mirrored): replaced buffers go back to the client at once instead of once per refresh. */
 volatile int g_release_unpaced;
 
 volatile int g_hide_shell;
@@ -446,15 +445,10 @@ static int g_cursor_w, g_cursor_h;
 static int g_cursor_hidden = 1;
 static int g_cursor_serial;
 
-/* The pointer image as a compositor-owned texture, for outputs that cannot show
- * the phone's Compose overlay (the glasses surface owns the picture there). */
-#define CURSOR_MAX_DRAWS 2 /* one per eye when the picture is side-by-side */
+#define CURSOR_MAX_DRAWS 2
 static struct vkp_image *g_cursor_img;
 static int g_cursor_img_w, g_cursor_img_h, g_cursor_img_serial = -1;
 static atomic_int g_cursor_composite;
-/* Last request from the app, used only to skip repeated calls. The applied flag below is
- * written by the caller and read by the render path; message 22 only wakes the event loop, so
- * a queued message can never put back an older value. */
 static atomic_int g_cursor_composite_want;
 
 static void cursor_publish_shown(void) {
@@ -1922,8 +1916,6 @@ static int hdr_plan(const struct draw_list *dl, int w, int h, int fx_on, int fra
     }
     if (un && g_zero_copy) { hs->color = droiddeck_color_of(un->resource); hs->who = un; return 3; }
     hs->hf.tonemap = !droiddeck_color_output();
-    /* The pointer draws are appended after this plan: reserve their slots (zeroed,
-     * so they count as SDR content above the game) instead of reading past the end. */
     if (dl->n <= 0 || !(hs->is_hdr = calloc((size_t)dl->n + CURSOR_MAX_DRAWS, 1))) return 0;
     for (int i = 0; i < dl->n; i++) {
         struct surface *s = surface_for_image(dl->d[i].img);
@@ -2026,12 +2018,6 @@ static void hdr_count_copied(const struct draw_list *dl, const char *reason) {
     }
 }
 
-/*
- * Stream mode (the Xbox Cloud Gaming native player, in its own process): no Wayland clients, the scene is one
- * picture handed over as AHardwareBuffers (ImageReader images of the decoded video). Each buffer is imported once
- * and kept while the reader cycles through its few buffers; the newest frame is the scene, so the screen effects
- * and frame generation apply to it as to a game.
- */
 #define STREAM_SLOTS 6
 static pthread_mutex_t g_stream_lock = PTHREAD_MUTEX_INITIALIZER;
 static atomic_int g_stream_on;
@@ -2051,7 +2037,6 @@ static void stream_forget_all(void) {
     g_stream_img = NULL;
 }
 
-/* Compositor thread: the newest handed-over buffer becomes the scene picture. */
 static void stream_take(void) {
     pthread_mutex_lock(&g_stream_lock);
     AHardwareBuffer *ahb = g_stream_pending;
@@ -2065,7 +2050,7 @@ static void stream_take(void) {
         if (g_stream_slots[i].used < g_stream_slots[oldest].used) oldest = i;
     }
     if (slot >= 0) {
-        AHardwareBuffer_release(ahb); /* the slot keeps its own reference */
+        AHardwareBuffer_release(ahb);
     } else {
         struct vkp_image *img = vkp_image_from_ahb(ahb);
         if (!img) {
@@ -2077,7 +2062,7 @@ static void stream_take(void) {
         droiddeck_log("stream", "decoded frame buffer imported (%dx%d)", vkp_image_width(img), vkp_image_height(img));
         slot = oldest;
         if (g_stream_slots[slot].img) {
-            vkp_wait_idle(); /* the GPU may still read the picture being replaced */
+            vkp_wait_idle();
             if (g_stream_img == g_stream_slots[slot].img) g_stream_img = NULL;
             vkp_image_destroy(g_stream_slots[slot].img);
         }
@@ -2123,7 +2108,6 @@ void droiddeck_stream_set(int on) {
     (void)n;
 }
 
-/* Any thread: hands over one decoded frame (acquires its own reference). */
 void droiddeck_stream_frame(AHardwareBuffer *ahb) {
     if (!ahb || !atomic_load(&g_stream_on) || g_input_pipe[1] < 0) return;
     AHardwareBuffer_acquire(ahb);
@@ -2131,7 +2115,7 @@ void droiddeck_stream_frame(AHardwareBuffer *ahb) {
     AHardwareBuffer *dropped = g_stream_pending;
     g_stream_pending = ahb;
     pthread_mutex_unlock(&g_stream_lock);
-    if (dropped) { AHardwareBuffer_release(dropped); return; } /* a wake-up is already queued */
+    if (dropped) { AHardwareBuffer_release(dropped); return; }
     struct input_msg m = { 20, 0, 0, 0, 0 };
     ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
     (void)n;
@@ -2200,11 +2184,6 @@ static void render_scene(void) {
         hdr_note_precedence(hdr_route == 3 ? hs.who : NULL, fx_on, framegen);
     }
     if (hdr_route == 3) { fx_on = 0; framegen = 0; }
-    /* A game the compositor cannot import (an AHardwareBuffer-only surface, or HDR frames it
-     * has no texture for) is shown on its own display layer and is not part of the scene, so
-     * composing would leave the game out of the picture: the pointer stays out instead, the
-     * same trade-off as HDR route 3. Both are decided before the pointer is appended, because
-     * the appended draws change the draw list they are matched against. */
     struct surface *ahb_only = ahb_layer_only_candidate(w, h);
     struct surface *layer_only = ahb_only ? ahb_only : hdr_unimported_fullscreen(&dl, w, h);
     const int cursor_on = hdr_route == 3 || layer_only ? 0 : add_cursor(&dl, w);
@@ -2216,9 +2195,6 @@ static void render_scene(void) {
     } else if (!layer_only) {
         cursor_layer_said = 0;
     }
-    /* With cardboard the scene is composed anyway (the pass needs the whole picture), so the
-     * pointer reaches the output without switching routes: the HDR composition path would drop
-     * the cardboard pass, which is 8-bit only. */
     static int cursor_hdr_said;
     if (cursor_on && hdr_route == 0 && hs.n_hdr > 0 && !cardboard) {
         hdr_route = 2;
@@ -2257,8 +2233,6 @@ static void render_scene(void) {
     }
     if (hdr_route == 0 && vkp_quest_layer_presentation() && !framegen && !cardboard && !cursor_on &&
         !ahb_only) {
-        /* The complete SDR scene stays on one display layer. Do not hide/re-show GAME
-         * on each desktop frame just because it is not a single fullscreen window. */
         rendered = vkp_render(w, h, dl.d, dl.n) == 0;
     } else if (hdr_route == 0 || hdr_route == 3) {
     const int pass_on = fx_on || framegen;
@@ -2367,8 +2341,6 @@ static int on_fallback_timer(void *data) {
     return 0;
 }
 
-/* A new frame is drawn when it arrives instead of at the next screen tick, at most once per refresh,
-   while frames go straight back to the game (no compositor limit), without streaming or frame generation. */
 static int commit_renders_on(void) {
     return g_render_on_commit && g_release_unpaced && !atomic_load(&g_stream_on) && !vkp_framegen_active();
 }
@@ -2427,10 +2399,6 @@ static void on_vsync(int64_t frame_time_ns) {
     if (vkp_effects_sync()) tick_change = 1;
     if (vkp_cardboard_pose_changed()) tick_change = 1;
     if (tick_change) g_dirty = 1;
-    /* A frame that arrived after this refresh was already drawn is left for the next arrival to draw;
-       drawing it here would block that arrival too and keep every frame waiting for the tick. A client
-       that draws again only after its frame callback sends no such arrival: once a held frame is still
-       waiting at the next tick, the tick draws every frame for a second before holding one again. */
     if (g_tick_held && g_dirty) g_hold_missed_ns = now;
     g_tick_held = 0;
     if (!tick_change && commit_renders_on() && g_dirty_since_ns && now - g_dirty_since_ns < g_refresh_ns &&
@@ -2665,15 +2633,11 @@ static int pointer_locked_for_cursor(void) {
 static int cursor_scene_positions(int scene_w, int source, int ptr_x, int hx, int out[2]) {
     out[0] = ptr_x - hx; out[1] = -1;
     if (source != CARDBOARD_SOURCE_SBS || scene_w <= 1) return 1;
-    /* The pointer decides which eye it is in; the hotspot only shifts the image drawn there,
-     * so a hotspot that crosses the seam cannot put the second copy in the wrong eye. */
     const int half = scene_w / 2;
     out[1] = (ptr_x < half ? ptr_x + half : ptr_x - half) - hx;
     return 2;
 }
 
-/* Crops one pointer copy to the eye it belongs to (eye < 0 crops nothing). Returns 0 when no
- * part of the copy falls inside that eye, so the caller skips it. */
 static int cursor_clip_to_eye(int scene_w, int eye, int x0, int w, int *dx, int *sx, int *dw) {
     int left = x0, right = x0 + w;
     if (eye >= 0 && scene_w > 1) {
@@ -2689,7 +2653,6 @@ static int cursor_clip_to_eye(int scene_w, int eye, int x0, int w, int *dx, int 
     return 1;
 }
 
-/* Appends the guest pointer as the topmost draw of the scene. */
 static int add_cursor(struct draw_list *dl, int scene_w) {
     if (!atomic_load(&g_cursor_composite) || !g_ptr_known || pointer_locked_for_cursor()) return 0;
 
@@ -2740,9 +2703,6 @@ static int add_cursor(struct draw_list *dl, int scene_w) {
         if (!d) return 0;
         dl->d = d; dl->cap = cap;
     }
-    /* The cardboard pass samples each half of the scene as one eye, so a copy that crosses the
-     * seam would show up as a fragment at the opposite edge of the other eye: crop each copy to
-     * the eye it belongs to and drop it when nothing of it lands there. */
     const int sbs = source == CARDBOARD_SOURCE_SBS && scene_w > 1;
     const int pointer_eye = ptr_x < scene_w / 2 ? 0 : 1;
     int appended = 0;
@@ -2765,8 +2725,6 @@ static void sync_lock_notify(void) {
     if (locked == last) return;
     last = locked;
     droiddeck_on_pointer_lock(locked, (int)g_ptr_x, (int)g_ptr_y);
-    /* The drawn pointer follows the lock state, so a game that stops presenting after it grabs
-     * the pointer would keep the last composited cursor on screen without a redraw here. */
     if (atomic_load(&g_cursor_composite)) schedule_render();
 }
 
@@ -2849,8 +2807,6 @@ static void constraint_activate(struct constraint *k) {
     g_active_constraint = k;
     const double was_x = g_ptr_x, was_y = g_ptr_y;
     if (!k->is_lock) confine_clamp(k, &g_ptr_x, &g_ptr_y);
-    /* Confining can move the pointer while the lock state stays the same, so sync_lock_notify()
-     * below stays quiet; the drawn pointer follows the position, so repaint here. */
     if ((g_ptr_x != was_x || g_ptr_y != was_y) && atomic_load(&g_cursor_composite))
         schedule_render();
     constraint_origin(k, &ox, &oy);
@@ -2935,8 +2891,6 @@ static void constraints_surface_commit(struct surface *s) {
             if (k->active && !k->is_lock) confine_clamp(k, &g_ptr_x, &g_ptr_y);
         }
     }
-    /* A position hint or a newly committed confine region can move the pointer while the lock
-     * state stays the same, so nothing else would repaint the composited cursor. */
     if ((g_ptr_x != was_x || g_ptr_y != was_y) && atomic_load(&g_cursor_composite))
         schedule_render();
 }
@@ -3147,10 +3101,6 @@ static void pointer_input(double x, double y, int relative, uint32_t button, int
     uint32_t t = now_ms();
 
     pointer_focus(target->resource, fx, fy);
-    // A button-only input must not replay a cached absolute position. A game
-    // may have warped its cursor since the last motion (before taking lock,
-    // or while releasing it), so that replay can become an unintended pan.
-    // Absolute touch events still carry their position, including on clicks.
     int rel_consumed = send_relative_motion(client, dx, dy);
     if (!(k && k->is_lock) && !(relative && rel_consumed) && (!relative || dx != 0 || dy != 0))
         for_each_pointer_of(client, sp) wl_pointer_send_motion(sp->ptr, t, fx, fy);
@@ -3182,9 +3132,6 @@ static void pointer_button(uint32_t button, int pressed) {
         pointer_input(0, 0, 1, button, pressed);
         return;
     }
-    // Releases also clean up interrupted gestures. Deliver them to the existing
-    // pointer focus without motion or hit-testing: native touch has independent
-    // coordinates, so replaying g_ptr_x/y here can warp the game cursor.
     uint32_t t = now_ms();
     for (int i = 0; i < g_nptrs; i++) {
         struct seat_pointer *sp = &g_ptrs[i];
@@ -3679,8 +3626,6 @@ void droiddeck_wayland_send_scene_input(int type, int a, int b) {
     (void)n;
 }
 
-/* Any thread: draw the pointer into the compositor's own output (the glasses
- * surface owns the picture, so the phone's Compose overlay never reaches it). */
 void droiddeck_wayland_set_cursor_composite(int on) {
     const int want = on ? 1 : 0;
     if (atomic_exchange(&g_cursor_composite_want, want) == want) return;
@@ -3871,8 +3816,6 @@ int droiddeck_wayland_run(void) {
     open_session_log();
 
     if (vkp_ready() != 0) WLOGE("renderer unavailable; clients will connect but nothing is drawn");
-    /* Presentation compatibility is not HDR capability. Set the initial layer mode before
-     * clients bind, including when Desktop is the first session in this app process. */
     if (vkp_quest_layer_presentation() && sc_layer_available()) g_zero_copy = 1;
 
     struct wl_display *display = wl_display_create();

@@ -144,8 +144,6 @@ unseed() {
   return 1
 }
 
-# The ledger lines whose values the registry still holds, in both views where we wrote both. A Proton
-# update replaces its default_pfx system.reg but not our ledger beside it, and new prefixes copy both.
 present() { awk -F'\t' -v hive="$hive" '
   NR == FNR {
     path = $1
@@ -192,10 +190,14 @@ present() { awk -F'\t' -v hive="$hive" '
 regs=()
 for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
            /mnt/droiddeck-sd/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
+           /mnt/droiddeck-lib/*/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
+           /mnt/droiddeck-lib/*/x86-64/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
            /root/Games/*/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
            "$steam_root"/compatibilitytools.d/*/files/share/default_pfx*/system.reg \
            "$steam_root"/steamapps/compatdata/*/pfx/system.reg \
            /mnt/droiddeck-sd/steamapps/compatdata/*/pfx/system.reg \
+           /mnt/droiddeck-lib/*/steamapps/compatdata/*/pfx/system.reg \
+           /mnt/droiddeck-lib/*/x86-64/steamapps/compatdata/*/pfx/system.reg \
            /root/Games/*/steamapps/compatdata/*/pfx/system.reg; do
   [ -f "$reg" ] && regs+=("$reg")
 done

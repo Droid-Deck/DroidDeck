@@ -1,4 +1,3 @@
-/* Exercise the production backdrop with mock Android buffers/transactions. */
 #include "../../app/src/main/cpp/waylandcomp/src/sc_layer.c"
 #include "../../app/src/main/cpp/waylandcomp/src/quest_device.h"
 #include <assert.h>
@@ -40,7 +39,6 @@ static void tx_delete(ASurfaceTransaction *t) { assert(t == (ASurfaceTransaction
 static void tx_apply(ASurfaceTransaction *t) { (void)t; applies++; }
 static void set_buffer(ASurfaceTransaction *t, ASurfaceControl *s, AHardwareBuffer *b, int fd) {
     (void)t; (void)s; assert(b == &buffer && fd == -1);
-    /* No garbage, including padded row bytes, reaches the display. */
     for (unsigned i=0; i<sizeof(buffer.pixels); i++) assert(buffer.pixels[i] == 0);
     assert(unlocks > 0); buffers++;
 }
@@ -79,7 +77,7 @@ int main(void) {
     assert(visible==ASC_VISIBILITY_SHOW && zorder==0 && opacity==ASC_TRANSPARENCY_OPAQUE);
     assert(destination.right==1920 && destination.bottom==1080);
     assert(allocs==1 && locks==1 && buffers==1 && creates==1);
-    assert(sc_layer_base_black(1920,1080)==0 && applies==1); /* retained, not redrawn */
+    assert(sc_layer_base_black(1920,1080)==0 && applies==1);
     assert(sc_layer_base_black(1440,1080)==0 && destination.right==1440 && allocs==1);
     sc_layer_hide_base(); assert(!visible && !g_base_shown);
     assert(sc_layer_base_black(1440,1080)==0 && visible && allocs==1);

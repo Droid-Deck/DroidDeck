@@ -51,7 +51,6 @@ public final class LinuxRuntime {
     }
 
     public static File liveDir(Context context) {
-        // Android may evict cache files even while guest processes are using them.
         File dir = new File(context.getNoBackupFilesDir(), "guest-runtime");
         dir.mkdirs();
         return dir;
@@ -64,9 +63,7 @@ public final class LinuxRuntime {
     }
 
     private static final String HOST_DIR = "opt/android-host";
-    /** The downloaded add-on pack. The APK does not ship this binary. */
     public static final String PROOT_PACK = "add-on pack";
-    /** Termux's unpatched proot inside the rootfs. Developer switch only. */
     public static final String PROOT_ROOTFS = "rootfs fallback";
     public static final String PROOT_MISSING = "missing";
 
@@ -82,7 +79,6 @@ public final class LinuxRuntime {
         return rootfsProot(context).isFile() && rootfsLoader(context).isFile();
     }
 
-    /** Patched proot is the add-on pack. The rootfs copy is not that binary. */
     public static boolean patchedProot(Context context) {
         return AddonPack.PROOT.installed(context);
     }
@@ -99,7 +95,6 @@ public final class LinuxRuntime {
         return AddonPack.PROOT.file(context, "libproot-loader.so");
     }
 
-    /** Where {@link #prootBinary} came from: {@link #PROOT_PACK}, {@link #PROOT_ROOTFS} or {@link #PROOT_MISSING}. */
     public static String prootSource(Context context) {
         File bin = prootBinary(context);
         if (!bin.isFile()) return PROOT_MISSING;
@@ -117,7 +112,6 @@ public final class LinuxRuntime {
         return hasRootfs(context) && (patchedProot(context) || rootfsProotReady(context));
     }
 
-    /** The rootfs alone: enough to read the game library, while the proot pack can still be downloading. */
     public static boolean hasRootfs(Context context) {
         if (LinuxRuntimeInstaller.isRemoving() || LinuxRuntimeInstaller.hasRemovalPending(context)) return false;
         File root = rootDir(context);
@@ -426,9 +420,6 @@ public final class LinuxRuntime {
         return thermalZone("ddr");
     }
 
-    // MangoHud reads the GPU and DDR temperatures from these zone numbers (bindAdrenoStats). On phones
-    // where they are CPU zones, their type follows the temperature put there, so they stay out of the
-    // CPU average.
     private static java.util.Map<String, String> replacedZoneTypes() {
         java.util.Map<String, String> replaced = new java.util.HashMap<>();
         if (gpuTempSource() != null) {
@@ -439,7 +430,6 @@ public final class LinuxRuntime {
         return replaced;
     }
 
-    /** The zones the session's MangoHud averages for the CPU temperature (all typed cpuN-thermal there). */
     public static List<File> cpuTempZones() {
         java.util.Map<String, String> replaced = replacedZoneTypes();
         List<File> zones = new ArrayList<>();

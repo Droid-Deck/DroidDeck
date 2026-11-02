@@ -1,5 +1,4 @@
 #!/usr/bin/python3
-"""Preserve SteamVR preferences across Quest's required compositor overrides."""
 import json
 import os
 from pathlib import Path

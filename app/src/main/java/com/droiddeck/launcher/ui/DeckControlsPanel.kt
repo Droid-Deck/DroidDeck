@@ -254,11 +254,8 @@ class DeckControlsPanel(
         show()
     }
 
-    /** Whether a finger going down at ([x], [y]) lands on one of the panel's controls. */
     fun takesTouchAt(x: Float, y: Float): Boolean = controlUnder(this, x, y)
 
-    // Every control here takes the touches it gets: buttons and tabs (clickable), the scrolling tab strip,
-    // and the drawn surfaces, pads and face buttons. The layouts around them do not.
     private fun controlUnder(view: View, x: Float, y: Float): Boolean {
         if (view.visibility != VISIBLE || x < 0f || y < 0f || x >= view.width || y >= view.height) return false
         if (view.isClickable || view is HorizontalScrollView || view is Surface || view is DirectionPad || view is FaceButtons) return true
@@ -715,10 +712,13 @@ class DeckControlsPanel(
                 }
             }
 
-        internal fun menuButton(context: Context, onClick: () -> Unit) = android.widget.ImageView(context).apply {
-            setImageResource(R.drawable.ic_stat_session)
+        internal fun menuButton(context: Context, onClick: () -> Unit) =
+            iconButton(context, R.drawable.ic_stat_session, context.getString(R.string.touch_droiddeck_menu), onClick)
+
+        internal fun iconButton(context: Context, icon: Int, description: String, onClick: () -> Unit) = android.widget.ImageView(context).apply {
+            setImageResource(icon)
             setColorFilter(TEXT)
-            contentDescription = context.getString(R.string.touch_droiddeck_menu)
+            contentDescription = description
             scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
             val pad = dp(context, 11)
             setPadding(pad, pad, pad, pad)

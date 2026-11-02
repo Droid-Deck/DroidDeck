@@ -27,7 +27,6 @@ class SessionLogShareZipTest {
         val earlySecret = "early-sessionid-abcdef123456"
         val trailingSecret = "late-refresh-token-abcdef123456"
         try {
-            // One long line exercises the streaming limit; the final ordinary line must still be redacted.
             raw.bufferedWriter().use { out ->
                 out.write("sessionid=$earlySecret")
                 val chunk = "x".repeat(8192)
@@ -40,7 +39,6 @@ class SessionLogShareZipTest {
             ZipFile(zip).use { archive ->
                 val entry = archive.getEntry("${session.name}/steam-42.log")!!
                 archive.getInputStream(entry).use { input ->
-                    // Only inspect the bounded scrubbed prefix: the pre-fix raw archive is over 64 MiB.
                     val expected = "${com.droiddeck.launcher.core.LogRedactor.OVERSIZED_LINE}\n"
                     val prefix = ByteArray(expected.toByteArray(StandardCharsets.UTF_8).size)
                     var offset = 0
@@ -74,7 +72,6 @@ class SessionLogShareZipTest {
                 "Authorization: Bearer abc.def.ghi\n" +
                 "kept: EResult 5, app 1086940, steamapps/common/Game\n"
         )
-        // StoreLogFiles.prune, started by App.onCreate, deletes a stores log named for a day over a week old.
         val storesLog = "stores-" + SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) + ".log"
         File(logs, "stores").apply { mkdirs() }.resolve(storesLog).writeText("epic: f_token=zzzzzzzz12 window 32\n")
         File(logs, SessionPaths.TOOLS_DIR).apply { mkdirs() }.resolve("flatpak-install.log").writeText("== install\nCookie: steamLoginSecure=76561198000000000%7C%7Ceyabc\n")

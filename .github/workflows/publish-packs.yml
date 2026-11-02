@@ -1,11 +1,5 @@
 name: Publish add-on packs
 
-# The add-on packs (tools/packs/build.sh) a Build APK run made, published to DroidDeck-Components under
-# content-addressed tags (pack-<name>-<first 16 hex of sha256>). The APK from that run pins each pack's
-# SHA-256 and downloads it from that tag. A tag is created once and never replaced.
-# Only main and release builds publish here; a PR test build attaches the packs main has not published
-# to its pr-N release on DroidDeck-CI (pr-release-publish.yml), which is deleted when the PR closes.
-
 on:
   workflow_call:
     inputs:

@@ -19,7 +19,6 @@ def enabled():
 
 
 def main_group(text):
-    """The [Desktop Entry] group's lines, and everything after it."""
     lines = text.splitlines()
     start = next((i for i, l in enumerate(lines) if l.strip() == "[Desktop Entry]"), None)
     if start is None:
@@ -56,8 +55,6 @@ def chromium_exec(exec_line):
 
 
 def gpu_exec(exec_line):
-    """The Exec that runs a program on the GPU; a Flatpak app goes through its launcher, which
-    keeps it on gamescope's X server instead of the desktop's Wayland socket."""
     if exec_line.startswith("/usr/bin/flatpak run ") or exec_line.startswith("flatpak run "):
         exec_line = "/usr/local/bin/droiddeck-flatpak-run " + exec_line.split(" run ", 1)[1]
     return "droiddeck-gpu " + exec_line

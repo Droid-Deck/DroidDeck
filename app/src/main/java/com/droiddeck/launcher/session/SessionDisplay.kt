@@ -7,6 +7,10 @@ object SessionDisplay {
     const val MATCH_SCREEN = "screen"
     const val FOLLOW_SCREEN = "follow"
     const val FOLLOW_MIN_SIDE = 480
+    val FOLLOW_SCALES = listOf(1.5f, 2f, 2.5f, 3f, 4f)
+    const val FOLLOW_CUSTOM = "follow/custom"
+    const val FOLLOW_SCALE_MAX = 8f
+    private const val FOLLOW_SCALED_PREFIX = "follow/"
 
     const val DEFAULT_RESOLUTION = "720p"
     private val PRESET_HEIGHTS = listOf(720, 900, 1080)
@@ -14,12 +18,30 @@ object SessionDisplay {
     fun presetHeight(choice: String): Int? =
         if (choice.endsWith("p")) choice.dropLast(1).toIntOrNull()?.takeIf { it > 0 } else null
 
+    fun followScaled(scale: Float): String = FOLLOW_SCALED_PREFIX + formatScale(scale)
+
+    fun formatScale(scale: Float): String =
+        (Math.round(scale * 10) / 10f).let { if (it % 1f == 0f) it.toInt().toString() else it.toString() }
+
+    fun parseFollowScale(text: String): Float? =
+        text.trim().replace(',', '.').toFloatOrNull()
+            ?.let { Math.round(it * 10) / 10f }?.takeIf { it > 1f && it <= FOLLOW_SCALE_MAX }
+
+    fun isFollow(choice: String): Boolean = followScale(choice) != null
+
+    fun followScale(choice: String): Float? = when {
+        choice == FOLLOW_SCREEN -> 1f
+        choice.startsWith(FOLLOW_SCALED_PREFIX) -> parseFollowScale(choice.removePrefix(FOLLOW_SCALED_PREFIX))
+        else -> null
+    }
+
     fun screenSize(panel: Pair<Int, Int>): Pair<Int, Int> =
         (maxOf(panel.first, panel.second) and 1.inv()) to (minOf(panel.first, panel.second) and 1.inv())
 
     fun resolveChoice(panel: Pair<Int, Int>, choice: String, portrait: Boolean = false): Pair<Int, Int> {
         fun orient(size: Pair<Int, Int>) = if (portrait) size.second to size.first else size
-        if (choice == MATCH_SCREEN || choice == FOLLOW_SCREEN) return orient(screenSize(panel))
+        if (choice == MATCH_SCREEN) return orient(screenSize(panel))
+        followScale(choice)?.let { return orient(scaledDown(screenSize(panel), it)) }
         presetHeight(choice)?.let { return orient(resolve(panel, it, SessionPrefs.SHAPE_AUTO)) }
         val parts = choice.split('x').map { it.toIntOrNull() }
         return if (parts.size == 2 && parts.all { it != null && it > 0 }) parts[0]!! to parts[1]!!
@@ -29,13 +51,16 @@ object SessionDisplay {
     fun resolutionOptions(panel: Pair<Int, Int>): List<String> {
         val panelHeight = minOf(panel.first, panel.second)
         return PRESET_HEIGHTS.filter { it <= panelHeight }.map { "${it}p" }
-            .filter { resolveChoice(panel, it) != screenSize(panel) } + MATCH_SCREEN + FOLLOW_SCREEN
+            .filter { resolveChoice(panel, it) != screenSize(panel) } + MATCH_SCREEN + FOLLOW_SCREEN + FOLLOW_SCALES.map(::followScaled)
     }
 
-    fun followSize(width: Int, height: Int, controlsBelow: Boolean = false): Pair<Int, Int>? =
+    fun followSize(width: Int, height: Int, controlsBelow: Boolean = false, scale: Float = 1f): Pair<Int, Int>? =
         if (width <= 0 || height <= 0 ||
             (if (controlsBelow) width else minOf(width, height)) < FOLLOW_MIN_SIDE) null
-        else (width and 1.inv()) to (height and 1.inv())
+        else scaledDown(width to height, scale)
+
+    private fun scaledDown(size: Pair<Int, Int>, scale: Float): Pair<Int, Int> =
+        (Math.round(size.first / scale) and 1.inv()) to (Math.round(size.second / scale) and 1.inv())
 
     const val UNFOLDED_MAX_GAME_SHARE = 0.8f
 

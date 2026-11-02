@@ -1,18 +1,4 @@
 #!/usr/bin/python3
-"""Sets the Steam client's interface language to the app's, before the client starts.
-
-    droiddeck-steam-language <home> <language>
-
-<language> is one of the client's language names (english, spanish, latam, japanese, koreana,
-schinese, tchinese, ...). The client reads it from <home>/.steam/registry.vdf, under
-HKCU/Software/Valve/Steam and again under .../Steamsteamglobal: that second key is copied over the
-first at every start, so setting only the first is undone by the old value. Its update window
-reads the first key alone, and nothing reads LANG. exportedsettings.json is what the client writes
-beside them when its own setting changes. The session also passes -language, which the interface
-honours over the file; the file is still what the update window shows itself in.
-
-Run only while the client is stopped: it keeps the registry in memory and writes it back on exit.
-"""
 import json
 import os
 import re
@@ -63,7 +49,6 @@ def serialize(tokens):
 
 
 def block_end(tokens, start):
-    """Index of the '}' closing the block whose '{' is at start."""
     depth = 0
     for i in range(start, len(tokens)):
         if tokens[i] == "{":
@@ -76,8 +61,6 @@ def block_end(tokens, start):
 
 
 def child(tokens, start, end, name):
-    """Index of the '{' of the block called name directly inside tokens[start:end], or None.
-    Keys are matched without case, as the client does."""
     i = start
     while i < end:
         if tokens[i] in ("{", "}"):
@@ -93,7 +76,6 @@ def child(tokens, start, end, name):
 
 
 def ensure_block(tokens, path):
-    """The '{' of the block at path, creating it and any missing parent at the end of its parent."""
     start, end = 0, len(tokens)
     for depth, name in enumerate(path):
         found = child(tokens, start, end, name)

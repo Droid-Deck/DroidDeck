@@ -238,7 +238,6 @@ internal fun GpuDriversBody(
     val scroll = rememberScrollState()
     val scope = rememberCoroutineScope()
     val placed = remember { arrayOfNulls<LayoutCoordinates>(2) }
-    // Focusing the top mode shows as much of the in-use card above it as fits, without hiding the mode itself.
     val revealCard = {
         val (viewport, top) = placed
         if (viewport != null && top != null && viewport.isAttached && top.isAttached) scope.launch {

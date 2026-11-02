@@ -73,7 +73,6 @@ object SelfInstaller {
         }
         @Suppress("DEPRECATION")
         val flags = if (Build.VERSION.SDK_INT >= 28) {
-            // Android 9 and 10 only collect an archive's certificates when GET_SIGNATURES is set.
             PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES
         } else {
             PackageManager.GET_SIGNATURES
@@ -138,7 +137,6 @@ object SelfInstaller {
         }
     }
 
-    /** Reports the session id before the commit, so a status broadcast that arrives right away is recognised. */
     fun install(context: Context, apk: File, onSession: (Int) -> Unit = {}) {
         val installer = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
@@ -161,7 +159,6 @@ object SelfInstaller {
         }
     }
 
-    /** Only a system installer activity may be launched from the status broadcast, without URI grants. */
     fun safeConfirmIntent(context: Context, confirm: Intent): Intent? {
         val target = confirm.resolveActivity(context.packageManager) ?: return null
         val info = runCatching { context.packageManager.getApplicationInfo(target.packageName, 0) }.getOrNull() ?: return null

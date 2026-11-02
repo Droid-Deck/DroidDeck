@@ -1,6 +1,4 @@
 #!/usr/bin/bash
-# Runs inside an Arch Linux ARM container (menci/archlinuxarm:base-devel) on an arm64 runner. Arch Linux ARM ships
-# no FEX package and FEX publishes no Linux binaries.
 set -euxo pipefail
 VERSION=${FEX_VERSION:-FEX-2610}
 WORK=/work
@@ -10,7 +8,6 @@ grep -q '^DisableSandbox' /etc/pacman.conf || sed -i 's/^\[options\]/[options]\n
 mv /etc/pacman.d/mirrorlist.new /etc/pacman.d/mirrorlist
 pacman -Syu --noconfirm --needed git zstd binutils cmake ninja clang lld llvm python squashfs-tools file patchelf xxhash
 
-# The x86 sysroot is Arch x86_64 and multilib i686 packages unpacked by pacman, never run: no scriptlets or signature checks.
 THUNKS=${FEX_THUNKS:-0}
 X86ROOT=$WORK/x86root
 if [ "$THUNKS" = 1 ]; then
@@ -40,15 +37,12 @@ fi
 
 rm -rf fex-src out && git clone -q --depth 1 --branch "$VERSION" --recurse-submodules --shallow-submodules https://github.com/FEX-Emu/FEX.git fex-src
 for p in tools/fex/patches/*.patch; do patch -d fex-src -p1 --no-backup-if-mismatch < "$p"; done
-# FEX's x86 toolchain files assume an x86 build machine; here the guest thunks need the x86 sysroot too.
-# Arch's clang adds stack protection; its canary load in a guest thunk's prologue clobbered r11 (the host function).
 if [ "$THUNKS" = 1 ]; then
   for t in fex-src/Data/CMake/toolchain_x86_64.cmake fex-src/Data/CMake/toolchain_x86_32.cmake; do
     printf '\nif (X86_DEV_ROOTFS AND NOT X86_DEV_ROOTFS STREQUAL "/")\n  set(CMAKE_SYSROOT "${X86_DEV_ROOTFS}")\nendif()\n' >> "$t"
     printf '\nset(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-stack-protector")\nset(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-stack-protector")\n' >> "$t"
   done
 fi
-# TUNE_CPU none: the default (native) would tune for the runner's Neoverse cores, not the device.
 cmake -S fex-src -B fex-build -G Ninja \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local \
   -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LINKER=lld \
@@ -60,8 +54,6 @@ cmake -S fex-src -B fex-build -G Ninja \
 ninja -C fex-build
 DESTDIR="$WORK/out" ninja -C fex-build install
 install -Dm755 /usr/bin/unsquashfs out/usr/local/bin/unsquashfs
-# The Linux runtime has no xxhash and no ld.so.cache: the library goes beside libFEXCore and the programs
-# that need it find it through RUNPATH.
 install -Dm644 "$(readlink -f /usr/lib/libxxhash.so.0)" out/usr/local/lib/libxxhash.so.0
 bundled=$(cd out/usr/local/lib && ls -- *.so* | sort -u)
 for f in out/usr/local/bin/*; do
@@ -70,7 +62,6 @@ for f in out/usr/local/bin/*; do
   readelf -d "$f" | awk '/NEEDED/ { gsub(/[\[\]]/, "", $5); print $5 }' | grep -qxF "$bundled" \
     && patchelf --set-rpath '$ORIGIN/../lib' "$f"
 done
-# Every NEEDED soname must resolve in a stock guest: bundled here or provided by the runtime (runtime-libs.txt).
 for f in out/usr/local/bin/* out/usr/local/lib/*.so* out/usr/local/lib/fex-emu/HostThunks*/*.so; do
   [ -f "$f" ] && file "$f" | grep -q ELF || continue
   readelf -d "$f" | awk '/NEEDED/ { gsub(/[\[\]]/, "", $5); print $5 }'

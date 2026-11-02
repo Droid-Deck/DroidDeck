@@ -1,7 +1,7 @@
-"""Attest prepared runtime inputs and reject stale local or CI APK payloads."""
 import hashlib
 import gzip
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -13,7 +13,6 @@ from zipfile import ZipFile
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = Path('app/build/runtime-inputs.json')
 PACKS = Path('app/build/packs')
-# Runtime trees shipped as add-on packs (tools/packs/build.sh) rather than inside the APK.
 PACKED = {'assets/linuxfs/usr/local/lib/droiddeck-xbox/': 'xbox', 'assets/linuxfs/usr/local/lib/droiddeck-comet/': 'comet',
           'assets/directaudio/': 'directaudio'}
 PACKED_FILES = {'lib/arm64-v8a/libproot.so': ('proot', 'libproot.so'),
@@ -30,11 +29,14 @@ SYSTEM_VULKAN_GAMESCOPE_MARKERS = (
     b'Nested swapchain: composing offscreen and copying to FIFO presentation images',
 )
 SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/assets/pulseaudio.tzst',
+                '.gitmodules', 'tools/syncthing/build.sh',
+                'tools/syncthing/syncthing-android/gradle/libs.versions.toml',
                 'tools/linuxfs', 'tools/proot', 'tools/aaudio-sink', 'tools/directaudio', 'tools/packs',
                 'tools/gamescope/release.env', 'tools/powervr/component-bootstrap.json', 'tools/droiddeck-esync/release.env',
                 'tools/mangoapp', 'tools/msitools', 'tools/pipewire', 'tools/comet', 'tools/xbox', 'tools/dirt-ws2', 'tools/components', 'tools/ci', 'tools/build_local.sh',
                 'tools/release/runtime_inputs.py', 'app/src/main/assets/desktop-removal',
                 'tools/quest', 'tools/vr/src', 'tools/vr/driver_droiddeck', 'tools/vr/layer', 'tools/vr/build.sh',
+                'tools/gpuload',
                 'app/src/main/cpp/waylandcomp/src/headpose_shm.h',
                 'app/src/main/cpp/venc/venc_proto.h',
                 'app/src/main/cpp/waylandcomp/src/spatialpose_shm.h',
@@ -52,13 +54,79 @@ def digest(path):
     return result.hexdigest()
 
 
+def normalized_submodule_status(status):
+    normalized = []
+    for line in status.splitlines():
+        object_id, separator, path = line[1:].partition(b' ')
+        if line[:1] not in (b' ', b'+', b'-', b'U') or not separator or not object_id or not path:
+            raise ValueError('Invalid Syncthing submodule status')
+        if path.endswith(b')') and b' (' in path:
+            path = path.rsplit(b' (', 1)[0]
+        if not path:
+            raise ValueError('Invalid Syncthing submodule status')
+        normalized.append(line[:1] + object_id + b' ' + path)
+    return b'\n'.join(normalized) + (b'\n' if normalized else b'')
+
+
+def syncthing_sources(root):
+    relative = 'tools/syncthing/syncthing-android'
+    checkout = root / relative
+    nested = checkout / 'syncthing/src/github.com/syncthing/syncthing'
+
+    def git(directory, *arguments):
+        process = subprocess.run(['git', '-C', str(directory), *arguments],
+                                 capture_output=True)
+        if process.returncode:
+            raise ValueError('Syncthing source is not initialized at the pinned revision')
+        return process.stdout
+
+    staged = git(root, 'ls-files', '--stage', '--', relative).decode().strip()
+    try:
+        fields, name = staged.split('\t', 1)
+        mode, pinned, stage = fields.split()
+    except ValueError as error:
+        raise ValueError('Syncthing source is not a pinned gitlink') from error
+    if mode != '160000' or stage != '0' or name != relative:
+        raise ValueError('Syncthing source is not a pinned gitlink')
+    if Path(os.fsdecode(git(checkout, 'rev-parse', '--show-toplevel').strip())).resolve() != \
+            checkout.resolve():
+        raise ValueError('Syncthing source is not initialized at the pinned revision')
+    checked_out = git(checkout, 'rev-parse', 'HEAD').decode().strip()
+    recursive = git(root, 'submodule', 'status', '--recursive', '--', relative)
+    lines = recursive.splitlines()
+    if not lines or any(line[:1] in (b'-', b'U') for line in lines):
+        raise ValueError('Syncthing source has an uninitialized submodule')
+    if Path(os.fsdecode(git(nested, 'rev-parse', '--show-toplevel').strip())).resolve() != \
+            nested.resolve():
+        raise ValueError('Syncthing nested source is not initialized')
+    source_head = git(nested, 'rev-parse', 'HEAD').decode().strip()
+    source_diff = git(nested, 'diff', '--binary', 'HEAD', '--')
+    untracked = git(nested, 'ls-files', '-z', '--others', '--exclude-standard')
+    untracked_digest = hashlib.sha256()
+    for encoded in sorted(name for name in untracked.split(b'\0') if name):
+        path = nested / os.fsdecode(encoded)
+        if not path.is_file() or path.is_symlink():
+            raise ValueError('Syncthing untracked source is not a regular file')
+        untracked_digest.update(encoded + b'\0' + path.read_bytes() + b'\0')
+    return {
+        relative + '/.gitlink': hashlib.sha256((pinned + '\n').encode()).hexdigest(),
+        relative + '/.checkout': hashlib.sha256((checked_out + '\n').encode()).hexdigest(),
+        relative + '/.submodules': hashlib.sha256(normalized_submodule_status(recursive)).hexdigest(),
+        relative + '/.source-head': hashlib.sha256((source_head + '\n').encode()).hexdigest(),
+        relative + '/.source-diff': hashlib.sha256(source_diff).hexdigest(),
+        relative + '/.source-untracked': untracked_digest.hexdigest(),
+    }
+
+
 def sources(root):
     files = []
     for name in SOURCE_PATHS:
         path = root / name
         files.extend(path.rglob('*') if path.is_dir() else [path])
-    return {path.relative_to(root).as_posix(): digest(path) for path in sorted(set(files))
-            if path.is_file() and '__pycache__' not in path.parts and path.suffix != '.pyc'}
+    result = {path.relative_to(root).as_posix(): digest(path) for path in sorted(set(files))
+              if path.is_file() and '__pycache__' not in path.parts and path.suffix != '.pyc'}
+    result.update(syncthing_sources(root))
+    return result
 
 
 def outputs(root):
@@ -68,7 +136,8 @@ def outputs(root):
         for path in base.rglob('*'):
             if path.is_file() and not any(part.startswith('.') for part in path.relative_to(base).parts):
                 result['assets/' + tree + '/' + path.relative_to(base).as_posix()] = path.relative_to(root).as_posix()
-    for library in ['libproot.so', 'libproot-loader.so', 'libdirectaudiorelay.so']:
+    for library in ['libproot.so', 'libproot-loader.so', 'libdirectaudiorelay.so',
+                    'libsyncthingnative.so']:
         result['lib/arm64-v8a/' + library] = 'app/src/main/jniLibs/arm64-v8a/' + library
     result['assets/pulseaudio.tzst'] = 'app/build/prepared-assets/pulseaudio.tzst'
     result['assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst'] = \
@@ -101,6 +170,8 @@ def required():
                'droiddeck/resources/settings/default.vrsettings', 'layer/libVkLayer_droiddeck_vr.so',
                'layer/VK_LAYER_DROIDDECK_vr.json', 'layer/VK_LAYER_DROIDDECK_vr_implicit.json',
                'layer/libdroiddeck_vr_scheduling.so']]
+    paths += ['assets/linuxfs/usr/local/lib/droiddeck-gpuload/' + name for name in
+              ['libVkLayer_droiddeck_gpuload.so', 'VK_LAYER_DROIDDECK_gpu_load.json']]
     for side in ['left', 'right']:
         paths += [f'assets/linuxfs/usr/local/lib/droiddeck-vr/droiddeck/resources/rendermodels/droiddeck_hand_{side}/{name}'
                   for name in [f'droiddeck_hand_{side}.json', 'hand.mtl', 'hand.png', 'hand_open.obj', 'hand_fist.obj',
@@ -119,7 +190,8 @@ def required():
                    'i386-windows/winedirectaudio.drv', 'version.txt']]
     paths += ['assets/droiddeck-esync/index.json', 'assets/droiddeck-esync/index.json.sig',
               'lib/arm64-v8a/libproot.so', 'lib/arm64-v8a/libproot-loader.so',
-              'lib/arm64-v8a/libdirectaudiorelay.so', 'assets/pulseaudio.tzst']
+              'lib/arm64-v8a/libdirectaudiorelay.so', 'lib/arm64-v8a/libsyncthingnative.so',
+              'assets/pulseaudio.tzst']
     paths += ['assets/desktop-removal/' + name for name in
               ['lxqt-r1.tsv.gzip', 'kde-remove.tsv.gzip', 'kde-keep.txt.gzip',
                'emulators-keep.txt.gzip', 'versions.txt', 'sources.json']]

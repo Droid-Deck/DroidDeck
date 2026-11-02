@@ -21,7 +21,6 @@ internal class ProtonMenu(
     private val ui: Handler,
     private val idle: () -> Boolean = { true },
 ) {
-    // Install workers and their results outlive the activity that starts them.
     private object Operation {
         val rows = mutableStateOf<List<ProtonRow>>(emptyList())
         val busyId = mutableStateOf<String?>(null)

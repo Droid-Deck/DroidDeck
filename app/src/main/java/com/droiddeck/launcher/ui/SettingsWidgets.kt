@@ -490,10 +490,11 @@ fun <T> ChoiceRow(
     options: List<Pair<T, String>>, selected: T, enabled: Boolean = true, note: String? = null,
     chipModifier: Modifier = Modifier,
     hintLines: Int? = null,
+    stacked: Boolean = false,
     onPick: (T) -> Unit,
 ) {
     val open = host.open == key
-    SettingsRow(label, hint, highlighted = open, hintLines = hintLines) {
+    SettingsRow(label, hint, highlighted = open, hintLines = hintLines, stacked = stacked) {
         Box {
             ValueChip(options.firstOrNull { it.first == selected }?.second ?: "-", open, enabled, modifier = chipModifier.testTag("setting-$key")) { host.open = if (open) null else key }
             AnchoredMenu(open, onDismiss = { if (host.open == key) host.open = null }, title = label, note = note) { firstItemFocus ->

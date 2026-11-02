@@ -78,6 +78,5 @@ static int svc_stack_room(uintptr_t sp) {
     if (grow < svc_stack_gap) grow = svc_stack_gap;
     if (grow < low) low = grow;
   }
-  /* Path translation nests several PATH_MAX-sized frames. */
   return sp - low >= 96 * 1024;
 }

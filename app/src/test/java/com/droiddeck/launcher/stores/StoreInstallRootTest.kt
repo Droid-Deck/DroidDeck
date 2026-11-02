@@ -201,6 +201,15 @@ class StoreInstallRootTest {
         assertTrue(StoreInstallRoot.unfinished(app).none { it.folder.absolutePath == half.absolutePath })
     }
 
+    @Test fun aGameBeingUpdatedIsNotAnUnfinishedInstallForAnyStore() {
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+        for (store in listOf(Store.EPIC, Store.ITCH, Store.XBOX, Store.AMAZON)) {
+            val folder = File(StoreInstallRoot.storeDir(StoreInstallRoot.internalRoot(app), store), StoreInstallRoot.folderName("Updating", "u1")).apply { mkdirs() }
+            StoreGameSidecar(store, "u1", "Updating", "Updating.exe", state = StoreGameSidecar.STATE_UPDATING).write(folder)
+            assertTrue(StoreInstallRoot.unfinished(app).none { it.folder.absolutePath == folder.absolutePath })
+        }
+    }
+
     @Test fun theScratchCacheIsPrivateAndNamedSafely() {
         val dir = StoreInstallRoot.scratchDir(app, Store.EPIC, "a/b:c")
         assertTrue(dir.absolutePath.startsWith(app.cacheDir.absolutePath))

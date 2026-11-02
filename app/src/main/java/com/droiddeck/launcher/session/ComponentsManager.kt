@@ -40,7 +40,6 @@ object ComponentsManager {
         "Dxvk-gplasync-Linux" to "dxvk",
         "Vkd3d-proton-Linux" to "vkd3d",
     )
-    // DD_NIGHTLY holds every component in one release; the file name says which.
     private val NIGHTLY_PREFIXES = linkedMapOf("DD-dxvk-" to "dxvk", "DD-vkd3d-proton-" to "vkd3d", "DD-FEXCore-" to "fex")
     private val SOURCES = RELEASES.keys.map { NIGHTLIES to it } + (DD_COMPONENTS to DD_NIGHTLY)
     private val DOWNLOAD_REPOS = listOf(NIGHTLIES, DD_COMPONENTS)

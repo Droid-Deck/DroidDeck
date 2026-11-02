@@ -1,6 +1,3 @@
-"""droiddeck-store-launch: a launch from anywhere - the Steam client's own Play button included -
-asks the app for an Epic game's sign-in code before Proton starts. These pin how it recognises a
-store game, how it asks, and that both Proton launchers call it."""
 import importlib.machinery
 import importlib.util
 import json

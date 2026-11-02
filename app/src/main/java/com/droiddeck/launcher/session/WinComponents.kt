@@ -110,11 +110,6 @@ object WinComponents {
 
     const val VCREDIST_ARM64 = "vcredist2022_arm64"
 
-    /**
-     * The ARM64 Visual C++ 2015-2022 runtime as registry values only (the version a 14.44.35211 installer writes, in both
-     * registry views). Xbox games' launchers running as ARM64EC check for it; Wine's own CRT does the work. Same approach as
-     * MGamer404's Bannerlator #627. Used until the catalog carries a component of this name.
-     */
     internal fun builtInArm64Runtime(): Component {
         fun value(view: String, name: String, type: String, data: String) = Step("set_register_key", JSONObject()
             .put("action", "set_register_key").put("key", "HKLM\\Software\\${view}Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\arm64")
@@ -401,7 +396,6 @@ object WinComponents {
             val archiveName = archive.optString("name")
             val url = c.snapshot.substringBeforeLast('/') + "/" + archiveName
             val file = File(work, "${c.name}.files.tar.xz")
-            // The snapshot came straight from github.com, so its digest may vouch for a mirror's copy of the archive.
             val sha = archive.optString("sha256").takeIf { it.matches(Regex("(?i)[0-9a-f]{64}")) }
             if (!Downloader.downloadFile(url, file, false, sha) { f -> onProgress(Progress(c.name, archiveName, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }) {
                 return null to "download failed: $archiveName"

@@ -3,7 +3,6 @@
 #include <string.h>
 #include <strings.h>
 
-/* Presentation only; this does not select a GPU driver or expand driver support. */
 static inline int quest_device_matches(const char *model, const char *device, const char *maker) {
     return !strcasecmp(model, "Quest 2") || !strcasecmp(model, "Quest 3") ||
            !strcasecmp(model, "Quest 3S") ||

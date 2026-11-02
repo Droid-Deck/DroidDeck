@@ -42,7 +42,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
-/** Bytes per second between two reads of the same download; 0 when it did not move or restarted. */
 internal fun downloadRate(previousDone: Long, previousAt: Long, done: Long, at: Long): Long =
     if (previousDone < 0L || done <= previousDone || at <= previousAt) 0L else (done - previousDone) * 1000L / (at - previousAt)
 

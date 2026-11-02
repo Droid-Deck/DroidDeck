@@ -55,7 +55,6 @@ tar -xf "$PKG" -C out --strip-components=2 usr/bin/gamescope
 mv out/gamescope out/usr/local/bin/gamescope
 chmod 755 out/usr/local/bin/gamescope
 strip --strip-unneeded out/usr/local/bin/gamescope || true
-# The WSI layer carries patches too (0117); the runtime's stock copy is replaced.
 mkdir -p out/usr/lib
 tar --use-compress-program=unzstd -xf "$PKG" -C out usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so
 strip --strip-unneeded out/usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so || true

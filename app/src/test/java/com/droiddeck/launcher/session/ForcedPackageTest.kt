@@ -36,7 +36,6 @@ class ForcedPackageTest {
                 ComponentsManager.unpackedCacheKey(filename)
                 fail("Expected cache traversal name to be rejected: $filename")
             } catch (_: IllegalArgumentException) {
-                // Expected: the derived path would be a dot segment.
             }
         }
     }

@@ -221,7 +221,10 @@ class DriverPairsTest {
         assertEquals(DriverPairs.ddTurnip("DD-Turnip-v1.0.0"), DriverPairs.recommendedKey(gpu(840), pairs))
         assertEquals("other 8xx keep WinNative", DriverPairs.WN_BALANCED, DriverPairs.recommendedKey(gpu(830), pairs))
         assertEquals(DriverPairs.WN_BALANCED, DriverPairs.recommendedKey(gpu(825), pairs))
-        assertEquals(DriverPairs.BANNER, DriverPairs.recommendedKey(gpu(740), pairs))
+        assertEquals(DriverPairs.ddTurnip("DD-Turnip-v1.0.0"), DriverPairs.recommendedKey(gpu(740), pairs))
+        assertEquals(DriverPairs.ddTurnip("DD-Turnip-v1.0.0"), DriverPairs.recommendedKey(gpu(722), pairs))
+        assertEquals(DriverPairs.BANNER_ONEUI, DriverPairs.recommendedKey(gpu(740, oneUi = true), pairs))
+        assertEquals(DriverPairs.BANNER, DriverPairs.recommendedKey(gpu(650), pairs))
     }
 
     @Test

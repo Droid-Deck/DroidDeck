@@ -113,6 +113,13 @@ same WSI layer, and with eight images and no frame limit it drew flat out
 (about 240 frames a second at 120 Hz) and heated the device. Values set in the
 launch options or the environment editor are kept.
 
+DOOM (2016) is the exception (`DOOMx64vk.exe` beside the launched program, which
+is `DOOMx64.exe` for a GOG install). It asks for exactly two images and stops with
+`FATAL ERROR: getSwapchainImagesKHR failed with error (VK_SUCCESS)` when it gets
+more, so its fix removes both variables, also from its launch options, and sets
+`vk_x11_strict_image_count=true`, the option Mesa's driconf gives the game. A
+per-game value in the environment editor still wins.
+
 ## Defaults and available suggestions
 
 The initial configuration enables Mesa shader caching with

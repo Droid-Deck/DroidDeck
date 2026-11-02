@@ -81,7 +81,7 @@ object StoresState {
             runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetClient.syncAccount(app) }
             val found = Store.entries.mapNotNull { store -> StoreAccounts.displayName(app, store)?.let { store to it } }
             val onDisk = StoreInstallRoot.gameFolders(app).mapNotNull { folder ->
-                StoreGameSidecar.read(folder)?.takeIf { it.isInstalled || it.store == Store.GOG && it.state == StoreGameSidecar.STATE_UPDATING }?.let { InstalledStoreGame(it, folder) }
+                StoreGameSidecar.read(folder)?.takeIf { it.isInstalled || it.state == StoreGameSidecar.STATE_UPDATING }?.let { InstalledStoreGame(it, folder) }
             } + runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetBackend.installedGames(app) }.getOrDefault(emptyList())
             val partial = StoreInstallRoot.unfinished(app)
             val version = if (StoresNative.available) StoresNative.version ?: "" else ""
@@ -145,7 +145,6 @@ object StoresState {
 
     private val libraryAsked = java.util.concurrent.ConcurrentHashMap<Store, Long>()
 
-    /** Once per store, again after a minute when the last sync never produced a library (offline, expired sign-in). */
     fun loadLibrary(context: Context, store: Store) {
         if (!isSignedIn(store) || library.containsKey(store)) return
         val now = android.os.SystemClock.elapsedRealtime()
@@ -205,7 +204,6 @@ object StoresState {
     }
 
     var openDownloads by mutableStateOf(false)
-    /** A "store:id" key another page asks the Stores page to open. */
     var openGameRequest by mutableStateOf<String?>(null)
 
     private fun askForNotifications(context: Context) {
@@ -323,10 +321,6 @@ object StoresState {
 
     internal fun post(block: () -> Unit) = main.post(block)
 
-    /**
-     * A worker thread whose failure is logged. An uncaught exception on a plain Thread reaches the crash
-     * handler, which ends the whole app, and none of these jobs is worth that.
-     */
     private fun background(name: String, onFailure: () -> Unit = {}, block: () -> Unit) {
         Thread({
             try {
