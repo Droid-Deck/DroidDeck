@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">Steam 正在下载时推迟后台暂停。</string>
     <string name="mode_suspend_note">自动会在后台暂停并在显示时恢复。手动会等待点按恢复。“从不”则保持运行。</string>
     <string name="mode_startup">启动</string>
-    <string name="mode_steam_startup">随 DroidDeck 启动 Steam</string>
-    <string name="mode_steam_startup_hint">启动 DroidDeck 时打开 Steam 会话。</string>
+    <string name="mode_startup_session">启动时打开</string>
+    <string name="mode_startup_session_hint">DroidDeck 启动时开始此会话。</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">正在检查发布版本…</string>
     <string name="mode_decky_ready">已就绪，可安装 %1$s。</string>
@@ -879,13 +879,9 @@
     <string name="setup_fullscreen">全屏</string>
     <string name="setup_fullscreen_on">隐藏 Android 状态栏和导航栏</string>
     <string name="setup_fullscreen_off">显示 Android 状态栏和导航栏</string>
-    <string name="setup_dual_screen">双屏</string>
-    <string name="setup_dual_screen_hint">自动：在内置第二块屏幕的掌机上使用该屏幕。开启：使用任何第二块显示器。关闭：所有内容只显示在一块屏幕上。</string>
     <string name="setup_dual_screen_auto">自动</string>
     <string name="setup_dual_screen_on">开启</string>
     <string name="setup_dual_screen_off">关闭</string>
-    <string name="setup_dual_screen_menu">下屏菜单</string>
-    <string name="setup_dual_screen_menu_hint">将各个分区和游戏内菜单移到第二块屏幕并在那里输入，让上屏保持完整画面。L2 和 R2 切换分区。</string>
     <string name="setup_dual_screen_controls">游戏中的下屏控制</string>
     <string name="setup_dual_screen_controls_hint">会话开始时在第二块屏幕上打开触控板和键盘。</string>
     <string name="dual_typing_title">正在为上屏输入</string>
@@ -1858,8 +1854,6 @@
     <string name="stats_trace">油门和刹车，最近 10 s</string>
     <string name="stats_speed_chart">速度，%1$s</string>
     <string name="stats_gear">挡位</string>
-    <string name="stats_speed_units">速度单位</string>
-    <string name="stats_speed_units_auto">自动（%1$s）</string>
     <string name="stats_steam_client_arm">Steam 客户端 ARM</string>
     <string name="stats_steam_client_x86">Steam 客户端 x86</string>
     <string name="stats_throttle">油门</string>
@@ -1877,7 +1871,6 @@
     <string name="stats_fuel_t">燃料，t</string>
     <string name="stats_fuel_main">主油箱 %1$s t</string>
     <string name="stats_fuel_reserve">备用 %1$s t</string>
-    <string name="stats_tap_hint">点按顶部横条或仪表可更改其样式。</string>
     <string name="bottom_telemetry_send_title">发送仪表盘数据</string>
     <string name="bottom_telemetry_send_auto">自动</string>
     <string name="bottom_telemetry_send_auto_hint">为此处列出的所有游戏开启，包括之后发现的游戏。你手动关闭的游戏会保持关闭。</string>
@@ -1916,7 +1909,6 @@
     <string name="bottom_telemetry_balance">余额</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">开启赛车游戏的数据输出（通常称为遥测或 UDP），即可在此查看实时仪表。数据仅保留在此设备上。</string>
     <string name="bottom_telemetry_unknown_format">端口 %1$d 正在接收数据（%2$d 个 %3$d 字节的数据包），但其格式本页面暂时无法读取。</string>
     <string name="bottom_telemetry_port_busy">端口 %1$s 已被其他程序占用，因此该游戏无法在此显示。</string>
 
@@ -3602,4 +3594,33 @@
     <string name="gog_repair_action">修复文件</string>
     <string name="gog_refresh_action">刷新安装</string>
     <string name="gog_select_patch">选择</string>
+    <string name="stores_gamejolt_not_owned">不在你的 Game Jolt 库中</string>
+    <string name="stores_gamejolt_no_build">这个游戏没有 Windows 下载</string>
+    <string name="stores_gamejolt_no_exe">下载内容中未找到 Windows 游戏</string>
+    <string name="stores_gamejolt_no_game">在 Game Jolt 上找不到这款游戏</string>
+    <string name="stores_gamejolt_browse_failed">无法从 Game Jolt 加载游戏</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt 返回 HTTP %1$d</string>
+    <string name="stores_gamejolt_pick_failed">无法从 Game Jolt 加载下载内容</string>
+    <string name="stores_gamejolt_build_open">在 Game Jolt 上打开</string>
+    <string name="stores_gamejolt_archive">不支持 %1$s 压缩包</string>
+    <string name="stores_gamejolt_extract_failed">无法解压下载内容（代码 %1$d）</string>
+    <string name="stores_gamejolt_download_unreachable">无法连接到 Game Jolt</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt 未提供下载链接</string>
+    <string name="stores_gamejolt_section_featured">精选</string>
+    <string name="stores_gamejolt_section_hot">热门</string>
+    <string name="stores_gamejolt_section_best">最佳</string>
+    <string name="stores_gamejolt_section_new">最新</string>
+    <string name="stores_gamejolt_price_under_30">30 美元以下</string>
+    <string name="stores_gamejolt_os_other">其他</string>
+    <string name="stores_gamejolt_maturity_everyone">全年龄</string>
+    <string name="stores_gamejolt_maturity_teen">青少年</string>
+    <string name="stores_gamejolt_maturity_adult">成人</string>
+    <string name="stores_gamejolt_status_complete">已完成</string>
+    <string name="stores_gamejolt_status_early">抢先体验</string>
+    <string name="stores_gamejolt_partners">合作伙伴游戏</string>
+    <string name="stores_gamejolt_filter_browser">浏览器</string>
+    <string name="stores_gamejolt_filter_maturity">内容分级</string>
+    <string name="stores_gamejolt_filter_status">状态</string>
+    <string name="stores_gamejolt_filter_partners">合作伙伴</string>
+    <string name="stores_gamejolt_followed">已关注的游戏</string>
 </resources>

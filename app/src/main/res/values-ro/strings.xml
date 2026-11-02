@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">Întârzie suspendarea în fundal cât timp Steam descarcă activ.</string>
     <string name="mode_suspend_note">Automat pune pe pauză în fundal și reia atunci când este afișată. Manual așteaptă Reluare. Niciodată continuă să ruleze.</string>
     <string name="mode_startup">Pornire</string>
-    <string name="mode_steam_startup">Pornește Steam odată cu DroidDeck</string>
-    <string name="mode_steam_startup_hint">Deschide sesiunea Steam la lansarea DroidDeck.</string>
+    <string name="mode_startup_session">Deschide la pornire</string>
+    <string name="mode_startup_session_hint">Pornește această sesiune când se lansează DroidDeck.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Se verifică versiunile…</string>
     <string name="mode_decky_ready">Pregătit pentru instalarea %1$s.</string>
@@ -884,13 +884,9 @@
     <string name="setup_fullscreen">Ecran complet</string>
     <string name="setup_fullscreen_on">Ascunde barele de stare și de navigare Android</string>
     <string name="setup_fullscreen_off">Arată barele de stare și de navigare Android</string>
-    <string name="setup_dual_screen">Ecran dublu</string>
-    <string name="setup_dual_screen_hint">Automat folosește al doilea ecran pe consolele portabile care au unul integrat. Pornit folosește orice al doilea afișaj. Oprit păstrează totul pe un singur ecran.</string>
     <string name="setup_dual_screen_auto">Automat</string>
     <string name="setup_dual_screen_on">Pornit</string>
     <string name="setup_dual_screen_off">Oprit</string>
-    <string name="setup_dual_screen_menu">Meniu pe ecranul de jos</string>
-    <string name="setup_dual_screen_menu_hint">Mută secțiunile și meniul din joc pe al doilea ecran și scrierea se face acolo, astfel încât ecranul de sus păstrează imaginea completă. L2 și R2 schimbă secțiunea.</string>
     <string name="setup_dual_screen_controls">Comenzi pe ecranul de jos în jocuri</string>
     <string name="setup_dual_screen_controls_hint">Deschide trackpadul și tastatura pe al doilea ecran când pornește o sesiune.</string>
     <string name="dual_typing_title">Scriere pentru ecranul de sus</string>
@@ -1824,8 +1820,6 @@
     <string name="stats_trace">Accelerație și frână, ultimele 10 s</string>
     <string name="stats_speed_chart">Viteză, %1$s</string>
     <string name="stats_gear">Treaptă</string>
-    <string name="stats_speed_units">Unități de viteză</string>
-    <string name="stats_speed_units_auto">Automat (%1$s)</string>
     <string name="stats_steam_client_arm">Client Steam ARM</string>
     <string name="stats_steam_client_x86">Client Steam x86</string>
     <string name="stats_throttle">Accelerație</string>
@@ -1843,7 +1837,6 @@
     <string name="stats_fuel_t">Combustibil, t</string>
     <string name="stats_fuel_main">Principal %1$s t</string>
     <string name="stats_fuel_reserve">Rezervă %1$s t</string>
-    <string name="stats_tap_hint">Atinge banda de sus sau bordul pentru a-i schimba stilul.</string>
     <string name="bottom_telemetry_send_title">Trimite date pentru tabloul de bord</string>
     <string name="bottom_telemetry_send_auto">Automat</string>
     <string name="bottom_telemetry_send_auto_hint">Activează trimiterea pentru fiecare joc din listă, inclusiv pentru jocurile găsite mai târziu. Jocurile pe care le dezactivezi rămân dezactivate.</string>
@@ -1882,7 +1875,6 @@
     <string name="bottom_telemetry_balance">Sold</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Activează ieșirea de date a unui joc de curse (numită adesea telemetrie sau UDP) pentru a vedea aici un bord în timp real. Datele rămân pe acest dispozitiv.</string>
     <string name="bottom_telemetry_unknown_format">Portul %1$d primește date (%2$d pachete de %3$d octeți), dar într-un format pe care această pagină nu îl poate citi încă.</string>
     <string name="bottom_telemetry_port_busy">Alt program folosește deja portul %1$s, așa că acel joc nu poate fi afișat aici.</string>
 
@@ -3664,4 +3656,33 @@
     <string name="gog_repair_action">Repară fișierele</string>
     <string name="gog_refresh_action">Reîmprospătează instalarea</string>
     <string name="gog_select_patch">Selectează</string>
+    <string name="stores_gamejolt_not_owned">Nu este în biblioteca ta Game Jolt</string>
+    <string name="stores_gamejolt_no_build">Nu există descărcare pentru Windows la acest joc</string>
+    <string name="stores_gamejolt_no_exe">Nu s-a găsit niciun joc Windows în descărcare</string>
+    <string name="stores_gamejolt_no_game">Jocul nu a fost găsit pe Game Jolt</string>
+    <string name="stores_gamejolt_browse_failed">Nu s-au putut încărca jocurile de pe Game Jolt</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt a răspuns HTTP %1$d</string>
+    <string name="stores_gamejolt_pick_failed">Descărcările de pe Game Jolt nu au putut fi încărcate</string>
+    <string name="stores_gamejolt_build_open">Deschide pe Game Jolt</string>
+    <string name="stores_gamejolt_archive">Arhivele %1$s nu sunt acceptate</string>
+    <string name="stores_gamejolt_extract_failed">Descărcarea nu a putut fi extrasă (cod %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">Nu s-a putut contacta Game Jolt</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt nu a oferit un link de descărcare</string>
+    <string name="stores_gamejolt_section_featured">Recomandate</string>
+    <string name="stores_gamejolt_section_hot">În tendințe</string>
+    <string name="stores_gamejolt_section_best">Cele mai bune</string>
+    <string name="stores_gamejolt_section_new">Noi</string>
+    <string name="stores_gamejolt_price_under_30">30 $ sau mai puțin</string>
+    <string name="stores_gamejolt_os_other">Altele</string>
+    <string name="stores_gamejolt_maturity_everyone">Toate vârstele</string>
+    <string name="stores_gamejolt_maturity_teen">Adolescenți</string>
+    <string name="stores_gamejolt_maturity_adult">Adulți</string>
+    <string name="stores_gamejolt_status_complete">Finalizat</string>
+    <string name="stores_gamejolt_status_early">Acces anticipat</string>
+    <string name="stores_gamejolt_partners">Jocuri partenere</string>
+    <string name="stores_gamejolt_filter_browser">Browser</string>
+    <string name="stores_gamejolt_filter_maturity">Maturitate</string>
+    <string name="stores_gamejolt_filter_status">Stare</string>
+    <string name="stores_gamejolt_filter_partners">Parteneri</string>
+    <string name="stores_gamejolt_followed">Jocuri urmărite</string>
 </resources>

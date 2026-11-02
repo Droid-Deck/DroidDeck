@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">Skjut upp bakgrundspausning medan Steam aktivt laddar ned.</string>
     <string name="mode_suspend_note">Auto pausar i bakgrunden och återupptar när den visas. Manuell väntar på Återuppta. Aldrig fortsätter köra.</string>
     <string name="mode_startup">Uppstart</string>
-    <string name="mode_steam_startup">Starta Steam med DroidDeck</string>
-    <string name="mode_steam_startup_hint">Öppnar Steam-sessionen när DroidDeck startar.</string>
+    <string name="mode_startup_session">Öppna vid start</string>
+    <string name="mode_startup_session_hint">Startar den här sessionen när DroidDeck startar.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Söker efter utgåvor…</string>
     <string name="mode_decky_ready">Redo att installera %1$s.</string>
@@ -881,13 +881,9 @@
     <string name="setup_fullscreen">Helskärm</string>
     <string name="setup_fullscreen_on">Döljer Androids statusfält och navigeringsfält</string>
     <string name="setup_fullscreen_off">Visar Androids statusfält och navigeringsfält</string>
-    <string name="setup_dual_screen">Dubbelskärm</string>
-    <string name="setup_dual_screen_hint">Automatiskt använder den andra skärmen på handhållna enheter med en inbyggd andra skärm. På använder vilken andra skärm som helst. Av håller allt på en skärm.</string>
     <string name="setup_dual_screen_auto">Automatiskt</string>
     <string name="setup_dual_screen_on">På</string>
     <string name="setup_dual_screen_off">Av</string>
-    <string name="setup_dual_screen_menu">Meny på nedre skärmen</string>
-    <string name="setup_dual_screen_menu_hint">Flyttar avsnitten och menyn i spelet till den andra skärmen och skrivandet sker där, så att den övre skärmen behåller hela vyn. L2 och R2 byter avsnitt.</string>
     <string name="setup_dual_screen_controls">Kontroller på nedre skärmen i spel</string>
     <string name="setup_dual_screen_controls_hint">Öppnar styrplattan och tangentbordet på den andra skärmen när en session startar.</string>
     <string name="dual_typing_title">Skriver för den övre skärmen</string>
@@ -1802,8 +1798,6 @@
     <string name="stats_trace">Gas och broms, senaste 10 s</string>
     <string name="stats_speed_chart">Hastighet, %1$s</string>
     <string name="stats_gear">Växel</string>
-    <string name="stats_speed_units">Hastighetsenhet</string>
-    <string name="stats_speed_units_auto">Automatisk (%1$s)</string>
     <string name="stats_steam_client_arm">Steam-klient ARM</string>
     <string name="stats_steam_client_x86">Steam-klient x86</string>
     <string name="stats_throttle">Gas</string>
@@ -1821,7 +1815,6 @@
     <string name="stats_fuel_t">Bränsle, t</string>
     <string name="stats_fuel_main">Huvudtank %1$s t</string>
     <string name="stats_fuel_reserve">Reserv %1$s t</string>
-    <string name="stats_tap_hint">Tryck på den övre remsan eller instrumentpanelen för att byta stil.</string>
     <string name="bottom_telemetry_send_title">Skicka data till instrumentpanelen</string>
     <string name="bottom_telemetry_send_auto">Automatiskt</string>
     <string name="bottom_telemetry_send_auto_hint">Slår på det för alla spel i listan, även spel som hittas senare. Spel som du stänger av förblir avstängda.</string>
@@ -1860,7 +1853,6 @@
     <string name="bottom_telemetry_balance">Saldo</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Slå på datautmatning i ett racingspel (kallas ofta telemetri eller UDP) för att se en liveinstrumentpanel här. Datan stannar på den här enheten.</string>
     <string name="bottom_telemetry_unknown_format">Port %1$d tar emot data (%2$d paket på %3$d byte), men i ett format som den här sidan inte kan läsa än.</string>
     <string name="bottom_telemetry_port_busy">Ett annat program använder redan port %1$s, så det spelet kan inte visas här.</string>
 
@@ -3627,4 +3619,33 @@
     <string name="gog_repair_action">Reparera filer</string>
     <string name="gog_refresh_action">Uppdatera installationen</string>
     <string name="gog_select_patch">Välj</string>
+    <string name="stores_gamejolt_not_owned">Inte i ditt Game Jolt-bibliotek</string>
+    <string name="stores_gamejolt_no_build">Ingen Windows-nedladdning för det här spelet</string>
+    <string name="stores_gamejolt_no_exe">Inget Windows-spel hittades i nedladdningen</string>
+    <string name="stores_gamejolt_no_game">Spelet hittades inte på Game Jolt</string>
+    <string name="stores_gamejolt_browse_failed">Det gick inte att läsa in spel från Game Jolt</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt svarade HTTP %1$d</string>
+    <string name="stores_gamejolt_pick_failed">Det gick inte att läsa in nedladdningarna från Game Jolt</string>
+    <string name="stores_gamejolt_build_open">Öppna på Game Jolt</string>
+    <string name="stores_gamejolt_archive">%1$s-arkiv stöds inte</string>
+    <string name="stores_gamejolt_extract_failed">Det gick inte att packa upp nedladdningen (kod %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">Det gick inte att nå Game Jolt</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt gav ingen nedladdningslänk</string>
+    <string name="stores_gamejolt_section_featured">Utvalda</string>
+    <string name="stores_gamejolt_section_hot">Populära</string>
+    <string name="stores_gamejolt_section_best">Bästa</string>
+    <string name="stores_gamejolt_section_new">Nya</string>
+    <string name="stores_gamejolt_price_under_30">$30 eller mindre</string>
+    <string name="stores_gamejolt_os_other">Övrigt</string>
+    <string name="stores_gamejolt_maturity_everyone">Alla åldrar</string>
+    <string name="stores_gamejolt_maturity_teen">Tonåringar</string>
+    <string name="stores_gamejolt_maturity_adult">Vuxna</string>
+    <string name="stores_gamejolt_status_complete">Färdigt</string>
+    <string name="stores_gamejolt_status_early">Tidig åtkomst</string>
+    <string name="stores_gamejolt_partners">Partnerspel</string>
+    <string name="stores_gamejolt_filter_browser">Webbläsare</string>
+    <string name="stores_gamejolt_filter_maturity">Åldersgräns</string>
+    <string name="stores_gamejolt_filter_status">Status</string>
+    <string name="stores_gamejolt_filter_partners">Partner</string>
+    <string name="stores_gamejolt_followed">Följda spel</string>
 </resources>

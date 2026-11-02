@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">Steam etkin olarak indirme yaparken arka planda askıya almayı erteler.</string>
     <string name="mode_suspend_note">Otomatik: arka planda duraklatır, gösterilince devam eder. Manuel: Devam et\'i bekler. Asla: çalışmaya devam eder.</string>
     <string name="mode_startup">Başlangıç</string>
-    <string name="mode_steam_startup">Steam\'i DroidDeck ile başlat</string>
-    <string name="mode_steam_startup_hint">DroidDeck açıldığında Steam oturumunu açar.</string>
+    <string name="mode_startup_session">Açılışta başlat</string>
+    <string name="mode_startup_session_hint">DroidDeck açıldığında bu oturumu başlatır.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Sürümler kontrol ediliyor…</string>
     <string name="mode_decky_ready">%1$s yüklenmeye hazır.</string>
@@ -873,13 +873,9 @@
     <string name="setup_fullscreen">Tam ekran</string>
     <string name="setup_fullscreen_on">Android durum ve gezinme çubuklarını gizler</string>
     <string name="setup_fullscreen_off">Android durum ve gezinme çubuklarını gösterir</string>
-    <string name="setup_dual_screen">Çift ekran</string>
-    <string name="setup_dual_screen_hint">Otomatik, dahili ikinci ekranı olan el konsollarında ikinci ekranı kullanır. Açık, herhangi bir ikinci ekranı kullanır. Kapalı, her şeyi tek ekranda tutar.</string>
     <string name="setup_dual_screen_auto">Otomatik</string>
     <string name="setup_dual_screen_on">Açık</string>
     <string name="setup_dual_screen_off">Kapalı</string>
-    <string name="setup_dual_screen_menu">Alt ekran menüsü</string>
-    <string name="setup_dual_screen_menu_hint">Bölümleri ve oyun içi menüyü ikinci ekrana taşır ve yazma orada yapılır, böylece üst ekran tam görünümü korur. L2 ve R2 bölümler arasında geçiş yapar.</string>
     <string name="setup_dual_screen_controls">Oyunlarda alt ekran kontrolleri</string>
     <string name="setup_dual_screen_controls_hint">Bir oturum başladığında ikinci ekranda dokunmatik yüzeyi ve klavyeyi açar.</string>
     <string name="dual_typing_title">Üst ekran için yazılıyor</string>
@@ -1794,8 +1790,6 @@
     <string name="stats_trace">Gaz ve fren, son 10 s</string>
     <string name="stats_speed_chart">Hız, %1$s</string>
     <string name="stats_gear">Vites</string>
-    <string name="stats_speed_units">Hız birimi</string>
-    <string name="stats_speed_units_auto">Otomatik (%1$s)</string>
     <string name="stats_steam_client_arm">Steam İstemcisi ARM</string>
     <string name="stats_steam_client_x86">Steam İstemcisi x86</string>
     <string name="stats_throttle">Gaz</string>
@@ -1813,7 +1807,6 @@
     <string name="stats_fuel_t">Yakıt, t</string>
     <string name="stats_fuel_main">Ana %1$s t</string>
     <string name="stats_fuel_reserve">Yedek %1$s t</string>
-    <string name="stats_tap_hint">Stilini değiştirmek için üst şeride veya göstergeye dokunun.</string>
     <string name="bottom_telemetry_send_title">Gösterge verilerini gönder</string>
     <string name="bottom_telemetry_send_auto">Otomatik</string>
     <string name="bottom_telemetry_send_auto_hint">Sonradan bulunanlar dahil, burada listelenen her oyun için açar. Kapattığınız oyunlar kapalı kalır.</string>
@@ -1852,7 +1845,6 @@
     <string name="bottom_telemetry_balance">Bakiye</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Burada canlı bir gösterge görmek için yarış oyununun veri çıkışını (genellikle telemetri veya UDP olarak geçer) açın. Veriler bu cihazda kalır.</string>
     <string name="bottom_telemetry_unknown_format">%1$d portu veri alıyor (%3$d baytlık %2$d paket), ancak bu sayfanın henüz okuyamadığı bir biçimde.</string>
     <string name="bottom_telemetry_port_busy">%1$s portunu zaten başka bir program kullanıyor, bu yüzden o oyun burada gösterilemez.</string>
 
@@ -3627,4 +3619,33 @@
     <string name="gog_repair_action">Dosyaları onar</string>
     <string name="gog_refresh_action">Kurulumu yenile</string>
     <string name="gog_select_patch">Seç</string>
+    <string name="stores_gamejolt_not_owned">Game Jolt kütüphanenizde yok</string>
+    <string name="stores_gamejolt_no_build">Bu oyunun Windows indirmesi yok</string>
+    <string name="stores_gamejolt_no_exe">İndirmede Windows oyunu bulunamadı</string>
+    <string name="stores_gamejolt_no_game">Bu oyun Game Jolt\'ta bulunamadı</string>
+    <string name="stores_gamejolt_browse_failed">Game Jolt oyunları yüklenemedi</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt HTTP %1$d yanıtı verdi</string>
+    <string name="stores_gamejolt_pick_failed">İndirmeler Game Jolt\'tan yüklenemedi</string>
+    <string name="stores_gamejolt_build_open">Game Jolt\'ta aç</string>
+    <string name="stores_gamejolt_archive">%1$s arşivleri desteklenmiyor</string>
+    <string name="stores_gamejolt_extract_failed">İndirme ayıklanamadı (kod %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">Game Jolt\'a ulaşılamadı</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt bir indirme bağlantısı vermedi</string>
+    <string name="stores_gamejolt_section_featured">Öne çıkanlar</string>
+    <string name="stores_gamejolt_section_hot">Popüler</string>
+    <string name="stores_gamejolt_section_best">En iyiler</string>
+    <string name="stores_gamejolt_section_new">Yeni</string>
+    <string name="stores_gamejolt_price_under_30">30 $ veya daha az</string>
+    <string name="stores_gamejolt_os_other">Diğer</string>
+    <string name="stores_gamejolt_maturity_everyone">Her yaş</string>
+    <string name="stores_gamejolt_maturity_teen">Gençler</string>
+    <string name="stores_gamejolt_maturity_adult">Yetişkin</string>
+    <string name="stores_gamejolt_status_complete">Tamamlandı</string>
+    <string name="stores_gamejolt_status_early">Erken erişim</string>
+    <string name="stores_gamejolt_partners">Ortak oyunlar</string>
+    <string name="stores_gamejolt_filter_browser">Tarayıcı</string>
+    <string name="stores_gamejolt_filter_maturity">Yaş sınırı</string>
+    <string name="stores_gamejolt_filter_status">Durum</string>
+    <string name="stores_gamejolt_filter_partners">Ortaklar</string>
+    <string name="stores_gamejolt_followed">Takip edilen oyunlar</string>
 </resources>

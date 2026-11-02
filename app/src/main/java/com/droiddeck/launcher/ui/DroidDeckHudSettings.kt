@@ -110,13 +110,13 @@ private fun BottomStripSettings(host: MenuHost, track: (String) -> Modifier) {
     var hudOn by remember { mutableStateOf(SessionPrefs.bottomHud(context)) }
     var onTabs by remember { mutableStateOf(SessionPrefs.bottomStripOnTabs(context)) }
     var shown by remember { mutableStateOf(SessionPrefs.bottomStripMetrics(context)) }
-    SettingsGroup(stringResource(R.string.bottom_hud_group), detail = stringResource(R.string.bottom_hud_group_detail)) {
-        ToggleRow(host, "bottom-hud", stringResource(R.string.bottom_hud_group), stringResource(R.string.bottom_hud_hint), hudOn,
+    SettingsGroup(stringResource(R.string.bottom_hud_group)) {
+        ToggleRow(host, "bottom-hud", stringResource(R.string.bottom_hud_group), null, hudOn,
             chipModifier = track("bottom-hud")) { on ->
             hudOn = on
             SessionPrefs.setBottomHud(context, on)
         }
-        ToggleRow(host, "bottom-strip-tabs", stringResource(R.string.bottom_strip_tabs), stringResource(R.string.bottom_strip_tabs_hint), onTabs,
+        ToggleRow(host, "bottom-strip-tabs", stringResource(R.string.bottom_strip_tabs), null, onTabs,
             enabled = hudOn, chipModifier = track("bottom-strip-tabs")) { on ->
             onTabs = on
             SessionPrefs.setBottomStripOnTabs(context, on)

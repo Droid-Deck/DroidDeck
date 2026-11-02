@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">Steamがダウンロード中は、バックグラウンドでの一時停止を遅らせます。</string>
     <string name="mode_suspend_note">自動ではバックグラウンドで一時停止し、表示すると再開します。手動では「再開」をタップするまで待機します。「しない」では実行し続けます。</string>
     <string name="mode_startup">起動</string>
-    <string name="mode_steam_startup">DroidDeck起動時にSteamを起動</string>
-    <string name="mode_steam_startup_hint">DroidDeckの起動時にSteamセッションを開きます。</string>
+    <string name="mode_startup_session">起動時に開く</string>
+    <string name="mode_startup_session_hint">DroidDeck の起動時にこのセッションを開始します。</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">リリースを確認中…</string>
     <string name="mode_decky_ready">%1$sをインストールする準備ができました。</string>
@@ -878,13 +878,9 @@
     <string name="setup_fullscreen">全画面</string>
     <string name="setup_fullscreen_on">Androidのステータスバーとナビゲーションバーを非表示</string>
     <string name="setup_fullscreen_off">Androidのステータスバーとナビゲーションバーを表示</string>
-    <string name="setup_dual_screen">デュアル画面</string>
-    <string name="setup_dual_screen_hint">自動では、2画面目を内蔵した携帯機でその画面を使います。オンではどの2画面目でも使います。オフではすべてを1画面に表示します。</string>
     <string name="setup_dual_screen_auto">自動</string>
     <string name="setup_dual_screen_on">オン</string>
     <string name="setup_dual_screen_off">オフ</string>
-    <string name="setup_dual_screen_menu">下画面メニュー</string>
-    <string name="setup_dual_screen_menu_hint">セクションとゲーム中のメニューを2画面目に移し、入力もそこで行うため、上画面は全体表示のままになります。L2とR2でセクションを切り替えます。</string>
     <string name="setup_dual_screen_controls">ゲーム中の下画面コントロール</string>
     <string name="setup_dual_screen_controls_hint">セッション開始時に2画面目にトラックパッドとキーボードを開きます。</string>
     <string name="dual_typing_title">上画面に入力中</string>
@@ -1780,8 +1776,6 @@
     <string name="stats_trace">スロットルとブレーキ（直近10 s）</string>
     <string name="stats_speed_chart">速度（%1$s）</string>
     <string name="stats_gear">ギア</string>
-    <string name="stats_speed_units">速度の単位</string>
-    <string name="stats_speed_units_auto">自動（%1$s）</string>
     <string name="stats_steam_client_arm">Steamクライアント ARM</string>
     <string name="stats_steam_client_x86">Steamクライアント x86</string>
     <string name="stats_throttle">スロットル</string>
@@ -1799,7 +1793,6 @@
     <string name="stats_fuel_t">燃料（t）</string>
     <string name="stats_fuel_main">メイン %1$s t</string>
     <string name="stats_fuel_reserve">予備 %1$s t</string>
-    <string name="stats_tap_hint">上部のバーまたはダッシュをタップすると、表示スタイルを変更できます。</string>
     <string name="bottom_telemetry_send_title">ダッシュボード用データを送信</string>
     <string name="bottom_telemetry_send_auto">自動</string>
     <string name="bottom_telemetry_send_auto_hint">ここに表示されているすべてのゲーム（後から見つかったゲームを含む）でオンにします。オフにしたゲームはオフのままです。</string>
@@ -1838,7 +1831,6 @@
     <string name="bottom_telemetry_balance">残高</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">レースゲームのデータ出力（テレメトリーやUDPと呼ばれることが多い）をオンにすると、ここにライブダッシュが表示されます。データはこのデバイス内にとどまります。</string>
     <string name="bottom_telemetry_unknown_format">ポート%1$dでデータを受信していますが（%3$dバイトのパケット%2$d個）、このページではまだ読み取れない形式です。</string>
     <string name="bottom_telemetry_port_busy">別のプログラムがすでにポート%1$sを使用しているため、そのゲームはここに表示できません。</string>
 
@@ -3599,4 +3591,33 @@
     <string name="gog_repair_action">ファイルを修復</string>
     <string name="gog_refresh_action">インストールを更新</string>
     <string name="gog_select_patch">選択</string>
+    <string name="stores_gamejolt_not_owned">Game Jolt ライブラリにありません</string>
+    <string name="stores_gamejolt_no_build">このゲームには Windows 版のダウンロードがありません</string>
+    <string name="stores_gamejolt_no_exe">ダウンロードに Windows 版のゲームが見つかりません</string>
+    <string name="stores_gamejolt_no_game">Game Jolt でこのゲームが見つかりませんでした</string>
+    <string name="stores_gamejolt_browse_failed">Game Jolt のゲームを読み込めませんでした</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt が HTTP %1$d を返しました</string>
+    <string name="stores_gamejolt_pick_failed">Game Jolt からダウンロードを読み込めませんでした</string>
+    <string name="stores_gamejolt_build_open">Game Jolt で開く</string>
+    <string name="stores_gamejolt_archive">%1$s 形式のアーカイブには対応していません</string>
+    <string name="stores_gamejolt_extract_failed">ダウンロードを展開できませんでした (終了コード %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">Game Jolt に接続できませんでした</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt がダウンロードリンクを提供しませんでした</string>
+    <string name="stores_gamejolt_section_featured">注目</string>
+    <string name="stores_gamejolt_section_hot">人気急上昇</string>
+    <string name="stores_gamejolt_section_best">ベスト</string>
+    <string name="stores_gamejolt_section_new">新着</string>
+    <string name="stores_gamejolt_price_under_30">30ドル以下</string>
+    <string name="stores_gamejolt_os_other">その他</string>
+    <string name="stores_gamejolt_maturity_everyone">全年齢</string>
+    <string name="stores_gamejolt_maturity_teen">ティーン</string>
+    <string name="stores_gamejolt_maturity_adult">成人向け</string>
+    <string name="stores_gamejolt_status_complete">完成</string>
+    <string name="stores_gamejolt_status_early">アーリーアクセス</string>
+    <string name="stores_gamejolt_partners">パートナーのゲーム</string>
+    <string name="stores_gamejolt_filter_browser">ブラウザ</string>
+    <string name="stores_gamejolt_filter_maturity">対象年齢</string>
+    <string name="stores_gamejolt_filter_status">ステータス</string>
+    <string name="stores_gamejolt_filter_partners">パートナー</string>
+    <string name="stores_gamejolt_followed">フォロー中のゲーム</string>
 </resources>

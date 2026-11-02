@@ -342,8 +342,8 @@
     <string name="mode_background_downloads_hint">Delay background suspension while Steam is actively downloading.</string>
     <string name="mode_suspend_note">Auto pauses in the background and resumes when shown. Manual waits for Resume. Never keeps running.</string>
     <string name="mode_startup">Startup</string>
-    <string name="mode_steam_startup">Start Steam with DroidDeck</string>
-    <string name="mode_steam_startup_hint">Opens the Steam session when DroidDeck launches.</string>
+    <string name="mode_startup_session">Open at launch</string>
+    <string name="mode_startup_session_hint">Starts this session when DroidDeck launches.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Checking for releases…</string>
     <string name="mode_decky_ready">Ready to install %1$s.</string>
@@ -464,6 +464,12 @@
     <string name="libraries_overlap">That folder is already a library or inside one</string>
     <string name="libraries_missing">%1$s · not available</string>
     <string name="libraries_applies_next">Applies from the next Steam session</string>
+    <string name="libraries_found_hint">Found on this device · %1$s · %2$s</string>
+    <string name="libraries_add_found">Add</string>
+    <string name="libraries_access_title">Find libraries on internal storage</string>
+    <string name="libraries_access_hint">Allow all files access so DroidDeck can see Steam libraries other apps keep on internal storage</string>
+    <string name="libraries_access_allow">Allow</string>
+    <string name="libraries_used_inner">Added %1$s, the Steam library inside the folder you chose</string>
     <string name="mode_storage_note">Games that stream assets from SD or shared storage may stutter.</string>
     <string name="mode_storage_diagnostics">Storage diagnostics</string>
     <string name="mode_storage_diagnostics_hint">Record allocation results and sampled storage timings in Share logs. May slow installs while enabled. Applies next session.</string>
@@ -943,13 +949,13 @@
     <string name="setup_fullscreen">Fullscreen</string>
     <string name="setup_fullscreen_on">Hides the Android status and navigation bars</string>
     <string name="setup_fullscreen_off">Shows the Android status and navigation bars</string>
-    <string name="setup_dual_screen">Dual screen</string>
-    <string name="setup_dual_screen_hint">Automatic uses the second screen on handhelds with a built-in one. On uses any second display. Off keeps the launcher and games on one screen; you can still pick a second screen from the session menu.</string>
+    <string name="setup_dual_screen_launcher">Dual screen launcher</string>
+    <string name="setup_dual_screen_launcher_hint">Automatic puts the launcher sections (Steam, Library, Stores and the rest) on the second screen of handhelds with a built-in one. On uses any second display. Off keeps the launcher on one screen.</string>
+    <string name="setup_dual_screen_sessions">Dual screen sessions</string>
+    <string name="setup_dual_screen_sessions_hint">Automatic docks the in-game menu on the built-in second screen instead of a pop-over. On uses any second display. Off keeps the menu on the game screen; you can still pick a second screen from it.</string>
     <string name="setup_dual_screen_auto">Automatic</string>
     <string name="setup_dual_screen_on">On</string>
     <string name="setup_dual_screen_off">Off</string>
-    <string name="setup_dual_screen_menu">Bottom screen menu</string>
-    <string name="setup_dual_screen_menu_hint">Moves the sections and the in-game menu to the second screen and types there, so the top screen keeps the full view. L2 and R2 switch sections.</string>
     <string name="setup_dual_screen_controls">Bottom screen controls in games</string>
     <string name="setup_dual_screen_controls_hint">Opens the trackpad and keyboard on the second screen when a session starts.</string>
     <string name="dual_typing_title">Typing on the top screen</string>
@@ -1904,6 +1910,12 @@
     <string name="bottom_desktop_failed">The desktop couldn\'t start. Its logs are in this session\'s bottom-desktop folder.</string>
     <string name="bottom_desktop_off">The desktop is closed.</string>
     <string name="bottom_dashboard_empty">Nothing to show here yet.</string>
+    <string name="swap_screens">Swap screens</string>
+    <string name="swap_screens_unavailable">The bottom screen is not free right now</string>
+    <string name="swap_game_screen_group">Game screen</string>
+    <string name="swap_game_screen">Show the game on</string>
+    <string name="swap_game_screen_top">Top screen</string>
+    <string name="swap_game_screen_bottom">Bottom screen</string>
     <string name="bottom_page_downloads">Downloads</string>
     <string name="bottom_downloads_none">No downloads running.</string>
     <string name="bottom_downloads_steam">Steam</string>
@@ -1928,8 +1940,6 @@
     <string name="stats_trace">Throttle and brake, last 10 s</string>
     <string name="stats_speed_chart">Speed, %1$s</string>
     <string name="stats_gear">Gear</string>
-    <string name="stats_speed_units">Speed units</string>
-    <string name="stats_speed_units_auto">Automatic (%1$s)</string>
     <string name="stats_steam_client_arm">Steam Client ARM</string>
     <string name="stats_steam_client_x86">Steam Client x86</string>
     <string name="stats_throttle">Throttle</string>
@@ -1947,7 +1957,6 @@
     <string name="stats_fuel_t">Fuel, t</string>
     <string name="stats_fuel_main">Main %1$s t</string>
     <string name="stats_fuel_reserve">Reserve %1$s t</string>
-    <string name="stats_tap_hint">Tap the HUD, the top strip or the dash to change its style.</string>
     <string name="stats_hud_frametime">Frame time</string>
     <string name="stats_hud_last_seconds">last %1$d s</string>
     <string name="stats_hud_avg_frame">avg frame</string>
@@ -1986,10 +1995,7 @@
     <string name="bottom_chat_volume">Volume %1$d%%</string>
     <string name="bottom_page_telemetry">In-game stats</string>
     <string name="bottom_hud_group">Bottom screen HUD</string>
-    <string name="bottom_hud_group_detail">Works with the top HUD off and does not change it. The number switches below are for the Line strip: under the tabs, and the Line style above a game\'s dashboard.</string>
-    <string name="bottom_hud_hint">The big HUD, the Line strip and the strip under the tabs. A game\'s dashboard stays.</string>
     <string name="bottom_strip_tabs">Strip on every tab</string>
-    <string name="bottom_strip_tabs_hint">Shows the line under the tabs while you use the bottom screen.</string>
     <string name="bottom_strip_lows" formatted="false">1% and 0.1% lows</string>
     <string name="bottom_strip_cpu_temp">CPU temperature</string>
     <string name="bottom_telemetry_fps">FPS</string>
@@ -2007,7 +2013,6 @@
     <string name="bottom_telemetry_balance">Balance</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Turn on a game\'s data output (often called telemetry or UDP) to see a live dash here. It stays on this device.</string>
     <string name="bottom_telemetry_unknown_format">Port %1$d receives data (%2$d packets of %3$d bytes), but in a format this page cannot read yet.</string>
     <string name="bottom_telemetry_port_busy">Another program already uses port %1$s, so that game cannot show here.</string>
 
@@ -3706,4 +3711,33 @@
     <string name="steam_import_names_more">%1$s and %2$d more</string>
     <string name="steam_import_now">Restart now</string>
     <string name="steam_import_later">Later</string>
+    <string name="stores_gamejolt_not_owned">Not in your Game Jolt library</string>
+    <string name="stores_gamejolt_no_build">No Windows download for this game</string>
+    <string name="stores_gamejolt_no_exe">No Windows game found in the download</string>
+    <string name="stores_gamejolt_no_game">Could not find this game on Game Jolt</string>
+    <string name="stores_gamejolt_browse_failed">Could not load games from Game Jolt</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt answered HTTP %1$d</string>
+    <string name="stores_gamejolt_pick_failed">Could not load the downloads from Game Jolt</string>
+    <string name="stores_gamejolt_build_open">Open on Game Jolt</string>
+    <string name="stores_gamejolt_download_unreachable">Could not reach Game Jolt</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt did not give a download link</string>
+    <string name="stores_gamejolt_archive">%1$s archives are not supported</string>
+    <string name="stores_gamejolt_extract_failed">Could not extract the download (exit %1$d)</string>
+    <string name="stores_gamejolt_section_featured">Featured</string>
+    <string name="stores_gamejolt_section_hot">Hot</string>
+    <string name="stores_gamejolt_section_best">Best</string>
+    <string name="stores_gamejolt_section_new">New</string>
+    <string name="stores_gamejolt_price_under_30">$30 or less</string>
+    <string name="stores_gamejolt_os_other">Other</string>
+    <string name="stores_gamejolt_maturity_everyone">All ages</string>
+    <string name="stores_gamejolt_maturity_teen">Teen</string>
+    <string name="stores_gamejolt_maturity_adult">Mature</string>
+    <string name="stores_gamejolt_status_complete">Complete</string>
+    <string name="stores_gamejolt_status_early">Early access</string>
+    <string name="stores_gamejolt_partners">Partner games</string>
+    <string name="stores_gamejolt_filter_browser">Browser</string>
+    <string name="stores_gamejolt_filter_maturity">Maturity</string>
+    <string name="stores_gamejolt_filter_status">Status</string>
+    <string name="stores_gamejolt_filter_partners">Partners</string>
+    <string name="stores_gamejolt_followed">Followed games</string>
 </resources>

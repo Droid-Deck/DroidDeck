@@ -218,7 +218,7 @@ object StoreInstallRoot {
 
     fun isRemovable(context: Context, folder: File): Boolean = !folder.absolutePath.startsWith(internalRoot(context).absolutePath + "/")
 
-    fun storeDir(root: File, store: Store): File = File(root, store.shortLabel)
+    fun storeDir(root: File, store: Store): File = File(root, store.folder)
 
     fun gameFolders(context: Context): List<File> = roots(context).flatMap { root ->
         Store.entries.flatMap { store ->
@@ -246,7 +246,7 @@ object StoreInstallRoot {
                 val sidecar = StoreGameSidecar.read(folder)
                 when {
                     sidecar == null -> Unfinished(store, null, folder)
-                    store == Store.GOG && sidecar.state == StoreGameSidecar.STATE_UPDATING -> null
+                    sidecar.state == StoreGameSidecar.STATE_UPDATING -> null
                     !sidecar.isInstalled -> Unfinished(store, sidecar.id, folder)
                     else -> null
                 }

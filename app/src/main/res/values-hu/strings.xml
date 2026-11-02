@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">Elhalasztja a háttérbeli felfüggesztést, amíg a Steam aktívan letölt.</string>
     <string name="mode_suspend_note">Az Automatikus szüneteltet a háttérben, és megjelenéskor folytatja. A Manuális megvárja a Folytatást. A Soha mindig futva tartja.</string>
     <string name="mode_startup">Indítás</string>
-    <string name="mode_steam_startup">Steam indítása a DroidDeckkel</string>
-    <string name="mode_steam_startup_hint">Megnyitja a Steam-munkamenetet a DroidDeck indulásakor.</string>
+    <string name="mode_startup_session">Megnyitás indításkor</string>
+    <string name="mode_startup_session_hint">A DroidDeck indulásakor elindítja ezt a munkamenetet.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Kiadások keresése…</string>
     <string name="mode_decky_ready">Készen áll a %1$s telepítésére.</string>
@@ -881,13 +881,9 @@
     <string name="setup_fullscreen">Teljes képernyő</string>
     <string name="setup_fullscreen_on">Elrejti az Android állapot- és navigációs sávokat</string>
     <string name="setup_fullscreen_off">Megjeleníti az Android állapot- és navigációs sávokat</string>
-    <string name="setup_dual_screen">Két képernyő</string>
-    <string name="setup_dual_screen_hint">Az Automatikus a beépített második képernyővel rendelkező kézikonzolokon használja a második képernyőt. A Be bármilyen második kijelzőt használ. A Ki mindent egy képernyőn tart.</string>
     <string name="setup_dual_screen_auto">Automatikus</string>
     <string name="setup_dual_screen_on">Be</string>
     <string name="setup_dual_screen_off">Ki</string>
-    <string name="setup_dual_screen_menu">Menü az alsó képernyőn</string>
-    <string name="setup_dual_screen_menu_hint">A szakaszokat és a játék közbeni menüt a második képernyőre helyezi, és ott történik a gépelés, így a felső képernyő teljes nézetet kap. Az L2 és R2 vált szakaszt.</string>
     <string name="setup_dual_screen_controls">Alsó képernyős vezérlők játékokban</string>
     <string name="setup_dual_screen_controls_hint">Munkamenet indításakor megnyitja az érintőpadot és a billentyűzetet a második képernyőn.</string>
     <string name="dual_typing_title">Gépelés a felső képernyőre</string>
@@ -1802,8 +1798,6 @@
     <string name="stats_trace">Gáz és fék, utolsó 10 s</string>
     <string name="stats_speed_chart">Sebesség, %1$s</string>
     <string name="stats_gear">Fokozat</string>
-    <string name="stats_speed_units">Sebesség mértékegysége</string>
-    <string name="stats_speed_units_auto">Automatikus (%1$s)</string>
     <string name="stats_steam_client_arm">Steam-kliens ARM</string>
     <string name="stats_steam_client_x86">Steam-kliens x86</string>
     <string name="stats_throttle">Gáz</string>
@@ -1821,7 +1815,6 @@
     <string name="stats_fuel_t">Üzemanyag, t</string>
     <string name="stats_fuel_main">Fő %1$s t</string>
     <string name="stats_fuel_reserve">Tartalék %1$s t</string>
-    <string name="stats_tap_hint">Koppintson a felső sávra vagy a műszerfalra a stílus módosításához.</string>
     <string name="bottom_telemetry_send_title">Műszerfal-adatok küldése</string>
     <string name="bottom_telemetry_send_auto">Automatikus</string>
     <string name="bottom_telemetry_send_auto_hint">Bekapcsolja az itt felsorolt összes játéknál, a később talált játékokat is beleértve. A kikapcsolt játékok kikapcsolva maradnak.</string>
@@ -1860,7 +1853,6 @@
     <string name="bottom_telemetry_balance">Egyenleg</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Kapcsolja be egy autóversenyes játék adatkimenetét (gyakran telemetria vagy UDP néven szerepel), hogy itt élő műszerfalat lásson. Az adatok ezen az eszközön maradnak.</string>
     <string name="bottom_telemetry_unknown_format">A(z) %1$d port adatokat fogad (%2$d csomag, egyenként %3$d bájt), de olyan formátumban, amelyet ez az oldal még nem tud olvasni.</string>
     <string name="bottom_telemetry_port_busy">A(z) %1$s portot már egy másik program használja, ezért az a játék itt nem jeleníthető meg.</string>
 
@@ -3627,4 +3619,33 @@
     <string name="gog_repair_action">Fájlok javítása</string>
     <string name="gog_refresh_action">Telepítés frissítése</string>
     <string name="gog_select_patch">Kiválasztás</string>
+    <string name="stores_gamejolt_not_owned">Nincs a Game Jolt-könyvtáradban</string>
+    <string name="stores_gamejolt_no_build">Ehhez a játékhoz nincs Windows-letöltés</string>
+    <string name="stores_gamejolt_no_exe">A letöltésben nem található Windows-játék</string>
+    <string name="stores_gamejolt_no_game">A játék nem található a Game Jolt-on</string>
+    <string name="stores_gamejolt_browse_failed">Nem sikerült betölteni a játékokat a Game Jolt-ról</string>
+    <string name="stores_gamejolt_download_failed">A Game Jolt HTTP %1$d választ adott</string>
+    <string name="stores_gamejolt_pick_failed">A letöltések betöltése a Game Jolt-ról nem sikerült</string>
+    <string name="stores_gamejolt_build_open">Megnyitás a Game Jolt-on</string>
+    <string name="stores_gamejolt_archive">A(z) %1$s archívumok nem támogatottak</string>
+    <string name="stores_gamejolt_extract_failed">A letöltés nem bontható ki (kód: %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">A Game Jolt nem érhető el</string>
+    <string name="stores_gamejolt_download_no_link">A Game Jolt nem adott letöltési hivatkozást</string>
+    <string name="stores_gamejolt_section_featured">Kiemelt</string>
+    <string name="stores_gamejolt_section_hot">Népszerű</string>
+    <string name="stores_gamejolt_section_best">Legjobb</string>
+    <string name="stores_gamejolt_section_new">Új</string>
+    <string name="stores_gamejolt_price_under_30">30 $ vagy kevesebb</string>
+    <string name="stores_gamejolt_os_other">Egyéb</string>
+    <string name="stores_gamejolt_maturity_everyone">Minden korosztály</string>
+    <string name="stores_gamejolt_maturity_teen">Tinédzserek</string>
+    <string name="stores_gamejolt_maturity_adult">Felnőtt</string>
+    <string name="stores_gamejolt_status_complete">Kész</string>
+    <string name="stores_gamejolt_status_early">Korai hozzáférés</string>
+    <string name="stores_gamejolt_partners">Partnerjátékok</string>
+    <string name="stores_gamejolt_filter_browser">Böngésző</string>
+    <string name="stores_gamejolt_filter_maturity">Korhatár</string>
+    <string name="stores_gamejolt_filter_status">Állapot</string>
+    <string name="stores_gamejolt_filter_partners">Partnerek</string>
+    <string name="stores_gamejolt_followed">Követett játékok</string>
 </resources>

@@ -75,6 +75,8 @@ class ModeSettings(
     val gameStorage: String? = null,
     val storageOptions: List<com.droiddeck.launcher.session.GameStorage.Option> = emptyList(),
     val steamLibraries: List<com.droiddeck.launcher.session.SteamLibraries.Entry> = emptyList(),
+    val foundSteamLibraries: List<com.droiddeck.launcher.session.SteamLibraries.Found> = emptyList(),
+    val allFilesAccessMissing: Boolean = false,
     val storageDiagnostics: Boolean = false,
     val fexPreset: String? = null,
     val forceSsbs: Boolean = false,
@@ -89,7 +91,7 @@ class ModeSettings(
     val steamController: String? = null,
     val unfoldedControls: Boolean? = null,
     val unfoldedControlsWithController: Boolean = false,
-    val runSteamAtStartup: Boolean = false,
+    val startupSession: String = SessionPrefs.STARTUP_OFF,
     val bootMovie: String? = null,
     val bootMovieSound: Boolean = true,
     val bootMovieCustomName: String? = null,
@@ -126,6 +128,8 @@ class ModeSettingsActions(
     val onPickGameStorageFolder: () -> Unit = {},
     val onStorageDiagnostics: (Boolean) -> Unit = {},
     val onAddSteamLibrary: () -> Unit = {},
+    val onAddFoundSteamLibrary: (path: String) -> Unit = {},
+    val onAllowAllFilesAccess: () -> Unit = {},
     val onRenameSteamLibrary: (id: String, label: String) -> Unit = { _, _ -> },
     val onRemoveSteamLibrary: (id: String) -> Unit = {},
     val onFexPreset: (String) -> Unit = {},
@@ -141,7 +145,7 @@ class ModeSettingsActions(
     val onSteamController: (String) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
-    val onRunSteamAtStartup: (Boolean) -> Unit = {},
+    val onStartupSession: (String) -> Unit = {},
     val onBootMovie: (String) -> Unit = {},
     val onBootMovieSound: (Boolean) -> Unit = {},
     val onImportBootMovie: () -> Unit = {},
@@ -355,11 +359,15 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             ToggleRow(host, "pip-auto", stringResource(R.string.pip_auto), null,
                 s.pipAutoEnter, onChange = a.onPipAutoEnter)
         }
-        if (steam) SettingsGroup(stringResource(R.string.mode_startup)) {
-            ToggleRow(
-                host, "steam-startup", stringResource(R.string.mode_steam_startup),
-                stringResource(R.string.mode_steam_startup_hint),
-                s.runSteamAtStartup, onChange = a.onRunSteamAtStartup,
+        SettingsGroup(stringResource(R.string.mode_startup)) {
+            ChoiceRow(
+                host, "startup-session", stringResource(R.string.mode_startup_session),
+                stringResource(R.string.mode_startup_session_hint),
+                listOf(
+                    SessionPrefs.STARTUP_OFF to stringResource(R.string.common_never),
+                    SessionPrefs.STARTUP_STEAM to stringResource(R.string.rail_steam),
+                    SessionPrefs.STARTUP_DESKTOP to stringResource(R.string.rail_desktop),
+                ), s.startupSession, onPick = a.onStartupSession,
             )
         }
         extras.performance()
@@ -415,6 +423,19 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                         SecondaryButton(stringResource(R.string.libraries_rename), compact = true) { renaming = library }
                         SecondaryButton(stringResource(R.string.edit_remove), compact = true) { a.onRemoveSteamLibrary(library.id) }
                     }
+                }
+            }
+            if (s.steamLibraries.size < com.droiddeck.launcher.session.SteamLibraries.MAX) for (found in s.foundSteamLibraries) {
+                SettingsRow(
+                    found.label,
+                    stringResource(R.string.libraries_found_hint, pluralStringResource(R.plurals.mode_added_count, found.games, found.games), found.shown),
+                ) {
+                    SecondaryButton(stringResource(R.string.libraries_add_found), compact = true) { a.onAddFoundSteamLibrary(found.path) }
+                }
+            }
+            if (s.allFilesAccessMissing && s.steamLibraries.size < com.droiddeck.launcher.session.SteamLibraries.MAX) {
+                SettingsRow(stringResource(R.string.libraries_access_title), stringResource(R.string.libraries_access_hint)) {
+                    SecondaryButton(stringResource(R.string.libraries_access_allow), compact = true, onClick = a.onAllowAllFilesAccess)
                 }
             }
             SettingsRow(

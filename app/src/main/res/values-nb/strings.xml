@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">Utsetter bakgrunnspause mens Steam laster aktivt ned.</string>
     <string name="mode_suspend_note">Auto setter på pause i bakgrunnen og gjenopptar når den vises. Manuell venter på Gjenoppta. Aldri lar den fortsette å kjøre.</string>
     <string name="mode_startup">Oppstart</string>
-    <string name="mode_steam_startup">Start Steam med DroidDeck</string>
-    <string name="mode_steam_startup_hint">Åpner Steam-sesjonen når DroidDeck starter.</string>
+    <string name="mode_startup_session">Åpne ved oppstart</string>
+    <string name="mode_startup_session_hint">Starter denne økten når DroidDeck starter.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Ser etter utgivelser…</string>
     <string name="mode_decky_ready">Klar til å installere %1$s.</string>
@@ -881,13 +881,9 @@
     <string name="setup_fullscreen">Fullskjerm</string>
     <string name="setup_fullscreen_on">Skjuler Androids status- og navigasjonslinjer</string>
     <string name="setup_fullscreen_off">Viser Androids status- og navigasjonslinjer</string>
-    <string name="setup_dual_screen">Dobbel skjerm</string>
-    <string name="setup_dual_screen_hint">Automatisk bruker den andre skjermen på håndholdte enheter med innebygd skjerm. På bruker enhver annen skjerm. Av holder alt på én skjerm.</string>
     <string name="setup_dual_screen_auto">Automatisk</string>
     <string name="setup_dual_screen_on">På</string>
     <string name="setup_dual_screen_off">Av</string>
-    <string name="setup_dual_screen_menu">Meny på nederste skjerm</string>
-    <string name="setup_dual_screen_menu_hint">Flytter seksjonene og menyen i spillet til den andre skjermen og skriver der, så den øverste skjermen beholder hele visningen. L2 og R2 bytter seksjon.</string>
     <string name="setup_dual_screen_controls">Kontroller på nederste skjerm i spill</string>
     <string name="setup_dual_screen_controls_hint">Åpner styreflaten og tastaturet på den andre skjermen når en økt starter.</string>
     <string name="dual_typing_title">Skriver for den øverste skjermen</string>
@@ -1802,8 +1798,6 @@
     <string name="stats_trace">Gass og brems, siste 10 s</string>
     <string name="stats_speed_chart">Fart, %1$s</string>
     <string name="stats_gear">Gir</string>
-    <string name="stats_speed_units">Fartsenheter</string>
-    <string name="stats_speed_units_auto">Automatisk (%1$s)</string>
     <string name="stats_steam_client_arm">Steam-klient ARM</string>
     <string name="stats_steam_client_x86">Steam-klient x86</string>
     <string name="stats_throttle">Gass</string>
@@ -1821,7 +1815,6 @@
     <string name="stats_fuel_t">Drivstoff, t</string>
     <string name="stats_fuel_main">Hoved %1$s t</string>
     <string name="stats_fuel_reserve">Reserve %1$s t</string>
-    <string name="stats_tap_hint">Trykk på den øverste stripen eller dashbordet for å endre stilen.</string>
     <string name="bottom_telemetry_send_title">Send dashborddata</string>
     <string name="bottom_telemetry_send_auto">Automatisk</string>
     <string name="bottom_telemetry_send_auto_hint">Slår det på for alle spill som er oppført her, også spill som blir funnet senere. Spill du slår av, forblir av.</string>
@@ -1860,7 +1853,6 @@
     <string name="bottom_telemetry_balance">Saldo</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Slå på datautgangen i et racingspill (ofte kalt telemetri eller UDP) for å se et direkte dashbord her. Dataene blir på denne enheten.</string>
     <string name="bottom_telemetry_unknown_format">Port %1$d mottar data (%2$d pakker på %3$d byte), men i et format denne siden ikke kan lese ennå.</string>
     <string name="bottom_telemetry_port_busy">Et annet program bruker allerede port %1$s, så det spillet kan ikke vises her.</string>
 
@@ -3627,4 +3619,33 @@
     <string name="gog_repair_action">Reparer filer</string>
     <string name="gog_refresh_action">Oppdater installasjonen</string>
     <string name="gog_select_patch">Velg</string>
+    <string name="stores_gamejolt_not_owned">Ikke i Game Jolt-biblioteket ditt</string>
+    <string name="stores_gamejolt_no_build">Ingen Windows-nedlasting for dette spillet</string>
+    <string name="stores_gamejolt_no_exe">Fant ikke noe Windows-spill i nedlastingen</string>
+    <string name="stores_gamejolt_no_game">Fant ikke dette spillet på Game Jolt</string>
+    <string name="stores_gamejolt_browse_failed">Kunne ikke laste spill fra Game Jolt</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt svarte HTTP %1$d</string>
+    <string name="stores_gamejolt_pick_failed">Kunne ikke laste inn nedlastingene fra Game Jolt</string>
+    <string name="stores_gamejolt_build_open">Åpne på Game Jolt</string>
+    <string name="stores_gamejolt_archive">%1$s-arkiver støttes ikke</string>
+    <string name="stores_gamejolt_extract_failed">Kunne ikke pakke ut nedlastingen (kode %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">Kunne ikke nå Game Jolt</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt ga ingen nedlastingslenke</string>
+    <string name="stores_gamejolt_section_featured">Fremhevet</string>
+    <string name="stores_gamejolt_section_hot">Populære</string>
+    <string name="stores_gamejolt_section_best">Beste</string>
+    <string name="stores_gamejolt_section_new">Nye</string>
+    <string name="stores_gamejolt_price_under_30">$30 eller mindre</string>
+    <string name="stores_gamejolt_os_other">Annet</string>
+    <string name="stores_gamejolt_maturity_everyone">Alle aldre</string>
+    <string name="stores_gamejolt_maturity_teen">Tenåringer</string>
+    <string name="stores_gamejolt_maturity_adult">Voksne</string>
+    <string name="stores_gamejolt_status_complete">Ferdig</string>
+    <string name="stores_gamejolt_status_early">Early access</string>
+    <string name="stores_gamejolt_partners">Partnerspill</string>
+    <string name="stores_gamejolt_filter_browser">Nettleser</string>
+    <string name="stores_gamejolt_filter_maturity">Aldersgrense</string>
+    <string name="stores_gamejolt_filter_status">Status</string>
+    <string name="stores_gamejolt_filter_partners">Partnere</string>
+    <string name="stores_gamejolt_followed">Fulgte spill</string>
 </resources>

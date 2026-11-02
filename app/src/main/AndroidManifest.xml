@@ -9,6 +9,14 @@
         <intent>
             <action android:name="android.content.pm.action.CONFIRM_PERMISSIONS" />
         </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.SECONDARY_HOME" />
+        </intent>
     </queries>
 
     <uses-permission android:name="android.permission.REORDER_TASKS" />

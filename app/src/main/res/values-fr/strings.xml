@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">Retarde la mise en pause en arrière-plan tant que Steam télécharge.</string>
     <string name="mode_suspend_note">Le mode automatique met en pause en arrière-plan et reprend à l\'affichage. Le mode manuel nécessite d\'appuyer sur « Reprendre ». Ne reste jamais en cours d\'exécution.</string>
     <string name="mode_startup">Démarrage</string>
-    <string name="mode_steam_startup">Lancer Steam à l\'ouverture de DroidDeck</string>
-    <string name="mode_steam_startup_hint">Ouvre une session Steam au démarrage de DroidDeck.</string>
+    <string name="mode_startup_session">Ouvrir au démarrage</string>
+    <string name="mode_startup_session_hint">Lance cette session au démarrage de DroidDeck.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Vérification des versions…</string>
     <string name="mode_decky_ready">Prêt à installer %1$s.</string>
@@ -884,13 +884,9 @@
     <string name="setup_fullscreen">Plein écran</string>
     <string name="setup_fullscreen_on">Masquer la barre d\'état et la barre de navigation Android</string>
     <string name="setup_fullscreen_off">Afficher la barre d\'état et la barre de navigation Android</string>
-    <string name="setup_dual_screen">Double écran</string>
-    <string name="setup_dual_screen_hint">Automatique utilise le second écran sur les consoles portables qui en ont un intégré. Activé utilise n\'importe quel second écran. Désactivé garde tout sur un seul écran.</string>
     <string name="setup_dual_screen_auto">Automatique</string>
     <string name="setup_dual_screen_on">Activé</string>
     <string name="setup_dual_screen_off">Désactivé</string>
-    <string name="setup_dual_screen_menu">Menu sur l\'écran du bas</string>
-    <string name="setup_dual_screen_menu_hint">Déplace les sections et le menu en jeu sur le second écran et la saisie s\'y fait, pour que l\'écran du haut garde toute la vue. L2 et R2 changent de section.</string>
     <string name="setup_dual_screen_controls">Commandes sur l\'écran du bas en jeu</string>
     <string name="setup_dual_screen_controls_hint">Ouvre le pavé tactile et le clavier sur le second écran au démarrage d\'une session.</string>
     <string name="dual_typing_title">Saisie pour l\'écran du haut</string>
@@ -1824,8 +1820,6 @@
     <string name="stats_trace">Accélérateur et frein, 10 dernières s</string>
     <string name="stats_speed_chart">Vitesse, %1$s</string>
     <string name="stats_gear">Rapport</string>
-    <string name="stats_speed_units">Unités de vitesse</string>
-    <string name="stats_speed_units_auto">Automatique (%1$s)</string>
     <string name="stats_steam_client_arm">Client Steam ARM</string>
     <string name="stats_steam_client_x86">Client Steam x86</string>
     <string name="stats_throttle">Accélérateur</string>
@@ -1843,7 +1837,6 @@
     <string name="stats_fuel_t">Carburant, t</string>
     <string name="stats_fuel_main">Principal %1$s t</string>
     <string name="stats_fuel_reserve">Réserve %1$s t</string>
-    <string name="stats_tap_hint">Appuyez sur la bande supérieure ou sur le tableau de bord pour changer son style.</string>
     <string name="bottom_telemetry_send_title">Envoyer les données du tableau de bord</string>
     <string name="bottom_telemetry_send_auto">Automatique</string>
     <string name="bottom_telemetry_send_auto_hint">L\'active pour chaque jeu listé ici, y compris les jeux trouvés plus tard. Les jeux que vous désactivez restent désactivés.</string>
@@ -1882,7 +1875,6 @@
     <string name="bottom_telemetry_balance">Solde</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Activez la sortie de données d\'un jeu de course (souvent appelée télémétrie ou UDP) pour voir ici un tableau de bord en direct. Les données restent sur cet appareil.</string>
     <string name="bottom_telemetry_unknown_format">Le port %1$d reçoit des données (%2$d paquets de %3$d octets), mais dans un format que cette page ne sait pas encore lire.</string>
     <string name="bottom_telemetry_port_busy">Un autre programme utilise déjà le port %1$s ; ce jeu ne peut donc pas s\'afficher ici.</string>
 
@@ -3664,4 +3656,33 @@
     <string name="gog_repair_action">Réparer les fichiers</string>
     <string name="gog_refresh_action">Actualiser l\'installation</string>
     <string name="gog_select_patch">Sélectionner</string>
+    <string name="stores_gamejolt_not_owned">Absent de votre bibliothèque Game Jolt</string>
+    <string name="stores_gamejolt_no_build">Pas de téléchargement Windows pour ce jeu</string>
+    <string name="stores_gamejolt_no_exe">Aucun jeu Windows trouvé dans le téléchargement</string>
+    <string name="stores_gamejolt_no_game">Ce jeu est introuvable sur Game Jolt</string>
+    <string name="stores_gamejolt_browse_failed">Impossible de charger les jeux de Game Jolt</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt a répondu HTTP %1$d</string>
+    <string name="stores_gamejolt_pick_failed">Impossible de charger les téléchargements depuis Game Jolt</string>
+    <string name="stores_gamejolt_build_open">Ouvrir sur Game Jolt</string>
+    <string name="stores_gamejolt_archive">Les archives %1$s ne sont pas prises en charge</string>
+    <string name="stores_gamejolt_extract_failed">Impossible d\'extraire le téléchargement (code %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">Impossible de joindre Game Jolt</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt n\'a pas fourni de lien de téléchargement</string>
+    <string name="stores_gamejolt_section_featured">À la une</string>
+    <string name="stores_gamejolt_section_hot">Tendances</string>
+    <string name="stores_gamejolt_section_best">Meilleurs</string>
+    <string name="stores_gamejolt_section_new">Nouveaux</string>
+    <string name="stores_gamejolt_price_under_30">30 $ ou moins</string>
+    <string name="stores_gamejolt_os_other">Autre</string>
+    <string name="stores_gamejolt_maturity_everyone">Tous publics</string>
+    <string name="stores_gamejolt_maturity_teen">Adolescents</string>
+    <string name="stores_gamejolt_maturity_adult">Adultes</string>
+    <string name="stores_gamejolt_status_complete">Terminé</string>
+    <string name="stores_gamejolt_status_early">Accès anticipé</string>
+    <string name="stores_gamejolt_partners">Jeux partenaires</string>
+    <string name="stores_gamejolt_filter_browser">Navigateur</string>
+    <string name="stores_gamejolt_filter_maturity">Classification</string>
+    <string name="stores_gamejolt_filter_status">Statut</string>
+    <string name="stores_gamejolt_filter_partners">Partenaires</string>
+    <string name="stores_gamejolt_followed">Jeux suivis</string>
 </resources>

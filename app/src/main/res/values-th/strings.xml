@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">เลื่อนการหยุดพื้นหลังชั่วคราวออกไปขณะ Steam กำลังดาวน์โหลดอยู่</string>
     <string name="mode_suspend_note">อัตโนมัติจะหยุดชั่วคราวเมื่ออยู่ในพื้นหลังและดำเนินการต่อเมื่อแสดงผล กำหนดเองรอการกดดำเนินการต่อ ไม่มีวันทำงานต่อเนื่องตลอด</string>
     <string name="mode_startup">การเริ่มทำงาน</string>
-    <string name="mode_steam_startup">เริ่ม Steam พร้อมกับ DroidDeck</string>
-    <string name="mode_steam_startup_hint">เปิดเซสชัน Steam เมื่อ DroidDeck เริ่มทำงาน</string>
+    <string name="mode_startup_session">เปิดเมื่อเริ่มต้น</string>
+    <string name="mode_startup_session_hint">เริ่มเซสชันนี้เมื่อเปิด DroidDeck</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">กำลังค้นหารุ่นที่เผยแพร่…</string>
     <string name="mode_decky_ready">พร้อมติดตั้ง %1$s</string>
@@ -878,13 +878,9 @@
     <string name="setup_fullscreen">เต็มจอ</string>
     <string name="setup_fullscreen_on">ซ่อนแถบสถานะและแถบนำทางของ Android</string>
     <string name="setup_fullscreen_off">แสดงแถบสถานะและแถบนำทางของ Android</string>
-    <string name="setup_dual_screen">หน้าจอคู่</string>
-    <string name="setup_dual_screen_hint">อัตโนมัติจะใช้หน้าจอที่สองบนเครื่องพกพาที่มีหน้าจอที่สองในตัว เปิดจะใช้หน้าจอที่สองใดก็ได้ ปิดจะแสดงทุกอย่างบนหน้าจอเดียว</string>
     <string name="setup_dual_screen_auto">อัตโนมัติ</string>
     <string name="setup_dual_screen_on">เปิด</string>
     <string name="setup_dual_screen_off">ปิด</string>
-    <string name="setup_dual_screen_menu">เมนูหน้าจอล่าง</string>
-    <string name="setup_dual_screen_menu_hint">ย้ายส่วนต่าง ๆ และเมนูระหว่างเล่นเกมไปที่หน้าจอที่สองและพิมพ์ที่นั่น เพื่อให้หน้าจอบนแสดงเต็มพื้นที่ L2 และ R2 ใช้สลับส่วน</string>
     <string name="setup_dual_screen_controls">ปุ่มควบคุมหน้าจอล่างในเกม</string>
     <string name="setup_dual_screen_controls_hint">เปิดแทร็กแพดและแป้นพิมพ์บนหน้าจอที่สองเมื่อเริ่มเซสชัน</string>
     <string name="dual_typing_title">กำลังพิมพ์ให้หน้าจอบน</string>
@@ -1780,8 +1776,6 @@
     <string name="stats_trace">คันเร่งและเบรก 10 s ล่าสุด</string>
     <string name="stats_speed_chart">ความเร็ว, %1$s</string>
     <string name="stats_gear">เกียร์</string>
-    <string name="stats_speed_units">หน่วยความเร็ว</string>
-    <string name="stats_speed_units_auto">อัตโนมัติ (%1$s)</string>
     <string name="stats_steam_client_arm">ไคลเอนต์ Steam ARM</string>
     <string name="stats_steam_client_x86">ไคลเอนต์ Steam x86</string>
     <string name="stats_throttle">คันเร่ง</string>
@@ -1799,7 +1793,6 @@
     <string name="stats_fuel_t">เชื้อเพลิง, t</string>
     <string name="stats_fuel_main">หลัก %1$s t</string>
     <string name="stats_fuel_reserve">สำรอง %1$s t</string>
-    <string name="stats_tap_hint">แตะแถบด้านบนหรือหน้าปัดเพื่อเปลี่ยนรูปแบบ</string>
     <string name="bottom_telemetry_send_title">ส่งข้อมูลแดชบอร์ด</string>
     <string name="bottom_telemetry_send_auto">อัตโนมัติ</string>
     <string name="bottom_telemetry_send_auto_hint">เปิดใช้สำหรับทุกเกมที่แสดงที่นี่ รวมถึงเกมที่พบในภายหลัง เกมที่คุณปิดไว้จะยังคงปิดอยู่</string>
@@ -1838,7 +1831,6 @@
     <string name="bottom_telemetry_balance">ยอดเงิน</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">เปิดการส่งออกข้อมูลของเกมแข่งรถ (มักเรียกว่าเทเลเมทรีหรือ UDP) เพื่อดูหน้าปัดแบบสดที่นี่ ข้อมูลจะอยู่บนอุปกรณ์นี้เท่านั้น</string>
     <string name="bottom_telemetry_unknown_format">พอร์ต %1$d ได้รับข้อมูล (%2$d แพ็กเก็ต ขนาด %3$d ไบต์) แต่อยู่ในรูปแบบที่หน้านี้ยังอ่านไม่ได้</string>
     <string name="bottom_telemetry_port_busy">มีโปรแกรมอื่นใช้พอร์ต %1$s อยู่แล้ว เกมนั้นจึงแสดงที่นี่ไม่ได้</string>
 
@@ -3599,4 +3591,33 @@
     <string name="gog_repair_action">ซ่อมแซมไฟล์</string>
     <string name="gog_refresh_action">รีเฟรชการติดตั้ง</string>
     <string name="gog_select_patch">เลือก</string>
+    <string name="stores_gamejolt_not_owned">ไม่มีในคลัง Game Jolt ของคุณ</string>
+    <string name="stores_gamejolt_no_build">เกมนี้ไม่มีการดาวน์โหลดสำหรับ Windows</string>
+    <string name="stores_gamejolt_no_exe">ไม่พบเกม Windows ในไฟล์ที่ดาวน์โหลด</string>
+    <string name="stores_gamejolt_no_game">ไม่พบเกมนี้บน Game Jolt</string>
+    <string name="stores_gamejolt_browse_failed">โหลดเกมจาก Game Jolt ไม่ได้</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt ตอบกลับ HTTP %1$d</string>
+    <string name="stores_gamejolt_pick_failed">โหลดรายการดาวน์โหลดจาก Game Jolt ไม่ได้</string>
+    <string name="stores_gamejolt_build_open">เปิดบน Game Jolt</string>
+    <string name="stores_gamejolt_archive">ไม่รองรับไฟล์ %1$s</string>
+    <string name="stores_gamejolt_extract_failed">แตกไฟล์ที่ดาวน์โหลดไม่ได้ (รหัส %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">ไม่สามารถเชื่อมต่อ Game Jolt ได้</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt ไม่ได้ให้ลิงก์ดาวน์โหลด</string>
+    <string name="stores_gamejolt_section_featured">แนะนำ</string>
+    <string name="stores_gamejolt_section_hot">มาแรง</string>
+    <string name="stores_gamejolt_section_best">ยอดนิยมสูงสุด</string>
+    <string name="stores_gamejolt_section_new">ใหม่</string>
+    <string name="stores_gamejolt_price_under_30">$30 หรือต่ำกว่า</string>
+    <string name="stores_gamejolt_os_other">อื่น ๆ</string>
+    <string name="stores_gamejolt_maturity_everyone">ทุกวัย</string>
+    <string name="stores_gamejolt_maturity_teen">วัยรุ่น</string>
+    <string name="stores_gamejolt_maturity_adult">ผู้ใหญ่</string>
+    <string name="stores_gamejolt_status_complete">เสร็จสมบูรณ์</string>
+    <string name="stores_gamejolt_status_early">เข้าถึงก่อนใคร</string>
+    <string name="stores_gamejolt_partners">เกมของพาร์ตเนอร์</string>
+    <string name="stores_gamejolt_filter_browser">เบราว์เซอร์</string>
+    <string name="stores_gamejolt_filter_maturity">ระดับเนื้อหา</string>
+    <string name="stores_gamejolt_filter_status">สถานะ</string>
+    <string name="stores_gamejolt_filter_partners">พาร์ตเนอร์</string>
+    <string name="stores_gamejolt_followed">เกมที่ติดตาม</string>
 </resources>

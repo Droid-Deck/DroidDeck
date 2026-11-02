@@ -318,8 +318,8 @@
     <string name="mode_background_downloads_hint">Trì hoãn tạm dừng nền khi Steam đang tải xuống.</string>
     <string name="mode_suspend_note">Tự động tạm dừng ở nền và tiếp tục khi hiển thị lại. Thủ công chờ nhấn Tiếp tục. Không bao giờ giữ nó luôn chạy.</string>
     <string name="mode_startup">Khởi động</string>
-    <string name="mode_steam_startup">Khởi động Steam cùng DroidDeck</string>
-    <string name="mode_steam_startup_hint">Mở phiên Steam khi DroidDeck khởi chạy.</string>
+    <string name="mode_startup_session">Mở khi khởi chạy</string>
+    <string name="mode_startup_session_hint">Bắt đầu phiên này khi DroidDeck khởi chạy.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Đang kiểm tra bản phát hành…</string>
     <string name="mode_decky_ready">Sẵn sàng cài %1$s.</string>
@@ -878,13 +878,9 @@
     <string name="setup_fullscreen">Toàn màn hình</string>
     <string name="setup_fullscreen_on">Ẩn thanh trạng thái và thanh điều hướng của Android</string>
     <string name="setup_fullscreen_off">Hiện thanh trạng thái và thanh điều hướng của Android</string>
-    <string name="setup_dual_screen">Màn hình kép</string>
-    <string name="setup_dual_screen_hint">Tự động dùng màn hình thứ hai trên máy cầm tay có màn hình thứ hai tích hợp. Bật dùng bất kỳ màn hình thứ hai nào. Tắt giữ mọi thứ trên một màn hình.</string>
     <string name="setup_dual_screen_auto">Tự động</string>
     <string name="setup_dual_screen_on">Bật</string>
     <string name="setup_dual_screen_off">Tắt</string>
-    <string name="setup_dual_screen_menu">Menu ở màn hình dưới</string>
-    <string name="setup_dual_screen_menu_hint">Chuyển các mục và menu trong trò chơi sang màn hình thứ hai và nhập liệu ở đó, để màn hình trên giữ toàn bộ khung nhìn. L2 và R2 chuyển mục.</string>
     <string name="setup_dual_screen_controls">Điều khiển màn hình dưới khi chơi game</string>
     <string name="setup_dual_screen_controls_hint">Mở bàn di chuột và bàn phím trên màn hình thứ hai khi phiên bắt đầu.</string>
     <string name="dual_typing_title">Đang nhập cho màn hình trên</string>
@@ -1780,8 +1776,6 @@
     <string name="stats_trace">Ga và phanh, 10 s gần nhất</string>
     <string name="stats_speed_chart">Tốc độ, %1$s</string>
     <string name="stats_gear">Số</string>
-    <string name="stats_speed_units">Đơn vị tốc độ</string>
-    <string name="stats_speed_units_auto">Tự động (%1$s)</string>
     <string name="stats_steam_client_arm">Client Steam ARM</string>
     <string name="stats_steam_client_x86">Client Steam x86</string>
     <string name="stats_throttle">Ga</string>
@@ -1799,7 +1793,6 @@
     <string name="stats_fuel_t">Nhiên liệu, t</string>
     <string name="stats_fuel_main">Chính %1$s t</string>
     <string name="stats_fuel_reserve">Dự trữ %1$s t</string>
-    <string name="stats_tap_hint">Nhấn vào dải phía trên hoặc bảng đồng hồ để đổi kiểu hiển thị.</string>
     <string name="bottom_telemetry_send_title">Gửi dữ liệu bảng đồng hồ</string>
     <string name="bottom_telemetry_send_auto">Tự động</string>
     <string name="bottom_telemetry_send_auto_hint">Bật cho mọi game trong danh sách này, kể cả game được tìm thấy sau này. Game bạn đã tắt sẽ vẫn tắt.</string>
@@ -1838,7 +1831,6 @@
     <string name="bottom_telemetry_balance">Số dư</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Bật xuất dữ liệu của game đua xe (thường gọi là telemetry hoặc UDP) để xem bảng đồng hồ trực tiếp ở đây. Dữ liệu chỉ ở trên thiết bị này.</string>
     <string name="bottom_telemetry_unknown_format">Cổng %1$d đang nhận dữ liệu (%2$d gói, mỗi gói %3$d byte), nhưng ở định dạng mà trang này chưa đọc được.</string>
     <string name="bottom_telemetry_port_busy">Một chương trình khác đang dùng cổng %1$s, nên game đó không thể hiển thị ở đây.</string>
 
@@ -3599,4 +3591,33 @@
     <string name="gog_repair_action">Sửa tệp</string>
     <string name="gog_refresh_action">Làm mới bản cài</string>
     <string name="gog_select_patch">Chọn</string>
+    <string name="stores_gamejolt_not_owned">Không có trong thư viện Game Jolt của bạn</string>
+    <string name="stores_gamejolt_no_build">Không có bản tải Windows cho game này</string>
+    <string name="stores_gamejolt_no_exe">Không tìm thấy trò chơi Windows trong bản tải xuống</string>
+    <string name="stores_gamejolt_no_game">Không tìm thấy trò chơi này trên Game Jolt</string>
+    <string name="stores_gamejolt_browse_failed">Không tải được game từ Game Jolt</string>
+    <string name="stores_gamejolt_download_failed">Game Jolt trả về HTTP %1$d</string>
+    <string name="stores_gamejolt_pick_failed">Không thể tải danh sách tải xuống từ Game Jolt</string>
+    <string name="stores_gamejolt_build_open">Mở trên Game Jolt</string>
+    <string name="stores_gamejolt_archive">Không hỗ trợ tệp %1$s</string>
+    <string name="stores_gamejolt_extract_failed">Không thể giải nén bản tải xuống (mã %1$d)</string>
+    <string name="stores_gamejolt_download_unreachable">Không thể kết nối với Game Jolt</string>
+    <string name="stores_gamejolt_download_no_link">Game Jolt không cung cấp liên kết tải xuống</string>
+    <string name="stores_gamejolt_section_featured">Nổi bật</string>
+    <string name="stores_gamejolt_section_hot">Thịnh hành</string>
+    <string name="stores_gamejolt_section_best">Hay nhất</string>
+    <string name="stores_gamejolt_section_new">Mới</string>
+    <string name="stores_gamejolt_price_under_30">$30 trở xuống</string>
+    <string name="stores_gamejolt_os_other">Khác</string>
+    <string name="stores_gamejolt_maturity_everyone">Mọi lứa tuổi</string>
+    <string name="stores_gamejolt_maturity_teen">Thanh thiếu niên</string>
+    <string name="stores_gamejolt_maturity_adult">Người lớn</string>
+    <string name="stores_gamejolt_status_complete">Hoàn chỉnh</string>
+    <string name="stores_gamejolt_status_early">Truy cập sớm</string>
+    <string name="stores_gamejolt_partners">Game của đối tác</string>
+    <string name="stores_gamejolt_filter_browser">Trình duyệt</string>
+    <string name="stores_gamejolt_filter_maturity">Độ tuổi</string>
+    <string name="stores_gamejolt_filter_status">Trạng thái</string>
+    <string name="stores_gamejolt_filter_partners">Đối tác</string>
+    <string name="stores_gamejolt_followed">Game đang theo dõi</string>
 </resources>
