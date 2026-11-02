@@ -12,6 +12,8 @@ import android.service.wallpaper.WallpaperService
 import android.view.SurfaceHolder
 import androidx.compose.ui.graphics.toArgb
 import com.droiddeck.launcher.ui.Themes
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -31,7 +33,8 @@ class SteamWallService : WallpaperService() {
         private var origin = 0L
         private val tick = object : Runnable {
             override fun run() {
-                if (draw() && visible) handler.postDelayed(this, FRAME_MS)
+                draw()
+                if (visible && synchronized(lock) { surfaceLive }) handler.postDelayed(this, FRAME_MS)
             }
         }
 
@@ -55,13 +58,11 @@ class SteamWallService : WallpaperService() {
         }
 
         override fun onSurfaceRedrawNeeded(holder: SurfaceHolder) {
-            handler.removeCallbacks(redraw)
-            handler.post(redraw)
+            redrawNow()
         }
 
         override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-            handler.removeCallbacks(redraw)
-            handler.post(redraw)
+            redrawNow()
         }
 
         override fun onSurfaceDestroyed(holder: SurfaceHolder) {
@@ -80,16 +81,23 @@ class SteamWallService : WallpaperService() {
             thread.quitSafely()
         }
 
-        private fun draw(): Boolean {
+        private fun redrawNow() {
+            val done = CountDownLatch(1)
+            handler.removeCallbacks(redraw)
+            handler.post(redraw)
+            handler.post { done.countDown() }
+            done.await(REDRAW_WAIT_MS, TimeUnit.MILLISECONDS)
+        }
+
+        private fun draw() {
             synchronized(lock) {
-                if (!surfaceLive) return false
-                val canvas = surfaceHolder.lockCanvas() ?: return false
+                if (!surfaceLive) return
+                val canvas = surfaceHolder.lockCanvas() ?: return
                 try {
                     render(canvas, canvas.width.toFloat(), canvas.height.toFloat())
                 } finally {
                     surfaceHolder.unlockCanvasAndPost(canvas)
                 }
-                return true
             }
         }
 
@@ -154,5 +162,6 @@ class SteamWallService : WallpaperService() {
         const val TILT = 13f
         const val DRIFT_MS = 50_000L
         const val FRAME_MS = 33L
+        const val REDRAW_WAIT_MS = 200L
     }
 }
