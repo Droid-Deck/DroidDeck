@@ -1204,7 +1204,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             secondScreenMode = secondScreenMode,
             gameOnBottom = bottomOutputActive,
             gameSwapAvailable = bottomSwapAvailable,
-            onGameOnBottom = { on -> drawerOpen = false; setGameOnBottom(on) },
+            onGameOnBottom = { on -> drawerOpen = false; putGameOnBottom(on) },
             dashboardAvailable = bottomPages().isNotEmpty(),
             desktopAvailable = com.droiddeck.launcher.session.BottomDesktop.available(),
             secondScreenDisplays = secondScreenDisplays,
@@ -3156,7 +3156,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onPage = { com.droiddeck.launcher.ui.SessionBottomTab.pick(SessionState.sessionId, it) },
                     onClose = { selectSecondScreenMode(SecondScreenMode.NONE) },
                     onMenu = if (dockDrawer()) ({ drawerOpen = true }) else null,
-                    onSwap = if (bottomSwapAvailable && com.droiddeck.launcher.input.DualScreen.builtIn(target)) ({ setGameOnBottom(true) }) else null,
+                    onSwap = if (bottomSwapAvailable && com.droiddeck.launcher.input.DualScreen.builtIn(target)) ({ putGameOnBottom(true) }) else null,
                     strip = { pageId ->
                         com.droiddeck.launcher.ui.SessionBottomStrip(pageId) { if (::hud.isInitialized) hud.liveFps else null }
                     },
@@ -4378,7 +4378,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             ?.takeIf { it.isValid && com.droiddeck.launcher.input.DualScreen.builtIn(it) }
     }
 
-    private fun setGameOnBottom(on: Boolean) {
+    private fun putGameOnBottom(on: Boolean) {
         if (on && bottomGame == null && bottomGameDisplay() == null) {
             android.widget.Toast.makeText(this, R.string.swap_screens_unavailable, android.widget.Toast.LENGTH_SHORT).show()
             return
@@ -4459,7 +4459,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     @androidx.compose.runtime.Composable
     private fun SwappedTopPanel() {
         val pages = bottomPages()
-        val swapBack = { setGameOnBottom(false) }
+        val swapBack = { putGameOnBottom(false) }
         androidx.compose.foundation.layout.Box(
             Modifier.fillMaxSize().background(androidx.compose.material3.MaterialTheme.colorScheme.background)
                 .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } },
