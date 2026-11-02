@@ -291,7 +291,7 @@ int sc_layer_base_black(int width, int height) {
     ARect src = {0, 0, 16, 16}, dst = {0, 0, width, height};
     api.setBuffer(tx, g_base_sc, black, -1);
     api.setBufferTransparency(tx, g_base_sc, ASC_TRANSPARENCY_OPAQUE);
-    api.setZOrder(tx, g_base_sc, 0); /* GAME = 1, OVERLAY = 2 */
+    api.setZOrder(tx, g_base_sc, 0);
     api.setGeometry(tx, g_base_sc, &src, &dst, 0);
     api.setVisibility(tx, g_base_sc, ASC_VISIBILITY_SHOW);
     api.txApply(tx); api.txDelete(tx);
@@ -1026,7 +1026,7 @@ void sc_layer_hide_overlay(void) {
 }
 
 void sc_layer_window_gone(void) {
-    base_hide(1); /* the backdrop belongs to the old window, just like GAME and OVERLAY */
+    base_hide(1);
     if (api.state != 1) return;
     layers_init();
     for (int i = SC_LAYER_COUNT - 1; i >= 0; i--) retire_sc(&g_layers[i]);

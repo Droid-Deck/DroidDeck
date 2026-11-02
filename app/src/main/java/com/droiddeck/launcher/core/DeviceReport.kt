@@ -42,7 +42,6 @@ object DeviceReport {
         }
     }
 
-    /** Name of an ApplicationExitInfo reason code, so a report says "LOW_MEMORY" instead of "3". */
     internal fun exitReasonName(reason: Int): String = when (reason) {
         0 -> "UNKNOWN"
         1 -> "EXIT_SELF"

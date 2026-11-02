@@ -1,4 +1,3 @@
-"""droiddeckctl and droiddeck-scenario against a fake adb: the JSON contract and exit codes."""
 import base64
 import contextlib
 import importlib.machinery
@@ -88,8 +87,6 @@ def timestats_record(name, frames, histogram, hz):
             f"present2present histogram is as below:\n{bins}\nlatch2present histogram is as below:\n8ms={frames}\n")
 
 
-# A capture where the panel went from 60 to 120 Hz: the game layer is split in two records. The
-# activity's own window and an unrelated app draw too, and must not count.
 TIMESTATS_SPLIT = "SurfaceFlinger TimeStats:\ntotalFrames = 2000\n" + "".join([
     timestats_record("droiddeck_wayland_game#6110", 900, {16: 700, 33: 199}, 60),
     timestats_record("droiddeck_wayland_game#6110", 900, {16: 850, 25: 49}, 120),
@@ -99,7 +96,6 @@ TIMESTATS_SPLIT = "SurfaceFlinger TimeStats:\ntotalFrames = 2000\n" + "".join([
     timestats_record("StatusBar#106", 1, {}, 60),
 ])
 
-# A build that presents the game on the session's SurfaceView instead of a layer of its own.
 TIMESTATS_SURFACEVIEW = "SurfaceFlinger TimeStats:\n" + "".join([
     timestats_record("a1b2c3 SurfaceView[com.droiddeck.launcher/com.droiddeck.launcher.SessionActivity]#77",
                      1800, {16: 1796, 33: 3}, 120),
@@ -155,7 +151,7 @@ class DroiddeckctlTest(FakeAdbTest):
         with unittest.mock.patch.dict(os.environ, {"DROIDDECK_PACKAGE": "com.antutu.benchmark.full"}):
             variant = load("droiddeckctl")
         self.assertEqual("content://com.antutu.benchmark.full.agent", variant.AUTHORITY)
-        with self.assertRaises(variant.ControlError):  # the fake adb does not answer `am start`
+        with self.assertRaises(variant.ControlError):
             variant.start_agent_activity(str(self.adb), "fake-1", {"mode": "steam"})
         started = [e["args"] for e in self.calls() if e["args"][:3] == ["shell", "am", "start"]]
         self.assertIn("com.antutu.benchmark.full/com.droiddeck.launcher.agent.AgentStartActivity", started[0])

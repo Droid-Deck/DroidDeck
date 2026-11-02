@@ -8,7 +8,7 @@
  * link to https://github.com/The412Banner/FusionHUD in the project documentation
  * AND in the in-app credits/about screen.
  *
- * Ported to DroidDeck from FusionHUD (Bannerlator's HUD); DroidDeck changes are marked in the code.
+ * Ported to DroidDeck from FusionHUD (Bannerlator's HUD) and modified for DroidDeck.
  */
 
 package com.droiddeck.launcher.hud;
@@ -28,44 +28,18 @@ import android.view.View;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-/**
- * Shared touch + lock behaviour for every in-game performance HUD (classic FrameRating(+Horizontal),
- * GameHub PerfHudView, GameNative PerformanceHudView, and the DroidDeck HUD). One place so the four
- * overlays can't drift:
- *
- * <ul>
- *   <li><b>tap</b> → {@link Callbacks#onTap()} (orientation-toggle for the first three; size-cycle for
- *       the DroidDeck HUD) — a no-op that only re-flashes the lock badge while locked.</li>
- *   <li><b>drag</b> → moves the host view and, on release, {@link Callbacks#onMoved} to persist the
- *       position — disabled (frozen) while locked.</li>
- *   <li><b>long-press</b> → toggles {@code hudLocked}, persisted via {@link Callbacks#onLockChanged}
- *       and kept in sync with the "Lock in place" menu chip. Works locked or unlocked (so a long-press
- *       always unlocks); a locked {@code DroidDeckHudView} passes touches on only over on-screen controls.</li>
- * </ul>
- *
- * <p>On every lock/unlock (and on a blocked gesture while locked) a small padlock badge fades in →
- * holds → fades out in a corner of the panel. The fade is driven by a self-reposting Runnable that
- * invalidates only while visible — nothing runs on the present path, nothing animates at rest.
- *
- * <p>All methods are Main-thread only (touch + draw), matching the epoll-thread rule: the views feed
- * this from {@code onTouchEvent}/{@code dispatchDraw}, never from a present tick.
- */
 public class HudLockController {
 
     public interface Callbacks {
-        /** Unlocked single tap: orientation-toggle (classic/gamehub/gamenative) or size-cycle (DroidDeck HUD). */
         void onTap();
-        /** Drag released (unlocked): persist the new (x, y). */
         void onMoved(float x, float y);
-        /** Lock toggled by long-press: persist {@code hudLocked} + sync the menu chip. */
+        default void onDragged(float rawX, float rawY) {}
+        default void onFlung(float velocityX, float velocityY) {}
         void onLockChanged(boolean locked);
-        /** Two-finger pinch (unlocked): the change since the previous event, above 1 when the fingers spread. */
         default void onPinch(float factor) {}
-        /** The fingers came off a pinch: persist the new size. */
         default void onPinchEnd() {}
     }
 
-    // Fade timing (ms): in → hold → out. Lock/unlock hold ~1.5 s; a blocked-gesture re-flash is shorter.
     private static final long FADE_IN_MS = 160;
     private static final long HOLD_TOGGLE_MS = 1500;
     private static final long HOLD_REFLASH_MS = 750;
@@ -79,13 +53,10 @@ public class HudLockController {
 
     private boolean locked = false;
 
-    // Drag state
     private float downRawX, downRawY, startX, startY;
     private boolean dragging = false;
-    // A pinch ends the gesture's drag and tap: the finger left down after it must not move the HUD.
     private boolean pinched = false;
 
-    // Fade state
     private long fadeStart = 0;
     private long holdMs = HOLD_TOGGLE_MS;
     private boolean fadeShowLocked = false;
@@ -106,14 +77,12 @@ public class HudLockController {
         iconStroke.setStrokeJoin(Paint.Join.ROUND);
     }
 
-    /** Set lock state from config (applyConfig) WITHOUT firing the persist callback. */
     public void setLocked(boolean locked) { this.locked = locked; }
 
     public boolean isLocked() { return locked; }
 
     public boolean isDragging() { return dragging; }
 
-    /** Feed from the host view's onTouchEvent. Always consumes (mirrors the legacy manual handlers). */
     public boolean onTouchEvent(MotionEvent event) {
         scaleDetector.onTouchEvent(event);
         detector.onTouchEvent(event);
@@ -139,7 +108,6 @@ public class HudLockController {
 
         @Override
         public void onLongPress(MotionEvent e) {
-            // Long-press always toggles — this is the only gesture that still works while locked.
             locked = !locked;
             cb.onLockChanged(locked);
             flash(locked, HOLD_TOGGLE_MS);
@@ -149,10 +117,16 @@ public class HudLockController {
         public boolean onSingleTapUp(MotionEvent e) {
             if (pinched) return true;
             if (locked) {
-                flash(true, HOLD_REFLASH_MS);   // intentionally locked — remind the user
+                flash(true, HOLD_REFLASH_MS);
             } else {
                 cb.onTap();
             }
+            return true;
+        }
+
+        @Override
+        public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+            if (dragging && !locked && !pinched) cb.onFlung(velocityX, velocityY);
             return true;
         }
 
@@ -161,12 +135,13 @@ public class HudLockController {
             if (pinched) return true;
             if (locked) {
                 if (!dragging) flash(true, HOLD_REFLASH_MS);
-                dragging = true;   // mark so the blocked drag doesn't fall through to a tap
+                dragging = true;
                 return true;
             }
             view.setX(startX + (e2.getRawX() - downRawX));
             view.setY(startY + (e2.getRawY() - downRawY));
             dragging = true;
+            cb.onDragged(e2.getRawX(), e2.getRawY());
             return true;
         }
     }
@@ -192,7 +167,6 @@ public class HudLockController {
         }
     }
 
-    // ---- Fade badge -------------------------------------------------------
     private void flash(boolean showLocked, long hold) {
         fadeShowLocked = showLocked;
         holdMs = hold;
@@ -225,14 +199,6 @@ public class HudLockController {
         return Color.argb(Math.round(255 * a), Color.red(color), Color.green(color), Color.blue(color));
     }
 
-    /**
-     * Draw the padlock badge in the top-right of the panel if a fade is in progress. Call from the
-     * host's onDraw (plain View) or dispatchDraw (ViewGroup), after the content.
-     *
-     * <p>No background box: the glyph is drawn twice — a slightly expanded, thicker semi-transparent
-     * black "halo" pass for legibility on any game frame, then the white glyph on top — so it reads as
-     * a floating icon, not an opaque tile.
-     */
     public void drawBadge(Canvas canvas) {
         float a = currentAlpha();
         if (a <= 0f) return;
@@ -251,14 +217,12 @@ public class HudLockController {
         float r = size * 0.2f;
         float shackleTop = top + size * 0.08f;
 
-        // Pass 1: dark halo (expanded body, thicker shackle) for contrast; Pass 2: white glyph.
         drawLock(canvas, cx, bodyTop, bodyLeft, bodyRight, bottom, r, shackleTop, d,
             Color.argb(Math.round(150 * a), 0, 0, 0), 3.0f * d, 0.9f * d, false);
         drawLock(canvas, cx, bodyTop, bodyLeft, bodyRight, bottom, r, shackleTop, d,
             withAlpha(0xFFFFFFFF, a), 1.7f * d, 0f, true);
     }
 
-    /** One padlock pass. {@code halo} inflates the body/shackle in dark; the white pass punches the keyhole. */
     private void drawLock(Canvas canvas, float cx, float bodyTop, float bodyLeft, float bodyRight,
                           float bottom, float r, float shackleTop, float d,
                           int color, float strokeW, float expand, boolean punchKeyhole) {
@@ -266,7 +230,6 @@ public class HudLockController {
         iconStroke.setColor(color);
         iconStroke.setStrokeWidth(strokeW);
 
-        // Body
         canvas.drawRoundRect(bodyLeft - expand, bodyTop - expand, bodyRight + expand, bottom + expand,
             2.4f * d, 2.4f * d, iconFill);
         if (punchKeyhole) {
@@ -278,19 +241,16 @@ public class HudLockController {
 
         RectF arc = new RectF(cx - r, shackleTop, cx + r, shackleTop + 2f * r);
         if (fadeShowLocked) {
-            // Closed: both legs run straight down into the body.
             Path p = new Path();
             p.addArc(arc, 180f, 180f);
             p.moveTo(cx - r, shackleTop + r); p.lineTo(cx - r, bodyTop);
             p.moveTo(cx + r, shackleTop + r); p.lineTo(cx + r, bodyTop);
             canvas.drawPath(p, iconStroke);
         } else {
-            // Open, clearly to the LEFT: the RIGHT leg stays seated in the body; the arc + LEFT leg
-            // hinge up-and-left off the right attachment so the left leg lifts well clear of the body.
-            canvas.drawLine(cx + r, shackleTop + r, cx + r, bodyTop, iconStroke); // fixed right leg
+            canvas.drawLine(cx + r, shackleTop + r, cx + r, bodyTop, iconStroke);
             Path p = new Path();
             p.addArc(arc, 180f, 180f);
-            p.moveTo(cx - r, shackleTop + r); p.lineTo(cx - r, bodyTop); // full-length left leg
+            p.moveTo(cx - r, shackleTop + r); p.lineTo(cx - r, bodyTop);
             canvas.save();
             canvas.rotate(-42f, cx + r, shackleTop + r);
             canvas.drawPath(p, iconStroke);

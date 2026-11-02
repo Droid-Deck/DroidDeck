@@ -8,10 +8,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/**
- * What DroidDeck and Steam know about boot movies, in one text file: Steam's startup movie setting, every movie file and
- * where it lives, DroidDeck's own state, and a short trace of what each session start did to Steam's config.
- */
 object BootMovieReport {
     private const val TAG = "BootMovieReport"
     private const val MAX_TRACE_LINES = 200
@@ -23,7 +19,6 @@ object BootMovieReport {
 
     private fun traceFile(context: Context) = File(context.filesDir, "boot-movie/apply.log")
 
-    /** Adds a line to the short trace kept for the report; only the latest lines are kept. */
     fun note(context: Context, line: String) {
         synchronized(lock) {
             runCatching {
@@ -36,7 +31,6 @@ object BootMovieReport {
         }
     }
 
-    /** Writes the report to Downloads/DroidDeck, or to the app's own folder when that is not possible; null when the report cannot be built or neither folder works. */
     fun write(context: Context): File? {
         val text = runCatching { build(context) }.getOrElse {
             Log.w(TAG, "could not build the report", it)

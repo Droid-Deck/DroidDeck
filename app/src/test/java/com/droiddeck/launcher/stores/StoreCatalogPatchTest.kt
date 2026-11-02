@@ -4,7 +4,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test
 
-/** Filling a grid one card at a time: what is on screen stays put, what is new lands where its title belongs. */
 class StoreCatalogPatchTest {
     private fun item(id: String, title: String, image: String? = null) = CatalogItem(Store.GOG, id, title, imageUrl = image, owned = true)
 

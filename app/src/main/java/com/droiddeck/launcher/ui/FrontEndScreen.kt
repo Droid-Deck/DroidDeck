@@ -298,8 +298,6 @@ internal object Motion {
         if (scale == 0f) snap() else spring(damping, stiffness)
 }
 
-private val Shape10 = RoundedCornerShape(10.dp)
-
 internal val Shape12 = RoundedCornerShape(12.dp)
 
 internal fun hueOf(name: String) = (name.hashCode().toUInt() % 360u).toFloat()
@@ -317,13 +315,6 @@ internal fun Rise(i: Int, modifier: Modifier = Modifier, content: @Composable ()
         exit = fadeOut(Motion.tw(120)),
         label = "rise",
     ) { content() }
-}
-
-@Composable
-private fun Modifier.staggerIn(i: Int): Modifier {
-    val t = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { t.animateTo(1f, Motion.tw(360, i * 30)) }
-    return graphicsLayer { alpha = t.value; translationY = (1f - t.value) * 10.dp.toPx() }
 }
 
 @Composable
@@ -442,6 +433,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             "stores:downloads" -> { com.droiddeck.launcher.stores.StoresState.openDownloads = true; selected = "stores" }
             "components" -> a.onComponents(true)
             "setup:launcher" -> { SetupTabs.openLauncher = true; selected = "setup" }
+            com.droiddeck.launcher.sync.SyncthingService.NAV -> com.droiddeck.launcher.sync.Syncthing.requestOpen()
             "setup:integration" -> { SetupTabs.openOverview = true; selected = "setup" }
             else -> selected = target
         }
@@ -560,6 +552,9 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     }
     LaunchedEffect(com.droiddeck.launcher.storage.StorageState.openRequests) {
         if (com.droiddeck.launcher.storage.StorageState.openPending) showRailPage("setup", true)
+    }
+    LaunchedEffect(com.droiddeck.launcher.sync.Syncthing.openRequests) {
+        if (com.droiddeck.launcher.sync.Syncthing.openPending) showRailPage("setup", true)
     }
     val onRailFocus: (String) -> Unit = { key ->
         if (key != railSelection) showRailPage(key, false)

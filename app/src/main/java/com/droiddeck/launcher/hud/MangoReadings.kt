@@ -5,12 +5,6 @@ import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
 import kotlin.math.roundToInt
 
-/**
- * The readings Steam's performance overlay shows in a DroidDeck session (Valve's mangohud 20260902.1,
- * tools/mangoapp), taken from the files the session hands it and computed the same way, so the two
- * overlays agree. Sources and formulas follow that build: cpu.cpp calculateCPUData, deckard_temp.cpp,
- * msm.cpp getQcomGpuInfo, memory.cpp update_meminfo and battery.cpp getPercent / getPower.
- */
 internal class MangoReadings(private val sessionDir: File, private val rootDir: File) {
     class Cpu(val percent: Int, val perCore: IntArray)
     class Memory(val usedBytes: Long, val totalBytes: Long, val swapUsedBytes: Long, val swapTotalBytes: Long)
@@ -19,7 +13,6 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
     private val cpuTimes = HashMap<String, LongArray>()
     private val cpuPercents = HashMap<String, Int>()
 
-    /** Total and per-core load from the session's /proc/stat (DroidDeck's stand-in when the app can't read it). */
     @JvmOverloads
     fun cpu(stat: File = statFile()): Cpu? {
         val lines = runCatching { stat.readLines() }.getOrNull() ?: return null
@@ -40,7 +33,6 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
         File(sessionDir, "proc-stat").takeIf { !File("/proc/stat").canRead() && it.isFile } ?: File("/proc/stat")
 
     private fun cpuPercent(key: String, v: LongArray): Int {
-        // user nice system idle iowait irq softirq steal guest guest_nice; guest time is already in user.
         val user = v[0] - v[8]
         val nice = v[1] - v[9]
         val systemAll = v[2] + v[5] + v[6]
@@ -57,7 +49,6 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
         return busy.coerceIn(0f, 100f).toInt().also { cpuPercents[key] = it }
     }
 
-    /** Average of the zones the session types cpuN-thermal, truncated. */
     fun cpuTempC(): Int? {
         externalCpuTemp()?.let { return it }
         var sum = 0f
@@ -95,7 +86,6 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
         return (milli / 1000.0).toInt()
     }
 
-    /** MemTotal - MemAvailable and SwapTotal - SwapFree from /proc/meminfo. */
     fun memory(): Memory? {
         val kb = HashMap<String, Long>()
         runCatching {
@@ -115,7 +105,6 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
     /** The KGSL total DroidDeck shares with the session (GpuMemComponent). */
     fun vramBytes(): Long? = fresh(File(rootDir, VRAM_FILE), VRAM_FRESH_MS)?.let(::readLong)?.takeIf { it > 0 }
 
-    /** BAT* under the session's power_supply (BatteryComponent): no watts while charging, full or unknown. */
     fun battery(): Battery? {
         val dirs = File(sessionDir, "sys/power_supply").listFiles { f -> f.name.contains("BAT") }?.sortedBy { it.name }
         if (dirs.isNullOrEmpty()) return null
@@ -160,7 +149,6 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
         private fun readLong(file: File): Long? = runCatching { file.readText().trim().toLong() }.getOrNull()
         private fun readFloat(file: File): Float? = runCatching { file.readLines().first().trim().toFloat() }.getOrNull()
 
-        /** std::stod on the first line: the leading number, "6 %" -> 6. */
         fun leadingNumber(file: File): Double? = runCatching {
             Regex("^\\s*-?\\d+(\\.\\d+)?").find(file.readLines().first())?.value?.trim()?.toDouble()
         }.getOrNull()

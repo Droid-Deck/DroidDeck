@@ -9,9 +9,6 @@ MAIN_LABEL = "Internal Storage"
 
 
 def register(steam_root, library, label):
-    """Adds one library folder to the client's list; the client then offers it as an install
-    location as well as reading the games already in it. Registered even when empty: a new user
-    should be able to install straight into it."""
     steamapps = os.path.join(library, "steamapps")
     if not os.path.isdir(steamapps):
         return 0
@@ -58,8 +55,6 @@ RENAMED = (("/mnt/bannerlator-sd", "/mnt/droiddeck-sd"),)
 
 
 def rename(steam_root, old, new):
-    """Moves a library registered under an earlier mount point to the current one, keeping its
-    entry (content id, app sizes) rather than registering it anew."""
     path = os.path.join(steam_root, "steamapps", "libraryfolders.vdf")
     if not os.path.isfile(path):
         return
@@ -77,8 +72,6 @@ def rename(steam_root, old, new):
 
 
 def forget(steam_root, library):
-    """Removes a library folder earlier builds registered and this one no longer binds, so the
-    client does not keep offering a location that is not there."""
     path = os.path.join(steam_root, "steamapps", "libraryfolders.vdf")
     if not os.path.isfile(path):
         return
@@ -107,10 +100,6 @@ def forget(steam_root, library):
 
 
 def relabel(steam_root, target, label):
-    """Names a library for what it is. The client writes its own entry with an empty label and
-    falls back to showing the mount point - "Local Drive (/)" - so the install dialog gives no
-    clue which of the two places is the phone and which is the card. A library registered on an
-    earlier run keeps whatever label it was given then, so both are named here every time.""" 
     path = os.path.join(steam_root, "steamapps", "libraryfolders.vdf")
     if not os.path.isfile(path):
         return
@@ -153,6 +142,7 @@ def relabel(steam_root, target, label):
 
 
 GAMES_DIR = "/root/Games/"
+ADDED_DIR = "/mnt/droiddeck-lib/"
 
 
 def wanted():
@@ -193,7 +183,7 @@ def main():
     if managed:
         keep = {library for library, _ in libraries}
         for library in registered(steam_root):
-            if library not in keep and (library == LIBRARIES[0][0] or library.startswith(GAMES_DIR)):
+            if library not in keep and (library == LIBRARIES[0][0] or library.startswith((GAMES_DIR, ADDED_DIR))):
                 forget(steam_root, library)
 
 

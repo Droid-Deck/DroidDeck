@@ -63,7 +63,6 @@ class GlassesMenuSurface(
     override fun onDetachedFromWindow() {
         close()
         super.onDetachedFromWindow()
-        // GLSurfaceView may exit its GL thread before queued cleanup is consumed.
         releaseInput()
     }
 

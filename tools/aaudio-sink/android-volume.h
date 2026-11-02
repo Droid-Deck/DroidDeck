@@ -45,7 +45,6 @@ static void android_volume_set(pa_sink *sink) {
     unsigned requested = PA_MIN(pa_cvolume_max(&sink->real_volume), PA_VOLUME_NORM);
     level = ((uint64_t)requested * maximum + PA_VOLUME_NORM / 2) / PA_VOLUME_NORM;
     pa_cvolume_set(&sink->real_volume, sink->sample_spec.channels, (uint64_t)level * PA_VOLUME_NORM / maximum);
-    /* Android applies media gain to both PulseAudio and DirectAudio streams. */
     pa_cvolume_reset(&sink->soft_volume, sink->sample_spec.channels);
     android_volume_request(sink, "volume", level);
 }
@@ -88,7 +87,6 @@ static void android_volume_refresh(pa_mainloop_api *api, pa_time_event *event, c
     pa_xfree(mute_request);
     pa_xfree(processing);
     pa_xfree(mute_processing);
-    /* A held volume key steps Android every ~50 ms; sampling at 100 ms hands Steam uneven multi-step jumps. */
     unsigned delay_ms = ANDROID_VOLUME_IDLE_MS;
     if (bridge->active_ticks) {
         bridge->active_ticks--;

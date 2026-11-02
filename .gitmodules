@@ -1,3 +1,6 @@
 [submodule "external/MaliBridge"]
 	path = external/MaliBridge
 	url = https://github.com/ASEbrahim/MaliBridge.git
+[submodule "tools/syncthing/syncthing-android"]
+	path = tools/syncthing/syncthing-android
+	url = https://github.com/researchxxl/syncthing-android

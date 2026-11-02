@@ -8,7 +8,6 @@ import org.junit.Test
 import kotlin.random.Random
 
 class FrameStatsTest {
-    /** MangoHud's update_hud_info_with_frametime and fps()/frame_timing(), line by line (overlay.cpp). */
     private class Mango {
         val frametimeData = ArrayList<Float>(List(200) { 0f })
         var lastPresentTime = 0L
@@ -67,6 +66,30 @@ class FrameStatsTest {
         feed.onCompositorFrame(now)
         assertTrue(feed.poll(now))
         assertFalse(feed.poll(now + 1))
+    }
+
+    @Test fun slowFramesCountOnlyFramesOver33MsInTheWindow() {
+        val stats = FrameStats()
+        var now = 1_000_000_000L
+        for (ft in listOf(16_666_667L, 40_000_000L, 16_666_667L, 50_000_000L, 2_000_000_000L, 16_666_667L)) {
+            now += ft
+            stats.add(ft, now)
+        }
+        assertEquals(2, stats.slowFrames(now, 60_000_000_000L))
+        assertEquals(0, stats.slowFrames(now + 120_000_000_000L, 60_000_000_000L))
+        stats.reset()
+        assertEquals(0, stats.slowFrames(now, 60_000_000_000L))
+    }
+
+    @Test fun compositorFramesDoNotCountAsLiveGamescopeFrames() {
+        val feed = GameFrameFeed(java.io.File("/nonexistent/droiddeck-hud/frames"))
+        var now = 1_000_000_000L
+        assertFalse(feed.live)
+        feed.onCompositorFrame(now)
+        now += 16_666_667L
+        feed.onCompositorFrame(now)
+        feed.poll(now)
+        assertFalse(feed.live)
     }
 
     @Test fun aCompletedPeriodIsCountedWhenMangoHudWouldRedraw() {

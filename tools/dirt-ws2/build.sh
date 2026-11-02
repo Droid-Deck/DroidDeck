@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Builds the 32-bit ws2_32.dll stand-in for DiRT 3 and DiRT Showdown into the given folder.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$1"

@@ -79,6 +79,7 @@ import com.droiddeck.launcher.session.SessionArtifacts
 import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.GameStorage
+import com.droiddeck.launcher.session.SteamLibraries
 import com.droiddeck.launcher.input.SecondScreenDisplay
 import com.droiddeck.launcher.input.SecondScreenDisplays
 
@@ -480,6 +481,7 @@ class FrontEndActivity : ComponentActivity() {
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
     private var steamDownloadsInBackground by mutableStateOf(false)
     private var oscMode by mutableStateOf(SessionPrefs.OSC_AUTO)
+    private var backHold by mutableStateOf(true)
     private var backActionsInverted by mutableStateOf(false)
     private var gameStorage by mutableStateOf("")
     private var slowUsb by mutableStateOf<com.droiddeck.launcher.session.UsbLink.SlowDrive?>(null)
@@ -496,6 +498,20 @@ class FrontEndActivity : ComponentActivity() {
     private var storageOptions by mutableStateOf<List<GameStorage.Option>>(emptyList())
     private val pickGameStorage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data)?.let { path -> setGameStorage(path, GameStorage.labelFor(this, path)) }
+    }
+    private var steamLibraries by mutableStateOf<List<SteamLibraries.Entry>>(emptyList())
+    private val pickSteamLibrary = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val path = if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data) else null
+        if (path != null) Thread({
+            val result = SteamLibraries.add(this, path)
+            ui.post {
+                steamLibraries = SteamLibraries.list(this)
+                refresh()
+                if (result is SteamLibraries.AddResult.Refused) {
+                    android.widget.Toast.makeText(this, getString(R.string.main_storage_not_usable, result.reason), android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        }, "steam-library-add").start()
     }
     private var romsDir by mutableStateOf<String?>(null)
     private var steamGames by mutableStateOf<List<Library.SteamGame>>(emptyList())
@@ -720,7 +736,6 @@ class FrontEndActivity : ComponentActivity() {
         LauncherIcon.set(this, style)
         launcherIcon = LauncherIcon.current(this)
         if (launcherIcon == before) return false
-        // Android finishes activities started through the alias that was just disabled.
         startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
             .setComponent(LauncherIcon.activity(this))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
@@ -1810,7 +1825,6 @@ class FrontEndActivity : ComponentActivity() {
 
     private fun refreshSecondScreenDisplays() {
         if (!::displayManager.isInitialized) return
-        // The launcher can itself be shown on a non-default display (DeX, an external monitor); that one is not a "second screen".
         val ownDisplayId = if (android.os.Build.VERSION.SDK_INT >= 30) display?.displayId ?: android.view.Display.DEFAULT_DISPLAY else @Suppress("DEPRECATION") windowManager.defaultDisplay.displayId
         dualScreenMode = SessionPrefs.dualScreenMode(this)
         secondScreenDisplays = SecondScreenDisplays.available(displayManager, ownDisplayId)
@@ -2124,6 +2138,7 @@ class FrontEndActivity : ComponentActivity() {
                 unfoldedControls = if (mode == SessionService.MODE_STEAM) unfoldedControls else null,
                 unfoldedControlsWithController = unfoldedControlsWithController,
                 oscMode = if (mode == SessionService.MODE_STEAM) oscMode else null,
+                backHold = backHold,
                 backActionsInverted = backActionsInverted,
                 directAudio = if (mode == SessionService.MODE_STEAM) directAudio else null,
                 picturePosition = if (mode == SessionService.MODE_STEAM) picturePosition else null,
@@ -2131,6 +2146,7 @@ class FrontEndActivity : ComponentActivity() {
                 mic = if (mode == SessionService.MODE_STEAM) mic else null,
                 gameStorage = if (mode == SessionService.MODE_STEAM) gameStorage else null,
                 storageOptions = storageOptions,
+                steamLibraries = steamLibraries,
                 storageDiagnostics = mode == SessionService.MODE_STEAM && storageDiagnostics,
                 fexPreset = if (mode == SessionService.MODE_STEAM) fexPreset else null,
                 forceSsbs = forceSsbs,
@@ -2176,6 +2192,7 @@ class FrontEndActivity : ComponentActivity() {
                     SessionPrefs.setUnfoldedControlsWithController(this, on); unfoldedControlsWithController = on
                 },
                 onOsc = { o -> SessionPrefs.setOscMode(this, o); oscMode = o },
+                onBackHold = { on -> SessionPrefs.setBackHold(this, on); backHold = on },
                 onBackActionsInverted = { inverted ->
                     SessionPrefs.setBackActionsInverted(this, inverted)
                     backActionsInverted = inverted
@@ -2193,6 +2210,19 @@ class FrontEndActivity : ComponentActivity() {
                 onGameStorage = { path, label -> setGameStorage(path, label) },
                 onPickGameStorageFolder = {
                     pickGameStorage.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.main_pick_game_storage), gameStorage.ifEmpty { null }))
+                },
+                onAddSteamLibrary = {
+                    pickSteamLibrary.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.libraries_pick), null))
+                },
+                onRenameSteamLibrary = { id, label ->
+                    SteamLibraries.rename(this, id, label)
+                    steamLibraries = SteamLibraries.list(this)
+                    refresh()
+                },
+                onRemoveSteamLibrary = { id ->
+                    SteamLibraries.remove(this, id)
+                    steamLibraries = SteamLibraries.list(this)
+                    refresh()
                 },
                 onStorageDiagnostics = { on ->
                     SessionPrefs.setStorageDiagnosticsEnabled(this, on)
@@ -2420,6 +2450,7 @@ class FrontEndActivity : ComponentActivity() {
         suspendPolicy = SessionPrefs.suspendPolicy(this, mode)
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
         oscMode = SessionPrefs.oscMode(this)
+        backHold = SessionPrefs.backHold(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         directAudio = SessionPrefs.directAudio(this)
         picturePosition = SessionPrefs.picturePosition(this)
@@ -2427,6 +2458,7 @@ class FrontEndActivity : ComponentActivity() {
         mic = SessionPrefs.micEnabled(this)
         refreshWifiDiscovery()
         gameStorage = SessionPrefs.gameStorage(this)
+        steamLibraries = SteamLibraries.list(this)
         storageDiagnostics = SessionPrefs.storageDiagnosticsEnabled(this)
         settingsMode = mode
         Thread({
@@ -2504,7 +2536,6 @@ class FrontEndActivity : ComponentActivity() {
             !SessionPaths.currentSessionLogsRetained(this)
 
     private fun refresh() {
-        // Until the scan finishes, the other client's games would launch in this one.
         val listX64 = SessionPrefs.activeSteamClientArch(this) == "x86_64"
         if (listX64 != steamGamesX64) {
             steamGamesX64 = listX64
