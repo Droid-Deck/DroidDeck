@@ -5,8 +5,12 @@ import subprocess
 import tempfile
 import unittest
 
-from .test_hybris_clip_shader import strict_c_flags
-from .test_hybris_vendor_compat import vulkan_include
+if __package__:
+    from .test_hybris_clip_shader import strict_c_flags
+    from .test_hybris_vendor_compat import vulkan_include
+else:
+    from test_hybris_clip_shader import strict_c_flags
+    from test_hybris_vendor_compat import vulkan_include
 
 ROOT = Path(__file__).resolve().parents[2]
 
