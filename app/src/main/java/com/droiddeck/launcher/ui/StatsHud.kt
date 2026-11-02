@@ -183,8 +183,7 @@ private fun HudPanel(clock: String, right: String?, dim: Boolean, accent: Color,
             .padding(start = 24.dp, end = 34.dp, bottom = 14.dp),
     ) {
         Row(Modifier.fillMaxWidth().height(HEADER), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            DroidDeckLogo(16.dp, body = headerInk, orb = if (dim) accent.copy(alpha = 0.5f) else accent)
-            Text("DroidDeck", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = headerInk, maxLines = 1)
+            Wordmark(14.dp, ink = headerInk, ball = if (dim) accent.copy(alpha = 0.5f) else accent)
             if (clock.isNotEmpty()) {
                 Text("·", fontSize = 13.sp, fontFamily = Mono, color = HudInk.sep)
                 Text(clock, fontSize = 13.sp, fontFamily = Mono, fontWeight = FontWeight.Bold, color = HudInk.dim, maxLines = 1)
