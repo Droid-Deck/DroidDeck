@@ -386,7 +386,9 @@ internal object GogMaintenance {
         transfer(context, Proposal(folder, old, target, GogOperation.UPDATE, bytes, disk), null, cancelled, callback)
         if (cancelled.get()) return null
         target.write(folder)
-        val result = GogDownloadManager.Result(GogDownloadManager.pickExe(folder, null, game.title), build.id, disk)
+        val task = GogDownloadManager.pickTask(folder, game.gameId, null, game.title)
+        val result = GogDownloadManager.Result(task?.path ?: "", build.id, disk)
+        result.workDir = task?.workDir
         result.language = target.language
         result.dependencies = target.manifest.optJSONArray("dependencies")?.strings().orEmpty()
         result.dependenciesRead = true
