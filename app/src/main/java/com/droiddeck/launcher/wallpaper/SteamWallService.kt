@@ -62,7 +62,8 @@ class SteamWallService : WallpaperService() {
         }
 
         override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-            redrawNow()
+            handler.removeCallbacks(redraw)
+            handler.post(redraw)
         }
 
         override fun onSurfaceDestroyed(holder: SurfaceHolder) {
