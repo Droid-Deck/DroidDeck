@@ -960,10 +960,17 @@ object SessionPrefs {
         prefs(context).edit().apply { if (name == null) remove("bootMovieCustomName") else putString("bootMovieCustomName", name) }.apply()
     }
 
-    fun runSteamAtStartup(context: Context): Boolean = prefs(context).getBoolean("runSteamAtStartup", false)
+    const val STARTUP_OFF = ""
+    const val STARTUP_STEAM = "steam"
+    const val STARTUP_DESKTOP = "desktop"
 
-    fun setRunSteamAtStartup(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("runSteamAtStartup", on).apply()
+    fun startupSession(context: Context): String {
+        val p = prefs(context)
+        return p.getString("startupSession", null) ?: if (p.getBoolean("runSteamAtStartup", false)) STARTUP_STEAM else STARTUP_OFF
+    }
+
+    fun setStartupSession(context: Context, id: String) {
+        prefs(context).edit().putString("startupSession", id).remove("runSteamAtStartup").apply()
     }
 
     fun addedGamesDirs(context: Context): List<String> {
