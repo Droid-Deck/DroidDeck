@@ -347,7 +347,7 @@ class SessionService : Service() {
         screenOn = readScreenOn()
         manualPauseRequested = false
         suspendDownloadNow = false
-        downloadMonitorExecutor.execute { steamDownloadMonitor.reset() }
+        runOnDownloadMonitor { steamDownloadMonitor.reset() }
         downloadActive = false
         clientInstallActive = false
         steamSleepToken = null
@@ -2106,12 +2106,20 @@ class SessionService : Service() {
         SessionState.running && SessionState.mode == MODE_STEAM && suspendPolicy != SessionPrefs.SUSPEND_NEVER &&
             (steamDownloadsInBackground || !SessionState.firstFrameSeen)
 
+    private fun runOnDownloadMonitor(task: () -> Unit) {
+        try {
+            downloadMonitorExecutor.execute(task)
+        } catch (e: java.util.concurrent.RejectedExecutionException) {
+            Log.d(TAG, "download monitor already shut down")
+        }
+    }
+
     private fun updateDownloadMonitoring() {
         if (!downloadWatchWanted()) {
             val wasActive = downloadActive
             downloadMonitorTask?.let(mainHandler::removeCallbacks)
             downloadMonitorTask = null
-            downloadMonitorExecutor.execute { steamDownloadMonitor.reset() }
+            runOnDownloadMonitor { steamDownloadMonitor.reset() }
             downloadActive = false
             if (clientInstallActive) SessionEvents.record("steam.client_download", mapOf("active" to false))
             clientInstallActive = false
@@ -2152,7 +2160,7 @@ class SessionService : Service() {
                     finish(false)
                     return
                 }
-                downloadMonitorExecutor.execute {
+                runOnDownloadMonitor {
                     val monitored = runCatching { steamDownloadMonitor.poll(root, receivedBytes = receivedBytes, client = client, mounts = mounts) }
                         .getOrDefault(false)
                     mainHandler.post { finish(monitored) }
