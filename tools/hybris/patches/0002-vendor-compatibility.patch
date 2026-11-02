@@ -120,10 +120,10 @@ index b311286..925a174 100644
  /* The DXVK profile implements Vulkan 1.3 plus maintenance6. Do not expose 1.4 core
 diff --git a/hybris/vulkan/compat/vendor_compat.c b/hybris/vulkan/compat/vendor_compat.c
 new file mode 100644
-index 0000000..216d90d
+index 0000000..9c8f2eb
 --- /dev/null
 +++ b/hybris/vulkan/compat/vendor_compat.c
-@@ -0,0 +1,565 @@
+@@ -0,0 +1,549 @@
 +/* SPDX-License-Identifier: Apache-2.0 */
 +#define _GNU_SOURCE
 +#define VK_NO_PROTOTYPES
@@ -379,10 +379,10 @@ index 0000000..216d90d
 +        VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
 +    int calibrated_ext_enabled = policy.calibrated_ext_advertised && extension_enabled(info,
 +        VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
-+    PFN_vkGetCalibratedTimestampsKHR timestamps_khr =
-+        (PFN_vkGetCalibratedTimestampsKHR)resolver(handle, "vkGetCalibratedTimestampsKHR");
-+    PFN_vkGetCalibratedTimestampsEXT timestamps_ext =
-+        (PFN_vkGetCalibratedTimestampsEXT)resolver(handle, "vkGetCalibratedTimestampsEXT");
++    PFN_vkGetCalibratedTimestampsKHR timestamps_khr = calibrated_khr_enabled ?
++        (PFN_vkGetCalibratedTimestampsKHR)resolver(handle, "vkGetCalibratedTimestampsKHR") : NULL;
++    PFN_vkGetCalibratedTimestampsEXT timestamps_ext = calibrated_ext_enabled ?
++        (PFN_vkGetCalibratedTimestampsEXT)resolver(handle, "vkGetCalibratedTimestampsEXT") : NULL;
 +    int calibrated_alias = policy.calibrated_compatible && calibrated_ext_enabled && timestamps_ext &&
 +        (!policy.calibrated_khr_advertised || (calibrated_khr_enabled && !timestamps_khr));
 +    int immutable_ycbcr = policy.xclipse && policy.sampler_ycbcr;
@@ -589,17 +589,21 @@ index 0000000..216d90d
 +    struct hybris_layer_physical context;
 +    if (!hybris_layer_lookup_physical(physical, &context)) return VK_ERROR_INITIALIZATION_FAILED;
 +    struct vendor_policy policy;
-+    PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT ext =
-+        (PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT)
-+            context.resolver(context.instance, "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT");
 +    int found = physical_policy(physical, &policy);
-+    if (found && policy.calibrated_domain_alias && ext)
-+        return ext(physical, count, (VkTimeDomainEXT *)domains);
-+    PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsKHR native =
-+        (PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsKHR)
-+            context.resolver(context.instance, "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR");
-+    if (found && policy.calibrated_khr_advertised && native)
-+        return native(physical, count, domains);
++    if (found && policy.calibrated_domain_alias) {
++        PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT ext =
++            (PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT)
++                context.resolver(context.instance,
++                    "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT");
++        if (ext) return ext(physical, count, (VkTimeDomainEXT *)domains);
++    }
++    if (found && policy.calibrated_khr_advertised) {
++        PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsKHR native =
++            (PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsKHR)
++                context.resolver(context.instance,
++                    "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR");
++        if (native) return native(physical, count, domains);
++    }
 +    *count = 0;
 +    return VK_ERROR_FEATURE_NOT_PRESENT;
 +}
@@ -638,38 +642,17 @@ index 0000000..216d90d
 +    return NULL;
 +}
 +
-+static int instance_has_calibrated_alias(VkInstance instance,
-+    PFN_vkGetInstanceProcAddr resolver, int domains)
-+{
-+    PFN_vkEnumeratePhysicalDevices enumerate = (PFN_vkEnumeratePhysicalDevices)
-+        resolver(instance, "vkEnumeratePhysicalDevices");
-+    if (!enumerate) return 0;
-+    uint32_t count = 0;
-+    if (enumerate(instance, &count, NULL) != VK_SUCCESS) return 0;
-+    VkPhysicalDevice *physical = count ? calloc(count, sizeof(*physical)) : NULL;
-+    if (count && !physical) return 0;
-+    VkResult result = enumerate(instance, &count, physical);
-+    int found = 0;
-+    if (result == VK_SUCCESS || result == VK_INCOMPLETE)
-+        for (uint32_t i = 0; i < count && !found; ++i) {
-+            struct vendor_policy policy;
-+            found = physical_policy(physical[i], &policy) &&
-+                (domains ? policy.calibrated_domain_alias : policy.calibrated_timestamps_alias);
-+        }
-+    free(physical);
-+    return found;
-+}
-+
 +PFN_vkVoidFunction hybris_vendor_instance_alias_proc(VkInstance instance,
 +    PFN_vkGetInstanceProcAddr resolver, const char *name)
 +{
-+    int domains = !strcmp(name, "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR");
-+    int timestamps = !strcmp(name, "vkGetCalibratedTimestampsKHR");
-+    if ((!domains && !timestamps) ||
-+        !instance_has_calibrated_alias(instance, resolver, domains)) return NULL;
-+    if (domains && resolver(instance, "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT"))
++    (void)instance;
++    (void)resolver;
++    /* GIPA is queried while layer/WSI dispatch tables are populated during
++     * vkCreateInstance. Never enumerate or query physical devices here: the
++     * wrappers validate the concrete physical/device policy when called. */
++    if (!strcmp(name, "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR"))
 +        return (PFN_vkVoidFunction)time_domains_khr;
-+    if (timestamps && resolver(instance, "vkGetCalibratedTimestampsEXT"))
++    if (!strcmp(name, "vkGetCalibratedTimestampsKHR"))
 +        return (PFN_vkVoidFunction)timestamps_khr;
 +    return NULL;
 +}
@@ -685,8 +668,9 @@ index 0000000..216d90d
 +{
 +    if (strcmp(name, "vkGetCalibratedTimestampsKHR")) return NULL;
 +    struct vendor_device device;
-+    return snapshot(handle, &device) && device.calibrated_alias &&
-+        device.calibrated_ext_enabled && device.timestamps_ext ?
++    return snapshot(handle, &device) &&
++        ((device.calibrated_alias && device.calibrated_ext_enabled && device.timestamps_ext) ||
++            device.calibrated_khr_enabled) ?
 +        (PFN_vkVoidFunction)timestamps_khr : NULL;
 +}
 diff --git a/hybris/vulkan/compat/vendor_compat.h b/hybris/vulkan/compat/vendor_compat.h
@@ -755,7 +739,7 @@ index b45d0e5..7dac792 100644
           * default namespace cannot open vendor HALs. Use the exported SP-HAL
           * namespace just as Android's Vulkan loader does. Older/no-config
 diff --git a/hybris/vulkan/layer/device.c b/hybris/vulkan/layer/device.c
-index 1496845..2995095 100644
+index 1496845..a233f35 100644
 --- a/hybris/vulkan/layer/device.c
 +++ b/hybris/vulkan/layer/device.c
 @@ -18,6 +18,7 @@
@@ -830,9 +814,12 @@ index 1496845..2995095 100644
      if (!compat) compat = hybris_maintenance5_dispatch(name);
      if (!compat) compat = hybris_dynamic_dispatch(name);
      if (!compat) compat = hybris_null_dispatch(name);
-@@ -247,12 +262,13 @@ PFN_vkVoidFunction VKAPI_CALL hybris_layer_get_device_proc(VkDevice handle, cons
+@@ -246,13 +261,16 @@ PFN_vkVoidFunction VKAPI_CALL hybris_layer_get_device_proc(VkDevice handle, cons
+     struct hybris_layer_device device;
      if (!name || !hybris_layer_lookup_device(handle, &device) ||
          !hybris_shader_device_proc_allowed(handle, name)) return NULL;
++    if (!strcmp(name, "vkGetCalibratedTimestampsKHR"))
++        return hybris_vendor_device_alias_proc(handle, name);
      PFN_vkVoidFunction next = device.resolver(handle, name);
 +    PFN_vkVoidFunction vendor_alias = hybris_vendor_device_alias_proc(handle, name);
      int static_vertices = hybris_layer_vertex_buffers2_proc(name) && device.track_commands &&
@@ -847,7 +834,7 @@ index 1496845..2995095 100644
 +    return compat ? compat : (vendor_alias ? vendor_alias : next);
  }
 diff --git a/hybris/vulkan/layer/entry.c b/hybris/vulkan/layer/entry.c
-index d720279..81604be 100644
+index d720279..8a07341 100644
 --- a/hybris/vulkan/layer/entry.c
 +++ b/hybris/vulkan/layer/entry.c
 @@ -5,6 +5,7 @@
@@ -858,18 +845,17 @@ index d720279..81604be 100644
  #include <vulkan/vk_layer.h>
  #include <pthread.h>
  #include <stdio.h>
-@@ -155,7 +156,9 @@ static PFN_vkVoidFunction VKAPI_CALL get_instance_proc(VkInstance instance, cons
+@@ -154,6 +155,9 @@ static PFN_vkVoidFunction VKAPI_CALL get_instance_proc(VkInstance instance, cons
+     if (!strcmp(name, "vkCreateDevice")) return (PFN_vkVoidFunction)hybris_layer_create_device;
      struct instance_state state;
      if (!instance || !instance_snapshot(instance, &state)) return NULL;
-     PFN_vkVoidFunction next = state.resolver(instance, name);
--    if (!next && !hybris_layer_vertex_buffers2_proc(name) && !hybris_maintenance5_added_proc(name) && strcmp(name,"vkCmdBeginRendering") && strcmp(name,"vkCmdBeginRenderingKHR") &&
 +    PFN_vkVoidFunction vendor_alias = hybris_vendor_instance_alias_proc(
 +        state.handle, state.resolver, name);
-+    if (!next && !vendor_alias && !hybris_layer_vertex_buffers2_proc(name) && !hybris_maintenance5_added_proc(name) && strcmp(name,"vkCmdBeginRendering") && strcmp(name,"vkCmdBeginRenderingKHR") &&
++    if (vendor_alias) return vendor_alias;
+     PFN_vkVoidFunction next = state.resolver(instance, name);
+     if (!next && !hybris_layer_vertex_buffers2_proc(name) && !hybris_maintenance5_added_proc(name) && strcmp(name,"vkCmdBeginRendering") && strcmp(name,"vkCmdBeginRenderingKHR") &&
          strcmp(name,"vkCmdEndRendering") && strcmp(name,"vkCmdEndRenderingKHR")) return NULL;
-     if (!strcmp(name, "vkDestroyInstance")) return (PFN_vkVoidFunction)destroy_instance;
-     if (!strcmp(name, "vkDestroyDevice")) return (PFN_vkVoidFunction)hybris_layer_destroy_device;
-@@ -163,16 +166,19 @@ static PFN_vkVoidFunction VKAPI_CALL get_instance_proc(VkInstance instance, cons
+@@ -163,12 +167,16 @@ static PFN_vkVoidFunction VKAPI_CALL get_instance_proc(VkInstance instance, cons
       * Every command wrapper checks the actual device again before changing it. */
      PFN_vkVoidFunction intercepted = hybris_layer_physical_proc(name);
      if (!intercepted) intercepted = hybris_layer_device_dispatch(name, 1);
@@ -881,17 +867,12 @@ index d720279..81604be 100644
      struct instance_state state;
      if (!instance || !name || !instance_snapshot(instance, &state)) return NULL;
 +    if (!strcmp(name, "vkGetCalibratedTimestampsKHR")) return NULL;
-     PFN_vkVoidFunction next = state.physical_resolver ? state.physical_resolver(instance, name) : NULL;
--    if (!next) return NULL;
 +    PFN_vkVoidFunction vendor_alias = hybris_vendor_physical_alias_proc(
 +        state.handle, state.resolver, name);
-+    if (!next && !vendor_alias) return NULL;
++    if (vendor_alias) return vendor_alias;
+     PFN_vkVoidFunction next = state.physical_resolver ? state.physical_resolver(instance, name) : NULL;
+     if (!next) return NULL;
      PFN_vkVoidFunction compat = hybris_layer_physical_proc(name);
--    return compat ? compat : next;
-+    return compat ? compat : (vendor_alias ? vendor_alias : next);
- }
- 
- __attribute__((visibility("default"))) VkResult VKAPI_CALL
 diff --git a/hybris/vulkan/layer/physical.c b/hybris/vulkan/layer/physical.c
 index d4f5dc2..80c30e6 100644
 --- a/hybris/vulkan/layer/physical.c

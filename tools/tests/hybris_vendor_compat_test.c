@@ -35,6 +35,10 @@ static VkSampler driver_ycbcr, driver_layout_sampler;
 static int driver_layout_calls;
 static int ext_domain_calls, ext_timestamp_calls;
 static int native_domain_calls, native_timestamp_calls;
+static int physical_enumerations, forbid_physical_enumeration;
+static int instance_resolver_queries;
+static int domain_proc_queries, forbid_domain_proc_queries;
+static int device_khr_timestamp_queries[2], device_ext_timestamp_queries[2];
 static int allocations, frees, fail_allocation = -1;
 static int bionic_dlopen_calls;
 static int bionic_dlsym_failures;
@@ -67,6 +71,8 @@ void *hybris_dlsym(void *handle, const char *name)
 static VkResult VKAPI_CALL enumerate_physical(VkInstance handle, uint32_t *count,
     VkPhysicalDevice *out)
 {
+    ++physical_enumerations;
+    assert(!forbid_physical_enumeration);
     if (!out) { *count = physical_count; return VK_SUCCESS; }
     uint32_t written = *count < physical_count ? *count : physical_count;
     for (uint32_t i = 0; i < written; ++i) out[i] = physical[i];
@@ -183,6 +189,12 @@ static VkResult VKAPI_CALL create_layout(VkDevice handle,
 #define PROC(value, symbol) if (!strcmp(name, value)) return (PFN_vkVoidFunction)symbol
 static PFN_vkVoidFunction VKAPI_CALL instance_resolver(VkInstance handle, const char *name)
 {
+    ++instance_resolver_queries;
+    if (!strcmp(name, "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR") ||
+        !strcmp(name, "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT")) {
+        ++domain_proc_queries;
+        assert(!forbid_domain_proc_queries);
+    }
     PROC("vkEnumeratePhysicalDevices", enumerate_physical);
     PROC("vkEnumerateDeviceExtensionProperties", enumerate_extensions);
     PROC("vkGetPhysicalDeviceProperties", properties);
@@ -208,11 +220,15 @@ static PFN_vkVoidFunction VKAPI_CALL device_resolver(VkDevice handle, const char
     PROC("vkCreateSampler", create_sampler);
     PROC("vkDestroySampler", destroy_sampler);
     PROC("vkCreateDescriptorSetLayout", create_layout);
-    if (!strcmp(name, "vkGetCalibratedTimestampsKHR"))
+    if (!strcmp(name, "vkGetCalibratedTimestampsKHR")) {
+        ++device_khr_timestamp_queries[index];
         return devices[index].native_khr_proc ? (PFN_vkVoidFunction)timestamps_khr_native : NULL;
-    if (!strcmp(name, "vkGetCalibratedTimestampsEXT"))
+    }
+    if (!strcmp(name, "vkGetCalibratedTimestampsEXT")) {
+        ++device_ext_timestamp_queries[index];
         return devices[index].ext_supported && devices[index].ext_enabled ?
             (PFN_vkVoidFunction)timestamps_ext : NULL;
+    }
     return NULL;
 }
 
@@ -288,6 +304,11 @@ static void reset_configs(void)
     driver_layout_calls = 0;
     ext_domain_calls = ext_timestamp_calls = 0;
     native_domain_calls = native_timestamp_calls = 0;
+    physical_enumerations = forbid_physical_enumeration = 0;
+    instance_resolver_queries = 0;
+    domain_proc_queries = forbid_domain_proc_queries = 0;
+    memset(device_khr_timestamp_queries, 0, sizeof(device_khr_timestamp_queries));
+    memset(device_ext_timestamp_queries, 0, sizeof(device_ext_timestamp_queries));
 }
 
 static void *prepare_hal(void *path)
@@ -436,7 +457,21 @@ static void test_calibrated_timestamp_policy(void)
 
     instance_native_domains_proc = instance_native_timestamps_proc = 1;
     devices[0].native_khr_proc = 1;
-    assert(!hybris_vendor_physical_alias_proc(instance, instance_resolver,
+
+    /* Loader/layer dispatch population asks GIPA for these addresses while
+     * vkCreateInstance is still unwinding. Address lookup must not enumerate
+     * devices or otherwise call into an incompletely constructed instance. */
+    int enumerations_before = physical_enumerations;
+    int resolver_queries_before = instance_resolver_queries;
+    forbid_physical_enumeration = 1;
+    assert(hybris_vendor_physical_alias_proc(instance, instance_resolver,
+        "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR"));
+    assert(hybris_vendor_instance_alias_proc(instance, instance_resolver,
+        "vkGetCalibratedTimestampsKHR"));
+    assert(physical_enumerations == enumerations_before);
+    assert(instance_resolver_queries == resolver_queries_before);
+    forbid_physical_enumeration = 0;
+    assert(hybris_vendor_physical_alias_proc(instance, instance_resolver,
         "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR"));
     assert(hybris_vendor_prepare_device(physical[0], &enabled_info, NULL, &prepared) ==
         VK_SUCCESS);
@@ -444,14 +479,14 @@ static void test_calibrated_timestamp_policy(void)
     native_create(0, &prepared.info);
     assert(hybris_vendor_attach_device(device[0], physical[0], device_resolver,
         &prepared.info, NULL) == VK_SUCCESS);
-    assert(!hybris_vendor_device_alias_proc(device[0], "vkGetCalibratedTimestampsKHR"));
+    assert(hybris_vendor_device_alias_proc(device[0], "vkGetCalibratedTimestampsKHR"));
     hybris_vendor_release_device(device[0]);
     hybris_vendor_release_device_create(&prepared, NULL);
 
     devices[0].native_khr_proc = 0;
-    assert(!hybris_vendor_physical_alias_proc(instance, instance_resolver,
+    assert(hybris_vendor_physical_alias_proc(instance, instance_resolver,
         "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR"));
-    assert(!hybris_vendor_instance_alias_proc(instance, instance_resolver,
+    assert(hybris_vendor_instance_alias_proc(instance, instance_resolver,
         "vkGetCalibratedTimestampsKHR"));
     assert(hybris_vendor_prepare_device(physical[0], &enabled_info, NULL, &prepared) ==
         VK_SUCCESS);
@@ -470,8 +505,28 @@ static void test_calibrated_timestamp_policy(void)
         "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR"));
     physicals[0].khr_advertised = 1;
     physicals[0].ext_advertised = 0;
-    assert(!hybris_vendor_physical_alias_proc(instance, instance_resolver,
-        "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR"));
+    PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsKHR query_without_ext =
+        (PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsKHR)
+            hybris_vendor_physical_alias_proc(instance, instance_resolver,
+                "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR");
+    assert(query_without_ext);
+    uint32_t no_ext_count = 9;
+    int domain_queries_before = domain_proc_queries;
+    assert(query_without_ext(physical[0], &no_ext_count, NULL) == VK_ERROR_FEATURE_NOT_PRESENT &&
+        no_ext_count == 0);
+    assert(domain_proc_queries == domain_queries_before + 1);
+
+    /* With neither timestamp extension advertised, the wrapper must fail
+     * without asking the driver for either unsupported entry point. */
+    physicals[0].khr_advertised = 0;
+    no_ext_count = 9;
+    domain_queries_before = domain_proc_queries;
+    forbid_domain_proc_queries = 1;
+    assert(query_without_ext(physical[0], &no_ext_count, NULL) == VK_ERROR_FEATURE_NOT_PRESENT &&
+        no_ext_count == 0);
+    assert(domain_proc_queries == domain_queries_before);
+    forbid_domain_proc_queries = 0;
+    physicals[0].khr_advertised = 1;
     physicals[0].ext_advertised = 1;
     assert(hybris_vendor_compat_reason(physical[0],
         HYBRIS_VENDOR_CALIBRATED_TIMESTAMPS_ALIAS));
@@ -576,8 +631,12 @@ static void test_ext_only_calibrated_timestamp_alias(void)
     assert(hybris_vendor_prepare_device(physical[0], &info, NULL, &prepared) == VK_SUCCESS);
     assert(!prepared.extensions && prepared.info.enabledExtensionCount == 1);
     native_create(0, &prepared.info);
+    int khr_queries_before = device_khr_timestamp_queries[0];
+    int ext_queries_before = device_ext_timestamp_queries[0];
     assert(hybris_vendor_attach_device(device[0], physical[0], device_resolver,
         &prepared.info, NULL) == VK_SUCCESS);
+    assert(device_khr_timestamp_queries[0] == khr_queries_before);
+    assert(device_ext_timestamp_queries[0] == ext_queries_before + 1);
     PFN_vkGetCalibratedTimestampsKHR query_timestamps = (PFN_vkGetCalibratedTimestampsKHR)
         hybris_vendor_device_alias_proc(device[0], "vkGetCalibratedTimestampsKHR");
     assert(query_timestamps);
@@ -604,8 +663,12 @@ static void test_ext_only_calibrated_timestamp_alias(void)
     assert(hybris_vendor_prepare_device(physical[1], &khr_info, NULL, &prepared) == VK_SUCCESS);
     assert(prepared.extensions && prepared.info.enabledExtensionCount == 2);
     native_create(1, &prepared.info);
+    khr_queries_before = device_khr_timestamp_queries[1];
+    ext_queries_before = device_ext_timestamp_queries[1];
     assert(hybris_vendor_attach_device(device[1], physical[1], device_resolver,
         &prepared.info, NULL) == VK_SUCCESS);
+    assert(device_khr_timestamp_queries[1] == khr_queries_before + 1);
+    assert(device_ext_timestamp_queries[1] == ext_queries_before + 1);
     timestamp = deviation = 0;
     assert(query_timestamps(device[1], 1, &stamp, &timestamp, &deviation) == VK_SUCCESS);
     assert(timestamp == 84 && deviation == 2 && native_timestamp_calls == 1 &&
@@ -616,8 +679,12 @@ static void test_ext_only_calibrated_timestamp_alias(void)
     /* Advertised-but-disabled KHR must not become callable through the global wrapper. */
     VkDeviceCreateInfo disabled = {.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
     native_create(1, &disabled);
+    khr_queries_before = device_khr_timestamp_queries[1];
+    ext_queries_before = device_ext_timestamp_queries[1];
     assert(hybris_vendor_attach_device(device[1], physical[1], device_resolver,
         &disabled, NULL) == VK_SUCCESS);
+    assert(device_khr_timestamp_queries[1] == khr_queries_before &&
+        device_ext_timestamp_queries[1] == ext_queries_before);
     assert(!hybris_vendor_device_alias_proc(device[1], "vkGetCalibratedTimestampsKHR"));
     assert(query_timestamps(device[1], 1, &stamp, &timestamp, &deviation) ==
         VK_ERROR_FEATURE_NOT_PRESENT);
@@ -626,8 +693,12 @@ static void test_ext_only_calibrated_timestamp_alias(void)
 
     /* EXT-only without EXT enabled must not expose or call an exported KHR stub. */
     native_create(0, &disabled);
+    khr_queries_before = device_khr_timestamp_queries[0];
+    ext_queries_before = device_ext_timestamp_queries[0];
     assert(hybris_vendor_attach_device(device[0], physical[0], device_resolver,
         &disabled, NULL) == VK_SUCCESS);
+    assert(device_khr_timestamp_queries[0] == khr_queries_before &&
+        device_ext_timestamp_queries[0] == ext_queries_before);
     assert(!hybris_vendor_device_alias_proc(device[0], "vkGetCalibratedTimestampsKHR"));
     assert(query_timestamps(device[0], 1, &stamp, &timestamp, &deviation) ==
         VK_ERROR_FEATURE_NOT_PRESENT);

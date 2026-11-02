@@ -80,6 +80,125 @@ class HybrisVendorCompatibilityTest(unittest.TestCase):
                 resolve = physical.index("state.physical_resolver")
                 self.assertLess(reject, resolve)
 
+    def test_calibrated_lookup_routes_before_downstream_proc_queries(self):
+        source_value = os.environ.get("HYBRIS_VENDOR_SOURCE")
+        if not source_value:
+            self.skipTest("set HYBRIS_VENDOR_SOURCE to the clean pinned libhybris checkout")
+        compiler = shutil.which(os.environ.get("CC", "cc"))
+        self.assertIsNotNone(compiler)
+        with tempfile.TemporaryDirectory(prefix="droiddeck-calibrated-routing-") as directory:
+            checkout = Path(directory) / "libhybris"
+            subprocess.run(["git", "clone", "-q", "--no-hardlinks", source_value, str(checkout)],
+                           check=True)
+            for patch in [ROOT / "tools/hybris/powervr-hal-version.patch",
+                          *sorted((ROOT / "tools/hybris/patches").glob("*.patch"))]:
+                subprocess.run(["git", "-C", str(checkout), "apply", "--check", str(patch)], check=True)
+                subprocess.run(["git", "-C", str(checkout), "apply", str(patch)], check=True)
+            entry = (checkout / "hybris/vulkan/layer/entry.c").read_text()
+            instance_start = entry.index("static PFN_vkVoidFunction VKAPI_CALL get_instance_proc")
+            physical_start = entry.index("static PFN_vkVoidFunction VKAPI_CALL get_physical_proc")
+            negotiate = entry.index("__attribute__((visibility", physical_start)
+            instance_proc = entry[instance_start:physical_start]
+            physical_proc = entry[physical_start:negotiate]
+            device_source = (checkout / "hybris/vulkan/layer/device.c").read_text()
+            device_start = device_source.index(
+                "PFN_vkVoidFunction VKAPI_CALL hybris_layer_get_device_proc")
+            device_proc = device_source[device_start:]
+            program_source = Path(directory) / "routing.c"
+            program_source.write_text(r'''
+#define VK_NO_PROTOTYPES
+#include <assert.h>
+#include <stdint.h>
+#include <string.h>
+#include <vulkan/vulkan.h>
+struct instance_state { VkInstance handle; PFN_vkGetInstanceProcAddr resolver;
+    PFN_vkGetInstanceProcAddr physical_resolver; int zink_profile; };
+struct command_dispatch { PFN_vkCmdBindVertexBuffers CmdBindVertexBuffers; };
+struct hybris_layer_device { VkDevice handle; PFN_vkGetDeviceProcAddr resolver;
+    int track_commands; struct command_dispatch *recording; int maintenance5; };
+static VkInstance test_instance = (VkInstance)(uintptr_t)1;
+static VkDevice test_device = (VkDevice)(uintptr_t)2;
+static int instance_queries, physical_queries, device_queries, device_allowed;
+static void address(void) {}
+static PFN_vkVoidFunction function(void) { return (PFN_vkVoidFunction)address; }
+static PFN_vkVoidFunction VKAPI_CALL downstream_instance(VkInstance instance, const char *name)
+{ (void)instance; (void)name; ++instance_queries; return function(); }
+static PFN_vkVoidFunction VKAPI_CALL downstream_physical(VkInstance instance, const char *name)
+{ (void)instance; (void)name; ++physical_queries; return function(); }
+static PFN_vkVoidFunction VKAPI_CALL downstream_device(VkDevice device, const char *name)
+{ (void)device; (void)name; ++device_queries; return function(); }
+static int instance_snapshot(VkInstance instance, struct instance_state *out) {
+    if (instance != test_instance) return 0;
+    *out = (struct instance_state){test_instance, downstream_instance, downstream_physical, 0};
+    return 1;
+}
+static int hybris_layer_lookup_device(VkDevice device, struct hybris_layer_device *out) {
+    static struct command_dispatch recording;
+    if (device != test_device) return 0;
+    *out = (struct hybris_layer_device){test_device, downstream_device, 1, &recording, 0};
+    return 1;
+}
+static PFN_vkVoidFunction hybris_vendor_instance_alias_proc(
+    VkInstance instance, PFN_vkGetInstanceProcAddr resolver, const char *name) {
+    (void)instance; (void)resolver;
+    return !strcmp(name, "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR") ||
+        !strcmp(name, "vkGetCalibratedTimestampsKHR") ? function() : NULL;
+}
+static PFN_vkVoidFunction hybris_vendor_physical_alias_proc(
+    VkInstance instance, PFN_vkGetInstanceProcAddr resolver, const char *name) {
+    (void)instance; (void)resolver;
+    return !strcmp(name, "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR") ? function() : NULL;
+}
+static PFN_vkVoidFunction hybris_vendor_device_alias_proc(VkDevice device, const char *name) {
+    (void)device;
+    return device_allowed && !strcmp(name, "vkGetCalibratedTimestampsKHR") ? function() : NULL;
+}
+static int hybris_shader_device_proc_allowed(VkDevice device, const char *name)
+{ (void)device; (void)name; return 1; }
+static int hybris_layer_vertex_buffers2_proc(const char *name) { (void)name; return 0; }
+static int hybris_dynamic_proc(const struct hybris_layer_device *device, const char *name)
+{ (void)device; (void)name; return 0; }
+static int hybris_maintenance5_added_proc(const char *name) { (void)name; return 0; }
+static PFN_vkVoidFunction hybris_layer_physical_proc(const char *name) { (void)name; return NULL; }
+static PFN_vkVoidFunction hybris_layer_device_dispatch(const char *name, int tracked)
+{ (void)name; (void)tracked; return NULL; }
+static PFN_vkVoidFunction zink_wrap(VkInstance instance, const char *name, PFN_vkVoidFunction fn)
+{ (void)instance; (void)name; return fn; }
+static void create_instance(void) {}
+static void hybris_layer_create_device(void) {}
+static void destroy_instance(void) {}
+static void hybris_layer_destroy_device(void) {}
+PFN_vkVoidFunction VKAPI_CALL hybris_layer_get_device_proc(VkDevice, const char *);
+''' + instance_proc + physical_proc + device_proc + r'''
+int main(void) {
+    PFN_vkVoidFunction alias = function();
+    assert(get_instance_proc(test_instance,
+        "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR") == alias);
+    assert(get_instance_proc(test_instance, "vkGetCalibratedTimestampsKHR") == alias);
+    assert(instance_queries == 0);
+    assert(get_physical_proc(test_instance,
+        "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR") == alias);
+    assert(!get_physical_proc(test_instance, "vkGetCalibratedTimestampsKHR"));
+    assert(physical_queries == 0);
+    assert(!hybris_layer_get_device_proc(test_device, "vkGetCalibratedTimestampsKHR"));
+    assert(device_queries == 0);
+    device_allowed = 1;
+    assert(hybris_layer_get_device_proc(test_device, "vkGetCalibratedTimestampsKHR") == alias);
+    assert(device_queries == 0);
+    assert(hybris_layer_get_device_proc(test_device, "vkOther") == alias);
+    assert(device_queries == 1);
+    return 0;
+}
+''')
+            program = Path(directory) / "routing"
+            built = subprocess.run([
+                compiler, "-std=gnu11", "-Wall", "-Wextra", "-Werror",
+                "-Wno-unused-function", "-I", str(vulkan_include()), str(program_source),
+                "-o", str(program)], capture_output=True, text=True)
+            self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
+            ran = subprocess.run([str(program)], capture_output=True, text=True, timeout=30)
+            self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
+
     def test_command_tracking_uses_effective_device_policy(self):
         source_value = os.environ.get("HYBRIS_VENDOR_SOURCE")
         if not source_value:
