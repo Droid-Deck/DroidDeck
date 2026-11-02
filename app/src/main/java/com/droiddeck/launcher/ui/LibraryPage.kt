@@ -102,7 +102,8 @@ import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.download.DownloadStage
 import com.droiddeck.launcher.stores.download.DownloadState
 import com.droiddeck.launcher.stores.formatBytes
-import com.droiddeck.launcher.stores.itch.ItchCollection
+import com.droiddeck.launcher.stores.gamejolt.GameJoltCollections
+import com.droiddeck.launcher.stores.gamejolt.GameJoltUpdates
 import com.droiddeck.launcher.stores.itch.ItchCollections
 import com.droiddeck.launcher.stores.itch.ItchUpdates
 import com.droiddeck.launcher.stores.gog.GogMaintenance
@@ -142,20 +143,20 @@ internal fun libraryEntries(
     return out.distinctBy { it.key }
 }
 
-internal fun collectionEntries(all: List<LibraryEntry>, items: List<CatalogItem>): List<LibraryEntry> {
+internal fun collectionEntries(all: List<LibraryEntry>, items: List<CatalogItem>, store: Store = Store.ITCH): List<LibraryEntry> {
     val keys = items.map { it.key }.toSet()
-    val itch = all.filter { it.source == Store.ITCH.id }
-    val have = itch.mapNotNull { it.storeKey }.toSet()
-    return itch.filter { it.storeKey in keys } +
-        items.filter { it.key !in have }.map { LibraryEntry(GameRef.key(it), Store.ITCH.id, it.title, null, it, false) }
+    val own = all.filter { it.source == store.id }
+    val have = own.mapNotNull { it.storeKey }.toSet()
+    return own.filter { it.storeKey in keys } +
+        items.filter { it.key !in have }.map { LibraryEntry(GameRef.key(it), store.id, it.title, null, it, false) }
 }
 
 internal fun installedFirst(entries: List<LibraryEntry>): List<LibraryEntry> = entries.partition { it.installed }.let { (on, off) -> on + off }
 
 internal const val LIBRARY_ALL = "all"
-internal fun librarySources(entries: List<LibraryEntry>, order: List<String>): List<String> =
+internal fun librarySources(entries: List<LibraryEntry>, order: List<String>, always: Set<String> = emptySet()): List<String> =
     (listOf(Library.SOURCE_STEAM) + arrangeStoreTabs(order, emptySet()).map { it.store.id } + Library.ADDED)
-        .filter { source -> entries.any { it.source == source } }
+        .filter { source -> source in always || entries.any { it.source == source } }
 
 internal object LibraryDisplay {
     val scales = listOf(0.75f, 0.875f, 1f, 1.2f, 1.45f)
@@ -225,7 +226,11 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     var showUninstalled by remember(LibraryView.ownedRequest) { mutableStateOf(SessionPrefs.libraryShowUninstalled(ctx)) }
     var collectionShows by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
     val setShowUninstalled = { show: Boolean ->
-        val picked = ItchCollections.selected.takeIf { LibraryView.source == Store.ITCH.id }
+        val picked = when (LibraryView.source) {
+            Store.ITCH.id -> ItchCollections.selected
+            Store.GAMEJOLT.id -> GameJoltCollections.selected
+            else -> null
+        }
         if (picked != null) collectionShows = picked to show
         else {
             showUninstalled = show
@@ -233,21 +238,32 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         }
     }
     val itchSignedIn = owned.containsKey(Store.ITCH)
-    val listed = librarySources(all, SessionPrefs.storesTabOrder(ctx))
-    val sources = if (itchSignedIn && Store.ITCH.id !in listed) listed + Store.ITCH.id else listed
+    val gameJoltSignedIn = owned.containsKey(Store.GAMEJOLT)
+    val sources = librarySources(all, SessionPrefs.storesTabOrder(ctx), listOfNotNull(Store.ITCH.id.takeIf { itchSignedIn }, Store.GAMEJOLT.id.takeIf { gameJoltSignedIn }).toSet())
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
     val q = LibraryView.query.trim().lowercase()
     val xboxFilter = if (source == Store.XBOX.id) XboxLibraryFilter.current else XboxLibraryFilter.ALL
-    LaunchedEffect(source, itchSignedIn) { if (source == Store.ITCH.id && itchSignedIn) {
-        ItchCollections.load(ctx)
-        ItchUpdates.check(ctx)
-    } }
-    val collection = if (source == Store.ITCH.id) ItchCollections.chosen() else null
-    val pool = if (collection == null) all else collectionEntries(all, ItchCollections.gamesOf(collection.id).orEmpty())
+    LaunchedEffect(source, itchSignedIn, gameJoltSignedIn) {
+        if (source == Store.ITCH.id && itchSignedIn) {
+            ItchCollections.load(ctx)
+            ItchUpdates.check(ctx)
+        }
+        if (source == Store.GAMEJOLT.id && gameJoltSignedIn) {
+            GameJoltCollections.load(ctx)
+            GameJoltUpdates.check(ctx)
+        }
+    }
+    val collectionId = when (source) {
+        Store.ITCH.id -> ItchCollections.chosen()?.id
+        Store.GAMEJOLT.id -> GameJoltCollections.chosen()?.id
+        else -> null
+    }
+    val collectionItems = collectionId?.let { if (source == Store.GAMEJOLT.id) GameJoltCollections.gamesOf(it) else ItchCollections.gamesOf(it) }
+    val pool = if (collectionId == null) all else collectionEntries(all, collectionItems.orEmpty(), Store.byId(source) ?: Store.ITCH)
     val matching = pool.filter {
         (source == LIBRARY_ALL || it.source == source) && (q.isEmpty() || it.title.lowercase().contains(q)) && keepsXbox(xboxFilter, it)
     }
-    val listUninstalled = if (collection == null) showUninstalled else collectionShows?.takeIf { it.first == collection.id }?.second ?: true
+    val listUninstalled = if (collectionId == null) showUninstalled else collectionShows?.takeIf { it.first == collectionId }?.second ?: true
     val candidates = if (listUninstalled) matching else matching.filter { it.installed }
     val hiddenUninstalled = if (listUninstalled) 0 else matching.count { !it.installed }
     val sort = s.storesSort
@@ -332,7 +348,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         kotlinx.coroutines.delay(Motion.ms(240).toLong())
         focusWithinFrames({ ff.last?.startsWith("card:") == true }) { if (ff.firstTileAttached > 0) ff.firstTile else FocusRequester.Default }
     }
-    if (all.isEmpty() && open == null && !itchSignedIn) {
+    if (all.isEmpty() && open == null && !itchSignedIn && !gameJoltSignedIn) {
         LibraryEmpty(s, a, modifier)
         return
     }
@@ -453,7 +469,7 @@ private fun LibraryGrid(
         contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp),
     ) {
         item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
-            Rise(0) { LibraryHeader(s, a, total, searchCleared, source == Store.XBOX.id, showUninstalled, onShowUninstalled, collections = source == Store.ITCH.id) }
+            Rise(0) { LibraryHeader(s, a, total, searchCleared, source == Store.XBOX.id, showUninstalled, onShowUninstalled, collections = Store.byId(source)?.takeIf { it == Store.ITCH || it == Store.GAMEJOLT }) }
         }
         item(key = "filters", span = { GridItemSpan(maxLineSpan) }) {
             Rise(1) { LibraryFilters(sources, source, onSource) }
@@ -514,7 +530,7 @@ private fun LazyGridScope.libraryGrid(entries: List<LibraryEntry>, empty: Int, t
 @Composable
 private fun LibraryHeader(
     s: FrontEndState, a: FrontEndActions, total: Int, searchCleared: Boolean, xbox: Boolean,
-    showUninstalled: Boolean?, onShowUninstalled: (Boolean) -> Unit, collections: Boolean,
+    showUninstalled: Boolean?, onShowUninstalled: (Boolean) -> Unit, collections: Store?,
 ) {
     val colors = MaterialTheme.colorScheme
     val narrow = LocalNarrowPane.current
@@ -532,7 +548,7 @@ private fun LibraryHeader(
     ) {
         DisplayButton()
         if (showUninstalled != null || xbox) LibraryFilterButton(showUninstalled, onShowUninstalled, xbox)
-        if (collections) CollectionsButton()
+        if (collections != null) CollectionsButton(collections)
         SortButton(s, a)
         ViewButton(s, a)
         GameFileFolderActions(s, a)
@@ -725,7 +741,7 @@ internal fun LibraryMarker(e: LibraryEntry, download: DownloadEntry?, showDownlo
     }
 }
 
-private fun libraryUpdateAvailable(e: LibraryEntry): Boolean = e.storeKey?.let { it in ItchUpdates.available } == true ||
+private fun libraryUpdateAvailable(e: LibraryEntry): Boolean = e.storeKey?.let { it in ItchUpdates.available || it in GameJoltUpdates.available } == true ||
     e.source == Store.GOG.id && (e.item?.id ?: e.game?.storeId)?.let { GogMaintenance.checks[it]?.state } == GogMaintenance.State.AVAILABLE
 
 @Composable
@@ -863,16 +879,21 @@ private fun LibraryFilterButton(showUninstalled: Boolean?, onShowUninstalled: (B
 }
 
 @Composable
-private fun CollectionsButton() {
+private fun CollectionsButton(store: Store) {
     val pal = LocalPalette.current
     val ctx = LocalContext.current
     val title = stringResource(R.string.itch_collections)
     val all = stringResource(R.string.stores_tab_all)
     var at by remember { mutableStateOf<Rect?>(null) }
+    val gameJolt = store == Store.GAMEJOLT
+    val chosenTitle = if (gameJolt) GameJoltCollections.chosen()?.title else ItchCollections.chosen()?.title
+    val selectedId = if (gameJolt) GameJoltCollections.selected else ItchCollections.selected
     Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) {
-        HeaderIconButton(title + " · " + (ItchCollections.chosen()?.title ?: all), CollectionsIcon, "itch-collections") {
+        HeaderIconButton(title + " · " + (chosenTitle ?: all), CollectionsIcon, "${store.id}-collections") {
             val from = at ?: return@HeaderIconButton
-            val choices = listOf<ItchCollection?>(null) + ItchCollections.list
+            val choices = listOf<Pair<String, String>?>(null) + if (gameJolt) GameJoltCollections.list.map { c ->
+                c.id to (c.title + (GameJoltCollections.gamesOf(c.id)?.let { " (" + it.size + ")" }.orEmpty()))
+            } else ItchCollections.list.map { c -> c.id to (c.title + " (" + c.count + ")") }
             Steps.ask(StepAsk(
                 anchor = from, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp, items = choices.size,
                 handle = { Icon(CollectionsIcon, null, tint = pal.signal, modifier = Modifier.size(18.dp)) },
@@ -880,12 +901,12 @@ private fun CollectionsButton() {
                 StepTitle(title)
                 StepList {
                     choices.forEachIndexed { i, c ->
-                        val picked = c?.id == ItchCollections.selected
+                        val picked = c?.first == selectedId
                         StepChoice(
-                            c?.let { it.title + " (" + it.count + ")" } ?: all, selected = picked, enabled = open,
+                            c?.second ?: all, selected = picked, enabled = open,
                             modifier = Modifier.fillMaxWidth().stepItem(i).then(if (picked) Modifier.focusRequester(first) else Modifier),
                         ) {
-                            ItchCollections.select(ctx, c?.id)
+                            if (gameJolt) GameJoltCollections.select(ctx, c?.first) else ItchCollections.select(ctx, c?.first)
                             Steps.fold()
                         }
                     }
