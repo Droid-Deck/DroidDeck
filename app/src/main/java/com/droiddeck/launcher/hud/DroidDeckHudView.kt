@@ -1416,10 +1416,6 @@ class DroidDeckHudView(context: Context) : View(context) {
             headerPaint.color = withAlpha(accent, 90)
             c.drawRect(panel.left, dDividerTop, roundEdgeX(panel, dDividerTop, stroke), dividerBottom, headerPaint)
         }
-        val halfRound = dRadius >= panel.height() / 2f - 0.5f
-        val wmH = if (halfRound) panel.height() * 0.92f else min(panel.height(), panel.width()) * 0.55f
-        DroidDeckMark.draw(c, panel.right - DroidDeckMark.widthFor(wmH) - (if (halfRound) panel.height() * 0.02f else sp(10f)),
-            panel.centerY() - wmH / 2f, wmH, Color.argb(20, 255, 255, 255), withAlpha(accent, 20))
         c.restore()
         if (stroke > 0f) {
             val h = stroke / 2f
