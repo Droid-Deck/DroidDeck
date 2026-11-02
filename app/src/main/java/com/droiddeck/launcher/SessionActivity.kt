@@ -500,6 +500,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         override fun onDisplayChanged(displayId: Int) {
             notifyActivityDisplayStateChanged(displayId)
             followPanelRefresh(displayId)
+            updateBottomGame()
             refreshSecondScreenDisplays()
         }
     }
@@ -2182,7 +2183,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             SessionState.followScreen ->
                 com.droiddeck.launcher.session.SessionDisplay.followSize(width, height, false, SessionState.followScale)
             resolutionChoice() == com.droiddeck.launcher.session.SessionDisplay.MATCH_SCREEN ->
-                com.droiddeck.launcher.session.SessionDisplay.screenSize(width to height)
+                (width and 1.inv()) to (height and 1.inv())
             else -> null
         }
         return if (SessionState.followScreen)
@@ -2626,6 +2627,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return true
         }
         if ((pcKeyboardOpen || achievementsOpen) && fromController) return super.dispatchKeyEvent(event)
+        if (!fromController && event.keyCode != KeyEvent.KEYCODE_BACK && topDesktopFocused() && super.dispatchKeyEvent(event)) return true
         if (joyConVr?.onKeyEvent(event) == true) return true
         if (fromController && event.keyCode != KeyEvent.KEYCODE_BACK && padMouseMode() && padMouse.onKey(event)) return true
         if (event.keyCode != KeyEvent.KEYCODE_BACK && padBridge?.onKeyEvent(event) == true) return true
@@ -2635,6 +2637,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (com.droiddeck.launcher.input.GuestKeys.send(event, ::sendGuestKey)) return true
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    private fun topDesktopFocused(): Boolean {
+        if (!bottomOutputActive) return false
+        var view: View? = currentFocus
+        while (view != null) {
+            if (view is com.droiddeck.launcher.ui.BottomDesktopPanel) return true
+            view = view.parent as? View
+        }
+        return false
     }
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
@@ -3186,7 +3198,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     ))
 
     private fun openSettingsBelow(intent: android.content.Intent, done: () -> Boolean) {
-        val presentation = secondScreenPresentation ?: return
+        val presentation = secondScreenPresentation
+        if (presentation == null) {
+            if (!bottomOutputActive) return
+            listOf(intent, android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)).any {
+                runCatching { startActivity(android.content.Intent(it)) }
+                    .onFailure { e -> Log.w(TAG, "could not open ${it.action}", e) }
+                    .isSuccess
+            }
+            return
+        }
         val options = android.app.ActivityOptions.makeBasic().setLaunchDisplayId(presentation.display.displayId)
         val opened = listOf(intent, android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)).any {
             runCatching { startActivity(android.content.Intent(it).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK), options.toBundle()) }
