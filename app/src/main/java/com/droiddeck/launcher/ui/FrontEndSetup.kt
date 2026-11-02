@@ -77,6 +77,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import com.droiddeck.launcher.core.AppLanguage
 import com.droiddeck.launcher.core.DeviceSupport
 import com.droiddeck.launcher.core.DownloadSource
+import com.droiddeck.launcher.core.LegacyDeviceConfigSync
 import com.droiddeck.launcher.core.PhantomProcessLimit
 import com.droiddeck.launcher.core.PhantomProcessStatus
 import com.droiddeck.launcher.session.SessionPrefs
@@ -155,6 +156,8 @@ internal fun SetupPanel(
             processLimitBusy = false
             if (error == null) {
                 a.onRefreshPhantomStatus()
+            } else if (error == LegacySyncRecoveryDialog.CANCELLED || LegacySyncRecoveryDialog.isRecoveryFailure(error)) {
+                processLimitMessage = LegacySyncRecoveryDialog.displayError(ctx, error)
             } else {
                 processLimitMessage = ctx.getString(R.string.setup_limit_adb_failed)
                 onRequestWirelessAdb(enabled)
@@ -299,9 +302,12 @@ internal fun SetupPanel(
                                 },
                                 divider = divider && !showLimitDetails,
                             ) {
-                                if (limitBlocks) PrimaryButton(stringResource(R.string.setup_fix_it), compact = true, onClick = a.onShowPhantomGate)
-                                else if (s.phantomProcessStatus != PhantomProcessStatus.NOT_APPLICABLE) {
-                                    SecondaryButton(if (showLimitDetails) stringResource(R.string.common_hide) else stringResource(R.string.setup_details), compact = true) { showLimitDetails = !showLimitDetails }
+                                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    if (limitBlocks) PrimaryButton(stringResource(R.string.setup_fix_it), compact = true, onClick = a.onShowPhantomGate)
+                                    if (s.phantomProcessStatus != PhantomProcessStatus.NOT_APPLICABLE &&
+                                        (!limitBlocks || LegacyDeviceConfigSync.pending(ctx))) {
+                                        SecondaryButton(if (showLimitDetails) stringResource(R.string.common_hide) else stringResource(R.string.setup_details), compact = true) { showLimitDetails = !showLimitDetails }
+                                    }
                                 }
                             }
                             AnimatedVisibility(showLimitDetails, enter = expandVertically(Motion.sp(1f)) + fadeIn(Motion.sp(1f)), exit = shrinkVertically(Motion.sp(1f)) + fadeOut(Motion.sp(1f))) {
@@ -314,6 +320,10 @@ internal fun SetupPanel(
                                     Actions {
                                         if (s.phantomProcessStatus == PhantomProcessStatus.DISABLED) {
                                             SecondaryButton(stringResource(R.string.setup_limit_turn_on), compact = true, enabled = !processLimitBusy) { setProcessLimit(true) }
+                                        }
+                                        if (s.phantomProcessStatus != PhantomProcessStatus.DISABLED &&
+                                            s.phantomProcessStatus != PhantomProcessStatus.NOT_APPLICABLE && LegacyDeviceConfigSync.pending(ctx)) {
+                                            SecondaryButton(stringResource(R.string.adbfix_legacy_sync_retry), compact = true, enabled = !processLimitBusy) { setProcessLimit(true) }
                                         }
                                     }
                                     if (processLimitBusy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp))

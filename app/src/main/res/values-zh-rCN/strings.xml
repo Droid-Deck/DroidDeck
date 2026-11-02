@@ -1107,9 +1107,9 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android 会终止启动了大量后台进程的应用，而 Steam 会启动数十个。在更改此设置之前，游戏会在没有报错的情况下关闭。</string>
     <string name="gate_fix_for_me">帮我修复</string>
-    <string name="gate_toggle_steps">打开“停止限制子进程”，然后返回。保持开发者选项开启，否则开关会再次关闭。</string>
+    <string name="gate_toggle_steps">如果系统提供“停止限制子进程”，请打开它并保持开发者选项开启。若没有该开关，或检查仍未通过，请使用下方的无线调试。</string>
     <string name="gate_open_dev">打开开发者选项</string>
-    <string name="gate_no_toggle">此 Android 版本没有该开关，因此 DroidDeck 通过无线调试来修改。大约需要一分钟，无需电脑。</string>
+    <string name="gate_no_toggle">如果开发者选项中没有子进程开关，DroidDeck 可通过无线调试调整并验证限制，无需电脑。</string>
     <string name="gate_needs_wifi">无线调试需要 Wi-Fi。任何网络都可以，不需要互联网。</string>
     <string name="gate_needs_notifications">配对码会出现在通知中。请允许 DroidDeck 的通知，或使用“其他方式”。</string>
     <string name="gate_allow_notifications">允许通知</string>
@@ -1127,7 +1127,7 @@
     <string name="gate_waiting">正在等待配对弹窗…</string>
     <string name="gate_code_needed">已找到弹窗。请在通知中输入它的配对码。</string>
     <string name="gate_status">状态</string>
-    <string name="gate_polling">每 2 秒检查一次。该设置关闭后，本页面会自动关闭。</string>
+    <string name="gate_polling">每 2 秒检查一次。确认限制已调整后，本页面会自动关闭。</string>
     <string name="gate_other_ways">其他方式</string>
     <string name="gate_other_toggle">无线调试、手动地址、电脑 ADB</string>
     <string name="gate_other_no_toggle">手动地址、电脑 ADB、开发者选项</string>
@@ -1135,7 +1135,7 @@
     <string name="gate_some_roms">部分 Android ROM 仍会加入该开关。请在开发者选项中查找“子进程”。</string>
     <string name="gate_manual_hint">若通知不起作用，请手动输入弹窗中的地址和配对码。</string>
     <string name="gate_enter_manually">手动输入地址</string>
-    <string name="gate_from_computer">通过装有 ADB 的电脑：</string>
+    <string name="gate_from_computer">通过装有 ADB 的电脑执行。如果系统不允许应用读取进程数量设置，执行后还需使用无线调试验证：</string>
     <string name="gate_copy_command">复制命令</string>
     <string name="gate_choose_display">选择在哪个屏幕上打开 Android 设置。</string>
     <string name="gate_main_screen">主屏幕</string>
@@ -2029,6 +2029,14 @@
     <string name="adbfix_not_confirmed">Android 未确认子进程限制已更改：%1$s</string>
     <string name="adbfix_no_pairing">未保存任何无线调试配对</string>
     <string name="adbfix_enter_address">请输入当前的无线调试 IP 地址与端口</string>
+    <string name="adbfix_local_only">请使用本机的无线调试地址。其他设备无法验证本机的子进程限制。</string>
+    <string name="adbfix_legacy_sync_title">恢复旧版 DroidDeck 更改的设置？</string>
+    <string name="adbfix_legacy_sync_message">旧版 Android 12 修复可能关闭了整台设备的系统配置更新（DeviceConfig）。继续操作可能重新开启这些更新，同时恢复子进程限制。DroidDeck 无法判断其他工具后来是否更改过此策略。仅在您也希望恢复系统配置更新时继续。操作后可能需要重启设备。</string>
+    <string name="adbfix_legacy_sync_restore">恢复限制和系统配置更新</string>
+    <string name="adbfix_legacy_sync_retry">恢复旧版设置</string>
+    <string name="adbfix_legacy_sync_cancelled">已取消恢复。</string>
+    <string name="adbfix_legacy_sync_confirmation_required">请先确认恢复旧版更改的系统配置同步设置。</string>
+    <string name="adbfix_legacy_sync_not_confirmed">子进程限制已恢复，但无法确认旧版系统配置同步设置已恢复，请重试。%1$s</string>
 
     <string name="adbpair_timed_out">等待配对弹窗超时。请从 DroidDeck 重试。</string>
     <string name="adbpair_discovery_failed_code">无法查找配对弹窗（%1$d）。请检查 Wi-Fi 是否已开启。</string>
@@ -2193,8 +2201,8 @@
     <string name="phantom_instructions_fix">%1$s 如果无法做到，请将此设备连接到装有 ADB 的电脑并运行下方命令，然后返回此处重新检查。</string>
     <string name="phantom_instructions_off">可以启动 Steam 会话了。</string>
     <string name="phantom_instructions_not_applicable">此 Android 版本不使用该限制。</string>
-    <string name="phantom_fix_toggle">在开发者选项中打开“停止限制子进程”，之后请保持开发者选项开启。</string>
-    <string name="phantom_fix_no_toggle">此 Android 版本没有该开关。请使用无线调试在此设备上更改。</string>
+    <string name="phantom_fix_toggle">如果系统提供“停止限制子进程”，请将其打开；也可使用无线调试调整并验证限制。</string>
+    <string name="phantom_fix_no_toggle">如果开发者选项中没有子进程开关，请使用无线调试调整并验证限制。</string>
     <string name="upd_block_no_apk">此构建没有适用于此 DroidDeck 副本的下载。</string>
     <string name="upd_block_version_code">Android 不会用它覆盖此构建，因为它的 versionCode %1$d 低于已安装的 %2$d。</string>
     <string name="upd_fail_downgrade">Android 不会用旧版本覆盖新版本。请继续使用此构建，直到该通道的版本跟上。</string>
