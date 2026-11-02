@@ -71,7 +71,7 @@ class DriverMenusAutoTest {
         val menus = DriverMenus(activity, Handler(Looper.getMainLooper()))
         menus.refreshDrivers()
         assertEquals(SessionPrefs.TP_UBWC_ON, menus.tpUbwcMode)
-        assertFalse(menus.state().tpUbwcRestartRequired)
+        assertFalse(menus.tpUbwcRestartRequired())
     }
 
     @Test fun changingUbwcBeforeTheFirstSessionDoesNotRequireRestart() {
@@ -80,7 +80,7 @@ class DriverMenusAutoTest {
         menus.refreshDrivers()
         SessionPrefs.setTpUbwcMode(activity, SessionPrefs.TP_UBWC_ON)
         menus.refreshDrivers()
-        assertFalse(menus.state().tpUbwcRestartRequired)
+        assertFalse(menus.tpUbwcRestartRequired())
     }
 
     @Test fun recreatingTheMenuKeepsTheActiveHintRestartWarning() {
@@ -89,6 +89,6 @@ class DriverMenusAutoTest {
         SessionPrefs.setTpUbwcMode(activity, SessionPrefs.TP_UBWC_ON)
         val menus = DriverMenus(activity, Handler(Looper.getMainLooper()))
         menus.refreshDrivers()
-        assertTrue(menus.state().tpUbwcRestartRequired)
+        assertTrue(menus.tpUbwcRestartRequired())
     }
 }
