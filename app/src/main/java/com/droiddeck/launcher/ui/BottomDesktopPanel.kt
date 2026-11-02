@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
+import android.os.Build
 import android.os.SystemClock
 import android.graphics.Typeface
 import android.view.Gravity
@@ -13,6 +14,7 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.view.ViewConfiguration
+import android.view.WindowInsets
 import android.graphics.RectF
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.ComposeView
@@ -37,6 +39,8 @@ class BottomDesktopPanel(
     onMenu: (() -> Unit)?,
     steamButtons: Pair<() -> Unit, () -> Unit>?,
     onSwap: (() -> Unit)? = null,
+    /** The desktop gets the panel's own pixels instead of the lower default resolution (the top screen after a swap). */
+    private val fullResolution: Boolean = false,
 ) : LinearLayout(context), SurfaceHolder.Callback {
     private lateinit var surfaceView: SurfaceView
     private val area = FrameLayout(context).apply { clipChildren = true }
@@ -192,7 +196,7 @@ class BottomDesktopPanel(
             addSurface()
             return
         }
-        if (attached) attach(surfaceView.holder)
+        if (attached) syncSurface(surfaceView.holder)
     }
 
     private fun showState() {
@@ -213,16 +217,30 @@ class BottomDesktopPanel(
         if (w != fullWidth || h > fullHeight || !keyboardHost.shown) {
             fullWidth = w
             fullHeight = h
-            val (desktopW, desktopH) = BottomDesktop.outputSizeFor(w, h)
-            val (fitW, fitH) = fitDesktop(w, h, desktopW, desktopH)
+            val (desktopW, desktopH) = BottomDesktop.outputSizeFor(w, h, fullResolution)
+            // At the panel's own pixels the view takes the desktop's exact size, so its surface needs no fixed size.
+            val (fitW, fitH) = if (w - desktopW in 0..1 && h - desktopH in 0..1) desktopW to desktopH
+            else fitDesktop(w, h, desktopW, desktopH)
             surfaceView.layoutParams = if (fitW == w && fitH == h) FrameLayout.LayoutParams(w, h)
             else FrameLayout.LayoutParams(fitW, fitH, Gravity.CENTER_HORIZONTAL).apply { topMargin = (h - fitH) / 2 }
+            surfaceView.post { syncSurface(surfaceView.holder) }
         }
         pan()
     }
 
+    /** How much of the panel a keyboard covers without shrinking the window (the session's window on the top screen). */
+    private fun imeOverlap(): Int {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return 0
+        if (area.height < fullHeight) return 0
+        val ime = rootWindowInsets?.getInsets(WindowInsets.Type.ime())?.bottom ?: return 0
+        if (ime <= 0) return 0
+        val at = IntArray(2)
+        area.getLocationInWindow(at)
+        return (at[1] + area.height - (rootView.height - ime)).coerceIn(0, area.height)
+    }
+
     private fun pan() {
-        val visible = area.height
+        val visible = area.height - imeOverlap()
         val hidden = (fullHeight - visible).coerceAtLeast(0)
         val anchor = if (directTouch) lastTouchY else trackpad.y
         surfaceView.translationY = if (hidden == 0 || !keyboardHost.shown) 0f
@@ -231,9 +249,7 @@ class BottomDesktopPanel(
 
     override fun surfaceCreated(holder: SurfaceHolder) = Unit
 
-    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        if (!attached) attach(holder)
-    }
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = syncSurface(holder)
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         if (holder !== surfaceView.holder) return
@@ -242,13 +258,20 @@ class BottomDesktopPanel(
         BottomDesktop.detach(holder.surface)
     }
 
-    private fun attach(holder: SurfaceHolder) {
-        val frame = holder.surfaceFrame
-        val (width, height) = BottomDesktop.outputSizeFor(fullWidth.takeIf { it > 0 } ?: frame.width(),
-            fullHeight.takeIf { it > 0 } ?: frame.height())
+    /** Gives the desktop this panel's surface, or tells it the panel's new size. Waits until the panel is laid out. */
+    private fun syncSurface(holder: SurfaceHolder) {
+        if (holder !== surfaceView.holder || fullWidth <= 0 || fullHeight <= 0 || !holder.surface.isValid) return
+        val (width, height) = BottomDesktop.outputSizeFor(fullWidth, fullHeight, fullResolution)
         if (width <= 0 || height <= 0) return
+        val frame = holder.surfaceFrame
         if (frame.width() != width || frame.height() != height) {
-            holder.setFixedSize(width, height)
+            val params = surfaceView.layoutParams
+            // A view laid out at the desktop's size gets a surface of that size with the next layout.
+            if (params.width == width && params.height == height) holder.setSizeFromLayout() else holder.setFixedSize(width, height)
+            return
+        }
+        if (attached) {
+            BottomDesktop.resize(holder.surface, width, height)
             return
         }
         attached = true
@@ -307,7 +330,7 @@ class BottomDesktopPanel(
         override fun onWheel(steps: Int) = BottomDesktop.sendScene(SCENE_WHEEL, steps)
 
         override fun onScroll(dx: Float, dy: Float) {
-            val (outW, outH) = BottomDesktop.outputSizeFor(surfaceView.width, surfaceView.height)
+            val (outW, outH) = BottomDesktop.outputSize
             scrollRestX += dx * outW / surfaceView.width.coerceAtLeast(1) * AXIS_UNITS_PER_PIXEL
             scrollRestY += dy * outH / surfaceView.height.coerceAtLeast(1) * AXIS_UNITS_PER_PIXEL
             val h = scrollRestX.toInt()
@@ -352,10 +375,7 @@ class BottomDesktopPanel(
     }
 }
 
-/**
- * The size the desktop's picture takes inside a [areaW]x[areaH] panel. A running desktop keeps its size, so on a
- * panel of another shape (the top screen after a swap) it is fitted whole instead of stretched.
- */
+/** The size the desktop's picture takes inside a [areaW]x[areaH] panel: a desktop of another shape is fitted whole, not stretched. */
 internal fun fitDesktop(areaW: Int, areaH: Int, desktopW: Int, desktopH: Int): Pair<Int, Int> {
     if (areaW <= 0 || areaH <= 0 || desktopW <= 0 || desktopH <= 0) return areaW to areaH
     val widthLimited = areaW.toLong() * desktopH <= areaH.toLong() * desktopW

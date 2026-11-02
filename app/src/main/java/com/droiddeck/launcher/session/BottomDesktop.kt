@@ -61,7 +61,9 @@ object BottomDesktop {
     /** The proot to freeze with the session when it pauses. */
     val suspendPid: Int get() = guestPid
     private var guestGeneration = 0
-    private var outputSize = 0 to 0
+    /** The size the desktop was last given; Plasma follows it. */
+    var outputSize = 0 to 0
+        private set
     private var attachedSurface: Surface? = null
     private var cursorShown = false
     /** The session generation whose launch the running compositor and guest belong to; -1 when none. */
@@ -98,16 +100,9 @@ object BottomDesktop {
     fun available(): Boolean =
         launch?.installed == true && SessionState.running && SessionState.mode != SessionService.MODE_DESKTOP
 
-    /**
-     * The desktop renders below the panel's resolution: about 720 pixels on the short side keeps
-     * Plasma's text big enough to touch and its software rendering cheap. A running desktop keeps its size.
-     */
-    fun outputSizeFor(width: Int, height: Int): Pair<Int, Int> {
-        if ((state == State.STARTING || state == State.RUNNING) && outputSize.first > 0) return outputSize
-        if (width <= 0 || height <= 0) return 0 to 0
-        val scale = maxOf(1f, Math.round(minOf(width, height) / TARGET_SHORT_SIDE * 2f) / 2f)
-        return ((width / scale).toInt() and 1.inv()) to ((height / scale).toInt() and 1.inv())
-    }
+    /** The desktop's size on a [width]x[height] panel; a running desktop is resized to it when it moves to another panel. */
+    fun outputSizeFor(width: Int, height: Int, fullResolution: Boolean = false): Pair<Int, Int> =
+        desktopOutputSize(width, height, fullResolution, TARGET_SHORT_SIDE)
 
     fun addListener(listener: () -> Unit) { listeners.add(listener) }
 
@@ -169,6 +164,20 @@ object BottomDesktop {
             pendingAttach = msg
             bind(context.applicationContext)
         }
+    }
+
+    /**
+     * The panel showing the desktop changed size: the compositor tells Plasma, which lays itself out again.
+     * [surface]: the panel's surface; a panel that already lost the desktop to the other screen is ignored.
+     */
+    fun resize(surface: Surface, width: Int, height: Int) {
+        if (surface !== attachedSurface || width <= 0 || height <= 0 || outputSize == (width to height)) return
+        outputSize = width to height
+        pendingAttach?.data?.apply {
+            putInt(Comp.KEY_WIDTH, width)
+            putInt(Comp.KEY_HEIGHT, height)
+        }
+        service?.let { send(it, Message.obtain(null, Comp.MSG_RESIZE, width, height)) }
     }
 
     /** [surface]: the panel's surface; a panel that already lost the desktop to a newer one leaves it alone. */
@@ -355,4 +364,15 @@ object BottomDesktop {
             }
         }, "bottom-desktop-start").start()
     }
+}
+
+/**
+ * The desktop's size on a [width]x[height] panel. By default it renders below the panel's resolution: about
+ * [targetShortSide] pixels on the short side keeps Plasma's text big enough to touch and its software rendering
+ * cheap. [fullResolution] gives it the panel's own pixels (the desktop on the top screen after a swap).
+ */
+internal fun desktopOutputSize(width: Int, height: Int, fullResolution: Boolean, targetShortSide: Float): Pair<Int, Int> {
+    if (width <= 0 || height <= 0) return 0 to 0
+    val scale = if (fullResolution) 1f else maxOf(1f, Math.round(minOf(width, height) / targetShortSide * 2f) / 2f)
+    return ((width / scale).toInt() and 1.inv()) to ((height / scale).toInt() and 1.inv())
 }

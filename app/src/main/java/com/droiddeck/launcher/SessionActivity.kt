@@ -4469,7 +4469,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 androidx.compose.ui.viewinterop.AndroidView(
                     factory = { context ->
                         com.droiddeck.launcher.ui.BottomDesktopPanel(context, null, { drawerOpen = true },
-                            (({ tapSteamButton() }) to ({ tapQam() })).takeIf { SessionState.mode == SessionService.MODE_STEAM }, swapBack)
+                            (({ tapSteamButton() }) to ({ tapQam() })).takeIf { SessionState.mode == SessionService.MODE_STEAM }, swapBack,
+                            fullResolution = true)
                     },
                     modifier = Modifier.fillMaxSize(),
                 )

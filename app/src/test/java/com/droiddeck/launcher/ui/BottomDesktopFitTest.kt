@@ -9,7 +9,7 @@ class BottomDesktopFitTest {
         assertEquals(1280 to 870, fitDesktop(1280, 870, 1278, 868))
     }
 
-    @Test fun aRunningBottomDesktopKeepsItsShapeOnTheWiderTopScreen() {
+    @Test fun aDesktopOfAnotherShapeIsFittedNotStretched() {
         val (w, h) = fitDesktop(1920, 1016, 1280, 870)
         assertEquals(1016, h)
         assertEquals(1494, w)
