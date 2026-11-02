@@ -41,8 +41,18 @@ effects already applied to a session are not undone; stop and restart that sessi
 
 Program overrides prepend their directory to the normal session PATH, including `/usr/games`
 where Ubuntu installs `gamescopereaper`. An explicit `PATH=...` environment entry replaces that
-default. Keep the runtime directories when setting a custom PATH; if an old persistent override
-hides runtime tools, inspect `env list`, clear or correct that entry, and restart the session.
+default. If an old persistent PATH hides runtime tools, inspect `tools/droiddeckctl env list`
+and correct only PATH with `env set --persistent`, which preserves other persistent entries.
+For example, to restore the normal runtime search path:
+
+```sh
+tools/droiddeckctl env set --persistent 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games'
+```
+
+Retain any custom directories you still need alongside these runtime directories, then restart
+the session. `env clear persistent` removes **all** persistent environment settings, not just
+PATH; there is no single-entry clear operation. Before clearing that scope, record any other
+entries you want to keep and reapply them afterward.
 
 Authorized command execution runs inside the runtime containing Steam's saved login. CDP evaluates
 JavaScript in the authenticated Steam client, and preferences can contain private values. These
