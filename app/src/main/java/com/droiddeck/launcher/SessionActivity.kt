@@ -4497,7 +4497,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     com.droiddeck.launcher.ui.SessionBottomStrip(pageId) { if (::hud.isInitialized) hud.liveFps else null }
                 },
             ) else androidx.compose.material3.Button(onClick = swapBack, modifier = Modifier.align(androidx.compose.ui.Alignment.Center)) {
-                androidx.compose.material3.Text(getString(R.string.swap_screens_back))
+                androidx.compose.material3.Text(getString(R.string.swap_screens))
             }
         }
     }

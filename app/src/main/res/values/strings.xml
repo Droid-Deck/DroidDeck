@@ -1904,7 +1904,6 @@
     <string name="bottom_desktop_off">The desktop is closed.</string>
     <string name="bottom_dashboard_empty">Nothing to show here yet.</string>
     <string name="swap_screens">Swap screens</string>
-    <string name="swap_screens_back">Put the game back on the top screen</string>
     <string name="swap_screens_unavailable">The bottom screen is not free right now</string>
     <string name="swap_game_screen_group">Game screen</string>
     <string name="swap_game_screen">Show the game on</string>
