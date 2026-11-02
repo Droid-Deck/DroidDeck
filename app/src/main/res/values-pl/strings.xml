@@ -887,13 +887,9 @@
     <string name="setup_fullscreen">Pełny ekran</string>
     <string name="setup_fullscreen_on">Ukrywa systemowe paski stanu i nawigacji</string>
     <string name="setup_fullscreen_off">Pokazuje systemowe paski stanu i nawigacji</string>
-    <string name="setup_dual_screen">Dwa ekrany</string>
-    <string name="setup_dual_screen_hint">Automatycznie używa drugiego ekranu w urządzeniach przenośnych, które mają go wbudowanego. Włączone używa dowolnego drugiego wyświetlacza. Wyłączone zostawia wszystko na jednym ekranie.</string>
     <string name="setup_dual_screen_auto">Automatycznie</string>
     <string name="setup_dual_screen_on">Włączone</string>
     <string name="setup_dual_screen_off">Wyłączone</string>
-    <string name="setup_dual_screen_menu">Menu na dolnym ekranie</string>
-    <string name="setup_dual_screen_menu_hint">Przenosi sekcje i menu w grze na drugi ekran i tam odbywa się pisanie, dzięki czemu górny ekran zachowuje pełny widok. L2 i R2 przełączają sekcje.</string>
     <string name="setup_dual_screen_controls">Sterowanie na dolnym ekranie w grach</string>
     <string name="setup_dual_screen_controls_hint">Otwiera gładzik i klawiaturę na drugim ekranie po rozpoczęciu sesji.</string>
     <string name="dual_typing_title">Pisanie dla górnego ekranu</string>

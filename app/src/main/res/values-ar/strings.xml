@@ -893,13 +893,9 @@
     <string name="setup_fullscreen">ملء الشاشة</string>
     <string name="setup_fullscreen_on">يخفي شريطي الحالة والتنقّل في Android</string>
     <string name="setup_fullscreen_off">يعرض شريطي الحالة والتنقّل في Android</string>
-    <string name="setup_dual_screen">الشاشة المزدوجة</string>
-    <string name="setup_dual_screen_hint">يستخدم الوضع التلقائي الشاشة الثانية في الأجهزة المحمولة التي تحتوي على شاشة مدمجة. يستخدم وضع التشغيل أي شاشة ثانية. يُبقي وضع الإيقاف كل شيء على شاشة واحدة.</string>
     <string name="setup_dual_screen_auto">تلقائي</string>
     <string name="setup_dual_screen_on">تشغيل</string>
     <string name="setup_dual_screen_off">إيقاف</string>
-    <string name="setup_dual_screen_menu">قائمة الشاشة السفلية</string>
-    <string name="setup_dual_screen_menu_hint">ينقل الأقسام وقائمة اللعبة إلى الشاشة الثانية ويتم الكتابة هناك، لتبقى الشاشة العلوية بعرضها الكامل. يبدّل L2 وR2 بين الأقسام.</string>
     <string name="setup_dual_screen_controls">عناصر تحكم الشاشة السفلية في الألعاب</string>
     <string name="setup_dual_screen_controls_hint">يفتح لوحة اللمس ولوحة المفاتيح على الشاشة الثانية عند بدء الجلسة.</string>
     <string name="dual_typing_title">الكتابة على الشاشة العلوية</string>

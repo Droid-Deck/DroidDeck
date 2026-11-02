@@ -18,6 +18,23 @@ object DualScreen {
     private const val TYPE_INTERNAL = 1
     private val knownModels = setOf("retroid pocket duo", "ayn thor")
     private val touchedDisplays = mutableSetOf<Int>()
+    private val takenListeners = java.util.concurrent.CopyOnWriteArraySet<() -> Unit>()
+    @Volatile private var takenDisplays: Set<Int> = emptySet()
+    private val main by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
+
+    fun yieldsBottom(model: String): Boolean = model.trim().lowercase().let { m -> knownModels.any(m::startsWith) }
+
+    fun taken(displayId: Int): Boolean = displayId in takenDisplays
+
+    fun setTaken(ids: Set<Int>) {
+        if (ids == takenDisplays) return
+        takenDisplays = ids
+        main.post { takenListeners.forEach { it() } }
+    }
+
+    fun watchTaken(listener: () -> Unit) { takenListeners += listener }
+
+    fun unwatchTaken(listener: () -> Unit) { takenListeners -= listener }
 
     fun builtInDisplay(displayManager: DisplayManager, primaryDisplayId: Int): Display? {
         val primary = displayManager.getDisplay(primaryDisplayId)
@@ -61,20 +78,25 @@ object DualScreen {
             (x.max - x.min + 1f).roundToInt() to (y.max - y.min + 1f).roundToInt()
         }
 
-    fun display(context: Context, displayManager: DisplayManager, primaryDisplayId: Int): Display? =
-        when (SessionPrefs.dualScreenMode(context)) {
+    fun sessionDisplay(context: Context, displayManager: DisplayManager, primaryDisplayId: Int): Display? =
+        display(context, displayManager, primaryDisplayId, SessionPrefs.dualScreenSessionMode(context))
+
+    fun display(context: Context, displayManager: DisplayManager, primaryDisplayId: Int, mode: String = SessionPrefs.dualScreenMode(context)): Display? =
+        when (mode) {
             MODE_OFF -> null
             MODE_ON -> internalDisplay(displayManager, primaryDisplayId) ?: anyDisplay(displayManager, primaryDisplayId)
             else -> builtInDisplay(displayManager, primaryDisplayId)
-        }
+        }?.takeUnless { taken(it.displayId) }
 
     fun anyDisplay(displayManager: DisplayManager, primaryDisplayId: Int): Display? =
         displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION).firstOrNull {
             it.isValid && it.displayId != primaryDisplayId && (it.flags and Display.FLAG_PRESENTATION) != 0
         }
 
+    fun builtIn(display: Display): Boolean = isBuiltIn(displayType(display), Build.MODEL)
+
     internal fun isBuiltIn(type: Int?, model: String): Boolean =
-        if (type != null) type == TYPE_INTERNAL else model.trim().lowercase() in knownModels
+        if (type != null) type == TYPE_INTERNAL else yieldsBottom(model)
 
     private fun displayType(display: Display): Int? =
         runCatching { Display::class.java.getMethod("getType").invoke(display) as Int }.getOrNull()

@@ -549,7 +549,7 @@ class FrontEndActivity : ComponentActivity() {
     private var dualDisplayId by mutableStateOf(-1)
     private var dualScreenDevice by mutableStateOf(false)
     private var dualScreenMode by mutableStateOf(com.droiddeck.launcher.input.DualScreen.MODE_AUTO)
-    private var dualScreenLauncher by mutableStateOf(true)
+    private var dualScreenSessions by mutableStateOf(com.droiddeck.launcher.input.DualScreen.MODE_AUTO)
     private var dualScreenControls by mutableStateOf(true)
     private var launcherStarted = false
     private lateinit var displayManager: DisplayManager
@@ -558,6 +558,7 @@ class FrontEndActivity : ComponentActivity() {
         override fun onDisplayRemoved(displayId: Int) = refreshSecondScreenDisplays()
         override fun onDisplayChanged(displayId: Int) = refreshSecondScreenDisplays()
     }
+    private val bottomScreenListener: () -> Unit = { refreshSecondScreenDisplays() }
     private val secondScreenTouchListener = object : android.hardware.input.InputManager.InputDeviceListener {
         override fun onInputDeviceAdded(deviceId: Int) = refreshSecondScreenDisplays()
         override fun onInputDeviceRemoved(deviceId: Int) = refreshSecondScreenDisplays()
@@ -1082,7 +1083,7 @@ class FrontEndActivity : ComponentActivity() {
                         dualScreen = dualDisplayId >= 0 && com.droiddeck.launcher.ui.DualScreenPanel.available,
                         dualScreenDevice = dualScreenDevice,
                         dualScreenMode = dualScreenMode,
-                        dualScreenLauncher = dualScreenLauncher,
+                        dualScreenSessions = dualScreenSessions,
                         dualScreenControls = dualScreenControls,
                         packages = packageRows,
                         packageCatalogLoading = catalogLoading,
@@ -1316,8 +1317,8 @@ class FrontEndActivity : ComponentActivity() {
                             SessionPrefs.setDualScreenMode(this, mode)
                             refreshSecondScreenDisplays()
                         },
-                        onDualScreenLauncher = { on ->
-                            SessionPrefs.setDualScreenLauncher(this, on)
+                        onDualScreenSessions = { mode ->
+                            SessionPrefs.setDualScreenSessionMode(this, mode)
                             refreshSecondScreenDisplays()
                         },
                         onDualScreenControls = { on ->
@@ -1733,6 +1734,7 @@ class FrontEndActivity : ComponentActivity() {
             addDataScheme("file")
         })
         displayManager.registerDisplayListener(secondScreenDisplayListener, ui)
+        com.droiddeck.launcher.input.DualScreen.watchTaken(bottomScreenListener)
         getSystemService(android.hardware.input.InputManager::class.java)?.registerInputDeviceListener(secondScreenTouchListener, ui)
         launcherStarted = true
         refreshSecondScreenDisplays()
@@ -1777,6 +1779,7 @@ class FrontEndActivity : ComponentActivity() {
         com.droiddeck.launcher.stores.StoresState.libraryListener = null
         com.droiddeck.launcher.stores.battlenet.BattleNetClient.opener = null
         displayManager.unregisterDisplayListener(secondScreenDisplayListener)
+        com.droiddeck.launcher.input.DualScreen.unwatchTaken(bottomScreenListener)
         getSystemService(android.hardware.input.InputManager::class.java)?.unregisterInputDeviceListener(secondScreenTouchListener)
         launcherStarted = false
         com.droiddeck.launcher.ui.DualScreenPanel.hide(taskId)
@@ -1815,10 +1818,10 @@ class FrontEndActivity : ComponentActivity() {
         dualScreenMode = SessionPrefs.dualScreenMode(this)
         secondScreenDisplays = SecondScreenDisplays.available(displayManager, ownDisplayId)
         dualScreenDevice = com.droiddeck.launcher.input.DualScreen.anyDisplay(displayManager, ownDisplayId) != null
-        dualScreenLauncher = SessionPrefs.dualScreenLauncher(this)
+        dualScreenSessions = SessionPrefs.dualScreenSessionMode(this)
         dualScreenControls = SessionPrefs.dualScreenSessionControls(this)
         val target = com.droiddeck.launcher.input.DualScreen.display(this, displayManager, ownDisplayId)
-        dualDisplayId = if (dualScreenLauncher) target?.displayId ?: -1 else -1
+        dualDisplayId = target?.displayId ?: -1
         syncDualPanel()
     }
 

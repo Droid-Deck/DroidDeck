@@ -881,13 +881,9 @@
     <string name="setup_fullscreen">Teljes képernyő</string>
     <string name="setup_fullscreen_on">Elrejti az Android állapot- és navigációs sávokat</string>
     <string name="setup_fullscreen_off">Megjeleníti az Android állapot- és navigációs sávokat</string>
-    <string name="setup_dual_screen">Két képernyő</string>
-    <string name="setup_dual_screen_hint">Az Automatikus a beépített második képernyővel rendelkező kézikonzolokon használja a második képernyőt. A Be bármilyen második kijelzőt használ. A Ki mindent egy képernyőn tart.</string>
     <string name="setup_dual_screen_auto">Automatikus</string>
     <string name="setup_dual_screen_on">Be</string>
     <string name="setup_dual_screen_off">Ki</string>
-    <string name="setup_dual_screen_menu">Menü az alsó képernyőn</string>
-    <string name="setup_dual_screen_menu_hint">A szakaszokat és a játék közbeni menüt a második képernyőre helyezi, és ott történik a gépelés, így a felső képernyő teljes nézetet kap. Az L2 és R2 vált szakaszt.</string>
     <string name="setup_dual_screen_controls">Alsó képernyős vezérlők játékokban</string>
     <string name="setup_dual_screen_controls_hint">Munkamenet indításakor megnyitja az érintőpadot és a billentyűzetet a második képernyőn.</string>
     <string name="dual_typing_title">Gépelés a felső képernyőre</string>
