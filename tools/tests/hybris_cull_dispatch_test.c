@@ -13,6 +13,8 @@ static unsigned downstream_stage_count, downstream_geometry_count;
 static unsigned backend_shader_creates, backend_shader_destroys;
 static uintptr_t next_handle = 0x100;
 static VkPipelineCreateFlags pipeline_flags;
+static uint32_t rendering_view_mask;
+static int rendering_view_mask_known = 1;
 
 int hybris_mali_spec_enabled(void) { return 0; }
 int hybris_mali_spec_active(VkPhysicalDevice p) { (void)p; return 0; }
@@ -113,7 +115,11 @@ VkResult hybris_spirv_discard(const uint32_t *c,size_t s,uint32_t m,const char *
 { (void)c;(void)s;(void)m;(void)e;(void)a;(void)o;(void)os;(void)r;return VK_ERROR_UNKNOWN; }
 VkResult hybris_vertex_rendering_info(VkDevice d,const VkGraphicsPipelineCreateInfo *i,
     struct hybris_vertex_rendering *o)
-{ (void)d;(void)i;*o=(struct hybris_vertex_rendering){0,VK_SAMPLE_COUNT_1_BIT};return VK_SUCCESS; }
+{
+    (void)d;(void)i;*o=(struct hybris_vertex_rendering){
+        .samples=VK_SAMPLE_COUNT_1_BIT,.view_mask=rendering_view_mask,
+        .view_mask_known=rendering_view_mask_known};return VK_SUCCESS;
+}
 
 static VkResult VKAPI_CALL backend_create_shader(VkDevice d,const VkShaderModuleCreateInfo *i,
     const VkAllocationCallbacks *a,VkShaderModule *m)
@@ -175,6 +181,20 @@ static VkResult run_cull(struct shader_device *device, VkPipelineShaderStageCrea
 }
 int main(int argc,char **argv)
 {
+    VkPhysicalDeviceMultiviewFeatures multiview = {
+        .sType=VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES,
+        .multiview=VK_TRUE,.multiviewGeometryShader=VK_FALSE};
+    VkDeviceCreateInfo requested = {.sType=VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,.pNext=&multiview};
+    assert(!multiview_geometry_requested(&requested));
+    multiview.multiviewGeometryShader=VK_TRUE;
+    assert(multiview_geometry_requested(&requested));
+    multiview.multiview=VK_FALSE;
+    assert(!multiview_geometry_requested(&requested));
+    VkPhysicalDeviceVulkan11Features vulkan11 = {
+        .sType=VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+        .multiview=VK_TRUE,.multiviewGeometryShader=VK_TRUE};
+    requested.pNext=&vulkan11;
+    assert(multiview_geometry_requested(&requested));
     assert(argc==4); size_t vs,fs,gs; uint32_t *vertex=load(argv[1],&vs),
         *fragment=load(argv[2],&fs),*geometry=load(argv[3],&gs);
     struct shader_device device={.handle=(VkDevice)(uintptr_t)0x42,.create_shader=backend_create_shader,
@@ -195,6 +215,20 @@ int main(int argc,char **argv)
     assert(run_cull(&device,pair,2,VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,0,NULL,NULL,NULL,0,NULL)==VK_SUCCESS);
     assert(downstream_calls==1 && downstream_stage_count==3 && downstream_geometry_count==1);
     assert(backend_shader_creates-creates_before==2 && backend_shader_destroys-destroys_before==2);
+    rendering_view_mask=3; downstream_calls=0;
+    assert(run_cull(&device,pair,2,VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,0,NULL,NULL,NULL,0,NULL)==VK_ERROR_FEATURE_NOT_PRESENT);
+    assert(!downstream_calls);
+    device.cull_multiview_geometry=1; downstream_calls=0;
+    assert(run_cull(&device,pair,2,VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,0,NULL,NULL,NULL,0,NULL)==VK_SUCCESS);
+    assert(downstream_calls==1 && downstream_stage_count==3);
+    device.cull_multiview_geometry=0; rendering_view_mask=0; rendering_view_mask_known=0;
+    downstream_calls=0;
+    assert(run_cull(&device,pair,2,VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,0,NULL,NULL,NULL,0,NULL)==VK_ERROR_FEATURE_NOT_PRESENT);
+    assert(!downstream_calls);
+    rendering_view_mask_known=1;
+    device.cull=0; rendering_view_mask=7; rendering_view_mask_known=0; downstream_calls=0;
+    assert(run_cull(&device,pair,2,VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,0,NULL,NULL,NULL,0,NULL)==VK_SUCCESS);
+    assert(downstream_calls==1); device.cull=1; rendering_view_mask=0; rendering_view_mask_known=1;
     VkPipelineCreationFeedback pipeline_feedback = {0}, stage_feedback[2] = {{0}};
     VkPipelineCreationFeedbackCreateInfo feedback = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_CREATION_FEEDBACK_CREATE_INFO,

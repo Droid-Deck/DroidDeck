@@ -99,7 +99,7 @@ VkResult hybris_spirv_discard(const uint32_t *c,size_t s,uint32_t m,const char *
 { (void)c;(void)s;(void)m;(void)e;(void)a;(void)o;(void)os;(void)r;return VK_ERROR_UNKNOWN; }
 VkResult hybris_vertex_rendering_info(VkDevice d,const VkGraphicsPipelineCreateInfo *i,
     struct hybris_vertex_rendering *o)
-{ (void)d;(void)i;*o=(struct hybris_vertex_rendering){0,VK_SAMPLE_COUNT_1_BIT};return VK_SUCCESS; }
+{ (void)d;(void)i;*o=(struct hybris_vertex_rendering){.samples=VK_SAMPLE_COUNT_1_BIT,.view_mask_known=1};return VK_SUCCESS; }
 
 static VkResult VKAPI_CALL backend_create_shader(VkDevice d,const VkShaderModuleCreateInfo *i,
     const VkAllocationCallbacks *a,VkShaderModule *m)

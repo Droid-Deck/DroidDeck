@@ -493,7 +493,7 @@ index 0000000..4686b33
 +    const char **reason);
 +#endif
 diff --git a/hybris/vulkan/compat/shader_dispatch.c b/hybris/vulkan/compat/shader_dispatch.c
-index 839ae23..3ed1714 100644
+index 839ae23..ac0481a 100644
 --- a/hybris/vulkan/compat/shader_dispatch.c
 +++ b/hybris/vulkan/compat/shader_dispatch.c
 @@ -15,6 +15,7 @@
@@ -504,7 +504,15 @@ index 839ae23..3ed1714 100644
  #include "shader_policy.h"
  #include "vertex_stores.h"
  #include "polygon_pipeline.h"
-@@ -55,6 +56,7 @@ struct shader_device {
+@@ -48,6 +49,7 @@ struct shader_device {
+     int inout;
+     int clip;
+     int cull;
++    int cull_multiview_geometry;
+     int stage_point_size, pervertex;
+     int vertex_stores;
+     int polygon;
+@@ -55,6 +57,7 @@ struct shader_device {
      int multi_viewport;
      int dual_src;
      uint32_t output_limit;
@@ -512,7 +520,30 @@ index 839ae23..3ed1714 100644
      _Atomic unsigned spec_changes;
      VkAllocationCallbacks allocator;
      int custom;
-@@ -83,7 +85,8 @@ int hybris_shader_device_proc_allowed(VkDevice handle, const char *name)
+@@ -65,6 +68,22 @@ static pthread_mutex_t guard = PTHREAD_MUTEX_INITIALIZER;
+ static struct shader_device *devices;
+ static _Atomic unsigned point_reports;
+ static _Atomic unsigned inout_reports;
++static int multiview_geometry_requested(const VkDeviceCreateInfo *info)
++{
++    int multiview = 0, geometry = 0;
++    for (const VkBaseInStructure *node = info->pNext; node; node = node->pNext) {
++        if (node->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES) {
++            const VkPhysicalDeviceMultiviewFeatures *features = (const void *)node;
++            multiview |= features->multiview;
++            geometry |= features->multiviewGeometryShader;
++        } else if (node->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES) {
++            const VkPhysicalDeviceVulkan11Features *features = (const void *)node;
++            multiview |= features->multiview;
++            geometry |= features->multiviewGeometryShader;
++        }
++    }
++    return multiview && geometry;
++}
+ int hybris_shader_enabled(void)
+ {
+     return hybris_scaled_enabled() || hybris_point_size_enabled() ||
+@@ -83,7 +102,8 @@ int hybris_shader_device_proc_allowed(VkDevice handle, const char *name)
      struct shader_device *device = find_device(handle);
      if(device && device->dual_src && !strcmp(name,"vkCmdSetColorBlendEquationEXT"))return 0;
      if(device && device->polygon && !strcmp(name,"vkCmdSetPolygonModeEXT"))return 0;
@@ -522,7 +553,13 @@ index 839ae23..3ed1714 100644
      if (hybris_shader_command_allowed(name)) return 1;
      return !device || (!device->mask && !device->vertex_stores && !device->polygon && !device->dual_src);
  }
-@@ -140,7 +143,17 @@ VkResult hybris_shader_device_create(VkDevice handle, VkPhysicalDevice physical,
+@@ -135,12 +155,23 @@ VkResult hybris_shader_device_create(VkDevice handle, VkPhysicalDevice physical,
+     device->inout = hybris_inout_enabled();
+     device->clip = hybris_clip_active(physical);
+     device->cull = hybris_cull_active(physical);
++    device->cull_multiview_geometry = device->cull && multiview_geometry_requested(requested);
+     device->stage_point_size = hybris_stage_point_active(physical);
+     struct hybris_layer_physical owner;
      if (hybris_layer_lookup_physical(physical, &owner)) {
          PFN_vkGetPhysicalDeviceProperties get = (PFN_vkGetPhysicalDeviceProperties)
              owner.resolver(owner.instance, "vkGetPhysicalDeviceProperties");
@@ -541,7 +578,7 @@ index 839ae23..3ed1714 100644
      }
      device->vertex_stores = hybris_vertex_stores_active(physical);
      pthread_mutex_lock(&guard);
-@@ -343,6 +356,8 @@ static VkResult convert_pipeline(struct shader_device *device, VkGraphicsPipelin
+@@ -343,6 +374,8 @@ static VkResult convert_pipeline(struct shader_device *device, VkGraphicsPipelin
      unsigned what = (device->clip ? 1u : 0u) | (device->cull ? 2u : 0u) |
          (device->stage_point_size ? 4u : 0u);
      int distance = 0;
@@ -550,7 +587,7 @@ index 839ae23..3ed1714 100644
      if (what || device->pervertex) {
          if (info->stageCount > 5 || (info->flags & VK_PIPELINE_CREATE_LIBRARY_BIT_KHR)) {
              *reason = "MaliBridge lowering does not support graphics libraries or mesh stages";
-@@ -364,7 +379,117 @@ static VkResult convert_pipeline(struct shader_device *device, VkGraphicsPipelin
+@@ -364,7 +397,127 @@ static VkResult convert_pipeline(struct shader_device *device, VkGraphicsPipelin
          VkResult result = hybris_distance_pipeline(what, device->pervertex, info->stageCount,
              sources, allocator, copy->distances, reason);
          if (result != VK_SUCCESS) return result;
@@ -650,6 +687,16 @@ index 839ae23..3ed1714 100644
 +            *reason = "CullDistance adapter does not support extended assembly or raster state";
 +            return VK_ERROR_FEATURE_NOT_PRESENT;
 +        }
++        struct hybris_vertex_rendering rendering = {0};
++        if (hybris_vertex_rendering_info(device->handle, info, &rendering) != VK_SUCCESS ||
++            !rendering.view_mask_known) {
++            *reason = "CullDistance adapter cannot determine the pipeline view mask";
++            return VK_ERROR_FEATURE_NOT_PRESENT;
++        }
++        if (rendering.view_mask && !device->cull_multiview_geometry) {
++            *reason = "CullDistance adapter requires multiviewGeometryShader for multiview";
++            return VK_ERROR_FEATURE_NOT_PRESENT;
++        }
 +        VkPrimitiveTopology topology = info->pInputAssemblyState->topology;
 +        if (topology != VK_PRIMITIVE_TOPOLOGY_POINT_LIST &&
 +            topology != VK_PRIMITIVE_TOPOLOGY_LINE_LIST &&
@@ -669,7 +716,7 @@ index 839ae23..3ed1714 100644
      }
      int discard = 0;
      VkShaderStageFlagBits last_stage = VK_SHADER_STAGE_VERTEX_BIT;
-@@ -549,6 +674,29 @@ static VkResult convert_pipeline(struct shader_device *device, VkGraphicsPipelin
+@@ -549,6 +702,29 @@ static VkResult convert_pipeline(struct shader_device *device, VkGraphicsPipelin
              if (result != VK_SUCCESS) { hybris_scaled_free(allocator, code); goto done; }
              if (clean) { hybris_scaled_free(allocator, code); code = clean; size = clean_size; }
          }
@@ -758,6 +805,95 @@ index 3844ea3..88b4316 100644
              break;
          default: break;
          }
+diff --git a/hybris/vulkan/compat/vertex_stores.c b/hybris/vulkan/compat/vertex_stores.c
+index f3c1646..d73e94d 100644
+--- a/hybris/vulkan/compat/vertex_stores.c
++++ b/hybris/vulkan/compat/vertex_stores.c
+@@ -1,6 +1,7 @@
+ /* SPDX-License-Identifier: Apache-2.0 */
+ #define VK_NO_PROTOTYPES
+ #include "vertex_stores.h"
++#include "clip_distance.h"
+ #include "../layer/layer.h"
+ #include <pthread.h>
+ #include <string.h>
+@@ -69,13 +70,24 @@ static VkResult VKAPI_CALL create_pass(VkDevice handle, const VkRenderPassCreate
+     struct hybris_layer_device device;
+     if (!hybris_layer_lookup_device(handle, &device)) return VK_ERROR_INITIALIZATION_FAILED;
+     PFN_vkCreateRenderPass create = (PFN_vkCreateRenderPass)device.resolver(handle, "vkCreateRenderPass");
+-    if (!hybris_vertex_stores_active(device.physical)) return create(handle, info, allocator, out);
++    if (!hybris_vertex_stores_active(device.physical) && !hybris_cull_active(device.physical))
++        return create(handle, info, allocator, out);
+     *out = VK_NULL_HANDLE;
+     struct render_pass *p = allocate_pass(handle, info->subpassCount, allocator);
+     if (!p) return VK_ERROR_OUT_OF_HOST_MEMORY;
++    const VkRenderPassMultiviewCreateInfo *multiview = NULL;
++    for (const VkBaseInStructure *node = info->pNext; node; node = node->pNext)
++        if (node->sType == VK_STRUCTURE_TYPE_RENDER_PASS_MULTIVIEW_CREATE_INFO)
++            multiview = (const VkRenderPassMultiviewCreateInfo *)node;
++    int view_masks_known = !multiview ||
++        (multiview->subpassCount == info->subpassCount &&
++         (!multiview->subpassCount || multiview->pViewMasks));
+     for (uint32_t i = 0; i < info->subpassCount; ++i) {
+         const VkSubpassDescription *s = &info->pSubpasses[i];
+-        p->subpasses[i] = (struct hybris_vertex_rendering){s->colorAttachmentCount, VK_SAMPLE_COUNT_1_BIT};
++        p->subpasses[i] = (struct hybris_vertex_rendering){
++            .colors = s->colorAttachmentCount, .samples = VK_SAMPLE_COUNT_1_BIT,
++            .view_mask = view_masks_known && multiview ? multiview->pViewMasks[i] : 0,
++            .view_mask_known = view_masks_known};
+         for (uint32_t j = 0; j < s->colorAttachmentCount; ++j)
+             if (s->pColorAttachments[j].attachment != VK_ATTACHMENT_UNUSED)
+                 p->subpasses[i].samples = info->pAttachments[s->pColorAttachments[j].attachment].samples;
+@@ -93,13 +105,16 @@ static VkResult create_pass2(VkDevice handle, const VkRenderPassCreateInfo2 *inf
+     struct hybris_layer_device device;
+     if (!hybris_layer_lookup_device(handle, &device)) return VK_ERROR_INITIALIZATION_FAILED;
+     PFN_vkCreateRenderPass2 create = (PFN_vkCreateRenderPass2)device.resolver(handle, name);
+-    if (!hybris_vertex_stores_active(device.physical)) return create(handle, info, allocator, out);
++    if (!hybris_vertex_stores_active(device.physical) && !hybris_cull_active(device.physical))
++        return create(handle, info, allocator, out);
+     *out = VK_NULL_HANDLE;
+     struct render_pass *p = allocate_pass(handle, info->subpassCount, allocator);
+     if (!p) return VK_ERROR_OUT_OF_HOST_MEMORY;
+     for (uint32_t i = 0; i < info->subpassCount; ++i) {
+         const VkSubpassDescription2 *s = &info->pSubpasses[i];
+-        p->subpasses[i] = (struct hybris_vertex_rendering){s->colorAttachmentCount, VK_SAMPLE_COUNT_1_BIT};
++        p->subpasses[i] = (struct hybris_vertex_rendering){
++            .colors = s->colorAttachmentCount, .samples = VK_SAMPLE_COUNT_1_BIT,
++            .view_mask = s->viewMask, .view_mask_known = 1};
+         for (uint32_t j = 0; j < s->colorAttachmentCount; ++j)
+             if (s->pColorAttachments[j].attachment != VK_ATTACHMENT_UNUSED)
+                 p->subpasses[i].samples = info->pAttachments[s->pColorAttachments[j].attachment].samples;
+@@ -167,8 +182,10 @@ VkResult hybris_vertex_rendering_info(VkDevice handle,
+     for (const VkBaseInStructure *node = info->pNext; node; node = node->pNext)
+         if (node->sType == VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO) {
+             *out = (struct hybris_vertex_rendering){
+-                ((const VkPipelineRenderingCreateInfo *)node)->colorAttachmentCount,
+-                info->pMultisampleState->rasterizationSamples};
++                .colors = ((const VkPipelineRenderingCreateInfo *)node)->colorAttachmentCount,
++                .samples = info->pMultisampleState->rasterizationSamples,
++                .view_mask = ((const VkPipelineRenderingCreateInfo *)node)->viewMask,
++                .view_mask_known = 1};
+             return VK_SUCCESS;
+         }
+     return VK_ERROR_UNKNOWN;
+diff --git a/hybris/vulkan/compat/vertex_stores.h b/hybris/vulkan/compat/vertex_stores.h
+index 991b4b0..105f048 100644
+--- a/hybris/vulkan/compat/vertex_stores.h
++++ b/hybris/vulkan/compat/vertex_stores.h
+@@ -3,7 +3,12 @@
+ #define HYBRIS_VERTEX_STORES_H
+ #include "scaled_vertex.h"
+ int hybris_vertex_stores_active(VkPhysicalDevice physical);
+-struct hybris_vertex_rendering { uint32_t colors; VkSampleCountFlagBits samples; };
++struct hybris_vertex_rendering {
++    uint32_t colors;
++    VkSampleCountFlagBits samples;
++    uint32_t view_mask;
++    int view_mask_known;
++};
+ VkResult hybris_vertex_rendering_info(VkDevice device,
+     const VkGraphicsPipelineCreateInfo *info, struct hybris_vertex_rendering *out);
+ PFN_vkVoidFunction hybris_vertex_stores_proc(const char *name);
 diff --git a/hybris/vulkan/layer/device_features.c b/hybris/vulkan/layer/device_features.c
 index 39d95aa..cef8609 100644
 --- a/hybris/vulkan/layer/device_features.c

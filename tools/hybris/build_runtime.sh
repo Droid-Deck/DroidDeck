@@ -40,6 +40,8 @@ HYBRIS_CLIP_SOURCE="$work/libhybris" python3 -m unittest discover \
   -s "$root/tools/tests" -p test_hybris_clip_shader.py
 HYBRIS_CLIP_SOURCE="$work/libhybris" python3 -m unittest discover \
   -s "$root/tools/tests" -p test_hybris_cull_policy.py
+HYBRIS_CLIP_SOURCE="$work/libhybris" python3 -m unittest discover \
+  -s "$root/tools/tests" -p test_hybris_multiview_cull.py
 HYBRIS_PUSH_SOURCE="$work/libhybris" python3 -m unittest discover \
   -s "$root/tools/tests" -p test_hybris_push_descriptors.py
 python3 -m unittest discover \
