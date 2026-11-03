@@ -10,7 +10,6 @@ import android.graphics.RectF
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
 import android.widget.Toast
@@ -615,7 +614,7 @@ class SteamTouchControls(
             }
             return true
         }
-        if (event.isFromSource(InputDevice.SOURCE_MOUSE)) return false
+        if (event.getToolType(event.actionIndex) == MotionEvent.TOOL_TYPE_MOUSE) return false
         val index = event.actionIndex
         lastTouchMs = android.os.SystemClock.uptimeMillis()
         if (faded) { faded = false; invalidate() }

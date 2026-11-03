@@ -2881,7 +2881,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val applied = answer?.optBoolean("ok") == true
             && answer.optInt("exitCode", -1) == 0
             && !answer.optBoolean("timedOut")
-            && desiredRelativeMouseMode == mode
         if (applied) appliedRelativeMouseMode = mode
         else Log.w(TAG, "gamescope did not take relative mouse $mode: ${result.exceptionOrNull() ?: answer}")
         if (desiredRelativeMouseMode != mode) relativeMouseRequests.execute { applyRelativeMouse() }
@@ -3608,8 +3607,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private var ignoreGameTouch = false
     private var lockedTouchTurns = false
-    private var lockedSwipeX = Float.NaN
-    private var lockedSwipeY = Float.NaN
+    private var lockedSwipeX = 0f
+    private var lockedSwipeY = 0f
     private var dismissTouch = false
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -3649,11 +3648,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
             com.droiddeck.launcher.input.TouchRouter.Route.SCROLL -> scrollTouch.onTouch(event)
             else -> {
+                if (event.actionMasked == MotionEvent.ACTION_DOWN)
+                    lockedTouchTurns = pointerLocked && route != com.droiddeck.launcher.input.TouchRouter.Route.TOUCHPAD
                 if (com.droiddeck.launcher.input.TouchRouter.steamKeyboardZone(snapshot)) {
                     val wasActive = threeFingerTap.active
                     if (threeFingerTap.onTouch(event)) padBridge?.triggerSteamKeyboard()
                     if (threeFingerTap.active && !wasActive) {
-                        if (route == com.droiddeck.launcher.input.TouchRouter.Route.TOUCHPAD) touchpad.cancel()
+                        if (route == com.droiddeck.launcher.input.TouchRouter.Route.TOUCHPAD || lockedTouchTurns) touchpad.cancel()
                         else {
                             directTouchHold.cancel()
                             WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
@@ -3661,8 +3662,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     }
                     if (threeFingerTap.active || wasActive) return true
                 }
-                if (event.actionMasked == MotionEvent.ACTION_DOWN)
-                    lockedTouchTurns = pointerLocked && route != com.droiddeck.launcher.input.TouchRouter.Route.TOUCHPAD
                 if (route == com.droiddeck.launcher.input.TouchRouter.Route.TOUCHPAD || lockedTouchTurns) {
                     val rect = drawnRect() ?: return false
                     if (touchpad.bounds != rect) {
@@ -3715,16 +3714,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun forwardTouch(event: MotionEvent, rect: android.graphics.RectF): Boolean {
+        val swipeX = lockedSwipeX
+        val swipeY = lockedSwipeY
+        lockedSwipeX = event.x
+        lockedSwipeY = event.y
         if (pointerLocked && event.actionMasked == MotionEvent.ACTION_MOVE) {
-            if (!lockedSwipeX.isNaN()) {
-                val scale = sceneScale(rect)
-                sendSceneDelta((event.x - lockedSwipeX) * scale, (event.y - lockedSwipeY) * scale)
-            }
-            lockedSwipeX = event.x
-            lockedSwipeY = event.y
+            directTouchHold.cancelPendingHold()
+            val scale = sceneScale(rect)
+            sendSceneDelta((event.x - swipeX) * scale, (event.y - swipeY) * scale)
             return true
         }
-        lockedSwipeX = Float.NaN
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             showCursor(event.x.coerceIn(rect.left, rect.right), event.y.coerceIn(rect.top, rect.bottom))
             if (WaylandCompositor.nativeFocusTakesTouch()) {
@@ -4482,6 +4481,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (holder !== outputHolder()) return
         glassesOutputActive = glassesScreen?.holder === holder
         bottomOutputActive = bottomGame?.holder === holder
+        updatePointerCapture()
         if (bottomOutputActive) bottomRecoveries = 0
         if (CompositorHost.isStarted) WaylandCompositor.nativeSetCursorComposite(glassesOutputActive || bottomOutputActive)
         surfaceView.visibility = if (glassesOutputActive || bottomOutputActive) View.INVISIBLE else View.VISIBLE

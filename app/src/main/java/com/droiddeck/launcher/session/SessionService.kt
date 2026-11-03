@@ -776,9 +776,9 @@ class SessionService : Service() {
     }
 
     private fun relativeMouseForSession(): Int {
-        val game = SessionState.gameId?.toLongOrNull()?.toString()
-            ?: SessionState.program?.let { "program:$it" }
-        return game?.let { com.droiddeck.launcher.input.GesturePrefs.read(this, it).relativeMouseMode } ?: 0
+        val game = if (SessionState.mode == MODE_RUN) SessionState.program?.let { "program:$it" }
+            else SessionState.gameId?.toLongOrNull()?.toString()
+        return com.droiddeck.launcher.input.GesturePrefs.read(this, game).relativeMouseMode
     }
 
     private fun addClientEnvironment(guest: MutableList<String>, steamHere: Boolean, agentEnvironment: List<String>) {
