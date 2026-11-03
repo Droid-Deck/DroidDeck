@@ -7,7 +7,7 @@ mkdir -p "$OUTDIR"
 API=26
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$HERE/../.." && pwd)
-LIBS="$REPO/app/src/main/jniLibs/arm64-v8a"
+LIBS=${DROIDDECK_PULSE_LIBS:-"$REPO/app/src/main/jniLibs/arm64-v8a"}
 case "$(uname -s):$(uname -m)" in
   Darwin:arm64) NDK_HOST=darwin-arm64 ;;
   Darwin:x86_64) NDK_HOST=darwin-x86_64 ;;
@@ -38,7 +38,7 @@ build_one() {
   local src=$1 OUT=$2 extra=$3 cc=${4:-$CC}
   "$cc" -O2 -shared -fPIC -Wall -Wno-unused-parameter -Wno-error=int-conversion -Wno-visibility -DHAVE_CONFIG_H \
       -I"$INC" -I"$PA_SRC/src" -I"$HERE" \
-      -o "$OUT" "$HERE/$src" \
+      -Wl,-z,max-page-size=16384 -o "$OUT" "$HERE/$src" \
       -L"$LIBS" -l:libpulsecore-13.0.so -l:libpulsecommon-13.0.so -l:libpulse.so $extra
   "$TOOLCHAIN/llvm-strip" --strip-unneeded "$OUT"
   for sym in pa__init pa__done pa__get_author pa__get_description pa__get_usage pa__get_version pa__load_once; do

@@ -16,3 +16,18 @@ dependencyResolutionManagement {
 
 rootProject.name = "DroidDeck"
 include ':app'
+
+if (providers.gradleProperty('playDistribution').getOrElse('false').toBoolean()) {
+    def payloads = file('build/playstore-payloads')
+    def registry = new File(payloads, 'modules.json')
+    if (!registry.isFile()) throw new GradleException('Stage verified Play payloads before building the Play distribution')
+    def modules = new groovy.json.JsonSlurper().parse(registry)
+    if (!(modules instanceof List) || modules.isEmpty() || modules.size() > 10 || modules.unique(false).size() != modules.size()) {
+        throw new GradleException('Invalid Play feature module registry')
+    }
+    modules.each { name ->
+        if (!(name instanceof String) || !(name ==~ /playpayload[0-9]{2}/)) throw new GradleException('Invalid Play feature module name')
+        include ":${name}"
+        project(":${name}").projectDir = new File(payloads, name)
+    }
+}

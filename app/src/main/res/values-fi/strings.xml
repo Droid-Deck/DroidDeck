@@ -3525,7 +3525,7 @@
     <string name="integration_shortcuts_maybe_restricted">Harmaana Androidissa? Sovelluksen tiedot → ⋮ → Salli rajoitetut asetukset</string>
     <string name="integration_shortcuts_restricted">Androidin estämä · Sovelluksen tiedot → ⋮ → Salli rajoitetut asetukset</string>
     <string name="integration_shortcuts_service">DroidDeckin Koti-painike</string>
-    <string name="integration_shortcuts_service_description">Välittää Koti-painikkeen painallukset Steam Guidelle, kun Steam-istunto on aktiivinen ja DroidDeck on oletusaloitusnäyttösovellus. Ei lue näytön sisältöä.</string>
+    <string name="integration_shortcuts_service_description">Esteettömyyspalvelu mahdollistaa Home/Guide-pikanäppäimet ja tunnistaa alemman näytön sovellukset. Se lukee sovellusten pakettien nimet ja ikkunoiden rajat paikallisesti. Se ei lue tekstiä, tallenna näyttökuvia eikä lähetä näitä tietoja.</string>
     <string name="integration_brightness_needed">Ota Kirkkaus käyttöön kohdassa Käyttöönotto → Steam-integraatio</string>
     <string name="apps_search_hint">Hae sovelluksia</string>
     <string name="apps_no_match">Mikään sovellus ei vastaa hakua ”%1$s”.</string>
@@ -3651,4 +3651,5 @@
     <string name="bottom_strip_cpu_temp">CPU:n lämpötila</string>
     <string name="stats_hud_battery_temp">Akku</string>
     <string name="stats_hud_game_cores">Peli</string>
+    <string name="setup_privacy_policy">Tietosuojakäytäntö</string>
 </resources>

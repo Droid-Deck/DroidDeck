@@ -18,6 +18,7 @@ if (uvcDir) {
         if (!new File(uvcDir, required).isFile()) throw new GradleException("Incomplete UVC build: missing ${required}")
     }
 }
+
 if (vitureSdkDir) {
     ['android/arm64-v8a/libglasses.so', 'android/arm64-v8a/libcarina_vio.so',
      'android/arm64-v8a/libcloud_protocol.so', 'include/viture_glasses_provider.h',
@@ -81,6 +82,7 @@ def buildBranch = providers.environmentVariable('GITHUB_HEAD_REF').getOrNull()?.
     ?: gitValue(['branch', '--show-current']) ?: ''
 def escapeJava = { String value -> value.replace('\\', '\\\\').replace('"', '\\"').replace('\n', ' ').replace('\r', ' ') }
 def ciBuild = providers.environmentVariable('GITHUB_ACTIONS').getOrNull() == 'true'
+def playDistribution = providers.gradleProperty('playDistribution').getOrElse('false').toBoolean()
 def releaseSigner = rootProject.file('keystore/release-signer.sha256').text.trim()
 def commitTime = (gitValue(['show', '-s', '--format=%ct', '--end-of-options', sourceCommit]) ?: '0').with { it.isLong() ? it : '0' }
 def desktopKde = rootProject.file('tools/desktop-kde/release.env').readLines()
@@ -138,6 +140,7 @@ android {
         buildConfigField "String", "PR_TITLE", "\"${escapeJava(prTitle)}\""
         buildConfigField "String", "BUILD_BRANCH", "\"${escapeJava(buildBranch)}\""
         buildConfigField "boolean", "CI_BUILD", "${ciBuild}"
+        buildConfigField "boolean", "PLAY_DISTRIBUTION", "${playDistribution}"
         buildConfigField "String", "RELEASE_SIGNER", "\"${releaseSigner}\""
         buildConfigField "long", "COMMIT_TIME", "${commitTime}L * 1000L"
         buildConfigField "String", "VARIANT_SUFFIXES", "\"${variantSuffixes}\""
@@ -254,6 +257,36 @@ android {
     }
 }
 
+def verifyPlayAudio
+if (playDistribution) {
+    def requestedCode = providers.gradleProperty('playVersionCode').orNull
+    if (requestedCode != null) {
+        if (!requestedCode.isInteger() || requestedCode.toLong() < android.defaultConfig.versionCode || requestedCode.toLong() > 2100000000L) {
+            throw new GradleException('Play version code must be a valid increasing Android version code')
+        }
+        android.defaultConfig.versionCode = requestedCode.toInteger()
+    }
+    def playAudio = layout.buildDirectory.dir('play-audio')
+    def playNdk = androidComponents.sdkComponents.ndkDirectory.get().asFile
+    verifyPlayAudio = tasks.register('verifyPlayAudio', Exec) {
+        workingDir rootProject.projectDir
+        commandLine pythonExecutable, 'tools/playstore/build_audio.py', 'verify',
+            '--output', playAudio.get().asFile, '--ndk', playNdk
+    }
+    def stagePlayJni = tasks.register('stagePlayJni', Sync) {
+        dependsOn(verifyPlayAudio)
+        from(layout.projectDirectory.dir('src/main/jniLibs')) {
+            exclude(['libltdl.so', 'libpulseaudio.so', 'libpulse.so', 'libpulsecommon-13.0.so',
+                     'libpulsecore-13.0.so', 'libsndfile.so'].collect { "arm64-v8a/${it}".toString() })
+        }
+        from(playAudio.map { it.dir('jni') })
+        into(layout.buildDirectory.dir('playJni'))
+    }
+    android.sourceSets.main.jniLibs.setSrcDirs([layout.buildDirectory.dir('playJni')])
+    tasks.named('preBuild').configure { dependsOn(stagePlayJni) }
+}
+
+
 if (vitureSdkDir) {
     android.sourceSets.main.jniLibs.srcDir(new File(vitureSdkDir, 'android'))
     def stageVitureNotices = tasks.register('stageVitureNotices', Copy) {
@@ -265,7 +298,7 @@ if (vitureSdkDir) {
 
 def stageSessionScripts = tasks.register('stageSessionScripts', Copy) {
     from(rootProject.file('tools/linuxfs/overlay')) {
-        include 'usr/local/bin/droiddeck-*', 'usr/local/bin/steam-compatibility', 'usr/bin/**'
+        include 'usr/local/bin/droiddeck-*', 'usr/local/bin/steam-compatibility', 'usr/bin/**', 'usr/local/lib/droiddeck/*.py'
     }
     into(layout.projectDirectory.dir('src/main/assets/linuxfs'))
 }
@@ -276,10 +309,24 @@ def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
     dependsOn(stageSessionScripts)
     from(layout.projectDirectory.dir('src/main/assets')) { exclude 'pulseaudio.tzst' }
     from(rootProject.file('tools/linuxfs/innoextract'))
-    from(layout.buildDirectory.dir('prepared-assets'))
+    from(layout.buildDirectory.dir('prepared-assets')) {
+        if (playDistribution) exclude 'pulseaudio.tzst'
+    }
+    if (playDistribution) {
+        dependsOn(verifyPlayAudio)
+        from(layout.buildDirectory.dir('play-audio/assets'))
+    }
     into(runtimeAssetsDir)
 }
 android.sourceSets.main.assets.setSrcDirs([runtimeAssetsDir])
+if (playDistribution) {
+    def payloads = rootProject.file('build/playstore-payloads')
+    def modules = new groovy.json.JsonSlurper().parse(new File(payloads, 'modules.json'))
+    android.dynamicFeatures = modules.collect { ":${it}".toString() }.toSet()
+    android.sourceSets.main.assets.srcDir(new File(payloads, 'base/src/main/assets'))
+    android.sourceSets.debug.manifest.srcFile('src/play/AndroidManifest.xml')
+    android.sourceSets.release.manifest.srcFile('src/play/AndroidManifest.xml')
+}
 if (vitureSdkDir) android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('vitureAssets').get().asFile)
 if (uvcDir) {
     def stageUvcNotices = tasks.register('stageUvcNotices', Copy) {
@@ -298,7 +345,7 @@ def stageGogNotices = tasks.register('stageGogNotices', Copy) {
 android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('gogNotices').get().asFile)
 tasks.named('preBuild').configure { dependsOn(stageGogNotices) }
 
-if (!ciBuild) {
+if (!ciBuild || playDistribution) {
     def stageLocalPacks = tasks.register('stageLocalPacks', Sync) {
         from(layout.buildDirectory.dir('packs')) { include '*.tar.zst' }
         into(layout.buildDirectory.dir('localPackAssets/packs'))
@@ -351,6 +398,7 @@ if (!skipRust) android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir.get().asFil
 tasks.named('preBuild').configure { dependsOn(buildRustStores) }
 
 dependencies {
+    implementation 'com.google.android.play:app-update:2.1.0'
     implementation "org.opencv:opencv:${trackingPack.OPENCV_VERSION}"
     implementation 'org.khronos.openxr:openxr_loader_for_android:1.1.49'
     implementation 'com.github.luben:zstd-jni:1.5.7-4@aar'

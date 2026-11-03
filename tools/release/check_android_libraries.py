@@ -18,16 +18,28 @@ EXPORTS = ['Java_com_droiddeck_launcher_stores_StoresNative_nativeVersion',
            'Java_com_droiddeck_launcher_stores_amazon_AmazonNative_nativeInstall']
 
 
-def check(apk, readelf, stores=True):
+def page_alignment(path, readelf, page_size):
+    headers = subprocess.check_output([readelf, '--program-headers', '--wide', str(path)], text=True)
+    loads = [line.split() for line in headers.splitlines() if line.strip().startswith('LOAD ')]
+    if not loads:
+        return ['Library has no loadable segments: ' + path.name]
+    return [f'{path.name} has a LOAD segment incompatible with {page_size}-byte pages'
+            for load in loads if int(load[-1], 16) < page_size or
+            (int(load[1], 16) - int(load[2], 16)) % page_size != 0]
+
+
+def check(apk, readelf, stores=True, page_size=None):
     errors = []
     with tempfile.TemporaryDirectory() as temp, ZipFile(apk) as package:
         libraries = {}
         for name in package.namelist():
-            if name.startswith('lib/arm64-v8a/') and name.endswith('.so'):
+            if (name.startswith('lib/arm64-v8a/') or name.startswith('base/lib/arm64-v8a/')) and name.endswith('.so'):
                 path = Path(temp) / Path(name).name
                 path.write_bytes(package.read(name))
                 libraries[path.name] = path
         for name, path in libraries.items():
+            if page_size is not None:
+                errors.extend(page_alignment(path, readelf, page_size))
             dynamic = subprocess.check_output([readelf, '-d', str(path)], text=True)
             for dependency in re.findall(r'NEEDED.*\[(.*?)\]', dynamic):
                 if dependency not in libraries and dependency not in SYSTEM:
@@ -51,8 +63,9 @@ if __name__ == '__main__':
     parser.add_argument('apk')
     parser.add_argument('--readelf', default='readelf')
     parser.add_argument('--without-stores', action='store_true')
+    parser.add_argument('--page-size', type=int, choices=[4096, 16384])
     args = parser.parse_args()
-    errors = check(args.apk, args.readelf, not args.without_stores)
+    errors = check(args.apk, args.readelf, not args.without_stores, args.page_size)
     if errors:
         parser.exit(1, '\n'.join(errors) + '\n')
     print('APK native exports and dependencies verified')

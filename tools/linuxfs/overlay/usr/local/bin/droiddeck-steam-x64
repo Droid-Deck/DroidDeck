@@ -21,7 +21,13 @@ x64_default_dir() {
   while IFS= read -r d; do
     [ -f "$d/.droiddeck-arm64-proton" ] && { echo "$d"; return; }
   done < <(ls -d "$STEAM_X64"/compatibilitytools.d/DroidDeck-Proton* 2>/dev/null | sort -V -r
-           ls -d "$STEAM_X64"/compatibilitytools.d/GE-Proton*-aarch64 2>/dev/null | sort -V -r)
+           if ! compgen -G '/opt/droiddeck-bundles/*/*.apk' >/dev/null; then
+             ls -d "$STEAM_X64"/compatibilitytools.d/GE-Proton*-aarch64 2>/dev/null | sort -V -r
+           fi)
+  if compgen -G '/opt/droiddeck-bundles/*/*.apk' >/dev/null; then
+    echo "$STEAM_X64/compatibilitytools.d/DroidDeck-Proton"
+    return
+  fi
   echo "$STEAM_X64/compatibilitytools.d/droiddeck-proton-arm64"
 }
 x64_default_tool() {
@@ -321,6 +327,10 @@ PY
 
 x64_fetch() {
   local url=$1 out=$2 label=$3 total pid rc=0 last=-1 pct
+  if compgen -G '/opt/droiddeck-bundles/*/*.apk' >/dev/null; then
+    python3 /usr/local/lib/droiddeck/component_delivery.py fetch "$url" "$out" --sha256 "$ROOTFS_SHA256"
+    return $?
+  fi
   total=$(curl -fsSIL "$url" 2>/dev/null | tr -d '\r' | awk 'tolower($1) == "content-length:" { v = $2 } END { print v + 0 }')
   curl -fL -sS -C - "$url" -o "$out" &
   pid=$!

@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import json
+import glob
 import os
 import re
 import runpy
@@ -13,6 +14,7 @@ LABEL_FILE = "/etc/steam-compatibility-label"
 PROTON_ARM64_APPID = "4427310"
 LAUNCHER = "droiddeck-proton"
 LEGACY_LAUNCHER = "bannerlator-proton"
+PLAY_BUNDLES = bool(glob.glob('/opt/droiddeck-bundles/*/*.apk'))
 LIBRARY = "/mnt/droiddeck"
 SOURCES = ("Proton Experimental (ARM64)", "Proton 11.0 (ARM64)")
 OWN_TOOLS = ((TOOL, SOURCES), (TOOL_11, ("Proton 11.0 (ARM64)",)))
@@ -1131,7 +1133,7 @@ def tool_catalog(steam_root, extras=None):
             extras[first_key(os.path.join(tool_dir, "compatibilitytool.vdf"), ["compatibilitytools", "compat_tools"]) or entry] = entry
     for name, entry in sorted(extras.items()):
         catalog.append(tool_entry(name, display_name(entry), os.path.join(tools, entry), False))
-    return catalog
+    return own_builds(catalog) if PLAY_BUNDLES else catalog
 
 
 def requested_tool(request, catalog):
@@ -1141,6 +1143,8 @@ def requested_tool(request, catalog):
     for tool in catalog:
         if tool["dir"] and tool["dir"] == request.get("dir") and tool["valve"] == bool(request.get("valve")):
             return tool["name"]
+    if PLAY_BUNDLES:
+        return own_proton_moves({}, catalog)[0]
     return None
 
 
@@ -1298,7 +1302,7 @@ def choose_default(steam_default, state, request, catalog, adopt_steam=True, app
     elif adopt_steam and steam_default in names and steam_default != state.get("default"):
         state.update(default=steam_default, seq=now or now_ms(), source="steam")
     if state.get("default") not in names:
-        state["default"] = TOOL
+        state["default"] = (own_proton_moves({}, catalog)[0] or TOOL) if PLAY_BUNDLES else TOOL
     return state["default"], state
 
 

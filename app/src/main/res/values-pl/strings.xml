@@ -3597,7 +3597,7 @@
     <string name="integration_shortcuts_maybe_restricted">Wyszarzone w Androidzie? Informacje o aplikacji → ⋮ → Zezwól na ustawienia z ograniczeniami</string>
     <string name="integration_shortcuts_restricted">Zablokowane przez Androida · Informacje o aplikacji → ⋮ → Zezwól na ustawienia z ograniczeniami</string>
     <string name="integration_shortcuts_service">Przycisk ekranu głównego DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Przekazuje naciśnięcia przycisku ekranu głównego do Steam Guide, gdy aktywna jest sesja Steam, a DroidDeck jest domyślną aplikacją ekranu głównego. Nie odczytuje zawartości ekranu.</string>
+    <string name="integration_shortcuts_service_description">Usługa ułatwień dostępu włącza skróty Home/Guide i wykrywa aplikacje na dolnym ekranie. Lokalnie odczytuje nazwy pakietów aplikacji i granice okien. Nie odczytuje tekstu, nie przechwytuje obrazu ekranu ani nie wysyła tych danych.</string>
     <string name="integration_brightness_needed">Włącz Jasność w Konfiguracja → Integracja ze Steam</string>
     <string name="apps_search_hint">Szukaj aplikacji</string>
     <string name="apps_no_match">Żadna aplikacja nie pasuje do „%1$s”.</string>
@@ -3725,4 +3725,5 @@
     <string name="bottom_strip_cpu_temp">Temperatura CPU</string>
     <string name="stats_hud_battery_temp">Bateria</string>
     <string name="stats_hud_game_cores">Gra</string>
+    <string name="setup_privacy_policy">Polityka prywatności</string>
 </resources>

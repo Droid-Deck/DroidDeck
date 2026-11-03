@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.session
 
+import com.droiddeck.launcher.BuildConfig
+
 import com.droiddeck.launcher.core.AddonPack
 import com.droiddeck.launcher.gpu.LinuxVulkanDriver
 import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
@@ -844,7 +846,8 @@ class SessionService : Service() {
                 SessionArtifacts.markSteamLogs(it, File(SessionPrefs.steamRoot(this, arch), "logs"))
             }
         }
-        FexCatalog.cached(this)?.let { guest.addAll(FexCatalog.environment(it)) }
+        (if (BuildConfig.PLAY_DISTRIBUTION) FexCatalog.refresh(this) else FexCatalog.cached(this))
+            ?.let { guest.addAll(FexCatalog.environment(it)) }
         if (SessionState.mode == MODE_STEAM) {
             guest.add("BL_GAMESCOPE_STRETCH_16X9=" + (if (SessionPrefs.stretch16x9(this)) "1" else "0"))
         }

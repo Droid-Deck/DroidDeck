@@ -3525,7 +3525,7 @@
     <string name="integration_shortcuts_maybe_restricted">Nedtonet i Android? Appinfo → ⋮ → Tillad begrænsede indstillinger</string>
     <string name="integration_shortcuts_restricted">Blokeret af Android · Appinfo → ⋮ → Tillad begrænsede indstillinger</string>
     <string name="integration_shortcuts_service">DroidDeck Hjem-knap</string>
-    <string name="integration_shortcuts_service_description">Sender tryk på Hjem-knappen til Steam Guide, mens en Steam-session er i fokus, og DroidDeck er standardstartskærmen. Læser ikke skærmindhold.</string>
+    <string name="integration_shortcuts_service_description">Tilgængelighedstjenesten muliggør Home/Guide-genveje og registrerer apps på den nederste skærm. Tjenesten læser appenes pakkenavne og vinduesgrænser lokalt. Den læser ikke tekst, tager ikke skærmbilleder og sender ikke disse data.</string>
     <string name="integration_brightness_needed">Slå Lysstyrke til under Opsætning → Steam-integration</string>
     <string name="apps_search_hint">Søg i apps</string>
     <string name="apps_no_match">Ingen apps matcher “%1$s”.</string>
@@ -3651,4 +3651,5 @@
     <string name="bottom_strip_cpu_temp">CPU-temperatur</string>
     <string name="stats_hud_battery_temp">Batteri</string>
     <string name="stats_hud_game_cores">Spil</string>
+    <string name="setup_privacy_policy">Privatlivspolitik</string>
 </resources>

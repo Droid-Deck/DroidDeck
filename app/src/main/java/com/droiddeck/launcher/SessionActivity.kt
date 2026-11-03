@@ -1939,7 +1939,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 SessionEvents.transition(SessionPhase.INSTALLING_RUNTIME, "proton.installing", mapOf("component" to "proton"))
                 val protonProblem = installProton()
                 if (protonProblem == null) SessionEvents.record("proton.ready")
-                else SessionEvents.record("proton.skipped", mapOf("reason" to protonProblem))
+                else {
+                    SessionEvents.record("proton.skipped", mapOf("reason" to protonProblem))
+                    if (BuildConfig.PLAY_DISTRIBUTION) {
+                        problem = protonProblem
+                        failedComponent = "proton"
+                    }
+                }
             }
             uiHandler.post {
                 localInstalling = false
@@ -1958,6 +1964,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     val code = when (failedComponent) {
                         "runtime" -> "RUNTIME_INSTALL_FAILED"
                         "package" -> "PACKAGE_RESUME_FAILED"
+                        "proton" -> "PROTON_INSTALL_FAILED"
                         else -> "DESKTOP_INSTALL_FAILED"
                     }
                     SessionEvents.fail(code, problem)
@@ -2043,6 +2050,21 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val cancellation = com.droiddeck.launcher.core.Downloader.Cancellation { SessionState.stopRequested }
         SessionState.installCancellation = cancellation
         return try {
+            if (BuildConfig.PLAY_DISTRIBUTION) {
+                var last = "" to Int.MIN_VALUE
+                return com.droiddeck.launcher.session.ProtonExtras.install(
+                    this, com.droiddeck.launcher.session.ProtonExtras.tools.single(), cancellation,
+                ) { message, percent ->
+                    val next = message to percent
+                    if (next != last) {
+                        last = next
+                        uiHandler.post {
+                            loading.percent = percent
+                            loading.say(message, PROTON_LINES.topic, readable = true)
+                        }
+                    }
+                }
+            }
             val entry = catalog.fetch(catalog.STEAM_SEED_URL, cancellation)?.firstOrNull { it.id == catalog.PROTON_SEED_ID }
                 ?: return if (cancellation.asBoolean) "cancelled" else "catalog unreachable"
             catalog.install(this, entry, cancellation, progressFor(PROTON_LINES, entry.size / 1_000_000))

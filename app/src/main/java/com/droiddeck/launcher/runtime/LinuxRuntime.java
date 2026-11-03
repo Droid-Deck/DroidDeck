@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.runtime;
 
 import com.droiddeck.launcher.core.AddonPack;
+import com.droiddeck.launcher.BuildConfig;
+import com.droiddeck.launcher.core.ArchivePaths;
 import android.content.Context;
 import android.os.Process;
 import android.system.ErrnoException;
@@ -89,10 +91,12 @@ public final class LinuxRuntime {
     }
 
     public static boolean patchedProot(Context context) {
+        if (BuildConfig.PLAY_DISTRIBUTION) return bundledProotReady(context);
         return bundledProotReady(context) || AddonPack.PROOT.installed(context);
     }
 
     public static File prootBinary(Context context) {
+        if (BuildConfig.PLAY_DISTRIBUTION) return bundledProot(context, "libproot.so");
         if (bundledProotReady(context)) return bundledProot(context, "libproot.so");
         if (AddonPack.PROOT.installed(context)) return AddonPack.PROOT.file(context, "libproot.so");
         if (SessionPrefs.allowStockProot(context)) return rootfsProot(context);
@@ -100,6 +104,7 @@ public final class LinuxRuntime {
     }
 
     public static File prootLoader(Context context) {
+        if (BuildConfig.PLAY_DISTRIBUTION) return bundledProot(context, "libproot-loader.so");
         if (bundledProotReady(context)) return bundledProot(context, "libproot-loader.so");
         if (AddonPack.PROOT.installed(context)) return AddonPack.PROOT.file(context, "libproot-loader.so");
         if (SessionPrefs.allowStockProot(context)) return rootfsLoader(context);
@@ -274,12 +279,34 @@ public final class LinuxRuntime {
         bindGpuNode(context, cmd);
         bindAdrenoStats(cmd, extraBinds);
         bindCpuTemps(cmd, root);
+        bindComponentBundles(context, root, cmd);
         if (extraBinds != null) {
             for (String spec : extraBinds) bind(cmd, spec);
         }
         List<String> specs = new ArrayList<>();
         for (int i = 0; i + 1 < cmd.size(); i += 2) specs.add(cmd.get(i + 1));
         return specs;
+    }
+
+    public static void bindComponentBundles(Context context, File root, List<String> command) {
+        if (!BuildConfig.PLAY_DISTRIBUTION) return;
+        java.util.LinkedHashSet<File> directories = new java.util.LinkedHashSet<>();
+        directories.add(new File(context.getApplicationInfo().sourceDir).getParentFile());
+        String[] splits = context.getApplicationInfo().splitSourceDirs;
+        if (splits != null) for (String split : splits) directories.add(new File(split).getParentFile());
+        int index = 0;
+        for (File directory : directories) {
+            File target;
+            try {
+                target = ArchivePaths.inside(root, "opt/droiddeck-bundles/" + index++);
+            } catch (IOException error) {
+                throw new IllegalStateException("Installed component bundle mount is invalid", error);
+            }
+            if (directory == null || !directory.isDirectory() || target == null || !target.isDirectory() && !target.mkdirs()) {
+                throw new IllegalStateException("Installed component bundles cannot be mounted");
+            }
+            bind(command, directory.getPath() + ":/" + root.toPath().relativize(target.toPath()).toString());
+        }
     }
 
     private static boolean unreadablePciDevice() {

@@ -4,7 +4,7 @@ import com.droiddeck.launcher.core.Hashes
 import android.content.Context
 import android.util.Log
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.core.Downloader
+import com.droiddeck.launcher.core.ComponentDownloads
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.core.ArchivePaths
 import java.io.BufferedInputStream
@@ -101,7 +101,7 @@ object DeckyManager {
     }
 
     fun releaseChannels(context: Context): ReleaseChannels {
-        val body = Downloader.downloadString(RELEASES) ?: return ReleaseChannels(emptyList(), emptyList())
+        val body = ComponentDownloads.downloadString(RELEASES) ?: return ReleaseChannels(emptyList(), emptyList())
         return try {
             val array = JSONArray(body)
             val stable = mutableListOf<Release>()
@@ -141,11 +141,11 @@ object DeckyManager {
         target.parentFile?.mkdirs()
         val temp = File(target.parentFile, "PluginLoader.download")
         val downloading = context.getString(R.string.user_apps_downloading, release.tag)
-        val ok = Downloader.downloadFile(release.url, temp, true, release.digest?.substringAfter(':')) { f -> progress(downloading, if (f < 0) -1 else (f * 100).toInt().coerceIn(0, 100)) }
+        val ok = ComponentDownloads.downloadFile(release.url, temp, true, release.digest?.substringAfter(':')) { f -> progress(downloading, if (f < 0) -1 else (f * 100).toInt().coerceIn(0, 100)) }
         if (!ok) { temp.delete(); return context.getString(R.string.deckymgr_download_failed) }
         if (temp.length() != release.size) { temp.delete(); return context.getString(R.string.deckymgr_size_mismatch) }
         val expected = release.digest?.substringAfter(':') ?: release.shaUrl?.let { checksumUrl ->
-            val checksumBody = Downloader.downloadDirect(checksumUrl) ?: run { temp.delete(); return context.getString(R.string.deckymgr_checksum_download_failed) }
+            val checksumBody = ComponentDownloads.downloadDirect(checksumUrl) ?: run { temp.delete(); return context.getString(R.string.deckymgr_checksum_download_failed) }
             Regex("(?i)\\b[0-9a-f]{64}\\b").find(checksumBody)?.value
         } ?: run { temp.delete(); return context.getString(R.string.deckymgr_checksum_missing) }
         if (!expected.matches(Regex("(?i)[0-9a-f]{64}"))) { temp.delete(); return context.getString(R.string.deckymgr_checksum_invalid) }
@@ -270,7 +270,7 @@ object DeckyManager {
             downloadingBinary = true
             progress(downloading, -1)
             val downloaded = try {
-                Downloader.downloadFile(url, temp, true, hash) { fraction ->
+                ComponentDownloads.downloadFile(url, temp, true, hash) { fraction ->
                     progress(downloading, if (fraction < 0) -1 else (fraction * 100).toInt().coerceIn(0, 100))
                 }
             } finally {

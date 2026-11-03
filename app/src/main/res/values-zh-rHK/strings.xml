@@ -3498,7 +3498,7 @@
     <string name="integration_shortcuts_maybe_restricted">在 Android 中呈灰色？應用程式資訊 → ⋮ → 允許受限制的設定</string>
     <string name="integration_shortcuts_restricted">已被 Android 封鎖 · 應用程式資訊 → ⋮ → 允許受限制的設定</string>
     <string name="integration_shortcuts_service">DroidDeck 主畫面按鈕</string>
-    <string name="integration_shortcuts_service_description">當 Steam 會話處於焦點且 DroidDeck 為預設主畫面應用程式時，將主畫面按鈕的按壓傳送給 Steam Guide。不會讀取螢幕內容。</string>
+    <string name="integration_shortcuts_service_description">無障礙服務用於啟用Home/Guide快捷鍵，並偵測下方螢幕上的應用程式。此服務只在裝置本機讀取應用程式套件名稱及視窗邊界，不會讀取文字、擷取螢幕或傳送這些資料。</string>
     <string name="integration_brightness_needed">請在「初始設定 → Steam 整合」中開啟「亮度」</string>
     <string name="apps_search_hint">搜尋應用程式</string>
     <string name="apps_no_match">沒有符合「%1$s」的應用程式。</string>
@@ -3623,4 +3623,5 @@
     <string name="bottom_strip_cpu_temp">CPU 溫度</string>
     <string name="stats_hud_battery_temp">電池</string>
     <string name="stats_hud_game_cores">遊戲</string>
+    <string name="setup_privacy_policy">私隱政策</string>
 </resources>

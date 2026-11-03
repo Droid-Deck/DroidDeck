@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import hashlib
+import glob
 import json
 import os
 import re
@@ -17,6 +18,11 @@ SOURCES = {
 }
 USER_AGENT = "droiddeck-proton-extra"
 NEED_BYTES = 4 * 1024 * 1024 * 1024
+PLAY_BUNDLES = bool(glob.glob('/opt/droiddeck-bundles/*/*.apk'))
+if PLAY_BUNDLES:
+    SOURCES = {"droiddeck": (SOURCES["droiddeck"][0], re.compile(r"aarch64\.tar\.(gz|xz|zst)$"))}
+    sys.path.insert(0, '/usr/local/lib/droiddeck')
+    import component_delivery
 
 
 def log(*args):
@@ -24,6 +30,9 @@ def log(*args):
 
 
 def fetch_json(url):
+    if PLAY_BUNDLES:
+        with component_delivery.BundleReader() as reader:
+            return json.loads(reader.read(url))
     req = urllib.request.Request(url, headers={
         "User-Agent": USER_AGENT, "Accept": "application/vnd.github+json"})
     with urllib.request.urlopen(req, timeout=60) as r:
@@ -58,6 +67,10 @@ def release_asset(source, tag):
 
 def download(url, path):
     log("downloading %s" % os.path.basename(path))
+    if PLAY_BUNDLES:
+        with component_delivery.BundleReader() as reader:
+            reader.fetch(url, path)
+        return
     rc = subprocess.call([
         "curl", "-fL", "--retry", "5", "--retry-delay", "3", "--retry-connrefused",
         "-C", "-", "-A", USER_AGENT, "-o", path, url])
@@ -71,10 +84,16 @@ def verify(path, sums_url):
         log("no checksum published; skipping verification")
         return
     try:
-        req = urllib.request.Request(sums_url, headers={"User-Agent": USER_AGENT})
-        with urllib.request.urlopen(req, timeout=60) as r:
-            want = r.read().decode("utf-8", "replace").split()[0].lower()
+        if PLAY_BUNDLES:
+            with component_delivery.BundleReader() as reader:
+                want = reader.read(sums_url).decode('utf-8').split()[0].lower()
+        else:
+            req = urllib.request.Request(sums_url, headers={"User-Agent": USER_AGENT})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                want = r.read().decode("utf-8", "replace").split()[0].lower()
     except (urllib.error.URLError, IndexError, OSError) as e:
+        if PLAY_BUNDLES:
+            raise
         log("could not read the checksum (%s); skipping verification" % e)
         return
     h = hashlib.sha512()
@@ -138,7 +157,7 @@ def main():
         if not url:
             raise SystemExit("droiddeck-proton-extra: no ARM64 build published for %s" % what)
         log("%s -> %s" % (what, tag))
-    elif what.startswith("http"):
+    elif what.startswith("http") or PLAY_BUNDLES and what.startswith("droiddeck-bundle://"):
         url, sums = what, None
     elif os.path.isfile(what):
         local, url, sums = what, None, None

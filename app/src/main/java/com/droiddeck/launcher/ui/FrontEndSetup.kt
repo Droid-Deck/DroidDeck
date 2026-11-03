@@ -360,6 +360,11 @@ internal fun SetupPanel(
                         }
                         SettingsGroup(stringResource(R.string.setup_runtime)) { runtimeCheck(false) }
                         SteamIntegrationGroup(s.integration, s.integrationFocus, a.onIntegration, a.onIntegrationAppInfo, a.onIntegrationLocation)
+                        if (com.droiddeck.launcher.BuildConfig.PLAY_DISTRIBUTION) {
+                            SecondaryButton(stringResource(R.string.setup_privacy_policy), compact = true) {
+                                openUrl(ctx, "https://github.com/Droid-Deck/DroidDeck/blob/playstore/PRIVACY.md")
+                            }
+                        }
                     }
                     1 -> {
                         val controller = s.controller

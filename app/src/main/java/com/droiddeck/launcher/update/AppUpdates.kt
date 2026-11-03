@@ -148,6 +148,7 @@ object AppUpdates {
     }
 
     fun hasUpdate(catalog: Catalog?, follow: Follow): Boolean {
+        if (BuildConfig.PLAY_DISTRIBUTION) return false
         if (catalog == null) return false
         val me = installed()
         val r = release(catalog, follow) ?: return false
@@ -247,6 +248,7 @@ object AppUpdates {
     }
 
     fun refresh(context: Context): Catalog {
+        check(!BuildConfig.PLAY_DISTRIBUTION) { "Application updates are managed by Google Play" }
         val checkedAt = System.currentTimeMillis()
         val published = JSONObject(get(context, "$CATALOG_URL?checked=$checkedAt"))
         val catalog = try {

@@ -102,7 +102,15 @@ install)
     mkdir -p "$cache"
     pkg=$cache/steamvr.pkg.tar.zst
     echo "downloading SteamVR (571 MB) from Valve's package server"
-    curl -fsSL --retry 5 -C - -o "$pkg" "$PKG_URL" || { echo "download failed"; exit 1; }
+    play_bundle=
+    for apk in /opt/droiddeck-bundles/*/*.apk; do
+        if [ -f "$apk" ]; then play_bundle=1; break; fi
+    done
+    if [ -n "$play_bundle" ]; then
+        python3 /usr/local/lib/droiddeck/component_delivery.py fetch "$PKG_URL" "$pkg" --sha256 "$PKG_SHA256" || exit 1
+    else
+        curl -fsSL --retry 5 -C - -o "$pkg" "$PKG_URL" || { echo "download failed"; exit 1; }
+    fi
     echo "$PKG_SHA256  $pkg" | sha256sum -c - >/dev/null 2>&1 || { echo "checksum mismatch: removing the download"; rm -f "$pkg"; exit 1; }
     tmp=$cache/extract
     rm -rf "$tmp" && mkdir -p "$tmp"

@@ -45,6 +45,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-esync" to "usr/local/bin/droiddeck-esync",
             "usr/local/bin/droiddeck-steam-compat" to "usr/local/bin/droiddeck-steam-compat",
             "usr/local/bin/droiddeck-fex" to "usr/local/bin/droiddeck-fex",
+            "usr/local/lib/droiddeck/component_delivery.py" to "usr/local/lib/droiddeck/component_delivery.py",
             "libblsession.so" to "usr/local/lib/libblsession.so",
             "libfakeinput.so" to "usr/local/lib/libfakeinput.so",
             "libblfastpath.so" to "usr/local/lib/libblfastpath.so",

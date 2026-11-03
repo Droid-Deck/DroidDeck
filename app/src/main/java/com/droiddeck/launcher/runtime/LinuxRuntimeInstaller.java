@@ -8,7 +8,7 @@ import android.util.Log;
 import com.droiddeck.launcher.R;
 import com.droiddeck.launcher.session.SessionPrefs;
 import com.droiddeck.launcher.core.ArchivePaths;
-import com.droiddeck.launcher.core.Downloader;
+import com.droiddeck.launcher.core.ComponentDownloads;
 import com.droiddeck.launcher.core.Hashes;
 import com.droiddeck.launcher.core.FileUtils;
 
@@ -104,7 +104,7 @@ public final class LinuxRuntimeInstaller {
     }
 
     public static Release fetchRelease() {
-        String body = Downloader.downloadString(catalogUrl());
+        String body = ComponentDownloads.downloadString(catalogUrl());
         if (body == null || body.isEmpty()) return null;
         try {
             JSONObject json = new JSONObject(body);
@@ -288,7 +288,7 @@ public final class LinuxRuntimeInstaller {
                     && !SessionPrefs.allowStockProot(context))
                 throw new IOException("Cannot download proot");
             if (!AddonPack.DIRECTAUDIO.await(context)) throw new IOException("Cannot download DirectAudio");
-            boolean ok = Downloader.downloadFile(release.url, archive, true, release.sha256, (fraction) -> {
+            boolean ok = ComponentDownloads.downloadFile(release.url, archive, true, release.sha256, (fraction) -> {
                 if (listener != null) {
                     listener.onProgress(Step.DOWNLOADING, downloading,
                             fraction < 0 ? -1 : Math.round(fraction * 100f));

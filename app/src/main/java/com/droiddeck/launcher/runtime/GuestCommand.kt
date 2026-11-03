@@ -10,6 +10,7 @@ import com.droiddeck.launcher.session.SessionPaths
 import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.function.BooleanSupplier
 
 object GuestCommand {
     fun run(context: Context, argv: List<String>, fakeRoot: Boolean = false, logName: String? = null,
@@ -22,14 +23,19 @@ object GuestCommand {
         }
         log?.println("== ${java.util.Date()} ${argv.joinToString(" ")}")
         try {
-            return runLogged(context, argv, fakeRoot, linkDir, extraBinds, fastPath, cancelled) { line -> log?.println(line); log?.flush(); onLine(line) }
+            return runLogged(context, argv, fakeRoot, linkDir, extraBinds, fastPath,
+                cancelled?.let { flag -> BooleanSupplier { flag.get() } }) { line -> log?.println(line); log?.flush(); onLine(line) }
         } finally {
             log?.close()
         }
     }
 
+    fun runCancellable(context: Context, argv: List<String>, cancelled: BooleanSupplier?, onLine: (String) -> Unit): Int =
+        runLogged(context, argv, false, null, null, false, cancelled, onLine)
+
     private fun runLogged(context: Context, argv: List<String>, fakeRoot: Boolean, linkDir: File?, extraBinds: List<String>?,
-                          fastPath: Boolean, cancelled: AtomicBoolean?, onLine: (String) -> Unit): Int {
+                          fastPath: Boolean, cancelled: BooleanSupplier?, onLine: (String) -> Unit): Int {
+        if (cancelled?.asBoolean == true || Thread.currentThread().isInterrupted) return 130
         val root = LinuxRuntime.rootDir(context)
         LinuxRuntime.writeAccounts(context)
         SessionFiles.stage(context, root)
@@ -65,7 +71,7 @@ object GuestCommand {
             fastPathKey?.let { ProotFastPath.hostEnv(it).let { (k, v) -> put(k, v) } }
             LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }
         }
-        if (cancelled?.get() == true) return 130
+        if (cancelled?.asBoolean == true) return 130
         val process = builder.start()
         val pid = HostProcess.pidOf(process)
         OrphanReaper.keep(pid)
@@ -74,8 +80,8 @@ object GuestCommand {
             val flag = cancelled
             Thread({
                 try {
-                    while (process.isAlive && flag?.get() != true && !caller.isInterrupted) Thread.sleep(200)
-                    if (flag?.get() == true || caller.isInterrupted) {
+                    while (process.isAlive && flag?.asBoolean != true && !caller.isInterrupted) Thread.sleep(200)
+                    if (flag?.asBoolean == true || caller.isInterrupted) {
                         if (pid > 0) {
                             runCatching { android.system.Os.kill(pid, android.system.OsConstants.SIGQUIT) }
                         } else {

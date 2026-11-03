@@ -1,5 +1,8 @@
 #!/bin/bash
 set -u
+if compgen -G '/opt/droiddeck-bundles/*/*.apk' >/dev/null; then
+  exit 2
+fi
 export FLATPAK_BWRAP=/usr/local/bin/droiddeck-bwrap
 cores="libretro-core-info libretro-beetle-pce-fast libretro-beetle-psx libretro-beetle-vb libretro-beetle-wswan
   libretro-bsnes-mercury-performance libretro-desmume libretro-gambatte libretro-genesisplusgx libretro-mgba

@@ -3498,7 +3498,7 @@
     <string name="integration_shortcuts_maybe_restricted">Berwarna abu-abu di Android? Info aplikasi → ⋮ → Izinkan setelan terbatas</string>
     <string name="integration_shortcuts_restricted">Diblokir oleh Android · Info aplikasi → ⋮ → Izinkan setelan terbatas</string>
     <string name="integration_shortcuts_service">Tombol Home DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Meneruskan tekanan tombol Home ke Steam Guide saat sesi Steam sedang aktif dan DroidDeck adalah aplikasi Beranda default. Tidak membaca konten layar.</string>
+    <string name="integration_shortcuts_service_description">Layanan aksesibilitas mengaktifkan pintasan Home/Guide dan mendeteksi aplikasi di layar bawah. Layanan ini membaca nama paket aplikasi dan batas jendela secara lokal. Layanan ini tidak membaca teks, merekam layar, atau mengirimkan data tersebut.</string>
     <string name="integration_brightness_needed">Aktifkan Kecerahan di Penyiapan → Integrasi Steam</string>
     <string name="apps_search_hint">Cari aplikasi</string>
     <string name="apps_no_match">Tidak ada aplikasi yang cocok dengan “%1$s”.</string>
@@ -3623,4 +3623,5 @@
     <string name="bottom_strip_cpu_temp">Suhu CPU</string>
     <string name="stats_hud_battery_temp">Baterai</string>
     <string name="stats_hud_game_cores">Permainan</string>
+    <string name="setup_privacy_policy">Kebijakan privasi</string>
 </resources>

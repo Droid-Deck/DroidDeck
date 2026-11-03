@@ -3561,7 +3561,7 @@
     <string name="integration_shortcuts_maybe_restricted">Grisé dans Android ? Infos sur l\'appli → ⋮ → Autoriser les paramètres restreints</string>
     <string name="integration_shortcuts_restricted">Bloqué par Android · Infos sur l\'appli → ⋮ → Autoriser les paramètres restreints</string>
     <string name="integration_shortcuts_service">Bouton Accueil DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Transmet les appuis sur le bouton Accueil à Steam Guide lorsqu\'une session Steam est au premier plan et que DroidDeck est l\'application d\'écran d\'accueil par défaut. Ne lit pas le contenu de l\'écran.</string>
+    <string name="integration_shortcuts_service_description">Le service d’accessibilité permet les raccourcis Home/Guide et détecte les applications sur l’écran inférieur. Il lit localement les noms des paquets et les limites des fenêtres. Il ne lit aucun texte, ne capture pas les écrans et ne transmet pas ces données.</string>
     <string name="integration_brightness_needed">Activez Luminosité dans Paramètres → Intégration Steam</string>
     <string name="apps_search_hint">Rechercher des applications</string>
     <string name="apps_no_match">Aucune application ne correspond à « %1$s ».</string>
@@ -3688,4 +3688,5 @@
     <string name="bottom_strip_cpu_temp">Température du processeur</string>
     <string name="stats_hud_battery_temp">Batterie</string>
     <string name="stats_hud_game_cores">Jeu</string>
+    <string name="setup_privacy_policy">Politique de confidentialité</string>
 </resources>

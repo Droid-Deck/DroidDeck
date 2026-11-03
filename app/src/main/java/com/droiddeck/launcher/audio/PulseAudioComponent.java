@@ -8,6 +8,7 @@ import com.droiddeck.launcher.core.FileUtils;
 import com.droiddeck.launcher.core.SessionPart;
 import com.droiddeck.launcher.core.HostProcess;
 import com.droiddeck.launcher.core.TarZst;
+import com.droiddeck.launcher.BuildConfig;
 
 import java.io.File;
 import java.io.InputStream;
@@ -114,6 +115,7 @@ public class PulseAudioComponent extends SessionPart {
         env.add("TMPDIR=" + workingDir);
 
         String command = HostProcess.LINKER + " " + workingDir.getAbsolutePath() + "/libpulseaudio.so"
+                + (BuildConfig.PLAY_DISTRIBUTION ? " --dl-search-path=" + modules.getAbsolutePath() : "")
                 + " --system=false --disable-shm=true --fail=false"
                 + " -n --file=default.pa --daemonize=false --use-pid-file=false --exit-idle-time=-1"
                 + " --log-level=info";

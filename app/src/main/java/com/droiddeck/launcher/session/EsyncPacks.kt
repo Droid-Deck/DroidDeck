@@ -2,6 +2,8 @@ package com.droiddeck.launcher.session
 
 import android.content.Context
 import android.util.Log
+import com.droiddeck.launcher.BuildConfig
+import com.droiddeck.launcher.core.ComponentDownloads
 import com.droiddeck.launcher.core.DownloadSource
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.core.Hashes
@@ -861,8 +863,17 @@ object EsyncPacks {
         return null
     }
 
-    private fun fetch(url: String, limit: Long, out: OutputStream, progress: ((Long) -> Unit)?): Boolean =
-        fetcher(url, limit, out, progress)
+    private fun fetch(url: String, limit: Long, out: OutputStream, progress: ((Long) -> Unit)?): Boolean {
+        if (!BuildConfig.PLAY_DISTRIBUTION) return fetcher(url, limit, out, progress)
+        return try {
+            val bytes = ComponentDownloads.copyBundled(url, out, limit, null)
+            progress?.invoke(bytes)
+            true
+        } catch (error: IOException) {
+            Log.w(TAG, "Bundled synchronization component unavailable: $url", error)
+            false
+        }
+    }
 
     private fun httpFetch(url: String, limit: Long, out: OutputStream, progress: ((Long) -> Unit)?): Boolean {
         var connection: HttpURLConnection? = null

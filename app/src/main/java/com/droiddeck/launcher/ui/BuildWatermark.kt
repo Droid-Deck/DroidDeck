@@ -26,9 +26,11 @@ object BuildWatermark {
         commit: String = BuildConfig.SOURCE_COMMIT,
         title: String = BuildConfig.PR_TITLE,
         branch: String = BuildConfig.BUILD_BRANCH,
+        play: Boolean = BuildConfig.PLAY_DISTRIBUTION,
     ): List<String>? {
-        if (ci && pr <= 0) return null
         val hash = commit.take(7).ifEmpty { "unknown" }
+        if (play) return listOf(hash)
+        if (ci && pr <= 0) return null
         val head = if (pr > 0) "PR-$pr | $hash" else "LOCAL | $hash"
         val detail = (if (pr > 0) title else branch).trim()
         return if (detail.isEmpty()) listOf(head) else listOf(head, truncate(detail))

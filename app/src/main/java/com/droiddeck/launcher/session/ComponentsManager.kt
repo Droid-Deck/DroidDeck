@@ -4,7 +4,7 @@ import com.droiddeck.launcher.core.Hashes
 import com.droiddeck.launcher.R
 import android.content.Context
 import android.util.Log
-import com.droiddeck.launcher.core.Downloader
+import com.droiddeck.launcher.core.ComponentDownloads
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.gpu.GpuInfo
@@ -87,7 +87,7 @@ object ComponentsManager {
     private fun packagesDir(context: Context) = File(dataDir(context), "packages").apply { mkdirs() }
     private fun originalsDir(context: Context) = File(dataDir(context), "originals").apply { mkdirs() }
     private fun stateFile(context: Context) = File(dataDir(context), "state.json")
-    private fun catalogFile(context: Context) = File(dataDir(context), "catalog.json")
+    private fun catalogFile(context: Context) = File(dataDir(context), ComponentDownloads.catalogName("catalog.json"))
     private const val LAUNCH_DIR = "root/.local/share/droiddeck-components"
     private const val LEGACY_LAUNCH_DIR = "root/.local/share/bannerlator-components"
     private fun launchDir(context: Context): File {
@@ -283,6 +283,7 @@ object ComponentsManager {
         for ((base, valve) in bases) {
             val entries = base.listFiles()?.sortedBy { it.name } ?: continue
             for (dir in entries) {
+                if (com.droiddeck.launcher.BuildConfig.PLAY_DISTRIBUTION && (valve || !dir.name.startsWith("DroidDeck-Proton"))) continue
                 if (!File(dir, WINE).isDirectory || !File(dir, "proton").isFile) continue
                 val real = runCatching { dir.canonicalPath }.getOrDefault(dir.path)
                 if (found.containsKey(real)) continue
@@ -945,7 +946,7 @@ object ComponentsManager {
         if (!force) return Catalog(emptyList(), 0)
         val items = JSONArray()
         for ((repo, tag) in SOURCES) {
-            val body = Downloader.downloadString("https://api.github.com/repos/$repo/releases/tags/$tag") ?: continue
+            val body = ComponentDownloads.downloadString("https://api.github.com/repos/$repo/releases/tags/$tag") ?: continue
             val assets = runCatching { JSONObject(body).optJSONArray("assets") }.getOrNull() ?: continue
             for (i in 0 until assets.length()) {
                 val a = assets.getJSONObject(i)
@@ -1079,7 +1080,7 @@ object ComponentsManager {
         require(Hashes.isGithubSha256(item.digest)) { context.getString(R.string.cmgr_list_predates_checksums) }
         val dest = File(packagesDir(context), safeName(item.file))
         val part = File(dest.parentFile, dest.name + ".part")
-        check(Downloader.downloadFile(item.url, part, true, item.digest.substringAfter(':')) { f -> progress(if (f < 0) -1 else (f * 100).toInt().coerceIn(0, 100)) }) {
+        check(ComponentDownloads.downloadFile(item.url, part, true, item.digest.substringAfter(':')) { f -> progress(if (f < 0) -1 else (f * 100).toInt().coerceIn(0, 100)) }) {
             context.getString(if (item.release == DD_NIGHTLY) R.string.cmgr_nightly_replaced else R.string.user_apps_download_failed)
         }
         if (!Hashes.sha256(part).equals(item.digest.substringAfter(':'), true)) { part.delete(); error(context.getString(R.string.cmgr_checksum_mismatch)) }

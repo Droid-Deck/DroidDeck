@@ -3525,7 +3525,7 @@
     <string name="integration_shortcuts_maybe_restricted">Неактивно в Android? Информация за приложението → ⋮ → Разрешаване на ограничените настройки</string>
     <string name="integration_shortcuts_restricted">Блокирано от Android · Информация за приложението → ⋮ → Разрешаване на ограничените настройки</string>
     <string name="integration_shortcuts_service">Бутон за начален екран на DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Предава натисканията на бутона за начален екран към Steam Guide, докато сесия на Steam е на фокус и DroidDeck е приложението за начален екран по подразбиране. Не чете съдържанието на екрана.</string>
+    <string name="integration_shortcuts_service_description">Услугата за достъпност позволява преки пътища Home/Guide и открива приложения на долния екран. Тя чете локално имената на пакетите на приложенията и границите на прозорците. Не чете текст, не заснема екрани и не изпраща тези данни.</string>
     <string name="integration_brightness_needed">Включете „Яркост“ в Настройка → Интеграция със Steam</string>
     <string name="apps_search_hint">Търсене на приложения</string>
     <string name="apps_no_match">Няма приложения, отговарящи на „%1$s“.</string>
@@ -3651,4 +3651,5 @@
     <string name="bottom_strip_cpu_temp">Температура на CPU</string>
     <string name="stats_hud_battery_temp">Батерия</string>
     <string name="stats_hud_game_cores">Игра</string>
+    <string name="setup_privacy_policy">Политика за поверителност</string>
 </resources>

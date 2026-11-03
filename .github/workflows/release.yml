@@ -1,5 +1,5 @@
 name: Release APKs
-run-name: release ${{ inputs.version }} from main ${{ github.sha }}
+run-name: ${{ github.ref == 'refs/heads/playstore' && format('PlayStore {0} from playstore {1}', inputs.version, github.sha) || format('release {0} from main {1}', inputs.version, github.sha) }}
 
 on:
   workflow_dispatch:
@@ -13,10 +13,23 @@ permissions:
   actions: read
 
 concurrency:
-  group: release
+  group: ${{ github.ref == 'refs/heads/playstore' && 'release-playstore' || 'release' }}
   cancel-in-progress: false
 
 jobs:
+  playstore:
+    name: Build PlayStore Bundle
+    if: github.ref == 'refs/heads/playstore'
+    permissions:
+      contents: write
+      actions: read
+      pull-requests: write
+    uses: ./.github/workflows/playstore.yml
+    with:
+      version: ${{ inputs.version }}
+      source_branch: playstore
+    secrets: inherit
+
   find:
     name: find the main build
     if: github.ref == 'refs/heads/main'
@@ -53,6 +66,7 @@ jobs:
           echo "Signing Build APK run $id (main ${GITHUB_SHA::7}) as $VERSION: $variants" >> "$GITHUB_STEP_SUMMARY"
 
   sign:
+    if: github.ref == 'refs/heads/main'
     needs: find
     uses: ./.github/workflows/sign.yml
     with:
@@ -64,6 +78,7 @@ jobs:
     secrets: inherit
 
   packs:
+    if: github.ref == 'refs/heads/main'
     needs: find
     permissions:
       contents: read
@@ -74,6 +89,7 @@ jobs:
     secrets: inherit
 
   publish:
+    if: github.ref == 'refs/heads/main'
     name: publish the release
     needs: [find, sign, packs]
     runs-on: ubuntu-24.04

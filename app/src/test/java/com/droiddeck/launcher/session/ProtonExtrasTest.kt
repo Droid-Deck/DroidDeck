@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.session
 
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.BuildConfig
+import com.droiddeck.launcher.core.ComponentDownloads
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -21,7 +23,7 @@ import java.io.File
 class ProtonExtrasTest {
     @get:Rule val temp = TemporaryFolder()
 
-    private fun tool(id: String) = ProtonExtras.tools.single { it.id == id }
+    private fun tool(id: String) = ProtonExtras.sources.single { it.id == id }
 
     private fun asset(name: String, digest: String? = null) = JSONObject()
         .put("name", name)
@@ -47,8 +49,8 @@ class ProtonExtrasTest {
     }
 
     @Test
-    fun theThreeSourcesInOrder() {
-        assertEquals(listOf("ge", "cachyos", "droiddeck"), ProtonExtras.tools.map { it.id })
+    fun theSourcesForTheDistributionInOrder() {
+        assertEquals(if (BuildConfig.PLAY_DISTRIBUTION) listOf("droiddeck") else listOf("ge", "cachyos", "droiddeck"), ProtonExtras.tools.map { it.id })
         val droiddeck = tool("droiddeck")
         assertEquals("DroidDeck-Proton", droiddeck.name)
         assertEquals("DroidDeck-Proton", droiddeck.prefix)
@@ -68,6 +70,16 @@ class ProtonExtrasTest {
         assertEquals("https://github.com/o/r/releases/download/t/DroidDeck-Proton-11-7.5-aarch64.sha512sum", picked.sha512)
         assertEquals(625_775_670L, picked.size)
         assertNull(picked.sha256)
+    }
+
+    @Test fun preparedProtonArchiveIsRecognizedOnlyByThePlayDistribution() {
+        val entry = asset("DroidDeck-Proton-11-11.11-aarch64.tar.zst", "sha256:" + "ab".repeat(32))
+            .put("browser_download_url", "droiddeck-bundle://droiddeck-proton/DroidDeck-Proton-11-11.11-aarch64.tar.zst")
+        val picked = ProtonExtras.pickAsset(tool("droiddeck"), JSONArray().put(release("DroidDeck-Proton-11-11.11", entry)))
+        if (BuildConfig.PLAY_DISTRIBUTION) {
+            assertEquals("ab".repeat(32), picked?.sha256)
+            assertEquals(entry.getString("browser_download_url"), picked?.url)
+        } else assertNull(picked)
     }
 
     @Test
@@ -146,7 +158,7 @@ class ProtonExtrasTest {
             .put("ge", JSONObject().put("tag", "GE-Proton11-7").put("at", now - 60_000))
             .put("cachyos", JSONObject().put("tag", "cachyos-11.0-20261005-slr").put("at", now - 60_000))
             .put("droiddeck", JSONObject().put("tag", "DroidDeck-Proton-11-7.6").put("at", now - ProtonExtras.CHECK_EVERY_MS + 60_000))
-        File(context.filesDir, "proton-latest.json").writeText(latest.toString())
+        File(context.filesDir, ComponentDownloads.catalogName("proton-latest.json")).writeText(latest.toString())
         assertFalse(ProtonExtras.checkLatest(context, now = now))
         assertEquals("DroidDeck-Proton-11-7.6", ProtonExtras.update(context, tool("droiddeck")))
         assertNull(ProtonExtras.update(context, tool("ge")))
@@ -175,28 +187,32 @@ class ProtonExtrasTest {
     @Test
     fun removingABuildDropsItsStoredOriginalsAndSelections() {
         val context = RuntimeEnvironment.getApplication()
+        val source = if (BuildConfig.PLAY_DISTRIBUTION) "droiddeck" else "ge"
+        val prefix = if (BuildConfig.PLAY_DISTRIBUTION) "DroidDeck-Proton-" else "GE-Proton"
+        val removedId = "${prefix}11-7"
+        val keptId = "${prefix}11-8"
         val tools = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/compatibilitytools.d")
         File(LinuxRuntime.rootDir(context), "root/.local/share/droiddeck-components").mkdirs()
-        installTool(tools, "GE-Proton11-7")
-        val kept = installTool(tools, "GE-Proton11-8").apply {
+        installTool(tools, removedId)
+        val kept = installTool(tools, keptId).apply {
             File(this, "files/lib/wine").mkdirs()
             File(this, "proton").writeText("")
         }
         val originals = File(context.filesDir, "components/originals")
-        for (id in listOf("GE-Proton11-7", "GE-Proton11-8")) File(originals, "$id/$id/dxvk.wcp").apply { parentFile?.mkdirs(); writeText("x") }
-        val pick = JSONObject().put("dxvk", JSONObject().put("file", "dxvk.wcp").put("protonVersion", "GE-Proton11-7"))
+        for (id in listOf(removedId, keptId)) File(originals, "$id/$id/dxvk.wcp").apply { parentFile?.mkdirs(); writeText("x") }
+        val pick = JSONObject().put("dxvk", JSONObject().put("file", "dxvk.wcp").put("protonVersion", removedId))
         File(context.filesDir, "components/state.json").writeText(JSONObject()
-            .put("active", JSONObject().put("GE-Proton11-7", pick).put("GE-Proton11-8", pick))
-            .put("queued", JSONObject().put("GE-Proton11-7", pick)).toString())
-        ProtonExtras.remove(context, tool("ge"), "GE-Proton11-7")
-        assertFalse(File(originals, "GE-Proton11-7").exists())
-        assertTrue(File(originals, "GE-Proton11-8/GE-Proton11-8/dxvk.wcp").isFile)
+            .put("active", JSONObject().put(removedId, pick).put(keptId, pick))
+            .put("queued", JSONObject().put(removedId, pick)).toString())
+        ProtonExtras.remove(context, tool(source), removedId)
+        assertFalse(File(originals, removedId).exists())
+        assertTrue(File(originals, "$keptId/$keptId/dxvk.wcp").isFile)
         val state = JSONObject(File(context.filesDir, "components/state.json").readText())
-        assertFalse(state.getJSONObject("active").has("GE-Proton11-7"))
-        assertFalse(state.getJSONObject("queued").has("GE-Proton11-7"))
-        assertTrue(state.getJSONObject("active").has("GE-Proton11-8"))
+        assertFalse(state.getJSONObject("active").has(removedId))
+        assertFalse(state.getJSONObject("queued").has(removedId))
+        assertTrue(state.getJSONObject("active").has(keptId))
         ComponentsManager.forgetProton(context, kept.name)
-        assertTrue(File(originals, "GE-Proton11-8/GE-Proton11-8/dxvk.wcp").isFile)
+        assertTrue(File(originals, "$keptId/$keptId/dxvk.wcp").isFile)
     }
 
     @Test
@@ -217,7 +233,7 @@ class ProtonExtrasTest {
         val context = RuntimeEnvironment.getApplication()
         val tools = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/compatibilitytools.d")
         tools.deleteRecursively()
-        File(context.filesDir, "proton-latest.json").writeText(
+        File(context.filesDir, ComponentDownloads.catalogName("proton-latest.json")).writeText(
             """{"droiddeck":{"tag":"DroidDeck-Proton-11-11.4","at":1},"ge":{"tag":"GE-Proton11-7","at":1}}""")
         ProtonExtras.setDeclined(context, false)
         assertEquals("DroidDeck-Proton-11-11.4", ProtonExtras.missing(context, tool("droiddeck")))

@@ -3498,7 +3498,7 @@
     <string name="integration_shortcuts_maybe_restricted">Bị làm mờ trong Android? Thông tin ứng dụng → ⋮ → Cho phép chế độ cài đặt bị hạn chế</string>
     <string name="integration_shortcuts_restricted">Bị Android chặn · Thông tin ứng dụng → ⋮ → Cho phép chế độ cài đặt bị hạn chế</string>
     <string name="integration_shortcuts_service">Nút Home DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Chuyển các lần nhấn nút Home đến Steam Guide khi phiên Steam đang được chọn và DroidDeck là ứng dụng màn hình chính mặc định. Không đọc nội dung màn hình.</string>
+    <string name="integration_shortcuts_service_description">Dịch vụ hỗ trợ tiếp cận bật phím tắt Home/Guide và phát hiện ứng dụng trên màn hình dưới. Dịch vụ này đọc tên gói ứng dụng và giới hạn cửa sổ ngay trên thiết bị. Dịch vụ không đọc văn bản, chụp màn hình hay gửi dữ liệu này.</string>
     <string name="integration_brightness_needed">Bật Độ sáng trong Thiết lập → Tích hợp Steam</string>
     <string name="apps_search_hint">Tìm ứng dụng</string>
     <string name="apps_no_match">Không có ứng dụng nào khớp với “%1$s”.</string>
@@ -3623,4 +3623,5 @@
     <string name="bottom_strip_cpu_temp">Nhiệt độ CPU</string>
     <string name="stats_hud_battery_temp">Pin</string>
     <string name="stats_hud_game_cores">Trò chơi</string>
+    <string name="setup_privacy_policy">Chính sách quyền riêng tư</string>
 </resources>

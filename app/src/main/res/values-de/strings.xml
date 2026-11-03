@@ -3525,7 +3525,7 @@
     <string name="integration_shortcuts_maybe_restricted">In Android ausgegraut? App-Info → ⋮ → Eingeschränkte Einstellungen zulassen</string>
     <string name="integration_shortcuts_restricted">Von Android blockiert · App-Info → ⋮ → Eingeschränkte Einstellungen zulassen</string>
     <string name="integration_shortcuts_service">DroidDeck-Home-Taste</string>
-    <string name="integration_shortcuts_service_description">Leitet Drücke der Home-Taste an Steam Guide weiter, während eine Steam-Sitzung im Fokus ist und DroidDeck die Standard-Startbildschirm-App ist. Liest keine Bildschirminhalte.</string>
+    <string name="integration_shortcuts_service_description">Der Bedienungshilfedienst ermöglicht Home/Guide-Tastenkürzel und erkennt Apps auf dem unteren Bildschirm. Er liest App-Paketnamen und Fenstergrenzen lokal aus. Er liest keine Texte, nimmt keine Bildschirme auf und überträgt diese Daten nicht.</string>
     <string name="integration_brightness_needed">Aktiviere Helligkeit unter Einrichtung → Steam-Integration</string>
     <string name="apps_search_hint">Apps durchsuchen</string>
     <string name="apps_no_match">Keine Apps passen zu „%1$s“.</string>
@@ -3651,4 +3651,5 @@
     <string name="bottom_strip_cpu_temp">CPU-Temperatur</string>
     <string name="stats_hud_battery_temp">Akku</string>
     <string name="stats_hud_game_cores">Spiel</string>
+    <string name="setup_privacy_policy">Datenschutzerklärung</string>
 </resources>

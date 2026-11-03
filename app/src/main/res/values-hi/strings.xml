@@ -3525,7 +3525,7 @@
     <string name="integration_shortcuts_maybe_restricted">Android में धूसर है? ऐप्लिकेशन की जानकारी → ⋮ → प्रतिबंधित सेटिंग की अनुमति दें</string>
     <string name="integration_shortcuts_restricted">Android ने ब्लॉक किया · ऐप्लिकेशन की जानकारी → ⋮ → प्रतिबंधित सेटिंग की अनुमति दें</string>
     <string name="integration_shortcuts_service">DroidDeck होम बटन</string>
-    <string name="integration_shortcuts_service_description">जब Steam सेशन फ़ोकस में हो और DroidDeck डिफ़ॉल्ट होम ऐप हो, तब होम बटन दबाने को Steam Guide तक भेजता है। स्क्रीन की सामग्री नहीं पढ़ता।</string>
+    <string name="integration_shortcuts_service_description">सुलभता सेवा Home/Guide शॉर्टकट सक्षम करती है और निचली स्क्रीन पर ऐप्स का पता लगाती है। यह सेवा ऐप पैकेज के नाम और विंडो की सीमाएँ डिवाइस पर ही पढ़ती है। यह टेक्स्ट नहीं पढ़ती, स्क्रीन कैप्चर नहीं करती और यह डेटा नहीं भेजती।</string>
     <string name="integration_brightness_needed">Setup → Steam इंटीग्रेशन में ब्राइटनेस चालू करें</string>
     <string name="apps_search_hint">ऐप खोजें</string>
     <string name="apps_no_match">“%1$s” से कोई ऐप मेल नहीं खाता।</string>
@@ -3651,4 +3651,5 @@
     <string name="bottom_strip_cpu_temp">CPU तापमान</string>
     <string name="stats_hud_battery_temp">बैटरी</string>
     <string name="stats_hud_game_cores">गेम</string>
+    <string name="setup_privacy_policy">निजता नीति</string>
 </resources>

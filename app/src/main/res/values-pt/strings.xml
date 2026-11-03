@@ -3561,7 +3561,7 @@
     <string name="integration_shortcuts_maybe_restricted">Esmaecido no Android? Informações do app → ⋮ → Permitir configurações restritas</string>
     <string name="integration_shortcuts_restricted">Bloqueado pelo Android · Informações do app → ⋮ → Permitir configurações restritas</string>
     <string name="integration_shortcuts_service">Botão Início do DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Repassa os toques no botão Início para o Guide da Steam enquanto uma sessão da Steam está em foco e o DroidDeck é o app de tela inicial padrão. Não lê o conteúdo da tela.</string>
+    <string name="integration_shortcuts_service_description">O serviço de acessibilidade ativa os atalhos Home/Guide e detecta apps na tela inferior. Ele lê os nomes dos pacotes dos apps e os limites das janelas localmente. Não lê textos, não captura telas nem envia esses dados.</string>
     <string name="integration_brightness_needed">Ative Brilho em Configuração → Integração com a Steam</string>
     <string name="apps_search_hint">Pesquisar apps</string>
     <string name="apps_no_match">Nenhum app corresponde a “%1$s”.</string>
@@ -3688,4 +3688,5 @@
     <string name="bottom_strip_cpu_temp">Temperatura da CPU</string>
     <string name="stats_hud_battery_temp">Bateria</string>
     <string name="stats_hud_game_cores">Jogo</string>
+    <string name="setup_privacy_policy">Política de privacidade</string>
 </resources>

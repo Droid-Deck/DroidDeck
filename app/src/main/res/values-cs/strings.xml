@@ -3597,7 +3597,7 @@
     <string name="integration_shortcuts_maybe_restricted">V Androidu zašedlé? Informace o aplikaci → ⋮ → Povolit omezená nastavení</string>
     <string name="integration_shortcuts_restricted">Blokováno Androidem · Informace o aplikaci → ⋮ → Povolit omezená nastavení</string>
     <string name="integration_shortcuts_service">Tlačítko Domů pro DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Předává stisky tlačítka Domů do Steam Guide, když je aktivní relace Steamu a DroidDeck je výchozí aplikací domovské obrazovky. Nečte obsah obrazovky.</string>
+    <string name="integration_shortcuts_service_description">Služba usnadnění umožňuje zkratky Home/Guide a rozpoznává aplikace na spodní obrazovce. Místně čte názvy balíčků aplikací a hranice oken. Nečte text, nesnímá obrazovky ani tyto údaje neodesílá.</string>
     <string name="integration_brightness_needed">Zapněte Jas v Příprava → Integrace se Steamem</string>
     <string name="apps_search_hint">Hledat aplikace</string>
     <string name="apps_no_match">Výrazu „%1$s“ neodpovídá žádná aplikace.</string>
@@ -3725,4 +3725,5 @@
     <string name="bottom_strip_cpu_temp">Teplota CPU</string>
     <string name="stats_hud_battery_temp">Baterie</string>
     <string name="stats_hud_game_cores">Hra</string>
+    <string name="setup_privacy_policy">Zásady ochrany osobních údajů</string>
 </resources>

@@ -3498,7 +3498,7 @@
     <string name="integration_shortcuts_maybe_restricted">Androidでグレー表示されていますか？アプリ情報 → ⋮ → 制限付き設定を許可</string>
     <string name="integration_shortcuts_restricted">Androidによってブロックされています · アプリ情報 → ⋮ → 制限付き設定を許可</string>
     <string name="integration_shortcuts_service">DroidDeckホームボタン</string>
-    <string name="integration_shortcuts_service_description">Steamセッションがフォーカスされ、DroidDeckがデフォルトのホームアプリの場合に、ホームボタンの操作をSteamガイドに渡します。画面のコンテンツは読み取りません。</string>
+    <string name="integration_shortcuts_service_description">ユーザー補助サービスはHome/Guideショートカットを有効にし、下側の画面にあるアプリを検出します。アプリのパッケージ名とウィンドウの範囲を端末内で読み取ります。テキストの読み取り、画面のキャプチャ、これらのデータの送信は行いません。</string>
     <string name="integration_brightness_needed">「セットアップ」→「Steam連携」で明るさをオンにしてください</string>
     <string name="apps_search_hint">アプリを検索</string>
     <string name="apps_no_match">「%1$s」に一致するアプリはありません。</string>
@@ -3623,4 +3623,5 @@
     <string name="bottom_strip_cpu_temp">CPU温度</string>
     <string name="stats_hud_battery_temp">バッテリー</string>
     <string name="stats_hud_game_cores">ゲーム</string>
+    <string name="setup_privacy_policy">プライバシーポリシー</string>
 </resources>

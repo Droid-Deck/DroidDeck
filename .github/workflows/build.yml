@@ -2,6 +2,17 @@ name: Build APK
 run-name: ${{ github.event_name == 'pull_request' && format('building pr {0} on {1}', github.event.pull_request.number, github.event.pull_request.head.sha) || format('building {0} on {1}', github.ref_name, github.sha) }}
 
 on:
+  workflow_call:
+    inputs:
+      play_bundle:
+        type: boolean
+        default: false
+      source_sha:
+        type: string
+        default: ''
+      play_version_code:
+        type: string
+        default: ''
   push:
     branches: [ main ]
     paths-ignore:
@@ -32,7 +43,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: build-${{ github.event.pull_request.number || (github.event_name == 'push' && 'main') || github.run_id }}
+  group: build-${{ github.event.pull_request.number || (github.event_name == 'push' && github.ref_name) || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
 
 jobs:
@@ -47,13 +58,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ inputs.source_sha || (github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha) }}
           fetch-depth: 0
           sparse-checkout: |
             /*
             !/docs/releases/media/
           sparse-checkout-cone-mode: false
           persist-credentials: false
+      - name: Validate Play distribution inputs
+        if: inputs.play_bundle == true
+        env:
+          PLAY_SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          [[ $PLAY_SOURCE_SHA =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$PLAY_SOURCE_SHA"
+          git merge-base --is-ancestor "$PLAY_SOURCE_SHA" origin/playstore
+          test -f tools/playstore/components.lock.json || {
+            echo "::error::Production component manifest is incomplete; the Play bundle cannot be built or signed."
+            exit 1
+          }
+          python3 tools/playstore/payloads.py validate --play-only --manifest tools/playstore/components.lock.json
       - name: Pin and merge the APK source
         id: merge
         if: github.event_name == 'pull_request'
@@ -86,7 +111,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ inputs.source_sha || (github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha) }}
           fetch-depth: 0
           sparse-checkout: |
             /*
@@ -145,7 +170,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ inputs.source_sha || (github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha) }}
           fetch-depth: 0
           sparse-checkout: |
             /*
@@ -304,7 +329,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ inputs.source_sha || (github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha) }}
           fetch-depth: 0
           sparse-checkout: |
             /*
@@ -444,8 +469,8 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          BUILD_REF: ${{ github.ref_name }}
-          BUILD_SHA: ${{ github.sha }}
+          BUILD_REF: ${{ inputs.play_bundle && 'playstore' || github.ref_name }}
+          BUILD_SHA: ${{ inputs.source_sha || github.sha }}
         run: |
           if [[ -n "$(git status --porcelain)" ]]; then
             tree_state=dirty
@@ -642,6 +667,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         id: apk-upload
+        if: inputs.play_bundle != true
         with:
           name: droiddeck-apk
           path: app/build/outputs/apk/release/*.apk
@@ -649,7 +675,56 @@ jobs:
           retention-days: 30
           compression-level: 0
 
+      - name: Stage verified Play components
+        if: inputs.play_bundle == true
+        run: |
+          set -euo pipefail
+          bash tools/ci/install-ubuntu-packages.sh zstd
+          python3 tools/playstore/payloads.py stage --play-only --manifest tools/playstore/components.lock.json \
+            --cache "$RUNNER_TEMP/play-component-cache" --output build/playstore-payloads
+
+      - name: Build and check the Play bundle
+        if: inputs.play_bundle == true
+        env:
+          PLAY_VERSION_CODE: ${{ inputs.play_version_code }}
+        run: |
+          set -euo pipefail
+          bash tools/ci/install-ubuntu-packages.sh autoconf automake libtool autopoint gettext pkg-config cmake ninja-build
+          python3 tools/playstore/build_audio.py build --output app/build/play-audio \
+            --ndk "$ANDROID_HOME/ndk/$NDK_VERSION" --cache "$RUNNER_TEMP/play-audio-cache"
+          ./gradlew :app:bundleRelease :app:lintRelease :app:testReleaseUnitTest -PplayDistribution=true \
+            -PndkVersion="$NDK_VERSION" -PplayVersionCode="$PLAY_VERSION_CODE" --tests com.droiddeck.launcher.core.ComponentPayloadStoreTest \
+            --tests com.droiddeck.launcher.core.PlayDistributionTest \
+            --tests com.droiddeck.launcher.PlayUpdatesTest \
+            --tests com.droiddeck.launcher.ui.BuildWatermarkTest --console=plain
+          python3 tools/playstore/payloads.py verify-bundle --play-only --manifest tools/playstore/components.lock.json \
+            --bundle app/build/outputs/bundle/release/app-release.aab
+          python3 tools/release/check_android_libraries.py app/build/outputs/bundle/release/app-release.aab --page-size 16384
+          python3 tools/playstore/check_audio_bundle.py --bundle app/build/outputs/bundle/release/app-release.aab \
+            --output app/build/play-audio --ndk "$ANDROID_HOME/ndk/$NDK_VERSION"
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/bundletool.jar" \
+            https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
+          echo "a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29  $RUNNER_TEMP/bundletool.jar" | sha256sum -c -
+          java -jar "$RUNNER_TEMP/bundletool.jar" validate --bundle=app/build/outputs/bundle/release/app-release.aab
+          java -jar "$RUNNER_TEMP/bundletool.jar" dump manifest --bundle=app/build/outputs/bundle/release/app-release.aab \
+            --module=base > app/build/play-manifest.xml
+          python3 -c 'import xml.etree.ElementTree as E; root=E.parse("app/build/play-manifest.xml").getroot(); assert not any(x.get("{http://schemas.android.com/apk/res/android}name") == "android.permission.REQUEST_INSTALL_PACKAGES" for x in root.findall("uses-permission"))'
+
       - uses: actions/upload-artifact@v4
+        if: inputs.play_bundle == true
+        with:
+          name: droiddeck-play-bundle-review
+          path: |
+            app/build/outputs/bundle/release/*.aab
+            build/playstore-payloads/provenance.json
+            build/playstore-payloads/index.json
+            app/build/play-manifest.xml
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - uses: actions/upload-artifact@v4
+        if: inputs.play_bundle != true
         with:
           name: droiddeck-packs
           path: app/build/packs/*.tar.zst
@@ -683,7 +758,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ inputs.source_sha || (github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha) }}
           fetch-depth: 0
           sparse-checkout: |
             /*
@@ -737,7 +812,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ inputs.source_sha || (github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha) }}
           fetch-depth: 0
           sparse-checkout: |
             /*
@@ -809,7 +884,7 @@ jobs:
 
   sign:
     needs: [build, checks]
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: ${{ !inputs.play_bundle && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: read
       actions: read
@@ -821,7 +896,7 @@ jobs:
 
   packs:
     needs: [build, checks]
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: ${{ !inputs.play_bundle && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: read
       actions: read
@@ -830,7 +905,7 @@ jobs:
 
   announce:
     needs: [build, sign, packs]
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: ${{ !inputs.play_bundle && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -880,6 +955,6 @@ jobs:
 
   catalog:
     needs: announce
-    if: ${{ always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.announce.result != 'skipped' }}
+    if: ${{ always() && !inputs.play_bundle && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.announce.result != 'skipped' }}
     uses: ./.github/workflows/update-catalog.yml
     secrets: inherit

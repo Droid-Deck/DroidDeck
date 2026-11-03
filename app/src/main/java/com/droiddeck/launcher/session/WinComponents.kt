@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.AtomicFile
 import android.util.Log
 import com.droiddeck.launcher.core.ArchivePaths
-import com.droiddeck.launcher.core.Downloader
+import com.droiddeck.launcher.core.ComponentDownloads
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.runtime.GuestCommand
 import com.droiddeck.launcher.runtime.LinuxRuntime
@@ -86,13 +86,13 @@ object WinComponents {
 
     private val SNAPSHOT_COVERS = INSTALLER_STEPS + setOf("download_archive", "archive_extract", "copy_dll", "copy_file") + OFFLINE_STEPS
 
-    fun fetch(): List<Component>? = Downloader.downloadString(CATALOG_URL)?.let { parse(it) }
+    fun fetch(): List<Component>? = ComponentDownloads.downloadString(CATALOG_URL)?.let { parse(it) }
 
-    private const val CATALOG_CACHE = "wincomponents-catalog.json"
+    private val CATALOG_CACHE = ComponentDownloads.catalogName("wincomponents-catalog.json")
 
     fun fetch(context: Context): List<Component>? {
         val cache = File(context.filesDir, CATALOG_CACHE)
-        Downloader.downloadString(CATALOG_URL)?.let { body ->
+        ComponentDownloads.downloadString(CATALOG_URL)?.let { body ->
             parse(body)?.let { runCatching { write(cache, body) }; return it }
         }
         return runCatching { parse(cache.readText()) }.getOrNull()
@@ -241,7 +241,7 @@ object WinComponents {
                     val byRuntime = name.lowercase().let { it.endsWith(".exe") || it.endsWith(".cab") }
                     val file = if (byRuntime) File(root, "$MSI_CACHE/${archives.size}-$name").apply { parentFile?.mkdirs() }
                         else File(work, "${archives.size}-$name")
-                    val ok = Downloader.downloadFile(url, file, false) { f -> onProgress(Progress(c.name, name, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }
+                    val ok = ComponentDownloads.downloadFile(url, file, false) { f -> onProgress(Progress(c.name, name, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }
                     if (!ok) return "download failed: $name"
                     step.str("file_checksum").takeIf { it.length == 32 }?.let { md5 ->
                         if (!digest(file, "MD5").equals(md5, ignoreCase = true)) return "checksum mismatch: $name"
@@ -368,7 +368,7 @@ object WinComponents {
         val root = LinuxRuntime.rootDir(context)
         val name = c.snapshot.substringAfterLast('/')
         val json = File(work, "${c.name}.snapshot.json")
-        if (!Downloader.downloadFile(c.snapshot, json, false) { f -> onProgress(Progress(c.name, name, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }) {
+        if (!ComponentDownloads.downloadFile(c.snapshot, json, false) { f -> onProgress(Progress(c.name, name, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }) {
             return null to "download failed: $name"
         }
         val snapshot = runCatching { JSONObject(json.readText()) }.getOrNull() ?: return null to "the recording could not be read"
@@ -384,7 +384,7 @@ object WinComponents {
             val url = c.snapshot.substringBeforeLast('/') + "/" + archiveName
             val file = File(work, "${c.name}.files.tar.xz")
             val sha = archive.optString("sha256").takeIf { it.matches(Regex("(?i)[0-9a-f]{64}")) }
-            if (!Downloader.downloadFile(url, file, false, sha) { f -> onProgress(Progress(c.name, archiveName, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }) {
+            if (!ComponentDownloads.downloadFile(url, file, false, sha) { f -> onProgress(Progress(c.name, archiveName, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }) {
                 return null to "download failed: $archiveName"
             }
             archive.optString("sha256").takeIf { it.length == 64 }?.let { sha ->
@@ -403,7 +403,7 @@ object WinComponents {
             val installer = File(cache, "${c.name}-snapshot-src.bin")
             var unpacked: File? = null
             try {
-                if (!Downloader.downloadFile(url, installer, false) { f -> onProgress(Progress(c.name, installerName, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }) {
+                if (!ComponentDownloads.downloadFile(url, installer, false) { f -> onProgress(Progress(c.name, installerName, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }) {
                     return null to "download failed: $installerName"
                 }
                 unpacked = unpackInRuntime(context, c, installer, "snapshot", onProgress) ?: return null to "could not open $installerName"
@@ -479,7 +479,7 @@ object WinComponents {
         val ext = if (listOf(step.str("file_name"), name).any { it.endsWith(".exe", ignoreCase = true) }) "exe" else "msi"
         val file = File(cache, "${c.name}-${c.steps.indexOf(step)}.$ext")
         try {
-            if (!Downloader.downloadFile(url, file, false) { f -> onProgress(Progress(c.name, name, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }) {
+            if (!ComponentDownloads.downloadFile(url, file, false) { f -> onProgress(Progress(c.name, name, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }) {
                 return null to "download failed: $name"
             }
             step.str("file_checksum").takeIf { it.length == 32 }?.let { md5 ->

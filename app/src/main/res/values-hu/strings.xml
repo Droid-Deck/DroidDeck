@@ -3525,7 +3525,7 @@
     <string name="integration_shortcuts_maybe_restricted">Szürke az Androidban? Alkalmazásinformáció → ⋮ → Korlátozott beállítások engedélyezése</string>
     <string name="integration_shortcuts_restricted">Az Android letiltotta · Alkalmazásinformáció → ⋮ → Korlátozott beállítások engedélyezése</string>
     <string name="integration_shortcuts_service">DroidDeck Kezdőképernyő gomb</string>
-    <string name="integration_shortcuts_service_description">A Kezdőképernyő gomb lenyomásait továbbítja a Steam Guide-nak, amíg egy Steam-munkamenet van fókuszban, és a DroidDeck az alapértelmezett kezdőképernyő alkalmazás. Nem olvassa a képernyő tartalmát.</string>
+    <string name="integration_shortcuts_service_description">A kisegítő szolgáltatás lehetővé teszi a Home/Guide billentyűparancsokat, és felismeri az alsó képernyőn futó alkalmazásokat. Helyben olvassa az alkalmazáscsomagok nevét és az ablakok határait. Nem olvas szöveget, nem rögzíti a képernyőt, és nem továbbítja ezeket az adatokat.</string>
     <string name="integration_brightness_needed">Kapcsolja be a Fényerőt itt: Beállítás → Steam-integráció</string>
     <string name="apps_search_hint">Alkalmazások keresése</string>
     <string name="apps_no_match">Egy alkalmazás sem felel meg ennek: „%1$s”.</string>
@@ -3651,4 +3651,5 @@
     <string name="bottom_strip_cpu_temp">CPU-hőmérséklet</string>
     <string name="stats_hud_battery_temp">Akkumulátor</string>
     <string name="stats_hud_game_cores">Játék</string>
+    <string name="setup_privacy_policy">Adatvédelmi szabályzat</string>
 </resources>

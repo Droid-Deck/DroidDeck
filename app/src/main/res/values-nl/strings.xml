@@ -3525,7 +3525,7 @@
     <string name="integration_shortcuts_maybe_restricted">Grijs in Android? App-info → ⋮ → Beperkte instellingen toestaan</string>
     <string name="integration_shortcuts_restricted">Geblokkeerd door Android · App-info → ⋮ → Beperkte instellingen toestaan</string>
     <string name="integration_shortcuts_service">DroidDeck-startknop</string>
-    <string name="integration_shortcuts_service_description">Geeft drukken op de startknop door aan Steam Guide terwijl een Steam-sessie actief is en DroidDeck de standaard startscherm-app is. Leest geen scherminhoud.</string>
+    <string name="integration_shortcuts_service_description">De toegankelijkheidsservice maakt Home/Guide-sneltoetsen mogelijk en detecteert apps op het onderste scherm. De service leest pakketnamen van apps en venstergrenzen lokaal. De service leest geen tekst, maakt geen schermopnamen en verzendt deze gegevens niet.</string>
     <string name="integration_brightness_needed">Zet Helderheid aan in Installatie → Steam-integratie</string>
     <string name="apps_search_hint">Apps zoeken</string>
     <string name="apps_no_match">Geen apps gevonden voor ‘%1$s’.</string>
@@ -3651,4 +3651,5 @@
     <string name="bottom_strip_cpu_temp">CPU-temperatuur</string>
     <string name="stats_hud_battery_temp">Accu</string>
     <string name="stats_hud_game_cores">Spel</string>
+    <string name="setup_privacy_policy">Privacybeleid</string>
 </resources>

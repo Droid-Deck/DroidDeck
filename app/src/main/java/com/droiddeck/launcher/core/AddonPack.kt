@@ -95,8 +95,8 @@ internal class AddonPack(
         }
         val root = root(context).apply { mkdirs() }
         val archive = File(root, "$sha256.tar.zst")
-        val downloaded = bundled(context, archive) || urls.any { url ->
-            Downloader.downloadFile(url, archive, true, sha256) { p -> mutableState.value = State.Downloading(p.coerceIn(0f, 1f)) }
+        val downloaded = bundled(context, archive) || !BuildConfig.PLAY_DISTRIBUTION && urls.any { url ->
+            ComponentDownloads.downloadFile(url, archive, true, sha256) { p -> mutableState.value = State.Downloading(p.coerceIn(0f, 1f)) }
                 .also { if (!it) archive.delete() }
         }
         if (!downloaded) return false

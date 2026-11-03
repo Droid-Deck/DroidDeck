@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import com.droiddeck.launcher.BuildConfig
+
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -77,8 +79,10 @@ class UpdatesState(
     val stage: String? = null,
     val percent: Int = -1,
     val askPermission: Boolean = false,
+    val playUpdateAvailable: Boolean? = null,
+    val playCheckedAt: Long = 0L,
 ) {
-    val hasUpdate: Boolean get() = AppUpdates.hasUpdate(catalog, follow)
+    val hasUpdate: Boolean get() = if (BuildConfig.PLAY_DISTRIBUTION) playUpdateAvailable == true else AppUpdates.hasUpdate(catalog, follow)
 }
 
 class UpdatesActions(
@@ -87,6 +91,7 @@ class UpdatesActions(
     val onInstall: (Release) -> Unit = {},
     val onAllowInstalls: () -> Unit = {},
     val onDismissPermission: () -> Unit = {},
+    val onOpenPlay: () -> Unit = {},
 )
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -106,12 +111,16 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                 maxLines = 1, modifier = Modifier.weight(1f)
                     .basicMarquee(iterations = Int.MAX_VALUE, initialDelayMillis = 700, velocity = 40.dp),
             )
-            val checked = u.catalog?.checkedAt?.takeIf { it > 0 }
-            if (!LocalNarrowPane.current) Text(
+            val checked = (if (BuildConfig.PLAY_DISTRIBUTION) u.playCheckedAt else u.catalog?.checkedAt)?.takeIf { it > 0 }
+            if (!BuildConfig.PLAY_DISTRIBUTION && !LocalNarrowPane.current) Text(
                 if (u.checking) stringResource(R.string.common_checking) else if (checked != null) stringResource(R.string.upd_checked, ago(checked).replaceFirstChar { it.lowercase() }) else stringResource(R.string.upd_not_checked),
                 fontSize = 13.sp, color = colors.onSurfaceVariant,
             )
             ToolIcon(Icons.Outlined.Refresh, stringResource(R.string.store_check_updates), busy = u.checking, enabled = !u.checking && u.stage == null, onClick = ua.onCheck)
+        }
+        if (BuildConfig.PLAY_DISTRIBUTION) {
+            StatusPanel(s, u, ua, me)
+            return@Column
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val stacked = LocalNarrowPane.current || maxWidth < 600.dp
@@ -131,7 +140,7 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
             }
         }
     }
-    if (u.askPermission) AlertDialog(
+    if (!BuildConfig.PLAY_DISTRIBUTION && u.askPermission) AlertDialog(
         onDismissRequest = ua.onDismissPermission,
         title = { Text(stringResource(R.string.upd_perm_title)) },
         text = {
@@ -156,6 +165,14 @@ private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, m
     val installBlock = release?.let { AppUpdates.installBlock(it, me) }
     class Look(val tint: Color, val status: String, val headline: String, val detail: String?)
     val look = when {
+        BuildConfig.PLAY_DISTRIBUTION -> Look(
+            if (u.playUpdateAvailable == true) AttentionAmber else colors.onSurfaceVariant,
+            stringResource(when {
+                u.checking -> R.string.common_checking
+                u.playUpdateAvailable == true -> R.string.upd_available
+                u.playUpdateAvailable == false -> R.string.upd_current_status
+                else -> R.string.upd_not_checked
+            }), stringResource(R.string.upd_title), null)
         !me.updatable -> Look(colors.onSurfaceVariant, stringResource(R.string.upd_signed_status), stringResource(R.string.upd_signed_headline),
             stringResource(R.string.upd_signed_detail))
         catalog == null -> Look(colors.onSurfaceVariant, if (u.checking) stringResource(R.string.common_checking) else stringResource(R.string.upd_not_checked), stringResource(R.string.upd_title), null)
@@ -189,6 +206,9 @@ private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, m
         val button = release?.apk?.size?.takeIf { it > 0 }?.let { " · ${megabytes(it)}" }.orEmpty()
         Box(Modifier.padding(top = 14.dp)) {
             when {
+                BuildConfig.PLAY_DISTRIBUTION && u.playUpdateAvailable == true ->
+                    PrimaryButton(stringResource(R.string.common_update), onClick = ua.onOpenPlay)
+                BuildConfig.PLAY_DISTRIBUTION -> Unit
                 u.stage != null -> Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(if (u.percent >= 0) stringResource(R.string.upd_stage_percent, u.stage, u.percent) else stringResource(R.string.upd_stage, u.stage), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
                     if (u.percent >= 0) LinearProgressIndicator(progress = { u.percent / 100f }, modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape))

@@ -119,6 +119,7 @@ class FrontEndActivity : ComponentActivity() {
     private var frameGenLabel by mutableStateOf("")
     private var lossless by mutableStateOf(Lossless.State.NONE)
     private var showRemove by mutableStateOf(false)
+    private var showAccessibilityConsent by mutableStateOf(false)
     private var showRuntimeActions by mutableStateOf<LinuxRuntimeInstaller.Release?>(null)
     private var pendingSwitch by mutableStateOf<Intent?>(null)
     private var switchingTo: Intent? = null
@@ -323,6 +324,10 @@ class FrontEndActivity : ComponentActivity() {
                 manageHomeApp()
             }
             SteamIntegration.Feature.SHORTCUTS -> {
+                if (!SteamIntegration.accessibilityConsented(this)) {
+                    showAccessibilityConsent = true
+                    return
+                }
                 if (!integrationState.shortcuts) shortcutsTried = true
                 if (!HomeApp.isDefault(this)) configureIntegration(SteamIntegration.Feature.HOME)
                 else {
@@ -1452,6 +1457,17 @@ class FrontEndActivity : ComponentActivity() {
                     page = page,
                 )
                 }
+                if (showAccessibilityConsent) ConfirmDialog(
+                    title = androidx.compose.ui.res.stringResource(R.string.integration_shortcuts),
+                    text = androidx.compose.ui.res.stringResource(R.string.integration_shortcuts_service_description),
+                    confirm = androidx.compose.ui.res.stringResource(R.string.glasses_allow),
+                    onConfirm = {
+                        SteamIntegration.acceptAccessibility(this@FrontEndActivity)
+                        integrationState = readIntegration()
+                        configureIntegration(SteamIntegration.Feature.SHORTCUTS)
+                    },
+                    onDismiss = { showAccessibilityConsent = false },
+                )
                 if (showRoms) RomsDialog(
                     path = romsDir,
                     onChoose = {

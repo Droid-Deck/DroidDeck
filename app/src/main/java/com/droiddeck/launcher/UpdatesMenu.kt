@@ -8,6 +8,7 @@ import android.content.IntentFilter
 import android.content.pm.PackageInstaller
 import android.os.Build
 import android.os.Handler
+import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -17,8 +18,12 @@ import com.droiddeck.launcher.ui.UpdatesActions
 import com.droiddeck.launcher.ui.UpdatesState
 import com.droiddeck.launcher.update.AppUpdates
 import com.droiddeck.launcher.update.SelfInstaller
+import com.google.android.play.core.appupdate.AppUpdateManager
+import com.google.android.play.core.appupdate.AppUpdateManagerFactory
+import com.google.android.play.core.install.model.UpdateAvailability
 
-internal class UpdatesMenu(private val activity: Activity, private val ui: Handler) {
+internal class UpdatesMenu(private val activity: Activity, private val ui: Handler,
+                           private val playManager: () -> AppUpdateManager = { AppUpdateManagerFactory.create(activity) }) {
     var catalog by mutableStateOf<AppUpdates.Catalog?>(null)
     var follow by mutableStateOf(AppUpdates.Follow(AppUpdates.Channel.STABLE))
     var checking by mutableStateOf(false)
@@ -26,12 +31,15 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
     var stage by mutableStateOf<String?>(null)
     var percent by mutableIntStateOf(-1)
     var askPermission by mutableStateOf(false)
+    var playUpdateAvailable by mutableStateOf<Boolean?>(null)
+    private var playCheckedAt by mutableStateOf(0L)
     private var pending: AppUpdates.Release? = null
     private var lastCheck = 0L
     private var request = 0
     @Volatile private var session = -1
 
-    fun state() = UpdatesState(catalog, follow, checking, error, stage, percent, askPermission)
+    fun state() = UpdatesState(catalog, follow, checking, error, stage, percent, askPermission,
+        playUpdateAvailable, playCheckedAt)
 
     fun actions() = UpdatesActions(
         onCheck = { check(force = true) },
@@ -39,15 +47,22 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
         onInstall = ::install,
         onAllowInstalls = {
             askPermission = false
-            runCatching { activity.startActivity(SelfInstaller.permissionIntent(activity)) }
-                .onFailure { error = activity.getString(R.string.upd_unknown_apps_failed); pending = null }
+            if (!BuildConfig.PLAY_DISTRIBUTION) {
+                runCatching { activity.startActivity(SelfInstaller.permissionIntent(activity)) }
+                    .onFailure { error = activity.getString(R.string.upd_unknown_apps_failed); pending = null }
+            }
         },
         onDismissPermission = { askPermission = false; pending = null },
+        onOpenPlay = ::openPlay,
     )
 
-    val hasUpdate: Boolean get() = AppUpdates.hasUpdate(catalog, follow)
+    val hasUpdate: Boolean get() = if (BuildConfig.PLAY_DISTRIBUTION) playUpdateAvailable == true else AppUpdates.hasUpdate(catalog, follow)
 
     fun onResume() {
+        if (BuildConfig.PLAY_DISTRIBUTION) {
+            if (!SessionState.running) check(force = false)
+            return
+        }
         pending?.let { r ->
             if (SelfInstaller.canInstall(activity)) { pending = null; install(r) }
         }
@@ -55,6 +70,10 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
     }
 
     fun check(force: Boolean) {
+        if (BuildConfig.PLAY_DISTRIBUTION) {
+            checkPlay(force)
+            return
+        }
         if (checking || stage != null) return
         val now = System.currentTimeMillis()
         if (!force && now - lastCheck < 60_000) return
@@ -75,6 +94,45 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
         }, "app-updates").start()
     }
 
+    private fun checkPlay(force: Boolean) {
+        if (checking) return
+        val now = System.currentTimeMillis()
+        if (!force && now - lastCheck < 60_000) return
+        lastCheck = now
+        checking = true
+        error = null
+        val id = ++request
+        fun failed(failure: Throwable) {
+            if (id != request || activity.isDestroyed) return
+            checking = false
+            if (force) error = activity.getString(R.string.upd_couldnt_check, failure.message ?: failure.javaClass.simpleName)
+        }
+        runCatching {
+            playManager().appUpdateInfo.addOnSuccessListener { info ->
+                if (id != request || activity.isDestroyed) return@addOnSuccessListener
+                checking = false
+                val availability = info.updateAvailability()
+                playUpdateAvailable = when (availability) {
+                    UpdateAvailability.UPDATE_AVAILABLE, UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS -> true
+                    UpdateAvailability.UPDATE_NOT_AVAILABLE -> false
+                    else -> null
+                }
+                playCheckedAt = now
+            }.addOnFailureListener { failed(it) }
+        }.onFailure { failed(it) }
+    }
+
+    private fun openPlay() {
+        if (!BuildConfig.PLAY_DISTRIBUTION) return
+        val listing = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=${activity.packageName}"))
+            .setPackage("com.android.vending")
+        runCatching { activity.startActivity(listing) }.onFailure {
+            runCatching {
+                activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=${activity.packageName}")))
+            }.onFailure { error = activity.getString(R.string.upd_couldnt_check, it.message ?: it.javaClass.simpleName) }
+        }
+    }
+
     private fun choose(f: AppUpdates.Follow) {
         AppUpdates.setFollow(activity, f)
         follow = f
@@ -82,6 +140,7 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
     }
 
     private fun install(r: AppUpdates.Release) {
+        if (BuildConfig.PLAY_DISTRIBUTION) { openPlay(); return }
         if (stage != null) return
         val apk = r.apk ?: run { error = activity.getString(R.string.upd_no_download); return }
         AppUpdates.installBlock(r)?.let { error = it.message(activity); return }
@@ -124,6 +183,7 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
 
     @android.annotation.SuppressLint("UnspecifiedRegisterReceiverFlag")
     fun start() {
+        if (BuildConfig.PLAY_DISTRIBUTION) return
         catalog = AppUpdates.cached(activity)
         follow = AppUpdates.follow(activity, catalog)
         val filter = IntentFilter(SelfInstaller.ACTION_STATUS)
@@ -132,6 +192,8 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
     }
 
     fun unregister() {
+        request++
+        checking = false
         runCatching { activity.unregisterReceiver(receiver) }
     }
 }

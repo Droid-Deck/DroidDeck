@@ -3597,7 +3597,7 @@
     <string name="integration_shortcuts_maybe_restricted">Неактивно в Android? «О приложении» → ⋮ → «Разрешить доступ к настройкам с ограниченным доступом»</string>
     <string name="integration_shortcuts_restricted">Заблокировано Android · «О приложении» → ⋮ → «Разрешить доступ к настройкам с ограниченным доступом»</string>
     <string name="integration_shortcuts_service">Кнопка «Домой» DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Передаёт нажатия кнопки «Домой» в Steam Guide, пока активна сессия Steam и DroidDeck является главным экраном по умолчанию. Не считывает содержимое экрана.</string>
+    <string name="integration_shortcuts_service_description">Служба специальных возможностей включает сочетания Home/Guide и определяет приложения на нижнем экране. Она локально считывает имена пакетов приложений и границы окон. Служба не читает текст, не записывает экран и не передаёт эти данные.</string>
     <string name="integration_brightness_needed">Включите «Яркость» в «Настройка → Интеграция со Steam»</string>
     <string name="apps_search_hint">Поиск приложений</string>
     <string name="apps_no_match">Нет приложений по запросу «%1$s».</string>
@@ -3725,4 +3725,5 @@
     <string name="bottom_strip_cpu_temp">Температура ЦП</string>
     <string name="stats_hud_battery_temp">Батарея</string>
     <string name="stats_hud_game_cores">Игра</string>
+    <string name="setup_privacy_policy">Политика конфиденциальности</string>
 </resources>

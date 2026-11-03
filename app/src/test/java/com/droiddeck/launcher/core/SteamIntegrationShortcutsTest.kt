@@ -43,6 +43,15 @@ class SteamIntegrationShortcutsTest {
         assertTrue(SteamIntegration.shortcutsChosen(context))
     }
 
+    @Test fun enablingTheSystemServiceDoesNotBypassDisclosureConsent() {
+        choose(service.flattenToString())
+        assertTrue(SteamIntegration.shortcutsChosen(context))
+        assertFalse(SteamIntegration.accessibilityConsented(context))
+        SteamIntegration.acceptAccessibility(context)
+        assertTrue(SteamIntegration.accessibilityConsented(context))
+        assertTrue(SteamIntegration.shortcutsChosen(context))
+    }
+
     @Test fun openingShortcutSetupListsTheServiceAndBackingOutHidesItAgain() {
         SteamIntegration.setShortcutsListed(context, true)
         assertTrue(listed())

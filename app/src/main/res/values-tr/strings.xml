@@ -3525,7 +3525,7 @@
     <string name="integration_shortcuts_maybe_restricted">Android\'de gri mi görünüyor? Uygulama bilgileri → ⋮ → Kısıtlanmış ayarlara izin ver</string>
     <string name="integration_shortcuts_restricted">Android tarafından engellendi · Uygulama bilgileri → ⋮ → Kısıtlanmış ayarlara izin ver</string>
     <string name="integration_shortcuts_service">DroidDeck Ana ekran düğmesi</string>
-    <string name="integration_shortcuts_service_description">Bir Steam oturumu odaktayken ve DroidDeck varsayılan Ana ekran uygulamasıyken Ana ekran düğmesine basışları Steam Guide\'a iletir. Ekran içeriğini okumaz.</string>
+    <string name="integration_shortcuts_service_description">Erişilebilirlik hizmeti Home/Guide kısayollarını etkinleştirir ve alt ekrandaki uygulamaları algılar. Uygulama paket adlarını ve pencere sınırlarını cihazda okur. Metin okumaz, ekran görüntüsü almaz veya bu verileri göndermez.</string>
     <string name="integration_brightness_needed">Kurulum → Steam entegrasyonu bölümünde Parlaklık\'ı açın</string>
     <string name="apps_search_hint">Uygulama ara</string>
     <string name="apps_no_match">“%1$s” ile eşleşen uygulama yok.</string>
@@ -3651,4 +3651,5 @@
     <string name="bottom_strip_cpu_temp">CPU sıcaklığı</string>
     <string name="stats_hud_battery_temp">Pil</string>
     <string name="stats_hud_game_cores">Oyun</string>
+    <string name="setup_privacy_policy">Gizlilik politikası</string>
 </resources>

@@ -1,9 +1,10 @@
 package com.droiddeck.launcher.gpu
 
 import com.droiddeck.launcher.core.DownloadSource
-import com.droiddeck.launcher.core.Downloader
+import com.droiddeck.launcher.core.ComponentDownloads
 import com.droiddeck.launcher.core.Hashes
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.BuildConfig
 import android.content.Context
 import android.util.Log
 import com.droiddeck.launcher.core.FileUtils
@@ -17,9 +18,9 @@ import java.net.URL
 object TurnipReleases {
     private const val TAG = "TurnipReleases"
     private const val PREFS = "turnip_releases"
-    private const val KEY_RELEASE = "latest"
+    private val KEY_RELEASE = ComponentDownloads.catalogName("latest")
     private const val KEY_DOWNLOADS = "downloads"
-    private const val KEY_PICKS = "autoPicks"
+    private val KEY_PICKS = ComponentDownloads.catalogName("autoPicks")
 
     class Asset(val source: String, val tag: String, val name: String, val url: String, val size: Long, val linux: Boolean, val label: String,
                 val sha256: String = "", val pair: String = "", val bundle: Boolean = false)
@@ -132,6 +133,8 @@ object TurnipReleases {
     }
 
     private fun get(context: Context, source: String, url: String): String {
+        if (BuildConfig.PLAY_DISTRIBUTION) return ComponentDownloads.downloadString(url)
+            ?: throw IOException("Driver catalog is absent from this build")
         val c = URL(source).openConnection() as HttpURLConnection
         c.connectTimeout = 15_000
         c.readTimeout = 20_000
@@ -188,7 +191,7 @@ object TurnipReleases {
     fun download(context: Context, asset: Asset, progress: (Int) -> Unit): File {
         if (asset.sha256.isEmpty()) throw IOException(context.getString(R.string.turnip_list_predates_checksums))
         val target = File(context.cacheDir, asset.name)
-        val ok = Downloader.downloadFile(asset.url, target, true, asset.sha256) { f -> progress(if (f < 0) -1 else (f * 100).toInt()) }
+        val ok = ComponentDownloads.downloadFile(asset.url, target, true, asset.sha256) { f -> progress(if (f < 0) -1 else (f * 100).toInt()) }
         if (!ok) throw IOException(context.getString(R.string.turnip_download_failed))
         if (!asset.sha256.equals(Hashes.sha256(target), ignoreCase = true)) {
             FileUtils.delete(target)

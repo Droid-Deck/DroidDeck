@@ -6,6 +6,7 @@ import android.util.Log
 import com.droiddeck.launcher.BuildConfig
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.Downloader
+import com.droiddeck.launcher.core.ComponentDownloads
 import com.droiddeck.launcher.core.FileUtils
 import org.json.JSONObject
 import java.io.File
@@ -22,8 +23,10 @@ object DesktopCatalog {
         val icon: String, val category: String,
     )
 
+    internal fun offered(entry: Entry): Boolean = !BuildConfig.PLAY_DISTRIBUTION || entry.id == DESKTOP_ID || entry.id == "desktop"
+
     fun fetch(url: String = CATALOG_URL, cancelled: java.util.function.BooleanSupplier? = null): List<Entry>? {
-        val body = Downloader.downloadString(url, cancelled) ?: return null
+        val body = ComponentDownloads.downloadString(url, cancelled) ?: return null
         return try {
             val json = JSONObject(body)
             val arr = json.getJSONArray("packages")
@@ -39,7 +42,7 @@ object DesktopCatalog {
                     file.optLong("size", 0L), o.optString("notes", ""),
                     o.optString("icon", "applications-games"), o.optString("category", "Game"),
                 )
-            }
+            }.filter(::offered)
         } catch (e: Exception) {
             Log.w(TAG, "catalog: $e"); null
         }
@@ -51,7 +54,7 @@ object DesktopCatalog {
 
     private fun journal(root: File, id: String) = File(root, ".droiddeck-pkg-$id$JOURNAL_SUFFIX")
 
-    fun interrupted(context: Context): List<Entry> = interrupted(LinuxRuntime.rootDir(context))
+    fun interrupted(context: Context): List<Entry> = interrupted(LinuxRuntime.rootDir(context)).filter(::offered)
 
     fun interrupted(root: File): List<Entry> =
         root.listFiles { f -> f.name.startsWith(".droiddeck-pkg-") && f.name.endsWith(JOURNAL_SUFFIX) }.orEmpty()
@@ -63,7 +66,7 @@ object DesktopCatalog {
     private fun downloadFile(context: Context, entry: Entry) = File(context.cacheDir, "pkg-${entry.id}-${entry.sha256.take(12)}.download")
 
     fun pruneDownloads(context: Context) = synchronized(installLock) {
-        val keep = interrupted(context).map { downloadFile(context, it).name }.toSet()
+        val keep = interrupted(LinuxRuntime.rootDir(context)).map { downloadFile(context, it).name }.toSet()
         context.cacheDir.listFiles { f -> f.name.startsWith("pkg-") && f.name.removeSuffix(".resume.properties").endsWith(".download") }
             ?.filter { it.name.removeSuffix(".resume.properties") !in keep }?.forEach { it.delete() }
     }
@@ -107,9 +110,13 @@ object DesktopCatalog {
     fun installed(context: Context, id: String): String? =
         FileUtils.readString(marker(context, id))?.trim()?.takeIf { it.isNotEmpty() }
 
-    fun protonSeedNeeded(context: Context): Boolean =
-        installed(context, PROTON_SEED_ID) == null &&
+    fun protonSeedNeeded(context: Context): Boolean {
+        if (BuildConfig.PLAY_DISTRIBUTION) return com.droiddeck.launcher.session.ProtonExtras.installed(
+            context, com.droiddeck.launcher.session.ProtonExtras.tools.single(),
+        ) == null
+        return installed(context, PROTON_SEED_ID) == null &&
             !File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps/appmanifest_4427310.acf").isFile
+    }
 
     const val DESKTOP_ID = "desktop-kde"
     const val EMULATORS_ID = "emulators"
@@ -172,6 +179,7 @@ object DesktopCatalog {
 
     private fun installLocked(context: Context, entry: Entry, cancelled: Downloader.Cancellation?,
                               listener: LinuxRuntimeInstaller.ProgressListener?): String? {
+        if (!offered(entry)) return context.getString(R.string.deskpkg_install_failed)
         val root = LinuxRuntime.rootDir(context)
         if (!root.isDirectory) return context.getString(R.string.deskpkg_runtime_missing)
         if (entry.id == EMULATORS_ID && desktopFromPack(root)) return installEmulators(context, entry, cancelled, listener)
@@ -195,9 +203,9 @@ object DesktopCatalog {
                     report.onProgress(LinuxRuntimeInstaller.Step.DOWNLOADING, downloading, if (f < 0) -1 else Math.round(f * 100f))
                 }
                 val ok = if (cancelled == null) {
-                    Downloader.downloadFile(entry.url, download, true, entry.sha256, progress)
+                    ComponentDownloads.downloadFile(entry.url, download, true, entry.sha256, progress)
                 } else {
-                    Downloader.downloadFile(entry.url, download, true, entry.sha256, cancelled, progress)
+                    ComponentDownloads.downloadFile(entry.url, download, true, entry.sha256, cancelled, progress)
                 }
                 if (!ok || cancelled?.getAsBoolean() == true) return context.getString(R.string.user_apps_download_failed)
                 report.onProgress(LinuxRuntimeInstaller.Step.VERIFYING, context.getString(R.string.rtinst_verifying), -1)

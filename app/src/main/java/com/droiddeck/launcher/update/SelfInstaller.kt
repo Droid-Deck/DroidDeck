@@ -21,12 +21,13 @@ object SelfInstaller {
     const val ACTION_STATUS = "com.droiddeck.launcher.update.INSTALL_STATUS"
 
     fun canInstall(context: Context): Boolean =
-        Build.VERSION.SDK_INT < 26 || context.packageManager.canRequestPackageInstalls()
+        !BuildConfig.PLAY_DISTRIBUTION && (Build.VERSION.SDK_INT < 26 || context.packageManager.canRequestPackageInstalls())
 
     fun permissionIntent(context: Context): Intent =
         Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}"))
 
     fun download(context: Context, apk: AppUpdates.Apk, progress: (Int) -> Unit): File {
+        check(!BuildConfig.PLAY_DISTRIBUTION) { "Application updates are managed by Google Play" }
         val dir = File(context.cacheDir, "updates")
         dir.listFiles()?.forEach { if (it.name != apk.name) FileUtils.delete(it) }
         dir.mkdirs()
@@ -91,6 +92,7 @@ object SelfInstaller {
     }
 
     fun install(context: Context, apk: File, onSession: (Int) -> Unit = {}) {
+        check(!BuildConfig.PLAY_DISTRIBUTION) { "Application updates are managed by Google Play" }
         val installer = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
             setAppPackageName(context.packageName)

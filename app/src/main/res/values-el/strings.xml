@@ -3525,7 +3525,7 @@
     <string name="integration_shortcuts_maybe_restricted">Γκρίζο στο Android; Πληροφορίες εφαρμογής → ⋮ → Να επιτρέπονται οι περιορισμένες ρυθμίσεις</string>
     <string name="integration_shortcuts_restricted">Αποκλείεται από το Android · Πληροφορίες εφαρμογής → ⋮ → Να επιτρέπονται οι περιορισμένες ρυθμίσεις</string>
     <string name="integration_shortcuts_service">Κουμπί Αρχικής DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Μεταβιβάζει τα πατήματα του κουμπιού Αρχικής στο Steam Guide όσο μια συνεδρία Steam είναι εστιασμένη και το DroidDeck είναι η προεπιλεγμένη εφαρμογή Αρχικής. Δεν διαβάζει το περιεχόμενο της οθόνης.</string>
+    <string name="integration_shortcuts_service_description">Η υπηρεσία προσβασιμότητας ενεργοποιεί συντομεύσεις Home/Guide και εντοπίζει εφαρμογές στην κάτω οθόνη. Διαβάζει τοπικά ονόματα πακέτων εφαρμογών και όρια παραθύρων. Δεν διαβάζει κείμενο, δεν καταγράφει οθόνες και δεν αποστέλλει αυτά τα δεδομένα.</string>
     <string name="integration_brightness_needed">Ενεργοποιήστε τη Φωτεινότητα στη Ρύθμιση → Ενσωμάτωση Steam</string>
     <string name="apps_search_hint">Αναζήτηση εφαρμογών</string>
     <string name="apps_no_match">Καμία εφαρμογή δεν ταιριάζει με «%1$s».</string>
@@ -3651,4 +3651,5 @@
     <string name="bottom_strip_cpu_temp">Θερμοκρασία CPU</string>
     <string name="stats_hud_battery_temp">Μπαταρία</string>
     <string name="stats_hud_game_cores">Παιχνίδι</string>
+    <string name="setup_privacy_policy">Πολιτική απορρήτου</string>
 </resources>

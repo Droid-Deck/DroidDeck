@@ -27,6 +27,8 @@ You can manage permissions through Android settings. Turning off a permission or
 
 DroidDeck connects to the stores, game services, cloud-streaming providers, artwork sources, and download services used by your selected features. Those services can receive information such as your IP address, requests, game identifiers, authentication information, or information you enter directly into their sign-in and purchase pages. Steam, games, and other software running through DroidDeck have their own network activity and privacy policies. Their providers determine how they handle that information.
 
+The Google Play version contacts Google Play to check whether an app update is available. Selecting Update opens the app's Google Play listing. Google handles Play delivery and updates under its own [privacy policy](https://policies.google.com/privacy).
+
 Optional Syncthing synchronization transfers selected files to the devices you configure and can use discovery and relay services. DroidDeck disables Syncthing usage reporting and crash reporting. Selected games or other guest software may use files and resources available within DroidDeck's runtime.
 
 DroidDeck's privacy policy does not replace the policies of these separate providers. Review the relevant provider's policy when signing in, purchasing content, streaming, installing software, or enabling synchronization.

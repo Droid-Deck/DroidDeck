@@ -13,6 +13,7 @@ import com.droiddeck.launcher.input.HomeButtonService
 import com.droiddeck.launcher.session.SessionPrefs
 
 object SteamIntegration {
+    private const val ACCESSIBILITY_CONSENT_VERSION = 1
     const val ACTION_SETUP = "com.droiddeck.launcher.STEAM_INTEGRATION"
     const val EXTRA_FEATURE = "integration_feature"
     enum class Feature { WIFI, BRIGHTNESS, HOME, SHORTCUTS }
@@ -36,7 +37,7 @@ object SteamIntegration {
         locationOn = WifiDiscovery.locationEnabled(context),
         brightness = Settings.System.canWrite(context),
         home = HomeApp.isDefault(context),
-        shortcuts = context.getSystemService(AccessibilityManager::class.java)
+        shortcuts = accessibilityConsented(context) && context.getSystemService(AccessibilityManager::class.java)
             .getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK).any {
                 val service = it.resolveInfo.serviceInfo
                 ComponentName(service.packageName, service.name) == ComponentName(context, HomeButtonService::class.java)
@@ -55,6 +56,14 @@ object SteamIntegration {
     }
 
     private fun shortcutsComponent(context: Context) = ComponentName(context, HomeButtonService::class.java)
+
+    fun accessibilityConsented(context: Context): Boolean =
+        SessionPrefs.sessionPrefs(context).getInt("accessibility_consent", 0) == ACCESSIBILITY_CONSENT_VERSION
+
+    fun acceptAccessibility(context: Context) {
+        SessionPrefs.sessionPrefs(context).edit().putInt("accessibility_consent", ACCESSIBILITY_CONSENT_VERSION).apply()
+        HomeButtonService.consentChanged()
+    }
 
     fun shortcutsChosen(context: Context): Boolean = shortcutsSelection(context) == true
 

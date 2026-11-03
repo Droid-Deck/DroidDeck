@@ -1,0 +1,194 @@
+name: Build PlayStore Bundle
+run-name: PlayStore ${{ inputs.version || 'branch build' }} from playstore
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+      source_branch:
+        type: string
+        default: playstore
+  push:
+    branches: [playstore]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version for the file names, e.g. 0.1.7
+        required: true
+      source_branch:
+        description: Branch to build
+        type: choice
+        options: [playstore]
+        default: playstore
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+
+concurrency:
+  group: playstore-bundle
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    name: Play distribution checks
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || inputs.source_branch }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zstd
+          python3 -m pip install PyYAML==6.0.3
+      - name: Test Play distribution safeguards
+        run: |
+          python3 -m unittest \
+            tools.tests.test_playstore_payloads \
+            tools.tests.test_playstore_signing \
+            tools.tests.test_playstore_workflow \
+            tools.tests.test_playstore_archive_preparation \
+            tools.tests.test_playstore_audio_bundle \
+            tools.tests.test_playstore_emulators \
+            tools.tests.test_android_page_alignment
+
+  source:
+    runs-on: ubuntu-24.04
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+      version: ${{ steps.source.outputs.version }}
+      version_code: ${{ steps.source.outputs.version_code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || inputs.source_branch }}
+          persist-credentials: false
+      - id: source
+        env:
+          VERSION: ${{ inputs.version }}
+          SOURCE_BRANCH: ${{ inputs.source_branch || 'playstore' }}
+          PLAY_VERSION_CODE_BASE: ${{ vars.PLAY_VERSION_CODE_BASE }}
+        run: |
+          set -euo pipefail
+          test "$SOURCE_BRANCH" = playstore
+          test "$GITHUB_REF" = refs/heads/playstore
+          sha=$(git rev-parse HEAD)
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            [[ $VERSION =~ ^[0-9A-Za-z._-]+$ ]] || { echo "::error::invalid version"; exit 1; }
+            name=$(sed -n 's/^ *versionName "\(.*\)"$/\1/p' app/build.gradle)
+            [[ $VERSION == "$name" || $VERSION == "$name"-* ]] || {
+              echo "::error::version must match versionName in app/build.gradle; bump versionName and versionCode first"
+              exit 1
+            }
+          else
+            VERSION="playstore-${sha::7}"
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          source_code=$(sed -n 's/^ *versionCode \([0-9][0-9]*\)$/\1/p' app/build.gradle)
+          base=${PLAY_VERSION_CODE_BASE:-$source_code}
+          [[ $base =~ ^[0-9]+$ && $source_code =~ ^[0-9]+$ ]]
+          [ "$base" -ge "$source_code" ] || base=$source_code
+          elapsed=$(( $(date -u +%s) - 1577836800 ))
+          [ "$elapsed" -gt 0 ]
+          version_code=$((base + elapsed))
+          [ "$version_code" -le 2100000000 ]
+          echo "version_code=$version_code" >> "$GITHUB_OUTPUT"
+
+  bundle:
+    needs: source
+    uses: ./.github/workflows/build.yml
+    with:
+      play_bundle: true
+      source_sha: ${{ needs.source.outputs.sha }}
+      play_version_code: ${{ needs.source.outputs.version_code }}
+    secrets: inherit
+
+  sign:
+    needs: [checks, source, bundle]
+    runs-on: ubuntu-24.04
+    environment: signing-playstore
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.source.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/download-artifact@v4
+        with:
+          name: droiddeck-play-bundle-review
+          path: incoming
+      - name: Sign the verified Play bundle
+        env:
+          RELEASE_KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          VERSION: ${{ needs.source.outputs.version }}
+        run: |
+          set -euo pipefail
+          test -n "$RELEASE_KEYSTORE_B64"
+          key="$RUNNER_TEMP/play-release.p12"
+          (umask 077; printf '%s' "$RELEASE_KEYSTORE_B64" | base64 -d > "$key")
+          mapfile -t bundles < <(find incoming -type f -name '*.aab')
+          test "${#bundles[@]}" = 1
+          mkdir -p signed
+          python3 tools/playstore/sign_bundle.py "${bundles[0]}" "signed/DroidDeck-$VERSION-PlayStore.aab" \
+            --keystore "$key"
+          (cd signed && sha256sum *.aab > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: droiddeck-play-bundle-signed
+          path: signed/*
+          if-no-files-found: error
+          compression-level: 0
+
+  publish:
+    needs: [source, sign]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.source.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: droiddeck-play-bundle-signed
+          path: signed
+      - name: Publish the PlayStore release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.source.outputs.version }}
+          SOURCE_SHA: ${{ needs.source.outputs.sha }}
+          VERSION_CODE: ${{ needs.source.outputs.version_code }}
+        run: |
+          set -euo pipefail
+          tag="playstore-$VERSION"
+          if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::PlayStore release $tag already exists"
+            exit 1
+          fi
+          printf 'Signed Android App Bundle for Google Play upload.\n\nSource: `%s` on `playstore`.\nVersion code: `%s`.\n' "$SOURCE_SHA" "$VERSION_CODE" > "$RUNNER_TEMP/play-release.md"
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" signed/*.aab signed/SHA256SUMS \
+            --target "$SOURCE_SHA" --title "DroidDeck $VERSION · PlayStore" \
+            --notes-file "$RUNNER_TEMP/play-release.md" --latest=false

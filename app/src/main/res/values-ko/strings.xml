@@ -3498,7 +3498,7 @@
     <string name="integration_shortcuts_maybe_restricted">Android에서 회색으로 표시되나요? 앱 정보 → ⋮ → 제한된 설정 허용</string>
     <string name="integration_shortcuts_restricted">Android에서 차단됨 · 앱 정보 → ⋮ → 제한된 설정 허용</string>
     <string name="integration_shortcuts_service">DroidDeck 홈 버튼</string>
-    <string name="integration_shortcuts_service_description">Steam 세션에 포커스가 있고 DroidDeck이 기본 홈 앱일 때 홈 버튼 입력을 Steam Guide로 전달합니다. 화면 콘텐츠는 읽지 않습니다.</string>
+    <string name="integration_shortcuts_service_description">접근성 서비스는 Home/Guide 단축키를 활성화하고 아래쪽 화면의 앱을 감지합니다. 이 서비스는 기기 내에서 앱 패키지 이름과 창 경계를 읽습니다. 텍스트를 읽거나 화면을 캡처하거나 이 데이터를 전송하지 않습니다.</string>
     <string name="integration_brightness_needed">설정 → Steam 연동에서 밝기를 켜세요</string>
     <string name="apps_search_hint">앱 검색</string>
     <string name="apps_no_match">‘%1$s’와(과) 일치하는 앱이 없습니다.</string>
@@ -3623,4 +3623,5 @@
     <string name="bottom_strip_cpu_temp">CPU 온도</string>
     <string name="stats_hud_battery_temp">배터리</string>
     <string name="stats_hud_game_cores">게임</string>
+    <string name="setup_privacy_policy">개인정보처리방침</string>
 </resources>

@@ -329,6 +329,7 @@ object BwrapSpawner {
         val verbose = plan.env["DROIDDECK_PROOT_VERBOSE"]?.toIntOrNull()
         if (verbose != null) { cmd.add(1, "-v"); cmd.add(2, verbose.toString()) }
         plan.binds.forEach { cmd.add("-b"); cmd.add(it.spec) }
+        LinuxRuntime.bindComponentBundles(context, plan.root, cmd)
         cmd.add(plan.envTool)
         cmd.add("-i")
         plan.env.forEach { (k, v) -> cmd.add("$k=$v") }

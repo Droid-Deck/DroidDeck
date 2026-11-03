@@ -3669,7 +3669,7 @@
     <string name="integration_shortcuts_maybe_restricted">غير متاح في Android؟ معلومات التطبيق → ⋮ → السماح بالإعدادات المحظورة</string>
     <string name="integration_shortcuts_restricted">محظور من Android · معلومات التطبيق → ⋮ → السماح بالإعدادات المحظورة</string>
     <string name="integration_shortcuts_service">زر الشاشة الرئيسية في DroidDeck</string>
-    <string name="integration_shortcuts_service_description">يمرّر ضغطات زر الشاشة الرئيسية إلى Steam Guide عندما تكون جلسة Steam في المقدمة ويكون DroidDeck تطبيق الشاشة الرئيسية الافتراضي. لا يقرأ محتوى الشاشة.</string>
+    <string name="integration_shortcuts_service_description">تتيح خدمة تسهيل الاستخدام اختصارات Home/Guide وتكتشف التطبيقات على الشاشة السفلية. تقرأ هذه الخدمة أسماء حزم التطبيقات وحدود النوافذ محليًا. ولا تقرأ النصوص أو تلتقط الشاشة أو ترسل هذه البيانات.</string>
     <string name="integration_brightness_needed">فعّل «السطوع» من الإعداد → تكامل Steam</string>
     <string name="apps_search_hint">البحث في التطبيقات</string>
     <string name="apps_no_match">لا توجد تطبيقات تطابق ”%1$s“.</string>
@@ -3799,4 +3799,5 @@
     <string name="bottom_strip_cpu_temp">درجة حرارة المعالج</string>
     <string name="stats_hud_battery_temp">البطارية</string>
     <string name="stats_hud_game_cores">لعبة</string>
+    <string name="setup_privacy_policy">سياسة الخصوصية</string>
 </resources>

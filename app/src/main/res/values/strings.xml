@@ -3663,7 +3663,7 @@
     <string name="integration_shortcuts_maybe_restricted">Greyed out in Android? App info → ⋮ → Allow restricted settings</string>
     <string name="integration_shortcuts_restricted">Blocked by Android · App info → ⋮ → Allow restricted settings</string>
     <string name="integration_shortcuts_service">DroidDeck Home button</string>
-    <string name="integration_shortcuts_service_description">Pass Home button presses to Steam Guide while a Steam session is focused and DroidDeck is the default Home app. Does not read screen content.</string>
+    <string name="integration_shortcuts_service_description">Accessibility enables Home/Guide shortcuts and detects apps on the lower screen. This service reads app package names and window bounds locally. It does not read text, capture screens, or send this data.</string>
     <string name="integration_brightness_needed">Turn on Brightness in Setup → Steam integration</string>
     <string name="desktop_restore_title">Restoring your software</string>
     <string name="desktop_restore_body">Reinstalling the apps you added after a DroidDeck update.</string>
@@ -3685,4 +3685,5 @@
     <string name="steam_import_later">Later</string>
     <string name="setup_all_files">All files access</string>
     <string name="setup_local_network">Local network</string>
+    <string name="setup_privacy_policy">Privacy policy</string>
 </resources>

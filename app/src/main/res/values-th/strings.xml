@@ -3498,7 +3498,7 @@
     <string name="integration_shortcuts_maybe_restricted">เป็นสีเทาใน Android? ข้อมูลแอป → ⋮ → อนุญาตการตั้งค่าที่จำกัด</string>
     <string name="integration_shortcuts_restricted">ถูกบล็อกโดย Android · ข้อมูลแอป → ⋮ → อนุญาตการตั้งค่าที่จำกัด</string>
     <string name="integration_shortcuts_service">ปุ่มหน้าหลัก DroidDeck</string>
-    <string name="integration_shortcuts_service_description">ส่งการกดปุ่มหน้าหลักไปยัง Steam Guide ขณะเซสชัน Steam อยู่ในโฟกัสและ DroidDeck เป็นแอปหน้าหลักเริ่มต้น ไม่อ่านเนื้อหาบนหน้าจอ</string>
+    <string name="integration_shortcuts_service_description">บริการการช่วยเหลือพิเศษเปิดใช้ทางลัด Home/Guide และตรวจจับแอปบนหน้าจอด้านล่าง บริการนี้อ่านชื่อแพ็กเกจแอปและขอบเขตหน้าต่างภายในอุปกรณ์เท่านั้น โดยไม่อ่านข้อความ ไม่จับภาพหน้าจอ และไม่ส่งข้อมูลเหล่านี้</string>
     <string name="integration_brightness_needed">เปิดความสว่างในการตั้งค่า → การผสานรวม Steam</string>
     <string name="apps_search_hint">ค้นหาแอป</string>
     <string name="apps_no_match">ไม่มีแอปที่ตรงกับ “%1$s”</string>
@@ -3623,4 +3623,5 @@
     <string name="bottom_strip_cpu_temp">อุณหภูมิ CPU</string>
     <string name="stats_hud_battery_temp">แบตเตอรี่</string>
     <string name="stats_hud_game_cores">เกม</string>
+    <string name="setup_privacy_policy">นโยบายความเป็นส่วนตัว</string>
 </resources>

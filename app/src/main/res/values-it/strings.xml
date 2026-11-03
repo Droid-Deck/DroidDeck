@@ -3561,7 +3561,7 @@
     <string name="integration_shortcuts_maybe_restricted">Disattivato in grigio su Android? Informazioni app → ⋮ → Consenti impostazioni con limitazioni</string>
     <string name="integration_shortcuts_restricted">Bloccato da Android · Informazioni app → ⋮ → Consenti impostazioni con limitazioni</string>
     <string name="integration_shortcuts_service">Tasto Home di DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Inoltra le pressioni del tasto Home a Steam Guide mentre una sessione Steam è in primo piano e DroidDeck è l\'app Home predefinita. Non legge il contenuto dello schermo.</string>
+    <string name="integration_shortcuts_service_description">Il servizio di accessibilità abilita le scorciatoie Home/Guide e rileva le app sullo schermo inferiore. Legge localmente i nomi dei pacchetti delle app e i limiti delle finestre. Non legge testi, non acquisisce schermate e non invia questi dati.</string>
     <string name="integration_brightness_needed">Attiva Luminosità in Configurazione → Integrazione con Steam</string>
     <string name="apps_search_hint">Cerca app</string>
     <string name="apps_no_match">Nessuna app corrisponde a «%1$s».</string>
@@ -3688,4 +3688,5 @@
     <string name="bottom_strip_cpu_temp">Temperatura CPU</string>
     <string name="stats_hud_battery_temp">Batteria</string>
     <string name="stats_hud_game_cores">Gioco</string>
+    <string name="setup_privacy_policy">Informativa sulla privacy</string>
 </resources>

@@ -3498,7 +3498,7 @@
     <string name="integration_shortcuts_maybe_restricted">Dikelabukan dalam Android? Maklumat apl → ⋮ → Benarkan tetapan terhad</string>
     <string name="integration_shortcuts_restricted">Disekat oleh Android · Maklumat apl → ⋮ → Benarkan tetapan terhad</string>
     <string name="integration_shortcuts_service">Butang Laman Utama DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Menghantar tekanan butang Laman Utama kepada Steam Guide semasa sesi Steam difokuskan dan DroidDeck ialah apl Laman Utama lalai. Tidak membaca kandungan skrin.</string>
+    <string name="integration_shortcuts_service_description">Perkhidmatan kebolehcapaian mengaktifkan pintasan Home/Guide dan mengesan aplikasi pada skrin bawah. Perkhidmatan ini membaca nama pakej aplikasi dan sempadan tetingkap secara setempat. Ia tidak membaca teks, menangkap skrin atau menghantar data ini.</string>
     <string name="integration_brightness_needed">Hidupkan Kecerahan dalam Persediaan → Integrasi Steam</string>
     <string name="apps_search_hint">Cari apl</string>
     <string name="apps_no_match">Tiada apl sepadan dengan “%1$s”.</string>
@@ -3623,4 +3623,5 @@
     <string name="bottom_strip_cpu_temp">Suhu CPU</string>
     <string name="stats_hud_battery_temp">Bateri</string>
     <string name="stats_hud_game_cores">Permainan</string>
+    <string name="setup_privacy_policy">Dasar privasi</string>
 </resources>

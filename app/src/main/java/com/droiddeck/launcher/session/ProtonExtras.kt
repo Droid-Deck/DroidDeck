@@ -2,13 +2,15 @@ package com.droiddeck.launcher.session
 
 import com.droiddeck.launcher.core.Hashes
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.BuildConfig
 import android.content.Context
 import android.os.StatFs
 import android.util.Log
-import com.droiddeck.launcher.core.Downloader
+import com.droiddeck.launcher.core.ComponentDownloads
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
+import java.util.function.BooleanSupplier
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -30,17 +32,19 @@ object ProtonExtras {
 
     const val OWN = "droiddeck"
 
-    val tools = listOf(
+    internal val sources = listOf(
         Tool("ge", "GE-Proton", "GE-Proton", "GloriousEggroll/proton-ge-custom", Regex("aarch64\\.tar\\.(gz|xz)$")),
         Tool("cachyos", "proton-cachyos", "proton-cachyos", "CachyOS/proton-cachyos", Regex("arm64\\.tar\\.(gz|xz)$")),
-        Tool("droiddeck", "DroidDeck-Proton", "DroidDeck-Proton", "Droid-Deck/DroidDeck-Proton", Regex("aarch64\\.tar\\.(gz|xz)$")),
+        Tool("droiddeck", "DroidDeck-Proton", "DroidDeck-Proton", "Droid-Deck/DroidDeck-Proton", Regex(if (BuildConfig.PLAY_DISTRIBUTION) "aarch64\\.tar\\.(gz|xz|zst)$" else "aarch64\\.tar\\.(gz|xz)$")),
     )
+
+    val tools = sources.filter { !BuildConfig.PLAY_DISTRIBUTION || it.id == OWN }
 
     private fun home(context: Context) = File(LinuxRuntime.rootDir(context), "root")
     private fun requests(context: Context) = File(home(context), ".bl-proton-extra")
     private fun toolsDir(context: Context) = File(home(context), ".local/share/Steam/compatibilitytools.d")
     private fun releasesFile(context: Context) = File(context.filesDir, "proton-extras.json")
-    private fun latestFile(context: Context) = File(context.filesDir, "proton-latest.json")
+    private fun latestFile(context: Context) = File(context.filesDir, ComponentDownloads.catalogName("proton-latest.json"))
 
     fun installed(context: Context, tool: Tool): String? = installedIn(toolsDir(context), tool).lastOrNull()
 
@@ -200,13 +204,17 @@ object ProtonExtras {
     }
 
     @Synchronized
-    fun install(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
+    fun install(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? = install(context, tool, null, onProgress)
+
+    @Synchronized
+    fun install(context: Context, tool: Tool, cancelled: BooleanSupplier?, onProgress: (String, Int) -> Unit): String? {
         if (installInProgress) return context.getString(R.string.pextra_busy)
         installInProgress = true
-        return try { installNow(context, tool, onProgress) } finally { installInProgress = false }
+        return try { installNow(context, tool, cancelled, onProgress) } finally { installInProgress = false }
     }
 
-    private fun installNow(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
+    private fun installNow(context: Context, tool: Tool, cancelled: BooleanSupplier?, onProgress: (String, Int) -> Unit): String? {
+        if (cancelled?.asBoolean == true || Thread.currentThread().isInterrupted) return context.getString(R.string.pextra_interrupted)
         if (SessionState.running) return context.getString(R.string.pextra_stop_session)
         if (!LinuxRuntime.isInstalled(context)) return context.getString(R.string.user_apps_runtime_required)
 
@@ -223,10 +231,12 @@ object ProtonExtras {
         onProgress(downloading, 0)
         var downloaded = false
         for (attempt in 0 until 5) {
-            downloaded = Downloader.downloadFile(asset.url, archive, true, asset.sha256) { fraction ->
+            if (cancelled?.asBoolean == true || Thread.currentThread().isInterrupted) return context.getString(R.string.pextra_interrupted)
+            downloaded = ComponentDownloads.downloadFile(asset.url, archive, true, asset.sha256, cancelled) { fraction ->
                 onProgress(downloading, if (fraction < 0) -1 else (fraction * 100f).toInt().coerceIn(0, 100))
             }
             if (downloaded) break
+            if (cancelled?.asBoolean == true) return context.getString(R.string.pextra_interrupted)
             if (attempt < 4) {
                 onProgress(context.getString(R.string.pextra_retrying, attempt + 2, 5), -1)
                 try { Thread.sleep(3_000) } catch (_: InterruptedException) {
@@ -248,7 +258,7 @@ object ProtonExtras {
         val verified = when {
             asset.sha256 != null -> asset.sha256.equals(Hashes.sha256(archive), ignoreCase = true)
             asset.sha512 != null -> {
-                val expected = Downloader.downloadDirect(asset.sha512)?.let { Regex("(?i)\\b[0-9a-f]{128}\\b").find(it)?.value }
+                val expected = ComponentDownloads.downloadDirect(asset.sha512)?.let { Regex("(?i)\\b[0-9a-f]{128}\\b").find(it)?.value }
                     ?: return context.getString(R.string.pextra_checksum_unreadable)
                 expected.equals(Hashes.sha512(archive), ignoreCase = true)
             }
@@ -263,38 +273,23 @@ object ProtonExtras {
         }
 
         if (SessionState.running) return context.getString(R.string.pextra_session_started)
+        if (cancelled?.asBoolean == true || Thread.currentThread().isInterrupted) return context.getString(R.string.pextra_interrupted)
         val installing = context.getString(R.string.pextra_installing, tool.name)
         onProgress(installing, -1)
         return try {
             val root = LinuxRuntime.rootDir(context)
-            LinuxRuntime.writeAccounts(context)
-            com.droiddeck.launcher.session.SessionFiles.stage(context, root)
-            val runtimeDir = File(context.filesDir, ".proton-install-rt").apply { mkdirs() }
             val guest = listOf(
-                "/usr/bin/env", "-i", "HOME=/root", "USER=root", "PATH=/usr/local/bin:/usr/bin:/bin",
-                "LANG=C.UTF-8", "XDG_DATA_HOME=/root/.local/share",
                 "/usr/local/bin/droiddeck-proton-extra", "/root/.local/share/Steam", archive.absolutePath,
             )
-            val command = LinuxRuntime.command(context, null, runtimeDir, null, guest)
-            val process = ProcessBuilder(command)
-                .directory(root)
-                .redirectErrorStream(true)
-            val hostEnv = process.environment()
-            hostEnv["PROOT_LOADER"] = LinuxRuntime.prootLoader(context).path
-            hostEnv["PROOT_TMP_DIR"] = LinuxRuntime.prootTempDir(context).path
-            LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { hostEnv["LD_LIBRARY_PATH"] = it }
-            val child = process.start()
             var placed: String? = null
-            child.inputStream.bufferedReader().useLines { lines ->
-                lines.forEach { line ->
-                    Log.i(TAG, line)
-                    line.substringAfter("droiddeck-proton-extra: installed ", "").takeIf { it.isNotEmpty() }?.let { placed = it }
-                    if (line.contains("unpacking", ignoreCase = true) || line.contains("adopted", ignoreCase = true)) {
-                        onProgress(installing, -1)
-                    }
+            val status = com.droiddeck.launcher.runtime.GuestCommand.runCancellable(context, guest, cancelled) { line ->
+                Log.i(TAG, line)
+                line.substringAfter("droiddeck-proton-extra: installed ", "").takeIf { it.isNotEmpty() }?.let { placed = it }
+                if (line.contains("unpacking", ignoreCase = true) || line.contains("adopted", ignoreCase = true)) {
+                    onProgress(installing, -1)
                 }
             }
-            val status = child.waitFor()
+            if (cancelled?.asBoolean == true || Thread.currentThread().isInterrupted) return context.getString(R.string.pextra_interrupted)
             if (status != 0) context.getString(R.string.pextra_install_failed, tool.name, status)
             else {
                 archive.delete()
@@ -318,7 +313,7 @@ object ProtonExtras {
     }
 
     private fun findLatestAsset(tool: Tool): Asset? {
-        val releases = Downloader.downloadString(RELEASES.format(tool.repo)) ?: return null
+        val releases = ComponentDownloads.downloadString(RELEASES.format(tool.repo)) ?: return null
         return try {
             pickAsset(tool, JSONArray(releases))
         } catch (e: Exception) {
@@ -341,7 +336,9 @@ object ProtonExtras {
             }?.optString("browser_download_url")?.takeIf { it.startsWith("http") }
             return Asset(
                 release.optString("tag_name"), name,
-                archive.optString("browser_download_url").takeIf { it.startsWith("http") } ?: continue, checksum,
+                archive.optString("browser_download_url").takeIf {
+                    it.startsWith("http") || BuildConfig.PLAY_DISTRIBUTION && it.startsWith("droiddeck-bundle://")
+                } ?: continue, checksum,
                 archive.optLong("size", 0L),
                 Hashes.githubSha256(archive.optString("digest")),
             )

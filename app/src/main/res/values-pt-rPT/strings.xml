@@ -3561,7 +3561,7 @@
     <string name="integration_shortcuts_maybe_restricted">Desativado a cinzento no Android? Informações da aplicação → ⋮ → Permitir definições restritas</string>
     <string name="integration_shortcuts_restricted">Bloqueado pelo Android · Informações da aplicação → ⋮ → Permitir definições restritas</string>
     <string name="integration_shortcuts_service">Botão Página inicial do DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Envia os toques no botão Página inicial para o Guide do Steam enquanto uma sessão do Steam está em foco e o DroidDeck é a app de página inicial predefinida. Não lê o conteúdo do ecrã.</string>
+    <string name="integration_shortcuts_service_description">O serviço de acessibilidade ativa os atalhos Home/Guide e deteta aplicações no ecrã inferior. Lê localmente os nomes dos pacotes das aplicações e os limites das janelas. Não lê texto, não captura ecrãs nem envia estes dados.</string>
     <string name="integration_brightness_needed">Ative Brilho em Configuração → Integração com o Steam</string>
     <string name="apps_search_hint">Pesquisar aplicações</string>
     <string name="apps_no_match">Nenhuma aplicação corresponde a “%1$s”.</string>
@@ -3688,4 +3688,5 @@
     <string name="bottom_strip_cpu_temp">Temperatura da CPU</string>
     <string name="stats_hud_battery_temp">Bateria</string>
     <string name="stats_hud_game_cores">Jogo</string>
+    <string name="setup_privacy_policy">Política de privacidade</string>
 </resources>

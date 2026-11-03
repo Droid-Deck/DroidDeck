@@ -9,6 +9,8 @@ import android.os.Looper
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import com.droiddeck.launcher.HomeApp
+import com.droiddeck.launcher.core.SteamIntegration
+import java.lang.ref.WeakReference
 
 object HomeButtonShortcuts {
     private var owner: Any? = null
@@ -47,10 +49,20 @@ object HomeButtonShortcuts {
 
 class HomeButtonService : AccessibilityService(), InputManager.InputDeviceListener {
     private var bottomScreen: BottomScreenWatch? = null
+    private var consented = false
 
     override fun onServiceConnected() {
+        current = WeakReference(this)
         getSystemService(InputManager::class.java).registerInputDeviceListener(this, Handler(Looper.getMainLooper()))
-        if (android.os.Build.VERSION.SDK_INT >= 33 && bottomScreen == null && BottomScreenGuests.supported()) bottomScreen = BottomScreenWatch(this).also { it.start() }
+        updateConsent()
+    }
+
+    private fun updateConsent() {
+        consented = SteamIntegration.accessibilityConsented(this)
+        if (consented && android.os.Build.VERSION.SDK_INT >= 33 && bottomScreen == null && BottomScreenGuests.supported()) {
+            bottomScreen = BottomScreenWatch(this).also { it.start() }
+        }
+        if (!consented) stopBottomScreen()
     }
 
     private fun stopBottomScreen() {
@@ -58,7 +70,7 @@ class HomeButtonService : AccessibilityService(), InputManager.InputDeviceListen
         bottomScreen = null
     }
 
-    override fun onKeyEvent(event: KeyEvent) = HomeButtonShortcuts.onKeyEvent(this, event)
+    override fun onKeyEvent(event: KeyEvent) = consented && HomeButtonShortcuts.onKeyEvent(this, event)
     override fun onAccessibilityEvent(event: AccessibilityEvent?) { if (android.os.Build.VERSION.SDK_INT >= 33) event?.let { bottomScreen?.onEvent(it) } }
     override fun onInterrupt() { HomeButtonShortcuts.release() }
     override fun onInputDeviceAdded(deviceId: Int) {}
@@ -66,6 +78,8 @@ class HomeButtonService : AccessibilityService(), InputManager.InputDeviceListen
     override fun onInputDeviceRemoved(deviceId: Int) { HomeButtonShortcuts.onDeviceRemoved(deviceId) }
 
     override fun onUnbind(intent: Intent?): Boolean {
+        if (current?.get() === this) current = null
+        consented = false
         HomeButtonShortcuts.release()
         stopBottomScreen()
         com.droiddeck.launcher.core.SteamIntegration.syncShortcutsListing(this)
@@ -73,9 +87,16 @@ class HomeButtonService : AccessibilityService(), InputManager.InputDeviceListen
     }
 
     override fun onDestroy() {
+        if (current?.get() === this) current = null
         HomeButtonShortcuts.release()
         stopBottomScreen()
         getSystemService(InputManager::class.java).unregisterInputDeviceListener(this)
         super.onDestroy()
+    }
+
+    companion object {
+        private var current: WeakReference<HomeButtonService>? = null
+
+        fun consentChanged() { current?.get()?.updateConsent() }
     }
 }

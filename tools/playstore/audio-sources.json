@@ -1,0 +1,22 @@
+{
+  "android-module": {
+    "sha256": "77637cae61e6200a8b3340b58080e9cf5b8740b924275009a86cb2ad3ba0b934",
+    "size": 3378196,
+    "url": "https://codeload.github.com/brunodev85/pulseaudio-android/tar.gz/77c8a7217c5746d44787e78f9b141e7503c981f4"
+  },
+  "libsndfile": {
+    "sha256": "82f6a864fb7fb5e9254f91d9191271a8d76ae01848f7284a21602329310088f9",
+    "size": 663130,
+    "url": "https://codeload.github.com/libsndfile/libsndfile/tar.gz/d60deb5d8691997b6bb28d88e3b43f322073d146"
+  },
+  "libtool": {
+    "sha256": "7c87a8c2c8c0fc9cd5019e402bed4292462d00a718a7cd5f11218153bf28b26f",
+    "size": 973080,
+    "url": "https://ftp.gnu.org/gnu/libtool/libtool-2.4.6.tar.xz"
+  },
+  "pulseaudio": {
+    "sha256": "8da3360e199609e64a413e0e181a121770b6aac16e6ec5327abb8f75928a0c7d",
+    "size": 2531732,
+    "url": "https://codeload.github.com/pulseaudio/pulseaudio/tar.gz/200618b32f0964a479d69c9b6e5073e6931c370a"
+  }
+}

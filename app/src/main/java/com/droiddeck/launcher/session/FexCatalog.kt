@@ -3,7 +3,7 @@ package com.droiddeck.launcher.session
 import android.content.Context
 import android.util.Log
 import com.droiddeck.launcher.core.DownloadSource
-import com.droiddeck.launcher.core.Downloader
+import com.droiddeck.launcher.core.ComponentDownloads
 import org.json.JSONObject
 import java.io.File
 
@@ -20,7 +20,7 @@ object FexCatalog {
 
     @Volatile private var refreshedAt = 0L
 
-    private fun file(context: Context) = File(context.filesDir, "fex-catalog.json")
+    private fun file(context: Context) = File(context.filesDir, ComponentDownloads.catalogName("fex-catalog.json"))
 
     internal fun parse(text: String): Build? = runCatching {
         val o = JSONObject(text)
@@ -42,7 +42,7 @@ object FexCatalog {
     fun refresh(context: Context, now: Long = System.currentTimeMillis()): Build? {
         if (now - refreshedAt < REFRESH_MS) return cached(context)
         refreshedAt = now
-        val text = Downloader.downloadDirect(CATALOG_URL) ?: return cached(context)
+        val text = ComponentDownloads.downloadDirect(CATALOG_URL) ?: return cached(context)
         val build = parse(text) ?: run {
             Log.w(TAG, "fex.json not usable; keeping the last one")
             return cached(context)

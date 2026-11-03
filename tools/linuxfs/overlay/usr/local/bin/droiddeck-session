@@ -507,6 +507,10 @@ case $mode in
       _bl_got_proton=0
       while read -r _bl_extra || [ -n "$_bl_extra" ]; do
         case ${_bl_extra# } in ""|"#"*) continue ;; esac
+        if compgen -G '/opt/droiddeck-bundles/*/*.apk' >/dev/null && [ "${_bl_extra%% *}" != droiddeck ]; then
+          echo "$_bl_extra" >> "$_bl_left"
+          continue
+        fi
         step "installing Proton '$_bl_extra' (large download, several minutes)"
         if droiddeck-proton-extra "$_bl_proton_root" $_bl_extra; then
           _bl_got_proton=1

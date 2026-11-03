@@ -2,6 +2,7 @@ import json
 import runpy
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 BIN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin"
@@ -19,6 +20,14 @@ def config_text(entries):
 
 
 class DroidDeckProtonDefaultTest(unittest.TestCase):
+    def test_play_migrates_unavailable_alternate_requests_to_droiddeck_proton(self):
+        with patch.dict(COMPAT['requested_tool'].__globals__, PLAY_BUNDLES=True):
+            self.assertEqual(NEW['name'], COMPAT['requested_tool'](GE, [NEW]))
+            self.assertEqual(NEW['name'], COMPAT['requested_tool'](VALVE, [NEW]))
+            default, state = COMPAT['choose_default'](GE['name'], {'default': GE['name']}, {}, [NEW])
+            self.assertEqual(NEW['name'], default)
+            self.assertEqual(NEW['name'], state['default'])
+
     def run_default(self, state, mapping, catalog, apps=(), request=None, settle=True):
         with tempfile.TemporaryDirectory() as tmp:
             directory = Path(tmp)

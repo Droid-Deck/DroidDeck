@@ -3561,7 +3561,7 @@
     <string name="integration_shortcuts_maybe_restricted">Inactiv în Android? Informații despre aplicație → ⋮ → Permite setările restricționate</string>
     <string name="integration_shortcuts_restricted">Blocat de Android · Informații despre aplicație → ⋮ → Permite setările restricționate</string>
     <string name="integration_shortcuts_service">Butonul Acasă DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Transmite apăsările butonului Acasă către Steam Guide cât timp o sesiune Steam este activă și DroidDeck este aplicația Acasă implicită. Nu citește conținutul ecranului.</string>
+    <string name="integration_shortcuts_service_description">Serviciul de accesibilitate activează comenzile rapide Home/Guide și detectează aplicațiile de pe ecranul inferior. Citește local numele pachetelor aplicațiilor și limitele ferestrelor. Nu citește text, nu capturează ecrane și nu trimite aceste date.</string>
     <string name="integration_brightness_needed">Activează Luminozitate în Configurare → Integrare Steam</string>
     <string name="apps_search_hint">Caută aplicații</string>
     <string name="apps_no_match">Nicio aplicație nu se potrivește cu „%1$s”.</string>
@@ -3688,4 +3688,5 @@
     <string name="bottom_strip_cpu_temp">Temperatura CPU</string>
     <string name="stats_hud_battery_temp">Baterie</string>
     <string name="stats_hud_game_cores">Joc</string>
+    <string name="setup_privacy_policy">Politica de confidențialitate</string>
 </resources>
