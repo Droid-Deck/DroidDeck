@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #define AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT 0x200ULL
