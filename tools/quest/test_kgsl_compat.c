@@ -45,6 +45,7 @@ static struct kgsl_gpumem_alloc_id reset(void) {
 }
 static int read_error, wait_error, waits;
 static unsigned int waited_for;
+static void (*during_wait)(void);
 static int timestamp_mock(int fd, unsigned long request, void *arg) {
     assert(fd == 42);
     if (request == IOCTL_KGSL_GPU_COMMAND || request == IOCTL_KGSL_DRAWCTXT_DESTROY) return 0;
@@ -57,6 +58,7 @@ static int timestamp_mock(int fd, unsigned long request, void *arg) {
         assert(w->timeout == 0);
         waits++;
         waited_for = w->timestamp;
+        if (during_wait) during_wait();
         if (wait_error) { errno = wait_error; return -1; }
         return 0;
     }
@@ -72,6 +74,13 @@ static int read_ts(unsigned int context, unsigned int type, unsigned int *timest
     int rc = quest_kgsl_ioctl(timestamp_mock, 42, IOCTL_KGSL_CMDSTREAM_READTIMESTAMP_CTXTID, &q);
     *timestamp = q.timestamp;
     return rc;
+}
+static void submit(unsigned int context, unsigned int timestamp);
+static void recreate_context(void) {
+    struct kgsl_drawctxt_destroy gone = {.drawctxt_id = 8};
+    during_wait = NULL;
+    assert(quest_kgsl_ioctl(timestamp_mock, 42, IOCTL_KGSL_DRAWCTXT_DESTROY, &gone) == 0);
+    submit(8, 20);
 }
 static void timestamp_scenarios(void) {
     unsigned int ts;
@@ -99,6 +108,13 @@ static void timestamp_scenarios(void) {
     assert(read_ts(5, KGSL_TIMESTAMP_QUEUED, &ts) == -1 && errno == EACCES);
     for (unsigned int c = 100; c < 100 + 129; c++) submit(c, c);
     for (unsigned int c = 100; c < 100 + 129; c++) assert(read_ts(c, KGSL_TIMESTAMP_QUEUED, &ts) == 0 && ts == c);
+    submit(8, 5);
+    during_wait = recreate_context;
+    assert(read_ts(8, KGSL_TIMESTAMP_RETIRED, &ts) == 0 && ts == 5);
+    wait_error = ETIMEDOUT;
+    assert(read_ts(8, KGSL_TIMESTAMP_RETIRED, &ts) == 0 && ts == 0 && waited_for == 20);
+    wait_error = 0;
+    assert(read_ts(8, KGSL_TIMESTAMP_RETIRED, &ts) == 0 && ts == 20);
     read_error = EIO;
     submit(6, 3);
     assert(read_ts(6, KGSL_TIMESTAMP_QUEUED, &ts) == -1 && errno == EIO);

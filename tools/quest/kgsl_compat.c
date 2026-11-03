@@ -31,11 +31,12 @@ static void report(const char *operation, int error) {
 }
 
 struct tracked_context {
-    unsigned int context, queued, retired;
+    unsigned int context, queued, retired, generation;
 };
 
 static struct tracked_context *tracked;
 static unsigned int tracked_count, tracked_capacity;
+static unsigned int next_generation;
 static char tracked_lock;
 
 static void tracked_acquire(void) {
@@ -65,6 +66,7 @@ static int tracked_find(unsigned int context, int create) {
     }
     tracked[free_slot].context = context;
     tracked[free_slot].queued = tracked[free_slot].retired = 0;
+    tracked[free_slot].generation = ++next_generation;
     return free_slot;
 }
 
@@ -92,6 +94,7 @@ static int read_timestamp(quest_ioctl_fn real, int fd, struct kgsl_cmdstream_rea
     int slot = tracked_find(query->context_id, 0);
     unsigned int queued = slot < 0 ? 0 : tracked[slot].queued;
     unsigned int retired = slot < 0 ? 0 : tracked[slot].retired;
+    unsigned int generation = slot < 0 ? 0 : tracked[slot].generation;
     tracked_release();
     if (slot < 0 || (query->type != KGSL_TIMESTAMP_RETIRED && query->type != KGSL_TIMESTAMP_QUEUED)) {
         errno = EACCES;
@@ -105,7 +108,8 @@ static int read_timestamp(quest_ioctl_fn real, int fd, struct kgsl_cmdstream_rea
             retired = queued;
             tracked_acquire();
             slot = tracked_find(query->context_id, 0);
-            if (slot >= 0 && (int)(retired - tracked[slot].retired) > 0) tracked[slot].retired = retired;
+            if (slot >= 0 && tracked[slot].generation == generation &&
+                (int)(retired - tracked[slot].retired) > 0) tracked[slot].retired = retired;
             tracked_release();
         } else if (errno != ETIMEDOUT) {
             return -1;
