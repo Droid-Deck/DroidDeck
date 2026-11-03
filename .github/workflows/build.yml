@@ -940,7 +940,7 @@ jobs:
           fetch https://github.com/taowen/libhybris.git "$HYBRIS_REVISION" "$test_root/libhybris"
           fetch https://github.com/KhronosGroup/Vulkan-Headers.git "$VULKAN_HEADERS_REVISION" "$test_root/vulkan-headers"
           test -f "$test_root/vulkan-headers/include/vulkan/vulkan.h"
-          for variable in HYBRIS_VENDOR_SOURCE HYBRIS_CLIP_SOURCE HYBRIS_PUSH_SOURCE HYBRIS_PLACED_SOURCE HYBRIS_TLS_SOURCE; do
+          for variable in HYBRIS_VENDOR_SOURCE HYBRIS_CLIP_SOURCE HYBRIS_PUSH_SOURCE HYBRIS_PLACED_SOURCE HYBRIS_TLS_SOURCE HYBRIS_SIZES_SOURCE; do
             printf '%s=%s\n' "$variable" "$test_root/libhybris" >> "$GITHUB_ENV"
           done
           printf 'VULKAN_INCLUDE=%s\n' "$test_root/vulkan-headers/include" >> "$GITHUB_ENV"
