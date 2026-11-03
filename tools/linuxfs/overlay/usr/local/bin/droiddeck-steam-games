@@ -380,6 +380,13 @@ def update_not_started(text, steamapps, appid, installdir):
             and not (steamapps / "downloading" / str(appid)).exists())
 
 
+def update_on_launch(text):
+    if re.search(r'^\s*"AutoUpdateBehavior"', text, re.M):
+        return re.sub(r'^(\s*"AutoUpdateBehavior"\s*")0(")', r"\g<1>1\2", text, count=1, flags=re.M)
+    end = text.rstrip().rfind("}")
+    return text[:end] + '\t"AutoUpdateBehavior"\t\t"1"\n' + text[end:]
+
+
 def libraries(steam_root):
     try:
         text = (Path(steam_root) / "steamapps/libraryfolders.vdf").read_text(errors="replace")
@@ -436,9 +443,11 @@ def seed_install(steam_root, game, appid):
     minimal = ('"AppState"\n{\n' + f'    "appid" "{appid}"\n    "Universe" "1"\n    "name" "{title}"\n'
                + f'    "StateFlags" "4"\n    "installdir" "{name}"\n' + '}\n')
     legacy = minimal.replace('    "Universe" "1"\n', '')
+    # Steam checks every file of an import with no build before updating it, from scratch each time it is interrupted.
+    bare = minimal[:-2] + '    "AutoUpdateBehavior" "1"\n}\n'
     build = installed_build(source, appid, name)
     if build is None:
-        content = minimal
+        content = bare
     elif build.lstrip().startswith('"AppState"'):
         content = build
     else:
@@ -452,13 +461,19 @@ def seed_install(steam_root, game, appid):
     for root in libraries(steam_root):
         existing = root / "steamapps" / manifest.name
         if existing.is_file():
-            if (existing == manifest and source.is_dir() and target.is_symlink()
-                    and os.readlink(target) == str(source)
-                    and existing.read_text() != content
-                    and (existing.read_text() in (minimal, legacy, legacy.replace('"StateFlags" "4"', '"StateFlags" "2"'))
-                         or (build is not None and update_not_started(existing.read_text(), steamapps, appid, name)))):
+            text = existing.read_text()
+            linked = (existing == manifest and source.is_dir() and target.is_symlink()
+                      and os.readlink(target) == str(source))
+            if linked and build is None and update_not_started(text, steamapps, appid, name):
+                wanted = update_on_launch(text)
+            elif linked and (text in (minimal, bare, legacy, legacy.replace('"StateFlags" "4"', '"StateFlags" "2"'))
+                             or (build is not None and update_not_started(text, steamapps, appid, name))):
+                wanted = content
+            else:
+                wanted = text
+            if wanted != text:
                 temp = manifest.with_suffix(".droiddeck")
-                temp.write_text(content)
+                temp.write_text(wanted)
                 os.replace(temp, manifest)
             return True
     if not source.is_dir():
