@@ -29,7 +29,7 @@ static void report(const char *operation, int error) {
     errno = saved;
 }
 
-#define TRACKED_CONTEXTS 32
+#define TRACKED_CONTEXTS 128
 
 static struct {
     unsigned int context, queued, retired;
@@ -51,7 +51,11 @@ static int tracked_find(unsigned int context, int create) {
         if (free_slot < 0 && tracked[i].context == 0) free_slot = i;
     }
     if (!create) return -1;
-    if (free_slot < 0) free_slot = (int)(context % TRACKED_CONTEXTS);
+    if (free_slot < 0) {
+        free_slot = (int)(context % TRACKED_CONTEXTS);
+        for (int i = 0; i < TRACKED_CONTEXTS; i++)
+            if (tracked[i].queued == tracked[i].retired) { free_slot = i; break; }
+    }
     tracked[free_slot].context = context;
     tracked[free_slot].queued = tracked[free_slot].retired = 0;
     return free_slot;
@@ -81,7 +85,10 @@ static int read_timestamp(quest_ioctl_fn real, int fd, struct kgsl_cmdstream_rea
     unsigned int queued = slot < 0 ? 0 : tracked[slot].queued;
     unsigned int retired = slot < 0 ? 0 : tracked[slot].retired;
     tracked_release();
-    if (slot < 0) { errno = EACCES; return -1; }
+    if (slot < 0 || (query->type != KGSL_TIMESTAMP_RETIRED && query->type != KGSL_TIMESTAMP_QUEUED)) {
+        errno = EACCES;
+        return -1;
+    }
 
     if (query->type == KGSL_TIMESTAMP_RETIRED && (int)(queued - retired) > 0) {
         struct kgsl_device_waittimestamp_ctxtid wait = {

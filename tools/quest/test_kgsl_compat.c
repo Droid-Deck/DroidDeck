@@ -79,6 +79,7 @@ static void timestamp_scenarios(void) {
     assert(read_ts(5, KGSL_TIMESTAMP_RETIRED, &ts) == -1 && errno == EACCES && ts == 0xdead);
     submit(5, 10);
     assert(read_ts(5, KGSL_TIMESTAMP_QUEUED, &ts) == 0 && ts == 10 && waits == 0);
+    assert(read_ts(5, KGSL_TIMESTAMP_CONSUMED, &ts) == -1 && errno == EACCES && ts == 0xdead);
     wait_error = ETIMEDOUT;
     assert(read_ts(5, KGSL_TIMESTAMP_RETIRED, &ts) == 0 && ts == 0 && waits == 1 && waited_for == 10);
     wait_error = 0;
@@ -96,6 +97,9 @@ static void timestamp_scenarios(void) {
     struct kgsl_drawctxt_destroy gone = {.drawctxt_id = 5};
     assert(quest_kgsl_ioctl(timestamp_mock, 42, IOCTL_KGSL_DRAWCTXT_DESTROY, &gone) == 0);
     assert(read_ts(5, KGSL_TIMESTAMP_QUEUED, &ts) == -1 && errno == EACCES);
+    for (unsigned int c = 100; c < 100 + 130; c++) submit(c, 7);
+    submit(200, 9);
+    assert(read_ts(200, KGSL_TIMESTAMP_QUEUED, &ts) == 0 && ts == 9);
     read_error = EIO;
     submit(6, 3);
     assert(read_ts(6, KGSL_TIMESTAMP_QUEUED, &ts) == -1 && errno == EIO);
