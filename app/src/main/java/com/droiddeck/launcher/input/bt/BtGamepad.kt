@@ -24,6 +24,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.ParcelUuid
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.util.Log
@@ -52,7 +53,7 @@ object BtGamepad {
     private val pendingServices = ArrayDeque<BluetoothGattService>()
     private val reportRefs = HashMap<BluetoothGattCharacteristic, Pair<Int, Int>>()
     private val inputChars = HashMap<Int, BluetoothGattCharacteristic>()
-    private val longReads = HashMap<BluetoothGattCharacteristic, ByteArray>()
+    private val longReads = HashMap<Pair<String, BluetoothGattCharacteristic>, ByteArray>()
     private val preparedWrites = HashMap<BluetoothGattCharacteristic, ByteArray>()
     private var host: BluetoothDevice? = null
     private var priorityLink: BluetoothGatt? = null
@@ -67,6 +68,8 @@ object BtGamepad {
     private var pairingUntil = 0L
     private var pendingHost: BluetoothDevice? = null
     private var fastLinkPending = false
+    private var notifiedAt = 0L
+    private const val NOTIFY_TIMEOUT_MS = 100L
     private const val PAIRING_WINDOW_MS = 120_000L
     private const val MAX_MTU = 517
     private const val FAST_LINK_DELAY_MS = 1_500L
@@ -130,8 +133,11 @@ object BtGamepad {
             stopAdvertising()
             h.removeCallbacks(periodic)
             dropFastLink()
+            pendingHost?.let { d -> runCatching { server?.cancelConnection(d) } }
+            pendingHost = null
             host?.let { d -> runCatching { server?.cancelConnection(d) } }
             host = null
+            longReads.clear()
             _status.value = Status(Phase.OFF)
         }
     }
@@ -230,6 +236,7 @@ object BtGamepad {
         }
         server = null
         host = null
+        pendingHost = null
         notifyPending = false
         dirty = false
         reportRefs.clear()
@@ -389,7 +396,8 @@ object BtGamepad {
 
         override fun onCharacteristicReadRequest(device: BluetoothDevice, requestId: Int, offset: Int, chr: BluetoothGattCharacteristic) {
             handler?.post {
-                val value = if (offset > 0) longReads[chr] ?: valueOf(chr, device) else valueOf(chr, device).also { longReads[chr] = it }
+                val key = device.address to chr
+                val value = if (offset > 0) longReads[key] ?: valueOf(chr, device) else valueOf(chr, device).also { longReads[key] = it }
                 val reply = if (offset >= value.size) ByteArray(0) else value.copyOfRange(offset, value.size)
                 server?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, reply)
                 if (chr.uuid == uuid16(0x2A4B)) attach(device)
@@ -475,7 +483,7 @@ object BtGamepad {
     }
 
     private fun attach(device: BluetoothDevice) {
-        if (host != null) return
+        if (host != null || !running) return
         if (device.bondState != BluetoothDevice.BOND_BONDED) {
             pendingHost = device
             publish(Phase.CONNECTING, device)
@@ -539,17 +547,13 @@ object BtGamepad {
     private fun sendNow() {
         val s = server ?: return
         val device = host ?: return
-        if (notifyPending) {
+        if (notifyPending && SystemClock.elapsedRealtime() - notifiedAt < NOTIFY_TIMEOUT_MS) {
             dirty = true
             return
         }
-        val chr = inputChars[encoder.inputId()] ?: return
         val state = current()
-        val value = encoder.input(state)
-        if (value.size > mtu - 3) {
-            dirty = false
-            return
-        }
+        val (id, value) = encoder.report(state, mtu - 3)
+        val chr = inputChars[id] ?: return
         val ok = runCatching {
             if (Build.VERSION.SDK_INT >= 33) {
                 s.notifyCharacteristicChanged(device, chr, false, value) == BluetoothGatt.GATT_SUCCESS
@@ -562,6 +566,7 @@ object BtGamepad {
         }.getOrDefault(false)
         dirty = !ok
         notifyPending = ok
+        notifiedAt = SystemClock.elapsedRealtime()
         if (ok) {
             sent.set(state)
             sentOnce = true

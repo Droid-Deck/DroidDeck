@@ -115,6 +115,11 @@ abstract class BtPadEncoder {
     abstract fun inputId(): Int
     abstract fun input(s: BtPadState): ByteArray
     open val periodMs = 0L
+
+    open fun report(s: BtPadState, limit: Int): Pair<Int, ByteArray> {
+        val v = input(s)
+        return inputId() to if (v.size > limit) v.copyOf(limit) else v
+    }
     open fun feature(id: Int): ByteArray? = null
     open fun setFeature(id: Int, data: ByteArray) {}
     open fun output(id: Int, data: ByteArray): BtFeedback? = null
@@ -265,6 +270,11 @@ private abstract class SonyEncoder : BtPadEncoder() {
         if (s.isDown(BtPadState.GUIDE)) b2 = b2 or 0x01
         if (s.isDown(BtPadState.TOUCHPAD)) b2 = b2 or 0x02
         return intArrayOf(b0, b1, b2)
+    }
+
+    override fun report(s: BtPadState, limit: Int): Pair<Int, ByteArray> {
+        val full = input(s)
+        return if (full.size <= limit) inputId() to full else 1 to simple(s)
     }
 
     protected fun simple(s: BtPadState): ByteArray {
