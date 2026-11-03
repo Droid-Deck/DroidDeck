@@ -1,6 +1,9 @@
 package com.droiddeck.launcher.gpu
 
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
 import android.util.Log
@@ -65,6 +68,7 @@ class ClockLogComponent(private val logFile: File) : SessionPart() {
                             if (!h.isNaN()) line.append(String.format(Locale.US, " headroom %.2f", h))
                         }
                     }
+                    batteryTenths()?.let { line.append(String.format(Locale.US, " | battery %.1f C", it / 10.0)) }
                     w.write(line.append('\n').toString())
                     w.flush()
                     try { Thread.sleep(PERIOD_MS) } catch (e: InterruptedException) { break }
@@ -74,6 +78,10 @@ class ClockLogComponent(private val logFile: File) : SessionPart() {
             Log.w(TAG, "clock log stopped: $e")
         }
     }
+
+    private fun batteryTenths(): Int? =
+        app().registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            ?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)?.takeIf { it != Int.MIN_VALUE }
 
     companion object {
         private const val TAG = "SessionService"
