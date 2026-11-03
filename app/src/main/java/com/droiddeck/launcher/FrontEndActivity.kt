@@ -163,6 +163,10 @@ class FrontEndActivity : ComponentActivity() {
     private var gameCores by mutableStateOf<Set<Int>>(emptySet())
     private var tuSysmem by mutableStateOf(false)
     private var zinkLazy by mutableStateOf(false)
+    private var vkBridge by mutableStateOf(false)
+    private var vkBridgeSafe by mutableStateOf(true)
+    private var bridgeProtonDxvk by mutableStateOf(false)
+    private val adrenoGpu by lazy { com.droiddeck.launcher.core.DeviceSupport.adreno() }
     private var noXalia by mutableStateOf(true)
     private var fastSync by mutableStateOf(false)
     private var syncFallback by mutableStateOf(true)
@@ -496,18 +500,38 @@ class FrontEndActivity : ComponentActivity() {
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data)?.let { path -> setGameStorage(path, GameStorage.labelFor(this, path)) }
     }
     private var steamLibraries by mutableStateOf<List<SteamLibraries.Entry>>(emptyList())
+    private var foundSteamLibraries by mutableStateOf<List<SteamLibraries.Found>>(emptyList())
+    private var allFilesAccessMissing by mutableStateOf(false)
+    private var steamLibraryScan = 0
     private val pickSteamLibrary = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         val path = if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data) else null
-        if (path != null) Thread({
+        if (path != null) addSteamLibrary(path)
+    }
+
+    private fun addSteamLibrary(path: String) {
+        Thread({
             val result = SteamLibraries.add(this, path)
             ui.post {
                 steamLibraries = SteamLibraries.list(this)
+                refreshFoundSteamLibraries()
                 refresh()
-                if (result is SteamLibraries.AddResult.Refused) {
-                    android.widget.Toast.makeText(this, getString(R.string.main_storage_not_usable, result.reason), android.widget.Toast.LENGTH_LONG).show()
+                when {
+                    result is SteamLibraries.AddResult.Refused ->
+                        android.widget.Toast.makeText(this, getString(R.string.main_storage_not_usable, result.reason), android.widget.Toast.LENGTH_LONG).show()
+                    result is SteamLibraries.AddResult.Added && result.entry.path != path ->
+                        android.widget.Toast.makeText(this, getString(R.string.libraries_used_inner, result.entry.label), android.widget.Toast.LENGTH_LONG).show()
                 }
             }
         }, "steam-library-add").start()
+    }
+
+    private fun refreshFoundSteamLibraries() {
+        allFilesAccessMissing = com.droiddeck.launcher.files.AllFilesAccess.missing()
+        val scan = ++steamLibraryScan
+        Thread({
+            val found = SteamLibraries.found(this)
+            ui.post { if (scan == steamLibraryScan) foundSteamLibraries = found }
+        }, "steam-library-scan").start()
     }
     private var romsDir by mutableStateOf<String?>(null)
     private var steamGames by mutableStateOf<List<Library.SteamGame>>(emptyList())
@@ -1056,6 +1080,7 @@ class FrontEndActivity : ComponentActivity() {
                 FrontEndScreen(
                     FrontEndState(
                         installed = installed, ready = ready, available = available?.version, removalPending = removalPending, runtimeActionsBlocked = runtimeChangesBlocked(),
+                        vkBridge = vkBridge, vkBridgeSafe = vkBridgeSafe, bridgeProtonDxvk = bridgeProtonDxvk, adreno = adrenoGpu,
                         shortcutPicker = shortcutPicker,
                         shortcutLibraryScanning = shortcutLibraryScanning,
                         gameSyncFolder = gameSyncFolder,
@@ -1204,6 +1229,15 @@ class FrontEndActivity : ComponentActivity() {
                         onInstallPackage = { id -> installPackage(id) },
                         onRemovePackage = { id -> removePackage(id) },
                         onRuntime = { onRuntimeButton() },
+                        onVkBridge = { on ->
+                            SessionPrefs.setVkBridge(this, on); vkBridge = on
+                            if (!on) com.droiddeck.launcher.session.ComponentsManager.settleAutoDxvk(this)
+                        },
+                        onVkBridgeSafe = { on -> SessionPrefs.setVkBridgeSafe(this, on); vkBridgeSafe = on },
+                        onBridgeProtonDxvk = { on ->
+                            SessionPrefs.setBridgeProtonDxvk(this, on); bridgeProtonDxvk = on
+                            if (on) com.droiddeck.launcher.session.ComponentsManager.settleAutoDxvk(this)
+                        },
                         onFrameGenPick = { mode ->
                             FrameGen.set(this, mode)
                             frameGenLabel = FrameGen.label(this)
@@ -1681,6 +1715,7 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (settingsMode == SessionService.MODE_STEAM) refreshFoundSteamLibraries()
         compatLaunchVisible = true
         com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
         com.droiddeck.launcher.ui.DualScreenPanel.ownerPaused(taskId, false)
@@ -2141,6 +2176,8 @@ class FrontEndActivity : ComponentActivity() {
                 gameStorage = if (mode == SessionService.MODE_STEAM) gameStorage else null,
                 storageOptions = storageOptions,
                 steamLibraries = steamLibraries,
+                foundSteamLibraries = foundSteamLibraries,
+                allFilesAccessMissing = allFilesAccessMissing,
                 storageDiagnostics = mode == SessionService.MODE_STEAM && storageDiagnostics,
                 fexPreset = if (mode == SessionService.MODE_STEAM) fexPreset else null,
                 forceSsbs = forceSsbs,
@@ -2208,6 +2245,8 @@ class FrontEndActivity : ComponentActivity() {
                 onAddSteamLibrary = {
                     pickSteamLibrary.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.libraries_pick), null))
                 },
+                onAddFoundSteamLibrary = { path -> addSteamLibrary(path) },
+                onAllowAllFilesAccess = { com.droiddeck.launcher.files.AllFilesAccess.open(this) },
                 onRenameSteamLibrary = { id, label ->
                     SteamLibraries.rename(this, id, label)
                     steamLibraries = SteamLibraries.list(this)
@@ -2217,6 +2256,7 @@ class FrontEndActivity : ComponentActivity() {
                     SteamLibraries.remove(this, id)
                     steamLibraries = SteamLibraries.list(this)
                     refresh()
+                    refreshFoundSteamLibraries()
                 },
                 onStorageDiagnostics = { on ->
                     SessionPrefs.setStorageDiagnosticsEnabled(this, on)
@@ -2453,6 +2493,7 @@ class FrontEndActivity : ComponentActivity() {
         refreshWifiDiscovery()
         gameStorage = SessionPrefs.gameStorage(this)
         steamLibraries = SteamLibraries.list(this)
+        if (mode == SessionService.MODE_STEAM) refreshFoundSteamLibraries()
         storageDiagnostics = SessionPrefs.storageDiagnosticsEnabled(this)
         settingsMode = mode
         Thread({
@@ -2483,6 +2524,7 @@ class FrontEndActivity : ComponentActivity() {
         SessionPrefs.setGameStorage(this, path, label)
         gameStorage = path
         checkUsbLink()
+        if (settingsMode == SessionService.MODE_STEAM) refreshFoundSteamLibraries()
     }
 
     private fun checkUsbLink() {
@@ -2506,6 +2548,9 @@ class FrontEndActivity : ComponentActivity() {
         gameCores = CpuCores.parse(SessionPrefs.gameCpus(this)).ifEmpty { CpuCores.all.toSet() }
         tuSysmem = SessionPrefs.tuSysmem(this)
         zinkLazy = SessionPrefs.zinkLazy(this)
+        vkBridge = SessionPrefs.vkBridge(this)
+        vkBridgeSafe = SessionPrefs.vkBridgeSafe(this)
+        bridgeProtonDxvk = SessionPrefs.bridgeProtonDxvk(this)
         noXalia = SessionPrefs.noXalia(this)
         fastSync = SessionPrefs.fastSync(this)
         syncFallback = SessionPrefs.syncFallback(this)
@@ -2542,6 +2587,9 @@ class FrontEndActivity : ComponentActivity() {
         offline = OfflineMode.enabled(this)
         installed = LinuxRuntimeInstaller.installedVersion(this)
         ready = LinuxRuntime.isInstalled(this)
+        vkBridge = SessionPrefs.vkBridge(this)
+        vkBridgeSafe = SessionPrefs.vkBridgeSafe(this)
+        bridgeProtonDxvk = SessionPrefs.bridgeProtonDxvk(this)
         removalPending = LinuxRuntimeInstaller.hasRemovalPending(this)
         ui.post { autoUpdateRuntime() }
         frameGenLabel = FrameGen.label(this)
@@ -2646,7 +2694,7 @@ class FrontEndActivity : ComponentActivity() {
             Thread({ checkCatalog() }, "catalog").start()
             return
         }
-        if (installed == null && !com.droiddeck.launcher.core.DeviceSupport.adreno()) { showNonAdreno = release; return }
+        if (installed == null && !com.droiddeck.launcher.core.DeviceSupport.canDraw(this)) { showNonAdreno = release; return }
         install(release)
     }
 
@@ -2665,7 +2713,7 @@ class FrontEndActivity : ComponentActivity() {
             showPhantomGate = true
             return false
         }
-        val warn = installed == null && !com.droiddeck.launcher.core.DeviceSupport.adreno()
+        val warn = installed == null && !com.droiddeck.launcher.core.DeviceSupport.canDraw(this)
         if (warn && available != null) { showNonAdreno = available; return false }
         startActivity(intent)
         return true

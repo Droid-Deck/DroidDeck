@@ -53,6 +53,18 @@ data class GpuInfo(
             Support.UNSUPPORTED -> "Not supported: DroidDeck needs an Adreno (Snapdragon) GPU"
         }
 
+    fun supportText(bridge: Boolean): String = when {
+        support != Support.UNSUPPORTED -> supportText
+        bridge -> "Runs through the Mali bridge, on the phone's own Vulkan driver"
+        else -> "Not supported with the Mali bridge off: Turnip needs an Adreno (Snapdragon) GPU"
+    }
+
+    fun supportText(context: Context, bridge: Boolean): String = when {
+        support != Support.UNSUPPORTED -> supportText(context)
+        bridge -> context.getString(R.string.gpuinfo_bridge)
+        else -> context.getString(R.string.gpuinfo_bridge_off)
+    }
+
     fun supportText(context: Context): String = context.getString(when (support) {
         Support.TESTED -> R.string.gpuinfo_supported
         Support.UNTESTED -> when {
