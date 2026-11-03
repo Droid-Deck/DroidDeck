@@ -68,7 +68,6 @@ def fd_path(fd):
 
 
 def expand(argv):
-    """argv with every --args FD replaced by the NUL-separated arguments read from FD."""
     out = []
     i = 0
     while i < len(argv):
@@ -188,7 +187,6 @@ def real(path):
 
 
 def remaps_nothing(s):
-    """True when every path in the sandbox is what it is out here already."""
     for op in s.ops:
         t = op["t"]
         if t == "bind":

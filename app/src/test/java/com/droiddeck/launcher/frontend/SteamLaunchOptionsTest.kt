@@ -1,0 +1,163 @@
+package com.droiddeck.launcher.frontend
+
+import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SessionService
+import com.droiddeck.launcher.session.SessionState
+import java.io.File
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33])
+class SteamLaunchOptionsTest {
+    @get:Rule val tmp = TemporaryFolder()
+
+    private fun config(apps: String) = listOf(
+        "\"UserLocalConfigStore\"", "{", "\t\"Software\"", "\t{", "\t\t\"Valve\"", "\t\t{", "\t\t\t\"Steam\"", "\t\t\t{",
+        apps, "\t\t\t}", "\t\t}", "\t}", "\t\"WebStorage\"", "\t{", "\t\t\"x\"\t\t\"1\"", "\t}", "}", "",
+    ).joinToString("\n")
+
+    private fun apps(vararg lines: String) = (listOf("\t\t\t\t\"apps\"", "\t\t\t\t{") + lines + "\t\t\t\t}").joinToString("\n")
+
+    private val sparking = arrayOf(
+        "\t\t\t\t\t\"1790600\"", "\t\t\t\t\t{", "\t\t\t\t\t\t\"LastPlayed\"\t\t\"1761897600\"", "\t\t\t\t\t\t\"LaunchOptions\"\t\t\"-dx11\"", "\t\t\t\t\t}",
+    )
+
+    @Test fun replacesTheOptionsSteamHas() {
+        val text = config(apps(*sparking))
+        val updated = SteamLaunchOptions.withLaunchOptions(text, 1790600, "-dx12")!!
+        assertEquals(text.replace("\"-dx11\"", "\"-dx12\""), updated)
+        assertEquals("-dx12", SteamLaunchOptions.launchOptions(updated, 1790600))
+    }
+
+    @Test fun addsOptionsToAGameThatHasNone() {
+        val text = config(apps("\t\t\t\t\t\"1790600\"", "\t\t\t\t\t{", "\t\t\t\t\t\t\"LastPlayed\"\t\t\"1761897600\"", "\t\t\t\t\t}"))
+        assertEquals(config(apps(*sparking)).replace("-dx11", "-vulkan"), SteamLaunchOptions.withLaunchOptions(text, 1790600, "-vulkan"))
+    }
+
+    @Test fun addsTheGameAndTheAppsSectionWhenSteamHasNeither() {
+        val updated = SteamLaunchOptions.withLaunchOptions(config("\t\t\t\t\"language\"\t\t\"english\""), 1790600, "-dx11")!!
+        assertEquals(
+            config(
+                "\t\t\t\t\"language\"\t\t\"english\"\n" +
+                    apps("\t\t\t\t\t\"1790600\"", "\t\t\t\t\t{", "\t\t\t\t\t\t\"LaunchOptions\"\t\t\"-dx11\"", "\t\t\t\t\t}"),
+            ),
+            updated,
+        )
+        assertEquals("-dx11", SteamLaunchOptions.launchOptions(updated, 1790600))
+    }
+
+    @Test fun quotesAndBackslashesAreEscapedAndReadBack() {
+        val options = "PROTON_LOG=1 %command% -path \"C:\\Games\\DB\""
+        val updated = SteamLaunchOptions.withLaunchOptions(config(apps(*sparking)), 1790600, options)!!
+        assertEquals(true, updated.contains("\"PROTON_LOG=1 %command% -path \\\"C:\\\\Games\\\\DB\\\"\""))
+        assertEquals(options, SteamLaunchOptions.launchOptions(updated, 1790600))
+    }
+
+    @Test fun emptyOptionsClearSteams() {
+        val updated = SteamLaunchOptions.withLaunchOptions(config(apps(*sparking)), 1790600, "")!!
+        assertEquals("", SteamLaunchOptions.launchOptions(updated, 1790600))
+    }
+
+    @Test fun windowsLineEndsAreKept() {
+        val text = config("\t\t\t\t\"language\"\t\t\"english\"").replace("\n", "\r\n")
+        val updated = SteamLaunchOptions.withLaunchOptions(text, 1790600, "-dx11")!!
+        assertEquals(false, updated.replace("\r\n", "").contains('\n'))
+        assertEquals("-dx11", SteamLaunchOptions.launchOptions(updated, 1790600))
+    }
+
+    @Test fun onlyTheGamesOwnSectionChanges() {
+        val other = arrayOf(
+            "\t\t\t\t\t\"7\"", "\t\t\t\t\t{", "\t\t\t\t\t\t\"1790600\"", "\t\t\t\t\t\t{", "\t\t\t\t\t\t\t\"LaunchOptions\"\t\t\"keep\"", "\t\t\t\t\t\t}", "\t\t\t\t\t}",
+        )
+        val updated = SteamLaunchOptions.withLaunchOptions(config(apps(*other, *sparking)), 1790600, "-dx12")!!
+        assertEquals(true, updated.contains("\"keep\""))
+        assertEquals("-dx12", SteamLaunchOptions.launchOptions(updated, 1790600))
+        assertNull(SteamLaunchOptions.launchOptions(config(apps(*other)), 1790600))
+    }
+
+    @Test fun otherFilesAreLeftAlone() {
+        assertNull(SteamLaunchOptions.withLaunchOptions("\"InstallConfigStore\"\n{\n}\n", 1790600, "-dx11"))
+        assertNull(SteamLaunchOptions.withLaunchOptions("", 1790600, "-dx11"))
+        assertNull(SteamLaunchOptions.launchOptions("", 1790600))
+    }
+
+    private fun steamHome(home: File = tmp.newFolder("Steam")): File = home.also {
+        File(home, "config").mkdirs()
+        File(home, "config/loginusers.vdf").writeText(
+            "\"users\"\n{\n\t\"76561198021239924\"\n\t{\n\t\t\"AccountName\"\t\t\"a\"\n\t\t\"MostRecent\"\t\t\"1\"\n\t}\n}\n")
+    }
+
+    private fun localConfig(home: File, account: String) = File(home, "userdata/$account/config/localconfig.vdf").apply { parentFile!!.mkdirs() }
+
+    @Test fun aChangeGoesToTheSignedInAccountOnly() {
+        val home = steamHome()
+        val signedIn = localConfig(home, "60974196").apply { writeText(config(apps(*sparking))) }
+        val other = localConfig(home, "123").apply { writeText(config("\t\t\t\t\"language\"\t\t\"english\"")) }
+        val untouched = other.readText()
+        assertTrue(SteamLaunchOptions.write(home, 1790600, "-dx12"))
+        assertEquals("-dx12", SteamLaunchOptions.launchOptions(signedIn.readText(), 1790600))
+        assertEquals(untouched, other.readText())
+        assertFalse(File(signedIn.parentFile, "localconfig.vdf.staged").exists())
+    }
+
+    @Test fun whatSteamWroteLastIsWhatTheGameHas() {
+        val home = steamHome()
+        val config = localConfig(home, "60974196").apply { writeText(config(apps(*sparking))) }
+        assertTrue(SteamLaunchOptions.write(home, 1790600, "-dx12"))
+        config.writeText(SteamLaunchOptions.withLaunchOptions(config.readText(), 1790600, "-vulkan")!!)
+        assertEquals("-vulkan", SteamLaunchOptions.steam(home, 1790600))
+        assertNull(SteamLaunchOptions.steam(home, 400))
+    }
+
+    private val app get() = RuntimeEnvironment.getApplication()
+
+    private val written = ArrayList<File>()
+
+    private fun sessionConfig(): File {
+        val home = steamHome(SessionPrefs.activeSteamRoot(app))
+        return localConfig(home, "60974196").apply { writeText(config(apps(*sparking))) }
+            .also { written += it; written += File(home, "config/loginusers.vdf") }
+    }
+
+    @After fun noSession() {
+        SessionState.running = false
+        SessionState.mode = SessionService.MODE_STEAM
+        written.forEach { it.delete() }
+    }
+
+    @Test fun aValueChangedInSteamSinceItWasShownIsNotOverwritten() {
+        val config = sessionConfig()
+        assertEquals(SteamLaunchOptions.Saved.NO, SteamLaunchOptions.set(app, 1790600, "-dx12", shown = "-vulkan"))
+        assertEquals("-dx11", SteamLaunchOptions.launchOptions(config.readText(), 1790600))
+        assertEquals(SteamLaunchOptions.Saved.YES, SteamLaunchOptions.set(app, 1790600, "-dx12", shown = "-dx11"))
+        assertEquals("-dx12", SteamLaunchOptions.launchOptions(config.readText(), 1790600))
+    }
+
+    @Test fun aDesktopSessionLeavesTheFileToItsClient() {
+        val config = sessionConfig()
+        val before = config.readText()
+        SessionState.running = true
+        SessionState.mode = SessionService.MODE_DESKTOP
+        assertEquals(SteamLaunchOptions.Saved.DESKTOP, SteamLaunchOptions.set(app, 1790600, "-dx12", shown = "-dx11"))
+        assertEquals(before, config.readText())
+    }
+
+    @Test fun nothingIsWrittenWithoutASignedInAccountsConfig() {
+        assertFalse(SteamLaunchOptions.write(tmp.newFolder("NoSteam"), 1790600, "-dx11"))
+        val home = steamHome()
+        assertFalse(SteamLaunchOptions.write(home, 1790600, "-dx11"))
+        localConfig(home, "60974196").writeText("\"InstallConfigStore\"\n{\n}\n")
+        assertFalse(SteamLaunchOptions.write(home, 1790600, "-dx11"))
+    }
+}

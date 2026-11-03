@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Publish the APK result only after trusted source and metadata validation."""
 import json
 import os
 import subprocess

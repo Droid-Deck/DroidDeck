@@ -112,7 +112,6 @@ class SteamTouchControls(
     private var selected = -1
     private var dragOffset = 0f to 0f
     private var pinchStart = 0f
-    private var pinchScale = 1f
     private var saving = false
     private val pendingBindings = HashMap<SteamTouchBindings.Ref, SteamTouchBindings.Binding>()
     private var pendingColor: FloatArray? = null
@@ -244,7 +243,6 @@ class SteamTouchControls(
     private fun hit(list: List<Element>, x: Float, y: Float): Element? =
         list.filter { reach(it, x, y) <= 1.15f }.minByOrNull { reach(it, x, y) }
 
-    /** Whether a finger going down at ([x], [y]) lands on something here, as [onTouchEvent] decides it. */
     fun takesTouchAt(x: Float, y: Float): Boolean = editing || menuOpen || hit(live(), x, y) != null
 
     private fun live(): List<Element> =
@@ -348,17 +346,6 @@ class SteamTouchControls(
         canvas.drawPath(markD, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ink })
         canvas.drawCircle(63.98f, 111.86f, 55.98f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = accent; this.alpha = alpha })
         canvas.restore()
-    }
-
-    private fun drawSteamMark(canvas: Canvas, x: Float, y: Float, r: Float, color: Int) {
-        val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color; style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
-        p.strokeWidth = r * 0.16f
-        canvas.drawCircle(x + r * 0.28f, y - r * 0.18f, r * 0.27f, p)
-        canvas.drawCircle(x + r * 0.28f, y - r * 0.18f, r * 0.1f, Paint(p).apply { style = Paint.Style.FILL })
-        canvas.drawCircle(x - r * 0.3f, y + r * 0.3f, r * 0.17f, p)
-        p.strokeWidth = r * 0.2f
-        canvas.drawLine(x + r * 0.1f, y - r * 0.02f, x - r * 0.2f, y + r * 0.22f, p)
-        canvas.drawLine(x - r * 0.45f, y + r * 0.28f, x - r * 0.95f, y + r * 0.1f, p)
     }
 
     private fun drawFace(canvas: Canvas, type: Int, binding: SteamTouchBindings.Binding?, x: Float, y: Float, r: Float,
@@ -853,19 +840,6 @@ class SteamTouchControls(
         hidden.clear()
         selected = -1
         invalidate()
-    }
-
-    private fun controlName(type: Int) = when (type) {
-        SteamTouchConfig.DPAD -> context.getString(R.string.touch_dpad)
-        SteamTouchConfig.JOYSTICK_LEFT -> context.getString(R.string.touch_left_stick)
-        SteamTouchConfig.JOYSTICK_RIGHT -> context.getString(R.string.touch_right_stick)
-        SteamTouchConfig.TRACKPAD_LEFT -> context.getString(R.string.deck_left_trackpad)
-        SteamTouchConfig.TRACKPAD_RIGHT -> context.getString(R.string.deck_right_trackpad)
-        SteamTouchConfig.TRACKPAD_CENTER -> context.getString(R.string.deck_surface_trackpad)
-        SteamTouchConfig.STEAM -> "Steam"
-        SteamTouchConfig.THUMB -> context.getString(R.string.touch_menu)
-        SteamTouchConfig.KEYBOARD -> context.getString(R.string.touch_keyboard)
-        else -> label(type)
     }
 
     private fun moreMenu() {

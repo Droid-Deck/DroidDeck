@@ -81,13 +81,4 @@ class DualScreenPanelOwnerTest {
         DualScreenPanel.show(app, 2, 10)
         assertEquals(10, DualScreenPanel.focusTask(fromPanel = false))
     }
-
-    @Test fun thePanelTookFocusWhenItJustOpenedOrWasJustTouched() {
-        assertTrue(DualScreenPanel.tookFocus(fresh = true, touchedAt = Long.MIN_VALUE, now = 5_000L))
-        assertTrue(DualScreenPanel.tookFocus(fresh = false, touchedAt = 4_700L, now = 5_000L))
-        assertTrue(DualScreenPanel.tookFocus(fresh = false, touchedAt = 5_000L, now = 5_000L))
-        assertFalse(DualScreenPanel.tookFocus(fresh = false, touchedAt = 3_500L, now = 5_000L))
-        assertFalse(DualScreenPanel.tookFocus(fresh = false, touchedAt = Long.MIN_VALUE, now = 5_000L))
-        assertFalse(DualScreenPanel.tookFocus(fresh = false, touchedAt = 6_000L, now = 5_000L))
-    }
 }

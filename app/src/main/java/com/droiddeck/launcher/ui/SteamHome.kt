@@ -38,6 +38,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInParent
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -166,11 +168,17 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
     )
 }
 
+internal fun Modifier.overhang(by: androidx.compose.ui.unit.Dp = 4.dp): Modifier = layout { measurable, constraints ->
+    val e = by.roundToPx()
+    val placeable = measurable.measure(Constraints.fixed(constraints.maxWidth + e * 2, constraints.maxHeight + e * 2))
+    layout(constraints.maxWidth, constraints.maxHeight) { placeable.place(-e, -e) }
+}
+
 @Composable
 internal fun WallFade() {
     val colors = MaterialTheme.colorScheme
     Box(
-        Modifier.fillMaxSize().background(
+        Modifier.fillMaxSize().overhang().background(
             Brush.horizontalGradient(
                 0f to colors.background.copy(alpha = 0.97f),
                 0.34f to colors.background.copy(alpha = 0.86f),
@@ -179,7 +187,7 @@ internal fun WallFade() {
             ),
         ),
     )
-    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to colors.background.copy(alpha = 0.9f))))
+    Box(Modifier.fillMaxSize().overhang().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to colors.background.copy(alpha = 0.9f))))
 }
 
 @Composable

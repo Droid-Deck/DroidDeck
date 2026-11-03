@@ -68,11 +68,15 @@ class ModeSettings(
     val pipSupported: Boolean = false,
     val pipAutoEnter: Boolean = false,
     val oscMode: String?,
+    val backHold: Boolean = true,
     val backActionsInverted: Boolean = false,
     val directAudio: Boolean?,
     val mic: Boolean?,
     val gameStorage: String? = null,
     val storageOptions: List<com.droiddeck.launcher.session.GameStorage.Option> = emptyList(),
+    val steamLibraries: List<com.droiddeck.launcher.session.SteamLibraries.Entry> = emptyList(),
+    val foundSteamLibraries: List<com.droiddeck.launcher.session.SteamLibraries.Found> = emptyList(),
+    val allFilesAccessMissing: Boolean = false,
     val storageDiagnostics: Boolean = false,
     val fexPreset: String? = null,
     val forceSsbs: Boolean = false,
@@ -80,16 +84,14 @@ class ModeSettings(
     val picturePosition: String? = null,
     val stretch16x9: Boolean? = null,
     val steamClientArch: String? = null,
-    /** Steam only: a game launched from the front end returns there when it closes; null hides the row. */
     val returnAfterGame: Boolean? = null,
-    /** Steam only: the client's Shader Pre-Caching setting; null hides the row. */
     val shaderPrecache: Boolean? = null,
     val steamRepairQueued: Boolean = false,
     val mangoapp: Boolean = true,
     val steamController: String? = null,
     val unfoldedControls: Boolean? = null,
     val unfoldedControlsWithController: Boolean = false,
-    val runSteamAtStartup: Boolean = false,
+    val startupSession: String = SessionPrefs.STARTUP_OFF,
     val bootMovie: String? = null,
     val bootMovieSound: Boolean = true,
     val bootMovieCustomName: String? = null,
@@ -118,12 +120,18 @@ class ModeSettingsActions(
     val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
     val onPipAutoEnter: (Boolean) -> Unit = {},
     val onOsc: (String) -> Unit,
+    val onBackHold: (Boolean) -> Unit = {},
     val onBackActionsInverted: (Boolean) -> Unit = {},
     val onDirectAudio: (Boolean) -> Unit,
     val onMic: (Boolean) -> Unit,
     val onGameStorage: (path: String, label: String) -> Unit = { _, _ -> },
     val onPickGameStorageFolder: () -> Unit = {},
     val onStorageDiagnostics: (Boolean) -> Unit = {},
+    val onAddSteamLibrary: () -> Unit = {},
+    val onAddFoundSteamLibrary: (path: String) -> Unit = {},
+    val onAllowAllFilesAccess: () -> Unit = {},
+    val onRenameSteamLibrary: (id: String, label: String) -> Unit = { _, _ -> },
+    val onRemoveSteamLibrary: (id: String) -> Unit = {},
     val onFexPreset: (String) -> Unit = {},
     val onForceSsbs: (Boolean) -> Unit = {},
     val onSyncBackend: (String) -> Unit = {},
@@ -137,7 +145,7 @@ class ModeSettingsActions(
     val onSteamController: (String) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
-    val onRunSteamAtStartup: (Boolean) -> Unit = {},
+    val onStartupSession: (String) -> Unit = {},
     val onBootMovie: (String) -> Unit = {},
     val onBootMovieSound: (Boolean) -> Unit = {},
     val onImportBootMovie: () -> Unit = {},
@@ -154,15 +162,12 @@ class ModeSettingsActions(
     val onDismiss: () -> Unit,
 )
 
-/** "2610 r3" from droiddeck-fex-update's FEX_TAG line (fex-2610-r3), the build x86 programs fall back to. */
 internal fun fexVersionOf(script: String): String? =
     Regex("""(?m)^FEX_TAG=(fex-\d+-r\d+)\s*$""").find(script)?.let { fexVersionOfTag(it.groupValues[1]) }
 
-/** "2610 r5" from a tag such as fex-2610-r5. */
 internal fun fexVersionOfTag(tag: String): String? =
     Regex("""fex-(\d+)-r(\d+)""").matchEntire(tag.trim())?.let { "${it.groupValues[1]} r${it.groupValues[2]}" }
 
-/** The build installed in the runtime, else the one fex.json names, else the one the launcher pins. */
 @Composable
 private fun x64FexVersion(context: android.content.Context): String? = remember {
     val root = com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context)
@@ -223,7 +228,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             }
             if (s.stretch16x9 != null && (com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(s.panelSize) ||
                     com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize))) {
-                val canStretch = s.resolution != com.droiddeck.launcher.session.SessionDisplay.FOLLOW_SCREEN &&
+                val canStretch = !com.droiddeck.launcher.session.SessionDisplay.isFollow(s.resolution) &&
                     com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize)
                 ChoiceRow(host, "game-fit", stringResource(R.string.display_game_fit),
                     stringResource(if (canStretch) R.string.display_game_fit_hint else R.string.display_game_fit_unavailable),
@@ -296,6 +301,10 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 stringResource(R.string.unfolded_controls_with_controller_hint),
                 s.unfoldedControlsWithController, onChange = a.onUnfoldedControlsWithController,
             )
+            if (steam) ToggleRow(
+                host, "back-hold", stringResource(R.string.back_hold),
+                stringResource(R.string.back_hold_hint), s.backHold, onChange = a.onBackHold,
+            )
             if (steam) ChoiceRow(
                 host, "back-actions", stringResource(R.string.mode_back), stringResource(SessionPrefs.backActionsOrder(s.backActionsInverted)),
                 listOf(
@@ -303,7 +312,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                     true to stringResource(SessionPrefs.BACK_QAM_THEN_MENU),
                 ), s.backActionsInverted, onPick = a.onBackActionsInverted,
             )
-            if (steam && s.steamController in listOf(SessionPrefs.CONTROLLER_DECK, SessionPrefs.CONTROLLER_STEAM)) {
+            if (steam && s.backHold && s.steamController in listOf(SessionPrefs.CONTROLLER_DECK, SessionPrefs.CONTROLLER_STEAM)) {
                 Note(stringResource(R.string.back_native_qam_hint))
             }
             PhysicalShortcutRows()
@@ -350,11 +359,15 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             ToggleRow(host, "pip-auto", stringResource(R.string.pip_auto), null,
                 s.pipAutoEnter, onChange = a.onPipAutoEnter)
         }
-        if (steam) SettingsGroup(stringResource(R.string.mode_startup)) {
-            ToggleRow(
-                host, "steam-startup", stringResource(R.string.mode_steam_startup),
-                stringResource(R.string.mode_steam_startup_hint),
-                s.runSteamAtStartup, onChange = a.onRunSteamAtStartup,
+        SettingsGroup(stringResource(R.string.mode_startup)) {
+            ChoiceRow(
+                host, "startup-session", stringResource(R.string.mode_startup_session),
+                stringResource(R.string.mode_startup_session_hint),
+                listOf(
+                    SessionPrefs.STARTUP_OFF to stringResource(R.string.common_never),
+                    SessionPrefs.STARTUP_STEAM to stringResource(R.string.rail_steam),
+                    SessionPrefs.STARTUP_DESKTOP to stringResource(R.string.rail_desktop),
+                ), s.startupSession, onPick = a.onStartupSession,
             )
         }
         extras.performance()
@@ -400,6 +413,47 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 stringResource(R.string.mode_storage_diagnostics_hint), s.storageDiagnostics,
                 onChange = a.onStorageDiagnostics,
             )
+        }
+        if (s.gameStorage != null) SettingsGroup(stringResource(R.string.libraries_title), detail = stringResource(R.string.libraries_applies_next)) {
+            var renaming by remember { mutableStateOf<com.droiddeck.launcher.session.SteamLibraries.Entry?>(null) }
+            for (library in s.steamLibraries) {
+                val attached = library.host.isDirectory
+                SettingsRow(library.label, if (attached) library.path else stringResource(R.string.libraries_missing, library.path)) {
+                    Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
+                        SecondaryButton(stringResource(R.string.libraries_rename), compact = true) { renaming = library }
+                        SecondaryButton(stringResource(R.string.edit_remove), compact = true) { a.onRemoveSteamLibrary(library.id) }
+                    }
+                }
+            }
+            if (s.steamLibraries.size < com.droiddeck.launcher.session.SteamLibraries.MAX) for (found in s.foundSteamLibraries) {
+                SettingsRow(
+                    found.label,
+                    stringResource(R.string.libraries_found_hint, pluralStringResource(R.plurals.mode_added_count, found.games, found.games), found.shown),
+                ) {
+                    SecondaryButton(stringResource(R.string.libraries_add_found), compact = true) { a.onAddFoundSteamLibrary(found.path) }
+                }
+            }
+            if (s.allFilesAccessMissing && s.steamLibraries.size < com.droiddeck.launcher.session.SteamLibraries.MAX) {
+                SettingsRow(stringResource(R.string.libraries_access_title), stringResource(R.string.libraries_access_hint)) {
+                    SecondaryButton(stringResource(R.string.libraries_access_allow), compact = true, onClick = a.onAllowAllFilesAccess)
+                }
+            }
+            SettingsRow(
+                stringResource(R.string.libraries_add),
+                if (s.steamLibraries.size < com.droiddeck.launcher.session.SteamLibraries.MAX) stringResource(R.string.libraries_hint)
+                else stringResource(R.string.libraries_full, com.droiddeck.launcher.session.SteamLibraries.MAX),
+            ) {
+                SecondaryButton(
+                    stringResource(R.string.mode_choose_folder),
+                    enabled = s.steamLibraries.size < com.droiddeck.launcher.session.SteamLibraries.MAX,
+                    onClick = a.onAddSteamLibrary,
+                )
+            }
+            renaming?.let { library ->
+                TextEntryDialog(stringResource(R.string.libraries_rename_title), library.label, onDismiss = { renaming = null }) { name ->
+                    a.onRenameSteamLibrary(library.id, name)
+                }
+            }
         }
     }
     if (tab == SheetTab.STEAM && steam) {
@@ -660,6 +714,26 @@ internal fun CustomResolutionDialog(initial: Pair<Int, Int>?, onSave: (Pair<Int,
                     modifier = Modifier.padding(top = 6.dp),
                 )
             }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(enabled = parsed != null, onClick = { parsed?.let(onSave) }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_use)) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
+    )
+}
+
+@Composable
+internal fun CustomFollowScaleDialog(initial: Float?, onSave: (Float) -> Unit, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf(initial?.let(com.droiddeck.launcher.session.SessionDisplay::formatScale) ?: "") }
+    val parsed = com.droiddeck.launcher.session.SessionDisplay.parseFollowScale(text)
+    com.droiddeck.launcher.ui.GlideAlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.display_follow_screen_scaled, "…")) },
+        text = {
+            androidx.compose.material3.OutlinedTextField(
+                text, { v -> text = v.filter { it.isDigit() || it == '.' || it == ',' }.take(4) },
+                label = { Text("÷") }, singleLine = true, isError = parsed == null && text.isNotEmpty(),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+                modifier = Modifier.focusGlide(),
+            )
         },
         confirmButton = { androidx.compose.material3.TextButton(enabled = parsed != null, onClick = { parsed?.let(onSave) }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_use)) } },
         dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },

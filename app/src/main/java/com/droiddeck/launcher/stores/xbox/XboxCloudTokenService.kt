@@ -16,10 +16,6 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
-/**
- * Hands the main process's Xbox Cloud Gaming tokens to the native player's process (:xcloudnative) over Binder, so
- * they stay in memory (not exported, same app only) and a stream does not wait for a second ~20 s token fetch.
- */
 class XboxCloudTokenService : Service() {
     private val worker = Executors.newSingleThreadExecutor()
     private val messenger = Messenger(Handler(Looper.getMainLooper()) { message ->
@@ -42,7 +38,6 @@ class XboxCloudTokenService : Service() {
         private const val REQUEST = 1
         private const val REPLY = 2
 
-        /** Blocks until the main process answers (its tokens, or "error"), or returns null when it cannot be reached. */
         fun request(context: Context, account: String, timeoutSeconds: Long): Bundle? {
             val app = context.applicationContext
             val done = CountDownLatch(1)

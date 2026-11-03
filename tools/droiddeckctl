@@ -24,7 +24,6 @@ from adb_device import DeviceResolutionError, resolve_serial
 from proot_profile import report as proot_profile_report
 
 
-# tools/release/variants.txt: the same app also ships as other packages (e.g. com.antutu.benchmark.full).
 PACKAGE = os.environ.get("DROIDDECK_PACKAGE", "com.droiddeck.launcher")
 AUTHORITY = f"content://{PACKAGE}.agent"
 PACKAGE_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+")
@@ -115,7 +114,6 @@ def provider_call(adb: str, serial: str, method: str, arg: str | None = None, re
 
 
 def checked(response: dict, default_code: str) -> dict:
-    """A provider or guest answer, raised as a ControlError when it carries ok: false."""
     if response.get("ok") is False:
         error = response.get("error", {})
         raise ControlError(error.get("message", default_code), error.get("code", default_code))
@@ -166,7 +164,6 @@ def get_state(adb: str, serial: str) -> dict:
 
 
 def wait_until(adb: str, serial: str, describe: str, done, timeout: float, poll: float = 1.0) -> dict:
-    """Poll state until done(state) is true. A failed session ends the wait at once."""
     deadline = time.monotonic() + timeout
     while True:
         state = get_state(adb, serial)
@@ -203,8 +200,6 @@ def wait_for_phase(adb: str, serial: str, wanted: str, timeout: float) -> dict:
 
 
 def focused(state: dict, app_id: int | None) -> bool:
-    """The game has focus the way a player sees it: gamescope focuses it and it is in the list the
-    Steam client orders the base layer from. app_id None means any game (not the client)."""
     focus = state.get("session", {}).get("focus") or {}
     current = focus.get("focusedApp")
     if app_id is None:
@@ -232,7 +227,6 @@ def add_serial(response: dict, serial: str) -> dict:
 
 
 def displays(adb: str, serial: str) -> list[dict]:
-    """Logical displays with the SurfaceFlinger (physical) id screencap and screenrecord want."""
     result = run_adb(adb, serial, "shell", "dumpsys", "display", timeout=30)
     text = result.stdout.decode(errors="replace")
     devices = dict(re.findall(r'DisplayDeviceInfo\{"([^"]+)": uniqueId="local:(\d+)"', text))
@@ -300,14 +294,6 @@ def record(adb: str, serial: str, path: str, seconds: float, display: int | None
 
 
 def pacing_summary(text: str, package: str = PACKAGE) -> dict:
-    """What reached the panel, from a `dumpsys SurfaceFlinger --timestats -dump`.
-
-    The game is on the compositor's own layer (droiddeck_wayland_game) when it has one, otherwise on
-    the session's SurfaceView. SurfaceFlinger keeps one record per layer AND refresh rate, so a panel
-    that switches between 60 and 120 Hz mid-capture splits the same layer into several records: they
-    are summed. A game's own fps counter does not show any of this - it counts frames handed over, not
-    frames shown, and 60 handed over can be 48 on screen with one in four held for two refreshes.
-    """
     records = {"game": [], "surface": []}
     for part in re.split(r"^displayRefreshRate = ", text, flags=re.M)[1:]:
         rate = re.match(r"(\d+)", part)
@@ -329,7 +315,6 @@ def pacing_summary(text: str, package: str = PACKAGE) -> dict:
         for ms, count in bins.items():
             histogram[ms] = histogram.get(ms, 0) + count
         if bins:
-            # SurfaceFlinger bins by whole milliseconds, so one cadence spans two buckets (16.7 ms: 16 and 17).
             mode = max(bins, key=bins.get)
             off += sum(count for ms, count in bins.items() if abs(ms - mode) > 1)
     intervals = sum(histogram.values())
@@ -346,7 +331,6 @@ def pacing_summary(text: str, package: str = PACKAGE) -> dict:
 
 
 def pacing(adb: str, serial: str, seconds: float) -> dict:
-    """Frames on screen and their intervals over `seconds`, from SurfaceFlinger's timestats."""
     seconds = max(1.0, min(600.0, seconds))
     timestats = ("shell", "dumpsys", "SurfaceFlinger", "--timestats")
     try:
@@ -487,7 +471,6 @@ def xr_capture(adb: str, serial: str, destination: Path, timeout: float) -> dict
             except (OSError, EOFError, zlib.error) as error:
                 raise ControlError('Incomplete compressed XR image', 'XR_CAPTURE_FAILED') from error
             images[eye] = xr_ppm_to_png(pixels, linear=eye == 'source' and metadata.get('sourceColorSpace') == 'linear')
-        # Detect overlapping captures before publishing images with another request's metadata.
         check = run_adb(adb, serial, 'shell', 'cat', remote + '.json')
         try:
             unchanged = json.loads(check.stdout).get('id') == token
@@ -961,7 +944,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     serial = None
     try:
-        if not PACKAGE_NAME.fullmatch(PACKAGE):  # it reaches the device shell through `am start` and `content call`
+        if not PACKAGE_NAME.fullmatch(PACKAGE):
             raise ControlError(f"DROIDDECK_PACKAGE is not an Android package name: {PACKAGE!r}", "INVALID_REQUEST")
         if args.command == "proot-profile" and args.profile_op == "report":
             if args.limit < 1:

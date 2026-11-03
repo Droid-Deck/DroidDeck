@@ -1,4 +1,3 @@
-"""Reject an APK with missing or stale session helpers, including cached local bundles."""
 from pathlib import Path
 import re
 import sys

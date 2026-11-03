@@ -74,7 +74,6 @@ internal fun UninstallEpicLauncher(s: FrontEndState, a: FrontEndActions) {
     }
 }
 
-/** A skipped sync is not a success: "0 files" used to show for a signed-out store or cloud saves turned off. */
 internal fun cloudMessage(context: android.content.Context, r: com.droiddeck.launcher.stores.CloudSaves.Result): String = when (r.result) {
     "ok" -> when {
         r.conflicts > 0 -> context.getString(R.string.cloud_conflict_files, r.conflicts)

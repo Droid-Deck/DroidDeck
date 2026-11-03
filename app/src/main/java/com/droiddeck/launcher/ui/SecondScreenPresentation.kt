@@ -34,6 +34,7 @@ import com.droiddeck.launcher.input.PointerGestures
 import com.droiddeck.launcher.input.SecondScreenMode
 import com.droiddeck.launcher.input.TouchpadGestures
 import com.droiddeck.launcher.SessionActivity
+import com.droiddeck.launcher.session.BottomDesktop
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.SessionTerminal
@@ -56,9 +57,12 @@ class SecondScreenPresentation(
     private val onKeyboardClosed: () -> Unit = {},
     private val onMenu: (() -> Unit)? = null,
     private val menu: (@androidx.compose.runtime.Composable () -> Unit)? = null,
+    private val dashboard: (@androidx.compose.runtime.Composable () -> Unit)? = null,
+    private val onSwap: (() -> Unit)? = null,
 ) : Presentation(sessionActivity, display) {
     private val frame = FrameLayout(context)
     private var menuView: androidx.compose.ui.platform.ComposeView? = null
+    private var dashboardView: androidx.compose.ui.platform.ComposeView? = null
     var menuShown = false
         private set
     private val root = LinearLayout(context).apply {
@@ -155,12 +159,7 @@ class SecondScreenPresentation(
         menuShown = on
         if (on) {
             keyboardHost?.takeIf { it.shown }?.hide()
-            window?.decorView?.let { decor ->
-                decor.setViewTreeLifecycleOwner(sessionActivity)
-                decor.setViewTreeViewModelStoreOwner(sessionActivity)
-                decor.setViewTreeSavedStateRegistryOwner(sessionActivity)
-                decor.setViewTreeOnBackPressedDispatcherOwner(sessionActivity)
-            }
+            ownComposeViews()
             val view = menuView ?: androidx.compose.ui.platform.ComposeView(context).apply {
                 isFocusable = true
                 isFocusableInTouchMode = true
@@ -179,12 +178,22 @@ class SecondScreenPresentation(
         }
     }
 
+    private fun ownComposeViews() {
+        window?.decorView?.let { decor ->
+            decor.setViewTreeLifecycleOwner(sessionActivity)
+            decor.setViewTreeViewModelStoreOwner(sessionActivity)
+            decor.setViewTreeSavedStateRegistryOwner(sessionActivity)
+            decor.setViewTreeOnBackPressedDispatcherOwner(sessionActivity)
+        }
+    }
+
     fun focusMenu(): Boolean = menuView?.requestFocus() == true
 
     fun dispatchMenuKey(event: KeyEvent): Boolean = menuView?.dispatchKeyEvent(event) == true
 
     fun closeControls() {
         showMenu(false)
+        closeDashboard()
         closeTerminal()
         keyboardHost?.hide()
         keyboardHost = null
@@ -192,7 +201,9 @@ class SecondScreenPresentation(
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        val forward = menuShown || currentMode != SecondScreenMode.TERMINAL || PadBridge.isControllerKeyEvent(event)
+        val ownKeys = currentMode == SecondScreenMode.TERMINAL || currentMode == SecondScreenMode.DASHBOARD ||
+            currentMode == SecondScreenMode.DESKTOP
+        val forward = menuShown || !ownKeys || PadBridge.isControllerKeyEvent(event)
         if (forward && sessionActivity.dispatchKeyEvent(event)) return true
         return super.dispatchKeyEvent(event)
     }
@@ -218,17 +229,41 @@ class SecondScreenPresentation(
         keyboardButton = null
         keyboardPending = false
         closeTerminal()
+        closeDashboard()
         root.removeAllViews()
-        val mode = if (currentMode == SecondScreenMode.DECK_CONTROLS && !SessionState.deckPad) SecondScreenMode.NONE
-        else currentMode
+        val mode = when {
+            currentMode == SecondScreenMode.DECK_CONTROLS && !SessionState.deckPad -> SecondScreenMode.NONE
+            currentMode == SecondScreenMode.DASHBOARD && dashboard == null -> SecondScreenMode.NONE
+            currentMode == SecondScreenMode.DESKTOP && !BottomDesktop.available() -> SecondScreenMode.NONE
+            else -> currentMode
+        }
         if (mode == SecondScreenMode.NONE) return
 
         when (mode) {
             SecondScreenMode.KEYBOARD_TRACKPAD -> renderKeyboardAndTrackpad()
             SecondScreenMode.TERMINAL -> renderTerminal()
             SecondScreenMode.DECK_CONTROLS -> root.addView(DeckControlsPanel(context, onClose, onSteamMenu, onQam, pad, onMenu = onMenu), weightParams())
+            SecondScreenMode.DASHBOARD -> renderDashboard()
+            SecondScreenMode.DESKTOP -> {
+                ownComposeViews()
+                root.addView(BottomDesktopPanel(context, onClose, onMenu,
+                    (onSteamMenu to onQam).takeIf { SessionState.mode == SessionService.MODE_STEAM }, onSwap), weightParams())
+            }
             SecondScreenMode.NONE -> Unit
         }
+    }
+
+    private fun renderDashboard() {
+        val content = dashboard ?: return
+        ownComposeViews()
+        val view = androidx.compose.ui.platform.ComposeView(context).apply { setContent { content() } }
+        dashboardView = view
+        root.addView(view, weightParams())
+    }
+
+    private fun closeDashboard() {
+        dashboardView?.disposeComposition()
+        dashboardView = null
     }
 
     private fun renderKeyboardAndTrackpad() {

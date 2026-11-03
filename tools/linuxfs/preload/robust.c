@@ -23,7 +23,6 @@
 
 #define BL_RESOLVE_BENEATH 0x08
 #define BL_RESOLVE_IN_ROOT 0x10
-// The kernel's MAXSYMLINKS.
 #define BL_MAX_SYMLINKS 40
 #define BL_PROC_ROOT_INO 1
 
@@ -107,7 +106,6 @@ void *dlopen(const char *filename, int flags) {
   }
   const char *basename = filename ? strrchr(filename, '/') : NULL;
   basename = basename ? basename + 1 : filename;
-  // Steam's deep binding bypasses the robust-list shim under PRoot.
   if (basename && strcmp(basename, "vrclient.so") == 0) {
     flags &= ~RTLD_DEEPBIND;
   }
@@ -148,7 +146,6 @@ static struct robust_list_head *thread_robust_head(void) {
   return head;
 }
 
-// Magic links are procfs links below a process's directory; procfs's root holds only plain ones (self, thread-self, mounts).
 static int is_magic_link(int dirfd, char *link, size_t parent_len) {
   int fd = (int)path_open(dirfd, link, O_PATH | O_NOFOLLOW | O_CLOEXEC, 0L);
   if (fd < 0) {
@@ -168,7 +165,6 @@ static int is_magic_link(int dirfd, char *link, size_t parent_len) {
   return result != 0 || parent.st_ino != BL_PROC_ROOT_INO;
 }
 
-// RESOLVE_IN_ROOT walked one component at a time: absolute symlinks restart at dirfd and ".." stops there.
 static long openat_in_root(int dirfd, const char *path, int flags, long mode) {
   char resolved[PATH_MAX];
   char pending[PATH_MAX];
@@ -177,7 +173,6 @@ static long openat_in_root(int dirfd, const char *path, int flags, long mode) {
   int have_root = 0;
   int root_on_procfs = 0;
   dev_t root_dev = 0;
-  // O_NOFOLLOW and O_CREAT | O_EXCL leave a final symlink alone, unless a trailing slash follows it.
   int nofollow = (flags & O_NOFOLLOW) || (flags & (O_CREAT | O_EXCL)) == (O_CREAT | O_EXCL);
   const char *rest = path;
   for (;;) {
@@ -241,7 +236,6 @@ static long openat_in_root(int dirfd, const char *path, int flags, long mode) {
         have_root = 1;
       }
       if ((st.st_dev != root_dev || root_on_procfs) && is_magic_link(dirfd, resolved, resolved_len)) {
-        // RESOLVE_IN_ROOT refuses magic links.
         errno = EXDEV;
         return -1;
       }
