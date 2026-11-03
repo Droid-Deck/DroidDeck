@@ -107,6 +107,7 @@ class SteamTouchControls(
     var onTouchMiss: ((MotionEvent) -> Unit)? = null
 
     private var editing = false
+    var onEditingChanged: ((Boolean) -> Unit)? = null
     private var editElements: MutableList<Element> = mutableListOf()
     private var hidden: MutableList<Element> = mutableListOf()
     private var selected = -1
@@ -703,6 +704,7 @@ class SteamTouchControls(
     fun startEditing() {
         releaseAll()
         editing = true
+        onEditingChanged?.invoke(true)
         editSets.clear()
         selected = -1
         pendingBindings.clear()
@@ -755,6 +757,7 @@ class SteamTouchControls(
 
     private fun stopEditing() {
         editing = false
+        onEditingChanged?.invoke(false)
         trayOpen = false
         trayDrag = null
         selected = -1
