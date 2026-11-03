@@ -32,6 +32,8 @@ HYBRIS_VENDOR_SOURCE="$work/libhybris" python3 -m unittest discover \
   -s "$root/tools/tests" -p test_hybris_vendor_compat.py
 HYBRIS_PLACED_SOURCE="$work/libhybris" python3 -m unittest discover \
   -s "$root/tools/tests" -p test_placed_memory_layer.py
+HYBRIS_SIZES_SOURCE="$work/libhybris" python3 -m unittest discover \
+  -s "$root/tools/tests" -p test_hybris_device_create_sizes.py
 python3 -m unittest discover \
   -s "$root/tools/tests" -p test_hybris_mapping_lock.py
 python3 -m unittest discover \
