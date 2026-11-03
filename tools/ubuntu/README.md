@@ -29,7 +29,8 @@ Steam on the desktop). The app installs it into `files/linuxfs` and runs it unde
 - The desktop pack's `usr/share/droiddeck/desktop/files.tsv.gz` lists each path the desktop added
   (N), changed (C) or removed (R), and `originals/` keeps the runtime's copies of changed and removed
   files. Removing the desktop restores those and deletes the added files the user has not changed;
-  a runtime update replaces the tree, and the desktop is downloaded again when it is next opened.
+  a runtime update replaces the tree, so when the desktop was installed the update installs the new
+  runtime's desktop pack right after it.
 
 At run time:
 
