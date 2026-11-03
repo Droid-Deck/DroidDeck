@@ -65,6 +65,7 @@ object BtGamepad {
     private var vibrator: Vibrator? = null
     @Volatile private var running = false
     private var pairingUntil = 0L
+    private var pendingHost: BluetoothDevice? = null
     private var fastLinkPending = false
     private const val PAIRING_WINDOW_MS = 120_000L
     private const val MAX_MTU = 517
@@ -106,6 +107,16 @@ object BtGamepad {
             }
         }
         ctx.registerReceiver(receiver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED), null, h)
+        val bonds = object : BroadcastReceiver() {
+            override fun onReceive(c: Context, intent: Intent) {
+                if (intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, -1) != BluetoothDevice.BOND_BONDED) return
+                h.post {
+                    val waiting = pendingHost ?: return@post
+                    if (waiting.bondState == BluetoothDevice.BOND_BONDED) attach(waiting)
+                }
+            }
+        }
+        ctx.registerReceiver(bonds, IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED), null, h)
         return h
     }
 
@@ -352,6 +363,10 @@ object BtGamepad {
                     mtu = 23
                     if (device.bondState == BluetoothDevice.BOND_BONDED) attach(device)
                     else if (host == null) publish(Phase.CONNECTING, device)
+                } else if (newState == BluetoothProfile.STATE_DISCONNECTED && pendingHost == device && host == null) {
+                    pendingHost = null
+                    publish(Phase.READY)
+                    startAdvertising()
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED && host == device) {
                     host = null
                     rumble(0, 0)
@@ -374,7 +389,7 @@ object BtGamepad {
 
         override fun onCharacteristicReadRequest(device: BluetoothDevice, requestId: Int, offset: Int, chr: BluetoothGattCharacteristic) {
             handler?.post {
-                val value = if (offset > 0) longReads[chr] ?: valueOf(chr) else valueOf(chr).also { longReads[chr] = it }
+                val value = if (offset > 0) longReads[chr] ?: valueOf(chr, device) else valueOf(chr, device).also { longReads[chr] = it }
                 val reply = if (offset >= value.size) ByteArray(0) else value.copyOfRange(offset, value.size)
                 server?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, reply)
                 if (chr.uuid == uuid16(0x2A4B)) attach(device)
@@ -431,7 +446,7 @@ object BtGamepad {
         }
     }
 
-    private fun valueOf(chr: BluetoothGattCharacteristic): ByteArray {
+    private fun valueOf(chr: BluetoothGattCharacteristic, device: BluetoothDevice): ByteArray {
         val ref = reportRefs[chr]
         if (ref == null) {
             @Suppress("DEPRECATION")
@@ -439,7 +454,7 @@ object BtGamepad {
         }
         val (id, type) = ref
         return when (type) {
-            BtPadEncoder.INPUT -> if (id == encoder.inputId()) encoder.input(current()) else ByteArray(0)
+            BtPadEncoder.INPUT -> if (id == encoder.inputId() && device == host) encoder.input(current()) else ByteArray(0)
             BtPadEncoder.FEATURE -> {
                 host?.let { d -> handler?.postDelayed({ startFastLink(d) }, FAST_LINK_DELAY_MS) }
                 encoder.feature(id).also { Log.i(TAG, "feature 0x%02x read -> %d".format(id, it?.size ?: -1)) } ?: ByteArray(0)
@@ -461,6 +476,12 @@ object BtGamepad {
 
     private fun attach(device: BluetoothDevice) {
         if (host != null) return
+        if (device.bondState != BluetoothDevice.BOND_BONDED) {
+            pendingHost = device
+            publish(Phase.CONNECTING, device)
+            return
+        }
+        pendingHost = null
         host = device
         stopAdvertising()
         pairingUntil = 0

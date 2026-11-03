@@ -121,9 +121,7 @@ class BtControllerActivity : ComponentActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != REQUEST_NEARBY) return
-        val nearbyDenied = permissions.indices.any { i ->
-            permissions[i] in NEARBY && grantResults.getOrNull(i) != PackageManager.PERMISSION_GRANTED
-        }
+        val nearbyDenied = Build.VERSION.SDK_INT >= 31 && NEARBY.any { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         permissionDenied = nearbyDenied
         if (!nearbyDenied) startPad()
     }
