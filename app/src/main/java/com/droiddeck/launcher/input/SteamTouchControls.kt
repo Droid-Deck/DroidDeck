@@ -755,6 +755,10 @@ class SteamTouchControls(
         actionSet = saved
     }
 
+    fun cancelEditing() {
+        if (editing) stopEditing()
+    }
+
     private fun stopEditing() {
         editing = false
         onEditingChanged?.invoke(false)

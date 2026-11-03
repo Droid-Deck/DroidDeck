@@ -1368,7 +1368,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 relativeMouseMode = mode
                 setRelativeMouse(mode)
             },
-            onScreenKeys = { drawerOpen = false; screenKeys?.startEditing() },
+            onScreenKeys = { if (screenKeysShown) { drawerOpen = false; screenKeys?.startEditing() } },
             screenKeysShown = screenKeysShown,
             onScreenKeysShown = { shown ->
                 screenKeysShown = shown
@@ -2706,6 +2706,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE) && !drawerOpen) {
             if (appUiOwnsPointer()) {
                 if (super.dispatchGenericMotionEvent(event)) return true
+                if (touchEditorOpen) return false
                 if (onMouse(event)) return true
                 return false
             }
@@ -3843,7 +3844,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val device = com.droiddeck.launcher.input.SteamTouchDevice.current ?: return null
         steamTouchControls?.let { view ->
             if (view.device === device) return view
-            if (view.isEditing) touchEditorChanged(false)
+            view.cancelEditing()
             view.releaseAll()
             (view.parent as? android.view.ViewGroup)?.removeView(view)
             steamTouchControls = null
@@ -3899,7 +3900,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             onScreenButtonsVisible = false
             controls.releaseAll()
             controls.visibility = View.GONE
-            steamTouchControls?.let { it.releaseAll(); it.visibility = View.GONE }
+            steamTouchControls?.let { it.cancelEditing(); it.releaseAll(); it.visibility = View.GONE }
             com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = false
             screenKeys?.followSteam = false
             applyTouchRouting()
@@ -3913,7 +3914,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             uiHandler.postDelayed(steamTouchRetry, 1000)
         }
         if (steam == null) {
-            steamTouchControls?.let { it.releaseAll(); it.visibility = View.GONE }
+            steamTouchControls?.let { it.cancelEditing(); it.releaseAll(); it.visibility = View.GONE }
             com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = false
             applyTouchRouting()
         }
@@ -3932,7 +3933,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (steam != null) {
             screenKeys?.followSteam = drawn
             if (controls.visibility == View.VISIBLE) { controls.releaseAll(); controls.visibility = View.GONE }
-            if (!drawn) steam.releaseAll()
+            if (!drawn) { steam.cancelEditing(); steam.releaseAll() }
             steam.visibility = if (drawn) View.VISIBLE else View.GONE
             com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = show
             applyTouchRouting()

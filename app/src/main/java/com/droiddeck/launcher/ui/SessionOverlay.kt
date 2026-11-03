@@ -623,7 +623,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                                         ) {
-                                            SecondaryButton(stringResource(R.string.ctrl_edit),
+                                            SecondaryButton(stringResource(R.string.ctrl_edit), enabled = a.screenKeysShown,
                                                 modifier = focus.track(page, "screen-keys"), onClick = a.onScreenKeys)
                                             a.onScreenLayouts?.let { open ->
                                                 SecondaryButton(stringResource(R.string.screen_key_layout),
