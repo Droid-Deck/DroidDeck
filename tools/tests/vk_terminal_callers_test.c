@@ -87,6 +87,8 @@ int vkp_framegen_run(VkCommandBuffer c, VkImage s, VkImageView v, int w, int h,
     return generated;
 }
 void vkp_framegen_presented(int n) { ++presented_notifications; }
+void vkp_gpu_busy_device(VkPhysicalDevice p, VkDevice d, uint32_t f) {}
+void vkp_gpu_busy_device_lost(void) {}
 void hdrc_bind_device(VkDevice d, const VkPhysicalDeviceMemoryProperties *m) {}
 void hdrc_forget_image(VkImage i) {}
 int hdrc_encode(VkCommandBuffer c, VkImage a, VkImage b, VkFormat f, int w, int h, const struct hdrc_params *p) { return -1; }
