@@ -83,33 +83,28 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
           SOURCE_BRANCH: ${{ inputs.source_branch || 'playstore' }}
-          PLAY_VERSION_CODE_BASE: ${{ vars.PLAY_VERSION_CODE_BASE }}
         run: |
           set -euo pipefail
           test "$SOURCE_BRANCH" = playstore
           test "$GITHUB_REF" = refs/heads/playstore
           sha=$(git rev-parse HEAD)
+          name=$(sed -n 's/^ *versionName "\(.*\)"$/\1/p' app/build.gradle)
+          [[ $name =~ ^[0-9A-Za-z._-]+$ ]]
           if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
             [[ $VERSION =~ ^[0-9A-Za-z._-]+$ ]] || { echo "::error::invalid version"; exit 1; }
-            name=$(sed -n 's/^ *versionName "\(.*\)"$/\1/p' app/build.gradle)
             [[ $VERSION == "$name" || $VERSION == "$name"-* ]] || {
               echo "::error::version must match versionName in app/build.gradle; bump versionName and versionCode first"
               exit 1
             }
           else
-            VERSION="playstore-${sha::7}"
+            VERSION="$name"
           fi
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           source_code=$(sed -n 's/^ *versionCode \([0-9][0-9]*\)$/\1/p' app/build.gradle)
-          base=${PLAY_VERSION_CODE_BASE:-$source_code}
-          [[ $base =~ ^[0-9]+$ && $source_code =~ ^[0-9]+$ ]]
-          [ "$base" -ge "$source_code" ] || base=$source_code
-          elapsed=$(( $(date -u +%s) - 1577836800 ))
-          [ "$elapsed" -gt 0 ]
-          version_code=$((base + elapsed))
-          [ "$version_code" -le 2100000000 ]
-          echo "version_code=$version_code" >> "$GITHUB_OUTPUT"
+          [[ $source_code =~ ^[1-9][0-9]*$ ]]
+          [ "$source_code" -le 2100000000 ]
+          echo "version_code=$source_code" >> "$GITHUB_OUTPUT"
 
   bundle:
     needs: source

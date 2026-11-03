@@ -4,6 +4,8 @@
 
 For a versioned GitHub release, run the existing `Release APKs` workflow with branch `playstore` and a Version matching `versionName` in `app/build.gradle`. That entry calls `Build PlayStore Bundle`. The Play release uses a separate tag and explicitly leaves Latest unchanged. The manual entry works without adding the branch-only workflow to `main`.
 
+Both `versionName` and the integer `versionCode` come directly from `app/build.gradle`. Increment the repository's version code for each new Play release. Build counters, timestamps, and repository variables never add offsets to it. Push artifact filenames also use the repository's version name.
+
 The signing environment supplies `RELEASE_KEYSTORE_B64`, `RELEASE_STORE_PASSWORD`, and `RELEASE_KEY_ALIAS`. Compilation never receives the release key. Signing checks the certificate against `keystore/release-signer.sha256`, keeps the alias out of signature filenames, and verifies every signed payload entry.
 
 `components.lock.json` pins the native runtime, desktop packages, DroidDeck Proton, driver variants, native component variants, Decky channels, and synchronization packs. Native components have no external download fallback in the app. The bundled catalog pins current native variants rather than their complete release histories. Existing installed versions remain available.

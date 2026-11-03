@@ -1,5 +1,8 @@
 from pathlib import Path
 import re
+import os
+import subprocess
+import tempfile
 import unittest
 import yaml
 
@@ -81,13 +84,18 @@ class PlaystoreWorkflowTest(unittest.TestCase):
             self.assertEqual("github.ref == 'refs/heads/main'", self.release['jobs'][name]['if'])
         self.assertIn("'release-playstore' || 'release'", self.release['concurrency']['group'])
 
-    def test_play_version_codes_are_independent_of_the_entry_workflow_counter(self):
+    def test_play_version_metadata_comes_from_the_repository_without_generated_offsets(self):
         self.assertEqual('playstore-bundle', self.play['concurrency']['group'])
         self.assertEqual('false', self.play['concurrency']['cancel-in-progress'])
         source = self.play['jobs']['source']['steps'][-1]['run']
-        self.assertIn('date -u +%s', source)
+        self.assertNotIn('date -u +%s', source)
         self.assertNotIn('GITHUB_RUN_NUMBER', source)
-        self.assertIn('version_code=$((base + elapsed))', source)
+        self.assertNotIn('PLAY_VERSION_CODE_BASE', source)
+        self.assertIn('echo "version_code=$source_code"', source)
+        self.assertIn('VERSION="$name"', source)
+        gradle = (ROOT / 'app/build.gradle').read_text()
+        self.assertIn('requestedCode != android.defaultConfig.versionCode.toString()', gradle)
+        self.assertNotIn('android.defaultConfig.versionCode = requestedCode', gradle)
 
     def test_distribution_checks_run_without_the_production_manifest_or_signing_secrets(self):
         checks = self.play['jobs']['checks']
@@ -100,6 +108,22 @@ class PlaystoreWorkflowTest(unittest.TestCase):
         command = checks['steps'][-1]['run']
         self.assertIn('tools.tests.test_playstore_signing', command)
         self.assertIn('tools.tests.test_playstore_payloads', command)
+
+    def test_source_job_emits_repository_versions_even_with_old_counter_variables(self):
+        source = self.play['jobs']['source']['steps'][-1]['run']
+        gradle = (ROOT / 'app/build.gradle').read_text()
+        code = re.search(r'^\s*versionCode (\d+)$', gradle, re.MULTILINE).group(1)
+        name = re.search(r'^\s*versionName "([^"]+)"$', gradle, re.MULTILINE).group(1)
+        for event in ['push', 'workflow_dispatch']:
+            with self.subTest(event=event), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / 'outputs'
+                environment = dict(os.environ, GITHUB_EVENT_NAME=event, GITHUB_REF='refs/heads/playstore',
+                                   SOURCE_BRANCH='playstore', VERSION=name, GITHUB_OUTPUT=str(output),
+                                   GITHUB_RUN_NUMBER='4000000000', PLAY_VERSION_CODE_BASE='999999999')
+                subprocess.run(['bash', '-c', source], cwd=ROOT, env=environment, check=True, capture_output=True)
+                values = dict(line.split('=', 1) for line in output.read_text().splitlines())
+                self.assertEqual(code, values['version_code'])
+                self.assertEqual(name, values['version'])
 
 
 if __name__ == '__main__':

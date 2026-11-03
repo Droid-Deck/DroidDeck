@@ -134,8 +134,8 @@ android {
         applicationId "com.droiddeck.launcher"
         minSdkVersion 26
         targetSdkVersion 37
-        versionCode 17
-        versionName "0.6.9"
+        versionCode 18
+        versionName "0.6.9.1"
         buildConfigField "String", "BUILD_LABEL", "\"${escapedBuildLabel}\""
         buildConfigField "String", "SOURCE_COMMIT", "\"${sourceCommit}\""
         buildConfigField "int", "PR_NUMBER", "${prNumber}"
@@ -264,11 +264,8 @@ if (playDistribution) {
     android.buildTypes.debug.signingConfig = null
     android.buildTypes.release.signingConfig = null
     def requestedCode = providers.gradleProperty('playVersionCode').orNull
-    if (requestedCode != null) {
-        if (!requestedCode.isInteger() || requestedCode.toLong() < android.defaultConfig.versionCode || requestedCode.toLong() > 2100000000L) {
-            throw new GradleException('Play version code must be a valid increasing Android version code')
-        }
-        android.defaultConfig.versionCode = requestedCode.toInteger()
+    if (requestedCode != null && requestedCode != android.defaultConfig.versionCode.toString()) {
+        throw new GradleException('Play version code must match app/build.gradle')
     }
     def playAudio = layout.buildDirectory.dir('play-audio')
     def playNdk = androidComponents.sdkComponents.ndkDirectory.get().asFile
