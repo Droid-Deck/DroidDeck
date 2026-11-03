@@ -1,7 +1,7 @@
 diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 --- a/src/steamcompmgr.cpp
 +++ b/src/steamcompmgr.cpp
-@@ -4220,6 +4220,20 @@
+@@ -4220,6 +4220,21 @@ static bool is_same_app_override_decorat
  		( candidate->hwndStyleEx & uDecorationStyle ) == uDecorationStyle;
  }
  
@@ -9,7 +9,8 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 +// so another process's splash cannot cover a topmost sign-in (the EA app's, over its Steam launcher).
 +static bool is_stacked_below_focus( steamcompmgr_win_t *candidate, steamcompmgr_win_t *focus )
 +{
-+	if ( candidate->pid == focus->pid || !candidate->hasHwndStyleEx || !focus->hasHwndStyleEx )
++	if ( candidate->pid <= 0 || focus->pid <= 0 || candidate->pid == focus->pid ||
++		 !candidate->hasHwndStyleEx || !focus->hasHwndStyleEx )
 +		return false;
 +
 +	if ( candidate->type == steamcompmgr_win_type_t::XWAYLAND && focus->type == steamcompmgr_win_type_t::XWAYLAND &&
@@ -22,7 +23,7 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
  static bool is_good_override_candidate( steamcompmgr_win_t *override, steamcompmgr_win_t* focus )
  {
  	// Some Chrome/Edge dropdowns (ie. FH5 xbox login) will automatically close themselves if you
-@@ -4235,6 +4249,9 @@
+@@ -4235,6 +4250,9 @@ static bool is_good_override_candidate(
  	if ( is_same_app_override_decoration( override, focus ) )
  		return false;
  
@@ -32,7 +33,7 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
  	if ( override->pid != focus->pid && !windows_share_app( override, focus ) )
  		return false;
  
-@@ -5836,6 +5853,7 @@
+@@ -5836,6 +5854,7 @@ map_win(xwayland_ctx_t* ctx, Window id,
  	w->isSteamStreamingClient = get_prop(ctx, w->xwayland().id, ctx->atoms.steamStreamingClientAtom, 0);
  	w->isSteamStreamingClientVideo = get_prop(ctx, w->xwayland().id, ctx->atoms.steamStreamingClientVideoAtom, 0);
  	w->steamAppID = get_prop(ctx, w->xwayland().id, ctx->atoms.gameAtom, 0);

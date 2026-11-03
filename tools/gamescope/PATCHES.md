@@ -218,7 +218,8 @@ sign-in window `WS_EX_TOPMOST`. gamescope took the splash as the sign-in's overr
 painted over most of the sign-in and became gamescope's keyboard focus window (Burnout Paradise
 Remastered, `gamescopectl focus_info`). On Windows a topmost window stays above every window that is neither topmost nor
 owned by it, so a window from another process that is neither is no longer an override candidate for
-a topmost focus window. Same-process popups, topmost popups (WebView2 and CEF menus) and windows
+a topmost focus window. Both windows' pids must be known; gamescope keeps -1 when XRes cannot name the
+client, which says nothing about the process. Same-process popups, topmost popups (WebView2 and CEF menus) and windows
 transient for the focus window are unchanged. gamescope read `_WINE_HWND_EXSTYLE` only from a
 PropertyNotify, and it listens for those from map on, so the style Wine sets before mapping a window
 was never known; `map_win` now reads it with the other properties, which the layered-launcher and

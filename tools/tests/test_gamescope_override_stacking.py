@@ -69,6 +69,11 @@ int main() {
     unknown.hasHwndStyleEx = false;
     assert(!is_stacked_below_focus(&unknown, &signin));
 
+    steamcompmgr_win_t no_pid = win(-1, 0x1c0000b, WS_EX_LAYERED | WS_EX_TOOLWINDOW);
+    assert(!is_stacked_below_focus(&no_pid, &signin));
+    steamcompmgr_win_t signin_no_pid = win(-1, 0x2c00008, WS_EX_TOPMOST);
+    assert(!is_stacked_below_focus(&splash, &signin_no_pid));
+
     puts("ok");
     return 0;
 }
@@ -84,6 +89,12 @@ class OverrideStackingTest(unittest.TestCase):
             source.write_text(PREAMBLE + patched_rule() + MAIN)
             subprocess.run(["c++", "-std=c++17", "-Wall", "-Werror", str(source), "-o", str(binary)], check=True)
             self.assertEqual(subprocess.run([str(binary)], capture_output=True, text=True, check=True).stdout.strip(), "ok")
+
+    def test_map_win_reads_the_wine_extended_style(self):
+        hunks = PATCH.read_text().split("\n@@ ")
+        map_win = next(hunk for hunk in hunks if "map_win(" in hunk.split("\n", 1)[0])
+        added = [line[1:].strip() for line in map_win.splitlines() if line.startswith("+")]
+        self.assertIn("w->hwndStyleEx = get_prop(ctx, w->xwayland().id, ctx->atoms.wineHwndStyleEx, 0, &w->hasHwndStyleEx);", added)
 
 
 if __name__ == "__main__":
