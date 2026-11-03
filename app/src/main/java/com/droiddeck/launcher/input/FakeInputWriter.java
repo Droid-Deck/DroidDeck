@@ -499,13 +499,10 @@ public class FakeInputWriter {
         synchronized (ringSlot) {
             ByteBuffer ring = ringSlot.data;
             if (ring == null) return 0;
-            int value = ring.getInt(IMU_MODE_OFFSET);
-            if (value >= 0) return -1;
-            // Steam's Remote Play client keeps its own mode; motion is read while either process wants it.
             int remote = ring.getInt(REMOTE_IMU_MODE_OFFSET);
             int pid = ring.getInt(REMOTE_IMU_PID_OFFSET);
-            if (remote < 0 && pid > 0 && new File("/proc/" + pid).exists()) value |= remote;
-            return value & 0xffff;
+            return ImuModes.combine(ring.getInt(IMU_MODE_OFFSET), remote,
+                    remote < 0 && pid > 0 && new File("/proc/" + pid).exists());
         }
     }
 
