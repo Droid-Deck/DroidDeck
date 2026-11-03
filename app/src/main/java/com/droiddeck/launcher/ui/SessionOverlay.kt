@@ -29,6 +29,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material.icons.outlined.Dashboard
@@ -153,6 +154,7 @@ import com.droiddeck.launcher.gpu.SteamVr
 import com.droiddeck.launcher.gpu.ScreenEffects
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.ComponentsManager
+import com.droiddeck.launcher.input.PC_KEY_GROUP_IDS
 import com.droiddeck.launcher.input.SecondScreenDisplay
 import com.droiddeck.launcher.input.SecondScreenMode
 import com.droiddeck.launcher.input.TouchGestureConfig.Companion.MOUSE_BEHAVIOR_CLICK
@@ -244,6 +246,9 @@ class DrawerActions(
     val textureAnisotropy: Int? = 0,
     val textureLodBias: String? = TextureFiltering.LOD_BIAS_OFF,
     val secondScreenMode: SecondScreenMode,
+    val gameOnBottom: Boolean = false,
+    val gameSwapAvailable: Boolean = false,
+    val onGameOnBottom: (Boolean) -> Unit = {},
     val dashboardAvailable: Boolean = false,
     val desktopAvailable: Boolean = false,
     val secondScreenDisplays: List<SecondScreenDisplay>,
@@ -477,8 +482,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         SteamActionPill(
                             stringResource(R.string.common_close), Icons.Outlined.Close, focus.track(page, "close"),
                         ) { host.open = null; a.onClose() }
-                        Spacer(Modifier.width(4.dp))
-                        BottomScreenModes(a, focus.track(page, "bottom-modes")) { host.open = null }
                     }
                     Spacer(Modifier.weight(1f))
                     SteamActionPill(
@@ -683,6 +686,28 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         host.open = null; a.onKeyboard()
                                     }
                                 }
+                                val keyboardContext = LocalContext.current
+                                remember { PcKeyboardPrefs.load(keyboardContext) }
+                                SliderRow(
+                                    stringResource(R.string.pckb_size), stringResource(R.string.pckb_size_hint),
+                                    PcKeyboardPrefs.size, SessionPrefs.PC_KEYBOARD_SIZE_RANGE, step = 1,
+                                    format = { "$it%" }, modifier = focus.track(page, "pckb-size"),
+                                    onChange = { PcKeyboardPrefs.setSize(keyboardContext, it) })
+                                SliderRow(
+                                    stringResource(R.string.pckb_opacity), stringResource(R.string.pckb_opacity_hint),
+                                    PcKeyboardPrefs.opacity, SessionPrefs.PC_KEYBOARD_OPACITY_RANGE, step = 5,
+                                    format = { "$it%" }, modifier = focus.track(page, "pckb-opacity"),
+                                    onChange = { PcKeyboardPrefs.setOpacity(keyboardContext, it) })
+                                MultiRow(
+                                    host, "pckb-hidden", stringResource(R.string.pckb_hidden_keys),
+                                    stringResource(R.string.pckb_hidden_keys_hint),
+                                    listOf(
+                                        0 to stringResource(R.string.pckb_group_function),
+                                        1 to stringResource(R.string.pckb_group_nav),
+                                        2 to stringResource(R.string.pckb_group_arrows),
+                                    ),
+                                    PC_KEY_GROUP_IDS.filterValues { it in PcKeyboardPrefs.hiddenKeys }.keys,
+                                    onToggle = { id, on -> PcKeyboardPrefs.toggleHiddenKey(keyboardContext, PC_KEY_GROUP_IDS.getValue(id), on) })
                             }
                         }
                         SessionDrawerPage.SECOND_SCREEN -> {
@@ -878,69 +903,15 @@ private fun StopSessionButton(modifier: Modifier = Modifier, onClick: () -> Unit
     val fill by animateColorAsState(if (hot) colors.error.copy(alpha = 0.18f) else Color.Transparent, Motion.tw(220), label = "dangerFill")
     val shape = RoundedCornerShape(20.dp)
     val stopDescription = stringResource(R.string.stop_session)
-    val stopLabel = stringResource(R.string.drawer_stop)
-    var iconOnly by remember(stopLabel, androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp) { mutableStateOf(false) }
     Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = modifier.heightIn(min = 44.dp).semantics { contentDescription = stopDescription }.testTag("drawer-stop")
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
+        modifier = modifier.heightIn(min = 44.dp).widthIn(min = 44.dp).semantics { contentDescription = stopDescription }.testTag("drawer-stop")
             .clip(shape).background(fill).glideBorder(hot, shape, colors.error.copy(alpha = 0.9f), colors.error.copy(alpha = 0.55f))
             .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = onClick)
             .controllerConfirm(onClick = onClick)
-            .padding(start = 12.dp, end = 14.dp),
+            .padding(horizontal = 12.dp),
     ) {
         Icon(Icons.Outlined.PowerSettingsNew, contentDescription = null, tint = colors.error, modifier = Modifier.size(18.dp))
-        if (!iconOnly) Text(
-            stopLabel, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.error,
-            maxLines = 1, softWrap = false, onTextLayout = { if (it.hasVisualOverflow) iconOnly = true },
-        )
-    }
-}
-
-@Composable
-private fun BottomScreenModes(a: DrawerActions, modifier: Modifier, onPick: () -> Unit) {
-    val pal = LocalPalette.current
-    val colors = MaterialTheme.colorScheme
-    val modes = buildList {
-        if (com.droiddeck.launcher.session.SessionState.deckPad) add(SecondScreenMode.DECK_CONTROLS to Icons.Outlined.SportsEsports)
-        add(SecondScreenMode.KEYBOARD_TRACKPAD to Icons.Outlined.Keyboard)
-        add(SecondScreenMode.TERMINAL to Icons.Outlined.Terminal)
-        if (a.dashboardAvailable) add(SecondScreenMode.DASHBOARD to Icons.Outlined.Dashboard)
-        if (a.desktopAvailable) add(SecondScreenMode.DESKTOP to Icons.Outlined.DesktopWindows)
-    }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = modifier.focusGroup().clip(RoundedCornerShape(26.dp)).border(1.dp, pal.line, RoundedCornerShape(26.dp)).padding(4.dp),
-    ) {
-        modes.forEach { (mode, icon) ->
-            val selected = a.secondScreenMode == mode
-            val source = remember { MutableInteractionSource() }
-            val hot = source.collectIsFocusedAsState().value || source.collectIsHoveredAsState().value
-            val shape = RoundedCornerShape(20.dp)
-            val pick = { onPick(); a.onSecondScreenMode(mode) }
-            val label = stringResource(mode.label)
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.size(width = 52.dp, height = 40.dp).semantics { contentDescription = label }
-                    .clip(shape)
-                    .background(when {
-                        selected -> pal.signal
-                        hot -> pal.signal.copy(alpha = 0.14f)
-                        else -> Color.Transparent
-                    })
-                    .glideBorder(hot, shape, pal.signal)
-                    .hoverable(source)
-                    .selectable(selected, interactionSource = source, indication = LocalIndication.current, role = Role.Tab, onClick = pick)
-                    .controllerConfirm(onClick = pick),
-            ) {
-                Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp),
-                    tint = when {
-                        selected -> colors.background
-                        hot -> pal.signal
-                        else -> colors.onBackground
-                    })
-            }
-        }
     }
 }
 
@@ -1232,6 +1203,11 @@ private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) 
         if (a.secondScreenDisplays.size > 1) ChoiceRow(host, "second-screen-display", stringResource(R.string.drawer_page_display), null,
             a.secondScreenDisplays.map { it.id to it.label }, a.selectedSecondScreenDisplay,
             chipModifier = track("second-screen-display"), onPick = a.onSecondScreenDisplay)
+    }
+    if (a.gameSwapAvailable || a.gameOnBottom) SettingsGroup(stringResource(R.string.swap_game_screen_group)) {
+        ChoiceRow(host, "game-screen", stringResource(R.string.swap_game_screen), null,
+            listOf(false to stringResource(R.string.swap_game_screen_top), true to stringResource(R.string.swap_game_screen_bottom)),
+            a.gameOnBottom, chipModifier = track("game-screen"), onPick = a.onGameOnBottom)
     }
 }
 

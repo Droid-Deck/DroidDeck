@@ -133,7 +133,7 @@ class FrontEndState(
     val dualScreen: Boolean = false,
     val dualScreenDevice: Boolean = false,
     val dualScreenMode: String = com.droiddeck.launcher.input.DualScreen.MODE_AUTO,
-    val dualScreenLauncher: Boolean = true,
+    val dualScreenSessions: String = com.droiddeck.launcher.input.DualScreen.MODE_AUTO,
     val dualScreenControls: Boolean = true,
     val packages: List<PackageRow>? = null,
     val packageCatalogLoading: Boolean = false,
@@ -149,6 +149,10 @@ class FrontEndState(
     val oscMode: String = SessionPrefs.OSC_AUTO,
     val controller: com.droiddeck.launcher.input.ControllerPrefs.Settings? = null,
     val phantomProcessStatus: PhantomProcessStatus = PhantomProcessStatus.NOT_APPLICABLE,
+    val adreno: Boolean = true,
+    val vkBridge: Boolean = false,
+    val vkBridgeSafe: Boolean = true,
+    val bridgeProtonDxvk: Boolean = false,
     val showPhantomGate: Boolean = false,
     val orientation: Int = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE,
     val launcherOrientation: Int = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER,
@@ -205,6 +209,9 @@ class FrontEndActions(
     val onInstallPackage: (String) -> Unit,
     val onRemovePackage: (String) -> Unit,
     val onRuntime: () -> Unit,
+    val onVkBridge: (Boolean) -> Unit = {},
+    val onVkBridgeSafe: (Boolean) -> Unit = {},
+    val onBridgeProtonDxvk: (Boolean) -> Unit = {},
     val onFrameGenPick: (FrameGen.Mode) -> Unit,
     val onImportLossless: () -> Unit,
     val onProtons: () -> Unit,
@@ -238,7 +245,7 @@ class FrontEndActions(
     val onLauncherFullscreen: (Boolean) -> Unit = {},
     val onAnimationsEnabled: (Boolean) -> Unit = {},
     val onDualScreenMode: (String) -> Unit = {},
-    val onDualScreenLauncher: (Boolean) -> Unit = {},
+    val onDualScreenSessions: (String) -> Unit = {},
     val onDualScreenControls: (Boolean) -> Unit = {},
     val onDownloadSource: (String) -> Unit = {},
     val onDownloadMirror: (String) -> Unit = {},
@@ -701,6 +708,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         StoreTheme(com.droiddeck.launcher.stores.Store.XBOX) { XboxStoreDialogs() }
         com.droiddeck.launcher.stores.StoresState.pendingInstall?.let { item -> StoreTheme(item.store) { InstallWhere(item) } }
         com.droiddeck.launcher.stores.StoresState.itchPicking?.let { item -> StoreTheme(item.store) { ItchBuildPicker(item) { com.droiddeck.launcher.stores.StoresState.itchPicking = null } } }
+        com.droiddeck.launcher.stores.StoresState.gameJoltPicking?.let { item -> StoreTheme(item.store) { GameJoltBuildPicker(item) { com.droiddeck.launcher.stores.StoresState.gameJoltPicking = null } } }
         StepsLayer(screenAt)
 
         appToChooseDisplay?.let { app ->

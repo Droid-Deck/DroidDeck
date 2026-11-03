@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT 0x200ULL
 #define AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE 0x100ULL
@@ -22,8 +23,9 @@ struct slot { AHardwareBuffer *ahb; struct vkp_image *img; int w,h; uint32_t fmt
 struct layer { const char *name; int alloc_tier, pool_n; uint64_t pool_modifier;
     int logged_w,logged_h,logged_tier; uint32_t logged_fmt; uint64_t logged_mod; };
 static struct { const void *(*getNativeHandle)(const AHardwareBuffer *); } api;
-static int native_supported, native_failure, dma_failure, allocation_failure, native_cpu_only, qti, bad_desc, bad_stride;
-static int allocations,releases,native_imports,dma_imports,plain_requests,cpu_requests,ubwc_requests;
+static int native_supported, generic_supported, native_failure, generic_failure, dma_failure, allocation_failure;
+static int native_cpu_only, qti, bad_desc, bad_stride;
+static int allocations,releases,native_imports,generic_imports,dma_imports,plain_requests,cpu_requests,ubwc_requests;
 static AHardwareBuffer *latest;
 static struct vkp_image image;
 static int vkp_output_ahb_supported(void) { return native_supported; }
@@ -52,6 +54,13 @@ static struct vkp_image *vkp_image_import_output_ahb(AHardwareBuffer *b, int w, 
     native_imports++;
     return native_failure || (native_cpu_only && !(b->desc.usage & AHARDWAREBUFFER_USAGE_CPU_READ_RARELY)) ? NULL : &image;
 }
+static int vkp_can_import_ahb(void) { return generic_supported; }
+static struct vkp_image *vkp_image_import_ahb(AHardwareBuffer *b, char *info, size_t info_n) {
+    assert(b == latest);
+    generic_imports++;
+    if (info && info_n) snprintf(info, info_n, "generic import");
+    return generic_failure ? NULL : &image;
+}
 static struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t fmt, uint64_t mod, int w, int h,
                                                 uint32_t stride, uint32_t offset, int as_dst) {
     assert(fd == 42 && (fmt == DRM_ABGR8888 || fmt == DRM_ABGR2101010) && w == 1280 && h == 720);
@@ -66,8 +75,10 @@ static void reset(struct layer *l, struct slot *s) {
     *l = (struct layer){.name = "test", .pool_n = 3}; *s = (struct slot){0};
     api.getNativeHandle = handle;
     native_supported = 1;
-    native_failure = dma_failure = allocation_failure = native_cpu_only = qti = bad_desc = bad_stride = 0;
-    allocations = releases = native_imports = dma_imports = plain_requests = cpu_requests = ubwc_requests = 0;
+    generic_supported = native_failure = generic_failure = dma_failure = allocation_failure = 0;
+    native_cpu_only = qti = bad_desc = bad_stride = 0;
+    allocations = releases = native_imports = generic_imports = dma_imports = 0;
+    plain_requests = cpu_requests = ubwc_requests = 0;
 }
 static void accept(struct layer *l, struct slot *s, uint32_t fmt) {
     assert(alloc_slot(l,s,1280,720,fmt) == 0 && !g_alloc_failed);
@@ -79,13 +90,16 @@ int main(void) {
     struct layer l; struct slot s;
     reset(&l,&s); accept(&l,&s,AHB_RGBA8);
     assert(allocations == 1 && native_imports == 1 && !dma_imports && plain_requests == 1 && !cpu_requests && !ubwc_requests);
-    assert(l.pool_modifier == MOD_GRALLOC && l.alloc_tier == TIER_PLAIN);
-    reset(&l,&s); accept(&l,&s,AHB_RGB10A2); assert(l.pool_modifier == MOD_GRALLOC);
+    assert(l.pool_modifier == SC_MOD_GRALLOC && l.alloc_tier == TIER_PLAIN);
+    reset(&l,&s); accept(&l,&s,AHB_RGB10A2); assert(l.pool_modifier == SC_MOD_GRALLOC);
     reset(&l,&s); native_failure = 1; accept(&l,&s,AHB_RGBA8);
     assert(allocations == 2 && native_imports == 2 && dma_imports == 1 && plain_requests == 1 && cpu_requests == 1);
     assert(l.pool_modifier == MOD_LINEAR && l.alloc_tier == TIER_LINEAR);
     reset(&l,&s); native_cpu_only = 1; accept(&l,&s,AHB_RGBA8);
-    assert(allocations == 2 && native_imports == 2 && !dma_imports && l.pool_modifier == MOD_GRALLOC);
+    assert(allocations == 2 && native_imports == 2 && !dma_imports && l.pool_modifier == SC_MOD_GRALLOC);
+    reset(&l,&s); native_supported = 0; generic_supported = 1; accept(&l,&s,AHB_RGBA8);
+    assert(allocations == 2 && !native_imports && generic_imports == 1 && !dma_imports);
+    assert(ubwc_requests == 1 && plain_requests == 1 && l.pool_modifier == SC_MOD_GRALLOC);
     reset(&l,&s); native_supported = 0; accept(&l,&s,AHB_RGBA8);
     assert(allocations == 2 && !native_imports && dma_imports == 1 && ubwc_requests == 1 && cpu_requests == 1);
     reset(&l,&s); native_supported = 0; qti = 1; accept(&l,&s,AHB_RGBA8);

@@ -58,6 +58,7 @@ class SecondScreenPresentation(
     private val onMenu: (() -> Unit)? = null,
     private val menu: (@androidx.compose.runtime.Composable () -> Unit)? = null,
     private val dashboard: (@androidx.compose.runtime.Composable () -> Unit)? = null,
+    private val onSwap: (() -> Unit)? = null,
 ) : Presentation(sessionActivity, display) {
     private val frame = FrameLayout(context)
     private var menuView: androidx.compose.ui.platform.ComposeView? = null
@@ -246,7 +247,7 @@ class SecondScreenPresentation(
             SecondScreenMode.DESKTOP -> {
                 ownComposeViews()
                 root.addView(BottomDesktopPanel(context, onClose, onMenu,
-                    (onSteamMenu to onQam).takeIf { SessionState.mode == SessionService.MODE_STEAM }), weightParams())
+                    (onSteamMenu to onQam).takeIf { SessionState.mode == SessionService.MODE_STEAM }, onSwap), weightParams())
             }
             SecondScreenMode.NONE -> Unit
         }

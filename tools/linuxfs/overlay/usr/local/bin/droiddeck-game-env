@@ -244,6 +244,59 @@ def ubisoft_overlay_off(env):
         print("droiddeck-game-env: Ubisoft Connect overlay left as is (%s)" % error, file=sys.stderr)
 
 
+PZ_JVM_FLAGS = ("-XX:+UseG1GC", "-XX:TieredStopAtLevel=1")
+
+
+def zomboid_vm_args(args):
+    updated = [arg for arg in args if not re.fullmatch(r"-XX:\+Use\w*GC", arg) or arg == "-XX:+UseG1GC"]
+    for flag in PZ_JVM_FLAGS:
+        if flag not in updated:
+            updated.append(flag)
+    return updated
+
+
+def zomboid_rewrite(node):
+    changed = False
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "vmArgs" and isinstance(value, list) and all(isinstance(arg, str) for arg in value):
+                updated = zomboid_vm_args(value)
+                if updated != value:
+                    node[key] = updated
+                    changed = True
+            elif isinstance(value, dict):
+                changed |= zomboid_rewrite(value)
+    return changed
+
+
+def project_zomboid_jvm(command):
+    if len(command) <= 2:
+        return
+    exe = Path(command[2])
+    if not exe.stem.lower().startswith("projectzomboid"):
+        return
+    settings = exe.with_suffix(".json")
+    try:
+        with settings.open(encoding="utf-8-sig") as source:
+            data = json.load(source)
+        if not zomboid_rewrite(data):
+            return
+        handle, staged = tempfile.mkstemp(prefix=".droiddeck-", dir=settings.parent)
+        try:
+            with os.fdopen(handle, "w", encoding="utf-8") as target:
+                json.dump(data, target, indent=4)
+                target.write("\n")
+            os.chmod(staged, settings.stat().st_mode & 0o7777)
+            os.replace(staged, settings)
+        except BaseException:
+            os.unlink(staged)
+            raise
+        print("droiddeck-game-env: Project Zomboid: G1 garbage collector and C1 JIT only (ZGC overheats and stalls here)",
+              file=sys.stderr)
+    except (OSError, ValueError, AttributeError) as error:
+        print("droiddeck-game-env: Project Zomboid JVM settings left as is (%s)" % error, file=sys.stderr)
+
+
 def offline_without_anticheat(command, env):
     if (env.get("DROIDDECK_ANTICHEAT_OFFLINE") != "1" or len(command) <= 2
             or command[1] != "waitforexitandrun"
@@ -477,6 +530,14 @@ def apply_config(env, config, app_id, fixes=None):
             own = result.get("DXVK_CONFIG", "").strip().rstrip(";").strip()
             result["DXVK_CONFIG"] = own + "; " + dxvk if own else dxvk
     return result
+
+
+def bridge_feature_level(env):
+    if env.get("BL_VKBRIDGE") != "1" or env.get("VKD3D_FEATURE_LEVEL") not in ("12_1", "12_2"):
+        return None
+    was = env["VKD3D_FEATURE_LEVEL"]
+    env["VKD3D_FEATURE_LEVEL"] = "12_0"
+    return "Mali bridge: VKD3D_FEATURE_LEVEL %s capped at 12_0 (no ray tracing or mesh shaders)" % was
 
 
 GAME_DEBUG_CHANNELS = (
@@ -1184,6 +1245,7 @@ def main():
         if waiting:
             command = skip_red_launcher(command)
             ubisoft_overlay_off(env)
+            project_zomboid_jvm(command)
             fixes, extra, notes = engine_fixes(command[2], command[3:]) if len(command) > 2 else ({}, [], [])
             if not gl_default:
                 fixes.pop("vblank_mode", None)
@@ -1227,6 +1289,9 @@ def main():
         env["AUDIO_DIRECT_MIC"] = "0"
     env = directaudio_settings(env)
     env = vram_cap(env)
+    note = bridge_feature_level(env)
+    if note:
+        print("droiddeck-game-env: " + note, file=sys.stderr)
     env = force_ssbs(command, env)
     game_cores(env)
     cpu_topology(env, command)

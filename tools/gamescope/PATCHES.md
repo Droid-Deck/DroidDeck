@@ -253,3 +253,19 @@ normal synchronization; already-ready DMA-BUFs still skip duplication when the u
 ready-at-import check is enabled. Ready commits enter the same-pass completion queue even
 when that optional polling check is disabled. Fence ownership, shared completion lists, and
 DroidDeck HUD frame reporting follow the preceding 0123–0125 patches.
+
+## 0126 steamcompmgr: a topmost focus window keeps other processes' windows beneath it
+
+EA games on Steam start through the EA app. Its Steam launcher (`EASteamLauncher.exe`) shows the
+game's splash as a layered tool window, and the EA app (`EADesktop.exe`, another process) opens its
+sign-in window `WS_EX_TOPMOST`. gamescope took the splash as the sign-in's override window, so it was
+painted over most of the sign-in and became gamescope's keyboard focus window (Burnout Paradise
+Remastered, `gamescopectl focus_info`). On Windows a topmost window stays above every window that is neither topmost nor
+owned by it, so a window from another process that is neither is no longer an override candidate for
+a topmost focus window. Both windows' pids must be known; gamescope keeps -1 when XRes cannot name the
+client, which says nothing about the process. Same-process popups, topmost popups (WebView2 and CEF menus) and windows
+transient for the focus window are unchanged. gamescope read `_WINE_HWND_EXSTYLE` only from a
+PropertyNotify, and it listens for those from map on, so the style Wine sets before mapping a window
+was never known; `map_win` now reads it with the other properties, which the layered-launcher and
+Xalia rules rely on too. `tools/tests/test_gamescope_override_stacking.py` compiles the rule from
+this patch.

@@ -38,6 +38,15 @@ def guest_prefix(package):
 
 
 class SessionGuestCommandTest(unittest.TestCase):
+    def test_async_session_startup_stops_are_generation_scoped(self):
+        source = SERVICE.read_text()
+        start = source.index("    private fun runSession(gen: Int)")
+        end = source.index("\n    private fun ", start + 1)
+        calls = re.findall(r"stopSession\(([^)]*)\)", source[start:end])
+        self.assertTrue(calls, "runSession no longer has startup failure paths")
+        self.assertTrue(all("," in arguments for arguments in calls),
+                        "an asynchronous startup failure can stop a newer session")
+
     def test_env_is_the_executable_for_every_package(self):
         for package in PACKAGES:
             with self.subTest(package=package):

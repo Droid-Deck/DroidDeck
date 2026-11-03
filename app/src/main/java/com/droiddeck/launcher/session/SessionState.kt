@@ -96,6 +96,7 @@ object SessionState {
     @Volatile var secondScreenDisplay = -1
     @Volatile var secondScreenAutoOpened = false
     @Volatile var secondScreenProvisional = false
+    @Volatile var gameOnBottom = false
 
     @Volatile var steamLibraryMounts: Map<String, java.io.File> = emptyMap()
 

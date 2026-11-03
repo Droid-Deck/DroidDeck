@@ -14,6 +14,8 @@ import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SessionService
+import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.ui.Motion
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
@@ -56,7 +58,10 @@ class DroidDeckHudHost(context: Context) {
             if (!gpuName.isNullOrBlank()) handler.post { this@DroidDeckHudHost.gpuName = cleanGpuName(gpuName) }
             if (window != null && window != lastWindow) {
                 lastWindow = window
-                handler.post { onPresentingWindowChanged?.invoke() }
+                handler.post {
+                    onPresentingWindowChanged?.invoke()
+                    applyShown()
+                }
             }
         }
 
@@ -174,8 +179,9 @@ class DroidDeckHudHost(context: Context) {
     private fun applyShown() {
         if (!running) return
         val show = !hidden && !backgrounded
-        view?.visibility = if (show) View.VISIBLE else View.GONE
-        showing = show
+        val visible = show && SessionState.mode != SessionService.MODE_DESKTOP
+        view?.visibility = if (visible) View.VISIBLE else View.GONE
+        showing = visible
         if (show != polling) {
             polling = show
             if (show) Choreographer.getInstance().postFrameCallback(frameCallback)
@@ -193,25 +199,35 @@ class DroidDeckHudHost(context: Context) {
         metrics.snapshot()
         Thread.sleep(500)
         val mango = metrics.snapshot()
+        fun shown(value: Any?, unit: String) = if (value == null) "none" else "$value$unit"
+        val readers = com.droiddeck.launcher.session.GpuStatsComponent.readerStatus()
         file.writeText(metrics.also { it.setMangoReadings(null) }.buildDiagnosticsReport(context) + "\n== As the HUD shows them (MangoHud's sources) ==\n" +
-            "CPU ${mango.cpuPercent}% ${mango.cpuTempC}°C, GPU ${mango.gpuPercent}% ${mango.gpuClockMhz}MHz ${mango.gpuTempC}°C, " +
+            "CPU ${shown(mango.cpuPercent, "%")} ${shown(mango.cpuTempC, "°C")}, GPU ${shown(mango.gpuPercent, "%")} " +
+            "${shown(mango.gpuClockMhz, "MHz")} ${shown(mango.gpuTempC, "°C")}, " +
             "RAM ${mango.ramUsedText()}/${mango.ramTotalText()}, VRAM ${mango.vramText()}, battery ${mango.battery.percent}% " +
             "${mango.battery.watts}W charging=${mango.battery.charging}\n" +
             "GPU feeds: ${com.droiddeck.launcher.session.GpuStatsComponent.sources.ifEmpty { "none (no session, or kgsl absent)" }}\n" +
+            (if (readers.isNotEmpty()) "GPU readers without root: $readers\n" else "") +
             "CPU temperature zones: ${LinuxRuntime.cpuTempZones().joinToString { it.name }}\n" +
             "Frames: ${if (feed.engine.isNotEmpty() || feed.pid > 0) "gamescope (pid ${feed.pid}, ${feed.engine})" else "compositor"}, " +
             "fps ${feed.stats.fps}\n")
         file
     }.getOrNull()
 
+    private fun sessionResolution(): String {
+        val (width, height) = SessionState.outputSize
+        return "${width}x${height}"
+    }
+
     private fun refreshLabels(hud: DroidDeckHudView) {
         if (feed.engine.isNotBlank() && !feed.steamFocused) engine = feed.engine
         hud.setEngineLabel(engine)
         if (gpuName.isNotBlank()) hud.setGpuModel(gpuName)
-        hud.setResolution(if (feed.outputWidth > 0 && feed.outputHeight > 0) buildString {
+        val feedResolution = if (feed.outputWidth > 0 && feed.outputHeight > 0) buildString {
             append(feed.outputWidth).append('x').append(feed.outputHeight)
             if (feed.refreshMilliHz > 0) append(" @ ").append((feed.refreshMilliHz + 499) / 1000).append("Hz")
-        } else "")
+        } else ""
+        hud.setResolution(feedResolution.ifBlank { sessionResolution() })
         val pid = feed.pid
         if (pid > 0 && pid != protonPid) {
             protonPid = pid
