@@ -54,6 +54,7 @@ import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.Toys
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Icon
@@ -125,7 +126,7 @@ internal fun navigationKeys(s: FrontEndState) = buildList {
     if (s.gameStoresEnabled) add("stores")
     add("desktop"); add("components")
     if (s.isHomeApp) add("android-apps")
-    add("setup"); add("updates")
+    add("setup"); add("updates"); add("trinkets")
 }
 
 internal object RailLabels {
@@ -199,6 +200,7 @@ internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
     "components" -> R.string.rail_components to Icons.Outlined.Layers
     "android-apps" -> R.string.rail_apps to Icons.Outlined.Apps
     "setup" -> R.string.rail_setup to Icons.Outlined.Tune
+    "trinkets" -> R.string.rail_trinkets to Icons.Outlined.Toys
     else -> R.string.rail_updates to Icons.Outlined.SystemUpdate
 }
 
