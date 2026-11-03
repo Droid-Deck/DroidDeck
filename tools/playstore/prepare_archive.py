@@ -2,13 +2,15 @@ import gzip
 import hashlib
 from pathlib import Path
 import subprocess
+import os
 from contextlib import ExitStack
 
 
 def prepare(source, destination, definition):
     if definition['method'] not in {'gzip-to-zstd-19', 'zstd-to-zstd-19'}:
         raise ValueError('Unsupported component preparation method')
-    version = subprocess.check_output(['zstd', '--version'], text=True)
+    zstd = os.environ.get('DROIDDECK_ZSTD', 'zstd')
+    version = subprocess.check_output([zstd, '--version'], text=True)
     if 'v' + definition['zstd_version'] + ',' not in version:
         raise ValueError('Component preparation requires the pinned zstd version')
     digest = hashlib.sha256()
@@ -18,12 +20,12 @@ def prepare(source, destination, definition):
         if definition['method'] == 'gzip-to-zstd-19':
             original = stack.enter_context(gzip.open(source, 'rb'))
         else:
-            decoder = subprocess.Popen(['zstd', '-dc', str(source)], stdout=subprocess.PIPE)
+            decoder = subprocess.Popen([zstd, '-dc', str(source)], stdout=subprocess.PIPE)
             stack.callback(decoder.wait)
             stack.callback(lambda: decoder.poll() is None and decoder.terminate())
             original = stack.enter_context(decoder.stdout)
         output = stack.enter_context(Path(destination).open('xb'))
-        process = subprocess.Popen(['zstd', '-19', '-T4', '-c'], stdin=subprocess.PIPE, stdout=output)
+        process = subprocess.Popen([zstd, '-19', '-T4', '-c'], stdin=subprocess.PIPE, stdout=output)
         try:
             for block in iter(lambda: original.read(1024 * 1024), b''):
                 size += len(block)

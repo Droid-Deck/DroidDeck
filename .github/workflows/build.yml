@@ -687,9 +687,12 @@ jobs:
 
       - name: Stage verified Play components
         if: inputs.play_bundle == true
+        env:
+          DROIDDECK_ZSTD: /usr/bin/zstd
         run: |
           set -euo pipefail
           bash tools/ci/install-ubuntu-packages.sh zstd
+          "$DROIDDECK_ZSTD" --version
           python3 tools/playstore/payloads.py stage --play-only --manifest tools/playstore/components.lock.json \
             --cache "$RUNNER_TEMP/play-component-cache" --output build/playstore-payloads
 

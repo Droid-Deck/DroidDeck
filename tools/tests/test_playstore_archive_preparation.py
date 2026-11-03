@@ -1,4 +1,5 @@
 import gzip
+import os
 import hashlib
 from pathlib import Path
 import re
@@ -6,6 +7,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from tools.playstore.prepare_archive import prepare
 
@@ -53,6 +55,16 @@ class PlayArchivePreparationTest(unittest.TestCase):
         output = self.root / 'recompressed.tar.zst'
         prepare(original, output, definition)
         self.assertEqual(self.content, subprocess.check_output(['zstd', '-dc', str(output)]))
+
+    def test_pinned_executable_is_used_when_another_zstd_shadows_the_path(self):
+        actual = shutil.which('zstd')
+        directory = self.root / 'shadow'
+        directory.mkdir()
+        (directory / 'zstd').symlink_to(shutil.which('false'))
+        output = self.root / 'prepared.tar.zst'
+        with patch.dict(os.environ, DROIDDECK_ZSTD=actual, PATH=str(directory) + os.pathsep + os.environ['PATH']):
+            prepare(self.source, output, self.definition)
+        self.assertEqual(self.content, subprocess.check_output([actual, '-dc', str(output)]))
 
 
 if __name__ == '__main__':
