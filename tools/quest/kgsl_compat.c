@@ -4,6 +4,7 @@
 #include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #ifdef __ANDROID__
 #include <android/log.h>
 #endif
@@ -29,11 +30,12 @@ static void report(const char *operation, int error) {
     errno = saved;
 }
 
-#define TRACKED_CONTEXTS 128
-
-static struct {
+struct tracked_context {
     unsigned int context, queued, retired;
-} tracked[TRACKED_CONTEXTS];
+};
+
+static struct tracked_context *tracked;
+static unsigned int tracked_count, tracked_capacity;
 static char tracked_lock;
 
 static void tracked_acquire(void) {
@@ -46,15 +48,20 @@ static void tracked_release(void) {
 
 static int tracked_find(unsigned int context, int create) {
     int free_slot = -1;
-    for (int i = 0; i < TRACKED_CONTEXTS; i++) {
-        if (tracked[i].context == context) return i;
-        if (free_slot < 0 && tracked[i].context == 0) free_slot = i;
+    for (unsigned int i = 0; i < tracked_count; i++) {
+        if (tracked[i].context == context) return (int)i;
+        if (free_slot < 0 && tracked[i].context == 0) free_slot = (int)i;
     }
     if (!create) return -1;
     if (free_slot < 0) {
-        free_slot = (int)(context % TRACKED_CONTEXTS);
-        for (int i = 0; i < TRACKED_CONTEXTS; i++)
-            if (tracked[i].queued == tracked[i].retired) { free_slot = i; break; }
+        if (tracked_count == tracked_capacity) {
+            unsigned int capacity = tracked_capacity ? tracked_capacity * 2 : 32;
+            struct tracked_context *grown = realloc(tracked, capacity * sizeof *grown);
+            if (grown == NULL) return -1;
+            tracked = grown;
+            tracked_capacity = capacity;
+        }
+        free_slot = (int)tracked_count++;
     }
     tracked[free_slot].context = context;
     tracked[free_slot].queued = tracked[free_slot].retired = 0;
@@ -65,6 +72,7 @@ static void track_submit(unsigned int context, unsigned int timestamp) {
     if (context == 0) return;
     tracked_acquire();
     int slot = tracked_find(context, 1);
+    if (slot < 0) { tracked_release(); return; }
     if ((int)(timestamp - tracked[slot].queued) < 0) tracked[slot].retired = 0;
     tracked[slot].queued = timestamp;
     tracked_release();
