@@ -1,9 +1,7 @@
 package com.droiddeck.launcher.hud
 
-import android.os.Environment
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
-import kotlin.math.roundToInt
 
 internal class MangoReadings(private val sessionDir: File, private val rootDir: File) {
     class Cpu(val percent: Int, val perCore: IntArray)
@@ -50,7 +48,6 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
     }
 
     fun cpuTempC(): Int? {
-        externalCpuTemp()?.let { return it }
         var sum = 0f
         var count = 0
         for (zone in LinuxRuntime.cpuTempZones()) {
@@ -59,13 +56,6 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
             count++
         }
         return if (count == 0) null else (sum / count).toInt()
-    }
-
-    /** Optional ADB helper feed: /sdcard/DroidDeck/cpu-temp, written from the host while a session runs. */
-    private fun externalCpuTemp(): Int? {
-        val file = File(Environment.getExternalStorageDirectory(), "DroidDeck/cpu-temp")
-        if (!file.isFile || System.currentTimeMillis() - file.lastModified() > CPU_TEMP_FRESH_MS) return null
-        return readFloat(file)?.takeIf { it.isFinite() && it in -20f..150f }?.roundToInt()
     }
 
     fun gpuPercent(): Int? {
@@ -102,8 +92,7 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
         return Memory((total - available) * 1024, total * 1024, (swapTotal - swapFree) * 1024, swapTotal * 1024)
     }
 
-    /** The KGSL total DroidDeck shares with the session (GpuMemComponent). */
-    fun vramBytes(): Long? = fresh(File(rootDir, VRAM_FILE), VRAM_FRESH_MS)?.let(::readLong)?.takeIf { it > 0 }
+    fun vramBytes(): Long? = fresh(File(rootDir, VRAM_FILE), VRAM_FRESH_MS)?.let(::readLong)
 
     fun battery(): Battery? {
         val dirs = File(sessionDir, "sys/power_supply").listFiles { f -> f.name.contains("BAT") }?.sortedBy { it.name }
@@ -143,7 +132,6 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
         const val VRAM_FILE = "run/droiddeck-hud/gpu-mem"
         private const val FEED_FRESH_MS = 10_000L
         private const val VRAM_FRESH_MS = 15_000L
-        private const val CPU_TEMP_FRESH_MS = 10_000L
         private val WHITESPACE = Regex("\\s+")
 
         private fun readLong(file: File): Long? = runCatching { file.readText().trim().toLong() }.getOrNull()
