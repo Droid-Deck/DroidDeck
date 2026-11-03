@@ -20,12 +20,15 @@ class BottomDesktopCompositorService : Service() {
     private var client: Messenger? = null
     /** Echoed in every reply, so the session process can tell replies to an earlier attach apart. */
     @Volatile private var attachTag = 0
+    private var outputWidth = 0
+    private var outputHeight = 0
 
     private val handler = object : Handler(Looper.getMainLooper()) {
         override fun handleMessage(msg: Message) {
             when (msg.what) {
                 MSG_ATTACH -> attach(msg)
                 MSG_DETACH -> CompositorHost.detach(null)
+                MSG_RESIZE -> resize(msg.arg1, msg.arg2)
                 MSG_TOUCH -> WaylandCompositor.nativeSendTouch(msg.arg1 and 0xff, msg.arg1 shr 8,
                     msg.arg2 ushr 16, msg.arg2 and 0xffff)
                 MSG_KEY -> WaylandCompositor.nativeSendKey(msg.arg1, msg.arg2)
@@ -75,13 +78,24 @@ class BottomDesktopCompositorService : Service() {
         }
         val turnip = com.droiddeck.launcher.gpu.TurnipDriver(this)
         val driverId = if (CompositorHost.isStarted) null else turnip.install()
+        val resized = CompositorHost.isStarted && (width != outputWidth || height != outputHeight)
         val started = CompositorHost.startOrAttach(
             this, surface, runtimeDir.path, driverId?.let { turnip.driverPath(it) }, driverId?.let { turnip.libraryName(it) },
             applicationInfo.nativeLibraryDir,
             width, height, data.getFloat(KEY_REFRESH, 60f), 0,
         )
+        outputWidth = width
+        outputHeight = height
+        if (resized) WaylandCompositor.nativeResizeOutput(width, height)
         Log.i(TAG, (if (started) "compositor started" else "compositor attached") + " at ${width}x$height in ${runtimeDir.path}")
         reply(MSG_ATTACHED)
+    }
+
+    private fun resize(width: Int, height: Int) {
+        if (width <= 0 || height <= 0 || !CompositorHost.isStarted || (width == outputWidth && height == outputHeight)) return
+        outputWidth = width
+        outputHeight = height
+        WaylandCompositor.nativeResizeOutput(width, height)
     }
 
     private fun reply(what: Int) {
@@ -102,6 +116,7 @@ class BottomDesktopCompositorService : Service() {
         const val MSG_POINTER = 8
         const val MSG_SCENE = 9
         const val MSG_CURSOR = 10
+        const val MSG_RESIZE = 11
         const val MSG_ATTACHED = 101
         const val MSG_FIRST_FRAME = 102
         const val KEY_RUNTIME_DIR = "runtimeDir"
