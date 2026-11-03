@@ -17,6 +17,7 @@ class QuestKgslTest(unittest.TestCase):
                             str(QUEST / 'test_kgsl_compat.c'), str(QUEST / 'kgsl_compat.c')], check=True)
             result = subprocess.run([binary], capture_output=True, text=True, check=True, timeout=10)
             self.assertIn('PASS: 12 GPUOBJ', result.stdout)
+            self.assertIn('PASS: denied timestamp reads', result.stdout)
 
 
 if __name__ == '__main__':

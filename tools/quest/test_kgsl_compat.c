@@ -43,7 +43,66 @@ static struct kgsl_gpumem_alloc_id reset(void) {
     address = 0x100000;
     return (struct kgsl_gpumem_alloc_id){.size = 123, .flags = 0x10000};
 }
+static int read_error, wait_error, waits;
+static unsigned int waited_for;
+static int timestamp_mock(int fd, unsigned long request, void *arg) {
+    assert(fd == 42);
+    if (request == IOCTL_KGSL_GPU_COMMAND || request == IOCTL_KGSL_DRAWCTXT_DESTROY) return 0;
+    if (request == IOCTL_KGSL_CMDSTREAM_READTIMESTAMP_CTXTID) {
+        errno = read_error;
+        return -1;
+    }
+    if (request == IOCTL_KGSL_DEVICE_WAITTIMESTAMP_CTXTID) {
+        const struct kgsl_device_waittimestamp_ctxtid *w = arg;
+        assert(w->timeout == 0);
+        waits++;
+        waited_for = w->timestamp;
+        if (wait_error) { errno = wait_error; return -1; }
+        return 0;
+    }
+    errno = EACCES;
+    return -1;
+}
+static void submit(unsigned int context, unsigned int timestamp) {
+    struct kgsl_gpu_command cmd = {.context_id = context, .timestamp = timestamp};
+    assert(quest_kgsl_ioctl(timestamp_mock, 42, IOCTL_KGSL_GPU_COMMAND, &cmd) == 0);
+}
+static int read_ts(unsigned int context, unsigned int type, unsigned int *timestamp) {
+    struct kgsl_cmdstream_readtimestamp_ctxtid q = {.context_id = context, .type = type, .timestamp = 0xdead};
+    int rc = quest_kgsl_ioctl(timestamp_mock, 42, IOCTL_KGSL_CMDSTREAM_READTIMESTAMP_CTXTID, &q);
+    *timestamp = q.timestamp;
+    return rc;
+}
+static void timestamp_scenarios(void) {
+    unsigned int ts;
+    read_error = EACCES;
+    assert(read_ts(5, KGSL_TIMESTAMP_RETIRED, &ts) == -1 && errno == EACCES && ts == 0xdead);
+    submit(5, 10);
+    assert(read_ts(5, KGSL_TIMESTAMP_QUEUED, &ts) == 0 && ts == 10 && waits == 0);
+    wait_error = ETIMEDOUT;
+    assert(read_ts(5, KGSL_TIMESTAMP_RETIRED, &ts) == 0 && ts == 0 && waits == 1 && waited_for == 10);
+    wait_error = 0;
+    assert(read_ts(5, KGSL_TIMESTAMP_RETIRED, &ts) == 0 && ts == 10 && waits == 2);
+    assert(read_ts(5, KGSL_TIMESTAMP_RETIRED, &ts) == 0 && ts == 10 && waits == 2);
+    submit(5, 11);
+    wait_error = ETIMEDOUT;
+    assert(read_ts(5, KGSL_TIMESTAMP_RETIRED, &ts) == 0 && ts == 10 && waited_for == 11);
+    wait_error = EIO;
+    assert(read_ts(5, KGSL_TIMESTAMP_RETIRED, &ts) == -1 && errno == EIO);
+    wait_error = 0;
+    submit(5, 0xfffffffe);
+    submit(5, 1);
+    assert(read_ts(5, KGSL_TIMESTAMP_RETIRED, &ts) == 0 && ts == 1);
+    struct kgsl_drawctxt_destroy gone = {.drawctxt_id = 5};
+    assert(quest_kgsl_ioctl(timestamp_mock, 42, IOCTL_KGSL_DRAWCTXT_DESTROY, &gone) == 0);
+    assert(read_ts(5, KGSL_TIMESTAMP_QUEUED, &ts) == -1 && errno == EACCES);
+    read_error = EIO;
+    submit(6, 3);
+    assert(read_ts(6, KGSL_TIMESTAMP_QUEUED, &ts) == -1 && errno == EIO);
+}
+
 int main(void) {
+    timestamp_scenarios();
     struct kgsl_gpumem_alloc_id p = reset();
     assert(quest_kgsl_ioctl(mock, 42, IOCTL_KGSL_GPUMEM_ALLOC_ID, &p) == 0 && count == 1);
     p = reset(); old_error = EACCES;
@@ -74,4 +133,5 @@ int main(void) {
     reset();
     assert(quest_kgsl_ioctl(mock, 42, IOCTL_KGSL_GPUMEM_FREE_ID, &release) == 0 && count == 1);
     puts("PASS: 12 GPUOBJ translation, passthrough, failure and cleanup scenarios");
+    puts("PASS: denied timestamp reads answered from tracked submissions");
 }

@@ -29,9 +29,91 @@ static void report(const char *operation, int error) {
     errno = saved;
 }
 
+#define TRACKED_CONTEXTS 32
+
+static struct {
+    unsigned int context, queued, retired;
+} tracked[TRACKED_CONTEXTS];
+static char tracked_lock;
+
+static void tracked_acquire(void) {
+    while (__atomic_test_and_set(&tracked_lock, __ATOMIC_ACQUIRE)) {}
+}
+
+static void tracked_release(void) {
+    __atomic_clear(&tracked_lock, __ATOMIC_RELEASE);
+}
+
+static int tracked_find(unsigned int context, int create) {
+    int free_slot = -1;
+    for (int i = 0; i < TRACKED_CONTEXTS; i++) {
+        if (tracked[i].context == context) return i;
+        if (free_slot < 0 && tracked[i].context == 0) free_slot = i;
+    }
+    if (!create) return -1;
+    if (free_slot < 0) free_slot = (int)(context % TRACKED_CONTEXTS);
+    tracked[free_slot].context = context;
+    tracked[free_slot].queued = tracked[free_slot].retired = 0;
+    return free_slot;
+}
+
+static void track_submit(unsigned int context, unsigned int timestamp) {
+    if (context == 0) return;
+    tracked_acquire();
+    int slot = tracked_find(context, 1);
+    if ((int)(timestamp - tracked[slot].queued) < 0) tracked[slot].retired = 0;
+    tracked[slot].queued = timestamp;
+    tracked_release();
+}
+
+static void track_destroy(unsigned int context) {
+    tracked_acquire();
+    int slot = tracked_find(context, 0);
+    if (slot >= 0) tracked[slot].context = 0;
+    tracked_release();
+}
+
+/* Quest's SELinux policy denies CMDSTREAM_READTIMESTAMP_CTXTID, which Mesa 26's Turnip needs to wait on
+ * timeline semaphores; a zero-timeout WAITTIMESTAMP on the last submitted timestamp answers it. */
+static int read_timestamp(quest_ioctl_fn real, int fd, struct kgsl_cmdstream_readtimestamp_ctxtid *query) {
+    tracked_acquire();
+    int slot = tracked_find(query->context_id, 0);
+    unsigned int queued = slot < 0 ? 0 : tracked[slot].queued;
+    unsigned int retired = slot < 0 ? 0 : tracked[slot].retired;
+    tracked_release();
+    if (slot < 0) { errno = EACCES; return -1; }
+
+    if (query->type == KGSL_TIMESTAMP_RETIRED && (int)(queued - retired) > 0) {
+        struct kgsl_device_waittimestamp_ctxtid wait = {
+            .context_id = query->context_id, .timestamp = queued, .timeout = 0};
+        if (real(fd, IOCTL_KGSL_DEVICE_WAITTIMESTAMP_CTXTID, &wait) == 0) {
+            retired = queued;
+            tracked_acquire();
+            slot = tracked_find(query->context_id, 0);
+            if (slot >= 0 && (int)(retired - tracked[slot].retired) > 0) tracked[slot].retired = retired;
+            tracked_release();
+        } else if (errno != ETIMEDOUT) {
+            return -1;
+        }
+    }
+    query->timestamp = query->type == KGSL_TIMESTAMP_RETIRED ? retired : queued;
+    return 0;
+}
+
 int quest_kgsl_ioctl(quest_ioctl_fn real, int fd, unsigned long request, void *arg) {
     int rc = real(fd, request, arg);
+    if (rc == 0 && arg != NULL) {
+        if (request == IOCTL_KGSL_GPU_COMMAND) {
+            const struct kgsl_gpu_command *submit = arg;
+            track_submit(submit->context_id, submit->timestamp);
+        } else if (request == IOCTL_KGSL_DRAWCTXT_DESTROY) {
+            track_destroy(((const struct kgsl_drawctxt_destroy *)arg)->drawctxt_id);
+        }
+    }
     if (rc != -1 || (errno != EACCES && errno != EPERM) || arg == NULL) return rc;
+
+    if (request == IOCTL_KGSL_CMDSTREAM_READTIMESTAMP_CTXTID)
+        return read_timestamp(real, fd, arg);
 
     if (request == IOCTL_KGSL_GPUMEM_ALLOC_ID) {
         struct kgsl_gpumem_alloc_id *old = arg;
