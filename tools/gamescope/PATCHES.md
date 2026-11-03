@@ -237,3 +237,10 @@ For games that confine a visible cursor and warp it, which the automatic rule ca
 The rule only counted a lock with a cursor position hint. A game that hides the cursor and confines the
 pointer through a grab (Wine's ClipCursor) has a constraint with no hint, so the nested pointer stayed
 absolute, the constraint held the X pointer still and no raw motion was produced: the camera froze.
+
+## 0129 steamcompmgr, wayland: release a pointer lock at the game's pointer
+
+A game can move the X pointer while it holds the lock (Wine's ClipCursor recentres it), and the nested host
+never hears about it. On unlock the host's next absolute motion dropped the pointer back at its old position,
+often near a corner. The unlock now sends the X pointer as a cursor position hint first. A cursor forced On
+by `relative_mouse` also stays visible while idle, since the host cursor is hidden during the lock.

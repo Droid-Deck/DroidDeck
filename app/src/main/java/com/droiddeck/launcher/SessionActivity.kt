@@ -3609,6 +3609,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var ignoreGameTouch = false
     private var lockedTouchTurns = false
     private var touchEditorOpen by mutableStateOf(false)
+    private var lockedSwipeUsed = false
     private var lockedSwipeX = 0f
     private var lockedSwipeY = 0f
     private var dismissTouch = false
@@ -3722,7 +3723,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val swipeY = lockedSwipeY
         lockedSwipeX = event.x
         lockedSwipeY = event.y
+        if ((event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) && lockedSwipeUsed) {
+            lockedSwipeUsed = false
+            directTouchHold.cancel()
+            return true
+        }
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) lockedSwipeUsed = false
         if (pointerLocked && event.actionMasked == MotionEvent.ACTION_MOVE) {
+            lockedSwipeUsed = true
             directTouchHold.cancelPendingHold()
             val scale = sceneScale(rect)
             sendSceneDelta((event.x - swipeX) * scale, (event.y - swipeY) * scale)
