@@ -303,11 +303,27 @@ def installed_build(folder, appid, installdir):
     try:
         ids = json.loads((folder / ".DepotDownloader/depot.config").read_text())["installedManifestIDs"]
         depots = sorted((int(depot), int(gid)) for depot, gid in ids.items())
+    except FileNotFoundError:
+        depots = completed_depots(folder / ".DepotDownloader/completed")
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
         return None
     if not depots or not all(0 < depot < 0x80000000 and 0 < gid < 0x7FFFFFFFFFFFFFFF for depot, gid in depots):
         return None
     return "".join(f'        "{depot}"\n        {{\n            "manifest" "{gid}"\n        }}\n' for depot, gid in depots)
+
+
+def completed_depots(completed):
+    newest = {}
+    try:
+        for manifest in completed.iterdir():
+            match = re.fullmatch(r"(\d+)_(\d+)\.manifest", manifest.name)
+            if match and manifest.is_file():
+                depot, gid, mtime = int(match[1]), int(match[2]), manifest.stat().st_mtime
+                if depot not in newest or mtime > newest[depot][0]:
+                    newest[depot] = (mtime, gid)
+    except OSError:
+        return []
+    return sorted((depot, gid) for depot, (_, gid) in newest.items())
 
 
 def update_not_started(text, steamapps, appid, installdir):

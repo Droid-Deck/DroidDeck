@@ -247,6 +247,20 @@ class ImportsTest(unittest.TestCase):
         config.write_text(json.dumps({'installedManifestIDs': {'43': 0x7FFFFFFFFFFFFFFF}}))
         self.assertIsNone(imports.installed_build(self.folder, 42, 'DroidDeck-42'))
 
+    def test_completed_manifests_record_installed_depots(self):
+        completed = self.folder / '.DepotDownloader/completed'
+        completed.mkdir(parents=True)
+        (self.folder / '.download_complete').touch()
+        self.assertIsNone(imports.installed_build(self.folder, 42, 'DroidDeck-42'))
+        (completed / '43_98.manifest').write_bytes(b'old')
+        (completed / '43_99.manifest').write_bytes(b'new')
+        (completed / '44_7.manifest').write_bytes(b'x')
+        os.utime(completed / '43_98.manifest', (1, 1))
+        text = imports.installed_build(self.folder, 42, 'DroidDeck-42')
+        self.assertIn('"43"\n        {\n            "manifest" "99"', text)
+        self.assertIn('"44"\n        {\n            "manifest" "7"', text)
+        self.assertNotIn('"98"', text)
+
     def test_bare_import_manifest_gains_installed_build(self):
         self.snapshot()
         imports.route(self.steam, self.acct, [self.game])

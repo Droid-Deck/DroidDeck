@@ -104,8 +104,13 @@ class SteamLibrariesTest {
         depotInstall(common, "Partial", complete = false)
         depotInstall(common, "Managed")
         File(steam, "steamapps/appmanifest_42.acf").writeText("\"AppState\"\n{\n\t\"installdir\"\t\t\"Managed\"\n}\n")
-        assertEquals(listOf(done), SteamLibraries.depotInstalls(common))
-        assertEquals(2, SteamLibraries.gameCount(steam))
+        val migrated = File(common, "Migrated").apply {
+            File(this, ".DepotDownloader/completed").mkdirs()
+            File(this, ".DepotDownloader/completed/43_99.manifest").writeBytes(ByteArray(4))
+            File(this, ".download_complete").writeText("")
+        }
+        assertEquals(listOf(done, migrated), SteamLibraries.depotInstalls(common))
+        assertEquals(3, SteamLibraries.gameCount(steam))
         assertEquals(steam, SteamLibraries.innerLibrary(steam.parentFile))
     }
 

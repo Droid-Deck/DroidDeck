@@ -137,9 +137,12 @@ object SteamLibraries {
         val managed = AddedGames.steamInstallDirs(common)
         return common.listFiles { f ->
             f.isDirectory && f.name.lowercase() !in managed &&
-                File(f, ".download_complete").isFile && File(f, ".DepotDownloader/depot.config").isFile
+                File(f, ".download_complete").isFile && depotRecord(File(f, ".DepotDownloader"))
         }.orEmpty().sortedBy { it.name.lowercase() }
     }
+
+    private fun depotRecord(dir: File): Boolean = File(dir, "depot.config").isFile ||
+        File(dir, "completed").list()?.any { it.matches(Regex("\\d+_\\d+\\.manifest")) } == true
 
     fun rename(context: Context, id: String, label: String) {
         val name = clean(label).takeIf { it.isNotEmpty() } ?: return
