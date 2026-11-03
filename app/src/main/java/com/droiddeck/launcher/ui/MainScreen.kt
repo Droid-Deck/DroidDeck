@@ -57,12 +57,22 @@ fun ChooseAppDisplayDialog(
 }
 
 @Composable
-fun ConfirmDialog(title: String, text: String, confirm: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+fun ConfirmDialog(title: String, text: String, confirm: String, onConfirm: () -> Unit, onDismiss: () -> Unit,
+                  progress: Int? = null, confirmEnabled: Boolean = true, closeOnConfirm: Boolean = true) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
-        text = { Text(text) },
-        confirmButton = { TextButton(onClick = { onDismiss(); onConfirm() }, modifier = Modifier.focusGlide(CircleShape)) { Text(confirm) } },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(text)
+                if (progress != null) {
+                    if (progress >= 0) androidx.compose.material3.LinearProgressIndicator(
+                        progress = { progress / 100f }, modifier = Modifier.fillMaxWidth().height(4.dp))
+                    else androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(4.dp))
+                }
+            }
+        },
+        confirmButton = { TextButton(enabled = confirmEnabled, onClick = { if (closeOnConfirm) onDismiss(); onConfirm() }, modifier = Modifier.focusGlide(CircleShape)) { Text(confirm) } },
         dismissButton = { TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
     )
 }

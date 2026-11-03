@@ -59,6 +59,8 @@ jobs:
       - name: Test Play distribution safeguards
         run: |
           python3 -m unittest \
+            tools.tests.test_playstore_release_assets \
+            tools.tests.test_playstore_split_archive \
             tools.tests.test_playstore_payloads \
             tools.tests.test_playstore_manifest \
             tools.tests.test_playstore_signing \
@@ -185,6 +187,13 @@ jobs:
             exit 1
           fi
           printf 'Signed Android App Bundle for Google Play upload.\n\nSource: `%s` on `playstore`.\nVersion code: `%s`.\n' "$SOURCE_SHA" "$VERSION_CODE" > "$RUNNER_TEMP/play-release.md"
-          gh release create "$tag" -R "$GITHUB_REPOSITORY" signed/*.aab signed/SHA256SUMS \
+          bundles=(signed/*.aab)
+          [ "${#bundles[@]}" -eq 1 ] && [ -f "${bundles[0]}" ]
+          python3 tools/playstore/release_assets.py --bundle "${bundles[0]}" --checksums signed/SHA256SUMS --output publish
+          if compgen -G 'publish/*.part*' >/dev/null; then
+            name=$(basename "${bundles[0]}")
+            printf '\nGitHub release assets are split to stay below its per-file limit. Download every part and PART-SHA256SUMS, verify the parts, combine them in numeric order, and verify SHA256SUMS before uploading the resulting AAB to Google Play.\n\nThe complete signed AAB is also available in the droiddeck-play-bundle-signed artifact for this workflow run.\n\n```sh\nsha256sum -c PART-SHA256SUMS\nset -o noclobber\ncat "%s".part??? > "%s"\nsha256sum -c SHA256SUMS\n```\n' "$name" "$name" >> "$RUNNER_TEMP/play-release.md"
+          fi
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" publish/* \
             --target "$SOURCE_SHA" --title "DroidDeck $VERSION · PlayStore" \
             --notes-file "$RUNNER_TEMP/play-release.md" --latest=false

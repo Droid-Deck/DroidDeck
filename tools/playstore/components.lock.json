@@ -22,8 +22,8 @@
       "urls": [
         "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/ubuntu-r1-rc4/ubuntu-r1-rc4.tar.zst"
       ],
-      "size": 291531733,
-      "sha256": "a90882efc4b0fc308887f8719c21825f0d17d51698296cd3047b6da2491c4396",
+      "size": 292945191,
+      "sha256": "8c0607cb6fc524467d6a68d3116c0e910b1238aab38430132a7b5b127464712c",
       "provides": [
         "runtime-ubuntu"
       ],
@@ -34,6 +34,41 @@
         "url": "https://github.com/Droid-Deck/DroidDeck/tree/e3c3471d2fbe5be37a5f0b7f6243f969a86f03ce/tools/ubuntu",
         "approved": true,
         "redistribution_review": "Project owner confirmed runtime redistribution permission. Original vendor terms and included notices remain applicable."
+      },
+      "layout": {
+        "zstd_version": "1.5.5",
+        "inventory_sha256": "568bdaa85f29b8a17c2ddd2b13fc8044ac61bee3dcf8354470980a7387525c7c",
+        "segments": [
+          {
+            "sha256": "6e9440a9ee6c9c72756686754081fd9c9a64ee7e54a219ac4b06456eb689b335",
+            "size": 266830319,
+            "kind": "code"
+          },
+          {
+            "sha256": "3b3876bab93bf511c91f9ad09231123a98a45495c4ea607b6f29b39ec438108c",
+            "size": 26114872,
+            "kind": "data"
+          }
+        ],
+        "source": {
+          "id": "runtime-ubuntu",
+          "urls": [
+            "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/ubuntu-r1-rc4/ubuntu-r1-rc4.tar.zst"
+          ],
+          "size": 291531733,
+          "sha256": "a90882efc4b0fc308887f8719c21825f0d17d51698296cd3047b6da2491c4396",
+          "provides": [
+            "runtime-ubuntu"
+          ],
+          "source": "https://github.com/Droid-Deck/DroidDeck/tree/e3c3471d2fbe5be37a5f0b7f6243f969a86f03ce/tools/ubuntu",
+          "source_commit": "e3c3471d2fbe5be37a5f0b7f6243f969a86f03ce",
+          "license": {
+            "expression": "LicenseRef-Runtime-Redistribution",
+            "url": "https://github.com/Droid-Deck/DroidDeck/tree/e3c3471d2fbe5be37a5f0b7f6243f969a86f03ce/tools/ubuntu",
+            "approved": true,
+            "redistribution_review": "Project owner confirmed runtime redistribution permission. Original vendor terms and included notices remain applicable."
+          }
+        }
       }
     },
     {
@@ -41,8 +76,8 @@
       "urls": [
         "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/ubuntu-r1-rc4/ubuntu-r1-rc4-desktop.tar.zst"
       ],
-      "size": 898214853,
-      "sha256": "09792f8470978907ad482bdce7f83ff8488fcc2176d34b63b663b54604208554",
+      "size": 900173937,
+      "sha256": "36a94b31582fc1f2294d208265aa2b7b8931be85854b4071e14018f5baa685f6",
       "provides": [
         "desktop-ubuntu"
       ],
@@ -53,6 +88,41 @@
         "url": "https://github.com/Droid-Deck/DroidDeck/tree/e3c3471d2fbe5be37a5f0b7f6243f969a86f03ce/tools/ubuntu",
         "approved": true,
         "redistribution_review": "Project owner confirmed runtime redistribution permission. Original vendor terms and included notices remain applicable."
+      },
+      "layout": {
+        "zstd_version": "1.5.5",
+        "inventory_sha256": "63740fea4a377941a6a4805476def88cf1f76f169f33c29a8a21838f0ee30ed6",
+        "segments": [
+          {
+            "sha256": "535b6ede3260627b8eaeb080e3a2e9f3b2bdb89347e02f2ffc40eecd340a5a2c",
+            "size": 797670278,
+            "kind": "code"
+          },
+          {
+            "sha256": "ad34c61295a8a4d7825737d7940242332ef07496fe02103a533e131add936eec",
+            "size": 102503659,
+            "kind": "data"
+          }
+        ],
+        "source": {
+          "id": "desktop-ubuntu",
+          "urls": [
+            "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/ubuntu-r1-rc4/ubuntu-r1-rc4-desktop.tar.zst"
+          ],
+          "size": 898214853,
+          "sha256": "09792f8470978907ad482bdce7f83ff8488fcc2176d34b63b663b54604208554",
+          "provides": [
+            "desktop-ubuntu"
+          ],
+          "source": "https://github.com/Droid-Deck/DroidDeck/tree/e3c3471d2fbe5be37a5f0b7f6243f969a86f03ce/tools/ubuntu",
+          "source_commit": "e3c3471d2fbe5be37a5f0b7f6243f969a86f03ce",
+          "license": {
+            "expression": "LicenseRef-Runtime-Redistribution",
+            "url": "https://github.com/Droid-Deck/DroidDeck/tree/e3c3471d2fbe5be37a5f0b7f6243f969a86f03ce/tools/ubuntu",
+            "approved": true,
+            "redistribution_review": "Project owner confirmed runtime redistribution permission. Original vendor terms and included notices remain applicable."
+          }
+        }
       }
     },
     {
@@ -101,8 +171,8 @@
       "urls": [
         "https://steamdeck-packages.steamos.cloud/archlinux-deckard-hotfixes/release/0.3.x/deckard-steamvr-rel-r25358740%2B28b72a4f-1-aarch64.pkg.tar.zst"
       ],
-      "size": 571309057,
-      "sha256": "90a600775eb3e8856dc475f83166a93a290a0b1f3b4e82a69c8e2a8f06b9ddc9",
+      "size": 586728368,
+      "sha256": "f63540644dc7015844233ad92a46a275fed32bece015eccccd99af605e5af2e0",
       "provides": [
         "steamvr"
       ],
@@ -116,15 +186,53 @@
       },
       "fetch_urls": [
         "https://github.com/Droid-Deck/DroidDeck/releases/download/playstore-inputs-20261103/90a600775eb3e8856dc475f83166a93a290a0b1f3b4e82a69c8e2a8f06b9ddc9.payload"
-      ]
+      ],
+      "layout": {
+        "zstd_version": "1.5.5",
+        "inventory_sha256": "a567011543a228a98a0f9bded4380937b2a609b6dc4c24a14c550cd6ac76da6d",
+        "segments": [
+          {
+            "sha256": "189a03b41d5ea333eb78f16c42ec72d5288def7b873af2bb93598e22f983983c",
+            "size": 395927049,
+            "kind": "code"
+          },
+          {
+            "sha256": "f444316c520865e4bda6e20c75734089244648495034ea3b6af5d7faa54546f8",
+            "size": 190801319,
+            "kind": "data"
+          }
+        ],
+        "source": {
+          "id": "steamvr",
+          "urls": [
+            "https://steamdeck-packages.steamos.cloud/archlinux-deckard-hotfixes/release/0.3.x/deckard-steamvr-rel-r25358740%2B28b72a4f-1-aarch64.pkg.tar.zst"
+          ],
+          "size": 571309057,
+          "sha256": "90a600775eb3e8856dc475f83166a93a290a0b1f3b4e82a69c8e2a8f06b9ddc9",
+          "provides": [
+            "steamvr"
+          ],
+          "source": "https://github.com/Droid-Deck/DroidDeck-Components/blob/b9f52fcc335f2e5e627aadfb4b5cd2a7d027eacb/fex.json",
+          "source_commit": "b9f52fcc335f2e5e627aadfb4b5cd2a7d027eacb",
+          "license": {
+            "expression": "LicenseRef-Runtime-Redistribution",
+            "url": "https://github.com/Droid-Deck/DroidDeck-Components/blob/b9f52fcc335f2e5e627aadfb4b5cd2a7d027eacb/fex.json",
+            "approved": true,
+            "redistribution_review": "Project owner confirmed runtime redistribution permission. Original vendor terms and included notices remain applicable."
+          },
+          "fetch_urls": [
+            "https://github.com/Droid-Deck/DroidDeck/releases/download/playstore-inputs-20261103/90a600775eb3e8856dc475f83166a93a290a0b1f3b4e82a69c8e2a8f06b9ddc9.payload"
+          ]
+        }
+      }
     },
     {
       "id": "droiddeck-proton",
       "urls": [
         "droiddeck-bundle://droiddeck-proton/DroidDeck-Proton-11-11.11-aarch64.tar.zst"
       ],
-      "size": 433732447,
-      "sha256": "5cb7d4135758d7a71cc17cd66c358b61309223be28c428292365b0643ee3f2fd",
+      "size": 433780446,
+      "sha256": "0a024e2818150554c6acb2719bf163bad51c3f306479c11cb73c7a5acd4f59fc",
       "provides": [
         "proton:droiddeck"
       ],
@@ -136,18 +244,51 @@
         "approved": true,
         "redistribution_review": "Project owner confirmed runtime redistribution permission. Original vendor terms and included notices remain applicable."
       },
-      "upstream": {
-        "size": 625578225,
-        "sha256": "d1d358ea48a040abb2b50b13dd35e952907e62e6cca38e3e575f4cd357876a4e",
-        "urls": [
-          "https://github.com/Droid-Deck/DroidDeck-Proton/releases/download/DroidDeck-Proton-11-11.11/DroidDeck-Proton-11-11.11-aarch64.tar.gz"
-        ]
-      },
-      "prepare": {
-        "method": "gzip-to-zstd-19",
+      "layout": {
         "zstd_version": "1.5.5",
-        "tar_sha256": "4073cc3e82463a315b47aad2a77aa06e5561a786e1c3743d6ca24bd5209a8fe9",
-        "tar_size": 2098657280
+        "inventory_sha256": "654f083ecc807aad9d039d2ae7b5d4cad8e0492031eec138fb2e4cbf4469b6ed",
+        "segments": [
+          {
+            "sha256": "b806baf5935af02d49567728634e2356e53887671fe4180ebf1a7b77e7208622",
+            "size": 411117904,
+            "kind": "code"
+          },
+          {
+            "sha256": "82dc230ebf0b4c3016802e88987493feea70927337cae30e9e1b95445f8d3013",
+            "size": 22662542,
+            "kind": "data"
+          }
+        ],
+        "source": {
+          "id": "droiddeck-proton",
+          "urls": [],
+          "size": 433732447,
+          "sha256": "5cb7d4135758d7a71cc17cd66c358b61309223be28c428292365b0643ee3f2fd",
+          "provides": [
+            "proton:droiddeck"
+          ],
+          "source": "https://github.com/Droid-Deck/DroidDeck-Proton/tree/e0de7fb0f240be559412d7ddf4eaacb2e9390c52",
+          "source_commit": "e0de7fb0f240be559412d7ddf4eaacb2e9390c52",
+          "license": {
+            "expression": "LicenseRef-Runtime-Redistribution",
+            "url": "https://github.com/Droid-Deck/DroidDeck-Proton/tree/e0de7fb0f240be559412d7ddf4eaacb2e9390c52",
+            "approved": true,
+            "redistribution_review": "Project owner confirmed runtime redistribution permission. Original vendor terms and included notices remain applicable."
+          },
+          "upstream": {
+            "size": 625578225,
+            "sha256": "d1d358ea48a040abb2b50b13dd35e952907e62e6cca38e3e575f4cd357876a4e",
+            "urls": [
+              "https://github.com/Droid-Deck/DroidDeck-Proton/releases/download/DroidDeck-Proton-11-11.11/DroidDeck-Proton-11-11.11-aarch64.tar.gz"
+            ]
+          },
+          "prepare": {
+            "method": "gzip-to-zstd-19",
+            "zstd_version": "1.5.5",
+            "tar_sha256": "4073cc3e82463a315b47aad2a77aa06e5561a786e1c3743d6ca24bd5209a8fe9",
+            "tar_size": 2098657280
+          }
+        }
       }
     },
     {
@@ -155,8 +296,8 @@
       "urls": [
         "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/desktop-kde-r3/desktop-kde.tar.zst"
       ],
-      "size": 791502246,
-      "sha256": "319bf9dc8c128877de80ff76ac9485ef443cd5eed75ae28646d346c5c82156f1",
+      "size": 791299029,
+      "sha256": "f2f8ee3349b356400df93dc9c12e8be5220eab88c63f8b9fcbcd927b7219cacb",
       "provides": [
         "desktop-legacy-kde"
       ],
@@ -168,18 +309,53 @@
         "approved": true,
         "redistribution_review": "Project owner confirmed runtime redistribution permission. Original vendor terms and included notices remain applicable."
       },
-      "prepare": {
-        "method": "zstd-to-zstd-19",
+      "layout": {
         "zstd_version": "1.5.5",
-        "tar_size": 2865295360,
-        "tar_sha256": "8f2196516d043b1e0a1c5aacb42030bd349c53c38dee4d67efa2581addd3aa3f"
-      },
-      "upstream": {
-        "urls": [
-          "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/desktop-kde-r3/desktop-kde.tar.zst"
+        "inventory_sha256": "5b3d6904f6243128a5f6cdf9d4d80aaf7d7634800ed39587479848bbd84b7d5d",
+        "segments": [
+          {
+            "sha256": "136879b98c8aa919f60d1c0ae43b698bdced569016a7ab4fa6f1cfdacabadbb0",
+            "size": 683946022,
+            "kind": "code"
+          },
+          {
+            "sha256": "4ac719249db32d419aaef97662db79ad612a8b831dfd254abea34e46adbe0953",
+            "size": 107353007,
+            "kind": "data"
+          }
         ],
-        "sha256": "8b7142fcec8d86143ae39fc14ffc86907d30d9a5b5a45f49cb1b55109d6fc4eb",
-        "size": 972598429
+        "source": {
+          "id": "desktop-legacy-kde",
+          "urls": [
+            "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/desktop-kde-r3/desktop-kde.tar.zst"
+          ],
+          "size": 791502246,
+          "sha256": "319bf9dc8c128877de80ff76ac9485ef443cd5eed75ae28646d346c5c82156f1",
+          "provides": [
+            "desktop-legacy-kde"
+          ],
+          "source": "https://github.com/Droid-Deck/DroidDeck-Components/blob/b9f52fcc335f2e5e627aadfb4b5cd2a7d027eacb/components.json",
+          "source_commit": "b9f52fcc335f2e5e627aadfb4b5cd2a7d027eacb",
+          "license": {
+            "expression": "LicenseRef-Runtime-Redistribution",
+            "url": "https://github.com/Droid-Deck/DroidDeck-Components/blob/b9f52fcc335f2e5e627aadfb4b5cd2a7d027eacb/components.json",
+            "approved": true,
+            "redistribution_review": "Project owner confirmed runtime redistribution permission. Original vendor terms and included notices remain applicable."
+          },
+          "prepare": {
+            "method": "zstd-to-zstd-19",
+            "zstd_version": "1.5.5",
+            "tar_size": 2865295360,
+            "tar_sha256": "8f2196516d043b1e0a1c5aacb42030bd349c53c38dee4d67efa2581addd3aa3f"
+          },
+          "upstream": {
+            "urls": [
+              "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/desktop-kde-r3/desktop-kde.tar.zst"
+            ],
+            "sha256": "8b7142fcec8d86143ae39fc14ffc86907d30d9a5b5a45f49cb1b55109d6fc4eb",
+            "size": 972598429
+          }
+        }
       }
     },
     {
@@ -188,7 +364,7 @@
         "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/linuxfs-ubuntu.json"
       ],
       "size": 961,
-      "sha256": "71ee77b177a58d2249585e2de30502f5387e99cbf93c31ad12a76466ae270792",
+      "sha256": "24e6efe411cbbdde345236d6ea9a09ceb50e4c4920634731996150216956c2b2",
       "provides": [
         "catalog:linuxfs-ubuntu"
       ],
@@ -207,8 +383,8 @@
         "name": "Linux runtime (Ubuntu 26.04 LTS)",
         "version": "ubuntu-r1-rc4",
         "url": "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/ubuntu-r1-rc4/ubuntu-r1-rc4.tar.zst",
-        "sha256": "a90882efc4b0fc308887f8719c21825f0d17d51698296cd3047b6da2491c4396",
-        "size": 291531733,
+        "sha256": "8c0607cb6fc524467d6a68d3116c0e910b1238aab38430132a7b5b127464712c",
+        "size": 292945191,
         "file_size": 291531733,
         "note": "Ubuntu 26.04 LTS arm64 runtime for DroidDeck, built by tools/ubuntu in Droid-Deck/DroidDeck (PR #1733); rc2 adds libxcb-keysyms1 so the DD-Turnip driver loads (PR #1773); rc3 adds libva-drm2 and libva-x11-2 so Proton's media decoder loads and game cutscenes play (PR #1823); rc4 adds liblzo2-2 so FEX's unsquashfs runs and the x86-64 Steam client starts (PR #1825). Its Kubuntu Plasma desktop pack is ubuntu-r1-rc4-desktop.tar.zst in the same release, named inside the runtime at usr/share/droiddeck/desktop-pack.json. Release candidate: only test builds of PR #1733 read this file."
       }
@@ -9065,7 +9241,7 @@
         "https://api.github.com/repos/Droid-Deck/DroidDeck-Proton/releases"
       ],
       "size": 486,
-      "sha256": "b8590d6dfb988689ae17e8cde38e333d744e2a7898af95e25bcf67c922df3c78",
+      "sha256": "7572817b4efca8bf0c2e34897c69b5703b25cd704b9b2b2a39fb8f402ccbb72f",
       "provides": [
         "catalog:proton"
       ],
@@ -9088,8 +9264,8 @@
           "assets": [
             {
               "name": "DroidDeck-Proton-11-11.11-aarch64.tar.zst",
-              "size": 433732447,
-              "digest": "sha256:5cb7d4135758d7a71cc17cd66c358b61309223be28c428292365b0643ee3f2fd",
+              "size": 433780446,
+              "digest": "sha256:0a024e2818150554c6acb2719bf163bad51c3f306479c11cb73c7a5acd4f59fc",
               "browser_download_url": "droiddeck-bundle://droiddeck-proton/DroidDeck-Proton-11-11.11-aarch64.tar.zst",
               "content_type": "application/zstd"
             }

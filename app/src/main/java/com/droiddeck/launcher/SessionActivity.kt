@@ -566,6 +566,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (BuildConfig.PLAY_DISTRIBUTION && !com.droiddeck.launcher.core.PlayDelivery.state.value.ready) {
+            runtimeRemovalBlocked = true
+            com.droiddeck.launcher.core.PlayDelivery.defer(intent)
+            startActivity(Intent(this, FrontEndActivity::class.java))
+            finish()
+            return
+        }
         if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isRemoving() ||
             com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isMaintaining()) {
             runtimeRemovalBlocked = true

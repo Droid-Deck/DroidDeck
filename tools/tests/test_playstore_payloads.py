@@ -1,6 +1,7 @@
 import hashlib
 import importlib.util
 import json
+import re
 from pathlib import Path
 import tempfile
 import unittest
@@ -18,6 +19,77 @@ READER_SPEC.loader.exec_module(delivery)
 
 
 class PlaystorePayloadsTest(unittest.TestCase):
+    def test_split_data_is_play_hosted_and_guest_reassembles_the_exact_archive(self):
+        import io
+        import subprocess
+        import tarfile
+        from tools.playstore.split_archive import prepare, combine, identity
+        content = io.BytesIO()
+        with tarfile.open(fileobj=content, mode='w') as archive:
+            for name, body in [('program', b'\x7fELFprogram'), ('font.ttf', b'\x00\x01\x00\x00font')]:
+                member = tarfile.TarInfo(name)
+                member.size = len(body)
+                archive.addfile(member, io.BytesIO(body))
+        original = self.root / 'original'
+        original.write_bytes(subprocess.check_output(['zstd', '-c'], input=content.getvalue()))
+        code, data, combined = [self.root / name for name in ['code', 'data', 'combined']]
+        version = re.search(r'v([0-9.]+),', subprocess.check_output(['zstd', '--version'], text=True)).group(1)
+        layout = prepare(original, code, data, version)
+        layout['zstd_version'] = '1.5.5'
+        combine([code, data], combined)
+        entry = self.manifest['entries'][0]
+        source = dict(entry, **identity(original))
+        (self.cache / source['sha256']).write_bytes(original.read_bytes())
+        entry.update(identity(combined))
+        entry['layout'] = dict(layout, source=source)
+        (self.cache / entry['sha256']).write_bytes(combined.read_bytes())
+        staged = self.root / 'staged'
+        index = payloads.stage(self.validate(), self.cache, staged, chunk_bytes=64, module_bytes=256)
+        packs = json.loads((staged / 'assetpacks.json').read_text())
+        self.assertEqual(['playdata01'], packs)
+        for module in json.loads((staged / 'modules.json').read_text()):
+            self.assertIn('<dist:on-demand />', (staged / module / 'src/main/AndroidManifest.xml').read_text())
+        bundled = self.root / 'installed'
+        (bundled / '0').mkdir(parents=True)
+        for module in ['base'] + json.loads((staged / 'modules.json').read_text()):
+            with zipfile.ZipFile(bundled / '0' / (module + '.apk'), 'w') as archive:
+                root = staged / module / 'src/main'
+                for file in root.rglob('*'):
+                    if file.is_file():
+                        archive.write(file, str(file.relative_to(root)))
+        import socket
+        import struct
+        import threading
+        endpoint = str(self.root / 'resource-socket')
+        listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.addCleanup(listener.close)
+        listener.bind(endpoint)
+        listener.listen()
+        listener.settimeout(5)
+        count = sum(chunk['module'] == packs[0] for chunk in self.chunks(index['entries'][entry['urls'][0]]))
+        errors = []
+        def serve():
+            try:
+                for _ in range(count):
+                    client, _ = listener.accept()
+                    with client, client.makefile('rb') as source:
+                        length = struct.unpack('>I', source.read(4))[0]
+                        path = source.read(length).decode('utf-8')
+                        client.sendall(b'\x01' + (staged / packs[0] / 'src/main/assets' / path).read_bytes())
+            except Exception as error:
+                errors.append(error)
+        server = threading.Thread(target=serve, daemon=True)
+        server.start()
+        with patch.object(delivery, 'SOCKET', endpoint), delivery.BundleReader(bundled) as reader:
+            restored = io.BytesIO()
+            reader.copy(entry['urls'][0], restored, entry['size'])
+        server.join(timeout=5)
+        self.assertFalse(server.is_alive())
+        self.assertFalse(errors)
+        self.assertEqual(combined.read_bytes(), restored.getvalue())
+        chunks = self.chunks(index['entries'][entry['urls'][0]])
+        self.assertTrue(any(chunk['module'] == packs[0] for chunk in chunks))
+
     def setUp(self):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
@@ -317,6 +389,16 @@ class PlaystorePayloadsTest(unittest.TestCase):
             (staged / chunk['module'] / 'src/main/assets' / chunk['asset']).write_bytes(b'corrupt')
         with self.assertRaisesRegex(ValueError, 'digest mismatch'):
             payloads.verify_bundle(self.validate(), self.bundle(corrupt))
+
+    def test_native_payload_cannot_be_relabelled_as_a_data_asset_pack(self):
+        def relabel(staged, index):
+            entry = next(iter(index['entries'].values()))
+            recipe = staged / 'base/src/main/assets' / entry['recipe']
+            definition = json.loads(recipe.read_text())
+            definition['chunks'][0]['module'] = 'playdata01'
+            recipe.write_text(json.dumps(definition))
+        with self.assertRaisesRegex(ValueError, 'delivery are mixed'):
+            payloads.verify_bundle(self.validate(), self.bundle(relabel))
 
     def test_final_bundle_cannot_silently_include_stale_unreferenced_components(self):
         def add_stale(staged, index):

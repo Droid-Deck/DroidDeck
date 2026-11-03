@@ -16,10 +16,10 @@ public final class ComponentDownloads {
 
     public static void init(Context context) {
         if (BuildConfig.PLAY_DISTRIBUTION) {
-            Context application = context.getApplicationContext();
+            PlayDelivery.INSTANCE.init(context);
             store = new ComponentPayloadStore(path -> {
                 try {
-                    return application.getAssets().open(path);
+                    return PlayDelivery.INSTANCE.open(path);
                 } catch (IOException error) {
                     throw new java.io.UncheckedIOException(error);
                 }

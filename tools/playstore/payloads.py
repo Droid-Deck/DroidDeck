@@ -1,6 +1,7 @@
 import argparse
 import hashlib
 import json
+import os
 import re
 import ssl
 import sys
@@ -55,6 +56,7 @@ def load_manifest(path):
         raise ValueError('Payload manifest is empty')
     urls = set()
     identities = {}
+    data_identities = {}
     ids = set()
     for entry in entries:
         identity = entry.get('id', '')
@@ -80,7 +82,24 @@ def load_manifest(path):
             if 'content' in entry or entry.get('prepare'):
                 raise ValueError('External Windows prerequisites cannot replace bundled catalogs')
         else:
-            identities[digest] = size
+            layout = entry.get('layout')
+            if layout is None:
+                identities[digest] = size
+            else:
+                parts = layout.get('segments', [])
+                if len(parts) != 2 or [part.get('kind') for part in parts] != ['code', 'data'] or sum(part.get('size', 0) for part in parts) != size:
+                    raise ValueError('Invalid split component layout: ' + identity)
+                if not re.fullmatch(r'[a-f0-9]{64}', layout.get('inventory_sha256', '')) or layout.get('zstd_version') != '1.5.5':
+                    raise ValueError('Split component inventory is unpinned')
+                source = layout.get('source', {})
+                if not re.fullmatch(r'[a-f0-9]{64}', source.get('sha256', '')) or type(source.get('size')) is not int or source['size'] <= 0 or 'layout' in source:
+                    raise ValueError('Split component source is unpinned')
+                for url in source.get('fetch_urls', source.get('urls', [])):
+                    https_url(url)
+                for part in parts:
+                    if not re.fullmatch(r'[a-f0-9]{64}', part.get('sha256', '')) or type(part.get('size')) is not int or part['size'] <= 0:
+                        raise ValueError('Split component segment is unpinned')
+                    (identities if part['kind'] == 'code' else data_identities)[part['sha256']] = part['size']
         if 'storage_chunk_bytes' in entry and (type(entry['storage_chunk_bytes']) is not int or
                 not 65536 <= entry['storage_chunk_bytes'] <= CHUNK_BYTES):
             raise ValueError('Invalid component storage chunk size: ' + identity)
@@ -94,7 +113,7 @@ def load_manifest(path):
                 https_url(url)
         for url in aliases:
             if url.startswith('droiddeck-bundle://'):
-                if not re.fullmatch(r'droiddeck-bundle://[a-z0-9][a-z0-9._-]*/[A-Za-z0-9._+-]+', url) or not entry.get('prepare'):
+                if not re.fullmatch(r'droiddeck-bundle://[a-z0-9][a-z0-9._-]*/[A-Za-z0-9._+-]+', url) or not (entry.get('prepare') or entry.get('layout')):
                     raise ValueError('Invalid prepared component alias: ' + identity)
             else:
                 https_url(url)
@@ -134,6 +153,8 @@ def load_manifest(path):
     missing = set(required) - provided
     if missing:
         raise ValueError('Missing component coverage: ' + ', '.join(sorted(missing)))
+    if sum(data_identities.values()) > 30_000_000_000:
+        raise ValueError('Play data asset budget exceeded')
     total = sum(identities.values())
     if total + RESERVED_BYTES > TOTAL_BYTES:
         raise ValueError(f'Payload size budget exceeded: {total} + {RESERVED_BYTES} reserved > {TOTAL_BYTES}')
@@ -154,7 +175,8 @@ def validate_play_engines(manifest):
         engines = {name for name in entry.get('provides', []) if name.startswith('proton:')}
         if engines - {'proton:droiddeck'}:
             raise ValueError('Play distribution permits only DroidDeck Proton')
-        source_urls = entry.get('upstream', {}).get('urls', entry['urls'])
+        original = entry.get('layout', {}).get('source', entry)
+        source_urls = original.get('upstream', {}).get('urls', original['urls'])
         for url in [*entry['urls'], *source_urls]:
             lower = url.lower()
             parsed = urllib.parse.urlsplit(url)
@@ -190,6 +212,23 @@ def fetch(entry, cache):
             output.write(data)
         temporary.rename(target)
         return target
+    if entry.get('layout'):
+        from tools.playstore.split_archive import prepare, combine, inventory
+        layout = entry['layout']
+        original = fetch(layout['source'], cache)
+        code, data = [cache / (entry['sha256'] + '.' + name + '.part') for name in ['code', 'data']]
+        prepared = prepare(original, code, data, layout['zstd_version'])
+        if any(prepared[key] != layout[key] for key in ['segments', 'inventory_sha256', 'zstd_version']):
+            raise ValueError('Split archive identity changed')
+        combine([code, data], temporary)
+        if temporary.stat().st_size != entry['size'] or sha256(temporary) != entry['sha256'] or inventory(temporary, os.environ.get('DROIDDECK_ZSTD', 'zstd'))[0] != layout['inventory_sha256']:
+            raise ValueError('Split archive failed reconstruction verification')
+        temporary.rename(target)
+        for source, segment in zip([code, data], layout['segments']):
+            destination = cache / segment['sha256']
+            if not destination.exists():
+                source.rename(destination)
+        return target
     if entry.get('prepare'):
         from tools.playstore.prepare_archive import prepare
         upstream = fetch(dict(entry['upstream'], id='upstream-' + entry['id']), cache)
@@ -222,11 +261,41 @@ def stage(manifest, cache, output, chunk_bytes=CHUNK_BYTES, module_bytes=MODULE_
     if output.exists():
         raise ValueError('Output must be a new directory: ' + str(output))
     payloads = {}
+    data_payloads = set()
+    layouts = {}
     for entry in manifest['entries']:
         if entry.get('delivery') == 'windows-guest':
             continue
-        if entry['sha256'] not in payloads:
-            payloads[entry['sha256']] = fetch(entry, cache)
+        if entry['sha256'] in layouts:
+            continue
+        original = fetch(entry, cache)
+        if entry.get('layout'):
+            parts = entry['layout']['segments']
+            with original.open('rb') as source:
+                for part in parts:
+                    destination = cache / part['sha256']
+                    if not destination.exists():
+                        with destination.open('xb') as target:
+                            remaining = part['size']
+                            while remaining:
+                                block = source.read(min(1024 * 1024, remaining))
+                                if not block:
+                                    raise ValueError('Truncated split archive')
+                                target.write(block)
+                                remaining -= len(block)
+                    else:
+                        source.seek(part['size'], 1)
+                    if destination.stat().st_size != part['size'] or sha256(destination) != part['sha256']:
+                        raise ValueError('Split archive segment failed verification')
+                    payloads[part['sha256']] = destination
+                    if part['kind'] == 'data':
+                        from tools.playstore.split_archive import validate_data
+                        validate_data(destination)
+                        data_payloads.add(part['sha256'])
+            layouts[entry['sha256']] = [part['sha256'] for part in parts]
+        else:
+            payloads[entry['sha256']] = original
+            layouts[entry['sha256']] = [entry['sha256']]
     output.mkdir(parents=True)
     index = {'schema': 1, 'manifest_sha256': hashlib.sha256(
         json.dumps(manifest, sort_keys=True, separators=(',', ':')).encode()).hexdigest(), 'entries': {}}
@@ -234,6 +303,8 @@ def stage(manifest, cache, output, chunk_bytes=CHUNK_BYTES, module_bytes=MODULE_
     used = 0
     chunks = {}
     shared = {}
+    data_module = 1
+    data_used = 0
     for digest, path in sorted(payloads.items()):
         pieces = []
         block_bytes = min([chunk_bytes] + [entry.get('storage_chunk_bytes', chunk_bytes) for entry in manifest['entries']
@@ -242,14 +313,23 @@ def stage(manifest, cache, output, chunk_bytes=CHUNK_BYTES, module_bytes=MODULE_
             number = 0
             for block in iter(lambda: stream.read(block_bytes), b''):
                 chunk_digest = hashlib.sha256(block).hexdigest()
-                if chunk_digest in shared:
-                    pieces.append(shared[chunk_digest])
+                shared_key = (digest in data_payloads, chunk_digest)
+                if shared_key in shared:
+                    pieces.append(shared[shared_key])
                     number += 1
                     continue
-                if used + len(block) > module_bytes:
-                    module += 1
-                    used = 0
-                name = f'playpayload{module:02d}'
+                if digest in data_payloads:
+                    if data_used + len(block) > 1_400_000_000:
+                        data_module += 1
+                        data_used = 0
+                    name = f'playdata{data_module:02d}'
+                    data_used += len(block)
+                else:
+                    if used + len(block) > module_bytes:
+                        module += 1
+                        used = 0
+                    name = f'playpayload{module:02d}'
+                    used += len(block)
                 asset = f'play-components/{digest}/{number:04d}'
                 target = output / name / 'src/main/assets' / asset
                 target.parent.mkdir(parents=True, exist_ok=True)
@@ -257,14 +337,14 @@ def stage(manifest, cache, output, chunk_bytes=CHUNK_BYTES, module_bytes=MODULE_
                     destination.write(block)
                 piece = {'asset': asset, 'module': name, 'size': len(block), 'sha256': chunk_digest}
                 pieces.append(piece)
-                shared[chunk_digest] = piece
-                used += len(block)
+                shared[shared_key] = piece
                 number += 1
         chunks[digest] = pieces
     base = output / 'base/src/main/assets/play-components'
     recipes = base / 'recipes'
     recipes.mkdir(parents=True)
-    for digest, pieces in chunks.items():
+    for digest, sources in layouts.items():
+        pieces = [piece for source in sources for piece in chunks[source]]
         (recipes / (digest + '.json')).write_text(json.dumps({'chunks': pieces}, separators=(',', ':')) + '\n')
     for entry in manifest['entries']:
         for url in entry['urls']:
@@ -292,12 +372,18 @@ def stage(manifest, cache, output, chunk_bytes=CHUNK_BYTES, module_bytes=MODULE_
             '<manifest xmlns:android="http://schemas.android.com/apk/res/android" '
             'xmlns:dist="http://schemas.android.com/apk/distribution">\n'
             '    <dist:module dist:instant="false" dist:title="@string/app_name">\n'
-            '        <dist:delivery><dist:install-time><dist:removable dist:value="true" />'
-            '</dist:install-time></dist:delivery>\n'
+            '        <dist:delivery><dist:on-demand /></dist:delivery>\n'
             '        <dist:fusing dist:include="true" />\n'
             '    </dist:module>\n'
             '    <application android:hasCode="false" />\n'
             '</manifest>\n')
+    packs = [f'playdata{number:02d}' for number in range(1, data_module + 1)] if data_payloads else []
+    for name in packs:
+        (output / name / 'build.gradle').write_text(
+            "plugins { id 'com.android.asset-pack' }\n"
+            f"assetPack {{ packName = '{name}'; dynamicDelivery {{ deliveryType = 'on-demand' }} }}\n")
+    (base / 'delivery.json').write_text(json.dumps({'modules': modules, 'packs': packs}, separators=(',', ':')) + '\n')
+    (output / 'assetpacks.json').write_text(json.dumps(packs) + '\n')
     (output / 'modules.json').write_text(json.dumps(modules) + '\n')
     return index
 
@@ -340,8 +426,14 @@ def verify_bundle(manifest, bundle):
             digest = hashlib.sha256()
             size = 0
             identity = json.dumps(entry, sort_keys=True)
+            logical_size = 0
             for chunk in pieces:
-                if not re.fullmatch(r'playpayload[0-9]{2}', chunk['module']) or not re.fullmatch(
+                boundary = pinned.get('layout', {}).get('segments', [{'size': pinned['size']}])[0]['size']
+                expected_module = 'playpayload' if logical_size < boundary else 'playdata'
+                if not chunk['module'].startswith(expected_module) or logical_size < boundary < logical_size + chunk['size']:
+                    raise ValueError('Executable and data component delivery are mixed')
+                logical_size += chunk['size']
+                if not re.fullmatch(r'(?:playpayload|playdata)[0-9]{2}', chunk['module']) or not re.fullmatch(
                         r'play-components/[0-9a-f]{64}/[0-9]{4,}', chunk['asset']):
                     raise ValueError('Invalid bundle chunk path')
                 path = chunk['module'] + '/assets/' + chunk['asset']
@@ -367,13 +459,20 @@ def verify_bundle(manifest, bundle):
         if delivered != referenced:
             raise ValueError('Bundle contains unreferenced component chunks')
         base_assets = {name for name in package.namelist() if name.startswith('base/assets/play-components/')}
-        if base_assets != referenced_recipes | {'base/assets/play-components/index.json', 'base/assets/play-components/provenance.json'}:
+        if base_assets != referenced_recipes | {'base/assets/play-components/index.json', 'base/assets/play-components/provenance.json', 'base/assets/play-components/delivery.json'}:
             raise ValueError('Bundle contains unreferenced component recipes')
         sizes = {}
         for info in package.infolist():
             module = info.filename.split('/')[0]
             if module == 'base' or module.startswith('playpayload'):
                 sizes[module] = sizes.get(module, 0) + info.compress_size
+        asset_sizes = {}
+        for info in package.infolist():
+            name = info.filename.split('/')[0]
+            if re.fullmatch(r'playdata[0-9]{2}', name):
+                asset_sizes[name] = asset_sizes.get(name, 0) + info.compress_size
+        if any(size > 1_500_000_000 for size in asset_sizes.values()) or sum(asset_sizes.values()) > 30_000_000_000:
+            raise ValueError('Bundle exceeds the Play asset pack budget')
         if any(size > 500_000_000 for size in sizes.values()) or sum(sizes.values()) > TOTAL_BYTES:
             raise ValueError('Bundle exceeds the conservative module download-size budget')
     return sizes

@@ -708,6 +708,7 @@ jobs:
           ./gradlew :app:bundleRelease :app:lintRelease :app:testReleaseUnitTest -PplayDistribution=true \
             -PndkVersion="$NDK_VERSION" -PplayVersionCode="$PLAY_VERSION_CODE" --tests com.droiddeck.launcher.core.ComponentPayloadStoreTest \
             --tests com.droiddeck.launcher.core.PlayDistributionTest \
+            --tests com.droiddeck.launcher.core.PlayArchiveFramesTest \
             --tests com.droiddeck.launcher.PlayUpdatesTest \
             --tests com.droiddeck.launcher.ui.BuildWatermarkTest --console=plain
           python3 tools/playstore/payloads.py verify-bundle --play-only --manifest tools/playstore/components.lock.json \

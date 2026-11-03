@@ -1,6 +1,6 @@
 # DroidDeck Privacy Policy
 
-Effective date: 2 November 2026
+Effective date: 3 November 2026
 
 DroidDeck is an open-source game launcher maintained by the Droid-Deck project. A separate DroidDeck online account is not required. DroidDeck does not include advertising analytics or automatically submit usage reports or crash reports to the project maintainers. The maintainers do not operate a central database of users' game libraries or sign-in credentials, and do not sell users' personal data.
 
@@ -26,6 +26,8 @@ You can manage permissions through Android settings. Turning off a permission or
 ## Connections to other services
 
 DroidDeck connects to the stores, game services, cloud-streaming providers, artwork sources, and download services used by your selected features. Those services can receive information such as your IP address, requests, game identifiers, authentication information, or information you enter directly into their sign-in and purchase pages. Steam, games, and other software running through DroidDeck have their own network activity and privacy policies. Their providers determine how they handle that information.
+
+The Google Play version downloads runtime modules and non-executable resource packs through Google Play. Google's Play Feature Delivery and Play Asset Delivery services process device metadata and the application version to deliver the correct files and preserve them across updates. Google documents encrypted processing and a fixed retention period. See [Play Feature Delivery data handling](https://developer.android.com/guide/playcore/feature-delivery#data-safety) and [Play Asset Delivery data handling](https://developer.android.com/guide/playcore/asset-delivery#terms-of-service).
 
 The Google Play version contacts Google Play to check whether an app update is available. Selecting Update opens the app's Google Play listing. Google handles Play delivery and updates under its own [privacy policy](https://policies.google.com/privacy).
 

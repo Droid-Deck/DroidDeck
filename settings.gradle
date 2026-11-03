@@ -25,6 +25,13 @@ if (providers.gradleProperty('playDistribution').getOrElse('false').toBoolean())
     if (!(modules instanceof List) || modules.isEmpty() || modules.size() > 10 || modules.unique(false).size() != modules.size()) {
         throw new GradleException('Invalid Play feature module registry')
     }
+    def packs = new groovy.json.JsonSlurper().parse(new File(payloads, 'assetpacks.json'))
+    if (!(packs instanceof List) || packs.size() > 100 || packs.unique(false).size() != packs.size()) throw new GradleException('Invalid Play asset pack registry')
+    packs.each { name ->
+        if (!(name instanceof String) || !(name ==~ /playdata[0-9]{2}/)) throw new GradleException('Invalid Play asset pack name')
+        include ":${name}"
+        project(":${name}").projectDir = new File(payloads, name)
+    }
     modules.each { name ->
         if (!(name instanceof String) || !(name ==~ /playpayload[0-9]{2}/)) throw new GradleException('Invalid Play feature module name')
         include ":${name}"

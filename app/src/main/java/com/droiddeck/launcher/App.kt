@@ -6,8 +6,10 @@ import com.droiddeck.launcher.session.CrashHandler
 import com.droiddeck.launcher.session.GpuClockPin
 
 class App : Application() {
-    override fun attachBaseContext(base: android.content.Context) =
+    override fun attachBaseContext(base: android.content.Context) {
         super.attachBaseContext(com.droiddeck.launcher.core.AppLanguage.wrap(base))
+        if (BuildConfig.PLAY_DISTRIBUTION) com.google.android.play.core.splitcompat.SplitCompat.install(this)
+    }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)

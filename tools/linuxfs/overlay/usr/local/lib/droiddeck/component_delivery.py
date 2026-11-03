@@ -6,12 +6,16 @@ import os
 from pathlib import Path
 import re
 import sys
+import socket
+import struct
+from contextlib import contextmanager
 import tempfile
 import zipfile
 
 
 DIRECTORY = Path('/opt/droiddeck-bundles')
 INDEX = 'assets/play-components/index.json'
+SOCKET = '\0com.droiddeck.launcher.play-components'
 INDEX_LIMIT = 16 * 1024 * 1024
 SHA256 = re.compile(r'[0-9a-f]{64}')
 ASSET = re.compile(r'play-components/[0-9a-f]{64}/[0-9]{4,}')
@@ -63,6 +67,25 @@ class BundleReader:
         with archive.open(entry) as source:
             return json.load(source)
 
+    @contextmanager
+    def open_asset(self, path, module, expected_size):
+        if module.startswith('playdata'):
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                client.settimeout(30)
+                client.connect(SOCKET)
+                encoded = path.encode('utf-8')
+                client.sendall(struct.pack('>I', len(encoded)) + encoded)
+                with client.makefile('rb') as source:
+                    if source.read(1) != b'\x01':
+                        raise ValueError('Play resource stream is unavailable')
+                    yield source
+        else:
+            archive, entry = self.assets['assets/' + path]
+            if entry.file_size != expected_size:
+                raise ValueError('Component chunk size mismatch')
+            with archive.open(entry) as source:
+                yield source
+
     def copy(self, url, output, limit, expected_sha256=None):
         entry = self.entries.get(url)
         if entry is None:
@@ -86,12 +109,9 @@ class BundleReader:
                 raise ValueError('Invalid component chunk metadata')
             if not SHA256.fullmatch(chunk_sha256):
                 raise ValueError('Invalid component chunk digest')
-            archive, asset = self.assets['assets/' + path]
-            if asset.file_size != chunk_size:
-                raise ValueError('Component chunk size mismatch')
             chunk_digest = hashlib.sha256()
             copied = 0
-            with archive.open(asset) as source:
+            with self.open_asset(path, chunk['module'], chunk_size) as source:
                 for block in iter(lambda: source.read(65536), b''):
                     copied += len(block)
                     total += len(block)

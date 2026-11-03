@@ -134,8 +134,8 @@ android {
         applicationId "com.droiddeck.launcher"
         minSdkVersion 26
         targetSdkVersion 37
-        versionCode 18
-        versionName "0.6.9.1"
+        versionCode 19
+        versionName "0.6.9.2"
         buildConfigField "String", "BUILD_LABEL", "\"${escapedBuildLabel}\""
         buildConfigField "String", "SOURCE_COMMIT", "\"${sourceCommit}\""
         buildConfigField "int", "PR_NUMBER", "${prNumber}"
@@ -324,6 +324,8 @@ if (playDistribution) {
     def payloads = rootProject.file('build/playstore-payloads')
     def modules = new groovy.json.JsonSlurper().parse(new File(payloads, 'modules.json'))
     android.dynamicFeatures = modules.collect { ":${it}".toString() }.toSet()
+    def packs = new groovy.json.JsonSlurper().parse(new File(payloads, 'assetpacks.json'))
+    android.assetPacks = packs.collect { ":${it}".toString() }.toSet()
     android.sourceSets.main.assets.srcDir(new File(payloads, 'base/src/main/assets'))
     android.sourceSets.debug.manifest.srcFile('src/play/AndroidManifest.xml')
     android.sourceSets.release.manifest.srcFile('src/play/AndroidManifest.xml')
@@ -400,6 +402,8 @@ tasks.named('preBuild').configure { dependsOn(buildRustStores) }
 
 dependencies {
     implementation 'com.google.android.play:app-update:2.1.0'
+    implementation 'com.google.android.play:feature-delivery:2.1.0'
+    implementation 'com.google.android.play:asset-delivery:2.3.0'
     implementation "org.opencv:opencv:${trackingPack.OPENCV_VERSION}"
     implementation 'org.khronos.openxr:openxr_loader_for_android:1.1.49'
     implementation 'com.github.luben:zstd-jni:1.5.7-4@aar'

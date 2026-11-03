@@ -292,7 +292,12 @@ public final class LinuxRuntime {
         if (!BuildConfig.PLAY_DISTRIBUTION) return;
         java.util.LinkedHashSet<File> directories = new java.util.LinkedHashSet<>();
         directories.add(new File(context.getApplicationInfo().sourceDir).getParentFile());
-        String[] splits = context.getApplicationInfo().splitSourceDirs;
+        String[] splits;
+        try {
+            splits = context.getPackageManager().getApplicationInfo(context.getPackageName(), 0).splitSourceDirs;
+        } catch (android.content.pm.PackageManager.NameNotFoundException error) {
+            throw new IllegalStateException(error);
+        }
         if (splits != null) for (String split : splits) directories.add(new File(split).getParentFile());
         int index = 0;
         for (File directory : directories) {

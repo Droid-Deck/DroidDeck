@@ -22,6 +22,7 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -578,6 +579,11 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     override fun startActivity(intent: Intent?) {
+        if (BuildConfig.PLAY_DISTRIBUTION && !com.droiddeck.launcher.core.PlayDelivery.state.value.ready &&
+            intent?.component?.className == SessionActivity::class.java.name) {
+            com.droiddeck.launcher.core.PlayDelivery.defer(intent)
+            return
+        }
         val compat = protons.protonBusyId != null || ProtonExtras.installInProgress
         if (intent?.component?.className == SessionActivity::class.java.name) {
             if (compatLaunch != null) return
@@ -1009,6 +1015,11 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (BuildConfig.PLAY_DISTRIBUTION) {
+            @Suppress("DEPRECATION")
+            val pending = savedInstanceState?.getParcelable<Intent>("play_pending_session")
+            if (pending?.component?.className == SessionActivity::class.java.name) com.droiddeck.launcher.core.PlayDelivery.defer(pending)
+        }
         if (savedInstanceState == null) readIntegrationIntent(intent)
         readGameIntent(intent)
         gameSyncFolder = GameFileSync.folder(this)
@@ -1043,6 +1054,27 @@ class FrontEndActivity : ComponentActivity() {
         updates.start()
         setContent {
             DroidDeckTheme(theme, appScale = appScale) {
+                val delivery by com.droiddeck.launcher.core.PlayDelivery.state.collectAsState()
+                androidx.compose.runtime.LaunchedEffect(delivery.ready) {
+                    if (delivery.ready) {
+                        com.droiddeck.launcher.core.PlayDelivery.takePendingSession()?.let { startActivity(it) }
+                        if (BuildConfig.PLAY_DISTRIBUTION) {
+                            refresh()
+                            refreshDeliveredComponents(force = true)
+                        }
+                    }
+                }
+                if (BuildConfig.PLAY_DISTRIBUTION && !delivery.ready) ConfirmDialog(
+                    title = getString(R.string.app_name),
+                    text = if (delivery.busy && delivery.percent >= 0)
+                        getString(R.string.setup_runtime_progress, getString(R.string.rtinst_downloading), delivery.percent)
+                    else getString(if (delivery.failed) R.string.user_apps_download_failed else R.string.rtinst_downloading),
+                    confirm = getString(if (delivery.busy) R.string.common_working else R.string.stores_dl_retry),
+                    onConfirm = { com.droiddeck.launcher.core.PlayDelivery.start(this) },
+                    onDismiss = { com.droiddeck.launcher.core.PlayDelivery.cancel(); finish() },
+                    progress = if (delivery.busy) delivery.percent else null,
+                    confirmEnabled = !delivery.busy, closeOnConfirm = false,
+                )
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize().exposeTestTags()) {
                 if (decky.deckyPendingZip != null) com.droiddeck.launcher.ui.DeckyZipWarningDialog(
                     onConfirm = { decky.confirmPluginZip() }, onCancel = { decky.cancelPluginZip() },
@@ -1755,6 +1787,7 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        com.droiddeck.launcher.core.PlayDelivery.start(this)
         compatLaunchVisible = true
         com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
         com.droiddeck.launcher.ui.DualScreenPanel.ownerPaused(taskId, false)
@@ -1774,10 +1807,24 @@ class FrontEndActivity : ComponentActivity() {
         refreshPhantomStatus()
         syncLossless()
         updates.onResume()
+        catalogFresh = false
+        oscMode = SessionPrefs.oscMode(this)
+        refreshController()
+        refreshHomeAppState()
+        refreshSecondScreenDisplays()
+        refresh()
+        decky.deckyInstalled = DeckyManager.installed(this)
+        DeckyManager.syncCefMarker(this)
+        decky.deckySupervisor = DeckyManager.supervisorEnabled(this)
+        refreshAddedGames()
+        refreshDeliveredComponents()
+    }
+
+    private fun refreshDeliveredComponents(force: Boolean = false) {
+        if (BuildConfig.PLAY_DISTRIBUTION && !com.droiddeck.launcher.core.PlayDelivery.state.value.ready) return
         drivers.checkOnOpen()
         resumeInterruptedPackages()
-        protons.checkUpdates()
-        catalogFresh = false
+        protons.checkUpdates(force)
         if (!SessionState.running && !componentsQueueBusy && !LinuxRuntimeInstaller.isBusy()) {
             componentsQueueBusy = true
             Thread({
@@ -1792,15 +1839,6 @@ class FrontEndActivity : ComponentActivity() {
                 }
             }, "components-queue").start()
         } else if (showComponents) components.refreshComponents()
-        oscMode = SessionPrefs.oscMode(this)
-        refreshController()
-        refreshHomeAppState()
-        refreshSecondScreenDisplays()
-        refresh()
-        decky.deckyInstalled = DeckyManager.installed(this)
-        DeckyManager.syncCefMarker(this)
-        decky.deckySupervisor = DeckyManager.supervisorEnabled(this)
-        refreshAddedGames()
         if (catalog == null) loadDesktopCatalog()
         if (!busy) Thread({ checkCatalog() }, "catalog").start()
     }
@@ -1824,6 +1862,10 @@ class FrontEndActivity : ComponentActivity() {
 
     @Suppress("OVERRIDE_DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == 7619 && BuildConfig.PLAY_DISTRIBUTION) {
+            if (resultCode != RESULT_OK) com.droiddeck.launcher.core.PlayDelivery.cancel()
+            return
+        }
         if (HomeWidgets.onActivityResult(this, requestCode, resultCode)) return
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
@@ -1831,6 +1873,9 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
+        if (BuildConfig.PLAY_DISTRIBUTION) com.droiddeck.launcher.core.PlayDelivery.peekPendingSession()?.let {
+            outState.putParcelable("play_pending_session", it)
+        }
         if (slowUsbNever) SessionPrefs.setSlowUsbWarningOff(this)
         saveCompatLaunch(outState)
         pendingSwitch?.let { outState.putParcelable(KEY_PENDING_SWITCH, it) }
@@ -1845,6 +1890,7 @@ class FrontEndActivity : ComponentActivity() {
         else @Suppress("DEPRECATION") state.getParcelable(key)
 
     override fun onDestroy() {
+        com.droiddeck.launcher.core.PlayDelivery.detach(this)
         cancelCompatLaunch()
         updates.unregister()
         super.onDestroy()
@@ -1940,6 +1986,7 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun loadDesktopCatalog() {
+        if (BuildConfig.PLAY_DISTRIBUTION && !com.droiddeck.launcher.core.PlayDelivery.state.value.ready) return
         if (catalogLoading || catalog != null) return
         catalogLoading = true
         Thread({
