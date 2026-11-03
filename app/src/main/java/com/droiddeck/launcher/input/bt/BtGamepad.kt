@@ -75,7 +75,8 @@ object BtGamepad {
         h.post {
             running = true
             if (server != null && p == profile) {
-                publish(Phase.READY)
+                val attached = host
+                if (attached != null) publish(Phase.CONNECTED, attached) else publish(Phase.READY)
                 startAdvertising()
             } else {
                 close()
@@ -404,19 +405,19 @@ object BtGamepad {
         override fun onCharacteristicWriteRequest(device: BluetoothDevice, requestId: Int, chr: BluetoothGattCharacteristic,
                                                   preparedWrite: Boolean, responseNeeded: Boolean, offset: Int, value: ByteArray) {
             handler?.post {
-                if (preparedWrite) {
+                if (device == host && preparedWrite) {
                     val old = preparedWrites[chr] ?: ByteArray(0)
                     val merged = old.copyOf(maxOf(old.size, offset + value.size))
                     value.copyInto(merged, offset)
                     preparedWrites[chr] = merged
-                } else written(chr, value)
+                } else if (device == host) written(chr, value)
                 if (responseNeeded) server?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
             }
         }
 
         override fun onExecuteWrite(device: BluetoothDevice, requestId: Int, execute: Boolean) {
             handler?.post {
-                if (execute) preparedWrites.forEach { (chr, v) -> written(chr, v) }
+                if (execute && device == host) preparedWrites.forEach { (chr, v) -> written(chr, v) }
                 preparedWrites.clear()
                 server?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
             }
@@ -459,7 +460,7 @@ object BtGamepad {
     }
 
     private fun attach(device: BluetoothDevice) {
-        if (host == device) return
+        if (host != null) return
         host = device
         stopAdvertising()
         pairingUntil = 0

@@ -134,8 +134,6 @@ abstract class BtPadEncoder {
         return this
     }
 
-    protected fun ByteArray.payload(id: Int): ByteArray =
-        if (isNotEmpty() && this[0].toInt() and 0xFF == id) copyOfRange(1, size) else this
 
     companion object {
         const val INPUT = 1
@@ -222,7 +220,7 @@ private class XboxEncoder : BtPadEncoder() {
 
     override fun output(id: Int, data: ByteArray): BtFeedback? {
         if (id != 3) return null
-        val d = data.payload(id)
+        val d = data
         if (d.size < 5) return null
         val enable = d[0].toInt()
         val strong = if (enable and 0x02 != 0) d[3].toInt() and 0xFF else 0
@@ -361,7 +359,7 @@ private class DualShock4Encoder : SonyEncoder() {
     override fun output(id: Int, data: ByteArray): BtFeedback? {
         if (id != 0x11) return null
         enhanced = true
-        val d = data.payload(id)
+        val d = data
         if (d.size < 10) return null
         val flags = d[2].toInt()
         val light = if (flags and 0x02 != 0) rgb(d[7], d[8], d[9]) else null
@@ -429,7 +427,7 @@ private class DualSenseEncoder : SonyEncoder() {
     override fun output(id: Int, data: ByteArray): BtFeedback? {
         if (id != 0x31) return null
         enhanced = true
-        val d = data.payload(id)
+        val d = data
         if (d.size < 49) return null
         val flags0 = d[2].toInt()
         val flags1 = d[3].toInt()
@@ -486,7 +484,7 @@ private class SteamControllerEncoder : BtPadEncoder() {
     }
 
     override fun setFeature(id: Int, data: ByteArray) {
-        val d = data.payload(id)
+        val d = data
         if (id == 1 && d.isNotEmpty()) pending = d[0].toInt() and 0xFF
     }
 
@@ -508,7 +506,7 @@ private class SteamControllerEncoder : BtPadEncoder() {
     }
 
     override fun output(id: Int, data: ByteArray): BtFeedback? {
-        val d = data.payload(id)
+        val d = data
         return when (id) {
             0x80 -> if (d.size >= 8) {
                 val left = (d[3].toInt() and 0xFF) or ((d[4].toInt() and 0xFF) shl 8)

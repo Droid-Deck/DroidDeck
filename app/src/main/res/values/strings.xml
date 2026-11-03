@@ -3732,6 +3732,8 @@
     <string name="btpad_exit_hint">Hold Select + Start to stop</string>
     <string name="btpad_disconnect">Disconnect</string>
     <string name="btpad_pair">Pair new</string>
+    <string name="btpad_permission_open">App info</string>
+    <string name="btpad_status_permission">Allow Nearby devices for DroidDeck in App info to use this.</string>
     <string name="btpad_close">Stop</string>
     <string name="btpad_touch">Touch controls</string>
     <string name="btpad_switch_hint">After changing the type, remove this device from the other side\'s Bluetooth list and pair again.</string>

@@ -1,6 +1,7 @@
 package com.droiddeck.launcher
 
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -80,6 +81,7 @@ class BtControllerActivity : ComponentActivity() {
     private var exitArmed = false
     private var profile by mutableStateOf(BtPadProfile.GENERIC)
     private var showTouch by mutableStateOf(true)
+    private var permissionDenied by mutableStateOf(false)
 
     override fun attachBaseContext(newBase: Context) = super.attachBaseContext(AppLanguage.wrap(newBase))
 
@@ -95,6 +97,20 @@ class BtControllerActivity : ComponentActivity() {
         setContent { DroidDeckTheme { Screen() } }
     }
 
+    private fun openAppInfo() {
+        runCatching {
+            startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", packageName, null)))
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (permissionDenied && Build.VERSION.SDK_INT >= 31 && NEARBY.all { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }) {
+            permissionDenied = false
+            startPad()
+        }
+    }
+
     private fun startPad() {
         BtGamepad.start(this, profile)
         BtGamepad.openPairingWindow()
@@ -102,7 +118,12 @@ class BtControllerActivity : ComponentActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_NEARBY) startPad()
+        if (requestCode != REQUEST_NEARBY) return
+        val nearbyDenied = permissions.indices.any { i ->
+            permissions[i] in NEARBY && grantResults.getOrNull(i) != PackageManager.PERMISSION_GRANTED
+        }
+        permissionDenied = nearbyDenied
+        if (!nearbyDenied) startPad()
     }
 
     override fun onDestroy() {
@@ -213,7 +234,8 @@ class BtControllerActivity : ComponentActivity() {
                 Text(stringResource(R.string.btpad_title), fontSize = 20.sp, fontWeight = FontWeight.Black, color = colors.onBackground)
                 Text(statusText(status), fontSize = 13.sp, color = colors.onSurfaceVariant)
             }
-            if (connected) SecondaryButton(stringResource(R.string.btpad_disconnect), compact = true) { BtGamepad.disconnect() }
+            if (permissionDenied) PrimaryButton(stringResource(R.string.btpad_permission_open), compact = true) { openAppInfo() }
+            else if (connected) SecondaryButton(stringResource(R.string.btpad_disconnect), compact = true) { BtGamepad.disconnect() }
             else PrimaryButton(stringResource(R.string.btpad_pair), compact = true, enabled = status.phase == BtGamepad.Phase.READY) { BtGamepad.openPairingWindow() }
             SecondaryButton(stringResource(R.string.btpad_close), compact = true) { finish() }
         }
@@ -229,7 +251,7 @@ class BtControllerActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun statusText(status: BtGamepad.Status): String = when (status.phase) {
+    private fun statusText(status: BtGamepad.Status): String = if (permissionDenied) stringResource(R.string.btpad_status_permission) else when (status.phase) {
         BtGamepad.Phase.OFF, BtGamepad.Phase.STARTING -> stringResource(R.string.btpad_status_starting)
         BtGamepad.Phase.BLUETOOTH_OFF -> stringResource(R.string.btpad_status_bt_off)
         BtGamepad.Phase.UNSUPPORTED -> stringResource(R.string.btpad_status_unsupported)
@@ -332,15 +354,21 @@ class BtControllerActivity : ComponentActivity() {
                         dot = last
                         touchPad(left, last, true)
                         var upTime = started
-                        while (true) {
-                            val change = awaitPointerEvent().changes.firstOrNull { it.id == first.id } ?: break
-                            if (!change.pressed) { upTime = change.uptimeMillis; break }
-                            change.consume()
-                            val p = norm(change.position)
-                            moved += (p - last).getDistance()
-                            last = p
-                            dot = p
-                            touchPad(left, p, true)
+                        try {
+                            while (true) {
+                                val change = awaitPointerEvent().changes.firstOrNull { it.id == first.id } ?: break
+                                if (!change.pressed) { upTime = change.uptimeMillis; break }
+                                change.consume()
+                                val p = norm(change.position)
+                                moved += (p - last).getDistance()
+                                last = p
+                                dot = p
+                                touchPad(left, p, true)
+                            }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            dot = null
+                            touchPad(left, last, false)
+                            throw e
                         }
                         dot = null
                         if (upTime - started < TAP_MS && moved < 0.15f) clickPad(left, last)
@@ -414,8 +442,11 @@ class BtControllerActivity : ComponentActivity() {
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false)
                         down = true; touchButton(bit, true)
-                        waitForUpOrCancellation()
-                        down = false; touchButton(bit, false)
+                        try {
+                            waitForUpOrCancellation()
+                        } finally {
+                            down = false; touchButton(bit, false)
+                        }
                     }
                 },
         ) {
@@ -446,14 +477,17 @@ class BtControllerActivity : ComponentActivity() {
                             touchStick(left, d.x, d.y)
                         }
                         move(first.position)
-                        while (true) {
-                            val change = awaitPointerEvent().changes.firstOrNull { it.id == first.id } ?: break
-                            if (!change.pressed) break
-                            change.consume()
-                            move(change.position)
+                        try {
+                            while (true) {
+                                val change = awaitPointerEvent().changes.firstOrNull { it.id == first.id } ?: break
+                                if (!change.pressed) break
+                                change.consume()
+                                move(change.position)
+                            }
+                        } finally {
+                            knob = Offset.Zero
+                            touchStick(left, 0f, 0f)
                         }
-                        knob = Offset.Zero
-                        touchStick(left, 0f, 0f)
                     }
                 },
         ) {
