@@ -3736,6 +3736,7 @@
     <string name="btpad_status_permission">Allow Nearby devices for DroidDeck in App info to use this.</string>
     <string name="btpad_close">Stop</string>
     <string name="btpad_touch">Touch controls</string>
+    <string name="btpad_physical_hint">The built-in buttons and sticks are sent to the paired device.</string>
     <string name="btpad_switch_hint">After changing the type, remove this device from the other side\'s Bluetooth list and pair again.</string>
     <string name="btpad_status_starting">Starting Bluetooth controller…</string>
     <string name="btpad_status_bt_off">Turn on Bluetooth to continue</string>

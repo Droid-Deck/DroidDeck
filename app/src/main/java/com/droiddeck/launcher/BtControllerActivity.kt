@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -55,6 +56,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -210,16 +212,15 @@ class BtControllerActivity : ComponentActivity() {
     private fun Screen() {
         val status by BtGamepad.status.collectAsState()
         val colors = MaterialTheme.colorScheme
-        Column(Modifier.fillMaxSize().background(colors.background).padding(horizontal = 16.dp, vertical = 10.dp)) {
+        Column(Modifier.fillMaxSize().background(colors.background).padding(horizontal = 12.dp, vertical = 8.dp)) {
             Panel(status)
             if (showTouch) {
-                Spacer(Modifier.height(8.dp))
-                TouchPad(Modifier.weight(1f).fillMaxWidth(), status.lightbar)
+                TouchPad(Modifier.weight(1f).fillMaxWidth().padding(top = 6.dp), status.lightbar)
             } else {
-                Spacer(Modifier.weight(1f))
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.btpad_physical_hint), fontSize = 15.sp, color = colors.onSurfaceVariant)
+                }
             }
-            Text(stringResource(R.string.btpad_exit_hint), fontSize = 12.sp, color = colors.onSurfaceVariant,
-                modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 6.dp))
         }
     }
 
@@ -228,26 +229,25 @@ class BtControllerActivity : ComponentActivity() {
         val colors = MaterialTheme.colorScheme
         val pal = LocalPalette.current
         val connected = status.phase == BtGamepad.Phase.CONNECTED
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.size(12.dp).clip(CircleShape).background(status.lightbar?.let { Color(it) } ?: if (connected) pal.signal else colors.onSurfaceVariant.copy(alpha = 0.4f)))
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.btpad_title), fontSize = 20.sp, fontWeight = FontWeight.Black, color = colors.onBackground)
-                Text(statusText(status), fontSize = 13.sp, color = colors.onSurfaceVariant)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.size(10.dp).clip(CircleShape).background(status.lightbar?.let { Color(it) } ?: if (connected) pal.signal else colors.onSurfaceVariant.copy(alpha = 0.4f)))
+            Column(Modifier.widthIn(max = 220.dp)) {
+                Text(statusText(status), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(if (connected) R.string.btpad_exit_hint else R.string.btpad_switch_hint), fontSize = 11.sp,
+                    color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                BtPadProfile.entries.forEach { p -> Chip(profileLabel(p), p == profile) { pickProfile(p) } }
+                Chip(stringResource(R.string.btpad_touch), showTouch) {
+                    showTouch = !showTouch
+                    prefs(this@BtControllerActivity).edit().putBoolean(KEY_TOUCH, showTouch).apply()
+                }
             }
             if (permissionDenied) PrimaryButton(stringResource(R.string.btpad_permission_open), compact = true) { openAppInfo() }
             else if (connected) SecondaryButton(stringResource(R.string.btpad_disconnect), compact = true) { BtGamepad.disconnect() }
             else PrimaryButton(stringResource(R.string.btpad_pair), compact = true, enabled = status.phase == BtGamepad.Phase.READY) { BtGamepad.openPairingWindow() }
             SecondaryButton(stringResource(R.string.btpad_close), compact = true) { finish() }
         }
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            BtPadProfile.entries.forEach { p -> Chip(profileLabel(p), p == profile) { pickProfile(p) } }
-            Spacer(Modifier.width(8.dp))
-            Chip(stringResource(R.string.btpad_touch), showTouch) {
-                showTouch = !showTouch
-                prefs(this@BtControllerActivity).edit().putBoolean(KEY_TOUCH, showTouch).apply()
-            }
-        }
-        if (!connected) Text(stringResource(R.string.btpad_switch_hint), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
     }
 
     @Composable
@@ -277,7 +277,7 @@ class BtControllerActivity : ComponentActivity() {
             color = if (on) colors.background else if (enabled) colors.onBackground else colors.onSurfaceVariant,
             modifier = Modifier.clip(CircleShape).background(if (on) pal.signal else colors.surface)
                 .border(1.dp, if (on) pal.signal else pal.line2, CircleShape)
-                .clickable(enabled = enabled, onClick = onClick).padding(horizontal = 14.dp, vertical = 8.dp))
+                .clickable(enabled = enabled, onClick = onClick).padding(horizontal = 12.dp, vertical = 6.dp))
     }
 
     @Composable
@@ -285,53 +285,60 @@ class BtControllerActivity : ComponentActivity() {
         val sony = profile == BtPadProfile.DUALSHOCK4 || profile == BtPadProfile.DUALSENSE
         val steam = profile == BtPadProfile.STEAM
         BoxWithConstraints(modifier) {
-            val unit = minOf(maxWidth / 10f, maxHeight / 6.6f)
-            val gap = unit * 0.2f
-            val stick = unit * 2f
-            val btn = unit * 0.95f
-            val shoulderW = unit * 1.4f
-            val shoulderH = unit * 0.7f
-            Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
-                Column(verticalArrangement = Arrangement.spacedBy(gap)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-                        PadButton(if (sony) "L2" else "LT", BtPadState.LT, shoulderW, shoulderH)
-                        PadButton(if (sony) "L1" else "LB", BtPadState.LB, shoulderW, shoulderH)
-                    }
-                    Stick(stick, left = true)
-                    Cross(btn)
-                }
-                Column(Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(gap * 2, Alignment.CenterVertically), horizontalAlignment = Alignment.CenterHorizontally) {
-                    if (steam) Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-                        PadButton("L5", BtPadState.L5, unit * 0.8f, unit * 0.6f)
-                        PadButton("L4", BtPadState.L4, unit * 0.8f, unit * 0.6f)
-                        Spacer(Modifier.width(gap * 2))
-                        PadButton("R4", BtPadState.R4, unit * 0.8f, unit * 0.6f)
-                        PadButton("R5", BtPadState.R5, unit * 0.8f, unit * 0.6f)
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically) {
-                        PadButton(if (sony) "Share" else "View", BtPadState.SELECT, unit * 1.2f, unit * 0.6f)
-                        PadButton(if (sony) "PS" else if (steam) "Steam" else "Home", BtPadState.GUIDE, unit * 1.2f, unit * 0.6f, tint = lightbar?.let { Color(it) })
-                        PadButton(if (sony) "Options" else "Menu", BtPadState.START, unit * 1.2f, unit * 0.6f)
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-                        PadButton("L3", BtPadState.L3, unit * 0.9f, unit * 0.6f)
-                        if (sony) PadButton("Pad", BtPadState.TOUCHPAD, unit * 1.2f, unit * 0.6f)
-                        if (steam) PadButton("···", BtPadState.SHARE, unit * 1.2f, unit * 0.6f)
-                        PadButton("R3", BtPadState.R3, unit * 0.9f, unit * 0.6f)
-                    }
-                    if (steam) Row(horizontalArrangement = Arrangement.spacedBy(gap * 2)) {
-                        Trackpad(unit * 1.9f, left = true)
-                        Trackpad(unit * 1.9f, left = false)
-                    }
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(gap), horizontalAlignment = Alignment.End) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-                        PadButton(if (sony) "R1" else "RB", BtPadState.RB, shoulderW, shoulderH)
-                        PadButton(if (sony) "R2" else "RT", BtPadState.RT, shoulderW, shoulderH)
-                    }
-                    Diamond(btn, sony)
-                    Stick(stick, left = false)
-                }
+            val w = maxWidth
+            val h = maxHeight
+            val stick = minOf(h * (if (steam) 0.38f else 0.46f), w * 0.2f)
+            val face = stick * 0.4f
+            val cluster = face * 3f
+            val shoulderW = minOf(w * 0.09f, stick * 0.75f)
+            val shoulderH = minOf(h * 0.13f, 44.dp)
+            val small = shoulderH * 0.85f
+            @Composable
+            fun at(fx: Float, fy: Float, bw: Dp, bh: Dp, content: @Composable () -> Unit) {
+                val x = (w * fx - bw / 2).coerceIn(0.dp, w - bw)
+                val y = (h * fy - bh / 2).coerceIn(0.dp, h - bh)
+                Box(Modifier.offset(x, y).size(bw, bh), contentAlignment = Alignment.Center) { content() }
+            }
+            val shoulderY = shoulderH / h / 2f
+            at(0.0f, shoulderY, shoulderW, shoulderH) { PadButton(if (sony) "L2" else "LT", BtPadState.LT, shoulderW, shoulderH) }
+            val second = (shoulderW * 1.5f + 8.dp) / w
+            at(second, shoulderY, shoulderW, shoulderH) { PadButton(if (sony) "L1" else "LB", BtPadState.LB, shoulderW, shoulderH) }
+            at(1f - second, shoulderY, shoulderW, shoulderH) { PadButton(if (sony) "R1" else "RB", BtPadState.RB, shoulderW, shoulderH) }
+            at(1.0f, shoulderY, shoulderW, shoulderH) { PadButton(if (sony) "R2" else "RT", BtPadState.RT, shoulderW, shoulderH) }
+            val menuW = shoulderW * 0.95f
+            val menu = listOfNotNull(
+                Triple(if (sony) "Share" else "View", BtPadState.SELECT, null),
+                Triple(if (sony) "PS" else if (steam) "Steam" else "Home", BtPadState.GUIDE, lightbar),
+                if (steam) Triple("···", BtPadState.SHARE, null) else null,
+                Triple(if (sony) "Options" else "Menu", BtPadState.START, null),
+            )
+            menu.forEachIndexed { i, (label, bit, tint) ->
+                val fx = 0.5f + (i - (menu.size - 1) / 2f) * ((menuW + 8.dp) / w)
+                at(fx, shoulderY, menuW, small) { PadButton(label, bit, menuW, small, tint = tint?.let { Color(it) }) }
+            }
+            if (steam) {
+                val rearY = (shoulderH * 1.6f) / h
+                at(0.0f, rearY, shoulderW, small) { PadButton("L5", BtPadState.L5, shoulderW, small) }
+                at(second, rearY, shoulderW, small) { PadButton("L4", BtPadState.L4, shoulderW, small) }
+                at(1f - second, rearY, shoulderW, small) { PadButton("R4", BtPadState.R4, shoulderW, small) }
+                at(1.0f, rearY, shoulderW, small) { PadButton("R5", BtPadState.R5, shoulderW, small) }
+                val pad = minOf(h * 0.4f, w * 0.2f)
+                at(0.11f, 0.5f, stick, stick) { Stick(stick, left = true) }
+                at(0.89f, 0.5f, stick, stick) { Stick(stick, left = false) }
+                at(0.3f, 0.34f, cluster, cluster) { Cross(face) }
+                at(0.7f, 0.34f, cluster, cluster) { Diamond(face, false) }
+                at(0.3f, 1f, pad, pad) { Trackpad(pad, left = true) }
+                at(0.7f, 1f, pad, pad) { Trackpad(pad, left = false) }
+                at(0.44f, 0.94f, menuW, small) { PadButton("L3", BtPadState.L3, menuW, small) }
+                at(0.56f, 0.94f, menuW, small) { PadButton("R3", BtPadState.R3, menuW, small) }
+            } else {
+                at(0.12f, 0.45f, stick, stick) { Stick(stick, left = true) }
+                at(0.88f, 0.45f, cluster, cluster) { Diamond(face, sony) }
+                at(0.32f, 0.78f, cluster, cluster) { Cross(face) }
+                at(0.68f, 0.78f, stick, stick) { Stick(stick, left = false) }
+                at(0.42f, 0.5f, menuW, small) { PadButton("L3", BtPadState.L3, menuW, small) }
+                at(0.58f, 0.5f, menuW, small) { PadButton("R3", BtPadState.R3, menuW, small) }
+                if (sony) at(0.5f, 0.68f, menuW * 1.6f, small * 1.4f) { PadButton("Touchpad", BtPadState.TOUCHPAD, menuW * 1.6f, small * 1.4f) }
             }
         }
     }
