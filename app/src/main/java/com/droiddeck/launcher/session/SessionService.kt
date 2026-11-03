@@ -508,7 +508,7 @@ class SessionService : Service() {
             SessionFiles.stage(this, root, startsSession = true)
         } catch (error: Exception) {
             Log.e(TAG, "Could not prepare the session graphics runtime", error)
-            stopSession(-1)
+            stopSession(-1, gen)
             return
         }
         SessionArtifacts.awaitCollections()

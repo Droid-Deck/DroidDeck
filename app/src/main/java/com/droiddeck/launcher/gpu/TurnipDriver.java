@@ -314,7 +314,7 @@ public final class TurnipDriver {
             return null;
         }
         GpuInfo gpu = gpuDetector.get();
-        if (gpu.getFamily() == GpuInfo.Family.NOT_ADRENO) {
+        if (gpu.getFamily() == GpuInfo.Family.NOT_ADRENO || gpu.getFamily().getMali()) {
             Log.i(TAG, "not an Adreno GPU; leaving the display driver to the system");
             return null;
         }
