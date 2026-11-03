@@ -2847,25 +2847,36 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val relativeMouseRequests = java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "relative-mouse").apply { isDaemon = true }
     }
+    @Volatile private var desiredRelativeMouseMode = 0
 
     private fun setRelativeMouse(mode: Int) {
+        desiredRelativeMouseMode = mode
+        relativeMouseRequests.execute { applyRelativeMouse() }
+    }
+
+    private fun applyRelativeMouse() {
+        val mode = desiredRelativeMouseMode
+        if (appliedRelativeMouseMode == mode) return
         val request = org.json.JSONObject()
             .put("kind", "exec")
             .put("argv", org.json.JSONArray(listOf("gamescopectl", "relative_mouse", mode.toString())))
             .put("timeout", 5.0)
-        relativeMouseRequests.execute {
-            val result = runCatching { AgentGuest.call(this, request, 8_000, trusted = true) }
-            val ok = result.getOrNull()?.optBoolean("ok") == true
-            if (ok) appliedRelativeMouseMode = mode
-            else Log.w(TAG, "gamescope did not take relative mouse: ${result.exceptionOrNull() ?: result.getOrNull()}")
-        }
+        val result = runCatching { AgentGuest.call(this, request, 8_000, trusted = true) }
+        val answer = result.getOrNull()
+        val applied = answer?.optBoolean("ok") == true
+            && answer.optInt("exitCode", -1) == 0
+            && !answer.optBoolean("timedOut")
+            && desiredRelativeMouseMode == mode
+        if (applied) appliedRelativeMouseMode = mode
+        else Log.w(TAG, "gamescope did not take relative mouse $mode: ${result.exceptionOrNull() ?: answer}")
+        if (desiredRelativeMouseMode != mode) relativeMouseRequests.execute { applyRelativeMouse() }
     }
 
     private fun refreshGestureConfig() {
         gestureConfig = com.droiddeck.launcher.input.GesturePrefs.read(this, gestureGame)
         directHoldBehavior = gestureConfig.directHoldBehavior
         relativeMouseMode = gestureConfig.relativeMouseMode
-        if (appliedRelativeMouseMode != relativeMouseMode) setRelativeMouse(relativeMouseMode)
+        setRelativeMouse(relativeMouseMode)
         gestureTouchStreamGate.reset()
         if (::touchscreenGestures.isInitialized) touchscreenGestures.configure(gestureConfig)
         if (::directTouchHold.isInitialized) directTouchHold.configure(gestureConfig)
