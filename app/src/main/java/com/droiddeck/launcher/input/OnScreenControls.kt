@@ -10,6 +10,7 @@ import android.graphics.Rect
 import android.graphics.RectF
 import android.os.Build
 import android.view.HapticFeedbackConstants
+import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
@@ -512,6 +513,7 @@ class OnScreenControls(
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (editing) return onEditTouch(event)
+        if (event.isFromSource(InputDevice.SOURCE_MOUSE)) return false
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 val index = event.actionIndex

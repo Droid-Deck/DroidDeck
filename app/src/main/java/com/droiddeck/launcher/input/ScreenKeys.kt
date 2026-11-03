@@ -11,6 +11,7 @@ import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.os.Build
+import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
@@ -811,6 +812,7 @@ class ScreenKeys(context: Context, private val sendKey: (Int, Boolean) -> Unit) 
     override fun onTouchEvent(event: MotionEvent): Boolean = if (editing) editTouch(event) else playTouch(event)
 
     private fun playTouch(event: MotionEvent): Boolean {
+        if (event.isFromSource(InputDevice.SOURCE_MOUSE)) return false
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 val index = event.actionIndex

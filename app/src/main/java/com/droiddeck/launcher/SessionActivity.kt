@@ -258,6 +258,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val cursorPosBuf = IntArray(2)
     private var cursorSerial = 0
     private var clientHidesCursor = false
+    private var mouseOwnsCursor = false
     private var pointerLocked = false
     private val pointerLockListener = WaylandCompositor.PointerLockListener { locked, _, _ ->
         uiHandler.post {
@@ -272,6 +273,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 drawnRect()?.let { touchpad.place(it.centerX(), it.centerY()) }
                 cursorVisible = false
             }
+            if (!locked && mouseOwnsCursor) {
+                uiHandler.removeCallbacks(cursorResync)
+                uiHandler.post(cursorResync)
+            }
             updatePointerCapture()
         }
     }
@@ -284,6 +289,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         override fun run() {
             if (syncClientCursor() && clientHidesCursor) {
                 cursorVisible = false
+                if (!mouseOwnsCursor) return
+            }
+            if (mouseOwnsCursor) {
+                if (pointerLocked) return
+                alignCursorToGuest()
+                if (!clientHidesCursor) cursorVisible = true
+                uiHandler.postDelayed(this, 60)
                 return
             }
             if (touchDrivesPointer()) return
@@ -557,6 +569,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         override fun onInputDeviceRemoved(deviceId: Int) {
             physicalShortcuts.onDeviceRemoved(deviceId)
             Log.i(TAG, "input device $deviceId disconnected")
+            updatePointerCapture()
             backQamInput.onDeviceRemoved(deviceId)
             joyConVr?.refresh()
             padBridge?.onDeviceRemoved(deviceId)
@@ -637,6 +650,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             override fun dispatchPointerCaptureChanged(hasCapture: Boolean) {
                 super.dispatchPointerCaptureChanged(hasCapture)
                 Log.i(TAG, "pointer capture " + if (hasCapture) "on" else "off")
+                if (!hasCapture) uiHandler.postDelayed(::updatePointerCapture, 250)
             }
         }
         sessionRoot = root
@@ -674,6 +688,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         bridge.setOnPlayerInput {
             lastPadInputMs = android.os.SystemClock.uptimeMillis()
             uiHandler.removeCallbacks(cursorHide)
+            mouseOwnsCursor = false
             cursorVisible = false
         }
         onScreenControls = OnScreenControls(this, bridge, onKeyboard = ::togglePcKeyboard).also { controls ->
@@ -3045,26 +3060,38 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         cursorVisible = false
     }
 
-    private fun movePointer(x: Float, y: Float) {
+    private fun movePointer(x: Float, y: Float, fromMouse: Boolean = false) {
         val rect = drawnRect() ?: return
         val cx = x.coerceIn(rect.left, rect.right)
         val cy = y.coerceIn(rect.top, rect.bottom)
         WaylandCompositor.nativeSendPointer(1, InputSpace.x(cx, outputView().width), InputSpace.y(cy, outputView().height))
-        showCursor(cx, cy)
+        showCursor(cx, cy, fromMouse)
     }
 
-    private fun showCursor(x: Float, y: Float) {
+    private fun moveCapturedMouse(dx: Float, dy: Float) {
+        val rect = drawnRect() ?: return
+        val scale = sceneScale(rect)
+        WaylandCompositor.sendPointerDelta(dx, dy)
+        showCursor(
+            (cursorPos.x + dx / scale).coerceIn(rect.left, rect.right),
+            (cursorPos.y + dy / scale).coerceIn(rect.top, rect.bottom),
+            fromMouse = true,
+        )
+    }
+
+    private fun showCursor(x: Float, y: Float, fromMouse: Boolean = false) {
         cursorPos = androidx.compose.ui.geometry.Offset(x, y)
         syncClientCursor()
+        mouseOwnsCursor = fromMouse
         uiHandler.removeCallbacks(cursorResync)
         cursorResyncIdle = 0
-        if (!touchDrivesPointer()) uiHandler.postDelayed(cursorResync, 60)
+        if (fromMouse || !touchDrivesPointer()) uiHandler.postDelayed(cursorResync, 60)
         if (clientHidesCursor) { cursorVisible = false; return }
-        if (directTouchCursorHidden()) { cursorVisible = false; return }
+        if (!fromMouse && directTouchCursorHidden()) { cursorVisible = false; return }
         if (android.os.SystemClock.uptimeMillis() - lastPadInputMs < CURSOR_PAD_HOLD_MS) return
         cursorVisible = true
         uiHandler.removeCallbacks(cursorHide)
-        if (SessionState.mode == SessionService.MODE_STEAM && SessionState.steamUi != "desktop") uiHandler.postDelayed(cursorHide, 2500)
+        if (!fromMouse && SessionState.mode == SessionService.MODE_STEAM && SessionState.steamUi != "desktop") uiHandler.postDelayed(cursorHide, 2500)
     }
 
     private fun touchDrivesPointer(): Boolean =
@@ -3698,9 +3725,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun onMouse(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_HOVER_MOVE, MotionEvent.ACTION_MOVE, MotionEvent.ACTION_HOVER_ENTER ->
-                if (evdevMouseActive) sendMouseDelta(event.x, event.y) else movePointer(event.x, event.y)
+                if (evdevMouseActive) sendMouseDelta(event.x, event.y) else movePointer(event.x, event.y, fromMouse = true)
             MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE -> {
-                if (evdevMouseActive) sendMouseDelta(event.x, event.y) else movePointer(event.x, event.y)
+                if (evdevMouseActive) sendMouseDelta(event.x, event.y) else movePointer(event.x, event.y, fromMouse = true)
                 val button = when (event.actionButton) {
                     MotionEvent.BUTTON_SECONDARY -> PointerGestures.BTN_RIGHT
                     MotionEvent.BUTTON_TERTIARY -> PointerGestures.BTN_MIDDLE
@@ -3723,10 +3750,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         d != null && !d.isVirtual && d.supportsSource(InputDevice.SOURCE_MOUSE)
     }
 
+    private fun relativeMouseAttached(): Boolean = !isInMultiWindowMode && !glassesOutputActive && InputDevice.getDeviceIds().any { id ->
+        val d = InputDevice.getDevice(id)
+        d != null && !d.isVirtual && d.supportsSource(InputDevice.SOURCE_MOUSE) && !d.supportsSource(InputDevice.SOURCE_TOUCHPAD)
+    }
+
     private fun updatePointerCapture() {
         if (!::surfaceView.isInitialized) return
         val view = window.decorView
-        val want = pointerLocked && resumed && hasWindowFocus() && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !pipUi && !bottomOutputActive && mouseAttached()
+        val want = (pointerLocked || relativeMouseAttached()) && resumed && hasWindowFocus() && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !pipUi && !bottomOutputActive && mouseAttached()
         if (want == view.hasPointerCapture()) return
         if (want) view.requestPointerCapture() else view.releasePointerCapture()
     }
@@ -3747,7 +3779,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun onCapturedPointer(event: MotionEvent): Boolean {
-        if (!pointerLocked || !event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) return false
+        if (!event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) return false
         notePress(event)
         when (event.actionMasked) {
             MotionEvent.ACTION_MOVE -> {
@@ -3757,7 +3789,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     dx += event.getHistoricalX(i)
                     dy += event.getHistoricalY(i)
                 }
-                sendSceneDelta(dx, dy)
+                if (pointerLocked) sendSceneDelta(dx, dy) else moveCapturedMouse(dx, dy)
             }
             MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE -> {
                 val button = when (event.actionButton) {
