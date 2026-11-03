@@ -26,7 +26,7 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
  
  	std::pair<int32_t, bool> eventFd = gamescope::CAcquireTimelinePoint::k_InvalidEvent;
  
-@@ -8632,47 +8630,56 @@
+@@ -8632,46 +8630,56 @@
  			pBackendFb->SetBuffer( buf );
  	}
  
@@ -40,7 +40,6 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 -		struct wlr_dmabuf_attributes dmabuf = {0};
 -		if ( wlr_buffer_get_dmabuf( buf, &dmabuf ) )
 -		{
--			// A finished buffer needs no fence of its own.
 -			if ( cv_commit_ready_check && commit_fence_ready_now( dmabuf.fd[0] ) )
 -				bKnownReady = true;
 -			else
