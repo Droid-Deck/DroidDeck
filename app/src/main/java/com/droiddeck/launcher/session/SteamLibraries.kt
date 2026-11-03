@@ -126,8 +126,20 @@ object SteamLibraries {
         return out
     }
 
-    internal fun gameCount(library: File): Int =
-        File(library, "steamapps").list()?.count { it.startsWith("appmanifest_") && it.endsWith(".acf") } ?: 0
+    internal fun gameCount(library: File): Int {
+        val steamapps = File(library, "steamapps")
+        val manifests = steamapps.list()?.count { it.startsWith("appmanifest_") && it.endsWith(".acf") } ?: return 0
+        return manifests + depotInstalls(File(steamapps, "common")).size
+    }
+
+    /** Finished downloads another client left without a Steam manifest; the importer registers them from depot.config. */
+    fun depotInstalls(common: File): List<File> {
+        val managed = AddedGames.steamInstallDirs(common)
+        return common.listFiles { f ->
+            f.isDirectory && f.name.lowercase() !in managed &&
+                File(f, ".download_complete").isFile && File(f, ".DepotDownloader/depot.config").isFile
+        }.orEmpty().sortedBy { it.name.lowercase() }
+    }
 
     fun rename(context: Context, id: String, label: String) {
         val name = clean(label).takeIf { it.isNotEmpty() } ?: return
