@@ -3607,6 +3607,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private var ignoreGameTouch = false
+    private var lockedTouchTurns = false
+    private var lockedSwipeX = Float.NaN
+    private var lockedSwipeY = Float.NaN
     private var dismissTouch = false
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -3658,7 +3661,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     }
                     if (threeFingerTap.active || wasActive) return true
                 }
-                if (route == com.droiddeck.launcher.input.TouchRouter.Route.TOUCHPAD) {
+                if (event.actionMasked == MotionEvent.ACTION_DOWN)
+                    lockedTouchTurns = pointerLocked && route != com.droiddeck.launcher.input.TouchRouter.Route.TOUCHPAD
+                if (route == com.droiddeck.launcher.input.TouchRouter.Route.TOUCHPAD || lockedTouchTurns) {
                     val rect = drawnRect() ?: return false
                     if (touchpad.bounds != rect) {
                         val fresh = touchpad.bounds.width() <= 1f
@@ -3710,6 +3715,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun forwardTouch(event: MotionEvent, rect: android.graphics.RectF): Boolean {
+        if (pointerLocked && event.actionMasked == MotionEvent.ACTION_MOVE) {
+            if (!lockedSwipeX.isNaN()) {
+                val scale = sceneScale(rect)
+                sendSceneDelta((event.x - lockedSwipeX) * scale, (event.y - lockedSwipeY) * scale)
+            }
+            lockedSwipeX = event.x
+            lockedSwipeY = event.y
+            return true
+        }
+        lockedSwipeX = Float.NaN
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             showCursor(event.x.coerceIn(rect.left, rect.right), event.y.coerceIn(rect.top, rect.bottom))
             if (WaylandCompositor.nativeFocusTakesTouch()) {
