@@ -64,8 +64,9 @@ class OnScreenControls(
             var dx = x - ax
             var dy = y - ay
             val d = sqrt(dx * dx + dy * dy)
-            if (d > radius) { dx = dx / d * radius; dy = dy / d * radius }
-            if (abs(dx - kx) < MIN_STICK_MOVE_PX && abs(dy - ky) < MIN_STICK_MOVE_PX) return false
+            val atLimit = d > radius
+            if (atLimit) { dx = dx / d * radius; dy = dy / d * radius }
+            if (!atLimit && abs(dx - kx) < MIN_STICK_MOVE_PX && abs(dy - ky) < MIN_STICK_MOVE_PX) return false
             kx = dx; ky = dy; dirty = true
             return true
         }
