@@ -27,8 +27,9 @@ class VulkanWsiPatchesTest(unittest.TestCase):
         build = (WSI / 'build.sh').read_text()
         self.assertIn('for patch in "$root"/tools/vulkan-wsi/patches/*.patch', build)
         self.assertIn('git -C "$work/source" diff > "$out/downstream.patch"', build)
-        self.assertEqual([p.name for p in sorted((WSI / 'patches').glob('*.patch'))][:2],
-                         ['0001-link-x11-external-memory.patch', '0002-x11-dri3-driver-exported-memory.patch'])
+        self.assertEqual([p.name for p in sorted((WSI / 'patches').glob('*.patch'))][:3],
+                         ['0001-link-x11-external-memory.patch', '0002-x11-dri3-driver-exported-memory.patch',
+                          '0003-x11-follow-gamescope-frame-limiter.patch'])
 
     @unittest.skipUnless(shutil.which('git') and shutil.which('gcc') and Path('/usr/include/drm/drm_fourcc.h').is_file(),
                          'needs git, gcc, network and the kernel drm headers')
