@@ -11,6 +11,7 @@ import time
 import unicodedata
 import urllib.parse
 import urllib.request
+import zlib
 
 STATE = ".droiddeck-games.json"
 TRIED = ".droiddeck-import-tried.json"
@@ -301,15 +302,60 @@ def installed_build(folder, appid, installdir):
     if not (folder / ".download_complete").is_file():
         return None
     try:
-        ids = json.loads((folder / ".DepotDownloader/depot.config").read_text())["installedManifestIDs"]
-        depots = sorted((int(depot), int(gid)) for depot, gid in ids.items())
-    except FileNotFoundError:
+        depots = config_depots((folder / ".DepotDownloader/depot.config").read_bytes())
+    except OSError:
+        depots = None
+    if depots is None:
         depots = completed_depots(folder / ".DepotDownloader/completed")
-    except (OSError, ValueError, KeyError, TypeError, AttributeError):
-        return None
     if not depots or not all(0 < depot < 0x80000000 and 0 < gid < 0x7FFFFFFFFFFFFFFF for depot, gid in depots):
         return None
     return "".join(f'        "{depot}"\n        {{\n            "manifest" "{gid}"\n        }}\n' for depot, gid in depots)
+
+
+def varint(data, i):
+    value = shift = 0
+    while True:
+        byte = data[i]
+        i += 1
+        value |= (byte & 0x7F) << shift
+        shift += 7
+        if byte < 0x80:
+            return value, i
+
+
+def proto_fields(data):
+    i = 0
+    while i < len(data):
+        key, i = varint(data, i)
+        kind = key & 7
+        if kind == 0:
+            value, i = varint(data, i)
+        elif kind == 2:
+            size, i = varint(data, i)
+            value, i = data[i:i + size], i + size
+        elif kind in (1, 5):
+            value, i = None, i + (8 if kind == 1 else 4)
+        else:
+            raise ValueError
+        yield key >> 3, kind, value
+
+
+def config_depots(data):
+    try:
+        ids = json.loads(data.decode())["installedManifestIDs"]
+        return sorted((int(depot), int(gid)) for depot, gid in ids.items())
+    except (ValueError, KeyError, TypeError, AttributeError):
+        pass
+    try:
+        depots = {}
+        for number, kind, entry in proto_fields(zlib.decompress(data, -15)):
+            if number == 1 and kind == 2:
+                fields = {n: v for n, k, v in proto_fields(entry) if k == 0}
+                if 1 in fields and 2 in fields:
+                    depots[fields[1]] = fields[2]
+        return sorted(depots.items()) or None
+    except (zlib.error, ValueError, IndexError):
+        return None
 
 
 def completed_depots(completed):
