@@ -261,6 +261,8 @@ class ImportsTest(unittest.TestCase):
         (config.parent / 'completed').mkdir()
         (config.parent / 'completed/43_98.manifest').write_bytes(b'x')
         self.assertIn('"manifest" "98"', imports.installed_build(self.folder, 42, 'DroidDeck-42'))
+        config.write_text(json.dumps({'installedManifestIDs': {}}))
+        self.assertIn('"manifest" "98"', imports.installed_build(self.folder, 42, 'DroidDeck-42'))
 
     def test_completed_manifests_record_installed_depots(self):
         completed = self.folder / '.DepotDownloader/completed'

@@ -305,7 +305,7 @@ def installed_build(folder, appid, installdir):
         depots = config_depots((folder / ".DepotDownloader/depot.config").read_bytes())
     except OSError:
         depots = None
-    if depots is None:
+    if not depots:
         depots = completed_depots(folder / ".DepotDownloader/completed")
     if not depots or not all(0 < depot < 0x80000000 and 0 < gid < 0x7FFFFFFFFFFFFFFF for depot, gid in depots):
         return None
