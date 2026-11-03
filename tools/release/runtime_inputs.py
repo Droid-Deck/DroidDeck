@@ -1,5 +1,6 @@
 import hashlib
 import gzip
+import importlib.util
 import json
 from pathlib import Path
 import subprocess
@@ -22,6 +23,7 @@ SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app
                 'tools/linuxfs', 'tools/proot', 'tools/aaudio-sink', 'tools/directaudio', 'tools/packs',
                 'tools/gamescope/release.env', 'tools/droiddeck-esync/release.env',
                 'tools/mangoapp', 'tools/msitools', 'tools/pipewire', 'tools/comet', 'tools/xbox', 'tools/dirt-ws2', 'tools/components', 'tools/ci', 'tools/build_local.sh',
+                'tools/powervr', 'tools/hybris', 'tools/dxvk', 'tools/vulkan-wsi',
                 'tools/release/runtime_inputs.py', 'app/src/main/assets/desktop-removal',
                 'tools/quest', 'tools/vr/src', 'tools/vr/driver_droiddeck', 'tools/vr/layer', 'tools/vr/build.sh',
                 'tools/gpuload',
@@ -53,7 +55,7 @@ def sources(root):
 
 def outputs(root):
     result = {}
-    for tree in ['linuxfs', 'directaudio', 'droiddeck-esync', 'desktop-removal']:
+    for tree in ['linuxfs', 'directaudio', 'droiddeck-esync', 'desktop-removal', 'hybris']:
         base = root / 'app/src/main/assets' / tree
         for path in base.rglob('*'):
             if path.is_file() and not any(part.startswith('.') for part in path.relative_to(base).parts):
@@ -85,6 +87,8 @@ def required():
     paths += ['assets/linuxfs/i386/libfaultreport.so']
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-msitools/' + name for name in
               ['msiinfo', 'cabextract', '7z', '7z.so', 'libmsi-1.0.so.0', 'libgsf-1.so.114', 'libgcab-1.0.so.0']]
+    paths += ['assets/linuxfs/usr/local/lib/droiddeck-xclipse/' + name for name in
+              ['libVkLayer_droiddeck_xclipse.so', 'VkLayer_droiddeck_xclipse.json']]
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-vr/' + name for name in
               ['droiddeck/bin/linuxarm64/driver_droiddeck.so', 'droiddeck/bin/linuxarm64/xr-display-mode',
                'droiddeck/driver.vrdrivermanifest',
@@ -114,7 +118,15 @@ def required():
     paths += ['assets/desktop-removal/' + name for name in
               ['lxqt-r1.tsv.gzip', 'kde-remove.tsv.gzip', 'kde-keep.txt.gzip',
                'emulators-keep.txt.gzip', 'versions.txt', 'sources.json']]
+    paths += ['assets/hybris/runtime.tzst', 'assets/hybris/version.txt']
     return paths
+
+
+def verify_powervr(root):
+    spec = importlib.util.spec_from_file_location('powervr_fetch', ROOT / 'tools/powervr/fetch.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.verify(root)
 
 
 def record(root=ROOT):
@@ -128,6 +140,7 @@ def record(root=ROOT):
     missing = [name for name in required() if name not in paths or not (root / paths[name]).is_file()]
     if missing:
         raise ValueError('Missing runtime inputs:\n' + '\n'.join(missing))
+    verify_powervr(root)
     for name, path in paths.items():
         if name.startswith('assets/desktop-removal/') and name.endswith('.gzip'):
             try:

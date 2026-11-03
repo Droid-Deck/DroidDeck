@@ -61,6 +61,13 @@ object DriverBundle {
             val manifest = File(work, MANIFEST).takeIf { it.isFile }
                 ?.let { runCatching { parseManifest(JSONObject(FileUtils.readString(it))) }.getOrNull() }
                 ?: throw IllegalArgumentException(context.getString(R.string.bundle_no_manifest))
+            // The same open non-Adreno pair again (picked again after another one): replace it
+            // rather than keeping a "-2" copy beside the old one. Adreno bundles keep their copies.
+            val sameId = LinuxVulkanDriverManager.sanitizeId(manifest.tag.ifEmpty { "${manifest.name}-${manifest.version}" })
+            get(context, sameId)?.takeIf { DriverPairs.isNonAdreno(it.id) }?.let { old ->
+                Log.i(TAG, "replacing bundle ${old.id} (display ${old.androidId}, runtime ${old.linuxId})")
+                remove(context, old)
+            }
             val androidDir = File(work, manifest.androidPath)
             val linuxDir = File(work, manifest.linuxPath)
 
@@ -75,8 +82,8 @@ object DriverBundle {
 
             val linuxStage = lm.newStagingDir()
             val linuxId = try {
-                val library = linuxDir.listFiles()?.firstOrNull { it.isFile && it.name.startsWith("libvulkan_freedreno") && it.name.endsWith(".so") }
-                library?.copyTo(File(linuxStage, LinuxVulkanDriverManager.LIB_NAME))
+                val library = linuxDir.listFiles()?.firstOrNull { it.isFile && LinuxVulkanDriverManager.isDriverLibrary(it.name) }
+                library?.copyTo(File(linuxStage, LinuxVulkanDriverManager.storedName(library.name)))
                 val meta = File(linuxDir, LinuxVulkanDriverManager.META_NAME).takeIf { it.isFile }
                     ?.let { runCatching { JSONObject(FileUtils.readString(it)) }.getOrNull() }
                 lm.adopt(linuxStage, library?.name, meta, manifest.name)

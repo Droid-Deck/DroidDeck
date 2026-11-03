@@ -583,6 +583,8 @@ static FILE *synthesize(const char *table) {
 
 int bl_status_without_tracer(const char *path, int flags, const void *caller) __attribute__((visibility("hidden")));
 
+const char *bl_oom_adj_redirect(const char *path, int writing) __attribute__((visibility("hidden")));
+
 static FILE *open_stream(fopen_fn real, const char *path, const char *mode, const void *caller) {
     int status = mode && mode[0] == 'r' && !strchr(mode, '+')
             ? bl_status_without_tracer(path, O_RDONLY | O_CLOEXEC, caller) : -1;
@@ -591,6 +593,7 @@ static FILE *open_stream(fopen_fn real, const char *path, const char *mode, cons
         if (copy == NULL) close(status);
         return copy;
     }
+    path = bl_oom_adj_redirect(path, mode && (mode[0] == 'w' || mode[0] == 'a' || strchr(mode, '+')));
     int table = path && mode && mode[0] == 'r' ? denied_table(path) : -1;
     FILE *f;
     if (table >= 0 && denied_recently(table, path) && (f = synthesize(net_tables[table])) != NULL) return f;

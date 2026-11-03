@@ -79,6 +79,9 @@ static struct ahb_buf *find_buf(uint64_t id) {
 }
 
 static void buf_free(struct ahb_buf *ab) {
+    /* A display release does not prove the compositor's Vulkan reads finished.
+     * Keep the AHB reference and its DMA-BUF record even if the client is gone. */
+    if (vkp_completion_unknown()) return;
     if (ab->resource) { wl_list_remove(&ab->resource_destroy.link); ab->resource = NULL; }
     if (ab->fence_src) { wl_event_source_remove(ab->fence_src); ab->fence_src = NULL; }
     if (ab->fence_fd >= 0) { close(ab->fence_fd); ab->fence_fd = -1; }
@@ -103,6 +106,7 @@ static void on_buffer_resource_destroyed(struct wl_listener *l, void *data) {
 
 
 static void send_deferred_release(struct ahb_buf *ab) {
+    if (vkp_completion_unknown()) return;
     if (ab->release_pending && ab->resource)
         droiddeck_release_buffer(ab->surface, ab->resource, ab->surface != NULL, ab->deferred_ns);
     ab->release_pending = 0;

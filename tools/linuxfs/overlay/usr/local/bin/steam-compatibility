@@ -171,6 +171,9 @@ bl_components() {
   local -A cm_sums=()
   while IFS=$'\\t' read -r scope t want comp rel sum src; do
     [ -n "$scope" ] || continue
+    # The selected system PowerVR runtime supplies DXVK at launch. Keep saved selections
+    # for a later manual-driver session without rewriting this Proton's bundled files now.
+    [ "$comp" = dxvk ] && [ -n "${DROIDDECK_POWERVR_RUNTIME:-}" ] && continue
     cm_rows+=("$comp"$'\\t'"$rel"$'\\t'"$sum"$'\\t'"$src")
     [ "$src" != "-" ] && [ -f "$base/$rel" ] && cm_files+=("$base/$rel")
   done <<< "$cm_selected"

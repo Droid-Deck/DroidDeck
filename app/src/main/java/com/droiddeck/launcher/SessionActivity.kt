@@ -1171,6 +1171,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         SessionDrawer(drawerOpen, drawerPage, drawerControllerActive, onPageChange = { drawerPage = it }, docked = docked,
             backRequest = drawerBackRequests, onLayerChange = { drawerLayerOpen = it }, a = DrawerActions(
             steam = SessionState.mode == SessionService.MODE_STEAM,
+            systemPowerVr = com.droiddeck.launcher.gpu.SystemVulkanDriver.usesDefault(
+                SessionPrefs.linuxDriver(this@SessionActivity)),
             direct = noSteamSession(),
             title = if (SessionState.mode == SessionService.MODE_RUN)
                 com.droiddeck.launcher.frontend.Library.nameForProgram(SessionState.program) ?: getString(R.string.session_title_game) else null,
@@ -2466,6 +2468,29 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return EndHint(resources.getQuantityString(R.plurals.session_end_runtime_damaged, broken.size, broken.size, broken.first()), repair = true)
     }
 
+    private fun presentationFault(): String? {
+        runCatching { com.droiddeck.launcher.wayland.WaylandCompositor.compositorFault() }.getOrNull()
+            ?.takeIf { it.isNotEmpty() }?.let { return it }
+        val waylandLog = SessionState.logDirectory?.let { File(it, "wayland.log") }?.takeIf { it.isFile } ?: return null
+        return try {
+            java.io.RandomAccessFile(waylandLog, "r").use { f ->
+                val start = maxOf(0L, waylandLog.length() - 256L * 1024)
+                f.seek(start)
+                val bytes = ByteArray((waylandLog.length() - start).toInt())
+                f.readFully(bytes)
+                var fault: String? = null
+                String(bytes, Charsets.ISO_8859_1).lineSequence().forEach { line ->
+                    val i = line.indexOf("DD_PRESENT_FAULT: ")
+                    if (i >= 0) fault = line.substring(i + 18).trim().ifEmpty { null }
+                    else if (line.contains("presentation recovered: fault cleared")) fault = null
+                }
+                fault
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private fun prootFailureHint(): EndHint? {
         if (SessionState.failureCode != "PROOT_MISSING") return null
         val message = SessionState.failureMessage ?: return null
@@ -2473,6 +2498,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun sessionEndHint(log: File?): EndHint? {
+        presentationFault()?.let { return EndHint(getString(R.string.session_end_present_fault, it), evenOnSuccess = true) }
         if (log == null || !log.isFile) return null
         return try {
             var enosys = 0
