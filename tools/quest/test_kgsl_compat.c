@@ -46,8 +46,10 @@ static struct kgsl_gpumem_alloc_id reset(void) {
 static int read_error, wait_error, waits;
 static unsigned int waited_for;
 static void (*during_wait)(void);
+static int destroy_error;
 static int timestamp_mock(int fd, unsigned long request, void *arg) {
     assert(fd == 42);
+    if (request == IOCTL_KGSL_DRAWCTXT_DESTROY && destroy_error) { errno = destroy_error; return -1; }
     if (request == IOCTL_KGSL_GPU_COMMAND || request == IOCTL_KGSL_DRAWCTXT_DESTROY) return 0;
     if (request == IOCTL_KGSL_CMDSTREAM_READTIMESTAMP_CTXTID) {
         errno = read_error;
@@ -115,6 +117,12 @@ static void timestamp_scenarios(void) {
     assert(read_ts(8, KGSL_TIMESTAMP_RETIRED, &ts) == 0 && ts == 0 && waited_for == 20);
     wait_error = 0;
     assert(read_ts(8, KGSL_TIMESTAMP_RETIRED, &ts) == 0 && ts == 20);
+    submit(9, 4);
+    struct kgsl_drawctxt_destroy refused = {.drawctxt_id = 9};
+    destroy_error = EBUSY;
+    assert(quest_kgsl_ioctl(timestamp_mock, 42, IOCTL_KGSL_DRAWCTXT_DESTROY, &refused) == -1 && errno == EBUSY);
+    destroy_error = 0;
+    assert(read_ts(9, KGSL_TIMESTAMP_QUEUED, &ts) == 0 && ts == 4);
     read_error = EIO;
     submit(6, 3);
     assert(read_ts(6, KGSL_TIMESTAMP_QUEUED, &ts) == -1 && errno == EIO);

@@ -80,10 +80,29 @@ static void track_submit(unsigned int context, unsigned int timestamp) {
     tracked_release();
 }
 
-static void track_destroy(unsigned int context) {
+static struct tracked_context track_detach(unsigned int context) {
+    struct tracked_context gone = {0};
     tracked_acquire();
     int slot = tracked_find(context, 0);
-    if (slot >= 0) tracked[slot].context = 0;
+    if (slot >= 0) {
+        gone = tracked[slot];
+        tracked[slot].context = 0;
+    }
+    tracked_release();
+    return gone;
+}
+
+static void track_restore(struct tracked_context entry) {
+    if (entry.context == 0) return;
+    tracked_acquire();
+    if (tracked_find(entry.context, 0) < 0) {
+        int slot = tracked_find(entry.context, 1);
+        if (slot >= 0) {
+            unsigned int generation = tracked[slot].generation;
+            tracked[slot] = entry;
+            tracked[slot].generation = generation;
+        }
+    }
     tracked_release();
 }
 
@@ -120,14 +139,18 @@ static int read_timestamp(quest_ioctl_fn real, int fd, struct kgsl_cmdstream_rea
 }
 
 int quest_kgsl_ioctl(quest_ioctl_fn real, int fd, unsigned long request, void *arg) {
+    struct tracked_context detached = {0};
+    if (request == IOCTL_KGSL_DRAWCTXT_DESTROY && arg != NULL)
+        detached = track_detach(((const struct kgsl_drawctxt_destroy *)arg)->drawctxt_id);
     int rc = real(fd, request, arg);
-    if (rc == 0 && arg != NULL) {
-        if (request == IOCTL_KGSL_GPU_COMMAND) {
-            const struct kgsl_gpu_command *submit = arg;
-            track_submit(submit->context_id, submit->timestamp);
-        } else if (request == IOCTL_KGSL_DRAWCTXT_DESTROY) {
-            track_destroy(((const struct kgsl_drawctxt_destroy *)arg)->drawctxt_id);
-        }
+    if (request == IOCTL_KGSL_DRAWCTXT_DESTROY && rc != 0) {
+        int error = errno;
+        track_restore(detached);
+        errno = error;
+    }
+    if (rc == 0 && arg != NULL && request == IOCTL_KGSL_GPU_COMMAND) {
+        const struct kgsl_gpu_command *submit = arg;
+        track_submit(submit->context_id, submit->timestamp);
     }
     if (rc != -1 || (errno != EACCES && errno != EPERM) || arg == NULL) return rc;
 
