@@ -5,6 +5,7 @@
 #include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <sys/file.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
@@ -34,7 +35,8 @@ static int is_kgsl(int fd) {
   struct stat st;
   pthread_mutex_lock(&lock);
   if (kgsl_state == 0) {
-    kgsl_state = stat("/dev/kgsl-3d0", &st) == 0 ? 1 : -1;
+    const char *standin = getenv("BL_DRM_STANDIN");
+    kgsl_state = stat("/dev/kgsl-3d0", &st) == 0 || (standin && *standin && stat(standin, &st) == 0) ? 1 : -1;
     kgsl_dev = st.st_rdev;
   }
   pthread_mutex_unlock(&lock);
@@ -49,18 +51,42 @@ static void *real(const char *name) {
   return fn;
 }
 
+static int same_by_flock(int a, int b) {
+  struct stat sa, sb;
+  if (fstat(a, &sa) || fstat(b, &sb) || sa.st_dev != sb.st_dev || sa.st_ino != sb.st_ino ||
+      flock(a, LOCK_EX | LOCK_NB)) {
+    return 0;
+  }
+  int same = flock(b, LOCK_EX | LOCK_NB) == 0;
+  flock(a, LOCK_UN);
+  return same;
+}
+
 static int same_file_description(int a, int b) {
   if (a == b) {
     return 1;
   }
-#ifdef SYS_kcmp
   int saved_errno = errno;
-  long ret = syscall(SYS_kcmp, getpid(), getpid(), 0  , a, b);
-  errno = saved_errno;
-  return ret == 0;
-#else
-  return 0;
+  int ret = -1;
+#ifdef SYS_kcmp
+  static int kcmp_missing;
+  if (!kcmp_missing) {
+    long k = syscall(SYS_kcmp, getpid(), getpid(), 0, a, b);
+    if (k >= 0) {
+      ret = k == 0;
+    } else if (errno == ENOSYS || errno == EPERM) {
+      kcmp_missing = 1;
+    } else {
+      ret = 0;
+    }
+  }
 #endif
+  if (ret < 0) {
+    const char *standin = getenv("BL_DRM_STANDIN");
+    ret = standin && *standin ? same_by_flock(a, b) : 0;
+  }
+  errno = saved_errno;
+  return ret;
 }
 
 static int find_handle_locked(int fd, uint32_t handle) {

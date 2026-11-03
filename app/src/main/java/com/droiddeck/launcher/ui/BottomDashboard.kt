@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Menu
+import androidx.compose.material.icons.outlined.SwapVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -84,10 +85,11 @@ fun BottomDashboard(
     pages: List<BottomPage>,
     remembered: String?,
     onPage: (String) -> Unit,
-    onClose: () -> Unit,
+    onClose: (() -> Unit)?,
     onMenu: (() -> Unit)?,
     gameStarts: Int = 0,
     strip: (@Composable (String?) -> Unit)? = null,
+    onSwap: (() -> Unit)? = null,
 ) {
     val colors = MaterialTheme.colorScheme
     var current by remember { mutableStateOf(pickBottomPage(remembered, pages.map { it.id })) }
@@ -100,7 +102,7 @@ fun BottomDashboard(
         val labels = bottomTabsWithLabels(maxWidth.value, pages.size)
         Column(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                BarButton(Icons.Outlined.Close, stringResource(R.string.deck_close), "bottom-close", onClose)
+                if (onClose != null) BarButton(Icons.Outlined.Close, stringResource(R.string.deck_close), "bottom-close", onClose)
                 Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     pages.forEach { p ->
                         PageTab(p, p.id == page?.id, labels) {
@@ -109,6 +111,7 @@ fun BottomDashboard(
                         }
                     }
                 }
+                if (onSwap != null) BarButton(Icons.Outlined.SwapVert, stringResource(R.string.swap_screens), "bottom-swap", onSwap)
                 if (onMenu != null) BarButton(Icons.Outlined.Menu, stringResource(R.string.touch_droiddeck_menu), "bottom-menu", onMenu)
             }
             strip?.invoke(page?.id)

@@ -65,6 +65,30 @@ class SteamLibrariesTest {
         assertTrue(SteamLibraries.add(app, nested.path) is SteamLibraries.AddResult.Refused)
     }
 
+    private fun library(dir: File): File = dir.apply { File(this, "steamapps").mkdirs(); File(this, "steamapps/appmanifest_220.acf").writeText("x") }
+
+    @Test fun pickingTheFolderAboveALibraryAddsTheLibraryInside() {
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+        val app2 = tmp.newFolder("OtherApp")
+        library(File(app2, "Steam"))
+        val entry = (SteamLibraries.add(app, app2.path) as SteamLibraries.AddResult.Added).entry
+        assertEquals(File(app2, "Steam").path, entry.path)
+        assertEquals("OtherApp", entry.label)
+        val empty = tmp.newFolder("Empty")
+        assertEquals(empty.path, (SteamLibraries.add(app, empty.path) as SteamLibraries.AddResult.Added).entry.path)
+    }
+
+    @Test fun scanLooksTwoLevelsDownAndSkipsHiddenAndAppFolders() {
+        val volume = tmp.newFolder("volume")
+        val shallow = library(File(volume, "SteamLibrary"))
+        val deep = library(File(volume, "Some App/Steam"))
+        library(File(volume, "Android/data/x"))
+        library(File(volume, ".hidden/Steam"))
+        library(File(volume, "a/b/c"))
+        val withGames = SteamLibraries.candidates(volume, 2).filter { SteamLibraries.gameCount(it) > 0 }
+        assertEquals(setOf(shallow, deep), withGames.toSet())
+    }
+
     @Test fun unreadableOrInvalidEntriesAreDropped() {
         assertTrue(SteamLibraries.parse("{oops").isEmpty())
         assertEquals(listOf("2"), SteamLibraries.parse("""[{"id":"../x","path":"/a"},{"id":"2","path":"/b","label":""}]""").map { it.id })

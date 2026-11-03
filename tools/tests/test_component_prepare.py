@@ -57,6 +57,26 @@ class ComponentPrepareTest(unittest.TestCase):
         script.write_text(script.read_text() + '\nprintf changed\n')
         self.assertNotEqual(changed, components.identity('fake', self.root))
 
+    def test_identity_follows_a_submodule_commit(self):
+        library = self.root / 'library'
+        subprocess.run(['git', 'init', '-q', str(library)], check=True)
+        def commit(text):
+            (library / 'source.c').write_text(text)
+            subprocess.run(['git', '-C', str(library), 'add', '.'], check=True)
+            subprocess.run(['git', '-C', str(library), '-c', 'user.name=Test Developer', '-c', 'user.email=test@example.test',
+                            'commit', '-qm', text], check=True)
+            return subprocess.check_output(['git', '-C', str(library), 'rev-parse', 'HEAD'], text=True).strip()
+        first = commit('int a;\n')
+        subprocess.run(['git', '-C', str(self.root), 'add', 'library'], check=True)
+        spec = dict(script='tools/components/recipes/fake.sh', inputs=['library'], outputs=[])
+        (self.root / components.REGISTRY).write_text(json.dumps(dict(fake=spec)))
+        original = components.identity('fake', self.root)
+        commit('int b;\n')
+        self.assertEqual(original, components.identity('fake', self.root))
+        subprocess.run(['git', '-C', str(self.root), 'add', 'library'], check=True)
+        self.assertNotEqual(original, components.identity('fake', self.root))
+        self.assertNotEqual(first, subprocess.check_output(['git', '-C', str(library), 'rev-parse', 'HEAD'], text=True).strip())
+
     def test_tool_requirements_are_installed_in_one_union(self):
         definitions = dict(one=dict(packages=['gcc', 'cmake']), two=dict(packages=['gcc', 'qemu-user']))
         with patch.object(components, 'registry', return_value=definitions), patch.object(components.subprocess, 'run') as run:
