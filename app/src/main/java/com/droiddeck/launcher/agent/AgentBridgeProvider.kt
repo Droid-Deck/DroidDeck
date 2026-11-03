@@ -18,6 +18,7 @@ import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
 import com.droiddeck.launcher.session.SessionArtifacts
 import com.droiddeck.launcher.session.SessionEvents
+import com.droiddeck.launcher.session.SessionLogShare
 import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
@@ -93,6 +94,7 @@ class AgentBridgeProvider : ContentProvider() {
         }
         "prefs" -> prefs(context, request)
         "glasses" -> glasses(context, request)
+        "logs" -> logs(context)
         "access" -> JSONObject().put("ok", true).put("commands", AgentAccess.commandsAllowed(context))
             .put("debugBuild", BuildConfig.DEBUG).put("inbox", AgentEnv.inbox(context).absolutePath)
         else -> error("UNKNOWN_COMMAND", "Unknown agent command '$method'")
@@ -197,9 +199,21 @@ class AgentBridgeProvider : ContentProvider() {
     private fun hex(text: String, max: Int): Int? =
         text.removePrefix("0x").removePrefix("0X").takeIf { it.isNotEmpty() }?.toIntOrNull(16)?.takeIf { it in 0..max }
 
+    private fun logDir(context: Context): File? =
+        SessionState.logDirectory ?: SessionState.logFile?.parentFile ?: SessionPaths.sessionFolders(context).lastOrNull()
+
+    // The session folder is app-private, so adb pulls this copy from external files instead.
+    private fun logs(context: Context): JSONObject {
+        val dir = logDir(context)?.takeIf { it.isDirectory }
+            ?: return error("NO_SESSION_LOGS", "No session artifact directory is available")
+        val zip = SessionLogShare.zipFolder(context, dir, File(context.getExternalFilesDir(null), "agent-logs"))
+            ?: return error("NO_SESSION_LOGS", "The session artifact directory is empty")
+        return JSONObject().put("ok", true).put("command", "logs").put("sessionId", dir.name).put("zip", zip.absolutePath)
+    }
+
     private fun state(context: Context): JSONObject {
         val runtimeVersion = LinuxRuntimeInstaller.installedVersion(context)
-        val dir = SessionState.logDirectory ?: SessionState.logFile?.parentFile ?: SessionPaths.sessionFolders(context).lastOrNull()
+        val dir = logDir(context)
         val session = JSONObject()
             .put("id", SessionState.sessionId ?: dir?.name ?: JSONObject.NULL)
             .put("phase", SessionState.phase.name)

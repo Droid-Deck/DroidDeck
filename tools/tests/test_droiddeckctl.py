@@ -12,6 +12,7 @@ import tempfile
 import textwrap
 import unittest
 import unittest.mock
+import zipfile
 
 TOOLS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS))
@@ -70,8 +71,14 @@ FAKE_ADB = textwrap.dedent('''\
         print(config.get("thermalservice", ""))
     elif args[:3] == ["shell", "grep", "."]:
         print(config.get("cpufreq", ""))
+    elif args[:1] == ["pull"] and args[1] in config.get("files", {}):
+        open(args[2], "wb").write(base64.b64decode(config["files"][args[1]]))
+    elif args[:1] == ["pull"]:
+        entry["denied"] = True
+        print(f"adb: error: failed to stat remote object '{args[1]}': Permission denied", file=sys.stderr)
     with open(config["log"], "a") as log:
         log.write(json.dumps(entry) + "\\n")
+    sys.exit(1 if entry.get("denied") else 0)
 ''')
 
 DUMPSYS_DISPLAY = textwrap.dedent('''\
@@ -130,6 +137,22 @@ CPUFREQ = textwrap.dedent('''\
 
 def battery(tenths):
     return f"Current Battery Service state:\n  level: 80\n  temperature: {tenths}\n  technology: Li-poly"
+PRIVATE_LOG_DIR = "/data/user/0/com.droiddeck.launcher/files/logs/sessions/s1"
+EXPORTED_ZIP = "/storage/emulated/0/Android/data/com.droiddeck.launcher/files/agent-logs/DroidDeck-s1.zip"
+
+
+def share_zip(entries):
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as z:
+        for name, text in entries.items():
+            z.writestr(name, text)
+    return base64.b64encode(buffer.getvalue()).decode()
+
+
+def ended_state():
+    ended = state(phase="IDLE")
+    ended["session"].update(logDir=PRIVATE_LOG_DIR, artifactsAvailable=True, artifactsComplete=True)
+    return ended
 
 
 def state(phase="READY", focused=None, focusable=()):
@@ -507,6 +530,33 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual(["INVALID_ARGUMENTS", 2], [out["error"]["code"], code])
         code, out = self.run_ctl("wait", "cool", "--below", "38")
         self.assertEqual("THERMAL_FAILED", out["error"]["code"])
+    def test_logs_pull_the_exported_zip_instead_of_the_private_folder(self):
+        self.configure({"state": ended_state(), "logs": {"ok": True, "sessionId": "s1", "zip": EXPORTED_ZIP}},
+                       files={EXPORTED_ZIP: share_zip({"s1/session.log": "booted", "s1/steam/console.log": "c",
+                                                       "stores/epic.log": "e", "../outside": "x"})})
+        destination = self.dir / "artifacts"
+        code, out = self.run_ctl("logs", "latest", str(destination))
+        self.assertEqual(0, code, out)
+        self.assertEqual("booted", (destination / "session.log").read_text())
+        self.assertEqual("c", (destination / "steam" / "console.log").read_text())
+        self.assertEqual("e", (destination / "stores" / "epic.log").read_text())
+        self.assertFalse((self.dir / "outside").exists())
+        self.assertEqual([["pull", EXPORTED_ZIP]], [c["args"][:2] for c in self.calls() if c["args"][:1] == ["pull"]])
+
+    def test_logs_from_an_older_build_fall_back_to_the_private_folder(self):
+        self.configure({"state": ended_state()})
+        code, out = self.run_ctl("logs", "latest", str(self.dir / "artifacts"))
+        self.assertEqual(6, code)
+        self.assertEqual("LOG_PULL_FAILED", out["error"]["code"])
+        self.assertIn("Permission denied", out["error"]["message"])
+        self.assertEqual([["pull", PRIVATE_LOG_DIR]], [c["args"][:2] for c in self.calls() if c["args"][:1] == ["pull"]])
+
+    def test_logs_without_a_session_folder_exit_6(self):
+        self.configure({"state": ended_state(),
+                        "logs": {"ok": False, "error": {"code": "NO_SESSION_LOGS", "message": "none"}}})
+        code, out = self.run_ctl("logs", "latest", str(self.dir / "artifacts"))
+        self.assertEqual(6, code)
+        self.assertEqual("NO_SESSION_LOGS", out["error"]["code"])
 
 
 class ScenarioTest(FakeAdbTest):
@@ -549,6 +599,19 @@ class ScenarioTest(FakeAdbTest):
         self.assertIn("is 769", report["runs"][0]["error"])
         evidence = json.loads((Path(report["runs"][0]["folder"]) / "evidence.json").read_text())
         self.assertEqual(769, evidence["focus"]["focusedApp"])
+
+    def test_a_failed_run_keeps_the_session_logs(self):
+        failing = ended_state()
+        failing["session"]["focus"] = {"focusedApp": 769}
+        self.configure({"state": failing, "focus": {"ok": True, "focusedApp": 769},
+                        "logs": {"ok": True, "sessionId": "s1", "zip": EXPORTED_ZIP}},
+                       dumpsys_display=DUMPSYS_DISPLAY, files={EXPORTED_ZIP: share_zip({"s1/session.log": "booted"})})
+        path = self.write({"name": "t", "steps": [["state"], {"assert": "session.focus.focusedApp", "equals": 7}]})
+        code, report = self.run_scenario(path)
+        self.assertEqual(1, code)
+        folder = Path(report["runs"][0]["folder"])
+        self.assertTrue(json.loads((folder / "evidence.json").read_text())["logs"]["ok"])
+        self.assertEqual("booted", (folder / "session" / "session.log").read_text())
 
     def test_after_steps_run_after_a_failure(self):
         self.configure({"state": state(focused=769), "quit": {"ok": True, "remaining": []}})
