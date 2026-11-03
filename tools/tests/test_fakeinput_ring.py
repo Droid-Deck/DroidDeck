@@ -215,6 +215,33 @@ int main(int argc, char **argv)
     return 0;
 }
 """
+DECK_PROBE = r"""
+#include <errno.h>
+#include <fcntl.h>
+#include <linux/hidraw.h>
+#include <poll.h>
+#include <stdio.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+
+int main(void)
+{
+    int fd = open("/dev/hidraw16", O_RDONLY | O_NONBLOCK);
+    if (fd < 0) {
+        puts(errno == ENOENT ? "refused" : "failed");
+        return 0;
+    }
+    struct hidraw_devinfo info;
+    if (ioctl(fd, HIDIOCGRAWINFO, &info) < 0)
+        return 1;
+    struct pollfd ready = {fd, POLLIN, 0};
+    unsigned char report[64];
+    if (poll(&ready, 1, 2000) != 1 || read(fd, report, sizeof(report)) <= 0)
+        return 2;
+    printf("%04hx:%04hx report %02x\n", info.vendor, info.product, report[0]);
+    return 0;
+}
+"""
 OVERLAY_READ = r"""
 #include <sys/uio.h>
 #include <unistd.h>
@@ -347,6 +374,20 @@ class FakeinputRingTest(unittest.TestCase):
                              env=dict(os.environ, LD_PRELOAD=str(library), FAKE_EVDEV_DIR=str(hooks)))
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, "JSIOCGNAME -1 EINVAL\n28de:11ff Microsoft X-Box 360 pad 0\n")
+
+    def test_the_deck_pad_opens_in_steam_and_its_remote_play_client_only(self):
+        library, probe = self.build("-m64", DECK_PROBE, "deck-probe")
+        hooks, ring = self.ring(virtual=False)
+        env = dict(os.environ, LD_PRELOAD=str(library), FAKE_EVDEV_DIR=str(hooks), FAKE_EVDEV_DECK="1",
+                   FAKE_EVDEV_MEMFD_PATHS="0=" + str(ring))
+        for name, expected in (("steam", "28de:1205 report 01\n"), ("streaming_client", "28de:1205 report 01\n"),
+                               ("game", "refused\n")):
+            with self.subTest(name=name):
+                binary = self.tmp / name
+                shutil.copy(probe, binary)
+                run = subprocess.run([str(binary)], capture_output=True, text=True, timeout=10, env=env)
+                self.assertEqual(run.returncode, 0, run.stderr)
+                self.assertEqual(run.stdout, expected)
 
 
 if __name__ == "__main__":
