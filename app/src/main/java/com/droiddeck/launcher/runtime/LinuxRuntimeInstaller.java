@@ -134,7 +134,8 @@ public final class LinuxRuntimeInstaller {
         }
         if (!owner) return join(job, listener);
         try {
-            job.ok = installOnce(context.getApplicationContext(), release, new ProgressListener() {
+            Context app = context.getApplicationContext();
+            ProgressListener progress = new ProgressListener() {
                 @Override public void onProgress(String stage, int percent) {
                     onProgress(Step.OTHER, stage, percent);
                 }
@@ -145,7 +146,10 @@ public final class LinuxRuntimeInstaller {
                     job.percent = percent;
                     for (ProgressListener l : job.listeners) l.onProgress(step, stage, percent);
                 }
-            });
+            };
+            boolean desktop = DesktopCatalog.INSTANCE.desktopInstalled(app);
+            job.ok = installOnce(app, release, progress);
+            if (job.ok && desktop) keepDesktop(app, progress);
             return job.ok;
         } finally {
             synchronized (JOB_LOCK) {
@@ -153,6 +157,28 @@ public final class LinuxRuntimeInstaller {
             }
             job.done.countDown();
         }
+    }
+
+    private static void keepDesktop(Context context, ProgressListener progress) {
+        String problem;
+        try {
+            problem = DesktopCatalog.INSTANCE.install(context, DesktopCatalog.INSTANCE.desktopEntry(context), progress);
+        } catch (RuntimeException e) {
+            problem = e.toString();
+        }
+        if (problem == null) {
+            Log.i(TAG, "desktop installed again for the new runtime");
+            return;
+        }
+        Log.w(TAG, "desktop not installed again for the new runtime: " + problem);
+        boolean started = false;
+        for (DesktopCatalog.Entry entry : DesktopCatalog.INSTANCE.interrupted(context)) {
+            if (DesktopCatalog.DESKTOP_ID.equals(entry.getId())) started = true;
+        }
+        if (!started) return;
+        String undone = DesktopCatalog.INSTANCE.removeDesktop(context, progress);
+        if (undone == null) Log.i(TAG, "rolled back the partial desktop install");
+        else Log.w(TAG, "could not roll back the partial desktop install: " + undone);
     }
 
     public static boolean isInstalling() {
