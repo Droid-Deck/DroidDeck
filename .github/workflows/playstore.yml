@@ -60,6 +60,7 @@ jobs:
         run: |
           python3 -m unittest \
             tools.tests.test_playstore_payloads \
+            tools.tests.test_playstore_manifest \
             tools.tests.test_playstore_signing \
             tools.tests.test_playstore_workflow \
             tools.tests.test_playstore_archive_preparation \

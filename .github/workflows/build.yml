@@ -338,6 +338,16 @@ jobs:
           persist-credentials: false
           submodules: recursive
 
+      - name: Reserve hosted runner space for Play components
+        if: inputs.play_bundle == true
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTIONS" = true
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
+
       - name: Check human authorship
         env:
           EVENT_NAME: ${{ github.event_name }}

@@ -83,6 +83,8 @@ def buildBranch = providers.environmentVariable('GITHUB_HEAD_REF').getOrNull()?.
 def escapeJava = { String value -> value.replace('\\', '\\\\').replace('"', '\\"').replace('\n', ' ').replace('\r', ' ') }
 def ciBuild = providers.environmentVariable('GITHUB_ACTIONS').getOrNull() == 'true'
 def playDistribution = providers.gradleProperty('playDistribution').getOrElse('false').toBoolean()
+def playManifest = playDistribution ? new groovy.json.JsonSlurper().parse(rootProject.file('tools/playstore/components.lock.json')) : null
+def playLegacyDesktop = playManifest?.entries?.find { it.id == 'desktop-legacy-kde' }
 def releaseSigner = rootProject.file('keystore/release-signer.sha256').text.trim()
 def commitTime = (gitValue(['show', '-s', '--format=%ct', '--end-of-options', sourceCommit]) ?: '0').with { it.isLong() ? it : '0' }
 def desktopKde = rootProject.file('tools/desktop-kde/release.env').readLines()
@@ -147,8 +149,8 @@ android {
         buildConfigField "String", "SGDB_API_KEY", "\"${System.getenv("SGDB_API_KEY") ?: project.findProperty("sgdbApiKey") ?: ""}\""
         buildConfigField "String", "DESKTOP_KDE_TAG", "\"${desktopKde.DESKTOP_KDE_TAG}\""
         buildConfigField "String", "DESKTOP_KDE_URL", "\"https://github.com/${desktopKde.DESKTOP_KDE_REPO}/releases/download/${desktopKde.DESKTOP_KDE_TAG}/desktop-kde.tar.zst\""
-        buildConfigField "String", "DESKTOP_KDE_SHA256", "\"${desktopKde.DESKTOP_KDE_SHA256}\""
-        buildConfigField "long", "DESKTOP_KDE_SIZE", "${desktopKde.DESKTOP_KDE_SIZE}L"
+        buildConfigField "String", "DESKTOP_KDE_SHA256", "\"${playLegacyDesktop?.sha256 ?: desktopKde.DESKTOP_KDE_SHA256}\""
+        buildConfigField "long", "DESKTOP_KDE_SIZE", "${playLegacyDesktop?.size ?: desktopKde.DESKTOP_KDE_SIZE}L"
         addonPacks.each { name, pack ->
             buildConfigField "String", "PACK_${name.toUpperCase()}_SHA256", "\"${pack.sha256}\""
             buildConfigField "long", "PACK_${name.toUpperCase()}_SIZE", "${pack.size}L"
@@ -259,6 +261,8 @@ android {
 
 def verifyPlayAudio
 if (playDistribution) {
+    android.buildTypes.debug.signingConfig = null
+    android.buildTypes.release.signingConfig = null
     def requestedCode = providers.gradleProperty('playVersionCode').orNull
     if (requestedCode != null) {
         if (!requestedCode.isInteger() || requestedCode.toLong() < android.defaultConfig.versionCode || requestedCode.toLong() > 2100000000L) {

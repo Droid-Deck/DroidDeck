@@ -29,6 +29,8 @@ DroidDeck connects to the stores, game services, cloud-streaming providers, artw
 
 The Google Play version contacts Google Play to check whether an app update is available. Selecting Update opens the app's Google Play listing. Google handles Play delivery and updates under its own [privacy policy](https://policies.google.com/privacy).
 
+Optional Windows prerequisites can be downloaded from the sources identified in the app's pinned component inventory, including GitHub-hosted runtime packages. These providers receive the download request and IP address. DroidDeck verifies the package against the inventory before installing it into the guest runtime.
+
 Optional Syncthing synchronization transfers selected files to the devices you configure and can use discovery and relay services. DroidDeck disables Syncthing usage reporting and crash reporting. Selected games or other guest software may use files and resources available within DroidDeck's runtime.
 
 DroidDeck's privacy policy does not replace the policies of these separate providers. Review the relevant provider's policy when signing in, purchasing content, streaming, installing software, or enabling synchronization.

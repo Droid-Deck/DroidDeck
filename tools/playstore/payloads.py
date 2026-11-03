@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT))
 CHUNK_BYTES = 64 * 1024 * 1024
 MODULE_BYTES = 448 * 1024 * 1024
 TOTAL_BYTES = 4_000_000_000
-RESERVED_BYTES = 250_000_000
+RESERVED_BYTES = 158_000_000
 
 
 def sha256(path):
@@ -69,10 +69,29 @@ def load_manifest(path):
             raise ValueError('Payload requires a positive byte size: ' + identity)
         if digest in identities and identities[digest] != size:
             raise ValueError('Inconsistent size for identical payload: ' + identity)
-        identities[digest] = size
+        delivery = entry.get('delivery', 'bundled')
+        if delivery not in {'bundled', 'windows-guest'}:
+            raise ValueError('Unsupported component delivery: ' + identity)
+        if delivery == 'windows-guest':
+            if not identity.startswith('windows-') or manifest.get('windows_guest_downloads') is not True or not entry.get('provides') or any(
+                    not feature.startswith('windows:') for feature in entry['provides']):
+                raise ValueError('External delivery is restricted to approved Windows prerequisites')
+            https_url(entry.get('download_url', ''))
+            if 'content' in entry or entry.get('prepare'):
+                raise ValueError('External Windows prerequisites cannot replace bundled catalogs')
+        else:
+            identities[digest] = size
+        if 'storage_chunk_bytes' in entry and (type(entry['storage_chunk_bytes']) is not int or
+                not 65536 <= entry['storage_chunk_bytes'] <= CHUNK_BYTES):
+            raise ValueError('Invalid component storage chunk size: ' + identity)
         aliases = entry.get('urls')
         if not isinstance(aliases, list) or not aliases:
             raise ValueError('Payload requires URL aliases: ' + identity)
+        if 'fetch_urls' in entry:
+            if not isinstance(entry['fetch_urls'], list) or not entry['fetch_urls']:
+                raise ValueError('Payload fetch sources must be a nonempty list: ' + identity)
+            for url in entry['fetch_urls']:
+                https_url(url)
         for url in aliases:
             if url.startswith('droiddeck-bundle://'):
                 if not re.fullmatch(r'droiddeck-bundle://[a-z0-9][a-z0-9._-]*/[A-Za-z0-9._+-]+', url) or not entry.get('prepare'):
@@ -90,7 +109,7 @@ def load_manifest(path):
         if preparation is None and 'upstream' in entry:
             raise ValueError('Upstream archive requires explicit component preparation: ' + identity)
         if preparation is not None:
-            if preparation.get('method') != 'gzip-to-zstd-19' or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', preparation.get('zstd_version', '')):
+            if preparation.get('method') not in {'gzip-to-zstd-19', 'zstd-to-zstd-19'} or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', preparation.get('zstd_version', '')):
                 raise ValueError('Invalid component preparation method: ' + identity)
             if not re.fullmatch(r'[a-f0-9]{64}', preparation.get('tar_sha256', '')) or type(preparation.get('tar_size')) is not int or not 0 < preparation['tar_size'] <= 16 * 1024 * 1024 * 1024:
                 raise ValueError('Prepared component requires a pinned tar identity: ' + identity)
@@ -180,7 +199,7 @@ def fetch(entry, cache):
         temporary.rename(target)
         return target
     opener = urllib.request.build_opener(HttpsRedirects(), urllib.request.HTTPSHandler(context=ssl.create_default_context()))
-    request = urllib.request.Request(entry['urls'][0], headers={'Accept-Encoding': 'identity'})
+    request = urllib.request.Request(entry.get('fetch_urls', entry['urls'])[0], headers={'Accept-Encoding': 'identity'})
     digest = hashlib.sha256()
     size = 0
     with opener.open(request, timeout=60) as response, temporary.open('xb') as output:
@@ -204,6 +223,8 @@ def stage(manifest, cache, output, chunk_bytes=CHUNK_BYTES, module_bytes=MODULE_
         raise ValueError('Output must be a new directory: ' + str(output))
     payloads = {}
     for entry in manifest['entries']:
+        if entry.get('delivery') == 'windows-guest':
+            continue
         if entry['sha256'] not in payloads:
             payloads[entry['sha256']] = fetch(entry, cache)
     output.mkdir(parents=True)
@@ -212,11 +233,19 @@ def stage(manifest, cache, output, chunk_bytes=CHUNK_BYTES, module_bytes=MODULE_
     module = 1
     used = 0
     chunks = {}
+    shared = {}
     for digest, path in sorted(payloads.items()):
         pieces = []
+        block_bytes = min([chunk_bytes] + [entry.get('storage_chunk_bytes', chunk_bytes) for entry in manifest['entries']
+                                         if entry['sha256'] == digest and entry.get('delivery') != 'windows-guest'])
         with path.open('rb') as stream:
             number = 0
-            for block in iter(lambda: stream.read(chunk_bytes), b''):
+            for block in iter(lambda: stream.read(block_bytes), b''):
+                chunk_digest = hashlib.sha256(block).hexdigest()
+                if chunk_digest in shared:
+                    pieces.append(shared[chunk_digest])
+                    number += 1
+                    continue
                 if used + len(block) > module_bytes:
                     module += 1
                     used = 0
@@ -226,8 +255,9 @@ def stage(manifest, cache, output, chunk_bytes=CHUNK_BYTES, module_bytes=MODULE_
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with target.open('xb') as destination:
                     destination.write(block)
-                pieces.append({'asset': asset, 'module': name, 'size': len(block),
-                               'sha256': hashlib.sha256(block).hexdigest()})
+                piece = {'asset': asset, 'module': name, 'size': len(block), 'sha256': chunk_digest}
+                pieces.append(piece)
+                shared[chunk_digest] = piece
                 used += len(block)
                 number += 1
         chunks[digest] = pieces
@@ -238,8 +268,12 @@ def stage(manifest, cache, output, chunk_bytes=CHUNK_BYTES, module_bytes=MODULE_
         (recipes / (digest + '.json')).write_text(json.dumps({'chunks': pieces}, separators=(',', ':')) + '\n')
     for entry in manifest['entries']:
         for url in entry['urls']:
-            index['entries'][url] = {'id': entry['id'], 'sha256': entry['sha256'], 'size': entry['size'],
-                                     'recipe': 'play-components/recipes/' + entry['sha256'] + '.json'}
+            metadata = {'id': entry['id'], 'sha256': entry['sha256'], 'size': entry['size']}
+            if entry.get('delivery') == 'windows-guest':
+                metadata.update(delivery='windows-guest', download_url=entry['download_url'])
+            else:
+                metadata['recipe'] = 'play-components/recipes/' + entry['sha256'] + '.json'
+            index['entries'][url] = metadata
     (output / 'index.json').write_text(json.dumps(index, indent=2, sort_keys=True) + '\n')
     (output / 'provenance.json').write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\n')
     (base / 'index.json').write_text(json.dumps(index, sort_keys=True, separators=(',', ':')) + '\n')
@@ -287,6 +321,12 @@ def verify_bundle(manifest, bundle):
             entry = index['entries'][url]
             if any(entry.get(field) != pinned[field] for field in ['id', 'sha256', 'size']):
                 raise ValueError('Bundle component metadata mismatch: ' + pinned['id'])
+            if pinned.get('delivery') == 'windows-guest':
+                if entry != {field: pinned[field] for field in ['id', 'sha256', 'size', 'delivery', 'download_url']}:
+                    raise ValueError('Bundle Windows prerequisite metadata mismatch')
+                continue
+            if 'delivery' in entry or 'download_url' in entry:
+                raise ValueError('Bundled native components cannot use external delivery')
             recipe = 'play-components/recipes/' + pinned['sha256'] + '.json'
             if entry.get('recipe') != recipe:
                 raise ValueError('Bundle component recipe path mismatch')

@@ -13,6 +13,7 @@ import org.junit.runner.RunWith
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.io.File
 import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.function.BooleanSupplier
@@ -53,6 +54,47 @@ class ComponentPayloadStoreTest {
         val output = ByteArrayOutputStream()
         assertEquals(content.size.toLong(), fixture().copy(url, output, content.size.toLong(), digest))
         assertArrayEquals(content, output.toByteArray())
+    }
+
+    private fun windowsStore(source: String = url, install: (File) -> Unit): ComponentPayloadStore {
+        val entry = JSONObject().put("id", "windows-vcredist").put("delivery", "windows-guest")
+            .put("download_url", source).put("size", content.size).put("sha256", digest)
+        val index = JSONObject().put("schema", 1).put("entries", JSONObject().put(url, entry)).toString().toByteArray()
+        return ComponentPayloadStore(download = { actual, file, hash, _, _ ->
+            assertEquals(source, actual)
+            assertEquals(digest, hash)
+            install(file)
+            true
+        }, assets = { path ->
+            assertEquals("play-components/index.json", path)
+            ByteArrayInputStream(index)
+        })
+    }
+
+    @Test fun approvedWindowsPrerequisiteUsesPinnedBytesAndAtomicReplacement() {
+        val destination = temporary.newFile("runtime")
+        destination.writeText("previous")
+        windowsStore { it.writeBytes(content) }.install(url, destination, digest)
+        assertArrayEquals(content, destination.readBytes())
+    }
+
+    @Test fun corruptWindowsDownloadPreservesExistingRuntime() {
+        val destination = temporary.newFile("runtime")
+        destination.writeText("previous")
+        assertThrows(IOException::class.java) {
+            windowsStore { it.writeBytes(ByteArray(content.size)) }.install(url, destination)
+        }
+        assertEquals("previous", destination.readText())
+    }
+
+    @Test fun wrongWindowsVersionAndInsecureSourceCannotStartDownload() {
+        val destination = temporary.newFile("runtime")
+        assertThrows(IOException::class.java) {
+            windowsStore { throw AssertionError("Unexpected download") }.install(url, destination, "0".repeat(64))
+        }
+        assertThrows(IOException::class.java) {
+            windowsStore("http://example.test/runtime") { throw AssertionError("Unexpected download") }.install(url, destination)
+        }
     }
 
     @Test fun missingComponentCannotUseNetwork() {

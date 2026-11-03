@@ -177,8 +177,10 @@ object DesktopCatalog {
         installLocked(context, entry, cancelled, listener)
     }
 
-    private fun installLocked(context: Context, entry: Entry, cancelled: Downloader.Cancellation?,
+    private fun installLocked(context: Context, requested: Entry, cancelled: Downloader.Cancellation?,
                               listener: LinuxRuntimeInstaller.ProgressListener?): String? {
+        val current = if (BuildConfig.PLAY_DISTRIBUTION && requested.id == DESKTOP_ID) desktopEntry(context) else null
+        val entry = current?.takeIf { it.version == requested.version } ?: requested
         if (!offered(entry)) return context.getString(R.string.deskpkg_install_failed)
         val root = LinuxRuntime.rootDir(context)
         if (!root.isDirectory) return context.getString(R.string.deskpkg_runtime_missing)

@@ -12,7 +12,12 @@ import java.security.MessageDigest
 import java.util.function.BooleanSupplier
 import java.util.function.Consumer
 
-internal class ComponentPayloadStore(private val assets: (String) -> InputStream) {
+internal class ComponentPayloadStore @JvmOverloads constructor(
+    private val download: (String, File, String, BooleanSupplier?, Consumer<Float>?) -> Boolean = { url, file, digest, cancelled, progress ->
+        Downloader.downloadCandidates(url, listOf(url), file, false, digest, cancelled, progress)
+    },
+    private val assets: (String) -> InputStream,
+) {
     private val entries by lazy {
         val index = readObject("play-components/index.json", 2 * 1024 * 1024)
         if (index.getInt("schema") != 1) throw IOException("Unsupported component index")
@@ -103,13 +108,42 @@ internal class ComponentPayloadStore(private val assets: (String) -> InputStream
         Files.createDirectories(parent.toPath())
         val temporary = Files.createTempFile(parent.toPath(), destination.name + ".", ".component-part")
         try {
-            Files.newOutputStream(temporary).use { output ->
-                copy(url, output, Long.MAX_VALUE, expectedSha256, cancelled, progress)
+            val entry = entries.optJSONObject(url) ?: throw IOException("Component is absent from this build: $url")
+            if (entry.optString("delivery") == "windows-guest") {
+                val digest = entry.getString("sha256")
+                val size = entry.getLong("size")
+                val source = java.net.URI(entry.getString("download_url"))
+                if (!entry.getString("id").startsWith("windows-") || !SHA256.matches(digest) || size <= 0 ||
+                    source.scheme != "https" || source.host.isNullOrEmpty() || source.userInfo != null || source.fragment != null ||
+                    expectedSha256 != null && !digest.equals(expectedSha256, ignoreCase = true)) {
+                    throw IOException("Invalid Windows prerequisite identity")
+                }
+                checkCancelled(cancelled)
+                if (!download(source.toString(), temporary.toFile(), digest, cancelled, progress) || Files.size(temporary) != size) {
+                    throw IOException("Windows prerequisite download failed verification")
+                }
+                val actual = Files.newInputStream(temporary).use { input ->
+                    val hash = MessageDigest.getInstance("SHA-256")
+                    val buffer = ByteArray(65536)
+                    while (true) {
+                        checkCancelled(cancelled)
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        hash.update(buffer, 0, count)
+                    }
+                    hex(hash.digest())
+                }
+                if (actual != digest) throw IOException("Windows prerequisite failed verification")
+            } else {
+                Files.newOutputStream(temporary).use { output ->
+                    copy(url, output, Long.MAX_VALUE, expectedSha256, cancelled, progress)
+                }
             }
             checkCancelled(cancelled)
             Files.move(temporary, destination.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
         } finally {
             Files.deleteIfExists(temporary)
+            Files.deleteIfExists(temporary.resolveSibling(temporary.fileName.toString() + ".resume.properties"))
         }
     }
 

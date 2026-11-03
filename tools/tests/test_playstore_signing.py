@@ -77,6 +77,14 @@ class PlaystoreSigningTest(unittest.TestCase):
                 signing.sign(self.source, self.destination, self.keystore, 'private-alias-value', self.signer)
         self.assertFalse(self.destination.exists())
 
+    def test_unsigned_bundle_is_signed_without_a_second_full_bundle_copy(self):
+        with zipfile.ZipFile(self.source, 'w') as package:
+            package.writestr('base/assets/runtime', b'component payload')
+        with patch.object(signing, 'sanitize', side_effect=AssertionError('Unexpected full bundle copy')):
+            self.sign()
+        with zipfile.ZipFile(self.destination) as package:
+            self.assertEqual(b'component payload', package.read('base/assets/runtime'))
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -46,6 +46,14 @@ class PlayArchivePreparationTest(unittest.TestCase):
             prepare(self.source, output, self.definition)
         self.assertFalse(output.exists())
 
+    def test_zstd_recompression_preserves_the_exact_original_tar_bytes(self):
+        original = self.root / 'original.tar.zst'
+        original.write_bytes(subprocess.check_output(['zstd', '-1', '-c'], input=self.content))
+        definition = dict(self.definition, method='zstd-to-zstd-19')
+        output = self.root / 'recompressed.tar.zst'
+        prepare(original, output, definition)
+        self.assertEqual(self.content, subprocess.check_output(['zstd', '-dc', str(output)]))
+
 
 if __name__ == '__main__':
     unittest.main()

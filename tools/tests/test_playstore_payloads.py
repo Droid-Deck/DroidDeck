@@ -93,6 +93,44 @@ class PlaystorePayloadsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Missing component coverage: proton'):
             self.validate()
 
+    def test_external_windows_prerequisite_requires_explicit_scope_and_pinned_source(self):
+        entry = dict(self.manifest['entries'][0], id='windows-vcredist', delivery='windows-guest',
+                     provides=['windows:vcredist'], download_url='https://example.test/vcredist.exe')
+        self.manifest['entries'].append(entry)
+        entry['urls'] = ['https://example.test/vcredist.exe']
+        with self.assertRaisesRegex(ValueError, 'restricted to approved Windows'):
+            self.validate()
+        self.manifest['windows_guest_downloads'] = True
+        self.validate()
+        entry['provides'] = ['runtime:linux']
+        with self.assertRaisesRegex(ValueError, 'restricted to approved Windows'):
+            self.validate()
+
+    def test_external_windows_bytes_are_not_fetched_or_counted_as_bundled_payload(self):
+        entry = dict(self.manifest['entries'][0], id='windows-vcredist', delivery='windows-guest',
+                     provides=['windows:vcredist'], download_url='https://example.test/vcredist.exe',
+                     urls=['https://example.test/vcredist.exe'], sha256='b' * 64, size=5_000_000_000)
+        self.manifest['entries'].append(entry)
+        self.manifest['windows_guest_downloads'] = True
+        with patch.object(payloads.urllib.request, 'build_opener', side_effect=AssertionError('Unexpected network')):
+            index = payloads.stage(self.validate(), self.cache, self.root / 'staged')
+        metadata = index['entries'][entry['urls'][0]]
+        self.assertEqual('windows-guest', metadata['delivery'])
+        self.assertEqual(entry['download_url'], metadata['download_url'])
+        self.assertNotIn('recipe', metadata)
+
+    def test_shared_storage_chunks_preserve_distinct_component_identities(self):
+        first = self.manifest['entries'][0]
+        second = dict(first, id='second', urls=['https://example.test/second'], size=first['size'] + 7)
+        data = self.content + b'changed'
+        second['sha256'] = hashlib.sha256(data).hexdigest()
+        (self.cache / second['sha256']).write_bytes(data)
+        self.manifest['entries'].append(second)
+        index = payloads.stage(self.validate(), self.cache, self.root / 'staged', chunk_bytes=7, module_bytes=14)
+        one, two = [index['entries'][entry['urls'][0]] for entry in [first, second]]
+        self.assertEqual(self.chunks(one)[0], self.chunks(two)[0])
+        self.assertNotEqual(one['sha256'], two['sha256'])
+
     def test_unknown_schema_and_empty_manifest_are_rejected(self):
         self.manifest['schema'] = 2
         with self.assertRaisesRegex(ValueError, 'schema'):
