@@ -158,13 +158,14 @@ internal object EnhancedSessionLogShare {
         context: Context,
         folder: File,
         onProgress: ((Float) -> Unit)? = null,
+        outputDirectory: File = SessionLogShare.shareDir(context),
         limits: EnhancedShareLimits = EnhancedShareLimits(maxFilesPerArchive = 512),
     ): File? {
         if (!folder.isDirectory || Files.isSymbolicLink(folder.toPath()) ||
             limits.maxFilesPerArchive < 1 || limits.maxBytesPerFile < 1 || limits.maxBytesTotal < 1) {
             return null
         }
-        val out = SessionLogShare.shareDir(context).apply { deleteRecursively(); mkdirs() }
+        val out = outputDirectory.apply { deleteRecursively(); mkdirs() }
         val redactionLearningComplete = LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
         val discovery = collect(context, folder, limits.maxDiscoveredFiles, legacy = true)
         val candidates = discovery.candidates.filter { it.linePrefix == null }

@@ -75,8 +75,8 @@ object SessionLogShare {
     }
 
 
-    fun zipFolder(context: Context, folder: File, onProgress: ((Float) -> Unit)? = null): File? {
-        return EnhancedSessionLogShare.createLegacy(context, folder, onProgress)
+    fun zipFolder(context: Context, folder: File, out: File = shareDir(context), onProgress: ((Float) -> Unit)? = null): File? {
+        return EnhancedSessionLogShare.createLegacy(context, folder, onProgress, out)
     }
 
     const val STORES_DIR = "stores"
