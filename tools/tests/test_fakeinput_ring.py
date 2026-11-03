@@ -1,3 +1,4 @@
+import fcntl
 import mmap
 import os
 from pathlib import Path
@@ -266,8 +267,8 @@ int main(int argc, char **argv)
     int fd = open("/dev/hidraw18", O_RDWR);
     if (fd < 0)
         return 1;
-    int wrong = 0;
-    for (int i = 0; i < 200; i++) {
+    int count = argc > 2 ? atoi(argv[2]) : 200, wrong = 0;
+    for (int i = 0; i < count; i++) {
         unsigned char report[64] = {id};
         if (ioctl(fd, HIDIOCGFEATURE(sizeof(report)), report) < 0 || report[0] != id || report[1] != id)
             wrong++;
@@ -452,10 +453,17 @@ class FakeinputRingTest(unittest.TestCase):
         env["FAKE_TOUCHCTL_RING"] = str(touch)
         self.assert_opened_by_steam_and_remote_play_only("/dev/hidraw17", "0000:11fb report 00\n", env)
 
-    def test_steam_and_its_remote_play_client_take_turns_with_the_paired_controllers_features(self):
+    def ask_paired_controller(self, probes, locks_unavailable=False, held=False, count=200):
         library, probe = self.build("-m64", FEATURE_PROBE, "feature-probe")
         ring, env = self.pad_ring(PAD_TYPE_DECK, triton_connected=True)
         env["LD_PRELOAD"] = str(library)
+        lock = Path(env["FAKE_EVDEV_DIR"]) / ".triton-feature.lock"
+        if locks_unavailable:
+            lock.mkdir()
+        holder = open(lock, "w") if held else None
+        if holder:
+            self.addCleanup(holder.close)
+            fcntl.flock(holder, fcntl.LOCK_EX)
         block = RING_SIZE + DECK_IMU
         stop = threading.Event()
 
@@ -476,15 +484,29 @@ class FakeinputRingTest(unittest.TestCase):
         thread = threading.Thread(target=controller)
         thread.start()
         try:
-            runs = [subprocess.Popen([self.as_process(probe, name), report_id], stdout=subprocess.PIPE, text=True,
-                                     env=env)
-                    for name, report_id in (("steam", "0x11"), ("streaming_client", "0x22"))]
+            runs = [subprocess.Popen([self.as_process(probe, name), report_id, str(count)], stdout=subprocess.PIPE,
+                                     text=True, env=env)
+                    for name, report_id in probes]
             outputs = [run.communicate(timeout=60)[0] for run in runs]
         finally:
             stop.set()
             thread.join()
-        self.assertEqual([run.returncode for run in runs], [0, 0])
+        self.assertEqual([run.returncode for run in runs], [0] * len(probes))
+        return outputs
+
+    def test_steam_and_its_remote_play_client_take_turns_with_the_paired_controllers_features(self):
+        outputs = self.ask_paired_controller((("steam", "0x11"), ("streaming_client", "0x22")))
         self.assertEqual(outputs, ["0 wrong\n", "0 wrong\n"])
+
+    def test_without_the_lock_only_steam_asks_the_paired_controller(self):
+        outputs = self.ask_paired_controller((("steam", "0x11"), ("streaming_client", "0x22")), locks_unavailable=True)
+        self.assertEqual(outputs, ["0 wrong\n", "200 wrong\n"])
+
+    def test_a_stopped_lock_holder_does_not_stall_steam_or_its_remote_play_client(self):
+        started = time.monotonic()
+        outputs = self.ask_paired_controller((("steam", "0x11"), ("streaming_client", "0x22")), held=True, count=3)
+        self.assertEqual(outputs, ["3 wrong\n", "3 wrong\n"])
+        self.assertLess(time.monotonic() - started, 20)
 
 
 if __name__ == "__main__":

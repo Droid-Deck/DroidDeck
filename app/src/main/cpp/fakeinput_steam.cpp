@@ -195,6 +195,7 @@ static constexpr size_t kSnapshotButtonCount =
 
 namespace Logger {
 void init();
+void log(const char *message, ...);
 }
 
 static void controller_fork_prepare();
@@ -276,30 +277,66 @@ static bool fake_vibration_enabled() { return config().vibration_enabled; }
 static bool fake_xbox360_identity() { return config().xbox360_identity; }
 static bool fake_uinput_enabled() { return config().uinput_enabled; }
 
+static bool process_is_steam_client();
+
 // Steam and its Remote Play client write the same shared slots; the caller's mutex serialises its own threads.
+// Without the lock Steam stays the only writer, as before streaming_client could open these devices. The wait
+// is bounded because a session freeze can stop the holder, and callers wait with controller_mutex held.
 class ProcessSlotLock {
 public:
-  ProcessSlotLock(int &fd, const char *name) : fd_(fd) {
+  ProcessSlotLock(int &fd, const char *name, int timeout_ms) : fd_(fd) {
     int saved_errno = errno;
     if (fd_ < 0) {
       std::string path = std::string(fake_hook_dir()) + "/." + name + ".lock";
       fd_ = fd = static_cast<int>(syscall(SYS_openat, AT_FDCWD, path.c_str(), O_CREAT | O_RDWR | O_CLOEXEC, 0600));
     }
-    if (fd_ >= 0)
-      while (flock(fd_, LOCK_EX) < 0 && errno == EINTR) {
+    int error = fd_ < 0 ? errno : 0;
+    if (fd_ >= 0) {
+      struct timespec start, now, pause = {0, 1000 * 1000};
+      clock_gettime(CLOCK_MONOTONIC, &start);
+      for (;;) {
+        if (flock(fd_, LOCK_EX | LOCK_NB) == 0) {
+          locked_ = true;
+          break;
+        }
+        if (errno == EINTR) continue;
+        if (errno != EWOULDBLOCK) {
+          error = errno;
+          break;
+        }
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        if ((now.tv_sec - start.tv_sec) * 1000 + (now.tv_nsec - start.tv_nsec) / 1000000 >= timeout_ms) {
+          busy_ = true;
+          break;
+        }
+        nanosleep(&pause, nullptr);
       }
+    }
+    if (busy_) {
+      static std::atomic<unsigned> waits;
+      unsigned n = ++waits;
+      if ((n & (n - 1)) == 0) Logger::log("lock: %s still held after %d ms, skipped (x%u)\n", name, timeout_ms, n);
+    } else if (!locked_) {
+      static std::atomic<bool> noted{false};
+      if (!noted.exchange(true))
+        Logger::log("lock: %s not taken (%s)%s\n", name, strerror(error),
+                    process_is_steam_client() ? "" : "; this process leaves the shared slots alone");
+    }
     errno = saved_errno;
   }
   ~ProcessSlotLock() {
     int saved_errno = errno;
-    if (fd_ >= 0) flock(fd_, LOCK_UN);
+    if (locked_) flock(fd_, LOCK_UN);
     errno = saved_errno;
   }
+  bool may_write() const { return locked_ || (!busy_ && process_is_steam_client()); }
   ProcessSlotLock(const ProcessSlotLock &) = delete;
   ProcessSlotLock &operator=(const ProcessSlotLock &) = delete;
 
 private:
   int fd_;
+  bool locked_ = false;
+  bool busy_ = false;
 };
 
 static bool ring_paths_loaded = false;
@@ -2050,7 +2087,8 @@ __attribute__((visibility("hidden"))) static void touch_state(F &&write) {
   TouchRingFile *ring = touch_ring();
   if (!ring) return;
   std::lock_guard<std::mutex> guard(touch_state_mutex);
-  ProcessSlotLock slot(touch_state_lock_fd, "touch-state");
+  ProcessSlotLock slot(touch_state_lock_fd, "touch-state", 20);
+  if (!slot.may_write()) return;
   __atomic_fetch_add(&ring->state_seq, 1, __ATOMIC_ACQ_REL);
   write(*ring);
   __atomic_fetch_add(&ring->state_seq, 1, __ATOMIC_ACQ_REL);
@@ -2652,7 +2690,8 @@ __attribute__((visibility("hidden"))) static void triton_queue_output(DeckHidraw
   static std::mutex one_at_a_time;
   static int lock_fd = -1;
   std::lock_guard<std::mutex> guard(one_at_a_time);
-  ProcessSlotLock slot(lock_fd, "triton-output");
+  ProcessSlotLock slot(lock_fd, "triton-output", TRITON_OUTPUT_TIMEOUT_MS * 2);
+  if (!slot.may_write()) return;
   for (int waited = 0;
        static_cast<uint32_t>(__atomic_load_n(&shared->output_seq, __ATOMIC_ACQUIRE)) !=
            __atomic_load_n(&shared->output_ack, __ATOMIC_ACQUIRE) &&
@@ -2686,7 +2725,11 @@ __attribute__((visibility("hidden"))) static int triton_get_feature(DeckHidraw &
   static std::mutex one_at_a_time;
   static int lock_fd = -1;
   std::lock_guard<std::mutex> guard(one_at_a_time);
-  ProcessSlotLock slot(lock_fd, "triton-feature");
+  ProcessSlotLock slot(lock_fd, "triton-feature", TRITON_FEATURE_TIMEOUT_MS);
+  if (!slot.may_write()) {
+    errno = EIO;
+    return -1;
+  }
   uint8_t report_id = report[0];
   __atomic_store_n(&shared->get_report_id, report_id, __ATOMIC_RELAXED);
   uint64_t request = __atomic_add_fetch(&shared->get_request, 1, __ATOMIC_RELEASE);
