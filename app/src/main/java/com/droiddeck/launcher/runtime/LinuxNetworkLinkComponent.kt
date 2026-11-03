@@ -279,8 +279,7 @@ class LinuxNetworkLinkComponent(
             .filter { !it.isLinkLocalAddress && !it.isLoopbackAddress && !it.isAnyLocalAddress }
             .sortedBy { if (it is Inet4Address) 0 else 1 }
             .mapNotNull { it.hostAddress?.substringBefore('%') }
-        val network = (own + localDnsServers()).distinct()
-        val servers = (network.take(2) + listOf("8.8.8.8", "1.1.1.1", "2001:4860:4860::8888") + network.drop(2)).distinct().take(6)
+        val servers = (own.take(3) + listOf("8.8.8.8", "1.1.1.1", "2001:4860:4860::8888") + own.drop(3) + localDnsServers()).distinct().take(6)
         val text = buildString {
             append("# Written by the app from the device's active network; edits are overwritten.\n")
             for (server in servers) append("nameserver $server\n")
