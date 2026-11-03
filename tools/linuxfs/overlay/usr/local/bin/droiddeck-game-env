@@ -478,6 +478,14 @@ def apply_config(env, config, app_id, fixes=None):
     return result
 
 
+def bridge_feature_level(env):
+    if env.get("BL_VKBRIDGE") != "1" or env.get("VKD3D_FEATURE_LEVEL") not in ("12_1", "12_2"):
+        return None
+    was = env["VKD3D_FEATURE_LEVEL"]
+    env["VKD3D_FEATURE_LEVEL"] = "12_0"
+    return "Mali bridge: VKD3D_FEATURE_LEVEL %s capped at 12_0 (no ray tracing or mesh shaders)" % was
+
+
 GAME_DEBUG_CHANNELS = (
     "timestamp", "pid", "tid", "seh", "unwind", "threadname", "debugstr", "loaddll", "mscoree",
 )
@@ -974,6 +982,9 @@ def main():
         env["AUDIO_DIRECT_MIC"] = "0"
     env = directaudio_settings(env)
     env = vram_cap(env)
+    note = bridge_feature_level(env)
+    if note:
+        print("droiddeck-game-env: " + note, file=sys.stderr)
     env = force_ssbs(command, env)
     game_cores(env)
     cpu_topology(env, command)

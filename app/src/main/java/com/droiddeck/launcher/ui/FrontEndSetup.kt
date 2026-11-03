@@ -171,7 +171,7 @@ internal fun SetupPanel(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val gpu = remember { com.droiddeck.launcher.gpu.GpuInfo.detect() }
-    val gpuOk = gpu.support == com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED
+    val gpuOk = gpu.support == com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED || s.vkBridge
     val gpuName = remember { DeviceSupport.gpuName(ctx) }
     val limitBlocks = PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
     val signedIn = s.offlineAccount != null
@@ -232,7 +232,7 @@ internal fun SetupPanel(
     val runtimeOk = s.ready && !s.busy && !s.removalPending
     val checks = listOf(gpuOk, runtimeOk, !limitBlocks, signedIn)
     val passing = checks.count { it }
-    var showChecks by rememberSaveable { mutableStateOf(false) }
+    var showChecks by rememberSaveable { mutableStateOf(s.vkBridge) }
     Rise(0, Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.fillMaxSize().bumpers(
@@ -249,17 +249,49 @@ internal fun SetupPanel(
                         val gpuCheck: @Composable (Boolean) -> Unit = { divider ->
                             CheckRow(
                                 if (gpuOk) CheckState.OK else CheckState.WARN,
-                                when (gpu.support) {
-                                    com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED -> stringResource(R.string.setup_gpu_supported)
-                                    com.droiddeck.launcher.gpu.GpuInfo.Support.UNTESTED -> stringResource(R.string.setup_gpu_untested)
+                                when {
+                                    gpu.support == com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED -> stringResource(R.string.setup_gpu_supported)
+                                    gpu.support == com.droiddeck.launcher.gpu.GpuInfo.Support.UNTESTED -> stringResource(R.string.setup_gpu_untested)
+                                    s.vkBridge -> stringResource(R.string.setup_gpu_bridged)
                                     else -> stringResource(R.string.setup_gpu_unsupported)
                                 },
                                 when (gpu.support) {
                                     com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED -> stringResource(R.string.setup_gpu_detail, gpu.displayName(ctx), gpuName)
                                     com.droiddeck.launcher.gpu.GpuInfo.Support.UNTESTED -> stringResource(R.string.setup_gpu_untested_detail, gpu.displayName(ctx), gpu.supportText(ctx).replaceFirstChar { it.lowercase() })
-                                    else -> stringResource(R.string.setup_gpu_unsupported_detail, gpuName)
+                                    else -> if (s.vkBridge) stringResource(R.string.setup_gpu_bridge_detail, gpuName)
+                                    else stringResource(R.string.setup_gpu_unsupported_detail, gpuName)
                                 },
+                                divider = divider || (!s.adreno && s.vkBridge),
+                                action = if (s.adreno) null else { {
+                                    SecondaryButton(
+                                        stringResource(if (s.vkBridge) R.string.setup_gpu_bridge_on else R.string.setup_gpu_bridge_off),
+                                        enabled = !s.sessionRunning, compact = true, onClick = { a.onVkBridge(!s.vkBridge) },
+                                    )
+                                } },
+                            )
+                            if (!s.adreno && s.vkBridge) CheckRow(
+                                CheckState.OK,
+                                stringResource(R.string.setup_bridge_safe),
+                                stringResource(if (s.vkBridgeSafe) R.string.setup_bridge_safe_on_detail else R.string.setup_bridge_safe_off_detail),
                                 divider = divider,
+                                action = {
+                                    SecondaryButton(
+                                        stringResource(if (s.vkBridgeSafe) R.string.setup_bridge_safe_on else R.string.setup_bridge_safe_off),
+                                        enabled = !s.sessionRunning, compact = true, onClick = { a.onVkBridgeSafe(!s.vkBridgeSafe) },
+                                    )
+                                },
+                            )
+                            if (!s.adreno && s.vkBridge) CheckRow(
+                                CheckState.OK,
+                                stringResource(R.string.setup_bridge_dxvk),
+                                stringResource(if (s.bridgeProtonDxvk) R.string.setup_bridge_dxvk_proton_detail else R.string.setup_bridge_dxvk_auto_detail),
+                                divider = divider,
+                                action = {
+                                    SecondaryButton(
+                                        stringResource(if (s.bridgeProtonDxvk) R.string.setup_bridge_dxvk_proton else R.string.setup_bridge_dxvk_auto),
+                                        enabled = !s.sessionRunning, compact = true, onClick = { a.onBridgeProtonDxvk(!s.bridgeProtonDxvk) },
+                                    )
+                                },
                             )
                         }
                         val runtimeCheck: @Composable (Boolean) -> Unit = { divider ->
