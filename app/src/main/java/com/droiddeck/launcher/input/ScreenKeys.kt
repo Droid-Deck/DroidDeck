@@ -56,6 +56,7 @@ class ScreenKeys(context: Context, private val sendKey: (Int, Boolean) -> Unit) 
     private var guideY = -1f
     private val addPress = Runnable { addX = pressX; addY = pressY; onAdd?.invoke() }
     private var editing = false
+    val isEditing get() = editing
     private var selected: Entry? = null
     private var dragX = 0f
     private var dragY = 0f

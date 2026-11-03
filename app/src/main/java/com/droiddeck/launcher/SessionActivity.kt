@@ -708,7 +708,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
             keys.onAdd = { screenKeyPickerOpen = true }
             keys.onSelect = { codes -> screenKeyEdit = screenKeys?.stateOf(codes) }
-            keys.onEditingChanged = { touchEditorChanged(it); if (!it) screenKeyEdit = null }
+            keys.onEditingChanged = { touchEditorChanged(); if (!it) screenKeyEdit = null }
             keys.steamStyle = { steamTouchControls?.style }
             keys.visibility = if (screenKeysShown) View.VISIBLE else View.GONE
             root.addView(keys)
@@ -3608,7 +3608,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private var ignoreGameTouch = false
     private var lockedTouchTurns = false
-    private var touchEditorOpen = false
+    private var touchEditorOpen by mutableStateOf(false)
     private var lockedSwipeX = 0f
     private var lockedSwipeY = 0f
     private var dismissTouch = false
@@ -3783,8 +3783,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private var platformPointerShown: Boolean? = null
 
-    private fun touchEditorChanged(open: Boolean) {
-        touchEditorOpen = open
+    private fun touchEditorChanged() {
+        touchEditorOpen = screenKeys?.isEditing == true || steamTouchControls?.isEditing == true
         updatePointerCapture()
         applyPlatformPointer(appUiOwnsPointer())
     }
@@ -3853,7 +3853,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val view = com.droiddeck.launcher.input.SteamTouchControls(this, device,
             onMenu = { drawerOpen = true }, onKeyboard = ::togglePcKeyboard)
         view.visibility = View.GONE
-        view.onEditingChanged = ::touchEditorChanged
+        view.onEditingChanged = { touchEditorChanged() }
         view.onOptions = { options ->
             steamTouchOptions = options
             applyTouchRouting()
