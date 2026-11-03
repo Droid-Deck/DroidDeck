@@ -225,3 +225,15 @@ PropertyNotify, and it listens for those from map on, so the style Wine sets bef
 was never known; `map_win` now reads it with the other properties, which the layered-launcher and
 Xalia rules rely on too. `tools/tests/test_gamescope_override_stacking.py` compiles the rule from
 this patch.
+
+## 0127 steamcompmgr: a three way relative mouse switch
+
+`relative_mouse` is read where the decision is made: 0 leaves it to the rule below, 1 forces relative
+motion for the focused game except Steam's own windows and composites the cursor, 2 never goes relative.
+For games that confine a visible cursor and warp it, which the automatic rule cannot see.
+
+## 0128 steamcompmgr: a hidden cursor under any pointer constraint is relative
+
+The rule only counted a lock with a cursor position hint. A game that hides the cursor and confines the
+pointer through a grab (Wine's ClipCursor) has a constraint with no hint, so the nested pointer stayed
+absolute, the constraint held the X pointer still and no raw motion was produced: the camera froze.
