@@ -277,6 +277,22 @@ int main(int argc, char **argv)
     return 0;
 }
 """
+IMU_MODE_PROBE = r"""
+#include <fcntl.h>
+#include <linux/hidraw.h>
+#include <stdlib.h>
+#include <sys/ioctl.h>
+
+int main(int argc, char **argv)
+{
+    unsigned mode = (unsigned)strtoul(argv[1], NULL, 0);
+    int fd = open("/dev/hidraw16", O_RDWR);
+    if (fd < 0)
+        return 1;
+    unsigned char report[65] = {0x00, 0x87, 3, 48, mode & 0xff, mode >> 8};
+    return ioctl(fd, HIDIOCSFEATURE(sizeof(report)), report) < 0;
+}
+"""
 OVERLAY_READ = r"""
 #include <sys/uio.h>
 #include <unistd.h>
@@ -507,6 +523,19 @@ class FakeinputRingTest(unittest.TestCase):
         outputs = self.ask_paired_controller((("steam", "0x11"), ("streaming_client", "0x22")), held=True, count=3)
         self.assertEqual(outputs, ["3 wrong\n", "3 wrong\n"])
         self.assertLess(time.monotonic() - started, 20)
+
+    def test_steam_turning_motion_off_leaves_it_on_for_its_remote_play_client(self):
+        library, probe = self.build("-m64", IMU_MODE_PROBE, "imu-mode-probe")
+        ring, env = self.pad_ring(PAD_TYPE_DECK)
+        env["LD_PRELOAD"] = str(library)
+        pids = {}
+        for name, mode in (("steam", "0x18"), ("streaming_client", "0x18"), ("steam", "0x00")):
+            run = subprocess.Popen([self.as_process(probe, name), mode], env=env)
+            self.assertEqual(run.wait(timeout=10), 0)
+            pids[name] = run.pid
+        data = ring.read_bytes()
+        self.assertEqual(struct.unpack_from("<I", data, RING_SIZE + 4)[0], 0x80000000)
+        self.assertEqual(struct.unpack_from("<II", data, RING_SIZE + 52), (0x80000018, pids["streaming_client"]))
 
 
 if __name__ == "__main__":

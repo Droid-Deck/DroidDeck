@@ -82,6 +82,8 @@ public class FakeInputWriter {
     private static final int PAD_TYPE_OFFSET = IMU_OFFSET + 44;
     private static final int PAD_TYPE_SET = 0x80000000;
     private static final int LATENCY_OFFSET = IMU_OFFSET + 48;
+    private static final int REMOTE_IMU_MODE_OFFSET = IMU_OFFSET + 52;
+    private static final int REMOTE_IMU_PID_OFFSET = IMU_OFFSET + 56;
     public static final int LATENCY_CONTROLLER = 1;
     public static final int LATENCY_TOUCH = 2;
     private static volatile int latency = 0;
@@ -231,6 +233,8 @@ public class FakeInputWriter {
         }
         data.putInt(IMU_OFFSET, 0);
         data.putInt(IMU_MODE_OFFSET, 0);
+        data.putInt(REMOTE_IMU_MODE_OFFSET, 0);
+        data.putInt(REMOTE_IMU_PID_OFFSET, 0);
         data.putLong(IMU_SEQ_OFFSET, 0L);
         for (int i = 0; i < 12; i++) {
             data.putShort(IMU_ACCEL_OFFSET + (i * 2), (short) 0);
@@ -494,8 +498,14 @@ public class FakeInputWriter {
         if (ringSlot == null) return -1;
         synchronized (ringSlot) {
             ByteBuffer ring = ringSlot.data;
-            int value = ring == null ? 0 : ring.getInt(IMU_MODE_OFFSET);
-            return value < 0 ? value & 0xffff : -1;
+            if (ring == null) return 0;
+            int value = ring.getInt(IMU_MODE_OFFSET);
+            if (value >= 0) return -1;
+            // Steam's Remote Play client keeps its own mode; motion is read while either process wants it.
+            int remote = ring.getInt(REMOTE_IMU_MODE_OFFSET);
+            int pid = ring.getInt(REMOTE_IMU_PID_OFFSET);
+            if (remote < 0 && pid > 0 && new File("/proc/" + pid).exists()) value |= remote;
+            return value & 0xffff;
         }
     }
 

@@ -1238,10 +1238,13 @@ struct DeckImu {
   uint32_t controls;
   uint32_t pad_type;
   uint32_t latency;
+  uint32_t remote_imu_mode;
+  uint32_t remote_imu_pid;
 };
 static_assert(offsetof(DeckImu, pad_type) == FAKE_INPUT_RING_PAD_TYPE_OFFSET,
                 "DeckImu::pad_type matches FakeInputWriter and the ring reader");
 static_assert(offsetof(DeckImu, latency) == 48, "DeckImu::latency matches FakeInputWriter");
+static_assert(offsetof(DeckImu, remote_imu_mode) == 52, "DeckImu::remote_imu_mode matches FakeInputWriter");
 static constexpr uint32_t LATENCY_CONTROLLER = 1, LATENCY_TOUCH = 2;
 static constexpr int LOW_LATENCY_REPORT_INTERVAL_US = 1000;
 static constexpr uint32_t DECK_EXTRA_L4 = 1, DECK_EXTRA_R4 = 2, DECK_EXTRA_L5 = 4,
@@ -2482,8 +2485,13 @@ __attribute__((visibility("hidden"))) static void publish_imu_mode(const DeckHid
   std::string path = get_ring_path_for_slot(0);
   int fd = path.empty() ? -1 : my_open(path.c_str(), O_WRONLY | O_CLOEXEC);
   if (fd < 0) return;
-  uint32_t value = 0x80000000u | static_cast<uint32_t>(mode);
-  if (pwrite(fd, &value, sizeof(value), FAKE_INPUT_RING_SIZE + offsetof(DeckImu, imu_mode)) != sizeof(value))
+  // Steam and its Remote Play client each keep their own word, so one turning motion off does not starve the
+  // other; Android reads motion while either wants it. The pid lets it ignore a Remote Play client that has gone.
+  uint32_t value[2] = {0x80000000u | static_cast<uint32_t>(mode), static_cast<uint32_t>(getpid())};
+  bool steam = process_is_steam_client();
+  size_t length = steam ? sizeof(value[0]) : sizeof(value);
+  off_t offset = FAKE_INPUT_RING_SIZE + (steam ? offsetof(DeckImu, imu_mode) : offsetof(DeckImu, remote_imu_mode));
+  if (pwrite(fd, value, length, offset) != static_cast<ssize_t>(length))
     Logger::log("deck: imu mode not published (%s)\n", strerror(errno));
   syscall(SYS_close, fd);
 }
