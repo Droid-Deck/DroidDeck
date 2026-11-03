@@ -213,9 +213,11 @@ class BtControllerActivity : ComponentActivity() {
         Column(Modifier.fillMaxSize().background(colors.background).padding(horizontal = 12.dp, vertical = 8.dp)) {
             Panel(status)
             if (showTouch) {
-                TouchPad(Modifier.weight(1f).fillMaxWidth().padding(top = 6.dp), status.lightbar)
+                TouchPad(Modifier.weight(1f).fillMaxWidth().padding(top = 6.dp), status)
             } else {
-                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+                    horizontalAlignment = Alignment.CenterHorizontally) {
+                    Instructions(status, Modifier.widthIn(max = 480.dp))
                     Text(stringResource(R.string.btpad_physical_hint), fontSize = 15.sp, color = colors.onSurfaceVariant)
                 }
             }
@@ -227,25 +229,45 @@ class BtControllerActivity : ComponentActivity() {
         val colors = MaterialTheme.colorScheme
         val pal = LocalPalette.current
         val connected = status.phase == BtGamepad.Phase.CONNECTED
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.size(10.dp).clip(CircleShape).background(status.lightbar?.let { Color(it) } ?: if (connected) pal.signal else colors.onSurfaceVariant.copy(alpha = 0.4f)))
-            Column(Modifier.widthIn(max = 220.dp)) {
-                Text(statusText(status), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(stringResource(if (connected) R.string.btpad_exit_hint else R.string.btpad_switch_hint), fontSize = 11.sp,
-                    color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                BtPadProfile.entries.forEach { p -> Chip(profileLabel(p), p == profile) { pickProfile(p) } }
-                Chip(stringResource(R.string.btpad_touch), showTouch) {
-                    showTouch = !showTouch
-                    prefs(this@BtControllerActivity).edit().putBoolean(KEY_TOUCH, showTouch).apply()
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val narrow = maxWidth < 600.dp
+            val types: @Composable (Modifier) -> Unit = { m ->
+                Row(m.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    BtPadProfile.entries.forEach { p -> Chip(profileLabel(p), p == profile) { pickProfile(p) } }
+                    Chip(stringResource(R.string.btpad_touch), showTouch) {
+                        showTouch = !showTouch
+                        prefs(this@BtControllerActivity).edit().putBoolean(KEY_TOUCH, showTouch).apply()
+                    }
                 }
             }
-            if (permissionDenied) PrimaryButton(stringResource(R.string.btpad_permission_open), compact = true) { openAppInfo() }
-            else if (connected) SecondaryButton(stringResource(R.string.btpad_disconnect), compact = true) { BtGamepad.disconnect() }
-            else PrimaryButton(stringResource(R.string.btpad_pair), compact = true, enabled = status.phase == BtGamepad.Phase.READY) { BtGamepad.openPairingWindow() }
-            SecondaryButton(stringResource(R.string.btpad_close), compact = true) { finish() }
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.size(10.dp).clip(CircleShape).background(status.lightbar?.let { Color(it) } ?: if (connected) pal.signal else colors.onSurfaceVariant.copy(alpha = 0.4f)))
+                    Column(if (narrow) Modifier.weight(1f) else Modifier.widthIn(max = 220.dp)) {
+                        Text(shortStatus(status), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(stringResource(if (connected) R.string.btpad_exit_hint else R.string.btpad_switch_hint), fontSize = 11.sp,
+                            color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (!narrow) types(Modifier.weight(1f))
+                    if (permissionDenied) PrimaryButton(stringResource(R.string.btpad_permission_open), compact = true) { openAppInfo() }
+                    else if (connected) SecondaryButton(stringResource(R.string.btpad_disconnect), compact = true) { BtGamepad.disconnect() }
+                    else PrimaryButton(stringResource(R.string.btpad_pair), compact = true, enabled = status.phase == BtGamepad.Phase.READY) { BtGamepad.openPairingWindow() }
+                    SecondaryButton(stringResource(R.string.btpad_close), compact = true) { finish() }
+                }
+                if (narrow) types(Modifier.padding(top = 6.dp))
+            }
         }
+    }
+
+    @Composable
+    private fun shortStatus(status: BtGamepad.Status): String =
+        if (status.phase == BtGamepad.Phase.READY && !permissionDenied) stringResource(R.string.btpad_status_waiting) else statusText(status)
+
+    @Composable
+    private fun Instructions(status: BtGamepad.Status, modifier: Modifier, size: androidx.compose.ui.unit.TextUnit = 14.sp) {
+        if (status.phase == BtGamepad.Phase.CONNECTED) return
+        Text(statusText(status), fontSize = size, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = modifier)
     }
 
     @Composable
@@ -279,7 +301,8 @@ class BtControllerActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun TouchPad(modifier: Modifier, lightbar: Int?) {
+    private fun TouchPad(modifier: Modifier, status: BtGamepad.Status) {
+        val lightbar = status.lightbar
         val sony = profile == BtPadProfile.DUALSHOCK4 || profile == BtPadProfile.DUALSENSE
         val steam = profile == BtPadProfile.STEAM
         BoxWithConstraints(modifier) {
@@ -314,13 +337,17 @@ class BtControllerActivity : ComponentActivity() {
                 val fx = 0.5f + (i - (menu.size - 1) / 2f) * ((menuW + 8.dp) / w)
                 at(fx, shoulderY, menuW, small) { PadButton(label, bit, menuW, small, tint = tint?.let { Color(it) }) }
             }
+            val steamPad = minOf(h * 0.4f, w * 0.2f)
+            val infoW = if (steam) w * 0.4f - steamPad - 12.dp else w * 0.3f
+            val infoH = if (steam) h * 0.3f else h * 0.22f
+            at(0.5f, if (steam) 0.72f else 0.3f, infoW, infoH) { Instructions(status, Modifier.fillMaxWidth(), if (steam) 12.sp else 14.sp) }
             if (steam) {
                 val rearY = (shoulderH * 1.6f) / h
                 at(0.0f, rearY, shoulderW, small) { PadButton("L5", BtPadState.L5, shoulderW, small) }
                 at(second, rearY, shoulderW, small) { PadButton("L4", BtPadState.L4, shoulderW, small) }
                 at(1f - second, rearY, shoulderW, small) { PadButton("R4", BtPadState.R4, shoulderW, small) }
                 at(1.0f, rearY, shoulderW, small) { PadButton("R5", BtPadState.R5, shoulderW, small) }
-                val pad = minOf(h * 0.4f, w * 0.2f)
+                val pad = steamPad
                 at(0.11f, 0.5f, stick, stick) { Stick(stick, left = true) }
                 at(0.89f, 0.5f, stick, stick) { Stick(stick, left = false) }
                 at(0.3f, 0.34f, cluster, cluster) { Cross(face) }

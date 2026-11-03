@@ -3742,6 +3742,7 @@
     <string name="btpad_status_bt_off">Turn on Bluetooth to continue</string>
     <string name="btpad_status_unsupported">This device\'s Bluetooth can\'t act as a controller</string>
     <string name="btpad_status_ready">On the other device, add a Bluetooth device and pick %1$s. If it takes over 2 minutes, tap Pair new.</string>
+    <string name="btpad_status_waiting">Waiting for a device to pair</string>
     <string name="btpad_status_connecting">Pairing with %1$s. Accept the request on this device.</string>
     <string name="btpad_status_connected">Connected to %1$s</string>
     <string name="btpad_profile_generic">Generic</string>
