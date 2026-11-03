@@ -251,9 +251,9 @@ class LinuxNetworkLinkComponent(
         }
     }
 
-    private fun localDnsServers(): List<String> {
+    private fun localDnsServers(): Pair<List<String>, List<String>> {
         val active = connectivity.activeNetwork?.let { connectivity.getNetworkCapabilities(it) }
-        if (active?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true) return emptyList()
+        if (active?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true) return Pair(emptyList(), emptyList())
         val servers = LinkedHashSet<String>()
         val gateways = LinkedHashSet<String>()
         for (network in connectivity.allNetworks) {
@@ -271,7 +271,7 @@ class LinuxNetworkLinkComponent(
             }?.gateway?.hostAddress?.substringBefore('%')?.let { gateways.add(it) }
         }
         val order = compareBy<String>({ if (it.contains(':')) 1 else 0 })
-        return servers.sortedWith(order) + gateways.sortedWith(order)
+        return Pair(servers.sortedWith(order), gateways.sortedWith(order))
     }
 
     private fun writeResolver(properties: LinkProperties?) {
@@ -279,7 +279,8 @@ class LinuxNetworkLinkComponent(
             .filter { !it.isLinkLocalAddress && !it.isLoopbackAddress && !it.isAnyLocalAddress }
             .sortedBy { if (it is Inet4Address) 0 else 1 }
             .mapNotNull { it.hostAddress?.substringBefore('%') }
-        val servers = (own.take(3) + listOf("8.8.8.8", "1.1.1.1", "2001:4860:4860::8888") + own.drop(3) + localDnsServers()).distinct().take(6)
+        val (discovered, gateways) = localDnsServers()
+        val servers = (own + discovered + listOf("8.8.8.8", "1.1.1.1", "2001:4860:4860::8888") + gateways).distinct().take(6)
         val text = buildString {
             append("# Written by the app from the device's active network; edits are overwritten.\n")
             for (server in servers) append("nameserver $server\n")
