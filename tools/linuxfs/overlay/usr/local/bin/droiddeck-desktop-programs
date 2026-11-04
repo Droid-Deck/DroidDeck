@@ -4,6 +4,7 @@ import glob
 import os
 import re
 import runpy
+import stat
 import struct
 import subprocess
 import sys
@@ -22,6 +23,14 @@ NOT_PROGRAMS = re.compile(r"(?i)^unins")
 ABSENT = (FileNotFoundError, NotADirectoryError, IsADirectoryError)
 
 _run = None
+
+
+def present(path, regular=False):
+    try:
+        mode = os.stat(path).st_mode
+    except ABSENT:
+        return False
+    return stat.S_ISREG(mode) if regular else True
 
 
 def read(path):
@@ -128,7 +137,7 @@ def host_path(pfx, windows):
             except ABSENT:
                 return None
         path = exact
-    return path if os.path.exists(path) else None
+    return path if present(path) else None
 
 
 def value(text, key):
@@ -156,7 +165,7 @@ def icon(shortcuts, name):
 def program(pfx, link):
     target, args = link_target(link)
     exe = host_path(pfx, target)
-    if (exe and exe.lower().endswith(".exe") and not NOT_PROGRAMS.match(os.path.basename(exe)) and os.path.isfile(exe)
+    if (exe and exe.lower().endswith(".exe") and not NOT_PROGRAMS.match(os.path.basename(exe)) and present(exe, regular=True)
             and runs_here(pfx, exe)):
         return exe, args
     return None, ""
@@ -245,10 +254,15 @@ def sync(directory, wanted, mode=0o644):
     for name, body in wanted.items():
         path = os.path.join(directory, name)
         if read(path) != body:
-            with open(path + ".tmp", "w", encoding="utf-8") as f:
-                f.write(body)
-            os.chmod(path + ".tmp", mode)
-            os.replace(path + ".tmp", path)
+            try:
+                with open(path + ".tmp", "w", encoding="utf-8") as f:
+                    f.write(body)
+                os.chmod(path + ".tmp", mode)
+                os.replace(path + ".tmp", path)
+            except OSError:
+                if os.path.lexists(path + ".tmp"):
+                    os.unlink(path + ".tmp")
+                raise
 
 
 def main():
@@ -270,14 +284,18 @@ def refresh():
             menu[name] = entry(exe, found)
             if exe in on_desktop:
                 desktop_wanted.add(name)
+    placed = set((read(PLACED) or "").split())
     sync(APPS_DIR, menu)
     desktop = desktop_dir()
-    placed = set((read(PLACED) or "").split())
-    shown = {name: menu[name] for name in desktop_wanted if name not in placed or os.path.exists(os.path.join(desktop, name))}
-    sync(desktop, shown, 0o755)
-    with open(PLACED + ".tmp", "w", encoding="utf-8") as f:
-        f.write("".join(name + "\n" for name in sorted((placed | set(shown)) & set(menu))))
-    os.replace(PLACED + ".tmp", PLACED)
+    shown = {name: menu[name] for name in sorted(desktop_wanted)
+             if name not in placed or present(os.path.join(desktop, name), regular=True)}
+    try:
+        sync(desktop, shown, 0o755)
+    finally:
+        written = {name for name in shown if present(os.path.join(desktop, name), regular=True)}
+        with open(PLACED + ".tmp", "w", encoding="utf-8") as f:
+            f.write("".join(name + "\n" for name in sorted((placed | written) & set(menu))))
+        os.replace(PLACED + ".tmp", PLACED)
     print("droiddeck-desktop-programs: %d program%s in the menu, %d on the desktop" % (
         len(menu), "" if len(menu) == 1 else "s", len(shown)))
 
