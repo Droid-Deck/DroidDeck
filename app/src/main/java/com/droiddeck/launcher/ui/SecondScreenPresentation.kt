@@ -138,6 +138,7 @@ class SecondScreenPresentation(
         menuShown = on
         if (on) {
             keyboardHost?.takeIf { it.shown }?.hide()
+            keyboardShown.value = false
             ownComposeViews()
             val view = menuView ?: androidx.compose.ui.platform.ComposeView(context).apply {
                 isFocusable = true
