@@ -2,8 +2,11 @@ name: Build gamescope (patched)
 
 on:
   push:
+    branches: [main]
     paths:
-      - 'tools/gamescope/**'
+      - 'tools/gamescope/build-in-arch.sh'
+      - 'tools/gamescope/patches/**'
+      - 'tools/gamescope/runtime-sonames.txt'
       - '.github/workflows/build-gamescope.yml'
   workflow_dispatch:
     inputs:
@@ -14,6 +17,10 @@ on:
 
 permissions:
   contents: write
+
+concurrency:
+  group: gamescope-${{ github.event_name }}-${{ github.ref }}-${{ inputs.tag || 'artifact' }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
   build:
