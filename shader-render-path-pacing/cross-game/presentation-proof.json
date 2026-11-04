@@ -1,0 +1,217 @@
+[
+  {
+    "run": "fallout-auto-b",
+    "game": "Fallout: New Vegas",
+    "mode": "Auto",
+    "backend": "DXVK",
+    "seconds": 30.1,
+    "presentedFrames": 1798,
+    "fps": 59.8,
+    "histogramMs": {
+      "16": 1796,
+      "33": 2
+    }
+  },
+  {
+    "run": "fallout-false-a",
+    "game": "Fallout: New Vegas",
+    "mode": "False",
+    "backend": "DXVK",
+    "seconds": 30.1,
+    "presentedFrames": 1798,
+    "fps": 59.8,
+    "histogramMs": {
+      "16": 1796,
+      "33": 2
+    }
+  },
+  {
+    "run": "fallout-false-b",
+    "game": "Fallout: New Vegas",
+    "mode": "False",
+    "backend": "DXVK",
+    "seconds": 30.1,
+    "presentedFrames": 1800,
+    "fps": 59.9,
+    "histogramMs": {
+      "16": 1800
+    }
+  },
+  {
+    "run": "ln-auto-a",
+    "game": "Little Nightmares",
+    "mode": "Auto",
+    "backend": "DXVK",
+    "seconds": 30.1,
+    "presentedFrames": 1412,
+    "fps": 46.9,
+    "histogramMs": {
+      "16": 1058,
+      "33": 321,
+      "50": 33
+    }
+  },
+  {
+    "run": "ln-auto-b",
+    "game": "Little Nightmares",
+    "mode": "Auto",
+    "backend": "DXVK",
+    "seconds": 30.1,
+    "presentedFrames": 1408,
+    "fps": 46.8,
+    "histogramMs": {
+      "16": 1038,
+      "33": 352,
+      "50": 17,
+      "66": 1
+    }
+  },
+  {
+    "run": "ln-false-a",
+    "game": "Little Nightmares",
+    "mode": "False",
+    "backend": "DXVK",
+    "seconds": 30.1,
+    "presentedFrames": 1441,
+    "fps": 47.9,
+    "histogramMs": {
+      "16": 1110,
+      "33": 305,
+      "50": 26
+    }
+  },
+  {
+    "run": "ln-false-b",
+    "game": "Little Nightmares",
+    "mode": "False",
+    "backend": "DXVK",
+    "seconds": 30.1,
+    "presentedFrames": 1440,
+    "fps": 47.9,
+    "histogramMs": {
+      "16": 1094,
+      "33": 333,
+      "50": 13
+    }
+  },
+  {
+    "run": "stardew-auto-a",
+    "game": "Stardew Valley",
+    "mode": "Auto",
+    "backend": "OpenGL/Zink",
+    "seconds": 30.1,
+    "presentedFrames": 1797,
+    "fps": 59.8,
+    "histogramMs": {
+      "16": 1795,
+      "33": 2
+    }
+  },
+  {
+    "run": "stardew-false-a",
+    "game": "Stardew Valley",
+    "mode": "False",
+    "backend": "OpenGL/Zink",
+    "seconds": 30.1,
+    "presentedFrames": 1795,
+    "fps": 59.7,
+    "histogramMs": {
+      "16": 1791,
+      "33": 4
+    }
+  },
+  {
+    "run": "steamworld-auto-b",
+    "game": "SteamWorld Dig",
+    "mode": "Auto",
+    "backend": "OpenGL/Zink",
+    "seconds": 30.1,
+    "presentedFrames": 1798,
+    "fps": 59.8,
+    "histogramMs": {
+      "16": 1796,
+      "33": 2
+    }
+  },
+  {
+    "run": "steamworld-false-a",
+    "game": "SteamWorld Dig",
+    "mode": "False",
+    "backend": "OpenGL/Zink",
+    "seconds": 30.1,
+    "presentedFrames": 1797,
+    "fps": 59.7,
+    "histogramMs": {
+      "16": 1795,
+      "33": 2
+    }
+  },
+  {
+    "run": "subnautica-auto-a",
+    "game": "Subnautica",
+    "mode": "Auto",
+    "backend": "DXVK",
+    "seconds": 30.1,
+    "presentedFrames": 761,
+    "fps": 25.3,
+    "histogramMs": {
+      "16": 225,
+      "33": 173,
+      "50": 245,
+      "66": 99,
+      "86": 19
+    }
+  },
+  {
+    "run": "subnautica-auto-b",
+    "game": "Subnautica",
+    "mode": "Auto",
+    "backend": "DXVK",
+    "seconds": 30.1,
+    "presentedFrames": 764,
+    "fps": 25.4,
+    "histogramMs": {
+      "16": 214,
+      "33": 196,
+      "50": 237,
+      "66": 104,
+      "86": 13
+    }
+  },
+  {
+    "run": "subnautica-false-a",
+    "game": "Subnautica",
+    "mode": "False",
+    "backend": "DXVK",
+    "seconds": 30.1,
+    "presentedFrames": 757,
+    "fps": 25.2,
+    "histogramMs": {
+      "102": 11,
+      "118": 1,
+      "16": 316,
+      "33": 142,
+      "50": 82,
+      "66": 148,
+      "86": 57
+    }
+  },
+  {
+    "run": "subnautica-false-b",
+    "game": "Subnautica",
+    "mode": "False",
+    "backend": "DXVK",
+    "seconds": 30.1,
+    "presentedFrames": 757,
+    "fps": 25.2,
+    "histogramMs": {
+      "102": 15,
+      "118": 2,
+      "16": 310,
+      "33": 143,
+      "50": 99,
+      "66": 139,
+      "86": 49
+    }
+  }
+]

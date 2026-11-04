@@ -1,0 +1,135 @@
+[
+  {
+    "trial": "fallout-auto-a",
+    "requestedConfiguration": "dxvk.tilerMode = Auto",
+    "driver": "DD-Turnip 0.4.0",
+    "turnipMapped": true,
+    "zinkCacheMapped": false
+  },
+  {
+    "trial": "fallout-auto-b",
+    "requestedConfiguration": "dxvk.tilerMode = Auto",
+    "driver": "DD-Turnip 0.4.0",
+    "turnipMapped": true,
+    "zinkCacheMapped": false
+  },
+  {
+    "trial": "fallout-false-a",
+    "requestedConfiguration": "dxvk.tilerMode = False",
+    "driver": "DD-Turnip 0.4.0",
+    "turnipMapped": true,
+    "zinkCacheMapped": false
+  },
+  {
+    "trial": "fallout-false-b",
+    "requestedConfiguration": "dxvk.tilerMode = False",
+    "driver": "DD-Turnip 0.4.0",
+    "turnipMapped": true,
+    "zinkCacheMapped": false
+  },
+  {
+    "trial": "ln-auto-a",
+    "requestedConfiguration": "dxvk.tilerMode = Auto",
+    "driver": "DD-Turnip 0.4.0",
+    "turnipMapped": true,
+    "zinkCacheMapped": false
+  },
+  {
+    "trial": "ln-auto-b",
+    "requestedConfiguration": "dxvk.tilerMode = Auto",
+    "driver": "DD-Turnip 0.4.0",
+    "turnipMapped": true,
+    "zinkCacheMapped": false
+  },
+  {
+    "trial": "ln-false-a",
+    "requestedConfiguration": "dxvk.tilerMode = False",
+    "driver": "DD-Turnip 0.4.0",
+    "turnipMapped": true,
+    "zinkCacheMapped": false
+  },
+  {
+    "trial": "ln-false-b",
+    "requestedConfiguration": "dxvk.tilerMode = False",
+    "driver": "DD-Turnip 0.4.0",
+    "turnipMapped": true,
+    "zinkCacheMapped": false
+  },
+  {
+    "trial": "moonlighter-startup-auto",
+    "requestedConfiguration": "dxvk.tilerMode = Auto",
+    "driver": "DD-Turnip 0.4.0",
+    "turnipMapped": true,
+    "zinkCacheMapped": false
+  },
+  {
+    "trial": "moonlighter-startup-false",
+    "requestedConfiguration": "dxvk.tilerMode = False",
+    "driver": "DD-Turnip 0.4.0",
+    "turnipMapped": true,
+    "zinkCacheMapped": false
+  },
+  {
+    "trial": "stardew-check-auto",
+    "requestedConfiguration": "dxvk.tilerMode = Auto",
+    "driver": "DD-Turnip 0.4.0",
+    "turnipMapped": true,
+    "zinkCacheMapped": true
+  },
+  {
+    "trial": "stardew-check-false",
+    "requestedConfiguration": "dxvk.tilerMode = False",
+    "driver": "DD-Turnip 0.4.0",
+    "turnipMapped": true,
+    "zinkCacheMapped": true
+  },
+  {
+    "trial": "steamworld-check-auto-b",
+    "requestedConfiguration": "dxvk.tilerMode = Auto",
+    "driver": "DD-Turnip 0.4.0",
+    "turnipMapped": true,
+    "zinkCacheMapped": true
+  },
+  {
+    "trial": "steamworld-check-auto",
+    "requestedConfiguration": "dxvk.tilerMode = Auto",
+    "driver": "DD-Turnip 0.4.0",
+    "turnipMapped": true,
+    "zinkCacheMapped": true
+  },
+  {
+    "trial": "steamworld-check-false",
+    "requestedConfiguration": "dxvk.tilerMode = False",
+    "driver": "DD-Turnip 0.4.0",
+    "turnipMapped": true,
+    "zinkCacheMapped": true
+  },
+  {
+    "trial": "subnautica-auto-a",
+    "requestedConfiguration": "dxvk.tilerMode = Auto",
+    "driver": "DD-Turnip 0.4.0",
+    "turnipMapped": true,
+    "zinkCacheMapped": false
+  },
+  {
+    "trial": "subnautica-auto-b",
+    "requestedConfiguration": "dxvk.tilerMode = Auto",
+    "driver": "DD-Turnip 0.4.0",
+    "turnipMapped": true,
+    "zinkCacheMapped": false
+  },
+  {
+    "trial": "subnautica-false-a",
+    "requestedConfiguration": "dxvk.tilerMode = False",
+    "driver": "DD-Turnip 0.4.0",
+    "turnipMapped": true,
+    "zinkCacheMapped": false
+  },
+  {
+    "trial": "subnautica-false-b",
+    "requestedConfiguration": "dxvk.tilerMode = False",
+    "driver": "DD-Turnip 0.4.0",
+    "turnipMapped": true,
+    "zinkCacheMapped": false
+  }
+]

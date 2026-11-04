@@ -1,0 +1,16 @@
+game,mode,run,fps,seconds,long_interval_pct,p95_bucket_ms,tail_interval_pct,cpu_pct_mean,gpu_pct_mean,gpu_mhz_mean,gpu_temp_c_mean,mem_available_mb_mean,swap_in_mb,swap_out_mb
+Fallout: New Vegas,Auto,fallout-auto-b,59.8,30.1,0.0,16,0.0,38.42,50.76,1150.0,70.07,2693.76,5.31,0.0
+Fallout: New Vegas,False,fallout-false-a,59.8,30.1,0.0,16,0.0,37.62,50.09,1150.0,69.53,2611.18,10.28,0.0
+Fallout: New Vegas,False,fallout-false-b,59.9,30.1,0.0,16,0.0,37.86,50.21,1150.0,70.81,2661.49,4.15,0.0
+Little Nightmares,Auto,ln-auto-a,46.9,30.1,2.34,33,0.0,51.78,92,1150.0,78.55,1215.41,1.37,0.71
+Little Nightmares,Auto,ln-auto-b,46.8,30.1,1.28,33,0.0,51.97,91.67,1150.0,80.87,915.92,4.29,0.0
+Little Nightmares,False,ln-false-a,47.9,30.1,1.8,33,0.0,52.76,93.33,1150.0,80.58,938.42,1.43,0.0
+Little Nightmares,False,ln-false-b,47.9,30.1,0.9,33,0.0,52.33,93.33,1150.0,81.61,1011.31,4.49,0.0
+Stardew Valley,Auto,stardew-auto-a,59.8,30.1,0.0,16,0.0,29.36,9.06,1150.0,54.56,2436.72,0.74,0.0
+Stardew Valley,False,stardew-false-a,59.7,30.1,0.0,16,0.0,30.08,10.21,1150.0,53.55,2421.31,2.48,0.0
+SteamWorld Dig,Auto,steamworld-auto-b,59.8,30.1,0.0,16,0.0,24.6,15.03,1150.0,53.55,3259.84,6.2,0.0
+SteamWorld Dig,False,steamworld-false-a,59.7,30.1,0.0,16,0.0,24.68,15,1150.0,53.33,3159.29,109.77,18.05
+Subnautica,Auto,subnautica-auto-a,25.3,30.1,47.7,66,2.5,61.62,86.7,1150.0,68.92,983.21,0.78,9.71
+Subnautica,Auto,subnautica-auto-b,25.4,30.1,46.34,66,1.7,61.84,87.15,1150.0,69.32,1045.24,25.07,0.0
+Subnautica,False,subnautica-false-a,25.2,30.1,39.5,86,9.11,62.17,85.39,1150.0,69.16,851.68,2.33,32.38
+Subnautica,False,subnautica-false-b,25.2,30.1,40.16,86,8.72,62.39,86.42,1150.0,69.66,1255.93,1.92,31.1

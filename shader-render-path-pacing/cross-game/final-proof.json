@@ -1,0 +1,33 @@
+{
+  "gameProcesses": [],
+  "environmentRestored": true,
+  "environmentBytes": 637,
+  "environmentSha256": "31cce3ccf9595db1d28ef5f708575be96e30c82eb4400807a0a78644970f8e7c",
+  "profiles": {
+    "fallout-original": {
+      "filesChecked": 6,
+      "originalFilesIdentical": true
+    },
+    "subnautica-original-snapp": {
+      "filesChecked": 3,
+      "originalFilesIdentical": true
+    },
+    "stardew-original": {
+      "filesChecked": 4,
+      "originalFilesIdentical": true
+    },
+    "steamworld-original": {
+      "filesChecked": 7,
+      "originalFilesIdentical": true
+    }
+  },
+  "temporarySubnauticaSlotRemoved": true,
+  "sessionLogsCopied": true,
+  "sessionPhase": "IDLE",
+  "sessionRunning": false,
+  "guestPid": null,
+  "focusedGame": null,
+  "mainPageVerified": true,
+  "originalReturnPreferenceAbsent": true,
+  "temporaryDeviceFilesRemoved": true
+}
