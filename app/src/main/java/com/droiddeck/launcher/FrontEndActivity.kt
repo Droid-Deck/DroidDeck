@@ -591,9 +591,12 @@ class FrontEndActivity : ComponentActivity() {
         refreshHomeAppState()
     }
     private val gameSpaceAdd = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        enableHomeScreen()
+        homeChoiceOpen = false
+        if (HomeApp.inGameSpace(this)) enableHomeScreen()
+        else refreshHomeAppState()
     }
     private var homeChoiceOpen = false
+    private var gameSpaceOffered = false
 
     override fun startActivity(intent: Intent?) {
         val compat = protons.protonBusyId != null || ProtonExtras.installInProgress
@@ -1906,7 +1909,8 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun offerHomeScreen() {
-        if (HomeApp.hasGameSpace(this) && !HomeApp.inGameSpace(this)) {
+        if (!gameSpaceOffered && HomeApp.hasGameSpace(this) && !HomeApp.inGameSpace(this)) {
+            gameSpaceOffered = true
             val opened = runCatching { gameSpaceAdd.launch(HomeApp.gameSpaceAddIntent()) }.isSuccess
             if (opened) {
                 homeChoiceOpen = true
@@ -1928,8 +1932,8 @@ class FrontEndActivity : ComponentActivity() {
         val request = HomeApp.roleRequestIntent(this)
         if (request != null) {
             homeRoleRequest.launch(request)
-        } else {
-            HomeApp.openSystemHomeSettings(this)
+        } else if (runCatching { homeRoleRequest.launch(HomeApp.settingsIntent()) }.isFailure) {
+            homeChoiceOpen = false
         }
     }
 
