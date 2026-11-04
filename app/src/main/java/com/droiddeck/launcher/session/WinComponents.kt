@@ -179,6 +179,12 @@ object WinComponents {
         File(LinuxRuntime.rootDir(context), "$STORE/$id"), cached(context)?.firstOrNull { it.name == id }?.revision ?: 0,
     )
 
+    internal fun downloadedIds(store: File): List<String> =
+        store.listFiles { f -> f.isDirectory && validId(f.name) }.orEmpty()
+            .filter { installedVersion(it, 0) != null }.map { it.name }.sorted()
+
+    fun downloadedIds(context: Context): List<String> = downloadedIds(File(LinuxRuntime.rootDir(context), STORE))
+
     fun installedIds(context: Context): List<String> {
         val revisions = cached(context).orEmpty().associate { it.name to it.revision }
         return File(LinuxRuntime.rootDir(context), STORE).listFiles { f -> f.isDirectory && validId(f.name) }

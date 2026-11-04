@@ -141,7 +141,7 @@ internal fun WinComponentsDialog(
         findings = found
         selection = withContext(Dispatchers.IO) { WinComponents.selection(context, appKey) }
         present = withContext(Dispatchers.IO) { PrefixInstalledDetector.detect(compat) }
-        installed = withContext(Dispatchers.IO) { WinComponents.installedIds(context).toSet() }
+        installed = withContext(Dispatchers.IO) { WinComponents.downloadedIds(context).toSet() }
     }
     val autoDownloading by com.droiddeck.launcher.frontend.AutoComponents.downloading.collectAsState()
     val online = rememberOnline()
@@ -152,7 +152,7 @@ internal fun WinComponentsDialog(
         if (game != null) withContext(Dispatchers.IO) { com.droiddeck.launcher.frontend.AutoComponents.cachedFindings(context, appKey) }
             ?.let { findings = it; if (appKey !in pendingGames) findingsKnown = true }
         selection = withContext(Dispatchers.IO) { WinComponents.selection(context, appKey) }
-        installed = withContext(Dispatchers.IO) { WinComponents.installedIds(context).toSet() }
+        installed = withContext(Dispatchers.IO) { WinComponents.downloadedIds(context).toSet() }
     }
     fun setUser(id: String, on: Boolean) {
         selection = WinComponents.Selection(selection.auto, selection.user + (id to on))
@@ -181,7 +181,7 @@ internal fun WinComponentsDialog(
                 WinComponents.install(context, c, all) { p -> progress = p }
             }
             progress = null
-            installed = withContext(Dispatchers.IO) { WinComponents.installedIds(context).toSet() }
+            installed = withContext(Dispatchers.IO) { WinComponents.downloadedIds(context).toSet() }
             if (problem != null) { error = problem; failed = id } else setUser(id, true)
             busyId = null
         }

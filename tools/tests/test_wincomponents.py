@@ -274,10 +274,10 @@ class PendingWaitTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def install(self, cid):
+    def install(self, cid, revision=0):
         folder = self.store / cid
         folder.mkdir(parents=True, exist_ok=True)
-        (folder / "component.json").write_text(json.dumps({"id": cid, "overrides": []}))
+        (folder / "component.json").write_text(json.dumps({"id": cid, "overrides": [], "revision": revision}))
 
     def clock(self):
         return len(self.slept) * 0.5
@@ -310,6 +310,21 @@ class PendingWaitTest(unittest.TestCase):
         note = self.wait(timeout=2.0)
         self.assertEqual(4, len(self.slept))
         self.assertEqual("wincomp: 1262580 launched without vcredist2019_dll (not ready)", note)
+
+    def test_an_existing_old_revision_waits_until_the_repair_lands(self):
+        self.install("vcredist2010_dll", revision=0)
+        self.pending.write_text(json.dumps({"games": {"1262580": ["vcredist2010_dll"]},
+                                           "revisions": {"vcredist2010_dll": 1}}))
+        note = self.wait(on_sleep=lambda n: self.install("vcredist2010_dll", revision=1) if n == 3 else None)
+        self.assertEqual(3, len(self.slept))
+        self.assertEqual(note, "wincomp: 1262580 waited 1500ms for vcredist2010_dll")
+
+    def test_an_old_revision_does_not_satisfy_a_pending_repair(self):
+        self.install("vcredist2010_dll", revision=1)
+        self.pending.write_text(json.dumps({"games": {"1262580": ["vcredist2010_dll"]},
+                                           "revisions": {"vcredist2010_dll": 2}}))
+        self.assertEqual(self.wait(timeout=1.0), "wincomp: 1262580 launched without vcredist2010_dll (not ready)")
+        self.assertEqual(2, len(self.slept))
 
     def test_a_damaged_pending_file_is_no_wait(self):
         self.pending.write_text("{not json")

@@ -175,7 +175,8 @@ object AutoComponents {
         }
     }
 
-    private fun apply(context: Context, game: Library.SteamGame, asked: Boolean, inSession: Boolean = false) {
+    private fun apply(context: Context, game: Library.SteamGame, asked: Boolean, inSession: Boolean = false,
+        knownCatalog: Map<String, WinComponents.Component>? = null) {
         val key = appKey(game) ?: return
         val folder = game.gameFiles
         if (game.library == Library.ADDED && game.source == Library.ADDED && folder != null && SteamMatch.get(context, folder.path) == null) {
@@ -183,10 +184,10 @@ object AutoComponents {
         }
         val store = com.droiddeck.launcher.stores.Store.byId(game.source)
         if (folder != null && (store == com.droiddeck.launcher.stores.Store.GOG || store == com.droiddeck.launcher.stores.Store.EPIC)) StoreListBackfill.fill(context, folder)
-        if (asked && online(context)) steamAppOf(context, game)?.let { SteamAppInfo.lookup(context, listOf(it)) }
+        if (knownCatalog == null && asked && online(context)) steamAppOf(context, game)?.let { SteamAppInfo.lookup(context, listOf(it)) }
         val findings = findings(context, game)
-        val refreshed = if (asked && online(context)) catalogOf(context, true) else null
-        val catalog = (refreshed ?: catalogOf(context, false) ?: catalogOf(context, true))?.associateBy { it.name } ?: return
+        val refreshed = if (knownCatalog == null && asked && online(context)) catalogOf(context, true) else null
+        val catalog = knownCatalog ?: (refreshed ?: catalogOf(context, false) ?: catalogOf(context, true))?.associateBy { it.name } ?: return
         val wanted = autoPicks(findings, catalog)
         val user = WinComponents.selection(context, key).user
         val before = WinComponents.selection(context, key).auto
@@ -201,7 +202,8 @@ object AutoComponents {
             queueDownload(context, id, asked, inSession)
             missing.add(id)
         }
-        if (inSession) Pending.set(context, key, (Pending.ids(context, key).filter { it !in installed && it !in wanted } + missing).distinct())
+        if (inSession) Pending.set(context, key, (Pending.ids(context, key).filter { it !in installed && it !in wanted } + missing).distinct(),
+            catalog.mapValues { it.value.revision })
         if (before.keys != kept.keys) {
             WinComponents.setAuto(context, key, kept)
             Log.i(TAG, "${game.name}: on by itself ${kept.keys.joinToString().ifEmpty { "(none)" }}")
@@ -224,7 +226,7 @@ object AutoComponents {
             Log.i(TAG, "wincomp: $id installed in ${System.currentTimeMillis() - started}ms")
         }
         val games = synchronized(waiting) { waiting.remove(id).orEmpty() }
-        games.forEach { apply(context, it, asked, inSession) }
+        games.forEach { apply(context, it, asked, inSession, knownCatalog = catalog) }
         Pending.drop(context, id)
     }
 
@@ -234,20 +236,20 @@ object AutoComponents {
         @Synchronized fun read(context: Context): JSONObject =
             runCatching { JSONObject(file(context).readText()) }.getOrDefault(JSONObject()).let { it.optJSONObject("games") ?: JSONObject() }
 
-        @Synchronized fun set(context: Context, key: String, ids: List<String>) {
+        @Synchronized fun set(context: Context, key: String, ids: List<String>, revisions: Map<String, Int> = emptyMap()) {
             val games = read(context)
             if (ids.isEmpty()) games.remove(key) else games.put(key, JSONArray(ids))
-            write(context, games)
+            write(context, games, revisions)
         }
 
         @Synchronized fun ids(context: Context, key: String): List<String> =
             read(context).optJSONArray(key)?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
 
-        @Synchronized fun add(context: Context, key: String, ids: List<String>) {
+        @Synchronized fun add(context: Context, key: String, ids: List<String>, revisions: Map<String, Int> = emptyMap()) {
             val games = read(context)
             val have = games.optJSONArray(key)?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
             games.put(key, JSONArray((have + ids).distinct()))
-            write(context, games)
+            write(context, games, revisions)
         }
 
         @Synchronized fun drop(context: Context, id: String) {
@@ -259,12 +261,21 @@ object AutoComponents {
             write(context, games)
         }
 
-        private fun write(context: Context, games: JSONObject) {
+        private fun write(context: Context, games: JSONObject, required: Map<String, Int> = emptyMap()) {
             val f = file(context)
             runCatching {
                 f.parentFile?.mkdirs()
                 val tmp = File(f.path + ".tmp")
-                tmp.writeText(JSONObject().put("games", games).toString())
+                val before = runCatching { JSONObject(f.readText()).optJSONObject("revisions") }.getOrNull()
+                val revisions = JSONObject()
+                for (key in games.keys()) {
+                    val ids = games.getJSONArray(key)
+                    for (i in 0 until ids.length()) {
+                        val id = ids.getString(i)
+                        revisions.put(id, maxOf(before?.optInt(id, 0) ?: 0, required[id] ?: 0))
+                    }
+                }
+                tmp.writeText(JSONObject().put("games", games).put("revisions", revisions).toString())
                 if (!tmp.renameTo(f)) { f.delete(); tmp.renameTo(f) }
             }
         }
@@ -343,7 +354,7 @@ object AutoComponents {
         if (lostFor.isEmpty()) return emptyList()
         val lost = lostFor.values.flatten().distinct()
         Log.i(TAG, "wincomp: reinstalling ${lost.joinToString()}, picked for games but missing from the runtime")
-        lostFor.forEach { (key, ids) -> Pending.add(context, key, ids) }
+        lostFor.forEach { (key, ids) -> Pending.add(context, key, ids, catalog.mapValues { it.value.revision }) }
         lost.forEach { queueDownload(context, it, asked = true, inSession = true) }
         return lost
     }

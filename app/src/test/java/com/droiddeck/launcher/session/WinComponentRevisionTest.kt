@@ -35,6 +35,12 @@ class WinComponentRevisionTest {
         assertNull(WinComponents.installedVersion(directory, 3))
     }
 
+    @Test fun outdatedComponentsRemainDownloadedForOfflineControls() {
+        val directory = installed()
+        assertNull(WinComponents.installedVersion(directory, 1))
+        assertEquals(listOf(directory.name), WinComponents.downloadedIds(directory.parentFile))
+    }
+
     @Test fun missingOrInvalidInstallMetadataNeedsInstallation() {
         val directory = temp.newFolder()
         assertNull(WinComponents.installedVersion(directory, 0))

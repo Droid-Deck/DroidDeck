@@ -290,6 +290,32 @@ class WinCompSourcesTest {
         assertEquals(3, AutoComponents.cachedFindings(app, "1262580")!!.count { it.auto })
     }
 
+    @Test fun downloadCallbacksReuseTheCatalogInsteadOfRefreshingAgain() = withFakeWorker {
+        val requests = ArrayList<Boolean>()
+        AutoComponents.catalogOf = { _, network -> requests.add(network); catalog3 }
+        AutoComponents.queueGame(app, payback(), asked = true)
+        assertEquals(3, downloaded.size)
+        assertEquals(1 + downloaded.size, requests.count { it })
+    }
+
+    @Test fun pendingRepairsKeepTheirRequiredRevisionUntilTheyFinish() = withFakeWorker {
+        val repair = WinComponents.Component("vcredist2010_dll", "", "", "ready", emptyList(), emptyList(), revision = 2)
+        AutoComponents.catalogOf = { _, _ -> catalog3 + repair }
+        WinComponents.setUser(app, "4242", repair.name, true)
+        session = true
+        gameUp = true
+        AutoComponents.restoreMissing(app)
+        val pending = File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app), "root/.config/droiddeck/wincomponents-pending.json")
+        fun revision() = JSONObject(pending.readText()).getJSONObject("revisions").getInt(repair.name)
+        assertEquals(2, revision())
+        AutoComponents.Pending.add(app, "other", listOf(repair.name), mapOf(repair.name to 1))
+        AutoComponents.Pending.set(app, "4242", listOf(repair.name))
+        assertEquals(2, revision())
+        gameUp = false
+        AutoComponents.drain(app)
+        assertFalse(JSONObject(pending.readText()).getJSONObject("revisions").has(repair.name))
+    }
+
     @Test fun theQueueWaitsWhileASessionRunsAndResumesAfter() = withFakeWorker {
         val game = payback()
         session = true

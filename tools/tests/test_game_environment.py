@@ -2191,23 +2191,32 @@ class UbisoftOverlayTest(unittest.TestCase):
 
 
 class UbisoftCompositionTest(unittest.TestCase):
-    def test_only_ubisoft_browser_processes_disable_direct_composition(self):
+    def test_imports_through_wine_without_replacing_a_live_servers_registry(self):
         with tempfile.TemporaryDirectory() as tmp:
             prefix = Path(tmp) / "pfx"
             (prefix / MODULE["UBISOFT_LAUNCHER"]).mkdir(parents=True)
             registry = prefix / "user.reg"
-            original = 'WINE REGISTRY Version 2\n\n[Software\\\\Wine\\\\AppDefaults\\\\FarCry3.exe\\\\DllOverrides] 1\n"dcomp"="native"\n'
-            registry.write_text(original)
-            env = {"STEAM_COMPAT_DATA_PATH": tmp}
-            MODULE["ubisoft_composition_off"](env)
-            updated = registry.read_text()
-            self.assertIn(original.strip(), updated)
-            module = runpy.run_path(str(BIN / "droiddeck-wincomponents"))
-            reg = module["RegistryFile"](registry)
+            registry.write_text("registry last saved by Wine\n")
+            env = {"STEAM_COMPAT_DATA_PATH": tmp, "WINESERVER": "/selected/wineserver"}
+            payloads = []
+
+            def import_registry(argv, **kwargs):
+                self.assertEqual(argv[:4], ["/selected/proton", "run", "regedit.exe", "/S"])
+                self.assertIs(kwargs["env"], env)
+                self.assertTrue(kwargs["check"])
+                self.assertEqual(registry.read_text(), "registry last saved by Wine\n")
+                payloads.append(Path(argv[4]).read_text(encoding="utf-16"))
+                registry.write_text("newer state saved by the active Wine server\n")
+
+            with mock.patch("subprocess.run", side_effect=import_registry) as run:
+                MODULE["ubisoft_composition_off"]("/selected/proton", env)
+            self.assertEqual(run.call_count, 1)
+            self.assertEqual(registry.read_text(), "newer state saved by the active Wine server\n")
             for program in ("upc.exe", "UplayWebCore.exe"):
-                self.assertEqual(reg.get("Software\\Wine\\AppDefaults\\%s\\DllOverrides" % program, "dcomp"), '"dcomp"=""')
-            MODULE["ubisoft_composition_off"](env)
-            self.assertEqual(registry.read_text(), updated)
+                self.assertIn("[HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\%s\\DllOverrides]" % program, payloads[0])
+            self.assertEqual(payloads[0].count('"dcomp"=""'), 2)
+            self.assertNotIn("FarCry3", payloads[0])
+            self.assertEqual(list(prefix.glob(".ubisoft-*.reg")), [])
 
     def test_other_prefixes_and_uninitialized_registries_are_untouched(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -2216,12 +2225,23 @@ class UbisoftCompositionTest(unittest.TestCase):
             registry = prefix / "user.reg"
             registry.write_text("WINE REGISTRY Version 2\n")
             env = {"STEAM_COMPAT_DATA_PATH": tmp}
-            MODULE["ubisoft_composition_off"](env)
-            self.assertEqual(registry.read_text(), "WINE REGISTRY Version 2\n")
-            registry.unlink()
+            with mock.patch("subprocess.run") as run:
+                MODULE["ubisoft_composition_off"]("proton", env)
+                self.assertEqual(registry.read_text(), "WINE REGISTRY Version 2\n")
+                registry.unlink()
+                (prefix / MODULE["UBISOFT_LAUNCHER"]).mkdir(parents=True)
+                MODULE["ubisoft_composition_off"]("proton", env)
+                self.assertFalse(registry.exists())
+                run.assert_not_called()
+
+    def test_failed_registry_import_keeps_the_game_launch_available(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prefix = Path(tmp) / "pfx"
             (prefix / MODULE["UBISOFT_LAUNCHER"]).mkdir(parents=True)
-            MODULE["ubisoft_composition_off"](env)
-            self.assertFalse(registry.exists())
+            (prefix / "user.reg").write_text("WINE REGISTRY Version 2\n")
+            with mock.patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "proton")):
+                MODULE["ubisoft_composition_off"]("proton", {"STEAM_COMPAT_DATA_PATH": tmp})
+            self.assertEqual(list(prefix.glob(".ubisoft-*.reg")), [])
 
 
 if __name__ == "__main__":
