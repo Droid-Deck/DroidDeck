@@ -559,6 +559,8 @@ internal fun SetupPanel(
                             androidx.compose.material3.HorizontalDivider()
                             Text(stringResource(R.string.setup_log_sessions), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
+                            Text(stringResource(R.string.setup_log_export_hint), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 8.dp))
                             val sessionLogs = remember(ctx, logsRefresh) { com.droiddeck.launcher.session.SessionLogShare.sessions(ctx).asReversed() }
                             if (sessionLogs.isEmpty()) {
                                 Text(stringResource(R.string.setup_log_empty), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -566,15 +568,23 @@ internal fun SetupPanel(
                             }
                             sessionLogs.forEach { folder ->
                                 val active = folder == com.droiddeck.launcher.session.SessionPaths.current()
+                                var details by remember(folder) { mutableStateOf<com.droiddeck.launcher.session.SessionLogShare.Details?>(null) }
+                                LaunchedEffect(folder, logsRefresh) {
+                                    details = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                        com.droiddeck.launcher.session.SessionLogShare.details(folder)
+                                    }
+                                }
                                 Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
                                     Text(folder.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground,
                                         maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text(
-                                        stringResource(R.string.setup_log_size_date,
-                                            android.text.format.Formatter.formatShortFileSize(ctx, com.droiddeck.launcher.session.SessionLogShare.folderSize(folder)),
-                                            java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(com.droiddeck.launcher.session.SessionLogShare.folderModified(folder)))),
-                                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
+                                    details?.let { detail ->
+                                        Text(
+                                            stringResource(R.string.setup_log_size_date,
+                                                android.text.format.Formatter.formatShortFileSize(ctx, detail.sizeBytes),
+                                                java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(detail.modifiedAt))),
+                                            fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
                                     if (active) Text(stringResource(R.string.setup_log_current), fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
                                     Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         SecondaryButton(stringResource(R.string.setup_log_share), enabled = com.droiddeck.launcher.session.SessionLogShare.progress == null, compact = true, modifier = Modifier.weight(1f)) { a.onShareSessionLog(folder) }

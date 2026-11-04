@@ -19,6 +19,8 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 object SessionLogShare {
+    data class Details(val sizeBytes: Long, val modifiedAt: Long)
+
     private val main = Handler(Looper.getMainLooper())
 
     var progress by mutableStateOf<Float?>(null)
@@ -44,9 +46,15 @@ object SessionLogShare {
             .sortedWith(SessionPaths.chronological)
     }
 
-    fun folderSize(folder: File): Long = folder.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-
-    fun folderModified(folder: File): Long = folder.walkTopDown().filter { it.isFile }.maxOfOrNull { it.lastModified() } ?: folder.lastModified()
+    fun details(folder: File): Details {
+        var size = 0L
+        var modified = folder.lastModified()
+        folder.walkTopDown().filter { it.isFile }.forEach { file ->
+            size += file.length()
+            modified = maxOf(modified, file.lastModified())
+        }
+        return Details(size, modified)
+    }
 
     fun deleteSession(context: Context, folder: File): Boolean {
         if (runCatching { SessionPaths.current()?.canonicalFile == folder.canonicalFile }.getOrDefault(false)) return false

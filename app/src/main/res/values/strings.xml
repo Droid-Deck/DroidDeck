@@ -921,6 +921,7 @@
     <string name="setup_clear_logs">Clear logs</string>
     <string name="setup_log_sessions">Available session logs</string>
     <string name="setup_log_empty">No saved session logs yet.</string>
+    <string name="setup_log_export_hint">Shared and saved ZIPs include the selected session plus related Steam, store, tool, and Battle.net diagnostics.</string>
     <string name="setup_log_size_date">%1$s · %2$s</string>
     <string name="setup_log_current">Current session</string>
     <string name="setup_log_share">Share</string>
