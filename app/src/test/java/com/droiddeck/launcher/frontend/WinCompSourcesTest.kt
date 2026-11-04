@@ -324,7 +324,7 @@ class WinCompSourcesTest {
         var attempts = 0
         AutoComponents.installer = { _, c, _, _ ->
             attempts++
-            if (attempts == 1) "network unavailable" else { installedNow.add(c.name); null }
+            if (attempts == 1) throw IllegalStateException("network unavailable") else { installedNow.add(c.name); null }
         }
         session = true
         gameUp = true
@@ -335,12 +335,41 @@ class WinCompSourcesTest {
         AutoComponents.drain(app)
         assertEquals("network unavailable", AutoComponents.repairFailures.value[repair.name])
         assertEquals(1, attempts)
+        assertFalse(JSONObject(pending.readText()).getJSONObject("games").has("4242"))
         session = false
         AutoComponents.queueRepair(app, repair.name, "4242", repair.revision)
         assertEquals(2, attempts)
         assertEquals(null, AutoComponents.repairFailures.value[repair.name])
         assertTrue(repair.name in installedNow)
         assertFalse(JSONObject(pending.readText()).getJSONObject("revisions").has(repair.name))
+    }
+
+    @Test fun anEarlierRepairCannotDropANewerGamesPendingRevision() = withFakeWorker {
+        session = false
+        gameUp = false
+        val first = WinComponents.Component("vcredist2010_dll", "", "", "ready", emptyList(), emptyList(), revision = 2)
+        val newer = WinComponents.Component("vcredist2010_dll", "", "", "ready", emptyList(), emptyList(), revision = 3)
+        AutoComponents.catalogOf = { _, _ -> catalog3 + first }
+        var attempts = 0
+        AutoComponents.installer = { _, c, _, _ ->
+            attempts++
+            if (attempts == 1) {
+                AutoComponents.catalogOf = { _, _ -> catalog3 + newer }
+                session = true
+                gameUp = true
+                AutoComponents.queueRepair(app, c.name, "other", newer.revision)
+            } else installedNow.add(c.name)
+            null
+        }
+        AutoComponents.queueRepair(app, first.name, "first", first.revision)
+        val pending = File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app), "root/.config/droiddeck/wincomponents-pending.json")
+        assertEquals(3, JSONObject(pending.readText()).getJSONObject("revisions").getInt(first.name))
+        assertEquals(listOf(first.name), AutoComponents.Pending.ids(app, "other"))
+        gameUp = false
+        session = false
+        AutoComponents.drain(app)
+        assertEquals(2, attempts)
+        assertFalse(JSONObject(pending.readText()).getJSONObject("revisions").has(first.name))
     }
 
     @Test fun theQueueWaitsWhileASessionRunsAndResumesAfter() = withFakeWorker {

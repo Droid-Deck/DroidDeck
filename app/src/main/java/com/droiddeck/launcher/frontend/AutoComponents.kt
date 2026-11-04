@@ -58,12 +58,12 @@ object AutoComponents {
         if (job.pics != null) return
         val flow = if (job.component != null) pendingComponents else pendingGames
         val id = job.component ?: job.game?.let { appKey(it) } ?: return
-        flow.value = if (on) flow.value + id else flow.value - id
+        flow.value = if (on || job.component != null && job.key in queuedKeys) flow.value + id else flow.value - id
     }
 
     internal class Job(
         val game: Library.SteamGame?, val component: String?, val asked: Boolean, val seq: Long, val pics: List<Int>? = null,
-        val inSession: Boolean = false,
+        val inSession: Boolean = false, val revision: Int? = null,
     ) {
         val key get() = when {
             pics != null -> "pics"
@@ -90,19 +90,21 @@ object AutoComponents {
         if (!WinComponents.validId(id)) return
         gameKey?.let { Pending.add(context, it, listOf(id), mapOf(id to revision)) }
         repairFailures.value = repairFailures.value - id
-        queueDownload(context, id, asked = true, inSession = gameKey != null)
+        queueDownload(context, id, asked = true, inSession = gameKey != null, revision = revision)
     }
 
-    private fun queueDownload(context: Context, id: String, asked: Boolean, inSession: Boolean = false) =
-        enqueue(context, Job(null, id, asked, seq.incrementAndGet(), inSession = inSession))
+    private fun queueDownload(context: Context, id: String, asked: Boolean, inSession: Boolean = false, revision: Int? = null) =
+        enqueue(context, Job(null, id, asked, seq.incrementAndGet(), inSession = inSession, revision = revision))
 
     private fun enqueue(context: Context, job: Job) {
         if (!queuedKeys.add(job.key)) {
             synchronized(jobs) {
                 val old = jobs.firstOrNull { it.key == job.key }
-                if (old != null && ((job.asked && !old.asked) || (job.inSession && !old.inSession)) && jobs.remove(old)) {
+                val revision = listOfNotNull(old?.revision, job.revision).maxOrNull()
+                if (old != null && ((job.asked && !old.asked) || (job.inSession && !old.inSession) || revision != old.revision) && jobs.remove(old)) {
                     jobs.add(Job(old.game ?: job.game, old.component, old.asked || job.asked,
-                        if (job.asked && !old.asked) job.seq else old.seq, old.pics ?: job.pics, old.inSession || job.inSession))
+                        if (job.asked && !old.asked) job.seq else old.seq, old.pics ?: job.pics,
+                        old.inSession || job.inSession, revision))
                 }
             }
             if (runNow && !draining) drain(context)
@@ -173,12 +175,15 @@ object AutoComponents {
         try {
             when {
                 job.pics != null -> SteamAppInfo.lookup(context, job.pics)
-                job.component != null -> download(context, job.component, job.asked, job.inSession)
+                job.component != null -> download(context, job.component, job.asked, job.inSession, job.revision)
                 else -> job.game?.let { apply(context, it, job.asked, job.inSession) }
             }
         } catch (e: Exception) {
             Log.w(TAG, "wincomp: ${job.key}: ${e.javaClass.simpleName}: ${e.message}")
-            job.component?.let { repairFailures.value = repairFailures.value + (it to (e.message ?: "Install failed")) }
+            job.component?.let {
+                repairFailures.value = repairFailures.value + (it to (e.message ?: "Install failed"))
+                Pending.drop(context, it, job.revision)
+            }
         } finally {
             mark(job, false)
             changes.value = changes.value + 1
@@ -209,7 +214,7 @@ object AutoComponents {
             if (id in installed) { kept[id] = reason; continue }
             if (id in before) kept[id] = reason
             synchronized(waiting) { waiting.getOrPut(id) { ArrayList() }.let { if (it.none { g -> appKey(g) == key }) it.add(game) } }
-            queueDownload(context, id, asked, inSession)
+            queueDownload(context, id, asked, inSession, catalog[id]?.revision)
             missing.add(id)
         }
         if (inSession) Pending.set(context, key, (Pending.ids(context, key).filter { it !in installed && it !in wanted } + missing).distinct(),
@@ -221,10 +226,10 @@ object AutoComponents {
         changes.value = changes.value + 1
     }
 
-    private fun download(context: Context, id: String, asked: Boolean, inSession: Boolean = false) {
+    private fun download(context: Context, id: String, asked: Boolean, inSession: Boolean = false, requestedRevision: Int? = null) {
         val catalog = catalogOf(context, true)?.associateBy { it.name } ?: run {
             repairFailures.value = repairFailures.value + (id to "Could not load the component catalog")
-            Pending.drop(context, id)
+            Pending.drop(context, id, requestedRevision)
             return
         }
         if (id !in installedOf(context)) {
@@ -243,15 +248,15 @@ object AutoComponents {
             if (problem != null) {
                 repairFailures.value = repairFailures.value + (id to problem)
                 Log.w(TAG, "wincomp: $id did not install: $problem")
-                Pending.drop(context, id)
+                Pending.drop(context, id, maxOf(requestedRevision ?: 0, c.revision))
                 return
             }
             Log.i(TAG, "wincomp: $id installed in ${System.currentTimeMillis() - started}ms")
         }
+        Pending.drop(context, id, maxOf(requestedRevision ?: 0, catalog[id]?.revision ?: 0))
         val games = synchronized(waiting) { waiting.remove(id).orEmpty() }
         games.forEach { apply(context, it, asked, inSession, knownCatalog = catalog) }
         repairFailures.value = repairFailures.value - id
-        Pending.drop(context, id)
     }
 
     internal object Pending {
@@ -276,8 +281,10 @@ object AutoComponents {
             write(context, games, revisions)
         }
 
-        @Synchronized fun drop(context: Context, id: String) {
+        @Synchronized fun drop(context: Context, id: String, throughRevision: Int? = null) {
             val games = read(context)
+            val required = runCatching { JSONObject(file(context).readText()).optJSONObject("revisions")?.optInt(id, 0) ?: 0 }.getOrDefault(0)
+            if (throughRevision != null && required > throughRevision) return
             for (k in games.keys().asSequence().toList()) {
                 val left = games.optJSONArray(k)?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty() - id
                 if (left.isEmpty()) games.remove(k) else games.put(k, JSONArray(left))
@@ -379,7 +386,7 @@ object AutoComponents {
         val lost = lostFor.values.flatten().distinct()
         Log.i(TAG, "wincomp: reinstalling ${lost.joinToString()}, picked for games but missing from the runtime")
         lostFor.forEach { (key, ids) -> Pending.add(context, key, ids, catalog.mapValues { it.value.revision }) }
-        lost.forEach { queueDownload(context, it, asked = true, inSession = true) }
+        lost.forEach { queueDownload(context, it, asked = true, inSession = true, revision = catalog[it]?.revision) }
         return lost
     }
 
