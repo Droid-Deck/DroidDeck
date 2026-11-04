@@ -22,13 +22,12 @@ internal class ProtonMenu(
 ) {
     private object Operation {
         val rows = mutableStateOf<List<ProtonRow>>(emptyList())
-        val busyId = mutableStateOf<String?>(null)
         val stage = mutableStateOf<String?>(null)
         val percent = mutableIntStateOf(-1)
         val problem = mutableStateOf<String?>(null)
     }
     var protonRows by Operation.rows
-    var protonBusyId by Operation.busyId
+    var protonBusyId by LauncherJobs::protonBusyId
     var protonStage by Operation.stage
     var protonPercent by Operation.percent
     var protonProblem by Operation.problem
