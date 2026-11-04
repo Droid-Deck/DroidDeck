@@ -66,7 +66,7 @@ class SecondScreenPresentation(
         private set
     private val root = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
-        setBackgroundColor(Color.rgb(15, 18, 22))
+        setBackgroundColor(Color.BLACK)
         isFocusableInTouchMode = true
     }
     private var currentMode = SecondScreenMode.NONE
