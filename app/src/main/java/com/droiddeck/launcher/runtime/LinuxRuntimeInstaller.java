@@ -130,7 +130,8 @@ public final class LinuxRuntimeInstaller {
         }
         if (!owner) return join(job, listener);
         try {
-            job.ok = installOnce(context.getApplicationContext(), release, new ProgressListener() {
+            Context app = context.getApplicationContext();
+            ProgressListener progress = new ProgressListener() {
                 @Override public void onProgress(String stage, int percent) {
                     onProgress(Step.OTHER, stage, percent);
                 }
@@ -141,7 +142,10 @@ public final class LinuxRuntimeInstaller {
                     job.percent = percent;
                     for (ProgressListener l : job.listeners) l.onProgress(step, stage, percent);
                 }
-            });
+            };
+            boolean desktop = DesktopCatalog.INSTANCE.desktopInstalled(app);
+            job.ok = installOnce(app, release, progress);
+            if (job.ok && desktop) keepDesktop(app, progress);
             return job.ok;
         } finally {
             synchronized (JOB_LOCK) {
@@ -149,6 +153,28 @@ public final class LinuxRuntimeInstaller {
             }
             job.done.countDown();
         }
+    }
+
+    private static void keepDesktop(Context context, ProgressListener progress) {
+        String problem;
+        try {
+            problem = DesktopCatalog.INSTANCE.install(context, DesktopCatalog.INSTANCE.desktopEntry(context), progress);
+        } catch (RuntimeException e) {
+            problem = e.toString();
+        }
+        if (problem == null) {
+            Log.i(TAG, "desktop installed again for the new runtime");
+            return;
+        }
+        Log.w(TAG, "desktop not installed again for the new runtime: " + problem);
+        boolean started = false;
+        for (DesktopCatalog.Entry entry : DesktopCatalog.INSTANCE.interrupted(context)) {
+            if (DesktopCatalog.DESKTOP_ID.equals(entry.getId())) started = true;
+        }
+        if (!started) return;
+        String undone = DesktopCatalog.INSTANCE.removeDesktop(context, progress);
+        if (undone == null) Log.i(TAG, "rolled back the partial desktop install");
+        else Log.w(TAG, "could not roll back the partial desktop install: " + undone);
     }
 
     public static boolean isInstalling() {
@@ -244,10 +270,6 @@ public final class LinuxRuntimeInstaller {
         }
     }
 
-    /**
-     * The download is named after the release, so a partial file is only ever resumed for the same
-     * version and checksum, never for a different runtime that happens to share a fixed name.
-     */
     static String archiveName(Release release) {
         String version = release.version.replaceAll("[^A-Za-z0-9._-]", "_");
         String sum = release.sha256.replaceAll("[^A-Za-z0-9]", "");
@@ -255,7 +277,6 @@ public final class LinuxRuntimeInstaller {
         return "linuxfs-" + version + "-" + sum + ".tar.zst";
     }
 
-    /** Removes archives left by other releases and by builds that used the fixed name. */
     private static void deleteOtherArchives(File dir, String keep) {
         File[] files = dir.listFiles((d, name) -> name.startsWith("linuxfs") && name.endsWith(".tar.zst") && !name.equals(keep));
         if (files == null) return;
@@ -264,8 +285,6 @@ public final class LinuxRuntimeInstaller {
 
     private static boolean installOnce(Context context, Release release, ProgressListener listener) {
         File archive = new File(context.getCacheDir(), archiveName(release));
-        // A failed download keeps what it fetched so the next attempt resumes it; anything that
-        // reached verification and failed is not trusted and is removed.
         boolean keepPartial = false;
         try {
             deleteOtherArchives(context.getCacheDir(), archive.getName());
@@ -526,8 +545,6 @@ public final class LinuxRuntimeInstaller {
         }
     }
 
-    // Packages extract over the live runtime and their archives list a link before the file it
-    // names, so a kill mid-way must leave neither a truncated file nor a link to a missing one.
     public static boolean extract(Context context, File archive, File destination, ProgressListener listener) {
         return extract(context, archive, destination, destination, listener);
     }

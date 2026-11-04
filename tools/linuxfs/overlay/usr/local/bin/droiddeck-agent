@@ -1,22 +1,4 @@
 #!/usr/bin/python3
-"""The guest side of the agent bridge (docs/agent-control.md).
-
-Started by droiddeck-session inside the session, so whatever it runs has the session's own
-environment: DISPLAY, the games' Xwayland, XDG_RUNTIME_DIR, and the preloads every guest process
-gets - which is what lets it reach the Steam client's DevTools port, open to guest processes only.
-
-The app talks to it through files under $BL_LAUNCH_DIR/agent (the session root, the same path on
-both sides):
-
-    req/<id>.json    a request the app wrote (tmp + rename)
-    resp/<id>.json   the answer, written the same way
-    hello.json       this daemon is up: pid, version, what it can do
-    focus.json       gamescope's focus and every server's top-level windows, rewritten on change
-    cdp-port         the client's DevTools port, written by droiddeck-session
-
-Requests: ping, exec, focus, cdp, quit. Each answer is {"ok": true, ...} or
-{"ok": false, "error": {"code", "message"}}.
-"""
 
 import base64
 import json
@@ -72,7 +54,6 @@ class AgentError(Exception):
 
 
 class X:
-    """One connection to an Xwayland server. The rootfs has xprop but no python X library."""
 
     def __init__(self, display):
         num = display.lstrip(":").split(".")[0]
@@ -116,7 +97,6 @@ class X:
         return buf
 
     def request(self, data):
-        """Send one request and return its reply, or None for an X error (a window that went)."""
         self.s.sendall(data)
         while True:
             head = self._read(32)
@@ -186,7 +166,6 @@ class X:
 
 
 def windows(x):
-    """Top-level windows that are mapped or carry an app id: what gamescope picks focus from."""
     out = []
     for win in x.children(x.root):
         attrs = x.attributes(win)
@@ -230,9 +209,6 @@ def displays():
 
 
 def focus_snapshot():
-    """gamescope's focus as Steam sees it (root properties on the client's server) and every
-    server's windows. GAMESCOPE_FOCUSABLE_WINDOWS is the list the client orders the base layer
-    from: a game missing there stays behind the client however healthy its window looks."""
     shown = displays()
     if not shown:
         raise AgentError("NO_DISPLAY", "This session has no X display")
@@ -349,7 +325,6 @@ def tag_game_windows(snap, proc=Path("/proc")):
 
 
 def vr_scene_app(path=Path('/run/droiddeck/droiddeck-steamvr/scene-focus.json'), proc=Path('/proc')):
-    """Only a live SteamVR scene with its dashboard hidden may claim game focus."""
     try:
         state = json.loads(path.read_text())
         server, scene = int(state['serverPid']), int(state['scenePid'])
@@ -385,8 +360,6 @@ class VrSceneFocus:
 
 
 class FocusWatcher(threading.Thread):
-    """Rewrites focus.json when gamescope's focus properties change, and every few seconds when
-    the windows do (a window can change without any root property moving)."""
 
     def __init__(self, path):
         super().__init__(daemon=True, name="focus")
@@ -450,7 +423,6 @@ class FocusWatcher(threading.Thread):
 
 
 class WebSocket:
-    """A minimal RFC 6455 client: text frames out, text frames in. Enough for CDP."""
 
     def __init__(self, url, timeout):
         target = urllib.parse.urlsplit(url)
@@ -887,11 +859,6 @@ def steam_selection(agent_dir, timeout=5):
 
 
 def steam_shortcut_app_id(game_id):
-    """Return the 32-bit app id in Steam's shortcut CGameID form, or None for other ids.
-
-    DroidDeck's shortcut IDs are `(appid << 32) | 0x02000000`. The URL still needs that full
-    CGameID for RunGame; the app-details API separately needs the unsigned 32-bit app id.
-    """
     if not isinstance(game_id, str) or not game_id.isascii() or not game_id.isdigit():
         return None
     try:
@@ -907,7 +874,6 @@ def steam_shortcut_app_id(game_id):
 
 
 def wait_for_steam_shortcut_overview(agent_dir, game_id, timeout=45):
-    """Wait until Steam can map a shortcut CGameID to its 32-bit app overview."""
     app_id = steam_shortcut_app_id(game_id)
     if app_id is None:
         return {"supported": False, "ready": False}
@@ -962,8 +928,6 @@ def steam_shortcut_state(agent_dir, game_id, timeout=6):
 
 
 def game_pids(app_id):
-    """Our processes started for this Steam app (Steam sets SteamAppId / SteamGameId in their
-    environment, and Proton's wine processes inherit it)."""
     wanted = [("SteamAppId=%s" % app_id).encode(), ("SteamGameId=%s" % app_id).encode()]
     me = os.getpid()
     pids = []
@@ -1022,8 +986,6 @@ VR_ACTIONS = ("status", "install", "start", "stop")
 
 
 def steamvr(req):
-    """Cardboard mode's SteamVR: a fixed helper with four actions, unlike exec (no command line from
-    the request). install downloads 571 MB, so it runs detached and status reports it."""
     action = req.get("action", "status")
     if action not in VR_ACTIONS:
         raise AgentError("INVALID_REQUEST", "vr action must be one of " + ", ".join(VR_ACTIONS))
@@ -1244,11 +1206,10 @@ def main(argv):
         if len(argv) != 2 or not argv[1].isascii() or not argv[1].isdecimal():
             print("usage: droiddeck-agent --steam-supports-vr <appid>", file=sys.stderr)
             return 2
-        # Optional-VR games (Thumper, VRChat) carry vr_supported without vr_only.
         expression = ("(o => o ? (o.vr_supported === true || o.vr_only === true) : null)"
                       "(window.appStore?.GetAppOverviewByGameID?.(%s))" % json.dumps(argv[1]))
         value = None
-        deadline = time.monotonic() + 12  # Steam's UI is busiest while a game starts.
+        deadline = time.monotonic() + 12
         while value is None and time.monotonic() < deadline:
             try:
                 value = cdp_eval(Path(base) / "agent", expression, await_promise=False, timeout=8).get("value")

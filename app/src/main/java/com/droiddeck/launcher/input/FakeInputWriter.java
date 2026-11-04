@@ -612,7 +612,6 @@ public class FakeInputWriter {
             for (int i = 0; i < length; i++) output[9 + i] = ring.get(TRITON_OUTPUT_OFFSET + i);
             nativeStoreFence();
             if (seq != ring.getLong(TRITON_OUTPUT_SEQ_OFFSET)) return null;
-            // Acknowledge the exact report sequence taken so a concurrent timeout overwrite cannot lose its length.
             ring.putInt(TRITON_OUTPUT_ACK_OFFSET, (int) seq);
             nativeStoreFence();
             return output;

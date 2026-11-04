@@ -1,6 +1,3 @@
-"""droiddeck-store-launch: a launch from anywhere - the Steam client's own Play button included -
-asks the app for an Epic game's sign-in code before Proton starts. These pin how it recognises a
-store game, how it asks, and that both Proton launchers call it."""
 import importlib.machinery
 import importlib.util
 import json
@@ -440,6 +437,120 @@ class GogRegistry(unittest.TestCase):
                 '[HKEY_LOCAL_MACHINE\\Software\\Empty]',
             ], entries)
             self.assertEqual(3, skipped)
+
+    def test_a_game_whose_support_installer_cannot_run_gets_the_install_registry(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='1207658924')
+            (folder / 'goggame-1207658924.info').write_text(json.dumps({'language': 'English', 'languages': ['en-US']}))
+            gog_script(folder, '1207658924', [
+                {'install': {'action': 'Execute', 'arguments': {'executable': 'galaxy_the_witcher_enhanced_edition_2.1.0.15.exe'}}},
+            ])
+            entries, skipped = store.gog_registry(folder)
+            app = store.windows_path(str(folder)).replace('\\', '\\\\')
+            self.assertEqual([
+                '[HKEY_LOCAL_MACHINE\\Software\\CD Projekt Red\\The Witcher]\r\n"InstallFolder"="%s\\\\"' % app,
+                '[HKEY_LOCAL_MACHINE\\Software\\CD Projekt Red\\The Witcher]\r\n"RegionVersion"="US"',
+                '[HKEY_LOCAL_MACHINE\\Software\\CD Projekt Red\\The Witcher]\r\n"IsDjinniInstalled"=dword:00000001',
+                '[HKEY_LOCAL_MACHINE\\Software\\CD Projekt Red\\The Witcher]\r\n"Language"="3"',
+                '[HKEY_CURRENT_USER\\Software\\CD Projekt RED\\Witcher\\Settings]\r\n"TextLanguage"="3"',
+                '[HKEY_CURRENT_USER\\Software\\CD Projekt RED\\Witcher\\Settings]\r\n"VoiceLanguage"="3"',
+            ], entries)
+            self.assertEqual(0, skipped)
+
+    def test_a_players_language_choice_is_not_overwritten(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='1207658924')
+            (folder / 'goggame-1207658924.info').write_text(json.dumps({'languages': ['en-US']}))
+            proton = Path(root) / 'proton'
+            proton.write_text('selected Proton')
+            data = Path(root) / 'compat'
+            (data / 'pfx').mkdir(parents=True)
+            (data / 'pfx/user.reg').write_text(
+                '[Software\\\\OtherApp] 1\n"InstallFolder"="C:\\\\Other"\n\n'
+                '[Software\\\\CD Projekt RED\\\\Witcher\\\\Settings] 1\n"TextLanguage"="5"\n')
+            imported = []
+            def run(argv, **kwargs):
+                imported.append(Path(argv[4][2:].replace('\\', '/')).read_bytes()[2:].decode('utf-16-le'))
+                (data / 'pfx/system.reg').write_text('Wine registry')
+                return __import__('subprocess').CompletedProcess(argv, 0)
+            with patch.object(store.subprocess, 'run', side_effect=run):
+                store.apply_gog_registry(folder, str(data), str(proton))
+            text = imported[0]
+            self.assertNotIn('"TextLanguage"', text)
+            self.assertIn('"VoiceLanguage"', text)
+            self.assertIn('"InstallFolder"', text)
+
+    def test_malformed_language_metadata_falls_back_to_english(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='1207658924')
+            (folder / 'goggame-1207658924.info').write_text(json.dumps({'languages': 3}))
+            entries, _ = store.gog_registry(folder)
+            self.assertIn('"Language"="3"', entries[3])
+
+    def test_a_native_hklm_value_does_not_replace_the_32_bit_fallback(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='1207658924')
+            (folder / 'goggame-1207658924.info').write_text(json.dumps({'languages': ['en-US']}))
+            pfx = Path(root) / 'pfx'
+            pfx.mkdir()
+            (pfx / 'system.reg').write_text(
+                '[Software\\\\CD Projekt Red\\\\The Witcher] 1\n"InstallFolder"="C:\\\\Native"\n')
+            entries, _ = store.gog_registry(folder, store.gog_registry_values(pfx))
+            self.assertTrue(any('"InstallFolder"' in entry for entry in entries))
+            (pfx / 'system.reg').write_text(
+                '[Software\\\\Wow6432Node\\\\CD Projekt Red\\\\The Witcher] 1\n"InstallFolder"="C:\\\\32bit"\n')
+            entries, _ = store.gog_registry(folder, store.gog_registry_values(pfx))
+            self.assertFalse(any('"InstallFolder"' in entry for entry in entries))
+
+    def test_a_deleted_fallback_value_is_imported_again(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='1207658924')
+            (folder / 'goggame-1207658924.info').write_text(json.dumps({'languages': ['en-US']}))
+            proton = Path(root) / 'proton'
+            proton.write_text('selected Proton')
+            data = Path(root) / 'compat'
+            pfx = data / 'pfx'
+            pfx.mkdir(parents=True)
+            imported = []
+            def run(argv, **kwargs):
+                imported.append(argv)
+                (pfx / 'system.reg').write_text(
+                    '[Software\\\\Wow6432Node\\\\CD Projekt Red\\\\The Witcher] 1\n'
+                    '"InstallFolder"="C:\\\\Game"\n"RegionVersion"="US"\n'
+                    '"IsDjinniInstalled"=dword:00000001\n"Language"="3"\n')
+                (pfx / 'user.reg').write_text(
+                    '[Software\\\\CD Projekt RED\\\\Witcher\\\\Settings] 1\n'
+                    '"TextLanguage"="3"\n"VoiceLanguage"="3"\n')
+                return __import__('subprocess').CompletedProcess(argv, 0)
+            with patch.object(store.subprocess, 'run', side_effect=run):
+                self.assertEqual('written=6', store.apply_gog_registry(folder, str(data), str(proton)))
+                self.assertEqual('none', store.apply_gog_registry(folder, str(data), str(proton)))
+                (pfx / 'system.reg').write_text(
+                    '[Software\\\\Wow6432Node\\\\CD Projekt Red\\\\The Witcher] 1\n'
+                    '"RegionVersion"="US"\n"IsDjinniInstalled"=dword:00000001\n"Language"="3"\n')
+                self.assertEqual('written=1', store.apply_gog_registry(folder, str(data), str(proton)))
+            self.assertEqual(2, len(imported))
+
+    def test_the_install_language_selects_the_titles_language_id(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='1207658924')
+            (folder / 'goggame-1207658924.info').write_text(json.dumps({'languages': ['pl-PL']}))
+            entries, _ = store.gog_registry(folder)
+            self.assertIn('"Language"="5"', entries[3])
+
+    def test_a_script_that_sets_registry_keeps_its_own_values(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='1207658924')
+            (folder / 'goggame-1207658924.info').write_text(json.dumps({'languages': ['en-US']}))
+            gog_script(folder, '1207658924', [
+                set_registry(root='HKLM', subkey='Software\\CD Projekt Red\\The Witcher',
+                             valueName='InstallFolder', valueData='{app}\\', valueType='string'),
+            ])
+            entries, _ = store.gog_registry(folder)
+            app = store.windows_path(str(folder)).replace('\\', '\\\\')
+            self.assertEqual([
+                '[HKEY_LOCAL_MACHINE\\Software\\CD Projekt Red\\The Witcher]\r\n"InstallFolder"="%s\\\\"' % app,
+            ], entries)
 
     def test_a_game_without_a_script_starts_without_proton(self):
         with tempfile.TemporaryDirectory() as root:

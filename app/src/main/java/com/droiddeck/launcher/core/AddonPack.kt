@@ -13,15 +13,10 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileInputStream
 
-/**
- * A pack built by CI alongside this APK (tools/packs). Main and release builds publish it to
- * DroidDeck-Components under a content-addressed tag; a PR test build attaches packs that are not there
- * yet to its pr-N release on DroidDeck-CI. The APK pins the pack's SHA-256, so only the bytes this build
- * was made with install, whichever host serves them.
- */
 internal class AddonPack(
     val name: String, private val sha256: String, val size: Long, private val required: List<String>,
     private val reuseDeviceCopy: Boolean = sha256.isEmpty() && !BuildConfig.CI_BUILD,
+    private val bundle: (Context) -> java.io.InputStream = { it.assets.open("packs/$name.tar.zst") },
 ) {
     sealed interface State {
         data object Missing : State
@@ -42,13 +37,11 @@ internal class AddonPack(
     )
 
     private fun root(context: Context) = File(context.filesDir, "addons/$name")
-    /** App-private and written only after the archive matched the pinned digest. */
     fun dir(context: Context) = File(root(context), version(context))
     fun file(context: Context, relative: String) = File(dir(context), relative)
 
     fun installed(context: Context): Boolean = version(context).isNotEmpty() && File(dir(context), COMPLETE).isFile
 
-    // A build made outside CI pins no packs, so it runs the newest one a CI build already verified and installed.
     private fun version(context: Context): String = if (!reuseDeviceCopy) sha256 else deviceCopy(context).orEmpty()
 
     private fun deviceCopy(context: Context): String? = root(context).listFiles().orEmpty()
@@ -65,7 +58,6 @@ internal class AddonPack(
             .also { mutableState.value = it }
     }
 
-    /** Starts the download in the background unless the pack is already present or on its way. */
     fun ensure(context: Context, onReady: (Context) -> Unit = {}) {
         val app = context.applicationContext
         synchronized(lock) {
@@ -80,7 +72,6 @@ internal class AddonPack(
         }
     }
 
-    /** Blocks a worker thread until the pack is installed, starting the download if needed. */
     @JvmOverloads
     fun await(context: Context, running: () -> Boolean = { true }, onState: (State) -> Unit = {}): Boolean {
         if (installed(context)) return true
@@ -104,7 +95,7 @@ internal class AddonPack(
         }
         val root = root(context).apply { mkdirs() }
         val archive = File(root, "$sha256.tar.zst")
-        val downloaded = urls.any { url ->
+        val downloaded = bundled(context, archive) || urls.any { url ->
             Downloader.downloadFile(url, archive, true, sha256) { p -> mutableState.value = State.Downloading(p.coerceIn(0f, 1f)) }
                 .also { if (!it) archive.delete() }
         }
@@ -124,6 +115,16 @@ internal class AddonPack(
         }
         root.listFiles().orEmpty().filter { it.name != sha256 }.forEach { it.deleteRecursively() }
         return true
+    }
+
+    internal fun bundled(context: Context, archive: File): Boolean {
+        val copied = runCatching {
+            bundle(context).use { input -> archive.outputStream().use { input.copyTo(it) } }
+        }.isSuccess
+        if (copied && Hashes.sha256(archive).equals(sha256, ignoreCase = true)) return true
+        if (copied) Log.w(TAG, "$name: the bundled pack does not match the pinned digest")
+        archive.delete()
+        return false
     }
 
     companion object {

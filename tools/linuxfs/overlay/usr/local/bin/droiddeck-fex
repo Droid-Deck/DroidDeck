@@ -329,7 +329,6 @@ def mirror(source, provider, name, target):
 
 
 def build_rootfs(base, provider):
-    """The runtime with glibc and libstdc++ taken from a newer one, which FEX's GL and Vulkan thunks are built against."""
     base_files, provider_files = os.path.join(base, "files"), os.path.join(provider, "files")
     rootfs = os.path.join(STATE, "rootfs")
     stamp = "%d\n%s\n%s%s\n%s" % (ROOTFS_LAYOUT, os.path.realpath(base), read_text(os.path.join(base_files, MARKER)) or "",
@@ -431,8 +430,6 @@ def link_steam_sdk():
 
 
 def link_guest_sdk(root):
-    # Proton's lsteamclient only looks in $HOME/.steam/sdk64; on ARM Steam that is the arm64 client, so
-    # the x86 runtime gets its own link, which FEX resolves before the host path.
     for sdk, candidates in (("sdk64", ("linux64", "ubuntu12_64")), ("sdk32", ("linux32", "ubuntu12_32"))):
         want = "x86_64" if sdk == "sdk64" else "i386"
         directory = next((os.path.join(STEAM_ROOT, candidate) for candidate in candidates
@@ -612,17 +609,13 @@ def guest_environment(fex, env):
     result["FEX_APP_CONFIG_LOCATION"] = CONFIG_DIR + "/"
     result["FEX_APP_DATA_LOCATION"] = data + "/"
     result["FEX_APP_CACHE_LOCATION"] = CACHE_DIR + "/"
-    # Valve's FEX-Emu binds its server socket under $STEAM_COMPAT_DATA_PATH/fex-emu whatever FEX_APP_DATA_LOCATION or
-    # FEX_SERVERSOCKETPATH say, and sun_path is 108 bytes: compatdata under the app's data folder is too long.
     if result.get("STEAM_COMPAT_DATA_PATH"):
         short = data if data != DATA_DIR else "/tmp/fex"
         os.makedirs(short, exist_ok=True)
         result["STEAM_COMPAT_DATA_PATH"] = short
     result.setdefault("FEX_SILENTLOG", "0")
     result.setdefault("FEX_OUTPUTLOG", "stderr")
-    # The session's tunables are for the host libc; an x86 ld.so copying them under FEX fails in sbrk.
     result.pop("GLIBC_TUNABLES", None)
-    # Mono's incremental Boehm collector corrupts its heap under FEX, so Unity games crash at their first collections.
     result.setdefault("GC_DISABLE_INCREMENTAL", "1")
     if fex["portable"]:
         result["FEX_PORTABLE"] = "1"
@@ -713,7 +706,6 @@ def launch(command, env, mode, decide=None):
     folder = decide if decide and os.path.isdir(decide) else os.path.dirname(program)
     if thunks == "on" and x86_64 and os.path.isfile(os.path.join(PRELOADS, "x86_64", VULKAN_PIN)) \
             and vulkan_thunk_loads(fex, folder):
-        # Any LD_AUDIT module makes Mono's garbage collector crash under FEX, so the Vulkan thunk is pinned by search path.
         guest["LD_LIBRARY_PATH"] = ":".join(["/usr/" + VULKAN_PIN_DIR] + split_paths(guest.get("LD_LIBRARY_PATH")))
         thunks = "on, its own Vulkan loader too"
     say("running %s with %s (runtime %s, thunks %s)" % (program, fex["bin"], guest.get("FEX_ROOTFS", "none"), thunks))

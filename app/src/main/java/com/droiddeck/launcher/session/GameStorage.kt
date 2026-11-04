@@ -17,7 +17,6 @@ object GameStorage {
         val primary = context.getExternalFilesDir(null)?.absolutePath
         val primaryStorage = Environment.getExternalStorageDirectory()?.absolutePath
         return context.getExternalFilesDirs(null).orEmpty().filterNotNull().mapNotNull { dir ->
-            // Non-primary app dirs are usable even when Android reports the volume as non-removable (USB SSDs often do).
             if (primary != null && dir.absolutePath == primary) return@mapNotNull null
             if (!primaryStorage.isNullOrBlank() && dir.absolutePath.startsWith("$primaryStorage/")) return@mapNotNull null
             val volume = try { sm?.getStorageVolume(dir) } catch (e: Exception) { null }
@@ -63,12 +62,14 @@ object GameStorage {
     fun gamesFolderLibraries(context: Context): List<Library> {
         if (SessionPrefs.gameStorage(context).isNotEmpty()) return emptyList()
         val card = effective(context)?.let { canonical(File(it.path)) }
+        val added = SteamLibraries.list(context).map { canonical(it.host) }
         val sm = context.getSystemService(StorageManager::class.java)
         return AddedGames.roots(context).mapNotNull { root ->
             val host = canonical(root.host)
             if (!hasInstalledGames(root.host)) return@mapNotNull null
             if ('"' in root.guest || '\\' in root.guest || !root.host.isDirectory || !root.host.canWrite()) return@mapNotNull null
             if (card != null && (host == card || host.startsWith("$card/") || card.startsWith("$host/"))) return@mapNotNull null
+            if (added.any { SteamLibraries.overlaps(it, host) }) return@mapNotNull null
             val volume = try { sm?.getStorageVolume(root.host)?.getDescription(context) } catch (e: Exception) { null }
             val name = root.host.name.ifEmpty { context.getString(R.string.gstore_folder) }
             val label = if (volume.isNullOrBlank()) name else context.getString(R.string.gstore_folder_on_volume, name, volume)

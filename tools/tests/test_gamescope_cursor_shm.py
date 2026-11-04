@@ -106,9 +106,6 @@ def main():
     surface = alloc()
     send(comp, 0, U(surface))
     if not args.unassigned_control:
-        # wlroots 0.20.2 assigns the cursor role before forwarding this serial
-        # to Gamescope, so zero avoids needing pointer focus but still tests the
-        # role guard in xwayland_surface_commit.
         send(pointer, 0, U(0, surface, 0, 0))
     roundtrip()
     before = count()

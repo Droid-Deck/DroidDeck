@@ -28,7 +28,6 @@ int setrlimit(__rlimit_resource_t resource, const struct rlimit *limit) {
         struct rlimit current;
         if (!getrlimit(resource, &current) &&
             (limit->rlim_cur < current.rlim_cur || limit->rlim_max < current.rlim_max)) {
-            // SDL's failed RTKit fallback leaves a fatal RT budget on Android GPU submissions.
             errno = EPERM;
             return -1;
         }

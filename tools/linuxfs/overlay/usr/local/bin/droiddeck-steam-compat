@@ -18,6 +18,19 @@ COMPAT = runpy.run_path(os.path.join(HERE, "steam-compatibility"))
 BINDING = "droiddeckCompatChanged"
 BRIGHTNESS_BINDING = "droiddeckBrightnessChanged"
 CONTROLS_DIR = "/etc/droiddeck-device-controls"
+LIBRARY_ART_JS = r"""
+(() => {
+  if (window.__droiddeckLibraryArt) return "present";
+  const store = typeof appStore === "object" ? appStore : null;
+  if (typeof store?.BHasCachedLibraryAsset !== "function") return "unavailable";
+  // The client reports which cached assets exist only after a logon that reaches Steam; before that every app reads as
+  // uncached and the UI asks the CDN, which is blank offline. The native check still runs, so misses are still reported.
+  const native = store.BHasCachedLibraryAsset.bind(store);
+  store.BHasCachedLibraryAsset = (appid, version, type) => native(appid, version, type) || !version;
+  window.__droiddeckLibraryArt = true;
+  return "installed";
+})()
+"""
 BRIGHTNESS_JS = r"""
 (() => {
   if (window.__droiddeckBrightness) return "present";
@@ -233,10 +246,6 @@ SWITCH_JS = r"""
 })()
 """.replace("__BINDING__", SWITCH_BINDING)
 SESSION_SELECT = "/usr/bin/steamos-session-select"
-# Steam opens its Steam Controller welcome tour at every start while the client setting
-# controller_show_ibex_tour (CMsgClientSettings field 140014) is on, and only a finished tour turns it
-# off; closing it leaves it on. The app's pad is an emulated controller, so the tour never applies.
-# A pending firmware update still opens Steam's updater, which checks the update priority instead.
 TOUR_JS = r"""
 (() => {
   let key = 140014 * 8;
@@ -247,13 +256,6 @@ TOUR_JS = r"""
   return "off";
 })()
 """
-# Steam keeps the Quick Access Frame Limit as the client setting gamescope_app_target_framerate
-# (CMsgClientSettings field 21002) and offers the values gamescope's display state lists in
-# active_display_info.supported_frame_rates. When the panel's refresh rate changes, a remembered
-# limit that is not one of the new values leaves the slider on its first value while the game runs
-# at the old limit. The limit is kept when it is still offered and moved to the highest value
-# otherwise. Choices are read once they have been unchanged for a moment, since a mode switch can
-# report a passing rate first.
 FRAME_LIMIT_JS = r"""
 (() => {
   if (window.__droiddeckFrameLimit) return "present";
@@ -426,7 +428,6 @@ VR_JS = r"""
 
 
 def launch_steamvr():
-    """Keep downloads/startup off the Steam UI bridge's event loop."""
     say("SteamVR library launch: using the DroidDeck ARM64 helper")
     state = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "droiddeck-steamvr")
     try:
@@ -780,7 +781,6 @@ class Helper:
             pass
 
     def sync_frame_limit(self):
-        # Steam can still be loading its settings and gamescope state when the helper attaches.
         if self.frame_limit_state in ("installed", "present") or time.monotonic() < self.frame_limit_retry:
             return
         try:
@@ -806,8 +806,6 @@ class Helper:
             self.finish_chooser(ident, None)
             return
         command = [sys.executable, os.path.realpath(__file__), "--choose-file"]
-        # Gamescope shows the dialog over the client by the AppId on a reaper above it; the x86-64 client has no
-        # native reaper, so the arm64 client's is borrowed when it is installed.
         data = os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share")
         for root in (self.steam_root, os.path.join(data, "Steam")):
             reaper = os.path.join(root, "steamrtarm64", "reaper")
@@ -866,6 +864,7 @@ class Helper:
             if self.files_only:
                 page.call("Runtime.addBinding", {"name": FILE_BINDING})
                 page.evaluate(FILE_JS)
+                page.evaluate(LIBRARY_ART_JS)
                 self.page = page
                 self.controls_state = None
                 self.controls_installed = False
@@ -876,10 +875,10 @@ class Helper:
             page.evaluate(VR_JS)
             page.call("Runtime.addBinding", {"name": FILE_BINDING})
             page.evaluate(FILE_JS)
+            page.evaluate(LIBRARY_ART_JS)
             try:
                 page.evaluate(TOUR_JS)
             except RuntimeError:
-                # The optional tour setting must not block the compat bridge.
                 pass
             if not self.steamos:
                 page.call("Runtime.addBinding", {"name": SWITCH_BINDING})
@@ -916,7 +915,6 @@ class Helper:
             prior_auto = state.get("auto", {})
             if not isinstance(prior_auto, dict):
                 prior_auto = {}
-            # "native" from earlier builds also lists dual-platform games nobody chose to run natively.
             prior_native = state.get("native_choices", ())
             native_choices = set(prior_native if isinstance(prior_native, (list, tuple, set)) else ())
             picked = COMPAT["picked_apps"](state)
@@ -948,7 +946,6 @@ class Helper:
             else:
                 for app in set(native) | native_choices:
                     if app in raw_mapping:
-                        # The client shows an explicit native choice as the tool it inherits, and writes config.vdf late.
                         if raw_mapping[app] == "" or current.get(app) not in self.known:
                             current[app] = raw_mapping[app]
                     elif app in prior_auto or app in native_choices or app in picked and (
@@ -981,7 +978,6 @@ class Helper:
             COMPAT["write_json"](state_file, state)
 
     def ensure_tools(self):
-        """Proton, FEX and the runtimes FEX needs are fetched as soon as the client is up, never left pending."""
         now = time.monotonic()
         if self.tools_checked is not None and now - self.tools_checked < TOOL_CHECK_SECONDS:
             return
@@ -1007,7 +1003,6 @@ class Helper:
         return isinstance(request.get("seq"), int) and request["seq"] > int(state.get("applied", 0) or 0)
 
     def drain(self):
-        """The page's events; a switch to the desktop is acted on as it comes."""
         events = self.page.drain()
         if any(called(e, SWITCH_BINDING) for e in events):
             switch_to_desktop()

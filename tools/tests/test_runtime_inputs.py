@@ -88,6 +88,19 @@ class RuntimeInputsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'sources changed'):
             runtime.verify(self.root)
 
+    def test_dev_loop_can_reuse_assets_from_other_sources(self):
+        runtime.record(self.root)
+        self.source.write_text('new implementation')
+        with mock.patch('sys.stderr', new_callable=io.StringIO) as stderr:
+            runtime.verify(self.root, stale_sources_ok=True)
+        self.assertIn('tools/linuxfs/preload/test.c', stderr.getvalue())
+
+    def test_dev_loop_still_rejects_changed_outputs(self):
+        runtime.record(self.root)
+        (self.root / 'app/src/main/jniLibs/arm64-v8a/libproot.so').write_bytes(b'old APK binary')
+        with self.assertRaisesRegex(ValueError, 'changed runtime input'):
+            runtime.verify(self.root, stale_sources_ok=True)
+
     def test_changed_quest_source_rejects_old_outputs(self):
         source = self.root / 'tools/quest/kgsl_compat.c'
         source.parent.mkdir(parents=True)

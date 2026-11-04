@@ -33,8 +33,8 @@ struct Mapping {
 constexpr int32_t kColorFormatYuv420SemiPlanar = 21;
 constexpr uint32_t kBufferFlagKeyFrame = 1;
 constexpr uint32_t kBufferFlagCodecConfig = 2;
-constexpr int kTouchWidth = 1920, kTouchHeight = 1080;  // InputSpace.kt
-constexpr int kRemoteTouchId = 31;  // the compositor's last touch slot (MAX_TOUCH_POINTS 32)
+constexpr int kTouchWidth = 1920, kTouchHeight = 1080;
+constexpr int kRemoteTouchId = 31;
 
 int32_t avc_profile(int32_t v4l2) {
     switch (v4l2) {
@@ -549,7 +549,7 @@ void serve(int listener) {
     }
 }
 
-}  // namespace
+}
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_droiddeck_launcher_session_VideoEncodeBridge_nativeStart(JNIEnv *env, jobject, jstring jpath) {

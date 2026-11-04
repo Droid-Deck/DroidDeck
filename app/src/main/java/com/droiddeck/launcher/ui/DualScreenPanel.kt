@@ -64,20 +64,23 @@ class DualPanelModel(
 object DualScreenPanel {
     var model by mutableStateOf<DualPanelModel?>(null)
     private var displayId = -1
+    private var presentation: DualScreenPresentation? = null
+        set(value) { field = value; available = value != null || activity != null || launching }
     private var activity: DualScreenActivity? = null
-        set(value) { field = value; available = value != null || launching }
+        set(value) { field = value; available = value != null || presentation != null || launching }
     private var launching = false
-        set(value) { field = value; available = value || activity != null }
+        set(value) { field = value; available = value || activity != null || presentation != null }
     private var ownerTask = -1
     private var ownerYielded = false
+    private var ownerPaused = false
 
     var typing by mutableStateOf<TypingRequest?>(null)
         private set
     var typingShown by mutableStateOf(false)
         private set
 
-    val shownOn: Int get() = if (activity != null || launching) displayId else -1
-    val attached: Boolean get() = activity != null
+    val shownOn: Int get() = if (presentation != null || activity != null || launching) displayId else -1
+    val attached: Boolean get() = presentation != null || activity != null
     var available by mutableStateOf(false)
         private set
 
@@ -120,7 +123,20 @@ object DualScreenPanel {
         displayId = display
         ownerTask = task
         ownerYielded = false
+        ownerPaused = false
         launching = true
+        val host = context as? ComponentActivity
+        val target = host?.getSystemService(Context.DISPLAY_SERVICE)
+            ?.let { (it as android.hardware.display.DisplayManager).getDisplay(display) }
+        if (host != null && target != null) {
+            val shown = runCatching { DualScreenPresentation(host, target).also { it.show() } }
+            if (shown.isSuccess) {
+                presentation = shown.getOrThrow()
+                launching = false
+                return
+            }
+            android.util.Log.w("DualScreenPanel", "bottom panel presentation failed; falling back to an activity", shown.exceptionOrNull())
+        }
         val intent = Intent(context, DualScreenActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
         runCatching {
@@ -132,6 +148,8 @@ object DualScreenPanel {
         stopTyping()
         launching = false
         displayId = -1
+        presentation?.dismiss()
+        presentation = null
         activity?.finishAndRemoveTask()
         activity = null
     }
@@ -142,26 +160,36 @@ object DualScreenPanel {
 
     internal fun attach(host: DualScreenActivity): Boolean {
         if (!launching && activity == null) return false
+        presentation?.dismiss()
+        presentation = null
         if (activity !== host) activity?.finishAndRemoveTask()
         activity = host
         launching = false
         return true
     }
 
-    // The panel resumes when an app opens over the owner on the primary screen; pulling the owner back would hide that app.
     fun yieldTo(task: Int, app: Boolean) {
         if (ownerTask == task) ownerYielded = app
     }
 
-    internal fun returnFocus(context: Context) {
-        if (ownerYielded) return
-        val task = ownerTask.takeIf { it >= 0 } ?: return
+    fun opensOutside(own: String, target: String?): Boolean = target != null && target != own
+
+    fun ownerPaused(task: Int, paused: Boolean) {
+        if (ownerTask == task) ownerPaused = paused
+    }
+
+    internal fun focusTask(fromPanel: Boolean): Int? {
+        if (ownerYielded || (ownerPaused && !fromPanel)) return null
+        return ownerTask.takeIf { it >= 0 }
+    }
+
+    internal fun returnFocus(context: Context, fromPanel: Boolean = false) {
+        val task = focusTask(fromPanel) ?: return
         runCatching { (context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager).moveTaskToFront(task, 0) }
     }
 
     internal fun reclaimFocus(context: Context) {
-        if (ownerYielded) return
-        val task = ownerTask.takeIf { it >= 0 } ?: return
+        val task = focusTask(true) ?: return
         val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
         runCatching {
             manager.appTasks.firstOrNull {
@@ -174,6 +202,13 @@ object DualScreenPanel {
     internal fun detach(host: DualScreenActivity) {
         if (activity === host) {
             activity = null
+            displayId = -1
+        }
+    }
+
+    internal fun detach(host: DualScreenPresentation) {
+        if (presentation === host) {
+            presentation = null
             displayId = -1
         }
     }
@@ -209,10 +244,10 @@ class DualScreenActivity : ComponentActivity() {
             runCatching { (getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager).moveTaskToFront(taskId, 0) }
         } else {
             unfocusPending = true
-            DualScreenPanel.returnFocus(this)
+            DualScreenPanel.returnFocus(this, fromPanel = true)
             window.decorView.postDelayed({
                 if (!unfocusPending || DualScreenPanel.typingShown) return@postDelayed
-                if (window.decorView.hasWindowFocus()) DualScreenPanel.returnFocus(this) else dropFocus()
+                if (window.decorView.hasWindowFocus()) DualScreenPanel.returnFocus(this, fromPanel = true) else dropFocus()
             }, 400)
         }
     }
@@ -228,9 +263,19 @@ class DualScreenActivity : ComponentActivity() {
         if (!DualScreenPanel.typingShown) DualScreenPanel.returnFocus(this)
     }
 
+    private var topResumed = false
+
     override fun onTopResumedActivityChanged(isTopResumedActivity: Boolean) {
         super.onTopResumedActivityChanged(isTopResumedActivity)
-        if (isTopResumedActivity && !DualScreenPanel.typingShown) DualScreenPanel.returnFocus(this)
+        topResumed = isTopResumedActivity
+        if (isTopResumedActivity && !DualScreenPanel.typingShown) DualScreenPanel.returnFocus(this, fromPanel = true)
+    }
+
+    override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
+        if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN && topResumed && !DualScreenPanel.typingShown) {
+            DualScreenPanel.returnFocus(this, fromPanel = true)
+        }
+        return super.dispatchTouchEvent(event)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -251,6 +296,7 @@ class DualScreenActivity : ComponentActivity() {
             if (event.action == KeyEvent.ACTION_UP && !event.isCanceled) DualScreenPanel.finishTyping()
             return true
         }
+        if (topResumed && !DualScreenPanel.typingShown && event.action == KeyEvent.ACTION_DOWN) DualScreenPanel.returnFocus(this, fromPanel = true)
         return super.dispatchKeyEvent(event)
     }
 

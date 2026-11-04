@@ -308,11 +308,28 @@ class StickDeadZoneTest {
 
     @Test fun stickSettingDoesNotChangeMouseAxisHelpers() {
         bridge.setStickDeadZone(0)
-        val event = event(device(), MotionEvent.AXIS_Z to 0.02f, MotionEvent.AXIS_RZ to 0.6f)
-        try {
-            assertEquals(0f, PadBridge.rightX(event, false))
-            assertEquals(0.6f, PadBridge.rightY(event, false))
-        } finally { event.recycle() }
+        for (wired in listOf(false, true)) {
+            var horizontal = 0f
+            var vertical = 0f
+            val mouse = PadMouse(object : PadMouse.Listener {
+                override fun active() = true
+                override fun onScrollStart() {}
+                override fun onScroll(dx: Float, dy: Float) { horizontal += dx; vertical += dy }
+                override fun onKey(evdev: Int, pressed: Boolean) {}
+                override fun onKeyboard() {}
+                override fun onNavigate() {}
+                override fun scrollSpeed() = 2000f
+            }) { 1000L }
+            val event = if (wired) event(device(wired = true), MotionEvent.AXIS_RX to 0.02f,
+                MotionEvent.AXIS_RY to 0.6f, MotionEvent.AXIS_Z to -1f, MotionEvent.AXIS_RZ to -1f)
+            else event(device(), MotionEvent.AXIS_Z to 0.02f, MotionEvent.AXIS_RZ to 0.6f)
+            try {
+                assertTrue(mouse.onMotion(event))
+                mouse.step(0.1f)
+                assertEquals(0f, horizontal)
+                assertTrue(vertical > 0f)
+            } finally { event.recycle(); mouse.reset() }
+        }
     }
 
     @Test fun zeroDeadZoneDriftDoesNotConsumeBackTap() {

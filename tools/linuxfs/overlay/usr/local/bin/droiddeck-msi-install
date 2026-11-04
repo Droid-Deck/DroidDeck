@@ -1,32 +1,4 @@
 #!/usr/bin/python3
-"""Installs a Windows Installer package (.msi) the way Wine's own msiexec would, without running it.
-
-droiddeck-msi-install <package.msi | installer.exe> <component dir>
-droiddeck-msi-install --unpack <archive | installer.exe | cabinet> <dir>
-
-A .msi is a database: which files go to which folder, which registry values to write, which .NET
-and side-by-side assemblies to register. This reads those tables (msiinfo), unpacks the package's
-cabinets (cabextract, which knows every compression a cabinet can use) and lays the result out
-for droiddeck-wincomponents, which puts it into a game's prefix at launch:
-
-  <component dir>/drive_c/...      the files, at the paths they get on 64-bit Windows
-  <component dir>/registry.json    the registry values, in the view (32/64-bit) Windows uses
-
-An installer .exe is opened the same way when it is a wrapper around packages: a WiX bundle
-(Visual C++ 2012 and later, the .NET Core and 5+ runtimes: the packages sit in a cabinet the
-bundle's own header locates, named in its manifest), a self-extracting cabinet (Visual C++ 2005
-to 2010) or a self-extracting 7-Zip archive (.NET Framework 4.0 to 4.8). The packages inside are
-laid out one after the other into the same component dir; the 32- and 64-bit ones both, an ARM64
-one never. An .exe that is its own setup program (NSIS, InnoSetup) holds no package: an error says so.
-
-What a package does by running its own code (custom actions such as DXSETUP, self-registering
-DLLs) cannot be done this way; each is named in the notes, so nothing is left out silently.
-
---unpack opens an archive or installer for the caller to take files out of (cabextract for a
-cabinet or self-extracting cabinet, 7-Zip for the rest) and prints the files it found.
-
-Prints "progress <text>" lines while it works and ends with "result <json>": the counts and notes.
-"""
 import json
 import os
 import re
@@ -47,7 +19,6 @@ SKIP_PLATFORMS = ("arm64", "arm")
 
 
 def tool_env():
-    """The environment the tools run in: their own libraries (libmsi, libgsf, libgcab) beside them."""
     env = dict(os.environ)
     env["LD_LIBRARY_PATH"] = ":".join(p for p in (str(TOOLS), env.get("LD_LIBRARY_PATH", "")) if p)
     return env
@@ -95,7 +66,6 @@ class MsiError(Exception):
 
 
 def progress(text, fraction=None):
-    """A progress line: "progress <text>", or "progress NN% <text>" when how far along is known."""
     if fraction is None:
         print("progress " + text, flush=True)
     else:
@@ -103,7 +73,6 @@ def progress(text, fraction=None):
 
 
 class Span:
-    """The slice of the whole job one package's progress maps into (a wrapper runs several)."""
     def __init__(self, lo=0.0, hi=1.0):
         self.lo, self.hi = lo, hi
 
@@ -137,7 +106,6 @@ class Package:
                 self.summary[name.strip().lower()] = value.strip()
 
     def table(self, name):
-        """The table's rows as dicts by column name; an absent table has none."""
         if name in self._tables:
             return self._tables[name]
         rows = []
@@ -158,7 +126,6 @@ class Package:
 
 
 def long_name(value):
-    """A Directory/File name column: "short|long", the long one when there are two."""
     return value.split("|")[-1]
 
 
@@ -176,7 +143,6 @@ KEYWORDS = {"not", "and", "or", "xor", "eqv", "imp"}
 
 
 class Conditions:
-    """Windows Installer's condition language, enough of it for what packages ask at install time."""
 
     def __init__(self, props, feature_state=None, component_state=None):
         self.props = props
@@ -318,7 +284,6 @@ class Conditions:
 
 
 def win_to_rel(path):
-    """C:\\windows\\x\\ -> drive_c/windows/x; None for a path off drive C or a folder left out."""
     if not path:
         return None
     match = re.match(r"^[Cc]:\\?(.*)$", path)
@@ -341,7 +306,6 @@ def clean_version(version):
 
 
 def clr_version(path):
-    """The .NET runtime an assembly was built for ("v4.0.30319"), from its metadata header."""
     try:
         data = Path(path).read_bytes()
     except OSError:
@@ -389,7 +353,6 @@ class Installer:
         return 3 if name in self.included_components else -1
 
     def directory(self, key):
-        """The folder a Directory key resolves to, as drive_c/..., or None when it is left out."""
         if key in self._resolving:
             return None
         value = self.props.get(key)
@@ -414,7 +377,6 @@ class Installer:
         return parent + "/" + default
 
     def format(self, text):
-        """Formatted text: [Property], [Folder], [#file], [$component], [%env], [\\x], [~]."""
         if not text:
             return text
 
@@ -449,7 +411,6 @@ class Installer:
 
 
     def run_set_actions(self):
-        """The property/folder-setting custom actions, in sequence order; the rest go to the notes."""
         actions = {row["Action"]: row for row in self.pkg.table("CustomAction")}
         sequence = {}
         for table in ("InstallUISequence", "InstallExecuteSequence"):
@@ -506,7 +467,6 @@ class Installer:
             self.included_components.add(name)
 
     def assemblies(self):
-        """Component -> where its files go when it is a global assembly (the GAC or winsxs)."""
         names = {}
         for row in self.pkg.table("MsiAssemblyName"):
             names.setdefault(row["Component_"], {})[row["Name"].lower()] = row["Value"]
@@ -535,7 +495,6 @@ class Installer:
 
     @staticmethod
     def sxs_names(ident):
-        """Wine's winsxs names for a side-by-side assembly: its folder and, for a policy, the policy folder."""
         arch = ident.get("processorarchitecture", "x86").lower() or "x86"
         name = ident.get("name", "").lower()
         token = ident.get("publickeytoken", "").lower()
@@ -548,7 +507,6 @@ class Installer:
         return "assembly", "%s_%s_%s_%s_none_deadbeef" % (arch, name, token, version), version
 
     def unpack(self, work):
-        """Every cabinet in the package, unpacked; returns File key -> unpacked file."""
         found = {}
         media = [row for row in self.pkg.table("Media") if row.get("Cabinet", "")]
         for index, row in enumerate(media):
@@ -656,7 +614,6 @@ class Installer:
         self.registry.append({"hive": hive, "key": key, "name": name, "type": kind, "data": data})
 
     def registry_data(self, raw):
-        """A Registry table Value: (type, data) as droiddeck-wincomponents writes them."""
         if raw is None or raw == "":
             return "sz", ""
         if raw.startswith("#x") or raw.startswith("#X"):
@@ -773,7 +730,6 @@ class Installer:
 
 
 def sibling(path, name):
-    """A file next to [path] called [name], whatever its case; None when there is none."""
     folder = path.parent
     candidate = folder / name
     if candidate.is_file():
@@ -786,7 +742,6 @@ def sibling(path, name):
 
 
 def kind_of(path):
-    """What a file is by its first bytes: msi, exe, cab or other."""
     with open(path, "rb") as source:
         head = source.read(8)
     if head.startswith(MSI_MAGIC):
@@ -806,9 +761,6 @@ def run_tool(args, timeout=1800):
 
 
 def burn_containers(data):
-    """A WiX bundle's containers as (offset, size) pairs: the .wixburn section of the stub names
-    their sizes; each is a cabinet laid out after the stub, found by its header since signing can
-    move them. None when the file is no bundle."""
     try:
         pe = struct.unpack_from("<I", data, 0x3C)[0]
         if data[pe:pe + 4] != b"PE\0\0":
@@ -845,8 +797,6 @@ def burn_containers(data):
 
 
 def unpack_burn(path, dest, containers):
-    """Unpacks a bundle's containers into [dest] and gives the payloads the names its manifest
-    lists (a9 -> packages/vcRuntimeMinimum_amd64/vc_runtimeMinimum_x64.msi)."""
     data = path.read_bytes()
     names = {}
     for index, (start, size) in enumerate(containers):
@@ -877,8 +827,6 @@ def unpack_burn(path, dest, containers):
 
 
 def unpack_installer(path, dest):
-    """Opens an installer or archive into [dest]: a bundle by its header, a cabinet (or
-    self-extracting one) with cabextract, anything else with 7-Zip."""
     kind = kind_of(path)
     if kind == "exe":
         containers = burn_containers(path.read_bytes())
@@ -900,7 +848,6 @@ def unpack_installer(path, dest):
 
 
 def packages_in(root):
-    """The Windows Installer packages an unpacked installer holds, shallowest first, by name."""
     found = []
     for entry in sorted(root.rglob("*")):
         if entry.is_file() and kind_of(entry) == "msi":
@@ -910,11 +857,6 @@ def packages_in(root):
 
 
 def choose_packages(found, root):
-    """Which packages make up the install: the ones at the top of the installer (a bundle keeps
-    each in its own folder, so there every level counts), for the x86 and x64 platforms. The .NET
-    Framework 4.5+ installers carry a complete product (netfx_Full_*) beside the 4.0 parts they
-    patch (netfx_Core_*, netfx_Extended_*) and per-Windows-version copies in NetFx* folders: the
-    complete product wins, the copies are left out."""
     if not found:
         return []
     depth = min(len(entry.relative_to(root).parts) for entry in found)
@@ -933,7 +875,6 @@ def choose_packages(found, root):
 
 
 def install_wrapper(path, out):
-    """Lays out every package inside an installer wrapper; the result is the sum of them."""
     total = {"product": "", "version": "", "counts": {"files": 0, "assemblies": 0, "registry": 0}, "notes": [], "packages": []}
     with tempfile.TemporaryDirectory(dir=str(out.parent), prefix=".unpack-") as work:
         dest = Path(work) / "x"
@@ -968,9 +909,6 @@ NESTED_SUFFIXES = (".7z", ".zip", ".cab", ".exe", ".msi", ".rar", ".xz", ".gz", 
 
 
 def open_nested(dest, depth=0):
-    """Archives inside an unpacked installer (QuickTime's cabinets, an NSIS pack's payloads) are
-    opened in place, one "<name>.nested" folder per archive, two levels deep: the same layout the
-    component recordings (winlator-contents tools/snapshot/record.py) map their file sources to."""
     if depth > 1:
         return 0
     opened = 0

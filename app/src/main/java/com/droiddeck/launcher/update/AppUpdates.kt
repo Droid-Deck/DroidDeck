@@ -211,10 +211,6 @@ object AppUpdates {
 
     internal class Guess(val follow: Follow, val certain: Boolean)
 
-    /**
-     * Stable and Preview builds of one commit are the same APK. Preview history can include older Stable releases,
-     * so an overlapping older-build guess keeps the Stable default for this run without persisting it.
-     */
     internal fun guessFollow(catalog: Catalog?, me: Installed): Guess {
         if (me.pr != 0) return Guess(Follow(Channel.TEST, me.pr), true)
         val stable = catalog?.stable

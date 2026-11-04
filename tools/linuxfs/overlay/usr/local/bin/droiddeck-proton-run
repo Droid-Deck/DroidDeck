@@ -1,25 +1,4 @@
 #!/usr/bin/python3
-"""Runs a Windows program with the Proton the Steam client has chosen for it.
-
-    droiddeck-proton-run [--window] [--prefix ID] [--verb run] [--game-id ID] [--desktop WxH] PROGRAM [ARGS...]
-    droiddeck-proton-run --app ID [--dir FOLDER] [--options TEXT] [PROGRAM [ARGS...]]
-
-The program belongs to an installed Steam game when it sits in one's folder, to a prefix when it
-sits in one's drive_c, or to a non-Steam shortcut that names it; any other program gets a prefix of
-its own, under the id the client gives a new shortcut. That title's CompatToolMapping entry in
-config.vdf picks the tool, else the client's default for all other titles ("0"). The tool is
-started as the client starts it - its toolmanifest's command line, the waitforexitandrun verb and
-the STEAM_COMPAT_* environment - so its wrapper applies the game's settings, components and audio.
---window keeps the program in the desktop's own window, drawn with WineD3D on the desktop's software
-GL (llvmpipe): KWin there composites in software, and the session's zink finds no device.
---prefix ID puts the program in compatdata/ID whatever it is. --verb run starts it beside what already
-runs in the prefix, which waitforexitandrun would wait for; the wrapper's launch-time steps are skipped.
---game-id ID keeps the id of the launch it runs for: gamescope shows the windows that carry the id Steam launched.
---app starts one game without the Steam client (its Start without Steam): a Steam game's default
-Windows launch option from appinfo.vdf when no program is given, else the program in that
-shortcut's own prefix, started in --dir with the shortcut's launch options (--options). Without
---options it takes the launch options set in the client's Properties for that game or shortcut.
-"""
 import json
 import os
 import re
@@ -91,7 +70,6 @@ def mapping(root):
 
 
 def tools(root):
-    """Windows compatibility tools this runtime can start, by the name config.vdf uses."""
     found = {}
     for base in [os.path.join(root, "compatibilitytools.d")] + list(SYSTEM_TOOLS):
         try:
@@ -121,7 +99,6 @@ def state_default():
 
 
 def choose_tool(appid, current, available):
-    """(tool name, why) from the client's mapping, else the session's own default."""
     for key, why in ((appid, "Steam's choice for this title"), ("0", "Steam's default")):
         name = current.get(key)
         if name in available:
@@ -144,7 +121,6 @@ class Target:
 
 
 def ancestors(path):
-    """(folder, the entry below it on the way to path) from the program's folder up to /."""
     child, folder = path, os.path.dirname(path)
     while True:
         yield folder, os.path.basename(child)
@@ -211,7 +187,6 @@ def same_file(a, b):
 
 
 def shortcut_entries(root):
-    """(appid, exe, start dir) of the client's non-Steam shortcuts and the app's added games."""
     entries = []
     try:
         tool = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-steam-shortcuts"))
@@ -239,7 +214,6 @@ def shortcut_entries(root):
 
 
 def prefix_folder(root, appid):
-    """The prefix folder the client made for [appid], under either spelling of the id."""
     folder = os.path.join(root, "steamapps", "compatdata")
     try:
         names = sorted(os.listdir(folder))
@@ -267,7 +241,6 @@ def vdf_string(token):
 
 
 def steam_options(app, root):
-    """The launch options the client keeps for a game (localconfig.vdf) or a shortcut (shortcuts.vdf)."""
     try:
         tool = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-steam-shortcuts"))
         account = tool["account_dir"](root)
@@ -305,7 +278,6 @@ def shortcut(program, root):
 
 
 def own_id(program):
-    """The id the client gives a new shortcut: the CRC of its quoted target and its name."""
     name = os.path.splitext(os.path.basename(program))[0]
     return zlib.crc32(('"%s"%s' % (program, name)).encode("utf-8")) | SHORTCUT_BIT
 
@@ -337,8 +309,6 @@ def split_words(text):
 
 
 def split_options(text):
-    """A shortcut's launch options: NAME=value words before %command% go to the environment, the words
-    after it - or all of them, without %command% - are the program's arguments."""
     words = split_words(text)
     if "%command%" not in words:
         return {}, words
@@ -352,7 +322,6 @@ def split_options(text):
 
 
 def find_file(base, relative):
-    """base/relative, matching each part without regard to case as Windows does."""
     path = base
     for part in [p for p in relative.replace("\\", "/").split("/") if p and p != "."]:
         exact = os.path.join(path, part)
@@ -379,7 +348,6 @@ def steam_install(appid, root):
 
 
 def steam_launch(appid, root):
-    """(target, program, arguments) for a Steam game's default Windows launch option, or None."""
     library, install = steam_install(appid, root)
     if not install or not os.path.isdir(install):
         return None
@@ -406,7 +374,6 @@ def shortcut_target(appid, program, start, root):
 
 
 def steam_launches(target, program, root):
-    """Whether a launch option of the Steam game starts [program]: then Steam should start it."""
     if target.kind != "steam":
         return False
     entry = compat()["appinfo_entries"](os.path.join(root, "appcache", "appinfo.vdf")).get(target.appid, {})

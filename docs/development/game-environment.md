@@ -52,6 +52,23 @@ environment entries and is intentionally narrower than **Reset game profile**.
 Values are literal strings, with no shell expansion; quotes are only needed when
 the consuming program expects them.
 
+## Saved compatibility mappings
+
+The file-backed `steam-compatibility` writer applies planned changes in a batch,
+rather than searching and copying the mapping for each game. This covers retired
+DroidDeck-Proton replacements, default/tool changes and the x86-64 client's Proton
+repointing. It does not change the planner, manual choices, native/FEX routing,
+locking or atomic file publication. Unchanged files are still not rewritten.
+
+Existing entry fields and duplicate entries are preserved, with the same first-match
+updates and reverse insertion order as the single-game writer. Single changes keep
+that writer's original path. This reduces bulk configuration work, not steady-state
+game rendering cost; large-library timings depend on the device and the number of
+entries actually changed.
+
+Run the batch/reference and work-budget regressions with
+`python3 -m unittest discover -s tools/tests -p test_steam_compat_mapping.py`.
+
 ## Game debug logs
 
 Under **Setup > Diagnostics**, enable **Session logs** and **Game debug logs**
@@ -112,6 +129,13 @@ session itself no longer sets them: the Steam client's UI renders through the
 same WSI layer, and with eight images and no frame limit it drew flat out
 (about 240 frames a second at 120 Hz) and heated the device. Values set in the
 launch options or the environment editor are kept.
+
+DOOM (2016) is the exception (`DOOMx64vk.exe` beside the launched program, which
+is `DOOMx64.exe` for a GOG install). It asks for exactly two images and stops with
+`FATAL ERROR: getSwapchainImagesKHR failed with error (VK_SUCCESS)` when it gets
+more, so its fix removes both variables, also from its launch options, and sets
+`vk_x11_strict_image_count=true`, the option Mesa's driconf gives the game. A
+per-game value in the environment editor still wins.
 
 ## Defaults and available suggestions
 

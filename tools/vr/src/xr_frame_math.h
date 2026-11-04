@@ -9,7 +9,6 @@ struct DroidDeckXrRenderView {
 
 inline void xr_frame_projection_raw(const float fov[4], float *left, float *right, float *top, float *bottom) {
     *left = std::tan(fov[0]); *right = std::tan(fov[1]);
-    // OpenVR's top/bottom parameters are the lower/upper Y bounds in its projection formula.
     *top = std::tan(fov[3]); *bottom = std::tan(fov[2]);
 }
 

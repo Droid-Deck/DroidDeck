@@ -51,7 +51,6 @@ object DesktopCatalog {
 
     private fun journal(root: File, id: String) = File(root, ".droiddeck-pkg-$id$JOURNAL_SUFFIX")
 
-    /** Packages whose extraction over the runtime started and never finished. */
     fun interrupted(context: Context): List<Entry> = interrupted(LinuxRuntime.rootDir(context))
 
     fun interrupted(root: File): List<Entry> =
@@ -63,7 +62,6 @@ object DesktopCatalog {
 
     private fun downloadFile(context: Context, entry: Entry) = File(context.cacheDir, "pkg-${entry.id}-${entry.sha256.take(12)}.download")
 
-    /** Drops downloads kept for installs that no longer need finishing, such as after the runtime was reinstalled. */
     fun pruneDownloads(context: Context) = synchronized(installLock) {
         val keep = interrupted(context).map { downloadFile(context, it).name }.toSet()
         context.cacheDir.listFiles { f -> f.name.startsWith("pkg-") && f.name.removeSuffix(".resume.properties").endsWith(".download") }
@@ -102,7 +100,6 @@ object DesktopCatalog {
         o.optString("icon", "applications-games"), o.optString("category", "Game"),
     )
 
-    /** A finished download is kept until its extraction completes, so resuming does not fetch it again. */
     private fun downloaded(file: File, entry: Entry): Boolean =
         file.isFile && file.length() > 0 && !File(file.path + ".resume.properties").exists() &&
             (entry.size <= 0 || file.length() == entry.size) && entry.sha256.equals(Hashes.sha256(file), ignoreCase = true)
