@@ -47,20 +47,27 @@ def runs_here(pfx, exe):
     return target is not None and os.path.realpath(target.compatdata) == os.path.realpath(os.path.dirname(pfx))
 
 
+def listing(folder, suffix=""):
+    try:
+        names = os.listdir(folder)
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+    return sorted(os.path.join(folder, name) for name in names if name.lower().endswith(suffix))
+
+
 def prefixes(root):
     compatdata = os.path.join(root, "steamapps", "compatdata")
-    try:
-        names = sorted(os.listdir(compatdata))
-    except FileNotFoundError:
+    names = listing(compatdata)
+    if names is None:
         return []
     owned = shortcut_ids(root)
     found = []
-    for name in names:
+    for name in (os.path.basename(path) for path in names):
         if not re.fullmatch(r"-?[0-9]+", name):
             continue
         appid = int(name) % 2 ** 32
         pfx = os.path.join(compatdata, name, "pfx")
-        if appid & SHORTCUT_BIT and appid not in owned and os.path.isdir(os.path.join(pfx, "drive_c", "proton_shortcuts")):
+        if appid & SHORTCUT_BIT and appid not in owned and listing(os.path.join(pfx, "drive_c", "proton_shortcuts")) is not None:
             found.append((appid, pfx))
     return found
 
@@ -157,7 +164,7 @@ def program(pfx, link):
 def programs(pfx):
     shortcuts = os.path.join(pfx, "drive_c", "proton_shortcuts")
     found = {}
-    for entry in sorted(glob.glob(os.path.join(glob.escape(shortcuts), "*.desktop"))):
+    for entry in listing(shortcuts, ".desktop") or []:
         text = read(entry) or ""
         link = host_path(pfx, windows_link(value(text, "Exec")))
         if not link or not link.lower().endswith(".lnk"):
@@ -172,7 +179,7 @@ def programs(pfx):
 def on_windows_desktop(pfx):
     found = set()
     for folder in WINDOWS_DESKTOPS:
-        for link in glob.glob(os.path.join(glob.escape(os.path.join(pfx, "drive_c", folder)), "*.lnk")):
+        for link in listing(os.path.join(pfx, "drive_c", folder), ".lnk") or []:
             exe, _ = program(pfx, link)
             if exe:
                 found.add(exe)
