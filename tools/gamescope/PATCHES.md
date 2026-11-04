@@ -251,3 +251,11 @@ A game can open a fullscreen window larger than its X screen (Valheim at 1366x76
 keeps the pointer inside the screen, so the outer part of the window could not be reached and motion past the
 edge had to be undone. The server's mode now follows such a window, and returns once the focused window fits,
 focus moves to Steam or no window has focus.
+
+## 0131 steamcompmgr, wlserver: follow a game's pointer warps
+
+Under a nested host the seat's absolute position came from the host, so a game that warped a visible X pointer
+to the screen centre read the distance back to the host's position on the next motion, and the view spun. When
+the X pointer stays far from the seat position while input moves, gamescope takes the host's lock and applies
+each frame's motion to the X pointer itself until the game stops warping. Absolute motion also sends relative
+motion, as a real compositor does, so XInput2 raw motion reaches games that read only that.

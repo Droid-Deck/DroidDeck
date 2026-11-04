@@ -121,7 +121,6 @@ data class TouchGestureConfig(
         private const val KEY_LONG_PRESS_DELAY = "longPressDelay"
         private const val KEY_DIRECT_HOLD_BEHAVIOR = "directHoldBehavior"
         private const val KEY_RELATIVE_MOUSE_MODE = "relativeMouseMode"
-        private const val KEY_RELATIVE_MOUSE = "relativeMouse"
         private const val KEY_DOUBLE_TAP_ENABLED = "doubleTapEnabled"
         private const val KEY_DOUBLE_TAP_DELAY = "doubleTapDelay"
         private const val KEY_TWO_FINGER_DRAG_ENABLED = "twoFingerDragEnabled"
@@ -199,10 +198,7 @@ data class TouchGestureConfig(
                     mouseDragMovementMode = normalizeMouseDragMovementMode(
                         obj.optString(KEY_MOUSE_DRAG_MOVEMENT_MODE, MOUSE_DRAG_MOVEMENT_DIRECT),
                     ),
-                    relativeMouseMode = normalizeRelativeMouseMode(
-                        if (obj.has(KEY_RELATIVE_MOUSE_MODE)) obj.optInt(KEY_RELATIVE_MOUSE_MODE, RELATIVE_MOUSE_AUTO)
-                        else if (obj.optBoolean(KEY_RELATIVE_MOUSE, false)) RELATIVE_MOUSE_ON else RELATIVE_MOUSE_AUTO,
-                    ),
+                    relativeMouseMode = normalizeRelativeMouseMode(obj.optInt(KEY_RELATIVE_MOUSE_MODE, RELATIVE_MOUSE_AUTO)),
                 )
             } catch (_: Exception) {
                 fallbackDefaults()

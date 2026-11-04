@@ -260,13 +260,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var clientHidesCursor = false
     private var mouseOwnsCursor = false
     private var pointerLocked = false
+    private var desktopGrabTapAt = 0L
+    private var desktopGrabTaps = 0
     private val pointerLockListener = WaylandCompositor.PointerLockListener { locked, _, _ ->
         uiHandler.post {
             if (pointerLocked == locked) return@post
             gesturePointerReady = false
             pointerLocked = locked
             Log.i(TAG, "pointer lock " + if (locked) "taken by a program" else "released")
-            if (locked) openEvdevMouse() else closeEvdevMouse()
+            if (locked) desktopGrabTaps = 0
+            if (programLocksPointer()) openEvdevMouse() else closeEvdevMouse()
             padMouseCheckedAt = 0L
             if (::padMouse.isInitialized) padMouseMode()
             if (locked && ::touchpad.isInitialized) {
@@ -569,7 +572,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         override fun onInputDeviceRemoved(deviceId: Int) {
             physicalShortcuts.onDeviceRemoved(deviceId)
             Log.i(TAG, "input device $deviceId disconnected")
-            updatePointerCapture()
+            dropMouseCursor()
             backQamInput.onDeviceRemoved(deviceId)
             joyConVr?.refresh()
             padBridge?.onDeviceRemoved(deviceId)
@@ -1323,7 +1326,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             onEvdevMouse = { on ->
                 SessionPrefs.setEvdevMouse(this@SessionActivity, on)
                 evdevMouseOn = on
-                if (on) { if (pointerLocked) openEvdevMouse() } else releaseEvdevMouse()
+                if (on) { if (programLocksPointer()) openEvdevMouse() } else releaseEvdevMouse()
             },
             directCursor = directCursorOn,
             onDirectCursor = { on ->
@@ -2865,9 +2868,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
     @Volatile private var desiredRelativeMouseMode = 0
 
+    @Volatile private var relativeMouseRetries = 0
+
     private fun setRelativeMouse(mode: Int) {
         desiredRelativeMouseMode = mode
-        relativeMouseRequests.execute { applyRelativeMouse() }
+        relativeMouseRetries = 0
+        requestRelativeMouse()
+    }
+
+    private fun requestRelativeMouse() {
+        runCatching { relativeMouseRequests.execute { applyRelativeMouse() } }
     }
 
     private fun applyRelativeMouse() {
@@ -2883,8 +2893,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             && answer.optInt("exitCode", -1) == 0
             && !answer.optBoolean("timedOut")
         if (applied) appliedRelativeMouseMode = mode
-        else Log.w(TAG, "gamescope did not take relative mouse $mode: ${result.exceptionOrNull() ?: answer}")
-        if (desiredRelativeMouseMode != mode) relativeMouseRequests.execute { applyRelativeMouse() }
+        else {
+            Log.w(TAG, "gamescope did not take relative mouse $mode: ${result.exceptionOrNull() ?: answer}")
+            if (relativeMouseRetries++ < RELATIVE_MOUSE_MAX_RETRIES) uiHandler.postDelayed({ requestRelativeMouse() }, 2_000)
+        }
+        if (desiredRelativeMouseMode != mode) requestRelativeMouse()
     }
 
     private fun refreshGestureConfig() {
@@ -3653,7 +3666,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             else -> {
                 if (event.actionMasked == MotionEvent.ACTION_DOWN) {
                     val inPicture = drawnRect()?.let { !topPictureMapped || it.contains(event.x, event.y) } ?: false
-                    lockedTouchTurns = pointerLocked && inPicture && route != com.droiddeck.launcher.input.TouchRouter.Route.TOUCHPAD
+                    lockedTouchTurns = programLocksPointer() && inPicture && route != com.droiddeck.launcher.input.TouchRouter.Route.TOUCHPAD
                 }
                 if (com.droiddeck.launcher.input.TouchRouter.steamKeyboardZone(snapshot)) {
                     val wasActive = threeFingerTap.active
@@ -3729,7 +3742,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return true
         }
         if (event.actionMasked == MotionEvent.ACTION_DOWN) lockedSwipeUsed = false
-        if (pointerLocked && event.actionMasked == MotionEvent.ACTION_MOVE) {
+        if (programLocksPointer() && event.actionMasked == MotionEvent.ACTION_MOVE) {
             lockedSwipeUsed = true
             directTouchHold.cancelPendingHold()
             val scale = sceneScale(rect)
@@ -3737,7 +3750,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return true
         }
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            showCursor(event.x.coerceIn(rect.left, rect.right), event.y.coerceIn(rect.top, rect.bottom))
+            if (!pointerLocked) showCursor(event.x.coerceIn(rect.left, rect.right), event.y.coerceIn(rect.top, rect.bottom))
             if (WaylandCompositor.nativeFocusTakesTouch()) {
                 listOf(PointerGestures.BTN_LEFT, PointerGestures.BTN_RIGHT, PointerGestures.BTN_MIDDLE).forEach {
                     WaylandCompositor.nativeSendSceneInput(3, it, 0)
@@ -3757,6 +3770,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 val button = when (event.actionButton) {
                     MotionEvent.BUTTON_SECONDARY -> PointerGestures.BTN_RIGHT
                     MotionEvent.BUTTON_TERTIARY -> PointerGestures.BTN_MIDDLE
+                    MotionEvent.BUTTON_BACK -> BTN_SIDE
+                    MotionEvent.BUTTON_FORWARD -> BTN_EXTRA
                     else -> PointerGestures.BTN_LEFT
                 }
                 sendSceneButton(button, event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS)
@@ -3785,8 +3800,44 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!::surfaceView.isInitialized) return
         val view = window.decorView
         val want = (pointerLocked || relativeMouseAttached()) && resumed && hasWindowFocus() && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !pipUi && !bottomOutputActive && !touchEditorOpen && mouseAttached()
+        releaseDesktopMouseGrab()
         if (want == view.hasPointerCapture()) return
         if (want) view.requestPointerCapture() else view.releasePointerCapture()
+    }
+
+    private fun programLocksPointer(): Boolean =
+        pointerLocked && SessionState.mode != SessionService.MODE_DESKTOP
+
+    private fun desktopMouseGrabAllowed(): Boolean =
+        SessionState.mode == SessionService.MODE_DESKTOP && relativeMouseAttached() && !bottomOutputActive
+
+    private fun tapDesktopGrabKey() {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - desktopGrabTapAt < DESKTOP_GRAB_TAP_MS) return
+        desktopGrabTapAt = now
+        desktopGrabTaps++
+        WaylandCompositor.nativeSendKey(KEY_RIGHTCTRL, 1)
+        WaylandCompositor.nativeSendKey(KEY_RIGHTCTRL, 0)
+    }
+
+    private fun grabDesktopMouse() {
+        if (desktopMouseGrabAllowed() && desktopGrabTaps < DESKTOP_GRAB_MAX_TAPS) tapDesktopGrabKey()
+    }
+
+    private fun releaseDesktopMouseGrab() {
+        if (pointerLocked && SessionState.mode == SessionService.MODE_DESKTOP && !desktopMouseGrabAllowed()) tapDesktopGrabKey()
+    }
+
+    private fun dropMouseCursor() {
+        if (!mouseOwnsCursor || mouseAttached()) return
+        mouseOwnsCursor = false
+        uiHandler.removeCallbacks(cursorResync)
+        cursorVisible = false
+    }
+
+    override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean, newConfig: android.content.res.Configuration) {
+        super.onMultiWindowModeChanged(isInMultiWindowMode, newConfig)
+        updatePointerCapture()
     }
 
     private var platformPointerShown: Boolean? = null
@@ -3821,7 +3872,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     dx += event.getHistoricalX(i)
                     dy += event.getHistoricalY(i)
                 }
-                if (pointerLocked) sendSceneDelta(dx, dy) else moveCapturedMouse(dx, dy)
+                if (pointerLocked) sendSceneDelta(dx, dy) else {
+                    moveCapturedMouse(dx, dy)
+                    grabDesktopMouse()
+                }
             }
             MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE -> {
                 val button = when (event.actionButton) {
@@ -4016,8 +4070,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun keyboardCoversPad() =
         SessionState.mode == SessionService.MODE_STEAM && AgentGuest.steamKeyboard
 
-    private fun sendGuestKey(code: Int, down: Boolean) {
+    private fun sendGuestKey(key: Int, down: Boolean) {
         if (down && pipUi) return
+        val code = if (key == KEY_RIGHTCTRL && SessionState.mode == SessionService.MODE_DESKTOP) KEY_LEFTCTRL else key
         if (down) guestKeysDown.add(code) else guestKeysDown.remove(code)
         if (down || code !in gestureKeysDown) WaylandCompositor.nativeSendKey(code, if (down) 1 else 0)
     }
@@ -4955,6 +5010,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         private const val PAD_SCROLL_HEIGHTS_PER_S = 3f
         private const val AXIS_UNITS_PER_PIXEL = 3f
         private const val KEY_LEFTCTRL = 29
+        private const val KEY_RIGHTCTRL = 97
+        private const val BTN_SIDE = 0x113
+        private const val BTN_EXTRA = 0x114
+        private const val DESKTOP_GRAB_TAP_MS = 500L
+        private const val DESKTOP_GRAB_MAX_TAPS = 8
+        private const val RELATIVE_MOUSE_MAX_RETRIES = 5
         private const val DRAWER_HAT_THRESHOLD = 0.5f
         private const val DRAWER_STICK_ENTER_THRESHOLD = 0.55f
         private const val DRAWER_STICK_EXIT_THRESHOLD = 0.35f
