@@ -50,13 +50,14 @@ def proton_run():
 
 def shortcut_ids(root):
     tool = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-steam-shortcuts"))
+    # account_dir takes either of these as missing when it cannot be read.
+    read(os.path.join(root, "config", "loginusers.vdf"))
+    listing(os.path.join(root, "userdata"))
     account = tool["account_dir"](root)
     if account:
         try:
             with open(os.path.join(account, "config", "shortcuts.vdf"), "rb") as f:
-                data = f.read()
-            if data:
-                tool["parse"](data)
+                tool["parse"](f.read())
         except ABSENT:
             pass
         except (ValueError, IndexError, KeyError, struct.error) as error:
