@@ -79,7 +79,7 @@ object BattleNet {
         var got = false
         for (title in titles) {
             val dir = coverDir(context, title)
-            val tried = File(dir, ".tried")
+            val tried = File(dir, ".tried-2")
             val wide = File(dir, BLIZZARD)
             val done = File(dir, "p.jpg").isFile && (title.shop == null || wide.isFile)
             if (done || System.currentTimeMillis() - tried.lastModified() < COVER_RETRY_MS) continue
@@ -87,11 +87,15 @@ object BattleNet {
             if (title.steam != null && runCatching { art.download(title.steam.toString(), dir) }.getOrDefault(false)) got = true
             if (title.shop != null && !wide.isFile) {
                 val cover = File(dir, BLIZZARD_COVER).takeUnless { File(dir, "p.jpg").isFile }
-                if (runCatching { com.droiddeck.launcher.stores.battlenet.BlizzardArt.fetch(title.shop, wide, cover) }
-                        .onFailure { Log.w(TAG, "Blizzard art for ${title.uid}: ${it.javaClass.simpleName}") }.getOrDefault(false)) got = true
+                if (runCatching { com.droiddeck.launcher.stores.battlenet.BlizzardArt.fetch(title.code, title.shop, wide, cover) }
+                        .onFailure { Log.w(TAG, "Blizzard art for ${title.uid}: ${it.javaClass.simpleName}") }.getOrDefault(false)) {
+                    got = true
+                    File(dir, OLD_BLIZZARD).delete()
+                    File(dir, OLD_BLIZZARD_COVER).delete()
+                }
             }
             if (!File(dir, "p.jpg").isFile && !File(dir, BLIZZARD_COVER).isFile && key.isNotEmpty()) {
-                val id = runCatching { com.droiddeck.launcher.frontend.SteamGridDb.gameId(key, title.steam, title.name) }.getOrNull()
+                val id = runCatching { com.droiddeck.launcher.frontend.SteamGridDb.exactGameId(key, title.steam, title.name) }.getOrNull()
                 if (id != null && runCatching { com.droiddeck.launcher.frontend.SteamGridDb.download(key, id, dir) }.getOrDefault(false)) got = true
             }
             runCatching { tried.writeText("") ; tried.setLastModified(System.currentTimeMillis()) }
@@ -111,13 +115,15 @@ object BattleNet {
 
     class Art(val cover: File?, val header: File?)
 
-    private const val BLIZZARD = "blizzard.jpg"
-    private const val BLIZZARD_COVER = "p-blizzard.jpg"
+    private const val BLIZZARD = "blizzard-2.jpg"
+    private const val BLIZZARD_COVER = "p-blizzard-2.jpg"
+    private const val OLD_BLIZZARD = "blizzard.jpg"
+    private const val OLD_BLIZZARD_COVER = "p-blizzard.jpg"
 
     fun art(context: Context, title: Title): Art {
         val dir = coverDir(context, title)
         fun first(vararg names: String) = names.map { File(dir, it) }.firstOrNull { it.isFile }
-        return Art(first("p.jpg", BLIZZARD_COVER), first(BLIZZARD, "header.jpg"))
+        return Art(first("p.jpg", BLIZZARD_COVER, OLD_BLIZZARD_COVER), first(BLIZZARD, OLD_BLIZZARD, "header.jpg"))
     }
 
     fun prefix(context: Context) = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps/compatdata/$APP_ID")

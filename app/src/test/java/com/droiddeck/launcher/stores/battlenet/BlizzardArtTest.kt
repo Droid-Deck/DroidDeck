@@ -2,6 +2,7 @@ package com.droiddeck.launcher.stores.battlenet
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BlizzardArtTest {
@@ -26,5 +27,18 @@ class BlizzardArtTest {
     @Test fun artFromOtherHostsIsRefused() {
         assertNull(BlizzardArt.imageUrl("""<meta property="og:image" content="https://example.com/art.png">"""))
         assertNull(BlizzardArt.imageUrl("""\"imageUrl\":\"//catalog.blzstatic.com//ff9/a-prod-thumb_bundle.jpg\""""))
+    }
+
+    @Test fun everyChosenImageComesFromBlizzardsHosts() {
+        BlizzardArt.KEY_ART.values.forEach { assertTrue(it, BlizzardArt.allowed(it)) }
+    }
+
+    @Test fun everyChosenImageBelongsToAKnownTitle() {
+        val codes = com.droiddeck.launcher.runtime.BattleNet.TITLES.map { it.code }.toSet()
+        BlizzardArt.KEY_ART.keys.forEach { assertTrue(it, it in codes) }
+    }
+
+    @Test fun worldOfWarcraftForeverUsesItsOwnArt() {
+        assertTrue("WoW_Forever" in BlizzardArt.KEY_ART.getValue("WoWF"))
     }
 }
