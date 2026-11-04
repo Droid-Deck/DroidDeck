@@ -2,6 +2,10 @@ package com.droiddeck.launcher.ui
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -68,6 +72,7 @@ internal fun pageForGameStart(ids: List<String>): String? = GAME_PAGE.takeIf { i
 
 private const val DEFAULT_PAGE = "telemetry"
 private const val GAME_PAGE = "telemetry"
+private val MIN_TAB = 80.dp
 
 @Composable
 internal fun BottomDashboard(
@@ -87,14 +92,17 @@ internal fun BottomDashboard(
     val page = pages.firstOrNull { it.id == current } ?: pages.firstOrNull()
     Column(Modifier.fillMaxSize().background(colors.background)) {
         bar?.let { BottomScreenBar(it) }
-        Row(
-            Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp).height(56.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            pages.forEach { p ->
-                PageTab(p, p.id == page?.id, Modifier.weight(1f)) {
-                    current = p.id
-                    onPage(p.id)
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp).height(56.dp)) {
+            val roomy = pages.isEmpty() || (maxWidth - 6.dp * (pages.size - 1)) / pages.size >= MIN_TAB
+            Row(
+                Modifier.fillMaxSize().then(if (roomy) Modifier else Modifier.horizontalScroll(rememberScrollState())),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                pages.forEach { p ->
+                    PageTab(p, p.id == page?.id, if (roomy) Modifier.weight(1f) else Modifier.width(MIN_TAB)) {
+                        current = p.id
+                        onPage(p.id)
+                    }
                 }
             }
         }

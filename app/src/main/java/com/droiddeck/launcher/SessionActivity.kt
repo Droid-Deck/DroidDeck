@@ -342,13 +342,21 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var drawerOpenState by mutableStateOf(false)
     private var typingReturnMode: SecondScreenMode? = null
     private var drawerDocked by mutableStateOf(false)
+    private var drawerPinned by mutableStateOf(false)
     private var drawerLayerOpen = false
     private var drawerBackRequests by mutableIntStateOf(0)
     private var drawerOpen: Boolean
         get() = drawerOpenState
         set(value) {
-            if (value == drawerOpenState) return
+            if (value == drawerOpenState) {
+                if (!value && drawerPinned) {
+                    drawerPinned = false
+                    if (drawerDocked) closeDockedMenu()
+                }
+                return
+            }
             drawerLayerOpen = false
+            drawerPinned = false
             if (value) drawerDocked = dockDrawer() && openDockedMenu()
             drawerOpenState = value
             if (!value && drawerDocked) closeDockedMenu()
@@ -1168,7 +1176,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     @androidx.compose.runtime.Composable
     private fun SessionMenu(docked: Boolean) {
-        SessionDrawer(drawerOpen, drawerPage, drawerControllerActive, onPageChange = { drawerPage = it }, docked = docked,
+        SessionDrawer(drawerOpen || (docked && drawerPinned), drawerPage, drawerControllerActive, onPageChange = { drawerPage = it }, docked = docked,
             backRequest = drawerBackRequests, onLayerChange = { drawerLayerOpen = it }, a = DrawerActions(
             steam = SessionState.mode == SessionService.MODE_STEAM,
             direct = noSteamSession(),
@@ -3396,6 +3404,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun dropDockedDrawer() {
+        drawerPinned = false
         if (!drawerDocked) return
         drawerDocked = false
         drawerLayerOpen = false
@@ -3548,7 +3557,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) return onMouse(event)
         if (drawerOpen && drawerDocked && event.actionMasked == MotionEvent.ACTION_DOWN) {
-            drawerOpen = false
+            drawerLayerOpen = false
+            drawerOpenState = false
+            drawerPinned = true
+            updateKeyboardRoute()
             dismissTouch = true
         }
         if (dismissTouch) {

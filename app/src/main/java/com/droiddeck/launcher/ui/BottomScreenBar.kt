@@ -75,9 +75,9 @@ internal fun BottomScreenBar(model: BottomBarModel, modifier: Modifier = Modifie
     BoxWithConstraints(modifier.fillMaxWidth().height(BAR_HEIGHT).blockTouches()) {
         val buttons = listOfNotNull(model.onClose, model.onMenu, model.onQam).size + model.extras.size
         val steamWidth = if (model.onSteam != null) STEAM_WIDTH + BAR_GAP else 0.dp
-        val needed = BAR_PAD * 2 + BUTTON * buttons + BAR_GAP * (buttons - 1).coerceAtLeast(0) + steamWidth
+        val titleWidth = if (model.title != null) MIN_TITLE + BAR_GAP else 0.dp
+        val needed = BAR_PAD * 2 + BUTTON * buttons + BAR_GAP * (buttons - 1).coerceAtLeast(0) + steamWidth + titleWidth
         val fits = maxWidth >= needed
-        val titled = model.title != null && maxWidth - needed >= MIN_TITLE
         Row(
             Modifier.fillMaxSize().then(if (fits) Modifier else Modifier.horizontalScroll(rememberScrollState()))
                 .padding(horizontal = BAR_PAD, vertical = 10.dp),
@@ -87,9 +87,10 @@ internal fun BottomScreenBar(model: BottomBarModel, modifier: Modifier = Modifie
             model.onClose?.let {
                 BarButton(stringResource(R.string.common_close), Modifier.testTag("bottom-bar-close"), vector = Icons.Outlined.Close, onClick = it)
             }
-            if (titled) Text(
-                model.title!!, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onSurfaceVariant,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 4.dp),
+            if (model.title != null) Text(
+                model.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onSurfaceVariant,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = (if (fits) Modifier.weight(1f) else Modifier).padding(start = 4.dp),
             ) else if (fits) Spacer(Modifier.weight(1f))
             model.extras.forEach { extra ->
                 BarButton(extra.description, extra.tag?.let { Modifier.testTag(it) } ?: Modifier, icon = extra.icon, vector = extra.vector,
