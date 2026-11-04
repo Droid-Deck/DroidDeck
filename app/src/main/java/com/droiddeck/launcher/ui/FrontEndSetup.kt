@@ -581,7 +581,7 @@ internal fun SetupPanel(
                                         Text(
                                             stringResource(R.string.setup_log_size_date,
                                                 android.text.format.Formatter.formatShortFileSize(ctx, detail.sizeBytes),
-                                                java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(detail.modifiedAt))),
+                                                "${android.text.format.DateFormat.getDateFormat(ctx).format(java.util.Date(detail.modifiedAt))} ${android.text.format.DateFormat.getTimeFormat(ctx).format(java.util.Date(detail.modifiedAt))}"),
                                             fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     }
