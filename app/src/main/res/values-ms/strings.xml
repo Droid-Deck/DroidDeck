@@ -866,6 +866,7 @@
     <string name="setup_home">Gunakan sebagai skrin Utama</string>
     <string name="setup_home_on">DroidDeck boleh menjadi apl Utama</string>
     <string name="setup_home_off">DroidDeck tidak sekali-kali ditawarkan sebagai apl Utama</string>
+    <string name="setup_home_game_space_first">Dalam Tambah Permainan, tetapkan DroidDeck kepada Sertakan</string>
     <string name="setup_orientation">Orientasi</string>
     <string name="setup_launcher_orientation">Orientasi pelancar</string>
     <string name="setup_launcher_orientation_auto">Ikut putaran peranti</string>

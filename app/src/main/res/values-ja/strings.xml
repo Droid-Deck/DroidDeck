@@ -866,6 +866,7 @@
     <string name="setup_home">ホーム画面として使用</string>
     <string name="setup_home_on">DroidDeckをホームアプリとして使用できます</string>
     <string name="setup_home_off">DroidDeckはホームアプリとして提供されません</string>
+    <string name="setup_home_game_space_first">「ゲームを追加」で DroidDeck を「含める」に設定してください</string>
     <string name="setup_orientation">画面の向き</string>
     <string name="setup_launcher_orientation">ランチャーの向き</string>
     <string name="setup_launcher_orientation_auto">デバイスの回転に合わせる</string>

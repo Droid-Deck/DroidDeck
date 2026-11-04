@@ -321,11 +321,7 @@ class FrontEndActivity : ComponentActivity() {
                 refreshWifiDiscovery()
             }
             SteamIntegration.Feature.BRIGHTNESS -> integrationSettings(SteamIntegration.brightnessSettings(this))
-            SteamIntegration.Feature.HOME -> if (HomeApp.isDefault(this)) HomeApp.openSystemHomeSettings(this) else {
-                HomeApp.setHomeScreenEnabled(this, true)
-                refreshHomeAppState()
-                manageHomeApp()
-            }
+            SteamIntegration.Feature.HOME -> if (HomeApp.isDefault(this)) HomeApp.openSystemHomeSettings(this) else offerHomeScreen()
             SteamIntegration.Feature.SHORTCUTS -> {
                 if (!integrationState.shortcuts) shortcutsTried = true
                 if (!HomeApp.isDefault(this)) configureIntegration(SteamIntegration.Feature.HOME)
@@ -590,8 +586,17 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private val homeRoleRequest = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        homeChoiceOpen = false
+        HomeApp.releaseUnusedHomeEntry(this)
         refreshHomeAppState()
     }
+    private val gameSpaceAdd = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        homeChoiceOpen = false
+        if (HomeApp.inGameSpace(this)) enableHomeScreen()
+        else refreshHomeAppState()
+    }
+    private var homeChoiceOpen = false
+    private var gameSpaceOffered = false
 
     override fun startActivity(intent: Intent?) {
         val compat = protons.protonBusyId != null || ProtonExtras.installInProgress
@@ -1025,6 +1030,8 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        homeChoiceOpen = savedInstanceState?.getBoolean(STATE_HOME_CHOICE_OPEN) == true
+        gameSpaceOffered = savedInstanceState?.getBoolean(STATE_GAME_SPACE_OFFERED) == true
         if (savedInstanceState == null) readIntegrationIntent(intent)
         readGameIntent(intent)
         gameSyncFolder = GameFileSync.folder(this)
@@ -1390,8 +1397,11 @@ class FrontEndActivity : ComponentActivity() {
                             integrationState = readIntegration()
                         },
                         onHomeScreen = { on ->
-                            HomeApp.setHomeScreenEnabled(this, on)
-                            refreshHomeAppState()
+                            if (on && HomeApp.hasGameSpace(this)) offerHomeScreen()
+                            else {
+                                HomeApp.setHomeScreenEnabled(this, on)
+                                refreshHomeAppState()
+                            }
                         },
                         onAndroidApp = { app, displayId -> launchAndroidApp(app, displayId) },
                         onBackActionsInverted = { inverted ->
@@ -1715,6 +1725,10 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (!homeChoiceOpen) {
+            HomeApp.releaseUnusedHomeEntry(this)
+            refreshHomeAppState()
+        }
         if (settingsMode == SessionService.MODE_STEAM) refreshFoundSteamLibraries()
         compatLaunchVisible = true
         com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
@@ -1791,6 +1805,8 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
+        outState.putBoolean(STATE_HOME_CHOICE_OPEN, homeChoiceOpen)
+        outState.putBoolean(STATE_GAME_SPACE_OFFERED, gameSpaceOffered)
         if (slowUsbNever) SessionPrefs.setSlowUsbWarningOff(this)
         saveCompatLaunch(outState)
         pendingSwitch?.let { outState.putParcelable(KEY_PENDING_SWITCH, it) }
@@ -1810,7 +1826,13 @@ class FrontEndActivity : ComponentActivity() {
         super.onDestroy()
     }
 
+    override fun onRestart() {
+        super.onRestart()
+        homeChoiceOpen = false
+    }
+
     override fun onStop() {
+        if (!homeChoiceOpen) HomeApp.releaseUnusedHomeEntry(this)
         unregisterReceiver(wifiLocationReceiver)
         unregisterReceiver(mediaReceiver)
         getSystemService(android.content.pm.LauncherApps::class.java).unregisterCallback(packageCallback)
@@ -1890,12 +1912,32 @@ class FrontEndActivity : ComponentActivity() {
         }
     }
 
+    private fun offerHomeScreen() {
+        if (!gameSpaceOffered && HomeApp.hasGameSpace(this) && !HomeApp.inGameSpace(this)) {
+            gameSpaceOffered = true
+            val opened = runCatching { gameSpaceAdd.launch(HomeApp.gameSpaceAddIntent()) }.isSuccess
+            if (opened) {
+                homeChoiceOpen = true
+                android.widget.Toast.makeText(this, R.string.setup_home_game_space_first, android.widget.Toast.LENGTH_LONG).show()
+                return
+            }
+        }
+        enableHomeScreen()
+    }
+
+    private fun enableHomeScreen() {
+        HomeApp.setHomeScreenEnabled(this, true)
+        refreshHomeAppState()
+        manageHomeApp()
+    }
+
     private fun manageHomeApp() {
+        homeChoiceOpen = true
         val request = HomeApp.roleRequestIntent(this)
         if (request != null) {
             homeRoleRequest.launch(request)
-        } else {
-            HomeApp.openSystemHomeSettings(this)
+        } else if (runCatching { homeRoleRequest.launch(HomeApp.settingsIntent()) }.isFailure) {
+            homeChoiceOpen = false
         }
     }
 
@@ -2835,6 +2877,8 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     companion object {
+        private const val STATE_HOME_CHOICE_OPEN = "home_choice_open"
+        private const val STATE_GAME_SPACE_OFFERED = "game_space_offered"
         private const val TAG = "MainActivity"
         private const val MEDIA_SETTLE_MS = 1500L
         private const val COMPONENT_RESTORE_MS = 60_000L

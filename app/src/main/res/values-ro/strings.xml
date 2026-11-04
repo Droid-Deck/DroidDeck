@@ -872,6 +872,7 @@
     <string name="setup_home">Folosește ca ecran Acasă</string>
     <string name="setup_home_on">DroidDeck poate fi aplicația Acasă</string>
     <string name="setup_home_off">DroidDeck nu este niciodată oferit ca aplicație Acasă</string>
+    <string name="setup_home_game_space_first">În Adaugă jocuri, setează DroidDeck pe Include</string>
     <string name="setup_orientation">Orientare</string>
     <string name="setup_launcher_orientation">Orientarea launcherului</string>
     <string name="setup_launcher_orientation_auto">Urmează rotirea dispozitivului</string>

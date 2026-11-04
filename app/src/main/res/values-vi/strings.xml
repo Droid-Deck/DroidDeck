@@ -866,6 +866,7 @@
     <string name="setup_home">Dùng làm màn hình chính</string>
     <string name="setup_home_on">DroidDeck có thể là ứng dụng Màn hình chính</string>
     <string name="setup_home_off">DroidDeck không bao giờ được đề xuất làm ứng dụng Màn hình chính</string>
+    <string name="setup_home_game_space_first">Trong Thêm trò chơi, đặt DroidDeck thành Bao gồm</string>
     <string name="setup_orientation">Hướng màn hình</string>
     <string name="setup_launcher_orientation">Hướng màn hình launcher</string>
     <string name="setup_launcher_orientation_auto">Theo hướng xoay thiết bị</string>
