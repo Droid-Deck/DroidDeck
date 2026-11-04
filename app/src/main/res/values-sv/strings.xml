@@ -873,6 +873,7 @@
     <string name="setup_home">Använd som startskärm</string>
     <string name="setup_home_on">DroidDeck kan vara startskärmsappen</string>
     <string name="setup_home_off">DroidDeck erbjuds aldrig som startskärmsapp</string>
+    <string name="setup_home_game_space_first">Under Lägg till spel ställer du DroidDeck på Inkludera</string>
     <string name="setup_orientation">Orientering</string>
     <string name="setup_launcher_orientation">Launcherns orientering</string>
     <string name="setup_launcher_orientation_auto">Följ enhetens rotation</string>

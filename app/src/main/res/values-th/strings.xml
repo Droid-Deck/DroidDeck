@@ -870,6 +870,7 @@
     <string name="setup_home">ใช้เป็นหน้าจอหลัก</string>
     <string name="setup_home_on">DroidDeck สามารถเป็นแอปหน้าจอหลักได้</string>
     <string name="setup_home_off">DroidDeck จะไม่ถูกเสนอให้เป็นแอปหน้าจอหลัก</string>
+    <string name="setup_home_game_space_first">ในเพิ่มเกม ให้ตั้ง DroidDeck เป็นรวม</string>
     <string name="setup_orientation">การวางแนว</string>
     <string name="setup_launcher_orientation">การวางแนวของตัวเปิดใช้</string>
     <string name="setup_launcher_orientation_auto">หมุนตามอุปกรณ์</string>

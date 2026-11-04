@@ -879,6 +879,7 @@
     <string name="setup_home">Использовать как главный экран</string>
     <string name="setup_home_on">DroidDeck может использоваться как приложение главного экрана</string>
     <string name="setup_home_off">DroidDeck не будет доступен как приложение главного экрана</string>
+    <string name="setup_home_game_space_first">В разделе «Добавить игры» переключите DroidDeck на «Включить»</string>
     <string name="setup_orientation">Ориентация</string>
     <string name="setup_launcher_orientation">Ориентация лаунчера</string>
     <string name="setup_launcher_orientation_auto">Следовать повороту устройства</string>

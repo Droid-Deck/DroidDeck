@@ -879,6 +879,7 @@
     <string name="setup_home">Використовувати як головний екран</string>
     <string name="setup_home_on">DroidDeck може бути додатком головного екрана</string>
     <string name="setup_home_off">DroidDeck ніколи не пропонується як додаток головного екрана</string>
+    <string name="setup_home_game_space_first">У розділі «Додати ігри» перемкніть DroidDeck на «Включити»</string>
     <string name="setup_orientation">Орієнтація</string>
     <string name="setup_launcher_orientation">Орієнтація лаунчера</string>
     <string name="setup_launcher_orientation_auto">Слідувати повороту пристрою</string>

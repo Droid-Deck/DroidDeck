@@ -873,6 +873,7 @@
     <string name="setup_home">Használat kezdőképernyőként</string>
     <string name="setup_home_on">A DroidDeck lehet a kezdőképernyő alkalmazás</string>
     <string name="setup_home_off">A DroidDeck soha nem jelenik meg kezdőképernyő alkalmazásként</string>
+    <string name="setup_home_game_space_first">A Játékok hozzáadása részben állítsd a DroidDecket Belefoglalásra</string>
     <string name="setup_orientation">Tájolás</string>
     <string name="setup_launcher_orientation">Az indító tájolása</string>
     <string name="setup_launcher_orientation_auto">Az eszköz elforgatásának követése</string>

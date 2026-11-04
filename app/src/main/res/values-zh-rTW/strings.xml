@@ -870,6 +870,7 @@
     <string name="setup_home">用作主螢幕</string>
     <string name="setup_home_on">DroidDeck 可以作為主螢幕應用程式</string>
     <string name="setup_home_off">DroidDeck 不會作為主螢幕應用程式提供</string>
+    <string name="setup_home_game_space_first">請在「新增遊戲」中將 DroidDeck 設為「包含」</string>
     <string name="setup_orientation">螢幕方向</string>
     <string name="setup_launcher_orientation">啟動器方向</string>
     <string name="setup_launcher_orientation_auto">跟隨裝置旋轉</string>

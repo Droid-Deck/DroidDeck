@@ -873,6 +873,7 @@
     <string name="setup_home">होम स्क्रीन के तौर पर इस्तेमाल करें</string>
     <string name="setup_home_on">DroidDeck होम ऐप हो सकता है</string>
     <string name="setup_home_off">DroidDeck को होम ऐप के तौर पर कभी नहीं दिखाया जाता</string>
+    <string name="setup_home_game_space_first">गेम जोड़ें में DroidDeck को शामिल करें पर सेट करें</string>
     <string name="setup_orientation">ओरिएंटेशन</string>
     <string name="setup_launcher_orientation">लॉन्चर ओरिएंटेशन</string>
     <string name="setup_launcher_orientation_auto">डिवाइस रोटेशन के अनुसार</string>

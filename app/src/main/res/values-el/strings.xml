@@ -873,6 +873,7 @@
     <string name="setup_home">Χρήση ως αρχική οθόνη</string>
     <string name="setup_home_on">Το DroidDeck μπορεί να είναι η εφαρμογή αρχικής οθόνης</string>
     <string name="setup_home_off">Το DroidDeck δεν προτείνεται ποτέ ως εφαρμογή αρχικής οθόνης</string>
+    <string name="setup_home_game_space_first">Στην Προσθήκη παιχνιδιών, ορίστε το DroidDeck σε Συμπερίληψη</string>
     <string name="setup_orientation">Προσανατολισμός</string>
     <string name="setup_launcher_orientation">Προσανατολισμός launcher</string>
     <string name="setup_launcher_orientation_auto">Ακολουθεί την περιστροφή της συσκευής</string>
