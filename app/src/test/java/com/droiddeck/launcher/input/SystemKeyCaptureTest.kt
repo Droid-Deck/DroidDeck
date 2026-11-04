@@ -14,6 +14,12 @@ class SystemKeyCaptureTest {
         assertTrue(SystemKeyCapture.captures(KeyEvent.KEYCODE_D, KeyEvent.META_META_ON))
     }
 
+    @Test fun onlyTheEscapeScanCodeTurnsBackIntoEscape() {
+        assertTrue(GuestKeys.isKeyboardEscape(KeyEvent.KEYCODE_BACK, 1))
+        assertFalse(GuestKeys.isKeyboardEscape(KeyEvent.KEYCODE_BACK, 158))
+        assertFalse(GuestKeys.isKeyboardEscape(KeyEvent.KEYCODE_ESCAPE, 1))
+    }
+
     @Test fun ordinaryKeysStayWithTheNormalPath() {
         assertFalse(SystemKeyCapture.captures(KeyEvent.KEYCODE_TAB, 0))
         assertFalse(SystemKeyCapture.captures(KeyEvent.KEYCODE_A, 0))

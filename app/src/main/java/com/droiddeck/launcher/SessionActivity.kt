@@ -2663,7 +2663,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (joyConVr?.onKeyEvent(event) == true) return true
         if (fromController && event.keyCode != KeyEvent.KEYCODE_BACK && padMouseMode() && padMouse.onKey(event)) return true
         if (event.keyCode != KeyEvent.KEYCODE_BACK && padBridge?.onKeyEvent(event) == true) return true
-        if (CompositorHost.isStarted && event.keyCode != KeyEvent.KEYCODE_BACK && !fromController) {
+        val keyboardKey = event.keyCode != KeyEvent.KEYCODE_BACK ||
+            com.droiddeck.launcher.input.GuestKeys.isKeyboardEscape(event.keyCode, event.scanCode)
+        if (CompositorHost.isStarted && keyboardKey && !fromController) {
             val down = event.action == KeyEvent.ACTION_DOWN
             if (down && event.repeatCount > 0) return true
             if (com.droiddeck.launcher.input.GuestKeys.send(event, ::sendGuestKey)) return true
