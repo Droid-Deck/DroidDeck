@@ -34,7 +34,8 @@ internal Steam library and writes an installed manifest with `Universe=1` and
 `StateFlags=4`. Steam ignores manifests without the universe field. A manifest without
 installed depots makes Steam verify every file, so the importer carries the build another
 client recorded: WinNative's `.winnative-steam/steamapps` manifest beside the game folder,
-or a completed download's `.DepotDownloader/depot.config` depot manifest IDs. Steam then
+or a completed download's depot manifest IDs from `.DepotDownloader/depot.config` or, when
+that file is gone, the `<depot>_<gid>.manifest` names in `.DepotDownloader/completed`. Steam then
 only downloads what changed since that build. Bare manifests from earlier imports are
 upgraded while Steam has not touched them. Without either record Steam still verifies.
 WinNative's manifest also identifies the folder without a store lookup. Steam updates and uninstall

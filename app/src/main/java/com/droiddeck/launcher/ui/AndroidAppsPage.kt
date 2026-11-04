@@ -18,6 +18,7 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -86,7 +87,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -563,9 +570,10 @@ private fun AppIcon(app: HomeApp.LaunchableApp, size: androidx.compose.ui.unit.D
 private fun AppTile(
     app: HomeApp.LaunchableApp, folderId: String?, first: Boolean,
     onLaunch: (HomeApp.LaunchableApp) -> Unit, onNewFolder: (HomeApp.LaunchableApp) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     var menu by remember { mutableStateOf(false) }
-    Box {
+    Box(modifier) {
         TileFrame(app.key, first, onClick = { onLaunch(app) }, onMenu = { menu = true }) {
             AppIcon(app, 52.dp)
             TileLabel(app.label)
@@ -710,6 +718,7 @@ private fun FolderTile(entry: AppEntry.Folder, first: Boolean, onOpen: () -> Uni
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun FolderSheet(
     folder: HomeFolders.Folder, apps: List<HomeApp.LaunchableApp>, renameFirst: Boolean,
@@ -726,7 +735,27 @@ private fun FolderSheet(
         if (n.isNotEmpty() && n != folder.name) HomeFolders.rename(ctx, folder.id, n)
         renaming = false
     }
-    val close = { if (renaming) commit(); onClose() }
+    val firstApp = remember { FocusRequester() }
+    val inputMode = LocalInputModeManager.current.inputMode
+    val ff = LocalFrontFocus.current
+    val grid = rememberLazyGridState()
+    var closing by remember { mutableStateOf(false) }
+    LaunchedEffect(renaming, inputMode) {
+        if (!renaming && !closing && inputMode == InputMode.Keyboard && apps.isNotEmpty()) {
+            grid.scrollToItem(0)
+            repeat(2) { androidx.compose.runtime.withFrameNanos { } }
+            if (!closing) runCatching { firstApp.requestFocus() }
+        }
+    }
+    val close = {
+        closing = true
+        if (renaming) commit()
+        onClose()
+        if (inputMode == InputMode.Keyboard && ff != null) {
+            runCatching { ff.items.getValue("tile:folder:${folder.id}").requestFocus() }
+                .onFailure { runCatching { ff.firstTile.requestFocus() } }
+        }
+    }
     BackHandler { close() }
     Box(
         contentAlignment = Alignment.Center,
@@ -741,6 +770,13 @@ private fun FolderSheet(
                     .glideBorder(false, Shape16, pal.signal, pal.signal.copy(alpha = 0.22f))
                     .pointerInput(Unit) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() } }
                     .controllerBack(close)
+                    .focusProperties {
+                        exit = { dir ->
+                            if (dir == FocusDirection.Up || dir == FocusDirection.Down || dir == FocusDirection.Left || dir == FocusDirection.Right) FocusRequester.Cancel
+                            else FocusRequester.Default
+                        }
+                    }
+                    .focusGroup()
                     .padding(16.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
@@ -759,11 +795,15 @@ private fun FolderSheet(
                 }
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(92.dp),
+                    state = grid,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     items(apps, key = { it.key }) { app ->
-                        AppTile(app, folderId = folder.id, first = false, onLaunch = { onClose(); onLaunch(it) }, onNewFolder = onNewFolder)
+                        AppTile(
+                            app, folderId = folder.id, first = false, onLaunch = { onClose(); onLaunch(it) }, onNewFolder = onNewFolder,
+                            modifier = if (app === apps.first()) Modifier.focusRequester(firstApp) else Modifier,
+                        )
                     }
                 }
             }

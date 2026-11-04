@@ -140,6 +140,7 @@ class SteamTouchControls(
 
     override fun onDetachedFromWindow() {
         handler.removeCallbacks(poll)
+        moveRedraw.cancel()
         sensors.unregisterListener(shakeListener)
         releaseAll()
         super.onDetachedFromWindow()
@@ -547,7 +548,7 @@ class SteamTouchControls(
         return bits
     }
 
-    private fun publish() {
+    private fun publish(moving: Boolean = false) {
         var buttons = 0L
         val sticks = ShortArray(4)
         val pads = ShortArray(6)
@@ -578,7 +579,7 @@ class SteamTouchControls(
             }
         }
         device.setControls(buttons, sticks, pads)
-        invalidate()
+        if (moving) moveRedraw.request() else invalidate()
     }
 
     fun releaseAll() {
@@ -586,6 +587,8 @@ class SteamTouchControls(
         device.setControls(0L, ShortArray(4), ShortArray(6))
         invalidate()
     }
+
+    private val moveRedraw = ThrottledRedraw(this, MOVE_REDRAW_MS)
 
     private fun keepHeldFingers() {
         val moved = SteamTouchConfig.remapHeld(fingers.mapValues { it.value.element?.type }, live())
@@ -636,7 +639,7 @@ class SteamTouchControls(
                 if (forwardedPointerBits != 0) forwardPointers(event, forwardedPointerBits)
                 fingers[event.getPointerId(index)] = Finger(e, x, y)
                 if (feedback) performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-                requestUnbufferedDispatch(event)
+                if (com.droiddeck.launcher.session.SessionPrefs.lowLatency(context)) requestUnbufferedDispatch(event)
                 publish()
                 return true
             }
@@ -655,7 +658,7 @@ class SteamTouchControls(
                         }
                     }
                 }
-                publish()
+                publish(moving = true)
                 return true
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
@@ -1477,6 +1480,7 @@ class SteamTouchControls(
     companion object {
         private const val TAG = "SteamTouch"
         private const val POLL_MS = 150L
+        private const val MOVE_REDRAW_MS = 33L
         const val BIG_PICTURE = 769
         private const val ICON_PX = 128
         private const val MARK_D = "M-31.98 0H56.055V40.489A71.81 71.81 0 0 0 56.055 183.231V223.72H-31.98Z" +

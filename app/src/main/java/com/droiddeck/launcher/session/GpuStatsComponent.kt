@@ -54,6 +54,7 @@ class GpuStatsComponent(val dir: File, private val root: File) : SessionPart() {
             }
             pick("temp", tempSources(), "%6d\n") { milliCelsius(it) }?.let { feeds.add(it) }
             refresh()
+            createMissing(feeds.map { it.file })
             describeSources()
             Log.i(TAG, "hud: kgsl stats from the session's own: $sources")
             true
@@ -353,6 +354,10 @@ class GpuStatsComponent(val dir: File, private val root: File) : SessionPart() {
         private const val STALE_MS = 30_000L
 
         fun guestLoadDir(root: File) = File(root, GUEST_LOAD_DIR.removePrefix("/"))
+
+        // A feed with no value yet (the HUD hidden at start) still needs its file, or binds() leaves its node out for
+        // the whole session.
+        internal fun createMissing(files: List<File>) = files.forEach { runCatching { it.createNewFile() } }
 
         /** True when this app can see kgsl but none of its GPU load nodes (SELinux-blocked, e.g. the Retroid Pocket Duo). */
         fun loadBlocked(): Boolean = File(KGSL).exists() && !File(GPUBUSY).canRead() && LOAD_SOURCES.none { File(it).canRead() }

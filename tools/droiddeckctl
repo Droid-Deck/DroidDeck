@@ -362,6 +362,50 @@ def pacing(adb: str, serial: str, seconds: float) -> dict:
     return {"ok": True, "command": "pacing", "seconds": round(elapsed, 1), **summary}
 
 
+THERMAL_STATUS = ["NONE", "LIGHT", "MODERATE", "SEVERE", "CRITICAL", "EMERGENCY", "SHUTDOWN"]
+CPUFREQ = "/sys/devices/system/cpu/cpufreq"
+
+
+def thermal_summary(battery: str, service: str, cpufreq: str) -> dict:
+    tenths = re.search(r"^\s*temperature:\s*(-?\d+)", battery, re.M)
+    status = re.search(r"^\s*Thermal Status:\s*(\d+)", service, re.M)
+    level = int(status.group(1)) if status else None
+    cpu: dict[str, dict] = {}
+    for policy, name, khz in re.findall(r"/(policy\d+)/(scaling_max_freq|cpuinfo_max_freq):(\d+)", cpufreq):
+        cpu.setdefault(policy, {})["maxKHz" if name == "scaling_max_freq" else "hardwareMaxKHz"] = int(khz)
+    for limits in cpu.values():
+        if "maxKHz" in limits and "hardwareMaxKHz" in limits:
+            limits["capped"] = limits["maxKHz"] < limits["hardwareMaxKHz"]
+    return {
+        "batteryC": int(tenths.group(1)) / 10 if tenths else None,
+        "status": level,
+        "statusName": THERMAL_STATUS[level] if level is not None and level < len(THERMAL_STATUS) else None,
+        "cpu": dict(sorted(cpu.items(), key=lambda item: int(item[0][6:]))),
+    }
+
+
+def thermal(adb: str, serial: str) -> dict:
+    def shell(*command: str) -> str:
+        return run_adb(adb, serial, "shell", *command).stdout.decode(errors="replace")
+    summary = thermal_summary(shell("dumpsys", "battery"), shell("dumpsys", "thermalservice"),
+                              shell("grep", ".", f"{CPUFREQ}/policy*/scaling_max_freq", f"{CPUFREQ}/policy*/cpuinfo_max_freq"))
+    return {"ok": True, "command": "thermal", **summary}
+
+
+def wait_cool(adb: str, serial: str, below: float, timeout: float) -> dict:
+    started = time.monotonic()
+    while True:
+        reading = thermal(adb, serial)
+        if reading["batteryC"] is None:
+            raise ControlError("dumpsys battery reports no temperature", "THERMAL_FAILED")
+        if reading["batteryC"] < below:
+            return {**reading, "command": "wait", "waitedSeconds": round(time.monotonic() - started, 1)}
+        remaining = started + timeout - time.monotonic()
+        if remaining <= 0:
+            raise ControlError(f"Battery still at {reading['batteryC']:g} °C after {timeout:g} s, wanted below {below:g}",
+                               "TIMEOUT")
+        time.sleep(min(10.0, remaining))
+
 
 def start_session(adb: str, serial: str, request: dict) -> dict:
     if request.get("mode") == "run":
@@ -531,6 +575,10 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
                            "sessionId": session.get("id"), "phase": session.get("phase")}, serial)
 
     if command == "wait":
+        if args.phase == "cool":
+            if args.below is None:
+                raise ControlError("wait cool needs --below <°C>", "INVALID_ARGUMENTS")
+            return add_serial(wait_cool(adb, serial, args.below, args.timeout), serial)
         if args.phase == "focused":
             if args.app_id is None:
                 raise ControlError("wait focused needs an app id", "INVALID_ARGUMENTS")
@@ -704,6 +752,9 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
     if command == "pacing":
         return add_serial(pacing(adb, serial, args.seconds), serial)
 
+    if command == "thermal":
+        return add_serial(thermal(adb, serial), serial)
+
     if command == "wake":
         run_adb(adb, serial, "shell", "input", "keyevent", "KEYCODE_WAKEUP")
         run_adb(adb, serial, "shell", "wm", "dismiss-keyguard")
@@ -739,9 +790,10 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("program")
     run.add_argument("arguments", nargs=argparse.REMAINDER)
 
-    wait = commands.add_parser("wait", help="wait for a session phase, or for a game to have focus")
-    wait.add_argument("phase", choices=["ready", "idle", "failed", "focused", "game"])
+    wait = commands.add_parser("wait", help="wait for a session phase, for a game to have focus, or for the battery to cool")
+    wait.add_argument("phase", choices=["ready", "idle", "failed", "focused", "game", "cool"])
     wait.add_argument("app_id", nargs="?", type=int, help="with focused: the Steam app id")
+    wait.add_argument("--below", type=float, help="with cool: the battery temperature to get under, in °C")
     wait.add_argument("--timeout", type=float, default=90)
 
     stop = commands.add_parser("stop", help="stop the session and wait for IDLE")
@@ -906,6 +958,7 @@ def build_parser() -> argparse.ArgumentParser:
     pace = commands.add_parser("pacing", help="frames that reached the screen and their intervals (SurfaceFlinger)")
     pace.add_argument("--seconds", type=float, default=30)
 
+    commands.add_parser("thermal", help="battery temperature, thermal status and CPU frequency caps")
     commands.add_parser("displays", help="the device's displays and their capture ids")
     commands.add_parser("wake", help="wake the device and dismiss the keyguard")
     return parser
