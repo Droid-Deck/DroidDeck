@@ -15,17 +15,20 @@ globalThis.window = globalThis;
 globalThis.innerWidth = 1000;
 globalThis.innerHeight = 600;
 globalThis.screen = { availWidth: 1280, availHeight: 670 };
-globalThis.Element = class {};
 globalThis.addEventListener = (type, callback) => { listeners[type] = callback; };
-globalThis.document = { createElement: () => ({}), documentElement: { append() {} } };
+let stack = [], layers = [];
+globalThis.document = { createElement: () => ({}), documentElement: { append() {} }, elementsFromPoint: () => stack,
+  querySelectorAll: () => layers };
 globalThis.getComputedStyle = target => ({ webkitAppRegion: target.region });
 globalThis.droiddeckWindowAction = action => sent.push(action);
 globalThis.SteamClient = { Window: { ToggleMaximize() { throw new Error('native'); } } };
 assert.strictEqual(eval(SCRIPT), 'installed');
 assert.strictEqual(eval(SCRIPT), 'present');
-const target = region => Object.assign(new Element(), { region });
-const event = (x, y, region = 'none', extra = {}) => ({ clientX: x, clientY: y, button: 0, buttons: 0,
-  target: target(region), stopPropagation() { this.stopped = true; }, preventDefault() {}, ...extra });
+const event = (x, y, region = 'none', extra = {}) => {
+  stack = [].concat(region).map(name => ({ region: name }));
+  return { clientX: x, clientY: y, button: 0, buttons: 0,
+    stopPropagation() { this.stopped = true; }, preventDefault() {}, ...extra };
+};
 const take = () => sent.splice(0);
 
 listeners.pointerdown(event(500, 300));
@@ -54,15 +57,26 @@ for (const [x, y, side] of [[2, 300, 'w'], [998, 300, 'e'], [500, 2, 'n'], [500,
   assert.deepStrictEqual(take(), [side]);
 }
 
-const inside = (region, parent) => Object.assign(new Element(), { region, parentElement: target(parent) });
-listeners.pointerdown(event(500, 12, 'none', { target: inside('none', 'drag') }));
+listeners.pointerdown(event(500, 12, ['none', 'none', 'drag']));
+listeners.pointermove(event(520, 12, ['none', 'none', 'drag'], { buttons: 1 }));
+assert.deepStrictEqual(take(), ['move']);
+listeners.pointerup(event(520, 12));
+listeners.pointerdown(event(500, 12, ['none', 'no-drag', 'drag']));
+listeners.pointermove(event(520, 12, ['none', 'no-drag', 'drag'], { buttons: 1 }));
+assert.deepStrictEqual(take(), []);
+listeners.pointerup(event(520, 12));
+
+layers = [{ region: 'none', getBoundingClientRect: () => ({ left: 0, right: 1000, top: 0, bottom: 600 }) },
+          { region: 'drag', getBoundingClientRect: () => ({ left: 0, right: 1000, top: 0, bottom: 66 }) }];
+listeners.pointerdown(event(500, 12));
 listeners.pointermove(event(520, 12, 'none', { buttons: 1 }));
 assert.deepStrictEqual(take(), ['move']);
 listeners.pointerup(event(520, 12));
-listeners.pointerdown(event(500, 12, 'none', { target: inside('no-drag', 'drag') }));
-listeners.pointermove(event(520, 12, 'none', { buttons: 1 }));
+listeners.pointerdown(event(500, 300));
+listeners.pointermove(event(520, 300, 'none', { buttons: 1 }));
 assert.deepStrictEqual(take(), []);
-listeners.pointerup(event(520, 12));
+listeners.pointerup(event(520, 300));
+layers = [];
 
 const right = event(2, 300, 'none', { button: 2 });
 listeners.pointerdown(right);

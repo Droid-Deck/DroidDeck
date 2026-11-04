@@ -337,13 +337,17 @@ WINDOW_JS = r"""
     const h = near(e.clientX, along) ? "w" : near(right, along) ? "e" : "";
     return v + h;
   };
-  const dragging = e => {
-    for (let node = e.target; node instanceof Element; node = node.parentElement) {
+  const dragging = (x, y) => {
+    for (const node of document.elementsFromPoint(x, y)) {
       const region = getComputedStyle(node).webkitAppRegion;
       if (region === "drag") return true;
       if (region === "no-drag") return false;
     }
-    return false;
+    return [...document.querySelectorAll("*")].some(node => {
+      if (getComputedStyle(node).webkitAppRegion !== "drag") return false;
+      const box = node.getBoundingClientRect();
+      return x >= box.left && x < box.right && y >= box.top && y < box.bottom;
+    });
   };
   const style = document.createElement("style");
   document.documentElement.append(style);
@@ -351,8 +355,9 @@ WINDOW_JS = r"""
   addEventListener("pointermove", e => {
     if (press) {
       if (Math.hypot(e.clientX - press.x, e.clientY - press.y) >= THRESHOLD) {
+        const hit = dragging(press.x, press.y);
         press = null;
-        send("move");
+        if (hit) send("move");
       }
       return;
     }
@@ -369,12 +374,12 @@ WINDOW_JS = r"""
       e.stopPropagation();
       e.preventDefault();
       send(edge);
-    } else if (dragging(e)) {
+    } else {
       press = { x: e.clientX, y: e.clientY };
     }
   }, true);
   addEventListener("pointerup", () => { press = null; }, true);
-  addEventListener("dblclick", e => { if (dragging(e) && !side(e)) send("maximize"); }, true);
+  addEventListener("dblclick", e => { if (dragging(e.clientX, e.clientY) && !side(e)) send("maximize"); }, true);
   SteamClient.Window.ToggleMaximize = () => send("maximize");
   window.__droiddeckWindow = true;
   return "installed";
