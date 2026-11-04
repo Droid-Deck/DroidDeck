@@ -111,6 +111,23 @@ class AddedGamesCacheTest {
         assertEquals("Bastion", AddedGamesCache(file).name("named"))
     }
 
+    @Test fun aRankingAScanReusedIsNotHandedToAFreshLookup() {
+        val folder = tmp.newFolder("Game")
+        val walked = File(folder, "Game.exe").apply { writeText("game") }
+        val kept = File(folder, "Other.exe").apply { writeText("other") }
+        val files = tmp.newFolder("files")
+        val context = object : android.content.ContextWrapper(app) {
+            override fun getFilesDir() = files
+        }
+        AddedGamesCache(File(files, AddedGamesCache.FILE)).apply {
+            keepRank(folder, GameExePicker.Ranking(listOf(kept), listOf(10), false))
+            save()
+        }
+        AddedGames.scan(context)
+        assertEquals(listOf(kept), AddedGames.rank(folder, reuse = true).exes)
+        assertEquals(walked, AddedGames.candidates(folder).first())
+    }
+
     @Test fun aScanKeepsEachGamesRankingForTheNextLaunch() {
         val (folder, exe) = game("Card Game")
         AddedExes.put(app, AddedExes.Entry(folder.path, exe.path, picked = false))

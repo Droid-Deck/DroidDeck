@@ -103,7 +103,7 @@ object AddedGames {
         val key = "${folder.path}|${folder.lastModified()}"
         val now = System.currentTimeMillis()
         ranked[key]?.takeIf { now - it.first < RANK_FRESH_MS }?.let { return it.second }
-        if (reuse) kept?.rank(folder)?.let { ranked[key] = now to it; return it }
+        if (reuse) kept?.rank(folder)?.let { return it }
         val guessed = GameExePicker.rank(folder) { !skipExe(it.name) }
         val declared = declaredExes(folder)
         val preferred = declared.map { it.path }.toSet()
