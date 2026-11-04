@@ -16,12 +16,18 @@ import org.robolectric.annotation.Config
 import java.io.RandomAccessFile
 import java.nio.file.Files
 import java.util.zip.ZipFile
+import org.junit.After
+import org.junit.Before
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class EnhancedSessionLogShareTest {
     @get:Rule val tmp = TemporaryFolder()
     private val app get() = RuntimeEnvironment.getApplication()
+
+    @Before fun installSecureSourceOpener() = installJvmSecureSourceOpener()
+
+    @After fun resetSourceOpener() = resetSecureSourceOpener()
 
     @Test fun diagnosticsAreSplitIntoManifestedArchivesWithOneSessionIdentity() {
         val session = tmp.newFolder("2026-11-04-01-steam")
@@ -326,6 +332,31 @@ class EnhancedSessionLogShareTest {
                 .bufferedReader().readText())
             assertTrue(manifest.toString().contains("guest-game-lifecycle"))
         }
+        SessionLogShare.clear(app)
+    }
+
+    @Test fun injectedSecureOpenFailureFailsClosedAndTheOverrideCanBeReset() {
+        val session = tmp.newFolder("2026-11-04-15-steam")
+        session.resolve("session.log").writeText("must not be shared\n")
+        EnhancedSessionLogShare.setSourceOpenerForTest(object : SecureSourceOpener {
+            override fun <T> withChannel(
+                root: java.nio.file.Path,
+                relative: java.nio.file.Path,
+                block: (java.nio.channels.SeekableByteChannel) -> T,
+            ): T? = null
+        })
+        try {
+            val sessionZip = EnhancedSessionLogShare.create(app, session).single { it.name.endsWith("-session.zip") }
+            ZipFile(sessionZip).use { archive ->
+                assertFalse(archive.entries().toList().any { it.name.endsWith("session.log") })
+                val manifest = archive.getInputStream(archive.getEntry("diagnostics-manifest.json"))
+                    .bufferedReader().readText()
+                assertTrue(manifest.contains("unsafe-or-unavailable-source"))
+            }
+        } finally {
+            resetSecureSourceOpener()
+        }
+        assertFalse(EnhancedSessionLogShare.hasSourceOpenerForTest())
         SessionLogShare.clear(app)
     }
 }
