@@ -71,6 +71,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-login1" to "usr/local/bin/droiddeck-login1",
             "usr/local/bin/droiddeck-steam-launch" to "usr/local/bin/droiddeck-steam-launch",
             "usr/local/bin/droiddeck-desktop-games" to "usr/local/bin/droiddeck-desktop-games",
+            "usr/local/bin/droiddeck-desktop-programs" to "usr/local/bin/droiddeck-desktop-programs",
             "usr/local/bin/droiddeck-desktop-bookmarks" to "usr/local/bin/droiddeck-desktop-bookmarks",
             "usr/local/bin/droiddeck-downloads" to "usr/local/bin/droiddeck-downloads",
             "usr/local/bin/droiddeck-root" to "usr/local/bin/droiddeck-root",
