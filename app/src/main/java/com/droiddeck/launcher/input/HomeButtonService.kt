@@ -49,7 +49,7 @@ object SystemKeyCapture {
     private var owner: Any? = null
     private var active: () -> Boolean = { false }
     private var send: (KeyEvent) -> Unit = {}
-    private val held = HashSet<Pair<Int, Int>>()
+    private val held = HashMap<Pair<Int, Int>, KeyEvent>()
 
     fun attach(owner: Any, active: () -> Boolean, send: (KeyEvent) -> Unit) {
         this.owner = owner
@@ -59,6 +59,8 @@ object SystemKeyCapture {
 
     fun detach(owner: Any) {
         if (this.owner !== owner) return
+        held.values.forEach { send(KeyEvent.changeAction(it, KeyEvent.ACTION_UP)) }
+        held.clear()
         this.owner = null
         active = { false }
         send = {}
@@ -79,10 +81,10 @@ object SystemKeyCapture {
         val taken = when (event.action) {
             KeyEvent.ACTION_DOWN -> {
                 val take = key in held || (active() && fromKeyboard(event) && captures(event.keyCode, event.metaState))
-                if (take) held.add(key)
+                if (take) held[key] = event
                 take
             }
-            KeyEvent.ACTION_UP -> held.remove(key)
+            KeyEvent.ACTION_UP -> held.remove(key) != null
             else -> false
         }
         if (taken) send(event)

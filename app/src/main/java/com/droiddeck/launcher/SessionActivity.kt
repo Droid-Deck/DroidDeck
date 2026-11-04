@@ -3823,10 +3823,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         uiHandler.postDelayed({ WaylandCompositor.nativeSendKey(KEY_RIGHTCTRL, 0) }, DESKTOP_GRAB_KEY_HOLD_MS)
     }
 
-    private fun grabDesktopMouse(): Boolean {
-        if (!desktopMouseGrabAllowed()) return false
+    private fun grabDesktopMouse() {
+        if (!desktopMouseGrabAllowed()) return
         if (desktopGrabTaps >= DESKTOP_GRAB_MAX_TAPS) {
-            if (android.os.SystemClock.uptimeMillis() - desktopGrabTapAt < DESKTOP_GRAB_RETRY_MS) return false
+            if (android.os.SystemClock.uptimeMillis() - desktopGrabTapAt < DESKTOP_GRAB_RETRY_MS) return
             desktopGrabTaps = 0
         }
         if (!desktopMousePlaced) {
@@ -3834,7 +3834,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             drawnRect()?.let { movePointer(it.centerX(), it.centerY()) }
         }
         tapDesktopGrabKey()
-        return true
     }
 
     private fun releaseDesktopMouseGrab() {
@@ -3886,7 +3885,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     dy += event.getHistoricalY(i)
                 }
                 if (pointerLocked) sendSceneDelta(dx, dy)
-                else if (!grabDesktopMouse()) moveCapturedMouse(dx, dy)
+                else {
+                    grabDesktopMouse()
+                    moveCapturedMouse(dx, dy)
+                }
             }
             MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE -> {
                 val button = when (event.actionButton) {
@@ -4282,7 +4284,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onResume() {
         super.onResume()
-        com.droiddeck.launcher.input.SystemKeyCapture.attach(this, { !appUiOwnsPointer() && CompositorHost.isStarted }) { event ->
+        com.droiddeck.launcher.input.SystemKeyCapture.attach(this, { hasWindowFocus() && !appUiOwnsPointer() && CompositorHost.isStarted }) { event ->
             com.droiddeck.launcher.input.GuestKeys.send(event, ::sendGuestKey)
         }
         if (refreshActivityDisplayId() && started) {

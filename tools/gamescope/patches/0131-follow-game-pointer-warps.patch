@@ -1,5 +1,5 @@
 diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
-index ee20ca0..2963634 100644
+index 17bae3a..c468fb3 100644
 --- a/src/steamcompmgr.cpp
 +++ b/src/steamcompmgr.cpp
 @@ -32,6 +32,7 @@
@@ -110,7 +110,7 @@ index ee20ca0..2963634 100644
  		return true;
  
  	global_focus_t *pFocus = GetCurrentFocus();
-@@ -10890,9 +10969,15 @@ steamcompmgr_main(int argc, char **argv)
+@@ -10892,9 +10971,15 @@ steamcompmgr_main(int argc, char **argv)
  				const int nRelativeMouse = cv_relative_mouse.Get();
  				const bool bForcedRelativeMouse = nRelativeMouse == 1 && !window_is_steam( pPaintFocus->inputFocusWindow );
  
