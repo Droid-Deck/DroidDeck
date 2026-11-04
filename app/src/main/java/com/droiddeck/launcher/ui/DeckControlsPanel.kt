@@ -39,6 +39,7 @@ class DeckControlsPanel(
     private val pad: PadBridge? = null,
     private val portraitDock: Boolean = false,
     private val onMenu: (() -> Unit)? = null,
+    private val onSwap: (() -> Unit)? = null,
 ) : LinearLayout(context) {
     private enum class Tab(val label: Int) { GAMEPAD(R.string.deck_tab_gamepad), GRIPS(R.string.deck_tab_grips), LEFT(R.string.deck_tab_left), RIGHT(R.string.deck_tab_right), BOTH(R.string.deck_tab_both) }
 
@@ -51,7 +52,8 @@ class DeckControlsPanel(
         orientation = VERTICAL
         setBackgroundColor(Color.BLACK)
         val title = context.getString(if (deckControls) R.string.second_mode_deck_controls else R.string.deck_tab_gamepad)
-        addView(bottomScreenBarView(context) { sessionBarModel(title, onClose, onMenu, onSteamMenu, onQam) },
+        val extras = listOfNotNull(onSwap?.let { BarExtra(context.getString(R.string.swap_screens), icon = R.drawable.ic_bottom_swap, onClick = it) })
+        addView(bottomScreenBarView(context) { sessionBarModel(title, onClose, onMenu, onSteamMenu, onQam, extras) },
             LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         addView(topBar, LayoutParams(LayoutParams.MATCH_PARENT, dp(52)))
         addView(content, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))

@@ -1148,14 +1148,17 @@ private fun SteamVrRow(a: DrawerActions) {
     }
 }
 
+internal fun secondScreenModes(deckPad: Boolean, dashboard: Boolean, desktop: Boolean): List<SecondScreenMode> =
+    listOf(SecondScreenMode.NONE, SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL) +
+        (if (deckPad) listOf(SecondScreenMode.DECK_CONTROLS) else emptyList()) +
+        (if (dashboard) listOf(SecondScreenMode.DASHBOARD) else emptyList()) +
+        (if (desktop) listOf(SecondScreenMode.DESKTOP) else emptyList())
+
 @Composable
 private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val modes = listOf(SecondScreenMode.NONE, SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL) +
-        (if (com.droiddeck.launcher.session.SessionState.deckPad) listOf(SecondScreenMode.DECK_CONTROLS) else emptyList()) +
-        (if (a.dashboardAvailable) listOf(SecondScreenMode.DASHBOARD) else emptyList()) +
-        (if (a.desktopAvailable) listOf(SecondScreenMode.DESKTOP) else emptyList())
+    val modes = secondScreenModes(com.droiddeck.launcher.session.SessionState.deckPad, a.dashboardAvailable, a.desktopAvailable)
     SettingsGroup(stringResource(R.string.drawer_second_screen_mode)) {
         Column(Modifier.fillMaxWidth().selectableGroup()) {
             modes.forEach { mode ->

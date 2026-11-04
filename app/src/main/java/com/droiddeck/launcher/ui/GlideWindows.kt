@@ -18,13 +18,36 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 
+internal object KeyWindows {
+    private val views = java.util.concurrent.CopyOnWriteArrayList<android.view.View>()
+
+    fun add(view: android.view.View) {
+        views.remove(view)
+        views.add(view)
+    }
+
+    fun remove(view: android.view.View) { views.remove(view) }
+
+    fun topOn(displayId: Int): android.view.View? =
+        views.lastOrNull { it.isAttachedToWindow && it.display?.displayId == displayId }
+}
+
+@Composable
+internal fun TrackKeyWindow() {
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.DisposableEffect(view) {
+        KeyWindows.add(view)
+        onDispose { KeyWindows.remove(view) }
+    }
+}
+
 @Composable
 internal fun GlideDialog(
     onDismissRequest: () -> Unit,
     properties: DialogProperties = DialogProperties(),
     content: @Composable () -> Unit,
 ) {
-    Dialog(onDismissRequest, properties) { FocusGlideHost(content = content) }
+    Dialog(onDismissRequest, properties) { TrackKeyWindow(); FocusGlideHost(content = content) }
 }
 
 @Composable
@@ -34,7 +57,7 @@ internal fun GlidePopup(
     properties: PopupProperties = PopupProperties(),
     content: @Composable () -> Unit,
 ) {
-    Popup(popupPositionProvider, onDismissRequest, properties) { FocusGlideHost(content = content) }
+    Popup(popupPositionProvider, onDismissRequest, properties) { TrackKeyWindow(); FocusGlideHost(content = content) }
 }
 
 @Composable

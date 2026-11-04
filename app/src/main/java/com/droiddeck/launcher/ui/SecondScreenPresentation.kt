@@ -2,46 +2,29 @@ package com.droiddeck.launcher.ui
 
 import com.droiddeck.launcher.R
 import android.app.Presentation
-import android.content.ClipboardManager
-import android.content.Context
-import android.graphics.Canvas
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import android.view.Display
-import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.view.ViewConfiguration
 import android.view.WindowInsets
 import android.view.WindowManager
-import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
-import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
-import android.widget.TextView
 import androidx.activity.setViewTreeOnBackPressedDispatcherOwner
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.droiddeck.launcher.input.KeyboardHost
 import com.droiddeck.launcher.input.PadBridge
-import com.droiddeck.launcher.input.PointerGestures
 import com.droiddeck.launcher.input.SecondScreenMode
-import com.droiddeck.launcher.input.TouchpadGestures
 import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.session.BottomDesktop
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
-import com.droiddeck.launcher.session.SessionTerminal
-import com.termux.terminal.TerminalEmulator
-import com.termux.terminal.TerminalSession
-import com.termux.terminal.TerminalSessionClient
-import com.termux.view.TerminalView
-import com.termux.view.TerminalViewClient
 
 class SecondScreenPresentation(
     private val sessionActivity: SessionActivity,
@@ -76,11 +59,7 @@ class SecondScreenPresentation(
     private var keyboardPending = false
     private var imeSeen = false
     private var fieldKeyboard = false
-    private var terminalSession: TerminalSession? = null
-    private var terminalView: TerminalView? = null
-    private var terminalPid = -1
-    private var ctrlActive = false
-    private var altActive = false
+    private var terminalPanel: SessionTerminalPanel? = null
     private var created = false
 
     init {
@@ -146,7 +125,7 @@ class SecondScreenPresentation(
     }
 
     fun retryTerminal() {
-        if (created && isShowing && currentMode == SecondScreenMode.TERMINAL && terminalSession == null) renderMode()
+        if (created && isShowing && currentMode == SecondScreenMode.TERMINAL && terminalPanel?.ready != true) renderMode()
     }
 
     val showsKeyboard: Boolean get() = isShowing && !menuShown && currentMode == SecondScreenMode.KEYBOARD_TRACKPAD
@@ -189,7 +168,10 @@ class SecondScreenPresentation(
 
     fun focusMenu(): Boolean = menuView?.requestFocus() == true
 
-    fun dispatchMenuKey(event: KeyEvent): Boolean = menuView?.dispatchKeyEvent(event) == true
+    fun dispatchMenuKey(event: KeyEvent): Boolean {
+        KeyWindows.topOn(display.displayId)?.let { return it.rootView.dispatchKeyEvent(event) }
+        return menuView?.dispatchKeyEvent(event) == true
+    }
 
     fun closeControls() {
         showMenu(false)
@@ -249,7 +231,7 @@ class SecondScreenPresentation(
         when (mode) {
             SecondScreenMode.KEYBOARD_TRACKPAD -> renderKeyboardAndTrackpad()
             SecondScreenMode.TERMINAL -> renderTerminal()
-            SecondScreenMode.DECK_CONTROLS -> root.addView(DeckControlsPanel(context, onClose, onSteamMenu, onQam, pad, onMenu = onMenu), weightParams())
+            SecondScreenMode.DECK_CONTROLS -> root.addView(DeckControlsPanel(context, onClose, onSteamMenu, onQam, pad, onMenu = onMenu, onSwap = onSwap), weightParams())
             SecondScreenMode.DASHBOARD -> renderDashboard()
             SecondScreenMode.DESKTOP -> {
                 root.addView(BottomDesktopPanel(context, onClose, onMenu,
@@ -301,99 +283,22 @@ class SecondScreenPresentation(
         root.addView(host, ViewGroup.LayoutParams(1, 1))
     }
 
-    private fun trackpadView(): View = TrackpadView(context)
+    private fun trackpadView(): View = SessionTrackpadView(context, sendPointer, sendButton, sendWheel)
 
     private fun renderTerminal() {
         bar(SecondScreenMode.TERMINAL) {
-            listOf(BarExtra(context.getString(R.string.drawer_keyboard), icon = R.drawable.ic_bottom_keyboard, tag = "bottom-keyboard") { showTerminalKeyboard() })
+            listOf(BarExtra(context.getString(R.string.drawer_keyboard), icon = R.drawable.ic_bottom_keyboard, tag = "bottom-keyboard") {
+                terminalPanel?.showKeyboard()
+            })
         }
-
-        val terminalClient = TerminalClient()
-        val view = TerminalView(context, null).apply {
-            setTerminalViewClient(terminalClient)
-            setTextSize(dp(14))
-            isFocusable = true
-            isFocusableInTouchMode = true
-        }
-        terminalView = view
-        val session = SessionTerminal.create(terminalClient)
-        if (session == null) {
-            root.addView(TextView(context).apply {
-                text = context.getString(R.string.second_terminal_not_ready)
-                setTextColor(Color.WHITE)
-                gravity = Gravity.CENTER
-            }, LinearLayout.LayoutParams(-1, 0, 1f))
-            return
-        }
-        terminalSession = session
-
-        val keyStrip = HorizontalScrollView(context).apply { isHorizontalScrollBarEnabled = false }
-        val keys = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(12), 0, dp(12), dp(8)) }
-        fun key(label: String, input: String, onClick: ((TextView) -> Unit)? = null) {
-            lateinit var button: TextView
-            button = DeckControlsPanel.roundButton(context, label, label, { if (onClick != null) onClick(button) else session.write(input) }, wide = true)
-            if (keys.childCount > 0) keys.addView(View(context), LinearLayout.LayoutParams(dp(8), 1))
-            keys.addView(button)
-        }
-        val ctrl = context.getString(R.string.pckb_key_ctrl)
-        val alt = context.getString(R.string.pckb_key_alt)
-        key(context.getString(R.string.pckb_key_esc), "\u001b")
-        key(context.getString(R.string.second_key_tab), "\t")
-        key(ctrl, "") { button ->
-            ctrlActive = !ctrlActive
-            button.text = if (ctrlActive) context.getString(R.string.second_key_on, ctrl) else ctrl
-        }
-        key(alt, "") { button ->
-            altActive = !altActive
-            button.text = if (altActive) context.getString(R.string.second_key_on, alt) else alt
-        }
-        key("↑", "\u001b[A")
-        key("↓", "\u001b[B")
-        key("←", "\u001b[D")
-        key("→", "\u001b[C")
-        key(context.getString(R.string.second_key_ctrl_c), "\u0003")
-        key(context.getString(R.string.second_key_ctrl_d), "\u0004")
-        keyStrip.addView(keys)
-        root.addView(keyStrip, LinearLayout.LayoutParams(-1, -2))
-
-        root.addView(view, LinearLayout.LayoutParams(-1, 0, 1f))
-        view.attachSession(session)
-
-        view.post {
-            registerTerminalPid()
-            view.requestFocus()
-            showTerminalKeyboard()
-        }
-    }
-
-    private fun showTerminalKeyboard() {
-        terminalView?.let { view ->
-            view.requestFocus()
-            (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-                .showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
-        }
-    }
-
-    private fun registerTerminalPid() {
-        val pid = terminalSession?.pid ?: -1
-        if (pid > 1 && pid != terminalPid) {
-            terminalPid = pid
-            SessionService.registerTerminalProcess(context, pid)
-        }
+        val panel = SessionTerminalPanel(context)
+        terminalPanel = panel
+        root.addView(panel, weightParams())
     }
 
     private fun closeTerminal() {
-        terminalView?.let { view ->
-            (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-                .hideSoftInputFromWindow(view.windowToken, 0)
-        }
-        val pid = terminalPid.takeIf { it > 1 } ?: (terminalSession?.pid ?: -1)
-        if (pid > 1) SessionService.stopTerminalProcess(context, pid)
-        terminalPid = -1
-        terminalSession = null
-        terminalView = null
-        ctrlActive = false
-        altActive = false
+        terminalPanel?.close()
+        terminalPanel = null
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
@@ -408,108 +313,5 @@ class SecondScreenPresentation(
             or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
             or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
             or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
-    }
-
-    private inner class TrackpadView(context: Context) : View(context) {
-        private val gestures = TouchpadGestures(ViewConfiguration.get(context).scaledTouchSlop.toFloat(),
-            object : PointerGestures.Listener {
-                override fun onMove(x: Float, y: Float) {
-                    sendPointer(x, y, width.toFloat(), height.toFloat())
-                    invalidate()
-                }
-
-                override fun onButton(button: Int, pressed: Boolean, x: Float, y: Float) {
-                    sendPointer(x, y, width.toFloat(), height.toFloat())
-                    sendButton(button, pressed)
-                }
-
-                override fun onWheel(steps: Int) = sendWheel(steps)
-                override fun onLongPress() { performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS) }
-            })
-
-        init { isFocusable = true }
-
-        override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-            gestures.bounds = android.graphics.RectF(0f, 0f, w.toFloat(), h.toFloat())
-            if (oldw == 0 || oldh == 0) gestures.place(w / 2f, h / 2f)
-        }
-
-        private val surface = android.graphics.RectF()
-        private val fill = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(0x0A, 0x0B, 0x0D) }
-        private val edge = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            style = android.graphics.Paint.Style.STROKE
-            color = Color.rgb(0x26, 0x29, 0x2E)
-            strokeWidth = resources.displayMetrics.density
-        }
-
-        override fun onDraw(canvas: Canvas) {
-            canvas.drawColor(Color.BLACK)
-            val inset = dp(12).toFloat()
-            surface.set(inset, 0f, width - inset, height - inset)
-            if (surface.height() <= inset) return
-            val radius = dp(20).toFloat()
-            canvas.drawRoundRect(surface, radius, radius, fill)
-            canvas.drawRoundRect(surface, radius, radius, edge)
-        }
-
-        override fun onTouchEvent(event: MotionEvent): Boolean = gestures.onTouch(event)
-    }
-
-    private inner class TerminalClient : TerminalSessionClient, TerminalViewClient {
-        override fun onTextChanged(changedSession: TerminalSession) {
-            terminalView?.onScreenUpdated()
-        }
-        override fun onTitleChanged(changedSession: TerminalSession) = Unit
-        override fun onSessionFinished(finishedSession: TerminalSession) {
-            val pid = terminalPid.takeIf { it > 1 } ?: finishedSession.pid
-            if (pid > 1) SessionService.terminalProcessExited(context, pid)
-            terminalPid = -1
-            terminalView?.onScreenUpdated()
-        }
-        override fun onCopyTextToClipboard(session: TerminalSession, text: String) {
-            (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
-                .setPrimaryClip(android.content.ClipData.newPlainText("Terminal", text))
-        }
-        override fun onPasteTextFromClipboard(session: TerminalSession) {
-            val clip = (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).primaryClip
-            if (clip != null && clip.itemCount > 0) session.write(clip.getItemAt(0).coerceToText(context).toString())
-        }
-        override fun onBell(session: TerminalSession) {
-            terminalView?.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
-        }
-        override fun onColorsChanged(changedSession: TerminalSession) {
-            terminalView?.invalidate()
-        }
-        override fun onTerminalCursorStateChange(state: Boolean) {
-            terminalView?.setTerminalCursorBlinkerRate(if (state) 600 else 0)
-        }
-        override fun getTerminalCursorStyle(): Int = TerminalEmulator.TERMINAL_CURSOR_STYLE_BLOCK
-        override fun logError(tag: String, message: String) { Log.e(tag, message) }
-        override fun logWarn(tag: String, message: String) { Log.w(tag, message) }
-        override fun logInfo(tag: String, message: String) { Log.i(tag, message) }
-        override fun logDebug(tag: String, message: String) { Log.d(tag, message) }
-        override fun logVerbose(tag: String, message: String) { Log.v(tag, message) }
-        override fun logStackTraceWithMessage(tag: String, message: String, e: Exception) { Log.e(tag, message, e) }
-        override fun logStackTrace(tag: String, e: Exception) { Log.e(tag, e.message, e) }
-
-        override fun onScale(scale: Float): Float = 1f
-        override fun onSingleTapUp(e: MotionEvent) = showTerminalKeyboard()
-        override fun shouldBackButtonBeMappedToEscape(): Boolean = true
-        override fun shouldEnforceCharBasedInput(): Boolean = false
-        override fun shouldUseCtrlSpaceWorkaround(): Boolean = false
-        override fun isTerminalViewSelected(): Boolean = true
-        override fun copyModeChanged(copyMode: Boolean) = Unit
-        override fun onKeyDown(keyCode: Int, e: KeyEvent, session: TerminalSession): Boolean = false
-        override fun onKeyUp(keyCode: Int, e: KeyEvent): Boolean = false
-        override fun onLongPress(event: MotionEvent): Boolean = false
-        override fun readControlKey(): Boolean = ctrlActive
-        override fun readAltKey(): Boolean = altActive
-        override fun readShiftKey(): Boolean = false
-        override fun readFnKey(): Boolean = false
-        override fun onCodePoint(codePoint: Int, ctrlDown: Boolean, session: TerminalSession): Boolean = false
-        override fun onEmulatorSet() {
-            terminalView?.onScreenUpdated()
-            registerTerminalPid()
-        }
     }
 }

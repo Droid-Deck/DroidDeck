@@ -3,6 +3,7 @@ package com.droiddeck.launcher
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import android.hardware.input.InputManager
 import android.hardware.display.DisplayManager
 import android.content.Intent
@@ -4546,34 +4547,68 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun SwappedTopPanel() {
         val pages = bottomPages()
         val swapBack = { putGameOnBottom(false) }
+        val steam = SessionState.mode == SessionService.MODE_STEAM
+        val openMenu = { drawerOpen = true }
+        fun bar(title: String?, extras: List<com.droiddeck.launcher.ui.BarExtra> = emptyList()) = com.droiddeck.launcher.ui.BottomBarModel(
+            title, openMenu, openMenu, if (steam) ({ tapSteamButton() }) else null, if (steam) ({ tapQam() }) else null,
+            extras + com.droiddeck.launcher.ui.BarExtra(getString(R.string.swap_screens), icon = R.drawable.ic_bottom_swap, onClick = swapBack),
+        )
+        val keyboardExtra = com.droiddeck.launcher.ui.BarExtra(getString(R.string.second_show_keyboard), icon = R.drawable.ic_bottom_keyboard) {
+            keyboard?.toggle()
+        }
         androidx.compose.foundation.layout.Box(
-            Modifier.fillMaxSize().background(androidx.compose.material3.MaterialTheme.colorScheme.background)
+            Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black)
                 .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } },
         ) {
-            if (secondScreenMode == SecondScreenMode.DESKTOP && com.droiddeck.launcher.session.BottomDesktop.available()) {
-                androidx.compose.ui.viewinterop.AndroidView(
-                    factory = { context ->
-                        com.droiddeck.launcher.ui.BottomDesktopPanel(context, null, { drawerOpen = true },
-                            (({ tapSteamButton() }) to ({ tapQam() })).takeIf { SessionState.mode == SessionService.MODE_STEAM }, swapBack,
-                            fullResolution = true)
+            when {
+                secondScreenMode == SecondScreenMode.DESKTOP && com.droiddeck.launcher.session.BottomDesktop.available() ->
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        factory = { context ->
+                            com.droiddeck.launcher.ui.BottomDesktopPanel(context, openMenu, openMenu,
+                                (({ tapSteamButton() }) to ({ tapQam() })).takeIf { steam }, swapBack, fullResolution = true)
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                secondScreenMode == SecondScreenMode.DECK_CONTROLS && SessionState.deckPad ->
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        factory = { context ->
+                            com.droiddeck.launcher.ui.DeckControlsPanel(context, onClose = openMenu, onSteamMenu = ::tapSteamButton,
+                                onQam = ::tapQam, pad = padBridge, onMenu = openMenu, onSwap = swapBack)
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                secondScreenMode == SecondScreenMode.KEYBOARD_TRACKPAD -> androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
+                    com.droiddeck.launcher.ui.BottomScreenBar(bar(getString(SecondScreenMode.KEYBOARD_TRACKPAD.label), listOf(keyboardExtra)))
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        factory = { context ->
+                            com.droiddeck.launcher.ui.SessionTrackpadView(context, ::moveSecondScreenPointer,
+                                { button, pressed -> WaylandCompositor.nativeSendSceneInput(3, button, if (pressed) 1 else 0) },
+                                { steps -> WaylandCompositor.nativeSendSceneInput(4, steps, 0) })
+                        },
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                    )
+                }
+                secondScreenMode == SecondScreenMode.TERMINAL -> androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
+                    var terminal by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<com.droiddeck.launcher.ui.SessionTerminalPanel?>(null) }
+                    com.droiddeck.launcher.ui.BottomScreenBar(bar(getString(SecondScreenMode.TERMINAL.label), listOf(
+                        com.droiddeck.launcher.ui.BarExtra(getString(R.string.drawer_keyboard), icon = R.drawable.ic_bottom_keyboard) { terminal?.showKeyboard() },
+                    )))
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        factory = { context -> com.droiddeck.launcher.ui.SessionTerminalPanel(context).also { terminal = it } },
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                    )
+                }
+                secondScreenMode == SecondScreenMode.NONE || pages.isEmpty() ->
+                    com.droiddeck.launcher.ui.BottomScreenBar(bar(null))
+                else -> BottomDashboard(
+                    pages, com.droiddeck.launcher.ui.SessionBottomTab.picked(SessionState.sessionId),
+                    gameStarts = gameStarts,
+                    onPage = { com.droiddeck.launcher.ui.SessionBottomTab.pick(SessionState.sessionId, it) },
+                    bar = bar(getString(R.string.second_mode_dashboard)),
+                    strip = { pageId ->
+                        com.droiddeck.launcher.ui.SessionBottomStrip(pageId) { if (::hud.isInitialized) hud.liveFps else null }
                     },
-                    modifier = Modifier.fillMaxSize(),
                 )
-            } else if (pages.isNotEmpty()) BottomDashboard(
-                pages, com.droiddeck.launcher.ui.SessionBottomTab.picked(SessionState.sessionId),
-                gameStarts = gameStarts,
-                onPage = { com.droiddeck.launcher.ui.SessionBottomTab.pick(SessionState.sessionId, it) },
-                bar = com.droiddeck.launcher.ui.BottomBarModel(
-                    getString(R.string.second_mode_dashboard), null, { drawerOpen = true },
-                    if (SessionState.mode == SessionService.MODE_STEAM) ({ tapSteamButton() }) else null,
-                    if (SessionState.mode == SessionService.MODE_STEAM) ({ tapQam() }) else null,
-                    listOf(com.droiddeck.launcher.ui.BarExtra(getString(R.string.swap_screens), icon = R.drawable.ic_bottom_swap, onClick = swapBack)),
-                ),
-                strip = { pageId ->
-                    com.droiddeck.launcher.ui.SessionBottomStrip(pageId) { if (::hud.isInitialized) hud.liveFps else null }
-                },
-            ) else androidx.compose.material3.Button(onClick = swapBack, modifier = Modifier.align(androidx.compose.ui.Alignment.Center)) {
-                androidx.compose.material3.Text(getString(R.string.swap_screens))
             }
         }
     }
