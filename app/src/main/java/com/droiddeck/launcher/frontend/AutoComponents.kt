@@ -111,7 +111,7 @@ object AutoComponents {
                 jobs.add(job)
                 mark(job, true)
                 true
-            }
+            }.also { (jobs as java.lang.Object).notifyAll() }
         }
         if (added && job.component != null) Log.i(TAG, "wincomp: queued ${job.component}")
         if (runNow) { if (!draining) drain(context) } else ensureWorker(context.applicationContext)
@@ -167,12 +167,17 @@ object AutoComponents {
         worker = Thread({
             android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
             while (true) {
-                try { jobs.put(jobs.take()) } catch (e: InterruptedException) { return@Thread }
-                val job = next(app)
-                if (job == null) {
-                    try { Thread.sleep(PAUSE_MS) } catch (e: InterruptedException) { return@Thread }
-                    continue
+                val job = try {
+                    synchronized(jobs) {
+                        next(app) ?: run {
+                            (jobs as java.lang.Object).wait(PAUSE_MS)
+                            next(app)
+                        }
+                    }
+                } catch (e: InterruptedException) {
+                    return@Thread
                 }
+                if (job == null) continue
                 WinComponents.background { run(app, job) }
             }
         }, "auto-components").apply { isDaemon = true; start() }
