@@ -35,7 +35,24 @@ object SessionLogShare {
         }, "share-logs").start()
     }
 
-    fun latest(context: Context): File? = SessionPaths.sessionFolders(context).lastOrNull()
+    fun latest(context: Context): File? = sessions(context).lastOrNull()
+
+    fun sessions(context: Context): List<File> {
+        val current = SessionPaths.current()?.takeIf { it.isDirectory && SessionPaths.isSessionFolder(it) }
+        return (SessionPaths.sessionFolders(context) + listOfNotNull(current))
+            .distinctBy { it.absoluteFile.toPath().normalize().toString() }
+            .sortedWith(SessionPaths.chronological)
+    }
+
+    fun folderSize(folder: File): Long = folder.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+
+    fun folderModified(folder: File): Long = folder.walkTopDown().filter { it.isFile }.maxOfOrNull { it.lastModified() } ?: folder.lastModified()
+
+    fun deleteSession(context: Context, folder: File): Boolean {
+        if (runCatching { SessionPaths.current()?.canonicalFile == folder.canonicalFile }.getOrDefault(false)) return false
+        val knownSession = runCatching { folder.canonicalFile }.getOrNull() in sessions(context).mapNotNull { runCatching { it.canonicalFile }.getOrNull() }
+        return knownSession && folder.isDirectory && folder.deleteRecursively()
+    }
 
 
     fun zipFolder(context: Context, folder: File, onProgress: ((Float) -> Unit)? = null): File? {
