@@ -55,7 +55,10 @@ class EnhancedSessionLogShareTest {
                 assertEquals(1, manifest.getInt("schema"))
                 assertEquals(session.name, manifest.getString("sessionId"))
                 assertEquals(category, manifest.getString("category"))
-                assertEquals("captured", manifest.getJSONArray("entries").getJSONObject(0).getString("status"))
+                val entries = manifest.getJSONArray("entries")
+                val record = (0 until entries.length()).map { entries.getJSONObject(it) }
+                    .single { it.optString("entry") == expected.getValue(category) }
+                assertEquals("captured", record.getString("status"))
             }
         }
         SessionLogShare.clear(app)
