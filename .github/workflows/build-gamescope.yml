@@ -19,7 +19,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: gamescope-${{ github.event_name }}-${{ github.ref }}-${{ inputs.tag || 'artifact' }}
+  group: ${{ inputs.tag && format('gamescope-tag-{0}', inputs.tag) || format('gamescope-{0}-{1}', github.event_name, github.ref) }}
   cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:

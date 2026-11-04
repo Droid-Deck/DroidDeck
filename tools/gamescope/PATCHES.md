@@ -225,3 +225,38 @@ PropertyNotify, and it listens for those from map on, so the style Wine sets bef
 was never known; `map_win` now reads it with the other properties, which the layered-launcher and
 Xalia rules rely on too. `tools/tests/test_gamescope_override_stacking.py` compiles the rule from
 this patch.
+
+## 0127 steamcompmgr: a three way relative mouse switch
+
+`relative_mouse` is read where the decision is made: 0 leaves it to the rule below, 1 forces relative
+motion for the focused game except Steam's own windows and composites the cursor, 2 never goes relative.
+For games that confine a visible cursor and warp it, which the automatic rule cannot see.
+
+## 0128 steamcompmgr: a hidden cursor under any pointer constraint is relative
+
+The rule only counted a lock with a cursor position hint. A game that hides the cursor and confines the
+pointer through a grab (Wine's ClipCursor) has a constraint with no hint, so the nested pointer stayed
+absolute, the constraint held the X pointer still and no raw motion was produced: the camera froze.
+
+## 0129 steamcompmgr, wayland: release a pointer lock at the game's pointer
+
+A game can move the X pointer while it holds the lock (Wine's ClipCursor recentres it), and the nested host
+never hears about it. On unlock the host's next absolute motion dropped the pointer back at its old position,
+often near a corner. The unlock now sends the X pointer as a cursor position hint and commits it first. A cursor
+forced On by `relative_mouse` also stays visible while idle, since the host cursor is hidden during the lock.
+
+## 0130 steamcompmgr: fit the X screen to a larger fullscreen window
+
+A game can open a fullscreen window larger than its X screen (Valheim at 1366x768 on 1280x720). The X server
+keeps the pointer inside the screen, so the outer part of the window could not be reached and motion past the
+edge had to be undone. The server's mode now follows such a window, and returns once the focused window fits,
+focus moves to Steam or no window has focus.
+
+## 0131 steamcompmgr, wlserver: follow a game's pointer warps
+
+Under a nested host the seat's absolute position came from the host, so a game that warped a visible X pointer
+to the screen centre read the distance back to the host's position on the next motion, and the view spun. When
+the X pointer stays far from the seat position while input moves, gamescope takes the host's lock and applies
+each frame's motion to the X pointer itself until the game stops warping. Absolute motion also sends relative
+motion, as a real compositor does, so XInput2 raw motion reaches games that read only that. A touch moves the
+pointer without relative motion, so tapping the screen does not turn the camera.

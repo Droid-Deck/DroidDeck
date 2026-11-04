@@ -1,0 +1,94 @@
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+index 2c92afe..17bae3a 100644
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -4662,6 +4662,49 @@ static void set_wm_state( xwayland_ctx_t *ctx, Window win, uint32_t state )
+ 				sizeof(wmState) / sizeof(wmState[0]));
+ }
+ 
++static void
++fit_root_to_focus_window( xwayland_ctx_t *ctx )
++{
++	steamcompmgr_win_t *w = ctx->focus.focusWindow;
++	const bool bGame = w && !window_is_steam( w );
++	const int nWindowX = bGame ? w->xwayland().a.x : 0;
++	const int nWindowY = bGame ? w->xwayland().a.y : 0;
++	const int nWindowWidth = bGame ? w->xwayland().a.width : 0;
++	const int nWindowHeight = bGame ? w->xwayland().a.height : 0;
++	const int nBaseWidth = ctx->nFitRestoreWidth ? ctx->nFitRestoreWidth : ctx->root_width;
++	const int nBaseHeight = ctx->nFitRestoreWidth ? ctx->nFitRestoreHeight : ctx->root_height;
++	const bool bCoversBase = nWindowX == 0 && nWindowY == 0 && nWindowWidth >= nBaseWidth && nWindowHeight >= nBaseHeight;
++	const bool bPlausible = nWindowWidth <= 8192 && nWindowHeight <= 8192;
++
++	int nWidth = 0;
++	int nHeight = 0;
++	if ( bGame && bCoversBase && bPlausible && ( nWindowWidth > nBaseWidth || nWindowHeight > nBaseHeight ) )
++	{
++		if ( !ctx->nFitRestoreWidth )
++		{
++			ctx->nFitRestoreWidth = ctx->root_width;
++			ctx->nFitRestoreHeight = ctx->root_height;
++		}
++		nWidth = nWindowWidth;
++		nHeight = nWindowHeight;
++	}
++	else if ( ctx->nFitRestoreWidth && nWindowWidth <= ctx->nFitRestoreWidth && nWindowHeight <= ctx->nFitRestoreHeight )
++	{
++		nWidth = ctx->nFitRestoreWidth;
++		nHeight = ctx->nFitRestoreHeight;
++		ctx->nFitRestoreWidth = 0;
++		ctx->nFitRestoreHeight = 0;
++	}
++
++	if ( !nWidth || ( nWidth == ctx->root_width && nHeight == ctx->root_height ) )
++		return;
++
++	ctx->bFitPending = true;
++	wlserver_lock();
++	wlserver_set_xwayland_server_mode( ctx->xwayland_server->get_index(), nWidth, nHeight, g_nOutputRefresh );
++	wlserver_unlock();
++}
++
+ void xwayland_ctx_t::DetermineAndApplyFocus( const std::vector< steamcompmgr_win_t* > &vecPossibleFocusWindows )
+ {
+ 	xwayland_ctx_t *ctx = this;
+@@ -4736,6 +4779,8 @@ void xwayland_ctx_t::DetermineAndApplyFocus( const std::vector< steamcompmgr_win
+ 		inputFocus = ctx->focus.focusWindow;
+ 	}
+ 
++	fit_root_to_focus_window( ctx );
++
+ 	if ( ctx->focus.focusWindow )
+ 	{
+ 		if ( prevFocusWindow != ctx->focus.focusWindow )
+@@ -5001,7 +5046,7 @@ void xwayland_ctx_t::DetermineAndApplyFocus( const std::vector< steamcompmgr_win
+ 				fs_width  = ctx->root_width * steam_height_scale;
+ 			}
+ 
+-			if ( w->GetGeometry().nWidth != fs_width || w->GetGeometry().nHeight != fs_height || globalScaleRatio != 1.0f )
++			if ( !ctx->bFitPending && ( w->GetGeometry().nWidth != fs_width || w->GetGeometry().nHeight != fs_height || globalScaleRatio != 1.0f ) )
+ 				XResizeWindow(ctx->dpy, ctx->focus.focusWindow->xwayland().id, fs_width, fs_height);
+ 		}
+ 		else
+@@ -6232,6 +6277,7 @@ configure_win(xwayland_ctx_t *ctx, XConfigureEvent *ce)
+ 	{
+ 		if (ce->window == ctx->root)
+ 		{
++			ctx->bFitPending = false;
+ 			ctx->root_width = ce->width;
+ 			ctx->root_height = ce->height;
+ 			MakeFocusDirty();
+diff --git a/src/xwayland_ctx.hpp b/src/xwayland_ctx.hpp
+index 3a75650..15c2e6b 100644
+--- a/src/xwayland_ctx.hpp
++++ b/src/xwayland_ctx.hpp
+@@ -87,6 +87,9 @@ struct xwayland_ctx_t final : public gamescope::IWaitable
+ 	Window			ourWindow;
+ 
+ 	focus_t 		focus;
++	int nFitRestoreWidth = 0;
++	int nFitRestoreHeight = 0;
++	bool bFitPending = false;
+ 	Window 			currentKeyboardFocusWindow;
+ 	Window			focusControlWindow;
+ 
