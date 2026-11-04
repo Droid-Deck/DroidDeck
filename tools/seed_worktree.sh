@@ -25,6 +25,9 @@ for path in "${paths[@]}"; do
         if [[ -d "${repo_root}/${path}" ]] && ! rmdir "${repo_root}/${path}" 2>/dev/null; then
             rm -rf "${staged}"; trap - EXIT; continue
         fi
+        if [[ -e "${repo_root}/${path}" ]]; then
+            rm -rf "${staged}"; trap - EXIT; continue
+        fi
         mv "${staged}" "${repo_root}/${path}"
         trap - EXIT
     elif [[ ! -e "${repo_root}/${path}" ]]; then
