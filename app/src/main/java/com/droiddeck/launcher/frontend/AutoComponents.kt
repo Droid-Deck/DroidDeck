@@ -255,7 +255,13 @@ object AutoComponents {
         }
         Pending.drop(context, id, maxOf(requestedRevision ?: 0, catalog[id]?.revision ?: 0))
         val games = synchronized(waiting) { waiting.remove(id).orEmpty() }
-        games.forEach { apply(context, it, asked, inSession, knownCatalog = catalog) }
+        games.forEach { game ->
+            try {
+                apply(context, game, asked, inSession, knownCatalog = catalog)
+            } catch (e: Exception) {
+                Log.w(TAG, "wincomp: $id installed, but ${game.name} was not updated: ${e.javaClass.simpleName}: ${e.message}")
+            }
+        }
         repairFailures.value = repairFailures.value - id
     }
 
