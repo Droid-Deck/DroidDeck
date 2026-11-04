@@ -1,0 +1,18 @@
+{
+  "timing-stock": {
+    "frames": 694.0,
+    "gpu_timestamp_ms_per_frame": 33.320407504322766,
+    "wall_ms_per_frame": 54.15719308357349,
+    "submissions_per_frame": 7.0,
+    "acquire_ms_per_frame": 0.04815561959654179,
+    "present_ms_per_frame": 0.1918328530259366
+  },
+  "timing-tiler": {
+    "frames": 771.0,
+    "gpu_timestamp_ms_per_frame": 33.81811167055771,
+    "wall_ms_per_frame": 46.75638391699092,
+    "submissions_per_frame": 9.0,
+    "acquire_ms_per_frame": 0.04532555123216602,
+    "present_ms_per_frame": 0.17829701686121918
+  }
+}

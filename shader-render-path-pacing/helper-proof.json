@@ -1,0 +1,220 @@
+[
+  {
+    "trial": "profile-a",
+    "effective_environment": "DXVK_CONFIG=dxvk.tilerMode = False\nWINEDEBUG=-all"
+  },
+  {
+    "trial": "profile-a",
+    "screen_pacing": {
+      "cadenceMs": 50,
+      "command": "pacing",
+      "fpsOnScreen": 22.1,
+      "frames": 554,
+      "offCadence": 339,
+      "offCadencePercent": 61.2,
+      "ok": true,
+      "presentToPresentMs": {
+        "16": 155,
+        "33": 22,
+        "50": 215,
+        "66": 159,
+        "86": 3
+      },
+      "refreshRates": [
+        60
+      ],
+      "seconds": 25.1
+    }
+  },
+  {
+    "trial": "profile-b",
+    "effective_environment": "DXVK_CONFIG=dxvk.tilerMode = False\nWINEDEBUG=-all"
+  },
+  {
+    "trial": "profile-b",
+    "screen_pacing": {
+      "cadenceMs": 50,
+      "command": "pacing",
+      "fpsOnScreen": 22.1,
+      "frames": 555,
+      "offCadence": 347,
+      "offCadencePercent": 62.5,
+      "ok": true,
+      "presentToPresentMs": {
+        "16": 158,
+        "33": 23,
+        "50": 208,
+        "66": 162,
+        "86": 4
+      },
+      "refreshRates": [
+        60
+      ],
+      "seconds": 25.1
+    }
+  },
+  {
+    "trial": "profile-override-auto",
+    "effective_environment": "DXVK_CONFIG=dxvk.tilerMode = Auto\nWINEDEBUG=-all"
+  },
+  {
+    "trial": "profile-override-auto",
+    "screen_pacing": {
+      "cadenceMs": 50,
+      "command": "pacing",
+      "fpsOnScreen": 18.8,
+      "frames": 472,
+      "offCadence": 201,
+      "offCadencePercent": 42.6,
+      "ok": true,
+      "presentToPresentMs": {
+        "102": 14,
+        "16": 14,
+        "33": 83,
+        "50": 271,
+        "66": 32,
+        "86": 58
+      },
+      "refreshRates": [
+        60
+      ],
+      "seconds": 25.1
+    }
+  },
+  {
+    "trial": "apk-stock-auto",
+    "effective_environment": "DXVK_CONFIG=dxvk.tilerMode = Auto\nWINEDEBUG=-all"
+  },
+  {
+    "trial": "apk-stock-auto",
+    "screen_pacing": {
+      "cadenceMs": 50,
+      "command": "pacing",
+      "fpsOnScreen": 18.9,
+      "frames": 474,
+      "offCadence": 186,
+      "offCadencePercent": 39.2,
+      "ok": true,
+      "presentToPresentMs": {
+        "102": 17,
+        "16": 9,
+        "33": 88,
+        "50": 288,
+        "66": 16,
+        "86": 56
+      },
+      "refreshRates": [
+        60
+      ],
+      "seconds": 25.1
+    }
+  },
+  {
+    "trial": "apk-profile-a",
+    "effective_environment": "DXVK_CONFIG=dxvk.tilerMode = False\nWINEDEBUG=-all"
+  },
+  {
+    "trial": "apk-profile-a",
+    "screen_pacing": {
+      "cadenceMs": 50,
+      "command": "pacing",
+      "fpsOnScreen": 22.1,
+      "frames": 554,
+      "offCadence": 335,
+      "offCadencePercent": 60.5,
+      "ok": true,
+      "presentToPresentMs": {
+        "16": 152,
+        "33": 22,
+        "50": 219,
+        "66": 160,
+        "86": 1
+      },
+      "refreshRates": [
+        60
+      ],
+      "seconds": 25.1
+    }
+  },
+  {
+    "trial": "apk-profile-b",
+    "effective_environment": "DXVK_CONFIG=dxvk.tilerMode = False\nWINEDEBUG=-all"
+  },
+  {
+    "trial": "apk-profile-b",
+    "screen_pacing": {
+      "cadenceMs": 50,
+      "command": "pacing",
+      "fpsOnScreen": 22.1,
+      "frames": 554,
+      "offCadence": 344,
+      "offCadencePercent": 62.1,
+      "ok": true,
+      "presentToPresentMs": {
+        "16": 154,
+        "33": 24,
+        "50": 210,
+        "66": 164,
+        "86": 2
+      },
+      "refreshRates": [
+        60
+      ],
+      "seconds": 25.1
+    }
+  },
+  {
+    "trial": "apk-stock-repeat",
+    "effective_environment": "DXVK_CONFIG=dxvk.tilerMode = Auto\nWINEDEBUG=-all"
+  },
+  {
+    "trial": "apk-stock-repeat",
+    "screen_pacing": {
+      "cadenceMs": 50,
+      "command": "pacing",
+      "fpsOnScreen": 19.0,
+      "frames": 475,
+      "offCadence": 187,
+      "offCadencePercent": 39.4,
+      "ok": true,
+      "presentToPresentMs": {
+        "102": 13,
+        "16": 10,
+        "33": 83,
+        "50": 288,
+        "66": 29,
+        "86": 52
+      },
+      "refreshRates": [
+        60
+      ],
+      "seconds": 25.1
+    }
+  },
+  {
+    "trial": "apk-drive-ready",
+    "effective_environment": "DXVK_CONFIG=dxvk.tilerMode = False\nWINEDEBUG=-all"
+  },
+  {
+    "trial": "apk-drive-ready",
+    "screen_pacing": {
+      "cadenceMs": 50,
+      "command": "pacing",
+      "fpsOnScreen": 22.5,
+      "frames": 565,
+      "offCadence": 346,
+      "offCadencePercent": 61.2,
+      "ok": true,
+      "presentToPresentMs": {
+        "16": 157,
+        "33": 35,
+        "50": 219,
+        "66": 154
+      },
+      "refreshRates": [
+        60
+      ],
+      "seconds": 25.1
+    }
+  }
+]

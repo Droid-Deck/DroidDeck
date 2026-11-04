@@ -1,0 +1,29 @@
+label,fps,seconds,cpu_pct_mean,gpu_pct_mean,gpu_mhz_mean,long_interval_pct
+Stock A,19.0,25.1,23.43,65.25,1150.0,80.25
+Stock B,18.9,25.1,23.58,65,1150.0,83.09
+Stock after restart,18.9,25.1,24.4,64.86,1150.0,81.61
+Tiler heuristics off A,22.1,25.1,26.64,76.75,1150.0,68.9
+Tiler heuristics off B,22.1,25.1,27.11,77.14,1150.0,67.93
+Partial precision,18.7,20.1,23.7,64.74,1150.0,80.59
+Installed test driver,16.5,30.1,20.71,72.55,1150.0,75.56
+Direct mapping off,18.2,25.1,25.05,64.32,1150.0,77.85
+D3D9 vsync off,18.8,25.1,24.29,65.64,1150.0,81.36
+Frame latency 1,19.1,25.1,23.85,65.79,1150.0,77.24
+Game limiter off,18.8,25.1,23.71,65.29,1150.0,80.3
+Driver 0.3.5,19.0,25.1,24.24,65.39,1150.0,76.89
+Cached write-only buffers,19.0,25.1,24.0,65.36,1150.0,80.0
+Detailed logging on,18.9,25.1,25.52,65.21,1150.0,81.18
+Float emulation off,16.8,25.1,22.76,68.14,1150.0,68.65
+Strict float emulation,17.0,25.1,22.61,68.36,1150.0,64.94
+Device-local constants,18.6,25.1,24.05,65,1150.0,78.54
+Stock late control,18.8,25.1,23.99,65.61,1150.0,80.72
+64-thread shader waves,18.4,25.1,23.37,65.96,1150.0,71.15
+Tiler off + NTSYNC off,22.0,25.1,26.63,77.39,1150.0,69.69
+Installed helper A,22.1,25.1,26.26,77.18,1150.0,68.05
+Installed helper B,22.1,25.1,26.38,77.32,1150.0,67.39
+Installed helper + Auto override,18.8,25.1,23.61,65.36,1150.0,79.45
+Signed APK + Auto override,18.9,25.1,26.46,65.57,1150.0,79.54
+Signed APK default A,22.1,25.1,27.28,77.11,1150.0,68.59
+Signed APK default B,22.1,25.1,27.47,77.21,1150.0,67.87
+Signed APK control repeat,19.0,25.1,24.58,65.46,1150.0,80.42
+Signed APK default C,22.5,25.1,27.77,77.04,1150.0,66.02

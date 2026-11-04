@@ -1,0 +1,26 @@
+{
+  "observations": {
+    "virtual_controller_map": "opened and closed",
+    "virtual_controller_throttle": "truck traveled 14 m",
+    "keyboard_and_camera": "driving inputs, orbit and hood views responded; odometer reached 19 m",
+    "visual_spot_check": "no obvious corruption in inspected Flood views",
+    "physical_button_latency": "not measured",
+    "other_maps": "not validated"
+  },
+  "dynamic_sample": {
+    "ok": true,
+    "seconds": 60.1,
+    "frames": 1335,
+    "fpsOnScreen": 22.2
+  },
+  "included_in_controlled_before_after": false,
+  "game_closed_after_testing": true,
+  "original_environment_restored": true,
+  "return_after_game_preference_restored": true,
+  "final_state": {
+    "phase": "IDLE",
+    "running": false,
+    "game_and_steam_processes": [],
+    "main_page_visually_verified": true
+  }
+}

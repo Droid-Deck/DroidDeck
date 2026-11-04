@@ -1,0 +1,12 @@
+{
+  "donor": "main-f3650d3",
+  "changed_entries": [
+    "assets/linuxfs/usr/local/bin/droiddeck-game-env"
+  ],
+  "apk_sha256": "0dc5330f2c7299719ea86fb3bc36dac0c0e2e1725390cb646882d37650af098e",
+  "helper_sha256": "c79440144bb5f8b3464e98eae3a8d11cf2f8b423988941b79781199d93590556",
+  "adb_install_success": true,
+  "installed_helper_matches_source": true,
+  "environment_regression_tests_passed": 129,
+  "packaging": "Repository fast-deploy tool; main donor with one helper replacement; release certificate and legacy signing lineage verified."
+}
