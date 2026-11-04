@@ -217,6 +217,7 @@ class SecondScreenPresentation(
         keyboardHost = null
         keyboardShown.value = false
         keyboardPending = false
+        imeSeen = false
         closeTerminal()
         closeDashboard()
         root.removeAllViews()
@@ -280,6 +281,7 @@ class SecondScreenPresentation(
                 (event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)) root.post { closeFieldKeyboard() }
             handled
         }
+        host.onImeChanged = { visible -> if (!visible && keyboardShown.value) keyboardClosed() }
         keyboardHost = host
         root.addView(host, ViewGroup.LayoutParams(1, 1))
     }

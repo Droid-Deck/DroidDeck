@@ -57,7 +57,10 @@ internal fun GlidePopup(
     properties: PopupProperties = PopupProperties(),
     content: @Composable () -> Unit,
 ) {
-    Popup(popupPositionProvider, onDismissRequest, properties) { TrackKeyWindow(); FocusGlideHost(content = content) }
+    Popup(popupPositionProvider, onDismissRequest, properties) {
+        if (properties.focusable) TrackKeyWindow()
+        FocusGlideHost(content = content)
+    }
 }
 
 @Composable
