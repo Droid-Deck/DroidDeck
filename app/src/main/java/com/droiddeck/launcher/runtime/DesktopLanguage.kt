@@ -2,6 +2,7 @@ package com.droiddeck.launcher.runtime
 
 import android.content.Context
 import android.util.Log
+import com.droiddeck.launcher.BuildConfig
 import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.core.Hashes
@@ -41,7 +42,7 @@ object DesktopLanguage {
         val entry = DesktopCatalog.desktopEntry(context)
         val pending = candidates(locale).filterNot { marker(root, entry.version, it).isFile }
         if (pending.isEmpty()) return true
-        val base = baseUrl(entry.url)
+        val base = baseUrl(BuildConfig.DESKTOP_KDE_URL)
         val index = parseIndex(Downloader.downloadString(base + INDEX) ?: return false)
         var complete = true
         for (name in pending) {

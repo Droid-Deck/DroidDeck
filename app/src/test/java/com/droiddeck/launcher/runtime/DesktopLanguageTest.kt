@@ -26,7 +26,7 @@ class DesktopLanguageTest {
         assertTrue(DesktopLanguage.candidates(Locale.forLanguageTag("sw")).isEmpty())
     }
 
-    @Test fun packsLiveBesideTheDesktopArchive() {
+    @Test fun packsLiveBesideTheKdeArchive() {
         assertEquals("https://h/r/t/", DesktopLanguage.baseUrl("https://h/r/t/desktop-kde.tar.zst"))
     }
 }
