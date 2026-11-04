@@ -254,7 +254,7 @@ object AutoComponents {
         if (id !in installedOf(context)) {
             val c = catalogComponent ?: run {
                 repairFailures.value = repairFailures.value + (id to "Component is no longer available")
-                Pending.drop(context, id)
+                Pending.drop(context, id, requestedRevision)
                 return
             }
             val started = System.currentTimeMillis()
