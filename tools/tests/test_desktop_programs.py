@@ -172,24 +172,51 @@ class ProgramsTest(unittest.TestCase):
         [name] = self.entries(self.apps)
         self.assertIn('Exec="%s" "%s" "--profile=O\'Brien"\n' % (PROGRAMS["OPEN"], exe), (self.apps / name).read_text())
 
-    def test_a_folder_it_cannot_read_leaves_the_menu_and_desktop_alone(self):
+    def test_a_file_or_folder_it_cannot_read_leaves_the_menu_and_desktop_alone(self):
+        if os.geteuid() == 0:
+            self.skipTest("file permissions do not apply to root")
         pfx = self.prefix(NEXON)
-        self.install(pfx)
+        self.install(pfx, target="C:\\PROGRAM FILES (X86)\\Nexon\\Nexon Launcher\\nexon_launcher.exe")
         PROGRAMS["main"]()
         menu, desktop = self.entries(self.apps), self.entries(self.desktop)
         placed = Path(PROGRAMS["PLACED"]).read_text()
-        if os.geteuid() == 0:
-            self.skipTest("folder permissions do not apply to root")
-        for folder in (self.steam / "steamapps/compatdata", pfx / "drive_c/proton_shortcuts", pfx / "drive_c/users/Public/Desktop"):
-            with self.subTest(folder.name):
-                folder.chmod(0)
+        drive = pfx / "drive_c"
+        unreadable = {
+            "compatdata": (self.steam / "steamapps/compatdata", 0),
+            "proton_shortcuts": (drive / "proton_shortcuts", 0),
+            "windows desktop": (drive / "users/Public/Desktop", 0),
+            "shortcut file": (drive / "proton_shortcuts/Nexon Launcher.desktop", 0),
+            "link file": (drive / "ProgramData/Microsoft/Windows/Start Menu/Programs/Nexon Launcher.lnk", 0),
+            "folder above a differently cased part": (drive, 0o311),
+        }
+        for name, (path, mode) in unreadable.items():
+            with self.subTest(name):
+                before = path.stat().st_mode
+                path.chmod(mode)
                 try:
                     PROGRAMS["main"]()
                 finally:
-                    folder.chmod(0o755)
+                    path.chmod(before)
                 self.assertEqual(menu, self.entries(self.apps))
                 self.assertEqual(desktop, self.entries(self.desktop))
                 self.assertEqual(placed, Path(PROGRAMS["PLACED"]).read_text())
+
+    def test_an_unreadable_placement_record_does_not_bring_back_a_deleted_icon(self):
+        if os.geteuid() == 0:
+            self.skipTest("file permissions do not apply to root")
+        self.install(self.prefix(NEXON))
+        PROGRAMS["main"]()
+        [icon] = self.entries(self.desktop)
+        (self.desktop / icon).unlink()
+        record = Path(PROGRAMS["PLACED"])
+        placed = record.read_text()
+        record.chmod(0)
+        try:
+            PROGRAMS["main"]()
+        finally:
+            record.chmod(0o644)
+        self.assertEqual([], self.entries(self.desktop))
+        self.assertEqual(placed, record.read_text())
 
     def test_without_any_prefixes_the_entries_go(self):
         self.install(self.prefix(NEXON))

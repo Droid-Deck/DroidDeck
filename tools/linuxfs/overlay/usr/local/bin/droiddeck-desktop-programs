@@ -19,6 +19,7 @@ PREFIX = "droiddeck-program-"
 SHORTCUT_BIT = 0x80000000
 WINDOWS_DESKTOPS = ("users/Public/Desktop", "users/steamuser/Desktop")
 NOT_PROGRAMS = re.compile(r"(?i)^unins")
+ABSENT = (FileNotFoundError, NotADirectoryError, IsADirectoryError)
 
 _run = None
 
@@ -27,7 +28,7 @@ def read(path):
     try:
         with open(path, encoding="utf-8", errors="replace") as f:
             return f.read()
-    except OSError:
+    except ABSENT:
         return None
 
 
@@ -50,7 +51,7 @@ def runs_here(pfx, exe):
 def listing(folder, suffix=""):
     try:
         names = os.listdir(folder)
-    except (FileNotFoundError, NotADirectoryError):
+    except ABSENT:
         return None
     return sorted(os.path.join(folder, name) for name in names if name.lower().endswith(suffix))
 
@@ -110,7 +111,7 @@ def link_target(path):
                     args = data[pos + 2:end].decode("utf-16-le" if wide else "cp1252", "replace").rstrip("\0")
                 pos = end
         return target, args
-    except (OSError, struct.error, ValueError):
+    except ABSENT + (struct.error, ValueError):
         return None, ""
 
 
@@ -124,7 +125,7 @@ def host_path(pfx, windows):
         if not os.path.lexists(exact):
             try:
                 exact = next((os.path.join(path, name) for name in os.listdir(path) if name.lower() == part.lower()), exact)
-            except OSError:
+            except ABSENT:
                 return None
         path = exact
     return path if os.path.exists(path) else None
