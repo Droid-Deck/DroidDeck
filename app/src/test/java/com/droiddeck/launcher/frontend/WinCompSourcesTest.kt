@@ -360,6 +360,21 @@ class WinCompSourcesTest {
         assertEquals(2, AutoComponents.Pending.revision(app, id))
     }
 
+    @Test fun catalogLoadFailureCannotDropANewerPendingRepair() = withFakeWorker {
+        val id = "vcredist2010_dll"
+        AutoComponents.catalogOf = { _, _ -> null }
+        session = true
+        gameUp = true
+        AutoComponents.queueRepair(app, id, "4242", revision = 1)
+        AutoComponents.Pending.add(app, "other", listOf(id), mapOf(id to 2))
+        gameUp = false
+        AutoComponents.drain(app)
+        assertEquals("Could not load the component catalog", AutoComponents.repairFailures.value[id])
+        assertEquals(listOf(id), AutoComponents.Pending.ids(app, "4242"))
+        assertEquals(listOf(id), AutoComponents.Pending.ids(app, "other"))
+        assertEquals(2, AutoComponents.Pending.revision(app, id))
+    }
+
     @Test fun manualRepairsRecordTheirRevisionAndExposeFailuresForRetry() = withFakeWorker {
         val repair = WinComponents.Component("vcredist2010_dll", "", "", "ready", emptyList(), emptyList(), revision = 2)
         AutoComponents.catalogOf = { _, _ -> catalog3 + repair }

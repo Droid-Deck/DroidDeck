@@ -242,7 +242,7 @@ object AutoComponents {
     private fun download(context: Context, id: String, asked: Boolean, inSession: Boolean = false, requestedRevision: Int? = null) {
         val catalog = catalogOf(context, true)?.associateBy { it.name } ?: run {
             repairFailures.value = repairFailures.value + (id to "Could not load the component catalog")
-            Pending.drop(context, id, requestedRevision)
+            Pending.drop(context, id, requestedRevision ?: 0)
             return
         }
         val catalogComponent = catalog[id]
