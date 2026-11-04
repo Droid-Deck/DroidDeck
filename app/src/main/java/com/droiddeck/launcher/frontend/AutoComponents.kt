@@ -225,7 +225,7 @@ object AutoComponents {
             missing.add(id)
         }
         if (inSession) Pending.update(context, key, catalog.mapValues { it.value.revision }) { ids ->
-            ids.filter { id -> id !in installed && id !in wanted || (Pending.revision(context, id) ?: 0) > (catalog[id]?.revision ?: 0) } + missing
+            ids.filter { id -> user[id] != false && (id !in installed && id !in wanted || (Pending.revision(context, id) ?: 0) > (catalog[id]?.revision ?: 0)) } + missing
         }
         if (before.keys != kept.keys) {
             WinComponents.setAuto(context, key, kept)

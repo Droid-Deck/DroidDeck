@@ -341,8 +341,9 @@ class WinCompSourcesTest {
         assertEquals("The component catalog is older than the requested revision", AutoComponents.repairFailures.value[repair.name])
         assertEquals(listOf(repair.name), AutoComponents.Pending.ids(app, "4242"))
         assertEquals(2, AutoComponents.Pending.revision(app, repair.name))
+        WinComponents.setUser(app, "4242", repair.name, false)
         AutoComponents.queueInSession(app, game(null, Library.SOURCE_STEAM, 4242, library = "steam"))
-        assertEquals(listOf(repair.name), AutoComponents.Pending.ids(app, "4242"))
+        assertTrue(AutoComponents.Pending.ids(app, "4242").isEmpty())
     }
 
     @Test fun manualRepairsRecordTheirRevisionAndExposeFailuresForRetry() = withFakeWorker {
