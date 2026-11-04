@@ -61,7 +61,7 @@ object WinComponents {
     class Component(
         val name: String, val description: String, val provider: String, val status: String,
         val dependencies: List<String>, val steps: List<Step>,
-        val snapshot: String = "",
+        val snapshot: String = "", val revision: Int = 0,
     )
 
     enum class Support { READY, NEEDS_INSTALLER, UNSUPPORTED }
@@ -127,7 +127,7 @@ object WinComponents {
                     name, o.optString("description"), o.optString("provider"), o.optString("status"),
                     (0 until deps.length()).map { deps.getString(it) }.filter { validId(it) },
                     (0 until steps.length()).map { steps.getJSONObject(it).let { s -> Step(s.optString("action"), s) } },
-                    o.optString("snapshot"),
+                    o.optString("snapshot"), o.optInt("revision", 0).coerceAtLeast(0),
                 )
             }
             if (listed.any { it.name == VCREDIST_ARM64 }) listed else listed + builtInArm64Runtime()
@@ -170,13 +170,20 @@ object WinComponents {
         else -> true
     }
 
-    fun installed(context: Context, id: String): String? = runCatching {
-        JSONObject(File(LinuxRuntime.rootDir(context), "$STORE/$id/component.json").readText()).optString("version", "?")
+    internal fun installedVersion(directory: File, revision: Int): String? = runCatching {
+        val meta = JSONObject(File(directory, "component.json").readText())
+        if (meta.optInt("revision", 0) < revision) null else meta.optString("version", "?")
     }.getOrNull()
 
-    fun installedIds(context: Context): List<String> =
-        File(LinuxRuntime.rootDir(context), STORE).listFiles { f -> f.isDirectory && validId(f.name) }
-            .orEmpty().map { it.name }.filter { installed(context, it) != null }.sorted()
+    fun installed(context: Context, id: String): String? = installedVersion(
+        File(LinuxRuntime.rootDir(context), "$STORE/$id"), cached(context)?.firstOrNull { it.name == id }?.revision ?: 0,
+    )
+
+    fun installedIds(context: Context): List<String> {
+        val revisions = cached(context).orEmpty().associate { it.name to it.revision }
+        return File(LinuxRuntime.rootDir(context), STORE).listFiles { f -> f.isDirectory && validId(f.name) }
+            .orEmpty().filter { installedVersion(it, revisions[it.name] ?: 0) != null }.map { it.name }.sorted()
+    }
 
     fun install(context: Context, c: Component, all: Map<String, Component>, onProgress: (Progress) -> Unit): String? {
         if (support(c, all) != Support.READY) return "${c.name} cannot be installed here yet"
@@ -353,7 +360,7 @@ object WinComponents {
         val version = msi?.optString("version")?.takeIf { it.isNotEmpty() }
             ?: Regex("""\b(\d+\.\d+(\.\d+)*)\b""").find(c.description)?.value ?: "catalog"
         val meta = JSONObject()
-            .put("id", c.name).put("version", version)
+            .put("id", c.name).put("version", version).put("revision", c.revision)
             .put("overrides", JSONArray(overrides.distinct()))
             .put("requires", JSONArray(c.dependencies))
         msi?.let { meta.put("kind", it.optString("kind", "msi")).put("product", it.optString("product")).put("notes", it.optJSONArray("notes") ?: JSONArray()) }

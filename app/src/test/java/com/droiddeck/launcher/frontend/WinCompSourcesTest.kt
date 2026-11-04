@@ -264,6 +264,19 @@ class WinCompSourcesTest {
         }
     }
 
+    @Test fun anExplicitCheckRefreshesTheCatalogAndAnOfflineCheckUsesTheCache() = withFakeWorker {
+        installedNow.addAll(catalog3.map { it.name })
+        val requests = ArrayList<Boolean>()
+        AutoComponents.catalogOf = { _, network -> requests.add(network); catalog3 }
+        val game = payback()
+        AutoComponents.queueGame(app, game, asked = true)
+        assertTrue(requests.first())
+        requests.clear()
+        AutoComponents.online = { false }
+        AutoComponents.queueGame(app, game, asked = true)
+        assertFalse(requests.first())
+    }
+
     @Test fun aSteamListedComponentNotYetDownloadedTurnsOnWhenItLands() = withFakeWorker {
         installedNow.add("d3dx9")
         val game = payback()

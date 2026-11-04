@@ -185,7 +185,8 @@ object AutoComponents {
         if (folder != null && (store == com.droiddeck.launcher.stores.Store.GOG || store == com.droiddeck.launcher.stores.Store.EPIC)) StoreListBackfill.fill(context, folder)
         if (asked && online(context)) steamAppOf(context, game)?.let { SteamAppInfo.lookup(context, listOf(it)) }
         val findings = findings(context, game)
-        val catalog = (catalogOf(context, false) ?: catalogOf(context, true))?.associateBy { it.name } ?: return
+        val refreshed = if (asked && online(context)) catalogOf(context, true) else null
+        val catalog = (refreshed ?: catalogOf(context, false) ?: catalogOf(context, true))?.associateBy { it.name } ?: return
         val wanted = autoPicks(findings, catalog)
         val user = WinComponents.selection(context, key).user
         val before = WinComponents.selection(context, key).auto

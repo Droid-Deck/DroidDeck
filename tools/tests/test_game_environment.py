@@ -2190,6 +2190,40 @@ class UbisoftOverlayTest(unittest.TestCase):
             self.assertEqual(sorted(p.name for p in settings.parent.iterdir()), ["settings.yaml"])
 
 
+class UbisoftCompositionTest(unittest.TestCase):
+    def test_only_ubisoft_browser_processes_disable_direct_composition(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prefix = Path(tmp) / "pfx"
+            (prefix / MODULE["UBISOFT_LAUNCHER"]).mkdir(parents=True)
+            registry = prefix / "user.reg"
+            original = 'WINE REGISTRY Version 2\n\n[Software\\\\Wine\\\\AppDefaults\\\\FarCry3.exe\\\\DllOverrides] 1\n"dcomp"="native"\n'
+            registry.write_text(original)
+            env = {"STEAM_COMPAT_DATA_PATH": tmp}
+            MODULE["ubisoft_composition_off"](env)
+            updated = registry.read_text()
+            self.assertIn(original.strip(), updated)
+            module = runpy.run_path(str(BIN / "droiddeck-wincomponents"))
+            reg = module["RegistryFile"](registry)
+            for program in ("upc.exe", "UplayWebCore.exe"):
+                self.assertEqual(reg.get("Software\\Wine\\AppDefaults\\%s\\DllOverrides" % program, "dcomp"), '"dcomp"=""')
+            MODULE["ubisoft_composition_off"](env)
+            self.assertEqual(registry.read_text(), updated)
+
+    def test_other_prefixes_and_uninitialized_registries_are_untouched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prefix = Path(tmp) / "pfx"
+            prefix.mkdir()
+            registry = prefix / "user.reg"
+            registry.write_text("WINE REGISTRY Version 2\n")
+            env = {"STEAM_COMPAT_DATA_PATH": tmp}
+            MODULE["ubisoft_composition_off"](env)
+            self.assertEqual(registry.read_text(), "WINE REGISTRY Version 2\n")
+            registry.unlink()
+            (prefix / MODULE["UBISOFT_LAUNCHER"]).mkdir(parents=True)
+            MODULE["ubisoft_composition_off"](env)
+            self.assertFalse(registry.exists())
+
+
 if __name__ == "__main__":
     unittest.main()
 
