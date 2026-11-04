@@ -29,7 +29,6 @@ object StoreArt {
         return writeLogo(get(url) ?: return false, dst)
     }
 
-    /** A logo is drawn over the hero, so it stays a PNG with its transparency instead of going through [place]. */
     internal fun writeLogo(bytes: ByteArray, dst: File): Boolean {
         if (dst.isFile && dst.length() > 0) return true
         val bitmap = runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }.getOrNull() ?: return false

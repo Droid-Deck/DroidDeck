@@ -146,7 +146,6 @@ class Runner:
                 log.append(entry)
 
     def evidence(self, folder: Path) -> dict:
-        """What a failed run leaves behind: the screen, gamescope's focus, the session's logs."""
         found = {}
         for name, action in (
             ("screenshot", lambda: ctl.screenshot(self.adb, self.serial, str(folder / "failure.png"), None)),

@@ -24,7 +24,6 @@ object BootMovie {
         DROIDDECK_60 to "droiddeck-startup-60.webm",
     )
 
-    // Steam's CEF player only takes WebM codecs; MediaMuxer's WebM writer cannot take AV1.
     internal val VIDEO_CODECS = setOf(MediaFormat.MIMETYPE_VIDEO_VP8, MediaFormat.MIMETYPE_VIDEO_VP9, MediaFormat.MIMETYPE_VIDEO_AV1)
     private val REMUX_CODECS = setOf(MediaFormat.MIMETYPE_VIDEO_VP8, MediaFormat.MIMETYPE_VIDEO_VP9)
     internal val AUDIO_CODECS = setOf(MediaFormat.MIMETYPE_AUDIO_OPUS, MediaFormat.MIMETYPE_AUDIO_VORBIS)
@@ -39,18 +38,14 @@ object BootMovie {
     private fun dir(context: Context) = File(context.filesDir, "boot-movie")
     private fun customFile(context: Context) = File(dir(context), "custom.webm")
 
-    /** A movie imported before movies were kept in Steam's own folder. */
     internal fun legacyCustomFile(context: Context) = customFile(context)
 
-    /** Unpacks one of DroidDeck's own movies on demand; null for anything else. */
     internal fun assetFile(context: Context, id: String): File? = ASSETS[id]?.let { extractAsset(context, it) }
 
-    /** Picking a movie here makes it Steam's startup movie at the next session, over whatever Steam had picked. */
     fun select(context: Context, id: String) {
         SessionPrefs.setBootMovie(context, id)
         SessionPrefs.setBootMovieApplyNext(context, true)
         BootMovieReport.note(context, "picked $id here; Steam names ${SessionFiles.startupMoviePath(BootMovieLibrary.steamConfig(context))}")
-        // Whatever Steam names right now is about to be replaced, so it is not a pick to adopt later.
         SessionFiles.startupMovieLocalPath(BootMovieLibrary.steamConfig(context))?.let { SessionPrefs.setBootMovieSteamSeen(context, it) }
     }
 
@@ -67,7 +62,6 @@ object BootMovie {
         }
     }
 
-    /** The file the current choice plays from, before any volume or length change. */
     fun currentFile(context: Context): File? = sourceOf(context, choice(context))
 
     private fun sourceOf(context: Context, choice: String): File? = when {
@@ -84,7 +78,6 @@ object BootMovie {
         return variant(context, source)
     }
 
-    /** The movie as Steam should get it: with the chosen volume and cut off after the chosen number of seconds. */
     private fun variant(context: Context, source: File): File? {
         val volume = if (SessionPrefs.bootMovieSound(context)) SessionPrefs.bootMovieVolume(context) else 0
         val seconds = SessionPrefs.bootMovieSeconds(context)
@@ -124,21 +117,15 @@ object BootMovie {
 
     internal enum class Step { REMUX_SILENT, REMUX_AUDIO, TRANSCODE_SILENT, TRANSCODE_AUDIO, REGAIN }
 
-    /**
-     * How a movie is processed: the steps tried in order until one works, whether the source goes out untouched, and
-     * whether it still plays as it is when every step fails.
-     */
     internal class Plan(val passthrough: Boolean, val steps: List<Step>, val sourceOnFailure: Boolean)
 
     internal fun plan(volume: Int, seconds: Int): Plan = when {
         volume == 100 && seconds == 0 -> Plan(true, emptyList(), true)
         volume == 0 -> Plan(false, listOf(Step.REMUX_SILENT, Step.TRANSCODE_SILENT), false)
-        // Only a length that could not be applied plays as it is; a volume that could not be applied plays no louder.
         volume == 100 -> Plan(false, listOf(Step.REMUX_AUDIO, Step.TRANSCODE_AUDIO), true)
         else -> Plan(false, listOf(Step.REGAIN, Step.REMUX_SILENT, Step.TRANSCODE_AUDIO), false)
     }
 
-    /** Frames beyond 1920x1080 (4K and the like) have made Steam crash while it starts, so such a movie is always scaled down. */
     internal const val MAX_LONG_SIDE = 1920
     internal const val MAX_SHORT_SIDE = 1080
 
@@ -150,22 +137,16 @@ object BootMovie {
 
     private fun isOversized(source: File): Boolean = probe(source)?.first?.let { oversized(it) } == true
 
-    /** A movie that is too large never goes out as it is: it is converted at the chosen volume, and plays nothing if that fails. */
     internal fun oversizedPlan(volume: Int): Plan =
         Plan(false, listOf(if (volume == 0) Step.TRANSCODE_SILENT else Step.TRANSCODE_AUDIO), false)
 
     private fun transcodeSilent(source: File, target: File, limitUs: Long) =
         BootMovieTranscoder.transcode(source, target, keepAudio = false, limitUs = limitUs) {} != null
 
-    /** Keeps at most the one processed copy in use, so trying settings never leaves movies piling up. */
     private fun prune(folder: File, keep: String?) {
         folder.listFiles()?.forEach { if (it.name != keep) it.delete() }
     }
 
-    /**
-     * Takes over a startup movie chosen in Steam's own settings: when Steam's config names a movie it did not name before,
-     * that movie becomes the choice here. Steam already plays it, so nothing is staged over it. True when the choice changed.
-     */
     fun syncFromSteam(context: Context): Boolean {
         val named = SessionFiles.startupMovieLocalPath(BootMovieLibrary.steamConfig(context)) ?: return false
         val seen = SessionPrefs.bootMovieSteamSeen(context)
@@ -174,7 +155,6 @@ object BootMovie {
         if (named == SessionFiles.BOOT_MOVIE_PATH || (named.isEmpty() && seen == null)) return false
         val path = named.ifEmpty { "/movies/steam_os_startup.webm" }
         val prefix = "/uioverrides/movies/"
-        // The list names a bought movie from the Steam folder (/config/communityitemscache/...), Steam's config from its config folder.
         val id = if (path.startsWith(prefix)) BootMovieLibrary.idOf(path.removePrefix(prefix)) else {
             val listed = BootMovieLibrary.list(context).firstOrNull { it.id.startsWith(BootMovieLibrary.STEAM_PREFIX) && it.id.endsWith(path) }
             listed?.id ?: BootMovieLibrary.STEAM_PREFIX + path

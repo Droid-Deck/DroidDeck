@@ -4,6 +4,8 @@ D=app/src/main/assets/linuxfs
 mkdir -p "$D"
 VK_INCLUDE=$(ls -d "${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"/toolchains/llvm/prebuilt/*/sysroot/usr/include | head -1) \
   tools/vr/build.sh --native "$D/usr/local/lib/droiddeck-vr"
+VK_INCLUDE=$(ls -d "${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"/toolchains/llvm/prebuilt/*/sysroot/usr/include | head -1) \
+  tools/gpuload/build.sh --native "$D/usr/local/lib/droiddeck-gpuload"
 for script in tools/linuxfs/overlay/usr/local/bin/droiddeck-* tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
   install -Dm644 "$script" "$D/usr/local/bin/$(basename "$script")"
 done
@@ -14,14 +16,14 @@ mkdir -p app/build/ime-packages
 python3 tools/ime/prepare.py --packages app/build/ime-packages --download --output "$D"
 if [ -f tools/gamescope/release.env ]; then
   . tools/gamescope/release.env
-  curl -fsSL --retry 3 -o gamescope.tzst "https://github.com/${GAMESCOPE_REPO:-${GITHUB_REPOSITORY}}/releases/download/${GAMESCOPE_TAG}/gamescope.tzst"
+  curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o gamescope.tzst "https://github.com/${GAMESCOPE_REPO:-${GITHUB_REPOSITORY}}/releases/download/${GAMESCOPE_TAG}/gamescope.tzst"
   echo "${GAMESCOPE_SHA256}  gamescope.tzst" | sha256sum -c -
   tar --use-compress-program=unzstd -xf gamescope.tzst -C "$D"
   test -f "$D/usr/local/bin/gamescope"
   rm gamescope.tzst
 fi
 . tools/linuxfs/uruntime.env
-curl -fsSL --retry 3 -o uruntime "https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/${URUNTIME_ASSET}"
+curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o uruntime "https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/${URUNTIME_ASSET}"
 echo "${URUNTIME_SHA256}  uruntime" | sha256sum -c -
 install -Dm644 uruntime "$D/usr/local/lib/droiddeck/uruntime"
 install -Dm644 tools/linuxfs/licenses/uruntime-LICENSE "$D/usr/local/share/licenses/uruntime/LICENSE"
@@ -30,7 +32,7 @@ M="$D/usr/local/lib/mangoapp"
 mkdir -p "$M" mango-pkgs
 grep -v '^#' tools/mangoapp/packages.txt | while read -r sum url; do
   [ -n "$url" ] || continue
-  curl -fsSL --retry 3 -o mango-pkgs/pkg.tar.zst "$url"
+  curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o mango-pkgs/pkg.tar.zst "$url"
   echo "$sum  mango-pkgs/pkg.tar.zst" | sha256sum -c -
   tar --use-compress-program=unzstd -xf mango-pkgs/pkg.tar.zst -C mango-pkgs
   rm mango-pkgs/pkg.tar.zst
@@ -48,7 +50,7 @@ ls -l "$M"
 mkdir -p pw-pkgs
 grep -v '^#' tools/pipewire/packages.txt | while read -r sum url; do
   [ -n "$url" ] || continue
-  curl -fsSL --retry 3 -o pw-pkgs/pkg.tar.zst "$url"
+  curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o pw-pkgs/pkg.tar.zst "$url"
   echo "$sum  pw-pkgs/pkg.tar.zst" | sha256sum -c -
   tar --use-compress-program=unzstd -xf pw-pkgs/pkg.tar.zst -C pw-pkgs
   rm pw-pkgs/pkg.tar.zst
@@ -60,7 +62,7 @@ T="$D/usr/local/lib/droiddeck-msitools"
 mkdir -p "$T" msi-pkgs
 grep -v '^#' tools/msitools/packages.txt | while read -r sum url; do
   [ -n "$url" ] || continue
-  curl -fsSL --retry 3 -o msi-pkgs/pkg.tar.xz "$url"
+  curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o msi-pkgs/pkg.tar.xz "$url"
   echo "$sum  msi-pkgs/pkg.tar.xz" | sha256sum -c -
   tar -xJf msi-pkgs/pkg.tar.xz -C msi-pkgs
   rm msi-pkgs/pkg.tar.xz

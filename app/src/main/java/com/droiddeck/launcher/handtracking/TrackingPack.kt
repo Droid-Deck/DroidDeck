@@ -8,7 +8,6 @@ import java.io.FileInputStream
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 
-/** Hand-tracking models and the OpenCV/MediaPipe native libraries, downloaded on first use. */
 internal object TrackingPack {
     const val HAND = "hand_landmarker.task"
     const val HAND_LITE = "hand_landmarker_lite.task"
@@ -32,10 +31,6 @@ internal object TrackingPack {
     fun model(context: Context, name: String): ByteBuffer =
         FileInputStream(file(context, name)).use { it.channel.map(FileChannel.MapMode.READ_ONLY, 0, it.channel.size()) }
 
-    /**
-     * Loads OpenCV and MediaPipe from the pack. MediaPipe's own System.loadLibrary then resolves to the
-     * already-loaded library by soname, so this must run before any MediaPipe task class initializes.
-     */
     fun loadNative(context: Context): Boolean {
         if (nativeLoaded) return true
         synchronized(lock) {
@@ -50,7 +45,6 @@ internal object TrackingPack {
         }
     }
 
-    /** Blocks the calling worker thread until the pack is usable, starting the download if needed. */
     fun awaitNative(context: Context, running: () -> Boolean, onState: (AddonPack.State) -> Unit): Boolean =
         pack.await(context, running, onState) && loadNative(context)
 }

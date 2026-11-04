@@ -10,7 +10,6 @@ object LibraryCache {
     private const val TAG = "LibraryCache"
     private fun file(context: Context) = File(context.filesDir, "library-cache.json")
 
-    /** The cached games and whether they are the x86-64 client's; a cache written as a bare list is arm64's. */
     @Synchronized
     fun snapshot(context: Context): Pair<List<Library.SteamGame>, Boolean> = runCatching {
         val f = file(context)
@@ -36,7 +35,6 @@ object LibraryCache {
 
     fun listedX64(context: Context): Boolean = snapshot(context).second
 
-    /** Without [x64] the list keeps the client already recorded. */
     @Synchronized
     fun save(context: Context, games: List<Library.SteamGame>, x64: Boolean? = null) {
         runCatching {

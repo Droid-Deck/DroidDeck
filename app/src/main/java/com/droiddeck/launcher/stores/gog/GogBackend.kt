@@ -28,6 +28,7 @@ object GogBackend : StoreBackend {
     }
 
     override fun signOut(context: Context) {
+        GogMaintenance.reset()
         GogPrefs.get(context).edit().remove("library_cache").remove("library_cache_v2").remove("library_synced_at").apply()
     }
 
@@ -41,19 +42,20 @@ object GogBackend : StoreBackend {
                 if (!quiet) StoresState.status[store] = app.getString(com.droiddeck.launcher.R.string.stores_sync_library)
             }
             val result = GogLibrary.sync(app, force, onStatus = { line -> if (!quiet) StoresState.post { StoresState.status[store] = line } }, onList = { list ->
-                // Mapped here, off the main thread: the listing paints the tab before any product is asked about.
                 val items = list.map { GogLibrary.toCatalogItem(app, it) }
-                // An empty listing is not news: posting it would drop the cards already on screen.
                 if (items.isNotEmpty()) StoresState.post { StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], items) }
             }, onItems = { changed ->
-                // Only the products that came back are touched: a card already on screen keeps its object, and a product the grid has not seen yet is added where its title belongs.
                 val items = changed.map { GogLibrary.toCatalogItem(app, it) }
                 StoresState.post { StoresState.library[store] = com.droiddeck.launcher.stores.patchItems(StoresState.library[store], items) }
             })
             StoresState.post {
                 StoresState.status.remove(store)
                 when (result) {
-                    is GogLibrary.SyncResult.Ok -> { StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], result.games.map { GogLibrary.toCatalogItem(app, it) }); StoresState.problems.remove(store) }
+                    is GogLibrary.SyncResult.Ok -> {
+                        StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], result.games.map { GogLibrary.toCatalogItem(app, it) })
+                        StoresState.problems.remove(store)
+                        GogMaintenance.checkInstalled(app, StoresState.installed)
+                    }
                     is GogLibrary.SyncResult.Failed -> StoresState.problems[store] = result.message
                     GogLibrary.SyncResult.NotLoggedIn -> StoresState.problems[store] = StoresState.notSignedInLine(store)
                     GogLibrary.SyncResult.Busy -> {}
@@ -90,7 +92,6 @@ object GogBackend : StoreBackend {
     private fun fetchLogo(id: String): String? =
         runCatching { StoreNet.get("https://api.gog.com/v2/games/$id?locale=en-US")?.let { logoOf(JSONObject(it)) } }.getOrNull()
 
-    /** `images.logo2x` from the products API is an opaque banner, not a logo; the v2 `logo` link is a transparent PNG. */
     internal fun logoOf(v2: JSONObject): String? =
         GogStoreCatalog.absolutize(v2.optJSONObject("_links")?.optJSONObject("logo")?.optString("href")).takeIf { it.startsWith("https://") }
 
@@ -102,24 +103,31 @@ object GogBackend : StoreBackend {
             StoreInstalls.begin(folder, Store.GOG, game.gameId, game.title, item.tallImageUrl ?: item.imageUrl, item.imageUrl)
             var downloading = false
             val language = item.extra[StoreLanguage.EXTRA] ?: StoreLanguage.preferredCode(app)
-            val result = GogDownloadManager.install(app, game, folder, object : GogDownloadManager.Callback {
-                override fun onProgress(message: String, pct: Int) {
-                    when {
-                        message.startsWith("Finishing") -> handle.stage(DownloadStage.INSTALL, message)
-                        message.startsWith("Downloading") || message.startsWith("Verified") || message.startsWith("Resuming") -> {
-                            if (!downloading) { downloading = true; handle.stage(DownloadStage.DOWNLOAD, message) } else handle.progress(-1, -1, message)
+            val result = try {
+                GogDownloadManager.install(app, game, folder, object : GogDownloadManager.Callback {
+                    override fun onProgress(message: String, pct: Int) {
+                        when {
+                            message.startsWith("Finishing") || message.startsWith("Extracting") -> handle.stage(DownloadStage.INSTALL, message)
+                            message.startsWith("Downloading") || message.startsWith("Verified") || message.startsWith("Resuming") -> {
+                                if (!downloading) { downloading = true; handle.stage(DownloadStage.DOWNLOAD, message) } else handle.progress(-1, -1, message)
+                            }
+                            else -> handle.stage(DownloadStage.MANIFEST, message)
                         }
-                        else -> handle.stage(DownloadStage.MANIFEST, message)
                     }
+                    override fun onBytes(done: Long, total: Long, speedBps: Long) { handle.progress(done, total, null, speedBps) }
+                    override fun onLog(line: String) { handle.log(line) }
+                    override fun onSizes(downloadBytes: Long, diskBytes: Long) { handle.diskSize(diskBytes) }
+                    override fun onStage(stage: String, done: Long, total: Long, items: Int, itemsTotal: Int) {
+                        handle.stage(when (stage) { "check" -> DownloadStage.MANIFEST; "verify" -> DownloadStage.VERIFY; else -> DownloadStage.INSTALL })
+                        handle.stageProgress(done, total, items, itemsTotal, bytes = stage == "install")
+                    }
+                }, cancelled, language)
+            } catch (t: Throwable) {
+                if (t is GogDownloadManager.InstallerException && !cancelled.get()) {
+                    StoreInstalls.discard(app, folder, listOf(File(folder, ".gog_chunks")))
                 }
-                override fun onBytes(done: Long, total: Long, speedBps: Long) { handle.progress(done, total, null, speedBps) }
-                override fun onLog(line: String) { handle.log(line) }
-                override fun onSizes(downloadBytes: Long, diskBytes: Long) { handle.diskSize(diskBytes) }
-                override fun onStage(stage: String, done: Long, total: Long, items: Int, itemsTotal: Int) {
-                    handle.stage(when (stage) { "check" -> DownloadStage.MANIFEST; "verify" -> DownloadStage.VERIFY; else -> DownloadStage.INSTALL })
-                    handle.stageProgress(done, total, items, itemsTotal, bytes = stage == "install")
-                }
-            }, cancelled, language) ?: return null
+                throw t
+            } ?: return null
             if (cancelled.get()) return null
             handle.stage(DownloadStage.INSTALL, app.getString(com.droiddeck.launcher.R.string.stores_registering))
             val installedLanguage = result.language?.takeIf { it.isNotEmpty() } ?: language

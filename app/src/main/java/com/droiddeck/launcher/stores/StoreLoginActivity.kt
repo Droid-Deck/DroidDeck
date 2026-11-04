@@ -88,6 +88,7 @@ class StoreLoginActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestedOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
         store = Store.byId(intent.getStringExtra(EXTRA_STORE))
         clientUrl = intent.getStringExtra(EXTRA_CLIENT_URL)?.takeIf { store == Store.EPIC }
         oauthState = savedInstanceState?.getString(KEY_STATE) ?: generateState()
@@ -130,7 +131,7 @@ class StoreLoginActivity : ComponentActivity() {
     private fun newFlow(state: String): Flow? {
         val url = clientUrl
         if (url != null) return com.droiddeck.launcher.stores.epic.EpicClient.loginFlow(url, chromeUa)
-        return store?.let { LoginFlows.forStore(it, state) }
+        return store?.let { LoginFlows.forStore(it, state, chromeUa) }
     }
 
     override fun finish() {
@@ -182,10 +183,6 @@ class StoreLoginActivity : ComponentActivity() {
         return root
     }
 
-    /**
-     * The activity handles density changes itself so that folding between two displays of different
-     * density keeps the page and the sign-in in progress; the dp-based chrome sizes are applied again.
-     */
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         if (!::topBar.isInitialized) return
@@ -220,7 +217,6 @@ class StoreLoginActivity : ComponentActivity() {
         setBackgroundColor(0xFF0A0B0D.toInt())
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
-        // Store sign-in pages are web pages; they never need to read local files or content:// URIs.
         settings.allowFileAccess = false
         settings.allowContentAccess = false
         settings.userAgentString = userAgent
@@ -275,6 +271,10 @@ class StoreLoginActivity : ComponentActivity() {
         override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
             Log.d(TAG, "page[popup=$isPopup]: ${StoreLog.redactUrl(url)}")
             if (url != null && view != null && flow?.isRedirect(url) == true && flow?.readsPage != true) complete(view, url)
+        }
+
+        override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+            if (!isPopup && store == Store.GAMEJOLT && url != null && view != null && flow?.isRedirect(url) == true && flow?.readsPage != true) complete(view, url)
         }
 
         override fun onPageFinished(view: WebView?, url: String?) {

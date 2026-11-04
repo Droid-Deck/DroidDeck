@@ -29,6 +29,11 @@ import java.util.Locale
 object DeviceReport {
     private const val TAG = "DeviceReport"
 
+    internal fun cpuFeaturesSummary(cpuInfo: String): String = cpuInfo.lineSequence()
+        .filter { it.substringBefore(':').trim() == "Features" }
+        .map { it.substringAfter(':').trim().split(Regex("\\s+")).filter(String::isNotEmpty).joinToString(" ") }
+        .filter(String::isNotEmpty).distinct().joinToString(" | ").ifEmpty { "not reported" }
+
     fun write(context: Context, target: File, mode: String) {
         try {
             target.writeText(build(context, mode))
@@ -37,7 +42,6 @@ object DeviceReport {
         }
     }
 
-    /** Name of an ApplicationExitInfo reason code, so a report says "LOW_MEMORY" instead of "3". */
     internal fun exitReasonName(reason: Int): String = when (reason) {
         0 -> "UNKNOWN"
         1 -> "EXIT_SELF"
@@ -141,6 +145,7 @@ object DeviceReport {
 
         h("CPU and memory")
         k("Cores", CpuCores.all.size)
+        k("CPU features", cpuFeaturesSummary(FileUtils.readString(File("/proc/cpuinfo")).orEmpty()))
         b.append("Core ceilings          ")
         b.append(CpuCores.all.joinToString(", ") { c ->
             "cpu$c " + (CpuCores.maxGhz(c)?.let { String.format(Locale.US, "%.2f GHz", it) } ?: "?")
@@ -203,7 +208,7 @@ object DeviceReport {
 
         h("Drivers")
         val gpu = com.droiddeck.launcher.gpu.GpuInfo.detect()
-        k("GPU", "${gpu.name} · ${gpu.family.label} · ${gpu.supportText}" + if (gpu.oneUi8Gen2) " · One UI 8 Gen 2" else "")
+        k("GPU", "${gpu.name} · ${gpu.family.label} · ${gpu.supportText(SessionPrefs.vkBridge(context))}" + if (gpu.oneUi8Gen2) " · One UI 8 Gen 2" else "")
         if (gpu.model == 740) {
             val hint = com.droiddeck.launcher.gpu.TpUbwcHint
             k("TP UBWC hint", hint.forThisDevice(context) ?: "driver default")
@@ -256,8 +261,13 @@ object DeviceReport {
         EsyncPacks.status(LinuxRuntime.rootDir(context)).let { k("droiddeck-esync packs", "${it.installed} installed, ${it.wanted} wanted") }
         k("Linux x86 (FEX)", if (com.droiddeck.launcher.runtime.LinuxFex.ready(context)) "ready" else "not set up")
         k("gamescope realtime", SessionPrefs.gamescopeRealtime(context))
+        k("zRAM: compress Steam during games", SessionPrefs.zramClient(context))
+        k("RAM cap", SessionPrefs.ramCapMb(context).let { if (it > 0) "$it MB" else "off" })
+        k("VRAM cap", SessionPrefs.vramCapMb(context).let { if (it > 0) "$it MB" else "driver default" })
         k("proot without seccomp", SessionPrefs.prootNoSeccomp(context))
         k("proot fast path", SessionPrefs.prootFastPath(context))
+        k("proot binary", LinuxRuntime.prootSource(context) + " " + LinuxRuntime.prootBinary(context).path)
+        k("proot fast path (eligible)", com.droiddeck.launcher.runtime.ProotFastPath.enabled(context))
         k("Guest host name", SessionPrefs.guestHostname(context))
         k("DirectAudio for games", SessionPrefs.directAudio(context))
         k("Stretch 16:9 to panel", SessionPrefs.stretch16x9(context))

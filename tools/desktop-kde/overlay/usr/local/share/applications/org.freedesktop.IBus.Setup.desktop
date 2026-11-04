@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=IBus Preferences
+Exec=ibus-setup
+Icon=ibus-setup
+NoDisplay=true

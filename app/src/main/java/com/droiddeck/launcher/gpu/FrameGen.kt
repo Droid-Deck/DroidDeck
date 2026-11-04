@@ -50,8 +50,9 @@ object FrameGen {
         else -> context.getString(R.string.frame_gen_off)
     }
 
-    fun apply(context: Context, refreshHz: Float): String? {
-        val mode = mode(context)
+    fun apply(context: Context, refreshHz: Float): String? = apply(context, mode(context), refreshHz)
+
+    fun apply(context: Context, mode: Mode, refreshHz: Float): String? {
         when (mode.engine) {
             ENGINE_LSFG -> {
                 val status = Lossless.sync(context)

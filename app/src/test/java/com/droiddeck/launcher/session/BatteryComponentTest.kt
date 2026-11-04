@@ -49,11 +49,25 @@ class BatteryComponentTest {
         assertEquals("-2000000", File(supplies, "BAT1/current_now").readText().trim())
     }
 
-    private fun start(supplies: File, vpower: File, currentUa: Long) {
+    @Test fun chargingAtFullLevelIsReportedFullSoSteamStopsSaying99() {
+        val supplies = tmp.newFolder("power_supply")
+        val vpower = tmp.newFolder("vpower")
+        start(supplies, vpower, 2_000_000L, BatteryManager.BATTERY_STATUS_CHARGING, 100)
+        assertEquals("Full", File(supplies, "BAT1/status").readText().trim())
+        assertEquals("Full", File(vpower, "battery_status").readText().trim())
+        battery?.stop()
+        start(supplies, vpower, 2_000_000L, BatteryManager.BATTERY_STATUS_CHARGING, 99)
+        assertEquals("Charging", File(supplies, "BAT1/status").readText().trim())
+    }
+
+    private fun start(
+        supplies: File, vpower: File, currentUa: Long,
+        status: Int = BatteryManager.BATTERY_STATUS_DISCHARGING, level: Int = 50,
+    ) {
         val context = RuntimeEnvironment.getApplication()
         context.sendStickyBroadcast(Intent(Intent.ACTION_BATTERY_CHANGED).apply {
-            putExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_DISCHARGING)
-            putExtra(BatteryManager.EXTRA_LEVEL, 50)
+            putExtra(BatteryManager.EXTRA_STATUS, status)
+            putExtra(BatteryManager.EXTRA_LEVEL, level)
             putExtra(BatteryManager.EXTRA_SCALE, 100)
             putExtra(BatteryManager.EXTRA_VOLTAGE, 4000)
         })

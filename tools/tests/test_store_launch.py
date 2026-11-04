@@ -1,6 +1,3 @@
-"""droiddeck-store-launch: a launch from anywhere - the Steam client's own Play button included -
-asks the app for an Epic game's sign-in code before Proton starts. These pin how it recognises a
-store game, how it asks, and that both Proton launchers call it."""
 import importlib.machinery
 import importlib.util
 import json
@@ -277,9 +274,38 @@ class CloudHooks(unittest.TestCase):
         for sh in (compat.LAUNCHER_SH, compat.EXTRA_WRAPPER_SH):
             self.assertIn('bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', sh)
             self.assertNotIn('exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', sh)
-        self.assertIn('[ $? -eq 10 ] && BL_STORE_EXIT=1', compat.BL_STORE_SETUP)
+        self.assertIn('[ $rc -eq 10 ] && BL_STORE_EXIT=1', compat.BL_STORE_SETUP)
         self.assertIn('droiddeck-store-launch --exited --code "$rc" "${BL_STORE_ARGS[@]}"', compat.BL_STORE_SETUP)
         self.assertIn('exec "$@"', compat.BL_STORE_SETUP)
+
+
+BNET_EXE = '/root/.local/share/Steam/steamapps/compatdata/2596113170/pfx/drive_c/Program Files (x86)/Battle.net/Battle.net.exe'
+
+
+class BattleNet(unittest.TestCase):
+    def test_a_games_shortcut_is_handed_to_droiddeck_battlenet(self):
+        self.assertEqual([store.BATTLENET, 'launch', 'Fen'], store.battlenet(['waitforexitandrun', BNET_EXE, '--exec=launch Fen'], env={}))
+        self.assertEqual([store.BATTLENET, 'launch', 'OSI'], store.battlenet(['"%s"' % BNET_EXE, '--exec="launch OSI"'], env={}))
+        self.assertEqual([store.BATTLENET, 'open'], store.battlenet([BNET_EXE], env={}))
+
+    def test_anything_else_and_its_own_starts_are_left_alone(self):
+        other = BNET_EXE.replace('2596113170', '123')
+        self.assertIsNone(store.battlenet([other, '--exec=launch Fen'], env={}))
+        self.assertIsNone(store.battlenet(['/x/Diablo IV/Diablo IV.exe'], env={}))
+        self.assertIsNone(store.battlenet([BNET_EXE, '--exec=launch Fen'], env={'BL_BATTLENET': '1'}))
+        self.assertEqual([store.BATTLENET, 'open'], store.battlenet([BNET_EXE, '--exec=launch Fen;rm'], env={}))
+
+    def test_the_launch_runs_there_and_the_wrapper_ends_with_it(self):
+        with patch.dict(os.environ, {}, clear=False), patch.object(store.subprocess, 'call', return_value=0) as call:
+            os.environ.pop('BL_BATTLENET', None)
+            self.assertEqual(store.RAN, store.main([BNET_EXE, '--exec=launch Pro']))
+        call.assert_called_once_with([store.BATTLENET, 'launch', 'Pro'])
+        with patch.dict(os.environ, {}, clear=False), patch.object(store.subprocess, 'call', return_value=1):
+            os.environ.pop('BL_BATTLENET', None)
+            self.assertEqual(store.RAN_FAILED, store.main([BNET_EXE, '--exec=launch Pro']))
+        self.assertIn('[ $rc -eq 11 ] && exit 0', compat.BL_STORE_SETUP)
+        self.assertIn('[ $rc -eq 12 ] && exit 1', compat.BL_STORE_SETUP)
+        self.assertLess(compat.BL_STORE_SETUP.index('droiddeck-store-launch "$@"'), compat.BL_STORE_SETUP.index('[ $rc -eq 11 ] && exit 0'))
 
 
 class Launchers(unittest.TestCase):
@@ -362,6 +388,30 @@ def set_registry(**arguments):
 
 
 class GogRegistry(unittest.TestCase):
+    def test_patch_registration_uses_authentic_build_and_the_prefix_registry_executable(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='7')
+            (folder / 'goggame-7.id').write_text(json.dumps({'buildId': 'opaque-0001'}))
+            proton = Path(root) / 'proton'; proton.write_text('selected Proton')
+            data = Path(root) / 'compat'
+            executable = data / 'pfx/drive_c/windows/system32/reg.exe'
+            executable.parent.mkdir(parents=True); executable.write_bytes(b'MZreg')
+            (data / 'pfx/system.reg').write_text('registry')
+            imported = []
+            def run(argv, **kwargs):
+                self.assertEqual([str(proton), 'run', str(executable), 'import'], argv[:4])
+                text = Path(argv[4][2:].replace('\\', '/')).read_bytes()[2:].decode('utf-16-le')
+                imported.append(text)
+                return __import__('subprocess').CompletedProcess(argv, 0)
+            record = {'id': '7', 'build': 'opaque-0001', 'version': 'RC-final'}
+            with patch.object(store.subprocess, 'run', side_effect=run):
+                self.assertTrue(store.apply_gog_registry(folder, str(data), str(proton), installation=record).startswith('written='))
+            self.assertIn('[HKEY_LOCAL_MACHINE\\Software\\GOG.com\\Games\\7]', imported[0])
+            self.assertIn('"BUILDID"="opaque-0001"', imported[0])
+            self.assertIn('"VER"="RC-final"', imported[0])
+            with self.assertRaises(ValueError):
+                store.apply_gog_registry(folder, str(data), str(proton), installation=dict(record, build='invented'))
+
     def test_the_scripts_registry_values_are_read_with_the_games_paths(self):
         with tempfile.TemporaryDirectory() as root:
             folder = game(root, store_id='gog', ident='1454587428')
@@ -387,6 +437,120 @@ class GogRegistry(unittest.TestCase):
                 '[HKEY_LOCAL_MACHINE\\Software\\Empty]',
             ], entries)
             self.assertEqual(3, skipped)
+
+    def test_a_game_whose_support_installer_cannot_run_gets_the_install_registry(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='1207658924')
+            (folder / 'goggame-1207658924.info').write_text(json.dumps({'language': 'English', 'languages': ['en-US']}))
+            gog_script(folder, '1207658924', [
+                {'install': {'action': 'Execute', 'arguments': {'executable': 'galaxy_the_witcher_enhanced_edition_2.1.0.15.exe'}}},
+            ])
+            entries, skipped = store.gog_registry(folder)
+            app = store.windows_path(str(folder)).replace('\\', '\\\\')
+            self.assertEqual([
+                '[HKEY_LOCAL_MACHINE\\Software\\CD Projekt Red\\The Witcher]\r\n"InstallFolder"="%s\\\\"' % app,
+                '[HKEY_LOCAL_MACHINE\\Software\\CD Projekt Red\\The Witcher]\r\n"RegionVersion"="US"',
+                '[HKEY_LOCAL_MACHINE\\Software\\CD Projekt Red\\The Witcher]\r\n"IsDjinniInstalled"=dword:00000001',
+                '[HKEY_LOCAL_MACHINE\\Software\\CD Projekt Red\\The Witcher]\r\n"Language"="3"',
+                '[HKEY_CURRENT_USER\\Software\\CD Projekt RED\\Witcher\\Settings]\r\n"TextLanguage"="3"',
+                '[HKEY_CURRENT_USER\\Software\\CD Projekt RED\\Witcher\\Settings]\r\n"VoiceLanguage"="3"',
+            ], entries)
+            self.assertEqual(0, skipped)
+
+    def test_a_players_language_choice_is_not_overwritten(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='1207658924')
+            (folder / 'goggame-1207658924.info').write_text(json.dumps({'languages': ['en-US']}))
+            proton = Path(root) / 'proton'
+            proton.write_text('selected Proton')
+            data = Path(root) / 'compat'
+            (data / 'pfx').mkdir(parents=True)
+            (data / 'pfx/user.reg').write_text(
+                '[Software\\\\OtherApp] 1\n"InstallFolder"="C:\\\\Other"\n\n'
+                '[Software\\\\CD Projekt RED\\\\Witcher\\\\Settings] 1\n"TextLanguage"="5"\n')
+            imported = []
+            def run(argv, **kwargs):
+                imported.append(Path(argv[4][2:].replace('\\', '/')).read_bytes()[2:].decode('utf-16-le'))
+                (data / 'pfx/system.reg').write_text('Wine registry')
+                return __import__('subprocess').CompletedProcess(argv, 0)
+            with patch.object(store.subprocess, 'run', side_effect=run):
+                store.apply_gog_registry(folder, str(data), str(proton))
+            text = imported[0]
+            self.assertNotIn('"TextLanguage"', text)
+            self.assertIn('"VoiceLanguage"', text)
+            self.assertIn('"InstallFolder"', text)
+
+    def test_malformed_language_metadata_falls_back_to_english(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='1207658924')
+            (folder / 'goggame-1207658924.info').write_text(json.dumps({'languages': 3}))
+            entries, _ = store.gog_registry(folder)
+            self.assertIn('"Language"="3"', entries[3])
+
+    def test_a_native_hklm_value_does_not_replace_the_32_bit_fallback(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='1207658924')
+            (folder / 'goggame-1207658924.info').write_text(json.dumps({'languages': ['en-US']}))
+            pfx = Path(root) / 'pfx'
+            pfx.mkdir()
+            (pfx / 'system.reg').write_text(
+                '[Software\\\\CD Projekt Red\\\\The Witcher] 1\n"InstallFolder"="C:\\\\Native"\n')
+            entries, _ = store.gog_registry(folder, store.gog_registry_values(pfx))
+            self.assertTrue(any('"InstallFolder"' in entry for entry in entries))
+            (pfx / 'system.reg').write_text(
+                '[Software\\\\Wow6432Node\\\\CD Projekt Red\\\\The Witcher] 1\n"InstallFolder"="C:\\\\32bit"\n')
+            entries, _ = store.gog_registry(folder, store.gog_registry_values(pfx))
+            self.assertFalse(any('"InstallFolder"' in entry for entry in entries))
+
+    def test_a_deleted_fallback_value_is_imported_again(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='1207658924')
+            (folder / 'goggame-1207658924.info').write_text(json.dumps({'languages': ['en-US']}))
+            proton = Path(root) / 'proton'
+            proton.write_text('selected Proton')
+            data = Path(root) / 'compat'
+            pfx = data / 'pfx'
+            pfx.mkdir(parents=True)
+            imported = []
+            def run(argv, **kwargs):
+                imported.append(argv)
+                (pfx / 'system.reg').write_text(
+                    '[Software\\\\Wow6432Node\\\\CD Projekt Red\\\\The Witcher] 1\n'
+                    '"InstallFolder"="C:\\\\Game"\n"RegionVersion"="US"\n'
+                    '"IsDjinniInstalled"=dword:00000001\n"Language"="3"\n')
+                (pfx / 'user.reg').write_text(
+                    '[Software\\\\CD Projekt RED\\\\Witcher\\\\Settings] 1\n'
+                    '"TextLanguage"="3"\n"VoiceLanguage"="3"\n')
+                return __import__('subprocess').CompletedProcess(argv, 0)
+            with patch.object(store.subprocess, 'run', side_effect=run):
+                self.assertEqual('written=6', store.apply_gog_registry(folder, str(data), str(proton)))
+                self.assertEqual('none', store.apply_gog_registry(folder, str(data), str(proton)))
+                (pfx / 'system.reg').write_text(
+                    '[Software\\\\Wow6432Node\\\\CD Projekt Red\\\\The Witcher] 1\n'
+                    '"RegionVersion"="US"\n"IsDjinniInstalled"=dword:00000001\n"Language"="3"\n')
+                self.assertEqual('written=1', store.apply_gog_registry(folder, str(data), str(proton)))
+            self.assertEqual(2, len(imported))
+
+    def test_the_install_language_selects_the_titles_language_id(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='1207658924')
+            (folder / 'goggame-1207658924.info').write_text(json.dumps({'languages': ['pl-PL']}))
+            entries, _ = store.gog_registry(folder)
+            self.assertIn('"Language"="5"', entries[3])
+
+    def test_a_script_that_sets_registry_keeps_its_own_values(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='1207658924')
+            (folder / 'goggame-1207658924.info').write_text(json.dumps({'languages': ['en-US']}))
+            gog_script(folder, '1207658924', [
+                set_registry(root='HKLM', subkey='Software\\CD Projekt Red\\The Witcher',
+                             valueName='InstallFolder', valueData='{app}\\', valueType='string'),
+            ])
+            entries, _ = store.gog_registry(folder)
+            app = store.windows_path(str(folder)).replace('\\', '\\\\')
+            self.assertEqual([
+                '[HKEY_LOCAL_MACHINE\\Software\\CD Projekt Red\\The Witcher]\r\n"InstallFolder"="%s\\\\"' % app,
+            ], entries)
 
     def test_a_game_without_a_script_starts_without_proton(self):
         with tempfile.TemporaryDirectory() as root:

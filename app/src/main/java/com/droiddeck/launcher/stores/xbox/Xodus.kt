@@ -101,6 +101,8 @@ internal object Xodus {
             val command = LinuxRuntime.commandWithBinds(app, root, binds, guestCommand)
             val builder = ProcessBuilder(command).directory(LinuxRuntime.rootDir(app))
             if (launchDirectory != null) builder.environment()["TMPDIR"] = launchDirectory.path
+            builder.environment()["DROIDDECK_XBOX_CREDENTIAL_PORT"] = credentials.port.toString()
+            builder.environment()["DROIDDECK_XBOX_CREDENTIAL_KEY"] = credentials.key
             builder.environment().apply {
                 remove("LD_PRELOAD"); remove("LD_AUDIT"); remove("LD_LIBRARY_PATH")
                 put("PROOT_LOADER", LinuxRuntime.prootLoader(app).path)
@@ -152,7 +154,6 @@ internal object Xodus {
 
     const val SIGN_IN_REJECTED = "Microsoft content licensing rejected sign-in \\(HTTP 401\\)\\. Sign in again in Settings\\."
 
-    /** Passes the backend's known stderr diagnostics to [report]; other stderr text never leaves the process. */
     fun diagnostics(child: Child, report: (String) -> Unit = { com.droiddeck.launcher.stores.StoresState.logLine("Xbox: $it") }): Thread = Thread({
         runCatching {
             child.process.errorStream.bufferedReader().useLines { lines -> lines.forEach { line ->

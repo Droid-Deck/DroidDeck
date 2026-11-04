@@ -7,6 +7,7 @@
 #include "framegen_bridge.h"
 #include "hdr_compose.h"
 #include "blend_pass.h"
+#include "gpu_busy.h"
 #include "droiddeck_color.h"
 #include "quest_device.h"
 #include <stdio.h>
@@ -19,6 +20,7 @@
 #include <time.h>
 #include <pthread.h>
 #include <android/log.h>
+#include <android/hardware_buffer.h>
 
 #define TAG "DroidDeckWayland"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
@@ -39,6 +41,7 @@ struct vkp_image {
 };
 
 static ANativeWindow *g_window;
+static int g_ahb_import;
 static char *g_driver_path, *g_library_name, *g_native_lib_dir;
 static int g_dev_state;
 static VkInstance g_inst;
@@ -68,8 +71,6 @@ static int g_first_frame_done;
 static int g_base_black;
 
 int vkp_quest_layer_presentation(void) {
-    /* Compositor thread only; this is a process-wide device property, not a session setting.
-     * Quest 2 still needs its separate A6xx driver: this gate only chooses presentation. */
     static int enabled = -1;
     if (enabled < 0) {
         char model[PROP_VALUE_MAX] = {0}, device[PROP_VALUE_MAX] = {0}, maker[PROP_VALUE_MAX] = {0};
@@ -91,6 +92,9 @@ static int g_black_state;
 
 static PFN_vkImportSemaphoreFdKHR g_import_sem_fd;
 static VkSemaphore g_wait_sem;
+
+#define VKP_VENDOR_QUALCOMM 0x5143
+static uint32_t g_vendor_id;
 
 static struct vkp_perf g_perf;
 static int64_t perf_now(void) {
@@ -382,6 +386,13 @@ int vkp_output_to_scene(double ox, double oy, double *sx, double *sy) {
     return 1;
 }
 
+int vkp_scene_to_output(double sx, double sy, double *ox, double *oy) {
+    if (!g_map.valid || g_map.kx <= 0 || g_map.ky <= 0) return 0;
+    *ox = sx * g_map.kx + g_map.off_x;
+    *oy = sy * g_map.ky + g_map.off_y;
+    return 1;
+}
+
 void vkp_output_size(int *w, int *h) {
     *w = (int)g_extent.width;
     *h = (int)g_extent.height;
@@ -452,6 +463,7 @@ static int dev_init(void) {
     {
         VkPhysicalDeviceProperties props;
         g_vk.GetPhysicalDeviceProperties(g_pd, &props);
+        g_vendor_id = props.vendorID;
         snprintf(g_gpu_name, sizeof(g_gpu_name), "%s", props.deviceName);
         droiddeck_log("gpu", "compositor renders on %s with %s", props.deviceName,
                    g_library_name ? g_library_name : "the system Vulkan driver");
@@ -459,17 +471,18 @@ static int dev_init(void) {
     }
     g_vk.GetPhysicalDeviceMemoryProperties(g_pd, &g_memprops);
 
-    const char *dev_exts[7] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME, "VK_KHR_external_memory_fd",
-                               "VK_EXT_external_memory_dma_buf", "VK_EXT_image_drm_format_modifier",
-                               "VK_KHR_image_format_list", NULL, NULL};
-    uint32_t n_dev_exts = 5;
+    static const char *const import_exts[4] = {"VK_KHR_external_memory_fd", "VK_EXT_external_memory_dma_buf",
+                                               "VK_EXT_image_drm_format_modifier", "VK_KHR_image_format_list"};
+    const char *dev_exts[9] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+    uint32_t n_dev_exts = 1;
     uint32_t ne = 0;
     g_vk.EnumerateDeviceExtensionProperties(g_pd, NULL, &ne, NULL);
     VkExtensionProperties *exts = calloc(ne ? ne : 1, sizeof(*exts));
     g_vk.EnumerateDeviceExtensionProperties(g_pd, NULL, &ne, exts);
-    for (unsigned i = 0; i < 5; i++)
-        if (!has_ext(exts, ne, dev_exts[i]))
-            LOGE("present: driver MISSING %s (dmabuf import will fail)", dev_exts[i]);
+    for (unsigned i = 0; i < 4; i++) {
+        if (has_ext(exts, ne, import_exts[i])) dev_exts[n_dev_exts++] = import_exts[i];
+        else LOGE("present: driver MISSING %s (dmabuf import will fail)", import_exts[i]);
+    }
     int want_hdr_md = 0;
     if (droiddeck_color_requested()) {
         want_hdr_md = has_ext(exts, ne, VK_EXT_HDR_METADATA_EXTENSION_NAME);
@@ -477,6 +490,12 @@ static int dev_init(void) {
     }
     const int want_sem_fd = has_ext(exts, ne, VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME);
     if (want_sem_fd) dev_exts[n_dev_exts++] = VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME;
+    g_ahb_import = has_ext(exts, ne, VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME) &&
+                   has_ext(exts, ne, VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME);
+    if (g_ahb_import) {
+        dev_exts[n_dev_exts++] = VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME;
+        dev_exts[n_dev_exts++] = VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME;
+    }
     free(exts);
 
     float prio = 1.0f;
@@ -499,6 +518,7 @@ static int dev_init(void) {
     }
     vk_loader_load_device(g_dev);
     g_vk.GetDeviceQueue(g_dev, g_qfam, 0, &g_queue);
+    vkp_gpu_busy_device(g_pd, g_dev, g_qfam);
     if (want_sem_fd) {
         g_import_sem_fd = (PFN_vkImportSemaphoreFdKHR)g_vk.GetDeviceProcAddr(g_dev, "vkImportSemaphoreFdKHR");
         VkSemaphoreCreateInfo wsci = {.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
@@ -973,8 +993,9 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
                                 .allocationSize = req.size, .memoryTypeIndex = (uint32_t)idx};
     VkResult mr = g_vk.AllocateMemory(g_dev, &mai, NULL, &img->mem);
     if (mr != VK_SUCCESS) {
-        LOGE("%s: importing the %s dma-buf (%dx%d, %llu bytes) -> %s", as_blit_dst ? "layer" : "dmabuf",
-             vkp_modifier_name(modifier), w, h, (unsigned long long)req.size, vk_result_name(mr));
+        LOGE("%s: importing the %s dma-buf (%dx%d, pitch %u, offset %u, %llu bytes, memory type %d of image types "
+             "%#x & fd types %#x) -> %s", as_blit_dst ? "layer" : "dmabuf", vkp_modifier_name(modifier), w, h,
+             stride, offset, (unsigned long long)req.size, idx, req.memoryTypeBits, allowed, vk_result_name(mr));
         g_vk.DestroyImage(g_dev, img->image, NULL); close(dupfd); free(img); return NULL;
     }
     VkResult br = g_vk.BindImageMemory(g_dev, img->image, img->mem, 0);
@@ -984,6 +1005,155 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
         g_vk.FreeMemory(g_dev, img->mem, NULL); g_vk.DestroyImage(g_dev, img->image, NULL);
         free(img); return NULL;
     }
+    return img;
+}
+
+void vkp_wait_idle(void) {
+    if (g_dev && g_vk.DeviceWaitIdle) g_vk.DeviceWaitIdle(g_dev);
+}
+
+struct vkp_image *vkp_image_from_ahb(AHardwareBuffer *ahb) {
+    if (!ahb || dev_init() != 0) return NULL;
+    if (!g_ahb_import || !g_vk.GetAndroidHardwareBufferPropertiesANDROID) {
+        static int said;
+        if (!said) { said = 1; LOGE("ahb: the driver cannot import AHardwareBuffers (VK_ANDROID_external_memory_android_hardware_buffer)"); }
+        return NULL;
+    }
+    AHardwareBuffer_Desc desc;
+    AHardwareBuffer_describe(ahb, &desc);
+    VkAndroidHardwareBufferFormatPropertiesANDROID fp = {
+        .sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_FORMAT_PROPERTIES_ANDROID};
+    VkAndroidHardwareBufferPropertiesANDROID props = {
+        .sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID, .pNext = &fp};
+    VkResult pr = g_vk.GetAndroidHardwareBufferPropertiesANDROID(g_dev, ahb, &props);
+    if (pr != VK_SUCCESS || fp.format == VK_FORMAT_UNDEFINED) {
+        LOGE("ahb: %ux%u format %u: properties %s, Vulkan format %d", desc.width, desc.height, desc.format,
+             vk_result_name(pr), (int)fp.format);
+        return NULL;
+    }
+    struct vkp_image *img = calloc(1, sizeof(*img));
+    if (!img) return NULL;
+    img->w = (int)desc.width; img->h = (int)desc.height; img->dmabuf = 1; img->fmt = fp.format; img->sampled = 1;
+    VkExternalMemoryImageCreateInfo ext = {
+        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
+        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID};
+    VkImageCreateInfo ici = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, .pNext = &ext,
+        .imageType = VK_IMAGE_TYPE_2D, .format = fp.format, .extent = {desc.width, desc.height, 1},
+        .mipLevels = 1, .arrayLayers = 1, .samples = VK_SAMPLE_COUNT_1_BIT, .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE, .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+    VkResult cr = g_vk.CreateImage(g_dev, &ici, NULL, &img->image);
+    if (cr != VK_SUCCESS) { LOGE("ahb: vkCreateImage %ux%u -> %s", desc.width, desc.height, vk_result_name(cr)); free(img); return NULL; }
+    int idx = -1;
+    for (int i = 0; i < 32; i++) if (props.memoryTypeBits & (1u << i)) { idx = i; break; }
+    VkImportAndroidHardwareBufferInfoANDROID imp = {
+        .sType = VK_STRUCTURE_TYPE_IMPORT_ANDROID_HARDWARE_BUFFER_INFO_ANDROID, .buffer = ahb};
+    VkMemoryDedicatedAllocateInfo ded = {.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
+                                         .pNext = &imp, .image = img->image};
+    VkMemoryAllocateInfo mai = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, .pNext = &ded,
+                                .allocationSize = props.allocationSize, .memoryTypeIndex = (uint32_t)(idx < 0 ? 0 : idx)};
+    VkResult mr = idx < 0 ? VK_ERROR_FEATURE_NOT_PRESENT : g_vk.AllocateMemory(g_dev, &mai, NULL, &img->mem);
+    if (mr != VK_SUCCESS || g_vk.BindImageMemory(g_dev, img->image, img->mem, 0) != VK_SUCCESS) {
+        LOGE("ahb: importing %ux%u -> %s", desc.width, desc.height, vk_result_name(mr));
+        if (img->mem) g_vk.FreeMemory(g_dev, img->mem, NULL);
+        g_vk.DestroyImage(g_dev, img->image, NULL); free(img); return NULL;
+    }
+    return img;
+}
+
+int vkp_can_import_ahb(void) {
+    return dev_init() == 0 && g_vendor_id != VKP_VENDOR_QUALCOMM && g_ahb_import &&
+           g_vk.GetAndroidHardwareBufferPropertiesANDROID;
+}
+
+struct vkp_image *vkp_image_import_ahb(struct AHardwareBuffer *ahb, char *info, size_t info_n) {
+    if (info && info_n) info[0] = 0;
+    if (!ahb || !vkp_can_import_ahb()) return NULL;
+    AHardwareBuffer_Desc d;
+    AHardwareBuffer_describe(ahb, &d);
+    VkAndroidHardwareBufferFormatPropertiesANDROID fp = {
+        .sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_FORMAT_PROPERTIES_ANDROID};
+    VkAndroidHardwareBufferPropertiesANDROID hp = {
+        .sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID, .pNext = &fp};
+    VkResult pr = g_vk.GetAndroidHardwareBufferPropertiesANDROID(g_dev, ahb, &hp);
+    if (pr != VK_SUCCESS) {
+        LOGE("layer: vkGetAndroidHardwareBufferPropertiesANDROID(%ux%u, AHB format %#x, usage %#llx) -> %s", d.width,
+             d.height, d.format, (unsigned long long)d.usage, vk_result_name(pr));
+        return NULL;
+    }
+    if (fp.format == VK_FORMAT_UNDEFINED) {
+        LOGE("layer: the driver reports the %ux%u AHB (format %#x) as external format %#llx only: no blit target",
+             d.width, d.height, d.format, (unsigned long long)fp.externalFormat);
+        return NULL;
+    }
+    const VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    if (g_vk.GetPhysicalDeviceImageFormatProperties2) {
+        VkPhysicalDeviceExternalImageFormatInfo ext = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO,
+            .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID};
+        VkPhysicalDeviceImageFormatInfo2 qi = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2, .pNext = &ext, .format = fp.format,
+            .type = VK_IMAGE_TYPE_2D, .tiling = VK_IMAGE_TILING_OPTIMAL, .usage = usage};
+        VkExternalImageFormatProperties extp = {.sType = VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES};
+        VkImageFormatProperties2 ip = {.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2, .pNext = &extp};
+        VkResult qr = g_vk.GetPhysicalDeviceImageFormatProperties2(g_pd, &qi, &ip);
+        if (qr != VK_SUCCESS ||
+            !(extp.externalMemoryProperties.externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT)) {
+            LOGE("layer: VkFormat %d as an imported AHB blit target is not supported (%s, external features %#x)",
+                 (int)fp.format, vk_result_name(qr), extp.externalMemoryProperties.externalMemoryFeatures);
+            return NULL;
+        }
+    }
+
+    struct vkp_image *img = calloc(1, sizeof(*img));
+    if (!img) return NULL;
+    img->w = (int)d.width; img->h = (int)d.height;
+    img->dmabuf = 1; img->blit_dst = 1;
+    img->fmt = fp.format;
+    VkExternalMemoryImageCreateInfo extImg = {
+        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
+        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID};
+    VkImageCreateInfo ici = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, .pNext = &extImg,
+        .imageType = VK_IMAGE_TYPE_2D, .format = fp.format, .extent = {d.width, d.height, 1},
+        .mipLevels = 1, .arrayLayers = 1, .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = usage, .sharingMode = VK_SHARING_MODE_EXCLUSIVE, .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+    VkResult cr = g_vk.CreateImage(g_dev, &ici, NULL, &img->image);
+    if (cr != VK_SUCCESS) {
+        LOGE("layer: vkCreateImage(AHB %ux%u, VkFormat %d) -> %s", d.width, d.height, (int)fp.format,
+             vk_result_name(cr));
+        free(img); return NULL;
+    }
+    int idx = -1;
+    for (int i = 0; i < 32; i++) if (hp.memoryTypeBits & (1u << i)) { idx = i; break; }
+    if (idx < 0) {
+        LOGE("layer: no memory type can import the %ux%u AHB (memoryTypeBits 0)", d.width, d.height);
+        g_vk.DestroyImage(g_dev, img->image, NULL); free(img); return NULL;
+    }
+    VkImportAndroidHardwareBufferInfoANDROID imp = {
+        .sType = VK_STRUCTURE_TYPE_IMPORT_ANDROID_HARDWARE_BUFFER_INFO_ANDROID, .buffer = ahb};
+    VkMemoryDedicatedAllocateInfo ded = {.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
+                                         .pNext = &imp, .image = img->image};
+    VkMemoryAllocateInfo mai = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, .pNext = &ded,
+                                .allocationSize = hp.allocationSize, .memoryTypeIndex = (uint32_t)idx};
+    VkResult mr = g_vk.AllocateMemory(g_dev, &mai, NULL, &img->mem);
+    if (mr != VK_SUCCESS) {
+        LOGE("layer: importing the %ux%u AHB (VkFormat %d, %llu bytes, memory type %d of memoryTypeBits %#x) -> %s",
+             d.width, d.height, (int)fp.format, (unsigned long long)hp.allocationSize, idx, hp.memoryTypeBits,
+             vk_result_name(mr));
+        g_vk.DestroyImage(g_dev, img->image, NULL); free(img); return NULL;
+    }
+    VkResult br = g_vk.BindImageMemory(g_dev, img->image, img->mem, 0);
+    if (br != VK_SUCCESS) {
+        LOGE("layer: vkBindImageMemory(AHB) -> %s", vk_result_name(br));
+        g_vk.FreeMemory(g_dev, img->mem, NULL); g_vk.DestroyImage(g_dev, img->image, NULL);
+        free(img); return NULL;
+    }
+    if (info && info_n)
+        snprintf(info, info_n, "VkFormat %d, %llu bytes, memory type %d of memoryTypeBits %#x", (int)fp.format,
+                 (unsigned long long)hp.allocationSize, idx, hp.memoryTypeBits);
     return img;
 }
 
@@ -1239,6 +1409,7 @@ static void device_lost(const char *where) {
     g_dev_state = -2;
     g_base_black = 0;
     vkp_framegen_device_lost();
+    vkp_gpu_busy_device_lost();
     droiddeck_log("error", "GPU device lost (VK_ERROR_DEVICE_LOST in %s): the compositor has stopped presenting; "
                "restart the session", where);
     for (uint32_t i = 0; i < g_nimg; i++) blendp_forget_image(g_images[i]);
@@ -1626,9 +1797,6 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         VkImageLayout result_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         if (fx) {
             int mapped_w = (int)(scene_w * g_map.kx + 0.5f), mapped_h = (int)(scene_h * g_map.ky + 0.5f);
-            /* Frame generation samples every output pixel. Upscaling first made it interpolate
-             * the whole panel (3200x1440 on a 1440p phone) and rebuild on Steam's first frame.
-             * Grade at the game's size instead; the screen blit still scales to the panel. */
             if (fg) { mapped_w = scene_w; mapped_h = scene_h; }
             vkp_effects_set_formats(scene_fmt, scene_fmt);
             result = vkp_effects_run(cmd, scene_img, scene_w, scene_h, mapped_w, mapped_h, &rw, &rh);
@@ -1728,9 +1896,6 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
 
 int vkp_render(int scene_w, int scene_h, const struct vkp_draw *draws, int n) {
     if (vkp_quest_layer_presentation() && !vkp_framegen_active() && !vkp_cardboard_active()) {
-        /* The desktop (multiple windows), overlays and an empty scene must also avoid WSI.
-         * Merely enabling zero-copy handles only a single fullscreen window and leaves both
-         * the letterbox and every fallback frame going through the corrupted swapchain. */
         vkp_apply_window_request();
         sc_layer_hide_overlay();
         if (n > 0) {
@@ -1742,9 +1907,6 @@ int vkp_render(int scene_w, int scene_h, const struct vkp_draw *draws, int n) {
         } else {
             sc_layer_hide();
         }
-        /* sc_layer_present_pass signals only after submitting client content.
-         * A backdrop alone, or a successful no-op while a layer slot is unavailable,
-         * must not dismiss the app's loading UI or mark Steam's window as shown. */
         return vkp_base_black(scene_w, scene_h);
     }
     return render_impl(scene_w, scene_h, draws, n, NULL, NULL);
@@ -1781,8 +1943,6 @@ void vkp_signal_first_frame(void) {
 int vkp_update_map(int scene_w, int scene_h) {
     if (g_dev_state == -2 || dev_init() != 0 || !g_window || scene_w <= 0 || scene_h <= 0) return -1;
     if (vkp_quest_layer_presentation()) {
-        /* Layer geometry needs the window size, not a Vulkan swapchain. In particular, do
-         * not create/present a swapchain just to paint black under an otherwise clean layer. */
         int w = ANativeWindow_getWidth(g_window), h = ANativeWindow_getHeight(g_window);
         if (w <= 0 || h <= 0) return -1;
         g_extent = (VkExtent2D){(uint32_t)w, (uint32_t)h};

@@ -19,7 +19,7 @@ enum class Bucket { GAMES, GAME_DATA, TOOLS, COMPONENTS, STORES, DESKTOP, SYSTEM
 class GameUsage(
     val appId: Int, val name: String, val art: File?, val library: String, val internal: Boolean, val lastPlayed: Long,
     val game: Long, val prefix: Long, val shaders: Long, val workshop: Long, val shaderDir: File?,
-    val x64: Boolean = false,
+    val x64: Boolean = false, val prefixDir: File? = null,
 ) {
     val data: Long get() = prefix + shaders + workshop
     val total: Long get() = game + data
@@ -89,7 +89,6 @@ object StorageScan {
         fun measure(file: File): Long = size(file).also { known[file.path] = it }
     }
 
-    // Proton tools' files live only in the arm64 client's root; the x86-64 client has wrappers of them.
     fun steamRoot(context: Context) = SessionPrefs.steamRoot(context, "arm64")
 
     fun scan(context: Context): StorageReport {
@@ -113,7 +112,6 @@ object StorageScan {
             Library.steamLibraries(context, arch).map { (root, label) ->
                 val internal = canonical(root) == primary
                 val data = if (internal) root else SecondaryLibrary.privateRoot(files, root)
-                // The x86-64 card folder and its steamapps appear only with that client's first session and library write.
                 val listing = SteamStorage.manifests(root)
                     ?: SteamStorage.Listing(emptyList(), emptySet(), true).takeIf {
                         x64 && (if (internal) !File(root, "steamapps").exists() else !root.exists() && root.parentFile?.isDirectory == true)
@@ -127,7 +125,6 @@ object StorageScan {
             .filter { !SteamStorage.isTool(it) && it.installed }.map { it.appId.toString() }.toSet()
         val armUse = runCatching { SteamStorage.compatMappings(File(steamRoot, "config/config.vdf").readText()) }.getOrNull()
             ?.let { SteamStorage.ToolUse(it, installedGames(false)) }
-        // An x86-64 client without a config.vdf has never mapped a game to anything.
         val x64Vdf = x64Root?.let { File(it, "config/config.vdf") }
         val x64Use = if (x64Vdf == null || !x64Vdf.exists()) SteamStorage.ToolUse(emptyMap(), emptySet(), x64 = true)
             else runCatching { SteamStorage.ToolUse(SteamStorage.compatMappings(x64Vdf.readText()), installedGames(true), x64 = true) }.getOrNull()
@@ -175,14 +172,16 @@ object StorageScan {
                 }
                 if (!m.installed) continue
                 val gameBytes = dir?.let { File(lib.root, "steamapps/common/$it") }?.takeIf { it.isDirectory }?.let { walker.measure(it) } ?: 0
-                val prefix = File(lib.data, "steamapps/compatdata/${m.appId}").takeIf { it.isDirectory }?.let { walker.measure(it) } ?: 0
+                val compatRoot = File(lib.data, "steamapps/compatdata").takeIf { it.isDirectory } ?: File(lib.root, "steamapps/compatdata")
+                val prefixDir = File(compatRoot, m.appId.toString()).takeIf { it.isDirectory }
+                val prefix = prefixDir?.let { walker.measure(it) } ?: 0
                 val shaderDir = File(lib.data, "steamapps/shadercache/${m.appId}").takeIf { it.isDirectory }
                 val shaders = shaderDir?.let { walker.measure(it) } ?: 0
                 val workshop = File(lib.root, "steamapps/workshop/content/${m.appId}").takeIf { it.isDirectory }?.let { walker.measure(it) } ?: 0
                 val known = art[lib.x64]?.get(m.appId)
                 games.add(GameUsage(
                     m.appId, known?.name ?: m.name, known?.art, lib.label, lib.internal, m.lastPlayed,
-                    gameBytes, prefix, shaders, workshop, shaderDir, lib.x64,
+                    gameBytes, prefix, shaders, workshop, shaderDir, lib.x64, prefixDir,
                 ))
             }
         }

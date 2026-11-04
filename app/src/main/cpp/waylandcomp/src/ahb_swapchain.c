@@ -371,8 +371,8 @@ void ahb_swapchain_set_mode(int on, int live) {
                       : "; gralloc frames still in flight stay on the layer (or take the copy path) until then");
     else
         droiddeck_log("layer", "zero-copy: %s at launch (%s)", on ? "on" : "off",
-                   on ? "DROIDDECK_WAYLAND_ZERO_COPY=1: games present their own gralloc buffers on the display layer"
-                      : "the drawer's Zero-copy presentation switch turns it on live");
+                   on ? "HDR session: games present their own gralloc buffers on the display layer"
+                      : "only HDR sessions turn it on");
     if (live) wl_display_flush_clients(droiddeck_get_display());
     droiddeck_request_redraw();
 }

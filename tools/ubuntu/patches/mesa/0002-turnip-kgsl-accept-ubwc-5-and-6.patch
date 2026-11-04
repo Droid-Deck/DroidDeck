@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: maxjivi05 <maxjividen@gmail.com>
+Date: Wed, 28 Oct 2026 13:30:00 -0400
+Subject: [PATCH] turnip/kgsl: accept UBWC 5 and 6
+
+Backport of upstream Mesa's KGSL_UBWC_5_0/6_0 handling so Adreno 8xx
+(UBWC 6) is found by the KGSL backend.
+---
+--- a/src/freedreno/vulkan/msm_kgsl.h	2026-10-28 13:27:57.698671357 -0400
++++ b/src/freedreno/vulkan/msm_kgsl.h	2026-10-28 13:27:57.700490261 -0400
+@@ -247,6 +247,8 @@
+ #define KGSL_UBWC_2_0	2
+ #define KGSL_UBWC_3_0	3
+ #define KGSL_UBWC_4_0	4
++#define KGSL_UBWC_5_0	5
++#define KGSL_UBWC_6_0	6
+ 
+ /*
+  * Reset status values for context
+--- a/src/freedreno/vulkan/tu_knl_kgsl.cc	2026-10-28 13:27:57.697821704 -0400
++++ b/src/freedreno/vulkan/tu_knl_kgsl.cc	2026-10-28 13:27:57.710313562 -0400
+@@ -1884,6 +1884,8 @@
+       device->ubwc_config.macrotile_mode = FDL_MACROTILE_4_CHANNEL;
+       break;
+    case KGSL_UBWC_4_0:
++   case KGSL_UBWC_5_0:
++   case KGSL_UBWC_6_0:
+       device->ubwc_config.bank_swizzle_levels = 0x6;
+       device->ubwc_config.macrotile_mode = FDL_MACROTILE_8_CHANNEL;
+       break;

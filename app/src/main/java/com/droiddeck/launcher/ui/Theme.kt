@@ -2,6 +2,10 @@ package com.droiddeck.launcher.ui
 
 import androidx.annotation.StringRes
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -48,7 +52,6 @@ object Themes {
     const val DEFAULT_PRIMARY = 0xFF8B5CF6.toInt()
     const val DEFAULT_SECONDARY = 0xFF22D3EE.toInt()
 
-    /** The two colours of the custom Gradient theme: primary, then secondary. Changing them restyles the app at once. */
     var gradientColors by mutableStateOf(DEFAULT_PRIMARY to DEFAULT_SECONDARY)
         private set
 
@@ -56,11 +59,9 @@ object Themes {
     const val DEFAULT_RGB_SPEED = 3
     const val RGB_HUE_STEP = 3f
 
-    /** How fast Inner Gamer cycles, 1 (slow) to [RGB_SPEEDS] (fast). */
     var rgbSpeed by mutableStateOf(DEFAULT_RGB_SPEED)
         private set
 
-    /** Where Inner Gamer is on the colour wheel, in whole [RGB_HUE_STEP] steps so the app restyles only when the colour visibly moves. */
     var rgbHue by mutableStateOf(0f)
         private set
 
@@ -74,7 +75,6 @@ object Themes {
         rgbSpeed = value
     }
 
-    /** Milliseconds for one trip round the colour wheel. */
     fun rgbCycleMillis(speed: Int): Int = 30_000 / speed.coerceIn(1, RGB_SPEEDS)
 
     fun loadGradient(context: Context) {
@@ -82,7 +82,6 @@ object Themes {
         rgbSpeed = SessionPrefs.rgbSpeed(context)
     }
 
-    /** The Inner Gamer palette at one point on the colour wheel. */
     fun innerGamer(hue: Float): Palette = ThemeColors.palette(
         Color.hsv(hue % 360f, 0.9f, 1f).toArgb(), Color.hsv((hue + 60f) % 360f, 0.9f, 1f).toArgb(),
         R.string.theme_inner_gamer, R.string.theme_inner_gamer_detail, INNER_GAMER,
@@ -93,7 +92,6 @@ object Themes {
         gradientColors = primary to secondary
     }
 
-    /** The theme the person chose, with the custom colours read first; for code that is not in a composition. */
     fun current(context: Context): Palette {
         val id = SessionPrefs.theme(context)
         if (id == GRADIENT || id == INNER_GAMER) loadGradient(context)
@@ -164,17 +162,30 @@ fun DroidDeckTheme(theme: String? = null, appScale: Int = AppUiPrefs.DEFAULT_SCA
         LocalPalette provides p,
         LocalDensity provides density,
         LocalConfiguration provides configuration,
-    ) { MaterialTheme(colorScheme = scheme, content = content) }
+    ) {
+        MaterialTheme(colorScheme = scheme, typography = ContentDirected) {
+            FocusGlideHost { ProvideTextStyle(TextStyle(textDirection = TextDirection.Content), content) }
+        }
+    }
 }
 
-/** Turns the colour wheel on the system's own animation clock; with animations off, in the app or in Android, the colour holds still. */
+private val ContentDirected = Typography().run {
+    fun TextStyle.byContent() = copy(textDirection = TextDirection.Content)
+    Typography(
+        displayLarge.byContent(), displayMedium.byContent(), displaySmall.byContent(),
+        headlineLarge.byContent(), headlineMedium.byContent(), headlineSmall.byContent(),
+        titleLarge.byContent(), titleMedium.byContent(), titleSmall.byContent(),
+        bodyLarge.byContent(), bodyMedium.byContent(), bodySmall.byContent(),
+        labelLarge.byContent(), labelMedium.byContent(), labelSmall.byContent(),
+    )
+}
+
 @Composable
 private fun InnerGamerHue(speed: Int) {
     if (Motion.scale == 0f) return
     key(speed) { InnerGamerCycle(speed) }
 }
 
-/** One run of the cycle at one speed, picking up from the colour on screen so a new speed takes over at once without a jump. */
 @Composable
 private fun InnerGamerCycle(speed: Int) {
     val start = remember { Themes.rgbHue }

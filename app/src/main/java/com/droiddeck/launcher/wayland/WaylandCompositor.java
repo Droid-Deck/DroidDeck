@@ -45,9 +45,8 @@ public final class WaylandCompositor {
 
     private static volatile long lastFrameNanos;
     private static volatile long frameIntervalNanos;
-    private static volatile long gameFrames; // written by the compositor thread only
+    private static volatile long gameFrames;
 
-    /** Frames the game has presented since the app started; the rate is the difference over time. */
     public static long gameFrameCount() { return gameFrames; }
 
     public static long recentFrameIntervalMs() {
@@ -168,6 +167,10 @@ public final class WaylandCompositor {
 
     public static native void nativeStart(String xdgRuntimeDir);
 
+    /** Nanoseconds of the compositor's own GPU work while timing is on, or -1 when it is not timed. */
+    public static native long nativeGpuBusyNs();
+    public static native void nativeSetGpuTiming(boolean on);
+
     public static native void nativeStartWithSurface(Surface surface, String xdgRuntimeDir,
                                                      String driverPath, String libraryName,
                                                      String nativeLibDir);
@@ -183,9 +186,15 @@ public final class WaylandCompositor {
 
     public static native int nativeCursorSerial();
 
+    public static native void nativeSetCursorComposite(boolean on);
+
     public static final int CURSOR_BUF_INTS = 6 + 256 * 256;
 
     public static native void nativeSendKey(int evdev, int state);
+
+    public static native boolean nativeFocusTakesTouch();
+
+    public static native boolean nativeCursorInputPos(int[] out);
 
     public static native void nativeVsync(long frameTimeNanos);
 
@@ -304,6 +313,8 @@ public final class WaylandCompositor {
 
     public static native void nativeSetFpsLimit(int fps);
 
+    public static native void nativeSetRenderOnCommit(boolean on);
+
     public static native void nativeSetGpuTurbo(boolean on);
 
     public static native int nativeRaisePriority(int tid, int nice);
@@ -327,14 +338,29 @@ public final class WaylandCompositor {
 
     public static native float[] nativeFrameGenStats();
 
+    public static native long nativeHudFrameTimes(float[] out);
+
+    public static native void nativeStreamMode(boolean on);
+
+    public static native void nativeStreamFrame(android.hardware.HardwareBuffer buffer);
+
+    public static native int nativeStreamFrames();
+
     public static void sendPointerDelta(int dx, int dy) {
         if (dx == 0 && dy == 0) return;
         nativeSendSceneInput(6, dx * 256, dy * 256);
     }
 
+    private static float pendingDeltaX, pendingDeltaY;
+
     public static void sendPointerDelta(float dx, float dy) {
-        int x = Math.round(dx * 256f), y = Math.round(dy * 256f);
+        pendingDeltaX += dx * 256f;
+        pendingDeltaY += dy * 256f;
+        int x = (int) Math.floor(pendingDeltaX);
+        int y = (int) Math.floor(pendingDeltaY);
         if (x == 0 && y == 0) return;
+        pendingDeltaX -= x;
+        pendingDeltaY -= y;
         nativeSendSceneInput(6, x, y);
     }
 }

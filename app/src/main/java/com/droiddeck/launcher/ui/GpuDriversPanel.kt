@@ -48,7 +48,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material3.DropdownMenu
+import com.droiddeck.launcher.ui.GlideDropdownMenu as DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -225,7 +225,6 @@ internal fun GpuDriversBody(
     val scroll = rememberScrollState()
     val scope = rememberCoroutineScope()
     val placed = remember { arrayOfNulls<LayoutCoordinates>(2) }
-    // Focusing the top mode shows as much of the in-use card above it as fits, without hiding the mode itself.
     val revealCard = {
         val (viewport, top) = placed
         if (viewport != null && top != null && viewport.isAttached && top.isAttached) scope.launch {

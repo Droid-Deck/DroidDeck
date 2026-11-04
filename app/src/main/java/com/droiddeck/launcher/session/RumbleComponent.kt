@@ -30,6 +30,7 @@ class RumbleComponent : SessionPart() {
     private val joyConPairs = HashMap<Long, Motors>()
     private var preferences: SharedPreferences? = null
     private var enabled = false
+    private var quiet = false
     private var motorThread: HandlerThread? = null
     private var handler: Handler? = null
     private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -42,6 +43,11 @@ class RumbleComponent : SessionPart() {
     @Synchronized private fun refreshEnabled() {
         enabled = app()?.let { ControllerPrefs.rumbleEnabled(it) } == true
         if (!enabled) cancelAll()
+    }
+
+    @Synchronized fun quiet(on: Boolean) {
+        quiet = on
+        if (on) cancelAll()
     }
 
     override fun start() {
@@ -89,7 +95,7 @@ class RumbleComponent : SessionPart() {
     private fun u16(b: ByteArray, at: Int): Int = (b[at].toInt() and 0xFF) or ((b[at + 1].toInt() and 0xFF) shl 8)
 
     @Synchronized private fun buzz(strong: Int, weak: Int, ms: Int, slot: Int) {
-        if (!enabled) return
+        if (!enabled || quiet) return
         val target = target(slot)
         val previous = playing[slot]
         if (target !== previous) {
@@ -208,8 +214,6 @@ class RumbleComponent : SessionPart() {
             if (any) manager.vibrate(combined.combine()) else cancel()
         }
 
-        // Some vendors' input-device vibrator HALs (Samsung's) don't halt a Bluetooth pad's running
-        // effect on cancel(), but a new effect always replaces it.
         override fun cancel() {
             val supersede = CombinedVibration.startParallel()
             ids.forEach { supersede.addVibrator(it, VibrationEffect.createOneShot(1L, 1)) }
@@ -249,7 +253,6 @@ class RumbleComponent : SessionPart() {
         private const val TAG = "SessionService"
         const val NAME = "droiddeck-rumble"
         const val MIN_GAP_MS = 50L
-        // Must match RUMBLE_HOLD_MS in fakeinput_steam.cpp.
         const val HOLD_MS = 0xFFFF
         const val HOLD_EFFECT_MS = 2000L
         const val KEEPALIVE_MS = 1500L

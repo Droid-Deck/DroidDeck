@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">Zkratky fyzických tlačítek</string>
+    <string name="shortcuts_dd_menu">Nabídka DroidDeck</string>
+    <string name="shortcuts_capture">Přiřadit: %1$s</string>
+    <string name="shortcuts_press">Stiskněte a uvolněte tlačítko. Přiřazení se uloží automaticky.</string>
+    <string name="shortcuts_release">Pokračujte uvolněním tlačítka.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">Toto tlačítko je již přiřazeno k: %1$s</string>
+    <string name="shortcuts_save">Přeřadit</string>
+    <string name="shortcuts_retry">Zkusit jiné tlačítko</string>
+    <string name="shortcuts_limitations">Tlačítko Domů a některá další tlačítka nemusí být dostupná.</string>
+</resources>

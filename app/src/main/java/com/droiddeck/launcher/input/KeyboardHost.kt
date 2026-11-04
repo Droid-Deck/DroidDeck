@@ -27,6 +27,9 @@ class KeyboardHost(
     private val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
     var shown = false
         private set
+    var imeShowing = false
+        private set
+    var onImeChanged: ((Boolean) -> Unit)? = null
 
     init {
         isFocusable = false
@@ -43,6 +46,28 @@ class KeyboardHost(
         outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE or EditorInfo.IME_FLAG_NO_FULLSCREEN or
             EditorInfo.IME_FLAG_NO_EXTRACT_UI
         return KeyConnection()
+    }
+
+    override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val visible = insets.isVisible(WindowInsets.Type.ime())
+            if (visible != imeShowing) {
+                imeShowing = visible
+                onImeChanged?.invoke(visible)
+            }
+        }
+        return super.onApplyWindowInsets(insets)
+    }
+
+    override fun onKeyPreIme(keyCode: Int, event: KeyEvent): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R || keyCode != KeyEvent.KEYCODE_BACK || !shown) {
+            return super.onKeyPreIme(keyCode, event)
+        }
+        if (event.action == KeyEvent.ACTION_UP && !event.isCanceled) {
+            hide()
+            onImeChanged?.invoke(false)
+        }
+        return true
     }
 
     fun toggle() = if (shown && imeVisible()) hide() else show()

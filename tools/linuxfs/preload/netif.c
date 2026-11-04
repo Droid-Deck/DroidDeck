@@ -407,6 +407,7 @@ int bl_kgsl_poll(int (*real)(int, unsigned long, void *), int fd, unsigned long 
 int bl_ntsync_ioctl(int fd, unsigned long request, void *arg, int *rc) __attribute__((visibility("hidden")));
 int bl_drm_gem_close(int fd, unsigned long request, void *arg, int *rc) __attribute__((visibility("hidden")));
 int bl_venc_ioctl(int fd, unsigned long request, void *arg, int *rc) __attribute__((visibility("hidden")));
+int bl_vdec_ioctl(int fd, unsigned long request, void *arg, int *rc) __attribute__((visibility("hidden")));
 int bl_winebus_rumble_ioctl(int (*real)(int, unsigned long, void *), int fd, unsigned long request,
                             void *arg, void *caller, int *rc) __attribute__((visibility("hidden")));
 int bl_writewatch_ioctl(int (*real)(int, unsigned long, void *), int fd, unsigned long request, void *arg,
@@ -423,6 +424,7 @@ int ioctl(int fd, unsigned long request, ...) {
     int rc;
     if (bl_ntsync_ioctl(fd, request, arg, &rc)) return rc;
     if (bl_venc_ioctl(fd, request, arg, &rc)) return rc;
+    if (bl_vdec_ioctl(fd, request, arg, &rc)) return rc;
     if (bl_drm_gem_close(fd, request, arg, &rc)) return rc;
     if (real == NULL) real = (ioctl_fn) dlsym(RTLD_NEXT, "ioctl");
     if (bl_winebus_rumble_ioctl(real, fd, request, arg, __builtin_return_address(0), &rc)) return rc;

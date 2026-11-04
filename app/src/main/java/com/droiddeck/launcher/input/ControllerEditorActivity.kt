@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.input
 
+import com.droiddeck.launcher.ui.focusGlide
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
@@ -104,6 +105,7 @@ class ControllerEditorActivity : ComponentActivity() {
                         else -> Color.White.copy(alpha = 0.06f)
                     },
                 )
+                .focusGlide(RoundedCornerShape(50))
                 .then(
                     if (selected == null) Modifier.clickable(onClick = onClick)
                     else Modifier.toggleable(value = selected, role = Role.Switch, onValueChange = { onClick() }),

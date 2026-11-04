@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Restore pacman packages
+Exec=/usr/share/droiddeck/pacman/restore
+NoDisplay=true
+OnlyShowIn=KDE;
+X-KDE-autostart-phase=2

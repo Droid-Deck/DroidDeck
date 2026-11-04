@@ -1,0 +1,11 @@
+dolphin
+kde-cli-tools
+konsole
+kwin-wayland
+pipewire
+pipewire-pulse
+plasma-desktop
+plasma-discover
+plasma-workspace
+wireplumber
+xdg-desktop-portal-kde

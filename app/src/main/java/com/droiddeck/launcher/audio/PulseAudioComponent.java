@@ -26,6 +26,7 @@ public class PulseAudioComponent extends SessionPart {
 
 
     private final File workingDir;
+    private final File deviceControls;
     private File logFile;
     private final String micFifoPath;
     private volatile int pid = -1;
@@ -36,6 +37,8 @@ public class PulseAudioComponent extends SessionPart {
 
     public PulseAudioComponent(Context context, String micFifoPath) {
         this.workingDir = new File(context.getFilesDir(), "pulseaudio");
+        this.deviceControls = com.droiddeck.launcher.runtime.DeviceControlsComponent.directory(
+                com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context));
         this.micFifoPath = micFifoPath;
     }
 
@@ -94,7 +97,7 @@ public class PulseAudioComponent extends SessionPart {
         config.add("load-module module-native-protocol-unix auth-anonymous=1 auth-cookie-enabled=0 socket=\""
                 + socket().getAbsolutePath() + "\"");
         config.add(".nofail");
-        config.add("load-module module-directaudio-native-sink sink_name=DirectAudio performance_mode=1 adaptive=1 decay=0 limiter=1 watchdog=1 volume=1.0");
+        config.add("load-module module-directaudio-native-sink sink_name=DirectAudio performance_mode=1 adaptive=1 decay=0 limiter=1 watchdog=1 volume=1.0 control_dir=" + deviceControls);
         config.add("set-default-sink DirectAudio");
         config.add(".fail");
         if (micFifoPath != null && !micFifoPath.isEmpty()) {
@@ -139,7 +142,7 @@ public class PulseAudioComponent extends SessionPart {
             } else if (sinks.contains("\tDirectAudio\t") || sinks.startsWith("DirectAudio\t") || sinks.contains("\tDirectAudio\n") || sinks.matches("(?s).*\\bDirectAudio\\b.*")) {
                 line = "== client sink: DirectAudio (module-directaudio-native-sink)";
             } else {
-                boolean loaded = pactl("load-module", "module-aaudio-sink", "sink_name=AAudioSink", "performance_mode=1", "adaptive=1", "volume=1.0") != null
+                boolean loaded = pactl("load-module", "module-aaudio-sink", "sink_name=AAudioSink", "performance_mode=1", "adaptive=1", "volume=1.0", "control_dir=" + deviceControls) != null
                         && pactl("set-default-sink", "AAudioSink") != null;
                 line = loaded ? "== client sink: DirectAudio did not come up; FALLBACK to the plain AAudio sink (AAudioSink)"
                               : "== client sink: DirectAudio did not come up and the AAudio fallback failed too - no client sound";

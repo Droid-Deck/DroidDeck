@@ -21,13 +21,9 @@ object GogLibrary {
     private const val LAST_SYNC_KEY = "library_synced_at"
     private const val SKIPPED_KEY = "library_skipped"
     private const val THROTTLE_MS = 6L * 60L * 60L * 1000L
-    // mediaType=1 leaves the movies and soundtracks out, hiddenFlag=0 the hidden ones.
     private const val LIST_URL = "https://embed.gog.com/account/getFilteredProducts?mediaType=1&hiddenFlag=0&sortBy=title"
     private const val LIST_MAX_PAGES = 100
-    // The listing's image is a bare hash, and the CDN serves it only through Galaxy's own formatters: the
-    // vertical cover is the one card art it carries. The wide background only the per-game fetch knows.
     private const val COVER_SUFFIX = "_glx_vertical_cover.webp"
-    // The older account endpoint: owned ids only. The fallback for a listing that cannot be read.
     private const val OWNED_URL = "https://embed.gog.com/user/data/games"
 
     private val syncing = AtomicBoolean(false)
@@ -62,28 +58,22 @@ object GogLibrary {
             val token = GogAuth.validToken(app) ?: return SyncResult.NotLoggedIn
             onStatus(app.getString(R.string.stores_sync_game_list))
             val listing = ownedListing(token)
-            // The listing is the only source of titles: without it the owned ids still sync, just without the early paint.
             val listed: List<GogGame> = listing?.games
                 ?: ownedIds(token)?.map { GogGame(it, "", "", "", "", "", 1, null, "", "") }
                 ?: return SyncResult.Failed(app.getString(R.string.stores_sync_gog_unreachable))
             val named = listing != null
             StoresState.logLine(if (named) "GOG: listing ${listed.size} games" else "GOG: listing unreadable, ${listed.size} owned ids")
-            // A page that failed leaves games unnamed: they are still owned, so their cards and cached details stay.
             val ownedSet = listing?.owned ?: listed.mapTo(HashSet()) { it.gameId }
             val cachedList = cached(app)
             val stale = System.currentTimeMillis() - p.getLong(LAST_SYNC_KEY, 0L) >= THROTTLE_MS
             val heavy = force || cachedList.isEmpty() || stale
             val cachedIds = cachedList.mapTo(HashSet()) { it.gameId }
-            // A product the last sync found uninstallable stays out of the list while it is re-checked.
             val skipped = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
             skipped.addAll(p.getStringSet(SKIPPED_KEY, emptySet()).orEmpty())
             val idsToFetch = if (heavy) ownedSet.toList() else ownedSet.filter { it !in cachedIds && it !in skipped }
             val merged = LinkedHashMap<String, GogGame>()
-            // The cache's own entry stays even when the game is re-fetched: its details beat the listing's.
             for (g in cachedList) if (g.gameId in ownedSet && g.gameId !in skipped) merged[g.gameId] = g
-            // A game the sync has not reached keeps the listing's entry, so its card is there from the start.
             for (g in listed) if (g.gameId !in merged && g.gameId !in skipped) merged[g.gameId] = g
-            // Only products that were asked about are cached: a bare listing entry is asked about again.
             val detailed = HashSet(cachedIds)
             if (named) onList(sorted(merged))
             if (idsToFetch.isEmpty()) {
@@ -101,15 +91,12 @@ object GogLibrary {
             for ((idx, f) in futures.withIndex()) {
                 val g = runCatching { f.get() }.getOrNull()
                 if (g != null) {
-                    // The cover the card already shows stays, so the wide art lands over it instead of over a gap.
                     val filled = g.withCover(merged[g.gameId]?.verticalCover)
                     merged[g.gameId] = filled; detailed.add(g.gameId); fetched++; skipped.remove(g.gameId); onItems(listOf(filled))
                 }
                 if ((idx + 1) % 5 == 0) onStatus(app.getString(R.string.stores_sync_progress, idx + 1, futures.size))
-                // Saved as it goes: a sync the user closes the app on still leaves a library to paint next launch.
                 if ((idx + 1) % 20 == 0) saveCache(p, merged.values.filter { it.gameId in detailed })
             }
-            // A product this round found uninstallable leaves when the round is over, not in the middle of it.
             for (id in skipped) merged.remove(id)
             val finalList = merged.values.toList()
             saveCache(p, finalList.filter { it.gameId in detailed })
@@ -132,11 +119,9 @@ object GogLibrary {
         var page = 1
         var pages = 1
         while (page <= pages && page <= LIST_MAX_PAGES) {
-            // A page that cannot be read ends the listing; the pages already read still name most of the library.
             val listed = StoreNet.get("$LIST_URL&page=$page", bearer = token, userAgent = GogAuth.GALAXY_UA)?.let { parseListing(it) }
             if (listed == null) {
                 StoresState.logLine("GOG: listing page $page of $pages unreadable")
-                // The unread pages hold games too: without their ids those games would leave the library and the cache.
                 owned.addAll(ownedIds(token) ?: return null)
                 break
             }
@@ -145,7 +130,6 @@ object GogLibrary {
             pages = listed.totalPages
             page++
         }
-        // Not one page read: the caller falls back to the owned ids.
         return all.ifEmpty { null }?.let { Listing(it, owned) }
     }
 
@@ -166,7 +150,6 @@ object GogLibrary {
         val games = ArrayList<GogGame>(arr.length())
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
-            // 1801418160 is GOG's own "Galaxy" entry, in every library.
             val id = o.optLong("id", 0L).toString()
             if (id == "0" || id == "1801418160") continue
             if (o.optBoolean("isMovie", false) || !o.optBoolean("isGame", true)) continue

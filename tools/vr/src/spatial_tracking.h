@@ -78,7 +78,6 @@ struct OpticalPose {
         }
         auto target = filtered;
         if (predict) {
-            // Inference already consumes most capture age; receipt-relative prediction advances between results.
             float seconds = std::clamp(float(now-receivedAt)/1e9f,0.f,.08f);
             float speed2 = 0;
             for (float v : velocity) speed2 += v*v;

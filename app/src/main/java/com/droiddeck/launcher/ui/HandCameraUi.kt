@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.foundation.shape.CircleShape
 import com.droiddeck.launcher.core.AddonPack
 import android.Manifest
 import android.content.Intent
@@ -28,7 +29,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
+import com.droiddeck.launcher.ui.GlideAlertDialog as AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
@@ -63,7 +64,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
+import com.droiddeck.launcher.ui.GlideDialog as Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -129,7 +130,7 @@ internal fun HandCameraPrompt(sides: Set<String>, onAllow: (String?) -> Unit, on
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
-                            .selectable(side == id, role = Role.RadioButton) { side = id }
+                            .focusGlide(RoundedCornerShape(8.dp)).selectable(side == id, role = Role.RadioButton) { side = id }
                             .testTag("hand-camera-$id")
                             .padding(vertical = 4.dp),
                     ) {
@@ -144,12 +145,12 @@ internal fun HandCameraPrompt(sides: Set<String>, onAllow: (String?) -> Unit, on
             }
         },
         confirmButton = {
-            TextButton(onClick = { onAllow(if (choose) side else null) }, modifier = Modifier.testTag("hand-camera-allow")) {
+            TextButton(onClick = { onAllow(if (choose) side else null) }, modifier = Modifier.testTag("hand-camera-allow").focusGlide(CircleShape)) {
                 Text(stringResource(R.string.hand_camera_allow))
             }
         },
         dismissButton = {
-            TextButton(onClick = onNotNow, modifier = Modifier.testTag("hand-camera-not-now")) { Text(stringResource(R.string.hand_camera_not_now)) }
+            TextButton(onClick = onNotNow, modifier = Modifier.testTag("hand-camera-not-now").focusGlide(CircleShape)) { Text(stringResource(R.string.hand_camera_not_now)) }
         },
     )
 }

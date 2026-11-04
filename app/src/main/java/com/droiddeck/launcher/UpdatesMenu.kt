@@ -29,6 +29,7 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
     private var pending: AppUpdates.Release? = null
     private var lastCheck = 0L
     private var request = 0
+    @Volatile private var session = -1
 
     fun state() = UpdatesState(catalog, follow, checking, error, stage, percent, askPermission)
 
@@ -87,13 +88,14 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
         if (SessionState.running) { error = activity.getString(R.string.upd_stop_first); return }
         if (!SelfInstaller.canInstall(activity)) { pending = r; askPermission = true; return }
         error = null
+        session = -1
         stage = activity.getString(R.string.upd_stage_downloading)
         percent = 0
         Thread({
             val result = runCatching {
                 val file = SelfInstaller.download(activity, apk) { pct -> ui.post { percent = pct } }
                 ui.post { stage = activity.getString(R.string.upd_stage_installing); percent = -1 }
-                SelfInstaller.install(activity, file)
+                SelfInstaller.install(activity, file) { id -> session = id }
             }
             result.onFailure { e -> ui.post { stage = null; error = e.message ?: activity.getString(R.string.upd_failed) } }
         }, "app-update-install").start()
@@ -101,13 +103,15 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
+            if (intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1).let { it < 0 || it != session }) return
             when (val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
                 PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                     val confirm = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
                     else @Suppress("DEPRECATION") intent.getParcelableExtra(Intent.EXTRA_INTENT)
-                    if (confirm == null) { stage = null; error = activity.getString(R.string.upd_not_offered); return }
+                    val safe = confirm?.let { SelfInstaller.safeConfirmIntent(activity, it) }
+                    if (safe == null) { stage = null; error = activity.getString(R.string.upd_not_offered); return }
                     stage = activity.getString(R.string.upd_stage_confirm)
-                    activity.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    if (runCatching { activity.startActivity(safe) }.isFailure) { stage = null; error = activity.getString(R.string.upd_not_offered) }
                 }
                 PackageInstaller.STATUS_SUCCESS -> stage = null
                 else -> {
