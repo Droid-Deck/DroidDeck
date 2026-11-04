@@ -233,13 +233,13 @@ class WinCompSourcesTest {
     private var session = false
     private var gameUp = false
 
-    private fun payback(): Library.SteamGame {
+    private fun payback(appId: Int = 1262580): Library.SteamGame {
         val steamapps = tmp.newFolder("steamapps")
         val folder = File(steamapps, "common/Payback").apply { mkdirs() }
-        File(steamapps, "appmanifest_1262580.acf").writeText(
+        File(steamapps, "appmanifest_$appId.acf").writeText(
             "\"AppState\"\n{\n\t\"SharedDepots\"\n\t{\n\t\t\"228985\"\t\t\"228980\"\n\t\t\"228988\"\t\t\"228980\"\n\t\t\"228990\"\t\t\"228980\"\n\t}\n}\n",
         )
-        return game(folder, Library.SOURCE_STEAM, 1262580, library = "steam", name = "Need for Speed Payback")
+        return game(folder, Library.SOURCE_STEAM, appId, library = "steam", name = "Need for Speed Payback")
     }
 
     private fun <T> withFakeWorker(block: () -> T): T {
@@ -315,6 +315,20 @@ class WinCompSourcesTest {
         AutoComponents.queueGame(app, payback(), asked = true)
 
         assertTrue(AutoComponents.Pending.ids(app, "1262580").isEmpty())
+    }
+
+    @Test fun launchDiscoveryPersistsMissingComponentsWhileAWorkerWaitsForTheSession() = withFakeWorker {
+        session = true
+        gameUp = true
+        val appId = 9876543
+        catalog3.forEach { WinComponents.setUser(app, appId.toString(), it.name, true) }
+
+        AutoComponents.prepareLaunch(app, payback(appId))
+
+        assertEquals(setOf("d3dx9", "vcredist2013_dll", "vcredist2019_dll"), AutoComponents.Pending.ids(app, appId.toString()).toSet())
+        session = false
+        gameUp = false
+        AutoComponents.drain(app)
     }
 
     @Test fun pendingRepairsKeepTheirRequiredRevisionUntilTheyFinish() = withFakeWorker {

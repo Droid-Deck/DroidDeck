@@ -1185,8 +1185,9 @@ class FrontEndActivity : ComponentActivity() {
                         onSteamGame = { g ->
                             if (shortcutPicker) chooseGameShortcut(g)
                             else {
-                                com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g)
-                                com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) { launchGame(g) }
+                                com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g) {
+                                    com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) { launchGame(g) }
+                                }
                             }
                         },
                         onEpicLauncher = { openEpicLauncher() },
