@@ -1077,7 +1077,14 @@ object ComponentsManager {
         info.copy(file = dest.name)
     }
 
-    internal var catalogRefresher: (Context, String, RepositorySources.Source) -> List<CatalogItem> =
+    internal data class ReleaseRefresh(val repositoryId: Long, val releases: List<GitHubArtifacts.Release>)
+
+    internal var catalogReleaseRefresher: (
+        Context, String, RepositorySources.Source,
+    ) -> ReleaseRefresh = ::refreshCatalogReleases
+    internal var catalogRefresher: (
+        Context, String, RepositorySources.Source, MutableMap<String, ReleaseRefresh>,
+    ) -> List<CatalogItem> =
         ::refreshCatalogSource
     internal var packageReceiptWriter: (File, ByteArray) -> Unit = RepositorySources::atomicWrite
     internal var packageDownloader: (String, File, String, (Int) -> Unit) -> Boolean = { url, file, digest, progress ->
@@ -1092,6 +1099,7 @@ object ComponentsManager {
         val failed = ArrayList<String>()
         var rateLimited = false
         val legacy by lazy { readLegacyCatalog(context) }
+        val refreshedRepositories = HashMap<String, ReleaseRefresh>()
         for (comp in COMPONENTS) {
             val scope = sourceScope(comp)
             val builtIns = sourceBuiltIns(comp)
@@ -1100,7 +1108,7 @@ object ComponentsManager {
                 if (force) {
                     val generation = RepositorySources.generation(context, scope, builtIns)
                     runCatching {
-                        val refreshed = catalogRefresher(context, comp, configured)
+                        val refreshed = catalogRefresher(context, comp, configured, refreshedRepositories)
                         val bound = RepositorySources.visible(context, scope, builtIns)
                             .singleOrNull { it.id == configured.id }
                             ?: throw IOException("Component source changed while checking")
@@ -1131,15 +1139,31 @@ object ComponentsManager {
         )
     }
 
-    private fun refreshCatalogSource(
+    private fun refreshCatalogReleases(
         context: Context,
         comp: String,
         source: RepositorySources.Source,
-    ): List<CatalogItem> {
+    ): ReleaseRefresh {
         val releases = GitHubArtifacts.refreshReleases(context, sourceScope(comp), sourceBuiltIns(comp), source)
         val bound = RepositorySources.visible(context, sourceScope(comp), sourceBuiltIns(comp))
             .singleOrNull { it.id == source.id } ?: throw IOException("Component source changed while checking")
-        return catalogItems(context, comp, bound, releases)
+        return ReleaseRefresh(bound.repositoryId ?: throw IOException("Repository identity is not bound"), releases)
+    }
+
+    internal fun refreshCatalogSource(
+        context: Context,
+        comp: String,
+        source: RepositorySources.Source,
+        refreshedRepositories: MutableMap<String, ReleaseRefresh>,
+    ): List<CatalogItem> {
+        val scope = sourceScope(comp)
+        val builtIns = sourceBuiltIns(comp)
+        val generation = RepositorySources.generation(context, scope, builtIns)
+        val repository = RepositorySources.canonicalRepository(source.repository)
+        val refresh = refreshedRepositories[repository]
+            ?: catalogReleaseRefresher(context, comp, source).also { refreshedRepositories[repository] = it }
+        val bound = RepositorySources.bind(context, scope, builtIns, source, refresh.repositoryId, generation)
+        return catalogItems(context, comp, bound, refresh.releases)
     }
 
     private fun sourceCatalogFile(context: Context, comp: String, source: RepositorySources.Source) =
@@ -1237,7 +1261,7 @@ object ComponentsManager {
             it.comp == comp && releaseUrlMatches(NIGHTLIES, it.release, it.file, it.url)
         }.map { old ->
             val sha = old.digest.substringAfter(':')
-            val forced = FORCED_PACKAGES.any { it.comp == comp && it.file == old.file && it.release == old.release }
+            val forced = fixedPackageName(comp, old.file, old.release)
             val local = if (forced) safeName(old.file) else "$sha-${source.id}.wcp"
             old.copy(
                 sourceId = source.id,
@@ -1313,9 +1337,7 @@ object ComponentsManager {
         asset: GitHubArtifacts.Asset,
     ): CatalogItem {
         val ref = GitHubArtifacts.artifactRef(sourceScope(comp), source, release, asset)
-        val forced = source.repository == NIGHTLIES && FORCED_PACKAGES.any {
-            it.comp == comp && it.file == asset.name && it.release == release.tag
-        }
+        val forced = source.repository == NIGHTLIES && fixedPackageName(comp, asset.name, release.tag)
         val local = if (forced) safeName(asset.name) else "${ref.sha256}-${source.id}.wcp"
         return CatalogItem(asset.name, comp, release.tag, asset.url, asset.size, "sha256:${asset.sha256}",
             source.id, source.repository, ref.repositoryId, ref.releaseId, ref.assetId, local)
@@ -1431,6 +1453,11 @@ object ComponentsManager {
     internal val FORCED_PACKAGES = listOf(
         ForcedPackage(setOf(GpuInfo.Family.A6XX), "dxvk", "dxvk-2.7.1-linux.wcp", "Dxvk-Linux"),
     )
+
+    internal fun fixedPackageName(comp: String, file: String, release: String): Boolean =
+        FORCED_PACKAGES.any { it.comp == comp && it.file == file && it.release == release } ||
+            (comp == "dxvk" && release == "Dxvk-Linux" &&
+                (file == DXVK_FOR_VULKAN_1_1 || file == DXVK_FOR_VULKAN_1_3_NO_INT64))
 
     internal fun forcedPackageWanted(activeFile: String?, protonVersionMatches: Boolean): Boolean =
         activeFile.isNullOrEmpty() || !protonVersionMatches

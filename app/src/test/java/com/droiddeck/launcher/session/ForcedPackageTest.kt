@@ -477,7 +477,7 @@ class ForcedPackageTest {
         val refresher = ComponentsManager.catalogRefresher
         var refreshes = 0
         try {
-            ComponentsManager.catalogRefresher = { _, _, _ -> refreshes++; emptyList() }
+            ComponentsManager.catalogRefresher = { _, _, _, _ -> refreshes++; emptyList() }
             assertEquals(cachedUrl, ComponentsManager.catalogItem(context, dxvk2, "Dxvk-Linux")?.url)
             assertEquals(0, refreshes)
         } finally {
