@@ -1,5 +1,5 @@
 diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
-index ee20ca0..0233741 100644
+index ee20ca0..2963634 100644
 --- a/src/steamcompmgr.cpp
 +++ b/src/steamcompmgr.cpp
 @@ -32,6 +32,7 @@
@@ -18,7 +18,7 @@ index ee20ca0..0233741 100644
  static bool relative_mouse_forced();
  
  void MouseCursor::checkSuspension()
-@@ -3083,12 +3085,82 @@ static gamescope::ConVar<int> cv_relative_mouse( "relative_mouse", 0,
+@@ -3083,12 +3085,89 @@ static gamescope::ConVar<int> cv_relative_mouse( "relative_mouse", 0,
  "0 = Leave it to the game and the nested hints. 1 = Send host pointer motion as relative movement, for games that confine the cursor and warp it back to read movement. 2 = Never go relative." );
  static bool relative_mouse_forced()
  {
@@ -30,6 +30,7 @@ index ee20ca0..0233741 100644
 +{
 +	static int s_nAwayFrames = 0;
 +	static int s_nQuietFrames = 0;
++	static uint64_t s_ulLastAway = 0;
 +	static double s_flLastX = 0.0;
 +	static double s_flLastY = 0.0;
 +
@@ -52,10 +53,14 @@ index ee20ca0..0233741 100644
 +	else if ( !s_bFollowClientPointer )
 +	{
 +		const bool bMoved = flX != s_flLastX || flY != s_flLastY;
-+		if ( std::abs( nRootX - flX ) <= 48.0 && std::abs( nRootY - flY ) <= 48.0 )
-+			s_nAwayFrames = 0;
-+		else if ( bMoved )
++		if ( bMoved && ( std::abs( nRootX - flX ) > 48.0 || std::abs( nRootY - flY ) > 48.0 ) )
++		{
++			const uint64_t ulNow = get_time_in_nanos();
++			if ( ulNow - s_ulLastAway > 500'000'000ul )
++				s_nAwayFrames = 0;
++			s_ulLastAway = ulNow;
 +			s_nAwayFrames++;
++		}
 +
 +		if ( s_nAwayFrames >= 3 )
 +		{
@@ -82,7 +87,9 @@ index ee20ca0..0233741 100644
 +		{
 +			wlserver.flFollowDX -= flDX;
 +			wlserver.flFollowDY -= flDY;
-+			wlserver_mousewarp( nRootX + flDX, nRootY + flDY, 0, true );
++			wlserver_mousewarp( nRootX, nRootY, 0, true );
++			if ( flDX != 0.0 || flDY != 0.0 )
++				wlserver_mousewarp( nRootX + flDX, nRootY + flDY, 0, true );
 +		}
 +
 +		if ( s_nQuietFrames >= 60 )
@@ -103,7 +110,7 @@ index ee20ca0..0233741 100644
  		return true;
  
  	global_focus_t *pFocus = GetCurrentFocus();
-@@ -10890,9 +10962,15 @@ steamcompmgr_main(int argc, char **argv)
+@@ -10890,9 +10969,15 @@ steamcompmgr_main(int argc, char **argv)
  				const int nRelativeMouse = cv_relative_mouse.Get();
  				const bool bForcedRelativeMouse = nRelativeMouse == 1 && !window_is_steam( pPaintFocus->inputFocusWindow );
  
