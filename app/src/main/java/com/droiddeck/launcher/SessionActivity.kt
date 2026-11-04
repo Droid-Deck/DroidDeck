@@ -3817,7 +3817,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         desktopGrabTapAt = now
         desktopGrabTaps++
         WaylandCompositor.nativeSendKey(KEY_RIGHTCTRL, 1)
-        WaylandCompositor.nativeSendKey(KEY_RIGHTCTRL, 0)
+        uiHandler.postDelayed({ WaylandCompositor.nativeSendKey(KEY_RIGHTCTRL, 0) }, DESKTOP_GRAB_KEY_HOLD_MS)
     }
 
     private fun grabDesktopMouse() {
@@ -5021,6 +5021,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         private const val DESKTOP_GRAB_TAP_MS = 500L
         private const val DESKTOP_GRAB_MAX_TAPS = 8
         private const val DESKTOP_GRAB_RETRY_MS = 30_000L
+        private const val DESKTOP_GRAB_KEY_HOLD_MS = 40L
         private const val RELATIVE_MOUSE_MAX_RETRIES = 5
         private const val DRAWER_HAT_THRESHOLD = 0.5f
         private const val DRAWER_STICK_ENTER_THRESHOLD = 0.55f
