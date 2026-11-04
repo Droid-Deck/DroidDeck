@@ -485,6 +485,21 @@ class WinCompSourcesTest {
         assertEquals(downloaded.distinct(), downloaded)
     }
 
+    @Test fun queuedPicsLookupsMergeAppIdsFromLaterSweeps() = withFakeWorker {
+        val lookedUp = ArrayList<List<Int>>()
+        SteamAppInfo.pics = { ids -> lookedUp.add(ids); ids.associateWith { null } }
+        session = true
+        val first = game(null, Library.SOURCE_STEAM, 810001, library = "steam")
+        val second = game(null, Library.SOURCE_STEAM, 810002, library = "steam")
+
+        AutoComponents.sweep(app, listOf(first))
+        AutoComponents.sweep(app, listOf(second))
+        session = false
+        AutoComponents.drain(app)
+
+        assertEquals(listOf(listOf(810001, 810002)), lookedUp)
+    }
+
     @Test fun aDownloadWaitsForANetwork() = withFakeWorker {
         val game = payback()
         AutoComponents.online = { false }

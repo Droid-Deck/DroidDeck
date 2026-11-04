@@ -101,9 +101,10 @@ object AutoComponents {
             if (!queuedKeys.add(job.key)) {
                 val old = jobs.firstOrNull { it.key == job.key }
                 val revision = listOfNotNull(old?.revision, job.revision).maxOrNull()
-                if (old != null && ((job.asked && !old.asked) || (job.inSession && !old.inSession) || revision != old.revision) && jobs.remove(old)) {
+                val pics = listOfNotNull(old?.pics, job.pics).flatten().distinct().takeIf { old?.pics != null || job.pics != null }
+                if (old != null && ((job.asked && !old.asked) || (job.inSession && !old.inSession) || revision != old.revision || pics != old.pics) && jobs.remove(old)) {
                     jobs.add(Job(old.game ?: job.game, old.component, old.asked || job.asked,
-                        if (job.asked && !old.asked) job.seq else old.seq, old.pics ?: job.pics,
+                        if (job.asked && !old.asked) job.seq else old.seq, pics,
                         old.inSession || job.inSession, revision))
                 }
                 false
