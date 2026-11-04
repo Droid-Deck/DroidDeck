@@ -224,9 +224,9 @@ object AutoComponents {
             queueDownload(context, id, asked, inSession, catalog[id]?.revision)
             missing.add(id)
         }
-        if (inSession) Pending.set(context, key, (Pending.ids(context, key).filter { id ->
-            id !in installed && id !in wanted || (Pending.revision(context, id) ?: 0) > (catalog[id]?.revision ?: 0)
-        } + missing).distinct(), catalog.mapValues { it.value.revision })
+        if (inSession) Pending.update(context, key, catalog.mapValues { it.value.revision }) { ids ->
+            ids.filter { id -> id !in installed && id !in wanted || (Pending.revision(context, id) ?: 0) > (catalog[id]?.revision ?: 0) } + missing
+        }
         if (before.keys != kept.keys) {
             WinComponents.setAuto(context, key, kept)
             Log.i(TAG, "${game.name}: on by itself ${kept.keys.joinToString().ifEmpty { "(none)" }}")
@@ -293,6 +293,14 @@ object AutoComponents {
 
         @Synchronized fun ids(context: Context, key: String): List<String> =
             read(context).optJSONArray(key)?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
+
+        @Synchronized fun update(context: Context, key: String, revisions: Map<String, Int>, transform: (List<String>) -> List<String>) {
+            val games = read(context)
+            val current = games.optJSONArray(key)?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
+            val ids = transform(current).distinct()
+            if (ids.isEmpty()) games.remove(key) else games.put(key, JSONArray(ids))
+            write(context, games, revisions)
+        }
 
         @Synchronized fun revision(context: Context, id: String): Int? =
             runCatching { JSONObject(file(context).readText()).optJSONObject("revisions")?.optInt(id) }.getOrNull()
