@@ -51,7 +51,7 @@ def prefixes(root):
     compatdata = os.path.join(root, "steamapps", "compatdata")
     try:
         names = sorted(os.listdir(compatdata))
-    except OSError:
+    except FileNotFoundError:
         return []
     owned = shortcut_ids(root)
     found = []
@@ -247,7 +247,10 @@ def main():
     os.makedirs(os.path.dirname(PLACED), exist_ok=True)
     with open(PLACED + ".lock", "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        refresh()
+        try:
+            refresh()
+        except OSError as error:
+            print("droiddeck-desktop-programs: the menu is left as it was (%s)" % error)
 
 
 def refresh():
