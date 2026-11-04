@@ -26,6 +26,7 @@ public final class LinuxRuntime {
     public static final String EXTRA_LINUX_MODE = "linux_mode";
     private static final String KGSL_DEVICE = "/dev/kgsl-3d0";
     public static final String GUEST_RUNTIME_DIR = "/run/droiddeck";
+    public static final String GUEST_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games";
     private static final String SYSTEM_FONTS = "/system/fonts";
     private static final String GUEST_SYSTEM_FONTS = "/usr/local/share/fonts/android";
     public static final String DEBUG_LOG_DIR = "DroidDeck";

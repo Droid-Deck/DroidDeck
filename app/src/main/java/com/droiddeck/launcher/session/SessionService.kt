@@ -781,7 +781,7 @@ class SessionService : Service() {
         guest.add("DROIDDECK_BWRAP_SOCKET=" + com.droiddeck.launcher.runtime.BwrapSpawner.socket(this))
         guest.add("HOME=/root")
         guest.add("USER=root")
-        guest.add("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games")
+        guest.add("PATH=" + LinuxRuntime.GUEST_PATH)
         guest.add("TERM=xterm-256color")
         if (SessionState.mode == MODE_DESKTOP) {
             val appLocale = com.droiddeck.launcher.core.AppLanguage.effective(this)
