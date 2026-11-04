@@ -34,6 +34,12 @@ def data_file(member, magic):
     return False
 
 
+def finish_archive(archive):
+    for block in iter(lambda: archive.fileobj.read(65536), b''):
+        if block.strip(b'\0'):
+            raise ValueError('Nonzero data follows the tar end marker')
+
+
 def inventory(source, zstd):
     process = subprocess.Popen([zstd, '-dc', str(source)], stdout=subprocess.PIPE)
     records = []
@@ -65,6 +71,7 @@ def inventory(source, zstd):
                                 {key: value for key, value in member.pax_headers.items() if key not in
                                  {'path', 'linkpath', 'mtime', 'size', 'uid', 'gid', 'uname', 'gname'}},
                                 digest.hexdigest() if member.isfile() else None])
+            finish_archive(archive)
         if process.wait():
             raise ValueError('Archive decompression failed')
     finally:
@@ -106,6 +113,7 @@ def prepare(source, code, data, zstd_version='1.5.5'):
                                 encoder.stdin.write(block)
                                 remaining -= len(block)
                             encoder.stdin.write(b'\0' * (-member.size % 512))
+                    finish_archive(archive)
                     if kind == 'data':
                         encoder.stdin.write(b'\0' * 10240)
                 encoder.stdin.close()
@@ -140,6 +148,7 @@ def validate_data(source):
                 if not member.isfile() or not data_file(member, archive.extractfile(member).read(16)):
                     raise ValueError('Executable or unclassified content in a Play data segment')
                 found = True
+            finish_archive(archive)
         if process.wait() or not found:
             raise ValueError('Invalid Play data segment')
     finally:

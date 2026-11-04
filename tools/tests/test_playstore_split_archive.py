@@ -2,6 +2,7 @@ import io
 import re
 from pathlib import Path
 import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -61,3 +62,40 @@ class PlaySplitArchiveTest(unittest.TestCase):
         source = self.archive([('../font.ttf', b'\x00\x01\x00\x00font', 0o644)])
         with self.assertRaisesRegex(ValueError, 'unsafe'):
             inventory(source, 'zstd')
+
+    def test_padded_archives_finish_with_small_decoder_pipes(self):
+        source = self.archive([('program', b'\x7fELFcode', 0o755),
+                               ('font.ttf', b'\x00\x01\x00\x00font', 0o644)])
+        raw = subprocess.check_output(['zstd', '-dc', str(source)])
+        source.write_bytes(subprocess.check_output(['zstd', '-c'], input=raw + b'\0' * (1024 * 1024)))
+        script = '''
+import subprocess
+import sys
+from pathlib import Path
+from unittest.mock import patch
+from tools.playstore.split_archive import inventory, prepare, combine, validate_data
+original = subprocess.Popen
+def spawn(*args, **kwargs):
+    if kwargs.get('stdout') == subprocess.PIPE or kwargs.get('stdin') == subprocess.PIPE:
+        kwargs['pipesize'] = 4096
+    return original(*args, **kwargs)
+root = Path(sys.argv[1])
+with patch.object(subprocess, 'Popen', spawn):
+    expected = inventory(root / 'source', 'zstd')[0]
+    prepare(root / 'source', root / 'code', root / 'data', sys.argv[2])
+    combine([root / 'code', root / 'data'], root / 'combined')
+    assert inventory(root / 'combined', 'zstd')[0] == expected
+    validate_data(root / 'data')
+print('padded archive completed')
+'''
+        result = subprocess.run([sys.executable, '-c', script, str(self.root), self.zstd_version],
+                                capture_output=True, text=True, timeout=15)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn('padded archive completed', result.stdout)
+
+    def test_data_after_the_end_marker_is_rejected(self):
+        source = self.archive([('font.ttf', b'\x00\x01\x00\x00font', 0o644)])
+        raw = subprocess.check_output(['zstd', '-dc', str(source)])
+        source.write_bytes(subprocess.check_output(['zstd', '-c'], input=raw + b'\x7fELFhidden'))
+        with self.assertRaisesRegex(ValueError, 'Nonzero data'):
+            validate_data(source)
