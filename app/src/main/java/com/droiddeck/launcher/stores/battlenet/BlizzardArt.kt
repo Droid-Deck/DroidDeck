@@ -75,7 +75,7 @@ internal object BlizzardArt {
     }
 
     fun fetch(code: String, slug: String, wide: File, cover: File?): Boolean {
-        val art = KEY_ART[code]?.let(::image) ?: shopImage(slug) ?: return false
+        val art = runCatching { KEY_ART[code]?.let(::image) }.getOrNull() ?: shopImage(slug) ?: return false
         try {
             val scaled = if (art.width > WIDE) Bitmap.createScaledBitmap(art, WIDE, art.height * WIDE / art.width, true) else art
             save(scaled, wide)

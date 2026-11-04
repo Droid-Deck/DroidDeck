@@ -66,8 +66,10 @@ object BattleNet {
 
     private const val COVER_RETRY_MS = 24 * 3600_000L
 
+    internal fun artTitle(title: Title) = TITLES.firstOrNull { it.code == title.code } ?: title
+
     private fun coverDir(context: Context, title: Title) =
-        File(context.filesDir, "battlenet-art/${(TITLES.firstOrNull { it.code == title.code } ?: title).uid}")
+        File(context.filesDir, "battlenet-art/${artTitle(title).uid}")
 
     fun cover(context: Context, title: Title): File? = art(context, title).cover
 

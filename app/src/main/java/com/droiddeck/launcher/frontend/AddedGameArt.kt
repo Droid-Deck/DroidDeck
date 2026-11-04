@@ -254,7 +254,7 @@ object AddedGameArt {
         sgdbGame = SteamGridDb::gameId,
         sgdb = SteamGridDb::download,
         sgdbExactGame = SteamGridDb::exactGameId,
-        battleNetArt = { context, title -> BattleNet.fetchCovers(context, listOf(title)) },
+        battleNetArt = { context, title -> BattleNet.fetchCovers(context, listOf(BattleNet.artTitle(title))) },
     )
 
     private val EXTRAS = setOf(Slot.LOGO, Slot.ICON)
@@ -357,8 +357,8 @@ object AddedGameArt {
         val cache = cacheDir(context, game)
         val checked = File(cache, BATTLENET_ART_CHECKED)
         if (title.steam != null || checked.isFile) return false
-        val dropped = Slot.values().filter { File(cache, SteamGridDb.cacheName(it)).delete() }
-        Slot.values().forEach { File(cache, SteamGridDb.cacheName(it) + ".src").delete() }
+        val dropped = EXTRAS.filter { File(cache, SteamGridDb.cacheName(it)).delete() }
+        EXTRAS.forEach { File(cache, SteamGridDb.cacheName(it) + ".src").delete() }
         listOf("sgdb-id", EXTRAS_TRIED).forEach { File(cache, it).delete() }
         cache.mkdirs()
         checked.writeText("")

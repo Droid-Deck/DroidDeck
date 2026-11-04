@@ -38,6 +38,12 @@ class BlizzardArtTest {
         BlizzardArt.KEY_ART.keys.forEach { assertTrue(it, it in codes) }
     }
 
+    @Test fun classicVariantsShareTheClassicArtTitle() {
+        val battleNet = com.droiddeck.launcher.runtime.BattleNet
+        val era = battleNet.TITLES.first { it.uid == "wow_classic_era" }
+        assertEquals("wow_classic", battleNet.artTitle(era).uid)
+    }
+
     @Test fun worldOfWarcraftForeverUsesItsOwnArt() {
         assertTrue("WoW_Forever" in BlizzardArt.KEY_ART.getValue("WoWF"))
     }

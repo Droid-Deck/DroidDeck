@@ -171,9 +171,11 @@ class AddedGameArtFillTest {
         val game = game("World of Warcraft: Forever", 9001, source = com.droiddeck.launcher.stores.Store.BATTLENET.id, storeId = "wow_forever")
         val cache = AddedGameArt.cacheDir(app, game).apply { mkdirs() }
         File(cache, "logo.png").writeBytes(byteArrayOf(1))
+        File(cache, "p.jpg").writeBytes(byteArrayOf(3))
         File(cache, "sgdb-id").writeText("5")
         assertTrue(AddedGameArt.forgetNameMatchedBattleNetArt(app, game))
         assertFalse(File(cache, "logo.png").isFile)
+        assertTrue(File(cache, "p.jpg").isFile)
         assertFalse(File(cache, "sgdb-id").isFile)
         File(cache, "logo.png").writeBytes(byteArrayOf(2))
         assertFalse(AddedGameArt.forgetNameMatchedBattleNetArt(app, game))
