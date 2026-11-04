@@ -331,6 +331,25 @@ class WinCompSourcesTest {
         AutoComponents.drain(app)
     }
 
+    @Test fun launchDiscoveryUsesFreshCatalogAndIncludesManualDependencies() = withFakeWorker {
+        session = true
+        gameUp = true
+        val appId = 9876544
+        val manual = WinComponents.Component("manual_component", "", "", "ready", listOf("d3dx9"), emptyList(), revision = 3)
+        val catalog = catalog3 + manual
+        val requests = ArrayList<Boolean>()
+        AutoComponents.catalogOf = { _, network -> requests.add(network); catalog }
+        WinComponents.setUser(app, appId.toString(), manual.name, true)
+
+        AutoComponents.prepareLaunch(app, game(null, Library.SOURCE_STEAM, appId, library = "steam"))
+
+        assertTrue(requests.contains(true))
+        assertEquals(setOf("manual_component", "d3dx9"), AutoComponents.Pending.ids(app, appId.toString()).toSet())
+        session = false
+        gameUp = false
+        AutoComponents.drain(app)
+    }
+
     @Test fun pendingRepairsKeepTheirRequiredRevisionUntilTheyFinish() = withFakeWorker {
         val repair = WinComponents.Component("vcredist2010_dll", "", "", "ready", emptyList(), emptyList(), revision = 2)
         AutoComponents.catalogOf = { _, _ -> catalog3 + repair }

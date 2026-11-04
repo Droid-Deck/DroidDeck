@@ -1186,7 +1186,10 @@ class FrontEndActivity : ComponentActivity() {
                             if (shortcutPicker) chooseGameShortcut(g)
                             else {
                                 com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g) {
-                                    com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) { launchGame(g) }
+                                    if (isFinishing || isDestroyed) return@beforeLaunch
+                                    com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) {
+                                        if (!isFinishing && !isDestroyed) launchGame(g)
+                                    }
                                 }
                             }
                         },

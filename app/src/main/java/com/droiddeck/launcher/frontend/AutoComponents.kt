@@ -421,12 +421,16 @@ object AutoComponents {
     internal fun prepareLaunch(context: Context, game: Library.SteamGame) {
         val key = appKey(game) ?: return
         val findings = findings(context, game)
-        val catalog = (catalogOf(context, false) ?: catalogOf(context, true))?.associateBy { it.name }
+        val cached = catalogOf(context, false)
+        val current = if (online(context)) catalogOf(context, true) else null
+        val catalog = (current ?: cached)?.associateBy { it.name }
         if (catalog != null) {
             val wanted = autoPicks(findings, catalog)
-            val user = WinComponents.selection(context, key).user
+            val selection = WinComponents.selection(context, key)
+            val user = selection.user
             val installed = installedOf(context)
-            val missing = wanted.keys.filter { user[it] != false && it !in installed }
+            val required = withParts(selection.effective.filter { WinComponents.validId(it) }, catalog)
+            val missing = required.filter { user[it] != false && it !in installed }
             Pending.update(context, key, catalog.mapValues { it.value.revision }) { ids ->
                 ids.filter { id -> user[id] != false && (id !in installed && id !in wanted || (Pending.revision(context, id) ?: 0) > (catalog[id]?.revision ?: 0)) } + missing
             }
