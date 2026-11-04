@@ -1,0 +1,73 @@
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+index 2c92afe..a84a191 100644
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -4662,6 +4662,46 @@ static void set_wm_state( xwayland_ctx_t *ctx, Window win, uint32_t state )
+ 				sizeof(wmState) / sizeof(wmState[0]));
+ }
+ 
++static void
++fit_root_to_focus_window( xwayland_ctx_t *ctx )
++{
++	steamcompmgr_win_t *w = ctx->focus.focusWindow;
++	if ( !w || window_is_steam( w ) )
++		return;
++
++	const XWindowAttributes &a = w->xwayland().a;
++	const size_t uServer = ctx->xwayland_server->get_index();
++	const bool bCoversRoot = a.x == 0 && a.y == 0 && a.width >= ctx->root_width && a.height >= ctx->root_height;
++	const bool bPlausible = a.width <= 8192 && a.height <= 8192;
++
++	int nWidth = 0;
++	int nHeight = 0;
++	if ( bCoversRoot && bPlausible && ( a.width > ctx->root_width || a.height > ctx->root_height ) )
++	{
++		if ( !ctx->nFitRestoreWidth )
++		{
++			ctx->nFitRestoreWidth = ctx->root_width;
++			ctx->nFitRestoreHeight = ctx->root_height;
++		}
++		nWidth = a.width;
++		nHeight = a.height;
++	}
++	else if ( ctx->nFitRestoreWidth && a.width <= ctx->nFitRestoreWidth && a.height <= ctx->nFitRestoreHeight )
++	{
++		nWidth = ctx->nFitRestoreWidth;
++		nHeight = ctx->nFitRestoreHeight;
++		ctx->nFitRestoreWidth = 0;
++		ctx->nFitRestoreHeight = 0;
++	}
++
++	if ( !nWidth )
++		return;
++
++	wlserver_lock();
++	wlserver_set_xwayland_server_mode( uServer, nWidth, nHeight, g_nOutputRefresh );
++	wlserver_unlock();
++}
++
+ void xwayland_ctx_t::DetermineAndApplyFocus( const std::vector< steamcompmgr_win_t* > &vecPossibleFocusWindows )
+ {
+ 	xwayland_ctx_t *ctx = this;
+@@ -4736,6 +4776,8 @@ void xwayland_ctx_t::DetermineAndApplyFocus( const std::vector< steamcompmgr_win
+ 		inputFocus = ctx->focus.focusWindow;
+ 	}
+ 
++	fit_root_to_focus_window( ctx );
++
+ 	if ( ctx->focus.focusWindow )
+ 	{
+ 		if ( prevFocusWindow != ctx->focus.focusWindow )
+diff --git a/src/xwayland_ctx.hpp b/src/xwayland_ctx.hpp
+index 3a75650..85f2969 100644
+--- a/src/xwayland_ctx.hpp
++++ b/src/xwayland_ctx.hpp
+@@ -87,6 +87,8 @@ struct xwayland_ctx_t final : public gamescope::IWaitable
+ 	Window			ourWindow;
+ 
+ 	focus_t 		focus;
++	int nFitRestoreWidth = 0;
++	int nFitRestoreHeight = 0;
+ 	Window 			currentKeyboardFocusWindow;
+ 	Window			focusControlWindow;
+ 

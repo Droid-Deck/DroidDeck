@@ -1,5 +1,5 @@
 diff --git a/src/Backends/WaylandBackend.cpp b/src/Backends/WaylandBackend.cpp
-index 953765a..ee809d0 100644
+index 953765a..572fb0e 100644
 --- a/src/Backends/WaylandBackend.cpp
 +++ b/src/Backends/WaylandBackend.cpp
 @@ -464,6 +464,7 @@ namespace gamescope
@@ -35,14 +35,17 @@ index 953765a..ee809d0 100644
      void CWaylandConnector::SetVisible( bool bVisible )
      {
          if ( m_bVisible == bVisible )
-@@ -2484,6 +2496,12 @@ namespace gamescope
+@@ -2484,6 +2496,15 @@ namespace gamescope
  
          UpdateCursor();
      }
 +    void CWaylandBackend::SetCursorPositionHint( wl_fixed_t fSurfaceX, wl_fixed_t fSurfaceY )
 +    {
-+        if ( m_pLockedPointer )
-+            zwp_locked_pointer_v1_set_cursor_position_hint( m_pLockedPointer, fSurfaceX, fSurfaceY );
++        if ( !m_pLockedPointer )
++            return;
++
++        zwp_locked_pointer_v1_set_cursor_position_hint( m_pLockedPointer, fSurfaceX, fSurfaceY );
++        wl_surface_commit( m_pLockedSurface );
 +    }
 +
      void CWaylandBackend::SetRelativeMouseMode( wl_surface *pSurface, bool bRelative )
@@ -61,7 +64,7 @@ index d264917..37b936e 100644
          virtual void SetTitle( std::shared_ptr<std::string> szTitle ) = 0;
          virtual void SetIcon( std::shared_ptr<std::vector<uint32_t>> uIconPixels ) = 0;
 diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
-index f1346e5..99a7247 100644
+index f1346e5..2c92afe 100644
 --- a/src/steamcompmgr.cpp
 +++ b/src/steamcompmgr.cpp
 @@ -2078,6 +2078,18 @@ void MouseCursor::UpdatePosition()
@@ -83,16 +86,21 @@ index f1346e5..99a7247 100644
  void MouseCursor::checkSuspension()
  {
  	getTexture();
-@@ -2085,7 +2097,7 @@ void MouseCursor::checkSuspension()
+@@ -2085,7 +2097,12 @@ void MouseCursor::checkSuspension()
  	if ( ShouldDrawCursor() )
  	{
  		const bool suspended = int64_t( get_time_in_nanos() ) - int64_t( wlserver.ulLastMovedCursorTime ) > int64_t( cursorHideTime );
 -		if (!wlserver.bCursorHidden && suspended) {
++		if ( relative_mouse_forced() && wlserver.bCursorHidden )
++		{
++			wlserver.bCursorHidden = false;
++			hasRepaintNonBasePlane = true;
++		}
 +		if (!wlserver.bCursorHidden && suspended && !relative_mouse_forced()) {
  			wlserver.bCursorHidden = true;
  
  			steamcompmgr_win_t *window = m_ctx->focus.inputFocusWindow;
-@@ -3064,6 +3076,11 @@ static void paint_pipewire()
+@@ -3064,6 +3081,11 @@ static void paint_pipewire()
  gamescope::ConVar<int> cv_cursor_composite{ "cursor_composite", 1, "0 = Never composite a cursor. 1 = Composite cursor when not nested. 2 = Always composite a cursor manually" };
  static gamescope::ConVar<int> cv_relative_mouse( "relative_mouse", 0,
  "0 = Leave it to the game and the nested hints. 1 = Send host pointer motion as relative movement, for games that confine the cursor and warp it back to read movement. 2 = Never go relative." );
@@ -104,7 +112,7 @@ index f1346e5..99a7247 100644
  bool ShouldDrawCursor()
  {
  	if ( cv_relative_mouse.Get() == 1 )
-@@ -10828,6 +10845,18 @@ steamcompmgr_main(int argc, char **argv)
+@@ -10828,6 +10850,18 @@ steamcompmgr_main(int argc, char **argv)
  					? false
  					: ( bForcedRelativeMouse || ( bImageEmpty && bHasPointerConstraint && !bExcludedAppId ) );
  

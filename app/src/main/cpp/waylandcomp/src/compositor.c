@@ -2774,12 +2774,6 @@ static void constraint_end(struct constraint *k, int tell_client, const char *wh
     k->active = 0;
     if (g_active_constraint == k) g_active_constraint = NULL;
     if (k->lifetime == ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_ONESHOT) k->defunct = 1;
-    if (k->pending_hint_set) {
-        k->hint_set = 1;
-        k->hint_x = k->pending_hint_x;
-        k->hint_y = k->pending_hint_y;
-        k->pending_hint_set = 0;
-    }
     if (k->is_lock && k->hint_set && k->surface) {
         int ox, oy;
         constraint_origin(k, &ox, &oy);

@@ -242,5 +242,11 @@ absolute, the constraint held the X pointer still and no raw motion was produced
 
 A game can move the X pointer while it holds the lock (Wine's ClipCursor recentres it), and the nested host
 never hears about it. On unlock the host's next absolute motion dropped the pointer back at its old position,
-often near a corner. The unlock now sends the X pointer as a cursor position hint first. A cursor forced On
-by `relative_mouse` also stays visible while idle, since the host cursor is hidden during the lock.
+often near a corner. The unlock now sends the X pointer as a cursor position hint and commits it first. A cursor
+forced On by `relative_mouse` also stays visible while idle, since the host cursor is hidden during the lock.
+
+## 0130 steamcompmgr: fit the X screen to a larger fullscreen window
+
+A game can open a fullscreen window larger than its X screen (Valheim at 1366x768 on 1280x720). The X server
+keeps the pointer inside the screen, so the outer part of the window could not be reached and motion past the
+edge had to be undone. The server's mode now follows such a window, and returns once the focused window fits.
