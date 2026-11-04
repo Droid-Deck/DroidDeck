@@ -66,6 +66,10 @@ class DirectTouchHold(
         held = false
     }
 
+    fun cancelPendingHold() {
+        handler.removeCallbacks(hold)
+    }
+
     fun onTouch(event: MotionEvent): Boolean {
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             if (liftPending) {
