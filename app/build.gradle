@@ -248,6 +248,7 @@ android {
                 '--add-opens=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED'
             maxHeapSize = '2g'
             maxParallelForks = 2
+            systemProperty 'robolectric.dependency.repo.url', 'https://repo.maven.apache.org/maven2'
             def logTarget = providers.systemProperty('robolectric.logging').orNull
             if (logTarget != null) systemProperty 'robolectric.logging', logTarget
         }

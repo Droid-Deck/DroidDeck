@@ -22,10 +22,14 @@ class VrProducerLeaseTest(unittest.TestCase):
             subprocess.run(command + ["-o", str(executable)], check=True)
             environment = dict(os.environ)
             if gpu:
+                environment["LP_NUM_THREADS"] = "2"
                 manifests = sorted(Path("/usr/share/vulkan/icd.d").glob("lvp_icd*.json"))
                 environment["VK_DRIVER_FILES"] = str(manifests[0])
                 environment["VK_ICD_FILENAMES"] = str(manifests[0])
-            result = subprocess.run([str(executable)], env=environment, capture_output=True, text=True, timeout=20)
+            try:
+                result = subprocess.run([str(executable)], env=environment, capture_output=True, text=True, timeout=60 if gpu else 20)
+            except subprocess.TimeoutExpired as error:
+                self.fail("producer test timed out: " + (error.stderr or b"").decode(errors="replace"))
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             return result.stdout
 

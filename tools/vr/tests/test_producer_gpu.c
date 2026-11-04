@@ -99,6 +99,7 @@ int main(void) {
     VkTimelineSemaphoreSubmitInfo timeline = {VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO, NULL, 1, &value, 0, NULL};
     VkPipelineStageFlags stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
     VkSubmitInfo first = {VK_STRUCTURE_TYPE_SUBMIT_INFO, &timeline, 1, &gate, &stage, 1, &commands[0], 0, NULL};
+    fputs("producer GPU: initial queued completion\n", stderr);
     assert(QueueSubmit(test_queue, 1, &first, VK_NULL_HANDLE) == VK_SUCCESS);
     pthread_t signal_thread;
     int64_t began = droiddeck_producer_now();
@@ -107,6 +108,7 @@ int main(void) {
     assert(droiddeck_producer_now() - began >= 20000000LL);
     assert(pthread_join(signal_thread, NULL) == 0);
     check_pixels(pixels, patterns[0]);
+    fputs("producer GPU: retained ownership\n", stderr);
     pthread_t writer;
     assert(pthread_create(&writer, NULL, second_submit, NULL) == 0);
     while (!atomic_load(&second_entered)) usleep(100);
@@ -117,6 +119,7 @@ int main(void) {
     assert(pthread_join(writer, NULL) == 0);
     assert(vkQueueWaitIdle(test_queue) == VK_SUCCESS);
     check_pixels(pixels, patterns[1]);
+    fputs("producer GPU: timeout retention\n", stderr);
     value = 2;
     assert(QueueSubmit(test_queue, 1, &first, VK_NULL_HANDLE) == VK_SUCCESS);
     assert(!producer_acquire(droiddeck_producer_now() + 20000000LL));
@@ -130,6 +133,7 @@ int main(void) {
     assert(producer_acquire(droiddeck_producer_now() + 1000000000LL));
     producer_release();
     check_pixels(pixels, patterns[0]);
+    fputs("producer GPU: teardown\n", stderr);
     producer_destroy_device(&g_dev[0], NULL);
     vkDestroySemaphore(test_device, gate, NULL);
     vkDestroyCommandPool(test_device, pool, NULL);
