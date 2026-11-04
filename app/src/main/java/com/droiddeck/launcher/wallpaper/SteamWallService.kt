@@ -6,13 +6,11 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
-import android.hardware.display.DisplayManager
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
 import android.service.wallpaper.WallpaperService
 import android.view.Choreographer
-import android.view.Display
 import android.view.SurfaceHolder
 import androidx.compose.ui.graphics.toArgb
 import com.droiddeck.launcher.frontend.Library
@@ -64,12 +62,7 @@ class SteamWallService : WallpaperService() {
             choreographer?.removeFrameCallback(tick)
         }
 
-        private fun framesPerSecond(): Int {
-            val fps = WallPrefs.fps(applicationContext)
-            if (fps != WallPrefs.MATCH_SCREEN) return fps
-            val display = getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
-            return (display?.refreshRate ?: 60f).toInt().coerceIn(30, 144)
-        }
+        private fun framesPerSecond(): Int = WallPrefs.fps(applicationContext)
 
         override fun onCreate(surfaceHolder: SurfaceHolder) {
             handler.post { covers = loadCovers() }
