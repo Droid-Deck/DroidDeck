@@ -48,7 +48,7 @@ class SteamWallService : WallpaperService() {
                     lastDrawNanos = frameTimeNanos
                     runCatching { draw() }
                 }
-                choreographer?.postFrameCallback(this)
+                if (synchronized(lock) { surfaceLive }) choreographer?.postFrameCallback(this)
             }
         }
 
@@ -119,6 +119,7 @@ class SteamWallService : WallpaperService() {
             stopTicking()
             handler.removeCallbacks(redraw)
             synchronized(lock) { surfaceLive = false }
+            handler.post { stopTicking() }
         }
 
         override fun onDestroy() {

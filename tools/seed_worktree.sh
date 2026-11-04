@@ -22,7 +22,9 @@ for path in "${paths[@]}"; do
         staged=$(mktemp -d "${repo_root}/${path}.seed.XXXXXX")
         trap 'rm -rf "${staged}"' EXIT
         cp -R "${main_root}/${path}/." "${staged}/"
-        rm -rf "${repo_root}/${path}"
+        if [[ -d "${repo_root}/${path}" ]] && ! rmdir "${repo_root}/${path}" 2>/dev/null; then
+            rm -rf "${staged}"; trap - EXIT; continue
+        fi
         mv "${staged}" "${repo_root}/${path}"
         trap - EXIT
     elif [[ ! -e "${repo_root}/${path}" ]]; then
