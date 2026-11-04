@@ -89,8 +89,8 @@ object AutoComponents {
     fun queueRepair(context: Context, id: String, gameKey: String?, revision: Int) {
         if (!WinComponents.validId(id)) return
         gameKey?.let { Pending.add(context, it, listOf(id), mapOf(id to revision)) }
-        repairFailures.value = repairFailures.value - id
-        queueDownload(context, id, asked = true, inSession = gameKey != null, revision = revision)
+        queueDownload(context, id, asked = true, inSession = gameKey != null,
+            revision = maxOf(revision, Pending.revision(context, id) ?: 0))
     }
 
     private fun queueDownload(context: Context, id: String, asked: Boolean, inSession: Boolean = false, revision: Int? = null) =
@@ -125,8 +125,15 @@ object AutoComponents {
 
     private fun gameProcessRunning(): Boolean = com.droiddeck.launcher.session.SteamGameProcess.running()
 
+    private fun queuePending(context: Context, key: String) {
+        Pending.ids(context, key).forEach { id ->
+            queueDownload(context, id, asked = true, inSession = true, revision = Pending.revision(context, id))
+        }
+    }
+
     fun queueInSession(context: Context, game: Library.SteamGame) {
-        if (appKey(game) == null) return
+        val key = appKey(game) ?: return
+        queuePending(context, key)
         enqueue(context, Job(game, null, true, seq.incrementAndGet(), inSession = true))
     }
 
@@ -217,8 +224,9 @@ object AutoComponents {
             queueDownload(context, id, asked, inSession, catalog[id]?.revision)
             missing.add(id)
         }
-        if (inSession) Pending.set(context, key, (Pending.ids(context, key).filter { it !in installed && it !in wanted } + missing).distinct(),
-            catalog.mapValues { it.value.revision })
+        if (inSession) Pending.set(context, key, (Pending.ids(context, key).filter { id ->
+            id !in installed && id !in wanted || (Pending.revision(context, id) ?: 0) > (catalog[id]?.revision ?: 0)
+        } + missing).distinct(), catalog.mapValues { it.value.revision })
         if (before.keys != kept.keys) {
             WinComponents.setAuto(context, key, kept)
             Log.i(TAG, "${game.name}: on by itself ${kept.keys.joinToString().ifEmpty { "(none)" }}")
@@ -233,7 +241,8 @@ object AutoComponents {
             return
         }
         val catalogComponent = catalog[id]
-        if (requestedRevision != null && catalogComponent != null && catalogComponent.revision < requestedRevision) {
+        val requiredRevision = maxOf(requestedRevision ?: 0, Pending.revision(context, id) ?: 0)
+        if (catalogComponent != null && catalogComponent.revision < requiredRevision) {
             repairFailures.value = repairFailures.value + (id to "The component catalog is older than the requested revision")
             return
         }
@@ -284,6 +293,9 @@ object AutoComponents {
 
         @Synchronized fun ids(context: Context, key: String): List<String> =
             read(context).optJSONArray(key)?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
+
+        @Synchronized fun revision(context: Context, id: String): Int? =
+            runCatching { JSONObject(file(context).readText()).optJSONObject("revisions")?.optInt(id) }.getOrNull()
 
         @Synchronized fun add(context: Context, key: String, ids: List<String>, revisions: Map<String, Int> = emptyMap()) {
             val games = read(context)
@@ -383,21 +395,24 @@ object AutoComponents {
     }
 
 
-    fun beforeLaunch(context: Context, game: Library.SteamGame) = queueGame(context, game, asked = false)
+    fun beforeLaunch(context: Context, game: Library.SteamGame) {
+        appKey(game)?.let { queuePending(context, it) }
+        queueGame(context, game, asked = false)
+    }
 
     fun restoreMissing(context: Context): List<String> {
         val selections = WinComponents.selections(context)
-        if (selections.isEmpty()) return emptyList()
-        val catalog = (catalogOf(context, false) ?: catalogOf(context, true))?.associateBy { it.name } ?: return emptyList()
+        val catalog = (catalogOf(context, false) ?: catalogOf(context, true))?.associateBy { it.name }
         val installed = installedOf(context)
-        val lostFor = selections.mapValues { (_, selection) ->
+        val lostFor = if (catalog == null) emptyMap() else selections.mapValues { (_, selection) ->
             withParts(selection.effective.filter { WinComponents.validId(it) }, catalog).filter { it !in installed && it in catalog }
         }.filterValues { it.isNotEmpty() }
-        if (lostFor.isEmpty()) return emptyList()
         val lost = lostFor.values.flatten().distinct()
-        Log.i(TAG, "wincomp: reinstalling ${lost.joinToString()}, picked for games but missing from the runtime")
-        lostFor.forEach { (key, ids) -> Pending.add(context, key, ids, catalog.mapValues { it.value.revision }) }
-        lost.forEach { queueDownload(context, it, asked = true, inSession = true, revision = catalog[it]?.revision) }
+        if (lost.isNotEmpty()) {
+            Log.i(TAG, "wincomp: reinstalling ${lost.joinToString()}, picked for games but missing from the runtime")
+            lostFor.forEach { (key, ids) -> Pending.add(context, key, ids, catalog!!.mapValues { it.value.revision }) }
+        }
+        Pending.read(context).keys().asSequence().toList().forEach { queuePending(context, it) }
         return lost
     }
 

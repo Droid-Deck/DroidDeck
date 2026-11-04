@@ -322,12 +322,27 @@ class WinCompSourcesTest {
         val repair = WinComponents.Component("vcredist2010_dll", "", "", "ready", emptyList(), emptyList(), revision = 1)
         AutoComponents.catalogOf = { _, _ -> catalog3 + repair }
         installedNow.add(repair.name)
-        AutoComponents.queueRepair(app, repair.name, "4242", revision = 2)
+        AutoComponents.Pending.add(app, "4242", listOf(repair.name), mapOf(repair.name to 2))
+        AutoComponents.queueRepair(app, repair.name, "4242", revision = 1)
         AutoComponents.drain(app)
         assertEquals("The component catalog is older than the requested revision", AutoComponents.repairFailures.value[repair.name])
         assertEquals(listOf(repair.name), AutoComponents.Pending.ids(app, "4242"))
         val pendingFile = File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app), "root/.config/droiddeck/wincomponents-pending.json")
         assertEquals(2, JSONObject(pendingFile.readText()).getJSONObject("revisions").getInt(repair.name))
+    }
+
+    @Test fun restoreRequeuesPersistedRevisionEvenWhenOlderComponentIsInstalled() = withFakeWorker {
+        val repair = WinComponents.Component("vcredist2010_dll", "", "", "ready", emptyList(), emptyList(), revision = 1)
+        AutoComponents.catalogOf = { _, _ -> catalog3 + repair }
+        installedNow.add(repair.name)
+        AutoComponents.Pending.add(app, "4242", listOf(repair.name), mapOf(repair.name to 2))
+        assertTrue(WinComponents.selections(app).isEmpty())
+        assertTrue(AutoComponents.restoreMissing(app).isEmpty())
+        assertEquals("The component catalog is older than the requested revision", AutoComponents.repairFailures.value[repair.name])
+        assertEquals(listOf(repair.name), AutoComponents.Pending.ids(app, "4242"))
+        assertEquals(2, AutoComponents.Pending.revision(app, repair.name))
+        AutoComponents.queueInSession(app, game(null, Library.SOURCE_STEAM, 4242, library = "steam"))
+        assertEquals(listOf(repair.name), AutoComponents.Pending.ids(app, "4242"))
     }
 
     @Test fun manualRepairsRecordTheirRevisionAndExposeFailuresForRetry() = withFakeWorker {
