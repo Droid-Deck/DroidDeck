@@ -103,6 +103,16 @@ class BattleNetTest {
         assertEquals("FEXCore-2610-d2rfix28-linux.wcp", BattleNet.ensureFex(context, ::noRefresh))
     }
 
+    @Test fun aSourceQualifiedBuildIsFoundAndSelectedByItsStoredFilename() {
+        val remote = "FEXCore-2610-d2rfix28-linux.wcp"
+        val local = "${"ab".repeat(32)}-source.wcp"
+        store(local)
+
+        assertEquals(local, BattleNet.ensureFex(context) { listOf(item(remote).copy(localFile = local)) })
+
+        assertEquals(mapOf("fex" to local), ComponentsManager.gameComponents(context, BattleNet.APP_ID.toString()))
+    }
+
     @Test fun aNewerBuildReplacesTheOldOne() {
         catalog("FEXCore-2609-d2rfix25-linux.wcp")
         store("FEXCore-2609-d2rfix25-linux.wcp")
