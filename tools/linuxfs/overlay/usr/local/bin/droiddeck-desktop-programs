@@ -1,9 +1,9 @@
 #!/usr/bin/python3
+import fcntl
 import glob
 import os
 import re
 import runpy
-import shlex
 import struct
 import subprocess
 import sys
@@ -20,6 +20,8 @@ SHORTCUT_BIT = 0x80000000
 WINDOWS_DESKTOPS = ("users/Public/Desktop", "users/steamuser/Desktop")
 NOT_PROGRAMS = re.compile(r"(?i)^unins")
 
+_run = None
+
 
 def read(path):
     try:
@@ -29,9 +31,20 @@ def read(path):
         return None
 
 
+def proton_run():
+    global _run
+    if _run is None:
+        _run = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-proton-run"))
+    return _run
+
+
 def shortcut_ids(root):
-    run = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-proton-run"))
-    return {appid for appid, _, _ in run["shortcut_entries"](root)}
+    return {appid for appid, _, _ in proton_run()["shortcut_entries"](root)}
+
+
+def runs_here(pfx, exe):
+    target = proton_run()["prefix_of"](exe)
+    return target is not None and os.path.realpath(target.compatdata) == os.path.realpath(os.path.dirname(pfx))
 
 
 def prefixes(root):
@@ -135,7 +148,8 @@ def icon(shortcuts, name):
 def program(pfx, link):
     target, args = link_target(link)
     exe = host_path(pfx, target)
-    if exe and exe.lower().endswith(".exe") and not NOT_PROGRAMS.match(os.path.basename(exe)) and os.path.isfile(exe):
+    if (exe and exe.lower().endswith(".exe") and not NOT_PROGRAMS.match(os.path.basename(exe)) and os.path.isfile(exe)
+            and runs_here(pfx, exe)):
         return exe, args
     return None, ""
 
@@ -165,13 +179,39 @@ def on_windows_desktop(pfx):
     return found
 
 
+def windows_args(text):
+    args, current, started, quoted, slashes = [], "", False, False, 0
+    for ch in text:
+        if ch == "\\":
+            slashes += 1
+            started = True
+        elif ch == '"':
+            current += "\\" * (slashes // 2) + ('"' if slashes % 2 else "")
+            if slashes % 2 == 0:
+                quoted = not quoted
+            slashes, started = 0, True
+        else:
+            current += "\\" * slashes
+            slashes = 0
+            if ch in " \t" and not quoted:
+                if started:
+                    args.append(current)
+                current, started = "", False
+            else:
+                current += ch
+                started = True
+    if started:
+        args.append(current + "\\" * slashes)
+    return args
+
+
 def quoted(arg):
     escaped = re.sub(r'([\\"`$])', r"\\\1", arg).replace("%", "%%")
     return '"%s"' % escaped.replace("\\", "\\\\")
 
 
 def entry(exe, found):
-    args = shlex.split(found["args"].replace("\\", "\\\\")) if found["args"].strip() else []
+    args = windows_args(found["args"])
     lines = ["[Desktop Entry]", "Type=Application", "Name=%s" % found["name"].replace("\n", " "),
              "Comment=Windows program installed from the desktop",
              "Exec=%s" % " ".join(quoted(arg) for arg in [OPEN, exe] + args),
@@ -204,6 +244,13 @@ def sync(directory, wanted, mode=0o644):
 
 
 def main():
+    os.makedirs(os.path.dirname(PLACED), exist_ok=True)
+    with open(PLACED + ".lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        refresh()
+
+
+def refresh():
     menu, desktop_wanted = {}, set()
     for appid, pfx in prefixes(STEAM_ROOT):
         on_desktop = on_windows_desktop(pfx)
@@ -217,7 +264,6 @@ def main():
     placed = set((read(PLACED) or "").split())
     shown = {name: menu[name] for name in desktop_wanted if name not in placed or os.path.exists(os.path.join(desktop, name))}
     sync(desktop, shown, 0o755)
-    os.makedirs(os.path.dirname(PLACED), exist_ok=True)
     with open(PLACED + ".tmp", "w", encoding="utf-8") as f:
         f.write("".join(name + "\n" for name in sorted((placed | set(shown)) & set(menu))))
     os.replace(PLACED + ".tmp", PLACED)

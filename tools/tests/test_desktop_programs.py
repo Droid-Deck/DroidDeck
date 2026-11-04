@@ -146,6 +146,39 @@ class ProgramsTest(unittest.TestCase):
         self.assertIn('Exec="%s" "%s" "-mode" "full screen" "C:\\\\\\\\save"\n' % (PROGRAMS["OPEN"], exe),
                       (self.apps / name).read_text())
 
+    def test_a_link_to_a_program_outside_the_prefix_gets_no_entry(self):
+        outside = self.tmp / "Downloads/tool.exe"
+        outside.parent.mkdir(parents=True)
+        outside.write_bytes(b"MZ")
+        self.install(self.prefix(NEXON), name="Tool", target="Z:" + str(outside).replace("/", "\\"))
+        PROGRAMS["main"]()
+        self.assertEqual([], self.entries(self.apps))
+
+    def test_windows_arguments_follow_windows_quoting(self):
+        cases = {
+            "--profile=O'Brien": ["--profile=O'Brien"],
+            '-mode "full screen" C:\\save': ["-mode", "full screen", "C:\\save"],
+            '"a\\"b" \\\\server\\share': ['a"b', "\\\\server\\share"],
+            '"x\\\\" y': ["x\\", "y"],
+            "  ": [],
+        }
+        for text, expected in cases.items():
+            with self.subTest(text):
+                self.assertEqual(expected, PROGRAMS["windows_args"](text))
+
+    def test_an_apostrophe_in_a_links_arguments_does_not_stop_the_refresh(self):
+        exe = self.install(self.prefix(NEXON), args="--profile=O'Brien")
+        PROGRAMS["main"]()
+        [name] = self.entries(self.apps)
+        self.assertIn('Exec="%s" "%s" "--profile=O\'Brien"\n' % (PROGRAMS["OPEN"], exe), (self.apps / name).read_text())
+
+    def test_refreshes_take_turns(self):
+        calls = []
+        with mock.patch.object(PROGRAMS["fcntl"], "flock", lambda lock, op: calls.append(op)), \
+                mock.patch.dict(PROGRAMS, {"refresh": lambda: calls.append("refresh")}):
+            PROGRAMS["main"]()
+        self.assertEqual([PROGRAMS["fcntl"].LOCK_EX, "refresh"], calls)
+
     def test_a_link_with_a_unicode_path_block_is_read_too(self):
         path = self.tmp / "game.lnk"
         path.write_bytes(lnk("C:\\Games\\Ünïcode\\game.exe", wide_info=True))
