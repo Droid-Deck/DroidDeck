@@ -35,6 +35,7 @@ import kotlin.concurrent.thread
 class ComponentsCatalogSourcesTest {
     private lateinit var context: Context
     private val productionRefresher = ComponentsManager.catalogRefresher
+    private val productionReleaseRefresher = ComponentsManager.catalogReleaseRefresher
     private val productionDownloader = ComponentsManager.packageDownloader
     private val productionReceiptWriter = ComponentsManager.packageReceiptWriter
 
@@ -50,6 +51,7 @@ class ComponentsCatalogSourcesTest {
             })
         }
         ComponentsManager.catalogRefresher = productionRefresher
+        ComponentsManager.catalogReleaseRefresher = productionReleaseRefresher
         ComponentsManager.packageDownloader = productionDownloader
         ComponentsManager.packageReceiptWriter = productionReceiptWriter
     }
@@ -57,6 +59,7 @@ class ComponentsCatalogSourcesTest {
     @After
     fun tearDown() {
         ComponentsManager.catalogRefresher = productionRefresher
+        ComponentsManager.catalogReleaseRefresher = productionReleaseRefresher
         ComponentsManager.packageDownloader = productionDownloader
         ComponentsManager.packageReceiptWriter = productionReceiptWriter
     }
@@ -65,7 +68,7 @@ class ComponentsCatalogSourcesTest {
     fun cacheOnlyReadsNeverFetchSidecarsAndWarmFailuresKeepTheirRealTimestamp() {
         val sources = bindBuiltIns()
         var calls = 0
-        ComponentsManager.catalogRefresher = { _, comp, source ->
+        ComponentsManager.catalogRefresher = { _, comp, source, _ ->
             calls++
             if (comp == "dxvk") listOf(item(comp, source, "dxvk.wcp")) else emptyList()
         }
@@ -76,7 +79,7 @@ class ComponentsCatalogSourcesTest {
         assertTrue(fresh.failed.isEmpty())
 
         calls = 0
-        ComponentsManager.catalogRefresher = { _, _, _ -> calls++; error("cache-only fetched") }
+        ComponentsManager.catalogRefresher = { _, _, _, _ -> calls++; error("cache-only fetched") }
         val cached = ComponentsManager.catalog(context, false)
         assertEquals(0, calls)
         assertEquals(fresh.items.map { it.id }, cached.items.map { it.id })
@@ -92,7 +95,7 @@ class ComponentsCatalogSourcesTest {
     @Test
     fun coldFailuresStayColdAndAreReported() {
         bindBuiltIns()
-        ComponentsManager.catalogRefresher = { _, _, _ -> throw IOException("offline") }
+        ComponentsManager.catalogRefresher = { _, _, _, _ -> throw IOException("offline") }
         val result = ComponentsManager.catalog(context, true)
         assertTrue(result.items.isEmpty())
         assertEquals(0L, result.fetchedAt)
@@ -102,9 +105,9 @@ class ComponentsCatalogSourcesTest {
     @Test
     fun rateLimitSurvivesPerSourceFailuresWithoutDiscardingCachedItems() {
         bindBuiltIns()
-        ComponentsManager.catalogRefresher = { _, comp, source -> listOf(item(comp, source, "$comp.wcp")) }
+        ComponentsManager.catalogRefresher = { _, comp, source, _ -> listOf(item(comp, source, "$comp.wcp")) }
         val cached = ComponentsManager.catalog(context, true)
-        ComponentsManager.catalogRefresher = { _, comp, _ ->
+        ComponentsManager.catalogRefresher = { _, comp, _, _ ->
             if (comp == ComponentsManager.COMPONENTS.first()) throw IOException("wrapped", GitHubArtifacts.RateLimitException(Long.MAX_VALUE))
             throw IOException("offline")
         }
@@ -113,6 +116,120 @@ class ComponentsCatalogSourcesTest {
         assertEquals(cached.items.map { it.id }, failed.items.map { it.id })
         assertEquals(cached.fetchedAt, failed.fetchedAt)
         assertFalse(ComponentsManager.catalog(context, false).rateLimited)
+    }
+
+    @Test
+    fun oneRepositoryRefreshMapsEveryComponentAndKeepsBridgePackagesAtTheirRuleNames() {
+        var calls = 0
+        val repository = RepositorySources.canonicalRepository("The412Banner/Nightlies")
+        fun release(id: Long, tag: String, name: String): GitHubArtifacts.Release {
+            val digest = id.toString(16).padStart(64, '0')
+            val asset = GitHubArtifacts.Asset(
+                id, name, GitHubArtifacts.releaseAssetUrl(repository, tag, name), 123, digest,
+            )
+            return GitHubArtifacts.Release(id, tag, tag, "", "", false, listOf(asset))
+        }
+        val releases = listOf(
+            release(11, "FexCore-Linux", "fex.wcp"),
+            release(12, "Dxvk-Linux", ComponentsManager.DXVK_FOR_VULKAN_1_1),
+            release(13, "Vkd3d-proton-Linux", "vkd3d.wcp"),
+        )
+        ComponentsManager.catalogReleaseRefresher = { _, _, source ->
+            calls++
+            assertEquals(repository, source.repository)
+            ComponentsManager.ReleaseRefresh(1234, releases)
+        }
+
+        val fresh = ComponentsManager.catalog(context, true)
+
+        assertEquals(1, calls)
+        assertEquals(ComponentsManager.COMPONENTS.toSet(), fresh.items.map { it.comp }.toSet())
+        val bridge = fresh.items.single { it.file == ComponentsManager.DXVK_FOR_VULKAN_1_1 }
+        assertEquals(bridge.file, bridge.localFile)
+        assertEquals(fresh.items, ComponentsManager.catalog(context, false).items)
+    }
+
+    @Test
+    fun reusedReleasesStillRejectAHiddenSourceInALaterScope() {
+        var calls = 0
+        ComponentsManager.catalogReleaseRefresher = { _, _, _ ->
+            calls++
+            ComponentsManager.ReleaseRefresh(1234, emptyList())
+        }
+        val shared = HashMap<String, ComponentsManager.ReleaseRefresh>()
+        val fex = RepositorySources.visible(context, ComponentsManager.sourceScope("fex"), ComponentsManager.sourceBuiltIns("fex")).single()
+        ComponentsManager.refreshCatalogSource(context, "fex", fex, shared)
+        val staleDxvk = RepositorySources.visible(
+            context, ComponentsManager.sourceScope("dxvk"), ComponentsManager.sourceBuiltIns("dxvk"),
+        ).single()
+        ComponentsManager.saveSources(context, "dxvk", ComponentsManager.sources(context, "dxvk").map {
+            if (it.id == staleDxvk.id) it.copy(hidden = true) else it
+        })
+
+        assertTrue(runCatching {
+            ComponentsManager.refreshCatalogSource(context, "dxvk", staleDxvk, shared)
+        }.isFailure)
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun oneScopesRefreshFailureDoesNotPoisonAnotherScopeForTheSameRepository() {
+        var calls = 0
+        val repository = RepositorySources.canonicalRepository("The412Banner/Nightlies")
+        fun release(id: Long, tag: String, name: String): GitHubArtifacts.Release {
+            val digest = id.toString(16).padStart(64, '0')
+            return GitHubArtifacts.Release(id, tag, "", "", "", false, listOf(GitHubArtifacts.Asset(
+                id, name, GitHubArtifacts.releaseAssetUrl(repository, tag, name), 123, digest,
+            )))
+        }
+        val releases = listOf(
+            release(12, "Dxvk-Linux", "dxvk.wcp"),
+            release(13, "Vkd3d-proton-Linux", "vkd3d.wcp"),
+        )
+        ComponentsManager.catalogReleaseRefresher = { _, comp, _ ->
+            calls++
+            if (comp == "fex") throw IOException("source changed")
+            ComponentsManager.ReleaseRefresh(1234, releases)
+        }
+
+        val result = ComponentsManager.catalog(context, true)
+
+        assertEquals(2, calls)
+        assertEquals(listOf("fex:$repository"), result.failed)
+        assertEquals(setOf("dxvk", "vkd3d"), result.items.map { it.comp }.toSet())
+    }
+
+    @Test
+    fun aCustomRepositoryCannotClaimTheFixedBridgePackageFilename() {
+        val comp = "dxvk"
+        ComponentsManager.COMPONENTS.filter { it != comp }.forEach { other ->
+            ComponentsManager.saveSources(context, other, ComponentsManager.sources(context, other).map { it.copy(hidden = true) })
+        }
+        val custom = RepositorySources.source("example/components")
+        ComponentsManager.saveSources(context, comp,
+            ComponentsManager.sources(context, comp).map { it.copy(hidden = true) } + custom)
+        val digest = "a".repeat(64)
+        val asset = GitHubArtifacts.Asset(12, ComponentsManager.DXVK_FOR_VULKAN_1_1,
+            GitHubArtifacts.releaseAssetUrl(custom.repository, "Dxvk-Linux", ComponentsManager.DXVK_FOR_VULKAN_1_1),
+            123, digest)
+        ComponentsManager.catalogReleaseRefresher = { _, _, _ -> ComponentsManager.ReleaseRefresh(
+            5678, listOf(GitHubArtifacts.Release(11, "Dxvk-Linux", "", "", "", false, listOf(asset))),
+        ) }
+
+        val bridge = ComponentsManager.catalog(context, true).items.single()
+
+        assertNotEquals(bridge.file, bridge.localFile)
+        assertEquals("$digest-${custom.id}.wcp", bridge.localFile)
+        assertFalse(ComponentsManager.fixedPackageName("dxvk", bridge.file, "Dxvk-arm64ec-Linux"))
+    }
+
+    @Test
+    fun legacyBridgePackagesKeepTheFilenameUsedByAutomaticRules() {
+        writeLegacyCatalog(listOf(legacyItem("dxvk", ComponentsManager.DXVK_FOR_VULKAN_1_3_NO_INT64)))
+
+        val bridge = ComponentsManager.catalog(context, false).items.single()
+
+        assertEquals(bridge.file, bridge.localFile)
     }
 
     @Test
@@ -216,7 +333,7 @@ class ComponentsCatalogSourcesTest {
             legacyItem("dxvk", "dxvk.wcp"),
             legacyItem("dxvk", name).put("release", nightly.release).put("url", nightly.url),
         ))
-        ComponentsManager.catalogRefresher = { _, comp, configured ->
+        ComponentsManager.catalogRefresher = { _, comp, configured, _ ->
             if (comp == "dxvk" && configured.id == bound.id) listOf(nightly) else throw IOException("offline")
         }
 
@@ -249,7 +366,7 @@ class ComponentsCatalogSourcesTest {
                 size = stored.length(), digest = "sha256:$digest", localFile = "$digest-${bound.id}.wcp",
             )
         }
-        ComponentsManager.catalogRefresher = { _, comp, configured ->
+        ComponentsManager.catalogRefresher = { _, comp, configured, _ ->
             if (comp == "dxvk" && configured.id == bound.id) catalogItems else throw IOException("offline")
         }
 
