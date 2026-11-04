@@ -881,6 +881,7 @@
     <string name="setup_home">استخدام كشاشة رئيسية</string>
     <string name="setup_home_on">يمكن أن يكون DroidDeck تطبيق الشاشة الرئيسية</string>
     <string name="setup_home_off">لا يُعرَض DroidDeck أبدًا كتطبيق للشاشة الرئيسية</string>
+    <string name="setup_home_game_space_first">في إضافة الألعاب، اضبط DroidDeck على تضمين</string>
     <string name="setup_orientation">الاتجاه</string>
     <string name="setup_launcher_orientation">اتجاه المشغّل</string>
     <string name="setup_launcher_orientation_auto">اتّباع تدوير الجهاز</string>
