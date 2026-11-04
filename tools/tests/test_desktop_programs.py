@@ -131,14 +131,18 @@ class ProgramsTest(unittest.TestCase):
         PROGRAMS["main"]()
         self.assertEqual([], self.entries(self.apps))
 
+    def steam_shortcut(self, account, appid):
+        vdf = self.steam / "userdata" / str(account) / "config/shortcuts.vdf"
+        vdf.parent.mkdir(parents=True)
+        vdf.write_bytes(b"\0shortcuts\0\0" + b"0\0\x02appid\0" + struct.pack("<i", appid - 2 ** 32)
+                        + b"\x01Exe\0\"C:\\\\launcher.exe\"\0\x08\x08\x08")
+        return vdf
+
     def test_steam_shortcuts_it_cannot_read_leave_the_menu_as_it_was(self):
         if os.geteuid() == 0:
             self.skipTest("file permissions do not apply to root")
         self.install(self.prefix(NEXON))
-        vdf = self.steam / "userdata/123/config/shortcuts.vdf"
-        vdf.parent.mkdir(parents=True)
-        vdf.write_bytes(b"\0shortcuts\0\0" + b"0\0\x02appid\0" + struct.pack("<i", NEXON - 2 ** 32)
-                        + b"\x01Exe\0\"C:\\\\launcher.exe\"\0\x08\x08\x08")
+        vdf = self.steam_shortcut(123, NEXON)
         with mock.patch.dict(PROGRAMS, {"shortcut_ids": SHORTCUT_IDS}):
             PROGRAMS["main"]()
             self.assertEqual([], self.entries(self.apps))
@@ -148,12 +152,33 @@ class ProgramsTest(unittest.TestCase):
             finally:
                 vdf.chmod(0o644)
             self.assertEqual([], self.entries(self.apps))
-            vdf.write_bytes(vdf.read_bytes()[:20])
-            PROGRAMS["main"]()
-            self.assertEqual([], self.entries(self.apps))
+            for damaged in (vdf.read_bytes()[:20], b""):
+                vdf.write_bytes(damaged)
+                PROGRAMS["main"]()
+                self.assertEqual([], self.entries(self.apps))
             vdf.unlink()
             PROGRAMS["main"]()
             self.assertEqual(1, len(self.entries(self.apps)))
+
+    def test_a_steam_account_it_cannot_look_up_leaves_the_menu_as_it_was(self):
+        if os.geteuid() == 0:
+            self.skipTest("file permissions do not apply to root")
+        self.install(self.prefix(NEXON))
+        self.steam_shortcut(123, NEXON)
+        (self.steam / "userdata/456").mkdir()
+        users = self.steam / "config/loginusers.vdf"
+        users.parent.mkdir(parents=True)
+        users.write_text('"users"\n{\n\t"%d"\n\t{\n\t\t"MostRecent"\t\t"1"\n\t}\n}\n' % (76561197960265728 + 123))
+        with mock.patch.dict(PROGRAMS, {"shortcut_ids": SHORTCUT_IDS}):
+            PROGRAMS["main"]()
+            self.assertEqual([], self.entries(self.apps))
+            for unreadable in (users, self.steam / "userdata"):
+                unreadable.chmod(0)
+                try:
+                    PROGRAMS["main"]()
+                finally:
+                    unreadable.chmod(0o755)
+                self.assertEqual([], self.entries(self.apps))
 
     def test_uninstallers_and_links_to_other_files_get_no_entry(self):
         pfx = self.prefix(NEXON)
