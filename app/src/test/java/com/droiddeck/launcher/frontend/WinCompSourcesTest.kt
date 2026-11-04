@@ -303,6 +303,20 @@ class WinCompSourcesTest {
         assertEquals(1 + downloaded.size, requests.count { it })
     }
 
+    @Test fun normalLaunchRecordsPendingComponentsBeforeQueueingTheirRepairs() = withFakeWorker {
+        AutoComponents.installer = { _, c, _, _ ->
+            assertTrue(c.name in AutoComponents.Pending.ids(app, "1262580"))
+            assertEquals(c.revision, AutoComponents.Pending.revision(app, c.name))
+            downloaded.add(c.name)
+            installedNow.add(c.name)
+            null
+        }
+
+        AutoComponents.queueGame(app, payback(), asked = true)
+
+        assertTrue(AutoComponents.Pending.ids(app, "1262580").isEmpty())
+    }
+
     @Test fun pendingRepairsKeepTheirRequiredRevisionUntilTheyFinish() = withFakeWorker {
         val repair = WinComponents.Component("vcredist2010_dll", "", "", "ready", emptyList(), emptyList(), revision = 2)
         AutoComponents.catalogOf = { _, _ -> catalog3 + repair }

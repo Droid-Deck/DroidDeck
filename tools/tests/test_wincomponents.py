@@ -277,7 +277,10 @@ class PendingWaitTest(unittest.TestCase):
     def install(self, cid, revision=0):
         folder = self.store / cid
         folder.mkdir(parents=True, exist_ok=True)
-        (folder / "component.json").write_text(json.dumps({"id": cid, "overrides": [], "revision": revision}))
+        metadata = {"id": cid, "overrides": []}
+        if revision is not None:
+            metadata["revision"] = revision
+        (folder / "component.json").write_text(json.dumps(metadata))
 
     def clock(self):
         return len(self.slept) * 0.5
@@ -295,6 +298,8 @@ class PendingWaitTest(unittest.TestCase):
         self.assertIsNone(self.wait())
         self.install("d3dx9")
         self.pending.write_text(json.dumps({"games": {"1262580": ["d3dx9"]}}))
+        self.assertIsNone(self.wait())
+        self.install("d3dx9", revision=None)
         self.assertIsNone(self.wait())
         self.assertEqual([], self.slept)
 

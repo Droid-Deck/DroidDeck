@@ -227,12 +227,12 @@ object AutoComponents {
             if (id in installed) { kept[id] = reason; continue }
             if (id in before) kept[id] = reason
             synchronized(waiting) { waiting.getOrPut(id) { ArrayList() }.let { if (it.none { g -> appKey(g) == key }) it.add(game) } }
-            queueDownload(context, id, asked, inSession, catalog[id]?.revision)
             missing.add(id)
         }
-        if (inSession) Pending.update(context, key, catalog.mapValues { it.value.revision }) { ids ->
+        Pending.update(context, key, catalog.mapValues { it.value.revision }) { ids ->
             ids.filter { id -> user[id] != false && (id !in installed && id !in wanted || (Pending.revision(context, id) ?: 0) > (catalog[id]?.revision ?: 0)) } + missing
         }
+        missing.forEach { id -> queueDownload(context, id, asked, inSession, catalog[id]?.revision) }
         if (before.keys != kept.keys) {
             WinComponents.setAuto(context, key, kept)
             Log.i(TAG, "${game.name}: on by itself ${kept.keys.joinToString().ifEmpty { "(none)" }}")
