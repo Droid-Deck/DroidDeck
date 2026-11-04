@@ -1,25 +1,30 @@
 #!/usr/bin/env bash
-# Smoke test of a DroidDeck build on a real device, over plain adb (no python, no root).
-#
-# What it does, in order, and restores afterwards:
-#   1. prints the device (model, Android, kernel, page size, SoC);
-#   2. installs --apk when given and launches the app;
-#   3. checks that the app starts and that nothing in the crash buffer belongs to it;
-#   4. changes the display density and the window size and checks the app keeps its process
-#      (and does not recreate the activity that is on top);
-#   5. on a foldable cycles the device state (half-opened, and with --closed also closed) through
-#      `cmd device_state`, then puts the original state back;
-#   6. reads the newest session folder of a debug build: first frame, last frame rate, the
-#      memory page size, the proot that session ran, and the last process exits.
-#
-# Usage: tools/device-smoke.sh [--serial SERIAL] [--apk FILE] [--pkg PACKAGE]
-#                              [--no-density] [--no-size] [--no-fold] [--closed]
-# Exit status: 0 when no check failed, 1 when one did, 2 for a usage or device problem.
-#
-# Not a replacement for tools/droiddeck-scenario, which drives a game through the agent bridge;
-# this covers what that does not: display changes and foldable states.
 set -u
 export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'
+
+usage() {
+  cat <<'EOF'
+Smoke test of a DroidDeck build on a real device, over plain adb (no python, no root).
+
+What it does, in order, and restores afterwards:
+  1. prints the device (model, Android, kernel, page size, SoC);
+  2. installs --apk when given and launches the app;
+  3. checks that the app starts and that nothing in the crash buffer belongs to it;
+  4. changes the display density and the window size and checks the app keeps its process
+     (and does not recreate the activity that is on top);
+  5. on a foldable cycles the device state (half-opened, and with --closed also closed) through
+     `cmd device_state`, then puts the original state back;
+  6. reads the newest session folder of a debug build: first frame, last frame rate, the
+     memory page size, the proot that session ran, and the last process exits.
+
+Usage: tools/device-smoke.sh [--serial SERIAL] [--apk FILE] [--pkg PACKAGE]
+                             [--no-density] [--no-size] [--no-fold] [--closed]
+Exit status: 0 when no check failed, 1 when one did, 2 for a usage or device problem.
+
+Not a replacement for tools/droiddeck-scenario, which drives a game through the agent bridge;
+this covers what that does not: display changes and foldable states.
+EOF
+}
 
 pkg=com.droiddeck.launcher
 serial=${ANDROID_SERIAL:-}
@@ -39,7 +44,7 @@ while [ $# -gt 0 ]; do
     --no-size) do_size=0 ;;
     --no-fold) do_fold=0 ;;
     --closed) do_closed=1 ;;
-    -h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) usage; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
   shift
@@ -96,7 +101,6 @@ restore_size() {
   echo "$current" | grep -q 'Physical size:' || return 1
   [ "$(echo "$current" | wm_override size)" = "$override_size" ]
 }
-# An override that was already in place (a test lab pins one) is put back; otherwise the request is cancelled.
 restore_fold() { if [ -n "$pre_override" ]; then sh_ cmd device_state state "$pre_override" >/dev/null; else sh_ cmd device_state state reset >/dev/null; fi; }
 
 restore() {
@@ -133,7 +137,7 @@ app_crashes() {
   pat=$(printf '%s' "$pkg" | sed 's/[.[\*^$]/\\&/g')
   printf '%s\n' "$out" | grep -c -E "(Process: |Cmdline: |>>> )$pat([ ,<:]|$)" || true
 }
-relaunches_of() {  # $1 = activity class fragment
+relaunches_of() {
   sh_ logcat -b events -d 2>/dev/null | grep -E 'wm_(relaunch|destroy|create)_activity' | grep -c "$1"
 }
 
@@ -214,7 +218,7 @@ if [ "$do_size" = 1 ]; then
   phys=$(echo "$size_snapshot" | sed -n 's/.*Physical size: \([0-9]*\)x\([0-9]*\).*/\1 \2/p' | head -1)
   set -- $phys
   if [ -n "${1:-}" ]; then
-    w=$(( ($2 * 2 / 3) / 2 * 2 )); h=$1   # a narrower, taller window, like a cover screen
+    w=$(( ($2 * 2 / 3) / 2 * 2 )); h=$1
     pid0=$(app_pid)
     size_changed=1
     wm_status=0
@@ -250,7 +254,7 @@ if [ "$do_fold" = 1 ]; then
   else
     id_of() { echo "$states" | sed -n "s/.*identifier=\([0-9]*\), name='$1'.*/\1/p" | head -1; }
     half=$(id_of HALF_OPENED); closed=$(id_of CLOSED)
-    cycle() {  # $1 name  $2 id
+    cycle() {
       pid0=$(app_pid)
       fold_changed=1
       sh_ cmd device_state state "$2" >/dev/null; sleep 8

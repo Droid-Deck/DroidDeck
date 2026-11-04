@@ -1,6 +1,5 @@
 package com.droiddeck.launcher.glasses
 
-/** Hardware properties; display refresh is selected from Android's advertised modes. */
 interface GlassesModel {
     val name: String
     val controllable: Boolean
@@ -18,9 +17,6 @@ interface GlassesModel {
     fun modeForStep(step: Int): Int?
 }
 
-/** The command IDs here are the existing glasses controller's internal vocabulary.
- * Each transport translates them to its own wire protocol; unsupported controls return false.
- */
 internal interface GlassesLink {
     val hasImu: Boolean
     val badFrames: Long get() = 0L

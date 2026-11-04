@@ -243,6 +243,8 @@ object AddedGameArt {
         val steam: (String, File, Set<Slot>) -> Boolean,
         val sgdbGame: (String, Int?, String) -> Int?,
         val sgdb: (String, Int, File, Set<Slot>) -> Boolean,
+        val sgdbExactGame: (String, Int?, String) -> Int? = { _, _, _ -> null },
+        val battleNetArt: (Context, BattleNet.Title) -> Boolean = { _, _ -> false },
     )
 
     private val network = Sources(
@@ -251,6 +253,8 @@ object AddedGameArt {
         steam = ::download,
         sgdbGame = SteamGridDb::gameId,
         sgdb = SteamGridDb::download,
+        sgdbExactGame = SteamGridDb::exactGameId,
+        battleNetArt = { context, title -> BattleNet.fetchCovers(context, listOf(BattleNet.artTitle(title))) },
     )
 
     private val EXTRAS = setOf(Slot.LOGO, Slot.ICON)
@@ -287,14 +291,20 @@ object AddedGameArt {
         var sgdbDown = false
         var changed = false
         for (game in games) {
+            if (forgetOtherAppsArt(context, game)) changed = true
+            if (forgetNameMatchedBattleNetArt(context, game)) changed = true
+            val battleNetTitle = game.storeId?.takeIf { game.source == Store.BATTLENET.id }?.let(BattleNet::title)
+            if (battleNetTitle != null && runCatching { sources.battleNetArt(context, battleNetTitle) }.getOrDefault(false)) changed = true
+            val cache = cacheDir(context, game)
             val start = missing(context, game)
+            val again = refetch(cache) intersect start
+            if (again.isEmpty()) File(cache, REFETCH).delete()
             val full = Slot.COVER in start
-            val allowed = if (full) Slot.values().toSet() else EXTRAS
+            val allowed = if (full) Slot.values().toSet() else EXTRAS + again
             var need = start intersect allowed
             if (need.isEmpty() || (need == setOf(Slot.ICON) && sgdbKey.isEmpty())) continue
-            val cache = cacheDir(context, game)
             val tried = File(cache, EXTRAS_TRIED)
-            if (!full && tried.isFile && tried.lastModified() >= keyChangedAt && System.currentTimeMillis() - tried.lastModified() < RETRY_AFTER_MS) continue
+            if (!full && again.isEmpty() && tried.isFile && tried.lastModified() >= keyChangedAt && System.currentTimeMillis() - tried.lastModified() < RETRY_AFTER_MS) continue
             cache.mkdirs()
             if (Slot.LOGO in need && game.source != Library.ADDED && runCatching { sources.storeLogo(game) }.getOrDefault(false)) {
                 changed = true
@@ -315,7 +325,7 @@ object AddedGameArt {
             if (need.isNotEmpty() && sgdbKey.isNotEmpty()) {
                 if (sgdbDown) asked = false else try {
                     val gridId = remembered(File(cache, "sgdb-id"), keyChangedAt) {
-                        sources.sgdbGame(sgdbKey, match.appId, game.name)?.toString()
+                        (if (battleNetTitle != null) sources.sgdbExactGame else sources.sgdbGame)(sgdbKey, match.appId, game.name)?.toString()
                     }?.toIntOrNull()
                     if (gridId != null && sources.sgdb(sgdbKey, gridId, cache, need)) changed = true
                 } catch (e: Exception) {
@@ -324,9 +334,55 @@ object AddedGameArt {
                     asked = false
                 }
             }
-            if ((missing(context, game) intersect EXTRAS).isEmpty()) tried.delete() else if (asked) tried.writeText("")
+            val left = missing(context, game)
+            if (again.isNotEmpty()) keepRefetch(cache, again intersect left)
+            if ((left intersect EXTRAS).isEmpty()) tried.delete() else if (asked) tried.writeText("")
         }
         return changed
+    }
+
+    internal const val REFETCH = "refetch"
+
+    private fun refetch(cache: File): Set<Slot> =
+        runCatching { File(cache, REFETCH).readText() }.getOrDefault("").split(',').mapNotNull { key -> Slot.values().firstOrNull { it.key == key } }.toSet()
+
+    private fun keepRefetch(cache: File, slots: Set<Slot>) {
+        if (slots.isEmpty()) File(cache, REFETCH).delete() else File(cache, REFETCH).writeText(slots.joinToString(",") { it.key })
+    }
+
+    internal const val BATTLENET_ART_CHECKED = "battlenet-art-2"
+
+    internal fun forgetNameMatchedBattleNetArt(context: Context, game: AddedGames.Game): Boolean {
+        val title = game.storeId?.takeIf { game.source == Store.BATTLENET.id }?.let(BattleNet::title) ?: return false
+        val cache = cacheDir(context, game)
+        val checked = File(cache, BATTLENET_ART_CHECKED)
+        if (title.steam != null || checked.isFile) return false
+        val dropped = EXTRAS.filter { File(cache, SteamGridDb.cacheName(it)).delete() }
+        EXTRAS.forEach { File(cache, SteamGridDb.cacheName(it) + ".src").delete() }
+        listOf("sgdb-id", EXTRAS_TRIED).forEach { File(cache, it).delete() }
+        cache.mkdirs()
+        checked.writeText("")
+        return dropped.isNotEmpty()
+    }
+
+    internal fun forgetOtherAppsArt(context: Context, game: AddedGames.Game): Boolean {
+        val cache = cacheDir(context, game)
+        val recorded = SteamMatch.get(context, game.folder.path)?.takeIf { it.appId != null }
+        val legacy = runCatching { File(cache, "steam-appid").readText().trim().toInt() }.getOrNull()?.takeIf { it > 0 }
+        val before = recorded?.appId ?: legacy ?: return false
+        val identity = runCatching { GameIdentifier.identify(game.exe) }.getOrNull()
+        val now = identity?.appId
+        val fromFiles = recorded?.certainty == SteamMatch.Certainty.FILES || before == GameIdentifier.SPACEWAR
+        if (now == before || (now == null && !fromFiles)) return false
+        SteamMatch.put(context, game.folder.path,
+            if (identity != null && now != null) SteamMatch.Match(now, SteamMatch.Certainty.FILES, identity.source.name.lowercase(), System.currentTimeMillis())
+            else SteamMatch.Match(null, SteamMatch.Certainty.NONE, "", 0))
+        val dropped = Slot.values().filter { File(cache, SteamGridDb.cacheName(it)).delete() }.toSet()
+        Slot.values().forEach { File(cache, SteamGridDb.cacheName(it) + ".src").delete() }
+        listOf("sgdb-id", "steam-appid", EXTRAS_TRIED).forEach { File(cache, it).delete() }
+        keepRefetch(cache, refetch(cache) + dropped)
+        Log.i(TAG, "${game.name}: its files no longer name Steam app $before; its art is fetched again")
+        return dropped.isNotEmpty()
     }
 
     internal fun steamMatch(context: Context, game: AddedGames.Game, search: (String) -> Int?): SteamMatch.Match {

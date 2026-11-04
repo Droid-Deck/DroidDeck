@@ -21,7 +21,6 @@ object CompositorHost {
     @Volatile
     private var ownVsyncThread = true
 
-    // The screen tick gets its own thread so a busy main thread cannot delay the compositor's frames.
     private val vsyncThread: HandlerThread by lazy {
         HandlerThread("droiddeck-vsync", Process.THREAD_PRIORITY_DISPLAY).apply { start() }
     }
@@ -30,7 +29,6 @@ object CompositorHost {
     @Volatile
     private var vsyncGeneration = 0
 
-    // Each resume gets a new callback; one left queued from an earlier resume, on either thread, stops itself.
     private fun vsyncCallback(generation: Int) = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
             if (generation != vsyncGeneration) return
@@ -51,11 +49,10 @@ object CompositorHost {
         outputHeight: Int,
         refreshHz: Float,
         fpsLimit: Int,
-        uiLimit: Int = 0,
     ): Boolean {
         ownVsyncThread = SessionPrefs.vsyncThread(context)
         WaylandCompositor.nativeSetRenderOnCommit(SessionPrefs.renderOnCommit(context))
-        pace(refreshHz, fpsLimit, uiLimit)
+        pace(refreshHz, fpsLimit)
         if (!SessionState.running) WaylandCompositor.nativeSetOutputSize(outputWidth, outputHeight)
         if (started) {
             attached = surface
@@ -73,16 +70,16 @@ object CompositorHost {
         return true
     }
 
-    private fun pace(refreshHz: Float, fpsLimit: Int, uiLimit: Int = 0) {
-        WaylandCompositor.nativeSetFpsLimit(if (fpsLimit == SessionPrefs.FPS_UNPACED && uiLimit > 0) uiLimit else fpsLimit)
+    private fun pace(refreshHz: Float, fpsLimit: Int) {
+        WaylandCompositor.nativeSetFpsLimit(fpsLimit)
         WaylandCompositor.nativeSetLayerFrameRate(if (fpsLimit > 0) fpsLimit.toFloat() else refreshHz)
         WaylandCompositor.nativeSetOutputRefreshRate(refreshHz)
         SessionState.refreshHz = refreshHz
     }
 
     @Synchronized
-    fun updatePacing(refreshHz: Float, fpsLimit: Int, uiLimit: Int = 0) {
-        if (started) pace(refreshHz, fpsLimit, uiLimit)
+    fun updatePacing(refreshHz: Float, fpsLimit: Int) {
+        if (started) pace(refreshHz, fpsLimit)
     }
 
     @Synchronized

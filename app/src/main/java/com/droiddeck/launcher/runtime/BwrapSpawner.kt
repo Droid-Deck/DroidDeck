@@ -75,7 +75,10 @@ object BwrapSpawner {
         }
     }
 
-    class Plan(val root: File, val binds: List<Bind>, val cwd: String, val argv: List<String>, val env: Map<String, String>)
+    class Plan(
+        val root: File, val binds: List<Bind>, val cwd: String, val argv: List<String>, val env: Map<String, String>,
+        val envTool: String = "/usr/bin/env",
+    )
 
     data class Bind(val host: String, val guest: String) {
         val spec: String get() = if (host == guest) host else "$host:$guest"
@@ -179,12 +182,13 @@ object BwrapSpawner {
         val argv = request.getJSONArray("argv").let { a -> (0 until a.length()).map { a.getString(it) } }
         val env = LinkedHashMap<String, String>()
         request.optJSONObject("env")?.let { e -> e.keys().forEach { k -> env[k] = e.getString(k) } }
-        if (binds.any { it.guest == "/dev" }) gpu(rootfs, root, env)?.forEach { addBind(it) }
+        val envTool = request.optString("envTool").takeIf { it.startsWith("/") }
+        if (envTool == null && binds.any { it.guest == "/dev" }) gpu(rootfs, root, env)?.forEach { addBind(it) }
         val libc = listOf("/usr/lib/aarch64-linux-gnu/libc.so.6", "/lib/aarch64-linux-gnu/libc.so.6").map { hostPath(binds, root.path, it) }
-        if (preloadFits(rootfs, libc.firstOrNull { File(it).isFile } ?: libc.first())) preload(session, rootfs, env).forEach { addBind(it) }
+        if (envTool == null && preloadFits(rootfs, libc.firstOrNull { File(it).isFile } ?: libc.first())) preload(session, rootfs, env).forEach { addBind(it) }
         zypakShims(binds, root, dir).forEach { addBind(it) }
         browserSandboxes(env)
-        return Plan(root, binds, request.optString("cwd", "/").ifEmpty { "/" }, argv, env)
+        return Plan(root, binds, request.optString("cwd", "/").ifEmpty { "/" }, argv, env, envTool ?: "/usr/bin/env")
     }
 
     private const val GPU_DIR = "/run/droiddeck-gpu"
@@ -196,6 +200,7 @@ object BwrapSpawner {
         LIB_DIRS.map { File(rootfs, "$it/$name") }.firstOrNull { it.exists() }
 
     private fun gpu(rootfs: String, root: File, env: MutableMap<String, String>): List<Bind>? {
+        env["VKBRIDGE_SOCKET"]?.let { sock -> if (File(sock).exists()) return bridgeGpu(rootfs, root, env, sock) }
         val driver = runtimeLib(rootfs, "libvulkan_freedreno.so")
         if (driver == null || !File("/dev/kgsl-3d0").exists()) return null
         if (env.containsKey("VK_ICD_FILENAMES") || env.containsKey("VK_DRIVER_FILES")) return null
@@ -215,6 +220,28 @@ object BwrapSpawner {
             env["GALLIUM_DRIVER"] = "zink"
         }
         env["LD_LIBRARY_PATH"] = listOf(env["LD_LIBRARY_PATH"], GPU_DIR).filter { !it.isNullOrEmpty() }.joinToString(":")
+        return binds
+    }
+
+    private fun bridgeGpu(rootfs: String, root: File, env: MutableMap<String, String>, socket: String): List<Bind>? {
+        val driver = File(rootfs, "usr/local/lib/vkbridge/libvulkan_droidbridge.so")
+        if (!driver.isFile) { Log.w(TAG, "gpu: vkbridge session but no bridge ICD in the runtime"); return null }
+        val binds = ArrayList<Bind>()
+        binds.add(Bind(driver.canonicalPath, "$GPU_DIR/libvulkan_droidbridge.so"))
+        val sockDir = File(socket).parent ?: return null
+        binds.add(Bind(sockDir, sockDir))
+        val icd = File(root.parentFile, "vkbridge_icd.json")
+        val api = runCatching {
+            JSONObject(File(rootfs, "usr/local/share/vkbridge/droidbridge_icd.json").readText()).getJSONObject("ICD").getString("api_version")
+        }.getOrNull() ?: run { Log.w(TAG, "gpu: vkbridge session but the runtime's bridge manifest is unreadable"); return null }
+        icd.writeText("{\"file_format_version\": \"1.0.0\", \"ICD\": {\"library_path\": \"$GPU_DIR/libvulkan_droidbridge.so\", \"api_version\": \"$api\"}}\n")
+        binds.add(Bind(icd.path, "$GPU_DIR/vkbridge_icd.json"))
+        env["VK_DRIVER_FILES"] = "$GPU_DIR/vkbridge_icd.json"
+        env["VK_ICD_FILENAMES"] = "$GPU_DIR/vkbridge_icd.json"
+        if (!env.containsKey("MESA_LOADER_DRIVER_OVERRIDE") && !env.containsKey("GALLIUM_DRIVER")) {
+            env["MESA_LOADER_DRIVER_OVERRIDE"] = "zink"
+            env["GALLIUM_DRIVER"] = "zink"
+        }
         return binds
     }
 
@@ -325,7 +352,7 @@ object BwrapSpawner {
         val verbose = plan.env["DROIDDECK_PROOT_VERBOSE"]?.toIntOrNull()
         if (verbose != null) { cmd.add(1, "-v"); cmd.add(2, verbose.toString()) }
         plan.binds.forEach { cmd.add("-b"); cmd.add(it.spec) }
-        cmd.add("/usr/bin/env")
+        cmd.add(plan.envTool)
         cmd.add("-i")
         plan.env.forEach { (k, v) -> cmd.add("$k=$v") }
         cmd.addAll(plan.argv)

@@ -23,7 +23,9 @@ should not dictate which actions it can perform.
 
 The model separates three concerns:
 
-- **Source role:** physical, primary screen or secondary screen.
+- **Source role:** physical controller, game overlay (primary) or auxiliary panel
+  (secondary). Swapping the game and auxiliary panel between displays preserves
+  the panel's role and bindings.
 - **Profile:** the actions assigned to controls in each role. Game and Desktop are
   the two editable built-in profiles. Auto selects by session mode; explicit
   selection supports a game running inside a desktop session.
@@ -110,6 +112,13 @@ The initial implementation adapted these parts rather than merging either PR
 wholesale. Upstream subsequently merged #1202; the October 30 integration retains
 its global physical shortcuts, saved assignments and configuration UI alongside
 the profile bindings.
+
+The November 4 integration reuses upstream's common bottom-screen bar, extracted
+trackpad/terminal panels and screen-swap presentation. Custom controls coexist
+with the dashboard and KDE desktop panels. Routed on-screen stick updates retain
+upstream's throttled visual redraws without deferring pad publication. Upstream
+hardware-key translation and mouse capture use the existing output ownership and
+release capture while the input-profile editor is open.
 
 Explicit captured bindings in the active profile take precedence over a global
 physical shortcut for the same key. Otherwise the global shortcut precedes the

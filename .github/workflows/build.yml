@@ -63,6 +63,8 @@ jobs:
           echo "base-sha=$(git rev-parse origin/main)" >> "$GITHUB_OUTPUT"
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
+          # Partial clone: a merged blob that only exists in a fork's history can't be lazily fetched (GitHub: "not our ref"); merge-tree writes it locally first.
+          git merge-tree --write-tree HEAD origin/main >/dev/null || true
           git merge --no-ff --no-edit origin/main
       - name: Resolve trusted manifest base
         id: trusted
@@ -100,6 +102,7 @@ jobs:
           git fetch --no-tags origin "$BUILD_BASE_SHA"
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
+          git merge-tree --write-tree HEAD FETCH_HEAD >/dev/null || true
           git merge --no-ff --no-edit FETCH_HEAD
       - name: Verify pinned source tree
         env:
@@ -158,6 +161,7 @@ jobs:
           git fetch --no-tags origin "$BUILD_BASE_SHA"
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
+          git merge-tree --write-tree HEAD FETCH_HEAD >/dev/null || true
           git merge --no-ff --no-edit FETCH_HEAD
       - name: Verify pinned source tree
         env:
@@ -165,6 +169,8 @@ jobs:
         run: test "$(git rev-parse 'HEAD^{tree}')" = "$SOURCE_TREE"
       - name: Resolve the pinned Android NDK
         run: bash tools/ci/resolve-ndk.sh
+      - name: Check out MaliBridge
+        run: git submodule update --init external/MaliBridge
 
       - name: Plan component identities
         id: plan
@@ -228,6 +234,7 @@ jobs:
             ${{ steps.preloads.outputs.cache-hit != 'true' && 'runtime' || '' }}
             ${{ steps.component-preloads.outputs.arm64 != 'true' && 'arm64-preloads' || '' }}
             ${{ steps.comet.outputs.cache-hit != 'true' && 'comet' || '' }}
+            vkbridge
         run: python3 tools/components/prepare.py tools
 
       - name: Build changed ARM64 preloads
@@ -237,6 +244,9 @@ jobs:
       - name: Prepare remaining Linux runtime assets
         if: steps.preloads.outputs.cache-hit != 'true'
         run: python3 tools/components/prepare.py runtime
+
+      - name: Build the Mali bridge's Linux side
+        run: python3 tools/components/prepare.py vkbridge
 
       - name: Fetch the Debian image the preloads build in
         if: steps.component-preloads.outputs.x86 != 'true'
@@ -269,10 +279,19 @@ jobs:
         run: |
           set -euo pipefail
           bash tools/linuxfs/check-preloads.sh app/src/main/assets/linuxfs
+          D=app/src/main/assets/linuxfs
+          VKB="$D/usr/local/lib/vkbridge/libvulkan_droidbridge.so"
+          test -f "$VKB" && test -f "$D/usr/local/share/vkbridge/droidbridge_icd.json" && test -f "$D/usr/local/bin/droiddeck-vkbridge-smoke"
+          VKB_NEED=$(readelf -d "$VKB" | sed -n 's/.*NEEDED.*\[\(.*\)\]/\1/p' | grep -vx 'libc.so.6' | grep -vx 'ld-linux-aarch64.so.1' || true)
+          [ -z "$VKB_NEED" ] || { echo "::error::the bridge ICD needs $VKB_NEED"; exit 1; }
+          [ "$(readelf -Ws "$VKB" | awk '$4 == "FUNC" && $5 == "GLOBAL" && $7 != "UND" {sub(/@.*/, "", $8); print $8}' | grep -c '^vk_icd')" = 3 ] || { echo "::error::the bridge ICD does not export the loader interface"; exit 1; }
 
       - name: Build GOG Galaxy companion
         if: steps.comet.outputs.cache-hit != 'true'
         run: python3 tools/components/prepare.py comet
+
+      - name: Build the DiRT 3 / DiRT Showdown ws2_32 stand-in
+        run: python3 tools/components/prepare.py dirt-ws2
 
       - name: Prepare graphics driver variants
         run: python3 tools/quest/build-driver.py "$ANDROID_HOME/ndk/$NDK_VERSION"
@@ -304,6 +323,7 @@ jobs:
             !/docs/releases/media/
           sparse-checkout-cone-mode: false
           persist-credentials: false
+          submodules: recursive
 
       - name: Check human authorship
         env:
@@ -364,6 +384,7 @@ jobs:
           git fetch --no-tags origin "$BUILD_BASE_SHA"
           BASE=$(git rev-parse --short FETCH_HEAD)
           HEAD=$(git rev-parse --short HEAD)
+          git merge-tree --write-tree HEAD FETCH_HEAD >/dev/null || true
           if git merge --no-ff --no-edit FETCH_HEAD >/tmp/merge.out 2>&1; then
             {
               echo "###  Mergeable"
@@ -433,6 +454,7 @@ jobs:
         id: build-label
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           BUILD_REF: ${{ github.ref_name }}
           BUILD_SHA: ${{ github.sha }}
@@ -451,6 +473,7 @@ jobs:
           echo "label=$label" >> "$GITHUB_OUTPUT"
           echo "DROIDDECK_SOURCE_COMMIT=${PR_HEAD_SHA:-$BUILD_SHA}" >> "$GITHUB_ENV"
           echo "DROIDDECK_PR_NUMBER=${PR_NUMBER:-0}" >> "$GITHUB_ENV"
+          echo "DROIDDECK_PR_TITLE=${PR_TITLE//$'\n'/ }" >> "$GITHUB_ENV"
           echo "Build: \`$label\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Rust toolchain for the store engines (aarch64-linux-android)
@@ -514,6 +537,30 @@ jobs:
       - name: Build the add-on packs
         run: bash tools/packs/build.sh app/build/packs
 
+      - name: Pin the Syncthing source
+        id: syncthing-src
+        run: |
+          set -euo pipefail
+          git submodule update --init --recursive tools/syncthing/syncthing-android
+          echo "commit=$(git -C tools/syncthing/syncthing-android/syncthing/src/github.com/syncthing/syncthing rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Cache Syncthing
+        id: syncthing
+        uses: actions/cache@v4
+        with:
+          path: app/src/main/jniLibs/arm64-v8a/libsyncthingnative.so
+          key: syncthing-${{ env.NDK_VERSION }}-${{ hashFiles('tools/syncthing/build.sh', 'tools/syncthing/syncthing-android/gradle/libs.versions.toml') }}-${{ steps.syncthing-src.outputs.commit }}
+      - uses: actions/setup-go@v5
+        if: steps.syncthing.outputs.cache-hit != 'true'
+        with:
+          go-version: stable
+          cache: false
+      - name: Build Syncthing
+        if: steps.syncthing.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          export NDK="$ANDROID_HOME/ndk/$NDK_VERSION"
+          tools/syncthing/build.sh app/src/main/jniLibs/arm64-v8a
+
       - name: Note when the proot pack pin is behind this build
         run: |
           set -euo pipefail
@@ -523,6 +570,9 @@ jobs:
           if [ "$sha" != "$PROOT_PACK_SHA256" ]; then
             echo "::warning::built proot pack $sha does not match tools/packs/proot/release.env ($PROOT_PACK_SHA256). This build publishes the pack it just built. Source builds keep downloading the pinned pack until release.env is updated."
           fi
+
+      - name: Check out MaliBridge
+        run: git submodule update --init external/MaliBridge
 
       - name: Build
         id: build
@@ -664,6 +714,7 @@ jobs:
           git fetch --no-tags origin "$BUILD_BASE_SHA"
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
+          git merge-tree --write-tree HEAD FETCH_HEAD >/dev/null || true
           git merge --no-ff --no-edit FETCH_HEAD
       - name: Verify backend and test source match
         env:
@@ -717,6 +768,7 @@ jobs:
           git fetch --no-tags origin "$BUILD_BASE_SHA"
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
+          git merge-tree --write-tree HEAD FETCH_HEAD >/dev/null || true
           git merge --no-ff --no-edit FETCH_HEAD
       - name: Verify backend and test source match
         env:
@@ -760,7 +812,7 @@ jobs:
   checks:
     name: Compile and test APK
     needs: [build, python-tests]
-    if: ${{ always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

@@ -82,7 +82,7 @@ class CiChecksTest(unittest.TestCase):
         gate = jobs['checks']
         self.assertEqual(gate['name'], 'Compile and test APK')
         self.assertEqual(set(gate['needs']), {'build', 'python-tests'})
-        self.assertIn('always()', gate['if'])
+        self.assertIn('!cancelled()', gate['if'])
         for build, python in itertools.product(('success', 'failure', 'cancelled', 'skipped'), repeat=2):
             with self.subTest(build=build, python=python):
                 result = subprocess.run(

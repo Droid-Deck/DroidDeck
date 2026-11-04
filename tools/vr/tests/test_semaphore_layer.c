@@ -39,7 +39,6 @@ static void check_shared_images(VkDevice device) {
     image.flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
     image.tiling = VK_IMAGE_TILING_OPTIMAL;
     VkImage output;
-    /* Other targets, nonmutable, linear and DMA-BUF images retain their caller's chain. */
     expected_image_chain = &list;
     assert(CreateImage(device, &image, NULL, &output) == VK_ERROR_FORMAT_NOT_SUPPORTED);
     g_dev[0].quest_images = 1;
@@ -58,7 +57,6 @@ static void check_shared_images(VkDevice device) {
     expected_image_chain = &external;
     assert(CreateImage(device, &image, NULL, &output) == VK_ERROR_FORMAT_NOT_SUPPORTED);
     assert(image.pNext == &list && list.pNext == &external && external.pNext == &tail);
-    /* The reverse chain order preserves its tail without modifying caller memory. */
     external.pNext = &list; list.pNext = &tail; image.pNext = &external;
     expect_cloned_external = 1; expected_external_tail = &tail;
     assert(CreateImage(device, &image, NULL, &output) == VK_ERROR_FORMAT_NOT_SUPPORTED);

@@ -1,6 +1,6 @@
 package com.droiddeck.launcher.ui
 
-import android.app.Activity
+import androidx.activity.ComponentActivity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -26,7 +26,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], shadows = [JoyConPadTest.RecordingWriter::class])
 class DeckControlsPanelOwnershipTest {
-    private val controller = Robolectric.buildActivity(Activity::class.java).setup()
+    private val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup()
     private val activity = controller.get()
     private val root = FrameLayout(activity)
     private val bridge = PadBridge(File(activity.cacheDir, "panel-ownership"))

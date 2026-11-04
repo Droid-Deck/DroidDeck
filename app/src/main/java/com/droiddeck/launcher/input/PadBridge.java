@@ -313,11 +313,6 @@ public final class PadBridge {
                 || device.supportsSource(InputDevice.SOURCE_JOYSTICK));
     }
 
-    public static boolean isControllerKey(KeyEvent event) {
-        return isFromController(event.getDevice())
-                && isPadKey(event.getKeyCode(), event.getDevice().getKeyboardType());
-    }
-
     public static boolean isPadKey(int keyCode, int keyboardType) {
         if ((keyCode >= KeyEvent.KEYCODE_BUTTON_A && keyCode <= KeyEvent.KEYCODE_BUTTON_MODE)
                 || (keyCode >= KeyEvent.KEYCODE_BUTTON_1 && keyCode <= KeyEvent.KEYCODE_BUTTON_16)) return true;
@@ -706,7 +701,6 @@ public final class PadBridge {
         liveReport.copyFrom(report);
         if (backQamAxesBlocked && !hasAxes(liveReport)) backQamAxesBlocked = false;
         long at = android.os.SystemClock.uptimeMillis();
-        // Steam must see the modifier before a partner; preserve quick press/release pairs in order.
         if (backQamPressed || homeGuidePressed || !backQamWrites.isEmpty()) at += backQamDelayMs;
         writeBackQamReport(report, at);
     }

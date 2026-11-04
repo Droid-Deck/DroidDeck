@@ -65,7 +65,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     }
 
     fun state() = GpuDriversState(
-        gpuName = gpu.displayName(activity), gpuFamily = gpu.family.label(activity), soc = gpu.soc, supportText = gpu.supportText(activity),
+        gpuName = gpu.displayName(activity), gpuFamily = gpu.family.label(activity), soc = gpu.soc, supportText = gpu.supportText(activity, com.droiddeck.launcher.core.DeviceSupport.vkBridge(activity)),
         supported = gpu.support == GpuInfo.Support.TESTED, unsupported = gpu.support == GpuInfo.Support.UNSUPPORTED,
         auto = mode == SessionPrefs.GPU_DRIVERS_AUTO, pairs = pairRows, busy = pairBusy, percent = pairPercent,
         autoStatus = autoStatus, releaseStatus = releaseStatus.ifEmpty { activity.getString(R.string.drivers_not_checked) }, checking = releaseChecking,
@@ -264,7 +264,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
             return
         }
         if (DriverPairs.recommendedKey(gpu, emptyList()) == null) {
-            autoStatus = activity.getString(R.string.drivers_none_to_set, gpu.supportText(activity).lowercase())
+            autoStatus = activity.getString(R.string.drivers_none_to_set, gpu.supportText(activity, com.droiddeck.launcher.core.DeviceSupport.vkBridge(activity)).lowercase())
             return
         }
         releaseChecking = true

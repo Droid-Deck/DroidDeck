@@ -57,10 +57,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-/** Steam's library hero is 3840 x 1240, so the preview keeps that shape. */
 private const val HERO_RATIO = 3840f / 1240f
 
-/** The gap Steam leaves between the pinned logo and the edge of the hero, as a share of the hero's width. */
 private const val EDGE = 0.03f
 
 @Composable
@@ -86,10 +84,6 @@ private fun LogoPosition.Pin.alignment(): Alignment = when (this) {
 internal fun logoPositionSummary(value: LogoPosition.Value?): String =
     if (value == null) stringResource(R.string.logo_pos_default) else "${value.pin.label()} · ${value.widthPct}%"
 
-/**
- * Where a game's logo sits on its background in Steam's library: the logo box is [Value.widthPct] x [Value.heightPct] of the
- * background, pinned to one of five places, and the logo is drawn as large as fits in it.
- */
 @Composable
 private fun LogoPreview(hero: File?, logo: File?, value: LogoPosition.Value) {
     val shape = RoundedCornerShape(10.dp)
@@ -130,7 +124,6 @@ private fun PinChip(label: String, selected: Boolean, focus: FocusRequester?, on
     }
 }
 
-/** The "Adjust logo" screen: the game's background with its logo on it, where to pin the logo and how large to draw it. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun LogoPositionDialog(

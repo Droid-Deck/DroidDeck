@@ -127,6 +127,11 @@ Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-per
   IDs wrap (32768 on many Android kernels) a new child can get that ID, and PRoot aborted on the
   assertion that a new child has no state, ending the whole session. Chromium-based programs such as
   Steam's client do this. PRoot now retires the stale entry and sets the new child up from scratch.
+- `0024-execveat-absolute-path.patch` - `execveat` with an absolute path and neither `AT_EMPTY_PATH`
+  nor `AT_SYMLINK_NOFOLLOW` runs as `execve`. The kernel ignores the directory descriptor for such a
+  path, and PRoot refused the call unless the descriptor was `AT_FDCWD`. FEX starts every child of an
+  emulated program with `execveat(fd, "/proc/self/exe")`, so x86 programs in a Flatpak sandbox, which
+  does not carry the session's preloads, could not start other programs.
 
 Old kernel fixes:
 

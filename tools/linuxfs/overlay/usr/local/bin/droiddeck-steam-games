@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Resolve added games against the signed-in Steam client's licenses."""
 import ctypes as C
 import json
 import os
@@ -12,6 +11,7 @@ import time
 import unicodedata
 import urllib.parse
 import urllib.request
+import zlib
 
 STATE = ".droiddeck-games.json"
 TRIED = ".droiddeck-import-tried.json"
@@ -20,6 +20,7 @@ LIBRARY = "/mnt/droiddeck-sd"
 LEGACY_LIBRARY = "/mnt/bannerlator-sd"
 PARKED = ".droiddeck-parked"
 BASE_ID = 76561197960265728
+SPACEWAR = 480
 
 
 def read_json(path, default):
@@ -65,8 +66,6 @@ def source_stamp(game):
 
 
 def store_game(game):
-    """Games a store client installed belong to that store: the Steam copy of the same title is
-    another license with its own files, and an import would let Steam update over the store's."""
     return bool(game.get("store"))
 
 
@@ -86,14 +85,14 @@ def identify(game):
     folder = Path(game["folder"])
     steamapps = folder.parent.parent
     for library in ([steamapps] if folder.parent.name == "common" and steamapps.name == "steamapps" else []) + [folder.parent / WINNATIVE]:
-        matches = manifest_ids(library, folder.name)
+        matches = [appid for appid in manifest_ids(library, folder.name) if appid != SPACEWAR]
         if matches:
             return matches[0] if len(matches) == 1 else None
     ids = set()
     for parent in {folder, Path(game["exe"]).parent}:
         try:
             appid = int((parent / "steam_appid.txt").read_text().strip())
-            if 0 < appid < 0x80000000:
+            if 0 < appid < 0x80000000 and appid != SPACEWAR:
                 ids.add(appid)
         except (OSError, ValueError):
             pass
@@ -107,7 +106,7 @@ def identify(game):
             ids = {int(item["id"]) for item in items
                    if key(item.get("name", "")) == key(game["name"]) and key(game["name"])}
             if ids:
-                return next(iter(ids)) if len(ids) == 1 else None
+                return next(iter(ids)) if len(ids) == 1 and SPACEWAR not in ids else None
         return None
     except (OSError, ValueError, KeyError):
         return None
@@ -149,7 +148,6 @@ def probe(steam_root, ids):
 
 
 def game_running():
-    """Whether a Proton game is up: a wineserver is there for as long as any prefix is in use."""
     try:
         pids = [p for p in os.listdir("/proc") if p.isdigit()]
     except OSError:
@@ -172,8 +170,6 @@ def downloads_idle(steam_root):
 
 
 def request_restart(steam_root):
-    """The client reads manifests and shortcuts only at start, so an import needs one restart;
-    the session's loop runs the importer between the exit and the next start."""
     Path(os.environ.get("HOME", "/root"), ".bl-restart-once").touch()
     command = shlex.split(os.environ.get("BL_STEAM_SHUTDOWN", "")) or [str(Path(steam_root) / "steamrtarm64/steam"), "-shutdown"]
     subprocess.run(command,
@@ -181,7 +177,6 @@ def request_restart(steam_root):
 
 
 def ask_restart(names, timeout=600, clock=None, sleep=None):
-    """The app asks whether to restart the client now; anything but "now" leaves the import to the next start."""
     clock, sleep = clock or time.monotonic, sleep or time.sleep
     folder = Path(os.environ.get("HOME", "/root"), ".cache/droiddeck")
     ask, answer = folder / "steam-import.json", folder / "steam-import.answer"
@@ -295,8 +290,6 @@ def watch(steam_root, listing):
 
 
 def installed_build(folder, appid, installdir):
-    """The build another Steam client recorded for these files, so Steam updates from it
-    instead of verifying every file."""
     try:
         text = (folder.parent / WINNATIVE / f"appmanifest_{appid}.acf").read_text()
         install = re.search(r'("installdir"\s*")([^"\\]*)(")', text, re.I)
@@ -309,13 +302,74 @@ def installed_build(folder, appid, installdir):
     if not (folder / ".download_complete").is_file():
         return None
     try:
-        ids = json.loads((folder / ".DepotDownloader/depot.config").read_text())["installedManifestIDs"]
-        depots = sorted((int(depot), int(gid)) for depot, gid in ids.items())
-    except (OSError, ValueError, KeyError, TypeError, AttributeError):
-        return None
+        depots = config_depots((folder / ".DepotDownloader/depot.config").read_bytes())
+    except OSError:
+        depots = None
+    if not depots:
+        depots = completed_depots(folder / ".DepotDownloader/completed")
     if not depots or not all(0 < depot < 0x80000000 and 0 < gid < 0x7FFFFFFFFFFFFFFF for depot, gid in depots):
         return None
     return "".join(f'        "{depot}"\n        {{\n            "manifest" "{gid}"\n        }}\n' for depot, gid in depots)
+
+
+def varint(data, i):
+    value = shift = 0
+    while True:
+        byte = data[i]
+        i += 1
+        value |= (byte & 0x7F) << shift
+        shift += 7
+        if byte < 0x80:
+            return value, i
+
+
+def proto_fields(data):
+    i = 0
+    while i < len(data):
+        key, i = varint(data, i)
+        kind = key & 7
+        if kind == 0:
+            value, i = varint(data, i)
+        elif kind == 2:
+            size, i = varint(data, i)
+            value, i = data[i:i + size], i + size
+        elif kind in (1, 5):
+            value, i = None, i + (8 if kind == 1 else 4)
+        else:
+            raise ValueError
+        yield key >> 3, kind, value
+
+
+def config_depots(data):
+    try:
+        ids = json.loads(data.decode())["installedManifestIDs"]
+        return sorted((int(depot), int(gid)) for depot, gid in ids.items())
+    except (ValueError, KeyError, TypeError, AttributeError):
+        pass
+    try:
+        depots = {}
+        for number, kind, entry in proto_fields(zlib.decompress(data, -15)):
+            if number == 1 and kind == 2:
+                fields = {n: v for n, k, v in proto_fields(entry) if k == 0}
+                if 1 in fields and 2 in fields:
+                    depots[fields[1]] = fields[2]
+        return sorted(depots.items()) or None
+    except (zlib.error, ValueError, IndexError):
+        return None
+
+
+def completed_depots(completed):
+    newest = {}
+    try:
+        for manifest in completed.iterdir():
+            match = re.fullmatch(r"(\d+)_(\d+)\.manifest", manifest.name)
+            if match and manifest.is_file():
+                depot, gid, mtime = int(match[1]), int(match[2]), manifest.stat().st_mtime
+                if depot not in newest or mtime > newest[depot][0]:
+                    newest[depot] = (mtime, gid)
+    except OSError:
+        return []
+    return sorted((depot, gid) for depot, (_, gid) in newest.items())
 
 
 def update_not_started(text, steamapps, appid, installdir):
@@ -423,20 +477,18 @@ def seed_install(steam_root, game, appid):
     return True
 
 
-def release(steam_root, game):
-    """Undoes an import made before store games were skipped. Only our symlink and manifest go;
-    the store's folder stays where it is."""
+def release(steam_root, game, stale, reason):
     steamapps = Path(steam_root) / "steamapps"
     sources = {game.get("folder", ""), legacy_path(game.get("folder", ""))}
     for target in sorted((steamapps / "common").glob("DroidDeck-*")):
         appid = target.name.removeprefix("DroidDeck-")
-        if not (appid.isdigit() and target.is_symlink() and os.readlink(target) in sources):
+        if not (appid.isdigit() and target.is_symlink() and os.readlink(target) in sources and stale(int(appid))):
             continue
         for manifest in (steamapps / f"appmanifest_{appid}.acf", steamapps / PARKED / f"appmanifest_{appid}.acf"):
             if manifest.is_file() and ours(manifest, appid):
                 manifest.unlink()
         target.unlink()
-        print(f"droiddeck-steam-games: {game.get('name', appid)} came from {game['store']}; it is a shortcut again, not Steam app {appid}")
+        print(f"droiddeck-steam-games: {game.get('name', appid)} {reason}; it is no longer Steam app {appid}")
 
 
 def route(steam_root, acct, games):
@@ -457,7 +509,7 @@ def route(steam_root, acct, games):
     for game in games:
         if store_game(game):
             try:
-                release(steam_root, game)
+                release(steam_root, game, lambda old: True, f"came from {game['store']}")
             except OSError as error:
                 print(f"droiddeck-steam-games: store import not undone ({error})")
             shortcuts.append(game)
@@ -469,9 +521,14 @@ def route(steam_root, acct, games):
         appid = candidates.get(folder, candidates.get(legacy_path(folder)))
         stamp = source_stamp(game)
         recorded = sources.get(folder, sources.get(legacy_path(folder)))
-        confirmed = (isinstance(appid, int) and 0 < appid < 0x80000000
-                     and owned.get(str(appid)) is True and stamp is not None
-                     and recorded in (stamp, [stamp[0], legacy_path(stamp[1])] + stamp[2:]))
+        current = stamp is not None and recorded in (stamp, [stamp[0], legacy_path(stamp[1])] + stamp[2:])
+        named = isinstance(appid, int) and 0 < appid < 0x80000000 and appid != SPACEWAR
+        try:
+            release(steam_root, game, lambda old: old == SPACEWAR or (current and named and old != appid),
+                    "names another Steam app now")
+        except OSError as error:
+            print(f"droiddeck-steam-games: earlier import not undone ({error})")
+        confirmed = named and current and owned.get(str(appid)) is True
         if confirmed:
             try:
                 if seed_install(steam_root, game, appid):
@@ -480,7 +537,7 @@ def route(steam_root, acct, games):
                 print(f"droiddeck-steam-games: {game.get('name', appid)} stays a shortcut this session: it could not be linked as Steam app {appid}")
             except OSError as error:
                 print(f"droiddeck-steam-games: import unavailable ({error})")
-        elif isinstance(appid, int) and 0 < appid < 0x80000000 and seeded(steamapps, game, appid):
+        elif named and seeded(steamapps, game, appid):
             routes[str(game["appid"])] = appid
             continue
         shortcuts.append(game)

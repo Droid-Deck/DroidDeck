@@ -45,9 +45,8 @@ public final class WaylandCompositor {
 
     private static volatile long lastFrameNanos;
     private static volatile long frameIntervalNanos;
-    private static volatile long gameFrames; // written by the compositor thread only
+    private static volatile long gameFrames;
 
-    /** Frames the game has presented since the app started; the rate is the difference over time. */
     public static long gameFrameCount() { return gameFrames; }
 
     public static long recentFrameIntervalMs() {
@@ -148,6 +147,10 @@ public final class WaylandCompositor {
 
     public static native void nativeStart(String xdgRuntimeDir);
 
+    /** Nanoseconds of the compositor's own GPU work while timing is on, or -1 when it is not timed. */
+    public static native long nativeGpuBusyNs();
+    public static native void nativeSetGpuTiming(boolean on);
+
     public static native void nativeStartWithSurface(Surface surface, String xdgRuntimeDir,
                                                      String driverPath, String libraryName,
                                                      String nativeLibDir);
@@ -162,6 +165,8 @@ public final class WaylandCompositor {
     public static native int nativeCursorSnapshot(int[] out);
 
     public static native int nativeCursorSerial();
+
+    public static native void nativeSetCursorComposite(boolean on);
 
     public static final int CURSOR_BUF_INTS = 6 + 256 * 256;
 
@@ -315,7 +320,6 @@ public final class WaylandCompositor {
 
     public static native long nativeHudFrameTimes(float[] out);
 
-    /** Stream mode: the scene is the Xbox Cloud Gaming native player's picture, handed over frame by frame. */
     public static native void nativeStreamMode(boolean on);
 
     public static native void nativeStreamFrame(android.hardware.HardwareBuffer buffer);
@@ -330,7 +334,6 @@ public final class WaylandCompositor {
     private static float pendingDeltaX, pendingDeltaY;
 
     public static void sendPointerDelta(float dx, float dy) {
-        // Round-to-zero per event would drop slow motion entirely; carry the remainder.
         pendingDeltaX += dx * 256f;
         pendingDeltaY += dy * 256f;
         int x = (int) Math.floor(pendingDeltaX);

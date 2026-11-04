@@ -738,7 +738,7 @@ class TouchscreenGesturesTest {
     @Test fun pinchReversalDoesNotConsumeOldDirectionRemainder() {
         startPinch()
         events.clear()
-        movePinch(4.5f) // Nine pixels toward zooming in, short of a step.
+        movePinch(4.5f)
         assertTrue(events.none { it.startsWith("wheel") })
         for (i in 1..10) movePinch(4.5f - i * .5f)
         assertEquals(listOf("wheel 1"), events.filter { it.startsWith("wheel") })
@@ -794,16 +794,13 @@ class TouchscreenGesturesTest {
             override fun moveTo(x: Float, y: Float) { cachedX = x; clientX = x }
             override fun prepareRelativePan() { cachedX = 960f; clientX = 960f }
             override fun moveBy(dx: Float, dy: Float, relative: Boolean) {
-                // Before pointer lock, the compositor delivers an absolute
-                // position even when we inject a relative delta. The game
-                // only requests lock after seeing this first pan movement.
                 cachedX += dx
                 clientX = cachedX
             }
             override fun button(code: Int, down: Boolean) {
                 if (code == 274) {
                     middleDown = down
-                    if (down) clientX = 960f // The client warps to the middle when pan starts.
+                    if (down) clientX = 960f
                 }
             }
             override fun key(code: Int, down: Boolean) {}

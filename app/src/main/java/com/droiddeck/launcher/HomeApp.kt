@@ -24,6 +24,9 @@ import kotlin.math.roundToInt
 
 object HomeApp {
     private const val ICON_DP = 72
+    private const val GAME_SPACE = "cn.nubia.gamelauncher"
+    private const val GAME_SPACE_ADD = "cn.nubia.gamelauncher.action.GAME_MANAGER"
+    private val GAME_SPACE_GAMES = Uri.parse("content://cn.nubia.gamelauncher.db.AppAddProvider/appadd")
 
     data class LaunchableApp(
         val label: String,
@@ -52,6 +55,24 @@ object HomeApp {
             if (enabled) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
             PackageManager.DONT_KILL_APP,
         )
+    }
+
+    fun hasGameSpace(context: Context): Boolean =
+        runCatching { context.packageManager.getPackageInfo(GAME_SPACE, 0) }.isSuccess
+
+    fun inGameSpace(context: Context): Boolean =
+        runCatching {
+            context.contentResolver.query(GAME_SPACE_GAMES, arrayOf("component"), null, null, null)?.use { rows ->
+                val prefix = context.packageName + ","
+                generateSequence { if (rows.moveToNext()) rows.getString(0) else null }.any { it.startsWith(prefix) }
+            }
+        }.getOrNull() ?: true
+
+    fun gameSpaceAddIntent(): Intent = Intent(GAME_SPACE_ADD).setPackage(GAME_SPACE)
+
+    fun releaseUnusedHomeEntry(context: Context) {
+        if (isHomeScreenEnabled(context) && !isDefault(context) && hasGameSpace(context))
+            setHomeScreenEnabled(context, false)
     }
 
     fun isDefault(context: Context): Boolean {
@@ -147,8 +168,62 @@ object HomeApp {
             .getShortcutIconDrawable(info, context.resources.displayMetrics.densityDpi)?.toBitmap(px, px)
     }.getOrNull()
 
+    fun trackRecents(app: android.app.Application) {
+        app.registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
+            override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) = Unit
+            override fun onActivityStarted(activity: android.app.Activity) = Unit
+            override fun onActivityResumed(activity: android.app.Activity) = syncRecents(activity)
+            override fun onActivityPaused(activity: android.app.Activity) { if (activity is FrontEndActivity) syncRecents(activity) }
+            override fun onActivityStopped(activity: android.app.Activity) = Unit
+            override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: android.os.Bundle) = Unit
+            override fun onActivityDestroyed(activity: android.app.Activity) = Unit
+        })
+    }
+
+    private fun syncRecents(activity: android.app.Activity) =
+        keepOutOfRecents(activity, activity is FrontEndActivity && !SessionState.running && isDefault(activity))
+
+    internal enum class RecentsStep { HIDE, SHOW, FORGET, NONE }
+
+    internal fun recentsStep(hidden: Boolean, owned: Boolean, excluded: Boolean): RecentsStep = when {
+        hidden && !excluded -> RecentsStep.HIDE
+        !hidden && owned && excluded -> RecentsStep.SHOW
+        !hidden && owned -> RecentsStep.FORGET
+        else -> RecentsStep.NONE
+    }
+
+    fun keepOutOfRecents(activity: android.app.Activity, hidden: Boolean) {
+        val prefs = activity.getSharedPreferences("home-recents", Context.MODE_PRIVATE)
+        val owned = prefs.getStringSet("tasks", null).orEmpty()
+        val id = activity.taskId.toString()
+        if (!hidden && id !in owned) return
+        runCatching {
+            @Suppress("DEPRECATION")
+            fun idOf(task: android.app.ActivityManager.AppTask) =
+                if (Build.VERSION.SDK_INT >= 29) task.taskInfo.taskId else task.taskInfo.persistentId
+            val tasks = activity.getSystemService(android.app.ActivityManager::class.java).appTasks
+            val task = tasks.firstOrNull { idOf(it) == activity.taskId } ?: return
+            val excluded = task.taskInfo.baseIntent.flags and Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS != 0
+            val step = recentsStep(hidden, id in owned, excluded)
+            if (step == RecentsStep.NONE) return
+            if (step != RecentsStep.FORGET) task.setExcludeFromRecents(step == RecentsStep.HIDE)
+            val live = tasks.map { idOf(it).toString() }.toSet()
+            val next = owned.filter { it in live && it != id }.toMutableSet()
+            if (step == RecentsStep.HIDE) next += id
+            prefs.edit().putStringSet("tasks", next).apply()
+        }
+    }
+
     fun startShortcut(context: Context, info: ShortcutInfo) {
-        context.getSystemService(LauncherApps::class.java).startShortcut(info, null, null)
+        val task = generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }
+            .filterIsInstance<android.app.Activity>().firstOrNull()?.taskId
+        task?.let { com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(it, true) }
+        try {
+            context.getSystemService(LauncherApps::class.java).startShortcut(info, null, null)
+        } catch (e: Exception) {
+            task?.let { com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(it, false) }
+            throw e
+        }
     }
 
     fun openAppInfo(context: Context, app: LaunchableApp) {

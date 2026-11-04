@@ -8,7 +8,6 @@
 
 #include "hudframes.h"
 
-/* Layout written by gamescope patch 0125 (tools/gamescope/patches). */
 #define HUD_FRAMES_MAGIC 0x46484444u
 #define HUD_FRAMES_HEADER 128u
 #define HUD_FRAMES_ENTRY 16u
@@ -69,7 +68,6 @@ int hud_frames_poll(struct hud_frames *h, int64_t *frametimes, int64_t *times, i
         memcpy(&frametimes[n], e, 8);
         memcpy(&times[n], e + 8, 8);
     }
-    /* The writer may have lapped the ring while we copied: drop what it overwrote. */
     uint64_t after = load64(h->map + 16);
     uint64_t valid = after > cap ? after - cap : 0;
     if (from < valid) {

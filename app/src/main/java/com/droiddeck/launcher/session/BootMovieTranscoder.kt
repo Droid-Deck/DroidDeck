@@ -46,7 +46,6 @@ internal object BootMovieTranscoder {
         return Result(audioDropped = hadAudio && !muxedAudio)
     }
 
-    /** Copies the video of [source] untouched and gives it its sound again at [gain] of its level, cut to [limitUs]. */
     fun regain(source: File, target: File, gain: Float, limitUs: Long): Boolean {
         val audio = runCatching { encodeAudio(source, gain, limitUs) }
             .onFailure { Log.w(TAG, "could not change the volume of ${source.name}", it) }.getOrNull() ?: return false
@@ -121,7 +120,6 @@ internal object BootMovieTranscoder {
 
     internal class Layout(val width: Int, val height: Int, val x: Int, val y: Int, val contentWidth: Int, val contentHeight: Int)
 
-    // Steam fills the screen with its startup movie, so portrait clips are pillarboxed into 16:9 instead of cropped.
     internal fun layout(width: Int, height: Int, rotation: Int): Layout {
         val (w, h) = if (rotation % 180 != 0) height to width else width to height
         fun even(v: Double) = maxOf(2, (v.toInt() / 2) * 2)
@@ -137,7 +135,6 @@ internal object BootMovieTranscoder {
         return Layout(canvas, ch, (canvas - cw) / 2, 0, cw, ch)
     }
 
-    /** [pcm] made quieter by [gain] and cut to its first [limitUs] microseconds. */
     internal fun scale(pcm: ShortArray, channels: Int, gain: Float, limitUs: Long): ShortArray {
         val frames = pcm.size / channels
         val kept = if (limitUs == Long.MAX_VALUE) frames else minOf(frames.toLong(), limitUs * OPUS_RATE / 1_000_000L).toInt()
@@ -164,7 +161,6 @@ internal object BootMovieTranscoder {
         return out
     }
 
-    /** Most decoded audio held in memory at once: about six minutes of 48 kHz stereo. */
     private const val MAX_PCM_BYTES = 64 shl 20
 
     private fun encodeAudio(source: File, gain: Float = 1f, limitUs: Long = Long.MAX_VALUE): Audio? {
@@ -212,7 +208,6 @@ internal object BootMovieTranscoder {
                     }
                     dec.releaseOutputBuffer(index, false)
                     if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) break
-                    // Past the length that will be kept there is nothing more to decode; without a length, a track too big to hold is dropped.
                     if (limitUs != Long.MAX_VALUE && info.presentationTimeUs > limitUs) break
                     if (pcm.size() > MAX_PCM_BYTES) { if (limitUs == Long.MAX_VALUE) return null else break }
                 }

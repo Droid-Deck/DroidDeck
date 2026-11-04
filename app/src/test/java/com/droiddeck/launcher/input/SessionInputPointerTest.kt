@@ -146,6 +146,19 @@ class SessionInputPointerTest {
         assertEquals(listOf(Triple(4, 1, 0)), CompositorShadow.events)
     }
 
+    @Test fun desktopRightCtrlUsesUpstreamAliasWithoutReleasingTheProfileHold() {
+        fun hardwareCtrl(down: Boolean) = ReflectionHelpers.callInstanceMethod<Unit>(activity, "sendGuestKey",
+            ReflectionHelpers.ClassParameter.from(Int::class.javaPrimitiveType, 97),
+            ReflectionHelpers.ClassParameter.from(Boolean::class.javaPrimitiveType, down),
+            ReflectionHelpers.ClassParameter.from(Int::class.javaPrimitiveType, 8))
+        output.key(29, true)
+        hardwareCtrl(true)
+        hardwareCtrl(false)
+        assertEquals(listOf(29 to 1), CompositorShadow.keys)
+        output.key(29, false)
+        assertEquals(listOf(29 to 1, 29 to 0), CompositorShadow.keys)
+    }
+
     @Test fun routedMouseUsesRawBackendAndKeepsSharedButtonOwnership() {
         ReflectionHelpers.setField(activity, "mouseWriter", FakeInputWriter(activity.cacheDir.path, FakeInputWriter.MOUSE_SLOT))
         ReflectionHelpers.setField(activity, "evdevMouseActive", true)

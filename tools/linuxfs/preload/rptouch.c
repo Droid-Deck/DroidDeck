@@ -1,6 +1,3 @@
-/* Steam's Linux Remote Play host has no touch injection: client touches arrive as an XTest mouse (absolute
- * motion plus button 1). While a stream holds the encoder, those become touches into gamescope's own touch
- * input, as a finger on the device screen would. */
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <pthread.h>

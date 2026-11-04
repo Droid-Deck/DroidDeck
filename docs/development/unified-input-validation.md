@@ -216,6 +216,37 @@ This run compiles Android Java/Kotlin and resources. A new APK build, Thor test
 and latency measurement were not performed for this merge; the full release
 build remains an upstream CI check.
 
+### Upstream PC input and bottom-screen integration (2026-11-04 UTC)
+
+Merged upstream `f0052415` without rewriting the published branch. The merge
+retains the common bottom-screen bar, dashboard, KDE desktop panel, game-screen
+swap, hardware mouse/keyboard fixes and on-screen stick redraw optimization.
+Custom controls use the same bar and preserve their secondary-source bindings
+when the game and panel swap displays. Pointer handoff now lives in upstream's
+shared `SessionTrackpadView`, used in either display arrangement.
+
+Physical/IME key translation reuses `GuestKeys`, including keyboard Escape scan
+codes and the Desktop right-Ctrl alias, while preserving shared key ownership.
+The input-profile editor releases upstream's hardware mouse capture. Routed
+on-screen stick movement uses the same redraw throttling as the native overlay;
+pad publication remains synchronous, and mapped cursor frame updates keep their
+existing cadence mechanism.
+
+The pointer-handoff regression now exercises the extracted trackpad view. Menu
+tests cover the custom panel alongside upstream's panel choices. A new ownership
+regression checks that releasing a hardware right-Ctrl alias cannot release Ctrl
+still held by the active profile. Panel teardown tests now use `ComponentActivity`
+to supply the lifecycle required by upstream's Compose bar.
+
+The complete `:app:testDebugUnitTest` run passes **3,281 tests across 464 suites,
+zero failures/errors/skips**, using Java 17, NDK `28.2.13676358` and
+`-PskipRust=true`. Upstream's pinned MaliBridge submodule is initialized and its
+required Android server build also succeeds. The PR diff passes
+`git diff --check origin/main`.
+
+No new APK installation, Thor regression pass or latency measurement was performed
+for this merge. The earlier device measurements do not validate this exact tree.
+
 ## Manual AYN Thor results
 
 The user performed the following checks in the installed candidate. The desktop

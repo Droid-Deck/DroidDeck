@@ -138,6 +138,32 @@ class StoreInstallRootTest {
         assertTrue(File(LinuxRuntime.rootDir(app), xodusRoot.second.removePrefix("/")).isDirectory)
     }
 
+    @Test fun xodusRootsKeepEveryOtherStoreRootAtTheSameGuestPath() {
+        val card = File(app.filesDir, "card2").apply { mkdirs() }
+        val library = File(app.filesDir, "card/steam").apply { mkdirs() }
+        File(library, "Games").mkdirs()
+        SessionPrefs.setDefaultStorageFolder(app, card.path, "Card 2")
+        SessionPrefs.setGameStorage(app, library.path, "Card")
+
+        val xodus = StoreInstallRoot.externalRootsForXodus(app)
+        assertTrue(xodus.containsAll(StoreInstallRoot.externalRoots(app)))
+        assertTrue(xodus.any { it.first.absolutePath == File(library, "Games").absolutePath })
+    }
+
+    @Test fun theSteamLibraryGetsItsOwnGuestPathWhenItSharesACardWithAnotherStoreRoot() {
+        val card = File(app.filesDir, "same-card/Games")
+        val library = File(app.filesDir, "same-card/steam/Games")
+        val base = "/mnt/droiddeck-stores/ABCD-1234"
+
+        val roots = StoreInstallRoot.withSelectedLibrary(listOf(card to base), library, base)
+        assertEquals(2, roots.map { it.second }.distinct().size)
+        assertEquals(base, roots.single { it.first == card }.second)
+        assertTrue(roots.single { it.first == library }.second.startsWith("$base-"))
+        assertEquals("${roots.single { it.first == library }.second}/Xbox/Doom",
+            StoreInstallRoot.externalGuestPath(File(library, "Xbox/Doom"), roots))
+        assertEquals(roots, StoreInstallRoot.withSelectedLibrary(roots, library, base))
+    }
+
     @Test fun externalStoreBindsCreateGuestTargetsAndSkipUnavailableVolumes() {
         val host = File(app.filesDir, "card/Games").apply { mkdirs() }
         val guestRoot = "/mnt/droiddeck-stores/card"
@@ -173,6 +199,15 @@ class StoreInstallRootTest {
         StoreGameSidecar(Store.EPIC, "abc", "Metalstorm", "Metalstorm.exe").write(half)
         assertTrue(StoreInstallRoot.isFinished(half))
         assertTrue(StoreInstallRoot.unfinished(app).none { it.folder.absolutePath == half.absolutePath })
+    }
+
+    @Test fun aGameBeingUpdatedIsNotAnUnfinishedInstallForAnyStore() {
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+        for (store in listOf(Store.EPIC, Store.ITCH, Store.XBOX, Store.AMAZON)) {
+            val folder = File(StoreInstallRoot.storeDir(StoreInstallRoot.internalRoot(app), store), StoreInstallRoot.folderName("Updating", "u1")).apply { mkdirs() }
+            StoreGameSidecar(store, "u1", "Updating", "Updating.exe", state = StoreGameSidecar.STATE_UPDATING).write(folder)
+            assertTrue(StoreInstallRoot.unfinished(app).none { it.folder.absolutePath == folder.absolutePath })
+        }
     }
 
     @Test fun theScratchCacheIsPrivateAndNamedSafely() {
@@ -262,5 +297,10 @@ class StoreInstallRootTest {
         assertTrue(StoreInstallRoot.insufficientSpace(1L, 0L))
         assertFalse(StoreInstallRoot.insufficientSpace(1L, 1L))
         assertFalse(StoreInstallRoot.insufficientSpace(0L, 0L))
+    }
+
+    @Test fun itchKeepsTheFolderItsGamesWereInstalledInWhateverItsDisplayName() {
+        assertEquals("itch", StoreInstallRoot.storeDir(File("/games"), Store.ITCH).name)
+        assertEquals("Game Jolt", StoreInstallRoot.storeDir(File("/games"), Store.GAMEJOLT).name)
     }
 }

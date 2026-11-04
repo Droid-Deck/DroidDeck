@@ -39,7 +39,6 @@ object StoreInstallRoot {
         } catch (e: Exception) {
             StoresState.logLine("storage: StatFs failed for store install target (${e.javaClass.simpleName})")
             try {
-                // File's zero also means an unavailable measurement; only StatFs establishes zero.
                 usableBytes(existing).takeIf { it > 0L } ?: SPACE_UNKNOWN
             } catch (fallback: Exception) {
                 StoresState.logLine("storage: usable-space fallback failed for store install target (${fallback.javaClass.simpleName})")
@@ -51,19 +50,12 @@ object StoreInstallRoot {
     @JvmStatic
     fun insufficientSpace(required: Long, available: Long): Boolean = required > 0L && available >= 0L && available < required
 
-    /**
-     * The catalog size is the known minimum for an install. Epic's actual chunk-cache requirement
-     * is determined from its manifest before chunk downloads begin.
-     */
     fun estimatedBytesNeeded(item: CatalogItem): Long = StoreSizes.size(item).coerceAtLeast(0L)
 
-    /** Pre-install storage check to detect insufficient space before starting. */
     fun checkStorage(context: Context, item: CatalogItem, targetRoot: File): StorageCheck {
         val size = estimatedBytesNeeded(item)
         val existing = existingFolder(context, item.store, item.id, item.title)
         val freeTarget = availableBytes(existing ?: targetRoot)
-        // Backends account for completed files on resume; the catalog cannot describe remaining work.
-        // Comparing the full catalog size to remaining free space would reject valid resumes.
         if (item.store == Store.EPIC || existing != null) return StorageCheck(enough = true, requiredBytes = size, availableBytes = freeTarget)
         if (size <= 0L) return StorageCheck(enough = true, requiredBytes = 0L, availableBytes = freeTarget)
         if (insufficientSpace(size, freeTarget)) {
@@ -93,7 +85,6 @@ object StoreInstallRoot {
 
     fun customTarget(context: Context): Target? {
         val folder = defaultStorageFolder(context) ?: return null
-        // Writes are probed when the folder is chosen; File.canWrite() is unreliable on FUSE volumes.
         if (!folder.isDirectory) return null
         val label = SessionPrefs.defaultStorageFolderLabel(context).ifBlank { folderLabel(context, folder) }
         return Target(File(folder, ON_VOLUME), label, removable = true, folder = true)
@@ -137,10 +128,7 @@ object StoreInstallRoot {
             .filter { !isInternal(context, it) && (library == null || !it.absolutePath.startsWith("$library/")) }
             .map { root ->
                 val base = guestFor(context, root)
-                val guest = if (used.add(base)) base else {
-                    val suffix = "%08x".format(CRC32().apply { update(root.absolutePath.toByteArray()) }.value)
-                    "$base-$suffix".also { used.add(it) }
-                }
+                val guest = if (used.add(base)) base else "$base-${pathKey(root)}".also { used.add(it) }
                 root to guest
             }
     }
@@ -166,16 +154,20 @@ object StoreInstallRoot {
         }
     }
 
-    /** Xodus has its own PRoot mount table and cannot see the selected Steam library's SD bind. */
     fun externalRootsForXodus(context: Context): List<Pair<File, String>> {
-        val roots = externalRoots(context).toMutableList()
+        val roots = externalRoots(context)
         val selectedLibrary = GameStorage.effective(context)?.let { File(it.path, ON_VOLUME) }
-            ?.takeUnless { isInternal(context, it) }
-        if (selectedLibrary != null && roots.none { it.first.absolutePath == selectedLibrary.absolutePath }) {
-            roots += selectedLibrary to guestFor(context, selectedLibrary)
-        }
-        return roots
+            ?.takeUnless { isInternal(context, it) } ?: return roots
+        return withSelectedLibrary(roots, selectedLibrary, guestFor(context, selectedLibrary))
     }
+
+    internal fun withSelectedLibrary(roots: List<Pair<File, String>>, library: File, base: String): List<Pair<File, String>> {
+        if (roots.any { it.first.absolutePath == library.absolutePath }) return roots
+        val guest = if (roots.none { it.second == base }) base else "$base-${pathKey(library)}"
+        return roots + (library to guest)
+    }
+
+    private fun pathKey(root: File): String = "%08x".format(CRC32().apply { update(root.absolutePath.toByteArray()) }.value)
 
     fun externalBindSpecs(context: Context): List<String> = externalBindSpecs(externalRoots(context), LinuxRuntime.rootDir(context))
 
@@ -192,7 +184,7 @@ object StoreInstallRoot {
     private fun guestFor(context: Context, root: File): String {
         val sm = context.getSystemService(StorageManager::class.java)
         val uuid = runCatching { sm?.getStorageVolume(root)?.uuid }.getOrNull()?.takeIf { it.isNotBlank() }?.replace(Regex("[^A-Za-z0-9-]"), "")
-        val key = uuid ?: "%08x".format(CRC32().apply { update(root.absolutePath.toByteArray()) }.value)
+        val key = uuid ?: pathKey(root)
         return "$GUEST_EXTERNAL/$key"
     }
 
@@ -226,7 +218,7 @@ object StoreInstallRoot {
 
     fun isRemovable(context: Context, folder: File): Boolean = !folder.absolutePath.startsWith(internalRoot(context).absolutePath + "/")
 
-    fun storeDir(root: File, store: Store): File = File(root, store.shortLabel)
+    fun storeDir(root: File, store: Store): File = File(root, store.folder)
 
     fun gameFolders(context: Context): List<File> = roots(context).flatMap { root ->
         Store.entries.flatMap { store ->
@@ -254,7 +246,7 @@ object StoreInstallRoot {
                 val sidecar = StoreGameSidecar.read(folder)
                 when {
                     sidecar == null -> Unfinished(store, null, folder)
-                    store == Store.GOG && sidecar.state == StoreGameSidecar.STATE_UPDATING -> null
+                    sidecar.state == StoreGameSidecar.STATE_UPDATING -> null
                     !sidecar.isInstalled -> Unfinished(store, sidecar.id, folder)
                     else -> null
                 }
