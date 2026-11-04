@@ -172,6 +172,32 @@ class ProgramsTest(unittest.TestCase):
         [name] = self.entries(self.apps)
         self.assertIn('Exec="%s" "%s" "--profile=O\'Brien"\n' % (PROGRAMS["OPEN"], exe), (self.apps / name).read_text())
 
+    def test_a_prefix_folder_it_cannot_read_leaves_the_menu_and_desktop_alone(self):
+        self.install(self.prefix(NEXON))
+        PROGRAMS["main"]()
+        menu, desktop = self.entries(self.apps), self.entries(self.desktop)
+        placed = Path(PROGRAMS["PLACED"]).read_text()
+        compatdata = str(self.steam / "steamapps/compatdata")
+        listdir = os.listdir
+
+        def refuse(path="."):
+            if str(path) == compatdata:
+                raise PermissionError(13, "Permission denied", compatdata)
+            return listdir(path)
+
+        with mock.patch.object(PROGRAMS["os"], "listdir", refuse):
+            PROGRAMS["main"]()
+        self.assertEqual(menu, self.entries(self.apps))
+        self.assertEqual(desktop, self.entries(self.desktop))
+        self.assertEqual(placed, Path(PROGRAMS["PLACED"]).read_text())
+
+    def test_without_any_prefixes_the_entries_go(self):
+        self.install(self.prefix(NEXON))
+        PROGRAMS["main"]()
+        shutil.rmtree(self.steam / "steamapps/compatdata")
+        PROGRAMS["main"]()
+        self.assertEqual([], self.entries(self.apps))
+
     def test_refreshes_take_turns(self):
         calls = []
         with mock.patch.object(PROGRAMS["fcntl"], "flock", lambda lock, op: calls.append(op)), \
