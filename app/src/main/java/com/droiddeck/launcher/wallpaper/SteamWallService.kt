@@ -60,7 +60,10 @@ class SteamWallService : WallpaperService() {
                     BitmapFactory.decodeFile(file.path, bounds)
                     var sample = 1
                     while (bounds.outWidth / (sample * 2) >= targetW) sample *= 2
-                    BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
+                    BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply {
+                        inSampleSize = sample
+                        inPreferredConfig = Bitmap.Config.RGB_565
+                    })
                 }.getOrNull()
             }
         }
