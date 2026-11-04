@@ -8,6 +8,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.After
+import org.junit.Before
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -23,6 +25,10 @@ import java.util.zip.ZipFile
 @Config(sdk = [28], manifest = Config.NONE)
 class SessionLogShareTest {
     @get:Rule val tmp = TemporaryFolder()
+
+    @Before fun installSecureSourceOpener() = installJvmSecureSourceOpener()
+
+    @After fun resetSourceOpener() = resetSecureSourceOpener()
 
     private val secret = "GET /x?sessionid=abcdef123456 200"
     private val leaked = "abcdef123456"
