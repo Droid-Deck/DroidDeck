@@ -531,6 +531,31 @@ def apply_config(env, config, app_id, fixes=None):
     return result
 
 
+def render_path_defaults(command, env):
+    if len(command) < 3 or command[1] != "waitforexitandrun" or Path(command[2]).name.lower() != "spintires.exe":
+        return None
+    own = env.get("DXVK_CONFIG", "")
+    if re.search(r"(?:^|;)\s*dxvk\.tilerMode\s*=", own) or env.get("DXVK_CONFIG_FILE"):
+        return None
+    if Path("dxvk.conf").is_file() or Path(command[2]).with_name("dxvk.conf").is_file():
+        return None
+    driver = env.get("VK_DRIVER_FILES", env.get("VK_ICD_FILENAMES", ""))
+    if Path(driver).parent.name != "DD-Turnip_v0.4.0":
+        return None
+    try:
+        if Path("/sys/class/kgsl/kgsl-3d0/gpu_model").read_text().strip() != "Adreno722":
+            return None
+        with open(driver, encoding="utf-8") as source:
+            library = json.load(source)["ICD"]["library_path"]
+        if Path(library).name != "libvulkan_freedreno.so":
+            return None
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    own = own.strip().rstrip(";").strip()
+    env["DXVK_CONFIG"] = own + "; dxvk.tilerMode = False" if own else "dxvk.tilerMode = False"
+    return "Spintires: DXVK tiler heuristics off on Adreno 722"
+
+
 def bridge_feature_level(env):
     if env.get("BL_VKBRIDGE") != "1" or env.get("VKD3D_FEATURE_LEVEL") not in ("12_1", "12_2"):
         return None
@@ -1036,6 +1061,9 @@ def main():
         env["AUDIO_DIRECT_MIC"] = "0"
     env = directaudio_settings(env)
     env = vram_cap(env)
+    note = render_path_defaults(command, env) if app_id else None
+    if note:
+        print("droiddeck-game-env: " + note, file=sys.stderr)
     note = bridge_feature_level(env)
     if note:
         print("droiddeck-game-env: " + note, file=sys.stderr)

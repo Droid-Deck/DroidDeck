@@ -11,6 +11,8 @@ class StoreGameSidecar(
     val title: String,
     val exe: String,
     val launcher: String? = null,
+    /** The working directory a store's launch task asks for: "" is the game folder, null means the exe's folder. */
+    val workdir: String? = null,
     val args: List<String> = emptyList(),
     val env: Map<String, String> = emptyMap(),
     val installVersion: String = "",
@@ -30,12 +32,12 @@ class StoreGameSidecar(
     fun launcherFile(folder: File): File? = launcher?.takeIf { it.isNotEmpty() }?.let { File(folder, it) }
 
     fun copy(
-        exe: String = this.exe, launcher: String? = this.launcher, args: List<String> = this.args,
+        exe: String = this.exe, launcher: String? = this.launcher, workdir: String? = this.workdir, args: List<String> = this.args,
         env: Map<String, String> = this.env, installVersion: String = this.installVersion,
         installedAt: Long = this.installedAt, cover: String? = this.cover, hero: String? = this.hero,
         extra: Map<String, String> = this.extra, state: String = this.state, epic: EpicOptions = this.epic, cloud: Boolean = this.cloud, achievements: Boolean = this.achievements,
         logo: String? = this.logo,
-    ) = StoreGameSidecar(store, id, title, exe, launcher, args, env, installVersion, installedAt, cover, hero, extra, state, epic, cloud, achievements, logo)
+    ) = StoreGameSidecar(store, id, title, exe, launcher, workdir, args, env, installVersion, installedAt, cover, hero, extra, state, epic, cloud, achievements, logo)
 
     fun toJson(): JSONObject = JSONObject().apply {
         put("version", VERSION)
@@ -48,6 +50,7 @@ class StoreGameSidecar(
         if (store != Store.AMAZON) put("cloud", cloud)
         if (store == Store.GOG) put("achievements", achievements)
         if (!launcher.isNullOrEmpty()) put("launcher", launcher)
+        if (workdir != null) put("workdir", workdir)
         if (args.isNotEmpty()) put("args", JSONArray(args))
         if (env.isNotEmpty()) put("env", JSONObject(env as Map<*, *>))
         if (installVersion.isNotEmpty()) put("installVersion", installVersion)
@@ -116,13 +119,16 @@ class StoreGameSidecar(
             if (exe.isEmpty() && state == STATE_INSTALLED) return null
             if (exe.isNotEmpty() && !relativeInside(exe)) return null
             val launcher = o.optString("launcher", "").replace('\\', '/').takeIf { it.isNotEmpty() && relativeInside(it) }
+            val workdir = if (!o.has("workdir")) null else o.optString("workdir", "")
+                .replace('\\', '/').removePrefix("./").trimEnd('/')
+                .let { if (it.isEmpty() || it == ".") "" else it.takeIf(::relativeInside) }
             val args = o.optJSONArray("args")?.let { a -> List(a.length()) { a.optString(it) }.filter { it.isNotEmpty() } } ?: emptyList()
             val env = LinkedHashMap<String, String>()
             o.optJSONObject("env")?.let { e -> e.keys().forEach { k -> env[k] = e.optString(k) } }
             val extra = LinkedHashMap<String, String>()
             o.optJSONObject("extra")?.let { e -> e.keys().forEach { k -> extra[k] = e.optString(k) } }
             return StoreGameSidecar(
-                store, id, title, exe, launcher, args, env,
+                store, id, title, exe, launcher, workdir = workdir, args = args, env = env,
                 installVersion = o.optString("installVersion", ""),
                 installedAt = o.optLong("installedAt", 0L),
                 cover = o.optString("cover", "").ifEmpty { null },
