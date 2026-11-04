@@ -249,4 +249,5 @@ forced On by `relative_mouse` also stays visible while idle, since the host curs
 
 A game can open a fullscreen window larger than its X screen (Valheim at 1366x768 on 1280x720). The X server
 keeps the pointer inside the screen, so the outer part of the window could not be reached and motion past the
-edge had to be undone. The server's mode now follows such a window, and returns once the focused window fits.
+edge had to be undone. The server's mode now follows such a window, and returns once the focused window fits,
+focus moves to Steam or no window has focus.

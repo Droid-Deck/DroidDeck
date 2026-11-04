@@ -1,5 +1,5 @@
 diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
-index 2c92afe..a84a191 100644
+index 2c92afe..ba61901 100644
 --- a/src/steamcompmgr.cpp
 +++ b/src/steamcompmgr.cpp
 @@ -4662,6 +4662,46 @@ static void set_wm_state( xwayland_ctx_t *ctx, Window win, uint32_t state )
@@ -10,27 +10,27 @@ index 2c92afe..a84a191 100644
 +fit_root_to_focus_window( xwayland_ctx_t *ctx )
 +{
 +	steamcompmgr_win_t *w = ctx->focus.focusWindow;
-+	if ( !w || window_is_steam( w ) )
-+		return;
-+
-+	const XWindowAttributes &a = w->xwayland().a;
-+	const size_t uServer = ctx->xwayland_server->get_index();
-+	const bool bCoversRoot = a.x == 0 && a.y == 0 && a.width >= ctx->root_width && a.height >= ctx->root_height;
-+	const bool bPlausible = a.width <= 8192 && a.height <= 8192;
++	const bool bGame = w && !window_is_steam( w );
++	const int nWindowX = bGame ? w->xwayland().a.x : 0;
++	const int nWindowY = bGame ? w->xwayland().a.y : 0;
++	const int nWindowWidth = bGame ? w->xwayland().a.width : 0;
++	const int nWindowHeight = bGame ? w->xwayland().a.height : 0;
++	const bool bCoversRoot = nWindowX == 0 && nWindowY == 0 && nWindowWidth >= ctx->root_width && nWindowHeight >= ctx->root_height;
++	const bool bPlausible = nWindowWidth <= 8192 && nWindowHeight <= 8192;
 +
 +	int nWidth = 0;
 +	int nHeight = 0;
-+	if ( bCoversRoot && bPlausible && ( a.width > ctx->root_width || a.height > ctx->root_height ) )
++	if ( bGame && bCoversRoot && bPlausible && ( nWindowWidth > ctx->root_width || nWindowHeight > ctx->root_height ) )
 +	{
 +		if ( !ctx->nFitRestoreWidth )
 +		{
 +			ctx->nFitRestoreWidth = ctx->root_width;
 +			ctx->nFitRestoreHeight = ctx->root_height;
 +		}
-+		nWidth = a.width;
-+		nHeight = a.height;
++		nWidth = nWindowWidth;
++		nHeight = nWindowHeight;
 +	}
-+	else if ( ctx->nFitRestoreWidth && a.width <= ctx->nFitRestoreWidth && a.height <= ctx->nFitRestoreHeight )
++	else if ( ctx->nFitRestoreWidth && nWindowWidth <= ctx->nFitRestoreWidth && nWindowHeight <= ctx->nFitRestoreHeight )
 +	{
 +		nWidth = ctx->nFitRestoreWidth;
 +		nHeight = ctx->nFitRestoreHeight;
@@ -42,7 +42,7 @@ index 2c92afe..a84a191 100644
 +		return;
 +
 +	wlserver_lock();
-+	wlserver_set_xwayland_server_mode( uServer, nWidth, nHeight, g_nOutputRefresh );
++	wlserver_set_xwayland_server_mode( ctx->xwayland_server->get_index(), nWidth, nHeight, g_nOutputRefresh );
 +	wlserver_unlock();
 +}
 +
