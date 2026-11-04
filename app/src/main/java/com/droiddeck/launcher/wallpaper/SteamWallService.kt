@@ -11,6 +11,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
 import android.service.wallpaper.WallpaperService
+import android.view.Choreographer
 import android.view.Display
 import android.view.SurfaceHolder
 import androidx.compose.ui.graphics.toArgb
@@ -39,11 +40,28 @@ class SteamWallService : WallpaperService() {
         private var surfaceLive = false
         private var lastFrame = 0L
         private var phase = 0f
-        private val tick = object : Runnable {
-            override fun run() {
-                draw()
-                if (visible && synchronized(lock) { surfaceLive }) handler.postDelayed(this, 1000L / framesPerSecond())
+        private var choreographer: Choreographer? = null
+        private var lastDrawNanos = 0L
+        private val tick = object : Choreographer.FrameCallback {
+            override fun doFrame(frameTimeNanos: Long) {
+                if (!visible || !synchronized(lock) { surfaceLive }) return
+                val interval = if (WallPrefs.fps(applicationContext) == WallPrefs.MATCH_SCREEN) 0L else 1_000_000_000L / framesPerSecond()
+                if (frameTimeNanos - lastDrawNanos >= interval - SLACK_NANOS) {
+                    lastDrawNanos = frameTimeNanos
+                    draw()
+                }
+                choreographer?.postFrameCallback(this)
             }
+        }
+
+        private fun startTicking() {
+            val c = choreographer ?: Choreographer.getInstance().also { choreographer = it }
+            c.removeFrameCallback(tick)
+            c.postFrameCallback(tick)
+        }
+
+        private fun stopTicking() {
+            choreographer?.removeFrameCallback(tick)
         }
 
         private fun framesPerSecond(): Int {
@@ -79,10 +97,10 @@ class SteamWallService : WallpaperService() {
         override fun onVisibilityChanged(visible: Boolean) {
             handler.post {
                 this.visible = visible
-                handler.removeCallbacks(tick)
+                stopTicking()
                 if (visible) {
                     lastFrame = SystemClock.uptimeMillis()
-                    handler.post(tick)
+                    startTicking()
                 }
             }
         }
@@ -90,8 +108,8 @@ class SteamWallService : WallpaperService() {
         override fun onSurfaceCreated(holder: SurfaceHolder) {
             synchronized(lock) { surfaceLive = true }
             handler.post {
-                handler.removeCallbacks(tick)
-                if (visible) handler.post(tick)
+                stopTicking()
+                if (visible) startTicking()
             }
         }
 
@@ -105,7 +123,7 @@ class SteamWallService : WallpaperService() {
         }
 
         override fun onSurfaceDestroyed(holder: SurfaceHolder) {
-            handler.removeCallbacks(tick)
+            stopTicking()
             handler.removeCallbacks(redraw)
             synchronized(lock) { surfaceLive = false }
         }
@@ -114,7 +132,7 @@ class SteamWallService : WallpaperService() {
             synchronized(lock) { surfaceLive = false }
             handler.post {
                 visible = false
-                handler.removeCallbacks(tick)
+                stopTicking()
                 handler.removeCallbacks(redraw)
             }
             thread.quitSafely()
@@ -132,11 +150,11 @@ class SteamWallService : WallpaperService() {
         private fun draw() {
             synchronized(lock) {
                 if (!surfaceLive) return
-                val canvas = surfaceHolder.lockCanvas() ?: return
+                val canvas = surfaceHolder.surface.lockHardwareCanvas() ?: return
                 try {
                     render(canvas, canvas.width.toFloat(), canvas.height.toFloat())
                 } finally {
-                    surfaceHolder.unlockCanvasAndPost(canvas)
+                    surfaceHolder.surface.unlockCanvasAndPost(canvas)
                 }
             }
         }
@@ -206,5 +224,6 @@ class SteamWallService : WallpaperService() {
         const val TILT = 13f
         const val DRIFT_MS = 50_000L
         const val REDRAW_WAIT_MS = 200L
+        const val SLACK_NANOS = 2_000_000L
     }
 }
