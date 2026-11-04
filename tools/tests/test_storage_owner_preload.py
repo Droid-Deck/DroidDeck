@@ -34,6 +34,10 @@ int fstatfs(int fd, struct statfs *out) {
   if (result == 0 && strstr(path, "/fat/")) out->f_type = 0x4d44;
   if (result == 0 && strstr(path, "/exfat/")) out->f_type = 0x2011bab0;
   if (result == 0 && strstr(path, "/ntfs/")) out->f_type = 0x5346544e;
+  if (strstr(path, "/broken/")) {
+    errno = EIO;
+    return -1;
+  }
   return result;
 }
 
@@ -90,7 +94,7 @@ class StorageOwnerPreloadTest(unittest.TestCase):
         subprocess.run(["cc", "-O2", "-o", str(cls.wineserver), str(build / "program.c")], check=True)
         cls.other = build / "wine64-preloader"
         shutil.copy(cls.wineserver, cls.other)
-        for kind in ("fuse", "sdcardfs", "ext4", "fat", "exfat", "ntfs"):
+        for kind in ("fuse", "sdcardfs", "ext4", "fat", "exfat", "ntfs", "broken"):
             (cls.dir / kind).mkdir()
             (cls.dir / kind / "file").write_text("x")
 
@@ -109,10 +113,13 @@ class StorageOwnerPreloadTest(unittest.TestCase):
         self.assertEqual(["user", "1", "chmod-ok"] * 2, self.owners(self.wineserver, "fuse", "sdcardfs"))
 
     def test_wineserver_owns_what_is_on_a_native_card(self):
-        self.assertEqual(["user", "1", "chmod-ok"] * 3, self.owners(self.wineserver, "fat", "exfat", "ntfs"))
+        self.assertEqual(["user", "1", "chmod-ok"] * 2, self.owners(self.wineserver, "fat", "exfat"))
 
     def test_other_filesystems_keep_their_owner(self):
-        self.assertEqual(["real", "1", "chmod-denied"], self.owners(self.wineserver, "ext4"))
+        self.assertEqual(["real", "1", "chmod-denied"] * 2, self.owners(self.wineserver, "ext4", "ntfs"))
+
+    def test_chmod_keeps_its_error_when_the_volume_is_unknown(self):
+        self.assertEqual(["real", "1", "chmod-denied"], self.owners(self.wineserver, "broken"))
 
     def test_other_programs_see_the_real_owner(self):
         self.assertEqual(["real", "1", "chmod-denied"] * 2, self.owners(self.other, "fuse", "sdcardfs"))

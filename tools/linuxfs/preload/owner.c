@@ -11,7 +11,6 @@
 #define SDCARDFS_MAGIC 0x5dca2df5
 #define FAT_MAGIC 0x4d44
 #define EXFAT_MAGIC 0x2011bab0
-#define NTFS_MAGIC 0x5346544e
 
 static int is_wineserver(void) {
   static int cached = -1;
@@ -36,7 +35,7 @@ static int has_no_unix_owner(int fd) {
 
   if (fstatfs(fd, &fs) != 0) return 0;
   return fs.f_type == FUSE_MAGIC || fs.f_type == SDCARDFS_MAGIC || fs.f_type == FAT_MAGIC ||
-         (unsigned int)fs.f_type == EXFAT_MAGIC || fs.f_type == NTFS_MAGIC;
+         (unsigned int)fs.f_type == EXFAT_MAGIC;
 }
 
 __attribute__((visibility("hidden")))
@@ -61,9 +60,12 @@ int fchmod(int fd, mode_t mode) {
     return -1;
   }
   result = next_fchmod(fd, mode);
-  if (result != 0 && errno == EPERM && is_wineserver() && has_no_unix_owner(fd)) {
-    errno = saved;
-    return 0;
+  if (result != 0 && errno == EPERM && is_wineserver()) {
+    if (has_no_unix_owner(fd)) {
+      errno = saved;
+      return 0;
+    }
+    errno = EPERM;
   }
   return result;
 }
