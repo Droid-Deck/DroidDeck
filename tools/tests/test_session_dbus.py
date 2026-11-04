@@ -1,6 +1,7 @@
 """Real subprocess checks that droiddeck-session starts its bus before the compositor."""
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -83,6 +84,10 @@ def build_harness():
     return HARNESS.format(guard_before=before, guard_after=after, reap=reap)
 
 
+@unittest.skipUnless(
+    shutil.which("dbus-run-session") and shutil.which("bash"),
+    "missing required tools: dbus-run-session and bash must both be on PATH",
+)
 class SessionDBusTest(unittest.TestCase):
     def _run(self, inherited):
         with tempfile.TemporaryDirectory() as td:
