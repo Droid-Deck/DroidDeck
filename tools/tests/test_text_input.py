@@ -7,6 +7,7 @@ import select
 import shutil
 import signal
 import socket
+import stat
 import struct
 import subprocess
 import sys
@@ -444,14 +445,32 @@ class TextInputTest(unittest.TestCase):
     def wait_for_socket(self, process, socket_path, timeout=10):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            if socket_path.exists():
-                return
             if process.poll() is not None:
                 self.fail("the text bridge exited with %s before serving %s; output: %r"
                           % (process.returncode, socket_path.name, self.output()))
+            if self.listening(socket_path):
+                return
             time.sleep(0.02)
         self.fail("the text bridge never listened on %s; output: %r"
                   % (socket_path.name, self.output()))
+
+    @staticmethod
+    def listening(socket_path):
+        try:
+            info = socket_path.lstat()
+        except OSError:
+            return False
+        if not stat.S_ISSOCK(info.st_mode):
+            return False
+        probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            probe.settimeout(0.5)
+            probe.connect(str(socket_path))
+        except OSError:
+            return False
+        finally:
+            probe.close()
+        return True
 
     def output(self):
         try:
@@ -747,6 +766,74 @@ class TextInputTest(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 20)
         self.assertTrue(consumer.wait_for(2), "the later request was never typed")
         self.assertEqual("中文", consumer.text())
+
+    def test_sigkill_restart_on_the_same_path_serves_again(self):
+        display = self.start_display()
+        consumer = self.consume(display)
+        socket_path = self.dir / "text-input.sock"
+        first = self.start_helper(socket_path, display)
+        first.send_signal(signal.SIGKILL)
+        first.wait(timeout=10)
+        self.start_helper(socket_path, display)
+        self.assertEqual(ACK_OK, self.commit(socket_path, "重启", timeout=20))
+        self.assertTrue(consumer.wait_for(2), "text after a SIGKILL restart was never typed")
+        self.assertEqual("重启", consumer.text())
+
+    def test_a_second_helper_leaves_the_live_listener_alone(self):
+        display = self.start_display()
+        consumer = self.consume(display)
+        socket_path = self.dir / "text-input.sock"
+        self.start_helper(socket_path, display)
+        before = socket_path.lstat()
+        stream = open(self.log, "ab")
+        self.addCleanup(stream.close)
+        second = subprocess.Popen([sys.executable, str(HELPER), str(socket_path)],
+                                  env=dict(os.environ, DISPLAY=display), stdin=subprocess.DEVNULL,
+                                  stdout=stream, stderr=subprocess.STDOUT)
+        self.addCleanup(self.stop_helper, second)
+        try:
+            code = second.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            self.fail("a second text bridge kept running next to the live one")
+        self.assertNotEqual(0, code, "a second text bridge accepted an occupied path")
+        after = socket_path.lstat()
+        self.assertEqual((before.st_dev, before.st_ino), (after.st_dev, after.st_ino),
+                         "a second text bridge replaced the live socket")
+        self.assertEqual(ACK_OK, self.commit(socket_path, "还在", timeout=20))
+        self.assertTrue(consumer.wait_for(2), "the live listener stopped typing after a second launch")
+        self.assertEqual("还在", consumer.text())
+
+    def test_a_regular_file_at_the_socket_path_is_preserved(self):
+        display = self.start_display()
+        socket_path = self.dir / "occupied.sock"
+        socket_path.write_text("not a socket")
+        code = self.launch_expecting_failure(socket_path, display)
+        self.assertNotEqual(0, code, "the text bridge accepted a regular file as its socket")
+        self.assertEqual("not a socket", socket_path.read_text(),
+                         "the text bridge overwrote a regular file")
+
+    def test_a_symlink_at_the_socket_path_is_preserved(self):
+        display = self.start_display()
+        target = self.dir / "target"
+        target.write_text("keep")
+        socket_path = self.dir / "link.sock"
+        socket_path.symlink_to(target)
+        code = self.launch_expecting_failure(socket_path, display)
+        self.assertNotEqual(0, code, "the text bridge accepted a symlink as its socket")
+        self.assertTrue(socket_path.is_symlink(), "the text bridge removed a symlink")
+        self.assertEqual("keep", target.read_text())
+
+    def launch_expecting_failure(self, socket_path, display):
+        stream = open(self.log, "wb")
+        self.addCleanup(stream.close)
+        process = subprocess.Popen([sys.executable, str(HELPER), str(socket_path)],
+                                   env=dict(os.environ, DISPLAY=display), stdin=subprocess.DEVNULL,
+                                   stdout=stream, stderr=subprocess.STDOUT)
+        self.addCleanup(self.stop_helper, process)
+        try:
+            return process.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            self.fail("the text bridge kept running on an occupied path")
 
     @staticmethod
     def kill_pid(pid):

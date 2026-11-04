@@ -4,7 +4,7 @@
 import argparse
 import hashlib
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import shutil
 import subprocess
 import tempfile
@@ -74,14 +74,18 @@ def extract(name, rpm, destination):
         if shutil.which(tool) is None:
             raise ValueError(tool + ' is required to unpack the RPM payload')
     destination.mkdir(parents=True)
-    process = subprocess.Popen(['rpm2cpio', str(rpm)], stdout=subprocess.PIPE)
-    try:
-        subprocess.run(['cpio', '-idm', '--quiet', '--no-absolute-filenames'],
-                       stdin=process.stdout, cwd=destination, check=True)
-    finally:
-        process.stdout.close()
-    if process.wait():
-        raise ValueError('rpm2cpio failed for ' + name)
+    with tempfile.TemporaryFile(dir=destination.parent) as payload:
+        subprocess.run(['rpm2cpio', str(rpm)], stdout=payload, check=True)
+        payload.seek(0)
+        listing = subprocess.run(['cpio', '-it', '--quiet'], stdin=payload,
+                                 stdout=subprocess.PIPE, check=True)
+        payload.seek(0)
+        for line in listing.stdout.splitlines():
+            path = PurePosixPath(line.decode('utf-8', 'surrogateescape'))
+            if path.is_absolute() or '..' in path.parts:
+                raise ValueError(f'{name}: RPM payload contains unsafe path {path}')
+        subprocess.run(['cpio', '-idm', '--quiet'], stdin=payload,
+                       cwd=destination, check=True)
 
 
 def member(tree, name):

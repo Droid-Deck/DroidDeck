@@ -2,6 +2,7 @@
 """Deliver committed Android IME text to the focused X11 client."""
 import ctypes
 import ctypes.util
+import errno
 import os
 import select
 import signal
@@ -12,6 +13,7 @@ import sys
 
 MAX_TEXT = 65536
 CLIENT_TIMEOUT = 2.0
+PROBE_TIMEOUT = 0.5
 FOCUS_PROPERTY = b'GAMESCOPE_KEYBOARD_FOCUS_DISPLAY'
 ANY_PROPERTY_TYPE = 0
 PROPERTY_WORDS = 1024
@@ -390,6 +392,9 @@ def _release(path, owned):
 
 
 def serve(path, bridge):
+    if not _remove_stale(path):
+        print("droiddeck-text-input: refusing to replace %s" % path, file=sys.stderr)
+        return 1
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     owned = None
     try:
@@ -419,6 +424,32 @@ def serve(path, bridge):
         server.close()
         _release(path, owned)
     return 0
+
+
+def _remove_stale(path):
+    try:
+        info = os.lstat(path)
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+    if not stat.S_ISSOCK(info.st_mode):
+        return False
+    probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        probe.settimeout(PROBE_TIMEOUT)
+        probe.connect(path)
+    except OSError as error:
+        if error.errno == errno.ENOENT:
+            return True
+        if error.errno != errno.ECONNREFUSED:
+            return False
+    else:
+        return False
+    finally:
+        probe.close()
+    _release(path, (info.st_dev, info.st_ino))
+    return True
 
 
 def _stop(signum, frame):

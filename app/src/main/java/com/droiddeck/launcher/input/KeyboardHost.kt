@@ -18,9 +18,6 @@ class KeyboardHost(
     private val sendKeyEvent: (KeyEvent) -> Boolean,
     private val sendText: (String) -> Unit,
 ) : View(context) {
-    constructor(context: Context, sendKeyEvent: (KeyEvent) -> Boolean) :
-        this(context, sendKeyEvent, { WaylandCompositor.textInputCommit(it) })
-
     constructor(activity: Activity) :
         this(activity, { activity.dispatchKeyEvent(it) }, { WaylandCompositor.textInputCommit(it) })
 
@@ -93,6 +90,9 @@ class KeyboardHost(
     }
 
     private inner class KeyConnection : BaseInputConnection(this, false) {
+        // A press keeps the route chosen on its first down across repeats and the matching up.
+        private val controlRoutes = HashMap<Int, Boolean>()
+
         override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
             if (text.isNullOrEmpty()) return true
             // Text and soft editing actions share this queue to preserve IME ordering.
@@ -113,10 +113,23 @@ class KeyboardHost(
 
         override fun sendKeyEvent(event: KeyEvent): Boolean {
             val control = softControl(event.keyCode)
-            if (control != null && !event.isModified() &&
-                (event.action == KeyEvent.ACTION_DOWN || event.action == KeyEvent.ACTION_UP)) {
-                if (event.action == KeyEvent.ACTION_DOWN) sendText(control.toString())
+            if (control == null) return this@KeyboardHost.sendKeyEvent(event)
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                val soft = if (event.repeatCount == 0) {
+                    val route = !event.isModified()
+                    controlRoutes[event.keyCode] = route
+                    route
+                } else {
+                    controlRoutes[event.keyCode] ?: !event.isModified()
+                }
+                if (!soft) return this@KeyboardHost.sendKeyEvent(event)
+                sendText(control.toString())
                 return true
+            }
+            if (event.action == KeyEvent.ACTION_UP) {
+                val soft = controlRoutes.remove(event.keyCode) ?: !event.isModified()
+                if (soft) return true
+                return this@KeyboardHost.sendKeyEvent(event)
             }
             return this@KeyboardHost.sendKeyEvent(event)
         }

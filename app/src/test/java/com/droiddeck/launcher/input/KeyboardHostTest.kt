@@ -240,8 +240,72 @@ class KeyboardHostTest {
         assertTrue(texts.isEmpty())
     }
 
-    private fun keyEvent(action: Int, keyCode: Int, metaState: Int = 0) =
-        KeyEvent(0L, 0L, action, keyCode, 0, metaState)
+    @Config(sdk = [33])
+    @Test fun unmodifiedSoftDownStaysSoftWhenTheUpGainsAModifier() {
+        host.show()
+        idle()
+        val connection = connection()
+
+        assertTrue(connection.sendKeyEvent(keyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)))
+        assertTrue(connection.sendKeyEvent(
+            keyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER, KeyEvent.META_CTRL_ON)))
+        idle()
+
+        assertEquals("a plain press must stay a soft edit for its whole press", listOf("\r"), texts)
+        assertTrue("the matching up must follow the route picked on down", keys.isEmpty())
+    }
+
+    @Config(sdk = [33])
+    @Test fun modifiedSoftDownStaysAKeyEventWhenTheUpLosesTheModifier() {
+        host.show()
+        idle()
+        val connection = connection()
+
+        connection.sendKeyEvent(keyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER, KeyEvent.META_SHIFT_ON))
+        connection.sendKeyEvent(keyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
+        idle()
+
+        assertEquals("a shortcut press keeps both of its key events",
+                     listOf(KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_ENTER), keys.map { it.keyCode })
+        assertTrue("a shortcut press must not leak into the text channel", texts.isEmpty())
+    }
+
+    @Config(sdk = [33])
+    @Test fun repeatedSoftDownKeepsOneRouteAcrossModifierChanges() {
+        host.show()
+        idle()
+        val connection = connection()
+
+        connection.sendKeyEvent(keyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL))
+        connection.sendKeyEvent(
+            keyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL, KeyEvent.META_CTRL_ON, repeat = 2))
+        connection.sendKeyEvent(
+            keyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL, KeyEvent.META_CTRL_ON))
+        idle()
+
+        assertEquals("autorepeat must stay on the soft control route", listOf("\b", "\b"), texts)
+        assertTrue("autorepeat must not turn into key events", keys.isEmpty())
+    }
+
+    @Config(sdk = [33])
+    @Test fun interleavedSoftKeysKeepTheirOwnRoutes() {
+        host.show()
+        idle()
+        val connection = connection()
+
+        connection.sendKeyEvent(keyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_TAB, KeyEvent.META_CTRL_ON))
+        connection.sendKeyEvent(keyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL))
+        connection.sendKeyEvent(keyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL, KeyEvent.META_CTRL_ON))
+        connection.sendKeyEvent(keyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_TAB))
+        idle()
+
+        assertEquals("only the plain press is a soft edit", listOf("\b"), texts)
+        assertEquals("the shortcut press keeps both of its key events",
+                     listOf(KeyEvent.KEYCODE_TAB, KeyEvent.KEYCODE_TAB), keys.map { it.keyCode })
+    }
+
+    private fun keyEvent(action: Int, keyCode: Int, metaState: Int = 0, repeat: Int = 0) =
+        KeyEvent(0L, 0L, action, keyCode, repeat, metaState)
 
     private fun connection(): InputConnection {
         val connection = host.onCreateInputConnection(EditorInfo())

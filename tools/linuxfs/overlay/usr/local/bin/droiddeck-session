@@ -3,6 +3,12 @@ set -u
 export HOME=${HOME:-/root}
 mode=${1:-desktop}
 shift || true
+
+# Steam and its helpers share one session bus per session; an existing desktop bus is inherited.
+if [ "$mode" = steam ] && [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+  exec dbus-run-session -- "$0" "$mode" "$@"
+fi
+
 step() { echo "== STEP $(date -u +%H:%M:%S.%3N) $*"; }
 steam_setup_failed() {
   echo "== steam: the Steam client could not be set up (status $1)"
@@ -433,11 +439,6 @@ if [ -z "${BL_INSIDE:-}" ]; then
     exit $_bl_status
   fi
   exec gamescope "${args[@]}" -- "$0" "$mode" "$@"
-fi
-
-# Steam and its helpers share one session bus per session; an existing desktop bus is inherited.
-if [ "$mode" = steam ] && [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
-  exec dbus-run-session -- "$0" "$mode" "$@"
 fi
 
 bl_displays() {
