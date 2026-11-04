@@ -18,10 +18,19 @@ for path in "${paths[@]}"; do
     [[ -e "${main_root}/${path}" ]] || continue
     if [[ -d "${main_root}/${path}" ]]; then
         [[ -z "$(ls -A "${repo_root}/${path}" 2>/dev/null)" ]] || continue
-        mkdir -p "${repo_root}/${path}"
-        cp -R "${main_root}/${path}/." "${repo_root}/${path}/" 2>/dev/null || true
+        mkdir -p "$(dirname "${repo_root}/${path}")"
+        staged=$(mktemp -d "${repo_root}/${path}.seed.XXXXXX")
+        trap 'rm -rf "${staged}"' EXIT
+        cp -R "${main_root}/${path}/." "${staged}/"
+        rm -rf "${repo_root}/${path}"
+        mv "${staged}" "${repo_root}/${path}"
+        trap - EXIT
     elif [[ ! -e "${repo_root}/${path}" ]]; then
         mkdir -p "$(dirname "${repo_root}/${path}")"
-        cp "${main_root}/${path}" "${repo_root}/${path}"
+        staged=$(mktemp "${repo_root}/${path}.seed.XXXXXX")
+        trap 'rm -f "${staged}"' EXIT
+        cp "${main_root}/${path}" "${staged}"
+        mv "${staged}" "${repo_root}/${path}"
+        trap - EXIT
     fi
 done
