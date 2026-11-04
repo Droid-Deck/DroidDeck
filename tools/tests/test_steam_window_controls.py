@@ -54,6 +54,16 @@ for (const [x, y, side] of [[2, 300, 'w'], [998, 300, 'e'], [500, 2, 'n'], [500,
   assert.deepStrictEqual(take(), [side]);
 }
 
+const inside = (region, parent) => Object.assign(new Element(), { region, parentElement: target(parent) });
+listeners.pointerdown(event(500, 12, 'none', { target: inside('none', 'drag') }));
+listeners.pointermove(event(520, 12, 'none', { buttons: 1 }));
+assert.deepStrictEqual(take(), ['move']);
+listeners.pointerup(event(520, 12));
+listeners.pointerdown(event(500, 12, 'none', { target: inside('no-drag', 'drag') }));
+listeners.pointermove(event(520, 12, 'none', { buttons: 1 }));
+assert.deepStrictEqual(take(), []);
+listeners.pointerup(event(520, 12));
+
 const right = event(2, 300, 'none', { button: 2 });
 listeners.pointerdown(right);
 assert.deepStrictEqual(take(), []);

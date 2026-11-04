@@ -337,7 +337,14 @@ WINDOW_JS = r"""
     const h = near(e.clientX, along) ? "w" : near(right, along) ? "e" : "";
     return v + h;
   };
-  const dragging = e => e.target instanceof Element && getComputedStyle(e.target).webkitAppRegion === "drag";
+  const dragging = e => {
+    for (let node = e.target; node instanceof Element; node = node.parentElement) {
+      const region = getComputedStyle(node).webkitAppRegion;
+      if (region === "drag") return true;
+      if (region === "no-drag") return false;
+    }
+    return false;
+  };
   const style = document.createElement("style");
   document.documentElement.append(style);
   let press = null, shown = "";
