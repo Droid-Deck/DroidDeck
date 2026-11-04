@@ -5,13 +5,13 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.RadialGradient
 import android.graphics.RectF
-import android.graphics.Shader
+import android.hardware.display.DisplayManager
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
 import android.service.wallpaper.WallpaperService
+import android.view.Display
 import android.view.SurfaceHolder
 import androidx.compose.ui.graphics.toArgb
 import com.droiddeck.launcher.frontend.Library
@@ -42,8 +42,15 @@ class SteamWallService : WallpaperService() {
         private val tick = object : Runnable {
             override fun run() {
                 draw()
-                if (visible && synchronized(lock) { surfaceLive }) handler.postDelayed(this, 1000L / WallPrefs.fps(applicationContext))
+                if (visible && synchronized(lock) { surfaceLive }) handler.postDelayed(this, 1000L / framesPerSecond())
             }
+        }
+
+        private fun framesPerSecond(): Int {
+            val fps = WallPrefs.fps(applicationContext)
+            if (fps != WallPrefs.MATCH_SCREEN) return fps
+            val display = getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
+            return (display?.refreshRate ?: 60f).toInt().coerceIn(30, 144)
         }
 
         override fun onCreate(surfaceHolder: SurfaceHolder) {
@@ -191,15 +198,6 @@ class SteamWallService : WallpaperService() {
                 }
             }
             canvas.restore()
-
-            val reach = maxOf(w, h) * 0.7f
-            fill.shader = RadialGradient(
-                px, py, reach,
-                intArrayOf(bg, bg, (bg and 0x00FFFFFF) or 0xB3000000.toInt(), bg and 0x00FFFFFF),
-                floatArrayOf(0f, 0.2f, 0.5f, 1f), Shader.TileMode.CLAMP,
-            )
-            canvas.drawRect(0f, 0f, w, h, fill)
-            fill.shader = null
         }
     }
 

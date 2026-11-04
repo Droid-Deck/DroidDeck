@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -33,8 +34,10 @@ class WallpaperSettingsActivity : ComponentActivity() {
                 val ink = MaterialTheme.colorScheme.onBackground
                 var fps by remember { mutableIntStateOf(WallPrefs.fps(this)) }
                 var speed by remember { mutableFloatStateOf(WallPrefs.speed(this)) }
+                Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Bottom) {
                 Column(
-                    Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).verticalScroll(rememberScrollState()).padding(24.dp),
+                    Modifier.background(MaterialTheme.colorScheme.background.copy(alpha = 0.88f), RoundedCornerShape(20.dp))
+                        .verticalScroll(rememberScrollState()).padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Text(getString(R.string.steam_wall_label), style = MaterialTheme.typography.titleLarge, color = ink)
@@ -44,7 +47,7 @@ class WallpaperSettingsActivity : ComponentActivity() {
                             FilterChip(
                                 selected = fps == choice,
                                 onClick = { fps = choice; WallPrefs.setFps(this@WallpaperSettingsActivity, choice) },
-                                label = { Text("$choice") },
+                                label = { Text(if (choice == WallPrefs.MATCH_SCREEN) getString(R.string.wall_settings_match) else "$choice") },
                             )
                         }
                     }
@@ -58,6 +61,7 @@ class WallpaperSettingsActivity : ComponentActivity() {
                             )
                         }
                     }
+                }
                 }
             }
         }

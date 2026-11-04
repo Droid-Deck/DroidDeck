@@ -80,6 +80,7 @@
         </service>
         <activity android:name=".wallpaper.WallpaperSettingsActivity"
             android:label="@string/steam_wall_label"
+            android:theme="@android:style/Theme.Wallpaper.NoTitleBar"
             android:exported="true" />
         <service android:name=".input.HomeButtonService"
             android:label="@string/integration_shortcuts_service"
