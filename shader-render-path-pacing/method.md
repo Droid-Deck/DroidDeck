@@ -35,6 +35,7 @@ A 640×360 request was not an advertised mode and the actual swapchain remained 
 The repository fast-deploy tool rebuilt main-f3650d3 with exactly one changed non-signature payload: the environment helper. Release certificate/lineage, ZIP alignment and complete session-asset source checks passed. The APK installed successfully over the existing app, and its extracted helper matched the tested source hash. The original installed APK was retained locally for rollback. This is a helper-only package rebuild using the existing compiled main application, not a new compilation of unchanged native/Kotlin code.
 
 The APK and source-helper digests are recorded in apk-proof.json. Raw process logs, device identifiers and account details are kept out of the shared evidence.
+
 ## Gameplay check and remaining work
 
 After the controlled runs, the virtual controller opened/closed the map and drove the truck 14 m. Keyboard driving and camera changes responded; the odometer reached 19 m. A 60-second dynamic capture completed with the game still active. The inspected rear, orbit and hood views showed no obvious corruption. This is a Flood spot check, not validation of every map or physical-button latency. The dynamic capture is excluded from controlled comparisons.
