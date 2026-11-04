@@ -31,6 +31,10 @@
     <string name="steamvr_recovery_restarting">Resetting graphics and reopening SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck could not restart automatically. Close the app completely, then reopen it.</string>
     <string name="app_name">DroidDeck</string>
+    <string name="steam_wall_label" translatable="false">DroidDeck Wall</string>
+    <string name="wall_settings_fps" translatable="false">Frame rate (fps)</string>
+    <string name="wall_settings_match" translatable="false">Match screen</string>
+    <string name="wall_settings_speed" translatable="false">Scroll speed</string>
     <string-array name="loading_hints">
         <item>First run downloads Steam. This may take a few minutes.</item>
         <item>By default, leaving the app pauses Steam; it picks up where it left off when you come back.</item>
