@@ -542,6 +542,16 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual("e", (destination / "stores" / "epic.log").read_text())
         self.assertFalse((self.dir / "outside").exists())
         self.assertEqual([["pull", EXPORTED_ZIP]], [c["args"][:2] for c in self.calls() if c["args"][:1] == ["pull"]])
+        self.assertIn(["shell", "rm", "-f", EXPORTED_ZIP], [c["args"] for c in self.calls()])
+
+    def test_logs_of_a_session_that_started_meanwhile_are_refused(self):
+        self.configure({"state": ended_state(), "logs": {"ok": True, "sessionId": "s2", "zip": EXPORTED_ZIP}},
+                       files={EXPORTED_ZIP: share_zip({"s2/session.log": "other"})})
+        code, out = self.run_ctl("logs", "latest", str(self.dir / "artifacts"))
+        self.assertEqual(6, code)
+        self.assertEqual("LOG_PULL_FAILED", out["error"]["code"])
+        self.assertFalse((self.dir / "artifacts").exists())
+        self.assertIn(["shell", "rm", "-f", EXPORTED_ZIP], [c["args"] for c in self.calls()])
 
     def test_logs_from_an_older_build_fall_back_to_the_private_folder(self):
         self.configure({"state": ended_state()})
