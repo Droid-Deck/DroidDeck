@@ -3,6 +3,7 @@ package com.droiddeck.launcher
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import android.hardware.input.InputManager
 import android.hardware.display.DisplayManager
 import android.content.Intent
@@ -342,13 +343,21 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var drawerOpenState by mutableStateOf(false)
     private var typingReturnMode: SecondScreenMode? = null
     private var drawerDocked by mutableStateOf(false)
+    private var drawerPinned by mutableStateOf(false)
     private var drawerLayerOpen = false
     private var drawerBackRequests by mutableIntStateOf(0)
     private var drawerOpen: Boolean
         get() = drawerOpenState
         set(value) {
-            if (value == drawerOpenState) return
+            if (value == drawerOpenState) {
+                if (!value && drawerPinned) {
+                    drawerPinned = false
+                    if (drawerDocked) closeDockedMenu()
+                }
+                return
+            }
             drawerLayerOpen = false
+            drawerPinned = false
             if (value) drawerDocked = dockDrawer() && openDockedMenu()
             drawerOpenState = value
             if (!value && drawerDocked) closeDockedMenu()
@@ -1168,7 +1177,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     @androidx.compose.runtime.Composable
     private fun SessionMenu(docked: Boolean) {
-        SessionDrawer(drawerOpen, drawerPage, drawerControllerActive, onPageChange = { drawerPage = it }, docked = docked,
+        SessionDrawer(drawerOpen || (docked && drawerPinned), drawerPage, drawerControllerActive, onPageChange = { drawerPage = it }, docked = docked,
             backRequest = drawerBackRequests, onLayerChange = { drawerLayerOpen = it }, a = DrawerActions(
             steam = SessionState.mode == SessionService.MODE_STEAM,
             direct = noSteamSession(),
@@ -1205,6 +1214,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             touchAuto = getString(if (usingTouchpad()) R.string.session_touch_auto_touchpad else R.string.session_touch_auto_direct),
             fexPreset = fexPreset,
             secondScreenMode = secondScreenMode,
+            secondScreenNone = !bottomOutputActive && !dockDrawer(),
             gameOnBottom = bottomOutputActive,
             gameSwapAvailable = bottomSwapAvailable,
             onGameOnBottom = { on -> drawerOpen = false; putGameOnBottom(on) },
@@ -1405,6 +1415,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
             },
             onClose = { drawerOpen = false },
+            onDismissScreen = if (docked) ({ selectSecondScreenMode(SecondScreenMode.NONE) }) else null,
             components = drawerComponents,
             onComponentsRefresh = {
                 refreshDrawerComponents()
@@ -2248,6 +2259,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun cancelTouchGestures() {
         if (::touchscreenGestures.isInitialized) touchscreenGestures.cancel()
         if (::touchpad.isInitialized) touchpad.cancel()
+        if (::directTouchHold.isInitialized) directTouchHold.cancel()
         if (::scrollTouch.isInitialized) scrollTouch.cancel()
         scrollTouchGesture = false
         gesturePointerReady = false
@@ -3119,6 +3131,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (secondScreenMode != SecondScreenMode.NONE) showSecondScreen(secondScreenMode)
     }
 
+    private fun closeBottomPanel() {
+        if (dockDrawer()) drawerOpen = true else selectSecondScreenMode(SecondScreenMode.NONE)
+    }
+
     private fun selectSecondScreenMode(mode: SecondScreenMode) {
         dualControlsProvisional = false
         if (mode == SecondScreenMode.NONE) {
@@ -3177,23 +3193,27 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         sendWheel = { steps -> WaylandCompositor.nativeSendSceneInput(4, steps, 0) },
         onSteamMenu = ::tapSteamButton,
         onQam = ::tapQam,
-        onClose = { selectSecondScreenMode(SecondScreenMode.NONE) },
+        onClose = ::closeBottomPanel,
         pad = padBridge,
         onKeyboardClosed = ::bottomKeyboardClosed,
-        onMenu = if (dockDrawer()) ({ drawerOpen = true }) else null,
+        onMenu = { drawerOpen = true },
+        onMenuTouched = {
+            if (drawerPinned) {
+                drawerPinned = false
+                drawerOpenState = true
+                updateKeyboardRoute()
+            }
+        },
         menu = {
             DroidDeckTheme { SessionMenu(docked = true) }
         },
-        onSwap = if (com.droiddeck.launcher.input.DualScreen.builtIn(target)) ({ putGameOnBottom(true) }) else null,
+        onSwap = if (bottomSwapAvailable && com.droiddeck.launcher.input.DualScreen.builtIn(target)) ({ putGameOnBottom(true) }) else null,
         dashboard = if (bottomPages().isEmpty()) null else ({
             DroidDeckTheme {
                 BottomDashboard(
                     bottomPages(), com.droiddeck.launcher.ui.SessionBottomTab.picked(SessionState.sessionId),
                     gameStarts = gameStarts,
                     onPage = { com.droiddeck.launcher.ui.SessionBottomTab.pick(SessionState.sessionId, it) },
-                    onClose = { selectSecondScreenMode(SecondScreenMode.NONE) },
-                    onMenu = if (dockDrawer()) ({ drawerOpen = true }) else null,
-                    onSwap = if (bottomSwapAvailable && com.droiddeck.launcher.input.DualScreen.builtIn(target)) ({ putGameOnBottom(true) }) else null,
                     strip = { pageId ->
                         com.droiddeck.launcher.ui.SessionBottomStrip(pageId) { if (::hud.isInitialized) hud.liveFps else null }
                     },
@@ -3346,7 +3366,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (panel == null) {
             panel = com.droiddeck.launcher.ui.DeckControlsPanel(this, onClose = { chooseUnfoldedControls(false) },
                 onSteamMenu = ::tapSteamButton, onQam = ::tapQam, pad = padBridge,
-                portraitDock = !com.droiddeck.launcher.session.SessionDisplay.foldable(this))
+                portraitDock = !com.droiddeck.launcher.session.SessionDisplay.foldable(this), onMenu = { drawerOpen = true })
             sessionRoot.addView(panel, sessionRoot.indexOfChild(surfaceView) + 1)
             unfoldedPanel = panel
             updateOnScreenControls()
@@ -3369,7 +3389,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!started) return
         if (secondScreenPresentation?.showsKeyboard != true && dockDrawer()) {
             val target = com.droiddeck.launcher.input.DualScreen.sessionDisplay(this, displayManager, shownOnDisplayId) ?: return
-            if (drawerOpen) drawerOpen = false
+            if (drawerOpen || drawerPinned) drawerOpen = false
             typingReturnMode = secondScreenMode
             selectedSecondScreenDisplay = target.displayId
             selectSecondScreenMode(SecondScreenMode.KEYBOARD_TRACKPAD)
@@ -3394,6 +3414,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun dropDockedDrawer() {
+        drawerPinned = false
         if (!drawerDocked) return
         drawerDocked = false
         drawerLayerOpen = false
@@ -3546,7 +3567,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) return onMouse(event)
         if (drawerOpen && drawerDocked && event.actionMasked == MotionEvent.ACTION_DOWN) {
-            drawerOpen = false
+            drawerLayerOpen = false
+            drawerOpenState = false
+            drawerPinned = true
+            updateKeyboardRoute()
             dismissTouch = true
         }
         if (dismissTouch) {
@@ -4524,31 +4548,67 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun SwappedTopPanel() {
         val pages = bottomPages()
         val swapBack = { putGameOnBottom(false) }
+        val steam = SessionState.mode == SessionService.MODE_STEAM
+        val openMenu = { drawerOpen = true }
+        fun bar(title: String?, extras: List<com.droiddeck.launcher.ui.BarExtra> = emptyList()) = com.droiddeck.launcher.ui.BottomBarModel(
+            title, openMenu, openMenu, if (steam) ({ tapSteamButton() }) else null, if (steam) ({ tapQam() }) else null,
+            extras + com.droiddeck.launcher.ui.BarExtra(getString(R.string.swap_screens), icon = R.drawable.ic_bottom_swap, onClick = swapBack),
+        )
+        val keyboardExtra = com.droiddeck.launcher.ui.BarExtra(getString(R.string.second_show_keyboard), icon = R.drawable.ic_bottom_keyboard) {
+            keyboard?.toggle()
+        }
         androidx.compose.foundation.layout.Box(
-            Modifier.fillMaxSize().background(androidx.compose.material3.MaterialTheme.colorScheme.background)
+            Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black)
                 .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } },
         ) {
-            if (secondScreenMode == SecondScreenMode.DESKTOP && com.droiddeck.launcher.session.BottomDesktop.available()) {
-                androidx.compose.ui.viewinterop.AndroidView(
-                    factory = { context ->
-                        com.droiddeck.launcher.ui.BottomDesktopPanel(context, null, { drawerOpen = true },
-                            (({ tapSteamButton() }) to ({ tapQam() })).takeIf { SessionState.mode == SessionService.MODE_STEAM }, swapBack,
-                            fullResolution = true)
+            when {
+                secondScreenMode == SecondScreenMode.DESKTOP && com.droiddeck.launcher.session.BottomDesktop.available() ->
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        factory = { context ->
+                            com.droiddeck.launcher.ui.BottomDesktopPanel(context, openMenu, openMenu,
+                                (({ tapSteamButton() }) to ({ tapQam() })).takeIf { steam }, swapBack, fullResolution = true)
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                secondScreenMode == SecondScreenMode.DECK_CONTROLS && SessionState.deckPad ->
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        factory = { context ->
+                            com.droiddeck.launcher.ui.DeckControlsPanel(context, onClose = openMenu, onSteamMenu = ::tapSteamButton,
+                                onQam = ::tapQam, pad = padBridge, onMenu = openMenu, onSwap = swapBack)
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                secondScreenMode == SecondScreenMode.KEYBOARD_TRACKPAD -> androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
+                    com.droiddeck.launcher.ui.BottomScreenBar(bar(getString(SecondScreenMode.KEYBOARD_TRACKPAD.label), listOf(keyboardExtra)))
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        factory = { context ->
+                            com.droiddeck.launcher.ui.SessionTrackpadView(context, ::moveSecondScreenPointer,
+                                { button, pressed -> WaylandCompositor.nativeSendSceneInput(3, button, if (pressed) 1 else 0) },
+                                { steps -> WaylandCompositor.nativeSendSceneInput(4, steps, 0) })
+                        },
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                    )
+                }
+                secondScreenMode == SecondScreenMode.TERMINAL -> androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
+                    var terminal by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<com.droiddeck.launcher.ui.SessionTerminalPanel?>(null) }
+                    com.droiddeck.launcher.ui.BottomScreenBar(bar(getString(SecondScreenMode.TERMINAL.label), listOf(
+                        com.droiddeck.launcher.ui.BarExtra(getString(R.string.drawer_keyboard), icon = R.drawable.ic_bottom_keyboard) { terminal?.showKeyboard() },
+                    )))
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        factory = { context -> com.droiddeck.launcher.ui.SessionTerminalPanel(context).also { terminal = it } },
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                    )
+                }
+                pages.isEmpty() -> com.droiddeck.launcher.ui.BottomScreenBar(bar(null))
+                else -> BottomDashboard(
+                    pages, com.droiddeck.launcher.ui.SessionBottomTab.picked(SessionState.sessionId),
+                    gameStarts = gameStarts,
+                    onPage = { com.droiddeck.launcher.ui.SessionBottomTab.pick(SessionState.sessionId, it) },
+                    bar = bar(getString(R.string.second_mode_dashboard)),
+                    strip = { pageId ->
+                        com.droiddeck.launcher.ui.SessionBottomStrip(pageId) { if (::hud.isInitialized) hud.liveFps else null }
                     },
-                    modifier = Modifier.fillMaxSize(),
                 )
-            } else if (pages.isNotEmpty()) BottomDashboard(
-                pages, com.droiddeck.launcher.ui.SessionBottomTab.picked(SessionState.sessionId),
-                gameStarts = gameStarts,
-                onPage = { com.droiddeck.launcher.ui.SessionBottomTab.pick(SessionState.sessionId, it) },
-                onClose = null,
-                onMenu = { drawerOpen = true },
-                onSwap = swapBack,
-                strip = { pageId ->
-                    com.droiddeck.launcher.ui.SessionBottomStrip(pageId) { if (::hud.isInitialized) hud.liveFps else null }
-                },
-            ) else androidx.compose.material3.Button(onClick = swapBack, modifier = Modifier.align(androidx.compose.ui.Alignment.Center)) {
-                androidx.compose.material3.Text(getString(R.string.swap_screens))
             }
         }
     }
