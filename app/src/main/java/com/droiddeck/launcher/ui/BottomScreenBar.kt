@@ -4,14 +4,17 @@ import android.content.Context
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -26,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,6 +47,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.session.SessionService
+import com.droiddeck.launcher.session.SessionState
 
 internal class BarExtra(
     val description: String,
@@ -66,23 +72,31 @@ internal class BottomBarModel(
 @Composable
 internal fun BottomScreenBar(model: BottomBarModel, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
-    Row(
-        modifier.fillMaxWidth().height(BAR_HEIGHT).padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        model.onClose?.let {
-            BarButton(stringResource(R.string.common_close), Modifier.testTag("bottom-bar-close"), vector = Icons.Outlined.Close, onClick = it)
+    BoxWithConstraints(modifier.fillMaxWidth().height(BAR_HEIGHT).blockTouches()) {
+        val buttons = listOfNotNull(model.onClose, model.onMenu, model.onQam).size + model.extras.size
+        val steamWidth = if (model.onSteam != null) STEAM_WIDTH + BAR_GAP else 0.dp
+        val needed = BAR_PAD * 2 + BUTTON * buttons + BAR_GAP * (buttons - 1).coerceAtLeast(0) + steamWidth
+        val fits = maxWidth >= needed
+        val titled = model.title != null && maxWidth - needed >= MIN_TITLE
+        Row(
+            Modifier.fillMaxSize().then(if (fits) Modifier else Modifier.horizontalScroll(rememberScrollState()))
+                .padding(horizontal = BAR_PAD, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(BAR_GAP),
+        ) {
+            model.onClose?.let {
+                BarButton(stringResource(R.string.common_close), Modifier.testTag("bottom-bar-close"), vector = Icons.Outlined.Close, onClick = it)
+            }
+            if (titled) Text(
+                model.title!!, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onSurfaceVariant,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 4.dp),
+            ) else if (fits) Spacer(Modifier.weight(1f))
+            model.extras.forEach { extra ->
+                BarButton(extra.description, extra.tag?.let { Modifier.testTag(it) } ?: Modifier, icon = extra.icon, vector = extra.vector,
+                    active = extra.active, onClick = extra.onClick)
+            }
+            BarActions(model.onMenu, model.menuActive, model.onSteam, model.onQam)
         }
-        if (model.title != null) Text(
-            model.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onSurfaceVariant,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 4.dp),
-        ) else Spacer(Modifier.weight(1f))
-        model.extras.forEach { extra ->
-            BarButton(extra.description, extra.tag?.let { Modifier.testTag(it) } ?: Modifier, icon = extra.icon, vector = extra.vector,
-                active = extra.active, onClick = extra.onClick)
-        }
-        BarActions(model.onMenu, model.menuActive, model.onSteam, model.onQam)
     }
 }
 
@@ -164,6 +178,23 @@ internal fun BarButton(
 }
 
 internal val BAR_HEIGHT = 64.dp
+private val BAR_PAD = 12.dp
+private val BAR_GAP = 8.dp
+private val BUTTON = 44.dp
+private val STEAM_WIDTH = 80.dp
+private val MIN_TITLE = 72.dp
+
+internal fun sessionBarModel(
+    title: String?,
+    onClose: (() -> Unit)?,
+    onMenu: (() -> Unit)?,
+    onSteam: () -> Unit,
+    onQam: () -> Unit,
+    extras: List<BarExtra> = emptyList(),
+): BottomBarModel {
+    val steam = SessionState.mode == SessionService.MODE_STEAM
+    return BottomBarModel(title, onClose, onMenu, onSteam.takeIf { steam }, onQam.takeIf { steam }, extras)
+}
 
 internal fun bottomScreenBarView(context: Context, model: () -> BottomBarModel): ComposeView = ComposeView(context).apply {
     setContent { DroidDeckTheme { BottomScreenBar(model()) } }

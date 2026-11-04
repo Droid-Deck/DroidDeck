@@ -50,11 +50,9 @@ class DeckControlsPanel(
     init {
         orientation = VERTICAL
         setBackgroundColor(Color.BLACK)
-        val steam = SessionState.mode == SessionService.MODE_STEAM
         val title = context.getString(if (deckControls) R.string.second_mode_deck_controls else R.string.deck_tab_gamepad)
-        addView(bottomScreenBarView(context) {
-            BottomBarModel(title, onClose, onMenu, onSteamMenu.takeIf { steam }, onQam.takeIf { steam })
-        }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        addView(bottomScreenBarView(context) { sessionBarModel(title, onClose, onMenu, onSteamMenu, onQam) },
+            LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         addView(topBar, LayoutParams(LayoutParams.MATCH_PARENT, dp(52)))
         addView(content, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
         select(if (pad != null && !deckControls) Tab.GAMEPAD else if (pad != null) selectedWithPad else selected)
@@ -249,7 +247,8 @@ class DeckControlsPanel(
 
     private fun controlUnder(view: View, x: Float, y: Float): Boolean {
         if (view.visibility != VISIBLE || x < 0f || y < 0f || x >= view.width || y >= view.height) return false
-        if (view.isClickable || view is HorizontalScrollView || view is Surface || view is DirectionPad || view is FaceButtons) return true
+        if (view.isClickable || view is HorizontalScrollView || view is Surface || view is DirectionPad || view is FaceButtons ||
+            view is androidx.compose.ui.platform.ComposeView) return true
         val group = view as? ViewGroup ?: return false
         return (group.childCount - 1 downTo 0).any { i ->
             val child = group.getChildAt(i)

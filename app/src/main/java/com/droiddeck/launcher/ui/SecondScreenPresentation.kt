@@ -254,9 +254,8 @@ class SecondScreenPresentation(
     }
 
     private fun bar(mode: SecondScreenMode, extras: () -> List<BarExtra> = { emptyList() }) {
-        val steam = SessionState.mode == SessionService.MODE_STEAM
         root.addView(bottomScreenBarView(context) {
-            BottomBarModel(context.getString(mode.label), onClose, onMenu, onSteamMenu.takeIf { steam }, onQam.takeIf { steam }, extras())
+            sessionBarModel(context.getString(mode.label), onClose, onMenu, onSteamMenu, onQam, extras())
         }, LinearLayout.LayoutParams(-1, -2))
     }
 

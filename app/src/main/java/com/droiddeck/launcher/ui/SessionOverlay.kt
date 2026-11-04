@@ -472,15 +472,17 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     }
                     .padding(12.dp),
             ) {
+                val roomyHeader = sheetWidth >= 408.dp
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                        .then(if (roomyHeader) Modifier else Modifier.horizontalScroll(rememberScrollState())),
                 ) {
                     SteamActionPill(
                         stringResource(R.string.common_close), Icons.Outlined.Close, focus.track(page, "close"),
                     ) { host.open = null; (a.onDismissScreen ?: a.onClose)() }
-                    Spacer(Modifier.weight(1f))
+                    if (roomyHeader) Spacer(Modifier.weight(1f))
                     SteamActionPill(
                         stringResource(R.string.stores_dl_pause), Icons.Outlined.Pause, focus.track(page, "pause"),
                     ) { host.open = null; a.onPause() }

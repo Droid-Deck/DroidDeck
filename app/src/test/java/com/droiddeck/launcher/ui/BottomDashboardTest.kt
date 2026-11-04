@@ -53,7 +53,7 @@ class BottomTelemetryLapTimeTest {
         assertEquals("screenshots", SessionBottomTab.picked("2026-11-01-01-steam"))
         assertNull(SessionBottomTab.picked("2026-11-01-02-steam"))
         assertNull(SessionBottomTab.picked(null))
-        assertEquals("chat", pickBottomPage(SessionBottomTab.picked("2026-11-01-02-steam"), listOf("telemetry", "chat", "screenshots")))
+        assertEquals("telemetry", pickBottomPage(SessionBottomTab.picked("2026-11-01-02-steam"), listOf("telemetry", "chat", "screenshots")))
     }
 
     @Test fun theStripNamesTheSteamClient() {
