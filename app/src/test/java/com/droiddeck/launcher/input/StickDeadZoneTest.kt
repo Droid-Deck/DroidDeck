@@ -412,6 +412,28 @@ class StickDeadZoneTest {
                 assertTrue((if (id == "ls") pad().rightX else pad().leftX) > 0f)
                 bridge.setStickDeadZone(25)
                 assertEquals(0f, if (id == "ls") pad().leftX else pad().rightX, 0f)
+                motion(device, MotionEvent.AXIS_X to 0.6f, MotionEvent.AXIS_Z to 0.7f)
+                val button = controls.first { ReflectionHelpers.getField<String>(it, "id") == "a" }
+                val bx = ReflectionHelpers.getField<Float>(button, "cx")
+                val by = ReflectionHelpers.getField<Float>(button, "cy")
+                fun buttonTouch(action: Int, time: Long) {
+                    val event = MotionEvent.obtain(1000, time, action or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), 2,
+                        arrayOf(MotionEvent.PointerProperties().apply { this.id = 0; toolType = MotionEvent.TOOL_TYPE_FINGER },
+                            MotionEvent.PointerProperties().apply { this.id = 1; toolType = MotionEvent.TOOL_TYPE_FINGER }),
+                        arrayOf(MotionEvent.PointerCoords().apply { this.x = x; this.y = y },
+                            MotionEvent.PointerCoords().apply { this.x = bx; this.y = by }),
+                        0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0)
+                    try { assertTrue(view.onTouchEvent(event)) } finally { event.recycle() }
+                }
+                buttonTouch(MotionEvent.ACTION_POINTER_DOWN, 1030)
+                assertTrue(pad().isDown(PadState.A))
+                assertEquals(0.6f, pad().leftX, 0f)
+                assertEquals(0.7f, pad().rightX, 0f)
+                buttonTouch(MotionEvent.ACTION_POINTER_UP, 1060)
+                assertFalse(pad().isDown(PadState.A))
+                bridge.setStickDeadZone(12)
+                assertEquals(0.6f, pad().leftX, 0f)
+                assertEquals(0.7f, pad().rightX, 0f)
                 val up = MotionEvent.obtain(1000, 1100, MotionEvent.ACTION_UP, x, y, 0)
                 try { assertTrue(view.onTouchEvent(up)) } finally { up.recycle() }
             }

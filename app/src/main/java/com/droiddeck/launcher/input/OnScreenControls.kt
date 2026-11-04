@@ -549,6 +549,7 @@ class OnScreenControls(
                     control.ax = if (adaptive) event.getX(index) else control.cx
                     control.ay = if (adaptive) event.getY(index) else control.cy
                     control.drag(event.getX(index), event.getY(index))
+                    control.dirty = true
                 }
                 if (SessionPrefs.lowLatency(context)) requestUnbufferedDispatch(event)
                 apply()
@@ -721,7 +722,7 @@ class OnScreenControls(
             bridge.setSystemButtons(controls.any { it.id == "guide" && it.pressedBy != -1 }, qamHeld)
         } else {
             bridge.setSystemButtons(false, qamHeld)
-            val stickWrites = controls.filter { it.stick >= 0 && (it.dirty || it.pressedBy != -1) }.fold(0) { mask, control ->
+            val stickWrites = controls.filter { it.stick >= 0 && it.dirty }.fold(0) { mask, control ->
                 mask or if (control.stick == 0) PadBridge.LEFT_STICK else PadBridge.RIGHT_STICK
             }
             bridge.applyTouch(stickWrites) { state ->
@@ -733,7 +734,7 @@ class OnScreenControls(
                             val click = if (control.stick == 0) "l3" else "r3"
                             if (settings.stickClick) used.add(click)
                             if (control.clicked) held.add(click)
-                            if (!control.dirty && control.pressedBy == -1) continue
+                            if (!control.dirty) continue
                             if (control.stick == 0) { state.leftX = control.kx / control.radius; state.leftY = control.ky / control.radius }
                             else { state.rightX = control.kx / control.radius; state.rightY = control.ky / control.radius }
                             control.dirty = false
