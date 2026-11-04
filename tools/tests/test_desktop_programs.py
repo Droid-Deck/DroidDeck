@@ -12,6 +12,7 @@ from unittest import mock
 
 BIN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin"
 PROGRAMS = runpy.run_path(str(BIN / "droiddeck-desktop-programs"))["main"].__globals__
+SHORTCUT_IDS = PROGRAMS["shortcut_ids"]
 OPEN = runpy.run_path(str(BIN / "droiddeck-open"))["main"].__globals__
 
 NEXON = 3908901178
@@ -129,6 +130,30 @@ class ProgramsTest(unittest.TestCase):
         self.shortcuts = {2243774769}
         PROGRAMS["main"]()
         self.assertEqual([], self.entries(self.apps))
+
+    def test_steam_shortcuts_it_cannot_read_leave_the_menu_as_it_was(self):
+        if os.geteuid() == 0:
+            self.skipTest("file permissions do not apply to root")
+        self.install(self.prefix(NEXON))
+        vdf = self.steam / "userdata/123/config/shortcuts.vdf"
+        vdf.parent.mkdir(parents=True)
+        vdf.write_bytes(b"\0shortcuts\0\0" + b"0\0\x02appid\0" + struct.pack("<i", NEXON - 2 ** 32)
+                        + b"\x01Exe\0\"C:\\\\launcher.exe\"\0\x08\x08\x08")
+        with mock.patch.dict(PROGRAMS, {"shortcut_ids": SHORTCUT_IDS}):
+            PROGRAMS["main"]()
+            self.assertEqual([], self.entries(self.apps))
+            vdf.chmod(0)
+            try:
+                PROGRAMS["main"]()
+            finally:
+                vdf.chmod(0o644)
+            self.assertEqual([], self.entries(self.apps))
+            vdf.write_bytes(vdf.read_bytes()[:20])
+            PROGRAMS["main"]()
+            self.assertEqual([], self.entries(self.apps))
+            vdf.unlink()
+            PROGRAMS["main"]()
+            self.assertEqual(1, len(self.entries(self.apps)))
 
     def test_uninstallers_and_links_to_other_files_get_no_entry(self):
         pfx = self.prefix(NEXON)
