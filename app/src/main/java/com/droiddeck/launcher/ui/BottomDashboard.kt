@@ -4,23 +4,17 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Menu
-import androidx.compose.material.icons.outlined.SwapVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -72,24 +66,17 @@ internal object SessionBottomTab {
 
 internal fun pageForGameStart(ids: List<String>): String? = GAME_PAGE.takeIf { it in ids }
 
-private const val DEFAULT_PAGE = "chat"
+private const val DEFAULT_PAGE = "telemetry"
 private const val GAME_PAGE = "telemetry"
 
-internal fun bottomTabsWithLabels(widthDp: Float, tabs: Int): Boolean = tabs * TAB_WIDTH + 2 * BAR_BUTTON <= widthDp
-
-private const val TAB_WIDTH = 132f
-private const val BAR_BUTTON = 56f
-
 @Composable
-fun BottomDashboard(
+internal fun BottomDashboard(
     pages: List<BottomPage>,
     remembered: String?,
     onPage: (String) -> Unit,
-    onClose: (() -> Unit)?,
-    onMenu: (() -> Unit)?,
+    bar: BottomBarModel? = null,
     gameStarts: Int = 0,
     strip: (@Composable (String?) -> Unit)? = null,
-    onSwap: (() -> Unit)? = null,
 ) {
     val colors = MaterialTheme.colorScheme
     var current by remember { mutableStateOf(pickBottomPage(remembered, pages.map { it.id })) }
@@ -98,24 +85,22 @@ fun BottomDashboard(
         if (gameStarts != startsWhenOpened) pageForGameStart(pages.map { it.id })?.let { current = it }
     }
     val page = pages.firstOrNull { it.id == current } ?: pages.firstOrNull()
-    BoxWithConstraints(Modifier.fillMaxSize().background(colors.background)) {
-        val labels = bottomTabsWithLabels(maxWidth.value, pages.size)
-        Column(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (onClose != null) BarButton(Icons.Outlined.Close, stringResource(R.string.deck_close), "bottom-close", onClose)
-                Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    pages.forEach { p ->
-                        PageTab(p, p.id == page?.id, labels) {
-                            current = p.id
-                            onPage(p.id)
-                        }
-                    }
+    Column(Modifier.fillMaxSize().background(colors.background)) {
+        bar?.let { BottomScreenBar(it) }
+        Row(
+            Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp).height(56.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            pages.forEach { p ->
+                PageTab(p, p.id == page?.id, Modifier.weight(1f)) {
+                    current = p.id
+                    onPage(p.id)
                 }
-                if (onSwap != null) BarButton(Icons.Outlined.SwapVert, stringResource(R.string.swap_screens), "bottom-swap", onSwap)
-                if (onMenu != null) BarButton(Icons.Outlined.Menu, stringResource(R.string.touch_droiddeck_menu), "bottom-menu", onMenu)
             }
+        }
+        Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             strip?.invoke(page?.id)
-            Box(Modifier.weight(1f).fillMaxWidth()) {
+            Box(Modifier.weight(1f).fillMaxWidth().padding(bottom = 10.dp)) {
                 if (page != null) page.content()
                 else Text(stringResource(R.string.bottom_dashboard_empty), fontSize = 15.sp, color = colors.onSurfaceVariant,
                     modifier = Modifier.align(Alignment.Center))
@@ -125,35 +110,24 @@ fun BottomDashboard(
 }
 
 @Composable
-private fun BarButton(icon: ImageVector, label: String, tag: String, onClick: () -> Unit) {
-    val pal = LocalPalette.current
-    Box(
-        Modifier.size(44.dp).clip(RoundedCornerShape(22.dp)).background(pal.surface).border(1.dp, pal.line, RoundedCornerShape(22.dp))
-            .semantics { contentDescription = label }.clickable(role = Role.Button, onClick = onClick).testTag(tag),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(22.dp))
-    }
-}
-
-@Composable
-private fun PageTab(page: BottomPage, selected: Boolean, label: Boolean, onClick: () -> Unit) {
+private fun PageTab(page: BottomPage, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(14.dp)
     val name = stringResource(page.label)
-    Row(
-        Modifier.height(44.dp).clip(shape)
+    Column(
+        modifier.fillMaxHeight().clip(shape)
             .background(if (selected) pal.signal else Color.Transparent)
             .border(1.dp, if (selected) pal.signal else pal.line, shape)
             .semantics { contentDescription = name }
             .clickable(role = Role.Tab, onClick = onClick).testTag("bottom-page-${page.id}")
-            .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = 4.dp, vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        val tint = if (selected) colors.background else colors.onBackground
+        val tint = if (selected) pal.onSignal else colors.onBackground
         Icon(page.icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
-        if (label || selected) Text(name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = tint, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(name, fontSize = 11.sp, lineHeight = 13.sp, fontWeight = FontWeight.SemiBold, color = tint, maxLines = 1,
+            overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
     }
 }

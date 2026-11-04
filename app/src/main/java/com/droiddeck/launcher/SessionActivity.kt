@@ -1405,6 +1405,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
             },
             onClose = { drawerOpen = false },
+            onDismissScreen = if (docked) ({ selectSecondScreenMode(SecondScreenMode.NONE) }) else null,
             components = drawerComponents,
             onComponentsRefresh = {
                 refreshDrawerComponents()
@@ -3119,6 +3120,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (secondScreenMode != SecondScreenMode.NONE) showSecondScreen(secondScreenMode)
     }
 
+    private fun closeBottomPanel() {
+        if (dockDrawer()) drawerOpen = true else selectSecondScreenMode(SecondScreenMode.NONE)
+    }
+
     private fun selectSecondScreenMode(mode: SecondScreenMode) {
         dualControlsProvisional = false
         if (mode == SecondScreenMode.NONE) {
@@ -3177,23 +3182,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         sendWheel = { steps -> WaylandCompositor.nativeSendSceneInput(4, steps, 0) },
         onSteamMenu = ::tapSteamButton,
         onQam = ::tapQam,
-        onClose = { selectSecondScreenMode(SecondScreenMode.NONE) },
+        onClose = ::closeBottomPanel,
         pad = padBridge,
         onKeyboardClosed = ::bottomKeyboardClosed,
-        onMenu = if (dockDrawer()) ({ drawerOpen = true }) else null,
+        onMenu = { drawerOpen = true },
         menu = {
             DroidDeckTheme { SessionMenu(docked = true) }
         },
-        onSwap = if (com.droiddeck.launcher.input.DualScreen.builtIn(target)) ({ putGameOnBottom(true) }) else null,
+        onSwap = if (bottomSwapAvailable && com.droiddeck.launcher.input.DualScreen.builtIn(target)) ({ putGameOnBottom(true) }) else null,
         dashboard = if (bottomPages().isEmpty()) null else ({
             DroidDeckTheme {
                 BottomDashboard(
                     bottomPages(), com.droiddeck.launcher.ui.SessionBottomTab.picked(SessionState.sessionId),
                     gameStarts = gameStarts,
                     onPage = { com.droiddeck.launcher.ui.SessionBottomTab.pick(SessionState.sessionId, it) },
-                    onClose = { selectSecondScreenMode(SecondScreenMode.NONE) },
-                    onMenu = if (dockDrawer()) ({ drawerOpen = true }) else null,
-                    onSwap = if (bottomSwapAvailable && com.droiddeck.launcher.input.DualScreen.builtIn(target)) ({ putGameOnBottom(true) }) else null,
                     strip = { pageId ->
                         com.droiddeck.launcher.ui.SessionBottomStrip(pageId) { if (::hud.isInitialized) hud.liveFps else null }
                     },
@@ -4541,9 +4543,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 pages, com.droiddeck.launcher.ui.SessionBottomTab.picked(SessionState.sessionId),
                 gameStarts = gameStarts,
                 onPage = { com.droiddeck.launcher.ui.SessionBottomTab.pick(SessionState.sessionId, it) },
-                onClose = null,
-                onMenu = { drawerOpen = true },
-                onSwap = swapBack,
+                bar = com.droiddeck.launcher.ui.BottomBarModel(
+                    getString(R.string.second_mode_dashboard), null, { drawerOpen = true },
+                    if (SessionState.mode == SessionService.MODE_STEAM) ({ tapSteamButton() }) else null,
+                    if (SessionState.mode == SessionService.MODE_STEAM) ({ tapQam() }) else null,
+                    listOf(com.droiddeck.launcher.ui.BarExtra(getString(R.string.swap_screens), icon = R.drawable.ic_bottom_swap, onClick = swapBack)),
+                ),
                 strip = { pageId ->
                     com.droiddeck.launcher.ui.SessionBottomStrip(pageId) { if (::hud.isInitialized) hud.liveFps else null }
                 },

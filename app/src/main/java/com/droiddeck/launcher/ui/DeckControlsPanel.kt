@@ -45,12 +45,17 @@ class DeckControlsPanel(
     private val content = FrameLayout(context)
     val deckControls = pad == null || SessionState.deckPad
     private val tabViews = HashMap<Tab, TextView>()
-    private val topBar: View by lazy { topBar() }
+    private val topBar: View by lazy { tabsRow() }
 
     init {
         orientation = VERTICAL
         setBackgroundColor(Color.BLACK)
-        addView(topBar, LayoutParams(LayoutParams.MATCH_PARENT, dp(64)))
+        val steam = SessionState.mode == SessionService.MODE_STEAM
+        val title = context.getString(if (deckControls) R.string.second_mode_deck_controls else R.string.deck_tab_gamepad)
+        addView(bottomScreenBarView(context) {
+            BottomBarModel(title, onClose, onMenu, onSteamMenu.takeIf { steam }, onQam.takeIf { steam })
+        }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        addView(topBar, LayoutParams(LayoutParams.MATCH_PARENT, dp(52)))
         addView(content, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
         select(if (pad != null && !deckControls) Tab.GAMEPAD else if (pad != null) selectedWithPad else selected)
     }
@@ -60,11 +65,10 @@ class DeckControlsPanel(
         super.onDetachedFromWindow()
     }
 
-    private fun topBar(): View = LinearLayout(context).apply {
+    private fun tabsRow(): View = LinearLayout(context).apply {
         orientation = HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(12), dp(10), dp(12), dp(6))
-        addView(roundButton("×", context.getString(R.string.deck_close), onClose))
+        gravity = Gravity.CENTER
+        setPadding(dp(12), 0, dp(12), dp(8))
         val tabs = LinearLayout(context).apply {
             orientation = HORIZONTAL
             background = outline(CORNER_PILL, SURFACE)
@@ -90,16 +94,7 @@ class DeckControlsPanel(
             overScrollMode = View.OVER_SCROLL_NEVER
             addView(tabs, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, dp(44)))
         }
-        addView(centre, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
-        onMenu?.let {
-            addView(menuButton(context, it))
-            addView(space(dp(8)))
-        }
-        if (SessionState.mode == SessionService.MODE_STEAM) {
-            addView(roundButton("STEAM", context.getString(R.string.deck_open_steam_menu), onSteamMenu, wide = true))
-            addView(space(dp(8)))
-            addView(roundButton("•••", context.getString(R.string.drawer_open_qam), onQam, wide = true))
-        }
+        addView(centre, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
     }
 
     private fun select(tab: Tab) {
@@ -122,7 +117,7 @@ class DeckControlsPanel(
             }
         }
         content.removeAllViews()
-        topBar.visibility = if (tab == Tab.GAMEPAD) View.GONE else View.VISIBLE
+        topBar.visibility = if (tab == Tab.GAMEPAD || tabViews.size < 2) View.GONE else View.VISIBLE
         content.addView(
             when (tab) {
                 Tab.GRIPS -> gripsGrid()
@@ -265,11 +260,6 @@ class DeckControlsPanel(
             controlUnder(child, x + group.scrollX - child.x, y + group.scrollY - child.y)
         }
     }
-
-    private fun roundButton(label: String, description: String, onClick: () -> Unit, wide: Boolean = false) =
-        roundButton(context, label, description, onClick, wide)
-
-    private fun space(width: Int) = View(context).apply { layoutParams = LayoutParams(width, 1) }
 
     private fun outline(radius: Float, fill: Int) = outline(context, radius, fill)
 

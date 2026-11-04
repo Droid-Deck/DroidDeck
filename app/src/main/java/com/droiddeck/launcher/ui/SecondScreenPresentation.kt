@@ -19,7 +19,6 @@ import android.view.ViewConfiguration
 import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
-import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
@@ -72,7 +71,7 @@ class SecondScreenPresentation(
     }
     private var currentMode = SecondScreenMode.NONE
     private var keyboardHost: KeyboardHost? = null
-    private var keyboardButton: TextView? = null
+    private val keyboardShown = androidx.compose.runtime.mutableStateOf(false)
     private var keyboardPending = false
     private var imeSeen = false
     private var fieldKeyboard = false
@@ -116,7 +115,7 @@ class SecondScreenPresentation(
 
     private fun showPendingKeyboard() {
         keyboardPending = false
-        keyboardButton?.text = context.getString(R.string.second_hide_keyboard)
+        keyboardShown.value = true
         for (delay in longArrayOf(150L, 450L)) root.postDelayed({
             val host = keyboardHost
             if (host != null && !imeSeen && showsKeyboard) host.show()
@@ -135,7 +134,7 @@ class SecondScreenPresentation(
         fieldKeyboard = false
         imeSeen = false
         keyboardHost?.takeIf { it.shown }?.hide()
-        keyboardButton?.text = context.getString(R.string.second_show_keyboard)
+        keyboardShown.value = false
         onKeyboardClosed()
     }
 
@@ -203,7 +202,8 @@ class SecondScreenPresentation(
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val ownKeys = currentMode == SecondScreenMode.TERMINAL || currentMode == SecondScreenMode.DASHBOARD ||
             currentMode == SecondScreenMode.DESKTOP
-        val forward = menuShown || !ownKeys || PadBridge.isControllerKeyEvent(event)
+        val back = event.keyCode == KeyEvent.KEYCODE_BACK && currentMode == SecondScreenMode.DASHBOARD
+        val forward = menuShown || !ownKeys || back || PadBridge.isControllerKeyEvent(event)
         if (forward && sessionActivity.dispatchKeyEvent(event)) return true
         return super.dispatchKeyEvent(event)
     }
@@ -226,11 +226,12 @@ class SecondScreenPresentation(
         fieldKeyboard = false
         keyboardHost?.hide()
         keyboardHost = null
-        keyboardButton = null
+        keyboardShown.value = false
         keyboardPending = false
         closeTerminal()
         closeDashboard()
         root.removeAllViews()
+        ownComposeViews()
         val mode = when {
             currentMode == SecondScreenMode.DECK_CONTROLS && !SessionState.deckPad -> SecondScreenMode.NONE
             currentMode == SecondScreenMode.DASHBOARD && dashboard == null -> SecondScreenMode.NONE
@@ -245,7 +246,6 @@ class SecondScreenPresentation(
             SecondScreenMode.DECK_CONTROLS -> root.addView(DeckControlsPanel(context, onClose, onSteamMenu, onQam, pad, onMenu = onMenu), weightParams())
             SecondScreenMode.DASHBOARD -> renderDashboard()
             SecondScreenMode.DESKTOP -> {
-                ownComposeViews()
                 root.addView(BottomDesktopPanel(context, onClose, onMenu,
                     (onSteamMenu to onQam).takeIf { SessionState.mode == SessionService.MODE_STEAM }, onSwap), weightParams())
             }
@@ -253,9 +253,18 @@ class SecondScreenPresentation(
         }
     }
 
+    private fun bar(mode: SecondScreenMode, extras: () -> List<BarExtra> = { emptyList() }) {
+        val steam = SessionState.mode == SessionService.MODE_STEAM
+        root.addView(bottomScreenBarView(context) {
+            BottomBarModel(context.getString(mode.label), onClose, onMenu, onSteamMenu.takeIf { steam }, onQam.takeIf { steam }, extras())
+        }, LinearLayout.LayoutParams(-1, -2))
+    }
+
     private fun renderDashboard() {
         val content = dashboard ?: return
-        ownComposeViews()
+        bar(SecondScreenMode.DASHBOARD) {
+            listOfNotNull(onSwap?.let { BarExtra(context.getString(R.string.swap_screens), icon = R.drawable.ic_bottom_swap, tag = "bottom-swap", onClick = it) })
+        }
         val view = androidx.compose.ui.platform.ComposeView(context).apply { setContent { content() } }
         dashboardView = view
         root.addView(view, weightParams())
@@ -267,47 +276,16 @@ class SecondScreenPresentation(
     }
 
     private fun renderKeyboardAndTrackpad() {
-        val panel = FrameLayout(context)
-        panel.addView(trackpadView(), FrameLayout.LayoutParams(-1, -1))
-        val controls = LinearLayout(context).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(dp(12), dp(10), dp(12), dp(6))
-            setBackgroundColor(Color.BLACK)
-        }
-        fun gap() = View(context).apply { layoutParams = LinearLayout.LayoutParams(dp(8), 1) }
-        controls.addView(DeckControlsPanel.roundButton(context, "×", context.getString(R.string.deck_close), onClose))
-        controls.addView(TextView(context).apply {
-            text = context.getString(R.string.second_trackpad)
-            textSize = 14f
-            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-            setTextColor(Color.rgb(0x7A, 0x80, 0x8A))
-            setPadding(dp(14), 0, dp(8), 0)
-            isSingleLine = true
-        }, LinearLayout.LayoutParams(0, -2, 1f))
-        lateinit var keyboardButton: TextView
-        keyboardButton = DeckControlsPanel.roundButton(context, context.getString(R.string.second_show_keyboard),
-            context.getString(R.string.second_show_keyboard), {
-                val host = keyboardHost
-                if (host != null) {
+        bar(SecondScreenMode.KEYBOARD_TRACKPAD) {
+            listOf(BarExtra(context.getString(if (keyboardShown.value) R.string.second_hide_keyboard else R.string.second_show_keyboard),
+                icon = R.drawable.ic_bottom_keyboard, active = keyboardShown.value, tag = "bottom-keyboard") {
+                keyboardHost?.let { host ->
                     host.toggle()
-                    keyboardButton.text = context.getString(if (host.shown) R.string.second_hide_keyboard else R.string.second_show_keyboard)
+                    keyboardShown.value = host.shown
                 }
-            }, wide = true)
-        controls.addView(keyboardButton)
-        this.keyboardButton = keyboardButton
-        onMenu?.let {
-            controls.addView(gap())
-            controls.addView(DeckControlsPanel.menuButton(context, it))
+            })
         }
-        if (SessionState.mode == SessionService.MODE_STEAM) {
-            controls.addView(gap())
-            controls.addView(DeckControlsPanel.roundButton(context, "STEAM", context.getString(R.string.deck_open_steam_menu), onSteamMenu, wide = true))
-            controls.addView(gap())
-            controls.addView(DeckControlsPanel.roundButton(context, "•••", context.getString(R.string.drawer_open_qam), onQam, wide = true))
-        }
-        panel.addView(controls, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
-        root.addView(panel, weightParams())
+        root.addView(trackpadView(), weightParams())
         val host = KeyboardHost(context) { event ->
             val handled = sessionActivity.dispatchKeyEvent(event)
             if (fieldKeyboard && event.action == KeyEvent.ACTION_UP &&
@@ -321,28 +299,9 @@ class SecondScreenPresentation(
     private fun trackpadView(): View = TrackpadView(context)
 
     private fun renderTerminal() {
-        val bar = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(4), dp(8), dp(4))
-            setBackgroundColor(Color.rgb(27, 32, 38))
+        bar(SecondScreenMode.TERMINAL) {
+            listOf(BarExtra(context.getString(R.string.drawer_keyboard), icon = R.drawable.ic_bottom_keyboard, tag = "bottom-keyboard") { showTerminalKeyboard() })
         }
-        bar.addView(Button(context).apply {
-            text = "×"
-            contentDescription = context.getString(R.string.deck_close)
-            minWidth = dp(48)
-            setOnClickListener { onClose() }
-        })
-        bar.addView(TextView(context).apply {
-            text = context.getString(R.string.second_terminal)
-            textSize = 14f
-            setTextColor(Color.WHITE)
-        }, LinearLayout.LayoutParams(0, -2, 1f))
-        bar.addView(Button(context).apply {
-            text = context.getString(R.string.drawer_keyboard)
-            setOnClickListener { showTerminalKeyboard() }
-        })
-        root.addView(bar, LinearLayout.LayoutParams(-1, -2))
 
         val terminalClient = TerminalClient()
         val view = TerminalView(context, null).apply {
@@ -364,12 +323,11 @@ class SecondScreenPresentation(
         terminalSession = session
 
         val keyStrip = HorizontalScrollView(context).apply { isHorizontalScrollBarEnabled = false }
-        val keys = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(4), dp(2), dp(4), dp(2)) }
-        fun key(label: String, input: String, onClick: ((Button) -> Unit)? = null) {
-            val button = Button(context).apply {
-                text = label
-                setOnClickListener { if (onClick != null) onClick(this) else session.write(input) }
-            }
+        val keys = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(12), 0, dp(12), dp(8)) }
+        fun key(label: String, input: String, onClick: ((TextView) -> Unit)? = null) {
+            lateinit var button: TextView
+            button = DeckControlsPanel.roundButton(context, label, label, { if (onClick != null) onClick(button) else session.write(input) }, wide = true)
+            if (keys.childCount > 0) keys.addView(View(context), LinearLayout.LayoutParams(dp(8), 1))
             keys.addView(button)
         }
         val ctrl = context.getString(R.string.pckb_key_ctrl)
@@ -482,7 +440,7 @@ class SecondScreenPresentation(
         override fun onDraw(canvas: Canvas) {
             canvas.drawColor(Color.BLACK)
             val inset = dp(12).toFloat()
-            surface.set(inset, dp(72).toFloat(), width - inset, height - inset)
+            surface.set(inset, 0f, width - inset, height - inset)
             if (surface.height() <= inset) return
             val radius = dp(20).toFloat()
             canvas.drawRoundRect(surface, radius, radius, fill)
