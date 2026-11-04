@@ -244,6 +244,19 @@ self-extractor stops at "Path not found", so the values it installs are applied 
 `witcher.exe` exits during startup. The language comes from the installed product's
 `goggame-<id>.info`, and a script's own `setRegistry` entries always win over the built-in table.
 
+A GOG game's exe comes from its own manifest first: `goggame-<id>.info`'s play task in category
+`game` (`isPrimary` first), or a primary `launcher` task for launcher games, whose `path` stays
+inside the folder; any other `goggame-*.info` in the folder supplies the task only when the
+product's own has none. The task's `workingDir` becomes the shortcut's Start In, and the install root
+when the task declares none - GOG's own default, and what a game in a subfolder such as
+`System/witcher.exe` needs to find its `Data` folder. Else the product's `temp_executable`, else a
+score over the folder's `.exe` files - a word of the game's title in the name first (Blood Omen's
+`kain.exe` over its `dxconfig.exe`), config and tool names (`config`, `settings`, `launcher`,
+`editor`, `crashreport`, …) last, shallower and bigger ahead on a tie. GOG's `galaxy_*.exe` support
+installer is never the game, whatever the manifest or the temp executable says: The Witcher ships it
+beside `launcher.exe` and its own `temp_executable` names it, and starting it runs the same 32-bit
+installer that fails under ARM64 with "Path not found" (issue #694).
+
 A game's web links reach Android: `droiddeck-store-launch` sets the prefix's
 `HKCU\Software\Wine\WineBrowser` `Browsers` to `/usr/local/bin/droiddeck-open-url`, which is also
 `xdg-open` first on the game's PATH, and hands http(s) addresses to the app, which opens them in

@@ -56,6 +56,7 @@ class ScreenKeys(context: Context, private val sendKey: (Int, Boolean) -> Unit) 
     private var guideY = -1f
     private val addPress = Runnable { addX = pressX; addY = pressY; onAdd?.invoke() }
     private var editing = false
+    val isEditing get() = editing
     private var selected: Entry? = null
     private var dragX = 0f
     private var dragY = 0f
@@ -811,6 +812,7 @@ class ScreenKeys(context: Context, private val sendKey: (Int, Boolean) -> Unit) 
     override fun onTouchEvent(event: MotionEvent): Boolean = if (editing) editTouch(event) else playTouch(event)
 
     private fun playTouch(event: MotionEvent): Boolean {
+        if (event.getToolType(event.actionIndex) == MotionEvent.TOOL_TYPE_MOUSE) return false
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 val index = event.actionIndex

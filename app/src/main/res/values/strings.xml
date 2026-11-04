@@ -31,6 +31,10 @@
     <string name="steamvr_recovery_restarting">Resetting graphics and reopening SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck could not restart automatically. Close the app completely, then reopen it.</string>
     <string name="app_name">DroidDeck</string>
+    <string name="steam_wall_label" translatable="false">DroidDeck Wall</string>
+    <string name="wall_settings_fps" translatable="false">Frame rate (fps)</string>
+    <string name="wall_settings_match" translatable="false">Match screen</string>
+    <string name="wall_settings_speed" translatable="false">Scroll speed</string>
     <string-array name="loading_hints">
         <item>First run downloads Steam. This may take a few minutes.</item>
         <item>By default, leaving the app pauses Steam; it picks up where it left off when you come back.</item>
@@ -811,6 +815,10 @@
     <string name="drawer_low_latency_touch">Low-latency touch</string>
     <string name="drawer_low_latency_touch_hint">Touches skip frame batching; Steam touch controls at 1000 Hz. Slightly more CPU.</string>
     <string name="drawer_evdev_mouse">Raw mouse channel</string>
+    <string name="drawer_relative_mouse">Relative mouse</string>
+    <string name="drawer_relative_mouse_auto">Auto</string>
+    <string name="drawer_relative_mouse_on">On</string>
+    <string name="drawer_relative_mouse_off">Off</string>
     <string name="drawer_direct_cursor">Cursor</string>
     <string name="drawer_pc_keyboard">PC keyboard</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -911,6 +919,19 @@
     <string name="setup_saved_logs">Saved session logs</string>
     <string name="setup_saved_logs_hint">Keeps the newest %1$d</string>
     <string name="setup_clear_logs">Clear logs</string>
+    <string name="setup_log_sessions">Available session logs</string>
+    <string name="setup_log_empty">No saved session logs yet.</string>
+    <string name="setup_log_export_hint">Shared and saved ZIPs include the selected session plus related Steam, store, tool, and Battle.net diagnostics.</string>
+    <string name="setup_log_size_date">%1$s · %2$s</string>
+    <string name="setup_log_current">Current session</string>
+    <string name="setup_log_share">Share</string>
+    <string name="setup_log_save">Save to device</string>
+    <string name="setup_log_delete">Delete</string>
+    <string name="setup_log_delete_title">Delete session logs?</string>
+    <string name="setup_log_delete_message">Delete %1$s? This cannot be undone.</string>
+    <string name="setup_log_export_saved">Session logs saved.</string>
+    <string name="setup_log_export_failed">Could not save session logs.</string>
+    <string name="setup_log_delete_failed">Could not delete session logs.</string>
     <string name="setup_reset_settings">Reset all settings</string>
     <string name="setup_reset_settings_hint">Puts every setting back to its default</string>
     <string name="setup_reset_settings_button">Reset</string>
@@ -937,6 +958,7 @@
     <string name="setup_home">Use as Home screen</string>
     <string name="setup_home_on">DroidDeck can be the Home app</string>
     <string name="setup_home_off">DroidDeck is never offered as a Home app</string>
+    <string name="setup_home_game_space_first">In Add Games, set DroidDeck to Include</string>
     <string name="setup_orientation">Orientation</string>
     <string name="setup_launcher_orientation">Launcher orientation</string>
     <string name="setup_launcher_orientation_auto">Follow device rotation</string>
@@ -957,7 +979,7 @@
     <string name="setup_dual_screen_on">On</string>
     <string name="setup_dual_screen_off">Off</string>
     <string name="setup_dual_screen_controls">Bottom screen controls in games</string>
-    <string name="setup_dual_screen_controls_hint">Opens the trackpad and keyboard on the second screen when a session starts.</string>
+    <string name="setup_dual_screen_controls_hint">Opens a panel on the second screen when a session starts: the Deck buttons and trackpads with a Steam Deck or Steam Controller, otherwise the one you used last.</string>
     <string name="dual_typing_title">Typing on the top screen</string>
     <string name="dual_typing_done">Done</string>
     <string name="setup_default_home">Default Home app</string>
@@ -3689,19 +3711,18 @@
     <string name="integration_wifi">Wi-Fi names</string>
     <string name="integration_brightness">Brightness</string>
     <string name="integration_home">DroidDeck as Home</string>
-    <string name="integration_shortcuts">Home button shortcuts</string>
+    <string name="integration_shortcuts">System keys</string>
     <string name="integration_wifi_hint">Show networks in Steam · needs Location access, never tracked</string>
     <string name="integration_wifi_on">Networks show in Steam</string>
     <string name="integration_wifi_location_off">Location is off</string>
     <string name="integration_wifi_denied">Location denied · allow it in App info</string>
     <string name="integration_brightness_hint">Steam’s slider sets screen brightness</string>
     <string name="integration_home_hint">Home opens the Steam menu in a session</string>
-    <string name="integration_shortcuts_hint">Hold Home for Steam Guide chords</string>
-    <string name="integration_shortcuts_needs_home">Needs DroidDeck as Home</string>
+    <string name="integration_shortcuts_hint">Alt+Tab, Win key and Home button stay in the session</string>
     <string name="integration_shortcuts_maybe_restricted">Greyed out in Android? App info → ⋮ → Allow restricted settings</string>
     <string name="integration_shortcuts_restricted">Blocked by Android · App info → ⋮ → Allow restricted settings</string>
-    <string name="integration_shortcuts_service">DroidDeck Home button</string>
-    <string name="integration_shortcuts_service_description">Pass Home button presses to Steam Guide while a Steam session is focused and DroidDeck is the default Home app. Does not read screen content.</string>
+    <string name="integration_shortcuts_service">DroidDeck system keys</string>
+    <string name="integration_shortcuts_service_description">Keep Alt+Tab, the Win key and the Home button inside a focused DroidDeck session instead of Android.</string>
     <string name="integration_brightness_needed">Turn on Brightness in Setup → Steam integration</string>
     <string name="desktop_restore_title">Restoring your software</string>
     <string name="desktop_restore_body">Reinstalling the apps you added after a DroidDeck update.</string>
