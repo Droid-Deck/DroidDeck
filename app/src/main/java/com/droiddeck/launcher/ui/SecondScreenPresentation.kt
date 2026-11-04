@@ -96,9 +96,9 @@ class SecondScreenPresentation(
     private fun showPendingKeyboard() {
         keyboardPending = false
         keyboardShown.value = true
+        val host = keyboardHost ?: return
         for (delay in longArrayOf(150L, 450L)) root.postDelayed({
-            val host = keyboardHost
-            if (host != null && !imeSeen && showsKeyboard) host.show()
+            if (keyboardHost === host && !imeSeen && showsKeyboard) host.show()
         }, delay)
     }
 
