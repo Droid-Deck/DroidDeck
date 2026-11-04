@@ -501,6 +501,8 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 qamStartedOnPress = true
                                 host.open = null
                                 a.onQam?.invoke()
+                            } else if (interaction is PressInteraction.Cancel) {
+                                qamStartedOnPress = false
                             }
                         }
                     }
