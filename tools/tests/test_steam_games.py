@@ -336,6 +336,27 @@ class ImportsTest(unittest.TestCase):
         imports.route(self.steam, self.acct, [self.game])
         self.assertEqual(before, path.read_text())
 
+    def test_an_untouched_import_is_left_alone_while_steam_stages_it(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        path = self.steam / 'steamapps/appmanifest_42.acf'
+        older = path.read_text().replace('    "AutoUpdateBehavior" "1"\n', '')
+        path.write_text(older)
+        (self.steam / 'steamapps/downloading/42').mkdir(parents=True)
+        imports.route(self.steam, self.acct, [self.game])
+        self.assertEqual(older, path.read_text())
+
+    def test_a_manifest_in_another_library_is_not_read(self):
+        other = self.root / 'Other'
+        (other / 'steamapps').mkdir(parents=True)
+        (other / 'steamapps/appmanifest_42.acf').write_bytes(b'"AppState"\n{\n    "name" "\xff\xfe"\n}\n')
+        (self.steam / 'steamapps').mkdir(parents=True)
+        (self.steam / 'steamapps/libraryfolders.vdf').write_text('"libraryfolders"\n{\n\t"1"\n\t{\n\t\t"path"\t\t"%s"\n\t}\n}\n' % other)
+        self.snapshot()
+        games, routes = imports.route(self.steam, self.acct, [self.game])
+        self.assertEqual({str(self.game['appid']): 42}, routes)
+        self.assertEqual(b'"AppState"\n{\n    "name" "\xff\xfe"\n}\n', (other / 'steamapps/appmanifest_42.acf').read_bytes())
+
     def test_started_import_without_a_build_is_left_to_steam(self):
         for extra, staging in [('\t"BytesDownloaded"\t\t"5"\n\t"AutoUpdateBehavior"\t\t"0"\n', False),
                                ('\t"AutoUpdateBehavior"\t\t"0"\n', True)]:

@@ -461,13 +461,15 @@ def seed_install(steam_root, game, appid):
     for root in libraries(steam_root):
         existing = root / "steamapps" / manifest.name
         if existing.is_file():
+            if not (existing == manifest and source.is_dir() and target.is_symlink()
+                    and os.readlink(target) == str(source)):
+                return True
             text = existing.read_text()
-            linked = (existing == manifest and source.is_dir() and target.is_symlink()
-                      and os.readlink(target) == str(source))
-            if linked and build is None and update_not_started(text, steamapps, appid, name):
+            staging = (steamapps / "downloading" / str(appid)).exists()
+            if build is None and update_not_started(text, steamapps, appid, name):
                 wanted = update_on_launch(text)
-            elif linked and (text in (minimal, bare, legacy, legacy.replace('"StateFlags" "4"', '"StateFlags" "2"'))
-                             or (build is not None and update_not_started(text, steamapps, appid, name))):
+            elif ((text in (minimal, bare, legacy, legacy.replace('"StateFlags" "4"', '"StateFlags" "2"')) and not staging)
+                  or (build is not None and update_not_started(text, steamapps, appid, name))):
                 wanted = content
             else:
                 wanted = text
