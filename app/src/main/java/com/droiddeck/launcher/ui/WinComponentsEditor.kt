@@ -173,12 +173,13 @@ internal fun WinComponentsDialog(
         }
         val all = catalog.orEmpty()
         val c = all[id]
-        if (id in installed || c == null) { setUser(id, true); return }
+        if (c == null) { setUser(id, true); return }
         busyId = id; reverting = false
-        progress = WinComponents.Progress(id, "", WinComponents.Phase.DOWNLOAD, -1)
+        progress = null
         coroutine.launch {
             val problem = withContext(Dispatchers.IO) {
-                WinComponents.install(context, c, all) { p -> progress = p }
+                if (WinComponents.installed(context, id) != null) null
+                else WinComponents.install(context, c, all) { p -> progress = p }
             }
             progress = null
             installed = withContext(Dispatchers.IO) { WinComponents.downloadedIds(context).toSet() }

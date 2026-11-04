@@ -2191,31 +2191,30 @@ class UbisoftOverlayTest(unittest.TestCase):
 
 
 class UbisoftCompositionTest(unittest.TestCase):
-    def test_imports_through_wine_without_replacing_a_live_servers_registry(self):
+    def test_writes_through_wine_without_replacing_a_live_servers_registry(self):
         with tempfile.TemporaryDirectory() as tmp:
             prefix = Path(tmp) / "pfx"
             (prefix / MODULE["UBISOFT_LAUNCHER"]).mkdir(parents=True)
             registry = prefix / "user.reg"
             registry.write_text("registry last saved by Wine\n")
             env = {"STEAM_COMPAT_DATA_PATH": tmp, "WINESERVER": "/selected/wineserver"}
-            payloads = []
+            keys = []
 
-            def import_registry(argv, **kwargs):
-                self.assertEqual(argv[:4], ["/selected/proton", "run", "regedit.exe", "/S"])
+            def write_registry(argv, **kwargs):
+                self.assertEqual(argv[:4], ["/selected/proton", "run", "reg.exe", "add"])
+                self.assertEqual(argv[5:], ["/v", "dcomp", "/t", "REG_SZ", "/d", "", "/f"])
                 self.assertIs(kwargs["env"], env)
                 self.assertTrue(kwargs["check"])
-                self.assertEqual(registry.read_text(), "registry last saved by Wine\n")
-                payloads.append(Path(argv[4]).read_text(encoding="utf-16"))
+                keys.append(argv[4])
                 registry.write_text("newer state saved by the active Wine server\n")
+                return subprocess.CompletedProcess(argv, 0)
 
-            with mock.patch("subprocess.run", side_effect=import_registry) as run:
+            with mock.patch("subprocess.run", side_effect=write_registry) as run:
                 MODULE["ubisoft_composition_off"]("/selected/proton", env)
-            self.assertEqual(run.call_count, 1)
+            self.assertEqual(run.call_count, 2)
             self.assertEqual(registry.read_text(), "newer state saved by the active Wine server\n")
-            for program in ("upc.exe", "UplayWebCore.exe"):
-                self.assertIn("[HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\%s\\DllOverrides]" % program, payloads[0])
-            self.assertEqual(payloads[0].count('"dcomp"=""'), 2)
-            self.assertNotIn("FarCry3", payloads[0])
+            self.assertEqual(keys, [r"HKCU\Software\Wine\AppDefaults\%s\DllOverrides" % program
+                                    for program in ("upc.exe", "UplayWebCore.exe")])
             self.assertEqual(list(prefix.glob(".ubisoft-*.reg")), [])
 
     def test_other_prefixes_and_uninitialized_registries_are_untouched(self):
@@ -2234,13 +2233,20 @@ class UbisoftCompositionTest(unittest.TestCase):
                 self.assertFalse(registry.exists())
                 run.assert_not_called()
 
-    def test_failed_registry_import_keeps_the_game_launch_available(self):
+    def test_failed_registry_write_keeps_the_game_launch_available(self):
         with tempfile.TemporaryDirectory() as tmp:
             prefix = Path(tmp) / "pfx"
             (prefix / MODULE["UBISOFT_LAUNCHER"]).mkdir(parents=True)
             (prefix / "user.reg").write_text("WINE REGISTRY Version 2\n")
-            with mock.patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "proton")):
-                MODULE["ubisoft_composition_off"]("proton", {"STEAM_COMPAT_DATA_PATH": tmp})
+            for failed_write in (0, 1):
+                stderr = io.StringIO()
+                results = [subprocess.CompletedProcess([], 0)] * failed_write
+                results.append(subprocess.CalledProcessError(1, "proton"))
+                with mock.patch("subprocess.run", side_effect=results) as run, mock.patch("sys.stderr", stderr):
+                    MODULE["ubisoft_composition_off"]("proton", {"STEAM_COMPAT_DATA_PATH": tmp})
+                self.assertEqual(run.call_count, failed_write + 1)
+                self.assertIn("configuration failed", stderr.getvalue())
+                self.assertNotIn("uses CEF", stderr.getvalue())
             self.assertEqual(list(prefix.glob(".ubisoft-*.reg")), [])
 
 

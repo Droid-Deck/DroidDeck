@@ -247,20 +247,14 @@ def ubisoft_composition_off(proton, env):
     prefix = Path(env.get("STEAM_COMPAT_DATA_PATH", "/nonexistent")) / "pfx"
     if not (prefix / UBISOFT_LAUNCHER).is_dir() or not (prefix / "user.reg").is_file():
         return
-    staged = None
     try:
-        handle, staged = tempfile.mkstemp(prefix=".ubisoft-", suffix=".reg", dir=prefix)
-        with os.fdopen(handle, "w", encoding="utf-16") as target:
-            target.write("Windows Registry Editor Version 5.00\n")
-            for program in ("upc.exe", "UplayWebCore.exe"):
-                target.write('\n[HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\%s\\DllOverrides]\n"dcomp"=""\n' % program)
-        subprocess.run([proton, "run", "regedit.exe", "/S", staged], env=env, check=True)
+        for program in ("upc.exe", "UplayWebCore.exe"):
+            key = r"HKCU\Software\Wine\AppDefaults\%s\DllOverrides" % program
+            subprocess.run([proton, "run", "reg.exe", "add", key,
+                            "/v", "dcomp", "/t", "REG_SZ", "/d", "", "/f"], env=env, check=True)
         print("droiddeck-game-env: Ubisoft Connect uses CEF without DirectComposition", file=sys.stderr)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
-        print("droiddeck-game-env: Ubisoft Connect composition left as is (%s)" % error, file=sys.stderr)
-    finally:
-        if staged is not None:
-            os.unlink(staged)
+        print("droiddeck-game-env: Ubisoft Connect composition configuration failed (%s)" % error, file=sys.stderr)
 
 
 PZ_JVM_FLAGS = ("-XX:+UseG1GC", "-XX:TieredStopAtLevel=1")
