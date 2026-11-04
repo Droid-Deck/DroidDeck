@@ -243,6 +243,8 @@ class WinCompSourcesTest {
     }
 
     private fun <T> withFakeWorker(block: () -> T): T {
+        val steamPics = SteamAppInfo.pics
+        SteamAppInfo.pics = { null }
         AutoComponents.repairFailures.value = emptyMap()
         AutoComponents.catalogOf = { _, _ -> catalog3 }
         AutoComponents.installedOf = { installedNow.toSet() }
@@ -256,6 +258,7 @@ class WinCompSourcesTest {
             return block()
         } finally {
             AutoComponents.runNow = false
+            SteamAppInfo.pics = steamPics
             AutoComponents.repairFailures.value = emptyMap()
             AutoComponents.catalogOf = { c, network -> if (network) WinComponents.fetch(c) else WinComponents.cached(c) }
             AutoComponents.installedOf = { WinComponents.installedIds(it).toSet() }
