@@ -747,6 +747,10 @@
     <string name="drawer_low_latency_touch">Αφή χαμηλής καθυστέρησης</string>
     <string name="drawer_low_latency_touch_hint">Οι αφές παρακάμπτουν την ομαδοποίηση καρέ, οπότε ο χειρισμός αφής του Steam τρέχει στα 1000 Hz. Λίγο περισσότερο CPU.</string>
     <string name="drawer_evdev_mouse">Ακατέργαστο κανάλι ποντικιού</string>
+    <string name="drawer_relative_mouse">Σχετικό ποντίκι</string>
+    <string name="drawer_relative_mouse_auto">Αυτόματα</string>
+    <string name="drawer_relative_mouse_on">Ενεργό</string>
+    <string name="drawer_relative_mouse_off">Ανενεργό</string>
     <string name="drawer_direct_cursor">Δείκτης</string>
     <string name="drawer_pc_keyboard">Πληκτρολόγιο PC</string>
     <string name="drawer_android_keyboard">Android</string>

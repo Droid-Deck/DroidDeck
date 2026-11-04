@@ -223,6 +223,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var steamImportAsk by mutableStateOf<com.droiddeck.launcher.session.SteamImportPrompt.Ask?>(null)
     private var steamImportAnswered: String? = null
     private var directHoldBehavior by mutableStateOf(com.droiddeck.launcher.input.TouchGestureConfig.MOUSE_BEHAVIOR_CLICK)
+    private var relativeMouseMode by mutableIntStateOf(0)
+    @Volatile private var appliedRelativeMouseMode: Int? = null
     private var screenKeyPickerOpen by mutableStateOf(false)
     private var screenKeyBind: List<Int>? = null
     private var screenKeyDir: Int? = null
@@ -1343,6 +1345,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 val base = com.droiddeck.launcher.input.GesturePrefs.read(this@SessionActivity, gestureGame)
                 com.droiddeck.launcher.input.GesturePrefs.save(this@SessionActivity, gestureGame, base.copy(directHoldBehavior = value))
                 refreshGestureConfig()
+            },
+            relativeMouseMode = relativeMouseMode,
+            onRelativeMouseMode = { mode ->
+                val base = com.droiddeck.launcher.input.GesturePrefs.read(this@SessionActivity, gestureGame)
+                com.droiddeck.launcher.input.GesturePrefs.save(this@SessionActivity, gestureGame, base.copy(relativeMouseMode = mode))
+                relativeMouseMode = mode
+                setRelativeMouse(mode)
             },
             onScreenKeys = { drawerOpen = false; screenKeys?.startEditing() },
             screenKeysShown = screenKeysShown,
@@ -2835,9 +2844,39 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun layoutNames(): List<String> =
         com.droiddeck.launcher.input.ControllerPrefs.screenLayouts(this).keys.sorted()
 
+    private val relativeMouseRequests = java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "relative-mouse").apply { isDaemon = true }
+    }
+    @Volatile private var desiredRelativeMouseMode = 0
+
+    private fun setRelativeMouse(mode: Int) {
+        desiredRelativeMouseMode = mode
+        relativeMouseRequests.execute { applyRelativeMouse() }
+    }
+
+    private fun applyRelativeMouse() {
+        val mode = desiredRelativeMouseMode
+        if (appliedRelativeMouseMode == mode) return
+        val request = org.json.JSONObject()
+            .put("kind", "exec")
+            .put("argv", org.json.JSONArray(listOf("gamescopectl", "relative_mouse", mode.toString())))
+            .put("timeout", 5.0)
+        val result = runCatching { AgentGuest.call(this, request, 8_000, trusted = true) }
+        val answer = result.getOrNull()
+        val applied = answer?.optBoolean("ok") == true
+            && answer.optInt("exitCode", -1) == 0
+            && !answer.optBoolean("timedOut")
+            && desiredRelativeMouseMode == mode
+        if (applied) appliedRelativeMouseMode = mode
+        else Log.w(TAG, "gamescope did not take relative mouse $mode: ${result.exceptionOrNull() ?: answer}")
+        if (desiredRelativeMouseMode != mode) relativeMouseRequests.execute { applyRelativeMouse() }
+    }
+
     private fun refreshGestureConfig() {
         gestureConfig = com.droiddeck.launcher.input.GesturePrefs.read(this, gestureGame)
         directHoldBehavior = gestureConfig.directHoldBehavior
+        relativeMouseMode = gestureConfig.relativeMouseMode
+        setRelativeMouse(relativeMouseMode)
         gestureTouchStreamGate.reset()
         if (::touchscreenGestures.isInitialized) touchscreenGestures.configure(gestureConfig)
         if (::directTouchHold.isInitialized) directTouchHold.configure(gestureConfig)
@@ -4734,6 +4773,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onDestroy() {
         com.droiddeck.launcher.input.HomeButtonShortcuts.detach(this)
+        relativeMouseRequests.shutdownNow()
         backQamInput.cancel()
         steamVrRecovery.close()
         uiHandler.removeCallbacks(steamTouchRetry)

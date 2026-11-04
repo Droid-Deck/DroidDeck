@@ -747,6 +747,10 @@
     <string name="drawer_low_latency_touch">कम लेटेंसी टच</string>
     <string name="drawer_low_latency_touch_hint">टच फ़्रेम बैचिंग छोड़ देते हैं, इसलिए Steam का टच कंट्रोल 1000 Hz पर चलता है। थोड़ा ज़्यादा CPU।</string>
     <string name="drawer_evdev_mouse">रॉ माउस चैनल</string>
+    <string name="drawer_relative_mouse">सापेक्ष माउस</string>
+    <string name="drawer_relative_mouse_auto">स्वचालित</string>
+    <string name="drawer_relative_mouse_on">चालू</string>
+    <string name="drawer_relative_mouse_off">बंद</string>
     <string name="drawer_direct_cursor">कर्सर</string>
     <string name="drawer_pc_keyboard">पीसी कीबोर्ड</string>
     <string name="drawer_android_keyboard">Android</string>

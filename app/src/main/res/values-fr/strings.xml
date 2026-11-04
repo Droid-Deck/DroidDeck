@@ -749,6 +749,10 @@
     <string name="drawer_low_latency_touch">Tactile à faible latence</string>
     <string name="drawer_low_latency_touch_hint">Les touchers ignorent le regroupement d\'images ; les commandes tactiles Steam passent à 1000 Hz. Un peu plus de CPU.</string>
     <string name="drawer_evdev_mouse">Canal souris brut</string>
+    <string name="drawer_relative_mouse">Souris relative</string>
+    <string name="drawer_relative_mouse_auto">Automatique</string>
+    <string name="drawer_relative_mouse_on">Activé</string>
+    <string name="drawer_relative_mouse_off">Désactivé</string>
     <string name="drawer_direct_cursor">Curseur</string>
     <string name="drawer_pc_keyboard">Clavier PC</string>
     <string name="drawer_android_keyboard">Android</string>
