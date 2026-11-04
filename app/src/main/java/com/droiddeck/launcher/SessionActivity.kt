@@ -3821,7 +3821,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun grabDesktopMouse() {
-        if (desktopMouseGrabAllowed() && desktopGrabTaps < DESKTOP_GRAB_MAX_TAPS) tapDesktopGrabKey()
+        if (!desktopMouseGrabAllowed()) return
+        if (desktopGrabTaps >= DESKTOP_GRAB_MAX_TAPS) {
+            if (android.os.SystemClock.uptimeMillis() - desktopGrabTapAt < DESKTOP_GRAB_RETRY_MS) return
+            desktopGrabTaps = 0
+        }
+        tapDesktopGrabKey()
     }
 
     private fun releaseDesktopMouseGrab() {
@@ -5015,6 +5020,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         private const val BTN_EXTRA = 0x114
         private const val DESKTOP_GRAB_TAP_MS = 500L
         private const val DESKTOP_GRAB_MAX_TAPS = 8
+        private const val DESKTOP_GRAB_RETRY_MS = 30_000L
         private const val RELATIVE_MOUSE_MAX_RETRIES = 5
         private const val DRAWER_HAT_THRESHOLD = 0.5f
         private const val DRAWER_STICK_ENTER_THRESHOLD = 0.55f
