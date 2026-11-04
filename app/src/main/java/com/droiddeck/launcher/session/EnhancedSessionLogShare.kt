@@ -32,6 +32,10 @@ internal data class EnhancedShareLimits(
     val maxBytesTotal: Long = 64L * 1024 * 1024,
 )
 
+internal interface SecureSourceOpener {
+    fun <T> withChannel(root: Path, relative: Path, block: (SeekableByteChannel) -> T): T?
+}
+
 internal object EnhancedSessionLogShare {
     private enum class Category(val suffix: String) { SESSION("session"), GRAPHICS("graphics"), GAMES("games") }
 
@@ -62,6 +66,16 @@ internal object EnhancedSessionLogShare {
     private data class LegacySource(val file: File, val root: File, val entry: String)
 
     private class Budget(val limit: Long, var remaining: Long = limit)
+
+    private val sourceOpenerOverride = object : ThreadLocal<SecureSourceOpener?>() {
+        override fun initialValue(): SecureSourceOpener? = null
+    }
+
+    internal fun setSourceOpenerForTest(opener: SecureSourceOpener?) {
+        if (opener == null) sourceOpenerOverride.remove() else sourceOpenerOverride.set(opener)
+    }
+
+    internal fun hasSourceOpenerForTest(): Boolean = sourceOpenerOverride.get() != null
 
     fun create(
         context: Context,
@@ -313,6 +327,11 @@ internal object EnhancedSessionLogShare {
     }
 
     private fun <T> withSecureChannel(root: Path, relative: Path, block: (SeekableByteChannel) -> T): T? {
+        sourceOpenerOverride.get()?.let { return it.withChannel(root, relative, block) }
+        return withAndroidSecureChannel(root, relative, block)
+    }
+
+    private fun <T> withAndroidSecureChannel(root: Path, relative: Path, block: (SeekableByteChannel) -> T): T? {
         val opened = ArrayList<ParcelFileDescriptor>()
         return try {
             val parts = relative.map { it.toString() }
