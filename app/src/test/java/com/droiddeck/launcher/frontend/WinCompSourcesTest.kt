@@ -360,6 +360,26 @@ class WinCompSourcesTest {
         assertEquals(2, AutoComponents.Pending.revision(app, id))
     }
 
+    @Test fun restoredLegacyPendingRepairUsesThePersistedRevision() = withFakeWorker {
+        val id = "vcredist2010_dll"
+        val repair = WinComponents.Component(id, "", "", "ready", emptyList(), emptyList(), revision = 1)
+        AutoComponents.catalogOf = { _, _ -> catalog3 + repair }
+        var attempts = 0
+        AutoComponents.installer = { _, _, _, _ -> attempts++; null }
+        val pendingFile = File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app), "root/.config/droiddeck/wincomponents-pending.json")
+        pendingFile.parentFile?.mkdirs()
+        pendingFile.writeText(JSONObject().put("games", JSONObject().put("4242", org.json.JSONArray(listOf(id)))).toString())
+        session = true
+        gameUp = true
+        AutoComponents.queueInSession(app, game(null, Library.SOURCE_STEAM, 4242, library = "steam"))
+        AutoComponents.Pending.add(app, "other", listOf(id), mapOf(id to 2))
+        gameUp = false
+        AutoComponents.drain(app)
+        assertEquals("The component catalog is older than the requested revision", AutoComponents.repairFailures.value[id])
+        assertEquals(0, attempts)
+        assertEquals(2, AutoComponents.Pending.revision(app, id))
+    }
+
     @Test fun catalogLoadFailureCannotDropANewerPendingRepair() = withFakeWorker {
         val id = "vcredist2010_dll"
         AutoComponents.catalogOf = { _, _ -> null }
