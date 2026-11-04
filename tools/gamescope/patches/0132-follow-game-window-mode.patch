@@ -1,5 +1,5 @@
 diff --git a/src/Backends/SDLBackend.cpp b/src/Backends/SDLBackend.cpp
-index 58af150..8aed3c1 100644
+index 58af150..b050183 100644
 --- a/src/Backends/SDLBackend.cpp
 +++ b/src/Backends/SDLBackend.cpp
 @@ -51,6 +51,7 @@ namespace gamescope
@@ -64,7 +64,7 @@ index 58af150..8aed3c1 100644
  	void CSDLBackend::SetTitle( std::shared_ptr<std::string> szTitle )
  	{
  		m_pApplicationTitle = szTitle;
-@@ -894,6 +914,23 @@ namespace gamescope
+@@ -894,6 +914,38 @@ namespace gamescope
  							}
  						}
  					}
@@ -82,7 +82,22 @@ index 58af150..8aed3c1 100644
 +							g_bFullscreen = bFullscreen;
 +							SDL_SetWindowFullscreen( m_Connector.GetSDLWindow(), bFullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0 );
 +							if ( !bFullscreen )
-+								SDL_SetWindowSize( m_Connector.GetSDLWindow(), nWidth, nHeight );
++							{
++								static constexpr int k_nDesktopChromeHeight = 96;
++
++								SDL_Rect usable = {};
++								const int nDisplay = SDL_GetWindowDisplayIndex( m_Connector.GetSDLWindow() );
++								const bool bKnown = SDL_GetDisplayUsableBounds( nDisplay, &usable ) == 0;
++								if ( bKnown && ( nWidth > usable.w || nHeight + k_nDesktopChromeHeight > usable.h ) )
++								{
++									SDL_MaximizeWindow( m_Connector.GetSDLWindow() );
++								}
++								else
++								{
++									SDL_RestoreWindow( m_Connector.GetSDLWindow() );
++									SDL_SetWindowSize( m_Connector.GetSDLWindow(), nWidth, nHeight );
++								}
++							}
 +						}
 +					}
  					else if ( event.type == GetUserEventIndex( GAMESCOPE_SDL_EVENT_TITLE ) )

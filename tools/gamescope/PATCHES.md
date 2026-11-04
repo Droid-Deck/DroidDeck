@@ -265,4 +265,4 @@ pointer without relative motion, so tapping the screen does not turn the camera.
 With `--follow-game-window-mode`, the outer window of a nested SDL gamescope follows the focused game window. A window
 asking for `_NET_WM_STATE_FULLSCREEN`, or a Steam game covering the X screen without minimise or maximise functions in
 `_MOTIF_WM_HINTS`, makes the outer window fullscreen on the desktop. Anything else makes it a normal window of the
-game window's size. A change is applied only when the wanted mode changes, so a manual resize or Super+F stays.
+game window's size, or a maximised one when that size does not fit the desktop with its title bar and panel. A change is applied only when the wanted mode changes, so a manual resize or Super+F stays.
