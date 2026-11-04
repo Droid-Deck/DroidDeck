@@ -54,6 +54,14 @@ class SystemKeyCaptureHeldKeysTest {
         assertFalse(SystemKeyCapture.onKeyEvent(key(KeyEvent.ACTION_UP)))
     }
 
+    @Test fun aKeyAlreadyHeldWhenCaptureStartsStaysWithAndroid() {
+        val owner = attached()
+        assertFalse(SystemKeyCapture.onKeyEvent(key(KeyEvent.ACTION_DOWN, repeat = 1)))
+        assertFalse(SystemKeyCapture.onKeyEvent(key(KeyEvent.ACTION_UP)))
+        SystemKeyCapture.detach(owner)
+        assertEquals(0, sent.size)
+    }
+
     @Test fun newPressAfterDetachIsNotSwallowed() {
         val owner = attached()
         SystemKeyCapture.onKeyEvent(key(KeyEvent.ACTION_DOWN))

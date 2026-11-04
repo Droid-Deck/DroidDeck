@@ -89,7 +89,7 @@ object SystemKeyCapture {
         }
         val taken = when (event.action) {
             KeyEvent.ACTION_DOWN -> {
-                val take = key in held || (active() && isKeyboard(event) && captures(event.keyCode, event.metaState))
+                val take = key in held || (event.repeatCount == 0 && active() && isKeyboard(event) && captures(event.keyCode, event.metaState))
                 if (take) held[key] = KeyEvent(event)
                 take
             }
