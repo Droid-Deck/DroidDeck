@@ -258,4 +258,5 @@ Under a nested host the seat's absolute position came from the host, so a game t
 to the screen centre read the distance back to the host's position on the next motion, and the view spun. When
 the X pointer stays far from the seat position while input moves, gamescope takes the host's lock and applies
 each frame's motion to the X pointer itself until the game stops warping. Absolute motion also sends relative
-motion, as a real compositor does, so XInput2 raw motion reaches games that read only that.
+motion, as a real compositor does, so XInput2 raw motion reaches games that read only that. A touch moves the
+pointer without relative motion, so tapping the screen does not turn the camera.
