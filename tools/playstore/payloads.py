@@ -217,6 +217,7 @@ def fetch(entry, cache):
         layout = entry['layout']
         original = fetch(layout['source'], cache)
         code, data = [cache / (entry['sha256'] + '.' + name + '.part') for name in ['code', 'data']]
+        print('Rebuilding split archive: ' + entry['id'], file=sys.stderr, flush=True)
         prepared = prepare(original, code, data, layout['zstd_version'])
         if any(prepared[key] != layout[key] for key in ['segments', 'inventory_sha256', 'zstd_version']):
             raise ValueError('Split archive identity changed')
@@ -268,6 +269,7 @@ def stage(manifest, cache, output, chunk_bytes=CHUNK_BYTES, module_bytes=MODULE_
             continue
         if entry['sha256'] in layouts:
             continue
+        print('Preparing Play component: ' + entry['id'], file=sys.stderr, flush=True)
         original = fetch(entry, cache)
         if entry.get('layout'):
             parts = entry['layout']['segments']
