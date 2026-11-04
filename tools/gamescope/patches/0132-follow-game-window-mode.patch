@@ -157,10 +157,10 @@ index b2a169f..48929f2 100644
  extern bool g_bRt;
  
 diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
-index c468fb3..f04dc7c 100644
+index c468fb3..3188b74 100644
 --- a/src/steamcompmgr.cpp
 +++ b/src/steamcompmgr.cpp
-@@ -4741,6 +4741,52 @@ static void set_wm_state( xwayland_ctx_t *ctx, Window win, uint32_t state )
+@@ -4741,6 +4741,54 @@ static void set_wm_state( xwayland_ctx_t *ctx, Window win, uint32_t state )
  				sizeof(wmState) / sizeof(wmState[0]));
  }
  
@@ -170,21 +170,23 @@ index c468fb3..f04dc7c 100644
 +	static constexpr unsigned long k_ulMotifFunctions = 1ul << 0;
 +	static constexpr unsigned long k_ulMotifMinimize = 1ul << 3;
 +	static constexpr unsigned long k_ulMotifMaximize = 1ul << 4;
++	static constexpr unsigned long k_ulMotifDecorations = 1ul << 1;
 +
 +	Atom type;
 +	int format;
 +	unsigned long nitems;
 +	unsigned long bytesAfter;
 +	unsigned char *data = nullptr;
-+	if ( XGetWindowProperty( ctx->dpy, w->xwayland().id, ctx->atoms.motifWMHintsAtom, 0, 2, false,
++	if ( XGetWindowProperty( ctx->dpy, w->xwayland().id, ctx->atoms.motifWMHintsAtom, 0, 3, false,
 +			AnyPropertyType, &type, &format, &nitems, &bytesAfter, &data ) != Success )
 +		return false;
 +
 +	bool bControls = false;
-+	if ( data && format == 32 && nitems >= 2 )
++	if ( data && format == 32 && nitems >= 3 )
 +	{
 +		const long *hints = (const long *)data;
-+		bControls = ( hints[0] & k_ulMotifFunctions ) && ( hints[1] & ( k_ulMotifMinimize | k_ulMotifMaximize ) );
++		bControls = ( ( hints[0] & k_ulMotifFunctions ) && ( hints[1] & ( k_ulMotifMinimize | k_ulMotifMaximize ) ) ) ||
++			( ( hints[0] & k_ulMotifDecorations ) && hints[2] );
 +	}
 +	if ( data )
 +		XFree( data );
@@ -213,7 +215,7 @@ index c468fb3..f04dc7c 100644
  static void
  fit_root_to_focus_window( xwayland_ctx_t *ctx )
  {
-@@ -5739,6 +5785,7 @@ determine_and_apply_focus( global_focus_t *pFocus )
+@@ -5739,6 +5787,7 @@ determine_and_apply_focus( global_focus_t *pFocus )
  		if ( pFocus->focusWindow )
  		{
  			pFocus->GetNestedHints()->SetVisible( true );
@@ -221,7 +223,7 @@ index c468fb3..f04dc7c 100644
  			if ( previousLocalFocus.focusWindow != pFocus->focusWindow )
  			{
  				pFocus->GetNestedHints()->SetTitle( pFocus->focusWindow->title );
-@@ -7083,6 +7130,8 @@ static inline float santitize_float( float f )
+@@ -7083,6 +7132,8 @@ static inline float santitize_float( float f )
  static void
  handle_property_notify(xwayland_ctx_t *ctx, XPropertyEvent *ev)
  {
@@ -230,7 +232,7 @@ index c468fb3..f04dc7c 100644
  	/* check if Trans property was changed */
  	if (ev->atom == ctx->atoms.opacityAtom)
  	{
-@@ -9216,6 +9265,7 @@ void init_xwayland_ctx(uint32_t serverId, gamescope_xwayland_server_t *xwayland_
+@@ -9216,6 +9267,7 @@ void init_xwayland_ctx(uint32_t serverId, gamescope_xwayland_server_t *xwayland_
  	ctx->atoms.winNormalAtom = XInternAtom(ctx->dpy, "_NET_WM_WINDOW_TYPE_NORMAL", false);
  	ctx->atoms.sizeHintsAtom = XInternAtom(ctx->dpy, "WM_NORMAL_HINTS", false);
  	ctx->atoms.netWMStateFullscreenAtom = XInternAtom(ctx->dpy, "_NET_WM_STATE_FULLSCREEN", false);
