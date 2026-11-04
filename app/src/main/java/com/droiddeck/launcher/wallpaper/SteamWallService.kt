@@ -37,11 +37,12 @@ class SteamWallService : WallpaperService() {
         private val redraw = Runnable { draw() }
         private var visible = false
         private var surfaceLive = false
-        private var origin = 0L
+        private var lastFrame = 0L
+        private var phase = 0f
         private val tick = object : Runnable {
             override fun run() {
                 draw()
-                if (visible && synchronized(lock) { surfaceLive }) handler.postDelayed(this, FRAME_MS)
+                if (visible && synchronized(lock) { surfaceLive }) handler.postDelayed(this, 1000L / WallPrefs.fps(applicationContext))
             }
         }
 
@@ -73,7 +74,7 @@ class SteamWallService : WallpaperService() {
                 this.visible = visible
                 handler.removeCallbacks(tick)
                 if (visible) {
-                    if (origin == 0L) origin = SystemClock.uptimeMillis()
+                    lastFrame = SystemClock.uptimeMillis()
                     handler.post(tick)
                 }
             }
@@ -149,8 +150,10 @@ class SteamWallService : WallpaperService() {
             val columns = ((wallW + gap) / (capW + gap)).toInt() + 1
             val perRun = ((wallH + gap) / (capH + gap)).toInt() + 1
             val run = (capH + gap) * perRun
-            val elapsed = SystemClock.uptimeMillis() - origin
-            val shift = run * ((elapsed % DRIFT_MS) / DRIFT_MS.toFloat())
+            val now = SystemClock.uptimeMillis()
+            if (lastFrame != 0L) phase = (phase + (now - lastFrame) * WallPrefs.speed(applicationContext) / DRIFT_MS) % 1f
+            lastFrame = now
+            val shift = run * phase
             val px = w / 2f
             val py = h / 2f
             val left = px - wallW / 2f
@@ -204,7 +207,6 @@ class SteamWallService : WallpaperService() {
         const val MAX_COVERS = 48
         const val TILT = 13f
         const val DRIFT_MS = 50_000L
-        const val FRAME_MS = 33L
         const val REDRAW_WAIT_MS = 200L
     }
 }

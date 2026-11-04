@@ -1,3 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <wallpaper xmlns:android="http://schemas.android.com/apk/res/android"
-    android:thumbnail="@drawable/steam_wall_thumb" />
+    android:thumbnail="@drawable/steam_wall_thumb"
+    android:settingsActivity="com.droiddeck.launcher/.wallpaper.WallpaperSettingsActivity" />
