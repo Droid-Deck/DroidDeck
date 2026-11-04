@@ -61,11 +61,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.hud.DroidDeckMark
 import com.droiddeck.launcher.hud.FrameStats
 import com.droiddeck.launcher.hud.HudMetrics
 import com.droiddeck.launcher.session.StatsHud
 import java.io.File
+import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -164,10 +164,6 @@ private fun HudPanel(clock: String, right: String?, dim: Boolean, accent: Color,
                 val divider = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = argb(if (dim) 38 else 90, a) }
                 val blur = BlurMaskFilter(4.dp.toPx(), BlurMaskFilter.Blur.NORMAL)
                 val line = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = stroke; color = argb(if (dim) 90 else 255, a) }
-                val markH = min(h, w) * 0.55f
-                val markX = w - DroidDeckMark.widthFor(markH) - 16.dp.toPx()
-                val markBody = android.graphics.Color.argb(if (dim) 9 else 20, 255, 255, 255)
-                val markOrb = argb(if (dim) 9 else 20, a)
                 onDrawBehind {
                     drawIntoCanvas { canvas ->
                         val c = canvas.nativeCanvas
@@ -176,7 +172,6 @@ private fun HudPanel(clock: String, right: String?, dim: Boolean, accent: Color,
                         c.clipPath(body)
                         c.drawRect(0f, 0f, w, headerPx + 1f, band)
                         c.drawRect(0f, headerPx, w, headerPx + max(1f, density), divider)
-                        DroidDeckMark.draw(c, markX, (h - markH) / 2f, markH, markBody, markOrb)
                         c.restore()
                         for (pass in 0..2) {
                             line.maskFilter = if (pass < 2) blur else null
@@ -189,8 +184,7 @@ private fun HudPanel(clock: String, right: String?, dim: Boolean, accent: Color,
             .padding(start = 24.dp, end = 34.dp, bottom = 14.dp),
     ) {
         Row(Modifier.fillMaxWidth().height(HEADER), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            DroidDeckLogo(16.dp, body = headerInk, orb = if (dim) accent.copy(alpha = 0.5f) else accent)
-            Text("DroidDeck", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = headerInk, maxLines = 1)
+            Wordmark(14.dp, ink = headerInk, ball = if (dim) accent.copy(alpha = 0.5f) else accent)
             if (clock.isNotEmpty()) {
                 Text("·", fontSize = 13.sp, fontFamily = Mono, color = HudInk.sep)
                 Text(clock, fontSize = 13.sp, fontFamily = Mono, fontWeight = FontWeight.Bold, color = HudInk.dim, maxLines = 1)
@@ -271,13 +265,18 @@ private fun lowsText(d: HudData, size: TextUnit, accent: Color, deep: Boolean = 
     }
 }
 
+private val GRAPH_MIN_GAP = 3.dp
+
 @Composable
 private fun Graph(values: List<Float>, lo: Float, hi: Float, color: Color, modifier: Modifier) {
     Canvas(modifier) {
         if (values.size < 2 || hi <= lo) return@Canvas
+        val stride = ceil(GRAPH_MIN_GAP.toPx() * (values.size - 1) / size.width).toInt().coerceAtLeast(1)
+        val points = if (stride == 1) values else values.chunked(stride) { it.average().toFloat() }
+        if (points.size < 2) return@Canvas
         val path = Path()
-        values.forEachIndexed { i, v ->
-            val x = i / (values.size - 1f) * size.width
+        points.forEachIndexed { i, v ->
+            val x = i / (points.size - 1f) * size.width
             val y = size.height - ((v - lo) / (hi - lo)).coerceIn(0f, 1f) * size.height
             if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }

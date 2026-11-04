@@ -60,6 +60,16 @@ FAKE_ADB = textwrap.dedent('''\
         print(config.get("timestats", ""))
     elif args[:2] == ["exec-out", "screencap"]:
         sys.stdout.buffer.write(b"\\x89PNG fake")
+    elif args[:3] == ["shell", "dumpsys", "battery"]:
+        temperatures = config.get("battery", [""])
+        count = config.setdefault("counts", {}).get("battery", 0)
+        config["counts"]["battery"] = count + 1
+        json.dump(config, open(config_path, "w"))
+        print(temperatures[min(count, len(temperatures) - 1)])
+    elif args[:3] == ["shell", "dumpsys", "thermalservice"]:
+        print(config.get("thermalservice", ""))
+    elif args[:3] == ["shell", "grep", "."]:
+        print(config.get("cpufreq", ""))
     with open(config["log"], "a") as log:
         log.write(json.dumps(entry) + "\\n")
 ''')
@@ -101,6 +111,25 @@ TIMESTATS_SURFACEVIEW = "SurfaceFlinger TimeStats:\n" + "".join([
                      1800, {16: 1796, 33: 3}, 120),
     timestats_record("a1b2c3 SurfaceView[com.other.app/com.other.app.Main]#12", 500, {8: 499}, 120),
 ])
+
+
+THERMALSERVICE = textwrap.dedent('''\
+    IsStatusOverride: false
+    Thermal Status: 2
+    Cached temperatures:
+    \tTemperature{mValue=41.3, mType=3, mName=skin, mStatus=2}
+''')
+
+CPUFREQ = textwrap.dedent('''\
+    /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq:3532800
+    /sys/devices/system/cpu/cpufreq/policy6/scaling_max_freq:2918400
+    /sys/devices/system/cpu/cpufreq/policy0/cpuinfo_max_freq:3532800
+    /sys/devices/system/cpu/cpufreq/policy6/cpuinfo_max_freq:4473600
+''')
+
+
+def battery(tenths):
+    return f"Current Battery Service state:\n  level: 80\n  temperature: {tenths}\n  technology: Li-poly"
 
 
 def state(phase="READY", focused=None, focusable=()):
@@ -444,6 +473,40 @@ class DroiddeckctlTest(FakeAdbTest):
         code, out = self.run_ctl("override", "gamescope", str(binary))
         self.assertEqual(7, code)
         self.assertFalse([c for c in self.calls() if c["args"][:1] == ["push"]])
+
+    def test_thermal_reads_battery_status_and_cpu_caps(self):
+        self.configure({}, battery=[battery(386)], thermalservice=THERMALSERVICE, cpufreq=CPUFREQ)
+        code, out = self.run_ctl("thermal")
+        self.assertEqual(0, code, out)
+        self.assertEqual(38.6, out["batteryC"])
+        self.assertEqual([2, "MODERATE"], [out["status"], out["statusName"]])
+        self.assertEqual({"policy0": {"maxKHz": 3532800, "hardwareMaxKHz": 3532800, "capped": False},
+                          "policy6": {"maxKHz": 2918400, "hardwareMaxKHz": 4473600, "capped": True}}, out["cpu"])
+
+    def test_thermal_without_readings_answers_nulls(self):
+        code, out = self.run_ctl("thermal")
+        self.assertEqual(0, code, out)
+        self.assertEqual([None, None, None, {}], [out["batteryC"], out["status"], out["statusName"], out["cpu"]])
+
+    def test_wait_cool_polls_until_the_battery_is_below(self):
+        self.configure({}, battery=[battery(412), battery(395), battery(379)], thermalservice=THERMALSERVICE)
+        with unittest.mock.patch.object(ctl.time, "sleep") as slept:
+            code, out = self.run_ctl("wait", "cool", "--below", "38", "--timeout", "600")
+        self.assertEqual(0, code, out)
+        self.assertEqual(["wait", 37.9], [out["command"], out["batteryC"]])
+        self.assertEqual(2, slept.call_count)
+
+    def test_wait_cool_times_out_with_exit_5(self):
+        self.configure({}, battery=[battery(412)])
+        code, out = self.run_ctl("wait", "cool", "--below", "38", "--timeout", "0")
+        self.assertEqual(5, code)
+        self.assertIn("41.2", out["error"]["message"])
+
+    def test_wait_cool_needs_below_and_a_battery_temperature(self):
+        code, out = self.run_ctl("wait", "cool")
+        self.assertEqual(["INVALID_ARGUMENTS", 2], [out["error"]["code"], code])
+        code, out = self.run_ctl("wait", "cool", "--below", "38")
+        self.assertEqual("THERMAL_FAILED", out["error"]["code"])
 
 
 class ScenarioTest(FakeAdbTest):

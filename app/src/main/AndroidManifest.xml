@@ -3,6 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <queries>
+        <package android:name="cn.nubia.gamelauncher" />
         <intent>
             <action android:name="android.content.pm.action.CONFIRM_INSTALL" />
         </intent>
