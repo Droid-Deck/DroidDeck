@@ -320,7 +320,7 @@ class StickDeadZoneTest {
                 override fun onNavigate() {}
                 override fun scrollSpeed() = 2000f
             }) { 1000L }
-            val event = if (wired) event(device(wired = true), MotionEvent.AXIS_RX to 0.02f,
+            val event = if (wired) event(device(wired = true, id = 62), MotionEvent.AXIS_RX to 0.02f,
                 MotionEvent.AXIS_RY to 0.6f, MotionEvent.AXIS_Z to -1f, MotionEvent.AXIS_RZ to -1f)
             else event(device(), MotionEvent.AXIS_Z to 0.02f, MotionEvent.AXIS_RZ to 0.6f)
             try {
