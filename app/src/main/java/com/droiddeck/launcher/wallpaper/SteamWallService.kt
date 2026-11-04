@@ -44,11 +44,11 @@ class SteamWallService : WallpaperService() {
         private var lastDrawNanos = 0L
         private val tick = object : Choreographer.FrameCallback {
             override fun doFrame(frameTimeNanos: Long) {
-                if (!visible || !synchronized(lock) { surfaceLive }) return
+                if (!visible) return
                 val interval = if (WallPrefs.fps(applicationContext) == WallPrefs.MATCH_SCREEN) 0L else 1_000_000_000L / framesPerSecond()
                 if (frameTimeNanos - lastDrawNanos >= interval - SLACK_NANOS) {
                     lastDrawNanos = frameTimeNanos
-                    draw()
+                    runCatching { draw() }
                 }
                 choreographer?.postFrameCallback(this)
             }
@@ -78,7 +78,7 @@ class SteamWallService : WallpaperService() {
         private fun loadCovers(): List<Bitmap> {
             val d = resources.displayMetrics.density
             val targetW = (112f * d).toInt()
-            val files = runCatching { Library.steamLibraryArt(applicationContext).shuffled().take(MAX_COVERS) }
+            val files = runCatching { Library.steamLibraryArt(applicationContext).distinctBy { it.first }.shuffled().take(MAX_COVERS) }
                 .getOrDefault(emptyList())
             return files.mapNotNull { (_, file) ->
                 runCatching {
@@ -149,7 +149,7 @@ class SteamWallService : WallpaperService() {
 
         private fun draw() {
             synchronized(lock) {
-                if (!surfaceLive) return
+                if (!surfaceLive || !surfaceHolder.surface.isValid) return
                 val canvas = surfaceHolder.surface.lockHardwareCanvas() ?: return
                 try {
                     render(canvas, canvas.width.toFloat(), canvas.height.toFloat())
@@ -204,7 +204,7 @@ class SteamWallService : WallpaperService() {
                     rect.set(x, y, x + capW, y + capH)
                     canvas.drawRoundRect(rect, radius, radius, fill)
                     if (deck.isNotEmpty()) {
-                        val cover = deck[(c * 5 + i % perRun) % deck.size]
+                        val cover = deck[(c * 5 + (i % perRun) * 3) % deck.size]
                         clip.rewind()
                         clip.addRoundRect(rect, radius, radius, Path.Direction.CW)
                         canvas.save()
