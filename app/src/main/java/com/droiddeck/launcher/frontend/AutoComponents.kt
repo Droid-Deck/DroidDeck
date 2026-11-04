@@ -48,6 +48,8 @@ object AutoComponents {
 
     val downloading = MutableStateFlow<Map<String, WinComponents.Progress>>(emptyMap())
 
+    val repairFailures = MutableStateFlow<Map<String, String>>(emptyMap())
+
     val pendingGames = MutableStateFlow<Set<String>>(emptySet())
 
     val pendingComponents = MutableStateFlow<Set<String>>(emptySet())
@@ -84,8 +86,11 @@ object AutoComponents {
         enqueue(context, Job(game, null, asked, seq.incrementAndGet()))
     }
 
-    fun queueRepair(context: Context, id: String) {
-        if (WinComponents.validId(id)) queueDownload(context, id, asked = true)
+    fun queueRepair(context: Context, id: String, gameKey: String?, revision: Int) {
+        if (!WinComponents.validId(id)) return
+        gameKey?.let { Pending.add(context, it, listOf(id), mapOf(id to revision)) }
+        repairFailures.value = repairFailures.value - id
+        queueDownload(context, id, asked = true, inSession = gameKey != null)
     }
 
     private fun queueDownload(context: Context, id: String, asked: Boolean, inSession: Boolean = false) =
@@ -173,6 +178,7 @@ object AutoComponents {
             }
         } catch (e: Exception) {
             Log.w(TAG, "wincomp: ${job.key}: ${e.javaClass.simpleName}: ${e.message}")
+            job.component?.let { repairFailures.value = repairFailures.value + (it to (e.message ?: "Install failed")) }
         } finally {
             mark(job, false)
             changes.value = changes.value + 1
@@ -216,9 +222,17 @@ object AutoComponents {
     }
 
     private fun download(context: Context, id: String, asked: Boolean, inSession: Boolean = false) {
-        val catalog = catalogOf(context, true)?.associateBy { it.name } ?: run { Pending.drop(context, id); return }
+        val catalog = catalogOf(context, true)?.associateBy { it.name } ?: run {
+            repairFailures.value = repairFailures.value + (id to "Could not load the component catalog")
+            Pending.drop(context, id)
+            return
+        }
         if (id !in installedOf(context)) {
-            val c = catalog[id] ?: run { Pending.drop(context, id); return }
+            val c = catalog[id] ?: run {
+                repairFailures.value = repairFailures.value + (id to "Component is no longer available")
+                Pending.drop(context, id)
+                return
+            }
             val started = System.currentTimeMillis()
             downloading.value = downloading.value + (id to WinComponents.Progress(id, "", WinComponents.Phase.DOWNLOAD, -1))
             val problem = try {
@@ -226,11 +240,17 @@ object AutoComponents {
             } finally {
                 downloading.value = downloading.value - id
             }
-            if (problem != null) { Log.w(TAG, "wincomp: $id did not install: $problem"); Pending.drop(context, id); return }
+            if (problem != null) {
+                repairFailures.value = repairFailures.value + (id to problem)
+                Log.w(TAG, "wincomp: $id did not install: $problem")
+                Pending.drop(context, id)
+                return
+            }
             Log.i(TAG, "wincomp: $id installed in ${System.currentTimeMillis() - started}ms")
         }
         val games = synchronized(waiting) { waiting.remove(id).orEmpty() }
         games.forEach { apply(context, it, asked, inSession, knownCatalog = catalog) }
+        repairFailures.value = repairFailures.value - id
         Pending.drop(context, id)
     }
 

@@ -38,6 +38,7 @@ object WinComponents {
     private const val MSI_CACHE = "$STORE/.packages"
     private val PROTON_PROVIDES = setOf("gecko", "mono", "cjkfonts", "powershell", "VulkanRT")
     private val NESTED_KEYS = setOf("url", "file_name", "file_checksum", "file_size")
+    private val installLock = Any()
 
     fun validId(id: String): Boolean = ID.matches(id) && ".." !in id
 
@@ -191,7 +192,10 @@ object WinComponents {
             .orEmpty().filter { installedVersion(it, revisions[it.name] ?: 0) != null }.map { it.name }.sorted()
     }
 
-    @Synchronized fun install(context: Context, c: Component, all: Map<String, Component>, onProgress: (Progress) -> Unit): String? {
+    fun install(context: Context, c: Component, all: Map<String, Component>, onProgress: (Progress) -> Unit): String? =
+        synchronized(installLock) { installLocked(context, c, all, onProgress) }
+
+    private fun installLocked(context: Context, c: Component, all: Map<String, Component>, onProgress: (Progress) -> Unit): String? {
         if (support(c, all) != Support.READY) return "${c.name} cannot be installed here yet"
         val order = ArrayList<Component>()
         fun visit(x: Component, depth: Int) {
@@ -569,8 +573,7 @@ object WinComponents {
         matches.forEach { f -> f.copyTo(File(dest, f.name.lowercase()), overwrite = true) }
     }
 
-    @Synchronized
-    fun uninstall(context: Context, id: String) {
+    fun uninstall(context: Context, id: String) = synchronized(installLock) {
         require(validId(id))
         FileUtils.delete(File(LinuxRuntime.rootDir(context), "$STORE/$id"))
         save(context, selections(context).mapValues { (_, sel) -> Selection(sel.auto - id, sel.user - id) })

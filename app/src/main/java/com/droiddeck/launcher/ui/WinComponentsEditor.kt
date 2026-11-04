@@ -104,6 +104,7 @@ internal fun WinComponentsDialog(
     var slowCatalog by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { kotlinx.coroutines.delay(300); slowCatalog = true }
     var installed by remember { mutableStateOf(emptySet<String>()) }
+    var freshInstalled by remember { mutableStateOf(emptySet<String>()) }
     var present by remember { mutableStateOf(emptySet<String>()) }
     var selection by remember { mutableStateOf(WinComponents.selection(context, appKey)) }
     val picks = selection.effective
@@ -142,8 +143,10 @@ internal fun WinComponentsDialog(
         selection = withContext(Dispatchers.IO) { WinComponents.selection(context, appKey) }
         present = withContext(Dispatchers.IO) { PrefixInstalledDetector.detect(compat) }
         installed = withContext(Dispatchers.IO) { WinComponents.downloadedIds(context).toSet() }
+        freshInstalled = withContext(Dispatchers.IO) { WinComponents.installedIds(context).toSet() }
     }
     val autoDownloading by com.droiddeck.launcher.frontend.AutoComponents.downloading.collectAsState()
+    val repairFailures by com.droiddeck.launcher.frontend.AutoComponents.repairFailures.collectAsState()
     val online = rememberOnline()
     val autoChanges by com.droiddeck.launcher.frontend.AutoComponents.changes.collectAsState()
     val pendingGames by com.droiddeck.launcher.frontend.AutoComponents.pendingGames.collectAsState()
@@ -153,6 +156,7 @@ internal fun WinComponentsDialog(
             ?.let { findings = it; if (appKey !in pendingGames) findingsKnown = true }
         selection = withContext(Dispatchers.IO) { WinComponents.selection(context, appKey) }
         installed = withContext(Dispatchers.IO) { WinComponents.downloadedIds(context).toSet() }
+        freshInstalled = withContext(Dispatchers.IO) { WinComponents.installedIds(context).toSet() }
     }
     fun setUser(id: String, on: Boolean) {
         selection = WinComponents.Selection(selection.auto, selection.user + (id to on))
@@ -175,8 +179,8 @@ internal fun WinComponentsDialog(
         val c = all[id]
         if (id in installed) {
             setUser(id, true)
-            if (c != null && WinComponents.installed(context, id) == null) {
-                com.droiddeck.launcher.frontend.AutoComponents.queueRepair(context, id)
+            if (c != null && id !in freshInstalled) {
+                com.droiddeck.launcher.frontend.AutoComponents.queueRepair(context, id, game?.let { appKey }, c.revision)
             }
             return
         }
@@ -190,6 +194,7 @@ internal fun WinComponentsDialog(
             }
             progress = null
             installed = withContext(Dispatchers.IO) { WinComponents.downloadedIds(context).toSet() }
+            freshInstalled = withContext(Dispatchers.IO) { WinComponents.installedIds(context).toSet() }
             if (problem != null) { error = problem; failed = id } else setUser(id, true)
             busyId = null
         }
@@ -252,6 +257,9 @@ internal fun WinComponentsDialog(
             val status = when {
                 !online && id !in installed && support == Support.READY -> stringResource(R.string.wincomp_when_online)
                 id == failed && error != null -> stringResource(R.string.wincomp_failed, error.orEmpty())
+                id in repairFailures -> stringResource(R.string.wincomp_failed, repairFailures.getValue(id))
+                id in pendingComponents && id in installed && id !in freshInstalled -> stringResource(R.string.wincomp_repair_queued)
+                id in installed && id !in freshInstalled -> stringResource(R.string.wincomp_repair_required)
                 id in here && id !in picks -> stringResource(R.string.wincomp_already_here)
                 id in installed -> stringResource(R.string.wincomp_downloaded)
                 support == Support.NEEDS_INSTALLER -> stringResource(R.string.wincomp_needs_installer)
@@ -283,6 +291,11 @@ internal fun WinComponentsDialog(
                 modifier = (if (usable && focus != null) Modifier.focusRequester(focus) else Modifier)
                     .onFocusChanged { if (it.isFocused) switchFocused = true },
             ) { on -> toggle(id, on) }
+            if (id in repairFailures && c != null) {
+                SecondaryButton(stringResource(R.string.wincomp_retry), compact = true) {
+                    com.droiddeck.launcher.frontend.AutoComponents.queueRepair(context, id, game?.let { appKey }, c.revision)
+                }
+            }
         }
         fun firstUsable(ids: List<String>, focus: FocusRequester): (String) -> FocusRequester? {
             val first = ids.firstOrNull { supportOf(it) == Support.READY }

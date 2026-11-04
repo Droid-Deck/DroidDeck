@@ -243,6 +243,7 @@ class WinCompSourcesTest {
     }
 
     private fun <T> withFakeWorker(block: () -> T): T {
+        AutoComponents.repairFailures.value = emptyMap()
         AutoComponents.catalogOf = { _, _ -> catalog3 }
         AutoComponents.installedOf = { installedNow.toSet() }
         AutoComponents.installer = { _, c, _, _ -> downloaded.add(c.name); installedNow.add(c.name); null }
@@ -255,6 +256,7 @@ class WinCompSourcesTest {
             return block()
         } finally {
             AutoComponents.runNow = false
+            AutoComponents.repairFailures.value = emptyMap()
             AutoComponents.catalogOf = { c, network -> if (network) WinComponents.fetch(c) else WinComponents.cached(c) }
             AutoComponents.installedOf = { WinComponents.installedIds(it).toSet() }
             AutoComponents.installer = { c, comp, all, progress -> WinComponents.install(c, comp, all, progress) }
@@ -313,6 +315,31 @@ class WinCompSourcesTest {
         assertEquals(2, revision())
         gameUp = false
         AutoComponents.drain(app)
+        assertFalse(JSONObject(pending.readText()).getJSONObject("revisions").has(repair.name))
+    }
+
+    @Test fun manualRepairsRecordTheirRevisionAndExposeFailuresForRetry() = withFakeWorker {
+        val repair = WinComponents.Component("vcredist2010_dll", "", "", "ready", emptyList(), emptyList(), revision = 2)
+        AutoComponents.catalogOf = { _, _ -> catalog3 + repair }
+        var attempts = 0
+        AutoComponents.installer = { _, c, _, _ ->
+            attempts++
+            if (attempts == 1) "network unavailable" else { installedNow.add(c.name); null }
+        }
+        session = true
+        gameUp = true
+        AutoComponents.queueRepair(app, repair.name, "4242", repair.revision)
+        val pending = File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app), "root/.config/droiddeck/wincomponents-pending.json")
+        assertEquals(2, JSONObject(pending.readText()).getJSONObject("revisions").getInt(repair.name))
+        gameUp = false
+        AutoComponents.drain(app)
+        assertEquals("network unavailable", AutoComponents.repairFailures.value[repair.name])
+        assertEquals(1, attempts)
+        session = false
+        AutoComponents.queueRepair(app, repair.name, "4242", repair.revision)
+        assertEquals(2, attempts)
+        assertEquals(null, AutoComponents.repairFailures.value[repair.name])
+        assertTrue(repair.name in installedNow)
         assertFalse(JSONObject(pending.readText()).getJSONObject("revisions").has(repair.name))
     }
 
