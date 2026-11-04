@@ -318,6 +318,18 @@ class WinCompSourcesTest {
         assertFalse(JSONObject(pending.readText()).getJSONObject("revisions").has(repair.name))
     }
 
+    @Test fun manualRepairKeepsPendingWhenCatalogIsOlderThanRequestedRevision() = withFakeWorker {
+        val repair = WinComponents.Component("vcredist2010_dll", "", "", "ready", emptyList(), emptyList(), revision = 1)
+        AutoComponents.catalogOf = { _, _ -> catalog3 + repair }
+        installedNow.add(repair.name)
+        AutoComponents.queueRepair(app, repair.name, "4242", revision = 2)
+        AutoComponents.drain(app)
+        assertEquals("The component catalog is older than the requested revision", AutoComponents.repairFailures.value[repair.name])
+        assertEquals(listOf(repair.name), AutoComponents.Pending.ids(app, "4242"))
+        val pendingFile = File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app), "root/.config/droiddeck/wincomponents-pending.json")
+        assertEquals(2, JSONObject(pendingFile.readText()).getJSONObject("revisions").getInt(repair.name))
+    }
+
     @Test fun manualRepairsRecordTheirRevisionAndExposeFailuresForRetry() = withFakeWorker {
         val repair = WinComponents.Component("vcredist2010_dll", "", "", "ready", emptyList(), emptyList(), revision = 2)
         AutoComponents.catalogOf = { _, _ -> catalog3 + repair }

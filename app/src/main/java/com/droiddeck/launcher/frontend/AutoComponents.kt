@@ -232,8 +232,13 @@ object AutoComponents {
             Pending.drop(context, id, requestedRevision)
             return
         }
+        val catalogComponent = catalog[id]
+        if (requestedRevision != null && catalogComponent != null && catalogComponent.revision < requestedRevision) {
+            repairFailures.value = repairFailures.value + (id to "The component catalog is older than the requested revision")
+            return
+        }
         if (id !in installedOf(context)) {
-            val c = catalog[id] ?: run {
+            val c = catalogComponent ?: run {
                 repairFailures.value = repairFailures.value + (id to "Component is no longer available")
                 Pending.drop(context, id)
                 return
