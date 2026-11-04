@@ -317,6 +317,62 @@ FRAME_LIMIT_JS = r"""
   return "installed";
 })()
 """
+WINDOW_BINDING = "droiddeckWindowAction"
+WINDOW_TARGET = "createflags=18"
+WINDOW_MOVES = {"nw": 0, "n": 1, "ne": 2, "e": 3, "se": 4, "s": 5, "sw": 6, "w": 7, "move": 8}
+WINDOW_JS = r"""
+(() => {
+  if (window.__droiddeckWindow) return "present";
+  const EDGE = 5, CORNER = 10, THRESHOLD = 3;
+  const CURSORS = { n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize",
+    ne: "nesw-resize", sw: "nesw-resize", nw: "nwse-resize", se: "nwse-resize" };
+  const send = action => window.droiddeckWindowAction(action);
+  const filled = () => innerWidth >= screen.availWidth && innerHeight >= screen.availHeight - 60;
+  const side = e => {
+    if (filled()) return "";
+    const right = innerWidth - e.clientX, bottom = innerHeight - e.clientY;
+    const near = (a, b) => a < EDGE || (a < CORNER && b < CORNER);
+    const across = Math.min(e.clientX, right), along = Math.min(e.clientY, bottom);
+    const v = near(e.clientY, across) ? "n" : near(bottom, across) ? "s" : "";
+    const h = near(e.clientX, along) ? "w" : near(right, along) ? "e" : "";
+    return v + h;
+  };
+  const dragging = e => e.target instanceof Element && getComputedStyle(e.target).webkitAppRegion === "drag";
+  const style = document.createElement("style");
+  document.documentElement.append(style);
+  let press = null, shown = "";
+  addEventListener("pointermove", e => {
+    if (press) {
+      if (Math.hypot(e.clientX - press.x, e.clientY - press.y) >= THRESHOLD) {
+        press = null;
+        send("move");
+      }
+      return;
+    }
+    const cursor = e.buttons ? shown : side(e);
+    if (cursor !== shown) {
+      shown = cursor;
+      style.textContent = cursor ? `* { cursor: ${CURSORS[cursor]} !important; }` : "";
+    }
+  }, true);
+  addEventListener("pointerdown", e => {
+    if (e.button !== 0) return;
+    const edge = side(e);
+    if (edge) {
+      e.stopPropagation();
+      e.preventDefault();
+      send(edge);
+    } else if (dragging(e)) {
+      press = { x: e.clientX, y: e.clientY };
+    }
+  }, true);
+  addEventListener("pointerup", () => { press = null; }, true);
+  addEventListener("dblclick", e => { if (dragging(e) && !side(e)) send("maximize"); }, true);
+  SteamClient.Window.ToggleMaximize = () => send("maximize");
+  window.__droiddeckWindow = true;
+  return "installed";
+})()
+"""
 FILE_BINDING = "droiddeckOpenFileDialog"
 FILE_JS = r"""
 (() => {
@@ -739,6 +795,71 @@ class Watcher:
         return any(n in wanted or n.startswith("appmanifest_") for n in names)
 
 
+class XMessage(ctypes.Structure):
+    _fields_ = [("type", ctypes.c_int), ("serial", ctypes.c_ulong), ("send_event", ctypes.c_int),
+                ("display", ctypes.c_void_p), ("window", ctypes.c_ulong), ("message_type", ctypes.c_ulong),
+                ("format", ctypes.c_int), ("data", ctypes.c_long * 5), ("pad", ctypes.c_long * 20)]
+
+
+X_ERRORS = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p)(lambda display, error: 0)
+
+
+def window_action(action):
+    if action != "maximize" and action not in WINDOW_MOVES:
+        return False
+    x11 = ctypes.CDLL("libX11.so.6")
+    x11.XOpenDisplay.restype = ctypes.c_void_p
+    x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
+    x11.XDefaultRootWindow.restype = ctypes.c_ulong
+    x11.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+    x11.XInternAtom.restype = ctypes.c_ulong
+    x11.XInternAtom.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int]
+    x11.XGetWindowProperty.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_long, ctypes.c_long,
+                                       ctypes.c_int, ctypes.c_ulong] + [ctypes.c_void_p] * 5
+    x11.XQueryPointer.argtypes = [ctypes.c_void_p, ctypes.c_ulong] + [ctypes.c_void_p] * 7
+    x11.XSendEvent.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_int, ctypes.c_long, ctypes.c_void_p]
+    x11.XFree.argtypes = [ctypes.c_void_p]
+    x11.XFlush.argtypes = [ctypes.c_void_p]
+    x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
+    x11.XSetErrorHandler(X_ERRORS)
+    display = x11.XOpenDisplay(None)
+    if not display:
+        return False
+    try:
+        root = x11.XDefaultRootWindow(display)
+        atom = lambda name: x11.XInternAtom(display, name, 0)
+        kind, width, count, after = ctypes.c_ulong(), ctypes.c_int(), ctypes.c_ulong(), ctypes.c_ulong()
+        data = ctypes.c_void_p()
+        if x11.XGetWindowProperty(display, root, atom(b"_NET_ACTIVE_WINDOW"), 0, 1, 0, 33, ctypes.byref(kind),
+                                  ctypes.byref(width), ctypes.byref(count), ctypes.byref(after),
+                                  ctypes.byref(data)) != 0 or not data.value:
+            return False
+        window = ctypes.cast(data, ctypes.POINTER(ctypes.c_ulong))[0] if count.value else 0
+        x11.XFree(data)
+        if not window:
+            return False
+        if action == "maximize":
+            kind_name = b"_NET_WM_STATE"
+            values = [2, atom(b"_NET_WM_STATE_MAXIMIZED_VERT"), atom(b"_NET_WM_STATE_MAXIMIZED_HORZ"), 1, 0]
+        else:
+            ignored = ctypes.c_ulong()
+            x, y, inner, mask = ctypes.c_int(), ctypes.c_int(), ctypes.c_int(), ctypes.c_uint()
+            if not x11.XQueryPointer(display, root, ctypes.byref(ignored), ctypes.byref(ignored), ctypes.byref(x),
+                                     ctypes.byref(y), ctypes.byref(inner), ctypes.byref(inner), ctypes.byref(mask)):
+                return False
+            if not mask.value & 0x100:
+                return False
+            kind_name = b"_NET_WM_MOVERESIZE"
+            values = [x.value, y.value, WINDOW_MOVES[action], 1, 1]
+        message = XMessage(type=33, window=window, message_type=atom(kind_name), format=32)
+        message.data[:] = values
+        sent = x11.XSendEvent(display, root, 0, (1 << 19) | (1 << 20), ctypes.byref(message))
+        x11.XFlush(display)
+        return bool(sent)
+    finally:
+        x11.XCloseDisplay(display)
+
+
 class Helper:
     def __init__(self, steam_root, port, steamos=False, files_only=False):
         self.steam_root = steam_root
@@ -757,6 +878,8 @@ class Helper:
         self.controls_installed = False
         self.frame_limit_state = None
         self.frame_limit_retry = 0
+        self.windows = {}
+        self.windows_retry = 0
 
     def sync_controls(self):
         try:
@@ -779,6 +902,41 @@ class Helper:
                     self.controls_state = None
         except (OSError, ValueError, TypeError):
             pass
+
+    def sync_windows(self):
+        if os.environ.get("XDG_CURRENT_DESKTOP") != "KDE":
+            return
+        if time.monotonic() >= self.windows_retry:
+            self.windows_retry = time.monotonic() + 2
+            try:
+                targets = http_get(self.port, "/json/list")
+            except (OSError, ValueError):
+                targets = []
+            seen = set()
+            for target in targets:
+                url = target.get("webSocketDebuggerUrl")
+                if WINDOW_TARGET not in target.get("url", "").split("&")[0] or not url:
+                    continue
+                seen.add(target.get("id"))
+                try:
+                    page = self.windows.get(target.get("id"))
+                    if page is None:
+                        page = Page(self.port, "/" + url.split("/", 3)[3])
+                        page.call("Runtime.addBinding", {"name": WINDOW_BINDING}, timeout=5)
+                        self.windows[target.get("id")] = page
+                    page.evaluate(WINDOW_JS, timeout=5)
+                except (Closed, OSError, RuntimeError, ValueError) as e:
+                    say("window controls: %s" % e)
+                    self.windows.pop(target.get("id"), None)
+            for ident in set(self.windows) - seen:
+                del self.windows[ident]
+        for ident, page in list(self.windows.items()):
+            try:
+                for event in page.drain():
+                    if called(event, WINDOW_BINDING):
+                        window_action(event.get("params", {}).get("payload"))
+            except (Closed, OSError, ValueError):
+                del self.windows[ident]
 
     def sync_frame_limit(self):
         if self.frame_limit_state in ("installed", "present") or time.monotonic() < self.frame_limit_retry:
@@ -1025,7 +1183,9 @@ class Helper:
         say("attached to the client on port %d for its file dialogs" % self.port)
         while True:
             self.sync_controls()
+            self.sync_windows()
             sources = [self.page.ws] + ([self.chooser[1].stdout] if self.chooser is not None else [])
+            sources += [page.ws for page in self.windows.values()]
             queued = self.page.ws.pending() or bool(self.page.events)
             ready = [self.page.ws] if queued else select.select(sources, [], [], 0.25)[0]
             if self.chooser is not None and self.chooser[1].stdout in ready:
@@ -1044,7 +1204,9 @@ class Helper:
         while True:
             self.sync_controls()
             self.sync_frame_limit()
+            self.sync_windows()
             sources = [self.page.ws] + ([watcher] if watcher.fileno() >= 0 else [])
+            sources += [page.ws for page in self.windows.values()]
             if self.chooser is not None:
                 sources.append(self.chooser[1].stdout)
             queued = self.page.ws.pending() or bool(self.page.events)
