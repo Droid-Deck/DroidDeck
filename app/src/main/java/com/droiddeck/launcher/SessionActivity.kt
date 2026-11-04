@@ -3787,14 +3787,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return true
     }
 
-    private fun mouseAttached(): Boolean = InputDevice.getDeviceIds().any { id ->
-        val d = InputDevice.getDevice(id)
-        d != null && !d.isVirtual && d.supportsSource(InputDevice.SOURCE_MOUSE)
-    }
+    private fun isHardwareMouse(d: InputDevice?): Boolean =
+        d != null && !d.isVirtual && (d.supportsSource(InputDevice.SOURCE_MOUSE) || d.supportsSource(InputDevice.SOURCE_MOUSE_RELATIVE))
+
+    private fun mouseAttached(): Boolean = InputDevice.getDeviceIds().any { isHardwareMouse(InputDevice.getDevice(it)) }
 
     private fun relativeMouseAttached(): Boolean = !isInMultiWindowMode && !glassesOutputActive && InputDevice.getDeviceIds().any { id ->
         val d = InputDevice.getDevice(id)
-        d != null && !d.isVirtual && d.supportsSource(InputDevice.SOURCE_MOUSE) && !d.supportsSource(InputDevice.SOURCE_TOUCHPAD)
+        isHardwareMouse(d) && d?.supportsSource(InputDevice.SOURCE_TOUCHPAD) != true
     }
 
     private fun updatePointerCapture() {
