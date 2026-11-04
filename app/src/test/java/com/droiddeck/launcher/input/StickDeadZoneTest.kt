@@ -392,6 +392,32 @@ class StickDeadZoneTest {
         return taps to presses
     }
 
+    @Test fun neutralScreenStickPressClearsRetainedPhysicalInput() {
+        val device = device()
+        for (adaptive in listOf(false, true)) {
+            ControllerPrefs.setAdaptiveSticks(context, adaptive)
+            ControllerPrefs.setLayout(context, 1200, 800, mapOf("ls" to (0.45f to 0.5f), "rs" to (0.55f to 0.5f)))
+            for (id in listOf("ls", "rs")) {
+                motion(device, MotionEvent.AXIS_X to 0.6f, MotionEvent.AXIS_Z to 0.7f)
+                val view = OnScreenControls(context, bridge)
+                view.layout(0, 0, 1200, 800)
+                val controls = ReflectionHelpers.getField<List<Any>>(view, "controls")
+                val control = controls.first { ReflectionHelpers.getField<String>(it, "id") == id }
+                val x = ReflectionHelpers.getField<Float>(control, "cx")
+                val y = ReflectionHelpers.getField<Float>(control, "cy")
+                val down = MotionEvent.obtain(1000, 1000, MotionEvent.ACTION_DOWN, x, y, 0)
+                try { assertTrue(view.onTouchEvent(down)) } finally { down.recycle() }
+                assertFalse(ReflectionHelpers.getField<Boolean>(control, "dirty"))
+                assertEquals(0f, if (id == "ls") pad().leftX else pad().rightX, 0f)
+                assertTrue((if (id == "ls") pad().rightX else pad().leftX) > 0f)
+                bridge.setStickDeadZone(25)
+                assertEquals(0f, if (id == "ls") pad().leftX else pad().rightX, 0f)
+                val up = MotionEvent.obtain(1000, 1100, MotionEvent.ACTION_UP, x, y, 0)
+                try { assertTrue(view.onTouchEvent(up)) } finally { up.recycle() }
+            }
+        }
+    }
+
     private fun pad() = requireNotNull(JoyConPadTest.RecordingWriter.pads[0])
 
     private fun motion(device: InputDevice, vararg axes: Pair<Int, Float>) {
