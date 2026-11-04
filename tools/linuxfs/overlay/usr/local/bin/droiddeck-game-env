@@ -250,7 +250,7 @@ def ubisoft_composition_off(proton, env):
     try:
         for program in ("upc.exe", "UplayWebCore.exe"):
             key = r"HKCU\Software\Wine\AppDefaults\%s\DllOverrides" % program
-            subprocess.run([proton, "run", "reg.exe", "add", key,
+            subprocess.run([proton, "runinprefix", "reg.exe", "add", key,
                             "/v", "dcomp", "/t", "REG_SZ", "/d", "", "/f"], env=env, check=True)
         print("droiddeck-game-env: Ubisoft Connect uses CEF without DirectComposition", file=sys.stderr)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:

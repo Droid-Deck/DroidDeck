@@ -173,6 +173,13 @@ internal fun WinComponentsDialog(
         }
         val all = catalog.orEmpty()
         val c = all[id]
+        if (id in installed) {
+            setUser(id, true)
+            if (c != null && WinComponents.installed(context, id) == null) {
+                com.droiddeck.launcher.frontend.AutoComponents.queueRepair(context, id)
+            }
+            return
+        }
         if (c == null) { setUser(id, true); return }
         busyId = id; reverting = false
         progress = null

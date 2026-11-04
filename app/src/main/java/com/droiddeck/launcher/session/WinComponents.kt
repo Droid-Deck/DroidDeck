@@ -191,7 +191,7 @@ object WinComponents {
             .orEmpty().filter { installedVersion(it, revisions[it.name] ?: 0) != null }.map { it.name }.sorted()
     }
 
-    fun install(context: Context, c: Component, all: Map<String, Component>, onProgress: (Progress) -> Unit): String? {
+    @Synchronized fun install(context: Context, c: Component, all: Map<String, Component>, onProgress: (Progress) -> Unit): String? {
         if (support(c, all) != Support.READY) return "${c.name} cannot be installed here yet"
         val order = ArrayList<Component>()
         fun visit(x: Component, depth: Int) {

@@ -2201,7 +2201,7 @@ class UbisoftCompositionTest(unittest.TestCase):
             keys = []
 
             def write_registry(argv, **kwargs):
-                self.assertEqual(argv[:4], ["/selected/proton", "run", "reg.exe", "add"])
+                self.assertEqual(argv[:4], ["/selected/proton", "runinprefix", "reg.exe", "add"])
                 self.assertEqual(argv[5:], ["/v", "dcomp", "/t", "REG_SZ", "/d", "", "/f"])
                 self.assertIs(kwargs["env"], env)
                 self.assertTrue(kwargs["check"])

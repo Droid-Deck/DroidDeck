@@ -84,6 +84,10 @@ object AutoComponents {
         enqueue(context, Job(game, null, asked, seq.incrementAndGet()))
     }
 
+    fun queueRepair(context: Context, id: String) {
+        if (WinComponents.validId(id)) queueDownload(context, id, asked = true)
+    }
+
     private fun queueDownload(context: Context, id: String, asked: Boolean, inSession: Boolean = false) =
         enqueue(context, Job(null, id, asked, seq.incrementAndGet(), inSession = inSession))
 
