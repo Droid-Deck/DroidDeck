@@ -296,6 +296,10 @@ fun AnchoredMenu(
           popupInput.requestInputMode(InputMode.Keyboard)
           repeat(8) {
               androidx.compose.runtime.withFrameNanos { }
+              if (runCatching { firstItemFocus.captureFocus() }.getOrDefault(false)) {
+                  firstItemFocus.freeFocus()
+                  return@LaunchedEffect
+              }
               runCatching { firstItemFocus.requestFocus() }
           }
       }

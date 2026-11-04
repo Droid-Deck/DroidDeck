@@ -246,6 +246,7 @@ class DrawerActions(
     val textureAnisotropy: Int? = 0,
     val textureLodBias: String? = TextureFiltering.LOD_BIAS_OFF,
     val secondScreenMode: SecondScreenMode,
+    val secondScreenNone: Boolean = true,
     val gameOnBottom: Boolean = false,
     val gameSwapAvailable: Boolean = false,
     val onGameOnBottom: (Boolean) -> Unit = {},
@@ -1148,8 +1149,8 @@ private fun SteamVrRow(a: DrawerActions) {
     }
 }
 
-internal fun secondScreenModes(deckPad: Boolean, dashboard: Boolean, desktop: Boolean): List<SecondScreenMode> =
-    listOf(SecondScreenMode.NONE, SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL) +
+internal fun secondScreenModes(none: Boolean, deckPad: Boolean, dashboard: Boolean, desktop: Boolean): List<SecondScreenMode> =
+    (if (none) listOf(SecondScreenMode.NONE) else emptyList()) + listOf(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL) +
         (if (deckPad) listOf(SecondScreenMode.DECK_CONTROLS) else emptyList()) +
         (if (dashboard) listOf(SecondScreenMode.DASHBOARD) else emptyList()) +
         (if (desktop) listOf(SecondScreenMode.DESKTOP) else emptyList())
@@ -1158,7 +1159,7 @@ internal fun secondScreenModes(deckPad: Boolean, dashboard: Boolean, desktop: Bo
 private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val modes = secondScreenModes(com.droiddeck.launcher.session.SessionState.deckPad, a.dashboardAvailable, a.desktopAvailable)
+    val modes = secondScreenModes(a.secondScreenNone, com.droiddeck.launcher.session.SessionState.deckPad, a.dashboardAvailable, a.desktopAvailable)
     SettingsGroup(stringResource(R.string.drawer_second_screen_mode)) {
         Column(Modifier.fillMaxWidth().selectableGroup()) {
             modes.forEach { mode ->

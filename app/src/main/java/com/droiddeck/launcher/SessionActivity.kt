@@ -1214,6 +1214,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             touchAuto = getString(if (usingTouchpad()) R.string.session_touch_auto_touchpad else R.string.session_touch_auto_direct),
             fexPreset = fexPreset,
             secondScreenMode = secondScreenMode,
+            secondScreenNone = !bottomOutputActive && !dockDrawer(),
             gameOnBottom = bottomOutputActive,
             gameSwapAvailable = bottomSwapAvailable,
             onGameOnBottom = { on -> drawerOpen = false; putGameOnBottom(on) },
@@ -4598,8 +4599,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         modifier = Modifier.fillMaxWidth().weight(1f),
                     )
                 }
-                secondScreenMode == SecondScreenMode.NONE || pages.isEmpty() ->
-                    com.droiddeck.launcher.ui.BottomScreenBar(bar(null))
+                pages.isEmpty() -> com.droiddeck.launcher.ui.BottomScreenBar(bar(null))
                 else -> BottomDashboard(
                     pages, com.droiddeck.launcher.ui.SessionBottomTab.picked(SessionState.sessionId),
                     gameStarts = gameStarts,

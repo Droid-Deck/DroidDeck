@@ -77,6 +77,11 @@ class SessionTrackpadView(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean = gestures.onTouch(event)
+
+    override fun onDetachedFromWindow() {
+        gestures.cancel()
+        super.onDetachedFromWindow()
+    }
 }
 
 class SessionTerminalPanel(context: Context) : LinearLayout(context) {
