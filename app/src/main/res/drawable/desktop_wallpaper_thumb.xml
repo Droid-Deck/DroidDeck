@@ -17,13 +17,16 @@
                 android:endColor="#04060B" />
         </aapt:attr>
     </path>
-    <group android:translateX="95" android:translateY="205" android:scaleX="0.65" android:scaleY="0.65">
+    <group android:translateX="95.4" android:translateY="178.5" android:scaleX="0.55" android:scaleY="0.55">
         <path
             android:fillColor="#FFFFFF"
             android:fillType="evenOdd"
-            android:pathData="M0,0H96c61.84,0 80,50.08 80,111.86S157.84,223.72 96,223.72H0V0ZM32,111.86m-71.81,0a71.81,71.81 0,1 1,143.62 0a71.81,71.81 0,1 1,-143.62 0" />
+            android:pathData="M-31.98,0L63.97,0C125.81,0 175.93,50.08 175.93,111.86C175.93,173.64 125.81,223.72 63.97,223.72L-31.98,223.72Z M63.98,111.86m-71.81,0a71.81,71.81 0,1 1,143.62 0a71.81,71.81 0,1 1,-143.62 0 M56.055,0h15.83v45h-15.83z M56.055,178.72h15.83v45h-15.83z" />
+        <path
+            android:fillColor="#0A1120"
+            android:pathData="M63.98,111.86m-71.81,0a71.81,71.81 0,1 1,143.62 0a71.81,71.81 0,1 1,-143.62 0" />
         <path
             android:fillColor="#1A9FFF"
-            android:pathData="M32,111.86m-55.98,0a55.98,55.98 0,1 1,111.96 0a55.98,55.98 0,1 1,-111.96 0" />
+            android:pathData="M63.98,111.86m-55.98,0a55.98,55.98 0,1 1,111.96 0a55.98,55.98 0,1 1,-111.96 0" />
     </group>
 </vector>

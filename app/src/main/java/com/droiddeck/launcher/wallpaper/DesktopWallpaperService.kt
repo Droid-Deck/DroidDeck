@@ -41,39 +41,45 @@ class DesktopWallpaperService : WallpaperService() {
         }
 
         private fun render(canvas: Canvas, w: Float, h: Float) {
-            val scale = maxOf(w / DESIGN_W, h / DESIGN_H)
-            canvas.save()
-            canvas.translate((w - DESIGN_W * scale) / 2f, (h - DESIGN_H * scale) / 2f)
-            canvas.scale(scale, scale)
-
+            val cx = w / 2f
+            val cy = h / 2f
             paint.shader = RadialGradient(
-                960f, 540f, 1150f,
+                cx, cy, maxOf(w, h) * 0.75f,
                 intArrayOf(0xFF14213A.toInt(), 0xFF0A1120.toInt(), 0xFF04060B.toInt()),
                 floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP,
             )
-            canvas.drawRect(-DESIGN_W, -DESIGN_H, DESIGN_W * 2, DESIGN_H * 2, paint)
+            canvas.drawRect(0f, 0f, w, h, paint)
 
+            val scale = minOf(w, h) * LOGO_SPAN / LOGO_H
+            val ring = LOGO_RING * scale
+            val orbX = cx + (LOGO_ORB_X - LOGO_CX) * scale
             paint.shader = RadialGradient(
-                947.21f, 540f, 420f,
-                intArrayOf(0x381A9FFF, 0x001A9FFF), null, Shader.TileMode.CLAMP,
+                cx, cy, minOf(w, h) * 0.5f,
+                intArrayOf(0x331A9FFF, 0x001A9FFF), null, Shader.TileMode.CLAMP,
             )
-            canvas.drawCircle(947.21f, 540f, 420f, paint)
+            canvas.drawCircle(cx, cy, minOf(w, h) * 0.5f, paint)
             paint.shader = null
 
             canvas.save()
-            canvas.translate(844.84f, 361.02f)
-            canvas.scale(1.6f, 1.6f)
+            canvas.translate(cx - LOGO_CX * scale, cy - LOGO_CY * scale)
+            canvas.scale(scale, scale)
             paint.color = Color.WHITE
             canvas.drawPath(logo, paint)
+            canvas.restore()
+            paint.color = 0xFF0A1120.toInt()
+            canvas.drawCircle(orbX, cy, ring, paint)
             paint.color = 0xFF1A9FFF.toInt()
-            canvas.drawCircle(63.98f, 111.86f, 55.98f, paint)
-            canvas.restore()
-            canvas.restore()
+            canvas.drawCircle(orbX, cy, LOGO_ORB * scale, paint)
         }
     }
 
     private companion object {
-        const val DESIGN_W = 1920f
-        const val DESIGN_H = 1080f
+        const val LOGO_H = 223.72f
+        const val LOGO_CX = 71.975f
+        const val LOGO_ORB_X = 63.98f
+        const val LOGO_CY = 111.86f
+        const val LOGO_RING = 71.81f
+        const val LOGO_ORB = 55.98f
+        const val LOGO_SPAN = 0.36f
     }
 }

@@ -1,7 +1,10 @@
 package com.droiddeck.launcher.wallpaper
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
@@ -11,6 +14,7 @@ import android.os.SystemClock
 import android.service.wallpaper.WallpaperService
 import android.view.SurfaceHolder
 import androidx.compose.ui.graphics.toArgb
+import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.ui.Themes
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -26,6 +30,9 @@ class SteamWallService : WallpaperService() {
         private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
         private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
         private val rect = RectF()
+        private val clip = Path()
+        private val art = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+        @Volatile private var covers: List<Bitmap> = emptyList()
         private val lock = Any()
         private val redraw = Runnable { draw() }
         private var visible = false
@@ -35,6 +42,26 @@ class SteamWallService : WallpaperService() {
             override fun run() {
                 draw()
                 if (visible && synchronized(lock) { surfaceLive }) handler.postDelayed(this, FRAME_MS)
+            }
+        }
+
+        override fun onCreate(surfaceHolder: SurfaceHolder) {
+            handler.post { covers = loadCovers() }
+        }
+
+        private fun loadCovers(): List<Bitmap> {
+            val d = resources.displayMetrics.density
+            val targetW = (112f * d).toInt()
+            val files = runCatching { Library.steamLibraryArt(applicationContext).shuffled().take(MAX_COVERS) }
+                .getOrDefault(emptyList())
+            return files.mapNotNull { (_, file) ->
+                runCatching {
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeFile(file.path, bounds)
+                    var sample = 1
+                    while (bounds.outWidth / (sample * 2) >= targetW) sample *= 2
+                    BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
+                }.getOrNull()
             }
         }
 
@@ -80,6 +107,7 @@ class SteamWallService : WallpaperService() {
                 handler.removeCallbacks(redraw)
             }
             thread.quitSafely()
+            covers = emptyList()
         }
 
         private fun redrawNow() {
@@ -125,6 +153,7 @@ class SteamWallService : WallpaperService() {
             val left = px - wallW / 2f
             val top = py - wallH / 2f
 
+            val deck = covers
             canvas.drawColor(bg)
             fill.color = pal.surface.toArgb()
             stroke.color = pal.line.toArgb()
@@ -143,6 +172,15 @@ class SteamWallService : WallpaperService() {
                     if (sx < -capH || sx > w + capH || sy < -capH || sy > h + capH) continue
                     rect.set(x, y, x + capW, y + capH)
                     canvas.drawRoundRect(rect, radius, radius, fill)
+                    if (deck.isNotEmpty()) {
+                        val cover = deck[(c * 5 + i % perRun) % deck.size]
+                        clip.rewind()
+                        clip.addRoundRect(rect, radius, radius, Path.Direction.CW)
+                        canvas.save()
+                        canvas.clipPath(clip)
+                        canvas.drawBitmap(cover, null, rect, art)
+                        canvas.restore()
+                    }
                     canvas.drawRoundRect(rect, radius, radius, stroke)
                 }
             }
@@ -160,6 +198,7 @@ class SteamWallService : WallpaperService() {
     }
 
     private companion object {
+        const val MAX_COVERS = 48
         const val TILT = 13f
         const val DRIFT_MS = 50_000L
         const val FRAME_MS = 33L
