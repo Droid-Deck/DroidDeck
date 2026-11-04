@@ -52,6 +52,23 @@ environment entries and is intentionally narrower than **Reset game profile**.
 Values are literal strings, with no shell expansion; quotes are only needed when
 the consuming program expects them.
 
+## Saved compatibility mappings
+
+The file-backed `steam-compatibility` writer applies planned changes in a batch,
+rather than searching and copying the mapping for each game. This covers retired
+DroidDeck-Proton replacements, default/tool changes and the x86-64 client's Proton
+repointing. It does not change the planner, manual choices, native/FEX routing,
+locking or atomic file publication. Unchanged files are still not rewritten.
+
+Existing entry fields and duplicate entries are preserved, with the same first-match
+updates and reverse insertion order as the single-game writer. Single changes keep
+that writer's original path. This reduces bulk configuration work, not steady-state
+game rendering cost; large-library timings depend on the device and the number of
+entries actually changed.
+
+Run the batch/reference and work-budget regressions with
+`python3 -m unittest discover -s tools/tests -p test_steam_compat_mapping.py`.
+
 ## Game debug logs
 
 Under **Setup > Diagnostics**, enable **Session logs** and **Game debug logs**
