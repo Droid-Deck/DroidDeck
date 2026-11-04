@@ -3194,6 +3194,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         pad = padBridge,
         onKeyboardClosed = ::bottomKeyboardClosed,
         onMenu = { drawerOpen = true },
+        onMenuTouched = {
+            if (drawerPinned) {
+                drawerPinned = false
+                drawerOpenState = true
+                updateKeyboardRoute()
+            }
+        },
         menu = {
             DroidDeckTheme { SessionMenu(docked = true) }
         },
@@ -3379,7 +3386,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!started) return
         if (secondScreenPresentation?.showsKeyboard != true && dockDrawer()) {
             val target = com.droiddeck.launcher.input.DualScreen.sessionDisplay(this, displayManager, shownOnDisplayId) ?: return
-            if (drawerOpen) drawerOpen = false
+            if (drawerOpen || drawerPinned) drawerOpen = false
             typingReturnMode = secondScreenMode
             selectedSecondScreenDisplay = target.displayId
             selectSecondScreenMode(SecondScreenMode.KEYBOARD_TRACKPAD)

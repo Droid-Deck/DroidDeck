@@ -58,6 +58,7 @@ class SecondScreenPresentation(
     private val menu: (@androidx.compose.runtime.Composable () -> Unit)? = null,
     private val dashboard: (@androidx.compose.runtime.Composable () -> Unit)? = null,
     private val onSwap: (() -> Unit)? = null,
+    private val onMenuTouched: () -> Unit = {},
 ) : Presentation(sessionActivity, display) {
     private val frame = FrameLayout(context)
     private var menuView: androidx.compose.ui.platform.ComposeView? = null
@@ -206,6 +207,11 @@ class SecondScreenPresentation(
         val forward = menuShown || !ownKeys || back || PadBridge.isControllerKeyEvent(event)
         if (forward && sessionActivity.dispatchKeyEvent(event)) return true
         return super.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (menuShown && event.actionMasked == MotionEvent.ACTION_DOWN) onMenuTouched()
+        return super.dispatchTouchEvent(event)
     }
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
