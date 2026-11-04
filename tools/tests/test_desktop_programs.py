@@ -218,6 +218,60 @@ class ProgramsTest(unittest.TestCase):
         self.assertEqual([], self.entries(self.desktop))
         self.assertEqual(placed, record.read_text())
 
+    def test_icons_written_before_a_failed_write_are_recorded(self):
+        pfx = self.prefix(NEXON)
+        self.install(pfx)
+        self.install(pfx, name="Tool", folder="Tool", exe="tool.exe")
+        PROGRAMS["main"]()
+        first, second = self.entries(self.apps)
+        for name in (first, second):
+            (self.desktop / name).unlink()
+        Path(PROGRAMS["PLACED"]).write_text("")
+        (self.desktop / second / "blocked").mkdir(parents=True)
+        PROGRAMS["main"]()
+        self.assertTrue((self.desktop / first).is_file())
+        self.assertEqual(first + "\n", Path(PROGRAMS["PLACED"]).read_text())
+        self.assertEqual([], list(self.desktop.glob("*.tmp")))
+        (self.desktop / first).unlink()
+        shutil.rmtree(self.desktop / second)
+        PROGRAMS["main"]()
+        self.assertEqual([second], self.entries(self.desktop))
+
+    def test_an_unreadable_placement_record_leaves_the_menu_as_it_was(self):
+        if os.geteuid() == 0:
+            self.skipTest("file permissions do not apply to root")
+        pfx = self.prefix(NEXON)
+        self.install(pfx)
+        PROGRAMS["main"]()
+        menu = self.entries(self.apps)
+        self.install(pfx, name="Tool", folder="Tool", exe="tool.exe")
+        record = Path(PROGRAMS["PLACED"])
+        record.chmod(0)
+        try:
+            PROGRAMS["main"]()
+        finally:
+            record.chmod(0o644)
+        self.assertEqual(menu, self.entries(self.apps))
+
+    def test_a_program_behind_a_folder_it_cannot_reach_keeps_its_entry(self):
+        if os.geteuid() == 0:
+            self.skipTest("file permissions do not apply to root")
+        exe = self.install(self.prefix(NEXON))
+        PROGRAMS["main"]()
+        menu, desktop = self.entries(self.apps), self.entries(self.desktop)
+        hidden = self.tmp / "locked/nexon_launcher.exe"
+        hidden.parent.mkdir()
+        hidden.write_bytes(b"MZ")
+        exe.unlink()
+        exe.symlink_to(hidden)
+        hidden.parent.chmod(0)
+        try:
+            PROGRAMS["main"]()
+        finally:
+            hidden.parent.chmod(0o755)
+        self.assertEqual(menu, self.entries(self.apps))
+        self.assertEqual(desktop, self.entries(self.desktop))
+
     def test_without_any_prefixes_the_entries_go(self):
         self.install(self.prefix(NEXON))
         PROGRAMS["main"]()
