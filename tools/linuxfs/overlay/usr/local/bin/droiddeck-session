@@ -22,6 +22,19 @@ if [ -n "${BL_LOG:-}" ] && [ -z "${BL_INSIDE:-}" ]; then
   echo "== rootfs: $(cat /.version 2>/dev/null || echo unversioned)"
 fi
 
+start_diagnostic_inventory() {
+  [ "${DROIDDECK_ENHANCED_DIAGNOSTICS:-0}" = 1 ] || return 0
+  [ -z "${BL_INSIDE:-}" ] || return 0
+  if ! command -v droiddeck-diagnostic-inventory >/dev/null 2>&1; then
+    printf '%s\n' 'DROIDDECK_PROCESS_TRACE {"schema":1,"event":"provider","status":"unavailable"}'
+    return 0
+  fi
+  droiddeck-diagnostic-inventory --watch --root-pid "$$" &
+  _bl_diagnostic_inventory=$!
+  trap 'kill "$_bl_diagnostic_inventory" 2>/dev/null || true; wait "$_bl_diagnostic_inventory" 2>/dev/null || true' EXIT
+}
+start_diagnostic_inventory
+
 sync_timezone() {
   local zone=${TZ:-}
   case "$zone" in ''|/*|*..*) return 0 ;; esac
@@ -141,8 +154,13 @@ run_gamescope() (
   BL_STEAM_EXIT_FILE="$status_file" gamescope "$@"
   compositor_status=$?
   if read -r child_status < "$status_file" && [[ $child_status =~ ^[0-9]{1,3}$ ]] \
-     && [ "$child_status" -gt 0 ] && [ "$child_status" -le 255 ]; then
-    exit "$child_status"
+     && [ "$child_status" -le 255 ]; then
+    if [ "${DROIDDECK_ENHANCED_DIAGNOSTICS:-0}" = 1 ]; then
+      printf 'DROIDDECK_DIAGNOSTICS event=session_exit compositor_status=%s steam_status=%s\n' "$compositor_status" "$child_status"
+    fi
+    [ "$child_status" -eq 0 ] || exit "$child_status"
+  elif [ "${DROIDDECK_ENHANCED_DIAGNOSTICS:-0}" = 1 ]; then
+    printf 'DROIDDECK_DIAGNOSTICS event=session_exit compositor_status=%s steam_status=unavailable\n' "$compositor_status"
   fi
   exit "$compositor_status"
 )
@@ -1488,6 +1506,9 @@ case $mode in
         wait "$desktop_ui_pid" 2>/dev/null || true
       fi
       echo "== steam exited rc=$rc"
+      if [ "${DROIDDECK_ENHANCED_DIAGNOSTICS:-0}" = 1 ]; then
+        printf 'DROIDDECK_DIAGNOSTICS event=steam_exit shell_status=%s elapsed_seconds=%s\n' "$rc" "$steam_ran"
+      fi
       collect_steam_logs
       if [ -f "$HOME/.config/droiddeck/fex-wanted" ] && [ -x /usr/local/bin/droiddeck-fex ]; then
         /usr/local/bin/droiddeck-fex status >/dev/null 2>&1 || true

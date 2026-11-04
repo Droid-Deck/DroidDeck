@@ -906,6 +906,13 @@
     <string name="setup_session">Session</string>
     <string name="setup_logs">Session logs</string>
     <string name="setup_logs_hint">Saved after each session</string>
+    <string name="setup_enhanced_diagnostics">Enhanced diagnostics for next session</string>
+    <string name="setup_enhanced_diagnostics_hint">Captures detailed logs for one session. May reduce performance and use more storage. Turns itself off when the session starts; review logs before sharing.</string>
+    <string name="diagnostics_share_title">Share diagnostic bundles</string>
+    <string name="diagnostics_share_session">Session and device</string>
+    <string name="diagnostics_share_graphics">Graphics</string>
+    <string name="diagnostics_share_games">Games and compatibility</string>
+    <string name="diagnostics_share_all">All bundles</string>
     <string name="setup_game_debug_logs">Game debug logs</string>
     <string name="setup_game_debug_logs_hint">Include Proton, Wine and graphics diagnostics on the next game launch. Can reduce performance and use more storage.</string>
     <string name="setup_game_debug_logs_restart">Restart this session to save game debug logs</string>
