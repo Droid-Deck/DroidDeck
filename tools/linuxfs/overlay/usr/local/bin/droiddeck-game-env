@@ -532,6 +532,31 @@ def apply_config(env, config, app_id, fixes=None):
     return result
 
 
+def render_path_defaults(command, env):
+    if len(command) < 3 or command[1] != "waitforexitandrun" or Path(command[2]).name.lower() != "spintires.exe":
+        return None
+    own = env.get("DXVK_CONFIG", "")
+    if re.search(r"(?:^|;)\s*dxvk\.tilerMode\s*=", own) or env.get("DXVK_CONFIG_FILE"):
+        return None
+    if Path("dxvk.conf").is_file() or Path(command[2]).with_name("dxvk.conf").is_file():
+        return None
+    driver = env.get("VK_DRIVER_FILES", env.get("VK_ICD_FILENAMES", ""))
+    if Path(driver).parent.name != "DD-Turnip_v0.4.0":
+        return None
+    try:
+        if Path("/sys/class/kgsl/kgsl-3d0/gpu_model").read_text().strip() != "Adreno722":
+            return None
+        with open(driver, encoding="utf-8") as source:
+            library = json.load(source)["ICD"]["library_path"]
+        if Path(library).name != "libvulkan_freedreno.so":
+            return None
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    own = own.strip().rstrip(";").strip()
+    env["DXVK_CONFIG"] = own + "; dxvk.tilerMode = False" if own else "dxvk.tilerMode = False"
+    return "Spintires: DXVK tiler heuristics off on Adreno 722"
+
+
 def bridge_feature_level(env):
     if env.get("BL_VKBRIDGE") != "1" or env.get("VKD3D_FEATURE_LEVEL") not in ("12_1", "12_2"):
         return None
@@ -932,7 +957,7 @@ def ego_core_plan(command, env):
     return "%s had no thread plan for %d cores; added a copy of its %s-core plan" % (EGO_RESTRICTIONS, count, source.group(2))
 
 
-def wait_forwarding_signals(process):
+def wait_forwarding_signals_raw(process):
     def forward(signum, frame):
         try:
             process.send_signal(signum)
@@ -945,21 +970,54 @@ def wait_forwarding_signals(process):
     finally:
         for signum, handler in previous.items():
             signal.signal(signum, handler)
+    return code
+
+
+def wait_forwarding_signals(process):
+    code = wait_forwarding_signals_raw(process)
     return 128 - code if code < 0 else code
 
 
-def start(launch, launch_env, digest, after=None):
+def diagnostic_game_event(event, app_id, values=None):
+    fields = ["event=" + event, "app_id=" + app_id]
+    fields.extend("%s=%s" % item for item in (values or {}).items())
+    print("DROIDDECK_DIAGNOSTICS " + " ".join(fields), file=sys.stderr, flush=True)
+
+
+def diagnostic_game_exit(app_id, raw_code, source=None, wrapper_status=None):
+    normalized = 128 - raw_code if raw_code < 0 else raw_code
+    values = {
+        "raw_status": raw_code,
+        "normalized_status": normalized,
+        "wrapper_status": normalized if wrapper_status is None else wrapper_status,
+        "signal": -raw_code if raw_code < 0 else 0,
+    }
+    if source is not None:
+        values["source"] = source
+    diagnostic_game_event("game_exit", app_id, values)
+
+
+def start(launch, launch_env, digest, after=None, diagnostic_app_id=None):
     launch, launch_env = system_graphics_launch(launch, launch_env)
-    if after:
+    if after or diagnostic_app_id is not None:
         process = subprocess.Popen(launch, env=launch_env)
+        if diagnostic_app_id is not None:
+            diagnostic_game_event("game_start", diagnostic_app_id)
         try:
-            return wait_forwarding_signals(process)
+            raw_code = wait_forwarding_signals_raw(process)
         finally:
-            try:
-                after()
-            except OSError as error:
-                print("droiddeck-game-env: DiRT telemetry fix: prefix ws2_32 not put back (%s); the next launch does it" % error,
-                      file=sys.stderr)
+            if after:
+                try:
+                    after()
+                except OSError as error:
+                    print("droiddeck-game-env: DiRT telemetry fix: prefix ws2_32 not put back (%s); the next launch does it" % error,
+                          file=sys.stderr)
+        code = 128 - raw_code if raw_code < 0 else raw_code
+        if digest and after is None and code == 0:
+            record_install_scripts(digest, launch_env)
+        if diagnostic_app_id is not None:
+            diagnostic_game_exit(diagnostic_app_id, raw_code)
+        return code
     if digest:
         code = subprocess.run(launch, env=launch_env, check=False).returncode
         if code == 0:
@@ -1235,10 +1293,11 @@ def main():
     except OSError:
         digest = None
     app_id = game_id(env)
+    waiting = bool(app_id and len(command) > 1 and command[1] == "waitforexitandrun")
+    diagnostic_app_id = app_id if waiting and os.environ.get("DROIDDECK_ENHANCED_DIAGNOSTICS") == "1" else None
     dirt_prefix = None
     if app_id:
         gl_default = gl_vsync(env)
-        waiting = len(command) > 1 and command[1] == "waitforexitandrun"
         if waiting:
             game_images(env)
         fixes = {}
@@ -1289,6 +1348,9 @@ def main():
         env["AUDIO_DIRECT_MIC"] = "0"
     env = directaudio_settings(env)
     env = vram_cap(env)
+    note = render_path_defaults(command, env) if app_id else None
+    if note:
+        print("droiddeck-game-env: " + note, file=sys.stderr)
     note = bridge_feature_level(env)
     if note:
         print("droiddeck-game-env: " + note, file=sys.stderr)
@@ -1317,6 +1379,8 @@ def main():
         print("droiddeck-game-env: Xbox launch could not start (%s)" % error, file=sys.stderr)
         return 1
     if xbox_result is not None:
+        if diagnostic_app_id is not None and isinstance(xbox_result, int):
+            diagnostic_game_exit(diagnostic_app_id, xbox_result, "xbox", xbox_result % 256)
         return xbox_result
     after = None
     prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
@@ -1340,13 +1404,13 @@ def main():
                           "and the next launch puts the file back" % undo, file=sys.stderr)
     if launch[0] != command[0]:
         try:
-            return start(launch, launch_env, digest, after)
+            return start(launch, launch_env, digest, after, diagnostic_app_id)
         except OSError as error:
             print("droiddeck-game-env: %s could not start (%s); stock launch" % (launch[0], error), file=sys.stderr)
             launch, launch_env = command, without_pack(launch_env, env)
             record_stock(sync, launch, launch_env)
     try:
-        return start(launch, launch_env, digest, after)
+        return start(launch, launch_env, digest, after, diagnostic_app_id)
     except OSError:
         if after:
             try:

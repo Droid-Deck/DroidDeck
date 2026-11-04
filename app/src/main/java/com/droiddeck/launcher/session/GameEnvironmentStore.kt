@@ -117,8 +117,7 @@ object GameEnvironmentStore {
         if (gameDxvk.length() > 0) json.put(DXVK_CONFIG_GAMES, gameDxvk)
         json.put(
             GAME_DEBUG_LOGS,
-            gameDebugLogsOverride ?: (SessionPrefs.logsEnabled(context) &&
-                SessionPrefs.gameDebugLogsEnabled(context) && SessionPaths.currentSessionLogsRetained(context)),
+            gameDebugLogsOverride ?: SessionPrefs.gameDebugLogsEffective(context),
         )
         write(File(LinuxRuntime.rootDir(context), GUEST_FILE), json.toString())
     }

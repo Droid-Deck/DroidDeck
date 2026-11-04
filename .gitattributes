@@ -2,6 +2,7 @@ tools/linuxfs/** text=auto eol=lf
 tools/mangoapp/** text=auto eol=lf
 tools/comet/LICENSE whitespace=-blank-at-eof
 tools/comet/droiddeck.patch whitespace=-blank-at-eol,-blank-at-eof
+tools/gamescope/patches/0900-enhanced-frame-diagnostics.patch whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
 
 # Keep generated registry data and sanitized captures folded in code review.
 tools/vulkan/registry_data.json linguist-generated=true
