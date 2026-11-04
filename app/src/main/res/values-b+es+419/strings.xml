@@ -901,6 +901,7 @@
     <string name="setup_home">Usar como pantalla de inicio</string>
     <string name="setup_home_on">DroidDeck puede ser la app de inicio</string>
     <string name="setup_home_off">DroidDeck nunca se ofrece como app de inicio</string>
+    <string name="setup_home_game_space_first">En Agregar juegos, cambia DroidDeck a Incluir</string>
     <string name="setup_orientation">Orientación</string>
     <string name="setup_launcher_orientation">Orientación del launcher</string>
     <string name="setup_launcher_orientation_auto">Seguir la rotación del dispositivo</string>

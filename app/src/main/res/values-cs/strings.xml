@@ -877,6 +877,7 @@
     <string name="setup_home">Použít jako domovskou obrazovku</string>
     <string name="setup_home_on">DroidDeck může být domovská aplikace</string>
     <string name="setup_home_off">DroidDeck se nikdy nenabízí jako domovská aplikace</string>
+    <string name="setup_home_game_space_first">V Přidat hry nastavte DroidDeck na Zahrnout</string>
     <string name="setup_orientation">Orientace</string>
     <string name="setup_launcher_orientation">Orientace launcheru</string>
     <string name="setup_launcher_orientation_auto">Podle otočení zařízení</string>

@@ -871,6 +871,7 @@
     <string name="setup_home">Използване като начален екран</string>
     <string name="setup_home_on">DroidDeck може да бъде приложението за начален екран</string>
     <string name="setup_home_off">DroidDeck никога не се предлага като приложение за начален екран</string>
+    <string name="setup_home_game_space_first">В „Добавяне на игри“ задайте DroidDeck на „Включване“</string>
     <string name="setup_orientation">Ориентация</string>
     <string name="setup_launcher_orientation">Ориентация на стартера</string>
     <string name="setup_launcher_orientation_auto">Следва завъртането на устройството</string>

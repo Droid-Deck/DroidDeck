@@ -871,6 +871,7 @@
     <string name="setup_home">Bruk som Hjem-skjerm</string>
     <string name="setup_home_on">DroidDeck kan være Hjem-appen</string>
     <string name="setup_home_off">DroidDeck tilbys aldri som en Hjem-app</string>
+    <string name="setup_home_game_space_first">I Legg til spill setter du DroidDeck til Inkluder</string>
     <string name="setup_orientation">Retning</string>
     <string name="setup_launcher_orientation">Retning for launcheren</string>
     <string name="setup_launcher_orientation_auto">Følg enhetens rotasjon</string>

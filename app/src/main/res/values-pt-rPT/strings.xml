@@ -866,6 +866,7 @@
     <string name="setup_home">Utilizar como página inicial</string>
     <string name="setup_home_on">O DroidDeck pode ser a app de página inicial</string>
     <string name="setup_home_off">O DroidDeck nunca é proposto como app de página inicial</string>
+    <string name="setup_home_game_space_first">Em Adicionar jogos, define o DroidDeck como Incluir</string>
     <string name="setup_orientation">Orientação</string>
     <string name="setup_launcher_orientation">Orientação do iniciador</string>
     <string name="setup_launcher_orientation_auto">Seguir a rotação do dispositivo</string>

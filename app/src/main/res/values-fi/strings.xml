@@ -871,6 +871,7 @@
     <string name="setup_home">Käytä Aloitusnäyttönä</string>
     <string name="setup_home_on">DroidDeck voi olla kotisovellus</string>
     <string name="setup_home_off">DroidDeckiä ei koskaan tarjota kotisovellukseksi</string>
+    <string name="setup_home_game_space_first">Aseta Lisää pelejä -kohdassa DroidDeck tilaan Sisällytä</string>
     <string name="setup_orientation">Suunta</string>
     <string name="setup_launcher_orientation">Käynnistimen suunta</string>
     <string name="setup_launcher_orientation_auto">Seuraa laitteen kiertoa</string>

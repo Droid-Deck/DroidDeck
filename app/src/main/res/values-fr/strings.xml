@@ -874,6 +874,7 @@
     <string name="setup_home">Utiliser comme écran d\'accueil</string>
     <string name="setup_home_on">DroidDeck peut être utilisé comme application d\'écran d\'accueil</string>
     <string name="setup_home_off">DroidDeck ne sera pas proposé comme application d\'écran d\'accueil</string>
+    <string name="setup_home_game_space_first">Dans Ajouter des jeux, réglez DroidDeck sur Inclure</string>
     <string name="setup_orientation">Orientation</string>
     <string name="setup_launcher_orientation">Orientation du lanceur</string>
     <string name="setup_launcher_orientation_auto">Suivre la rotation de l\'appareil</string>

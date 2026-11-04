@@ -877,6 +877,7 @@
     <string name="setup_home">Użyj jako ekranu głównego</string>
     <string name="setup_home_on">DroidDeck może być aplikacją ekranu głównego</string>
     <string name="setup_home_off">DroidDeck nigdy nie jest proponowany jako aplikacja ekranu głównego</string>
+    <string name="setup_home_game_space_first">W sekcji Dodaj gry ustaw DroidDeck na Uwzględnij</string>
     <string name="setup_orientation">Orientacja</string>
     <string name="setup_launcher_orientation">Orientacja launchera</string>
     <string name="setup_launcher_orientation_auto">Zgodnie z obrotem urządzenia</string>
