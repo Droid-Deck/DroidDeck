@@ -17,18 +17,18 @@ internal class AddedGamesCache(val file: File) {
     init {
         val json = runCatching { JSONObject(AtomicFile(file).readFully().toString(Charsets.UTF_8)) }.getOrNull()
         json?.optJSONObject("ranks")?.let { all ->
-            for (path in all.keys()) {
-                val o = all.optJSONObject(path) ?: continue
-                val exes = o.optJSONArray("exes") ?: continue
-                val scores = o.optJSONArray("scores") ?: continue
-                if (exes.length() == 0 || exes.length() != scores.length()) continue
-                ranks[path] = Rank(o.optLong("modified"), o.optLong("at"), GameExePicker.Ranking(
+            for (path in all.keys()) runCatching {
+                val o = all.getJSONObject(path)
+                val exes = o.getJSONArray("exes")
+                val scores = o.getJSONArray("scores")
+                require(exes.length() > 0 && exes.length() == scores.length())
+                ranks[path] = Rank(o.getLong("modified"), o.getLong("at"), GameExePicker.Ranking(
                     List(exes.length()) { File(exes.getString(it)) }, List(scores.length()) { scores.getInt(it) }, o.optBoolean("uncertain"),
                 ))
             }
         }
         json?.optJSONObject("names")?.let { all ->
-            for (key in all.keys()) all.optJSONObject(key)?.let { names[key] = Name(it.optString("name"), it.optLong("at")) }
+            for (key in all.keys()) runCatching { all.getJSONObject(key).let { names[key] = Name(it.getString("name"), it.getLong("at")) } }
         }
     }
 
@@ -48,7 +48,7 @@ internal class AddedGamesCache(val file: File) {
         changed = true
     }
 
-    fun name(key: String): String? = names[key]?.name
+    fun name(key: String): String? = names[key]?.takeIf { System.currentTimeMillis() - it.at in 0 until KEEP_MS }?.name
 
     fun keepName(key: String, name: String) {
         names[key] = Name(name, System.currentTimeMillis())
@@ -69,12 +69,14 @@ internal class AddedGamesCache(val file: File) {
         val keptNames = JSONObject()
         names.forEach { (key, n) -> if (n.at >= oldest) keptNames.put(key, JSONObject().put("name", n.name).put("at", n.at)) }
         val atomic = AtomicFile(file)
-        val out = atomic.startWrite()
+        var out: java.io.FileOutputStream? = null
         try {
+            out = atomic.startWrite()
             out.write(JSONObject().put("ranks", keptRanks).put("names", keptNames).toString().toByteArray())
             atomic.finishWrite(out)
         } catch (e: Exception) {
-            atomic.failWrite(out)
+            out?.let(atomic::failWrite)
+            changed = true
         }
     }
 

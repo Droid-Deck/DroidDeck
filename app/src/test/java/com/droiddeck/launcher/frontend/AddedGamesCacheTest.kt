@@ -74,6 +74,43 @@ class AddedGamesCacheTest {
         assertNull(kept.name("unknown"))
     }
 
+    @Test fun aMalformedRecordIsSkippedAndTheOthersStillLoad() {
+        val (folder, exe) = game()
+        val (other, _) = game("Other")
+        val now = System.currentTimeMillis()
+        val good = JSONObject().put("modified", folder.lastModified()).put("at", now)
+            .put("exes", JSONArray(listOf(exe.path))).put("scores", JSONArray(listOf(72)))
+        val bad = JSONObject().put("modified", other.lastModified()).put("at", now)
+            .put("exes", JSONArray(listOf("bin/Other.exe"))).put("scores", JSONArray(listOf("bad")))
+        store().writeText(JSONObject()
+            .put("ranks", JSONObject().put(folder.path, good).put(other.path, bad))
+            .put("names", JSONObject().put("broken", "not a record").put("named", JSONObject().put("name", "Bastion").put("at", now)))
+            .toString())
+        val kept = AddedGamesCache(store())
+        assertEquals(listOf(exe), kept.rank(folder)?.exes)
+        assertNull(kept.rank(other))
+        assertEquals("Bastion", kept.name("named"))
+        assertNull(kept.name("broken"))
+    }
+
+    @Test fun aNameOlderThanAWeekIsIdentifiedAgain() {
+        store().writeText(JSONObject().put("names", JSONObject().put("named", JSONObject().put("name", "Bastion")
+            .put("at", System.currentTimeMillis() - AddedGamesCache.KEEP_MS - 1))).toString())
+        assertNull(AddedGamesCache(store()).name("named"))
+    }
+
+    @Test fun aSaveThatCannotBeWrittenIsTriedAgainNextTime() {
+        val blocked = File(tmp.root, "blocked").apply { writeText("a file where the cache folder should be") }
+        val file = File(blocked, "scan.json")
+        val cache = AddedGamesCache(file).apply { keepName("named", "Bastion") }
+        cache.save()
+        assertFalse(file.exists())
+        blocked.delete()
+        blocked.mkdirs()
+        cache.save()
+        assertEquals("Bastion", AddedGamesCache(file).name("named"))
+    }
+
     @Test fun aScanKeepsEachGamesRankingForTheNextLaunch() {
         val (folder, exe) = game("Card Game")
         AddedExes.put(app, AddedExes.Entry(folder.path, exe.path, picked = false))
