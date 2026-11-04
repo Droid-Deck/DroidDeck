@@ -97,8 +97,8 @@ object AutoComponents {
         enqueue(context, Job(null, id, asked, seq.incrementAndGet(), inSession = inSession, revision = revision))
 
     private fun enqueue(context: Context, job: Job) {
-        if (!queuedKeys.add(job.key)) {
-            synchronized(jobs) {
+        val added = synchronized(jobs) {
+            if (!queuedKeys.add(job.key)) {
                 val old = jobs.firstOrNull { it.key == job.key }
                 val revision = listOfNotNull(old?.revision, job.revision).maxOrNull()
                 if (old != null && ((job.asked && !old.asked) || (job.inSession && !old.inSession) || revision != old.revision) && jobs.remove(old)) {
@@ -106,13 +106,14 @@ object AutoComponents {
                         if (job.asked && !old.asked) job.seq else old.seq, old.pics ?: job.pics,
                         old.inSession || job.inSession, revision))
                 }
+                false
+            } else {
+                jobs.add(job)
+                mark(job, true)
+                true
             }
-            if (runNow && !draining) drain(context)
-            return
         }
-        if (job.component != null) Log.i(TAG, "wincomp: queued ${job.component}")
-        mark(job, true)
-        jobs.add(job)
+        if (added && job.component != null) Log.i(TAG, "wincomp: queued ${job.component}")
         if (runNow) { if (!draining) drain(context) } else ensureWorker(context.applicationContext)
     }
 
@@ -135,7 +136,6 @@ object AutoComponents {
         try {
             while (true) {
                 val job = next(context) ?: return
-                queuedKeys.remove(job.key)
                 run(context, job)
             }
         } finally {
@@ -146,6 +146,7 @@ object AutoComponents {
     private fun next(context: Context): Job? = synchronized(jobs) {
         val job = jobs.sortedWith(order).firstOrNull { !mustWait(context, it) } ?: return null
         jobs.remove(job)
+        queuedKeys.remove(job.key)
         job
     }
 
@@ -165,7 +166,6 @@ object AutoComponents {
                     try { Thread.sleep(PAUSE_MS) } catch (e: InterruptedException) { return@Thread }
                     continue
                 }
-                queuedKeys.remove(job.key)
                 WinComponents.background { run(app, job) }
             }
         }, "auto-components").apply { isDaemon = true; start() }
