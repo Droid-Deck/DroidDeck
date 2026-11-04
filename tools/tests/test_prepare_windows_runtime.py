@@ -1,7 +1,10 @@
 import importlib.util
+import io
 from pathlib import Path
 import struct
+import tarfile
 import tempfile
+import subprocess
 import unittest
 from unittest import mock
 from zipfile import ZipFile
@@ -14,6 +17,42 @@ spec.loader.exec_module(prepare)
 
 
 class WindowsRuntimePreparationTest(unittest.TestCase):
+    @staticmethod
+    def elf(machine=183, elf_class=2, data=1, version=1, elf_type=3):
+        result = bytearray(64)
+        result[:4] = b'\x7fELF'
+        result[4] = elf_class
+        result[5] = data
+        result[6] = version
+        result[16:18] = struct.pack('<H', elf_type)
+        result[18:20] = struct.pack('<H', machine)
+        return bytes(result)
+
+    @staticmethod
+    def gamescope_tar(files):
+        output = io.BytesIO()
+        with tarfile.open(fileobj=output, mode='w') as archive:
+            for name, content in files.items():
+                member = tarfile.TarInfo(name)
+                member.size = len(content)
+                member.mode = 0o755
+                archive.addfile(member, io.BytesIO(content))
+        return output.getvalue()
+
+    def read_gamescope(self, files):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            release = root / 'tools/gamescope/release.env'
+            release.parent.mkdir(parents=True)
+            release.write_text('GAMESCOPE_SHA256=fixture\n')
+            archive = root / 'gamescope.tzst'
+            archive.write_bytes(b'fixture')
+            completed = subprocess.CompletedProcess(['zstd'], 0, self.gamescope_tar(files), b'')
+            with mock.patch.object(prepare, 'ROOT', root), \
+                    mock.patch.object(prepare.runtime, 'digest', return_value='fixture'), \
+                    mock.patch.object(prepare.subprocess, 'run', return_value=completed):
+                return prepare.read_gamescope(archive)[0]
+
     def test_archive_paths_cannot_escape_destination(self):
         for name in ('../outside', '/absolute', 'dir/../../outside', 'C:/absolute', 'dir\\outside', '.'):
             with self.subTest(name=name), self.assertRaises(ValueError):
@@ -29,7 +68,10 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
             path = Path(folder) / 'libblsession.so'
             elf = bytearray(64)
             elf[:4] = b'\x7fELF'
+            elf[4] = 2
             elf[5] = 1
+            elf[6] = 1
+            elf[16:18] = struct.pack('<H', 3)
             elf[18:20] = struct.pack('<H', 183)
             path.write_bytes(elf)
             self.assertEqual(prepare.validate_rebuilt(path, 183), elf)
@@ -38,6 +80,34 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
             path.write_bytes(b'not an ELF')
             with self.assertRaisesRegex(ValueError, 'wrong ELF architecture'):
                 prepare.validate_rebuilt(path, 183)
+
+    def test_gamescope_accepts_legacy_and_layered_arm64_archives(self):
+        legacy = self.read_gamescope({prepare.GAMESCOPE_BINARY: self.elf()})
+        self.assertEqual(set(legacy), {prepare.GAMESCOPE_BINARY})
+
+        layered = self.read_gamescope({
+            prepare.GAMESCOPE_BINARY: self.elf(),
+            prepare.GAMESCOPE_WSI_LAYER: self.elf(),
+        })
+        self.assertEqual(set(layered), prepare.GAMESCOPE_LAYERED_FILES)
+
+    def test_gamescope_rejects_unexpected_or_non_arm64_payloads(self):
+        with self.assertRaisesRegex(ValueError, 'Unexpected Gamescope archive payload'):
+            self.read_gamescope({prepare.GAMESCOPE_BINARY: self.elf(), 'usr/lib/extra.so': self.elf()})
+        with self.assertRaisesRegex(ValueError, 'wrong ELF architecture'):
+            self.read_gamescope({
+                prepare.GAMESCOPE_BINARY: self.elf(),
+                prepare.GAMESCOPE_WSI_LAYER: self.elf(62),
+            })
+        with self.assertRaisesRegex(ValueError, 'wrong ELF architecture'):
+            self.read_gamescope({prepare.GAMESCOPE_BINARY: self.elf(elf_class=1)})
+        with self.assertRaisesRegex(ValueError, 'wrong ELF architecture'):
+            self.read_gamescope({prepare.GAMESCOPE_BINARY: self.elf(elf_class=0)})
+        with self.assertRaisesRegex(ValueError, 'not an ELF shared object'):
+            self.read_gamescope({
+                prepare.GAMESCOPE_BINARY: self.elf(),
+                prepare.GAMESCOPE_WSI_LAYER: self.elf(elf_type=2),
+            })
 
     def test_new_committed_native_changes_reject_donor_reuse(self):
         with mock.patch.object(prepare, 'git', return_value=prepare.DONOR_TREE.encode()), \
