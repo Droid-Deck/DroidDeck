@@ -458,7 +458,7 @@ object AutoComponents {
         }
         Pending.ids(context, key).forEach { waitFor(game, it) }
         queuePending(context, key)
-        if (!pendingSaved) {
+        if (!pendingSaved && missing.isNotEmpty()) {
             missing.forEach { id -> repairFailures.value = repairFailures.value + (id to "Could not save pending repairs") }
             return false
         }
