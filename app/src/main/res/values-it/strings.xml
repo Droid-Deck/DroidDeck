@@ -674,6 +674,8 @@
     <string name="hud_group_metrics">Valori</string>
     <string name="hud_metric_graph">Grafico tempi fotogramma</string>
     <string name="hud_metric_decimal">Frequenza fotogrammi con decimale</string>
+    <string name="hud_metric_low1">1% più basso</string>
+    <string name="hud_metric_low01">0.1% più basso</string>
     <string name="hud_metric_low001">0.01% più basso</string>
     <string name="hud_metric_engine">Motore grafico</string>
     <string name="hud_metric_gpu_model">Nome GPU</string>
@@ -1106,6 +1108,7 @@
     <string name="ctrl_stick_click_hint">Tocca due volte e tieni premuta una levetta per L3 o R3</string>
     <string name="ctrl_adaptive">Levette adattive</string>
     <string name="ctrl_rumble">Vibrazione di gioco</string>
+    <string name="ctrl_dead_zone">Zona morta dello stick</string>
     <string name="ctrl_steam_button">Tasto Steam</string>
     <string name="ctrl_qam_button">Tasto QAM</string>
     <string name="ctrl_keyboard_button">Tasto tastiera</string>
@@ -1183,6 +1186,15 @@
     <string name="games_export_gamehub">Esporta come zip GameHub…</string>
     <string name="games_export_winlator">Esporta come zip Winlator…</string>
     <string name="games_open_save_folder">Apri cartella di salvataggio</string>
+    <string name="games_import_addons">Importa addon da zip…</string>
+    <string name="games_open_addons_folder">Apri cartella degli addon</string>
+    <string name="games_delete_addon_title">Eliminare %1$s?</string>
+    <string name="games_delete_addon_body">Questo rimuove la cartella dell\'addon. Le sue impostazioni restano.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d addon</item>
+        <item quantity="many">%1$d di addon</item>
+        <item quantity="other">%1$d addon</item>
+    </plurals>
     <string name="games_never_played">Mai giocato</string>
     <string name="games_runtime_busy_percent">Runtime occupato · %1$d%%</string>
     <string name="games_runtime_busy">Runtime occupato</string>
@@ -1362,6 +1374,18 @@
         <item quantity="one">%1$d file importato (%2$s) in %3$s. Backup dei vecchi salvataggi in Download/DroidDeck/Saves/backups</item>
         <item quantity="many">%1$d file importati (%2$s) in %3$s. Backup dei vecchi salvataggi in Download/DroidDeck/Saves/backups</item>
         <item quantity="other">%1$d file importati (%2$s) in %3$s. Backup dei vecchi salvataggi in Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Chiudi prima la sessione, così il gioco non usa i suoi addon durante l\'importazione</string>
+    <string name="main_addons_importing">Importazione degli addon in %1$s</string>
+    <string name="main_addons_pick_zip">Scegli uno zip di addon per %1$s</string>
+    <string name="main_addons_too_large">%1$s è troppo grande per essere importato</string>
+    <string name="main_addons_deleting">Eliminazione di %1$s</string>
+    <string name="main_addons_deleted">%1$s eliminato</string>
+    <string name="main_addons_none">Nessun addon trovato in %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">%1$d addon importato in %2$s</item>
+        <item quantity="many">%1$d di addon importati in %2$s</item>
+        <item quantity="other">%1$d addon importati in %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Scegli uno zip di salvataggi per %1$s</string>
     <string name="main_saves_exporting">Esportazione di %1$s</string>
@@ -3510,6 +3534,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Per i giochi con salvataggi nel tuo account Steam</string>
     <string name="game_resource_search">Ricerca web</string>
+    <string name="game_tab_addons">Addon</string>
     <string name="game_tab_install">Installa</string>
     <string name="game_install_location">Posizione</string>
     <string name="game_install_folder">Cartella</string>

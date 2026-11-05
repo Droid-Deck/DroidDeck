@@ -517,6 +517,7 @@ object AutoComponents {
     fun refreshLater(context: Context, game: Library.SteamGame) = queueGame(context, game, asked = true)
 
     fun sweep(context: Context, games: List<Library.SteamGame>) {
+        if (online(context) && !unfavourable(context)) catalogOf(context, true)
         val apps = games.mapNotNull { steamAppOf(context, it) }.distinct()
         if (apps.isNotEmpty() && SteamAppInfo.needLookup(context, apps).isNotEmpty()) enqueue(context, Job(null, null, false, seq.incrementAndGet(), pics = apps))
         games.forEach { queueGame(context, it, asked = false) }

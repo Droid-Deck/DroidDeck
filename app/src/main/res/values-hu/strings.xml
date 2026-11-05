@@ -672,6 +672,8 @@
     <string name="hud_group_metrics">Mért értékek</string>
     <string name="hud_metric_graph">Képkockaidő-grafikon</string>
     <string name="hud_metric_decimal">Képkockasebesség tizedesjeggyel</string>
+    <string name="hud_metric_low1">1% legalacsonyabb</string>
+    <string name="hud_metric_low01">0.1% legalacsonyabb</string>
     <string name="hud_metric_low001">0.01% legalacsonyabb</string>
     <string name="hud_metric_engine">Grafikus motor</string>
     <string name="hud_metric_gpu_model">GPU neve</string>
@@ -1108,6 +1110,7 @@
     <string name="ctrl_stick_click_hint">Koppintson duplán, és tartsa lenyomva a kart az L3 vagy R3 érdekében</string>
     <string name="ctrl_adaptive">Adaptív karok</string>
     <string name="ctrl_rumble">Játékvibráció</string>
+    <string name="ctrl_dead_zone">Kar holtzónája</string>
     <string name="ctrl_steam_button">Steam gomb</string>
     <string name="ctrl_qam_button">QAM gomb</string>
     <string name="ctrl_keyboard_button">Billentyűzet gomb</string>
@@ -1185,6 +1188,14 @@
     <string name="games_export_gamehub">Exportálás GameHub zipként…</string>
     <string name="games_export_winlator">Exportálás Winlator zipként…</string>
     <string name="games_open_save_folder">Mentésmappa megnyitása</string>
+    <string name="games_import_addons">Kiegészítők importálása zipből…</string>
+    <string name="games_open_addons_folder">Kiegészítők mappájának megnyitása</string>
+    <string name="games_delete_addon_title">Törlöd ezt: %1$s?</string>
+    <string name="games_delete_addon_body">Ez törli a kiegészítő mappáját. A beállításai megmaradnak.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d kiegészítő</item>
+        <item quantity="other">%1$d kiegészítő</item>
+    </plurals>
     <string name="games_never_played">Még nem játszott</string>
     <string name="games_runtime_busy_percent">Futtatókörnyezet dolgozik · %1$d%%</string>
     <string name="games_runtime_busy">Futtatókörnyezet dolgozik</string>
@@ -1362,6 +1373,17 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="one">%1$d fájl importálva innen: %2$s, ide: %3$s. A régi mentések mentve itt: Download/DroidDeck/Saves/backups</item>
         <item quantity="other">%1$d fájl importálva innen: %2$s, ide: %3$s. A régi mentések mentve itt: Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Előbb zárja be a munkamenetet, hogy a játék ne használja a kiegészítőit az importálás alatt</string>
+    <string name="main_addons_importing">Kiegészítők importálása ide: %1$s</string>
+    <string name="main_addons_pick_zip">Válasszon kiegészítő zip fájlt ehhez: %1$s</string>
+    <string name="main_addons_too_large">A(z) %1$s túl nagy az importáláshoz</string>
+    <string name="main_addons_deleting">%1$s törlése folyamatban</string>
+    <string name="main_addons_deleted">%1$s törölve</string>
+    <string name="main_addons_none">Nem található kiegészítő itt: %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">%1$d kiegészítő importálva ide: %2$s</item>
+        <item quantity="other">%1$d kiegészítő importálva ide: %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Válasszon mentés zip fájlt ehhez: %1$s</string>
     <string name="main_saves_exporting">%1$s exportálása</string>
@@ -3474,6 +3496,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">A Steam-fiókjában mentéseket tároló játékokhoz</string>
     <string name="game_resource_search">Webes keresés</string>
+    <string name="game_tab_addons">Kiegészítők</string>
     <string name="game_tab_install">Telepítés</string>
     <string name="game_install_location">Hely</string>
     <string name="game_install_folder">Mappa</string>

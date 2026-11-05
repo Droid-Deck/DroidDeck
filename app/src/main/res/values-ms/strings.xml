@@ -670,6 +670,8 @@
     <string name="hud_group_metrics">Bacaan</string>
     <string name="hud_metric_graph">Graf masa bingkai</string>
     <string name="hud_metric_decimal">Kadar bingkai dengan perpuluhan</string>
+    <string name="hud_metric_low1">1% terendah</string>
+    <string name="hud_metric_low01">0.1% terendah</string>
     <string name="hud_metric_low001">0.01% terendah</string>
     <string name="hud_metric_engine">Enjin grafik</string>
     <string name="hud_metric_gpu_model">Nama GPU</string>
@@ -1102,6 +1104,7 @@
     <string name="ctrl_stick_click_hint">Ketik dua kali dan tahan stik untuk L3 atau R3</string>
     <string name="ctrl_adaptive">Stik adaptif</string>
     <string name="ctrl_rumble">Getaran permainan</string>
+    <string name="ctrl_dead_zone">Zon mati kayu bedik</string>
     <string name="ctrl_steam_button">Butang Steam</string>
     <string name="ctrl_qam_button">Butang QAM</string>
     <string name="ctrl_keyboard_button">Butang papan kekunci</string>
@@ -1179,6 +1182,13 @@
     <string name="games_export_gamehub">Eksport sebagai zip GameHub…</string>
     <string name="games_export_winlator">Eksport sebagai zip Winlator…</string>
     <string name="games_open_save_folder">Buka folder simpanan</string>
+    <string name="games_import_addons">Import addon daripada zip…</string>
+    <string name="games_open_addons_folder">Buka folder addon</string>
+    <string name="games_delete_addon_title">Padam %1$s?</string>
+    <string name="games_delete_addon_body">Ini memadam folder addon. Tetapannya kekal.</string>
+    <plurals name="games_addons_count">
+        <item quantity="other">%1$d addon</item>
+    </plurals>
     <string name="games_never_played">Belum pernah dimainkan</string>
     <string name="games_runtime_busy_percent">Masa jalan sibuk · %1$d%%</string>
     <string name="games_runtime_busy">Masa jalan sibuk</string>
@@ -1354,6 +1364,16 @@
     </plurals>
     <plurals name="main_saves_imported_backup">
         <item quantity="other">Mengimport %1$d fail daripada %2$s ke %3$s. Simpanan lama disandarkan ke Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Tutup sesi dahulu, supaya permainan tidak menggunakan addonnya semasa import</string>
+    <string name="main_addons_importing">Mengimport addon ke %1$s</string>
+    <string name="main_addons_pick_zip">Pilih zip addon untuk %1$s</string>
+    <string name="main_addons_too_large">%1$s terlalu besar untuk diimport</string>
+    <string name="main_addons_deleting">Memadam %1$s</string>
+    <string name="main_addons_deleted">%1$s dipadam</string>
+    <string name="main_addons_none">Tiada addon ditemui dalam %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="other">Berjaya mengimport %1$d addon ke %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Pilih zip simpanan untuk %1$s</string>
     <string name="main_saves_exporting">Mengeksport %1$s</string>
@@ -3447,6 +3467,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Untuk permainan dengan simpanan pada akaun Steam anda</string>
     <string name="game_resource_search">Carian web</string>
+    <string name="game_tab_addons">Addon</string>
     <string name="game_tab_install">Pasang</string>
     <string name="game_install_location">Lokasi</string>
     <string name="game_install_folder">Folder</string>

@@ -672,6 +672,8 @@
     <string name="hud_group_metrics">Målinger</string>
     <string name="hud_metric_graph">Billedtidsgraf</string>
     <string name="hud_metric_decimal">Billedhastighed med decimal</string>
+    <string name="hud_metric_low1">1% laveste</string>
+    <string name="hud_metric_low01">0.1% laveste</string>
     <string name="hud_metric_low001">0.01% laveste</string>
     <string name="hud_metric_engine">Grafikmotor</string>
     <string name="hud_metric_gpu_model">GPU-navn</string>
@@ -1108,6 +1110,7 @@
     <string name="ctrl_stick_click_hint">Dobbelttryk og hold en stick nede for L3 eller R3</string>
     <string name="ctrl_adaptive">Adaptive styrepinde</string>
     <string name="ctrl_rumble">Spilvibration</string>
+    <string name="ctrl_dead_zone">Dødzone for styrepind</string>
     <string name="ctrl_steam_button">Steam-knap</string>
     <string name="ctrl_qam_button">QAM-knap</string>
     <string name="ctrl_keyboard_button">Tastaturknap</string>
@@ -1185,6 +1188,14 @@
     <string name="games_export_gamehub">Eksporter som GameHub-zip…</string>
     <string name="games_export_winlator">Eksporter som Winlator-zip…</string>
     <string name="games_open_save_folder">Åbn savemappe</string>
+    <string name="games_import_addons">Importer addons fra zip…</string>
+    <string name="games_open_addons_folder">Åbn addon-mappe</string>
+    <string name="games_delete_addon_title">Slet %1$s?</string>
+    <string name="games_delete_addon_body">Dette fjerner addonens mappe. Dens indstillinger bevares.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d addon</item>
+        <item quantity="other">%1$d addons</item>
+    </plurals>
     <string name="games_never_played">Aldrig spillet</string>
     <string name="games_runtime_busy_percent">Runtime optaget · %1$d%%</string>
     <string name="games_runtime_busy">Runtime optaget</string>
@@ -1362,6 +1373,17 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="one">Importerede %1$d fil fra %2$s til %3$s. Gamle gemte spil sikkerhedskopieret til Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Importerede %1$d filer fra %2$s til %3$s. Gamle gemte spil sikkerhedskopieret til Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Luk sessionen først, så spillet ikke bruger sine addons under importen</string>
+    <string name="main_addons_importing">Importerer addons til %1$s</string>
+    <string name="main_addons_pick_zip">Vælg en zip med addons til %1$s</string>
+    <string name="main_addons_too_large">%1$s er for stor til at blive importeret</string>
+    <string name="main_addons_deleting">Sletter %1$s</string>
+    <string name="main_addons_deleted">%1$s slettet</string>
+    <string name="main_addons_none">Ingen addons fundet i %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Importerede %1$d addon til %2$s</item>
+        <item quantity="other">Importerede %1$d addons til %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Vælg en zip med gemte spil til %1$s</string>
     <string name="main_saves_exporting">Eksporterer %1$s</string>
@@ -3474,6 +3496,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Til spil med gemte data på din Steam-konto</string>
     <string name="game_resource_search">Websøgning</string>
+    <string name="game_tab_addons">Addons</string>
     <string name="game_tab_install">Installer</string>
     <string name="game_install_location">Placering</string>
     <string name="game_install_folder">Mappe</string>

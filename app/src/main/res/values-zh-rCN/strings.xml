@@ -670,6 +670,8 @@
     <string name="hud_group_metrics">读数</string>
     <string name="hud_metric_graph">帧时间图表</string>
     <string name="hud_metric_decimal">帧率显示小数</string>
+    <string name="hud_metric_low1">1% 最低帧</string>
+    <string name="hud_metric_low01">0.1% 最低帧</string>
     <string name="hud_metric_low001">0.01% 最低帧</string>
     <string name="hud_metric_engine">图形引擎</string>
     <string name="hud_metric_gpu_model">GPU 名称</string>
@@ -1186,6 +1188,7 @@
     <string name="ctrl_stick_click_hint">双击并按住摇杆可触发 L3 或 R3</string>
     <string name="ctrl_adaptive">自适应摇杆</string>
     <string name="ctrl_rumble">游戏震动</string>
+    <string name="ctrl_dead_zone">摇杆死区</string>
     <string name="ctrl_steam_button">Steam 按钮</string>
     <string name="ctrl_qam_button">QAM 按钮</string>
     <string name="ctrl_keyboard_button">键盘按钮</string>
@@ -1263,6 +1266,13 @@
     <string name="games_export_gamehub">导出为 GameHub zip 包…</string>
     <string name="games_export_winlator">导出为 Winlator zip 包…</string>
     <string name="games_open_save_folder">打开存档文件夹</string>
+    <string name="games_import_addons">从 zip 导入插件…</string>
+    <string name="games_open_addons_folder">打开插件文件夹</string>
+    <string name="games_delete_addon_title">删除 %1$s？</string>
+    <string name="games_delete_addon_body">这会移除插件的文件夹，其设置会保留。</string>
+    <plurals name="games_addons_count">
+        <item quantity="other">%1$d 个插件</item>
+    </plurals>
     <string name="games_never_played">从未游玩</string>
     <string name="games_runtime_busy_percent">运行时繁忙 · %1$d%%</string>
     <string name="games_runtime_busy">运行时繁忙</string>
@@ -1438,6 +1448,16 @@
     </plurals>
     <plurals name="main_saves_imported_backup">
         <item quantity="other">已从 %2$s 导入 %1$d 个文件到 %3$s。旧存档已备份到 Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">请先关闭会话，以免游戏在导入期间使用其插件</string>
+    <string name="main_addons_importing">正在导入插件到 %1$s</string>
+    <string name="main_addons_pick_zip">为 %1$s 选择插件 zip 包</string>
+    <string name="main_addons_too_large">%1$s 太大，无法导入</string>
+    <string name="main_addons_deleting">正在删除 %1$s</string>
+    <string name="main_addons_deleted">已删除 %1$s</string>
+    <string name="main_addons_none">在 %1$s 中未找到插件</string>
+    <plurals name="main_addons_imported">
+        <item quantity="other">已导入 %1$d 个插件到 %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">为 %1$s 选择存档 zip 包</string>
     <string name="main_saves_exporting">正在导出 %1$s</string>
@@ -2072,6 +2092,7 @@
     <string name="loadstate_starting">正在启动会话…</string>
     <string name="loadstate_elapsed">已用时 %1$d:%2$02d · 仍在处理</string>
     <string name="loadstate_steam_update">正在下载 Steam 客户端更新 · %1$d%%</string>
+    <string name="loadstate_steam_update_applying">正在应用 Steam 客户端更新…</string>
     <string name="loadstate_steam_client">正在下载 Steam 客户端 · %1$s</string>
 
     <string name="pextra_busy">已有兼容性工具正在安装</string>
@@ -3450,6 +3471,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">适用于存档保存在 Steam 账户中的游戏</string>
     <string name="game_resource_search">网页搜索</string>
+    <string name="game_tab_addons">插件</string>
     <string name="game_tab_install">安装</string>
     <string name="game_install_location">位置</string>
     <string name="game_install_folder">文件夹</string>

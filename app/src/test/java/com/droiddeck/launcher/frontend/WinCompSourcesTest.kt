@@ -302,6 +302,24 @@ class WinCompSourcesTest {
         assertFalse(requests.first())
     }
 
+    @Test fun aSweepRefreshesTheCatalogOnlyOnAFavourableConnection() = withFakeWorker {
+        installedNow.addAll(catalog3.map { it.name })
+        val requests = ArrayList<Boolean>()
+        AutoComponents.catalogOf = { _, network -> requests.add(network); catalog3 }
+        val games = listOf(payback())
+        AutoComponents.sweep(app, games)
+        assertTrue(requests.first())
+        requests.clear()
+        AutoComponents.unfavourable = { true }
+        AutoComponents.sweep(app, games)
+        assertFalse(requests.contains(true))
+        requests.clear()
+        AutoComponents.unfavourable = { false }
+        AutoComponents.online = { false }
+        AutoComponents.sweep(app, games)
+        assertFalse(requests.contains(true))
+    }
+
     @Test fun aSteamListedComponentNotYetDownloadedTurnsOnWhenItLands() = withFakeWorker {
         installedNow.add("d3dx9")
         val game = payback()

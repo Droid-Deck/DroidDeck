@@ -721,6 +721,8 @@
     <string name="hud_group_metrics">Readings</string>
     <string name="hud_metric_graph">Frame time graph</string>
     <string name="hud_metric_decimal">Frame rate with a decimal</string>
+    <string name="hud_metric_low1">1% low</string>
+    <string name="hud_metric_low01">0.1% low</string>
     <string name="hud_metric_low001">0.01% low</string>
     <string name="hud_metric_engine">Graphics engine</string>
     <string name="hud_metric_gpu_model">GPU name</string>
@@ -1209,6 +1211,7 @@
     <string name="ctrl_stick_click_hint">Double-tap and hold a stick for L3 or R3</string>
     <string name="ctrl_adaptive">Adaptive sticks</string>
     <string name="ctrl_rumble">Game vibration</string>
+    <string name="ctrl_dead_zone">Stick dead zone</string>
     <string name="ctrl_steam_button">Steam button</string>
     <string name="ctrl_qam_button">QAM button</string>
     <string name="ctrl_keyboard_button">Keyboard button</string>
@@ -1328,6 +1331,14 @@
     <string name="games_export_gamehub">Export as GameHub zip…</string>
     <string name="games_export_winlator">Export as Winlator zip…</string>
     <string name="games_open_save_folder">Open save folder</string>
+    <string name="games_import_addons">Import addons from zip…</string>
+    <string name="games_open_addons_folder">Open addons folder</string>
+    <string name="games_delete_addon_title">Delete %1$s?</string>
+    <string name="games_delete_addon_body">This removes the addon\'s folder. Its settings stay.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d addon</item>
+        <item quantity="other">%1$d addons</item>
+    </plurals>
     <string name="games_never_played">Never played</string>
     <string name="games_runtime_busy_percent">Runtime busy · %1$d%%</string>
     <string name="games_runtime_busy">Runtime busy</string>
@@ -1514,6 +1525,17 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="one">Imported %1$d file from the %2$s into %3$s. Old saves backed up to Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Imported %1$d files from the %2$s into %3$s. Old saves backed up to Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Close the session first, so the game isn\'t using its addons during the import</string>
+    <string name="main_addons_importing">Importing addons into %1$s</string>
+    <string name="main_addons_pick_zip">Choose an addon zip for %1$s</string>
+    <string name="main_addons_too_large">%1$s is too large to import</string>
+    <string name="main_addons_deleting">Deleting %1$s</string>
+    <string name="main_addons_deleted">Deleted %1$s</string>
+    <string name="main_addons_none">No addons found in %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Imported %1$d addon into %2$s</item>
+        <item quantity="other">Imported %1$d addons into %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Choose a save zip for %1$s</string>
     <string name="main_saves_exporting">Exporting %1$s</string>
@@ -2215,6 +2237,7 @@
     <string name="loadstate_starting">Starting the session…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d elapsed · still working</string>
     <string name="loadstate_steam_update">Downloading the Steam client update · %1$d%%</string>
+    <string name="loadstate_steam_update_applying">Applying the Steam client update…</string>
     <string name="loadstate_steam_client">Downloading the Steam client · %1$s</string>
 
     <string name="pextra_busy">A compatibility tool install is already running</string>
@@ -3730,6 +3753,7 @@
     <string name="game_resource_search">Web search</string>
     <string name="game_tab_achievements_count" translatable="false">%1$s %2$d/%3$d</string>
     <string name="game_tab_launch">Launch</string>
+    <string name="game_tab_addons">Addons</string>
     <string name="game_tab_saves_cloud">Saves &amp; cloud</string>
     <string name="game_tab_install">Install</string>
     <string name="game_launch_shortcut">Steam shortcut</string>

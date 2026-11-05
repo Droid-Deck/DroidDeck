@@ -670,6 +670,8 @@
     <string name="hud_group_metrics">讀數</string>
     <string name="hud_metric_graph">幀時間圖表</string>
     <string name="hud_metric_decimal">幀率顯示小數</string>
+    <string name="hud_metric_low1">1% 最低幀</string>
+    <string name="hud_metric_low01">0.1% 最低幀</string>
     <string name="hud_metric_low001">0.01% 最低幀</string>
     <string name="hud_metric_engine">圖形引擎</string>
     <string name="hud_metric_gpu_model">GPU 名稱</string>
@@ -1102,6 +1104,7 @@
     <string name="ctrl_stick_click_hint">在搖桿上輕按兩下並按住，即可觸發 L3 或 R3</string>
     <string name="ctrl_adaptive">自動調整搖桿</string>
     <string name="ctrl_rumble">遊戲震動</string>
+    <string name="ctrl_dead_zone">搖桿死區</string>
     <string name="ctrl_steam_button">Steam 按鈕</string>
     <string name="ctrl_qam_button">QAM 按鈕</string>
     <string name="ctrl_keyboard_button">鍵盤按鈕</string>
@@ -1179,6 +1182,13 @@
     <string name="games_export_gamehub">匯出為 GameHub zip…</string>
     <string name="games_export_winlator">匯出為 Winlator zip…</string>
     <string name="games_open_save_folder">開啟存檔資料夾</string>
+    <string name="games_import_addons">從 zip 匯入外掛…</string>
+    <string name="games_open_addons_folder">開啟外掛資料夾</string>
+    <string name="games_delete_addon_title">刪除 %1$s？</string>
+    <string name="games_delete_addon_body">這會移除外掛的資料夾，其設定會保留。</string>
+    <plurals name="games_addons_count">
+        <item quantity="other">%1$d 個外掛</item>
+    </plurals>
     <string name="games_never_played">從未玩過</string>
     <string name="games_runtime_busy_percent">運行環境繁忙 · %1$d%%</string>
     <string name="games_runtime_busy">運行環境繁忙</string>
@@ -1354,6 +1364,16 @@
     </plurals>
     <plurals name="main_saves_imported_backup">
         <item quantity="other">已從 %2$s 匯入 %1$d 個檔案至 %3$s。舊存檔已備份至 Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">請先關閉會話，以免遊戲在匯入期間使用外掛</string>
+    <string name="main_addons_importing">正在匯入外掛至 %1$s</string>
+    <string name="main_addons_pick_zip">選擇 %1$s 的外掛 zip</string>
+    <string name="main_addons_too_large">%1$s 太大，無法匯入</string>
+    <string name="main_addons_deleting">正在刪除 %1$s</string>
+    <string name="main_addons_deleted">已刪除 %1$s</string>
+    <string name="main_addons_none">在 %1$s 中找不到外掛</string>
+    <plurals name="main_addons_imported">
+        <item quantity="other">已匯入 %1$d 個外掛至 %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">為 %1$s 選擇存檔 zip</string>
     <string name="main_saves_exporting">正在匯出 %1$s</string>
@@ -3447,6 +3467,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">適用於存檔儲存在 Steam 帳戶中的遊戲</string>
     <string name="game_resource_search">網上搜尋</string>
+    <string name="game_tab_addons">外掛</string>
     <string name="game_tab_install">安裝</string>
     <string name="game_install_location">位置</string>
     <string name="game_install_folder">資料夾</string>
