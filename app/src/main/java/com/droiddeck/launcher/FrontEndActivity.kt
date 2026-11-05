@@ -2690,6 +2690,7 @@ class FrontEndActivity : ComponentActivity() {
             !SessionPaths.currentSessionLogsRetained(this)
 
     private fun shareEnhancedArchives(zips: List<java.io.File>) {
+        if (isFinishing || isDestroyed) return
         val choices = zips.map { zip ->
             val label = when {
                 zip.name.endsWith("-session.zip") -> getString(R.string.diagnostics_share_session)

@@ -128,7 +128,7 @@ in-session share action. Enhanced sessions offer separate, correlated archives:
 Choose one archive when an issue calls for a narrow report, or **All bundles**
 to share the three archives together. Every archive contains a
 `diagnostics-manifest.json` with the common session ID and the state of each
-artifact: captured, truncated, unavailable, omitted, or failed. Some captured
+artifact: captured, truncated, unavailable, omitted, or error. Some captured
 logs may themselves explain that a permission-limited source was unavailable.
 
 Exported archives sample a bounded amount of input. Large text logs retain
