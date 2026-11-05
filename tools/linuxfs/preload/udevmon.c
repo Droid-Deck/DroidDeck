@@ -112,6 +112,8 @@ __attribute__((visibility("hidden"))) int bl_nl_setsockopt(int fd, int level, in
                                                           const void *value, socklen_t len,
                                                           int (*real)(int, int, int, const void *, socklen_t),
                                                           int *rc);
+__attribute__((visibility("hidden"))) int bl_nl_getsockopt(int fd, int level, int option,
+                                                          void *value, socklen_t *len, int *rc);
 
 int socket(int domain, int type, int protocol) {
   static int (*real_socket)(int, int, int);
@@ -193,6 +195,18 @@ int setsockopt(int fd, int level, int optname, const void *optval, socklen_t opt
       return 0;
   }
   return real_setsockopt(fd, level, optname, optval, optlen);
+}
+
+int getsockopt(int fd, int level, int option, void *value, socklen_t *len) {
+  static int (*real)(int, int, int, void *, socklen_t *);
+  int route_rc;
+  if (bl_nl_getsockopt(fd, level, option, value, len, &route_rc)) return route_rc;
+  if (real == NULL) real = dlsym(RTLD_NEXT, "getsockopt");
+  if (real == NULL) {
+    errno = ENOSYS;
+    return -1;
+  }
+  return real(fd, level, option, value, len);
 }
 
 struct monitor_netlink_header {

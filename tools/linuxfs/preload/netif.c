@@ -5,6 +5,7 @@
 #define _GNU_SOURCE 1
 #include <arpa/inet.h>
 #include <dlfcn.h>
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <ifaddrs.h>
@@ -12,12 +13,14 @@
 #include <linux/if_link.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
+#include <limits.h>
 #include <net/if.h>
 #include <net/if_arp.h>
 #include <netpacket/packet.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -25,6 +28,7 @@
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/un.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -625,7 +629,6 @@ FILE *fopen64(const char *path, const char *mode) {
     return open_stream(real, path, mode, __builtin_return_address(0));
 }
 
-#define NL_SOCKETS 8
 #define NL_REQUEST_MAX 1024
 #define NL_REPLY_MAX 4096
 
@@ -641,29 +644,58 @@ FILE *fopen64(const char *path, const char *mode) {
 #define SO_DOMAIN 39
 #endif
 
+#ifndef SO_PROTOCOL
+#define SO_PROTOCOL 38
+#endif
+
 struct nl_socket {
     int peer;
+    int reservation;
     dev_t device;
     ino_t inode;
     ino_t peer_inode;
+    ino_t reservation_inode;
     unsigned port;
     unsigned references;
+    int type;
     int cap_ack;
+    struct nl_socket *next;
 };
 
 struct nl_fd {
     int fd;
-    int slot;
+    struct nl_socket *socket;
     struct nl_fd *next;
+};
+
+struct nl_metadata {
+    uint64_t nonce;
+    uint32_t port;
+    uint32_t type;
+    uint32_t cap_ack;
+    char magic[12];
+};
+
+_Static_assert(sizeof(struct nl_metadata) == 32, "netlink socket metadata ABI");
+
+struct nl_packet {
+    struct nl_packet *next;
+    size_t len;
+    unsigned char data[];
 };
 
 struct nl_reply {
     unsigned char data[NL_REPLY_MAX];
     size_t len;
+    int overflow;
 };
 
-static struct nl_socket nl_sockets[NL_SOCKETS];
+static const char nl_client_magic[12] = "bl-nl-c-v1";
+static const char nl_peer_magic[12] = "bl-nl-p-v1";
+static const char nl_reservation_magic[12] = "bl-nl-r-v1";
+static struct nl_socket *nl_sockets;
 static struct nl_fd *nl_fds;
+static unsigned nl_next_port = 0x80000000u;
 static pthread_mutex_t nl_sockets_lock = PTHREAD_MUTEX_INITIALIZER;
 static __thread unsigned nl_reply_port;
 static __thread int nl_reply_capped;
@@ -671,10 +703,11 @@ static __thread int nl_reply_capped;
 static void nl_lock_before_fork(void) { pthread_mutex_lock(&nl_sockets_lock); }
 static void nl_unlock_after_fork(void) { pthread_mutex_unlock(&nl_sockets_lock); }
 static void nl_reset_after_fork(void) { pthread_mutex_init(&nl_sockets_lock, NULL); }
+static void nl_restore_inherited(void);
 
 __attribute__((constructor)) static void nl_sockets_init(void) {
-    for (int index = 0; index < NL_SOCKETS; index++) nl_sockets[index].peer = -1;
     pthread_atfork(nl_lock_before_fork, nl_unlock_after_fork, nl_reset_after_fork);
+    nl_restore_inherited();
 }
 
 static int nl_identity(int fd, dev_t device, ino_t inode) {
@@ -683,33 +716,302 @@ static int nl_identity(int fd, dev_t device, ino_t inode) {
             && status.st_dev == device && status.st_ino == inode;
 }
 
-static void nl_release(int slot) {
-    struct nl_socket *socket = &nl_sockets[slot];
-    if (--socket->references != 0) return;
-    if (nl_identity(socket->peer, socket->device, socket->peer_inode)) {
-        static int (*real_close)(int);
-        if (real_close == NULL) real_close = (int (*)(int)) dlsym(RTLD_NEXT, "close");
-        if (real_close) real_close(socket->peer);
+static int nl_address(int fd, int peer, struct sockaddr_un *addr, struct nl_metadata *metadata,
+                       const char *magic) {
+    static int (*real_name)(int, struct sockaddr *, socklen_t *);
+    static int (*real_peer)(int, struct sockaddr *, socklen_t *);
+    if (real_name == NULL) real_name = (int (*)(int, struct sockaddr *, socklen_t *))
+            dlsym(RTLD_NEXT, "getsockname");
+    if (real_peer == NULL) real_peer = (int (*)(int, struct sockaddr *, socklen_t *))
+            dlsym(RTLD_NEXT, "getpeername");
+    socklen_t len = sizeof(*addr);
+    memset(addr, 0, sizeof(*addr));
+    int result = (peer ? real_peer : real_name)(fd, (struct sockaddr *) addr, &len);
+    if (result != 0 || len != offsetof(struct sockaddr_un, sun_path) + 1 + sizeof(*metadata)
+            || addr->sun_family != AF_UNIX || addr->sun_path[0] != '\0') return 0;
+    memcpy(metadata, addr->sun_path + 1, sizeof(*metadata));
+    return memcmp(metadata->magic, magic, sizeof(metadata->magic)) == 0;
+}
+
+static int nl_bind_address(int fd, struct nl_metadata *metadata, struct sockaddr_un *addr) {
+    static int (*real_bind)(int, const struct sockaddr *, socklen_t);
+    if (real_bind == NULL) real_bind = (int (*)(int, const struct sockaddr *, socklen_t))
+            dlsym(RTLD_NEXT, "bind");
+    memset(addr, 0, sizeof(*addr));
+    addr->sun_family = AF_UNIX;
+    memcpy(addr->sun_path + 1, metadata, sizeof(*metadata));
+    return real_bind(fd, (const struct sockaddr *) addr,
+                     offsetof(struct sockaddr_un, sun_path) + 1 + sizeof(*metadata));
+}
+
+static int nl_connect_address(int fd, const struct sockaddr_un *addr) {
+    static int (*real_connect)(int, const struct sockaddr *, socklen_t);
+    if (real_connect == NULL) real_connect = (int (*)(int, const struct sockaddr *, socklen_t))
+            dlsym(RTLD_NEXT, "connect");
+    return real_connect(fd, (const struct sockaddr *) addr,
+                        offsetof(struct sockaddr_un, sun_path) + 1 + sizeof(struct nl_metadata));
+}
+
+static void nl_close_peer(struct nl_socket *socket) {
+    if (socket->peer < 0) return;
+    if (!nl_identity(socket->peer, socket->device, socket->peer_inode)) return;
+    static int (*real_close)(int);
+    if (real_close == NULL) real_close = (int (*)(int)) dlsym(RTLD_NEXT, "close");
+    if (real_close) real_close(socket->peer);
+}
+
+static int nl_reserve_port(struct nl_socket *socket, unsigned port) {
+    static int (*real_socket)(int, int, int);
+    static int (*real_close)(int);
+    if (real_socket == NULL) real_socket = (int (*)(int, int, int)) dlsym(RTLD_NEXT, "socket");
+    if (real_close == NULL) real_close = (int (*)(int)) dlsym(RTLD_NEXT, "close");
+    int descriptor = real_socket(AF_UNIX, SOCK_DGRAM, 0);
+    if (descriptor < 0) return -1;
+    struct nl_metadata metadata = { .port = port };
+    struct sockaddr_un addr;
+    struct stat status;
+    memcpy(metadata.magic, nl_reservation_magic, sizeof(metadata.magic));
+    if (nl_bind_address(descriptor, &metadata, &addr) != 0 || fstat(descriptor, &status) != 0) {
+        int saved = errno;
+        real_close(descriptor);
+        errno = saved;
+        return -1;
     }
-    socket->peer = -1;
+    socket->reservation = descriptor;
+    socket->reservation_inode = status.st_ino;
+    return 0;
+}
+
+static void nl_close_reservation(struct nl_socket *socket) {
+    if (socket->reservation < 0
+            || !nl_identity(socket->reservation, socket->device, socket->reservation_inode)) return;
+    static int (*real_close)(int);
+    if (real_close == NULL) real_close = (int (*)(int)) dlsym(RTLD_NEXT, "close");
+    if (real_close) real_close(socket->reservation);
+    socket->reservation = -1;
+}
+
+static int nl_replay_packets(int peer, struct nl_packet *packets) {
+    static ssize_t (*real_send)(int, const void *, size_t, int);
+    if (real_send == NULL) real_send = (ssize_t (*)(int, const void *, size_t, int))
+            dlsym(RTLD_NEXT, "send");
+    int error = 0;
+    while (packets) {
+        struct nl_packet *packet = packets;
+        packets = packet->next;
+        if (real_send(peer, packet->data, packet->len, MSG_DONTWAIT | MSG_NOSIGNAL) < 0 && error == 0)
+            error = errno;
+        free(packet);
+    }
+    if (error) errno = error;
+    return error ? -1 : 0;
+}
+
+static int nl_save_packets(int fd, struct nl_packet **packets) {
+    static ssize_t (*real_recv)(int, void *, size_t, int);
+    if (real_recv == NULL) real_recv = (ssize_t (*)(int, void *, size_t, int))
+            dlsym(RTLD_NEXT, "recv");
+    struct nl_packet **tail = packets;
+    *packets = NULL;
+    for (;;) {
+        ssize_t len = real_recv(fd, NULL, 0, MSG_PEEK | MSG_TRUNC | MSG_DONTWAIT);
+        if (len < 0) return errno == EAGAIN || errno == EWOULDBLOCK ? 0 : -1;
+        if ((size_t) len > SIZE_MAX - sizeof(struct nl_packet)) {
+            errno = EMSGSIZE;
+            return -1;
+        }
+        struct nl_packet *packet = malloc(sizeof(*packet) + (size_t) len);
+        if (packet == NULL) return -1;
+        ssize_t received = real_recv(fd, packet->data, (size_t) len, MSG_DONTWAIT);
+        if (received < 0) {
+            int saved = errno;
+            free(packet);
+            errno = saved;
+            return -1;
+        }
+        packet->len = (size_t) received;
+        packet->next = NULL;
+        *tail = packet;
+        tail = &packet->next;
+    }
+}
+
+static int nl_replace_peer(int fd, struct nl_socket *socket, unsigned port, int capped) {
+    static int (*real_socket)(int, int, int);
+    static int (*real_close)(int);
+    if (real_socket == NULL) real_socket = (int (*)(int, int, int)) dlsym(RTLD_NEXT, "socket");
+    if (real_close == NULL) real_close = (int (*)(int)) dlsym(RTLD_NEXT, "close");
+    struct sockaddr_un client_addr, peer_addr;
+    struct nl_metadata client, peer = { .port = port, .type = socket->type, .cap_ack = capped };
+    if (!nl_address(fd, 0, &client_addr, &client, nl_client_magic)) {
+        errno = EINVAL;
+        return -1;
+    }
+    int descriptor = real_socket(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+    if (descriptor < 0) return -1;
+    struct nl_packet *packets = NULL;
+    struct stat status;
+    if (fstat(descriptor, &status) != 0) goto failed;
+    peer.nonce = status.st_ino;
+    memcpy(peer.magic, nl_peer_magic, sizeof(peer.magic));
+    if (nl_bind_address(descriptor, &peer, &peer_addr) != 0
+            || nl_save_packets(fd, &packets) != 0) goto failed;
+    if (nl_connect_address(fd, &peer_addr) != 0
+            || nl_connect_address(descriptor, &client_addr) != 0) goto failed;
+    struct timeval timeout;
+    socklen_t timeout_len = sizeof(timeout);
+    static int (*real_getopt)(int, int, int, void *, socklen_t *);
+    static int (*real_setopt)(int, int, int, const void *, socklen_t);
+    if (real_getopt == NULL) real_getopt = (int (*)(int, int, int, void *, socklen_t *))
+            dlsym(RTLD_NEXT, "getsockopt");
+    if (real_setopt == NULL) real_setopt = (int (*)(int, int, int, const void *, socklen_t))
+            dlsym(RTLD_NEXT, "setsockopt");
+    if (real_getopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, &timeout_len) == 0)
+        real_setopt(descriptor, SOL_SOCKET, SO_SNDTIMEO, &timeout, timeout_len);
+    int send_buffer;
+    socklen_t buffer_len = sizeof(send_buffer);
+    if (real_getopt(fd, SOL_SOCKET, SO_SNDBUF, &send_buffer, &buffer_len) == 0) {
+        send_buffer /= 2;
+        real_setopt(descriptor, SOL_SOCKET, SO_SNDBUF, &send_buffer, sizeof(send_buffer));
+    }
+    int replayed = nl_replay_packets(descriptor, packets);
+    int saved = errno;
+    nl_close_peer(socket);
+    socket->peer = descriptor;
+    socket->peer_inode = status.st_ino;
+    socket->port = port;
+    socket->cap_ack = capped;
+    errno = saved;
+    return replayed;
+failed: {
+    int saved = errno;
+    nl_replay_packets(socket->peer, packets);
+    real_close(descriptor);
+    errno = saved;
+    return -1;
+}
+}
+
+static void nl_release(struct nl_socket *socket) {
+    if (--socket->references != 0) return;
+    for (struct nl_socket **entry = &nl_sockets; *entry; entry = &(*entry)->next) {
+        if (*entry != socket) continue;
+        *entry = socket->next;
+        break;
+    }
+    nl_close_peer(socket);
+    nl_close_reservation(socket);
+    free(socket);
 }
 
 static void nl_remove(struct nl_fd **entry) {
     struct nl_fd *removed = *entry;
     *entry = removed->next;
-    nl_release(removed->slot);
+    nl_release(removed->socket);
     free(removed);
 }
 
+static struct nl_fd *nl_restore(int fd) {
+    struct sockaddr_un client_addr, peer_addr;
+    struct nl_metadata client, peer;
+    struct stat status;
+    if (!nl_address(fd, 0, &client_addr, &client, nl_client_magic)
+            || !nl_address(fd, 1, &peer_addr, &peer, nl_peer_magic)
+            || (peer.type != SOCK_RAW && peer.type != SOCK_DGRAM)
+            || client.type != peer.type || peer.cap_ack > 1
+            || fstat(fd, &status) != 0 || client.nonce != (uint64_t) status.st_ino) return NULL;
+    struct nl_fd *entry = malloc(sizeof(*entry));
+    if (entry == NULL) return NULL;
+    struct nl_socket *socket;
+    for (socket = nl_sockets; socket; socket = socket->next) {
+        if (socket->device == status.st_dev && socket->inode == status.st_ino) break;
+    }
+    if (socket == NULL) {
+        socket = calloc(1, sizeof(*socket));
+        if (socket == NULL) {
+            free(entry);
+            return NULL;
+        }
+        socket->peer = -1;
+        socket->reservation = -1;
+        socket->device = status.st_dev;
+        socket->inode = status.st_ino;
+        socket->type = peer.type;
+        if (nl_replace_peer(fd, socket, peer.port, peer.cap_ack) != 0) {
+            free(socket);
+            free(entry);
+            return NULL;
+        }
+        socket->next = nl_sockets;
+        nl_sockets = socket;
+    }
+    socket->references++;
+    entry->fd = fd;
+    entry->socket = socket;
+    entry->next = nl_fds;
+    nl_fds = entry;
+    return entry;
+}
+
 static struct nl_fd *nl_find(int fd) {
+    if (fd < 0) return NULL;
     for (struct nl_fd **entry = &nl_fds; *entry; entry = &(*entry)->next) {
         if ((*entry)->fd != fd) continue;
-        struct nl_socket *socket = &nl_sockets[(*entry)->slot];
+        struct nl_socket *socket = (*entry)->socket;
         if (nl_identity(fd, socket->device, socket->inode)) return *entry;
         nl_remove(entry);
         break;
     }
-    return NULL;
+    return nl_restore(fd);
+}
+
+static void nl_restore_inherited(void) {
+    DIR *directory = opendir("/proc/self/fd");
+    if (directory == NULL) return;
+    int *descriptors = NULL;
+    size_t count = 0, capacity = 0;
+    struct dirent *entry;
+    while ((entry = readdir(directory)) != NULL) {
+        char *end;
+        long descriptor = strtol(entry->d_name, &end, 10);
+        if (end == entry->d_name || *end || descriptor < 0 || descriptor > INT_MAX) continue;
+        if (descriptor == dirfd(directory)) continue;
+        if (count == capacity) {
+            size_t enlarged = capacity ? capacity * 2 : 16;
+            int *allocated = realloc(descriptors, enlarged * sizeof(*descriptors));
+            if (allocated == NULL) break;
+            descriptors = allocated;
+            capacity = enlarged;
+        }
+        descriptors[count++] = (int) descriptor;
+    }
+    closedir(directory);
+    for (size_t index = 0; index < count; index++) {
+        pthread_mutex_lock(&nl_sockets_lock);
+        nl_find(descriptors[index]);
+        pthread_mutex_unlock(&nl_sockets_lock);
+    }
+    for (size_t index = 0; index < count; index++) {
+        int descriptor = descriptors[index];
+        struct sockaddr_un addr;
+        struct nl_metadata metadata;
+        if (!nl_address(descriptor, 0, &addr, &metadata, nl_reservation_magic)) continue;
+        struct stat status;
+        if (fstat(descriptor, &status) != 0) continue;
+        struct nl_socket *socket;
+        for (socket = nl_sockets; socket; socket = socket->next) {
+            if (socket->port == metadata.port) break;
+        }
+        if (socket) {
+            socket->reservation = descriptor;
+            socket->reservation_inode = status.st_ino;
+        } else {
+            static int (*real_close)(int);
+            if (real_close == NULL) real_close = (int (*)(int)) dlsym(RTLD_NEXT, "close");
+            real_close(descriptor);
+        }
+    }
+    free(descriptors);
 }
 
 static int nl_nonblocking(int fd) {
@@ -725,7 +1027,21 @@ static int nl_peer_of(int fd) {
     int peer = -1;
     pthread_mutex_lock(&nl_sockets_lock);
     struct nl_fd *entry = nl_find(fd);
-    if (entry) peer = nl_sockets[entry->slot].peer;
+    if (entry) {
+        struct sockaddr_un addr;
+        struct nl_metadata metadata;
+        struct nl_socket *socket = entry->socket;
+        if (nl_address(fd, 1, &addr, &metadata, nl_peer_magic)) {
+            if ((metadata.nonce == socket->peer_inode
+                    && nl_identity(socket->peer, socket->device, socket->peer_inode))
+                    || nl_replace_peer(fd, socket, metadata.port, metadata.cap_ack) == 0) {
+                if (socket->port != 0 && (socket->reservation < 0
+                        || !nl_identity(socket->reservation, socket->device, socket->reservation_inode)))
+                    nl_reserve_port(socket, socket->port);
+                peer = socket->peer;
+            }
+        }
+    }
     pthread_mutex_unlock(&nl_sockets_lock);
     return peer;
 }
@@ -734,7 +1050,7 @@ static unsigned nl_port_of(int fd) {
     unsigned port = 0;
     pthread_mutex_lock(&nl_sockets_lock);
     struct nl_fd *entry = nl_find(fd);
-    if (entry) port = nl_sockets[entry->slot].port;
+    if (entry) port = entry->socket->port;
     pthread_mutex_unlock(&nl_sockets_lock);
     return port;
 }
@@ -757,6 +1073,8 @@ __attribute__((visibility("hidden"))) int bl_nl_setsockopt(int fd, int level, in
                                                           const void *value, socklen_t len,
                                                           int (*real)(int, int, int, const void *, socklen_t),
                                                           int *rc);
+__attribute__((visibility("hidden"))) int bl_nl_getsockopt(int fd, int level, int option,
+                                                          void *value, socklen_t *len, int *rc);
 __attribute__((visibility("hidden"))) int bl_nl_recvmsg(int fd, struct msghdr *msg, int flags,
                                                         ssize_t (*real)(int, struct msghdr *, int),
                                                         ssize_t *rc);
@@ -764,60 +1082,111 @@ __attribute__((visibility("hidden"))) int bl_nl_recvmsg(int fd, struct msghdr *m
 int bl_nl_owns(int fd) { return nl_peer_of(fd) >= 0; }
 
 int bl_nl_socket(int type, int *fd) {
-    int pair[2], slot = -1;
+    int kind = type & 0xf;
+    *fd = -1;
+    if (type & ~(0xf | SOCK_CLOEXEC | SOCK_NONBLOCK)) {
+        errno = EINVAL;
+        return 1;
+    }
+    if (kind != SOCK_RAW && kind != SOCK_DGRAM) {
+        errno = kind >= 11 ? EINVAL : ESOCKTNOSUPPORT;
+        return 1;
+    }
+    int pair[2];
     struct stat client_status, peer_status;
     struct nl_fd *entry = malloc(sizeof(*entry));
-    if (entry == NULL) {
-        *fd = -1;
+    struct nl_socket *socket = calloc(1, sizeof(*socket));
+    if (entry == NULL || socket == NULL) {
+        free(entry);
+        free(socket);
         errno = ENOMEM;
         return 1;
     }
-    int flags = SOCK_CLOEXEC | (type & SOCK_NONBLOCK);
+    int flags = type & (SOCK_CLOEXEC | SOCK_NONBLOCK);
     if (socketpair(AF_UNIX, SOCK_DGRAM | flags, 0, pair) != 0) {
         free(entry);
-        *fd = -1;
+        free(socket);
         return 1;
     }
-    if (fstat(pair[0], &client_status) != 0 || fstat(pair[1], &peer_status) != 0) {
+    if (fcntl(pair[1], F_SETFD, FD_CLOEXEC) != 0 || fcntl(pair[1], F_SETFL, 0) != 0
+            || fstat(pair[0], &client_status) != 0 || fstat(pair[1], &peer_status) != 0)
+        goto failed;
+    struct nl_metadata client = { .nonce = client_status.st_ino, .type = kind };
+    struct nl_metadata peer = { .nonce = peer_status.st_ino, .type = kind };
+    struct sockaddr_un addr;
+    memcpy(client.magic, nl_client_magic, sizeof(client.magic));
+    memcpy(peer.magic, nl_peer_magic, sizeof(peer.magic));
+    if (nl_bind_address(pair[0], &client, &addr) != 0
+            || nl_bind_address(pair[1], &peer, &addr) != 0) goto failed;
+    socket->peer = pair[1];
+    socket->reservation = -1;
+    socket->device = client_status.st_dev;
+    socket->inode = client_status.st_ino;
+    socket->peer_inode = peer_status.st_ino;
+    socket->type = kind;
+    socket->references = 1;
+    entry->fd = pair[0];
+    entry->socket = socket;
+    pthread_mutex_lock(&nl_sockets_lock);
+    socket->next = nl_sockets;
+    nl_sockets = socket;
+    entry->next = nl_fds;
+    nl_fds = entry;
+    pthread_mutex_unlock(&nl_sockets_lock);
+    *fd = pair[0];
+    return 1;
+failed: {
         int saved = errno;
         close(pair[0]);
         close(pair[1]);
         free(entry);
+        free(socket);
         errno = saved;
-        *fd = -1;
         return 1;
     }
+}
+
+static int nl_bind_port(int fd, unsigned requested) {
+    int result = -1;
     pthread_mutex_lock(&nl_sockets_lock);
-    for (int i = 0; i < NL_SOCKETS; i++) {
-        if (nl_sockets[i].peer < 0) {
-            slot = i;
-            break;
+    struct nl_fd *entry = nl_find(fd);
+    if (entry) {
+        struct nl_socket *socket = entry->socket;
+        if (socket->port != 0) {
+            if (requested == socket->port) result = 0;
+            else errno = EINVAL;
+        } else {
+            unsigned port = requested ? requested : (unsigned) getpid();
+            for (;;) {
+                struct nl_socket *other;
+                for (other = nl_sockets; other; other = other->next) {
+                    if (other != socket && other->port == port) break;
+                }
+                if (other == NULL) {
+                    if (nl_reserve_port(socket, port) == 0) {
+                        result = nl_replace_peer(fd, socket, port, socket->cap_ack);
+                        if (result != 0) nl_close_reservation(socket);
+                        break;
+                    }
+                    if (errno != EADDRINUSE || requested != 0) break;
+                }
+                if (requested != 0) {
+                    errno = EADDRINUSE;
+                    break;
+                }
+                port = nl_next_port++;
+                if (port == 0) port = nl_next_port++;
+            }
         }
-    }
-    if (slot >= 0) {
-        nl_sockets[slot].peer = pair[1];
-        nl_sockets[slot].device = client_status.st_dev;
-        nl_sockets[slot].inode = client_status.st_ino;
-        nl_sockets[slot].peer_inode = peer_status.st_ino;
-        nl_sockets[slot].port = (unsigned) getpid();
-        nl_sockets[slot].references = 1;
-        nl_sockets[slot].cap_ack = 0;
-        entry->fd = pair[0];
-        entry->slot = slot;
-        entry->next = nl_fds;
-        nl_fds = entry;
+    } else {
+        errno = EBADF;
     }
     pthread_mutex_unlock(&nl_sockets_lock);
-    if (slot < 0) {
-        close(pair[0]);
-        close(pair[1]);
-        free(entry);
-        errno = EMFILE;
-        *fd = -1;
-        return 1;
-    }
-    *fd = pair[0];
-    return 1;
+    return result;
+}
+
+static int nl_autobind(int fd) {
+    return nl_port_of(fd) != 0 ? 0 : nl_bind_port(fd, 0);
 }
 
 int bl_nl_bind(int fd, const struct sockaddr *addr, socklen_t len, int *rc) {
@@ -834,13 +1203,7 @@ int bl_nl_bind(int fd, const struct sockaddr *addr, socklen_t len, int *rc) {
         *rc = -1;
         return 1;
     }
-    if (nl->nl_pid != 0) {
-        pthread_mutex_lock(&nl_sockets_lock);
-        struct nl_fd *entry = nl_find(fd);
-        if (entry) nl_sockets[entry->slot].port = nl->nl_pid;
-        pthread_mutex_unlock(&nl_sockets_lock);
-    }
-    *rc = 0;
+    *rc = nl_bind_port(fd, nl->nl_pid);
     return 1;
 }
 
@@ -856,7 +1219,6 @@ int bl_nl_getsockname(int fd, struct sockaddr *addr, socklen_t *len, int *rc) {
     memset(&nl, 0, sizeof(nl));
     nl.nl_family = AF_NETLINK;
     nl.nl_pid = nl_port_of(fd);
-    if (nl.nl_pid == 0) nl.nl_pid = (unsigned) getpid();
     size = *len < sizeof(nl) ? *len : (socklen_t) sizeof(nl);
     memcpy(addr, &nl, size);
     *len = sizeof(nl);
@@ -892,8 +1254,8 @@ int bl_nl_before_dup(int fd, void **state) {
             errno = ENOMEM;
             return -1;
         }
-        reserved->slot = entry->slot;
-        nl_sockets[entry->slot].references++;
+        reserved->socket = entry->socket;
+        entry->socket->references++;
         *state = reserved;
     }
     pthread_mutex_unlock(&nl_sockets_lock);
@@ -917,7 +1279,7 @@ void bl_nl_after_dup(void *state, int fd) {
             reserved->next = nl_fds;
             nl_fds = reserved;
         } else {
-            nl_release(reserved->slot);
+            nl_release(reserved->socket);
             free(reserved);
         }
     }
@@ -952,7 +1314,7 @@ int bl_nl_connect(int fd, const struct sockaddr *addr, socklen_t len, int *rc) {
         *rc = -1;
         return 1;
     }
-    *rc = 0;
+    *rc = disconnect ? 0 : nl_autobind(fd);
     return 1;
 }
 
@@ -1001,9 +1363,40 @@ int bl_nl_setsockopt(int fd, int level, int option, const void *value, socklen_t
             memcpy(&enabled, value, sizeof(enabled));
             pthread_mutex_lock(&nl_sockets_lock);
             struct nl_fd *entry = nl_find(fd);
-            if (entry) nl_sockets[entry->slot].cap_ack = enabled != 0;
+            if (entry && nl_replace_peer(fd, entry->socket, entry->socket->port, enabled != 0) != 0) {
+                pthread_mutex_unlock(&nl_sockets_lock);
+                *rc = -1;
+                return 1;
+            }
             pthread_mutex_unlock(&nl_sockets_lock);
         }
+        *rc = 0;
+    }
+    return 1;
+}
+
+int bl_nl_getsockopt(int fd, int level, int option, void *value, socklen_t *len, int *rc) {
+    if (level != SOL_SOCKET || (option != SO_TYPE && option != SO_DOMAIN && option != SO_PROTOCOL))
+        return 0;
+    pthread_mutex_lock(&nl_sockets_lock);
+    struct nl_fd *entry = nl_find(fd);
+    if (entry == NULL) {
+        pthread_mutex_unlock(&nl_sockets_lock);
+        return 0;
+    }
+    int result = option == SO_TYPE ? entry->socket->type :
+            option == SO_DOMAIN ? AF_NETLINK : NETLINK_ROUTE;
+    pthread_mutex_unlock(&nl_sockets_lock);
+    if (len == NULL || (value == NULL && *len > 0)) {
+        errno = EFAULT;
+        *rc = -1;
+    } else if (*len > INT_MAX) {
+        errno = EINVAL;
+        *rc = -1;
+    } else {
+        socklen_t capacity = *len < sizeof(result) ? *len : (socklen_t) sizeof(result);
+        if (capacity) memcpy(value, &result, capacity);
+        *len = capacity;
         *rc = 0;
     }
     return 1;
@@ -1044,7 +1437,11 @@ static unsigned char *reply_start(struct nl_reply *out, uint16_t type, uint16_t 
                                   uint32_t seq, size_t payload) {
     size_t offset = NLMSG_ALIGN(out->len);
     struct nlmsghdr *header;
-    if (offset + NLMSG_SPACE(payload) > sizeof(out->data)) return NULL;
+    if (payload > sizeof(out->data)
+            || offset + NLMSG_SPACE(payload) > sizeof(out->data)) {
+        out->overflow = 1;
+        return NULL;
+    }
     header = (struct nlmsghdr *) (out->data + offset);
     memset(header, 0, NLMSG_SPACE(payload));
     header->nlmsg_len = NLMSG_LENGTH(payload);
@@ -1063,7 +1460,10 @@ static void reply_attr(struct nl_reply *out, unsigned char *message, int type,
     size_t offset = NLMSG_ALIGN(header->nlmsg_len);
     size_t total = RTA_ALIGN(RTA_LENGTH(len));
     struct rtattr *attr;
-    if (base + offset + total > sizeof(out->data)) return;
+    if (base + offset + total > sizeof(out->data)) {
+        out->overflow = 1;
+        return;
+    }
     attr = (struct rtattr *) (message + offset);
     attr->rta_type = (unsigned short) type;
     attr->rta_len = (unsigned short) RTA_LENGTH(len);
@@ -1364,6 +1764,7 @@ static void build_reply(const void *data, size_t len, struct nl_reply *out) {
     int have = load_link(&link);
     size_t offset = 0;
     out->len = 0;
+    out->overflow = 0;
     while (offset + sizeof(struct nlmsghdr) <= len) {
         const struct nlmsghdr *request =
                 (const struct nlmsghdr *) ((const unsigned char *) data + offset);
@@ -1389,12 +1790,27 @@ static int deliver(int fd, const void *data, size_t len, int flags, ssize_t *rc)
     int peer = nl_peer_of(fd);
     int extra = 0;
     if (peer < 0) return 0;
+    if (nl_autobind(fd) != 0) {
+        *rc = -1;
+        return 1;
+    }
+    peer = nl_peer_of(fd);
+    if (peer < 0) {
+        errno = EBADF;
+        *rc = -1;
+        return 1;
+    }
     nl_reply_port = nl_port_of(fd);
     pthread_mutex_lock(&nl_sockets_lock);
     struct nl_fd *entry = nl_find(fd);
-    nl_reply_capped = entry && nl_sockets[entry->slot].cap_ack;
+    nl_reply_capped = entry && entry->socket->cap_ack;
     pthread_mutex_unlock(&nl_sockets_lock);
     build_reply(data, len, &reply);
+    if (reply.overflow) {
+        errno = EMSGSIZE;
+        *rc = -1;
+        return 1;
+    }
     if (reply.len == 0) {
         struct nlmsghdr *request = (struct nlmsghdr *) data;
         if (len < sizeof(struct nlmsghdr)) {
@@ -1411,37 +1827,76 @@ static int deliver(int fd, const void *data, size_t len, int flags, ssize_t *rc)
     return 1;
 }
 
-static int collect(struct msghdr *msg, unsigned char *buffer, size_t capacity, size_t *length) {
+static int collect(const struct msghdr *msg, unsigned char *small, size_t capacity,
+                    unsigned char **buffer, size_t *length) {
     size_t used = 0;
-    if (msg == NULL || msg->msg_iov == NULL) return 0;
-    for (size_t i = 0; i < msg->msg_iovlen; i++) {
-        const struct iovec *part = &msg->msg_iov[i];
-        if (part->iov_base == NULL || part->iov_len == 0) continue;
-        if (used + part->iov_len > capacity) return 0;
-        memcpy(buffer + used, part->iov_base, part->iov_len);
+    if (msg == NULL || (msg->msg_iovlen && msg->msg_iov == NULL)) {
+        errno = EFAULT;
+        return 0;
+    }
+    if (msg->msg_iovlen > IOV_MAX) {
+        errno = EMSGSIZE;
+        return 0;
+    }
+    for (size_t index = 0; index < msg->msg_iovlen; index++) {
+        const struct iovec *part = &msg->msg_iov[index];
+        if (part->iov_len && part->iov_base == NULL) {
+            errno = EFAULT;
+            return 0;
+        }
+        if (part->iov_len > (size_t) SSIZE_MAX - used) {
+            errno = EMSGSIZE;
+            return 0;
+        }
         used += part->iov_len;
     }
+    if (used == 0) {
+        errno = EINVAL;
+        return 0;
+    }
+    *buffer = used <= capacity ? small : malloc(used);
+    if (*buffer == NULL) {
+        errno = ENOMEM;
+        return 0;
+    }
     *length = used;
-    return used > 0;
+    used = 0;
+    for (size_t index = 0; index < msg->msg_iovlen; index++) {
+        const struct iovec *part = &msg->msg_iov[index];
+        if (part->iov_len) memcpy(*buffer + used, part->iov_base, part->iov_len);
+        used += part->iov_len;
+    }
+    return 1;
 }
 
-static int sendmsg_request(int fd, const struct msghdr *msg, int flags, ssize_t *rc) {
-    unsigned char buffer[NL_REQUEST_MAX];
+static ssize_t sendmsg_request(int fd, const struct msghdr *msg, int flags) {
+    unsigned char small[NL_REQUEST_MAX];
+    unsigned char *buffer;
     size_t length = 0;
-    if (!collect((struct msghdr *) msg, buffer, sizeof(buffer), &length)) return 0;
-    return deliver(fd, buffer, length, flags, rc);
+    if (!collect(msg, small, sizeof(small), &buffer, &length)) {
+        return -1;
+    }
+    ssize_t result;
+    int handled = deliver(fd, buffer, length, flags, &result);
+    int saved = errno;
+    if (buffer != small) free(buffer);
+    if (!handled) {
+        saved = EBADF;
+        result = -1;
+    }
+    errno = saved;
+    return result;
 }
 
 ssize_t sendmsg(int fd, const struct msghdr *msg, int flags) {
     static ssize_t (*real)(int, const struct msghdr *, int);
-    ssize_t rc;
     if (bl_nl_owns(fd)) {
         int error = msg && msg->msg_name ? nl_destination(msg->msg_name, msg->msg_namelen) : 0;
         if (error) {
             errno = -error;
             return -1;
         }
-        if (sendmsg_request(fd, msg, flags, &rc)) return rc;
+        return sendmsg_request(fd, msg, flags);
     }
     if (real == NULL) real = (ssize_t (*)(int, const struct msghdr *, int)) dlsym(RTLD_NEXT, "sendmsg");
     if (real == NULL) {
