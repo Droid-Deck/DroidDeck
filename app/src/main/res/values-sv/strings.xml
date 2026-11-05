@@ -1106,6 +1106,7 @@
     <string name="ctrl_stick_click_hint">Dubbeltryck och håll en spak för L3 eller R3</string>
     <string name="ctrl_adaptive">Adaptiva spakar</string>
     <string name="ctrl_rumble">Spelvibration</string>
+    <string name="ctrl_dead_zone">Styrspakens dödzon</string>
     <string name="ctrl_steam_button">Steam-knappen</string>
     <string name="ctrl_qam_button">QAM-knappen</string>
     <string name="ctrl_keyboard_button">Tangentbordsknappen</string>

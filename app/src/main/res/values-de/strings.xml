@@ -1098,6 +1098,7 @@
     <string name="ctrl_stick_click_hint">Doppeltippen und Stick halten für L3 oder R3</string>
     <string name="ctrl_adaptive">Adaptive Sticks</string>
     <string name="ctrl_rumble">Spielvibration</string>
+    <string name="ctrl_dead_zone">Stick-Totzone</string>
     <string name="ctrl_steam_button">Steam-Taste</string>
     <string name="ctrl_qam_button">QAM-Taste</string>
     <string name="ctrl_keyboard_button">Tastatur-Taste</string>

@@ -1100,6 +1100,7 @@
     <string name="ctrl_stick_click_hint">Ketuk dua kali dan tahan sebuah stik untuk L3 atau R3</string>
     <string name="ctrl_adaptive">Stik adaptif</string>
     <string name="ctrl_rumble">Getaran gim</string>
+    <string name="ctrl_dead_zone">Zona mati stik</string>
     <string name="ctrl_steam_button">Tombol Steam</string>
     <string name="ctrl_qam_button">Tombol QAM</string>
     <string name="ctrl_keyboard_button">Tombol keyboard</string>

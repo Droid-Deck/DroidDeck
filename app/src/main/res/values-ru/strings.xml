@@ -1118,6 +1118,7 @@
     <string name="ctrl_stick_click_hint">Дважды нажмите и удерживайте стик для L3 или R3</string>
     <string name="ctrl_adaptive">Адаптивные стики</string>
     <string name="ctrl_rumble">Вибрация в играх</string>
+    <string name="ctrl_dead_zone">Мёртвая зона стика</string>
     <string name="ctrl_steam_button">Кнопка Steam</string>
     <string name="ctrl_qam_button">Кнопка QAM</string>
     <string name="ctrl_keyboard_button">Кнопка клавиатуры</string>

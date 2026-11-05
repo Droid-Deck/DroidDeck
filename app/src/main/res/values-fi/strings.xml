@@ -1106,6 +1106,7 @@
     <string name="ctrl_stick_click_hint">Kaksoisnapauta ja pidä sauvaa pohjassa saadaksesi L3:n tai R3:n</string>
     <string name="ctrl_adaptive">Mukautuvat sauvat</string>
     <string name="ctrl_rumble">Pelin tärinä</string>
+    <string name="ctrl_dead_zone">Ohjaussauvan kuollut alue</string>
     <string name="ctrl_steam_button">Steam-painike</string>
     <string name="ctrl_qam_button">QAM-painike</string>
     <string name="ctrl_keyboard_button">Näppäimistöpainike</string>

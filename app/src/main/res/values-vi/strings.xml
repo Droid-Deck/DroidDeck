@@ -1100,6 +1100,7 @@
     <string name="ctrl_stick_click_hint">Chạm hai lần và giữ một cần để dùng L3 hoặc R3</string>
     <string name="ctrl_adaptive">Cần thích ứng</string>
     <string name="ctrl_rumble">Rung khi chơi game</string>
+    <string name="ctrl_dead_zone">Vùng chết của cần điều khiển</string>
     <string name="ctrl_steam_button">Nút Steam</string>
     <string name="ctrl_qam_button">Nút QAM</string>
     <string name="ctrl_keyboard_button">Nút bàn phím</string>

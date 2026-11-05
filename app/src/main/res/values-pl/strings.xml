@@ -1118,6 +1118,7 @@
     <string name="ctrl_stick_click_hint">Dotknij dwukrotnie i przytrzymaj gałkę, aby uzyskać L3 lub R3</string>
     <string name="ctrl_adaptive">Adaptacyjne gałki</string>
     <string name="ctrl_rumble">Wibracje gry</string>
+    <string name="ctrl_dead_zone">Martwa strefa drążka</string>
     <string name="ctrl_steam_button">Przycisk Steam</string>
     <string name="ctrl_qam_button">Przycisk QAM</string>
     <string name="ctrl_keyboard_button">Przycisk klawiatury</string>

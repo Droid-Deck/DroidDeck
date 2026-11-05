@@ -1106,6 +1106,7 @@
     <string name="ctrl_stick_click_hint">Πατήστε δύο φορές και κρατήστε έναν μοχλό για L3 ή R3</string>
     <string name="ctrl_adaptive">Προσαρμοστικοί μοχλοί</string>
     <string name="ctrl_rumble">Κραδασμός παιχνιδιού</string>
+    <string name="ctrl_dead_zone">Νεκρή ζώνη μοχλού</string>
     <string name="ctrl_steam_button">Κουμπί Steam</string>
     <string name="ctrl_qam_button">Κουμπί QAM</string>
     <string name="ctrl_keyboard_button">Κουμπί πληκτρολογίου</string>

@@ -1106,6 +1106,7 @@
     <string name="ctrl_stick_click_hint">Koppintson duplán, és tartsa lenyomva a kart az L3 vagy R3 érdekében</string>
     <string name="ctrl_adaptive">Adaptív karok</string>
     <string name="ctrl_rumble">Játékvibráció</string>
+    <string name="ctrl_dead_zone">Kar holtzónája</string>
     <string name="ctrl_steam_button">Steam gomb</string>
     <string name="ctrl_qam_button">QAM gomb</string>
     <string name="ctrl_keyboard_button">Billentyűzet gomb</string>

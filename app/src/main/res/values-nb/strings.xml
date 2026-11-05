@@ -1106,6 +1106,7 @@
     <string name="ctrl_stick_click_hint">Dobbelttrykk og hold en stikke for L3 eller R3</string>
     <string name="ctrl_adaptive">Adaptive stikker</string>
     <string name="ctrl_rumble">Spillvibrasjon</string>
+    <string name="ctrl_dead_zone">Dødsone for styrespak</string>
     <string name="ctrl_steam_button">Steam-knapp</string>
     <string name="ctrl_qam_button">QAM-knapp</string>
     <string name="ctrl_keyboard_button">Tastatur-knapp</string>

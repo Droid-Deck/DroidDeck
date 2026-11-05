@@ -1106,6 +1106,7 @@
     <string name="ctrl_stick_click_hint">Dobbelttryk og hold en stick nede for L3 eller R3</string>
     <string name="ctrl_adaptive">Adaptive styrepinde</string>
     <string name="ctrl_rumble">Spilvibration</string>
+    <string name="ctrl_dead_zone">Dødzone for styrepind</string>
     <string name="ctrl_steam_button">Steam-knap</string>
     <string name="ctrl_qam_button">QAM-knap</string>
     <string name="ctrl_keyboard_button">Tastaturknap</string>

@@ -1184,6 +1184,7 @@
     <string name="ctrl_stick_click_hint">双击并按住摇杆可触发 L3 或 R3</string>
     <string name="ctrl_adaptive">自适应摇杆</string>
     <string name="ctrl_rumble">游戏震动</string>
+    <string name="ctrl_dead_zone">摇杆死区</string>
     <string name="ctrl_steam_button">Steam 按钮</string>
     <string name="ctrl_qam_button">QAM 按钮</string>
     <string name="ctrl_keyboard_button">键盘按钮</string>

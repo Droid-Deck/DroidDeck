@@ -1106,6 +1106,7 @@
     <string name="ctrl_stick_click_hint">L3 या R3 के लिए किसी स्टिक को डबल-टैप करके दबाए रखें</string>
     <string name="ctrl_adaptive">एडैप्टिव स्टिक</string>
     <string name="ctrl_rumble">गेम वाइब्रेशन</string>
+    <string name="ctrl_dead_zone">स्टिक का डेड ज़ोन</string>
     <string name="ctrl_steam_button">Steam बटन</string>
     <string name="ctrl_qam_button">QAM बटन</string>
     <string name="ctrl_keyboard_button">कीबोर्ड बटन</string>

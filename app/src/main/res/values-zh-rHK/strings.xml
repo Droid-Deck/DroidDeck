@@ -1100,6 +1100,7 @@
     <string name="ctrl_stick_click_hint">在搖桿上輕按兩下並按住，即可觸發 L3 或 R3</string>
     <string name="ctrl_adaptive">自動調整搖桿</string>
     <string name="ctrl_rumble">遊戲震動</string>
+    <string name="ctrl_dead_zone">搖桿死區</string>
     <string name="ctrl_steam_button">Steam 按鈕</string>
     <string name="ctrl_qam_button">QAM 按鈕</string>
     <string name="ctrl_keyboard_button">鍵盤按鈕</string>

@@ -1100,6 +1100,7 @@
     <string name="ctrl_stick_click_hint">แตะสองครั้งแล้วกดสติ๊กค้างไว้สำหรับ L3 หรือ R3</string>
     <string name="ctrl_adaptive">สติ๊กแบบปรับอัตโนมัติ</string>
     <string name="ctrl_rumble">การสั่นของเกม</string>
+    <string name="ctrl_dead_zone">เดดโซนของแอนะล็อกสติ๊ก</string>
     <string name="ctrl_steam_button">ปุ่ม Steam</string>
     <string name="ctrl_qam_button">ปุ่ม QAM</string>
     <string name="ctrl_keyboard_button">ปุ่มแป้นพิมพ์</string>

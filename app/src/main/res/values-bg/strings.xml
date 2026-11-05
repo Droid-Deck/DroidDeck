@@ -1106,6 +1106,7 @@
     <string name="ctrl_stick_click_hint">Докоснете двукратно и задръжте стик за L3 или R3</string>
     <string name="ctrl_adaptive">Адаптивни стикове</string>
     <string name="ctrl_rumble">Вибрация от играта</string>
+    <string name="ctrl_dead_zone">Мъртва зона на стика</string>
     <string name="ctrl_steam_button">Бутон Steam</string>
     <string name="ctrl_qam_button">Бутон QAM</string>
     <string name="ctrl_keyboard_button">Бутон за клавиатура</string>

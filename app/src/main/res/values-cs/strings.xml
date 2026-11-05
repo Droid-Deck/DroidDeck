@@ -1118,6 +1118,7 @@
     <string name="ctrl_stick_click_hint">Dvojitým dotykem a podržením páčky aktivujete L3 nebo R3</string>
     <string name="ctrl_adaptive">Adaptivní páčky</string>
     <string name="ctrl_rumble">Vibrace ve hře</string>
+    <string name="ctrl_dead_zone">Mrtvá zóna páčky</string>
     <string name="ctrl_steam_button">Tlačítko Steam</string>
     <string name="ctrl_qam_button">Tlačítko QAM</string>
     <string name="ctrl_keyboard_button">Tlačítko klávesnice</string>

@@ -1098,6 +1098,7 @@
     <string name="ctrl_stick_click_hint">L3 veya R3 için bir çubuğa çift dokunup basılı tutun</string>
     <string name="ctrl_adaptive">Uyarlanabilir çubuklar</string>
     <string name="ctrl_rumble">Oyun titreşimi</string>
+    <string name="ctrl_dead_zone">Çubuk ölü bölgesi</string>
     <string name="ctrl_steam_button">Steam düğmesi</string>
     <string name="ctrl_qam_button">QAM düğmesi</string>
     <string name="ctrl_keyboard_button">Klavye düğmesi</string>

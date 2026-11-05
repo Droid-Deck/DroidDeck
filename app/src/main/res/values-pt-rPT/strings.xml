@@ -1104,6 +1104,7 @@
     <string name="ctrl_stick_click_hint">Toque duas vezes num analógico e mantenha para L3 ou R3</string>
     <string name="ctrl_adaptive">Analógicos adaptáveis</string>
     <string name="ctrl_rumble">Vibração do jogo</string>
+    <string name="ctrl_dead_zone">Zona morta do manípulo</string>
     <string name="ctrl_steam_button">Botão Steam</string>
     <string name="ctrl_qam_button">Botão QAM</string>
     <string name="ctrl_keyboard_button">Botão do teclado</string>

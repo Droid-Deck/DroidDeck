@@ -1106,6 +1106,7 @@
     <string name="ctrl_stick_click_hint">Dubbeltik en houd een stick ingedrukt voor L3 of R3</string>
     <string name="ctrl_adaptive">Adaptieve sticks</string>
     <string name="ctrl_rumble">Trillen in games</string>
+    <string name="ctrl_dead_zone">Dode zone van stick</string>
     <string name="ctrl_steam_button">Steam-knop</string>
     <string name="ctrl_qam_button">QAM-knop</string>
     <string name="ctrl_keyboard_button">Toetsenbordknop</string>

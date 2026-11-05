@@ -1112,6 +1112,7 @@
     <string name="ctrl_stick_click_hint">Toca dos veces y mantén un stick para L3 o R3</string>
     <string name="ctrl_adaptive">Sticks adaptables</string>
     <string name="ctrl_rumble">Vibración en juegos</string>
+    <string name="ctrl_dead_zone">Zona muerta de la palanca</string>
     <string name="ctrl_steam_button">Botón Steam</string>
     <string name="ctrl_qam_button">Botón QAM</string>
     <string name="ctrl_keyboard_button">Botón de teclado</string>

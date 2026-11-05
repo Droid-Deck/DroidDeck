@@ -1118,6 +1118,7 @@
     <string name="ctrl_stick_click_hint">Двічі торкніться і затримайте стик, щоб отримати L3 або R3</string>
     <string name="ctrl_adaptive">Адаптивні стики</string>
     <string name="ctrl_rumble">Вібрація гри</string>
+    <string name="ctrl_dead_zone">Мертва зона стіка</string>
     <string name="ctrl_steam_button">Кнопка Steam</string>
     <string name="ctrl_qam_button">Кнопка QAM</string>
     <string name="ctrl_keyboard_button">Кнопка клавіатури</string>

@@ -1112,6 +1112,7 @@
     <string name="ctrl_stick_click_hint">Apasă de două ori și ține apăsată o manșă pentru L3 sau R3</string>
     <string name="ctrl_adaptive">Manșe adaptive</string>
     <string name="ctrl_rumble">Vibrații de joc</string>
+    <string name="ctrl_dead_zone">Zonă moartă a manetei</string>
     <string name="ctrl_steam_button">Butonul Steam</string>
     <string name="ctrl_qam_button">Butonul QAM</string>
     <string name="ctrl_keyboard_button">Butonul tastaturii</string>
