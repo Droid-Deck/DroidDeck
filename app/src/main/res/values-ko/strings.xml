@@ -1361,6 +1361,7 @@
     <string name="main_addons_close_session">가져오는 동안 게임이 애드온을 사용하지 않도록 먼저 세션을 종료하세요</string>
     <string name="main_addons_importing">%1$s(으)로 애드온 가져오는 중</string>
     <string name="main_addons_pick_zip">%1$s의 애드온 zip 선택</string>
+    <string name="main_addons_too_large">%1$s은(는) 너무 커서 가져올 수 없습니다</string>
     <string name="main_addons_none">%1$s에서 애드온을 찾을 수 없습니다</string>
     <plurals name="main_addons_imported">
         <item quantity="other">애드온 %1$d개를 %2$s(으)로 가져왔습니다</item>

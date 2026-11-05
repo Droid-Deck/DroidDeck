@@ -1361,6 +1361,7 @@
     <string name="main_addons_close_session">インポート中にゲームがアドオンを使用しないよう、先にセッションを終了してください</string>
     <string name="main_addons_importing">%1$sにアドオンをインポート中</string>
     <string name="main_addons_pick_zip">%1$sのアドオンzipを選択</string>
+    <string name="main_addons_too_large">%1$s は大きすぎるためインポートできません</string>
     <string name="main_addons_none">%1$sにアドオンが見つかりません</string>
     <plurals name="main_addons_imported">
         <item quantity="other">%1$d個のアドオンを%2$sにインポートしました</item>

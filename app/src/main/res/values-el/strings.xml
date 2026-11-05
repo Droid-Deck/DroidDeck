@@ -1370,6 +1370,7 @@
     <string name="main_addons_close_session">Κλείστε πρώτα τη συνεδρία, ώστε το παιχνίδι να μη χρησιμοποιεί τα πρόσθετά του κατά την εισαγωγή</string>
     <string name="main_addons_importing">Εισαγωγή προσθέτων στο %1$s</string>
     <string name="main_addons_pick_zip">Επιλέξτε ένα zip προσθέτων για το %1$s</string>
+    <string name="main_addons_too_large">Το %1$s είναι πολύ μεγάλο για εισαγωγή</string>
     <string name="main_addons_none">Δεν βρέθηκαν πρόσθετα στο %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">Έγινε εισαγωγή %1$d προσθέτου στο %2$s</item>

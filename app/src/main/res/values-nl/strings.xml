@@ -1370,6 +1370,7 @@
     <string name="main_addons_close_session">Sluit eerst de sessie, zodat de game tijdens de import geen addons gebruikt</string>
     <string name="main_addons_importing">Addons importeren in %1$s</string>
     <string name="main_addons_pick_zip">Kies een addon-zip voor %1$s</string>
+    <string name="main_addons_too_large">%1$s is te groot om te importeren</string>
     <string name="main_addons_none">Geen addons gevonden in %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">%1$d addon geïmporteerd in %2$s</item>

@@ -1406,6 +1406,7 @@
     <string name="main_addons_close_session">أغلِق الجلسة أولاً حتى لا تستخدم اللعبة إضافاتها أثناء الاستيراد</string>
     <string name="main_addons_importing">استيراد الإضافات إلى %1$s</string>
     <string name="main_addons_pick_zip">اختر ملف zip للإضافات الخاصة بـ %1$s</string>
+    <string name="main_addons_too_large">%1$s كبير جدًا بحيث لا يمكن استيراده</string>
     <string name="main_addons_none">لم يتم العثور على إضافات في %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="zero">تم استيراد %1$d إضافة إلى %2$s</item>

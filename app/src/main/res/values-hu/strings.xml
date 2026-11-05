@@ -1370,6 +1370,7 @@
     <string name="main_addons_close_session">Előbb zárja be a munkamenetet, hogy a játék ne használja a kiegészítőit az importálás alatt</string>
     <string name="main_addons_importing">Kiegészítők importálása ide: %1$s</string>
     <string name="main_addons_pick_zip">Válasszon kiegészítő zip fájlt ehhez: %1$s</string>
+    <string name="main_addons_too_large">A(z) %1$s túl nagy az importáláshoz</string>
     <string name="main_addons_none">Nem található kiegészítő itt: %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">%1$d kiegészítő importálva ide: %2$s</item>

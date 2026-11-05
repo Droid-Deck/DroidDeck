@@ -1370,6 +1370,7 @@
     <string name="main_addons_close_session">Luk sessionen først, så spillet ikke bruger sine addons under importen</string>
     <string name="main_addons_importing">Importerer addons til %1$s</string>
     <string name="main_addons_pick_zip">Vælg en zip med addons til %1$s</string>
+    <string name="main_addons_too_large">%1$s er for stor til at blive importeret</string>
     <string name="main_addons_none">Ingen addons fundet i %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">Importerede %1$d addon til %2$s</item>

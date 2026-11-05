@@ -1370,6 +1370,7 @@
     <string name="main_addons_close_session">Lukk sesjonen først, så spillet ikke bruker tilleggene under importen</string>
     <string name="main_addons_importing">Importerer tillegg til %1$s</string>
     <string name="main_addons_pick_zip">Velg en zip med tillegg for %1$s</string>
+    <string name="main_addons_too_large">%1$s er for stor til å importeres</string>
     <string name="main_addons_none">Fant ingen tillegg i %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">Importerte %1$d tillegg til %2$s</item>

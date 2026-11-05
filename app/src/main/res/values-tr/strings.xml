@@ -1362,6 +1362,7 @@
     <string name="main_addons_close_session">Önce oturumu kapatın; böylece oyun içe aktarma sırasında eklentilerini kullanmaz</string>
     <string name="main_addons_importing">Eklentiler içe aktarılıyor: %1$s</string>
     <string name="main_addons_pick_zip">%1$s için bir eklenti zip dosyası seçin</string>
+    <string name="main_addons_too_large">%1$s içe aktarılamayacak kadar büyük</string>
     <string name="main_addons_none">%1$s içinde eklenti bulunamadı</string>
     <plurals name="main_addons_imported">
         <item quantity="one">%1$d eklenti %2$s oyununa aktarıldı</item>

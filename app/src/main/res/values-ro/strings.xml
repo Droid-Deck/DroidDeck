@@ -1379,6 +1379,7 @@
     <string name="main_addons_close_session">Închide mai întâi sesiunea, ca jocul să nu folosească suplimentele în timpul importului</string>
     <string name="main_addons_importing">Se importă suplimente în %1$s</string>
     <string name="main_addons_pick_zip">Alege o arhivă zip de suplimente pentru %1$s</string>
+    <string name="main_addons_too_large">%1$s este prea mare pentru a fi importat</string>
     <string name="main_addons_none">Nu s-au găsit suplimente în %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">S-a importat %1$d supliment în %2$s</item>

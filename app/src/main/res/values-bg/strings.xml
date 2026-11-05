@@ -1370,6 +1370,7 @@
     <string name="main_addons_close_session">Затвори сесията първо, за да не използва играта добавките си по време на импортирането</string>
     <string name="main_addons_importing">Импортиране на добавки в %1$s</string>
     <string name="main_addons_pick_zip">Избор на ZIP файл с добавки за %1$s</string>
+    <string name="main_addons_too_large">%1$s е твърде голям за импортиране</string>
     <string name="main_addons_none">Не са намерени добавки в %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">Импортирана %1$d добавка в %2$s</item>

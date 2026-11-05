@@ -1361,6 +1361,7 @@
     <string name="main_addons_close_session">ปิดเซสชันก่อน เพื่อไม่ให้เกมใช้แอดออนระหว่างการนำเข้า</string>
     <string name="main_addons_importing">กำลังนำเข้าแอดออนสู่ %1$s</string>
     <string name="main_addons_pick_zip">เลือกไฟล์ zip แอดออนสำหรับ %1$s</string>
+    <string name="main_addons_too_large">%1$s มีขนาดใหญ่เกินกว่าจะนำเข้าได้</string>
     <string name="main_addons_none">ไม่พบแอดออนใน %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="other">นำเข้า %1$d แอดออนสู่ %2$s แล้ว</item>

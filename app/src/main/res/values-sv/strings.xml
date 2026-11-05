@@ -1370,6 +1370,7 @@
     <string name="main_addons_close_session">Stäng sessionen först, så att spelet inte använder sina tillägg under importen</string>
     <string name="main_addons_importing">Importerar tillägg till %1$s</string>
     <string name="main_addons_pick_zip">Välj en zip-fil med tillägg för %1$s</string>
+    <string name="main_addons_too_large">%1$s är för stor för att importeras</string>
     <string name="main_addons_none">Inga tillägg hittades i %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">Importerade %1$d tillägg till %2$s</item>

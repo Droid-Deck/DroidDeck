@@ -1371,6 +1371,7 @@
     <string name="main_addons_close_session">Feche a sessão primeiro, para que o jogo não use os addons durante a importação</string>
     <string name="main_addons_importing">Importando addons para %1$s</string>
     <string name="main_addons_pick_zip">Escolha um zip de addons para %1$s</string>
+    <string name="main_addons_too_large">%1$s é grande demais para importar</string>
     <string name="main_addons_none">Nenhum addon encontrado em %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">%1$d addon importado para %2$s</item>

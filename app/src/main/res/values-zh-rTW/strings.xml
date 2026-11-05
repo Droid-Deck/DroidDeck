@@ -1361,6 +1361,7 @@
     <string name="main_addons_close_session">請先關閉工作階段，以免遊戲在匯入期間使用外掛</string>
     <string name="main_addons_importing">正在匯入外掛到 %1$s</string>
     <string name="main_addons_pick_zip">選擇 %1$s 的外掛 zip</string>
+    <string name="main_addons_too_large">%1$s 太大，無法匯入</string>
     <string name="main_addons_none">在 %1$s 中找不到外掛</string>
     <plurals name="main_addons_imported">
         <item quantity="other">已匯入 %1$d 個外掛到 %2$s</item>

@@ -444,7 +444,7 @@ class FrontEndActivity : ComponentActivity() {
                 val imported = try {
                     com.droiddeck.launcher.runtime.WowAddons.import(zip, target)
                 } catch (_: com.droiddeck.launcher.runtime.WowAddons.TooLarge) {
-                    return@saveAction getString(R.string.deckymgr_zip_too_large)
+                    return@saveAction getString(R.string.main_addons_too_large, zip.name)
                 }
                 if (imported.isEmpty()) getString(R.string.main_addons_none, zip.name)
                 else resources.getQuantityString(R.plurals.main_addons_imported, imported.size, imported.size, target.flavor)

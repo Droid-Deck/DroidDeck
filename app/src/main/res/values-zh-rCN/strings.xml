@@ -1445,6 +1445,7 @@
     <string name="main_addons_close_session">请先关闭会话，以免游戏在导入期间使用其插件</string>
     <string name="main_addons_importing">正在导入插件到 %1$s</string>
     <string name="main_addons_pick_zip">为 %1$s 选择插件 zip 包</string>
+    <string name="main_addons_too_large">%1$s 太大，无法导入</string>
     <string name="main_addons_none">在 %1$s 中未找到插件</string>
     <plurals name="main_addons_imported">
         <item quantity="other">已导入 %1$d 个插件到 %2$s</item>

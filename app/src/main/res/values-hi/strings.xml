@@ -1370,6 +1370,7 @@
     <string name="main_addons_close_session">पहले सेशन बंद करें, ताकि इंपोर्ट के दौरान गेम अपने ऐडऑन का उपयोग न करे</string>
     <string name="main_addons_importing">%1$s में ऐडऑन इंपोर्ट हो रहे हैं</string>
     <string name="main_addons_pick_zip">%1$s के लिए ऐडऑन zip चुनें</string>
+    <string name="main_addons_too_large">%1$s इंपोर्ट करने के लिए बहुत बड़ा है</string>
     <string name="main_addons_none">%1$s में कोई ऐडऑन नहीं मिला</string>
     <plurals name="main_addons_imported">
         <item quantity="one">%1$d ऐडऑन %2$s में इंपोर्ट हुआ</item>

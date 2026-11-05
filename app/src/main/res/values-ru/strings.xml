@@ -1388,6 +1388,7 @@
     <string name="main_addons_close_session">Сначала закройте сессию, чтобы игра не использовала аддоны во время импорта</string>
     <string name="main_addons_importing">Импорт аддонов в %1$s</string>
     <string name="main_addons_pick_zip">Выберите zip-архив аддонов для %1$s</string>
+    <string name="main_addons_too_large">%1$s слишком большой для импорта</string>
     <string name="main_addons_none">Аддоны не найдены в %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">Импортирован %1$d аддон в %2$s</item>

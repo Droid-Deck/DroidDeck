@@ -1362,6 +1362,7 @@
     <string name="main_addons_close_session">Schließe zuerst die Sitzung, damit das Spiel seine Addons während des Imports nicht verwendet</string>
     <string name="main_addons_importing">Addons werden in %1$s importiert</string>
     <string name="main_addons_pick_zip">Addon-ZIP für %1$s auswählen</string>
+    <string name="main_addons_too_large">%1$s ist zu groß zum Importieren</string>
     <string name="main_addons_none">Keine Addons in %1$s gefunden</string>
     <plurals name="main_addons_imported">
         <item quantity="one">%1$d Addon in %2$s importiert</item>

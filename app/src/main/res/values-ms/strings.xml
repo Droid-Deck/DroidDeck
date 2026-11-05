@@ -1361,6 +1361,7 @@
     <string name="main_addons_close_session">Tutup sesi dahulu, supaya permainan tidak menggunakan addonnya semasa import</string>
     <string name="main_addons_importing">Mengimport addon ke %1$s</string>
     <string name="main_addons_pick_zip">Pilih zip addon untuk %1$s</string>
+    <string name="main_addons_too_large">%1$s terlalu besar untuk diimport</string>
     <string name="main_addons_none">Tiada addon ditemui dalam %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="other">Berjaya mengimport %1$d addon ke %2$s</item>

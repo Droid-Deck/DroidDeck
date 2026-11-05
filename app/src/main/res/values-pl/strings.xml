@@ -1388,6 +1388,7 @@
     <string name="main_addons_close_session">Najpierw zamknij sesję, aby gra nie używała dodatków podczas importu</string>
     <string name="main_addons_importing">Importowanie dodatków do %1$s</string>
     <string name="main_addons_pick_zip">Wybierz plik zip z dodatkami dla %1$s</string>
+    <string name="main_addons_too_large">Plik %1$s jest za duży, aby go zaimportować</string>
     <string name="main_addons_none">Nie znaleziono dodatków w %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">Zaimportowano %1$d dodatek do %2$s</item>

@@ -1370,6 +1370,7 @@
     <string name="main_addons_close_session">Sulje istunto ensin, jotta peli ei käytä lisäosiaan tuonnin aikana</string>
     <string name="main_addons_importing">Tuodaan lisäosia kohteeseen %1$s</string>
     <string name="main_addons_pick_zip">Valitse lisäosien zip-tiedosto kohteelle %1$s</string>
+    <string name="main_addons_too_large">%1$s on liian suuri tuotavaksi</string>
     <string name="main_addons_none">Lisäosia ei löytynyt kohteesta %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">Tuotiin %1$d lisäosa kohteeseen %2$s</item>
