@@ -585,7 +585,7 @@
     <string name="perf_ram_cap_hint">Steam istemcisi Steam oturumunda veya masaüstünden çalışırken uygulanır. Oturum bundan fazlasını kullandığında önce Steam, ardından oturumun desteklenen diğer işlemleri zRAM\'e sıkıştırılır. Yumuşak bir sınırdır: hiçbir şey kapatılmaz, ancak sayfalar geri yüklenirken oyunlar takılabilir.</string>
     <string name="perf_ram_cap_unavailable">Bu cihazda olmayan zRAM takası gerekir.</string>
     <string name="perf_vram_cap">VRAM sınırı</string>
-    <string name="perf_vram_cap_hint">DXVK\'nin Direct3D oyunlarına bildirdiği video belleği; böylece oyunlar dokuları daha az belleğe göre ayarlar. Oyunun kendi DXVK ayarları yine önceliklidir. Sonraki oturumda geçerli olur.</string>
+    <string name="perf_vram_cap_hint">Bellek kullanımını azaltmak için Direct3D 9–12 oyunlarına bu video belleği bütçesini bildirir. Oyunlar bütçeyi aşabilir; GPU sayfalaması eklemez veya bellek yetersizliğinden kaynaklanan çökmeleri önlemeyi garanti etmez. Sonraki oturumda geçerli olur.</string>
     <string name="perf_gpuclock">GPU\'yu en yüksek saat hızında tut</string>
     <string name="perf_gpuclock_hint">Yalnızca Adreno. Daha az takılma, daha fazla pil tüketimi ve ısınma.</string>
     <string name="perf_fixes">Oturum düzeltmeleri</string>

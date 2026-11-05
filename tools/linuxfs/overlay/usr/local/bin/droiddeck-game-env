@@ -360,6 +360,8 @@ def vram_cap(env):
     cap = "dxgi.maxDeviceMemory = %d" % int(value)
     own = result.get("DXVK_CONFIG", "").strip().strip(";").strip()
     result["DXVK_CONFIG"] = cap + "; " + own if own else cap
+    result["DROIDDECK_VRAM_CAP"] = "1"
+    result["DROIDDECK_VRAM_CAP_MB"] = value
     return result
 
 
