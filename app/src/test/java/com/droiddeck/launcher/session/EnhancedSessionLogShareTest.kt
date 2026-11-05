@@ -148,8 +148,12 @@ class EnhancedSessionLogShareTest {
 
         assertEquals(Intent.ACTION_SEND_MULTIPLE, send.action)
         assertEquals("application/zip", send.type)
-        assertEquals(3, send.getParcelableArrayListExtra<android.net.Uri>(Intent.EXTRA_STREAM)!!.size)
+        val uris = send.getParcelableArrayListExtra<android.net.Uri>(Intent.EXTRA_STREAM)!!
+        assertEquals(3, uris.size)
         assertEquals(3, send.clipData!!.itemCount)
+        assertTrue(send.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+        val header = app.contentResolver.openInputStream(uris.first())!!.use { it.readNBytes(4) }
+        assertEquals("PK\u0003\u0004", String(header, Charsets.ISO_8859_1))
         SessionLogShare.clear(app)
     }
 
