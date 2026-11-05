@@ -30,7 +30,7 @@ _bl_pids=(123) _bl_game=1 _bl_packed=-1 _bl_pressure_at=-1 _bl_pressure_backoff=
 rss=$((384 * 1024)) client_swap=$((512 * 1024)) reclaimed=$((128 * 1024))
 step() { :; }
 bl_zram_usage() { _bl_rss=$rss _bl_swap=$client_swap; }
-bl_zram_send() { echo "send:$1:$3"; rss=$((rss - reclaimed)); }
+bl_zram_send() { echo "send:$1:$3"; rss=$((rss - reclaimed)); _bl_pageout_complete=${pageout_complete:-1}; }
 ''' + functions + '\nbl_memory_read\n' + body
         result = run_bash(harness)
         self.assertEqual(0, result.returncode, result.stderr)
@@ -107,6 +107,30 @@ if bl_client_can_readback; then echo yes; else echo no; fi
 client_swap=$((1024 * 1024))
 if bl_client_can_readback; then echo yes; else echo no; fi
 '''))
+
+    def test_unfinished_pageout_does_not_increase_the_ineffective_reclaim_backoff(self):
+        self.assertEqual(['send:1:client', 'backoff:30'], self.run_policy('''
+reclaimed=0 pageout_complete=0
+SECONDS=0; bl_client_pressure
+echo "backoff:$_bl_pressure_backoff"
+'''))
+
+    def test_pageout_completion_requires_a_finished_ack_from_every_live_target(self):
+        proc = self.root / 'proc'
+        proc.mkdir()
+        for pid in (123, 456):
+            (proc / str(pid)).mkdir()
+        source = function_source('bl_zram_wait').replace('/proc/', str(proc) + '/')
+        source = source.replace('/tmp/.bl-zram.ack.', str(self.root / 'ack.'))
+        for pending in ('done', 'running', 'not_started'):
+            with self.subTest(pending=pending):
+                (self.root / 'ack.123').write_text('1')
+                if pending != 'not_started':
+                    (self.root / 'ack.456').write_text('1' if pending == 'done' else '')
+                result = run_bash('nap() { SECONDS=$((SECONDS + 1)); }\n' + source +
+                                  '\nSECONDS=0; bl_zram_wait 123 456; echo "$_bl_pageout_complete"')
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual('1' if pending == 'done' else '0', result.stdout.strip())
 
     def test_pressure_prevents_prefetch_even_if_the_client_would_fit(self):
         self.memory(available=2048, psi='2.00')

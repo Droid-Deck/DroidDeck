@@ -768,6 +768,7 @@ case $mode in
           local _before=$_bl_rss
           bl_zram_send 1 "memory pressure, compressing the client (available $((_bl_available / 1024)) MB, swap free $((_bl_swap_free / 1024)) MB)" client
           _bl_packed=$SECONDS
+          [ "${_bl_pageout_complete:-0}" = 1 ] || return 0
           bl_zram_usage "${_bl_pids[@]}" > /dev/null
           if [ $((_before - _bl_rss)) -lt $((16 * 1024)) ]; then
             _bl_pressure_backoff=$((_bl_pressure_backoff * 2 > 300 ? 300 : _bl_pressure_backoff * 2))
@@ -803,7 +804,11 @@ case $mode in
             [ "$_left" = 1 ] || break
             nap 0.2
           done
-          for _p in "$@"; do rm -f "/tmp/.bl-zram.ack.$_p"; done
+          _bl_pageout_complete=1
+          for _p in "$@"; do
+            if [ -d "/proc/$_p" ] && [ ! -s "/tmp/.bl-zram.ack.$_p" ]; then _bl_pageout_complete=0; fi
+            rm -f "/tmp/.bl-zram.ack.$_p"
+          done
         }
         bl_zram_send() {
           local _mode=$1 _what=$2 _which=$3 _pids _p
