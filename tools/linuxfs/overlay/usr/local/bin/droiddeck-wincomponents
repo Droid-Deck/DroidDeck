@@ -612,7 +612,7 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
 def native_dll(pfx, name):
     for arch in ARCH_DIRS:
         path = existing(pfx / "drive_c/windows" / arch / (name + ".dll"))
-        if path is None or builtin(path):
+        if path is None or builtin(path) or not os.access(path, os.R_OK):
             return False
     return True
 
