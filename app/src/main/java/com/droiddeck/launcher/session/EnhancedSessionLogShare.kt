@@ -9,17 +9,22 @@ import com.droiddeck.launcher.runtime.BattleNet
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.FileInputStream
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.Channels
 import java.nio.channels.FileChannel
 import java.nio.channels.SeekableByteChannel
+import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.attribute.BasicFileAttributes
 import java.security.MessageDigest
 import java.util.Locale
 import java.util.zip.ZipEntry
@@ -59,11 +64,25 @@ internal object EnhancedSessionLogShare {
 
     private data class Snapshot(val file: File, val sourceBytes: Long, val truncated: Boolean)
 
-    private data class CollectionResult(val candidates: List<Candidate>, val truncated: Boolean)
+    private data class CollectionResult(
+        val candidates: List<Candidate>,
+        val truncated: Boolean,
+        val partial: Boolean,
+    )
 
-    private data class ScanResult(val files: List<File>, val truncated: Boolean)
+    private data class ScanResult(
+        val files: List<File>,
+        val truncated: Boolean,
+        val partial: Boolean = false,
+    )
 
     private data class LegacySource(val file: File, val root: File, val entry: String)
+
+    private data class LegacyDiscovery(
+        val sources: List<LegacySource>,
+        val truncated: Boolean,
+        val partial: Boolean,
+    )
 
     private class Budget(val limit: Long, var remaining: Long = limit)
 
@@ -123,6 +142,7 @@ internal object EnhancedSessionLogShare {
                     if (category == Category.SESSION) addTrustedActivation(context, folder, archive)?.let(records::add)
                     if (selected.isEmpty()) records += Record("", category.suffix, "unavailable", reason = "no-matching-artifacts")
                     if (discovery.truncated) records += Record("", "discovery", "truncated", reason = "candidate-limit")
+                    if (discovery.partial) records += Record("", "discovery", "truncated", reason = "filesystem-error")
                     addManifest(
                         archive, folder.name, category.suffix, records, limits, budget.limit, redactionLearningComplete,
                     )
@@ -173,6 +193,7 @@ internal object EnhancedSessionLogShare {
                 }
                 addTrustedActivation(context, folder, archive)?.let(records::add)
                 if (discovery.truncated) records += Record("", "discovery", "truncated", reason = "candidate-limit")
+                if (discovery.partial) records += Record("", "discovery", "truncated", reason = "filesystem-error")
                 addManifest(archive, folder.name, "all", records, limits, budget.limit, redactionLearningComplete)
             }
             zip
@@ -212,7 +233,13 @@ internal object EnhancedSessionLogShare {
         } ?: return Record(candidate.entry, candidate.origin, "omitted", reason = "unsafe-or-unavailable-source")
         if (snapshot.file.length() == 0L && candidate.linePrefix != null) {
             snapshot.file.delete()
-            return Record(candidate.entry, candidate.origin, "unavailable", snapshot.sourceBytes, reason = "no-matching-lines")
+            return Record(
+                candidate.entry,
+                candidate.origin,
+                if (snapshot.truncated) "truncated" else "unavailable",
+                snapshot.sourceBytes,
+                reason = if (snapshot.truncated) "no-matching-lines-in-bounded-scan" else "no-matching-lines",
+            )
         }
         return try {
             budget.remaining -= snapshot.file.length()
@@ -282,7 +309,7 @@ internal object EnhancedSessionLogShare {
         target.outputStream().buffered().use { output ->
             fun scan(start: Long, count: Long, discardPartialFirstLine: Boolean) {
                 channel.position(start)
-                val input = Channels.newInputStream(channel)
+                val input = BufferedInputStream(Channels.newInputStream(channel), COPY_BUFFER_BYTES)
                 val line = ByteArrayOutputStream(1024)
                 var oversized = false
                 var scanned = 0L
@@ -336,33 +363,19 @@ internal object EnhancedSessionLogShare {
         return try {
             val parts = relative.map { it.toString() }
             if (parts.isEmpty()) return null
-            val rootFd = openDescriptor(root.toString()) ?: return null
-            if (!OsConstants.S_ISDIR(Os.fstat(rootFd).st_mode)) {
-                Os.close(rootFd)
-                return null
-            }
-            opened += duplicateAndClose(rootFd)
+            opened += openDirectoryDescriptor(root.toString()) ?: return null
             for (part in parts.dropLast(1)) {
-                val childFd = openDescriptor(procChild(opened.last(), part)) ?: return null
-                if (!OsConstants.S_ISDIR(Os.fstat(childFd).st_mode)) {
-                    Os.close(childFd)
-                    return null
-                }
-                opened += duplicateAndClose(childFd)
+                opened += openDirectoryDescriptor(procChild(opened.last(), part)) ?: return null
             }
             val leafFd = openDescriptor(procChild(opened.last(), parts.last())) ?: return null
-            val stat = Os.fstat(leafFd)
-            if (!OsConstants.S_ISREG(stat.st_mode) || stat.st_nlink != 1L) {
-                Os.close(leafFd)
-                return null
+            try {
+                val stat = Os.fstat(leafFd)
+                if (!OsConstants.S_ISREG(stat.st_mode) || stat.st_nlink != 1L) return null
+                // Android's FileInputStream(FileDescriptor) is deliberately not the descriptor owner.
+                FileInputStream(leafFd).use { stream -> block(stream.channel) }
+            } finally {
+                runCatching { Os.close(leafFd) }
             }
-            val stream = try {
-                FileInputStream(leafFd)
-            } catch (error: Exception) {
-                Os.close(leafFd)
-                throw error
-            }
-            stream.use { block(it.channel) }
         } catch (_: Exception) {
             null
         } finally {
@@ -378,12 +391,15 @@ internal object EnhancedSessionLogShare {
         )
     }.getOrNull()
 
-    private fun duplicateAndClose(fd: java.io.FileDescriptor): ParcelFileDescriptor =
-        try {
+    private fun openDirectoryDescriptor(path: String): ParcelFileDescriptor? {
+        val fd = openDescriptor(path) ?: return null
+        return try {
+            if (!OsConstants.S_ISDIR(Os.fstat(fd).st_mode)) return null
             ParcelFileDescriptor.dup(fd)
         } finally {
-            Os.close(fd)
+            runCatching { Os.close(fd) }
         }
+    }
 
     private fun procChild(directory: ParcelFileDescriptor, name: String): String =
         "/proc/self/fd/${directory.fd}/$name"
@@ -436,13 +452,12 @@ internal object EnhancedSessionLogShare {
         var start = (sourceSize - limit).coerceAtLeast(0)
         if (start > 0) {
             input.position(start)
-            val one = ByteBuffer.allocate(1)
+            val buffered = BufferedInputStream(Channels.newInputStream(input), COPY_BUFFER_BYTES)
             while (start < sourceSize) {
-                one.clear()
-                if (input.read(one) < 0) return
+                val value = buffered.read()
+                if (value < 0) return
                 start++
-                one.flip()
-                if (one.get() == '\n'.code.toByte()) break
+                if (value == '\n'.code) break
             }
         }
         copy(input, output, start, (sourceSize - start).coerceAtMost(limit))
@@ -502,6 +517,7 @@ internal object EnhancedSessionLogShare {
         val categoryCounts = HashMap<Category, Int>()
         val perCategory = (maxFiles / Category.values().size).coerceAtLeast(1)
         var truncated = false
+        var partial = false
         fun add(
             file: File,
             root: File,
@@ -511,7 +527,7 @@ internal object EnhancedSessionLogShare {
             linePrefix: String? = null,
         ) {
             val safe = safeEntry(entry) ?: return
-            val category = forcedCategory ?: category(entry)
+            val category = forcedCategory ?: category(entry.removePrefix("${folder.name}/"))
             if (out.size >= maxFiles || (categoryCounts[category] ?: 0) >= perCategory) {
                 truncated = true
                 return
@@ -542,6 +558,7 @@ internal object EnhancedSessionLogShare {
             val steam = File(SessionPrefs.activeSteamRoot(context), "logs")
             val scan = directFiles(steam, remaining(maxFiles, out.size))
             truncated = truncated || scan.truncated
+            partial = partial || scan.partial
             scan.files.forEach {
                 add(it, steam, "${folder.name}/steam/${it.name}", "live-steam")
             }
@@ -550,17 +567,22 @@ internal object EnhancedSessionLogShare {
         for ((name, root) in listOf(SessionLogShare.STORES_DIR to File(logs, SessionLogShare.STORES_DIR), SessionPaths.TOOLS_DIR to File(logs, SessionPaths.TOOLS_DIR))) {
             val scan = directFiles(root, remaining(maxFiles, out.size))
             truncated = truncated || scan.truncated
+            partial = partial || scan.partial
             scan.files.asSequence().filter { recent(it) }
                 .forEach { add(it, root, "$name/${it.name}", name) }
         }
         if (legacy) {
-            legacyBattleNet(context).forEach { source ->
+            val scan = legacyBattleNet(context)
+            truncated = truncated || scan.truncated
+            partial = partial || scan.partial
+            scan.sources.forEach { source ->
                 add(source.file, source.root, source.entry, "battlenet")
             }
         } else {
             battleNetRoots(context).forEach { (prefix, root) ->
                 val scan = walk(root, remaining(maxFiles, out.size))
                 truncated = truncated || scan.truncated
+                partial = partial || scan.partial
                 scan.files.asSequence().filter { recent(it) && it.name.endsWith(".log", true) }
                     .forEach { file ->
                         val relative = root.toPath().toAbsolutePath().normalize().relativize(file.toPath().toAbsolutePath().normalize()).joinToString("/")
@@ -570,13 +592,14 @@ internal object EnhancedSessionLogShare {
         }
         val sessionScan = walk(folder, remaining(maxFiles, out.size))
         truncated = truncated || sessionScan.truncated
+        partial = partial || sessionScan.partial
         sessionScan.files.forEach { file ->
             val relative = file.toPath().toAbsolutePath().normalize()
                 .let { folder.toPath().toAbsolutePath().normalize().relativize(it).joinToString("/") }
             if (relative == EnhancedDiagnostics.MANIFEST_FILE) return@forEach
             add(file, folder, "${folder.name}/$relative", "session")
         }
-        return CollectionResult(out.values.toList(), truncated)
+        return CollectionResult(out.values.toList(), truncated, partial)
     }
 
     private fun remaining(maxFiles: Int, found: Int): Int = (maxFiles - found + 1).coerceAtLeast(0)
@@ -585,38 +608,69 @@ internal object EnhancedSessionLogShare {
         if (limit <= 0 || !root.isDirectory || Files.isSymbolicLink(root.toPath())) return ScanResult(emptyList(), false)
         val files = ArrayList<File>(limit)
         var truncated = false
-        Files.walk(root.toPath()).use { paths ->
-            val iterator = paths.iterator()
-            var visited = 0
-            val visitLimit = (limit * 4).coerceAtLeast(limit).coerceAtMost(MAX_DISCOVERY_VISITS)
-            while (iterator.hasNext() && files.size < limit && visited < visitLimit) {
-                val path = iterator.next()
-                visited++
-                if (path != root.toPath() &&
-                    (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(path))) {
-                    files += path.toFile()
+        var partial = false
+        var visited = 0
+        val rootPath = root.toPath()
+        val visitLimit = (limit * 4).coerceAtLeast(limit).coerceAtMost(MAX_DISCOVERY_VISITS)
+        try {
+            Files.walkFileTree(rootPath, object : SimpleFileVisitor<Path>() {
+                private fun countVisit(): FileVisitResult {
+                    visited++
+                    return if (visited > visitLimit) {
+                        truncated = true
+                        FileVisitResult.TERMINATE
+                    } else FileVisitResult.CONTINUE
                 }
-            }
-            truncated = iterator.hasNext()
+
+                override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult =
+                    if (dir == rootPath) FileVisitResult.CONTINUE else countVisit()
+
+                override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                    if (countVisit() == FileVisitResult.TERMINATE) return FileVisitResult.TERMINATE
+                    if (files.size >= limit) {
+                        truncated = true
+                        return FileVisitResult.TERMINATE
+                    }
+                    if (attrs.isRegularFile || Files.isSymbolicLink(file)) files += file.toFile()
+                    return FileVisitResult.CONTINUE
+                }
+
+                override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
+                    partial = true
+                    return countVisit()
+                }
+
+                override fun postVisitDirectory(dir: Path, exc: IOException?): FileVisitResult {
+                    if (exc != null) partial = true
+                    return FileVisitResult.CONTINUE
+                }
+            })
+        } catch (_: Exception) {
+            partial = true
         }
-        return ScanResult(files, truncated)
+        return ScanResult(files, truncated, partial)
     }
 
     private fun directFiles(root: File, limit: Int): ScanResult {
         if (limit <= 0 || !root.isDirectory || Files.isSymbolicLink(root.toPath())) return ScanResult(emptyList(), false)
         val files = ArrayList<File>(limit)
         var truncated = false
-        Files.newDirectoryStream(root.toPath()).use { entries ->
-            val iterator = entries.iterator()
-            while (iterator.hasNext() && files.size < limit) {
-                val path = iterator.next()
-                if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(path)) {
-                    files += path.toFile()
+        var partial = false
+        try {
+            Files.newDirectoryStream(root.toPath()).use { entries ->
+                val iterator = entries.iterator()
+                while (iterator.hasNext() && files.size < limit) {
+                    val path = iterator.next()
+                    if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(path)) {
+                        files += path.toFile()
+                    }
                 }
+                truncated = iterator.hasNext()
             }
-            truncated = iterator.hasNext()
+        } catch (_: Exception) {
+            partial = true
         }
-        return ScanResult(files, truncated)
+        return ScanResult(files, truncated, partial)
     }
 
     private fun battleNetRoots(context: Context): List<Pair<String, File>> {
@@ -630,25 +684,31 @@ internal object EnhancedSessionLogShare {
         )
     }
 
-    private fun legacyBattleNet(context: Context): List<LegacySource> {
+    private fun legacyBattleNet(context: Context): LegacyDiscovery {
         val drive = File(BattleNet.prefix(context), "pfx/drive_c")
         val data = File(drive, "ProgramData/Battle.net")
         val agent = File(data, "Agent")
         val setup = File(data, "Setup")
-        return legacyNewest(
-            "droiddeck",
-            listOf(File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/battlenet")),
-            2,
-            setOf("battlenet.log", "spawned.log"),
-        ) + legacyNewest(
-            "client", listOf(File(drive, "users/steamuser/AppData/Local/Battle.net/Logs")), 6,
-        ) + legacyNewest(
-            "agent",
-            listOf(File(agent, "Logs")) + childDirectories(agent, "Agent.").map { File(it, "Logs") },
-            10,
-            byDir = true,
-        ) + legacyNewest(
-            "setup", childDirectories(setup, "").map { File(it, "Logs") }, 3, byDir = true,
+        val agentChildren = childDirectories(agent, "Agent.")
+        val setupChildren = childDirectories(setup, "")
+        val scans = listOf(
+            legacyNewest(
+                "droiddeck",
+                listOf(File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/battlenet")),
+                2,
+                setOf("battlenet.log", "spawned.log"),
+            ),
+            legacyNewest("client", listOf(File(drive, "users/steamuser/AppData/Local/Battle.net/Logs")), 6),
+            legacyNewest(
+                "agent", listOf(File(agent, "Logs")) + agentChildren.files.map { File(it, "Logs") }, 10,
+                byDir = true,
+            ),
+            legacyNewest("setup", setupChildren.files.map { File(it, "Logs") }, 3, byDir = true),
+        )
+        return LegacyDiscovery(
+            scans.flatMap { it.sources },
+            scans.any { it.truncated } || agentChildren.truncated || setupChildren.truncated,
+            scans.any { it.partial } || agentChildren.partial || setupChildren.partial,
         )
     }
 
@@ -658,29 +718,50 @@ internal object EnhancedSessionLogShare {
         count: Int,
         names: Set<String>? = null,
         byDir: Boolean = false,
-    ): List<LegacySource> = roots.flatMap { root ->
-        directFiles(root, MAX_BATTLENET_SCAN).files.asSequence()
-            .filter { recent(it) && it.name.endsWith(".log") && it.length() <= LEGACY_LOG_MAX_BYTES }
-            .filter { names == null || it.name in names }
-            .map { it to root }
-            .toList()
-    }.sortedByDescending { it.first.lastModified() }.take(count).map { (file, root) ->
-        val relative = if (byDir) "$folder/${file.parentFile?.parentFile?.name}/${file.name}" else "$folder/${file.name}"
-        LegacySource(file, root, "battlenet/$relative")
+    ): LegacyDiscovery {
+        val found = ArrayList<Pair<File, File>>()
+        var truncated = false
+        var partial = false
+        roots.forEach { root ->
+            val scan = directFiles(root, MAX_BATTLENET_SCAN)
+            truncated = truncated || scan.truncated
+            partial = partial || scan.partial
+            found += scan.files.asSequence()
+                .filter { recent(it) && it.name.endsWith(".log") && it.length() <= LEGACY_LOG_MAX_BYTES }
+                .filter { names == null || it.name in names }
+                .map { it to root }
+                .toList()
+        }
+        val ordered = found.sortedByDescending { it.first.lastModified() }
+        return LegacyDiscovery(
+            ordered.take(count).map { (file, root) ->
+                val relative = if (byDir) "$folder/${file.parentFile?.parentFile?.name}/${file.name}" else "$folder/${file.name}"
+                LegacySource(file, root, "battlenet/$relative")
+            },
+            truncated || ordered.size > count,
+            partial,
+        )
     }
 
-    private fun childDirectories(root: File, prefix: String): List<File> {
-        if (!root.isDirectory || Files.isSymbolicLink(root.toPath())) return emptyList()
+    private fun childDirectories(root: File, prefix: String): ScanResult {
+        if (!root.isDirectory || Files.isSymbolicLink(root.toPath())) return ScanResult(emptyList(), false)
         val found = ArrayList<File>()
-        Files.newDirectoryStream(root.toPath()).use { entries ->
-            val iterator = entries.iterator()
-            while (iterator.hasNext() && found.size < MAX_BATTLENET_DIRECTORIES) {
-                val path = iterator.next()
-                if (path.fileName.toString().startsWith(prefix) &&
-                    Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS) && !Files.isSymbolicLink(path)) found += path.toFile()
+        var truncated = false
+        var partial = false
+        try {
+            Files.newDirectoryStream(root.toPath()).use { entries ->
+                val iterator = entries.iterator()
+                while (iterator.hasNext() && found.size < MAX_BATTLENET_DIRECTORIES) {
+                    val path = iterator.next()
+                    if (path.fileName.toString().startsWith(prefix) &&
+                        Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS) && !Files.isSymbolicLink(path)) found += path.toFile()
+                }
+                truncated = iterator.hasNext()
             }
+        } catch (_: Exception) {
+            partial = true
         }
-        return found
+        return ScanResult(found, truncated, partial)
     }
 
     private fun recent(file: File): Boolean = file.lastModified() >= System.currentTimeMillis() - RECENT_MILLIS
@@ -741,6 +822,7 @@ internal object EnhancedSessionLogShare {
         "events.jsonl", "memory.csv", "capture.json", "crash.log",
     )
     private const val RECENT_MILLIS = 7L * 24 * 60 * 60 * 1000
+    private const val COPY_BUFFER_BYTES = 64 * 1024
     private const val TRACE_SCAN_BYTES = 16L * 1024 * 1024
     private const val LEGACY_LOG_MAX_BYTES = 8L * 1024 * 1024
     private const val MAX_BATTLENET_SCAN = 64

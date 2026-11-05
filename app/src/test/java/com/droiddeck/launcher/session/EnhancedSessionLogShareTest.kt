@@ -14,7 +14,13 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.RandomAccessFile
+import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
+import java.nio.channels.SeekableByteChannel
 import java.nio.file.Files
+import java.nio.file.StandardOpenOption
+import java.nio.file.attribute.PosixFilePermissions
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.zip.ZipFile
 import org.junit.After
 import org.junit.Before
@@ -28,6 +34,32 @@ class EnhancedSessionLogShareTest {
     @Before fun installSecureSourceOpener() = installJvmSecureSourceOpener()
 
     @After fun resetSourceOpener() = resetSecureSourceOpener()
+
+    private class CountingChannel(
+        private val delegate: SeekableByteChannel,
+        private val reads: AtomicInteger,
+    ) : SeekableByteChannel by delegate {
+        override fun read(dst: ByteBuffer): Int {
+            reads.incrementAndGet()
+            return delegate.read(dst)
+        }
+    }
+
+    private fun installCountingSourceOpener(reads: AtomicInteger) {
+        EnhancedSessionLogShare.setSourceOpenerForTest(object : SecureSourceOpener {
+            override fun <T> withChannel(
+                root: java.nio.file.Path,
+                relative: java.nio.file.Path,
+                block: (SeekableByteChannel) -> T,
+            ): T? {
+                val source = root.resolve(relative).normalize()
+                if (!source.startsWith(root) || Files.isSymbolicLink(source)) return null
+                return FileChannel.open(source, StandardOpenOption.READ).use { channel ->
+                    block(CountingChannel(channel, reads))
+                }
+            }
+        })
+    }
 
     @Test fun diagnosticsAreSplitIntoManifestedArchivesWithOneSessionIdentity() {
         val session = tmp.newFolder("2026-11-04-01-steam")
@@ -147,6 +179,32 @@ class EnhancedSessionLogShareTest {
                 .bufferedReader().readText()
             assertEquals("DROIDDECK_PROCESS_TRACE pid=42 gpuLibs=libvulkan.so\n", process)
         }
+        SessionLogShare.clear(app)
+    }
+
+    @Test fun byteOrientedTraceAndTailScansUseBufferedChannelReads() {
+        val traceSession = tmp.newFolder("2026-11-04-05-buffered-trace")
+        traceSession.resolve("session.log").writeText("x".repeat(1024 * 1024))
+        val traceReads = AtomicInteger()
+        installCountingSourceOpener(traceReads)
+
+        EnhancedSessionLogShare.create(app, traceSession)
+
+        assertTrue("trace scan used ${traceReads.get()} channel reads", traceReads.get() < 200)
+        SessionLogShare.clear(app)
+
+        val tailSession = tmp.newFolder("2026-11-04-05-buffered-tail")
+        tailSession.resolve("steam-7.log").writeText("x".repeat(1024 * 1024))
+        val tailReads = AtomicInteger()
+        installCountingSourceOpener(tailReads)
+
+        EnhancedSessionLogShare.create(
+            app,
+            tailSession,
+            limits = EnhancedShareLimits(maxBytesPerFile = 64 * 1024L, maxBytesTotal = 512 * 1024L),
+        )
+
+        assertTrue("tail scan used ${tailReads.get()} channel reads", tailReads.get() < 100)
         SessionLogShare.clear(app)
     }
 
@@ -287,6 +345,79 @@ class EnhancedSessionLogShareTest {
             val entries = manifest.getJSONArray("entries")
             assertTrue((0 until entries.length()).map { entries.getJSONObject(it) }.any {
                 it.optString("origin") == "guest-process-trace" && it.optString("status") == "truncated"
+            })
+        }
+        SessionLogShare.clear(app)
+    }
+
+    @Test fun filteredTraceWithMatchesOnlyOutsideTheScannedRangesStaysTruncated() {
+        val session = tmp.newFolder("2026-11-04-12-partial-empty")
+        val source = session.resolve("session.log")
+        RandomAccessFile(source, "rw").use { file ->
+            file.setLength(17L * 1024 * 1024)
+            file.seek(8L * 1024 * 1024 + 256 * 1024)
+            file.write("DROIDDECK_FRAME_TRACE hidden-in-middle=1\n".toByteArray())
+        }
+
+        val graphics = EnhancedSessionLogShare.create(app, session).single { it.name.endsWith("-graphics.zip") }
+
+        ZipFile(graphics).use { archive ->
+            assertTrue(archive.getEntry("${session.name}/graphics/frame-trace.log") == null)
+            val manifest = JSONObject(archive.getInputStream(archive.getEntry("diagnostics-manifest.json"))
+                .bufferedReader().readText())
+            val entries = manifest.getJSONArray("entries")
+            val record = (0 until entries.length()).map { entries.getJSONObject(it) }
+                .single { it.optString("origin") == "guest-frame-trace" }
+            assertEquals("truncated", record.getString("status"))
+            assertEquals("no-matching-lines-in-bounded-scan", record.getString("reason"))
+        }
+        SessionLogShare.clear(app)
+    }
+
+    @Test fun sessionNameCannotMisclassifyPrimarySessionAndGraphicsLogs() {
+        val session = tmp.newFolder("2026-11-04-12-wine")
+        session.resolve("session.log").writeText("session\n")
+        session.resolve("wayland.log").writeText("graphics\n")
+
+        val zips = EnhancedSessionLogShare.create(app, session)
+        val sessionEntries = ZipFile(zips.single { it.name.endsWith("-session.zip") }).use { archive ->
+            archive.entries().toList().map { it.name }
+        }
+        val graphicsEntries = ZipFile(zips.single { it.name.endsWith("-graphics.zip") }).use { archive ->
+            archive.entries().toList().map { it.name }
+        }
+        val gameEntries = ZipFile(zips.single { it.name.endsWith("-games.zip") }).use { archive ->
+            archive.entries().toList().map { it.name }
+        }
+
+        assertTrue(sessionEntries.contains("${session.name}/session.log"))
+        assertTrue(graphicsEntries.contains("${session.name}/wayland.log"))
+        assertFalse(gameEntries.contains("${session.name}/session.log"))
+        assertFalse(gameEntries.contains("${session.name}/wayland.log"))
+        SessionLogShare.clear(app)
+    }
+
+    @Test fun unreadableDiscoverySubtreeKeepsOtherLogsAndMarksTheManifestPartial() {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"))
+        val session = tmp.newFolder("2026-11-04-12-partial-discovery")
+        session.resolve("session.log").writeText("safe\n")
+        val blocked = session.resolve("blocked").apply { mkdir(); resolve("hidden.log").writeText("hidden\n") }
+        val original = Files.getPosixFilePermissions(blocked.toPath())
+        Files.setPosixFilePermissions(blocked.toPath(), PosixFilePermissions.fromString("---------"))
+        val sessionZip = try {
+            EnhancedSessionLogShare.create(app, session).single { it.name.endsWith("-session.zip") }
+        } finally {
+            Files.setPosixFilePermissions(blocked.toPath(), original)
+        }
+
+        ZipFile(sessionZip).use { archive ->
+            assertTrue(archive.getEntry("${session.name}/session.log") != null)
+            val manifest = JSONObject(archive.getInputStream(archive.getEntry("diagnostics-manifest.json"))
+                .bufferedReader().readText())
+            val entries = manifest.getJSONArray("entries")
+            assertTrue((0 until entries.length()).map { entries.getJSONObject(it) }.any {
+                it.optString("origin") == "discovery" && it.optString("status") == "truncated" &&
+                    it.optString("reason") == "filesystem-error"
             })
         }
         SessionLogShare.clear(app)
