@@ -429,7 +429,8 @@ object AutoComponents {
             val selection = WinComponents.selection(context, key)
             val user = selection.user
             val installed = installedOf(context)
-            val required = withParts(selection.effective.filter { WinComponents.validId(it) }, catalog)
+            val roots = selection.effective + wanted.keys.filter { user[it] != false }
+            val required = withParts(roots.filter { WinComponents.validId(it) }, catalog)
             val missing = required.filter { user[it] != false && it !in installed }
             Pending.update(context, key, catalog.mapValues { it.value.revision }) { ids ->
                 ids.filter { id -> user[id] != false && (id !in installed && id !in wanted || (Pending.revision(context, id) ?: 0) > (catalog[id]?.revision ?: 0)) } + missing

@@ -321,7 +321,6 @@ class WinCompSourcesTest {
         session = true
         gameUp = true
         val appId = 9876543
-        catalog3.forEach { WinComponents.setUser(app, appId.toString(), it.name, true) }
 
         AutoComponents.prepareLaunch(app, payback(appId))
 
