@@ -808,7 +808,7 @@
     <string name="setup_gpu_unsupported">GPU không được hỗ trợ</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam cần driver Adreno; %1$s có thể hiện màn hình đen</string>
+    <string name="setup_gpu_unsupported_detail">Không có backend đồ họa tương thích cho %1$s. Steam có thể hiển thị màn hình đen.</string>
     <string name="setup_runtime">Runtime Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Chưa cài · khoảng 3 GB, được cài vào lần Play đầu tiên</string>

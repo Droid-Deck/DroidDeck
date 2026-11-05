@@ -814,7 +814,7 @@
     <string name="setup_gpu_unsupported">GPU neacceptat</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam are nevoie de un driver Adreno; %1$s poate arăta un ecran negru</string>
+    <string name="setup_gpu_unsupported_detail">Nu este disponibil un backend grafic compatibil pentru %1$s. Steam poate afișa un ecran negru.</string>
     <string name="setup_runtime">Mediul de execuție Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Neinstalat · circa 3 GB, instalat la prima apăsare pe Play</string>

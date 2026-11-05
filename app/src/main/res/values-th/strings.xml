@@ -808,7 +808,7 @@
     <string name="setup_gpu_unsupported">ไม่รองรับ GPU นี้</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam ต้องใช้ไดรเวอร์ Adreno; %1$s อาจแสดงจอดำ</string>
+    <string name="setup_gpu_unsupported_detail">ไม่มีแบ็กเอนด์กราฟิกที่เข้ากันได้สำหรับ %1$s Steam อาจแสดงหน้าจอสีดำ</string>
     <string name="setup_runtime">รันไทม์ Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">ยังไม่ติดตั้ง · ประมาณ 3 GB จะติดตั้งเมื่อกด Play ครั้งแรก</string>

@@ -1522,6 +1522,15 @@ class GameEnvironmentTest(unittest.TestCase):
             named = game_logs(command, on, None, now=0)
             self.assertTrue(Path(named["PROTON_LOG_DIR"]).name.endswith("-Hades"))
 
+    def test_rapid_game_launches_keep_separate_diagnostics(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch("subprocess.Popen"):
+            env = {"BL_GAME_LOGS": "1", "BL_DEBUG_DIR": tmp}
+            first = MODULE["game_logs"](["/proton", "waitforexitandrun", "first.exe"], env, "42", now=0)
+            second = MODULE["game_logs"](["/proton", "waitforexitandrun", "second.exe"], env, "42", now=0)
+            self.assertNotEqual(first["PROTON_LOG_DIR"], second["PROTON_LOG_DIR"])
+            self.assertIn("exe: first.exe", (Path(first["PROTON_LOG_DIR"]) / "launch.txt").read_text())
+            self.assertIn("exe: second.exe", (Path(second["PROTON_LOG_DIR"]) / "launch.txt").read_text())
+
     def test_open_driver_pairs_report_the_drivers_own_vkd3d_caps(self):
         apply = MODULE["apply_config"]
         config = {"version": 1, "shared": {"VKD3D_FEATURE_LEVEL": "12_2", "VKD3D_SHADER_MODEL": "6_9"},

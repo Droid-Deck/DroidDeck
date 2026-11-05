@@ -1075,9 +1075,10 @@ def game_logs(command, env, app_id, now=None):
     import time
     stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(now))
     name = app_id or re.sub(r"[^A-Za-z0-9._-]+", "_", Path(command[2]).stem)[:40] or "game"
-    folder = Path(env["BL_DEBUG_DIR"]) / "games" / ("%s-%s" % (stamp, name))
+    parent = Path(env["BL_DEBUG_DIR"]) / "games"
     try:
-        folder.mkdir(parents=True, exist_ok=True)
+        parent.mkdir(parents=True, exist_ok=True)
+        folder = Path(tempfile.mkdtemp(prefix=stamp + "-", suffix="-" + name, dir=parent))
     except OSError as error:
         print("droiddeck-game-env: no game log folder (%s)" % error, file=sys.stderr)
         return env

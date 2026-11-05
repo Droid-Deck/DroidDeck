@@ -817,7 +817,7 @@
     <string name="setup_gpu_unsupported">GPU nieobsługiwany</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam wymaga sterownika Adreno; %1$s może wyświetlać czarny ekran</string>
+    <string name="setup_gpu_unsupported_detail">Brak zgodnego zaplecza graficznego dla %1$s. Steam może wyświetlać czarny ekran.</string>
     <string name="setup_runtime">Środowisko Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Nie zainstalowano · ok. 3 GB, instalowane przy pierwszym „Graj”</string>

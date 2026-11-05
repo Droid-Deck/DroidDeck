@@ -841,7 +841,7 @@
     <string name="setup_gpu_unsupported">GPU no compatible</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam necesita un controlador Adreno; %1$s puede mostrar una pantalla negra</string>
+    <string name="setup_gpu_unsupported_detail">No hay un motor gráfico compatible disponible para %1$s. Steam puede mostrar una pantalla negra.</string>
     <string name="setup_runtime">Runtime de Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">No instalado · unos 3 GB, se instala al jugar por primera vez</string>

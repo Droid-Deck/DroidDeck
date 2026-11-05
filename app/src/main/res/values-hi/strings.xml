@@ -811,7 +811,7 @@
     <string name="setup_gpu_unsupported">GPU समर्थित नहीं</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam को Adreno ड्राइवर चाहिए; %1$s में काली स्क्रीन दिख सकती है</string>
+    <string name="setup_gpu_unsupported_detail">%1$s के लिए कोई संगत ग्राफ़िक्स बैकएंड उपलब्ध नहीं है। Steam काली स्क्रीन दिखा सकता है।</string>
     <string name="setup_runtime">Linux रनटाइम</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">इंस्टॉल नहीं है · लगभग 3 GB, पहली बार Play पर इंस्टॉल होगा</string>

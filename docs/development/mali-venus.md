@@ -36,7 +36,7 @@ Other open problems:
 - Steam's UI blocks 30 s at a time on `IClientFriends::GetVoiceMicrophoneVolume`. A launch looks stuck on "Launching" even after the game died.
 - The render server aborts ("pthread_mutex_lock called on a destroyed mutex") when a context dies after an error. Not fixed.
 - The phone runs short of memory: about 1-2 GB free during a session. BC decoding makes textures 4-8x bigger.
-- Prototype 13 is not debuggable, so `adb run-as` fails and the hand-install loop below does not work.
+- Prototype 13 is not debuggable, so private-storage access through `adb run-as` is unavailable.
   - To debug again: add `debuggable true` to the `release` build type in `app/build.gradle`, rebuild, reinstall. Keep it out of commits.
   - A debuggable build shows a harmless "not 16 KB-compatible" dialog.
 
@@ -49,7 +49,7 @@ How a game frame reaches the screen (Silksong, 1280x720):
 3. gamescope uploads that `wl_shm` buffer into a texture (patch 0927), composites, and hands a dma-buf to the app.
 4. The app's compositor draws it at 60 Hz. Its own work is about 2-3 ms a frame (`wayland.log`, `perf` lines).
 
-Measured with `tools/venus/measure-present.patch` (see "Measuring a frame" below):
+Measured with `tools/venus/measure-present.patch`:
 
 | Per frame | Prototype 12 | Prototype 13 |
 |---|---|---|
@@ -156,7 +156,7 @@ App (Kotlin/C):
   - Enables only the dma-buf extensions the driver has.
   - Logs the driver's full extension list.
   - Gives a zero row pitch a packed 64-byte row (gamescope's 1x1 root buffer).
-- `gpu/GpuInfo.kt`, `MainActivity.kt`, `core/DeviceReport.kt`: wording, plus a "Venus" line in `device.txt`.
+- `gpu/GpuInfo.kt`, `FrontEndActivity.kt`, `core/DeviceReport.kt`: wording, plus a "Venus" line in `device.txt`.
 - `session/SessionFiles.kt`: stages the Mali compatibility layer when the APK carries it.
 - `tools/linuxfs/preload/venus.c` (new, part of `libblsession`): unsets `LIBGL_KOPPER_DISABLE` when `VN_DEBUG` has `vtest`.
   - Steam's `steamwebhelper.sh` sets it unconditionally.

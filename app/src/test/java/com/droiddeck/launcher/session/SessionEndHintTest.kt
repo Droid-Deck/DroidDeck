@@ -8,6 +8,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -31,10 +32,16 @@ class SessionEndHintTest {
     @get:Rule val temporary = TemporaryFolder()
     private lateinit var activity: SessionActivity
     private var previousArchitecture: String? = null
+    private var previousLog: File? = null
+    private var previousDirectory: File? = null
 
     @Before
     fun setUp() {
         previousArchitecture = SessionState.steamClientArch
+        previousLog = SessionState.logFile
+        previousDirectory = SessionState.logDirectory
+        SessionState.logFile = null
+        SessionState.logDirectory = null
         DetectedGpu.family = GpuInfo.Family.NOT_ADRENO
         activity = Robolectric.buildActivity(SessionActivity::class.java).get()
         SessionState.steamClientArch = "arm64"
@@ -43,6 +50,8 @@ class SessionEndHintTest {
     @After
     fun tearDown() {
         SessionState.steamClientArch = previousArchitecture
+        SessionState.logFile = previousLog
+        SessionState.logDirectory = previousDirectory
         DetectedGpu.family = GpuInfo.Family.NOT_ADRENO
     }
 
@@ -81,9 +90,29 @@ class SessionEndHintTest {
 
     @Test
     fun vulkanFailureOnNonAdrenoExplainsTheMissingLinuxDriver() {
-        DetectedGpu.family = GpuInfo.Family.NOT_ADRENO
+        for (family in GpuInfo.Family.entries.filter { it.mali || it == GpuInfo.Family.POWERVR || it == GpuInfo.Family.NOT_ADRENO }) {
+            DetectedGpu.family = family
+            assertEquals(family.name, activity.getString(R.string.session_end_gpu_unsupported), hintText(vulkanLog()))
+        }
+    }
 
-        assertEquals(activity.getString(R.string.session_end_gpu_unsupported), hintText(vulkanLog()))
+    @Test
+    fun cleanExitRetainsAnUnrecoveredPresentationFault() {
+        SessionState.logDirectory = temporary.root
+        File(temporary.root, "wayland.log").writeText("DD_PRESENT_FAULT: GPU completion is unknown\n")
+        val hint = exitHint(0)
+        assertNotNull(hint)
+        assertEquals(activity.getString(R.string.session_end_present_fault, "GPU completion is unknown"),
+            ReflectionHelpers.getField<String>(hint, "text"))
+        assertTrue(ReflectionHelpers.getField(hint, "evenOnSuccess"))
+    }
+
+    @Test
+    fun cleanExitIgnoresRecoveredFaultsAndUnrelatedSessionWarnings() {
+        SessionState.logDirectory = temporary.root
+        File(temporary.root, "wayland.log").writeText("DD_PRESENT_FAULT: old fault\npresentation recovered: fault cleared\n")
+        SessionState.logFile = sigillLog()
+        assertNull(exitHint(0))
     }
 
     @Test
@@ -102,6 +131,9 @@ class SessionEndHintTest {
 
     private fun hint(log: File?): Any? = SessionActivity::class.java
         .getDeclaredMethod("sessionEndHint", File::class.java).apply { isAccessible = true }.invoke(activity, log)
+
+    private fun exitHint(status: Int): Any? = SessionActivity::class.java
+        .getDeclaredMethod("sessionExitHint", Int::class.javaPrimitiveType).apply { isAccessible = true }.invoke(activity, status)
 
     private fun hintText(log: File): String {
         val result = hint(log)

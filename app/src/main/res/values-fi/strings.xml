@@ -811,7 +811,7 @@
     <string name="setup_gpu_unsupported">GPU ei ole tuettu</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam tarvitsee Adreno-ajurin; %1$s saattaa näyttää mustan ruudun</string>
+    <string name="setup_gpu_unsupported_detail">GPU:lle %1$s ei ole saatavilla yhteensopivaa grafiikkataustajärjestelmää. Steam saattaa näyttää mustan ruudun.</string>
     <string name="setup_runtime">Linux-ajoympäristö</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Ei asennettu · noin 3 GB, asennetaan ensimmäisellä Pelaa-painalluksella</string>

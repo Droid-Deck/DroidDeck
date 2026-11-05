@@ -817,7 +817,7 @@
     <string name="setup_gpu_unsupported">GPU не підтримується</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam потребує драйвера Adreno; %1$s може показувати чорний екран</string>
+    <string name="setup_gpu_unsupported_detail">Для %1$s немає сумісного графічного бекенда. Steam може показувати чорний екран.</string>
     <string name="setup_runtime">Середовище Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Не встановлено · приблизно 3 GB, встановлюється під час першого натискання «Грати»</string>

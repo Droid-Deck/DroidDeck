@@ -811,7 +811,7 @@
     <string name="setup_gpu_unsupported">GPU desteklenmiyor</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam için Adreno sürücüsü gerekir; %1$s siyah ekran gösterebilir</string>
+    <string name="setup_gpu_unsupported_detail">%1$s için uyumlu bir grafik arka ucu yok. Steam siyah ekran gösterebilir.</string>
     <string name="setup_runtime">Linux çalışma zamanı</string>
     <string name="setup_runtime_progress">%1$s · %%%2$d</string>
     <string name="setup_runtime_missing">Yüklü değil · yaklaşık 3 GB, ilk kez Oyna\'ya basınca yüklenir</string>

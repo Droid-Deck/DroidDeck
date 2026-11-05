@@ -811,7 +811,7 @@
     <string name="setup_gpu_unsupported">A GPU nem támogatott</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">A Steamnek Adreno-illesztőprogram szükséges; a %1$s fekete képernyőt jeleníthet meg</string>
+    <string name="setup_gpu_unsupported_detail">Nincs kompatibilis grafikus háttérrendszer ehhez: %1$s. A Steam fekete képernyőt jeleníthet meg.</string>
     <string name="setup_runtime">Linux futtatókörnyezet</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Nincs telepítve · kb. 3 GB, az első Játék gombnyomáskor települ</string>

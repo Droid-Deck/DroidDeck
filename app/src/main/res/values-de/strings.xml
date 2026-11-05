@@ -811,7 +811,7 @@
     <string name="setup_gpu_unsupported">GPU nicht unterstützt</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam benötigt einen Adreno-Treiber; %1$s zeigt möglicherweise einen schwarzen Bildschirm</string>
+    <string name="setup_gpu_unsupported_detail">Für %1$s ist kein kompatibles Grafik-Backend verfügbar. Steam zeigt möglicherweise einen schwarzen Bildschirm.</string>
     <string name="setup_runtime">Linux-Laufzeit</string>
     <string name="setup_runtime_progress">%1$s · %2$d %%</string>
     <string name="setup_runtime_missing">Nicht installiert · ca. 3 GB, wird beim ersten „Spielen“ installiert</string>
