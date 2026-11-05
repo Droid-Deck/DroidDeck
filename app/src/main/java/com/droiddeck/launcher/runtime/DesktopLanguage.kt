@@ -2,6 +2,7 @@ package com.droiddeck.launcher.runtime
 
 import android.content.Context
 import android.util.Log
+import com.droiddeck.launcher.BuildConfig
 import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.core.Hashes
@@ -39,15 +40,16 @@ object DesktopLanguage {
         val root = LinuxRuntime.rootDir(context)
         if (!DesktopCatalog.desktopInstalled(root)) return true
         val entry = DesktopCatalog.desktopEntry(context)
-        val pending = candidates(locale).filterNot { marker(root, entry.version, it).isFile }
+        val tag = "${entry.version}-${BuildConfig.DESKTOP_KDE_TAG}"
+        val pending = candidates(locale).filterNot { marker(root, tag, it).isFile }
         if (pending.isEmpty()) return true
-        val base = baseUrl(entry.url)
+        val base = baseUrl(BuildConfig.DESKTOP_KDE_URL)
         val index = parseIndex(Downloader.downloadString(base + INDEX) ?: return false)
         var complete = true
         for (name in pending) {
             val pack = index[name]
             if (pack == null) {
-                FileUtils.writeString(marker(root, entry.version, name), ABSENT)
+                FileUtils.writeString(marker(root, tag, name), ABSENT)
                 continue
             }
             val download = File(context.cacheDir, "i18n-$name-${pack.sha256.take(12)}.download")
@@ -56,7 +58,7 @@ object DesktopLanguage {
                     base + "desktop-kde-i18n-$name.tar.zst", download, true, pack.sha256, java.util.function.Consumer<Float> { },
                 ) && pack.sha256.equals(Hashes.sha256(download), ignoreCase = true) &&
                     LinuxRuntimeInstaller.extract(context, download, root, null)
-                if (ok) FileUtils.writeString(marker(root, entry.version, name), pack.sha256) else complete = false
+                if (ok) FileUtils.writeString(marker(root, tag, name), pack.sha256) else complete = false
             } catch (e: Exception) {
                 Log.w(TAG, "language pack $name: $e")
                 complete = false

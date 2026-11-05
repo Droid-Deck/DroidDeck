@@ -93,6 +93,30 @@ class GameExitDiagnosticsTest(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertEqual(cleaned, [True])
 
+    def test_diagnostic_supervision_keeps_ubisoft_composition_setup(self):
+        events = []
+
+        class Process:
+            def wait(self):
+                events.append("wait")
+                return 0
+
+        def composition_off(proton, env):
+            events.append(("composition", proton, env))
+
+        def popen(command, env):
+            events.append(("launch", command, env))
+            return Process()
+
+        launch = ["/proton", "waitforexitandrun", "game.exe"]
+        env = {"STEAM_COMPAT_DATA_PATH": "/compatdata/42"}
+        with mock.patch.dict(MODULE["start"].__globals__, ubisoft_composition_off=composition_off), \
+             mock.patch("subprocess.Popen", side_effect=popen), \
+             contextlib.redirect_stderr(io.StringIO()):
+            status = MODULE["start"](launch, env, None, diagnostic_app_id="42")
+        self.assertEqual(status, 0)
+        self.assertEqual(events, [("composition", "/proton", env), ("launch", launch, env), "wait"])
+
     def test_diagnostic_install_script_keeps_success_recording(self):
         recorded = []
         with mock.patch.dict(MODULE["start"].__globals__, record_install_scripts=lambda digest, env: recorded.append((digest, env))), \

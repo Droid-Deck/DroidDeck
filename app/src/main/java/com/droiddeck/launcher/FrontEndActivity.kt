@@ -198,6 +198,7 @@ class FrontEndActivity : ComponentActivity() {
     private var gameStoresEnabled by mutableStateOf(true)
     private var gameStoresSpeedTier by mutableStateOf("fast")
     private var navRequest by mutableStateOf<String?>(null)
+    private val gameLaunchRequest = java.util.concurrent.atomic.AtomicLong()
     private var storesShowMature by mutableStateOf(false)
     private var storesSort by mutableStateOf(SessionPrefs.STORES_SORTS.first())
     private var storesView by mutableStateOf(SessionPrefs.DEFAULT_STORES_VIEW)
@@ -209,6 +210,7 @@ class FrontEndActivity : ComponentActivity() {
     private var wifiDiscoveryBlocked by mutableStateOf(false)
     private var integrationState by mutableStateOf(SteamIntegration.State())
     private var integrationFocus by mutableStateOf<SteamIntegration.Feature?>(null)
+    private var pendingSessionLogExport: File? = null
     private val wifiLocationReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
             refreshWifiDiscovery()
@@ -267,6 +269,26 @@ class FrontEndActivity : ComponentActivity() {
         val then = onSavePicked.also { onSavePicked = null } ?: return@registerForActivityResult
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let(then)
     }
+    private val pickSessionLogExport = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        val folder = pendingSessionLogExport.also { pendingSessionLogExport = null } ?: return@registerForActivityResult
+        if (uri != null) {
+            SessionLogShare.prepare(this, { folder }) { zip ->
+                if (zip == null) {
+                    android.widget.Toast.makeText(this, R.string.setup_log_export_failed, android.widget.Toast.LENGTH_LONG).show()
+                } else Thread({
+                    val saved = runCatching {
+                        contentResolver.openOutputStream(uri)?.use { output -> zip.inputStream().buffered().use { it.copyTo(output) } }
+                            ?: error("Could not open destination")
+                    }.isSuccess
+                    ui.post {
+                        android.widget.Toast.makeText(this,
+                            if (saved) R.string.setup_log_export_saved else R.string.setup_log_export_failed,
+                            android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }, "save-session-logs").start()
+            }
+        }
+    }
 
     private fun refreshWifiDiscovery() {
         wifiDiscoveryPermission = WifiDiscovery.permissionGranted(this)
@@ -324,11 +346,8 @@ class FrontEndActivity : ComponentActivity() {
             SteamIntegration.Feature.HOME -> if (HomeApp.isDefault(this)) HomeApp.openSystemHomeSettings(this) else offerHomeScreen()
             SteamIntegration.Feature.SHORTCUTS -> {
                 if (!integrationState.shortcuts) shortcutsTried = true
-                if (!HomeApp.isDefault(this)) configureIntegration(SteamIntegration.Feature.HOME)
-                else {
-                    SteamIntegration.setShortcutsListed(this, true)
-                    integrationSettings(SteamIntegration.shortcutSettings(this), android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                }
+                SteamIntegration.setShortcutsListed(this, true)
+                integrationSettings(SteamIntegration.shortcutSettings(this), android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
             }
         }
     }
@@ -1031,6 +1050,7 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingSessionLogExport = savedInstanceState?.getString(KEY_PENDING_SESSION_LOG_EXPORT)?.let(::File)
         homeChoiceOpen = savedInstanceState?.getBoolean(STATE_HOME_CHOICE_OPEN) == true
         gameSpaceOffered = savedInstanceState?.getBoolean(STATE_GAME_SPACE_OFFERED) == true
         if (savedInstanceState == null) readIntegrationIntent(intent)
@@ -1168,8 +1188,13 @@ class FrontEndActivity : ComponentActivity() {
                         onSteamGame = { g ->
                             if (shortcutPicker) chooseGameShortcut(g)
                             else {
-                                com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g)
-                                com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) { launchGame(g) }
+                                val request = gameLaunchRequest.incrementAndGet()
+                                com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g) {
+                                    if (request != gameLaunchRequest.get() || isFinishing || isDestroyed) return@beforeLaunch
+                                    com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) {
+                                        if (request == gameLaunchRequest.get() && !isFinishing && !isDestroyed) launchGame(g)
+                                    }
+                                }
                             }
                         },
                         onEpicLauncher = { openEpicLauncher() },
@@ -1322,6 +1347,25 @@ class FrontEndActivity : ComponentActivity() {
                                     else startActivity(SessionLogShare.shareIntent(this, zip))
                                 }
                             }
+                        },
+                        onShareSessionLog = { folder ->
+                            SessionLogShare.prepare(this, { folder }) { zip ->
+                                if (zip == null) android.widget.Toast.makeText(this, R.string.main_no_logs_yet, android.widget.Toast.LENGTH_LONG).show()
+                                else startActivity(SessionLogShare.shareIntent(this, zip))
+                            }
+                        },
+                        onSaveSessionLog = { folder ->
+                            pendingSessionLogExport = folder
+                            pickSessionLogExport.launch("DroidDeck-${folder.name}.zip")
+                        },
+                        onDeleteSessionLog = { folder, done ->
+                            Thread({
+                                val deleted = runCatching { SessionLogShare.deleteSession(this, folder) }.getOrDefault(false)
+                                ui.post {
+                                    if (!deleted) android.widget.Toast.makeText(this, R.string.setup_log_delete_failed, android.widget.Toast.LENGTH_SHORT).show()
+                                    done()
+                                }
+                            }, "delete-session-logs").start()
                         },
                         onClearLogs = {
                             Thread({
@@ -1828,6 +1872,7 @@ class FrontEndActivity : ComponentActivity() {
         super.onSaveInstanceState(outState)
         outState.putBoolean(STATE_HOME_CHOICE_OPEN, homeChoiceOpen)
         outState.putBoolean(STATE_GAME_SPACE_OFFERED, gameSpaceOffered)
+        pendingSessionLogExport?.let { outState.putString(KEY_PENDING_SESSION_LOG_EXPORT, it.absolutePath) }
         if (slowUsbNever) SessionPrefs.setSlowUsbWarningOff(this)
         saveCompatLaunch(outState)
         pendingSwitch?.let { outState.putParcelable(KEY_PENDING_SWITCH, it) }
@@ -1842,6 +1887,7 @@ class FrontEndActivity : ComponentActivity() {
         else @Suppress("DEPRECATION") state.getParcelable(key)
 
     override fun onDestroy() {
+        gameLaunchRequest.incrementAndGet()
         cancelCompatLaunch()
         updates.unregister()
         super.onDestroy()
@@ -2920,6 +2966,7 @@ class FrontEndActivity : ComponentActivity() {
 
     companion object {
         private const val STATE_HOME_CHOICE_OPEN = "home_choice_open"
+        private const val KEY_PENDING_SESSION_LOG_EXPORT = "pending_session_log_export"
         private const val STATE_GAME_SPACE_OFFERED = "game_space_offered"
         private const val TAG = "MainActivity"
         private const val MEDIA_SETTLE_MS = 1500L
