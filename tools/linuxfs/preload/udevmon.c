@@ -102,7 +102,7 @@ static int make_stand_in(int type) {
   return -1;
 }
 
-__attribute__((visibility("hidden"))) int bl_nl_socket(int *fd);
+__attribute__((visibility("hidden"))) int bl_nl_socket(int type, int *fd);
 __attribute__((visibility("hidden"))) int bl_nl_owns(int fd);
 __attribute__((visibility("hidden"))) int bl_nl_getsockname(int fd, struct sockaddr *addr,
                                                             socklen_t *len, int *rc);
@@ -118,7 +118,7 @@ int socket(int domain, int type, int protocol) {
   }
   if (domain == AF_NETLINK && protocol == NETLINK_ROUTE) {
     int route_fd;
-    bl_nl_socket(&route_fd);
+    bl_nl_socket(type, &route_fd);
     return route_fd;
   }
   fd = real_socket(domain, type, protocol);

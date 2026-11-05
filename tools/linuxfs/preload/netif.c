@@ -705,7 +705,7 @@ static unsigned nl_port_of(int fd) {
     return port;
 }
 
-__attribute__((visibility("hidden"))) int bl_nl_socket(int *fd);
+__attribute__((visibility("hidden"))) int bl_nl_socket(int type, int *fd);
 __attribute__((visibility("hidden"))) int bl_nl_bind(int fd, const struct sockaddr *addr,
                                                      socklen_t len, int *rc);
 __attribute__((visibility("hidden"))) int bl_nl_getsockname(int fd, struct sockaddr *addr,
@@ -718,9 +718,10 @@ __attribute__((visibility("hidden"))) int bl_nl_recvmsg(int fd, struct msghdr *m
 
 int bl_nl_owns(int fd) { return nl_peer_of(fd) >= 0; }
 
-int bl_nl_socket(int *fd) {
+int bl_nl_socket(int type, int *fd) {
     int pair[2], slot = -1;
-    if (socketpair(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0, pair) != 0) {
+    int flags = SOCK_CLOEXEC | (type & SOCK_NONBLOCK);
+    if (socketpair(AF_UNIX, SOCK_DGRAM | flags, 0, pair) != 0) {
         *fd = -1;
         return 1;
     }
@@ -817,13 +818,16 @@ void bl_nl_closed(int fd) {
 int bl_nl_recvmsg(int fd, struct msghdr *msg, int flags,
                   ssize_t (*real)(int, struct msghdr *, int), ssize_t *rc) {
     ssize_t result;
+    socklen_t capacity = 0;
     if (!bl_nl_owns(fd)) return 0;
+    if (msg && msg->msg_name) capacity = msg->msg_namelen;
     result = real(fd, msg, flags);
     if (result >= 0 && msg && msg->msg_name) {
         struct sockaddr_nl nl;
         memset(&nl, 0, sizeof(nl));
         nl.nl_family = AF_NETLINK;
-        memcpy(msg->msg_name, &nl, sizeof(nl));
+        if (capacity > sizeof(nl)) capacity = sizeof(nl);
+        if (capacity > 0) memcpy(msg->msg_name, &nl, capacity);
         msg->msg_namelen = sizeof(nl);
     }
     *rc = result;
@@ -1200,7 +1204,13 @@ ssize_t sendto(int fd, const void *buffer, size_t length, int flags,
 }
 
 ssize_t send(int fd, const void *buffer, size_t length, int flags) {
+    static ssize_t (*real)(int, const void *, size_t, int);
     ssize_t rc;
     if (bl_nl_owns(fd) && deliver(fd, buffer, length, &rc)) return rc;
-    return send_raw(fd, buffer, length);
+    if (real == NULL) real = (ssize_t (*)(int, const void *, size_t, int)) dlsym(RTLD_NEXT, "send");
+    if (real == NULL) {
+        errno = ENOSYS;
+        return -1;
+    }
+    return real(fd, buffer, length, flags);
 }
