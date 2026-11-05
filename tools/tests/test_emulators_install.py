@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import tempfile
 import unittest
@@ -10,7 +11,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/dr
 
 class EmulatorsInstallTest(unittest.TestCase):
     def run_install(self, failure=""):
-        with tempfile.TemporaryDirectory() as directory:
+        with tempfile.TemporaryDirectory(prefix="emulator install 'quoted' ") as directory:
             root = Path(directory)
             bin_dir = root / "bin"
             bin_dir.mkdir()
@@ -41,8 +42,8 @@ class EmulatorsInstallTest(unittest.TestCase):
                 path.chmod(0o755)
             script = root / "install"
             script.write_text(SCRIPT.read_text()
-                              .replace("/usr/local/bin/droiddeck-flatpak install", str(helper) + " install")
-                              .replace("/usr/local/bin/PPSSPPSDL", str(launcher)))
+                              .replace("/usr/local/bin/droiddeck-flatpak install", shlex.quote(str(helper)) + " install")
+                              .replace("/usr/local/bin/PPSSPPSDL", shlex.quote(str(launcher))))
             env = dict(os.environ, PATH=str(bin_dir) + os.pathsep + os.environ["PATH"],
                        CALLS=str(calls), FAILURE=failure)
             result = subprocess.run(["bash", str(script), "install"], env=env,
