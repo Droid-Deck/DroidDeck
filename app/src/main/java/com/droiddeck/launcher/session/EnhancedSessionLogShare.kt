@@ -89,6 +89,8 @@ internal object EnhancedSessionLogShare {
 
     private class StageUnavailableException(cause: Throwable) : IOException("Diagnostic staging directory is unavailable", cause)
 
+    private class SourceReadException(cause: Throwable) : IOException("Could not read diagnostic source", cause)
+
     private data class CollectionResult(
         val candidates: List<Candidate>,
         val truncated: Boolean,
@@ -325,7 +327,8 @@ internal object EnhancedSessionLogShare {
             throw error
         } catch (error: Exception) {
             if (!stage.isDirectory || !stage.canWrite()) throw StageUnavailableException(error)
-            return Record(candidate.entry, candidate.origin, "error", reason = error.javaClass.simpleName)
+            val reportedError = (error as? SourceReadException)?.cause ?: error
+            return Record(candidate.entry, candidate.origin, "error", reason = reportedError.javaClass.simpleName)
         } ?: return Record(candidate.entry, candidate.origin, "omitted", reason = "unsafe-or-unavailable-source")
         if (snapshot.file.length() == 0L && candidate.linePrefix != null) {
             snapshot.file.delete()
@@ -369,27 +372,33 @@ internal object EnhancedSessionLogShare {
         try {
             val relative = rootPath.relativize(sourcePath)
             return withSecureChannel(rootPath, relative) { input ->
-                val size = input.size()
+                val size = readSource { input.size() }
                 candidate.linePrefix?.let { prefix ->
                     val truncated = filterChannel(input, target, prefix, size, TRACE_SCAN_BYTES, limit)
                     return@withSecureChannel Snapshot(target, size, truncated)
                 }
-                FileOutputStream(target).channel.use { output ->
-                    if (size <= limit) {
-                        copy(input, output, 0, size)
-                    } else {
-                        val marker = "\n<diagnostic file truncated: beginning and tail retained>\n".toByteArray()
-                        val content = (limit - marker.size).coerceAtLeast(0)
-                        copyCompleteHead(input, output, content / 2)
-                        val markerBytes = minOf(marker.size.toLong(), limit - output.position()).toInt()
-                        output.write(ByteBuffer.wrap(marker, 0, markerBytes))
-                        copyCompleteTail(input, output, size, (limit - output.position()).coerceAtLeast(0))
+                writeStage {
+                    FileOutputStream(target).channel.use { output ->
+                        if (size <= limit) {
+                            copy(input, output, 0, size)
+                        } else {
+                            val marker = "\n<diagnostic file truncated: beginning and tail retained>\n".toByteArray()
+                            val content = (limit - marker.size).coerceAtLeast(0)
+                            copyCompleteHead(input, output, content / 2)
+                            val markerBytes = minOf(marker.size.toLong(), limit - output.position()).toInt()
+                            output.write(ByteBuffer.wrap(marker, 0, markerBytes))
+                            copyCompleteTail(input, output, size, (limit - output.position()).coerceAtLeast(0))
+                        }
+                        output.force(false)
                     }
-                    output.force(false)
                 }
                 Snapshot(target, size, size > limit)
             } ?: target.delete().let { null }
         } catch (e: Exception) {
+            if (e is StageUnavailableException) {
+                target.delete()
+                throw e
+            }
             val targetWasPresent = target.exists()
             target.delete()
             if (!stage.isDirectory || !stage.canWrite() || !targetWasPresent) throw StageUnavailableException(e)
@@ -408,48 +417,51 @@ internal object EnhancedSessionLogShare {
         val wanted = prefix.toByteArray()
         var written = 0L
         var truncated = sourceSize > scanLimit
-        target.outputStream().buffered().use { output ->
-            fun scan(start: Long, count: Long, discardPartialFirstLine: Boolean) {
-                channel.position(start)
-                val input = BufferedInputStream(Channels.newInputStream(channel), COPY_BUFFER_BYTES)
-                val line = ByteArrayOutputStream(1024)
-                var oversized = false
-                var scanned = 0L
-                var discard = discardPartialFirstLine
-                fun emit() {
-                    val bytes = line.toByteArray()
-                    if (!discard && !oversized && bytes.size >= wanted.size && wanted.indices.all { bytes[it] == wanted[it] }) {
-                        if (written + bytes.size + 1 <= outputLimit) {
-                            output.write(bytes)
-                            output.write('\n'.code)
-                            written += bytes.size + 1
-                        } else truncated = true
+        writeStage {
+            target.outputStream().buffered().use { output ->
+                fun scan(start: Long, count: Long, discardPartialFirstLine: Boolean) {
+                    readSource { channel.position(start) }
+                    val input = BufferedInputStream(Channels.newInputStream(channel), COPY_BUFFER_BYTES)
+                    val line = ByteArrayOutputStream(1024)
+                    var oversized = false
+                    var scanned = 0L
+                    var discard = discardPartialFirstLine
+                    fun emit() {
+                        val bytes = line.toByteArray()
+                        if (!discard && !oversized && bytes.size >= wanted.size && wanted.indices.all { bytes[it] == wanted[it] }) {
+                            if (written + bytes.size + 1 <= outputLimit) {
+                                output.write(bytes)
+                                output.write('\n'.code)
+                                written += bytes.size + 1
+                            } else truncated = true
+                        }
+                        line.reset()
+                        oversized = false
+                        discard = false
                     }
-                    line.reset()
-                    oversized = false
-                    discard = false
-                }
-                while (scanned < count) {
-                    val value = input.read()
-                    if (value < 0) break
-                    scanned++
-                    if (value == '\n'.code) emit()
-                    else if (!oversized && !discard) {
-                        if (line.size() >= LogRedactor.MAX_LINE_LENGTH) {
-                            oversized = true
-                            line.reset()
-                        } else line.write(value)
+                    while (scanned < count) {
+                        val value = readSource { input.read() }
+                        if (value < 0) break
+                        scanned++
+                        if (value == '\n'.code) emit()
+                        else if (!oversized && !discard) {
+                            if (line.size() >= LogRedactor.MAX_LINE_LENGTH) {
+                                oversized = true
+                                line.reset()
+                            } else line.write(value)
+                        }
                     }
+                    if (start + scanned >= sourceSize && (line.size() > 0 || oversized)) emit()
                 }
-                if (start + scanned >= sourceSize && (line.size() > 0 || oversized)) emit()
-            }
-            if (sourceSize <= scanLimit) {
-                scan(0, sourceSize, false)
-            } else {
-                val head = scanLimit / 2
-                val tail = scanLimit - head
-                scan(0, head, false)
-                scan((sourceSize - tail).coerceAtLeast(0), tail, true)
+
+                if (sourceSize <= scanLimit) {
+                    scan(0, sourceSize, false)
+                } else {
+                    val head = scanLimit / 2
+                    val tail = scanLimit - head
+                    scan(0, head, false)
+                    scan((sourceSize - tail).coerceAtLeast(0), tail, true)
+                }
             }
         }
         return truncated
@@ -462,6 +474,7 @@ internal object EnhancedSessionLogShare {
 
     private fun <T> withAndroidSecureChannel(root: Path, relative: Path, block: (SeekableByteChannel) -> T): T? {
         val opened = ArrayList<ParcelFileDescriptor>()
+        var invokingBlock = false
         return try {
             val parts = relative.map { it.toString() }
             if (parts.isEmpty()) return null
@@ -474,11 +487,15 @@ internal object EnhancedSessionLogShare {
                 val stat = Os.fstat(leafFd)
                 if (!OsConstants.S_ISREG(stat.st_mode) || stat.st_nlink != 1L) return null
                 // Android's FileInputStream(FileDescriptor) is deliberately not the descriptor owner.
-                FileInputStream(leafFd).use { stream -> block(stream.channel) }
+                FileInputStream(leafFd).use { stream ->
+                    invokingBlock = true
+                    block(stream.channel)
+                }
             } finally {
                 runCatching { Os.close(leafFd) }
             }
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            if (invokingBlock) throw error
             null
         } finally {
             opened.asReversed().forEach { runCatching { it.close() } }
@@ -507,16 +524,16 @@ internal object EnhancedSessionLogShare {
         "/proc/self/fd/${directory.fd}/$name"
 
     private fun copy(input: SeekableByteChannel, output: FileChannel, start: Long, count: Long) {
-        input.position(start)
+        readSource { input.position(start) }
         var left = count
         val buffer = ByteBuffer.allocate(64 * 1024)
         while (left > 0) {
             buffer.clear()
             buffer.limit(minOf(buffer.capacity().toLong(), left).toInt())
-            val read = input.read(buffer)
+            val read = readSource { input.read(buffer) }
             if (read < 0) break
             buffer.flip()
-            while (buffer.hasRemaining()) output.write(buffer)
+            while (buffer.hasRemaining()) writeStage { output.write(buffer) }
             left -= read
         }
     }
@@ -525,14 +542,14 @@ internal object EnhancedSessionLogShare {
         if (limit <= 0) return
         copy(input, output, 0, limit)
         val copied = output.position()
-        input.position(0)
+        readSource { input.position(0) }
         val buffer = ByteBuffer.allocate(64 * 1024)
         var scanned = 0L
         var lastComplete = 0L
         while (scanned < copied) {
             buffer.clear()
             buffer.limit(minOf(buffer.capacity().toLong(), copied - scanned).toInt())
-            val read = input.read(buffer)
+            val read = readSource { input.read(buffer) }
             if (read < 0) break
             buffer.flip()
             repeat(read) { index ->
@@ -540,8 +557,8 @@ internal object EnhancedSessionLogShare {
             }
             scanned += read
         }
-        output.truncate(lastComplete)
-        output.position(lastComplete)
+        writeStage { output.truncate(lastComplete) }
+        writeStage { output.position(lastComplete) }
     }
 
     private fun copyCompleteTail(
@@ -553,16 +570,32 @@ internal object EnhancedSessionLogShare {
         if (limit <= 0 || sourceSize <= 0) return
         var start = (sourceSize - limit).coerceAtLeast(0)
         if (start > 0) {
-            input.position(start)
+            readSource { input.position(start) }
             val buffered = BufferedInputStream(Channels.newInputStream(input), COPY_BUFFER_BYTES)
             while (start < sourceSize) {
-                val value = buffered.read()
+                val value = readSource { buffered.read() }
                 if (value < 0) return
                 start++
                 if (value == '\n'.code) break
             }
         }
         copy(input, output, start, (sourceSize - start).coerceAtMost(limit))
+    }
+
+    private inline fun <T> readSource(block: () -> T): T = try {
+        block()
+    } catch (error: Exception) {
+        throw SourceReadException(error)
+    }
+
+    private inline fun <T> writeStage(block: () -> T): T = try {
+        block()
+    } catch (error: SourceReadException) {
+        throw error
+    } catch (error: StageUnavailableException) {
+        throw error
+    } catch (error: Exception) {
+        throw StageUnavailableException(error)
     }
 
     private fun addManifest(

@@ -507,7 +507,11 @@ class EnhancedSessionLogShareTest {
                 root: java.nio.file.Path,
                 relative: java.nio.file.Path,
                 block: (java.nio.channels.SeekableByteChannel) -> T,
-            ): T? = throw IOException("injected source read failure")
+            ): T? = FileChannel.open(root.resolve(relative), StandardOpenOption.READ).use { channel ->
+                block(object : SeekableByteChannel by channel {
+                    override fun read(dst: ByteBuffer): Int = throw IOException("injected source read failure")
+                })
+            }
         })
         try {
             val sessionZip = EnhancedSessionLogShare.create(app, session).single { it.name.endsWith("-session.zip") }
