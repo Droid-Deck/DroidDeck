@@ -3810,8 +3810,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val swipeY = lockedSwipeY
         if (programLocksPointer() && event.actionMasked == MotionEvent.ACTION_MOVE && !lockedSwipeUsed &&
             abs(event.x - swipeX) <= touchSlop && abs(event.y - swipeY) <= touchSlop) return true
-        lockedSwipeX = event.x
-        lockedSwipeY = event.y
+        val anchor = if (event.actionMasked == MotionEvent.ACTION_POINTER_UP && event.actionIndex == 0 && event.pointerCount > 1) 1 else 0
+        lockedSwipeX = event.getX(anchor)
+        lockedSwipeY = event.getY(anchor)
         if ((event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) && lockedSwipeUsed) {
             lockedSwipeUsed = false
             directTouchHold.cancel()
