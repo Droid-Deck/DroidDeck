@@ -33,22 +33,6 @@ object SessionLogShare {
         }, "share-logs").start()
     }
 
-    fun prepareEnhanced(context: Context, folder: () -> File?, done: (List<File>) -> Unit) {
-        if (progress != null) return
-        progress = 0f
-        Thread({
-            val zips = runCatching {
-                folder()?.let { dir ->
-                    EnhancedSessionLogShare.create(context, dir, onProgress = { p ->
-                        main.post { if (progress != null) progress = p }
-                    })
-                }.orEmpty()
-            }.onFailure { Log.w("SessionLogShare", "could not package enhanced diagnostics", it) }
-                .getOrDefault(emptyList())
-            main.post { progress = null; done(zips) }
-        }, "share-diagnostics").start()
-    }
-
     fun latest(context: Context): File? = sessions(context).lastOrNull()
 
     fun sessions(context: Context): List<File> {
@@ -74,9 +58,25 @@ object SessionLogShare {
         return knownSession && folder.isDirectory && folder.deleteRecursively()
     }
 
+    fun prepareEnhanced(context: Context, folder: () -> File?, done: (List<File>) -> Unit) {
+        if (progress != null) return
+        progress = 0f
+        Thread({
+            val zips = runCatching {
+                folder()?.let { dir ->
+                    EnhancedSessionLogShare.create(context, dir, onProgress = { p ->
+                        main.post { if (progress != null) progress = p }
+                    })
+                }.orEmpty()
+            }.onFailure { Log.w("SessionLogShare", "could not package enhanced diagnostics", it) }
+                .getOrDefault(emptyList())
+            main.post { progress = null; done(zips) }
+        }, "share-diagnostics").start()
+    }
 
-    fun zipFolder(context: Context, folder: File, onProgress: ((Float) -> Unit)? = null): File? {
-        return EnhancedSessionLogShare.createLegacy(context, folder, onProgress)
+
+    fun zipFolder(context: Context, folder: File, out: File = shareDir(context), onProgress: ((Float) -> Unit)? = null): File? {
+        return EnhancedSessionLogShare.createLegacy(context, folder, onProgress, out)
     }
 
     const val STORES_DIR = "stores"
