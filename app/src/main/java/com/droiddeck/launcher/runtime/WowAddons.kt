@@ -55,7 +55,9 @@ object WowAddons {
 
     fun import(zipFile: File, target: Target): List<String> {
         ZipFile.builder().setFile(zipFile).get().use { zip ->
-            val entries = zip.entries.toList().filter { clean(it.name) != null && !it.isUnixSymlink }
+            val all = zip.entries.toList()
+            if (all.any { it.isUnixSymlink }) return emptyList()
+            val entries = all.filter { clean(it.name) != null }
             val addons = addons(entries.filter { !it.isDirectory }.mapNotNull { clean(it.name) })
             if (addons.isEmpty()) return emptyList()
             val addOns = target.addOns

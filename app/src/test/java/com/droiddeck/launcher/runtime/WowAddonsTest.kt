@@ -172,6 +172,23 @@ class WowAddonsTest {
         assertFalse(target.addOns.exists())
     }
 
+    @Test fun aZipWithAnyLinkIsRefusedWhole() {
+        val target = target()
+        File(target.addOns, "Ace3").mkdirs()
+        File(target.addOns, "Ace3/keep.lua").writeText("keep")
+        val file = temp.newFile("nested.zip")
+        ZipArchiveOutputStream(file).use { out ->
+            out.putArchiveEntry(ZipArchiveEntry("Foo/Foo.toc").apply { unixMode = 0xA1FF })
+            out.write("/etc/passwd".toByteArray())
+            out.closeArchiveEntry()
+            out.putArchiveEntry(ZipArchiveEntry("Foo/Libs/Ace3/Ace3.toc"))
+            out.write("toc".toByteArray())
+            out.closeArchiveEntry()
+        }
+        assertEquals(emptyList<String>(), WowAddons.import(file, target))
+        assertEquals("keep", File(target.addOns, "Ace3/keep.lua").readText())
+    }
+
     @Test fun escapingEntriesAreNeverWritten() {
         val target = target()
         WowAddons.import(zip("Foo/Foo.toc" to "a", "../../evil.lua" to "x", "Foo/../../evil2.lua" to "x"), target)
