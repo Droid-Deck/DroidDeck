@@ -1366,14 +1366,14 @@ int bl_nl_getsockname(int fd, struct sockaddr *addr, socklen_t *len, int *rc) {
 }
 
 void bl_nl_closed(int fd) {
-    if (nl_foreign()) return;
     if (!nl_tracked(fd)) return;
+    if (nl_foreign()) return;
     bl_nl_range_closed((unsigned int) fd, (unsigned int) fd);
 }
 
 void bl_nl_range_closed(unsigned int first, unsigned int last) {
-    if (nl_foreign()) return;
     if (__atomic_load_n(&nl_fd_count, __ATOMIC_ACQUIRE) == 0) return;
+    if (nl_foreign()) return;
     pthread_mutex_lock(&nl_sockets_lock);
     struct nl_fd **entry = &nl_fds;
     while (*entry) {
@@ -1387,8 +1387,8 @@ void bl_nl_range_closed(unsigned int first, unsigned int last) {
 
 int bl_nl_before_dup(int fd, void **state) {
     *state = NULL;
-    if (nl_foreign()) return 0;
     if (!nl_tracked(fd)) return 0;
+    if (nl_foreign()) return 0;
     pthread_mutex_lock(&nl_sockets_lock);
     struct nl_fd *entry = nl_find(fd);
     if (entry) {
@@ -1408,12 +1408,15 @@ int bl_nl_before_dup(int fd, void **state) {
 
 void bl_nl_after_dup(void *state, int fd) {
     int saved = errno;
+    struct nl_fd *reserved = state;
+    if (reserved == NULL && !nl_tracked(fd)) {
+        errno = saved;
+        return;
+    }
     if (nl_foreign()) {
         errno = saved;
         return;
     }
-    struct nl_fd *reserved = state;
-    if (reserved == NULL && !nl_tracked(fd)) return;
     pthread_mutex_lock(&nl_sockets_lock);
     if (reserved && fd >= 0) {
         reserved->fd = fd;
