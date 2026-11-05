@@ -65,8 +65,7 @@ object WowAddons {
                         }
                     }
                 }
-                val old = File(stage, "old").apply { mkdirs() }
-                for (addon in addons) replace(File(fresh, addon.name), addOns, addon.name, old)
+                swap(addons.map { File(fresh, it.name) to it.name }, addOns, File(stage, "old").apply { mkdirs() })
             } finally {
                 StoreInstalls.deleteTree(stage)
             }
@@ -114,13 +113,32 @@ object WowAddons {
     private fun child(parent: File, name: String): File =
         parent.listFiles()?.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: File(parent, name)
 
-    private fun replace(fresh: File, addOns: File, name: String, old: File) {
+    internal fun swap(fresh: List<Pair<File, String>>, addOns: File, old: File) {
+        val done = ArrayList<Replaced>()
+        try {
+            for ((folder, name) in fresh) done.add(replace(folder, addOns, name, old))
+        } catch (e: IOException) {
+            done.asReversed().forEach { undo(it) }
+            throw e
+        }
+    }
+
+    private class Replaced(val installed: File, val previous: File?, val kept: File?)
+
+    private fun undo(replaced: Replaced) {
+        StoreInstalls.deleteTree(replaced.installed)
+        if (replaced.previous != null) replaced.kept?.renameTo(replaced.previous)
+    }
+
+    private fun replace(fresh: File, addOns: File, name: String, old: File): Replaced {
         val current = addOns.listFiles()?.firstOrNull { it.name.equals(name, ignoreCase = true) }
         val kept = current?.let { File(old, it.name) }
         if (current != null && !current.renameTo(kept!!)) throw IOException("Cannot replace ${current.path}")
-        if (!fresh.renameTo(File(addOns, name))) {
+        val installed = File(addOns, name)
+        if (!fresh.renameTo(installed)) {
             kept?.renameTo(current)
             throw IOException("Cannot install $name")
         }
+        return Replaced(installed, current, kept)
     }
 }

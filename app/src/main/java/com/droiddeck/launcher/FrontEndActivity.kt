@@ -440,6 +440,7 @@ class FrontEndActivity : ComponentActivity() {
         }
         onSavePicked = { zip ->
             saveAction(getString(R.string.main_addons_importing, name)) {
+                if (SessionState.running) return@saveAction getString(R.string.main_addons_close_session)
                 val imported = com.droiddeck.launcher.runtime.WowAddons.import(zip, target)
                 if (imported.isEmpty()) getString(R.string.main_addons_none, zip.name)
                 else resources.getQuantityString(R.plurals.main_addons_imported, imported.size, imported.size, target.flavor)

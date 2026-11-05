@@ -1363,7 +1363,7 @@
     <string name="main_addons_pick_zip">Pilih zip addon untuk %1$s</string>
     <string name="main_addons_none">Tiada addon ditemui dalam %1$s</string>
     <plurals name="main_addons_imported">
-        <item quantity="other">Mengimport %1$d addon ke %2$s</item>
+        <item quantity="other">Berjaya mengimport %1$d addon ke %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Pilih zip simpanan untuk %1$s</string>
     <string name="main_saves_exporting">Mengeksport %1$s</string>

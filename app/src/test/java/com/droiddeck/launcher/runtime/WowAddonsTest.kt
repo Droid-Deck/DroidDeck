@@ -2,11 +2,13 @@ package com.droiddeck.launcher.runtime
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -100,6 +102,24 @@ class WowAddonsTest {
         WowAddons.import(zip("Foo/Foo.toc" to "new"), target)
         assertEquals("keep", File(outside, "keep.lua").readText())
         assertFalse(Files.isSymbolicLink(File(target.addOns, "Foo").toPath()))
+    }
+
+    @Test fun aFailedReplacementRestoresEarlierAddons() {
+        val base = temp.newFolder("swap")
+        val addOns = File(base, "AddOns").apply { mkdirs() }
+        File(addOns, "Foo").mkdirs()
+        File(addOns, "Foo/old.lua").writeText("old")
+        File(addOns, "Bar").mkdirs()
+        File(addOns, "Bar/old.lua").writeText("old")
+        val fresh = File(base, "fresh/Foo").apply { mkdirs() }
+        File(fresh, "new.lua").writeText("new")
+        val old = File(base, "old").apply { mkdirs() }
+        assertThrows(IOException::class.java) {
+            WowAddons.swap(listOf(fresh to "Foo", File(base, "fresh/Missing") to "Bar"), addOns, old)
+        }
+        assertEquals("old", File(addOns, "Foo/old.lua").readText())
+        assertEquals("old", File(addOns, "Bar/old.lua").readText())
+        assertFalse(File(addOns, "Foo/new.lua").exists())
     }
 
     @Test fun zipsWithoutAnAddonChangeNothing() {
