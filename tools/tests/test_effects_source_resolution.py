@@ -328,6 +328,11 @@ static void check_rejections(void) {
     layers[0] = fullscreen(); layers[0].img = &pixel; layers[0].sw = 1; layers[0].sh = 1;
     layers[1] = fullscreen(); layers[1].dx = 240; layers[1].dw = 1440;
     assert(!effects_source_draw(1920, 1080, layers, 2, &unused));
+    layers[1] = fullscreen(); layers[1].dx = 320; layers[1].dy = 180; layers[1].dw = 1280; layers[1].dh = 720;
+    assert(!effects_source_draw(1920, 1080, layers, 2, &unused));
+    layers[0] = fullscreen();
+    layers[1] = fullscreen(); layers[1].dx = 10; layers[1].dy = 10; layers[1].dw = 24; layers[1].dh = 24;
+    assert(effects_source_draw(1920, 1080, layers, 2, &unused) == 1);
 }
 static void check_near_full_source(void) {
     struct vkp_draw draw = fullscreen(), selected;
