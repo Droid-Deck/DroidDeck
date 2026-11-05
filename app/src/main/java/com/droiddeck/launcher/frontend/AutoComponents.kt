@@ -447,6 +447,11 @@ object AutoComponents {
         Pending.update(context, key, catalog.mapValues { it.value.revision }) { ids ->
             ids.filter { id -> user[id] != false && (id !in installed && id !in wanted || (Pending.revision(context, id) ?: 0) > (catalog[id]?.revision ?: 0)) } + missing
         }
+        missing.forEach { id ->
+            waitFor(game, id)
+            queueDownload(context, id, asked = true, inSession = true,
+                revision = maxOf(catalog[id]?.revision ?: 0, Pending.revision(context, id) ?: 0))
+        }
         Pending.ids(context, key).forEach { waitFor(game, it) }
         queuePending(context, key)
         return true
