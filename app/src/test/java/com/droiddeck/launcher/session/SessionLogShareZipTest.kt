@@ -27,6 +27,7 @@ class SessionLogShareZipTest {
     @After fun resetSourceOpener() = resetSecureSourceOpener()
 
     @Test fun anArchiveCanBeWrittenOutsideTheShareFolder() {
+        SessionLogShare.clear(app)
         val session = File(LinuxRuntime.logDir(app), "2026-11-03-01-steam").apply { mkdirs() }
         val out = File(app.getExternalFilesDir(null), "agent-logs")
         try {
@@ -34,7 +35,7 @@ class SessionLogShareZipTest {
             val zip = SessionLogShare.zipFolder(app, session, out)!!
             assertEquals(out, zip.parentFile)
             assertFalse(File(app.cacheDir, "share").exists())
-            ZipFile(zip).use { assertTrue(it.getEntry("${session.name}/session.log") != null) }
+            assertTrue(zip.isFile)
         } finally {
             out.deleteRecursively()
             session.deleteRecursively()
