@@ -28,6 +28,7 @@
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <sys/un.h>
 #include <time.h>
 #include <unistd.h>
@@ -1058,26 +1059,44 @@ static void nl_discover(int fd) {
 }
 
 static void nl_restore_inherited(void) {
-    DIR *directory = opendir("/proc/self/fd");
-    if (directory == NULL) return;
+    int directory = (int) syscall(SYS_openat, AT_FDCWD, "/proc/self/fd",
+                                  O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (directory < 0) return;
     int *descriptors = NULL;
     size_t count = 0, capacity = 0;
-    struct dirent *entry;
-    while ((entry = readdir(directory)) != NULL) {
-        char *end;
-        long descriptor = strtol(entry->d_name, &end, 10);
-        if (end == entry->d_name || *end || descriptor < 0 || descriptor > INT_MAX) continue;
-        if (descriptor == dirfd(directory)) continue;
-        if (count == capacity) {
-            size_t enlarged = capacity ? capacity * 2 : 16;
-            int *allocated = realloc(descriptors, enlarged * sizeof(*descriptors));
-            if (allocated == NULL) break;
-            descriptors = allocated;
-            capacity = enlarged;
+    union {
+        max_align_t alignment;
+        unsigned char bytes[4096];
+    } buffer;
+    long length;
+    while ((length = syscall(SYS_getdents64, directory, buffer.bytes, sizeof(buffer.bytes))) > 0) {
+        size_t offset = 0;
+        while (offset < (size_t) length) {
+            struct dirent *entry = (struct dirent *) (buffer.bytes + offset);
+            size_t minimum = offsetof(struct dirent, d_name) + 1;
+            if (entry->d_reclen < minimum || entry->d_reclen > (size_t) length - offset) break;
+            char *end;
+            long descriptor = strtol(entry->d_name, &end, 10);
+            if (end != entry->d_name && !*end && descriptor >= 0 && descriptor <= INT_MAX &&
+                descriptor != directory) {
+                if (count == capacity) {
+                    size_t enlarged = capacity ? capacity * 2 : 16;
+                    int *allocated = realloc(descriptors, enlarged * sizeof(*descriptors));
+                    if (allocated == NULL) {
+                        offset = (size_t) length;
+                        break;
+                    }
+                    descriptors = allocated;
+                    capacity = enlarged;
+                }
+                descriptors[count++] = (int) descriptor;
+            }
+            offset += entry->d_reclen;
         }
-        descriptors[count++] = (int) descriptor;
     }
-    closedir(directory);
+    int saved = errno;
+    syscall(SYS_close, directory);
+    errno = saved;
     for (size_t index = 0; index < count; index++) {
         nl_discover(descriptors[index]);
     }
