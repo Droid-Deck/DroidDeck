@@ -269,7 +269,7 @@ class WinComponentsTest(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         if link is not None:
             link.parent.mkdir(parents=True, exist_ok=True)
-            link.write_bytes(b"MZ" + b"\0" * 62 + b"Wine builtin DLL")
+            link.write_bytes(b"MZ" + b"\0" * 126)
             path.symlink_to(link)
         else:
             path.write_bytes(data)
