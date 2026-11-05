@@ -314,12 +314,12 @@ object AutoComponents {
         @Synchronized fun ids(context: Context, key: String): List<String> =
             read(context).optJSONArray(key)?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
 
-        @Synchronized fun update(context: Context, key: String, revisions: Map<String, Int>, transform: (List<String>) -> List<String>) {
+        @Synchronized fun update(context: Context, key: String, revisions: Map<String, Int>, transform: (List<String>) -> List<String>): Boolean {
             val games = read(context)
             val current = games.optJSONArray(key)?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
             val ids = transform(current).distinct()
             if (ids.isEmpty()) games.remove(key) else games.put(key, JSONArray(ids))
-            write(context, games, revisions)
+            return write(context, games, revisions)
         }
 
         @Synchronized fun revision(context: Context, id: String): Int? =
@@ -343,9 +343,9 @@ object AutoComponents {
             write(context, games)
         }
 
-        private fun write(context: Context, games: JSONObject, required: Map<String, Int> = emptyMap()) {
+        private fun write(context: Context, games: JSONObject, required: Map<String, Int> = emptyMap()): Boolean {
             val f = file(context)
-            runCatching {
+            return runCatching {
                 f.parentFile?.mkdirs()
                 val tmp = File(f.path + ".tmp")
                 val before = runCatching { JSONObject(f.readText()).optJSONObject("revisions") }.getOrNull()
@@ -362,7 +362,11 @@ object AutoComponents {
                     f.delete()
                     if (!tmp.renameTo(f)) throw java.io.IOException("Could not replace pending repair file")
                 }
-            }.onFailure { Log.w(TAG, "wincomp: could not save pending repairs: ${it.javaClass.simpleName}: ${it.message}") }
+                true
+            }.getOrElse {
+                Log.w(TAG, "wincomp: could not save pending repairs: ${it.javaClass.simpleName}: ${it.message}")
+                false
+            }
         }
     }
 
@@ -444,7 +448,7 @@ object AutoComponents {
         val roots = selection.effective + wanted.keys.filter { user[it] != false }
         val required = withParts(roots.filter { WinComponents.validId(it) }, catalog)
         val missing = required.filter { user[it] != false && it !in installed }
-        Pending.update(context, key, catalog.mapValues { it.value.revision }) { ids ->
+        val pendingSaved = Pending.update(context, key, catalog.mapValues { it.value.revision }) { ids ->
             ids.filter { id -> user[id] != false && (id !in installed && id !in wanted || (Pending.revision(context, id) ?: 0) > (catalog[id]?.revision ?: 0)) } + missing
         }
         missing.forEach { id ->
@@ -454,6 +458,10 @@ object AutoComponents {
         }
         Pending.ids(context, key).forEach { waitFor(game, it) }
         queuePending(context, key)
+        if (!pendingSaved) {
+            missing.forEach { id -> repairFailures.value = repairFailures.value + (id to "Could not save pending repairs") }
+            return false
+        }
         return true
     }
 
