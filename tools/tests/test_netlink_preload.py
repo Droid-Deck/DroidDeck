@@ -46,6 +46,7 @@ PROGRAM = r"""
 #include <fcntl.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -104,12 +105,229 @@ static ssize_t receive(int descriptor, unsigned char *buffer, size_t capacity) {
 }
 
 static void usable(int descriptor) {
-    unsigned port = port_of(descriptor);
     send_link(descriptor, 1, 0);
+    unsigned port = port_of(descriptor);
     unsigned char buffer[4096];
     receive(descriptor, buffer, sizeof(buffer));
     struct nlmsghdr *header = (struct nlmsghdr *)buffer;
     require(header->nlmsg_type == RTM_NEWLINK && header->nlmsg_pid == port, "usable socket");
+}
+
+static void socket_info(int descriptor, int kind) {
+    int value;
+    socklen_t length = sizeof(value);
+    require(getsockopt(descriptor, SOL_SOCKET, SO_TYPE, &value, &length) == 0
+            && length == sizeof(value) && value == kind, "reported socket type");
+    length = sizeof(value);
+    require(getsockopt(descriptor, SOL_SOCKET, SO_DOMAIN, &value, &length) == 0
+            && value == AF_NETLINK, "reported socket domain");
+    length = sizeof(value);
+    require(getsockopt(descriptor, SOL_SOCKET, SO_PROTOCOL, &value, &length) == 0
+            && value == NETLINK_ROUTE, "reported socket protocol");
+    length = 1;
+    require(getsockopt(descriptor, SOL_SOCKET, SO_TYPE, &value, &length) == 0
+            && length == 1, "short socket option");
+    require(getsockopt(descriptor, SOL_SOCKET, SO_TYPE, NULL, &length) == -1
+            && errno == EFAULT, "invalid socket option buffer");
+}
+
+static void socket_types_test(void) {
+    const int kinds[] = {SOCK_RAW, SOCK_DGRAM};
+    for (size_t index = 0; index < sizeof(kinds) / sizeof(kinds[0]); index++) {
+        int descriptor = socket(AF_NETLINK, kinds[index], NETLINK_ROUTE);
+        require(descriptor >= 0, "supported socket type");
+        require(port_of(descriptor) == 0, "unbound port");
+        require((fcntl(descriptor, F_GETFD) & FD_CLOEXEC) == 0, "caller cloexec flag");
+        socket_info(descriptor, kinds[index]);
+        usable(descriptor);
+        close(descriptor);
+        descriptor = socket(AF_NETLINK, kinds[index] | SOCK_CLOEXEC | SOCK_NONBLOCK, NETLINK_ROUTE);
+        require(descriptor >= 0 && (fcntl(descriptor, F_GETFD) & FD_CLOEXEC)
+                && (fcntl(descriptor, F_GETFL) & O_NONBLOCK), "requested socket flags");
+        socket_info(descriptor, kinds[index]);
+        close(descriptor);
+    }
+    require(socket(AF_NETLINK, SOCK_STREAM, NETLINK_ROUTE) == -1
+            && errno == ESOCKTNOSUPPORT, "stream rejected");
+    require(socket(AF_NETLINK, SOCK_SEQPACKET, NETLINK_ROUTE) == -1
+            && errno == ESOCKTNOSUPPORT, "seqpacket rejected");
+    require(socket(AF_NETLINK, SOCK_RAW | 0x40000000, NETLINK_ROUTE) == -1
+            && errno == EINVAL, "unknown socket flag rejected");
+    require(socket(AF_NETLINK, 15, NETLINK_ROUTE) == -1 && errno == EINVAL, "invalid socket type");
+}
+
+static void ports_test(int forked) {
+    int descriptors[32];
+    unsigned ports[32];
+    for (int index = 0; index < 32; index++) {
+        descriptors[index] = route_socket();
+        ports[index] = port_of(descriptors[index]);
+        require(ports[index] != 0, "bound port");
+        for (int previous = 0; previous < index; previous++)
+            require(ports[index] != ports[previous], "unique automatic port");
+    }
+    int duplicate = socket(AF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
+    require(duplicate >= 0, "explicit bind socket");
+    struct sockaddr_nl address = {.nl_family = AF_NETLINK, .nl_pid = ports[0]};
+    require(bind(duplicate, (struct sockaddr *)&address, sizeof(address)) == -1
+            && errno == EADDRINUSE && port_of(duplicate) == 0, "duplicate explicit port");
+    if (forked) {
+        pid_t child = fork();
+        require(child >= 0, "port fork");
+        if (child == 0) {
+            for (int index = 0; index < 32; index++) close(descriptors[index]);
+            require(bind(duplicate, (struct sockaddr *)&address, sizeof(address)) == -1
+                    && errno == EADDRINUSE, "cross process duplicate port");
+            close(duplicate);
+            _exit(0);
+        }
+        int status;
+        require(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0,
+                "port child");
+    }
+    int alias = dup(descriptors[0]);
+    close(descriptors[0]);
+    require(bind(duplicate, (struct sockaddr *)&address, sizeof(address)) == -1
+            && errno == EADDRINUSE, "alias keeps port reserved");
+    close(alias);
+    require(bind(duplicate, (struct sockaddr *)&address, sizeof(address)) == 0
+            && port_of(duplicate) == ports[0], "closed port reused");
+    require(bind(duplicate, (struct sockaddr *)&address, sizeof(address)) == 0, "same port rebind");
+    address.nl_pid++;
+    require(bind(duplicate, (struct sockaddr *)&address, sizeof(address)) == -1
+            && errno == EINVAL && port_of(duplicate) == ports[0], "different port rebind denied");
+    usable(duplicate);
+    close(duplicate);
+    for (int index = 1; index < 32; index++) {
+        usable(descriptors[index]);
+        close(descriptors[index]);
+    }
+}
+
+static void batch_test(int oversized) {
+    int descriptor = route_socket();
+    struct query {
+        struct nlmsghdr header;
+        struct ifinfomsg info;
+    } queries[128];
+    int count = oversized ? 128 : 40;
+    for (int index = 0; index < count; index++) {
+        memset(&queries[index], 0, sizeof(queries[index]));
+        queries[index].header.nlmsg_len = sizeof(queries[index]);
+        queries[index].header.nlmsg_type = RTM_GETLINK;
+        queries[index].header.nlmsg_flags = NLM_F_REQUEST;
+        queries[index].header.nlmsg_seq = index + 1;
+        queries[index].info.ifi_index = 1;
+    }
+    struct iovec parts[2] = {
+        {.iov_base = queries, .iov_len = 256},
+        {.iov_base = (unsigned char *)queries + 256, .iov_len = count * sizeof(queries[0]) - 256}
+    };
+    struct sockaddr_nl address = {.nl_family = AF_NETLINK};
+    struct msghdr message = {.msg_name = &address, .msg_namelen = sizeof(address),
+                            .msg_iov = parts, .msg_iovlen = 2};
+    ssize_t sent = sendmsg(descriptor, &message, 0);
+    unsigned char buffer[8192];
+    if (oversized) {
+        require(sent == -1 && errno == EMSGSIZE, "oversized reply rejected");
+        require(recv(descriptor, buffer, sizeof(buffer), MSG_DONTWAIT) == -1 && errno == EAGAIN,
+                "no partial batch reply");
+    } else {
+        require(sent == count * sizeof(queries[0]), "large scatter gather request");
+        int remaining = (int)receive(descriptor, buffer, sizeof(buffer));
+        int replies = 0;
+        for (struct nlmsghdr *header = (struct nlmsghdr *)buffer;
+             NLMSG_OK(header, remaining); header = NLMSG_NEXT(header, remaining)) {
+            require(header->nlmsg_type == RTM_NEWLINK && header->nlmsg_seq == (unsigned)replies + 1,
+                    "batch reply sequence");
+            replies++;
+        }
+        require(replies == count, "complete batch");
+    }
+    parts[0].iov_base = NULL;
+    require(sendmsg(descriptor, &message, 0) == -1 && errno == EFAULT, "invalid iov base");
+    parts[0].iov_base = queries;
+    parts[0].iov_len = SIZE_MAX;
+    require(sendmsg(descriptor, &message, 0) == -1 && errno == EMSGSIZE, "iov length overflow");
+    require(sendmsg(descriptor, NULL, 0) == -1 && errno == EFAULT, "invalid message");
+    usable(descriptor);
+    close(descriptor);
+}
+
+static void inherited_test(int argc, char **argv) {
+    require(argc == 6, "inherited arguments");
+    int descriptor = atoi(argv[2]), closed = atoi(argv[4]), datagram = atoi(argv[5]);
+    unsigned port = (unsigned)strtoul(argv[3], NULL, 10);
+    require(fcntl(closed, F_GETFD) == -1 && errno == EBADF, "cloexec descriptor closed");
+    require(port_of(descriptor) == port && !(fcntl(descriptor, F_GETFD) & FD_CLOEXEC),
+            "inherited bound port");
+    socket_info(descriptor, SOCK_RAW);
+    socket_info(datagram, SOCK_DGRAM);
+    require(fcntl(datagram, F_GETFL) & O_NONBLOCK, "inherited nonblocking flag");
+    unsigned char buffer[4096];
+    receive(descriptor, buffer, sizeof(buffer));
+    require(((struct nlmsghdr *)buffer)->nlmsg_type == RTM_NEWLINK, "queued reply survives exec");
+    send_link(descriptor, 9999, NLM_F_ACK);
+    receive(descriptor, buffer, sizeof(buffer));
+    require(((struct nlmsghdr *)buffer)->nlmsg_type == NLMSG_ERROR
+            && (((struct nlmsghdr *)buffer)->nlmsg_flags & NLM_F_CAPPED), "cap ack survives exec");
+    usable(descriptor);
+    usable(datagram);
+    int fresh = route_socket();
+    require(port_of(fresh) != port && port_of(fresh) != port_of(datagram), "ports after exec");
+    close(fresh);
+    close(descriptor);
+    close(datagram);
+}
+
+static void exec_test(const char *program, int forked) {
+    int descriptor = route_socket();
+    int enabled = 1;
+    require(setsockopt(descriptor, SOL_NETLINK, NETLINK_CAP_ACK, &enabled, sizeof(enabled)) == 0,
+            "inherited cap ack");
+    unsigned port = port_of(descriptor);
+    int alias = fcntl(descriptor, F_DUPFD, 100);
+    int closed = fcntl(descriptor, F_DUPFD_CLOEXEC, 200);
+    require(alias >= 100 && closed >= 200, "exec aliases");
+    close(descriptor);
+    int datagram = socket(AF_NETLINK, SOCK_DGRAM | SOCK_NONBLOCK, NETLINK_ROUTE);
+    require(datagram >= 0, "exec datagram");
+    send_link(alias, 1, 0);
+    char descriptor_arg[32], port_arg[32], closed_arg[32], datagram_arg[32];
+    snprintf(descriptor_arg, sizeof(descriptor_arg), "%d", alias);
+    snprintf(port_arg, sizeof(port_arg), "%u", port);
+    snprintf(closed_arg, sizeof(closed_arg), "%d", closed);
+    snprintf(datagram_arg, sizeof(datagram_arg), "%d", datagram);
+    char *arguments[] = {(char *)program, "inherited", descriptor_arg, port_arg, closed_arg, datagram_arg, NULL};
+    if (forked) {
+        pid_t child = fork();
+        require(child >= 0, "exec fork");
+        if (child > 0) {
+            int status;
+            require(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0,
+                    "exec child");
+            usable(alias);
+            usable(datagram);
+            close(alias);
+            close(closed);
+            close(datagram);
+            return;
+        }
+    }
+    execv(program, arguments);
+    require(0, "exec");
+}
+
+static void cloexec_test(const char *program) {
+    int descriptor = socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_ROUTE);
+    require(descriptor >= 0, "cloexec socket");
+    struct sockaddr_nl address = {.nl_family = AF_NETLINK, .nl_pid = (unsigned)getpid()};
+    require(bind(descriptor, (struct sockaddr *)&address, sizeof(address)) == 0, "cloexec bind");
+    char port_arg[32];
+    snprintf(port_arg, sizeof(port_arg), "%u", address.nl_pid);
+    char *arguments[] = {(char *)program, "rebind_after_exec", port_arg, NULL};
+    execv(program, arguments);
+    require(0, "cloexec exec");
 }
 
 static void ack_test(const char *mode) {
@@ -423,6 +641,22 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[1], "raw_replace")) replacement_test(1);
     else if (!strcmp(argv[1], "shared")) shared_test(0);
     else if (!strcmp(argv[1], "fork")) shared_test(1);
+    else if (!strcmp(argv[1], "socket_types")) socket_types_test();
+    else if (!strcmp(argv[1], "ports")) ports_test(0);
+    else if (!strcmp(argv[1], "cross_process_ports")) ports_test(1);
+    else if (!strcmp(argv[1], "batch")) batch_test(0);
+    else if (!strcmp(argv[1], "oversized_batch")) batch_test(1);
+    else if (!strcmp(argv[1], "exec")) exec_test(argv[0], 0);
+    else if (!strcmp(argv[1], "fork_exec")) exec_test(argv[0], 1);
+    else if (!strcmp(argv[1], "inherited")) inherited_test(argc, argv);
+    else if (!strcmp(argv[1], "all_cloexec")) cloexec_test(argv[0]);
+    else if (!strcmp(argv[1], "rebind_after_exec")) {
+        require(argc == 3, "rebind arguments");
+        int descriptor = route_socket();
+        require(port_of(descriptor) == (unsigned)strtoul(argv[2], NULL, 10), "exec releases closed ports");
+        usable(descriptor);
+        close(descriptor);
+    }
     else if (!strcmp(argv[1], "range") || !strcmp(argv[1], "cloexec") || !strcmp(argv[1], "closefrom"))
         close_range_test(argv[1]);
     else if (!strcmp(argv[1], "route")) {
@@ -489,6 +723,30 @@ class NetlinkPreloadTest(unittest.TestCase):
 
     def test_cap_ack_omits_the_request_payload(self):
         self.run_program("capped")
+
+    def test_socket_types_flags_and_identity_match_netlink(self):
+        self.run_program("socket_types")
+
+    def test_more_than_eight_sockets_get_unique_ports_and_release_them(self):
+        self.run_program("ports")
+
+    def test_explicit_ports_cannot_collide_across_processes(self):
+        self.run_program("cross_process_ports")
+
+    def test_large_scatter_gather_requests_receive_all_their_replies(self):
+        self.run_program("batch")
+
+    def test_reply_overflow_and_invalid_iovecs_fail_without_unix_fallback(self):
+        self.run_program("oversized_batch")
+
+    def test_non_cloexec_sockets_and_queued_replies_survive_exec(self):
+        self.run_program("exec")
+
+    def test_fork_exec_does_not_break_the_parents_socket(self):
+        self.run_program("fork_exec")
+
+    def test_cloexec_sockets_release_their_ports_after_exec(self):
+        self.run_program("all_cloexec")
 
     def test_subscription_is_denied_and_receive_timeout_is_applied(self):
         self.run_program("options")
