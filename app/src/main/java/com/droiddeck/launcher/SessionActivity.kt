@@ -1923,8 +1923,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             .setTitle(R.string.diagnostics_share_title)
             .setItems(choices.map { it.first }.toTypedArray()) { _, which ->
                 val selected = choices[which].second
-                startActivity(if (selected.size == 1) SessionLogShare.shareIntent(this, selected.single())
-                    else SessionLogShare.shareEnhancedIntent(this, selected))
+                runCatching {
+                    startActivity(if (selected.size == 1) SessionLogShare.shareIntent(this, selected.single())
+                        else SessionLogShare.shareEnhancedIntent(this, selected))
+                }.onFailure {
+                    Log.w(TAG, "could not share current session logs", it)
+                    Toast.makeText(this, R.string.session_logs_share_failed, Toast.LENGTH_LONG).show()
+                }
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
