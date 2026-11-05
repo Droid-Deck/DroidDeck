@@ -291,6 +291,8 @@ object AutoComponents {
                 apply(context, game, asked, inSession, knownCatalog = catalog)
             } catch (e: Exception) {
                 applied = false
+                appKey(game)?.let { key -> Pending.add(context, key, listOf(id), mapOf(id to (catalog[id]?.revision ?: requestedRevision ?: 0))) }
+                waitFor(game, id)
                 Log.w(TAG, "wincomp: $id installed, but ${game.name} was not updated: ${e.javaClass.simpleName}: ${e.message}")
             }
         }
