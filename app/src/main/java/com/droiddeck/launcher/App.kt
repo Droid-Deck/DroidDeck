@@ -17,7 +17,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        runCatching { EnhancedSessionLogShare.cleanupAbandonedStages(this) }
+        Thread({ runCatching { EnhancedSessionLogShare.cleanupAbandonedStages(this) } }, "diagnostic-stage-cleanup").start()
         com.droiddeck.launcher.ui.Themes.loadGradient(this)
         com.droiddeck.launcher.ui.BuildWatermark.install(this)
         HomeApp.trackRecents(this)
