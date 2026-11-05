@@ -589,6 +589,7 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual(6, code)
         self.assertEqual("LOG_PULL_FAILED", out["error"]["code"])
         self.assertIn("Permission denied", out["error"]["message"])
+        self.assertIn(["shell", "rm", "-rf", EXPORTED_DIR], [call["args"] for call in self.calls()])
 
     def test_logs_replace_the_previous_snapshot_and_preserve_unrelated_files(self):
         destination = self.dir / "artifacts"
