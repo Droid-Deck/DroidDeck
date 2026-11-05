@@ -740,6 +740,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             .also { root.addView(it) }
         touchpad = TouchpadGestures(PointerGestures.slop(this), pointerListener)
         directTouchHold = DirectTouchHold(PointerGestures.slop(this), pointerListener, directTouchSink)
+        touchSlop = PointerGestures.slop(this)
         threeFingerTap = com.droiddeck.launcher.input.ThreeFingerTap(PointerGestures.slop(this) * 2)
         twoFingerGestures = com.droiddeck.launcher.input.TwoFingerGestures(PointerGestures.slop(this) * 2,
             object : com.droiddeck.launcher.input.TwoFingerGestures.Listener {
@@ -3694,9 +3695,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private var ignoreGameTouch = false
-    private var lockedTouchTurns = false
     private var touchEditorOpen by mutableStateOf(false)
     private var lockedSwipeUsed = false
+    private var touchSlop = 0f
     private var lockedSwipeX = 0f
     private var lockedSwipeY = 0f
     private var dismissTouch = false
@@ -3741,15 +3742,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
             com.droiddeck.launcher.input.TouchRouter.Route.SCROLL -> scrollTouch.onTouch(event)
             else -> {
-                if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-                    val inPicture = drawnRect()?.let { !topPictureMapped || it.contains(event.x, event.y) } ?: false
-                    lockedTouchTurns = programLocksPointer() && inPicture && route != com.droiddeck.launcher.input.TouchRouter.Route.TOUCHPAD
-                }
                 if (com.droiddeck.launcher.input.TouchRouter.steamKeyboardZone(snapshot)) {
                     val wasActive = threeFingerTap.active
                     if (threeFingerTap.onTouch(event)) padBridge?.triggerSteamKeyboard()
                     if (threeFingerTap.active && !wasActive) {
-                        if (route == com.droiddeck.launcher.input.TouchRouter.Route.TOUCHPAD || lockedTouchTurns) touchpad.cancel()
+                        if (route == com.droiddeck.launcher.input.TouchRouter.Route.TOUCHPAD) touchpad.cancel()
                         else {
                             directTouchHold.cancel()
                             WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
@@ -3757,7 +3754,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     }
                     if (threeFingerTap.active || wasActive) return true
                 }
-                if (route == com.droiddeck.launcher.input.TouchRouter.Route.TOUCHPAD || lockedTouchTurns) {
+                if (route == com.droiddeck.launcher.input.TouchRouter.Route.TOUCHPAD) {
                     val rect = drawnRect() ?: return false
                     if (touchpad.bounds != rect) {
                         val fresh = touchpad.bounds.width() <= 1f
@@ -3811,8 +3808,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun forwardTouch(event: MotionEvent, rect: android.graphics.RectF): Boolean {
         val swipeX = lockedSwipeX
         val swipeY = lockedSwipeY
-        lockedSwipeX = event.x
-        lockedSwipeY = event.y
+        if (programLocksPointer() && event.actionMasked == MotionEvent.ACTION_MOVE && !lockedSwipeUsed &&
+            abs(event.x - swipeX) <= touchSlop && abs(event.y - swipeY) <= touchSlop) return true
+        val anchor = if (event.actionMasked == MotionEvent.ACTION_POINTER_UP && event.actionIndex == 0 && event.pointerCount > 1) 1 else 0
+        lockedSwipeX = event.getX(anchor)
+        lockedSwipeY = event.getY(anchor)
         if ((event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) && lockedSwipeUsed) {
             lockedSwipeUsed = false
             directTouchHold.cancel()
