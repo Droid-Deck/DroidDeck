@@ -387,6 +387,9 @@ class WinCompSourcesTest {
 
         assertFalse(AutoComponents.prepareLaunch(app, game(null, Library.SOURCE_STEAM, appId, library = "steam")))
         assertEquals(listOf(id), AutoComponents.Pending.ids(app, appId.toString()))
+        AutoComponents.catalogOf = { _, _ -> catalog3 + ready(id) }
+        AutoComponents.online = { true }
+        AutoComponents.drain(app)
     }
 
     @Test fun pendingRepairsKeepTheirRequiredRevisionUntilTheyFinish() = withFakeWorker {
