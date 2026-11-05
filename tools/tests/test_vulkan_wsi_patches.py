@@ -23,6 +23,24 @@ def fetch(url, revision, destination):
 
 
 class VulkanWsiPatchesTest(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('git') and shutil.which('g++'),
+                         'needs git, g++ and the pinned WSI source')
+    def test_dri3_fallback_policy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            try:
+                fetch('https://github.com/ginkage/vulkan-wsi-layer.git', pins()['WSI_REVISION'], work / 'source')
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                self.skipTest('pinned source is not reachable')
+            for patch in sorted((WSI / 'patches').glob('*.patch')):
+                subprocess.run(['git', '-C', str(work / 'source'), 'apply', str(patch)], check=True)
+            executable = work / 'dri3-fallback-policy'
+            subprocess.run([
+                'g++', '-std=c++17', '-Wall', '-Wextra', '-Werror', '-I' + str(work / 'source'),
+                str(WSI / 'tests' / 'dri3_fallback_policy_test.cpp'), '-o', str(executable),
+            ], check=True)
+            subprocess.run([str(executable)], check=True)
+
     def test_build_applies_every_patch_and_records_the_combined_diff(self):
         build = (WSI / 'build.sh').read_text()
         self.assertIn('for patch in "$root"/tools/vulkan-wsi/patches/*.patch', build)

@@ -1,26 +1,83 @@
+diff --git a/util/wsialloc/wsialloc.h b/util/wsialloc/wsialloc.h
+index fbed891..8e8a9d1 100644
+--- a/util/wsialloc/wsialloc.h
++++ b/util/wsialloc/wsialloc.h
+@@ -64,8 +64,9 @@ extern "C" {
+  * 2 - Added WSIALLOC_ALLOCATE_HIGHEST_FIXED_RATE_COMPRESSION
+  * 3 - Grouped the return values of wsialloc_alloc to wsialloc_allocate_result and added another value for returning
+  *     whether or not the allocation will be disjoint.
++ * 4 - Added a layout-only allocator constructor for clients that can provide driver-allocated memory.
+  */
+-#define WSIALLOC_INTERFACE_VERSION 3
++#define WSIALLOC_INTERFACE_VERSION 4
+ 
+ #define WSIALLOC_CONCAT(x, y) x##y
+ #define WSIALLOC_SYMBOL_VERSION(symbol, version) WSIALLOC_CONCAT(symbol, version)
+@@ -124,6 +125,15 @@ typedef enum wsialloc_error
+  */
+ wsialloc_error wsialloc_new(wsialloc_allocator **allocator);
+ 
++/**
++ * @brief Create an allocator that may be used for layout-only queries when the
++ * configured dma-buf heap is unavailable.
++ *
++ * Memory-backed allocations still fail without a heap. This entry point is for
++ * X11 DRI3 setup, which can use the selected layout with driver-exported memory.
++ */
++wsialloc_error wsialloc_new_layout_only(wsialloc_allocator **allocator);
++
+ /**
+  * @brief Close down and free resources associated with a WSI Allocator
+  *
 diff --git a/util/wsialloc/wsialloc_dma_buf_heaps.c b/util/wsialloc/wsialloc_dma_buf_heaps.c
-index 5339166..a1d1f49 100644
+index 5339166..94145dd 100644
 --- a/util/wsialloc/wsialloc_dma_buf_heaps.c
 +++ b/util/wsialloc/wsialloc_dma_buf_heaps.c
-@@ -120,15 +120,11 @@ wsialloc_error wsialloc_new(wsialloc_allocator **allocator)
-       return WSIALLOC_ERROR_NO_RESOURCE;
-    }
+@@ -43,7 +43,7 @@
+  *
+  * This should only be increased when this implementation is updated to match newer versions of wsialloc.h.
+  */
+-#define WSIALLOC_IMPLEMENTATION_VERSION 3
++#define WSIALLOC_IMPLEMENTATION_VERSION 4
  
-+   /* Without a heap (an Android app's SELinux domain denies /dev/dma_heap) the allocator still serves
-+    * WSIALLOC_ALLOCATE_NO_MEMORY layout queries; memory allocations fail and the caller allocates instead. */
+ /* Ensure we are implementing the wsialloc version matching the wsialloc.h header we are using. */
+ #if WSIALLOC_IMPLEMENTATION_VERSION != WSIALLOC_INTERFACE_VERSION
+@@ -110,7 +110,7 @@ static int dma_allocate(const wsialloc_allocator *allocator, const wsialloc_allo
+    return allocate(alloc_fd, size);
+ }
+ 
+-wsialloc_error wsialloc_new(wsialloc_allocator **allocator)
++static wsialloc_error wsialloc_new_internal(wsialloc_allocator **allocator, bool allow_missing_heap)
+ {
+    assert(allocator != NULL);
+ 
+@@ -123,7 +123,7 @@ wsialloc_error wsialloc_new(wsialloc_allocator **allocator)
     dma_buf_heaps->memory_fd = open("/dev/dma_heap/" STR(WSIALLOC_MEMORY_HEAP_NAME), O_RDWR);
     dma_buf_heaps->protected_fd = -1;
  
 -   if (dma_buf_heaps->memory_fd < 0)
--   {
--      free(dma_buf_heaps);
--      return WSIALLOC_ERROR_NO_RESOURCE;
--   }
--
-    *allocator = dma_buf_heaps;
++   if (dma_buf_heaps->memory_fd < 0 && !allow_missing_heap)
+    {
+       free(dma_buf_heaps);
+       return WSIALLOC_ERROR_NO_RESOURCE;
+@@ -133,6 +133,16 @@ wsialloc_error wsialloc_new(wsialloc_allocator **allocator)
     return WSIALLOC_ERROR_NONE;
  }
-@@ -166,7 +162,7 @@ wsialloc_error wsialloc_alloc(wsialloc_allocator *allocator, const wsialloc_allo
+ 
++wsialloc_error wsialloc_new(wsialloc_allocator **allocator)
++{
++   return wsialloc_new_internal(allocator, false);
++}
++
++wsialloc_error wsialloc_new_layout_only(wsialloc_allocator **allocator)
++{
++   return wsialloc_new_internal(allocator, true);
++}
++
+ static void close_fd(int fd)
+ {
+    if (fd >= 0)
+@@ -166,7 +176,7 @@ wsialloc_error wsialloc_alloc(wsialloc_allocator *allocator, const wsialloc_allo
     {
        fd_to_use = allocator->protected_fd;
     }
@@ -29,8 +86,242 @@ index 5339166..a1d1f49 100644
     {
        return WSIALLOC_ERROR_NO_RESOURCE;
     }
+diff --git a/wsi/extensions/external_memory_extension.cpp b/wsi/extensions/external_memory_extension.cpp
+index c5bd7e8..1e15ae7 100644
+--- a/wsi/extensions/external_memory_extension.cpp
++++ b/wsi/extensions/external_memory_extension.cpp
+@@ -25,7 +25,10 @@
+ /**
+  * @file external_memory_extension.cpp
+  */
++#include <algorithm>
+ #include <cassert>
++#include <iterator>
++#include <unistd.h>
+ 
+ #include <util/helpers.hpp>
+ #include <util/format_modifiers.hpp>
+@@ -198,8 +201,9 @@ VkResult get_surface_compatible_formats(const VkImageCreateInfo &image_create_in
+          continue;
+       }
+ 
+-      if (external_props.externalMemoryProperties.externalMemoryFeatures &
+-          VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT_KHR)
++      const VkExternalMemoryFeatureFlags external_features = external_props.externalMemoryProperties.externalMemoryFeatures;
++      if ((external_features & VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT_KHR) &&
++          !(external_features & VK_EXTERNAL_MEMORY_FEATURE_DEDICATED_ONLY_BIT_KHR))
+       {
+          if (!exportable_modifers.try_push_back(drm_format.modifier))
+          {
+@@ -233,10 +237,12 @@ VkResult get_surface_compatible_formats(const VkImageCreateInfo &image_create_in
+  * @param out_plane_layouts Plane layouts description for each plane.
+  * @return VkResult in case of failure, wsialloc_allocate_result otherwise.
+  */
++static void close_allocation_fds(wsialloc_allocate_result &alloc_result);
++
+ std::variant<VkResult, wsialloc_allocate_result> query_wsialloc_preferred_format(
+    const VkImageCreateInfo &image_create_info, std::optional<image_create_compression_control> &compression,
+    swapchain_wsialloc_allocator &wsi_allocator, util::vector<wsialloc_format> &in_importable_formats,
+-   util::vector<VkSubresourceLayout> &out_plane_layouts)
++   util::vector<VkSubresourceLayout> &out_plane_layouts, bool avoid_allocation)
+ {
+    bool use_fixed_rate_compression = false;
+    if (compression)
+@@ -252,13 +258,14 @@ std::variant<VkResult, wsialloc_allocate_result> query_wsialloc_preferred_format
+                                 in_importable_formats.data(),
+                                 in_importable_formats.size(),
+                                 use_fixed_rate_compression,
+-                                true };
++                                avoid_allocation };
+    wsialloc_allocate_result alloc_result = { {}, { 0 }, { 0 }, { -1 }, false };
+    TRY(wsi_allocator.allocate(params, &alloc_result));
+ 
+    const uint32_t format_planes = util::drm::drm_fourcc_format_get_num_planes(alloc_result.format.fourcc);
+    if (!out_plane_layouts.try_resize(format_planes))
+    {
++      close_allocation_fds(alloc_result);
+       return VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
+ 
+@@ -272,12 +279,36 @@ std::variant<VkResult, wsialloc_allocate_result> query_wsialloc_preferred_format
+    return alloc_result;
+ }
+ 
++static void close_allocation_fds(wsialloc_allocate_result &alloc_result)
++{
++   for (uint32_t plane = 0; plane < WSIALLOC_MAX_PLANES; plane++)
++   {
++      const int fd = alloc_result.buffer_fds[plane];
++      if (fd < 0)
++      {
++         continue;
++      }
++      bool first_reference = true;
++      for (uint32_t previous = 0; previous < plane; previous++)
++      {
++         first_reference &= alloc_result.buffer_fds[previous] != fd;
++      }
++      if (first_reference)
++      {
++         close(fd);
++      }
++   }
++   std::fill(std::begin(alloc_result.buffer_fds), std::end(alloc_result.buffer_fds), -1);
++}
++
+ std::variant<VkResult, util::unique_ptr<swapchain_image_create_external_memory>> swapchain_image_create_external_memory::
+    create(const VkImageCreateInfo &image_create_info, std::optional<image_create_compression_control> compression,
+           swapchain_wsialloc_allocator &wsi_allocator, const util::vector<util::drm::drm_format_pair> &surface_formats,
+-          VkPhysicalDevice physical_device, util::allocator allocator)
++          VkPhysicalDevice physical_device, util::allocator allocator, bool allow_driver_export_fallback)
+ {
+    util::vector<wsialloc_format> importable_formats(util::allocator(allocator, VK_SYSTEM_ALLOCATION_SCOPE_COMMAND));
++   util::vector<wsialloc_format> exportable_importable_formats(
++      util::allocator(allocator, VK_SYSTEM_ALLOCATION_SCOPE_COMMAND));
+    util::vector<uint64_t> exportable_modifiers(util::allocator(allocator, VK_SYSTEM_ALLOCATION_SCOPE_COMMAND));
+ 
+    /* Query supported modifiers. */
+@@ -295,8 +326,57 @@ std::variant<VkResult, util::unique_ptr<swapchain_image_create_external_memory>>
+    }
+ 
+    util::vector<VkSubresourceLayout> plane_layouts(allocator);
++   if (!allow_driver_export_fallback)
++   {
++      auto selected_format = query_wsialloc_preferred_format(
++         image_create_info, compression, wsi_allocator, importable_formats, plane_layouts, true);
++      if (auto error = std::get_if<VkResult>(&selected_format))
++      {
++         return *error;
++      }
++      auto ext_memory = allocator.make_unique<swapchain_image_create_external_memory>(
++         image_create_info, compression, std::get<wsialloc_allocate_result>(selected_format),
++         std::move(plane_layouts), drm_format_props, false);
++      if (ext_memory == nullptr)
++      {
++         return VK_ERROR_OUT_OF_HOST_MEMORY;
++      }
++      return ext_memory;
++   }
++
+    auto wsialloc_preferred_format_result =
+-      query_wsialloc_preferred_format(image_create_info, compression, wsi_allocator, importable_formats, plane_layouts);
++      query_wsialloc_preferred_format(image_create_info, compression, wsi_allocator, importable_formats, plane_layouts,
++                                      false);
++   if (auto selected = std::get_if<wsialloc_allocate_result>(&wsialloc_preferred_format_result))
++   {
++      close_allocation_fds(*selected);
++      auto ext_memory = allocator.make_unique<swapchain_image_create_external_memory>(
++         image_create_info, compression, *selected, std::move(plane_layouts), drm_format_props, false);
++      if (ext_memory == nullptr)
++      {
++         return VK_ERROR_OUT_OF_HOST_MEMORY;
++      }
++      return ext_memory;
++   }
++
++   for (const auto &format : importable_formats)
++   {
++      if (std::find(exportable_modifiers.begin(), exportable_modifiers.end(), format.modifier) !=
++             exportable_modifiers.end() &&
++          !exportable_importable_formats.try_push_back(format))
++      {
++         return VK_ERROR_OUT_OF_HOST_MEMORY;
++      }
++   }
++   if (exportable_importable_formats.empty())
++   {
++      WSI_LOG_ERROR("No exportable DRI3 format is available without a dma-buf heap.");
++      return std::get<VkResult>(wsialloc_preferred_format_result);
++   }
++
++   plane_layouts.clear();
++   wsialloc_preferred_format_result = query_wsialloc_preferred_format(
++      image_create_info, compression, wsi_allocator, exportable_importable_formats, plane_layouts, true);
+    if (auto error = std::get_if<VkResult>(&wsialloc_preferred_format_result))
+    {
+       return *error;
+@@ -304,8 +384,16 @@ std::variant<VkResult, util::unique_ptr<swapchain_image_create_external_memory>>
+ 
+    auto wsialloc_preferred_format = std::get<wsialloc_allocate_result>(wsialloc_preferred_format_result);
+ 
++   if ((get_image_create_flags(image_create_info) & VK_IMAGE_CREATE_PROTECTED_BIT) != 0 ||
++       wsialloc_preferred_format.is_disjoint ||
++       util::drm::drm_fourcc_format_get_num_planes(wsialloc_preferred_format.format.fourcc) != 1)
++   {
++      WSI_LOG_ERROR("No-heap DRI3 fallback requires an unprotected, single-plane exportable image.");
++      return VK_ERROR_FORMAT_NOT_SUPPORTED;
++   }
++
+    auto ext_memory = allocator.make_unique<swapchain_image_create_external_memory>(
+-      image_create_info, compression, wsialloc_preferred_format, std::move(plane_layouts), drm_format_props);
++      image_create_info, compression, wsialloc_preferred_format, std::move(plane_layouts), drm_format_props, true);
+    if (ext_memory == nullptr)
+    {
+       return VK_ERROR_OUT_OF_HOST_MEMORY;
+@@ -316,11 +404,12 @@ std::variant<VkResult, util::unique_ptr<swapchain_image_create_external_memory>>
+ swapchain_image_create_external_memory::swapchain_image_create_external_memory(
+    const VkImageCreateInfo &image_create_info, std::optional<image_create_compression_control> &compression,
+    wsialloc_allocate_result wsialloc_selected_format, util::vector<VkSubresourceLayout> plane_layouts,
+-   const util::vector<VkDrmFormatModifierPropertiesEXT> &drm_format_props)
++   const util::vector<VkDrmFormatModifierPropertiesEXT> &drm_format_props, bool driver_export_fallback_allowed)
+    : m_wsialloc_selected_format(wsialloc_selected_format)
+    , m_create_flags()
+    , m_create_extent()
+    , m_use_fixed_rate_compression(false)
++   , m_driver_export_fallback_allowed(driver_export_fallback_allowed)
+    , m_prop_plane_count()
+    , m_plane_layouts(std::move(plane_layouts))
+    , m_drm_mod_info()
+@@ -389,7 +478,7 @@ external_image_create_info swapchain_image_create_external_memory::get_external_
+    assert(m_wsialloc_selected_format.format.fourcc != 0);
+ 
+    external_image_create_info image_info = { m_wsialloc_selected_format.format, m_create_flags, m_create_extent,
+-                                             m_use_fixed_rate_compression };
++                                             m_use_fixed_rate_compression, m_driver_export_fallback_allowed };
+    return image_info;
+ }
+ 
+diff --git a/wsi/extensions/external_memory_extension.hpp b/wsi/extensions/external_memory_extension.hpp
+index 508de48..caf0703 100644
+--- a/wsi/extensions/external_memory_extension.hpp
++++ b/wsi/extensions/external_memory_extension.hpp
+@@ -52,6 +52,7 @@ struct external_image_create_info
+    VkImageCreateFlags2KHR flags;
+    VkExtent3D extent;
+    bool explicit_compression;
++   bool driver_export_fallback_allowed;
+ };
+ 
+ /**
+@@ -73,7 +74,8 @@ public:
+                                           std::optional<image_create_compression_control> &compression,
+                                           wsialloc_allocate_result wsialloc_selected_format,
+                                           util::vector<VkSubresourceLayout> plane_layouts,
+-                                          const util::vector<VkDrmFormatModifierPropertiesEXT> &drm_format_props);
++                                          const util::vector<VkDrmFormatModifierPropertiesEXT> &drm_format_props,
++                                          bool driver_export_fallback_allowed);
+ 
+    /**
+     * @brief Create swapchain_image_create_external_memory object.
+@@ -89,7 +91,7 @@ public:
+    static std::variant<VkResult, util::unique_ptr<swapchain_image_create_external_memory>> create(
+       const VkImageCreateInfo &image_create_info, std::optional<image_create_compression_control> compression,
+       swapchain_wsialloc_allocator &wsi_allocator, const util::vector<util::drm::drm_format_pair> &surface_formats,
+-      VkPhysicalDevice physical_device, util::allocator allocator);
++      VkPhysicalDevice physical_device, util::allocator allocator, bool allow_driver_export_fallback = false);
+ 
+    /**
+     * @brief Extend VkImageCreateInfo
+@@ -112,6 +114,7 @@ private:
+    VkImageCreateFlags2KHR m_create_flags;
+    VkExtent3D m_create_extent;
+    bool m_use_fixed_rate_compression;
++   bool m_driver_export_fallback_allowed;
+    uint32_t m_prop_plane_count;
+ 
+    util::vector<VkSubresourceLayout> m_plane_layouts;
 diff --git a/wsi/external_memory.cpp b/wsi/external_memory.cpp
-index 4c454fd..bf9e967 100644
+index 4c454fd..b6f4b99 100644
 --- a/wsi/external_memory.cpp
 +++ b/wsi/external_memory.cpp
 @@ -51,6 +51,11 @@ external_memory::~external_memory()
@@ -45,7 +336,7 @@ index 4c454fd..bf9e967 100644
     for (uint32_t plane = 0; plane < get_num_planes(); plane++)
     {
        auto &memory = m_memories[plane];
-@@ -199,6 +204,83 @@ VkResult external_memory::import_memory_and_bind_swapchain_image(const VkImage &
+@@ -199,6 +204,89 @@ VkResult external_memory::import_memory_and_bind_swapchain_image(const VkImage &
     return VK_SUCCESS;
  }
  
@@ -54,8 +345,21 @@ index 4c454fd..bf9e967 100644
 +   auto &device_data = layer::device_private_data::get(m_device);
 +   assert(m_memories[0] == VK_NULL_HANDLE && m_buffer_fds[0] < 0);
 +
-+   VkMemoryRequirements requirements = {};
-+   device_data.disp.GetImageMemoryRequirements(m_device, image, &requirements);
++   VkImageMemoryRequirementsInfo2 requirements_info = {};
++   requirements_info.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2;
++   requirements_info.image = image;
++   VkMemoryDedicatedRequirements dedicated_requirements = {};
++   dedicated_requirements.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS;
++   VkMemoryRequirements2 requirements2 = {};
++   requirements2.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2;
++   requirements2.pNext = &dedicated_requirements;
++   device_data.disp.GetImageMemoryRequirements2KHR(m_device, &requirements_info, &requirements2);
++   const VkMemoryRequirements &requirements = requirements2.memoryRequirements;
++   if (dedicated_requirements.requiresDedicatedAllocation)
++   {
++      WSI_LOG_ERROR("Cannot export a DRI3 image that requires dedicated allocation.");
++      return VK_ERROR_FEATURE_NOT_PRESENT;
++   }
 +   if (requirements.memoryTypeBits == 0)
 +   {
 +      return VK_ERROR_FEATURE_NOT_PRESENT;
@@ -85,15 +389,8 @@ index 4c454fd..bf9e967 100644
 +      return VK_ERROR_FEATURE_NOT_PRESENT;
 +   }
 +
-+   /* shortcut: always dedicated (export commonly requires it), so an app image bound to swapchain memory through
-+    * VkBindImageMemorySwapchainInfoKHR would break the dedicated-allocation rules; query
-+    * VkMemoryDedicatedRequirements if such an app turns up. */
-+   VkMemoryDedicatedAllocateInfo dedicated = {};
-+   dedicated.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
-+   dedicated.image = image;
 +   VkExportMemoryAllocateInfo export_info = {};
 +   export_info.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
-+   export_info.pNext = &dedicated;
 +   export_info.handleTypes = m_handle_type;
 +   VkMemoryAllocateInfo alloc_info = {};
 +   alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -130,7 +427,7 @@ index 4c454fd..bf9e967 100644
  {
     if (!image_plane_layouts.try_resize(get_num_planes()))
 diff --git a/wsi/external_memory.hpp b/wsi/external_memory.hpp
-index 9b2e836..e4dee85 100644
+index 9b2e836..f695f77 100644
 --- a/wsi/external_memory.hpp
 +++ b/wsi/external_memory.hpp
 @@ -192,6 +192,22 @@ public:
@@ -138,7 +435,7 @@ index 9b2e836..e4dee85 100644
     VkResult import_memory_and_bind_swapchain_image(const VkImage &image);
  
 +   /**
-+    * @brief Allocates dedicated, dma-buf exportable device memory for a single-plane image, binds it and exports
++    * @brief Allocates non-dedicated, dma-buf exportable device memory for a single-plane image, binds it and exports
 +    *        one fd into the plane 0 buffer fd. For when no external dma-buf allocator is reachable.
 +    *
 +    * @param image     The swapchain image, created with the external memory image create info.
@@ -165,18 +462,23 @@ index 9b2e836..e4dee85 100644
  
     wsi_memory_type m_memory_type{ wsi_memory_type::EXTERNAL_DMA_BUF };
 diff --git a/wsi/image_backing_memory_external.cpp b/wsi/image_backing_memory_external.cpp
-index 636b706..422cee5 100644
+index 636b706..c9b3bc9 100644
 --- a/wsi/image_backing_memory_external.cpp
 +++ b/wsi/image_backing_memory_external.cpp
-@@ -72,8 +72,44 @@ VkResult image_backing_memory_external::allocate()
+@@ -72,8 +72,49 @@ VkResult image_backing_memory_external::allocate()
     return VK_SUCCESS;
  }
  
 +VkResult image_backing_memory_external::allocate(VkImage image)
 +{
-+   if (allocate() == VK_SUCCESS)
++   const VkResult allocation_result = allocate();
++   if (allocation_result == VK_SUCCESS)
 +   {
 +      return VK_SUCCESS;
++   }
++   if (!m_driver_export_fallback_allowed)
++   {
++      return allocation_result;
 +   }
 +
 +   /* The image was created with the WSI allocator's layout for the selected format; ask it for that layout again
@@ -214,10 +516,26 @@ index 636b706..422cee5 100644
             "Failed to import memory and bind swapchain image");
  
 diff --git a/wsi/image_backing_memory_external.hpp b/wsi/image_backing_memory_external.hpp
-index 1182acc..51b99fe 100644
+index 1182acc..28583d5 100644
 --- a/wsi/image_backing_memory_external.hpp
 +++ b/wsi/image_backing_memory_external.hpp
-@@ -78,6 +78,18 @@ public:
+@@ -53,6 +53,7 @@ struct wsialloc_create_info_args
+    VkImageCreateFlags2KHR flags;
+    VkExtent3D extent;
+    bool explicit_compression;
++   bool driver_export_fallback_allowed{ false };
+ };
+ 
+ class image_backing_memory_external : public image_backing_memory
+@@ -67,6 +68,7 @@ public:
+       , m_wsialloc_allocator(wsi_allocator)
+       , m_create_info(create_info)
+    {
++      m_driver_export_fallback_allowed = m_create_info.driver_export_fallback_allowed;
+    }
+ 
+    virtual ~image_backing_memory_external() = default;
+@@ -78,6 +80,18 @@ public:
      */
     VkResult allocate();
  
@@ -236,21 +554,108 @@ index 1182acc..51b99fe 100644
     /**
      * @brief Import external memory and bind it to the image.
      * Note: The backing memory must be allocated before calling this function.
-@@ -123,6 +135,9 @@ private:
+@@ -123,6 +137,10 @@ private:
  
     swapchain_wsialloc_allocator &m_wsialloc_allocator;
     wsialloc_create_info_args m_create_info;
 +
 +   /* Memory came from the driver (allocate(VkImage) fallback) and is already bound. */
 +   bool m_driver_allocated{ false };
++   bool m_driver_export_fallback_allowed{ false };
  };
  
  class external_image_backing_memory_creator : public image_backing_memory_creator
+diff --git a/wsi/wsi_alloc_utils.cpp b/wsi/wsi_alloc_utils.cpp
+index 8c63b36..cb0ab3d 100644
+--- a/wsi/wsi_alloc_utils.cpp
++++ b/wsi/wsi_alloc_utils.cpp
+@@ -33,11 +33,12 @@
+ namespace wsi
+ {
+ 
+-std::optional<swapchain_wsialloc_allocator> swapchain_wsialloc_allocator::create()
++std::optional<swapchain_wsialloc_allocator> swapchain_wsialloc_allocator::create(bool allow_layout_only)
+ {
+    wsialloc_allocator *allocator = nullptr;
+    WSIALLOC_ASSERT_VERSION();
+-   if (wsialloc_new(&allocator) != WSIALLOC_ERROR_NONE)
++   const auto result = allow_layout_only ? wsialloc_new_layout_only(&allocator) : wsialloc_new(&allocator);
++   if (result != WSIALLOC_ERROR_NONE)
+    {
+       WSI_LOG_ERROR("Failed to create wsi allocator.");
+       return std::nullopt;
+diff --git a/wsi/wsi_alloc_utils.hpp b/wsi/wsi_alloc_utils.hpp
+index 3d9786b..a36eb86 100644
+--- a/wsi/wsi_alloc_utils.hpp
++++ b/wsi/wsi_alloc_utils.hpp
+@@ -52,7 +52,7 @@ struct allocation_params
+ class swapchain_wsialloc_allocator
+ {
+ public:
+-   static std::optional<swapchain_wsialloc_allocator> create();
++   static std::optional<swapchain_wsialloc_allocator> create(bool allow_layout_only = false);
+ 
+    swapchain_wsialloc_allocator(const swapchain_wsialloc_allocator &other) = delete;
+    swapchain_wsialloc_allocator &operator=(const swapchain_wsialloc_allocator &other) = delete;
 diff --git a/wsi/x11/swapchain.cpp b/wsi/x11/swapchain.cpp
-index a857035..9b269ff 100644
+index a857035..a35b95e 100644
 --- a/wsi/x11/swapchain.cpp
 +++ b/wsi/x11/swapchain.cpp
-@@ -512,9 +512,10 @@ VkResult swapchain::allocate_and_bind_swapchain_image(swapchain_image &image)
+@@ -285,7 +285,7 @@ VkResult swapchain::init_platform(VkDevice device, const VkSwapchainCreateInfoKH
+    if (m_use_dri3)
+    {
+       VkResult dri3_result = VK_ERROR_INITIALIZATION_FAILED;
+-      auto wsi_allocator = swapchain_wsialloc_allocator::create();
++      auto wsi_allocator = swapchain_wsialloc_allocator::create(true);
+       if (wsi_allocator.has_value())
+       {
+          m_wsi_allocator = m_allocator.make_unique<swapchain_wsialloc_allocator>(std::move(wsi_allocator.value()));
+@@ -433,7 +433,7 @@ VkResult swapchain::init_image_factory(const VkSwapchainCreateInfoKHR &swapchain
+       auto compression_control = image_create_compression_control::create(m_device, &swapchain_create_info);
+       auto sc_img_create_ext_mem_result = swapchain_image_create_external_memory::create(
+          image_handle_creator->get_image_create_info(), compression_control, *m_wsi_allocator, supported_formats,
+-         m_device_data.physical_device, m_allocator);
++         m_device_data.physical_device, m_allocator, true);
+       if (auto error = std::get_if<VkResult>(&sc_img_create_ext_mem_result))
+       {
+          return *error;
+@@ -444,9 +444,34 @@ VkResult swapchain::init_image_factory(const VkSwapchainCreateInfoKHR &swapchain
+       auto external_image_create_info = sc_img_create_ext_mem->get_external_image_create_info();
+       TRY_LOG_CALL(image_handle_creator->add_extension(std::move(sc_img_create_ext_mem)));
+ 
++      if (external_image_create_info.driver_export_fallback_allowed)
++      {
++         /* The driver-export fallback must never use dedicated memory: an application may bind the
++          * swapchain allocation to an alias image through VkBindImageMemorySwapchainInfoKHR. Probe the
++          * exact extended image now, while init_platform can still select the SHM presenter. */
++         VkImage probe_image = VK_NULL_HANDLE;
++         TRY_LOG_CALL(image_handle_creator->create_image(m_device_data, m_allocator, probe_image));
++         VkImageMemoryRequirementsInfo2 requirements_info = {};
++         requirements_info.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2;
++         requirements_info.image = probe_image;
++         VkMemoryDedicatedRequirements dedicated_requirements = {};
++         dedicated_requirements.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS;
++         VkMemoryRequirements2 requirements = {};
++         requirements.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2;
++         requirements.pNext = &dedicated_requirements;
++         m_device_data.disp.GetImageMemoryRequirements2KHR(m_device, &requirements_info, &requirements);
++         m_device_data.disp.DestroyImage(m_device, probe_image, m_allocator.get_original_callbacks());
++         if (dedicated_requirements.requiresDedicatedAllocation)
++         {
++            WSI_LOG_WARNING("DRI3 image requires dedicated allocation; falling back to SHM to preserve aliasing.");
++            return VK_ERROR_FEATURE_NOT_PRESENT;
++         }
++      }
++
+       wsialloc_create_info_args wsialloc_args = { external_image_create_info.selected_format,
+                                                   external_image_create_info.flags, external_image_create_info.extent,
+-                                                  external_image_create_info.explicit_compression };
++                                                  external_image_create_info.explicit_compression,
++                                                  external_image_create_info.driver_export_fallback_allowed };
+       auto backing_memory_creator =
+          m_allocator.make_unique<external_image_backing_memory_creator>(m_device_data, *m_wsi_allocator, wsialloc_args);
+       if (backing_memory_creator == nullptr)
+@@ -512,9 +537,10 @@ VkResult swapchain::allocate_and_bind_swapchain_image(swapchain_image &image)
     if (m_use_dri3)
     {
        /* DRI3: allocate the GPU-local dma-buf, wrap it as an X pixmap (before the Vulkan import, so

@@ -217,10 +217,13 @@
         }
       },
       "recipe_inputs": {
-        "tools/vulkan-wsi/build.sh": "9e403151c58e6b2ee15241f525c4bacb2495f072191da6a63065e7fcc25b3b3c",
+        "tools/vulkan-wsi/build.sh": "278a82aa5e82f7b839bb2c391d68cbcba230322f4ff5bab7fa60a293da7ee04e",
         "tools/vulkan-wsi/licenses/Vulkan-Headers/LICENSE.md": "95ad366d23fadf701d355bc45fb8b82ae2d700239471d35d41286ac3b08ff903",
         "tools/vulkan-wsi/licenses/Vulkan-Headers/MIT.txt": "1ca3502222d967f3be5751c55f6b7ee735b5383909c3b501495f54b216dbf227",
         "tools/vulkan-wsi/patches/0001-link-x11-external-memory.patch": "e2ed113d22f05563248ef606c774c22658b184fbc05912229007cd5281027e78",
+        "tools/vulkan-wsi/patches/0002-x11-dri3-driver-exported-memory.patch": "73706318a6e711a5ac2bab6a2cc66682f243ec74dc2d291a4e4c69dfe178e5e0",
+        "tools/vulkan-wsi/patches/0003-x11-follow-gamescope-frame-limiter.patch": "e33de8ba14b9c2d18d99890a9dd183beca9791185c019318d865095d3f3b0b8b",
+        "tools/vulkan-wsi/patches/0004-x11-dri3-fallback-policy.patch": "3f392cf3f859af1e61a0a606ec86e3ce9ac7cf23e2ca7015767308c277f141db",
         "tools/vulkan-wsi/source.env": "71a88087265a09b4ce06e7c9b98ef6799c6a7657cc6ef9084de663e96f5cfe63"
       },
       "sha256": "348f9ec42159c1ee6e2baba4312a5e845d26687238f29e3f4a1b0c3c97e13b3c",

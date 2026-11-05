@@ -1,6 +1,6 @@
-/* wsialloc without a dma-buf heap (true in WSL/CI, and for Android apps): creation must succeed, layout-only
- * (NO_MEMORY) requests must return the LINEAR layout the swapchain images are created with, and real allocations
- * must fail so the X11 backend falls back to driver-exported memory. Run by tools/tests/test_vulkan_wsi_patches.py. */
+/* wsialloc without a dma-buf heap (true in WSL/CI, and for Android apps): the ordinary constructor must preserve
+ * its failure behavior. X11 alone uses the layout-only constructor: NO_MEMORY requests return the LINEAR layout the
+ * swapchain images are created with, while real allocations still fail. Run by test_vulkan_wsi_patches.py. */
 #include <assert.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -9,8 +9,12 @@
 int main(void)
 {
     assert(access("/dev/dma_heap/system", R_OK) != 0);
+    wsialloc_allocator *ordinary = NULL;
+    assert(wsialloc_new(&ordinary) == WSIALLOC_ERROR_NO_RESOURCE);
+    assert(ordinary == NULL);
+
     wsialloc_allocator *allocator = NULL;
-    assert(wsialloc_new(&allocator) == WSIALLOC_ERROR_NONE);
+    assert(wsialloc_new_layout_only(&allocator) == WSIALLOC_ERROR_NONE);
 
     wsialloc_format formats[] = { { DRM_FORMAT_XRGB8888, DRM_FORMAT_MOD_LINEAR, 0 } };
     wsialloc_allocate_info info = { formats, 1, 1364, 768, WSIALLOC_ALLOCATE_NO_MEMORY };
