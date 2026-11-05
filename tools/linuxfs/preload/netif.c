@@ -668,6 +668,16 @@ struct nl_fd {
     struct nl_fd *next;
 };
 
+#define NL_FD_PAGE_SIZE 1024
+#define NL_FD_BUCKETS 256
+#define NL_FD_WORD_BITS (sizeof(unsigned long) * CHAR_BIT)
+
+struct nl_fd_page {
+    unsigned number;
+    unsigned long bits[NL_FD_PAGE_SIZE / NL_FD_WORD_BITS];
+    struct nl_fd_page *next;
+};
+
 struct nl_metadata {
     uint64_t nonce;
     uint32_t port;
@@ -695,6 +705,9 @@ static const char nl_peer_magic[12] = "bl-nl-p-v1";
 static const char nl_reservation_magic[12] = "bl-nl-r-v1";
 static struct nl_socket *nl_sockets;
 static struct nl_fd *nl_fds;
+static struct nl_fd_page *nl_fd_pages[NL_FD_BUCKETS];
+static unsigned nl_fd_count;
+static int nl_fd_index_incomplete;
 static unsigned nl_next_port = 0x80000000u;
 static pthread_mutex_t nl_sockets_lock = PTHREAD_MUTEX_INITIALIZER;
 static __thread unsigned nl_reply_port;
@@ -708,6 +721,48 @@ static void nl_restore_inherited(void);
 __attribute__((constructor)) static void nl_sockets_init(void) {
     pthread_atfork(nl_lock_before_fork, nl_unlock_after_fork, nl_reset_after_fork);
     nl_restore_inherited();
+}
+
+static struct nl_fd_page *nl_fd_page_of(int fd) {
+    unsigned number = (unsigned) fd / NL_FD_PAGE_SIZE;
+    struct nl_fd_page *page =
+            __atomic_load_n(&nl_fd_pages[number % NL_FD_BUCKETS], __ATOMIC_ACQUIRE);
+    for (; page; page = page->next) {
+        if (page->number == number) return page;
+    }
+    return NULL;
+}
+
+static int nl_tracked(int fd) {
+    if (fd < 0 || __atomic_load_n(&nl_fd_count, __ATOMIC_ACQUIRE) == 0) return 0;
+    struct nl_fd_page *page = nl_fd_page_of(fd);
+    unsigned offset = (unsigned) fd % NL_FD_PAGE_SIZE;
+    if (page && (__atomic_load_n(&page->bits[offset / NL_FD_WORD_BITS], __ATOMIC_ACQUIRE)
+            & (1ul << (offset % NL_FD_WORD_BITS)))) return 1;
+    return __atomic_load_n(&nl_fd_index_incomplete, __ATOMIC_ACQUIRE);
+}
+
+static void nl_register(struct nl_fd *entry) {
+    struct nl_fd_page *page = nl_fd_page_of(entry->fd);
+    if (page == NULL) {
+        page = calloc(1, sizeof(*page));
+        if (page) {
+            page->number = (unsigned) entry->fd / NL_FD_PAGE_SIZE;
+            unsigned bucket = page->number % NL_FD_BUCKETS;
+            page->next = nl_fd_pages[bucket];
+            __atomic_store_n(&nl_fd_pages[bucket], page, __ATOMIC_RELEASE);
+        } else {
+            __atomic_store_n(&nl_fd_index_incomplete, 1, __ATOMIC_RELEASE);
+        }
+    }
+    entry->next = nl_fds;
+    nl_fds = entry;
+    if (page) {
+        unsigned offset = (unsigned) entry->fd % NL_FD_PAGE_SIZE;
+        __atomic_fetch_or(&page->bits[offset / NL_FD_WORD_BITS],
+                          1ul << (offset % NL_FD_WORD_BITS), __ATOMIC_RELEASE);
+    }
+    __atomic_fetch_add(&nl_fd_count, 1, __ATOMIC_RELEASE);
 }
 
 static int nl_identity(int fd, dev_t device, ino_t inode) {
@@ -907,6 +962,17 @@ static void nl_release(struct nl_socket *socket) {
 static void nl_remove(struct nl_fd **entry) {
     struct nl_fd *removed = *entry;
     *entry = removed->next;
+    struct nl_fd *alias;
+    for (alias = nl_fds; alias; alias = alias->next) {
+        if (alias->fd == removed->fd) break;
+    }
+    struct nl_fd_page *page = nl_fd_page_of(removed->fd);
+    if (alias == NULL && page) {
+        unsigned offset = (unsigned) removed->fd % NL_FD_PAGE_SIZE;
+        __atomic_fetch_and(&page->bits[offset / NL_FD_WORD_BITS],
+                           ~(1ul << (offset % NL_FD_WORD_BITS)), __ATOMIC_RELEASE);
+    }
+    __atomic_fetch_sub(&nl_fd_count, 1, __ATOMIC_RELEASE);
     nl_release(removed->socket);
     free(removed);
 }
@@ -948,8 +1014,7 @@ static struct nl_fd *nl_restore(int fd) {
     socket->references++;
     entry->fd = fd;
     entry->socket = socket;
-    entry->next = nl_fds;
-    nl_fds = entry;
+    nl_register(entry);
     return entry;
 }
 
@@ -962,7 +1027,28 @@ static struct nl_fd *nl_find(int fd) {
         nl_remove(entry);
         break;
     }
-    return nl_restore(fd);
+    return NULL;
+}
+
+static void nl_discover(int fd) {
+    int saved = errno;
+    if (nl_tracked(fd)) {
+        pthread_mutex_lock(&nl_sockets_lock);
+        int found = nl_find(fd) != NULL;
+        pthread_mutex_unlock(&nl_sockets_lock);
+        if (found) {
+            errno = saved;
+            return;
+        }
+    }
+    struct sockaddr_un addr;
+    struct nl_metadata metadata;
+    if (nl_address(fd, 0, &addr, &metadata, nl_client_magic)) {
+        pthread_mutex_lock(&nl_sockets_lock);
+        if (nl_find(fd) == NULL) nl_restore(fd);
+        pthread_mutex_unlock(&nl_sockets_lock);
+    }
+    errno = saved;
 }
 
 static void nl_restore_inherited(void) {
@@ -987,9 +1073,7 @@ static void nl_restore_inherited(void) {
     }
     closedir(directory);
     for (size_t index = 0; index < count; index++) {
-        pthread_mutex_lock(&nl_sockets_lock);
-        nl_find(descriptors[index]);
-        pthread_mutex_unlock(&nl_sockets_lock);
+        nl_discover(descriptors[index]);
     }
     for (size_t index = 0; index < count; index++) {
         int descriptor = descriptors[index];
@@ -1025,6 +1109,7 @@ static int nl_nonblocking(int fd) {
 
 static int nl_peer_of(int fd) {
     int peer = -1;
+    if (!nl_tracked(fd)) return peer;
     pthread_mutex_lock(&nl_sockets_lock);
     struct nl_fd *entry = nl_find(fd);
     if (entry) {
@@ -1048,6 +1133,7 @@ static int nl_peer_of(int fd) {
 
 static unsigned nl_port_of(int fd) {
     unsigned port = 0;
+    if (!nl_tracked(fd)) return port;
     pthread_mutex_lock(&nl_sockets_lock);
     struct nl_fd *entry = nl_find(fd);
     if (entry) port = entry->socket->port;
@@ -1074,7 +1160,10 @@ __attribute__((visibility("hidden"))) int bl_nl_setsockopt(int fd, int level, in
                                                           int (*real)(int, int, int, const void *, socklen_t),
                                                           int *rc);
 __attribute__((visibility("hidden"))) int bl_nl_getsockopt(int fd, int level, int option,
-                                                          void *value, socklen_t *len, int *rc);
+                                                          void *value, socklen_t *len,
+                                                          int (*real)(int, int, int, void *, socklen_t *),
+                                                          int *rc);
+__attribute__((visibility("hidden"))) void bl_nl_received(struct msghdr *msg);
 __attribute__((visibility("hidden"))) int bl_nl_recvmsg(int fd, struct msghdr *msg, int flags,
                                                         ssize_t (*real)(int, struct msghdr *, int),
                                                         ssize_t *rc);
@@ -1130,8 +1219,7 @@ int bl_nl_socket(int type, int *fd) {
     pthread_mutex_lock(&nl_sockets_lock);
     socket->next = nl_sockets;
     nl_sockets = socket;
-    entry->next = nl_fds;
-    nl_fds = entry;
+    nl_register(entry);
     pthread_mutex_unlock(&nl_sockets_lock);
     *fd = pair[0];
     return 1;
@@ -1191,6 +1279,7 @@ static int nl_autobind(int fd) {
 
 int bl_nl_bind(int fd, const struct sockaddr *addr, socklen_t len, int *rc) {
     const struct sockaddr_nl *nl;
+    if (addr && len >= sizeof(sa_family_t) && addr->sa_family == AF_NETLINK) nl_discover(fd);
     if (!bl_nl_owns(fd)) return 0;
     if (addr == NULL || len < sizeof(struct sockaddr_nl) || addr->sa_family != AF_NETLINK) {
         errno = EINVAL;
@@ -1227,11 +1316,12 @@ int bl_nl_getsockname(int fd, struct sockaddr *addr, socklen_t *len, int *rc) {
 }
 
 void bl_nl_closed(int fd) {
-    if (fd < 0) return;
+    if (!nl_tracked(fd)) return;
     bl_nl_range_closed((unsigned int) fd, (unsigned int) fd);
 }
 
 void bl_nl_range_closed(unsigned int first, unsigned int last) {
+    if (__atomic_load_n(&nl_fd_count, __ATOMIC_ACQUIRE) == 0) return;
     pthread_mutex_lock(&nl_sockets_lock);
     struct nl_fd **entry = &nl_fds;
     while (*entry) {
@@ -1245,6 +1335,7 @@ void bl_nl_range_closed(unsigned int first, unsigned int last) {
 
 int bl_nl_before_dup(int fd, void **state) {
     *state = NULL;
+    if (!nl_tracked(fd)) return 0;
     pthread_mutex_lock(&nl_sockets_lock);
     struct nl_fd *entry = nl_find(fd);
     if (entry) {
@@ -1265,23 +1356,22 @@ int bl_nl_before_dup(int fd, void **state) {
 void bl_nl_after_dup(void *state, int fd) {
     int saved = errno;
     struct nl_fd *reserved = state;
+    if (reserved == NULL && !nl_tracked(fd)) return;
     pthread_mutex_lock(&nl_sockets_lock);
+    if (reserved && fd >= 0) {
+        reserved->fd = fd;
+        nl_register(reserved);
+    }
     if (fd >= 0) {
         for (struct nl_fd **entry = &nl_fds; *entry; entry = &(*entry)->next) {
-            if ((*entry)->fd != fd) continue;
+            if ((*entry)->fd != fd || *entry == reserved) continue;
             nl_remove(entry);
             break;
         }
     }
-    if (reserved) {
-        if (fd >= 0) {
-            reserved->fd = fd;
-            reserved->next = nl_fds;
-            nl_fds = reserved;
-        } else {
-            nl_release(reserved->socket);
-            free(reserved);
-        }
+    if (reserved && fd < 0) {
+        nl_release(reserved->socket);
+        free(reserved);
     }
     pthread_mutex_unlock(&nl_sockets_lock);
     errno = saved;
@@ -1306,6 +1396,7 @@ static int nl_destination(const struct sockaddr *addr, socklen_t len) {
 }
 
 int bl_nl_connect(int fd, const struct sockaddr *addr, socklen_t len, int *rc) {
+    if (addr && len >= sizeof(sa_family_t) && addr->sa_family == AF_NETLINK) nl_discover(fd);
     if (!bl_nl_owns(fd)) return 0;
     int disconnect = addr && len >= sizeof(sa_family_t) && addr->sa_family == AF_UNSPEC;
     int error = disconnect ? 0 : nl_destination(addr, len);
@@ -1341,6 +1432,7 @@ int bl_nl_getpeername(int fd, struct sockaddr *addr, socklen_t *len, int *rc) {
 
 int bl_nl_setsockopt(int fd, int level, int option, const void *value, socklen_t len,
                      int (*real)(int, int, int, const void *, socklen_t), int *rc) {
+    if (level == SOL_NETLINK) nl_discover(fd);
     int peer = nl_peer_of(fd);
     if (peer < 0) return 0;
     if (level != SOL_NETLINK) {
@@ -1375,9 +1467,20 @@ int bl_nl_setsockopt(int fd, int level, int option, const void *value, socklen_t
     return 1;
 }
 
-int bl_nl_getsockopt(int fd, int level, int option, void *value, socklen_t *len, int *rc) {
+int bl_nl_getsockopt(int fd, int level, int option, void *value, socklen_t *len,
+                     int (*real)(int, int, int, void *, socklen_t *), int *rc) {
     if (level != SOL_SOCKET || (option != SO_TYPE && option != SO_DOMAIN && option != SO_PROTOCOL))
         return 0;
+    if (!nl_tracked(fd)) {
+        if (option != SO_DOMAIN) return 0;
+        *rc = real(fd, level, option, value, len);
+        if (*rc != 0) return 1;
+        int domain = AF_UNIX;
+        if (value && len && *len >= sizeof(domain)) memcpy(&domain, value, sizeof(domain));
+        if (domain != AF_UNIX) return 1;
+        nl_discover(fd);
+        if (!nl_tracked(fd)) return 1;
+    }
     pthread_mutex_lock(&nl_sockets_lock);
     struct nl_fd *entry = nl_find(fd);
     if (entry == NULL) {
@@ -1400,6 +1503,19 @@ int bl_nl_getsockopt(int fd, int level, int option, void *value, socklen_t *len,
         *rc = 0;
     }
     return 1;
+}
+
+void bl_nl_received(struct msghdr *msg) {
+    for (struct cmsghdr *control = CMSG_FIRSTHDR(msg); control; control = CMSG_NXTHDR(msg, control)) {
+        if (control->cmsg_len < CMSG_LEN(0)) break;
+        if (control->cmsg_level != SOL_SOCKET || control->cmsg_type != SCM_RIGHTS) continue;
+        size_t count = (control->cmsg_len - CMSG_LEN(0)) / sizeof(int);
+        for (size_t index = 0; index < count; index++) {
+            int descriptor;
+            memcpy(&descriptor, CMSG_DATA(control) + index * sizeof(descriptor), sizeof(descriptor));
+            nl_discover(descriptor);
+        }
+    }
 }
 
 int bl_nl_recvmsg(int fd, struct msghdr *msg, int flags,
@@ -1710,15 +1826,26 @@ static void reply_request(const struct nlmsghdr *request, const struct link *lin
         int index = 0;
         if (request->nlmsg_len >= NLMSG_LENGTH(sizeof(struct ifinfomsg)))
             index = ((const struct ifinfomsg *) NLMSG_DATA(request))->ifi_index;
+        if (!dump && index == 0) {
+            const struct rtattr *name_attr = request_attr(request, sizeof(struct ifinfomsg), IFLA_IFNAME);
+            size_t length = name_attr ? RTA_PAYLOAD(name_attr) : 0;
+            const char *name = name_attr ? RTA_DATA(name_attr) : NULL;
+            if (length == 0 || length > IFNAMSIZ || memchr(name, '\0', length) == NULL)
+                error = -EINVAL;
+            else if (strcmp(name, LO_NAME) == 0)
+                index = LO_INDEX;
+            else if (link && strcmp(name, link->name) == 0)
+                index = (int) link->index;
+            else
+                error = -ENODEV;
+        }
         if (dump) {
             reply_link(out, NULL, 1, request->nlmsg_seq, flags);
             if (link) reply_link(out, link, 0, request->nlmsg_seq, flags);
             reply_done(out, request->nlmsg_seq);
-        } else if (index == 0) {
-            error = -EINVAL;
-        } else if (index == LO_INDEX || (link && index == (int) link->index)) {
+        } else if (!error && (index == LO_INDEX || (link && index == (int) link->index))) {
             reply_link(out, link, index == LO_INDEX, request->nlmsg_seq, 0);
-        } else {
+        } else if (!error) {
             error = -ENODEV;
         }
         break;

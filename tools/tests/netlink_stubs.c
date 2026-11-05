@@ -46,12 +46,14 @@ int bl_nl_setsockopt(int fd, int level, int option, const void *value, socklen_t
     return 0;
 }
 
-int bl_nl_getsockopt(int fd, int level, int option, void *value, socklen_t *len, int *rc) {
+int bl_nl_getsockopt(int fd, int level, int option, void *value, socklen_t *len,
+                     int (*real)(int, int, int, void *, socklen_t *), int *rc) {
     (void)fd;
     (void)level;
     (void)option;
     (void)value;
     (void)len;
+    (void)real;
     (void)rc;
     return 0;
 }
