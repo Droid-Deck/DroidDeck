@@ -51,8 +51,8 @@ class SessionLogShareZipTest {
             assertEquals(out, zip.parentFile)
             assertFalse(File(app.cacheDir, "share").exists())
             assertTrue(zip.isFile)
+            assertEquals(secondOut, secondZip.parentFile)
             assertTrue(secondZip.isFile)
-            assertTrue(zip.isFile)
         } finally {
             out.deleteRecursively()
             secondOut.deleteRecursively()
