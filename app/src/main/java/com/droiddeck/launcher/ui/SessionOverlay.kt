@@ -493,6 +493,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     if (a.pipSupported) SteamActionPill(
                         stringResource(R.string.pip_title), Icons.Outlined.PictureInPictureAlt, focus.track(page, "pip"),
                     ) { host.open = null; a.onPip() }
+                    if (docked) StopSessionButton(modifier = focus.track(page, "stop").onGloballyPositioned { stopCoords = it }) { host.open = null; confirmStop = true }
                     val steamActions = a.steam && a.onSteamMenu != null && a.onQam != null
                     val qamInteraction = remember { MutableInteractionSource() }
                     var qamStartedOnPress by remember { mutableStateOf(false) }
@@ -522,7 +523,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         onQamConfirm = { host.open = null; a.onQam?.invoke() },
                         showShortcuts = !docked,
                     )
-                    StopSessionButton(modifier = focus.track(page, "stop").onGloballyPositioned { stopCoords = it }) { host.open = null; confirmStop = true }
+                    if (!docked) StopSessionButton(modifier = focus.track(page, "stop").onGloballyPositioned { stopCoords = it }) { host.open = null; confirmStop = true }
                 }
                 a.onAchievements?.let { show ->
                     DrawerAchievementsRow(a.achievementsProgress, Modifier.padding(top = if (short) 6.dp else 10.dp).then(focus.track(page, "achievements"))) {
