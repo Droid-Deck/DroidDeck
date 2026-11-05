@@ -5,6 +5,7 @@ import com.droiddeck.launcher.stores.gog.GogMaintenance
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -45,6 +46,7 @@ class StoresStateRefreshTest {
         StoreAccounts.keys = plain
         StoreAccounts.keystoreFailed = false
         StoreAccounts.write(app, Store.EPIC, JSONObject().put("access_token", "token").put("display_name", "Someone"))
+        StoresState.accounts.clear()
     }
 
     @After fun tearDown() {
@@ -78,11 +80,35 @@ class StoresStateRefreshTest {
             release.await()
         }
         StoresState.refresh(app)
-        assertTrue(entered.await(5, TimeUnit.SECONDS))
-        repeat(4) { StoresState.refresh(app) }
-        release.countDown()
+        try {
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
+            repeat(4) { StoresState.refresh(app) }
+        } finally {
+            release.countDown()
+        }
         awaitRefreshDone()
         assertEquals(2, opens.get())
+        assertEquals("Someone", StoresState.accounts[Store.EPIC])
+    }
+
+    @Test fun aRequestMadeDuringAFailedPassStillRuns() {
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        StoreAccounts.keys = opening {
+            entered.countDown()
+            release.await()
+            throw Error("keystore died")
+        }
+        StoresState.refresh(app)
+        try {
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
+            StoresState.refresh(app)
+            StoreAccounts.keys = plain
+        } finally {
+            release.countDown()
+        }
+        awaitRefreshDone()
+        awaitRefreshDone()
         assertEquals("Someone", StoresState.accounts[Store.EPIC])
     }
 
@@ -92,6 +118,7 @@ class StoresStateRefreshTest {
         StoresState.refresh(app)
         assertTrue(failed.await(5, TimeUnit.SECONDS))
         awaitRefreshDone()
+        assertNull(StoresState.accounts[Store.EPIC])
         StoreAccounts.keys = plain
         StoresState.refresh(app)
         awaitRefreshDone()

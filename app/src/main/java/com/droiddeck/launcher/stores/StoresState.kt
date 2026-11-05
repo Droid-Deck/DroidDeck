@@ -80,9 +80,10 @@ object StoresState {
         val app = context.applicationContext
         com.droiddeck.launcher.stores.download.SavedQueue.restore(app)
         if (refreshRequests.getAndIncrement() > 0) return
-        background("stores-refresh", onFailure = { refreshRequests.set(0) }) {
+        var seen = 0
+        background("stores-refresh", onFailure = { if (refreshRequests.getAndSet(0) > seen) main.post { refresh(app) } }) {
             do {
-                val seen = refreshRequests.get()
+                seen = refreshRequests.get()
                 runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetClient.syncAccount(app) }
                 val found = Store.entries.mapNotNull { store -> StoreAccounts.displayName(app, store)?.let { store to it } }
                 val onDisk = StoreInstallRoot.gameFolders(app).mapNotNull { folder ->
