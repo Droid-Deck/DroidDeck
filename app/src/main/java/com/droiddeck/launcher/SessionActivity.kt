@@ -164,6 +164,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var unfoldedPanel: com.droiddeck.launcher.ui.DeckControlsPanel? = null
     private lateinit var sessionRoot: FrameLayout
     private val guestKeysDown = mutableSetOf<Int>()
+    private val guestButtonsDown = mutableMapOf<Int, Boolean>()
+    private val trackpadButtonsDown = mutableSetOf<Int>()
     private lateinit var surfaceView: SurfaceView
     private lateinit var sessionOverlay: ComposeView
     private lateinit var loading: LoadingState
@@ -669,7 +671,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             override fun dispatchPointerCaptureChanged(hasCapture: Boolean) {
                 super.dispatchPointerCaptureChanged(hasCapture)
                 Log.i(TAG, "pointer capture " + if (hasCapture) "on" else "off")
-                if (!hasCapture) uiHandler.postDelayed(::updatePointerCapture, 250)
+                if (!hasCapture) {
+                    releaseHeldGuestInput()
+                    uiHandler.postDelayed(::updatePointerCapture, 250)
+                }
             }
         }
         sessionRoot = root
@@ -3321,9 +3326,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun secondScreenPresentation(target: Display) = SecondScreenPresentation(
         this, target,
         sendPointer = ::moveSecondScreenPointer,
-        sendButton = { button, pressed ->
-            WaylandCompositor.nativeSendSceneInput(3, button, if (pressed) 1 else 0)
-        },
+        sendButton = ::sendTrackpadButton,
         sendWheel = { steps -> WaylandCompositor.nativeSendSceneInput(4, steps, 0) },
         onSteamMenu = ::tapSteamButton,
         onQam = ::tapQam,
@@ -3657,9 +3660,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun sendSceneButton(code: Int, down: Boolean) {
-        val writer = if (evdevMouseActive) mouseWriter else null
+        val raw = if (down) evdevMouseActive.also { guestButtonsDown[code] = it }
+            else guestButtonsDown.remove(code) ?: evdevMouseActive
+        val writer = if (raw) mouseWriter else null
         if (writer != null) writer.writeMouseButton(code.toShort(), down)
         else WaylandCompositor.nativeSendSceneInput(3, code, if (down) 1 else 0)
+    }
+
+    private fun sendTrackpadButton(button: Int, pressed: Boolean) {
+        if (pressed) trackpadButtonsDown.add(button) else trackpadButtonsDown.remove(button)
+        WaylandCompositor.nativeSendSceneInput(3, button, if (pressed) 1 else 0)
     }
 
     private fun sendSceneWheel(steps: Int) {
@@ -4166,6 +4176,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun keyboardCoversPad() =
         SessionState.mode == SessionService.MODE_STEAM && AgentGuest.steamKeyboard
 
+    private fun releaseHeldGuestInput() {
+        guestButtonsDown.keys.toList().forEach { sendSceneButton(it, false) }
+        trackpadButtonsDown.toList().forEach { WaylandCompositor.nativeSendSceneInput(3, it, 0) }
+        trackpadButtonsDown.clear()
+        guestKeysDown.toList().forEach { sendGuestKey(it, false) }
+    }
+
     private fun sendGuestKey(key: Int, down: Boolean) {
         if (down && pipUi) return
         val code = if (key == KEY_RIGHTCTRL && SessionState.mode == SessionService.MODE_DESKTOP) KEY_LEFTCTRL else key
@@ -4251,7 +4268,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             scrollTouch.cancel()
             directTouchHold.cancel()
             twoFingerGestures.cancel()
-            guestKeysDown.toList().forEach { sendGuestKey(it, false) }
+            releaseHeldGuestInput()
             keyboard?.hide()
             sessionClipboard.stop()
             padMotion?.stop()
@@ -4822,7 +4839,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     androidx.compose.ui.viewinterop.AndroidView(
                         factory = { context ->
                             com.droiddeck.launcher.ui.SessionTrackpadView(context, ::moveSecondScreenPointer,
-                                { button, pressed -> WaylandCompositor.nativeSendSceneInput(3, button, if (pressed) 1 else 0) },
+                                ::sendTrackpadButton,
                                 { steps -> WaylandCompositor.nativeSendSceneInput(4, steps, 0) })
                         },
                         modifier = Modifier.fillMaxWidth().weight(1f),
@@ -4987,6 +5004,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!hasFocus) {
             if (::touchscreenGestures.isInitialized) touchscreenGestures.cancel()
             if (::touchpad.isInitialized) touchpad.cancel()
+            if (::scrollTouch.isInitialized) scrollTouch.cancel()
+            releaseHeldGuestInput()
         }
         if (hasFocus && !pipUi) {
             goFullscreen()
