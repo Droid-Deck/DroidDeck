@@ -1179,6 +1179,8 @@
     <string name="games_open_save_folder">開啟存檔資料夾</string>
     <string name="games_import_addons">從 zip 匯入外掛…</string>
     <string name="games_open_addons_folder">開啟外掛資料夾</string>
+    <string name="games_delete_addon_title">刪除 %1$s？</string>
+    <string name="games_delete_addon_body">這會移除外掛的資料夾，其設定會保留。</string>
     <plurals name="games_addons_count">
         <item quantity="other">%1$d 個外掛</item>
     </plurals>
@@ -1362,6 +1364,8 @@
     <string name="main_addons_importing">正在匯入外掛至 %1$s</string>
     <string name="main_addons_pick_zip">選擇 %1$s 的外掛 zip</string>
     <string name="main_addons_too_large">%1$s 太大，無法匯入</string>
+    <string name="main_addons_deleting">正在刪除 %1$s</string>
+    <string name="main_addons_deleted">已刪除 %1$s</string>
     <string name="main_addons_none">在 %1$s 中找不到外掛</string>
     <plurals name="main_addons_imported">
         <item quantity="other">已匯入 %1$d 個外掛至 %2$s</item>

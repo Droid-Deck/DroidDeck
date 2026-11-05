@@ -1263,6 +1263,8 @@
     <string name="games_open_save_folder">打开存档文件夹</string>
     <string name="games_import_addons">从 zip 导入插件…</string>
     <string name="games_open_addons_folder">打开插件文件夹</string>
+    <string name="games_delete_addon_title">删除 %1$s？</string>
+    <string name="games_delete_addon_body">这会移除插件的文件夹，其设置会保留。</string>
     <plurals name="games_addons_count">
         <item quantity="other">%1$d 个插件</item>
     </plurals>
@@ -1446,6 +1448,8 @@
     <string name="main_addons_importing">正在导入插件到 %1$s</string>
     <string name="main_addons_pick_zip">为 %1$s 选择插件 zip 包</string>
     <string name="main_addons_too_large">%1$s 太大，无法导入</string>
+    <string name="main_addons_deleting">正在删除 %1$s</string>
+    <string name="main_addons_deleted">已删除 %1$s</string>
     <string name="main_addons_none">在 %1$s 中未找到插件</string>
     <plurals name="main_addons_imported">
         <item quantity="other">已导入 %1$d 个插件到 %2$s</item>

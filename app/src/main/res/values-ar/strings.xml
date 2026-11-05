@@ -1209,6 +1209,8 @@
     <string name="games_open_save_folder">فتح مجلد الحفظ</string>
     <string name="games_import_addons">استيراد الإضافات من zip…</string>
     <string name="games_open_addons_folder">فتح مجلد الإضافات</string>
+    <string name="games_delete_addon_title">حذف %1$s؟</string>
+    <string name="games_delete_addon_body">يؤدي هذا إلى حذف مجلد الإضافة. تبقى إعداداتها.</string>
     <plurals name="games_addons_count">
         <item quantity="zero">%1$d إضافة</item>
         <item quantity="one">%1$d إضافة</item>
@@ -1407,6 +1409,8 @@
     <string name="main_addons_importing">استيراد الإضافات إلى %1$s</string>
     <string name="main_addons_pick_zip">اختر ملف zip للإضافات الخاصة بـ %1$s</string>
     <string name="main_addons_too_large">%1$s كبير جدًا بحيث لا يمكن استيراده</string>
+    <string name="main_addons_deleting">جارٍ حذف %1$s</string>
+    <string name="main_addons_deleted">تم حذف %1$s</string>
     <string name="main_addons_none">لم يتم العثور على إضافات في %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="zero">تم استيراد %1$d إضافة إلى %2$s</item>

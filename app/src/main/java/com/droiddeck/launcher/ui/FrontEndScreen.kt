@@ -220,6 +220,7 @@ class FrontEndActions(
     val onComponentsTab: (String) -> Unit = {},
     val onSaveImport: (Library.SteamGame) -> Unit = {},
     val onAddonImport: (Library.SteamGame, com.droiddeck.launcher.runtime.WowAddons.Target) -> Unit = { _, _ -> },
+    val onAddonDelete: (com.droiddeck.launcher.runtime.WowAddons.Target, String) -> Unit = { _, _ -> },
     val onSaveExport: (Library.SteamGame, com.droiddeck.launcher.session.GameSaves.Layout) -> Unit = { _, _ -> },
     val onPerformance: () -> Unit,
     val onRoms: () -> Unit,

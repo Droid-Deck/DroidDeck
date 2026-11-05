@@ -1179,6 +1179,8 @@
     <string name="games_open_save_folder">เปิดโฟลเดอร์เซฟ</string>
     <string name="games_import_addons">นำเข้าแอดออนจาก zip…</string>
     <string name="games_open_addons_folder">เปิดโฟลเดอร์แอดออน</string>
+    <string name="games_delete_addon_title">ลบ %1$s ไหม</string>
+    <string name="games_delete_addon_body">การดำเนินการนี้จะลบโฟลเดอร์ของแอดออน ส่วนการตั้งค่ายังคงอยู่</string>
     <plurals name="games_addons_count">
         <item quantity="other">%1$d แอดออน</item>
     </plurals>
@@ -1362,6 +1364,8 @@
     <string name="main_addons_importing">กำลังนำเข้าแอดออนสู่ %1$s</string>
     <string name="main_addons_pick_zip">เลือกไฟล์ zip แอดออนสำหรับ %1$s</string>
     <string name="main_addons_too_large">%1$s มีขนาดใหญ่เกินกว่าจะนำเข้าได้</string>
+    <string name="main_addons_deleting">กำลังลบ %1$s</string>
+    <string name="main_addons_deleted">ลบ %1$s แล้ว</string>
     <string name="main_addons_none">ไม่พบแอดออนใน %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="other">นำเข้า %1$d แอดออนสู่ %2$s แล้ว</item>

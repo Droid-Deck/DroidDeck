@@ -12,6 +12,7 @@ import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -80,7 +81,7 @@ class WowAddonsTest {
         assertEquals(listOf("Foo"), WowAddons.import(zip, target))
         assertEquals(File(target.addOns.parentFile, "AddOns"), target.addOns)
         assertEquals("lua", File(target.addOns, "Foo/sub/a.lua").readText())
-        assertEquals(1, WowAddons.installed(target))
+        assertEquals(listOf("Foo"), WowAddons.installed(target))
         assertEquals(listOf("AddOns"), target.addOns.parentFile!!.list()!!.toList())
     }
 
@@ -104,6 +105,34 @@ class WowAddonsTest {
         WowAddons.import(zip("Foo/Foo.toc" to "new"), target)
         assertEquals("keep", File(outside, "keep.lua").readText())
         assertFalse(Files.isSymbolicLink(File(target.addOns, "Foo").toPath()))
+    }
+
+    @Test fun deletesOnlyTheChosenAddon() {
+        val target = target()
+        WowAddons.import(zip("Foo/Foo.toc" to "a", "Bar/Bar.toc" to "b"), target)
+        assertEquals(listOf("Bar", "Foo"), WowAddons.installed(target))
+        WowAddons.delete(target, "Foo")
+        assertEquals(listOf("Bar"), WowAddons.installed(target))
+        assertTrue(File(target.addOns, "Bar/Bar.toc").isFile)
+    }
+
+    @Test fun deletingALinkLeavesItsTargetAlone() {
+        val target = target()
+        val outside = temp.newFolder("linked")
+        File(outside, "keep.lua").writeText("keep")
+        target.addOns.mkdirs()
+        Files.createSymbolicLink(File(target.addOns, "Foo").toPath(), outside.toPath())
+        WowAddons.delete(target, "Foo")
+        assertFalse(Files.exists(File(target.addOns, "Foo").toPath(), LinkOption.NOFOLLOW_LINKS))
+        assertEquals("keep", File(outside, "keep.lua").readText())
+    }
+
+    @Test fun onlyAFolderDirectlyInAddOnsCanBeDeleted() {
+        val target = target()
+        val outside = File(target.addOns.parentFile!!.parentFile, "Outside").apply { mkdirs() }
+        target.addOns.mkdirs()
+        assertThrows(IOException::class.java) { WowAddons.delete(target, "../../Outside") }
+        assertTrue(outside.isDirectory)
     }
 
     @Test fun aFailedReplacementRestoresEarlierAddons() {

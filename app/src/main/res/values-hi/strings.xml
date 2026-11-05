@@ -1185,6 +1185,8 @@
     <string name="games_open_save_folder">सेव फ़ोल्डर खोलें</string>
     <string name="games_import_addons">zip से ऐडऑन इंपोर्ट करें…</string>
     <string name="games_open_addons_folder">ऐडऑन फ़ोल्डर खोलें</string>
+    <string name="games_delete_addon_title">%1$s हटाएं?</string>
+    <string name="games_delete_addon_body">यह ऐडऑन का फ़ोल्डर हटा देता है। इसकी सेटिंग्स बनी रहती हैं।</string>
     <plurals name="games_addons_count">
         <item quantity="one">%1$d ऐडऑन</item>
         <item quantity="other">%1$d ऐडऑन</item>
@@ -1371,6 +1373,8 @@
     <string name="main_addons_importing">%1$s में ऐडऑन इंपोर्ट हो रहे हैं</string>
     <string name="main_addons_pick_zip">%1$s के लिए ऐडऑन zip चुनें</string>
     <string name="main_addons_too_large">%1$s इंपोर्ट करने के लिए बहुत बड़ा है</string>
+    <string name="main_addons_deleting">%1$s हटाया जा रहा है</string>
+    <string name="main_addons_deleted">%1$s हटाया गया</string>
     <string name="main_addons_none">%1$s में कोई ऐडऑन नहीं मिला</string>
     <plurals name="main_addons_imported">
         <item quantity="one">%1$d ऐडऑन %2$s में इंपोर्ट हुआ</item>

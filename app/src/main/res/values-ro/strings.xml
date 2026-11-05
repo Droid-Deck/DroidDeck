@@ -1191,6 +1191,8 @@
     <string name="games_open_save_folder">Deschide folderul de salvare</string>
     <string name="games_import_addons">Importă suplimente din zip…</string>
     <string name="games_open_addons_folder">Deschide folderul de suplimente</string>
+    <string name="games_delete_addon_title">Ștergi %1$s?</string>
+    <string name="games_delete_addon_body">Aceasta șterge folderul suplimentului. Setările sale rămân.</string>
     <plurals name="games_addons_count">
         <item quantity="one">%1$d supliment</item>
         <item quantity="few">%1$d suplimente</item>
@@ -1380,6 +1382,8 @@
     <string name="main_addons_importing">Se importă suplimente în %1$s</string>
     <string name="main_addons_pick_zip">Alege o arhivă zip de suplimente pentru %1$s</string>
     <string name="main_addons_too_large">%1$s este prea mare pentru a fi importat</string>
+    <string name="main_addons_deleting">Se șterge %1$s</string>
+    <string name="main_addons_deleted">S-a șters %1$s</string>
     <string name="main_addons_none">Nu s-au găsit suplimente în %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">S-a importat %1$d supliment în %2$s</item>

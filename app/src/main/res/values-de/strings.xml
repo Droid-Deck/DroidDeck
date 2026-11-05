@@ -1177,6 +1177,8 @@
     <string name="games_open_save_folder">Spielstandordner öffnen</string>
     <string name="games_import_addons">Addons aus ZIP importieren…</string>
     <string name="games_open_addons_folder">Addon-Ordner öffnen</string>
+    <string name="games_delete_addon_title">%1$s löschen?</string>
+    <string name="games_delete_addon_body">Dadurch wird der Ordner des Addons entfernt. Die Einstellungen bleiben erhalten.</string>
     <plurals name="games_addons_count">
         <item quantity="one">%1$d Addon</item>
         <item quantity="other">%1$d Addons</item>
@@ -1363,6 +1365,8 @@
     <string name="main_addons_importing">Addons werden in %1$s importiert</string>
     <string name="main_addons_pick_zip">Addon-ZIP für %1$s auswählen</string>
     <string name="main_addons_too_large">%1$s ist zu groß zum Importieren</string>
+    <string name="main_addons_deleting">%1$s wird gelöscht</string>
+    <string name="main_addons_deleted">%1$s gelöscht</string>
     <string name="main_addons_none">Keine Addons in %1$s gefunden</string>
     <plurals name="main_addons_imported">
         <item quantity="one">%1$d Addon in %2$s importiert</item>

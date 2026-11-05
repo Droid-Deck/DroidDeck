@@ -1185,6 +1185,8 @@
     <string name="games_open_save_folder">Avaa tallennuskansio</string>
     <string name="games_import_addons">Tuo lisäosat zip-tiedostosta…</string>
     <string name="games_open_addons_folder">Avaa lisäosakansio</string>
+    <string name="games_delete_addon_title">Poistetaanko %1$s?</string>
+    <string name="games_delete_addon_body">Tämä poistaa lisäosan kansion. Sen asetukset säilyvät.</string>
     <plurals name="games_addons_count">
         <item quantity="one">%1$d lisäosa</item>
         <item quantity="other">%1$d lisäosaa</item>
@@ -1371,6 +1373,8 @@
     <string name="main_addons_importing">Tuodaan lisäosia kohteeseen %1$s</string>
     <string name="main_addons_pick_zip">Valitse lisäosien zip-tiedosto kohteelle %1$s</string>
     <string name="main_addons_too_large">%1$s on liian suuri tuotavaksi</string>
+    <string name="main_addons_deleting">Poistetaan %1$s</string>
+    <string name="main_addons_deleted">%1$s poistettu</string>
     <string name="main_addons_none">Lisäosia ei löytynyt kohteesta %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">Tuotiin %1$d lisäosa kohteeseen %2$s</item>

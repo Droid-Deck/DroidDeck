@@ -1179,6 +1179,8 @@
     <string name="games_open_save_folder">저장 폴더 열기</string>
     <string name="games_import_addons">zip에서 애드온 가져오기…</string>
     <string name="games_open_addons_folder">애드온 폴더 열기</string>
+    <string name="games_delete_addon_title">%1$s을(를) 삭제할까요?</string>
+    <string name="games_delete_addon_body">애드온 폴더가 삭제됩니다. 설정은 유지됩니다.</string>
     <plurals name="games_addons_count">
         <item quantity="other">애드온 %1$d개</item>
     </plurals>
@@ -1362,6 +1364,8 @@
     <string name="main_addons_importing">%1$s(으)로 애드온 가져오는 중</string>
     <string name="main_addons_pick_zip">%1$s의 애드온 zip 선택</string>
     <string name="main_addons_too_large">%1$s은(는) 너무 커서 가져올 수 없습니다</string>
+    <string name="main_addons_deleting">%1$s 삭제 중</string>
+    <string name="main_addons_deleted">%1$s 삭제됨</string>
     <string name="main_addons_none">%1$s에서 애드온을 찾을 수 없습니다</string>
     <plurals name="main_addons_imported">
         <item quantity="other">애드온 %1$d개를 %2$s(으)로 가져왔습니다</item>

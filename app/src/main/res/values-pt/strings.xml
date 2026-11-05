@@ -1183,6 +1183,8 @@
     <string name="games_open_save_folder">Abrir pasta de jogos salvos</string>
     <string name="games_import_addons">Importar addons de zip…</string>
     <string name="games_open_addons_folder">Abrir pasta de addons</string>
+    <string name="games_delete_addon_title">Excluir %1$s?</string>
+    <string name="games_delete_addon_body">Isso remove a pasta do addon. As configurações dele permanecem.</string>
     <plurals name="games_addons_count">
         <item quantity="one">%1$d addon</item>
         <item quantity="many">%1$d de addons</item>
@@ -1372,6 +1374,8 @@
     <string name="main_addons_importing">Importando addons para %1$s</string>
     <string name="main_addons_pick_zip">Escolha um zip de addons para %1$s</string>
     <string name="main_addons_too_large">%1$s é grande demais para importar</string>
+    <string name="main_addons_deleting">Excluindo %1$s</string>
+    <string name="main_addons_deleted">%1$s excluído</string>
     <string name="main_addons_none">Nenhum addon encontrado em %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">%1$d addon importado para %2$s</item>

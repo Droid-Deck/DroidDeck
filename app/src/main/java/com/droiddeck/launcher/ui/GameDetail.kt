@@ -89,6 +89,7 @@ import com.droiddeck.launcher.frontend.GameRemoval
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.runtime.WowAddons
 import com.droiddeck.launcher.session.GameSaves
+import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.CloudSaves
 import com.droiddeck.launcher.stores.InstalledStoreGame
@@ -867,20 +868,38 @@ private fun SavesTab(g: Library.SteamGame, prefix: File, a: FrontEndActions) {
 private fun AddonsTab(g: Library.SteamGame, targets: List<WowAddons.Target>, a: FrontEndActions) {
     Column(Modifier.fillMaxWidth().tabPanel(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         targets.forEach { target ->
-            val count by produceState(0, target.addOns, WowAddons.imports) {
+            val names by produceState(emptyList<String>(), target.addOns, WowAddons.imports) {
                 value = withContext(Dispatchers.IO) { WowAddons.installed(target) }
             }
             if (targets.size > 1) SectionLabel(target.flavor)
             MenuItem(
                 stringResource(R.string.games_import_addons), checked = false,
-                detail = pluralStringResource(R.plurals.games_addons_count, count, count),
+                detail = pluralStringResource(R.plurals.games_addons_count, names.size, names.size),
             ) { a.onAddonImport(g, target) }
             MenuItem(stringResource(R.string.games_open_addons_folder), checked = false) {
                 target.addOns.mkdirs()
                 a.onBrowseFiles(target.addOns)
             }
+            names.forEach { name -> AddonRow(name, target, a) }
         }
     }
+}
+
+@Composable
+private fun AddonRow(name: String, target: WowAddons.Target, a: FrontEndActions) {
+    var asking by remember(target.addOns, name) { mutableStateOf(false) }
+    val delete = stringResource(R.string.common_delete)
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 2.dp, bottom = 2.dp)) {
+        Text(name, fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).readable())
+        if (!SessionState.running) IconAction(Icons.Outlined.Delete, delete, "addon:delete:${target.flavor}:$name", danger = true) { asking = true }
+    }
+    if (asking) ConfirmDialog(
+        title = stringResource(R.string.games_delete_addon_title, name),
+        text = stringResource(R.string.games_delete_addon_body),
+        confirm = delete,
+        onConfirm = { a.onAddonDelete(target, name) },
+        onDismiss = { asking = false },
+    )
 }
 
 @Composable

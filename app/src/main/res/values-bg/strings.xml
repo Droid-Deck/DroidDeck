@@ -1185,6 +1185,8 @@
     <string name="games_open_save_folder">Отваряне на папката за записи</string>
     <string name="games_import_addons">Импортиране на добавки от ZIP…</string>
     <string name="games_open_addons_folder">Отваряне на папката с добавки</string>
+    <string name="games_delete_addon_title">Да се изтрие ли %1$s?</string>
+    <string name="games_delete_addon_body">Това изтрива папката на добавката. Настройките ѝ се запазват.</string>
     <plurals name="games_addons_count">
         <item quantity="one">%1$d добавка</item>
         <item quantity="other">%1$d добавки</item>
@@ -1371,6 +1373,8 @@
     <string name="main_addons_importing">Импортиране на добавки в %1$s</string>
     <string name="main_addons_pick_zip">Избор на ZIP файл с добавки за %1$s</string>
     <string name="main_addons_too_large">%1$s е твърде голям за импортиране</string>
+    <string name="main_addons_deleting">Изтриване на %1$s</string>
+    <string name="main_addons_deleted">Изтрито: %1$s</string>
     <string name="main_addons_none">Не са намерени добавки в %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">Импортирана %1$d добавка в %2$s</item>

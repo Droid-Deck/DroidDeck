@@ -1197,6 +1197,8 @@
     <string name="games_open_save_folder">Otwórz folder zapisów</string>
     <string name="games_import_addons">Importuj dodatki z zip…</string>
     <string name="games_open_addons_folder">Otwórz folder dodatków</string>
+    <string name="games_delete_addon_title">Usunąć %1$s?</string>
+    <string name="games_delete_addon_body">Spowoduje to usunięcie folderu dodatku. Jego ustawienia zostaną zachowane.</string>
     <plurals name="games_addons_count">
         <item quantity="one">%1$d dodatek</item>
         <item quantity="few">%1$d dodatki</item>
@@ -1389,6 +1391,8 @@
     <string name="main_addons_importing">Importowanie dodatków do %1$s</string>
     <string name="main_addons_pick_zip">Wybierz plik zip z dodatkami dla %1$s</string>
     <string name="main_addons_too_large">Plik %1$s jest za duży, aby go zaimportować</string>
+    <string name="main_addons_deleting">Usuwanie: %1$s</string>
+    <string name="main_addons_deleted">Usunięto: %1$s</string>
     <string name="main_addons_none">Nie znaleziono dodatków w %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">Zaimportowano %1$d dodatek do %2$s</item>

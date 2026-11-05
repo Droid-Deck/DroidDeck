@@ -9,6 +9,8 @@ import com.droiddeck.launcher.stores.StoreInstalls
 import org.apache.commons.compress.archivers.zip.ZipFile
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.LinkOption
 
 object WowAddons {
     var imports by mutableIntStateOf(0)
@@ -39,8 +41,17 @@ object WowAddons {
         return flavors.map { File(root, it) }.filter { it.isDirectory }.map { Target(it.name, addOnsFolder(it)) }
     }
 
-    fun installed(target: Target): Int =
-        target.addOns.listFiles()?.count { it.isDirectory && !it.name.startsWith(".") } ?: 0
+    fun installed(target: Target): List<String> =
+        target.addOns.listFiles().orEmpty().filter { it.isDirectory && !it.name.startsWith(".") }
+            .map { it.name }.sortedBy { it.lowercase() }
+
+    fun delete(target: Target, name: String) {
+        val folder = target.addOns.listFiles()?.firstOrNull { it.name == name && !it.name.startsWith(".") }
+            ?: throw IOException("Cannot find $name")
+        StoreInstalls.deleteTree(folder)
+        if (Files.exists(folder.toPath(), LinkOption.NOFOLLOW_LINKS)) throw IOException("Cannot delete $name")
+        imports++
+    }
 
     fun import(zipFile: File, target: Target): List<String> {
         ZipFile.builder().setFile(zipFile).get().use { zip ->

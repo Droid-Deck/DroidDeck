@@ -1197,6 +1197,8 @@
     <string name="games_open_save_folder">Otevřít složku s uloženými pozicemi</string>
     <string name="games_import_addons">Importovat doplňky ze ZIP…</string>
     <string name="games_open_addons_folder">Otevřít složku s doplňky</string>
+    <string name="games_delete_addon_title">Smazat %1$s?</string>
+    <string name="games_delete_addon_body">Tím se smaže složka doplňku. Jeho nastavení zůstane zachováno.</string>
     <plurals name="games_addons_count">
         <item quantity="one">%1$d doplněk</item>
         <item quantity="few">%1$d doplňky</item>
@@ -1389,6 +1391,8 @@
     <string name="main_addons_importing">Importování doplňků do %1$s</string>
     <string name="main_addons_pick_zip">Vyberte ZIP s doplňky pro %1$s</string>
     <string name="main_addons_too_large">%1$s je pro import příliš velký</string>
+    <string name="main_addons_deleting">Mazání: %1$s</string>
+    <string name="main_addons_deleted">Smazáno: %1$s</string>
     <string name="main_addons_none">V %1$s nebyly nalezeny žádné doplňky</string>
     <plurals name="main_addons_imported">
         <item quantity="one">Importován %1$d doplněk do %2$s</item>

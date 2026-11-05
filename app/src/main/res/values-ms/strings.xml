@@ -1179,6 +1179,8 @@
     <string name="games_open_save_folder">Buka folder simpanan</string>
     <string name="games_import_addons">Import addon daripada zip…</string>
     <string name="games_open_addons_folder">Buka folder addon</string>
+    <string name="games_delete_addon_title">Padam %1$s?</string>
+    <string name="games_delete_addon_body">Ini memadam folder addon. Tetapannya kekal.</string>
     <plurals name="games_addons_count">
         <item quantity="other">%1$d addon</item>
     </plurals>
@@ -1362,6 +1364,8 @@
     <string name="main_addons_importing">Mengimport addon ke %1$s</string>
     <string name="main_addons_pick_zip">Pilih zip addon untuk %1$s</string>
     <string name="main_addons_too_large">%1$s terlalu besar untuk diimport</string>
+    <string name="main_addons_deleting">Memadam %1$s</string>
+    <string name="main_addons_deleted">%1$s dipadam</string>
     <string name="main_addons_none">Tiada addon ditemui dalam %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="other">Berjaya mengimport %1$d addon ke %2$s</item>

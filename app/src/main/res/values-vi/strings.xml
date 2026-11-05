@@ -1179,6 +1179,8 @@
     <string name="games_open_save_folder">Mở thư mục lưu</string>
     <string name="games_import_addons">Nhập addon từ zip…</string>
     <string name="games_open_addons_folder">Mở thư mục addon</string>
+    <string name="games_delete_addon_title">Xóa %1$s?</string>
+    <string name="games_delete_addon_body">Thao tác này xóa thư mục của addon. Cài đặt của addon vẫn được giữ lại.</string>
     <plurals name="games_addons_count">
         <item quantity="other">%1$d addon</item>
     </plurals>
@@ -1362,6 +1364,8 @@
     <string name="main_addons_importing">Đang nhập addon vào %1$s</string>
     <string name="main_addons_pick_zip">Chọn một tệp zip addon cho %1$s</string>
     <string name="main_addons_too_large">%1$s quá lớn để nhập</string>
+    <string name="main_addons_deleting">Đang xóa %1$s</string>
+    <string name="main_addons_deleted">Đã xóa %1$s</string>
     <string name="main_addons_none">Không tìm thấy addon nào trong %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="other">Đã nhập %1$d addon vào %2$s</item>

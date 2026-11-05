@@ -1197,6 +1197,8 @@
     <string name="games_open_save_folder">Відкрити папку збережень</string>
     <string name="games_import_addons">Імпортувати аддони з zip…</string>
     <string name="games_open_addons_folder">Відкрити папку аддонів</string>
+    <string name="games_delete_addon_title">Видалити %1$s?</string>
+    <string name="games_delete_addon_body">Папку аддона буде видалено. Його налаштування збережуться.</string>
     <plurals name="games_addons_count">
         <item quantity="one">%1$d аддон</item>
         <item quantity="few">%1$d аддони</item>
@@ -1389,6 +1391,8 @@
     <string name="main_addons_importing">Імпорт аддонів у %1$s</string>
     <string name="main_addons_pick_zip">Виберіть zip-архів аддонів для %1$s</string>
     <string name="main_addons_too_large">%1$s завеликий для імпорту</string>
+    <string name="main_addons_deleting">Видалення: %1$s</string>
+    <string name="main_addons_deleted">Видалено: %1$s</string>
     <string name="main_addons_none">Аддони не знайдено в %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">Імпортовано %1$d аддон у %2$s</item>

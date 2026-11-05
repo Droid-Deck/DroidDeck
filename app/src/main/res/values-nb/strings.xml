@@ -1185,6 +1185,8 @@
     <string name="games_open_save_folder">Åpne lagringsmappe</string>
     <string name="games_import_addons">Importer tillegg fra zip…</string>
     <string name="games_open_addons_folder">Åpne tilleggsmappe</string>
+    <string name="games_delete_addon_title">Slett %1$s?</string>
+    <string name="games_delete_addon_body">Dette fjerner tilleggets mappe. Innstillingene beholdes.</string>
     <plurals name="games_addons_count">
         <item quantity="one">%1$d tillegg</item>
         <item quantity="other">%1$d tillegg</item>
@@ -1371,6 +1373,8 @@
     <string name="main_addons_importing">Importerer tillegg til %1$s</string>
     <string name="main_addons_pick_zip">Velg en zip med tillegg for %1$s</string>
     <string name="main_addons_too_large">%1$s er for stor til å importeres</string>
+    <string name="main_addons_deleting">Sletter %1$s</string>
+    <string name="main_addons_deleted">Slettet %1$s</string>
     <string name="main_addons_none">Fant ingen tillegg i %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">Importerte %1$d tillegg til %2$s</item>

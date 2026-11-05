@@ -1185,6 +1185,8 @@
     <string name="games_open_save_folder">Mentésmappa megnyitása</string>
     <string name="games_import_addons">Kiegészítők importálása zipből…</string>
     <string name="games_open_addons_folder">Kiegészítők mappájának megnyitása</string>
+    <string name="games_delete_addon_title">Törlöd ezt: %1$s?</string>
+    <string name="games_delete_addon_body">Ez törli a kiegészítő mappáját. A beállításai megmaradnak.</string>
     <plurals name="games_addons_count">
         <item quantity="one">%1$d kiegészítő</item>
         <item quantity="other">%1$d kiegészítő</item>
@@ -1371,6 +1373,8 @@
     <string name="main_addons_importing">Kiegészítők importálása ide: %1$s</string>
     <string name="main_addons_pick_zip">Válasszon kiegészítő zip fájlt ehhez: %1$s</string>
     <string name="main_addons_too_large">A(z) %1$s túl nagy az importáláshoz</string>
+    <string name="main_addons_deleting">%1$s törlése folyamatban</string>
+    <string name="main_addons_deleted">%1$s törölve</string>
     <string name="main_addons_none">Nem található kiegészítő itt: %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">%1$d kiegészítő importálva ide: %2$s</item>

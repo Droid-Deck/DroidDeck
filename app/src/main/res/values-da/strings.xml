@@ -1185,6 +1185,8 @@
     <string name="games_open_save_folder">Åbn savemappe</string>
     <string name="games_import_addons">Importer addons fra zip…</string>
     <string name="games_open_addons_folder">Åbn addon-mappe</string>
+    <string name="games_delete_addon_title">Slet %1$s?</string>
+    <string name="games_delete_addon_body">Dette fjerner addonens mappe. Dens indstillinger bevares.</string>
     <plurals name="games_addons_count">
         <item quantity="one">%1$d addon</item>
         <item quantity="other">%1$d addons</item>
@@ -1371,6 +1373,8 @@
     <string name="main_addons_importing">Importerer addons til %1$s</string>
     <string name="main_addons_pick_zip">Vælg en zip med addons til %1$s</string>
     <string name="main_addons_too_large">%1$s er for stor til at blive importeret</string>
+    <string name="main_addons_deleting">Sletter %1$s</string>
+    <string name="main_addons_deleted">%1$s slettet</string>
     <string name="main_addons_none">Ingen addons fundet i %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">Importerede %1$d addon til %2$s</item>

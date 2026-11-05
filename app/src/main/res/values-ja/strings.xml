@@ -1179,6 +1179,8 @@
     <string name="games_open_save_folder">セーブフォルダを開く</string>
     <string name="games_import_addons">zipからアドオンをインポート…</string>
     <string name="games_open_addons_folder">アドオンフォルダを開く</string>
+    <string name="games_delete_addon_title">%1$sを削除しますか？</string>
+    <string name="games_delete_addon_body">アドオンのフォルダが削除されます。設定は残ります。</string>
     <plurals name="games_addons_count">
         <item quantity="other">%1$d個のアドオン</item>
     </plurals>
@@ -1362,6 +1364,8 @@
     <string name="main_addons_importing">%1$sにアドオンをインポート中</string>
     <string name="main_addons_pick_zip">%1$sのアドオンzipを選択</string>
     <string name="main_addons_too_large">%1$s は大きすぎるためインポートできません</string>
+    <string name="main_addons_deleting">%1$sを削除中</string>
+    <string name="main_addons_deleted">%1$sを削除しました</string>
     <string name="main_addons_none">%1$sにアドオンが見つかりません</string>
     <plurals name="main_addons_imported">
         <item quantity="other">%1$d個のアドオンを%2$sにインポートしました</item>

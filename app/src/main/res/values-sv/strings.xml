@@ -1185,6 +1185,8 @@
     <string name="games_open_save_folder">Öppna sparmappen</string>
     <string name="games_import_addons">Importera tillägg från zip…</string>
     <string name="games_open_addons_folder">Öppna tilläggsmappen</string>
+    <string name="games_delete_addon_title">Ta bort %1$s?</string>
+    <string name="games_delete_addon_body">Detta tar bort tilläggets mapp. Inställningarna behålls.</string>
     <plurals name="games_addons_count">
         <item quantity="one">%1$d tillägg</item>
         <item quantity="other">%1$d tillägg</item>
@@ -1371,6 +1373,8 @@
     <string name="main_addons_importing">Importerar tillägg till %1$s</string>
     <string name="main_addons_pick_zip">Välj en zip-fil med tillägg för %1$s</string>
     <string name="main_addons_too_large">%1$s är för stor för att importeras</string>
+    <string name="main_addons_deleting">Tar bort %1$s</string>
+    <string name="main_addons_deleted">Tog bort %1$s</string>
     <string name="main_addons_none">Inga tillägg hittades i %1$s</string>
     <plurals name="main_addons_imported">
         <item quantity="one">Importerade %1$d tillägg till %2$s</item>

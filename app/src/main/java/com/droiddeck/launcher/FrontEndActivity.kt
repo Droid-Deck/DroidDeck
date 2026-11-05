@@ -1304,6 +1304,12 @@ class FrontEndActivity : ComponentActivity() {
                         onComponentsTab = { tab -> openComponents(focusContent = true, tab = tab) },
                         onSaveImport = { sg -> importSaves(sg.name) { GameSaves.game(sg) } },
                         onAddonImport = { sg, target -> importAddons(sg.name, target) },
+                        onAddonDelete = { target, name ->
+                            saveAction(getString(R.string.main_addons_deleting, name)) {
+                                com.droiddeck.launcher.runtime.WowAddons.delete(target, name)
+                                getString(R.string.main_addons_deleted, name)
+                            }
+                        },
                         onSaveExport = { sg, layout -> exportSaves(sg.name, layout) { GameSaves.game(sg) } },
                         onPerformance = { refreshCores(); showComponents = false; showMapping = false; showPerformance = true },
                         onRoms = { showRoms = true },
