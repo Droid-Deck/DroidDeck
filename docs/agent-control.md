@@ -78,6 +78,8 @@ text. This does not redact arbitrary authorized command results, CDP data, prefe
 captures. Scenario directories are owner-only and JSON reports are written with mode 0600. Review
 artifacts before sharing. `logs` downloads the archive Share logs builds (scrubbed, Steam logs over
 8 MiB left out) from the app's external files folder, since adb cannot read the session folder itself.
+When the installed app predates archive export, the CLI falls back to pulling the private session folder;
+that legacy path is available only with root and is not scrubbed before download.
 
 ## Device selection and output
 

@@ -27,6 +27,7 @@ import java.nio.file.SimpleFileVisitor
 import java.nio.file.attribute.BasicFileAttributes
 import java.security.MessageDigest
 import java.util.Locale
+import java.util.UUID
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -107,7 +108,7 @@ internal object EnhancedSessionLogShare {
             return emptyList()
         }
         val out = SessionLogShare.shareDir(context).apply { deleteRecursively(); mkdirs() }
-        val stage = File(out, ".diagnostic-stage").apply { mkdirs() }
+        val stage = File(context.cacheDir, "${out.name}-${UUID.randomUUID()}.diagnostic-stage").apply { mkdirs() }
         val redactionLearningComplete = LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
         val discovery = collect(context, folder, limits.maxDiscoveredFiles, legacy = false)
         val candidates = discovery.candidates
@@ -173,7 +174,7 @@ internal object EnhancedSessionLogShare {
             out.deleteRecursively()
             return null
         }
-        val stage = File(out, ".diagnostic-stage").apply { mkdirs() }
+        val stage = File(context.cacheDir, "${out.name}-${UUID.randomUUID()}.diagnostic-stage").apply { mkdirs() }
         val records = ArrayList<Record>()
         val budget = Budget(limits.maxBytesTotal)
         val zip = File(out, "DroidDeck-${folder.name}.zip")

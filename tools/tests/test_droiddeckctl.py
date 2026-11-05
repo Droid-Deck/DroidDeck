@@ -138,7 +138,7 @@ CPUFREQ = textwrap.dedent('''\
 def battery(tenths):
     return f"Current Battery Service state:\n  level: 80\n  temperature: {tenths}\n  technology: Li-poly"
 PRIVATE_LOG_DIR = "/data/user/0/com.droiddeck.launcher/files/logs/sessions/s1"
-EXPORTED_ZIP = "/storage/emulated/0/Android/data/com.droiddeck.launcher/files/agent-logs/DroidDeck-s1.zip"
+EXPORTED_ZIP = "/storage/emulated/0/Android/data/com.droiddeck.launcher/files/agent-logs/request-1/DroidDeck-s1.zip"
 
 
 def share_zip(entries):
@@ -542,7 +542,7 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual("e", (destination / "stores" / "epic.log").read_text())
         self.assertFalse((self.dir / "outside").exists())
         self.assertEqual([["pull", EXPORTED_ZIP]], [c["args"][:2] for c in self.calls() if c["args"][:1] == ["pull"]])
-        self.assertIn(["shell", "rm", "-f", EXPORTED_ZIP], [c["args"] for c in self.calls()])
+        self.assertIn(["shell", "rm", "-rf", str(Path(EXPORTED_ZIP).parent)], [c["args"] for c in self.calls()])
 
     def test_logs_of_a_session_that_started_meanwhile_are_refused(self):
         self.configure({"state": ended_state(), "logs": {"ok": True, "sessionId": "s2", "zip": EXPORTED_ZIP}},
@@ -551,7 +551,26 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual(6, code)
         self.assertEqual("LOG_PULL_FAILED", out["error"]["code"])
         self.assertFalse((self.dir / "artifacts").exists())
-        self.assertIn(["shell", "rm", "-f", EXPORTED_ZIP], [c["args"] for c in self.calls()])
+        self.assertIn(["shell", "rm", "-rf", str(Path(EXPORTED_ZIP).parent)], [c["args"] for c in self.calls()])
+
+    def test_logs_replace_the_previous_snapshot_and_preserve_unrelated_files(self):
+        destination = self.dir / "artifacts"
+        destination.mkdir()
+        (destination / "notes.txt").write_text("keep me")
+        first = self.dir / "first.zip"
+        with zipfile.ZipFile(first, "w") as archive:
+            archive.writestr("s1/session.log", "first")
+            archive.writestr("s1/steam/console.log", "old")
+        ctl.unpack_logs(first, destination, "s1")
+        self.assertEqual("old", (destination / "steam/console.log").read_text())
+
+        second = self.dir / "second.zip"
+        with zipfile.ZipFile(second, "w") as archive:
+            archive.writestr("s1/session.log", "second")
+        ctl.unpack_logs(second, destination, "s1")
+        self.assertEqual("second", (destination / "session.log").read_text())
+        self.assertFalse((destination / "steam/console.log").exists())
+        self.assertEqual("keep me", (destination / "notes.txt").read_text())
 
     def test_logs_from_an_older_build_fall_back_to_the_private_folder(self):
         self.configure({"state": ended_state()})

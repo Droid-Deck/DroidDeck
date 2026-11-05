@@ -25,6 +25,7 @@ import com.droiddeck.launcher.session.SessionState
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -206,7 +207,13 @@ class AgentBridgeProvider : ContentProvider() {
     private fun logs(context: Context): JSONObject {
         val dir = logDir(context)?.takeIf { it.isDirectory }
             ?: return error("NO_SESSION_LOGS", "No session artifact directory is available")
-        val zip = SessionLogShare.zipFolder(context, dir, File(context.getExternalFilesDir(null), "agent-logs"))
+        val output = File(context.getExternalFilesDir(null), "agent-logs/${UUID.randomUUID()}")
+        val zip = try {
+            SessionLogShare.zipFolder(context, dir, output)
+        } catch (error: Exception) {
+            output.deleteRecursively()
+            throw error
+        }
             ?: return error("NO_SESSION_LOGS", "The session artifact directory is empty")
         return JSONObject().put("ok", true).put("command", "logs").put("sessionId", dir.name).put("zip", zip.absolutePath)
     }

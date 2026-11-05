@@ -424,8 +424,20 @@ def start_session(adb: str, serial: str, request: dict) -> dict:
 
 def unpack_logs(archive: Path, destination: Path, session_id: str) -> None:
     """Unpack a Share logs zip so the session's own files sit at the top of destination."""
+    destination = destination.resolve()
+    destination.mkdir(parents=True, exist_ok=True)
+    manifest = destination / ".droiddeckctl-managed-logs.json"
     try:
-        with zipfile.ZipFile(archive) as z:
+        previous = json.loads(manifest.read_text(encoding="utf-8"))
+        if not isinstance(previous, list) or any(not isinstance(name, str) for name in previous):
+            previous = []
+    except (OSError, ValueError):
+        previous = []
+    previous = set(previous)
+    extracted = set()
+    try:
+        with tempfile.TemporaryDirectory(prefix="droiddeckctl-logs-") as temp, zipfile.ZipFile(archive) as z:
+            staged = Path(temp)
             for entry in z.infolist():
                 name = entry.filename
                 if name.startswith(session_id + "/"):
@@ -433,9 +445,29 @@ def unpack_logs(archive: Path, destination: Path, session_id: str) -> None:
                 target = (destination / name).resolve()
                 if entry.is_dir() or not name or not target.is_relative_to(destination):
                     continue
-                target.parent.mkdir(parents=True, exist_ok=True)
-                with z.open(entry) as source, target.open("wb") as copy:
+                relative = target.relative_to(destination).as_posix()
+                if relative == manifest.name:
+                    continue
+                staged_file = staged / relative
+                staged_file.parent.mkdir(parents=True, exist_ok=True)
+                with z.open(entry) as source, staged_file.open("wb") as copy:
                     shutil.copyfileobj(source, copy)
+                extracted.add(relative)
+            for name in extracted - previous:
+                target = destination / name
+                if target.exists() or target.is_symlink():
+                    raise ControlError(f"Refusing to overwrite an unrelated file: {target}", "LOG_PULL_FAILED")
+            for name in previous - extracted:
+                target = (destination / name).resolve()
+                if target.is_relative_to(destination) and target.is_file() and not target.is_symlink():
+                    target.unlink()
+            for name in extracted:
+                target = destination / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(staged / name, target)
+            temp_manifest = manifest.with_name(manifest.name + ".tmp")
+            temp_manifest.write_text(json.dumps(sorted(extracted), indent=2) + "\n", encoding="utf-8")
+            os.replace(temp_manifest, manifest)
     except (OSError, zipfile.BadZipFile) as exc:
         raise ControlError(f"Could not unpack the session logs: {exc}", "LOG_PULL_FAILED") from exc
 
@@ -766,6 +798,7 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
             result = run_adb(adb, serial, "pull", remote_dir, str(destination), timeout=120)
         else:
             zip_path = checked(exported, "LOG_PULL_FAILED")["zip"]
+            cleanup_dir = str(Path(zip_path).parent)
             try:
                 if exported.get("sessionId", session["id"]) != session["id"]:
                     raise ControlError("A new session started while the logs were exported; run logs again",
@@ -777,7 +810,7 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
                         unpack_logs(local_zip, destination, session["id"])
             finally:
                 # The copy sits in shared storage, so it does not outlive the pull.
-                run_adb(adb, serial, "shell", "rm", "-f", zip_path, timeout=30)
+                run_adb(adb, serial, "shell", "rm", "-rf", cleanup_dir, timeout=30)
         if result.returncode != 0:
             detail = (result.stderr or result.stdout).decode(errors="replace").strip()
             raise ControlError(detail or "adb pull failed", "LOG_PULL_FAILED")

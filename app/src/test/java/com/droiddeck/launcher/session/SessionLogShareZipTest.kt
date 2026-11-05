@@ -29,15 +29,20 @@ class SessionLogShareZipTest {
     @Test fun anArchiveCanBeWrittenOutsideTheShareFolder() {
         SessionLogShare.clear(app)
         val session = File(LinuxRuntime.logDir(app), "2026-11-03-01-steam").apply { mkdirs() }
-        val out = File(app.getExternalFilesDir(null), "agent-logs")
+        val out = File(app.getExternalFilesDir(null), "agent-logs/request-1")
+        val secondOut = File(app.getExternalFilesDir(null), "agent-logs/request-2")
         try {
             File(session, "session.log").writeText("booted\n")
             val zip = SessionLogShare.zipFolder(app, session, out)!!
+            val secondZip = SessionLogShare.zipFolder(app, session, secondOut)!!
             assertEquals(out, zip.parentFile)
             assertFalse(File(app.cacheDir, "share").exists())
             assertTrue(zip.isFile)
+            assertTrue(secondZip.isFile)
+            assertTrue(zip.isFile)
         } finally {
             out.deleteRecursively()
+            secondOut.deleteRecursively()
             session.deleteRecursively()
         }
     }
