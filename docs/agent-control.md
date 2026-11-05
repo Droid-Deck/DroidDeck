@@ -92,6 +92,10 @@ Every command writes one JSON object to stdout and its resolved serial to stderr
 success, 2 invalid or rejected command, 3 ADB or device error, 4 session error, 5 timeout, 6
 artifact or file error, 7 debugging tools disabled.
 
+When upgrading the CLI, use a new destination for the first pull if the old destination contains
+archives created by an older CLI without a `.droiddeckctl-managed-logs.json` manifest and their
+filenames overlap. The upgraded CLI refuses to overwrite those files to preserve unrelated data.
+
 ## Commands
 
 ```sh
