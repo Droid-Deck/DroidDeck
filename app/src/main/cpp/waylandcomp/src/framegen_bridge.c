@@ -185,9 +185,6 @@ void vkp_framegen_device_ready(VkDevice dev, VkQueue queue, uint32_t qfam, int f
           fge_caps_ok(VKP_FG_ENGINE_DDFG) ? "available" : "unavailable");
 }
 
-void vkp_framegen_device_lost(void) { g_dev_lost = 1; }
-
-
 static void destroy_ring(void) {
     if (!g_ring_n) return;
     if (vk.DeviceWaitIdle) vk.DeviceWaitIdle(g_dev);
@@ -199,6 +196,14 @@ static void destroy_ring(void) {
     }
     g_ring_n = 0;
     if (g_engine_ok) fge_forget_targets();
+}
+
+void vkp_framegen_device_lost(void) {
+    g_dev_lost = 1;
+    destroy_ring();
+    fge_stop();
+    g_engine_ok = 0;
+    g_engine_kind = -1;
 }
 
 static int memory_type(uint32_t bits, VkMemoryPropertyFlags want) {
