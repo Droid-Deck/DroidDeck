@@ -19,6 +19,19 @@ STATE = tempfile.TemporaryDirectory()
 COMPAT["main"].__globals__["COMPAT_DIR"] = STATE.name
 
 
+class SupergiantDotnetReporterTest(unittest.TestCase):
+    def test_allows_the_builtin_mscoree_for_supergiant_reporter(self):
+        game = mock.Mock(files={"basecampbugreporter.native.dll"})
+        self.assertEqual(
+            ({"WINEDLLOVERRIDES": "mscoree=n,b"}, [], "Supergiant: allow the builtin mscoree"),
+            MODULE["supergiant_dotnet_reporter"](game),
+        )
+
+    def test_ignores_games_without_the_supergiant_reporter(self):
+        game = mock.Mock(files={"enginewin64s.dll"})
+        self.assertIsNone(MODULE["supergiant_dotnet_reporter"](game))
+
+
 def mapping_of(text):
     tokens = COMPAT["tokenize"](text)
     return COMPAT["read_mapping"](tokens, COMPAT["mapping_block"](tokens))
