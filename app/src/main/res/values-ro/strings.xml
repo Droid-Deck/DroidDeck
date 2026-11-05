@@ -749,6 +749,10 @@
     <string name="drawer_low_latency_touch">Atingere cu latență mică</string>
     <string name="drawer_low_latency_touch_hint">Atingerile sar peste gruparea cadrelor, deci controlul tactil Steam rulează la 1000 Hz. Consum CPU puțin mai mare.</string>
     <string name="drawer_evdev_mouse">Canal brut de mouse</string>
+    <string name="drawer_relative_mouse">Mouse relativ</string>
+    <string name="drawer_relative_mouse_auto">Automat</string>
+    <string name="drawer_relative_mouse_on">Pornit</string>
+    <string name="drawer_relative_mouse_off">Oprit</string>
     <string name="drawer_direct_cursor">Cursor</string>
     <string name="drawer_pc_keyboard">Tastatură de PC</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -872,6 +876,7 @@
     <string name="setup_home">Folosește ca ecran Acasă</string>
     <string name="setup_home_on">DroidDeck poate fi aplicația Acasă</string>
     <string name="setup_home_off">DroidDeck nu este niciodată oferit ca aplicație Acasă</string>
+    <string name="setup_home_game_space_first">În Adaugă jocuri, setează DroidDeck pe Include</string>
     <string name="setup_orientation">Orientare</string>
     <string name="setup_launcher_orientation">Orientarea launcherului</string>
     <string name="setup_launcher_orientation_auto">Urmează rotirea dispozitivului</string>
@@ -1184,6 +1189,15 @@
     <string name="games_export_gamehub">Exportă ca arhivă GameHub…</string>
     <string name="games_export_winlator">Exportă ca arhivă Winlator…</string>
     <string name="games_open_save_folder">Deschide folderul de salvare</string>
+    <string name="games_import_addons">Importă suplimente din zip…</string>
+    <string name="games_open_addons_folder">Deschide folderul de suplimente</string>
+    <string name="games_delete_addon_title">Ștergi %1$s?</string>
+    <string name="games_delete_addon_body">Aceasta șterge folderul suplimentului. Setările sale rămân.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d supliment</item>
+        <item quantity="few">%1$d suplimente</item>
+        <item quantity="other">%1$d de suplimente</item>
+    </plurals>
     <string name="games_never_played">Niciodată jucat</string>
     <string name="games_runtime_busy_percent">Mediu de execuție ocupat · %1$d%%</string>
     <string name="games_runtime_busy">Mediu de execuție ocupat</string>
@@ -1363,6 +1377,18 @@
         <item quantity="one">S-a importat %1$d fișier din %2$s în %3$s. Salvările vechi au fost copiate de rezervă în Download/DroidDeck/Saves/backups</item>
         <item quantity="few">S-au importat %1$d fișiere din %2$s în %3$s. Salvările vechi au fost copiate de rezervă în Download/DroidDeck/Saves/backups</item>
         <item quantity="other">S-au importat %1$d de fișiere din %2$s în %3$s. Salvările vechi au fost copiate de rezervă în Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Închide mai întâi sesiunea, ca jocul să nu folosească suplimentele în timpul importului</string>
+    <string name="main_addons_importing">Se importă suplimente în %1$s</string>
+    <string name="main_addons_pick_zip">Alege o arhivă zip de suplimente pentru %1$s</string>
+    <string name="main_addons_too_large">%1$s este prea mare pentru a fi importat</string>
+    <string name="main_addons_deleting">Se șterge %1$s</string>
+    <string name="main_addons_deleted">S-a șters %1$s</string>
+    <string name="main_addons_none">Nu s-au găsit suplimente în %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">S-a importat %1$d supliment în %2$s</item>
+        <item quantity="few">S-au importat %1$d suplimente în %2$s</item>
+        <item quantity="other">S-au importat %1$d de suplimente în %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Alege o arhivă de salvare pentru %1$s</string>
     <string name="main_saves_exporting">Se exportă %1$s</string>
@@ -3503,6 +3529,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Pentru jocurile cu salvări în contul tău Steam</string>
     <string name="game_resource_search">Căutare pe web</string>
+    <string name="game_tab_addons">Suplimente</string>
     <string name="game_tab_install">Instalează</string>
     <string name="game_install_location">Locație</string>
     <string name="game_install_folder">Folder</string>
@@ -3549,19 +3576,18 @@
     <string name="integration_wifi">Nume Wi-Fi</string>
     <string name="integration_brightness">Luminozitate</string>
     <string name="integration_home">DroidDeck ca Acasă</string>
-    <string name="integration_shortcuts">Comenzi rapide pentru butonul Acasă</string>
+    <string name="integration_shortcuts">Taste de sistem</string>
     <string name="integration_wifi_hint">Afișează rețelele în Steam · necesită acces la locație, fără urmărire</string>
     <string name="integration_wifi_on">Rețelele apar în Steam</string>
     <string name="integration_wifi_location_off">Locația este dezactivată</string>
     <string name="integration_wifi_denied">Locație refuzată · permite-o în Informații despre aplicație</string>
     <string name="integration_brightness_hint">Glisorul din Steam setează luminozitatea ecranului</string>
     <string name="integration_home_hint">Acasă deschide meniul Steam într-o sesiune</string>
-    <string name="integration_shortcuts_hint">Ține apăsat Acasă pentru combinațiile Steam Guide</string>
-    <string name="integration_shortcuts_needs_home">Necesită DroidDeck ca Acasă</string>
+    <string name="integration_shortcuts_hint">Alt+Tab, tasta Win și butonul Acasă rămân în sesiune</string>
     <string name="integration_shortcuts_maybe_restricted">Inactiv în Android? Informații despre aplicație → ⋮ → Permite setările restricționate</string>
     <string name="integration_shortcuts_restricted">Blocat de Android · Informații despre aplicație → ⋮ → Permite setările restricționate</string>
-    <string name="integration_shortcuts_service">Butonul Acasă DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Transmite apăsările butonului Acasă către Steam Guide cât timp o sesiune Steam este activă și DroidDeck este aplicația Acasă implicită. Nu citește conținutul ecranului.</string>
+    <string name="integration_shortcuts_service">Taste de sistem DroidDeck</string>
+    <string name="integration_shortcuts_service_description">Păstrează Alt+Tab, tasta Win și butonul Acasă într-o sesiune DroidDeck activă în loc de Android.</string>
     <string name="integration_brightness_needed">Activează Luminozitate în Configurare → Integrare Steam</string>
     <string name="setup_gpu_bridge_off">Punte Mali: oprită</string>
     <string name="setup_gpu_bridge_on">Punte Mali: pornită</string>

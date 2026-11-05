@@ -745,6 +745,10 @@
     <string name="drawer_low_latency_touch">Sentuh kependaman rendah</string>
     <string name="drawer_low_latency_touch_hint">Sentuhan melangkau pengumpulan bingkai, jadi kawalan sentuh Steam berjalan pada 1000 Hz. Sedikit lebih banyak CPU.</string>
     <string name="drawer_evdev_mouse">Saluran tetikus mentah</string>
+    <string name="drawer_relative_mouse">Tetikus relatif</string>
+    <string name="drawer_relative_mouse_auto">Automatik</string>
+    <string name="drawer_relative_mouse_on">Hidup</string>
+    <string name="drawer_relative_mouse_off">Mati</string>
     <string name="drawer_direct_cursor">Kursor</string>
     <string name="drawer_pc_keyboard">Papan kekunci PC</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -866,6 +870,7 @@
     <string name="setup_home">Gunakan sebagai skrin Utama</string>
     <string name="setup_home_on">DroidDeck boleh menjadi apl Utama</string>
     <string name="setup_home_off">DroidDeck tidak sekali-kali ditawarkan sebagai apl Utama</string>
+    <string name="setup_home_game_space_first">Dalam Tambah Permainan, tetapkan DroidDeck kepada Sertakan</string>
     <string name="setup_orientation">Orientasi</string>
     <string name="setup_launcher_orientation">Orientasi pelancar</string>
     <string name="setup_launcher_orientation_auto">Ikut putaran peranti</string>
@@ -1172,6 +1177,13 @@
     <string name="games_export_gamehub">Eksport sebagai zip GameHub…</string>
     <string name="games_export_winlator">Eksport sebagai zip Winlator…</string>
     <string name="games_open_save_folder">Buka folder simpanan</string>
+    <string name="games_import_addons">Import addon daripada zip…</string>
+    <string name="games_open_addons_folder">Buka folder addon</string>
+    <string name="games_delete_addon_title">Padam %1$s?</string>
+    <string name="games_delete_addon_body">Ini memadam folder addon. Tetapannya kekal.</string>
+    <plurals name="games_addons_count">
+        <item quantity="other">%1$d addon</item>
+    </plurals>
     <string name="games_never_played">Belum pernah dimainkan</string>
     <string name="games_runtime_busy_percent">Masa jalan sibuk · %1$d%%</string>
     <string name="games_runtime_busy">Masa jalan sibuk</string>
@@ -1347,6 +1359,16 @@
     </plurals>
     <plurals name="main_saves_imported_backup">
         <item quantity="other">Mengimport %1$d fail daripada %2$s ke %3$s. Simpanan lama disandarkan ke Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Tutup sesi dahulu, supaya permainan tidak menggunakan addonnya semasa import</string>
+    <string name="main_addons_importing">Mengimport addon ke %1$s</string>
+    <string name="main_addons_pick_zip">Pilih zip addon untuk %1$s</string>
+    <string name="main_addons_too_large">%1$s terlalu besar untuk diimport</string>
+    <string name="main_addons_deleting">Memadam %1$s</string>
+    <string name="main_addons_deleted">%1$s dipadam</string>
+    <string name="main_addons_none">Tiada addon ditemui dalam %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="other">Berjaya mengimport %1$d addon ke %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Pilih zip simpanan untuk %1$s</string>
     <string name="main_saves_exporting">Mengeksport %1$s</string>
@@ -3440,6 +3462,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Untuk permainan dengan simpanan pada akaun Steam anda</string>
     <string name="game_resource_search">Carian web</string>
+    <string name="game_tab_addons">Addon</string>
     <string name="game_tab_install">Pasang</string>
     <string name="game_install_location">Lokasi</string>
     <string name="game_install_folder">Folder</string>
@@ -3486,19 +3509,18 @@
     <string name="integration_wifi">Nama Wi-Fi</string>
     <string name="integration_brightness">Kecerahan</string>
     <string name="integration_home">DroidDeck sebagai Laman Utama</string>
-    <string name="integration_shortcuts">Pintasan butang Laman Utama</string>
+    <string name="integration_shortcuts">Kekunci sistem</string>
     <string name="integration_wifi_hint">Paparkan rangkaian dalam Steam · memerlukan akses Lokasi, tidak pernah dijejak</string>
     <string name="integration_wifi_on">Rangkaian dipaparkan dalam Steam</string>
     <string name="integration_wifi_location_off">Lokasi dimatikan</string>
     <string name="integration_wifi_denied">Lokasi ditolak · benarkannya dalam Maklumat apl</string>
     <string name="integration_brightness_hint">Peluncur Steam menetapkan kecerahan skrin</string>
     <string name="integration_home_hint">Laman Utama membuka menu Steam dalam sesi</string>
-    <string name="integration_shortcuts_hint">Tahan Laman Utama untuk kord Steam Guide</string>
-    <string name="integration_shortcuts_needs_home">Memerlukan DroidDeck sebagai Laman Utama</string>
+    <string name="integration_shortcuts_hint">Alt+Tab, kekunci Win dan butang Utama kekal dalam sesi</string>
     <string name="integration_shortcuts_maybe_restricted">Dikelabukan dalam Android? Maklumat apl → ⋮ → Benarkan tetapan terhad</string>
     <string name="integration_shortcuts_restricted">Disekat oleh Android · Maklumat apl → ⋮ → Benarkan tetapan terhad</string>
-    <string name="integration_shortcuts_service">Butang Laman Utama DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Menghantar tekanan butang Laman Utama kepada Steam Guide semasa sesi Steam difokuskan dan DroidDeck ialah apl Laman Utama lalai. Tidak membaca kandungan skrin.</string>
+    <string name="integration_shortcuts_service">Kekunci sistem DroidDeck</string>
+    <string name="integration_shortcuts_service_description">Mengekalkan Alt+Tab, kekunci Win dan butang Utama dalam sesi DroidDeck yang aktif, bukan Android.</string>
     <string name="integration_brightness_needed">Hidupkan Kecerahan dalam Persediaan → Integrasi Steam</string>
     <string name="setup_gpu_bridge_off">Jambatan Mali: mati</string>
     <string name="setup_gpu_bridge_on">Jambatan Mali: hidup</string>

@@ -917,6 +917,7 @@ fun ComponentsPage(
             winOpen,
             compat = selectedGame.protonPrefix,
             steamAppId = selectedGame.appId.takeIf { selectedGame.library != Library.ADDED },
+            game = selectedGame,
         ) {
             winComponentsOpen = null
             winComponentsRevision++

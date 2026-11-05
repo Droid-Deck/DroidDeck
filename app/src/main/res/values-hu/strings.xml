@@ -747,6 +747,10 @@
     <string name="drawer_low_latency_touch">Alacsony késleltetésű érintés</string>
     <string name="drawer_low_latency_touch_hint">Az érintések kihagyják a képkockák kötegelését, így a Steam érintésvezérlése 1000 Hz-en fut. Kicsit több CPU.</string>
     <string name="drawer_evdev_mouse">Nyers egércsatorna</string>
+    <string name="drawer_relative_mouse">Relatív egér</string>
+    <string name="drawer_relative_mouse_auto">Automatikus</string>
+    <string name="drawer_relative_mouse_on">Be</string>
+    <string name="drawer_relative_mouse_off">Ki</string>
     <string name="drawer_direct_cursor">Kurzor</string>
     <string name="drawer_pc_keyboard">PC-billentyűzet</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -869,6 +873,7 @@
     <string name="setup_home">Használat kezdőképernyőként</string>
     <string name="setup_home_on">A DroidDeck lehet a kezdőképernyő alkalmazás</string>
     <string name="setup_home_off">A DroidDeck soha nem jelenik meg kezdőképernyő alkalmazásként</string>
+    <string name="setup_home_game_space_first">A Játékok hozzáadása részben állítsd a DroidDecket Belefoglalásra</string>
     <string name="setup_orientation">Tájolás</string>
     <string name="setup_launcher_orientation">Az indító tájolása</string>
     <string name="setup_launcher_orientation_auto">Az eszköz elforgatásának követése</string>
@@ -1178,6 +1183,14 @@
     <string name="games_export_gamehub">Exportálás GameHub zipként…</string>
     <string name="games_export_winlator">Exportálás Winlator zipként…</string>
     <string name="games_open_save_folder">Mentésmappa megnyitása</string>
+    <string name="games_import_addons">Kiegészítők importálása zipből…</string>
+    <string name="games_open_addons_folder">Kiegészítők mappájának megnyitása</string>
+    <string name="games_delete_addon_title">Törlöd ezt: %1$s?</string>
+    <string name="games_delete_addon_body">Ez törli a kiegészítő mappáját. A beállításai megmaradnak.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d kiegészítő</item>
+        <item quantity="other">%1$d kiegészítő</item>
+    </plurals>
     <string name="games_never_played">Még nem játszott</string>
     <string name="games_runtime_busy_percent">Futtatókörnyezet dolgozik · %1$d%%</string>
     <string name="games_runtime_busy">Futtatókörnyezet dolgozik</string>
@@ -1355,6 +1368,17 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="one">%1$d fájl importálva innen: %2$s, ide: %3$s. A régi mentések mentve itt: Download/DroidDeck/Saves/backups</item>
         <item quantity="other">%1$d fájl importálva innen: %2$s, ide: %3$s. A régi mentések mentve itt: Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Előbb zárja be a munkamenetet, hogy a játék ne használja a kiegészítőit az importálás alatt</string>
+    <string name="main_addons_importing">Kiegészítők importálása ide: %1$s</string>
+    <string name="main_addons_pick_zip">Válasszon kiegészítő zip fájlt ehhez: %1$s</string>
+    <string name="main_addons_too_large">A(z) %1$s túl nagy az importáláshoz</string>
+    <string name="main_addons_deleting">%1$s törlése folyamatban</string>
+    <string name="main_addons_deleted">%1$s törölve</string>
+    <string name="main_addons_none">Nem található kiegészítő itt: %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">%1$d kiegészítő importálva ide: %2$s</item>
+        <item quantity="other">%1$d kiegészítő importálva ide: %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Válasszon mentés zip fájlt ehhez: %1$s</string>
     <string name="main_saves_exporting">%1$s exportálása</string>
@@ -3467,6 +3491,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">A Steam-fiókjában mentéseket tároló játékokhoz</string>
     <string name="game_resource_search">Webes keresés</string>
+    <string name="game_tab_addons">Kiegészítők</string>
     <string name="game_tab_install">Telepítés</string>
     <string name="game_install_location">Hely</string>
     <string name="game_install_folder">Mappa</string>
@@ -3513,19 +3538,18 @@
     <string name="integration_wifi">Wi-Fi-nevek</string>
     <string name="integration_brightness">Fényerő</string>
     <string name="integration_home">DroidDeck kezdőképernyőként</string>
-    <string name="integration_shortcuts">Kezdőképernyő gomb parancsikonjai</string>
+    <string name="integration_shortcuts">Rendszerbillentyűk</string>
     <string name="integration_wifi_hint">Hálózatok megjelenítése a Steamben · helyhozzáférést igényel, követés nélkül</string>
     <string name="integration_wifi_on">A hálózatok megjelennek a Steamben</string>
     <string name="integration_wifi_location_off">A hely ki van kapcsolva</string>
     <string name="integration_wifi_denied">Hely megtagadva · engedélyezze az Alkalmazásinformációban</string>
     <string name="integration_brightness_hint">A Steam csúszkája állítja a képernyő fényerejét</string>
     <string name="integration_home_hint">A Kezdőképernyő gomb megnyitja a Steam menüt egy munkamenetben</string>
-    <string name="integration_shortcuts_hint">Tartsa lenyomva a Kezdőképernyő gombot a Steam Guide-kombinációkhoz</string>
-    <string name="integration_shortcuts_needs_home">A DroidDecknek kell kezdőképernyőnek lennie</string>
+    <string name="integration_shortcuts_hint">Az Alt+Tab, a Win billentyű és a Kezdőlap gomb a munkamenetben marad</string>
     <string name="integration_shortcuts_maybe_restricted">Szürke az Androidban? Alkalmazásinformáció → ⋮ → Korlátozott beállítások engedélyezése</string>
     <string name="integration_shortcuts_restricted">Az Android letiltotta · Alkalmazásinformáció → ⋮ → Korlátozott beállítások engedélyezése</string>
-    <string name="integration_shortcuts_service">DroidDeck Kezdőképernyő gomb</string>
-    <string name="integration_shortcuts_service_description">A Kezdőképernyő gomb lenyomásait továbbítja a Steam Guide-nak, amíg egy Steam-munkamenet van fókuszban, és a DroidDeck az alapértelmezett kezdőképernyő alkalmazás. Nem olvassa a képernyő tartalmát.</string>
+    <string name="integration_shortcuts_service">DroidDeck rendszerbillentyűk</string>
+    <string name="integration_shortcuts_service_description">Az Alt+Tab, a Win billentyű és a Kezdőlap gomb az aktív DroidDeck-munkamenetben marad az Android helyett.</string>
     <string name="integration_brightness_needed">Kapcsolja be a Fényerőt itt: Beállítás → Steam-integráció</string>
     <string name="setup_gpu_bridge_off">Mali híd: ki</string>
     <string name="setup_gpu_bridge_on">Mali híd: be</string>

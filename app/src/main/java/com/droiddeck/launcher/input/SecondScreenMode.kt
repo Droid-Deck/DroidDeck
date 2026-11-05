@@ -21,8 +21,8 @@ enum class SecondScreenMode(val id: String, @StringRes val label: Int) {
             }?.let { return it }
             val picked = entries.any { it != NONE && it.id == remembered }
             return when {
-                dashboard && !picked -> DASHBOARD
                 deckPad -> DECK_CONTROLS
+                dashboard && !picked -> DASHBOARD
                 else -> KEYBOARD_TRACKPAD
             }
         }

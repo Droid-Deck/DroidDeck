@@ -476,15 +476,30 @@ def save_state(compat, state):
 def pending_for(app_id, pending=PENDING):
     try:
         with open(pending, encoding="utf-8") as source:
-            ids = json.load(source).get("games", {}).get(str(app_id), [])
+            config = json.load(source)
+            ids = config.get("games", {}).get(str(app_id), [])
+            revisions = config.get("revisions", {})
     except (OSError, ValueError, AttributeError):
-        return []
-    return [i for i in ids if valid_id(i)] if isinstance(ids, list) else []
+        return {}
+    revisions = revisions if isinstance(revisions, dict) else {}
+    return {i: max(0, revisions[i]) if type(revisions.get(i)) is int else 0
+            for i in ids if valid_id(i)} if isinstance(ids, list) else {}
 
 
 def wait_for_pending(app_id, pending=PENDING, store=STORE, timeout=PENDING_WAIT, sleep=time.sleep, clock=time.monotonic):
     def missing():
-        return [cid for cid in pending_for(app_id, pending) if component(store, cid) is None]
+        left = []
+        for cid, revision in pending_for(app_id, pending).items():
+            try:
+                with open(Path(store) / cid / "component.json", encoding="utf-8") as source:
+                    meta = json.load(source)
+                installed = meta.get("revision", 0)
+                ready = type(installed) is int and installed >= revision
+            except (OSError, ValueError, AttributeError):
+                ready = False
+            if not ready:
+                left.append(cid)
+        return left
     left = missing()
     if not left:
         return None

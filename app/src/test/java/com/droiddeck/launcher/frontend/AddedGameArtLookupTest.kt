@@ -195,4 +195,9 @@ class AddedGameArtLookupTest {
         assertEquals("grids/game/5?dimensions=600x900&nsfw=false&humor=false", SteamGridDb.path(5, AddedGameArt.Slot.COVER))
         assertEquals("grids/game/5?dimensions=460x215,920x430&nsfw=false&humor=false", SteamGridDb.path(5, AddedGameArt.Slot.WIDE))
     }
+
+    @Test fun anExactLookupDoesNotTakeTheBaseGameForASubtitledOne() {
+        assertNull(SteamGridDb.exactMatch("World of Warcraft: Forever", listOf(1 to "World of Warcraft")))
+        assertEquals(2, SteamGridDb.exactMatch("World of Warcraft: Forever", listOf(1 to "World of Warcraft", 2 to "World of Warcraft: Forever")))
+    }
 }

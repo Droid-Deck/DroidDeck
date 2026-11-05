@@ -747,6 +747,10 @@
     <string name="drawer_low_latency_touch">कम लेटेंसी टच</string>
     <string name="drawer_low_latency_touch_hint">टच फ़्रेम बैचिंग छोड़ देते हैं, इसलिए Steam का टच कंट्रोल 1000 Hz पर चलता है। थोड़ा ज़्यादा CPU।</string>
     <string name="drawer_evdev_mouse">रॉ माउस चैनल</string>
+    <string name="drawer_relative_mouse">सापेक्ष माउस</string>
+    <string name="drawer_relative_mouse_auto">स्वचालित</string>
+    <string name="drawer_relative_mouse_on">चालू</string>
+    <string name="drawer_relative_mouse_off">बंद</string>
     <string name="drawer_direct_cursor">कर्सर</string>
     <string name="drawer_pc_keyboard">पीसी कीबोर्ड</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -869,6 +873,7 @@
     <string name="setup_home">होम स्क्रीन के तौर पर इस्तेमाल करें</string>
     <string name="setup_home_on">DroidDeck होम ऐप हो सकता है</string>
     <string name="setup_home_off">DroidDeck को होम ऐप के तौर पर कभी नहीं दिखाया जाता</string>
+    <string name="setup_home_game_space_first">गेम जोड़ें में DroidDeck को शामिल करें पर सेट करें</string>
     <string name="setup_orientation">ओरिएंटेशन</string>
     <string name="setup_launcher_orientation">लॉन्चर ओरिएंटेशन</string>
     <string name="setup_launcher_orientation_auto">डिवाइस रोटेशन के अनुसार</string>
@@ -1178,6 +1183,14 @@
     <string name="games_export_gamehub">GameHub zip के रूप में एक्सपोर्ट करें…</string>
     <string name="games_export_winlator">Winlator zip के रूप में एक्सपोर्ट करें…</string>
     <string name="games_open_save_folder">सेव फ़ोल्डर खोलें</string>
+    <string name="games_import_addons">zip से ऐडऑन इंपोर्ट करें…</string>
+    <string name="games_open_addons_folder">ऐडऑन फ़ोल्डर खोलें</string>
+    <string name="games_delete_addon_title">%1$s हटाएं?</string>
+    <string name="games_delete_addon_body">यह ऐडऑन का फ़ोल्डर हटा देता है। इसकी सेटिंग्स बनी रहती हैं।</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d ऐडऑन</item>
+        <item quantity="other">%1$d ऐडऑन</item>
+    </plurals>
     <string name="games_never_played">कभी नहीं खेला</string>
     <string name="games_runtime_busy_percent">रनटाइम व्यस्त · %1$d%%</string>
     <string name="games_runtime_busy">रनटाइम व्यस्त</string>
@@ -1355,6 +1368,17 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="one">%2$s से %1$d फ़ाइल %3$s में इंपोर्ट हुई। पुराने सेव Download/DroidDeck/Saves/backups में बैकअप हो गए</item>
         <item quantity="other">%2$s से %1$d फ़ाइलें %3$s में इंपोर्ट हुईं। पुराने सेव Download/DroidDeck/Saves/backups में बैकअप हो गए</item>
+    </plurals>
+    <string name="main_addons_close_session">पहले सेशन बंद करें, ताकि इंपोर्ट के दौरान गेम अपने ऐडऑन का उपयोग न करे</string>
+    <string name="main_addons_importing">%1$s में ऐडऑन इंपोर्ट हो रहे हैं</string>
+    <string name="main_addons_pick_zip">%1$s के लिए ऐडऑन zip चुनें</string>
+    <string name="main_addons_too_large">%1$s इंपोर्ट करने के लिए बहुत बड़ा है</string>
+    <string name="main_addons_deleting">%1$s हटाया जा रहा है</string>
+    <string name="main_addons_deleted">%1$s हटाया गया</string>
+    <string name="main_addons_none">%1$s में कोई ऐडऑन नहीं मिला</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">%1$d ऐडऑन %2$s में इंपोर्ट हुआ</item>
+        <item quantity="other">%1$d ऐडऑन %2$s में इंपोर्ट हुए</item>
     </plurals>
     <string name="main_saves_pick_zip">%1$s के लिए एक सेव zip चुनें</string>
     <string name="main_saves_exporting">%1$s एक्सपोर्ट हो रहा है</string>
@@ -3467,6 +3491,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">उन गेम के लिए जिनके सेव आपके Steam अकाउंट पर हैं</string>
     <string name="game_resource_search">वेब सर्च</string>
+    <string name="game_tab_addons">ऐडऑन</string>
     <string name="game_tab_install">इंस्टॉल करें</string>
     <string name="game_install_location">जगह</string>
     <string name="game_install_folder">फ़ोल्डर</string>
@@ -3513,19 +3538,18 @@
     <string name="integration_wifi">Wi-Fi नाम</string>
     <string name="integration_brightness">ब्राइटनेस</string>
     <string name="integration_home">DroidDeck होम के रूप में</string>
-    <string name="integration_shortcuts">होम बटन शॉर्टकट</string>
+    <string name="integration_shortcuts">सिस्टम कुंजियाँ</string>
     <string name="integration_wifi_hint">Steam में नेटवर्क दिखाएं · लोकेशन ऐक्सेस चाहिए, कभी ट्रैक नहीं किया जाता</string>
     <string name="integration_wifi_on">नेटवर्क Steam में दिखते हैं</string>
     <string name="integration_wifi_location_off">लोकेशन बंद है</string>
     <string name="integration_wifi_denied">लोकेशन अस्वीकार · ऐप्लिकेशन की जानकारी में इसकी अनुमति दें</string>
     <string name="integration_brightness_hint">Steam का स्लाइडर स्क्रीन ब्राइटनेस सेट करता है</string>
     <string name="integration_home_hint">सेशन में होम, Steam मेनू खोलता है</string>
-    <string name="integration_shortcuts_hint">Steam Guide कॉर्ड के लिए होम दबाए रखें</string>
-    <string name="integration_shortcuts_needs_home">DroidDeck को होम के रूप में होना चाहिए</string>
+    <string name="integration_shortcuts_hint">Alt+Tab, Win कुंजी और होम बटन सत्र में ही रहते हैं</string>
     <string name="integration_shortcuts_maybe_restricted">Android में धूसर है? ऐप्लिकेशन की जानकारी → ⋮ → प्रतिबंधित सेटिंग की अनुमति दें</string>
     <string name="integration_shortcuts_restricted">Android ने ब्लॉक किया · ऐप्लिकेशन की जानकारी → ⋮ → प्रतिबंधित सेटिंग की अनुमति दें</string>
-    <string name="integration_shortcuts_service">DroidDeck होम बटन</string>
-    <string name="integration_shortcuts_service_description">जब Steam सेशन फ़ोकस में हो और DroidDeck डिफ़ॉल्ट होम ऐप हो, तब होम बटन दबाने को Steam Guide तक भेजता है। स्क्रीन की सामग्री नहीं पढ़ता।</string>
+    <string name="integration_shortcuts_service">DroidDeck सिस्टम कुंजियाँ</string>
+    <string name="integration_shortcuts_service_description">Alt+Tab, Win कुंजी और होम बटन को Android के बजाय सक्रिय DroidDeck सत्र में रखता है।</string>
     <string name="integration_brightness_needed">Setup → Steam इंटीग्रेशन में ब्राइटनेस चालू करें</string>
     <string name="setup_gpu_bridge_off">Mali ब्रिज: बंद</string>
     <string name="setup_gpu_bridge_on">Mali ब्रिज: चालू</string>

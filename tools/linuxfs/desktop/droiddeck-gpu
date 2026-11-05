@@ -15,7 +15,7 @@ window=0
 if [ "$backend" = wayland ] && [ "${BL_DESKTOP_GPU_WINDOW:-1}" != 0 ] && [ -n "${WAYLAND_DISPLAY:-}" ] && [ "$WAYLAND_DISPLAY" != wayland-0 ]; then
   window=1
   parent=$WAYLAND_DISPLAY
-  args=(--backend sdl --expose-wayland -W "$width" -H "$height" -w "$width" -h "$height")
+  args=(--backend sdl --expose-wayland --follow-game-window-mode -W "$width" -H "$height" -w "$width" -h "$height")
 else
   args=(--backend "$backend" --expose-wayland -f -W "$width" -H "$height" -w "$width" -h "$height")
 fi

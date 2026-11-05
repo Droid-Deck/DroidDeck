@@ -115,9 +115,10 @@ image_id=$(docker image inspect --format '{{.Id}}' "${image_name}")
 rm -rf -- "${linuxfs_dir}"
 mkdir -p "${linuxfs_dir}"
 
+git_common=$(git -C "${repo_root}" rev-parse --path-format=absolute --git-common-dir)
 docker run --rm --platform "${docker_platform}" \
     --user "$(id -u):$(id -g)" \
-    -v "${repo_root}:/src" -w /src "${image_name}" bash -lc '
+    -v "${repo_root}:/src" -v "${git_common}:${git_common}" -w /src "${image_name}" bash -lc '
         set -euo pipefail
         d=app/src/main/assets/linuxfs
         mkdir -p "$d"
@@ -170,7 +171,7 @@ x86_key=$(inputs_hash bullseye tools/linuxfs/build-x86-preloads.sh tools/linuxfs
 x86_stage="${staging_dir}/x86-preloads"
 if restore_step x86-preloads "${x86_key}" "${linuxfs_dir}"; then :; else
     docker run --rm --platform linux/amd64 \
-        -v "${repo_root}:/src" -w /src public.ecr.aws/docker/library/debian:bullseye bash -c '
+        -v "${repo_root}:/src" -v "${git_common}:${git_common}" -w /src public.ecr.aws/docker/library/debian:bullseye bash -c '
             set -euo pipefail
             printf "deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n" > /etc/apt/sources.list
             apt-get -o Acquire::Check-Valid-Until=false update -qq

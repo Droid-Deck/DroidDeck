@@ -747,6 +747,10 @@
     <string name="drawer_low_latency_touch">Berøring med lav forsinkelse</string>
     <string name="drawer_low_latency_touch_hint">Berøringer hopper over bildeinnsamling; Steams berøringsstyring går ved 1000 Hz. Litt mer CPU.</string>
     <string name="drawer_evdev_mouse">Rå musekanal</string>
+    <string name="drawer_relative_mouse">Relativ mus</string>
+    <string name="drawer_relative_mouse_auto">Automatisk</string>
+    <string name="drawer_relative_mouse_on">På</string>
+    <string name="drawer_relative_mouse_off">Av</string>
     <string name="drawer_direct_cursor">Peker</string>
     <string name="drawer_pc_keyboard">PC-tastatur</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -869,6 +873,7 @@
     <string name="setup_home">Bruk som Hjem-skjerm</string>
     <string name="setup_home_on">DroidDeck kan være Hjem-appen</string>
     <string name="setup_home_off">DroidDeck tilbys aldri som en Hjem-app</string>
+    <string name="setup_home_game_space_first">I Legg til spill setter du DroidDeck til Inkluder</string>
     <string name="setup_orientation">Retning</string>
     <string name="setup_launcher_orientation">Retning for launcheren</string>
     <string name="setup_launcher_orientation_auto">Følg enhetens rotasjon</string>
@@ -1178,6 +1183,14 @@
     <string name="games_export_gamehub">Eksporter som GameHub-zip…</string>
     <string name="games_export_winlator">Eksporter som Winlator-zip…</string>
     <string name="games_open_save_folder">Åpne lagringsmappe</string>
+    <string name="games_import_addons">Importer tillegg fra zip…</string>
+    <string name="games_open_addons_folder">Åpne tilleggsmappe</string>
+    <string name="games_delete_addon_title">Slett %1$s?</string>
+    <string name="games_delete_addon_body">Dette fjerner tilleggets mappe. Innstillingene beholdes.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d tillegg</item>
+        <item quantity="other">%1$d tillegg</item>
+    </plurals>
     <string name="games_never_played">Aldri spilt</string>
     <string name="games_runtime_busy_percent">Kjøretid opptatt · %1$d%%</string>
     <string name="games_runtime_busy">Kjøretid opptatt</string>
@@ -1355,6 +1368,17 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="one">Importerte %1$d fil fra %2$s til %3$s. Gamle lagringer sikkerhetskopiert til Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Importerte %1$d filer fra %2$s til %3$s. Gamle lagringer sikkerhetskopiert til Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Lukk sesjonen først, så spillet ikke bruker tilleggene under importen</string>
+    <string name="main_addons_importing">Importerer tillegg til %1$s</string>
+    <string name="main_addons_pick_zip">Velg en zip med tillegg for %1$s</string>
+    <string name="main_addons_too_large">%1$s er for stor til å importeres</string>
+    <string name="main_addons_deleting">Sletter %1$s</string>
+    <string name="main_addons_deleted">Slettet %1$s</string>
+    <string name="main_addons_none">Fant ingen tillegg i %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Importerte %1$d tillegg til %2$s</item>
+        <item quantity="other">Importerte %1$d tillegg til %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Velg en lagrings-zip for %1$s</string>
     <string name="main_saves_exporting">Eksporterer %1$s</string>
@@ -3467,6 +3491,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">For spill med lagringer på Steam-kontoen din</string>
     <string name="game_resource_search">Nettsøk</string>
+    <string name="game_tab_addons">Tillegg</string>
     <string name="game_tab_install">Installer</string>
     <string name="game_install_location">Plassering</string>
     <string name="game_install_folder">Mappe</string>
@@ -3513,19 +3538,18 @@
     <string name="integration_wifi">Wi-Fi-navn</string>
     <string name="integration_brightness">Lysstyrke</string>
     <string name="integration_home">DroidDeck som startskjerm</string>
-    <string name="integration_shortcuts">Snarveier for Hjem-knappen</string>
+    <string name="integration_shortcuts">Systemtaster</string>
     <string name="integration_wifi_hint">Vis nettverk i Steam · krever posisjonstilgang, spores aldri</string>
     <string name="integration_wifi_on">Nettverk vises i Steam</string>
     <string name="integration_wifi_location_off">Posisjon er av</string>
     <string name="integration_wifi_denied">Posisjon avslått · tillat den i Appinfo</string>
     <string name="integration_brightness_hint">Steams glidebryter styrer skjermens lysstyrke</string>
     <string name="integration_home_hint">Hjem åpner Steam-menyen i en sesjon</string>
-    <string name="integration_shortcuts_hint">Hold Hjem for Steam Guide-kombinasjoner</string>
-    <string name="integration_shortcuts_needs_home">Krever DroidDeck som startskjerm</string>
+    <string name="integration_shortcuts_hint">Alt+Tab, Win-tasten og Hjem-knappen blir i økten</string>
     <string name="integration_shortcuts_maybe_restricted">Nedtonet i Android? Appinfo → ⋮ → Tillat begrensede innstillinger</string>
     <string name="integration_shortcuts_restricted">Blokkert av Android · Appinfo → ⋮ → Tillat begrensede innstillinger</string>
-    <string name="integration_shortcuts_service">DroidDeck Hjem-knapp</string>
-    <string name="integration_shortcuts_service_description">Sender trykk på Hjem-knappen til Steam Guide mens en Steam-sesjon er i fokus og DroidDeck er standard startskjerm-app. Leser ikke skjerminnhold.</string>
+    <string name="integration_shortcuts_service">DroidDeck-systemtaster</string>
+    <string name="integration_shortcuts_service_description">Holder Alt+Tab, Win-tasten og Hjem-knappen i en aktiv DroidDeck-økt i stedet for Android.</string>
     <string name="integration_brightness_needed">Slå på Lysstyrke i Oppsett → Steam-integrering</string>
     <string name="setup_gpu_bridge_off">Mali-bro: av</string>
     <string name="setup_gpu_bridge_on">Mali-bro: på</string>
