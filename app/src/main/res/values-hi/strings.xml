@@ -670,6 +670,8 @@
     <string name="hud_group_metrics">रीडिंग</string>
     <string name="hud_metric_graph">फ़्रेम टाइम ग्राफ़</string>
     <string name="hud_metric_decimal">दशमलव सहित फ़्रेम दर</string>
+    <string name="hud_metric_low1">1% लो</string>
+    <string name="hud_metric_low01">0.1% लो</string>
     <string name="hud_metric_low001">0.01% लो</string>
     <string name="hud_metric_engine">ग्राफ़िक्स इंजन</string>
     <string name="hud_metric_gpu_model">GPU का नाम</string>

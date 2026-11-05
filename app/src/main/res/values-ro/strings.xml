@@ -672,6 +672,8 @@
     <string name="hud_group_metrics">Valori</string>
     <string name="hud_metric_graph">Grafic timp de cadru</string>
     <string name="hud_metric_decimal">Rată de cadre cu zecimală</string>
+    <string name="hud_metric_low1">1% cele mai mici</string>
+    <string name="hud_metric_low01">0.1% cele mai mici</string>
     <string name="hud_metric_low001">0.01% cele mai mici</string>
     <string name="hud_metric_engine">Motor grafic</string>
     <string name="hud_metric_gpu_model">Nume GPU</string>

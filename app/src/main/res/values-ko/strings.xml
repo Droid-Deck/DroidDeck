@@ -668,6 +668,8 @@
     <string name="hud_group_metrics">측정값</string>
     <string name="hud_metric_graph">프레임 타임 그래프</string>
     <string name="hud_metric_decimal">소수점 프레임 속도</string>
+    <string name="hud_metric_low1">1% 최저</string>
+    <string name="hud_metric_low01">0.1% 최저</string>
     <string name="hud_metric_low001">0.01% 최저</string>
     <string name="hud_metric_engine">그래픽 엔진</string>
     <string name="hud_metric_gpu_model">GPU 이름</string>

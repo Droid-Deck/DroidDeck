@@ -670,6 +670,8 @@
     <string name="hud_group_metrics">Lukemat</string>
     <string name="hud_metric_graph">Kuva-aikakäyrä</string>
     <string name="hud_metric_decimal">Kuvataajuus desimaalilla</string>
+    <string name="hud_metric_low1">1% alin</string>
+    <string name="hud_metric_low01">0.1% alin</string>
     <string name="hud_metric_low001">0.01% alin</string>
     <string name="hud_metric_engine">Grafiikkamoottori</string>
     <string name="hud_metric_gpu_model">GPU:n nimi</string>

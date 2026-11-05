@@ -668,6 +668,8 @@
     <string name="hud_group_metrics">表示項目</string>
     <string name="hud_metric_graph">フレームタイムグラフ</string>
     <string name="hud_metric_decimal">フレームレートの小数表示</string>
+    <string name="hud_metric_low1">1%最低値</string>
+    <string name="hud_metric_low01">0.1%最低値</string>
     <string name="hud_metric_low001">0.01%最低値</string>
     <string name="hud_metric_engine">グラフィックスエンジン</string>
     <string name="hud_metric_gpu_model">GPU名</string>

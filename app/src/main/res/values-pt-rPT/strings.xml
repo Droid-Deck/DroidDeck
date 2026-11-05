@@ -672,6 +672,8 @@
     <string name="hud_group_metrics">Leituras</string>
     <string name="hud_metric_graph">Gráfico de tempo de fotograma</string>
     <string name="hud_metric_decimal">Taxa de fotogramas com decimal</string>
+    <string name="hud_metric_low1">1% mais baixo</string>
+    <string name="hud_metric_low01">0.1% mais baixo</string>
     <string name="hud_metric_low001">0.01% mais baixo</string>
     <string name="hud_metric_engine">Motor gráfico</string>
     <string name="hud_metric_gpu_model">Nome da GPU</string>

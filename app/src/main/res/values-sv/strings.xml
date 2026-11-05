@@ -670,6 +670,8 @@
     <string name="hud_group_metrics">Mätvärden</string>
     <string name="hud_metric_graph">Bildtidsgraf</string>
     <string name="hud_metric_decimal">Bildfrekvens med decimal</string>
+    <string name="hud_metric_low1">1% lägsta</string>
+    <string name="hud_metric_low01">0.1% lägsta</string>
     <string name="hud_metric_low001">0.01% lägsta</string>
     <string name="hud_metric_engine">Grafikmotor</string>
     <string name="hud_metric_gpu_model">GPU-namn</string>

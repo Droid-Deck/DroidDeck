@@ -668,6 +668,8 @@
     <string name="hud_group_metrics">Chỉ số</string>
     <string name="hud_metric_graph">Biểu đồ thời gian khung hình</string>
     <string name="hud_metric_decimal">Tốc độ khung hình có số thập phân</string>
+    <string name="hud_metric_low1">1% thấp nhất</string>
+    <string name="hud_metric_low01">0.1% thấp nhất</string>
     <string name="hud_metric_low001">0.01% thấp nhất</string>
     <string name="hud_metric_engine">Engine đồ họa</string>
     <string name="hud_metric_gpu_model">Tên GPU</string>

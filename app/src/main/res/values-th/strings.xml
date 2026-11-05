@@ -668,6 +668,8 @@
     <string name="hud_group_metrics">ค่าที่แสดง</string>
     <string name="hud_metric_graph">กราฟเวลาเฟรม</string>
     <string name="hud_metric_decimal">อัตราเฟรมแบบทศนิยม</string>
+    <string name="hud_metric_low1">1% ต่ำสุด</string>
+    <string name="hud_metric_low01">0.1% ต่ำสุด</string>
     <string name="hud_metric_low001">0.01% ต่ำสุด</string>
     <string name="hud_metric_engine">เอนจินกราฟิก</string>
     <string name="hud_metric_gpu_model">ชื่อ GPU</string>

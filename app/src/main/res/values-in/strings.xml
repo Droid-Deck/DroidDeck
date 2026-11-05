@@ -668,6 +668,8 @@
     <string name="hud_group_metrics">Pembacaan</string>
     <string name="hud_metric_graph">Grafik waktu bingkai</string>
     <string name="hud_metric_decimal">Laju bingkai dengan desimal</string>
+    <string name="hud_metric_low1">1% terendah</string>
+    <string name="hud_metric_low01">0.1% terendah</string>
     <string name="hud_metric_low001">0.01% terendah</string>
     <string name="hud_metric_engine">Mesin grafis</string>
     <string name="hud_metric_gpu_model">Nama GPU</string>
