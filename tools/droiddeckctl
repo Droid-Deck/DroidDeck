@@ -425,7 +425,10 @@ def start_session(adb: str, serial: str, request: dict) -> dict:
 def unpack_logs(archive: Path, destination: Path, session_id: str) -> None:
     """Unpack a Share logs zip so the session's own files sit at the top of destination."""
     destination = destination.resolve()
-    destination.mkdir(parents=True, exist_ok=True)
+    try:
+        destination.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise ControlError(f"Could not unpack the session logs: {exc}", "LOG_PULL_FAILED") from exc
     manifest = destination / ".droiddeckctl-managed-logs.json"
     try:
         previous = json.loads(manifest.read_text(encoding="utf-8"))

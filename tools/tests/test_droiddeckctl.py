@@ -610,6 +610,23 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertFalse((destination / "steam/console.log").exists())
         self.assertEqual("keep me", (destination / "notes.txt").read_text())
 
+    def test_logs_map_destination_creation_failure_to_pull_error(self):
+        destination = (self.dir / "artifacts").resolve()
+        archive = self.dir / "logs.zip"
+        real_mkdir = Path.mkdir
+
+        def fail_destination(path, *args, **kwargs):
+            if path == destination:
+                raise PermissionError("injected destination failure")
+            return real_mkdir(path, *args, **kwargs)
+
+        with unittest.mock.patch.object(Path, "mkdir", new=fail_destination):
+            with self.assertRaises(ctl.ControlError) as raised:
+                ctl.unpack_logs(archive, destination, "s1")
+
+        self.assertEqual("LOG_PULL_FAILED", raised.exception.code)
+        self.assertIn("injected destination failure", str(raised.exception))
+
     def test_logs_do_not_follow_a_stale_managed_symlink(self):
         if os.name == "nt":
             self.skipTest("symlink creation is unavailable on this Windows host")
