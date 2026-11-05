@@ -16,14 +16,17 @@ import java.util.Locale
 
 class ClockLogComponent(private val logFile: File) : SessionPart() {
     @Volatile private var running = false
+    private var stopped = false
     private var thread: Thread? = null
 
-    override fun start() {
+    @Synchronized override fun start() {
+        if (stopped || running) return
         running = true
         thread = Thread({ run() }, "clock-log").apply { isDaemon = true; start() }
     }
 
-    override fun stop() {
+    @Synchronized override fun stop() {
+        stopped = true
         running = false
         thread?.interrupt()
         thread = null
@@ -93,8 +96,13 @@ class ClockLogComponent(private val logFile: File) : SessionPart() {
                 "/sys/kernel/ged/hal/current_freqency", "/sys/kernel/ged/hal/current_frequency",
                 "/proc/gpufreqv2/gpufreq_status", "/proc/gpufreq/gpufreq_var_dump",
                 "/sys/kernel/gpu/gpu_clock", "/sys/class/misc/mali0/device/cur_freq",
-                "/sys/class/misc/mali0/device/clock",
+                "/sys/class/misc/mali0/device/clock", "/sys/class/kgsl/kgsl-3d0/clock_mhz",
+                "/sys/class/kgsl/kgsl-3d0/gpu_clock", "/sys/class/kgsl/kgsl-3d0/gpuclk",
+                "/sys/class/kgsl/kgsl-3d0/devfreq/cur_freq", "/sys/kernel/gpu/gpu_clock",
+                "/sys/devices/platform/soc@0/3d00000.gpu/devfreq/3d00000.gpu/cur_freq",
             )
+            listOf("kgsl-3d0", "3d00000.qcom,kgsl-3d0", "2c00000.qcom,kgsl-3d0", "5000000.qcom,kgsl-3d0", "5900000.qcom,kgsl-3d0")
+                .forEach { list.add("/sys/class/devfreq/$it/cur_freq") }
             File("/sys/class/devfreq").list()?.sorted()?.forEach { node ->
                 if (node.contains("mali", true) || node.contains("gpu", true)) list.add("/sys/class/devfreq/$node/cur_freq")
             }
