@@ -1049,8 +1049,15 @@ class NetlinkPreloadTest(unittest.TestCase):
                                      ("unknown", "index", ["link", "1", "lo"]),
                                      ("unknown", "name", ["error", str(-errno.ENODEV)]),
                                      ("wlan0", "missing", ["error", str(-errno.EINVAL)]),
-                                     ("wlan0", "unterminated", ["error", str(-errno.EINVAL)]),
-                                     ("wlan0", "oversized", ["error", str(-errno.EINVAL)])):
+                                     ("wlan0", "unterminated", ["link", "2", "wlan0"]),
+                                     ("lo", "unterminated", ["link", "1", "lo"]),
+                                     ("unknown", "unterminated", ["error", str(-errno.ENODEV)]),
+                                     ("x" * 15, "name", ["error", str(-errno.ENODEV)]),
+                                     ("x" * 15, "unterminated", ["error", str(-errno.ENODEV)]),
+                                     ("x" * 16, "unterminated", ["error", str(-errno.ERANGE)]),
+                                     ("", "name", ["error", str(-errno.ENODEV)]),
+                                     ("", "unterminated", ["error", str(-errno.ERANGE)]),
+                                     ("wlan0", "oversized", ["error", str(-errno.ERANGE)])):
             with self.subTest(name=name, mode=mode):
                 self.assertEqual(expected, self.run_program("named_link", name, mode))
         self.assertEqual(["error", str(-errno.ENODEV)],

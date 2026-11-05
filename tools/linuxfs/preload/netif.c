@@ -1828,16 +1828,25 @@ static void reply_request(const struct nlmsghdr *request, const struct link *lin
             index = ((const struct ifinfomsg *) NLMSG_DATA(request))->ifi_index;
         if (!dump && index == 0) {
             const struct rtattr *name_attr = request_attr(request, sizeof(struct ifinfomsg), IFLA_IFNAME);
-            size_t length = name_attr ? RTA_PAYLOAD(name_attr) : 0;
-            const char *name = name_attr ? RTA_DATA(name_attr) : NULL;
-            if (length == 0 || length > IFNAMSIZ || memchr(name, '\0', length) == NULL)
+            size_t payload = name_attr ? RTA_PAYLOAD(name_attr) : 0;
+            const char *data = name_attr ? RTA_DATA(name_attr) : NULL;
+            size_t length = payload;
+            if (length && data[length - 1] == '\0') length--;
+            if (name_attr == NULL) {
                 error = -EINVAL;
-            else if (strcmp(name, LO_NAME) == 0)
-                index = LO_INDEX;
-            else if (link && strcmp(name, link->name) == 0)
-                index = (int) link->index;
-            else
-                error = -ENODEV;
+            } else if (payload == 0 || length >= IFNAMSIZ) {
+                error = -ERANGE;
+            } else {
+                char name[IFNAMSIZ];
+                memcpy(name, data, length);
+                name[length] = '\0';
+                if (strcmp(name, LO_NAME) == 0)
+                    index = LO_INDEX;
+                else if (link && strcmp(name, link->name) == 0)
+                    index = (int) link->index;
+                else
+                    error = -ENODEV;
+            }
         }
         if (dump) {
             reply_link(out, NULL, 1, request->nlmsg_seq, flags);
