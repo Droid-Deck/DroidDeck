@@ -1658,6 +1658,30 @@ class ProtonDefaultTest(unittest.TestCase):
             finally:
                 globals_["native_targets"] = original_native_targets
 
+    def test_a_listed_title_with_a_bundled_arm64_linux_build_defaults_to_fex(self):
+        globals_ = COMPAT["native_targets"].__globals__
+        original_platforms = globals_["appinfo_platforms"]
+        globals_["appinfo_platforms"] = lambda _path, wanted: {
+            app: ({"linux", "windows"}, "64", "game") for app in ("4385780", "42") if app in wanted
+        }
+        try:
+            native = COMPAT["native_targets"]("/nonexistent", ["4385780", "42"])
+        finally:
+            globals_["appinfo_platforms"] = original_platforms
+        self.assertEqual(native["4385780"], COMPAT["FEX_TOOL"])
+        self.assertIs(native["42"], COMPAT["NATIVE_CHOICE"])
+
+        changes, auto = COMPAT["plan_mapping"](
+            {"0": self.TOOL}, ["4385780"], self.NAMES, self.TOOL, {}, native)
+        self.assertEqual(changes, {"4385780": COMPAT["FEX_TOOL"]})
+        self.assertEqual(auto, {"4385780": COMPAT["FEX_TOOL"]})
+
+        for choice in (self.TOOL, "GE-Proton11-7"):
+            changes, auto = COMPAT["plan_mapping"](
+                {"0": self.TOOL, "4385780": choice}, ["4385780"], self.NAMES, self.TOOL, {}, native)
+            self.assertEqual(changes, {})
+            self.assertEqual(auto, {})
+
     def test_factorio_preserves_an_observed_native_choice_despite_ambiguous_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:
             steam = Path(tmp) / "Steam"
