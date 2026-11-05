@@ -667,7 +667,7 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual("keep me", (destination / "notes.txt").read_text())
 
     def test_logs_preserve_the_old_manifest_when_its_backup_fails(self):
-        destination = self.dir / "artifacts"
+        destination = (self.dir / "artifacts").resolve()
         destination.mkdir()
         archive = self.dir / "logs.zip"
         with zipfile.ZipFile(archive, "w") as z:

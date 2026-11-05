@@ -3,6 +3,7 @@ package com.droiddeck.launcher.session
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
 import java.text.SimpleDateFormat
+import java.util.UUID
 import java.util.Date
 import java.util.Locale
 import java.util.zip.ZipFile
@@ -25,6 +26,18 @@ class SessionLogShareZipTest {
     @Before fun installSecureSourceOpener() = installJvmSecureSourceOpener()
 
     @After fun resetSourceOpener() = resetSecureSourceOpener()
+
+    @Test fun startupRemovesAbandonedDiagnosticStagesAndPreservesActiveSnapshots() {
+        val abandoned = File(app.cacheDir, "share-${UUID.randomUUID()}.diagnostic-stage").apply { mkdirs() }
+        val active = EnhancedSessionLogShare.acquireDiagnosticStage(app, "share")
+        try {
+            EnhancedSessionLogShare.cleanupAbandonedStages(app)
+            assertFalse(abandoned.exists())
+            assertTrue(active.directory.isDirectory)
+        } finally {
+            active.close()
+        }
+    }
 
     @Test fun anArchiveCanBeWrittenOutsideTheShareFolder() {
         SessionLogShare.clear(app)

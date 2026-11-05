@@ -11,6 +11,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
+import java.io.Closeable
 import java.io.File
 import java.io.FileOutputStream
 import java.io.FileInputStream
@@ -18,12 +19,15 @@ import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.Channels
 import java.nio.channels.FileChannel
+import java.nio.channels.FileLock
+import java.nio.channels.OverlappingFileLockException
 import java.nio.channels.SeekableByteChannel
 import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.nio.file.SimpleFileVisitor
+import java.nio.file.StandardOpenOption
 import java.nio.file.attribute.BasicFileAttributes
 import java.security.MessageDigest
 import java.util.Locale
@@ -45,6 +49,24 @@ internal interface SecureSourceOpener {
 internal object EnhancedSessionLogShare {
     private enum class Category(val suffix: String) { SESSION("session"), GRAPHICS("graphics"), GAMES("games") }
 
+    internal class DiagnosticStageLease internal constructor(
+        val directory: File,
+        private val channel: FileChannel,
+        private val lock: FileLock,
+    ) : Closeable {
+        override fun close() {
+            try {
+                lock.release()
+            } finally {
+                try {
+                    channel.close()
+                } finally {
+                    directory.deleteRecursively()
+                }
+            }
+        }
+    }
+
     private data class Candidate(
         val file: File,
         val anchor: File,
@@ -64,6 +86,8 @@ internal object EnhancedSessionLogShare {
     )
 
     private data class Snapshot(val file: File, val sourceBytes: Long, val truncated: Boolean)
+
+    private class StageUnavailableException(cause: Throwable) : IOException("Diagnostic staging directory is unavailable", cause)
 
     private data class CollectionResult(
         val candidates: List<Candidate>,
@@ -90,6 +114,70 @@ internal object EnhancedSessionLogShare {
     private val sourceOpenerOverride = object : ThreadLocal<SecureSourceOpener?>() {
         override fun initialValue(): SecureSourceOpener? = null
     }
+    private val stageLifecycleMonitor = Any()
+
+    internal fun acquireDiagnosticStage(context: Context, outputName: String): DiagnosticStageLease {
+        val cache = context.cacheDir
+        require(outputName.isNotBlank() && File(outputName).name == outputName)
+        return withStageLifecycleLock(cache) {
+            val stage = File(cache, "$outputName-${UUID.randomUUID()}.diagnostic-stage")
+            if (!stage.mkdir()) throw IOException("Could not create the diagnostic staging directory")
+            val channel = try {
+                FileChannel.open(File(stage, ".active").toPath(), StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)
+            } catch (error: Exception) {
+                stage.deleteRecursively()
+                throw IOException("Could not create the diagnostic staging lock", error)
+            }
+            try {
+                val lock = channel.tryLock()
+                    ?: throw IOException("Could not lock the diagnostic staging directory")
+                DiagnosticStageLease(stage, channel, lock)
+            } catch (error: Exception) {
+                channel.close()
+                stage.deleteRecursively()
+                throw IOException("Could not lock the diagnostic staging directory", error)
+            }
+        }
+    }
+
+    internal fun cleanupAbandonedStages(context: Context) {
+        val cache = context.cacheDir
+        val canonicalCache = cache.canonicalFile
+        withStageLifecycleLock(cache) {
+            cache.listFiles()?.forEach { stage ->
+                if (!stage.isDirectory || Files.isSymbolicLink(stage.toPath()) ||
+                    stage.canonicalFile.parentFile != canonicalCache || !isDiagnosticStage(stage.name)) return@forEach
+                val active = File(stage, ".active")
+                if (Files.isSymbolicLink(active.toPath())) return@forEach
+                val channel = runCatching {
+                    FileChannel.open(active.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE)
+                }.getOrNull() ?: return@forEach
+                val abandoned = try {
+                    channel.tryLock()?.let { lock -> lock.release(); true } ?: false
+                } catch (_: OverlappingFileLockException) {
+                    false
+                } finally {
+                    channel.close()
+                }
+                if (abandoned) stage.deleteRecursively()
+            }
+        }
+    }
+
+    private fun isDiagnosticStage(name: String): Boolean {
+        val suffix = ".diagnostic-stage"
+        if (!name.endsWith(suffix)) return false
+        val base = name.removeSuffix(suffix)
+        val uuidStart = base.length - 36
+        if (uuidStart < 2 || base[uuidStart - 1] != '-') return false
+        return runCatching { UUID.fromString(base.substring(uuidStart)).toString() == base.substring(uuidStart) }
+            .getOrDefault(false)
+    }
+
+    private fun <T> withStageLifecycleLock(cache: File, block: () -> T): T = synchronized(stageLifecycleMonitor) {
+        FileChannel.open(File(cache, ".diagnostic-stages.lock").toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE)
+            .use { channel -> channel.lock().use { block() } }
+    }
 
     internal fun setSourceOpenerForTest(opener: SecureSourceOpener?) {
         if (opener == null) sourceOpenerOverride.remove() else sourceOpenerOverride.set(opener)
@@ -108,17 +196,18 @@ internal object EnhancedSessionLogShare {
             return emptyList()
         }
         val out = SessionLogShare.shareDir(context).apply { deleteRecursively(); mkdirs() }
-        val stage = File(context.cacheDir, "${out.name}-${UUID.randomUUID()}.diagnostic-stage").apply { mkdirs() }
-        val redactionLearningComplete = LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
-        val discovery = collect(context, folder, limits.maxDiscoveredFiles, legacy = false)
-        val candidates = discovery.candidates
-        val totalCandidates = candidates.size.coerceAtLeast(1)
-        val share = limits.maxBytesTotal / Category.values().size
-        val budgets = Category.values().associateWith { category ->
-            Budget(if (category == Category.GAMES) limits.maxBytesTotal - share * 2 else share)
-        }
-        var completed = 0
+        val stageLease = acquireDiagnosticStage(context, out.name)
+        val stage = stageLease.directory
         return try {
+            val redactionLearningComplete = LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
+            val discovery = collect(context, folder, limits.maxDiscoveredFiles, legacy = false)
+            val candidates = discovery.candidates
+            val totalCandidates = candidates.size.coerceAtLeast(1)
+            val share = limits.maxBytesTotal / Category.values().size
+            val budgets = Category.values().associateWith { category ->
+                Budget(if (category == Category.GAMES) limits.maxBytesTotal - share * 2 else share)
+            }
+            var completed = 0
             Category.values().map { category ->
                 val budget = budgets.getValue(category)
                 val records = ArrayList<Record>()
@@ -151,7 +240,7 @@ internal object EnhancedSessionLogShare {
                 zip
             }
         } finally {
-            stage.deleteRecursively()
+            stageLease.close()
         }
     }
 
@@ -174,7 +263,8 @@ internal object EnhancedSessionLogShare {
             out.deleteRecursively()
             return null
         }
-        val stage = File(context.cacheDir, "${out.name}-${UUID.randomUUID()}.diagnostic-stage").apply { mkdirs() }
+        val stageLease = acquireDiagnosticStage(context, out.name)
+        val stage = stageLease.directory
         val records = ArrayList<Record>()
         val budget = Budget(limits.maxBytesTotal)
         val zip = File(out, "DroidDeck-${folder.name}.zip")
@@ -200,7 +290,7 @@ internal object EnhancedSessionLogShare {
             }
             zip
         } finally {
-            stage.deleteRecursively()
+            stageLease.close()
         }
     }
 
@@ -228,10 +318,14 @@ internal object EnhancedSessionLogShare {
         if (budget.remaining <= 0) {
             return Record(candidate.entry, candidate.origin, "omitted", reason = "bundle-byte-limit")
         }
-        val snapshot = runCatching {
+        if (!stage.isDirectory || !stage.canWrite()) throw StageUnavailableException(IOException("staging path is not writable"))
+        val snapshot = try {
             snapshot(candidate, stage, minOf(limits.maxBytesPerFile, budget.remaining))
-        }.getOrElse {
-            return Record(candidate.entry, candidate.origin, "error", reason = it.javaClass.simpleName)
+        } catch (error: StageUnavailableException) {
+            throw error
+        } catch (error: Exception) {
+            if (!stage.isDirectory || !stage.canWrite()) throw StageUnavailableException(error)
+            return Record(candidate.entry, candidate.origin, "error", reason = error.javaClass.simpleName)
         } ?: return Record(candidate.entry, candidate.origin, "omitted", reason = "unsafe-or-unavailable-source")
         if (snapshot.file.length() == 0L && candidate.linePrefix != null) {
             snapshot.file.delete()
@@ -267,7 +361,11 @@ internal object EnhancedSessionLogShare {
         val rootPath = candidate.anchor.toPath().toAbsolutePath().normalize()
         val sourcePath = candidate.file.toPath().toAbsolutePath().normalize()
         if (!sourcePath.startsWith(rootPath) || sourcePath == rootPath || limit < 1) return null
-        val target = File.createTempFile("diagnostic-", ".log", stage)
+        val target = try {
+            File.createTempFile("diagnostic-", ".log", stage)
+        } catch (error: Exception) {
+            throw StageUnavailableException(error)
+        }
         try {
             val relative = rootPath.relativize(sourcePath)
             return withSecureChannel(rootPath, relative) { input ->
@@ -293,6 +391,7 @@ internal object EnhancedSessionLogShare {
             } ?: target.delete().let { null }
         } catch (e: Exception) {
             target.delete()
+            if (!stage.isDirectory || !stage.canWrite() || !target.exists()) throw StageUnavailableException(e)
             throw e
         }
     }
