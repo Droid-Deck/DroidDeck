@@ -1195,6 +1195,14 @@
     <string name="games_export_gamehub">Exportovat jako GameHub zip…</string>
     <string name="games_export_winlator">Exportovat jako Winlator zip…</string>
     <string name="games_open_save_folder">Otevřít složku s uloženými pozicemi</string>
+    <string name="games_import_addons">Importovat doplňky ze ZIP…</string>
+    <string name="games_open_addons_folder">Otevřít složku s doplňky</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d doplněk</item>
+        <item quantity="few">%1$d doplňky</item>
+        <item quantity="many">%1$d doplňku</item>
+        <item quantity="other">%1$d doplňků</item>
+    </plurals>
     <string name="games_never_played">Nikdy nehráno</string>
     <string name="games_runtime_busy_percent">Runtime zaneprázdněn · %1$d%%</string>
     <string name="games_runtime_busy">Runtime zaneprázdněn</string>
@@ -1376,6 +1384,16 @@
         <item quantity="few">Importovány %1$d soubory z %2$s do %3$s. Staré uložené pozice byly zálohovány do Download/DroidDeck/Saves/backups</item>
         <item quantity="many">Importováno %1$d souborů z %2$s do %3$s. Staré uložené pozice byly zálohovány do Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Importováno %1$d souborů z %2$s do %3$s. Staré uložené pozice byly zálohovány do Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Nejprve zavřete relaci, aby hra během importu nepoužívala své doplňky.</string>
+    <string name="main_addons_importing">Importování doplňků do %1$s</string>
+    <string name="main_addons_pick_zip">Vyberte ZIP s doplňky pro %1$s</string>
+    <string name="main_addons_none">V %1$s nebyly nalezeny žádné doplňky</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Importován %1$d doplněk do %2$s</item>
+        <item quantity="few">Importovány %1$d doplňky do %2$s</item>
+        <item quantity="many">Importováno %1$d doplňku do %2$s</item>
+        <item quantity="other">Importováno %1$d doplňků do %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Vyberte ZIP s uloženou pozicí pro %1$s</string>
     <string name="main_saves_exporting">Exportování %1$s</string>
@@ -3544,6 +3562,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Pro hry s uloženými pozicemi ve vašem účtu Steam</string>
     <string name="game_resource_search">Hledat na webu</string>
+    <string name="game_tab_addons">Doplňky</string>
     <string name="game_tab_install">Instalovat</string>
     <string name="game_install_location">Umístění</string>
     <string name="game_install_folder">Složka</string>

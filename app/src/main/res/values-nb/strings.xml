@@ -1183,6 +1183,12 @@
     <string name="games_export_gamehub">Eksporter som GameHub-zip…</string>
     <string name="games_export_winlator">Eksporter som Winlator-zip…</string>
     <string name="games_open_save_folder">Åpne lagringsmappe</string>
+    <string name="games_import_addons">Importer tillegg fra zip…</string>
+    <string name="games_open_addons_folder">Åpne tilleggsmappe</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d tillegg</item>
+        <item quantity="other">%1$d tillegg</item>
+    </plurals>
     <string name="games_never_played">Aldri spilt</string>
     <string name="games_runtime_busy_percent">Kjøretid opptatt · %1$d%%</string>
     <string name="games_runtime_busy">Kjøretid opptatt</string>
@@ -1360,6 +1366,14 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="one">Importerte %1$d fil fra %2$s til %3$s. Gamle lagringer sikkerhetskopiert til Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Importerte %1$d filer fra %2$s til %3$s. Gamle lagringer sikkerhetskopiert til Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Lukk sesjonen først, så spillet ikke bruker tilleggene under importen</string>
+    <string name="main_addons_importing">Importerer tillegg til %1$s</string>
+    <string name="main_addons_pick_zip">Velg en zip med tillegg for %1$s</string>
+    <string name="main_addons_none">Fant ingen tillegg i %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Importerte %1$d tillegg til %2$s</item>
+        <item quantity="other">Importerte %1$d tillegg til %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Velg en lagrings-zip for %1$s</string>
     <string name="main_saves_exporting">Eksporterer %1$s</string>
@@ -3472,6 +3486,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">For spill med lagringer på Steam-kontoen din</string>
     <string name="game_resource_search">Nettsøk</string>
+    <string name="game_tab_addons">Tillegg</string>
     <string name="game_tab_install">Installer</string>
     <string name="game_install_location">Plassering</string>
     <string name="game_install_folder">Mappe</string>

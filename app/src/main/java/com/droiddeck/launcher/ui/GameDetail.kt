@@ -73,6 +73,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -86,6 +87,7 @@ import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.GameRemoval
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.runtime.WowAddons
 import com.droiddeck.launcher.session.GameSaves
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.CloudSaves
@@ -136,7 +138,7 @@ internal class GameRef(val appId: Int?, val store: Store?, val storeId: String?)
     }
 }
 
-internal enum class GameTab { ABOUT, ACHIEVEMENTS, LAUNCH, SAVES, INSTALL }
+internal enum class GameTab { ABOUT, ACHIEVEMENTS, LAUNCH, SAVES, ADDONS, INSTALL }
 
 @Composable
 internal fun GameDetail(
@@ -180,12 +182,14 @@ internal fun GameDetail(
         .takeUnless { it.trim().equals(title.trim(), ignoreCase = true) }.orEmpty()
     val scored = scores != null && (scores.metacritic != Lookup.None || scores.hltb != Lookup.None)
     val prefix = game?.protonPrefix?.takeIf { it.isDirectory }
+    val addonTargets = remember(game?.gameId, game?.gameFiles) { game?.let(WowAddons::targets).orEmpty() }
     val tabs = buildList {
         if (description.isNotBlank() || developer.isNotBlank() || publisher.isNotBlank() || releaseDate.isNotBlank() || scored || (!s.shortcutPicker && title.isNotBlank() && title != id)) add(GameTab.ABOUT)
         if (achievementState != null) add(GameTab.ACHIEVEMENTS)
         val cloud = game?.library == Library.XBOX_CLOUD
         if (game != null && !cloud) add(GameTab.LAUNCH)
         if (game != null && game.library == Library.ADDED && prefix != null) add(GameTab.SAVES)
+        if (addonTargets.isNotEmpty()) add(GameTab.ADDONS)
         if ((game != null && !cloud) || installed != null) add(GameTab.INSTALL)
     }
     var picked by remember(key) { mutableStateOf<GameTab?>(null) }
@@ -248,6 +252,7 @@ internal fun GameDetail(
                             } ?: stringResource(R.string.achievements_title)
                             GameTab.LAUNCH -> stringResource(R.string.game_tab_launch)
                             GameTab.SAVES -> stringResource(if (Store.byId(source).let { it == Store.GOG || it == Store.EPIC }) R.string.game_tab_saves_cloud else R.string.games_saves)
+                            GameTab.ADDONS -> stringResource(R.string.game_tab_addons)
                             GameTab.INSTALL -> stringResource(R.string.game_tab_install)
                         }
                     }
@@ -263,6 +268,7 @@ internal fun GameDetail(
                             GameTab.ACHIEVEMENTS -> achievementState?.let { st -> AchievementsTab(StoreAchievements.forSource(store?.id)?.label.orEmpty(), st) }
                             GameTab.LAUNCH -> if (game != null) LaunchTab(game, s, a, hopRail)
                             GameTab.SAVES -> if (game != null && prefix != null) SavesTab(game, prefix, a)
+                            GameTab.ADDONS -> if (game != null) AddonsTab(game, addonTargets, a)
                             GameTab.INSTALL -> InstallTab(game, installed, item, store)
                         }
                     }
@@ -852,6 +858,26 @@ private fun SavesTab(g: Library.SteamGame, prefix: File, a: FrontEndActions) {
         found?.firstOrNull()?.let { d ->
             MenuItem(stringResource(R.string.games_open_save_folder), checked = false, detail = d.relPath) {
                 a.onBrowseFiles(File(prefix, "drive_c/users/steamuser/" + d.relPath))
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddonsTab(g: Library.SteamGame, targets: List<WowAddons.Target>, a: FrontEndActions) {
+    Column(Modifier.fillMaxWidth().tabPanel(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        targets.forEach { target ->
+            val count by produceState(0, target.addOns, WowAddons.imports) {
+                value = withContext(Dispatchers.IO) { WowAddons.installed(target) }
+            }
+            if (targets.size > 1) SectionLabel(target.flavor)
+            MenuItem(
+                stringResource(R.string.games_import_addons), checked = false,
+                detail = pluralStringResource(R.plurals.games_addons_count, count, count),
+            ) { a.onAddonImport(g, target) }
+            MenuItem(stringResource(R.string.games_open_addons_folder), checked = false) {
+                target.addOns.mkdirs()
+                a.onBrowseFiles(target.addOns)
             }
         }
     }

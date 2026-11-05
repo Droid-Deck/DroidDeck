@@ -1189,6 +1189,13 @@
     <string name="games_export_gamehub">Exporter en tant qu\'archive GameHub…</string>
     <string name="games_export_winlator">Exporter en tant qu\'archive Winlator…</string>
     <string name="games_open_save_folder">Ouvrir le dossier de sauvegarde</string>
+    <string name="games_import_addons">Importer des addons depuis un zip…</string>
+    <string name="games_open_addons_folder">Ouvrir le dossier des addons</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d addon</item>
+        <item quantity="many">%1$d d\'addons</item>
+        <item quantity="other">%1$d addons</item>
+    </plurals>
     <string name="games_never_played">Jamais lancé</string>
     <string name="games_runtime_busy_percent">Environnement d\'exécution occupé · %1$d%%</string>
     <string name="games_runtime_busy">Environnement d\'exécution occupé</string>
@@ -1368,6 +1375,15 @@
         <item quantity="one">%1$d fichier importé (%2$s) dans %3$s. Anciennes sauvegardes copiées dans Download/DroidDeck/Saves/backups</item>
         <item quantity="many">%1$d fichiers importés (%2$s) dans %3$s. Anciennes sauvegardes copiées dans Download/DroidDeck/Saves/backups</item>
         <item quantity="other">%1$d fichiers importés (%2$s) dans %3$s. Anciennes sauvegardes copiées dans Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Fermez d\'abord la session, pour que le jeu n\'utilise pas ses addons pendant l\'importation</string>
+    <string name="main_addons_importing">Importation des addons dans %1$s</string>
+    <string name="main_addons_pick_zip">Choisir un zip d\'addons pour %1$s</string>
+    <string name="main_addons_none">Aucun addon trouvé dans %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">%1$d addon importé dans %2$s</item>
+        <item quantity="many">%1$d d\'addons importés dans %2$s</item>
+        <item quantity="other">%1$d addons importés dans %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Choisir un zip de sauvegarde pour %1$s</string>
     <string name="main_saves_exporting">Exportation de %1$s</string>
@@ -3508,6 +3524,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Pour les jeux dont les sauvegardes sont sur votre compte Steam</string>
     <string name="game_resource_search">Recherche web</string>
+    <string name="game_tab_addons">Addons</string>
     <string name="game_tab_install">Installer</string>
     <string name="game_install_location">Emplacement</string>
     <string name="game_install_folder">Dossier</string>

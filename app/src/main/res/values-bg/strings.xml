@@ -1183,6 +1183,12 @@
     <string name="games_export_gamehub">Експортиране като GameHub zip…</string>
     <string name="games_export_winlator">Експортиране като Winlator zip…</string>
     <string name="games_open_save_folder">Отваряне на папката за записи</string>
+    <string name="games_import_addons">Импортиране на добавки от ZIP…</string>
+    <string name="games_open_addons_folder">Отваряне на папката с добавки</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d добавка</item>
+        <item quantity="other">%1$d добавки</item>
+    </plurals>
     <string name="games_never_played">Никога не е играна</string>
     <string name="games_runtime_busy_percent">Средата за изпълнение е заета · %1$d%%</string>
     <string name="games_runtime_busy">Средата за изпълнение е заета</string>
@@ -1360,6 +1366,14 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="one">Импортиран %1$d файл от %2$s в %3$s. Старите запазвания са архивирани в Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Импортирани %1$d файла от %2$s в %3$s. Старите запазвания са архивирани в Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Затвори сесията първо, за да не използва играта добавките си по време на импортирането</string>
+    <string name="main_addons_importing">Импортиране на добавки в %1$s</string>
+    <string name="main_addons_pick_zip">Избор на ZIP файл с добавки за %1$s</string>
+    <string name="main_addons_none">Не са намерени добавки в %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Импортирана %1$d добавка в %2$s</item>
+        <item quantity="other">Импортирани %1$d добавки в %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Избор на ZIP файл със запазвания за %1$s</string>
     <string name="main_saves_exporting">Експортиране на %1$s</string>
@@ -3472,6 +3486,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">За игри със записи в акаунта ви в Steam</string>
     <string name="game_resource_search">Търсене в мрежата</string>
+    <string name="game_tab_addons">Добавки</string>
     <string name="game_tab_install">Инсталиране</string>
     <string name="game_install_location">Местоположение</string>
     <string name="game_install_folder">Папка</string>

@@ -1177,6 +1177,11 @@
     <string name="games_export_gamehub">GameHubアーカイブとしてエクスポート…</string>
     <string name="games_export_winlator">Winlatorアーカイブとしてエクスポート…</string>
     <string name="games_open_save_folder">セーブフォルダを開く</string>
+    <string name="games_import_addons">zipからアドオンをインポート…</string>
+    <string name="games_open_addons_folder">アドオンフォルダを開く</string>
+    <plurals name="games_addons_count">
+        <item quantity="other">%1$d個のアドオン</item>
+    </plurals>
     <string name="games_never_played">未プレイ</string>
     <string name="games_runtime_busy_percent">実行環境は使用中 · %1$d%%</string>
     <string name="games_runtime_busy">実行環境は使用中</string>
@@ -1352,6 +1357,13 @@
     </plurals>
     <plurals name="main_saves_imported_backup">
         <item quantity="other">%2$sから%1$d個のファイルを%3$sにインポートしました。以前のセーブデータはDownload/DroidDeck/Saves/backupsにバックアップされました</item>
+    </plurals>
+    <string name="main_addons_close_session">インポート中にゲームがアドオンを使用しないよう、先にセッションを終了してください</string>
+    <string name="main_addons_importing">%1$sにアドオンをインポート中</string>
+    <string name="main_addons_pick_zip">%1$sのアドオンzipを選択</string>
+    <string name="main_addons_none">%1$sにアドオンが見つかりません</string>
+    <plurals name="main_addons_imported">
+        <item quantity="other">%1$d個のアドオンを%2$sにインポートしました</item>
     </plurals>
     <string name="main_saves_pick_zip">%1$sのセーブデータzipを選択</string>
     <string name="main_saves_exporting">%1$sをエクスポート中</string>
@@ -3445,6 +3457,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Steamアカウントにセーブデータがあるゲーム向け</string>
     <string name="game_resource_search">ウェブ検索</string>
+    <string name="game_tab_addons">アドオン</string>
     <string name="game_tab_install">インストール</string>
     <string name="game_install_location">場所</string>
     <string name="game_install_folder">フォルダ</string>

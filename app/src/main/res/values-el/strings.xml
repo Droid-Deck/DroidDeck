@@ -1183,6 +1183,12 @@
     <string name="games_export_gamehub">Εξαγωγή ως zip GameHub…</string>
     <string name="games_export_winlator">Εξαγωγή ως zip Winlator…</string>
     <string name="games_open_save_folder">Άνοιγμα φακέλου αποθήκευσης</string>
+    <string name="games_import_addons">Εισαγωγή προσθέτων από zip…</string>
+    <string name="games_open_addons_folder">Άνοιγμα φακέλου προσθέτων</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d πρόσθετο</item>
+        <item quantity="other">%1$d πρόσθετα</item>
+    </plurals>
     <string name="games_never_played">Δεν έχει παιχτεί ποτέ</string>
     <string name="games_runtime_busy_percent">Το runtime είναι απασχολημένο · %1$d%%</string>
     <string name="games_runtime_busy">Το runtime είναι απασχολημένο</string>
@@ -1360,6 +1366,14 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="one">Έγινε εισαγωγή %1$d αρχείου από το %2$s στο %3$s. Τα παλιά αρχεία αποθήκευσης κρατήθηκαν ως αντίγραφο ασφαλείας στο Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Έγινε εισαγωγή %1$d αρχείων από το %2$s στο %3$s. Τα παλιά αρχεία αποθήκευσης κρατήθηκαν ως αντίγραφο ασφαλείας στο Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Κλείστε πρώτα τη συνεδρία, ώστε το παιχνίδι να μη χρησιμοποιεί τα πρόσθετά του κατά την εισαγωγή</string>
+    <string name="main_addons_importing">Εισαγωγή προσθέτων στο %1$s</string>
+    <string name="main_addons_pick_zip">Επιλέξτε ένα zip προσθέτων για το %1$s</string>
+    <string name="main_addons_none">Δεν βρέθηκαν πρόσθετα στο %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Έγινε εισαγωγή %1$d προσθέτου στο %2$s</item>
+        <item quantity="other">Έγινε εισαγωγή %1$d προσθέτων στο %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Επιλέξτε ένα zip αποθηκευμένων αρχείων για το %1$s</string>
     <string name="main_saves_exporting">Εξαγωγή %1$s</string>
@@ -3472,6 +3486,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Για παιχνίδια με αποθηκεύσεις στον λογαριασμό σας Steam</string>
     <string name="game_resource_search">Αναζήτηση στον ιστό</string>
+    <string name="game_tab_addons">Πρόσθετα</string>
     <string name="game_tab_install">Εγκατάσταση</string>
     <string name="game_install_location">Τοποθεσία</string>
     <string name="game_install_folder">Φάκελος</string>

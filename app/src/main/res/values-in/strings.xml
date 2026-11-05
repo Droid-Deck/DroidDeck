@@ -1177,6 +1177,11 @@
     <string name="games_export_gamehub">Ekspor sebagai zip GameHub…</string>
     <string name="games_export_winlator">Ekspor sebagai zip Winlator…</string>
     <string name="games_open_save_folder">Buka folder simpanan</string>
+    <string name="games_import_addons">Impor addon dari zip…</string>
+    <string name="games_open_addons_folder">Buka folder addon</string>
+    <plurals name="games_addons_count">
+        <item quantity="other">%1$d addon</item>
+    </plurals>
     <string name="games_never_played">Belum pernah dimainkan</string>
     <string name="games_runtime_busy_percent">Runtime sibuk · %1$d%%</string>
     <string name="games_runtime_busy">Runtime sibuk</string>
@@ -1352,6 +1357,13 @@
     </plurals>
     <plurals name="main_saves_imported_backup">
         <item quantity="other">%1$d file diimpor dari %2$s ke %3$s. Save lama dicadangkan ke Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Tutup sesi dulu, agar game tidak memakai addon-nya saat impor</string>
+    <string name="main_addons_importing">Mengimpor addon ke %1$s</string>
+    <string name="main_addons_pick_zip">Pilih zip addon untuk %1$s</string>
+    <string name="main_addons_none">Tidak ada addon di %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="other">%1$d addon diimpor ke %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Pilih zip save untuk %1$s</string>
     <string name="main_saves_exporting">Mengekspor %1$s</string>
@@ -3445,6 +3457,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Untuk gim dengan save di akun Steam Anda</string>
     <string name="game_resource_search">Penelusuran web</string>
+    <string name="game_tab_addons">Addon</string>
     <string name="game_tab_install">Pasang</string>
     <string name="game_install_location">Lokasi</string>
     <string name="game_install_folder">Folder</string>

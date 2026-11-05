@@ -1175,6 +1175,12 @@
     <string name="games_export_gamehub">GameHub zip\'i olarak dışa aktar…</string>
     <string name="games_export_winlator">Winlator zip\'i olarak dışa aktar…</string>
     <string name="games_open_save_folder">Kayıt klasörünü aç</string>
+    <string name="games_import_addons">Eklentileri zip\'ten içe aktar…</string>
+    <string name="games_open_addons_folder">Eklentiler klasörünü aç</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d eklenti</item>
+        <item quantity="other">%1$d eklenti</item>
+    </plurals>
     <string name="games_never_played">Hiç oynanmadı</string>
     <string name="games_runtime_busy_percent">Çalışma ortamı meşgul · %1$d%%</string>
     <string name="games_runtime_busy">Çalışma ortamı meşgul</string>
@@ -1352,6 +1358,14 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="one">%2$s içinden %1$d dosya %3$s oyununa aktarıldı. Eski kayıtlar Download/DroidDeck/Saves/backups klasörüne yedeklendi</item>
         <item quantity="other">%2$s içinden %1$d dosya %3$s oyununa aktarıldı. Eski kayıtlar Download/DroidDeck/Saves/backups klasörüne yedeklendi</item>
+    </plurals>
+    <string name="main_addons_close_session">Önce oturumu kapatın; böylece oyun içe aktarma sırasında eklentilerini kullanmaz</string>
+    <string name="main_addons_importing">Eklentiler içe aktarılıyor: %1$s</string>
+    <string name="main_addons_pick_zip">%1$s için bir eklenti zip dosyası seçin</string>
+    <string name="main_addons_none">%1$s içinde eklenti bulunamadı</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">%1$d eklenti %2$s oyununa aktarıldı</item>
+        <item quantity="other">%1$d eklenti %2$s oyununa aktarıldı</item>
     </plurals>
     <string name="main_saves_pick_zip">%1$s için bir kayıt zip dosyası seçin</string>
     <string name="main_saves_exporting">Dışa aktarılıyor: %1$s</string>
@@ -3472,6 +3486,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Kayıtları Steam hesabınızda olan oyunlar için</string>
     <string name="game_resource_search">Web\'de ara</string>
+    <string name="game_tab_addons">Eklentiler</string>
     <string name="game_tab_install">Yükle</string>
     <string name="game_install_location">Konum</string>
     <string name="game_install_folder">Klasör</string>

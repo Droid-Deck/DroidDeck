@@ -1317,6 +1317,12 @@
     <string name="games_export_gamehub">Export as GameHub zip…</string>
     <string name="games_export_winlator">Export as Winlator zip…</string>
     <string name="games_open_save_folder">Open save folder</string>
+    <string name="games_import_addons">Import addons from zip…</string>
+    <string name="games_open_addons_folder">Open addons folder</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d addon</item>
+        <item quantity="other">%1$d addons</item>
+    </plurals>
     <string name="games_never_played">Never played</string>
     <string name="games_runtime_busy_percent">Runtime busy · %1$d%%</string>
     <string name="games_runtime_busy">Runtime busy</string>
@@ -1503,6 +1509,14 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="one">Imported %1$d file from the %2$s into %3$s. Old saves backed up to Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Imported %1$d files from the %2$s into %3$s. Old saves backed up to Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Close the session first, so the game isn\'t using its addons during the import</string>
+    <string name="main_addons_importing">Importing addons into %1$s</string>
+    <string name="main_addons_pick_zip">Choose an addon zip for %1$s</string>
+    <string name="main_addons_none">No addons found in %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Imported %1$d addon into %2$s</item>
+        <item quantity="other">Imported %1$d addons into %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Choose a save zip for %1$s</string>
     <string name="main_saves_exporting">Exporting %1$s</string>
@@ -3669,6 +3683,7 @@
     <string name="game_resource_search">Web search</string>
     <string name="game_tab_achievements_count" translatable="false">%1$s %2$d/%3$d</string>
     <string name="game_tab_launch">Launch</string>
+    <string name="game_tab_addons">Addons</string>
     <string name="game_tab_saves_cloud">Saves &amp; cloud</string>
     <string name="game_tab_install">Install</string>
     <string name="game_launch_shortcut">Steam shortcut</string>

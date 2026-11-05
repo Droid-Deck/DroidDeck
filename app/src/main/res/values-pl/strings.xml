@@ -1195,6 +1195,14 @@
     <string name="games_export_gamehub">Eksportuj jako zip GameHub…</string>
     <string name="games_export_winlator">Eksportuj jako zip Winlator…</string>
     <string name="games_open_save_folder">Otwórz folder zapisów</string>
+    <string name="games_import_addons">Importuj dodatki z zip…</string>
+    <string name="games_open_addons_folder">Otwórz folder dodatków</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d dodatek</item>
+        <item quantity="few">%1$d dodatki</item>
+        <item quantity="many">%1$d dodatków</item>
+        <item quantity="other">%1$d dodatku</item>
+    </plurals>
     <string name="games_never_played">Nigdy nie grano</string>
     <string name="games_runtime_busy_percent">Środowisko zajęte · %1$d%%</string>
     <string name="games_runtime_busy">Środowisko zajęte</string>
@@ -1376,6 +1384,16 @@
         <item quantity="few">Zaimportowano %1$d pliki z %2$s do %3$s. Kopię starych zapisów umieszczono w Download/DroidDeck/Saves/backups</item>
         <item quantity="many">Zaimportowano %1$d plików z %2$s do %3$s. Kopię starych zapisów umieszczono w Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Zaimportowano %1$d pliku z %2$s do %3$s. Kopię starych zapisów umieszczono w Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Najpierw zamknij sesję, aby gra nie używała dodatków podczas importu</string>
+    <string name="main_addons_importing">Importowanie dodatków do %1$s</string>
+    <string name="main_addons_pick_zip">Wybierz plik zip z dodatkami dla %1$s</string>
+    <string name="main_addons_none">Nie znaleziono dodatków w %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Zaimportowano %1$d dodatek do %2$s</item>
+        <item quantity="few">Zaimportowano %1$d dodatki do %2$s</item>
+        <item quantity="many">Zaimportowano %1$d dodatków do %2$s</item>
+        <item quantity="other">Zaimportowano %1$d dodatku do %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Wybierz plik zip z zapisami dla %1$s</string>
     <string name="main_saves_exporting">Eksportowanie %1$s</string>
@@ -3544,6 +3562,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Dla gier z zapisami na Twoim koncie Steam</string>
     <string name="game_resource_search">Wyszukiwanie w sieci</string>
+    <string name="game_tab_addons">Dodatki</string>
     <string name="game_tab_install">Zainstaluj</string>
     <string name="game_install_location">Lokalizacja</string>
     <string name="game_install_folder">Folder</string>

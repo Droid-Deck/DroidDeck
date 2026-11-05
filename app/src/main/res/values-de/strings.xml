@@ -1175,6 +1175,12 @@
     <string name="games_export_gamehub">Als GameHub-ZIP exportieren…</string>
     <string name="games_export_winlator">Als Winlator-ZIP exportieren…</string>
     <string name="games_open_save_folder">Spielstandordner öffnen</string>
+    <string name="games_import_addons">Addons aus ZIP importieren…</string>
+    <string name="games_open_addons_folder">Addon-Ordner öffnen</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d Addon</item>
+        <item quantity="other">%1$d Addons</item>
+    </plurals>
     <string name="games_never_played">Nie gespielt</string>
     <string name="games_runtime_busy_percent">Laufzeit beschäftigt · %1$d %%</string>
     <string name="games_runtime_busy">Laufzeit beschäftigt</string>
@@ -1352,6 +1358,14 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="one">%1$d Datei aus %2$s in %3$s importiert. Alte Spielstände gesichert unter Download/DroidDeck/Saves/backups</item>
         <item quantity="other">%1$d Dateien aus %2$s in %3$s importiert. Alte Spielstände gesichert unter Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Schließe zuerst die Sitzung, damit das Spiel seine Addons während des Imports nicht verwendet</string>
+    <string name="main_addons_importing">Addons werden in %1$s importiert</string>
+    <string name="main_addons_pick_zip">Addon-ZIP für %1$s auswählen</string>
+    <string name="main_addons_none">Keine Addons in %1$s gefunden</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">%1$d Addon in %2$s importiert</item>
+        <item quantity="other">%1$d Addons in %2$s importiert</item>
     </plurals>
     <string name="main_saves_pick_zip">Spielstand-ZIP für %1$s auswählen</string>
     <string name="main_saves_exporting">Export von %1$s</string>
@@ -3472,6 +3486,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Für Spiele mit Speicherständen in deinem Steam-Konto</string>
     <string name="game_resource_search">Websuche</string>
+    <string name="game_tab_addons">Addons</string>
     <string name="game_tab_install">Installieren</string>
     <string name="game_install_location">Speicherort</string>
     <string name="game_install_folder">Ordner</string>

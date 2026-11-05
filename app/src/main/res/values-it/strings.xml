@@ -1181,6 +1181,13 @@
     <string name="games_export_gamehub">Esporta come zip GameHub…</string>
     <string name="games_export_winlator">Esporta come zip Winlator…</string>
     <string name="games_open_save_folder">Apri cartella di salvataggio</string>
+    <string name="games_import_addons">Importa addon da zip…</string>
+    <string name="games_open_addons_folder">Apri cartella degli addon</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d addon</item>
+        <item quantity="many">%1$d di addon</item>
+        <item quantity="other">%1$d addon</item>
+    </plurals>
     <string name="games_never_played">Mai giocato</string>
     <string name="games_runtime_busy_percent">Runtime occupato · %1$d%%</string>
     <string name="games_runtime_busy">Runtime occupato</string>
@@ -1360,6 +1367,15 @@
         <item quantity="one">%1$d file importato (%2$s) in %3$s. Backup dei vecchi salvataggi in Download/DroidDeck/Saves/backups</item>
         <item quantity="many">%1$d file importati (%2$s) in %3$s. Backup dei vecchi salvataggi in Download/DroidDeck/Saves/backups</item>
         <item quantity="other">%1$d file importati (%2$s) in %3$s. Backup dei vecchi salvataggi in Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Chiudi prima la sessione, così il gioco non usa i suoi addon durante l\'importazione</string>
+    <string name="main_addons_importing">Importazione degli addon in %1$s</string>
+    <string name="main_addons_pick_zip">Scegli uno zip di addon per %1$s</string>
+    <string name="main_addons_none">Nessun addon trovato in %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">%1$d addon importato in %2$s</item>
+        <item quantity="many">%1$d di addon importati in %2$s</item>
+        <item quantity="other">%1$d addon importati in %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Scegli uno zip di salvataggi per %1$s</string>
     <string name="main_saves_exporting">Esportazione di %1$s</string>
@@ -3508,6 +3524,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Per i giochi con salvataggi nel tuo account Steam</string>
     <string name="game_resource_search">Ricerca web</string>
+    <string name="game_tab_addons">Addon</string>
     <string name="game_tab_install">Installa</string>
     <string name="game_install_location">Posizione</string>
     <string name="game_install_folder">Cartella</string>

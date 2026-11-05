@@ -1189,6 +1189,13 @@
     <string name="games_export_gamehub">Exportă ca arhivă GameHub…</string>
     <string name="games_export_winlator">Exportă ca arhivă Winlator…</string>
     <string name="games_open_save_folder">Deschide folderul de salvare</string>
+    <string name="games_import_addons">Importă suplimente din zip…</string>
+    <string name="games_open_addons_folder">Deschide folderul de suplimente</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d supliment</item>
+        <item quantity="few">%1$d suplimente</item>
+        <item quantity="other">%1$d de suplimente</item>
+    </plurals>
     <string name="games_never_played">Niciodată jucat</string>
     <string name="games_runtime_busy_percent">Mediu de execuție ocupat · %1$d%%</string>
     <string name="games_runtime_busy">Mediu de execuție ocupat</string>
@@ -1368,6 +1375,15 @@
         <item quantity="one">S-a importat %1$d fișier din %2$s în %3$s. Salvările vechi au fost copiate de rezervă în Download/DroidDeck/Saves/backups</item>
         <item quantity="few">S-au importat %1$d fișiere din %2$s în %3$s. Salvările vechi au fost copiate de rezervă în Download/DroidDeck/Saves/backups</item>
         <item quantity="other">S-au importat %1$d de fișiere din %2$s în %3$s. Salvările vechi au fost copiate de rezervă în Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Închide mai întâi sesiunea, ca jocul să nu folosească suplimentele în timpul importului</string>
+    <string name="main_addons_importing">Se importă suplimente în %1$s</string>
+    <string name="main_addons_pick_zip">Alege o arhivă zip de suplimente pentru %1$s</string>
+    <string name="main_addons_none">Nu s-au găsit suplimente în %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">S-a importat %1$d supliment în %2$s</item>
+        <item quantity="few">S-au importat %1$d suplimente în %2$s</item>
+        <item quantity="other">S-au importat %1$d de suplimente în %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Alege o arhivă de salvare pentru %1$s</string>
     <string name="main_saves_exporting">Se exportă %1$s</string>
@@ -3508,6 +3524,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Pentru jocurile cu salvări în contul tău Steam</string>
     <string name="game_resource_search">Căutare pe web</string>
+    <string name="game_tab_addons">Suplimente</string>
     <string name="game_tab_install">Instalează</string>
     <string name="game_install_location">Locație</string>
     <string name="game_install_folder">Folder</string>

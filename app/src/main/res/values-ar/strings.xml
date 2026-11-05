@@ -1207,6 +1207,16 @@
     <string name="games_export_gamehub">تصدير بصيغة GameHub المضغوطة…</string>
     <string name="games_export_winlator">تصدير بصيغة Winlator المضغوطة…</string>
     <string name="games_open_save_folder">فتح مجلد الحفظ</string>
+    <string name="games_import_addons">استيراد الإضافات من zip…</string>
+    <string name="games_open_addons_folder">فتح مجلد الإضافات</string>
+    <plurals name="games_addons_count">
+        <item quantity="zero">%1$d إضافة</item>
+        <item quantity="one">%1$d إضافة</item>
+        <item quantity="two">%1$d إضافتان</item>
+        <item quantity="few">%1$d إضافات</item>
+        <item quantity="many">%1$d إضافة</item>
+        <item quantity="other">%1$d إضافة</item>
+    </plurals>
     <string name="games_never_played">لم يتم تشغيلها أبدًا</string>
     <string name="games_runtime_busy_percent">بيئة التشغيل مشغولة · %1$d%%</string>
     <string name="games_runtime_busy">بيئة التشغيل مشغولة</string>
@@ -1392,6 +1402,18 @@
         <item quantity="few">تم استيراد %1$d ملفات من %2$s إلى %3$s. تم نسخ ملفات الحفظ القديمة احتياطيًا إلى Download/DroidDeck/Saves/backups</item>
         <item quantity="many">تم استيراد %1$d ملفًا من %2$s إلى %3$s. تم نسخ ملفات الحفظ القديمة احتياطيًا إلى Download/DroidDeck/Saves/backups</item>
         <item quantity="other">تم استيراد %1$d ملف من %2$s إلى %3$s. تم نسخ ملفات الحفظ القديمة احتياطيًا إلى Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">أغلِق الجلسة أولاً حتى لا تستخدم اللعبة إضافاتها أثناء الاستيراد</string>
+    <string name="main_addons_importing">استيراد الإضافات إلى %1$s</string>
+    <string name="main_addons_pick_zip">اختر ملف zip للإضافات الخاصة بـ %1$s</string>
+    <string name="main_addons_none">لم يتم العثور على إضافات في %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="zero">تم استيراد %1$d إضافة إلى %2$s</item>
+        <item quantity="one">تم استيراد %1$d إضافة إلى %2$s</item>
+        <item quantity="two">تم استيراد %1$d إضافتين إلى %2$s</item>
+        <item quantity="few">تم استيراد %1$d إضافات إلى %2$s</item>
+        <item quantity="many">تم استيراد %1$d إضافة إلى %2$s</item>
+        <item quantity="other">تم استيراد %1$d إضافة إلى %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">اختر ملف zip لملفات حفظ %1$s</string>
     <string name="main_saves_exporting">تصدير %1$s</string>
@@ -3616,6 +3638,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">للألعاب التي تُحفظ بياناتها في حساب Steam الخاص بك</string>
     <string name="game_resource_search">البحث في الويب</string>
+    <string name="game_tab_addons">الإضافات</string>
     <string name="game_tab_install">تثبيت</string>
     <string name="game_install_location">الموقع</string>
     <string name="game_install_folder">مجلد</string>

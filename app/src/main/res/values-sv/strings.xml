@@ -1183,6 +1183,12 @@
     <string name="games_export_gamehub">Exportera som GameHub-zip…</string>
     <string name="games_export_winlator">Exportera som Winlator-zip…</string>
     <string name="games_open_save_folder">Öppna sparmappen</string>
+    <string name="games_import_addons">Importera tillägg från zip…</string>
+    <string name="games_open_addons_folder">Öppna tilläggsmappen</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d tillägg</item>
+        <item quantity="other">%1$d tillägg</item>
+    </plurals>
     <string name="games_never_played">Aldrig spelat</string>
     <string name="games_runtime_busy_percent">Körmiljö upptagen · %1$d %%</string>
     <string name="games_runtime_busy">Körmiljö upptagen</string>
@@ -1360,6 +1366,14 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="one">Importerade %1$d fil från %2$s till %3$s. Gamla sparfiler säkerhetskopierades till Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Importerade %1$d filer från %2$s till %3$s. Gamla sparfiler säkerhetskopierades till Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Stäng sessionen först, så att spelet inte använder sina tillägg under importen</string>
+    <string name="main_addons_importing">Importerar tillägg till %1$s</string>
+    <string name="main_addons_pick_zip">Välj en zip-fil med tillägg för %1$s</string>
+    <string name="main_addons_none">Inga tillägg hittades i %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Importerade %1$d tillägg till %2$s</item>
+        <item quantity="other">Importerade %1$d tillägg till %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Välj en zip-fil med sparfiler för %1$s</string>
     <string name="main_saves_exporting">Exporterar %1$s</string>
@@ -3472,6 +3486,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">För spel med sparningar på ditt Steam-konto</string>
     <string name="game_resource_search">Webbsökning</string>
+    <string name="game_tab_addons">Tillägg</string>
     <string name="game_tab_install">Installera</string>
     <string name="game_install_location">Plats</string>
     <string name="game_install_folder">Mapp</string>

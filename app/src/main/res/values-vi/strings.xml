@@ -1177,6 +1177,11 @@
     <string name="games_export_gamehub">Xuất dưới dạng zip GameHub…</string>
     <string name="games_export_winlator">Xuất dưới dạng zip Winlator…</string>
     <string name="games_open_save_folder">Mở thư mục lưu</string>
+    <string name="games_import_addons">Nhập addon từ zip…</string>
+    <string name="games_open_addons_folder">Mở thư mục addon</string>
+    <plurals name="games_addons_count">
+        <item quantity="other">%1$d addon</item>
+    </plurals>
     <string name="games_never_played">Chưa chơi bao giờ</string>
     <string name="games_runtime_busy_percent">Runtime đang bận · %1$d%%</string>
     <string name="games_runtime_busy">Runtime đang bận</string>
@@ -1352,6 +1357,13 @@
     </plurals>
     <plurals name="main_saves_imported_backup">
         <item quantity="other">Đã nhập %1$d tệp từ %2$s vào %3$s. Tệp lưu cũ đã được sao lưu vào Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Hãy đóng phiên trước, để game không dùng addon trong lúc nhập</string>
+    <string name="main_addons_importing">Đang nhập addon vào %1$s</string>
+    <string name="main_addons_pick_zip">Chọn một tệp zip addon cho %1$s</string>
+    <string name="main_addons_none">Không tìm thấy addon nào trong %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="other">Đã nhập %1$d addon vào %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Chọn một tệp zip lưu cho %1$s</string>
     <string name="main_saves_exporting">Đang xuất %1$s</string>
@@ -3445,6 +3457,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Cho game có bản lưu trong tài khoản Steam của bạn</string>
     <string name="game_resource_search">Tìm kiếm trên web</string>
+    <string name="game_tab_addons">Addon</string>
     <string name="game_tab_install">Cài đặt</string>
     <string name="game_install_location">Vị trí</string>
     <string name="game_install_folder">Thư mục</string>

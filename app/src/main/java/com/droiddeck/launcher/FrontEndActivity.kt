@@ -433,6 +433,22 @@ class FrontEndActivity : ComponentActivity() {
         pickSaveZip.launch(InAppFilePicker.buildIntent(this, listOf("zip"), getString(R.string.main_saves_pick_zip, name), GameSaves.savesDir().parentFile?.parentFile?.path))
     }
 
+    private fun importAddons(name: String, target: com.droiddeck.launcher.runtime.WowAddons.Target) {
+        if (SessionState.running) {
+            android.widget.Toast.makeText(this, R.string.main_addons_close_session, android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        onSavePicked = { zip ->
+            saveAction(getString(R.string.main_addons_importing, name)) {
+                val imported = com.droiddeck.launcher.runtime.WowAddons.import(zip, target)
+                if (imported.isEmpty()) getString(R.string.main_addons_none, zip.name)
+                else resources.getQuantityString(R.plurals.main_addons_imported, imported.size, imported.size, target.flavor)
+            }
+        }
+        val downloads = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS).path
+        pickSaveZip.launch(InAppFilePicker.buildIntent(this, listOf("zip"), getString(R.string.main_addons_pick_zip, name), downloads))
+    }
+
     private fun exportSaves(name: String, layout: GameSaves.Layout, game: () -> GameSaves.Game) {
         onSavePicked = { dir ->
             saveAction(getString(R.string.main_saves_exporting, name)) {
@@ -1282,6 +1298,7 @@ class FrontEndActivity : ComponentActivity() {
                         onGameComponents = { game -> openComponents(gameKey = game.profileKey) },
                         onComponentsTab = { tab -> openComponents(focusContent = true, tab = tab) },
                         onSaveImport = { sg -> importSaves(sg.name) { GameSaves.game(sg) } },
+                        onAddonImport = { sg, target -> importAddons(sg.name, target) },
                         onSaveExport = { sg, layout -> exportSaves(sg.name, layout) { GameSaves.game(sg) } },
                         onPerformance = { refreshCores(); showComponents = false; showMapping = false; showPerformance = true },
                         onRoms = { showRoms = true },
