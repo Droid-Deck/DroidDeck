@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.runtime
 
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
+import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
@@ -125,6 +127,19 @@ class WowAddonsTest {
     @Test fun zipsWithoutAnAddonChangeNothing() {
         val target = target()
         assertEquals(emptyList<String>(), WowAddons.import(zip("readme.txt" to "x"), target))
+        assertFalse(target.addOns.exists())
+    }
+
+    @Test fun linkEntriesDoNotCountAsAddons() {
+        val target = target()
+        val file = temp.newFile("links.zip")
+        ZipArchiveOutputStream(file).use { out ->
+            val link = ZipArchiveEntry("Foo/Foo.toc").apply { unixMode = 0xA1FF }
+            out.putArchiveEntry(link)
+            out.write("/etc/passwd".toByteArray())
+            out.closeArchiveEntry()
+        }
+        assertEquals(emptyList<String>(), WowAddons.import(file, target))
         assertFalse(target.addOns.exists())
     }
 

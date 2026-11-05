@@ -14,9 +14,13 @@ object WowAddons {
     var imports by mutableIntStateOf(0)
         private set
 
+    class TooLarge : IOException()
+
     class Target(val flavor: String, val addOns: File)
 
     class Addon(val name: String, val root: String)
+
+    internal const val MAX_EXPANDED_BYTES = 4L * 1024 * 1024 * 1024
 
     private val SUFFIX = Regex("[-_](standard|mainline|classic|vanilla|tbc|bcc|wrath|wotlkc|cata|mists|forever)$", RegexOption.IGNORE_CASE)
 
@@ -40,7 +44,7 @@ object WowAddons {
 
     fun import(zipFile: File, target: Target): List<String> {
         ZipFile.builder().setFile(zipFile).get().use { zip ->
-            val entries = zip.entries.toList().filter { clean(it.name) != null }
+            val entries = zip.entries.toList().filter { clean(it.name) != null && !it.isUnixSymlink }
             val addons = addons(entries.filter { !it.isDirectory }.mapNotNull { clean(it.name) })
             if (addons.isEmpty()) return emptyList()
             val addOns = target.addOns
@@ -49,6 +53,7 @@ object WowAddons {
             try {
                 val fresh = File(stage, "new")
                 val buffer = ByteArray(64 * 1024)
+                var written = 0L
                 for (entry in entries) {
                     if (entry.isDirectory) continue
                     val path = clean(entry.name) ?: continue
@@ -60,6 +65,8 @@ object WowAddons {
                             while (true) {
                                 val read = input.read(buffer)
                                 if (read < 0) break
+                                written += read
+                                if (written > MAX_EXPANDED_BYTES) throw TooLarge()
                                 output.write(buffer, 0, read)
                             }
                         }
