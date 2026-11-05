@@ -1259,14 +1259,14 @@ failed: {
     }
 }
 
-static int nl_bind_port(int fd, unsigned requested) {
+static int nl_bind_port(int fd, unsigned requested, int automatic) {
     int result = -1;
     pthread_mutex_lock(&nl_sockets_lock);
     struct nl_fd *entry = nl_find(fd);
     if (entry) {
         struct nl_socket *socket = entry->socket;
         if (socket->port != 0) {
-            if (requested == socket->port) result = 0;
+            if (automatic || requested == socket->port) result = 0;
             else errno = EINVAL;
         } else {
             unsigned port = requested ? requested : (unsigned) getpid();
@@ -1299,7 +1299,7 @@ static int nl_bind_port(int fd, unsigned requested) {
 }
 
 static int nl_autobind(int fd) {
-    return nl_port_of(fd) != 0 ? 0 : nl_bind_port(fd, 0);
+    return nl_bind_port(fd, 0, 1);
 }
 
 int bl_nl_bind(int fd, const struct sockaddr *addr, socklen_t len, int *rc) {
@@ -1317,7 +1317,7 @@ int bl_nl_bind(int fd, const struct sockaddr *addr, socklen_t len, int *rc) {
         *rc = -1;
         return 1;
     }
-    *rc = nl_bind_port(fd, nl->nl_pid);
+    *rc = nl_bind_port(fd, nl->nl_pid, 0);
     return 1;
 }
 

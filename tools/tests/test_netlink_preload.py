@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -155,6 +156,36 @@ static void send_link(int descriptor, int index, unsigned flags) {
     struct sockaddr_nl destination = {.nl_family = AF_NETLINK};
     require(sendto(descriptor, &query, sizeof(query), 0,
                    (struct sockaddr *)&destination, sizeof(destination)) == sizeof(query), "send link");
+}
+
+struct autobind_sender {
+    int descriptor;
+    pthread_barrier_t *barrier;
+};
+
+static void *send_after_barrier(void *argument) {
+    struct autobind_sender *sender = argument;
+    int result = pthread_barrier_wait(sender->barrier);
+    require(result == 0 || result == PTHREAD_BARRIER_SERIAL_THREAD, "autobind barrier");
+    send_link(sender->descriptor, 1, NLM_F_ACK);
+    return NULL;
+}
+
+static void autobind_race_test(void) {
+    for (int round = 0; round < 50; round++) {
+        int descriptor = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+        require(descriptor >= 0 && port_of(descriptor) == 0, "unbound netlink socket");
+        pthread_barrier_t barrier;
+        require(pthread_barrier_init(&barrier, NULL, 2) == 0, "autobind barrier init");
+        struct autobind_sender sender = {.descriptor = descriptor, .barrier = &barrier};
+        pthread_t first, second;
+        require(pthread_create(&first, NULL, send_after_barrier, &sender) == 0, "autobind first thread");
+        require(pthread_create(&second, NULL, send_after_barrier, &sender) == 0, "autobind second thread");
+        require(pthread_join(first, NULL) == 0 && pthread_join(second, NULL) == 0, "autobind threads");
+        require(pthread_barrier_destroy(&barrier) == 0, "autobind barrier destroy");
+        require(port_of(descriptor) != 0, "concurrent autobind assigned one port");
+        close(descriptor);
+    }
 }
 
 static void named_link_test(const char *name, const char *mode) {
@@ -480,7 +511,10 @@ static void ports_test(int forked) {
     require(bind(duplicate, (struct sockaddr *)&address, sizeof(address)) == 0
             && port_of(duplicate) == ports[0], "closed port reused");
     require(bind(duplicate, (struct sockaddr *)&address, sizeof(address)) == 0, "same port rebind");
-    address.nl_pid++;
+    address.nl_pid = 0;
+    require(bind(duplicate, (struct sockaddr *)&address, sizeof(address)) == -1 && errno == EINVAL,
+            "explicit zero port rebind denied");
+    address.nl_pid = ports[0] + 1;
     require(bind(duplicate, (struct sockaddr *)&address, sizeof(address)) == -1
             && errno == EINVAL && port_of(duplicate) == ports[0], "different port rebind denied");
     usable(duplicate);
@@ -948,6 +982,7 @@ int main(int argc, char **argv) {
         require(argc == 4, "named link arguments");
         named_link_test(argv[2], argv[3]);
     }
+    else if (!strcmp(argv[1], "autobind_race")) autobind_race_test();
     else if (!strcmp(argv[1], "ports")) ports_test(0);
     else if (!strcmp(argv[1], "cross_process_ports")) ports_test(1);
     else if (!strcmp(argv[1], "batch")) batch_test(0);
@@ -984,7 +1019,7 @@ gw 2001:db8::1
 """
 
 
-@unittest.skipUnless(shutil.which("cc"), "needs a C compiler")
+@unittest.skipUnless(sys.platform.startswith("linux") and shutil.which("cc"), "needs Linux and a C compiler")
 class NetlinkPreloadTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -1065,6 +1100,9 @@ class NetlinkPreloadTest(unittest.TestCase):
 
     def test_more_than_eight_sockets_get_unique_ports_and_release_them(self):
         self.run_program("ports")
+
+    def test_concurrent_implicit_binds_are_idempotent(self):
+        self.run_program("autobind_race")
 
     def test_explicit_ports_cannot_collide_across_processes(self):
         self.run_program("cross_process_ports")
