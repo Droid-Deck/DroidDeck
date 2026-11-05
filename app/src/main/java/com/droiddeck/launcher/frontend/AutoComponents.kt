@@ -436,10 +436,20 @@ object AutoComponents {
         val cached = catalogOf(context, false)
         val current = if (online(context)) catalogOf(context, true) else null
         val catalog = (current ?: cached)?.associateBy { it.name } ?: run {
+            val missing = WinComponents.selection(context, key).effective
+                .filter { WinComponents.validId(it) && it !in installedOf(context) }
+            val pendingSaved = missing.isEmpty() || Pending.update(context, key, emptyMap()) { ids -> (ids + missing).distinct() }
             val pending = Pending.ids(context, key)
             pending.forEach { waitFor(game, it) }
             queuePending(context, key)
-            return pending.isEmpty()
+            if (!pendingSaved) {
+                missing.forEach { id ->
+                    waitFor(game, id)
+                    queueDownload(context, id, asked = true, inSession = true, revision = Pending.revision(context, id))
+                    repairFailures.value = repairFailures.value + (id to "Could not save pending repairs")
+                }
+            }
+            return pendingSaved && pending.isEmpty()
         }
         val wanted = autoPicks(findings, catalog)
         val selection = WinComponents.selection(context, key)

@@ -378,6 +378,17 @@ class WinCompSourcesTest {
         assertEquals(listOf("vcredist2010_dll"), AutoComponents.Pending.ids(app, "9876546"))
     }
 
+    @Test fun offlineLaunchPersistsMissingSelectedComponentsWithoutACatalog() = withFakeWorker {
+        AutoComponents.catalogOf = { _, _ -> null }
+        AutoComponents.online = { false }
+        val appId = 9876547
+        val id = "vcredist2010_dll"
+        WinComponents.setUser(app, appId.toString(), id, true)
+
+        assertFalse(AutoComponents.prepareLaunch(app, game(null, Library.SOURCE_STEAM, appId, library = "steam")))
+        assertEquals(listOf(id), AutoComponents.Pending.ids(app, appId.toString()))
+    }
+
     @Test fun pendingRepairsKeepTheirRequiredRevisionUntilTheyFinish() = withFakeWorker {
         val repair = WinComponents.Component("vcredist2010_dll", "", "", "ready", emptyList(), emptyList(), revision = 2)
         AutoComponents.catalogOf = { _, _ -> catalog3 + repair }
