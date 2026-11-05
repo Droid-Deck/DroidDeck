@@ -113,6 +113,8 @@ static unsigned guarded_port(void);
 __attribute__((visibility("hidden"))) int bl_udevmon_stand_in(int fd);
 __attribute__((visibility("hidden"))) int bl_nl_bind(int fd, const struct sockaddr *addr,
                                                      socklen_t len, int *rc);
+__attribute__((visibility("hidden"))) int bl_nl_connect(int fd, const struct sockaddr *addr,
+                                                        socklen_t len, int *rc);
 
 int bind(int fd, const struct sockaddr *addr, socklen_t len) {
   static bind_fn real;
@@ -227,6 +229,8 @@ static int guest_peer(int fd) {
 
 int connect(int fd, const struct sockaddr *addr, socklen_t len) {
   static connect_fn real;
+  int nl_rc;
+  if (bl_nl_connect(fd, addr, len, &nl_rc)) return nl_rc;
   if (!real) real = (connect_fn)dlsym(RTLD_NEXT, "connect");
   bind_before_loopback_connect(fd, addr, len);
   unsigned peer = loopback_family(addr, len) ? addr_port(addr, len) : 0;
