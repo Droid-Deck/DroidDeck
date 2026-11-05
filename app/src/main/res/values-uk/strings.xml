@@ -1423,8 +1423,8 @@
     <string name="main_wadb_unavailable">Бездротове налагодження недоступне</string>
     <string name="main_adb_copied">Команду ADB скопійовано</string>
     <string name="main_pick_roms">Виберіть папку ROMs</string>
-    <string name="main_non_adreno_title">GPU не Adreno</string>
-    <string name="main_non_adreno_text">Turnip підтримує GPU Adreno. На %1$s Steam може показувати чорний екран. Завантаження: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">Непідтримуваний GPU</string>
+    <string name="main_non_adreno_text">Для %1$s немає сумісного графічного бекенда. Steam може показувати чорний екран. Завантаження: %2$.0f МБ.</string>
     <string name="main_install_anyway">Усе одно встановити</string>
     <string name="main_remove_runtime_title">Видалити середовище Linux</string>
     <string name="main_remove_runtime_text">Буде видалено середовище, клієнт Steam у ньому та всі встановлені там ігри.</string>
@@ -2164,7 +2164,7 @@
     <string name="gpuinfo_experimental">Експериментально: його драйвери - тестові збірки</string>
     <string name="gpuinfo_a850_experimental">Експериментальна підтримка Adreno 850: потрібні сумісні експериментальні драйвери дисплея та ігор; не перевірено на цьому пристрої</string>
     <string name="gpuinfo_below_tested">Нижче за протестоване обладнання (Adreno 725 і новіші): може не запрацювати</string>
-    <string name="gpuinfo_unsupported">Не підтримується: DroidDeck потребує GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">Не підтримується: для цього GPU немає сумісного графічного бекенда</string>
 
     <string name="turnip_rate_limited">Перевищено ліміт запитів GitHub - спробуйте пізніше</string>
     <string name="turnip_github_http">GitHub відповів HTTP %1$d</string>

@@ -122,10 +122,10 @@ class VenusComponent(private val logFile: File?) : SessionPart() {
                 if (!tmp.renameTo(lib)) throw java.io.IOException("could not move the Venus ICD into place")
                 Log.i(TAG, "staged $lib (${lib.length()} bytes)")
             }
-            FileUtils.writeString(
+            if (!FileUtils.writeString(
                 File(dir, ICD),
                 """{"file_format_version":"1.0.1","ICD":{"library_path":"${lib.path}","api_version":"1.4.354"}}""",
-            )
+            )) throw java.io.IOException("could not write the Venus ICD manifest")
         }
     }
 }

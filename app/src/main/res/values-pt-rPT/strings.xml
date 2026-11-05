@@ -1403,8 +1403,8 @@
     <string name="main_wadb_unavailable">A depuração sem fios não está disponível</string>
     <string name="main_adb_copied">Comando ADB copiado</string>
     <string name="main_pick_roms">Escolha a pasta de ROMs</string>
-    <string name="main_non_adreno_title">Não é uma GPU Adreno</string>
-    <string name="main_non_adreno_text">O Turnip suporta GPUs Adreno. Com %1$s, o Steam pode mostrar um ecrã preto. Transferência: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">GPU não suportada</string>
+    <string name="main_non_adreno_text">Não está disponível um backend gráfico compatível para %1$s. O Steam pode apresentar um ecrã preto. Transferência: %2$.0f MB.</string>
     <string name="main_install_anyway">Instalar mesmo assim</string>
     <string name="main_remove_runtime_title">Remover runtime Linux</string>
     <string name="main_remove_runtime_text">Isto elimina o runtime, o cliente Steam que nele existe e todos os jogos lá instalados.</string>
@@ -2131,7 +2131,7 @@
     <string name="gpuinfo_experimental">Experimental: os controladores são versões de teste</string>
     <string name="gpuinfo_a850_experimental">Suporte experimental para Adreno 850: requer controladores de ecrã e de jogos experimentais compatíveis; não verificado neste dispositivo</string>
     <string name="gpuinfo_below_tested">Abaixo do hardware testado (Adreno 725 e mais recentes): pode não funcionar</string>
-    <string name="gpuinfo_unsupported">Não suportada: o DroidDeck precisa de uma GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">Não suportada: não está disponível um backend gráfico compatível para esta GPU</string>
 
     <string name="turnip_rate_limited">Foi atingido o limite de pedidos do GitHub - tente novamente mais tarde</string>
     <string name="turnip_github_http">O GitHub respondeu HTTP %1$d</string>
