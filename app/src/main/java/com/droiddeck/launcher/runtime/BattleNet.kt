@@ -389,7 +389,7 @@ object BattleNet {
     @Synchronized
     internal fun ensureFex(context: Context, refresh: (Context) -> List<ComponentsManager.CatalogItem>): String {
         val item = newestD2rFix(listing(context, refresh)) ?: error("no d2rfix FEXCore build in the Nightlies listing")
-        val file = ComponentsManager.safeName(item.file)
+        val file = ComponentsManager.safeName(item.localFile)
         if (ComponentsManager.packages(context).none { it.file == file }) {
             Log.i(TAG, "downloading ${item.file}")
             ComponentsManager.download(context, item) {}

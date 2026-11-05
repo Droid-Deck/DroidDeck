@@ -41,8 +41,17 @@ Both the Android driver wrapper and the Linux session preload use
 `tools/quest/kgsl_compat.c`. Successful legacy allocation/free calls are
 unchanged. Only `EACCES`/`EPERM` failures retry through `GPUOBJ_ALLOC`,
 `GPUOBJ_INFO` and `GPUOBJ_FREE`. The Android wrapper depends on the original
-bundled Turnip binary. Unhandled controller ioctls forward to the next
+bundled Turnip binary. Quest's SELinux policy also denies `CMDSTREAM_READTIMESTAMP_CTXTID`, which Mesa 26's Turnip
+needs to wait on timeline semaphores; the adapter answers it from the last submitted timestamp
+and a zero-timeout `WAITTIMESTAMP`. Unhandled controller ioctls forward to the next
 preload hook rather than skipping it with a raw syscall.
+
+The Ubuntu runtime's Turnip polls timeline points with
+`CMDSTREAM_READTIMESTAMP_CTXTID` and reports any failure as `VK_ERROR_UNKNOWN`,
+which aborted gamescope with `vk.WaitSemaphores` result -13 on Quest. The Linux
+preload (`tools/linuxfs/preload/kgslpoll.c`) answers a failed read from one
+millisecond `WAITTIMESTAMP` calls over the context's submitted timestamps, and
+logs refused KGSL ioctls to `session.log` as `[QuestKGSL] ioctl 0x.. refused`.
 
 `tools/build_local.sh` and CI build the wrapper from source using the pinned
 Android NDK; the normal preload builds include the shared Linux adapter.

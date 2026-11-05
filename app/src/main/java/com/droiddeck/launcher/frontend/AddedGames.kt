@@ -186,6 +186,9 @@ object AddedGames {
 
     private fun entryFolders(context: Context): Set<String> = AddedExes.list(context).map { it.folder }.toSet()
 
+    private fun libraryDepotInstalls(context: Context): List<File> =
+        SteamLibraries.list(context).flatMap { SteamLibraries.depotInstalls(File(it.path, "steamapps/common")) }
+
     internal fun isSteamLibraryFolder(name: String): Boolean =
         name.equals("steamapps", ignoreCase = true) || name == com.droiddeck.launcher.session.GameStorage.X64_CARD_DIR
 
@@ -213,6 +216,7 @@ object AddedGames {
             if (folder.path in removed || !folder.isDirectory) continue
             scanGame(context, folder, out, single = entry)
         }
+        for (folder in libraryDepotInstalls(context)) if (folder.path !in removed) scanGame(context, folder, out)
         for (folder in StoreInstallRoot.gameFolders(context)) if (StoreInstallRoot.isFinished(folder)) scanGame(context, folder, out)
         for (game in com.droiddeck.launcher.runtime.BattleNet.games(context)) {
             if (game.folder.path !in removed) com.droiddeck.launcher.runtime.BattleNet.shortcut(context, game)?.let(out::add)
@@ -259,6 +263,7 @@ object AddedGames {
         entries.map { File(it.folder) }.filter(::owns).maxByOrNull { canonical(it).length }?.let { return it }
         SessionPrefs.removedAddedGames(context).map { File(it) }.filter { owns(it) && groupGames(it) == null }.maxByOrNull { canonical(it).length }?.let { return it }
         StoreInstallRoot.gameFolders(context).firstOrNull(::holds)?.let { return it }
+        libraryDepotInstalls(context).firstOrNull(::holds)?.let { return it }
         val removed = SessionPrefs.removedAddedGames(context)
         val dirs = listOfNotNull(
             GameStorage.effective(context)?.let { File(it.path, "steamapps/common") },
@@ -376,6 +381,7 @@ object AddedGames {
         }
         AddedExes.list(context).filter { it.folder !in removed }.forEach { out.add(canonical(File(it.folder))) }
         StoreInstallRoot.gameFolders(context).forEach { out.add(canonical(it)) }
+        libraryDepotInstalls(context).filter { it.path !in removed }.forEach { out.add(canonical(it)) }
         return out
     }
 
@@ -420,7 +426,14 @@ object AddedGames {
                 ?.takeIf { SessionPrefs.adoptAddedGameExe(context, folder.path, picked, it.path, rev) }
             val exe = adopted ?: found
             val guestExe = if (adopted != null) guestPath(context, adopted) ?: return else foundGuest
+            val storeExe = sidecar?.exeFile(folder)
+            val launched = adopted ?: chosen ?: storeExe?.takeIf { it.isFile }
+            val storeOwnExe = launched != null && storeExe != null && canonical(launched) == canonical(storeExe)
+            val sidecarDir = sidecar?.workdir?.takeIf { storeOwnExe }?.let { dir ->
+                guestPath(context, if (dir.isEmpty()) folder else File(folder, dir))
+            }
             val guestDir = SessionPrefs.addedGameStartIn(context, folder.path).takeIf { sidecar == null && it.isNotEmpty() }
+                ?: sidecarDir
                 ?: guestPath(context, (if (adopted != null) adopted else launch).parentFile ?: folder) ?: return
             val steamId = config?.let { steamRoute(it, appId) }
             out.add(Game(folder, name, exe, guestExe, guestDir, appId,

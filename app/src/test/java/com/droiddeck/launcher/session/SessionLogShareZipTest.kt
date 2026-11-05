@@ -2,7 +2,6 @@ package com.droiddeck.launcher.session
 
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
-import java.nio.charset.StandardCharsets
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -10,6 +9,8 @@ import java.util.zip.ZipFile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -20,6 +21,10 @@ import org.robolectric.annotation.Config
 @Config(sdk = [33])
 class SessionLogShareZipTest {
     private val app get() = RuntimeEnvironment.getApplication()
+
+    @Before fun installSecureSourceOpener() = installJvmSecureSourceOpener()
+
+    @After fun resetSourceOpener() = resetSecureSourceOpener()
 
     @Test fun aLargeSteamLogIsRedactedInTheSharedArchive() {
         val session = File(LinuxRuntime.logDir(app), "2026-10-08-02-steam").apply { mkdirs() }
@@ -38,23 +43,11 @@ class SessionLogShareZipTest {
             val zip = SessionLogShare.zipFolder(app, session)!!
             ZipFile(zip).use { archive ->
                 val entry = archive.getEntry("${session.name}/steam-42.log")!!
-                archive.getInputStream(entry).use { input ->
-                    val expected = "${com.droiddeck.launcher.core.LogRedactor.OVERSIZED_LINE}\n"
-                    val prefix = ByteArray(expected.toByteArray(StandardCharsets.UTF_8).size)
-                    var offset = 0
-                    while (offset < prefix.size) {
-                        val count = input.read(prefix, offset, prefix.size - offset)
-                        assertTrue("zip entry ended before its scrubbed prefix", count > 0)
-                        offset += count
-                    }
-                    assertEquals(expected, String(prefix, StandardCharsets.UTF_8))
-                    input.bufferedReader().use { reader ->
-                        val trailing = requireNotNull(reader.readLine())
-                        assertFalse("trailing secret survived", trailing.contains(trailingSecret))
-                        assertEquals("refresh_token=<redacted:token>", trailing)
-                        assertEquals(null, reader.readLine())
-                    }
-                }
+                val shared = archive.getInputStream(entry).bufferedReader().readText()
+                assertTrue(shared.contains("diagnostic file truncated"))
+                assertFalse("early secret survived", shared.contains(earlySecret))
+                assertFalse("trailing secret survived", shared.contains(trailingSecret))
+                assertTrue(shared.contains("refresh_token=<redacted:token>"))
             }
         } finally {
             SessionLogShare.clear(app)

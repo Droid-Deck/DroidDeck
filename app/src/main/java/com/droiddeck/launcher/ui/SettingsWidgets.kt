@@ -263,6 +263,7 @@ private class BelowEndProvider(private val gap: Int) : PopupPositionProvider {
     }
 }
 
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun AnchoredMenu(
     open: Boolean, onDismiss: () -> Unit, title: String? = null, note: String? = null,
@@ -289,6 +290,20 @@ fun AnchoredMenu(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     Popup(popupPositionProvider = provider, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
+      TrackKeyWindow()
+      val popupInput = LocalInputModeManager.current
+      LaunchedEffect(open, inputMode) {
+          if (!open || inputMode != InputMode.Keyboard) return@LaunchedEffect
+          popupInput.requestInputMode(InputMode.Keyboard)
+          repeat(8) {
+              androidx.compose.runtime.withFrameNanos { }
+              if (runCatching { firstItemFocus.captureFocus() }.getOrDefault(false)) {
+                  firstItemFocus.freeFocus()
+                  return@LaunchedEffect
+              }
+              runCatching { firstItemFocus.requestFocus() }
+          }
+      }
       CompositionLocalProvider(LocalDensity provides density, LocalConfiguration provides configuration) {
         AnimatedVisibility(
             visibleState = state,

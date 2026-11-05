@@ -52,6 +52,23 @@ environment entries and is intentionally narrower than **Reset game profile**.
 Values are literal strings, with no shell expansion; quotes are only needed when
 the consuming program expects them.
 
+## Saved compatibility mappings
+
+The file-backed `steam-compatibility` writer applies planned changes in a batch,
+rather than searching and copying the mapping for each game. This covers retired
+DroidDeck-Proton replacements, default/tool changes and the x86-64 client's Proton
+repointing. It does not change the planner, manual choices, native/FEX routing,
+locking or atomic file publication. Unchanged files are still not rewritten.
+
+Existing entry fields and duplicate entries are preserved, with the same first-match
+updates and reverse insertion order as the single-game writer. Single changes keep
+that writer's original path. This reduces bulk configuration work, not steady-state
+game rendering cost; large-library timings depend on the device and the number of
+entries actually changed.
+
+Run the batch/reference and work-budget regressions with
+`python3 -m unittest discover -s tools/tests -p test_steam_compat_mapping.py`.
+
 ## Game debug logs
 
 Under **Setup > Diagnostics**, enable **Session logs** and **Game debug logs**
@@ -89,6 +106,48 @@ logs**. The archive includes the generated Wine/Proton and graphics logs. Debug
 logging can reduce performance and consume storage; disable it after collecting
 the report. If the session log directory is unavailable, the launcher reports
 that diagnostics were skipped instead of writing uncollected files elsewhere.
+
+## Enhanced diagnostics
+
+Use **Setup > Diagnostics > Enhanced diagnostics for next session** when normal
+session logs are not enough. The setting is one-shot: DroidDeck creates and
+retains the next session's log directory, records the diagnostic profile, then
+turns the setting off. It also enables the existing game diagnostic environment
+for that session without changing the user's saved **Session logs** or **Game
+debug logs** preferences.
+
+After reproducing the problem, use **Latest session logs > Share logs** or the
+in-session share action. Enhanced sessions offer separate, correlated archives:
+
+| Archive | Main contents |
+| --- | --- |
+| Session and device | Startup timeline, device/component selection, app, audio, network, and exit summaries |
+| Graphics | Graphics-related logs plus bounded Gamescope frame and process summaries when their providers are available |
+| Games and compatibility | Proton, Wine, DXVK/VKD3D, FEX, store, and game lifecycle logs |
+
+Choose one archive when an issue calls for a narrow report, or **All bundles**
+to share the three archives together. Every archive contains a
+`diagnostics-manifest.json` with the common session ID and the state of each
+artifact: captured, truncated, unavailable, omitted, or failed. Some captured
+logs may themselves explain that a permission-limited source was unavailable.
+
+Exported archives sample a bounded amount of input. Large text logs retain
+complete lines from their beginning and end, and the manifest records partial
+scans and input limits. Raw game and component log writers are not yet safely byte-bounded while
+the session is running; they can use substantial storage, particularly during a
+long Proton game session. Enhanced diagnostics may also change timing because it
+keeps the game wrapper alive long enough to record an exit status. Turn it on
+only for a reproduction and review the archives before sharing them.
+
+The bundle does not promise unrestricted Android, kernel, or vendor-driver
+logs. If accessible, Android's crash buffer can include reports from other apps;
+redaction is best effort. Screen captures, pixels, input contents, memory dumps,
+and full system traces are not included automatically.
+
+The Gamescope frame summary is produced only by a Gamescope build that includes
+the enhanced frame-trace provider. An older bundled Gamescope safely ignores the
+diagnostic environment setting; the Graphics archive then records no frame-trace
+summary rather than inventing one.
 
 A Unity game under FEX (`UnityPlayer.dll` for Windows builds under Proton,
 `UnityPlayer.so` or `GameAssembly.so` for native Linux builds started by

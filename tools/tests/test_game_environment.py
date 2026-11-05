@@ -378,6 +378,87 @@ class SystemGraphicsLaunchTest(unittest.TestCase):
             self.assertEqual(actual_env["WINESERVER"], "/sync-pack/wineserver")
             self.assertEqual(actual_env["BL_SYNC_PACK"], "selected")
 
+    def test_enhanced_diagnostics_waits_for_the_system_graphics_wrapper(self):
+        class Process:
+            def wait(self): return 0
+            def send_signal(self, signum): pass
+
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime, _ = self.runtime(Path(tmp))
+            command = ["/selected/proton", "waitforexitandrun", "game.exe"]
+            env = {"DROIDDECK_SYSTEM_VULKAN_RUNTIME": str(runtime),
+                   "STEAM_COMPAT_DATA_PATH": "/compatdata/42"}
+            with patch.object(subprocess, "Popen", return_value=Process()) as spawn, \
+                    patch.dict(MODULE["start"].__globals__, {"diagnostic_game_event": lambda *args: None}):
+                self.assertEqual(MODULE["start"](command, env, None, diagnostic_app_id="42"), 0)
+            launch, = spawn.call_args.args
+            self.assertEqual(launch, [str(runtime / "run-proton.py"), *command])
+            self.assertEqual(spawn.call_args.kwargs["env"]["HYBRIS_BC_TEXTURES"], "dxvk")
+
+
+class RenderPathDefaultsTest(unittest.TestCase):
+    DRIVER = "/drivers/DD-Turnip_v0.4.0/icd.json"
+    COMMAND = ["proton", "waitforexitandrun", "/games/Spintires/SpinTires.exe"]
+
+    def apply(self, env=None, command=None, model="Adreno722", library="libvulkan_freedreno.so"):
+        env = dict({"VK_DRIVER_FILES": self.DRIVER} if env is None else env)
+        manifest = json.dumps({"ICD": {"library_path": library}})
+        with mock.patch.object(Path, "read_text", return_value=model), \
+             mock.patch.object(Path, "is_file", return_value=False), \
+             mock.patch("builtins.open", mock.mock_open(read_data=manifest)):
+            note = MODULE["render_path_defaults"](command or self.COMMAND, env)
+        return env, note
+
+    def test_tested_render_path_keeps_other_options(self):
+        env, note = self.apply({"VK_DRIVER_FILES": self.DRIVER, "DXVK_CONFIG": "d3d9.maxFrameLatency = 2; ", "CUSTOM": "kept"})
+        self.assertEqual(env["DXVK_CONFIG"], "d3d9.maxFrameLatency = 2; dxvk.tilerMode = False")
+        self.assertEqual(env["CUSTOM"], "kept")
+        self.assertIsNotNone(note)
+        self.assertEqual(self.apply()[0]["DXVK_CONFIG"], "dxvk.tilerMode = False")
+        self.assertIsNotNone(self.apply({"VK_ICD_FILENAMES": self.DRIVER})[1])
+
+    def test_other_games_devices_and_drivers_keep_their_environment(self):
+        for changes in (
+            {"command": ["proton", "waitforexitandrun", "/games/MudRunner.exe"]},
+            {"command": ["proton", "run", self.COMMAND[2]]},
+            {"command": ["proton"]},
+            {"model": "Adreno740"},
+            {"model": "Mali-G715"},
+            {"library": "libvulkan.so"},
+            {"env": {}},
+            {"env": {"VK_DRIVER_FILES": "/drivers/new-turnip/icd.json"}},
+            {"env": {"VK_DRIVER_FILES": "", "VK_ICD_FILENAMES": self.DRIVER}},
+        ):
+            with self.subTest(changes=changes):
+                env, note = self.apply(**changes)
+                self.assertIsNone(note)
+                self.assertNotIn("DXVK_CONFIG", env)
+
+    def test_explicit_environment_and_config_files_take_precedence(self):
+        for value in ("dxvk.tilerMode = Auto", "d3d9.maxFrameLatency = 1; dxvk.tilerMode=True", "dxvk.tilerMode = False"):
+            env, note = self.apply({"VK_DRIVER_FILES": self.DRIVER, "DXVK_CONFIG": value})
+            self.assertIsNone(note)
+            self.assertEqual(env["DXVK_CONFIG"], value)
+        env, note = self.apply({"VK_DRIVER_FILES": self.DRIVER, "DXVK_CONFIG_FILE": "/games/custom.conf"})
+        self.assertIsNone(note)
+        self.assertNotIn("DXVK_CONFIG", env)
+        with mock.patch.object(Path, "is_file", return_value=True):
+            env = {"VK_DRIVER_FILES": self.DRIVER}
+            self.assertIsNone(MODULE["render_path_defaults"](self.COMMAND, env))
+            self.assertNotIn("DXVK_CONFIG", env)
+
+    def test_unreadable_or_invalid_driver_metadata_leaves_launch_unchanged(self):
+        for data in ("not-json", "{}", '{"ICD":{"library_path":null}}'):
+            with mock.patch.object(Path, "read_text", return_value="Adreno722"), \
+                 mock.patch.object(Path, "is_file", return_value=False), \
+                 mock.patch("builtins.open", mock.mock_open(read_data=data)):
+                env = {"VK_DRIVER_FILES": self.DRIVER}
+                self.assertIsNone(MODULE["render_path_defaults"](self.COMMAND, env))
+                self.assertNotIn("DXVK_CONFIG", env)
+        with mock.patch.object(Path, "read_text", side_effect=PermissionError), \
+             mock.patch.object(Path, "is_file", return_value=False):
+            self.assertIsNone(MODULE["render_path_defaults"](self.COMMAND, {"VK_DRIVER_FILES": self.DRIVER}))
+
 
 class DirtTelemetryFixTest(unittest.TestCase):
     SHOWDOWN_ON = '<x><motion enabled="true" ip="127.0.0.1" port="20777" delay="1" extradata="3" /></x>'

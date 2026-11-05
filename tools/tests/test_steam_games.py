@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import zlib
 from unittest.mock import Mock, patch
 
 BIN = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin'
@@ -246,6 +247,36 @@ class ImportsTest(unittest.TestCase):
         self.assertTrue(text.endswith('    }\n}\n'))
         config.write_text(json.dumps({'installedManifestIDs': {'43': 0x7FFFFFFFFFFFFFFF}}))
         self.assertIsNone(imports.installed_build(self.folder, 42, 'DroidDeck-42'))
+
+    def test_compressed_protobuf_depot_config_records_installed_depots(self):
+        config = self.folder / '.DepotDownloader/depot.config'
+        config.parent.mkdir()
+        (self.folder / '.download_complete').touch()
+        entry = bytes([0x08, 43, 0x10, 99])
+        packed = zlib.compressobj(wbits=-15)
+        config.write_bytes(packed.compress(bytes([0x0A, len(entry)]) + entry) + packed.flush())
+        self.assertIn('"43"\n        {\n            "manifest" "99"', imports.installed_build(self.folder, 42, 'DroidDeck-42'))
+        config.write_bytes(b'not a config')
+        self.assertIsNone(imports.installed_build(self.folder, 42, 'DroidDeck-42'))
+        (config.parent / 'completed').mkdir()
+        (config.parent / 'completed/43_98.manifest').write_bytes(b'x')
+        self.assertIn('"manifest" "98"', imports.installed_build(self.folder, 42, 'DroidDeck-42'))
+        config.write_text(json.dumps({'installedManifestIDs': {}}))
+        self.assertIn('"manifest" "98"', imports.installed_build(self.folder, 42, 'DroidDeck-42'))
+
+    def test_completed_manifests_record_installed_depots(self):
+        completed = self.folder / '.DepotDownloader/completed'
+        completed.mkdir(parents=True)
+        (self.folder / '.download_complete').touch()
+        self.assertIsNone(imports.installed_build(self.folder, 42, 'DroidDeck-42'))
+        (completed / '43_98.manifest').write_bytes(b'old')
+        (completed / '43_99.manifest').write_bytes(b'new')
+        (completed / '44_7.manifest').write_bytes(b'x')
+        os.utime(completed / '43_98.manifest', (1, 1))
+        text = imports.installed_build(self.folder, 42, 'DroidDeck-42')
+        self.assertIn('"43"\n        {\n            "manifest" "99"', text)
+        self.assertIn('"44"\n        {\n            "manifest" "7"', text)
+        self.assertNotIn('"98"', text)
 
     def test_bare_import_manifest_gains_installed_build(self):
         self.snapshot()

@@ -4,8 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class SecondScreenModeTest {
-    @Test fun withNothingRememberedTheDashboardOpens() {
-        assertEquals(SecondScreenMode.DASHBOARD, SecondScreenMode.opening(null, deckPad = true, dashboard = true))
+    @Test fun withNothingRememberedDeckPadsGetControlsAndOthersTheDashboard() {
+        assertEquals(SecondScreenMode.DECK_CONTROLS, SecondScreenMode.opening(null, deckPad = true, dashboard = true))
         assertEquals(SecondScreenMode.DASHBOARD, SecondScreenMode.opening(null, deckPad = false, dashboard = true))
     }
 
@@ -27,7 +27,7 @@ class SecondScreenModeTest {
     }
 
     @Test fun anUnknownOrClosedChoiceFallsBackToTheDefault() {
-        assertEquals(SecondScreenMode.DASHBOARD, SecondScreenMode.opening("none", deckPad = true, dashboard = true))
+        assertEquals(SecondScreenMode.DECK_CONTROLS, SecondScreenMode.opening("none", deckPad = true, dashboard = true))
         assertEquals(SecondScreenMode.DASHBOARD, SecondScreenMode.opening("gone", deckPad = false, dashboard = true))
         assertEquals(SecondScreenMode.DECK_CONTROLS, SecondScreenMode.opening("none", deckPad = true))
         assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening("gone", deckPad = false))
