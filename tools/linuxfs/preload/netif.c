@@ -675,6 +675,15 @@ static int nl_unix_socket(int fd) {
     return real_getsockopt(fd, SOL_SOCKET, SO_DOMAIN, &domain, &len) == 0 && domain == AF_UNIX;
 }
 
+static int nl_nonblocking(int fd) {
+    static int (*real_fcntl)(int, int, ...);
+    int flags;
+    if (real_fcntl == NULL) real_fcntl = (int (*)(int, int, ...)) dlsym(RTLD_NEXT, "fcntl");
+    if (real_fcntl == NULL) return 0;
+    flags = real_fcntl(fd, F_GETFL);
+    return flags >= 0 && (flags & O_NONBLOCK) != 0;
+}
+
 static int nl_peer_of(int fd) {
     int peer = -1;
     pthread_mutex_lock(&nl_sockets_lock);
@@ -1125,19 +1134,20 @@ static void build_reply(const void *data, size_t len, struct nl_reply *out) {
     }
 }
 
-static ssize_t send_raw(int fd, const void *data, size_t len) {
+static ssize_t send_raw(int fd, const void *data, size_t len, int extra) {
     static ssize_t (*real)(int, const void *, size_t, int);
     if (real == NULL) real = (ssize_t (*)(int, const void *, size_t, int)) dlsym(RTLD_NEXT, "send");
     if (real == NULL) {
         errno = ENOSYS;
         return -1;
     }
-    return real(fd, data, len, MSG_NOSIGNAL);
+    return real(fd, data, len, MSG_NOSIGNAL | extra);
 }
 
-static int deliver(int fd, const void *data, size_t len, ssize_t *rc) {
+static int deliver(int fd, const void *data, size_t len, int flags, ssize_t *rc) {
     struct nl_reply reply;
     int peer = nl_peer_of(fd);
+    int extra = 0;
     if (peer < 0) return 0;
     nl_reply_port = nl_port_of(fd);
     build_reply(data, len, &reply);
@@ -1151,7 +1161,8 @@ static int deliver(int fd, const void *data, size_t len, ssize_t *rc) {
         reply.len = 0;
         reply_error(&reply, request, -EOPNOTSUPP);
     }
-    *rc = send_raw(peer, reply.data, reply.len) < 0 ? -1 : (ssize_t) len;
+    if ((flags & MSG_DONTWAIT) || nl_nonblocking(fd)) extra = MSG_DONTWAIT;
+    *rc = send_raw(peer, reply.data, reply.len, extra) < 0 ? -1 : (ssize_t) len;
     return 1;
 }
 
@@ -1169,17 +1180,17 @@ static int collect(struct msghdr *msg, unsigned char *buffer, size_t capacity, s
     return used > 0;
 }
 
-static int sendmsg_request(int fd, const struct msghdr *msg, ssize_t *rc) {
+static int sendmsg_request(int fd, const struct msghdr *msg, int flags, ssize_t *rc) {
     unsigned char buffer[NL_REQUEST_MAX];
     size_t length = 0;
     if (!collect((struct msghdr *) msg, buffer, sizeof(buffer), &length)) return 0;
-    return deliver(fd, buffer, length, rc);
+    return deliver(fd, buffer, length, flags, rc);
 }
 
 ssize_t sendmsg(int fd, const struct msghdr *msg, int flags) {
     static ssize_t (*real)(int, const struct msghdr *, int);
     ssize_t rc;
-    if (bl_nl_owns(fd) && sendmsg_request(fd, msg, &rc)) return rc;
+    if (bl_nl_owns(fd) && sendmsg_request(fd, msg, flags, &rc)) return rc;
     if (real == NULL) real = (ssize_t (*)(int, const struct msghdr *, int)) dlsym(RTLD_NEXT, "sendmsg");
     if (real == NULL) {
         errno = ENOSYS;
@@ -1192,7 +1203,7 @@ ssize_t sendto(int fd, const void *buffer, size_t length, int flags,
                const struct sockaddr *addr, socklen_t addrlen) {
     static ssize_t (*real)(int, const void *, size_t, int, const struct sockaddr *, socklen_t);
     ssize_t rc;
-    if (bl_nl_owns(fd) && deliver(fd, buffer, length, &rc)) return rc;
+    if (bl_nl_owns(fd) && deliver(fd, buffer, length, flags, &rc)) return rc;
     if (real == NULL)
         real = (ssize_t (*)(int, const void *, size_t, int, const struct sockaddr *, socklen_t))
                 dlsym(RTLD_NEXT, "sendto");
@@ -1206,7 +1217,7 @@ ssize_t sendto(int fd, const void *buffer, size_t length, int flags,
 ssize_t send(int fd, const void *buffer, size_t length, int flags) {
     static ssize_t (*real)(int, const void *, size_t, int);
     ssize_t rc;
-    if (bl_nl_owns(fd) && deliver(fd, buffer, length, &rc)) return rc;
+    if (bl_nl_owns(fd) && deliver(fd, buffer, length, flags, &rc)) return rc;
     if (real == NULL) real = (ssize_t (*)(int, const void *, size_t, int)) dlsym(RTLD_NEXT, "send");
     if (real == NULL) {
         errno = ENOSYS;
