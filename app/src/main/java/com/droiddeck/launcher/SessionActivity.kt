@@ -164,6 +164,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var unfoldedPanel: com.droiddeck.launcher.ui.DeckControlsPanel? = null
     private lateinit var sessionRoot: FrameLayout
     private val guestKeysDown = mutableSetOf<Int>()
+    private val guestButtonsDown = mutableSetOf<Int>()
     private lateinit var surfaceView: SurfaceView
     private lateinit var sessionOverlay: ComposeView
     private lateinit var loading: LoadingState
@@ -669,7 +670,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             override fun dispatchPointerCaptureChanged(hasCapture: Boolean) {
                 super.dispatchPointerCaptureChanged(hasCapture)
                 Log.i(TAG, "pointer capture " + if (hasCapture) "on" else "off")
-                if (!hasCapture) uiHandler.postDelayed(::updatePointerCapture, 250)
+                if (!hasCapture) {
+                    releaseHeldGuestInput()
+                    uiHandler.postDelayed(::updatePointerCapture, 250)
+                }
             }
         }
         sessionRoot = root
@@ -3657,6 +3661,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun sendSceneButton(code: Int, down: Boolean) {
+        if (down) guestButtonsDown.add(code) else guestButtonsDown.remove(code)
         val writer = if (evdevMouseActive) mouseWriter else null
         if (writer != null) writer.writeMouseButton(code.toShort(), down)
         else WaylandCompositor.nativeSendSceneInput(3, code, if (down) 1 else 0)
@@ -4166,6 +4171,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun keyboardCoversPad() =
         SessionState.mode == SessionService.MODE_STEAM && AgentGuest.steamKeyboard
 
+    private fun releaseHeldGuestInput() {
+        guestButtonsDown.toList().forEach { sendSceneButton(it, false) }
+        guestKeysDown.toList().forEach { sendGuestKey(it, false) }
+    }
+
     private fun sendGuestKey(key: Int, down: Boolean) {
         if (down && pipUi) return
         val code = if (key == KEY_RIGHTCTRL && SessionState.mode == SessionService.MODE_DESKTOP) KEY_LEFTCTRL else key
@@ -4251,7 +4261,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             scrollTouch.cancel()
             directTouchHold.cancel()
             twoFingerGestures.cancel()
-            guestKeysDown.toList().forEach { sendGuestKey(it, false) }
+            releaseHeldGuestInput()
             keyboard?.hide()
             sessionClipboard.stop()
             padMotion?.stop()
@@ -4987,6 +4997,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!hasFocus) {
             if (::touchscreenGestures.isInitialized) touchscreenGestures.cancel()
             if (::touchpad.isInitialized) touchpad.cancel()
+            releaseHeldGuestInput()
         }
         if (hasFocus && !pipUi) {
             goFullscreen()
