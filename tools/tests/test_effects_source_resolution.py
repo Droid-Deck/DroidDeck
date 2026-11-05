@@ -62,6 +62,9 @@ class EffectsSourceResolutionTest(unittest.TestCase):
     def test_low_resolution_viewport_is_copied_at_native_buffer_size(self):
         self.check_case('helper')
 
+    def test_a_source_within_a_pixel_of_the_buffer_is_still_upscaled(self):
+        self.check_case('near-full')
+
     def test_ineligible_compositions_keep_the_logical_scene(self):
         self.check_case('rejections')
 
@@ -321,6 +324,18 @@ static void check_rejections(void) {
     assert(!effects_source_draw(1920, 1080, layers, 2, &unused));
     layers[1] = fullscreen(); layers[1].sx = 1; layers[1].sw--;
     assert(!effects_source_draw(1920, 1080, layers, 2, &unused));
+    struct vkp_image pixel = {.image = 14, .w = 1, .h = 1};
+    layers[0] = fullscreen(); layers[0].img = &pixel; layers[0].sw = 1; layers[0].sh = 1;
+    layers[1] = fullscreen(); layers[1].dx = 240; layers[1].dw = 1440;
+    assert(!effects_source_draw(1920, 1080, layers, 2, &unused));
+}
+static void check_near_full_source(void) {
+    struct vkp_draw draw = fullscreen(), selected;
+    draw.sw = 1279.5f;
+    assert(effects_source_draw(1920, 1080, &draw, 1, &selected));
+    assert(selected.dw == 1280 && selected.dh == 720 && selected.sw == 1279.5f);
+    draw = fullscreen(); draw.sh = 720.5f;
+    assert(effects_source_draw(1920, 1080, &draw, 1, &selected));
 }
 static void run_path(int offscreen, const struct vkp_draw *draw, int n, const struct vkp_hdr_frame *hdr) {
     struct vkp_draw before[4];
@@ -524,6 +539,7 @@ static void check_allocation(void) {
 int main(int argc, char **argv) {
     assert(argc == 2); reset();
     if (!strcmp(argv[1], "helper")) check_helper();
+    else if (!strcmp(argv[1], "near-full")) check_near_full_source();
     else if (!strcmp(argv[1], "rejections")) check_rejections();
     else if (!strcmp(argv[1], "render")) check_path(0);
     else if (!strcmp(argv[1], "pass")) check_path(1);

@@ -1277,8 +1277,10 @@ static int effects_source_draw(int scene_w, int scene_h, const struct vkp_draw *
     for (int i = n - 1; i >= 0; i--) {
         const struct vkp_draw *d = &draws[i];
         const struct vkp_image *im = d->img;
+        if (im && !d->blend && (d->dw != scene_w || d->dh != scene_h) && (d->dw >= scene_w || d->dh >= scene_h)) return 0;
         if (!im || d->blend || d->dx != 0 || d->dy != 0 || d->dw != scene_w || d->dh != scene_h) continue;
-        if (d->sx != 0 || d->sy != 0 || d->sw != im->w || d->sh != im->h ||
+        if (d->sx != 0 || d->sy != 0 || d->sw <= im->w - 1.0f || d->sw >= im->w + 1.0f ||
+            d->sh <= im->h - 1.0f || d->sh >= im->h + 1.0f ||
             im->w <= 0 || im->h <= 0 || im->w > scene_w || im->h > scene_h ||
             (im->w == scene_w && im->h == scene_h) ||
             (i + 1 < n && vkp_effects_postprocessing())) return 0;
