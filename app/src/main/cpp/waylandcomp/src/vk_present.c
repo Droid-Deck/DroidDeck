@@ -1282,7 +1282,6 @@ static int effects_source_draw(int scene_w, int scene_h, const struct vkp_draw *
             im->w <= 0 || im->h <= 0 || im->w > scene_w || im->h > scene_h ||
             (im->w == scene_w && im->h == scene_h) ||
             (i + 1 < n && vkp_effects_postprocessing())) return 0;
-        // This opaque fullscreen draw hides every preceding draw in the scene.
         *out = *d;
         out->dw = im->w;
         out->dh = im->h;
