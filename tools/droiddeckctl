@@ -476,6 +476,16 @@ def unpack_logs(archive: Path, destination: Path, session_id: str) -> None:
             backed_up = {}
             installed = set()
             manifest_backup = backups / manifest.name
+            manifest_fd, manifest_path = tempfile.mkstemp(
+                prefix=".droiddeckctl-managed-logs-", suffix=".tmp", dir=destination
+            )
+            temp_manifest = Path(manifest_path)
+            try:
+                with os.fdopen(manifest_fd, "w", encoding="utf-8") as manifest_file:
+                    manifest_file.write(json.dumps(sorted(extracted), indent=2) + "\n")
+            except Exception:
+                temp_manifest.unlink(missing_ok=True)
+                raise
             try:
                 for name in sorted(previous):
                     target = managed_target(name)
@@ -494,10 +504,9 @@ def unpack_logs(archive: Path, destination: Path, session_id: str) -> None:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     os.replace(staged_files / name, target)
                     installed.add(name)
-                temp_manifest = staged / "managed-logs.json"
-                temp_manifest.write_text(json.dumps(sorted(extracted), indent=2) + "\n", encoding="utf-8")
                 os.replace(temp_manifest, manifest)
             except Exception:
+                temp_manifest.unlink(missing_ok=True)
                 for name in installed:
                     target = managed_target(name)
                     if target is not None and target.is_file():

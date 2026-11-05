@@ -25,6 +25,7 @@ import com.droiddeck.launcher.session.SessionState
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.nio.file.Files
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -203,11 +204,29 @@ class AgentBridgeProvider : ContentProvider() {
     private fun logDir(context: Context): File? =
         SessionState.logDirectory ?: SessionState.logFile?.parentFile ?: SessionPaths.sessionFolders(context).lastOrNull()
 
+    private fun cleanupExpiredLogExports(exports: File) {
+        val now = System.currentTimeMillis()
+        val canonicalRoot = exports.canonicalFile
+        exports.listFiles()?.forEach { candidate ->
+            val isUuid = runCatching { UUID.fromString(candidate.name).toString() == candidate.name }.getOrDefault(false)
+            if (!isUuid || !candidate.isDirectory || Files.isSymbolicLink(candidate.toPath())) return@forEach
+            if (candidate.canonicalFile.parentFile != canonicalRoot) return@forEach
+            if (now - candidate.lastModified() >= LOG_EXPORT_RETENTION_MS) candidate.deleteRecursively()
+        }
+    }
+
     // The session folder is app-private, so adb pulls this copy from external files instead.
     private fun logs(context: Context): JSONObject {
         val dir = logDir(context)?.takeIf { it.isDirectory }
             ?: return error("NO_SESSION_LOGS", "No session artifact directory is available")
-        val output = File(context.getExternalFilesDir(null), "agent-logs/${UUID.randomUUID()}")
+        val externalFiles = context.getExternalFilesDir(null)
+            ?: return error("NO_SESSION_LOGS", "External app storage is unavailable")
+        val exports = File(externalFiles, "agent-logs")
+        if (!exports.exists() && !exports.mkdirs()) {
+            return error("NO_SESSION_LOGS", "Could not create the session export directory")
+        }
+        cleanupExpiredLogExports(exports)
+        val output = File(exports, UUID.randomUUID().toString())
         val zip = try {
             SessionLogShare.zipFolder(context, dir, output)
         } catch (error: Exception) {
@@ -373,6 +392,7 @@ class AgentBridgeProvider : ContentProvider() {
         const val RESULT_JSON = "json"
         const val EXTRA_REQUEST = "request"
         const val SCHEMA = 2
+        private const val LOG_EXPORT_RETENTION_MS = 24 * 60 * 60 * 1000L
         private val recoveryComplete = CountDownLatch(1)
 
         fun awaitRecovery() {
