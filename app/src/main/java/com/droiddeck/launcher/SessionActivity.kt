@@ -165,6 +165,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var sessionRoot: FrameLayout
     private val guestKeysDown = mutableSetOf<Int>()
     private val guestButtonsDown = mutableMapOf<Int, Boolean>()
+    private val trackpadButtonsDown = mutableSetOf<Int>()
     private lateinit var surfaceView: SurfaceView
     private lateinit var sessionOverlay: ComposeView
     private lateinit var loading: LoadingState
@@ -3325,9 +3326,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun secondScreenPresentation(target: Display) = SecondScreenPresentation(
         this, target,
         sendPointer = ::moveSecondScreenPointer,
-        sendButton = { button, pressed ->
-            WaylandCompositor.nativeSendSceneInput(3, button, if (pressed) 1 else 0)
-        },
+        sendButton = ::sendTrackpadButton,
         sendWheel = { steps -> WaylandCompositor.nativeSendSceneInput(4, steps, 0) },
         onSteamMenu = ::tapSteamButton,
         onQam = ::tapQam,
@@ -3666,6 +3665,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val writer = if (raw) mouseWriter else null
         if (writer != null) writer.writeMouseButton(code.toShort(), down)
         else WaylandCompositor.nativeSendSceneInput(3, code, if (down) 1 else 0)
+    }
+
+    private fun sendTrackpadButton(button: Int, pressed: Boolean) {
+        if (pressed) trackpadButtonsDown.add(button) else trackpadButtonsDown.remove(button)
+        WaylandCompositor.nativeSendSceneInput(3, button, if (pressed) 1 else 0)
     }
 
     private fun sendSceneWheel(steps: Int) {
@@ -4174,6 +4178,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun releaseHeldGuestInput() {
         guestButtonsDown.keys.toList().forEach { sendSceneButton(it, false) }
+        trackpadButtonsDown.toList().forEach { WaylandCompositor.nativeSendSceneInput(3, it, 0) }
+        trackpadButtonsDown.clear()
         guestKeysDown.toList().forEach { sendGuestKey(it, false) }
     }
 
@@ -4833,7 +4839,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     androidx.compose.ui.viewinterop.AndroidView(
                         factory = { context ->
                             com.droiddeck.launcher.ui.SessionTrackpadView(context, ::moveSecondScreenPointer,
-                                { button, pressed -> WaylandCompositor.nativeSendSceneInput(3, button, if (pressed) 1 else 0) },
+                                ::sendTrackpadButton,
                                 { steps -> WaylandCompositor.nativeSendSceneInput(4, steps, 0) })
                         },
                         modifier = Modifier.fillMaxWidth().weight(1f),
