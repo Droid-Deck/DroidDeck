@@ -493,7 +493,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     if (a.pipSupported) SteamActionPill(
                         stringResource(R.string.pip_title), Icons.Outlined.PictureInPictureAlt, focus.track(page, "pip"),
                     ) { host.open = null; a.onPip() }
-                    StopSessionButton(modifier = focus.track(page, "stop").onGloballyPositioned { stopCoords = it }) { host.open = null; confirmStop = true }
                     val steamActions = a.steam && a.onSteamMenu != null && a.onQam != null
                     val qamInteraction = remember { MutableInteractionSource() }
                     var qamStartedOnPress by remember { mutableStateOf(false) }
@@ -509,7 +508,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         }
                     }
                     BarActions(
-                        onMenu = { host.open = null; a.onClose() }, menuActive = true,
+                        onMenu = if (docked) ({ host.open = null; a.onClose() }) else null, menuActive = true,
                         onSteam = if (steamActions) ({ host.open = null; a.onSteamMenu?.invoke() }) else null,
                         onQam = if (steamActions) ({
                             host.open = null
@@ -521,7 +520,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         qamModifier = focus.track(page, "qam"),
                         qamInteraction = qamInteraction,
                         onQamConfirm = { host.open = null; a.onQam?.invoke() },
+                        showShortcuts = !docked,
                     )
+                    StopSessionButton(modifier = focus.track(page, "stop").onGloballyPositioned { stopCoords = it }) { host.open = null; confirmStop = true }
                 }
                 a.onAchievements?.let { show ->
                     DrawerAchievementsRow(a.achievementsProgress, Modifier.padding(top = if (short) 6.dp else 10.dp).then(focus.track(page, "achievements"))) {
