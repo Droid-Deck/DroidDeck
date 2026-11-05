@@ -585,7 +585,7 @@
     <string name="perf_ram_cap_hint">Gilt, solange der Steam-Client läuft, im Steam-Modus oder vom Desktop aus. Verbraucht die Sitzung mehr als diesen Wert, werden Steam und danach die übrigen unterstützten Prozesse der Sitzung in zRAM komprimiert. Ein weiches Limit: Nichts wird geschlossen, aber Spiele können ruckeln, während Seiten zurückgeladen werden.</string>
     <string name="perf_ram_cap_unavailable">Benötigt zRAM-Swap, den dieses Gerät nicht hat.</string>
     <string name="perf_vram_cap">VRAM-Limit</string>
-    <string name="perf_vram_cap_hint">Hält ein Spiel in diesem Grafikspeicher: Direct3D-9-bis-12-Spiele sehen das kleinere Budget, und Zuweisungen darüber hinaus schlagen fehl. Gilt ab der nächsten Sitzung.</string>
+    <string name="perf_vram_cap_hint">Meldet Direct3D-9-bis-12-Spielen dieses Videospeicherbudget, um den Speicherverbrauch zu senken. Spiele können es überschreiten; dies fügt kein GPU-Paging hinzu und garantiert keinen Schutz vor Abstürzen durch Speichermangel. Gilt ab der nächsten Sitzung.</string>
     <string name="perf_gpuclock">GPU auf höchstem Takt halten</string>
     <string name="perf_gpuclock_hint">Nur Adreno. Weniger Ruckler, mehr Akkuverbrauch und Wärme.</string>
     <string name="perf_fixes">Sitzungskorrekturen</string>

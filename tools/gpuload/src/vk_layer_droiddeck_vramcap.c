@@ -1,6 +1,3 @@
-// VK_LAYER_DROIDDECK_vram_cap: holds a game to $DROIDDECK_VRAM_CAP_MB of device-local memory. The heap sizes and
-// VK_EXT_memory_budget budgets the game (DXVK, vkd3d-proton) reads are clamped, and vkAllocateMemory past the cap fails
-// with VK_ERROR_OUT_OF_DEVICE_MEMORY, so a game that ignores the budget still stays under it.
 #define _GNU_SOURCE
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_layer.h>
@@ -12,18 +9,14 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "vramcap_acct.h"
+#include "vramcap_budget.h"
 
 #define EXPORT __attribute__((visibility("default")))
-#define BUCKETS 1024
 
 static uint64_t g_cap;
 
 __attribute__((constructor)) static void init(void) {
-    const char *mb = getenv("DROIDDECK_VRAM_CAP_MB");
-    char *end = NULL;
-    unsigned long long value = mb && *mb ? strtoull(mb, &end, 10) : 0;
-    if (value && end && !*end && value < (UINT64_MAX >> 20)) g_cap = (uint64_t)value << 20;
+    g_cap = vramcap_parse_mb(getenv("DROIDDECK_VRAM_CAP_MB"));
 }
 
 struct inst {
@@ -36,22 +29,11 @@ struct inst {
     PFN_vkGetPhysicalDeviceMemoryProperties2 mem2_khr;
 };
 
-struct block {
-    struct block *next;
-    VkDeviceMemory memory;
-    uint64_t size;
-};
-
 struct dev {
     struct dev *next_in_list;
     VkDevice handle;
     PFN_vkGetDeviceProcAddr gdpa;
     PFN_vkDestroyDevice destroy;
-    PFN_vkAllocateMemory allocate;
-    PFN_vkFreeMemory release;
-    VkPhysicalDeviceMemoryProperties memory;
-    uint64_t used;
-    struct block *blocks[BUCKETS];
 };
 
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -77,8 +59,6 @@ static struct dev *dev_for(const void *obj) {
     return r;
 }
 
-static int capped(const VkMemoryHeap *heap) { return g_cap && (heap->flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT); }
-
 static void say(const char *what) {
     fprintf(stderr, "[droiddeck-vram-cap] pid %d: %s\n", (int)getpid(), what);
 }
@@ -86,21 +66,13 @@ static void say(const char *what) {
 static void announce(void) {
     if (__atomic_exchange_n(&g_announced, 1, __ATOMIC_RELAXED)) return;
     char line[96];
-    snprintf(line, sizeof(line), "device memory held to %llu MB", (unsigned long long)(g_cap >> 20));
+    snprintf(line, sizeof(line), "reported device memory budget %llu MB", (unsigned long long)(g_cap >> 20));
     say(line);
 }
 
 static void clamp_properties(VkPhysicalDeviceMemoryProperties *p) {
-    for (uint32_t i = 0; i < p->memoryHeapCount && i < VK_MAX_MEMORY_HEAPS; i++)
-        if (capped(&p->memoryHeaps[i])) {
-            p->memoryHeaps[i].size = vramcap_clamp(p->memoryHeaps[i].size, g_cap);
-            announce();
-        }
-}
-
-static void clamp_budget(const VkPhysicalDeviceMemoryProperties *p, VkPhysicalDeviceMemoryBudgetPropertiesEXT *b) {
-    for (uint32_t i = 0; i < p->memoryHeapCount && i < VK_MAX_MEMORY_HEAPS; i++)
-        if (capped(&p->memoryHeaps[i])) b->heapBudget[i] = vramcap_clamp(b->heapBudget[i], g_cap);
+    vramcap_properties(p, g_cap);
+    if (g_cap) announce();
 }
 
 static void clamp_properties2(PFN_vkGetPhysicalDeviceMemoryProperties2 next, VkPhysicalDevice pd,
@@ -109,7 +81,7 @@ static void clamp_properties2(PFN_vkGetPhysicalDeviceMemoryProperties2 next, VkP
     clamp_properties(&out->memoryProperties);
     for (VkBaseOutStructure *s = out->pNext; s; s = s->pNext)
         if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT)
-            clamp_budget(&out->memoryProperties, (VkPhysicalDeviceMemoryBudgetPropertiesEXT *)s);
+            vramcap_budget(&out->memoryProperties, (VkPhysicalDeviceMemoryBudgetPropertiesEXT *)s, g_cap);
 }
 
 static void VKAPI_CALL GetMemoryProperties(VkPhysicalDevice pd, VkPhysicalDeviceMemoryProperties *out) {
@@ -128,64 +100,6 @@ static void VKAPI_CALL GetMemoryProperties2KHR(VkPhysicalDevice pd, VkPhysicalDe
     struct inst *in = inst_for(pd);
     if (in) clamp_properties2(in->mem2_khr, pd, out);
 }
-
-// ---- allocations -----------------------------------------------------------------------------------------------
-
-static size_t bucket(VkDeviceMemory memory) { return (size_t)(((uintptr_t)memory >> 4) % BUCKETS); }
-
-static VkResult VKAPI_CALL AllocateMemory(VkDevice device, const VkMemoryAllocateInfo *info, const VkAllocationCallbacks *alloc,
-                                          VkDeviceMemory *out) {
-    struct dev *d = dev_for(device);
-    if (!d) return VK_ERROR_DEVICE_LOST;
-    uint32_t heap = info->memoryTypeIndex < d->memory.memoryTypeCount ? d->memory.memoryTypes[info->memoryTypeIndex].heapIndex : 0;
-    int held = heap < d->memory.memoryHeapCount && capped(&d->memory.memoryHeaps[heap]);
-    struct block *b = held ? calloc(1, sizeof(*b)) : NULL;
-    if (held) {
-        pthread_mutex_lock(&g_lock);
-        int fits = b && vramcap_reserve(&d->used, g_cap, info->allocationSize);
-        pthread_mutex_unlock(&g_lock);
-        if (!fits) {
-            free(b);
-            return b ? VK_ERROR_OUT_OF_DEVICE_MEMORY : VK_ERROR_OUT_OF_HOST_MEMORY;
-        }
-    }
-    VkResult r = d->allocate(device, info, alloc, out);
-    if (!held) return r;
-    pthread_mutex_lock(&g_lock);
-    if (r == VK_SUCCESS) {
-        b->memory = *out;
-        b->size = info->allocationSize;
-        b->next = d->blocks[bucket(*out)];
-        d->blocks[bucket(*out)] = b;
-        b = NULL;
-    } else {
-        vramcap_release(&d->used, info->allocationSize);
-    }
-    pthread_mutex_unlock(&g_lock);
-    free(b);
-    return r;
-}
-
-static void VKAPI_CALL FreeMemory(VkDevice device, VkDeviceMemory memory, const VkAllocationCallbacks *alloc) {
-    struct dev *d = dev_for(device);
-    if (!d) return;
-    struct block *found = NULL;
-    if (memory) {
-        pthread_mutex_lock(&g_lock);
-        for (struct block **p = &d->blocks[bucket(memory)]; *p; p = &(*p)->next)
-            if ((*p)->memory == memory) {
-                found = *p;
-                *p = found->next;
-                vramcap_release(&d->used, found->size);
-                break;
-            }
-        pthread_mutex_unlock(&g_lock);
-    }
-    free(found);
-    d->release(device, memory, alloc);
-}
-
-// ---- instance and device ---------------------------------------------------------------------------------------
 
 static VkResult VKAPI_CALL CreateInstance(const VkInstanceCreateInfo *ci, const VkAllocationCallbacks *alloc, VkInstance *out) {
     VkLayerInstanceCreateInfo *link = (VkLayerInstanceCreateInfo *)ci->pNext;
@@ -249,9 +163,6 @@ static VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice pd, const VkDeviceCreat
     d->handle = *out;
     d->gdpa = next_gdpa;
     d->destroy = (PFN_vkDestroyDevice)next_gdpa(*out, "vkDestroyDevice");
-    d->allocate = (PFN_vkAllocateMemory)next_gdpa(*out, "vkAllocateMemory");
-    d->release = (PFN_vkFreeMemory)next_gdpa(*out, "vkFreeMemory");
-    if (in && in->mem) in->mem(pd, &d->memory);
     pthread_mutex_lock(&g_lock);
     d->next_in_list = g_devs;
     g_devs = d;
@@ -266,18 +177,10 @@ static void VKAPI_CALL DestroyDevice(VkDevice device, const VkAllocationCallback
     for (struct dev **p = &g_devs; *p; p = &(*p)->next_in_list)
         if (*p == d) { *p = d->next_in_list; break; }
     pthread_mutex_unlock(&g_lock);
-    for (size_t i = 0; i < BUCKETS; i++)
-        while (d->blocks[i]) {
-            struct block *b = d->blocks[i];
-            d->blocks[i] = b->next;
-            free(b);
-        }
     PFN_vkDestroyDevice destroy = d->destroy;
     free(d);
     if (destroy) destroy(device, alloc);
 }
-
-// ---- dispatch --------------------------------------------------------------------------------------------------
 
 EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL DroidDeckVramCap_GetDeviceProcAddr(VkDevice device, const char *name);
 
@@ -285,6 +188,7 @@ EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL DroidDeckVramCap_GetInstanceProc
     if (!strcmp(name, "vkCreateInstance")) return (PFN_vkVoidFunction)CreateInstance;
     if (!strcmp(name, "vkDestroyInstance")) return (PFN_vkVoidFunction)DestroyInstance;
     if (!strcmp(name, "vkCreateDevice")) return (PFN_vkVoidFunction)CreateDevice;
+    if (!strcmp(name, "vkDestroyDevice")) return (PFN_vkVoidFunction)DestroyDevice;
     if (!strcmp(name, "vkGetInstanceProcAddr")) return (PFN_vkVoidFunction)DroidDeckVramCap_GetInstanceProcAddr;
     if (!strcmp(name, "vkGetDeviceProcAddr")) return (PFN_vkVoidFunction)DroidDeckVramCap_GetDeviceProcAddr;
     if (!instance) return NULL;
@@ -304,10 +208,6 @@ EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL DroidDeckVramCap_GetDeviceProcAd
     if (!strcmp(name, "vkDestroyDevice")) return (PFN_vkVoidFunction)DestroyDevice;
     struct dev *d = dev_for(device);
     if (!d) return NULL;
-    if (g_cap) {
-        if (!strcmp(name, "vkAllocateMemory") && d->allocate) return (PFN_vkVoidFunction)AllocateMemory;
-        if (!strcmp(name, "vkFreeMemory") && d->release) return (PFN_vkVoidFunction)FreeMemory;
-    }
     return d->gdpa(device, name);
 }
 

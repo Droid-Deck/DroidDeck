@@ -36,8 +36,8 @@ cmd=(sh -c '
     build/gpuload/test_gpuload_busy
     cc -std=c11 -O2 -Wall -Wextra -Werror -Ibuild/gpuload/include -Itools/gpuload/src -o build/gpuload/test_gpuload_ring tools/gpuload/tests/test_gpuload_ring.c
     build/gpuload/test_gpuload_ring
-    cc -std=c11 -O2 -Wall -Wextra -Werror -Itools/gpuload/src -o build/gpuload/test_vramcap_acct tools/gpuload/tests/test_vramcap_acct.c
-    build/gpuload/test_vramcap_acct
+    cc -std=c11 -O2 -Wall -Wextra -Werror -Ibuild/gpuload/include -Itools/gpuload/src -pthread -Wno-unused-parameter -Wno-missing-field-initializers -o build/gpuload/test_vramcap_budget tools/gpuload/tests/test_vramcap_budget.c
+    build/gpuload/test_vramcap_budget
     aarch64-linux-gnu-gcc -std=c11 -shared -fPIC -O2 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-missing-field-initializers \
         -fvisibility=hidden -pthread -Wl,-z,defs -Ibuild/gpuload/include -Itools/gpuload/src \
         -o build/gpuload/out/libVkLayer_droiddeck_gpuload.so tools/gpuload/src/vk_layer_droiddeck_gpuload.c

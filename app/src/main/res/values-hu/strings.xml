@@ -585,7 +585,7 @@
     <string name="perf_ram_cap_hint">Akkor érvényes, amikor a Steam-kliens fut, Steam módban vagy az asztalról. Ha a munkamenet ennél többet használ, a Steam, majd a munkamenet többi támogatott folyamata a zRAM-ba tömörül. Puha korlát: semmi sem zárul be, de a játékok akadhatnak, amíg a lapok visszatöltődnek.</string>
     <string name="perf_ram_cap_unavailable">zRAM swap szükséges, amely ezen az eszközön nincs.</string>
     <string name="perf_vram_cap">VRAM-korlát</string>
-    <string name="perf_vram_cap_hint">Egy játékot ennyi videomemóriára korlátoz: a Direct3D 9–12 játékok kisebb keretet látnak, és az azt meghaladó foglalások sikertelenek lesznek. A következő munkamenettől érvényes.</string>
+    <string name="perf_vram_cap_hint">Ezt a videomemória-keretet jelzi a Direct3D 9–12 játékoknak a memóriahasználat csökkentésére. A játékok túlléphetik; nem biztosít GPU-lapozást, és nem garantál védelmet a memóriahiány miatti összeomlás ellen. A következő munkamenettől érvényes.</string>
     <string name="perf_gpuclock">A GPU legmagasabb órajelen tartása</string>
     <string name="perf_gpuclock_hint">Csak Adreno. Kevesebb akadás, nagyobb akkumulátorhasználat és hőtermelés.</string>
     <string name="perf_fixes">Munkamenet-javítások</string>
