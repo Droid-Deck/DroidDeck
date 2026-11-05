@@ -30,6 +30,17 @@ the candidate monitor functions alongside the old APK's monitor, not a newly bui
 the old monitor's later request is visible separately at 20:52:55 in the session log. This
 does not establish gameplay performance or resolve Stellar Blade's larger memory failure.
 
+Continuing an existing Caravan save reproduced a whole-session low-memory kill with the
+pressure helper running. Android recorded `ApplicationExitInfo` reason `LOW_MEMORY`, and
+`lmkd` killed the foreground app with `oom_score_adj=0` because the device was not responding.
+The last half-second sample before the kill still had 2,172,612 KiB swap free. Over the
+captured interval, system unevictable memory grew from 1,955,932 to 3,236,276 KiB and shmem
+from 1,690,276 to 2,965,900 KiB, while the game's private swap reached 1,916,136 KiB. The
+pressure helper found the launcher already largely reclaimed: its first request at Continue
+reduced aggregate launcher RSS only from 263 to 255 MiB and backed off. Thus launcher reclaim
+does not resolve this load failure, and this run did not exhaust swap. The unevictable/shmem
+growth needs allocation attribution before treating it as a driver or GPU-memory diagnosis.
+
 ## CRAM and the bounded pager experiment
 
 [Meta's CRAM proposal](https://lpc.events/event/20/contributions/2424/) uses memory compression
