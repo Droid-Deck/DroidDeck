@@ -674,6 +674,8 @@
     <string name="hud_group_metrics">Odczyty</string>
     <string name="hud_metric_graph">Wykres czasu klatek</string>
     <string name="hud_metric_decimal">Liczba klatek z miejscem po przecinku</string>
+    <string name="hud_metric_low1">1% najniższych</string>
+    <string name="hud_metric_low01">0.1% najniższych</string>
     <string name="hud_metric_low001">0.01% najniższych</string>
     <string name="hud_metric_engine">Silnik graficzny</string>
     <string name="hud_metric_gpu_model">Nazwa GPU</string>

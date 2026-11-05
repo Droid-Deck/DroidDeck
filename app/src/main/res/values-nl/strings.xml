@@ -670,6 +670,8 @@
     <string name="hud_group_metrics">Meetwaarden</string>
     <string name="hud_metric_graph">Frametijdgrafiek</string>
     <string name="hud_metric_decimal">Beeldsnelheid met decimaal</string>
+    <string name="hud_metric_low1">1% laagste</string>
+    <string name="hud_metric_low01">0.1% laagste</string>
     <string name="hud_metric_low001">0.01% laagste</string>
     <string name="hud_metric_engine">Grafische engine</string>
     <string name="hud_metric_gpu_model">GPU-naam</string>

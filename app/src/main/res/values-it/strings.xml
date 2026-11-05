@@ -672,6 +672,8 @@
     <string name="hud_group_metrics">Valori</string>
     <string name="hud_metric_graph">Grafico tempi fotogramma</string>
     <string name="hud_metric_decimal">Frequenza fotogrammi con decimale</string>
+    <string name="hud_metric_low1">1% più basso</string>
+    <string name="hud_metric_low01">0.1% più basso</string>
     <string name="hud_metric_low001">0.01% più basso</string>
     <string name="hud_metric_engine">Motore grafico</string>
     <string name="hud_metric_gpu_model">Nome GPU</string>

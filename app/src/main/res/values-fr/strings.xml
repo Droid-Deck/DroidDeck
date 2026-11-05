@@ -672,6 +672,8 @@
     <string name="hud_group_metrics">Mesures</string>
     <string name="hud_metric_graph">Graphique des temps d\'image</string>
     <string name="hud_metric_decimal">Fréquence d\'images avec une décimale</string>
+    <string name="hud_metric_low1">1% les plus bas</string>
+    <string name="hud_metric_low01">0.1% les plus bas</string>
     <string name="hud_metric_low001">0.01% les plus bas</string>
     <string name="hud_metric_engine">Moteur graphique</string>
     <string name="hud_metric_gpu_model">Nom du GPU</string>

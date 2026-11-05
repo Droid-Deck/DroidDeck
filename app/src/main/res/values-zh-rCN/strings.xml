@@ -668,6 +668,8 @@
     <string name="hud_group_metrics">读数</string>
     <string name="hud_metric_graph">帧时间图表</string>
     <string name="hud_metric_decimal">帧率显示小数</string>
+    <string name="hud_metric_low1">1% 最低帧</string>
+    <string name="hud_metric_low01">0.1% 最低帧</string>
     <string name="hud_metric_low001">0.01% 最低帧</string>
     <string name="hud_metric_engine">图形引擎</string>
     <string name="hud_metric_gpu_model">GPU 名称</string>

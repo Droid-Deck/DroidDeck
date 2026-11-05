@@ -670,6 +670,8 @@
     <string name="hud_group_metrics">Mért értékek</string>
     <string name="hud_metric_graph">Képkockaidő-grafikon</string>
     <string name="hud_metric_decimal">Képkockasebesség tizedesjeggyel</string>
+    <string name="hud_metric_low1">1% legalacsonyabb</string>
+    <string name="hud_metric_low01">0.1% legalacsonyabb</string>
     <string name="hud_metric_low001">0.01% legalacsonyabb</string>
     <string name="hud_metric_engine">Grafikus motor</string>
     <string name="hud_metric_gpu_model">GPU neve</string>

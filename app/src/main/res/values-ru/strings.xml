@@ -674,6 +674,8 @@
     <string name="hud_group_metrics">Показатели</string>
     <string name="hud_metric_graph">График времени кадров</string>
     <string name="hud_metric_decimal">Частота кадров с десятыми</string>
+    <string name="hud_metric_low1">1% минимальных</string>
+    <string name="hud_metric_low01">0.1% минимальных</string>
     <string name="hud_metric_low001">0.01% минимальных</string>
     <string name="hud_metric_engine">Графический движок</string>
     <string name="hud_metric_gpu_model">Название GPU</string>

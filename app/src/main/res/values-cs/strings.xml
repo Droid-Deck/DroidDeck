@@ -674,6 +674,8 @@
     <string name="hud_group_metrics">Údaje</string>
     <string name="hud_metric_graph">Graf časů snímků</string>
     <string name="hud_metric_decimal">Snímková frekvence s desetinným místem</string>
+    <string name="hud_metric_low1">1% nejnižší</string>
+    <string name="hud_metric_low01">0.1% nejnižší</string>
     <string name="hud_metric_low001">0.01% nejnižší</string>
     <string name="hud_metric_engine">Grafický engine</string>
     <string name="hud_metric_gpu_model">Název GPU</string>

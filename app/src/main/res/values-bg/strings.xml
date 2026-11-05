@@ -670,6 +670,8 @@
     <string name="hud_group_metrics">Показания</string>
     <string name="hud_metric_graph">Графика на времето на кадрите</string>
     <string name="hud_metric_decimal">Честота на кадрите с десетичен знак</string>
+    <string name="hud_metric_low1">1% най-ниски</string>
+    <string name="hud_metric_low01">0.1% най-ниски</string>
     <string name="hud_metric_low001">0.01% най-ниски</string>
     <string name="hud_metric_engine">Графичен двигател</string>
     <string name="hud_metric_gpu_model">Име на GPU</string>

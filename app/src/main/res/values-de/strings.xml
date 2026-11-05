@@ -670,6 +670,8 @@
     <string name="hud_group_metrics">Messwerte</string>
     <string name="hud_metric_graph">Frametime-Diagramm</string>
     <string name="hud_metric_decimal">Bildrate mit Nachkommastelle</string>
+    <string name="hud_metric_low1">1%-Tiefstwert</string>
+    <string name="hud_metric_low01">0.1%-Tiefstwert</string>
     <string name="hud_metric_low001">0.01%-Tiefstwert</string>
     <string name="hud_metric_engine">Grafik-Engine</string>
     <string name="hud_metric_gpu_model">GPU-Name</string>

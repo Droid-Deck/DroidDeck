@@ -668,6 +668,8 @@
     <string name="hud_group_metrics">Bacaan</string>
     <string name="hud_metric_graph">Graf masa bingkai</string>
     <string name="hud_metric_decimal">Kadar bingkai dengan perpuluhan</string>
+    <string name="hud_metric_low1">1% terendah</string>
+    <string name="hud_metric_low01">0.1% terendah</string>
     <string name="hud_metric_low001">0.01% terendah</string>
     <string name="hud_metric_engine">Enjin grafik</string>
     <string name="hud_metric_gpu_model">Nama GPU</string>

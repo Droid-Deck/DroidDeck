@@ -678,6 +678,8 @@
     <string name="hud_group_metrics">القراءات</string>
     <string name="hud_metric_graph">مخطط زمن الإطار</string>
     <string name="hud_metric_decimal">معدل الإطارات بخانة عشرية</string>
+    <string name="hud_metric_low1">أدنى 1%</string>
+    <string name="hud_metric_low01">أدنى 0.1%</string>
     <string name="hud_metric_low001">أدنى 0.01%</string>
     <string name="hud_metric_engine">محرك الرسومات</string>
     <string name="hud_metric_gpu_model">اسم GPU</string>
