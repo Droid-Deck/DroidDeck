@@ -93,6 +93,9 @@ static int g_black_state;
 static PFN_vkImportSemaphoreFdKHR g_import_sem_fd;
 static VkSemaphore g_wait_sem;
 
+#define VKP_VENDOR_QUALCOMM 0x5143
+static uint32_t g_vendor_id;
+
 static struct vkp_perf g_perf;
 static int64_t perf_now(void) {
     struct timespec ts;
@@ -460,6 +463,7 @@ static int dev_init(void) {
     {
         VkPhysicalDeviceProperties props;
         g_vk.GetPhysicalDeviceProperties(g_pd, &props);
+        g_vendor_id = props.vendorID;
         snprintf(g_gpu_name, sizeof(g_gpu_name), "%s", props.deviceName);
         droiddeck_log("gpu", "compositor renders on %s with %s", props.deviceName,
                    g_library_name ? g_library_name : "the system Vulkan driver");
@@ -989,8 +993,9 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
                                 .allocationSize = req.size, .memoryTypeIndex = (uint32_t)idx};
     VkResult mr = g_vk.AllocateMemory(g_dev, &mai, NULL, &img->mem);
     if (mr != VK_SUCCESS) {
-        LOGE("%s: importing the %s dma-buf (%dx%d, %llu bytes) -> %s", as_blit_dst ? "layer" : "dmabuf",
-             vkp_modifier_name(modifier), w, h, (unsigned long long)req.size, vk_result_name(mr));
+        LOGE("%s: importing the %s dma-buf (%dx%d, pitch %u, offset %u, %llu bytes, memory type %d of image types "
+             "%#x & fd types %#x) -> %s", as_blit_dst ? "layer" : "dmabuf", vkp_modifier_name(modifier), w, h,
+             stride, offset, (unsigned long long)req.size, idx, req.memoryTypeBits, allowed, vk_result_name(mr));
         g_vk.DestroyImage(g_dev, img->image, NULL); close(dupfd); free(img); return NULL;
     }
     VkResult br = g_vk.BindImageMemory(g_dev, img->image, img->mem, 0);
@@ -1054,6 +1059,101 @@ struct vkp_image *vkp_image_from_ahb(AHardwareBuffer *ahb) {
         if (img->mem) g_vk.FreeMemory(g_dev, img->mem, NULL);
         g_vk.DestroyImage(g_dev, img->image, NULL); free(img); return NULL;
     }
+    return img;
+}
+
+int vkp_can_import_ahb(void) {
+    return dev_init() == 0 && g_vendor_id != VKP_VENDOR_QUALCOMM && g_ahb_import &&
+           g_vk.GetAndroidHardwareBufferPropertiesANDROID;
+}
+
+struct vkp_image *vkp_image_import_ahb(struct AHardwareBuffer *ahb, char *info, size_t info_n) {
+    if (info && info_n) info[0] = 0;
+    if (!ahb || !vkp_can_import_ahb()) return NULL;
+    AHardwareBuffer_Desc d;
+    AHardwareBuffer_describe(ahb, &d);
+    VkAndroidHardwareBufferFormatPropertiesANDROID fp = {
+        .sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_FORMAT_PROPERTIES_ANDROID};
+    VkAndroidHardwareBufferPropertiesANDROID hp = {
+        .sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID, .pNext = &fp};
+    VkResult pr = g_vk.GetAndroidHardwareBufferPropertiesANDROID(g_dev, ahb, &hp);
+    if (pr != VK_SUCCESS) {
+        LOGE("layer: vkGetAndroidHardwareBufferPropertiesANDROID(%ux%u, AHB format %#x, usage %#llx) -> %s", d.width,
+             d.height, d.format, (unsigned long long)d.usage, vk_result_name(pr));
+        return NULL;
+    }
+    if (fp.format == VK_FORMAT_UNDEFINED) {
+        LOGE("layer: the driver reports the %ux%u AHB (format %#x) as external format %#llx only: no blit target",
+             d.width, d.height, d.format, (unsigned long long)fp.externalFormat);
+        return NULL;
+    }
+    const VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    if (g_vk.GetPhysicalDeviceImageFormatProperties2) {
+        VkPhysicalDeviceExternalImageFormatInfo ext = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO,
+            .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID};
+        VkPhysicalDeviceImageFormatInfo2 qi = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2, .pNext = &ext, .format = fp.format,
+            .type = VK_IMAGE_TYPE_2D, .tiling = VK_IMAGE_TILING_OPTIMAL, .usage = usage};
+        VkExternalImageFormatProperties extp = {.sType = VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES};
+        VkImageFormatProperties2 ip = {.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2, .pNext = &extp};
+        VkResult qr = g_vk.GetPhysicalDeviceImageFormatProperties2(g_pd, &qi, &ip);
+        if (qr != VK_SUCCESS ||
+            !(extp.externalMemoryProperties.externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT)) {
+            LOGE("layer: VkFormat %d as an imported AHB blit target is not supported (%s, external features %#x)",
+                 (int)fp.format, vk_result_name(qr), extp.externalMemoryProperties.externalMemoryFeatures);
+            return NULL;
+        }
+    }
+
+    struct vkp_image *img = calloc(1, sizeof(*img));
+    if (!img) return NULL;
+    img->w = (int)d.width; img->h = (int)d.height;
+    img->dmabuf = 1; img->blit_dst = 1;
+    img->fmt = fp.format;
+    VkExternalMemoryImageCreateInfo extImg = {
+        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
+        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID};
+    VkImageCreateInfo ici = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, .pNext = &extImg,
+        .imageType = VK_IMAGE_TYPE_2D, .format = fp.format, .extent = {d.width, d.height, 1},
+        .mipLevels = 1, .arrayLayers = 1, .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = usage, .sharingMode = VK_SHARING_MODE_EXCLUSIVE, .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+    VkResult cr = g_vk.CreateImage(g_dev, &ici, NULL, &img->image);
+    if (cr != VK_SUCCESS) {
+        LOGE("layer: vkCreateImage(AHB %ux%u, VkFormat %d) -> %s", d.width, d.height, (int)fp.format,
+             vk_result_name(cr));
+        free(img); return NULL;
+    }
+    int idx = -1;
+    for (int i = 0; i < 32; i++) if (hp.memoryTypeBits & (1u << i)) { idx = i; break; }
+    if (idx < 0) {
+        LOGE("layer: no memory type can import the %ux%u AHB (memoryTypeBits 0)", d.width, d.height);
+        g_vk.DestroyImage(g_dev, img->image, NULL); free(img); return NULL;
+    }
+    VkImportAndroidHardwareBufferInfoANDROID imp = {
+        .sType = VK_STRUCTURE_TYPE_IMPORT_ANDROID_HARDWARE_BUFFER_INFO_ANDROID, .buffer = ahb};
+    VkMemoryDedicatedAllocateInfo ded = {.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
+                                         .pNext = &imp, .image = img->image};
+    VkMemoryAllocateInfo mai = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, .pNext = &ded,
+                                .allocationSize = hp.allocationSize, .memoryTypeIndex = (uint32_t)idx};
+    VkResult mr = g_vk.AllocateMemory(g_dev, &mai, NULL, &img->mem);
+    if (mr != VK_SUCCESS) {
+        LOGE("layer: importing the %ux%u AHB (VkFormat %d, %llu bytes, memory type %d of memoryTypeBits %#x) -> %s",
+             d.width, d.height, (int)fp.format, (unsigned long long)hp.allocationSize, idx, hp.memoryTypeBits,
+             vk_result_name(mr));
+        g_vk.DestroyImage(g_dev, img->image, NULL); free(img); return NULL;
+    }
+    VkResult br = g_vk.BindImageMemory(g_dev, img->image, img->mem, 0);
+    if (br != VK_SUCCESS) {
+        LOGE("layer: vkBindImageMemory(AHB) -> %s", vk_result_name(br));
+        g_vk.FreeMemory(g_dev, img->mem, NULL); g_vk.DestroyImage(g_dev, img->image, NULL);
+        free(img); return NULL;
+    }
+    if (info && info_n)
+        snprintf(info, info_n, "VkFormat %d, %llu bytes, memory type %d of memoryTypeBits %#x", (int)fp.format,
+                 (unsigned long long)hp.allocationSize, idx, hp.memoryTypeBits);
     return img;
 }
 
@@ -1171,6 +1271,57 @@ static int draw_to_scene_blit(const struct vkp_draw *d, int scene_w, int scene_h
     return map_draw(d, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, (float)scene_w, (float)scene_h, blit);
 }
 
+static int effects_source_draw(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
+                               struct vkp_draw *out) {
+    if (!draws) return 0;
+    int opaque_above = 0;
+    for (int i = n - 1; i >= 0; i--) {
+        const struct vkp_draw *d = &draws[i];
+        const struct vkp_image *im = d->img;
+        if (!im || d->blend || d->dx != 0 || d->dy != 0 || d->dw != scene_w || d->dh != scene_h) {
+            if (im && !d->blend && d->dw * d->dh > opaque_above) opaque_above = d->dw * d->dh;
+            continue;
+        }
+        if (opaque_above > im->w * im->h) return 0;
+        if (d->sx != 0 || d->sy != 0 || d->sw <= im->w - 1.0f || d->sw >= im->w + 1.0f ||
+            d->sh <= im->h - 1.0f || d->sh >= im->h + 1.0f ||
+            im->w <= 0 || im->h <= 0 || im->w > scene_w || im->h > scene_h ||
+            (im->w == scene_w && im->h == scene_h) ||
+            (i + 1 < n && vkp_effects_postprocessing())) return 0;
+        *out = *d;
+        out->dw = im->w;
+        out->dh = im->h;
+        return i + 1;
+    }
+    return 0;
+}
+
+static void effects_source_note(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
+                                int input_w, int input_h, int output_w, int output_h) {
+    static uint64_t previous;
+    uint64_t key = 14695981039346656037ULL;
+    const int sizes[] = {scene_w, scene_h, n, input_w, input_h, output_w, output_h};
+    for (unsigned i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++)
+        key = (key ^ (uint32_t)sizes[i]) * 1099511628211ULL;
+    for (int i = 0; i < n; i++) {
+        const struct vkp_draw *d = &draws[i];
+        const int values[] = {d->img ? d->img->w : 0, d->img ? d->img->h : 0, d->dw, d->dh, d->blend,
+                              d->sx != 0 || d->sy != 0 || !d->img || d->sw != d->img->w || d->sh != d->img->h};
+        for (unsigned j = 0; j < sizeof(values) / sizeof(values[0]); j++)
+            key = (key ^ (uint32_t)values[j]) * 1099511628211ULL;
+    }
+    if (key == previous) return;
+    previous = key;
+    droiddeck_log("effects", "input %dx%d -> %dx%d, logical scene %dx%d, %d draws",
+                   input_w, input_h, output_w, output_h, scene_w, scene_h, n);
+    for (int i = 0; i < n && i < 8; i++) {
+        const struct vkp_draw *d = &draws[i];
+        droiddeck_log("effects", "draw %d: buffer %dx%d, source %.1f,%.1f %.1fx%.1f -> scene %d,%d %dx%d, blend %d",
+                       i, d->img ? d->img->w : 0, d->img ? d->img->h : 0,
+                       d->sx, d->sy, d->sw, d->sh, d->dx, d->dy, d->dw, d->dh, d->blend);
+    }
+}
+
 static void record_draw(VkCommandBuffer cmd, const struct vkp_draw *d, const VkImageBlit *blit, VkImage target,
                         VkFormat target_fmt, int target_w, int target_h, VkFilter filter) {
     const struct vkp_image *im = d->img;
@@ -1180,6 +1331,34 @@ static void record_draw(VkCommandBuffer cmd, const struct vkp_draw *d, const VkI
         return;
     g_vk.CmdBlitImage(cmd, im->image, im->dmabuf ? VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL : VK_IMAGE_LAYOUT_GENERAL,
                       target, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, blit, filter);
+}
+
+static void effects_overlay_draws(VkCommandBuffer cmd, VkImage result, int result_w, int result_h,
+                                  int scene_w, int scene_h, const struct vkp_draw *draws, int n) {
+    if (n <= 0) return;
+    VkImageMemoryBarrier b = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = result, .subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
+        .srcAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+                         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT};
+    g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                            VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                            0, 0, NULL, 0, NULL, 1, &b);
+    for (int i = 0; i < n; i++) {
+        VkImageBlit blit;
+        if (!draws[i].img || !map_draw(&draws[i], (float)result_w / scene_w, (float)result_h / scene_h,
+                                       0, 0, 0, 0, (float)result_w, (float)result_h, &blit)) continue;
+        record_draw(cmd, &draws[i], &blit, result, SCENE_FMT, result_w, result_h, VK_FILTER_LINEAR);
+    }
+    b.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    b.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    b.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+    b.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                            0, 0, NULL, 0, NULL, 1, &b);
 }
 
 static void destroy_scene_image(void) {
@@ -1573,6 +1752,20 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         cb = 0;
     }
     vkp_cardboard_begin_frame();
+    int input_w = scene_w, input_h = scene_h;
+    int pass_n = n;
+    int overlay_start = n;
+    struct vkp_draw source_draw;
+    const struct vkp_draw *pass_draws = draws;
+    const int source_end = fx && !hf && vkp_effects_upscaling()
+                               ? effects_source_draw(scene_w, scene_h, draws, n, &source_draw) : 0;
+    if (source_end) {
+        input_w = source_draw.dw;
+        input_h = source_draw.dh;
+        pass_draws = &source_draw;
+        pass_n = 1;
+        overlay_start = source_end;
+    }
     const int deep = hf && n > 0 && fg && g_swap_is_hdr && !hf->tonemap && vkp_framegen_format_ok(FG_HDR_FMT) &&
                      ensure_img(&g_fgscene, scene_w, scene_h, FG_HDR_FMT,
                                 VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
@@ -1592,7 +1785,11 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
                            "into the HDR10 swapchain (%s): banding possible in smooth gradients", sw);
         }
     }
-    const int pass = deep || ((fx || fg || cb || (hf && n > 0)) && ensure_scene_image(scene_w, scene_h) == 0);
+    const int pass = deep || ((fx || fg || cb || (hf && n > 0)) && ensure_scene_image(input_w, input_h) == 0);
+    const int draw_n = pass ? pass_n : n;
+    if (pass && fx && !hf && vkp_effects_upscaling())
+        effects_source_note(scene_w, scene_h, draws, n, input_w, input_h,
+                            (int)(scene_w * g_map.kx + 0.5f), (int)(scene_h * g_map.ky + 0.5f));
     VkImage scene_img = deep ? g_fgscene.img : g_scene.img;
     const VkFormat scene_fmt = deep ? FG_HDR_FMT : SCENE_FMT;
     const VkFilter blit_filter = vkp_effects_blit_filter();
@@ -1643,11 +1840,12 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
     int covered = 0;
     VkImageBlit cover_blit;
     if (!(hf && pass)) {
-        for (int i = n - 1; i >= 0 && !covered; i--) {
-            const struct vkp_draw *d = &draws[i];
-            if (!d->img || d->blend || d->dx > 0 || d->dy > 0 || d->dx + d->dw < scene_w ||
-                d->dy + d->dh < scene_h) continue;
-            covered = pass ? draw_to_scene_blit(d, scene_w, scene_h, &cover_blit) : draw_to_blit(d, &cover_blit);
+        for (int i = draw_n - 1; i >= 0 && !covered; i--) {
+            const struct vkp_draw *d = pass ? &pass_draws[i] : &draws[i];
+            const int target_w = pass ? input_w : scene_w, target_h = pass ? input_h : scene_h;
+            if (!d->img || d->blend || d->dx > 0 || d->dy > 0 || d->dx + d->dw < target_w ||
+                d->dy + d->dh < target_h) continue;
+            covered = pass ? draw_to_scene_blit(d, input_w, input_h, &cover_blit) : draw_to_blit(d, &cover_blit);
         }
     }
     const int cleared = covered && (pass || record_bars_clear(cmd, target, &cover_blit));
@@ -1671,12 +1869,13 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         hdr_how = g_swap_is_hdr ? 1 : 2;
         drawn = n;
     }
-    for (int i = 0; i < n && !hdr_how; i++) {
+    for (int i = 0; i < draw_n && !hdr_how; i++) {
         VkImageBlit blit;
-        if (!draws[i].img) continue;
-        if (pass ? !draw_to_scene_blit(&draws[i], scene_w, scene_h, &blit) : !draw_to_blit(&draws[i], &blit)) continue;
-        record_draw(cmd, &draws[i], &blit, target, pass ? scene_fmt : g_swap_fmt,
-                    pass ? scene_w : (int)g_extent.width, pass ? scene_h : (int)g_extent.height,
+        const struct vkp_draw *d = pass ? &pass_draws[i] : &draws[i];
+        if (!d->img) continue;
+        if (pass ? !draw_to_scene_blit(d, input_w, input_h, &blit) : !draw_to_blit(d, &blit)) continue;
+        record_draw(cmd, d, &blit, target, pass ? scene_fmt : g_swap_fmt,
+                    pass ? input_w : (int)g_extent.width, pass ? input_h : (int)g_extent.height,
                     pass ? VK_FILTER_LINEAR : blit_filter);
         drawn++;
     }
@@ -1684,7 +1883,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
     int ngen = 0;
     VkImage gens[VKP_FG_MAX_GENERATIONS] = {VK_NULL_HANDLE};
     VkImage result = scene_img;
-    int rw = scene_w, rh = scene_h;
+    int rw = input_w, rh = input_h;
     if (!pass) {
         VkImageMemoryBarrier b_present = {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -1699,7 +1898,9 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
             int mapped_w = (int)(scene_w * g_map.kx + 0.5f), mapped_h = (int)(scene_h * g_map.ky + 0.5f);
             if (fg) { mapped_w = scene_w; mapped_h = scene_h; }
             vkp_effects_set_formats(scene_fmt, scene_fmt);
-            result = vkp_effects_run(cmd, scene_img, scene_w, scene_h, mapped_w, mapped_h, &rw, &rh);
+            result = vkp_effects_run(cmd, scene_img, input_w, input_h, mapped_w, mapped_h, &rw, &rh);
+            effects_overlay_draws(cmd, result, rw, rh, scene_w, scene_h,
+                                  draws ? draws + overlay_start : NULL, n - overlay_start);
             result_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
         }
         VkImageMemoryBarrier b_general = {
@@ -2058,13 +2259,31 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
                            const struct vkp_hdr_frame *hf, int *rw, int *rh) {
     if (g_pass.active) vkp_pass_abort();
     if (vkp_update_map(scene_w, scene_h) != 0) return -1;
+    int input_w = scene_w, input_h = scene_h;
+    int pass_n = n, overlay_start = n;
+    struct vkp_draw source_draw;
+    const struct vkp_draw *pass_draws = draws;
+    const int source_end = !hf && vkp_effects_upscaling()
+                               ? effects_source_draw(scene_w, scene_h, draws, n, &source_draw) : 0;
+    if (source_end) {
+        input_w = source_draw.dw;
+        input_h = source_draw.dh;
+        effects_source_note(scene_w, scene_h, draws, n, input_w, input_h,
+                            (int)(scene_w * g_map.kx + 0.5f), (int)(scene_h * g_map.ky + 0.5f));
+        pass_draws = &source_draw;
+        pass_n = 1;
+        overlay_start = source_end;
+    } else if (!hf && vkp_effects_upscaling()) {
+        effects_source_note(scene_w, scene_h, draws, n, input_w, input_h,
+                            (int)(scene_w * g_map.kx + 0.5f), (int)(scene_h * g_map.ky + 0.5f));
+    }
     if (hf) {
         if (ensure_img(&g_hdrscene, scene_w, scene_h, HDR_FMT,
                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
                        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                        "HDR composition (picture)") != 0)
             return -1;
-    } else if (ensure_scene_image(scene_w, scene_h) != 0) return -1;
+    } else if (ensure_scene_image(input_w, input_h) != 0) return -1;
 
     VkCommandBuffer cmd = g_cmds[0];
     g_vk.ResetCommandBuffer(cmd, 0);
@@ -2124,19 +2343,21 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
                               .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT};
         g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
                                 0, 1, &mb, 0, NULL, 0, NULL);
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < pass_n; i++) {
             VkImageBlit blit;
-            if (!draws[i].img || !draw_to_scene_blit(&draws[i], scene_w, scene_h, &blit)) continue;
-            record_draw(cmd, &draws[i], &blit, g_scene.img, SCENE_FMT, scene_w, scene_h,
+            if (!pass_draws[i].img || !draw_to_scene_blit(&pass_draws[i], input_w, input_h, &blit)) continue;
+            record_draw(cmd, &pass_draws[i], &blit, g_scene.img, SCENE_FMT, input_w, input_h,
                         VK_FILTER_LINEAR);
         }
         if (vkp_effects_active()) vkp_effects_set_formats(VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM);
     }
 
     int mapped_w = (int)(scene_w * g_map.kx + 0.5f), mapped_h = (int)(scene_h * g_map.ky + 0.5f);
-    g_pass.rw = scene_w; g_pass.rh = scene_h;
-    g_pass.result = vkp_effects_run(cmd, scene_img, scene_w, scene_h, mapped_w, mapped_h,
+    g_pass.rw = input_w; g_pass.rh = input_h;
+    g_pass.result = vkp_effects_run(cmd, scene_img, input_w, input_h, mapped_w, mapped_h,
                                     &g_pass.rw, &g_pass.rh);
+    effects_overlay_draws(cmd, g_pass.result, g_pass.rw, g_pass.rh, scene_w, scene_h,
+                          draws ? draws + overlay_start : NULL, n - overlay_start);
     g_pass.active = 1;
     if (rw) *rw = g_pass.rw;
     if (rh) *rh = g_pass.rh;

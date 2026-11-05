@@ -670,6 +670,8 @@
     <string name="hud_group_metrics">Messwerte</string>
     <string name="hud_metric_graph">Frametime-Diagramm</string>
     <string name="hud_metric_decimal">Bildrate mit Nachkommastelle</string>
+    <string name="hud_metric_low1">1%-Tiefstwert</string>
+    <string name="hud_metric_low01">0.1%-Tiefstwert</string>
     <string name="hud_metric_low001">0.01%-Tiefstwert</string>
     <string name="hud_metric_engine">Grafik-Engine</string>
     <string name="hud_metric_gpu_model">GPU-Name</string>
@@ -747,6 +749,10 @@
     <string name="drawer_low_latency_touch">Touch mit geringer Latenz</string>
     <string name="drawer_low_latency_touch_hint">Touch überspringt das Zusammenfassen von Frames, Steam-Touch meldet mit 1000 Hz. Die CPU-Last ist etwas höher.</string>
     <string name="drawer_evdev_mouse">Roher Mauskanal</string>
+    <string name="drawer_relative_mouse">Relative Maus</string>
+    <string name="drawer_relative_mouse_auto">Automatisch</string>
+    <string name="drawer_relative_mouse_on">An</string>
+    <string name="drawer_relative_mouse_off">Aus</string>
     <string name="drawer_direct_cursor">Zeiger</string>
     <string name="drawer_pc_keyboard">PC-Tastatur</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -861,6 +867,7 @@
     <string name="setup_home">Als Startbildschirm verwenden</string>
     <string name="setup_home_on">DroidDeck kann die Startbildschirm-App sein</string>
     <string name="setup_home_off">DroidDeck wird nie als Startbildschirm-App angeboten</string>
+    <string name="setup_home_game_space_first">Stelle DroidDeck unter „Spiele hinzufügen“ auf „Einschließen“</string>
     <string name="setup_orientation">Ausrichtung</string>
     <string name="setup_launcher_orientation">Launcher-Ausrichtung</string>
     <string name="setup_launcher_orientation_auto">Gerätedrehung folgen</string>
@@ -1093,6 +1100,7 @@
     <string name="ctrl_stick_click_hint">Doppeltippen und Stick halten für L3 oder R3</string>
     <string name="ctrl_adaptive">Adaptive Sticks</string>
     <string name="ctrl_rumble">Spielvibration</string>
+    <string name="ctrl_dead_zone">Stick-Totzone</string>
     <string name="ctrl_steam_button">Steam-Taste</string>
     <string name="ctrl_qam_button">QAM-Taste</string>
     <string name="ctrl_keyboard_button">Tastatur-Taste</string>
@@ -1170,6 +1178,14 @@
     <string name="games_export_gamehub">Als GameHub-ZIP exportieren…</string>
     <string name="games_export_winlator">Als Winlator-ZIP exportieren…</string>
     <string name="games_open_save_folder">Spielstandordner öffnen</string>
+    <string name="games_import_addons">Addons aus ZIP importieren…</string>
+    <string name="games_open_addons_folder">Addon-Ordner öffnen</string>
+    <string name="games_delete_addon_title">%1$s löschen?</string>
+    <string name="games_delete_addon_body">Dadurch wird der Ordner des Addons entfernt. Die Einstellungen bleiben erhalten.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d Addon</item>
+        <item quantity="other">%1$d Addons</item>
+    </plurals>
     <string name="games_never_played">Nie gespielt</string>
     <string name="games_runtime_busy_percent">Laufzeit beschäftigt · %1$d %%</string>
     <string name="games_runtime_busy">Laufzeit beschäftigt</string>
@@ -1347,6 +1363,17 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="one">%1$d Datei aus %2$s in %3$s importiert. Alte Spielstände gesichert unter Download/DroidDeck/Saves/backups</item>
         <item quantity="other">%1$d Dateien aus %2$s in %3$s importiert. Alte Spielstände gesichert unter Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Schließe zuerst die Sitzung, damit das Spiel seine Addons während des Imports nicht verwendet</string>
+    <string name="main_addons_importing">Addons werden in %1$s importiert</string>
+    <string name="main_addons_pick_zip">Addon-ZIP für %1$s auswählen</string>
+    <string name="main_addons_too_large">%1$s ist zu groß zum Importieren</string>
+    <string name="main_addons_deleting">%1$s wird gelöscht</string>
+    <string name="main_addons_deleted">%1$s gelöscht</string>
+    <string name="main_addons_none">Keine Addons in %1$s gefunden</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">%1$d Addon in %2$s importiert</item>
+        <item quantity="other">%1$d Addons in %2$s importiert</item>
     </plurals>
     <string name="main_saves_pick_zip">Spielstand-ZIP für %1$s auswählen</string>
     <string name="main_saves_exporting">Export von %1$s</string>
@@ -3467,6 +3494,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Für Spiele mit Speicherständen in deinem Steam-Konto</string>
     <string name="game_resource_search">Websuche</string>
+    <string name="game_tab_addons">Addons</string>
     <string name="game_tab_install">Installieren</string>
     <string name="game_install_location">Speicherort</string>
     <string name="game_install_folder">Ordner</string>
@@ -3513,20 +3541,32 @@
     <string name="integration_wifi">Wi-Fi-Namen</string>
     <string name="integration_brightness">Helligkeit</string>
     <string name="integration_home">DroidDeck als Startbildschirm</string>
-    <string name="integration_shortcuts">Kürzel der Home-Taste</string>
+    <string name="integration_shortcuts">Systemtasten</string>
     <string name="integration_wifi_hint">Netzwerke in Steam anzeigen · braucht Standortzugriff, kein Tracking</string>
     <string name="integration_wifi_on">Netzwerke werden in Steam angezeigt</string>
     <string name="integration_wifi_location_off">Standort ist aus</string>
     <string name="integration_wifi_denied">Standort verweigert · erlaube ihn in App-Info</string>
     <string name="integration_brightness_hint">Steams Regler stellt die Bildschirmhelligkeit ein</string>
     <string name="integration_home_hint">Home öffnet in einer Sitzung das Steam-Menü</string>
-    <string name="integration_shortcuts_hint">Home halten für Steam-Guide-Tastenkombinationen</string>
-    <string name="integration_shortcuts_needs_home">Benötigt DroidDeck als Startbildschirm</string>
+    <string name="integration_shortcuts_hint">Alt+Tab, Win-Taste und Home-Taste bleiben in der Sitzung</string>
     <string name="integration_shortcuts_maybe_restricted">In Android ausgegraut? App-Info → ⋮ → Eingeschränkte Einstellungen zulassen</string>
     <string name="integration_shortcuts_restricted">Von Android blockiert · App-Info → ⋮ → Eingeschränkte Einstellungen zulassen</string>
-    <string name="integration_shortcuts_service">DroidDeck-Home-Taste</string>
-    <string name="integration_shortcuts_service_description">Leitet Drücke der Home-Taste an Steam Guide weiter, während eine Steam-Sitzung im Fokus ist und DroidDeck die Standard-Startbildschirm-App ist. Liest keine Bildschirminhalte.</string>
+    <string name="integration_shortcuts_service">DroidDeck-Systemtasten</string>
+    <string name="integration_shortcuts_service_description">Hält Alt+Tab, die Win-Taste und die Home-Taste in einer aktiven DroidDeck-Sitzung statt bei Android.</string>
     <string name="integration_brightness_needed">Aktiviere Helligkeit unter Einrichtung → Steam-Integration</string>
+    <string name="setup_gpu_bridge_off">Mali-Brücke: aus</string>
+    <string name="setup_gpu_bridge_on">Mali-Brücke: an</string>
+    <string name="setup_gpu_bridge_detail">%1$s ist kein Adreno. Die experimentelle Vulkan-Brücke ist an: Die Sitzung zeichnet über den eigenen Treiber des Telefons. Rechne mit Fehlern und sende die Sitzungsprotokolle.</string>
+    <string name="setup_bridge_safe">Sicherer Modus</string>
+    <string name="setup_bridge_safe_on">Sicherer Modus: an</string>
+    <string name="setup_bridge_safe_off">Sicherer Modus: aus</string>
+    <string name="setup_bridge_safe_on_detail">Am kompatibelsten. Empfohlen für ein neues Gerät.</string>
+    <string name="setup_bridge_safe_off_detail">Schneller, wo diese GPU ihre Prüfungen bestanden hat.</string>
+    <string name="setup_bridge_dxvk">DXVK</string>
+    <string name="setup_bridge_dxvk_auto">DXVK: automatisch</string>
+    <string name="setup_bridge_dxvk_proton">DXVK: von Proton</string>
+    <string name="setup_bridge_dxvk_auto_detail">Nutzt ein älteres DXVK, wenn das Vulkan dieser GPU für das von Proton zu alt ist.</string>
+    <string name="setup_bridge_dxvk_proton_detail">Jedes Proton behält sein eigenes DXVK, auch wenn das Vulkan dieser GPU dafür zu alt sein könnte.</string>
     <string name="apps_search_hint">Apps durchsuchen</string>
     <string name="apps_no_match">Keine Apps passen zu „%1$s“.</string>
     <string name="apps_add_widget">Widget hinzufügen</string>

@@ -668,6 +668,8 @@
     <string name="hud_group_metrics">讀數</string>
     <string name="hud_metric_graph">幀時間圖表</string>
     <string name="hud_metric_decimal">幀率顯示小數</string>
+    <string name="hud_metric_low1">1% 最低幀</string>
+    <string name="hud_metric_low01">0.1% 最低幀</string>
     <string name="hud_metric_low001">0.01% 最低幀</string>
     <string name="hud_metric_engine">圖形引擎</string>
     <string name="hud_metric_gpu_model">GPU 名稱</string>
@@ -745,6 +747,10 @@
     <string name="drawer_low_latency_touch">低延遲觸控</string>
     <string name="drawer_low_latency_touch_hint">觸控略過幀合併，Steam 觸控以 1000 Hz 回報。CPU 使用率略高。</string>
     <string name="drawer_evdev_mouse">原生滑鼠通道</string>
+    <string name="drawer_relative_mouse">相對滑鼠</string>
+    <string name="drawer_relative_mouse_auto">自動</string>
+    <string name="drawer_relative_mouse_on">開</string>
+    <string name="drawer_relative_mouse_off">關</string>
     <string name="drawer_direct_cursor">游標</string>
     <string name="drawer_pc_keyboard">電腦鍵盤</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -866,6 +872,7 @@
     <string name="setup_home">用作主畫面</string>
     <string name="setup_home_on">DroidDeck 可用作主畫面應用程式</string>
     <string name="setup_home_off">DroidDeck 不會作為主畫面應用程式的選項</string>
+    <string name="setup_home_game_space_first">請在「新增遊戲」中將 DroidDeck 設為「包含」</string>
     <string name="setup_orientation">螢幕方向</string>
     <string name="setup_launcher_orientation">啟動器方向</string>
     <string name="setup_launcher_orientation_auto">跟隨裝置旋轉</string>
@@ -1095,6 +1102,7 @@
     <string name="ctrl_stick_click_hint">在搖桿上輕按兩下並按住，即可觸發 L3 或 R3</string>
     <string name="ctrl_adaptive">自動調整搖桿</string>
     <string name="ctrl_rumble">遊戲震動</string>
+    <string name="ctrl_dead_zone">搖桿死區</string>
     <string name="ctrl_steam_button">Steam 按鈕</string>
     <string name="ctrl_qam_button">QAM 按鈕</string>
     <string name="ctrl_keyboard_button">鍵盤按鈕</string>
@@ -1172,6 +1180,13 @@
     <string name="games_export_gamehub">匯出為 GameHub zip…</string>
     <string name="games_export_winlator">匯出為 Winlator zip…</string>
     <string name="games_open_save_folder">開啟存檔資料夾</string>
+    <string name="games_import_addons">從 zip 匯入外掛…</string>
+    <string name="games_open_addons_folder">開啟外掛資料夾</string>
+    <string name="games_delete_addon_title">刪除 %1$s？</string>
+    <string name="games_delete_addon_body">這會移除外掛的資料夾，其設定會保留。</string>
+    <plurals name="games_addons_count">
+        <item quantity="other">%1$d 個外掛</item>
+    </plurals>
     <string name="games_never_played">從未玩過</string>
     <string name="games_runtime_busy_percent">運行環境繁忙 · %1$d%%</string>
     <string name="games_runtime_busy">運行環境繁忙</string>
@@ -1347,6 +1362,16 @@
     </plurals>
     <plurals name="main_saves_imported_backup">
         <item quantity="other">已從 %2$s 匯入 %1$d 個檔案至 %3$s。舊存檔已備份至 Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">請先關閉會話，以免遊戲在匯入期間使用外掛</string>
+    <string name="main_addons_importing">正在匯入外掛至 %1$s</string>
+    <string name="main_addons_pick_zip">選擇 %1$s 的外掛 zip</string>
+    <string name="main_addons_too_large">%1$s 太大，無法匯入</string>
+    <string name="main_addons_deleting">正在刪除 %1$s</string>
+    <string name="main_addons_deleted">已刪除 %1$s</string>
+    <string name="main_addons_none">在 %1$s 中找不到外掛</string>
+    <plurals name="main_addons_imported">
+        <item quantity="other">已匯入 %1$d 個外掛至 %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">為 %1$s 選擇存檔 zip</string>
     <string name="main_saves_exporting">正在匯出 %1$s</string>
@@ -3440,6 +3465,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">適用於存檔儲存在 Steam 帳戶中的遊戲</string>
     <string name="game_resource_search">網上搜尋</string>
+    <string name="game_tab_addons">外掛</string>
     <string name="game_tab_install">安裝</string>
     <string name="game_install_location">位置</string>
     <string name="game_install_folder">資料夾</string>
@@ -3486,20 +3512,32 @@
     <string name="integration_wifi">Wi-Fi 名稱</string>
     <string name="integration_brightness">亮度</string>
     <string name="integration_home">將 DroidDeck 用作主畫面</string>
-    <string name="integration_shortcuts">主畫面按鈕快速鍵</string>
+    <string name="integration_shortcuts">系統按鍵</string>
     <string name="integration_wifi_hint">在 Steam 中顯示網絡 · 需要位置存取權，絕不追蹤</string>
     <string name="integration_wifi_on">網絡會顯示在 Steam 中</string>
     <string name="integration_wifi_location_off">位置資訊已關閉</string>
     <string name="integration_wifi_denied">位置存取遭拒 · 請在「應用程式資訊」中允許</string>
     <string name="integration_brightness_hint">Steam 的滑桿會設定螢幕亮度</string>
     <string name="integration_home_hint">在會話中，主畫面按鈕會開啟 Steam 選單</string>
-    <string name="integration_shortcuts_hint">按住主畫面按鈕以使用 Steam Guide 組合鍵</string>
-    <string name="integration_shortcuts_needs_home">需要將 DroidDeck 設為主畫面</string>
+    <string name="integration_shortcuts_hint">Alt+Tab、Win 鍵和主頁鍵留在工作階段中</string>
     <string name="integration_shortcuts_maybe_restricted">在 Android 中呈灰色？應用程式資訊 → ⋮ → 允許受限制的設定</string>
     <string name="integration_shortcuts_restricted">已被 Android 封鎖 · 應用程式資訊 → ⋮ → 允許受限制的設定</string>
-    <string name="integration_shortcuts_service">DroidDeck 主畫面按鈕</string>
-    <string name="integration_shortcuts_service_description">當 Steam 會話處於焦點且 DroidDeck 為預設主畫面應用程式時，將主畫面按鈕的按壓傳送給 Steam Guide。不會讀取螢幕內容。</string>
+    <string name="integration_shortcuts_service">DroidDeck 系統按鍵</string>
+    <string name="integration_shortcuts_service_description">讓 Alt+Tab、Win 鍵和主頁鍵在目前的 DroidDeck 工作階段中生效，而不是交給 Android。</string>
     <string name="integration_brightness_needed">請在「初始設定 → Steam 整合」中開啟「亮度」</string>
+    <string name="setup_bridge_dxvk">DXVK</string>
+    <string name="setup_bridge_dxvk_auto">DXVK：自動</string>
+    <string name="setup_bridge_dxvk_proton">DXVK：Proton 內建</string>
+    <string name="setup_bridge_dxvk_auto_detail">此 GPU 的 Vulkan 版本對 Proton 內建的 DXVK 來說太舊時，改用較舊的 DXVK。</string>
+    <string name="setup_bridge_dxvk_proton_detail">每個 Proton 都使用內建的 DXVK，即使此 GPU 的 Vulkan 版本可能太舊。</string>
+    <string name="setup_gpu_bridge_off">Mali 橋接：關</string>
+    <string name="setup_gpu_bridge_on">Mali 橋接：開</string>
+    <string name="setup_gpu_bridge_detail">%1$s 不是 Adreno。實驗性 Vulkan 橋接已開啟：工作階段透過手機內建的驅動程式繪製。可能會有問題，請傳送工作階段記錄。</string>
+    <string name="setup_bridge_safe">安全模式</string>
+    <string name="setup_bridge_safe_on">安全模式：開</string>
+    <string name="setup_bridge_safe_off">安全模式：關</string>
+    <string name="setup_bridge_safe_on_detail">相容性最好。建議新裝置使用。</string>
+    <string name="setup_bridge_safe_off_detail">在此 GPU 通過檢查的地方較快。</string>
     <string name="apps_search_hint">搜尋應用程式</string>
     <string name="apps_no_match">沒有符合「%1$s」的應用程式。</string>
     <string name="apps_add_widget">新增小工具</string>
@@ -3607,4 +3645,7 @@
     <string name="stores_gamejolt_filter_status">狀態</string>
     <string name="stores_gamejolt_filter_partners">合作夥伴</string>
     <string name="stores_gamejolt_followed">已追蹤的遊戲</string>
+    <string name="setup_gpu_bridged">GPU 透過 Mali 橋接</string>
+    <string name="gpuinfo_bridge">透過 Mali 橋接執行，使用手機內建的 Vulkan 驅動程式</string>
+    <string name="gpuinfo_bridge_off">關閉 Mali 橋接時不受支援：Turnip 需要 Adreno（Snapdragon）GPU</string>
 </resources>

@@ -65,6 +65,65 @@ class SteamLibrariesTest {
         assertTrue(SteamLibraries.add(app, nested.path) is SteamLibraries.AddResult.Refused)
     }
 
+    private fun library(dir: File): File = dir.apply { File(this, "steamapps").mkdirs(); File(this, "steamapps/appmanifest_220.acf").writeText("x") }
+
+    @Test fun pickingTheFolderAboveALibraryAddsTheLibraryInside() {
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+        val app2 = tmp.newFolder("OtherApp")
+        library(File(app2, "Steam"))
+        val entry = (SteamLibraries.add(app, app2.path) as SteamLibraries.AddResult.Added).entry
+        assertEquals(File(app2, "Steam").path, entry.path)
+        assertEquals("OtherApp", entry.label)
+        val empty = tmp.newFolder("Empty")
+        assertEquals(empty.path, (SteamLibraries.add(app, empty.path) as SteamLibraries.AddResult.Added).entry.path)
+    }
+
+    @Test fun scanLooksTwoLevelsDownAndSkipsHiddenAndAppFolders() {
+        val volume = tmp.newFolder("volume")
+        val shallow = library(File(volume, "SteamLibrary"))
+        val deep = library(File(volume, "Some App/Steam"))
+        library(File(volume, "Android/data/x"))
+        library(File(volume, ".hidden/Steam"))
+        library(File(volume, "a/b/c"))
+        val withGames = SteamLibraries.candidates(volume, 2).filter { SteamLibraries.gameCount(it) > 0 }
+        assertEquals(setOf(shallow, deep), withGames.toSet())
+    }
+
+    private fun depotInstall(common: File, name: String, complete: Boolean = true): File = File(common, name).apply {
+        File(this, ".DepotDownloader").mkdirs()
+        File(this, ".DepotDownloader/depot.config").writeText("""{"installedManifestIDs":{"43":99}}""")
+        File(this, "$name.exe").writeBytes(ByteArray(4))
+        if (complete) File(this, ".download_complete").writeText("")
+    }
+
+    @Test fun finishedDownloadsWithoutManifestsCountAsGames() {
+        val steam = File(tmp.newFolder("card"), "Other/Steam")
+        val common = File(steam, "steamapps/common").apply { mkdirs() }
+        assertEquals(0, SteamLibraries.gameCount(steam))
+        val done = depotInstall(common, "Done")
+        depotInstall(common, "Partial", complete = false)
+        depotInstall(common, "Managed")
+        File(steam, "steamapps/appmanifest_42.acf").writeText("\"AppState\"\n{\n\t\"installdir\"\t\t\"Managed\"\n}\n")
+        val migrated = File(common, "Migrated").apply {
+            File(this, ".DepotDownloader/completed").mkdirs()
+            File(this, ".DepotDownloader/completed/43_99.manifest").writeBytes(ByteArray(4))
+            File(this, ".download_complete").writeText("")
+        }
+        assertEquals(listOf(done, migrated), SteamLibraries.depotInstalls(common))
+        assertEquals(3, SteamLibraries.gameCount(steam))
+        assertEquals(steam, SteamLibraries.innerLibrary(steam.parentFile))
+    }
+
+    @Test fun addedLibrariesImportFinishedDownloadsWithoutManifests() {
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+        val steam = tmp.newFolder("Steam")
+        val game = depotInstall(File(steam, "steamapps/common"), "Game")
+        val lib = added(steam.path)
+        val scanned = AddedGames.scan(app).single()
+        assertEquals(game, scanned.folder)
+        assertEquals("${lib.guest}/steamapps/common/Game", AddedGames.guestPath(app, scanned.folder))
+    }
+
     @Test fun unreadableOrInvalidEntriesAreDropped() {
         assertTrue(SteamLibraries.parse("{oops").isEmpty())
         assertEquals(listOf("2"), SteamLibraries.parse("""[{"id":"../x","path":"/a"},{"id":"2","path":"/b","label":""}]""").map { it.id })

@@ -24,6 +24,9 @@ SNIPER_APPID = "1628350"
 SLR4_APPID = "4183110"
 FEX_DEPENDENCIES = (FEX_APPID, SNIPER_APPID, SLR4_APPID)
 REQUIRED_TOOLS = (PROTON_ARM64_APPID,) + FEX_DEPENDENCIES
+# Linux builds that bundle an arm64 binary their launcher starts; Steamworks offers no arm64
+# launch-option architecture, so appinfo cannot say so (#1774).
+FEX_DEFAULT_APPS = frozenset({"4385780"})
 FULLY_INSTALLED = 4
 UPDATE_REQUIRED = 2
 REQUEST_HANDOFF_SECONDS = 30
@@ -777,20 +780,32 @@ def launch_options(config):
     return found
 
 
-def appinfo_entries(path):
+def appinfo_entries(path, wanted=None):
+    """Read metadata for all apps, or only the requested app-id strings."""
     import struct
+    if wanted is not None:
+        wanted = set(wanted)
+        if not wanted:
+            return {}
     try:
         stamp = os.stat(path).st_mtime_ns
     except OSError:
         return {}
     cached = APPINFO_CACHE.get(path)
     if cached and cached[0] == stamp:
-        return cached[1]
-    try:
-        with open(path, "rb") as f:
-            data = f.read()
-    except OSError:
-        return {}
+        covered = cached[2]
+        if covered is None or (wanted is not None and wanted <= covered):
+            return cached[1] if wanted is None else {app: cached[1][app] for app in wanted if app in cached[1]}
+        data = cached[3]
+        needed = None if wanted is None else wanted - covered
+    else:
+        cached = None
+        needed = wanted
+        try:
+            with open(path, "rb") as f:
+                data = f.read()
+        except OSError:
+            return {}
     if len(data) < 8:
         return {}
     magic = struct.unpack_from("<I", data, 0)[0]
@@ -852,6 +867,8 @@ def appinfo_entries(path):
             break
         start = offset + 8
         offset = start + size
+        if needed is not None and str(app) not in needed:
+            continue
         try:
             info = section(start + header)[0].get("appinfo", {})
         except (ValueError, IndexError, struct.error):
@@ -876,8 +893,14 @@ def appinfo_entries(path):
             entry["app_mappings"] = {str(m.get("appid", key)): str(m.get("tool", "")) for key, m in mappings.items()
                                      if isinstance(m, dict)} if isinstance(mappings, dict) else {}
         found[str(app)] = entry
-    APPINFO_CACHE[path] = (stamp, found)
-    return found
+    covered = wanted
+    if cached is not None and wanted is not None:
+        cached[1].update(found)
+        found = cached[1]
+        covered = cached[2] | wanted
+    # None coverage is complete; partial entries keep one immutable file snapshot.
+    APPINFO_CACHE[path] = (stamp, found, covered, data if covered is not None else None)
+    return found if wanted is None else {app: found[app] for app in wanted if app in found}
 
 
 def appinfo_platforms(path, wanted):
@@ -910,7 +933,7 @@ def native_targets(steam_root, apps):
         if "arm64" in osarch or "aarch64" in osarch:
             targets[app] = None
             continue
-        if "windows" in oslist:
+        if "windows" in oslist and app not in FEX_DEFAULT_APPS:
             targets[app] = NATIVE_CHOICE
             continue
         targets[app] = FEX_TOOL
@@ -1061,7 +1084,7 @@ def plan_mapping(current, installed, runnable, default, auto, native=None, picks
             continue
         mine = auto.get(app)
         target = native.get(app, default)
-        if not name and app in native_choices:
+        if not name and (app in native_choices or (app in current and app in FEX_DEFAULT_APPS)):
             target = NATIVE_CHOICE
         stale = unrunnable(name, runnable)
         if name and not stale and (mine is None or name != mine):
@@ -1356,6 +1379,20 @@ def read_config_mapping(config_path):
     return read_mapping(tokens, mapping + steam + 1) if mapping is not None else {}
 
 
+def mapping_entry(app, tool):
+    return ['"%s"' % app, "{", '"name"', '"%s"' % tool, '"config"', '""',
+            '"priority"', '"75"' if app == "0" else '"250"', "}"]
+
+
+def set_mapping_tool(tokens, block, tool):
+    end = block_end(tokens, block)
+    for i in range(block + 1, end):
+        if tokens[i] == '"name"':
+            tokens[i + 1] = '"%s"' % tool
+            return
+    tokens[block + 1:block + 1] = ['"name"', '"%s"' % tool]
+
+
 def set_mapping(tokens, mapping, app, tool):
     block = find_block(tokens[mapping + 1:], [app])
     if tool is None:
@@ -1364,16 +1401,40 @@ def set_mapping(tokens, mapping, app, tool):
             del tokens[block - 1:block_end(tokens, block) + 1]
         return
     if block is None:
-        tokens[mapping + 1:mapping + 1] = [
-            '"%s"' % app, "{", '"name"', '"%s"' % tool, '"config"', '""', '"priority"', '"75"' if app == "0" else '"250"', "}"]
+        tokens[mapping + 1:mapping + 1] = mapping_entry(app, tool)
         return
-    block += mapping + 1
-    end = block_end(tokens, block)
-    for i in range(block + 1, end):
-        if tokens[i] == '"name"':
-            tokens[i + 1] = '"%s"' % tool
-            return
-    tokens[block + 1:block + 1] = ['"name"', '"%s"' % tool]
+    set_mapping_tool(tokens, block + mapping + 1, tool)
+
+
+def set_mappings(tokens, mapping, changes):
+    """Apply a batch with one traversal of the affected mapping entries."""
+    pending = {('"%s"' % app).lower(): (app, tool) for app, tool in changes.items()}
+    # Non-string or aliased keys retain the single writer's sequential semantics.
+    if len(changes) < 2 or len(pending) != len(changes) or any(not isinstance(app, str) for app in changes):
+        for app, tool in changes.items():
+            set_mapping(tokens, mapping, app, tool)
+        return
+    updated = []
+    i = mapping + 1
+    while pending and i < len(tokens) and tokens[i] != "}":
+        if i + 1 < len(tokens) and tokens[i + 1] == "{":
+            end = block_end(tokens, i + 1)
+            change = pending.pop(tokens[i].lower(), None)
+            if change is None:
+                updated.extend(tokens[i:end + 1])
+            elif change[1] is not None:
+                entry = tokens[i:end + 1]
+                set_mapping_tool(entry, 1, change[1])
+                updated.extend(entry)
+            i = end + 1
+        else:
+            updated.append(tokens[i])
+            i += 1
+    added = []
+    for app, tool in reversed(list(pending.values())):
+        if tool is not None:
+            added.extend(mapping_entry(app, tool))
+    tokens[mapping + 1:i] = added + updated
 
 
 def steam_running():
@@ -1446,10 +1507,9 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
             if settle and newest:
                 state["own_proton"] = True
         if newest:
-            for app, name in list(current.items()):
-                if app != "0" and name in gone:
-                    set_mapping(tokens, mapping, app, newest)
-                    current[app] = newest
+            replacements = {app: newest for app, name in current.items() if app != "0" and name in gone}
+            set_mappings(tokens, mapping, replacements)
+            current.update(replacements)
             if isinstance(state.get("auto"), dict):
                 state["auto"] = {app: newest if name in gone else name for app, name in state["auto"].items()}
         steam_root = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
@@ -1465,8 +1525,7 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
         changes, auto = plan_mapping(
             current, apps, names, default, followers(state, current), native, picks,
             overrides, managed, native_choices)
-        for app, tool in changes.items():
-            set_mapping(tokens, mapping, app, tool)
+        set_mappings(tokens, mapping, changes)
         text = serialize(tokens)
         if text != serialize(tokenize(original)):
             write_changed(config_path, text)
@@ -1558,16 +1617,16 @@ def x64_repoint(steam_root, tool, live=False):
     keep = local_tools(steam_root)
     moved = []
     current = read_mapping(tokens, mapping)
-    if "0" not in current:
-        set_mapping(tokens, mapping, "0", tool)
+    changes = {} if "0" in current else {"0": tool}
     for app, name in current.items():
         named = name.lower()
         legacy = named == "droiddeck-proton-arm64"
         if (named.startswith("proton") or legacy) and named != tool.lower() \
                 and (legacy or named not in keep):
-            set_mapping(tokens, mapping, app, tool)
+            changes[app] = tool
             if app != "0":
                 moved.append(app)
+    set_mappings(tokens, mapping, changes)
     text = serialize(tokens)
     if text != serialize(tokenize(original)):
         write_changed(config, text)

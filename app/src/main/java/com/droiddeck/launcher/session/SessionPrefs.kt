@@ -348,6 +348,32 @@ object SessionPrefs {
         prefs(context).edit().putInt("hudOpacity", percent.coerceIn(HUD_OPACITY_RANGE)).apply()
     }
 
+    const val PC_KEYBOARD_SIZE_DEFAULT = 47
+    val PC_KEYBOARD_SIZE_RANGE = 25..70
+    const val PC_KEYBOARD_OPACITY_DEFAULT = 100
+    val PC_KEYBOARD_OPACITY_RANGE = 30..100
+
+    fun pcKeyboardSize(context: Context): Int =
+        prefs(context).getInt("pcKeyboardSize", PC_KEYBOARD_SIZE_DEFAULT).takeIf { it in PC_KEYBOARD_SIZE_RANGE } ?: PC_KEYBOARD_SIZE_DEFAULT
+
+    fun setPcKeyboardSize(context: Context, percent: Int) {
+        prefs(context).edit().putInt("pcKeyboardSize", percent.coerceIn(PC_KEYBOARD_SIZE_RANGE)).apply()
+    }
+
+    fun pcKeyboardOpacity(context: Context): Int =
+        prefs(context).getInt("pcKeyboardOpacity", PC_KEYBOARD_OPACITY_DEFAULT).takeIf { it in PC_KEYBOARD_OPACITY_RANGE } ?: PC_KEYBOARD_OPACITY_DEFAULT
+
+    fun setPcKeyboardOpacity(context: Context, percent: Int) {
+        prefs(context).edit().putInt("pcKeyboardOpacity", percent.coerceIn(PC_KEYBOARD_OPACITY_RANGE)).apply()
+    }
+
+    fun pcKeyboardHiddenKeys(context: Context): Set<String> =
+        idList(prefs(context).getString("pcKeyboardHiddenKeys", null)).toSet()
+
+    fun setPcKeyboardHiddenKeys(context: Context, hidden: Set<String>) {
+        prefs(context).edit().putString("pcKeyboardHiddenKeys", hidden.joinToString(",")).apply()
+    }
+
     fun droidDeckHudConfig(context: Context): String? = prefs(context).getString("__KEEP_droidDeckHud__", null)
 
     fun setDroidDeckHudConfig(context: Context, config: String) {
@@ -746,6 +772,29 @@ object SessionPrefs {
 
     fun zinkLazy(context: Context): Boolean = prefs(context).getBoolean("zinkLazy", true)
 
+    @JvmStatic
+    fun vkBridge(context: Context): Boolean = prefs(context).getBoolean("vkBridge", com.droiddeck.launcher.core.DeviceSupport.mali())
+
+    fun setVkBridge(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("vkBridge", on).apply()
+    }
+
+    @JvmStatic
+    fun bridgeProtonDxvk(context: Context): Boolean = prefs(context).getBoolean("bridgeProtonDxvk", false)
+
+    fun setBridgeProtonDxvk(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("bridgeProtonDxvk", on).apply()
+    }
+
+    fun vkBridgeSafe(context: Context): Boolean = prefs(context).getBoolean("vkBridgeSafe", true)
+
+    fun setVkBridgeSafe(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("vkBridgeSafe", on).apply()
+    }
+
+    @JvmStatic
+    fun vkBridgeMode(context: Context): String = if (vkBridgeSafe(context)) "safe" else "performance"
+
     fun setZinkLazy(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("zinkLazy", on).apply()
     }
@@ -775,7 +824,7 @@ object SessionPrefs {
             key = "logs",
             oldValue = logsEnabled(context),
             newValue = on,
-            newEffective = on && gameDebugLogsEnabled(context) && SessionPaths.currentSessionLogsRetained(context),
+            newEffective = gameDebugLogsEffective(context, on, gameDebugLogsEnabled(context)),
         )
     }
 
@@ -788,7 +837,7 @@ object SessionPrefs {
             key = "gameDebugLogsEnabled",
             oldValue = gameDebugLogsEnabled(context),
             newValue = on,
-            newEffective = logsEnabled(context) && on && SessionPaths.currentSessionLogsRetained(context),
+            newEffective = gameDebugLogsEffective(context, logsEnabled(context), on),
         )
     }
 
@@ -801,8 +850,7 @@ object SessionPrefs {
     ): Boolean {
         if (oldValue == newValue) return true
         val saved = prefs(context)
-        val oldEffective = logsEnabled(context) && gameDebugLogsEnabled(context) &&
-            SessionPaths.currentSessionLogsRetained(context)
+        val oldEffective = gameDebugLogsEffective(context)
         fun publish(value: Boolean) = GameEnvironmentStore.publish(context, gameDebugLogsOverride = value)
         if (oldEffective == newEffective) {
             if (saved.edit().putBoolean(key, newValue).commit()) return true
@@ -838,8 +886,18 @@ object SessionPrefs {
         }
     }
 
+    internal fun gameDebugLogsEffective(
+        context: Context,
+        logs: Boolean = logsEnabled(context),
+        gameLogs: Boolean = gameDebugLogsEnabled(context),
+    ): Boolean = EnhancedDiagnostics.isCurrentSessionActive(context) ||
+        (logs && gameLogs && SessionPaths.currentSessionLogsRetained(context))
+
     fun battleNetNoSteamSet(context: Context): Boolean = prefs(context).getBoolean("battleNetNoSteamSet", false)
     fun setBattleNetNoSteamSet(context: Context) { prefs(context).edit().putBoolean("battleNetNoSteamSet", true).apply() }
+
+    fun battleNetFolder(context: Context, code: String): String? = prefs(context).getString("battleNetFolder:$code", null)
+    fun setBattleNetFolder(context: Context, code: String, path: String) { prefs(context).edit().putString("battleNetFolder:$code", path).apply() }
 
     fun clearCachedApps(context: Context): Boolean = prefs(context).getBoolean("clearCachedApps", false)
     fun setClearCachedApps(context: Context, on: Boolean) { prefs(context).edit().putBoolean("clearCachedApps", on).apply() }

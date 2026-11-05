@@ -668,6 +668,8 @@
     <string name="hud_group_metrics">Chỉ số</string>
     <string name="hud_metric_graph">Biểu đồ thời gian khung hình</string>
     <string name="hud_metric_decimal">Tốc độ khung hình có số thập phân</string>
+    <string name="hud_metric_low1">1% thấp nhất</string>
+    <string name="hud_metric_low01">0.1% thấp nhất</string>
     <string name="hud_metric_low001">0.01% thấp nhất</string>
     <string name="hud_metric_engine">Engine đồ họa</string>
     <string name="hud_metric_gpu_model">Tên GPU</string>
@@ -745,6 +747,10 @@
     <string name="drawer_low_latency_touch">Cảm ứng độ trễ thấp</string>
     <string name="drawer_low_latency_touch_hint">Cảm ứng bỏ qua việc gộp khung hình, nên điều khiển cảm ứng của Steam chạy ở 1000 Hz. Tốn thêm một chút CPU.</string>
     <string name="drawer_evdev_mouse">Kênh chuột thô</string>
+    <string name="drawer_relative_mouse">Chuột tương đối</string>
+    <string name="drawer_relative_mouse_auto">Tự động</string>
+    <string name="drawer_relative_mouse_on">Bật</string>
+    <string name="drawer_relative_mouse_off">Tắt</string>
     <string name="drawer_direct_cursor">Con trỏ</string>
     <string name="drawer_pc_keyboard">Bàn phím PC</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -866,6 +872,7 @@
     <string name="setup_home">Dùng làm màn hình chính</string>
     <string name="setup_home_on">DroidDeck có thể là ứng dụng Màn hình chính</string>
     <string name="setup_home_off">DroidDeck không bao giờ được đề xuất làm ứng dụng Màn hình chính</string>
+    <string name="setup_home_game_space_first">Trong Thêm trò chơi, đặt DroidDeck thành Bao gồm</string>
     <string name="setup_orientation">Hướng màn hình</string>
     <string name="setup_launcher_orientation">Hướng màn hình launcher</string>
     <string name="setup_launcher_orientation_auto">Theo hướng xoay thiết bị</string>
@@ -1095,6 +1102,7 @@
     <string name="ctrl_stick_click_hint">Chạm hai lần và giữ một cần để dùng L3 hoặc R3</string>
     <string name="ctrl_adaptive">Cần thích ứng</string>
     <string name="ctrl_rumble">Rung khi chơi game</string>
+    <string name="ctrl_dead_zone">Vùng chết của cần điều khiển</string>
     <string name="ctrl_steam_button">Nút Steam</string>
     <string name="ctrl_qam_button">Nút QAM</string>
     <string name="ctrl_keyboard_button">Nút bàn phím</string>
@@ -1172,6 +1180,13 @@
     <string name="games_export_gamehub">Xuất dưới dạng zip GameHub…</string>
     <string name="games_export_winlator">Xuất dưới dạng zip Winlator…</string>
     <string name="games_open_save_folder">Mở thư mục lưu</string>
+    <string name="games_import_addons">Nhập addon từ zip…</string>
+    <string name="games_open_addons_folder">Mở thư mục addon</string>
+    <string name="games_delete_addon_title">Xóa %1$s?</string>
+    <string name="games_delete_addon_body">Thao tác này xóa thư mục của addon. Cài đặt của addon vẫn được giữ lại.</string>
+    <plurals name="games_addons_count">
+        <item quantity="other">%1$d addon</item>
+    </plurals>
     <string name="games_never_played">Chưa chơi bao giờ</string>
     <string name="games_runtime_busy_percent">Runtime đang bận · %1$d%%</string>
     <string name="games_runtime_busy">Runtime đang bận</string>
@@ -1347,6 +1362,16 @@
     </plurals>
     <plurals name="main_saves_imported_backup">
         <item quantity="other">Đã nhập %1$d tệp từ %2$s vào %3$s. Tệp lưu cũ đã được sao lưu vào Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Hãy đóng phiên trước, để game không dùng addon trong lúc nhập</string>
+    <string name="main_addons_importing">Đang nhập addon vào %1$s</string>
+    <string name="main_addons_pick_zip">Chọn một tệp zip addon cho %1$s</string>
+    <string name="main_addons_too_large">%1$s quá lớn để nhập</string>
+    <string name="main_addons_deleting">Đang xóa %1$s</string>
+    <string name="main_addons_deleted">Đã xóa %1$s</string>
+    <string name="main_addons_none">Không tìm thấy addon nào trong %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="other">Đã nhập %1$d addon vào %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Chọn một tệp zip lưu cho %1$s</string>
     <string name="main_saves_exporting">Đang xuất %1$s</string>
@@ -3440,6 +3465,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Cho game có bản lưu trong tài khoản Steam của bạn</string>
     <string name="game_resource_search">Tìm kiếm trên web</string>
+    <string name="game_tab_addons">Addon</string>
     <string name="game_tab_install">Cài đặt</string>
     <string name="game_install_location">Vị trí</string>
     <string name="game_install_folder">Thư mục</string>
@@ -3486,20 +3512,32 @@
     <string name="integration_wifi">Tên Wi-Fi</string>
     <string name="integration_brightness">Độ sáng</string>
     <string name="integration_home">DroidDeck làm màn hình chính</string>
-    <string name="integration_shortcuts">Phím tắt nút Home</string>
+    <string name="integration_shortcuts">Phím hệ thống</string>
     <string name="integration_wifi_hint">Hiện mạng trong Steam · cần quyền Vị trí, không bao giờ theo dõi</string>
     <string name="integration_wifi_on">Mạng hiện trong Steam</string>
     <string name="integration_wifi_location_off">Vị trí đang tắt</string>
     <string name="integration_wifi_denied">Vị trí bị từ chối · hãy cho phép trong Thông tin ứng dụng</string>
     <string name="integration_brightness_hint">Thanh trượt của Steam đặt độ sáng màn hình</string>
     <string name="integration_home_hint">Home mở menu Steam trong phiên</string>
-    <string name="integration_shortcuts_hint">Giữ Home để dùng tổ hợp Steam Guide</string>
-    <string name="integration_shortcuts_needs_home">Cần DroidDeck làm màn hình chính</string>
+    <string name="integration_shortcuts_hint">Alt+Tab, phím Win và nút Trang chủ giữ trong phiên</string>
     <string name="integration_shortcuts_maybe_restricted">Bị làm mờ trong Android? Thông tin ứng dụng → ⋮ → Cho phép chế độ cài đặt bị hạn chế</string>
     <string name="integration_shortcuts_restricted">Bị Android chặn · Thông tin ứng dụng → ⋮ → Cho phép chế độ cài đặt bị hạn chế</string>
-    <string name="integration_shortcuts_service">Nút Home DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Chuyển các lần nhấn nút Home đến Steam Guide khi phiên Steam đang được chọn và DroidDeck là ứng dụng màn hình chính mặc định. Không đọc nội dung màn hình.</string>
+    <string name="integration_shortcuts_service">Phím hệ thống DroidDeck</string>
+    <string name="integration_shortcuts_service_description">Giữ Alt+Tab, phím Win và nút Trang chủ trong phiên DroidDeck đang dùng thay vì Android.</string>
     <string name="integration_brightness_needed">Bật Độ sáng trong Thiết lập → Tích hợp Steam</string>
+    <string name="setup_gpu_bridge_off">Cầu Mali: tắt</string>
+    <string name="setup_gpu_bridge_on">Cầu Mali: bật</string>
+    <string name="setup_gpu_bridge_detail">%1$s không phải Adreno. Cầu Vulkan thử nghiệm đang bật: phiên vẽ qua trình điều khiển của chính điện thoại. Có thể gặp lỗi; hãy gửi nhật ký phiên.</string>
+    <string name="setup_bridge_safe">Chế độ an toàn</string>
+    <string name="setup_bridge_safe_on">Chế độ an toàn: bật</string>
+    <string name="setup_bridge_safe_off">Chế độ an toàn: tắt</string>
+    <string name="setup_bridge_safe_on_detail">Tương thích nhất. Nên dùng cho thiết bị mới.</string>
+    <string name="setup_bridge_safe_off_detail">Nhanh hơn ở những chỗ GPU này đã vượt qua kiểm tra.</string>
+    <string name="setup_bridge_dxvk">DXVK</string>
+    <string name="setup_bridge_dxvk_auto">DXVK: tự động</string>
+    <string name="setup_bridge_dxvk_proton">DXVK: của Proton</string>
+    <string name="setup_bridge_dxvk_auto_detail">Dùng DXVK cũ hơn khi Vulkan của GPU này quá cũ cho DXVK của Proton.</string>
+    <string name="setup_bridge_dxvk_proton_detail">Mỗi Proton giữ DXVK riêng, kể cả khi Vulkan của GPU này có thể quá cũ cho nó.</string>
     <string name="apps_search_hint">Tìm ứng dụng</string>
     <string name="apps_no_match">Không có ứng dụng nào khớp với “%1$s”.</string>
     <string name="apps_add_widget">Thêm tiện ích</string>

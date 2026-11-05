@@ -96,7 +96,7 @@ private const val ELITE_MS = 1_000L
 private const val ELITE_SEARCH_MS = 10_000L
 private const val OUTPUT_SCAN_MS = 3_000L
 private const val PERF_N = 60
-private const val FRAME_MS = 100L
+private const val FRAME_MS = 33L
 private const val MINUTE_NS = 60_000_000_000L
 private const val TEMP_PLAIN = 0xFFF2F5F9.toInt()
 

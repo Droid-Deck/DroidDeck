@@ -9,6 +9,7 @@ import android.net.ConnectivityManager
 import android.net.LinkProperties
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.RouteInfo
 import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.os.Build
@@ -23,6 +24,7 @@ import java.io.File
 import java.io.IOException
 import java.net.Inet4Address
 import java.net.Inet6Address
+import java.net.InetAddress
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -156,7 +158,7 @@ class LinuxNetworkLinkComponent(
             try {
                 file.parentFile?.mkdirs()
                 val staged = File(file.path + ".staged")
-                staged.writeText(describe(properties))
+                staged.writeText(describe(properties, capabilities))
                 if (!staged.renameTo(file)) throw IOException("Could not replace $file")
             } catch (e: IOException) {
                 Log.w(TAG, "Could not publish the network link", e)
@@ -210,11 +212,7 @@ class LinuxNetworkLinkComponent(
                 }
             })
             put("gateways", JSONArray().apply {
-                properties?.routes.orEmpty().filter { it.isDefaultRoute }.forEach {
-                    it.gateway?.takeUnless { address -> address.isAnyLocalAddress }?.let { address ->
-                        put(address.hostAddress?.substringBefore('%'))
-                    }
-                }
+                gateways(properties, capabilities).forEach { put(it.hostAddress?.substringBefore('%')) }
             })
             put("dns", JSONArray().apply {
                 properties?.dnsServers.orEmpty().filter { !it.isLinkLocalAddress }.forEach {
@@ -251,12 +249,36 @@ class LinuxNetworkLinkComponent(
         }
     }
 
+    private fun localDnsServers(): Pair<List<String>, List<String>> {
+        val active = connectivity.activeNetwork?.let { connectivity.getNetworkCapabilities(it) }
+        if (active?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true) return Pair(emptyList(), emptyList())
+        val servers = LinkedHashSet<String>()
+        val gateways = LinkedHashSet<String>()
+        for (network in connectivity.allNetworks) {
+            val capabilities = connectivity.getNetworkCapabilities(network) ?: continue
+            if (!capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) continue
+            if (!capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
+                !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) continue
+            val link = connectivity.getLinkProperties(network) ?: continue
+            for (address in link.dnsServers) {
+                if (address.isLinkLocalAddress || address.isLoopbackAddress || address.isAnyLocalAddress) continue
+                address.hostAddress?.substringBefore('%')?.let { servers.add(it) }
+            }
+            link.routes.firstOrNull {
+                it.isDefaultRoute && (it.gateway as? Inet4Address)?.let { g -> !g.isLoopbackAddress && !g.isAnyLocalAddress } == true
+            }?.gateway?.hostAddress?.substringBefore('%')?.let { gateways.add(it) }
+        }
+        val order = compareBy<String>({ if (it.contains(':')) 1 else 0 })
+        return Pair(servers.sortedWith(order), gateways.sortedWith(order))
+    }
+
     private fun writeResolver(properties: LinkProperties?) {
         val own = properties?.dnsServers.orEmpty()
             .filter { !it.isLinkLocalAddress && !it.isLoopbackAddress && !it.isAnyLocalAddress }
             .sortedBy { if (it is Inet4Address) 0 else 1 }
             .mapNotNull { it.hostAddress?.substringBefore('%') }
-        val servers = (own + listOf("8.8.8.8", "1.1.1.1", "2001:4860:4860::8888")).distinct().take(6)
+        val (discovered, gateways) = localDnsServers()
+        val servers = (own + discovered + listOf("8.8.8.8", "1.1.1.1", "2001:4860:4860::8888") + gateways).distinct().take(6)
         val text = buildString {
             append("# Written by the app from the device's active network; edits are overwritten.\n")
             for (server in servers) append("nameserver $server\n")
@@ -277,7 +299,7 @@ class LinuxNetworkLinkComponent(
         }
     }
 
-    private fun describe(properties: LinkProperties?): String {
+    internal fun describe(properties: LinkProperties?, capabilities: NetworkCapabilities?): String {
         val addresses = properties?.linkAddresses.orEmpty()
             .filter { it.address is Inet4Address || it.address is Inet6Address }
         val name = properties?.interfaceName?.takeIf { addresses.isNotEmpty() } ?: OFFLINE_NAME
@@ -292,10 +314,7 @@ class LinuxNetworkLinkComponent(
             for (address in addresses) {
                 append("addr ${address.address.hostAddress?.substringBefore('%')} ${address.prefixLength}\n")
             }
-            for (family in listOf(Inet4Address::class.java, Inet6Address::class.java)) {
-                val gateway = properties?.routes.orEmpty()
-                    .firstOrNull { it.isDefaultRoute && family.isInstance(it.gateway) && !it.gateway!!.isAnyLocalAddress }
-                    ?.gateway ?: continue
+            for (gateway in gateways(properties, capabilities)) {
                 append("gw ${gateway.hostAddress?.substringBefore('%')}\n")
             }
         }
@@ -305,6 +324,27 @@ class LinuxNetworkLinkComponent(
         seededMac { Settings.Secure.getString(appContext.contentResolver, Settings.Secure.ANDROID_ID) }
 
     companion object {
+        internal fun gateways(properties: LinkProperties?, capabilities: NetworkCapabilities?): List<InetAddress> =
+            listOf(Inet4Address::class.java, Inet6Address::class.java).mapNotNull { family ->
+                properties?.routes.orEmpty()
+                    .firstOrNull { it.isDefaultRoute && family.isInstance(it.gateway) && !it.gateway!!.isAnyLocalAddress }
+                    ?.gateway
+                    ?: if (family == Inet4Address::class.java &&
+                        capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true &&
+                        capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                        properties?.interfaceName != null &&
+                        properties.routes.any {
+                            it.destination.address is Inet4Address &&
+                                (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || it.type == RouteInfo.RTN_UNICAST)
+                        }
+                    ) {
+                        properties.linkAddresses.firstOrNull {
+                            it.address is Inet4Address && !it.address.isAnyLocalAddress &&
+                                !it.address.isLoopbackAddress && !it.address.isLinkLocalAddress
+                        }?.address
+                    } else null
+            }
+
         internal fun seededMac(readId: () -> String?): String {
             val id = runCatching(readId).getOrNull() ?: "bannerlator"
             val bytes = java.security.MessageDigest.getInstance("SHA-1").digest(id.toByteArray())

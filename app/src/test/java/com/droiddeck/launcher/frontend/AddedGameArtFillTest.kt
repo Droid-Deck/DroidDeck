@@ -24,12 +24,12 @@ class AddedGameArtFillTest {
 
     private val coverBytes = byteArrayOf(9, 9, 9)
 
-    private fun game(name: String, appId: Long, cover: Boolean = true, source: String = Library.ADDED): AddedGames.Game {
+    private fun game(name: String, appId: Long, cover: Boolean = true, source: String = Library.ADDED, storeId: String? = null): AddedGames.Game {
         val dir = tmp.newFolder(name)
         File(dir, "steam_appid.txt").writeText("504230")
         if (cover) File(dir, "cover.jpg").writeBytes(coverBytes)
         val exe = File(dir, "$name.exe").apply { writeText("x") }
-        return AddedGames.Game(dir, name, exe, "/g/$name.exe", "/g", appId, appId, emptyList(), source = source)
+        return AddedGames.Game(dir, name, exe, "/g/$name.exe", "/g", appId, appId, emptyList(), source = source, storeId = storeId)
     }
 
     private class Calls {
@@ -166,6 +166,29 @@ class AddedGameArtFillTest {
         sgdbGame = { _, _, _ -> null },
         sgdb = { _, _, _, _ -> false },
     )
+
+    @Test fun nameMatchedBattleNetArtIsForgottenOnce() {
+        val game = game("World of Warcraft: Forever", 9001, source = com.droiddeck.launcher.stores.Store.BATTLENET.id, storeId = "wow_forever")
+        val cache = AddedGameArt.cacheDir(app, game).apply { mkdirs() }
+        File(cache, "logo.png").writeBytes(byteArrayOf(1))
+        File(cache, "p.jpg").writeBytes(byteArrayOf(3))
+        File(cache, "sgdb-id").writeText("5")
+        assertTrue(AddedGameArt.forgetNameMatchedBattleNetArt(app, game))
+        assertFalse(File(cache, "logo.png").isFile)
+        assertTrue(File(cache, "p.jpg").isFile)
+        assertFalse(File(cache, "sgdb-id").isFile)
+        File(cache, "logo.png").writeBytes(byteArrayOf(2))
+        assertFalse(AddedGameArt.forgetNameMatchedBattleNetArt(app, game))
+        assertTrue(File(cache, "logo.png").isFile)
+    }
+
+    @Test fun battleNetArtFoundByItsSteamIdIsKept() {
+        val game = game("Call of Duty: Modern Warfare III", 9002, source = com.droiddeck.launcher.stores.Store.BATTLENET.id, storeId = "pinta")
+        val cache = AddedGameArt.cacheDir(app, game).apply { mkdirs() }
+        File(cache, "logo.png").writeBytes(byteArrayOf(1))
+        assertFalse(AddedGameArt.forgetNameMatchedBattleNetArt(app, game))
+        assertTrue(File(cache, "logo.png").isFile)
+    }
 
     @Test fun artOfTheAppTheFilesNamedBeforeIsFetchedAgain() {
         val g = game("Peak", 0x8100000AL, cover = false)

@@ -7,7 +7,7 @@ object GuestKeys {
     fun send(event: KeyEvent, sendKey: (code: Int, down: Boolean) -> Unit): Boolean {
         val down = event.action == KeyEvent.ACTION_DOWN
         if (!down && event.action != KeyEvent.ACTION_UP) return false
-        var evdev = EvdevKeys.fromKeyCode(event.keyCode)
+        var evdev = if (isKeyboardEscape(event.keyCode, event.scanCode)) KEY_ESC else EvdevKeys.fromKeyCode(event.keyCode)
         val ch = event.unicodeChar
         val plain = if (ch > 0) EvdevKeys.unshiftedChar(ch) else 0
         if (evdev <= 0 && ch > 0) {
@@ -27,5 +27,9 @@ object GuestKeys {
         return true
     }
 
+    fun isKeyboardEscape(keyCode: Int, scanCode: Int): Boolean =
+        keyCode == KeyEvent.KEYCODE_BACK && scanCode == KEY_ESC
+
+    private const val KEY_ESC = 1
     private const val KEY_LEFTSHIFT = 42
 }

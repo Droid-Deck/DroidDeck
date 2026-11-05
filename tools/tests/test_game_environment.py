@@ -29,6 +29,70 @@ def config_text(entries):
     return '"InstallConfigStore" { "Software" { "Valve" { "Steam" { "CompatToolMapping" { %s } } } } }' % mapping
 
 
+class RenderPathDefaultsTest(unittest.TestCase):
+    DRIVER = "/drivers/DD-Turnip_v0.4.0/icd.json"
+    COMMAND = ["proton", "waitforexitandrun", "/games/Spintires/SpinTires.exe"]
+
+    def apply(self, env=None, command=None, model="Adreno722", library="libvulkan_freedreno.so"):
+        env = dict({"VK_DRIVER_FILES": self.DRIVER} if env is None else env)
+        manifest = json.dumps({"ICD": {"library_path": library}})
+        with mock.patch.object(Path, "read_text", return_value=model), \
+             mock.patch.object(Path, "is_file", return_value=False), \
+             mock.patch("builtins.open", mock.mock_open(read_data=manifest)):
+            note = MODULE["render_path_defaults"](command or self.COMMAND, env)
+        return env, note
+
+    def test_tested_render_path_keeps_other_options(self):
+        env, note = self.apply({"VK_DRIVER_FILES": self.DRIVER, "DXVK_CONFIG": "d3d9.maxFrameLatency = 2; ", "CUSTOM": "kept"})
+        self.assertEqual(env["DXVK_CONFIG"], "d3d9.maxFrameLatency = 2; dxvk.tilerMode = False")
+        self.assertEqual(env["CUSTOM"], "kept")
+        self.assertIsNotNone(note)
+        self.assertEqual(self.apply()[0]["DXVK_CONFIG"], "dxvk.tilerMode = False")
+        self.assertIsNotNone(self.apply({"VK_ICD_FILENAMES": self.DRIVER})[1])
+
+    def test_other_games_devices_and_drivers_keep_their_environment(self):
+        for changes in (
+            {"command": ["proton", "waitforexitandrun", "/games/MudRunner.exe"]},
+            {"command": ["proton", "run", self.COMMAND[2]]},
+            {"command": ["proton"]},
+            {"model": "Adreno740"},
+            {"model": "Mali-G715"},
+            {"library": "libvulkan.so"},
+            {"env": {}},
+            {"env": {"VK_DRIVER_FILES": "/drivers/new-turnip/icd.json"}},
+            {"env": {"VK_DRIVER_FILES": "", "VK_ICD_FILENAMES": self.DRIVER}},
+        ):
+            with self.subTest(changes=changes):
+                env, note = self.apply(**changes)
+                self.assertIsNone(note)
+                self.assertNotIn("DXVK_CONFIG", env)
+
+    def test_explicit_environment_and_config_files_take_precedence(self):
+        for value in ("dxvk.tilerMode = Auto", "d3d9.maxFrameLatency = 1; dxvk.tilerMode=True", "dxvk.tilerMode = False"):
+            env, note = self.apply({"VK_DRIVER_FILES": self.DRIVER, "DXVK_CONFIG": value})
+            self.assertIsNone(note)
+            self.assertEqual(env["DXVK_CONFIG"], value)
+        env, note = self.apply({"VK_DRIVER_FILES": self.DRIVER, "DXVK_CONFIG_FILE": "/games/custom.conf"})
+        self.assertIsNone(note)
+        self.assertNotIn("DXVK_CONFIG", env)
+        with mock.patch.object(Path, "is_file", return_value=True):
+            env = {"VK_DRIVER_FILES": self.DRIVER}
+            self.assertIsNone(MODULE["render_path_defaults"](self.COMMAND, env))
+            self.assertNotIn("DXVK_CONFIG", env)
+
+    def test_unreadable_or_invalid_driver_metadata_leaves_launch_unchanged(self):
+        for data in ("not-json", "{}", '{"ICD":{"library_path":null}}'):
+            with mock.patch.object(Path, "read_text", return_value="Adreno722"), \
+                 mock.patch.object(Path, "is_file", return_value=False), \
+                 mock.patch("builtins.open", mock.mock_open(read_data=data)):
+                env = {"VK_DRIVER_FILES": self.DRIVER}
+                self.assertIsNone(MODULE["render_path_defaults"](self.COMMAND, env))
+                self.assertNotIn("DXVK_CONFIG", env)
+        with mock.patch.object(Path, "read_text", side_effect=PermissionError), \
+             mock.patch.object(Path, "is_file", return_value=False):
+            self.assertIsNone(MODULE["render_path_defaults"](self.COMMAND, {"VK_DRIVER_FILES": self.DRIVER}))
+
+
 class DirtTelemetryFixTest(unittest.TestCase):
     SHOWDOWN_ON = '<x><motion enabled="true" ip="127.0.0.1" port="20777" delay="1" extradata="3" /></x>'
     SHOWDOWN_DEFAULT = '<x><motion enabled="true" ip="dbox" port="20777" delay="1" extradata="0" /></x>'
@@ -649,6 +713,15 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(evaluate(), (0, 2))
             self.assertEqual(evaluate("changed"), (0, 3))
 
+    def test_the_mali_bridge_caps_the_vkd3d_feature_level(self):
+        bridge = {"BL_VKBRIDGE": "1", "VKD3D_FEATURE_LEVEL": "12_2"}
+        self.assertIn("capped", MODULE["bridge_feature_level"](bridge))
+        self.assertEqual(bridge["VKD3D_FEATURE_LEVEL"], "12_0")
+        for env in ({"BL_VKBRIDGE": "1", "VKD3D_FEATURE_LEVEL": "11_1"}, {"VKD3D_FEATURE_LEVEL": "12_2"}, {"BL_VKBRIDGE": "1"}):
+            before = dict(env)
+            self.assertIsNone(MODULE["bridge_feature_level"](env))
+            self.assertEqual(env, before)
+
     def test_profile_precedence_and_unset(self):
         env = {"KEEP": "inherited", "REMOVE": "inherited", "CUSTOM": "launch option"}
         config = {"version": 1, "shared": {"CUSTOM": "shared"}, "games": {"42": {"REMOVE": None, "CUSTOM": "game", "EMPTY": ""}}}
@@ -1103,62 +1176,33 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(speeds([0, 1], tmp), {0: 2265600, 1: 3302400})
             self.assertIsNone(speeds([0, 2], tmp))
 
-    def test_reskate_runs_at_feature_level_12_1(self):
+    def test_titles_with_former_feature_level_workarounds_keep_detected_capabilities(self):
         with tempfile.TemporaryDirectory() as tmp:
-            reskate = Path(tmp) / "ReSkate"
-            reskate.mkdir()
-            for name in ("Skate.exe", "ReSkate.dll", "ReSkateLauncher.exe", "EAAntiCheat.GameServiceLauncher.exe"):
-                (reskate / name).touch()
-            for exe in ("ReSkateLauncher.exe", "Skate.exe"):
-                env, extra, notes = MODULE["engine_fixes"](str(reskate / exe), [])
-                self.assertEqual((env, extra), ({"VKD3D_FEATURE_LEVEL": "12_1"}, []), exe)
-                self.assertTrue(notes)
-            config = {"version": 1, "shared": {"VKD3D_FEATURE_LEVEL": "12_2"}}
-            self.assertEqual(MODULE["apply_config"]({}, config, "3354750", env)["VKD3D_FEATURE_LEVEL"], "12_1")
-            config["games"] = {"3354750": {"VKD3D_FEATURE_LEVEL": "12_2"}}
-            self.assertEqual(MODULE["apply_config"]({}, config, "3354750", env)["VKD3D_FEATURE_LEVEL"], "12_2")
-            skate = Path(tmp) / "Skate"
-            skate.mkdir()
-            for name in ("Skate.exe", "EAAntiCheat.GameServiceLauncher.exe"):
-                (skate / name).touch()
-            self.assertEqual(MODULE["engine_fixes"](str(skate / "EAAntiCheat.GameServiceLauncher.exe"), [])[:2], ({}, []))
-
-    def test_caravan_sandwitch_robocop_and_cyberpunk_run_at_feature_level_12_1(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            caravan = Path(tmp) / "Caravan SandWitch"
-            shipping = caravan / "CaravanSandWitch/Binaries/Win64"
-            shipping.mkdir(parents=True)
-            for name in ("CaravanSandWitch.exe", ".droiddeck-launch.bat"):
-                (caravan / name).touch()
-            (shipping / "CaravanSandWitch-Win64-Shipping.exe").touch()
-            cyberpunk = Path(tmp) / "Cyberpunk 2077"
-            (cyberpunk / "bin/x64").mkdir(parents=True)
-            for name in ("REDprelauncher.exe", "bin/x64/Cyberpunk2077.exe"):
-                (cyberpunk / name).touch()
-            robocop = Path(tmp) / "RoboCop Rogue City"
-            (robocop / "RoboCop/Binaries/Win64").mkdir(parents=True)
-            for name in ("RoboCop.exe", "RoboCop/Binaries/Win64/RoboCop-Win64-Shipping.exe"):
-                (robocop / name).touch()
-            games = [caravan / "CaravanSandWitch.exe", caravan / ".droiddeck-launch.bat",
-                     shipping / "CaravanSandWitch-Win64-Shipping.exe",
-                     robocop / "RoboCop.exe", robocop / "RoboCop/Binaries/Win64/RoboCop-Win64-Shipping.exe",
-                     cyberpunk / "REDprelauncher.exe", cyberpunk / "bin/x64/Cyberpunk2077.exe"]
-            for exe in games:
-                env, extra, notes = MODULE["engine_fixes"](str(exe), [])
-                self.assertEqual((env, extra), ({"VKD3D_FEATURE_LEVEL": "12_1"}, []), exe)
-                self.assertTrue(notes)
-            config = {"version": 1, "shared": {"VKD3D_FEATURE_LEVEL": "12_2"}}
-            self.assertEqual(MODULE["apply_config"]({}, config, "1582650", env)["VKD3D_FEATURE_LEVEL"], "12_1")
-            config["games"] = {"1582650": {"VKD3D_FEATURE_LEVEL": "12_2"}}
-            self.assertEqual(MODULE["apply_config"]({}, config, "1582650", env)["VKD3D_FEATURE_LEVEL"], "12_2")
-            other = Path(tmp) / "Other/Binaries/Win64"
-            other.mkdir(parents=True)
-            (other / "Other-Win64-Shipping.exe").touch()
-            self.assertEqual(MODULE["engine_fixes"](str(other / "Other-Win64-Shipping.exe"), []), ({}, [], []))
-            witcher = Path(tmp) / "The Witcher 3"
-            witcher.mkdir()
-            (witcher / "REDprelauncher.exe").touch()
-            self.assertNotIn("VKD3D_FEATURE_LEVEL", MODULE["engine_fixes"](str(witcher / "REDprelauncher.exe"), [])[0])
+            root = Path(tmp)
+            names = (
+                "StellarBlade/SB.exe", "StellarBlade/.droiddeck-launch.bat",
+                "StellarBlade/SB/Binaries/Win64/SB-Win64-Shipping.exe",
+                "Caravan/CaravanSandWitch.exe", "Caravan/.droiddeck-launch.bat",
+                "Caravan/CaravanSandWitch/Binaries/Win64/CaravanSandWitch-Win64-Shipping.exe",
+                "RoboCop/RoboCop.exe", "RoboCop/RoboCop/Binaries/Win64/RoboCop-Win64-Shipping.exe",
+                "ReSkate/Skate.exe", "ReSkate/ReSkate.dll", "ReSkate/ReSkateLauncher.exe",
+                "Cyberpunk/REDprelauncher.exe", "Cyberpunk/bin/x64/Cyberpunk2077.exe",
+            )
+            for name in names:
+                p = root / name
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.touch()
+            for name in names:
+                if name.endswith(".dll"):
+                    continue
+                env, extra, notes = MODULE["engine_fixes"](str(root / name), [])
+                self.assertNotIn("VKD3D_FEATURE_LEVEL", env, name)
+                self.assertNotIn("VKD3D_SHADER_MODEL", env, name)
+                for values in ({}, {"VKD3D_FEATURE_LEVEL": "12_2", "VKD3D_SHADER_MODEL": "6_9"}):
+                    config = {"version": 1, "shared": values}
+                    self.assertEqual(MODULE["apply_config"]({}, config, "42", env), values, name)
+                    config = {"version": 1, "shared": {}, "games": {"42": values}}
+                    self.assertEqual(MODULE["apply_config"]({}, config, "42", env), values, name)
 
     def test_unity_players_keep_tso_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1590,6 +1634,70 @@ class ProtonDefaultTest(unittest.TestCase):
                 })
             finally:
                 globals_["native_targets"] = original_native_targets
+
+    def test_a_listed_title_with_a_bundled_arm64_linux_build_defaults_to_fex(self):
+        globals_ = COMPAT["native_targets"].__globals__
+        original_platforms = globals_["appinfo_platforms"]
+        globals_["appinfo_platforms"] = lambda _path, wanted: {
+            app: ({"linux", "windows"}, "64", "game") for app in ("4385780", "42") if app in wanted
+        }
+        try:
+            native = COMPAT["native_targets"]("/nonexistent", ["4385780", "42"])
+        finally:
+            globals_["appinfo_platforms"] = original_platforms
+        self.assertEqual(native["4385780"], COMPAT["FEX_TOOL"])
+        self.assertIs(native["42"], COMPAT["NATIVE_CHOICE"])
+
+        changes, auto = COMPAT["plan_mapping"](
+            {"0": self.TOOL}, ["4385780"], self.NAMES, self.TOOL, {}, native)
+        self.assertEqual(changes, {"4385780": COMPAT["FEX_TOOL"]})
+        self.assertEqual(auto, {"4385780": COMPAT["FEX_TOOL"]})
+
+        for choice in (self.TOOL, "GE-Proton11-7"):
+            changes, auto = COMPAT["plan_mapping"](
+                {"0": self.TOOL, "4385780": choice}, ["4385780"], self.NAMES, self.TOOL, {}, native)
+            self.assertEqual(changes, {})
+            self.assertEqual(auto, {})
+
+    def test_a_cleared_fex_default_for_a_listed_title_is_kept_as_a_native_choice(self):
+        app = "4385780"
+        fex = COMPAT["FEX_TOOL"]
+        with tempfile.TemporaryDirectory() as tmp:
+            steam = Path(tmp) / "Steam"
+            config = steam / "config/config.vdf"
+            config.parent.mkdir(parents=True)
+            config.write_text(config_text([("0", self.TOOL)]))
+            (Path(tmp) / "state.json").write_text(json.dumps({"default": self.TOOL, "auto": {}}))
+
+            globals_ = COMPAT["native_targets"].__globals__
+            original_platforms = globals_["appinfo_platforms"]
+            globals_["appinfo_platforms"] = lambda _path, wanted: {
+                app: ({"linux", "windows"}, "64", "game")
+            } if app in wanted else {}
+            try:
+                def run():
+                    COMPAT["register_default"](str(config), [app], catalog=self.CATALOG, directory=tmp)
+                    return json.loads((Path(tmp) / "state.json").read_text())
+
+                state = run()
+                self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, app: fex})
+                self.assertEqual(state["auto"], {app: fex})
+
+                config.write_text(config_text([("0", self.TOOL), (app, "")]))
+                state = run()
+                cleared = config.read_bytes()
+                self.assertEqual(mapping_of(cleared.decode()), {"0": self.TOOL, app: ""})
+                self.assertEqual(state["auto"], {})
+                self.assertEqual(state["native_choices"], [app])
+                run()
+                self.assertEqual(config.read_bytes(), cleared)
+
+                config.write_text(config_text([("0", self.TOOL), (app, fex)]))
+                state = run()
+                self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, app: fex})
+                self.assertEqual(state["native_choices"], [])
+            finally:
+                globals_["appinfo_platforms"] = original_platforms
 
     def test_factorio_preserves_an_observed_native_choice_despite_ambiguous_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -2032,6 +2140,51 @@ class DirectAudioPrefixTest(unittest.TestCase):
         self.assertIsNone(self.link("system32"))
 
 
+class ProjectZomboidJvmTest(unittest.TestCase):
+    ARGS = ["-Djava.awt.headless=true", "-Xmx3072m", "-XX:+UseZGC", "-XX:-CreateCoredumpOnCrash"]
+
+    def launch(self, tmp, args=None, stem="ProjectZomboid64"):
+        settings = Path(tmp) / (stem + ".json")
+        settings.write_text(json.dumps({"mainClass": "zombie/gameStates/MainScreenState", "vmArgs": args or self.ARGS}))
+        command = ["proton", "waitforexitandrun", str(Path(tmp) / (stem + ".exe"))]
+        return settings, command
+
+    def test_zgc_becomes_g1_and_the_c1_jit_flag_is_added_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            settings, command = self.launch(tmp)
+            MODULE["project_zomboid_jvm"](command)
+            data = json.loads(settings.read_text())
+            self.assertEqual(data["vmArgs"], ["-Djava.awt.headless=true", "-Xmx3072m", "-XX:-CreateCoredumpOnCrash",
+                                              "-XX:+UseG1GC", "-XX:TieredStopAtLevel=1"])
+            self.assertEqual(data["mainClass"], "zombie/gameStates/MainScreenState")
+            before = settings.read_text()
+            MODULE["project_zomboid_jvm"](command)
+            self.assertEqual(settings.read_text(), before)
+
+    def test_other_collectors_and_windows_specific_lists_are_rewritten(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            settings, command = self.launch(tmp)
+            settings.write_text(json.dumps({"vmArgs": ["-XX:+UseParallelGC", "-Xmx1g"],
+                                            "windows": {"10.0.17134": {"vmArgs": ["-XX:+UseZGC", "-XX:+UseG1GC"]}}}))
+            MODULE["project_zomboid_jvm"](command)
+            data = json.loads(settings.read_text())
+            flags = ["-XX:+UseG1GC", "-XX:TieredStopAtLevel=1"]
+            self.assertEqual(data["vmArgs"], ["-Xmx1g"] + flags)
+            self.assertEqual(data["windows"]["10.0.17134"]["vmArgs"], flags)
+
+    def test_other_games_and_unreadable_files_are_left_alone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            settings, command = self.launch(tmp, stem="Other")
+            before = settings.read_text()
+            MODULE["project_zomboid_jvm"](command)
+            self.assertEqual(settings.read_text(), before)
+            settings.write_text("{")
+            MODULE["project_zomboid_jvm"](command[:2] + [str(Path(tmp) / "Other.exe")])
+            (Path(tmp) / "ProjectZomboid64.json").write_text("{")
+            MODULE["project_zomboid_jvm"](command[:2] + [str(Path(tmp) / "ProjectZomboid64.exe")])
+            self.assertEqual((Path(tmp) / "ProjectZomboid64.json").read_text(), "{")
+
+
 class UbisoftOverlayTest(unittest.TestCase):
     SETTINGS = (
         "language:\n  code: en-US\n"
@@ -2076,6 +2229,66 @@ class UbisoftOverlayTest(unittest.TestCase):
             self.assertEqual(settings.read_text(), self.SETTINGS.replace("enabled: true", "enabled: false"))
             self.assertEqual(settings.stat().st_mode & 0o777, 0o644)
             self.assertEqual(sorted(p.name for p in settings.parent.iterdir()), ["settings.yaml"])
+
+
+class UbisoftCompositionTest(unittest.TestCase):
+    def test_writes_through_wine_without_replacing_a_live_servers_registry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prefix = Path(tmp) / "pfx"
+            (prefix / MODULE["UBISOFT_LAUNCHER"]).mkdir(parents=True)
+            registry = prefix / "user.reg"
+            registry.write_text("registry last saved by Wine\n")
+            env = {"STEAM_COMPAT_DATA_PATH": tmp, "WINESERVER": "/selected/wineserver"}
+            keys = []
+
+            def write_registry(argv, **kwargs):
+                self.assertEqual(argv[:4], ["/selected/proton", "runinprefix", "reg.exe", "add"])
+                self.assertEqual(argv[5:], ["/v", "dcomp", "/t", "REG_SZ", "/d", "", "/f"])
+                self.assertIs(kwargs["env"], env)
+                self.assertTrue(kwargs["check"])
+                keys.append(argv[4])
+                registry.write_text("newer state saved by the active Wine server\n")
+                return subprocess.CompletedProcess(argv, 0)
+
+            with mock.patch("subprocess.run", side_effect=write_registry) as run:
+                MODULE["ubisoft_composition_off"]("/selected/proton", env)
+            self.assertEqual(run.call_count, 2)
+            self.assertEqual(registry.read_text(), "newer state saved by the active Wine server\n")
+            self.assertEqual(keys, [r"HKCU\Software\Wine\AppDefaults\%s\DllOverrides" % program
+                                    for program in ("upc.exe", "UplayWebCore.exe")])
+            self.assertEqual(list(prefix.glob(".ubisoft-*.reg")), [])
+
+    def test_other_prefixes_and_uninitialized_registries_are_untouched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prefix = Path(tmp) / "pfx"
+            prefix.mkdir()
+            registry = prefix / "user.reg"
+            registry.write_text("WINE REGISTRY Version 2\n")
+            env = {"STEAM_COMPAT_DATA_PATH": tmp}
+            with mock.patch("subprocess.run") as run:
+                MODULE["ubisoft_composition_off"]("proton", env)
+                self.assertEqual(registry.read_text(), "WINE REGISTRY Version 2\n")
+                registry.unlink()
+                (prefix / MODULE["UBISOFT_LAUNCHER"]).mkdir(parents=True)
+                MODULE["ubisoft_composition_off"]("proton", env)
+                self.assertFalse(registry.exists())
+                run.assert_not_called()
+
+    def test_failed_registry_write_keeps_the_game_launch_available(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prefix = Path(tmp) / "pfx"
+            (prefix / MODULE["UBISOFT_LAUNCHER"]).mkdir(parents=True)
+            (prefix / "user.reg").write_text("WINE REGISTRY Version 2\n")
+            for failed_write in (0, 1):
+                stderr = io.StringIO()
+                results = [subprocess.CompletedProcess([], 0)] * failed_write
+                results.append(subprocess.CalledProcessError(1, "proton"))
+                with mock.patch("subprocess.run", side_effect=results) as run, mock.patch("sys.stderr", stderr):
+                    MODULE["ubisoft_composition_off"]("proton", {"STEAM_COMPAT_DATA_PATH": tmp})
+                self.assertEqual(run.call_count, failed_write + 1)
+                self.assertIn("configuration failed", stderr.getvalue())
+                self.assertNotIn("uses CEF", stderr.getvalue())
+            self.assertEqual(list(prefix.glob(".ubisoft-*.reg")), [])
 
 
 if __name__ == "__main__":

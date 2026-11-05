@@ -3,7 +3,7 @@ package com.droiddeck.launcher.ui
 internal enum class SessionDrawerPage(val firstControl: String) {
     CONTROLLER("touch"),
     GLASSES("glasses-game"),
-    SECOND_SCREEN("second-screen:none"),
+    SECOND_SCREEN("second-screen:keyboard-trackpad"),
     DISPLAY("fg"),
     HUD("hud"),
     EFFECTS("look"),
