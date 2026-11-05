@@ -198,6 +198,7 @@ class FrontEndActivity : ComponentActivity() {
     private var gameStoresEnabled by mutableStateOf(true)
     private var gameStoresSpeedTier by mutableStateOf("fast")
     private var navRequest by mutableStateOf<String?>(null)
+    private val gameLaunchRequest = java.util.concurrent.atomic.AtomicLong()
     private var storesShowMature by mutableStateOf(false)
     private var storesSort by mutableStateOf(SessionPrefs.STORES_SORTS.first())
     private var storesView by mutableStateOf(SessionPrefs.DEFAULT_STORES_VIEW)
@@ -1185,8 +1186,13 @@ class FrontEndActivity : ComponentActivity() {
                         onSteamGame = { g ->
                             if (shortcutPicker) chooseGameShortcut(g)
                             else {
-                                com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g)
-                                com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) { launchGame(g) }
+                                val request = gameLaunchRequest.incrementAndGet()
+                                com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g) {
+                                    if (request != gameLaunchRequest.get() || isFinishing || isDestroyed) return@beforeLaunch
+                                    com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) {
+                                        if (request == gameLaunchRequest.get() && !isFinishing && !isDestroyed) launchGame(g)
+                                    }
+                                }
                             }
                         },
                         onEpicLauncher = { openEpicLauncher() },
@@ -1860,6 +1866,7 @@ class FrontEndActivity : ComponentActivity() {
         else @Suppress("DEPRECATION") state.getParcelable(key)
 
     override fun onDestroy() {
+        gameLaunchRequest.incrementAndGet()
         cancelCompatLaunch()
         updates.unregister()
         super.onDestroy()

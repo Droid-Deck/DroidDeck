@@ -490,7 +490,7 @@ class DroiddeckctlTest(FakeAdbTest):
 
     def test_wait_cool_polls_until_the_battery_is_below(self):
         self.configure({}, battery=[battery(412), battery(395), battery(379)], thermalservice=THERMALSERVICE)
-        with unittest.mock.patch.object(ctl.time, "sleep") as slept:
+        with unittest.mock.patch.object(ctl, "wait_sleep") as slept:
             code, out = self.run_ctl("wait", "cool", "--below", "38", "--timeout", "600")
         self.assertEqual(0, code, out)
         self.assertEqual(["wait", 37.9], [out["command"], out["batteryC"]])
