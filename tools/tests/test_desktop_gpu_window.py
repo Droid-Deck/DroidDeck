@@ -33,6 +33,7 @@ class DesktopGpuWindowTest(unittest.TestCase):
     def test_on_the_desktop_the_game_gets_a_window_of_its_own(self):
         run = self.run_gpu(WAYLAND_DISPLAY="wayland-1", MESA_VK_WSI_DEBUG="sw,linear")
         self.assertEqual(run["args"][:2], ["--backend", "sdl"])
+        self.assertIn("--follow-game-window-mode", run["args"])
         self.assertNotIn("-f", run["args"])
         self.assertEqual(run["args"][-2:], ["/usr/local/bin/droiddeck-gpu-window", "game.exe"])
         self.assertEqual(run["env"]["WAYLAND_DISPLAY"], "wayland-1")
@@ -45,6 +46,7 @@ class DesktopGpuWindowTest(unittest.TestCase):
         for env in ({"WAYLAND_DISPLAY": "wayland-1", "BL_DESKTOP_GPU_WINDOW": "0"}, {"WAYLAND_DISPLAY": "wayland-0"}, {}):
             run = self.run_gpu(**env)
             self.assertEqual(run["args"][:2], ["--backend", "wayland"])
+            self.assertNotIn("--follow-game-window-mode", run["args"])
             self.assertIn("-f", run["args"])
             self.assertEqual(run["env"]["WAYLAND_DISPLAY"], "wayland-0")
             self.assertIsNone(run["env"]["MESA_VK_WSI_DEBUG"])

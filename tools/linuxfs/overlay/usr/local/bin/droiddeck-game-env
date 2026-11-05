@@ -244,6 +244,20 @@ def ubisoft_overlay_off(env):
         print("droiddeck-game-env: Ubisoft Connect overlay left as is (%s)" % error, file=sys.stderr)
 
 
+def ubisoft_composition_off(proton, env):
+    prefix = Path(env.get("STEAM_COMPAT_DATA_PATH", "/nonexistent")) / "pfx"
+    if not (prefix / UBISOFT_LAUNCHER).is_dir() or not (prefix / "user.reg").is_file():
+        return
+    try:
+        for program in ("upc.exe", "UplayWebCore.exe"):
+            key = r"HKCU\Software\Wine\AppDefaults\%s\DllOverrides" % program
+            subprocess.run([proton, "runinprefix", "reg.exe", "add", key,
+                            "/v", "dcomp", "/t", "REG_SZ", "/d", "", "/f"], env=env, check=True)
+        print("droiddeck-game-env: Ubisoft Connect uses CEF without DirectComposition", file=sys.stderr)
+    except (OSError, ValueError, subprocess.CalledProcessError) as error:
+        print("droiddeck-game-env: Ubisoft Connect composition configuration failed (%s)" % error, file=sys.stderr)
+
+
 PZ_JVM_FLAGS = ("-XX:+UseG1GC", "-XX:TieredStopAtLevel=1")
 
 
@@ -998,6 +1012,8 @@ def diagnostic_game_exit(app_id, raw_code, source=None, wrapper_status=None):
 
 
 def start(launch, launch_env, digest, after=None, diagnostic_app_id=None):
+    if len(launch) > 1 and launch[1] == "waitforexitandrun":
+        ubisoft_composition_off(launch[0], launch_env)
     launch, launch_env = system_graphics_launch(launch, launch_env)
     if after or diagnostic_app_id is not None:
         process = subprocess.Popen(launch, env=launch_env)

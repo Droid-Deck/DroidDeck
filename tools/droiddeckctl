@@ -392,6 +392,10 @@ def thermal(adb: str, serial: str) -> dict:
     return {"ok": True, "command": "thermal", **summary}
 
 
+def wait_sleep(seconds: float) -> None:
+    time.sleep(seconds)
+
+
 def wait_cool(adb: str, serial: str, below: float, timeout: float) -> dict:
     started = time.monotonic()
     while True:
@@ -404,7 +408,7 @@ def wait_cool(adb: str, serial: str, below: float, timeout: float) -> dict:
         if remaining <= 0:
             raise ControlError(f"Battery still at {reading['batteryC']:g} °C after {timeout:g} s, wanted below {below:g}",
                                "TIMEOUT")
-        time.sleep(min(10.0, remaining))
+        wait_sleep(min(10.0, remaining))
 
 
 def start_session(adb: str, serial: str, request: dict) -> dict:

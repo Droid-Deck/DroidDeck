@@ -304,3 +304,9 @@ the X pointer stays far from the seat position while input moves, gamescope take
 each frame's motion to the X pointer itself until the game stops warping. Absolute motion also sends relative
 motion, as a real compositor does, so XInput2 raw motion reaches games that read only that. A touch moves the
 pointer without relative motion, so tapping the screen does not turn the camera.
+
+## 0132 sdl, steamcompmgr: follow a game's window mode
+With `--follow-game-window-mode`, the outer window of a nested SDL gamescope follows the focused game window. A window
+asking for `_NET_WM_STATE_FULLSCREEN`, or a Steam game covering the X screen without minimise or maximise functions or
+decorations in `_MOTIF_WM_HINTS`, makes the outer window fullscreen on the desktop. Anything else makes it a normal window of the
+game window's size, or a maximised one when that size does not fit the desktop with its title bar and panel. A change is applied only when the wanted mode changes, so a manual resize or Super+F stays.

@@ -112,16 +112,19 @@ internal fun BarActions(
     qamModifier: Modifier = Modifier,
     qamInteraction: MutableInteractionSource? = null,
     onQamConfirm: (() -> Unit)? = null,
+    showShortcuts: Boolean = false,
 ) {
     onMenu?.let {
         BarButton(stringResource(R.string.touch_droiddeck_menu), menuModifier.testTag("bottom-bar-menu"), icon = R.drawable.ic_stat_session,
             active = menuActive, onClick = it)
     }
     onSteam?.let {
-        BarButton(stringResource(R.string.drawer_steam_menu), steamModifier.testTag("bottom-bar-steam"), label = "STEAM", onClick = it)
+        BarButton(stringResource(R.string.drawer_steam_menu), steamModifier.testTag("bottom-bar-steam"), label = "STEAM",
+            shortcut = if (showShortcuts) "⧉" else null, onClick = it)
     }
     onQam?.let {
         BarButton(stringResource(R.string.drawer_open_qam), qamModifier.testTag("bottom-bar-qam"), vector = Icons.Outlined.MoreHoriz,
+            shortcut = if (showShortcuts) "☰" else null,
             interactionSource = qamInteraction ?: remember { MutableInteractionSource() }, onConfirm = onQamConfirm, onClick = it)
     }
 }
