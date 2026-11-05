@@ -869,6 +869,14 @@ static int nl_replay_packets(int peer, struct nl_packet *packets) {
     return error ? -1 : 0;
 }
 
+static void nl_discard_packets(struct nl_packet *packets) {
+    while (packets) {
+        struct nl_packet *next = packets->next;
+        free(packets);
+        packets = next;
+    }
+}
+
 static int nl_save_packets(int fd, struct nl_packet **packets) {
     static ssize_t (*real_recv)(int, void *, size_t, int);
     if (real_recv == NULL) real_recv = (ssize_t (*)(int, void *, size_t, int))
@@ -947,7 +955,10 @@ static int nl_replace_peer(int fd, struct nl_socket *socket, unsigned port, int 
     return replayed;
 failed: {
     int saved = errno;
-    nl_replay_packets(socket->peer, packets);
+    if (socket->peer >= 0 && nl_identity(socket->peer, socket->device, socket->peer_inode))
+        nl_replay_packets(socket->peer, packets);
+    else
+        nl_discard_packets(packets);
     real_close(descriptor);
     errno = saved;
     return -1;
