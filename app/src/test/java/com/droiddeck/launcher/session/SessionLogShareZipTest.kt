@@ -34,6 +34,8 @@ class SessionLogShareZipTest {
             EnhancedSessionLogShare.cleanupAbandonedStages(app)
             assertFalse(abandoned.exists())
             assertTrue(active.directory.isDirectory)
+            EnhancedSessionLogShare.cleanupAbandonedStages(app)
+            assertTrue(active.directory.isDirectory)
         } finally {
             active.close()
         }
