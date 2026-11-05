@@ -1,0 +1,115 @@
+diff --git a/wsi/x11/swapchain.cpp b/wsi/x11/swapchain.cpp
+index 9b269ff..16c6f79 100644
+--- a/wsi/x11/swapchain.cpp
++++ b/wsi/x11/swapchain.cpp
+@@ -39,6 +39,8 @@
+ #include <system_error>
+ #include <thread>
+ 
++#include <fcntl.h>
++#include <mutex>
+ #include <sys/shm.h>
+ #include <unistd.h>
+ #include <vulkan/vulkan_core.h>
+@@ -72,6 +74,47 @@ namespace x11
+ 
+ #define X11_SWAPCHAIN_MAX_PENDING_COMPLETIONS 128
+ 
++/**
++ * @brief Whether gamescope's frame limiter (Steam's Frame Limit) is on.
++ *
++ * The limiter holds back the frame callbacks of a capped window, which only slows presents that wait for
++ * the next vblank. While it is on, gamescope's own WSI layer presents every swapchain as FIFO; this layer
++ * does the same, so IMMEDIATE and MAILBOX games are capped too. gamescope publishes the state in the file
++ * named by GAMESCOPE_LIMITER_FILE (a uint32, 1 while limiting) and rewrites it in place, so one descriptor
++ * stays valid. Read on every present: the limiter changes while a game runs.
++ */
++static bool gamescope_limiter_forces_fifo()
++{
++   static const char *const path = std::getenv("GAMESCOPE_LIMITER_FILE");
++   if (path == nullptr)
++   {
++      return false;
++   }
++
++   static std::mutex lock;
++   static int fd = -1;
++   static std::chrono::steady_clock::time_point next_open{};
++   std::lock_guard<std::mutex> guard(lock);
++   if (fd < 0)
++   {
++      /* The file may not exist yet: retry at most once a second, not on every present. */
++      const auto now = std::chrono::steady_clock::now();
++      if (now < next_open)
++      {
++         return false;
++      }
++      next_open = now + std::chrono::seconds(1);
++      fd = open(path, O_RDONLY | O_CLOEXEC);
++      if (fd < 0)
++      {
++         return false;
++      }
++   }
++
++   uint32_t value = 0;
++   return pread(fd, &value, sizeof(value), 0) == static_cast<ssize_t>(sizeof(value)) && value == 1;
++}
++
+ /**
+  * @brief Build the importable format/modifier set for DRI3 by asking the X server.
+  *
+@@ -727,8 +770,13 @@ void swapchain::present_image(const pending_present_request &pending_present)
+     * is now stable and the present event thread may walk it. */
+    m_images_ready = true;
+ 
+-   const bool paced =
+-      (m_present_mode == VK_PRESENT_MODE_FIFO_KHR || m_present_mode == VK_PRESENT_MODE_FIFO_RELAXED_KHR);
++   /* The unpaced GPU-copy cell frees images without waiting for the server, so FIFO could not hold the
++    * application back there; it keeps its own present mode. */
++   m_effective_present_mode = (!m_dri3_deferred_release && gamescope_limiter_forces_fifo()) ?
++                                 VK_PRESENT_MODE_FIFO_KHR :
++                                 m_present_mode;
++   const bool paced = (m_effective_present_mode == VK_PRESENT_MODE_FIFO_KHR ||
++                       m_effective_present_mode == VK_PRESENT_MODE_FIFO_RELAXED_KHR);
+ 
+    if (m_use_dri3 && !m_dri3_deferred_release && !paced)
+    {
+@@ -794,17 +842,17 @@ void swapchain::send_present(const pending_present_request &pending_present, uin
+    m_send_sbc++;
+    uint32_t serial = static_cast<uint32_t>(m_send_sbc);
+ 
+-   const bool paced =
+-      (m_present_mode == VK_PRESENT_MODE_FIFO_KHR || m_present_mode == VK_PRESENT_MODE_FIFO_RELAXED_KHR);
++   const bool paced = (m_effective_present_mode == VK_PRESENT_MODE_FIFO_KHR ||
++                       m_effective_present_mode == VK_PRESENT_MODE_FIFO_RELAXED_KHR);
+ 
+    if (m_use_dri3)
+    {
+       /* PresentOptionAsync presents an image whose target MSC has already passed straight away instead of at
+        * the next vblank. That is what IMMEDIATE and FIFO_RELAXED ask for, at the risk of tearing; on Xwayland
+        * nothing can tear, which lets a MAILBOX image reach the compositor a refresh sooner too. */
+-      const bool async = m_present_mode == VK_PRESENT_MODE_IMMEDIATE_KHR ||
+-                         m_present_mode == VK_PRESENT_MODE_FIFO_RELAXED_KHR ||
+-                         (m_present_mode == VK_PRESENT_MODE_MAILBOX_KHR && m_is_xwayland);
++      const bool async = m_effective_present_mode == VK_PRESENT_MODE_IMMEDIATE_KHR ||
++                         m_effective_present_mode == VK_PRESENT_MODE_FIFO_RELAXED_KHR ||
++                         (m_effective_present_mode == VK_PRESENT_MODE_MAILBOX_KHR && m_is_xwayland);
+       static_cast<dri3_presenter *>(m_presenter.get())->set_immediate_mode(async);
+ 
+       image_data->awaiting_idle = true;
+diff --git a/wsi/x11/swapchain.hpp b/wsi/x11/swapchain.hpp
+index 3ddb38f..045e378 100644
+--- a/wsi/x11/swapchain.hpp
++++ b/wsi/x11/swapchain.hpp
+@@ -268,6 +268,10 @@ private:
+     *  presenting without waiting for vblank cannot tear. */
+    bool m_is_xwayland = false;
+ 
++   /** @brief Present mode of the latest present: @ref m_present_mode, or FIFO while gamescope's frame
++    *  limiter is on (set in present_image, read by send_present). */
++   VkPresentModeKHR m_effective_present_mode = VK_PRESENT_MODE_FIFO_KHR;
++
+    /** @brief DRI3 MAILBOX/IMMEDIATE: serial of the present sent to the server whose PresentCompleteNotify
+     *  is still due. At most one such present is in flight; see @ref m_held_present. */
+    std::optional<uint32_t> m_unpaced_serial_in_flight;

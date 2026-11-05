@@ -149,8 +149,8 @@
           "mode": 420,
           "name": "libVkLayer_window_system_integration.so",
           "path": "wsi/libVkLayer_window_system_integration.so",
-          "sha256": "d07b961181b9547fd48ad9f05cc6d3b808b824676eb5a186fe3feb8caa013f19",
-          "size": 436888
+          "sha256": "6d9b262fbde2fc4561a3a0a1aa5ba56a6e37c149009b8a954cf6be4ee67c6291",
+          "size": 437680
         },
         {
           "mode": 420,
@@ -177,22 +177,22 @@
           "mode": 420,
           "name": "SHA256SUMS",
           "path": "provenance/wsi-SHA256SUMS",
-          "sha256": "fda6f61028659648801de0e3a6fe1676efd99e1551881a5db8630970eae86158",
+          "sha256": "1a676f96e31fb3575ef5c7edb5777f2091b0fab10172af50b3235a3de659ee7c",
           "size": 108
         },
         {
           "mode": 420,
           "name": "downstream.patch",
           "path": "licenses/wsi-downstream.patch",
-          "sha256": "e2ed113d22f05563248ef606c774c22658b184fbc05912229007cd5281027e78",
-          "size": 769
+          "sha256": "5486226d2af7f93cafe38d6bb9e50138469d4c25c2d384cd0dc886f7ff7e2182",
+          "size": 38156
         },
         {
           "mode": 420,
           "name": "source.tar.zst",
           "path": "licenses/wsi-source.tar.zst",
-          "sha256": "22ae7c2d8aa3dfffdda601c3442d1966ab53ad225acdfadee69ba38974d0c4c5",
-          "size": 209468
+          "sha256": "c4e12c7996672ef6e54f72ec441c12e19af107567e02ea3efffa84f6a5204d13",
+          "size": 213016
         },
         {
           "mode": 420,
@@ -203,29 +203,27 @@
         }
       ],
       "id": "wsi",
-      "ignored": [],
+      "ignored": [
+        "licenses/Vulkan-Headers/LICENSE.md",
+        "licenses/Vulkan-Headers/MIT.txt"
+      ],
       "provenance": {
-        "ci_run": "https://github.com/wallentx/DroidDeck/actions/runs/38047627963",
-        "repository_commit": "abe58618a5194f1f15499cbd5f9ec75503782556",
-        "vulkan_headers_licenses": {
-          "note": "Added from tracked assembly inputs; the original WSI archive and compiled library are unchanged.",
-          "revision": "8d6039a455a7ecc7d2a592ff97f62db4e59b70bf",
-          "source_urls": [
-            "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Headers/8d6039a455a7ecc7d2a592ff97f62db4e59b70bf/LICENSE.md",
-            "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Headers/8d6039a455a7ecc7d2a592ff97f62db4e59b70bf/LICENSES/MIT.txt"
-          ]
-        }
+        "ci_run": "https://github.com/wallentx/DroidDeck/actions/runs/41975285228",
+        "repository_commit": "f09ca2e8bc04da4442c4c6e3e439b174a3609224"
       },
       "recipe_inputs": {
-        "tools/vulkan-wsi/build.sh": "9e403151c58e6b2ee15241f525c4bacb2495f072191da6a63065e7fcc25b3b3c",
+        "tools/vulkan-wsi/build.sh": "278a82aa5e82f7b839bb2c391d68cbcba230322f4ff5bab7fa60a293da7ee04e",
         "tools/vulkan-wsi/licenses/Vulkan-Headers/LICENSE.md": "95ad366d23fadf701d355bc45fb8b82ae2d700239471d35d41286ac3b08ff903",
         "tools/vulkan-wsi/licenses/Vulkan-Headers/MIT.txt": "1ca3502222d967f3be5751c55f6b7ee735b5383909c3b501495f54b216dbf227",
         "tools/vulkan-wsi/patches/0001-link-x11-external-memory.patch": "e2ed113d22f05563248ef606c774c22658b184fbc05912229007cd5281027e78",
+        "tools/vulkan-wsi/patches/0002-x11-dri3-driver-exported-memory.patch": "73706318a6e711a5ac2bab6a2cc66682f243ec74dc2d291a4e4c69dfe178e5e0",
+        "tools/vulkan-wsi/patches/0003-x11-follow-gamescope-frame-limiter.patch": "e33de8ba14b9c2d18d99890a9dd183beca9791185c019318d865095d3f3b0b8b",
+        "tools/vulkan-wsi/patches/0004-x11-dri3-fallback-policy.patch": "3f392cf3f859af1e61a0a606ec86e3ce9ac7cf23e2ca7015767308c277f141db",
         "tools/vulkan-wsi/source.env": "71a88087265a09b4ce06e7c9b98ef6799c6a7657cc6ef9084de663e96f5cfe63"
       },
-      "sha256": "348f9ec42159c1ee6e2baba4312a5e845d26687238f29e3f4a1b0c3c97e13b3c",
-      "size": 362717,
-      "url": "https://github.com/wallentx/DroidDeck/releases/download/v0.3.2-progress.20261010.4/wsi-abe5861.zip"
+      "sha256": "cf77745b126d2a7eca25e35d60297bff6e33329c1faf05085c1108fb73b37e5b",
+      "size": 375884,
+      "url": "https://github.com/wallentx/DroidDeck/releases/download/wsi-pr14-f09ca2e8-20261104/wsi.zip"
     },
     {
       "files": [
