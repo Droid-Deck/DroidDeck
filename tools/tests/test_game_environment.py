@@ -1682,6 +1682,46 @@ class ProtonDefaultTest(unittest.TestCase):
             self.assertEqual(changes, {})
             self.assertEqual(auto, {})
 
+    def test_a_cleared_fex_default_for_a_listed_title_is_kept_as_a_native_choice(self):
+        app = "4385780"
+        fex = COMPAT["FEX_TOOL"]
+        with tempfile.TemporaryDirectory() as tmp:
+            steam = Path(tmp) / "Steam"
+            config = steam / "config/config.vdf"
+            config.parent.mkdir(parents=True)
+            config.write_text(config_text([("0", self.TOOL)]))
+            (Path(tmp) / "state.json").write_text(json.dumps({"default": self.TOOL, "auto": {}}))
+
+            globals_ = COMPAT["native_targets"].__globals__
+            original_platforms = globals_["appinfo_platforms"]
+            globals_["appinfo_platforms"] = lambda _path, wanted: {
+                app: ({"linux", "windows"}, "64", "game")
+            } if app in wanted else {}
+            try:
+                def run():
+                    COMPAT["register_default"](str(config), [app], catalog=self.CATALOG, directory=tmp)
+                    return json.loads((Path(tmp) / "state.json").read_text())
+
+                state = run()
+                self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, app: fex})
+                self.assertEqual(state["auto"], {app: fex})
+
+                config.write_text(config_text([("0", self.TOOL), (app, "")]))
+                state = run()
+                cleared = config.read_bytes()
+                self.assertEqual(mapping_of(cleared.decode()), {"0": self.TOOL, app: ""})
+                self.assertEqual(state["auto"], {})
+                self.assertEqual(state["native_choices"], [app])
+                run()
+                self.assertEqual(config.read_bytes(), cleared)
+
+                config.write_text(config_text([("0", self.TOOL), (app, fex)]))
+                state = run()
+                self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, app: fex})
+                self.assertEqual(state["native_choices"], [])
+            finally:
+                globals_["appinfo_platforms"] = original_platforms
+
     def test_factorio_preserves_an_observed_native_choice_despite_ambiguous_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:
             steam = Path(tmp) / "Steam"

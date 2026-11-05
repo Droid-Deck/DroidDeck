@@ -1084,7 +1084,7 @@ def plan_mapping(current, installed, runnable, default, auto, native=None, picks
             continue
         mine = auto.get(app)
         target = native.get(app, default)
-        if not name and app in native_choices:
+        if not name and (app in native_choices or (app in current and app in FEX_DEFAULT_APPS)):
             target = NATIVE_CHOICE
         stale = unrunnable(name, runnable)
         if name and not stale and (mine is None or name != mine):
