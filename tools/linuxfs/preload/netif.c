@@ -1131,6 +1131,31 @@ static int nl_peer_of(int fd) {
     return peer;
 }
 
+static int nl_dup_peer_of(int fd, unsigned *port, int *capped) {
+    static int (*real_fcntl)(int, int, ...);
+    int peer = -1;
+    if (!nl_tracked(fd)) return peer;
+    pthread_mutex_lock(&nl_sockets_lock);
+    struct nl_fd *entry = nl_find(fd);
+    if (entry) {
+        if (real_fcntl == NULL)
+            real_fcntl = (int (*)(int, int, ...)) dlsym(RTLD_NEXT, "fcntl");
+        if (real_fcntl == NULL) {
+            errno = ENOSYS;
+        } else {
+            peer = real_fcntl(entry->socket->peer, F_DUPFD_CLOEXEC, 0);
+            if (peer >= 0) {
+                if (port) *port = entry->socket->port;
+                if (capped) *capped = entry->socket->cap_ack;
+            }
+        }
+    } else {
+        errno = EBADF;
+    }
+    pthread_mutex_unlock(&nl_sockets_lock);
+    return peer;
+}
+
 static unsigned nl_port_of(int fd) {
     unsigned port = 0;
     if (!nl_tracked(fd)) return port;
@@ -1923,34 +1948,37 @@ static ssize_t send_raw(int fd, const void *data, size_t len, int extra) {
 
 static int deliver(int fd, const void *data, size_t len, int flags, ssize_t *rc) {
     struct nl_reply reply;
-    int peer = nl_peer_of(fd);
+    int peer;
     int extra = 0;
-    if (peer < 0) return 0;
+    if (nl_peer_of(fd) < 0) return 0;
     if (nl_autobind(fd) != 0) {
         *rc = -1;
         return 1;
     }
-    peer = nl_peer_of(fd);
-    if (peer < 0) {
+    if (nl_peer_of(fd) < 0) {
         errno = EBADF;
         *rc = -1;
         return 1;
     }
-    nl_reply_port = nl_port_of(fd);
-    pthread_mutex_lock(&nl_sockets_lock);
-    struct nl_fd *entry = nl_find(fd);
-    nl_reply_capped = entry && entry->socket->cap_ack;
-    pthread_mutex_unlock(&nl_sockets_lock);
+    peer = nl_dup_peer_of(fd, &nl_reply_port, &nl_reply_capped);
+    if (peer < 0) {
+        *rc = -1;
+        return 1;
+    }
     build_reply(data, len, &reply);
     if (reply.overflow) {
-        errno = EMSGSIZE;
+        int saved = EMSGSIZE;
+        close(peer);
+        errno = saved;
         *rc = -1;
         return 1;
     }
     if (reply.len == 0) {
         struct nlmsghdr *request = (struct nlmsghdr *) data;
         if (len < sizeof(struct nlmsghdr)) {
-            errno = EINVAL;
+            int saved = EINVAL;
+            close(peer);
+            errno = saved;
             *rc = -1;
             return 1;
         }
@@ -1960,6 +1988,9 @@ static int deliver(int fd, const void *data, size_t len, int flags, ssize_t *rc)
     }
     if ((flags & MSG_DONTWAIT) || nl_nonblocking(fd)) extra = MSG_DONTWAIT;
     *rc = send_raw(peer, reply.data, reply.len, extra) < 0 ? -1 : (ssize_t) len;
+    int saved = errno;
+    close(peer);
+    errno = saved;
     return 1;
 }
 
