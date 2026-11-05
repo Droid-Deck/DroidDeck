@@ -35,7 +35,7 @@ static void VKAPI_CALL memory_properties2(VkPhysicalDevice pd, VkPhysicalDeviceM
 
 static VkResult VKAPI_CALL allocate(VkDevice d, const VkMemoryAllocateInfo *info,
                                     const VkAllocationCallbacks *a, VkDeviceMemory *out) {
-    assert(d == device && info->allocationSize == (1536ULL << 20));
+    assert(d == device && info->allocationSize == (3ULL << 30));
     *out = (VkDeviceMemory)(uintptr_t)++allocations;
     return VK_SUCCESS;
 }
@@ -105,8 +105,9 @@ int main(void) {
     assert(CreateInstance(&ici, NULL, &got_instance) == VK_SUCCESS && got_instance == instance);
     VkPhysicalDeviceMemoryProperties p;
     PFN_vkGetPhysicalDeviceMemoryProperties get = (void *)DroidDeckVramCap_GetInstanceProcAddr(instance, "vkGetPhysicalDeviceMemoryProperties");
+    assert(get == memory_properties);
     get(physical, &p);
-    assert(p.memoryHeaps[0].size == g_cap && p.memoryHeaps[1].size == (4ULL << 30));
+    assert(p.memoryHeaps[0].size == (8ULL << 30) && p.memoryHeaps[1].size == (4ULL << 30));
     assert(p.memoryHeaps[2].size == (512ULL << 20));
     assert(p.memoryTypes[0].propertyFlags == (VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT));
 
@@ -117,6 +118,7 @@ int main(void) {
         VkPhysicalDeviceMemoryProperties2 p2 = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2, .pNext = &id};
         PFN_vkGetPhysicalDeviceMemoryProperties2 get2 = (void *)DroidDeckVramCap_GetInstanceProcAddr(instance, names[i]);
         get2(physical, &p2);
+        assert(p2.memoryProperties.memoryHeaps[0].size == (8ULL << 30));
         assert(b.heapBudget[0] == g_cap && b.heapBudget[1] == (3ULL << 30));
         assert(b.heapBudget[2] == (256ULL << 20));
         assert(b.heapUsage[0] == (3ULL << 30));
@@ -132,7 +134,7 @@ int main(void) {
     PFN_vkAllocateMemory next_allocate = (void *)DroidDeckVramCap_GetDeviceProcAddr(device, "vkAllocateMemory");
     PFN_vkFreeMemory next_free = (void *)DroidDeckVramCap_GetDeviceProcAddr(device, "vkFreeMemory");
     assert(next_allocate == allocate && next_free == release);
-    VkMemoryAllocateInfo ai = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, .allocationSize = 1536ULL << 20};
+    VkMemoryAllocateInfo ai = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, .allocationSize = 3ULL << 30};
     VkDeviceMemory blocks[2];
     for (unsigned i = 0; i < 2; i++) assert(next_allocate(device, &ai, NULL, &blocks[i]) == VK_SUCCESS);
     assert(allocations == 2);

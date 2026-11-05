@@ -24,7 +24,6 @@ struct inst {
     VkInstance handle;
     PFN_vkGetInstanceProcAddr gipa;
     PFN_vkDestroyInstance destroy;
-    PFN_vkGetPhysicalDeviceMemoryProperties mem;
     PFN_vkGetPhysicalDeviceMemoryProperties2 mem2;
     PFN_vkGetPhysicalDeviceMemoryProperties2 mem2_khr;
 };
@@ -70,25 +69,14 @@ static void announce(void) {
     say(line);
 }
 
-static void clamp_properties(VkPhysicalDeviceMemoryProperties *p) {
-    vramcap_properties(p, g_cap);
-    if (g_cap) announce();
-}
-
 static void clamp_properties2(PFN_vkGetPhysicalDeviceMemoryProperties2 next, VkPhysicalDevice pd,
                               VkPhysicalDeviceMemoryProperties2 *out) {
     next(pd, out);
-    clamp_properties(&out->memoryProperties);
     for (VkBaseOutStructure *s = out->pNext; s; s = s->pNext)
-        if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT)
+        if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT) {
             vramcap_budget(&out->memoryProperties, (VkPhysicalDeviceMemoryBudgetPropertiesEXT *)s, g_cap);
-}
-
-static void VKAPI_CALL GetMemoryProperties(VkPhysicalDevice pd, VkPhysicalDeviceMemoryProperties *out) {
-    struct inst *in = inst_for(pd);
-    if (!in) return;
-    in->mem(pd, out);
-    clamp_properties(out);
+            if (g_cap) announce();
+        }
 }
 
 static void VKAPI_CALL GetMemoryProperties2(VkPhysicalDevice pd, VkPhysicalDeviceMemoryProperties2 *out) {
@@ -117,7 +105,6 @@ static VkResult VKAPI_CALL CreateInstance(const VkInstanceCreateInfo *ci, const 
     in->handle = *out;
     in->gipa = next_gipa;
     in->destroy = (PFN_vkDestroyInstance)next_gipa(*out, "vkDestroyInstance");
-    in->mem = (PFN_vkGetPhysicalDeviceMemoryProperties)next_gipa(*out, "vkGetPhysicalDeviceMemoryProperties");
     in->mem2 = (PFN_vkGetPhysicalDeviceMemoryProperties2)next_gipa(*out, "vkGetPhysicalDeviceMemoryProperties2");
     in->mem2_khr = (PFN_vkGetPhysicalDeviceMemoryProperties2)next_gipa(*out, "vkGetPhysicalDeviceMemoryProperties2KHR");
     pthread_mutex_lock(&g_lock);
@@ -195,7 +182,6 @@ EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL DroidDeckVramCap_GetInstanceProc
     struct inst *in = inst_for(instance);
     if (!in) return NULL;
     if (g_cap) {
-        if (!strcmp(name, "vkGetPhysicalDeviceMemoryProperties") && in->mem) return (PFN_vkVoidFunction)GetMemoryProperties;
         if (!strcmp(name, "vkGetPhysicalDeviceMemoryProperties2") && in->mem2) return (PFN_vkVoidFunction)GetMemoryProperties2;
         if (!strcmp(name, "vkGetPhysicalDeviceMemoryProperties2KHR") && in->mem2_khr)
             return (PFN_vkVoidFunction)GetMemoryProperties2KHR;
