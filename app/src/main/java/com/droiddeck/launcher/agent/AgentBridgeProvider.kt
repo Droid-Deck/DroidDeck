@@ -215,7 +215,8 @@ class AgentBridgeProvider : ContentProvider() {
             throw error
         }
             ?: return error("NO_SESSION_LOGS", "The session artifact directory is empty")
-        return JSONObject().put("ok", true).put("command", "logs").put("sessionId", dir.name).put("zip", zip.absolutePath)
+        return JSONObject().put("ok", true).put("command", "logs").put("sessionId", dir.name)
+            .put("zip", zip.absolutePath).put("cleanupDir", output.absolutePath)
     }
 
     private fun state(context: Context): JSONObject {

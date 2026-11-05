@@ -18,7 +18,7 @@ import time
 import uuid
 import zipfile
 import zlib
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from adb_device import DeviceResolutionError, resolve_serial
@@ -434,40 +434,84 @@ def unpack_logs(archive: Path, destination: Path, session_id: str) -> None:
     except (OSError, ValueError):
         previous = []
     previous = set(previous)
+    previous.discard(manifest.name)
     extracted = set()
+
+    def managed_target(name: str) -> Path | None:
+        relative = Path(name)
+        if relative.is_absolute() or not relative.parts or any(part in {".", ".."} for part in relative.parts):
+            return None
+        target = destination
+        for part in relative.parts:
+            target = target / part
+            if target.is_symlink():
+                return None
+        return target if target.resolve().is_relative_to(destination) else None
+
     try:
-        with tempfile.TemporaryDirectory(prefix="droiddeckctl-logs-") as temp, zipfile.ZipFile(archive) as z:
+        with tempfile.TemporaryDirectory(prefix=".droiddeckctl-logs-", dir=destination) as temp, zipfile.ZipFile(archive) as z:
             staged = Path(temp)
+            staged_files = staged / "new"
+            backups = staged / "old"
+            staged_files.mkdir()
             for entry in z.infolist():
                 name = entry.filename
                 if name.startswith(session_id + "/"):
                     name = name[len(session_id) + 1:]
-                target = (destination / name).resolve()
-                if entry.is_dir() or not name or not target.is_relative_to(destination):
+                target = managed_target(name)
+                if entry.is_dir() or target is None or target == manifest:
                     continue
                 relative = target.relative_to(destination).as_posix()
-                if relative == manifest.name:
-                    continue
-                staged_file = staged / relative
+                staged_file = staged_files / relative
                 staged_file.parent.mkdir(parents=True, exist_ok=True)
                 with z.open(entry) as source, staged_file.open("wb") as copy:
                     shutil.copyfileobj(source, copy)
                 extracted.add(relative)
             for name in extracted - previous:
-                target = destination / name
-                if target.exists() or target.is_symlink():
+                target = managed_target(name)
+                if target is None or target.exists():
                     raise ControlError(f"Refusing to overwrite an unrelated file: {target}", "LOG_PULL_FAILED")
-            for name in previous - extracted:
-                target = (destination / name).resolve()
-                if target.is_relative_to(destination) and target.is_file() and not target.is_symlink():
-                    target.unlink()
-            for name in extracted:
-                target = destination / name
-                target.parent.mkdir(parents=True, exist_ok=True)
-                os.replace(staged / name, target)
-            temp_manifest = manifest.with_name(manifest.name + ".tmp")
-            temp_manifest.write_text(json.dumps(sorted(extracted), indent=2) + "\n", encoding="utf-8")
-            os.replace(temp_manifest, manifest)
+            if manifest.is_symlink() or (manifest.exists() and not manifest.is_file()):
+                raise ControlError("The managed log list is not a regular file", "LOG_PULL_FAILED")
+            backed_up = {}
+            installed = set()
+            manifest_backup = backups / manifest.name
+            try:
+                for name in sorted(previous):
+                    target = managed_target(name)
+                    if target is not None and target.is_file():
+                        backup = backups / name
+                        backup.parent.mkdir(parents=True, exist_ok=True)
+                        os.replace(target, backup)
+                        backed_up[name] = backup
+                if manifest.is_file():
+                    manifest_backup.parent.mkdir(parents=True, exist_ok=True)
+                    os.replace(manifest, manifest_backup)
+                for name in sorted(extracted):
+                    target = managed_target(name)
+                    if target is None:
+                        raise ControlError(f"A log destination became unsafe: {name}", "LOG_PULL_FAILED")
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    os.replace(staged_files / name, target)
+                    installed.add(name)
+                temp_manifest = staged / "managed-logs.json"
+                temp_manifest.write_text(json.dumps(sorted(extracted), indent=2) + "\n", encoding="utf-8")
+                os.replace(temp_manifest, manifest)
+            except Exception:
+                for name in installed:
+                    target = managed_target(name)
+                    if target is not None and target.is_file():
+                        target.unlink()
+                if manifest.exists() and not manifest.is_symlink():
+                    manifest.unlink()
+                for name, backup in backed_up.items():
+                    target = managed_target(name)
+                    if target is not None:
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        os.replace(backup, target)
+                if manifest_backup.is_file():
+                    os.replace(manifest_backup, manifest)
+                raise
     except (OSError, zipfile.BadZipFile) as exc:
         raise ControlError(f"Could not unpack the session logs: {exc}", "LOG_PULL_FAILED") from exc
 
@@ -798,7 +842,17 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
             result = run_adb(adb, serial, "pull", remote_dir, str(destination), timeout=120)
         else:
             zip_path = checked(exported, "LOG_PULL_FAILED")["zip"]
-            cleanup_dir = str(Path(zip_path).parent)
+            remote_zip = PurePosixPath(zip_path)
+            if (not remote_zip.is_absolute() or ".." in remote_zip.parts or
+                    not re.fullmatch(r"/[A-Za-z0-9_./-]+", zip_path)):
+                raise ControlError("The exported logs path is invalid", "LOG_PULL_FAILED")
+            requested_dir = exported.get("cleanupDir")
+            request_dir = PurePosixPath(requested_dir) if isinstance(requested_dir, str) else None
+            cleanup = ["shell", "rm", "-f", zip_path]
+            if (request_dir and request_dir.is_absolute() and ".." not in request_dir.parts and
+                    request_dir == remote_zip.parent and request_dir.parent.name == "agent-logs" and
+                    re.fullmatch(r"[0-9a-fA-F-]{36}", request_dir.name)):
+                cleanup = ["shell", "rm", "-rf", str(request_dir)]
             try:
                 if exported.get("sessionId", session["id"]) != session["id"]:
                     raise ControlError("A new session started while the logs were exported; run logs again",
@@ -810,7 +864,14 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
                         unpack_logs(local_zip, destination, session["id"])
             finally:
                 # The copy sits in shared storage, so it does not outlive the pull.
-                run_adb(adb, serial, "shell", "rm", "-rf", cleanup_dir, timeout=30)
+                cleaned = run_adb(adb, serial, *cleanup, timeout=30)
+                if cleaned.returncode != 0:
+                    detail = (cleaned.stderr or cleaned.stdout).decode(errors="replace").strip()
+                    raise ControlError(
+                        "Could not remove the exported log archive; it may remain in shared storage" +
+                        (f": {detail}" if detail else ""),
+                        "LOG_CLEANUP_FAILED",
+                    )
         if result.returncode != 0:
             detail = (result.stderr or result.stdout).decode(errors="replace").strip()
             raise ControlError(detail or "adb pull failed", "LOG_PULL_FAILED")
@@ -1044,7 +1105,7 @@ EXIT_SESSION = {
     "NO_STEAM_SESSION", "SESSION_NOT_READY", "AGENT_UNAVAILABLE", "LAUNCH_REJECTED", "NO_PAD", "NO_FRAMES",
 }
 EXIT_TIMEOUT = {"TIMEOUT", "ARTIFACT_TIMEOUT"}
-EXIT_FILE = {"NO_SESSION_LOGS", "LOG_PULL_FAILED", "SCREENSHOT_FAILED", "FILE_IO", "RECORD_FAILED", "PUSH_FAILED",
+EXIT_FILE = {"NO_SESSION_LOGS", "LOG_PULL_FAILED", "LOG_CLEANUP_FAILED", "SCREENSHOT_FAILED", "FILE_IO", "RECORD_FAILED", "PUSH_FAILED",
              "PACING_FAILED", "XR_CAPTURE_FAILED"}
 EXIT_DENIED = {"AGENT_COMMANDS_DISABLED", "PROTECTED_PREFS", "PROTECTED_CONTROL"}
 
