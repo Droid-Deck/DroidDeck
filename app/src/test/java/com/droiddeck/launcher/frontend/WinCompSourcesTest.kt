@@ -352,6 +352,8 @@ class WinCompSourcesTest {
             assertEquals(before.user, after.user)
             assertTrue(downloaded.isEmpty())
         }
+    }
+
     @Test fun downloadCallbacksReuseTheCatalogInsteadOfRefreshingAgain() = withFakeWorker {
         val requests = ArrayList<Boolean>()
         AutoComponents.catalogOf = { _, network -> requests.add(network); catalog3 }
