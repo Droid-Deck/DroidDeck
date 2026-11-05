@@ -22,7 +22,11 @@ object AutoComponents {
     private const val TAG = "AutoComponents"
 
     fun appKey(game: Library.SteamGame): String? =
-        if (game.library == Library.ADDED) Integer.toUnsignedString(game.appId) else game.appId.takeIf { it > 0 }?.toString()
+        when {
+            game.source == com.droiddeck.launcher.stores.Store.BATTLENET.id -> game.profileKey
+            game.library == Library.ADDED -> Integer.toUnsignedString(game.appId)
+            else -> game.appId.takeIf { it > 0 }?.toString()
+        }
 
     fun autoPicks(findings: List<WinCompSources.Finding>, catalog: Map<String, WinComponents.Component>): Map<String, WinComponents.AutoReason> {
         val out = LinkedHashMap<String, WinComponents.AutoReason>()

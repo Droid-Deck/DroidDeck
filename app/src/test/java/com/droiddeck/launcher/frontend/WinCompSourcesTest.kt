@@ -34,6 +34,14 @@ class WinCompSourcesTest {
 
     private fun auto(findings: List<WinCompSources.Finding>) = findings.filter { it.auto }.map { it.component to it.origin }
 
+    @Test fun battleNetRepairKeysMatchRuntimeProfileKeys() {
+        val battlenet = game(null, Store.BATTLENET.id, 4242, library = "battlenet")
+        val steam = game(null, Library.SOURCE_STEAM, 4242, library = "steam")
+
+        assertEquals(battlenet.profileKey, AutoComponents.appKey(battlenet))
+        assertEquals("4242", AutoComponents.appKey(steam))
+    }
+
 
     @Test fun gogDependencyIdsMapToComponents() {
         assertEquals(listOf("vcredist2015"), WinCompSources.gog("MSVC2017_x64"))
