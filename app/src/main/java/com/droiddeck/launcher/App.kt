@@ -3,6 +3,7 @@ package com.droiddeck.launcher
 import android.app.Application
 import com.droiddeck.launcher.runtime.BwrapSpawner
 import com.droiddeck.launcher.session.CrashHandler
+import com.droiddeck.launcher.session.EnhancedSessionLogShare
 import com.droiddeck.launcher.session.GpuClockPin
 
 class App : Application() {
@@ -16,6 +17,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        runCatching { EnhancedSessionLogShare.cleanupAbandonedStages(this) }
         com.droiddeck.launcher.ui.Themes.loadGradient(this)
         com.droiddeck.launcher.ui.BuildWatermark.install(this)
         HomeApp.trackRecents(this)

@@ -3,6 +3,7 @@ package com.droiddeck.launcher.session
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
 import java.text.SimpleDateFormat
+import java.util.UUID
 import java.util.Date
 import java.util.Locale
 import java.util.zip.ZipFile
@@ -26,18 +27,35 @@ class SessionLogShareZipTest {
 
     @After fun resetSourceOpener() = resetSecureSourceOpener()
 
+    @Test fun startupRemovesAbandonedDiagnosticStagesAndPreservesActiveSnapshots() {
+        val abandoned = File(app.cacheDir, "share-${UUID.randomUUID()}.diagnostic-stage").apply { mkdirs() }
+        val active = EnhancedSessionLogShare.acquireDiagnosticStage(app, "share")
+        try {
+            EnhancedSessionLogShare.cleanupAbandonedStages(app)
+            assertFalse(abandoned.exists())
+            assertTrue(active.directory.isDirectory)
+        } finally {
+            active.close()
+        }
+    }
+
     @Test fun anArchiveCanBeWrittenOutsideTheShareFolder() {
         SessionLogShare.clear(app)
         val session = File(LinuxRuntime.logDir(app), "2026-11-03-01-steam").apply { mkdirs() }
-        val out = File(app.getExternalFilesDir(null), "agent-logs")
+        val out = File(app.getExternalFilesDir(null), "agent-logs/request-1")
+        val secondOut = File(app.getExternalFilesDir(null), "agent-logs/request-2")
         try {
             File(session, "session.log").writeText("booted\n")
             val zip = SessionLogShare.zipFolder(app, session, out)!!
+            val secondZip = SessionLogShare.zipFolder(app, session, secondOut)!!
             assertEquals(out, zip.parentFile)
             assertFalse(File(app.cacheDir, "share").exists())
             assertTrue(zip.isFile)
+            assertEquals(secondOut, secondZip.parentFile)
+            assertTrue(secondZip.isFile)
         } finally {
             out.deleteRecursively()
+            secondOut.deleteRecursively()
             session.deleteRecursively()
         }
     }
