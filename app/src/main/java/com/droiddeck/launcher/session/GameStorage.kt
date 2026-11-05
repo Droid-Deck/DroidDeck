@@ -60,10 +60,22 @@ object GameStorage {
     internal fun attached(path: File): Boolean =
         attached(path, runCatching { Environment.getExternalStorageState(path) }.getOrNull())
 
-    internal fun attached(path: File, state: String?): Boolean = when (state) {
-        Environment.MEDIA_MOUNTED, Environment.MEDIA_MOUNTED_READ_ONLY -> true
-        Environment.MEDIA_UNKNOWN, null -> path.isDirectory || path.parentFile?.isDirectory == true
+    internal fun attached(
+        path: File,
+        state: String?,
+        externalStoragePath: Boolean = isExternalStoragePath(path),
+    ): Boolean = when {
+        state == Environment.MEDIA_MOUNTED || state == Environment.MEDIA_MOUNTED_READ_ONLY -> true
+        externalStoragePath -> false
+        state == Environment.MEDIA_UNKNOWN || state == null -> path.isDirectory || path.parentFile?.isDirectory == true
         else -> false
+    }
+
+    private fun isExternalStoragePath(path: File): Boolean {
+        val absolute = path.absoluteFile.toPath().normalize()
+        return listOf(File("/storage"), File("/mnt/media_rw")).any {
+            absolute.startsWith(it.absoluteFile.toPath().normalize())
+        }
     }
 
     const val X64_CARD_DIR = "x86-64"

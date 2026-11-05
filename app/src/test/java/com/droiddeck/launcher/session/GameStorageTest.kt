@@ -70,14 +70,15 @@ class GameStorageTest {
 
     @Test fun missingSubfolderIsAttachedWhenItsVolumeIsMounted() {
         val path = File(tmp.newFolder("mounted-volume"), "missing/steam")
-        assertTrue(GameStorage.attached(path, Environment.MEDIA_MOUNTED))
+        assertTrue(GameStorage.attached(path, Environment.MEDIA_MOUNTED, externalStoragePath = true))
     }
 
     @Test fun removedVolumeIsNotAttachedEvenWhenItsParentExists() {
         val parent = tmp.newFolder("storage")
         val volume = File(parent, "0000-0000")
         assertTrue(parent.isDirectory)
-        assertFalse(GameStorage.attached(volume, Environment.MEDIA_REMOVED))
+        assertFalse(GameStorage.attached(volume, Environment.MEDIA_REMOVED, externalStoragePath = true))
+        assertFalse(GameStorage.attached(volume, Environment.MEDIA_UNKNOWN, externalStoragePath = true))
     }
 
     @Test fun onlyASavedDriveThatIsMissingCountsAsDisconnected() {
