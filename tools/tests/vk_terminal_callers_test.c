@@ -131,13 +131,17 @@ static int wl_shm_buffer_get_format(struct wl_shm_buffer *b) { return WL_SHM_FOR
 static const void *wl_shm_buffer_get_data(struct wl_shm_buffer *b) { return b->data; }
 static void wl_shm_buffer_begin_access(struct wl_shm_buffer *b) {}
 static void wl_shm_buffer_end_access(struct wl_shm_buffer *b) {}
-static void wl_buffer_send_release(struct wl_resource *b) { ++releases; }
+struct wl_resource { int dmabuf; };
+static struct wl_resource *expected_release;
+static void wl_buffer_send_release(struct wl_resource *b) { assert(b && b == expected_release); ++releases; }
 static struct wl_client *wl_resource_get_client(struct wl_resource *r) { return NULL; }
 static struct client_info *client_info_of(struct wl_client *c) { return NULL; }
-/* This harness exercises copied SHM/pixel callers; DMA-BUF lifecycle paths are
- * compiled separately by test_vk_dmabuf_quarantine.py. */
-struct dmabuf_buffer;
-static struct dmabuf_buffer *get_dmabuf(struct wl_resource *buffer) { return NULL; }
+struct dmabuf_buffer { int unused; };
+static struct dmabuf_buffer dmabuf_fixture;
+static struct dmabuf_buffer *get_dmabuf(struct wl_resource *buffer) {
+    assert(buffer);
+    return buffer->dmabuf ? &dmabuf_fixture : NULL;
+}
 /* COMPOSITOR_CALLERS */
 
 static void setup(int extra) {
@@ -223,7 +227,9 @@ static void upload_timeout(int single_pixel) {
         .w = single_pixel ? 1 : 2, .h = single_pixel ? 1 : 2};
     struct surface s = {.shm_img = img};
     struct wl_shm_buffer b = {.w = img->w, .h = img->h, .stride = img->w * 4, .data = data};
-    if (single_pixel) take_pixel(&s, data, NULL); else take_shm(&s, &b, NULL);
+    struct wl_resource resource = {0};
+    expected_release = &resource;
+    if (single_pixel) take_pixel(&s, data, &resource); else take_shm(&s, &b, &resource);
     assert(bytes[3] == 0x3c && bytes[0] == 0xa5 && releases == 1);
     memcpy(saved, bytes, sizeof(saved));
     struct vkp_image dst = {.image = (VkImage)(uintptr_t)9, .blit_dst = 1, .w = img->w, .h = img->h};
@@ -231,11 +237,20 @@ static void upload_timeout(int single_pixel) {
     assert(vkp_blit_image(img, &dst, -1) == -1);
     assert(g_dev_state == -3 && submits == 1 && waits == 1);
     memset(data, 0x7e, sizeof(data));
-    if (single_pixel) take_pixel(&s, data, NULL); else take_shm(&s, &b, NULL);
+    if (single_pixel) take_pixel(&s, data, &resource); else take_shm(&s, &b, &resource);
     assert(s.shm_img == img && memcmp(saved, bytes, sizeof(saved)) == 0 && releases == 2);
+    struct wl_resource dmabuf = {.dmabuf = 1};
+    expected_release = &dmabuf;
+    assert(buffer_release_blocked(&dmabuf));
+    send_buffer_release(&dmabuf);
+    assert(releases == 2);
     vkp_image_destroy(img);
     assert(destroys == 0 && img->map == bytes && img->image && img->mem);
     assert_stopped();
+    g_dev_state = 1;
+    assert(!buffer_release_blocked(&dmabuf));
+    send_buffer_release(&dmabuf);
+    assert(releases == 3);
     free(img); free(g_images); /* fake resources only, not production cleanup */
 }
 

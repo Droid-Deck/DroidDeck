@@ -202,11 +202,6 @@ public class LinuxVulkanDriverManager {
         return id;
     }
 
-    /**
-     * A Linux Vulkan driver's library as release zips name it: Turnip (freedreno) on Adreno, PanVK
-     * (panfrost) on Mali, RADV (radeon) on Xclipse. Whichever it is, it is installed as
-     * {@link #LIB_NAME}; the ICD manifest loads it by that absolute path.
-     */
     /** The names an installed driver's library is kept under; Turnip keeps {@link #LIB_NAME}. */
     private static final String[] STORED_NAMES = {LIB_NAME, "libvulkan_panfrost.so", "libvulkan_radeon.so"};
 

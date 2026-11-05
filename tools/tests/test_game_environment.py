@@ -399,6 +399,23 @@ class EgoCorePlanTest(unittest.TestCase):
 
 
 class SystemGraphicsLaunchTest(unittest.TestCase):
+    def test_start_configures_ubisoft_with_proton_before_wrapping_the_game(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            runtime, _ = self.runtime(root)
+            prefix = root / "42" / "pfx"
+            (prefix / MODULE["UBISOFT_LAUNCHER"]).mkdir(parents=True)
+            (prefix / "user.reg").write_text("WINE REGISTRY Version 2\n")
+            env = {"DROIDDECK_POWERVR_RUNTIME": str(runtime), "STEAM_COMPAT_DATA_PATH": str(prefix.parent)}
+            command = ["/selected/proton", "waitforexitandrun", "game.exe"]
+            with mock.patch("subprocess.run") as run, mock.patch("os.execvpe") as execute:
+                MODULE["start"](command, env, None)
+            self.assertEqual(run.call_count, 2)
+            for call in run.call_args_list:
+                self.assertEqual(call.args[0][:3], ["/selected/proton", "runinprefix", "reg.exe"])
+            self.assertEqual(execute.call_args.args[:2], (str(runtime / "run-proton.py"),
+                                                         [str(runtime / "run-proton.py"), *command]))
+
     def runtime(self, root):
         runtime = root / "system_vulkan" / ("a" * 64)
         files = ["run-proton.py", "lib/libVkLayer_hybris_compat.so",

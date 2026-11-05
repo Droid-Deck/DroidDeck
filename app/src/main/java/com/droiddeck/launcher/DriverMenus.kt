@@ -307,10 +307,12 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         }
         if (gpu.family.mali && DriverPairs.recommendedKey(gpu, emptyList()) == null &&
             com.droiddeck.launcher.gpu.VulkanInfo.cachedOrNull() == null) {
+            releaseChecking = true
             autoStatus = activity.getString(R.string.drivers_checking_latest)
             Thread({
                 com.droiddeck.launcher.gpu.VulkanInfo.query()
                 ui.post {
+                    releaseChecking = false
                     gpu = GpuInfo.detect()
                     Log.i(TAG, "auto: Mali named by its driver: ${gpu.name} -> ${gpu.family}")
                     lastAutoCheck = 0L

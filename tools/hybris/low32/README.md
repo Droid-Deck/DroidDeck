@@ -78,7 +78,7 @@ DROIDDECK_LOW32_RDEV=<verified decimal st_rdev>
 ```
 
 Preserve any existing target-game preload rather than replacing it. The tested
-Pixel's /dev/dri/renderD128 was character device major226/minor128, st_rdev57984.
+Pixel's /dev/dri/renderD128 was character device major 226/minor 128, st_rdev 57984.
 Do not hardcode that value for other machines. BC emulation and the repaired
 DXVK presentation component remain separate prerequisites; this adapter does
 not implement them. No global Steam profile, managed graphics pack, Android
@@ -91,9 +91,9 @@ Steam prefix to a report. Removing these three overrides disables the adapter.
 
 ## Compatibility limits
 
-This initial binary was built on Ubuntu24.04 ARM64 and needs glibc2.38. The
+This initial binary was built on Ubuntu 24.04 ARM64 and needs glibc 2.38. The
 tested guest supports it. This is not yet a universal runtime component; other
-glibc versions, page sizes, drivers, GPU families, native32-bit processes and
+glibc versions, page sizes, drivers, GPU families, native 32-bit processes and
 general game stability require their own tests. Bounded native and Windows GPU
 copies prove data integrity for those workloads, not unrestricted gameplay.
 Never enable globally based on successful testing of one game.

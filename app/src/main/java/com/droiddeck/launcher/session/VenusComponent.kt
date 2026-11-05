@@ -119,7 +119,7 @@ class VenusComponent(private val logFile: File?) : SessionPart() {
             if (!lib.isFile || lib.lastModified() < installed) {
                 val tmp = File(dir, "$LIB.tmp")
                 context.assets.open(ASSET).use { input -> tmp.outputStream().use { input.copyTo(it) } }
-                if (!tmp.renameTo(lib)) Log.e(TAG, "could not move the Venus ICD into place")
+                if (!tmp.renameTo(lib)) throw java.io.IOException("could not move the Venus ICD into place")
                 Log.i(TAG, "staged $lib (${lib.length()} bytes)")
             }
             FileUtils.writeString(

@@ -61,13 +61,6 @@ object DriverBundle {
             val manifest = File(work, MANIFEST).takeIf { it.isFile }
                 ?.let { runCatching { parseManifest(JSONObject(FileUtils.readString(it))) }.getOrNull() }
                 ?: throw IllegalArgumentException(context.getString(R.string.bundle_no_manifest))
-            // The same open non-Adreno pair again (picked again after another one): replace it
-            // rather than keeping a "-2" copy beside the old one. Adreno bundles keep their copies.
-            val sameId = LinuxVulkanDriverManager.sanitizeId(manifest.tag.ifEmpty { "${manifest.name}-${manifest.version}" })
-            get(context, sameId)?.takeIf { DriverPairs.isNonAdreno(it.id) }?.let { old ->
-                Log.i(TAG, "replacing bundle ${old.id} (display ${old.androidId}, runtime ${old.linuxId})")
-                remove(context, old)
-            }
             val androidDir = File(work, manifest.androidPath)
             val linuxDir = File(work, manifest.linuxPath)
 
@@ -93,6 +86,10 @@ object DriverBundle {
             }
 
             val base = LinuxVulkanDriverManager.sanitizeId(manifest.tag.ifEmpty { "${manifest.name}-${manifest.version}" })
+            get(context, base)?.takeIf { DriverPairs.isNonAdreno(it.id) }?.let { old ->
+                Log.i(TAG, "replacing bundle ${old.id} (display ${old.androidId}, runtime ${old.linuxId})")
+                remove(context, old)
+            }
             val saved = registry(context)
             var id = base
             var n = 2
