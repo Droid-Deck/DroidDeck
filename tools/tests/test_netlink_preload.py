@@ -11,15 +11,77 @@ PRELOAD = Path(__file__).resolve().parents[1] / "linuxfs/preload"
 SHIM = r"""
 #define _GNU_SOURCE
 #include <dlfcn.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
 #ifndef SYS_close_range
 #define SYS_close_range 436
 #endif
+
+static pthread_mutex_t *netlink_mutex;
+static __thread int probe_mode;
+static __thread unsigned probe_counts[5];
+
+void test_probe_begin(int capture) {
+    memset(probe_counts, 0, sizeof(probe_counts));
+    probe_mode = capture ? 1 : 2;
+}
+
+void test_probe_end(unsigned *counts) {
+    probe_mode = 0;
+    memcpy(counts, probe_counts, sizeof(probe_counts));
+}
+
+int pthread_mutex_lock(pthread_mutex_t *mutex) {
+    static int (*real)(pthread_mutex_t *);
+    if (!real) real = dlsym(RTLD_NEXT, "pthread_mutex_lock");
+    if (probe_mode == 1) netlink_mutex = mutex;
+    if (probe_mode == 2 && mutex == netlink_mutex) probe_counts[0]++;
+    return real(mutex);
+}
+
+int getsockname(int fd, struct sockaddr *addr, socklen_t *len) {
+    static int (*real)(int, struct sockaddr *, socklen_t *);
+    if (!real) real = dlsym(RTLD_NEXT, "getsockname");
+    if (probe_mode == 2) probe_counts[1]++;
+    return real(fd, addr, len);
+}
+
+int getpeername(int fd, struct sockaddr *addr, socklen_t *len) {
+    static int (*real)(int, struct sockaddr *, socklen_t *);
+    if (!real) real = dlsym(RTLD_NEXT, "getpeername");
+    if (probe_mode == 2) probe_counts[2]++;
+    return real(fd, addr, len);
+}
+
+int fstat(int fd, struct stat *status) {
+    static int (*real)(int, struct stat *);
+    if (!real) real = dlsym(RTLD_NEXT, "fstat");
+    if (probe_mode == 2) probe_counts[3]++;
+    return real(fd, status);
+}
+
+#ifdef __GLIBC__
+int __fxstat(int version, int fd, struct stat *status) {
+    static int (*real)(int, int, struct stat *);
+    if (!real) real = dlsym(RTLD_NEXT, "__fxstat");
+    if (probe_mode == 2) probe_counts[3]++;
+    return real(version, fd, status);
+}
+#endif
+
+int getsockopt(int fd, int level, int option, void *value, socklen_t *len) {
+    static int (*real)(int, int, int, void *, socklen_t *);
+    if (!real) real = dlsym(RTLD_NEXT, "getsockopt");
+    if (probe_mode == 2) probe_counts[4]++;
+    return real(fd, level, option, value, len);
+}
 
 FILE *fopen(const char *path, const char *mode) {
     static FILE *(*real)(const char *, const char *);
@@ -46,10 +108,13 @@ PROGRAM = r"""
 #include <fcntl.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
+#include <net/if.h>
+#include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/syscall.h>
 #include <sys/wait.h>
@@ -92,6 +157,55 @@ static void send_link(int descriptor, int index, unsigned flags) {
                    (struct sockaddr *)&destination, sizeof(destination)) == sizeof(query), "send link");
 }
 
+static void named_link_test(const char *name, const char *mode) {
+    int descriptor = route_socket();
+    struct {
+        struct nlmsghdr header;
+        struct ifinfomsg info;
+        struct rtattr attr;
+        char name[IFNAMSIZ + 1];
+    } query = {
+        .header = {.nlmsg_type = RTM_GETLINK, .nlmsg_flags = NLM_F_REQUEST, .nlmsg_seq = 42},
+        .attr = {.rta_type = IFLA_IFNAME}
+    };
+    size_t length = strlen(name) + 1;
+    require(length <= sizeof(query.name), "name length");
+    memcpy(query.name, name, length);
+    if (!strcmp(mode, "unterminated")) length--;
+    if (!strcmp(mode, "oversized")) {
+        memset(query.name, 'x', sizeof(query.name));
+        query.name[sizeof(query.name) - 1] = '\0';
+        length = sizeof(query.name);
+    }
+    query.attr.rta_len = RTA_LENGTH(length);
+    query.header.nlmsg_len = NLMSG_LENGTH(sizeof(query.info)) + RTA_SPACE(length);
+    if (!strcmp(mode, "missing")) query.header.nlmsg_len = NLMSG_LENGTH(sizeof(query.info));
+    if (!strcmp(mode, "index")) query.info.ifi_index = 1;
+    struct sockaddr_nl destination = {.nl_family = AF_NETLINK};
+    require(sendto(descriptor, &query, query.header.nlmsg_len, 0,
+                   (struct sockaddr *)&destination, sizeof(destination)) == query.header.nlmsg_len,
+            "send named link");
+    unsigned char buffer[4096];
+    require(recv(descriptor, buffer, sizeof(buffer), MSG_DONTWAIT) > 0, "receive named link");
+    struct nlmsghdr *header = (struct nlmsghdr *)buffer;
+    require(header->nlmsg_seq == 42, "named link sequence");
+    if (header->nlmsg_type == NLMSG_ERROR) {
+        printf("error %d\n", ((struct nlmsgerr *)NLMSG_DATA(header))->error);
+    } else {
+        require(header->nlmsg_type == RTM_NEWLINK, "named link reply");
+        struct ifinfomsg *info = NLMSG_DATA(header);
+        int remaining = IFLA_PAYLOAD(header);
+        const char *reply_name = NULL;
+        for (struct rtattr *attr = IFLA_RTA(info); RTA_OK(attr, remaining);
+             attr = RTA_NEXT(attr, remaining)) {
+            if (attr->rta_type == IFLA_IFNAME) reply_name = RTA_DATA(attr);
+        }
+        require(reply_name != NULL, "reply interface name");
+        printf("link %d %s\n", info->ifi_index, reply_name);
+    }
+    close(descriptor);
+}
+
 static ssize_t receive(int descriptor, unsigned char *buffer, size_t capacity) {
     struct sockaddr_nl address;
     memset(&address, 0xff, sizeof(address));
@@ -129,6 +243,179 @@ static void socket_info(int descriptor, int kind) {
             && length == 1, "short socket option");
     require(getsockopt(descriptor, SOL_SOCKET, SO_TYPE, NULL, &length) == -1
             && errno == EFAULT, "invalid socket option buffer");
+}
+
+static void (*probe_begin)(int);
+static void (*probe_end)(unsigned *);
+
+static void *ordinary_traffic(void *argument) {
+    int kind = (int)(uintptr_t)argument;
+    unsigned counts[5];
+    probe_begin(0);
+    int listener = socket(AF_INET, kind, 0);
+    int client = socket(AF_INET, kind, 0);
+    require(listener >= 0 && client >= 0, "ordinary sockets");
+    struct sockaddr_in address = {.sin_family = AF_INET, .sin_addr.s_addr = htonl(INADDR_LOOPBACK)};
+    require(bind(listener, (struct sockaddr *)&address, sizeof(address)) == 0, "ordinary bind");
+    socklen_t length = sizeof(address);
+    require(getsockname(listener, (struct sockaddr *)&address, &length) == 0, "ordinary address");
+    if (kind == SOCK_STREAM) require(listen(listener, 1) == 0, "ordinary listen");
+    require(connect(client, (struct sockaddr *)&address, sizeof(address)) == 0, "ordinary connect");
+    int server = kind == SOCK_STREAM ? accept(listener, NULL, NULL) : listener;
+    require(server >= 0, "ordinary server");
+    probe_end(counts);
+    require(counts[0] == 0, "ordinary setup avoids netlink lock");
+
+    probe_begin(0);
+    const int rounds = 32;
+    for (int round = 0; round < rounds; round++) {
+        char buffer;
+        require(send(client, "x", 1, 0) == 1, "ordinary send");
+        require(recv(server, &buffer, 1, 0) == 1 && buffer == 'x', "ordinary recv");
+        struct sockaddr *destination = kind == SOCK_DGRAM ? (struct sockaddr *)&address : NULL;
+        socklen_t destination_length = destination ? sizeof(address) : 0;
+        require(sendto(client, "y", 1, 0, destination, destination_length) == 1, "ordinary sendto");
+        struct sockaddr_storage source;
+        length = sizeof(source);
+        require(recvfrom(server, &buffer, 1, 0, (struct sockaddr *)&source, &length) == 1
+                && buffer == 'y', "ordinary recvfrom");
+        struct iovec part = {.iov_base = "z", .iov_len = 1};
+        struct msghdr message = {.msg_name = destination, .msg_namelen = destination_length,
+                                .msg_iov = &part, .msg_iovlen = 1};
+        require(sendmsg(client, &message, 0) == 1, "ordinary sendmsg");
+        part.iov_base = &buffer;
+        message.msg_name = &source;
+        message.msg_namelen = sizeof(source);
+        require(recvmsg(server, &message, 0) == 1 && buffer == 'z', "ordinary recvmsg");
+        length = sizeof(source);
+        require(getpeername(client, (struct sockaddr *)&source, &length) == 0, "ordinary peer");
+        const int options[] = {SO_TYPE, SO_DOMAIN, SO_PROTOCOL};
+        const int expected[] = {kind, AF_INET, kind == SOCK_DGRAM ? IPPROTO_UDP : IPPROTO_TCP};
+        for (size_t index = 0; index < sizeof(options) / sizeof(options[0]); index++) {
+            int value;
+            length = sizeof(value);
+            require(getsockopt(client, SOL_SOCKET, options[index], &value, &length) == 0
+                    && value == expected[index], "ordinary socket option");
+        }
+        int enabled = 1;
+        require(setsockopt(client, SOL_SOCKET, SO_KEEPALIVE, &enabled, sizeof(enabled)) == 0,
+                "ordinary setsockopt");
+        int alias = dup(client);
+        require(alias >= 0 && dup2(client, alias) == alias
+                && dup3(client, alias, O_CLOEXEC) == alias, "ordinary duplicates");
+        close(alias);
+        alias = fcntl(client, F_DUPFD, 0);
+        require(alias >= 0, "ordinary fcntl duplicate");
+        close(alias);
+        alias = fcntl(client, F_DUPFD_CLOEXEC, 0);
+        require(alias >= 0, "ordinary cloexec duplicate");
+        close(alias);
+    }
+    probe_end(counts);
+    require(counts[0] == 0, "ordinary traffic avoids netlink lock");
+    require(counts[1] == 0, "ordinary traffic avoids restoration getsockname");
+    require(counts[2] == (unsigned)rounds, "ordinary traffic has only requested getpeername");
+    require(counts[3] == 0, "ordinary traffic avoids restoration fstat");
+    require(counts[4] == (unsigned)rounds * 3, "ordinary socket options use one syscall each");
+    close(client);
+    close(server);
+    if (server != listener) close(listener);
+    return NULL;
+}
+
+static void hotpath_test(int active) {
+    probe_begin = dlsym(RTLD_DEFAULT, "test_probe_begin");
+    probe_end = dlsym(RTLD_DEFAULT, "test_probe_end");
+    require(probe_begin && probe_end, "probe symbols");
+    unsigned counts[5];
+    probe_begin(1);
+    int descriptor = route_socket();
+    probe_end(counts);
+    if (!active) close(descriptor);
+    pthread_t threads[4];
+    for (size_t index = 0; index < sizeof(threads) / sizeof(threads[0]); index++) {
+        int kind = index % 2 ? SOCK_STREAM : SOCK_DGRAM;
+        require(pthread_create(&threads[index], NULL, ordinary_traffic, (void *)(uintptr_t)kind) == 0,
+                "traffic thread");
+    }
+    for (size_t index = 0; index < sizeof(threads) / sizeof(threads[0]); index++)
+        require(pthread_join(threads[index], NULL) == 0, "join traffic thread");
+    if (active) {
+        usable(descriptor);
+        close(descriptor);
+    }
+}
+
+static void transferred_test(const char *mode) {
+    int transport[2];
+    require(socketpair(AF_UNIX, SOCK_DGRAM, 0, transport) == 0, "rights transport");
+    pid_t child = fork();
+    require(child >= 0, "rights fork");
+    if (child == 0) {
+        close(transport[0]);
+        unsigned port;
+        struct iovec part = {.iov_base = &port, .iov_len = sizeof(port)};
+        union {
+            struct cmsghdr align;
+            unsigned char bytes[CMSG_SPACE(sizeof(int))];
+        } control;
+        struct msghdr message = {.msg_iov = &part, .msg_iovlen = 1,
+                                .msg_control = control.bytes, .msg_controllen = sizeof(control.bytes)};
+        ssize_t received = !strcmp(mode, "received") ? recvmsg(transport[1], &message, 0) :
+                syscall(SYS_recvmsg, (long)transport[1], &message, 0L, 0L, 0L, 0L);
+        require(received == sizeof(port), "rights receive");
+        struct cmsghdr *header = CMSG_FIRSTHDR(&message);
+        require(header && header->cmsg_level == SOL_SOCKET && header->cmsg_type == SCM_RIGHTS
+                && header->cmsg_len == CMSG_LEN(sizeof(int)), "rights header");
+        int descriptor;
+        memcpy(&descriptor, CMSG_DATA(header), sizeof(descriptor));
+        struct sockaddr_nl address = {.nl_family = AF_NETLINK};
+        if (!strcmp(mode, "domain")) {
+            int domain;
+            socklen_t length = sizeof(domain);
+            require(getsockopt(descriptor, SOL_SOCKET, SO_DOMAIN, &domain, &length) == 0
+                    && domain == AF_NETLINK, "rights domain discovery");
+        } else if (!strcmp(mode, "bind")) {
+            address.nl_pid = port;
+            require(bind(descriptor, (struct sockaddr *)&address, sizeof(address)) == 0,
+                    "rights bind discovery");
+        } else if (!strcmp(mode, "connect")) {
+            require(connect(descriptor, (struct sockaddr *)&address, sizeof(address)) == 0,
+                    "rights connect discovery");
+        } else if (!strcmp(mode, "option")) {
+            int enabled = 1;
+            require(setsockopt(descriptor, SOL_NETLINK, NETLINK_EXT_ACK, &enabled, sizeof(enabled)) == 0,
+                    "rights option discovery");
+        }
+        usable(descriptor);
+        require(port_of(descriptor) == port, "rights port retained");
+        socket_info(descriptor, SOCK_RAW);
+        close(descriptor);
+        close(transport[1]);
+        _exit(0);
+    }
+    close(transport[1]);
+    int descriptor = route_socket();
+    unsigned port = port_of(descriptor);
+    struct iovec part = {.iov_base = &port, .iov_len = sizeof(port)};
+    union {
+        struct cmsghdr align;
+        unsigned char bytes[CMSG_SPACE(sizeof(int))];
+    } control = {0};
+    struct msghdr message = {.msg_iov = &part, .msg_iovlen = 1,
+                            .msg_control = control.bytes, .msg_controllen = sizeof(control.bytes)};
+    struct cmsghdr *header = CMSG_FIRSTHDR(&message);
+    header->cmsg_level = SOL_SOCKET;
+    header->cmsg_type = SCM_RIGHTS;
+    header->cmsg_len = CMSG_LEN(sizeof(descriptor));
+    memcpy(CMSG_DATA(header), &descriptor, sizeof(descriptor));
+    require(sendmsg(transport[0], &message, 0) == sizeof(port), "rights send");
+    int status;
+    require(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0,
+            "rights child");
+    usable(descriptor);
+    close(descriptor);
+    close(transport[0]);
 }
 
 static void socket_types_test(void) {
@@ -486,6 +773,13 @@ static void duplicate_test(const char *mode) {
     unsigned port = port_of(descriptor);
     int duplicate;
     if (!strcmp(mode, "dup")) duplicate = dup(descriptor);
+    else if (!strcmp(mode, "high_dup")) {
+        struct rlimit limit;
+        require(getrlimit(RLIMIT_NOFILE, &limit) == 0, "descriptor limit");
+        int minimum = limit.rlim_cur > 262144 ? 262144 : (int)(limit.rlim_cur / 2);
+        duplicate = fcntl(descriptor, F_DUPFD, minimum);
+        require(duplicate >= minimum, "high descriptor duplicate");
+    }
     else if (!strcmp(mode, "fcntl")) duplicate = fcntl(descriptor, F_DUPFD, 20);
     else if (!strcmp(mode, "fcntl_cloexec")) duplicate = fcntl(descriptor, F_DUPFD_CLOEXEC, 20);
     else {
@@ -642,6 +936,18 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[1], "shared")) shared_test(0);
     else if (!strcmp(argv[1], "fork")) shared_test(1);
     else if (!strcmp(argv[1], "socket_types")) socket_types_test();
+    else if (!strcmp(argv[1], "hotpath")) {
+        require(argc == 3, "hotpath arguments");
+        hotpath_test(atoi(argv[2]));
+    }
+    else if (!strcmp(argv[1], "transferred")) {
+        require(argc == 3, "transfer arguments");
+        transferred_test(argv[2]);
+    }
+    else if (!strcmp(argv[1], "named_link")) {
+        require(argc == 4, "named link arguments");
+        named_link_test(argv[2], argv[3]);
+    }
     else if (!strcmp(argv[1], "ports")) ports_test(0);
     else if (!strcmp(argv[1], "cross_process_ports")) ports_test(1);
     else if (!strcmp(argv[1], "batch")) batch_test(0);
@@ -691,9 +997,9 @@ class NetlinkPreloadTest(unittest.TestCase):
         (cls.directory / "program.c").write_text(PROGRAM)
         subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-Wall", "-pthread",
                         "-o", str(cls.preload), *map(str, sorted(PRELOAD.glob("*.c"))), "-ldl"], check=True)
-        subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-Wall", "-o", str(cls.shim),
+        subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-o", str(cls.shim),
                         str(cls.directory / "shim.c"), "-ldl"], check=True)
-        subprocess.run(["cc", "-O2", "-Wall", "-o", str(cls.program),
+        subprocess.run(["cc", "-O2", "-Wall", "-pthread", "-o", str(cls.program),
                         str(cls.directory / "program.c"), "-ldl"], check=True)
         cls.snapshot = cls.directory / "snapshot"
         cls.snapshot.write_text(SNAPSHOT)
@@ -726,6 +1032,29 @@ class NetlinkPreloadTest(unittest.TestCase):
 
     def test_socket_types_flags_and_identity_match_netlink(self):
         self.run_program("socket_types")
+
+    def test_ordinary_socket_paths_do_not_lock_or_probe_for_netlink(self):
+        for active in ("0", "1"):
+            with self.subTest(netlink_active=active):
+                self.run_program("hotpath", active)
+
+    def test_transferred_sockets_restore_on_receipt_or_netlink_specific_operations(self):
+        for mode in ("received", "domain", "bind", "connect", "option"):
+            with self.subTest(discovery=mode):
+                self.run_program("transferred", mode)
+
+    def test_getlink_resolves_names_and_prefers_a_nonzero_index(self):
+        for name, mode, expected in (("wlan0", "name", ["link", "2", "wlan0"]),
+                                     ("lo", "name", ["link", "1", "lo"]),
+                                     ("unknown", "index", ["link", "1", "lo"]),
+                                     ("unknown", "name", ["error", str(-errno.ENODEV)]),
+                                     ("wlan0", "missing", ["error", str(-errno.EINVAL)]),
+                                     ("wlan0", "unterminated", ["error", str(-errno.EINVAL)]),
+                                     ("wlan0", "oversized", ["error", str(-errno.EINVAL)])):
+            with self.subTest(name=name, mode=mode):
+                self.assertEqual(expected, self.run_program("named_link", name, mode))
+        self.assertEqual(["error", str(-errno.ENODEV)],
+                         self.run_program("named_link", "wlan0", "name", snapshot=self.offline))
 
     def test_more_than_eight_sockets_get_unique_ports_and_release_them(self):
         self.run_program("ports")
@@ -766,7 +1095,7 @@ class NetlinkPreloadTest(unittest.TestCase):
         self.run_program("receive")
 
     def test_duplicates_share_the_socket_until_the_last_close(self):
-        for mode in ("dup", "dup2", "dup3", "fcntl", "fcntl_cloexec"):
+        for mode in ("dup", "dup2", "dup3", "fcntl", "fcntl_cloexec", "high_dup"):
             with self.subTest(mode=mode):
                 self.run_program(mode)
 
@@ -820,6 +1149,9 @@ class NetlinkPreloadTest(unittest.TestCase):
                    NETLINK_TEST_SNAPSHOT=str(self.snapshot),
                    BL_SYSV_DIR=str(self.directory / "sysv"))
         queries = ((["link", "show"], "wlan0"),
+                   (["link", "show", "wlan0"], "wlan0"),
+                   (["-d", "link", "show", "dev", "wlan0"], "wlan0"),
+                   (["link", "show", "lo"], "lo"),
                    (["addr", "show"], "192.168.1.10/24"),
                    (["route", "show"], "default via 192.168.1.1 dev wlan0"),
                    (["route", "get", "127.0.0.1"], "local 127.0.0.1 dev lo"),
