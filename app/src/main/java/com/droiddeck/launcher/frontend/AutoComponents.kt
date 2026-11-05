@@ -254,7 +254,6 @@ object AutoComponents {
     private fun download(context: Context, id: String, asked: Boolean, inSession: Boolean = false, requestedRevision: Int? = null) {
         val catalog = catalogOf(context, true)?.associateBy { it.name } ?: run {
             repairFailures.value = repairFailures.value + (id to "Could not load the component catalog")
-            Pending.drop(context, id, requestedRevision ?: 0)
             return
         }
         val catalogComponent = catalog[id]
@@ -427,35 +426,40 @@ object AutoComponents {
     }
 
 
-    internal fun prepareLaunch(context: Context, game: Library.SteamGame) {
-        val key = appKey(game) ?: return
+    internal fun prepareLaunch(context: Context, game: Library.SteamGame): Boolean {
+        val key = appKey(game) ?: return false
         val findings = findings(context, game)
         val cached = catalogOf(context, false)
         val current = if (online(context)) catalogOf(context, true) else null
-        val catalog = (current ?: cached)?.associateBy { it.name }
-        if (catalog != null) {
-            val wanted = autoPicks(findings, catalog)
-            val selection = WinComponents.selection(context, key)
-            val user = selection.user
-            val installed = installedOf(context)
-            val roots = selection.effective + wanted.keys.filter { user[it] != false }
-            val required = withParts(roots.filter { WinComponents.validId(it) }, catalog)
-            val missing = required.filter { user[it] != false && it !in installed }
-            Pending.update(context, key, catalog.mapValues { it.value.revision }) { ids ->
-                ids.filter { id -> user[id] != false && (id !in installed && id !in wanted || (Pending.revision(context, id) ?: 0) > (catalog[id]?.revision ?: 0)) } + missing
-            }
+        val catalog = (current ?: cached)?.associateBy { it.name } ?: run {
+            Pending.ids(context, key).forEach { waitFor(game, it) }
+            queuePending(context, key)
+            return false
+        }
+        val wanted = autoPicks(findings, catalog)
+        val selection = WinComponents.selection(context, key)
+        val user = selection.user
+        val installed = installedOf(context)
+        val roots = selection.effective + wanted.keys.filter { user[it] != false }
+        val required = withParts(roots.filter { WinComponents.validId(it) }, catalog)
+        val missing = required.filter { user[it] != false && it !in installed }
+        Pending.update(context, key, catalog.mapValues { it.value.revision }) { ids ->
+            ids.filter { id -> user[id] != false && (id !in installed && id !in wanted || (Pending.revision(context, id) ?: 0) > (catalog[id]?.revision ?: 0)) } + missing
         }
         Pending.ids(context, key).forEach { waitFor(game, it) }
         queuePending(context, key)
+        return true
     }
 
     fun beforeLaunch(context: Context, game: Library.SteamGame, onReady: () -> Unit) {
         val app = context.applicationContext
         Thread({
-            runCatching { prepareLaunch(app, game) }
-                .onFailure { Log.w(TAG, "${game.name}: launch repair discovery failed: ${it.javaClass.simpleName}: ${it.message}") }
+            val ready = runCatching { prepareLaunch(app, game) }.getOrElse {
+                Log.w(TAG, "${game.name}: launch repair discovery failed: ${it.javaClass.simpleName}: ${it.message}")
+                false
+            }
             queueGame(app, game, asked = false)
-            Handler(Looper.getMainLooper()).post(onReady)
+            if (ready) Handler(Looper.getMainLooper()).post(onReady)
         }, "auto-components-launch").apply { isDaemon = true; start() }
     }
 

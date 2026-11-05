@@ -330,7 +330,7 @@ class WinCompSourcesTest {
         gameUp = true
         val appId = 9876543
 
-        AutoComponents.prepareLaunch(app, payback(appId))
+        assertTrue(AutoComponents.prepareLaunch(app, payback(appId)))
 
         assertEquals(setOf("d3dx9", "vcredist2013_dll", "vcredist2019_dll"), AutoComponents.Pending.ids(app, appId.toString()).toSet())
         session = false
@@ -348,13 +348,23 @@ class WinCompSourcesTest {
         AutoComponents.catalogOf = { _, network -> requests.add(network); catalog }
         WinComponents.setUser(app, appId.toString(), manual.name, true)
 
-        AutoComponents.prepareLaunch(app, game(null, Library.SOURCE_STEAM, appId, library = "steam"))
+        assertTrue(AutoComponents.prepareLaunch(app, game(null, Library.SOURCE_STEAM, appId, library = "steam")))
 
         assertTrue(requests.contains(true))
         assertEquals(setOf("manual_component", "d3dx9"), AutoComponents.Pending.ids(app, appId.toString()).toSet())
         session = false
         gameUp = false
         AutoComponents.drain(app)
+    }
+
+    @Test fun pendingRepairsSurviveTemporaryCatalogFetchFailure() = withFakeWorker {
+        val id = "vcredist2010_dll"
+        AutoComponents.catalogOf = { _, _ -> null }
+
+        AutoComponents.queueRepair(app, id, "4242", revision = 2)
+
+        assertEquals(listOf(id), AutoComponents.Pending.ids(app, "4242"))
+        assertEquals(2, AutoComponents.Pending.revision(app, id))
     }
 
     @Test fun pendingRepairsKeepTheirRequiredRevisionUntilTheyFinish() = withFakeWorker {
