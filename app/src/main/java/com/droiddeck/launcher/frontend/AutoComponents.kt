@@ -353,8 +353,11 @@ object AutoComponents {
                     }
                 }
                 tmp.writeText(JSONObject().put("games", games).put("revisions", revisions).toString())
-                if (!tmp.renameTo(f)) { f.delete(); tmp.renameTo(f) }
-            }
+                if (!tmp.renameTo(f)) {
+                    f.delete()
+                    if (!tmp.renameTo(f)) throw java.io.IOException("Could not replace pending repair file")
+                }
+            }.onFailure { Log.w(TAG, "wincomp: could not save pending repairs: ${it.javaClass.simpleName}: ${it.message}") }
         }
     }
 

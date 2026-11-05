@@ -180,7 +180,8 @@ internal fun WinComponentsDialog(
         if (id in installed) {
             setUser(id, true)
             if (c != null && id !in freshInstalled) {
-                com.droiddeck.launcher.frontend.AutoComponents.queueRepair(context, id, game?.let { appKey }, c.revision)
+                com.droiddeck.launcher.frontend.AutoComponents.queueRepair(context, id,
+                    game?.let { com.droiddeck.launcher.frontend.AutoComponents.appKey(it) }, c.revision)
             }
             return
         }
@@ -293,7 +294,8 @@ internal fun WinComponentsDialog(
             ) { on -> toggle(id, on) }
             if (id in repairFailures && c != null) {
                 SecondaryButton(stringResource(R.string.wincomp_retry), compact = true) {
-                    com.droiddeck.launcher.frontend.AutoComponents.queueRepair(context, id, game?.let { appKey }, c.revision)
+                    com.droiddeck.launcher.frontend.AutoComponents.queueRepair(context, id,
+                        game?.let { com.droiddeck.launcher.frontend.AutoComponents.appKey(it) }, c.revision)
                 }
             }
         }
