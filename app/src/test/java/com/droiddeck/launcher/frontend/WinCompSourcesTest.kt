@@ -367,6 +367,17 @@ class WinCompSourcesTest {
         assertEquals(2, AutoComponents.Pending.revision(app, id))
     }
 
+    @Test fun launchCanProceedWithoutCatalogOnlyWhenNoRepairIsPending() = withFakeWorker {
+        AutoComponents.catalogOf = { _, _ -> null }
+        val noPending = game(null, Library.SOURCE_STEAM, 9876545, library = "steam")
+        assertTrue(AutoComponents.prepareLaunch(app, noPending))
+
+        AutoComponents.Pending.add(app, "9876546", listOf("vcredist2010_dll"), mapOf("vcredist2010_dll" to 2))
+        val pending = game(null, Library.SOURCE_STEAM, 9876546, library = "steam")
+        assertFalse(AutoComponents.prepareLaunch(app, pending))
+        assertEquals(listOf("vcredist2010_dll"), AutoComponents.Pending.ids(app, "9876546"))
+    }
+
     @Test fun pendingRepairsKeepTheirRequiredRevisionUntilTheyFinish() = withFakeWorker {
         val repair = WinComponents.Component("vcredist2010_dll", "", "", "ready", emptyList(), emptyList(), revision = 2)
         AutoComponents.catalogOf = { _, _ -> catalog3 + repair }

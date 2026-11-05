@@ -432,9 +432,10 @@ object AutoComponents {
         val cached = catalogOf(context, false)
         val current = if (online(context)) catalogOf(context, true) else null
         val catalog = (current ?: cached)?.associateBy { it.name } ?: run {
-            Pending.ids(context, key).forEach { waitFor(game, it) }
+            val pending = Pending.ids(context, key)
+            pending.forEach { waitFor(game, it) }
             queuePending(context, key)
-            return false
+            return pending.isEmpty()
         }
         val wanted = autoPicks(findings, catalog)
         val selection = WinComponents.selection(context, key)
