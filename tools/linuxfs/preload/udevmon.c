@@ -106,6 +106,12 @@ __attribute__((visibility("hidden"))) int bl_nl_socket(int type, int *fd);
 __attribute__((visibility("hidden"))) int bl_nl_owns(int fd);
 __attribute__((visibility("hidden"))) int bl_nl_getsockname(int fd, struct sockaddr *addr,
                                                             socklen_t *len, int *rc);
+__attribute__((visibility("hidden"))) int bl_nl_getpeername(int fd, struct sockaddr *addr,
+                                                            socklen_t *len, int *rc);
+__attribute__((visibility("hidden"))) int bl_nl_setsockopt(int fd, int level, int option,
+                                                          const void *value, socklen_t len,
+                                                          int (*real)(int, int, int, const void *, socklen_t),
+                                                          int *rc);
 
 int socket(int domain, int type, int protocol) {
   static int (*real_socket)(int, int, int);
@@ -162,20 +168,29 @@ int getsockname(int fd, struct sockaddr *addr, socklen_t *len) {
   return real_getsockname(fd, addr, len);
 }
 
+int getpeername(int fd, struct sockaddr *addr, socklen_t *len) {
+  static int (*real)(int, struct sockaddr *, socklen_t *);
+  int route_rc;
+  if (bl_nl_getpeername(fd, addr, len, &route_rc)) return route_rc;
+  if (real == NULL) real = dlsym(RTLD_NEXT, "getpeername");
+  return real(fd, addr, len);
+}
+
 int setsockopt(int fd, int level, int optname, const void *optval, socklen_t optlen) {
   static int (*real_setsockopt)(int, int, int, const void *, socklen_t);
+  int route_rc;
 
-  if (bl_nl_owns(fd) && (level == SOL_NETLINK || level == SOL_SOCKET)) return 0;
+  if (real_setsockopt == NULL) real_setsockopt = dlsym(RTLD_NEXT, "setsockopt");
+  if (real_setsockopt == NULL) {
+    errno = ENOSYS;
+    return -1;
+  }
+  if (bl_nl_setsockopt(fd, level, optname, optval, optlen, real_setsockopt, &route_rc)) return route_rc;
   if (is_stand_in(fd)) {
     if (level == SOL_NETLINK)
       return 0;
     if (level == SOL_SOCKET && (optname == SO_ATTACH_FILTER || optname == SO_DETACH_FILTER))
       return 0;
-  }
-  if (real_setsockopt == NULL) real_setsockopt = dlsym(RTLD_NEXT, "setsockopt");
-  if (real_setsockopt == NULL) {
-    errno = ENOSYS;
-    return -1;
   }
   return real_setsockopt(fd, level, optname, optval, optlen);
 }

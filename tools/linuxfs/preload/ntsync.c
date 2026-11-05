@@ -1445,6 +1445,9 @@ int bl_udevmon_recvmsg(int fd, struct msghdr *msg, int flags, ssize_t (*real_rec
 int bl_nl_recvmsg(int fd, struct msghdr *msg, int flags, ssize_t (*real_recvmsg)(int, struct msghdr *, int),
                   ssize_t *result) __attribute__((visibility("hidden")));
 void bl_nl_closed(int fd) __attribute__((visibility("hidden")));
+void bl_nl_range_closed(unsigned int first, unsigned int last) __attribute__((visibility("hidden")));
+int bl_nl_before_dup(int fd, void **state) __attribute__((visibility("hidden")));
+void bl_nl_after_dup(void *state, int fd) __attribute__((visibility("hidden")));
 
 ssize_t recvmsg(int fd, struct msghdr *msg, int flags) {
   static ssize_t (*real)(int, struct msghdr *, int);
@@ -1485,19 +1488,29 @@ int close(int fd) {
 int dup2(int oldfd, int newfd) {
   static int (*real)(int, int);
   if (!real) real = (int (*)(int, int))dlsym(RTLD_NEXT, "dup2");
+  if (oldfd == newfd) return real(oldfd, newfd);
+  void *nl_state;
+  if (bl_nl_before_dup(oldfd, &nl_state) != 0) return -1;
   if (oldfd != newfd && newfd >= 0) bl_fsync_fds_closed((unsigned int)newfd, (unsigned int)newfd);
   uint64_t *t = __atomic_load_n(&ns_fdt, __ATOMIC_ACQUIRE);
   if (t && oldfd != newfd && newfd >= 0 && newfd < NS_FDS && __atomic_load_n(&t[newfd], __ATOMIC_ACQUIRE)) ns_forget(newfd);
-  return real(oldfd, newfd);
+  int result = real(oldfd, newfd);
+  bl_nl_after_dup(nl_state, result);
+  return result;
 }
 
 int dup3(int oldfd, int newfd, int flags) {
   static int (*real)(int, int, int);
   if (!real) real = (int (*)(int, int, int))dlsym(RTLD_NEXT, "dup3");
+  if (oldfd == newfd) return real(oldfd, newfd, flags);
+  void *nl_state;
+  if (bl_nl_before_dup(oldfd, &nl_state) != 0) return -1;
   if (oldfd != newfd && newfd >= 0) bl_fsync_fds_closed((unsigned int)newfd, (unsigned int)newfd);
   uint64_t *t = __atomic_load_n(&ns_fdt, __ATOMIC_ACQUIRE);
   if (t && oldfd != newfd && newfd >= 0 && newfd < NS_FDS && __atomic_load_n(&t[newfd], __ATOMIC_ACQUIRE)) ns_forget(newfd);
-  return real(oldfd, newfd, flags);
+  int result = real(oldfd, newfd, flags);
+  bl_nl_after_dup(nl_state, result);
+  return result;
 }
 
 static void ns_forget_range(unsigned int first, unsigned int last) {
@@ -1518,7 +1531,9 @@ int close_range(unsigned int first, unsigned int last, int flags) {
     errno = ENOSYS;
     return -1;
   }
-  return real(first, last, flags);
+  int result = real(first, last, flags);
+  if (result == 0 && !(flags & CLOSE_RANGE_CLOEXEC)) bl_nl_range_closed(first, last);
+  return result;
 }
 
 void closefrom(int lowfd) {
@@ -1528,7 +1543,10 @@ void closefrom(int lowfd) {
     bl_fsync_fds_closed((unsigned int)lowfd, ~0u);
     ns_forget_range((unsigned int)lowfd, ~0u);
   }
-  if (real) real(lowfd);
+  if (real) {
+    real(lowfd);
+    if (lowfd >= 0) bl_nl_range_closed((unsigned int)lowfd, ~0u);
+  }
 }
 
 static void ns_fork_prepare(void) {
