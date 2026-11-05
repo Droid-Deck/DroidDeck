@@ -1992,7 +1992,7 @@
     <string name="bottom_page_telemetry">Игровая статистика</string>
     <string name="bottom_hud_group">HUD нижнего экрана</string>
     <string name="bottom_strip_tabs">Полоса на всех вкладках</string>
-    <string name="bottom_strip_lows">1% и 0.1% минимальных</string>
+    <string name="bottom_strip_lows" formatted="false">1% и 0.1% минимальных</string>
     <string name="bottom_strip_cpu_temp">Температура CPU</string>
     <string name="bottom_telemetry_fps">FPS</string>
     <string name="bottom_telemetry_cpu">CPU</string>
