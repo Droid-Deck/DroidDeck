@@ -10,6 +10,34 @@
 #include <ucontext.h>
 #include <unistd.h>
 
+static uintptr_t ntdll_lo, ntdll_hi;
+
+static int find_ntdll(struct dl_phdr_info *info, size_t size, void *data) {
+  (void)size;
+  (void)data;
+  const char *slash = strrchr(info->dlpi_name, '/');
+  if (strcmp(slash ? slash + 1 : info->dlpi_name, "ntdll.so") != 0) return 0;
+  for (int i = 0; i < info->dlpi_phnum; i++) {
+    const ElfW(Phdr) *ph = &info->dlpi_phdr[i];
+    if (ph->p_type != PT_LOAD || !(ph->p_flags & PF_X)) continue;
+    uintptr_t lo = info->dlpi_addr + ph->p_vaddr;
+    __atomic_store_n(&ntdll_hi, lo + ph->p_memsz, __ATOMIC_RELAXED);
+    __atomic_store_n(&ntdll_lo, lo, __ATOMIC_RELEASE);
+    return 1;
+  }
+  return 0;
+}
+
+__attribute__((visibility("hidden"))) int bl_from_ntdll(const void *caller) {
+  uintptr_t pc = (uintptr_t)caller, lo = __atomic_load_n(&ntdll_lo, __ATOMIC_ACQUIRE);
+  if (!lo) {
+    dl_iterate_phdr(find_ntdll, NULL);
+    lo = __atomic_load_n(&ntdll_lo, __ATOMIC_ACQUIRE);
+    if (!lo) return 0;
+  }
+  return pc >= lo && pc < __atomic_load_n(&ntdll_hi, __ATOMIC_RELAXED);
+}
+
 #if defined(__aarch64__)
 #include <asm/hwcap.h>
 #include <asm/sigcontext.h>
@@ -126,34 +154,6 @@ static long usr2_sys(long nr, long a, long b, long c, long d) {
   return x0;
 }
 
-static uintptr_t usr2_lo, usr2_hi;
-
-static int usr2_find_ntdll(struct dl_phdr_info *info, size_t size, void *data) {
-  (void)size;
-  (void)data;
-  const char *slash = strrchr(info->dlpi_name, '/');
-  if (strcmp(slash ? slash + 1 : info->dlpi_name, "ntdll.so") != 0) return 0;
-  for (int i = 0; i < info->dlpi_phnum; i++) {
-    const ElfW(Phdr) *ph = &info->dlpi_phdr[i];
-    if (ph->p_type != PT_LOAD || !(ph->p_flags & PF_X)) continue;
-    uintptr_t lo = info->dlpi_addr + ph->p_vaddr;
-    __atomic_store_n(&usr2_hi, lo + ph->p_memsz, __ATOMIC_RELAXED);
-    __atomic_store_n(&usr2_lo, lo, __ATOMIC_RELEASE);
-    return 1;
-  }
-  return 0;
-}
-
-static int usr2_from_ntdll(void *caller) {
-  uintptr_t pc = (uintptr_t)caller, lo = __atomic_load_n(&usr2_lo, __ATOMIC_ACQUIRE);
-  if (!lo) {
-    dl_iterate_phdr(usr2_find_ntdll, NULL);
-    lo = __atomic_load_n(&usr2_lo, __ATOMIC_ACQUIRE);
-    if (!lo) return 0;
-  }
-  return pc >= lo && pc < __atomic_load_n(&usr2_hi, __ATOMIC_RELAXED);
-}
-
 static uint64_t usr2_ssbs(void) {
   uint64_t value = 0;
   if (getauxval(AT_HWCAP) & HWCAP_SSBS) __asm__ volatile("mrs %0, s3_3_c4_c2_6" : "=r"(value));
@@ -192,7 +192,7 @@ int raise(int sig) {
     real = (int (*)(int))dlsym(RTLD_NEXT, "raise");
     __atomic_store_n(&usr2_real_raise, real, __ATOMIC_RELEASE);
   }
-  if (sig != SIGUSR2 || (getauxval(AT_HWCAP) & BL_HWCAP_GCS) || !usr2_from_ntdll(__builtin_return_address(0))) {
+  if (sig != SIGUSR2 || (getauxval(AT_HWCAP) & BL_HWCAP_GCS) || !bl_from_ntdll(__builtin_return_address(0))) {
     return real(sig);
   }
 

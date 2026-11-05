@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.files
 
+import androidx.compose.foundation.shape.CircleShape
+import com.droiddeck.launcher.ui.focusGlide
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -39,7 +41,7 @@ import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
+import com.droiddeck.launcher.ui.GlideDropdownMenu as DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -105,12 +107,14 @@ private fun FileContextMenuItems(
         text = { Text(stringResource(R.string.fm_select)) },
         leadingIcon = { Icon(Icons.Filled.Checklist, null, tint = MaterialTheme.colorScheme.primary) },
         onClick = { onDismissMenu(); onSelect() },
+        modifier = Modifier.focusGlide(),
     )
     MenuItemDivider()
     DropdownMenuItem(
         text = { Text(stringResource(R.string.fm_properties)) },
         leadingIcon = { Icon(Icons.Filled.Info, null, tint = MaterialTheme.colorScheme.primary) },
         onClick = { onDismissMenu(); onProperties() },
+        modifier = Modifier.focusGlide(),
     )
     MenuItemDivider()
     if (isDir) {
@@ -124,6 +128,7 @@ private fun FileContextMenuItems(
                 )
             },
             onClick = { onToggleFavorite() },
+            modifier = Modifier.focusGlide(),
         )
         MenuItemDivider()
     }
@@ -131,24 +136,28 @@ private fun FileContextMenuItems(
         text = { Text(stringResource(R.string.fm_rename)) },
         leadingIcon = { Icon(Icons.Filled.Edit, null, tint = MaterialTheme.colorScheme.primary) },
         onClick = { onDismissMenu(); onRename() },
+        modifier = Modifier.focusGlide(),
     )
     MenuItemDivider()
     DropdownMenuItem(
         text = { Text(stringResource(R.string.fm_copy)) },
         leadingIcon = { Icon(Icons.Filled.FileCopy, null, tint = MaterialTheme.colorScheme.primary) },
         onClick = { onDismissMenu(); onCopy() },
+        modifier = Modifier.focusGlide(),
     )
     MenuItemDivider()
     DropdownMenuItem(
         text = { Text(stringResource(R.string.fm_cut)) },
         leadingIcon = { Icon(Icons.Filled.ContentCut, null, tint = MaterialTheme.colorScheme.primary) },
         onClick = { onDismissMenu(); onCut() },
+        modifier = Modifier.focusGlide(),
     )
     MenuItemDivider()
     DropdownMenuItem(
         text = { Text(stringResource(R.string.common_delete)) },
         leadingIcon = { Icon(Icons.Filled.Delete, null, tint = MaterialTheme.colorScheme.primary) },
         onClick = { onDismissMenu(); onDelete() },
+        modifier = Modifier.focusGlide(),
     )
 }
 
@@ -193,7 +202,7 @@ internal fun FileItemRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 3.dp)
-            .combinedClickable(role = androidx.compose.ui.semantics.Role.Button, 
+            .focusGlide(RoundedCornerShape(10.dp)).combinedClickable(role = androidx.compose.ui.semantics.Role.Button,
                 onClick = { if (selectionMode) onToggleSelect() else onTap() },
                 onLongClick = onLongPress,
             ),
@@ -212,7 +221,7 @@ internal fun FileItemRow(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = if (compact) 3.dp else 8.dp),
         ) {
             if (selectionMode) {
-                androidx.compose.material3.Checkbox(checked = selected, onCheckedChange = { onToggleSelect() })
+                androidx.compose.material3.Checkbox(checked = selected, onCheckedChange = { onToggleSelect() }, modifier = Modifier.focusGlide())
                 Spacer(Modifier.width(4.dp))
             }
             when {
@@ -270,7 +279,7 @@ internal fun FileItemRow(
                 )
             }
             if (showActions) Box {
-                IconButton(onClick = onMenu) {
+                IconButton(onClick = onMenu, modifier = Modifier.focusGlide(CircleShape)) {
                     Icon(Icons.Filled.MoreVert, stringResource(R.string.fm_actions), tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                 }
                 DropdownMenu(
@@ -302,7 +311,7 @@ internal fun ParentFolderRow(compact: Boolean = false, onTap: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 3.dp)
-            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onTap),
+            .focusGlide(RoundedCornerShape(10.dp)).clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onTap),
         shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
@@ -370,6 +379,7 @@ internal fun FavoritesList(
                 TextButton(
                     onClick = onPinCurrent,
                     enabled = !currentAlreadyPinned,
+                    modifier = Modifier.focusGlide(CircleShape),
                 ) {
                     Icon(Icons.Filled.PushPin, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
@@ -422,7 +432,7 @@ private fun FavoriteCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 3.dp)
-            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onJump),
+            .focusGlide(RoundedCornerShape(10.dp)).clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onJump),
         shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
@@ -480,7 +490,7 @@ private fun FavoriteCard(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            IconButton(onClick = onUnpin) {
+            IconButton(onClick = onUnpin, modifier = Modifier.focusGlide(CircleShape)) {
                 Icon(
                     Icons.Filled.Star,
                     contentDescription = stringResource(R.string.fm_unpin_favorite),
@@ -526,7 +536,7 @@ internal fun FileGridTile(
         Card(
             modifier = Modifier
                 .padding(4.dp)
-                .combinedClickable(role = androidx.compose.ui.semantics.Role.Button, 
+                .focusGlide(RoundedCornerShape(10.dp)).combinedClickable(role = androidx.compose.ui.semantics.Role.Button,
                     onClick = { if (selectionMode) onToggleSelect() else onTap() },
                     onLongClick = onLongPress,
                 ),
@@ -570,7 +580,7 @@ internal fun FileGridTile(
                         androidx.compose.material3.Checkbox(
                             checked = selected,
                             onCheckedChange = { onToggleSelect() },
-                            modifier = Modifier.align(Alignment.TopStart),
+                            modifier = Modifier.align(Alignment.TopStart).focusGlide(),
                         )
                     }
                 }

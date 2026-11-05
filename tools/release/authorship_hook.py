@@ -4,7 +4,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-from check_authorship import BOT, COAUTHOR, check_revision
+from check_authorship import COAUTHOR, check_revision, is_bot
 
 
 def main():
@@ -23,13 +23,13 @@ def main():
                 return 1
     else:
         identity = subprocess.check_output(["git", "var", "GIT_AUTHOR_IDENT"], text=True)
-        if BOT.search(identity):
+        if is_bot(identity):
             print("Bot commit author is forbidden: " + identity.strip(), file=sys.stderr)
             return 1
         message = Path(args[0])
         original = message.read_text(encoding="utf-8")
         cleaned = "".join(line for line in original.splitlines(keepends=True)
-                          if not (COAUTHOR.match(line) and BOT.search(line)))
+                          if not (COAUTHOR.match(line) and is_bot(line)))
         if cleaned != original:
             message.write_text(cleaned, encoding="utf-8")
             print("Removed bot co-author trailers; human credits preserved.", file=sys.stderr)

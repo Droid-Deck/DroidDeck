@@ -45,8 +45,6 @@ int main(void) {
     cardboard_push_constants(&q, pose, 0, 0, 0, 0, pc);
     CHECK(isfinite(pc[17]) && isfinite(pc[19]));
 
-    // Narrow optical profiles and the lower SteamVR slider values must reach
-    // the projection unchanged, rather than all becoming a 30-degree view.
     const float glasses_fovs[] = {22.0f, 23.3f, 24.0f, 25.8f, 29.0f};
     for (unsigned i = 0; i < sizeof(glasses_fovs) / sizeof(glasses_fovs[0]); i++) {
         q.fov_deg = glasses_fovs[i];

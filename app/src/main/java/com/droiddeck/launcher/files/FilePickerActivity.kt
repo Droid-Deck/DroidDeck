@@ -25,7 +25,7 @@ class FilePickerActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        requestedOrientation = com.droiddeck.launcher.session.SessionPrefs.orientation(this)
+        requestedOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
         if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE), 1)
         }
@@ -50,6 +50,7 @@ class FilePickerActivity : ComponentActivity() {
                             setResult(Activity.RESULT_OK, Intent().putExtra(EXTRA_SELECTED_FILE, file.absolutePath))
                             finish()
                         },
+                        onExit = { finish() },
                     )
                 }
             }

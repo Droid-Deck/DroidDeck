@@ -1,0 +1,4 @@
+#!/bin/sh
+LD_LIBRARY_PATH=/usr/local/lib/droiddeck-inno
+export LD_LIBRARY_PATH
+exec /usr/local/lib/droiddeck-inno/innoextract "$@"

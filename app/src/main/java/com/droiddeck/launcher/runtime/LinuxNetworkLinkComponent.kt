@@ -251,12 +251,36 @@ class LinuxNetworkLinkComponent(
         }
     }
 
+    private fun localDnsServers(): Pair<List<String>, List<String>> {
+        val active = connectivity.activeNetwork?.let { connectivity.getNetworkCapabilities(it) }
+        if (active?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true) return Pair(emptyList(), emptyList())
+        val servers = LinkedHashSet<String>()
+        val gateways = LinkedHashSet<String>()
+        for (network in connectivity.allNetworks) {
+            val capabilities = connectivity.getNetworkCapabilities(network) ?: continue
+            if (!capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) continue
+            if (!capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
+                !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) continue
+            val link = connectivity.getLinkProperties(network) ?: continue
+            for (address in link.dnsServers) {
+                if (address.isLinkLocalAddress || address.isLoopbackAddress || address.isAnyLocalAddress) continue
+                address.hostAddress?.substringBefore('%')?.let { servers.add(it) }
+            }
+            link.routes.firstOrNull {
+                it.isDefaultRoute && (it.gateway as? Inet4Address)?.let { g -> !g.isLoopbackAddress && !g.isAnyLocalAddress } == true
+            }?.gateway?.hostAddress?.substringBefore('%')?.let { gateways.add(it) }
+        }
+        val order = compareBy<String>({ if (it.contains(':')) 1 else 0 })
+        return Pair(servers.sortedWith(order), gateways.sortedWith(order))
+    }
+
     private fun writeResolver(properties: LinkProperties?) {
         val own = properties?.dnsServers.orEmpty()
             .filter { !it.isLinkLocalAddress && !it.isLoopbackAddress && !it.isAnyLocalAddress }
             .sortedBy { if (it is Inet4Address) 0 else 1 }
             .mapNotNull { it.hostAddress?.substringBefore('%') }
-        val servers = (own + listOf("8.8.8.8", "1.1.1.1", "2001:4860:4860::8888")).distinct().take(6)
+        val (discovered, gateways) = localDnsServers()
+        val servers = (own + discovered + listOf("8.8.8.8", "1.1.1.1", "2001:4860:4860::8888") + gateways).distinct().take(6)
         val text = buildString {
             append("# Written by the app from the device's active network; edits are overwritten.\n")
             for (server in servers) append("nameserver $server\n")
@@ -301,15 +325,18 @@ class LinuxNetworkLinkComponent(
         }
     }
 
-    private fun seededMac(): String {
-        val id = Settings.Secure.getString(appContext.contentResolver, Settings.Secure.ANDROID_ID) ?: "bannerlator"
-        val bytes = java.security.MessageDigest.getInstance("SHA-1").digest(id.toByteArray())
-        val b0 = (bytes[0].toInt() and 0xfc) or 0x02
-        return listOf(b0, bytes[1].toInt(), bytes[2].toInt(), bytes[3].toInt(), bytes[4].toInt(), bytes[5].toInt())
-            .joinToString(":") { "%02x".format(it and 0xff) }
-    }
+    private fun seededMac(): String =
+        seededMac { Settings.Secure.getString(appContext.contentResolver, Settings.Secure.ANDROID_ID) }
 
     companion object {
+        internal fun seededMac(readId: () -> String?): String {
+            val id = runCatching(readId).getOrNull() ?: "bannerlator"
+            val bytes = java.security.MessageDigest.getInstance("SHA-1").digest(id.toByteArray())
+            val b0 = (bytes[0].toInt() and 0xfc) or 0x02
+            return listOf(b0, bytes[1].toInt(), bytes[2].toInt(), bytes[3].toInt(), bytes[4].toInt(), bytes[5].toInt())
+                .joinToString(":") { "%02x".format(it and 0xff) }
+        }
+
         private const val TAG = "LinuxNetworkLink"
         private const val LINK_FILE = "etc/droiddeck-net"
         private const val LINK_INDEX = 2

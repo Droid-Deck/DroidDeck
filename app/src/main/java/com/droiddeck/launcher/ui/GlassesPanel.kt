@@ -347,6 +347,7 @@ internal fun GlassesCornerButton(slot: Int, tint: Int, opacity: Int, onClick: ()
                 .clip(CircleShape)
                 .background(fill)
                 .border(1.5.dp, line, CircleShape)
+                .focusGlide(CircleShape)
                 .clickable(interactionSource = source, indication = null, role = Role.Button, onClick = onClick)
                 .testTag("glasses-button"),
         ) {
@@ -382,6 +383,7 @@ private fun GlassesRecenterAction(label: String, tag: String, tint: Int, opacity
             .clip(shape)
             .background(fill)
             .border(1.5.dp, line, shape)
+            .focusGlide(shape)
             .clickable(interactionSource = source, indication = null, role = Role.Button, onClick = onClick)
             .padding(horizontal = 18.dp)
             .testTag(tag),

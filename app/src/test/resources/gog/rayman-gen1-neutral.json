@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "depot": {
+    "name": "Rayman 2 - The Great Escape",
+    "files": [
+      {
+        "offset": 0,
+        "path": "1207658940/galaxy_rayman2_2.1.0.39.exe",
+        "size": 1258944,
+        "support": true,
+        "hash": "ee2c247373733f29782395f1f92622f6",
+        "url": "1207658940/main.bin"
+      }
+    ]
+  }
+}

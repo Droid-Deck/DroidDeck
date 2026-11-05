@@ -1,12 +1,9 @@
 --- a/src/wlserver.cpp
 +++ b/src/wlserver.cpp
-@@ -203,6 +203,12 @@
+@@ -203,6 +203,9 @@
  }
  
  void xwayland_surface_commit(struct wlr_surface *wlr_surface) {
-+	// Cursor surfaces never acquire an X11/xdg window association. Keeping their
-+	// commits in g_PendingCommits pins every old SHM buffer until the cursor
-+	// surface is destroyed. X11 cursor images are handled by MouseCursor.
 +	if ( wlr_surface->role && strcmp( wlr_surface->role->name, "wl_pointer-cursor" ) == 0 )
 +		return;
 +

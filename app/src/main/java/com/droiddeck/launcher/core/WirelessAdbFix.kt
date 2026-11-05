@@ -182,25 +182,47 @@ object WirelessAdbFix {
     }
 
     fun setUsingSavedPairing(context: Context, enabled: Boolean) {
+        withSavedPairing(context) { appContext, host, port -> setChildProcessLimit(appContext, host, port, enabled) }
+    }
+
+    fun hasSavedPairing(context: Context): Boolean = savedConnection(context.applicationContext) != null
+
+    fun clearCachedApps(context: Context) {
+        shell(context, "am kill-all")
+    }
+
+    fun shell(context: Context, command: String): String {
+        var output = ""
+        withSavedPairing(context) { appContext, host, port ->
+            loadOrCreateIdentity(appContext)
+            Kadb.create(host, port).use { adb ->
+                val result = adb.shell(command)
+                check(result.exitCode == 0) { result.allOutput.ifBlank { appContext.getString(R.string.adbfix_command_failed, result.exitCode) } }
+                output = result.output
+            }
+            saveConnection(appContext, host, port)
+        }
+        return output
+    }
+
+    private fun withSavedPairing(context: Context, action: (Context, String, Int) -> Unit) {
         val appContext = context.applicationContext
         val saved = savedConnection(appContext)
             ?: error(appContext.getString(R.string.adbfix_no_pairing))
         val cachedPort = saved.port
         if (cachedPort != null) {
-            val cachedResult = runCatching {
-                setChildProcessLimit(appContext, saved.host, cachedPort, enabled)
-            }
+            val cachedResult = runCatching { action(appContext, saved.host, cachedPort) }
             if (cachedResult.isSuccess) return
             val discoveredPort = findConnectPort(appContext, saved.host)
             if (discoveredPort != null && discoveredPort != cachedPort) {
-                setChildProcessLimit(appContext, saved.host, discoveredPort, enabled)
+                action(appContext, saved.host, discoveredPort)
             } else {
                 cachedResult.getOrThrow()
             }
         } else {
             val discoveredPort = findConnectPort(appContext, saved.host)
                 ?: error(appContext.getString(R.string.adbfix_enter_address))
-            setChildProcessLimit(appContext, saved.host, discoveredPort, enabled)
+            action(appContext, saved.host, discoveredPort)
         }
     }
 }

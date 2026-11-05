@@ -76,4 +76,22 @@ class DesktopFileRemovalTest {
         file("var/lib/pacman/local/base-1/files", "%FILES%\nusr/\nusr/bin/\nusr/bin/gamescope\n\n%BACKUP%\netc/config\n")
         assertEquals(setOf("usr/bin/gamescope"), DesktopFileRemoval.runtimeFiles(root))
     }
+
+    @Test fun desktopPackageRecordsAreNotRuntimeFilesAndAreRemovedWithTheDesktop() {
+        file("var/lib/pacman/local/base-1/files", "%FILES%\nusr/bin/gamescope\n")
+        file("var/lib/pacman/local/kate-26.04.3-1/files", "%FILES%\nusr/bin/kate\n")
+        file("var/lib/pacman/local/kate-26.04.3-1/desc", "%NAME%\nkate\n")
+        file("var/lib/pacman/local/htop-3.5.3-1/files", "%FILES%\nusr/bin/htop\n")
+        file("var/lib/pacman/sync/droiddeck.db", "db")
+        file("var/lib/pacman/droiddeck-desktop", "stamp")
+        file("usr/share/droiddeck/pacman/desktop-packages.txt", "kate 26.04.3-1\n../../etc 1\n")
+        val records = DesktopFileRemoval.desktopRecords(root)
+        assertEquals(setOf("kate-26.04.3-1"), records)
+        assertEquals(setOf("usr/bin/gamescope", "usr/bin/htop"), DesktopFileRemoval.runtimeFiles(root))
+        DesktopFileRemoval.removeRecords(root, records)
+        assertFalse(File(root, "var/lib/pacman/local/kate-26.04.3-1").exists())
+        assertTrue(File(root, "var/lib/pacman/local/htop-3.5.3-1/files").exists())
+        assertFalse(File(root, "var/lib/pacman/sync/droiddeck.db").exists())
+        assertFalse(File(root, "var/lib/pacman/droiddeck-desktop").exists())
+    }
 }

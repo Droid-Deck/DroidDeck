@@ -6,7 +6,7 @@ import tempfile
 import textwrap
 import unittest
 
-SCRIPT = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/droiddeck-steam-x64"
+SCRIPT = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/droiddeck-fex-update"
 SOURCE = SCRIPT.read_text()
 START = SOURCE.index("fex_install() {")
 END = SOURCE.index("\n}\n", START) + 3

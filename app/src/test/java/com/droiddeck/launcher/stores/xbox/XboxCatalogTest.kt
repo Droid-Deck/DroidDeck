@@ -83,13 +83,14 @@ class XboxCatalogTest {
         assertEquals(mapOf(game to "gamepass", parent to "gamepass"), access(row(game, parent), row(parent, plan), row(plan)))
     }
 
-    @Test fun onlyPcPlansGrantSubscriptionAccess() {
-        for (pc in listOf("CFQ7TTC0KGQ8", "CFQ7TTC0KHS0", "CFQ7TTC0P85B", "CFQ7TTC0K5DJ", "CFQ7TTC10QFD")) {
-            assertEquals(mapOf(game to "gamepass"), access(row(game, pc), row(pc)))
+    @Test fun everyActivePlanGrantsSubscriptionAccess() {
+        for (plan in listOf("CFQ7TTC0KGQ8", "CFQ7TTC0KHS0", "CFQ7TTC0P85B", "CFQ7TTC0K5DJ", "CFQ7TTC10QFD", "CFQ7TTC0K6L8")) {
+            assertEquals(mapOf(game to "gamepass"), access(row(game, plan), row(plan)))
         }
         val console = "CFQ7TTC0K6L8"
-        assertTrue(access(row(game, console), row(console)).isEmpty())
-        assertTrue(XboxCatalog.access(withMembership(envelope(row(game, console)), membership(console)),
+        assertEquals(mapOf(game to "gamepass"), XboxCatalog.access(withMembership(envelope(row(game, console)), membership(console)),
+            "test@example.test", "US", now))
+        assertTrue(XboxCatalog.access(withMembership(envelope(row(game, console)), membership(console).put("status", "Expired")),
             "test@example.test", "US", now).isEmpty())
     }
 
@@ -164,5 +165,30 @@ class XboxCatalogTest {
         val pc = XboxCatalog.product(product("Windows.Desktop", "MSIXVC"), mapOf(game to "gamepass"))!!
         assertEquals(game, XboxCatalog.product(product("Windows.Desktop", "MSIXVC").put("ProductId", game.lowercase()), mapOf(game to "owned"))!!.id)
         assertTrue(pc.accessible); assertTrue(pc.subscription); assertFalse(pc.owned)
+    }
+
+    private fun product(id: String, platform: String?) = JSONObject().put("ProductId", id).put("ProductType", "Game")
+        .put("LocalizedProperties", JSONArray().put(JSONObject().put("ProductTitle", "A Game")))
+        .put("DisplaySkuAvailabilities", JSONArray().put(JSONObject().put("Sku", JSONObject().put("Properties", JSONObject()
+            .put("Packages", if (platform == null) JSONArray() else JSONArray().put(JSONObject().put("PackageFormat", "MSIXVC")
+                .put("PlatformDependencies", JSONArray().put(JSONObject().put("PlatformName", platform)))))))))
+
+    @Test fun cloudListsKeepStreamOnlyGamesAndMarkStreamablePcGames() {
+        val cloud = XboxCloudCatalog(gamePass = setOf(game), all = setOf(game, parent))
+        val pc = XboxCatalog.product(product(game, "Windows.Desktop"), mapOf(game to "gamepass"), cloud)!!
+        assertTrue(pc.xboxPc); assertTrue(pc.xboxCloud)
+        val consoleOnly = XboxCatalog.product(product(parent, "Xbox.One"), mapOf(parent to "owned"), cloud)!!
+        assertFalse(consoleOnly.xboxPc); assertTrue(consoleOnly.xboxCloud); assertEquals(0L, consoleOnly.sizeBytes)
+        assertNull(XboxCatalog.product(product(parent, "Xbox.One"), mapOf(parent to "gamepass"), cloud))
+        assertNull(XboxCatalog.product(product(parent, "Xbox.One"), mapOf(parent to "owned"), null))
+        assertFalse(XboxCatalog.product(product(game, "Windows.Desktop"), mapOf(game to "gamepass"), null)!!.xboxCloud)
+    }
+
+    @Test fun aCloudOnlyEditionFoldsIntoThePcCardWithTheSameTitle() {
+        val cloud = XboxCloudCatalog(gamePass = setOf(parent), all = emptySet())
+        val pc = XboxCatalog.product(product(game, "Windows.Desktop"), mapOf(game to "gamepass"), cloud)!!
+        val console = XboxCatalog.product(product(parent, "Xbox.One"), mapOf(parent to "gamepass"), cloud)!!
+        val merged = mergeEditions(listOf(pc, console)).single()
+        assertEquals(game, merged.id); assertTrue(merged.xboxPc); assertTrue(merged.xboxCloud); assertEquals(parent, merged.xboxCloudId)
     }
 }

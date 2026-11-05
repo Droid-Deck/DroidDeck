@@ -2,7 +2,6 @@
 <resources>
     <string name="mode_touch_gestures">Gestes</string>
     <string name="gesture_settings">Paramètres des gestes tactiles</string>
-    <string name="gesture_settings_hint">Personnalisez les gestes de souris et de clavier. Sélectionnez Gestes comme mode tactile pour les utiliser.</string>
     <string name="gesture_tap">Appui</string>
     <string name="gesture_drag">Glissement à un doigt</string>
     <string name="gesture_long_press">Appui prolongé</string>
@@ -15,6 +14,8 @@
     <string name="gesture_three_hold">Maintien à trois doigts</string>
     <string name="gesture_pinch">Pincer pour zoomer</string>
     <string name="gesture_hold_button">Maintenir le bouton enfoncé</string>
+    <string name="gesture_hold_left">Maintenir le bouton gauche enfoncé</string>
+    <string name="gesture_hold_right">Maintenir le bouton droit enfoncé</string>
     <string name="gesture_click_once">Cliquer une fois</string>
     <string name="gesture_hold_delay">Délai de maintien</string>
     <string name="gesture_double_delay">Intervalle du double appui</string>

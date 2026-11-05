@@ -101,10 +101,23 @@ object WinComponents {
     fun cached(context: Context): List<Component>? =
         runCatching { parse(File(context.filesDir, CATALOG_CACHE).readText()) }.getOrNull()
 
+    const val VCREDIST_ARM64 = "vcredist2022_arm64"
+
+    internal fun builtInArm64Runtime(): Component {
+        fun value(view: String, name: String, type: String, data: String) = Step("set_register_key", JSONObject()
+            .put("action", "set_register_key").put("key", "HKLM\\Software\\${view}Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\arm64")
+            .put("value", name).put("type", type).put("data", data))
+        val steps = listOf("", "Wow6432Node\\").flatMap { view ->
+            listOf(value(view, "Installed", "REG_DWORD", "1"), value(view, "Major", "REG_DWORD", "14"), value(view, "Minor", "REG_DWORD", "44"),
+                value(view, "Bld", "REG_DWORD", "35211"), value(view, "Rbld", "REG_DWORD", "0"), value(view, "Version", "REG_SZ", "v14.44.35211.00"))
+        }
+        return Component(VCREDIST_ARM64, "Microsoft Visual C++ 2015-2022 ARM64 runtime 14.44.35211 (registry entries only)", "Microsoft", "ready", emptyList(), steps)
+    }
+
     private fun parse(body: String): List<Component>? {
         return try {
             val arr = JSONObject(body).getJSONArray("components")
-            (0 until arr.length()).mapNotNull { i ->
+            val listed = (0 until arr.length()).mapNotNull { i ->
                 val o = arr.getJSONObject(i)
                 val name = o.optString("name")
                 if (!validId(name)) return@mapNotNull null
@@ -117,6 +130,7 @@ object WinComponents {
                     o.optString("snapshot"),
                 )
             }
+            if (listed.any { it.name == VCREDIST_ARM64 }) listed else listed + builtInArm64Runtime()
         } catch (e: Exception) {
             Log.w(TAG, "catalog: $e"); null
         }
@@ -369,7 +383,6 @@ object WinComponents {
             val archiveName = archive.optString("name")
             val url = c.snapshot.substringBeforeLast('/') + "/" + archiveName
             val file = File(work, "${c.name}.files.tar.xz")
-            // The snapshot came straight from github.com, so its digest may vouch for a mirror's copy of the archive.
             val sha = archive.optString("sha256").takeIf { it.matches(Regex("(?i)[0-9a-f]{64}")) }
             if (!Downloader.downloadFile(url, file, false, sha) { f -> onProgress(Progress(c.name, archiveName, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }) {
                 return null to "download failed: $archiveName"

@@ -54,8 +54,6 @@ LOCAL_ANDROID_SOURCES = {'app/src/main/cpp/CMakeLists.txt',
                          'app/src/main/cpp/waylandcomp/src/waylandcomp_jni.c',
                          'app/src/main/cpp/waylandcomp/src/spatialpose.c',
                          'app/src/main/cpp/waylandcomp/CMakeLists.txt'}
-# These audited helper updates are copied from this checkout by runtime.record().
-# Permit them only while source_assets() still guarantees that staging path.
 LOCAL_SESSION_HELPERS = {'tools/linuxfs/overlay/usr/local/bin/droiddeck-steam-compat',
                          'tools/linuxfs/overlay/usr/local/bin/droiddeck-steamvr'}
 VR_PREFIX = 'assets/linuxfs/usr/local/lib/droiddeck-vr/'
@@ -86,7 +84,6 @@ def changed(base, target=None):
 
 
 def check_sources():
-    # A branch label alone is insufficient: CI merged this main commit into it.
     if git('merge-tree', '--write-tree', DONOR_PR_SOURCE, DONOR_MAIN_SOURCE).decode().splitlines()[0] != DONOR_TREE:
         raise ValueError('The donor CI merge does not match the audited source tree')
     helper_sources = {path.relative_to(ROOT).as_posix() for path in source_assets()}
@@ -190,8 +187,6 @@ def validate_tracked_assets(package, llvm_strip):
                 if prefix != 'app/src/main/jniLibs/':
                     raise ValueError('Tracked bytes differ from the donor: ' + name +
                                      ' (text inputs must be checked out with LF)')
-                # AGP strips prebuilt JNI libraries during packaging. Verify that
-                # deterministic transformation on a temporary copy, never the source.
                 with tempfile.TemporaryDirectory(prefix='droiddeck-strip-check-') as temp:
                     stripped = Path(temp) / 'library.so'
                     subprocess.run([str(llvm_strip), '--strip-unneeded', '-o', str(stripped),
@@ -267,7 +262,6 @@ def prepare(apk, rebuilt_dir, gamescope, llvm_strip=None, rebuilt_vr=None, vk_in
         checked_output(target)
         plan[target] = data
         origins[target] = 'VR rebuilt from current source; source and output checksums verified'
-    # Do not silently retain unrelated files from a prior preparation.
     expected = set(plan) | {'app/src/main/' + name for name in helper_assets}
     for tree in ('linuxfs', 'directaudio', 'droiddeck-esync'):
         base = ROOT / 'app/src/main/assets' / tree

@@ -1,0 +1,8 @@
+{
+    "KPlugin": {
+        "Authors": [{ "Name": "DroidDeck" }],
+        "Id": "DroidDeck",
+        "License": "GPL-3.0-or-later",
+        "Name": "DroidDeck"
+    }
+}

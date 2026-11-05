@@ -1,0 +1,542 @@
+#!/usr/bin/python3
+import datetime
+import hashlib
+import http.server
+import json
+import os
+import re
+import shutil
+import socketserver
+import subprocess
+import sys
+import threading
+import urllib.parse
+import urllib.request
+
+STORE = "https://api.snapcraft.io/v2"
+ARCH = "arm64"
+SNAP_DIR = "/snap"
+BIN_DIR = "/snap/bin"
+LIB = "/var/lib/snapd"
+STATE = LIB + "/droiddeck-state.json"
+DESKTOP_DIR = LIB + "/desktop/applications"
+SOCKETS = ("/run/snapd.socket", "/run/snapd-snap.socket")
+FIND_FIELDS = ("title,summary,description,version,revision,confinement,base,publisher,license,contact,website,"
+               "media,categories,store-url,download,type,channel,common-ids,links")
+INFO_FIELDS = ("title,summary,description,version,revision,confinement,base,publisher,license,contact,website,"
+               "media,categories,snap-id,store-url,download,type,channel-map,common-ids,links,created-at")
+HEADERS = {"Snap-Device-Series": "16", "Snap-Device-Architecture": ARCH, "User-Agent": "snapd/2.70 droiddeck"}
+
+lock = threading.RLock()
+install_lock = threading.Lock()
+changes = {}
+change_seq = [0]
+
+
+def now():
+    return datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+
+def load_state():
+    try:
+        with open(STATE) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {"snaps": {}}
+
+
+def save_state(state):
+    tmp = STATE + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(state, f, indent=1)
+    os.replace(tmp, STATE)
+
+
+def store_get(path, params=None):
+    url = STORE + path + ("?" + urllib.parse.urlencode(params) if params else "")
+    req = urllib.request.Request(url, headers=HEADERS)
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return json.load(r)
+
+
+def publisher(p):
+    p = p or {}
+    return {"id": p.get("id", ""), "username": p.get("username", ""), "display-name": p.get("display-name", ""),
+            "validation": p.get("validation", "unproven")}
+
+
+def media_of(snap):
+    out = []
+    for m in snap.get("media") or []:
+        if m.get("type") in ("icon", "screenshot", "banner") and m.get("url"):
+            item = {"type": m["type"], "url": m["url"]}
+            if m.get("width"):
+                item["width"] = m["width"]
+                item["height"] = m.get("height", 0)
+            out.append(item)
+    return out
+
+
+def icon_of(media):
+    return next((m["url"] for m in media if m["type"] == "icon"), "")
+
+
+def from_store(name, snap, revision=None, channel=None):
+    media = media_of(snap)
+    rev = revision or snap.get("revision") or {}
+    out = {
+        "id": snap.get("snap-id", ""), "name": name, "title": snap.get("title") or name,
+        "summary": snap.get("summary", ""), "description": snap.get("description", ""),
+        "type": rev.get("type") or snap.get("type") or "app", "version": rev.get("version", ""),
+        "revision": str(rev.get("revision", "")), "channel": channel or "stable",
+        "confinement": rev.get("confinement") or "strict", "base": rev.get("base") or "",
+        "publisher": publisher(snap.get("publisher")), "developer": (snap.get("publisher") or {}).get("username", ""),
+        "license": snap.get("license", ""), "contact": snap.get("contact", ""), "website": snap.get("website", ""),
+        "media": media, "icon": icon_of(media), "store-url": snap.get("store-url", ""),
+        "download-size": (rev.get("download") or {}).get("size", 0), "status": "available",
+        "categories": [{"name": c.get("name", ""), "featured": bool(c.get("featured"))} for c in snap.get("categories") or []],
+        "common-ids": rev.get("common-ids") or snap.get("common-ids") or [],
+        "private": False, "devmode": False, "jailmode": False, "trymode": False, "apps": [],
+    }
+    return out
+
+
+def installed_snap(name, entry):
+    snap = dict(entry["info"])
+    snap["status"] = "active"
+    snap["install-date"] = entry.get("installed", now())
+    snap["installed-size"] = entry.get("size", 0)
+    snap["revision"] = str(entry["revision"])
+    snap["version"] = entry.get("version", snap.get("version", ""))
+    snap["tracking-channel"] = entry.get("channel", "latest/stable")
+    snap["channel"] = entry.get("channel", "latest/stable")
+    snap["mounted-from"] = f"{LIB}/snaps/{name}_{entry['revision']}.snap"
+    snap["apps"] = [{"name": a, "snap": name, "desktop-file": f"{DESKTOP_DIR}/{name}_{a}.desktop"} for a in entry.get("apps", [])]
+    return snap
+
+
+def find(query, section=None, name_exact=False):
+    if name_exact:
+        try:
+            info = store_get(f"/snaps/info/{query}", {"architecture": ARCH, "fields": INFO_FIELDS})
+        except Exception:
+            return []
+        rev = next((c for c in info.get("channel-map", []) if c["channel"]["architecture"] == ARCH
+                    and c["channel"]["risk"] == "stable"), None)
+        if not rev:
+            return []
+        return [from_store(info["name"], dict(info["snap"], **{"snap-id": info.get("snap-id", "")}), rev, "stable")]
+    params = {"architecture": ARCH, "fields": FIND_FIELDS}
+    if query:
+        params["q"] = query
+    if section:
+        params["category"] = section
+    if not query and not section:
+        params["featured"] = "true"
+    result = store_get("/snaps/find", params)
+    out = []
+    state = load_state()
+    for r in result.get("results", []):
+        snap = from_store(r["name"], dict(r.get("snap", {}), **{"snap-id": r.get("snap-id", "")}), r.get("revision"))
+        if r["name"] in state["snaps"]:
+            snap["status"] = "active"
+            snap["installed-size"] = state["snaps"][r["name"]].get("size", 0)
+        out.append(snap)
+    return out
+
+
+def new_change(kind, summary, snaps):
+    with lock:
+        change_seq[0] += 1
+        cid = str(change_seq[0])
+        changes[cid] = {"id": cid, "kind": kind, "summary": summary, "status": "Doing", "ready": False,
+                        "spawn-time": now(), "tasks": [{"id": cid + "-1", "kind": kind, "summary": summary, "status": "Doing",
+                                                        "progress": {"label": "", "done": 0, "total": 1},
+                                                        "spawn-time": now()}],
+                        "data": {"snap-names": snaps}}
+        return cid
+
+
+def progress(cid, label, done, total):
+    with lock:
+        task = changes[cid]["tasks"][0]
+        task["progress"] = {"label": label, "done": done, "total": max(total, 1)}
+        task["summary"] = changes[cid]["summary"]
+
+
+def finish(cid, err=None):
+    with lock:
+        c = changes[cid]
+        c["status"] = "Error" if err else "Done"
+        c["ready"] = True
+        c["ready-time"] = now()
+        c["tasks"][0]["status"] = c["status"]
+        if err:
+            c["err"] = err
+
+
+def root_run(argv):
+    if os.getuid() == 0:
+        return subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    return subprocess.run(["/usr/local/bin/droiddeck-root"] + argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                          text=True)
+
+
+def snap_yaml(path):
+    try:
+        import yaml
+        with open(path) as f:
+            return yaml.safe_load(f) or {}
+    except Exception:
+        return {}
+
+
+def download(cid, name, url, sha3, size, target):
+    tmp = target + ".partial"
+    h = hashlib.sha3_384()
+    req = urllib.request.Request(url, headers=HEADERS)
+    with urllib.request.urlopen(req, timeout=120) as r, open(tmp, "wb") as out:
+        done = 0
+        while True:
+            chunk = r.read(1 << 20)
+            if not chunk:
+                break
+            out.write(chunk)
+            h.update(chunk)
+            done += len(chunk)
+            progress(cid, f"Download snap \"{name}\"", done, size)
+    if sha3 and h.hexdigest() != sha3:
+        os.unlink(tmp)
+        raise RuntimeError(f"{name}: downloaded snap does not match the store's sha3-384")
+    os.replace(tmp, target)
+
+
+def write_desktop(name, rev, meta):
+    os.makedirs(DESKTOP_DIR, exist_ok=True)
+    gui = f"{SNAP_DIR}/{name}/{rev}/meta/gui"
+    apps = (meta.get("apps") or {})
+    for app, spec in apps.items():
+        source = os.path.join(gui, f"{app}.desktop")
+        if (spec or {}).get("daemon") or not os.path.isfile(source):
+            continue
+        command = name if app == name else f"{name}.{app}"
+        out = []
+        with open(source, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if line.startswith("Exec="):
+                    args = line[5:].strip().split(" ", 1)
+                    rest = (" " + args[1]) if len(args) > 1 else ""
+                    line = f"Exec={BIN_DIR}/{command}{rest}\n"
+                elif line.startswith("Icon="):
+                    line = "Icon=" + line[5:].replace("${SNAP}", f"{SNAP_DIR}/{name}/current")
+                out.append(line)
+        out.append(f"X-SnapInstanceName={name}\n")
+        target = f"{DESKTOP_DIR}/{name}_{app}.desktop"
+        with open(target + ".tmp", "w", encoding="utf-8") as f:
+            f.writelines(out)
+        os.replace(target + ".tmp", target)
+    subprocess.run(["update-desktop-database", DESKTOP_DIR], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def link_bins(name, meta):
+    os.makedirs(BIN_DIR, exist_ok=True)
+    apps = []
+    for app, spec in (meta.get("apps") or {}).items():
+        if (spec or {}).get("daemon"):
+            continue
+        command = name if app == name else f"{name}.{app}"
+        path = os.path.join(BIN_DIR, command)
+        with open(path + ".tmp", "w") as f:
+            f.write(f"#!/bin/sh\nexec /usr/local/bin/droiddeck-snap-run {name} {app} \"$@\"\n")
+        os.chmod(path + ".tmp", 0o755)
+        os.replace(path + ".tmp", path)
+        apps.append(app)
+    return apps
+
+
+def remove_tree(top):
+    if os.path.isdir(top) and not os.path.islink(top):
+        os.chmod(top, 0o700)
+        for root, dirs, _ in os.walk(top):
+            for d in dirs:
+                path = os.path.join(root, d)
+                if not os.path.islink(path):
+                    os.chmod(path, 0o700)
+    shutil.rmtree(top, ignore_errors=True)
+
+
+def install_one(cid, name, channel, state, parents=()):
+    if name in state["snaps"] or name in parents:
+        return
+    info = store_get(f"/snaps/info/{name}", {"architecture": ARCH, "fields": INFO_FIELDS})
+    risk = channel.split("/")[-1] if channel else "stable"
+    track = channel.split("/")[0] if channel and "/" in channel else "latest"
+    rev = next((c for c in info.get("channel-map", []) if c["channel"]["architecture"] == ARCH
+                and c["channel"]["risk"] == risk and c["channel"]["track"] == track), None)
+    if not rev:
+        raise RuntimeError(f"snap \"{name}\" has no {track}/{risk} release for {ARCH}")
+    number = rev["revision"]
+    os.makedirs(f"{LIB}/snaps", exist_ok=True)
+    blob = f"{LIB}/snaps/{name}_{number}.snap"
+    d = rev.get("download") or {}
+    with lock:
+        changes[cid]["summary"] = f"Install \"{name}\" snap"
+    download(cid, name, d["url"], d.get("sha3-384"), d.get("size", 0), blob)
+    progress(cid, f"Unpack snap \"{name}\"", 0, 1)
+    target = f"{SNAP_DIR}/{name}/{number}"
+    remove_tree(target)
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    r = root_run(["unsquashfs", "-q", "-n", "-no-xattrs", "-f", "-excludes", "-d", target, blob, "dev"])
+    if r.returncode != 0:
+        raise RuntimeError(f"cannot unpack {name}: {r.stdout.strip()[-400:]}")
+    os.makedirs(f"{target}/dev", exist_ok=True)
+    current = f"{SNAP_DIR}/{name}/current"
+    if os.path.islink(current):
+        os.unlink(current)
+    os.symlink(str(number), current)
+    for sub in (f"/var/snap/{name}/{number}", f"/var/snap/{name}/common"):
+        os.makedirs(sub, exist_ok=True)
+    cur = f"/var/snap/{name}/current"
+    if os.path.islink(cur):
+        os.unlink(cur)
+    os.symlink(str(number), cur)
+    meta = snap_yaml(f"{target}/meta/snap.yaml")
+    entry = {"revision": number, "version": rev.get("version", ""), "channel": f"{track}/{risk}",
+             "installed": now(), "size": d.get("size", 0), "info": from_store(name, dict(info["snap"], **{"snap-id": info.get("snap-id", "")}), rev, f"{track}/{risk}"),
+             "base": meta.get("base") or ("core" if (meta.get("type") or "app") == "app" else ""), "apps": []}
+    base = meta.get("base")
+    if (meta.get("type") or "app") == "app":
+        install_one(cid, base or "core", "latest/stable", state, parents + (name,))
+    for plug in (meta.get("plugs") or {}).values():
+        if isinstance(plug, dict) and plug.get("interface") == "content" and plug.get("default-provider"):
+            provider = plug["default-provider"].split(":")[0]
+            install_one(cid, provider, "latest/stable", state, parents + (name,))
+    entry["apps"] = link_bins(name, meta)
+    write_desktop(name, number, meta)
+    state["snaps"][name] = entry
+    save_state(state)
+
+
+def remove_one(name, state):
+    entry = state["snaps"].pop(name, None)
+    if not entry:
+        raise RuntimeError(f"snap \"{name}\" is not installed")
+    for app in entry.get("apps", []):
+        command = name if app == name else f"{name}.{app}"
+        try:
+            os.unlink(os.path.join(BIN_DIR, command))
+        except OSError:
+            pass
+    if os.path.isdir(DESKTOP_DIR):
+        for f in os.listdir(DESKTOP_DIR):
+            if f.startswith(name + "_") and f.endswith(".desktop"):
+                os.unlink(os.path.join(DESKTOP_DIR, f))
+        subprocess.run(["update-desktop-database", DESKTOP_DIR], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    remove_tree(f"{SNAP_DIR}/{name}")
+    for f in os.listdir(f"{LIB}/snaps"):
+        if f.startswith(name + "_"):
+            os.unlink(os.path.join(f"{LIB}/snaps", f))
+    save_state(state)
+
+
+def run_change(cid, action, names, channel):
+    with install_lock:
+        apply_change(cid, action, names, channel)
+
+
+def apply_change(cid, action, names, channel):
+    try:
+        state = load_state()
+        for name in names:
+            if action == "install":
+                install_one(cid, name, channel or "latest/stable", state)
+            elif action == "remove":
+                remove_one(name, state)
+            elif action == "refresh":
+                old = state["snaps"].get(name)
+                if old:
+                    remove_one(name, state)
+                    install_one(cid, name, old.get("channel", "latest/stable"), state)
+            else:
+                raise RuntimeError(f"unsupported action {action}")
+        finish(cid)
+    except Exception as e:
+        finish(cid, str(e))
+
+
+SECTIONS = ["featured", "art-and-design", "books-and-reference", "development", "devices-and-iot", "education",
+            "entertainment", "finance", "games", "health-and-fitness", "music-and-audio", "news-and-weather",
+            "personalisation", "photo-and-video", "productivity", "science", "security", "server-and-cloud",
+            "social", "utilities"]
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def log_message(self, fmt, *args):
+        pass
+
+    def address_string(self):
+        return "snapd"
+
+    def reply(self, body, code=200, kind="sync"):
+        payload = {"type": kind, "status-code": code, "status": http.client.responses.get(code, "")}
+        payload.update(body)
+        data = json.dumps(payload).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def ok(self, result):
+        self.reply({"result": result})
+
+    def error(self, code, message, kind=""):
+        self.reply({"result": {"message": message, "kind": kind}}, code, "error")
+
+    def body(self):
+        n = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(n) if n else b"{}"
+        try:
+            return json.loads(raw or b"{}")
+        except ValueError:
+            return {}
+
+    def do_GET(self):
+        url = urllib.parse.urlsplit(self.path)
+        q = urllib.parse.parse_qs(url.query)
+        path = url.path
+        try:
+            if path == "/v2/system-info":
+                return self.ok({"series": "16", "version": "2.70+droiddeck", "build-id": "droiddeck", "os-release": {"id": "ubuntu", "version-id": "26.04"},
+                                "on-classic": True, "managed": False, "kernel-version": os.uname().release,
+                                "locations": {"snap-mount-dir": SNAP_DIR, "snap-bin-dir": BIN_DIR},
+                                "refresh": {"timer": "00:00~24:00/4"}, "confinement": "partial",
+                                "sandbox-features": {}, "architecture": ARCH})
+            if path == "/v2/snaps":
+                state = load_state()
+                wanted = (q.get("snaps", [""])[0] or "").split(",")
+                snaps = [installed_snap(n, e) for n, e in state["snaps"].items() if not wanted[0] or n in wanted]
+                return self.ok(snaps)
+            m = re.fullmatch(r"/v2/snaps/([^/]+)", path)
+            if m:
+                state = load_state()
+                if m.group(1) in state["snaps"]:
+                    return self.ok(installed_snap(m.group(1), state["snaps"][m.group(1)]))
+                return self.error(404, f"snap not installed", "snap-not-found")
+            if path == "/v2/find":
+                name = q.get("name", [None])[0]
+                query = name or q.get("q", [""])[0]
+                section = q.get("section", [None])[0] or q.get("category", [None])[0]
+                if section == "featured":
+                    section = None
+                select = q.get("select", [""])[0]
+                if select == "refresh":
+                    return self.ok([])
+                if select == "private":
+                    return self.ok([])
+                return self.ok(find(query, section, bool(name)))
+            if path in ("/v2/sections",):
+                return self.ok(SECTIONS)
+            if path == "/v2/categories":
+                return self.ok([{"name": s} for s in SECTIONS if s != "featured"])
+            m = re.fullmatch(r"/v2/changes/([^/]+)", path)
+            if m:
+                with lock:
+                    c = changes.get(m.group(1))
+                    c = json.loads(json.dumps(c)) if c else None
+                return self.ok(c) if c else self.error(404, "cannot find change", "")
+            if path == "/v2/changes":
+                with lock:
+                    return self.ok([json.loads(json.dumps(c)) for c in changes.values()])
+            m = re.fullmatch(r"/v2/icons/([^/]+)/icon", path)
+            if m:
+                return self.icon(m.group(1))
+            if path == "/v2/apps":
+                state = load_state()
+                apps = [{"snap": n, "name": a, "desktop-file": f"{DESKTOP_DIR}/{n}_{a}.desktop"}
+                        for n, e in state["snaps"].items() for a in e.get("apps", [])]
+                return self.ok(apps)
+            if path in ("/v2/connections", "/v2/interfaces"):
+                return self.ok({"established": [], "plugs": [], "slots": []})
+            if path in ("/v2/aliases", "/v2/users", "/v2/notices", "/v2/assertions/model"):
+                return self.ok({} if path == "/v2/aliases" else [])
+            return self.error(404, f"not found: {path}")
+        except Exception as e:
+            return self.error(500, str(e))
+
+    def icon(self, name):
+        state = load_state()
+        entry = state["snaps"].get(name)
+        if not entry:
+            return self.error(404, "not installed", "snap-not-found")
+        for candidate in ("meta/gui/icon.png", "meta/gui/icon.svg"):
+            path = f"{SNAP_DIR}/{name}/current/{candidate}"
+            if os.path.isfile(path):
+                with open(path, "rb") as f:
+                    data = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/svg+xml" if path.endswith("svg") else "image/png")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
+        return self.error(404, "no icon", "")
+
+    def do_POST(self):
+        path = urllib.parse.urlsplit(self.path).path
+        body = self.body()
+        m = re.fullmatch(r"/v2/snaps/([^/]+)", path)
+        if m or path == "/v2/snaps":
+            names = [m.group(1)] if m else body.get("snaps") or []
+            action = body.get("action", "")
+            channel = body.get("channel") or ""
+            if channel and "/" not in channel:
+                channel = "latest/" + channel
+            if action not in ("install", "remove", "refresh"):
+                return self.error(400, f"unsupported action \"{action}\"")
+            cid = new_change(f"{action}-snap", f"{action.capitalize()} {', '.join(names)}", names)
+            threading.Thread(target=run_change, args=(cid, action, names, channel), daemon=True).start()
+            return self.reply({"change": cid}, 202, "async")
+        m = re.fullmatch(r"/v2/changes/([^/]+)", path)
+        if m:
+            return self.error(400, "changes cannot be aborted")
+        if path in ("/v2/login", "/v2/logout", "/v2/snapctl"):
+            return self.error(400, "not supported by DroidDeck's snap service")
+        return self.error(404, f"not found: {path}")
+
+    def do_PUT(self):
+        return self.do_POST()
+
+
+class Server(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
+    daemon_threads = True
+
+    def get_request(self):
+        conn, _ = self.socket.accept()
+        return conn, ("snapd", 0)
+
+
+def serve(path):
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
+    server = Server(path, Handler)
+    os.chmod(path, 0o666)
+    server.serve_forever()
+
+
+def main():
+    for d in (LIB, SNAP_DIR, BIN_DIR, DESKTOP_DIR, LIB + "/snaps"):
+        os.makedirs(d, exist_ok=True)
+    threads = [threading.Thread(target=serve, args=(p,), daemon=True) for p in SOCKETS]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

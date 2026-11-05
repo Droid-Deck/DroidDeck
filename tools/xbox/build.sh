@@ -13,7 +13,7 @@ export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=${CARGO_TARGET_AARCH64_UNKN
 if [[ $(uname -m) = aarch64 ]]; then export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=cc; fi
 cd "$source_dir"
 cargo build --locked --release --no-default-features --target aarch64-unknown-linux-gnu -p xodus-cli -p xodus-service
-if [[ $(uname -m) = aarch64 ]]; then
+if [[ $(uname -m) = aarch64 || -n ${CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER:-} ]]; then
     cargo test --locked --release --no-default-features --target aarch64-unknown-linux-gnu -p xodus-cli
     cargo test --locked --release --no-default-features --target aarch64-unknown-linux-gnu -p xodus credential_
     cargo test --locked --release --no-default-features --target aarch64-unknown-linux-gnu -p msixvc streaming_

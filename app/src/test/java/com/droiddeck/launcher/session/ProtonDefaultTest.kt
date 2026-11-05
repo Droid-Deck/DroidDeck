@@ -103,4 +103,28 @@ class ProtonDefaultTest {
         assertNull(ProtonDefault.gameSelectedId(context, "42", listOf(proton("GE-Proton11-7", false))))
         assertEquals(ProtonDefault.GameChoice(false, "GE-Proton9-1"), ProtonDefault.parseGames(file.readText())["42"])
     }
+
+    @Test
+    fun aReplacedBuildsPerGamePicksMoveToTheNewest() {
+        val old = ProtonDefault.GameChoice(false, "DroidDeck-Proton 11-11.2")
+        val ge = ProtonDefault.GameChoice(false, "GE-Proton11-7")
+        val valve = ProtonDefault.GameChoice(true, "DroidDeck-Proton 11-11.2")
+        val moved = ProtonDefault.movedGames(mapOf("42" to old, "43" to ge, "44" to null, "45" to valve), setOf("DroidDeck-Proton 11-11.2"), "DroidDeck-Proton 11-11.4")
+        assertEquals(mapOf("42" to ProtonDefault.GameChoice(false, "DroidDeck-Proton 11-11.4"), "43" to ge, "44" to null, "45" to valve), moved)
+        assertNull(ProtonDefault.movedGames(mapOf("43" to ge, "44" to null), setOf("DroidDeck-Proton 11-11.2"), "DroidDeck-Proton 11-11.4"))
+    }
+
+    @Test
+    fun movingPicksRewritesTheGamesFile() {
+        val context = RuntimeEnvironment.getApplication()
+        val file = File(LinuxRuntime.rootDir(context), "root/.local/share/droiddeck-compat/games.json")
+        file.parentFile?.deleteRecursively()
+        ProtonDefault.requestGame(context, "42", proton("DroidDeck-Proton 11-11.2", false))
+        ProtonDefault.requestGame(context, "43", null)
+        ProtonDefault.moveGames(context, setOf("DroidDeck-Proton 11-11.2"), "DroidDeck-Proton 11-11.4")
+        val games = ProtonDefault.parseGames(file.readText())
+        assertEquals(ProtonDefault.GameChoice(false, "DroidDeck-Proton 11-11.4"), games["42"])
+        assertTrue(games.containsKey("43"))
+        assertNull(games["43"])
+    }
 }

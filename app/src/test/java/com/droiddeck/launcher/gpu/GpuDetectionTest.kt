@@ -28,7 +28,6 @@ class GpuDetectionTest {
     }
 
     @Test fun nonAdrenoRenderersAreNeverAdrenoWhateverNumberTheyCarry() {
-        // Xclipse (Exynos), Mali and Immortalis names; familyOf ignores the number off Adreno.
         assertEquals(Family.NOT_ADRENO, GpuInfo.familyOf(false, 0))
         assertEquals(Family.NOT_ADRENO, GpuInfo.familyOf(false, GpuInfo.threeDigits("Samsung Xclipse 920")))
         assertEquals(Family.NOT_ADRENO, GpuInfo.familyOf(false, GpuInfo.threeDigits("Xclipse 940")))
@@ -62,6 +61,18 @@ class GpuDetectionTest {
         assertEquals(Support.UNTESTED, info(true, 850).support)
         assertEquals(Support.UNSUPPORTED, info(false, 0).support)
         assertEquals(Support.UNSUPPORTED, info(false, 830).support)
+    }
+
+    @Test fun adreno722IsSupportedOnlyOnTheRetroidPocketDuo() {
+        assertEquals(true, GpuInfo.verifiedOn(722, "Retroid Pocket Duo"))
+        assertEquals(false, GpuInfo.verifiedOn(722, "Retroid Pocket 5"))
+        assertEquals(false, GpuInfo.verifiedOn(720, "Retroid Pocket Duo"))
+        assertEquals(false, GpuInfo.verifiedOn(740, "Retroid Pocket Duo"))
+        val duo = info(true, 722).copy(verifiedDevice = true)
+        assertEquals(Support.TESTED, duo.support)
+        assertEquals("Supported", duo.supportText)
+        assertEquals(Family.A7XX_LOW, duo.family)
+        assertEquals(Support.UNTESTED, info(true, 722).support)
     }
 
     @Test fun userFacingTextPerTier() {

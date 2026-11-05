@@ -6,20 +6,41 @@ import android.graphics.Bitmap
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.content.pm.LauncherApps
+import android.content.pm.ShortcutInfo
+import android.graphics.Rect
+import android.os.Process
+import android.os.UserHandle
+import android.os.UserManager
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.graphics.drawable.toBitmap
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
+import kotlin.math.roundToInt
 
 object HomeApp {
+    private const val ICON_DP = 72
+
     data class LaunchableApp(
         val label: String,
         val packageName: String,
         val className: String,
         val icon: Bitmap?,
-    )
+        val system: Boolean = false,
+        val game: Boolean = false,
+        val installedAt: Long = 0L,
+        val updatedAt: Long = 0L,
+        val user: UserHandle? = null,
+        val userSerial: Long = 0L,
+    ) {
+        val component get() = ComponentName(packageName, className)
+        val key get() = "$packageName/$className" + if (userSerial != 0L) "#$userSerial" else ""
+        val work get() = userSerial != 0L
+    }
 
     fun isHomeScreenEnabled(context: Context): Boolean =
         context.packageManager.getComponentEnabledSetting(ComponentName(context, HomeActivity::class.java)) ==
@@ -69,33 +90,133 @@ object HomeApp {
     fun settingsIntent(): Intent = Intent(Settings.ACTION_HOME_SETTINGS)
 
     fun launchableApps(context: Context): List<LaunchableApp> {
+        val launcher = context.getSystemService(LauncherApps::class.java)
+        val users = context.getSystemService(UserManager::class.java)
         val pm = context.packageManager
-        val launch = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        val apps = pm.queryIntentActivities(launch, 0)
-            .asSequence()
-            .mapNotNull { result ->
-                val activity = result.activityInfo ?: return@mapNotNull null
-                if (!activity.exported || activity.packageName == context.packageName) return@mapNotNull null
-                val label = result.loadLabel(pm)?.toString()?.trim().orEmpty().ifEmpty { activity.packageName }
-                val icon = runCatching { result.loadIcon(pm).toBitmap(48, 48) }.getOrNull()
-                LaunchableApp(label, activity.packageName, activity.name, icon)
+        val own = Process.myUserHandle()
+        val iconPx = (ICON_DP * context.resources.displayMetrics.density).roundToInt()
+        val apps = users.userProfiles.flatMap { user ->
+            val serial = if (user == own) 0L else users.getSerialNumberForUser(user)
+            runCatching { launcher.getActivityList(null, user) }.getOrDefault(emptyList()).mapNotNull { info ->
+                val component = info.componentName
+                if (component.packageName == context.packageName && user == own) return@mapNotNull null
+                val label = info.label?.toString()?.trim().orEmpty().ifEmpty { component.packageName }
+                val icon = runCatching { info.getBadgedIcon(0).toBitmap(iconPx, iconPx) }.getOrNull()
+                val app = info.applicationInfo
+                val updated = if (user == own) runCatching { pm.getPackageInfo(component.packageName, 0).lastUpdateTime }.getOrNull() else null
+                @Suppress("DEPRECATION")
+                val game = app.category == ApplicationInfo.CATEGORY_GAME || app.flags and ApplicationInfo.FLAG_IS_GAME != 0
+                LaunchableApp(
+                    label, component.packageName, component.className, icon,
+                    system = app.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0,
+                    game = game,
+                    installedAt = info.firstInstallTime,
+                    updatedAt = updated ?: info.firstInstallTime,
+                    user = user,
+                    userSerial = serial,
+                )
             }
-            .distinctBy { it.packageName }
-            .toList()
-        return apps.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label })
+        }
+        return apps.distinctBy { it.key }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label })
     }
 
-    fun launch(context: Context, app: LaunchableApp, displayId: Int? = null) {
-        val intent = Intent(Intent.ACTION_MAIN)
-            .addCategory(Intent.CATEGORY_LAUNCHER)
-            .setComponent(ComponentName(app.packageName, app.className))
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (displayId == null) {
-            context.startActivity(intent)
-            return
+    fun launch(context: Context, app: LaunchableApp, displayId: Int? = null, bounds: Rect? = null) {
+        val options = displayId?.let { ActivityOptions.makeBasic().setLaunchDisplayId(it).toBundle() }
+        val launcher = context.getSystemService(LauncherApps::class.java)
+        launcher.startMainActivity(app.component, app.user ?: Process.myUserHandle(), bounds, options)
+    }
+
+    fun canUseShortcuts(context: Context): Boolean =
+        runCatching { context.getSystemService(LauncherApps::class.java).hasShortcutHostPermission() }.getOrDefault(false)
+
+    fun shortcuts(context: Context, app: LaunchableApp): List<ShortcutInfo> {
+        if (!canUseShortcuts(context)) return emptyList()
+        val query = LauncherApps.ShortcutQuery()
+            .setPackage(app.packageName)
+            .setActivity(app.component)
+            .setQueryFlags(LauncherApps.ShortcutQuery.FLAG_MATCH_DYNAMIC or LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST)
+        return runCatching { context.getSystemService(LauncherApps::class.java).getShortcuts(query, app.user ?: Process.myUserHandle()) }
+            .getOrNull().orEmpty()
+            .filter { it.isEnabled }
+            .sortedWith(compareBy<ShortcutInfo> { if (it.isDeclaredInManifest) 0 else 1 }.thenBy { it.rank })
+            .take(5)
+    }
+
+    fun shortcutIcon(context: Context, info: ShortcutInfo, px: Int = (ICON_DP * context.resources.displayMetrics.density).roundToInt()): Bitmap? = runCatching {
+        context.getSystemService(LauncherApps::class.java)
+            .getShortcutIconDrawable(info, context.resources.displayMetrics.densityDpi)?.toBitmap(px, px)
+    }.getOrNull()
+
+    fun trackRecents(app: android.app.Application) {
+        app.registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
+            override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) = Unit
+            override fun onActivityStarted(activity: android.app.Activity) = Unit
+            override fun onActivityResumed(activity: android.app.Activity) = syncRecents(activity)
+            override fun onActivityPaused(activity: android.app.Activity) { if (activity is FrontEndActivity) syncRecents(activity) }
+            override fun onActivityStopped(activity: android.app.Activity) = Unit
+            override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: android.os.Bundle) = Unit
+            override fun onActivityDestroyed(activity: android.app.Activity) = Unit
+        })
+    }
+
+    private fun syncRecents(activity: android.app.Activity) =
+        keepOutOfRecents(activity, activity is FrontEndActivity && !SessionState.running && isDefault(activity))
+
+    internal enum class RecentsStep { HIDE, SHOW, FORGET, NONE }
+
+    internal fun recentsStep(hidden: Boolean, owned: Boolean, excluded: Boolean): RecentsStep = when {
+        hidden && !excluded -> RecentsStep.HIDE
+        !hidden && owned && excluded -> RecentsStep.SHOW
+        !hidden && owned -> RecentsStep.FORGET
+        else -> RecentsStep.NONE
+    }
+
+    fun keepOutOfRecents(activity: android.app.Activity, hidden: Boolean) {
+        val prefs = activity.getSharedPreferences("home-recents", Context.MODE_PRIVATE)
+        val owned = prefs.getStringSet("tasks", null).orEmpty()
+        val id = activity.taskId.toString()
+        if (!hidden && id !in owned) return
+        runCatching {
+            @Suppress("DEPRECATION")
+            fun idOf(task: android.app.ActivityManager.AppTask) =
+                if (Build.VERSION.SDK_INT >= 29) task.taskInfo.taskId else task.taskInfo.persistentId
+            val tasks = activity.getSystemService(android.app.ActivityManager::class.java).appTasks
+            val task = tasks.firstOrNull { idOf(it) == activity.taskId } ?: return
+            val excluded = task.taskInfo.baseIntent.flags and Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS != 0
+            val step = recentsStep(hidden, id in owned, excluded)
+            if (step == RecentsStep.NONE) return
+            if (step != RecentsStep.FORGET) task.setExcludeFromRecents(step == RecentsStep.HIDE)
+            val live = tasks.map { idOf(it).toString() }.toSet()
+            val next = owned.filter { it in live && it != id }.toMutableSet()
+            if (step == RecentsStep.HIDE) next += id
+            prefs.edit().putStringSet("tasks", next).apply()
         }
-        val options = ActivityOptions.makeBasic().setLaunchDisplayId(displayId)
-        context.startActivity(intent, options.toBundle())
+    }
+
+    fun startShortcut(context: Context, info: ShortcutInfo) {
+        val task = generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }
+            .filterIsInstance<android.app.Activity>().firstOrNull()?.taskId
+        task?.let { com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(it, true) }
+        try {
+            context.getSystemService(LauncherApps::class.java).startShortcut(info, null, null)
+        } catch (e: Exception) {
+            task?.let { com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(it, false) }
+            throw e
+        }
+    }
+
+    fun openAppInfo(context: Context, app: LaunchableApp) {
+        context.getSystemService(LauncherApps::class.java)
+            .startAppDetailsActivity(app.component, app.user ?: Process.myUserHandle(), null, null)
+    }
+
+    fun canUninstall(app: LaunchableApp): Boolean = !app.system && !app.work
+
+    fun uninstall(context: Context, app: LaunchableApp) {
+        context.startActivity(
+            Intent(Intent.ACTION_DELETE, Uri.fromParts("package", app.packageName, null))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 
     fun isActiveSteamSession(): Boolean =

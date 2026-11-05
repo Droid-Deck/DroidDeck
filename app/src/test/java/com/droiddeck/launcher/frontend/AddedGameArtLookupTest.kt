@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.frontend
 
+import com.droiddeck.launcher.BuildConfig
 import com.droiddeck.launcher.stores.CredentialCipher
 import org.json.JSONArray
 import org.json.JSONObject
@@ -65,6 +66,29 @@ class AddedGameArtLookupTest {
         assertEquals(SteamMatch.Certainty.NAME, match.certainty)
     }
 
+    @Test fun anEarlierBuildsSpacewarLookupIsNotAMatch() {
+        val dir = tmp.newFolder("Peak")
+        val exe = File(dir, "PEAK.exe").apply { writeText("x") }
+        val legacy = File(tmp.newFolder(), "steam-appid").apply { writeText("480") }
+        assertEquals(3527290, SteamMatch.resolve(app, dir.path, exe, "PEAK", legacy = legacy) { 3527290 }.appId)
+    }
+
+    @Test fun aSavedSpacewarMatchIsNotAMatch() {
+        val dir = tmp.newFolder("Peak")
+        val exe = File(dir, "PEAK.exe").apply { writeText("x") }
+        SteamMatch.put(app, dir.path, SteamMatch.Match(480, SteamMatch.Certainty.NAME, "store search", System.currentTimeMillis()))
+        assertNull(SteamMatch.resolve(app, dir.path, exe, "PEAK").appId)
+        assertEquals(3527290, SteamMatch.resolve(app, dir.path, exe, "PEAK") { 3527290 }.appId)
+    }
+
+    @Test fun aStoreSearchAnsweringSpacewarIsNoMatch() {
+        val dir = tmp.newFolder("Spacewar Fan Remake")
+        val exe = File(dir, "game.exe").apply { writeText("x") }
+        val match = SteamMatch.resolve(app, dir.path, exe, "Spacewar Fan Remake") { 480 }
+        assertNull(match.appId)
+        assertEquals(SteamMatch.Certainty.NONE, match.certainty)
+    }
+
     @Test fun aStoreResultIsTakenOnlyWhenItsNameMatches() {
         assertNull(AddedGameArt.pickStoreResult("My Obscure Game", listOf("10" to "Totally Different", "11" to "Another One")))
         assertEquals("20", AddedGameArt.pickStoreResult("Hades", listOf("19" to "Hades II Soundtrack Bundle Extra", "20" to "Hades")))
@@ -92,8 +116,9 @@ class AddedGameArtLookupTest {
         assertEquals("build", SteamGridDb.pick("", "build"))
         assertEquals("build", SteamGridDb.pick("  ", "build"))
         assertEquals("", SteamGridDb.pick("", ""))
-        assertEquals("", SteamGridDb.builtInKey())
-        assertEquals("", SteamGridDb.key(app))
+        val builtIn = SteamGridDb.builtInKey()
+        assertTrue(builtIn == BuildConfig.SGDB_API_KEY)
+        assertTrue(SteamGridDb.key(app) == builtIn.trim())
     }
 
     @Test fun theUsersKeyIsSealedOnDiskAndClears() {
@@ -106,7 +131,7 @@ class AddedGameArtLookupTest {
         assertEquals("abcdef0123456789secretkey", SteamGridDb.key(app))
         SteamGridDb.setUserKey(app, "")
         assertFalse(file.exists())
-        assertEquals("", SteamGridDb.key(app))
+        assertTrue(SteamGridDb.key(app) == SteamGridDb.builtInKey().trim())
     }
 
     @Test fun aFailedLookupIsNotRememberedAsNoMatch() {

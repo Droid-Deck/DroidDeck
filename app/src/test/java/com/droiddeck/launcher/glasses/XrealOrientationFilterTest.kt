@@ -63,10 +63,8 @@ class XrealOrientationFilterTest {
     @Test fun capturedNeutralGravityStartsUprightBeforeRecenter() {
         val pose = XrealOrientationFilter().update(sample(1000000,
             accel = Vec3(-0.0909f, -9.6529f, -1.0731f)))!!
-        // An upright start must not contain the previous approximately 180-degree
-        // pitch correction. Check before recenter can hide a mounting error.
         assertTrue(kotlin.math.abs(pose[3]) > 0.99f)
         val screen = matrix(pose)
-        assertTrue(screen[7] > 0.99f) // Screen up points toward shared world +Z.
+        assertTrue(screen[7] > 0.99f)
     }
 }

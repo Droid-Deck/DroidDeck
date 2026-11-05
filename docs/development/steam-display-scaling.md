@@ -227,7 +227,7 @@ flag for an experiment.
 
 Device check (Thor): Alan Wake's American Nightmare with its 1280x720 Game Resolution runs on `:1`
 at 1280x720 with no `--force-windows-fullscreen` in the session, 2 frame-size changes, no crash
-in logcat. The Games tab and the drawer render without the switch.
+in logcat. The Library and the drawer render without the switch.
 
 ## Steam picture position
 

@@ -641,6 +641,114 @@ class ReconcileTest(unittest.TestCase):
         self.assertEqual(page.mapping["10"], "GE-Proton9-1")
         self.assertEqual(state["auto"], {"11": TOOL})
 
+    def games(self):
+        return json.loads((self.state / "games.json").read_text())["games"]
+
+    def write_games(self, games):
+        (self.state / "games.json").write_text(json.dumps({"version": 1, "games": games}))
+
+    def test_a_steam_pick_after_the_app_choice_is_kept_live(self):
+        page = FakePage({"0": TOOL, "10": TOOL, "11": TOOL}, [TOOL, TOOL_11, COMPAT["FEX_TOOL"]])
+        self.write_games({"10": {"valve": True, "dir": "Proton 11.0 (ARM64)"}})
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [("10", TOOL_11)])
+        self.assertEqual(state["games_applied"], {"10": {"valve": True, "dir": "Proton 11.0 (ARM64)"}})
+
+        page.sets.clear()
+        page.mapping["10"] = COMPAT["FEX_TOOL"]
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        self.assertEqual(page.mapping["10"], COMPAT["FEX_TOOL"])
+        self.assertEqual(self.games(), {})
+        self.assertEqual(state["games_applied"], {})
+
+        self.write_games({"10": {"valve": True, "dir": "Proton 11.0 (ARM64)"}})
+        self.reconcile(page)
+        self.assertEqual(page.sets, [("10", TOOL_11)])
+
+    def test_a_steam_pick_of_our_proton_becomes_the_app_choice_live(self):
+        page = FakePage({"0": TOOL, "10": TOOL, "11": TOOL}, [TOOL, TOOL_11])
+        self.write_games({"10": {"valve": True, "dir": "Proton 11.0 (ARM64)"}})
+        self.reconcile(page)
+        page.sets.clear()
+        page.mapping["10"] = TOOL
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        self.assertEqual(self.games(), {"10": {"valve": True, "dir": "Proton Experimental (ARM64)"}})
+        self.assertEqual(state["games_applied"], self.games())
+
+    def test_use_the_default_applies_once_then_steam_picks_stand_live(self):
+        page = FakePage({"0": TOOL, "10": TOOL_11, "11": TOOL}, [TOOL, TOOL_11, COMPAT["FEX_TOOL"]])
+        self.write_games({"10": None})
+        self.reconcile(page)
+        self.assertEqual(page.sets, [("10", TOOL)])
+
+        page.sets.clear()
+        self.reconcile(page)
+        self.assertEqual(self.games(), {})
+        page.mapping["10"] = COMPAT["FEX_TOOL"]
+        self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        self.assertEqual(page.mapping["10"], COMPAT["FEX_TOOL"])
+
+    def test_choices_an_earlier_build_applied_give_way_to_steam_picks_live(self):
+        (self.state / "state.json").write_text(json.dumps({"default": TOOL, "auto": {"11": TOOL}, "tools": []}))
+        self.write_games({"10": None, "11": {"valve": True, "dir": "Proton 11.0 (ARM64)"}})
+        page = FakePage({"0": TOOL, "10": COMPAT["FEX_TOOL"], "11": "steamlinuxruntime_sniper"},
+                        [TOOL, TOOL_11, COMPAT["FEX_TOOL"]])
+        self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        self.assertEqual(self.games(), {})
+
+    def test_an_app_choice_written_during_a_sync_is_not_overwritten(self):
+        self.write_games({"10": {"valve": True, "dir": "Proton 11.0 (ARM64)"}})
+        requests, text = COMPAT["read_game_requests"]()
+        self.write_games({"10": {"valve": True, "dir": "Proton Experimental (ARM64)"}})
+        self.assertFalse(COMPAT["write_game_requests"]({}, text))
+        self.assertEqual(self.games(), {"10": {"valve": True, "dir": "Proton Experimental (ARM64)"}})
+
+    def test_an_app_the_client_briefly_refuses_keeps_its_applied_choice_live(self):
+        page = FakePage({"0": TOOL, "10": TOOL, "11": TOOL}, [TOOL, TOOL_11, COMPAT["FEX_TOOL"]])
+        self.write_games({"10": {"valve": True, "dir": "Proton 11.0 (ARM64)"}})
+        self.reconcile(page)
+        page.refused = {"10"}
+        state = self.reconcile(page)
+        self.assertEqual(state["games_applied"], {"10": {"valve": True, "dir": "Proton 11.0 (ARM64)"}})
+        page.refused = set()
+        page.sets.clear()
+        page.mapping["10"] = COMPAT["FEX_TOOL"]
+        self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        self.assertEqual(page.mapping["10"], COMPAT["FEX_TOOL"])
+
+    def test_an_app_rewriting_its_choices_during_both_tries_applies_none_of_them_live(self):
+        page = FakePage({"0": TOOL, "10": TOOL, "11": TOOL}, [TOOL, TOOL_11, COMPAT["FEX_TOOL"]])
+        self.write_games({"10": {"valve": True, "dir": "Proton 11.0 (ARM64)"}})
+        self.reconcile(page)
+        page.sets.clear()
+        page.mapping["10"] = COMPAT["FEX_TOOL"]
+        self.write_games({"10": {"valve": True, "dir": "Proton 11.0 (ARM64)"}, "11": None})
+        with mock.patch.dict(COMPAT["settled_game_requests"].__globals__, write_game_requests=lambda *_: False):
+            state = self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        self.assertEqual(state["games_applied"], {"10": {"valve": True, "dir": "Proton 11.0 (ARM64)"}})
+
+    def test_a_steam_pick_is_kept_at_the_next_start(self):
+        config = self.steam / "config/config.vdf"
+        config.parent.mkdir(parents=True)
+        vdf = '"InstallConfigStore" { "Software" { "Valve" { "Steam" { "CompatToolMapping" { %s } } } } }'
+        entry = '"%s" { "name" "%s" "config" "" "priority" "250" }'
+        catalog = COMPAT["tool_catalog"](str(self.steam))
+        self.write_games({"10": {"valve": True, "dir": "Proton 11.0 (ARM64)"}})
+        config.write_text(vdf % (entry % ("0", TOOL) + entry % ("10", TOOL)))
+        with mock.patch.dict(COMPAT["register_default"].__globals__, steam_running=lambda: False):
+            COMPAT["register_default"](str(config), ["10"], catalog=catalog, directory=str(self.state), settle=True)
+            self.assertIn(entry % ("10", TOOL_11), " ".join(config.read_text().split()))
+            config.write_text(vdf % (entry % ("0", TOOL) + entry % ("10", COMPAT["FEX_TOOL"])))
+            COMPAT["register_default"](str(config), ["10"], catalog=catalog, directory=str(self.state), settle=True)
+        self.assertIn(entry % ("10", COMPAT["FEX_TOOL"]), " ".join(config.read_text().split()))
+        self.assertEqual(self.games(), {})
+
     def test_file_mode_defers_to_the_live_helper(self):
         (self.state / "live.pid").write_text("%d\n" % os.getpid())
         self.assertTrue(COMPAT["live_helper_running"]())

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">Atalhos de botões físicos</string>
+    <string name="shortcuts_dd_menu">Menu do DroidDeck</string>
+    <string name="shortcuts_capture">Atribuir: %1$s</string>
+    <string name="shortcuts_press">Prima e solte um botão. A atribuição é guardada automaticamente.</string>
+    <string name="shortcuts_release">Solte o botão para continuar.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">Este botão já está atribuído a: %1$s</string>
+    <string name="shortcuts_save">Reatribuir</string>
+    <string name="shortcuts_retry">Experimentar outro botão</string>
+    <string name="shortcuts_limitations">O botão Início e alguns botões adicionais podem não estar disponíveis.</string>
+</resources>

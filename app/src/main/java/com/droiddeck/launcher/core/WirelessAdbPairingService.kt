@@ -184,12 +184,15 @@ class WirelessAdbPairingService : Service() {
             setSound(null, null)
             enableVibration(false)
         })
+        manager?.createNotificationChannel(NotificationChannel(PROGRESS_CHANNEL_ID, getString(R.string.adbpair_progress_channel_name),
+            NotificationManager.IMPORTANCE_LOW).apply { setShowBadge(false) })
         val open = PendingIntent.getActivity(this, 0,
             Intent(this, FrontEndActivity::class.java).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
             PendingIntent.FLAG_IMMUTABLE)
         val cancel = PendingIntent.getService(this, 1,
             Intent(this, WirelessAdbPairingService::class.java).setAction(ACTION_CANCEL), PendingIntent.FLAG_IMMUTABLE)
-        val builder = Notification.Builder(this, CHANNEL_ID)
+        val quiet = stage == Stage.Waiting || stage == Stage.Idle || stage is Stage.Working
+        val builder = Notification.Builder(this, if (quiet) PROGRESS_CHANNEL_ID else CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_session)
             .setContentIntent(open)
             .setShowWhen(false)
@@ -239,6 +242,7 @@ class WirelessAdbPairingService : Service() {
 
     companion object {
         private const val CHANNEL_ID = "wireless-adb-pairing"
+        private const val PROGRESS_CHANNEL_ID = "wireless-adb-pairing-progress"
         private const val NOTIFICATION_ID = 3
         private const val PAIRING_TYPE = "_adb-tls-pairing._tcp"
         private const val ACTION_CODE = "com.droiddeck.launcher.action.WIRELESS_ADB_CODE"

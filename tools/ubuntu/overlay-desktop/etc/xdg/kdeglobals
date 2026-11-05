@@ -1,0 +1,24 @@
+[KDE]
+LookAndFeelPackage=com.valve.vapor.desktop
+SingleClick=false
+widgetStyle=Breeze
+
+[General]
+ColorScheme=Vapor
+font=Noto Sans,11,-1,5,50,0,0,0,0,0
+menuFont=Noto Sans,11,-1,5,50,0,0,0,0,0
+smallestReadableFont=Noto Sans,9,-1,5,50,0,0,0,0,0
+toolBarFont=Noto Sans,11,-1,5,50,0,0,0,0,0
+fixed=Noto Sans Mono,11,-1,5,50,0,0,0,0,0
+
+[Icons]
+Theme=breeze-dark
+
+[KDE Action Restrictions][$i]
+action/switch_user=false
+action/start_new_session=false
+action/lock_screen=false
+
+[KDE Control Module Restrictions][$i]
+kcm_sddm.desktop=false
+kcm_plymouth.desktop=false

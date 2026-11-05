@@ -32,11 +32,14 @@ pub enum PlanKind {
     #[default]
     Gen2Chunks,
     Gen1Ranges,
+    Maintenance,
 }
 
 impl PlanKind {
     pub fn from_i32(v: i32) -> Self {
-        if v == 1 {
+        if v == 2 {
+            PlanKind::Maintenance
+        } else if v == 1 {
             PlanKind::Gen1Ranges
         } else {
             PlanKind::Gen2Chunks
@@ -72,6 +75,7 @@ pub trait GogEvents: Sync {
     );
     fn on_log(&self, line: &str);
     fn on_bytes(&self, _bytes_done: u64, _bytes_total: u64) {}
+    fn on_maintenance(&self, _network_bytes: u64, _reused_bytes: u64, _applied_bytes: u64) {}
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -672,6 +676,7 @@ pub fn run(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Gog
     match req.kind {
         PlanKind::Gen2Chunks => run_gen2(req, cancel, events),
         PlanKind::Gen1Ranges => run_gen1(req, cancel, events),
+        PlanKind::Maintenance => super::maintenance::run(req, cancel, events),
     }
 }
 

@@ -29,7 +29,6 @@ class BootMovieLibraryTest {
 
     private fun movie(name: String) = File(movies, name).also { it.parentFile!!.mkdirs(); it.writeText("movie") }
 
-    /** A movie DroidDeck itself imported: kept in the library, copied into Steam's folder and noted in the list. */
     private fun imported(title: String, source: String = BootMovieLibrary.SOURCE_IMPORT, repo: String? = null): String {
         val staged = File(BootMovieLibrary.libraryDir(app), ".t-${System.nanoTime()}-${Thread.currentThread().id}.staged").also { it.parentFile!!.mkdirs(); it.writeText("movie") }
         return BootMovieLibrary.commit(app, staged, title, source, repo)!!
@@ -178,15 +177,37 @@ class BootMovieLibraryTest {
         assertNull(SessionFiles.startupMoviePath(BootMovieLibrary.steamConfig(app)))
     }
 
-    @Test fun onlyTheThreeStartupMoviesOfSteamAreListed() {
-        listOf("deck_startup", "oled_startup", "startup_machine", "controller_generic_thumbstick_move").forEach {
+    @Test fun onlyTheStartupMoviesOfSteamAreListed() {
+        listOf("deck_startup", "oled_startup", "startup_machine", "steam_os_startup", "controller_generic_thumbstick_move").forEach {
             File(BootMovieLibrary.steamRoot(app), "steamui/movies/$it.webm").also { f -> f.parentFile!!.mkdirs(); f.writeText("movie") }
         }
         val ids = BootMovieLibrary.list(app).map { it.id }.filter { it.startsWith("steam:") }
         assertEquals(
-            listOf("steam:/movies/deck_startup.webm", "steam:/movies/oled_startup.webm", "steam:/movies/startup_machine.webm"),
+            listOf(
+                "steam:/movies/deck_startup.webm", "steam:/movies/oled_startup.webm", "steam:/movies/startup_machine.webm",
+                "steam:/movies/steam_os_startup.webm",
+            ),
             ids.sorted(),
         )
+    }
+
+    @Test fun steamsDefaultPickIsTakenOverAsItsOwnStartupMovie() {
+        val native = File(BootMovieLibrary.steamRoot(app), "steamui/movies/steam_os_startup.webm").also { it.parentFile!!.mkdirs(); it.writeText("movie") }
+        movie("a.webm")
+        steamPicksAt(SessionFiles.BOOT_MOVIE_PATH)
+        BootMovie.select(app, "file:a.webm")
+        steamPicksAt("")
+        assertTrue(BootMovie.syncFromSteam(app))
+        assertEquals("steam:/movies/steam_os_startup.webm", BootMovie.choice(app))
+        assertEquals(native, BootMovie.currentFile(app))
+        assertFalse(BootMovie.syncFromSteam(app))
+    }
+
+    @Test fun anEmptySteamPickThatWasNeverSeenChangesNothing() {
+        File(BootMovieLibrary.steamRoot(app), "steamui/movies/steam_os_startup.webm").also { it.parentFile!!.mkdirs(); it.writeText("movie") }
+        steamPicksAt("")
+        assertFalse(BootMovie.syncFromSteam(app))
+        assertEquals(BootMovie.DROIDDECK_30, BootMovie.choice(app))
     }
 
     @Test fun aMovieBoughtInThePointsShopIsListedAndAdopted() {
@@ -236,11 +257,9 @@ class BootMovieLibraryTest {
         steamPicks("b.webm")
         assertTrue(BootMovie.syncFromSteam(app))
         assertEquals("file:b.webm", BootMovie.choice(app))
-        // Picking another one here is not undone by the same Steam setting.
         BootMovie.select(app, "file:a.webm")
         assertFalse(BootMovie.syncFromSteam(app))
         assertEquals("file:a.webm", BootMovie.choice(app))
-        // A new pick inside Steam is adopted again.
         movie("c.webm")
         steamPicks("c.webm")
         assertTrue(BootMovie.syncFromSteam(app))

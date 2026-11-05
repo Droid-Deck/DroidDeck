@@ -1,6 +1,6 @@
 use std::fs::{self, File, OpenOptions};
 use std::os::unix::fs::FileExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
@@ -25,6 +25,12 @@ pub struct EngineFile {
     pub sha1: Option<Hash>,
     pub replacing: bool,
     pub parts: Vec<PlanPart>,
+    pub resume: Option<Resume>,
+}
+
+pub struct Resume {
+    pub stage: PathBuf,
+    pub kept: Vec<u64>,
 }
 
 pub struct EngineInput<'a> {
@@ -40,6 +46,8 @@ pub struct EngineInput<'a> {
     pub process_workers: usize,
     pub ca_bundle: String,
     pub user_agent: String,
+    pub progress_base: u64,
+    pub progress_total: u64,
 }
 
 #[derive(Debug, Default)]
@@ -120,7 +128,7 @@ impl<'a> Engine<'a> {
             return;
         }
         self.events.progress(
-            self.written.load(Ordering::Relaxed),
+            self.input.progress_base + self.written.load(Ordering::Relaxed),
             self.total_bytes,
             self.files_done.load(Ordering::Relaxed) as u32,
             self.input.files.len() as u32,
@@ -232,10 +240,14 @@ impl<'a> Engine<'a> {
                 .sync_all()
                 .map_err(|e| format!("Could not assemble or atomically replace {}: {e}", file.path))?;
             let len = handle.metadata().map(|m| m.len()).unwrap_or(u64::MAX);
-            drop(handle);
             if len != file.size {
                 return Err(format!("Size mismatch for {}", file.path));
             }
+            let hash = match (hash, &file.resume) {
+                (None, Some(_)) if file.sha1.is_some() => Some(hash_whole(&handle, file)?),
+                (hash, _) => hash,
+            };
+            drop(handle);
             if let (Some(expected), Some(got)) = (file.sha1, hash) {
                 if expected != got {
                     return Err(format!("SHA-1 mismatch for {}", file.path));
@@ -260,6 +272,9 @@ impl<'a> Engine<'a> {
             fs::rename(&stage, &file.dest)
                 .map_err(|e| format!("Could not assemble or atomically replace {}: {e}", file.path))
         })();
+        if file.resume.is_some() {
+            let _ = fs::remove_file(staging::list_path(&stage));
+        }
         if let Err(e) = result {
             let _ = fs::remove_file(&stage);
             return Err(e);
@@ -278,13 +293,16 @@ impl<'a> Engine<'a> {
     }
 
     fn open_stage(&self, f: usize) -> Result<(), String> {
-        let path = self.input.stage_dir.join(staging::unique_name());
-        let handle = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create_new(true)
-            .open(&path)
-            .map_err(|e| format!("Could not stage {}: {e}", self.input.files[f].path))?;
+        let file = &self.input.files[f];
+        let (path, opened) = match &file.resume {
+            Some(r) => (r.stage.clone(), OpenOptions::new().read(true).write(true).open(&r.stage)),
+            None => {
+                let path = self.input.stage_dir.join(staging::unique_name());
+                let opened = OpenOptions::new().read(true).write(true).create_new(true).open(&path);
+                (path, opened)
+            }
+        };
+        let handle = opened.map_err(|e| format!("Could not stage {}: {e}", file.path))?;
         let mut slot = self.slots[f].lock().expect("slot lock");
         slot.file = Some(Arc::new(handle));
         slot.stage = Some(path);
@@ -439,7 +457,7 @@ pub fn run(input: &EngineInput<'_>, stop: &AtomicBool, events: &dyn Events) -> R
                     stage: None,
                     written: vec![false; f.parts.len()],
                     next_hash: 0,
-                    hasher: f.sha1.map(|_| Sha1::new()),
+                    hasher: f.sha1.filter(|_| f.resume.is_none()).map(|_| Sha1::new()),
                     left: f.parts.len(),
                     done: false,
                 })
@@ -466,7 +484,7 @@ pub fn run(input: &EngineInput<'_>, stop: &AtomicBool, events: &dyn Events) -> R
         started: Instant::now(),
         replace_ok: Mutex::new(None),
         events,
-        total_bytes: input.files.iter().map(|f| f.size).sum(),
+        total_bytes: input.progress_total,
     };
     for (i, p) in schedule.producers.iter().enumerate() {
         if p.preloaded && remaining[i] == 0 {
@@ -503,7 +521,7 @@ pub fn run(input: &EngineInput<'_>, stop: &AtomicBool, events: &dyn Events) -> R
         stream: false,
     };
 
-    events.progress(0, engine.total_bytes, 0, input.files.len() as u32);
+    events.progress(input.progress_base, engine.total_bytes, 0, input.files.len() as u32);
     let log = |line: &str| events.log(line);
     let gate = |i: usize| -> bool {
         engine.hint.fetch_max(i, Ordering::Relaxed);
@@ -546,12 +564,14 @@ pub fn run(input: &EngineInput<'_>, stop: &AtomicBool, events: &dyn Events) -> R
     let complete = failure.is_none() && engine.files_done.load(Ordering::Relaxed) == input.files.len();
 
     if !complete {
-        for slot in &engine.slots {
+        for (file, slot) in input.files.iter().zip(&engine.slots) {
             let mut s = slot.lock().expect("slot lock");
             if !s.done {
                 s.file.take();
                 if let Some(stage) = s.stage.take() {
-                    let _ = fs::remove_file(stage);
+                    if failure.is_some() || !keep_partial(file, &s.written, &stage, &input.stage_dir) {
+                        let _ = fs::remove_file(stage);
+                    }
                 }
             }
         }
@@ -588,6 +608,100 @@ fetches={} refetches={} peak_cache_mib={} hosts={}",
     Err(Stop::Failed("The download ended before every file was written".into()))
 }
 
+fn hash_whole(handle: &File, file: &EngineFile) -> Result<Hash, String> {
+    let mut h = Sha1::new();
+    let mut buf = vec![0u8; 1024 * 1024];
+    let mut at = 0u64;
+    while at < file.size {
+        let n = buf.len().min((file.size - at) as usize);
+        handle
+            .read_exact_at(&mut buf[..n], at)
+            .map_err(|e| format!("Could not read back {}: {e}", file.path))?;
+        h.update(&buf[..n]);
+        at += n as u64;
+    }
+    Ok(h.finalize().into())
+}
+
+fn keep_partial(file: &EngineFile, written: &[bool], stage: &Path, dir: &Path) -> bool {
+    let mut kept: Vec<u64> = file.resume.as_ref().map(|r| r.kept.clone()).unwrap_or_default();
+    kept.extend(file.parts.iter().zip(written).filter(|(_, w)| **w).map(|(p, _)| p.file_offset));
+    if kept.is_empty() || file.sha1.is_none() {
+        return false;
+    }
+    kept.sort_unstable();
+    let partial = dir.join(staging::partial_name(&file.path, file.size, file.sha1));
+    let list: String = kept.iter().map(|o| format!("{o}\n")).collect();
+    let synced = OpenOptions::new().write(true).open(stage).and_then(|h| h.sync_all());
+    if synced.is_err() || fs::rename(stage, &partial).is_err() {
+        return false;
+    }
+    let resumed = file.resume.as_ref().is_some_and(|r| r.stage == partial);
+    let temp = dir.join(staging::unique_name());
+    let listed = fs::write(&temp, list).and_then(|_| fs::rename(&temp, staging::list_path(&partial))).is_ok();
+    if !listed {
+        let _ = fs::remove_file(&temp);
+        if !resumed {
+            let _ = fs::remove_file(&partial);
+        }
+    }
+    listed || resumed
+}
+
 fn tidy_fetch_error(message: &str) -> String {
     message.strip_prefix("epic: ").unwrap_or(message).to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn part(file_offset: u64, size: u32) -> PlanPart {
+        PlanPart { chunk: 0, chunk_offset: 0, size, file_offset }
+    }
+
+    #[test]
+    fn a_pause_keeps_every_written_part_and_lists_them() {
+        let dir = std::env::temp_dir().join(format!("dd-epic-keep-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let file = EngineFile {
+            path: "Game/a.pak".into(),
+            dest: dir.join("a.pak"),
+            size: 30,
+            sha1: Some([1; 20]),
+            replacing: false,
+            parts: vec![part(0, 10), part(10, 10), part(20, 10)],
+            resume: None,
+        };
+        let kept = dir.join(staging::partial_name("Game/a.pak", 30, Some([1; 20])));
+        let stage = dir.join("x.stage");
+
+        fs::write(&stage, [7u8; 30]).unwrap();
+        assert!(!keep_partial(&file, &[false, false, false], &stage, &dir));
+        let unhashed = EngineFile {
+            path: file.path.clone(),
+            dest: file.dest.clone(),
+            size: 30,
+            sha1: None,
+            replacing: false,
+            parts: file.parts.clone(),
+            resume: None,
+        };
+        assert!(!keep_partial(&unhashed, &[true, true, true], &stage, &dir));
+        assert!(stage.exists());
+        assert!(keep_partial(&file, &[false, true, true], &stage, &dir));
+        assert_eq!(fs::read(&kept).unwrap(), [7u8; 30]);
+        assert_eq!(fs::read_to_string(staging::list_path(&kept)).unwrap(), "10\n20\n");
+        assert!(!stage.exists());
+
+        let resumed = EngineFile {
+            parts: vec![part(0, 10)],
+            resume: Some(Resume { stage: kept.clone(), kept: vec![20, 10] }),
+            ..file
+        };
+        assert!(keep_partial(&resumed, &[false], &kept, &dir));
+        assert_eq!(fs::read_to_string(staging::list_path(&kept)).unwrap(), "10\n20\n");
+        let _ = fs::remove_dir_all(&dir);
+    }
 }

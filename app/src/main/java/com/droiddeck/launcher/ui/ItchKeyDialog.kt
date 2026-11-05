@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.foundation.shape.CircleShape
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
@@ -9,7 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.material3.AlertDialog
+import com.droiddeck.launcher.ui.GlideAlertDialog as AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -91,7 +92,7 @@ internal fun ItchKeyDialog(onDismiss: () -> Unit) {
                 Row(horizontalArrangement = Arrangement.Start) {
                     TextButton(onClick = {
                         ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(ItchApi.KEYS_PAGE)))
-                    }) { Text(stringResource(R.string.stores_itch_get_key)) }
+                    }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.stores_itch_get_key)) }
                 }
                 if (rejected) {
                     Spacer(Modifier.height(8.dp))
@@ -104,12 +105,12 @@ internal fun ItchKeyDialog(onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(enabled = key.isNotBlank() && !busy, onClick = { submit() }) {
+            TextButton(enabled = key.isNotBlank() && !busy, onClick = { submit() }, modifier = Modifier.focusGlide(CircleShape)) {
                 Text(stringResource(R.string.game_env_save))
             }
         },
         dismissButton = {
-            TextButton(enabled = !busy, onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+            TextButton(enabled = !busy, onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) }
         },
     )
 }

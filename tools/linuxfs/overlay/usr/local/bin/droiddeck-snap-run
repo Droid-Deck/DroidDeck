@@ -1,0 +1,139 @@
+#!/usr/bin/python3
+import os
+import re
+import shlex
+import sys
+
+import yaml
+
+SNAP_DIR = "/snap"
+HOST_DIRS = ("/etc", "/home", "/root", "/tmp", "/run", "/var/snap", "/var/lib/snapd", "/var/tmp", "/var/log",
+             "/media", "/mnt", "/snap", "/usr/src", "/lib/modules")
+
+
+def load(name):
+    with open(f"{SNAP_DIR}/{name}/current/meta/snap.yaml") as f:
+        return yaml.safe_load(f) or {}
+
+
+def expand(value, env):
+    return re.sub(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?", lambda m: env.get(m.group(1), ""), str(value))
+
+
+def provider_path(path, provider, revision):
+    snap = f"{SNAP_DIR}/{provider}/{revision}"
+    for var, value in (("$SNAP_DATA", f"/var/snap/{provider}/{revision}"),
+                       ("$SNAP_COMMON", f"/var/snap/{provider}/common"), ("$SNAP", snap)):
+        if path == var or path.startswith(var + "/"):
+            return os.path.normpath(value + path[len(var):])
+    return os.path.normpath(f"{snap}/{path}")
+
+
+def content_binds(name, meta, env):
+    out = []
+    for plug_name, plug in (meta.get("plugs") or {}).items():
+        if not isinstance(plug, dict) or plug.get("interface") != "content" or not plug.get("target"):
+            continue
+        provider = (plug.get("default-provider") or "").split(":")[0]
+        if not provider or not os.path.isdir(f"{SNAP_DIR}/{provider}/current"):
+            continue
+        try:
+            slots = load(provider).get("slots") or {}
+        except OSError:
+            continue
+        revision = os.path.basename(os.path.realpath(f"{SNAP_DIR}/{provider}/current"))
+        target = expand(plug["target"], env)
+        for slot_name, slot in slots.items():
+            if not isinstance(slot, dict) or slot.get("interface") != "content":
+                continue
+            if slot.get("content", slot_name) != plug.get("content", plug_name):
+                continue
+            nested = "source" in slot
+            reads = (slot.get("source") or {}).get("read") if nested else slot.get("read")
+            for path in reads or []:
+                source = provider_path(str(path), provider, revision)
+                out.append((plug_name, source, os.path.join(target, os.path.basename(source)) if nested else target))
+                if not nested:
+                    break
+            break
+    return out
+
+
+def main(argv):
+    if len(argv) < 3:
+        print("usage: droiddeck-snap-run SNAP APP [ARG...]", file=sys.stderr)
+        return 2
+    name, app, args = argv[1], argv[2], argv[3:]
+    meta = load(name)
+    spec = (meta.get("apps") or {}).get(app)
+    if spec is None:
+        print(f"error: snap \"{name}\" has no app \"{app}\"", file=sys.stderr)
+        return 1
+    revision = os.path.basename(os.path.realpath(f"{SNAP_DIR}/{name}/current"))
+    home = os.environ.get("HOME", "/root")
+    snap = f"{SNAP_DIR}/{name}/{revision}"
+    env = dict(os.environ)
+    for k in ("LD_PRELOAD", "LD_LIBRARY_PATH"):
+        env.pop(k, None)
+    env.update({
+        "SNAP": snap, "SNAP_NAME": name, "SNAP_INSTANCE_NAME": name, "SNAP_INSTANCE_KEY": "",
+        "SNAP_REVISION": revision, "SNAP_VERSION": str(meta.get("version", "")), "SNAP_ARCH": "arm64",
+        "SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
+        "SNAP_DATA": f"/var/snap/{name}/{revision}", "SNAP_COMMON": f"/var/snap/{name}/common",
+        "SNAP_USER_DATA": f"{home}/snap/{name}/{revision}", "SNAP_USER_COMMON": f"{home}/snap/{name}/common",
+        "SNAP_REAL_HOME": home, "SNAP_UID": str(os.getuid()), "SNAP_EUID": str(os.geteuid()),
+        "SNAP_COOKIE": "", "SNAP_CONTEXT": "", "SNAP_REEXEC": "0",
+    })
+    for d in (env["SNAP_USER_DATA"], env["SNAP_USER_COMMON"], env["SNAP_DATA"], env["SNAP_COMMON"]):
+        os.makedirs(d, exist_ok=True)
+    current = f"{home}/snap/{name}/current"
+    if os.path.realpath(current) != env["SNAP_USER_DATA"]:
+        try:
+            os.unlink(current)
+        except OSError:
+            pass
+        os.symlink(revision, current)
+    confinement = meta.get("confinement", "strict")
+    if confinement != "classic":
+        env["HOME"] = env["SNAP_USER_DATA"]
+    env["PATH"] = ":".join([f"{snap}/usr/sbin", f"{snap}/usr/bin", f"{snap}/sbin", f"{snap}/bin",
+                            "/usr/local/sbin", "/usr/local/bin", "/usr/sbin", "/usr/bin", "/sbin", "/bin", "/usr/games"])
+    env["LD_LIBRARY_PATH"] = env["SNAP_LIBRARY_PATH"]
+    for scope in (meta.get("environment") or {}, spec.get("environment") or {}):
+        for k, v in scope.items():
+            env[k] = expand(v, env)
+    command = shlex.split(expand(spec.get("command", ""), env))
+    if command and not command[0].startswith("/"):
+        command[0] = f"{snap}/{command[0]}"
+    chain = [c if c.startswith("/") else f"{snap}/{c}" for c in (meta.get("command-chain") or []) + (spec.get("command-chain") or [])]
+    program = chain + command + args
+    if confinement == "classic":
+        os.execvpe(program[0], program, env)
+    base = meta.get("base") or "core"
+    root = f"{SNAP_DIR}/{base}/current"
+    if not os.path.isdir(root):
+        print(f"error: the base snap \"{base}\" is not installed; run: snap install {base}", file=sys.stderr)
+        return 1
+    bwrap = ["/usr/local/bin/droiddeck-bwrap", "--bind", root, "/", "--dev-bind", "/dev", "/dev", "--proc", "/proc",
+             "--bind", "/sys", "/sys"]
+    for d in HOST_DIRS:
+        if os.path.isdir(d):
+            bwrap += ["--bind", d, d]
+    bwrap += ["--bind", "/", "/var/lib/snapd/hostfs"]
+    bwrap += ["--bind", "/dev/null", "/etc/ld.so.preload"]
+    binds = content_binds(name, meta, env)
+    for _, source, target in binds:
+        if os.path.isdir(source):
+            bwrap += ["--bind", source, target]
+    content = {k for k, v in (meta.get("plugs") or {}).items() if isinstance(v, dict) and v.get("interface") == "content"}
+    plugs = (set(meta.get("plugs") or {}) | set(spec.get("plugs") or [])) - content | {plug for plug, _, _ in binds}
+    env["DROIDDECK_SNAP_PLUGS"] = " ".join(sorted(plugs))
+    bwrap += ["--bind", "/usr/local/bin/droiddeck-snapctl", "/usr/lib/snapd/snapctl"]
+    bwrap += ["--chdir", os.getcwd() if os.path.isdir(os.getcwd()) else env["HOME"], "--clearenv"]
+    for k, v in env.items():
+        bwrap += ["--setenv", k, v]
+    os.execv(bwrap[0], bwrap + ["--"] + program)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

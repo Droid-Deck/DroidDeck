@@ -87,11 +87,10 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
             if (line.startsWith("== STEP ")) {
                 stepAt = at
                 stepText = line.substringAfter("== STEP ").substringAfter(' ')
-                val m = INSTALL_COUNT.find(line)
-                if (m != null) {
+                clientDownload(line)?.let { (what, percent) ->
                     clientDownloadAt = at
-                    clientDownload = m.groupValues[1]
-                    clientPercent = m.groupValues[2].toInt() * 100 / maxOf(1, m.groupValues[3].toInt())
+                    clientDownload = what
+                    clientPercent = percent
                 }
             } else {
                 val m = UPDATE_PROGRESS.find(line)
@@ -132,6 +131,19 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
             }
         }
 
+        internal fun clientDownload(line: String): Pair<String, Int>? {
+            val count = INSTALL_COUNT.find(line) ?: return null
+            val mb = INSTALL_MEGABYTES.find(line.substring(count.range.last + 1))
+            val done = mb?.groupValues?.get(1)?.toLongOrNull()
+            val total = mb?.groupValues?.get(2)?.toLongOrNull()
+            if (done != null && total != null && total > 0) {
+                return "$done / $total MB" to (done * 100 / total).toInt().coerceIn(0, 100)
+            }
+            val part = count.groupValues[2].toIntOrNull() ?: return null
+            val all = count.groupValues[3].toIntOrNull() ?: return null
+            return count.groupValues[1] to (part.toLong() * 100 / maxOf(1, all)).coerceIn(0L, 100L).toInt()
+        }
+
         internal fun readableScriptStep(scriptStep: String): Boolean {
             val t = scriptStep.lowercase()
             return t.startsWith("download") || t.startsWith("checking the linux") || t.startsWith("unpacking") || t.startsWith("installing")
@@ -140,5 +152,6 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
         private const val TAIL_BYTES = 48L * 1024
         private val UPDATE_PROGRESS = Regex("""Downloading update \((\d+) of (\d+) KB\)""")
         private val INSTALL_COUNT = Regex("""downloading Steam: (\S+) \((\d+)/(\d+)\)""")
+        private val INSTALL_MEGABYTES = Regex("""^, (\d+) of (\d+) MB""")
     }
 }

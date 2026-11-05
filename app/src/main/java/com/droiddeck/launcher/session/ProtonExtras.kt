@@ -16,15 +16,19 @@ object ProtonExtras {
     private const val TAG = "ProtonExtras"
     private const val NEED_BYTES = 4L * 1024 * 1024 * 1024
     private const val RELEASES = "https://api.github.com/repos/%s/releases?per_page=15"
-    const val CHECK_EVERY_MS = 6L * 60 * 60 * 1000
+    const val CHECK_EVERY_MS = 60L * 60 * 1000
     @Volatile
     var installInProgress = false
         private set
+    @Volatile
+    private var replacing = false
 
     class Tool(val id: String, val name: String, val prefix: String, val repo: String, val assetPattern: Regex)
 
     internal data class Asset(val tag: String, val name: String, val url: String, val sha512: String?, val size: Long,
                              val sha256: String? = null)
+
+    const val OWN = "droiddeck"
 
     val tools = listOf(
         Tool("ge", "GE-Proton", "GE-Proton", "GloriousEggroll/proton-ge-custom", Regex("aarch64\\.tar\\.(gz|xz)$")),
@@ -78,11 +82,23 @@ object ProtonExtras {
 
     fun update(context: Context, tool: Tool): String? = updateFor(installedTags(context, tool), cachedLatest(context, tool))
 
+    fun missing(context: Context, tool: Tool): String? =
+        if (tool.id == OWN && !declined(context) && installedAll(context, tool).isEmpty()) cachedLatest(context, tool) else null
+
+    private fun choices(context: Context) = context.getSharedPreferences("proton-auto-updates", Context.MODE_PRIVATE)
+
+    fun declined(context: Context): Boolean = choices(context).getBoolean("$OWN.declined", false)
+
+    fun setDeclined(context: Context, declined: Boolean) {
+        choices(context).edit().putBoolean("$OWN.declined", declined).apply()
+    }
+
     fun cachedLatest(context: Context, tool: Tool): String? =
         readJson(latestFile(context)).optJSONObject(tool.id)?.optString("tag")?.ifEmpty { null }
 
     private val checkLock = Any()
     private const val RETRY_MS = 15L * 60 * 1000
+    private const val USER_SETTINGS = "user_settings.py"
     private var lastAttempt = 0L
 
     fun checkLatest(context: Context, force: Boolean = false, now: Long = System.currentTimeMillis()): Boolean {
@@ -136,11 +152,51 @@ object ProtonExtras {
 
     fun remove(context: Context, tool: Tool, dir: String? = null) {
         val name = if (dir != null) dir.takeIf { it in installedAll(context, tool) } ?: return else installed(context, tool) ?: return
-        File(toolsDir(context), name).deleteRecursively()
+        if (File(toolsDir(context), name).deleteRecursively()) ComponentsManager.forgetProton(context, name)
     }
 
     fun removeOlder(context: Context, tool: Tool) {
-        installedAll(context, tool).dropLast(1).forEach { File(toolsDir(context), it).deleteRecursively() }
+        installedAll(context, tool).dropLast(1).forEach {
+            if (File(toolsDir(context), it).deleteRecursively()) ComponentsManager.forgetProton(context, it)
+        }
+    }
+
+    private fun replaceOlder(context: Context, tool: Tool) {
+        val all = installedAll(context, tool)
+        val newest = all.lastOrNull() ?: return
+        val older = all.dropLast(1)
+        if (older.isEmpty()) return
+        replacing = true
+        try {
+            for (old in older.asReversed()) {
+                if (SessionState.running) break
+                if (runCatching { ComponentsManager.carryOver(context, old, newest) }.onFailure { Log.w(TAG, "components of $old", it) }.isFailure) continue
+                if (runCatching { keepUserSettings(context, old, newest) }.onFailure { Log.w(TAG, "user settings of $old", it) }.isFailure) continue
+                if (runCatching { ProtonDefault.moveGames(context, setOf(old), newest) }.onFailure { Log.w(TAG, "per-game picks of $old", it) }.isFailure) continue
+                if (File(toolsDir(context), old).deleteRecursively()) ComponentsManager.forgetProton(context, old)
+                else Log.w(TAG, "could not remove $old")
+            }
+        } finally {
+            replacing = false
+        }
+    }
+
+    private fun keepUserSettings(context: Context, old: String, newest: String) {
+        val from = File(File(toolsDir(context), old), USER_SETTINGS)
+        val to = File(File(toolsDir(context), newest), USER_SETTINGS)
+        if (from.isFile && !to.exists()) from.copyTo(to)
+    }
+
+    fun tidy(context: Context) {
+        val tool = tools.firstOrNull { it.id == OWN } ?: return
+        if (installedAll(context, tool).size > 1) replaceOlder(context, tool)
+    }
+
+    fun awaitReplacement(timeoutMs: Long) {
+        val until = System.currentTimeMillis() + timeoutMs
+        while (replacing && System.currentTimeMillis() < until) {
+            try { Thread.sleep(50) } catch (_: InterruptedException) { Thread.currentThread().interrupt(); return }
+        }
     }
 
     @Synchronized
@@ -244,6 +300,7 @@ object ProtonExtras {
                 archive.delete()
                 unqueue(context, tool)
                 record(context, tool, placed, asset.tag)
+                if (tool.id == OWN) replaceOlder(context, tool)
                 if (EsyncPacks.enabled(context)) {
                     onProgress(context.getString(R.string.esync_fetching), -1)
                     try {

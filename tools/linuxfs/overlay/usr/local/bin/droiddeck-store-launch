@@ -1,32 +1,4 @@
 #!/usr/bin/python3
-r"""Before Proton starts a store game, asks the app for what that store needs at launch.
-
-Run by droiddeck-proton / droiddeck-proton-wrap (steam-compatibility) for every real game launch,
-whoever started it: the Games tab, a pinned shortcut, or the Steam client's own Play button. It
-looks for the store launcher DroidDeck wrote (.droiddeck-launch.bat) among the arguments; beside it
-.droiddeck-store.json says which store and game it is.
-
-For an Epic game, once the Epic Games Launcher is installed (droiddeck-epic), the game is started
-through it: the hidden launcher signs the game in and hands its arguments back in
-.droiddeck-epic-args. Without the launcher, or when it cannot, the game needs a fresh exchange code
-to sign in, which only the app can mint. The request goes through files under $BL_LAUNCH_DIR/stores (the session root, the same path on both
-sides):
-
-    req/<id>.json    {"op": "epic-code", "store": "epic", "id": "<app name>"}   (tmp + rename)
-    resp/<id>.json   {"ok": true, "code": true|false, "reason": "..."}
-
-The app writes .droiddeck-epic-code into the game's folder itself - the code never passes through
-here - and the launcher .bat reads and deletes it. No answer within TIMEOUT seconds: the game starts
-with its offline identity. A code file older than STALE_SECONDS is removed first, so a code left by
-an earlier launch is never used.
-
-The game's prefix gets Wine's browser set to droiddeck-open-url, which hands web addresses to
-Android: an EOS sign-in step that falls back to a browser (a consent Epic asks for once per product)
-is finished there. An EOS overlay pointer (HKCU\Software\Epic Games\EOS "OverlayPath") an earlier
-build wrote is removed - with it the game exited while loading.
-
-    droiddeck-store-launch <the arguments Steam gave the compat tool>
-"""
 
 import base64
 import binascii
@@ -38,6 +10,7 @@ import time
 import subprocess
 import tempfile
 import hashlib
+import threading
 from pathlib import Path
 
 LAUNCHER = ".droiddeck-launch.bat"
@@ -74,12 +47,6 @@ def sidecar_at(folder):
 
 
 def find_store_game(argv):
-    """
-    The (folder, sidecar) of a store game among [argv], or None when this is not one. Steam passes
-    the shortcut's target: the launcher .bat when the game has one (Epic, Amazon, a GOG game with
-    arguments), else the game's exe itself (most GOG games), which may sit in a subfolder - so the
-    folders above it are looked through too, up to MAX_DEPTH, for the sidecar.
-    """
     for raw in argv:
         arg = raw.strip().strip('"').strip("'").replace("\\", "/")
         low = arg.lower()
@@ -97,7 +64,6 @@ def find_store_game(argv):
 
 
 def drop_stale(folder, now=None):
-    """Removes a code file older than STALE_SECONDS; True when one was removed."""
     code = folder / EPIC_CODE
     try:
         if (now if now is not None else time.time()) - code.stat().st_mtime > STALE_SECONDS:
@@ -133,7 +99,6 @@ def through_client(folder, sidecar, timeout=CLIENT_TIMEOUT):
 
 
 def ask(channel, request, timeout=TIMEOUT):
-    """Writes [request] under channel/req and waits for channel/resp; the answer, or None on timeout."""
     req_dir, resp_dir = channel / "req", channel / "resp"
     req_dir.mkdir(parents=True, exist_ok=True)
     resp_dir.mkdir(parents=True, exist_ok=True)
@@ -158,7 +123,6 @@ def ask(channel, request, timeout=TIMEOUT):
 
 
 def windows_path(unix):
-    """A guest path as Wine names it through Z: (the whole filesystem)."""
     return "Z:" + unix.replace("/", "\\")
 
 
@@ -167,12 +131,6 @@ def reg_escape(value):
 
 
 def set_value(reg, key, name, value, now=None):
-    """
-    Appends `key` with `"name"="value"` to a prefix's user.reg unless the last word on it already
-    says so. Appended rather than edited in place, as DirectAudio's key is: Wine reads later sections
-    over earlier ones, and nothing of the file is rewritten under a wineserver that might hold it.
-    False when there is no user.reg yet (Proton creates the prefix after this; the next launch has it).
-    """
     if not reg.is_file():
         return False
     line = '"%s"="%s"' % (name, reg_escape(value))
@@ -190,7 +148,6 @@ def set_value(reg, key, name, value, now=None):
 
 
 def remove_value(reg, key, name):
-    """Drops every `"name"=` line under `key` in user.reg; True when one was there."""
     if not reg.is_file():
         return False
     rows, inside, dropped = [], False, False
@@ -209,13 +166,11 @@ def remove_value(reg, key, name):
 
 
 def options(sidecar):
-    """An Epic game's launch choices from its sidecar, as the Games tab's Epic card sets them."""
     e = sidecar.get("epic") if isinstance(sidecar.get("epic"), dict) else {}
     return {"eos": e.get("eos", True) is not False, "offline": e.get("offline", False) is True}
 
 
 def server_socket(pfx):
-    """The wineserver socket for prefix [pfx], as Wine names it (server-<dev>-<inode> under /tmp/.wine-<uid>)."""
     try:
         st = os.stat(pfx)
     except OSError:
@@ -225,11 +180,6 @@ def server_socket(pfx):
 
 
 def wait_for_server(pfx, timeout=SERVER_WAIT):
-    """
-    Waits for a wineserver still holding this prefix (an earlier verb's, or the last launch's) to
-    exit: it rewrites user.reg from its own memory when it does, which drops a line appended
-    meanwhile. True when none is left.
-    """
     sock = server_socket(pfx)
     if sock is None:
         return True
@@ -240,7 +190,6 @@ def wait_for_server(pfx, timeout=SERVER_WAIT):
 
 
 def has_value(reg, key, name, value=None):
-    """Whether the last word on `key` in user.reg sets "name" (to [value], when given)."""
     if not reg.is_file():
         return False
     inside, last = False, None
@@ -255,7 +204,6 @@ def has_value(reg, key, name, value=None):
 
 
 def provision_prefix(compat_data, wait=SERVER_WAIT):
-    """Wine's browser set to the hand-off, and an earlier build's EOS overlay pointer removed."""
     if not compat_data:
         return "no-prefix"
     pfx = Path(compat_data) / "pfx"
@@ -291,15 +239,34 @@ def create_prefix(compat_data, proton, timeout=120):
 CLOUD_TIMEOUT = 15.0
 CLOUD_STORES = ("gog", "epic")
 STORE_GAME = 10
+RAN = 11
+RAN_FAILED = 12
+BATTLENET = "/usr/local/bin/droiddeck-battlenet"
+BATTLENET_EXE = re.compile(r"(?i)/compatdata/2596113170/pfx/drive_c/Program Files \(x86\)/Battle\.net/Battle\.net\.exe$")
+BATTLENET_LAUNCH = re.compile(r'(?i)^--exec=\s*"?launch\s+([A-Za-z0-9_]{1,16})"?$')
+
+
+def battlenet(argv, env=os.environ):
+    if env.get("BL_BATTLENET"):
+        return None
+    exe, code = False, None
+    for raw in argv:
+        arg = raw.strip().strip('"').strip("'")
+        if BATTLENET_EXE.search(arg.replace("\\", "/")):
+            exe = True
+        found = BATTLENET_LAUNCH.match(arg)
+        if found:
+            code = found.group(1)
+    if not exe:
+        return None
+    return [BATTLENET, "launch", code] if code else [BATTLENET, "open"]
 
 
 def cloud_on(sidecar):
-    """Cloud saves for this game (the game card's switch; on unless turned off)."""
     return str(sidecar.get("store")) in CLOUD_STORES and sidecar.get("cloud", True) is not False
 
 
 def exited(argv, code=0):
-    """After the game: ask the app to upload what changed, without waiting for it."""
     found = find_store_game(argv)
     launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
     if found is not None and str(found[1].get("store")) == "epic" and os.environ.get(EPIC_HANDLED) != "1" \
@@ -320,7 +287,6 @@ COMET_DIR = Path("/usr/local/lib/droiddeck-comet")
 
 
 def provision_galaxy(compat_data, proton, timeout=90):
-    """Proton creates the prefix and registers Galaxy before the first game runs."""
     if not compat_data or not proton or not Path(proton).is_file():
         return "no-proton"
     data = Path(compat_data)
@@ -391,6 +357,27 @@ GOG_ROOTS = {"HKEY_LOCAL_MACHINE": "HKEY_LOCAL_MACHINE", "HKLM": "HKEY_LOCAL_MAC
              "HKEY_CLASSES_ROOT": "HKEY_CLASSES_ROOT", "HKCR": "HKEY_CLASSES_ROOT"}
 WINE_USER = "C:\\users\\steamuser"
 
+# GOG completes some installs by running a support installer from the game folder (the
+# goggame-<id>.script "Execute" action). Under ARM64 FEX that 32-bit self-extractor stops at
+# "Path not found", so the values it would write are applied here instead. Only products GOG
+# ships no setRegistry action for are listed; a script's own entries always win.
+# The Witcher: Enhanced Edition (#694) exits during startup unless the installer's
+# HKLM\Software\CD Projekt Red\The Witcher keys exist - the same ones The Witcher's own
+# setup writes (InstallFolder, RegionVersion, IsDjinniInstalled) plus its language.
+GOG_INSTALL_REGISTRY = {
+    "1207658924": [
+        ("HKLM", "Software\\CD Projekt Red\\The Witcher", "InstallFolder", "string", "{app}\\"),
+        ("HKLM", "Software\\CD Projekt Red\\The Witcher", "RegionVersion", "string", "US"),
+        ("HKLM", "Software\\CD Projekt Red\\The Witcher", "IsDjinniInstalled", "dword", 1),
+        ("HKLM", "Software\\CD Projekt Red\\The Witcher", "Language", "string", "{language}"),
+        ("HKCU", "Software\\CD Projekt RED\\Witcher\\Settings", "TextLanguage", "string", "{language}"),
+        ("HKCU", "Software\\CD Projekt RED\\Witcher\\Settings", "VoiceLanguage", "string", "{language}"),
+    ],
+}
+# The Witcher's text and voice language IDs, from its installer's registry data.
+GOG_LANGUAGE_IDS = {"en": 3, "fr": 11, "de": 10, "es": 12, "it": 13, "ru": 14, "cs": 15, "hu": 16,
+                    "zh": 21, "pl": 5}
+
 
 def gog_paths(folder, product):
     app = windows_path(str(folder))
@@ -450,8 +437,94 @@ def gog_entry(arguments, paths):
         return None
 
 
-def gog_registry(folder):
-    entries, skipped = [], 0
+def gog_installed_products(folder):
+    products = {}
+    for info in sorted(Path(folder).glob("goggame-*.info")):
+        product = info.name[len("goggame-"):-len(".info")]
+        if not product.isdigit():
+            continue
+        try:
+            products[product] = json.loads(info.read_text(encoding="utf-8-sig"))
+        except (OSError, ValueError):
+            products[product] = {}
+    return products
+
+
+def gog_language_id(info):
+    languages = info.get("languages") if isinstance(info, dict) else None
+    if isinstance(languages, str):
+        languages = [languages]
+    code = str(languages[0]).lower()[:2] if isinstance(languages, list) and languages else ""
+    return GOG_LANGUAGE_IDS.get(code, GOG_LANGUAGE_IDS["en"])
+
+
+GOG_VALUE_HIVES = {"hklm": "local_machine", "hkey_local_machine": "local_machine",
+                   "hkcu": "current_user", "hkey_current_user": "current_user",
+                   "hkcr": "classes_root", "hkey_classes_root": "classes_root"}
+
+
+def gog_value_key(root, section, name, view32=True):
+    """A registry value's identity, keeping the root and the 32-bit view apart.
+
+    The fallback import always targets the 32-bit view (`/reg:32`), which Wine keeps under
+    `Software\\Wow6432Node` for HKLM: a native HKLM value must not pass for the 32-bit one.
+    HKCU\\Software is shared by both views, so its values read the same either way.
+    """
+    text = section.replace("\\\\", "\\").strip("\\").lower()
+    hive = GOG_VALUE_HIVES.get(root.lower(), root.lower())
+    if text.startswith("software\\wow6432node\\"):
+        text = text[len("software\\wow6432node\\"):]
+    elif hive == "local_machine" and not view32 and text.startswith("software\\"):
+        text = "native\\" + text
+    elif text.startswith("software\\"):
+        text = text[len("software\\"):]
+    return "%s|%s|%s" % (hive, text, name.lower())
+
+
+def gog_registry_values(pfx):
+    """Values already in the prefix, so install defaults never overwrite a player's choice."""
+    values = set()
+    for file, root in (("system.reg", "hklm"), ("user.reg", "hkcu")):
+        try:
+            lines = (pfx / file).read_text(encoding="utf-8", errors="ignore").splitlines()
+        except OSError:
+            continue
+        section = ""
+        for line in lines:
+            if line.startswith("["):
+                end = line.find("]")
+                section = line[1:end] if end > 0 else line[1:]
+                continue
+            match = re.match(r'^"([^"]+)"=', line)
+            if match and section:
+                values.add(gog_value_key(root, section, match.group(1), view32=False))
+    return values
+
+
+def gog_scripted_products(folder):
+    products = set()
+    for script in sorted(Path(folder).glob(GOG_SCRIPTS)):
+        try:
+            actions = json.loads(script.read_text(encoding="utf-8-sig")).get("actions")
+        except (OSError, ValueError, AttributeError):
+            continue
+        if isinstance(actions, list) and any(
+                isinstance(action, dict) and isinstance(action.get("install"), dict)
+                and action["install"].get("action") == "setRegistry" for action in actions):
+            products.add(script.name[len("goggame-"):-len(".script")])
+    return products
+
+
+def gog_expected_values(folder):
+    """The fallback values a launch must find, so the marker never hides one that was deleted."""
+    scripted = gog_scripted_products(folder)
+    return [gog_value_key(root, subkey, name) for product in gog_installed_products(folder)
+            if product in GOG_INSTALL_REGISTRY and product not in scripted
+            for root, subkey, name, _kind, _value in GOG_INSTALL_REGISTRY[product]]
+
+
+def gog_registry(folder, existing=()):
+    entries, skipped, scripted = [], 0, set()
     for script in sorted(Path(folder).glob(GOG_SCRIPTS)):
         product = script.name[len("goggame-"):-len(".script")]
         try:
@@ -468,11 +541,47 @@ def gog_registry(folder):
                 skipped += 1
             else:
                 entries.append(entry)
+                scripted.add(product)
+    for product, info in gog_installed_products(folder).items():
+        if product in scripted or product not in GOG_INSTALL_REGISTRY:
+            continue
+        paths = dict(gog_paths(folder, product), language=str(gog_language_id(info)))
+        for root, subkey, name, kind, value in GOG_INSTALL_REGISTRY[product]:
+            if gog_value_key(root, subkey, name) in existing:
+                continue
+            entry = gog_entry({"root": root, "subkey": subkey, "valueName": name,
+                               "valueType": kind, "valueData": value}, paths)
+            if entry is None:
+                skipped += 1
+            else:
+                entries.append(entry)
     return entries, skipped
 
 
-def apply_gog_registry(folder, compat_data, proton, timeout=90):
-    entries, skipped = gog_registry(folder)
+def apply_gog_registry(folder, compat_data, proton, timeout=90, installation=None):
+    pfx = Path(compat_data) / "pfx" if compat_data else None
+    existing = gog_registry_values(pfx) if pfx else set()
+    entries, skipped = gog_registry(folder, existing)
+    expected = gog_expected_values(folder)
+    if installation:
+        product = str(installation["id"])
+        if not product.isdigit():
+            raise ValueError("Invalid GOG product identifier")
+        values = {"PATH": windows_path(str(folder))}
+        identity = Path(folder) / ("goggame-%s.id" % product)
+        if identity.is_file():
+            actual = json.loads(identity.read_text(encoding="utf-8-sig")).get("buildId")
+            if actual and installation.get("build") and str(actual) != str(installation["build"]):
+                raise ValueError("GOG build metadata changed before patch setup")
+        if installation.get("build"):
+            values["BUILDID"] = installation["build"]
+        if installation.get("version"):
+            values["VER"] = installation["version"]
+        for key, value in values.items():
+            entry = gog_entry({"root": "HKLM", "subkey": "Software\\GOG.com\\Games\\" + product,
+                               "valueName": key, "valueData": value, "valueType": "string"}, {})
+            if entry:
+                entries.append(entry)
     note = " skipped=%d" % skipped if skipped else ""
     if not entries:
         return "none" + note
@@ -480,16 +589,17 @@ def apply_gog_registry(folder, compat_data, proton, timeout=90):
         return "no-proton" + note
     text = "Windows Registry Editor Version 5.00\r\n\r\n" + "".join(entry + "\r\n\r\n" for entry in entries)
     stamp = hashlib.sha256(text.encode("utf-8")).hexdigest()
-    pfx = Path(compat_data) / "pfx"
     marker = pfx / GOG_REGISTRY_MARK
     try:
-        if marker.is_file() and marker.read_text() == stamp and (pfx / "system.reg").is_file():
+        if (marker.is_file() and marker.read_text() == stamp and (pfx / "system.reg").is_file()
+                and set(expected) <= existing):
             return "ready" + note
         Path(compat_data).mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="droiddeck-gog-") as tmp:
             source = Path(tmp) / "registry.reg"
             source.write_bytes(b"\xff\xfe" + text.encode("utf-16-le"))
-            run = subprocess.run([proton, "run", "reg.exe", "import", windows_path(str(source)), "/reg:32"],
+            executable = pfx / "drive_c/windows/system32/reg.exe"
+            run = subprocess.run([proton, "run", str(executable) if executable.is_file() else "reg.exe", "import", windows_path(str(source)), "/reg:32"],
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
         if run.returncode or not (pfx / "system.reg").is_file():
             return "import-failed" + note
@@ -502,6 +612,8 @@ def apply_gog_registry(folder, compat_data, proton, timeout=90):
 
 
 def main(argv):
+    if os.environ.get("DROIDDECK_GOG_MAINTENANCE") == "1":
+        return 0
     if argv and argv[0] == "--exited":
         rest, code = argv[1:], 0
         if rest[:1] == ["--code"] and len(rest) > 1:
@@ -511,11 +623,27 @@ def main(argv):
                 pass
             rest = rest[2:]
         return exited(rest, code)
+    command = battlenet(argv)
+    if command is not None:
+        log("battlenet " + " ".join(command[1:]))
+        return RAN if subprocess.call(command) == 0 else RAN_FAILED
     found = find_store_game(argv)
     if found is None:
         return 0
     folder, sidecar = found
     store, game = str(sidecar.get("store")), str(sidecar.get("id"))
+    if store == "gog":
+        helper = Path(__file__).resolve().with_name("droiddeck-gog-maintenance")
+        if helper.is_file():
+            child = subprocess.Popen([sys.executable, str(helper), "lease", str(folder), str(os.getppid())],
+                                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
+                                     start_new_session=True)
+            ready = child.stdout.readline().decode().strip()
+            child.stdout.close()
+            threading.Thread(target=child.wait, daemon=True).start()
+            if ready != "ready":
+                log("gog: close or recover the maintenance operation before playing")
+                return RAN_FAILED
     compat_data = os.environ.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
     prefix_id = os.path.basename(compat_data) if compat_data else ""
     launch_dir = os.environ.get("BL_LAUNCH_DIR", "")

@@ -4,6 +4,7 @@ import java.io.File
 import java.util.concurrent.Executor
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -77,10 +78,20 @@ class CloudSavesTest {
         assertTrue(CloudSaves.dirty(app).contains(Store.GOG to gameId))
         CloudSaves.uploadAllDirty(app, "recovery", running = true)
         assertTrue(CloudSaves.dirty(app).contains(Store.GOG to gameId))
-        com.droiddeck.launcher.stores.gog.GogPrefs.get(app).edit().putString("cloud_template_$gameId", "").apply()
+        com.droiddeck.launcher.stores.gog.GogPrefs.get(app).edit()
+            .putString("cloud_template_$gameId", "none")
+            .putLong("cloud_template_at_$gameId", System.currentTimeMillis())
+            .apply()
         assertEquals("no-cloud-saves", CloudSaves.uploadDirty(app, Store.GOG, gameId, "exit")!!.reason)
         assertTrue(CloudSaves.dirty(app).none { it.second == gameId })
         assertEquals(null, CloudSaves.uploadDirty(app, Store.GOG, gameId, "session-end"))
+    }
+
+    @Test fun aNegativeCloudTemplateIsRetriedAfterADay() {
+        val now = 1_000_000L
+        assertTrue(CloudSaves.noneTemplateIsCurrent(now, now + 60_000L))
+        assertFalse(CloudSaves.noneTemplateIsCurrent(now, now + CloudSaves.TEMPLATE_NONE_TTL_MS))
+        assertFalse(CloudSaves.noneTemplateIsCurrent(0L, now))
     }
 
     @Test fun aFirstLaunchWithoutAPrefixIsDeferredNotBlocked() {

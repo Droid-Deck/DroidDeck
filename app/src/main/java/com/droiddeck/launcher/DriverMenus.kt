@@ -55,6 +55,8 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         private set
     private var runtimePending by mutableStateOf(false)
     private var sessionRunning by mutableStateOf(false)
+    var tpUbwcMode: String by mutableStateOf(SessionPrefs.TP_UBWC_AUTO)
+        private set
 
     val uiMode: String get() = when (mode) {
         SessionPrefs.GPU_DRIVERS_AUTO -> GPU_MODE_AUTO
@@ -63,7 +65,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     }
 
     fun state() = GpuDriversState(
-        gpuName = gpu.displayName(activity), gpuFamily = gpu.family.label(activity), soc = gpu.soc, supportText = gpu.supportText(activity),
+        gpuName = gpu.displayName(activity), gpuFamily = gpu.family.label(activity), soc = gpu.soc, supportText = gpu.supportText(activity, com.droiddeck.launcher.core.DeviceSupport.vkBridge(activity)),
         supported = gpu.support == GpuInfo.Support.TESTED, unsupported = gpu.support == GpuInfo.Support.UNSUPPORTED,
         auto = mode == SessionPrefs.GPU_DRIVERS_AUTO, pairs = pairRows, busy = pairBusy, percent = pairPercent,
         autoStatus = autoStatus, releaseStatus = releaseStatus.ifEmpty { activity.getString(R.string.drivers_not_checked) }, checking = releaseChecking,
@@ -73,7 +75,15 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         mode = uiMode, display = displaySlot(), runtime = runtimeSlot(),
         canRestart = !sessionRunning,
         checkedAt = TurnipReleases.cached(activity)?.checkedAt ?: 0L,
+        tpUbwcMode = tpUbwcMode.takeIf { gpu.model == 740 },
+        tpUbwcRestartRequired = com.droiddeck.launcher.gpu.TpUbwcHint.restartRequired(activity),
     )
+
+    fun chooseTpUbwcMode(mode: String) {
+        if (gpu.model != 740) return
+        SessionPrefs.setTpUbwcMode(activity, mode)
+        tpUbwcMode = mode
+    }
 
     private fun slotSource(chosenDefault: Boolean, defaultLabel: Int): String = activity.getString(when {
         uiMode == GPU_MODE_AUTO -> R.string.gpu_src_auto
@@ -124,6 +134,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     var androidSelected by mutableStateOf("")
 
     fun refreshDrivers() {
+        tpUbwcMode = SessionPrefs.tpUbwcMode(activity)
         val lm = LinuxVulkanDriverManager(activity)
         fun origin(id: String) = if (TurnipReleases.isDownloaded(activity, id)) DriverRow.DOWNLOADED else DriverRow.IMPORTED
         val bundles = DriverBundle.all(activity)
@@ -253,7 +264,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
             return
         }
         if (DriverPairs.recommendedKey(gpu, emptyList()) == null) {
-            autoStatus = activity.getString(R.string.drivers_none_to_set, gpu.supportText(activity).lowercase())
+            autoStatus = activity.getString(R.string.drivers_none_to_set, gpu.supportText(activity, com.droiddeck.launcher.core.DeviceSupport.vkBridge(activity)).lowercase())
             return
         }
         releaseChecking = true
