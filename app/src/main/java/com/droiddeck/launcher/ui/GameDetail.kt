@@ -890,7 +890,7 @@ private fun AddonRow(name: String, target: WowAddons.Target, a: FrontEndActions)
     var asking by remember(target.addOns, name) { mutableStateOf(false) }
     val delete = stringResource(R.string.common_delete)
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 2.dp, bottom = 2.dp)) {
-        Text(name, fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).readable())
+        Text(name, fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         if (!SessionState.running) IconAction(Icons.Outlined.Delete, delete, "addon:delete:${target.flavor}:$name", danger = true) { asking = true }
     }
     if (asking) ConfirmDialog(
