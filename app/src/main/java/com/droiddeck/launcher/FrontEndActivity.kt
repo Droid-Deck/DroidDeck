@@ -2723,8 +2723,13 @@ class FrontEndActivity : ComponentActivity() {
             .setTitle(R.string.diagnostics_share_title)
             .setItems(choices.map { it.first }.toTypedArray()) { _, which ->
                 val selected = choices[which].second
-                startActivity(if (selected.size == 1) SessionLogShare.shareIntent(this, selected.single())
-                    else SessionLogShare.shareEnhancedIntent(this, selected))
+                runCatching {
+                    startActivity(if (selected.size == 1) SessionLogShare.shareIntent(this, selected.single())
+                        else SessionLogShare.shareEnhancedIntent(this, selected))
+                }.onFailure {
+                    android.util.Log.w("SessionLogShare", "could not share latest session logs", it)
+                    android.widget.Toast.makeText(this, R.string.session_logs_share_failed, android.widget.Toast.LENGTH_LONG).show()
+                }
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
