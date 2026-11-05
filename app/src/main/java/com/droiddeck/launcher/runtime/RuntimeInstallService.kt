@@ -117,7 +117,6 @@ class RuntimeInstallService : Service() {
             if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent) else context.startService(intent)
         }
 
-        /** Keeps the process in the foreground until the returned release runs, so closing the app does not stop the install. */
         fun holdForPackage(context: Context, title: String): () -> Unit {
             packageTitle = title
             packageStage = title

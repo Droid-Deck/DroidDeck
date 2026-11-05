@@ -223,5 +223,35 @@ class VencEmulatorTest(unittest.TestCase):
             self.assertEqual(server.touches, [(0, 65535, 32767), (1, 32767, 0), (2, 32767, 0)])
 
 
+    def test_xtest_calls_from_a_locally_loaded_library_still_reach_libxtst(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            (tmp / 'xtst.c').write_text(
+                'int XTestFakeButtonEvent(void *d, unsigned b, int p, unsigned long t) { return 7; }\n'
+                'int XTestFakeMotionEvent(void *d, int s, int x, int y, unsigned long t) { return 7; }\n')
+            (tmp / 'ui.c').write_text(
+                'int XTestFakeButtonEvent(void *, unsigned, int, unsigned long);\n'
+                'int XTestFakeMotionEvent(void *, int, int, int, unsigned long);\n'
+                'int ui_click(void) { return XTestFakeButtonEvent(0, 1, 1, 0) + XTestFakeButtonEvent(0, 3, 0, 0); }\n'
+                'int ui_move(void) { return XTestFakeMotionEvent(0, 0, 10, 20, 0); }\n')
+            (tmp / 'main.c').write_text(
+                '#include <dlfcn.h>\n#include <stdio.h>\n'
+                'int main(int argc, char **argv) {\n'
+                '    void *ui = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);\n'
+                '    if (!ui) return 2;\n'
+                '    int (*click)(void) = dlsym(ui, "ui_click"), (*move)(void) = dlsym(ui, "ui_move");\n'
+                '    printf("%d %d\\n", click(), move());\n'
+                '    return click() == 14 && move() == 7 ? 0 : 1;\n'
+                '}\n')
+            run = lambda *a: subprocess.run(['cc', *a], check=True, cwd=tmp)
+            run('-shared', '-fPIC', '-Wl,-soname,libXtst.so.6', '-o', 'libXtst.so.6', 'xtst.c')
+            run('-shared', '-fPIC', '-o', 'libui.so', 'ui.c', '-L.', '-l:libXtst.so.6', "-Wl,-rpath,$ORIGIN")
+            run('-shared', '-fPIC', '-pthread', '-o', 'libhook.so', str(VENC), str(TOUCH), '-ldl')
+            run('-o', 'main', 'main.c', '-ldl')
+            done = subprocess.run([str(tmp / 'main'), str(tmp / 'libui.so')],
+                                  env=dict(os.environ, LD_PRELOAD=str(tmp / 'libhook.so')),
+                                  capture_output=True, text=True, timeout=20)
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+
 if __name__ == '__main__':
     unittest.main()

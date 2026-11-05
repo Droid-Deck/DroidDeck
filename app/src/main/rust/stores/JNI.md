@@ -77,14 +77,14 @@ after it (marker files, exe resolution, DLC markers, redist orchestration).
 | `nativeCancel(handle: Long)` | `(J)V` | `Java_com_droiddeck_launcher_stores_gog_GogNative_nativeCancel` |
 | `nativeRelease(handle: Long)` | `(J)V` | `Java_com_droiddeck_launcher_stores_gog_GogNative_nativeRelease` |
 
-`nativeProbe()` always returns `1`; it exists so `isAvailable()` can catch `UnsatisfiedLinkError`
+`nativeProbe()` returns `2`; it exists so `isAvailable()` can catch `UnsatisfiedLinkError`
 once at startup instead of mid-download.
 
 `nativeStart` parameters, in order:
 
 | # | Parameter | Meaning |
 |---|---|---|
-| 1 | `kind: Int` | `0` = `KIND_GEN2_CHUNKS`, `1` = `KIND_GEN1_RANGES` (anything else → gen2) |
+| 1 | `kind: Int` | `0` = `KIND_GEN2_CHUNKS`, `1` = `KIND_GEN1_RANGES`, `2` = GOG maintenance (anything else → gen2) |
 | 2 | `depotManifests: Array<String>` | gen2: the inflated depot-manifest JSON strings, in fetch order, already filtered by product + language; gen1: the inflated build manifest (one element) |
 | 3 | `cdnBases: Array<String>` | gen2: **every** CDN base of the secure-link answer — one per `urls[]` entry, each resolved the way `parseCdnUrl` resolves `urls[0]` today (query string intact), in GOG's order — or the one unauthenticated dependency store base (an array of one); gen1: `emptyArray()` (file URLs are in the manifest). Blank entries are ignored and a base whose host already appeared is dropped (the first wins). The fetch core spreads the window across the distinct hosts with a per-host cap of `max(6, ceil(maxWorkers / hosts))`, rotating a failed chunk to another CDN; one base behaves exactly like the old single `cdnBase`. The start log line lists them as `hosts=a,b,c`. |
 | 4 | `installDir: String` | absolute install directory |
@@ -112,6 +112,15 @@ Suggested listener: `com.droiddeck.launcher.stores.gog.GogNative.Listener` (an i
 On-disk protocol (what a resumed run, by either engine, relies on): a file is assembled into
 `<file>.bhtmp`, then renamed over `<file>` once its size and MD5 match the manifest; an existing
 `<file>` whose size+MD5 match is skipped. The engine writes nothing else.
+
+Maintenance (`kind=2`) instead takes a single normalized plan in `depotManifests[0]`:
+`files`, `oldFiles`, optional exact-build `patches`, per-product `links` and `patchLinks`,
+and estimated `downloadBytes`. Credentials and these temporary links stay in memory.
+It stages replacements under `.droiddeck-gog/stage`, revalidates completed chunks on
+every run, and verifies each file before atomic replacement. `onBytes` counts actual
+network bytes, including failed attempts. `onMaintenance(networkBytes, reusedBytes,
+appliedBytes)` (`(JJJ)V`) reports the three separate cumulative counters. Existing
+gen1/gen2 first-install progress semantics are unchanged.
 
 ## `com.droiddeck.launcher.stores.epic.EpicNative`
 
@@ -160,13 +169,15 @@ synchronous on the calling thread (network calls block: call them off the main t
 | `cloud.list` | `accessToken`, `accountId`, `appName` | `files[]` of `name`, `modified` (ms, -1 unknown), `hash`, `readLink` |
 | `cloud.writeLinks` | `accessToken`, `accountId`, `appName`, `names[]` | `links`: name → write link |
 | `launch.args` | `displayName`, `accountId`, `namespace`, `locale`, `appName`, `deploymentId`, `additional` | `args[]` |
+| `launch.split` | `command` | `args[]` |
 | `locale` | `language`, `region` | `key`, `tags[]`, `launchLocale` |
 
 `nativeFetch` ops: `manifest.download` (`info`, optional `cdns`) → the manifest bytes;
 `cloud.read` (`url`) → the file. `null` = failed. `nativeSend` op: `cloud.write` (`url`) with the
 body → `{"ok": true}` or an error. `nativeInspect` parses manifest bytes: `{"op":"summary"}` →
 `buildVersion`, `launchExe`, `prereqName`, `prereqPath`, `prereqRead`, `files[]` (`path`, `size`,
-`tags`); `{"op":"select","tags":[…]}` → `indices[]` of the files an install with those tags gets.
+`tags`); `{"op":"select","tags":[…]}` → `indices[]` of the files an install with those tags gets;
+`{"op":"launch"}` → the manifest's `buildVersion`, its `command` line and the `args[]` split from it.
 
 ### `nativeInstall`
 
@@ -196,7 +207,7 @@ completes.
 
 On-disk protocol: game files are staged in `<gameDir>/.droiddeck-epic-staging/*.stage` (owner
 marker `owner` = `DroidDeck Epic staging v1\n`) and renamed over their destination after size and
-SHA-1 checks; reusable chunks live, decompressed, as `<GUID>` (extra copies `<GUID>.<n>`, writes via
+SHA-1 checks; a paused run keeps each unfinished file there as `*.part` with its written parts in `*.part.list`; reusable chunks live, decompressed, as `<GUID>` (extra copies `<GUID>.<n>`, writes via
 `.part`) in `<gameDir>/.chunks` or the scratch directory.
 
 ## `com.droiddeck.launcher.stores.amazon.AmazonNative`

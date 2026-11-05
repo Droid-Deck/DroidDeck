@@ -8,6 +8,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 
 fun createRobolectricComposeRule() = createComposeRule().also {
+    RingVeil.reset()
     val context = RuntimeEnvironment.getApplication()
     shadowOf(context.packageManager).addActivityIfNotPresent(
         ComponentName(context, ComponentActivity::class.java),

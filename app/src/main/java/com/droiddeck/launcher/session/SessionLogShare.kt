@@ -12,12 +12,15 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.FileProvider
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.LogRedactor
+import com.droiddeck.launcher.runtime.BattleNet
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 object SessionLogShare {
+    data class Details(val sizeBytes: Long, val modifiedAt: Long)
+
     private val main = Handler(Looper.getMainLooper())
 
     var progress by mutableStateOf<Float?>(null)
@@ -34,7 +37,30 @@ object SessionLogShare {
         }, "share-logs").start()
     }
 
-    fun latest(context: Context): File? = SessionPaths.sessionFolders(context).lastOrNull()
+    fun latest(context: Context): File? = sessions(context).lastOrNull()
+
+    fun sessions(context: Context): List<File> {
+        val current = SessionPaths.current()?.takeIf { it.isDirectory && SessionPaths.isSessionFolder(it) }
+        return (SessionPaths.sessionFolders(context) + listOfNotNull(current))
+            .distinctBy { it.absoluteFile.toPath().normalize().toString() }
+            .sortedWith(SessionPaths.chronological)
+    }
+
+    fun details(folder: File): Details {
+        var size = 0L
+        var modified = folder.lastModified()
+        folder.walkTopDown().filter { it.isFile }.forEach { file ->
+            size += file.length()
+            modified = maxOf(modified, file.lastModified())
+        }
+        return Details(size, modified)
+    }
+
+    fun deleteSession(context: Context, folder: File): Boolean {
+        if (runCatching { SessionPaths.current()?.canonicalFile == folder.canonicalFile }.getOrDefault(false)) return false
+        val knownSession = runCatching { folder.canonicalFile }.getOrNull() in sessions(context).mapNotNull { runCatching { it.canonicalFile }.getOrNull() }
+        return knownSession && folder.isDirectory && folder.deleteRecursively()
+    }
 
 
     fun zipFolder(context: Context, folder: File, onProgress: ((Float) -> Unit)? = null): File? {
@@ -49,7 +75,8 @@ object SessionLogShare {
         val logs = LinuxRuntime.logDir(context)
         val stores = recent(File(logs, STORES_DIR))
         val tools = recent(File(logs, SessionPaths.TOOLS_DIR))
-        val total = (files + live + stores + tools).sumOf { it.length() }.coerceAtLeast(1L)
+        val battleNet = battleNetLogs(context)
+        val total = (files + live + stores + tools + battleNet.map { it.second }).sumOf { it.length() }.coerceAtLeast(1L)
         var done = 0L
         var shown = -1
         fun advance(f: File) {
@@ -62,11 +89,11 @@ object SessionLogShare {
             live.forEach { f -> addEntry(z, folder.name + "/steam/" + f.name, f); advance(f) }
             stores.forEach { f -> addEntry(z, "$STORES_DIR/" + f.name, f); advance(f) }
             tools.forEach { f -> addEntry(z, SessionPaths.TOOLS_DIR + "/" + f.name, f); advance(f) }
+            battleNet.forEach { (name, f) -> addEntry(z, "$BATTLENET_DIR/$name", f); advance(f) }
         }
         return zip
     }
 
-    /** Every entry is scrubbed line by line, whatever its size: a raw copy can carry tokens out of the device. */
     private fun addEntry(z: ZipOutputStream, name: String, f: File) {
         z.putNextEntry(ZipEntry(name))
         val w = z.bufferedWriter()
@@ -87,6 +114,27 @@ object SessionLogShare {
     private const val RECENT_DAYS = 7
 
     private fun shareDir(context: Context): File = File(context.cacheDir, "share")
+
+    private const val BATTLENET_DIR = "battlenet"
+
+    private fun battleNetLogs(context: Context): List<Pair<String, File>> {
+        val drive = File(BattleNet.prefix(context), "pfx/drive_c")
+        val data = File(drive, "ProgramData/Battle.net")
+        fun logsUnder(dir: File, prefix: String) = dir.listFiles { f -> f.isDirectory && f.name.startsWith(prefix) }.orEmpty().map { File(it, "Logs") }
+        return newest("droiddeck", listOf(File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/battlenet")), 2, setOf("battlenet.log", "spawned.log")) +
+            newest("client", listOf(File(drive, "users/steamuser/AppData/Local/Battle.net/Logs")), 6) +
+            newest("agent", listOf(File(data, "Agent/Logs")) + logsUnder(File(data, "Agent"), "Agent."), 10, byDir = true) +
+            newest("setup", logsUnder(File(data, "Setup"), ""), 3, byDir = true)
+    }
+
+    private fun newest(folder: String, dirs: List<File>, count: Int, names: Set<String>? = null, byDir: Boolean = false): List<Pair<String, File>> {
+        val since = System.currentTimeMillis() - RECENT_DAYS * 86_400_000L
+        return dirs.flatMap { dir ->
+            dir.listFiles { f -> f.isFile && f.name.endsWith(".log") && (names == null || f.name in names) && f.lastModified() >= since && f.length() <= STEAM_LOG_MAX_BYTES }.orEmpty().toList()
+        }.sortedByDescending { it.lastModified() }.take(count).map { f ->
+            (if (byDir) "$folder/${f.parentFile?.parentFile?.name}/${f.name}" else "$folder/${f.name}") to f
+        }
+    }
 
     private fun recent(dir: File): List<File> {
         val since = System.currentTimeMillis() - RECENT_DAYS * 86_400_000L

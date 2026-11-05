@@ -40,6 +40,27 @@ class AuthorshipTest(unittest.TestCase):
     def test_bot_pr_author_is_rejected(self):
         self.assertTrue(check.event_violations({"pull_request": {"user": {"login": "service", "type": "Bot"}}}))
 
+    def test_people_named_like_assistants_are_not_bots(self):
+        for author in ("Claudemirovsky <63046606+Claudemirovsky@users.noreply.github.com>",
+                       "Claude Monet <claude@example.com>", "Devin Smith <devin@example.com>",
+                       "Cody Allen <cody@example.com>", "Gemini Patel <gp@example.com>"):
+            with self.subTest(author=author):
+                self.assertEqual([], check.commit_violations("abc", self.commit(author=author)))
+        self.assertEqual([], check.event_violations({"pull_request": {"user": {"login": "Claudemirovsky", "type": "User"}}}))
+
+    def test_assistant_identities_are_still_bots(self):
+        for author in ("Claude Opus 5.5 <noreply@anthropic.com>", "Claude Code <cc@example.com>",
+                       "Cursor Agent <cursoragent@cursor.com>",
+                       "Devin AI <devin-ai-integration[bot]@users.noreply.github.com>",
+                       "Gemini <gemini@example.com>", "GPT-5 <a@example.com>"):
+            with self.subTest(author=author):
+                self.assertTrue(check.commit_violations("abc", self.commit(author=author)))
+        for login in ("chatgpt-codex-connector", "Copilot", "claude"):
+            with self.subTest(login=login):
+                self.assertTrue(check.event_violations({"pull_request": {"user": {"login": login, "type": "User"}}}))
+        message = "Fix\n\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>\n"
+        self.assertEqual(1, len(check.commit_violations("abc", self.commit(message=message))))
+
     def test_missing_author_fails_closed(self):
         self.assertTrue(check.commit_violations("abc", b"tree 000\n\nmessage\n"))
 

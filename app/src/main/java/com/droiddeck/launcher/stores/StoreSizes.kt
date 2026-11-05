@@ -54,8 +54,8 @@ object StoreSizes {
                     when (item.store) {
                         Store.EPIC -> EpicPrefs.get(app).edit().putLong("size_${item.id}", it).apply()
                         Store.AMAZON -> AmazonPrefs.get(app).edit().putLong("size_${item.id}", it).apply()
-                        Store.ITCH -> {}
-                        Store.GOG, Store.XBOX -> {}
+                        Store.ITCH, Store.GAMEJOLT -> {}
+                        Store.GOG, Store.XBOX, Store.BATTLENET -> {}
                     }
                 }
             }, pool).exceptionally { error ->
@@ -111,7 +111,8 @@ object StoreSizes {
             val bytes = AmazonApiClient.getBytes(AmazonApiClient.appendPath(spec.downloadUrl, "manifest.proto"), token) ?: return 0L
             AmazonManifest.parse(bytes).totalInstallSize
         }
-        Store.GOG, Store.XBOX -> 0L
+        Store.GOG, Store.XBOX, Store.BATTLENET -> 0L
         Store.ITCH -> com.droiddeck.launcher.stores.itch.ItchLibrary.size(context, item)
+        Store.GAMEJOLT -> com.droiddeck.launcher.stores.gamejolt.GameJoltBuilds.size(context, item)
     } }
 }

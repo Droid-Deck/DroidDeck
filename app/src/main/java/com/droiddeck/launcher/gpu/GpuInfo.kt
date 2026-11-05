@@ -16,6 +16,7 @@ data class GpuInfo(
     val modelSource: String = "",
     val kgslChipId: String = "",
     val platformGpuModel: Int = 0,
+    val verifiedDevice: Boolean = false,
 ) {
     enum class Family(val label: String) {
         A8XX("Adreno 8xx"),
@@ -36,6 +37,7 @@ data class GpuInfo(
         get() = when {
             family == Family.NOT_ADRENO -> Support.UNSUPPORTED
             isA850 -> Support.UNTESTED
+            verifiedDevice -> Support.TESTED
             family == Family.A6XX && model == 650 -> Support.TESTED
             family == Family.A8XX -> Support.TESTED
             family == Family.A7XX && model >= 725 -> Support.TESTED
@@ -50,6 +52,18 @@ data class GpuInfo(
                 else "Outside tested hardware (Adreno 650, 725 and newer): it may not run"
             Support.UNSUPPORTED -> "Not supported: DroidDeck needs an Adreno (Snapdragon) GPU"
         }
+
+    fun supportText(bridge: Boolean): String = when {
+        support != Support.UNSUPPORTED -> supportText
+        bridge -> "Runs through the Mali bridge, on the phone's own Vulkan driver"
+        else -> "Not supported with the Mali bridge off: Turnip needs an Adreno (Snapdragon) GPU"
+    }
+
+    fun supportText(context: Context, bridge: Boolean): String = when {
+        support != Support.UNSUPPORTED -> supportText(context)
+        bridge -> context.getString(R.string.gpuinfo_bridge)
+        else -> context.getString(R.string.gpuinfo_bridge_off)
+    }
 
     fun supportText(context: Context): String = context.getString(when (support) {
         Support.TESTED -> R.string.gpuinfo_supported
@@ -85,8 +99,12 @@ data class GpuInfo(
                 oneUi8Gen2 = samsung && model == 740,
                 kgslName = raw.orEmpty(), modelSource = source, kgslChipId = chipId,
                 platformGpuModel = platformGpuModel,
+                verifiedDevice = adreno && verifiedOn(model, Build.MODEL),
             )
         }
+
+        internal fun verifiedOn(model: Int, device: String): Boolean =
+            model == 722 && device.equals("Retroid Pocket Duo", ignoreCase = true)
 
         internal fun threeDigits(text: String): Int = Regex("""(?i)\badreno\s*(?:\(TM\)\s*)?(\d{3})(?!\d)""").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">实体按键快捷操作</string>
+    <string name="shortcuts_dd_menu">DroidDeck 菜单</string>
+    <string name="shortcuts_capture">分配：%1$s</string>
+    <string name="shortcuts_press">按下并松开一个按钮，分配将自动保存。</string>
+    <string name="shortcuts_release">松开按键以继续。</string>
+    <string name="shortcuts_detected">%1$s：%2$s</string>
+    <string name="shortcuts_conflict">此按键已分配给：%1$s</string>
+    <string name="shortcuts_save">重新分配</string>
+    <string name="shortcuts_retry">尝试其他按键</string>
+    <string name="shortcuts_limitations">主屏幕按钮和部分额外按钮可能无法使用。</string>
+</resources>

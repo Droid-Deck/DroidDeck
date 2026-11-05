@@ -44,6 +44,7 @@ import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.ui.ComponentsPage
 import com.droiddeck.launcher.session.GameSaves
 import com.droiddeck.launcher.session.SessionLogShare
+import com.droiddeck.launcher.session.SessionPaths
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SteamRepair
 import com.droiddeck.launcher.core.CpuCores
@@ -52,6 +53,7 @@ import com.droiddeck.launcher.core.PhantomProcessLimit
 import com.droiddeck.launcher.core.PhantomProcessStatus
 import com.droiddeck.launcher.core.WirelessAdbFix
 import com.droiddeck.launcher.core.WifiDiscovery
+import com.droiddeck.launcher.core.SteamIntegration
 import com.droiddeck.launcher.core.WirelessAdbPairingService
 import com.droiddeck.launcher.ui.CoreRow
 import com.droiddeck.launcher.ui.PerformancePage
@@ -77,6 +79,7 @@ import com.droiddeck.launcher.session.SessionArtifacts
 import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.GameStorage
+import com.droiddeck.launcher.session.SteamLibraries
 import com.droiddeck.launcher.input.SecondScreenDisplay
 import com.droiddeck.launcher.input.SecondScreenDisplays
 
@@ -91,17 +94,24 @@ class FrontEndActivity : ComponentActivity() {
     private val components = ComponentsMenu(this, ui)
     private val decky = DeckyMenu(this, ui)
     private val updates = UpdatesMenu(this, ui)
-    private val protons = ProtonMenu(this, ui)
+    private val protons = ProtonMenu(this, ui) { !busy && flood == null && compatLaunch == null && pkgStage == null && components.compBusy == null }
 
     private var installed by mutableStateOf<String?>(null)
     private var flood by mutableStateOf<PendingFlood?>(null)
     private var floodProgress by androidx.compose.runtime.mutableFloatStateOf(0f)
     private class PendingFlood(val from: androidx.compose.ui.geometry.Rect, val intent: Intent)
+    private class CompatLaunch(val intent: Intent, val loading: com.droiddeck.launcher.session.LoadingState, var menuInstall: Boolean)
+    private var compatLaunch by mutableStateOf<CompatLaunch?>(null)
+    private var compatFlood by mutableStateOf<androidx.compose.ui.graphics.Color?>(null)
+    private var compatLaunchPoll: Runnable? = null
+    private var compatLaunchVisible = false
     private var returning by mutableStateOf<ReturningFlood?>(null)
     private class ReturningFlood(val color: Int, val to: androidx.compose.ui.geometry.Rect?)
     private var ready by mutableStateOf(false)
     private var removalPending by mutableStateOf(false)
     private var available by mutableStateOf<LinuxRuntimeInstaller.Release?>(null)
+    private var catalogFresh = false
+    private var componentsQueueBusy by mutableStateOf(false)
     private var busy by mutableStateOf(false)
     private var stage by mutableStateOf("")
     private var percent by mutableIntStateOf(-1)
@@ -120,6 +130,7 @@ class FrontEndActivity : ComponentActivity() {
     private var glThread by mutableStateOf(true)
     private var noGlError by mutableStateOf(true)
     private var returnAfterGame by mutableStateOf(true)
+    private var shaderPrecache by mutableStateOf<Boolean?>(null)
     private var steamRepairQueued by mutableStateOf(false)
     private var mangoapp by mutableStateOf(true)
     private var steamController by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
@@ -133,11 +144,17 @@ class FrontEndActivity : ComponentActivity() {
     private var catalog by mutableStateOf<List<DesktopCatalog.Entry>?>(null)
     private var catalogLoading by mutableStateOf(false)
     private var packageRows by mutableStateOf<List<PackageRow>?>(null)
-    private var pkgId by mutableStateOf<String?>(null)
-    private var pkgStage by mutableStateOf<String?>(null)
-    private var pkgPercent by mutableIntStateOf(-1)
+    private object PackageOperation {
+        val id = mutableStateOf<String?>(null)
+        val stage = mutableStateOf<String?>(null)
+        val percent = mutableIntStateOf(-1)
+    }
+    private var pkgId by PackageOperation.id
+    private var pkgStage by PackageOperation.stage
+    private var pkgPercent by PackageOperation.percent
     private var desktopInstalled by mutableStateOf(false)
     private var desktopPresent by mutableStateOf(false)
+    private var battleNetInstalled by mutableStateOf(false)
     private var offlineAccount by mutableStateOf<String?>(null)
     private var offline by mutableStateOf(false)
     private var showPerformance by mutableStateOf(false)
@@ -146,14 +163,22 @@ class FrontEndActivity : ComponentActivity() {
     private var gameCores by mutableStateOf<Set<Int>>(emptySet())
     private var tuSysmem by mutableStateOf(false)
     private var zinkLazy by mutableStateOf(false)
+    private var vkBridge by mutableStateOf(false)
+    private var vkBridgeSafe by mutableStateOf(true)
+    private var bridgeProtonDxvk by mutableStateOf(false)
+    private val adrenoGpu by lazy { com.droiddeck.launcher.core.DeviceSupport.adreno() }
     private var noXalia by mutableStateOf(true)
     private var fastSync by mutableStateOf(false)
     private var syncFallback by mutableStateOf(true)
     private var fsyncFirst by mutableStateOf(false)
     private var gamescopeRealtime by mutableStateOf(false)
+    private var ramCapMb by mutableStateOf(0)
+    private var zramClient by mutableStateOf(true)
+    private var vramCapMb by mutableStateOf(0)
     private var gpuClockPin by mutableStateOf(false)
     private var prootNoSeccomp by mutableStateOf(false)
     private var prootFastPath by mutableStateOf(true)
+    private var cursorComposite by mutableStateOf(false)
     private var guestHostname by mutableStateOf(SessionPrefs.DEFAULT_GUEST_HOSTNAME)
     private var phantomWarning by mutableStateOf<String?>(null)
     private var phantomProcessStatus by mutableStateOf(PhantomProcessStatus.NOT_APPLICABLE)
@@ -161,26 +186,31 @@ class FrontEndActivity : ComponentActivity() {
     private var directAudio by mutableStateOf(false)
     private var picturePosition by mutableStateOf("center")
     private var stretch16x9 by mutableStateOf(false)
-    private var orientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+    private var orientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
+    private var launcherOrientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER)
     private var launcherFullscreen by mutableStateOf(true)
     private var downloadSource by mutableStateOf(DownloadSource.MODE_AUTO)
     private var downloadMirror by mutableStateOf("")
     private var downloadPrefix by mutableStateOf("")
+    private var downloadProxy by mutableStateOf("")
     private var animationsEnabled by mutableStateOf(true)
     private var launcherIcon by mutableStateOf(LauncherIcon.DARK)
     private var gameStoresEnabled by mutableStateOf(true)
     private var gameStoresSpeedTier by mutableStateOf("fast")
-    private var storesOpenTab by mutableStateOf(SessionPrefs.STORES_OPEN_LIBRARY)
     private var navRequest by mutableStateOf<String?>(null)
+    private val gameLaunchRequest = java.util.concurrent.atomic.AtomicLong()
     private var storesShowMature by mutableStateOf(false)
     private var storesSort by mutableStateOf(SessionPrefs.STORES_SORTS.first())
-    private var storesView by mutableStateOf(SessionPrefs.STORES_VIEWS.first())
+    private var storesView by mutableStateOf(SessionPrefs.DEFAULT_STORES_VIEW)
     private var mic by mutableStateOf(false)
     private var wifiDiscovery by mutableStateOf(false)
     private var wifiDiscoveryPermission by mutableStateOf(false)
     private var wifiDiscoveryLocation by mutableStateOf(false)
     private var wifiDiscoveryAsked by mutableStateOf(false)
     private var wifiDiscoveryBlocked by mutableStateOf(false)
+    private var integrationState by mutableStateOf(SteamIntegration.State())
+    private var integrationFocus by mutableStateOf<SteamIntegration.Feature?>(null)
+    private var pendingSessionLogExport: File? = null
     private val wifiLocationReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
             refreshWifiDiscovery()
@@ -192,6 +222,7 @@ class FrontEndActivity : ComponentActivity() {
     }
     private val mediaReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
+            usbScan++
             ui.removeCallbacks(mediaRefresh)
             ui.postDelayed(mediaRefresh, MEDIA_SETTLE_MS)
         }
@@ -238,6 +269,26 @@ class FrontEndActivity : ComponentActivity() {
         val then = onSavePicked.also { onSavePicked = null } ?: return@registerForActivityResult
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let(then)
     }
+    private val pickSessionLogExport = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        val folder = pendingSessionLogExport.also { pendingSessionLogExport = null } ?: return@registerForActivityResult
+        if (uri != null) {
+            SessionLogShare.prepare(this, { folder }) { zip ->
+                if (zip == null) {
+                    android.widget.Toast.makeText(this, R.string.setup_log_export_failed, android.widget.Toast.LENGTH_LONG).show()
+                } else Thread({
+                    val saved = runCatching {
+                        contentResolver.openOutputStream(uri)?.use { output -> zip.inputStream().buffered().use { it.copyTo(output) } }
+                            ?: error("Could not open destination")
+                    }.isSuccess
+                    ui.post {
+                        android.widget.Toast.makeText(this,
+                            if (saved) R.string.setup_log_export_saved else R.string.setup_log_export_failed,
+                            android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }, "save-session-logs").start()
+            }
+        }
+    }
 
     private fun refreshWifiDiscovery() {
         wifiDiscoveryPermission = WifiDiscovery.permissionGranted(this)
@@ -249,7 +300,60 @@ class FrontEndActivity : ComponentActivity() {
             SessionPrefs.setWifiDiscoveryEnabled(this, false)
         }
         wifiDiscovery = SessionPrefs.wifiDiscoveryEnabled(this)
+        integrationState = readIntegration()
     }
+
+    private var shortcutsTried = false
+
+    private fun readIntegration() = SteamIntegration.read(this)
+        .copy(locationBlocked = wifiDiscoveryBlocked, shortcutsTried = shortcutsTried)
+
+    private fun openIntegration(feature: SteamIntegration.Feature? = null) {
+        SteamIntegration.dismissSuggestion(this)
+        refreshWifiDiscovery()
+        integrationState = readIntegration()
+        integrationFocus = feature
+        navRequest = "setup:integration"
+    }
+
+    private fun readIntegrationIntent(incoming: Intent) {
+        if (incoming.action != SteamIntegration.ACTION_SETUP) return
+        openIntegration(incoming.getStringExtra(SteamIntegration.EXTRA_FEATURE)?.let {
+            runCatching { SteamIntegration.Feature.valueOf(it) }.getOrNull()
+        })
+    }
+
+    private fun integrationSettings(intent: Intent, fallback: String = android.provider.Settings.ACTION_SETTINGS) {
+        try { startActivity(intent) }
+        catch (_: android.content.ActivityNotFoundException) { startActivity(Intent(fallback)) }
+        catch (_: SecurityException) { startActivity(Intent(fallback)) }
+    }
+
+    private fun configureIntegration(feature: SteamIntegration.Feature) {
+        when (feature) {
+            SteamIntegration.Feature.WIFI -> {
+                if (wifiDiscovery && wifiDiscoveryPermission) {
+                    SessionPrefs.setWifiDiscoveryEnabled(this, false)
+                } else if (wifiDiscoveryPermission) {
+                    SessionPrefs.setWifiDiscoveryEnabled(this, true)
+                } else {
+                    SessionPrefs.setWifiDiscoveryAsked(this)
+                    wifiLocationPermission.launch(WifiDiscovery.permissions)
+                }
+                refreshWifiDiscovery()
+            }
+            SteamIntegration.Feature.BRIGHTNESS -> integrationSettings(SteamIntegration.brightnessSettings(this))
+            SteamIntegration.Feature.HOME -> if (HomeApp.isDefault(this)) HomeApp.openSystemHomeSettings(this) else offerHomeScreen()
+            SteamIntegration.Feature.SHORTCUTS -> {
+                if (!integrationState.shortcuts) shortcutsTried = true
+                SteamIntegration.setShortcutsListed(this, true)
+                integrationSettings(SteamIntegration.shortcutSettings(this), android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            }
+        }
+    }
+
+    private fun openAppInfo() =
+        integrationSettings(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
 
     private fun openWifiDiscoverySettings() {
         if (!WifiDiscovery.permissionGranted(this)) {
@@ -329,6 +433,27 @@ class FrontEndActivity : ComponentActivity() {
         pickSaveZip.launch(InAppFilePicker.buildIntent(this, listOf("zip"), getString(R.string.main_saves_pick_zip, name), GameSaves.savesDir().parentFile?.parentFile?.path))
     }
 
+    private fun importAddons(name: String, target: com.droiddeck.launcher.runtime.WowAddons.Target) {
+        if (SessionState.running) {
+            android.widget.Toast.makeText(this, R.string.main_addons_close_session, android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        onSavePicked = { zip ->
+            saveAction(getString(R.string.main_addons_importing, name)) {
+                if (SessionState.running) return@saveAction getString(R.string.main_addons_close_session)
+                val imported = try {
+                    com.droiddeck.launcher.runtime.WowAddons.import(zip, target)
+                } catch (_: com.droiddeck.launcher.runtime.WowAddons.TooLarge) {
+                    return@saveAction getString(R.string.main_addons_too_large, zip.name)
+                }
+                if (imported.isEmpty()) getString(R.string.main_addons_none, zip.name)
+                else resources.getQuantityString(R.plurals.main_addons_imported, imported.size, imported.size, target.flavor)
+            }
+        }
+        val downloads = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS).path
+        pickSaveZip.launch(InAppFilePicker.buildIntent(this, listOf("zip"), getString(R.string.main_addons_pick_zip, name), downloads))
+    }
+
     private fun exportSaves(name: String, layout: GameSaves.Layout, game: () -> GameSaves.Game) {
         onSavePicked = { dir ->
             saveAction(getString(R.string.main_saves_exporting, name)) {
@@ -376,7 +501,7 @@ class FrontEndActivity : ComponentActivity() {
     private var fexPreset by mutableStateOf("")
     private var forceSsbs by mutableStateOf(false)
     private var steamClientArch by mutableStateOf("arm64")
-    private var runSteamAtStartup by mutableStateOf(false)
+    private var startupSession by mutableStateOf(SessionPrefs.STARTUP_OFF)
     private var bootMovie by mutableStateOf(com.droiddeck.launcher.session.BootMovie.DROIDDECK_30)
     private var bootMovieSound by mutableStateOf(true)
     private var bootMovieCustomName by mutableStateOf<String?>(null)
@@ -385,7 +510,6 @@ class FrontEndActivity : ComponentActivity() {
     private var theme by mutableStateOf("graphite")
     private var appScale by mutableStateOf(com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE)
     private var hdrOn by mutableStateOf(false)
-    private var fpsLimit by mutableStateOf(0)
     private var upscaler by mutableStateOf(0)
     private var upscaleSharpness by mutableStateOf(75)
     private var hdrReason by mutableStateOf<String?>(null)
@@ -393,12 +517,57 @@ class FrontEndActivity : ComponentActivity() {
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
     private var steamDownloadsInBackground by mutableStateOf(false)
     private var oscMode by mutableStateOf(SessionPrefs.OSC_AUTO)
+    private var backHold by mutableStateOf(true)
     private var backActionsInverted by mutableStateOf(false)
     private var gameStorage by mutableStateOf("")
+    private var slowUsb by mutableStateOf<com.droiddeck.launcher.session.UsbLink.SlowDrive?>(null)
+    private var usbScan = 0
+    private var slowUsbNever by mutableStateOf(false)
+
+    private fun showSlowUsb(drive: com.droiddeck.launcher.session.UsbLink.SlowDrive?) {
+        val off = slowUsbNever
+        if (off) SessionPrefs.setSlowUsbWarningOff(this)
+        slowUsbNever = false
+        slowUsb = drive.takeUnless { off }
+    }
     private var storageDiagnostics by mutableStateOf(false)
     private var storageOptions by mutableStateOf<List<GameStorage.Option>>(emptyList())
     private val pickGameStorage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data)?.let { path -> setGameStorage(path, GameStorage.labelFor(this, path)) }
+    }
+    private var steamLibraries by mutableStateOf<List<SteamLibraries.Entry>>(emptyList())
+    private var foundSteamLibraries by mutableStateOf<List<SteamLibraries.Found>>(emptyList())
+    private var allFilesAccessMissing by mutableStateOf(false)
+    private var steamLibraryScan = 0
+    private val pickSteamLibrary = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val path = if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data) else null
+        if (path != null) addSteamLibrary(path)
+    }
+
+    private fun addSteamLibrary(path: String) {
+        Thread({
+            val result = SteamLibraries.add(this, path)
+            ui.post {
+                steamLibraries = SteamLibraries.list(this)
+                refreshFoundSteamLibraries()
+                refresh()
+                when {
+                    result is SteamLibraries.AddResult.Refused ->
+                        android.widget.Toast.makeText(this, getString(R.string.main_storage_not_usable, result.reason), android.widget.Toast.LENGTH_LONG).show()
+                    result is SteamLibraries.AddResult.Added && result.entry.path != path ->
+                        android.widget.Toast.makeText(this, getString(R.string.libraries_used_inner, result.entry.label), android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        }, "steam-library-add").start()
+    }
+
+    private fun refreshFoundSteamLibraries() {
+        allFilesAccessMissing = com.droiddeck.launcher.files.AllFilesAccess.missing()
+        val scan = ++steamLibraryScan
+        Thread({
+            val found = SteamLibraries.found(this)
+            ui.post { if (scan == steamLibraryScan) foundSteamLibraries = found }
+        }, "steam-library-scan").start()
     }
     private var romsDir by mutableStateOf<String?>(null)
     private var steamGames by mutableStateOf<List<Library.SteamGame>>(emptyList())
@@ -408,36 +577,81 @@ class FrontEndActivity : ComponentActivity() {
     private var emulatorList by mutableStateOf<List<Library.Emulator>>(emptyList())
     private var runningLabel by mutableStateOf<String?>(null)
     private var logsEnabled by mutableStateOf(true)
+    private var gameDebugLogsEnabled by mutableStateOf(false)
+    private var gameDebugLogsNeedsRestart by mutableStateOf(false)
     private var vacDiagnostics by mutableStateOf(false)
     private var agentCommands by mutableStateOf(false)
+    private var clearCachedApps by mutableStateOf(false)
+    private var adbPaired by mutableStateOf(false)
+    private var memoryHud by mutableStateOf(SessionPrefs.MEMORY_HUD_OFF)
+    private var backgroundAppLimit by mutableStateOf(com.droiddeck.launcher.core.BackgroundAppLimit.OFF)
     private var showRoms by mutableStateOf(false)
     private var homeAppSelected by mutableStateOf(false)
     private var homeScreenEnabled by mutableStateOf(false)
     private var defaultHomeLabel by mutableStateOf<String?>(null)
     private var androidApps by mutableStateOf<List<HomeApp.LaunchableApp>>(emptyList())
+    private var androidAppsListing = 0
+    private val packageCallback = object : android.content.pm.LauncherApps.Callback() {
+        private fun changed() {
+            refreshAndroidApps()
+            if (HomeWidgets.providers != null) HomeWidgets.refreshProviders(this@FrontEndActivity)
+        }
+        override fun onPackageRemoved(packageName: String, user: android.os.UserHandle) = changed()
+        override fun onPackageAdded(packageName: String, user: android.os.UserHandle) = changed()
+        override fun onPackageChanged(packageName: String, user: android.os.UserHandle) = changed()
+        override fun onPackagesAvailable(packageNames: Array<out String>, user: android.os.UserHandle, replacing: Boolean) = changed()
+        override fun onPackagesUnavailable(packageNames: Array<out String>, user: android.os.UserHandle, replacing: Boolean) = changed()
+        override fun onShortcutsChanged(packageName: String, shortcuts: MutableList<android.content.pm.ShortcutInfo>, user: android.os.UserHandle) {
+            if (homeAppSelected) HomePins.refresh(this@FrontEndActivity)
+        }
+    }
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
+    private var dualDisplayId by mutableStateOf(-1)
+    private var dualScreenDevice by mutableStateOf(false)
+    private var dualScreenMode by mutableStateOf(com.droiddeck.launcher.input.DualScreen.MODE_AUTO)
+    private var dualScreenSessions by mutableStateOf(com.droiddeck.launcher.input.DualScreen.MODE_AUTO)
+    private var dualScreenControls by mutableStateOf(true)
+    private var launcherStarted = false
     private lateinit var displayManager: DisplayManager
     private val secondScreenDisplayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) = refreshSecondScreenDisplays()
         override fun onDisplayRemoved(displayId: Int) = refreshSecondScreenDisplays()
         override fun onDisplayChanged(displayId: Int) = refreshSecondScreenDisplays()
     }
-
-    private val homeRoleRequest = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        refreshHomeAppState()
+    private val bottomScreenListener: () -> Unit = { refreshSecondScreenDisplays() }
+    private val secondScreenTouchListener = object : android.hardware.input.InputManager.InputDeviceListener {
+        override fun onInputDeviceAdded(deviceId: Int) = refreshSecondScreenDisplays()
+        override fun onInputDeviceRemoved(deviceId: Int) = refreshSecondScreenDisplays()
+        override fun onInputDeviceChanged(deviceId: Int) = refreshSecondScreenDisplays()
     }
 
+    private val homeRoleRequest = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        homeChoiceOpen = false
+        HomeApp.releaseUnusedHomeEntry(this)
+        refreshHomeAppState()
+    }
+    private val gameSpaceAdd = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        homeChoiceOpen = false
+        if (HomeApp.inGameSpace(this)) enableHomeScreen()
+        else refreshHomeAppState()
+    }
+    private var homeChoiceOpen = false
+    private var gameSpaceOffered = false
+
     override fun startActivity(intent: Intent?) {
+        val compat = protons.protonBusyId != null || ProtonExtras.installInProgress
         if (intent?.component?.className == SessionActivity::class.java.name) {
+            if (compatLaunch != null) return
             when {
                 busy || LinuxRuntimeInstaller.isBusy() -> {
                     android.widget.Toast.makeText(this, R.string.main_wait_runtime, android.widget.Toast.LENGTH_SHORT).show()
                     return
                 }
-                protons.protonBusyId != null || ProtonExtras.installInProgress -> {
-                    android.widget.Toast.makeText(this, R.string.main_wait_proton_install, android.widget.Toast.LENGTH_SHORT).show()
+                SessionState.installing != null && !SessionState.running -> {
+                    android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
                     return
                 }
+                compat -> Unit
                 pkgStage != null -> {
                     android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
                     return
@@ -452,22 +666,119 @@ class FrontEndActivity : ComponentActivity() {
                 return
             }
             com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
+            if (compat) {
+                waitForCompat(intent)
+                return
+            }
         }
         super.startActivity(intent)
         if (intent?.component?.className == SessionActivity::class.java.name) overridePendingTransition(R.anim.session_rise, R.anim.session_hold)
     }
 
     private fun launchFlooded(f: PendingFlood) {
-        if (busy || LinuxRuntimeInstaller.isBusy()) { flood = null; floodProgress = 0f; return }
+        if (busy || LinuxRuntimeInstaller.isBusy() || (SessionState.installing != null && !SessionState.running) ||
+            protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null) {
+            flood = null
+            floodProgress = 0f
+            com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
+            if (!busy && !LinuxRuntimeInstaller.isBusy() && !(SessionState.installing != null && !SessionState.running) &&
+                (protons.protonBusyId != null || ProtonExtras.installInProgress)) {
+                compatFlood = com.droiddeck.launcher.ui.Themes.byId(theme).signal
+                waitForCompat(f.intent)
+            }
+            return
+        }
         val signal = com.droiddeck.launcher.ui.Themes.byId(theme).signal
         super.startActivity(f.intent.putExtra(com.droiddeck.launcher.ui.EXTRA_FLOOD, signal.toArgb()))
         overridePendingTransition(0, 0)
     }
 
+    private fun waitForCompat(next: Intent, menuInstall: Boolean = protons.protonBusyId != null) {
+        if (compatLaunch != null) return
+        com.droiddeck.launcher.ui.LaunchOrigin.take()
+        com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
+        val waiting = CompatLaunch(Intent(next), com.droiddeck.launcher.session.LoadingState(this), menuInstall)
+        compatLaunch = waiting
+        val poll = object : Runnable {
+            override fun run() {
+                if (isDestroyed || isFinishing || compatLaunch !== waiting) return
+                if (protons.protonBusyId != null || ProtonExtras.installInProgress) {
+                    waiting.menuInstall = waiting.menuInstall || protons.protonBusyId != null
+                    val percent = if (protons.protonBusyId != null) protons.protonPercent else -1
+                    val stage = protons.protonStage ?: getString(R.string.load_compat_wait)
+                    waiting.loading.say(if (percent >= 0) getString(R.string.load_compat_progress, stage, percent) else stage,
+                        com.droiddeck.launcher.session.LoadingState.Topic.RUNTIME, readable = true)
+                    waiting.loading.percent = percent
+                    waiting.loading.tick()
+                    ui.postDelayed(this, 250)
+                    return
+                }
+                if (!compatLaunchVisible) { ui.postDelayed(this, 250); return }
+                val problem = protons.protonProblem.takeIf { waiting.menuInstall }
+                if (problem == null && (busy || LinuxRuntimeInstaller.isBusy() || (SessionState.installing != null && !SessionState.running) || pkgStage != null)) {
+                    waiting.loading.say(pkgStage ?: stage.takeIf { it.isNotBlank() } ?: getString(R.string.main_wait_runtime),
+                        com.droiddeck.launcher.session.LoadingState.Topic.RUNTIME, readable = true)
+                    waiting.loading.percent = if (pkgStage != null) pkgPercent else percent
+                    waiting.loading.tick()
+                    ui.postDelayed(this, 250)
+                    return
+                }
+                compatLaunchPoll = null
+                if (problem != null) waiting.loading.showEnded(problem)
+                else {
+                    compatLaunch = null
+                    startActivity(waiting.intent)
+                }
+            }
+        }
+        compatLaunchPoll = poll
+        poll.run()
+    }
+
+    private fun cancelCompatLaunch() {
+        compatLaunchPoll?.let(ui::removeCallbacks)
+        compatLaunchPoll = null
+        compatLaunch = null
+        compatFlood = null
+    }
+
+    private fun restoreCompatLaunch(state: Bundle) {
+        savedIntent(state, KEY_COMPAT_LAUNCH)?.let { next ->
+            val problem = state.getString(KEY_COMPAT_PROBLEM)
+            if (problem == null) waitForCompat(next, state.getBoolean(KEY_COMPAT_MENU_INSTALL))
+            else compatLaunch = CompatLaunch(next,
+                com.droiddeck.launcher.session.LoadingState(this).apply { showEnded(problem) }, false)
+        }
+    }
+
+    private fun saveCompatLaunch(state: Bundle) {
+        compatLaunch?.let {
+            state.putParcelable(KEY_COMPAT_LAUNCH, it.intent)
+            state.putBoolean(KEY_COMPAT_MENU_INSTALL, it.menuInstall)
+            if (it.loading.ended) state.putString(KEY_COMPAT_PROBLEM, it.loading.step)
+        }
+    }
+
     private var shortcutPicker by mutableStateOf(false)
     private var shortcutLibraryScanning by mutableStateOf(false)
     @Volatile private var libraryScanGeneration = 0
+    @Volatile private var lastComponentRestore = 0L
+    @Volatile private var componentRestoreRetry = false
+    private val componentRestoreLock = Any()
+
+    private fun retryComponentRestore() {
+        val run = synchronized(componentRestoreLock) {
+            componentRestoreRetry = false
+            val now = android.os.SystemClock.elapsedRealtime()
+            (!isDestroyed && now - lastComponentRestore >= COMPONENT_RESTORE_MS).also { if (it) lastComponentRestore = now }
+        }
+        if (run) Thread({
+            runCatching { com.droiddeck.launcher.frontend.AutoComponents.restoreMissing(this) }.onFailure { Log.w(TAG, "components: restore failed", it) }
+        }, "components-restore").start()
+    }
     private var pendingGameLink: String? = null
+    private var gameLinkReading = false
+    private var gameLinkTried = false
     private var gameSyncFolder by mutableStateOf<String?>(null)
     private fun pickGameExport(game: Library.SteamGame?) {
         onSavePicked = { folder ->
@@ -491,7 +802,6 @@ class FrontEndActivity : ComponentActivity() {
         LauncherIcon.set(this, style)
         launcherIcon = LauncherIcon.current(this)
         if (launcherIcon == before) return false
-        // Android finishes activities started through the alias that was just disabled.
         startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
             .setComponent(LauncherIcon.activity(this))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
@@ -508,16 +818,25 @@ class FrontEndActivity : ComponentActivity() {
             shortcutLibraryScanning = true
         } else shortcutLibraryScanning = false
         pendingGameLink = null
+        gameLinkReading = false
+        gameLinkTried = false
         if (GameLaunchIntent.accepts(request.action)) {
+            gameLinkReading = true
+            com.droiddeck.launcher.ui.DualScreenPanel.hide(taskId)
             val copy = Intent(request)
             Thread({
                 val id = GameLaunchIntent.read(this, copy)
                 ui.post {
                     if (intent === request && !isDestroyed) {
+                        gameLinkReading = false
                         pendingGameLink = id
                         if (id == null) {
+                            syncDualPanel()
                             android.widget.Toast.makeText(this, R.string.game_link_invalid, android.widget.Toast.LENGTH_LONG).show()
-                        } else refresh()
+                        } else {
+                            handleGameLink(steamGames, scanned = false)
+                            refresh()
+                        }
                     }
                 }
             }, "game-launch-file").start()
@@ -525,7 +844,7 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun launchGame(game: Library.SteamGame, returnHome: Boolean = false): Boolean {
-        if (protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null) {
+        if (pkgStage != null) {
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
@@ -542,12 +861,12 @@ class FrontEndActivity : ComponentActivity() {
             }
             startActivity(Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
                 .putExtra(SessionActivity.EXTRA_STEAMVR, steamVr)
-                .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
+                .returnTo(returnHome)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
             return true
         }
         return startSession(Intent(this, SessionActivity::class.java)
-                .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
+                .returnTo(returnHome)
                 .apply {
                     if (game.gameIdString == com.droiddeck.launcher.gpu.SteamVr.APP_ID) {
                         putExtra(SessionActivity.EXTRA_STEAMVR, true)
@@ -556,6 +875,12 @@ class FrontEndActivity : ComponentActivity() {
                             com.droiddeck.launcher.frontend.GameLaunchLink.steamUrl(game.gameIdString))
                     }
                 }, steamSession = true)
+    }
+
+    private fun Intent.returnTo(returnHome: Boolean): Intent {
+        val task = taskId
+        return putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
+            .apply { if (returnHome) putExtra(SessionActivity.EXTRA_LINK_TASK, task) }
     }
 
     private fun launchWithoutSteam(game: Library.SteamGame, returnHome: Boolean): Boolean {
@@ -571,16 +896,18 @@ class FrontEndActivity : ComponentActivity() {
                 }
                 com.droiddeck.launcher.session.NoSteamLaunch.remember(command)
                 val next = Intent(this, SessionActivity::class.java)
-                    .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
+                    .returnTo(returnHome)
                     .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
                     .putExtra(SessionService.EXTRA_PROGRAM, command.program)
                     .putExtra(SessionService.EXTRA_PROGRAM_ARGS, command.args.toTypedArray())
+                    .putExtra(SessionService.EXTRA_GAME_ID, com.droiddeck.launcher.session.NoSteamLaunch.scope(game))
                 when {
                     !SessionState.running -> startSessionOrWait(next)
                     SessionState.stopRequested -> android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
+                    command.program == com.droiddeck.launcher.session.NoSteamLaunch.BATTLENET && handToBattleNet(command.args, returnHome) { pendingSwitch = next } -> {}
                     SessionState.mode == SessionService.MODE_RUN && SessionState.program == command.program && SessionState.programArgs == command.args ->
                         startActivity(Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
-                            .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
+                            .returnTo(returnHome)
                             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
                     else -> pendingSwitch = next
                 }
@@ -629,7 +956,7 @@ class FrontEndActivity : ComponentActivity() {
             android.widget.Toast.makeText(this, R.string.epic_client_uninstalling, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
-        if (protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null) {
+        if (pkgStage != null) {
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
@@ -675,7 +1002,8 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun startSessionOrWait(next: Intent): Boolean {
-        val started = startSession(next, steamSession = next.hasExtra(SessionService.EXTRA_STEAM_URL))
+        val started = startSession(next, steamSession = next.hasExtra(SessionService.EXTRA_STEAM_URL) ||
+            next.getStringExtra(SessionService.EXTRA_PROGRAM) in setOf(com.droiddeck.launcher.session.NoSteamLaunch.PROTON_RUN, com.droiddeck.launcher.session.NoSteamLaunch.BATTLENET))
         if (!started && (busy || LinuxRuntimeInstaller.isBusy())) android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
         return started
     }
@@ -711,15 +1039,21 @@ class FrontEndActivity : ComponentActivity() {
         ui.postDelayed(poll, SESSION_SWITCH_POLL_MS)
     }
 
-    private fun handleGameLink(games: List<Library.SteamGame>) {
+    private fun handleGameLink(games: List<Library.SteamGame>, scanned: Boolean = true) {
         if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return
         val id = pendingGameLink ?: return
+        if (!scanned && games.none { it.gameIdString == id }) return
+        gameLinkTried = true
+        ui.postDelayed({
+            if (!isDestroyed && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) syncDualPanel()
+        }, LINK_PANEL_MS)
         val game = games.firstOrNull { it.gameIdString == id }
         if (game == null) {
             pendingGameLink = null
             intent.data = null
             intent.action = Intent.ACTION_MAIN
             intent.removeExtra(GameLaunchIntent.EXTRA_APP_ID)
+            syncDualPanel()
             android.widget.Toast.makeText(this, R.string.game_link_missing, android.widget.Toast.LENGTH_LONG).show()
         } else if (launchGame(game, returnHome = true)) {
             pendingGameLink = null
@@ -736,10 +1070,15 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingSessionLogExport = savedInstanceState?.getString(KEY_PENDING_SESSION_LOG_EXPORT)?.let(::File)
+        homeChoiceOpen = savedInstanceState?.getBoolean(STATE_HOME_CHOICE_OPEN) == true
+        gameSpaceOffered = savedInstanceState?.getBoolean(STATE_GAME_SPACE_OFFERED) == true
+        if (savedInstanceState == null) readIntegrationIntent(intent)
         readGameIntent(intent)
         gameSyncFolder = GameFileSync.folder(this)
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         refreshPhantomStatus()
+        if (!SessionState.running) com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(this)
         theme = SessionPrefs.theme(this)
         frameGenLabel = getString(R.string.frame_gen_off)
         appScale = com.droiddeck.launcher.core.AppUiPrefs.scale(this)
@@ -748,18 +1087,19 @@ class FrontEndActivity : ComponentActivity() {
         steamGamesX64 = cachedX64
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         orientation = SessionPrefs.orientation(this)
-        requestedOrientation = orientation
+        launcherOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
+        requestedOrientation = launcherOrientation
         launcherFullscreen = SessionPrefs.launcherFullscreen(this)
         downloadSource = DownloadSource.mode(this)
         downloadMirror = DownloadSource.mirror(this)
         downloadPrefix = DownloadSource.custom(this)
+        downloadProxy = DownloadSource.proxyHostPort(this)
         DownloadSource.probe()
         animationsEnabled = SessionPrefs.animationsEnabled(this)
         LauncherIcon.repair(this, intent?.component)
         launcherIcon = LauncherIcon.current(this)
         gameStoresEnabled = SessionPrefs.gameStoresEnabled(this)
         gameStoresSpeedTier = SessionPrefs.gameStoresSpeedTier(this)
-        storesOpenTab = SessionPrefs.storesOpenTab(this)
         storesShowMature = SessionPrefs.storesShowMature(this)
         storesSort = SessionPrefs.storesSort(this)
         storesView = SessionPrefs.storesView(this)
@@ -771,6 +1111,13 @@ class FrontEndActivity : ComponentActivity() {
                 if (decky.deckyPendingZip != null) com.droiddeck.launcher.ui.DeckyZipWarningDialog(
                     onConfirm = { decky.confirmPluginZip() }, onCancel = { decky.cancelPluginZip() },
                 )
+                slowUsb?.let { drive ->
+                    com.droiddeck.launcher.ui.SlowUsbDialog(drive, slowUsbNever, { slowUsbNever = it }) {
+                        com.droiddeck.launcher.session.UsbLink.markShown(this, drive)
+                        showSlowUsb(null)
+                        checkUsbLink()
+                    }
+                }
                 val page: (@Composable () -> Unit)? = when {
                     showPerformance -> { { PerformanceHost() } }
                     showComponents -> { { ComponentsHost() } }
@@ -781,6 +1128,7 @@ class FrontEndActivity : ComponentActivity() {
                 FrontEndScreen(
                     FrontEndState(
                         installed = installed, ready = ready, available = available?.version, removalPending = removalPending, runtimeActionsBlocked = runtimeChangesBlocked(),
+                        vkBridge = vkBridge, vkBridgeSafe = vkBridgeSafe, bridgeProtonDxvk = bridgeProtonDxvk, adreno = adrenoGpu,
                         shortcutPicker = shortcutPicker,
                         shortcutLibraryScanning = shortcutLibraryScanning,
                         gameSyncFolder = gameSyncFolder,
@@ -788,7 +1136,9 @@ class FrontEndActivity : ComponentActivity() {
                         desktopInstalled = desktopInstalled, desktopPresent = desktopPresent,
                         offlineAccount = offlineAccount, offline = offline,
                         frameGenLabel = frameGenLabel, romsDir = romsDir, logsEnabled = logsEnabled,
+                        gameDebugLogsEnabled = gameDebugLogsEnabled, gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart,
                         vacDiagnostics = vacDiagnostics, agentCommands = agentCommands,
+                        clearCachedApps = clearCachedApps, adbPaired = adbPaired, memoryHud = memoryHud, backgroundAppLimit = backgroundAppLimit,
                         steamGames = steamGames, steamGamesX64 = steamGamesX64, emulators = emulatorList, running = runningLabel,
                         frameGen = FrameGen.mode(this),
                         lossless = lossless,
@@ -799,14 +1149,22 @@ class FrontEndActivity : ComponentActivity() {
                         isHomeApp = homeAppSelected,
                         homeScreenEnabled = homeScreenEnabled,
                         defaultHomeLabel = defaultHomeLabel,
+                        integration = integrationState,
+                        integrationFocus = integrationFocus,
                         androidApps = androidApps,
                         secondScreenDisplays = secondScreenDisplays,
+                        dualScreen = dualDisplayId >= 0 && com.droiddeck.launcher.ui.DualScreenPanel.available,
+                        dualScreenDevice = dualScreenDevice,
+                        dualScreenMode = dualScreenMode,
+                        dualScreenSessions = dualScreenSessions,
+                        dualScreenControls = dualScreenControls,
                         packages = packageRows,
                         packageCatalogLoading = catalogLoading,
                         packageBusyId = pkgId,
                         packageStage = pkgStage,
                         packagePercent = pkgPercent,
                         sessionRunning = SessionState.running,
+                        battleNetInstalled = battleNetInstalled,
                         backActionsInverted = backActionsInverted,
                         buildLabel = BuildConfig.BUILD_LABEL,
                         oscMode = oscMode,
@@ -815,15 +1173,16 @@ class FrontEndActivity : ComponentActivity() {
                         phantomProcessStatus = phantomProcessStatus,
                         showPhantomGate = showPhantomGate,
                         orientation = orientation,
+                        launcherOrientation = launcherOrientation,
                         launcherFullscreen = launcherFullscreen,
                         downloadSource = downloadSource,
                         downloadMirror = downloadMirror,
                         downloadPrefix = downloadPrefix,
+                        downloadProxy = downloadProxy,
                         animationsEnabled = animationsEnabled,
                         launcherIcon = launcherIcon,
                         gameStoresEnabled = gameStoresEnabled,
                         gameStoresSpeedTier = gameStoresSpeedTier,
-                        storesOpenTab = storesOpenTab,
                         navigate = navRequest,
                         addedGamesArt = addedGamesArt,
                         sgdbUserKey = sgdbUserKey,
@@ -848,8 +1207,13 @@ class FrontEndActivity : ComponentActivity() {
                         onSteamGame = { g ->
                             if (shortcutPicker) chooseGameShortcut(g)
                             else {
-                                com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g)
-                                com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) { launchGame(g) }
+                                val request = gameLaunchRequest.incrementAndGet()
+                                com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g) {
+                                    if (request != gameLaunchRequest.get() || isFinishing || isDestroyed) return@beforeLaunch
+                                    com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) {
+                                        if (request == gameLaunchRequest.get() && !isFinishing && !isDestroyed) launchGame(g)
+                                    }
+                                }
                             }
                         },
                         onEpicLauncher = { openEpicLauncher() },
@@ -895,6 +1259,7 @@ class FrontEndActivity : ComponentActivity() {
                                 .putExtra(SessionService.EXTRA_PROGRAM, app.program)
                                 .putExtra(SessionService.EXTRA_PROGRAM_ARGS, app.args.toTypedArray()))
                         },
+                        onBattleNet = { openBattleNet() },
                         onFlatpakApp = { id, name ->
                             Library.flatpakNames[id] = name
                             startActivity(Intent(this, SessionActivity::class.java)
@@ -917,6 +1282,15 @@ class FrontEndActivity : ComponentActivity() {
                         onInstallPackage = { id -> installPackage(id) },
                         onRemovePackage = { id -> removePackage(id) },
                         onRuntime = { onRuntimeButton() },
+                        onVkBridge = { on ->
+                            SessionPrefs.setVkBridge(this, on); vkBridge = on
+                            if (!on) com.droiddeck.launcher.session.ComponentsManager.settleAutoDxvk(this)
+                        },
+                        onVkBridgeSafe = { on -> SessionPrefs.setVkBridgeSafe(this, on); vkBridgeSafe = on },
+                        onBridgeProtonDxvk = { on ->
+                            SessionPrefs.setBridgeProtonDxvk(this, on); bridgeProtonDxvk = on
+                            if (on) com.droiddeck.launcher.session.ComponentsManager.settleAutoDxvk(this)
+                        },
                         onFrameGenPick = { mode ->
                             FrameGen.set(this, mode)
                             frameGenLabel = FrameGen.label(this)
@@ -929,6 +1303,13 @@ class FrontEndActivity : ComponentActivity() {
                         onGameComponents = { game -> openComponents(gameKey = game.profileKey) },
                         onComponentsTab = { tab -> openComponents(focusContent = true, tab = tab) },
                         onSaveImport = { sg -> importSaves(sg.name) { GameSaves.game(sg) } },
+                        onAddonImport = { sg, target -> importAddons(sg.name, target) },
+                        onAddonDelete = { target, name ->
+                            saveAction(getString(R.string.main_addons_deleting, name)) {
+                                com.droiddeck.launcher.runtime.WowAddons.delete(target, name)
+                                getString(R.string.main_addons_deleted, name)
+                            }
+                        },
                         onSaveExport = { sg, layout -> exportSaves(sg.name, layout) { GameSaves.game(sg) } },
                         onPerformance = { refreshCores(); showComponents = false; showMapping = false; showPerformance = true },
                         onRoms = { showRoms = true },
@@ -938,8 +1319,21 @@ class FrontEndActivity : ComponentActivity() {
                                 .putExtra(com.droiddeck.launcher.files.FileManagerActivity.EXTRA_START_DIR, dir.absolutePath))
                         },
                         onLogs = {
-                            SessionPrefs.setLogsEnabled(this, !SessionPrefs.logsEnabled(this))
+                            val changed = SessionPrefs.setLogsEnabled(this, !SessionPrefs.logsEnabled(this))
+                            if (!changed) android.widget.Toast.makeText(
+                                this, R.string.setup_logging_update_failed, android.widget.Toast.LENGTH_LONG,
+                            ).show()
                             logsEnabled = SessionPrefs.logsEnabled(this)
+                            gameDebugLogsEnabled = SessionPrefs.gameDebugLogsEnabled(this)
+                            gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart()
+                        },
+                        onGameDebugLogs = {
+                            val changed = SessionPrefs.setGameDebugLogsEnabled(this, !SessionPrefs.gameDebugLogsEnabled(this))
+                            if (!changed) android.widget.Toast.makeText(
+                                this, R.string.setup_logging_update_failed, android.widget.Toast.LENGTH_LONG,
+                            ).show()
+                            gameDebugLogsEnabled = SessionPrefs.gameDebugLogsEnabled(this)
+                            gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart()
                         },
                         onVacDiagnostics = {
                             SessionPrefs.setVacDiagnostics(this, !SessionPrefs.vacDiagnostics(this))
@@ -949,11 +1343,36 @@ class FrontEndActivity : ComponentActivity() {
                             com.droiddeck.launcher.agent.AgentAccess.setCommandsEnabled(this, !com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this))
                             agentCommands = com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this)
                         },
+                        onClearCachedApps = { on -> SessionPrefs.setClearCachedApps(this, on); clearCachedApps = on },
+                        onMemoryHud = { value -> SessionPrefs.setMemoryHud(this, value); memoryHud = value },
+                        onBackgroundAppLimit = { limit ->
+                            SessionPrefs.setBackgroundAppLimit(this, limit); backgroundAppLimit = limit
+                            if (limit == com.droiddeck.launcher.core.BackgroundAppLimit.OFF) com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(this)
+                        },
                         onShareLogs = {
                             SessionLogShare.prepare(this, { SessionLogShare.latest(this) }) { zip ->
                                 if (zip == null) android.widget.Toast.makeText(this, R.string.main_no_logs_yet, android.widget.Toast.LENGTH_LONG).show()
                                 else startActivity(SessionLogShare.shareIntent(this, zip))
                             }
+                        },
+                        onShareSessionLog = { folder ->
+                            SessionLogShare.prepare(this, { folder }) { zip ->
+                                if (zip == null) android.widget.Toast.makeText(this, R.string.main_no_logs_yet, android.widget.Toast.LENGTH_LONG).show()
+                                else startActivity(SessionLogShare.shareIntent(this, zip))
+                            }
+                        },
+                        onSaveSessionLog = { folder ->
+                            pendingSessionLogExport = folder
+                            pickSessionLogExport.launch("DroidDeck-${folder.name}.zip")
+                        },
+                        onDeleteSessionLog = { folder, done ->
+                            Thread({
+                                val deleted = runCatching { SessionLogShare.deleteSession(this, folder) }.getOrDefault(false)
+                                ui.post {
+                                    if (!deleted) android.widget.Toast.makeText(this, R.string.setup_log_delete_failed, android.widget.Toast.LENGTH_SHORT).show()
+                                    done()
+                                }
+                            }, "delete-session-logs").start()
                         },
                         onClearLogs = {
                             Thread({
@@ -990,6 +1409,10 @@ class FrontEndActivity : ComponentActivity() {
                         onOrientation = { value ->
                             SessionPrefs.setOrientation(this, value)
                             orientation = value
+                        },
+                        onLauncherOrientation = { value ->
+                            com.droiddeck.launcher.core.AppUiPrefs.setOrientation(this, value)
+                            launcherOrientation = value
                             requestedOrientation = value
                         },
                         onLauncherFullscreen = { on ->
@@ -998,12 +1421,23 @@ class FrontEndActivity : ComponentActivity() {
                             applyLauncherFullscreen()
                         },
                         onGameStoresSpeedTier = { tier -> SessionPrefs.setGameStoresSpeedTier(this, tier); gameStoresSpeedTier = tier },
-                        onStoresOpenTab = { tab -> SessionPrefs.setStoresOpenTab(this, tab); storesOpenTab = tab },
                         onNavigated = { navRequest = null },
                         onStoresShowMature = { show -> SessionPrefs.setStoresShowMature(this, show); storesShowMature = show },
                         onStoresSort = { sort -> SessionPrefs.setStoresSort(this, sort); storesSort = sort },
                         onStoresView = { view -> SessionPrefs.setStoresView(this, view); storesView = view },
                         onLibraryChanged = { refreshAddedGames(); refresh() },
+                        onDualScreenMode = { mode ->
+                            SessionPrefs.setDualScreenMode(this, mode)
+                            refreshSecondScreenDisplays()
+                        },
+                        onDualScreenSessions = { mode ->
+                            SessionPrefs.setDualScreenSessionMode(this, mode)
+                            refreshSecondScreenDisplays()
+                        },
+                        onDualScreenControls = { on ->
+                            SessionPrefs.setDualScreenSessionControls(this, on)
+                            dualScreenControls = on
+                        },
                         onAnimationsEnabled = { on ->
                             SessionPrefs.setAnimationsEnabled(this, on)
                             animationsEnabled = on
@@ -1021,10 +1455,25 @@ class FrontEndActivity : ComponentActivity() {
                             DownloadSource.setCustom(this, prefix)
                             downloadPrefix = DownloadSource.custom(this)
                         },
+                        onDownloadProxy = { value ->
+                            DownloadSource.setProxy(this, value)
+                            downloadProxy = DownloadSource.proxyHostPort(this)
+                        },
                         onHomeApp = { manageHomeApp() },
+                        onSteamIntegration = ::openIntegration,
+                        onIntegration = { integrationFocus = null; configureIntegration(it) },
+                        onIntegrationAppInfo = ::openAppInfo,
+                        onIntegrationLocation = ::openWifiDiscoverySettings,
+                        onDismissIntegration = {
+                            SteamIntegration.dismissSuggestion(this)
+                            integrationState = readIntegration()
+                        },
                         onHomeScreen = { on ->
-                            HomeApp.setHomeScreenEnabled(this, on)
-                            refreshHomeAppState()
+                            if (on && HomeApp.hasGameSpace(this)) offerHomeScreen()
+                            else {
+                                HomeApp.setHomeScreenEnabled(this, on)
+                                refreshHomeAppState()
+                            }
                         },
                         onAndroidApp = { app, displayId -> launchAndroidApp(app, displayId) },
                         onBackActionsInverted = { inverted ->
@@ -1075,7 +1524,12 @@ class FrontEndActivity : ComponentActivity() {
                             android.widget.Toast.makeText(this, R.string.main_adb_copied, android.widget.Toast.LENGTH_SHORT).show()
                         },
                         onDismissPhantomGate = { showPhantomGate = false },
+                        onShowPhantomGate = {
+                            refreshPhantomStatus()
+                            showPhantomGate = true
+                        },
                         onStartWirelessAdbPairing = { WirelessAdbPairingService.start(this) },
+                        onStartPairingGuide = { displayId, toggleOnly -> PairingGuideActivity.start(this, displayId, toggleOnly) },
                         onOpenNotificationSettings = {
                             startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                                 .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
@@ -1171,12 +1625,23 @@ class FrontEndActivity : ComponentActivity() {
                         com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
                     }
                 }
+                androidx.activity.compose.BackHandler(compatLaunch != null) { cancelCompatLaunch() }
+                compatLaunch?.loading?.let { loading ->
+                    if (!loading.ended) com.droiddeck.launcher.ui.VeilRing()
+                    com.droiddeck.launcher.ui.LoadingOverlay(
+                        loading.step, loading.percent, loading.elapsed, getString(R.string.load_compat_hint), loading.ended,
+                        loading.topic, loading.readable, title = getString(R.string.load_compat_title),
+                        onCancel = ::cancelCompatLaunch, onClose = ::cancelCompatLaunch,
+                        flood = compatFlood, onFlooded = { compatFlood = null },
+                    )
+                }
             }
         }
         }
 
-        if (savedInstanceState == null) ui.post { startSteamAtStartupIfEnabled() }
+        if (savedInstanceState == null) ui.post { startSteamAtStartupIfEnabled(cold = true) }
         else {
+            restoreCompatLaunch(savedInstanceState)
             pendingSwitch = savedIntent(savedInstanceState, KEY_PENDING_SWITCH)
             savedIntent(savedInstanceState, KEY_SWITCHING_TO)?.let { awaitSessionEnd(it, savedInstanceState.getLong(KEY_SWITCH_DEADLINE)) }
         }
@@ -1205,14 +1670,26 @@ class FrontEndActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (intent.action == SteamIntegration.ACTION_SETUP) {
+            gameLinkReading = false
+            pendingGameLink = null
+            syncDualPanel()
+            readIntegrationIntent(intent)
+            return
+        }
         readGameIntent(intent)
         refresh()
         startSteamAtStartupIfEnabled()
     }
 
-    private fun startSteamAtStartupIfEnabled() {
-        if (intent.action != Intent.ACTION_MAIN) return
-        if (SessionPrefs.runSteamAtStartup(this) && !isFinishing && !isDestroyed) startSteamSession()
+    private fun startSteamAtStartupIfEnabled(cold: Boolean = false) {
+        if (intent.action != Intent.ACTION_MAIN && !(cold && intent.action == null)) return
+        if (isFinishing || isDestroyed) return
+        when (SessionPrefs.startupSession(this)) {
+            SessionPrefs.STARTUP_STEAM -> startSteamSession()
+            SessionPrefs.STARTUP_DESKTOP -> startSession(Intent(this, SessionActivity::class.java)
+                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP))
+        }
     }
 
     private fun playSteam() {
@@ -1234,9 +1711,28 @@ class FrontEndActivity : ComponentActivity() {
         startSession(Intent(this, SessionActivity::class.java).putExtra(SessionActivity.EXTRA_STEAMVR, steamVr), steamSession = true)
     }
 
+    @Suppress("OVERRIDE_DEPRECATION")
+    override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
+        val outside = com.droiddeck.launcher.ui.DualScreenPanel.shownOn >= 0 &&
+            com.droiddeck.launcher.ui.DualScreenPanel.opensOutside(packageName, intent.component?.packageName ?: intent.`package` ?: intent.resolveActivity(packageManager)?.packageName)
+        if (outside) {
+            com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, true)
+            window.decorView.postDelayed({ if (hasWindowFocus()) com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false) }, 1500)
+        }
+        try {
+            super.startActivityForResult(intent, requestCode, options)
+        } catch (e: RuntimeException) {
+            if (outside) com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
+            throw e
+        }
+    }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) applyLauncherFullscreen()
+        if (hasFocus) {
+            com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
+            applyLauncherFullscreen()
+        }
     }
 
     private fun applyLauncherFullscreen() {
@@ -1263,6 +1759,14 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (compatLaunch != null) {
+            if (event.keyCode == KeyEvent.KEYCODE_BACK || event.keyCode == KeyEvent.KEYCODE_BUTTON_B) {
+                if (event.action == KeyEvent.ACTION_UP) cancelCompatLaunch()
+                return true
+            }
+            if (!compatLaunch!!.loading.ended && event.keyCode !in listOf(
+                    KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE)) return true
+        }
         if (event.keyCode == KeyEvent.KEYCODE_BUTTON_A) com.droiddeck.launcher.ui.HeldKeys.confirm = event.action == KeyEvent.ACTION_DOWN
         if (showComponents && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
@@ -1279,13 +1783,36 @@ class FrontEndActivity : ComponentActivity() {
         }
     }
 
+    override fun dispatchGenericMotionEvent(event: android.view.MotionEvent): Boolean {
+        if (compatLaunch != null && !compatLaunch!!.loading.ended &&
+            com.droiddeck.launcher.input.PadBridge.isControllerMotionEvent(event)) return true
+        return super.dispatchGenericMotionEvent(event)
+    }
+
+    override fun onPause() {
+        compatLaunchVisible = false
+        if (android.os.Build.VERSION.SDK_INT >= 29) com.droiddeck.launcher.ui.DualScreenPanel.ownerPaused(taskId, true)
+        super.onPause()
+    }
+
     override fun onResume() {
         super.onResume()
+        if (!homeChoiceOpen) {
+            HomeApp.releaseUnusedHomeEntry(this)
+            refreshHomeAppState()
+        }
+        if (settingsMode == SessionService.MODE_STEAM) refreshFoundSteamLibraries()
+        compatLaunchVisible = true
+        com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
+        com.droiddeck.launcher.ui.DualScreenPanel.ownerPaused(taskId, false)
         orientation = SessionPrefs.orientation(this)
-        requestedOrientation = orientation
+        launcherOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
+        requestedOrientation = launcherOrientation
+        SteamIntegration.syncShortcutsListing(this)
         refreshWifiDiscovery()
         com.droiddeck.launcher.stores.StoresState.refresh(this)
         com.droiddeck.launcher.stores.StoresState.libraryListener = { refreshAddedGames(); refresh() }
+        com.droiddeck.launcher.stores.battlenet.BattleNetClient.opener = { args -> openBattleNet(args) }
         com.droiddeck.launcher.ui.Motion.refresh(this)
         com.droiddeck.launcher.ui.QuitFlood.take()?.let { c ->
             returning = ReturningFlood(c, com.droiddeck.launcher.ui.LaunchOrigin.takeReturn())
@@ -1296,14 +1823,21 @@ class FrontEndActivity : ComponentActivity() {
         drivers.checkOnOpen()
         resumeInterruptedPackages()
         protons.checkUpdates()
-        if (!SessionState.running) Thread({
-            val applied = runCatching { ComponentsManager.applyQueued(this) }.getOrDefault(emptyList())
-            if (applied.isNotEmpty()) ui.post {
-                android.widget.Toast.makeText(this, getString(R.string.main_applied, applied.joinToString(", ")), android.widget.Toast.LENGTH_LONG).show()
-            }
-            ui.post { if (showComponents) components.refreshComponents() }
-        }, "components-queue").start()
-        else if (showComponents) components.refreshComponents()
+        catalogFresh = false
+        if (!SessionState.running && !componentsQueueBusy && !LinuxRuntimeInstaller.isBusy()) {
+            componentsQueueBusy = true
+            Thread({
+                val applied = runCatching { ComponentsManager.applyQueued(this) }.getOrDefault(emptyList())
+                if (applied.isNotEmpty()) ui.post {
+                    android.widget.Toast.makeText(this, getString(R.string.main_applied, applied.joinToString(", ")), android.widget.Toast.LENGTH_LONG).show()
+                }
+                ui.post {
+                    componentsQueueBusy = false
+                    if (showComponents) components.refreshComponents()
+                    autoUpdateRuntime()
+                }
+            }, "components-queue").start()
+        } else if (showComponents) components.refreshComponents()
         oscMode = SessionPrefs.oscMode(this)
         refreshController()
         refreshHomeAppState()
@@ -1326,11 +1860,28 @@ class FrontEndActivity : ComponentActivity() {
             addDataScheme("file")
         })
         displayManager.registerDisplayListener(secondScreenDisplayListener, ui)
+        com.droiddeck.launcher.input.DualScreen.watchTaken(bottomScreenListener)
+        getSystemService(android.hardware.input.InputManager::class.java)?.registerInputDeviceListener(secondScreenTouchListener, ui)
+        launcherStarted = true
         refreshSecondScreenDisplays()
+        getSystemService(android.content.pm.LauncherApps::class.java).registerCallback(packageCallback, ui)
+        HomeWidgets.startListening(this)
+    }
+
+    @Suppress("OVERRIDE_DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (HomeWidgets.onActivityResult(this, requestCode, resultCode)) return
+        @Suppress("DEPRECATION")
+        super.onActivityResult(requestCode, resultCode, data)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
+        outState.putBoolean(STATE_HOME_CHOICE_OPEN, homeChoiceOpen)
+        outState.putBoolean(STATE_GAME_SPACE_OFFERED, gameSpaceOffered)
+        pendingSessionLogExport?.let { outState.putString(KEY_PENDING_SESSION_LOG_EXPORT, it.absolutePath) }
+        if (slowUsbNever) SessionPrefs.setSlowUsbWarningOff(this)
+        saveCompatLaunch(outState)
         pendingSwitch?.let { outState.putParcelable(KEY_PENDING_SWITCH, it) }
         switchingTo?.let {
             outState.putParcelable(KEY_SWITCHING_TO, it)
@@ -1343,16 +1894,31 @@ class FrontEndActivity : ComponentActivity() {
         else @Suppress("DEPRECATION") state.getParcelable(key)
 
     override fun onDestroy() {
+        gameLaunchRequest.incrementAndGet()
+        cancelCompatLaunch()
         updates.unregister()
         super.onDestroy()
     }
 
+    override fun onRestart() {
+        super.onRestart()
+        homeChoiceOpen = false
+    }
+
     override fun onStop() {
+        if (!homeChoiceOpen) HomeApp.releaseUnusedHomeEntry(this)
         unregisterReceiver(wifiLocationReceiver)
         unregisterReceiver(mediaReceiver)
+        getSystemService(android.content.pm.LauncherApps::class.java).unregisterCallback(packageCallback)
+        HomeWidgets.stopListening(this)
         ui.removeCallbacks(mediaRefresh)
         com.droiddeck.launcher.stores.StoresState.libraryListener = null
+        com.droiddeck.launcher.stores.battlenet.BattleNetClient.opener = null
         displayManager.unregisterDisplayListener(secondScreenDisplayListener)
+        com.droiddeck.launcher.input.DualScreen.unwatchTaken(bottomScreenListener)
+        getSystemService(android.hardware.input.InputManager::class.java)?.unregisterInputDeviceListener(secondScreenTouchListener)
+        launcherStarted = false
+        com.droiddeck.launcher.ui.DualScreenPanel.hide(taskId)
         flood = null
         returning = null
         floodProgress = 0f
@@ -1364,20 +1930,52 @@ class FrontEndActivity : ComponentActivity() {
         homeScreenEnabled = HomeApp.isHomeScreenEnabled(this)
         homeAppSelected = homeScreenEnabled && HomeApp.isDefault(this)
         defaultHomeLabel = HomeApp.defaultLabel(this)
-        androidApps = if (homeAppSelected) HomeApp.launchableApps(this) else emptyList()
+        refreshAndroidApps()
+        integrationState = readIntegration()
+    }
+
+    private fun refreshAndroidApps() {
+        if (!homeAppSelected) {
+            ++androidAppsListing
+            androidApps = emptyList()
+            return
+        }
+        val seq = ++androidAppsListing
+        HomePins.refresh(this)
+        Thread({
+            val apps = runCatching { HomeApp.launchableApps(this) }.getOrDefault(emptyList())
+            ui.post { if (seq == androidAppsListing) androidApps = apps }
+        }, "home-apps").start()
     }
 
     private fun refreshSecondScreenDisplays() {
         if (!::displayManager.isInitialized) return
-        // The launcher can itself be shown on a non-default display (DeX, an external monitor); that one is not a "second screen".
         val ownDisplayId = if (android.os.Build.VERSION.SDK_INT >= 30) display?.displayId ?: android.view.Display.DEFAULT_DISPLAY else @Suppress("DEPRECATION") windowManager.defaultDisplay.displayId
+        dualScreenMode = SessionPrefs.dualScreenMode(this)
         secondScreenDisplays = SecondScreenDisplays.available(displayManager, ownDisplayId)
+        dualScreenDevice = com.droiddeck.launcher.input.DualScreen.anyDisplay(displayManager, ownDisplayId) != null
+        dualScreenSessions = SessionPrefs.dualScreenSessionMode(this)
+        dualScreenControls = SessionPrefs.dualScreenSessionControls(this)
+        val target = com.droiddeck.launcher.input.DualScreen.display(this, displayManager, ownDisplayId)
+        dualDisplayId = target?.displayId ?: -1
+        syncDualPanel()
     }
 
+    private fun syncDualPanel() {
+        if (launchPending()) return
+        if (launcherStarted && dualDisplayId >= 0) com.droiddeck.launcher.ui.DualScreenPanel.show(this, dualDisplayId, taskId)
+        else com.droiddeck.launcher.ui.DualScreenPanel.hide(taskId)
+    }
+
+    private fun launchPending(): Boolean = gameLinkReading || (pendingGameLink != null && !gameLinkTried)
+
     private fun launchAndroidApp(app: HomeApp.LaunchableApp, displayId: Int?) {
+        val onOwnScreen = displayId == null || displayId == (display?.displayId ?: Display.DEFAULT_DISPLAY)
+        if (onOwnScreen) com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, true)
         try {
             HomeApp.launch(this, app, displayId)
         } catch (_: Exception) {
+            com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
             val label = secondScreenDisplays.firstOrNull { it.id == displayId }?.label
             val message = when {
                 displayId == null || displayId == Display.DEFAULT_DISPLAY -> getString(R.string.android_app_open_failed_primary, app.label)
@@ -1388,12 +1986,32 @@ class FrontEndActivity : ComponentActivity() {
         }
     }
 
+    private fun offerHomeScreen() {
+        if (!gameSpaceOffered && HomeApp.hasGameSpace(this) && !HomeApp.inGameSpace(this)) {
+            gameSpaceOffered = true
+            val opened = runCatching { gameSpaceAdd.launch(HomeApp.gameSpaceAddIntent()) }.isSuccess
+            if (opened) {
+                homeChoiceOpen = true
+                android.widget.Toast.makeText(this, R.string.setup_home_game_space_first, android.widget.Toast.LENGTH_LONG).show()
+                return
+            }
+        }
+        enableHomeScreen()
+    }
+
+    private fun enableHomeScreen() {
+        HomeApp.setHomeScreenEnabled(this, true)
+        refreshHomeAppState()
+        manageHomeApp()
+    }
+
     private fun manageHomeApp() {
+        homeChoiceOpen = true
         val request = HomeApp.roleRequestIntent(this)
         if (request != null) {
             homeRoleRequest.launch(request)
-        } else {
-            HomeApp.openSystemHomeSettings(this)
+        } else if (runCatching { homeRoleRequest.launch(HomeApp.settingsIntent()) }.isFailure) {
+            homeChoiceOpen = false
         }
     }
 
@@ -1509,6 +2127,7 @@ class FrontEndActivity : ComponentActivity() {
                 onRestoreBundled = { TurnipDriver(this).restoreBundled(); drivers.refreshDrivers() },
                 onMode = { m -> drivers.chooseMode(m) },
                 onRestart = { drivers.restartApp() },
+                onTpUbwcMode = { drivers.chooseTpUbwcMode(it) },
             ),
             protons = com.droiddeck.launcher.ui.ProtonsState(
                 rows = protons.protonRows, busyId = protons.protonBusyId, stage = protons.protonStage, percent = protons.protonPercent,
@@ -1542,6 +2161,50 @@ class FrontEndActivity : ComponentActivity() {
         packageRows = catalog?.map { PackageRow(it.id, it.kind, it.notes) }
         desktopInstalled = DesktopCatalog.desktopInstalled(this)
         desktopPresent = DesktopCatalog.desktopPresent(this)
+    }
+
+    private fun openBattleNet(args: List<String> = emptyList()) {
+        if (pkgStage != null) {
+            android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        val app = applicationContext
+        Thread({
+            val full = if (args.firstOrNull() == "--library") args else com.droiddeck.launcher.stores.battlenet.BattleNetClient.library(app) + args
+            ui.post {
+                if (isDestroyed) return@post
+                val next = Intent(this, SessionActivity::class.java)
+                    .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
+                    .putExtra(SessionService.EXTRA_PROGRAM, com.droiddeck.launcher.session.NoSteamLaunch.BATTLENET)
+                    .putExtra(SessionService.EXTRA_PROGRAM_ARGS, full.toTypedArray())
+                when {
+                    !SessionState.running -> startSessionOrWait(next)
+                    SessionState.stopRequested -> android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
+                    handToBattleNet(full) { pendingSwitch = next } -> {}
+                    else -> pendingSwitch = next
+                }
+            }
+        }, "battlenet-open").start()
+    }
+
+    private fun handToBattleNet(args: List<String>, returnHome: Boolean = false, otherwise: () -> Unit): Boolean {
+        if (SessionState.mode != SessionService.MODE_RUN || SessionState.program != com.droiddeck.launcher.session.NoSteamLaunch.BATTLENET) return false
+        val library = args.takeIf { it.firstOrNull() == "--library" }?.getOrNull(1)
+        val sessionLibrary = SessionState.programArgs.takeIf { it.firstOrNull() == "--library" }?.getOrNull(1)
+        if (library != null && sessionLibrary != null && library != sessionLibrary) return false
+        val request = if (library != null) args.drop(2) else args
+        val app = applicationContext
+        Thread({
+            val handed = request.isEmpty() || com.droiddeck.launcher.stores.battlenet.BattleNetClient.request(LinuxRuntime.sessionRoot(app), request)
+            ui.post {
+                if (isDestroyed) return@post
+                if (!handed) otherwise()
+                else startActivity(Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
+                    .returnTo(returnHome)
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+            }
+        }, "battlenet-request").start()
+        return true
     }
 
     private fun launchProgram(path: String) {
@@ -1609,7 +2272,7 @@ class FrontEndActivity : ComponentActivity() {
             ModeSettings(
                 mode = mode, resolution = resolution,
                 panelSize = com.droiddeck.launcher.session.SessionDisplay.panelSize(this),
-                hdr = hdrOn, hdrReason = hdrReason, fpsLimit = fpsLimit,
+                hdr = hdrOn, hdrReason = hdrReason,
                 upscaler = upscaler, upscaleSharpness = upscaleSharpness,
                 gpuDrivers = drivers.summary(),
                 touchMode = touchMode,
@@ -1617,10 +2280,10 @@ class FrontEndActivity : ComponentActivity() {
                 steamDownloadsInBackground = steamDownloadsInBackground,
                 pipSupported = com.droiddeck.launcher.session.SessionPipController.supported(this),
                 pipAutoEnter = pipAutoEnter,
-                unfoldedControls = if (mode == SessionService.MODE_STEAM &&
-                    com.droiddeck.launcher.session.SessionDisplay.foldable(this)) unfoldedControls else null,
+                unfoldedControls = if (mode == SessionService.MODE_STEAM) unfoldedControls else null,
                 unfoldedControlsWithController = unfoldedControlsWithController,
                 oscMode = if (mode == SessionService.MODE_STEAM) oscMode else null,
+                backHold = backHold,
                 backActionsInverted = backActionsInverted,
                 directAudio = if (mode == SessionService.MODE_STEAM) directAudio else null,
                 picturePosition = if (mode == SessionService.MODE_STEAM) picturePosition else null,
@@ -1628,26 +2291,26 @@ class FrontEndActivity : ComponentActivity() {
                 mic = if (mode == SessionService.MODE_STEAM) mic else null,
                 gameStorage = if (mode == SessionService.MODE_STEAM) gameStorage else null,
                 storageOptions = storageOptions,
+                steamLibraries = steamLibraries,
+                foundSteamLibraries = foundSteamLibraries,
+                allFilesAccessMissing = allFilesAccessMissing,
                 storageDiagnostics = mode == SessionService.MODE_STEAM && storageDiagnostics,
                 fexPreset = if (mode == SessionService.MODE_STEAM) fexPreset else null,
                 forceSsbs = forceSsbs,
                 syncBackend = if (mode == SessionService.MODE_STEAM) SessionPrefs.syncBackendOf(fastSync, fsyncFirst, syncFallback) else null,
                 steamClientArch = if (mode == SessionService.MODE_STEAM) steamClientArch else null,
                 returnAfterGame = if (mode == SessionService.MODE_STEAM) returnAfterGame else null,
+                shaderPrecache = if (mode == SessionService.MODE_STEAM) shaderPrecache else null,
                 steamRepairQueued = steamRepairQueued,
                 mangoapp = mangoapp,
                 steamController = if (mode == SessionService.MODE_STEAM) steamController else null,
-                runSteamAtStartup = mode == SessionService.MODE_STEAM && runSteamAtStartup,
+                startupSession = startupSession,
                 bootMovie = if (mode == SessionService.MODE_STEAM) bootMovie else null,
                 bootMovieSound = bootMovieSound,
                 bootMovieCustomName = bootMovieCustomName,
                 bootMovieImporting = bootMovieImporting,
                 bootMovieProgress = bootMovieProgress,
-                wifiDiscovery = if (mode == SessionService.MODE_STEAM) wifiDiscovery else null,
-                wifiDiscoveryPermission = wifiDiscoveryPermission,
-                wifiDiscoveryLocation = wifiDiscoveryLocation,
-                wifiDiscoveryAsked = wifiDiscoveryAsked,
-                wifiDiscoveryBlocked = wifiDiscoveryBlocked,
+                integration = if (mode == SessionService.MODE_STEAM) integrationState else null,
                 deckyInstalled = if (mode == SessionService.MODE_STEAM) decky.deckyInstalled else null,
                 deckyLatestRelease = if (mode == SessionService.MODE_STEAM) decky.deckyLatest else null,
                 deckyBranch = decky.deckyBranch,
@@ -1656,25 +2319,12 @@ class FrontEndActivity : ComponentActivity() {
                 deckyEnabled = decky.deckySupervisor, deckySessionRunning = SessionState.running,
             ),
             ModeSettingsActions(
-                onWifiDiscovery = { on ->
-                    if (!on) {
-                        SessionPrefs.setWifiDiscoveryEnabled(this, false)
-                        refreshWifiDiscovery()
-                    } else if (WifiDiscovery.permissionGranted(this)) {
-                        SessionPrefs.setWifiDiscoveryEnabled(this, true)
-                        refreshWifiDiscovery()
-                    } else if (wifiDiscoveryBlocked) {
-                        openWifiDiscoverySettings()
-                    } else {
-                        SessionPrefs.setWifiDiscoveryAsked(this)
-                        wifiLocationPermission.launch(WifiDiscovery.permissions)
-                    }
-                },
-                onWifiDiscoverySettings = { openWifiDiscoverySettings() },
+                onIntegration = ::configureIntegration,
+                onIntegrationAppInfo = ::openAppInfo,
+                onIntegrationLocation = ::openWifiDiscoverySettings,
                 onResolution = { value -> SessionPrefs.setResolutionChoice(this, mode, value); resolution = value },
                 onHdr = { on -> SessionPrefs.setHdr(this, mode, on); hdrOn = on },
                 onGpuDrivers = { openComponents(focusContent = true, tab = com.droiddeck.launcher.ui.GPU_TAB) },
-                onFpsLimit = { fps -> SessionPrefs.setFpsLimit(this, mode, fps); fpsLimit = fps },
                 onUpscaler = { m -> SessionPrefs.setUpscaler(this, m); upscaler = m },
                 onUpscaleSharpness = { pct -> SessionPrefs.setUpscaleSharpness(this, pct); upscaleSharpness = pct },
                 onTouch = { t -> SessionPrefs.setTouchMode(this, t); touchMode = t },
@@ -1689,6 +2339,7 @@ class FrontEndActivity : ComponentActivity() {
                     SessionPrefs.setUnfoldedControlsWithController(this, on); unfoldedControlsWithController = on
                 },
                 onOsc = { o -> SessionPrefs.setOscMode(this, o); oscMode = o },
+                onBackHold = { on -> SessionPrefs.setBackHold(this, on); backHold = on },
                 onBackActionsInverted = { inverted ->
                     SessionPrefs.setBackActionsInverted(this, inverted)
                     backActionsInverted = inverted
@@ -1707,6 +2358,22 @@ class FrontEndActivity : ComponentActivity() {
                 onPickGameStorageFolder = {
                     pickGameStorage.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.main_pick_game_storage), gameStorage.ifEmpty { null }))
                 },
+                onAddSteamLibrary = {
+                    pickSteamLibrary.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.libraries_pick), null))
+                },
+                onAddFoundSteamLibrary = { path -> addSteamLibrary(path) },
+                onAllowAllFilesAccess = { com.droiddeck.launcher.files.AllFilesAccess.open(this) },
+                onRenameSteamLibrary = { id, label ->
+                    SteamLibraries.rename(this, id, label)
+                    steamLibraries = SteamLibraries.list(this)
+                    refresh()
+                },
+                onRemoveSteamLibrary = { id ->
+                    SteamLibraries.remove(this, id)
+                    steamLibraries = SteamLibraries.list(this)
+                    refresh()
+                    refreshFoundSteamLibraries()
+                },
                 onStorageDiagnostics = { on ->
                     SessionPrefs.setStorageDiagnosticsEnabled(this, on)
                     storageDiagnostics = on
@@ -1720,13 +2387,19 @@ class FrontEndActivity : ComponentActivity() {
                     syncFallback = SessionPrefs.syncFallback(this)
                 },
                 onSteamRepair = { steamRepairQueued = SteamRepair.queue(this) },
-                onSteamClientArch = { id -> SessionPrefs.setSteamClientArch(this, id); steamClientArch = id; refresh() },
+                onSteamClientArch = { id ->
+                    SessionPrefs.setSteamClientArch(this, id)
+                    steamClientArch = id
+                    loadShaderPrecache(mode)
+                    refresh()
+                },
                 onMangoapp = { on -> SessionPrefs.setMangoapp(this, on); mangoapp = on },
                 onReturnAfterGame = { on -> SessionPrefs.setReturnAfterGame(this, on); returnAfterGame = on },
+                onShaderPrecache = { on -> SessionPrefs.setShaderPrecache(this, on); shaderPrecache = on },
                 onSteamController = { id -> SessionPrefs.setSteamController(this, id); steamController = id },
-                onRunSteamAtStartup = { on ->
-                    SessionPrefs.setRunSteamAtStartup(this, on)
-                    runSteamAtStartup = on
+                onStartupSession = { id ->
+                    SessionPrefs.setStartupSession(this, id)
+                    startupSession = id
                 },
                 onBootMovie = { id -> com.droiddeck.launcher.session.BootMovie.select(this, id); loadBootMovie() },
                 onBootMovieSound = { on -> SessionPrefs.setBootMovieSound(this, on); bootMovieSound = on },
@@ -1763,7 +2436,12 @@ class FrontEndActivity : ComponentActivity() {
             fsyncFirst = fsyncFirst,
             gamescopeRealtime = gamescopeRealtime,
             gpuClockPin = gpuClockPin,
-            prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, guestHostname = guestHostname, phantomWarning = phantomWarning,
+            ramCapMb = ramCapMb, vramCapMb = vramCapMb, zramClient = zramClient,
+            deviceRamMb = (android.app.ActivityManager.MemoryInfo()
+                .also((getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager)::getMemoryInfo).totalMem / (1024 * 1024)).toInt(),
+            ramCapAvailable = com.droiddeck.launcher.core.ZramSupport.supported(),
+            prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, cursorComposite = cursorComposite,
+            guestHostname = guestHostname, phantomWarning = phantomWarning,
             onClientOverride = { on -> SessionPrefs.setClientCpusOverride(this, on); clientOverride = on },
             onTuSysmem = { on -> SessionPrefs.setTuSysmem(this, on); tuSysmem = on },
             onZinkLazy = { on -> SessionPrefs.setZinkLazy(this, on); zinkLazy = on },
@@ -1775,8 +2453,12 @@ class FrontEndActivity : ComponentActivity() {
             onFsyncFirst = { on -> SessionPrefs.setFsyncFirst(this, on); fsyncFirst = on },
             onGamescopeRealtime = { on -> SessionPrefs.setGamescopeRealtime(this, on); gamescopeRealtime = on },
             onGpuClockPin = { on -> SessionPrefs.setGpuClockPin(this, on); gpuClockPin = on },
+            onRamCapMb = { mb -> SessionPrefs.setRamCapMb(this, mb); ramCapMb = mb },
+            onZramClient = { on -> SessionPrefs.setZramClient(this, on); zramClient = on },
+            onVramCapMb = { mb -> SessionPrefs.setVramCapMb(this, mb); vramCapMb = mb },
             onProotNoSeccomp = { on -> SessionPrefs.setProotNoSeccomp(this, on); prootNoSeccomp = on },
             onProotFastPath = { on -> SessionPrefs.setProotFastPath(this, on); prootFastPath = on },
+            onCursorComposite = { on -> SessionPrefs.setCursorComposite(this, on); cursorComposite = on },
             onGuestHostname = { name -> SessionPrefs.setGuestHostname(this, name) },
             onClientCore = { core, on ->
                 clientCores = if (on) clientCores + core else clientCores - core
@@ -1849,6 +2531,7 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun refreshAddedGames() {
+        checkUsbLink()
         sgdbKeyKnown()
         fetchAddedGameArt()
     }
@@ -1877,6 +2560,19 @@ class FrontEndActivity : ComponentActivity() {
     private var pipAutoEnter by mutableStateOf(false)
     private var unfoldedControls by mutableStateOf(false)
     private var unfoldedControlsWithController by mutableStateOf(false)
+    private var shaderPrecacheGeneration = 0
+
+    private fun loadShaderPrecache(mode: String) {
+        val generation = ++shaderPrecacheGeneration
+        shaderPrecache = null
+        if (mode != SessionService.MODE_STEAM) return
+        Thread({
+            val precache = SessionPrefs.shaderPrecache(this)
+            ui.post {
+                if (!isDestroyed && generation == shaderPrecacheGeneration) shaderPrecache = precache
+            }
+        }, "shader-precache").start()
+    }
 
     private fun loadModeSettings(mode: String) {
         pipAutoEnter = SessionPrefs.pipAutoEnter(this)
@@ -1892,11 +2588,11 @@ class FrontEndActivity : ComponentActivity() {
         steamRepairQueued = SteamRepair.queued(this)
         mangoapp = SessionPrefs.mangoapp(this)
         returnAfterGame = SessionPrefs.returnAfterGame(this)
+        loadShaderPrecache(mode)
         steamController = SessionPrefs.steamController(this)
-        runSteamAtStartup = SessionPrefs.runSteamAtStartup(this)
+        startupSession = SessionPrefs.startupSession(this)
         loadBootMovie()
         hdrOn = SessionPrefs.hdr(this, mode)
-        fpsLimit = SessionPrefs.fpsLimit(this, mode)
         upscaler = SessionPrefs.upscaler(this)
         upscaleSharpness = SessionPrefs.upscaleSharpness(this)
         hdrReason = com.droiddeck.launcher.wayland.HdrSupport.probe(this).reason
@@ -1904,6 +2600,7 @@ class FrontEndActivity : ComponentActivity() {
         suspendPolicy = SessionPrefs.suspendPolicy(this, mode)
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
         oscMode = SessionPrefs.oscMode(this)
+        backHold = SessionPrefs.backHold(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         directAudio = SessionPrefs.directAudio(this)
         picturePosition = SessionPrefs.picturePosition(this)
@@ -1911,6 +2608,8 @@ class FrontEndActivity : ComponentActivity() {
         mic = SessionPrefs.micEnabled(this)
         refreshWifiDiscovery()
         gameStorage = SessionPrefs.gameStorage(this)
+        steamLibraries = SteamLibraries.list(this)
+        if (mode == SessionService.MODE_STEAM) refreshFoundSteamLibraries()
         storageDiagnostics = SessionPrefs.storageDiagnosticsEnabled(this)
         settingsMode = mode
         Thread({
@@ -1940,6 +2639,21 @@ class FrontEndActivity : ComponentActivity() {
         }
         SessionPrefs.setGameStorage(this, path, label)
         gameStorage = path
+        checkUsbLink()
+        if (settingsMode == SessionService.MODE_STEAM) refreshFoundSteamLibraries()
+    }
+
+    private fun checkUsbLink() {
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) { ui.post { checkUsbLink() }; return }
+        val scan = ++usbScan
+        Thread({
+            val drive = runCatching { com.droiddeck.launcher.session.UsbLink.slowLibrary(this) }.getOrNull()
+            ui.post {
+                if (scan != usbScan || isFinishing) return@post
+                val due = drive?.takeIf { com.droiddeck.launcher.session.UsbLink.stillDue(this, it) }
+                if (due == null) { if (slowUsb != null) showSlowUsb(null) } else if (slowUsb?.key != due.key) showSlowUsb(due)
+            }
+        }, "usb-link").start()
     }
 
     private fun refreshCores() {
@@ -1950,20 +2664,30 @@ class FrontEndActivity : ComponentActivity() {
         gameCores = CpuCores.parse(SessionPrefs.gameCpus(this)).ifEmpty { CpuCores.all.toSet() }
         tuSysmem = SessionPrefs.tuSysmem(this)
         zinkLazy = SessionPrefs.zinkLazy(this)
+        vkBridge = SessionPrefs.vkBridge(this)
+        vkBridgeSafe = SessionPrefs.vkBridgeSafe(this)
+        bridgeProtonDxvk = SessionPrefs.bridgeProtonDxvk(this)
         noXalia = SessionPrefs.noXalia(this)
         fastSync = SessionPrefs.fastSync(this)
         syncFallback = SessionPrefs.syncFallback(this)
         fsyncFirst = SessionPrefs.fsyncFirst(this)
         gamescopeRealtime = SessionPrefs.gamescopeRealtime(this)
+        ramCapMb = SessionPrefs.ramCapMb(this)
+        zramClient = SessionPrefs.zramClient(this)
+        vramCapMb = SessionPrefs.vramCapMb(this)
         gpuClockPin = SessionPrefs.gpuClockPin(this)
         prootNoSeccomp = SessionPrefs.prootNoSeccomp(this)
         prootFastPath = SessionPrefs.prootFastPath(this)
+        cursorComposite = SessionPrefs.cursorComposite(this)
         guestHostname = SessionPrefs.guestHostname(this)
         refreshPhantomStatus()
     }
 
+    private fun gameDebugLogsNeedsRestart(): Boolean =
+        SessionPrefs.logsEnabled(this) && SessionPrefs.gameDebugLogsEnabled(this) &&
+            !SessionPaths.currentSessionLogsRetained(this)
+
     private fun refresh() {
-        // Until the scan finishes, the other client's games would launch in this one.
         val listX64 = SessionPrefs.activeSteamClientArch(this) == "x86_64"
         if (listX64 != steamGamesX64) {
             steamGamesX64 = listX64
@@ -1974,16 +2698,27 @@ class FrontEndActivity : ComponentActivity() {
         addedGamesArt = SessionPrefs.addedGamesArt(this)
         desktopInstalled = DesktopCatalog.desktopInstalled(this)
         desktopPresent = DesktopCatalog.desktopPresent(this)
+        battleNetInstalled = com.droiddeck.launcher.runtime.BattleNet.installed(this)
         offlineAccount = OfflineMode.account(this)
         offline = OfflineMode.enabled(this)
         installed = LinuxRuntimeInstaller.installedVersion(this)
         ready = LinuxRuntime.isInstalled(this)
+        vkBridge = SessionPrefs.vkBridge(this)
+        vkBridgeSafe = SessionPrefs.vkBridgeSafe(this)
+        bridgeProtonDxvk = SessionPrefs.bridgeProtonDxvk(this)
         removalPending = LinuxRuntimeInstaller.hasRemovalPending(this)
+        ui.post { autoUpdateRuntime() }
         frameGenLabel = FrameGen.label(this)
         romsDir = SessionPrefs.romsDir(this).takeIf { it.isNotEmpty() }
         logsEnabled = SessionPrefs.logsEnabled(this)
+        gameDebugLogsEnabled = SessionPrefs.gameDebugLogsEnabled(this)
+        gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart()
         vacDiagnostics = SessionPrefs.vacDiagnostics(this)
         agentCommands = com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this)
+        clearCachedApps = SessionPrefs.clearCachedApps(this)
+        adbPaired = WirelessAdbFix.hasSavedPairing(this)
+        memoryHud = SessionPrefs.memoryHud(this)
+        backgroundAppLimit = SessionPrefs.backgroundAppLimit(this)
         runningLabel = if (SessionState.running) when (SessionState.mode) {
             SessionService.MODE_DESKTOP -> getString(R.string.rail_desktop)
             SessionService.MODE_RUN -> Library.nameForProgram(SessionState.program)
@@ -1993,7 +2728,7 @@ class FrontEndActivity : ComponentActivity() {
         val scanGeneration = ++libraryScanGeneration
         val artRefreshesAtStart = HashMap(steamArtRefreshes)
         if (shortcutPicker) shortcutLibraryScanning = true
-        if (SessionPrefs.steamClientArch(this) == "x86_64" && !OfflineMode.enabled(this)) {
+        if (!OfflineMode.enabled(this)) {
             Thread({ com.droiddeck.launcher.session.FexCatalog.refresh(this) }, "fex-catalog").start()
         }
         Thread({
@@ -2015,15 +2750,32 @@ class FrontEndActivity : ComponentActivity() {
             }
             val scannedArch = SessionPrefs.activeSteamClientArch(this)
             val scannedX64 = scannedArch == "x86_64"
-            val games = if (ready) Library.launchableGames(this, arch = scannedArch) else emptyList()
+            val games = if (ready || com.droiddeck.launcher.runtime.LinuxRuntime.hasRootfs(this)) Library.launchableGames(this, arch = scannedArch) else emptyList()
             val all = games.distinctBy { it.gameId }
             if (ready && scanGeneration == libraryScanGeneration) com.droiddeck.launcher.frontend.LibraryCache.save(this, all, scannedX64)
             val endedSession = SessionState.sessionId.takeIf { !SessionState.running && it != null && it != componentSweepSession }
-            if (ready && (!componentSweepDone || endedSession != null)) {
+            val sweepDue = ready && (!componentSweepDone || endedSession != null)
+            if (sweepDue) {
                 componentSweepDone = true
                 endedSession?.let { componentSweepSession = it }
-                ui.postDelayed({ Thread({ com.droiddeck.launcher.frontend.AutoComponents.sweep(this, all) }, "components-sweep").start() }, 10_000)
             }
+            val restoreDue = synchronized(componentRestoreLock) {
+                val now = android.os.SystemClock.elapsedRealtime()
+                val due = ready && (lastComponentRestore == 0L || now - lastComponentRestore >= COMPONENT_RESTORE_MS)
+                if (due) {
+                    lastComponentRestore = now
+                } else if (ready && !componentRestoreRetry) {
+                    componentRestoreRetry = true
+                    ui.postDelayed({ retryComponentRestore() }, (COMPONENT_RESTORE_MS - (now - lastComponentRestore)).coerceAtLeast(0L))
+                }
+                due
+            }
+            if (restoreDue || sweepDue) ui.postDelayed({
+                Thread({
+                    if (restoreDue) runCatching { com.droiddeck.launcher.frontend.AutoComponents.restoreMissing(this) }.onFailure { Log.w(TAG, "components: restore failed", it) }
+                    if (sweepDue) com.droiddeck.launcher.frontend.AutoComponents.sweep(this, all)
+                }, "components-restore").start()
+            }, 10_000)
             ui.post {
                 if (scanGeneration == libraryScanGeneration) {
                     val current = steamGames.filter { it.library != Library.ADDED }.associateBy { it.appId }
@@ -2058,12 +2810,16 @@ class FrontEndActivity : ComponentActivity() {
             Thread({ checkCatalog() }, "catalog").start()
             return
         }
-        if (installed == null && !com.droiddeck.launcher.core.DeviceSupport.adreno()) { showNonAdreno = release; return }
+        if (installed == null && !com.droiddeck.launcher.core.DeviceSupport.canDraw(this)) { showNonAdreno = release; return }
         install(release)
     }
 
     private fun startSession(intent: Intent, steamSession: Boolean = false): Boolean {
         if (busy || LinuxRuntimeInstaller.isBusy()) return false
+        if (SessionState.installing != null && !SessionState.running) {
+            android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
+            return false
+        }
         if (com.droiddeck.launcher.storage.StorageState.cleaning) {
             android.widget.Toast.makeText(this, R.string.storage_cleanup_busy, android.widget.Toast.LENGTH_SHORT).show()
             return false
@@ -2073,7 +2829,7 @@ class FrontEndActivity : ComponentActivity() {
             showPhantomGate = true
             return false
         }
-        val warn = installed == null && !com.droiddeck.launcher.core.DeviceSupport.adreno()
+        val warn = installed == null && !com.droiddeck.launcher.core.DeviceSupport.canDraw(this)
         if (warn && available != null) { showNonAdreno = available; return false }
         startActivity(intent)
         return true
@@ -2081,6 +2837,7 @@ class FrontEndActivity : ComponentActivity() {
 
     private fun refreshPhantomStatus() {
         phantomProcessStatus = PhantomProcessLimit.read(this)
+        adbPaired = WirelessAdbFix.hasSavedPairing(this)
         phantomWarning = if (PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
             getString(
                 R.string.phantom_warning, PhantomProcessLimit.title(this, phantomProcessStatus),
@@ -2112,7 +2869,7 @@ class FrontEndActivity : ComponentActivity() {
     private fun runtimeChangesBlocked(): Boolean =
         busy || LinuxRuntimeInstaller.isBusy() || SessionState.running ||
             SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED) ||
-            protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null ||
+            protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null || componentsQueueBusy ||
             components.compBusy != null || saveBusy != null || com.droiddeck.launcher.store.UserAppsState.working != null
 
     private fun removeDesktop() {
@@ -2172,18 +2929,41 @@ class FrontEndActivity : ComponentActivity() {
         }, "runtime-operation").start()
     }
 
+    private fun autoUpdateRuntime() {
+        val release = available?.takeIf { catalogFresh } ?: return
+        if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) || runtimeChangesBlocked() || removalPending) return
+        if (release.version == installed || installed == null) return
+        if (com.droiddeck.launcher.runtime.RuntimeAutoUpdate.claim(this, installed, release.version)) {
+            Log.i(TAG, "runtime: updating $installed to ${release.version} by itself")
+            install(release)
+        }
+    }
+
     private fun checkCatalog() {
         val release = LinuxRuntimeInstaller.fetchRelease()
         Log.i(TAG, "catalog: " + (release?.version ?: "unreachable"))
-        ui.post { if (release != null) available = release }
+        ui.post {
+            if (release == null) return@post
+            available = release
+            catalogFresh = true
+            autoUpdateRuntime()
+        }
     }
 
     companion object {
+        private const val STATE_HOME_CHOICE_OPEN = "home_choice_open"
+        private const val KEY_PENDING_SESSION_LOG_EXPORT = "pending_session_log_export"
+        private const val STATE_GAME_SPACE_OFFERED = "game_space_offered"
         private const val TAG = "MainActivity"
         private const val MEDIA_SETTLE_MS = 1500L
+        private const val COMPONENT_RESTORE_MS = 60_000L
+        private const val LINK_PANEL_MS = 1500L
         private const val SESSION_SWITCH_WAIT_MS = 30_000L
         private const val SESSION_SWITCH_POLL_MS = 250L
         private const val KEY_PENDING_SWITCH = "pending_switch"
+        private const val KEY_COMPAT_LAUNCH = "compat_launch"
+        private const val KEY_COMPAT_MENU_INSTALL = "compat_menu_install"
+        private const val KEY_COMPAT_PROBLEM = "compat_problem"
         private const val KEY_SWITCHING_TO = "switching_to"
         private const val KEY_SWITCH_DEADLINE = "switch_deadline"
         private val SESSION_ENDED = setOf(SessionPhase.IDLE, SessionPhase.FAILED)

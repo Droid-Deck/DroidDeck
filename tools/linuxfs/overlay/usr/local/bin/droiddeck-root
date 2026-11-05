@@ -1,0 +1,94 @@
+#!/usr/bin/python3
+import array
+import json
+import os
+import signal
+import socket
+import struct
+import sys
+
+SOCKET_FILE = "/etc/droiddeck/root-socket"
+
+
+def socket_name():
+    name = os.environ.get("DROIDDECK_ROOT_SOCKET", "")
+    if not name:
+        try:
+            with open(SOCKET_FILE, encoding="utf-8") as f:
+                name = f.read().strip()
+        except OSError:
+            pass
+    return "\0" + (name or "com.droiddeck.launcher.root")
+
+
+def frame(sock, kind, payload):
+    sock.sendall(kind.encode() + struct.pack(">i", len(payload)) + payload)
+
+
+def read_exact(sock, n):
+    data = b""
+    while len(data) < n:
+        chunk = sock.recv(n - len(data))
+        if not chunk:
+            return None
+        data += chunk
+    return data
+
+
+def main(argv):
+    if len(argv) < 2 or argv[1] in ("-h", "--help"):
+        print("usage: droiddeck-root [--check] command [arg ...]", file=sys.stderr)
+        return 2
+    try:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.connect(socket_name())
+    except OSError as e:
+        print(f"droiddeck-root: DroidDeck's root service is not reachable: {e}", file=sys.stderr)
+        return 126
+    if argv[1] == "--check":
+        return 0
+    env = dict(os.environ)
+    for name in ("LD_PRELOAD", "PROOT_FASTPATH", "DROIDDECK_ROOT_SOCKET"):
+        env.pop(name, None)
+    for name in [k for k in env if k.startswith("PROOT_")]:
+        env.pop(name, None)
+    try:
+        cwd = os.getcwd()
+    except OSError:
+        cwd = "/root"
+    body = json.dumps({"argv": argv[1:], "env": env, "cwd": cwd}).encode()
+    fds = array.array("i", [0, 1, 2])
+    sock.sendmsg([b"R" + struct.pack(">i", len(body))], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fds)])
+    sock.sendall(body)
+
+    def forward(signum, _frame):
+        try:
+            frame(sock, "S", str(signum).encode())
+        except OSError:
+            pass
+
+    for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT, signal.SIGUSR1, signal.SIGUSR2):
+        signal.signal(signum, forward)
+    signal.signal(signal.SIGTSTP, signal.SIG_IGN)
+    status = 1
+    while True:
+        try:
+            head = read_exact(sock, 5)
+        except InterruptedError:
+            continue
+        except OSError:
+            break
+        if head is None:
+            break
+        kind = chr(head[0])
+        payload = read_exact(sock, struct.unpack(">i", head[1:])[0]) or b""
+        if kind == "E":
+            print("droiddeck-root: " + payload.decode(errors="replace"), file=sys.stderr)
+        elif kind == "X":
+            status = int(payload.decode() or "1")
+            break
+    return status
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

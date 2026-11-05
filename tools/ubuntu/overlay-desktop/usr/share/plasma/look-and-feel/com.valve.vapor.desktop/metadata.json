@@ -1,0 +1,22 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "",
+                "Name": "Valve"
+            }
+        ],
+        "Category": "",
+        "Description": "Vapor - SteamOS theme variant of KDE BreezeDark",
+        "Id": "com.valve.vapor.desktop",
+        "License": "GPLv2+",
+        "Name": "Vapor",
+        "ServiceTypes": [
+            "Plasma/LookAndFeel"
+        ],
+        "Version": "0.01",
+        "Website": ""
+    },
+    "X-KDE-ParentApp": "",
+    "X-Plasma-MainScript": "defaults"
+}

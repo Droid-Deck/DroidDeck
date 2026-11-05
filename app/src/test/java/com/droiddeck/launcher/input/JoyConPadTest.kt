@@ -19,6 +19,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
 import org.robolectric.shadows.InputDeviceBuilder
+import org.robolectric.shadows.ShadowBuild
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], manifest = Config.NONE, instrumentedPackages = ["com.droiddeck.launcher.input.FakeInputWriter"],
@@ -82,6 +83,34 @@ class JoyConPadTest {
         assertEquals(0, RecordingWriter.grips)
     }
 
+    @Test fun novaControllerUsesCForTheLeftPaddleAndZForTheRight() {
+        ShadowBuild.setModel("Retroid Pocket Nova")
+        for (product in listOf(0x3001, 0x3002)) {
+            val pad = controller(0x2022, product)
+            assertPaddles(pad, KeyEvent.KEYCODE_BUTTON_C, KeyEvent.KEYCODE_BUTTON_Z)
+            bridge.onDeviceRemoved(pad.id)
+        }
+    }
+
+    @Test fun theSameControllerIdsKeepTheDefaultPaddlesOnOtherHandhelds() {
+        for (product in listOf(0x3001, 0x3002)) {
+            val pad = controller(0x2022, product)
+            for (model in listOf("Retroid Pocket 6", "Retroid Pocket 5", "AYN Thor")) {
+                ShadowBuild.setModel(model)
+                assertPaddles(pad, KeyEvent.KEYCODE_BUTTON_Z, KeyEvent.KEYCODE_BUTTON_C)
+            }
+            bridge.onDeviceRemoved(pad.id)
+        }
+    }
+
+    @Test fun otherControllerIdsKeepTheDefaultPaddlesOnANova() {
+        ShadowBuild.setModel("Retroid Pocket Nova")
+        for (pad in listOf(controller(0x045e, 0x0b13), controller(0x2022, 0x3003), controller(0x2020, 0x3001))) {
+            assertPaddles(pad, KeyEvent.KEYCODE_BUTTON_Z, KeyEvent.KEYCODE_BUTTON_C)
+            bridge.onDeviceRemoved(pad.id)
+        }
+    }
+
     @Test fun whenOneJoyConLeavesTheOtherKeepsThePlayer() {
         pair()
         assertTrue(press(right, KeyEvent.KEYCODE_BUTTON_A, BTN_SOUTH))
@@ -140,6 +169,17 @@ class JoyConPadTest {
 
     private fun pad(slot: Int): PadState = RecordingWriter.pads[slot] ?: PadState()
 
+    private fun assertPaddles(device: InputDevice, leftCode: Int, rightCode: Int) {
+        assertTrue(bridge.onKeyEvent(key(device, leftCode, 0)))
+        assertEquals(DeckControls.L4, RecordingWriter.grips)
+        assertTrue(bridge.onKeyEvent(key(device, rightCode, 0)))
+        assertEquals(DeckControls.L4 or DeckControls.R4, RecordingWriter.grips)
+        assertTrue(bridge.onKeyEvent(key(device, leftCode, 0, KeyEvent.ACTION_UP)))
+        assertEquals(DeckControls.R4, RecordingWriter.grips)
+        assertTrue(bridge.onKeyEvent(key(device, rightCode, 0, KeyEvent.ACTION_UP)))
+        assertEquals(0, RecordingWriter.grips)
+    }
+
     private fun press(device: InputDevice, code: Int, scanCode: Int): Boolean =
         bridge.onKeyEvent(JoyCon.normalize(key(device, code, scanCode)))
 
@@ -162,10 +202,12 @@ class JoyConPadTest {
 
     private var nextId = 60
 
-    private fun joyCon(product: Int, vararg axes: Int): InputDevice {
+    private fun joyCon(product: Int, vararg axes: Int): InputDevice = controller(NINTENDO, product, *axes)
+
+    private fun controller(vendor: Int, product: Int, vararg axes: Int): InputDevice {
         val id = nextId++
         val builder = InputDeviceBuilder.newBuilder().setId(id).setName("Joy-Con $id").setDescriptor("joycon-$id")
-            .setExternal(true).setVendorId(NINTENDO).setProductId(product)
+            .setExternal(true).setVendorId(vendor).setProductId(product)
             .setSources(InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_JOYSTICK or InputDevice.SOURCE_KEYBOARD)
             .setKeyboardType(InputDevice.KEYBOARD_TYPE_NON_ALPHABETIC)
             .setKeyCharacterMap(KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD))

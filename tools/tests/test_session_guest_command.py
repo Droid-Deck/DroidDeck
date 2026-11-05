@@ -1,9 +1,3 @@
-"""Exercise the literal launch prefix from SessionService without an Android runtime.
-
-This is a focused source/exec regression check, not a Kotlin or PRoot integration
-test. PRoot executes the first guest argument directly; KEY=VALUE is meaningful
-only after /usr/bin/env. Read the production prefix rather than duplicate it.
-"""
 import json
 from pathlib import Path
 import re
@@ -22,7 +16,7 @@ PACKAGES = [line.split()[1] for line in VARIANTS.read_text().splitlines()
 def guest_prefix(package):
     source = SERVICE.read_text()
     before_environment = source.split("val guest = ArrayList<String>()", 1)[1].split(
-        "addClientEnvironment(guest, steamHere)", 1)[0]
+        "addClientEnvironment(guest,", 1)[0]
     environment = source.split("private fun addClientEnvironment(", 1)[1].split(
         'guest.add("HOME=/root")', 1)[0]
     prefix = []

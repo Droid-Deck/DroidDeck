@@ -27,6 +27,8 @@ import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.InsertDriveFile
 import androidx.compose.material.icons.outlined.SdCard
 import androidx.compose.material.icons.outlined.Smartphone
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -81,8 +83,8 @@ internal class PickFolder(val dir: File, val readable: Boolean)
 
 internal class PickListing(val folders: List<PickFolder>, val files: List<File>)
 
-internal fun pickListing(dir: File, kind: PickKind): PickListing {
-    val all = dir.listFiles()?.filter { !it.name.startsWith(".") }.orEmpty().sortedBy { it.name.lowercase() }
+internal fun pickListing(dir: File, kind: PickKind, showHidden: Boolean = false): PickListing {
+    val all = dir.listFiles()?.filter { showHidden || !it.name.startsWith(".") }.orEmpty().sortedBy { it.name.lowercase() }
     return PickListing(
         all.filter { it.isDirectory }.map { PickFolder(it, it.canRead() && it.list() != null) },
         all.filter { it.isFile && it.extension.lowercase() in kind.extensions },
@@ -92,11 +94,13 @@ internal fun pickListing(dir: File, kind: PickKind): PickListing {
 @Composable
 internal fun ExePickerDialog(
     title: String, kind: PickKind = PickKind.EXE, start: File? = null,
-    onAddAll: ((File) -> Unit)? = null, onPick: (File) -> Unit, onDismiss: () -> Unit,
+    onAddAll: ((File, Boolean) -> Unit)? = null, onPick: (File) -> Unit, onDismiss: () -> Unit,
 ) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val density = LocalDensity.current
+    val prefs = remember(ctx) { ctx.getSharedPreferences("game_picker", Context.MODE_PRIVATE) }
+    var showHidden by remember { mutableStateOf(prefs.getBoolean("show_hidden", false)) }
     val shown = rememberShown(onDismiss)
     val close = { shown.targetState = false }
     val volumes = remember { pickVolumes(ctx) }
@@ -107,14 +111,23 @@ internal fun ExePickerDialog(
     val back = { if (dir == null) close() else up() }
     val first = remember(dir) { FocusRequester() }
     LaunchedEffect(dir) { focusWithinFrames({ false }) { first } }
-    val listing = remember(dir) { dir?.let { pickListing(it, kind) } }
+    val listing = remember(dir, showHidden) { dir?.let { pickListing(it, kind, showHidden) } }
     var locked by remember { mutableStateOf<Dp?>(null) }
     AppDialog(
         shown, close, "filePicker", wide = false, maxWidth = 520.dp, width = locked, fitContent = locked == null, back = back,
         modifier = Modifier.onSizeChanged { if (locked == null && it.width > 0) locked = with(density) { it.width.toDp() } },
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-            DialogTitleRow(title, onClose = close)
+            DialogTitleRow(title, onClose = close, leading = {
+                SmallIconButton(
+                    if (showHidden) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                    stringResource(if (showHidden) R.string.fm_hide_hidden else R.string.fm_show_hidden),
+                    if (showHidden) colors.primary else colors.onSurfaceVariant,
+                ) {
+                    showHidden = !showHidden
+                    prefs.edit().putBoolean("show_hidden", showHidden).apply()
+                }
+            })
             if (dir != null && volume != null) {
                 val crumbs = listOf(volume.label) + dir!!.path.removePrefix(volume.root.path).split('/').filter { it.isNotEmpty() }
                 Text(crumbs.joinToString(" › "), fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -135,7 +148,7 @@ internal fun ExePickerDialog(
                     val shownListing = listing ?: PickListing(emptyList(), emptyList())
                     PickerRow(Icons.AutoMirrored.Outlined.ArrowBack, "..", null, focus = first, onClick = up)
                     if (onAddAll != null && shownListing.folders.any { it.readable }) {
-                        PickerRow(Icons.Filled.Add, stringResource(R.string.games_add_all), null, accent = true) { onAddAll(dir!!); close() }
+                        PickerRow(Icons.Filled.Add, stringResource(R.string.games_add_all), null, accent = true) { onAddAll(dir!!, showHidden); close() }
                     }
                     for (f in shownListing.folders) key(f.dir.path) {
                         PickerRow(Icons.Outlined.Folder, f.dir.name, null, enabled = f.readable) { dir = f.dir }

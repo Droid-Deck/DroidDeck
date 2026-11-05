@@ -123,6 +123,103 @@ class WinComponentsTest(unittest.TestCase):
         self.assertEqual(names, [])
         self.assertEqual(notes, ["physx is not installed; skipped"])
 
+    def test_a_component_gone_from_the_store_keeps_what_it_placed(self):
+        self.component("dmband", ["dmband"], {"syswow64/dmband.dll": b"band"})
+        meta = self.store / "directmusic"
+        meta.mkdir(parents=True)
+        (meta / "component.json").write_text(json.dumps({"id": "directmusic", "overrides": [], "requires": ["dmband"]}))
+        self.component("openal", ["openal32"], {"syswow64/OpenAL32.dll": b"x86"})
+        self.pick("directmusic", "openal")
+        self.apply()
+        for cid in ("dmband", "directmusic", "openal"):
+            for path in sorted((self.store / cid).rglob("*"), reverse=True):
+                path.rmdir() if path.is_dir() else path.unlink()
+            (self.store / cid).rmdir()
+        names, notes = self.apply()
+        self.assertEqual(MODULE["overrides_value"](names), "dmband=n,b;openal32=n,b")
+        self.assertEqual((self.pfx / "syswow64/dmband.dll").read_bytes(), b"band")
+        self.assertEqual((self.pfx / "syswow64/openal32.dll").read_bytes(), b"x86")
+        self.assertTrue(all("kept the files it placed" in note for note in notes), notes)
+        self.component("openal", ["openal32"], {"syswow64/OpenAL32.dll": b"x86 v2"})
+        os.utime(self.store / "openal/syswow64/OpenAL32.dll", (1, 1))
+        names, _ = self.apply()
+        self.assertEqual(MODULE["overrides_value"](names), "dmband=n,b;openal32=n,b")
+        self.assertEqual((self.pfx / "syswow64/openal32.dll").read_bytes(), b"x86 v2")
+        self.pick()
+        self.apply()
+        self.assertFalse((self.pfx / "syswow64/dmband.dll").exists())
+        self.assertFalse((self.pfx / "syswow64/openal32.dll").exists())
+
+    def test_state_from_before_the_update_keeps_a_missing_bundles_parts(self):
+        self.component("dmband", ["dmband"], {"syswow64/dmband.dll": b"band"})
+        meta = self.store / "directmusic"
+        meta.mkdir(parents=True)
+        (meta / "component.json").write_text(json.dumps({"id": "directmusic", "overrides": [], "requires": ["dmband"]}))
+        self.pick("directmusic")
+        self.apply()
+        state_file = self.compat / ".droiddeck-wincomponents.json"
+        state = json.loads(state_file.read_text())
+        rel = next(iter(state["files"]))
+        state_file.write_text(json.dumps({"files": state["files"], "components": state["components"], "registry": {}}))
+        for cid in ("dmband", "directmusic"):
+            for path in sorted((self.store / cid).rglob("*"), reverse=True):
+                path.rmdir() if path.is_dir() else path.unlink()
+            (self.store / cid).rmdir()
+        dll = self.compat / "pfx" / rel
+        for _ in range(2):
+            names, notes = self.apply()
+            self.assertEqual(MODULE["overrides_value"](names), "dmband=n,b")
+            self.assertEqual(dll.read_bytes(), b"band")
+            self.assertEqual(len(notes), 2)
+            saved = json.loads(state_file.read_text())
+            self.assertEqual(saved["guessed"], ["directmusic"])
+            self.assertNotIn("directmusic", saved["requires"])
+        self.component("dmband", ["dmband"], {"syswow64/dmband.dll": b"band2"})
+        names, _ = self.apply()
+        self.assertEqual(MODULE["overrides_value"](names), "dmband=n,b")
+        self.assertEqual(dll.read_bytes(), b"band2")
+        self.assertEqual(json.loads(state_file.read_text())["guessed"], ["directmusic"])
+        self.pick()
+        self.apply()
+        self.assertFalse(dll.exists())
+
+    def test_a_missing_legacy_bundle_with_its_own_files_keeps_its_parts_and_their_registry(self):
+        self.pfx.parent.mkdir(parents=True)
+        user = self.compat / "pfx/user.reg"
+        user.write_text('WINE REGISTRY Version 2\n\n[Software\\\\Test] 1700000000\n"Mode"="ours"\n')
+        ident = "HKCU\tsoftware\\test\tmode"
+        own = self.compat / "pfx/drive_c/windows/syswow64/bundle.dll"
+        part = self.compat / "pfx/drive_c/windows/syswow64/part.dll"
+        for path in (own, part):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"x")
+        self.compat.joinpath(".droiddeck-wincomponents.json").write_text(json.dumps({
+            "files": {"drive_c/windows/syswow64/bundle.dll": "bundle", "drive_c/windows/syswow64/part.dll": "part"},
+            "components": ["bundle", "part", "tweak"],
+            "registry": {ident: {"prev": None, "cid": "tweak", "hive": "HKCU", "key": "Software\\Test", "name": "Mode"}}}))
+        self.pick("bundle")
+        names, _ = self.apply()
+        self.assertEqual(set(MODULE["overrides_value"](names).split(";")), {"bundle=n,b", "part=n,b"})
+        self.assertTrue(own.exists() and part.exists())
+        self.assertIn('"Mode"="ours"', user.read_text())
+        saved = json.loads((self.compat / ".droiddeck-wincomponents.json").read_text())
+        self.assertEqual(saved["guessed"], ["bundle"])
+        self.assertIn(ident, saved["registry"])
+
+    def test_a_missing_component_that_only_set_registry_values_keeps_them(self):
+        self.pfx.parent.mkdir(parents=True)
+        user = self.compat / "pfx/user.reg"
+        user.write_text('WINE REGISTRY Version 2\n\n[Software\\\\Test] 1700000000\n"Mode"="ours"\n')
+        ident = "HKCU\tsoftware\\test\tmode"
+        self.compat.joinpath(".droiddeck-wincomponents.json").write_text(json.dumps({
+            "files": {}, "components": ["tweak"], "requires": {}, "overrides": {"tweak": []},
+            "registry": {ident: {"prev": None, "cid": "tweak", "hive": "HKCU", "key": "Software\\Test", "name": "Mode"}}}))
+        self.pick("tweak")
+        _, notes = self.apply()
+        self.assertIn('"Mode"="ours"', user.read_text())
+        self.assertIn("tweak is not in the store; kept the files it placed until it is installed again", notes)
+        self.assertIn(ident, json.loads((self.compat / ".droiddeck-wincomponents.json").read_text())["registry"])
+
     def test_no_selection_touches_nothing(self):
         self.assertEqual(self.apply(), ([], []))
         self.assertFalse(self.compat.exists())
@@ -177,10 +274,13 @@ class PendingWaitTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def install(self, cid):
+    def install(self, cid, revision=0):
         folder = self.store / cid
         folder.mkdir(parents=True, exist_ok=True)
-        (folder / "component.json").write_text(json.dumps({"id": cid, "overrides": []}))
+        metadata = {"id": cid, "overrides": []}
+        if revision is not None:
+            metadata["revision"] = revision
+        (folder / "component.json").write_text(json.dumps(metadata))
 
     def clock(self):
         return len(self.slept) * 0.5
@@ -199,6 +299,8 @@ class PendingWaitTest(unittest.TestCase):
         self.install("d3dx9")
         self.pending.write_text(json.dumps({"games": {"1262580": ["d3dx9"]}}))
         self.assertIsNone(self.wait())
+        self.install("d3dx9", revision=None)
+        self.assertIsNone(self.wait())
         self.assertEqual([], self.slept)
 
     def test_waits_until_the_component_lands(self):
@@ -213,6 +315,21 @@ class PendingWaitTest(unittest.TestCase):
         note = self.wait(timeout=2.0)
         self.assertEqual(4, len(self.slept))
         self.assertEqual("wincomp: 1262580 launched without vcredist2019_dll (not ready)", note)
+
+    def test_an_existing_old_revision_waits_until_the_repair_lands(self):
+        self.install("vcredist2010_dll", revision=0)
+        self.pending.write_text(json.dumps({"games": {"1262580": ["vcredist2010_dll"]},
+                                           "revisions": {"vcredist2010_dll": 1}}))
+        note = self.wait(on_sleep=lambda n: self.install("vcredist2010_dll", revision=1) if n == 3 else None)
+        self.assertEqual(3, len(self.slept))
+        self.assertEqual(note, "wincomp: 1262580 waited 1500ms for vcredist2010_dll")
+
+    def test_an_old_revision_does_not_satisfy_a_pending_repair(self):
+        self.install("vcredist2010_dll", revision=1)
+        self.pending.write_text(json.dumps({"games": {"1262580": ["vcredist2010_dll"]},
+                                           "revisions": {"vcredist2010_dll": 2}}))
+        self.assertEqual(self.wait(timeout=1.0), "wincomp: 1262580 launched without vcredist2010_dll (not ready)")
+        self.assertEqual(2, len(self.slept))
 
     def test_a_damaged_pending_file_is_no_wait(self):
         self.pending.write_text("{not json")

@@ -3,6 +3,8 @@ package com.droiddeck.launcher.stores.gog;
 import android.content.Context;
 import android.util.Log;
 
+import com.droiddeck.launcher.frontend.AddedGames;
+import com.droiddeck.launcher.runtime.GuestCommand;
 import com.droiddeck.launcher.stores.StoreLanguage;
 import com.droiddeck.launcher.stores.StoreLog;
 import com.droiddeck.launcher.stores.download.StoreDownloadTier;
@@ -21,9 +23,15 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -58,13 +66,18 @@ public final class GogDownloadManager {
         public final long bytes;
         public List<String> dependencies = new ArrayList<>();
         public boolean dependenciesRead = false;
-        /** Language actually written, after the manifest's depot list resolved the request. Null for builds that have no language depots. */
         public String language;
+        /** GOG's working directory for the exe: "" is the install root, null when no task declared it. */
+        public String workDir;
         Result(String exeRelative, String buildId, long bytes) { this.exeRelative = exeRelative; this.buildId = buildId; this.bytes = bytes; }
     }
 
-    public static final class InstallException extends Exception {
+    public static class InstallException extends Exception {
         InstallException(String message) { super(message); }
+    }
+
+    public static final class InstallerException extends InstallException {
+        InstallerException(String message) { super(message); }
     }
 
     private GogDownloadManager() {}
@@ -97,7 +110,7 @@ public final class GogDownloadManager {
         String builds1Json = httpGet(builds1Url, null);
         if (builds1Json == null) builds1Json = httpGet(builds1Url, token);
         if (builds1Json == null) throw new InstallException("No builds available for this game");
-        Gen1Outcome one = runGen1(ctx, game, token, builds1Json, installPath, cb, cancelled);
+        Gen1Outcome one = runGen1(ctx, game, token, builds1Json, installPath, cb, cancelled, lang);
         if (one.result != null || cancelled.get()) return one.result;
         if (!"NO_CS_BUILDS".equals(one.error)) throw new InstallException("Download failed: " + one.error);
         cb.onProgress("No Galaxy builds; fetching the installer…", 12);
@@ -241,13 +254,20 @@ public final class GogDownloadManager {
             if (anyFailed.get()) { out.error = "one or more chunks failed to download"; return out; }
 
             cb.onProgress("Finishing…", 96);
+            try {
+                GogMaintenance.captureDepot(game.gameId, installPath, gm.buildId, buildsJson, manifest, new JSONArray(depotJsons), resolved);
+            } catch (Exception e) {
+                cb.onLog("gog: maintenance inventory not recorded: " + e.getMessage());
+            }
             writeFile(new File(installPath, MARKER), ("{\"gameId\":\"" + game.gameId + "\",\"buildId\":\"" + gm.buildId + "\"}").getBytes("UTF-8"));
             deleteCounted(new File(installPath, ".gog_chunks"), cb);
             String clientId = manifest.optString("clientId", null);
             if (clientId != null && !clientId.isEmpty()) GogPrefs.get(ctx).edit().putString("client_id_" + game.gameId, clientId).apply();
             String clientSecret = manifest.optString("clientSecret", null);
             if (clientSecret != null && !clientSecret.isEmpty()) GogPrefs.get(ctx).edit().putString("client_secret_" + game.gameId, clientSecret).apply();
-            out.result = new Result(pickExe(installPath, tempExe, game.title), gm.buildId, planned);
+            GameTask task = pickTask(installPath, game.gameId, tempExe, game.title);
+            out.result = new Result(task == null ? "" : task.path, gm.buildId, planned);
+            if (task != null) out.result.workDir = task.workDir;
             out.result.dependencies = dependencies;
             out.result.dependenciesRead = true;
             out.result.language = resolved;
@@ -270,7 +290,7 @@ public final class GogDownloadManager {
             String buildId = null, manifestUrl = null;
             for (int i = 0; i < items.length(); i++) {
                 JSONObject item = items.getJSONObject(i);
-                if ("windows".equals(item.optString("os"))) {
+                if ("windows".equals(item.optString("os")) && (item.isNull("branch") || item.optString("branch").isEmpty())) {
                     buildId = item.optString("build_id");
                     manifestUrl = item.optString("link");
                     if (manifestUrl == null || manifestUrl.isEmpty()) manifestUrl = item.optString("meta_url");
@@ -297,7 +317,6 @@ public final class GogDownloadManager {
         return StoreLanguage.depotMatchesResolved(listed, resolved);
     }
 
-    /** Language codes listed on this product's Windows gen2 depots, excluding `*`. */
     public static List<String> listLanguages(Context ctx, String gameId) {
         try {
             String token = GogAuth.validToken(ctx);
@@ -319,7 +338,7 @@ public final class GogDownloadManager {
 
     private static final class Gen1Outcome { Result result; String error; }
 
-    private static Gen1Outcome runGen1(Context ctx, GogGame game, String token, String buildsJson, File installPath, Callback cb, AtomicBoolean cancelled) {
+    private static Gen1Outcome runGen1(Context ctx, GogGame game, String token, String buildsJson, File installPath, Callback cb, AtomicBoolean cancelled, String language) {
         Gen1Outcome out = new Gen1Outcome();
         try {
             JSONObject builds = new JSONObject(buildsJson);
@@ -337,6 +356,15 @@ public final class GogDownloadManager {
             String manifestStr = decompressBytes(raw);
             if (manifestStr == null) { out.error = "manifest decompress failed"; return out; }
             JSONObject manifest = new JSONObject(manifestStr);
+            if (manifest.has("product")) {
+                try {
+                    out.result = GogMaintenance.installContent(ctx, game, installPath, builds, language, cb, cancelled);
+                    if (out.result == null && !cancelled.get()) out.error = "no usable public Windows build";
+                } catch (Exception e) {
+                    out.error = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+                }
+                return out;
+            }
             JSONArray depots = manifest.optJSONArray("depot");
             if (depots == null) { out.error = "no depot array"; return out; }
             List<Gen1File> files = new ArrayList<>();
@@ -410,7 +438,9 @@ public final class GogDownloadManager {
             if (anyFailed.get()) { out.error = "one or more files failed to download"; return out; }
             cb.onProgress("Finishing…", 96);
             writeFile(new File(installPath, MARKER), ("{\"gameId\":\"" + game.gameId + "\",\"generation\":1}").getBytes("UTF-8"));
-            out.result = new Result(pickExe(installPath, null, game.title), "", planned);
+            GameTask task = pickTask(installPath, game.gameId, null, game.title);
+            out.result = new Result(task == null ? "" : task.path, "", planned);
+            if (task != null) out.result.workDir = task.workDir;
             return out;
         } catch (Exception e) {
             out.error = "exception: " + e.getClass().getSimpleName();
@@ -424,48 +454,149 @@ public final class GogDownloadManager {
             String productJson = httpGet("https://api.gog.com/products/" + game.gameId + "?expand=downloads", token);
             if (productJson == null) throw new InstallException("No downloadable builds for this game");
             JSONObject downloads = new JSONObject(productJson).optJSONObject("downloads");
-            JSONArray installers = downloads == null ? null : downloads.optJSONArray("installers");
-            if (installers == null || installers.length() == 0) throw new InstallException("No downloadable builds for this game");
-            String manualUrl = null, fileName = null;
-            for (int i = 0; i < installers.length(); i++) {
-                JSONObject inst = installers.getJSONObject(i);
-                if (!"windows".equals(inst.optString("os"))) continue;
-                JSONArray files = inst.optJSONArray("files");
-                if (files != null && files.length() > 0) {
-                    JSONObject f = files.getJSONObject(0);
-                    manualUrl = f.optString("downlink", null);
-                    if (manualUrl == null) manualUrl = f.optString("manualUrl", null);
-                    fileName = f.optString("filename", null);
-                }
-                if (manualUrl == null) manualUrl = inst.optString("manualUrl", null);
-                if (fileName == null || fileName.isEmpty()) fileName = "setup_" + game.gameId + ".exe";
-                break;
-            }
-            if (manualUrl == null) throw new InstallException("No Windows installer for this game");
-            String downloadUrl = resolveRedirect(manualUrl, token);
-            if (downloadUrl == null) throw new InstallException("The installer link could not be resolved");
+            List<InstallerPart> parts = installerParts(downloads, game.gameId);
+            if (parts.isEmpty()) throw new InstallException("No downloadable builds for this game");
             installPath.mkdirs();
-            File outFile = new File(installPath, fileName);
-            cb.onProgress("Downloading installer: " + fileName, 15);
-            long size = downloadWithProgress(downloadUrl, outFile, cb, cancelled);
+            long planned = 0;
+            boolean sized = true;
+            for (InstallerPart part : parts) { planned += part.size; if (part.size <= 0) sized = false; }
+            if (sized) {
+                long usable = com.droiddeck.launcher.stores.StoreInstallRoot.availableBytes(installPath);
+                if (com.droiddeck.launcher.stores.StoreInstallRoot.insufficientSpace(planned, usable)) {
+                    throw new InstallException("Not enough free space: need " + formatBytes(planned) + ", only " + formatBytes(usable) + " free");
+                }
+            }
+            long total = 0;
+            for (InstallerPart part : parts) {
+                if (cancelled.get()) return null;
+                String downloadUrl = resolveRedirect(part.url, token);
+                if (downloadUrl == null) throw new InstallException("The installer link could not be resolved: " + part.filename);
+                File outFile;
+                try {
+                    outFile = installerDestination(installPath, part.filename);
+                } catch (IOException e) {
+                    throw new InstallException("The installer part is not inside the game folder: " + part.filename);
+                }
+                cb.onProgress("Downloading installer: " + part.filename, 15 + (int) ((total / (float) Math.max(1, planned)) * 80));
+                long size = downloadWithProgress(downloadUrl, outFile, cb, cancelled, total, sized ? planned : 0);
+                if (cancelled.get()) return null;
+                if (size <= 0) throw new InstallException("The installer download failed: " + part.filename);
+                total += size;
+            }
             if (cancelled.get()) return null;
-            if (size <= 0) throw new InstallException("The installer download failed");
-            cb.onLog("gog: installer downloaded; the game installs itself on first launch");
-            return new Result(fileName, "", size);
-        } catch (InstallException e) {
+            cb.onLog("gog: installer downloaded (" + parts.size() + " file(s)); extracting natively");
+            extractInstaller(ctx, installPath, parts.get(0).filename, cb, cancelled);
+            if (cancelled.get()) return null;
+            for (InstallerPart part : parts) new File(installPath, part.filename).delete();
+            deleteDir(new File(installPath, "tmp"));
+            deleteDir(new File(installPath, "commonappdata"));
+            GameTask task = pickTask(installPath, game.gameId, null, game.title);
+            String exe = task == null ? "" : task.path;
+            if (exe.isEmpty()) throw new InstallException("The installer was extracted but no game executable was found");
+            cb.onLog("gog: installer extracted natively; game exe " + exe);
+            GogMaintenance.captureOffline(game.gameId, installPath, downloads);
+            Result result = new Result(exe, "", total);
+            result.workDir = task.workDir;
+            return result;
+        } catch (InstallerException e) {
             throw e;
+        } catch (InstallException e) {
+            throw new InstallerException(e.getMessage());
         } catch (Exception e) {
-            throw new InstallException("Installer download error: " + e.getClass().getSimpleName());
+            throw new InstallerException("Installer download error: " + e.getClass().getSimpleName());
         }
     }
 
-    private static String resolveRedirect(String url, String token) {
+    private static void extractInstaller(Context ctx, File installPath, String setupName, Callback cb, AtomicBoolean cancelled) throws InstallException {
+        String guestDir = AddedGames.INSTANCE.guestPath(ctx, installPath);
+        if (guestDir == null || guestDir.isEmpty()) {
+            throw new InstallException("The game folder is not visible to the Linux session");
+        }
+        String guestSetup = guestDir + "/" + setupName;
+        cb.onProgress("Extracting installer…", 95);
+        int rc;
+        try {
+            rc = GuestCommand.INSTANCE.run(ctx, Arrays.asList(
+                    "/usr/local/bin/droiddeck-innoextract", "--gog", "--silent",
+                    "-d", guestDir, guestSetup),
+                    false, "gog-innoextract", null, null, false, cancelled,
+                    line -> { cb.onLog("gog innoextract: " + line); return kotlin.Unit.INSTANCE; });
+        } catch (Exception e) {
+            throw new InstallException("The installer could not be extracted: " + e.getClass().getSimpleName());
+        }
+        if (cancelled.get()) return;
+        if (rc != 0) throw new InstallException("The installer could not be extracted (innoextract exit " + rc + ")");
+    }
+
+    static final class InstallerPart {
+        final String url;
+        final String filename;
+        final long size;
+        InstallerPart(String url, String filename, long size) { this.url = url; this.filename = filename; this.size = size; }
+    }
+
+    static List<InstallerPart> installerParts(JSONObject downloads, String gameId) {
+        List<InstallerPart> out = new ArrayList<>();
+        if (downloads == null) return out;
+        JSONArray installers = downloads.optJSONArray("installers");
+        if (installers == null) return out;
+        for (int i = 0; i < installers.length(); i++) {
+            JSONObject inst = installers.optJSONObject(i);
+            if (inst == null || !"windows".equals(inst.optString("os"))) continue;
+            JSONArray files = inst.optJSONArray("files");
+            String base = null;
+            if (files != null) {
+                for (int j = 0; j < files.length(); j++) {
+                    JSONObject f = files.optJSONObject(j);
+                    if (f == null) continue;
+                    String url = f.optString("downlink", "");
+                    if (url.isEmpty()) url = f.optString("manualUrl", "");
+                    if (url.isEmpty()) continue;
+                    String name = partName(f.optString("filename", ""));
+                    if (name.isEmpty()) {
+                        if (base == null) base = "setup_" + safeName(gameId);
+                        name = out.isEmpty() ? base + ".exe" : base + "-" + out.size() + ".bin";
+                    } else if (base == null) {
+                        base = name.toLowerCase(java.util.Locale.US).endsWith(".exe") ? name.substring(0, name.length() - 4) : name;
+                    }
+                    out.add(new InstallerPart(url, name, f.optLong("size", 0)));
+                }
+            }
+            if (out.isEmpty()) {
+                String url = inst.optString("manualUrl", "");
+                if (url.isEmpty()) url = inst.optString("downlink", "");
+                if (!url.isEmpty()) out.add(new InstallerPart(url, "setup_" + safeName(gameId) + ".exe", inst.optLong("total_size", 0)));
+            }
+            if (!out.isEmpty()) return out;
+        }
+        return out;
+    }
+
+    static File installerDestination(File installPath, String filename) throws IOException {
+        File root = installPath.getCanonicalFile();
+        File candidate = new File(root, filename);
+        if (Files.isSymbolicLink(candidate.toPath())) throw new IOException("installer part is a link");
+        File out = candidate.getCanonicalFile();
+        if (out.equals(root) || !out.toPath().startsWith(root.toPath())) throw new IOException("installer part leaves the game folder");
+        return out;
+    }
+
+    private static String partName(String raw) {
+        return raw == null ? "" : new File(raw.replace('\\', '/')).getName();
+    }
+
+    private static String safeName(String raw) {
+        String cleaned = raw == null ? "" : raw.replaceAll("[^A-Za-z0-9._-]", "_");
+        return cleaned.isEmpty() ? "game" : cleaned;
+    }
+
+    static String resolveRedirect(String url, String token) {
         try {
             if (url.startsWith("/")) url = "https://www.gog.com" + url;
             for (int hop = 0; hop < 5; hop++) {
                 HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
                 conn.setConnectTimeout(TIMEOUT); conn.setReadTimeout(TIMEOUT); conn.setInstanceFollowRedirects(false);
-                if (token != null) conn.setRequestProperty("Authorization", "Bearer " + token);
+                if (token != null && (new URL(url).getHost().equals("gog.com") || new URL(url).getHost().endsWith(".gog.com"))) conn.setRequestProperty("Authorization", "Bearer " + token);
                 int code = conn.getResponseCode();
                 String location = conn.getHeaderField("Location");
                 if (code == 301 || code == 302 || code == 303 || code == 307 || code == 308) {
@@ -491,7 +622,7 @@ public final class GogDownloadManager {
         return null;
     }
 
-    private static long downloadWithProgress(String url, File out, Callback cb, AtomicBoolean cancelled) {
+    private static long downloadWithProgress(String url, File out, Callback cb, AtomicBoolean cancelled, long doneBefore, long planned) {
         try {
             HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
             conn.setConnectTimeout(TIMEOUT); conn.setReadTimeout(60_000);
@@ -507,7 +638,11 @@ public final class GogDownloadManager {
                     downloaded += n; windowBytes += n;
                     long elapsed = System.currentTimeMillis() - windowStart;
                     if (elapsed >= 500) { speed = windowBytes * 1000L / elapsed; windowStart = System.currentTimeMillis(); windowBytes = 0; }
-                    if (total > 0) {
+                    if (planned > 0) {
+                        long shown = doneBefore + downloaded;
+                        cb.onProgress("Downloading: " + out.getName() + speedSuffix(speed), 15 + (int) ((shown / (float) planned) * 80));
+                        cb.onBytes(shown, planned, speed);
+                    } else if (total > 0) {
                         cb.onProgress("Downloading: " + out.getName() + speedSuffix(speed), 15 + (int) ((downloaded / (float) total) * 80));
                         cb.onBytes(downloaded, total, speed);
                     }
@@ -565,6 +700,7 @@ public final class GogDownloadManager {
                     cb.onBytes(shown, planned, speedBps.get());
                 }
                 @Override public void onLog(String line) { cb.onLog(line); }
+                @Override public void onMaintenance(long networkBytes, long reusedBytes, long appliedBytes) {}
                 @Override public void onComplete(boolean success, boolean wasCancelled, boolean linkExpiry, String error, long bytesWritten, int filesDone) {
                     okRef.set(success); linkExpiryRef.set(linkExpiry); errRef.set(error == null ? "" : error); latch.countDown();
                 }
@@ -948,21 +1084,188 @@ public final class GogDownloadManager {
         dir.delete();
     }
 
-    static String pickExe(File installPath, String tempExe, String title) {
+    /**
+     * GOG's own manifest names the game's play task: Blood Omen's is kain.exe while dxconfig.exe is
+     * its separate tool task (#680). The product's own {@code goggame-<id>.info} decides when it has
+     * one; any other {@code goggame-*.info} in the folder is only the fallback. Builds without a
+     * manifest fall through to the hint and search below.
+     */
+    private static GameTask declaredGameTask(File installPath, String gameId) {
+        File own = gameId == null || gameId.isEmpty() ? null : new File(installPath, "goggame-" + gameId + ".info");
+        if (own != null && !own.isFile()) own = null;
+        List<File> others = new ArrayList<>();
+        File[] files = installPath.listFiles();
+        if (files != null) {
+            Arrays.sort(files);
+            for (File f : files) {
+                if (f.equals(own) || !f.isFile() || !f.getName().startsWith("goggame-") || !f.getName().endsWith(".info")) continue;
+                others.add(f);
+            }
+        }
+        if (own != null) {
+            GameTask task = bestGameTask(installPath, own);
+            if (task != null) return task;
+        }
+        GameTask best = null;
+        for (File manifest : others) {
+            GameTask task = bestGameTask(installPath, manifest);
+            if (task != null && (best == null || task.rank > best.rank)) best = task;
+        }
+        return best;
+    }
+
+    static final class GameTask {
+        final String path;
+        /** GOG's working directory for the task: "" is the install root, null when no task declared it. */
+        final String workDir;
+        final int rank;
+        GameTask(String path, String workDir, int rank) { this.path = path; this.workDir = workDir; this.rank = rank; }
+    }
+
+    /** The task this manifest would be played from, or null when it names none that exists. */
+    private static GameTask bestGameTask(File installPath, File manifest) {
+        JSONArray tasks;
+        try {
+            tasks = new JSONObject(new String(Files.readAllBytes(manifest.toPath()), StandardCharsets.UTF_8))
+                    .optJSONArray("playTasks");
+        } catch (Exception ignored) {
+            return null; // A truncated manifest is not a reason to fail an install that downloaded fine.
+        }
+        if (tasks == null) return null;
+        GameTask best = null;
+        for (int i = 0; i < tasks.length(); i++) {
+            JSONObject task = tasks.optJSONObject(i);
+            if (task == null) continue;
+            int rank = taskRank(task);
+            if (rank == 0 || (best != null && rank <= best.rank)) continue;
+            String path = task.optString("path", "").replace('\\', '/').replaceAll("/+", "/").replaceFirst("^(\\.?/)+", "");
+            if (path.isEmpty()) continue;
+            File exe = new File(installPath, path);
+            if (!exe.isFile() || gogSupportExe(exe.getName()) || !inside(installPath, exe)) continue;
+            best = new GameTask(path, taskWorkDir(installPath, task), rank);
+        }
+        return best;
+    }
+
+    /**
+     * GOG runs a task from its declared working directory, and from the installation root when the
+     * task declares none. The Witcher's play task is {@code System\witcher.exe}; started from
+     * {@code System} hand-built shortcuts cannot find the game's {@code Data} folder, so the root is
+     * recorded as "" and reaches the shortcut's Start In. A directory that leaves the folder, or is
+     * not there, falls back to the root rather than to a guess.
+     */
+    private static String taskWorkDir(File installPath, JSONObject task) {
+        String dir = task.optString("workingDir", "").replace('\\', '/').replaceAll("/+", "/").trim();
+        while (dir.startsWith("./")) dir = dir.substring(2);
+        dir = dir.replaceAll("^/+", "").replaceAll("/+$", "");
+        if (dir.isEmpty() || dir.equals(".")) return "";
+        File folder = new File(installPath, dir);
+        return folder.isDirectory() && inside(installPath, folder) ? dir : "";
+    }
+
+    /**
+     * GOG's categories that launch the game: a primary task wins, and a primary {@code launcher} is
+     * how GOG ships games that start through one. Only a primary {@code launcher} counts: GOG files
+     * the configuration tool beside a game as a non-primary {@code launcher}, so that one falls to
+     * the search rather than becoming the game. {@code tool} and {@code document} name no game.
+     */
+    private static int taskRank(JSONObject task) {
+        String category = task.optString("category").toLowerCase(Locale.ROOT);
+        boolean primary = task.optBoolean("isPrimary", false);
+        if ("game".equals(category)) return primary ? 4 : 2;
+        if ("launcher".equals(category)) return primary ? 3 : 0;
+        return 0;
+    }
+
+    /**
+     * GOG's Galaxy support executables sit in the game folder but install or patch its Galaxy files,
+     * never play the game. The Witcher: Enhanced Edition ships
+     * {@code galaxy_the_witcher_enhanced_edition_2.1.0.15.exe}, and its build metadata even names
+     * that file as the temp executable: launching it is the same 32-bit Inno Setup stub that stops
+     * at "Path not found" under ARM64 FEX (#694). Play tasks and the name search both step over it.
+     */
+    private static boolean gogSupportExe(String path) {
+        return new File(path.replace('\\', '/')).getName().toLowerCase(Locale.ROOT).startsWith("galaxy_");
+    }
+
+    /** Whether the canonical path of {@code file} stays below {@code root}. */
+    private static boolean inside(File root, File file) {
+        try {
+            return file.getCanonicalPath().startsWith(root.getCanonicalPath() + File.separator);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** Exe names that belong to the config or tool shims around the game, not to the game. */
+    private static final String[] TOOL_STEM_PARTS = {
+            "config", "setting", "setup", "install", "unins", "touchup", "crashreport",
+            "report", "editor", "launcher", "diagnostic",
+    };
+
+    static GameTask pickTask(File installPath, String gameId, String tempExe, String title) {
+        GameTask declared = declaredGameTask(installPath, gameId);
+        if (declared != null) return declared;
         if (tempExe != null) {
-            File hinted = new File(installPath, tempExe);
-            if (hinted.isFile()) return relative(installPath, hinted);
+            String hint = tempExe.replace('\\', '/');
+            File hinted = new File(installPath, hint);
+            if (!gogSupportExe(hint) && hinted.isFile() && inside(installPath, hinted)) return new GameTask(relative(installPath, hinted), null, 0);
         }
         List<File> candidates = new ArrayList<>();
         collectExeRecursive(installPath, candidates);
-        if (candidates.isEmpty()) return "";
-        String key = title.toLowerCase().replaceAll("[^a-z0-9]", "");
-        File best = candidates.get(0);
-        for (File f : candidates) {
-            String n = f.getName().toLowerCase().replaceAll("\\.exe$", "").replaceAll("[^a-z0-9]", "");
-            if (!n.isEmpty() && (n.equals(key) || key.startsWith(n) || n.startsWith(key))) { best = f; break; }
+        if (candidates.isEmpty()) return null;
+        String key = title.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+        List<String> words = new ArrayList<>();
+        for (String word : title.toLowerCase(Locale.ROOT).split("[^a-z0-9]+")) {
+            if (word.length() >= 4 && !words.contains(word)) words.add(word);
         }
-        return relative(installPath, best);
+        Map<File, Integer> scores = new HashMap<>();
+        for (File f : candidates) scores.put(f, exeScore(f, key, words));
+        Collections.sort(candidates, (a, b) -> {
+            int byScore = Integer.compare(scores.get(b), scores.get(a));
+            if (byScore != 0) return byScore;
+            int byDepth = Integer.compare(depth(installPath, a), depth(installPath, b));
+            if (byDepth != 0) return byDepth;
+            int bySize = Long.compare(b.length(), a.length());
+            if (bySize != 0) return bySize;
+            return relative(installPath, a).compareTo(relative(installPath, b));
+        });
+        return new GameTask(relative(installPath, candidates.get(0)), null, 0);
+    }
+
+    static String pickExe(File installPath, String gameId, String tempExe, String title) {
+        GameTask task = pickTask(installPath, gameId, tempExe, title);
+        return task == null ? "" : task.path;
+    }
+
+    /**
+     * A word of the game's title in the exe name is the strongest hint: Blood Omen's kain.exe beats
+     * the dxconfig.exe beside it (#680). Config and tool exes lose even when their name is the only
+     * one resembling the title, and the depth penalty keeps a bundled tool below the game's own
+     * folder. Before this, whatever the folder listing returned first was kept.
+     */
+    private static int exeScore(File f, String key, List<String> words) {
+        String stem = f.getName().toLowerCase(Locale.ROOT).replaceAll("\\.exe$", "").replaceAll("[^a-z0-9]", "");
+        int score = 0;
+        if (!stem.isEmpty() && !key.isEmpty()) {
+            if (stem.equals(key)) score += 120;
+            else if (key.startsWith(stem) || stem.startsWith(key)) score += 80;
+        }
+        for (String word : words) {
+            if (stem.equals(word)) { score += 100; break; }
+            if (stem.contains(word)) { score += 40; break; }
+        }
+        for (String part : TOOL_STEM_PARTS) {
+            if (stem.contains(part)) { score -= 110; break; }
+        }
+        return score;
+    }
+
+    private static int depth(File root, File f) {
+        String path = relative(root, f);
+        int depth = 0;
+        for (int i = 0; i < path.length(); i++) if (path.charAt(i) == '/') depth++;
+        return depth;
     }
 
     private static String relative(File root, File f) {
@@ -976,7 +1279,7 @@ public final class GogDownloadManager {
         File[] files = dir.listFiles();
         if (files == null) return;
         for (File f : files) {
-            if (f.isFile() && f.getName().toLowerCase().endsWith(".exe")) {
+            if (f.isFile() && f.getName().toLowerCase().endsWith(".exe") && !gogSupportExe(f.getName())) {
                 String path = f.getAbsolutePath().toLowerCase();
                 if (!path.contains("redist") && !path.contains("unins") && !path.contains("setup") && !path.contains("crash")
                         && !path.contains("report") && !path.contains("helper") && !path.contains("dotnet") && !path.contains("vcredist")

@@ -1,6 +1,6 @@
 # Added games
 
-Windows games the user adds to DroidDeck's Games tab, each a non-Steam shortcut in the
+Windows games the user adds to DroidDeck's Library, each a non-Steam shortcut in the
 Steam client that runs under `droiddeck-proton-arm64`. They show with the Custom chip.
 
 ## Adding

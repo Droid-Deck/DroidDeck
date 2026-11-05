@@ -3,6 +3,8 @@ package com.droiddeck.launcher.core
 import android.content.Context
 import android.content.SharedPreferences
 import java.net.HttpURLConnection
+import java.net.InetSocketAddress
+import java.net.Proxy
 import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
@@ -20,6 +22,7 @@ object DownloadSource {
     private const val KEY_MODE = "mode"
     private const val KEY_MIRROR = "mirror"
     private const val KEY_CUSTOM = "custom"
+    private const val KEY_PROXY = "proxy"
     private const val KEY_FASTEST = "fastest"
 
     private const val PROBE = "https://raw.githubusercontent.com/Droid-Deck/DroidDeck/main/README.md"
@@ -123,11 +126,9 @@ object DownloadSource {
 
     fun isGithub(url: String): Boolean = GITHUB_HOSTS.any { url.startsWith("https://$it/") }
 
-    /** Catalogs carry the digests everything else is checked against, so a mirror must never supply one. */
     fun isCatalog(url: String): Boolean = CATALOGS.any { url.startsWith(it) }
 
     fun candidates(target: String): List<String> {
-        // GitHub API metadata carries executable URLs and digests; never proxy it.
         if (isCatalog(target) || target.startsWith("https://api.github.com/")) return listOf(target)
         val prefs = prefs() ?: return listOf(target)
         if (!isGithub(target)) return listOf(target)
@@ -175,6 +176,21 @@ object DownloadSource {
         prefs(context)?.edit()?.putString(KEY_CUSTOM, normalizePrefix(prefix))?.apply()
     }
 
+    fun proxyHostPort(context: Context): String = prefs(context)?.getString(KEY_PROXY, "") ?: ""
+
+    fun setProxy(context: Context, value: String) {
+        prefs(context)?.edit()?.putString(KEY_PROXY, normalizeProxy(value))?.apply()
+    }
+
+    fun httpProxy(): Proxy? = proxyOf(prefs()?.getString(KEY_PROXY, "") ?: "")
+
+    internal fun proxyOf(value: String): Proxy? {
+        val host = value.substringBefore(':')
+        val port = value.substringAfter(':', "").toIntOrNull() ?: return null
+        if (host.isEmpty()) return null
+        return Proxy(Proxy.Type.HTTP, InetSocketAddress(host, port))
+    }
+
     fun reset(context: Context) {
         lastGood = null
         prefs(context)?.edit()?.clear()?.apply()
@@ -204,5 +220,12 @@ object DownloadSource {
         val trimmed = value.trim().trimEnd('/')
         if (trimmed.isEmpty() || trimmed.startsWith("http://")) return ""
         return if (trimmed.startsWith("https://")) trimmed else "https://$trimmed"
+    }
+
+    internal fun normalizeProxy(value: String): String {
+        val trimmed = value.trim().removePrefix("http://").trimEnd('/')
+        val host = trimmed.substringBefore(':')
+        val port = trimmed.substringAfter(':', "").toIntOrNull() ?: 0
+        return if (host.isNotEmpty() && port in 1..65535) "$host:$port" else ""
     }
 }

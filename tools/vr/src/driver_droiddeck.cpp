@@ -281,7 +281,6 @@ public:
         const uint32_t create = 0x8  ;
         for (int i = 0; i < 3; i++) {
             SharedTextureHandle_t h = 0;
-            // Compute access makes SteamVR substitute UNORM for sRGB, darkening direct compositor output.
             if (!VRIPCResourceManager()->NewSharedVulkanImage(d->nFormat, d->nWidth, d->nHeight, true, false, false, 1, 1,
                                                                create, usage, &h)) {
                 Log("NewSharedVulkanImage failed");
@@ -1276,7 +1275,6 @@ public:
     }
 
 private:
-    // Face buttons, menus and the stick, for both the game pad and optical hands.
     void UpdatePadButtons(uint32_t b, float stickX, float stickY, bool stickToGame) {
         auto in = VRDriverInput();
         const bool touch = stickToGame && stickX * stickX + stickY * stickY > 0.01f;
@@ -1289,7 +1287,6 @@ private:
             in->UpdateBooleanComponent(padClick_, (b & (right_ ? (PAD_A | PAD_R3) : PAD_X)) != 0, 0);
             return;
         }
-        // Touch and Index: face buttons are their own inputs and the stick is a thumbstick.
         const bool primary = b & (right_ ? PAD_A : PAD_X), secondary = b & (right_ ? PAD_B : PAD_Y);
         const bool both = (b & PAD_L3) && (b & PAD_R3);
         if (menu_) in->UpdateBooleanComponent(menu_, !right_ && (b & (PAD_START | PAD_SELECT)), 0);
@@ -1754,7 +1751,6 @@ public:
     void SetHands(CardboardController *left, CardboardController *right) { hands_[0] = left; hands_[1] = right; }
     void SetSticksMoveHands(bool on) { sticksMoveHands_ = on; }
 
-    // Called only from the pose thread: a replaced pair is disconnected there, so it never races an update.
     CardboardController *ActiveHand(int side) {
         CardboardController *wanted = hands_[side].load();
         if (wanted != active_[side]) {
@@ -1908,10 +1904,7 @@ private:
         target.frequency = std::max(pulse.fFrequency, 0.f);
         __atomic_store_n(&haptics_->seq, (sequence | 1u) + 1u, __ATOMIC_RELEASE);
     }
-    // SteamVR fixes a device's input profile when it activates, so each type gets its own pair,
-    // added the first time it is chosen; devices cannot be removed, only disconnected.
     void ApplyPadConfig(bool initial) {
-        // The file is a few bytes, so compare what it says; two quick writes can share an mtime.
         const PadControllerConfig pads = read_pad_controller_config("/run/droiddeck/" DROIDDECK_VR_CONTROLLERS_FILE);
         if (!initial && pads.profile == configProfile_ && pads.sticksMoveHands == configSticks_) return;
         configProfile_ = pads.profile;

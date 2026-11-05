@@ -45,6 +45,51 @@ VULKAN_SCRIPT = r'''"InstallScript"
 '''
 
 
+UBISOFT_SCRIPT = r'''"installscript"
+{
+	"Run Process"
+	{
+		"Ubisoft Connect PC Client"
+		{
+			"process 1"		"%INSTALLDIR%\\UbisoftConnectInstaller.exe"
+			"command 1"		"/S"
+		}
+		"easyanticheat"
+		{
+			"HasRunKey"		"HKEY_CURRENT_USER\\SOFTWARE\\Ubisoft\\WatchDogs2EAC"
+			"process 1"		"%INSTALLDIR%\\EasyAntiCheat\\InstallWD2EAC.cmd"
+			"command 1"		""
+		}
+	}
+}
+'''
+
+EA_SCRIPT = r'''"installscript"
+{
+	"Run Process"
+	{
+		"EADesktopSetup"
+		{
+			"process 1"		"%INSTALLDIR%\\__Installer\\Origin\\redist\\internal\\EAappInstaller.exe"
+			"command 1"		"EAX_LAUNCH_CLIENT=0 IGNORE_INSTALLED=1"
+			"HasRunStringKey"		"HKEY_LOCAL_MACHINE\\SOFTWARE\\Electronic Arts\\EA Desktop\\InstallSuccessful"
+			"HasRunStringValue"		"true"
+			"RunType"		"1"
+		}
+		"Windows6.1-KB2670838-x64.msu"
+		{
+			"process 1"		"%INSTALLDIR%\\__Installer\\customcomponent\\patch_KB2670838_x64\\Windows6.1-KB2670838-x64.msu"
+			"command 1"		"/quiet"
+			"Requirement_OS"
+			{
+				"OSType"		"Windows 7"
+			}
+		}
+	}
+}
+'''
+
+
 class SeedRedistsTest(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -352,6 +397,58 @@ class SeedRedistsTest(unittest.TestCase):
         self.run_seed()
         self.assertEqual(self.reg.read_text().count('"Vulkan111080"'), 2)
 
+
+    def evaluator(self, appid, install_script):
+        script = self.tmp / ("legacycompat/evaluatorscript_%s.vdf" % appid)
+        script.parent.mkdir(parents=True)
+        script.write_text('"evaluatorscript"\n{\n\t"appid"\t\t"%s"\n\t"1"\n' % appid
+                          + "\n".join("\t" + line for line in install_script.splitlines()) + "\n}\n")
+        env = dict(os.environ, DROIDDECK_LIBRARIES="", DROIDDECK_SEED_SCRIPTS=str(script))
+        return subprocess.run(["bash", str(SCRIPT), str(self.steam)], env=env, capture_output=True, text=True, check=True)
+
+    def ubisoft(self):
+        return self.evaluator("447040", UBISOFT_SCRIPT)
+
+    def test_the_ubisoft_connect_installer_is_left_to_run(self):
+        self.ubisoft()
+        self.assertIn('"easyanticheat"=dword:00000001', self.user.read_text())
+        self.assertNotIn("Ubisoft Connect PC Client", self.reg.read_text())
+        self.assertNotIn("Ubisoft Connect PC Client", (self.reg.parent / ".droiddeck-redists").read_text())
+
+    def test_a_ubisoft_connect_marker_an_earlier_seeding_wrote_comes_out(self):
+        marker = "HKEY_LOCAL_MACHINE\\\\Software\\\\Valve\\\\Steam\\\\Apps\\\\447040\tUbisoft Connect PC Client"
+        self.reg.write_text(
+            "WINE REGISTRY Version 2\n"
+            "\n[Software\\\\Valve\\\\Steam\\\\Apps\\\\447040] 1791729070\n"
+            '"Ubisoft Connect PC Client"=dword:00000001\n'
+            "\n[Software\\\\Wow6432Node\\\\Valve\\\\Steam\\\\Apps\\\\447040] 1791729070\n"
+            '"Ubisoft Connect PC Client"=dword:00000001\n')
+        (self.reg.parent / ".droiddeck-redists").write_text(marker + "\n")
+        result = self.ubisoft()
+        self.assertNotIn("Ubisoft Connect PC Client", self.reg.read_text())
+        self.assertNotIn("Ubisoft Connect PC Client", (self.reg.parent / ".droiddeck-redists").read_text())
+        self.assertIn("Ubisoft Connect and EA app markers out", result.stdout)
+
+    def test_the_ea_app_installer_is_left_to_run(self):
+        self.evaluator("1238080", EA_SCRIPT)
+        reg = self.reg.read_text()
+        self.assertNotIn("EADesktopSetup", reg)
+        self.assertEqual(reg.count('"Windows6.1-KB2670838-x64.msu"=dword:00000001'), 2)
+        self.assertNotIn("EADesktopSetup", (self.reg.parent / ".droiddeck-redists").read_text())
+
+    def test_an_ea_app_marker_an_earlier_seeding_wrote_comes_out(self):
+        marker = "HKEY_LOCAL_MACHINE\\\\Software\\\\Valve\\\\Steam\\\\Apps\\\\1238080\tEADesktopSetup"
+        self.reg.write_text(
+            "WINE REGISTRY Version 2\n"
+            "\n[Software\\\\Valve\\\\Steam\\\\Apps\\\\1238080] 1793680524\n"
+            '"EADesktopSetup"=dword:00000001\n'
+            "\n[Software\\\\Wow6432Node\\\\Valve\\\\Steam\\\\Apps\\\\1238080] 1793680524\n"
+            '"EADesktopSetup"=dword:00000001\n')
+        (self.reg.parent / ".droiddeck-redists").write_text(marker + "\n")
+        result = self.evaluator("1238080", EA_SCRIPT)
+        self.assertNotIn("EADesktopSetup", self.reg.read_text())
+        self.assertNotIn("EADesktopSetup", (self.reg.parent / ".droiddeck-redists").read_text())
+        self.assertIn("EA app markers out", result.stdout)
 
 if __name__ == "__main__":
     unittest.main()

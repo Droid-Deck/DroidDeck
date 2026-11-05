@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Qt V4L2 video capture utility
+Exec=qvidcap
+Icon=qvidcap
+NoDisplay=true

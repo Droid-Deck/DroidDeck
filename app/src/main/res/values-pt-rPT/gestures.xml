@@ -2,7 +2,6 @@
 <resources>
     <string name="mode_touch_gestures">Gestos</string>
     <string name="gesture_settings">Configurações de gestos de toque</string>
-    <string name="gesture_settings_hint">Personalize os gestos de rato e teclado. Selecione Gestos como modo de toque para usá-los.</string>
     <string name="gesture_tap">Toque</string>
     <string name="gesture_drag">Arrastar com um dedo</string>
     <string name="gesture_long_press">Toque longo</string>
@@ -15,6 +14,8 @@
     <string name="gesture_three_hold">Manter premido com três dedos</string>
     <string name="gesture_pinch">Pinçar para ampliar</string>
     <string name="gesture_hold_button">Manter o botão premido</string>
+    <string name="gesture_hold_left">Manter o botão esquerdo premido</string>
+    <string name="gesture_hold_right">Manter o botão direito premido</string>
     <string name="gesture_click_once">Clicar uma vez</string>
     <string name="gesture_hold_delay">Tempo para manter premido</string>
     <string name="gesture_double_delay">Intervalo de toque duplo</string>

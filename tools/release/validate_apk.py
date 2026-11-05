@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Publish the APK result only after trusted source and metadata validation."""
 import json
 import os
 import subprocess
@@ -32,6 +31,22 @@ def documentation_only(sha):
     base = subprocess.check_output(["git", "merge-base", "origin/main", sha], text=True).strip()
     paths = subprocess.check_output(["git", "diff", "--no-renames", "--name-only", "-z", base, sha]).split(b"\0")
     return all(path.endswith(b".md") or path in (b"LICENSE", b".gitignore") for path in paths if path)
+
+
+def trusted_list_violation(repo, pr, sha):
+    changed = subprocess.run(
+        ["git", "diff", "--no-renames", "--quiet", f"origin/main...{sha}", "--", ".github/trusted-test-builds.txt"],
+        check=False,
+    )
+    if changed.returncode not in (0, 1):
+        raise RuntimeError("Could not check trusted contributor changes")
+    if changed.returncode == 0:
+        return []
+    opener = pr["user"]["login"]
+    permission = api(f"repos/{repo}/collaborators/{opener}/permission")
+    if permission["permission"] != "admin" and permission.get("role_name") != "maintain":
+        return [f"Only a maintainer may open a PR changing .github/trusted-test-builds.txt (opened by @{opener})"]
+    return []
 
 
 def main():
@@ -76,6 +91,7 @@ def main():
         commits, errors = check_revision(sha)
         if pr:
             errors.extend(event_violations({"pull_request": pr}))
+            errors.extend(trusted_list_violation(repo, pr, sha))
         if errors:
             raise RuntimeError("\n".join(errors))
         print(f"Source and metadata validated for {len(commits)} commits")

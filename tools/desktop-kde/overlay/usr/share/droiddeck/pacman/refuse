@@ -1,0 +1,5 @@
+#!/bin/bash
+packages=$(tr '\n' ' ')
+echo "error: ${packages% } came with DroidDeck, so pacman can't remove or replace it." >&2
+echo "error: DroidDeck updates these itself; packages you installed with pacman are yours to change." >&2
+exit 1

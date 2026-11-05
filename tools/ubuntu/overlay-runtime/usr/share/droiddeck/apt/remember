@@ -1,0 +1,22 @@
+#!/bin/bash
+dir=/usr/share/droiddeck/apt
+state=/root/.local/share/droiddeck/apt
+[ -r "$dir/system-manual.txt" ] || exit 0
+[ -z "${DROIDDECK_APT_RESTORING:-}" ] || exit 0
+runtime=$(cat "$dir/runtime-id" 2>/dev/null)
+if [ -e /etc/xdg/autostart/droiddeck-apt-restore.desktop ] && [ -s "$state/restored" ] && [ "$(cat "$state/restored")" != "$runtime" ] && [ "$(cat "$state/attempted" 2>/dev/null)" != "$runtime" ]; then
+  exit 0
+fi
+mkdir -p "$state/sources" "$state/keyrings" 2>/dev/null || exit 0
+manual=$(apt-mark showmanual 2>/dev/null) || exit 0
+{ printf '%s\n' "$manual" | grep -vxF -f "$dir/system-manual.txt" || true; } > "$state/packages.txt.tmp" && mv -f "$state/packages.txt.tmp" "$state/packages.txt"
+rm -f "$state/sources"/* "$state/keyrings"/* 2>/dev/null
+for f in /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/keyrings/* /etc/apt/trusted.gpg.d/* /usr/share/keyrings/*; do
+  [ -f "$f" ] || continue
+  grep -qxF "$f $(sha256sum "$f" | cut -d' ' -f1)" "$dir/system-sources.txt" 2>/dev/null && continue
+  case $f in /etc/apt/sources.list|/etc/apt/sources.list.d/*) to=sources ;; *) to=keyrings ;; esac
+  name=${f#/etc/apt/}
+  cp -f "$f" "$state/$to/$(printf '%s' "${name#/}" | tr / _)"
+done
+[ -s "$state/restored" ] || cat "$dir/runtime-id" > "$state/restored" 2>/dev/null
+exit 0

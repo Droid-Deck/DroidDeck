@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.foundation.shape.CircleShape
 import android.os.Bundle
 import android.os.CancellationSignal
 import android.os.ParcelFileDescriptor
@@ -242,8 +243,8 @@ internal fun SpatialSetupScreen(
     if (confirmRestart) AlertDialog(
         onDismissRequest = { confirmRestart = false }, title = { Text(stringResource(R.string.spatial_restart_title)) },
         text = { Text(stringResource(R.string.spatial_restart_confirm)) },
-        confirmButton = { TextButton(onClick = { confirmRestart = false; actions.restart() }) { Text(stringResource(R.string.spatial_restart)) } },
-        dismissButton = { TextButton(onClick = { confirmRestart = false }) { Text(stringResource(R.string.common_cancel)) } },
+        confirmButton = { TextButton(onClick = { confirmRestart = false; actions.restart() }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.spatial_restart)) } },
+        dismissButton = { TextButton(onClick = { confirmRestart = false }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
     )
 }
 

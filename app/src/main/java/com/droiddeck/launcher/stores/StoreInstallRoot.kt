@@ -5,6 +5,7 @@ import android.os.StatFs
 import android.os.storage.StorageManager
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.GameStorage
+import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 import java.util.zip.CRC32
 
@@ -38,7 +39,6 @@ object StoreInstallRoot {
         } catch (e: Exception) {
             StoresState.logLine("storage: StatFs failed for store install target (${e.javaClass.simpleName})")
             try {
-                // File's zero also means an unavailable measurement; only StatFs establishes zero.
                 usableBytes(existing).takeIf { it > 0L } ?: SPACE_UNKNOWN
             } catch (fallback: Exception) {
                 StoresState.logLine("storage: usable-space fallback failed for store install target (${fallback.javaClass.simpleName})")
@@ -50,19 +50,12 @@ object StoreInstallRoot {
     @JvmStatic
     fun insufficientSpace(required: Long, available: Long): Boolean = required > 0L && available >= 0L && available < required
 
-    /**
-     * The catalog size is the known minimum for an install. Epic's actual chunk-cache requirement
-     * is determined from its manifest before chunk downloads begin.
-     */
     fun estimatedBytesNeeded(item: CatalogItem): Long = StoreSizes.size(item).coerceAtLeast(0L)
 
-    /** Pre-install storage check to detect insufficient space before starting. */
     fun checkStorage(context: Context, item: CatalogItem, targetRoot: File): StorageCheck {
         val size = estimatedBytesNeeded(item)
         val existing = existingFolder(context, item.store, item.id, item.title)
         val freeTarget = availableBytes(existing ?: targetRoot)
-        // Backends account for completed files on resume; the catalog cannot describe remaining work.
-        // Comparing the full catalog size to remaining free space would reject valid resumes.
         if (item.store == Store.EPIC || existing != null) return StorageCheck(enough = true, requiredBytes = size, availableBytes = freeTarget)
         if (size <= 0L) return StorageCheck(enough = true, requiredBytes = 0L, availableBytes = freeTarget)
         if (insufficientSpace(size, freeTarget)) {
@@ -76,49 +69,143 @@ object StoreInstallRoot {
 
     fun targets(context: Context): List<Target> {
         val internal = Target(internalRoot(context), context.getString(com.droiddeck.launcher.R.string.games_internal), removable = false)
+        val custom = customTarget(context)
         val cards = GameStorage.options(context).map { Target(File(it.path, ON_VOLUME), it.name, removable = true) }
         val library = GameStorage.effective(context)?.let { lib ->
             val root = File(lib.path, ON_VOLUME)
             if (cards.any { it.root.absolutePath == root.absolutePath }) return@let null
-            val volume = runCatching { context.getSystemService(StorageManager::class.java)?.getStorageVolume(File(lib.path)) }.getOrNull()
-            val name = File(lib.path).name.ifBlank { lib.label }
-            val where = volume?.takeUnless { it.isPrimary }?.getDescription(context)
-            val label = if (where.isNullOrBlank()) name else context.getString(com.droiddeck.launcher.R.string.gstore_folder_on_volume, name, where)
-            Target(root, label, removable = true, folder = true)
+            Target(root, folderLabel(context, File(lib.path)), removable = true, folder = true)
         }
-        return listOf(internal) + cards + listOfNotNull(library)
+        return (listOf(internal) + listOfNotNull(custom) + cards + listOfNotNull(library))
+            .distinctBy { it.root.absolutePath }
+    }
+
+    fun defaultStorageFolder(context: Context): File? =
+        SessionPrefs.defaultStorageFolder(context).takeIf { it.isNotBlank() }?.let(::File)
+
+    fun customTarget(context: Context): Target? {
+        val folder = defaultStorageFolder(context) ?: return null
+        if (!folder.isDirectory) return null
+        val label = SessionPrefs.defaultStorageFolderLabel(context).ifBlank { folderLabel(context, folder) }
+        return Target(File(folder, ON_VOLUME), label, removable = true, folder = true)
+    }
+
+    fun detectedExternalTarget(context: Context): Target? {
+        val custom = defaultStorageFolder(context)?.let { File(it, ON_VOLUME) }?.absolutePath
+        return externalTarget(targets(context).filter { it.root.absolutePath != custom }, internalRoot(context))
     }
 
     fun installRoot(context: Context): File = internalRoot(context)
 
+    fun externalTarget(context: Context): Target? =
+        if (SessionPrefs.defaultStorageFolder(context).isNotBlank()) customTarget(context)
+        else detectedExternalTarget(context)
+
+    internal fun externalTarget(targets: List<Target>, internalRoot: File): Target? =
+        targets.firstOrNull { it.folder && it.root.absolutePath != internalRoot.absolutePath }
+            ?: targets.firstOrNull { it.removable && it.root.absolutePath != internalRoot.absolutePath }
+
+    fun defaultTarget(context: Context): Target? = when (SessionPrefs.defaultStorage(context)) {
+        SessionPrefs.DEFAULT_STORAGE_INTERNAL -> Target(internalRoot(context), context.getString(com.droiddeck.launcher.R.string.games_internal), removable = false)
+        SessionPrefs.DEFAULT_STORAGE_EXTERNAL -> externalTarget(context)
+        else -> null
+    }
+
+    fun libraryRoot(context: Context): File? = GameStorage.effective(context)?.let { File(it.path, ON_VOLUME) }
+
     fun roots(context: Context): List<File> {
         val cards = GameStorage.options(context).map { File(it.path, ON_VOLUME) }
+        val custom = defaultStorageFolder(context)?.takeIf { it.isDirectory }?.let { File(it, ON_VOLUME) }
         val library = GameStorage.effective(context)?.let { File(it.path, ON_VOLUME) }
-        return (listOf(internalRoot(context)) + cards + listOfNotNull(library)).distinctBy { it.absolutePath }
+        return (listOf(internalRoot(context)) + cards + listOfNotNull(custom) + listOfNotNull(library))
+            .distinctBy { it.absolutePath }
     }
 
     fun externalRoots(context: Context): List<Pair<File, String>> {
         val library = GameStorage.effective(context)?.path
+        val used = mutableSetOf<String>()
         return roots(context)
             .filter { !isInternal(context, it) && (library == null || !it.absolutePath.startsWith("$library/")) }
-            .map { it to guestFor(context, it) }
+            .map { root ->
+                val base = guestFor(context, root)
+                val guest = if (used.add(base)) base else "$base-${pathKey(root)}".also { used.add(it) }
+                root to guest
+            }
     }
+
+    fun folderLabel(context: Context, folder: File): String {
+        val name = folder.name.ifBlank { context.getString(com.droiddeck.launcher.R.string.gstore_folder) }
+        val volume = runCatching {
+            context.getSystemService(StorageManager::class.java)?.getStorageVolume(folder)?.getDescription(context)
+        }.getOrNull()
+        return if (volume.isNullOrBlank() || volume.equals("android", true) || volume.equals(name, true)) name
+        else context.getString(com.droiddeck.launcher.R.string.gstore_folder_on_volume, name, volume)
+    }
+
+    fun prepareDefaultFolder(context: Context, folder: File): String? {
+        if (!folder.isDirectory) return context.getString(com.droiddeck.launcher.R.string.gstore_cannot_create, folder.path)
+        val root = File(folder, ON_VOLUME)
+        if (!root.isDirectory && !root.mkdirs()) return context.getString(com.droiddeck.launcher.R.string.gstore_cannot_create, folder.path)
+        return try {
+            File.createTempFile(".droiddeck-write-probe", null, root).delete()
+            null
+        } catch (e: Exception) {
+            context.getString(com.droiddeck.launcher.R.string.gstore_cannot_write_detail, root.path, e.message)
+        }
+    }
+
+    fun externalRootsForXodus(context: Context): List<Pair<File, String>> {
+        val roots = externalRoots(context)
+        val selectedLibrary = GameStorage.effective(context)?.let { File(it.path, ON_VOLUME) }
+            ?.takeUnless { isInternal(context, it) } ?: return roots
+        return withSelectedLibrary(roots, selectedLibrary, guestFor(context, selectedLibrary))
+    }
+
+    internal fun withSelectedLibrary(roots: List<Pair<File, String>>, library: File, base: String): List<Pair<File, String>> {
+        if (roots.any { it.first.absolutePath == library.absolutePath }) return roots
+        val guest = if (roots.none { it.second == base }) base else "$base-${pathKey(library)}"
+        return roots + (library to guest)
+    }
+
+    private fun pathKey(root: File): String = "%08x".format(CRC32().apply { update(root.absolutePath.toByteArray()) }.value)
+
+    fun externalBindSpecs(context: Context): List<String> = externalBindSpecs(externalRoots(context), LinuxRuntime.rootDir(context))
+
+    fun externalBindSpecsForXodus(context: Context): List<String> =
+        externalBindSpecs(externalRootsForXodus(context), LinuxRuntime.rootDir(context))
+
+    internal fun externalBindSpecs(roots: List<Pair<File, String>>, guestRoot: File): List<String> =
+        roots.mapNotNull { (host, guest) ->
+            if (!host.isDirectory || !host.canRead()) return@mapNotNull null
+            val target = File(guestRoot, guest.removePrefix("/"))
+            if (target.isDirectory || target.mkdirs()) "${host.path}:$guest" else null
+        }
 
     private fun guestFor(context: Context, root: File): String {
         val sm = context.getSystemService(StorageManager::class.java)
         val uuid = runCatching { sm?.getStorageVolume(root)?.uuid }.getOrNull()?.takeIf { it.isNotBlank() }?.replace(Regex("[^A-Za-z0-9-]"), "")
-        val key = uuid ?: "%08x".format(CRC32().apply { update(root.absolutePath.toByteArray()) }.value)
+        val key = uuid ?: pathKey(root)
         return "$GUEST_EXTERNAL/$key"
     }
 
     fun isInternal(context: Context, root: File): Boolean = root.absolutePath == internalRoot(context).absolutePath
 
     fun externalGuestPath(context: Context, host: File): String? {
+        return externalGuestPath(host, externalRoots(context))
+    }
+
+    fun guestPath(context: Context, host: File): String = externalGuestPath(context, host) ?: host.path
+
+    fun guestPathForXodus(context: Context, host: File): String =
+        externalGuestPath(host, externalRootsForXodus(context)) ?: host.path
+
+    internal fun externalGuestPath(host: File, roots: List<Pair<File, String>>): String? {
         val path = host.absolutePath
-        for ((root, guest) in externalRoots(context)) {
-            val dir = root.absolutePath
+        for ((root, guest) in roots.sortedByDescending { it.first.absolutePath.length }) {
+            val dir = root.absolutePath.trimEnd(File.separatorChar)
             if (path == dir) return guest
-            if (path.startsWith("$dir/")) return guest + "/" + path.removePrefix("$dir/")
+            val prefix = dir + File.separator
+            if (path.startsWith(prefix)) return guest + "/" + path.removePrefix(prefix).replace(File.separatorChar, '/')
         }
         return null
     }
@@ -131,7 +218,7 @@ object StoreInstallRoot {
 
     fun isRemovable(context: Context, folder: File): Boolean = !folder.absolutePath.startsWith(internalRoot(context).absolutePath + "/")
 
-    fun storeDir(root: File, store: Store): File = File(root, store.shortLabel)
+    fun storeDir(root: File, store: Store): File = File(root, store.folder)
 
     fun gameFolders(context: Context): List<File> = roots(context).flatMap { root ->
         Store.entries.flatMap { store ->
@@ -154,11 +241,12 @@ object StoreInstallRoot {
     fun isFinished(folder: File): Boolean = StoreGameSidecar.read(folder)?.isInstalled == true
 
     fun unfinished(context: Context): List<Unfinished> = roots(context).flatMap { root ->
-        Store.entries.flatMap { store ->
+        Store.entries.filter { it != Store.BATTLENET }.flatMap { store ->
             storeDir(root, store).listFiles { f -> f.isDirectory }.orEmpty().mapNotNull { folder ->
                 val sidecar = StoreGameSidecar.read(folder)
                 when {
                     sidecar == null -> Unfinished(store, null, folder)
+                    sidecar.state == StoreGameSidecar.STATE_UPDATING -> null
                     !sidecar.isInstalled -> Unfinished(store, sidecar.id, folder)
                     else -> null
                 }

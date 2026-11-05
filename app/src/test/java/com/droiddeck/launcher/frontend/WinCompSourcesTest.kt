@@ -34,6 +34,14 @@ class WinCompSourcesTest {
 
     private fun auto(findings: List<WinCompSources.Finding>) = findings.filter { it.auto }.map { it.component to it.origin }
 
+    @Test fun battleNetRepairKeysMatchRuntimeProfileKeys() {
+        val battlenet = game(null, Store.BATTLENET.id, 4242, library = "battlenet")
+        val steam = game(null, Library.SOURCE_STEAM, 4242, library = "steam")
+
+        assertEquals(battlenet.profileKey, AutoComponents.appKey(battlenet))
+        assertEquals("4242", AutoComponents.appKey(steam))
+    }
+
 
     @Test fun gogDependencyIdsMapToComponents() {
         assertEquals(listOf("vcredist2015"), WinCompSources.gog("MSVC2017_x64"))
@@ -54,6 +62,17 @@ class WinCompSourcesTest {
         assertEquals(listOf("vcredist2022", "d3dx9"), WinCompSources.epic("", "UE4 Prerequisites (x64)"))
         assertEquals(listOf("vcredist2013"), WinCompSources.epic("Redist/vcredist/2013/vcredist_x64.exe", "Visual C++"))
         assertEquals(emptyList<String>(), WinCompSources.epic("Installers/LauncherHelper.exe", "Launcher Helper"))
+    }
+
+    @Test fun xboxGamesAlwaysGetVisualCppAndTheirDeclaredRuntimes() {
+        val folder = tmp.newFolder("xbox")
+        val vc = listOf("vcredist2022" to "VC14", "vcredist2022_arm64" to "VC14")
+        assertEquals(vc, WinCompSources.xbox(folder))
+        File(folder, "MicrosoftGame.Config").writeText("""<Game><DesktopRegistration><DependencyList><KnownDependency Name="VC14"/></DependencyList></DesktopRegistration></Game>""")
+        assertEquals(vc, WinCompSources.xbox(folder))
+        sidecar(folder, Store.XBOX, emptyMap())
+        assertEquals(listOf("vcredist2022" to WinCompSources.Origin.XBOX, "vcredist2022_arm64" to WinCompSources.Origin.XBOX),
+            auto(WinCompSources.forGame(app, game(folder, Store.XBOX.id))).distinct())
     }
 
     @Test fun steamworksSharedDepotsMapToComponents() {
@@ -222,16 +241,19 @@ class WinCompSourcesTest {
     private var session = false
     private var gameUp = false
 
-    private fun payback(): Library.SteamGame {
+    private fun payback(appId: Int = 1262580): Library.SteamGame {
         val steamapps = tmp.newFolder("steamapps")
         val folder = File(steamapps, "common/Payback").apply { mkdirs() }
-        File(steamapps, "appmanifest_1262580.acf").writeText(
+        File(steamapps, "appmanifest_$appId.acf").writeText(
             "\"AppState\"\n{\n\t\"SharedDepots\"\n\t{\n\t\t\"228985\"\t\t\"228980\"\n\t\t\"228988\"\t\t\"228980\"\n\t\t\"228990\"\t\t\"228980\"\n\t}\n}\n",
         )
-        return game(folder, Library.SOURCE_STEAM, 1262580, library = "steam", name = "Need for Speed Payback")
+        return game(folder, Library.SOURCE_STEAM, appId, library = "steam", name = "Need for Speed Payback")
     }
 
     private fun <T> withFakeWorker(block: () -> T): T {
+        val steamPics = SteamAppInfo.pics
+        SteamAppInfo.pics = { null }
+        AutoComponents.repairFailures.value = emptyMap()
         AutoComponents.catalogOf = { _, _ -> catalog3 }
         AutoComponents.installedOf = { installedNow.toSet() }
         AutoComponents.installer = { _, c, _, _ -> downloaded.add(c.name); installedNow.add(c.name); null }
@@ -244,6 +266,8 @@ class WinCompSourcesTest {
             return block()
         } finally {
             AutoComponents.runNow = false
+            SteamAppInfo.pics = steamPics
+            AutoComponents.repairFailures.value = emptyMap()
             AutoComponents.catalogOf = { c, network -> if (network) WinComponents.fetch(c) else WinComponents.cached(c) }
             AutoComponents.installedOf = { WinComponents.installedIds(it).toSet() }
             AutoComponents.installer = { c, comp, all, progress -> WinComponents.install(c, comp, all, progress) }
@@ -251,6 +275,19 @@ class WinCompSourcesTest {
             AutoComponents.online = { c -> AutoComponents.isOnline(c) }
             AutoComponents.gameRunning = { false }
         }
+    }
+
+    @Test fun anExplicitCheckRefreshesTheCatalogAndAnOfflineCheckUsesTheCache() = withFakeWorker {
+        installedNow.addAll(catalog3.map { it.name })
+        val requests = ArrayList<Boolean>()
+        AutoComponents.catalogOf = { _, network -> requests.add(network); catalog3 }
+        val game = payback()
+        AutoComponents.queueGame(app, game, asked = true)
+        assertTrue(requests.first())
+        requests.clear()
+        AutoComponents.online = { false }
+        AutoComponents.queueGame(app, game, asked = true)
+        assertFalse(requests.first())
     }
 
     @Test fun aSteamListedComponentNotYetDownloadedTurnsOnWhenItLands() = withFakeWorker {
@@ -264,6 +301,244 @@ class WinCompSourcesTest {
         assertEquals(setOf("d3dx9", "vcredist2013_dll"), WinComponents.picks(app, "1262580").toSet())
         assertEquals("STEAM", sel.auto.getValue("vcredist2013_dll").kind)
         assertEquals(3, AutoComponents.cachedFindings(app, "1262580")!!.count { it.auto })
+    }
+
+    @Test fun downloadCallbacksReuseTheCatalogInsteadOfRefreshingAgain() = withFakeWorker {
+        val requests = ArrayList<Boolean>()
+        AutoComponents.catalogOf = { _, network -> requests.add(network); catalog3 }
+        AutoComponents.queueGame(app, payback(), asked = true)
+        assertEquals(3, downloaded.size)
+        assertEquals(1 + downloaded.size, requests.count { it })
+    }
+
+    @Test fun normalLaunchRecordsPendingComponentsBeforeQueueingTheirRepairs() = withFakeWorker {
+        AutoComponents.installer = { _, c, _, _ ->
+            assertTrue(c.name in AutoComponents.Pending.ids(app, "1262580"))
+            assertEquals(c.revision, AutoComponents.Pending.revision(app, c.name))
+            downloaded.add(c.name)
+            installedNow.add(c.name)
+            null
+        }
+
+        AutoComponents.queueGame(app, payback(), asked = true)
+
+        assertTrue(AutoComponents.Pending.ids(app, "1262580").isEmpty())
+    }
+
+    @Test fun launchDiscoveryPersistsMissingComponentsWhileAWorkerWaitsForTheSession() = withFakeWorker {
+        session = true
+        gameUp = true
+        val appId = 9876543
+
+        assertTrue(AutoComponents.prepareLaunch(app, payback(appId)))
+
+        assertEquals(setOf("d3dx9", "vcredist2013_dll", "vcredist2019_dll"), AutoComponents.Pending.ids(app, appId.toString()).toSet())
+        session = false
+        gameUp = false
+        AutoComponents.drain(app)
+    }
+
+    @Test fun launchDiscoveryUsesFreshCatalogAndIncludesManualDependencies() = withFakeWorker {
+        session = true
+        gameUp = true
+        val appId = 9876544
+        val manual = WinComponents.Component("manual_component", "", "", "ready", listOf("d3dx9"), emptyList(), revision = 3)
+        val catalog = catalog3 + manual
+        val requests = ArrayList<Boolean>()
+        AutoComponents.catalogOf = { _, network -> requests.add(network); catalog }
+        WinComponents.setUser(app, appId.toString(), manual.name, true)
+
+        assertTrue(AutoComponents.prepareLaunch(app, game(null, Library.SOURCE_STEAM, appId, library = "steam")))
+
+        assertTrue(requests.contains(true))
+        assertEquals(setOf("manual_component", "d3dx9"), AutoComponents.Pending.ids(app, appId.toString()).toSet())
+        session = false
+        gameUp = false
+        AutoComponents.drain(app)
+    }
+
+    @Test fun pendingRepairsSurviveTemporaryCatalogFetchFailure() = withFakeWorker {
+        val id = "vcredist2010_dll"
+        AutoComponents.catalogOf = { _, _ -> null }
+
+        AutoComponents.queueRepair(app, id, "4242", revision = 2)
+
+        assertEquals(listOf(id), AutoComponents.Pending.ids(app, "4242"))
+        assertEquals(2, AutoComponents.Pending.revision(app, id))
+    }
+
+    @Test fun launchCanProceedWithoutCatalogOnlyWhenNoRepairIsPending() = withFakeWorker {
+        AutoComponents.catalogOf = { _, _ -> null }
+        val noPending = game(null, Library.SOURCE_STEAM, 9876545, library = "steam")
+        assertTrue(AutoComponents.prepareLaunch(app, noPending))
+
+        AutoComponents.Pending.add(app, "9876546", listOf("vcredist2010_dll"), mapOf("vcredist2010_dll" to 2))
+        val pending = game(null, Library.SOURCE_STEAM, 9876546, library = "steam")
+        assertFalse(AutoComponents.prepareLaunch(app, pending))
+        assertEquals(listOf("vcredist2010_dll"), AutoComponents.Pending.ids(app, "9876546"))
+    }
+
+    @Test fun offlineLaunchPersistsMissingSelectedComponentsWithoutACatalog() = withFakeWorker {
+        AutoComponents.catalogOf = { _, _ -> null }
+        AutoComponents.online = { false }
+        val appId = 9876547
+        val id = "vcredist2010_dll"
+        WinComponents.setUser(app, appId.toString(), id, true)
+
+        assertFalse(AutoComponents.prepareLaunch(app, game(null, Library.SOURCE_STEAM, appId, library = "steam")))
+        assertEquals(listOf(id), AutoComponents.Pending.ids(app, appId.toString()))
+        AutoComponents.catalogOf = { _, _ -> catalog3 + ready(id) }
+        AutoComponents.online = { true }
+        AutoComponents.drain(app)
+    }
+
+    @Test fun pendingRepairsKeepTheirRequiredRevisionUntilTheyFinish() = withFakeWorker {
+        val repair = WinComponents.Component("vcredist2010_dll", "", "", "ready", emptyList(), emptyList(), revision = 2)
+        AutoComponents.catalogOf = { _, _ -> catalog3 + repair }
+        WinComponents.setUser(app, "4242", repair.name, true)
+        session = true
+        gameUp = true
+        AutoComponents.restoreMissing(app)
+        val pending = File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app), "root/.config/droiddeck/wincomponents-pending.json")
+        fun revision() = JSONObject(pending.readText()).getJSONObject("revisions").getInt(repair.name)
+        assertEquals(2, revision())
+        AutoComponents.Pending.add(app, "other", listOf(repair.name), mapOf(repair.name to 1))
+        AutoComponents.Pending.set(app, "4242", listOf(repair.name))
+        assertEquals(2, revision())
+        gameUp = false
+        AutoComponents.drain(app)
+        assertFalse(JSONObject(pending.readText()).getJSONObject("revisions").has(repair.name))
+    }
+
+    @Test fun manualRepairKeepsPendingWhenCatalogIsOlderThanRequestedRevision() = withFakeWorker {
+        val repair = WinComponents.Component("vcredist2010_dll", "", "", "ready", emptyList(), emptyList(), revision = 1)
+        AutoComponents.catalogOf = { _, _ -> catalog3 + repair }
+        installedNow.add(repair.name)
+        AutoComponents.Pending.add(app, "4242", listOf(repair.name), mapOf(repair.name to 2))
+        AutoComponents.queueRepair(app, repair.name, "4242", revision = 1)
+        AutoComponents.drain(app)
+        assertEquals("The component catalog is older than the requested revision", AutoComponents.repairFailures.value[repair.name])
+        assertEquals(listOf(repair.name), AutoComponents.Pending.ids(app, "4242"))
+        val pendingFile = File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app), "root/.config/droiddeck/wincomponents-pending.json")
+        assertEquals(2, JSONObject(pendingFile.readText()).getJSONObject("revisions").getInt(repair.name))
+    }
+
+    @Test fun restoreRequeuesPersistedRevisionEvenWhenOlderComponentIsInstalled() = withFakeWorker {
+        val repair = WinComponents.Component("vcredist2010_dll", "", "", "ready", emptyList(), emptyList(), revision = 1)
+        AutoComponents.catalogOf = { _, _ -> catalog3 + repair }
+        installedNow.add(repair.name)
+        AutoComponents.Pending.add(app, "4242", listOf(repair.name), mapOf(repair.name to 2))
+        assertTrue(WinComponents.selections(app).isEmpty())
+        assertTrue(AutoComponents.restoreMissing(app).isEmpty())
+        assertEquals("The component catalog is older than the requested revision", AutoComponents.repairFailures.value[repair.name])
+        assertEquals(listOf(repair.name), AutoComponents.Pending.ids(app, "4242"))
+        assertEquals(2, AutoComponents.Pending.revision(app, repair.name))
+        WinComponents.setUser(app, "4242", repair.name, false)
+        AutoComponents.queueInSession(app, game(null, Library.SOURCE_STEAM, 4242, library = "steam"))
+        assertTrue(AutoComponents.Pending.ids(app, "4242").isEmpty())
+    }
+
+    @Test fun missingCatalogComponentCannotDropANewerPendingRepair() = withFakeWorker {
+        val id = "vcredist2010_dll"
+        AutoComponents.catalogOf = { _, _ -> catalog3 }
+        session = true
+        gameUp = true
+        AutoComponents.queueRepair(app, id, "4242", revision = 1)
+        AutoComponents.Pending.add(app, "other", listOf(id), mapOf(id to 2))
+        gameUp = false
+        AutoComponents.drain(app)
+        assertEquals(listOf(id), AutoComponents.Pending.ids(app, "4242"))
+        assertEquals(listOf(id), AutoComponents.Pending.ids(app, "other"))
+        assertEquals(2, AutoComponents.Pending.revision(app, id))
+    }
+
+    @Test fun restoredLegacyPendingRepairUsesThePersistedRevision() = withFakeWorker {
+        val id = "vcredist2010_dll"
+        val repair = WinComponents.Component(id, "", "", "ready", emptyList(), emptyList(), revision = 1)
+        AutoComponents.catalogOf = { _, _ -> catalog3 + repair }
+        var attempts = 0
+        AutoComponents.installer = { _, _, _, _ -> attempts++; null }
+        val pendingFile = File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app), "root/.config/droiddeck/wincomponents-pending.json")
+        pendingFile.parentFile?.mkdirs()
+        pendingFile.writeText(JSONObject().put("games", JSONObject().put("4242", org.json.JSONArray(listOf(id)))).toString())
+        session = true
+        gameUp = true
+        AutoComponents.queueInSession(app, game(null, Library.SOURCE_STEAM, 4242, library = "steam"))
+        AutoComponents.Pending.add(app, "other", listOf(id), mapOf(id to 2))
+        gameUp = false
+        AutoComponents.drain(app)
+        assertEquals("The component catalog is older than the requested revision", AutoComponents.repairFailures.value[id])
+        assertEquals(0, attempts)
+        assertEquals(2, AutoComponents.Pending.revision(app, id))
+    }
+
+    @Test fun catalogLoadFailureCannotDropANewerPendingRepair() = withFakeWorker {
+        val id = "vcredist2010_dll"
+        AutoComponents.catalogOf = { _, _ -> null }
+        session = true
+        gameUp = true
+        AutoComponents.queueRepair(app, id, "4242", revision = 1)
+        AutoComponents.Pending.add(app, "other", listOf(id), mapOf(id to 2))
+        gameUp = false
+        AutoComponents.drain(app)
+        assertEquals("Could not load the component catalog", AutoComponents.repairFailures.value[id])
+        assertEquals(listOf(id), AutoComponents.Pending.ids(app, "4242"))
+        assertEquals(listOf(id), AutoComponents.Pending.ids(app, "other"))
+        assertEquals(2, AutoComponents.Pending.revision(app, id))
+    }
+
+    @Test fun manualRepairsRecordTheirRevisionAndExposeFailuresForRetry() = withFakeWorker {
+        val repair = WinComponents.Component("vcredist2010_dll", "", "", "ready", emptyList(), emptyList(), revision = 2)
+        AutoComponents.catalogOf = { _, _ -> catalog3 + repair }
+        var attempts = 0
+        AutoComponents.installer = { _, c, _, _ ->
+            attempts++
+            if (attempts == 1) throw IllegalStateException("network unavailable") else { installedNow.add(c.name); null }
+        }
+        session = true
+        gameUp = true
+        AutoComponents.queueRepair(app, repair.name, "4242", repair.revision)
+        val pending = File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app), "root/.config/droiddeck/wincomponents-pending.json")
+        assertEquals(2, JSONObject(pending.readText()).getJSONObject("revisions").getInt(repair.name))
+        gameUp = false
+        AutoComponents.drain(app)
+        assertEquals("network unavailable", AutoComponents.repairFailures.value[repair.name])
+        assertEquals(1, attempts)
+        assertFalse(JSONObject(pending.readText()).getJSONObject("games").has("4242"))
+        session = false
+        AutoComponents.queueRepair(app, repair.name, "4242", repair.revision)
+        assertEquals(2, attempts)
+        assertEquals(null, AutoComponents.repairFailures.value[repair.name])
+        assertTrue(repair.name in installedNow)
+        assertFalse(JSONObject(pending.readText()).getJSONObject("revisions").has(repair.name))
+    }
+
+    @Test fun anEarlierRepairCannotDropANewerGamesPendingRevision() = withFakeWorker {
+        session = false
+        gameUp = false
+        val first = WinComponents.Component("vcredist2010_dll", "", "", "ready", emptyList(), emptyList(), revision = 2)
+        val newer = WinComponents.Component("vcredist2010_dll", "", "", "ready", emptyList(), emptyList(), revision = 3)
+        AutoComponents.catalogOf = { _, _ -> catalog3 + first }
+        var attempts = 0
+        AutoComponents.installer = { _, c, _, _ ->
+            attempts++
+            if (attempts == 1) {
+                AutoComponents.catalogOf = { _, _ -> catalog3 + newer }
+                session = true
+                gameUp = true
+                AutoComponents.queueRepair(app, c.name, "other", newer.revision)
+            } else installedNow.add(c.name)
+            null
+        }
+        AutoComponents.queueRepair(app, first.name, "first", first.revision)
+        val pending = File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app), "root/.config/droiddeck/wincomponents-pending.json")
+        assertEquals(3, JSONObject(pending.readText()).getJSONObject("revisions").getInt(first.name))
+        assertEquals(listOf(first.name), AutoComponents.Pending.ids(app, "other"))
+        gameUp = false
+        session = false
+        AutoComponents.drain(app)
+        assertEquals(2, attempts)
+        assertFalse(JSONObject(pending.readText()).getJSONObject("revisions").has(first.name))
     }
 
     @Test fun theQueueWaitsWhileASessionRunsAndResumesAfter() = withFakeWorker {
@@ -297,6 +572,21 @@ class WinCompSourcesTest {
         session = false
         AutoComponents.drain(app)
         assertEquals(downloaded.distinct(), downloaded)
+    }
+
+    @Test fun queuedPicsLookupsMergeAppIdsFromLaterSweeps() = withFakeWorker {
+        val lookedUp = ArrayList<List<Int>>()
+        SteamAppInfo.pics = { ids -> lookedUp.add(ids); ids.associateWith { null } }
+        session = true
+        val first = game(null, Library.SOURCE_STEAM, 810001, library = "steam")
+        val second = game(null, Library.SOURCE_STEAM, 810002, library = "steam")
+
+        AutoComponents.sweep(app, listOf(first))
+        AutoComponents.sweep(app, listOf(second))
+        session = false
+        AutoComponents.drain(app)
+
+        assertEquals(listOf(listOf(810001, 810002)), lookedUp)
     }
 
     @Test fun aDownloadWaitsForANetwork() = withFakeWorker {
@@ -434,5 +724,56 @@ class WinCompSourcesTest {
         session = false
         AutoComponents.drain(app)
         assertTrue(AutoComponents.queued().isEmpty())
+    }
+
+    @Test fun aLostPartOfAnInstalledBundleIsReinstalledAndTheGameWaitsForIt() = withFakeWorker {
+        val bundle = WinComponents.Component("directmusic", "", "", "ready", listOf("dmband"), emptyList())
+        AutoComponents.catalogOf = { _, _ -> catalog3 + ready("dmband") + bundle }
+        installedNow.addAll(listOf("directmusic", "d3dx9"))
+        WinComponents.setUser(app, "4242", "directmusic", true)
+        WinComponents.setUser(app, "4242", "d3dx9", true)
+        session = true
+        gameUp = true
+        assertEquals(listOf("dmband"), AutoComponents.restoreMissing(app))
+        assertTrue(downloaded.isEmpty())
+        assertEquals("[\"dmband\"]", AutoComponents.Pending.read(app).optJSONArray("4242").toString())
+        gameUp = false
+        AutoComponents.drain(app)
+        assertEquals(listOf("dmband"), downloaded)
+        assertEquals(0, AutoComponents.Pending.read(app).length())
+        assertTrue(AutoComponents.restoreMissing(app).isEmpty())
+    }
+
+    @Test fun aRestoreRunsADownloadQueuedBeforeTheSessionWithoutWaitingForItToEnd() = withFakeWorker {
+        WinComponents.setUser(app, "4243", "vcredist2019_dll", true)
+        session = true
+        AutoComponents.queueGame(app, game(tmp.newFolder("Wait"), Library.ADDED), asked = true)
+        AutoComponents.restoreMissing(app)
+        AutoComponents.restoreMissing(app)
+        assertEquals(listOf("vcredist2019_dll"), downloaded)
+        session = false
+        AutoComponents.drain(app)
+    }
+
+    @Test fun aGameJobThatRunsFirstKeepsARestoredComponentPending() = withFakeWorker {
+        AutoComponents.catalogOf = { _, _ -> catalog3 + ready("dmband") }
+        val seen = ArrayList<List<String>>()
+        AutoComponents.installer = { _, c, _, _ ->
+            if (c.name == "dmband") seen.add(AutoComponents.Pending.ids(app, "1262580"))
+            downloaded.add(c.name); installedNow.add(c.name); null
+        }
+        val game = payback()
+        WinComponents.setUser(app, "1262580", "dmband", true)
+        session = true
+        gameUp = true
+        AutoComponents.queueInSession(app, game)
+        AutoComponents.restoreMissing(app)
+        gameUp = false
+        AutoComponents.drain(app)
+        assertEquals(1, seen.size)
+        assertTrue("dmband" in seen.single())
+        assertEquals(0, AutoComponents.Pending.read(app).length())
+        session = false
+        AutoComponents.drain(app)
     }
 }

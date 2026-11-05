@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Embed droiddeck-boot-sound.wav into droiddeck-boot.html (MP3, base64) for the preview page."""
 import base64, re, subprocess
 from pathlib import Path
 here = Path(__file__).parent

@@ -89,6 +89,8 @@ object GameExePicker {
         return score
     }
 
+    internal fun auxiliaryDir(dir: File): Boolean = skipDir(dir, dir.name)
+
     private fun skipDir(dir: File, relative: String): Boolean {
         val name = dir.name.lowercase().trim()
         if (name in SKIP_DIRS || SKIP_DIR_PREFIX.any { name.startsWith(it) }) return true

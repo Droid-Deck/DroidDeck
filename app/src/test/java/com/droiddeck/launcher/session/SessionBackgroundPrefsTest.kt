@@ -18,14 +18,23 @@ class SessionBackgroundPrefsTest {
         context.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
-    @Test fun nativeIsOptInAndDoesNotChangeDesktopOrExistingPolicies() {
-        assertEquals(SessionPrefs.SUSPEND_MANUAL, SessionPrefs.suspendPolicy(context, "steam"))
+    @Test fun nativeIsTheSteamDefaultWithoutChangingOtherModesOrSavedPolicies() {
+        assertEquals(SessionPrefs.SUSPEND_NATIVE, SessionPrefs.suspendPolicy(context, "steam"))
+        assertEquals(SessionPrefs.SUSPEND_MANUAL, SessionPrefs.suspendPolicy(context, SessionService.MODE_RUN))
         for (policy in listOf(SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_MANUAL, SessionPrefs.SUSPEND_NEVER,
                 SessionPrefs.SUSPEND_NATIVE)) {
             SessionPrefs.setSuspendPolicy(context, "steam", policy)
             assertEquals(policy, SessionPrefs.suspendPolicy(context, "steam"))
             assertEquals(SessionPrefs.SUSPEND_MANUAL, SessionPrefs.suspendPolicy(context, "desktop"))
         }
+    }
+
+    @Test fun automaticPipDefaultsOnAndHonorsSavedChoices() {
+        assertEquals(true, SessionPrefs.pipAutoEnter(context))
+        SessionPrefs.setPipAutoEnter(context, false)
+        assertEquals(false, SessionPrefs.pipAutoEnter(context))
+        SessionPrefs.setPipAutoEnter(context, true)
+        assertEquals(true, SessionPrefs.pipAutoEnter(context))
     }
 
     @Test fun directGamesUseAutoWithoutOverwritingSteamsNativeChoice() {

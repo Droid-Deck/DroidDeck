@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalView
@@ -9,7 +10,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertSame
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -21,7 +24,7 @@ import org.robolectric.annotation.Config
 class PrimaryButtonFocusContrastTest {
     @get:Rule val compose = createRobolectricComposeRule()
 
-    @Test fun focusedPrimaryButtonDoesNotClaimAColorOverlayAboveItsLabel() {
+    @Test fun focusedPrimaryButtonClaimsTheGlideWithoutAColorOverlayAboveItsLabel() {
         lateinit var glide: FocusGlide
         var clicks = 0
         compose.setContent {
@@ -36,11 +39,51 @@ class PrimaryButtonFocusContrastTest {
         val button = compose.onNodeWithText("Play")
         button.performSemanticsAction(SemanticsActions.RequestFocus)
         button.assertIsFocused()
-        compose.runOnIdle { assertNull(glide.current) }
+        compose.runOnIdle {
+            assertNotNull(glide.current)
+            assertEquals(0f, glide.current!!.fillAlpha)
+        }
         button.performClick()
         compose.runOnIdle {
             assertEquals(1, clicks)
-            assertNull(glide.current)
+            assertNotNull(glide.current)
+            assertEquals(0f, glide.current!!.fillAlpha)
+        }
+    }
+
+    @Test fun focusCanGlideIntoAndBackOutOfPrimaryButtons() {
+        lateinit var glide: FocusGlide
+        val focus = FrontFocus()
+        compose.setContent {
+            val view = LocalView.current
+            glide = remember(view) { FocusGlide(view) }
+            DroidDeckTheme {
+                CompositionLocalProvider(LocalFocusGlide provides glide, LocalFrontFocus provides focus) {
+                    Column {
+                        SecondaryButton("Tab") {}
+                        PrimaryButton("Play Steam", main = true, large = true) {}
+                    }
+                }
+            }
+        }
+        val tab = compose.onNodeWithText("Tab")
+        val play = compose.onNodeWithText("Play Steam")
+        tab.performSemanticsAction(SemanticsActions.RequestFocus)
+        tab.assertIsFocused()
+        val tabSource = compose.runOnIdle { glide.current!! }
+        compose.runOnIdle { focus.primary.requestFocus() }
+        play.assertIsFocused()
+        compose.runOnIdle {
+            assertNotNull(glide.current)
+            assertNotSame(tabSource, glide.current)
+            assertEquals(0f, glide.current!!.fillAlpha)
+            assertEquals(1, glide.hot.size)
+        }
+        tab.performSemanticsAction(SemanticsActions.RequestFocus)
+        tab.assertIsFocused()
+        compose.runOnIdle {
+            assertSame(tabSource, glide.current)
+            assertEquals(1, glide.hot.size)
         }
     }
 }

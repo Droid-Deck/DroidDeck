@@ -13,6 +13,7 @@
 #include <unistd.h>
 
 static int (*next_fstat)(int, struct stat *);
+void bl_storage_owner(int fd, struct stat *st) __attribute__((visibility("hidden")));
 static int (*next_fallocate)(int, int, off_t, off_t);
 static int (*next_posix_fallocate)(int, off_t, off_t);
 static ssize_t (*next_pwrite)(int, const void *, size_t, off_t);
@@ -285,12 +286,17 @@ int fstat(int fd, struct stat *out) {
   if (next_fstat == NULL) { errno = ENOSYS; return -1; }
   initialize();
   errno = entry_errno;
-  if (!enabled) return next_fstat(fd, out);
+  if (!enabled) {
+    int result = next_fstat(fd, out);
+    if (result == 0) bl_storage_owner(fd, out);
+    return result;
+  }
   uint64_t start = now_ns();
   errno = entry_errno;
   int result = next_fstat(fd, out);
   int call_errno = errno;
   uint64_t elapsed = now_ns() - start;
+  if (result == 0) bl_storage_owner(fd, out);
   if (result == 0 && on_selected_device(fd, out)) {
     add(&stats.fstat_calls, 1);
     add(&stats.fstat_elapsed_ns, elapsed);

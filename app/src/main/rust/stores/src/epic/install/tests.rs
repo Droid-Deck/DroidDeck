@@ -59,6 +59,7 @@ struct Recorder {
     replaced: AtomicUsize,
     refuse: bool,
     last_progress: Mutex<(u64, u64)>,
+    first_progress: Mutex<Option<(u64, u64)>>,
     sizes: Mutex<(u64, u64)>,
 }
 
@@ -72,6 +73,7 @@ impl Events for Recorder {
         *self.sizes.lock().unwrap() = (pending, disk);
     }
     fn progress(&self, written: u64, total: u64, _f: u32, _ft: u32) {
+        self.first_progress.lock().unwrap().get_or_insert((written, total));
         let mut p = self.last_progress.lock().unwrap();
         if written >= p.0 {
             *p = (written, total);
@@ -259,6 +261,85 @@ fn a_cancelled_run_reports_cancel() {
     let cancel = AtomicBool::new(true);
     let events = Recorder::default();
     assert_eq!(run(&request(&fx, &game), &cancel, &events).unwrap_err(), Stop::Cancelled);
+    let _ = fs::remove_dir_all(&game);
+}
+
+fn place_partial(fx: &Fixture, game: &Path, data: &[u8], list: &str) -> PathBuf {
+    let stage = staging::recover(game).unwrap();
+    let a = &fx.expected[0].1;
+    let partial = stage.join(staging::partial_name("a.bin", 4000, Some(Sha1::digest(a).into())));
+    fs::write(&partial, data).unwrap();
+    fs::write(staging::list_path(&partial), list).unwrap();
+    partial
+}
+
+fn place_done_c(fx: &Fixture, game: &Path) {
+    fs::create_dir_all(game.join("b")).unwrap();
+    fs::write(game.join("b/c.bin"), &fx.expected[1].1).unwrap();
+}
+
+#[test]
+fn a_paused_install_resumes_from_its_written_parts() {
+    let fx = fixture();
+    let game = temp_game("resume");
+    place_done_c(&fx, &game);
+    place_partial(&fx, &game, &fx.expected[0].1[..3000], "0\n");
+    let stage = game.join(staging::DIR_NAME);
+    fs::write(stage.join(staging::partial_name("gone.bin", 9, None)), b"old").unwrap();
+
+    let events = Recorder::default();
+    run(&request(&fx, &game), &AtomicBool::new(false), &events).unwrap();
+    for (path, bytes) in &fx.expected {
+        assert_eq!(&fs::read(game.join(path)).unwrap(), bytes, "{path}");
+    }
+    assert_eq!(fx.hits.load(Ordering::Relaxed), 2, "the manifest and the one chunk still missing");
+    assert_eq!(*events.first_progress.lock().unwrap(), Some((2096 + 3000, 6196)));
+    assert_eq!(*events.last_progress.lock().unwrap(), (6196, 6196));
+    assert!(events.logs.lock().unwrap().iter().any(|l| l == "resuming a.bin with 3000 of 4000 bytes written"));
+    assert!(!stage.exists());
+    let _ = fs::remove_dir_all(&game);
+}
+
+#[test]
+fn a_part_written_out_of_order_is_kept_too() {
+    let fx = fixture();
+    let game = temp_game("resume-tail");
+    place_done_c(&fx, &game);
+    let mut data = vec![0u8; 3000];
+    data.extend_from_slice(&fx.expected[0].1[3000..]);
+    place_partial(&fx, &game, &data, "3000\n");
+    let events = Recorder::default();
+    run(&request(&fx, &game), &AtomicBool::new(false), &events).unwrap();
+    assert_eq!(fs::read(game.join("a.bin")).unwrap(), fx.expected[0].1);
+    assert_eq!(*events.first_progress.lock().unwrap(), Some((2096 + 1000, 6196)));
+    assert!(!game.join(staging::DIR_NAME).exists());
+    let _ = fs::remove_dir_all(&game);
+}
+
+#[test]
+fn a_partial_that_no_longer_matches_is_dropped() {
+    let fx = fixture();
+    let game = temp_game("badpartial");
+    place_partial(&fx, &game, &fx.expected[0].1[..1234], "1234\n");
+    let events = Recorder::default();
+    run(&request(&fx, &game), &AtomicBool::new(false), &events).unwrap();
+    assert_eq!(fs::read(game.join("a.bin")).unwrap(), fx.expected[0].1);
+    assert_eq!(*events.first_progress.lock().unwrap(), Some((0, 6196)));
+    assert!(!game.join(staging::DIR_NAME).exists());
+    let _ = fs::remove_dir_all(&game);
+}
+
+#[test]
+fn a_damaged_partial_fails_its_check_and_is_not_kept() {
+    let fx = fixture();
+    let game = temp_game("damagedpartial");
+    place_partial(&fx, &game, &[0u8; 3000], "0\n");
+    let err = run(&request(&fx, &game), &AtomicBool::new(false), &Recorder::default()).unwrap_err();
+    assert_eq!(err, Stop::Failed("SHA-1 mismatch for a.bin".into()));
+    assert!(staging::partials(&game.join(staging::DIR_NAME)).is_empty());
+    let retry = Recorder::default();
+    run(&request(&fx, &game), &AtomicBool::new(false), &retry).unwrap();
+    assert_eq!(fs::read(game.join("a.bin")).unwrap(), fx.expected[0].1);
     let _ = fs::remove_dir_all(&game);
 }
 

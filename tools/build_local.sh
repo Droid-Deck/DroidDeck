@@ -24,7 +24,8 @@ java_dir="${JAVA_HOME:-/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents
 [[ -x "$java_dir/bin/java" ]] || java_dir="${HOME}/.local/share/mise/installs/java/temurin-17"
 [[ "$java_dir" == */homebrew/* ]] && echo "using homebrew java path: $java_dir"
 [[ "$java_dir" == */mise/* ]] && echo "using mise java path: $java_dir"
-image_name=${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v3}
+. "${repo_root}/tools/docker_platform.sh"
+image_name=${DROIDDECK_BUILD_IMAGE}
 build_variant=${DROIDDECK_BUILD_VARIANT:-release}
 case "$build_variant" in
     debug) gradle_task=assembleDebug ;;
@@ -40,11 +41,15 @@ if [[ ! -x "${java_dir}/bin/java" ]]; then
     echo "Java 17 not found at ${java_dir}; set JAVA_HOME." >&2
     exit 1
 fi
+if [[ ! -f "${repo_root}/external/MaliBridge/scripts/build-client-linux.sh" ]]; then
+    echo "external/MaliBridge is empty; run: git submodule update --init" >&2
+    exit 1
+fi
 if ! command -v docker >/dev/null 2>&1; then
     echo "Docker is required to cross-compile the glibc ARM64 preload libraries." >&2
     exit 1
 fi
-for tool in curl tar zstd shasum unzip python3; do
+for tool in curl tar zstd shasum unzip python3 go; do
     if ! command -v "${tool}" >/dev/null 2>&1; then
         echo "${tool} is required to build the CI-equivalent APK." >&2
         exit 1
@@ -85,8 +90,6 @@ trap 'exit 143' TERM
 
 cache_dir=${DROIDDECK_BUILD_CACHE:-"${HOME}/.cache/droiddeck-build"}
 mkdir -p "${cache_dir}"
-# Steps whose output depends only on tracked sources are kept per input hash in the
-# shared cache, so a rerun or a fresh worktree copies them instead of rebuilding.
 inputs_hash() {
     (cd "${repo_root}" && { printf '%s\n' "$1"; shift; find "$@" -type f ! -name '*.pyc' | LC_ALL=C sort | xargs shasum -a 256; }) \
         | shasum -a 256 | cut -d' ' -f1
@@ -104,7 +107,6 @@ save_step() {
     part=$(mktemp -d "${stored}.part.XXXXXX")
     (cd "$3" && tar -cf - .) | tar -xf - -C "${part}"
     touch "${part}/.complete"
-    # Another checkout may have published the same key meanwhile; its copy is equivalent.
     if [[ -e "${stored}" ]]; then rm -rf "${part}"; else mv "${part}" "${stored}" || rm -rf "${part}"; fi
 }
 
@@ -113,9 +115,10 @@ image_id=$(docker image inspect --format '{{.Id}}' "${image_name}")
 rm -rf -- "${linuxfs_dir}"
 mkdir -p "${linuxfs_dir}"
 
-docker run --rm --platform linux/amd64 \
+git_common=$(git -C "${repo_root}" rev-parse --path-format=absolute --git-common-dir)
+docker run --rm --platform "${docker_platform}" \
     --user "$(id -u):$(id -g)" \
-    -v "${repo_root}:/src" -w /src "${image_name}" bash -lc '
+    -v "${repo_root}:/src" -v "${git_common}:${git_common}" -w /src "${image_name}" bash -lc '
         set -euo pipefail
         d=app/src/main/assets/linuxfs
         mkdir -p "$d"
@@ -137,6 +140,7 @@ docker run --rm --platform linux/amd64 \
             -o "$d/libssbs.so" tools/linuxfs/ssbs/ssbs_adapter.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/libssbs.so"
         mkdir -p "$d/usr/local/bin"
+        external/MaliBridge/scripts/build-client-linux.sh "$d" aarch64-linux-gnu-gcc
         aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$d/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-clipboard"
         for script in tools/linuxfs/overlay/usr/local/bin/droiddeck-* tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
@@ -160,7 +164,7 @@ x86_key=$(inputs_hash bullseye tools/linuxfs/build-x86-preloads.sh tools/linuxfs
 x86_stage="${staging_dir}/x86-preloads"
 if restore_step x86-preloads "${x86_key}" "${linuxfs_dir}"; then :; else
     docker run --rm --platform linux/amd64 \
-        -v "${repo_root}:/src" -w /src public.ecr.aws/docker/library/debian:bullseye bash -c '
+        -v "${repo_root}:/src" -v "${git_common}:${git_common}" -w /src public.ecr.aws/docker/library/debian:bullseye bash -c '
             set -euo pipefail
             printf "deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n" > /etc/apt/sources.list
             apt-get -o Acquire::Check-Valid-Until=false update -qq
@@ -178,6 +182,13 @@ vr_key=$(inputs_hash "${image_id} ${ndk_version} ${VK_INCLUDE:-}" tools/vr app/s
 if ! restore_step vr "${vr_key}" "${vr_out}"; then
     DROIDDECK_BUILD_IMAGE="${image_name}" "${repo_root}/tools/vr/build.sh" "${vr_out}"
     save_step vr "${vr_key}" "${vr_out}"
+fi
+
+gpuload_out="${linuxfs_dir}/usr/local/lib/droiddeck-gpuload"
+gpuload_key=$(inputs_hash "${image_id} ${ndk_version} ${VK_INCLUDE:-}" tools/gpuload)
+if ! restore_step gpuload "${gpuload_key}" "${gpuload_out}"; then
+    DROIDDECK_BUILD_IMAGE="${image_name}" "${repo_root}/tools/gpuload/build.sh" "${gpuload_out}"
+    save_step gpuload "${gpuload_key}" "${gpuload_out}"
 fi
 
 github_repo=${DROIDDECK_GITHUB_REPOSITORY:-}
@@ -221,7 +232,7 @@ fi
 
 . "${repo_root}/tools/linuxfs/uruntime.env"
 uruntime_binary=$(cached "${URUNTIME_SHA256}" "${URUNTIME_ASSET}" \
-    bash -c 'curl -fsSL --retry 3 -o "$out" "$0"' "https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/${URUNTIME_ASSET}")
+    bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/${URUNTIME_ASSET}")
 mkdir -p "${linuxfs_dir}/usr/local/lib/droiddeck" "${linuxfs_dir}/usr/local/share/licenses/uruntime"
 install -m644 "${uruntime_binary}" "${linuxfs_dir}/usr/local/lib/droiddeck/uruntime"
 install -m644 "${repo_root}/tools/linuxfs/licenses/uruntime-LICENSE" "${linuxfs_dir}/usr/local/share/licenses/uruntime/LICENSE"
@@ -256,7 +267,7 @@ mkdir -p "${msi_pkgs}" "${msi_dir}"
 while read -r package_sha256 package_url; do
     [[ -n "${package_url}" ]] || continue
     package_archive=$(cached "${package_sha256}" "$(basename "${package_url}")" \
-        bash -c 'curl -fsSL --retry 3 -o "$out" "$0"' "${package_url}")
+        bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "${package_url}")
     tar -xJf "${package_archive}" -C "${msi_pkgs}"
 done < <(grep -v '^#' "${repo_root}/tools/msitools/packages.txt")
 for tool in msiinfo cabextract; do install -m644 "${msi_pkgs}/usr/bin/${tool}" "${msi_dir}/${tool}"; done
@@ -276,14 +287,14 @@ mkdir -p "${mango_dir}" "${mango_pkgs}"
 while read -r package_sha256 package_url; do
     [[ -n "${package_url}" ]] || continue
     package_archive=$(cached "${package_sha256}" "$(basename "${package_url}")" \
-        bash -c 'curl -fsSL --retry 3 -o "$out" "$0"' "${package_url}")
+        bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "${package_url}")
     zstd -dc "${package_archive}" | tar -xf - -C "${mango_pkgs}"
 done < <(grep -v '^#' "${repo_root}/tools/mangoapp/packages.txt")
 install -m644 "${mango_pkgs}/usr/bin/mangoapp" "${mango_dir}/mangoapp"
 for library in libfmt.so.10 libspdlog.so.1.13 libglfw.so.3 libtraceevent.so.1; do
     cp -L "${mango_pkgs}/usr/lib/${library}" "${mango_dir}/${library}"
 done
-docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" -v "${repo_root}:/src" -w /src "${image_name}" \
+docker run --rm --platform "${docker_platform}" --user "$(id -u):$(id -g)" -v "${repo_root}:/src" -w /src "${image_name}" \
     aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wl,-soname,libtracefs.so.1 \
     -o app/src/main/assets/linuxfs/usr/local/lib/mangoapp/libtracefs.so.1 tools/mangoapp/libtracefs-shim.c
 mkdir -p "${linuxfs_dir}/usr/local/bin"
@@ -294,7 +305,7 @@ mkdir -p "${pw_pkgs}"
 while read -r package_sha256 package_url; do
     [[ -n "${package_url}" ]] || continue
     package_archive=$(cached "${package_sha256}" "$(basename "${package_url}")" \
-        bash -c 'curl -fsSL --retry 3 -o "$out" "$0"' "${package_url}")
+        bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "${package_url}")
     zstd -dc "${package_archive}" | tar -xf - -C "${pw_pkgs}"
 done < <(grep -v '^#' "${repo_root}/tools/pipewire/packages.txt")
 "${repo_root}/tools/pipewire/assemble.sh" "${pw_pkgs}" "${linuxfs_dir}/usr/local/lib/droiddeck-pipewire.tzst"
@@ -303,7 +314,7 @@ pa_source=${DROIDDECK_PA13_SOURCE_DIR:-"${staging_dir}/pulseaudio-13.0"}
 if [[ -z "${DROIDDECK_PA13_SOURCE_DIR:-}" ]]; then
     pa_tarball="${cache_dir}/pulseaudio-13.0.tar.gz"
     if [[ ! -s "${pa_tarball}" ]] || ! tar -tzf "${pa_tarball}" >/dev/null 2>&1; then
-        curl -fsSL -o "${pa_tarball}.part" \
+        curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "${pa_tarball}.part" \
             https://github.com/pulseaudio/pulseaudio/archive/refs/tags/v13.0.tar.gz
         mv "${pa_tarball}.part" "${pa_tarball}"
     fi
@@ -334,6 +345,27 @@ else
     install -m755 "${proot_stage}/libproot.so" "${proot_stage}/libproot-loader.so" "${proot_out}/"
     echo "${proot_inputs}" > "${proot_out}/.proot-inputs"
     (cd "${proot_out}" && shasum -a 256 libproot.so libproot-loader.so > .proot-outputs)
+fi
+
+syncthing_src="${repo_root}/tools/syncthing/syncthing-android/syncthing/src/github.com/syncthing/syncthing"
+git -C "${repo_root}" submodule update --init --recursive tools/syncthing/syncthing-android
+syncthing_inputs=$(printf '%s\n' "$(cd "${repo_root}" && shasum -a 256 tools/syncthing/build.sh \
+    tools/syncthing/syncthing-android/gradle/libs.versions.toml)" \
+    "$(git -C "${syncthing_src}" rev-parse HEAD)" \
+    "$(git -C "${syncthing_src}" diff --binary HEAD | shasum -a 256)" \
+    "$(cd "${syncthing_src}" && git ls-files -z --others --exclude-standard | xargs -0 shasum -a 256)" \
+    "${ndk_version}" | shasum -a 256 | cut -d' ' -f1)
+if [[ -f "${proot_out}/libsyncthingnative.so" \
+        && "$(cat "${proot_out}/.syncthing-inputs" 2>/dev/null)" = "${syncthing_inputs}" ]]; then
+    echo "syncthing: sources unchanged, keeping ${proot_out}/libsyncthingnative.so"
+else
+    syncthing_stage="${staging_dir}/syncthing"
+    if ! restore_step syncthing "${syncthing_inputs}" "${syncthing_stage}"; then
+        "${repo_root}/tools/syncthing/build.sh" "${syncthing_stage}"
+        save_step syncthing "${syncthing_inputs}" "${syncthing_stage}"
+    fi
+    install -m755 "${syncthing_stage}/libsyncthingnative.so" "${proot_out}/"
+    echo "${syncthing_inputs}" > "${proot_out}/.syncthing-inputs"
 fi
 
 bundle_dir="${staging_dir}/pulseaudio-bundle"

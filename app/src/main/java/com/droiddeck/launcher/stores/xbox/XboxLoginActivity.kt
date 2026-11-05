@@ -31,10 +31,12 @@ class XboxLoginActivity : ComponentActivity() {
     @Volatile private var session = 0L
     @Volatile private var closed = false
     @Volatile private var step = "starting"
+    private val codes = java.util.concurrent.CopyOnWriteArrayList<String>()
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestedOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
         host = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK) }
         status = TextView(this).apply { setTextColor(Color.WHITE); text = "Preparing Microsoft sign-in…"; setPadding(24, 16, 24, 16) }
         host.addView(status)
@@ -53,6 +55,12 @@ class XboxLoginActivity : ComponentActivity() {
         Thread({
             if (closed) return@Thread
             try {
+                progress("preparing the sign-in", "Preparing Microsoft sign-in…")
+                val leftover = StoreAccounts.read(applicationContext, Store.XBOX)
+                if (leftover != null && leftover.optString("username").isBlank()) {
+                    XboxCredentials.invalidate(applicationContext)
+                    logStep("discarded credentials from an unfinished sign-in")
+                }
                 val accountGeneration = XboxCredentials.lifecycle(applicationContext) { it }
                 progress("downloading the Xbox components", "Downloading Xbox components…")
                 check(AddonPack.XBOX.await(applicationContext, { !closed }) { state ->
@@ -63,8 +71,10 @@ class XboxLoginActivity : ComponentActivity() {
                 Xodus.start(applicationContext, listOf("--external-webview-stdio", "login"), credentialGeneration = accountGeneration).use { process ->
                     child = process
                     if (closed) return@use
-                    // StoresState.logLine writes no file in this process, so the reason would miss the shared log.
-                    Xodus.diagnostics(process) { logStep(it) }
+                    Xodus.diagnostics(process) { line ->
+                        logStep(line)
+                        line.removePrefix("NEXUS_CREDENTIAL_ERROR_V1 ").takeIf { it != line && it !in codes && codes.size < 6 }?.let(codes::add)
+                    }
                     progress("waiting for the Xbox helper", "Waiting for the Xbox helper…")
                     val timer = Thread({
                         runCatching { if (!process.process.waitFor(10, TimeUnit.MINUTES)) process.process.destroy() }
@@ -140,7 +150,8 @@ class XboxLoginActivity : ComponentActivity() {
                 logStep("failed while $failed: $reason")
                 runOnUiThread {
                     disposeView()
-                    status.text = "Microsoft sign-in did not complete.\nFailed while $failed: $reason\nClose this window and try again."
+                    val details = if (codes.isEmpty()) "" else "\nDetails: ${codes.joinToString(", ")}"
+                    status.text = "Microsoft sign-in did not complete.\nFailed while $failed: $reason$details\nClose this window and try again."
                 }
             }
         }, "xbox-login").start()
@@ -150,7 +161,6 @@ class XboxLoginActivity : ComponentActivity() {
 
     private fun progress(name: String, text: String) { step = name; show(text) }
 
-    /** Written to the stores log, which the shared log zip carries; the main process's log helpers don't run in this process. */
     private fun logStep(line: String) {
         val text = StoreLog.redactLine("Xbox sign-in: $line")
         Log.i(TAG, text)
@@ -216,7 +226,6 @@ class XboxLoginActivity : ComponentActivity() {
     companion object {
         private const val TAG = "XboxLogin"
 
-        /** Our own check messages are safe to show; anything else is named by its type, never its text, which may hold sign-in data. */
         internal fun failure(e: Exception): String {
             val message = e.message.orEmpty()
             return if (e is IllegalStateException && message.isNotBlank() && message != "Check failed." && message.length <= 160) message

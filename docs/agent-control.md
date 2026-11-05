@@ -26,7 +26,7 @@ and reports every run.
 
 Player controls and observations work over authorized ADB on any build: `state`, `start`, `stop`,
 `resume`, `wait`, `launch`, `quit`, `focus`, `input`, `ui`, `logs`, `screenshot`, `record`, `pacing`,
-`displays`, `wake`, `glasses` (except `glasses raw`), and `access`.
+`thermal`, `displays`, `wake`, `glasses` (except `glasses raw`), and `access`.
 
 **Setup > Diagnostics > Debugging tools** is off by default in every build, including debug builds.
 It enables `run`, `guest`, `cdp`, all `env` operations, `override`, `prefs`, and `glasses raw`. The
@@ -38,6 +38,21 @@ reports whether commands are enabled.
 Disabling the toggle clears queued and persistent agent environment settings and installed binary
 overrides. Disabled settings cannot apply at the next session start. Already running commands and
 effects already applied to a session are not undone; stop and restart that session to discard them.
+
+Program overrides prepend their directory to the normal session PATH, including `/usr/games`
+where Ubuntu installs `gamescopereaper`. An explicit `PATH=...` environment entry replaces that
+default. If an old persistent PATH hides runtime tools, inspect `tools/droiddeckctl env list`
+and correct only PATH with `env set --persistent`, which preserves other persistent entries.
+For example, to restore the normal runtime search path:
+
+```sh
+tools/droiddeckctl env set --persistent 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games'
+```
+
+Retain any custom directories you still need alongside these runtime directories, then restart
+the session. `env clear persistent` removes **all** persistent environment settings, not just
+PATH; there is no single-entry clear operation. Before clearing that scope, record any other
+entries you want to keep and reapply them afterward.
 
 Authorized command execution runs inside the runtime containing Steam's saved login. CDP evaluates
 JavaScript in the authenticated Steam client, and preferences can contain private values. These
@@ -113,6 +128,10 @@ tools/droiddeckctl env set DXVK_HUD=fps
 tools/droiddeckctl env list
 tools/droiddeckctl env clear [next|persistent|all]
 tools/droiddeckctl override gamescope ./gamescope
+tools/droiddeckctl override libblfastpath.so ./libblfastpath.so
+tools/droiddeckctl proot-profile enable --slow-us 1000
+tools/droiddeckctl proot-profile disable
+tools/droiddeckctl proot-profile report ./session.log --sort wall
 tools/droiddeckctl prefs get session
 tools/droiddeckctl prefs set session some_key true --type bool
 
@@ -121,6 +140,8 @@ tools/droiddeckctl screenshot ./screen.png --display 4
 tools/droiddeckctl xr-frame ./xr-capture
 tools/droiddeckctl record ./clip.mp4 --seconds 8 --display 0
 tools/droiddeckctl pacing --seconds 30
+tools/droiddeckctl thermal
+tools/droiddeckctl wait cool --below 38 --timeout 900
 tools/droiddeckctl displays
 tools/droiddeckctl wake
 
@@ -157,6 +178,11 @@ compositor has no layer of its own) and reports the frames that reached the pane
 the present-to-present histogram and the share of intervals off the usual cadence. A game's own fps
 counter counts frames handed over, not frames shown, so it can read 60 while one frame in four
 stays on screen for two refreshes.
+
+`thermal` reports the battery temperature (`dumpsys battery`), the thermal status
+(`dumpsys thermalservice`, 0 NONE to 6 SHUTDOWN) and each CPU policy's `scaling_max_freq` against
+its `cpuinfo_max_freq`, with `capped` when the first is lower. `wait cool --below <°C>` polls it
+every 10 s until the battery is under that temperature, so runs being compared start equally cool.
 
 `input` needs a session that has drawn its first frame. Pad input goes through the session screen's
 virtual pad, the same one the on-screen controls drive, so games that ignore touch still respond.
@@ -338,8 +364,11 @@ Automator show them:
 
 | Tag | Where |
 |---|---|
-| `rail-steam`, `rail-games`, `rail-desktop`, `rail-store`, `rail-components`, `rail-android-apps`, `rail-setup`, `rail-updates` | the front end's rail |
-| `play-steam` | Play on the Steam and Games pages |
+| `rail-steam`, `rail-games` (the Library), `rail-desktop`, `rail-store`, `rail-components`, `rail-android-apps`, `rail-setup`, `rail-updates` | the front end's rail |
+| `play-steam` | Play on the Steam page, and on the Library when it has no games |
+| `library-source-<source>` | the Library's source filter chips (`all`, `steam`, `gog`, ...) |
+| `game-tab-<about\|achievements\|launch\|saves\|install>` | the open tab of a game page |
+| `stores-profile`, `stores-epic-launcher` | a store's profile strip, and the Epic Games Launcher row in Epic's |
 | `setting-<key>` | every toggle and choice row, by its key (`setting-logs`, `setting-agent-commands`, ...) |
 | `tab-<n>` | a page's tab strip (Setup's Overview, Controller, Session, Launcher...), by position |
 | `drawer-tab-controller`, `-second_screen`, `-display`, `-effects`, `-vr`, `-games`, `-session` | the session drawer's pages |
@@ -364,3 +393,14 @@ sees it, and quits it: the test that catches a game left behind Steam's loading 
 shows up in some fraction of launches. A game with a launcher of its own needs the launcher pressed
 through first, since the launcher window carries the game's app id too:
 `tools/scenarios/skyrim-launcher-focus.json` taps Skyrim's Play before checking.
+
+## PRoot performance experiments
+
+`proot-profile enable` queues handler profiling for the next session using the existing debugging
+consent gate. Counters and bounded slow samples appear in `session.log`; `proot-profile report`
+ranks a saved local log without ADB. This measures PRoot handler work, not full syscall latency.
+`override libblfastpath.so FILE` selects a glibc ARM64 shared library in the next session's preload
+list, reports its SHA-256, and refuses installation until the current session stops. It lasts for
+one session; the next session stages the bundled library again. See
+[the profiling workflow](development/proot-performance.md#finding-the-next-fast-path) for timing
+boundaries, build commands, path diagnostics, and A/B validation.

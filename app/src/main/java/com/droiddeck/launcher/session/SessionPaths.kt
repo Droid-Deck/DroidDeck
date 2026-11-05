@@ -44,6 +44,9 @@ object SessionPaths {
 
     fun current(): File? = dir
 
+    fun currentSessionLogsRetained(context: Context): Boolean =
+        dir?.let { it.parentFile == SessionFiles.logDirectory(context) } ?: true
+
     fun lastEnded(): File? = ended?.takeIf { it.isDirectory }
 
     @Synchronized

@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: maxjivi05 <maxjividen@gmail.com>
+Date: Wed, 28 Oct 2026 07:28:38 -0400
+Subject: [PATCH] Select explicit nested render node
+
+---
+ src/backends/wayland/wayland_backend.cpp | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/src/backends/wayland/wayland_backend.cpp b/src/backends/wayland/wayland_backend.cpp
+index e07e146..54f5a70 100644
+--- a/src/backends/wayland/wayland_backend.cpp
++++ b/src/backends/wayland/wayland_backend.cpp
+@@ -455,6 +455,15 @@ bool WaylandBackend::initialize()
+ 
+     if (WaylandClient::LinuxDmabufV1 *dmabuf = m_display->linuxDmabuf()) {
+         m_drmDevice = DrmDevice::open(dmabuf->mainDevice());
++        if (!m_drmDevice && qEnvironmentVariableIsSet("DROIDDECK_NESTED_SCALE")) {
++            const QStringList nodes = qEnvironmentVariable("KWIN_RENDER_NODES").split(QLatin1Char(':'), Qt::SkipEmptyParts);
++            if (nodes.size() == 1) {
++                m_drmDevice = DrmDevice::open(nodes.constFirst());
++                if (m_drmDevice) {
++                    qCWarning(KWIN_WAYLAND_BACKEND) << "Using explicitly selected nested render node" << nodes.constFirst();
++                }
++            }
++        }
+         if (!m_drmDevice) {
+             qCWarning(KWIN_WAYLAND_BACKEND) << "Failed to open drm render node" << dmabuf->mainDevice();
+         }
