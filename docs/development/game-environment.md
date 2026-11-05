@@ -191,9 +191,10 @@ per-game value in the environment editor still wins.
 ## Defaults and available suggestions
 
 The initial configuration enables Mesa shader caching with
-`MESA_SHADER_CACHE_DISABLE=false`, sets `VKD3D_FEATURE_LEVEL=12_2` and
-`VKD3D_SHADER_MODEL=6_9`, and preserves the selected FEX preset. Existing edits
-and explicit removals take precedence over these defaults. FEX's own default
+`MESA_SHADER_CACHE_DISABLE=false` and preserves the selected FEX preset.
+`VKD3D_FEATURE_LEVEL` and `VKD3D_SHADER_MODEL` are unset by default, so VKD3D
+detects capabilities from the active Vulkan driver. Existing shared and per-game
+overrides, including explicit removals, are preserved. FEX's own default
 remains the default preset. Shader caching in VKD3D/DXVK, synchronization, ray
 tracing and diagnostic logging otherwise retain the runtime's defaults.
 
@@ -209,8 +210,8 @@ values. Custom variables have editable names and literal values.
 
 | Variable | Use |
 | --- | --- |
-| `VKD3D_FEATURE_LEVEL` | D3D12 capability override; defaults to `12_2`. |
-| `VKD3D_SHADER_MODEL` | Shader-model override; defaults to `6_9`. |
+| `VKD3D_FEATURE_LEVEL` | Optional D3D12 capability override; automatic detection by default. |
+| `VKD3D_SHADER_MODEL` | Optional shader-model override; automatic detection by default. |
 | `VKD3D_CONFIG` | Per-game workarounds such as `nodxr`; not a universal performance preset. |
 | `MESA_SHADER_CACHE_MAX_SIZE` | Storage budget for Mesa's shader cache, for example `1G`. |
 | `mesa_glthread` | OpenGL threading; test with the affected game. |
@@ -221,7 +222,11 @@ values. Custom variables have editable names and literal values.
 | `PROTON_USE_XALIA` | Proton's gamepad-navigation helper toggle. |
 
 Forcing `12_2` or `6_9` changes reported capabilities; it cannot implement a missing
-Vulkan feature. Remove either entry to use automatic detection for that capability.
+Vulkan feature. Remove or unset either entry to use automatic detection for that capability.
+The former feature-level rules for Caravan SandWitch, RoboCop: Rogue City,
+ReSkate and Cyberpunk 2077 compensated for the global `12_2` override and are
+removed. Stellar Blade also uses automatic detection. The separate Deep Rock
+Galactic GDK ray-tracing opt-out and Mali bridge capability cap remain.
 Other picker suggestions are editable starting values and are enabled only when
 added and saved. Older or
 custom components can support a different set of options. Android Wine wrapper,
