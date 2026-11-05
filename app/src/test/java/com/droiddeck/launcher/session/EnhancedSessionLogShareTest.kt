@@ -13,6 +13,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import java.io.IOException
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
@@ -495,6 +496,33 @@ class EnhancedSessionLogShareTest {
             resetSecureSourceOpener()
         }
         assertFalse(EnhancedSessionLogShare.hasSourceOpenerForTest())
+        SessionLogShare.clear(app)
+    }
+
+    @Test fun sourceReadFailureIsRecordedWithoutFailingTheArchive() {
+        val session = tmp.newFolder("2026-11-04-16-steam")
+        session.resolve("session.log").writeText("must not be shared\n")
+        EnhancedSessionLogShare.setSourceOpenerForTest(object : SecureSourceOpener {
+            override fun <T> withChannel(
+                root: java.nio.file.Path,
+                relative: java.nio.file.Path,
+                block: (java.nio.channels.SeekableByteChannel) -> T,
+            ): T? = throw IOException("injected source read failure")
+        })
+        try {
+            val sessionZip = EnhancedSessionLogShare.create(app, session).single { it.name.endsWith("-session.zip") }
+            ZipFile(sessionZip).use { archive ->
+                assertFalse(archive.entries().toList().any { it.name.endsWith("session.log") })
+                val manifest = JSONObject(archive.getInputStream(archive.getEntry("diagnostics-manifest.json"))
+                    .bufferedReader().readText()).getJSONArray("entries")
+                val record = (0 until manifest.length()).map { manifest.getJSONObject(it) }
+                    .single { it.optString("entry").endsWith("session.log") }
+                assertEquals("error", record.getString("status"))
+                assertEquals("IOException", record.getString("reason"))
+            }
+        } finally {
+            resetSecureSourceOpener()
+        }
         SessionLogShare.clear(app)
     }
 }

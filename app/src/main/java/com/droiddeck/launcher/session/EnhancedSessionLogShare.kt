@@ -390,8 +390,9 @@ internal object EnhancedSessionLogShare {
                 Snapshot(target, size, size > limit)
             } ?: target.delete().let { null }
         } catch (e: Exception) {
+            val targetWasPresent = target.exists()
             target.delete()
-            if (!stage.isDirectory || !stage.canWrite() || !target.exists()) throw StageUnavailableException(e)
+            if (!stage.isDirectory || !stage.canWrite() || !targetWasPresent) throw StageUnavailableException(e)
             throw e
         }
     }
