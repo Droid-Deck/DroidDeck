@@ -213,6 +213,7 @@ object StoresState {
             main.post {
                 if (store == Store.XBOX && StoreAccounts.signedInAs(app, store) != null) return@post
                 accounts.remove(store); library.remove(store); status.remove(store); problems.remove(store); libraryAsked.remove(store)
+                if (store == Store.GOG) com.droiddeck.launcher.stores.gog.GogMaintenance.reset()
                 logLine("${store.label}: signed out")
             }
         }
