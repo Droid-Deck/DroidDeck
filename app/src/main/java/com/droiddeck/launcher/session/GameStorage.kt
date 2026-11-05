@@ -58,8 +58,13 @@ object GameStorage {
     }
 
     internal fun attached(path: File): Boolean =
-        path.isDirectory || path.parentFile?.isDirectory == true ||
-            runCatching { Environment.getExternalStorageState(path) }.getOrNull() == Environment.MEDIA_MOUNTED
+        attached(path, runCatching { Environment.getExternalStorageState(path) }.getOrNull())
+
+    internal fun attached(path: File, state: String?): Boolean = when (state) {
+        Environment.MEDIA_MOUNTED, Environment.MEDIA_MOUNTED_READ_ONLY -> true
+        Environment.MEDIA_UNKNOWN, null -> path.isDirectory || path.parentFile?.isDirectory == true
+        else -> false
+    }
 
     const val X64_CARD_DIR = "x86-64"
     const val X64_CARD_GUEST = "/mnt/droiddeck-sd/$X64_CARD_DIR"

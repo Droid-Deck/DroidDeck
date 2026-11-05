@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.session
 
+import android.os.Environment
 import com.droiddeck.launcher.frontend.AddedGames
 import java.io.File
 import org.junit.Assert.*
@@ -65,6 +66,18 @@ class GameStorageTest {
         steam.mkdirs()
         assertEquals(steam.path, GameStorage.effective(app)?.path)
         assertEquals("USB drive", GameStorage.effective(app)?.label)
+    }
+
+    @Test fun missingSubfolderIsAttachedWhenItsVolumeIsMounted() {
+        val path = File(tmp.newFolder("mounted-volume"), "missing/steam")
+        assertTrue(GameStorage.attached(path, Environment.MEDIA_MOUNTED))
+    }
+
+    @Test fun removedVolumeIsNotAttachedEvenWhenItsParentExists() {
+        val parent = tmp.newFolder("storage")
+        val volume = File(parent, "0000-0000")
+        assertTrue(parent.isDirectory)
+        assertFalse(GameStorage.attached(volume, Environment.MEDIA_REMOVED))
     }
 
     @Test fun onlyASavedDriveThatIsMissingCountsAsDisconnected() {
