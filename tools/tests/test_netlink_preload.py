@@ -163,6 +163,8 @@ struct autobind_sender {
     pthread_barrier_t *barrier;
 };
 
+static ssize_t receive(int descriptor, unsigned char *buffer, size_t capacity);
+
 static void *send_after_barrier(void *argument) {
     struct autobind_sender *sender = argument;
     int result = pthread_barrier_wait(sender->barrier);
@@ -186,6 +188,24 @@ static void autobind_race_test(void) {
         require(port_of(descriptor) != 0, "concurrent autobind assigned one port");
         close(descriptor);
     }
+}
+
+static void vfork_close_range_test(void) {
+    int descriptor = route_socket();
+    pid_t child = vfork();
+    require(child >= 0, "vfork");
+    if (child == 0) {
+        _exit(close_range(3, ~0u, 0) == 0 ? 0 : 1);
+    }
+    int status;
+    require(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0,
+            "vfork close range child");
+    send_link(descriptor, 1, NLM_F_ACK);
+    unsigned char buffer[4096];
+    ssize_t received = receive(descriptor, buffer, sizeof(buffer));
+    require(received > 0 && ((struct nlmsghdr *) buffer)->nlmsg_type == RTM_NEWLINK,
+            "netlink bookkeeping survives vfork close range");
+    close(descriptor);
 }
 
 static void named_link_test(const char *name, const char *mode) {
@@ -983,6 +1003,7 @@ int main(int argc, char **argv) {
         named_link_test(argv[2], argv[3]);
     }
     else if (!strcmp(argv[1], "autobind_race")) autobind_race_test();
+    else if (!strcmp(argv[1], "vfork_close_range")) vfork_close_range_test();
     else if (!strcmp(argv[1], "ports")) ports_test(0);
     else if (!strcmp(argv[1], "cross_process_ports")) ports_test(1);
     else if (!strcmp(argv[1], "batch")) batch_test(0);
@@ -1103,6 +1124,9 @@ class NetlinkPreloadTest(unittest.TestCase):
 
     def test_concurrent_implicit_binds_are_idempotent(self):
         self.run_program("autobind_race")
+
+    def test_vfork_close_range_does_not_mutate_parent_bookkeeping(self):
+        self.run_program("vfork_close_range")
 
     def test_explicit_ports_cannot_collide_across_processes(self):
         self.run_program("cross_process_ports")

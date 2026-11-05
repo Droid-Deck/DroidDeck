@@ -710,15 +710,21 @@ static unsigned nl_fd_count;
 static int nl_fd_index_incomplete;
 static unsigned nl_next_port = 0x80000000u;
 static pthread_mutex_t nl_sockets_lock = PTHREAD_MUTEX_INITIALIZER;
+static pid_t nl_owner;
 static __thread unsigned nl_reply_port;
 static __thread int nl_reply_capped;
 
 static void nl_lock_before_fork(void) { pthread_mutex_lock(&nl_sockets_lock); }
 static void nl_unlock_after_fork(void) { pthread_mutex_unlock(&nl_sockets_lock); }
-static void nl_reset_after_fork(void) { pthread_mutex_init(&nl_sockets_lock, NULL); }
+static void nl_reset_after_fork(void) {
+    pthread_mutex_init(&nl_sockets_lock, NULL);
+    nl_owner = getpid();
+}
+static int nl_foreign(void) { return getpid() != nl_owner; }
 static void nl_restore_inherited(void);
 
 __attribute__((constructor)) static void nl_sockets_init(void) {
+    nl_owner = getpid();
     pthread_atfork(nl_lock_before_fork, nl_unlock_after_fork, nl_reset_after_fork);
     nl_restore_inherited();
 }
@@ -1341,11 +1347,13 @@ int bl_nl_getsockname(int fd, struct sockaddr *addr, socklen_t *len, int *rc) {
 }
 
 void bl_nl_closed(int fd) {
+    if (nl_foreign()) return;
     if (!nl_tracked(fd)) return;
     bl_nl_range_closed((unsigned int) fd, (unsigned int) fd);
 }
 
 void bl_nl_range_closed(unsigned int first, unsigned int last) {
+    if (nl_foreign()) return;
     if (__atomic_load_n(&nl_fd_count, __ATOMIC_ACQUIRE) == 0) return;
     pthread_mutex_lock(&nl_sockets_lock);
     struct nl_fd **entry = &nl_fds;
@@ -1360,6 +1368,7 @@ void bl_nl_range_closed(unsigned int first, unsigned int last) {
 
 int bl_nl_before_dup(int fd, void **state) {
     *state = NULL;
+    if (nl_foreign()) return 0;
     if (!nl_tracked(fd)) return 0;
     pthread_mutex_lock(&nl_sockets_lock);
     struct nl_fd *entry = nl_find(fd);
@@ -1380,6 +1389,10 @@ int bl_nl_before_dup(int fd, void **state) {
 
 void bl_nl_after_dup(void *state, int fd) {
     int saved = errno;
+    if (nl_foreign()) {
+        errno = saved;
+        return;
+    }
     struct nl_fd *reserved = state;
     if (reserved == NULL && !nl_tracked(fd)) return;
     pthread_mutex_lock(&nl_sockets_lock);
