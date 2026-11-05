@@ -172,6 +172,15 @@ def reskate_feature_level(game):
 
 
 @fix
+def stellar_blade_feature_level(game):
+    if game.stem == "sb-win64-shipping" or (
+        "sb.exe" in game.files
+        and os.path.isfile(os.path.join(os.path.dirname(game.exe), "SB", "Binaries", "Win64", "SB-Win64-Shipping.exe"))
+    ):
+        return {"VKD3D_FEATURE_LEVEL": None}, [], "Stellar Blade: use the driver's D3D12 feature level (12_2 advertises unsupported ray tracing)"
+
+
+@fix
 def cyberpunk_feature_level(game):
     if game.stem == "cyberpunk2077" or (
         game.stem == "redprelauncher"

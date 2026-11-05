@@ -1190,6 +1190,31 @@ class GameEnvironmentTest(unittest.TestCase):
                 (skate / name).touch()
             self.assertEqual(MODULE["engine_fixes"](str(skate / "EAAntiCheat.GameServiceLauncher.exe"), [])[:2], ({}, []))
 
+    def test_stellar_blade_uses_detected_feature_level_without_overriding_game_settings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "StellarBlade"
+            shipping = root / "SB/Binaries/Win64/SB-Win64-Shipping.exe"
+            shipping.parent.mkdir(parents=True)
+            shipping.touch()
+            (root / "SB.exe").touch()
+            config = {"version": 1, "shared": {"VKD3D_FEATURE_LEVEL": "12_2"}}
+            for exe in (root / "SB.exe", root / ".droiddeck-launch.bat", shipping):
+                env, extra, notes = MODULE["engine_fixes"](str(exe), [])
+                self.assertEqual((env, extra), ({"VKD3D_FEATURE_LEVEL": None}, []), exe)
+                self.assertTrue(notes)
+                inherited = {"VKD3D_FEATURE_LEVEL": "12_2", "KEEP": "unchanged"}
+                effective = MODULE["apply_config"](inherited, config, "3489700", env)
+                self.assertNotIn("VKD3D_FEATURE_LEVEL", effective)
+                self.assertEqual(effective["KEEP"], "unchanged")
+                for value in ("12_1", "12_2", None):
+                    explicit = dict(config, games={"3489700": {"VKD3D_FEATURE_LEVEL": value}})
+                    actual = MODULE["apply_config"](inherited, explicit, "3489700", env)
+                    self.assertEqual(actual.get("VKD3D_FEATURE_LEVEL"), value)
+            other = Path(tmp) / "Other"
+            other.mkdir()
+            (other / "SB.exe").touch()
+            self.assertEqual(MODULE["engine_fixes"](str(other / "SB.exe"), []), ({}, [], []))
+
     def test_caravan_sandwitch_robocop_and_cyberpunk_run_at_feature_level_12_1(self):
         with tempfile.TemporaryDirectory() as tmp:
             caravan = Path(tmp) / "Caravan SandWitch"
