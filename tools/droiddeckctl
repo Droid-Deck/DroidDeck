@@ -470,7 +470,7 @@ def unpack_logs(archive: Path, destination: Path, session_id: str) -> None:
             for name in extracted - previous:
                 target = managed_target(name)
                 if target is None or target.exists():
-                    raise ControlError(f"Refusing to overwrite an unrelated file: {target}", "LOG_PULL_FAILED")
+                    raise ControlError(f"Refusing to overwrite an unrelated file: {name}", "LOG_PULL_FAILED")
             if manifest.is_symlink() or (manifest.exists() and not manifest.is_file()):
                 raise ControlError("The managed log list is not a regular file", "LOG_PULL_FAILED")
             backed_up = {}
@@ -511,7 +511,7 @@ def unpack_logs(archive: Path, destination: Path, session_id: str) -> None:
                     target = managed_target(name)
                     if target is not None and target.is_file():
                         target.unlink()
-                if manifest.exists() and not manifest.is_symlink():
+                if manifest_backup.is_file() and manifest.exists() and not manifest.is_symlink():
                     manifest.unlink()
                 for name, backup in backed_up.items():
                     target = managed_target(name)
@@ -846,6 +846,7 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
             raise ControlError("No session artifact directory is available", "NO_SESSION_LOGS")
         destination = Path(args.destination or session["id"]).expanduser().resolve()
         exported = provider_call(adb, serial, "logs", timeout=args.timeout + 40)
+        cleanup_error = None
         if (exported.get("error") or {}).get("code") == "UNKNOWN_COMMAND":
             # Older builds have no logs method; their private folder only pulls on a rooted device.
             result = run_adb(adb, serial, "pull", remote_dir, str(destination), timeout=120)
@@ -862,6 +863,20 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
                     request_dir == remote_zip.parent and request_dir.parent.name == "agent-logs" and
                     re.fullmatch(r"[0-9a-fA-F-]{36}", request_dir.name)):
                 cleanup = ["shell", "rm", "-rf", str(request_dir)]
+            def cleanup_export():
+                try:
+                    cleaned = run_adb(adb, serial, *cleanup, timeout=30)
+                    if cleaned.returncode == 0:
+                        return None
+                    detail = (cleaned.stderr or cleaned.stdout).decode(errors="replace").strip()
+                except Exception as error:
+                    detail = str(error)
+                return ControlError(
+                    "Could not remove the exported log archive; it may remain in shared storage" +
+                    (f": {detail}" if detail else ""),
+                    "LOG_CLEANUP_FAILED",
+                )
+
             try:
                 if exported.get("sessionId", session["id"]) != session["id"]:
                     raise ControlError("A new session started while the logs were exported; run logs again",
@@ -869,21 +884,23 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
                 with tempfile.TemporaryDirectory() as temp:
                     local_zip = Path(temp) / "logs.zip"
                     result = run_adb(adb, serial, "pull", zip_path, str(local_zip), timeout=120)
-                    if result.returncode == 0:
-                        unpack_logs(local_zip, destination, session["id"])
-            finally:
+                    if result.returncode != 0:
+                        detail = (result.stderr or result.stdout).decode(errors="replace").strip()
+                        raise ControlError(detail or "adb pull failed", "LOG_PULL_FAILED")
+                    unpack_logs(local_zip, destination, session["id"])
+            except Exception:
+                cleanup_error = cleanup_export()
+                if cleanup_error:
+                    print(cleanup_error, file=sys.stderr)
+                raise
+            else:
                 # The copy sits in shared storage, so it does not outlive the pull.
-                cleaned = run_adb(adb, serial, *cleanup, timeout=30)
-                if cleaned.returncode != 0:
-                    detail = (cleaned.stderr or cleaned.stdout).decode(errors="replace").strip()
-                    raise ControlError(
-                        "Could not remove the exported log archive; it may remain in shared storage" +
-                        (f": {detail}" if detail else ""),
-                        "LOG_CLEANUP_FAILED",
-                    )
+                cleanup_error = cleanup_export()
         if result.returncode != 0:
             detail = (result.stderr or result.stdout).decode(errors="replace").strip()
             raise ControlError(detail or "adb pull failed", "LOG_PULL_FAILED")
+        if cleanup_error:
+            raise cleanup_error
         return add_serial({"ok": True, "command": "logs", "sessionId": session["id"], "path": str(destination)}, serial)
 
     if command == "screenshot":

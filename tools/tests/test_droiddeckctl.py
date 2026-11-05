@@ -581,6 +581,15 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual("LOG_CLEANUP_FAILED", out["error"]["code"])
         self.assertIn("may remain in shared storage", out["error"]["message"])
 
+    def test_logs_keep_pull_failure_primary_when_remote_cleanup_fails(self):
+        self.configure({"state": ended_state(),
+                        "logs": {"ok": True, "sessionId": "s1", "zip": EXPORTED_ZIP,
+                                 "cleanupDir": EXPORTED_DIR}}, fail_cleanup=True)
+        code, out = self.run_ctl("logs", "latest", str(self.dir / "artifacts"))
+        self.assertEqual(6, code)
+        self.assertEqual("LOG_PULL_FAILED", out["error"]["code"])
+        self.assertIn("Permission denied", out["error"]["message"])
+
     def test_logs_replace_the_previous_snapshot_and_preserve_unrelated_files(self):
         destination = self.dir / "artifacts"
         destination.mkdir()
@@ -620,7 +629,7 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual("current", (destination / "session.log").read_text())
 
     def test_logs_roll_back_a_failed_manifest_commit_and_can_retry(self):
-        destination = self.dir / "artifacts"
+        destination = (self.dir / "artifacts").resolve()
         destination.mkdir()
         (destination / "notes.txt").write_text("keep me")
         first = self.dir / "first.zip"
@@ -656,6 +665,28 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual("new", (destination / "new.log").read_text())
         self.assertFalse((destination / "steam/console.log").exists())
         self.assertEqual("keep me", (destination / "notes.txt").read_text())
+
+    def test_logs_preserve_the_old_manifest_when_its_backup_fails(self):
+        destination = self.dir / "artifacts"
+        destination.mkdir()
+        archive = self.dir / "logs.zip"
+        with zipfile.ZipFile(archive, "w") as z:
+            z.writestr("s1/session.log", "current")
+        manifest = destination / ".droiddeckctl-managed-logs.json"
+        manifest.write_text(json.dumps(["old.log"]))
+        original = manifest.read_bytes()
+        real_replace = ctl.os.replace
+
+        def fail_manifest_backup(source, target):
+            if Path(source) == manifest:
+                raise OSError("injected manifest backup failure")
+            return real_replace(source, target)
+
+        with unittest.mock.patch.object(ctl.os, "replace", side_effect=fail_manifest_backup):
+            with self.assertRaises(ctl.ControlError):
+                ctl.unpack_logs(archive, destination, "s1")
+
+        self.assertEqual(original, manifest.read_bytes())
 
     def test_logs_from_an_older_build_fall_back_to_the_private_folder(self):
         self.configure({"state": ended_state()})

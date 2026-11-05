@@ -222,7 +222,7 @@ class AgentBridgeProvider : ContentProvider() {
         val externalFiles = context.getExternalFilesDir(null)
             ?: return error("NO_SESSION_LOGS", "External app storage is unavailable")
         val exports = File(externalFiles, "agent-logs")
-        if (!exports.exists() && !exports.mkdirs()) {
+        if ((!exports.exists() && !exports.mkdirs()) || !exports.isDirectory) {
             return error("NO_SESSION_LOGS", "Could not create the session export directory")
         }
         cleanupExpiredLogExports(exports)
