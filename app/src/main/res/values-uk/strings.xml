@@ -1195,6 +1195,16 @@
     <string name="games_export_gamehub">Експортувати як zip GameHub…</string>
     <string name="games_export_winlator">Експортувати як zip Winlator…</string>
     <string name="games_open_save_folder">Відкрити папку збережень</string>
+    <string name="games_import_addons">Імпортувати аддони з zip…</string>
+    <string name="games_open_addons_folder">Відкрити папку аддонів</string>
+    <string name="games_delete_addon_title">Видалити %1$s?</string>
+    <string name="games_delete_addon_body">Папку аддона буде видалено. Його налаштування збережуться.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d аддон</item>
+        <item quantity="few">%1$d аддони</item>
+        <item quantity="many">%1$d аддонів</item>
+        <item quantity="other">%1$d аддона</item>
+    </plurals>
     <string name="games_never_played">Ще не грали</string>
     <string name="games_runtime_busy_percent">Середовище зайняте · %1$d%%</string>
     <string name="games_runtime_busy">Середовище зайняте</string>
@@ -1376,6 +1386,19 @@
         <item quantity="few">Імпортовано %1$d файли з %2$s у %3$s. Резервну копію старих збережень записано в Download/DroidDeck/Saves/backups</item>
         <item quantity="many">Імпортовано %1$d файлів з %2$s у %3$s. Резервну копію старих збережень записано в Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Імпортовано %1$d файлу з %2$s у %3$s. Резервну копію старих збережень записано в Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Спершу закрийте сеанс, щоб гра не використовувала аддони під час імпорту</string>
+    <string name="main_addons_importing">Імпорт аддонів у %1$s</string>
+    <string name="main_addons_pick_zip">Виберіть zip-архів аддонів для %1$s</string>
+    <string name="main_addons_too_large">%1$s завеликий для імпорту</string>
+    <string name="main_addons_deleting">Видалення: %1$s</string>
+    <string name="main_addons_deleted">Видалено: %1$s</string>
+    <string name="main_addons_none">Аддони не знайдено в %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Імпортовано %1$d аддон у %2$s</item>
+        <item quantity="few">Імпортовано %1$d аддони в %2$s</item>
+        <item quantity="many">Імпортовано %1$d аддонів у %2$s</item>
+        <item quantity="other">Імпортовано %1$d аддона в %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Виберіть zip-архів збережень для %1$s</string>
     <string name="main_saves_exporting">Експорт %1$s</string>
@@ -3544,6 +3567,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Для ігор зі збереженнями в обліковому записі Steam</string>
     <string name="game_resource_search">Пошук в інтернеті</string>
+    <string name="game_tab_addons">Аддони</string>
     <string name="game_tab_install">Установити</string>
     <string name="game_install_location">Розташування</string>
     <string name="game_install_folder">Папка</string>

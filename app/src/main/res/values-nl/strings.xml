@@ -1183,6 +1183,14 @@
     <string name="games_export_gamehub">Exporteren als GameHub-zip…</string>
     <string name="games_export_winlator">Exporteren als Winlator-zip…</string>
     <string name="games_open_save_folder">Opslagmap openen</string>
+    <string name="games_import_addons">Addons importeren uit zip…</string>
+    <string name="games_open_addons_folder">Addonmap openen</string>
+    <string name="games_delete_addon_title">%1$s verwijderen?</string>
+    <string name="games_delete_addon_body">Hiermee wordt de map van de addon verwijderd. De instellingen blijven behouden.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d addon</item>
+        <item quantity="other">%1$d addons</item>
+    </plurals>
     <string name="games_never_played">Nooit gespeeld</string>
     <string name="games_runtime_busy_percent">Runtime bezig · %1$d%%</string>
     <string name="games_runtime_busy">Runtime bezig</string>
@@ -1360,6 +1368,17 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="one">%1$d bestand uit de %2$s geïmporteerd in %3$s. Oude savegames als back-up bewaard in Download/DroidDeck/Saves/backups</item>
         <item quantity="other">%1$d bestanden uit de %2$s geïmporteerd in %3$s. Oude savegames als back-up bewaard in Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Sluit eerst de sessie, zodat de game tijdens de import geen addons gebruikt</string>
+    <string name="main_addons_importing">Addons importeren in %1$s</string>
+    <string name="main_addons_pick_zip">Kies een addon-zip voor %1$s</string>
+    <string name="main_addons_too_large">%1$s is te groot om te importeren</string>
+    <string name="main_addons_deleting">%1$s wordt verwijderd</string>
+    <string name="main_addons_deleted">%1$s verwijderd</string>
+    <string name="main_addons_none">Geen addons gevonden in %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">%1$d addon geïmporteerd in %2$s</item>
+        <item quantity="other">%1$d addons geïmporteerd in %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Kies een savegame-zip voor %1$s</string>
     <string name="main_saves_exporting">%1$s exporteren</string>
@@ -3472,6 +3491,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Voor games met opslagbestanden in je Steam-account</string>
     <string name="game_resource_search">Zoeken op het web</string>
+    <string name="game_tab_addons">Addons</string>
     <string name="game_tab_install">Installeren</string>
     <string name="game_install_location">Locatie</string>
     <string name="game_install_folder">Map</string>

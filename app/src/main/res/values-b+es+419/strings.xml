@@ -1259,6 +1259,15 @@
     <string name="games_export_gamehub">Exportar como zip de GameHub…</string>
     <string name="games_export_winlator">Exportar como zip de Winlator…</string>
     <string name="games_open_save_folder">Abrir carpeta de guardado</string>
+    <string name="games_import_addons">Importar addons desde zip…</string>
+    <string name="games_open_addons_folder">Abrir carpeta de addons</string>
+    <string name="games_delete_addon_title">¿Eliminar %1$s?</string>
+    <string name="games_delete_addon_body">Esto elimina la carpeta del addon. Sus ajustes se conservan.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d addon</item>
+        <item quantity="other">%1$d addons</item>
+        <item quantity="many">%1$d de addons</item>
+    </plurals>
     <string name="games_never_played">Nunca jugado</string>
     <string name="games_runtime_busy_percent">Runtime ocupado · %1$d%%</string>
     <string name="games_runtime_busy">Runtime ocupado</string>
@@ -1437,6 +1446,18 @@
         <item quantity="one">Se importó %1$d archivo del %2$s en %3$s. Copia de las partidas anteriores en Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Se importaron %1$d archivos del %2$s en %3$s. Copia de las partidas anteriores en Download/DroidDeck/Saves/backups</item>
         <item quantity="many">Se importaron %1$d archivos del %2$s en %3$s. Copia de las partidas anteriores en Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Cierra primero la sesión para que el juego no use sus addons durante la importación</string>
+    <string name="main_addons_importing">Importando addons en %1$s</string>
+    <string name="main_addons_pick_zip">Elige un zip de addons para %1$s</string>
+    <string name="main_addons_too_large">%1$s es demasiado grande para importarlo</string>
+    <string name="main_addons_deleting">Eliminando %1$s</string>
+    <string name="main_addons_deleted">Se eliminó %1$s</string>
+    <string name="main_addons_none">No se encontraron addons en %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Se importó %1$d addon en %2$s</item>
+        <item quantity="other">Se importaron %1$d addons en %2$s</item>
+        <item quantity="many">Se importaron %1$d de addons en %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Elige un zip de partidas guardadas para %1$s</string>
     <string name="main_saves_exporting">Exportando %1$s</string>
@@ -3481,6 +3502,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Para juegos con partidas guardadas en tu cuenta de Steam</string>
     <string name="game_resource_search">Búsqueda web</string>
+    <string name="game_tab_addons">Addons</string>
     <string name="game_tab_install">Instalar</string>
     <string name="game_install_location">Ubicación</string>
     <string name="game_install_folder">Carpeta</string>

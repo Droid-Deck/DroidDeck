@@ -1177,6 +1177,13 @@
     <string name="games_export_gamehub">GameHub 아카이브로 내보내기…</string>
     <string name="games_export_winlator">Winlator 아카이브로 내보내기…</string>
     <string name="games_open_save_folder">저장 폴더 열기</string>
+    <string name="games_import_addons">zip에서 애드온 가져오기…</string>
+    <string name="games_open_addons_folder">애드온 폴더 열기</string>
+    <string name="games_delete_addon_title">%1$s을(를) 삭제할까요?</string>
+    <string name="games_delete_addon_body">애드온 폴더가 삭제됩니다. 설정은 유지됩니다.</string>
+    <plurals name="games_addons_count">
+        <item quantity="other">애드온 %1$d개</item>
+    </plurals>
     <string name="games_never_played">플레이한 적 없음</string>
     <string name="games_runtime_busy_percent">런타임 사용 중 · %1$d%%</string>
     <string name="games_runtime_busy">런타임 사용 중</string>
@@ -1352,6 +1359,16 @@
     </plurals>
     <plurals name="main_saves_imported_backup">
         <item quantity="other">%2$s에서 %3$s(으)로 파일 %1$d개를 가져왔습니다. 이전 저장 데이터는 Download/DroidDeck/Saves/backups에 백업되었습니다</item>
+    </plurals>
+    <string name="main_addons_close_session">가져오는 동안 게임이 애드온을 사용하지 않도록 먼저 세션을 종료하세요</string>
+    <string name="main_addons_importing">%1$s(으)로 애드온 가져오는 중</string>
+    <string name="main_addons_pick_zip">%1$s의 애드온 zip 선택</string>
+    <string name="main_addons_too_large">%1$s은(는) 너무 커서 가져올 수 없습니다</string>
+    <string name="main_addons_deleting">%1$s 삭제 중</string>
+    <string name="main_addons_deleted">%1$s 삭제됨</string>
+    <string name="main_addons_none">%1$s에서 애드온을 찾을 수 없습니다</string>
+    <plurals name="main_addons_imported">
+        <item quantity="other">애드온 %1$d개를 %2$s(으)로 가져왔습니다</item>
     </plurals>
     <string name="main_saves_pick_zip">%1$s의 저장 데이터 zip 선택</string>
     <string name="main_saves_exporting">%1$s 내보내는 중</string>
@@ -3445,6 +3462,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Steam 계정에 저장 파일이 있는 게임용</string>
     <string name="game_resource_search">웹 검색</string>
+    <string name="game_tab_addons">애드온</string>
     <string name="game_tab_install">설치</string>
     <string name="game_install_location">위치</string>
     <string name="game_install_folder">폴더</string>

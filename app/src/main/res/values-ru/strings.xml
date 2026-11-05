@@ -1195,6 +1195,16 @@
     <string name="games_export_gamehub">Экспорт как архив GameHub…</string>
     <string name="games_export_winlator">Экспорт как архив Winlator…</string>
     <string name="games_open_save_folder">Открыть папку сохранений</string>
+    <string name="games_import_addons">Импорт аддонов из zip…</string>
+    <string name="games_open_addons_folder">Открыть папку аддонов</string>
+    <string name="games_delete_addon_title">Удалить %1$s?</string>
+    <string name="games_delete_addon_body">Папка аддона будет удалена. Его настройки сохранятся.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d аддон</item>
+        <item quantity="few">%1$d аддона</item>
+        <item quantity="many">%1$d аддонов</item>
+        <item quantity="other">%1$d аддона</item>
+    </plurals>
     <string name="games_never_played">Никогда не запускалась</string>
     <string name="games_runtime_busy_percent">Среда выполнения занята · %1$d%%</string>
     <string name="games_runtime_busy">Среда выполнения занята</string>
@@ -1376,6 +1386,19 @@
         <item quantity="few">Импортировано %1$d файла (%2$s) в %3$s. Старые сохранения скопированы в Download/DroidDeck/Saves/backups</item>
         <item quantity="many">Импортировано %1$d файлов (%2$s) в %3$s. Старые сохранения скопированы в Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Импортировано %1$d файла (%2$s) в %3$s. Старые сохранения скопированы в Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Сначала закройте сессию, чтобы игра не использовала аддоны во время импорта</string>
+    <string name="main_addons_importing">Импорт аддонов в %1$s</string>
+    <string name="main_addons_pick_zip">Выберите zip-архив аддонов для %1$s</string>
+    <string name="main_addons_too_large">%1$s слишком большой для импорта</string>
+    <string name="main_addons_deleting">Удаление: %1$s</string>
+    <string name="main_addons_deleted">Удалено: %1$s</string>
+    <string name="main_addons_none">Аддоны не найдены в %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Импортирован %1$d аддон в %2$s</item>
+        <item quantity="few">Импортировано %1$d аддона в %2$s</item>
+        <item quantity="many">Импортировано %1$d аддонов в %2$s</item>
+        <item quantity="other">Импортировано %1$d аддона в %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Выберите zip-архив сохранений для %1$s</string>
     <string name="main_saves_exporting">Экспорт %1$s</string>
@@ -3544,6 +3567,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Для игр с сохранениями в аккаунте Steam</string>
     <string name="game_resource_search">Поиск в интернете</string>
+    <string name="game_tab_addons">Аддоны</string>
     <string name="game_tab_install">Установить</string>
     <string name="game_install_location">Расположение</string>
     <string name="game_install_folder">Папка</string>

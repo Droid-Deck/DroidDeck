@@ -1177,6 +1177,13 @@
     <string name="games_export_gamehub">ส่งออกเป็น GameHub zip…</string>
     <string name="games_export_winlator">ส่งออกเป็น Winlator zip…</string>
     <string name="games_open_save_folder">เปิดโฟลเดอร์เซฟ</string>
+    <string name="games_import_addons">นำเข้าแอดออนจาก zip…</string>
+    <string name="games_open_addons_folder">เปิดโฟลเดอร์แอดออน</string>
+    <string name="games_delete_addon_title">ลบ %1$s ไหม</string>
+    <string name="games_delete_addon_body">การดำเนินการนี้จะลบโฟลเดอร์ของแอดออน ส่วนการตั้งค่ายังคงอยู่</string>
+    <plurals name="games_addons_count">
+        <item quantity="other">%1$d แอดออน</item>
+    </plurals>
     <string name="games_never_played">ยังไม่เคยเล่น</string>
     <string name="games_runtime_busy_percent">รันไทม์กำลังทำงาน · %1$d%%</string>
     <string name="games_runtime_busy">รันไทม์กำลังทำงาน</string>
@@ -1352,6 +1359,16 @@
     </plurals>
     <plurals name="main_saves_imported_backup">
         <item quantity="other">นำเข้า %1$d ไฟล์จาก %2$s สู่ %3$s แล้ว เซฟเก่าสำรองไว้ที่ Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">ปิดเซสชันก่อน เพื่อไม่ให้เกมใช้แอดออนระหว่างการนำเข้า</string>
+    <string name="main_addons_importing">กำลังนำเข้าแอดออนสู่ %1$s</string>
+    <string name="main_addons_pick_zip">เลือกไฟล์ zip แอดออนสำหรับ %1$s</string>
+    <string name="main_addons_too_large">%1$s มีขนาดใหญ่เกินกว่าจะนำเข้าได้</string>
+    <string name="main_addons_deleting">กำลังลบ %1$s</string>
+    <string name="main_addons_deleted">ลบ %1$s แล้ว</string>
+    <string name="main_addons_none">ไม่พบแอดออนใน %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="other">นำเข้า %1$d แอดออนสู่ %2$s แล้ว</item>
     </plurals>
     <string name="main_saves_pick_zip">เลือกไฟล์ zip เซฟสำหรับ %1$s</string>
     <string name="main_saves_exporting">กำลังส่งออก %1$s</string>
@@ -3445,6 +3462,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">สำหรับเกมที่มีเซฟอยู่ในบัญชี Steam ของคุณ</string>
     <string name="game_resource_search">ค้นหาเว็บ</string>
+    <string name="game_tab_addons">แอดออน</string>
     <string name="game_tab_install">ติดตั้ง</string>
     <string name="game_install_location">ตำแหน่ง</string>
     <string name="game_install_folder">โฟลเดอร์</string>

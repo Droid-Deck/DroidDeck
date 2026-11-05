@@ -1183,6 +1183,14 @@
     <string name="games_export_gamehub">Vie GameHub-zipinä…</string>
     <string name="games_export_winlator">Vie Winlator-zipinä…</string>
     <string name="games_open_save_folder">Avaa tallennuskansio</string>
+    <string name="games_import_addons">Tuo lisäosat zip-tiedostosta…</string>
+    <string name="games_open_addons_folder">Avaa lisäosakansio</string>
+    <string name="games_delete_addon_title">Poistetaanko %1$s?</string>
+    <string name="games_delete_addon_body">Tämä poistaa lisäosan kansion. Sen asetukset säilyvät.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d lisäosa</item>
+        <item quantity="other">%1$d lisäosaa</item>
+    </plurals>
     <string name="games_never_played">Ei pelattu koskaan</string>
     <string name="games_runtime_busy_percent">Ajoympäristö varattu · %1$d %%</string>
     <string name="games_runtime_busy">Ajoympäristö varattu</string>
@@ -1360,6 +1368,17 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="one">Tuotiin %1$d tiedosto %2$s-muodosta kohteeseen %3$s. Vanhat tallennukset varmuuskopioitu kansioon Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Tuotiin %1$d tiedostoa %2$s-muodosta kohteeseen %3$s. Vanhat tallennukset varmuuskopioitu kansioon Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_addons_close_session">Sulje istunto ensin, jotta peli ei käytä lisäosiaan tuonnin aikana</string>
+    <string name="main_addons_importing">Tuodaan lisäosia kohteeseen %1$s</string>
+    <string name="main_addons_pick_zip">Valitse lisäosien zip-tiedosto kohteelle %1$s</string>
+    <string name="main_addons_too_large">%1$s on liian suuri tuotavaksi</string>
+    <string name="main_addons_deleting">Poistetaan %1$s</string>
+    <string name="main_addons_deleted">%1$s poistettu</string>
+    <string name="main_addons_none">Lisäosia ei löytynyt kohteesta %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Tuotiin %1$d lisäosa kohteeseen %2$s</item>
+        <item quantity="other">Tuotiin %1$d lisäosaa kohteeseen %2$s</item>
     </plurals>
     <string name="main_saves_pick_zip">Valitse tallennusten zip-tiedosto kohteelle %1$s</string>
     <string name="main_saves_exporting">Viedään %1$s</string>
@@ -3472,6 +3491,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Peleille, joiden tallennukset ovat Steam-tililläsi</string>
     <string name="game_resource_search">Verkkohaku</string>
+    <string name="game_tab_addons">Lisäosat</string>
     <string name="game_tab_install">Asenna</string>
     <string name="game_install_location">Sijainti</string>
     <string name="game_install_folder">Kansio</string>
