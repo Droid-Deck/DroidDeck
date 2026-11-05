@@ -164,7 +164,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var unfoldedPanel: com.droiddeck.launcher.ui.DeckControlsPanel? = null
     private lateinit var sessionRoot: FrameLayout
     private val guestKeysDown = mutableSetOf<Int>()
-    private val guestButtonsDown = mutableSetOf<Int>()
+    private val guestButtonsDown = mutableMapOf<Int, Boolean>()
     private lateinit var surfaceView: SurfaceView
     private lateinit var sessionOverlay: ComposeView
     private lateinit var loading: LoadingState
@@ -3661,8 +3661,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun sendSceneButton(code: Int, down: Boolean) {
-        if (down) guestButtonsDown.add(code) else guestButtonsDown.remove(code)
-        val writer = if (evdevMouseActive) mouseWriter else null
+        val raw = if (down) evdevMouseActive.also { guestButtonsDown[code] = it }
+            else guestButtonsDown.remove(code) ?: evdevMouseActive
+        val writer = if (raw) mouseWriter else null
         if (writer != null) writer.writeMouseButton(code.toShort(), down)
         else WaylandCompositor.nativeSendSceneInput(3, code, if (down) 1 else 0)
     }
@@ -4172,7 +4173,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         SessionState.mode == SessionService.MODE_STEAM && AgentGuest.steamKeyboard
 
     private fun releaseHeldGuestInput() {
-        guestButtonsDown.toList().forEach { sendSceneButton(it, false) }
+        guestButtonsDown.keys.toList().forEach { sendSceneButton(it, false) }
         guestKeysDown.toList().forEach { sendGuestKey(it, false) }
     }
 
@@ -4997,6 +4998,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!hasFocus) {
             if (::touchscreenGestures.isInitialized) touchscreenGestures.cancel()
             if (::touchpad.isInitialized) touchpad.cancel()
+            if (::scrollTouch.isInitialized) scrollTouch.cancel()
             releaseHeldGuestInput()
         }
         if (hasFocus && !pipUi) {
