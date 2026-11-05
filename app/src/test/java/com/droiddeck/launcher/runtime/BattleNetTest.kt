@@ -330,6 +330,7 @@ class BattleNetTest {
         assertEquals(listOf(File(wow, "_forever_")), BattleNet.games(context).map { it.folder })
         db.writeBytes(message(forever, retail))
         assertEquals(listOf(File(wow, "_forever_"), wow), BattleNet.games(context).map { it.folder })
+    }
 
     @Test fun aGameInstalledUnderBlizzardsChineseUidIsStillListed() {
         val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
