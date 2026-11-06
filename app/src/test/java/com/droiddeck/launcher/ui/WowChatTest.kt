@@ -7,7 +7,7 @@ import org.junit.Test
 class WowChatTest {
     @Test
     fun everyWowClientMatches() {
-        listOf("wow.exe", "Wow.exe", "wowclassic.exe", "wowclassict.exe", "wowb.exe", "wow-64.exe", "wowt.exe").forEach {
+        listOf("wow.exe", "Wow.exe", "wowclassic.exe", "wowclassict.exe", "wowb.exe", "wow-64.exe", "wow-arm64.exe", "wowt.exe").forEach {
             assertTrue(it, WowChat.isWow(it))
         }
     }
