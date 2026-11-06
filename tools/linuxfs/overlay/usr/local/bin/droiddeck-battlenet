@@ -1237,7 +1237,7 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
         stop_leftovers(pfx)
         emit("STATE", "starting")
         base = os.path.join(CACHE, "agent-%s" % uid)
-        for suffix in (".json", ".game", ".form", ".error", ".uid"):
+        for suffix in (".json", ".game", ".form", ".error"):
             try:
                 os.unlink(base + suffix)
             except OSError:

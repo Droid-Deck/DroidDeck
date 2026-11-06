@@ -27,6 +27,9 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.File
 import java.nio.file.Files
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import java.util.zip.CRC32
 
 private val REGISTRY = """
@@ -402,6 +405,24 @@ class BattleNetTest {
         assertNull(BattleNetInstall.cachedUid(context, item))
     }
 
+    @Test fun aCancelledPausedInstallUninstallsTheMappedUid() {
+        val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
+        val item = CatalogItem(Store.BATTLENET, "osi", "Diablo II: Resurrected", null)
+        val cache = File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/battlenet/agent-osi.uid")
+        cache.parentFile!!.mkdirs()
+        cache.writeBytes("\uFEFFosic".toByteArray(Charsets.UTF_16LE))
+        val seen = AtomicReference<String?>(null)
+        val done = CountDownLatch(1)
+        val installer = com.droiddeck.launcher.stores.battlenet.BattleNetInstaller(context, item, folder, false) { uid ->
+            seen.set(uid)
+            done.countDown()
+            true
+        }
+        installer.cancel(true)
+        assertTrue(done.await(5, TimeUnit.SECONDS))
+        assertEquals("osic", seen.get())
+    }
+
     @Test fun theTitlePicksBetweenWarcraftFlavorsInOneFolder() {
         val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
         File(pfx, "drive_c/ProgramData/Battle.net/Agent").mkdirs()
@@ -413,6 +434,8 @@ class BattleNetTest {
         ))
         val sidecar = StoreGameSidecar(Store.BATTLENET, "wow_classic", "World of Warcraft Classic", "")
         assertEquals("wow_classic", BattleNetInstall.installUid(context, InstalledStoreGame(sidecar, wow)))
+        val single = StoreGameSidecar(Store.BATTLENET, "wow", "World of Warcraft", "")
+        assertNull(BattleNetInstall.installUid(context, InstalledStoreGame(single, File(wow, "missing"))))
     }
 
     @Test fun aGamesShortcutHasBattleNetLaunchItInItsPrefix() {

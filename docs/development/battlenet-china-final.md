@@ -173,7 +173,9 @@ cannot migrate the build because the BuildConfig and product differ.
   that matches nothing does not fall back to another installation; ambiguous updates/uninstalls stop.
 - **Cancellation**: the driver reports the effective uid after China mapping. If that report is lost,
   cancellation reads the driver's `.uid` cache after the worker stops; it never falls back to the
-  original catalog uid, so a queued install cannot uninstall a legacy copy.
+  original catalog uid, so a queued install cannot uninstall a legacy copy. The cache is cleared when
+  a new install is enqueued but preserved across pause/resume, and cleanup is skipped if the worker
+  has not stopped after the wait.
 
 ### Testing
 
