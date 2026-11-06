@@ -138,6 +138,11 @@ class DownloadQueueRetryTest {
         DownloadQueue.cancel(app, entry.key)
         release.countDown()
         assertTrue("cancel must reach the job published after the request", cancelled.await(5, TimeUnit.SECONDS))
+        val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (DownloadQueue.entry(entry.key)?.state != DownloadState.CANCELLED && System.nanoTime() < until) {
+            Thread.sleep(10)
+        }
+        assertEquals(DownloadState.CANCELLED, DownloadQueue.entry(entry.key)?.state)
         DownloadQueue.clear(app, entry.key)
     }
 
