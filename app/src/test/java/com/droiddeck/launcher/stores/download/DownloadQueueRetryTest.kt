@@ -163,16 +163,16 @@ class DownloadQueueRetryTest {
                 cancels.incrementAndGet()
                 cancelled.countDown()
                 Thread({
-                    release.await(5, TimeUnit.SECONDS)
+                    release.await()
                     DownloadQueue.cleanupFinished(entry.key)
                 }, "test-cleanup").start()
             }
         }
         DownloadQueue.enqueue(app, entry) { job }
         assertTrue(started.await(5, TimeUnit.SECONDS))
-        DownloadQueue.cancel(app, entry.key)
-        DownloadQueue.cancel(app, entry.key)
         try {
+            DownloadQueue.cancel(app, entry.key)
+            DownloadQueue.cancel(app, entry.key)
             assertTrue(cancelled.await(5, TimeUnit.SECONDS))
             assertEquals(1, cancels.get())
             assertTrue(DownloadQueue.isCancelling(entry.key))
