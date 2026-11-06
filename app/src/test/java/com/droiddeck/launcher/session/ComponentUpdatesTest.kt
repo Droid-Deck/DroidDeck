@@ -271,6 +271,16 @@ class ComponentUpdatesTest {
         )
     }
 
+    @Test fun aQueuedSwapIsNotReplacedByTheHandBack() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val state = File(context.filesDir, "components/state.json").apply { parentFile?.mkdirs() }
+        val queued = JSONObject().put("kind", "package").put("file", "vkd3d-proton-3.0-mine.wcp").put("label", "3.0")
+        state.writeText(JSONObject().put("queued", JSONObject().put("GE-Proton10-25", JSONObject().put("vkd3d", queued))).toString())
+        assertFalse(ComponentsManager.restoreUnlessQueued(context, "GE-Proton10-25", "vkd3d", "GE-Proton10-25"))
+        val after = JSONObject(state.readText()).getJSONObject("queued").getJSONObject("GE-Proton10-25").getJSONObject("vkd3d")
+        assertEquals("vkd3d-proton-3.0-mine.wcp", after.getString("file"))
+    }
+
     @Test fun everyBuildAutoEverPlacedCountsAsItsOwn() {
         val state = JSONObject().put("lines", JSONObject()
             .put("dxvk", JSONObject().put("current", "b.wcp").put("previous", ComponentUpdates.ORIGINAL)

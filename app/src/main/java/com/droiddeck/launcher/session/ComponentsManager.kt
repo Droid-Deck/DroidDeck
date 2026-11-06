@@ -700,6 +700,12 @@ object ComponentsManager {
         context.getString(R.string.cmgr_restore_done, LABEL[comp], p.name, protonVersion)
     }
 
+    fun restoreUnlessQueued(context: Context, protonId: String, comp: String, protonVersion: String): Boolean = synchronized(lock) {
+        if (loadState(context).optJSONObject("queued")?.optJSONObject(protonId)?.has(comp) == true) return false
+        restore(context, protonId, comp, protonVersion)
+        true
+    }
+
     private fun applyOriginal(context: Context, p: Proton, comp: String, protonVersion: String, wcp: File, state: JSONObject) {
         val current = protonVersion == safeName(p.version)
         if (!current) ensureOriginal(context, p, comp, state)

@@ -58,7 +58,7 @@ object ComponentUpdater {
 
     fun settle(context: Context) {
         val owned = load(context).optJSONObject("lines")?.let { lines -> lines.keys().asSequence().flatMap { lines.optJSONObject(it).strings("owned") }.toSet() } ?: emptySet()
-        val own = runCatching { ComponentsManager.protons(context) }.getOrDefault(emptyList()).filter(ComponentUpdates::follows).mapTo(HashSet()) { it.id }
+        val own = (runCatching { ComponentsManager.protons(context) }.getOrNull() ?: return).filter(ComponentUpdates::follows).mapTo(HashSet()) { it.id }
         val choices = ComponentsManager.activeChoices(context).filterKeys { it in own }.values.flatMap { it.entries }
         for (comp in ComponentsManager.COMPONENTS) {
             if (SessionPrefs.componentModeChosen(context, comp)) continue
@@ -95,8 +95,9 @@ object ComponentUpdater {
         settle(context)
         val state = load(context)
         val notes = ArrayList<String>()
-        val protons = runCatching { ComponentsManager.protons(context) }.getOrDefault(emptyList())
-        handBack(context, state, protons)
+        val found = runCatching { ComponentsManager.protons(context) }.getOrNull()
+        val protons = found ?: emptyList()
+        if (found != null) handBack(context, state, found)
         judge(context, state, protons, notes)
         val due = force || System.currentTimeMillis() - state.optLong("checkedAt") >= CHECK_EVERY_MS
         val wanted = ComponentsManager.COMPONENTS.filter { managed(context, it) }
@@ -226,7 +227,7 @@ object ComponentUpdater {
         val placed = placed(state)
         val strays = ComponentUpdates.strays(protons, ComponentsManager.activeChoices(context), placed)
         for ((p, comp) in strays) {
-            runCatching { ComponentsManager.restore(context, p.id, comp, ComponentsManager.safeName(p.version)) }
+            runCatching { ComponentsManager.restoreUnlessQueued(context, p.id, comp, ComponentsManager.safeName(p.version)) }
                 .onFailure { Log.w(TAG, "hand back ${p.name} $comp", it) }
         }
         if (ComponentUpdates.strays(protons, ComponentsManager.activeChoices(context), placed).isEmpty()) state.put(HANDED_BACK, true)
