@@ -134,6 +134,19 @@ class ProtonMenuAutoTest {
         assertEquals(listOf("droiddeck"), attempts)
     }
 
+    @Test fun aFinishedInstallStartsTheComponentCheckAndAFailedOneDoesNot() {
+        var checks = 0
+        val watched = ProtonMenu(activity, Handler(Looper.getMainLooper()), onInstalled = { checks++ }) { idle }
+        watched.installer = { tool, _ -> install("${tool.prefix}-11-12"); null }
+        watched.installProton("droiddeck")
+        waitUntil { watched.protonBusyId == null && checks == 1 }
+        assertEquals(1, checks)
+        watched.installer = { _, _ -> "failed" }
+        watched.installProton("ge")
+        waitUntil { watched.protonBusyId == null }
+        assertEquals(1, checks)
+    }
+
     @Test fun aFailedUpdateDoesNotLoopOrBlockOtherInstalledFamilies() {
         val ge = install("GE-Proton11-11")
         install("DroidDeck-Proton-11-11.1")

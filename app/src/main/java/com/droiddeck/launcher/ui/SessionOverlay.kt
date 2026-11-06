@@ -264,6 +264,9 @@ class DrawerActions(
     val onImportLossless: () -> Unit,
     val onKeyboard: () -> Unit,
     val onHardwareKeyboard: () -> Unit,
+    val wowChatShown: Boolean = false,
+    val wowChat: String? = null,
+    val onWowChat: (String?) -> Unit = {},
     val onSteamMenu: (() -> Unit)?,
     val onQam: (() -> Unit)?,
     val onAchievements: (() -> Unit)? = null,
@@ -699,6 +702,15 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         host.open = null; a.onKeyboard()
                                     }
                                 }
+                                if (a.wowChatShown) ChoiceRow(
+                                    host, "wow-chat", stringResource(R.string.wow_chat_title), null,
+                                    listOf(
+                                        null to stringResource(R.string.wow_chat_ask),
+                                        SessionPrefs.WOW_CHAT_VOICE to stringResource(R.string.wow_chat_voice),
+                                        SessionPrefs.WOW_CHAT_KEYBOARD to stringResource(R.string.pckb_android),
+                                    ),
+                                    a.wowChat, chipModifier = focus.track(page, "wow-chat"), onPick = a.onWowChat,
+                                )
                                 val keyboardContext = LocalContext.current
                                 remember { PcKeyboardPrefs.load(keyboardContext) }
                                 SliderRow(

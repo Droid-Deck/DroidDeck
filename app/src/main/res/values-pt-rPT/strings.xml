@@ -560,6 +560,19 @@
     <string name="comp_tag_in_use">Em utilização</string>
     <string name="comp_tag_new">Novo</string>
     <string name="comp_tag_stored">Guardado</string>
+    <string name="comp_mode_title">Como as versões são escolhidas</string>
+    <string name="comp_mode_auto_detail">Versão mais recente do DroidDeck, sempre atualizada</string>
+    <string name="comp_mode_manual_detail">Escolha e instale as versões manualmente</string>
+    <string name="comp_auto_title">Auto mantém %1$s atualizado</string>
+    <string name="comp_auto_hint">As novas versões são instaladas em segundo plano. Se um jogo que funcionava fechar em segundos duas vezes, Auto volta à versão que funcionava.</string>
+    <string name="comp_auto_fallback">Reserva: %1$s</string>
+    <string name="comp_auto_checking">A procurar versões…</string>
+    <string name="comp_auto_none">Nenhum Proton instalado usa isto</string>
+    <string name="comp_auto_waits_network">As atualizações Auto aguardam uma ligação.</string>
+    <string name="comp_auto_check_failed">Não foi possível procurar novas versões.</string>
+    <string name="comp_auto_waits_unmetered">As novas versões aguardam uma ligação não limitada, a poupança de bateria desligada e o dispositivo fresco.</string>
+    <string name="comp_auto_updated">%1$s atualizado para %2$s.</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s fechou um jogo em segundos duas vezes, por isso Auto voltou a %3$s.</string>
     <string name="perf_title">Desempenho</string>
     <string name="perf_lede">Núcleos da CPU, correções da sessão e nome do anfitrião. Aplica-se na próxima sessão.</string>
     <string name="perf_client_cores_group">Núcleos do cliente Steam</string>
@@ -3714,4 +3727,12 @@
     <string name="stores_gamejolt_filter_status">Estado</string>
     <string name="stores_gamejolt_filter_partners">Parceiros</string>
     <string name="stores_gamejolt_followed">Jogos seguidos</string>
+    <string name="wow_chat_title">Introdução no chat</string>
+    <string name="wow_chat_voice">Escrita por voz</string>
+    <string name="wow_chat_remember">Lembrar esta escolha</string>
+    <string name="wow_chat_ask">Perguntar sempre</string>
+    <string name="wow_chat_send">Enviar</string>
+    <string name="wow_chat_listening">A ouvir…</string>
+    <string name="wow_chat_voice_unavailable">A escrita por voz não está disponível neste dispositivo.</string>
+    <string name="wow_chat_mic_denied">É necessário acesso ao microfone para a escrita por voz.</string>
 </resources>

@@ -556,6 +556,19 @@
     <string name="comp_tag_in_use">使用中</string>
     <string name="comp_tag_new">新</string>
     <string name="comp_tag_stored">已存储</string>
+    <string name="comp_mode_title">版本的选择方式</string>
+    <string name="comp_mode_auto_detail">最新 DroidDeck 版本，始终保持更新</string>
+    <string name="comp_mode_manual_detail">自行选择并安装版本</string>
+    <string name="comp_auto_title">Auto 会让 %1$s 保持最新</string>
+    <string name="comp_auto_hint">新版本会在后台安装。如果之前能运行的游戏两次在几秒内关闭，Auto 会退回到之前可用的版本。</string>
+    <string name="comp_auto_fallback">备用：%1$s</string>
+    <string name="comp_auto_checking">正在检查版本…</string>
+    <string name="comp_auto_none">没有已安装的 Proton 使用它</string>
+    <string name="comp_auto_waits_network">Auto 更新正在等待网络连接。</string>
+    <string name="comp_auto_check_failed">无法检查新版本。</string>
+    <string name="comp_auto_waits_unmetered">新版本将等待不按流量计费的网络、关闭省电模式且设备不过热时下载。</string>
+    <string name="comp_auto_updated">%1$s 已更新到 %2$s。</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s 两次在几秒内关闭了游戏，因此 Auto 已退回到 %3$s。</string>
     <string name="perf_title">性能</string>
     <string name="perf_lede">CPU 核心、会话修复和主机名。将在下次会话生效。</string>
     <string name="perf_client_cores_group">Steam 客户端核心</string>
@@ -3649,4 +3662,12 @@
     <string name="stores_gamejolt_filter_status">状态</string>
     <string name="stores_gamejolt_filter_partners">合作伙伴</string>
     <string name="stores_gamejolt_followed">已关注的游戏</string>
+    <string name="wow_chat_title">聊天输入</string>
+    <string name="wow_chat_voice">语音输入</string>
+    <string name="wow_chat_remember">记住此选择</string>
+    <string name="wow_chat_ask">每次询问</string>
+    <string name="wow_chat_send">发送</string>
+    <string name="wow_chat_listening">正在聆听…</string>
+    <string name="wow_chat_voice_unavailable">此设备不支持语音输入。</string>
+    <string name="wow_chat_mic_denied">语音输入需要麦克风权限。</string>
 </resources>
