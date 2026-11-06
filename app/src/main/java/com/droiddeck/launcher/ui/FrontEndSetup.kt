@@ -250,15 +250,19 @@ internal fun SetupPanel(
                 when (tab) {
                     0 -> {
                         val gpuCheck: @Composable (Boolean) -> Unit = { divider ->
+                            val experimentalBridge = s.vkBridge && !s.adreno &&
+                                !com.droiddeck.launcher.core.DeviceSupport.mali()
                             CheckRow(
-                                if (gpuOk && (gpuTested || s.vkBridge)) CheckState.OK else CheckState.WARN,
+                                if (!experimentalBridge && gpuOk && (gpuTested || s.vkBridge)) CheckState.OK else CheckState.WARN,
                                 when {
+                                    experimentalBridge -> stringResource(R.string.setup_gpu_bridged)
                                     gpu.support == com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED -> stringResource(R.string.setup_gpu_supported)
                                     gpu.support == com.droiddeck.launcher.gpu.GpuInfo.Support.UNTESTED -> stringResource(R.string.setup_gpu_untested)
                                     s.vkBridge -> stringResource(R.string.setup_gpu_bridged)
                                     else -> stringResource(R.string.setup_gpu_unsupported)
                                 },
-                                when (gpu.support) {
+                                if (experimentalBridge) stringResource(R.string.setup_gpu_bridge_other_gpu_detail)
+                                else when (gpu.support) {
                                     com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED -> stringResource(R.string.setup_gpu_detail, gpu.displayName(ctx), gpuName)
                                     com.droiddeck.launcher.gpu.GpuInfo.Support.UNTESTED -> stringResource(R.string.setup_gpu_untested_detail, gpu.displayName(ctx), gpu.supportText(ctx).replaceFirstChar { it.lowercase() })
                                     else -> if (s.vkBridge) stringResource(R.string.setup_gpu_bridge_detail, gpuName)

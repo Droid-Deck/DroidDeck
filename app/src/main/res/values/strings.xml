@@ -1071,6 +1071,7 @@
     <string name="store_verified">Verified</string>
     <string name="upd_title">Updates</string>
     <string name="upd_build">DroidDeck %1$s · %2$s</string>
+    <string name="upd_build_preview">DroidDeck Preview %1$d</string>
     <string name="upd_checked">Checked %1$s</string>
     <string name="upd_not_checked">Not checked yet</string>
     <string name="upd_perm_title">Let DroidDeck update itself</string>
@@ -1086,6 +1087,9 @@
     <string name="upd_ahead_status">Ahead of Stable</string>
     <string name="upd_ahead_headline">You\'re ahead of Stable</string>
     <string name="upd_ahead_detail">This build is newer than the latest Stable. You\'ll move to Stable with its next release.</string>
+    <string name="upd_preview_ahead_status">Installed build is newer</string>
+    <string name="upd_preview_ahead_headline">You have a newer build</string>
+    <string name="upd_preview_ahead_detail">Your installed build is newer than the Preview offered by this source. Refresh after its catalog is updated.</string>
     <string name="upd_gone_status">Test ended</string>
     <string name="upd_gone_headline">This test has ended</string>
     <string name="upd_gone_detail">Its fix was merged or dropped. Follow Preview for the newest fixes.</string>
@@ -3791,6 +3795,7 @@
     <string name="setup_bridge_dxvk_auto_detail">Uses an older DXVK where this GPU\'s Vulkan is too old for Proton\'s.</string>
     <string name="setup_bridge_dxvk_proton_detail">Every Proton keeps its own DXVK, even where this GPU\'s Vulkan may be too old for it.</string>
     <string name="setup_gpu_bridge_detail">%1$s is not an Adreno. The experimental Vulkan bridge is on: the session draws through the phone\'s own driver. Expect bugs; send the session logs.</string>
+    <string name="setup_gpu_bridge_other_gpu_detail">Mali bridge replaces the selected graphics driver. It is experimental on this GPU; turn it off if the session stalls.</string>
     <string name="integration_title">Steam integration</string>
     <string name="integration_count">%1$d of %2$d on</string>
     <string name="integration_set_up">Set up</string>

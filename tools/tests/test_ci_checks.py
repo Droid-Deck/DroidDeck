@@ -46,6 +46,14 @@ class CiChecksTest(unittest.TestCase):
         self.assertIn("outputs.doNotCacheIf('CI executes the test suite on every run') { true }", gradle)
         self.assertIn('outputs.upToDateWhen { false }', gradle)
 
+    def test_fork_preview_workspace_is_exact_and_labeled(self):
+        workflow = (ROOT / '.github/workflows/build.yml').read_text()
+        self.assertIn('tree_state=preview', workflow)
+        self.assertIn('Preview 10 at ${BUILD_SHA:0:7}', workflow)
+        self.assertIn("Preview workspace has unexpected changes", workflow)
+        self.assertIn("expected_status = [' M app/build.gradle', ' M keystore/release-signer.sha256']", workflow)
+        self.assertIn("['clean', 'dirty', 'preview']", (ROOT / 'app/build.gradle').read_text())
+
     def test_independent_jobs_wait_only_for_the_pinned_source(self):
         jobs = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())['jobs']
         for name in ('xbox', 'components', 'python-tests'):

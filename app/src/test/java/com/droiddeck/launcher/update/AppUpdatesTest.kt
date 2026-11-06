@@ -114,6 +114,24 @@ class AppUpdatesTest {
     }
 
     @Test
+    fun aStalePreviewCatalogIsAheadInsteadOfAnUninstallableUpdate() {
+        val stalePreview = AppUpdates.Catalog(
+            stable = catalog.stable,
+            preview = release("bbbbbbb", versionCode = 21),
+            tests = catalog.tests,
+            checkedAt = catalog.checkedAt,
+        )
+        assertEquals(Offer.AHEAD, AppUpdates.offer(stalePreview, Follow(Channel.NIGHTLY), me("newer", versionCode = 22)))
+    }
+
+    @Test
+    fun forkPreviewVersionsHaveAReadablePreviewNumber() {
+        assertEquals(9, AppUpdates.previewNumber("0.6.9-wallentx.9"))
+        assertEquals(10, AppUpdates.previewNumber("0.6.9-wallentx.10"))
+        assertNull(AppUpdates.previewNumber("0.6.9"))
+    }
+
+    @Test
     fun testBuildsUpdateWithinTheirPrAndSwitchOtherwise() {
         assertEquals(Offer.UPDATE, AppUpdates.offer(catalog, Follow(Channel.TEST, 93), me("fffffff000", pr = 93)))
         assertEquals(Offer.SWITCH, AppUpdates.offer(catalog, Follow(Channel.TEST, 93), me(stable.commit)))

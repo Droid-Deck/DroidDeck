@@ -67,7 +67,7 @@ if (buildLabel == null || buildLabel.trim().isEmpty()) {
 }
 def buildOrigin = providers.environmentVariable('GITHUB_ACTIONS').getOrNull() == 'true' ? 'remote' : 'local'
 def treeState = providers.environmentVariable('DROIDDECK_BUILD_TREE_STATE').getOrNull()
-if (!(treeState in ['clean', 'dirty'])) {
+if (!(treeState in ['clean', 'dirty', 'preview'])) {
     def status = gitValue(['status', '--porcelain'])
     treeState = status == null ? 'unknown' : (status.isEmpty() ? 'clean' : 'dirty')
 }

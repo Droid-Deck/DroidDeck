@@ -229,10 +229,19 @@ object AppUpdates {
                 compareVersions(r.version ?: "", me.version) > 0 -> Offer.UPDATE
                 else -> Offer.AHEAD
             }
-            Channel.NIGHTLY -> if (me.pr != 0) Offer.SWITCH else Offer.UPDATE
+            Channel.NIGHTLY -> when {
+                me.pr != 0 -> Offer.SWITCH
+                // A manually published preview can arrive before its catalog entry. Android
+                // cannot install an older version code over the installed build.
+                r.versionCode < me.versionCode -> Offer.AHEAD
+                else -> Offer.UPDATE
+            }
             Channel.TEST -> if (me.pr == r.pr) Offer.UPDATE else Offer.SWITCH
         }
     }
+
+    internal fun previewNumber(version: String): Int? =
+        Regex("""^.+-wallentx\.(\d+)$""").matchEntire(version)?.groupValues?.get(1)?.toIntOrNull()
 
     fun hasUpdate(catalog: Catalog?, follow: Follow): Boolean {
         if (catalog == null) return false

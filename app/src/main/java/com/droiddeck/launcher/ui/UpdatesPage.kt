@@ -101,6 +101,7 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
     val ua = a.updates
     val signerRevision = AppUpdates.signerRevision
     val me = remember(signerRevision) { AppUpdates.installed() }
+    val previewNumber = AppUpdates.previewNumber(me.version)
     val colors = MaterialTheme.colorScheme
     Column(modifier = modifier) {
         Row(
@@ -108,7 +109,9 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
             modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
         ) {
             Text(
-                stringResource(R.string.upd_build, me.version, s.buildLabel), fontSize = 12.5.sp, color = colors.onSurfaceVariant,
+                if (previewNumber != null) stringResource(R.string.upd_build_preview, previewNumber)
+                else stringResource(R.string.upd_build, me.version, s.buildLabel),
+                fontSize = 12.5.sp, color = colors.onSurfaceVariant,
                 maxLines = 1, modifier = Modifier.weight(1f)
                     .basicMarquee(iterations = Int.MAX_VALUE, initialDelayMillis = 700, velocity = 40.dp),
             )
@@ -201,6 +204,12 @@ private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, m
         offered && installBlock != null -> Look(colors.onSurfaceVariant, stringResource(R.string.upd_blocked_status), newBuild(u.follow, release!!), null)
         offer == Offer.UPDATE -> Look(AttentionAmber, stringResource(R.string.upd_available), newBuild(u.follow, release!!), null)
         offer == Offer.SWITCH -> Look(pal.signal, stringResource(R.string.upd_switch), newBuild(u.follow, release!!), null)
+        offer == Offer.AHEAD && u.follow.channel == Channel.NIGHTLY -> Look(
+            pal.signal,
+            stringResource(R.string.upd_preview_ahead_status),
+            stringResource(R.string.upd_preview_ahead_headline),
+            stringResource(R.string.upd_preview_ahead_detail),
+        )
         offer == Offer.AHEAD -> Look(pal.signal, stringResource(R.string.upd_ahead_status), stringResource(R.string.upd_ahead_headline),
             stringResource(R.string.upd_ahead_detail))
         offer == Offer.GONE -> Look(AttentionAmber, stringResource(R.string.upd_gone_status), stringResource(R.string.upd_gone_headline),
@@ -236,7 +245,7 @@ private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, m
                 offered && installBlock != null -> Unit
                 offer == Offer.UPDATE -> PrimaryButton(stringResource(R.string.upd_update_button, button), enabled = installable, main = true) { ua.onInstall(release!!) }
                 offer == Offer.SWITCH -> PrimaryButton(stringResource(R.string.upd_install_button, button), enabled = installable, main = true) { ua.onInstall(release!!) }
-                offer == Offer.AHEAD && installBlock == null ->
+                offer == Offer.AHEAD && u.follow.channel == Channel.STABLE && installBlock == null ->
                     SecondaryButton(stringResource(R.string.upd_install_anyway, release?.version.orEmpty()), enabled = installable) { ua.onInstall(release!!) }
                 offer == Offer.GONE -> PrimaryButton(stringResource(R.string.upd_follow_preview), main = true) { ua.onFollow(Follow(Channel.NIGHTLY)) }
             }

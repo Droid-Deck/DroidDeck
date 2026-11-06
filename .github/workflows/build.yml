@@ -599,8 +599,8 @@ jobs:
           path = Path('app/build.gradle')
           source = path.read_text()
           for old, new in (
-              (r'(?m)^        versionCode 17$', '        versionCode 22'),
-              (r'(?m)^        versionName "0\.6\.9"$', '        versionName "0.6.9-wallentx.9"'),
+              (r'(?m)^        versionCode 17$', '        versionCode 23'),
+              (r'(?m)^        versionName "0\.6\.9"$', '        versionName "0.6.9-wallentx.10"'),
           ):
               source, count = re.subn(old, new, source)
               if count != 1:
@@ -619,14 +619,45 @@ jobs:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           BUILD_REF: ${{ github.ref_name }}
           BUILD_SHA: ${{ github.sha }}
+          PREVIEW: ${{ github.event_name == 'workflow_dispatch' && inputs.wallentx_preview }}
         run: |
-          if [[ -n "$(git status --porcelain)" ]]; then
+          if [[ "$PREVIEW" == true ]]; then
+            python3 - <<'PY'
+          from pathlib import Path
+          import re
+          import subprocess
+
+          expected_gradle = subprocess.check_output(
+              ['git', 'show', 'HEAD:app/build.gradle'], text=True,
+          )
+          for old, new in (
+              (r'(?m)^        versionCode 17$', '        versionCode 23'),
+              (r'(?m)^        versionName "0\.6\.9"$', '        versionName "0.6.9-wallentx.10"'),
+          ):
+              expected_gradle, count = re.subn(old, new, expected_gradle)
+              if count != 1:
+                  raise SystemExit('Unexpected base version; review the preview update version')
+          if Path('app/build.gradle').read_text() != expected_gradle:
+              raise SystemExit('Preview build.gradle contains changes beyond the controlled version update')
+          if Path('keystore/release-signer.sha256').read_text() != (
+              '80465aadce5c34a1d4f71ee4bd8cf7bcce64b5e7836e599f98d0b4f110e210c8\n'
+          ):
+              raise SystemExit('Preview signer marker differs from the approved fork signer')
+          expected_status = [' M app/build.gradle', ' M keystore/release-signer.sha256']
+          status = subprocess.check_output(['git', 'status', '--porcelain'], text=True).splitlines()
+          if status != expected_status:
+              raise SystemExit(f'Preview workspace has unexpected changes: {status!r}')
+          PY
+            tree_state=preview
+          elif [[ -n "$(git status --porcelain)" ]]; then
             tree_state=dirty
           else
             tree_state=clean
           fi
           echo "DROIDDECK_BUILD_TREE_STATE=$tree_state" >> "$GITHUB_ENV"
-          if [[ -n "$PR_NUMBER" ]]; then
+          if [[ "$PREVIEW" == true ]]; then
+            label="Preview 10 at ${BUILD_SHA:0:7}"
+          elif [[ -n "$PR_NUMBER" ]]; then
             label="pr${PR_NUMBER} at ${PR_HEAD_SHA:0:7}"
           else
             label="${BUILD_REF} at ${BUILD_SHA:0:7}"
