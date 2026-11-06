@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.session
 
 import android.content.Context
+import android.os.ParcelFileDescriptor
 import java.io.File
 import java.io.OutputStream
 import java.nio.channels.Channels
@@ -65,6 +66,18 @@ internal object JvmSecureSourceOpener : SecureSourceOpener {
         } finally {
             opened.asReversed().forEach { runCatching { it.close() } }
         }
+    }
+}
+
+internal class JvmSecureLogOpener(private val root: File) : SecureLogOpener {
+    override fun open(context: Context, name: String): ParcelFileDescriptor? {
+        if (Files.isSymbolicLink(root.toPath())) return null
+        val target = root.toPath().resolve(name).normalize()
+        if (target.parent != root.toPath().toAbsolutePath().normalize() || Files.isSymbolicLink(target)) return null
+        val attrs = runCatching { Files.readAttributes(target, BasicFileAttributes::class.java) }.getOrNull() ?: return null
+        val links = runCatching { Files.getAttribute(target, "unix:nlink") as Number }.getOrNull()?.toLong() ?: 1L
+        if (!attrs.isRegularFile || links != 1L) return null
+        return ParcelFileDescriptor.open(target.toFile(), ParcelFileDescriptor.MODE_READ_ONLY)
     }
 }
 

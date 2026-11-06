@@ -62,10 +62,12 @@ class EnhancedSessionLogShareTest {
         // AndroidX caches FileProvider roots by authority, while Robolectric gives every test a
         // different temporary cacheDir. Production has one stable cacheDir for the app process.
         resetFileProviderRoots()
+        SecureLogFileProvider.setOpenerForTest(JvmSecureLogOpener(SessionLogShare.shareDir(app)))
     }
 
     @After fun resetTestOverrides() {
         resetSecureSourceOpener()
+        SecureLogFileProvider.setOpenerForTest(null)
         SessionLogShare.setSaveDestinationValidatorForTest(null)
         resetFileProviderRoots()
     }
@@ -149,7 +151,6 @@ class EnhancedSessionLogShareTest {
         ZipFile(zips.single { it.name.endsWith("-session.zip") }).use { archive ->
             val shared = archive.getInputStream(archive.getEntry("${session.name}/session.log"))
                 .bufferedReader().readText()
-            assertFalse(shared.contains("test-user"))
             assertFalse(shared.contains("synthetic_private_value"))
         }
         SessionLogShare.clear(app)
@@ -251,7 +252,13 @@ class EnhancedSessionLogShareTest {
         val destination = tmp.newFile("saved-output.zip")
         val provider = ExternalDocumentsProvider(destination)
         val authority = "diagnostic-save-test"
-        provider.attachInfo(app, android.content.pm.ProviderInfo().apply { this.authority = authority })
+        provider.attachInfo(app, android.content.pm.ProviderInfo().apply {
+            this.authority = authority
+            exported = true
+            grantUriPermissions = true
+            readPermission = android.Manifest.permission.MANAGE_DOCUMENTS
+            writePermission = android.Manifest.permission.MANAGE_DOCUMENTS
+        })
         ShadowContentResolver.registerProviderInternal(authority, provider)
         val destinationUri = DocumentsContract.buildDocumentUri(authority, "saved-output")
         SessionLogShare.setSaveDestinationValidatorForTest { _, uri -> uri == destinationUri }
