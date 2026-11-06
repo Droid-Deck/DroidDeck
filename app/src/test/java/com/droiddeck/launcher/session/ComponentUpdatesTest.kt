@@ -161,6 +161,7 @@ class ComponentUpdatesTest {
         state.setWritable(false)
         dir.setWritable(false)
         try {
+            org.junit.Assume.assumeFalse(state.canWrite() || dir.canWrite())
             ComponentUpdater.ensure(context, false)
         } finally {
             dir.setWritable(true)

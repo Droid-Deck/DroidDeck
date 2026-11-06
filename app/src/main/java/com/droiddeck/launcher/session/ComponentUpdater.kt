@@ -93,57 +93,92 @@ object ComponentUpdater {
         judge(context, state, protons, notes)
         val due = force || System.currentTimeMillis() - state.optLong("checkedAt") >= CHECK_EVERY_MS
         val wanted = ComponentsManager.COMPONENTS.filter { managed(context, it) }
-        if (!due || wanted.isEmpty() || protons.isEmpty()) {
+        if (wanted.isEmpty() || protons.isEmpty()) {
             save(context, state)
             return notes
         }
+        val checked = due && check(context, state, protons, wanted, force, notes)
+        apply(context, state, protons, wanted, notes)
+        prune(context, state)
+        if (checked) state.put("checkedAt", System.currentTimeMillis())
+        save(context, state)
+        notes
+    }
+
+    private fun check(
+        context: Context, state: JSONObject, protons: List<ComponentsManager.Proton>, wanted: List<String>, force: Boolean, notes: MutableList<String>,
+    ): Boolean {
         if (!AutoComponents.isOnline(context)) {
             state.put("note", context.getString(R.string.comp_auto_waits_network))
-            save(context, state)
-            return notes
+            return false
         }
         val catalog = runCatching { ComponentsManager.catalog(context, true).items }
             .onFailure { Log.w(TAG, "catalog", it) }.getOrDefault(emptyList())
         if (catalog.none { it.release == ComponentsManager.DD_NIGHTLY }) {
             state.put("note", context.getString(R.string.comp_auto_check_failed))
-            save(context, state)
-            return notes
+            return false
         }
         val holdBack = !force && AutoComponents.constrained(context)
         val lines = state.obj("lines")
-        val choices = ComponentsManager.activeChoices(context)
+        var complete = true
         state.remove("note")
         for (comp in wanted) for (p in protons) {
             val line = lineOf(context, state, p, comp) ?: continue
             val ls = lines.obj(line.key)
             val target = ComponentUpdates.pick(catalog, line, ls.strings("bad"))
-            if (target != null && ls.optString("current") != target.file) {
-                val stored = ComponentsManager.isStored(context, target.file)
-                if (!stored) {
-                    if (holdBack) { state.put("note", context.getString(R.string.comp_auto_waits_unmetered)); continue }
-                    val got = runCatching { ComponentsManager.download(context, target) {} }
-                    if (got.isFailure) {
-                        Log.w(TAG, "download ${target.file}", got.exceptionOrNull())
-                        state.put("note", context.getString(R.string.comp_auto_check_failed))
-                        continue
-                    }
+            if (target == null || ls.optString("current") == target.file) continue
+            val stored = ComponentsManager.isStored(context, target.file)
+            if (!stored) {
+                if (holdBack) {
+                    state.put("note", context.getString(R.string.comp_auto_waits_unmetered))
+                    complete = false
+                    continue
                 }
-                ls.put("previous", ls.optString("current").ifEmpty { ComponentUpdates.ORIGINAL })
-                    .put("current", target.file).put("since", latestStamp(context)).put("failed", JSONObject())
-                if (!stored) ls.put("owned", JSONArray(ls.strings("owned") + target.file))
-                ls.remove("note")
-                notes += context.getString(R.string.comp_auto_updated, ComponentsManager.LABEL[comp], target.file.removeSuffix(".wcp"))
+                val got = runCatching { ComponentsManager.download(context, target) {} }
+                if (got.isFailure) {
+                    Log.w(TAG, "download ${target.file}", got.exceptionOrNull())
+                    state.put("note", context.getString(R.string.comp_auto_check_failed))
+                    complete = false
+                    continue
+                }
+            }
+            ls.put("previous", ls.optString("current").ifEmpty { ComponentUpdates.ORIGINAL })
+                .put("current", target.file).put("since", latestStamp(context)).put("failed", JSONObject())
+            if (!stored) ls.put("owned", JSONArray(ls.strings("owned") + target.file))
+            ls.remove("note")
+            notes += context.getString(R.string.comp_auto_updated, ComponentsManager.LABEL[comp], target.file.removeSuffix(".wcp"))
+        }
+        return complete
+    }
+
+    private fun apply(context: Context, state: JSONObject, protons: List<ComponentsManager.Proton>, wanted: List<String>, notes: MutableList<String>) {
+        val lines = state.obj("lines")
+        val choices = ComponentsManager.activeChoices(context)
+        val unfinished = HashSet<String>()
+        for (comp in wanted) for (p in protons) {
+            val line = lineOf(context, state, p, comp) ?: continue
+            val ls = lines.optJSONObject(line.key) ?: continue
+            val restore = ls.strings("restore")
+            if (p.id in restore) {
+                val done = runCatching { ComponentsManager.restore(context, p.id, comp, ComponentsManager.safeName(p.version)) }
+                    .onFailure { Log.w(TAG, "restore ${p.name} ${line.key}", it) }.isSuccess
+                if (done) ls.put("restore", JSONArray(restore - p.id)) else unfinished += line.key
+                continue
             }
             val current = ls.optString("current")
             if (current.isNotEmpty() && choices.fileOf(p, comp) != current) {
                 runCatching { ComponentsManager.swap(context, p.id, current) }
-                    .onFailure { Log.w(TAG, "${p.name} ${line.key}", it) }
+                    .onFailure { Log.w(TAG, "${p.name} ${line.key}", it); unfinished += line.key }
             }
         }
-        prune(context, state)
-        state.put("checkedAt", System.currentTimeMillis())
-        save(context, state)
-        notes
+        for (key in lines.keys().asSequence().toList()) {
+            val ls = lines.optJSONObject(key) ?: continue
+            val pending = ls.optString("pendingNote")
+            if (pending.isEmpty() || key in unfinished || ls.strings("restore").isNotEmpty()) continue
+            ls.remove("pendingNote")
+            ls.put("note", pending)
+            notes += pending
+        }
     }
 
     private fun judge(context: Context, state: JSONObject, protons: List<ComponentsManager.Proton>, notes: MutableList<String>) {
@@ -179,21 +214,28 @@ object ComponentUpdater {
         val bad = ls.optString("current")
         val back = ls.optString("previous")
         val choices = ComponentsManager.activeChoices(context)
+        val unfinished = ArrayList<String>()
         for (p in protons) {
             if (lineOf(context, state, p, comp)?.key != key || choices.fileOf(p, comp) != bad) continue
             runCatching {
                 if (back == ComponentUpdates.ORIGINAL) ComponentsManager.restore(context, p.id, comp, ComponentsManager.safeName(p.version))
                 else ComponentsManager.swap(context, p.id, back)
-            }.onFailure { Log.w(TAG, "roll back ${p.name} $key", it) }
+            }.onFailure { Log.w(TAG, "roll back ${p.name} $key", it); unfinished += p.id }
         }
         ls.put("bad", JSONArray(ls.strings("bad") + bad)).put("current", back).put("previous", ComponentUpdates.ORIGINAL)
             .put("since", latestStamp(context)).put("failed", JSONObject())
+        if (back == ComponentUpdates.ORIGINAL) ls.put("restore", JSONArray(ls.strings("restore") + unfinished))
         val label = ComponentsManager.LABEL[comp]
         val shown = back.ifEmpty { context.getString(R.string.comp_tag_original) }.removeSuffix(".wcp")
         val note = context.getString(R.string.comp_auto_rolled_back, label, bad.removeSuffix(".wcp"), shown)
+        Log.w(TAG, note)
+        if (unfinished.isNotEmpty()) {
+            ls.put("pendingNote", note)
+            return
+        }
+        ls.remove("pendingNote")
         ls.put("note", note)
         notes += note
-        Log.w(TAG, note)
         prune(context, state)
     }
 

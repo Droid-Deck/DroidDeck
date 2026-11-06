@@ -63,13 +63,22 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
         checkComponentUpdates(force = true)
     }
 
+    private var checkAgain: Boolean? = null
+
     fun checkComponentUpdates(force: Boolean) {
-        if (compAutoChecking) return
+        if (compAutoChecking) {
+            checkAgain = force || checkAgain == true
+            return
+        }
         compAutoChecking = true
         Thread({
             val notes = runCatching { ComponentUpdater.ensure(activity, force) }.onFailure { Log.w(TAG, "component updates", it) }.getOrDefault(emptyList())
             ui.post {
                 compAutoChecking = false
+                checkAgain?.let { again ->
+                    checkAgain = null
+                    checkComponentUpdates(again)
+                }
                 if (notes.isNotEmpty()) android.widget.Toast.makeText(activity, notes.joinToString("\n"), android.widget.Toast.LENGTH_LONG).show()
                 refreshComponents()
             }

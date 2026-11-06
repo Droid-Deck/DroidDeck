@@ -3003,6 +3003,7 @@ class FrontEndActivity : ComponentActivity() {
     private fun removeRuntime() {
         if (runtimeChangesBlocked()) return
         val removal = LinuxRuntimeInstaller.beginUninstall(this) ?: return
+        com.droiddeck.launcher.runtime.RuntimeAutoUpdate.seed(this)
         ready = false
         com.droiddeck.launcher.runtime.RuntimeInstallService.keepRemovalAlive(this)
         followRuntimeOperation { removal.run(it) }
