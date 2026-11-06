@@ -397,12 +397,14 @@ class BattleNetTest {
 
     @Test fun aCancelledInstallRecoversTheMappedUidFromTheDriverCache() {
         val item = CatalogItem(Store.BATTLENET, "osi", "Diablo II: Resurrected", null)
+        val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
         val file = File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/battlenet/agent-osi.uid")
         file.parentFile!!.mkdirs()
-        file.writeBytes("\uFEFFosic".toByteArray(Charsets.UTF_16LE))
-        assertEquals("osic", BattleNetInstall.cachedUid(context, item))
+        file.writeBytes("\uFEFFZ:/root/Games/Diablo II Resurrected\nosic".toByteArray(Charsets.UTF_16LE))
+        assertEquals("osic", BattleNetInstall.cachedUid(context, item, folder))
+        assertNull(BattleNetInstall.cachedUid(context, item, File(folder, "other")))
         BattleNetInstall.clearCachedUid(context, item)
-        assertNull(BattleNetInstall.cachedUid(context, item))
+        assertNull(BattleNetInstall.cachedUid(context, item, folder))
     }
 
     @Test fun aCancelledPausedInstallUninstallsTheMappedUid() {
@@ -410,7 +412,7 @@ class BattleNetTest {
         val item = CatalogItem(Store.BATTLENET, "osi", "Diablo II: Resurrected", null)
         val cache = File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/battlenet/agent-osi.uid")
         cache.parentFile!!.mkdirs()
-        cache.writeBytes("\uFEFFosic".toByteArray(Charsets.UTF_16LE))
+        cache.writeBytes("\uFEFFZ:/root/Games/Diablo II Resurrected\nosic".toByteArray(Charsets.UTF_16LE))
         val seen = AtomicReference<String?>(null)
         val done = CountDownLatch(1)
         val installer = com.droiddeck.launcher.stores.battlenet.BattleNetInstaller(context, item, folder, false) { uid ->

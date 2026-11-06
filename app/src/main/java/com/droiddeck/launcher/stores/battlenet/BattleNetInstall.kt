@@ -115,7 +115,7 @@ object BattleNetInstall {
             Store.BATTLENET, item.id, item.title, cover = item.tallImageUrl ?: item.imageUrl,
             location = StoreInstallRoot.labelFor(app, folder),
         )
-        if (!update && !DownloadQueue.isActive(entry.key)) clearCachedUid(app, item)
+        if (!update && item.extra[RESTORE] != "1" && !DownloadQueue.isActive(entry.key)) clearCachedUid(app, item)
         DownloadQueue.enqueue(app, entry) { BattleNetInstaller(app, item, folder, update) }
     }
 
@@ -137,6 +137,7 @@ object BattleNetInstall {
     }
 
     internal const val INSTALL_UID = "installUid"
+    internal const val RESTORE = "restore"
 
     internal fun installUid(context: Context, game: InstalledStoreGame): String? {
         val games = runCatching { BattleNet.games(context) }.getOrDefault(emptyList())
@@ -154,13 +155,21 @@ object BattleNetInstall {
         runCatching { cachedUidFile(context, item).delete() }
     }
 
-    internal fun cachedUid(context: Context, item: CatalogItem): String? {
+    internal fun cachedUid(context: Context, item: CatalogItem, folder: File? = null): String? {
         val bytes = runCatching { cachedUidFile(context, item).readBytes() }.getOrNull() ?: return null
         val text = runCatching {
             if (bytes.size >= 2 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xFE.toByte()) String(bytes, Charsets.UTF_16LE)
             else String(bytes, Charsets.UTF_8)
         }.getOrNull() ?: return null
-        return text.removePrefix("\uFEFF").trim().takeIf { it.matches(Regex("[a-z0-9_]{1,32}")) }
+        val lines = text.removePrefix("\uFEFF").lines().map { it.trim() }.filter { it.isNotEmpty() }
+        if (lines.isEmpty()) return null
+        val uid = lines.last()
+        if (!uid.matches(Regex("[a-z0-9_]{1,32}"))) return null
+        if (folder != null && lines.size > 1) {
+            val saved = BattleNet.hostFolder(context, lines.first()) ?: return null
+            if (saved.absolutePath != folder.absolutePath) return null
+        }
+        return uid
     }
 
     fun uninstall(context: Context, game: InstalledStoreGame): Boolean {
@@ -287,6 +296,7 @@ internal class BattleNetInstaller(
     private val uninstall: (String) -> Boolean = { BattleNetInstall.agentUninstall(app, it) },
 ) : DownloadQueue.DownloadJob {
     private val cancelled = AtomicBoolean(false)
+    private val cleanupStarted = AtomicBoolean(false)
     private val started = AtomicBoolean(false)
     private val ended = java.util.concurrent.CountDownLatch(1)
     @Volatile private var effectiveUid: String? = null
@@ -356,6 +366,7 @@ internal class BattleNetInstaller(
     override fun cancel(deleteFiles: Boolean) {
         cancelled.set(true)
         if (!deleteFiles || update) return
+        if (!cleanupStarted.compareAndSet(false, true)) return
         Thread({
             val stopped = !started.get() || ended.await(END_WAIT_S, TimeUnit.SECONDS)
             if (!stopped) {
@@ -366,7 +377,7 @@ internal class BattleNetInstaller(
                         it.uid == item.id && it.folder.absolutePath == folder.absolutePath
                     }?.installUid
                 }.getOrNull()
-                val cached = BattleNetInstall.cachedUid(app, item)
+                val cached = BattleNetInstall.cachedUid(app, item, folder)
                 val uid = effectiveUid ?: item.extra[BattleNetInstall.INSTALL_UID] ?: cached ?: registered
                 val gone = uid?.let(uninstall) ?: false
                 if (folder.isDirectory && (gone || folder.list().isNullOrEmpty())) com.droiddeck.launcher.core.FileUtils.delete(folder)

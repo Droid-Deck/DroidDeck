@@ -116,7 +116,7 @@ var CHINA = {osi: "osic", s2: "s2_cn", anbs: "anbs_cn", diablo3: "d3cn"};
 var CHINA_PRODUCT = {osi: "osic", s2: "s2c", diablo3: "d3cn"};
 
 function install() {
-  save(".uid", uid);
+  save(".uid", dir + "\n" + uid);
   // Blizzard's China repository moved to cn.patch.battlenet.com.cn; cn.patch.battle.net only redirects away from it.
   var patch = zone == "cn" ? "cn.patch.battlenet.com.cn" : zone + ".patch.battle.net";
   var form = call("POST", "/install", '{"uid":"' + uid + '","instructions_patch_url":"http://' + patch + ':1119/' +
@@ -1187,6 +1187,11 @@ def read_text(path):
     return data.decode("utf-16" if data[:2] in (b"\xff\xfe", b"\xfe\xff") else "utf-8", "replace").strip()
 
 
+def uid_of(text):
+    lines = [line.strip() for line in (text or "").splitlines() if line.strip()]
+    return lines[-1] if lines else None
+
+
 def summary(status):
     out = {key: status[key] for key in REPORTED if key in status}
     for key in ("download_current", "download_total"):
@@ -1268,7 +1273,7 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
         while True:
             done = child.poll() is not None
             if effective is None:
-                effective = read_text(base + ".uid")
+                effective = uid_of(read_text(base + ".uid"))
                 if effective:
                     emit("UID", effective)
             status = read_status(base + ".json")
@@ -1281,7 +1286,7 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
                 break
             time.sleep(POLL if poll is None else poll)
         if effective is None:
-            effective = read_text(base + ".uid")
+            effective = uid_of(read_text(base + ".uid"))
             if effective:
                 emit("UID", effective)
         leftovers = wine_processes(pfx)

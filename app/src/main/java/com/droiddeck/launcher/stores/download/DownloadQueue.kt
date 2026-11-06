@@ -316,7 +316,14 @@ object DownloadQueue {
         var error: String? = null
         try {
             val job = checkNotNull(item.factory).invoke()
-            synchronized(lock) { item.job = job }
+            var cancelled = false
+            var paused = false
+            synchronized(lock) {
+                item.job = job
+                cancelled = item.cancelled.get()
+                paused = item.pauseRequested
+            }
+            if (cancelled) job.cancel(deleteFiles = !paused)
             StoresState.logLine("${item.entry.store.label}: fetching manifest for \"${item.entry.name}\"")
             result = job.run(handle)
             if (result == null && !item.cancelled.get()) error = "install failed"
