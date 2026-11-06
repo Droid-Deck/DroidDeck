@@ -269,7 +269,7 @@ internal fun SteamLaunchOptionsPanel(appId: Int) {
         loading = false
     }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    DisposableEffect(lifecycle) {
+    DisposableEffect(lifecycle, appId) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME && !saving) {
                 loading = true
