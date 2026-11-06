@@ -47,6 +47,7 @@ class SecondScreenPresentation(
     private var menuView: androidx.compose.ui.platform.ComposeView? = null
     private var dashboardView: androidx.compose.ui.platform.ComposeView? = null
     private var chatView: androidx.compose.ui.platform.ComposeView? = null
+    private var chatLost: (() -> Unit)? = null
     var menuShown = false
         private set
     private val root = LinearLayout(context).apply {
@@ -129,10 +130,13 @@ class SecondScreenPresentation(
         if (created && isShowing && currentMode == SecondScreenMode.TERMINAL && terminalPanel?.ready != true) renderMode()
     }
 
-    fun showChat(content: @androidx.compose.runtime.Composable () -> Unit) {
+    fun showChat(onLost: () -> Unit, content: @androidx.compose.runtime.Composable () -> Unit) {
         if (!showsKeyboard || chatView != null) return
         keyboardHost?.takeIf { it.shown }?.hide()
         keyboardShown.value = false
+        keyboardPending = false
+        fieldKeyboard = false
+        chatLost = onLost
         ownComposeViews()
         val view = androidx.compose.ui.platform.ComposeView(context).apply {
             isFocusable = true
@@ -144,8 +148,14 @@ class SecondScreenPresentation(
     }
 
     fun hideChat() {
+        chatLost = null
+        dropChat()
+    }
+
+    private fun dropChat() {
         val view = chatView ?: return
         chatView = null
+        chatLost?.let { lost -> chatLost = null; sessionActivity.runOnUiThread(lost) }
         imeSeen = false
         root.removeView(view)
         view.disposeComposition()
@@ -201,7 +211,7 @@ class SecondScreenPresentation(
         showMenu(false)
         closeDashboard()
         closeTerminal()
-        hideChat()
+        dropChat()
         keyboardHost?.hide()
         keyboardHost = null
         dismiss()
@@ -236,7 +246,7 @@ class SecondScreenPresentation(
     }
 
     private fun renderMode() {
-        hideChat()
+        dropChat()
         fieldKeyboard = false
         keyboardHost?.hide()
         keyboardHost = null

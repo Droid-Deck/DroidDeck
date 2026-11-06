@@ -3585,9 +3585,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun onGameTextField(focused: Boolean) {
-        if (!com.droiddeck.launcher.ui.WowChat.isWow(AgentGuest.gameProgram)) return
         if (!focused) wowChat.chatClosed()
-        else if (resumed && !pipUi && !pcKeyboardOpen &&
+        else if (com.droiddeck.launcher.ui.WowChat.isWow(AgentGuest.gameProgram) && resumed && !pipUi && !pcKeyboardOpen &&
             resources.configuration.hardKeyboardHidden != android.content.res.Configuration.HARDKEYBOARDHIDDEN_NO) {
             keyboard?.takeIf { it.shown }?.hide()
             wowChat.chatOpened()
@@ -3605,7 +3604,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 return
             }
             wowChatBottom = presentation
-            presentation.showChat {
+            presentation.showChat(onLost = {
+                if (wowChatBottom === presentation) {
+                    wowChatBottom = null
+                    wowChatOnTop = wowChat.request != null
+                }
+            }) {
                 androidx.compose.runtime.CompositionLocalProvider(
                     androidx.activity.compose.LocalActivityResultRegistryOwner provides this,
                     androidx.activity.compose.LocalOnBackPressedDispatcherOwner provides this,
@@ -3619,24 +3623,34 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
-    private fun sendWowChat(text: String) {
+    private fun sendWowChat(text: String, replace: Boolean) {
         val host = keyboard ?: return
-        selectGameField()
-        if (text.isEmpty()) host.tap(KeyEvent.KEYCODE_DEL) else host.type(text)
+        if (replace) {
+            selectGameField()
+            if (text.isEmpty()) host.tap(KeyEvent.KEYCODE_DEL)
+        }
+        host.type(text)
         host.tap(KeyEvent.KEYCODE_ENTER)
     }
 
     private fun selectGameField(vararg then: Int) {
-        WaylandCompositor.nativeSendKey(KEY_LEFTCTRL, 1)
+        val held = KEY_LEFTCTRL in guestKeysDown || KEY_LEFTCTRL in gestureKeysDown
+        if (!held) WaylandCompositor.nativeSendKey(KEY_LEFTCTRL, 1)
         for (key in intArrayOf(KEY_A) + then) {
             WaylandCompositor.nativeSendKey(key, 1)
             WaylandCompositor.nativeSendKey(key, 0)
         }
-        WaylandCompositor.nativeSendKey(KEY_LEFTCTRL, 0)
+        if (!held) WaylandCompositor.nativeSendKey(KEY_LEFTCTRL, 0)
     }
 
     private fun readGameField(done: (String?) -> Unit) {
-        sessionClipboard.captureGuest(FIELD_READ_MS, done)
+        sessionClipboard.captureGuest(FIELD_READ_MS) { text ->
+            if (text == null) {
+                WaylandCompositor.nativeSendKey(KEY_END, 1)
+                WaylandCompositor.nativeSendKey(KEY_END, 0)
+            }
+            done(text)
+        }
         selectGameField(KEY_C)
     }
 
@@ -5277,6 +5291,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         private const val KEY_RIGHTCTRL = 97
         private const val KEY_A = 30
         private const val KEY_C = 46
+        private const val KEY_END = 107
         private const val FIELD_READ_MS = 600L
         private const val BTN_SIDE = 0x113
         private const val BTN_EXTRA = 0x114

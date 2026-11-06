@@ -42,7 +42,7 @@ import com.droiddeck.launcher.session.SessionPrefs
 
 class WowChat(
     private val context: Context,
-    private val onSend: (String) -> Unit,
+    private val onSend: (String, Boolean) -> Unit,
     private val onCancel: () -> Unit,
     private val readField: ((String?) -> Unit) -> Unit = {},
 ) {
@@ -58,6 +58,7 @@ class WowChat(
         private set
     private var recognizer: SpeechRecognizer? = null
     private var spokenBase = ""
+    private var fieldRead = false
 
     val open: Boolean get() = request != null || asking
 
@@ -92,8 +93,9 @@ class WowChat(
 
     fun send() {
         val text = request?.value?.text.orEmpty()
+        val replace = fieldRead
         finish()
-        onSend(text)
+        onSend(text, replace)
     }
 
     fun cancel() {
@@ -105,9 +107,11 @@ class WowChat(
         voice = mode == SessionPrefs.WOW_CHAT_VOICE && voiceAvailable(context)
         if (mode == SessionPrefs.WOW_CHAT_VOICE && !voice) Toast.makeText(context, R.string.wow_chat_voice_unavailable, Toast.LENGTH_SHORT).show()
         val opened = TypingRequest(TextFieldValue(""), ImeOptions(singleLine = true, imeAction = ImeAction.Send), {}, {})
+        fieldRead = false
         request = opened
         readField { text ->
             if (request === opened && !text.isNullOrEmpty() && opened.value.text.isEmpty()) {
+                fieldRead = true
                 opened.value = TextFieldValue(text, TextRange(text.length))
                 if (recognizer != null) spokenBase = "${text.trimEnd()} "
             }
