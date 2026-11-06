@@ -293,11 +293,13 @@ class ProcessTest(Temp):
     def test_battle_nets_own_processes_are_those_under_its_folders(self):
         for argv in (["C:\\Program Files (x86)\\Battle.net\\Battle.net.exe", "--type=renderer"],
                      ["C:/ProgramData/Battle.net/Agent/Agent.9824/Agent.exe"],
-                     ["C:\\Program Files (x86)\\Battle.net\\Battle.net Launcher.exe"]):
+                     ["C:\\Program Files (x86)\\Battle.net\\Battle.net Launcher.exe"],
+                     ["C:\\Program Files (x86)\\Battle.net\\Battle.net.17952\\BlizzardError.exe"]):
             with self.subTest(argv):
                 self.assertTrue(BNET["is_battlenet"](argv))
         for argv in (["Z:\\root\\.cache\\droiddeck\\battlenet\\Battle.net-Setup.exe"],
                      ["Z:\\root\\Games\\Stores\\Battle.net\\Hearthstone\\Hearthstone.exe"],
+                     ["C:\\Program Files (x86)\\Battle.net\\World of Warcraft\\_forever_\\Wow-arm64.exe"],
                      ["C:\\Program Files (x86)\\Diablo IV\\Diablo IV.exe"], ["C:\\windows\\system32\\services.exe"], []):
             with self.subTest(argv):
                 self.assertFalse(BNET["is_battlenet"](argv))
@@ -305,6 +307,8 @@ class ProcessTest(Temp):
     def test_a_game_battle_net_launched_carries_its_uid(self):
         self.assertTrue(BNET["launched"](["C:\\Program Files (x86)\\Diablo II Resurrected\\D2R.exe", "-uid", "osi"]))
         self.assertTrue(BNET["launched"](["C:\\Program Files (x86)\\Diablo IV\\Diablo IV.exe", "-launch", "-UID", "fenris"]))
+        self.assertTrue(BNET["launched"](["C:\\Program Files (x86)\\Battle.net\\World of Warcraft\\_forever_\\Wow-arm64.exe",
+                                          "-launcherlogin", "-uid", "wowf"]))
         for argv in (["C:\\Program Files (x86)\\Diablo IV\\Diablo IV.exe"],
                      ["C:\\Program Files (x86)\\Diablo IV\\vc_redist.x64.exe", "/quiet"],
                      ["C:\\Program Files (x86)\\Battle.net\\Battle.net.exe", "-uid", "battle.net"]):
@@ -831,6 +835,15 @@ class LaunchTest(Harness):
             self.assertEqual(BNET["launch"](self.root, "Fen"), 0)
         self.assertEqual([c for c in self.calls if c[0] == "stop"], [("stop", [10, 11, 12, 13, 14, 30])])
 
+    def test_a_game_installed_in_battle_nets_folder_is_followed_not_stopped(self):
+        self.install()
+        up = self.clients() + [(30, self.AGENT)]
+        wow = (40, ["C:\\Program Files (x86)\\Battle.net\\World of Warcraft\\_forever_\\Wow-arm64.exe", "-launcherlogin", "-uid", "wowf"])
+        wine = (50, ["C:\\windows\\system32\\services.exe"])
+        self.states = [[], [], up, up + [wow], [wow, wine], [wow, wine], [wine], [wine]]
+        self.assertEqual(BNET["launch"](self.root, "WoWF"), 0)
+        self.assertEqual([c for c in self.calls if c[0] == "stop"], [("stop", [50])])
+
     def test_battle_net_closing_itself_as_it_launches_the_game_is_not_an_end(self):
         game = (40, self.GAME + ["-uid", "fenris"])
         self.states = [[], [game], [game], [], []]
@@ -1116,6 +1129,11 @@ class AgentTest(Temp):
         self.assertIn("port = a(0), action = a(1), uid = a(2), product = a(3), dir = a(4)", script)
         self.assertIn("lang = a(5), country = a(6), region = a(7), out = a(8)", script)
         self.assertIn('"--internalclienttools"', (BIN / "droiddeck-battlenet").read_text())
+
+    def test_the_driver_asks_blizzards_chinese_repository_for_chinese_installs(self):
+        script = BNET["AGENT_SCRIPT"]
+        self.assertIn('var patch = zone == "cn" ? "cn.patch.battlenet.com.cn" : zone + ".patch.battle.net";', script)
+        self.assertIn("+ patch + ':1119/'", script)
 
 
 class AgentJobTest(Harness):

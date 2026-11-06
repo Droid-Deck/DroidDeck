@@ -61,13 +61,18 @@ object BattleNet {
 
     val STORE: List<Title> get() = TITLES.distinctBy { it.code }.filter { it.uid != "d3cn" && it.code != "WoWC" && it.code != "WoWF" }
 
+    // Blizzard's China client installs some products under a CN uid; they are the same games and keep their store identity.
+    private val CN_UIDS = mapOf("s2_cn" to "s2", "osic" to "osi", "anbs_cn" to "anbs")
+
     fun notInstalled(title: Title, installedIds: Collection<String?>) =
         installedIds.mapNotNull { id -> id?.let(::title)?.code }.none { it == title.code }
 
     private const val COVER_RETRY_MS = 24 * 3600_000L
 
+    internal fun artTitle(title: Title) = TITLES.firstOrNull { it.code == title.code } ?: title
+
     private fun coverDir(context: Context, title: Title) =
-        File(context.filesDir, "battlenet-art/${(TITLES.firstOrNull { it.code == title.code } ?: title).uid}")
+        File(context.filesDir, "battlenet-art/${artTitle(title).uid}")
 
     fun cover(context: Context, title: Title): File? = art(context, title).cover
 
@@ -79,7 +84,7 @@ object BattleNet {
         var got = false
         for (title in titles) {
             val dir = coverDir(context, title)
-            val tried = File(dir, ".tried")
+            val tried = File(dir, ".tried-2")
             val wide = File(dir, BLIZZARD)
             val done = File(dir, "p.jpg").isFile && (title.shop == null || wide.isFile)
             if (done || System.currentTimeMillis() - tried.lastModified() < COVER_RETRY_MS) continue
@@ -87,11 +92,15 @@ object BattleNet {
             if (title.steam != null && runCatching { art.download(title.steam.toString(), dir) }.getOrDefault(false)) got = true
             if (title.shop != null && !wide.isFile) {
                 val cover = File(dir, BLIZZARD_COVER).takeUnless { File(dir, "p.jpg").isFile }
-                if (runCatching { com.droiddeck.launcher.stores.battlenet.BlizzardArt.fetch(title.shop, wide, cover) }
-                        .onFailure { Log.w(TAG, "Blizzard art for ${title.uid}: ${it.javaClass.simpleName}") }.getOrDefault(false)) got = true
+                if (runCatching { com.droiddeck.launcher.stores.battlenet.BlizzardArt.fetch(title.code, title.shop, wide, cover) }
+                        .onFailure { Log.w(TAG, "Blizzard art for ${title.uid}: ${it.javaClass.simpleName}") }.getOrDefault(false)) {
+                    got = true
+                    File(dir, OLD_BLIZZARD).delete()
+                    File(dir, OLD_BLIZZARD_COVER).delete()
+                }
             }
             if (!File(dir, "p.jpg").isFile && !File(dir, BLIZZARD_COVER).isFile && key.isNotEmpty()) {
-                val id = runCatching { com.droiddeck.launcher.frontend.SteamGridDb.gameId(key, title.steam, title.name) }.getOrNull()
+                val id = runCatching { com.droiddeck.launcher.frontend.SteamGridDb.exactGameId(key, title.steam, title.name) }.getOrNull()
                 if (id != null && runCatching { com.droiddeck.launcher.frontend.SteamGridDb.download(key, id, dir) }.getOrDefault(false)) got = true
             }
             runCatching { tried.writeText("") ; tried.setLastModified(System.currentTimeMillis()) }
@@ -111,13 +120,15 @@ object BattleNet {
 
     class Art(val cover: File?, val header: File?)
 
-    private const val BLIZZARD = "blizzard.jpg"
-    private const val BLIZZARD_COVER = "p-blizzard.jpg"
+    private const val BLIZZARD = "blizzard-2.jpg"
+    private const val BLIZZARD_COVER = "p-blizzard-2.jpg"
+    private const val OLD_BLIZZARD = "blizzard.jpg"
+    private const val OLD_BLIZZARD_COVER = "p-blizzard.jpg"
 
     fun art(context: Context, title: Title): Art {
         val dir = coverDir(context, title)
         fun first(vararg names: String) = names.map { File(dir, it) }.firstOrNull { it.isFile }
-        return Art(first("p.jpg", BLIZZARD_COVER), first(BLIZZARD, "header.jpg"))
+        return Art(first("p.jpg", BLIZZARD_COVER, OLD_BLIZZARD_COVER), first(BLIZZARD, OLD_BLIZZARD, "header.jpg"))
     }
 
     fun prefix(context: Context) = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps/compatdata/$APP_ID")
@@ -156,8 +167,10 @@ object BattleNet {
     internal fun title(uid: String): Title? {
         val id = uid.lowercase()
         TITLES.firstOrNull { it.uid == id }?.let { return it }
+        CN_UIDS[id]?.let { alias -> TITLES.firstOrNull { it.uid == alias }?.let { return it } }
         val base = id.substringBeforeLast('_', "")
-        return if (base.isNotEmpty() && id.substringAfterLast('_') in LOCALES) TITLES.firstOrNull { it.uid == base } else null
+        if (base.isEmpty() || id.substringAfterLast('_') !in LOCALES) return null
+        return TITLES.firstOrNull { it.uid == base } ?: CN_UIDS[base]?.let { alias -> TITLES.firstOrNull { it.uid == alias } }
     }
 
     internal fun titleForProduct(product: String): Title? {

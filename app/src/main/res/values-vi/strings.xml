@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s qua FEX</string>
     <string name="app_fex_not_ready">Chương trình này được build cho PC %1$s và chạy qua FEX, hiện chưa được thiết lập. Mở Steam một lần khi đã đăng nhập: DroidDeck sẽ tải FEX và Steam Linux Runtime cần thiết, sau đó ứng dụng này sẽ mở.</string>
     <string name="session_proot_missing">Không thể tải proot của DroidDeck. Hãy kiểm tra kết nối rồi thử lại. Phiên chưa được khởi động vì proot dự phòng quá chậm để chơi.</string>
+    <string name="session_powervr_missing">Không thể tải môi trường đồ họa PowerVR. Hãy kiểm tra kết nối rồi thử lại.</string>
     <string name="session_directaudio_missing">Không thể tải DirectAudio, nên âm thanh game dùng đường chậm hơn trong phiên này.</string>
     <string name="session_end_program">Chương trình này</string>
     <string name="session_end_steam_download">Không thể tải xuống client Steam. Mạng hoặc VPN của bạn có thể đang chặn máy chủ Steam; hãy kiểm tra kết nối rồi thử lại.</string>
@@ -583,7 +584,7 @@
     <string name="perf_ram_cap_hint">Áp dụng khi client Steam đang chạy, ở chế độ Steam hoặc từ desktop. Khi phiên dùng nhiều hơn mức này, Steam rồi đến các tiến trình được hỗ trợ khác của phiên sẽ bị nén vào zRAM. Giới hạn mềm: không có gì bị đóng, nhưng game có thể giật khi các trang được nạp lại.</string>
     <string name="perf_ram_cap_unavailable">Cần swap zRAM, thiết bị này không có.</string>
     <string name="perf_vram_cap">Giới hạn VRAM</string>
-    <string name="perf_vram_cap_hint">Bộ nhớ video mà DXVK báo cho game Direct3D, để chúng dùng ít texture hơn. Thiết lập DXVK riêng của game vẫn được ưu tiên. Có hiệu lực từ phiên sau.</string>
+    <string name="perf_vram_cap_hint">Báo ngân sách bộ nhớ video này cho các trò chơi Direct3D 9 đến 12 để giảm mức dùng bộ nhớ. Trò chơi có thể vượt ngân sách; tính năng này không bổ sung phân trang GPU hay bảo đảm tránh lỗi do hết bộ nhớ. Có hiệu lực ở phiên tiếp theo.</string>
     <string name="perf_gpuclock">Giữ GPU ở xung nhịp cao nhất</string>
     <string name="perf_gpuclock_hint">Chỉ dành cho Adreno. Ít giật hơn, dùng nhiều pin và nhiệt hơn.</string>
     <string name="perf_fixes">Các bản sửa phiên</string>
@@ -668,6 +669,8 @@
     <string name="hud_group_metrics">Chỉ số</string>
     <string name="hud_metric_graph">Biểu đồ thời gian khung hình</string>
     <string name="hud_metric_decimal">Tốc độ khung hình có số thập phân</string>
+    <string name="hud_metric_low1">1% thấp nhất</string>
+    <string name="hud_metric_low01">0.1% thấp nhất</string>
     <string name="hud_metric_low001">0.01% thấp nhất</string>
     <string name="hud_metric_engine">Engine đồ họa</string>
     <string name="hud_metric_gpu_model">Tên GPU</string>
@@ -745,6 +748,10 @@
     <string name="drawer_low_latency_touch">Cảm ứng độ trễ thấp</string>
     <string name="drawer_low_latency_touch_hint">Cảm ứng bỏ qua việc gộp khung hình, nên điều khiển cảm ứng của Steam chạy ở 1000 Hz. Tốn thêm một chút CPU.</string>
     <string name="drawer_evdev_mouse">Kênh chuột thô</string>
+    <string name="drawer_relative_mouse">Chuột tương đối</string>
+    <string name="drawer_relative_mouse_auto">Tự động</string>
+    <string name="drawer_relative_mouse_on">Bật</string>
+    <string name="drawer_relative_mouse_off">Tắt</string>
     <string name="drawer_direct_cursor">Con trỏ</string>
     <string name="drawer_pc_keyboard">Bàn phím PC</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -804,7 +811,7 @@
     <string name="setup_gpu_unsupported">GPU không được hỗ trợ</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam cần driver Adreno; %1$s có thể hiện màn hình đen</string>
+    <string name="setup_gpu_unsupported_detail">Không có backend đồ họa tương thích cho %1$s. Steam có thể hiển thị màn hình đen.</string>
     <string name="setup_runtime">Runtime Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Chưa cài · khoảng 3 GB, được cài vào lần Play đầu tiên</string>
@@ -866,6 +873,7 @@
     <string name="setup_home">Dùng làm màn hình chính</string>
     <string name="setup_home_on">DroidDeck có thể là ứng dụng Màn hình chính</string>
     <string name="setup_home_off">DroidDeck không bao giờ được đề xuất làm ứng dụng Màn hình chính</string>
+    <string name="setup_home_game_space_first">Trong Thêm trò chơi, đặt DroidDeck thành Bao gồm</string>
     <string name="setup_orientation">Hướng màn hình</string>
     <string name="setup_launcher_orientation">Hướng màn hình launcher</string>
     <string name="setup_launcher_orientation_auto">Theo hướng xoay thiết bị</string>
@@ -1095,6 +1103,7 @@
     <string name="ctrl_stick_click_hint">Chạm hai lần và giữ một cần để dùng L3 hoặc R3</string>
     <string name="ctrl_adaptive">Cần thích ứng</string>
     <string name="ctrl_rumble">Rung khi chơi game</string>
+    <string name="ctrl_dead_zone">Vùng chết của cần điều khiển</string>
     <string name="ctrl_steam_button">Nút Steam</string>
     <string name="ctrl_qam_button">Nút QAM</string>
     <string name="ctrl_keyboard_button">Nút bàn phím</string>
@@ -1172,6 +1181,13 @@
     <string name="games_export_gamehub">Xuất dưới dạng zip GameHub…</string>
     <string name="games_export_winlator">Xuất dưới dạng zip Winlator…</string>
     <string name="games_open_save_folder">Mở thư mục lưu</string>
+    <string name="games_import_addons">Nhập addon từ zip…</string>
+    <string name="games_open_addons_folder">Mở thư mục addon</string>
+    <string name="games_delete_addon_title">Xóa %1$s?</string>
+    <string name="games_delete_addon_body">Thao tác này xóa thư mục của addon. Cài đặt của addon vẫn được giữ lại.</string>
+    <plurals name="games_addons_count">
+        <item quantity="other">%1$d addon</item>
+    </plurals>
     <string name="games_never_played">Chưa chơi bao giờ</string>
     <string name="games_runtime_busy_percent">Runtime đang bận · %1$d%%</string>
     <string name="games_runtime_busy">Runtime đang bận</string>
@@ -1348,6 +1364,16 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="other">Đã nhập %1$d tệp từ %2$s vào %3$s. Tệp lưu cũ đã được sao lưu vào Download/DroidDeck/Saves/backups</item>
     </plurals>
+    <string name="main_addons_close_session">Hãy đóng phiên trước, để game không dùng addon trong lúc nhập</string>
+    <string name="main_addons_importing">Đang nhập addon vào %1$s</string>
+    <string name="main_addons_pick_zip">Chọn một tệp zip addon cho %1$s</string>
+    <string name="main_addons_too_large">%1$s quá lớn để nhập</string>
+    <string name="main_addons_deleting">Đang xóa %1$s</string>
+    <string name="main_addons_deleted">Đã xóa %1$s</string>
+    <string name="main_addons_none">Không tìm thấy addon nào trong %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="other">Đã nhập %1$d addon vào %2$s</item>
+    </plurals>
     <string name="main_saves_pick_zip">Chọn một tệp zip lưu cho %1$s</string>
     <string name="main_saves_exporting">Đang xuất %1$s</string>
     <plurals name="main_saves_exported">
@@ -1365,8 +1391,8 @@
     <string name="main_wadb_unavailable">Gỡ lỗi qua mạng không dây không khả dụng</string>
     <string name="main_adb_copied">Đã sao chép lệnh ADB</string>
     <string name="main_pick_roms">Chọn thư mục ROM</string>
-    <string name="main_non_adreno_title">Không phải GPU Adreno</string>
-    <string name="main_non_adreno_text">Turnip hỗ trợ GPU Adreno. Trên %1$s, Steam có thể hiện màn hình đen. Tải xuống: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">GPU không được hỗ trợ</string>
+    <string name="main_non_adreno_text">Không có backend đồ họa tương thích cho %1$s. Steam có thể hiển thị màn hình đen. Tải xuống: %2$.0f MB.</string>
     <string name="main_install_anyway">Vẫn cài</string>
     <string name="main_remove_runtime_title">Gỡ runtime Linux</string>
     <string name="main_remove_runtime_text">Việc này xóa runtime, client Steam bên trong nó, và mọi game đã cài ở đó.</string>
@@ -2067,7 +2093,7 @@
     <string name="gpuinfo_experimental">Thử nghiệm: driver của nó là bản build thử nghiệm</string>
     <string name="gpuinfo_a850_experimental">Hỗ trợ thử nghiệm Adreno 850: cần driver hiển thị và driver game thử nghiệm tương thích; chưa được xác minh trên thiết bị này</string>
     <string name="gpuinfo_below_tested">Dưới mức phần cứng đã kiểm thử (Adreno 725 và mới hơn): có thể không chạy được</string>
-    <string name="gpuinfo_unsupported">Không được hỗ trợ: DroidDeck cần GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">Không được hỗ trợ: không có backend đồ họa tương thích cho GPU này</string>
 
     <string name="turnip_rate_limited">Đã đạt giới hạn tốc độ của GitHub - hãy thử lại sau</string>
     <string name="turnip_github_http">GitHub trả về HTTP %1$d</string>
@@ -3440,6 +3466,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Cho game có bản lưu trong tài khoản Steam của bạn</string>
     <string name="game_resource_search">Tìm kiếm trên web</string>
+    <string name="game_tab_addons">Addon</string>
     <string name="game_tab_install">Cài đặt</string>
     <string name="game_install_location">Vị trí</string>
     <string name="game_install_folder">Thư mục</string>
@@ -3486,19 +3513,18 @@
     <string name="integration_wifi">Tên Wi-Fi</string>
     <string name="integration_brightness">Độ sáng</string>
     <string name="integration_home">DroidDeck làm màn hình chính</string>
-    <string name="integration_shortcuts">Phím tắt nút Home</string>
+    <string name="integration_shortcuts">Phím hệ thống</string>
     <string name="integration_wifi_hint">Hiện mạng trong Steam · cần quyền Vị trí, không bao giờ theo dõi</string>
     <string name="integration_wifi_on">Mạng hiện trong Steam</string>
     <string name="integration_wifi_location_off">Vị trí đang tắt</string>
     <string name="integration_wifi_denied">Vị trí bị từ chối · hãy cho phép trong Thông tin ứng dụng</string>
     <string name="integration_brightness_hint">Thanh trượt của Steam đặt độ sáng màn hình</string>
     <string name="integration_home_hint">Home mở menu Steam trong phiên</string>
-    <string name="integration_shortcuts_hint">Giữ Home để dùng tổ hợp Steam Guide</string>
-    <string name="integration_shortcuts_needs_home">Cần DroidDeck làm màn hình chính</string>
+    <string name="integration_shortcuts_hint">Alt+Tab, phím Win và nút Trang chủ giữ trong phiên</string>
     <string name="integration_shortcuts_maybe_restricted">Bị làm mờ trong Android? Thông tin ứng dụng → ⋮ → Cho phép chế độ cài đặt bị hạn chế</string>
     <string name="integration_shortcuts_restricted">Bị Android chặn · Thông tin ứng dụng → ⋮ → Cho phép chế độ cài đặt bị hạn chế</string>
-    <string name="integration_shortcuts_service">Nút Home DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Chuyển các lần nhấn nút Home đến Steam Guide khi phiên Steam đang được chọn và DroidDeck là ứng dụng màn hình chính mặc định. Không đọc nội dung màn hình.</string>
+    <string name="integration_shortcuts_service">Phím hệ thống DroidDeck</string>
+    <string name="integration_shortcuts_service_description">Giữ Alt+Tab, phím Win và nút Trang chủ trong phiên DroidDeck đang dùng thay vì Android.</string>
     <string name="integration_brightness_needed">Bật Độ sáng trong Thiết lập → Tích hợp Steam</string>
     <string name="setup_gpu_bridge_off">Cầu Mali: tắt</string>
     <string name="setup_gpu_bridge_on">Cầu Mali: bật</string>

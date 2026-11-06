@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds VK_LAYER_DROIDDECK_gpu_load for the arm64 guest: tools/gpuload/build.sh [--native] OUT
-# OUT gets libVkLayer_droiddeck_gpuload.so and its implicit-layer manifest.
+# OUT gets libVkLayer_droiddeck_gpuload.so, libVkLayer_droiddeck_vramcap.so and their implicit-layer manifests.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../.." && pwd)
@@ -36,10 +36,15 @@ cmd=(sh -c '
     build/gpuload/test_gpuload_busy
     cc -std=c11 -O2 -Wall -Wextra -Werror -Ibuild/gpuload/include -Itools/gpuload/src -o build/gpuload/test_gpuload_ring tools/gpuload/tests/test_gpuload_ring.c
     build/gpuload/test_gpuload_ring
+    cc -std=c11 -O2 -Wall -Wextra -Werror -Ibuild/gpuload/include -Itools/gpuload/src -pthread -Wno-unused-parameter -Wno-missing-field-initializers -o build/gpuload/test_vramcap_budget tools/gpuload/tests/test_vramcap_budget.c
+    build/gpuload/test_vramcap_budget
     aarch64-linux-gnu-gcc -std=c11 -shared -fPIC -O2 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-missing-field-initializers \
         -fvisibility=hidden -pthread -Wl,-z,defs -Ibuild/gpuload/include -Itools/gpuload/src \
         -o build/gpuload/out/libVkLayer_droiddeck_gpuload.so tools/gpuload/src/vk_layer_droiddeck_gpuload.c
-    aarch64-linux-gnu-strip --strip-unneeded build/gpuload/out/libVkLayer_droiddeck_gpuload.so')
+    aarch64-linux-gnu-gcc -std=c11 -shared -fPIC -O2 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-missing-field-initializers \
+        -fvisibility=hidden -pthread -Wl,-z,defs -Ibuild/gpuload/include -Itools/gpuload/src \
+        -o build/gpuload/out/libVkLayer_droiddeck_vramcap.so tools/gpuload/src/vk_layer_droiddeck_vramcap.c
+    aarch64-linux-gnu-strip --strip-unneeded build/gpuload/out/libVkLayer_droiddeck_gpuload.so build/gpuload/out/libVkLayer_droiddeck_vramcap.so')
 if [ "$native" = 1 ]; then
     (cd "$repo" && "${cmd[@]}")
 else
@@ -47,7 +52,8 @@ else
         "${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v3}" "${cmd[@]}"
 fi
 
-cp "$here/layer/VK_LAYER_DROIDDECK_gpu_load.json" "$work/out/"
+cp "$here/layer/VK_LAYER_DROIDDECK_gpu_load.json" "$here/layer/VK_LAYER_DROIDDECK_vram_cap.json" "$work/out/"
 mkdir -p "$out"
-cp "$work/out/libVkLayer_droiddeck_gpuload.so" "$work/out/VK_LAYER_DROIDDECK_gpu_load.json" "$out/"
+cp "$work/out/libVkLayer_droiddeck_gpuload.so" "$work/out/libVkLayer_droiddeck_vramcap.so" \
+    "$work/out/VK_LAYER_DROIDDECK_gpu_load.json" "$work/out/VK_LAYER_DROIDDECK_vram_cap.json" "$out/"
 echo "built $out"

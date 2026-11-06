@@ -12,6 +12,7 @@ import com.droiddeck.launcher.artifact.GitHubArtifacts
 import com.droiddeck.launcher.artifact.RepositorySources
 import com.droiddeck.launcher.gpu.AppVulkan
 import com.droiddeck.launcher.gpu.GpuInfo
+import com.droiddeck.launcher.gpu.SystemVulkanDriver
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.github.luben.zstd.ZstdInputStream
 import com.github.luben.zstd.ZstdOutputStream
@@ -250,9 +251,13 @@ object ComponentsManager {
         COMPONENTS.mapNotNull { comp -> profile.optString(comp).takeIf(String::isNotEmpty)?.let { comp to it } }.toMap()
     }
 
-    fun setGameComponent(context: Context, scope: String, comp: String, file: String?) = synchronized(lock) {
+    fun setGameComponent(context: Context, scope: String, comp: String, file: String?) =
+        setGameComponent(context, scope, comp, file) { runtimeManaged(context, it) }
+
+    internal fun setGameComponent(context: Context, scope: String, comp: String, file: String?, managed: (String) -> Boolean) = synchronized(lock) {
         require(scope.matches(Regex("[1-9][0-9]{0,9}")) && scope.toLong() <= 4294967295L)
         require(comp in COMPONENTS)
+        if (file != null) requireSelectable(context, comp, managed)
         val state = loadState(context)
         val profiles = state.sub("profiles")
         val profile = profiles.optJSONObject(scope) ?: JSONObject().also { profiles.put(scope, it) }
@@ -770,11 +775,21 @@ object ComponentsManager {
         return PreparedLaunchState(lines.toString(), keep)
     }
 
+    internal fun runtimeManaged(comp: String, systemPowerVr: Boolean): Boolean = comp == "dxvk" && systemPowerVr
+
+    private fun runtimeManaged(context: Context, comp: String): Boolean =
+        runtimeManaged(comp, SystemVulkanDriver.usesDefault(SessionPrefs.linuxDriver(context)))
+
+    private fun requireSelectable(context: Context, comp: String, managed: (String) -> Boolean = { runtimeManaged(context, it) }) {
+        check(!managed(comp)) { context.getString(R.string.cmgr_powervr_dxvk_managed) }
+    }
+
 
     fun swap(context: Context, protonId: String, file: String, auto: Boolean = false): String = synchronized(lock) {
         val p = proton(context, protonId)
         val wcp = File(packagesDir(context), safeName(file))
         val info = packageInfo(context, wcp)
+        requireSelectable(context, info.comp)
         val state = loadState(context)
         if (inUse(context, p)) {
             state.sub("queued").sub(p.id).put(info.comp, JSONObject().put("kind", "package").put("file", wcp.name).put("label", info.version)
@@ -800,6 +815,7 @@ object ComponentsManager {
     }
 
     fun restore(context: Context, protonId: String, comp: String, protonVersion: String): String = synchronized(lock) {
+        requireSelectable(context, comp)
         val p = proton(context, protonId)
         val wcp = File(originalsDir(context), "$protonId/${safeName(protonVersion)}/$comp.wcp")
         check(wcp.isFile) { context.getString(R.string.cmgr_original_missing) }
@@ -825,7 +841,10 @@ object ComponentsManager {
             .put("protonVersion", p.version).put("files", JSONObject(fingerprint(p.dir, comp) as Map<*, *>)).put("at", System.currentTimeMillis() / 1000))
     }
 
-    fun applyQueued(context: Context): List<String> = synchronized(lock) {
+    /** Runs the swaps that waited for a game to close. Cheap when nothing is queued. */
+    fun applyQueued(context: Context): List<String> = applyQueued(context) { runtimeManaged(context, it) }
+
+    internal fun applyQueued(context: Context, managed: (String) -> Boolean): List<String> = synchronized(lock) {
         val state = loadState(context)
         val queued = state.sub("queued")
         if (queued.length() == 0) return emptyList()
@@ -837,6 +856,7 @@ object ComponentsManager {
             val comps = queued.optJSONObject(pid) ?: continue
             for (comp in comps.keys().asSequence().toList()) {
                 val q = comps.optJSONObject(comp) ?: continue
+                if (managed(comp)) continue
                 runCatching {
                     if (q.optString("kind") == "original") {
                         val v = q.optString("protonVersion")

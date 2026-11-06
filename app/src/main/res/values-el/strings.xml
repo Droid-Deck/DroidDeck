@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s μέσω FEX</string>
     <string name="app_fex_not_ready">Αυτό το πρόγραμμα είναι χτισμένο για υπολογιστές %1$s και εκτελείται μέσω FEX, το οποίο δεν έχει ρυθμιστεί ακόμα. Ανοίξτε το Steam μία φορά ενώ είστε συνδεδεμένοι: το DroidDeck κάνει λήψη του FEX και του Steam Linux Runtime που χρειάζεται, και μετά αυτό ανοίγει.</string>
     <string name="session_proot_missing">Δεν ήταν δυνατή η λήψη του proot του DroidDeck. Ελέγξτε τη σύνδεση και δοκιμάστε ξανά. Η συνεδρία δεν ξεκίνησε, επειδή το εναλλακτικό proot είναι πολύ αργό για παιχνίδι.</string>
+    <string name="session_powervr_missing">Δεν ήταν δυνατή η λήψη του γραφικού περιβάλλοντος PowerVR. Ελέγξτε τη σύνδεση και δοκιμάστε ξανά.</string>
     <string name="session_directaudio_missing">Δεν ήταν δυνατή η λήψη του DirectAudio, οπότε ο ήχος των παιχνιδιών χρησιμοποιεί την πιο αργή διαδρομή σε αυτή τη συνεδρία.</string>
     <string name="session_end_program">Αυτό το πρόγραμμα</string>
     <string name="session_end_steam_download">Δεν ήταν δυνατή η λήψη του πελάτη Steam. Το δίκτυο ή το VPN σας ίσως αποκλείει τους διακομιστές του Steam· ελέγξτε τη σύνδεση και δοκιμάστε ξανά.</string>
@@ -585,7 +586,7 @@
     <string name="perf_ram_cap_hint">Ισχύει όσο τρέχει ο πελάτης Steam, σε λειτουργία Steam ή από την επιφάνεια εργασίας. Όταν η συνεδρία χρησιμοποιεί περισσότερη, το Steam και έπειτα οι άλλες υποστηριζόμενες διεργασίες της συνεδρίας συμπιέζονται στη zRAM. Ήπιο όριο: τίποτα δεν κλείνει, αλλά τα παιχνίδια μπορεί να κολλάνε όσο επιστρέφουν οι σελίδες.</string>
     <string name="perf_ram_cap_unavailable">Απαιτεί zRAM swap, που δεν υπάρχει σε αυτή τη συσκευή.</string>
     <string name="perf_vram_cap">Όριο VRAM</string>
-    <string name="perf_vram_cap_hint">Η μνήμη βίντεο που αναφέρει το DXVK στα παιχνίδια Direct3D, ώστε να προγραμματίζουν υφές για λιγότερη. Οι δικές ρυθμίσεις DXVK του παιχνιδιού υπερισχύουν. Εφαρμόζεται στην επόμενη συνεδρία.</string>
+    <string name="perf_vram_cap_hint">Αναφέρει αυτόν τον προϋπολογισμό μνήμης βίντεο σε παιχνίδια Direct3D 9 έως 12 για να μειωθεί η χρήση μνήμης. Τα παιχνίδια μπορεί να τον υπερβούν· δεν προσθέτει σελιδοποίηση GPU ούτε εγγυάται προστασία από σφάλματα έλλειψης μνήμης. Ισχύει από την επόμενη συνεδρία.</string>
     <string name="perf_gpuclock">Διατήρηση της GPU στη μέγιστη συχνότητά της</string>
     <string name="perf_gpuclock_hint">Μόνο Adreno. Λιγότερα κολλήματα, μεγαλύτερη χρήση μπαταρίας και θερμότητα.</string>
     <string name="perf_fixes">Διορθώσεις συνεδρίας</string>
@@ -670,6 +671,8 @@
     <string name="hud_group_metrics">Μετρήσεις</string>
     <string name="hud_metric_graph">Γράφημα χρόνου καρέ</string>
     <string name="hud_metric_decimal">Ρυθμός καρέ με δεκαδικό</string>
+    <string name="hud_metric_low1">1% χαμηλότερα</string>
+    <string name="hud_metric_low01">0.1% χαμηλότερα</string>
     <string name="hud_metric_low001">0.01% χαμηλότερα</string>
     <string name="hud_metric_engine">Μηχανή γραφικών</string>
     <string name="hud_metric_gpu_model">Όνομα GPU</string>
@@ -747,6 +750,10 @@
     <string name="drawer_low_latency_touch">Αφή χαμηλής καθυστέρησης</string>
     <string name="drawer_low_latency_touch_hint">Οι αφές παρακάμπτουν την ομαδοποίηση καρέ, οπότε ο χειρισμός αφής του Steam τρέχει στα 1000 Hz. Λίγο περισσότερο CPU.</string>
     <string name="drawer_evdev_mouse">Ακατέργαστο κανάλι ποντικιού</string>
+    <string name="drawer_relative_mouse">Σχετικό ποντίκι</string>
+    <string name="drawer_relative_mouse_auto">Αυτόματα</string>
+    <string name="drawer_relative_mouse_on">Ενεργό</string>
+    <string name="drawer_relative_mouse_off">Ανενεργό</string>
     <string name="drawer_direct_cursor">Δείκτης</string>
     <string name="drawer_pc_keyboard">Πληκτρολόγιο PC</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -807,7 +814,7 @@
     <string name="setup_gpu_unsupported">Η GPU δεν υποστηρίζεται</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Το Steam απαιτεί πρόγραμμα οδήγησης Adreno· το %1$s μπορεί να εμφανίσει μαύρη οθόνη</string>
+    <string name="setup_gpu_unsupported_detail">Δεν υπάρχει συμβατό υποσύστημα γραφικών για %1$s. Το Steam μπορεί να εμφανίσει μαύρη οθόνη.</string>
     <string name="setup_runtime">Runtime Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Δεν έχει εγκατασταθεί · περίπου 3 GB, εγκαθίσταται στο πρώτο Play</string>
@@ -869,6 +876,7 @@
     <string name="setup_home">Χρήση ως αρχική οθόνη</string>
     <string name="setup_home_on">Το DroidDeck μπορεί να είναι η εφαρμογή αρχικής οθόνης</string>
     <string name="setup_home_off">Το DroidDeck δεν προτείνεται ποτέ ως εφαρμογή αρχικής οθόνης</string>
+    <string name="setup_home_game_space_first">Στην Προσθήκη παιχνιδιών, ορίστε το DroidDeck σε Συμπερίληψη</string>
     <string name="setup_orientation">Προσανατολισμός</string>
     <string name="setup_launcher_orientation">Προσανατολισμός launcher</string>
     <string name="setup_launcher_orientation_auto">Ακολουθεί την περιστροφή της συσκευής</string>
@@ -1101,6 +1109,7 @@
     <string name="ctrl_stick_click_hint">Πατήστε δύο φορές και κρατήστε έναν μοχλό για L3 ή R3</string>
     <string name="ctrl_adaptive">Προσαρμοστικοί μοχλοί</string>
     <string name="ctrl_rumble">Κραδασμός παιχνιδιού</string>
+    <string name="ctrl_dead_zone">Νεκρή ζώνη μοχλού</string>
     <string name="ctrl_steam_button">Κουμπί Steam</string>
     <string name="ctrl_qam_button">Κουμπί QAM</string>
     <string name="ctrl_keyboard_button">Κουμπί πληκτρολογίου</string>
@@ -1178,6 +1187,14 @@
     <string name="games_export_gamehub">Εξαγωγή ως zip GameHub…</string>
     <string name="games_export_winlator">Εξαγωγή ως zip Winlator…</string>
     <string name="games_open_save_folder">Άνοιγμα φακέλου αποθήκευσης</string>
+    <string name="games_import_addons">Εισαγωγή προσθέτων από zip…</string>
+    <string name="games_open_addons_folder">Άνοιγμα φακέλου προσθέτων</string>
+    <string name="games_delete_addon_title">Διαγραφή του %1$s;</string>
+    <string name="games_delete_addon_body">Ο φάκελος του πρόσθετου θα διαγραφεί. Οι ρυθμίσεις του παραμένουν.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d πρόσθετο</item>
+        <item quantity="other">%1$d πρόσθετα</item>
+    </plurals>
     <string name="games_never_played">Δεν έχει παιχτεί ποτέ</string>
     <string name="games_runtime_busy_percent">Το runtime είναι απασχολημένο · %1$d%%</string>
     <string name="games_runtime_busy">Το runtime είναι απασχολημένο</string>
@@ -1356,6 +1373,17 @@
         <item quantity="one">Έγινε εισαγωγή %1$d αρχείου από το %2$s στο %3$s. Τα παλιά αρχεία αποθήκευσης κρατήθηκαν ως αντίγραφο ασφαλείας στο Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Έγινε εισαγωγή %1$d αρχείων από το %2$s στο %3$s. Τα παλιά αρχεία αποθήκευσης κρατήθηκαν ως αντίγραφο ασφαλείας στο Download/DroidDeck/Saves/backups</item>
     </plurals>
+    <string name="main_addons_close_session">Κλείστε πρώτα τη συνεδρία, ώστε το παιχνίδι να μη χρησιμοποιεί τα πρόσθετά του κατά την εισαγωγή</string>
+    <string name="main_addons_importing">Εισαγωγή προσθέτων στο %1$s</string>
+    <string name="main_addons_pick_zip">Επιλέξτε ένα zip προσθέτων για το %1$s</string>
+    <string name="main_addons_too_large">Το %1$s είναι πολύ μεγάλο για εισαγωγή</string>
+    <string name="main_addons_deleting">Γίνεται διαγραφή του %1$s</string>
+    <string name="main_addons_deleted">Το %1$s διαγράφηκε</string>
+    <string name="main_addons_none">Δεν βρέθηκαν πρόσθετα στο %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Έγινε εισαγωγή %1$d προσθέτου στο %2$s</item>
+        <item quantity="other">Έγινε εισαγωγή %1$d προσθέτων στο %2$s</item>
+    </plurals>
     <string name="main_saves_pick_zip">Επιλέξτε ένα zip αποθηκευμένων αρχείων για το %1$s</string>
     <string name="main_saves_exporting">Εξαγωγή %1$s</string>
     <plurals name="main_saves_exported">
@@ -1375,8 +1403,8 @@
     <string name="main_wadb_unavailable">Ο ασύρματος εντοπισμός σφαλμάτων δεν είναι διαθέσιμος</string>
     <string name="main_adb_copied">Η εντολή ADB αντιγράφηκε</string>
     <string name="main_pick_roms">Επιλέξτε τον φάκελο ROMs</string>
-    <string name="main_non_adreno_title">Δεν είναι GPU Adreno</string>
-    <string name="main_non_adreno_text">Το Turnip υποστηρίζει GPU Adreno. Σε %1$s, το Steam ίσως εμφανίσει μαύρη οθόνη. Λήψη: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">Μη υποστηριζόμενη GPU</string>
+    <string name="main_non_adreno_text">Δεν υπάρχει συμβατό υποσύστημα γραφικών για %1$s. Το Steam μπορεί να εμφανίσει μαύρη οθόνη. Λήψη: %2$.0f MB.</string>
     <string name="main_install_anyway">Εγκατάσταση παρόλα αυτά</string>
     <string name="main_remove_runtime_title">Κατάργηση του Linux runtime</string>
     <string name="main_remove_runtime_text">Αυτό διαγράφει το runtime, τον πελάτη Steam μέσα σε αυτό και κάθε παιχνίδι που είναι εγκατεστημένο εκεί.</string>
@@ -2090,7 +2118,7 @@
     <string name="gpuinfo_experimental">Πειραματικό: τα προγράμματα οδήγησής του είναι δοκιμαστικές εκδόσεις</string>
     <string name="gpuinfo_a850_experimental">Πειραματική υποστήριξη Adreno 850: απαιτεί συμβατά πειραματικά προγράμματα οδήγησης οθόνης και παιχνιδιών· δεν έχει επαληθευτεί σε αυτή τη συσκευή</string>
     <string name="gpuinfo_below_tested">Κάτω από το δοκιμασμένο υλικό (Adreno 725 και νεότερα): ίσως να μην εκτελεστεί</string>
-    <string name="gpuinfo_unsupported">Δεν υποστηρίζεται: το DroidDeck χρειάζεται GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">Δεν υποστηρίζεται: δεν υπάρχει συμβατό υποσύστημα γραφικών για αυτήν την GPU</string>
 
     <string name="turnip_rate_limited">Το όριο ρυθμού του GitHub ξεπεράστηκε - δοκιμάστε ξανά αργότερα</string>
     <string name="turnip_github_http">Το GitHub απάντησε με HTTP %1$d</string>
@@ -3467,6 +3495,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Για παιχνίδια με αποθηκεύσεις στον λογαριασμό σας Steam</string>
     <string name="game_resource_search">Αναζήτηση στον ιστό</string>
+    <string name="game_tab_addons">Πρόσθετα</string>
     <string name="game_tab_install">Εγκατάσταση</string>
     <string name="game_install_location">Τοποθεσία</string>
     <string name="game_install_folder">Φάκελος</string>
@@ -3513,19 +3542,18 @@
     <string name="integration_wifi">Ονόματα Wi-Fi</string>
     <string name="integration_brightness">Φωτεινότητα</string>
     <string name="integration_home">DroidDeck ως Αρχική</string>
-    <string name="integration_shortcuts">Συντομεύσεις κουμπιού Αρχικής</string>
+    <string name="integration_shortcuts">Πλήκτρα συστήματος</string>
     <string name="integration_wifi_hint">Εμφάνιση δικτύων στο Steam · χρειάζεται πρόσβαση στην Τοποθεσία, χωρίς ποτέ παρακολούθηση</string>
     <string name="integration_wifi_on">Τα δίκτυα εμφανίζονται στο Steam</string>
     <string name="integration_wifi_location_off">Η Τοποθεσία είναι απενεργοποιημένη</string>
     <string name="integration_wifi_denied">Η Τοποθεσία απορρίφθηκε · επιτρέψτε την στις Πληροφορίες εφαρμογής</string>
     <string name="integration_brightness_hint">Το ρυθμιστικό του Steam ορίζει τη φωτεινότητα οθόνης</string>
     <string name="integration_home_hint">Η Αρχική ανοίγει το μενού Steam σε συνεδρία</string>
-    <string name="integration_shortcuts_hint">Κρατήστε πατημένη την Αρχική για συνδυασμούς Steam Guide</string>
-    <string name="integration_shortcuts_needs_home">Απαιτεί το DroidDeck ως Αρχική</string>
+    <string name="integration_shortcuts_hint">Τα Alt+Tab, Win και Αρχική μένουν στη συνεδρία</string>
     <string name="integration_shortcuts_maybe_restricted">Γκρίζο στο Android; Πληροφορίες εφαρμογής → ⋮ → Να επιτρέπονται οι περιορισμένες ρυθμίσεις</string>
     <string name="integration_shortcuts_restricted">Αποκλείεται από το Android · Πληροφορίες εφαρμογής → ⋮ → Να επιτρέπονται οι περιορισμένες ρυθμίσεις</string>
-    <string name="integration_shortcuts_service">Κουμπί Αρχικής DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Μεταβιβάζει τα πατήματα του κουμπιού Αρχικής στο Steam Guide όσο μια συνεδρία Steam είναι εστιασμένη και το DroidDeck είναι η προεπιλεγμένη εφαρμογή Αρχικής. Δεν διαβάζει το περιεχόμενο της οθόνης.</string>
+    <string name="integration_shortcuts_service">Πλήκτρα συστήματος DroidDeck</string>
+    <string name="integration_shortcuts_service_description">Διατηρεί τα Alt+Tab, το πλήκτρο Win και το κουμπί Αρχικής στην ενεργή συνεδρία DroidDeck αντί για το Android.</string>
     <string name="integration_brightness_needed">Ενεργοποιήστε τη Φωτεινότητα στη Ρύθμιση → Ενσωμάτωση Steam</string>
     <string name="setup_gpu_bridge_off">Γέφυρα Mali: ανενεργή</string>
     <string name="setup_gpu_bridge_on">Γέφυρα Mali: ενεργή</string>

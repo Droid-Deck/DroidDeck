@@ -52,6 +52,7 @@ class GitHubArtifactsTest {
     private fun release(digest: String? = "sha256:$sha", assetUrl: String = "https://github.com/Example/Drivers/releases/download/v1/bundle.zip"): JSONObject {
         val asset = JSONObject().put("id", 9).put("name", "bundle.zip").put("size", 12)
             .put("browser_download_url", assetUrl).put("digest", digest ?: JSONObject.NULL)
+            .put("updated_at", "2026-11-05T10:00:00Z")
         return JSONObject().put("id", 5).put("tag_name", "v1").put("name", "Driver 1")
             .put("assets", JSONArray().put(asset))
     }
@@ -133,6 +134,7 @@ class GitHubArtifactsTest {
         val results = GitHubArtifacts.refreshReleases(app, key, defaults, source)
         assertEquals(123L, source.repositoryId)
         assertEquals(sha, results.single().assets.single().sha256)
+        assertEquals("2026-11-05T10:00:00Z", results.single().assets.single().updatedAt)
         GitHubArtifacts.openConnection = { throw IOException("offline") }
         assertTrue(runCatching { GitHubArtifacts.refreshReleases(app, key, defaults, source) }.isFailure)
         assertEquals(results, GitHubArtifacts.cachedReleases(app, key, defaults, source))

@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s 经由 FEX</string>
     <string name="app_fex_not_ready">此程序面向 %1$s PC 构建，需经由 FEX 运行，而 FEX 尚未配置。请在登录状态下打开一次 Steam：DroidDeck 会让其下载 FEX 及所需的 Steam Linux Runtime，之后即可打开。</string>
     <string name="session_proot_missing">无法下载 DroidDeck 的 proot。请检查网络连接后重试。由于备用 proot 太慢无法流畅游玩，会话未启动。</string>
+    <string name="session_powervr_missing">无法下载 PowerVR 图形环境。请检查网络连接后重试。</string>
     <string name="session_directaudio_missing">无法下载 DirectAudio，本次会话的游戏音频将使用较慢的路径。</string>
     <string name="session_end_program">此程序</string>
     <string name="session_end_steam_download">无法下载 Steam 客户端。你的网络或 VPN 可能屏蔽了 Steam 的服务器；请检查网络连接后重试。</string>
@@ -583,7 +584,7 @@
     <string name="perf_ram_cap_hint">在 Steam 客户端运行时生效，无论是 Steam 模式还是从桌面启动。会话使用量超过此值时，会先将 Steam、再将会话中其他受支持的进程压缩到 zRAM。这是软上限：不会关闭任何进程，但在页面读回时游戏可能卡顿。</string>
     <string name="perf_ram_cap_unavailable">需要 zRAM 交换空间，但此设备不支持。</string>
     <string name="perf_vram_cap">VRAM 上限</string>
-    <string name="perf_vram_cap_hint">DXVK 向 Direct3D 游戏报告的显存大小，使游戏按更少的显存分配纹理。游戏自身的 DXVK 设置仍然优先。下次会话时生效。</string>
+    <string name="perf_vram_cap_hint">向 Direct3D 9 至 12 游戏报告此显存预算，以促使游戏减少内存使用。游戏可能超出预算；此功能不提供 GPU 分页，也不保证避免内存不足导致的崩溃。下次会话生效。</string>
     <string name="perf_gpuclock">把 GPU 锁定在最高频率</string>
     <string name="perf_gpuclock_hint">仅限 Adreno。卡顿更少，但更耗电、更发热。</string>
     <string name="perf_fixes">会话修复</string>
@@ -668,6 +669,8 @@
     <string name="hud_group_metrics">读数</string>
     <string name="hud_metric_graph">帧时间图表</string>
     <string name="hud_metric_decimal">帧率显示小数</string>
+    <string name="hud_metric_low1">1% 最低帧</string>
+    <string name="hud_metric_low01">0.1% 最低帧</string>
     <string name="hud_metric_low001">0.01% 最低帧</string>
     <string name="hud_metric_engine">图形引擎</string>
     <string name="hud_metric_gpu_model">GPU 名称</string>
@@ -745,6 +748,10 @@
     <string name="drawer_low_latency_touch">低延迟触控</string>
     <string name="drawer_low_latency_touch_hint">触控跳过帧合并，Steam 触控以 1000 Hz 上报。CPU 占用略高。</string>
     <string name="drawer_evdev_mouse">原生鼠标通道</string>
+    <string name="drawer_relative_mouse">相对鼠标</string>
+    <string name="drawer_relative_mouse_auto">自动</string>
+    <string name="drawer_relative_mouse_on">开</string>
+    <string name="drawer_relative_mouse_off">关</string>
     <string name="drawer_direct_cursor">光标</string>
     <string name="drawer_pc_keyboard">PC 键盘</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -805,7 +812,7 @@
     <string name="setup_gpu_bridged">GPU 通过 Mali 桥接</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s：%2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam 需要 Adreno 驱动；%1$s 可能显示黑屏</string>
+    <string name="setup_gpu_unsupported_detail">没有可用的兼容图形后端；%1$s 可能显示黑屏</string>
     <string name="setup_runtime">Linux 运行时</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">未安装 · 约 3 GB，首次点“游玩”时安装</string>
@@ -867,6 +874,7 @@
     <string name="setup_home">用作主屏幕</string>
     <string name="setup_home_on">DroidDeck 可以设为主屏幕应用</string>
     <string name="setup_home_off">系统不会把 DroidDeck 作为主屏幕应用提供</string>
+    <string name="setup_home_game_space_first">请在“添加游戏”中将 DroidDeck 设为“包含”</string>
     <string name="setup_orientation">屏幕方向</string>
     <string name="setup_launcher_orientation">启动器方向</string>
     <string name="setup_launcher_orientation_auto">跟随设备旋转</string>
@@ -1179,6 +1187,7 @@
     <string name="ctrl_stick_click_hint">双击并按住摇杆可触发 L3 或 R3</string>
     <string name="ctrl_adaptive">自适应摇杆</string>
     <string name="ctrl_rumble">游戏震动</string>
+    <string name="ctrl_dead_zone">摇杆死区</string>
     <string name="ctrl_steam_button">Steam 按钮</string>
     <string name="ctrl_qam_button">QAM 按钮</string>
     <string name="ctrl_keyboard_button">键盘按钮</string>
@@ -1256,6 +1265,13 @@
     <string name="games_export_gamehub">导出为 GameHub zip 包…</string>
     <string name="games_export_winlator">导出为 Winlator zip 包…</string>
     <string name="games_open_save_folder">打开存档文件夹</string>
+    <string name="games_import_addons">从 zip 导入插件…</string>
+    <string name="games_open_addons_folder">打开插件文件夹</string>
+    <string name="games_delete_addon_title">删除 %1$s？</string>
+    <string name="games_delete_addon_body">这会移除插件的文件夹，其设置会保留。</string>
+    <plurals name="games_addons_count">
+        <item quantity="other">%1$d 个插件</item>
+    </plurals>
     <string name="games_never_played">从未游玩</string>
     <string name="games_runtime_busy_percent">运行时繁忙 · %1$d%%</string>
     <string name="games_runtime_busy">运行时繁忙</string>
@@ -1432,6 +1448,16 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="other">已从 %2$s 导入 %1$d 个文件到 %3$s。旧存档已备份到 Download/DroidDeck/Saves/backups</item>
     </plurals>
+    <string name="main_addons_close_session">请先关闭会话，以免游戏在导入期间使用其插件</string>
+    <string name="main_addons_importing">正在导入插件到 %1$s</string>
+    <string name="main_addons_pick_zip">为 %1$s 选择插件 zip 包</string>
+    <string name="main_addons_too_large">%1$s 太大，无法导入</string>
+    <string name="main_addons_deleting">正在删除 %1$s</string>
+    <string name="main_addons_deleted">已删除 %1$s</string>
+    <string name="main_addons_none">在 %1$s 中未找到插件</string>
+    <plurals name="main_addons_imported">
+        <item quantity="other">已导入 %1$d 个插件到 %2$s</item>
+    </plurals>
     <string name="main_saves_pick_zip">为 %1$s 选择存档 zip 包</string>
     <string name="main_saves_exporting">正在导出 %1$s</string>
     <plurals name="main_saves_exported">
@@ -1449,8 +1475,8 @@
     <string name="main_wadb_unavailable">无线调试不可用</string>
     <string name="main_adb_copied">已复制 ADB 命令</string>
     <string name="main_pick_roms">选择 ROM 文件夹</string>
-    <string name="main_non_adreno_title">不是 Adreno GPU</string>
-    <string name="main_non_adreno_text">Turnip 支持 Adreno GPU。在 %1$s 上，Steam 可能显示黑屏。需下载：%2$.0f MB。</string>
+    <string name="main_non_adreno_title">不受支持的 GPU</string>
+    <string name="main_non_adreno_text">没有适用于 %1$s 的兼容图形后端。Steam 可能显示黑屏。需下载：%2$.0f MB。</string>
     <string name="main_install_anyway">仍要安装</string>
     <string name="main_remove_runtime_title">移除 Linux 运行时</string>
     <string name="main_remove_runtime_text">这会删除运行时、其中的 Steam 客户端，以及安装在其中的所有游戏。</string>
@@ -2065,6 +2091,7 @@
     <string name="loadstate_starting">正在启动会话…</string>
     <string name="loadstate_elapsed">已用时 %1$d:%2$02d · 仍在处理</string>
     <string name="loadstate_steam_update">正在下载 Steam 客户端更新 · %1$d%%</string>
+    <string name="loadstate_steam_update_applying">正在应用 Steam 客户端更新…</string>
     <string name="loadstate_steam_client">正在下载 Steam 客户端 · %1$s</string>
 
     <string name="pextra_busy">已有兼容性工具正在安装</string>
@@ -2145,7 +2172,7 @@
     <string name="gpuinfo_experimental">实验性：其驱动为测试构建</string>
     <string name="gpuinfo_a850_experimental">Adreno 850 实验支持：需要配套的实验版显示驱动和游戏驱动；尚未在此设备上验证</string>
     <string name="gpuinfo_below_tested">低于已测试的硬件（Adreno 725 及更新）：可能无法运行</string>
-    <string name="gpuinfo_unsupported">不受支持：DroidDeck 需要 Adreno（骁龙）GPU</string>
+    <string name="gpuinfo_unsupported">不受支持：没有适用于此 GPU 的兼容图形后端</string>
     <string name="gpuinfo_bridge">通过 Mali 桥接运行，使用手机自带的 Vulkan 驱动</string>
     <string name="gpuinfo_bridge_off">关闭 Mali 桥接时不受支持：Turnip 需要 Adreno（骁龙）GPU</string>
 
@@ -3443,6 +3470,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">适用于存档保存在 Steam 账户中的游戏</string>
     <string name="game_resource_search">网页搜索</string>
+    <string name="game_tab_addons">插件</string>
     <string name="game_tab_install">安装</string>
     <string name="game_install_location">位置</string>
     <string name="game_install_folder">文件夹</string>
@@ -3489,19 +3517,18 @@
     <string name="integration_wifi">Wi-Fi 名称</string>
     <string name="integration_brightness">亮度</string>
     <string name="integration_home">将 DroidDeck 设为主屏幕</string>
-    <string name="integration_shortcuts">主屏幕按钮快捷键</string>
+    <string name="integration_shortcuts">系统按键</string>
     <string name="integration_wifi_hint">在 Steam 中显示网络 · 需要位置信息权限，绝不跟踪</string>
     <string name="integration_wifi_on">网络会显示在 Steam 中</string>
     <string name="integration_wifi_location_off">位置信息已关闭</string>
     <string name="integration_wifi_denied">位置信息权限被拒绝 · 请在“应用信息”中允许</string>
     <string name="integration_brightness_hint">Steam 的滑块可调节屏幕亮度</string>
     <string name="integration_home_hint">在会话中按主屏幕按钮会打开 Steam 菜单</string>
-    <string name="integration_shortcuts_hint">按住主屏幕按钮使用 Steam Guide 按钮组合键</string>
-    <string name="integration_shortcuts_needs_home">需要将 DroidDeck 设为主屏幕</string>
+    <string name="integration_shortcuts_hint">Alt+Tab、Win 键和主页键留在会话中</string>
     <string name="integration_shortcuts_maybe_restricted">在 Android 中显示为灰色？应用信息 → ⋮ → 允许受限设置</string>
     <string name="integration_shortcuts_restricted">已被 Android 阻止 · 应用信息 → ⋮ → 允许受限设置</string>
-    <string name="integration_shortcuts_service">DroidDeck 主屏幕按钮</string>
-    <string name="integration_shortcuts_service_description">当 Steam 会话处于焦点且 DroidDeck 为默认主屏幕应用时，将主屏幕按钮的按下操作传递给 Steam Guide 按钮。不会读取屏幕内容。</string>
+    <string name="integration_shortcuts_service">DroidDeck 系统按键</string>
+    <string name="integration_shortcuts_service_description">让 Alt+Tab、Win 键和主页键在当前 DroidDeck 会话中生效，而不是交给 Android。</string>
     <string name="integration_brightness_needed">请在“配置”→“Steam 集成”中开启亮度</string>
     <string name="setup_bridge_dxvk">DXVK</string>
     <string name="setup_bridge_dxvk_auto">DXVK：自动</string>

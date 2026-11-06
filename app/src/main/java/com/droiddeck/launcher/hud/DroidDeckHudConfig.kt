@@ -9,7 +9,7 @@ internal object DroidDeckHudConfig {
         "hudOutline" to "40", "hudOutlineAccent" to "1",
         "showFPS" to "1", "showFPSGraph" to "1", "showCPUUsage" to "1", "showCPULoad" to "1", "showGPULoad" to "1",
         "showVram" to "1", "showRAM" to "1", "showPower" to "1", "showTemp" to "1", "showBatteryTemp" to "1",
-        "showGpuTemp" to "0", "showBattery" to "0", "showLow001" to "1", "fpsDecimal" to "1", "showPerCore" to "1",
+        "showGpuTemp" to "0", "showBattery" to "0", "showLow1" to "1", "showLow01" to "1", "showLow001" to "1", "fpsDecimal" to "1", "showPerCore" to "1",
         "showSwap" to "1", "showNet" to "1", "showResolution" to "1", "showProton" to "1", "showSession" to "1",
         "showClock" to "1", "showEngine" to "1", "showRenderer" to "1", "showGpuModel" to "1",
         "tempUnit" to "c", "tempBands" to "1", "tempAuto" to "1", "tempRedCpu" to "90", "tempRedGpu" to "90", "tempRedBat" to "48",

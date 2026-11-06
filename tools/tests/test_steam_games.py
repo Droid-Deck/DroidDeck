@@ -101,7 +101,8 @@ class ImportsTest(unittest.TestCase):
         imports.route(self.steam, self.acct, [self.game])
         path = self.steam / 'steamapps/appmanifest_42.acf'
         current = path.read_text()
-        legacy = current.replace('    "Universe" "1"\n', '').replace('"StateFlags" "4"', '"StateFlags" "2"')
+        legacy = (current.replace('    "AutoUpdateBehavior" "1"\n', '').replace('    "Universe" "1"\n', '')
+                  .replace('"StateFlags" "4"', '"StateFlags" "2"'))
         path.write_text(legacy)
         imports.route(self.steam, self.acct, [self.game])
         self.assertEqual(current, path.read_text())
@@ -299,6 +300,72 @@ class ImportsTest(unittest.TestCase):
         path = self.steam_fresh_install()
         imports.route(self.steam, self.acct, [self.game])
         self.assertIn('"buildid"\t\t"7"', path.read_text())
+
+    def test_import_without_a_build_updates_only_when_launched(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        path = self.steam / 'steamapps/appmanifest_42.acf'
+        current = path.read_text()
+        self.assertIn('    "AutoUpdateBehavior" "1"\n', current)
+        path.write_text(current.replace('    "AutoUpdateBehavior" "1"\n', ''))
+        imports.route(self.steam, self.acct, [self.game])
+        self.assertEqual(current, path.read_text())
+
+    def queued_bare_install(self, extra):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        path = self.steam / 'steamapps/appmanifest_42.acf'
+        path.write_text('"AppState"\n{\n\t"appid"\t\t"42"\n\t"StateFlags"\t\t"6"\n\t"installdir"\t\t"DroidDeck-42"\n'
+                        '\t"buildid"\t\t"0"\n\t"TargetBuildID"\t\t"9"\n%s\t"InstalledDepots"\n\t{\n\t}\n'
+                        '\t"UserConfig"\n\t{\n\t}\n}\n' % extra)
+        return path
+
+    def test_queued_import_without_a_build_waits_for_a_launch(self):
+        path = self.queued_bare_install('\t"AutoUpdateBehavior"\t\t"0"\n')
+        before = path.read_text()
+        imports.route(self.steam, self.acct, [self.game])
+        self.assertEqual(before.replace('"AutoUpdateBehavior"\t\t"0"', '"AutoUpdateBehavior"\t\t"1"'), path.read_text())
+        path = self.queued_bare_install('')
+        before = path.read_text()
+        imports.route(self.steam, self.acct, [self.game])
+        self.assertEqual(before[:-2] + '\t"AutoUpdateBehavior"\t\t"1"\n}\n', path.read_text())
+
+    def test_queued_import_keeps_a_chosen_update_priority(self):
+        path = self.queued_bare_install('\t"AutoUpdateBehavior"\t\t"2"\n')
+        before = path.read_text()
+        imports.route(self.steam, self.acct, [self.game])
+        self.assertEqual(before, path.read_text())
+
+    def test_an_untouched_import_is_left_alone_while_steam_stages_it(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        path = self.steam / 'steamapps/appmanifest_42.acf'
+        older = path.read_text().replace('    "AutoUpdateBehavior" "1"\n', '')
+        path.write_text(older)
+        (self.steam / 'steamapps/downloading/42').mkdir(parents=True)
+        imports.route(self.steam, self.acct, [self.game])
+        self.assertEqual(older, path.read_text())
+
+    def test_a_manifest_in_another_library_is_not_read(self):
+        other = self.root / 'Other'
+        (other / 'steamapps').mkdir(parents=True)
+        (other / 'steamapps/appmanifest_42.acf').write_bytes(b'"AppState"\n{\n    "name" "\xff\xfe"\n}\n')
+        (self.steam / 'steamapps').mkdir(parents=True)
+        (self.steam / 'steamapps/libraryfolders.vdf').write_text('"libraryfolders"\n{\n\t"1"\n\t{\n\t\t"path"\t\t"%s"\n\t}\n}\n' % other)
+        self.snapshot()
+        games, routes = imports.route(self.steam, self.acct, [self.game])
+        self.assertEqual({str(self.game['appid']): 42}, routes)
+        self.assertEqual(b'"AppState"\n{\n    "name" "\xff\xfe"\n}\n', (other / 'steamapps/appmanifest_42.acf').read_bytes())
+
+    def test_started_import_without_a_build_is_left_to_steam(self):
+        for extra, staging in [('\t"BytesDownloaded"\t\t"5"\n\t"AutoUpdateBehavior"\t\t"0"\n', False),
+                               ('\t"AutoUpdateBehavior"\t\t"0"\n', True)]:
+            path = self.queued_bare_install(extra)
+            if staging:
+                (self.steam / 'steamapps/downloading/42').mkdir(parents=True)
+            before = path.read_text()
+            imports.route(self.steam, self.acct, [self.game])
+            self.assertEqual(before, path.read_text())
 
     def test_started_fresh_install_is_left_to_steam(self):
         for downloaded, staging in [('5', False), ('0', True)]:

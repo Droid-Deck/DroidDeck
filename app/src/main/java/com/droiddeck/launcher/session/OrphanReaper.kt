@@ -11,6 +11,22 @@ object OrphanReaper {
 
     fun release(pid: Int) { kept.remove(pid) }
 
+    fun hasOtherProcesses(): Boolean = hasOtherProcesses(
+        File("/proc").list()?.mapNotNull { it.toIntOrNull() }, android.os.Process.myPid(),
+    ) { pid ->
+        try {
+            android.system.Os.kill(pid, 0)
+            true
+        } catch (error: android.system.ErrnoException) {
+            error.errno != android.system.OsConstants.ESRCH && error.errno != android.system.OsConstants.EPERM
+        } catch (error: SecurityException) {
+            true
+        }
+    }
+
+    internal fun hasOtherProcesses(pids: List<Int>?, ownPid: Int, signalable: (Int) -> Boolean): Boolean =
+        pids == null || pids.any { it > 1 && it != ownPid && signalable(it) }
+
     fun reap(reason: String, matching: (String) -> Boolean = { true }): Int {
         val me = android.os.Process.myPid()
         val uid = android.os.Process.myUid()

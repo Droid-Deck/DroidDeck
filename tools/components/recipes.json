@@ -23,7 +23,8 @@
     "outputs": [
       "app/src/main/assets/linuxfs/usr/local/bin/gamescope",
       "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-vr/droiddeck/bin/linuxarm64/driver_droiddeck.so",
-      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so"
+      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so",
+      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so"
     ],
     "ndk": true,
     "packages": [

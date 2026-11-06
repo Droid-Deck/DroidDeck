@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s عبر FEX</string>
     <string name="app_fex_not_ready">هذا البرنامج مبني لأجهزة كمبيوتر %1$s ويعمل عبر FEX، الذي لم يتم إعداده بعد. افتح Steam مرة واحدة أثناء تسجيل الدخول: سيجعله DroidDeck يُنزّل FEX وSteam Linux Runtime اللازمة، ثم يُفتح هذا البرنامج.</string>
     <string name="session_proot_missing">تعذّر تنزيل proot الخاص بـ DroidDeck. تحقّق من الاتصال وحاول مرة أخرى. لم تبدأ الجلسة لأن proot الاحتياطي أبطأ من أن يصلح للعب.</string>
+    <string name="session_powervr_missing">تعذّر تنزيل بيئة رسومات PowerVR. تحقق من الاتصال وحاول مرة أخرى.</string>
     <string name="session_directaudio_missing">تعذّر تنزيل DirectAudio، لذا يستخدم صوت الألعاب المسار الأبطأ في هذه الجلسة.</string>
     <string name="session_end_program">هذا البرنامج</string>
     <string name="session_end_steam_download">تعذّر تنزيل عميل Steam. قد تكون شبكتك أو VPN تحظر خوادم Steam؛ تحقّق من الاتصال وحاول مرة أخرى.</string>
@@ -593,7 +594,7 @@
     <string name="perf_ram_cap_hint">يُطبَّق أثناء تشغيل عميل Steam، في جلسة Steam أو من سطح المكتب. عندما تستخدم الجلسة أكثر من هذا الحد، يُضغط Steam ثم عمليات الجلسة المدعومة الأخرى في zRAM. حد مرن: لا يُغلَق شيء، لكن قد تتقطّع الألعاب أثناء استعادة الصفحات.</string>
     <string name="perf_ram_cap_unavailable">يتطلب مساحة تبديل zRAM، وهي غير متوفرة على هذا الجهاز.</string>
     <string name="perf_vram_cap">حد VRAM</string>
-    <string name="perf_vram_cap_hint">ذاكرة الفيديو التي يُبلغ بها DXVK ألعاب Direct3D، فتخصّص للأنسجة مساحة أقل. تظل إعدادات DXVK الخاصة باللعبة هي الأولى. يسري في الجلسة التالية.</string>
+    <string name="perf_vram_cap_hint">يُبلّغ ألعاب Direct3D من 9 إلى 12 بميزانية ذاكرة الفيديو هذه لتشجيع تقليل استخدامها. قد تتجاوزها الألعاب؛ لا يضيف هذا ترحيل ذاكرة GPU ولا يضمن منع الانهيار بسبب نفاد الذاكرة. يسري في الجلسة التالية.</string>
     <string name="perf_gpuclock">تثبيت GPU على أعلى تردد له</string>
     <string name="perf_gpuclock_hint">لـ Adreno فقط. تقطّع أقل، مع استهلاك أكبر للبطارية والحرارة.</string>
     <string name="perf_fixes">إصلاحات الجلسة</string>
@@ -678,6 +679,8 @@
     <string name="hud_group_metrics">القراءات</string>
     <string name="hud_metric_graph">مخطط زمن الإطار</string>
     <string name="hud_metric_decimal">معدل الإطارات بخانة عشرية</string>
+    <string name="hud_metric_low1">أدنى 1%</string>
+    <string name="hud_metric_low01">أدنى 0.1%</string>
     <string name="hud_metric_low001">أدنى 0.01%</string>
     <string name="hud_metric_engine">محرك الرسومات</string>
     <string name="hud_metric_gpu_model">اسم GPU</string>
@@ -755,6 +758,10 @@
     <string name="drawer_low_latency_touch">لمس بزمن استجابة منخفض</string>
     <string name="drawer_low_latency_touch_hint">تتجاوز اللمسات تجميع الإطارات، فيعمل اللمس في Steam بمعدل 1000 هرتز. استهلاك معالج أعلى قليلًا.</string>
     <string name="drawer_evdev_mouse">قناة فأرة خام</string>
+    <string name="drawer_relative_mouse">فأرة نسبية</string>
+    <string name="drawer_relative_mouse_auto">تلقائي</string>
+    <string name="drawer_relative_mouse_on">تشغيل</string>
+    <string name="drawer_relative_mouse_off">إيقاف</string>
     <string name="drawer_direct_cursor">المؤشر</string>
     <string name="drawer_pc_keyboard">لوحة مفاتيح الكمبيوتر</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -819,7 +826,7 @@
     <string name="setup_gpu_unsupported">GPU غير مدعوم</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">يحتاج Steam إلى برنامج تشغيل Adreno؛ قد يعرض %1$s شاشة سوداء</string>
+    <string name="setup_gpu_unsupported_detail">لا تتوفر واجهة رسومات متوافقة مع %1$s. قد يعرض Steam شاشة سوداء.</string>
     <string name="setup_runtime">بيئة تشغيل Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">غير مثبّت · نحو 3 GB، يُثبَّت عند أول تشغيل</string>
@@ -881,6 +888,7 @@
     <string name="setup_home">استخدام كشاشة رئيسية</string>
     <string name="setup_home_on">يمكن أن يكون DroidDeck تطبيق الشاشة الرئيسية</string>
     <string name="setup_home_off">لا يُعرَض DroidDeck أبدًا كتطبيق للشاشة الرئيسية</string>
+    <string name="setup_home_game_space_first">في إضافة الألعاب، اضبط DroidDeck على تضمين</string>
     <string name="setup_orientation">الاتجاه</string>
     <string name="setup_launcher_orientation">اتجاه المشغّل</string>
     <string name="setup_launcher_orientation_auto">اتّباع تدوير الجهاز</string>
@@ -1125,6 +1133,7 @@
     <string name="ctrl_stick_click_hint">انقر مرتين مع الاستمرار على عصا للحصول على L3 أو R3</string>
     <string name="ctrl_adaptive">عصي تكيّفية</string>
     <string name="ctrl_rumble">اهتزاز اللعبة</string>
+    <string name="ctrl_dead_zone">المنطقة الميتة لعصا التحكم</string>
     <string name="ctrl_steam_button">زر Steam</string>
     <string name="ctrl_qam_button">زر QAM</string>
     <string name="ctrl_keyboard_button">زر لوحة المفاتيح</string>
@@ -1202,6 +1211,18 @@
     <string name="games_export_gamehub">تصدير بصيغة GameHub المضغوطة…</string>
     <string name="games_export_winlator">تصدير بصيغة Winlator المضغوطة…</string>
     <string name="games_open_save_folder">فتح مجلد الحفظ</string>
+    <string name="games_import_addons">استيراد الإضافات من zip…</string>
+    <string name="games_open_addons_folder">فتح مجلد الإضافات</string>
+    <string name="games_delete_addon_title">حذف %1$s؟</string>
+    <string name="games_delete_addon_body">يؤدي هذا إلى حذف مجلد الإضافة. تبقى إعداداتها.</string>
+    <plurals name="games_addons_count">
+        <item quantity="zero">%1$d إضافة</item>
+        <item quantity="one">%1$d إضافة</item>
+        <item quantity="two">%1$d إضافتان</item>
+        <item quantity="few">%1$d إضافات</item>
+        <item quantity="many">%1$d إضافة</item>
+        <item quantity="other">%1$d إضافة</item>
+    </plurals>
     <string name="games_never_played">لم يتم تشغيلها أبدًا</string>
     <string name="games_runtime_busy_percent">بيئة التشغيل مشغولة · %1$d%%</string>
     <string name="games_runtime_busy">بيئة التشغيل مشغولة</string>
@@ -1388,6 +1409,21 @@
         <item quantity="many">تم استيراد %1$d ملفًا من %2$s إلى %3$s. تم نسخ ملفات الحفظ القديمة احتياطيًا إلى Download/DroidDeck/Saves/backups</item>
         <item quantity="other">تم استيراد %1$d ملف من %2$s إلى %3$s. تم نسخ ملفات الحفظ القديمة احتياطيًا إلى Download/DroidDeck/Saves/backups</item>
     </plurals>
+    <string name="main_addons_close_session">أغلِق الجلسة أولاً حتى لا تستخدم اللعبة إضافاتها أثناء الاستيراد</string>
+    <string name="main_addons_importing">استيراد الإضافات إلى %1$s</string>
+    <string name="main_addons_pick_zip">اختر ملف zip للإضافات الخاصة بـ %1$s</string>
+    <string name="main_addons_too_large">%1$s كبير جدًا بحيث لا يمكن استيراده</string>
+    <string name="main_addons_deleting">جارٍ حذف %1$s</string>
+    <string name="main_addons_deleted">تم حذف %1$s</string>
+    <string name="main_addons_none">لم يتم العثور على إضافات في %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="zero">تم استيراد %1$d إضافة إلى %2$s</item>
+        <item quantity="one">تم استيراد %1$d إضافة إلى %2$s</item>
+        <item quantity="two">تم استيراد %1$d إضافتين إلى %2$s</item>
+        <item quantity="few">تم استيراد %1$d إضافات إلى %2$s</item>
+        <item quantity="many">تم استيراد %1$d إضافة إلى %2$s</item>
+        <item quantity="other">تم استيراد %1$d إضافة إلى %2$s</item>
+    </plurals>
     <string name="main_saves_pick_zip">اختر ملف zip لملفات حفظ %1$s</string>
     <string name="main_saves_exporting">تصدير %1$s</string>
     <plurals name="main_saves_exported">
@@ -1415,8 +1451,8 @@
     <string name="main_wadb_unavailable">تصحيح الأخطاء اللاسلكي غير متاح</string>
     <string name="main_adb_copied">تم نسخ أمر ADB</string>
     <string name="main_pick_roms">اختر مجلد ROMs</string>
-    <string name="main_non_adreno_title">وحدة GPU ليست من نوع Adreno</string>
-    <string name="main_non_adreno_text">يدعم Turnip وحدات GPU من نوع Adreno. على %1$s، قد يعرض Steam شاشة سوداء. حجم التنزيل: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">وحدة معالجة رسومات غير مدعومة</string>
+    <string name="main_non_adreno_text">لا تتوفر واجهة رسومات متوافقة مع %1$s. قد يعرض Steam شاشة سوداء. التنزيل: %2$.0f ميغابايت.</string>
     <string name="main_install_anyway">التثبيت على أي حال</string>
     <string name="main_remove_runtime_title">إزالة بيئة تشغيل Linux</string>
     <string name="main_remove_runtime_text">سيؤدي هذا إلى حذف بيئة التشغيل وعميل Steam بداخلها وكل لعبة مثبَّتة فيها.</string>
@@ -2182,7 +2218,7 @@
     <string name="gpuinfo_experimental">تجريبي: برامج تشغيله إصدارات اختبارية</string>
     <string name="gpuinfo_a850_experimental">دعم تجريبي لـ Adreno 850: يتطلب برامج تشغيل تجريبية متوافقة للعرض والألعاب، ولم يُتحقَّق منه على هذا الجهاز</string>
     <string name="gpuinfo_below_tested">أقل من العتاد المُختبَر (Adreno 725 وأحدث): قد لا يعمل</string>
-    <string name="gpuinfo_unsupported">غير مدعوم: يحتاج DroidDeck إلى وحدة GPU من نوع Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">غير مدعوم: لا تتوفر واجهة رسومات متوافقة مع وحدة معالجة الرسومات هذه</string>
 
     <string name="turnip_rate_limited">تم الوصول إلى حدّ الطلبات في GitHub - حاوِل مرة أخرى لاحقًا</string>
     <string name="turnip_github_http">استجاب GitHub بـ HTTP %1$d</string>
@@ -3611,6 +3647,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">للألعاب التي تُحفظ بياناتها في حساب Steam الخاص بك</string>
     <string name="game_resource_search">البحث في الويب</string>
+    <string name="game_tab_addons">الإضافات</string>
     <string name="game_tab_install">تثبيت</string>
     <string name="game_install_location">الموقع</string>
     <string name="game_install_folder">مجلد</string>
@@ -3657,19 +3694,18 @@
     <string name="integration_wifi">أسماء شبكات Wi-Fi</string>
     <string name="integration_brightness">السطوع</string>
     <string name="integration_home">DroidDeck كشاشة رئيسية</string>
-    <string name="integration_shortcuts">اختصارات زر الشاشة الرئيسية</string>
+    <string name="integration_shortcuts">مفاتيح النظام</string>
     <string name="integration_wifi_hint">إظهار الشبكات في Steam · يتطلب الوصول إلى الموقع الجغرافي، دون تتبّع أبدًا</string>
     <string name="integration_wifi_on">تظهر الشبكات في Steam</string>
     <string name="integration_wifi_location_off">الموقع الجغرافي متوقف</string>
     <string name="integration_wifi_denied">رُفض الوصول إلى الموقع الجغرافي · اسمح به في معلومات التطبيق</string>
     <string name="integration_brightness_hint">شريط التمرير في Steam يضبط سطوع الشاشة</string>
     <string name="integration_home_hint">زر الشاشة الرئيسية يفتح قائمة Steam أثناء الجلسة</string>
-    <string name="integration_shortcuts_hint">اضغط مطوّلًا على زر الشاشة الرئيسية لاختصارات Steam Guide</string>
-    <string name="integration_shortcuts_needs_home">يتطلب DroidDeck كشاشة رئيسية</string>
+    <string name="integration_shortcuts_hint">يبقى Alt+Tab ومفتاح Win وزر الرئيسية داخل الجلسة</string>
     <string name="integration_shortcuts_maybe_restricted">غير متاح في Android؟ معلومات التطبيق → ⋮ → السماح بالإعدادات المحظورة</string>
     <string name="integration_shortcuts_restricted">محظور من Android · معلومات التطبيق → ⋮ → السماح بالإعدادات المحظورة</string>
-    <string name="integration_shortcuts_service">زر الشاشة الرئيسية في DroidDeck</string>
-    <string name="integration_shortcuts_service_description">يمرّر ضغطات زر الشاشة الرئيسية إلى Steam Guide عندما تكون جلسة Steam في المقدمة ويكون DroidDeck تطبيق الشاشة الرئيسية الافتراضي. لا يقرأ محتوى الشاشة.</string>
+    <string name="integration_shortcuts_service">مفاتيح نظام DroidDeck</string>
+    <string name="integration_shortcuts_service_description">إبقاء Alt+Tab ومفتاح Win وزر الرئيسية داخل جلسة DroidDeck النشطة بدلاً من Android.</string>
     <string name="integration_brightness_needed">فعّل «السطوع» من الإعداد → تكامل Steam</string>
     <string name="setup_gpu_bridge_off">جسر Mali: متوقف</string>
     <string name="setup_gpu_bridge_on">جسر Mali: يعمل</string>

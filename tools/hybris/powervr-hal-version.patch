@@ -1,0 +1,12 @@
+--- a/hybris/vulkan/icd/icd.c
++++ b/hybris/vulkan/icd/icd.c
+@@ -71,7 +71,8 @@
+     int result = module->methods->open(module, HWVULKAN_DEVICE_0,
+                                       (hw_device_t **)&candidate);
+     if (result || !candidate || candidate->common.tag != HARDWARE_DEVICE_TAG ||
+-        candidate->common.version != HWVULKAN_DEVICE_API_VERSION_0_1 ||
++        (candidate->common.version != HWVULKAN_DEVICE_API_VERSION_0_1 &&
++         candidate->common.version != HARDWARE_DEVICE_API_VERSION(0, 1)) ||
+         !candidate->CreateInstance || !candidate->GetInstanceProcAddr ||
+         !candidate->EnumerateInstanceExtensionProperties) {
+         fprintf(stderr, "hybris ICD: incompatible Vulkan HAL device (open=%d)\n", result);

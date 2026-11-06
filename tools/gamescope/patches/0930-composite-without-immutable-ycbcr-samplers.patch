@@ -1,0 +1,78 @@
+diff --git a/src/rendervulkan.cpp b/src/rendervulkan.cpp
+index 103baee..d344a99 100644
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -319,6 +319,33 @@ bool CVulkanDevice::BInit(VkInstance instance, VkSurfaceKHR surface)
+ 		return false;
+ 	if (!createShaders())
+ 		return false;
++	{
++		// One composite pipeline up front: a driver that refuses it with the immutable YCbCr
++		// samplers gets the layout without them (NV12 textures then sample without conversion).
++		if ( getenv( "GAMESCOPE_NO_YCBCR_SAMPLERS" ) && *getenv( "GAMESCOPE_NO_YCBCR_SAMPLERS" ) == '1' )
++		{
++			vk_log.infof( "GAMESCOPE_NO_YCBCR_SAMPLERS=1: composite layout without immutable YCbCr samplers" );
++			vk.DestroyPipelineLayout( device(), m_pipelineLayout, nullptr );
++			vk.DestroyDescriptorSetLayout( device(), m_descriptorSetLayout, nullptr );
++			m_bYcbcrImmutableSamplers = false;
++			if ( !createLayouts() )
++				return false;
++		}
++		VkPipeline probe = compilePipeline( 1, 0, SHADER_TYPE_BLIT, 1, 0, 0, 0, false );
++		if ( probe == VK_NULL_HANDLE && m_bYcbcrImmutableSamplers )
++		{
++			vk_log.errorf( "composite pipeline refused; retrying without immutable YCbCr samplers" );
++			vk.DestroyPipelineLayout( device(), m_pipelineLayout, nullptr );
++			vk.DestroyDescriptorSetLayout( device(), m_descriptorSetLayout, nullptr );
++			m_bYcbcrImmutableSamplers = false;
++			if ( !createLayouts() )
++				return false;
++			probe = compilePipeline( 1, 0, SHADER_TYPE_BLIT, 1, 0, 0, 0, false );
++			vk_log.infof( "composite pipeline without immutable YCbCr samplers: %s", probe ? "accepted" : "STILL refused" );
++		}
++		if ( probe != VK_NULL_HANDLE )
++			vk.DestroyPipeline( device(), probe, nullptr );
++	}
+ 	if (!createScratchResources())
+ 		return false;
+ 
+@@ -869,7 +896,7 @@ bool CVulkanDevice::createLayouts()
+ 			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+ 			.descriptorCount = VKR_SAMPLER_SLOTS,
+ 			.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+-			.pImmutableSamplers = ycbcrSamplers.data(),
++			.pImmutableSamplers = m_bYcbcrImmutableSamplers ? ycbcrSamplers.data() : nullptr,
+ 		},
+ 		VkDescriptorSetLayoutBinding {
+ 			.binding = 5,
+@@ -1870,6 +1897,8 @@ void CVulkanCmdBuffer::dispatch(uint32_t x, uint32_t y, uint32_t z)
+ 		imageDescriptors[i].sampler = m_device->sampler(m_samplerState[i]);
+ 		imageDescriptors[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+ 		ycbcrImageDescriptors[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
++		if ( !m_device->ycbcrImmutableSamplers() )
++			ycbcrImageDescriptors[i].sampler = imageDescriptors[i].sampler;
+ 		if (m_boundTextures[i] == nullptr)
+ 			continue;
+ 
+diff --git a/src/rendervulkan.hpp b/src/rendervulkan.hpp
+index 901e6a6..e0ede11 100644
+--- a/src/rendervulkan.hpp
++++ b/src/rendervulkan.hpp
+@@ -876,6 +876,7 @@ public:
+ 	inline bool hasDrmPrimaryDevId() {return m_bHasDrmPrimaryDevId;}
+ 	inline dev_t primaryDevId() {return m_drmPrimaryDevId;}
+ 	inline bool supportsFp16() {return m_bSupportsFp16;}
++	inline bool ycbcrImmutableSamplers() {return m_bYcbcrImmutableSamplers;}
+ 	inline std::vector<VkExtensionProperties>& supportedExtensions() {return m_supportedExts;}
+ 
+ 	inline std::pair<void *, uint32_t> uploadBufferData(uint32_t size)
+@@ -925,6 +926,9 @@ protected:
+ 	VkQueue m_generalQueue = nullptr;
+ 	VkSamplerYcbcrConversion m_ycbcrConversion = VK_NULL_HANDLE;
+ 	VkSampler m_ycbcrSampler = VK_NULL_HANDLE;
++	// Binding 4 carries immutable YCbCr samplers; off when the driver refuses every composite
++	// pipeline with them (Mali-G615 through Venus: VK_ERROR_INITIALIZATION_FAILED).
++	bool m_bYcbcrImmutableSamplers = true;
+ 	VkDescriptorSetLayout m_descriptorSetLayout = VK_NULL_HANDLE;
+ 	VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
+ 	VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;

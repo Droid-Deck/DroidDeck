@@ -180,6 +180,7 @@
     <string name="app_fex_x86">FEX ile %1$s</string>
     <string name="app_fex_not_ready">Bu program %1$s PC\'ler için derlenmiş ve FEX ile çalışır, ancak FEX henüz kurulmadı. Oturum açmışken Steam\'i bir kez açın: DroidDeck, FEX\'i ve gereken Steam Linux Runtime\'ı indirtir, ardından bu program açılır.</string>
     <string name="session_proot_missing">DroidDeck\'in proot\'u indirilemedi. Bağlantıyı kontrol edip tekrar deneyin. Yedek proot oynamak için fazla yavaş olduğundan oturum başlatılmadı.</string>
+    <string name="session_powervr_missing">PowerVR grafik ortamı indirilemedi. Bağlantıyı kontrol edip tekrar deneyin.</string>
     <string name="session_directaudio_missing">DirectAudio indirilemedi, bu yüzden oyun sesi bu oturumda daha yavaş yolu kullanıyor.</string>
     <string name="session_end_program">Bu program</string>
     <string name="session_end_steam_download">Steam istemcisi indirilemedi. Ağınız veya VPN\'iniz Steam sunucularını engelliyor olabilir; bağlantıyı kontrol edip yeniden deneyin.</string>
@@ -585,7 +586,7 @@
     <string name="perf_ram_cap_hint">Steam istemcisi Steam oturumunda veya masaüstünden çalışırken uygulanır. Oturum bundan fazlasını kullandığında önce Steam, ardından oturumun desteklenen diğer işlemleri zRAM\'e sıkıştırılır. Yumuşak bir sınırdır: hiçbir şey kapatılmaz, ancak sayfalar geri yüklenirken oyunlar takılabilir.</string>
     <string name="perf_ram_cap_unavailable">Bu cihazda olmayan zRAM takası gerekir.</string>
     <string name="perf_vram_cap">VRAM sınırı</string>
-    <string name="perf_vram_cap_hint">DXVK\'nin Direct3D oyunlarına bildirdiği video belleği; böylece oyunlar dokuları daha az belleğe göre ayarlar. Oyunun kendi DXVK ayarları yine önceliklidir. Sonraki oturumda geçerli olur.</string>
+    <string name="perf_vram_cap_hint">Bellek kullanımını azaltmak için Direct3D 9–12 oyunlarına bu video belleği bütçesini bildirir. Oyunlar bütçeyi aşabilir; GPU sayfalaması eklemez veya bellek yetersizliğinden kaynaklanan çökmeleri önlemeyi garanti etmez. Sonraki oturumda geçerli olur.</string>
     <string name="perf_gpuclock">GPU\'yu en yüksek saat hızında tut</string>
     <string name="perf_gpuclock_hint">Yalnızca Adreno. Daha az takılma, daha fazla pil tüketimi ve ısınma.</string>
     <string name="perf_fixes">Oturum düzeltmeleri</string>
@@ -670,6 +671,8 @@
     <string name="hud_group_metrics">Ölçümler</string>
     <string name="hud_metric_graph">Kare süresi grafiği</string>
     <string name="hud_metric_decimal">Ondalıklı kare hızı</string>
+    <string name="hud_metric_low1">1% en düşük</string>
+    <string name="hud_metric_low01">0.1% en düşük</string>
     <string name="hud_metric_low001">0.01% en düşük</string>
     <string name="hud_metric_engine">Grafik motoru</string>
     <string name="hud_metric_gpu_model">GPU adı</string>
@@ -747,6 +750,10 @@
     <string name="drawer_low_latency_touch">Düşük gecikmeli dokunma</string>
     <string name="drawer_low_latency_touch_hint">Dokunmalar kare gruplamasını atlar; Steam dokunmatik kontrolleri 1000 Hz çalışır. CPU kullanımı biraz artar.</string>
     <string name="drawer_evdev_mouse">Ham fare kanalı</string>
+    <string name="drawer_relative_mouse">Göreli fare</string>
+    <string name="drawer_relative_mouse_auto">Otomatik</string>
+    <string name="drawer_relative_mouse_on">Açık</string>
+    <string name="drawer_relative_mouse_off">Kapalı</string>
     <string name="drawer_direct_cursor">İmleç</string>
     <string name="drawer_pc_keyboard">PC klavyesi</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -807,7 +814,7 @@
     <string name="setup_gpu_unsupported">GPU desteklenmiyor</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam için Adreno sürücüsü gerekir; %1$s siyah ekran gösterebilir</string>
+    <string name="setup_gpu_unsupported_detail">%1$s için uyumlu bir grafik arka ucu yok. Steam siyah ekran gösterebilir.</string>
     <string name="setup_runtime">Linux çalışma zamanı</string>
     <string name="setup_runtime_progress">%1$s · %%%2$d</string>
     <string name="setup_runtime_missing">Yüklü değil · yaklaşık 3 GB, ilk kez Oyna\'ya basınca yüklenir</string>
@@ -861,6 +868,7 @@
     <string name="setup_home">Ana ekran olarak kullan</string>
     <string name="setup_home_on">DroidDeck ana ekran uygulaması olabilir</string>
     <string name="setup_home_off">DroidDeck hiçbir zaman ana ekran uygulaması olarak sunulmaz</string>
+    <string name="setup_home_game_space_first">Oyun Ekle bölümünde DroidDeck\'i Dahil Et olarak ayarlayın</string>
     <string name="setup_orientation">Yön</string>
     <string name="setup_launcher_orientation">Başlatıcı yönü</string>
     <string name="setup_launcher_orientation_auto">Cihaz dönüşünü izle</string>
@@ -1093,6 +1101,7 @@
     <string name="ctrl_stick_click_hint">L3 veya R3 için bir çubuğa çift dokunup basılı tutun</string>
     <string name="ctrl_adaptive">Uyarlanabilir çubuklar</string>
     <string name="ctrl_rumble">Oyun titreşimi</string>
+    <string name="ctrl_dead_zone">Çubuk ölü bölgesi</string>
     <string name="ctrl_steam_button">Steam düğmesi</string>
     <string name="ctrl_qam_button">QAM düğmesi</string>
     <string name="ctrl_keyboard_button">Klavye düğmesi</string>
@@ -1170,6 +1179,14 @@
     <string name="games_export_gamehub">GameHub zip\'i olarak dışa aktar…</string>
     <string name="games_export_winlator">Winlator zip\'i olarak dışa aktar…</string>
     <string name="games_open_save_folder">Kayıt klasörünü aç</string>
+    <string name="games_import_addons">Eklentileri zip\'ten içe aktar…</string>
+    <string name="games_open_addons_folder">Eklentiler klasörünü aç</string>
+    <string name="games_delete_addon_title">%1$s silinsin mi?</string>
+    <string name="games_delete_addon_body">Bu işlem eklentinin klasörünü kaldırır. Ayarları korunur.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d eklenti</item>
+        <item quantity="other">%1$d eklenti</item>
+    </plurals>
     <string name="games_never_played">Hiç oynanmadı</string>
     <string name="games_runtime_busy_percent">Çalışma ortamı meşgul · %1$d%%</string>
     <string name="games_runtime_busy">Çalışma ortamı meşgul</string>
@@ -1348,6 +1365,17 @@
         <item quantity="one">%2$s içinden %1$d dosya %3$s oyununa aktarıldı. Eski kayıtlar Download/DroidDeck/Saves/backups klasörüne yedeklendi</item>
         <item quantity="other">%2$s içinden %1$d dosya %3$s oyununa aktarıldı. Eski kayıtlar Download/DroidDeck/Saves/backups klasörüne yedeklendi</item>
     </plurals>
+    <string name="main_addons_close_session">Önce oturumu kapatın; böylece oyun içe aktarma sırasında eklentilerini kullanmaz</string>
+    <string name="main_addons_importing">Eklentiler içe aktarılıyor: %1$s</string>
+    <string name="main_addons_pick_zip">%1$s için bir eklenti zip dosyası seçin</string>
+    <string name="main_addons_too_large">%1$s içe aktarılamayacak kadar büyük</string>
+    <string name="main_addons_deleting">%1$s siliniyor</string>
+    <string name="main_addons_deleted">%1$s silindi</string>
+    <string name="main_addons_none">%1$s içinde eklenti bulunamadı</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">%1$d eklenti %2$s oyununa aktarıldı</item>
+        <item quantity="other">%1$d eklenti %2$s oyununa aktarıldı</item>
+    </plurals>
     <string name="main_saves_pick_zip">%1$s için bir kayıt zip dosyası seçin</string>
     <string name="main_saves_exporting">Dışa aktarılıyor: %1$s</string>
     <plurals name="main_saves_exported">
@@ -1367,8 +1395,8 @@
     <string name="main_wadb_unavailable">Kablosuz hata ayıklama kullanılamıyor</string>
     <string name="main_adb_copied">ADB komutu kopyalandı</string>
     <string name="main_pick_roms">ROM klasörünü seçin</string>
-    <string name="main_non_adreno_title">Adreno GPU değil</string>
-    <string name="main_non_adreno_text">Turnip, Adreno GPU\'larını destekler. %1$s üzerinde Steam siyah ekran gösterebilir. İndirme: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">Desteklenmeyen GPU</string>
+    <string name="main_non_adreno_text">%1$s için uyumlu bir grafik arka ucu yok. Steam siyah ekran gösterebilir. İndirme: %2$.0f MB.</string>
     <string name="main_install_anyway">Yine de yükle</string>
     <string name="main_remove_runtime_title">Linux çalışma ortamını kaldır</string>
     <string name="main_remove_runtime_text">Bu işlem çalışma ortamını, içindeki Steam istemcisini ve oraya yüklenen tüm oyunları siler.</string>
@@ -2082,7 +2110,7 @@
     <string name="gpuinfo_experimental">Deneysel: sürücüleri test derlemeleri</string>
     <string name="gpuinfo_a850_experimental">Deneysel Adreno 850 desteği: uyumlu deneysel ekran ve oyun sürücüleri gerekir; bu cihazda doğrulanmadı</string>
     <string name="gpuinfo_below_tested">Test edilen donanımın altında (Adreno 725 ve daha yenisi): çalışmayabilir</string>
-    <string name="gpuinfo_unsupported">Desteklenmiyor: DroidDeck bir Adreno (Snapdragon) GPU\'su gerektirir</string>
+    <string name="gpuinfo_unsupported">Desteklenmiyor: bu GPU için uyumlu bir grafik arka ucu yok</string>
 
     <string name="turnip_rate_limited">GitHub\'ın hız sınırına ulaşıldı - daha sonra yeniden deneyin</string>
     <string name="turnip_github_http">GitHub HTTP %1$d yanıtı verdi</string>
@@ -3467,6 +3495,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Kayıtları Steam hesabınızda olan oyunlar için</string>
     <string name="game_resource_search">Web\'de ara</string>
+    <string name="game_tab_addons">Eklentiler</string>
     <string name="game_tab_install">Yükle</string>
     <string name="game_install_location">Konum</string>
     <string name="game_install_folder">Klasör</string>
@@ -3513,19 +3542,18 @@
     <string name="integration_wifi">Wi-Fi adları</string>
     <string name="integration_brightness">Parlaklık</string>
     <string name="integration_home">Ana ekran olarak DroidDeck</string>
-    <string name="integration_shortcuts">Ana ekran düğmesi kısayolları</string>
+    <string name="integration_shortcuts">Sistem tuşları</string>
     <string name="integration_wifi_hint">Ağları Steam\'de göster · Konum erişimi gerekir, konum asla izlenmez</string>
     <string name="integration_wifi_on">Ağlar Steam\'de görünür</string>
     <string name="integration_wifi_location_off">Konum kapalı</string>
     <string name="integration_wifi_denied">Konum reddedildi · Uygulama bilgileri\'nden izin verin</string>
     <string name="integration_brightness_hint">Steam\'in kaydırıcısı ekran parlaklığını ayarlar</string>
     <string name="integration_home_hint">Ana ekran düğmesi oturumda Steam menüsünü açar</string>
-    <string name="integration_shortcuts_hint">Steam Guide kombinasyonları için Ana ekran düğmesini basılı tutun</string>
-    <string name="integration_shortcuts_needs_home">Ana ekran olarak DroidDeck gerekir</string>
+    <string name="integration_shortcuts_hint">Alt+Tab, Win tuşu ve Ana Ekran düğmesi oturumda kalır</string>
     <string name="integration_shortcuts_maybe_restricted">Android\'de gri mi görünüyor? Uygulama bilgileri → ⋮ → Kısıtlanmış ayarlara izin ver</string>
     <string name="integration_shortcuts_restricted">Android tarafından engellendi · Uygulama bilgileri → ⋮ → Kısıtlanmış ayarlara izin ver</string>
-    <string name="integration_shortcuts_service">DroidDeck Ana ekran düğmesi</string>
-    <string name="integration_shortcuts_service_description">Bir Steam oturumu odaktayken ve DroidDeck varsayılan Ana ekran uygulamasıyken Ana ekran düğmesine basışları Steam Guide\'a iletir. Ekran içeriğini okumaz.</string>
+    <string name="integration_shortcuts_service">DroidDeck sistem tuşları</string>
+    <string name="integration_shortcuts_service_description">Alt+Tab, Win tuşu ve Ana Ekran düğmesini Android yerine etkin DroidDeck oturumunda tutar.</string>
     <string name="integration_brightness_needed">Kurulum → Steam entegrasyonu bölümünde Parlaklık\'ı açın</string>
     <string name="setup_gpu_bridge_off">Mali köprüsü: kapalı</string>
     <string name="setup_gpu_bridge_on">Mali köprüsü: açık</string>

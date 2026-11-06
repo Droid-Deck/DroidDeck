@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s via FEX</string>
     <string name="app_fex_not_ready">Dette program er bygget til %1$s-pc’er og køres via FEX, som ikke er sat op endnu. Åbn Steam én gang, mens du er logget ind: DroidDeck downloader så FEX og den Steam Linux Runtime, det kræver, hvorefter dette åbner.</string>
     <string name="session_proot_missing">DroidDecks proot kunne ikke downloades. Tjek forbindelsen, og prøv igen. Sessionen blev ikke startet, fordi reserve-proot er for langsom at spille på.</string>
+    <string name="session_powervr_missing">PowerVR-grafikmiljøet kunne ikke hentes. Tjek forbindelsen, og prøv igen.</string>
     <string name="session_directaudio_missing">DirectAudio kunne ikke downloades, så spillyd bruger den langsommere vej i denne session.</string>
     <string name="session_end_program">Dette program</string>
     <string name="session_end_steam_download">Steam-klienten kunne ikke downloades. Dit netværk eller din VPN blokerer muligvis Steams servere; tjek forbindelsen, og prøv igen.</string>
@@ -585,7 +586,7 @@
     <string name="perf_ram_cap_hint">Gælder, mens Steam-klienten kører, i Steam-tilstand eller fra skrivebordet. Når sessionen bruger mere end dette, komprimeres Steam og derefter sessionens andre understøttede processer i zRAM. En blød grænse: intet lukkes, men spil kan hakke, mens sider hentes tilbage.</string>
     <string name="perf_ram_cap_unavailable">Kræver zRAM-swap, som denne enhed ikke har.</string>
     <string name="perf_vram_cap">VRAM-grænse</string>
-    <string name="perf_vram_cap_hint">Den videohukommelse, DXVK rapporterer til Direct3D-spil, så de budgetterer teksturer til mindre. Et spils egne DXVK-indstillinger har forrang. Træder i kraft ved næste session.</string>
+    <string name="perf_vram_cap_hint">Rapporterer dette videohukommelsesbudget til Direct3D 9 til 12-spil for at mindske hukommelsesforbruget. Spil kan overskride det; dette tilføjer ikke GPU-paging og garanterer ikke beskyttelse mod nedbrud ved hukommelsesmangel. Gælder fra næste session.</string>
     <string name="perf_gpuclock">Hold GPU’en på dens højeste clock</string>
     <string name="perf_gpuclock_hint">Kun Adreno. Færre hak, mere batteribrug og varme.</string>
     <string name="perf_fixes">Sessionsrettelser</string>
@@ -670,6 +671,8 @@
     <string name="hud_group_metrics">Målinger</string>
     <string name="hud_metric_graph">Billedtidsgraf</string>
     <string name="hud_metric_decimal">Billedhastighed med decimal</string>
+    <string name="hud_metric_low1">1% laveste</string>
+    <string name="hud_metric_low01">0.1% laveste</string>
     <string name="hud_metric_low001">0.01% laveste</string>
     <string name="hud_metric_engine">Grafikmotor</string>
     <string name="hud_metric_gpu_model">GPU-navn</string>
@@ -747,6 +750,10 @@
     <string name="drawer_low_latency_touch">Berøring med lav forsinkelse</string>
     <string name="drawer_low_latency_touch_hint">Berøringer springer billedsamling over; Steams berøringsstyring kører ved 1000 Hz. Lidt mere CPU.</string>
     <string name="drawer_evdev_mouse">Rå musekanal</string>
+    <string name="drawer_relative_mouse">Relativ mus</string>
+    <string name="drawer_relative_mouse_auto">Automatisk</string>
+    <string name="drawer_relative_mouse_on">Til</string>
+    <string name="drawer_relative_mouse_off">Fra</string>
     <string name="drawer_direct_cursor">Markør</string>
     <string name="drawer_pc_keyboard">PC-tastatur</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -807,7 +814,7 @@
     <string name="setup_gpu_unsupported">GPU ikke understøttet</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam kræver en Adreno-driver; %1$s kan vise en sort skærm</string>
+    <string name="setup_gpu_unsupported_detail">Ingen kompatibel grafikbackend er tilgængelig for %1$s. Steam kan vise en sort skærm.</string>
     <string name="setup_runtime">Linux-runtime</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Ikke installeret · omkring 3 GB, installeres ved første Spil</string>
@@ -869,6 +876,7 @@
     <string name="setup_home">Brug som startskærm</string>
     <string name="setup_home_on">DroidDeck kan være Home-appen</string>
     <string name="setup_home_off">DroidDeck tilbydes aldrig som Home-app</string>
+    <string name="setup_home_game_space_first">I Tilføj spil skal du sætte DroidDeck til Medtag</string>
     <string name="setup_orientation">Retning</string>
     <string name="setup_launcher_orientation">Launcherens retning</string>
     <string name="setup_launcher_orientation_auto">Følg enhedens rotation</string>
@@ -1101,6 +1109,7 @@
     <string name="ctrl_stick_click_hint">Dobbelttryk og hold en stick nede for L3 eller R3</string>
     <string name="ctrl_adaptive">Adaptive styrepinde</string>
     <string name="ctrl_rumble">Spilvibration</string>
+    <string name="ctrl_dead_zone">Dødzone for styrepind</string>
     <string name="ctrl_steam_button">Steam-knap</string>
     <string name="ctrl_qam_button">QAM-knap</string>
     <string name="ctrl_keyboard_button">Tastaturknap</string>
@@ -1178,6 +1187,14 @@
     <string name="games_export_gamehub">Eksporter som GameHub-zip…</string>
     <string name="games_export_winlator">Eksporter som Winlator-zip…</string>
     <string name="games_open_save_folder">Åbn savemappe</string>
+    <string name="games_import_addons">Importer addons fra zip…</string>
+    <string name="games_open_addons_folder">Åbn addon-mappe</string>
+    <string name="games_delete_addon_title">Slet %1$s?</string>
+    <string name="games_delete_addon_body">Dette fjerner addonens mappe. Dens indstillinger bevares.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d addon</item>
+        <item quantity="other">%1$d addons</item>
+    </plurals>
     <string name="games_never_played">Aldrig spillet</string>
     <string name="games_runtime_busy_percent">Runtime optaget · %1$d%%</string>
     <string name="games_runtime_busy">Runtime optaget</string>
@@ -1356,6 +1373,17 @@
         <item quantity="one">Importerede %1$d fil fra %2$s til %3$s. Gamle gemte spil sikkerhedskopieret til Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Importerede %1$d filer fra %2$s til %3$s. Gamle gemte spil sikkerhedskopieret til Download/DroidDeck/Saves/backups</item>
     </plurals>
+    <string name="main_addons_close_session">Luk sessionen først, så spillet ikke bruger sine addons under importen</string>
+    <string name="main_addons_importing">Importerer addons til %1$s</string>
+    <string name="main_addons_pick_zip">Vælg en zip med addons til %1$s</string>
+    <string name="main_addons_too_large">%1$s er for stor til at blive importeret</string>
+    <string name="main_addons_deleting">Sletter %1$s</string>
+    <string name="main_addons_deleted">%1$s slettet</string>
+    <string name="main_addons_none">Ingen addons fundet i %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Importerede %1$d addon til %2$s</item>
+        <item quantity="other">Importerede %1$d addons til %2$s</item>
+    </plurals>
     <string name="main_saves_pick_zip">Vælg en zip med gemte spil til %1$s</string>
     <string name="main_saves_exporting">Eksporterer %1$s</string>
     <plurals name="main_saves_exported">
@@ -1375,8 +1403,8 @@
     <string name="main_wadb_unavailable">Trådløs fejlretning er ikke tilgængelig</string>
     <string name="main_adb_copied">ADB-kommando kopieret</string>
     <string name="main_pick_roms">Vælg ROMs-mappen</string>
-    <string name="main_non_adreno_title">Ikke en Adreno-GPU</string>
-    <string name="main_non_adreno_text">Turnip understøtter Adreno-GPU\'er. På %1$s kan Steam vise en sort skærm. Download: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">GPU understøttes ikke</string>
+    <string name="main_non_adreno_text">Ingen kompatibel grafikbackend er tilgængelig for %1$s. Steam kan vise en sort skærm. Download: %2$.0f MB.</string>
     <string name="main_install_anyway">Installer alligevel</string>
     <string name="main_remove_runtime_title">Fjern Linux-runtime</string>
     <string name="main_remove_runtime_text">Dette sletter runtime\'en, Steam-klienten i den og alle spil installeret der.</string>
@@ -2090,7 +2118,7 @@
     <string name="gpuinfo_experimental">Eksperimentel: dens drivere er testversioner</string>
     <string name="gpuinfo_a850_experimental">Eksperimentel Adreno 850-understøttelse: kræver kompatible eksperimentelle skærm- og spildrivere; ikke bekræftet på denne enhed</string>
     <string name="gpuinfo_below_tested">Under testet hardware (Adreno 725 og nyere): kører muligvis ikke</string>
-    <string name="gpuinfo_unsupported">Ikke understøttet: DroidDeck kræver en Adreno (Snapdragon) GPU</string>
+    <string name="gpuinfo_unsupported">Understøttes ikke: ingen kompatibel grafikbackend er tilgængelig for denne GPU</string>
 
     <string name="turnip_rate_limited">GitHubs hastighedsgrænse blev nået - forsøg igen senere</string>
     <string name="turnip_github_http">GitHub svarede HTTP %1$d</string>
@@ -3467,6 +3495,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Til spil med gemte data på din Steam-konto</string>
     <string name="game_resource_search">Websøgning</string>
+    <string name="game_tab_addons">Addons</string>
     <string name="game_tab_install">Installer</string>
     <string name="game_install_location">Placering</string>
     <string name="game_install_folder">Mappe</string>
@@ -3513,19 +3542,18 @@
     <string name="integration_wifi">Wi-Fi-navne</string>
     <string name="integration_brightness">Lysstyrke</string>
     <string name="integration_home">DroidDeck som startskærm</string>
-    <string name="integration_shortcuts">Genveje til Hjem-knappen</string>
+    <string name="integration_shortcuts">Systemtaster</string>
     <string name="integration_wifi_hint">Vis netværk i Steam · kræver placeringsadgang, spores aldrig</string>
     <string name="integration_wifi_on">Netværk vises i Steam</string>
     <string name="integration_wifi_location_off">Placering er slået fra</string>
     <string name="integration_wifi_denied">Placering afvist · tillad den i Appinfo</string>
     <string name="integration_brightness_hint">Steams skyder indstiller skærmens lysstyrke</string>
     <string name="integration_home_hint">Hjem åbner Steam-menuen i en session</string>
-    <string name="integration_shortcuts_hint">Hold Hjem nede for Steam Guide-kombinationer</string>
-    <string name="integration_shortcuts_needs_home">Kræver DroidDeck som startskærm</string>
+    <string name="integration_shortcuts_hint">Alt+Tab, Win-tasten og Hjem-knappen bliver i sessionen</string>
     <string name="integration_shortcuts_maybe_restricted">Nedtonet i Android? Appinfo → ⋮ → Tillad begrænsede indstillinger</string>
     <string name="integration_shortcuts_restricted">Blokeret af Android · Appinfo → ⋮ → Tillad begrænsede indstillinger</string>
-    <string name="integration_shortcuts_service">DroidDeck Hjem-knap</string>
-    <string name="integration_shortcuts_service_description">Sender tryk på Hjem-knappen til Steam Guide, mens en Steam-session er i fokus, og DroidDeck er standardstartskærmen. Læser ikke skærmindhold.</string>
+    <string name="integration_shortcuts_service">DroidDeck-systemtaster</string>
+    <string name="integration_shortcuts_service_description">Holder Alt+Tab, Win-tasten og Hjem-knappen i en aktiv DroidDeck-session i stedet for Android.</string>
     <string name="integration_brightness_needed">Slå Lysstyrke til under Opsætning → Steam-integration</string>
     <string name="setup_gpu_bridge_off">Mali-bro: fra</string>
     <string name="setup_gpu_bridge_on">Mali-bro: til</string>

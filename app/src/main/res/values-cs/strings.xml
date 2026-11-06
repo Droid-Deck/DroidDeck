@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s přes FEX</string>
     <string name="app_fex_not_ready">Tento program je sestaven pro PC %1$s a běží přes FEX, který ještě není nastaven. Jednou spusťte přihlášený Steam: DroidDeck tím stáhne FEX a Steam Linux Runtime, který potřebuje, a pak se tento program otevře.</string>
     <string name="session_proot_missing">Proot od DroidDeck se nepodařilo stáhnout. Zkontrolujte připojení a zkuste to znovu. Relace nebyla spuštěna, protože záložní proot je na hraní příliš pomalý.</string>
+    <string name="session_powervr_missing">Grafické prostředí PowerVR se nepodařilo stáhnout. Zkontrolujte připojení a zkuste to znovu.</string>
     <string name="session_directaudio_missing">DirectAudio se nepodařilo stáhnout, takže zvuk her v této relaci používá pomalejší cestu.</string>
     <string name="session_end_program">Tento program</string>
     <string name="session_end_steam_download">Klienta Steam se nepodařilo stáhnout. Vaše síť nebo VPN možná blokuje servery Steamu; zkontrolujte připojení a zkuste to znovu.</string>
@@ -589,7 +590,7 @@
     <string name="perf_ram_cap_hint">Platí, když běží klient Steam, v režimu Steam nebo z Plochy. Když relace použije víc, zkomprimuje se do zRAM Steam a poté další podporované procesy relace. Měkký limit: nic se nezavře, ale hry mohou trhat, než se stránky načtou zpět.</string>
     <string name="perf_ram_cap_unavailable">Vyžaduje swap zRAM, který toto zařízení nemá.</string>
     <string name="perf_vram_cap">Limit VRAM</string>
-    <string name="perf_vram_cap_hint">Video paměť, kterou DXVK hlásí hrám Direct3D, aby počítaly s menším rozpočtem na textury. Vlastní nastavení DXVK hry mají přednost. Použije se od příští relace.</string>
+    <string name="perf_vram_cap_hint">Hlásí hrám s Direct3D 9 až 12 tento rozpočet videopaměti, aby snížily její využití. Hry jej mohou překročit; nepřidává stránkování GPU ani nezaručuje ochranu před pády kvůli nedostatku paměti. Platí od příští relace.</string>
     <string name="perf_gpuclock">Udržet GPU na nejvyšších taktech</string>
     <string name="perf_gpuclock_hint">Jen Adreno. Méně zadrhávání, více spotřeby baterie a tepla.</string>
     <string name="perf_fixes">Opravy relace</string>
@@ -674,6 +675,8 @@
     <string name="hud_group_metrics">Údaje</string>
     <string name="hud_metric_graph">Graf časů snímků</string>
     <string name="hud_metric_decimal">Snímková frekvence s desetinným místem</string>
+    <string name="hud_metric_low1">1% nejnižší</string>
+    <string name="hud_metric_low01">0.1% nejnižší</string>
     <string name="hud_metric_low001">0.01% nejnižší</string>
     <string name="hud_metric_engine">Grafický engine</string>
     <string name="hud_metric_gpu_model">Název GPU</string>
@@ -751,6 +754,10 @@
     <string name="drawer_low_latency_touch">Dotek s nízkým zpožděním</string>
     <string name="drawer_low_latency_touch_hint">Doteky přeskakují dávkování snímků, takže ovládání dotykem ve Steamu běží na 1000 Hz. O něco víc CPU.</string>
     <string name="drawer_evdev_mouse">Surový kanál myši</string>
+    <string name="drawer_relative_mouse">Relativní myš</string>
+    <string name="drawer_relative_mouse_auto">Automaticky</string>
+    <string name="drawer_relative_mouse_on">Zapnuto</string>
+    <string name="drawer_relative_mouse_off">Vypnuto</string>
     <string name="drawer_direct_cursor">Kurzor</string>
     <string name="drawer_pc_keyboard">Klávesnice PC</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -813,7 +820,7 @@
     <string name="setup_gpu_unsupported">GPU nepodporováno</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam vyžaduje ovladač Adreno; %1$s může zobrazit černou obrazovku</string>
+    <string name="setup_gpu_unsupported_detail">Pro %1$s není k dispozici kompatibilní grafický backend. Steam může zobrazit černou obrazovku.</string>
     <string name="setup_runtime">Běhové prostředí Linuxu</string>
     <string name="setup_runtime_progress">%1$s · %2$d %%</string>
     <string name="setup_runtime_missing">Nenainstalováno · přibližně 3 GB, instaluje se při prvním Play</string>
@@ -875,6 +882,7 @@
     <string name="setup_home">Použít jako domovskou obrazovku</string>
     <string name="setup_home_on">DroidDeck může být domovská aplikace</string>
     <string name="setup_home_off">DroidDeck se nikdy nenabízí jako domovská aplikace</string>
+    <string name="setup_home_game_space_first">V Přidat hry nastavte DroidDeck na Zahrnout</string>
     <string name="setup_orientation">Orientace</string>
     <string name="setup_launcher_orientation">Orientace launcheru</string>
     <string name="setup_launcher_orientation_auto">Podle otočení zařízení</string>
@@ -1113,6 +1121,7 @@
     <string name="ctrl_stick_click_hint">Dvojitým dotykem a podržením páčky aktivujete L3 nebo R3</string>
     <string name="ctrl_adaptive">Adaptivní páčky</string>
     <string name="ctrl_rumble">Vibrace ve hře</string>
+    <string name="ctrl_dead_zone">Mrtvá zóna páčky</string>
     <string name="ctrl_steam_button">Tlačítko Steam</string>
     <string name="ctrl_qam_button">Tlačítko QAM</string>
     <string name="ctrl_keyboard_button">Tlačítko klávesnice</string>
@@ -1190,6 +1199,16 @@
     <string name="games_export_gamehub">Exportovat jako GameHub zip…</string>
     <string name="games_export_winlator">Exportovat jako Winlator zip…</string>
     <string name="games_open_save_folder">Otevřít složku s uloženými pozicemi</string>
+    <string name="games_import_addons">Importovat doplňky ze ZIP…</string>
+    <string name="games_open_addons_folder">Otevřít složku s doplňky</string>
+    <string name="games_delete_addon_title">Smazat %1$s?</string>
+    <string name="games_delete_addon_body">Tím se smaže složka doplňku. Jeho nastavení zůstane zachováno.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d doplněk</item>
+        <item quantity="few">%1$d doplňky</item>
+        <item quantity="many">%1$d doplňku</item>
+        <item quantity="other">%1$d doplňků</item>
+    </plurals>
     <string name="games_never_played">Nikdy nehráno</string>
     <string name="games_runtime_busy_percent">Runtime zaneprázdněn · %1$d%%</string>
     <string name="games_runtime_busy">Runtime zaneprázdněn</string>
@@ -1372,6 +1391,19 @@
         <item quantity="many">Importováno %1$d souborů z %2$s do %3$s. Staré uložené pozice byly zálohovány do Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Importováno %1$d souborů z %2$s do %3$s. Staré uložené pozice byly zálohovány do Download/DroidDeck/Saves/backups</item>
     </plurals>
+    <string name="main_addons_close_session">Nejprve zavřete relaci, aby hra během importu nepoužívala své doplňky.</string>
+    <string name="main_addons_importing">Importování doplňků do %1$s</string>
+    <string name="main_addons_pick_zip">Vyberte ZIP s doplňky pro %1$s</string>
+    <string name="main_addons_too_large">%1$s je pro import příliš velký</string>
+    <string name="main_addons_deleting">Mazání: %1$s</string>
+    <string name="main_addons_deleted">Smazáno: %1$s</string>
+    <string name="main_addons_none">V %1$s nebyly nalezeny žádné doplňky</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Importován %1$d doplněk do %2$s</item>
+        <item quantity="few">Importovány %1$d doplňky do %2$s</item>
+        <item quantity="many">Importováno %1$d doplňku do %2$s</item>
+        <item quantity="other">Importováno %1$d doplňků do %2$s</item>
+    </plurals>
     <string name="main_saves_pick_zip">Vyberte ZIP s uloženou pozicí pro %1$s</string>
     <string name="main_saves_exporting">Exportování %1$s</string>
     <plurals name="main_saves_exported">
@@ -1395,8 +1427,8 @@
     <string name="main_wadb_unavailable">Bezdrátové ladění není k dispozici</string>
     <string name="main_adb_copied">Příkaz ADB zkopírován</string>
     <string name="main_pick_roms">Vybrat složku ROMs</string>
-    <string name="main_non_adreno_title">Není GPU Adreno</string>
-    <string name="main_non_adreno_text">Turnip podporuje GPU Adreno. Na %1$s může Steam zobrazit černou obrazovku. Stažení: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">Nepodporovaný GPU</string>
+    <string name="main_non_adreno_text">Pro %1$s není k dispozici kompatibilní grafický backend. Steam může zobrazit černou obrazovku. Ke stažení: %2$.0f MB.</string>
     <string name="main_install_anyway">Přesto instalovat</string>
     <string name="main_remove_runtime_title">Odstranit runtime Linuxu</string>
     <string name="main_remove_runtime_text">Tím se odstraní runtime, klient Steam v něm a všechny hry v něm nainstalované.</string>
@@ -2136,7 +2168,7 @@
     <string name="gpuinfo_experimental">Experimentální: jeho ovladače jsou testovací sestavení</string>
     <string name="gpuinfo_a850_experimental">Experimentální podpora Adreno 850: vyžaduje kompatibilní experimentální ovladače displeje a her; na tomto zařízení neověřeno</string>
     <string name="gpuinfo_below_tested">Pod testovaným hardwarem (Adreno 725 a novější): nemusí fungovat</string>
-    <string name="gpuinfo_unsupported">Není podporováno: DroidDeck potřebuje GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">Nepodporováno: pro tento GPU není k dispozici kompatibilní grafický backend</string>
 
     <string name="turnip_rate_limited">Byl dosažen limit požadavků GitHubu - zkuste to později</string>
     <string name="turnip_github_http">GitHub odpověděl HTTP %1$d</string>
@@ -3539,6 +3571,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Pro hry s uloženými pozicemi ve vašem účtu Steam</string>
     <string name="game_resource_search">Hledat na webu</string>
+    <string name="game_tab_addons">Doplňky</string>
     <string name="game_tab_install">Instalovat</string>
     <string name="game_install_location">Umístění</string>
     <string name="game_install_folder">Složka</string>
@@ -3585,19 +3618,18 @@
     <string name="integration_wifi">Názvy Wi-Fi</string>
     <string name="integration_brightness">Jas</string>
     <string name="integration_home">DroidDeck jako domovská obrazovka</string>
-    <string name="integration_shortcuts">Zkratky tlačítka Domů</string>
+    <string name="integration_shortcuts">Systémové klávesy</string>
     <string name="integration_wifi_hint">Zobrazit sítě ve Steamu · vyžaduje přístup k poloze, nikdy se nesleduje</string>
     <string name="integration_wifi_on">Sítě se zobrazují ve Steamu</string>
     <string name="integration_wifi_location_off">Poloha je vypnutá</string>
     <string name="integration_wifi_denied">Poloha zamítnuta · povolte ji v Informacích o aplikaci</string>
     <string name="integration_brightness_hint">Posuvník Steamu nastavuje jas obrazovky</string>
     <string name="integration_home_hint">Tlačítko Domů v relaci otevře nabídku Steam</string>
-    <string name="integration_shortcuts_hint">Podržte Domů pro kombinace Steam Guide</string>
-    <string name="integration_shortcuts_needs_home">Vyžaduje DroidDeck jako domovskou obrazovku</string>
+    <string name="integration_shortcuts_hint">Alt+Tab, klávesa Win a tlačítko Domů zůstanou v relaci</string>
     <string name="integration_shortcuts_maybe_restricted">V Androidu zašedlé? Informace o aplikaci → ⋮ → Povolit omezená nastavení</string>
     <string name="integration_shortcuts_restricted">Blokováno Androidem · Informace o aplikaci → ⋮ → Povolit omezená nastavení</string>
-    <string name="integration_shortcuts_service">Tlačítko Domů pro DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Předává stisky tlačítka Domů do Steam Guide, když je aktivní relace Steamu a DroidDeck je výchozí aplikací domovské obrazovky. Nečte obsah obrazovky.</string>
+    <string name="integration_shortcuts_service">Systémové klávesy DroidDeck</string>
+    <string name="integration_shortcuts_service_description">Ponechá Alt+Tab, klávesu Win a tlačítko Domů v aktivní relaci DroidDeck místo Androidu.</string>
     <string name="integration_brightness_needed">Zapněte Jas v Příprava → Integrace se Steamem</string>
     <string name="setup_gpu_bridge_off">Most Mali: vypnuto</string>
     <string name="setup_gpu_bridge_on">Most Mali: zapnuto</string>

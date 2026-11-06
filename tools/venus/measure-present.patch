@@ -1,0 +1,153 @@
+diff --git a/src/virtio/vulkan/vn_wsi.c b/src/virtio/vulkan/vn_wsi.c
+index f0b41b1..5c08312 100644
+--- a/src/virtio/vulkan/vn_wsi.c
++++ b/src/virtio/vulkan/vn_wsi.c
+@@ -23,6 +23,33 @@
+ #define DRM_FORMAT_MOD_LINEAR 0
+ #endif
+ 
++/* MEASURE: async present costs, logged every 120 presents. */
++static struct {
++   uint32_t presents, fence_waits, flushes;
++   int64_t present_sum, present_max, fence_sum, fence_max, flush_sum, flush_max;
++} vn_measure;
++
++#define VN_MEASURE_ADD(name, ns)                                              \
++   do {                                                                       \
++      vn_measure.name##_sum += (ns);                                          \
++      vn_measure.name##_max = MAX2(vn_measure.name##_max, (ns));              \
++   } while (0)
++
++static void
++vn_measure_present(int64_t ns)
++{
++   VN_MEASURE_ADD(present, ns);
++   if (++vn_measure.presents < 120)
++      return;
++   fprintf(stderr, "MEASURE vn: present thread %.2f/%.2f ms | fence wait %.2f/%.2f ms (%u) | app blocked in flush %.2f/%.2f ms (%u)\n",
++           vn_measure.present_sum / 120 / 1e6, vn_measure.present_max / 1e6,
++           vn_measure.fence_waits ? vn_measure.fence_sum / vn_measure.fence_waits / 1e6 : 0.0,
++           vn_measure.fence_max / 1e6, vn_measure.fence_waits,
++           vn_measure.flushes ? vn_measure.flush_sum / vn_measure.flushes / 1e6 : 0.0,
++           vn_measure.flush_max / 1e6, vn_measure.flushes);
++   memset(&vn_measure, 0, sizeof(vn_measure));
++}
++
+ /* The common WSI support makes some assumptions about the driver.
+  *
+  * In wsi_device_init, it assumes VK_EXT_pci_bus_info is available.  In
+@@ -331,6 +358,7 @@ vn_wsi_memory_type_index(const struct vn_device *dev,
+        !(type_bits & BITFIELD_BIT(readback_type)))
+       return alloc_info->memoryTypeIndex;
+ 
++   fprintf(stderr, "MEASURE vn: WSI readback buffer in memory type %d\n", readback_type);
+    return readback_type;
+ }
+ 
+@@ -479,8 +507,11 @@ vn_wsi_fence_wait(VkQueue queue_handle)
+       simple_mtx_unlock(&queue->async_present.queue_mutex);
+    vn_wsi_chains_unlock(dev, queue->async_present.info, /*all=*/false);
+ 
++   int64_t measure_start = os_time_get_nano();
+    result = vn_WaitForFences(dev_handle, 1, &queue->async_present.fence, true,
+                              UINT64_MAX);
++   VN_MEASURE_ADD(fence, os_time_get_nano() - measure_start);
++   vn_measure.fence_waits++;
+ 
+    vn_wsi_chains_lock(dev, queue->async_present.info, /*all=*/false);
+    if (can_unlock_queue)
+@@ -537,8 +568,11 @@ vn_wsi_flush(VkQueue queue_handle)
+    /* Being able to acquire the lock ensures async present queue access
+     * has completed.
+     */
++   int64_t measure_start = os_time_get_nano();
+    simple_mtx_lock(&queue->async_present.queue_mutex);
+    simple_mtx_unlock(&queue->async_present.queue_mutex);
++   VN_MEASURE_ADD(flush, os_time_get_nano() - measure_start);
++   vn_measure.flushes++;
+ }
+ 
+ static VkPresentInfoKHR *
+@@ -811,9 +845,11 @@ vn_wsi_present_thread(void *data)
+ 
+       queue->async_present.pending = false;
+ 
++      int64_t measure_start = os_time_get_nano();
+       queue->async_present.result =
+          wsi_common_queue_present(queue_vk->base.device->physical->wsi_device,
+                                   queue_vk, queue->async_present.info);
++      vn_measure_present(os_time_get_nano() - measure_start);
+ 
+       vn_wsi_chains_unlock(dev, queue->async_present.info, /*all=*/true);
+       simple_mtx_unlock(&queue->async_present.queue_mutex);
+diff --git a/src/vulkan/wsi/wsi_common_wayland.c b/src/vulkan/wsi/wsi_common_wayland.c
+index 047c8b3..a153a39 100644
+--- a/src/vulkan/wsi/wsi_common_wayland.c
++++ b/src/vulkan/wsi/wsi_common_wayland.c
+@@ -3277,6 +3277,38 @@ set_timestamp(struct wsi_wl_swapchain *chain,
+    return true;
+ }
+ 
++/* MEASURE: per-frame cost of the shm copy, logged every 120 presents. */
++static struct {
++   uint32_t frames;
++   int64_t last_present, interval_sum, interval_max, copy_sum, copy_max, total_sum, total_max;
++} wl_measure;
++
++static void
++wl_measure_frame(struct wsi_wl_swapchain *chain, int64_t start, int64_t copy_ns, int64_t end)
++{
++   if (wl_measure.last_present) {
++      int64_t interval = start - wl_measure.last_present;
++      wl_measure.interval_sum += interval;
++      wl_measure.interval_max = MAX2(wl_measure.interval_max, interval);
++   }
++   wl_measure.last_present = start;
++   wl_measure.copy_sum += copy_ns;
++   wl_measure.copy_max = MAX2(wl_measure.copy_max, copy_ns);
++   wl_measure.total_sum += end - start;
++   wl_measure.total_max = MAX2(wl_measure.total_max, end - start);
++   if (++wl_measure.frames < 120)
++      return;
++   fprintf(stderr, "MEASURE wl: %ux%u type %d | interval %.2f/%.2f ms | copy %.2f/%.2f ms (%u KB) | present %.2f/%.2f ms\n",
++           chain->extent.width, chain->extent.height, chain->buffer_type,
++           wl_measure.interval_sum / 119 / 1e6, wl_measure.interval_max / 1e6,
++           wl_measure.copy_sum / 120 / 1e6, wl_measure.copy_max / 1e6,
++           chain->images[0].base.row_pitches[0] * chain->extent.height / 1024,
++           wl_measure.total_sum / 120 / 1e6, wl_measure.total_max / 1e6);
++   int64_t last = wl_measure.last_present;
++   memset(&wl_measure, 0, sizeof(wl_measure));
++   wl_measure.last_present = last;
++}
++
+ static VkResult
+ wsi_wl_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
+                                uint32_t image_index,
+@@ -3286,6 +3318,7 @@ wsi_wl_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
+    struct wsi_wl_swapchain *chain = (struct wsi_wl_swapchain *)wsi_chain;
+    bool timestamped = false;
+    bool queue_dispatched = false;
++   int64_t measure_start = os_time_get_nano(), measure_copy = 0;
+ 
+    MESA_TRACE_FUNC_FLOW(&chain->images[image_index].wayland_buffer.flow);
+ 
+@@ -3314,9 +3347,11 @@ wsi_wl_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
+ 
+    if (chain->buffer_type == WSI_WL_BUFFER_SHM_MEMCPY) {
+       struct wsi_wl_image *image = &chain->images[image_index];
++      int64_t copy_start = os_time_get_nano();
+       wsi_image_invalidate_cpu_map(&chain->base, &image->base);
+       memcpy(image->shm_ptr, image->base.cpu_map,
+              image->base.row_pitches[0] * chain->extent.height);
++      measure_copy = os_time_get_nano() - copy_start;
+    }
+ 
+    VkResult ret = wsi_wl_swapchain_update_colorspace(chain);
+@@ -3515,6 +3550,7 @@ wsi_wl_swapchain_queue_present(struct wsi_swapchain *wsi_chain,
+ 
+    memset(&chain->timing_request, 0, sizeof(chain->timing_request));
+ 
++   wl_measure_frame(chain, measure_start, measure_copy, os_time_get_nano());
+    return VK_SUCCESS;
+ }
+ 

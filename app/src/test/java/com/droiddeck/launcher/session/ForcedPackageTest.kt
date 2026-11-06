@@ -150,6 +150,34 @@ class ForcedPackageTest {
         assertDefaultDxvkRestoreRow(protonName)
     }
 
+    @Test fun systemPowerVrRejectsNewGameDxvkSelectionsWithoutChangingSavedProfiles() {
+        writeGameProfile("42", "dxvk", "custom-dxvk.wcp")
+        val state = File(context.filesDir, "components/state.json")
+        val saved = state.readText()
+
+        assertThrows(IllegalStateException::class.java) {
+            ComponentsManager.setGameComponent(context, "42", "dxvk", "replacement.wcp") {
+                ComponentsManager.runtimeManaged(it, true)
+            }
+        }
+
+        assertEquals(saved, state.readText())
+        assertEquals("custom-dxvk.wcp", ComponentsManager.gameComponents(context, "42")["dxvk"])
+        assertFalse(launchState().exists())
+    }
+
+    @Test fun systemPowerVrAllowsClearingASavedGameDxvkSelection() {
+        proton("proton-exp")
+        writeGameProfile("42", "dxvk", "custom-dxvk.wcp")
+
+        ComponentsManager.setGameComponent(context, "42", "dxvk", null) {
+            ComponentsManager.runtimeManaged(it, true)
+        }
+
+        assertTrue(ComponentsManager.gameComponents(context, "42").isEmpty())
+        assertDefaultDxvkRestoreRow("proton-exp")
+    }
+
     @Test fun aNewProtonIsCapturedWhenTheLastOverrideIsReset() {
         proton("existing")
         writeGameProfile("42", "dxvk", "custom-dxvk.wcp")

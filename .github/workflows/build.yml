@@ -275,6 +275,19 @@ jobs:
         if: steps.proot.outputs.cache-hit != 'true'
         run: python3 tools/components/prepare.py proot
 
+      - name: Build the non-Adreno test additions (Mali bridge client, Venus GL probe, Xclipse layer)
+        run: |
+          set -euo pipefail
+          bash tools/ci/install-ubuntu-packages.sh gcc-aarch64-linux-gnu libvulkan-dev
+          D=app/src/main/assets/linuxfs
+          mkdir -p "$D/usr/local/bin" "$D/usr/local/lib/droiddeck-xclipse"
+          aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
+            -o "$D/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so" tools/linuxfs/xclipse-layer/xclipse_layer.c -ldl
+          aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so"
+          install -m644 tools/linuxfs/xclipse-layer/VkLayer_droiddeck_xclipse.json "$D/usr/local/lib/droiddeck-xclipse/"
+          aarch64-linux-gnu-gcc -O2 -Wall -o "$D/usr/local/bin/droiddeck-glprobe" tools/venus/glprobe.c -ldl
+          aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/bin/droiddeck-glprobe"
+
       - name: Check the preloads
         run: |
           set -euo pipefail
@@ -535,7 +548,9 @@ jobs:
           key: pack-inputs-v1-${{ hashFiles('tools/packs/build.sh', 'tools/packs/fetch-verified.sh', 'tools/packs/tracking/release.env') }}
           restore-keys: pack-inputs-v1-
       - name: Build the add-on packs
-        run: bash tools/packs/build.sh app/build/packs
+        run: |
+          python3 tools/powervr/fetch.py
+          bash tools/packs/build.sh app/build/packs
 
       - name: Pin the Syncthing source
         id: syncthing-src
@@ -573,6 +588,18 @@ jobs:
 
       - name: Check out MaliBridge
         run: git submodule update --init external/MaliBridge
+      - name: Fetch the Mali (Venus) component (tools/venus/release.env)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          . tools/venus/release.env
+          gh release download "${VENUS_TAG}" -R "${VENUS_REPO}" -p venus.tzst -O venus.tzst
+          echo "${VENUS_SHA256}  venus.tzst" | sha256sum -c -
+          tar --use-compress-program=unzstd -xf venus.tzst -C app/src/main
+          test -f app/src/main/jniLibs/arm64-v8a/libvirgl_test_server.so
+          test -f app/src/main/assets/venus/libvulkan_virtio.so
+          rm venus.tzst
 
       - name: Build
         id: build
@@ -581,6 +608,7 @@ jobs:
           SGDB_API_KEY: ${{ secrets.SGDB_API_KEY }}
         run: |
           set -o pipefail
+          python3 tools/powervr/fetch.py
           python3 tools/release/runtime_inputs.py record
           ./gradlew assembleRelease --console=plain -PndkVersion="$NDK_VERSION" 2>&1 | tee /tmp/build.log
           python3 tools/release/check_session_assets.py app/build/outputs/apk/release/app-release.apk

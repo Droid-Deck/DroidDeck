@@ -39,7 +39,14 @@ object GitHubArtifacts {
         if (isRateLimited(error)) context.getString(R.string.sources_github_rate_limited)
         else error.message ?: error.javaClass.simpleName
 
-    data class Asset(val id: Long, val name: String, val url: String, val size: Long, val sha256: String)
+    data class Asset(
+        val id: Long,
+        val name: String,
+        val url: String,
+        val size: Long,
+        val sha256: String,
+        val updatedAt: String = "",
+    )
     data class Release(
         val id: Long, val tag: String, val name: String, val body: String,
         val publishedAt: String, val prerelease: Boolean, val assets: List<Asset>,
@@ -226,7 +233,7 @@ object GitHubArtifacts {
             val digest = item.optString("digest").lowercase(Locale.ROOT)
             if (!Regex("sha256:[0-9a-f]{64}").matches(digest)) continue
             val asset = Asset(item.getLong("id"), item.getString("name"), item.getString("browser_download_url"),
-                item.getLong("size"), digest.removePrefix("sha256:"))
+                item.getLong("size"), digest.removePrefix("sha256:"), item.optString("updated_at"))
             validateAsset(source.repository, tag, asset)
             require(seen.add(asset.name)) { "Duplicate release asset" }
             assets.add(asset)
@@ -238,7 +245,8 @@ object GitHubArtifacts {
     private fun encodeRelease(release: Release): JSONObject {
         val assets = JSONArray()
         release.assets.forEach { asset -> assets.put(JSONObject().put("id", asset.id).put("name", asset.name)
-            .put("browser_download_url", asset.url).put("size", asset.size).put("digest", "sha256:${asset.sha256}")) }
+            .put("browser_download_url", asset.url).put("size", asset.size).put("digest", "sha256:${asset.sha256}")
+            .put("updated_at", asset.updatedAt)) }
         return JSONObject().put("id", release.id).put("tag_name", release.tag).put("name", release.name)
             .put("body", release.body).put("published_at", release.publishedAt).put("prerelease", release.prerelease)
             .put("assets", assets)

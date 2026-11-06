@@ -40,10 +40,12 @@ object SessionFiles {
         WinComponents.publish(context)
         val files = arrayOf(
             "usr/local/bin/droiddeck-game-env" to "usr/local/bin/droiddeck-game-env",
+            "usr/local/bin/droiddeck-diagnostic-inventory" to "usr/local/bin/droiddeck-diagnostic-inventory",
             "usr/local/bin/droiddeck-wincomponents" to "usr/local/bin/droiddeck-wincomponents",
             "usr/local/bin/droiddeck-msi-install" to "usr/local/bin/droiddeck-msi-install",
             "usr/local/bin/droiddeck-esync" to "usr/local/bin/droiddeck-esync",
             "usr/local/bin/droiddeck-steam-compat" to "usr/local/bin/droiddeck-steam-compat",
+            "usr/local/bin/droiddeck-steam-taskset" to "usr/local/libexec/droiddeck-steam/taskset",
             "usr/local/bin/droiddeck-fex" to "usr/local/bin/droiddeck-fex",
             "libblsession.so" to "usr/local/lib/libblsession.so",
             "libfakeinput.so" to "usr/local/lib/libfakeinput.so",
@@ -71,6 +73,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-login1" to "usr/local/bin/droiddeck-login1",
             "usr/local/bin/droiddeck-steam-launch" to "usr/local/bin/droiddeck-steam-launch",
             "usr/local/bin/droiddeck-desktop-games" to "usr/local/bin/droiddeck-desktop-games",
+            "usr/local/bin/droiddeck-desktop-programs" to "usr/local/bin/droiddeck-desktop-programs",
             "usr/local/bin/droiddeck-desktop-bookmarks" to "usr/local/bin/droiddeck-desktop-bookmarks",
             "usr/local/bin/droiddeck-downloads" to "usr/local/bin/droiddeck-downloads",
             "usr/local/bin/droiddeck-root" to "usr/local/bin/droiddeck-root",
@@ -141,6 +144,8 @@ object SessionFiles {
             "usr/local/lib/mangoapp/libtraceevent.so.1",
             "usr/local/lib/mangoapp/libtracefs.so.1",
         ).map { it to it }
+        val xclipse = listOf("libVkLayer_droiddeck_xclipse.so", "VkLayer_droiddeck_xclipse.json")
+            .map { "usr/local/lib/droiddeck-xclipse/$it" }
         val msitools = listOf("msiinfo", "cabextract", "7z", "7z.so", "libmsi-1.0.so.0", "libgsf-1.so.114", "libgcab-1.0.so.0")
             .map { "usr/local/lib/droiddeck-msitools/$it" } +
             listOf("NOTICE", "GPL-2", "GPL-3", "LGPL-2.1", "7zip-License", "7zip-unRarLicense").map { "usr/local/share/licenses/droiddeck-msitools/$it" }
@@ -164,12 +169,22 @@ object SessionFiles {
         val gpuLoad = listOf(
             "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so" to "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so",
             "usr/local/lib/droiddeck-gpuload/VK_LAYER_DROIDDECK_gpu_load.json" to "usr/share/vulkan/implicit_layer.d/droiddeck_gpu_load.json",
+            "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so" to "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so",
+            "usr/local/lib/droiddeck-gpuload/VK_LAYER_DROIDDECK_vram_cap.json" to "usr/share/vulkan/implicit_layer.d/droiddeck_vram_cap.json",
         )
         val fexPreloads = listOf("x86_64", "i386").flatMap { arch ->
             listOf("libblsession.so", "libfakeinput.so", "libfaultreport.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
         } + listOf("libvulkan-thunk.so", "libwebkitinput.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
+        // The Mali compatibility layer (tools/venus/layer, David Cimo): an implicit Vulkan layer that
+        // fills in the features DXVK requires and Mali lacks. Idle outside Wine and on GPUs that have them.
+        // Never staged on an Adreno: an implicit layer is loaded into every Vulkan program there.
+        val maliCompat = if (com.droiddeck.launcher.core.DeviceSupport.adreno()) emptyList() else listOf(
+            "usr/local/lib/droiddeck-mali/libVkLayer_droiddeck_mali_compat.so",
+            "usr/local/share/vulkan/implicit_layer.d/VkLayer_droiddeck_mali_compat.json",
+        ).map { it to it }
         val optional = (arrayOf(
             "usr/local/bin/gamescope" to "usr/local/bin/gamescope",
+            "usr/local/bin/droiddeck-glprobe" to "usr/local/bin/droiddeck-glprobe",
             "usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so" to "usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so",
             "usr/local/lib/vkbridge/libvulkan_droidbridge.so" to "usr/local/lib/vkbridge/libvulkan_droidbridge.so",
             "usr/local/share/vkbridge/droidbridge_icd.json" to "usr/local/share/vkbridge/droidbridge_icd.json",
@@ -178,7 +193,7 @@ object SessionFiles {
             "usr/local/lib/droiddeck-pipewire.tzst" to "usr/local/lib/droiddeck-pipewire.tzst",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
             "usr/local/lib/droiddeck-dirt/ws2_32.dll" to "usr/local/lib/droiddeck-dirt/ws2_32.dll",
-        ) + mangoapp + msitools.map { it to it } + vr + gpuLoad + fexPreloads).filter { (asset, _) ->
+        ) + mangoapp + xclipse.map { it to it } + maliCompat + msitools.map { it to it } + vr + gpuLoad + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
         }
