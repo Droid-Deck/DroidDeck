@@ -305,8 +305,14 @@ object LogRedactor {
         src: java.io.File,
         out: java.io.Writer,
         shouldStop: () -> Boolean = { false },
+    ): Boolean = src.inputStream().use { scrubForShare(it, out, shouldStop) }
+
+    fun scrubForShare(
+        src: java.io.InputStream,
+        out: java.io.Writer,
+        shouldStop: () -> Boolean = { false },
     ): Boolean {
-        src.inputStream().buffered().use { input ->
+        src.buffered().use { input ->
             input.mark(2)
             val first = input.read()
             val second = input.read()

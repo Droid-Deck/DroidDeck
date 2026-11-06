@@ -213,6 +213,7 @@ class FrontEndActivity : ComponentActivity() {
     private var integrationState by mutableStateOf(SteamIntegration.State())
     private var integrationFocus by mutableStateOf<SteamIntegration.Feature?>(null)
     private var pendingSessionLogExport: File? = null
+    private var pendingEnhancedLogExport: SessionLogShare.EnhancedSave? = null
     private val wifiLocationReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
             refreshWifiDiscovery()
@@ -273,23 +274,18 @@ class FrontEndActivity : ComponentActivity() {
     }
     private val pickSessionLogExport = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         val folder = pendingSessionLogExport.also { pendingSessionLogExport = null } ?: return@registerForActivityResult
-        if (uri != null) {
-            SessionLogShare.prepare(this, { folder }) { zip ->
-                if (zip == null) {
-                    android.widget.Toast.makeText(this, R.string.setup_log_export_failed, android.widget.Toast.LENGTH_LONG).show()
-                } else Thread({
-                    val saved = runCatching {
-                        contentResolver.openOutputStream(uri)?.use { output -> zip.inputStream().buffered().use { it.copyTo(output) } }
-                            ?: error("Could not open destination")
-                    }.isSuccess
-                    ui.post {
-                        android.widget.Toast.makeText(this,
-                            if (saved) R.string.setup_log_export_saved else R.string.setup_log_export_failed,
-                            android.widget.Toast.LENGTH_LONG).show()
-                    }
-                }, "save-session-logs").start()
+        if (uri != null) SessionLogShare.saveLegacyAsync(applicationContext, folder, uri) { saved ->
+            if (!isFinishing && !isDestroyed) {
+                android.widget.Toast.makeText(this,
+                    if (saved) R.string.setup_log_export_saved else R.string.setup_log_export_failed,
+                    android.widget.Toast.LENGTH_LONG).show()
             }
         }
+    }
+    private val pickEnhancedLogExport = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        val save = pendingEnhancedLogExport.also { pendingEnhancedLogExport = null }
+            ?: return@registerForActivityResult
+        if (uri != null) saveEnhancedArchive(save, uri)
     }
 
     private fun refreshWifiDiscovery() {
@@ -1078,6 +1074,10 @@ class FrontEndActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         pendingSessionLogExport = savedInstanceState?.getString(KEY_PENDING_SESSION_LOG_EXPORT)?.let(::File)
+        pendingEnhancedLogExport = SessionLogShare.restoreSave(
+            this,
+            savedInstanceState?.getStringArrayList(KEY_PENDING_ENHANCED_LOG_EXPORT),
+        )
         homeChoiceOpen = savedInstanceState?.getBoolean(STATE_HOME_CHOICE_OPEN) == true
         gameSpaceOffered = savedInstanceState?.getBoolean(STATE_GAME_SPACE_OFFERED) == true
         if (savedInstanceState == null) readIntegrationIntent(intent)
@@ -1703,10 +1703,11 @@ class FrontEndActivity : ComponentActivity() {
         }
         if (wanted.isNotEmpty()) requestPermissions(wanted.toTypedArray(), 1)
         Thread({ com.droiddeck.launcher.stores.StoreAccounts.encryptAll(this) }, "store-credentials").start()
+        val preserveShareCache = pendingEnhancedLogExport != null
         if (!SessionState.running) Thread({
             com.droiddeck.launcher.session.LogMigration.run(this)
             com.droiddeck.launcher.frontend.GamesFolderMigration.run(this)
-            SessionLogShare.clear(this)
+            if (!preserveShareCache) SessionLogShare.clear(this)
             SessionArtifacts.finishAbandoned(this)
             if (SessionPrefs.takeMemoryKillNotice(this)) runOnUiThread {
                 android.widget.Toast.makeText(this, R.string.session_killed_for_memory, android.widget.Toast.LENGTH_LONG).show()
@@ -1929,6 +1930,9 @@ class FrontEndActivity : ComponentActivity() {
         outState.putBoolean(STATE_HOME_CHOICE_OPEN, homeChoiceOpen)
         outState.putBoolean(STATE_GAME_SPACE_OFFERED, gameSpaceOffered)
         pendingSessionLogExport?.let { outState.putString(KEY_PENDING_SESSION_LOG_EXPORT, it.absolutePath) }
+        pendingEnhancedLogExport?.let {
+            outState.putStringArrayList(KEY_PENDING_ENHANCED_LOG_EXPORT, SessionLogShare.saveState(it))
+        }
         if (slowUsbNever) SessionPrefs.setSlowUsbWarningOff(this)
         saveCompatLaunch(outState)
         pendingSwitch?.let { outState.putParcelable(KEY_PENDING_SWITCH, it) }
@@ -2749,20 +2753,68 @@ class FrontEndActivity : ComponentActivity() {
             }
             label to listOf(zip)
         } + (getString(R.string.diagnostics_share_all) to zips)
+        var selected = 0
         android.app.AlertDialog.Builder(this)
-            .setTitle(R.string.diagnostics_share_title)
-            .setItems(choices.map { it.first }.toTypedArray()) { _, which ->
-                val selected = choices[which].second
+            .setTitle(R.string.diagnostics_export_title)
+            .setSingleChoiceItems(choices.map { it.first }.toTypedArray(), selected) { _, which ->
+                selected = which
+            }
+            .setPositiveButton(R.string.setup_log_share) { _, _ ->
+                val archives = choices[selected].second
                 runCatching {
-                    startActivity(if (selected.size == 1) SessionLogShare.shareIntent(this, selected.single())
-                        else SessionLogShare.shareEnhancedIntent(this, selected))
+                    startActivity(if (archives.size == 1) SessionLogShare.shareIntent(this, archives.single())
+                        else SessionLogShare.shareEnhancedIntent(this, archives))
                 }.onFailure {
                     android.util.Log.w("SessionLogShare", "could not share latest session logs", it)
                     android.widget.Toast.makeText(this, R.string.session_logs_share_failed, android.widget.Toast.LENGTH_LONG).show()
                 }
             }
+            .setNeutralButton(R.string.setup_log_save) { _, _ ->
+                prepareEnhancedArchiveSave(choices[selected].second)
+            }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    private fun prepareEnhancedArchiveSave(zips: List<File>) {
+        val context = applicationContext
+        Thread({
+            val prepared = runCatching { SessionLogShare.prepareEnhancedSave(context, zips) }
+            ui.post {
+                if (isFinishing || isDestroyed) return@post
+                val save = prepared.getOrNull()
+                if (save == null) {
+                    val error = prepared.exceptionOrNull()
+                    error?.let {
+                        android.util.Log.w("SessionLogShare", "could not prepare diagnostic logs", it)
+                    }
+                    val message = if (error?.message?.contains("512 MiB") == true)
+                        getString(R.string.diagnostics_save_too_large) else getString(R.string.setup_log_export_failed)
+                    android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                    return@post
+                }
+                pendingEnhancedLogExport = save
+                runCatching { pickEnhancedLogExport.launch(save.outputName) }.onFailure {
+                    pendingEnhancedLogExport = null
+                    android.util.Log.w("SessionLogShare", "could not open the diagnostic save picker", it)
+                    android.widget.Toast.makeText(context, R.string.setup_log_export_failed, android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        }, "prepare-diagnostic-save").start()
+    }
+
+    private fun saveEnhancedArchive(save: SessionLogShare.EnhancedSave, destination: Uri) {
+        val context = applicationContext
+        Thread({
+            val saved = runCatching { SessionLogShare.saveEnhanced(context, save, destination) }
+                .onFailure { android.util.Log.w("SessionLogShare", "could not save diagnostic logs", it) }
+                .isSuccess
+            ui.post {
+                android.widget.Toast.makeText(context,
+                    if (saved) R.string.setup_log_export_saved else R.string.setup_log_export_failed,
+                    android.widget.Toast.LENGTH_LONG).show()
+            }
+        }, "save-diagnostic-logs").start()
     }
 
     private fun refresh() {
@@ -3036,6 +3088,7 @@ class FrontEndActivity : ComponentActivity() {
     companion object {
         private const val STATE_HOME_CHOICE_OPEN = "home_choice_open"
         private const val KEY_PENDING_SESSION_LOG_EXPORT = "pending_session_log_export"
+        private const val KEY_PENDING_ENHANCED_LOG_EXPORT = "pending_enhanced_log_export"
         private const val STATE_GAME_SPACE_OFFERED = "game_space_offered"
         private const val TAG = "MainActivity"
         private const val MEDIA_SETTLE_MS = 1500L

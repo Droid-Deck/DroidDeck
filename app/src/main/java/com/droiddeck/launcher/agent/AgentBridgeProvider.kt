@@ -19,6 +19,7 @@ import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
 import com.droiddeck.launcher.session.SessionArtifacts
 import com.droiddeck.launcher.session.SessionEvents
 import com.droiddeck.launcher.session.SessionLogShare
+import com.droiddeck.launcher.session.SecureDiagnosticOutput
 import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
@@ -204,14 +205,17 @@ class AgentBridgeProvider : ContentProvider() {
     private fun logDir(context: Context): File? =
         SessionState.logDirectory ?: SessionState.logFile?.parentFile ?: SessionPaths.sessionFolders(context).lastOrNull()
 
-    private fun cleanupExpiredLogExports(exports: File) {
+    private fun cleanupExpiredLogExports(context: Context, exports: File) {
+        if (Files.isSymbolicLink(exports.toPath()) || !exports.isDirectory) return
         val now = System.currentTimeMillis()
         val canonicalRoot = exports.canonicalFile
         exports.listFiles()?.forEach { candidate ->
             val isUuid = runCatching { UUID.fromString(candidate.name).toString() == candidate.name }.getOrDefault(false)
             if (!isUuid || !candidate.isDirectory || Files.isSymbolicLink(candidate.toPath())) return@forEach
             if (candidate.canonicalFile.parentFile != canonicalRoot) return@forEach
-            if (now - candidate.lastModified() >= LOG_EXPORT_RETENTION_MS) candidate.deleteRecursively()
+            if (now - candidate.lastModified() >= LOG_EXPORT_RETENTION_MS) {
+                runCatching { SecureDiagnosticOutput.clear(context, candidate) }
+            }
         }
     }
 
@@ -222,15 +226,12 @@ class AgentBridgeProvider : ContentProvider() {
         val externalFiles = context.getExternalFilesDir(null)
             ?: return error("NO_SESSION_LOGS", "External app storage is unavailable")
         val exports = File(externalFiles, "agent-logs")
-        if ((!exports.exists() && !exports.mkdirs()) || !exports.isDirectory) {
-            return error("NO_SESSION_LOGS", "Could not create the session export directory")
-        }
-        cleanupExpiredLogExports(exports)
+        runCatching { cleanupExpiredLogExports(context, exports) }
         val output = File(exports, UUID.randomUUID().toString())
         val zip = try {
             SessionLogShare.zipFolder(context, dir, output)
         } catch (error: Exception) {
-            output.deleteRecursively()
+            runCatching { SecureDiagnosticOutput.clear(context, output) }
             throw error
         }
             ?: return error("NO_SESSION_LOGS", "The session artifact directory is empty")

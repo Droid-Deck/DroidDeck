@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.core
 
+import java.io.ByteArrayInputStream
 import java.io.StringWriter
 import java.io.Writer
 import org.junit.Assert.assertEquals
@@ -63,6 +64,18 @@ class LogRedactorStreamTest {
         val out = StringWriter()
         LogRedactor.scrubForShare(src, out)
         assertEquals("hazır=✓ token=<redacted:token>\n\nstatus=ok\nson\n", out.toString())
+    }
+
+    @Test fun inputStreamAndFileRedactionAreIdentical() {
+        val bytes = "ready=1 token=synthetic_private_value\r\nstatus=ok\n".toByteArray()
+        val src = tmp.newFile().apply { writeBytes(bytes) }
+        val fileOutput = StringWriter()
+        val streamOutput = StringWriter()
+
+        LogRedactor.scrubForShare(src, fileOutput)
+        LogRedactor.scrubForShare(ByteArrayInputStream(bytes), streamOutput)
+
+        assertEquals(fileOutput.toString(), streamOutput.toString())
     }
 
     @Test fun aLogAboveTheInMemoryLimitIsStillStreamed() {

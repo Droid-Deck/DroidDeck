@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import android.hardware.input.InputManager
 import android.hardware.display.DisplayManager
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
@@ -498,6 +499,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val pickLossless = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { importLossless(it) }
     }
+    private var pendingEnhancedLogExport: SessionLogShare.EnhancedSave? = null
+    private val pickEnhancedLogExport = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        val save = pendingEnhancedLogExport.also { pendingEnhancedLogExport = null }
+            ?: return@registerForActivityResult
+        if (uri != null) saveEnhancedArchive(save, uri)
+    }
     private var frameGen by mutableStateOf(FrameGen.Mode.OFF)
     private var frameGenPip = false
     private val frameGenRequests = java.util.concurrent.atomic.AtomicInteger()
@@ -611,6 +618,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingEnhancedLogExport = SessionLogShare.restoreSave(
+            this,
+            savedInstanceState?.getStringArrayList(KEY_PENDING_ENHANCED_LOG_EXPORT),
+        )
         if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isRemoving() ||
             com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isMaintaining()) {
             runtimeRemovalBlocked = true
@@ -1917,6 +1928,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun shareEnhancedArchives(zips: List<File>) {
+        if (isFinishing || isDestroyed) return
         val choices = zips.map { zip ->
             val label = when {
                 zip.name.endsWith("-session.zip") -> getString(R.string.diagnostics_share_session)
@@ -1925,20 +1937,73 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
             label to listOf(zip)
         } + (getString(R.string.diagnostics_share_all) to zips)
+        var selected = 0
         android.app.AlertDialog.Builder(this)
-            .setTitle(R.string.diagnostics_share_title)
-            .setItems(choices.map { it.first }.toTypedArray()) { _, which ->
-                val selected = choices[which].second
+            .setTitle(R.string.diagnostics_export_title)
+            .setSingleChoiceItems(choices.map { it.first }.toTypedArray(), selected) { _, which ->
+                selected = which
+            }
+            .setPositiveButton(R.string.setup_log_share) { _, _ ->
+                val archives = choices[selected].second
                 runCatching {
-                    startActivity(if (selected.size == 1) SessionLogShare.shareIntent(this, selected.single())
-                        else SessionLogShare.shareEnhancedIntent(this, selected))
+                    startActivity(if (archives.size == 1) SessionLogShare.shareIntent(this, archives.single())
+                        else SessionLogShare.shareEnhancedIntent(this, archives))
                 }.onFailure {
                     Log.w(TAG, "could not share current session logs", it)
                     Toast.makeText(this, R.string.session_logs_share_failed, Toast.LENGTH_LONG).show()
                 }
             }
+            .setNeutralButton(R.string.setup_log_save) { _, _ ->
+                prepareEnhancedArchiveSave(choices[selected].second)
+            }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    private fun prepareEnhancedArchiveSave(zips: List<File>) {
+        val context = applicationContext
+        Thread({
+            val prepared = runCatching { SessionLogShare.prepareEnhancedSave(context, zips) }
+            uiHandler.post {
+                if (isFinishing || isDestroyed) return@post
+                val save = prepared.getOrNull()
+                if (save == null) {
+                    val error = prepared.exceptionOrNull()
+                    error?.let { Log.w(TAG, "could not prepare diagnostic logs", it) }
+                    val message = if (error?.message?.contains("512 MiB") == true)
+                        getString(R.string.diagnostics_save_too_large) else getString(R.string.setup_log_export_failed)
+                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                    return@post
+                }
+                pendingEnhancedLogExport = save
+                runCatching { pickEnhancedLogExport.launch(save.outputName) }.onFailure {
+                    pendingEnhancedLogExport = null
+                    Log.w(TAG, "could not open the diagnostic save picker", it)
+                    Toast.makeText(context, R.string.setup_log_export_failed, Toast.LENGTH_LONG).show()
+                }
+            }
+        }, "prepare-diagnostic-save").start()
+    }
+
+    private fun saveEnhancedArchive(save: SessionLogShare.EnhancedSave, destination: Uri) {
+        val context = applicationContext
+        Thread({
+            val saved = runCatching { SessionLogShare.saveEnhanced(context, save, destination) }
+                .onFailure { Log.w(TAG, "could not save diagnostic logs", it) }
+                .isSuccess
+            uiHandler.post {
+                Toast.makeText(context,
+                    if (saved) R.string.setup_log_export_saved else R.string.setup_log_export_failed,
+                    Toast.LENGTH_LONG).show()
+            }
+        }, "save-diagnostic-logs").start()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        pendingEnhancedLogExport?.let {
+            outState.putStringArrayList(KEY_PENDING_ENHANCED_LOG_EXPORT, SessionLogShare.saveState(it))
+        }
+        super.onSaveInstanceState(outState)
     }
 
     private fun readPrefs() {
@@ -5187,6 +5252,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         private const val BOTTOM_RECOVERY_MS = 1_000L
         private const val BOTTOM_RECOVERY_TRIES = 3
         private const val TAG = "SessionActivity"
+        private const val KEY_PENDING_ENHANCED_LOG_EXPORT = "pending_enhanced_log_export"
         private var startedScreens = 0
         @Volatile private var activeInstallWorker: Any? = null
         private const val FEX_MISSING = "droiddeck-fex: x86 Linux programs need"
