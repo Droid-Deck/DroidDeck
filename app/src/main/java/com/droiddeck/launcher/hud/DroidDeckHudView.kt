@@ -276,16 +276,8 @@ class DroidDeckHudView(context: Context) : View(context) {
             seenFpsUpdates = updates
             periodDone.trySend(Unit)
         }
-        if (graphRect == null) return
-        if (stripRect != null) {
-            val now = SystemClock.uptimeMillis()
-            if (now - lastGraphDrawMs < GRAPH_REDRAW_MS) return
-            lastGraphDrawMs = now
-        }
-        invalidate()
+        if (graphRect != null) invalidate()
     }
-
-    private var lastGraphDrawMs = 0L
 
     private fun cycleSize() {
         size = size.next()
@@ -433,11 +425,8 @@ class DroidDeckHudView(context: Context) : View(context) {
     )
 
     private fun rebuildAndInvalidate() {
-        val wasStrip = stripRect != null
-        val oldW = contentW; val oldH = contentH
         rebuild()
-        val stillStrip = wasStrip && stripRect != null
-        if (!stillStrip || oldW != contentW || oldH != contentH) requestLayout()
+        requestLayout()
         invalidate()
     }
 
@@ -1525,7 +1514,6 @@ class DroidDeckHudView(context: Context) : View(context) {
         const val TAB_PAD_X_SP = 7f
         const val TAB_PAD_Y_SP = 5.5f
         const val REFRESH_MS = 500L
-        const val GRAPH_REDRAW_MS = 33L
         private const val HUE_IDLE_MS = 500L
         const val MIN_SCALE = 0.5f
         const val MAX_SCALE = 2f
