@@ -6,6 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -148,6 +149,31 @@ class ComponentUpdatesTest {
         assertEquals(true, ComponentsManager.arm64ec(context, proton, "dxvk"))
         active("Test-Proton-2")
         assertNull(ComponentsManager.arm64ec(context, proton, "dxvk"))
+    }
+
+    @Test fun aFailedSaveKeepsTheLastGoodStateAndTheNextSaveReplacesItWhole() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val dir = File(context.filesDir, "components").apply { mkdirs() }
+        val state = File(dir, "updates.json")
+        val saved = JSONObject().put("checkedAt", System.currentTimeMillis()).put("lines", JSONObject().put("fex", JSONObject()
+            .put("current", "DD-FEXCore-2611+3-nightly.wcp").put("bad", JSONArray().put("DD-FEXCore-2611+2-nightly.wcp")))).toString()
+        state.writeText(saved)
+        state.setWritable(false)
+        dir.setWritable(false)
+        try {
+            ComponentUpdater.ensure(context, false)
+        } finally {
+            dir.setWritable(true)
+            state.setWritable(true)
+        }
+        assertEquals(saved, state.readText())
+
+        ComponentUpdater.ensure(context, false)
+        val fex = JSONObject(state.readText()).getJSONObject("lines").getJSONObject("fex")
+        assertEquals("DD-FEXCore-2611+3-nightly.wcp", fex.getString("current"))
+        assertEquals("DD-FEXCore-2611+2-nightly.wcp", fex.getJSONArray("bad").getString(0))
+        assertFalse(state.readText() == saved)
+        assertTrue(dir.list()!!.none { it.startsWith("updates.json.") })
     }
 
     @Test fun onlyTheCurrentAndThePreviousBuildAndUserSelectionsAreKept() {

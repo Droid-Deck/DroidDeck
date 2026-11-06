@@ -1,9 +1,9 @@
 package com.droiddeck.launcher.session
 
 import android.content.Context
+import android.util.AtomicFile
 import android.util.Log
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.frontend.AutoComponents
 import org.json.JSONArray
 import org.json.JSONObject
@@ -20,15 +20,18 @@ object ComponentUpdater {
     private fun file(context: Context) = File(File(context.filesDir, "components").apply { mkdirs() }, "updates.json")
 
     private fun load(context: Context): JSONObject =
-        runCatching { JSONObject(FileUtils.readString(file(context)) ?: "{}") }.getOrDefault(JSONObject())
+        runCatching { JSONObject(String(AtomicFile(file(context)).readFully(), Charsets.UTF_8)) }.getOrDefault(JSONObject())
 
     private fun save(context: Context, state: JSONObject) {
-        val target = file(context)
-        val tmp = File(target.parentFile, target.name + ".tmp")
-        val text = state.toString(1)
-        if (FileUtils.writeString(tmp, text) && tmp.renameTo(target)) return
-        tmp.delete()
-        if (!FileUtils.writeString(target, text)) Log.w(TAG, "could not save ${target.path}")
+        val atomic = AtomicFile(file(context))
+        val output = runCatching { atomic.startWrite() }.onFailure { Log.w(TAG, "could not save", it) }.getOrNull() ?: return
+        try {
+            output.write(state.toString(1).toByteArray(Charsets.UTF_8))
+            atomic.finishWrite(output)
+        } catch (error: Exception) {
+            atomic.failWrite(output)
+            Log.w(TAG, "could not save", error)
+        }
     }
 
     private fun Map<String, Map<String, ComponentsManager.Choice>>.fileOf(p: ComponentsManager.Proton, comp: String): String? =
