@@ -3629,11 +3629,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             selectGameField()
             if (text.isEmpty()) host.tap(KeyEvent.KEYCODE_DEL)
         } else {
-            WaylandCompositor.nativeSendKey(KEY_END, 1)
-            WaylandCompositor.nativeSendKey(KEY_END, 0)
+            endGameField()
         }
         host.type(text)
         host.tap(KeyEvent.KEYCODE_ENTER)
+        uiHandler.postDelayed({
+            if (AgentGuest.gameTextField && com.droiddeck.launcher.ui.WowChat.isWow(AgentGuest.gameProgram)) endGameField()
+        }, FIELD_SETTLE_MS)
+    }
+
+    private fun endGameField() {
+        WaylandCompositor.nativeSendKey(KEY_END, 1)
+        WaylandCompositor.nativeSendKey(KEY_END, 0)
     }
 
     private fun selectGameField(vararg then: Int) {
@@ -3647,10 +3654,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun readGameField(done: (String?) -> Unit) {
-        sessionClipboard.captureGuest(FIELD_READ_MS, onTimeout = {
-            WaylandCompositor.nativeSendKey(KEY_END, 1)
-            WaylandCompositor.nativeSendKey(KEY_END, 0)
-        }, onText = done)
+        sessionClipboard.captureGuest(FIELD_READ_MS, onTimeout = ::endGameField) { text ->
+            if (text != null) endGameField()
+            done(text)
+        }
         selectGameField(KEY_C)
     }
 
@@ -5293,6 +5300,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         private const val KEY_C = 46
         private const val KEY_END = 107
         private const val FIELD_READ_MS = 600L
+        private const val FIELD_SETTLE_MS = 200L
         private const val BTN_SIDE = 0x113
         private const val BTN_EXTRA = 0x114
         private const val DESKTOP_GRAB_TAP_MS = 500L
