@@ -169,6 +169,17 @@ class OnScreenControlsTest {
         assertEquals(true, field(control("ls"), "clicked"))
     }
 
+    @Test fun aCancelledSecondFingerDoesNotArmAStickClick() {
+        touch(MotionEvent.ACTION_DOWN, 7 to (660f to 400f))
+        touch(MotionEvent.ACTION_POINTER_DOWN or (1 shl 8), 7 to (660f to 400f), 9 to (540f to 400f))
+        touch(MotionEvent.ACTION_POINTER_UP or (1 shl 8), 7 to (660f to 400f), 9 to (540f to 400f), flags = MotionEvent.FLAG_CANCELED)
+        touch(MotionEvent.ACTION_POINTER_DOWN or (1 shl 8), 7 to (660f to 400f), 9 to (540f to 400f))
+        assertEquals(false, field(control("ls"), "clicked"))
+        touch(MotionEvent.ACTION_POINTER_UP or (1 shl 8), 7 to (660f to 400f), 9 to (540f to 400f))
+        touch(MotionEvent.ACTION_POINTER_DOWN or (1 shl 8), 7 to (660f to 400f), 9 to (540f to 400f))
+        assertEquals(true, field(control("ls"), "clicked"))
+    }
+
     @Test fun movingTheStickAndTouchingItAgainDoesNotClickIt() {
         touch(MotionEvent.ACTION_DOWN, 1 to (540f to 400f))
         touch(MotionEvent.ACTION_MOVE, 1 to (600f to 400f))
@@ -503,10 +514,10 @@ class OnScreenControlsTest {
         return color
     }
 
-    private fun touch(action: Int, vararg pointers: Pair<Int, Pair<Float, Float>>): Boolean {
+    private fun touch(action: Int, vararg pointers: Pair<Int, Pair<Float, Float>>, flags: Int = 0): Boolean {
         val properties = pointers.map { (id, _) -> MotionEvent.PointerProperties().apply { this.id = id; toolType = MotionEvent.TOOL_TYPE_FINGER } }.toTypedArray()
         val coords = pointers.map { (_, position) -> MotionEvent.PointerCoords().apply { x = position.first; y = position.second; pressure = 1f; size = 1f } }.toTypedArray()
-        val event = MotionEvent.obtain(1000L, time++, action, pointers.size, properties, coords, 0, 0, 1f, 1f, 0, 0, 0, 0)
+        val event = MotionEvent.obtain(1000L, time++, action, pointers.size, properties, coords, 0, 0, 1f, 1f, 0, 0, 0, flags)
         return try { view.onTouchEvent(event) } finally { event.recycle() }
     }
 }

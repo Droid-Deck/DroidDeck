@@ -84,7 +84,8 @@ class OnScreenControls(
     private fun stickTap(control: Control, event: MotionEvent): Boolean {
         val i = event.actionIndex
         val travel = max(control.travel, hypot(event.getX(i) - control.downX, event.getY(i) - control.downY))
-        return stickTap(control.downAt, event.eventTime, travel, tapSlop, control.clicked, event.actionMasked == MotionEvent.ACTION_CANCEL)
+        return stickTap(control.downAt, event.eventTime, travel, tapSlop, control.clicked,
+            event.actionMasked == MotionEvent.ACTION_CANCEL || (event.flags and MotionEvent.FLAG_CANCELED) != 0)
     }
 
     private val controls = listOf(
