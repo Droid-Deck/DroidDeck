@@ -23,6 +23,19 @@ object ComponentUpdates {
         Line("fex", "fex", "DD-FEXCore-"),
     )
 
+    private val OWN_PREFIX = ProtonExtras.tools.first { it.id == ProtonExtras.OWN }.prefix
+
+    fun follows(p: ComponentsManager.Proton): Boolean = !p.valve && p.dir.name.startsWith(OWN_PREFIX)
+
+    fun strays(
+        protons: List<ComponentsManager.Proton>,
+        choices: Map<String, Map<String, ComponentsManager.Choice>>,
+        placed: Set<String>,
+    ): List<Pair<ComponentsManager.Proton, String>> =
+        protons.filterNot(::follows).flatMap { p ->
+            choices[p.id].orEmpty().filter { (_, c) -> !c.auto && c.protonVersion == p.version && c.file in placed }.keys.map { p to it }
+        }
+
     fun line(comp: String, arm64ec: Boolean): Line = LINES.first {
         it.comp == comp && (comp == "fex" || it.key.endsWith("-arm64ec") == arm64ec)
     }

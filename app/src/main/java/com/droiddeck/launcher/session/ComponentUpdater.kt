@@ -13,6 +13,7 @@ object ComponentUpdater {
     private const val TAG = "ComponentUpdater"
     private const val CHECK_EVERY_MS = 3_600_000L
     private const val BOOTED_KEPT = 200
+    private const val HANDED_BACK = "handedBack"
     private val lock = Any()
     private val io = Any()
 
@@ -57,7 +58,8 @@ object ComponentUpdater {
 
     fun settle(context: Context) {
         val owned = load(context).optJSONObject("lines")?.let { lines -> lines.keys().asSequence().flatMap { lines.optJSONObject(it).strings("owned") }.toSet() } ?: emptySet()
-        val choices = ComponentsManager.activeChoices(context).values.flatMap { it.entries }
+        val own = runCatching { ComponentsManager.protons(context) }.getOrDefault(emptyList()).filter(ComponentUpdates::follows).mapTo(HashSet()) { it.id }
+        val choices = ComponentsManager.activeChoices(context).filterKeys { it in own }.values.flatMap { it.entries }
         for (comp in ComponentsManager.COMPONENTS) {
             if (SessionPrefs.componentModeChosen(context, comp)) continue
             val manual = choices.any { (c, choice) -> c == comp && !choice.auto && choice.file !in owned && !choice.file.startsWith("original ") }
@@ -80,7 +82,7 @@ object ComponentUpdater {
         logLines(context).mapNotNull { STAMP.find(it)?.groupValues?.get(1) }.maxOrNull() ?: "0"
 
     private fun lineOf(context: Context, state: JSONObject, p: ComponentsManager.Proton, comp: String): ComponentUpdates.Line? {
-        if (!ComponentsManager.supports(p, comp)) return null
+        if (!ComponentUpdates.follows(p) || !ComponentsManager.supports(p, comp)) return null
         if (comp == "fex") return ComponentUpdates.line("fex", false)
         val key = "${p.id}|${p.version}"
         val flavors = state.obj("flavors").obj(key)
@@ -94,6 +96,7 @@ object ComponentUpdater {
         val state = load(context)
         val notes = ArrayList<String>()
         val protons = runCatching { ComponentsManager.protons(context) }.getOrDefault(emptyList())
+        handBack(context, state, protons)
         judge(context, state, protons, notes)
         val due = force || System.currentTimeMillis() - state.optLong("checkedAt") >= CHECK_EVERY_MS
         val wanted = ComponentsManager.COMPONENTS.filter { managed(context, it) }
@@ -208,6 +211,25 @@ object ComponentUpdater {
             ls.put("note", pending)
             notes += pending
         }
+    }
+
+    internal fun placed(state: JSONObject): Set<String> {
+        val lines = state.optJSONObject("lines") ?: return emptySet()
+        return lines.keys().asSequence().flatMap { k ->
+            val ls = lines.optJSONObject(k) ?: return@flatMap emptySequence()
+            (ls.strings("owned") + ls.strings("bad") + ls.optString("current") + ls.optString("previous")).asSequence()
+        }.filter { it.isNotEmpty() }.toSet()
+    }
+
+    private fun handBack(context: Context, state: JSONObject, protons: List<ComponentsManager.Proton>) {
+        if (state.optBoolean(HANDED_BACK)) return
+        val placed = placed(state)
+        val strays = ComponentUpdates.strays(protons, ComponentsManager.activeChoices(context), placed)
+        for ((p, comp) in strays) {
+            runCatching { ComponentsManager.restore(context, p.id, comp, ComponentsManager.safeName(p.version)) }
+                .onFailure { Log.w(TAG, "hand back ${p.name} $comp", it) }
+        }
+        if (ComponentUpdates.strays(protons, ComponentsManager.activeChoices(context), placed).isEmpty()) state.put(HANDED_BACK, true)
     }
 
     internal fun dropRemoved(state: JSONObject, protons: List<ComponentsManager.Proton>) {

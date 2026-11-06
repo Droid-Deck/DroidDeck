@@ -236,6 +236,50 @@ class ComponentUpdatesTest {
         assertEquals("DD-FEXCore-2611+2-nightly.wcp", fex.getJSONArray("bad").getString(0))
     }
 
+    private fun proton(dir: String, valve: Boolean = false, version: String = "$dir-1") =
+        ComponentsManager.Proton(dir, dir, File("/steam/compatibilitytools.d/$dir"), "/p/$dir", version, valve)
+
+    @Test fun autoFollowsOnlyDroidDeckProton() {
+        assertTrue(ComponentUpdates.follows(proton("DroidDeck-Proton-10.0-7")))
+        assertFalse(ComponentUpdates.follows(proton("DroidDeck-Proton-10.0-7", valve = true)))
+        assertFalse(ComponentUpdates.follows(proton("droiddeck-proton-arm64")))
+        assertFalse(ComponentUpdates.follows(proton("droiddeck-proton-11-arm64")))
+        assertFalse(ComponentUpdates.follows(proton("GE-Proton10-25")))
+        assertFalse(ComponentUpdates.follows(proton("proton-cachyos-10.0-20251101-slr-arm64")))
+    }
+
+    @Test fun onlyAutosOwnBuildsInOtherProtonsAreHandedBack() {
+        val dd = proton("DroidDeck-Proton-10.0-7")
+        val ge = proton("GE-Proton10-25")
+        val valve = proton("Proton - Experimental", valve = true)
+        val choices = mapOf(
+            dd.id to mapOf("dxvk" to ComponentsManager.Choice("DD-dxvk-3.1.1+190-nightly.wcp", false, dd.version)),
+            ge.id to mapOf(
+                "dxvk" to ComponentsManager.Choice("DD-dxvk-3.1.1+190-nightly.wcp", false, ge.version),
+                "vkd3d" to ComponentsManager.Choice("vkd3d-proton-3.0-mine.wcp", false, ge.version),
+                "fex" to ComponentsManager.Choice("DD-FEXCore-2611+3-nightly.wcp", false, "GE-Proton10-24"),
+            ),
+            valve.id to mapOf(
+                "fex" to ComponentsManager.Choice("DD-FEXCore-2611+3-nightly.wcp", false, valve.version),
+                "dxvk" to ComponentsManager.Choice("DD-dxvk-3.1.1+190-nightly.wcp", true, valve.version),
+            ),
+        )
+        val placed = setOf("DD-dxvk-3.1.1+190-nightly.wcp", "DD-FEXCore-2611+3-nightly.wcp")
+        assertEquals(
+            setOf(ge.id to "dxvk", valve.id to "fex"),
+            ComponentUpdates.strays(listOf(dd, ge, valve), choices, placed).map { (p, c) -> p.id to c }.toSet(),
+        )
+    }
+
+    @Test fun everyBuildAutoEverPlacedCountsAsItsOwn() {
+        val state = JSONObject().put("lines", JSONObject()
+            .put("dxvk", JSONObject().put("current", "b.wcp").put("previous", ComponentUpdates.ORIGINAL)
+                .put("owned", JSONArray().put("a.wcp").put("b.wcp")).put("bad", JSONArray().put("c.wcp")))
+            .put("fex", JSONObject().put("current", "f2.wcp").put("previous", "f1.wcp")))
+        assertEquals(setOf("a.wcp", "b.wcp", "c.wcp", "f1.wcp", "f2.wcp"), ComponentUpdater.placed(state))
+        assertEquals(emptySet<String>(), ComponentUpdater.placed(JSONObject()))
+    }
+
     @Test fun onlyTheCurrentAndThePreviousBuildAndUserSelectionsAreKept() {
         assertEquals(setOf("b.wcp", "a.wcp", "mine.wcp"), ComponentUpdates.keep("b.wcp", "a.wcp", setOf("mine.wcp")))
         assertEquals(setOf("b.wcp"), ComponentUpdates.keep("b.wcp", ComponentUpdates.ORIGINAL, emptySet()))
