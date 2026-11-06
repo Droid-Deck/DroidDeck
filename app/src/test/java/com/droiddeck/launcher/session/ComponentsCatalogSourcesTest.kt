@@ -4,6 +4,7 @@ import android.content.Context
 import com.droiddeck.launcher.artifact.RepositorySources
 import com.droiddeck.launcher.artifact.GitHubArtifacts
 import com.droiddeck.launcher.core.Hashes
+import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.github.luben.zstd.ZstdOutputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
@@ -25,6 +26,9 @@ import java.io.File
 import java.io.IOException
 import java.io.ByteArrayInputStream
 import java.net.HttpURLConnection
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.attribute.BasicFileAttributes
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -36,8 +40,12 @@ class ComponentsCatalogSourcesTest {
     private lateinit var context: Context
     private val productionRefresher = ComponentsManager.catalogRefresher
     private val productionReleaseRefresher = ComponentsManager.catalogReleaseRefresher
+    private val productionSidecarReader = ComponentsManager.catalogSidecarReader
     private val productionDownloader = ComponentsManager.packageDownloader
     private val productionReceiptWriter = ComponentsManager.packageReceiptWriter
+    private val productionHasher = ComponentsManager.packageHasher
+    private val productionBackupWriter = ComponentsManager.packageBackupWriter
+    private val productionCacheCleaner = ComponentsManager.unpackedCacheCleaner
 
     @Before
     fun setUp() {
@@ -52,16 +60,24 @@ class ComponentsCatalogSourcesTest {
         }
         ComponentsManager.catalogRefresher = productionRefresher
         ComponentsManager.catalogReleaseRefresher = productionReleaseRefresher
+        ComponentsManager.catalogSidecarReader = productionSidecarReader
         ComponentsManager.packageDownloader = productionDownloader
         ComponentsManager.packageReceiptWriter = productionReceiptWriter
+        ComponentsManager.packageHasher = productionHasher
+        ComponentsManager.packageBackupWriter = productionBackupWriter
+        ComponentsManager.unpackedCacheCleaner = productionCacheCleaner
     }
 
     @After
     fun tearDown() {
         ComponentsManager.catalogRefresher = productionRefresher
         ComponentsManager.catalogReleaseRefresher = productionReleaseRefresher
+        ComponentsManager.catalogSidecarReader = productionSidecarReader
         ComponentsManager.packageDownloader = productionDownloader
         ComponentsManager.packageReceiptWriter = productionReceiptWriter
+        ComponentsManager.packageHasher = productionHasher
+        ComponentsManager.packageBackupWriter = productionBackupWriter
+        ComponentsManager.unpackedCacheCleaner = productionCacheCleaner
     }
 
     @Test
@@ -156,7 +172,7 @@ class ComponentsCatalogSourcesTest {
             calls++
             ComponentsManager.ReleaseRefresh(1234, emptyList())
         }
-        val shared = HashMap<String, ComponentsManager.ReleaseRefresh>()
+        val shared = ComponentsManager.CatalogRefreshCache()
         val fex = RepositorySources.visible(context, ComponentsManager.sourceScope("fex"), ComponentsManager.sourceBuiltIns("fex")).single()
         ComponentsManager.refreshCatalogSource(context, "fex", fex, shared)
         val staleDxvk = RepositorySources.visible(
@@ -170,6 +186,114 @@ class ComponentsCatalogSourcesTest {
             ComponentsManager.refreshCatalogSource(context, "dxvk", staleDxvk, shared)
         }.isFailure)
         assertEquals(1, calls)
+    }
+
+    @Test
+    fun genericSidecarBytesAreValidatedOncePerRefreshAndReusedAcrossScopes() {
+        val repository = RepositorySources.canonicalRepository("The412Banner/Nightlies")
+        val repositoryId = 1234L
+        val sidecar = GitHubArtifacts.Asset(
+            20, "droiddeck-component.json",
+            GitHubArtifacts.releaseAssetUrl(repository, "v1", "droiddeck-component.json"),
+            100, "a".repeat(64),
+        )
+        val archive = GitHubArtifacts.Asset(
+            21, "fex.wcp", GitHubArtifacts.releaseAssetUrl(repository, "v1", "fex.wcp"),
+            123, "b".repeat(64),
+        )
+        val release = GitHubArtifacts.Release(10, "v1", "", "", "", false, listOf(sidecar, archive))
+        val manifest = JSONObject().put("schema", 1).put("component", "fex").put(
+            "artifact", JSONObject().put("name", archive.name).put("size", archive.size).put("sha256", archive.sha256),
+        ).toString().toByteArray()
+        val bound = ComponentsManager.COMPONENTS.associateWith { comp ->
+            val source = ComponentsManager.sources(context, comp).single { it.repository == repository }
+            RepositorySources.bind(
+                context, ComponentsManager.sourceScope(comp), ComponentsManager.sourceBuiltIns(comp), source,
+                repositoryId, RepositorySources.generation(
+                    context, ComponentsManager.sourceScope(comp), ComponentsManager.sourceBuiltIns(comp),
+                ),
+            )
+        }
+        val cache = ComponentsManager.CatalogRefreshCache().apply {
+            releases[repository] = ComponentsManager.ReleaseRefresh(repositoryId, listOf(release))
+        }
+        var reads = 0
+        ComponentsManager.catalogSidecarReader = { _, _, _, _, _, _, _ -> reads++; manifest }
+
+        val rows = listOf("fex", "dxvk").flatMap { comp ->
+            ComponentsManager.refreshCatalogSource(context, comp, bound.getValue(comp), cache)
+        }
+        val stale = bound.getValue("vkd3d")
+        ComponentsManager.saveSources(context, "vkd3d", ComponentsManager.sources(context, "vkd3d").map {
+            if (it.id == stale.id) it.copy(hidden = true) else it
+        })
+
+        assertEquals(1, reads)
+        assertEquals(listOf("fex.wcp"), rows.map { it.file })
+        assertTrue(runCatching {
+            ComponentsManager.refreshCatalogSource(context, "vkd3d", stale, cache)
+        }.isFailure)
+        assertEquals(1, reads)
+        val nextRefresh = ComponentsManager.CatalogRefreshCache().apply {
+            releases[repository] = ComponentsManager.ReleaseRefresh(repositoryId, listOf(release))
+        }
+        ComponentsManager.refreshCatalogSource(context, "fex", bound.getValue("fex"), nextRefresh)
+        assertEquals(2, reads)
+    }
+
+    @Test
+    fun legacyPackageCannotBeReplacedBetweenValidationAndReceiptWrite() {
+        val comp = "dxvk"
+        val source = ComponentsManager.sources(context, comp).single {
+            it.repository == RepositorySources.canonicalRepository("The412Banner/Nightlies")
+        }
+        val generation = RepositorySources.generation(
+            context, ComponentsManager.sourceScope(comp), ComponentsManager.sourceBuiltIns(comp),
+        )
+        val bound = RepositorySources.bind(
+            context, ComponentsManager.sourceScope(comp), ComponentsManager.sourceBuiltIns(comp), source,
+            1234L, generation,
+        )
+        val packages = File(context.filesDir, "components/packages").apply { mkdirs() }
+        val installed = File(packages, "adopted.wcp").also { writeWcp(it, "validated package") }
+        val validatedBytes = installed.readBytes()
+        val item = ComponentsManager.CatalogItem(
+            installed.name, comp, "Dxvk-Linux",
+            GitHubArtifacts.releaseAssetUrl(bound.repository, "Dxvk-Linux", installed.name),
+            installed.length(), "sha256:${Hashes.sha256(installed)}", bound.id, bound.repository,
+            bound.repositoryId!!, 44, 55, installed.name,
+        )
+        ComponentsManager.catalogRefresher = { _, requested, _, _ -> if (requested == comp) listOf(item) else emptyList() }
+        val receiptWritten = CountDownLatch(1)
+        val releaseReceipt = CountDownLatch(1)
+        ComponentsManager.packageReceiptWriter = { file, bytes ->
+            RepositorySources.atomicWrite(file, bytes)
+            receiptWritten.countDown()
+            check(releaseReceipt.await(5, TimeUnit.SECONDS))
+        }
+        val errors = ConcurrentLinkedQueue<Throwable>()
+        val catalog = thread {
+            runCatching { ComponentsManager.catalog(context, true, setOf(comp)) }.onFailure(errors::add)
+        }
+        assertTrue(receiptWritten.await(5, TimeUnit.SECONDS))
+        val replacement = File(context.cacheDir, "replacement-import.wcp").also { writeWcp(it, "replacement") }
+        val imported = CountDownLatch(1)
+        val importer = thread {
+            runCatching { ComponentsManager.importPackage(context, replacement, installed.name) }.onFailure(errors::add)
+            imported.countDown()
+        }
+        assertFalse("import replaced a package during provenance adoption", imported.await(150, TimeUnit.MILLISECONDS))
+        assertArrayEquals(validatedBytes, installed.readBytes())
+        val receipt = JSONObject(File(packages, "${installed.name}.source.json").readText())
+        assertEquals(Hashes.sha256(installed), receipt.getString("sha256"))
+
+        releaseReceipt.countDown()
+        catalog.join(5_000)
+        importer.join(5_000)
+        assertTrue(errors.toString(), errors.isEmpty())
+        assertTrue(imported.await(1, TimeUnit.SECONDS))
+        assertArrayEquals(replacement.readBytes(), installed.readBytes())
+        assertFalse(File(packages, "${installed.name}.source.json").exists())
     }
 
     @Test
@@ -554,6 +678,177 @@ class ComponentsCatalogSourcesTest {
             assertArrayEquals(payload.readBytes(), dest.readBytes())
             assertEquals(bound.repository, JSONObject(receipt.readText()).getString("repository"))
         }
+    }
+
+    @Test
+    fun sourceChangesDuringSlowPackageHashingAbortWithoutTouchingTheDestination() {
+        val comp = "dxvk"
+        val custom = RepositorySources.source("wallentx/slow-components")
+        ComponentsManager.saveSources(context, comp, ComponentsManager.sources(context, comp).map { it.copy(hidden = true) } + custom)
+        val scope = ComponentsManager.sourceScope(comp)
+        val builtIns = ComponentsManager.sourceBuiltIns(comp)
+        val generation = RepositorySources.generation(context, scope, builtIns)
+        val bound = RepositorySources.bind(context, scope, builtIns, custom, 1234L, generation)
+        val payload = File(context.cacheDir, "slow-download.wcp").also { writeWcp(it, "new package") }
+        val packages = File(context.filesDir, "components/packages").apply { mkdirs() }
+        val dest = File(packages, "slow.wcp").also { writeWcp(it, "previous package") }
+        val previous = dest.readBytes()
+        val receipt = File(packages, "slow.wcp.source.json").apply { writeText("previous receipt") }
+        val item = ComponentsManager.CatalogItem(
+            "slow.wcp", comp, "v1", GitHubArtifacts.releaseAssetUrl(bound.repository, "v1", "slow.wcp"),
+            payload.length(), "sha256:${Hashes.sha256(payload)}", bound.id, bound.repository,
+            bound.repositoryId!!, 44, 55, dest.name,
+        )
+        ComponentsManager.packageDownloader = { _, output, _, _ -> payload.copyTo(output, overwrite = true); true }
+        val hashing = CountDownLatch(1)
+        val releaseHash = CountDownLatch(1)
+        ComponentsManager.packageHasher = { file ->
+            if (file == dest) {
+                hashing.countDown()
+                check(releaseHash.await(5, TimeUnit.SECONDS))
+            }
+            Hashes.sha256(file)
+        }
+        val errors = ConcurrentLinkedQueue<Throwable>()
+        val adopter = thread { runCatching { ComponentsManager.download(context, item) {} }.onFailure(errors::add) }
+        assertTrue(hashing.await(5, TimeUnit.SECONDS))
+        val sourceSaved = CountDownLatch(1)
+        thread {
+            ComponentsManager.saveSources(context, comp, ComponentsManager.sources(context, comp).map {
+                if (it.id == bound.id) it.copy(hidden = true) else it
+            })
+            sourceSaved.countDown()
+        }
+        assertTrue("source save waited for package hashing", sourceSaved.await(2, TimeUnit.SECONDS))
+        releaseHash.countDown()
+        adopter.join(5_000)
+
+        assertFalse(adopter.isAlive)
+        assertEquals(1, errors.size)
+        assertArrayEquals(previous, dest.readBytes())
+        assertEquals("previous receipt", receipt.readText())
+        assertFalse(File(packages, "slow.wcp.part").exists())
+        assertTrue(packages.listFiles().orEmpty().none { it.name.endsWith(".backup") })
+    }
+
+    @Test
+    fun sourceChangesDoNotWaitForPostPublicationCacheCleanup() {
+        val comp = "dxvk"
+        val custom = RepositorySources.source("wallentx/cache-components")
+        ComponentsManager.saveSources(context, comp, ComponentsManager.sources(context, comp).map { it.copy(hidden = true) } + custom)
+        val scope = ComponentsManager.sourceScope(comp)
+        val builtIns = ComponentsManager.sourceBuiltIns(comp)
+        val generation = RepositorySources.generation(context, scope, builtIns)
+        val bound = RepositorySources.bind(context, scope, builtIns, custom, 1234L, generation)
+        val payload = File(context.cacheDir, "cache-download.wcp").also { writeWcp(it, "new package") }
+        val packages = File(context.filesDir, "components/packages").apply { mkdirs() }
+        val name = "cache.wcp"
+        val dest = File(packages, name).also { writeWcp(it, "previous package") }
+        val item = ComponentsManager.CatalogItem(
+            name, comp, "v1", GitHubArtifacts.releaseAssetUrl(bound.repository, "v1", name),
+            payload.length(), "sha256:${Hashes.sha256(payload)}", bound.id, bound.repository,
+            bound.repositoryId!!, 44, 55, name,
+        )
+        ComponentsManager.packageDownloader = { _, output, _, _ -> payload.copyTo(output, overwrite = true); true }
+        val unpacked = File(
+            LinuxRuntime.rootDir(context),
+            "root/.local/share/droiddeck-components/store/${ComponentsManager.unpackedCacheKey(name)}",
+        ).apply { mkdirs() }
+        File(unpacked, ".complete").writeText("1\n")
+        val cleaning = CountDownLatch(1)
+        val releaseCleanup = CountDownLatch(1)
+        ComponentsManager.unpackedCacheCleaner = { file ->
+            cleaning.countDown()
+            check(releaseCleanup.await(5, TimeUnit.SECONDS))
+            file.deleteRecursively()
+        }
+        val errors = ConcurrentLinkedQueue<Throwable>()
+        val adopter = thread { runCatching { ComponentsManager.download(context, item) {} }.onFailure(errors::add) }
+        assertTrue(cleaning.await(5, TimeUnit.SECONDS))
+        val sourceSaved = CountDownLatch(1)
+        thread {
+            ComponentsManager.saveSources(context, comp, ComponentsManager.sources(context, comp).map {
+                if (it.id == bound.id) it.copy(hidden = true) else it
+            })
+            sourceSaved.countDown()
+        }
+        assertTrue("source save waited for cache cleanup", sourceSaved.await(2, TimeUnit.SECONDS))
+        releaseCleanup.countDown()
+        adopter.join(5_000)
+
+        assertFalse(adopter.isAlive)
+        assertTrue(errors.toString(), errors.isEmpty())
+        assertArrayEquals(payload.readBytes(), dest.readBytes())
+        assertFalse(unpacked.exists())
+    }
+
+    @Test
+    fun destinationReplacementAfterPreparationIsNotOverwrittenOrRolledBack() {
+        val comp = "dxvk"
+        val custom = RepositorySources.source("wallentx/replaced-components")
+        ComponentsManager.saveSources(context, comp, ComponentsManager.sources(context, comp).map { it.copy(hidden = true) } + custom)
+        val scope = ComponentsManager.sourceScope(comp)
+        val builtIns = ComponentsManager.sourceBuiltIns(comp)
+        val generation = RepositorySources.generation(context, scope, builtIns)
+        val bound = RepositorySources.bind(context, scope, builtIns, custom, 1234L, generation)
+        val payload = File(context.cacheDir, "replacement-download.wcp").also { writeWcp(it, "new package") }
+        val packages = File(context.filesDir, "components/packages").apply { mkdirs() }
+        val dest = File(packages, "replacement.wcp").also { writeWcp(it, "previous package") }
+        val replacement = "concurrent replacement".toByteArray()
+        val item = ComponentsManager.CatalogItem(
+            dest.name, comp, "v1", GitHubArtifacts.releaseAssetUrl(bound.repository, "v1", dest.name),
+            payload.length(), "sha256:${Hashes.sha256(payload)}", bound.id, bound.repository,
+            bound.repositoryId!!, 44, 55, dest.name,
+        )
+        ComponentsManager.packageDownloader = { _, output, _, _ -> payload.copyTo(output, overwrite = true); true }
+        ComponentsManager.packageBackupWriter = { source, backup ->
+            source.copyTo(backup, overwrite = true)
+            val next = File(packages, ".replacement").apply { writeBytes(replacement) }
+            assertTrue(source.delete())
+            assertTrue(next.renameTo(source))
+        }
+
+        assertTrue(runCatching { ComponentsManager.download(context, item) {} }.isFailure)
+        assertArrayEquals(replacement, dest.readBytes())
+        assertTrue(packages.listFiles().orEmpty().none { it.name.endsWith(".backup") })
+        assertFalse(File(packages, "replacement.wcp.part").exists())
+    }
+
+    @Test
+    fun cacheInvalidationFailureBeforePublicationLeavesDestinationIdentityUntouched() {
+        val comp = "dxvk"
+        val custom = RepositorySources.source("wallentx/cache-failure-components")
+        ComponentsManager.saveSources(context, comp, ComponentsManager.sources(context, comp).map { it.copy(hidden = true) } + custom)
+        val scope = ComponentsManager.sourceScope(comp)
+        val builtIns = ComponentsManager.sourceBuiltIns(comp)
+        val generation = RepositorySources.generation(context, scope, builtIns)
+        val bound = RepositorySources.bind(context, scope, builtIns, custom, 1234L, generation)
+        val payload = File(context.cacheDir, "cache-failure-download.wcp").also { writeWcp(it, "new package") }
+        val packages = File(context.filesDir, "components/packages").apply { mkdirs() }
+        val dest = File(packages, "cache-failure.wcp").also { writeWcp(it, "previous package") }
+        val previous = dest.readBytes()
+        val beforeKey = Files.readAttributes(
+            dest.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS,
+        ).fileKey()
+        val item = ComponentsManager.CatalogItem(
+            dest.name, comp, "v1", GitHubArtifacts.releaseAssetUrl(bound.repository, "v1", dest.name),
+            payload.length(), "sha256:${Hashes.sha256(payload)}", bound.id, bound.repository,
+            bound.repositoryId!!, 44, 55, dest.name,
+        )
+        ComponentsManager.packageDownloader = { _, output, _, _ -> payload.copyTo(output, overwrite = true); true }
+        val unpacked = File(
+            LinuxRuntime.rootDir(context),
+            "root/.local/share/droiddeck-components/store/${ComponentsManager.unpackedCacheKey(dest.name)}",
+        )
+        File(unpacked, ".complete/child").apply { parentFile!!.mkdirs(); writeText("busy") }
+
+        assertTrue(runCatching { ComponentsManager.download(context, item) {} }.isFailure)
+        assertArrayEquals(previous, dest.readBytes())
+        assertEquals(beforeKey, Files.readAttributes(
+            dest.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS,
+        ).fileKey())
+        assertTrue(packages.listFiles().orEmpty().none { it.name.endsWith(".backup") })
+        assertFalse(File(packages, "cache-failure.wcp.part").exists())
     }
 
     @Test
