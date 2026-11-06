@@ -49,13 +49,15 @@ class TurnipSourcesTest {
             val partial = TurnipReleases.refresh(context)
             assertTrue(partial.rateLimited)
             assertEquals(1, partial.assets.size)
-            assertEquals(2, partial.failed.size)
-            assertEquals(4, calls)
+            val failedSources = TurnipReleases.sourceBuiltIns().size - 1
+            val expectedCalls = 2 + failedSources
+            assertEquals(failedSources, partial.failed.size)
+            assertEquals(expectedCalls, calls)
             val warmFailure = TurnipReleases.refresh(context)
             assertTrue(warmFailure.rateLimited)
             assertEquals(partial.assets.single().id, warmFailure.assets.single().id)
             assertEquals(partial.checkedAt, warmFailure.checkedAt)
-            assertEquals(4, calls)
+            assertEquals(expectedCalls, calls)
         } finally {
             GitHubArtifacts.openConnection = production
             GitHubArtifacts.clearRateLimits()

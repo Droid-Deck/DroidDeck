@@ -570,6 +570,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
             val sourceGeneration = RepositorySources.generation(
                 activity, TurnipReleases.SOURCE_SCOPE, TurnipReleases.sourceBuiltIns(),
             )
+            val previousBundle = asset.takeIf { it.bundle }?.let(::installedBundleAnyBuild)
             file = TurnipReleases.download(activity, asset, progress)
             val uri = Uri.fromFile(file)
             val id = when {
@@ -590,7 +591,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                 record = {
                     TurnipReleases.recordDownload(activity, asset, id)
                     if (asset.bundle) DriverBundle.get(activity, id)?.let {
-                        DriverBundle.finishRemoteReplacement(activity, it)
+                        DriverBundle.finishRemoteReplacement(activity, it, previousBundle?.id)
                     }
                 },
             )

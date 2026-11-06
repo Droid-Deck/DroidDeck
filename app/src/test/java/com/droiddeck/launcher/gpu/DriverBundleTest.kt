@@ -202,4 +202,17 @@ class DriverBundleTest {
         assertNotNull(DriverBundle.get(context, first.id))
         assertEquals(first.id, TurnipReleases.installedId(context, oldAsset) { DriverBundle.get(context, it) != null })
     }
+
+    @Test fun committedBuiltInUpdateRetiresTheSelectedLegacyBundle() {
+        manifest.put("tag", "PanVK-G610-v1")
+        val legacy = DriverBundle.install(context, bundle())
+        DriverBundle.select(context, legacy)
+        val asset = remoteAsset("builtin-source", "b".repeat(64), 2)
+        val replacement = DriverBundle.install(context, bundle(), asset)
+
+        DriverBundle.finishRemoteReplacement(context, replacement, legacy.id)
+
+        assertNull(DriverBundle.get(context, legacy.id))
+        assertEquals(replacement.id, DriverBundle.active(context)?.id)
+    }
 }

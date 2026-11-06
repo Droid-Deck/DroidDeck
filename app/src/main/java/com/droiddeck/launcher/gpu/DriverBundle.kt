@@ -181,10 +181,13 @@ object DriverBundle {
         SessionPrefs.setLinuxDriver(context, bundle.linuxId)
     }
 
-    fun finishRemoteReplacement(context: Context, bundle: Bundle) {
+    fun finishRemoteReplacement(context: Context, bundle: Bundle, previousId: String? = null) {
         if (bundle.sourceId.isEmpty() || bundle.pairKind.isEmpty() || !DriverPairs.isNonAdreno(bundle.pairKind)) return
         val replaced = all(context).filter {
-            it.id != bundle.id && it.sourceId == bundle.sourceId && it.pairKind == bundle.pairKind
+            it.id != bundle.id && (
+                (it.sourceId == bundle.sourceId && it.pairKind == bundle.pairKind) ||
+                    (previousId != null && it.id == previousId)
+                )
         }
         if (replaced.isEmpty()) return
         val selected = replaced.any {
