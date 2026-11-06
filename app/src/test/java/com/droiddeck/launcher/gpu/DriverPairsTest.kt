@@ -218,6 +218,11 @@ class DriverPairsTest {
         assertEquals("RADV upstream · Samsung Xclipse", upstream.name)
         assertEquals(DriverPairs.NAD_RADV_XCLIPSE, DriverPairs.recommendedKey(xclipse, pairs))
         assertTrue(DriverPairs.isNonAdreno("RADV-Xclipse-upstream"))
+        for (name in listOf("Samsung Xclipse 950", "Samsung Xclipse 960")) {
+            val newer = GpuInfo(name, 0, Family.POWERVR, "", false)
+            assertEquals(DriverPairs.NAD_RADV_XCLIPSE_UPSTREAM, DriverPairs.recommendedKey(newer, pairs))
+            assertEquals(DriverPairs.NAD_RADV_XCLIPSE, DriverPairs.recommendedKey(newer, pairs.filter { it.key != DriverPairs.NAD_RADV_XCLIPSE_UPSTREAM }))
+        }
     }
 
     @Test
