@@ -93,7 +93,10 @@ class SessionGestureRoutingTest {
     }
 
     @Test fun activityFallbackConsumesPointerContactsWithoutRoutingThem() {
-        prepare(SessionPrefs.TOUCH_GESTURES, TouchGestureConfig(longPressAction = "key_E"))
+        prepare(SessionPrefs.TOUCH_GESTURES, TouchGestureConfig(
+            longPressEnabled = true,
+            longPressAction = "key_E",
+        ))
         val now = SystemClock.uptimeMillis()
         val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 10f, 10f, 0).apply {
             source = InputDevice.SOURCE_TOUCHSCREEN
