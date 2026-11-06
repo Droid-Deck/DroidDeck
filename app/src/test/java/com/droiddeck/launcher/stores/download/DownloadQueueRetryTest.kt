@@ -134,7 +134,7 @@ class DownloadQueueRetryTest {
             job
         }
         assertTrue(factoryEntered.await(5, TimeUnit.SECONDS))
-        DownloadQueue.pause(app, entry.key)
+        DownloadQueue.pause(entry.key)
         DownloadQueue.cancel(app, entry.key)
         release.countDown()
         assertTrue("cancel must reach the job published after the request", cancelled.await(5, TimeUnit.SECONDS))
