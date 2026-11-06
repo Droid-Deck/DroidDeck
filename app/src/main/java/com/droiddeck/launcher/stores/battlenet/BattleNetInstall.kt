@@ -369,7 +369,7 @@ internal class BattleNetInstaller(
     override fun cancel(deleteFiles: Boolean) {
         cancelled.set(true)
         if (!deleteFiles || update) {
-            DownloadQueue.cleanupFinished(queueKey)
+            if (update) DownloadQueue.cleanupFinished(queueKey)
             return
         }
         if (!cleanupStarted.compareAndSet(false, true)) return
