@@ -668,7 +668,7 @@
     <string name="hud_outline_color">Colore contorno</string>
     <string name="hud_outline_gray">Grigio</string>
     <string name="hud_outline_theme">Colore del tema</string>
-    <string name="hud_group_metrics">Info HUD</string>
+    <string name="hud_group_metrics">Valori</string>
     <string name="hud_metric_graph">Grafico tempi fotogramma</string>
     <string name="hud_metric_decimal">Frequenza fotogrammi con decimale</string>
     <string name="hud_metric_low1">1% più basso</string>

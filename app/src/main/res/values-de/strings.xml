@@ -666,7 +666,7 @@
     <string name="hud_outline_color">Konturfarbe</string>
     <string name="hud_outline_gray">Grau</string>
     <string name="hud_outline_theme">Designfarbe</string>
-    <string name="hud_group_metrics">HUD-Info</string>
+    <string name="hud_group_metrics">Messwerte</string>
     <string name="hud_metric_graph">Frametime-Diagramm</string>
     <string name="hud_metric_decimal">Bildrate mit Nachkommastelle</string>
     <string name="hud_metric_low1">1%-Tiefstwert</string>

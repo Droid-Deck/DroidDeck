@@ -11,7 +11,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.hud.DroidDeckHudConfig
 import com.droiddeck.launcher.hud.DroidDeckHudSize
@@ -62,6 +61,10 @@ internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (Stri
             if (cfg["hudOutlineAccent"] == "0") "0" else "1", chipModifier = track("hud-outline-color")) { a.onHudSetting("hudOutlineAccent", it) }
         ToggleRow(host, "hud-fps-decimal", stringResource(R.string.hud_metric_decimal), null, on("fpsDecimal"),
             chipModifier = track("hud-fps-decimal")) { a.onHudSetting("fpsDecimal", flag(it)) }
+        ToggleRow(host, "hud-clock", stringResource(R.string.hud_metric_clock), null, on("showClock"),
+            chipModifier = track("hud-clock")) { a.onHudSetting("showClock", flag(it)) }
+        ToggleRow(host, "hud-graph", stringResource(R.string.hud_metric_graph), null, on("showFPSGraph"),
+            chipModifier = track("hud-graph")) { a.onHudSetting("showFPSGraph", flag(it)) }
     }
 
     var editing by remember { mutableStateOf(false) }

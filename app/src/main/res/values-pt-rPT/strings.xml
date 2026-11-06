@@ -668,7 +668,7 @@
     <string name="hud_outline_color">Cor do contorno</string>
     <string name="hud_outline_gray">Cinzento</string>
     <string name="hud_outline_theme">Cor do tema</string>
-    <string name="hud_group_metrics">Informações do HUD</string>
+    <string name="hud_group_metrics">Leituras</string>
     <string name="hud_metric_graph">Gráfico de tempo de fotograma</string>
     <string name="hud_metric_decimal">Taxa de fotogramas com decimal</string>
     <string name="hud_metric_low1">1% mais baixo</string>

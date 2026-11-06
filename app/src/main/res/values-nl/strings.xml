@@ -666,7 +666,7 @@
     <string name="hud_outline_color">Contourkleur</string>
     <string name="hud_outline_gray">Grijs</string>
     <string name="hud_outline_theme">Themakleur</string>
-    <string name="hud_group_metrics">HUD-info</string>
+    <string name="hud_group_metrics">Meetwaarden</string>
     <string name="hud_metric_graph">Frametijdgrafiek</string>
     <string name="hud_metric_decimal">Beeldsnelheid met decimaal</string>
     <string name="hud_metric_low1">1% laagste</string>

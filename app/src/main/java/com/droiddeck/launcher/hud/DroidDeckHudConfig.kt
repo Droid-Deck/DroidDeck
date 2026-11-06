@@ -18,9 +18,6 @@ internal object DroidDeckHudConfig {
         "tempUnit" to "c", "tempBands" to "1", "tempAuto" to "1", "tempRedCpu" to "90", "tempRedGpu" to "90", "tempRedBat" to "48",
     )
 
-    private val TWINS = mapOf("showCPUUsage" to "showCPULoad", "showTemp" to "showBatteryTemp", "showEngine" to "showRenderer")
-
-    /** Aliases the HUD reads but never draws as a row of their own; they follow their twin through [TWINS]. */
     private val NOT_READINGS = setOf("showCPULoad", "showRenderer", "fpsDecimal")
 
     /** Orders saved before the GPU switch was named after the alias the HUD actually reads. */
@@ -45,7 +42,6 @@ internal object DroidDeckHudConfig {
         val values = load(context)
         if (key !in DEFAULTS) return values
         values[key] = value
-        TWINS[key]?.let { values[it] = value }
         SessionPrefs.setDroidDeckHudConfig(context, encode(values))
         return values
     }
@@ -55,7 +51,6 @@ internal object DroidDeckHudConfig {
         val values = load(context)
         for ((key, on) in switches) if (key in DEFAULTS) {
             values[key] = flag(on)
-            TWINS[key]?.let { values[it] = flag(on) }
         }
         values["hudOrder"] = order.filter { it in ORDER }.joinToString("|")
         SessionPrefs.setDroidDeckHudConfig(context, encode(values))

@@ -2,7 +2,8 @@ package com.droiddeck.launcher.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,7 +38,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -50,6 +53,7 @@ import kotlinx.coroutines.isActive
 import kotlin.math.roundToInt
 
 private val ROW_HEIGHT = 44.dp
+private val HANDLE_WIDTH = 40.dp
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -61,11 +65,20 @@ internal fun HudReadingsDialog(
     onSave: (Map<String, Boolean>, List<String>) -> Unit,
     onReset: () -> Unit,
 ) {
-    val shown = rememberShown(onDismiss)
-    val close = { shown.targetState = false }
     val order = remember { mutableStateListOf<String>().apply { addAll(initialOrder.filter { it in visible }) } }
     val enabled = remember { mutableStateMapOf<String, Boolean>() }
     remember(initialOn) { for (key in initialOrder) enabled[key] = initialOn[key] == true; true }
+    val merged = {
+        val moved = order.toList()
+        var i = 0
+        initialOrder.map { if (it in visible) moved[i++] else it }
+    }
+    var resetting by remember { mutableStateOf(false) }
+    val shown = rememberShown {
+        if (resetting) onReset() else onSave(enabled.toMap(), merged())
+        onDismiss()
+    }
+    val close = { shown.targetState = false }
     val rowPx = with(LocalDensity.current) { ROW_HEIGHT.toPx() }
 
     var dragging by remember { mutableStateOf(-1) }
@@ -73,7 +86,6 @@ internal fun HudReadingsDialog(
 
     AppDialog(shown, close, "hudReadings", wide = false, scrollable = false, modifier = Modifier.fillMaxHeight()) {
         val state = rememberLazyListState()
-        // Holding the row past an edge keeps pulling the list; the finger has nowhere left to go.
         LaunchedEffect(dragging) {
             if (dragging < 0) return@LaunchedEffect
             while (isActive) {
@@ -94,19 +106,38 @@ internal fun HudReadingsDialog(
                 delay(16)
             }
         }
-        // Rows this size does not draw keep their slots: only the visible ones are re-sequenced, so
-        // switching to another size finds its own order untouched.
-        val merged = {
-            val moved = order.toList()
-            var i = 0
-            initialOrder.map { if (it in visible) moved[i++] else it }
-        }
-        val save = { onSave(enabled.toMap(), merged()); close() }
-        val restore = { onReset(); close() }
-        BoxWithConstraints(Modifier.fillMaxWidth().fillMaxHeight()) {
-            val beside = maxWidth >= 600.dp || maxWidth > maxHeight
+        val handlePx = with(LocalDensity.current) { HANDLE_WIDTH.toPx() }
+        val save = { close() }
+        val restore = { resetting = true; close() }
+        Column(Modifier.fillMaxSize()) {
             val list = @Composable { m: Modifier ->
-                LazyColumn(state = state, modifier = m) {
+                LazyColumn(state = state, modifier = m.pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val item = state.layoutInfo.visibleItemsInfo.firstOrNull {
+                            it.offset <= down.position.y && down.position.y < it.offset + it.size
+                        }
+                        if (item == null || down.position.x > handlePx) return@awaitEachGesture
+                        dragging = item.index
+                        dragOffset = 0f
+                        while (true) {
+                            val change = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull { it.id == down.id } ?: break
+                            val dy = change.positionChange().y
+                            change.consume()
+                            if (!change.pressed) break
+                            dragOffset += dy
+                            val target = (dragging + ((dragOffset + rowPx / 2f) / rowPx).toInt()).coerceIn(0, order.lastIndex)
+                            while (target != dragging) {
+                                val step = if (target > dragging) 1 else -1
+                                order.add(dragging + step, order.removeAt(dragging))
+                                dragging += step
+                                dragOffset -= step * rowPx
+                            }
+                        }
+                        dragging = -1
+                        dragOffset = 0f
+                    }
+                }) {
                     itemsIndexed(order, key = { _, key -> key }) { index, key ->
                         val held = index == dragging
                         Row(
@@ -114,7 +145,6 @@ internal fun HudReadingsDialog(
                             modifier = Modifier.fillMaxWidth().height(ROW_HEIGHT).testTag("hud-row-$key")
                                 .zIndex(if (held) 1f else 0f)
                                 .graphicsLayer { translationY = if (held) dragOffset else 0f }
-                                .then(if (held) Modifier else Modifier.animateItemPlacement())
                                 .clip(Shape12)
                                 .background(
                                     if (held) MaterialTheme.colorScheme.surfaceVariant
@@ -124,32 +154,7 @@ internal fun HudReadingsDialog(
                         ) {
                             Box(
                                 contentAlignment = Alignment.Center,
-                                modifier = Modifier.size(width = 40.dp, height = ROW_HEIGHT).testTag("hud-handle-$key")
-                                    .pointerInput(Unit) {
-                                        detectDragGestures(
-                                            onDragStart = { dragging = index; dragOffset = 0f },
-                                            onDragEnd = { dragging = -1; dragOffset = 0f },
-                                            onDragCancel = { dragging = -1; dragOffset = 0f },
-                                            onDrag = { change, amount ->
-                                                change.consume()
-                                                dragOffset += amount.y
-                                                val at = dragging
-                                                if (at < 0) return@detectDragGestures
-                                                when {
-                                                    dragOffset > rowPx / 2f && at < order.lastIndex -> {
-                                                        order.add(at + 1, order.removeAt(at))
-                                                        dragging = at + 1
-                                                        dragOffset -= rowPx
-                                                    }
-                                                    dragOffset < -rowPx / 2f && at > 0 -> {
-                                                        order.add(at - 1, order.removeAt(at))
-                                                        dragging = at - 1
-                                                        dragOffset += rowPx
-                                                    }
-                                                }
-                                            },
-                                        )
-                                    },
+                                modifier = Modifier.size(width = HANDLE_WIDTH, height = ROW_HEIGHT).testTag("hud-handle-$key"),
                             ) {
                                 Icon(
                                     Icons.Filled.DragHandle, null,
@@ -168,16 +173,11 @@ internal fun HudReadingsDialog(
                     }
                 }
             }
-            val ok = @Composable { PrimaryButton(stringResource(R.string.common_ok), compact = true, onClick = save) }
-            val reset = @Composable { SecondaryButton(stringResource(R.string.hud_reset_button), compact = true, onClick = restore) }
-            if (beside) Row(Modifier.fillMaxSize()) {
-                list(Modifier.weight(1f).fillMaxHeight())
-                Column(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { ok(); reset() }
-            } else Column(Modifier.fillMaxSize()) {
-                list(Modifier.weight(1f).fillMaxWidth())
-                Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.weight(1f)); ok(); reset()
-                }
+            list(Modifier.weight(1f).fillMaxWidth())
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(Modifier.weight(1f))
+                PrimaryButton(stringResource(R.string.common_ok), compact = true, onClick = save)
+                SecondaryButton(stringResource(R.string.hud_reset_button), compact = true, onClick = restore)
             }
         }
     }

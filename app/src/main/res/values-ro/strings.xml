@@ -668,7 +668,7 @@
     <string name="hud_outline_color">Culoare contur</string>
     <string name="hud_outline_gray">Gri</string>
     <string name="hud_outline_theme">Culoarea temei</string>
-    <string name="hud_group_metrics">Informații HUD</string>
+    <string name="hud_group_metrics">Valori</string>
     <string name="hud_metric_graph">Grafic timp de cadru</string>
     <string name="hud_metric_decimal">Rată de cadre cu zecimală</string>
     <string name="hud_metric_low1">1% cele mai mici</string>

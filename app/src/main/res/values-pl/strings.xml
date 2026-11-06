@@ -670,7 +670,7 @@
     <string name="hud_outline_color">Kolor obrysu</string>
     <string name="hud_outline_gray">Szary</string>
     <string name="hud_outline_theme">Kolor motywu</string>
-    <string name="hud_group_metrics">Informacje HUD</string>
+    <string name="hud_group_metrics">Odczyty</string>
     <string name="hud_metric_graph">Wykres czasu klatek</string>
     <string name="hud_metric_decimal">Liczba klatek z miejscem po przecinku</string>
     <string name="hud_metric_low1">1% najniższych</string>

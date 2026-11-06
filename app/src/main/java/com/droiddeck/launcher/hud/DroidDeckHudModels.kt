@@ -52,7 +52,7 @@ enum class DroidDeckHudSize(val token: String, val label: String) {
      * source of truth for both surfaces: [DroidDeckHudView] draws exactly these and the settings screen
      * offers exactly these. A switch outside the set is ignored by the size, so the two cannot drift.
      */
-    val rows: List<String> get() = ROWS[this].orEmpty()
+    val rows: List<String> get() = ROWS.getValue(this)
     /**
      * The numbers each size sets its text in, in sp. One table so a size's scale can be read (and changed)
      * in one place instead of hunting the `sp(...)` literals scattered through its builder.
@@ -64,29 +64,29 @@ enum class DroidDeckHudSize(val token: String, val label: String) {
         fun from(token: String?): DroidDeckHudSize =
             values().firstOrNull { it.token.equals(token, ignoreCase = true) } ?: FULL
 
+        private val EXTRAS = setOf("showClock", "showFPSGraph")
+
         val ROWS: Map<DroidDeckHudSize, List<String>> = mapOf(
             FULL to listOf(
-                "showGpuModel", "showDisplay", "showHdr", "showGPULoad", "showCPUUsage", "showVram",
-                "showRAM", "showBattery", "showFPS", "showAvg", "showLow1", "showLow01", "showLow001",
+                "showGpuModel", "showDisplay", "showHdr", "showGPULoad", "showGpuTemp",
+                "showCPUUsage", "showTemp", "showVram", "showRAM", "showBattery", "showBatteryTemp",
+                "showPower", "showFPS", "showLatency", "showAvg", "showLow1", "showLow01", "showLow001",
             ),
             TILES to listOf(
-                "showFPS", "showLatency", "showGPULoad", "showCPUUsage", "showVram", "showRAM",
-                "showEngine", "showDisplay", "showHdr", "showAvg", "showLow1", "showLow01", "showLow001",
-                "showGpuModel", "showBattery",
+                "showFPS", "showLatency", "showGPULoad", "showGpuTemp", "showCPUUsage", "showTemp",
+                "showVram", "showRAM", "showEngine", "showDisplay", "showHdr", "showAvg", "showLow1",
+                "showLow01", "showLow001", "showGpuModel", "showBattery", "showBatteryTemp", "showPower",
             ),
             PILL to listOf(
-                "showFPS", "showGpuModel", "showGPULoad", "showCPUUsage", "showRAM", "showBattery",
-                "showLatency", "showDisplay", "showVram", "showHdr",
+                "showFPS", "showGpuModel", "showGPULoad", "showGpuTemp", "showCPUUsage", "showTemp",
+                "showRAM", "showBattery", "showBatteryTemp", "showPower", "showLatency", "showDisplay",
+                "showVram", "showHdr",
             ),
             MINIMAL to listOf(
                 "showFPS", "showLow1", "showLow01", "showLow001", "showAvg", "showLatency",
                 "showEngine", "showDisplay", "showHdr",
             ),
-            MEGA to listOf(
-                "showGpuModel", "showGPULoad", "showCPUUsage", "showPerCore", "showVram", "showRAM",
-                "showSwap", "showNet", "showBattery", "showFPS", "showAvg", "showLow1", "showLow01",
-                "showLow001", "showResolution", "showDisplay", "showHdr", "showProton", "showSession",
-            ),
+            MEGA to DroidDeckHudConfig.ORDER.filter { it !in EXTRAS },
         )
 
 
@@ -103,10 +103,8 @@ enum class DroidDeckHudSize(val token: String, val label: String) {
         )
 
         /** The rows a size draws, in their current order, for the settings screen to list. */
-        fun rowsFor(size: DroidDeckHudSize, values: Map<String, String>): List<String> {
-            val supported = size.rows
-            return DroidDeckHudConfig.order(values).filter { it in supported }
-        }
+        fun rowsFor(size: DroidDeckHudSize, values: Map<String, String>): List<String> =
+            DroidDeckHudConfig.order(values).filter { it in size.rows }
     }
 }
 

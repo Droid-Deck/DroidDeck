@@ -664,7 +664,7 @@
     <string name="hud_outline_color">描边颜色</string>
     <string name="hud_outline_gray">灰色</string>
     <string name="hud_outline_theme">主题色</string>
-    <string name="hud_group_metrics">HUD 信息</string>
+    <string name="hud_group_metrics">读数</string>
     <string name="hud_metric_graph">帧时间图表</string>
     <string name="hud_metric_decimal">帧率显示小数</string>
     <string name="hud_metric_low1">1% 最低帧</string>

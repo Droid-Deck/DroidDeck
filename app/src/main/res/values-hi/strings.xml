@@ -666,7 +666,7 @@
     <string name="hud_outline_color">आउटलाइन का रंग</string>
     <string name="hud_outline_gray">ग्रे</string>
     <string name="hud_outline_theme">थीम का रंग</string>
-    <string name="hud_group_metrics">HUD जानकारी</string>
+    <string name="hud_group_metrics">रीडिंग</string>
     <string name="hud_metric_graph">फ़्रेम टाइम ग्राफ़</string>
     <string name="hud_metric_decimal">दशमलव सहित फ़्रेम दर</string>
     <string name="hud_metric_low1">1% लो</string>

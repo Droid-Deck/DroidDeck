@@ -670,7 +670,7 @@
     <string name="hud_outline_color">Barva obrysu</string>
     <string name="hud_outline_gray">Šedá</string>
     <string name="hud_outline_theme">Barva tématu</string>
-    <string name="hud_group_metrics">Informace HUD</string>
+    <string name="hud_group_metrics">Údaje</string>
     <string name="hud_metric_graph">Graf časů snímků</string>
     <string name="hud_metric_decimal">Snímková frekvence s desetinným místem</string>
     <string name="hud_metric_low1">1% nejnižší</string>

@@ -674,7 +674,7 @@
     <string name="hud_outline_color">لون الحد الخارجي</string>
     <string name="hud_outline_gray">رمادي</string>
     <string name="hud_outline_theme">لون المظهر</string>
-    <string name="hud_group_metrics">معلومات HUD</string>
+    <string name="hud_group_metrics">القراءات</string>
     <string name="hud_metric_graph">مخطط زمن الإطار</string>
     <string name="hud_metric_decimal">معدل الإطارات بخانة عشرية</string>
     <string name="hud_metric_low1">أدنى 1%</string>

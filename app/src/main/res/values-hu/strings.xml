@@ -666,7 +666,7 @@
     <string name="hud_outline_color">Körvonal színe</string>
     <string name="hud_outline_gray">Szürke</string>
     <string name="hud_outline_theme">Témaszín</string>
-    <string name="hud_group_metrics">HUD adatok</string>
+    <string name="hud_group_metrics">Mért értékek</string>
     <string name="hud_metric_graph">Képkockaidő-grafikon</string>
     <string name="hud_metric_decimal">Képkockasebesség tizedesjeggyel</string>
     <string name="hud_metric_low1">1% legalacsonyabb</string>

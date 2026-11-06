@@ -664,7 +664,7 @@
     <string name="hud_outline_color">Warna garis luar</string>
     <string name="hud_outline_gray">Kelabu</string>
     <string name="hud_outline_theme">Warna tema</string>
-    <string name="hud_group_metrics">Maklumat HUD</string>
+    <string name="hud_group_metrics">Bacaan</string>
     <string name="hud_metric_graph">Graf masa bingkai</string>
     <string name="hud_metric_decimal">Kadar bingkai dengan perpuluhan</string>
     <string name="hud_metric_low1">1% terendah</string>

@@ -664,7 +664,7 @@
     <string name="hud_outline_color">アウトラインの色</string>
     <string name="hud_outline_gray">グレー</string>
     <string name="hud_outline_theme">テーマカラー</string>
-    <string name="hud_group_metrics">HUD 情報</string>
+    <string name="hud_group_metrics">表示項目</string>
     <string name="hud_metric_graph">フレームタイムグラフ</string>
     <string name="hud_metric_decimal">フレームレートの小数表示</string>
     <string name="hud_metric_low1">1%最低値</string>

@@ -664,7 +664,7 @@
     <string name="hud_outline_color">Warna garis tepi</string>
     <string name="hud_outline_gray">Abu-abu</string>
     <string name="hud_outline_theme">Warna tema</string>
-    <string name="hud_group_metrics">Info HUD</string>
+    <string name="hud_group_metrics">Pembacaan</string>
     <string name="hud_metric_graph">Grafik waktu bingkai</string>
     <string name="hud_metric_decimal">Laju bingkai dengan desimal</string>
     <string name="hud_metric_low1">1% terendah</string>

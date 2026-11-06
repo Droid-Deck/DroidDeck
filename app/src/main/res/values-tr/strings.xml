@@ -666,7 +666,7 @@
     <string name="hud_outline_color">Dış hat rengi</string>
     <string name="hud_outline_gray">Gri</string>
     <string name="hud_outline_theme">Tema rengi</string>
-    <string name="hud_group_metrics">HUD bilgileri</string>
+    <string name="hud_group_metrics">Ölçümler</string>
     <string name="hud_metric_graph">Kare süresi grafiği</string>
     <string name="hud_metric_decimal">Ondalıklı kare hızı</string>
     <string name="hud_metric_low1">1% en düşük</string>

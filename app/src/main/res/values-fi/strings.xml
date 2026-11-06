@@ -666,7 +666,7 @@
     <string name="hud_outline_color">Ääriviivan väri</string>
     <string name="hud_outline_gray">Harmaa</string>
     <string name="hud_outline_theme">Teeman väri</string>
-    <string name="hud_group_metrics">HUD-tiedot</string>
+    <string name="hud_group_metrics">Lukemat</string>
     <string name="hud_metric_graph">Kuva-aikakäyrä</string>
     <string name="hud_metric_decimal">Kuvataajuus desimaalilla</string>
     <string name="hud_metric_low1">1% alin</string>

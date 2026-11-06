@@ -666,7 +666,7 @@
     <string name="hud_outline_color">Konturfarve</string>
     <string name="hud_outline_gray">Grå</string>
     <string name="hud_outline_theme">Temafarve</string>
-    <string name="hud_group_metrics">HUD-info</string>
+    <string name="hud_group_metrics">Målinger</string>
     <string name="hud_metric_graph">Billedtidsgraf</string>
     <string name="hud_metric_decimal">Billedhastighed med decimal</string>
     <string name="hud_metric_low1">1% laveste</string>
