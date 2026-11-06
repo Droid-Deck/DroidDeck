@@ -248,7 +248,8 @@ object ComponentUpdater {
             runCatching { ComponentsManager.restoreUnlessQueued(context, p.id, comp, ComponentsManager.safeName(p.version)) }
                 .onFailure { Log.w(TAG, "hand back ${p.name} $comp", it) }
         }
-        if (ComponentUpdates.strays(protons, ComponentsManager.activeChoices(context), placed).isEmpty()) state.put(HANDED_BACK, true)
+        val after = ComponentsManager.activeChoices(context)
+        if (ComponentUpdates.strays(protons, after, placed).isEmpty() && !ComponentUpdates.unseen(protons, after, placed)) state.put(HANDED_BACK, true)
     }
 
     internal fun dropRemoved(state: JSONObject, protons: List<ComponentsManager.Proton>) {

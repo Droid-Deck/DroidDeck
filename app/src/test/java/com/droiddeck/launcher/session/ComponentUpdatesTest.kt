@@ -271,6 +271,16 @@ class ComponentUpdatesTest {
         )
     }
 
+    @Test fun aProtonMissingFromDiscoveryKeepsTheHandBackPending() {
+        val dd = proton("DroidDeck-Proton-10.0-7")
+        val ge = proton("GE-Proton10-25")
+        val placed = setOf("DD-dxvk-3.1.1+190-nightly.wcp")
+        val choices = mapOf(ge.id to mapOf("dxvk" to ComponentsManager.Choice("DD-dxvk-3.1.1+190-nightly.wcp", false, ge.version)))
+        assertTrue(ComponentUpdates.unseen(listOf(dd), choices, placed))
+        assertFalse(ComponentUpdates.unseen(listOf(dd, ge), choices, placed))
+        assertFalse(ComponentUpdates.unseen(listOf(dd), choices, emptySet()))
+    }
+
     @Test fun aQueuedSwapIsNotReplacedByTheHandBack() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val state = File(context.filesDir, "components/state.json").apply { parentFile?.mkdirs() }
