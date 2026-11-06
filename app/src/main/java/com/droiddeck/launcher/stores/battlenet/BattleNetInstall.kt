@@ -373,23 +373,22 @@ internal class BattleNetInstaller(
             return
         }
         if (!cleanupStarted.compareAndSet(false, true)) return
-        val known = effectiveUid ?: item.extra[BattleNetInstall.INSTALL_UID]
-            ?: BattleNetInstall.cachedUid(app, item, folder)
-            ?: runCatching {
-                BattleNet.games(app).firstOrNull {
-                    it.uid == item.id && it.folder.absolutePath == folder.absolutePath
-                }?.installUid
-            }.getOrNull()
         Thread({
             try {
                 val stopped = !started.get() || ended.await(END_WAIT_S, TimeUnit.SECONDS)
                 if (!stopped) {
                     Log.w("BattleNetInstall", "the cancelled install is still stopping; leaving it for Battle.net")
                 } else {
+                    val known = effectiveUid ?: item.extra[BattleNetInstall.INSTALL_UID]
+                        ?: BattleNetInstall.cachedUid(app, item, folder)
+                        ?: runCatching {
+                            BattleNet.games(app).firstOrNull {
+                                it.uid == item.id && it.folder.absolutePath == folder.absolutePath
+                            }?.installUid
+                        }.getOrNull()
                     val gone = known?.let(uninstall) ?: false
-                    val uid = known
                     if (folder.isDirectory && (gone || folder.list().isNullOrEmpty())) com.droiddeck.launcher.core.FileUtils.delete(folder)
-                    Log.i("BattleNetInstall", "cancelled install of ${uid ?: "an unstarted job"}: ${if (gone) "removed" else "left for Battle.net to remove"}")
+                    Log.i("BattleNetInstall", "cancelled install of ${known ?: "an unstarted job"}: ${if (gone) "removed" else "left for Battle.net to remove"}")
                 }
             } finally {
                 DownloadQueue.cleanupFinished(queueKey)

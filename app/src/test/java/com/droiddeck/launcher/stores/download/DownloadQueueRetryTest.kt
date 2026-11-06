@@ -151,6 +151,7 @@ class DownloadQueueRetryTest {
         val started = CountDownLatch(1)
         val cancelled = CountDownLatch(1)
         val release = CountDownLatch(1)
+        val cancels = AtomicInteger()
         val job = object : DownloadQueue.DownloadJob {
             override fun run(handle: DownloadQueue.JobHandle): String? {
                 started.countDown()
@@ -159,6 +160,7 @@ class DownloadQueueRetryTest {
 
             override fun cancel(deleteFiles: Boolean) {
                 if (!deleteFiles) return
+                cancels.incrementAndGet()
                 cancelled.countDown()
                 Thread({
                     release.await(5, TimeUnit.SECONDS)
@@ -169,20 +171,30 @@ class DownloadQueueRetryTest {
         DownloadQueue.enqueue(app, entry) { job }
         assertTrue(started.await(5, TimeUnit.SECONDS))
         DownloadQueue.cancel(app, entry.key)
-        assertTrue(cancelled.await(5, TimeUnit.SECONDS))
-        assertTrue(DownloadQueue.isCancelling(entry.key))
-        DownloadQueue.enqueue(app, entry) {
-            object : DownloadQueue.DownloadJob {
-                override fun run(handle: DownloadQueue.JobHandle): String? = "replacement"
-                override fun cancel(deleteFiles: Boolean) {}
+        DownloadQueue.cancel(app, entry.key)
+        try {
+            assertTrue(cancelled.await(5, TimeUnit.SECONDS))
+            assertEquals(1, cancels.get())
+            assertTrue(DownloadQueue.isCancelling(entry.key))
+            val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            while (DownloadQueue.entry(entry.key)?.state != DownloadState.CANCELLED && System.nanoTime() < until) {
+                Thread.sleep(10)
             }
+            assertEquals(DownloadState.CANCELLED, DownloadQueue.entry(entry.key)?.state)
+            DownloadQueue.clear(app, entry.key)
+            DownloadQueue.enqueue(app, entry) {
+                object : DownloadQueue.DownloadJob {
+                    override fun run(handle: DownloadQueue.JobHandle): String? = "replacement"
+                    override fun cancel(deleteFiles: Boolean) {}
+                }
+            }
+            assertNull("replacement must not be published during cleanup", DownloadQueue.entry(entry.key))
+        } finally {
+            release.countDown()
         }
-        assertNull("replacement must not be published during cleanup", DownloadQueue.entry(entry.key)?.takeIf { it.state == DownloadState.QUEUED })
-        release.countDown()
         val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
         while (DownloadQueue.isCancelling(entry.key) && System.nanoTime() < until) Thread.sleep(10)
         assertFalse(DownloadQueue.isCancelling(entry.key))
-        DownloadQueue.clear(app, entry.key)
     }
 
     @Test fun heldPausedBackendRestoresAndResumesWithoutAPlaceholder() {

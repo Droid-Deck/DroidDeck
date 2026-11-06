@@ -221,6 +221,10 @@ object DownloadQueue {
         synchronized(lock) {
             item = items[key] ?: return
             if (!item.entry.interruptible) return
+            if (item.entry.store == Store.BATTLENET && key in cancelling) {
+                Log.i(TAG, "$key: already cancelling")
+                return
+            }
             wasRunning = item.entry.state == DownloadState.RUNNING
             if (item.entry.store == Store.BATTLENET) cancelling.add(key)
             if (wasRunning) {
