@@ -563,7 +563,7 @@
     <string name="comp_auto_hint">Neue Builds werden im Hintergrund installiert. Schließt sich ein Spiel, das vorher lief, zweimal nach wenigen Sekunden, kehrt Auto zum funktionierenden Build zurück.</string>
     <string name="comp_auto_fallback">Ausweich-Build: %1$s</string>
     <string name="comp_auto_checking">Suche nach Builds…</string>
-    <string name="comp_auto_none">Kein installiertes Proton nutzt dies</string>
+    <string name="comp_auto_none">Kein DroidDeck-Proton nutzt dies</string>
     <string name="comp_auto_waits_network">Auto-Updates warten auf eine Verbindung.</string>
     <string name="comp_auto_check_failed">Neue Builds konnten nicht geprüft werden.</string>
     <string name="comp_auto_waits_unmetered">Neue Builds warten auf eine nicht getaktete Verbindung, ausgeschalteten Energiesparmodus und ein kühles Gerät.</string>

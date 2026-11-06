@@ -124,4 +124,14 @@ object ComponentUpdates {
 
     fun keep(current: String, previous: String, selected: Set<String>): Set<String> =
         (setOf(current, previous) + selected) - ORIGINAL
+
+    fun manual(choice: ComponentsManager.Choice?, applied: String?, auto: Set<String>): Boolean =
+        choice != null && !choice.auto && !choice.file.startsWith("original ") &&
+            (if (applied.isNullOrEmpty()) choice.file !in auto else choice.file != applied)
+
+    fun released(choice: ComponentsManager.Choice?, auto: Set<String>): Boolean =
+        choice != null && !choice.auto && choice.file in auto
+
+    fun stale(line: Line?, owned: Set<String>, stored: List<String>, keep: Set<String>): List<String> =
+        (owned + stored.filter { line != null && belongs(it, line) }).filter { it !in keep }.distinct()
 }

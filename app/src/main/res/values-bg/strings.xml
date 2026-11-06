@@ -563,7 +563,7 @@
     <string name="comp_auto_hint">Новите версии се инсталират във фонов режим. Ако игра, която е работила, се затвори до секунди два пъти, Auto се връща към работещата версия.</string>
     <string name="comp_auto_fallback">Резервна: %1$s</string>
     <string name="comp_auto_checking">Търсене на версии…</string>
-    <string name="comp_auto_none">Нито един инсталиран Proton не го използва</string>
+    <string name="comp_auto_none">Нито един DroidDeck-Proton не го използва</string>
     <string name="comp_auto_waits_network">Актуализациите Auto чакат връзка.</string>
     <string name="comp_auto_check_failed">Новите версии не можаха да бъдат проверени.</string>
     <string name="comp_auto_waits_unmetered">Новите версии чакат неотчитана връзка, изключен режим за пестене на батерията и охладено устройство.</string>

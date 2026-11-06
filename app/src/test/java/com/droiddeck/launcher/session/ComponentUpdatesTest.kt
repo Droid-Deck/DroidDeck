@@ -240,4 +240,58 @@ class ComponentUpdatesTest {
         assertEquals(setOf("b.wcp", "a.wcp", "mine.wcp"), ComponentUpdates.keep("b.wcp", "a.wcp", setOf("mine.wcp")))
         assertEquals(setOf("b.wcp"), ComponentUpdates.keep("b.wcp", ComponentUpdates.ORIGINAL, emptySet()))
     }
+
+    private fun proton(dir: String, valve: Boolean = false) = ComponentsManager.Proton(dir, dir, File("/steam/$dir"), "/p", "1", valve)
+
+    @Test fun autoFollowsOnlyDroidDeckProtonAndLeavesEveryOtherProtonAlone() {
+        assertTrue(ComponentUpdater.follows(proton("DroidDeck-Proton-11-7.5")))
+        assertFalse(ComponentUpdater.follows(proton("GE-Proton10-25")))
+        assertFalse(ComponentUpdater.follows(proton("proton-cachyos-11")))
+        assertFalse(ComponentUpdater.follows(proton("Proton 11.0 (ARM64)", valve = true)))
+        assertFalse(ComponentUpdater.follows(proton("DroidDeck-Proton-11-7.5", valve = true)))
+    }
+
+    private fun choice(file: String, auto: Boolean = false) = ComponentsManager.Choice(file, auto, "1")
+
+    @Test fun aBuildTheUserPickedOnAProtonIsNeverReplacedByAuto() {
+        val auto = setOf("DD-dxvk-3.1.1+188-nightly.wcp", "DD-dxvk-3.1.1+190-nightly.wcp")
+        assertTrue(ComponentUpdates.manual(choice("DD-dxvk-gplasync-3.1.1+190-nightly.wcp"), null, auto))
+        assertTrue(ComponentUpdates.manual(choice("DD-dxvk-3.1.1+188-nightly.wcp"), "DD-dxvk-3.1.1+190-nightly.wcp", auto))
+        assertFalse(ComponentUpdates.manual(choice("DD-dxvk-3.1.1+190-nightly.wcp"), "DD-dxvk-3.1.1+190-nightly.wcp", auto))
+        assertFalse(ComponentUpdates.manual(choice("DD-dxvk-3.1.1+188-nightly.wcp"), null, auto))
+        assertFalse(ComponentUpdates.manual(choice("original 11-7.4"), null, auto))
+        assertFalse(ComponentUpdates.manual(choice("dxvk-2.6.2-linux.wcp", auto = true), null, auto))
+        assertFalse(ComponentUpdates.manual(null, null, auto))
+    }
+
+    @Test fun otherProtonsGetTheirOwnBuildBackOnlyWhereAutoHadPutOne() {
+        val auto = setOf("DD-dxvk-3.1.1+190-nightly.wcp")
+        assertTrue(ComponentUpdates.released(choice("DD-dxvk-3.1.1+190-nightly.wcp"), auto))
+        assertFalse(ComponentUpdates.released(choice("DD-dxvk-gplasync-3.1.1+190-nightly.wcp"), auto))
+        assertFalse(ComponentUpdates.released(choice("dxvk-2.6.2-linux.wcp", auto = true), auto + "dxvk-2.6.2-linux.wcp"))
+        assertFalse(ComponentUpdates.released(null, auto))
+    }
+
+    @Test fun oldBuildsOfAnAutoLineAreDeletedButOtherFlavoursAndKeptBuildsStay() {
+        val line = ComponentUpdates.line("dxvk", false)
+        val stored = listOf(
+            "DD-dxvk-3.1.1+186-nightly.wcp", "DD-dxvk-3.1.1+188-nightly.wcp", "DD-dxvk-3.1.1+190-nightly.wcp",
+            "DD-dxvk-arm64ec-3.1.1+188-nightly.wcp", "DD-dxvk-gplasync-3.1.1+190-nightly.wcp", "dxvk-2.6.2-linux.wcp",
+        )
+        val keep = ComponentUpdates.keep("DD-dxvk-3.1.1+190-nightly.wcp", "DD-dxvk-3.1.1+188-nightly.wcp", emptySet())
+        assertEquals(listOf("DD-dxvk-3.1.1+186-nightly.wcp"), ComponentUpdates.stale(line, emptySet(), stored, keep))
+        assertEquals(listOf("DD-dxvk-3.1.1+184-nightly.wcp", "DD-dxvk-3.1.1+186-nightly.wcp"),
+            ComponentUpdates.stale(line, setOf("DD-dxvk-3.1.1+184-nightly.wcp", "DD-dxvk-3.1.1+190-nightly.wcp"), stored, keep))
+        assertEquals(emptyList<String>(), ComponentUpdates.stale(line, emptySet(), stored, keep + "DD-dxvk-3.1.1+186-nightly.wcp"))
+        assertEquals(emptyList<String>(), ComponentUpdates.stale(null, emptySet(), stored, keep))
+    }
+
+    @Test fun aPackageLeftSelectedOnARemovedProtonIsNoLongerKept() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        File(context.filesDir, "components/state.json").apply { parentFile?.mkdirs() }.writeText(JSONObject()
+            .put("active", JSONObject().put("DroidDeck-Proton-11-7.4", JSONObject()
+                .put("dxvk", JSONObject().put("file", "DD-dxvk-3.1.1+186-nightly.wcp").put("protonVersion", "11-7.4"))))
+            .put("profiles", JSONObject().put("app:1", JSONObject().put("dxvk", "mine.wcp"))).toString())
+        assertEquals(setOf("mine.wcp"), ComponentsManager.selectedPackages(context))
+    }
 }

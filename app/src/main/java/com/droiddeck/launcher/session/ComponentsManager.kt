@@ -1085,22 +1085,11 @@ object ComponentsManager {
     }
 
     fun selectedPackages(context: Context): Set<String> = synchronized(lock) {
-        val state = loadState(context)
-        buildSet {
-            for (key in listOf("active", "queued")) {
-                val byProton = state.optJSONObject(key) ?: continue
-                for (pid in byProton.keys()) {
-                    val comps = byProton.optJSONObject(pid) ?: continue
-                    for (c in comps.keys()) comps.optJSONObject(c)?.optString("file")?.takeIf(String::isNotEmpty)?.let(::add)
-                }
-            }
-            val profiles = state.optJSONObject("profiles")
-            profiles?.keys()?.forEach { scope ->
-                val profile = profiles.optJSONObject(scope) ?: return@forEach
-                for (c in COMPONENTS) profile.optString(c).takeIf(String::isNotEmpty)?.let(::add)
-            }
-        }
+        packagesInUse(loadState(context), protons(context).distinctBy { it.id }.associateBy { it.id })
     }
+
+    fun storedFiles(context: Context): List<String> =
+        packagesDir(context).listFiles()?.filter { it.isFile && it.name.endsWith(".wcp") }?.map { it.name } ?: emptyList()
 
     fun isStored(context: Context, file: String): Boolean = File(packagesDir(context), safeName(file)).isFile
 

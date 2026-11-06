@@ -563,7 +563,7 @@
     <string name="comp_auto_hint">Οι νέες εκδόσεις εγκαθίστανται στο παρασκήνιο. Αν ένα παιχνίδι που λειτουργούσε κλείσει μέσα σε δευτερόλεπτα δύο φορές, το Auto επιστρέφει στην έκδοση που λειτουργούσε.</string>
     <string name="comp_auto_fallback">Εφεδρική: %1$s</string>
     <string name="comp_auto_checking">Αναζήτηση εκδόσεων…</string>
-    <string name="comp_auto_none">Κανένα εγκατεστημένο Proton δεν το χρησιμοποιεί</string>
+    <string name="comp_auto_none">Κανένα DroidDeck-Proton δεν το χρησιμοποιεί</string>
     <string name="comp_auto_waits_network">Οι ενημερώσεις Auto περιμένουν σύνδεση.</string>
     <string name="comp_auto_check_failed">Δεν ήταν δυνατός ο έλεγχος για νέες εκδόσεις.</string>
     <string name="comp_auto_waits_unmetered">Οι νέες εκδόσεις περιμένουν σύνδεση χωρίς όριο δεδομένων, απενεργοποιημένη εξοικονόμηση μπαταρίας και δροσερή συσκευή.</string>

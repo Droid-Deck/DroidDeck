@@ -561,7 +561,7 @@
     <string name="comp_auto_hint">บิลด์ใหม่จะติดตั้งในเบื้องหลัง หากเกมที่เคยเล่นได้ปิดลงภายในไม่กี่วินาทีสองครั้ง Auto จะกลับไปใช้บิลด์ที่ใช้งานได้</string>
     <string name="comp_auto_fallback">สำรอง: %1$s</string>
     <string name="comp_auto_checking">กำลังค้นหาบิลด์…</string>
-    <string name="comp_auto_none">ไม่มี Proton ที่ติดตั้งใช้สิ่งนี้</string>
+    <string name="comp_auto_none">ไม่มี DroidDeck-Proton ที่ใช้สิ่งนี้</string>
     <string name="comp_auto_waits_network">การอัปเดต Auto กำลังรอการเชื่อมต่อ</string>
     <string name="comp_auto_check_failed">ตรวจหาบิลด์ใหม่ไม่ได้</string>
     <string name="comp_auto_waits_unmetered">บิลด์ใหม่จะรอการเชื่อมต่อที่ไม่จำกัดปริมาณ ปิดโหมดประหยัดแบตเตอรี่ และอุปกรณ์ที่ไม่ร้อน</string>

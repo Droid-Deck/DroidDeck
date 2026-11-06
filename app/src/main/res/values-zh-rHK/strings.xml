@@ -561,7 +561,7 @@
     <string name="comp_auto_hint">新版本會在背景安裝。如果之前能執行的遊戲兩次在幾秒內關閉，Auto 會退回到之前可用的版本。</string>
     <string name="comp_auto_fallback">備用：%1$s</string>
     <string name="comp_auto_checking">正在檢查版本…</string>
-    <string name="comp_auto_none">沒有已安裝的 Proton 使用它</string>
+    <string name="comp_auto_none">沒有 DroidDeck-Proton 使用它</string>
     <string name="comp_auto_waits_network">Auto 更新正在等待網絡連線。</string>
     <string name="comp_auto_check_failed">無法檢查新版本。</string>
     <string name="comp_auto_waits_unmetered">新版本將等待非按流量收費的網絡、關閉省電模式且裝置不過熱時下載。</string>

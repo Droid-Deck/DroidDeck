@@ -561,7 +561,7 @@
     <string name="comp_auto_hint">Build baru dipasang di latar belakang. Jika game yang sebelumnya berjalan tertutup dalam hitungan detik dua kali, Auto kembali ke build yang berfungsi.</string>
     <string name="comp_auto_fallback">Cadangan: %1$s</string>
     <string name="comp_auto_checking">Mencari build…</string>
-    <string name="comp_auto_none">Tidak ada Proton terpasang yang memakainya</string>
+    <string name="comp_auto_none">Tidak ada DroidDeck-Proton yang memakainya</string>
     <string name="comp_auto_waits_network">Pembaruan Auto menunggu koneksi.</string>
     <string name="comp_auto_check_failed">Tidak dapat memeriksa build baru.</string>
     <string name="comp_auto_waits_unmetered">Build baru menunggu koneksi tanpa kuota, penghemat baterai mati, dan perangkat yang dingin.</string>

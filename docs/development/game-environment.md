@@ -39,12 +39,16 @@ FEX, DXVK and VKD3D-Proton each have an **Auto** or **Manual** mode on the Defau
 Components page. Auto is the default unless a component already uses a package the
 user picked, which keeps it on Manual. In Auto, DroidDeck checks the
 DroidDeck-Components nightly release when DroidDeck is opened, at most hourly and
-never during a running session, and installs the newest build into every Proton that ships that
-component. DXVK and VKD3D-Proton follow the flavour of each Proton's own files:
-ARM64EC/ARM64X builds get the `arm64ec` package, plain x64 builds the plain one.
-Auto keeps the current build and the one it replaced and deletes older builds it
-downloaded itself; packages selected anywhere, including in game profiles, are never
-removed. Steam's process log tells it how long each game ran. A game that ran
+never during a running session, and installs the newest build into DroidDeck-Proton.
+Valve's Proton, GE-Proton, proton-cachyos and any other tool keep their own components;
+builds an earlier Auto had placed in them go back to the original once. A build the user
+picks on a DroidDeck-Proton by hand stays until they restore the original. DXVK and
+VKD3D-Proton follow the flavour of each Proton's own files: ARM64EC/ARM64X builds get the
+`arm64ec` package, plain x64 builds the plain one. Auto keeps the current build and the one
+it replaced and deletes every older stored build of the same line, including ones that were
+stored before Auto took over, and downloads the current build again if it was deleted.
+Other flavours such as gplasync and packages selected on an installed Proton or in a game
+profile are never removed. Steam's process log tells it how long each game ran. A game that ran
 for at least a minute on the previous build and then exits within 30 seconds twice
 on the new one rolls back every component line that changed since that boot, and
 each failed build is skipped until a newer one is published. Games with their own component override are
