@@ -16,6 +16,7 @@ internal fun FrameGenMenu(
     gameProfileId: String? = null,
     hasGameOverride: Boolean = false,
     onResetGame: () -> Unit = {},
+    onLsfgFlowScale: () -> Unit = {},
 ) {
     val context = LocalContext.current
     AnchoredMenu(host.open == "fg", onDismiss = { if (host.open == "fg") host.open = null }, title = stringResource(R.string.frame_gen_title)) { firstItemFocus ->
@@ -40,6 +41,17 @@ internal fun FrameGenMenu(
         val lsfg = (2..4).map { FrameGen.Mode(FrameGen.ENGINE_LSFG, it) } +
             FrameGen.ADAPTIVE_TARGETS.map { FrameGen.Mode(FrameGen.ENGINE_LSFG, target = it) }
         lsfg.forEachIndexed { i, m -> item(m, enabled = lossless.ready, detail = need.takeIf { i == 0 }) }
+        val flow = FrameGen.lsfgFlowPercent(context)
+        val flowHint = stringResource(R.string.lsfg_flow_scale_hint)
+        FrameGen.LSFG_FLOW_PERCENTS.forEachIndexed { i, percent ->
+            MenuItem(
+                stringResource(R.string.lsfg_flow_scale, percent), checked = flow == percent,
+                enabled = lossless.ready, detail = flowHint.takeIf { i == 0 },
+            ) {
+                FrameGen.setLsfgFlowPercent(context, percent)
+                onLsfgFlowScale(); host.open = null
+            }
+        }
         if (lossless.owned) {
             val using = when (lossless.source) {
                 Lossless.Source.STEAM -> stringResource(R.string.lsfg_using_steam)
