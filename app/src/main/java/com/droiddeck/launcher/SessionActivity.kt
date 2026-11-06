@@ -784,13 +784,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         )
         refreshGestureConfig()
         root.isMotionEventSplittingEnabled = true
-        surfaceView.setOnTouchListener { _, event ->
-            if (!acceptsMainSurfaceContact(event.source, event.actionMasked)) {
-                false
-            } else if (!gestureTouchStreamGate.accepts(GestureTouchStreamGate.Source.SURFACE, event)) {
-                false
-            } else onSurfaceTouchEvent(event)
-        }
+        installMainSurfaceTouchListener(surfaceView)
         padMouse = PadMouse(padMouseListener)
         bridge.setTouchRoute(object : PadBridge.TouchRoute {
             override fun active(): Boolean = if (Looper.myLooper() == Looper.getMainLooper()) padMouseMode() else padMouseOn
@@ -3799,6 +3793,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onTouchEvent(event: MotionEvent): Boolean =
         if (consumesMainSurfaceActivityFallback(event.source)) true else super.onTouchEvent(event)
+
+    private fun installMainSurfaceTouchListener(view: SurfaceView) {
+        view.setOnTouchListener { _, event ->
+            if (!acceptsMainSurfaceContact(event.source, event.actionMasked)) {
+                false
+            } else if (!gestureTouchStreamGate.accepts(GestureTouchStreamGate.Source.SURFACE, event)) {
+                false
+            } else onSurfaceTouchEvent(event)
+        }
+    }
 
     private fun onSurfaceTouchEvent(event: MotionEvent): Boolean {
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) return onMouse(event)
