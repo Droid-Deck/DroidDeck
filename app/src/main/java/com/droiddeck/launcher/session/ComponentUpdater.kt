@@ -299,9 +299,13 @@ object ComponentUpdater {
     private fun rollBack(context: Context, state: JSONObject, protons: List<ComponentsManager.Proton>, comp: String, key: String, notes: MutableList<String>) {
         val ls = state.obj("lines").obj(key)
         val bad = ls.optString("current")
-        val back = ls.optString("previous")
+        val onLine = protons.filter { lineOf(context, state, it, comp)?.key == key }
+        val line = ComponentUpdates.LINES.first { it.key == key }
+        val back = ls.optString("previous").takeIf { prev -> prev == ComponentUpdates.ORIGINAL || (ComponentsManager.isStored(context, prev) &&
+            (!ComponentUpdates.needsArm64x(line, onLine.map { ComponentsManager.arm64x(context, it, comp) }) || ComponentsManager.packageArm64x(context, prev, comp))) }
+            ?: ComponentUpdates.ORIGINAL
         val choices = ComponentsManager.activeChoices(context)
-        val targets = protons.filter { lineOf(context, state, it, comp)?.key == key && choices.fileOf(it, comp) == bad }
+        val targets = onLine.filter { choices.fileOf(it, comp) == bad }
         for (p in targets) {
             runCatching {
                 if (back == ComponentUpdates.ORIGINAL) ComponentsManager.restore(context, p.id, comp, ComponentsManager.safeName(p.version))

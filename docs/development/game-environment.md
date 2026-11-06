@@ -44,7 +44,10 @@ Valve's Proton, GE-Proton, proton-cachyos and any other tool keep their own comp
 builds an earlier Auto had placed in them go back to the original once. A build the user
 picks on a DroidDeck-Proton by hand stays until they restore the original. DXVK and
 VKD3D-Proton follow the flavour of each Proton's own files: ARM64EC/ARM64X builds get the
-`arm64ec` package, plain x64 builds the plain one. Auto keeps the current build and the one
+`arm64ec` package, plain x64 builds the plain one. Where the Proton's own build is ARM64X, an
+`arm64ec` package is used only when every Direct3D and DXGI DLL in it is ARM64X, because native
+ARM64 programs such as `Wow-arm64.exe` cannot load an ARM64EC-only `dxgi.dll`. A rollback whose
+previous build fails that check, or was deleted, goes back to the original. Auto keeps the current build and the one
 it replaced and deletes every older stored build of the same line, including ones that were
 stored before Auto took over, and downloads the current build again if it was deleted.
 Other flavours such as gplasync and packages selected on an installed Proton or in a game

@@ -6,6 +6,9 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.github.luben.zstd.ZstdOutputStream
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Test
@@ -330,5 +333,41 @@ class ComponentUpdatesTest {
         assertTrue(ComponentsManager.liveOnAny("active", entry, listOf(p("1"), p("2"))))
         assertFalse(ComponentsManager.liveOnAny("active", entry, listOf(p("1"))))
         assertFalse(ComponentsManager.liveOnAny("active", entry, null))
+    }
+
+    @Test fun aPackageIsArm64xOnlyWhenEveryGraphicsDllInItIs() {
+        val owned = setOf("d3d11.dll", "dxgi.dll", "d3d9.dll")
+        val hybrid = pe(0xaa64, true, true)
+        val ec = pe(0x8664, true, true)
+        assertTrue(ComponentUpdates.allArm64x(mapOf("d3d11.dll" to hybrid, "dxgi.dll" to hybrid, "openvr_api_dxvk.dll" to pe(0x8664, true, false)), owned))
+        assertFalse(ComponentUpdates.allArm64x(mapOf("d3d11.dll" to hybrid, "dxgi.dll" to ec), owned))
+        assertFalse(ComponentUpdates.allArm64x(mapOf("D3D9.DLL" to ec, "d3d11.dll" to hybrid), owned))
+        assertFalse(ComponentUpdates.allArm64x(mapOf("openvr_api_dxvk.dll" to hybrid), owned))
+        assertFalse(ComponentUpdates.allArm64x(emptyMap(), owned))
+    }
+
+    private fun wcp(context: Context, name: String, dlls: Map<String, ByteArray>) {
+        val out = File(context.filesDir, "components/packages/$name").apply { parentFile!!.mkdirs() }
+        TarArchiveOutputStream(ZstdOutputStream(out.outputStream())).use { tar ->
+            for ((path, body) in dlls) {
+                tar.putArchiveEntry(TarArchiveEntry(path).apply { size = body.size.toLong() })
+                tar.write(body)
+                tar.closeArchiveEntry()
+            }
+        }
+    }
+
+    @Test fun aStoredPackageWithOneArm64ecOnlyDllIsNotArm64x() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val dir = "files/lib/wine/dxvk/aarch64-windows"
+        val hybrid = pe(0xaa64, true, true)
+        wcp(context, "mixed.wcp", mapOf("$dir/d3d11.dll" to hybrid, "$dir/dxgi.dll" to pe(0x8664, true, true),
+            "files/lib/wine/dxvk/i386-windows/d3d11.dll" to pe(0x14c, false, null)))
+        wcp(context, "hybrid.wcp", mapOf("./$dir/d3d11.dll" to hybrid, "./$dir/dxgi.dll" to hybrid,
+            "$dir/openvr_api_dxvk.dll" to pe(0x8664, true, false)))
+        assertFalse(ComponentsManager.packageArm64x(context, "mixed.wcp", "dxvk"))
+        assertTrue(ComponentsManager.packageArm64x(context, "hybrid.wcp", "dxvk"))
+        assertFalse(ComponentsManager.packageArm64x(context, "hybrid.wcp", "vkd3d"))
+        assertFalse(ComponentsManager.packageArm64x(context, "missing.wcp", "dxvk"))
     }
 }

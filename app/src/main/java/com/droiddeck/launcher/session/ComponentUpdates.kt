@@ -65,6 +65,11 @@ object ComponentUpdates {
         b.getInt(header) == 0x4550 && (b.getShort(header + 4).toInt() and 0xffff) == 0xaa64 && arm64ec(pe) == true
     }.getOrDefault(false)
 
+    fun allArm64x(dlls: Map<String, ByteArray>, owned: Set<String>): Boolean {
+        val graphics = dlls.filterKeys { it.lowercase() in owned }
+        return graphics.isNotEmpty() && graphics.values.all(::arm64x)
+    }
+
     fun needsArm64x(line: Line, stocks: List<Boolean?>): Boolean =
         line.key.endsWith("-arm64ec") && stocks.any { it != false }
 

@@ -1043,9 +1043,20 @@ object ComponentsManager {
     fun arm64x(context: Context, p: Proton, comp: String): Boolean? = stockProbe(context, p, comp)?.let(ComponentUpdates::arm64x)
 
     fun packageArm64x(context: Context, file: String, comp: String): Boolean {
-        val rel = "${COMP_DIR[comp] ?: return false}/aarch64-windows/${ARM64EC_PROBE.getValue(comp)}"
+        val dir = "${COMP_DIR[comp] ?: return false}/aarch64-windows/"
         val f = File(packagesDir(context), safeName(file)).takeIf { it.isFile } ?: return false
-        return runCatching { readWcpEntry(f, rel) }.getOrNull()?.let(ComponentUpdates::arm64x) == true
+        val dlls = runCatching {
+            readWcp(f) { tar ->
+                val found = HashMap<String, ByteArray>()
+                while (true) {
+                    val e = tar.nextTarEntry ?: break
+                    val rel = normalize(e.name)
+                    if (!e.isDirectory && rel.startsWith(dir) && '/' !in rel.removePrefix(dir)) found[rel.removePrefix(dir)] = tar.readBytes()
+                }
+                found
+            }
+        }.getOrNull() ?: return false
+        return ComponentUpdates.allArm64x(dlls, COMP_DLLS.getValue(comp))
     }
 
     private fun readWcpEntry(f: File, rel: String): ByteArray? = readWcp(f) { tar ->
