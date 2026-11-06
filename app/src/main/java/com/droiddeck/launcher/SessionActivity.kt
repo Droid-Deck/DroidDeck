@@ -3605,7 +3605,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 return
             }
             wowChatBottom = presentation
-            presentation.showChat { DroidDeckTheme { com.droiddeck.launcher.ui.WowChatPanel(wowChat) } }
+            presentation.showChat {
+                androidx.compose.runtime.CompositionLocalProvider(
+                    androidx.activity.compose.LocalActivityResultRegistryOwner provides this,
+                    androidx.activity.compose.LocalOnBackPressedDispatcherOwner provides this,
+                ) { DroidDeckTheme { com.droiddeck.launcher.ui.WowChatPanel(wowChat) } }
+            }
             com.droiddeck.launcher.ui.SessionTyping.focusDisplay(this, presentation.display.displayId)
         } else if (!open && shown != null) {
             wowChatBottom = null
