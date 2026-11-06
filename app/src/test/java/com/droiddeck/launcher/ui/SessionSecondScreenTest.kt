@@ -23,6 +23,13 @@ import com.droiddeck.launcher.input.PadBridgeRoutingTest
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import org.junit.After
+import com.droiddeck.launcher.input.InputLibraries
+import com.droiddeck.launcher.input.InputRole
+import com.droiddeck.launcher.input.InputSurfaceElement
+import com.droiddeck.launcher.input.InputSurfaceStyle
+import com.droiddeck.launcher.input.InputControl
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -139,6 +146,74 @@ class SessionSecondScreenTest {
         } finally {
             panel.closeControls()
         }
+    }
+
+    @Test fun profileRefreshLeavesTerminalAndDashboardIntact() {
+        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
+        val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
+        val panel = SecondScreenPresentation(activity, display, {}, {}, {}, dashboard = { androidx.compose.material3.Text("Dashboard") })
+        try {
+            panel.show()
+            for (mode in listOf(SecondScreenMode.TERMINAL, SecondScreenMode.DASHBOARD)) {
+                panel.showMode(mode)
+                val root = panel.window!!.decorView
+                val before = descendants(root).toList()
+                val terminal: Any? = ReflectionHelpers.getField(panel, "terminalPanel")
+                panel.refreshControls()
+                assertEquals(before, descendants(root).toList())
+                assertSame(terminal, ReflectionHelpers.getField<Any?>(panel, "terminalPanel"))
+            }
+        } finally { panel.closeControls() }
+    }
+
+    @Test fun profileRefreshUpdatesControlsWithoutClosingTheFieldKeyboard() {
+        SessionState.mode = SessionService.MODE_STEAM
+        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
+        val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
+        var closed = 0
+        val panel = SecondScreenPresentation(activity, display, {}, {}, {}, onKeyboardClosed = { closed++ })
+        try {
+            panel.show()
+            panel.showMode(SecondScreenMode.CUSTOM_CONTROLS)
+            panel.requestKeyboard(forField = true)
+            val host: Any = ReflectionHelpers.getField(panel, "keyboardHost")
+            val shown: MutableState<Boolean> = ReflectionHelpers.getField(panel, "keyboardShown")
+            shown.value = true
+            ReflectionHelpers.setField(panel, "imeSeen", true)
+            val controls = descendants(panel.window!!.decorView).filterIsInstance<InputSurfaceView>().single()
+            val element = InputSurfaceElement(InputControl.A, .3f, .2f, .2f, .2f, "updated")
+            InputLibraries.update(activity) { library ->
+                val layout = library.activeLayout(false, InputRole.SECONDARY)!!
+                library.withLayout(layout.copy(elements = listOf(element), style = InputSurfaceStyle(opacity = 35)))
+            }
+            panel.refreshControls()
+            assertSame(controls, descendants(panel.window!!.decorView).filterIsInstance<InputSurfaceView>().single())
+            val child = descendants(controls).single { it.tag == element }
+            assertEquals(.35f, child.alpha, .001f)
+            assertSame(host, ReflectionHelpers.getField<Any>(panel, "keyboardHost"))
+            assertTrue(panel.fieldKeyboardOpen)
+            assertTrue(shown.value)
+            assertTrue(ReflectionHelpers.getField<Boolean>(panel, "imeSeen"))
+            assertEquals(0, closed)
+        } finally { panel.closeControls() }
+    }
+
+    @Test fun profileRefreshPreservesTheLowerScreenChatPanel() {
+        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
+        val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
+        var lost = 0
+        val panel = SecondScreenPresentation(activity, display, {}, {}, {})
+        try {
+            panel.show()
+            panel.showMode(SecondScreenMode.CUSTOM_CONTROLS)
+            panel.showChat(onLost = { lost++ }) { androidx.compose.material3.Text("Chat draft") }
+            val chat: View? = ReflectionHelpers.getField(panel, "chatView")
+            assertNotNull(chat)
+            panel.refreshControls()
+            assertSame(chat, ReflectionHelpers.getField<View?>(panel, "chatView"))
+            assertTrue(descendants(panel.window!!.decorView).any { it === chat })
+            assertEquals(0, lost)
+        } finally { panel.closeControls() }
     }
 
     @Test

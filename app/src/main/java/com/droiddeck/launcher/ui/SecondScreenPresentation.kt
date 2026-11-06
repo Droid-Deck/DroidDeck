@@ -59,6 +59,7 @@ class SecondScreenPresentation(
     private var imeSeen = false
     private var fieldKeyboard = false
     private var terminalPanel: SessionTerminalPanel? = null
+    private var controlsView: InputSurfaceView? = null
     private var created = false
 
     init {
@@ -212,6 +213,7 @@ class SecondScreenPresentation(
         dropChat()
         keyboardHost?.hide()
         keyboardHost = null
+        controlsView = null
         dismiss()
     }
 
@@ -234,7 +236,14 @@ class SecondScreenPresentation(
         return super.dispatchGenericMotionEvent(event)
     }
 
-    fun refreshControls() { if (created) renderMode() }
+    fun refreshControls() {
+        if (!created || currentMode != SecondScreenMode.CUSTOM_CONTROLS) return
+        val controls = controlsView ?: return
+        val layout = com.droiddeck.launcher.input.InputLibraries.read(context)
+            .activeLayout(SessionState.mode == SessionService.MODE_DESKTOP, com.droiddeck.launcher.input.InputRole.SECONDARY)
+        controls.updateCustomLayout(layout?.elements.orEmpty())
+        controls.updateStyle(layout?.style ?: com.droiddeck.launcher.input.InputSurfaceStyle())
+    }
 
     fun showKeyboard(): Boolean {
         val host = keyboardHost ?: return false
@@ -263,6 +272,7 @@ class SecondScreenPresentation(
         closeTerminal()
         closeDashboard()
         root.removeAllViews()
+        controlsView = null
         ownComposeViews()
         val library = com.droiddeck.launcher.input.InputLibraries.read(context)
         val profileLayout = library.activeLayout(SessionState.mode == SessionService.MODE_DESKTOP, com.droiddeck.launcher.input.InputRole.SECONDARY)
@@ -277,8 +287,10 @@ class SecondScreenPresentation(
         when (mode) {
             SecondScreenMode.TERMINAL -> renderTerminal()
             SecondScreenMode.CUSTOM_CONTROLS -> {
-                root.addView(InputSurfaceView(context, pad, profileLayout?.elements.orEmpty(),
-                    surfaceStyle = profileLayout?.style ?: com.droiddeck.launcher.input.InputSurfaceStyle()), weightParams())
+                val controls = InputSurfaceView(context, pad, profileLayout?.elements.orEmpty(),
+                    surfaceStyle = profileLayout?.style ?: com.droiddeck.launcher.input.InputSurfaceStyle())
+                controlsView = controls
+                root.addView(controls, weightParams())
                 attachKeyboard()
             }
             SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.DECK_CONTROLS -> Unit

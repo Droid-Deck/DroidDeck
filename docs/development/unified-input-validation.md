@@ -113,6 +113,18 @@ runtime auto-update and Proton menu auto-selection. The gamescope p22 archive
 was downloaded from the newly pinned component repository and verified against
 upstream's SHA-256 before refreshing the local runtime inputs.
 
+### Second-screen refresh follow-up, 2026-11-07
+
+Refreshing a profile now updates the existing custom control surface in place.
+Terminal and dashboard modes are untouched, and the custom surface keeps its
+keyboard host, field-keyboard state and WoW chat panel. Actual mode changes
+continue to use the existing full teardown/rebuild path.
+
+All **35 tests in 5 suites passed** across `SessionSecondScreenTest`, the
+surface UI suites and `InputSurfaceSourceTest`. Three new regressions cover
+terminal/dashboard identity, changed elements/style with an open field keyboard,
+and preservation of the lower-screen chat view and its dismissal callback.
+
 ## Input settings polish, 2026-11-06
 
 The final input/UI host run passed **941 tests in 124 suites, zero failures**.
