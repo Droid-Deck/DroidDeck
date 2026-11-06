@@ -1938,38 +1938,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
             label to listOf(zip)
         } + (getString(R.string.diagnostics_share_all) to zips)
+        var selected = 0
         android.app.AlertDialog.Builder(this)
-            .setTitle(R.string.diagnostics_share_title)
-            .setItems(choices.map { it.first }.toTypedArray()) { _, which ->
-                val selected = choices[which].second
+            .setTitle(R.string.diagnostics_export_title)
+            .setSingleChoiceItems(choices.map { it.first }.toTypedArray(), selected) { _, which ->
+                selected = which
+            }
+            .setPositiveButton(R.string.setup_log_share) { _, _ ->
+                val archives = choices[selected].second
                 runCatching {
-                    startActivity(if (selected.size == 1) SessionLogShare.shareIntent(this, selected.single())
-                        else SessionLogShare.shareEnhancedIntent(this, selected))
+                    startActivity(if (archives.size == 1) SessionLogShare.shareIntent(this, archives.single())
+                        else SessionLogShare.shareEnhancedIntent(this, archives))
                 }.onFailure {
                     Log.w(TAG, "could not share current session logs", it)
                     Toast.makeText(this, R.string.session_logs_share_failed, Toast.LENGTH_LONG).show()
                 }
             }
-            .setNeutralButton(R.string.setup_log_save) { _, _ -> chooseEnhancedArchivesToSave(zips) }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
-
-    private fun chooseEnhancedArchivesToSave(zips: List<File>) {
-        if (isFinishing || isDestroyed) return
-        val choices = zips.map { zip ->
-            val label = when {
-                zip.name.endsWith("-session.zip") -> getString(R.string.diagnostics_share_session)
-                zip.name.endsWith("-graphics.zip") -> getString(R.string.diagnostics_share_graphics)
-                else -> getString(R.string.diagnostics_share_games)
-            }
-            label to listOf(zip)
-        } + (getString(R.string.diagnostics_share_all) to zips)
-        android.app.AlertDialog.Builder(this)
-            .setTitle(R.string.setup_log_save)
-            .setItems(choices.map { it.first }.toTypedArray()) { _, which ->
-                val selected = choices[which].second
-                prepareEnhancedArchiveSave(selected)
+            .setNeutralButton(R.string.setup_log_save) { _, _ ->
+                prepareEnhancedArchiveSave(choices[selected].second)
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()

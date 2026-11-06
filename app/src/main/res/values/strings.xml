@@ -922,6 +922,7 @@
     <string name="setup_enhanced_diagnostics">Enhanced diagnostics for next session</string>
     <string name="setup_enhanced_diagnostics_hint">Captures detailed logs for one session. May reduce performance and use more storage. Turns itself off when the session starts; review logs before sharing.</string>
     <string name="diagnostics_share_title">Share diagnostic bundles</string>
+    <string name="diagnostics_export_title">Diagnostic bundles</string>
     <string name="diagnostics_share_session">Session and device</string>
     <string name="diagnostics_share_graphics">Graphics</string>
     <string name="diagnostics_share_games">Games and compatibility</string>
