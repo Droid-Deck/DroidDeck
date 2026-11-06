@@ -263,11 +263,11 @@ internal fun SteamLaunchOptionsPanel(appId: Int) {
         options = withContext(Dispatchers.IO) { SteamLaunchOptions.current(app, appId) }
     }
     Column(Modifier.fillMaxWidth().tabPanel(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        SectionLabel(stringResource(R.string.edit_launch_options))
-        FieldRow(stringResource(R.string.edit_launch_options), onClick = { if (!saving) options?.let { editing = it } }) {
-            val value = options
-            if (value == null || saving) Loading() else ValueText(value.ifEmpty { "—" }, muted = value.isEmpty())
-        }
+        val value = options
+        MenuItem(
+            stringResource(R.string.edit_launch_options), checked = false, enabled = value != null && !saving,
+            detail = if (value == null || saving) "…" else value.ifEmpty { "—" },
+        ) { if (!saving) options?.let { editing = it } }
         val message = error
         Text(
             stringResource(message ?: R.string.edit_launch_options_steam_hint),
