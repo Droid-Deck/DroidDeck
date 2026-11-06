@@ -21,6 +21,10 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
 import org.robolectric.util.ReflectionHelpers
+import java.util.Collections
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE, shadows = [SessionInputPointerTest.CompositorShadow::class, SessionInputPointerTest.WriterShadow::class])
@@ -43,6 +47,7 @@ class SessionInputPointerTest {
         CompositorShadow.events.clear()
         CompositorShadow.keys.clear()
         WriterShadow.mouse.clear()
+        WriterShadow.beforeWheel = null
     }
 
     @After fun tearDown() {
@@ -205,6 +210,52 @@ class SessionInputPointerTest {
         assertEquals(listOf(Triple(3, 272, 1), Triple(3, 272, 0)), CompositorShadow.events)
     }
 
+    @Test fun horizontalWheelFinishesBeforeRawMouseDestruction() {
+        checkWheelTransition(horizontal = true, transition = "releaseEvdevMouse", marker = "destroy")
+    }
+
+    @Test fun verticalWheelFinishesBeforeRawMouseSoftRelease() {
+        checkWheelTransition(horizontal = false, transition = "closeEvdevMouse", marker = "release")
+    }
+
+    private fun checkWheelTransition(horizontal: Boolean, transition: String, marker: String) {
+        ReflectionHelpers.setField(activity, "mouseWriter", FakeInputWriter(activity.cacheDir.path, FakeInputWriter.MOUSE_SLOT))
+        ReflectionHelpers.setField(activity, "evdevMouseActive", true)
+        val entered = CountDownLatch(1)
+        val continueWrite = CountDownLatch(1)
+        val transitioning = CountDownLatch(1)
+        val finished = CountDownLatch(1)
+        WriterShadow.beforeWheel = {
+            entered.countDown()
+            check(continueWrite.await(5, TimeUnit.SECONDS))
+        }
+        val executor = Executors.newFixedThreadPool(2)
+        fun scroll() { if (horizontal) output.scrollHorizontal(2) else output.scroll(2) }
+        try {
+            val writing = executor.submit { scroll() }
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
+            val closing = executor.submit {
+                transitioning.countDown()
+                invoke(transition)
+                finished.countDown()
+            }
+            assertTrue(transitioning.await(5, TimeUnit.SECONDS))
+            assertFalse(finished.await(100, TimeUnit.MILLISECONDS))
+            continueWrite.countDown()
+            writing.get(5, TimeUnit.SECONDS)
+            closing.get(5, TimeUnit.SECONDS)
+            assertEquals(listOf(if (horizontal) "wheel:0:2:120" else "wheel:-2:0:120", marker), WriterShadow.mouse)
+            scroll()
+            assertEquals(2, WriterShadow.mouse.size)
+            assertEquals(listOf(if (horizontal) Triple(11, 0, 240) else Triple(4, 2, 0)), CompositorShadow.events)
+        } finally {
+            continueWrite.countDown()
+            executor.shutdownNow()
+            executor.awaitTermination(5, TimeUnit.SECONDS)
+            WriterShadow.beforeWheel = null
+        }
+    }
+
     private fun refresh() = invoke("refreshInputProfile")
     private fun invoke(name: String) = ReflectionHelpers.callInstanceMethod<Unit>(activity, name)
     private fun <T> state(name: String): MutableState<T> = ReflectionHelpers.getField(activity, "$name\$delegate")
@@ -226,10 +277,15 @@ class SessionInputPointerTest {
     class WriterShadow {
         @Implementation fun writeMouseButton(code: Short, down: Boolean) { mouse += "button:$code:$down" }
         @Implementation fun writeMouseDelta(dx: Float, dy: Float) { mouse += "delta:$dx:$dy" }
-        @Implementation fun writeMouseWheel(vertical: Int, horizontal: Int, value120: Int) { mouse += "wheel:$vertical:$horizontal:$value120" }
+        @Implementation fun writeMouseWheel(vertical: Int, horizontal: Int, value120: Int) {
+            beforeWheel?.invoke()
+            mouse += "wheel:$vertical:$horizontal:$value120"
+        }
         @Implementation fun softRelease() { mouse += "release" }
+        @Implementation fun destroy() { mouse += "destroy" }
         companion object {
-            val mouse = mutableListOf<String>()
+            val mouse: MutableList<String> = Collections.synchronizedList(mutableListOf())
+            @Volatile var beforeWheel: (() -> Unit)? = null
             @JvmStatic @Implementation fun __staticInitializer__() {}
             @JvmStatic @Implementation fun writeDeckControls(index: Int, mask: Int, pads: ShortArray, pressure: ShortArray) {}
         }

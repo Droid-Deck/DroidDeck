@@ -77,6 +77,27 @@ The button-capture dialog opened and cancelled on Thor without a crash. No
 physical BLE-controller check or new latency measurement was made for these
 follow-ups.
 
+### Replacement-controller and mouse-backend follow-up
+
+The Triton slot now has a single owner across activity instances. Late reports,
+subscription callbacks, feature replies and teardown from a replaced controller
+cannot overwrite the current controller's report or connection flag. Every
+instance still closes its own routed source. Claiming the slot happens once at
+start; a queued or repeated old start cannot take it back.
+
+Legacy Select-to-Steam also migrates to the Desktop physical profile when there
+is no saved Desktop profile. An existing Desktop assignment is preserved.
+Mouse backend selection and publication share the button-owner lock with raw
+channel open, soft release and destruction. Horizontal and vertical scrolling
+use the same path and fall back to Wayland after leaving raw mode.
+
+The complete input/UI/global-reset run passed **967 tests in 128 suites**.
+The focused run passed **28 tests**, including replacement subscription before
+old teardown, unstarted-instance teardown, saved/default Desktop migration, and
+concurrent scroll versus raw-channel release/destruction. These changes add no
+input queue or timer. Physical BLE hardware and latency remain unmeasured for
+this follow-up.
+
 ## Input settings polish, 2026-11-06
 
 The final input/UI host run passed **941 tests in 124 suites, zero failures**.

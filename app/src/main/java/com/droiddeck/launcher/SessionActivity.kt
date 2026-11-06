@@ -193,11 +193,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
         }
         override fun scroll(steps: Int) { sendSceneWheel(steps) }
-        override fun scrollHorizontal(steps: Int) {
-            val writer = if (evdevMouseActive) mouseWriter else null
-            if (writer != null) writer.writeMouseWheel(0, steps, 120)
-            else WaylandCompositor.nativeSendSceneInput(11, 0, steps * 120)
-        }
+        override fun scrollHorizontal(steps: Int) { sendSceneWheel(steps, horizontal = true) }
         override fun requestMotion() { inputMotion.request() }
         override fun command(command: InputCommand) {
             uiHandler.post {
@@ -3655,7 +3651,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun sceneScale(rect: android.graphics.RectF): Float =
         SessionState.outputSize.first / rect.width()
 
-    private fun openEvdevMouse() {
+    // Clearing button owners emits releases, so backend transitions share their lock with all mouse writes.
+    private fun openEvdevMouse(): Unit = synchronized(heldButtons) {
         if (evdevMouseActive || !evdevMouseOn) return
         val writer = mouseWriter ?: com.droiddeck.launcher.input.FakeInputWriter(
             File(LinuxRuntime.sessionRoot(this), "dev/input").absolutePath,
@@ -3669,7 +3666,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         Log.i(TAG, "raw mouse channel active (pointer locked)")
     }
 
-    private fun closeEvdevMouse() {
+    private fun closeEvdevMouse(): Unit = synchronized(heldButtons) {
         if (!evdevMouseActive) return
         heldButtons.clear()
         mouseWriter?.softRelease()
@@ -3677,7 +3674,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         Log.i(TAG, "raw mouse channel idle")
     }
 
-    private fun releaseEvdevMouse() {
+    private fun releaseEvdevMouse(): Unit = synchronized(heldButtons) {
         if (evdevMouseActive) heldButtons.clear()
         evdevMouseActive = false
         mouseWriter?.destroy()
@@ -3685,13 +3682,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         Log.i(TAG, "raw mouse channel removed")
     }
 
-    private fun sendSceneDelta(dx: Float, dy: Float) {
+    private fun sendSceneDelta(dx: Float, dy: Float): Unit = synchronized(heldButtons) {
         val writer = if (evdevMouseActive) mouseWriter else null
         if (writer != null) writer.writeMouseDelta(dx, dy)
         else WaylandCompositor.sendPointerDelta(dx, dy)
     }
 
-    private fun sendSceneButton(code: Int, down: Boolean) {
+    private fun sendSceneButton(code: Int, down: Boolean): Unit = synchronized(heldButtons) {
         val raw = if (down) evdevMouseActive.also { guestButtonsDown[code] = it }
             else guestButtonsDown.remove(code) ?: evdevMouseActive
         val writer = if (raw) mouseWriter else null
@@ -3699,9 +3696,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         else WaylandCompositor.nativeSendSceneInput(3, code, if (down) 1 else 0)
     }
 
-    private fun sendSceneWheel(steps: Int) {
+    private fun sendSceneWheel(steps: Int, horizontal: Boolean = false): Unit = synchronized(heldButtons) {
         val writer = if (evdevMouseActive) mouseWriter else null
-        if (writer != null) writer.writeMouseWheel(-steps, 0, 120)
+        if (writer != null) writer.writeMouseWheel(if (horizontal) 0 else -steps, if (horizontal) steps else 0, 120)
+        else if (horizontal) WaylandCompositor.nativeSendSceneInput(11, 0, steps * 120)
         else WaylandCompositor.nativeSendSceneInput(4, steps, 0)
     }
 

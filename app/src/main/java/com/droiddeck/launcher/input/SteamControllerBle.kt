@@ -24,6 +24,7 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
     private val inputLock = router ?: Any()
     private var routedInput = router?.let(::TritonInputRouter)
     @Volatile private var stopped = false
+    private var started = false
     private val thread = HandlerThread("steam-controller-ble").apply { start() }
     private val handler = Handler(thread.looper)
     private val outputReports = mutableMapOf<Int, UUID>()
@@ -39,11 +40,27 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
     private var outputWritePending = false
     private var featureRead = 0L
 
-    fun start() = handler.post {
-        if (stopped || running) return@post
-        running = true
-        Log.i(TAG, "looking for a paired Steam Controller")
-        connect()
+    fun start(): Unit = synchronized(inputLock) {
+        if (stopped || started) return@synchronized
+        started = true
+        synchronized(slotLock) {
+            slotOwner = this
+            connected = false
+            FakeInputWriter.writeTritonState(SLOT, 0x45, ByteArray(STATE_BYTES))
+            FakeInputWriter.setTritonConnected(SLOT, false)
+        }
+        handler.post {
+            if (stopped || slotOwner !== this || running) return@post
+            running = true
+            Log.i(TAG, "looking for a paired Steam Controller")
+            connect()
+        }
+    }
+
+    private inline fun withSlot(block: () -> Unit) = synchronized(inputLock) {
+        synchronized(slotLock) {
+            if (!stopped && slotOwner === this) block()
+        }
     }
 
     fun stop() {
@@ -52,9 +69,14 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
             stopped = true
             routedInput?.close()
             routedInput = null
-            FakeInputWriter.writeTritonState(SLOT, if (reportId == 0x47) 0x47 else 0x45, ByteArray(STATE_BYTES))
-            connected = false
-            FakeInputWriter.setTritonConnected(SLOT, false)
+            synchronized(slotLock) {
+                if (slotOwner === this) {
+                    FakeInputWriter.writeTritonState(SLOT, if (reportId == 0x47) 0x47 else 0x45, ByteArray(STATE_BYTES))
+                    connected = false
+                    FakeInputWriter.setTritonConnected(SLOT, false)
+                    slotOwner = null
+                }
+            }
         }
         handler.post {
             running = false
@@ -65,7 +87,7 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
     }
 
     private fun connect() {
-        if (stopped || !running || gatt != null) return
+        if (stopped || slotOwner !== this || !running || gatt != null) return
         if (SessionState.suspended) {
             handler.postDelayed(::connect, RETRY_MS)
             return
@@ -100,9 +122,11 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         outputReports.clear()
         synchronized(inputLock) {
             if (!stopped) {
-                connected = false
-                FakeInputWriter.setTritonConnected(SLOT, false)
                 release()
+                withSlot {
+                    connected = false
+                    FakeInputWriter.setTritonConnected(SLOT, false)
+                }
             }
         }
         g.disconnect()
@@ -137,8 +161,8 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         }
 
         override fun onDescriptorWrite(g: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
-            synchronized(inputLock) {
-                if (stopped || g !== gatt || descriptor.characteristic.uuid != input) return
+            withSlot {
+                if (g !== gatt || descriptor.characteristic.uuid != input) return
                 Log.i(TAG, "subscribed to report 0x%02x (status %d)".format(reportId, status))
                 connected = status == BluetoothGatt.GATT_SUCCESS
                 FakeInputWriter.setTritonConnected(SLOT, connected)
@@ -184,7 +208,7 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
     }
 
     private fun subscribe(g: BluetoothGatt) {
-        if (stopped) return
+        if (stopped || slotOwner !== this) return
         val service = g.getService(SERVICE)
         if (service == null) {
             Log.w(TAG, "no Valve service on \"${g.device.name}\" (attempt ${discoveries + 1}); services: " +
@@ -228,16 +252,16 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
             .onFailure { Log.w(TAG, "could not refresh the service cache", it) }
     }
 
-    private fun refreshLizardMode() {
-        if (stopped || !connected) return
+    private fun refreshLizardMode() = withSlot {
+        if (!connected) return@withSlot
         val msg = ByteArray(FEATURE_BYTES)
         msg[0] = 0x87.toByte(); msg[1] = 3; msg[2] = 9
         enqueueOutput(REPORT, msg)
         handler.postDelayed(::refreshLizardMode, LIZARD_REFRESH_MS)
     }
 
-    private fun onState(data: ByteArray) = synchronized(inputLock) {
-        if (stopped || data.size < STATE_BYTES) return@synchronized
+    private fun onState(data: ByteArray) = withSlot {
+        if (data.size < STATE_BYTES) return@withSlot
         val timing = InputTiming.begin()
         FakeInputWriter.writeTritonState(SLOT, reportId, routedInput?.route(data) ?: data)
         InputTiming.end(timing)
@@ -246,11 +270,13 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
     private fun release() = synchronized(inputLock) {
         if (stopped) return@synchronized
         routedInput?.release()
-        FakeInputWriter.writeTritonState(SLOT, if (reportId == 0x47) 0x47 else 0x45, ByteArray(STATE_BYTES))
+        withSlot {
+            FakeInputWriter.writeTritonState(SLOT, if (reportId == 0x47) 0x47 else 0x45, ByteArray(STATE_BYTES))
+        }
     }
 
-    private fun pollOutput() {
-        if (stopped || !running || !connected || gatt == null) return
+    private fun pollOutput() = withSlot {
+        if (!running || !connected || gatt == null) return@withSlot
         FakeInputWriter.readTritonOutput(SLOT, outputSequence)?.let { output ->
             outputSequence = ByteBuffer.wrap(output, 0, 8).order(ByteOrder.LITTLE_ENDIAN).long
             sendOutputReport(output[8] != 0.toByte(), output.copyOfRange(9, output.size))
@@ -264,8 +290,7 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         handler.postDelayed(::pollOutput, OUTPUT_POLL_MS)
     }
 
-    private fun onFeatureRead(value: ByteArray?) = synchronized(inputLock) {
-        if (stopped) return@synchronized
+    private fun onFeatureRead(value: ByteArray?) = withSlot {
         outputWritePending = false
         if (featureRead != 0L) {
             if (value == null) Log.w(TAG, "feature read failed")
@@ -293,14 +318,14 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         writeNextOutput()
     }
 
-    private fun writeNextOutput() {
-        if (stopped || outputWritePending) return
-        val g = gatt ?: return
-        val (uuid, value) = queuedWrites.pollFirst() ?: return
+    private fun writeNextOutput() = withSlot {
+        if (outputWritePending) return@withSlot
+        val g = gatt ?: return@withSlot
+        val (uuid, value) = queuedWrites.pollFirst() ?: return@withSlot
         val characteristic = g.getService(SERVICE)?.getCharacteristic(uuid)
         if (characteristic == null) {
             Log.w(TAG, "BLE output characteristic $uuid disappeared")
-            return
+            return@withSlot
         }
         if (value == null) {
             if (g.readCharacteristic(characteristic)) {
@@ -309,7 +334,7 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
                 queuedWrites.addFirst(uuid to null)
                 handler.postDelayed(::writeNextOutput, OUTPUT_RETRY_MS)
             }
-            return
+            return@withSlot
         }
         @Suppress("DEPRECATION")
         characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
@@ -325,6 +350,8 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
     }
 
     companion object {
+        private val slotLock = Any()
+        @Volatile private var slotOwner: SteamControllerBle? = null
         private const val TAG = "SteamControllerBle"
         private const val SLOT = 0
         private const val RETRY_MS = 5_000L

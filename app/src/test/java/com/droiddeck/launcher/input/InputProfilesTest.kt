@@ -28,8 +28,23 @@ class InputProfilesTest {
         assertEquals(InputAction.Disabled, game.action(InputRole.PRIMARY, InputControl.X))
         assertEquals(InputAction.Native(), game.action(InputRole.PHYSICAL, InputControl.A))
         assertEquals(InputAction.Native(InputControl.GUIDE), game.action(InputRole.PHYSICAL, InputControl.SELECT))
+        assertEquals(InputAction.Native(InputControl.GUIDE), InputProfiles.read(context, InputProfile.DESKTOP)
+            .action(InputRole.PHYSICAL, InputControl.SELECT))
         InputProfiles.reset(context, InputProfile.GAME)
         assertEquals(InputAction.Native(), InputProfiles.read(context, InputProfile.GAME).action(InputRole.PRIMARY, InputControl.A))
+    }
+
+    @Test fun migrationPreservesSavedDesktopSelectBinding() {
+        ControllerPrefs.setSelectSteam(context, true)
+        context.getSharedPreferences("input-profiles", Context.MODE_PRIVATE).edit().putString("profile.desktop",
+            """{"version":1,"bindings":[{"role":"PHYSICAL","control":"select","action":{"type":"disabled"}}]}""").commit()
+        assertEquals(InputAction.Disabled, InputProfiles.read(context, InputProfile.DESKTOP)
+            .action(InputRole.PHYSICAL, InputControl.SELECT))
+    }
+
+    @Test fun migrationKeepsDesktopKeyboardWhenSelectToSteamIsOff() {
+        assertEquals(InputAction.Command(InputCommand.KEYBOARD), InputProfiles.read(context, InputProfile.DESKTOP)
+            .action(InputRole.PHYSICAL, InputControl.SELECT))
     }
 
     @Test fun bindingsAndDeviceKeysRoundTripWithoutAffectingOtherProfile() {

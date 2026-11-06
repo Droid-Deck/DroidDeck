@@ -103,6 +103,10 @@ object InputProfiles {
         }
         if (old.selectSteam) game = game.withBinding(InputRole.PHYSICAL, InputControl.SELECT, InputAction.Native(InputControl.GUIDE))
         if (!p.contains("profile.${InputProfile.GAME}")) saveLegacy(context, game)
+        if (old.selectSteam && !p.contains("profile.${InputProfile.DESKTOP}")) {
+            saveLegacy(context, InputProfile.defaults(InputProfile.DESKTOP)
+                .withBinding(InputRole.PHYSICAL, InputControl.SELECT, InputAction.Native(InputControl.GUIDE)))
+        }
         p.edit().putBoolean("migrated", true).apply()
     }
 
