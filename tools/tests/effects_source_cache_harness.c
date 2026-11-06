@@ -84,7 +84,18 @@ int main(int argc, char **argv) {
     VkImage source = (VkImage)(uintptr_t)10;
     assert(scene_ensure(source, 1280, 720) == 0);
     VkImageView original = bound_view;
-    if (!strcmp(argv[1], "recycled")) {
+    if (!strcmp(argv[1], "generated")) {
+        for (int k = 1; k < FX_CONTEXTS; k++) {
+            g_context = k;
+            assert(scene_ensure((VkImage)(uintptr_t)(10 + k), 1280, 720) == 0);
+        }
+        assert(sets == FX_CONTEXTS && !freed_sets);
+        vkp_effects_release_generated_sources();
+        assert(g_context == 0 && freed_sets == FX_CONTEXTS - 1);
+        assert(g_scene.img == source && g_scene.view == original);
+        vkp_effects_release_generated_sources();
+        assert(freed_sets == FX_CONTEXTS - 1);
+    } else if (!strcmp(argv[1], "recycled")) {
         vkp_effects_forget_image(source);
         assert(freed_sets == 1 && freed_views == 1);
         assert(scene_ensure(source, 1280, 720) == 0);

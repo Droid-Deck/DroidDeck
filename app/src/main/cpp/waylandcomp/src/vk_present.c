@@ -2023,6 +2023,11 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         pass_n = 1;
         overlay_start = source_end;
     }
+    const int upscale_w = (int)(scene_w * g_map.kx + 0.5f);
+    const int upscale_h = (int)(scene_h * g_map.ky + 0.5f);
+    const int post_upscale = fx && fg && !hf && !cb && vkp_effects_upscaling() &&
+                             !vkp_effects_postprocessing() &&
+                             (upscale_w > input_w || upscale_h > input_h);
     const int deep = hf && n > 0 && fg && g_swap_is_hdr && !hf->tonemap && vkp_framegen_format_ok(FG_HDR_FMT) &&
                      ensure_img(&g_fgscene, scene_w, scene_h, FG_HDR_FMT,
                                 VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
@@ -2153,6 +2158,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         if (fx) {
             int mapped_w = (int)(scene_w * g_map.kx + 0.5f), mapped_h = (int)(scene_h * g_map.ky + 0.5f);
             if (fg) { mapped_w = scene_w; mapped_h = scene_h; }
+            if (post_upscale) { mapped_w = input_w; mapped_h = input_h; }
             vkp_effects_set_formats(scene_fmt, scene_fmt);
             result = vkp_effects_run(cmd, scene_img, input_w, input_h, mapped_w, mapped_h, &rw, &rh);
             effects_overlay_draws(cmd, result, rw, rh, scene_w, scene_h,
@@ -2177,7 +2183,12 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
             if (ngen > VKP_FG_MAX_GENERATIONS) ngen = VKP_FG_MAX_GENERATIONS;
         }
 
-        record_screen_blit(cmd, ngen ? gens[0] : result, rw, rh, scene_w, scene_h, img, blit_filter, cb);
+        VkImage screen = ngen ? gens[0] : result;
+        int screen_w = rw, screen_h = rh;
+        if (post_upscale)
+            screen = vkp_effects_run_generated(cmd, screen, rw, rh, upscale_w, upscale_h,
+                                               0, &screen_w, &screen_h);
+        record_screen_blit(cmd, screen, screen_w, screen_h, scene_w, scene_h, img, blit_filter, cb);
     }
     g_vk.EndCommandBuffer(cmd);
 
@@ -2201,7 +2212,12 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
             VkCommandBuffer ck = g_cmds[k];
             g_vk.ResetCommandBuffer(ck, 0);
             g_vk.BeginCommandBuffer(ck, &bi);
-            record_screen_blit(ck, k < ngen ? gens[k] : result, rw, rh, scene_w, scene_h, img, blit_filter, cb);
+            VkImage screen = k < ngen ? gens[k] : result;
+            int screen_w = rw, screen_h = rh;
+            if (post_upscale)
+                screen = vkp_effects_run_generated(ck, screen, rw, rh, upscale_w, upscale_h,
+                                                   k, &screen_w, &screen_h);
+            record_screen_blit(ck, screen, screen_w, screen_h, scene_w, scene_h, img, blit_filter, cb);
             g_vk.EndCommandBuffer(ck);
         }
         const int last = (k + 1 == presents);
@@ -2239,6 +2255,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
     VkResult fr = timed_wait(g_fence, UINT64_MAX);
     if (fr == VK_ERROR_DEVICE_LOST || pr == VK_ERROR_DEVICE_LOST) { device_lost("present"); return -1; }
     if (fr != VK_SUCCESS) return -1;
+    vkp_effects_release_generated_sources();
     if (fg) vkp_framegen_presented(presented_gen);
     if (pr == VK_ERROR_OUT_OF_DATE_KHR || pr == VK_ERROR_SURFACE_LOST_KHR) {
         droiddeck_log("gpu", "screen surface %s on present: rebuilding the swapchain", vk_result_name(pr));
