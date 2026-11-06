@@ -17,7 +17,7 @@ object DriverPairs {
     const val NAD_RADV_XCLIPSE = "nad:radv-xclipse"
     /** RADV-Xclipse rebased on JimVulkan's upstream: a manual choice, never Auto. */
     const val NAD_RADV_XCLIPSE_UPSTREAM = "nad:radv-xclipse-upstream"
-    private val XCLIPSE_950_960 = Regex("""\b9[56]0\b""")
+    private val XCLIPSE_MODEL = Regex("""\b9\d0\b""")
     const val NAD_MALI_JM = "nad:panvk-mali-jm"
     const val NAD_MALI_G710 = "nad:panvk-mali-g710"
     const val NAD_MALI_G615 = "nad:panvk-mali-g615"
@@ -112,6 +112,10 @@ object DriverPairs {
             }
     }
 
+    /** 950 and 960 panic on the older build; a name without a model number is treated the same way. */
+    private fun xclipseNeedsUpstream(name: String): Boolean =
+        XCLIPSE_MODEL.find(name)?.value.let { it == null || it == "950" || it == "960" }
+
     fun recommendedKey(
         gpu: GpuInfo, pairs: List<DriverPair>,
         rules: List<AutoPicks.Rule> = AutoPicks.BUILT_IN, bad: Set<String> = emptySet(),
@@ -120,7 +124,7 @@ object DriverPairs {
         when (gpu.family) {
             Family.POWERVR -> return when {
                 !gpu.name.contains("Xclipse", ignoreCase = true) -> null
-                XCLIPSE_950_960.containsMatchIn(gpu.name) && pairs.any { it.key == NAD_RADV_XCLIPSE_UPSTREAM } -> NAD_RADV_XCLIPSE_UPSTREAM
+                xclipseNeedsUpstream(gpu.name) && pairs.any { it.key == NAD_RADV_XCLIPSE_UPSTREAM } -> NAD_RADV_XCLIPSE_UPSTREAM
                 else -> NAD_RADV_XCLIPSE
             }
             Family.MALI_OTHER, Family.NOT_ADRENO -> return null
