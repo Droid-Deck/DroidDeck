@@ -3712,4 +3712,12 @@
     <string name="stores_gamejolt_filter_status">Statut</string>
     <string name="stores_gamejolt_filter_partners">Partenaires</string>
     <string name="stores_gamejolt_followed">Jeux suivis</string>
+    <string name="wow_chat_title">Saisie du chat</string>
+    <string name="wow_chat_voice">Saisie vocale</string>
+    <string name="wow_chat_remember">Mémoriser ce choix</string>
+    <string name="wow_chat_ask">Demander à chaque fois</string>
+    <string name="wow_chat_send">Envoyer</string>
+    <string name="wow_chat_listening">Écoute…</string>
+    <string name="wow_chat_voice_unavailable">La saisie vocale n\'est pas disponible sur cet appareil.</string>
+    <string name="wow_chat_mic_denied">L\'accès au micro est nécessaire pour la saisie vocale.</string>
 </resources>

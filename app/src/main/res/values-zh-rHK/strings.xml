@@ -3646,4 +3646,12 @@
     <string name="setup_gpu_bridged">GPU 透過 Mali 橋接</string>
     <string name="gpuinfo_bridge">透過 Mali 橋接執行，使用手機內建的 Vulkan 驅動程式</string>
     <string name="gpuinfo_bridge_off">關閉 Mali 橋接時不受支援：Turnip 需要 Adreno（Snapdragon）GPU</string>
+    <string name="wow_chat_title">聊天輸入</string>
+    <string name="wow_chat_voice">語音輸入</string>
+    <string name="wow_chat_remember">記住此選擇</string>
+    <string name="wow_chat_ask">每次詢問</string>
+    <string name="wow_chat_send">傳送</string>
+    <string name="wow_chat_listening">正在聆聽…</string>
+    <string name="wow_chat_voice_unavailable">此裝置不支援語音輸入。</string>
+    <string name="wow_chat_mic_denied">語音輸入需要咪高峰權限。</string>
 </resources>

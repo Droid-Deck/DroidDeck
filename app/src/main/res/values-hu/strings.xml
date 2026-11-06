@@ -3673,4 +3673,12 @@
     <string name="stores_gamejolt_filter_status">Állapot</string>
     <string name="stores_gamejolt_filter_partners">Partnerek</string>
     <string name="stores_gamejolt_followed">Követett játékok</string>
+    <string name="wow_chat_title">Csevegés bevitele</string>
+    <string name="wow_chat_voice">Hangalapú gépelés</string>
+    <string name="wow_chat_remember">Választás megjegyzése</string>
+    <string name="wow_chat_ask">Kérdezzen minden alkalommal</string>
+    <string name="wow_chat_send">Küldés</string>
+    <string name="wow_chat_listening">Figyelés…</string>
+    <string name="wow_chat_voice_unavailable">A hangalapú gépelés nem érhető el ezen az eszközön.</string>
+    <string name="wow_chat_mic_denied">A hangalapú gépeléshez mikrofon-hozzáférés szükséges.</string>
 </resources>

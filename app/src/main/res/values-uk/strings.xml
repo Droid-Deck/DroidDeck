@@ -3751,4 +3751,12 @@
     <string name="stores_gamejolt_filter_status">Статус</string>
     <string name="stores_gamejolt_filter_partners">Партнери</string>
     <string name="stores_gamejolt_followed">Ігри, за якими ви стежите</string>
+    <string name="wow_chat_title">Введення в чат</string>
+    <string name="wow_chat_voice">Голосове введення</string>
+    <string name="wow_chat_remember">Запам\'ятати цей вибір</string>
+    <string name="wow_chat_ask">Питати щоразу</string>
+    <string name="wow_chat_send">Надіслати</string>
+    <string name="wow_chat_listening">Слухаю…</string>
+    <string name="wow_chat_voice_unavailable">Голосове введення недоступне на цьому пристрої.</string>
+    <string name="wow_chat_mic_denied">Для голосового введення потрібен доступ до мікрофона.</string>
 </resources>

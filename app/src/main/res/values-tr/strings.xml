@@ -3673,4 +3673,12 @@
     <string name="stores_gamejolt_filter_status">Durum</string>
     <string name="stores_gamejolt_filter_partners">Ortaklar</string>
     <string name="stores_gamejolt_followed">Takip edilen oyunlar</string>
+    <string name="wow_chat_title">Sohbet girişi</string>
+    <string name="wow_chat_voice">Sesle yazma</string>
+    <string name="wow_chat_remember">Bu seçimi hatırla</string>
+    <string name="wow_chat_ask">Her seferinde sor</string>
+    <string name="wow_chat_send">Gönder</string>
+    <string name="wow_chat_listening">Dinleniyor…</string>
+    <string name="wow_chat_voice_unavailable">Sesle yazma bu cihazda kullanılamıyor.</string>
+    <string name="wow_chat_mic_denied">Sesle yazma için mikrofon erişimi gerekiyor.</string>
 </resources>

@@ -3643,4 +3643,12 @@
     <string name="stores_gamejolt_filter_status">ステータス</string>
     <string name="stores_gamejolt_filter_partners">パートナー</string>
     <string name="stores_gamejolt_followed">フォロー中のゲーム</string>
+    <string name="wow_chat_title">チャット入力</string>
+    <string name="wow_chat_voice">音声入力</string>
+    <string name="wow_chat_remember">この選択を記憶する</string>
+    <string name="wow_chat_ask">毎回確認する</string>
+    <string name="wow_chat_send">送信</string>
+    <string name="wow_chat_listening">聞き取り中…</string>
+    <string name="wow_chat_voice_unavailable">このデバイスでは音声入力を使用できません。</string>
+    <string name="wow_chat_mic_denied">音声入力にはマイクへのアクセスが必要です。</string>
 </resources>

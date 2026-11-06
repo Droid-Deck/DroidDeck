@@ -3643,4 +3643,12 @@
     <string name="stores_gamejolt_filter_status">Status</string>
     <string name="stores_gamejolt_filter_partners">Mitra</string>
     <string name="stores_gamejolt_followed">Game yang diikuti</string>
+    <string name="wow_chat_title">Input obrolan</string>
+    <string name="wow_chat_voice">Ketik dengan suara</string>
+    <string name="wow_chat_remember">Ingat pilihan ini</string>
+    <string name="wow_chat_ask">Tanya setiap kali</string>
+    <string name="wow_chat_send">Kirim</string>
+    <string name="wow_chat_listening">Mendengarkan…</string>
+    <string name="wow_chat_voice_unavailable">Ketik dengan suara tidak tersedia di perangkat ini.</string>
+    <string name="wow_chat_mic_denied">Akses mikrofon diperlukan untuk mengetik dengan suara.</string>
 </resources>

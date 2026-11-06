@@ -3834,4 +3834,12 @@
     <string name="stores_gamejolt_filter_status">Статус</string>
     <string name="stores_gamejolt_filter_partners">Партнёры</string>
     <string name="stores_gamejolt_followed">Отслеживаемые игры</string>
+    <string name="wow_chat_title">Ввод в чат</string>
+    <string name="wow_chat_voice">Голосовой ввод</string>
+    <string name="wow_chat_remember">Запомнить этот выбор</string>
+    <string name="wow_chat_ask">Спрашивать каждый раз</string>
+    <string name="wow_chat_send">Отправить</string>
+    <string name="wow_chat_listening">Слушаю…</string>
+    <string name="wow_chat_voice_unavailable">Голосовой ввод недоступен на этом устройстве.</string>
+    <string name="wow_chat_mic_denied">Для голосового ввода нужен доступ к микрофону.</string>
 </resources>

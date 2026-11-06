@@ -3673,4 +3673,12 @@
     <string name="stores_gamejolt_filter_status">Tila</string>
     <string name="stores_gamejolt_filter_partners">Kumppanit</string>
     <string name="stores_gamejolt_followed">Seuratut pelit</string>
+    <string name="wow_chat_title">Chatin syöttö</string>
+    <string name="wow_chat_voice">Puhekirjoitus</string>
+    <string name="wow_chat_remember">Muista tämä valinta</string>
+    <string name="wow_chat_ask">Kysy joka kerta</string>
+    <string name="wow_chat_send">Lähetä</string>
+    <string name="wow_chat_listening">Kuunnellaan…</string>
+    <string name="wow_chat_voice_unavailable">Puhekirjoitus ei ole käytettävissä tällä laitteella.</string>
+    <string name="wow_chat_mic_denied">Puhekirjoitus vaatii mikrofonin käyttöoikeuden.</string>
 </resources>

@@ -3751,4 +3751,12 @@
     <string name="stores_gamejolt_filter_status">Stav</string>
     <string name="stores_gamejolt_filter_partners">Partneři</string>
     <string name="stores_gamejolt_followed">Sledované hry</string>
+    <string name="wow_chat_title">Zadávání do chatu</string>
+    <string name="wow_chat_voice">Hlasové psaní</string>
+    <string name="wow_chat_remember">Zapamatovat tuto volbu</string>
+    <string name="wow_chat_ask">Pokaždé se zeptat</string>
+    <string name="wow_chat_send">Odeslat</string>
+    <string name="wow_chat_listening">Poslouchám…</string>
+    <string name="wow_chat_voice_unavailable">Hlasové psaní není na tomto zařízení k dispozici.</string>
+    <string name="wow_chat_mic_denied">Pro hlasové psaní je potřeba přístup k mikrofonu.</string>
 </resources>

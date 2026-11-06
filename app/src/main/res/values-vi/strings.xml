@@ -3643,4 +3643,12 @@
     <string name="stores_gamejolt_filter_status">Trạng thái</string>
     <string name="stores_gamejolt_filter_partners">Đối tác</string>
     <string name="stores_gamejolt_followed">Game đang theo dõi</string>
+    <string name="wow_chat_title">Nhập trò chuyện</string>
+    <string name="wow_chat_voice">Nhập bằng giọng nói</string>
+    <string name="wow_chat_remember">Ghi nhớ lựa chọn này</string>
+    <string name="wow_chat_ask">Hỏi mỗi lần</string>
+    <string name="wow_chat_send">Gửi</string>
+    <string name="wow_chat_listening">Đang nghe…</string>
+    <string name="wow_chat_voice_unavailable">Thiết bị này không hỗ trợ nhập bằng giọng nói.</string>
+    <string name="wow_chat_mic_denied">Cần quyền truy cập micrô để nhập bằng giọng nói.</string>
 </resources>

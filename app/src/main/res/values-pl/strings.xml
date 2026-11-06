@@ -3751,4 +3751,12 @@
     <string name="stores_gamejolt_filter_status">Status</string>
     <string name="stores_gamejolt_filter_partners">Partnerzy</string>
     <string name="stores_gamejolt_followed">Obserwowane gry</string>
+    <string name="wow_chat_title">Wpisywanie na czacie</string>
+    <string name="wow_chat_voice">Pisanie głosowe</string>
+    <string name="wow_chat_remember">Zapamiętaj ten wybór</string>
+    <string name="wow_chat_ask">Pytaj za każdym razem</string>
+    <string name="wow_chat_send">Wyślij</string>
+    <string name="wow_chat_listening">Słucham…</string>
+    <string name="wow_chat_voice_unavailable">Pisanie głosowe nie jest dostępne na tym urządzeniu.</string>
+    <string name="wow_chat_mic_denied">Pisanie głosowe wymaga dostępu do mikrofonu.</string>
 </resources>

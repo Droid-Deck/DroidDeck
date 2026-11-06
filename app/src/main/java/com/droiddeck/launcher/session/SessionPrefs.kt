@@ -351,6 +351,8 @@ object SessionPrefs {
     }
 
     const val PC_KEYBOARD_SIZE_DEFAULT = 47
+    const val WOW_CHAT_VOICE = "voice"
+    const val WOW_CHAT_KEYBOARD = "keyboard"
     val PC_KEYBOARD_SIZE_RANGE = 25..70
     const val PC_KEYBOARD_OPACITY_DEFAULT = 100
     val PC_KEYBOARD_OPACITY_RANGE = 30..100
@@ -360,6 +362,13 @@ object SessionPrefs {
 
     fun setPcKeyboardSize(context: Context, percent: Int) {
         prefs(context).edit().putInt("pcKeyboardSize", percent.coerceIn(PC_KEYBOARD_SIZE_RANGE)).apply()
+    }
+
+    fun wowChatInput(context: Context): String? =
+        prefs(context).getString("wowChatInput", null)?.takeIf { it == WOW_CHAT_VOICE || it == WOW_CHAT_KEYBOARD }
+
+    fun setWowChatInput(context: Context, mode: String?) {
+        prefs(context).edit().apply { if (mode == null) remove("wowChatInput") else putString("wowChatInput", mode) }.apply()
     }
 
     fun pcKeyboardOpacity(context: Context): Int =

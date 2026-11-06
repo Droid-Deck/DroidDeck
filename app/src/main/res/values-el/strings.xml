@@ -3673,4 +3673,12 @@
     <string name="stores_gamejolt_filter_status">Κατάσταση</string>
     <string name="stores_gamejolt_filter_partners">Συνεργάτες</string>
     <string name="stores_gamejolt_followed">Παιχνίδια που ακολουθείτε</string>
+    <string name="wow_chat_title">Εισαγωγή συνομιλίας</string>
+    <string name="wow_chat_voice">Φωνητική πληκτρολόγηση</string>
+    <string name="wow_chat_remember">Απομνημόνευση αυτής της επιλογής</string>
+    <string name="wow_chat_ask">Ερώτηση κάθε φορά</string>
+    <string name="wow_chat_send">Αποστολή</string>
+    <string name="wow_chat_listening">Ακρόαση…</string>
+    <string name="wow_chat_voice_unavailable">Η φωνητική πληκτρολόγηση δεν είναι διαθέσιμη σε αυτή τη συσκευή.</string>
+    <string name="wow_chat_mic_denied">Απαιτείται πρόσβαση στο μικρόφωνο για φωνητική πληκτρολόγηση.</string>
 </resources>

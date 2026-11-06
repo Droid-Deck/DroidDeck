@@ -3712,4 +3712,12 @@
     <string name="stores_gamejolt_filter_status">Stato</string>
     <string name="stores_gamejolt_filter_partners">Partner</string>
     <string name="stores_gamejolt_followed">Giochi seguiti</string>
+    <string name="wow_chat_title">Input della chat</string>
+    <string name="wow_chat_voice">Digitazione vocale</string>
+    <string name="wow_chat_remember">Ricorda questa scelta</string>
+    <string name="wow_chat_ask">Chiedi ogni volta</string>
+    <string name="wow_chat_send">Invia</string>
+    <string name="wow_chat_listening">In ascolto…</string>
+    <string name="wow_chat_voice_unavailable">La digitazione vocale non è disponibile su questo dispositivo.</string>
+    <string name="wow_chat_mic_denied">Per la digitazione vocale serve l\'accesso al microfono.</string>
 </resources>

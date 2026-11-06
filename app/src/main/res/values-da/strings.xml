@@ -3673,4 +3673,12 @@
     <string name="stores_gamejolt_filter_status">Status</string>
     <string name="stores_gamejolt_filter_partners">Partnere</string>
     <string name="stores_gamejolt_followed">Fulgte spil</string>
+    <string name="wow_chat_title">Chatinput</string>
+    <string name="wow_chat_voice">Stemmeindtastning</string>
+    <string name="wow_chat_remember">Husk dette valg</string>
+    <string name="wow_chat_ask">Spørg hver gang</string>
+    <string name="wow_chat_send">Send</string>
+    <string name="wow_chat_listening">Lytter…</string>
+    <string name="wow_chat_voice_unavailable">Stemmeindtastning er ikke tilgængelig på denne enhed.</string>
+    <string name="wow_chat_mic_denied">Mikrofonadgang er nødvendig for stemmeindtastning.</string>
 </resources>

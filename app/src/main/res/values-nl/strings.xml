@@ -3673,4 +3673,12 @@
     <string name="stores_gamejolt_filter_status">Status</string>
     <string name="stores_gamejolt_filter_partners">Partners</string>
     <string name="stores_gamejolt_followed">Gevolgde games</string>
+    <string name="wow_chat_title">Chatinvoer</string>
+    <string name="wow_chat_voice">Spraakinvoer</string>
+    <string name="wow_chat_remember">Deze keuze onthouden</string>
+    <string name="wow_chat_ask">Elke keer vragen</string>
+    <string name="wow_chat_send">Verzenden</string>
+    <string name="wow_chat_listening">Luisteren…</string>
+    <string name="wow_chat_voice_unavailable">Spraakinvoer is niet beschikbaar op dit apparaat.</string>
+    <string name="wow_chat_mic_denied">Voor spraakinvoer is toegang tot de microfoon nodig.</string>
 </resources>
