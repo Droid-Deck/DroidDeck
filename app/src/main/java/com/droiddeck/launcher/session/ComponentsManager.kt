@@ -1088,6 +1088,14 @@ object ComponentsManager {
         packagesInUse(loadState(context), protons(context).distinctBy { it.id }.associateBy { it.id })
     }
 
+    fun deleteUnused(context: Context, file: String): Boolean = synchronized(lock) {
+        val name = safeName(file)
+        val f = File(packagesDir(context), name)
+        if (!f.isFile || name in packagesInUse(loadState(context), protons(context).distinctBy { it.id }.associateBy { it.id })) return false
+        deletePackage(context, name)
+        true
+    }
+
     fun storedFiles(context: Context): List<String> =
         packagesDir(context).listFiles()?.filter { it.isFile && it.name.endsWith(".wcp") }?.map { it.name } ?: emptyList()
 

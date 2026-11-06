@@ -234,15 +234,19 @@ object ComponentUpdater {
     }
 
     private fun release(context: Context, state: JSONObject, others: List<ComponentsManager.Proton>, wanted: List<String>) {
-        if (state.optBoolean("scoped")) return
-        state.put("scoped", true)
+        val retry = state.optJSONArray("releasing").strings()
+        if (state.optBoolean("scoped") && retry.isEmpty()) return
         val auto = autoFiles(state.optJSONObject("lines"))
         val choices = ComponentsManager.activeChoices(context)
+        val failed = ArrayList<String>()
         for (p in others) for (comp in wanted) {
+            val key = "${p.id}|$comp"
+            if (state.optBoolean("scoped") && key !in retry) continue
             if (!ComponentUpdates.released(choices.choiceOf(p, comp), auto)) continue
             runCatching { ComponentsManager.restore(context, p.id, comp, ComponentsManager.safeName(p.version)) }
-                .onFailure { Log.w(TAG, "restore ${p.name} $comp", it) }
+                .onFailure { failed += key; Log.w(TAG, "restore ${p.name} $comp", it) }
         }
+        state.put("scoped", true).put("releasing", JSONArray(failed))
     }
 
     internal fun dropRemoved(state: JSONObject, protons: List<ComponentsManager.Proton>) {
@@ -330,7 +334,7 @@ object ComponentUpdater {
             val ls = lines.optJSONObject(k) ?: continue
             val owned = ls.strings("owned")
             val stale = ComponentUpdates.stale(followed.firstOrNull { it.key == k }, owned, stored, keep)
-            val gone = stale.filter { runCatching { ComponentsManager.deletePackage(context, it) }.isSuccess }
+            val gone = stale.filter { runCatching { ComponentsManager.deleteUnused(context, it) }.getOrDefault(false) }
             ls.put("owned", JSONArray(owned - gone.toSet()))
         }
     }

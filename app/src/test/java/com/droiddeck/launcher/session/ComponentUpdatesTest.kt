@@ -294,4 +294,21 @@ class ComponentUpdatesTest {
             .put("profiles", JSONObject().put("app:1", JSONObject().put("dxvk", "mine.wcp"))).toString())
         assertEquals(setOf("mine.wcp"), ComponentsManager.selectedPackages(context))
     }
+
+    @Test fun pruningNeverDeletesAPackageAGameProfileSelected() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val dir = File(context.filesDir, "components").apply { mkdirs() }
+        File(dir, "state.json").writeText(JSONObject()
+            .put("profiles", JSONObject().put("app:1", JSONObject().put("dxvk", "DD-dxvk-3.1.1+186-nightly.wcp"))).toString())
+        val packages = File(dir, "packages").apply { mkdirs() }
+        val kept = File(packages, "DD-dxvk-3.1.1+186-nightly.wcp").apply { writeText("x") }
+        val old = File(packages, "DD-dxvk-3.1.1+184-nightly.wcp").apply { writeText("x") }
+        assertFalse(ComponentsManager.deleteUnused(context, kept.name))
+        assertTrue(kept.isFile)
+        assertEquals("DD-dxvk-3.1.1+186-nightly.wcp", JSONObject(File(dir, "state.json").readText())
+            .getJSONObject("profiles").getJSONObject("app:1").getString("dxvk"))
+        assertTrue(ComponentsManager.deleteUnused(context, old.name))
+        assertFalse(old.isFile)
+        assertFalse(ComponentsManager.deleteUnused(context, old.name))
+    }
 }
