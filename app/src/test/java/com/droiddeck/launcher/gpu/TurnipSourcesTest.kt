@@ -25,11 +25,11 @@ class TurnipSourcesTest {
         val context = RuntimeEnvironment.getApplication()
         val repo = TurnipReleases.sourceBuiltIns().first()
         val production = GitHubArtifacts.openConnection
-        var calls = 0
+        val requested = ArrayList<String>()
         try {
             GitHubArtifacts.clearRateLimits()
             GitHubArtifacts.openConnection = { url ->
-                calls++
+                requested.add(url.toString())
                 val body = when (url.path) {
                     "/repos/$repo" -> JSONObject().put("id", 1).put("full_name", repo).toString()
                     "/repositories/1/releases" -> JSONArray().put(JSONObject().put("id", 2).put("tag_name", "r1")
@@ -50,14 +50,18 @@ class TurnipSourcesTest {
             assertTrue(partial.rateLimited)
             assertEquals(1, partial.assets.size)
             val failedSources = TurnipReleases.sourceBuiltIns().size - 1
-            val expectedCalls = 2 + failedSources
             assertEquals(failedSources, partial.failed.size)
-            assertEquals(expectedCalls, calls)
+            val apiRequests = requested.filter { it.startsWith("https://api.github.com/") }
+            assertEquals(3, apiRequests.size)
+            assertEquals(2, apiRequests.count { it.contains("/repos/") })
+            assertEquals(1, apiRequests.count { it.contains("/repositories/1/releases") })
+            assertEquals(listOf(AutoPicks.URL), requested.filter { it.startsWith("https://raw.githubusercontent.com/") })
+            val requestsAfterPartial = requested.toList()
             val warmFailure = TurnipReleases.refresh(context)
             assertTrue(warmFailure.rateLimited)
             assertEquals(partial.assets.single().id, warmFailure.assets.single().id)
             assertEquals(partial.checkedAt, warmFailure.checkedAt)
-            assertEquals(expectedCalls, calls)
+            assertEquals(requestsAfterPartial, requested)
         } finally {
             GitHubArtifacts.openConnection = production
             GitHubArtifacts.clearRateLimits()
