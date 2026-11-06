@@ -35,12 +35,10 @@ import androidx.compose.runtime.key
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
@@ -584,8 +582,12 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     val window = LocalWindowInfo.current
     val androidContext = androidx.compose.ui.platform.LocalContext.current
     val launcherSafeInsets = rememberFullscreenSafeInsets(s.launcherFullscreen)
-    val insetDensity = androidx.compose.ui.platform.LocalDensity.current
-    val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
+    val launcherWindowInsets = WindowInsets(
+        left = launcherSafeInsets.left,
+        top = launcherSafeInsets.top,
+        right = launcherSafeInsets.right,
+        bottom = launcherSafeInsets.bottom,
+    )
     var anyFocused by remember { mutableStateOf(false) }
     val paneRequester = remember { FocusRequester() }
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
@@ -602,14 +604,9 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     androidx.compose.foundation.layout.BoxWithConstraints(
         modifier = Modifier.fillMaxSize().background(colors.background)
             .then(
-                if (s.launcherFullscreen) with(insetDensity) {
-                    Modifier.padding(
-                        start = (if (layoutDirection == androidx.compose.ui.unit.LayoutDirection.Ltr) launcherSafeInsets.left else launcherSafeInsets.right).toDp(),
-                        top = launcherSafeInsets.top.toDp(),
-                        end = (if (layoutDirection == androidx.compose.ui.unit.LayoutDirection.Ltr) launcherSafeInsets.right else launcherSafeInsets.left).toDp(),
-                        bottom = launcherSafeInsets.bottom.toDp(),
-                    )
-                } else Modifier.windowInsetsPadding(WindowInsets.systemBars),
+                Modifier.windowInsetsPadding(
+                    if (s.launcherFullscreen) launcherWindowInsets else WindowInsets.systemBars,
+                ),
             )
             .onFocusChanged { anyFocused = it.hasFocus },
     ) {
