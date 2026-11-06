@@ -4088,6 +4088,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun touchEditorChanged() {
         touchEditorOpen = screenKeys?.isEditing == true || steamTouchControls?.isEditing == true
+        if (touchEditorOpen) releaseMainSurfaceMouseOwnership()
         updatePointerCapture()
         applyPlatformPointer(appUiOwnsPointer())
     }

@@ -112,6 +112,30 @@ class SessionGestureRoutingTest {
         assertFalse(steamTap.active)
     }
 
+    @Test fun openingTheTouchEditorReleasesOwnedMouseButtons() {
+        prepare(SessionPrefs.TOUCH_GESTURES)
+        val ownership = ReflectionHelpers.getField<MainSurfaceMouseOwnership>(
+            activity, "mainSurfaceMouseOwnership",
+        )
+        assertTrue(ownership.handle(
+            1,
+            MainSurfaceMouseEvent.BUTTON_PRESS,
+            MotionEvent.BUTTON_PRIMARY,
+            true,
+        ).forward)
+        val screenKeys = ScreenKeys(RuntimeEnvironment.getApplication()) { _, _ -> }.apply {
+            onEditingChanged = {
+                ReflectionHelpers.callInstanceMethod<Unit>(activity, "touchEditorChanged")
+            }
+        }
+        setField("screenKeys", screenKeys)
+
+        screenKeys.startEditing()
+
+        assertEquals(listOf(Triple(3, PointerGestures.BTN_LEFT, 0)), CompositorShadow.sceneInputs)
+        assertEquals(0, ownership.clear())
+    }
+
     @Test fun directModeStillRoutesLauncherTouchesToScrolling() {
         prepare(SessionPrefs.TOUCH_DIRECT)
         setField("padMouseOn", true)
@@ -226,6 +250,7 @@ class SessionGestureRoutingTest {
     }
 
     private fun prepare(mode: String, config: TouchGestureConfig = TouchGestureConfig()) {
+        CompositorShadow.sceneInputs.clear()
         SessionState.mode = SessionService.MODE_STEAM
         SessionState.steamUi = "bigpicture"
         SessionState.suspended = false
@@ -316,9 +341,12 @@ class SessionGestureRoutingTest {
     @Implements(value = WaylandCompositor::class, isInAndroidSdk = false)
     class CompositorShadow {
         companion object {
+            val sceneInputs = mutableListOf<Triple<Int, Int, Int>>()
             @JvmStatic @Implementation fun __staticInitializer__() {}
             @JvmStatic @Implementation fun nativeSendTouch(action: Int, id: Int, x: Int, y: Int) {}
-            @JvmStatic @Implementation fun nativeSendSceneInput(type: Int, code: Int, value: Int) {}
+            @JvmStatic @Implementation fun nativeSendSceneInput(type: Int, code: Int, value: Int) {
+                sceneInputs += Triple(type, code, value)
+            }
         }
     }
 }
