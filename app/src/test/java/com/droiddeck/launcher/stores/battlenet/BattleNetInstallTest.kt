@@ -25,6 +25,41 @@ class BattleNetInstallTest {
         eu|e474008a3535d8ea978949a90d9873e6|db0583272ed15286569b5f24ce516876||119725|16.1.2.119725|f6a454799d25791e5a37a7547d75ce49
     """.trimIndent()
 
+    private val osiVersions = """
+        Region!STRING:0|BuildConfig!HEX:16|CDNConfig!HEX:16|KeyRing!HEX:16|BuildId!DEC:4|VersionsName!String:0|ProductConfig!HEX:16
+        ## seqn = 3964805
+        us|11111111111111111111111111111111|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa||93847|3.3.93847|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+        eu|11111111111111111111111111111111|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa||93847|3.3.93847|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+        kr|11111111111111111111111111111111|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa||93847|3.3.93847|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    """.trimIndent()
+
+    private val osicVersions = """
+        Region!STRING:0|BuildConfig!HEX:16|CDNConfig!HEX:16|KeyRing!HEX:16|BuildId!DEC:4|VersionsName!String:0|ProductConfig!HEX:16
+        ## seqn = 3964866
+        cn|44444444444444444444444444444444|cccccccccccccccccccccccccccccccc||93854|3.3.93854|dddddddddddddddddddddddddddddddd
+    """.trimIndent()
+
+    private val s2Versions = """
+        Region!STRING:0|BuildConfig!HEX:16|CDNConfig!HEX:16|KeyRing!HEX:16|BuildId!DEC:4|VersionsName!String:0|ProductConfig!HEX:16
+        ## seqn = 4064835
+        us|55555555555555555555555555555555|eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee||98310|5.0.17.98310|ffffffffffffffffffffffffffffffff
+        cn|66666666666666666666666666666666|eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee||93333|5.0.14.93333|ffffffffffffffffffffffffffffffff
+    """.trimIndent()
+
+    private val s2cVersions = """
+        Region!STRING:0|BuildConfig!HEX:16|CDNConfig!HEX:16|KeyRing!HEX:16|BuildId!DEC:4|VersionsName!String:0|ProductConfig!HEX:16
+        ## seqn = 4064962
+        cn|77777777777777777777777777777777|eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee||98370|5.0.17.98370|ffffffffffffffffffffffffffffffff
+    """.trimIndent()
+
+    private val anbsVersions = """
+        Region!STRING:0|BuildConfig!HEX:16|CDNConfig!HEX:16|KeyRing!HEX:16|BuildId!DEC:4|VersionsName!String:0|ProductConfig!HEX:16
+        ## seqn = 4105154
+        us|88888888888888888888888888888888|99999999999999999999999999999999||3935504|5.1.3.3935504|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab
+        eu|88888888888888888888888888888888|99999999999999999999999999999999||3935504|5.1.3.3935504|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab
+        kr|88888888888888888888888888888888|99999999999999999999999999999999||3935504|5.1.3.3935504|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab
+    """.trimIndent()
+
     @Test fun theActiveRowGivesTheRegionAndBuildOnDisk() {
         assertEquals("us" to "e474008a3535d8ea978949a90d9873e6", BattleNetInstall.buildKey(buildInfo))
         assertNull(BattleNetInstall.buildKey("Branch!STRING:0|Active!DEC:1\n"))
@@ -36,6 +71,14 @@ class BattleNetInstallTest {
         assertEquals("e474008a3535d8ea978949a90d9873e6", BattleNetInstall.latestBuild(versions, "eu"))
         assertNull(BattleNetInstall.latestBuild(versions, "kr"))
         assertNull(BattleNetInstall.latestBuild("", "us"))
+    }
+
+    @Test fun theChinaProductsAreNotOnTheGlobalVersionLine() {
+        assertNull(BattleNetInstall.latestBuild(osiVersions, "cn"))
+        assertEquals("44444444444444444444444444444444", BattleNetInstall.latestBuild(osicVersions, "cn"))
+        assertEquals("66666666666666666666666666666666", BattleNetInstall.latestBuild(s2Versions, "cn"))
+        assertEquals("77777777777777777777777777777777", BattleNetInstall.latestBuild(s2cVersions, "cn"))
+        assertNull(BattleNetInstall.latestBuild(anbsVersions, "cn"))
     }
 
     @Test fun theVersionServiceIsBlizzardsChineseOneForChina() {
