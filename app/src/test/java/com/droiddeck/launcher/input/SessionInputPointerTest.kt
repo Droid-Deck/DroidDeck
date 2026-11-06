@@ -79,11 +79,7 @@ class SessionInputPointerTest {
     }
 
     @Test fun stickContinuesFromTrackpadPositionAndUpdatesVisibleAndGuestCoordinates() {
-        ReflectionHelpers.callInstanceMethod<Unit>(activity, "moveSecondScreenPointer",
-            ReflectionHelpers.ClassParameter.from(Float::class.javaPrimitiveType, 250f),
-            ReflectionHelpers.ClassParameter.from(Float::class.javaPrimitiveType, 150f),
-            ReflectionHelpers.ClassParameter.from(Float::class.javaPrimitiveType, 1000f),
-            ReflectionHelpers.ClassParameter.from(Float::class.javaPrimitiveType, 600f))
+        output.pointer(-400f, -225f)
         output.pointer(160f, 90f)
         invoke("onPadInput")
         assertEquals(Offset(350f, 215.625f), state<Offset>("cursorPos").value)
@@ -172,6 +168,17 @@ class SessionInputPointerTest {
         output.pointer(2.5f, -1.25f)
         output.scroll(2)
         assertEquals(listOf("button:272:true", "button:272:false", "delta:2.5:-1.25", "wheel:-2:0:120"), WriterShadow.mouse)
+        assertTrue(CompositorShadow.events.isEmpty())
+    }
+
+    @Test fun horizontalWheelUsesTheSameDirectionInBothMouseBackends() {
+        output.scrollHorizontal(2)
+        assertEquals(listOf(Triple(11, 0, 240)), CompositorShadow.events)
+        CompositorShadow.events.clear()
+        ReflectionHelpers.setField(activity, "mouseWriter", FakeInputWriter(activity.cacheDir.path, FakeInputWriter.MOUSE_SLOT))
+        ReflectionHelpers.setField(activity, "evdevMouseActive", true)
+        output.scrollHorizontal(2)
+        assertEquals(listOf("wheel:0:2:120"), WriterShadow.mouse)
         assertTrue(CompositorShadow.events.isEmpty())
     }
 

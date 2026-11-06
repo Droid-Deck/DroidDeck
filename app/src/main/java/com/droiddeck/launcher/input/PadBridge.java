@@ -69,6 +69,7 @@ public final class PadBridge {
         final PadState raw = new PadState();
         final PadState passthrough = new PadState();
         final InputRole role;
+        boolean routed;
         InputRouter.PadSource route;
         TouchSource(InputRole role) { this.role = role; }
     }
@@ -144,13 +145,15 @@ public final class PadBridge {
         for (TouchSource source : touchSources.values()) if (source.route != null) source.route.close();
         inputRouter = router;
         for (int slot = 0; slot < SLOTS; slot++) physicalRoutes[slot] = router == null ? null : router.pad(InputRole.PHYSICAL, stateFor(slot));
-        for (TouchSource source : touchSources.values()) source.route = router == null ? null : router.pad(source.role, source.raw);
+        for (TouchSource source : touchSources.values()) source.route = router == null || source.routed ? null : router.pad(source.role, source.raw);
         clearBackQamWrites();
         if (open) publish();
         for (int slot = 1; slot < SLOTS; slot++) if (playerWriters[slot] != null) publish(slot);
     }
 
     public synchronized boolean hasInputRouter() { return inputRouter != null; }
+
+    public synchronized InputRouter getInputRouter() { return inputRouter; }
 
     public synchronized void setInputProfile(InputProfile profile) {
         if (inputRouter == null) return;
@@ -608,6 +611,19 @@ public final class PadBridge {
         TouchSource source = touchSources.remove(owner);
         if (source == null) return;
         if (source.route != null) source.route.close();
+        publish();
+    }
+
+    public synchronized void applyRoutedTouch(Object owner, InputRole role, java.util.function.Consumer<PadState> mutation) {
+        if (!builtinPad) return;
+        TouchSource source = touchSources.get(owner);
+        if (source == null) {
+            source = new TouchSource(role);
+            source.routed = true;
+            touchSources.put(owner, source);
+        }
+        mutation.accept(source.raw);
+        notePlayerInput();
         publish();
     }
 

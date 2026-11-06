@@ -21,8 +21,6 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.droiddeck.launcher.input.KeyboardHost
 import com.droiddeck.launcher.input.PadBridge
 import com.droiddeck.launcher.input.SecondScreenMode
-import com.droiddeck.launcher.input.InputProfiles
-import com.droiddeck.launcher.input.InputSurfaceLayout
 import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.session.BottomDesktop
 import com.droiddeck.launcher.session.SessionService
@@ -31,14 +29,10 @@ import com.droiddeck.launcher.session.SessionState
 class SecondScreenPresentation(
     private val sessionActivity: SessionActivity,
     display: Display,
-    private val sendPointer: (x: Float, y: Float, width: Float, height: Float) -> Unit,
-    private val sendButton: (button: Int, pressed: Boolean) -> Unit,
-    private val sendWheel: (steps: Int) -> Unit,
     private val onSteamMenu: () -> Unit,
     private val onQam: () -> Unit,
     private val onClose: () -> Unit,
     private val pad: PadBridge? = null,
-    private val pointerPosition: () -> androidx.compose.ui.geometry.Offset? = { null },
     private val onKeyboardClosed: () -> Unit = {},
     private val onMenu: (() -> Unit)? = null,
     private val menu: (@androidx.compose.runtime.Composable () -> Unit)? = null,
@@ -122,8 +116,9 @@ class SecondScreenPresentation(
     }
 
     fun showMode(mode: SecondScreenMode) {
-        if (currentMode == mode && isShowing) return
-        currentMode = mode
+        val next = if (mode == SecondScreenMode.KEYBOARD_TRACKPAD || mode == SecondScreenMode.DECK_CONTROLS) SecondScreenMode.CUSTOM_CONTROLS else mode
+        if (currentMode == next && isShowing) return
+        currentMode = next
         if (created) renderMode()
     }
 
@@ -131,7 +126,7 @@ class SecondScreenPresentation(
         if (created && isShowing && currentMode == SecondScreenMode.TERMINAL && terminalPanel?.ready != true) renderMode()
     }
 
-    val showsKeyboard: Boolean get() = isShowing && !menuShown && currentMode == SecondScreenMode.KEYBOARD_TRACKPAD
+    val showsKeyboard: Boolean get() = isShowing && !menuShown && currentMode == SecondScreenMode.CUSTOM_CONTROLS
 
     val showsControls: Boolean get() = isShowing && currentMode != SecondScreenMode.NONE
 
@@ -209,7 +204,8 @@ class SecondScreenPresentation(
 
     fun showKeyboard(): Boolean {
         val host = keyboardHost ?: return false
-        host.show()
+        host.toggle()
+        keyboardShown.value = host.shown
         return true
     }
 
@@ -233,24 +229,24 @@ class SecondScreenPresentation(
         closeDashboard()
         root.removeAllViews()
         ownComposeViews()
+        val library = com.droiddeck.launcher.input.InputLibraries.read(context)
+        val profileLayout = library.activeLayout(SessionState.mode == SessionService.MODE_DESKTOP, com.droiddeck.launcher.input.InputRole.SECONDARY)
+        val requested = currentMode
         val mode = when {
-            currentMode == SecondScreenMode.DECK_CONTROLS && !SessionState.deckPad -> SecondScreenMode.NONE
-            currentMode == SecondScreenMode.DASHBOARD && dashboard == null -> SecondScreenMode.NONE
-            currentMode == SecondScreenMode.DESKTOP && !BottomDesktop.available() -> SecondScreenMode.NONE
-            else -> currentMode
+            requested == SecondScreenMode.DASHBOARD && dashboard == null -> SecondScreenMode.NONE
+            requested == SecondScreenMode.DESKTOP && !BottomDesktop.available() -> SecondScreenMode.NONE
+            else -> requested
         }
         if (mode == SecondScreenMode.NONE) return
 
         when (mode) {
-            SecondScreenMode.KEYBOARD_TRACKPAD -> renderKeyboardAndTrackpad()
             SecondScreenMode.TERMINAL -> renderTerminal()
             SecondScreenMode.CUSTOM_CONTROLS -> {
-                val profile = InputProfiles.active(context, SessionState.mode == SessionService.MODE_DESKTOP)
-                root.addView(DeckControlsPanel(context, onClose, onSteamMenu, onQam, pad,
-                    InputSurfaceLayout.read(context, profile.id), onMenu = onMenu, onSwap = onSwap), weightParams())
-                keyboardHost = KeyboardHost(context) { sessionActivity.dispatchKeyEvent(it) }.also { root.addView(it, ViewGroup.LayoutParams(1, 1)) }
+                root.addView(InputSurfaceView(context, pad, profileLayout?.elements.orEmpty(),
+                    surfaceStyle = profileLayout?.style ?: com.droiddeck.launcher.input.InputSurfaceStyle()), weightParams())
+                attachKeyboard()
             }
-            SecondScreenMode.DECK_CONTROLS -> root.addView(DeckControlsPanel(context, onClose, onSteamMenu, onQam, pad, onMenu = onMenu, onSwap = onSwap), weightParams())
+            SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.DECK_CONTROLS -> Unit
             SecondScreenMode.DASHBOARD -> renderDashboard()
             SecondScreenMode.DESKTOP -> {
                 root.addView(BottomDesktopPanel(context, onClose, onMenu,
@@ -281,17 +277,7 @@ class SecondScreenPresentation(
         dashboardView = null
     }
 
-    private fun renderKeyboardAndTrackpad() {
-        bar(SecondScreenMode.KEYBOARD_TRACKPAD) {
-            listOf(BarExtra(context.getString(if (keyboardShown.value) R.string.second_hide_keyboard else R.string.second_show_keyboard),
-                icon = R.drawable.ic_bottom_keyboard, active = keyboardShown.value, tag = "bottom-keyboard") {
-                keyboardHost?.let { host ->
-                    host.toggle()
-                    keyboardShown.value = host.shown
-                }
-            })
-        }
-        root.addView(trackpadView(), weightParams())
+    private fun attachKeyboard() {
         val host = KeyboardHost(context) { event ->
             val handled = sessionActivity.dispatchKeyEvent(event)
             if (fieldKeyboard && event.action == KeyEvent.ACTION_UP &&
@@ -302,8 +288,6 @@ class SecondScreenPresentation(
         keyboardHost = host
         root.addView(host, ViewGroup.LayoutParams(1, 1))
     }
-
-    private fun trackpadView(): View = SessionTrackpadView(context, sendPointer, sendButton, sendWheel, pointerPosition)
 
     private fun renderTerminal() {
         bar(SecondScreenMode.TERMINAL) {

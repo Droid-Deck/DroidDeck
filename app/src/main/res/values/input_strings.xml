@@ -20,7 +20,8 @@
     <string name="input_direction_keys">Directional keys</string>
     <string name="input_pointer">Move pointer</string>
     <string name="input_pointer_speed">Pointer speed: %1$d</string>
-    <string name="input_scroll">Scroll vertically</string>
+    <string name="input_scroll">Scroll</string>
+    <string name="input_scroll_vertical">Scroll vertically</string>
     <string name="input_mouse_left">Left mouse button</string>
     <string name="input_mouse_right">Right mouse button</string>
     <string name="input_mouse_middle">Middle mouse button</string>

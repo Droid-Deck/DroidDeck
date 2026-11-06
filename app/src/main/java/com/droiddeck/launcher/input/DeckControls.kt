@@ -24,7 +24,8 @@ object DeckControls {
     }
 
     @Synchronized
-    fun source(role: InputRole) = Source(role)
+    @JvmOverloads
+    fun source(role: InputRole, routed: Boolean = false) = Source(role, routed)
 
     @Synchronized
     fun setGrip(bit: Int, down: Boolean) = physical.setGrip(bit, down)
@@ -53,7 +54,7 @@ object DeckControls {
         publish()
     }
 
-    class Source internal constructor(private val role: InputRole) {
+    class Source internal constructor(private val role: InputRole, private val routed: Boolean = false) {
         private val x = FloatArray(8)
         private val y = FloatArray(8)
         private val touched = BooleanArray(8)
@@ -62,7 +63,7 @@ object DeckControls {
         internal val axes = ShortArray(4)
 
         internal fun configure() {
-            routes = router?.let { r -> Array(8) { i ->
+            routes = router?.takeUnless { routed }?.let { r -> Array(8) { i ->
                 r.channel(role, controls[i]).also { it.awaitNeutral(x[i], y[i], touched[i]) }
             } }
             mask = 0
@@ -93,6 +94,15 @@ object DeckControls {
             route()
             publish()
             InputTiming.end(timing)
+        }
+
+        internal fun native(control: InputControl?, value: Float, second: Float, contact: Boolean) = synchronized(DeckControls) {
+            require(routed)
+            attach()
+            x.fill(0f); y.fill(0f); touched.fill(false)
+            val at = controls.indexOf(control)
+            if (at >= 0) { x[at] = value; y[at] = second; touched[at] = contact }
+            route(); publish()
         }
 
         internal fun route() {

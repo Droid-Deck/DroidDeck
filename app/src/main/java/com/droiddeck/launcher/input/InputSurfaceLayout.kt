@@ -4,9 +4,41 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class InputSurfaceElement(val control: InputControl, val x: Float, val y: Float, val width: Float, val height: Float) {
-    fun bounded() = copy(x = x.coerceIn(0f, 0.9f), y = y.coerceIn(0f, 0.9f),
-        width = width.coerceIn(0.1f, 1f - x.coerceIn(0f, 0.9f)), height = height.coerceIn(0.1f, 1f - y.coerceIn(0f, 0.9f)))
+enum class InputElementKind(val control: InputControl) {
+    BUTTON(InputControl.A), STICK(InputControl.LS), TRACKPAD(InputControl.LEFT_PAD),
+    DPAD(InputControl.LS), TRIGGER(InputControl.LT);
+
+    companion object {
+        fun from(control: InputControl) = when {
+            control.isTrackpad -> TRACKPAD
+            control.dimensions == 2 -> STICK
+            control == InputControl.LT || control == InputControl.RT -> TRIGGER
+            else -> BUTTON
+        }
+    }
+}
+
+enum class InputButtonShape { ROUNDED, PILL, CIRCLE, RECTANGLE }
+
+data class InputSurfaceElement(
+    val control: InputControl, val x: Float, val y: Float, val width: Float, val height: Float,
+    val id: String = "legacy:${control.id}",
+    val kind: InputElementKind = InputElementKind.from(control),
+    val name: String = control.label,
+    val floating: Boolean = true,
+    val hideWhenIdle: Boolean = false,
+    val mouseGestures: Boolean = false,
+    val toggle: Boolean = false,
+    val icon: Int = 0,
+    val image: String = "",
+    val opacity: Float = 1f,
+    val buttonShape: InputButtonShape = InputButtonShape.ROUNDED,
+    val showLabel: Boolean = true,
+) {
+    val hasClick get() = kind == InputElementKind.STICK || kind == InputElementKind.TRACKPAD
+
+    fun bounded() = copy(x = x.coerceIn(0f, 0.97f), y = y.coerceIn(0f, 0.97f),
+        width = width.coerceIn(0.03f, 1f - x.coerceIn(0f, 0.97f)), height = height.coerceIn(0.03f, 1f - y.coerceIn(0f, 0.97f)))
 }
 
 object InputSurfaceLayout {
@@ -23,7 +55,10 @@ object InputSurfaceLayout {
         InputSurfaceElement(InputControl.START, 0.76f, 0.72f, 0.22f, 0.25f),
     )
 
-    fun read(context: Context, profile: String): List<InputSurfaceElement> {
+    fun read(context: Context, profile: String, role: InputRole = InputRole.SECONDARY): List<InputSurfaceElement> =
+        InputLibraries.read(context).layout(profile, role)?.elements.orEmpty()
+
+    internal fun readLegacy(context: Context, profile: String): List<InputSurfaceElement> {
         val text = prefs(context).getString(profile, null) ?: return defaults()
         return runCatching {
             val doc = JSONObject(text)
@@ -40,6 +75,13 @@ object InputSurfaceLayout {
     }
 
     fun save(context: Context, profile: String, layout: List<InputSurfaceElement>) {
+        InputLibraries.update(context) { library ->
+            val saved = library.layout(profile, InputRole.SECONDARY) ?: return@update library
+            library.withLayout(saved.copy(elements = layout.map { it.bounded() }))
+        }
+    }
+
+    internal fun saveLegacy(context: Context, profile: String, layout: List<InputSurfaceElement>) {
         val array = JSONArray()
         for (element in layout.distinctBy { it.control }.take(28)) {
             val e = element.bounded()

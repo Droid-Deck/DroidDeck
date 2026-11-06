@@ -29,21 +29,29 @@ sealed interface InputAction {
     data class Keys(val codes: List<Int>) : InputAction
     data class MouseButton(val code: Int) : InputAction
     data class Command(val command: InputCommand) : InputAction
-    data class Directions(val up: Int, val right: Int, val down: Int, val left: Int) : InputAction
+    data class Directions(val up: Int, val right: Int, val down: Int, val left: Int, val diagonals: List<Int>? = null) : InputAction
     data class Pointer(val speed: Float = 900f) : InputAction
-    data class Scroll(val speed: Float = 10f) : InputAction
+    data class Scroll(val speed: Float = 10f, val horizontal: Boolean = false) : InputAction
 }
 
 data class InputProfile(
     val id: String,
     val bindings: Map<InputRole, Map<InputControl, InputAction>> = emptyMap(),
     val keys: List<PhysicalInputBinding> = emptyList(),
+    val elements: Map<InputRole, Map<String, InputAction>> = emptyMap(),
+    val clicks: Map<InputRole, Map<String, InputAction>> = emptyMap(),
 ) {
     fun action(role: InputRole, control: InputControl): InputAction =
         bindings[role]?.get(control) ?: InputAction.Native()
 
     fun withBinding(role: InputRole, control: InputControl, action: InputAction) =
         copy(bindings = bindings + (role to (bindings[role].orEmpty() + (control to action))))
+
+    fun elementAction(role: InputRole, id: String, control: InputControl): InputAction =
+        elements[role]?.get(id) ?: if (id == "legacy:${control.id}") action(role, control) else InputAction.Disabled
+
+    fun elementClickAction(role: InputRole, element: InputSurfaceElement): InputAction = clicks[role]?.get(element.id)
+        ?: defaultElementClick(element, elementAction(role, element.id, element.control)) { action(role, it) }
 
     companion object {
         const val GAME = "game"
@@ -69,12 +77,30 @@ data class InputProfile(
     }
 }
 
+internal fun defaultElementClick(element: InputSurfaceElement, action: InputAction, legacy: (InputControl) -> InputAction): InputAction {
+    fun click(control: InputControl) = when (control) {
+        InputControl.LS -> InputControl.L3; InputControl.RS -> InputControl.R3
+        InputControl.LEFT_PAD -> InputControl.LEFT_CLICK; InputControl.RIGHT_PAD -> InputControl.RIGHT_CLICK
+        else -> null
+    }
+    if (!element.hasClick) return InputAction.Disabled
+    if (element.id == "legacy:${element.control.id}") {
+        val target = click(element.control) ?: return InputAction.Disabled
+        return legacy(target).let { if (it is InputAction.Native && it.target == null) InputAction.Native(target) else it }
+    }
+    return (action as? InputAction.Native)?.let { click(it.target ?: element.control) }?.let { InputAction.Native(it) } ?: InputAction.Disabled
+}
+
+internal fun InputAction.validForClick(): Boolean = if (this is InputAction.Native)
+    target != null && target.dimensions == 1 && target != InputControl.LT && target != InputControl.RT
+else validFor(InputControl.A)
+
 internal fun InputAction.validFor(control: InputControl): Boolean = when (this) {
     is InputAction.Native -> target == null || (control.isPad == target.isPad && control.dimensions == target.dimensions &&
         (!control.isTrackpad && !target.isTrackpad || control.isTrackpad && target.isTrackpad))
     is InputAction.Keys -> codes.isNotEmpty() && codes.size <= 8 && codes.distinct().size == codes.size && codes.all { it in 1..255 }
     is InputAction.MouseButton -> code in 272..276
-    is InputAction.Directions -> control.dimensions == 2 && listOf(up, right, down, left).all { it in 1..255 }
+    is InputAction.Directions -> control.dimensions == 2 && listOf(up, right, down, left).all { it in 0..255 } && (diagonals == null || diagonals.size == 4 && diagonals.all { it in 0..255 })
     is InputAction.Pointer -> control.dimensions == 2 && speed.isFinite() && speed in 100f..3000f
     is InputAction.Scroll -> control.dimensions == 2 && speed.isFinite() && speed in 1f..60f
     else -> true

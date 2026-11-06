@@ -4,10 +4,10 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
 
-object ScreenKeyIcons {
-    fun has(code: Int): Boolean = code in SET
+object InputButtonIcons {
+    fun has(code: Int): Boolean = code in codes
 
-    private val SET = setOf(28, 14, 15, 57, 42, 54, 29, 97, 125, 103, 108, 105, 106)
+    val codes = listOf(28, 14, 15, 57, 42, 54, 29, 97, 125, 103, 108, 105, 106)
 
     fun draw(canvas: Canvas, code: Int, cx: Float, cy: Float, box: Float, paint: Paint): Boolean {
         if (!has(code)) return false

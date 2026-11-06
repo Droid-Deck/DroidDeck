@@ -7,6 +7,7 @@ interface InputOutput {
     fun button(code: Int, down: Boolean)
     fun pointer(dx: Float, dy: Float)
     fun scroll(steps: Int)
+    fun scrollHorizontal(steps: Int) {}
     fun command(command: InputCommand)
     fun requestMotion()
 }
@@ -19,6 +20,7 @@ class InputRouter(private val output: InputOutput) {
     private var profile = InputProfile.defaults(InputProfile.GAME)
     private var moving = false
     private var wheel = 0f
+    private var horizontalWheel = 0f
     private var enabled = true
     private val snapshots = ArrayList<() -> Unit>()
 
@@ -43,9 +45,10 @@ class InputRouter(private val output: InputOutput) {
         for (snapshot in snapshots) snapshot()
         for (pad in pads) pad.snapshot()
         profile = next
-        for (channel in channels) channel.configure(next.action(channel.role, channel.control))
+        for (channel in channels) channel.configure(channel.actionFrom(next))
         for (pad in pads) pad.refreshIdentity()
         wheel = 0f
+        horizontalWheel = 0f
         moving = false
     }
 
@@ -54,9 +57,9 @@ class InputRouter(private val output: InputOutput) {
     fun pad(role: InputRole, retained: PadState? = null): PadSource = PadSource(role, retained).also { pads.add(it) }
 
     @Synchronized
-    fun channel(role: InputRole, control: InputControl, fixedAction: InputAction? = null): Channel = Channel(role, control, fixedAction).also {
+    fun channel(role: InputRole, control: InputControl, fixedAction: InputAction? = null, element: InputSurfaceElement? = null, elementClick: Boolean = false): Channel = Channel(role, control, fixedAction, element, elementClick).also {
         channels.add(it)
-        it.configure(profile.action(role, control))
+        it.configure(it.actionFrom(profile))
     }
 
     @Synchronized
@@ -66,6 +69,7 @@ class InputRouter(private val output: InputOutput) {
         for (channel in channels) channel.suspend()
         for (pad in pads) pad.refreshIdentity()
         wheel = 0f
+        horizontalWheel = 0f
         moving = false
     }
 
@@ -75,27 +79,31 @@ class InputRouter(private val output: InputOutput) {
         var x = 0f
         var y = 0f
         var scroll = 0f
+        var horizontalScroll = 0f
         for (channel in channels) {
             if (channel.blocked || channel.control.isTrackpad) continue
             val cx = if (abs(channel.x) > 0.12f) channel.x else 0f
             val cy = if (abs(channel.y) > 0.12f) channel.y else 0f
             when (val action = channel.action) {
                 is InputAction.Pointer -> { x += cx * action.speed; y += cy * action.speed }
-                is InputAction.Scroll -> scroll += cy * action.speed
+                is InputAction.Scroll -> if (action.horizontal) horizontalScroll += cx * action.speed else scroll += cy * action.speed
                 else -> Unit
             }
         }
         val dt = seconds.coerceIn(0f, 0.05f)
         if (x != 0f || y != 0f) output.pointer(x * dt, y * dt)
         wheel += scroll * dt
+        horizontalWheel += horizontalScroll * dt
         flushWheel()
-        moving = x != 0f || y != 0f || scroll != 0f
+        moving = x != 0f || y != 0f || scroll != 0f || horizontalScroll != 0f
         return moving
     }
 
     private fun flushWheel() {
         val steps = wheel.toInt()
         if (steps != 0) { wheel -= steps; output.scroll(steps) }
+        val horizontalSteps = horizontalWheel.toInt()
+        if (horizontalSteps != 0) { horizontalWheel -= horizontalSteps; output.scrollHorizontal(horizontalSteps) }
     }
 
     private fun key(code: Int, down: Boolean) {
@@ -111,7 +119,7 @@ class InputRouter(private val output: InputOutput) {
         if ((was == 0) != (buttons[at] == 0)) output.button(code, down)
     }
 
-    inner class Channel internal constructor(val role: InputRole, val control: InputControl, private val fixedAction: InputAction?) {
+    inner class Channel internal constructor(val role: InputRole, val control: InputControl, private val fixedAction: InputAction?, private val element: InputSurfaceElement?, private val elementClick: Boolean) {
         var action: InputAction = InputAction.Native()
             private set
         internal var x = 0f
@@ -120,10 +128,15 @@ class InputRouter(private val output: InputOutput) {
         internal var blocked = false
         private var held = false
         private val directions = BooleanArray(4)
+        private var radialKeys = emptyList<Int>()
+
+        internal fun actionFrom(profile: InputProfile) = element?.let { if (elementClick) profile.elementClickAction(role, it) else profile.elementAction(role, it.id, control) }
+            ?: profile.action(role, control)
 
         internal fun configure(next: InputAction) {
             suspend()
-            action = (fixedAction ?: next).takeIf { it.validFor(control) } ?: InputAction.Native()
+            action = (fixedAction ?: next).takeIf { if (elementClick) it.validForClick() else if (element != null) it.validFor(element) else it.validFor(control) }
+                ?: if (element != null) InputAction.Disabled else InputAction.Native()
         }
 
         internal fun observe(value: Float, second: Float = 0f, touching: Boolean = false) {
@@ -152,6 +165,20 @@ class InputRouter(private val output: InputOutput) {
             channels.remove(this)
         }
 
+        fun acceptsPointerGesture() = synchronized(this@InputRouter) { enabled && !blocked && contact && action is InputAction.Pointer }
+
+        fun pointerDelta(dx: Float, dy: Float) = synchronized(this@InputRouter) {
+            val pointer = action as? InputAction.Pointer
+            if (enabled && !blocked && contact && pointer != null && dx.isFinite() && dy.isFinite()) output.pointer(dx * pointer.speed, dy * pointer.speed)
+        }
+
+        fun wheelSteps(steps: Int) = synchronized(this@InputRouter) {
+            val scroll = action as? InputAction.Scroll
+            if (enabled && !blocked && scroll != null && steps != 0) {
+                if (scroll.horizontal) output.scrollHorizontal(steps) else output.scroll(steps)
+            }
+        }
+
         fun update(value: Float, second: Float = 0f, touching: Boolean = false): InputControl? = synchronized(this@InputRouter) {
             val oldX = x
             val oldY = y
@@ -177,13 +204,27 @@ class InputRouter(private val output: InputOutput) {
                 }
                 is InputAction.Scroll -> {
                     if (control.isTrackpad) {
-                        if (contact && oldContact) { wheel += (y - oldY) * a.speed; flushWheel() }
+                        if (contact && oldContact) {
+                            if (a.horizontal) horizontalWheel -= (x - oldX) * a.speed else wheel += (y - oldY) * a.speed
+                            flushWheel()
+                        }
                     } else requestMotion()
                 }
                 is InputAction.Directions -> {
                     val vertical = if (control.isTrackpad) -y else y
-                    direction(0, -vertical, a.up); direction(1, x, a.right)
-                    direction(2, vertical, a.down); direction(3, -x, a.left)
+                    if (a.diagonals == null) {
+                        direction(0, -vertical, a.up); direction(1, x, a.right)
+                        direction(2, vertical, a.down); direction(3, -x, a.left)
+                    } else {
+                        val cardinal = listOf(a.up, a.right, a.down, a.left)
+                        val sector = ((kotlin.math.round(Math.toDegrees(kotlin.math.atan2(vertical, x).toDouble()) / 45).toInt() + 2) % 8 + 8) % 8
+                        val next = if (kotlin.math.hypot(x, vertical) < .24f) emptyList() else if (sector % 2 == 0) listOf(cardinal[sector / 2])
+                            else a.diagonals[sector / 2].let { if (it != 0) listOf(it) else listOf(cardinal[sector / 2], cardinal[(sector / 2 + 1) % 4]) }
+                        val codes = next.filter { it != 0 }.distinct()
+                        radialKeys.filterNot { it in codes }.forEach { key(it, false) }
+                        codes.filterNot { it in radialKeys }.forEach { key(it, true) }
+                        radialKeys = codes
+                    }
                 }
                 else -> {
                     val down = if (control.isTrackpad) contact else maxOf(abs(x), abs(y)) > if (held) 0.35f else 0.55f
@@ -207,7 +248,7 @@ class InputRouter(private val output: InputOutput) {
 
         private fun direction(at: Int, value: Float, code: Int) {
             val down = value > if (directions[at]) 0.35f else 0.55f
-            if (directions[at] != down) { directions[at] = down; key(code, down) }
+            if (directions[at] != down) { directions[at] = down; if (code != 0) key(code, down) }
         }
 
         private fun releaseOutputs() {
@@ -216,10 +257,11 @@ class InputRouter(private val output: InputOutput) {
                 is InputAction.MouseButton -> if (held) button(a.code, false)
                 is InputAction.Directions -> {
                     val codes = intArrayOf(a.up, a.right, a.down, a.left)
-                    for (i in directions.indices) if (directions[i]) key(codes[i], false)
+                    for (i in directions.indices) if (directions[i] && codes[i] != 0) key(codes[i], false)
                 }
                 else -> Unit
             }
+            radialKeys.forEach { key(it, false) }; radialKeys = emptyList()
             held = false
             directions.fill(false)
         }

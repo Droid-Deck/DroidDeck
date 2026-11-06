@@ -1,4 +1,4 @@
-package com.droiddeck.launcher.ui
+package com.droiddeck.launcher.input
 
 import kotlin.math.min
 

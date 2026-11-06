@@ -1,16 +1,11 @@
 package com.droiddeck.launcher.input
 
-import kotlin.math.abs
-import kotlin.math.sqrt
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Rect
-import android.view.DisplayCutout
 import android.view.MotionEvent
 import android.view.View
-import android.view.WindowInsets
 import android.widget.FrameLayout
+import java.io.File
+import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -18,453 +13,119 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
-import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28], manifest = Config.NONE, qualifiers = "mdpi")
-@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34], manifest = Config.NONE, shadows = [JoyConPadTest.RecordingWriter::class])
 class OnScreenControlsTest {
-    private lateinit var context: Context
+    private val context: Context get() = RuntimeEnvironment.getApplication()
+    private val bridge = PadBridge(File(context.cacheDir, "surface-overlay"))
     private lateinit var view: OnScreenControls
+    private val left = InputSurfaceElement(InputControl.LS, .1f, .3f, .2f, .4f)
+    private val button = InputSurfaceElement(InputControl.A, .7f, .3f, .2f, .3f)
     private var time = 1000L
-
-    @Before fun setUp() {
-        context = RuntimeEnvironment.getApplication()
-        context.getSharedPreferences("controller", Context.MODE_PRIVATE).edit().clear().commit()
-        ControllerPrefs.setLayout(context, 1200, 800, mapOf("ls" to (0.45f to 0.5f), "rs" to (0.55f to 0.5f)))
-        view = OnScreenControls(context, null)
-        view.layout(0, 0, 1200, 800)
+    @Before fun setup() {
+        view = OnScreenControls(context, bridge)
+        view.updateLayout(SavedInputLayout("test", "Test", listOf(left, button)))
+        measure(view)
+    }
+    @After fun close() { view.releaseAll(); bridge.stop() }
+    private fun state() = JoyConPadTest.RecordingWriter.pads[0] ?: PadState()
+    private fun measure(target: View) {
+        target.measure(View.MeasureSpec.makeMeasureSpec(1000, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(600, View.MeasureSpec.EXACTLY))
+        target.layout(0, 0, 1000, 600)
     }
 
-    @Test fun editorSnapsToOtherGroupCentreLines() {
-        editor()
-        val button = control("lb")
-        val target = control("rb")
-        val x = value(button, "cx")
-        val y = value(button, "cy")
-        touch(MotionEvent.ACTION_DOWN, 1 to (x to y))
-        touch(MotionEvent.ACTION_MOVE, 1 to (x to y + 5f))
-        assertEquals(value(target, "cy"), value(button, "cy"), 0f)
-        assertEquals(value(target, "cy"), nullableFloat(view, "snapY")!!, 0f)
-        touch(MotionEvent.ACTION_UP, 1 to (x to y + 5f))
-        assertNull(nullableFloat(view, "snapY"))
+    @Test fun independentFingersHoldStickAndButtonAndCancelReleasesBoth() {
+        touch(MotionEvent.ACTION_DOWN, 3 to (200f to 300f))
+        touch(MotionEvent.ACTION_MOVE, 3 to (245f to 300f))
+        touch(MotionEvent.ACTION_POINTER_DOWN or (1 shl 8), 3 to (245f to 300f), 8 to (800f to 250f))
+        assertTrue(state().leftX > .5f)
+        assertTrue(state().isDown(PadState.A))
+        touch(MotionEvent.ACTION_POINTER_UP or (1 shl 8), 3 to (245f to 300f), 8 to (800f to 250f))
+        assertFalse(state().isDown(PadState.A))
+        assertTrue(state().leftX > .5f)
+        touch(MotionEvent.ACTION_CANCEL, 3 to (245f to 300f))
+        assertEquals(0f, state().leftX, 0f)
     }
 
-    @Test fun editorSnapsToClusterCentresNotTheirOuterButtons() {
-        editor()
-        val button = control("lb")
-        val x = value(button, "cx")
-        val row = value(control("y"), "cy") + 3f
-        touch(MotionEvent.ACTION_DOWN, 1 to (x to value(button, "cy")))
-        touch(MotionEvent.ACTION_MOVE, 1 to (x to row))
-        assertEquals(row, value(button, "cy"), 0f)
-        assertNull(nullableFloat(view, "snapY"))
-        touch(MotionEvent.ACTION_MOVE, 1 to (x to value(control("x"), "cy") + 3f))
-        assertEquals(value(control("x"), "cy"), value(button, "cy"), 0f)
-        touch(MotionEvent.ACTION_UP, 1 to (x to row))
-    }
-
-    @Test fun editorDoesNotSnapBeyondDistanceAndCanDragFreeFromGuide() {
-        editor()
-        val button = control("lb")
-        val x = value(button, "cx")
-        val y = value(button, "cy")
-        val otherYs = (field(view, "controls") as List<*>)
-            .filter { field(it!!, "group") != "lb" }
-            .map { value(it!!, "cy") }
-        val freeY = (100..700 step 31).map(Int::toFloat).first {
-            otherYs.minOf { targetY -> abs(it - targetY) } > 12f
-        }
-        touch(MotionEvent.ACTION_DOWN, 1 to (x to y))
-        touch(MotionEvent.ACTION_MOVE, 1 to (x to freeY))
-        assertEquals(freeY, value(button, "cy"), 0f)
-        assertNull(nullableFloat(view, "snapY"))
-        val target = value(control("rb"), "cy")
-        touch(MotionEvent.ACTION_MOVE, 1 to (x to target + 5f))
-        assertEquals(target, value(button, "cy"), 0f)
-        touch(MotionEvent.ACTION_MOVE, 1 to (x to freeY))
-        assertEquals(freeY, value(button, "cy"), 0f)
-        assertNull(nullableFloat(view, "snapY"))
-        touch(MotionEvent.ACTION_UP, 1 to (x to freeY))
-    }
-
-    @Test fun editorSnapsToScreenCentreAndCanDisableSnapping() {
-        editor()
-        val button = control("lb")
-        val y = value(button, "cy")
-        touch(MotionEvent.ACTION_DOWN, 1 to (value(button, "cx") to y))
-        touch(MotionEvent.ACTION_MOVE, 1 to (605f to y))
-        assertEquals(600f, value(button, "cx"), 0f)
-        assertEquals(600f, nullableFloat(view, "snapX")!!, 0f)
-        touch(MotionEvent.ACTION_UP, 1 to (605f to y))
-
-        ControllerPrefs.setSnap(context, false)
-        editor()
-        val unsnapped = control("lb")
-        val x = value(unsnapped, "cx")
-        val startY = value(unsnapped, "cy")
-        touch(MotionEvent.ACTION_DOWN, 1 to (x to startY))
-        touch(MotionEvent.ACTION_MOVE, 1 to (605f to startY))
-        assertEquals(605f, value(unsnapped, "cx"), 0f)
-        assertNull(nullableFloat(view, "snapX"))
-        touch(MotionEvent.ACTION_UP, 1 to (605f to startY))
-    }
-
-    @Test fun editorSnapPreferenceDefaultsOnAndCanBeChanged() {
-        assertTrue(ControllerPrefs.read(context).snap)
-        ControllerPrefs.setSnap(context, false)
-        assertFalse(ControllerPrefs.read(context).snap)
-        ControllerPrefs.resetAll(context)
-        assertTrue(ControllerPrefs.read(context).snap)
-    }
-
-    @Test fun adaptiveStickHidesUntilTouchedAndReturnsToNeutralOnRelease() {
-        val left = control("ls")
-        assertEquals(0, pixel(value(left, "cx"), value(left, "cy")))
-        assertTrue(touch(MotionEvent.ACTION_DOWN, 7 to (540f to 400f)))
-        assertEquals(7, field(left, "pressedBy"))
-        assertEquals(540f, value(left, "ax"), 0f)
-        assertEquals(400f, value(left, "ay"), 0f)
-        assertNotEquals(0, pixel(540f, 400f))
-        touch(MotionEvent.ACTION_MOVE, 7 to (580f to 420f))
-        assertTrue(value(left, "kx") > 0f)
-        assertTrue(value(left, "ky") > 0f)
-        touch(MotionEvent.ACTION_UP, 7 to (580f to 420f))
-        assertEquals(-1, field(left, "pressedBy"))
-        assertEquals(0f, value(left, "kx"), 0f)
-        assertEquals(0f, value(left, "ky"), 0f)
-        assertEquals(0, pixel(540f, 400f))
-    }
-
-    @Test fun simultaneousSticksKeepTheirPointersAndReleaseIndependently() {
-        val left = control("ls")
-        val right = control("rs")
-        touch(MotionEvent.ACTION_DOWN, 7 to (540f to 400f))
-        touch(MotionEvent.ACTION_POINTER_DOWN or (1 shl 8), 7 to (540f to 400f), 9 to (660f to 400f))
-        assertEquals(7, field(left, "pressedBy"))
-        assertEquals(9, field(right, "pressedBy"))
-        touch(MotionEvent.ACTION_POINTER_DOWN or (2 shl 8), 7 to (540f to 400f), 9 to (660f to 400f), 11 to (500f to 400f))
-        assertEquals(7, field(left, "pressedBy"))
-        touch(MotionEvent.ACTION_POINTER_UP or (2 shl 8), 7 to (540f to 400f), 9 to (660f to 400f), 11 to (500f to 400f))
-        touch(MotionEvent.ACTION_MOVE, 7 to (700f to 400f), 9 to (500f to 400f))
-        assertTrue(value(left, "kx") > 0f)
-        assertTrue(value(right, "kx") < 0f)
-        touch(MotionEvent.ACTION_POINTER_UP, 7 to (700f to 400f), 9 to (500f to 400f))
-        assertEquals(-1, field(left, "pressedBy"))
-        assertEquals(9, field(right, "pressedBy"))
-        touch(MotionEvent.ACTION_CANCEL, 9 to (500f to 400f))
-        for (stick in listOf(left, right)) {
-            assertEquals(-1, field(stick, "pressedBy"))
-            assertEquals(0f, value(stick, "kx"), 0f)
-        }
-    }
-
-    @Test fun cancelledTouchDoesNotBecomeAStickClick() {
-        touch(MotionEvent.ACTION_DOWN, 1 to (540f to 400f))
-        touch(MotionEvent.ACTION_CANCEL, 1 to (540f to 400f))
-        touch(MotionEvent.ACTION_DOWN, 1 to (540f to 400f))
-        assertEquals(false, field(control("ls"), "clicked"))
-        touch(MotionEvent.ACTION_UP, 1 to (540f to 400f))
-        touch(MotionEvent.ACTION_DOWN, 1 to (540f to 400f))
-        assertEquals(true, field(control("ls"), "clicked"))
-    }
-
-    @Test fun buttonsTakePriorityOverAdaptiveRegions() {
-        val button = control("a")
-        touch(MotionEvent.ACTION_DOWN, 3 to (value(button, "cx") to value(button, "cy")))
-        assertEquals(3, field(button, "pressedBy"))
-        assertEquals(-1, field(control("rs"), "pressedBy"))
-    }
-
-    @Test fun takesTouchAtMatchesWhatATouchDoes() {
-        var checked = 0
-        for (x in 0 until 1200 step 40) for (y in 0 until 800 step 40) {
-            val expected = view.takesTouchAt(x.toFloat(), y.toFloat())
-            assertEquals("($x, $y)", expected, touch(MotionEvent.ACTION_DOWN, 0 to (x.toFloat() to y.toFloat())))
-            touch(MotionEvent.ACTION_UP, 0 to (x.toFloat() to y.toFloat()))
-            if (expected) checked++
-        }
-        assertTrue("some points land on controls", checked > 0)
-    }
-
-    @Test fun fixedSticksAndEditorRemainVisibleAtSavedPositions() {
-        ControllerPrefs.setAdaptiveSticks(context, false)
+    @Test fun reloadCancelsHeldViewsSoTheNextPressWorks() {
+        touch(MotionEvent.ACTION_DOWN, 0 to (800f to 250f))
+        assertTrue(state().isDown(PadState.A))
         view.reload()
-        val left = control("ls")
-        val x = value(left, "cx")
-        val y = value(left, "cy")
-        assertNotEquals(0, pixel(x, y))
-        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (0f to y)))
-        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (600f to 200f)))
-        touch(MotionEvent.ACTION_DOWN, 1 to (x + 10f to y))
-        assertEquals(x, value(left, "ax"), 0f)
-        assertEquals(10f, value(left, "kx"), 0f)
-        ControllerPrefs.setAdaptiveSticks(context, true)
-        view = OnScreenControls(context, null, editing = true)
-        view.layout(0, 0, 1200, 800)
-        assertNotEquals(0, pixel(value(control("ls"), "cx"), value(control("ls"), "cy")))
+        assertFalse(state().isDown(PadState.A))
+        touch(MotionEvent.ACTION_DOWN, 0 to (800f to 250f))
+        assertTrue(state().isDown(PadState.A))
     }
 
-    @Test fun buttonsOnlyAndReloadReleaseAdaptiveSticks() {
-        touch(MotionEvent.ACTION_DOWN, 1 to (540f to 400f))
-        touch(MotionEvent.ACTION_MOVE, 1 to (570f to 400f))
-        view.reload()
-        assertEquals(-1, field(control("ls"), "pressedBy"))
-        assertEquals(0f, value(control("ls"), "kx"), 0f)
-        view.setButtonsOnly(true)
-        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (600f to 200f)))
+    @Test fun replacingTheLayoutReleasesOldSourcesAndHitRegions() {
+        touch(MotionEvent.ACTION_DOWN, 0 to (800f to 250f))
+        view.updateLayout(SavedInputLayout("empty", "Empty"))
+        measure(view)
+        assertFalse(state().isDown(PadState.A))
+        assertFalse(view.takesTouchAt(800f, 250f))
     }
 
-    @Test fun adaptiveActivationKeepsItsVerticalAndInwardLimits() {
-        val left = control("ls")
-        val x = value(left, "cx")
-        val y = value(left, "cy")
-        val reach = activationReach(left)
-        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (x to y - reach - 1f)))
-        assertTrue(touch(MotionEvent.ACTION_DOWN, 1 to (x to y - reach + 1f)))
-        assertEquals(y - reach + 1f, value(left, "ay"), 0.001f)
-        touch(MotionEvent.ACTION_UP, 1 to (x to y - reach + 1f))
-        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (x + reach to y - reach)))
-        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (600f to 200f)))
-    }
-
-    @Test fun leftAdaptiveStickCanStartAtTheLeftEdgeAndReleaseNormally() {
-        val left = control("ls")
-        val y = value(left, "cy")
-        val reach = activationReach(left)
-        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (0f to y - reach - 1f)))
-        assertTrue(touch(MotionEvent.ACTION_DOWN, 1 to (0f to y)))
-        assertEquals(1, field(left, "pressedBy"))
-        assertEquals(0f, value(left, "ax"), 0f)
-        assertEquals(0f, value(left, "kx"), 0f)
-        touch(MotionEvent.ACTION_MOVE, 1 to (30f to y))
-        assertEquals(30f, value(left, "kx"), 0f)
-        touch(MotionEvent.ACTION_CANCEL, 1 to (30f to y))
-        assertEquals(-1, field(left, "pressedBy"))
-        assertEquals(0f, value(left, "kx"), 0f)
-        assertEquals(-1, field(control("rs"), "pressedBy"))
-    }
-
-    @Test fun rightAdaptiveStickKeepsItsSavedActivationCircle() {
-        val right = control("rs")
-        val x = value(right, "cx")
-        val y = value(right, "cy")
-        val reach = activationReach(right)
-        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (1199f to y)))
-        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (x + reach + 1f to y)))
-        assertTrue(touch(MotionEvent.ACTION_DOWN, 1 to (x + reach - 1f to y)))
-        assertEquals(1, field(right, "pressedBy"))
-    }
-
-    @Test
-    @Config(sdk = [30])
-    @Suppress("DEPRECATION")
-    fun leftActivationStopsAtTheSafeCutoutEdge() {
-        val insets = WindowInsets.Builder()
-            .setDisplayCutout(DisplayCutout(Rect(24, 0, 0, 0), listOf(Rect(0, 380, 24, 420))))
-            .build()
-        view.dispatchApplyWindowInsets(insets)
-        val left = control("ls")
-        val y = value(left, "cy")
-        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (23f to y)))
-        assertTrue(touch(MotionEvent.ACTION_DOWN, 1 to (24f to y)))
-        assertEquals(1, field(left, "pressedBy"))
-    }
-
-    @Test fun touchesOutsideActivationAreasStayWithTrackpad() {
+    @Test fun emptySpaceDoesNotConsumeTheUnderlyingTrackpadStream() {
         val received = mutableListOf<Int>()
-        val trackpad = View(context).apply {
-            setOnTouchListener { _, event -> received.add(event.actionMasked); true }
-        }
         val root = FrameLayout(context).apply {
-            addView(trackpad, FrameLayout.LayoutParams(1200, 800))
-            addView(view, FrameLayout.LayoutParams(1200, 800))
-            measure(View.MeasureSpec.makeMeasureSpec(1200, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(800, View.MeasureSpec.EXACTLY))
-            layout(0, 0, 1200, 800)
+            addView(View(context).apply { setOnTouchListener { _, e -> received += e.actionMasked; true } }, FrameLayout.LayoutParams(-1, -1))
+            addView(view, FrameLayout.LayoutParams(-1, -1))
         }
-        for ((action, position) in listOf(
-            MotionEvent.ACTION_DOWN to (600f to 200f),
-            MotionEvent.ACTION_MOVE to (540f to 400f),
-            MotionEvent.ACTION_UP to (540f to 400f),
-        )) {
-            val event = MotionEvent.obtain(1000L, time++, action, position.first, position.second, 0)
+        measure(root)
+        for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP)) {
+            val event = MotionEvent.obtain(1000, time++, action, 500f, 100f, 0)
             try { assertTrue(root.dispatchTouchEvent(event)) } finally { event.recycle() }
         }
         assertEquals(listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP), received)
-        assertEquals(-1, field(control("ls"), "pressedBy"))
     }
 
-    @Test fun trackpadFingerKeepsItsOwnStreamWhileAStickIsHeld() {
-        val forwarded = mutableListOf<Triple<Int, Int, Float>>()
-        view.onTouchMiss = { forwarded += Triple(it.actionMasked, it.getPointerId(0), it.getX(0)) }
-        touch(MotionEvent.ACTION_DOWN, 7 to (540f to 400f))
-        assertTrue(touch(MotionEvent.ACTION_POINTER_DOWN or (1 shl 8), 7 to (540f to 400f), 9 to (600f to 200f)))
-        touch(MotionEvent.ACTION_MOVE, 7 to (500f to 400f), 9 to (650f to 200f))
-        touch(MotionEvent.ACTION_POINTER_UP or (1 shl 8), 7 to (500f to 400f), 9 to (650f to 200f))
-        assertEquals(listOf(
-            Triple(MotionEvent.ACTION_DOWN, 9, 600f),
-            Triple(MotionEvent.ACTION_MOVE, 9, 650f),
-            Triple(MotionEvent.ACTION_UP, 9, 650f),
-        ), forwarded)
-        assertEquals(7, field(control("ls"), "pressedBy"))
-        assertTrue(value(control("ls"), "kx") < 0f)
+    @Test fun backgroundFingerIsForwardedWhileAStickIsHeld() {
+        val received = mutableListOf<Pair<Int, Int>>()
+        view.onTouchMiss = { received += it.actionMasked to it.getPointerId(0) }
+        touch(MotionEvent.ACTION_DOWN, 3 to (200f to 300f))
+        touch(MotionEvent.ACTION_POINTER_DOWN or (1 shl 8), 3 to (200f to 300f), 8 to (500f to 100f))
+        touch(MotionEvent.ACTION_MOVE, 3 to (245f to 300f), 8 to (520f to 100f))
+        touch(MotionEvent.ACTION_POINTER_UP or (1 shl 8), 3 to (245f to 300f), 8 to (520f to 100f))
+        assertEquals(listOf(MotionEvent.ACTION_DOWN to 8, MotionEvent.ACTION_MOVE to 8, MotionEvent.ACTION_UP to 8), received)
+        assertTrue(state().leftX > .5f)
     }
 
-    @Test fun stickPressedAfterTrackpadFingerReachesTheControls() {
-        val received = mutableListOf<Triple<Int, Int, Int>>()
-        val trackpad = View(context).apply {
-            setOnTouchListener { _, event -> received += Triple(event.actionMasked, event.pointerCount, event.getPointerId(0)); true }
-        }
-        val root = FrameLayout(context).apply {
-            isMotionEventSplittingEnabled = true
-            addView(trackpad, FrameLayout.LayoutParams(1200, 800))
-            addView(view, FrameLayout.LayoutParams(1200, 800))
-            measure(View.MeasureSpec.makeMeasureSpec(1200, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(800, View.MeasureSpec.EXACTLY))
-            layout(0, 0, 1200, 800)
-        }
-        fun dispatch(action: Int, vararg pointers: Pair<Int, Pair<Float, Float>>) {
-            val properties = pointers.map { (id, _) -> MotionEvent.PointerProperties().apply { this.id = id; toolType = MotionEvent.TOOL_TYPE_FINGER } }.toTypedArray()
-            val coords = pointers.map { (_, position) -> MotionEvent.PointerCoords().apply { x = position.first; y = position.second; pressure = 1f; size = 1f } }.toTypedArray()
-            val event = MotionEvent.obtain(1000L, time++, action, pointers.size, properties, coords, 0, 0, 1f, 1f, 0, 0, 0, 0)
-            try { assertTrue(root.dispatchTouchEvent(event)) } finally { event.recycle() }
-        }
-        dispatch(MotionEvent.ACTION_DOWN, 0 to (600f to 200f))
-        dispatch(MotionEvent.ACTION_POINTER_DOWN or (1 shl 8), 0 to (600f to 200f), 1 to (540f to 400f))
-        dispatch(MotionEvent.ACTION_MOVE, 0 to (640f to 220f), 1 to (500f to 400f))
-        assertEquals(1, field(control("ls"), "pressedBy"))
-        assertTrue(value(control("ls"), "kx") < 0f)
-        dispatch(MotionEvent.ACTION_POINTER_UP or (1 shl 8), 0 to (640f to 220f), 1 to (500f to 400f))
-        dispatch(MotionEvent.ACTION_UP, 0 to (640f to 220f))
-        assertEquals(-1, field(control("ls"), "pressedBy"))
-        assertEquals(Triple(MotionEvent.ACTION_DOWN, 1, 0), received.first())
-        assertEquals(Triple(MotionEvent.ACTION_UP, 1, 0), received.last())
-        assertTrue(received.all { it.second == 1 && it.third == 0 })
+    @Test fun aBackgroundStreamDoesNotTurnIntoAButtonWhenItCrossesOne() {
+        val received = mutableListOf<Int>()
+        view.onTouchMiss = { received += it.actionMasked }
+        touch(MotionEvent.ACTION_DOWN, 3 to (500f to 100f))
+        touch(MotionEvent.ACTION_MOVE, 3 to (800f to 250f))
+        touch(MotionEvent.ACTION_UP, 3 to (800f to 250f))
+        assertFalse(state().isDown(PadState.A))
+        assertEquals(listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP), received)
     }
 
-    @Test fun adaptiveActivationLeavesFivePixelsAroundButtonHitTargets() {
-        for (id in listOf("a", "rb")) {
-            val button = control(id)
-            val radius = value(button, "radius")
-            val edge = value(button, "cy") - radius * if (id == "rb") 1.05f else 1.25f
-            val x = value(button, "cx")
-            val left = control("ls")
-            moveControl(left, x, edge - 10f)
-            assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (x to edge - 4f)))
-            assertEquals(-1, field(left, "pressedBy"))
-            assertTrue(touch(MotionEvent.ACTION_DOWN, 1 to (x to edge - 6f)))
-            assertEquals(1, field(left, "pressedBy"))
-            touch(MotionEvent.ACTION_UP, 1 to (x to edge - 6f))
+    @Test fun floatingAndFixedSticksUseTheirConfiguredOrigin() {
+        for (floating in listOf(true, false)) {
+            view.updateLayout(SavedInputLayout("test", "Test", listOf(left.copy(floating = floating))))
+            measure(view)
+            touch(MotionEvent.ACTION_DOWN, 3 to (230f to 300f))
+            assertEquals(if (floating) 0f else .5f, state().leftX, .001f)
+            touch(MotionEvent.ACTION_UP, 3 to (230f to 300f))
         }
     }
 
-    @Test fun leftExtensionKeepsButtonPriorityAndClearance() {
-        val button = control("left")
-        val x = value(button, "cx")
-        val y = value(button, "cy")
-        val edge = y - value(button, "radius") * 1.25f
-        val left = control("ls")
-        moveControl(left, x + 200f, y)
-        assertTrue(touch(MotionEvent.ACTION_DOWN, 1 to (x to y)))
-        assertEquals(1, field(button, "pressedBy"))
-        assertEquals(-1, field(left, "pressedBy"))
-        touch(MotionEvent.ACTION_UP, 1 to (x to y))
-        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (x to edge - 4f)))
-        assertTrue(touch(MotionEvent.ACTION_DOWN, 1 to (x to edge - 6f)))
-        assertEquals(1, field(left, "pressedBy"))
-    }
-
-    private fun control(id: String): Any = (field(view, "controls") as List<*>).first { field(it!!, "id") == id }!!
-    private fun editor() {
-        view = OnScreenControls(context, null, editing = true)
-        view.layout(0, 0, 1200, 800)
-    }
-
-    @Test fun keyboardShortcutWorksWithHiddenPadAndButtonsOnly() {
-        var opened = 0
-        view = OnScreenControls(context, null, onKeyboard = { opened++ })
-        view.layout(0, 0, 1200, 800)
-        view.setQuickHidden(true)
-        assertNotEquals(0, pixel(90f, 766f))
-        touch(MotionEvent.ACTION_DOWN, 1 to (90f to 766f))
-        assertEquals(0, opened)
-        touch(MotionEvent.ACTION_UP, 1 to (90f to 766f))
-        assertEquals(1, opened)
-        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (600f to 400f)))
+    @Test fun systemOnlyVisibilityUsesTheSameLayoutAndReleasesOtherButtons() {
+        val guide = InputSurfaceElement(InputControl.GUIDE, .4f, .7f, .1f, .2f)
+        view.updateLayout(SavedInputLayout("test", "Test", listOf(button, guide)))
+        measure(view)
+        touch(MotionEvent.ACTION_DOWN, 0 to (800f to 250f))
         view.setButtonsOnly(true)
-        touch(MotionEvent.ACTION_DOWN, 1 to (600f to 756f))
-        touch(MotionEvent.ACTION_UP, 1 to (600f to 756f))
-        assertEquals(2, opened)
-        assertEquals(-1, field(control("guide"), "pressedBy"))
-    }
-
-    @Test fun cancelledDraggedOrDisabledKeyboardShortcutDoesNotOpen() {
-        var opened = 0
-        view = OnScreenControls(context, null, onKeyboard = { opened++ })
-        view.layout(0, 0, 1200, 800)
-        touch(MotionEvent.ACTION_DOWN, 1 to (90f to 766f))
-        touch(MotionEvent.ACTION_CANCEL, 1 to (90f to 766f))
-        touch(MotionEvent.ACTION_UP, 1 to (90f to 766f))
-        assertEquals(0, opened)
-        touch(MotionEvent.ACTION_DOWN, 1 to (90f to 766f))
-        touch(MotionEvent.ACTION_MOVE, 1 to (180f to 766f))
-        touch(MotionEvent.ACTION_UP, 1 to (180f to 766f))
-        assertEquals(0, opened)
-        ControllerPrefs.setKeyboardButton(context, false)
-        view.reload()
-        view.setQuickHidden(true)
-        assertEquals(0, pixel(90f, 766f))
-        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (90f to 766f)))
-    }
-
-    @Test fun hidingSystemButtonsRemovesHitTargetsInBothOverlayModes() {
-        for (buttonsOnly in listOf(false, true)) {
-            ControllerPrefs.setSteamButton(context, true)
-            ControllerPrefs.setQamButton(context, true)
-            view.reload()
-            view.setButtonsOnly(buttonsOnly)
-            val guide = control("guide")
-            val qam = control("qam")
-            val gx = value(guide, "cx"); val gy = value(guide, "cy")
-            val qx = value(qam, "cx"); val qy = value(qam, "cy")
-            assertNotEquals(0, pixel(gx, gy))
-            assertNotEquals(0, pixel(qx, qy))
-            touch(MotionEvent.ACTION_DOWN, 1 to (gx to gy))
-            ControllerPrefs.setSteamButton(context, false)
-            view.reload()
-            assertEquals(-1, field(guide, "pressedBy"))
-            assertEquals(0, pixel(gx, gy))
-            assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (gx to gy)))
-            assertTrue(touch(MotionEvent.ACTION_DOWN, 1 to (qx to qy)))
-            touch(MotionEvent.ACTION_UP, 1 to (qx to qy))
-            ControllerPrefs.setQamButton(context, false)
-            view.reload()
-            assertEquals(0, pixel(qx, qy))
-            assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (qx to qy)))
-        }
-    }
-    private fun field(owner: Any, name: String): Any = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(owner)!!
-    private fun nullableFloat(owner: Any, name: String) = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(owner) as Float?
-    private fun value(owner: Any, name: String) = field(owner, name) as Float
-
-    private fun activationReach(control: Any) = value(control, "radius") * 1.4f * sqrt(1.5f)
-
-    private fun moveControl(control: Any, x: Float, y: Float) {
-        control.javaClass.getDeclaredField("cx").apply { isAccessible = true }.setFloat(control, x)
-        control.javaClass.getDeclaredField("cy").apply { isAccessible = true }.setFloat(control, y)
-    }
-
-    private fun pixel(x: Float, y: Float): Int {
-        val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-        view.draw(Canvas(bitmap))
-        val color = bitmap.getPixel(x.toInt(), y.toInt())
-        bitmap.recycle()
-        return color
+        measure(view)
+        assertFalse(state().isDown(PadState.A))
+        assertFalse(view.takesTouchAt(800f, 250f))
+        assertTrue(view.takesTouchAt(450f, 480f))
     }
 
     private fun touch(action: Int, vararg pointers: Pair<Int, Pair<Float, Float>>): Boolean {
         val properties = pointers.map { (id, _) -> MotionEvent.PointerProperties().apply { this.id = id; toolType = MotionEvent.TOOL_TYPE_FINGER } }.toTypedArray()
         val coords = pointers.map { (_, position) -> MotionEvent.PointerCoords().apply { x = position.first; y = position.second; pressure = 1f; size = 1f } }.toTypedArray()
         val event = MotionEvent.obtain(1000L, time++, action, pointers.size, properties, coords, 0, 0, 1f, 1f, 0, 0, 0, 0)
-        return try { view.onTouchEvent(event) } finally { event.recycle() }
+        return try { view.dispatchTouchEvent(event) } finally { event.recycle() }
     }
 }

@@ -400,22 +400,23 @@ class StickDeadZoneTest {
             for (id in listOf("ls", "rs")) {
                 motion(device, MotionEvent.AXIS_X to 0.6f, MotionEvent.AXIS_Z to 0.7f)
                 val view = OnScreenControls(context, bridge)
+                val elements = LegacyGamepadLayout(context, 1200, 800).elements()
+                view.updateLayout(SavedInputLayout("test", "Test", elements))
+                view.measure(android.view.View.MeasureSpec.makeMeasureSpec(1200, android.view.View.MeasureSpec.EXACTLY), android.view.View.MeasureSpec.makeMeasureSpec(800, android.view.View.MeasureSpec.EXACTLY))
                 view.layout(0, 0, 1200, 800)
-                val controls = ReflectionHelpers.getField<List<Any>>(view, "controls")
-                val control = controls.first { ReflectionHelpers.getField<String>(it, "id") == id }
-                val x = ReflectionHelpers.getField<Float>(control, "cx")
-                val y = ReflectionHelpers.getField<Float>(control, "cy")
+                val control = elements.first { it.control.id == id }
+                val x = (control.x + control.width / 2) * 1200
+                val y = (control.y + control.height / 2) * 800
                 val down = MotionEvent.obtain(1000, 1000, MotionEvent.ACTION_DOWN, x, y, 0)
-                try { assertTrue(view.onTouchEvent(down)) } finally { down.recycle() }
-                assertFalse(ReflectionHelpers.getField<Boolean>(control, "dirty"))
+                try { assertTrue(view.dispatchTouchEvent(down)) } finally { down.recycle() }
                 assertEquals(0f, if (id == "ls") pad().leftX else pad().rightX, 0f)
                 assertTrue((if (id == "ls") pad().rightX else pad().leftX) > 0f)
                 bridge.setStickDeadZone(25)
                 assertEquals(0f, if (id == "ls") pad().leftX else pad().rightX, 0f)
                 motion(device, MotionEvent.AXIS_X to 0.6f, MotionEvent.AXIS_Z to 0.7f)
-                val button = controls.first { ReflectionHelpers.getField<String>(it, "id") == "a" }
-                val bx = ReflectionHelpers.getField<Float>(button, "cx")
-                val by = ReflectionHelpers.getField<Float>(button, "cy")
+                val button = elements.first { it.control == InputControl.A }
+                val bx = (button.x + button.width / 2) * 1200
+                val by = (button.y + button.height / 2) * 800
                 fun buttonTouch(action: Int, time: Long) {
                     val event = MotionEvent.obtain(1000, time, action or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), 2,
                         arrayOf(MotionEvent.PointerProperties().apply { this.id = 0; toolType = MotionEvent.TOOL_TYPE_FINGER },
@@ -423,7 +424,7 @@ class StickDeadZoneTest {
                         arrayOf(MotionEvent.PointerCoords().apply { this.x = x; this.y = y },
                             MotionEvent.PointerCoords().apply { this.x = bx; this.y = by }),
                         0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0)
-                    try { assertTrue(view.onTouchEvent(event)) } finally { event.recycle() }
+                    try { assertTrue(view.dispatchTouchEvent(event)) } finally { event.recycle() }
                 }
                 buttonTouch(MotionEvent.ACTION_POINTER_DOWN, 1030)
                 assertTrue(pad().isDown(PadState.A))
@@ -435,7 +436,7 @@ class StickDeadZoneTest {
                 assertEquals(0.6f, pad().leftX, 0f)
                 assertEquals(0.7f, pad().rightX, 0f)
                 val up = MotionEvent.obtain(1000, 1100, MotionEvent.ACTION_UP, x, y, 0)
-                try { assertTrue(view.onTouchEvent(up)) } finally { up.recycle() }
+                try { assertTrue(view.dispatchTouchEvent(up)) } finally { up.recycle() }
             }
         }
     }

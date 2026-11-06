@@ -10,6 +10,7 @@ class InputRouterTest {
         override fun button(code: Int, down: Boolean) { events += "button $code $down" }
         override fun pointer(dx: Float, dy: Float) { events += "pointer $dx $dy" }
         override fun scroll(steps: Int) { events += "scroll $steps" }
+        override fun scrollHorizontal(steps: Int) { events += "horizontal $steps" }
         override fun command(command: InputCommand) { events += command.name }
         override fun requestMotion() { events += "motion" }
     }
@@ -17,6 +18,47 @@ class InputRouterTest {
     private val router = InputRouter(output)
     private fun bind(control: InputControl, action: InputAction, role: InputRole = InputRole.PHYSICAL) =
         InputProfile.defaults(InputProfile.GAME).withBinding(role, control, action)
+
+    @Test fun radialKeysKeepCustomDiagonalsAndReleaseSharedNeighborKeys() {
+        router.setProfile(bind(InputControl.LS, InputAction.Directions(103, 106, 0, 105, listOf(30, 0, 0, 0))))
+        val stick = router.channel(InputRole.PHYSICAL, InputControl.LS)
+        stick.update(.7f, -.7f)
+        assertEquals(listOf("key 30 true"), output.events)
+        stick.update(-.7f, -.7f)
+        assertEquals(listOf("key 30 true", "key 30 false", "key 105 true", "key 103 true"), output.events)
+        output.events.clear()
+        stick.update(0f, -1f)
+        assertEquals(listOf("key 105 false"), output.events)
+        router.releaseAll()
+        assertEquals(listOf("key 105 false", "key 103 false"), output.events)
+    }
+
+    @Test fun horizontalStickUsesXAndKeepsTheVerticalWheelIndependent() {
+        router.setProfile(bind(InputControl.RS, InputAction.Scroll(20f, true)).withBinding(InputRole.PHYSICAL, InputControl.LS, InputAction.Scroll(20f)))
+        val horizontal = router.channel(InputRole.PHYSICAL, InputControl.RS)
+        val vertical = router.channel(InputRole.PHYSICAL, InputControl.LS)
+        horizontal.update(1f, 0f); vertical.update(0f, -1f)
+        router.tick(.05f)
+        assertTrue(output.events.contains("horizontal 1"))
+        assertTrue(output.events.contains("scroll -1"))
+        output.events.clear()
+        horizontal.update(0f, 1f); vertical.update(1f, 0f)
+        assertFalse(router.tick(.05f))
+        assertTrue(output.events.isEmpty())
+    }
+
+    @Test fun horizontalTouchScrollFollowsContactAndDropsRemainderOnSuspend() {
+        val channel = router.channel(InputRole.SECONDARY, InputControl.RIGHT_PAD, InputAction.Scroll(10f, true))
+        channel.update(0f, 0f, true)
+        channel.update(.25f, .8f, true)
+        assertEquals(listOf("horizontal -2"), output.events)
+        router.releaseAll()
+        output.events.clear()
+        channel.update(0f, 0f, false)
+        channel.update(0f, 0f, true)
+        channel.update(.06f, 0f, true)
+        assertTrue(output.events.isEmpty())
+    }
 
     @Test fun nativeProfileReturnsOriginalStateWithoutScheduling() {
         val source = router.pad(InputRole.PHYSICAL)

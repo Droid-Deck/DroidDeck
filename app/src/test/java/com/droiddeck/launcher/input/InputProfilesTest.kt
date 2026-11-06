@@ -51,13 +51,15 @@ class InputProfilesTest {
     @Test fun unknownVersionDoesNotExecuteBindings() {
         context.getSharedPreferences("input-profiles", Context.MODE_PRIVATE).edit()
             .putString("profile.game", """{"version":999,"bindings":[]} """).commit()
-        assertEquals(InputProfile.defaults(InputProfile.GAME), InputProfiles.read(context, InputProfile.GAME))
+        val profile = InputProfiles.read(context, InputProfile.GAME)
+        assertEquals(InputProfile.defaults(InputProfile.GAME).bindings, profile.bindings)
+        assertEquals(mapOf(InputRole.PRIMARY to mapOf("builtin:keyboard" to InputAction.Command(InputCommand.KEYBOARD))), profile.elements)
     }
 
     @Test fun layoutsPersistIndependentOfBindingsAndStayInsideScreen() {
         InputSurfaceLayout.save(context, InputProfile.GAME, listOf(InputSurfaceElement(InputControl.A, .95f, -.1f, 2f, 2f)))
         val element = InputSurfaceLayout.read(context, InputProfile.GAME).single()
-        assertEquals(.9f, element.x); assertEquals(0f, element.y)
+        assertEquals(.95f, element.x); assertEquals(0f, element.y)
         assertTrue(element.x + element.width <= 1f)
         assertEquals(InputAction.Native(), InputProfiles.read(context, InputProfile.GAME).action(InputRole.SECONDARY, InputControl.A))
     }

@@ -126,6 +126,9 @@ class SettingsResetTest {
     }
 
     @Test fun inputProfilesAndSurfacesResetWithoutRestoringLegacyMappings() {
+        val defaultGame = InputProfiles.read(app, InputProfile.GAME)
+        val defaultDesktop = InputProfiles.read(app, InputProfile.DESKTOP)
+        val defaultSurface = InputSurfaceLayout.read(app, InputProfile.DESKTOP)
         ControllerPrefs.setTarget(app, "a", "b")
         InputProfiles.select(app, InputProfile.DESKTOP)
         InputProfiles.save(app, InputProfile.defaults(InputProfile.GAME)
@@ -135,9 +138,9 @@ class SettingsResetTest {
         assertTrue(SettingsReset.resetAll(app, gameProfiles = false))
 
         assertEquals(InputProfiles.AUTO, InputProfiles.selection(app))
-        assertEquals(InputProfile.defaults(InputProfile.GAME), InputProfiles.read(app, InputProfile.GAME))
-        assertEquals(InputProfile.defaults(InputProfile.DESKTOP), InputProfiles.read(app, InputProfile.DESKTOP))
-        assertEquals(InputSurfaceLayout.defaults(), InputSurfaceLayout.read(app, InputProfile.DESKTOP))
+        assertEquals(defaultGame, InputProfiles.read(app, InputProfile.GAME))
+        assertEquals(defaultDesktop, InputProfiles.read(app, InputProfile.DESKTOP))
+        assertEquals(defaultSurface, InputSurfaceLayout.read(app, InputProfile.DESKTOP))
     }
 
     @Test fun gameTextureFilteringIsKeptUnlessGameProfilesAreReset() {

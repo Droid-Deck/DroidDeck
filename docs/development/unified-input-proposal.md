@@ -6,12 +6,13 @@ a functional configuration UI and hardware validation on AYN Thor. The related
 maintainer discussions motivate this work; they are not approval of this
 implementation.
 
-The configuration UI is intentionally basic. If maintainers accept the
-architecture, I am happy to refine the UX/UI in the same PR before merge, or in a
-follow-up PR, whichever they prefer. Navigation, binding discovery, layout
-editing, accessibility and localization need further attention. The current UI
-makes the architecture usable and testable rather than establishing its final
-interaction design.
+The configuration UI keeps the existing Setup tabs. Controller contains mode
+defaults, one profile list and device settings. Reusable layouts and actions are
+stored separately but are managed within each profile source. Direct editing on
+the target display has been exercised on AYN Thor, including editing above a live
+Steam session and keeping the secondary canvas separate from the main-screen
+tools. Revision-specific checks and remaining limits are recorded in the
+validation report.
 
 ## Why a shared system
 
@@ -26,11 +27,14 @@ The model separates three concerns:
 - **Source role:** physical controller, game overlay (primary) or auxiliary panel
   (secondary). Swapping the game and auxiliary panel between displays preserves
   the panel's role and bindings.
-- **Profile:** the actions assigned to controls in each role. Game and Desktop are
-  the two editable built-in profiles. Auto selects by session mode; explicit
-  selection supports a game running inside a desktop session.
-- **Surface layout:** the placement and size of local screen controls. The custom
-  second-screen layout is stored independently for each built-in profile.
+- **Profile:** references to a physical binding preset and a layout/binding pair
+  for each touch role. Game and Desktop are editable bases; named profiles can
+  share parts. Auto has separate Steam and Desktop assignments. Opening a profile
+  for editing does not activate it.
+- **Surface layout:** stable element IDs, types, names, positions and sizes.
+  Named custom layouts can be used on either touch role. Actions belong to a
+  separate binding preset associated with that layout. Two desktop profiles can
+  share their physical bindings and layout while using different touch actions.
 
 A binding selects native controller output, a DroidDeck action, or disabled.
 Native output continues through the existing game/Steam path, optionally with a
@@ -44,7 +48,8 @@ flowchart TD
     Secondary[Secondary custom controls] --> PadBridge
     Deck[Deck pads and grips] --> DeckControls
     BLE[Steam Controller BLE reports] --> TritonInputRouter
-    Profiles[Game / Desktop profile by source role] --> Router[InputRouter]
+    Library[Saved profiles, layouts and binding presets] --> Profiles[Resolved active profile by source role]
+    Profiles --> Router[InputRouter]
     PadBridge --> Router
     DeckControls --> Router
     TritonInputRouter --> Router
@@ -55,7 +60,8 @@ flowchart TD
     Motion --> Held
     Held --> Guest[Existing guest keyboard and mouse output]
     Native --> Steam[Steam Input or guest controller consumer]
-    Layout[Independent surface geometry] --> Secondary
+    Layout[Independent surface geometry and element IDs] --> Secondary
+    Layout --> Primary
 ```
 
 These are routing relationships, not additional asynchronous queues. Native
@@ -66,8 +72,10 @@ publication is performed by the existing source adapters and writers.
 | Component | Responsibility |
 | --- | --- |
 | `InputProfile` | Logical controls, source roles and supported actions |
-| `InputProfiles` | Versioned persistence, selection, validation and migration |
-| `InputSurfaceLayout` | Bounded custom lower-screen geometry, separate from actions |
+| `InputLibraries` / `InputLibrary` | Versioned reusable parts, validated references, selection and migration |
+| `InputProfiles` | Compatibility API for the compiled active profile and legacy migration |
+| `InputSurfaceLayout` | Bounded normalized touch geometry and legacy layout migration |
+| `InputSurfaceSource` | Independently owned per-element routing through existing pad/Deck publishers |
 | `InputRouter` | Resolve channels on profile changes, route events, track held outputs |
 | `PadBridge` | Existing player slots plus independently owned local touch sources |
 | `DeckControls` | Source ownership for Deck grips, contacts, coordinates and clicks |
@@ -88,12 +96,103 @@ captured keys match a device identity plus Android keycode/scancode, rather than
 persisting a transient Android device ID. System-reserved keys remain with
 Android. This is not a per-device calibration system.
 
+### Controller navigation
+
+Setup keeps its existing top-level tabs. Controller starts with Desktop and Game
+mode defaults, followed by one profile list and inline device settings. Opening
+or editing a profile does not activate it; the session menu owns the active
+profile override. Quick-menu overrides are called out beside the default selectors.
+
+Each profile opens Physical controller, Main screen or Second screen. Control
+cards and touch element rows open the same large properties editor. Layout
+editing uses the full-size canvas and one draggable, expandable Tools palette. Back
+returns to the source and profile being edited, rather than the library root.
+Saved layouts and reuse commands live inside the relevant source editor; there
+are no parallel top-level layout, binding and profile catalogs.
+
+New profiles copy actions and custom geometry independently by default. Users
+can explicitly keep physical controls shared at creation, or copy/link a source
+from another profile later. Reusing a saved layout can link geometry without
+linking actions. Make independent copies both geometry and actions for that
+source. Reset actions affects only the selected profile, preserving its layouts
+and detaching shared actions before resetting them.
+
+Main-screen visibility remains a global device setting. Color and opacity belong
+to each saved touch layout. The standard gamepad is an ordinary editable layout:
+its legacy positions, appearance and stick options are migrated into elements.
+Other saved resolutions remain selectable layouts. The previous fixed gamepad
+renderer and its separate editor are removed; only its placement calculation is
+retained for migration. Vibration, radial stick dead zone, Joy-Con VR, global
+shortcuts and timing diagnostics are inline below the profile list. This adds no
+settings reads or queues to input dispatch.
+
+### Session profile composition
+
+Both the session drawer and launcher controls sheet expose Profile, Physical
+controller, Main screen and Second screen. Choosing a profile loads its three
+saved parts; choosing one part creates a mode-specific override without editing
+the source profile. Game and Desktop remember their choices separately. Auto
+resolves the corresponding default profile. Selecting a complete profile clears
+part overrides. Save as new profile creates independent copies of all three
+parts, including geometry, appearance and actions.
+
+Fixed lower-screen tabs, side selectors and click bars are removed. Deck pads
+and grips, one or two Deck pads, grips alone, the mouse trackpad with keyboard,
+and a compact gamepad are ordinary editable layout/binding presets. Their menu,
+keyboard and click buttons are ordinary elements too. The compact gamepad reuses
+the previous panel geometry calculation. Existing fixed-panel selections migrate
+to profile controls on first use. Schema 4 also preserves version-3 custom
+layouts and converts legacy fixed layout references without changing physical
+mappings. Active quick-menu parts cannot be deleted.
+
+Mouse touchpad gestures reuse `TouchpadGestures` for relative movement, tap,
+hold-drag, two-finger scrolling and secondary clicks. A tap uses the element's
+configured click action; it does not reposition the pointer. Gesture outputs use
+owned router channels and are suppressed while input is suspended or until a
+held contact returns to neutral after a profile change. Native Deck pad mode
+retains contact/position reporting and click behavior for Steam Input.
+
 ### Reuse and migration
 
 Existing `FakeInputWriter` transports, player assignment, guest keyboard/mouse
-output, `KeyboardHost`, second-screen presentation and `DeckControlsPanel` are
-reused. The custom lower-screen editor arranges the existing buttons, sticks,
-trackpads and grips; it does not create another emulated controller.
+output, `KeyboardHost` and second-screen presentation are reused. The existing
+button, stick, d-pad and trackpad views now live in `InputSurfaceView`; there is
+no parallel fixed controller panel. The custom editor arranges the existing button, stick, d-pad and trackpad
+views; it does not create another emulated controller. Trigger elements provide
+press/release input. A new element is unassigned until an action is explicitly
+saved. Native sticks and pads retain their existing click gestures.
+Movement/contact and click are separate assignments for sticks and trackpads.
+Both use the same properties editor and router ownership rules; migrated click
+bindings remain editable, and a custom mouse pad can assign its click separately.
+
+The editor uses the target display at actual size. On a dual-screen device,
+Add, Undo, Snap, Save and element properties stay on the activity display; the
+auxiliary display is a full-size canvas with no toolbar inset. On one display,
+a draggable Tools bubble expands into those same tools, including element
+properties, and collapses to leave the canvas accessible. Properties replace the
+canvas and return to the same draft. Snapping aligns centers and edges with
+other elements and the display, including during resize. Done persists geometry and actions together; Cancel discards the
+draft after confirmation. The preview has no input sources and cannot send
+input to the running session.
+
+Primary custom layouts follow the existing on-screen-controls visibility setting;
+Steam's touch-controller mode retains priority. Secondary layouts use Profile controls mode. Terminal, desktop and dashboard
+remain separate panel modes. Steam-managed touch controls keep their own editor; a new editable layout
+can start empty or copy a saved custom layout.
+
+Legacy Game/Desktop mappings, key captures, active selection and lower-screen
+geometry migrate to the library together. Legacy element IDs preserve their
+existing logical bindings. New elements use stable independent IDs, so two
+buttons can have different actions or hold the same output without releasing
+one another. Referenced parts cannot be deleted, and editing an unsupported
+library version cannot overwrite it. Shared edits show their scope; copying a
+binding preset from a profile relinks only that profile's selected role.
+
+Library decoding, validation and preset resolution happen during configuration
+or profile activation. Dispatch uses preconfigured router channels, with no
+preference reads, profile lookups or new asynchronous queues. The physical native
+identity path and frame-based stick motion remain in place. These properties do
+not substitute for a fresh latency comparison on hardware.
 
 The old touch-only mapping and Select-as-Steam settings migrate once into Game's
 primary-screen and physical bindings respectively. Their redundant UI is removed.
@@ -193,13 +292,15 @@ Steam Mobile Touch retains its own Steam-managed layout and protocol. Its widget
 do not pass through this local remapper. The VR-specific input path also remains
 separate. Existing gestures retain their recognizers and share output ownership.
 
-The two built-in profiles and the bounded custom lower-screen editor are the
-implemented scope. Named profile libraries, import/export, per-app selection,
-macros, tap/hold behavior, multi-button activation chords and a complete freeform
-multi-display editor are deferred. One button emitting Ctrl+F is supported;
-pressing multiple buttons to activate a new binding is not implemented.
+The local UI revision includes named profiles, reusable binding presets and
+custom layouts edited on either display. Import/export, automatic per-app
+selection, macros, configurable tap/hold behavior and multi-button activation
+chords remain deferred. One button emitting Ctrl+F is supported; pressing
+multiple buttons to activate a new binding is not implemented. Built-in Steam
+touch layouts retain their separate Steam-managed editor.
 
-Native remaps stay within compatible report families. Additional hardware
+Physical native remaps stay within compatible report families. Generic custom
+buttons choose a supported button output explicitly. Additional hardware
 adapters must join before publishing consumed controls; an Activity-only
 interceptor cannot cover every raw device. Future adapters should use this
 contract without replacing device-specific calibration or protocol handling.
@@ -240,3 +341,53 @@ project's direction, whether adapters join at the right point, and whether the
 shared ownership/lifecycle contract is suitable for future input sources. The
 validation document distinguishes device-tested behavior, host regressions and
 remaining coverage. UX/UI refinement can follow agreement on those decisions.
+
+### Settings polish and display targeting
+
+The session Profile row expands to show the three saved parts and the editor.
+Choosing the profile remains a separate selector. Session editing opens its
+settings on the spare display, when available; element properties and editor
+commands stay on the activity display. Main-screen placement over a running
+session uses a transparent canvas so controls can be arranged around game UI.
+Existing visible controls are suspended while editing.
+
+Schema 5 adds an explicit main/secondary/both target to saved layouts. Migration
+infers the target from existing profile and quick-menu references, preserving
+layouts already used on both screens. Layout rows render a miniature with the
+same `InputSurfaceView` renderer; unused legacy copies are retained under Other
+saved layouts. Newly created layouts belong to the source being edited.
+
+Action editing retains a draft for each route and action type. Sticks assigned
+to a digital action press above 55% on either axis and release below 35%; a
+trackpad holds a digital action during contact. These semantics are explained
+next to the action. Horizontal scroll uses the same router and existing evdev
+REL_HWHEEL / Wayland axis transport, with independent fractional accumulation.
+No additional event thread or queue is introduced.
+
+### Screen-key consolidation
+
+Schema 6 imports the retired screen-key overlay into normal saved profiles,
+layouts and element bindings. The active old set and each named saved set become
+separate imported profiles. Current Game/Desktop defaults and quick selections
+remain unchanged; the settings page explains where to find the imported profiles.
+The old editor, overlay View, guest-key dispatch path and session-menu entries
+are removed. Only a one-time reader of the old preferences remains.
+
+Migration converts normalized centers and density-based sizes into the shared
+layout geometry. Key chords, four-way directions, separate eight-way stick
+bindings, toggle buttons, built-in symbols, custom image references, shape and
+opacity are retained. Blank stick diagonals keep their previous behavior of
+pressing neighboring cardinal directions. Imported images are decoded once per
+view, sampled to at most 512 pixels, and read only from the app's existing image
+directory. New buttons can choose text or an existing built-in key symbol.
+
+A converted library and the original raw preferences are committed together
+before old preference entries are removed. Invalid data or capacity failures do
+not erase the old library or keys, and settings show a pending-import notice.
+The backup is recovery data, not a second runtime input configuration.
+
+Toggle buttons use `InputSurfaceSource` and the same router ownership as every
+other element. Releasing one owner cannot release another owner's held key.
+Menu suspension, profile changes, cancellation and detach release latched output.
+Physical native input continues through its existing fast path; no queue, timer
+or additional event thread is introduced for these features.

@@ -36,6 +36,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.PhysicalShortcuts
+import com.droiddeck.launcher.session.SessionPrefs
 
 @Composable
 internal fun PhysicalShortcutRows(
@@ -48,14 +49,22 @@ internal fun PhysicalShortcutRows(
     Column {
         for (action in PhysicalShortcuts.Action.entries) {
             val assigned = bindings.filter { it.action == action }
+            val inverted = SessionPrefs.backActionsInverted(context)
+            val default = stringResource(when (action) {
+                PhysicalShortcuts.Action.STEAM -> R.string.input_shortcut_guide
+                PhysicalShortcuts.Action.QAM -> if (inverted) R.string.input_shortcut_back_once else R.string.input_shortcut_back_twice
+                PhysicalShortcuts.Action.DROIDDECK -> if (inverted) R.string.input_shortcut_back_modes else R.string.input_shortcut_back_once
+            })
             SettingsRow(
                 stringResource(action.label),
-                assigned.joinToString { "${it.button.label} · ${it.button.name}" }.ifEmpty { null },
+                assigned.joinToString { "${it.button.label} · ${it.button.name}" }.ifEmpty {
+                    if (action == PhysicalShortcuts.Action.QAM && SessionPrefs.backHold(context)) context.getString(R.string.input_shortcut_hold_hint) else null
+                },
             ) {
                 SecondaryButton(
-                    stringResource(if (assigned.isEmpty()) R.string.game_settings_default else R.string.ctrl_custom),
+                    if (assigned.isEmpty()) default else assigned.map { it.button.label }.distinct().joinToString(" / "),
                     compact = true,
-                    modifier = modifierFor(action).width(LocalChipMinWidth.current)
+                    modifier = modifierFor(action).widthIn(min = LocalChipMinWidth.current, max = 240.dp)
                         .testTag("shortcuts-assign-${action.name}"),
                 ) { editing = action }
             }
@@ -164,6 +173,12 @@ internal fun PhysicalShortcutsDialog(
                             },
                             modifier = Modifier.testTag("shortcuts-remove"),
                         )
+                    }
+                    SecondaryButton(stringResource(R.string.input_restore_shortcut), enabled = bindings.any { it.action == action },
+                        modifier = Modifier.testTag("shortcuts-restore-default")) {
+                        PhysicalShortcuts.restoreDefault(context, action)
+                        onChanged()
+                        onDismiss()
                     }
                     SecondaryButton(stringResource(R.string.common_close), modifier = Modifier.testTag("shortcuts-cancel"),
                         onClick = onDismiss)

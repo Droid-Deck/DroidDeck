@@ -7,7 +7,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.input.DeckControls
+import com.droiddeck.launcher.input.*
 import com.droiddeck.launcher.input.JoyConPadTest
 import com.droiddeck.launcher.input.PadBridge
 import com.droiddeck.launcher.input.PadState
@@ -25,23 +25,32 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], shadows = [JoyConPadTest.RecordingWriter::class])
-class DeckControlsPanelOwnershipTest {
+class InputSurfaceOwnershipTest {
     private val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup()
     private val activity = controller.get()
     private val root = FrameLayout(activity)
     private val bridge = PadBridge(File(activity.cacheDir, "panel-ownership"))
-    private lateinit var panel: DeckControlsPanel
+    private lateinit var panel: InputSurfaceView
     private val previousDeckPad = SessionState.deckPad
 
     @Before fun setUp() {
         SessionState.deckPad = true
         DeckControls.releaseAll()
-        SessionPrefs.setGamepadSurface(activity, false, SessionPrefs.SURFACE_STICK)
-        SessionPrefs.setGamepadSurface(activity, true, SessionPrefs.SURFACE_TRACKPAD)
+        bridge.setInputRouter(InputRouter(object : InputOutput {
+            override fun key(code: Int, down: Boolean) {}
+            override fun button(code: Int, down: Boolean) {}
+            override fun pointer(dx: Float, dy: Float) {}
+            override fun scroll(steps: Int) {}
+            override fun command(command: InputCommand) {}
+            override fun requestMotion() {}
+        }))
+        val elements = listOf(InputControl.RIGHT_PAD, InputControl.LS, InputControl.A).mapIndexed { i, c ->
+            InputSurfaceElement(c, .02f + i * .3f, .1f, .28f, .4f)
+        } + InputSurfaceElement(InputControl.LS, .02f, .6f, .28f, .3f, "dpad", InputElementKind.DPAD)
+        bridge.setInputProfile(InputProfile("native", elements = mapOf(InputRole.SECONDARY to mapOf("dpad" to InputAction.Native()))))
         activity.setContentView(root)
-        panel = DeckControlsPanel(activity, {}, {}, {}, bridge)
+        panel = InputSurfaceView(activity, bridge, elements)
         root.addView(panel)
-        descendants(panel).filterIsInstance<TextView>().first { it.text == activity.getString(R.string.deck_tab_gamepad) }.performClick()
         val trackpad = child("TrackpadView")
         trackpad.layout(0, 0, 300, 300)
         touch(trackpad, MotionEvent.ACTION_DOWN, 200f, 100f)
@@ -57,14 +66,14 @@ class DeckControlsPanelOwnershipTest {
         SessionState.deckPad = previousDeckPad
     }
 
-    @Test fun switchingTheOtherStickKeepsTrackpadContactAndClickHeld() {
+    @Test fun removingTheStickKeepsTrackpadContactAndClickHeld() {
         val stick = child("StickView")
         stick.layout(0, 0, 300, 300)
         touch(stick, MotionEvent.ACTION_DOWN, 150f, 150f)
         touch(stick, MotionEvent.ACTION_MOVE, 240f, 150f)
         assertTrue(state().leftX > 0f)
         val position = JoyConPadTest.RecordingWriter.deckPads.copyOf()
-        descendants(stick.parent as View).first { it.contentDescription == activity.getString(R.string.deck_surface_switch) }.performClick()
+        (stick.parent as ViewGroup).removeView(stick)
         assertEquals(0f, state().leftX)
         assertTrackpadStillHeld(position)
         root.removeView(panel)
@@ -82,8 +91,8 @@ class DeckControlsPanelOwnershipTest {
         assertTrackpadStillHeld(position)
     }
 
-    @Test fun removingFaceButtonsReleasesOnlyTheirOwnInput() {
-        val buttons = child("FaceButtons")
+    @Test fun removingAButtonReleasesOnlyItsOwnInput() {
+        val buttons = child("HoldButton")
         buttons.layout(0, 0, 300, 300)
         touch(buttons, MotionEvent.ACTION_DOWN, 150f, 240f)
         assertTrue(state().isDown(PadState.A))
@@ -93,47 +102,29 @@ class DeckControlsPanelOwnershipTest {
         assertTrackpadStillHeld(position)
     }
 
-    @Test fun switchingTabsRemovesTheOldTouchSourceAfterChildrenRelease() {
-        val routed = recordTouchRoute()
+    @Test fun replacingTheLayoutReleasesEveryOldControl() {
         holdFaceButton()
-        assertTrue(routed.last().isDown(PadState.A))
-        descendants(panel).filterIsInstance<TextView>().first { it.text == activity.getString(R.string.deck_tab_grips) }.performClick()
-        assertFalse(routed.last().isDown(PadState.A))
+        assertTrue(state().isDown(PadState.A))
+        panel.updateCustomLayout(emptyList())
+        assertFalse(state().isDown(PadState.A))
         assertEquals(0, JoyConPadTest.RecordingWriter.grips)
-        routed.clear()
         bridge.applyExternal({ it.press(PadState.B, true) }, true)
-        assertTrue("removed tab still forwards a neutral touch source", routed.isEmpty())
         assertTrue(state().isDown(PadState.B))
-
-        descendants(panel).filterIsInstance<TextView>().first { it.text == activity.getString(R.string.deck_tab_gamepad) }.performClick()
-        holdFaceButton()
-        assertTrue(routed.last().isDown(PadState.A))
+        assertFalse(state().isDown(PadState.A))
     }
 
     @Test fun removingThePanelLeavesNoTouchSourceForLaterPhysicalInput() {
-        val routed = recordTouchRoute()
         holdFaceButton()
         root.removeView(panel)
-        assertFalse(routed.last().isDown(PadState.A))
-        routed.clear()
+        assertFalse(state().isDown(PadState.A))
         bridge.applyExternal({ it.press(PadState.B, true) }, true)
-        assertTrue("removed panel still forwards a neutral touch source", routed.isEmpty())
         assertTrue(state().isDown(PadState.B))
     }
 
     private fun holdFaceButton() {
-        val buttons = child("FaceButtons")
+        val buttons = child("HoldButton")
         buttons.layout(0, 0, 300, 300)
         touch(buttons, MotionEvent.ACTION_DOWN, 150f, 240f)
-    }
-
-    private fun recordTouchRoute(): MutableList<PadState> {
-        val routed = mutableListOf<PadState>()
-        bridge.setTouchRoute(object : PadBridge.TouchRoute {
-            override fun active() = true
-            override fun accept(state: PadState) { routed += PadState().apply { copyFrom(state) } }
-        })
-        return routed
     }
 
     private fun assertTrackpadStillHeld(position: ShortArray) {

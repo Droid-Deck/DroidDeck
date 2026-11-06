@@ -4,6 +4,264 @@ Recorded on 2026-10-24. These results distinguish the device-tested candidate fr
 the later upstream rebase and host regression fixes. They do not establish zero
 latency or complete coverage of every controller and session mode.
 
+## UI publication candidate, 2026-11-06
+
+The implementation was updated through upstream `a1bc8467f` (merge `aa3757eff`).
+The generic action selector now says **Scroll**; binding summaries still state
+the configured direction. Closing the docked session drawer now invokes its
+ordinary close action instead of disabling the second-screen presentation.
+The global-reset regression compares against a pristine compiled library, which
+includes the editable gamepad's keyboard element.
+
+- All **944 input/UI tests in 125 suites passed**. The final full JVM run completed
+  **3,598 tests in 493 suites: 3,573 passed, 25 failed, no errors or skips**.
+  The failures are the same unchanged upstream log-export tests (24) and
+  case-sensitive WoW add-on import test (1) described below. Input/UI and global
+  settings reset passed in this full run.
+- Initial full runs exhausted this Mac's free disk and produced secondary native
+  runtime/idle failures. Obsolete local test APKs were removed. The completed run
+  used a local Gradle init script with one worker and a fresh test JVM every 25
+  classes to bound temporary-file use. No repository test configuration was
+  weakened and no tests were excluded from the completed run.
+- The APK passed runtime-input, session-asset, native dependency, alignment and
+  v1/v2/v3 signature checks. SHA-256:
+  `611814f11cbac4bab7f97dac5c0b0657d85d8dfbd6b40b741bda1fc13efa6f83`.
+  It was installed over the separate Input Test app with its environment intact;
+  as with earlier local candidates, Rust store engines were omitted.
+- On AYN Thor, closing the lower-screen menu with its X restored the existing
+  controls instead of revealing Android. The live Steam editor, separate lower
+  canvas and upper tools/properties, profile previews, saved layouts, and action
+  pages were exercised. A single Trigger selection added a centered, selected
+  element; the reported occasional extra tap was not reproduced. The temporary
+  editor change was discarded.
+- The user also verified native controls, profile switching, trackpad/pointer
+  and scrolling behavior on the immediately preceding UI candidate. This is
+  distinct from automated UI navigation and the historical latency measurements.
+
+Actual display captures and test reports are retained locally under
+`app/build/reports/input-publish/`. Screenshot publication is subject to the
+user's review. No new latency measurement was made for this UI revision.
+
+## Input settings polish, 2026-11-06
+
+The final input/UI host run passed **941 tests in 124 suites, zero failures**.
+New coverage includes retained route/action drafts, centered element creation
+without a placement tap, collapsed quick-profile settings, schema-4 migration
+with a layout shared across both screens, target/scroll serialization, and
+horizontal scrolling through both guest mouse backends. Existing physical native
+fast-path and ownership tests remain green.
+
+The settings use stable DroidDeck Input labels, contextual axis/contact hints,
+color swatches, opacity sliders and rendered layout thumbnails. Diagnostics now
+open a result dialog and explain how to record a sample and what it measures.
+Shortcut rows show the actual assignment and offer Restore to default.
+
+No new latency comparison was taken for this UI revision. The normal native
+controller path is unchanged. New horizontal wheel work happens only for a local
+scroll action. The user's environment installation is retained. Device verification is recorded below.
+
+### Screen-key removal and Thor verification
+
+The old screen-key overlay, standalone editor, layout panel and separate runtime
+key sender are removed. Schema 6 imports the old active set and every named set
+as editable profiles. Current defaults and selections are kept. Tests cover
+idempotent import, chords, normalized geometry, per-element opacity, shapes,
+image references, symbols, custom diagonals, and retaining the original data
+when migration cannot complete. A backup and the converted library are committed
+together before the old preferences are removed.
+
+New shared element tests exercise latched keyboard and native controller buttons,
+shared ownership, cancellation, menu suspension and profile replacement. Separate
+diagonal bindings release previous keys and preserve neighboring-direction
+fallbacks. No additional input queue or thread is used.
+
+Final APK installed over `com.droiddeck.launcher.inputtest` on AYN Thor:
+`6618be55c28a52746b6504656a480845d25d8a34114daa1829aad5dbb5b5e729`.
+Packaging checked runtime inputs, session assets, native library dependencies and
+v1/v2/v3 signatures. As with the earlier test packages, Rust store engines are
+omitted; the Steam/Desktop environment is retained.
+
+On-device checks:
+
+- The expanded Profile has readable text and one visibly grouped block.
+- Profile source rows and saved-layout rows show bounded thumbnails. The previous
+  black rectangle overflowing the list no longer appears.
+- The original anchored color menu shows its color swatches.
+- Steam → Controller → Edit opens settings on the spare display.
+- Main-screen editing opens on the activity display over live Steam. A second
+  on-device crash was found and fixed: returning from lower-display settings must
+  use the existing activity dialog, not a Presentation on the default display.
+- Adding a button immediately centers and selects it. Its properties and symbol
+  picker open on the main display.
+- Secondary-screen editing leaves only the canvas below and tools above. Adding
+  a trackpad centers and selects it without requiring another placement touch.
+- Temporary edits were discarded. Comparing the before/after saved libraries,
+  excluding new default schema fields, found no changes to the user's profiles,
+  geometry, bindings or selections. Schema changed from 5 to 6.
+- Steam remained READY after closing the editors; the final device log contained
+  no new fatal exception.
+
+The test device had no old screen-key sets to import. Legacy content migration
+and toggle ownership were verified by host regression tests, not by a new
+physical-input latency or end-to-end game test. Evidence is under
+`app/build/reports/input-polish/`; the final installable copy is
+`app/build/input-ui/DroidDeck-Input-Test-unified-screenkeys-2026-11-06.apk`.
+
+## Unified editor and session profile composition, 2026-11-06
+
+The fixed gamepad and its separate editor are replaced with a saved editable
+layout rendered by `InputSurfaceView` on either display. The old fixed lower
+panel, tab switches and separate mouse trackpad view are removed. Deck pads,
+grips, single pads, the mouse trackpad and a compact gamepad are editable presets;
+their menu, keyboard and click buttons are normal elements. The compact preset
+reuses the previous panel geometry calculation.
+
+Schema 4 migrates version-2 overlay references, mappings, saved positions,
+appearance and stick-click preferences, and version-3 fixed lower layouts.
+Other resolution-specific positions remain saved layouts. Future or invalid
+libraries are not overwritten. Physical mappings retain their identities and
+assignments. Existing custom layouts remain intact.
+
+On two displays, the activity hosts Add, Undo, Snap, Done and full-size properties;
+the other display contains only the canvas, without a reserved toolbar strip.
+On the main display a draggable Tools bubble expands into the same tools,
+including Properties. The editor snaps centers and edges while moving and
+resizing. Both source pages list their actual elements. Device settings are
+inline below the profiles.
+
+The quick menu selects a whole profile or overrides Physical controller, Main
+screen and Second screen independently. Game and Desktop selections are separate.
+Changes do not mutate the source profiles; saving a combination creates independent
+copies. Returning to Auto clears the overrides. Tests cover serialization,
+reference validation, deletion protection and preservation of source profiles.
+
+The complete input/UI host run passed **931 tests in 124 suites, zero failures**.
+Coverage includes full-size shared editing, floating tools, display removal,
+geometry migration, source ownership during detach/layout replacement, quick-menu
+composition and saving, native Deck clicks and mouse gestures. Tap and hold use
+the configured element click; ordinary taps do not reposition the cursor. Profile
+changes and menu suspension suppress delayed gesture presses until neutral.
+The neutral-stick/physical-input regression remains covered.
+
+No new end-to-end latency measurement was performed for this revision. The
+physical controller path remains unchanged. Touch output uses the existing
+owned router and guest transports without an additional event queue. Mouse
+movement is delivered synchronously; tap/hold recognition reuses the existing
+`TouchpadGestures` timings. The local APK omits the Rust store engines and uses
+the separate Input Test application ID.
+
+Device verification on AYN Thor confirmed the four quick selectors and saved
+second-screen presets, draggable/expandable tools, full-screen properties and a
+canvas-only secondary display. WindowManager reports the main editor at
+`[0,0][1920,1080]`; the secondary canvas uses the full `1240×1080` display.
+The installed library migrated to schema 4 with existing profile references,
+bindings and custom layouts preserved. A previous test migration's unchanged
+main overlay geometry was corrected from its window-size copy to its saved
+1920×1080 version. No user-edited geometry was replaced.
+
+Final APK SHA-256: `c13326d11f5e8de3b878d83b296ba2f77495baf5c35d1d00dbb0327333c0277d`.
+Runtime assets, native library dependencies and v1/v2/v3 APK signatures passed
+verification. Focused editor/input checks passed again after fixing Compose 1.6
+fullscreen dialog sizing. Live game/desktop input and perceived latency with this
+final build still need user testing; the device checks above cover UI and migration.
+
+## Controller integration and upstream update, 2026-11-06
+
+Merged upstream `bf693d7f7` into the working branch as `ba5876bf6` before the UI
+integration. This includes 90 upstream commits, including radial stick dead zones
+and mouse-button handling. The merge keeps routed source ownership and the new
+upstream raw-stick behavior; the targeted input merge checks passed.
+
+Controller now contains two default-profile selectors, one profile list and a
+Device settings entry. Source-specific action editing and saved layouts are
+inside each profile. New profiles are independent by default, with an explicit
+option to share physical controls. Direct editing and Hide tools / Show tools
+are retained. No input-event queue or preference lookup was added by this UI
+reorganization.
+
+The first full host run executed 3,580 tests in 490 suites: 3,555 passed and 25
+failed, with no skips. All 926 input and UI tests in that run passed. The failures
+are in unchanged upstream log-export tests (24) and WoW add-on import tests (1).
+The log fixtures require `SecureDirectoryStream`, unavailable in this macOS JDK;
+the WoW test assumes `Foo` and `foo` refer to different paths, while this host
+filesystem is case insensitive. A direct Java filesystem probe confirmed both
+conditions. The log-export failures also reproduce when run separately. The
+affected production and test sources match `origin/main`. These host limitations
+have not been hidden by disabling tests or changing production code.
+
+The final input/UI-only run passed all 927 tests in 122 suites.
+
+Additional final checks cover integration in the existing Setup tabs, the lack
+of duplicate Layout/Configure entries, back navigation, independent creation,
+explicit physical sharing, and preserving elements while hiding editor tools.
+Rendered UI checks cover 360×800, 640×360 and 960×600 dp. Earlier latency results
+below are not a fresh measurement of this revision.
+
+The final 26 profile/library/editor checks passed again after the source-specific
+control lists and sharing labels were finalized. The APK passed session-asset
+matching, runtime-input attestation, native dependency/export checks, alignment
+and signing validation. It uses the same local HTTPS/direct-release download
+adaptations as the previous build and still omits the store Rust engines.
+
+Installed the update over `com.droiddeck.launcher.inputtest` on AYN Thor without
+clearing data. Verified Setup → Controller → Desktop → Second screen → Edit on
+screen; the canvas opened on the lower display, Hide tools / Show tools worked,
+and selecting the right trackpad opened large properties on the main display.
+Returned without saving; the stored input-profile preferences matched the backup
+exactly. Device settings had no persisted overrides before or after this check.
+No fresh gameplay or latency measurement was performed in this UI pass.
+
+Final APK SHA-256:
+`f1d16a503661055a0abe8cc954d3fc94f6b9a1c1c626ac38b6c88dba478810d1`.
+
+## Local UI revision, 2026-11-05
+
+This revision adds the Profiles / Layouts / Bindings libraries, migration of the
+previous settings, independently identified touch elements, and a direct editor
+on either display with properties on the activity display.
+
+- The complete JVM/Compose run passed 3,306 tests across 467 suites, with no
+  failures, errors or skipped tests. The native identity fast-path checks remain
+  in that suite. After the final editor-window adjustment, all nine editor and
+  adaptive-layout UI tests passed again.
+- New coverage includes legacy mapping/geometry/selection migration, shared
+  physical presets with separate touch actions, explicit private copies, safe
+  deletion/reset, unsupported schema preservation, independent element actions,
+  overlapping held outputs, suppression across profile/menu changes, and inert
+  editor previews, independent stick/trackpad click bindings, same-view
+  detach/reattach, and saving a draft after the auxiliary display disappears.
+- Both Steam and Desktop quick settings expose the same input library entry.
+- Compose navigation was exercised at 360×800, 640×360 and 960×600 dp. Rendered
+  images are generated under `app/build/reports/input-ui/`. The properties Save
+  control stays outside the scrollable content on the short landscape screen.
+- Updated the existing `com.droiddeck.launcher.inputtest` installation on AYN
+  Thor from 0.6.0 to the local 0.6.9 build without clearing its data. The official
+  package was not replaced. A local backup of the two input preference files was
+  taken before migration; all 61 saved Desktop bindings matched after migration.
+- On Thor, exercised the quick-settings entry, library navigation, full-size
+  editing on both displays, selection on the lower display with properties on
+  the main display, moving an element, Undo and Done. After undoing the move and
+  saving, the complete stored library matched the pre-edit data.
+- The earlier Thor latency measurements below apply to the earlier candidate,
+  not to this library/editor revision. No new end-to-end or dispatch latency
+  claim is made.
+
+The complete local runtime build passed session-asset matching, runtime-input
+attestation, native export/dependency validation, alignment and signature checks.
+The local build-script copy used HTTPS for the Debian archive and direct GitHub
+release downloads when the unauthenticated API was rate limited; checksum and
+revocation checks remained enabled. No build-script changes are included in the
+source diff. As before, the test APK excludes the Epic/GOG/Amazon Rust engines.
+The installed APK SHA-256 is
+`3e3f41589d45b70294f2d59404f591ae76f2ceba8488657e8821aab1bca224b3`.
+
+Before publishing, also test on Thor: create two Desktop profiles sharing physical
+bindings; give them different touch actions; edit and resize on the actual lower
+display; open properties on the top display; save/cancel; swap screens; return
+from Android Home; disconnect/reconnect the auxiliary display; and repeat the
+paired physical-button latency measurement. Verify primary custom overlays with
+on-screen controls enabled and secondary layouts in Custom controls mode.
+
 ## Revisions and environment
 
 The Thor candidate was `5021e7ac` on base `ac0909ea`, with the local temporary-file,

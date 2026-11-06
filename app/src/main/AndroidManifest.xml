@@ -195,7 +195,6 @@
             </intent-filter>
         </activity>
 
-
         <activity
             android:name=".PinRequestActivity"
             android:exported="true"
@@ -208,13 +207,6 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".input.ControllerEditorActivity"
-            android:exported="false"
-            android:theme="@style/SessionTheme"
-            android:screenOrientation="sensorLandscape"
-            android:resizeableActivity="true"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density" />
 
         <activity
             android:name=".sync.SyncthingWebActivity"
