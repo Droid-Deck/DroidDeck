@@ -41,6 +41,7 @@ class BattleNetInstallTest {
     @Test fun theVersionServiceIsBlizzardsChineseOneForChina() {
         assertEquals("https://us.version.battle.net/v2/products/wow/versions", BattleNetInstall.versionsUrl("us", "wow"))
         assertEquals("https://cn.version.battlenet.com.cn/v2/products/d3cn/versions", BattleNetInstall.versionsUrl("cn", "d3cn"))
+        assertEquals("https://cn.version.battlenet.com.cn/v2/products/s2c/versions", BattleNetInstall.versionsUrl("cn", "s2c"))
     }
 
     @Test fun theDeviceLanguagePicksABlizzardLocale() {
@@ -66,7 +67,16 @@ class BattleNetInstallTest {
         assertTrue(BattleNetInstall.headless(CatalogItem(Store.BATTLENET, "gryphon", "Warcraft Rumble", null)))
         assertEquals("hsb", BattleNetInstall.product("hs_beta"))
         assertEquals("d3", BattleNetInstall.product("diablo3_enus"))
-        assertFalse(BattleNetInstall.headless(CatalogItem(Store.BATTLENET, "d3cn", "Diablo III", null)))
+        assertEquals("d3cn", BattleNetInstall.product("d3cn"))
+        assertEquals("osic", BattleNetInstall.product("osic"))
+        assertEquals("s2c", BattleNetInstall.product("s2_cn"))
+        assertEquals("anbs", BattleNetInstall.product("anbs_cn"))
+        assertEquals("osic", BattleNetInstall.chinaProduct("osi"))
+        assertEquals("s2c", BattleNetInstall.chinaProduct("s2"))
+        assertEquals("d3cn", BattleNetInstall.chinaProduct("diablo3"))
+        assertNull(BattleNetInstall.chinaProduct("anbs"))
+        assertNull(BattleNetInstall.chinaProduct("wow"))
+        assertTrue(BattleNetInstall.headless(CatalogItem(Store.BATTLENET, "d3cn", "Diablo III", null)))
         assertFalse(BattleNetInstall.headless(CatalogItem(Store.EPIC, "gryphon", "Warcraft Rumble", null)))
     }
 

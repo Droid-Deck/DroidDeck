@@ -338,16 +338,25 @@ class BattleNetTest {
         File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").writeBytes(message(
             field(1, message(field(1, "osic"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/Diablo II Resurrected"))))),
             field(1, message(field(1, "s2_cn"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/StarCraft II"))))),
+            field(1, message(field(1, "d3cn"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/Diablo III"))))),
         ))
-        for (folder in listOf("Diablo II Resurrected", "StarCraft II")) {
+        for (folder in listOf("Diablo II Resurrected", "StarCraft II", "Diablo III")) {
             File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/$folder").mkdirs()
         }
         val games = BattleNet.games(context)
-        assertEquals(listOf("osic", "s2_cn"), games.map { it.installUid })
-        assertEquals(listOf("osi", "s2"), games.map { it.uid })
-        assertEquals(listOf("Diablo II: Resurrected" to "OSI", "StarCraft II" to "S2"), games.map { it.name to it.code })
+        assertEquals(listOf("osic", "s2_cn", "d3cn"), games.map { it.installUid })
+        assertEquals(listOf("osi", "s2", "diablo3"), games.map { it.uid })
+        assertEquals(listOf("Diablo II: Resurrected" to "OSI", "StarCraft II" to "S2", "Diablo III" to "D3CN"), games.map { it.name to it.code })
+        assertEquals("osic", BattleNet.title("osic")?.product)
+        assertEquals("s2c", BattleNet.title("s2_cn")?.product)
+        assertEquals("anbs", BattleNet.title("anbs_cn")?.product)
+        assertEquals("d3cn", BattleNet.title("d3cn")?.product)
+        assertEquals("s2c", BattleNet.title("s2_cn_zhcn")?.product)
+        assertEquals("osic", BattleNet.title("osic_zhcn")?.product)
+        assertEquals("anbs", BattleNet.title("anbs_cn_zhcn")?.product)
         assertFalse(BattleNet.notInstalled(BattleNet.title("osi")!!, listOf("osic")))
         assertFalse(BattleNet.notInstalled(BattleNet.title("s2")!!, games.map { it.installUid }))
+        assertFalse(BattleNet.notInstalled(BattleNet.title("diablo3")!!, listOf("d3cn")))
 
     }
 

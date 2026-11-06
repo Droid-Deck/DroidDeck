@@ -56,6 +56,15 @@ object BattleNetInstall {
 
     fun product(id: String): String? = BattleNet.title(id)?.product
 
+    /** The China client serves StarCraft II, Diablo II and Diablo III from products of their own; anbs_cn shares anbs. */
+    private val CN_PRODUCTS = mapOf(
+        "osi" to "osic",
+        "s2" to "s2c",
+        "diablo3" to "d3cn",
+    )
+
+    internal fun chinaProduct(id: String): String? = CN_PRODUCTS[id]
+
     fun headless(item: CatalogItem): Boolean = item.store == Store.BATTLENET && product(item.id) != null
 
     internal fun locale(locale: Locale): String {
@@ -192,8 +201,9 @@ object BattleNetInstall {
         checks.execute {
             val local = runCatching { buildKey(File(folder, BUILD_INFO).readText()) }.getOrNull()
                 ?: return@execute retryLater()
-            val latest = runCatching { latestBuild(fetch(versionsUrl(local.first, product)), local.first) }
-                .onFailure { Log.w(TAG, "versions of $product: ${it.javaClass.simpleName}") }.getOrNull()
+            val served = if (local.first == CN) chinaProduct(id) ?: product else product
+            val latest = runCatching { latestBuild(fetch(versionsUrl(local.first, served)), local.first) }
+                .onFailure { Log.w(TAG, "versions of $served: ${it.javaClass.simpleName}") }.getOrNull()
                 ?: return@execute retryLater()
             val behind = latest != local.second
             Log.i(TAG, "$id: ${if (behind) "update available" else "up to date"}")

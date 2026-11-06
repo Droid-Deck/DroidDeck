@@ -1135,6 +1135,14 @@ class AgentTest(Temp):
         self.assertIn('var patch = zone == "cn" ? "cn.patch.battlenet.com.cn" : zone + ".patch.battle.net";', script)
         self.assertIn("+ patch + ':1119/'", script)
 
+    def test_the_driver_installs_chinas_products_under_their_own_uids(self):
+        script = BNET["AGENT_SCRIPT"]
+        self.assertIn('var CHINA = {osi: "osic", s2: "s2_cn", anbs: "anbs_cn", diablo3: "d3cn"};', script)
+        self.assertIn('var CHINA_PRODUCT = {osi: "osic", s2: "s2c", diablo3: "d3cn"};', script)
+        self.assertIn('if (zone == "cn" && action == "install") {', script)
+        self.assertIn('country = "CHN";', script)
+        self.assertIn('region = "CN";', script)
+
 
 class AgentJobTest(Harness):
     def setUp(self):
