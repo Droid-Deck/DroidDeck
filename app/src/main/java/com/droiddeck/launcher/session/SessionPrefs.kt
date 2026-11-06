@@ -497,6 +497,17 @@ object SessionPrefs {
         prefs(context).edit().putString("gpuDriverMode", mode).apply()
     }
 
+    fun componentMode(context: Context, comp: String): String =
+        prefs(context).getString("componentMode.$comp", ComponentUpdates.AUTO)
+            ?.takeIf { it == ComponentUpdates.AUTO || it == ComponentUpdates.MANUAL } ?: ComponentUpdates.AUTO
+
+    fun componentModeChosen(context: Context, comp: String): Boolean = prefs(context).contains("componentMode.$comp")
+
+    fun setComponentMode(context: Context, comp: String, mode: String) {
+        require(mode == ComponentUpdates.AUTO || mode == ComponentUpdates.MANUAL)
+        prefs(context).edit().putString("componentMode.$comp", mode).commit()
+    }
+
     fun settleGpuDriverMode(context: Context) {
         val p = prefs(context)
         if (p.contains("gpuDriverMode")) return

@@ -35,6 +35,22 @@ selection, and restores Default component choices for the next game. **Use
 Default** removes the game override. Component packages must first be downloaded
 or imported on the Default Components page.
 
+FEX, DXVK and VKD3D-Proton each have an **Auto** or **Manual** mode on the Default
+Components page. Auto is the default unless a component already uses a package the
+user picked, which keeps it on Manual. In Auto, DroidDeck checks the
+DroidDeck-Components nightly release when DroidDeck is opened, at most hourly and
+never during a running session, and installs the newest build into every Proton that ships that
+component. DXVK and VKD3D-Proton follow the flavour of each Proton's own files:
+ARM64EC/ARM64X builds get the `arm64ec` package, plain x64 builds the plain one.
+Auto keeps the current build and the one it replaced and deletes older builds it
+downloaded itself; packages selected anywhere, including in game profiles, are never
+removed. Steam's process log tells it how long each game ran. A game that ran
+for at least a minute on the previous build and then exits within 30 seconds twice
+on the new one rolls that line back to the previous build, and the failed build is
+skipped until a newer one is published. Games with their own component override are
+not counted. DXVK stays on Manual while a GPU rule pins a DXVK version (Adreno 6xx and
+the Vulkan bridge). Manual keeps the existing download, import and restore lists.
+
 Before publishing game component choices, DroidDeck preserves each Proton build's
 original components, including an explicitly empty bundle when a component is not
 shipped. Those restore choices remain after the last override is cleared. A missing
