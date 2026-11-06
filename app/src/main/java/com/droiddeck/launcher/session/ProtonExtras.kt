@@ -11,6 +11,7 @@ import com.droiddeck.launcher.artifact.GitHubArtifacts
 import com.droiddeck.launcher.artifact.RepositorySources
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
+import java.nio.file.Files
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -421,10 +422,18 @@ object ProtonExtras {
             LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { hostEnv["LD_LIBRARY_PATH"] = it }
             val child = process.start()
             var placed: String? = null
+            var freshPlacement = false
             child.inputStream.bufferedReader().useLines { lines ->
                 lines.forEach { line ->
                     Log.i(TAG, line)
-                    line.substringAfter("droiddeck-proton-extra: installed ", "").takeIf { it.isNotEmpty() }?.let { placed = it }
+                    line.substringAfter("droiddeck-proton-extra: installed ", "").takeIf { it.isNotEmpty() }?.let {
+                        placed = it
+                        freshPlacement = true
+                    }
+                    line.substringAfter("droiddeck-proton-extra: adopted ", "").takeIf { it.isNotEmpty() }?.let {
+                        placed = it
+                        freshPlacement = false
+                    }
                     if (line.contains("unpacking", ignoreCase = true) || line.contains("adopted", ignoreCase = true)) {
                         onProgress(installing, -1)
                     }
@@ -433,17 +442,20 @@ object ProtonExtras {
             val status = child.waitFor()
             if (status != 0) context.getString(R.string.pextra_install_failed, tool.name, status)
             else if (!RepositorySources.isCurrent(context, SOURCE_SCOPE, sourceBuiltIns(), asset.sourceId, sourceGeneration)) {
-                placed?.let { File(toolsDir(context), it).deleteRecursively() }
+                if (freshPlacement) placed?.let { File(toolsDir(context), it).deleteRecursively() }
                 "Proton source changed while installing"
+            }
+            else if (!freshPlacement && placed?.let { adoptedPlacementMatches(context, it, tool, asset) } != true) {
+                "Existing Proton source receipt does not match this archive"
             }
             else {
                 archive.delete()
                 unqueue(context, tool)
-                placed?.let {
+                if (freshPlacement) placed?.let {
                     try {
                         writeProvenance(context, it, tool, asset)
                     } catch (error: Throwable) {
-                        File(toolsDir(context), it).deleteRecursively()
+                        if (freshPlacement) File(toolsDir(context), it).deleteRecursively()
                         throw error
                     }
                 }
@@ -463,6 +475,27 @@ object ProtonExtras {
             Log.e(TAG, "install ${tool.id}", e)
             e.message ?: context.getString(R.string.pextra_could_not_install, tool.name)
         }
+    }
+
+    internal fun adoptedPlacementMatches(context: Context, directory: String, tool: Tool, asset: Asset): Boolean {
+        val installed = File(toolsDir(context), directory)
+        if (!installed.isDirectory || Files.isSymbolicLink(installed.toPath())) return false
+        fun regular(name: String): File {
+            val file = File(installed, name)
+            require(file.isFile && !Files.isSymbolicLink(file.toPath()) &&
+                file.canonicalFile.parentFile == installed.canonicalFile)
+            return file
+        }
+        return runCatching {
+            regular("toolmanifest.vdf")
+            val config = FileUtils.readString(regular("compatibilitytool.vdf")) ?: return@runCatching false
+            val identity = "${asset.sourceId}-${asset.sha256}"
+            require(Regex("\\\"[^\\\"]+--dd-${Regex.escape(identity)}\\\"").containsMatchIn(config))
+            val receipt = JSONObject(FileUtils.readString(regular(".droiddeck-source.json")) ?: return@runCatching false)
+            receipt.optInt("schema") == 1 && receipt.optString("sourceId") == asset.sourceId &&
+                receipt.optString("sha256") == asset.sha256 && receipt.optString("toolId") == tool.id &&
+                receipt.optString("baseId") == tool.baseId && receipt.optString("toolPrefix") == tool.prefix
+        }.getOrDefault(false)
     }
 
     private fun findLatestAsset(context: Context, tool: Tool): Asset? {

@@ -400,6 +400,30 @@ class ProtonExtrasTest {
     }
 
     @Test
+    fun adoptedPlacementRequiresTheExactSourceReceiptAndToolIdentity() {
+        val context = RuntimeEnvironment.getApplication()
+        val sourceId = "a".repeat(64)
+        val sha256 = "b".repeat(64)
+        val tool = ProtonExtras.Tool("custom", "Custom Proton", "Custom-Proton", "example/proton",
+            Regex("a^"), sourceId, "manifest")
+        val asset = ProtonExtras.Asset("v1", "custom-aarch64.tar.gz", "https://example.invalid/custom.tar.gz",
+            null, 42, sha256, sourceId, "example/proton", 1, 2, 3, tool.name, tool.prefix)
+        val directory = "Custom-Proton--dd-$sourceId-$sha256"
+        val installed = installTool(File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/compatibilitytools.d"), directory)
+        File(installed, "compatibilitytool.vdf").writeText(
+            "\"compatibilitytools\" { \"compat_tools\" { \"Custom-Proton--dd-$sourceId-$sha256\" { \"install_path\" \".\" } } }")
+        val receipt = File(installed, ".droiddeck-source.json")
+        receipt.writeText(JSONObject().put("schema", 1).put("sourceId", sourceId).put("sha256", sha256)
+            .put("toolId", tool.id).put("baseId", tool.baseId).put("toolPrefix", tool.prefix).toString())
+
+        assertTrue(ProtonExtras.adoptedPlacementMatches(context, directory, tool, asset))
+
+        receipt.writeText(JSONObject(receipt.readText()).put("toolId", "other").toString())
+        assertFalse(ProtonExtras.adoptedPlacementMatches(context, directory, tool, asset))
+        assertTrue(installed.isDirectory)
+    }
+
+    @Test
     fun invalidCustomManifestDoesNotFallBackToAConflictingFilenameIdentity() {
         withCustomRelease(listOf("GE-Proton11-7-aarch64.tar.gz"), manifestPrefix = "../Invalid") {
             val context = RuntimeEnvironment.getApplication()
