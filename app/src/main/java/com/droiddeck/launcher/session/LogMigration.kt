@@ -149,7 +149,7 @@ object LogMigration {
             }
             if (!failed) attemptAtomicPublication {
                 output.writeAtomic(MARKER) { it.write("copied $copied item(s)\n".toByteArray()) }
-            }.onFailure { Log.w(TAG, "could not mark the migration: ${it.message}") }
+            }
             if (copied > 0) Log.i(TAG, "copied $copied log item(s) from $legacy into $targetFile; originals retained")
         }
     }
@@ -208,7 +208,8 @@ object LogMigration {
             true
         } catch (error: AtomicPublicationUnsupportedException) {
             throw error
-        } catch (_: Throwable) {
+        } catch (error: Throwable) {
+            Log.w(TAG, "could not copy legacy log $name", error)
             false
         }
     }
@@ -218,6 +219,7 @@ object LogMigration {
     } catch (error: AtomicPublicationUnsupportedException) {
         throw error
     } catch (error: Throwable) {
+        Log.w(TAG, "could not publish legacy migration state", error)
         Result.failure(error)
     }
 
