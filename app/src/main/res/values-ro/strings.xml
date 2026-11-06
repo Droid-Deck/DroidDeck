@@ -2254,9 +2254,6 @@
     <string name="source_added">Personalizat</string>
     <string name="setup_stores">Magazine</string>
     <string name="setup_stores_speed">Nivelul vitezei de descărcare</string>
-    <string name="setup_stores_engine">Motorul magazinelor</string>
-    <string name="setup_stores_engine_chip_ready">● Motor pregătit</string>
-    <string name="setup_stores_engine_chip_missing">Necompilat</string>
     <string name="stores_tier_balanced">Echilibrat</string>
     <string name="stores_tier_fast">Rapid</string>
     <string name="stores_tier_max">Maxim</string>

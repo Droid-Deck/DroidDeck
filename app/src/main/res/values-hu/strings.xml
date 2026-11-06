@@ -2229,9 +2229,6 @@
     <string name="source_added">Egyéni</string>
     <string name="setup_stores">Áruházak</string>
     <string name="setup_stores_speed">Letöltési sebességi szint</string>
-    <string name="setup_stores_engine">Áruházmotor</string>
-    <string name="setup_stores_engine_chip_ready">● A motor kész</string>
-    <string name="setup_stores_engine_chip_missing">Nincs buildelve</string>
     <string name="stores_tier_balanced">Kiegyensúlyozott</string>
     <string name="stores_tier_fast">Gyors</string>
     <string name="stores_tier_max">Max</string>

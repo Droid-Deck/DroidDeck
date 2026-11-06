@@ -2229,9 +2229,6 @@
     <string name="source_added">Προσαρμοσμένο</string>
     <string name="setup_stores">Καταστήματα</string>
     <string name="setup_stores_speed">Επίπεδο ταχύτητας λήψης</string>
-    <string name="setup_stores_engine">Μηχανή καταστημάτων</string>
-    <string name="setup_stores_engine_chip_ready">● Η μηχανή είναι έτοιμη</string>
-    <string name="setup_stores_engine_chip_missing">Δεν έχει χτιστεί</string>
     <string name="stores_tier_balanced">Ισορροπημένο</string>
     <string name="stores_tier_fast">Ταχύ</string>
     <string name="stores_tier_max">Μέγιστο</string>

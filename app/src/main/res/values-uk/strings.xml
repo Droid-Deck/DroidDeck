@@ -2279,9 +2279,6 @@
     <string name="source_added">Власна</string>
     <string name="setup_stores">Магазини</string>
     <string name="setup_stores_speed">Рівень швидкості завантаження</string>
-    <string name="setup_stores_engine">Рушій магазинів</string>
-    <string name="setup_stores_engine_chip_ready">● Рушій готовий</string>
-    <string name="setup_stores_engine_chip_missing">Не зібрано</string>
     <string name="stores_tier_balanced">Збалансований</string>
     <string name="stores_tier_fast">Швидкий</string>
     <string name="stores_tier_max">Максимальний</string>

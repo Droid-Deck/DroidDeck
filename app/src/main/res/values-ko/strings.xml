@@ -2204,9 +2204,6 @@
     <string name="source_added">사용자 정의</string>
     <string name="setup_stores">스토어</string>
     <string name="setup_stores_speed">다운로드 속도 단계</string>
-    <string name="setup_stores_engine">스토어 엔진</string>
-    <string name="setup_stores_engine_chip_ready">● 엔진 준비됨</string>
-    <string name="setup_stores_engine_chip_missing">빌드되지 않음</string>
     <string name="stores_tier_balanced">균형</string>
     <string name="stores_tier_fast">빠름</string>
     <string name="stores_tier_max">최대</string>

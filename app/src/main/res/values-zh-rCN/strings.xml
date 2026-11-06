@@ -2285,9 +2285,6 @@
     <string name="source_added">自定义</string>
     <string name="setup_stores">游戏商店</string>
     <string name="setup_stores_speed">下载速度档位</string>
-    <string name="setup_stores_engine">商店引擎</string>
-    <string name="setup_stores_engine_chip_ready">● 引擎就绪</string>
-    <string name="setup_stores_engine_chip_missing">未构建</string>
     <string name="stores_tier_balanced">均衡</string>
     <string name="stores_tier_fast">快速</string>
     <string name="stores_tier_max">最高</string>

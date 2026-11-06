@@ -545,6 +545,5 @@ internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<Fron
                     com.droiddeck.launcher.stores.gog.GogComet.setEnabled(context, it)
                 }
             }
-            StoresEngineRow()
         }
     }
