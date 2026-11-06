@@ -158,11 +158,11 @@ class SessionPressureTest(unittest.TestCase):
         functions = functions.replace('/proc/pressure/memory', str(self.root / 'pressure'))
         harness = '''
 set -u
-_bl_game=1 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_pushed=0 _bl_tier_back=0 _bl_tier_targets=() _bl_tier_swaps=() _bl_pids=(999)
+_bl_game=1 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_pushed=0 _bl_tier_back=0 _bl_tier_targets=() _bl_tier_swaps=() _bl_tier_starts=() _bl_pids=(999)
 _bl_pressure_at=-1 _bl_packed=-1
-rss=$((1536 * 1024)) swap=0 pushed=$((1024 * 1024)) alive=999 complete=1
+rss=$((1536 * 1024)) swap=0 pushed=$((1024 * 1024)) alive=999 started=100 complete=1
 step() { :; }
-bl_alive() { case " $alive " in *" $1 "*) return 0 ;; esac; return 1; }
+bl_proc_start() { _bl_start=; case " $alive " in *" $1 "*) _bl_start=$started; return 0 ;; esac; return 1; }
 nap() { echo "nap:$1"; }
 bl_session_others() { _bl_session=(321 654); }
 bl_zram_usage() { _bl_rss=$rss _bl_swap=$swap; }
@@ -219,7 +219,7 @@ echo "backoff:$_bl_tier_backoff"
 
     def test_repeated_read_back_keeps_doubling_up_to_five_minutes(self):
         self.assertEqual(['backoff:300'], self.run_policy('''
-_bl_tier_backoff=240 _bl_tier_at=0 _bl_tier_targets=(999) _bl_tier_swaps=($((1024 * 1024))) _bl_tier_pushed=$((1024 * 1024)) swap=0
+_bl_tier_backoff=240 _bl_tier_at=0 _bl_tier_targets=(999) _bl_tier_swaps=($((1024 * 1024))) _bl_tier_starts=(100) _bl_tier_pushed=$((1024 * 1024)) swap=0
 SECONDS=240; bl_session_pressure
 echo "backoff:$_bl_tier_backoff"
 '''))
@@ -295,6 +295,28 @@ complete=0
 SECONDS=0; bl_session_pressure
 echo "client:$_bl_pressure_at:$_bl_packed"
 '''))
+
+
+    def test_a_reused_process_id_is_not_counted_as_read_back(self):
+        self.assertEqual(['send:1:game', 'send:1:game', 'backoff:30'], self.run_policy('''
+SECONDS=0; bl_session_pressure
+started=200; swap=0
+SECONDS=30; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+'''))
+
+    def test_process_start_comes_from_stat_and_zombies_have_none(self):
+        stat = self.root / 'stat'
+        source = function_source('bl_proc_start').replace('/proc/$1/stat', str(stat))
+        fields = ' '.join(['0'] * 17)
+        for state, expected in (('S', ['ok:4242']), ('Z', ['gone:'])):
+            with self.subTest(state=state):
+                stat.write_text(f'77 (Wow (arm64).exe) {state} 1 {fields} 4242 99 0\n')
+                result = run_bash(source + '\nif bl_proc_start 77; then echo "ok:$_bl_start"; else echo "gone:$_bl_start"; fi')
+                self.assertEqual(expected, result.stdout.split())
+        stat.unlink()
+        result = run_bash(source + '\nbl_proc_start 77 || echo gone')
+        self.assertEqual(['gone'], result.stdout.split())
 
 
 if __name__ == '__main__':

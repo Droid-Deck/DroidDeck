@@ -929,22 +929,28 @@ case $mode in
             _bl_pressure_at=$SECONDS _bl_packed=$SECONDS
           fi
         }
-        bl_alive() {
-          [ -d "/proc/$1" ]
+        bl_proc_start() {
+          local _s=
+          _bl_start=
+          read -r _s 2>/dev/null < "/proc/$1/stat" || return 1
+          _s=${_s##*) }
+          set -- $_s
+          [ "$1" != Z ] && [ "$#" -ge 20 ] || return 1
+          _bl_start=${20}
         }
         bl_tier_note() {
           local _p
-          _bl_tier_targets=() _bl_tier_swaps=()
+          _bl_tier_targets=() _bl_tier_swaps=() _bl_tier_starts=()
           for _p in "$@"; do
-            bl_alive "$_p" || continue
+            bl_proc_start "$_p" || continue
             bl_zram_usage "$_p" > /dev/null
-            _bl_tier_targets+=("$_p") _bl_tier_swaps+=("$_bl_swap")
+            _bl_tier_targets+=("$_p") _bl_tier_swaps+=("$_bl_swap") _bl_tier_starts+=("$_bl_start")
           done
         }
         bl_tier_readback() {
           local _i _back=0
           for _i in "${!_bl_tier_targets[@]}"; do
-            bl_alive "${_bl_tier_targets[$_i]}" || continue
+            bl_proc_start "${_bl_tier_targets[$_i]}" && [ "$_bl_start" = "${_bl_tier_starts[$_i]}" ] || continue
             bl_zram_usage "${_bl_tier_targets[$_i]}" > /dev/null
             [ "${_bl_tier_swaps[$_i]}" -le "$_bl_swap" ] || _back=$((_back + _bl_tier_swaps[_i] - _bl_swap))
           done
@@ -1037,7 +1043,7 @@ case $mode in
           [ "$_bl_ram_cap" -gt 0 ] && { [ "$_bl_measured" -lt 0 ] || [ $((SECONDS - _bl_measured)) -ge 30 ]; }
         }
         _bl_since=-1 _bl_since_apps= _bl_packed=-1 _bl_measured=-1 _bl_unpack=0 _bl_capped=-1 _bl_backoff=30
-        _bl_pressure_at=-1 _bl_pressure_backoff=30 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_pushed=0 _bl_tier_back=0 _bl_tier_targets=() _bl_tier_swaps=()
+        _bl_pressure_at=-1 _bl_pressure_backoff=30 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_pushed=0 _bl_tier_back=0 _bl_tier_targets=() _bl_tier_swaps=() _bl_tier_starts=()
         while kill -0 $$ 2>/dev/null; do
           bl_zram_scan
           bl_memory_read
@@ -1079,7 +1085,7 @@ case $mode in
             if [ "$_bl_packed" -ge 0 ]; then
               _bl_unpack=1
             fi
-            _bl_since=-1 _bl_packed=-1 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_pushed=0 _bl_tier_targets=() _bl_tier_swaps=()
+            _bl_since=-1 _bl_packed=-1 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_pushed=0 _bl_tier_targets=() _bl_tier_swaps=() _bl_tier_starts=()
           else
             _bl_since=-1
           fi
