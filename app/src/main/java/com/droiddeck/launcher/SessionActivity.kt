@@ -2284,9 +2284,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun windowOutputSize(width: Int, height: Int): Pair<Int, Int>? {
-        if (width <= 0 || height <= 0) return null
-        if (isInPictureInPictureMode) return com.droiddeck.launcher.session.PipPolicy.outputSize(
-            width, height, SessionState.outputSize.first, SessionState.outputSize.second)
+        if (width <= 0 || height <= 0 || isInPictureInPictureMode) return null
         if (bottomGame != null) return when {
             SessionState.followScreen ->
                 com.droiddeck.launcher.session.SessionDisplay.followSize(width, height, false, SessionState.followScale)
@@ -4384,6 +4382,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun showPipUi(show: Boolean) {
         pipUi = show
         if (show) {
+            if (::hud.isInitialized) hud.setHidden(true)
             drawerOpen = false
             pcKeyboardOpen = false
             achievementsOpen = false
