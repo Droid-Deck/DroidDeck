@@ -23,6 +23,7 @@ object Library {
             SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, source, storeId, logo)
 
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
+        val launchKey: String get() = if (storeId != null) "$source:$storeId" else gameIdString
         val profileKey: String get() = when {
             source == com.droiddeck.launcher.stores.Store.BATTLENET.id -> com.droiddeck.launcher.runtime.BattleNet.APP_ID.toString()
             library == ADDED -> java.lang.Integer.toUnsignedString(appId)

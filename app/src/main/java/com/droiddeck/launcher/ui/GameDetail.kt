@@ -408,7 +408,7 @@ internal fun GameActions(
             !cloud && (game != null || installed != null) -> {
                 val gone = storeKey?.let { StoresState.uninstalling[it] }
                 val xboxBusy = store == Store.XBOX && id != null && XboxContent.busy(id)
-                val preparing = game != null && s.preparingGame == game.profileKey
+                val preparing = s.preparingGame != null && s.preparingGame == (game?.launchKey ?: storeKey)
                 PrimaryButton(
                     stringResource(if (preparing) R.string.store_starting else R.string.stores_play),
                     enabled = !s.busy && !preparing && gone == null && download == null && !xboxBusy && (store != Store.GOG || installed?.sidecar?.isInstalled != false),

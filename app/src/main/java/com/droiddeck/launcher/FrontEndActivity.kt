@@ -1217,9 +1217,9 @@ class FrontEndActivity : ComponentActivity() {
                         },
                         onSteamGame = { g ->
                             if (shortcutPicker) chooseGameShortcut(g)
-                            else if (preparingGame != g.profileKey) {
+                            else if (preparingGame != g.launchKey) {
                                 val request = gameLaunchRequest.incrementAndGet()
-                                preparingGame = g.profileKey
+                                preparingGame = g.launchKey
                                 val prepared = { if (request == gameLaunchRequest.get()) preparingGame = null }
                                 com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g, onBlocked = prepared) {
                                     if (request != gameLaunchRequest.get() || isFinishing || isDestroyed) return@beforeLaunch
