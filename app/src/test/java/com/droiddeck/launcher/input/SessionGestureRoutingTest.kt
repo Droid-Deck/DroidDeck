@@ -79,7 +79,7 @@ class SessionGestureRoutingTest {
     }
 
     @Test fun stylusContactsUseTheConfiguredSurfaceListener() {
-        prepare(SessionPrefs.TOUCH_GESTURES)
+        prepare(SessionPrefs.TOUCH_GESTURES, TouchGestureConfig(tapAction = "key_E"))
         val now = SystemClock.uptimeMillis()
         for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
             val event = MotionEvent.obtain(now, now + action, action, 400f, 300f, 0)
@@ -89,11 +89,15 @@ class SessionGestureRoutingTest {
                 event.recycle()
             }
         }
-        assertTrue(keys.isEmpty())
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(200))
+        assertEquals(listOf(18 to true, 18 to false), keys)
     }
 
     @Test fun activityFallbackConsumesPointerContactsWithoutRoutingThem() {
-        prepare(SessionPrefs.TOUCH_GESTURES, TouchGestureConfig(longPressAction = "key_E"))
+        prepare(SessionPrefs.TOUCH_GESTURES, TouchGestureConfig(
+            longPressEnabled = true,
+            longPressAction = "key_E",
+        ))
         val now = SystemClock.uptimeMillis()
         val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 10f, 10f, 0).apply {
             source = InputDevice.SOURCE_TOUCHSCREEN
