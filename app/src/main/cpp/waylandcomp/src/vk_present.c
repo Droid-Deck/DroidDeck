@@ -2135,7 +2135,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         drawn++;
     }
 
-    release_external_client_draws(cmd, draws, n);
+    if (!(pass && fx)) release_external_client_draws(cmd, draws, n);
     int ngen = 0;
     VkImage gens[VKP_FG_MAX_GENERATIONS] = {VK_NULL_HANDLE};
     VkImage result = scene_img;
@@ -2157,6 +2157,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
             result = vkp_effects_run(cmd, scene_img, input_w, input_h, mapped_w, mapped_h, &rw, &rh);
             effects_overlay_draws(cmd, result, rw, rh, scene_w, scene_h,
                                   draws ? draws + overlay_start : NULL, n - overlay_start);
+            release_external_client_draws(cmd, draws, n);
             result_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
         }
         VkImageMemoryBarrier b_general = {
@@ -2633,13 +2634,13 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
         if (vkp_effects_active()) vkp_effects_set_formats(VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM);
     }
 
-    release_external_client_draws(cmd, draws, n);
     int mapped_w = (int)(scene_w * g_map.kx + 0.5f), mapped_h = (int)(scene_h * g_map.ky + 0.5f);
     g_pass.rw = input_w; g_pass.rh = input_h;
     g_pass.result = vkp_effects_run(cmd, scene_img, input_w, input_h, mapped_w, mapped_h,
                                     &g_pass.rw, &g_pass.rh);
     effects_overlay_draws(cmd, g_pass.result, g_pass.rw, g_pass.rh, scene_w, scene_h,
                           draws ? draws + overlay_start : NULL, n - overlay_start);
+    release_external_client_draws(cmd, draws, n);
     g_pass.active = 1;
     if (rw) *rw = g_pass.rw;
     if (rh) *rh = g_pass.rh;

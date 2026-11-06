@@ -200,7 +200,7 @@ static VkImageBlit copied;
 static struct vkp_draw recorded_draws[16];
 static VkImageBlit recorded_blits[16];
 static VkImage recorded_targets[16];
-static int recorded_after_effects[16];
+static int recorded_after_effects[16], recorded_barrier_marks[16];
 static void vkp_apply_window_request(void) {}
 static void sc_layer_hide_base(void) {}
 static void check_surface_changed(void) {}
@@ -243,6 +243,7 @@ static void record_draw(int cmd, const struct vkp_draw *draw, const VkImageBlit 
     assert(copy_count < 16);
     recorded_draws[copy_count] = *draw; recorded_blits[copy_count] = *blit;
     recorded_targets[copy_count] = target; recorded_after_effects[copy_count] = effects_count > 0;
+    recorded_barrier_marks[copy_count] = barrier_count;
     copy_count++; copied = *blit;
     copied_w = draw->dw; copied_h = draw->dh; target_w = w; target_h = h;
 }
@@ -521,6 +522,9 @@ static void check_overlay_barriers(void) {
         assert(writable > acquired && readable > writable);
         int released = find_barrier(cursor.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
         assert(released > acquired && recorded_barriers[released].dstQueueFamilyIndex == VK_QUEUE_FAMILY_FOREIGN_EXT);
+        int last_cursor_draw = -1;
+        for (int i = 0; i < copy_count; i++) if (recorded_draws[i].img == &cursor) last_cursor_draw = i;
+        assert(last_cursor_draw >= 0 && released >= recorded_barrier_marks[last_cursor_draw]);
     }
 }
 static void check_postprocessing(void) {
