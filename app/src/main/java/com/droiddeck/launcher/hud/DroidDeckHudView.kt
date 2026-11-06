@@ -534,6 +534,9 @@ class DroidDeckHudView(context: Context) : View(context) {
     private val inkRect = android.graphics.Rect()
 
     private fun rebuild() {
+        val renderingLayer = if (size == DroidDeckHudSize.STRIP && dock == DroidDeckHudDock.NONE)
+            LAYER_TYPE_SOFTWARE else LAYER_TYPE_NONE
+        if (layerType != renderingLayer) setLayerType(renderingLayer, null)
         glyphs.clear(); tileRects.clear(); graphRect = null
         headerMark = null; headerWordmark = null; chipRect = null; dPanel = null; dDividerTop = -1f; tabRect = null; stripRect = null
         val s = snap
