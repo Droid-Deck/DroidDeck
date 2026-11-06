@@ -81,8 +81,11 @@ class OnScreenControls(
     private val stickRedraw = ThrottledRedraw(this, STICK_REDRAW_MS)
     private val tapSlop = android.view.ViewConfiguration.get(context).scaledTouchSlop.toFloat()
 
-    private fun stickTap(control: Control, event: MotionEvent): Boolean =
-        stickTap(control.downAt, event.eventTime, control.travel, tapSlop, control.clicked, event.actionMasked == MotionEvent.ACTION_CANCEL)
+    private fun stickTap(control: Control, event: MotionEvent): Boolean {
+        val i = event.actionIndex
+        val travel = max(control.travel, hypot(event.getX(i) - control.downX, event.getY(i) - control.downY))
+        return stickTap(control.downAt, event.eventTime, travel, tapSlop, control.clicked, event.actionMasked == MotionEvent.ACTION_CANCEL)
+    }
 
     private val controls = listOf(
         Control("up", "dpad", -1, 26f, 0f, -52f),

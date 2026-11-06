@@ -177,6 +177,13 @@ class OnScreenControlsTest {
         assertEquals(false, field(control("ls"), "clicked"))
     }
 
+    @Test fun liftingFarFromTheTouchPointDoesNotArmAStickClick() {
+        touch(MotionEvent.ACTION_DOWN, 1 to (540f to 400f))
+        touch(MotionEvent.ACTION_UP, 1 to (600f to 400f))
+        touch(MotionEvent.ACTION_DOWN, 1 to (540f to 400f))
+        assertEquals(false, field(control("ls"), "clicked"))
+    }
+
     @Test fun aLongHoldThenAQuickTouchDoesNotClickTheStick() {
         touch(MotionEvent.ACTION_DOWN, 1 to (540f to 400f))
         time += 600
