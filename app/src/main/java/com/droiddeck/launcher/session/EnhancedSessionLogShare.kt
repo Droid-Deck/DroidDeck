@@ -51,17 +51,21 @@ internal object EnhancedSessionLogShare {
 
     internal class DiagnosticStageLease internal constructor(
         val directory: File,
+        private val canonicalPath: String,
         private val channel: FileChannel,
         private val lock: FileLock,
     ) : Closeable {
         override fun close() {
-            try {
-                lock.release()
-            } finally {
+            synchronized(stageLifecycleMonitor) {
+                activeStagePaths.remove(canonicalPath)
                 try {
-                    channel.close()
+                    lock.release()
                 } finally {
-                    directory.deleteRecursively()
+                    try {
+                        channel.close()
+                    } finally {
+                        directory.deleteRecursively()
+                    }
                 }
             }
         }
@@ -117,6 +121,7 @@ internal object EnhancedSessionLogShare {
         override fun initialValue(): SecureSourceOpener? = null
     }
     private val stageLifecycleMonitor = Any()
+    private val activeStagePaths = mutableSetOf<String>()
 
     internal fun acquireDiagnosticStage(context: Context, outputName: String): DiagnosticStageLease {
         val cache = context.cacheDir
@@ -133,7 +138,9 @@ internal object EnhancedSessionLogShare {
             try {
                 val lock = channel.tryLock()
                     ?: throw IOException("Could not lock the diagnostic staging directory")
-                DiagnosticStageLease(stage, channel, lock)
+                val canonicalPath = stage.canonicalPath
+                activeStagePaths += canonicalPath
+                DiagnosticStageLease(stage, canonicalPath, channel, lock)
             } catch (error: Exception) {
                 channel.close()
                 stage.deleteRecursively()
@@ -149,6 +156,7 @@ internal object EnhancedSessionLogShare {
             cache.listFiles()?.forEach { stage ->
                 if (!stage.isDirectory || Files.isSymbolicLink(stage.toPath()) ||
                     stage.canonicalFile.parentFile != canonicalCache || !isDiagnosticStage(stage.name)) return@forEach
+                if (stage.canonicalPath in activeStagePaths) return@forEach
                 val active = File(stage, ".active")
                 if (Files.isSymbolicLink(active.toPath())) return@forEach
                 val channel = runCatching {

@@ -6,6 +6,7 @@ import java.text.SimpleDateFormat
 import java.util.UUID
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -34,6 +35,32 @@ class SessionLogShareZipTest {
             EnhancedSessionLogShare.cleanupAbandonedStages(app)
             assertFalse(abandoned.exists())
             assertTrue(active.directory.isDirectory)
+            EnhancedSessionLogShare.cleanupAbandonedStages(app)
+            assertTrue(active.directory.isDirectory)
+            val probeClassResource = checkNotNull(
+                DiagnosticStageLockProbe::class.java.getResource("DiagnosticStageLockProbe.class"),
+            )
+            val probeClass = File(probeClassResource.toURI())
+            var classPathRoot = checkNotNull(probeClass.parentFile)
+            repeat(4) { classPathRoot = checkNotNull(classPathRoot.parentFile) }
+            val classPath = classPathRoot.absolutePath
+            val javaName = if (checkNotNull(System.getProperty("os.name")).startsWith("Windows")) {
+                "java.exe"
+            } else {
+                "java"
+            }
+            val java = File(File(System.getProperty("java.home"), "bin"), javaName)
+            val probe = ProcessBuilder(
+                java.absolutePath,
+                "-cp",
+                classPath,
+                DiagnosticStageLockProbe::class.java.name,
+                File(active.directory, ".active").absolutePath,
+            ).redirectErrorStream(true).start()
+            val completed = probe.waitFor(5, TimeUnit.SECONDS)
+            if (!completed) probe.destroyForcibly()
+            assertTrue("lock probe timed out", completed)
+            assertEquals("cleanup released the active stage lock", 0, probe.exitValue())
         } finally {
             active.close()
         }
