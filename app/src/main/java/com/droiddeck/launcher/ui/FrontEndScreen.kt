@@ -122,6 +122,7 @@ class FrontEndState(
     val frameGen: FrameGen.Mode = FrameGen.Mode.OFF,
     val lossless: Lossless.State = Lossless.State.NONE,
     val shortcutPicker: Boolean = false,
+    val preparingGame: String? = null,
     val shortcutLibraryScanning: Boolean = false,
     val gameSyncFolder: String? = null,
     val pageKey: String? = null,

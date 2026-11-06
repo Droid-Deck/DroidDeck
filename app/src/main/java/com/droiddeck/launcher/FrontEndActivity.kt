@@ -201,6 +201,7 @@ class FrontEndActivity : ComponentActivity() {
     private var gameStoresSpeedTier by mutableStateOf("fast")
     private var navRequest by mutableStateOf<String?>(null)
     private val gameLaunchRequest = java.util.concurrent.atomic.AtomicLong()
+    private var preparingGame by mutableStateOf<String?>(null)
     private var storesShowMature by mutableStateOf(false)
     private var storesSort by mutableStateOf(SessionPrefs.STORES_SORTS.first())
     private var storesView by mutableStateOf(SessionPrefs.DEFAULT_STORES_VIEW)
@@ -1137,6 +1138,7 @@ class FrontEndActivity : ComponentActivity() {
                         installed = installed, ready = ready, available = available?.version, removalPending = removalPending, runtimeActionsBlocked = runtimeChangesBlocked(),
                         vkBridge = vkBridge, venus = venus, venusHostVulkan = venusHostVulkan, vkBridgeSafe = vkBridgeSafe, bridgeProtonDxvk = bridgeProtonDxvk, adreno = adrenoGpu,
                         shortcutPicker = shortcutPicker,
+                        preparingGame = preparingGame,
                         shortcutLibraryScanning = shortcutLibraryScanning,
                         gameSyncFolder = gameSyncFolder,
                         busy = busy, stage = stage, percent = percent,
@@ -1215,11 +1217,14 @@ class FrontEndActivity : ComponentActivity() {
                         },
                         onSteamGame = { g ->
                             if (shortcutPicker) chooseGameShortcut(g)
-                            else {
+                            else if (preparingGame != g.profileKey) {
                                 val request = gameLaunchRequest.incrementAndGet()
-                                com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g) {
+                                preparingGame = g.profileKey
+                                val prepared = { if (request == gameLaunchRequest.get()) preparingGame = null }
+                                com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g, onBlocked = prepared) {
                                     if (request != gameLaunchRequest.get() || isFinishing || isDestroyed) return@beforeLaunch
                                     com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) {
+                                        prepared()
                                         if (request == gameLaunchRequest.get() && !isFinishing && !isDestroyed) launchGame(g)
                                     }
                                 }
