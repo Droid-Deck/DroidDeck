@@ -281,6 +281,18 @@ class ComponentUpdatesTest {
         assertEquals("vkd3d-proton-3.0-mine.wcp", after.getString("file"))
     }
 
+    @Test fun aSourceThatFailsToListKeepsItsPreviousPackages() {
+        val previous = JSONArray()
+            .put(JSONObject().put("file", "DD-dxvk-arm64ec-3.1.1+198-nightly.wcp").put("release", ComponentsManager.DD_NIGHTLY))
+            .put(JSONObject().put("file", "dxvk-3.1.1-linux.wcp").put("release", "Dxvk-Linux"))
+        val into = JSONArray()
+        ComponentsManager.keepSource(previous, ComponentsManager.DD_NIGHTLY, into)
+        assertEquals(1, into.length())
+        assertEquals("DD-dxvk-arm64ec-3.1.1+198-nightly.wcp", into.getJSONObject(0).getString("file"))
+        ComponentsManager.keepSource(null, ComponentsManager.DD_NIGHTLY, into)
+        assertEquals(1, into.length())
+    }
+
     @Test fun everyBuildAutoEverPlacedCountsAsItsOwn() {
         val state = JSONObject().put("lines", JSONObject()
             .put("dxvk", JSONObject().put("current", "b.wcp").put("previous", ComponentUpdates.ORIGINAL)

@@ -141,8 +141,26 @@ object ComponentUpdater {
                 complete = false
                 continue
             }
+            val current = ls.optString("current")
+            val missing = current.isNotEmpty() && !ComponentsManager.isStored(context, current)
+            val relisted = if (missing) catalog.firstOrNull { it.file == current } else null
+            if (relisted != null) {
+                if (holdBack) {
+                    state.put("note", context.getString(R.string.comp_auto_waits_unmetered))
+                    complete = false
+                    continue
+                }
+                val got = runCatching { ComponentsManager.download(context, relisted) {} }
+                if (got.isFailure) {
+                    Log.w(TAG, "download ${relisted.file} again", got.exceptionOrNull())
+                    state.put("note", context.getString(R.string.comp_auto_check_failed))
+                    complete = false
+                    continue
+                }
+                ls.put("owned", JSONArray(ls.strings("owned") + current))
+            }
             val target = ComponentUpdates.pick(catalog, line, ls.strings("bad"))
-            if (target == null || ls.optString("current") == target.file) continue
+            if (target == null || current == target.file) continue
             val stored = ComponentsManager.isStored(context, target.file)
             if (!stored) {
                 if (holdBack) {
@@ -165,7 +183,7 @@ object ComponentUpdater {
                 if (!stored) runCatching { ComponentsManager.deletePackage(context, target.file) }
                 continue
             }
-            ls.put("previous", ls.optString("current").ifEmpty { ComponentUpdates.ORIGINAL })
+            ls.put("previous", if (missing && relisted == null) ComponentUpdates.ORIGINAL else current.ifEmpty { ComponentUpdates.ORIGINAL })
                 .put("current", target.file).put("since", latestStamp(context)).put("failed", JSONObject())
             if (!stored) ls.put("owned", JSONArray(ls.strings("owned") + target.file))
             ls.remove("note")

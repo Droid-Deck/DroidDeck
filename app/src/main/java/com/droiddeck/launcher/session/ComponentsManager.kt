@@ -974,9 +974,16 @@ object ComponentsManager {
         if (!force && cache.isFile) runCatching { return parseCatalog(JSONObject(cache.readText())) }
         if (!force) return Catalog(emptyList(), 0)
         val items = JSONArray()
+        val previous = if (cache.isFile) runCatching { JSONObject(cache.readText()).optJSONArray("items") }.getOrNull() else null
+        var fetched = 0
         for ((repo, tag) in SOURCES) {
-            val body = Downloader.downloadString("https://api.github.com/repos/$repo/releases/tags/$tag") ?: continue
-            val assets = runCatching { JSONObject(body).optJSONArray("assets") }.getOrNull() ?: continue
+            val body = Downloader.downloadString("https://api.github.com/repos/$repo/releases/tags/$tag")
+            val assets = body?.let { runCatching { JSONObject(it).optJSONArray("assets") }.getOrNull() }
+            if (assets == null) {
+                keepSource(previous, tag, items)
+                continue
+            }
+            fetched++
             for (i in 0 until assets.length()) {
                 val a = assets.getJSONObject(i)
                 val name = a.optString("name")
@@ -987,11 +994,16 @@ object ComponentsManager {
                     .put("url", a.optString("browser_download_url")).put("size", a.optLong("size")).put("digest", a.optString("digest")))
             }
         }
-        if (items.length() == 0 && cache.isFile) runCatching { return parseCatalog(JSONObject(cache.readText())) }
+        if (fetched == 0 && cache.isFile) runCatching { return parseCatalog(JSONObject(cache.readText())) }
         val out = JSONObject().put("items", items).put("fetchedAt", System.currentTimeMillis() / 1000)
         val tmp = File(cache.parentFile, cache.name + ".tmp")
         tmp.writeText(out.toString()); tmp.renameTo(cache)
         return parseCatalog(out)
+    }
+
+    internal fun keepSource(previous: JSONArray?, tag: String, into: JSONArray) {
+        previous ?: return
+        for (i in 0 until previous.length()) previous.optJSONObject(i)?.takeIf { it.optString("release") == tag }?.let(into::put)
     }
 
     private fun parseCatalog(o: JSONObject): Catalog {
