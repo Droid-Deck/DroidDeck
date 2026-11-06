@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.ParcelFileDescriptor
 import java.io.File
 import java.io.OutputStream
+import java.nio.ByteBuffer
 import java.nio.channels.Channels
 import java.nio.channels.FileChannel
 import java.nio.channels.SeekableByteChannel
@@ -17,6 +18,7 @@ import java.nio.file.SecureDirectoryStream
 import java.nio.file.StandardOpenOption
 import java.nio.file.attribute.BasicFileAttributeView
 import java.nio.file.attribute.BasicFileAttributes
+import java.util.UUID
 
 internal object JvmSecureSourceOpener : SecureSourceOpener {
     override fun <T> withChannel(root: Path, relative: Path, block: (SeekableByteChannel) -> T): T? {
@@ -84,6 +86,7 @@ internal class JvmSecureLogOpener(private val root: File) : SecureLogOpener {
 
 internal object JvmDiagnosticOutputProvider : DiagnosticOutputProvider {
     private val legacyStage = Regex("""^.+-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.diagnostic-stage$""")
+    private val stagingLock = Any()
 
     override fun open(context: Context, requested: File): DiagnosticOutputDirectory? {
         val wanted = requested.toPath().toAbsolutePath().normalize()
@@ -119,7 +122,12 @@ internal object JvmDiagnosticOutputProvider : DiagnosticOutputProvider {
                 parent.close()
                 return null
             }
-            JvmDiagnosticOutputDirectory(requested, parent, name, attrs.fileKey())
+            val isExternal = external != null && wanted.parent?.parent == external &&
+                wanted.parent?.fileName?.toString() == "agent-logs"
+            val staging = if (isExternal) null else File(context.noBackupFilesDir, "diagnostic-staging").toPath().apply {
+                Files.createDirectories(this)
+            }
+            JvmDiagnosticOutputDirectory(requested, parent, name, attrs.fileKey(), staging)
         }.getOrNull()
     }
 
@@ -138,6 +146,18 @@ internal object JvmDiagnosticOutputProvider : DiagnosticOutputProvider {
     }
 
     override fun cleanupLegacyStages(context: Context) {
+        synchronized(stagingLock) { cleanupLegacyStagesLocked(context) }
+    }
+
+    private fun cleanupLegacyStagesLocked(context: Context) {
+        val staging = File(context.noBackupFilesDir, "diagnostic-staging").toPath()
+        if (Files.isDirectory(staging, LinkOption.NOFOLLOW_LINKS) && !Files.isSymbolicLink(staging)) {
+            Files.newDirectoryStream(staging).use { entries ->
+                entries.filter { it.fileName.toString().matches(
+                    Regex("""^\.diagnostic-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.partial$"""),
+                ) }.take(16_384).forEach { Files.deleteIfExists(it) }
+            }
+        }
         val cache = Files.newDirectoryStream(context.cacheDir.toPath())
         if (cache !is SecureDirectoryStream<*>) {
             cache.close()
@@ -155,6 +175,8 @@ internal object JvmDiagnosticOutputProvider : DiagnosticOutputProvider {
                 .getOrNull()?.use { share -> cleanupLegacyStage(share, Paths.get(".diagnostic-stage")) }
         }
     }
+
+    fun <T> withStagingLock(block: () -> T): T = synchronized(stagingLock, block)
 
     private fun cleanupLegacyStage(parent: SecureDirectoryStream<Path>, name: Path) {
         val original = runCatching {
@@ -199,6 +221,7 @@ private class JvmDiagnosticOutputDirectory(
     private val parent: SecureDirectoryStream<Path>,
     private val directoryName: Path,
     private val fileKey: Any,
+    private val stagingRoot: Path?,
 ) : DiagnosticOutputDirectory {
     private var closed = false
 
@@ -221,7 +244,7 @@ private class JvmDiagnosticOutputDirectory(
                 LinkOption.NOFOLLOW_LINKS,
             ).readAttributes()
             require(attrs.isDirectory && !attrs.isSymbolicLink && attrs.fileKey() != null)
-            JvmDiagnosticOutputDirectory(File(file, name), childParent, childName, attrs.fileKey())
+            JvmDiagnosticOutputDirectory(File(file, name), childParent, childName, attrs.fileKey(), stagingRoot)
         } catch (error: Throwable) {
             childParent.close()
             throw error
@@ -233,6 +256,26 @@ private class JvmDiagnosticOutputDirectory(
     override fun containsRegular(name: String): Boolean = attributes(name)?.let {
         it.isRegularFile && !it.isSymbolicLink
     } ?: false
+
+    override fun readSmallRegular(name: String, maxBytes: Int): ByteArray? {
+        if (maxBytes <= 0) return null
+        return runCatching {
+            val before = attributes(name) ?: return null
+            if (!before.isRegularFile || before.isSymbolicLink || before.fileKey() == null ||
+                before.size() !in 1..maxBytes.toLong()) return null
+            val bytes = withDirectory { directory ->
+                directory.newByteChannel(
+                    Paths.get(name), setOf(StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS),
+                ).use { channel ->
+                    val buffer = ByteBuffer.allocate(before.size().toInt())
+                    while (buffer.hasRemaining()) check(channel.read(buffer) > 0)
+                    buffer.array()
+                }
+            }
+            val after = attributes(name) ?: return null
+            if (after.fileKey() == before.fileKey() && after.size() == before.size()) bytes else null
+        }.getOrNull()
+    }
 
     override fun write(fileName: String, body: (OutputStream) -> Unit): File {
         check(!closed)
@@ -256,6 +299,60 @@ private class JvmDiagnosticOutputDirectory(
             return File(file, fileName)
         } finally {
             if (!completed) runCatching { withDirectory { it.deleteFile(leaf) } }
+        }
+    }
+
+    override fun writeAtomic(fileName: String, body: (OutputStream) -> Unit): File =
+        JvmDiagnosticOutputProvider.withStagingLock { writeAtomicLocked(fileName, body) }
+
+    private fun writeAtomicLocked(fileName: String, body: (OutputStream) -> Unit): File {
+        check(!closed)
+        require(safeName(fileName))
+        val staging = stagingRoot ?: error("Atomic migration output is unavailable for this directory")
+        Files.createDirectories(staging)
+        val temporary = staging.resolve(".diagnostic-${UUID.randomUUID()}.partial")
+        var linked = false
+        var completed = false
+        var expectedKey: Any? = null
+        try {
+            Files.newByteChannel(
+                temporary,
+                setOf(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS),
+            ).use { channel ->
+                Channels.newOutputStream(channel).use { output ->
+                    body(output)
+                    output.flush()
+                    (channel as? FileChannel)?.force(true)
+                }
+            }
+            val staged = Files.readAttributes(temporary, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+            require(staged.isRegularFile && !staged.isSymbolicLink && staged.fileKey() != null)
+            expectedKey = staged.fileKey()
+            withDirectory { Unit }
+            val destination = File(file, fileName).toPath()
+            Files.move(temporary, destination)
+            linked = true
+            val published = Files.readAttributes(destination, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+            require(published.isRegularFile && !published.isSymbolicLink && published.fileKey() == expectedKey)
+            withDirectory { Unit }
+            completed = true
+            return destination.toFile()
+        } finally {
+            if (!completed) {
+                val destination = File(file, fileName).toPath()
+                if (linked && expectedKey != null) runCatching {
+                    val current = Files.readAttributes(
+                        destination, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS,
+                    )
+                    if (current.fileKey() == expectedKey) Files.delete(destination)
+                }
+                runCatching {
+                    val current = Files.readAttributes(
+                        temporary, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS,
+                    )
+                    if (expectedKey == null || current.fileKey() == expectedKey) Files.delete(temporary)
+                }
+            }
         }
     }
 

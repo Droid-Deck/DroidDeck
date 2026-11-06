@@ -17,17 +17,22 @@ import java.nio.file.attribute.BasicFileAttributes
 object LogMigration {
     private const val TAG = "LogMigration"
     private const val LEGACY_MARKER = ".moved-from-downloads"
-    private const val MARKER = ".moved-from-downloads-v2"
-    private const val SESSION_PENDING_PREFIX = ".legacy-migration-pending-"
-    private const val SESSION_COMPLETE_PREFIX = ".legacy-migration-complete-"
+    private const val LEGACY_V2_MARKER = ".moved-from-downloads-v2"
+    private const val MARKER = ".moved-from-downloads-v3"
+    private const val LEGACY_SESSION_PENDING_PREFIX = ".legacy-migration-pending-"
+    private const val LEGACY_SESSION_COMPLETE_PREFIX = ".legacy-migration-complete-"
+    private const val SESSION_PENDING_PREFIX = ".legacy-migration-v3-pending-"
+    private const val SESSION_COMPLETE_PREFIX = ".legacy-migration-v3-complete-"
     private const val MAX_ENTRIES = 16_384
     private const val MAX_BYTES = 1024L * 1024 * 1024
+    private val legacyGlobalCompletion = Regex("""^copied \d+ item\(s\)\n$""")
     private val oldScrubMarker = Regex("""^\.scrubbed-(?:r?\d+)$""")
 
     private class CopyBudget(var entries: Int = 0, var bytes: Long = 0)
 
     @Synchronized
     fun run(context: Context) {
+        SecureDiagnosticOutput.cleanupLegacyStages(context)
         val targetFile = LinuxRuntime.logDir(context)
         val target = SecureDiagnosticOutput.open(context, targetFile) ?: run {
             Log.w(TAG, "could not securely open the session log directory")
@@ -35,7 +40,14 @@ object LogMigration {
         }
         target.use { output ->
             if (output.containsRegular(MARKER)) return
-            val recoverLegacyMigration = output.containsRegular(LEGACY_MARKER)
+            val validV2Completion = output.readSmallRegular(LEGACY_V2_MARKER, 128)
+                ?.toString(Charsets.UTF_8)?.let(legacyGlobalCompletion::matches) == true
+            if (validV2Completion) {
+                runCatching { output.writeAtomic(MARKER) { it.write("upgraded from v2\n".toByteArray()) } }
+                return
+            }
+            val recoverLegacyMigration = output.containsRegular(LEGACY_MARKER) ||
+                output.contains(LEGACY_V2_MARKER)
             val legacy = LinuxRuntime.legacyLogDir()
             var copied = 0
             var failed = false
@@ -56,9 +68,14 @@ object LogMigration {
                     }
                     val pendingMarker = "$SESSION_PENDING_PREFIX$text"
                     val completeMarker = "$SESSION_COMPLETE_PREFIX$text"
+                    val legacyPendingMarker = "$LEGACY_SESSION_PENDING_PREFIX$text"
+                    val legacyCompleteMarker = "$LEGACY_SESSION_COMPLETE_PREFIX$text"
                     var destinationExists = session && output.contains(text)
-                    if (session && output.containsRegular(completeMarker)) continue
-                    val hasPendingMarker = session && output.containsRegular(pendingMarker)
+                    val validLegacyComplete = session &&
+                        output.readSmallRegular(legacyCompleteMarker, 32)?.contentEquals("complete\n".toByteArray()) == true
+                    if (session && (output.containsRegular(completeMarker) || validLegacyComplete)) continue
+                    val hasPendingMarker = session && (output.containsRegular(pendingMarker) ||
+                        output.readSmallRegular(legacyPendingMarker, 32)?.contentEquals("pending\n".toByteArray()) == true)
                     if (session && destinationExists && !hasPendingMarker && !recoverLegacyMigration) {
                         val empty = runCatching { output.child(text)?.use { it.deleteIfEmpty() } }
                             .getOrNull()
@@ -68,7 +85,7 @@ object LogMigration {
                     var migrationOwned = hasPendingMarker
                     if (session && !destinationExists && !hasPendingMarker) {
                         val markedPending = runCatching {
-                            output.write(pendingMarker) { it.write("pending\n".toByteArray()) }
+                            output.writeAtomic(pendingMarker) { it.write("pending\n".toByteArray()) }
                         }.isSuccess
                         if (!markedPending) {
                             failed = true
@@ -88,7 +105,7 @@ object LogMigration {
                             else if (child.contains(text)) true else copyFile(root, name, child, text, budget)
                         if (ok) {
                             val completed = !session || output.containsRegular(completeMarker) || runCatching {
-                                output.write(completeMarker) { it.write("complete\n".toByteArray()) }
+                                output.writeAtomic(completeMarker) { it.write("complete\n".toByteArray()) }
                             }.isSuccess
                             if (completed) copied++ else failed = true
                         } else {
@@ -116,7 +133,7 @@ object LogMigration {
                 return
             }
             if (!failed) runCatching {
-                output.write(MARKER) { it.write("copied $copied item(s)\n".toByteArray()) }
+                output.writeAtomic(MARKER) { it.write("copied $copied item(s)\n".toByteArray()) }
             }.onFailure { Log.w(TAG, "could not mark the migration: ${it.message}") }
             if (copied > 0) Log.i(TAG, "copied $copied log item(s) from $legacy into $targetFile; originals retained")
         }
@@ -166,7 +183,7 @@ object LogMigration {
             before.size() < 0 || before.size() > MAX_BYTES - budget.bytes) return false
         return runCatching {
             source.newByteChannel(name, setOf(StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)).use { input ->
-                destination.write(outputName) { output ->
+                destination.writeAtomic(outputName) { output ->
                     copyExact(input, output, before.size())
                     val after = attributes(source, name)
                     check(after?.fileKey() == before.fileKey() && after.size() == before.size())

@@ -19,6 +19,7 @@ import java.nio.file.SecureDirectoryStream
 import java.nio.file.StandardOpenOption
 import java.nio.file.attribute.BasicFileAttributeView
 import java.nio.channels.FileChannel
+import java.util.UUID
 
 internal interface DiagnosticOutputDirectory : AutoCloseable {
     val file: File
@@ -26,7 +27,9 @@ internal interface DiagnosticOutputDirectory : AutoCloseable {
     fun child(name: String): DiagnosticOutputDirectory
     fun contains(name: String): Boolean
     fun containsRegular(name: String): Boolean
+    fun readSmallRegular(name: String, maxBytes: Int): ByteArray?
     fun write(name: String, body: (OutputStream) -> Unit): File
+    fun writeAtomic(name: String, body: (OutputStream) -> Unit): File
     fun deleteIfEmpty(): Boolean
 }
 
@@ -109,27 +112,33 @@ internal object SecureDiagnosticOutput {
 private object AndroidDiagnosticOutputProvider : DiagnosticOutputProvider {
     private const val DIRECTORY_MODE = 0x1c0
     private const val FILE_MODE = 0x180
+    private const val STAGING_DIR = "diagnostic-staging"
+    private val stagingLock = Any()
     private val legacyStage = Regex("""^.+-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.diagnostic-stage$""")
+    private val stagedOutput = Regex("""^\.diagnostic-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.partial$""")
 
     override fun open(context: Context, requested: File): DiagnosticOutputDirectory? {
         val wanted = requested.toPath().toAbsolutePath().normalize()
         val cache = context.cacheDir.toPath().toAbsolutePath().normalize()
         if (wanted == cache.resolve("share") || wanted == cache.resolve("shared-logs")) {
-            return open(cache.toFile(), listOf(wanted.fileName.toString()), create = true)
+            return open(context, cache.toFile(), listOf(wanted.fileName.toString()), create = true)
         }
         val logs = LinuxRuntime.logDir(context).toPath().toAbsolutePath().normalize()
         val ephemeral = cache.resolve("session-logs")
-        if (wanted == logs) return open(context.filesDir, listOf(logs.fileName.toString()), create = true)
+        if (wanted == logs) return open(context, context.filesDir, listOf(logs.fileName.toString()), create = true)
         if ((wanted.parent == logs || wanted.parent == ephemeral) && SessionPaths.isSessionName(requested.name)) {
-            return open(wanted.parent.toFile(), listOf(wanted.fileName.toString()), create = true)
+            return open(context, wanted.parent.toFile(), listOf(wanted.fileName.toString()), create = true)
         }
         if (wanted == logs.resolve(SessionPaths.TOOLS_DIR)) {
-            return open(logs.toFile(), listOf(SessionPaths.TOOLS_DIR), create = true)
+            return open(context, logs.toFile(), listOf(SessionPaths.TOOLS_DIR), create = true)
         }
         val external = context.getExternalFilesDir(null)?.toPath()?.toAbsolutePath()?.normalize() ?: return null
         val agentLogs = external.resolve("agent-logs")
         return if (wanted.parent == agentLogs && safeName(wanted.fileName.toString())) {
-            open(external.toFile(), listOf("agent-logs", wanted.fileName.toString()), create = true)
+            open(
+                context, external.toFile(), listOf("agent-logs", wanted.fileName.toString()), create = true,
+                atomicMigrationAllowed = false,
+            )
         } else null
     }
 
@@ -144,6 +153,7 @@ private object AndroidDiagnosticOutputProvider : DiagnosticOutputProvider {
     }
 
     override fun cleanupLegacyStages(context: Context) {
+        cleanupInternalStaging(context)
         val cache = openDirectory(context.cacheDir.path) ?: return
         try {
             val stream = secureStream(cache) ?: return
@@ -218,7 +228,13 @@ private object AndroidDiagnosticOutputProvider : DiagnosticOutputProvider {
         }
     }
 
-    private fun open(root: File, parts: List<String>, create: Boolean): DiagnosticOutputDirectory? {
+    private fun open(
+        context: Context,
+        root: File,
+        parts: List<String>,
+        create: Boolean,
+        atomicMigrationAllowed: Boolean = true,
+    ): DiagnosticOutputDirectory? {
         if (parts.any { !safeName(it) }) return null
         val descriptors = ArrayList<ParcelFileDescriptor>()
         return try {
@@ -234,6 +250,7 @@ private object AndroidDiagnosticOutputProvider : DiagnosticOutputProvider {
             }
             AndroidDiagnosticOutputDirectory(
                 parts.fold(root) { parent, child -> File(parent, child) }, descriptors, parts.lastOrNull(),
+                context, atomicMigrationAllowed,
             )
         } catch (error: Throwable) {
             descriptors.asReversed().forEach { runCatching { it.close() } }
@@ -314,12 +331,59 @@ private object AndroidDiagnosticOutputProvider : DiagnosticOutputProvider {
         name.isNotEmpty() && name != "." && name != ".." && '/' !in name && '\\' !in name
 
     internal const val fileMode = FILE_MODE
+
+    internal fun openInternalStaging(context: Context, create: Boolean): ParcelFileDescriptor? {
+        val root = openDirectory(context.noBackupFilesDir.path) ?: return null
+        return try {
+            val path = childPath(root, STAGING_DIR)
+            if (create) try {
+                Os.mkdir(path, DIRECTORY_MODE)
+            } catch (error: ErrnoException) {
+                if (error.errno != OsConstants.EEXIST) throw error
+            }
+            openDirectory(path)
+        } finally {
+            root.close()
+        }
+    }
+
+    private fun cleanupInternalStaging(context: Context) {
+        synchronized(stagingLock) { cleanupInternalStagingLocked(context) }
+    }
+
+    private fun cleanupInternalStagingLocked(context: Context) {
+        val staging = openInternalStaging(context, false) ?: return
+        try {
+            val stream = secureStream(staging) ?: return
+            stream.use { directory ->
+                val iterator = directory.iterator()
+                var visited = 0
+                while (iterator.hasNext() && visited++ < 16_384) {
+                    val name = iterator.next().fileName
+                    if (!stagedOutput.matches(name.toString())) continue
+                    val attrs = runCatching {
+                        directory.getFileAttributeView(
+                            name, BasicFileAttributeView::class.java, LinkOption.NOFOLLOW_LINKS,
+                        ).readAttributes()
+                    }.getOrNull() ?: continue
+                    if (!attrs.isDirectory) runCatching { directory.deleteFile(name) }
+                }
+            }
+            runCatching { Os.fsync(staging.fileDescriptor) }
+        } finally {
+            staging.close()
+        }
+    }
+
+    internal fun <T> withStagingLock(block: () -> T): T = synchronized(stagingLock, block)
 }
 
 private class AndroidDiagnosticOutputDirectory(
     override val file: File,
     private val descriptors: List<ParcelFileDescriptor>,
     private val finalName: String?,
+    private val context: Context,
+    private val atomicMigrationAllowed: Boolean,
 ) : DiagnosticOutputDirectory {
     private val directoryStat = Os.fstat(descriptors.last().fileDescriptor)
     private var closed = false
@@ -346,7 +410,9 @@ private class AndroidDiagnosticOutputDirectory(
         val child = AndroidDiagnosticOutputProvider.openDirectory(path)
             ?: run { parent.close(); throw IOException("Diagnostic child directory is unavailable") }
         return try {
-            AndroidDiagnosticOutputDirectory(File(file, name), listOf(parent, child), name)
+            AndroidDiagnosticOutputDirectory(
+                File(file, name), listOf(parent, child), name, context, atomicMigrationAllowed,
+            )
         } catch (error: Throwable) {
             parent.close()
             child.close()
@@ -378,6 +444,42 @@ private class AndroidDiagnosticOutputDirectory(
                 true
             }
         }.getOrDefault(false)
+    }
+
+    override fun readSmallRegular(name: String, maxBytes: Int): ByteArray? {
+        check(!closed)
+        if (!AndroidDiagnosticOutputProvider.safeName(name) || maxBytes <= 0) return null
+        val raw = try {
+            Os.open(
+                AndroidDiagnosticOutputProvider.childPath(descriptors.last(), name),
+                OsConstants.O_RDONLY or OsConstants.O_CLOEXEC or OsConstants.O_NOFOLLOW or OsConstants.O_NONBLOCK,
+                0,
+            )
+        } catch (_: Exception) {
+            return null
+        }
+        return try {
+            val before = Os.fstat(raw)
+            if (!OsConstants.S_ISREG(before.st_mode) || before.st_nlink != 1L || before.st_size !in 1..maxBytes.toLong()) {
+                return null
+            }
+            val bytes = ByteArray(before.st_size.toInt())
+            var offset = 0
+            while (offset < bytes.size) {
+                val count = Os.read(raw, bytes, offset, bytes.size - offset)
+                if (count <= 0) return null
+                offset += count
+            }
+            val after = Os.fstat(raw)
+            val current = Os.lstat(AndroidDiagnosticOutputProvider.childPath(descriptors.last(), name))
+            if (before.st_dev != after.st_dev || before.st_ino != after.st_ino || before.st_size != after.st_size ||
+                current.st_dev != after.st_dev || current.st_ino != after.st_ino || current.st_nlink != 1L ||
+                !OsConstants.S_ISREG(current.st_mode)) null else bytes
+        } catch (_: Exception) {
+            null
+        } finally {
+            Os.close(raw)
+        }
     }
 
     override fun write(name: String, body: (OutputStream) -> Unit): File {
@@ -423,6 +525,72 @@ private class AndroidDiagnosticOutputDirectory(
         }
     }
 
+    override fun writeAtomic(name: String, body: (OutputStream) -> Unit): File =
+        AndroidDiagnosticOutputProvider.withStagingLock { writeAtomicLocked(name, body) }
+
+    private fun writeAtomicLocked(name: String, body: (OutputStream) -> Unit): File {
+        check(!closed)
+        check(atomicMigrationAllowed) { "Atomic migration output is unavailable for this directory" }
+        require(AndroidDiagnosticOutputProvider.safeName(name)) { "Unsafe migration output name" }
+        val staging = AndroidDiagnosticOutputProvider.openInternalStaging(context, true)
+            ?: throw IOException("Diagnostic staging directory is unavailable")
+        val temporaryName = ".diagnostic-${UUID.randomUUID()}.partial"
+        val raw = Os.open(
+            AndroidDiagnosticOutputProvider.childPath(staging, temporaryName),
+            OsConstants.O_WRONLY or OsConstants.O_CREAT or OsConstants.O_EXCL or OsConstants.O_CLOEXEC or
+                OsConstants.O_NOFOLLOW,
+            AndroidDiagnosticOutputProvider.fileMode,
+        )
+        var renamed = false
+        var completed = false
+        try {
+            val initial = Os.fstat(raw)
+            require(OsConstants.S_ISREG(initial.st_mode) && initial.st_nlink == 1L)
+            require(initial.st_dev == directoryStat.st_dev) { "Diagnostic staging is on another filesystem" }
+            ParcelFileDescriptor.AutoCloseOutputStream(ParcelFileDescriptor.dup(raw)).use(body)
+            Os.fsync(raw)
+            val after = Os.fstat(raw)
+            require(initial.st_dev == after.st_dev && initial.st_ino == after.st_ino && after.st_nlink == 1L)
+            val staged = Os.lstat(AndroidDiagnosticOutputProvider.childPath(staging, temporaryName))
+            require(staged.st_dev == after.st_dev && staged.st_ino == after.st_ino &&
+                OsConstants.S_ISREG(staged.st_mode) && staged.st_nlink == 1L)
+            requireCurrentDirectoryPath()
+            val renameError = DiagnosticAtomicFiles.renameNoReplace(
+                staging.fd, temporaryName, descriptors.last().fd, name,
+            )
+            if (renameError != 0) throw ErrnoException("renameat2", renameError)
+            renamed = true
+            val final = Os.lstat(AndroidDiagnosticOutputProvider.childPath(descriptors.last(), name))
+            require(final.st_dev == after.st_dev && final.st_ino == after.st_ino && final.st_nlink == 1L)
+            requireCurrentDirectoryPath()
+            Os.fsync(staging.fileDescriptor)
+            Os.fsync(descriptors.last().fileDescriptor)
+            completed = true
+            return File(file, name)
+        } finally {
+            if (!completed) runCatching {
+                val expected = Os.fstat(raw)
+                val publishedStat = runCatching {
+                    Os.lstat(AndroidDiagnosticOutputProvider.childPath(descriptors.last(), name))
+                }.getOrNull()
+                if (renamed && publishedStat != null &&
+                    publishedStat.st_dev == expected.st_dev && publishedStat.st_ino == expected.st_ino) {
+                    withDirectory { it.deleteFile(Paths.get(name)) }
+                }
+                val staged = runCatching {
+                    Os.lstat(AndroidDiagnosticOutputProvider.childPath(staging, temporaryName))
+                }.getOrNull()
+                if (staged != null && staged.st_dev == expected.st_dev && staged.st_ino == expected.st_ino) {
+                    withSecureDirectory(staging) { it.deleteFile(Paths.get(temporaryName)) }
+                }
+                Os.fsync(staging.fileDescriptor)
+                Os.fsync(descriptors.last().fileDescriptor)
+            }
+            runCatching { Os.close(raw) }
+            runCatching { staging.close() }
+        }
+    }
+
     override fun deleteIfEmpty(): Boolean {
         check(!closed)
         if (withDirectory { it.iterator().hasNext() }) return false
@@ -447,5 +615,20 @@ private class AndroidDiagnosticOutputDirectory(
         val directory = AndroidDiagnosticOutputProvider.secureStream(descriptors.last())
             ?: throw IllegalStateException("Secure relative file operations are unavailable")
         return directory.use(block)
+    }
+
+    private fun <T> withSecureDirectory(
+        descriptor: ParcelFileDescriptor,
+        block: (SecureDirectoryStream<Path>) -> T,
+    ): T {
+        val directory = AndroidDiagnosticOutputProvider.secureStream(descriptor)
+            ?: throw IllegalStateException("Secure staging operations are unavailable")
+        return directory.use(block)
+    }
+
+    private fun requireCurrentDirectoryPath() {
+        val current = Os.lstat(file.path)
+        require(current.st_dev == directoryStat.st_dev && current.st_ino == directoryStat.st_ino &&
+            OsConstants.S_ISDIR(current.st_mode)) { "Diagnostic output directory was replaced" }
     }
 }

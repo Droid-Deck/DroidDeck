@@ -266,7 +266,7 @@ class EnhancedSessionLogShareTest {
         SessionLogShare.setSaveDestinationValidatorForTest { _, uri -> uri == destinationUri }
         SessionLogShare.saveEnhanced(app, restored, destinationUri)
         assertArrayEquals(all.readBytes(), destination.readBytes())
-        assertEquals(listOf("w"), provider.openModes)
+        assertEquals(listOf("wt"), provider.openModes)
         SessionLogShare.clear(app)
     }
 
@@ -459,7 +459,7 @@ class EnhancedSessionLogShareTest {
         assertThrows(IllegalArgumentException::class.java) {
             SessionLogShare.saveEnhanced(app, prepared, destination)
         }
-        assertEquals(listOf("w", "rwt"), provider.openModes)
+        assertEquals(listOf("wt", "rwt"), provider.openModes)
         assertEquals(1, provider.deleteCalls)
         assertEquals(0L, output.length())
         SessionLogShare.clear(app)
@@ -505,7 +505,7 @@ class EnhancedSessionLogShareTest {
         val source = EnhancedSessionLogShare.create(app, session)
             .single { it.name.endsWith("-session.zip") }
         val prepared = SessionLogShare.prepareEnhancedSave(app, listOf(source))
-        val output = tmp.newFile("external-document.zip")
+        val output = tmp.newFile("external-document.zip").apply { writeBytes(ByteArray(4 * 1024 * 1024) { 0x5a }) }
         val provider = ExternalDocumentsProvider(output)
         val authority = "external.documents"
         val packageName = "example.external.documents"
@@ -531,7 +531,7 @@ class EnhancedSessionLogShareTest {
         assertTrue(SessionLogShare.validSaveDestination(app, destination))
         SessionLogShare.saveEnhanced(app, prepared, destination)
         assertArrayEquals(source.readBytes(), output.readBytes())
-        assertEquals(listOf("w"), provider.openModes)
+        assertEquals(listOf("wt"), provider.openModes)
         SessionLogShare.clear(app)
     }
 
@@ -545,25 +545,22 @@ class EnhancedSessionLogShareTest {
         val oldIntermediate = share.resolve("DroidDeck-${session.name}.zip").toPath()
         Files.createSymbolicLink(oldIntermediate, privateFile.toPath())
 
-        val output = tmp.newFile("legacy-save.zip")
-        val provider = NoDeleteOutputProvider(output)
-        val authority = "legacy-diagnostic-save-test"
-        provider.attachInfo(app, android.content.pm.ProviderInfo().apply { this.authority = authority })
-        ShadowContentResolver.registerProviderInternal(authority, provider)
-        val destination = Uri.parse("content://$authority/output.zip")
-        SessionLogShare.setSaveDestinationValidatorForTest { _, uri -> uri == destination }
+        val output = tmp.newFile("legacy-save.zip").apply { writeBytes(ByteArray(4 * 1024 * 1024) { 0x5a }) }
+        val provider = ExternalDocumentsProvider(output)
+        val destination = registerExternalDocumentsProvider("legacy-diagnostic-save-test", provider)
 
         SessionLogShare.saveLegacy(app, session, destination)
 
         assertTrue(Files.isSymbolicLink(oldIntermediate))
         assertEquals(privateValue, privateFile.readText())
+        assertTrue(output.length() < 4 * 1024 * 1024)
         ZipFile(output).use { archive ->
             val saved = archive.getInputStream(archive.getEntry("${session.name}/session.log"))
                 .bufferedReader().readText()
             assertEquals("game started\n", saved)
             assertFalse(saved.contains(privateValue))
         }
-        assertEquals(listOf("w"), provider.openModes)
+        assertEquals(listOf("wt"), provider.openModes)
         Files.delete(oldIntermediate)
         SessionLogShare.clear(app)
     }
@@ -578,7 +575,7 @@ class EnhancedSessionLogShareTest {
             SessionLogShare.saveLegacy(app, emptySession, destination)
         }
 
-        assertEquals(listOf("w", "rwt"), provider.openModes)
+        assertEquals(listOf("wt", "rwt"), provider.openModes)
         assertEquals(1, provider.deleteCalls)
         assertEquals(0L, output.length())
     }
@@ -614,7 +611,7 @@ class EnhancedSessionLogShareTest {
 
         assertEquals(1, provider.deleteCalls)
         assertFalse(output.exists())
-        assertEquals(listOf("w"), provider.openModes)
+        assertEquals(listOf("wt"), provider.openModes)
     }
 
     @Test fun busyLegacySaveReportsFailureInsteadOfDroppingTheCallback() {

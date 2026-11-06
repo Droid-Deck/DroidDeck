@@ -106,6 +106,54 @@ class SessionLogShareZipTest {
         }
     }
 
+    @Test fun atomicMigrationPublishDoesNotReplaceExistingRegularOrSymbolicTargets() {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"))
+        SessionLogShare.clear(app)
+        val share = SessionLogShare.shareDir(app).apply { mkdirs() }
+        val regular = File(share, "regular.zip").apply { writeText("regular") }
+        val outside = File(app.cacheDir, "symbolic-source.zip").apply { writeText("outside") }
+        val symbolic = File(share, "symbolic.zip")
+        Files.createSymbolicLink(symbolic.toPath(), outside.toPath())
+        try {
+            SecureDiagnosticOutput.open(app, share)!!.use { output ->
+                assertThrows(Exception::class.java) {
+                    output.writeAtomic(regular.name) { it.write("replacement".toByteArray()) }
+                }
+                assertThrows(Exception::class.java) {
+                    output.writeAtomic(symbolic.name) { it.write("replacement".toByteArray()) }
+                }
+            }
+            assertEquals("regular", regular.readText())
+            assertEquals("outside", outside.readText())
+            assertTrue(Files.isSymbolicLink(symbolic.toPath()))
+            assertFalse(stagingFiles().any { it.name.endsWith(".partial") })
+        } finally {
+            share.deleteRecursively()
+            outside.delete()
+        }
+    }
+
+    @Test fun atomicMigrationPublishDoesNotReplaceExistingHardLink() {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"))
+        SessionLogShare.clear(app)
+        val share = SessionLogShare.shareDir(app).apply { mkdirs() }
+        val outside = File(app.cacheDir, "hard-link-source.zip").apply { writeText("hard") }
+        val hardLink = File(share, "hard-link.zip")
+        Files.createLink(hardLink.toPath(), outside.toPath())
+        try {
+            SecureDiagnosticOutput.open(app, share)!!.use { output ->
+                assertThrows(Exception::class.java) {
+                    output.writeAtomic(hardLink.name) { it.write("replacement".toByteArray()) }
+                }
+            }
+            assertEquals("hard", outside.readText())
+            assertFalse(stagingFiles().any { it.name.endsWith(".partial") })
+        } finally {
+            share.deleteRecursively()
+            outside.delete()
+        }
+    }
+
     @Test fun deletingASessionDoesNotFollowSymlinkedChildren() {
         assumeFalse(System.getProperty("os.name").startsWith("Windows"))
         val session = File(LinuxRuntime.logDir(app), "2026-11-05-99-delete-test").apply { mkdirs() }
@@ -113,11 +161,76 @@ class SessionLogShareZipTest {
         val marker = File(outside, "keep.txt").apply { writeText("keep") }
         Files.createSymbolicLink(File(session, "linked-directory").toPath(), outside.toPath())
         File(session, "session.log").writeText("session")
-
         assertTrue(SessionLogShare.deleteSession(app, session))
         assertFalse(session.exists())
         assertTrue(marker.isFile)
         outside.deleteRecursively()
+    }
+
+    @Test fun atomicMigrationOutputIsPublishedOnlyAfterItsWriterCompletes() {
+        SessionLogShare.clear(app)
+        val share = SessionLogShare.shareDir(app)
+        val destination = File(share, "atomic.zip")
+        SecureDiagnosticOutput.open(app, share)!!.use { output ->
+            output.writeAtomic(destination.name) { stream ->
+                assertFalse(destination.exists())
+                stream.write("complete payload".toByteArray())
+                assertFalse(destination.exists())
+            }
+        }
+        assertEquals("complete payload", destination.readText())
+        assertFalse(stagingFiles().any { it.name.endsWith(".partial") })
+        SessionLogShare.clear(app)
+    }
+
+    @Test fun failedAtomicMigrationWriteLeavesNoFinalOrStagingFile() {
+        SessionLogShare.clear(app)
+        val share = SessionLogShare.shareDir(app)
+        val destination = File(share, "failed-atomic.zip")
+        SecureDiagnosticOutput.open(app, share)!!.use { output ->
+            assertThrows(IllegalStateException::class.java) {
+                output.writeAtomic(destination.name) { stream ->
+                    stream.write("partial".toByteArray())
+                    error("stop")
+                }
+            }
+        }
+        assertFalse(destination.exists())
+        assertFalse(stagingFiles().any { it.name.endsWith(".partial") })
+        SessionLogShare.clear(app)
+    }
+
+    @Test fun atomicMigrationWriteRejectsAReplacedDestinationDirectory() {
+        SessionLogShare.clear(app)
+        val share = SessionLogShare.shareDir(app)
+        val moved = File(app.cacheDir, "share-moved")
+        val replacement = File(app.cacheDir, "share")
+        SecureDiagnosticOutput.open(app, share)!!.use { output ->
+            assertThrows(Exception::class.java) {
+                output.writeAtomic("detached.zip") { stream ->
+                    stream.write("complete".toByteArray())
+                    Files.move(share.toPath(), moved.toPath())
+                    replacement.mkdirs()
+                }
+            }
+        }
+        assertFalse(File(replacement, "detached.zip").exists())
+        assertFalse(File(moved, "detached.zip").exists())
+        assertFalse(stagingFiles().any { it.name.endsWith(".partial") })
+        replacement.deleteRecursively()
+        moved.deleteRecursively()
+    }
+
+    @Test fun migrationStartupRemovesAbandonedCentralStagingFiles() {
+        val staging = File(app.noBackupFilesDir, "diagnostic-staging").apply { mkdirs() }
+        val abandoned = File(staging, ".diagnostic-12345678-1234-1234-1234-123456789abc.partial")
+            .apply { writeText("complete but unpublished") }
+        val unrelated = File(staging, "keep.txt").apply { writeText("keep") }
+
+        SecureDiagnosticOutput.cleanupLegacyStages(app)
+
+        assertFalse(abandoned.exists())
+        assertEquals("keep", unrelated.readText())
     }
 
     @Test fun sessionDetailsIgnoreSymlinkedFiles() {
@@ -166,7 +279,9 @@ class SessionLogShareZipTest {
             override fun child(name: String) = this
             override fun contains(name: String) = false
             override fun containsRegular(name: String) = false
+            override fun readSmallRegular(name: String, maxBytes: Int): ByteArray? = null
             override fun write(name: String, body: (java.io.OutputStream) -> Unit) = File(file, name)
+            override fun writeAtomic(name: String, body: (java.io.OutputStream) -> Unit) = File(file, name)
             override fun deleteIfEmpty() = false
             override fun close() = Unit
         }
@@ -229,6 +344,9 @@ class SessionLogShareZipTest {
             session.deleteRecursively()
         }
     }
+
+    private fun stagingFiles(): List<File> =
+        File(app.noBackupFilesDir, "diagnostic-staging").listFiles().orEmpty().toList()
 
     @Test fun aLargeSteamLogIsRedactedInTheSharedArchive() {
         val session = File(LinuxRuntime.logDir(app), "2026-10-08-02-steam").apply { mkdirs() }
@@ -383,22 +501,43 @@ class SessionLogShareZipTest {
         assertTrue(source.isDirectory)
         assertTrue(outside.isFile)
         assertFalse(destination.exists())
-        assertFalse(File(LinuxRuntime.logDir(app), ".moved-from-downloads-v2").exists())
+        assertFalse(File(LinuxRuntime.logDir(app), ".moved-from-downloads-v3").exists())
         runCatching { Files.deleteIfExists(File(nested, "linked.log").toPath()) }
         nested.delete()
         source.delete()
-        File(LinuxRuntime.logDir(app), ".legacy-migration-pending-$name").delete()
-        File(LinuxRuntime.logDir(app), ".legacy-migration-complete-$name").delete()
+        File(LinuxRuntime.logDir(app), ".legacy-migration-v3-pending-$name").delete()
+        File(LinuxRuntime.logDir(app), ".legacy-migration-v3-complete-$name").delete()
         outside.delete()
     }
 
     @Test fun completedLegacyMigrationIsNotRepeated() {
         val legacy = LinuxRuntime.legacyLogDir().apply { mkdirs() }
         val logs = LinuxRuntime.logDir(app).apply { mkdirs() }
-        val marker = File(logs, ".moved-from-downloads-v2").apply { writeText("complete\n") }
+        val marker = File(logs, ".moved-from-downloads-v2").apply { writeText("copied 1 item(s)\n") }
+        val atomicMarker = File(logs, ".moved-from-downloads-v3")
         val name = "2026-10-21-01-after-marker"
         val source = File(legacy, name).apply { mkdirs() }
         File(source, "session.log").writeText("late legacy log\n")
+        val destination = File(logs, name)
+        try {
+            LogMigration.run(app)
+            assertFalse(destination.exists())
+            assertTrue(source.isDirectory)
+            assertTrue(atomicMarker.isFile)
+        } finally {
+            source.deleteRecursively()
+            marker.delete()
+            atomicMarker.delete()
+        }
+    }
+
+    @Test fun atomicV3CompletionMarkerIsAuthoritative() {
+        val legacy = LinuxRuntime.legacyLogDir().apply { mkdirs() }
+        val logs = LinuxRuntime.logDir(app).apply { mkdirs() }
+        val marker = File(logs, ".moved-from-downloads-v3").apply { writeText("atomic completion\n") }
+        val name = "2026-10-21-08-after-v3"
+        val source = File(legacy, name).apply { mkdirs() }
+        File(source, "session.log").writeText("do not recreate\n")
         val destination = File(logs, name)
         try {
             LogMigration.run(app)
@@ -410,17 +549,66 @@ class SessionLogShareZipTest {
         }
     }
 
+    @Test fun truncatedV2CompletionMarkerTriggersAtomicRecovery() {
+        val legacy = LinuxRuntime.legacyLogDir().apply { mkdirs() }
+        val logs = LinuxRuntime.logDir(app).apply { mkdirs() }
+        val oldMarker = File(logs, ".moved-from-downloads-v2").apply { writeText("copied") }
+        val marker = File(logs, ".moved-from-downloads-v3")
+        val name = "2026-10-21-06-truncated-v2"
+        val source = File(legacy, name).apply { mkdirs() }
+        File(source, "session.log").writeText("recover me\n")
+        val destination = File(logs, name)
+        try {
+            LogMigration.run(app)
+            assertEquals("recover me\n", File(destination, "session.log").readText())
+            assertTrue(marker.isFile)
+        } finally {
+            source.deleteRecursively()
+            destination.deleteRecursively()
+            oldMarker.delete()
+            File(logs, ".legacy-migration-v3-pending-$name").delete()
+            File(logs, ".legacy-migration-v3-complete-$name").delete()
+            marker.delete()
+        }
+    }
+
+    @Test fun truncatedLegacySessionCompletionDoesNotSkipMissingCopy() {
+        val legacy = LinuxRuntime.legacyLogDir().apply { mkdirs() }
+        val logs = LinuxRuntime.logDir(app).apply { mkdirs() }
+        val oldMarker = File(logs, ".moved-from-downloads").apply { writeText("old completion\n") }
+        val marker = File(logs, ".moved-from-downloads-v3")
+        val name = "2026-10-21-07-truncated-session"
+        val oldComplete = File(logs, ".legacy-migration-complete-$name").apply { writeText("comp") }
+        val source = File(legacy, name).apply { mkdirs() }
+        File(source, "session.log").writeText("recover session\n")
+        val destination = File(logs, name)
+        try {
+            LogMigration.run(app)
+            assertEquals("recover session\n", File(destination, "session.log").readText())
+            assertTrue(File(logs, ".legacy-migration-v3-complete-$name").isFile)
+            assertTrue(marker.isFile)
+        } finally {
+            source.deleteRecursively()
+            destination.deleteRecursively()
+            oldMarker.delete()
+            oldComplete.delete()
+            File(logs, ".legacy-migration-v3-pending-$name").delete()
+            File(logs, ".legacy-migration-v3-complete-$name").delete()
+            marker.delete()
+        }
+    }
+
     @Test fun emptyDirectoryLeftByInterruptedMigrationIsRetriedBeforeCompletion() {
         val legacy = LinuxRuntime.legacyLogDir().apply { mkdirs() }
         val logs = LinuxRuntime.logDir(app).apply { mkdirs() }
-        val marker = File(logs, ".moved-from-downloads-v2")
+        val marker = File(logs, ".moved-from-downloads-v3")
         marker.delete()
         val name = "2026-10-21-02-interrupted"
         val source = File(legacy, name).apply { mkdirs() }
         File(source, "session.log").writeText("retry me\n")
         val destination = File(logs, name).apply { mkdirs() }
-        val pending = File(logs, ".legacy-migration-pending-$name")
-        val complete = File(logs, ".legacy-migration-complete-$name")
+        val pending = File(logs, ".legacy-migration-v3-pending-$name")
+        val complete = File(logs, ".legacy-migration-v3-complete-$name")
         try {
             LogMigration.run(app)
             assertEquals("retry me\n", File(destination, "session.log").readText())
@@ -439,7 +627,7 @@ class SessionLogShareZipTest {
         val legacy = LinuxRuntime.legacyLogDir().apply { mkdirs() }
         val logs = LinuxRuntime.logDir(app).apply { mkdirs() }
         val oldMarker = File(logs, ".moved-from-downloads").apply { writeText("old completion\n") }
-        val newMarker = File(logs, ".moved-from-downloads-v2")
+        val newMarker = File(logs, ".moved-from-downloads-v3")
         val name = "2026-10-21-04-old-partial"
         val source = File(legacy, name).apply { mkdirs() }
         File(source, "session.log").writeText("legacy value\n")
@@ -450,7 +638,7 @@ class SessionLogShareZipTest {
         Files.createSymbolicLink(sourceLink.toPath(), outside.toPath())
         val destination = File(logs, name).apply { mkdirs() }
         val existing = File(destination, "session.log").apply { writeText("preserve me\n") }
-        val pending = File(logs, ".legacy-migration-pending-$name")
+        val pending = File(logs, ".legacy-migration-v3-pending-$name")
         try {
             LogMigration.run(app)
             assertEquals("preserve me\n", existing.readText())
@@ -470,7 +658,7 @@ class SessionLogShareZipTest {
             source.deleteRecursively()
             destination.deleteRecursively()
             pending.delete()
-            File(logs, ".legacy-migration-complete-$name").delete()
+            File(logs, ".legacy-migration-v3-complete-$name").delete()
             outside.delete()
             oldMarker.delete()
             newMarker.delete()
@@ -480,7 +668,7 @@ class SessionLogShareZipTest {
     @Test fun completedSessionIsNotRecreatedAfterItsDestinationIsDeleted() {
         val legacy = LinuxRuntime.legacyLogDir().apply { mkdirs() }
         val logs = LinuxRuntime.logDir(app).apply { mkdirs() }
-        val newMarker = File(logs, ".moved-from-downloads-v2")
+        val newMarker = File(logs, ".moved-from-downloads-v3")
         val name = "2026-10-21-05-deleted-after-copy"
         val source = File(legacy, name).apply { mkdirs() }
         File(source, "session.log").writeText("retained legacy copy\n")
@@ -500,7 +688,7 @@ class SessionLogShareZipTest {
     @Test fun preexistingNonemptySessionWithoutMigrationStateIsPreserved() {
         val legacy = LinuxRuntime.legacyLogDir().apply { mkdirs() }
         val logs = LinuxRuntime.logDir(app).apply { mkdirs() }
-        val marker = File(logs, ".moved-from-downloads-v2")
+        val marker = File(logs, ".moved-from-downloads-v3")
         marker.delete()
         val name = "2026-10-21-03-preexisting"
         val source = File(legacy, name).apply { mkdirs() }
@@ -514,15 +702,15 @@ class SessionLogShareZipTest {
         } finally {
             source.deleteRecursively()
             destination.deleteRecursively()
-            File(logs, ".legacy-migration-pending-$name").delete()
-            File(logs, ".legacy-migration-complete-$name").delete()
+            File(logs, ".legacy-migration-v3-pending-$name").delete()
+            File(logs, ".legacy-migration-v3-complete-$name").delete()
             marker.delete()
         }
     }
 
     @Test fun traversalLimitDoesNotCreateACompletionMarker() {
         val legacy = LinuxRuntime.legacyLogDir().apply { mkdirs() }
-        val marker = File(LinuxRuntime.logDir(app), ".moved-from-downloads-v2")
+        val marker = File(LinuxRuntime.logDir(app), ".moved-from-downloads-v3")
         marker.delete()
         val prefix = "migration-limit-${UUID.randomUUID()}-"
         val created = ArrayList<File>(16_385)
@@ -541,7 +729,7 @@ class SessionLogShareZipTest {
     @Test fun overdeepLegacyMigrationFailsWithoutEscapingStartupOrWritingTheMarker() {
         val legacy = LinuxRuntime.legacyLogDir().apply { mkdirs() }
         val logs = LinuxRuntime.logDir(app).apply { mkdirs() }
-        val marker = File(logs, ".moved-from-downloads-v2")
+        val marker = File(logs, ".moved-from-downloads-v3")
         val name = "2026-10-22-01-overdeep"
         val source = File(legacy, name).apply { mkdirs() }
         var deepest = source
@@ -555,8 +743,8 @@ class SessionLogShareZipTest {
         } finally {
             source.deleteRecursively()
             destination.deleteRecursively()
-            File(logs, ".legacy-migration-pending-$name").delete()
-            File(logs, ".legacy-migration-complete-$name").delete()
+            File(logs, ".legacy-migration-v3-pending-$name").delete()
+            File(logs, ".legacy-migration-v3-complete-$name").delete()
             marker.delete()
         }
     }
