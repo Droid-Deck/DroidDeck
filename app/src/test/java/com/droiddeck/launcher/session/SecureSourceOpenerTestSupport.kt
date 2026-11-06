@@ -87,6 +87,7 @@ internal class JvmSecureLogOpener(private val root: File) : SecureLogOpener {
 internal object JvmDiagnosticOutputProvider : DiagnosticOutputProvider {
     private val legacyStage = Regex("""^.+-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.diagnostic-stage$""")
     private val stagingLock = Any()
+    var atomicPublicationFailureForTest: (() -> Throwable?)? = null
 
     override fun open(context: Context, requested: File): DiagnosticOutputDirectory? {
         val wanted = requested.toPath().toAbsolutePath().normalize()
@@ -329,6 +330,7 @@ private class JvmDiagnosticOutputDirectory(
             require(staged.isRegularFile && !staged.isSymbolicLink && staged.fileKey() != null)
             expectedKey = staged.fileKey()
             withDirectory { Unit }
+            JvmDiagnosticOutputProvider.atomicPublicationFailureForTest?.invoke()?.let { throw it }
             val destination = File(file, fileName).toPath()
             Files.move(temporary, destination)
             linked = true
@@ -442,4 +444,5 @@ internal fun installJvmSecureSourceOpener() {
 internal fun resetSecureSourceOpener() {
     EnhancedSessionLogShare.setSourceOpenerForTest(null)
     SecureDiagnosticOutput.setProviderForTest(null)
+    JvmDiagnosticOutputProvider.atomicPublicationFailureForTest = null
 }

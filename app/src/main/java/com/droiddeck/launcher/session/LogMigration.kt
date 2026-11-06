@@ -32,6 +32,18 @@ object LogMigration {
 
     @Synchronized
     fun run(context: Context) {
+        try {
+            runOnce(context)
+        } catch (error: AtomicPublicationUnsupportedException) {
+            Log.w(
+                TAG,
+                "atomic no-replace log migration is unsupported on this device " +
+                    "(errno ${error.errno}); legacy logs remain in place",
+            )
+        }
+    }
+
+    private fun runOnce(context: Context) {
         SecureDiagnosticOutput.cleanupLegacyStages(context)
         val targetFile = LinuxRuntime.logDir(context)
         val target = SecureDiagnosticOutput.open(context, targetFile) ?: run {
@@ -43,7 +55,9 @@ object LogMigration {
             val validV2Completion = output.readSmallRegular(LEGACY_V2_MARKER, 128)
                 ?.toString(Charsets.UTF_8)?.let(legacyGlobalCompletion::matches) == true
             if (validV2Completion) {
-                runCatching { output.writeAtomic(MARKER) { it.write("upgraded from v2\n".toByteArray()) } }
+                attemptAtomicPublication {
+                    output.writeAtomic(MARKER) { it.write("upgraded from v2\n".toByteArray()) }
+                }
                 return
             }
             val recoverLegacyMigration = output.containsRegular(LEGACY_MARKER) ||
@@ -84,7 +98,7 @@ object LogMigration {
                     }
                     var migrationOwned = hasPendingMarker
                     if (session && !destinationExists && !hasPendingMarker) {
-                        val markedPending = runCatching {
+                        val markedPending = attemptAtomicPublication {
                             output.writeAtomic(pendingMarker) { it.write("pending\n".toByteArray()) }
                         }.isSuccess
                         if (!markedPending) {
@@ -104,9 +118,10 @@ object LogMigration {
                         val ok = if (attrs.isDirectory) copyDirectory(root, name, child, budget, 0)
                             else if (child.contains(text)) true else copyFile(root, name, child, text, budget)
                         if (ok) {
-                            val completed = !session || output.containsRegular(completeMarker) || runCatching {
-                                output.writeAtomic(completeMarker) { it.write("complete\n".toByteArray()) }
-                            }.isSuccess
+                            val completed = !session || output.containsRegular(completeMarker) ||
+                                attemptAtomicPublication {
+                                    output.writeAtomic(completeMarker) { it.write("complete\n".toByteArray()) }
+                                }.isSuccess
                             if (completed) copied++ else failed = true
                         } else {
                             failed = true
@@ -132,7 +147,7 @@ object LogMigration {
                 Log.w(TAG, "$legacy cannot be securely listed; logs there stay until it can")
                 return
             }
-            if (!failed) runCatching {
+            if (!failed) attemptAtomicPublication {
                 output.writeAtomic(MARKER) { it.write("copied $copied item(s)\n".toByteArray()) }
             }.onFailure { Log.w(TAG, "could not mark the migration: ${it.message}") }
             if (copied > 0) Log.i(TAG, "copied $copied log item(s) from $legacy into $targetFile; originals retained")
@@ -181,7 +196,7 @@ object LogMigration {
         val before = attributes(source, name) ?: return false
         if (!before.isRegularFile || before.isSymbolicLink || before.fileKey() == null ||
             before.size() < 0 || before.size() > MAX_BYTES - budget.bytes) return false
-        return runCatching {
+        return try {
             source.newByteChannel(name, setOf(StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)).use { input ->
                 destination.writeAtomic(outputName) { output ->
                     copyExact(input, output, before.size())
@@ -191,7 +206,19 @@ object LogMigration {
             }
             budget.bytes += before.size()
             true
-        }.getOrDefault(false)
+        } catch (error: AtomicPublicationUnsupportedException) {
+            throw error
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    private inline fun <T> attemptAtomicPublication(block: () -> T): Result<T> = try {
+        Result.success(block())
+    } catch (error: AtomicPublicationUnsupportedException) {
+        throw error
+    } catch (error: Throwable) {
+        Result.failure(error)
     }
 
     private fun copyExact(input: SeekableByteChannel, output: OutputStream, size: Long) {
