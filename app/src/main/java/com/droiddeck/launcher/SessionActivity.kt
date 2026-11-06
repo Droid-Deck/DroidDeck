@@ -831,7 +831,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(it))
         }
         sessionOverlay = createSessionOverlay()
-        root.addView(sessionOverlay)
+        root.addView(object : FrameLayout(this) {
+            override fun onResolvePointerIcon(event: MotionEvent, pointerIndex: Int): android.view.PointerIcon? =
+                if (platformPointerShown == true) super.onResolvePointerIcon(event, pointerIndex) else null
+        }.apply { addView(sessionOverlay) })
         setContentView(root)
         glassesScope.launch { Glasses.state.collect {
             glasses = it
@@ -889,10 +892,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         watchSession()
     }
 
-    private fun createSessionOverlay(): ComposeView = object : ComposeView(this) {
-        override fun onResolvePointerIcon(event: MotionEvent, pointerIndex: Int): android.view.PointerIcon? =
-            if (platformPointerShown == true) super.onResolvePointerIcon(event, pointerIndex) else null
-    }.apply {
+    private fun createSessionOverlay(): ComposeView = ComposeView(this).apply {
         isFocusable = true
         isFocusableInTouchMode = true
         defaultFocusHighlightEnabled = false
