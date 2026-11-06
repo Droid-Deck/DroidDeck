@@ -16,6 +16,16 @@ internal var componentsCatalogReader: (
     android.content.Context, Boolean, Set<String>,
 ) -> ComponentsManager.Catalog = ComponentsManager::catalog
 
+internal class SharedRefreshFeedback(
+    private val show: (String) -> Unit,
+) {
+    private val shown = HashSet<String>()
+
+    fun complete(message: String?) {
+        if (message != null && shown.add(message)) show(message)
+    }
+}
+
 internal class ComponentsMenu(private val activity: android.app.Activity, private val ui: Handler) {
     var compSnapshot by mutableStateOf<ComponentsManager.Snapshot?>(null)
     var compCatalog by mutableStateOf<List<ComponentsManager.CatalogItem>>(emptyList())
@@ -130,7 +140,11 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
         }, "components-action").start()
     }
 
-    fun refreshComponentCatalog(force: Boolean = true, components: Set<String> = ComponentsManager.COMPONENTS.toSet()) {
+    fun refreshComponentCatalog(
+        force: Boolean = true,
+        components: Set<String> = ComponentsManager.COMPONENTS.toSet(),
+        onComplete: ((String?) -> Unit)? = null,
+    ) {
         val wanted = components.filterTo(LinkedHashSet()) { it in ComponentsManager.COMPONENTS }
         if (wanted.isEmpty()) return
         val id = ++nextCatalogRequest
@@ -151,14 +165,17 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
                 val currentFailures = cat?.failed.orEmpty().filter { failure ->
                     ':' !in failure || current.any { failure.startsWith("$it:") }
                 }
+                var feedback: String? = null
                 if (force && current.isNotEmpty() && (cat == null || currentFailures.isNotEmpty())) {
                     val rateLimited = cat?.let {
                         it.rateLimitedComponents.any(current::contains) ||
                             (it.rateLimited && it.rateLimitedComponents.isEmpty() && currentFailures.isNotEmpty())
                     } == true || result.exceptionOrNull()?.let(GitHubArtifacts::isRateLimited) == true
                     val message = activity.getString(if (rateLimited) R.string.sources_github_rate_limited else R.string.comp_nightlies_unreachable)
-                    android.widget.Toast.makeText(activity, message, android.widget.Toast.LENGTH_LONG).show()
+                    if (onComplete == null) android.widget.Toast.makeText(activity, message, android.widget.Toast.LENGTH_LONG).show()
+                    else feedback = message
                 }
+                onComplete?.invoke(feedback)
             }
         }, "components-catalog").start()
     }

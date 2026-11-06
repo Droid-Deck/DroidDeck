@@ -2198,8 +2198,11 @@ class FrontEndActivity : ComponentActivity() {
             onDeleteOriginal = { version -> components.compProton?.let { pid -> components.componentAction(getString(R.string.comp_busy_deleting)) { ComponentsManager.deleteOriginal(this, pid, components.compComp, version) } } },
             onDownload = { components.downloadComponent(it) },
             onRefresh = {
-                components.refreshComponentCatalog()
-                protons.checkUpdates(force = true)
+                val feedback = SharedRefreshFeedback { message ->
+                    android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
+                }
+                components.refreshComponentCatalog(onComplete = feedback::complete)
+                protons.checkUpdates(force = true, onComplete = feedback::complete)
                 if (components.compModes.values.any { it == ComponentUpdates.AUTO }) components.checkComponentUpdates(force = true)
             },
             onSourcesChanged = { layer ->
