@@ -583,7 +583,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     val inputModeManager = LocalInputModeManager.current
     val window = LocalWindowInfo.current
     val androidContext = androidx.compose.ui.platform.LocalContext.current
-    val launcherSafeInsets = rememberLauncherFullscreenSafeInsets(s.launcherFullscreen)
+    val launcherSafeInsets = rememberFullscreenSafeInsets(s.launcherFullscreen)
     val insetDensity = androidx.compose.ui.platform.LocalDensity.current
     val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
     var anyFocused by remember { mutableStateOf(false) }
