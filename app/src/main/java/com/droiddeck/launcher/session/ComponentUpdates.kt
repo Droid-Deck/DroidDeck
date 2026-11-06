@@ -65,8 +65,8 @@ object ComponentUpdates {
         b.getInt(header) == 0x4550 && (b.getShort(header + 4).toInt() and 0xffff) == 0xaa64 && arm64ec(pe) == true
     }.getOrDefault(false)
 
-    fun needsArm64x(line: Line, stockArm64x: Boolean?): Boolean =
-        line.key.endsWith("-arm64ec") && stockArm64x != false
+    fun needsArm64x(line: Line, stocks: List<Boolean?>): Boolean =
+        line.key.endsWith("-arm64ec") && stocks.any { it != false }
 
     data class Launch(val app: String, val tool: String, val start: String, val seconds: Long)
 

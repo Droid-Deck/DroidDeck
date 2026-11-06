@@ -86,11 +86,13 @@ class ComponentUpdatesTest {
 
     @Test fun anArm64ecLineNeedsArm64xUnlessTheProtonsOwnBuildIsKnownNotToBe() {
         val ec = ComponentUpdates.line("dxvk", true)
-        assertTrue(ComponentUpdates.needsArm64x(ec, true))
-        assertTrue(ComponentUpdates.needsArm64x(ec, null))
-        assertFalse(ComponentUpdates.needsArm64x(ec, false))
-        assertFalse(ComponentUpdates.needsArm64x(ComponentUpdates.line("dxvk", false), null))
-        assertFalse(ComponentUpdates.needsArm64x(ComponentUpdates.line("fex", false), null))
+        assertTrue(ComponentUpdates.needsArm64x(ec, listOf(true)))
+        assertTrue(ComponentUpdates.needsArm64x(ec, listOf(null)))
+        assertFalse(ComponentUpdates.needsArm64x(ec, listOf(false)))
+        assertTrue(ComponentUpdates.needsArm64x(ec, listOf(false, true)))
+        assertFalse(ComponentUpdates.needsArm64x(ec, listOf(false, false)))
+        assertFalse(ComponentUpdates.needsArm64x(ComponentUpdates.line("dxvk", false), listOf(null)))
+        assertFalse(ComponentUpdates.needsArm64x(ComponentUpdates.line("fex", false), listOf(null)))
     }
 
     private val log = """

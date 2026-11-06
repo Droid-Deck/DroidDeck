@@ -41,7 +41,9 @@ object ComponentUpdater {
     private fun Map<String, Map<String, ComponentsManager.Choice>>.fileOf(p: ComponentsManager.Proton, comp: String): String? =
         this[p.id]?.get(comp)?.takeIf { it.protonVersion == p.version }?.file
 
-    private class Target(val comp: String, val p: ComponentsManager.Proton, val key: String, val ls: JSONObject)
+    private class Target(val comp: String, val p: ComponentsManager.Proton, val line: ComponentUpdates.Line, val ls: JSONObject) {
+        val key: String get() = line.key
+    }
 
     private fun JSONObject.obj(key: String): JSONObject = optJSONObject(key) ?: JSONObject().also { put(key, it) }
 
@@ -152,7 +154,8 @@ object ComponentUpdater {
                     continue
                 }
             }
-            if (ComponentUpdates.needsArm64x(line, ComponentsManager.arm64x(context, p, comp)) && !ComponentsManager.packageArm64x(context, target.file, comp)) {
+            val stocks = protons.filter { lineOf(context, state, it, comp)?.key == line.key }.map { ComponentsManager.arm64x(context, it, comp) }
+            if (ComponentUpdates.needsArm64x(line, stocks) && !ComponentsManager.packageArm64x(context, target.file, comp)) {
                 Log.w(TAG, "${target.file} is not ARM64X like ${p.name}'s own ${line.key}; skipped")
                 ls.put("bad", JSONArray(ls.strings("bad") + target.file))
                 if (!stored) runCatching { ComponentsManager.deletePackage(context, target.file) }
@@ -170,7 +173,7 @@ object ComponentUpdater {
     private fun apply(context: Context, state: JSONObject, protons: List<ComponentsManager.Proton>, wanted: List<String>, notes: MutableList<String>) {
         val lines = state.obj("lines")
         val targets = wanted.flatMap { comp ->
-            protons.mapNotNull { p -> lineOf(context, state, p, comp)?.let { line -> lines.optJSONObject(line.key)?.let { Target(comp, p, line.key, it) } } }
+            protons.mapNotNull { p -> lineOf(context, state, p, comp)?.let { line -> lines.optJSONObject(line.key)?.let { Target(comp, p, line, it) } } }
         }
         val choices = ComponentsManager.activeChoices(context)
         for (t in targets) {
@@ -180,6 +183,8 @@ object ComponentUpdater {
                 if (choices.fileOf(t.p, t.comp) == from) runCatching { ComponentsManager.restore(context, t.p.id, t.comp, ComponentsManager.safeName(t.p.version)) }
                     .onFailure { Log.w(TAG, "restore ${t.p.name} ${t.key}", it) }
             } else if (current.isNotEmpty() && choices.fileOf(t.p, t.comp) != current) {
+                if (ComponentUpdates.needsArm64x(t.line, listOf(ComponentsManager.arm64x(context, t.p, t.comp))) &&
+                    !ComponentsManager.packageArm64x(context, current, t.comp)) continue
                 runCatching { ComponentsManager.swap(context, t.p.id, current) }.onFailure { Log.w(TAG, "${t.p.name} ${t.key}", it) }
             }
         }
