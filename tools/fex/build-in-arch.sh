@@ -36,7 +36,14 @@ CONF
 fi
 
 rm -rf fex-src out && git clone -q --depth 1 --branch "$VERSION" --recurse-submodules --shallow-submodules https://github.com/FEX-Emu/FEX.git fex-src
-for p in tools/fex/patches/*.patch; do patch -d fex-src -p1 --no-backup-if-mismatch < "$p"; done
+for p in tools/fex/patches/*.patch; do
+  upstream=$(sed -n 's/^Fixed-upstream: FEX-\([0-9]\{4\}\)$/\1/p' "$p")
+  if [ -n "$upstream" ] && [ "${VERSION#FEX-}" -ge "$upstream" ]; then
+    echo "$(basename "$p"): already in FEX-$upstream, skipped for $VERSION"
+    continue
+  fi
+  patch -d fex-src -p1 --no-backup-if-mismatch < "$p"
+done
 if [ "$THUNKS" = 1 ]; then
   for t in fex-src/Data/CMake/toolchain_x86_64.cmake fex-src/Data/CMake/toolchain_x86_32.cmake; do
     printf '\nif (X86_DEV_ROOTFS AND NOT X86_DEV_ROOTFS STREQUAL "/")\n  set(CMAKE_SYSROOT "${X86_DEV_ROOTFS}")\nendif()\n' >> "$t"
