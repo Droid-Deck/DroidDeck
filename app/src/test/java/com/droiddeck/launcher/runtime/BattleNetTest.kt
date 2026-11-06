@@ -3,6 +3,7 @@ package com.droiddeck.launcher.runtime
 import android.content.Context
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.GameEnvironmentStore
+import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.InstalledStoreGame
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreGameSidecar
@@ -386,6 +387,32 @@ class BattleNetTest {
         assertEquals(oldGame, StoresState.pickInstalled(Store.BATTLENET, "diablo3", legacy, records))
         assertEquals("d3cn", BattleNetInstall.installUid(context, chinaGame))
         assertEquals("diablo3", BattleNetInstall.installUid(context, oldGame))
+        val missing = File(china, "missing")
+        assertNull(StoresState.pickInstalled(Store.BATTLENET, "diablo3", missing, records))
+        assertNull(BattleNetInstall.installUid(context, InstalledStoreGame(sidecar, missing)))
+    }
+
+    @Test fun aCancelledInstallRecoversTheMappedUidFromTheDriverCache() {
+        val item = CatalogItem(Store.BATTLENET, "osi", "Diablo II: Resurrected", null)
+        val file = File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/battlenet/agent-osi.uid")
+        file.parentFile!!.mkdirs()
+        file.writeBytes("\uFEFFosic".toByteArray(Charsets.UTF_16LE))
+        assertEquals("osic", BattleNetInstall.cachedUid(context, item))
+        BattleNetInstall.clearCachedUid(context, item)
+        assertNull(BattleNetInstall.cachedUid(context, item))
+    }
+
+    @Test fun theTitlePicksBetweenWarcraftFlavorsInOneFolder() {
+        val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent").mkdirs()
+        val wow = File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/World of Warcraft")
+        wow.mkdirs()
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").writeBytes(message(
+            field(1, message(field(1, "wow"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/World of Warcraft"))))),
+            field(1, message(field(1, "wow_classic"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/World of Warcraft"))))),
+        ))
+        val sidecar = StoreGameSidecar(Store.BATTLENET, "wow_classic", "World of Warcraft Classic", "")
+        assertEquals("wow_classic", BattleNetInstall.installUid(context, InstalledStoreGame(sidecar, wow)))
     }
 
     @Test fun aGamesShortcutHasBattleNetLaunchItInItsPrefix() {

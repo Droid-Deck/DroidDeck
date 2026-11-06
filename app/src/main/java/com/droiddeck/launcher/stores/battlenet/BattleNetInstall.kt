@@ -121,27 +121,51 @@ object BattleNetInstall {
     fun update(context: Context, game: InstalledStoreGame) {
         val app = context.applicationContext
         Thread({
-            val item = CatalogItem(
-                Store.BATTLENET, game.sidecar.id, game.sidecar.title, game.sidecar.hero, tallImageUrl = game.sidecar.cover, owned = true,
-                extra = mapOf(INSTALL_UID to installUid(app, game)),
-            )
-            game.folder.parentFile?.parentFile?.let { com.droiddeck.launcher.stores.download.SavedQueue.remember(app, item, it) }
-            enqueue(app, item, game.folder, update = true)
+            val uid = installUid(app, game)
+            if (uid == null) {
+                Log.w(TAG, "no Battle.net install matches ${game.folder}")
+            } else {
+                val item = CatalogItem(
+                    Store.BATTLENET, game.sidecar.id, game.sidecar.title, game.sidecar.hero, tallImageUrl = game.sidecar.cover, owned = true,
+                    extra = mapOf(INSTALL_UID to uid),
+                )
+                game.folder.parentFile?.parentFile?.let { com.droiddeck.launcher.stores.download.SavedQueue.remember(app, item, it) }
+                enqueue(app, item, game.folder, update = true)
+            }
         }, "battlenet-update").start()
     }
 
     internal const val INSTALL_UID = "installUid"
 
-    internal fun installUid(context: Context, game: InstalledStoreGame): String {
+    internal fun installUid(context: Context, game: InstalledStoreGame): String? {
         val games = runCatching { BattleNet.games(context) }.getOrDefault(emptyList())
         val folder = game.folder.absolutePath
-        return (games.firstOrNull { it.folder.absolutePath == folder } ?: games.firstOrNull { it.uid == game.sidecar.id })
-            ?.installUid ?: game.sidecar.id
+        val sameTitle = games.filter { it.uid == game.sidecar.id }
+        return (sameTitle.firstOrNull { it.folder.absolutePath == folder } ?: sameTitle.singleOrNull())?.installUid
+    }
+
+    private fun cachedUidFile(context: Context, item: CatalogItem): File {
+        val original = item.extra[INSTALL_UID] ?: BattleNet.title(item.id)?.uid ?: item.id
+        return File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/battlenet/agent-$original.uid")
+    }
+
+    internal fun clearCachedUid(context: Context, item: CatalogItem) {
+        runCatching { cachedUidFile(context, item).delete() }
+    }
+
+    internal fun cachedUid(context: Context, item: CatalogItem): String? {
+        val bytes = runCatching { cachedUidFile(context, item).readBytes() }.getOrNull() ?: return null
+        val text = runCatching {
+            if (bytes.size >= 2 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xFE.toByte()) String(bytes, Charsets.UTF_16LE)
+            else String(bytes, Charsets.UTF_8)
+        }.getOrNull() ?: return null
+        return text.removePrefix("\uFEFF").trim().takeIf { it.matches(Regex("[a-z0-9_]{1,32}")) }
     }
 
     fun uninstall(context: Context, game: InstalledStoreGame): Boolean {
         if (product(game.sidecar.id) == null || !BattleNet.installed(context)) return false
-        val done = agentUninstall(context, installUid(context, game))
+        val uid = installUid(context, game) ?: return false
+        val done = agentUninstall(context, uid)
         if (done) StoresState.post { StoresState.notifyLibraryChanged(context.applicationContext) }
         return done
     }
@@ -268,6 +292,7 @@ internal class BattleNetInstaller(
     private var kept = -1L
 
     override fun run(handle: DownloadQueue.JobHandle): String? {
+        if (!cancelled.get()) BattleNetInstall.clearCachedUid(app, item)
         started.set(true)
         try {
             return if (cancelled.get()) null else work(handle)
@@ -330,16 +355,18 @@ internal class BattleNetInstaller(
     override fun cancel(deleteFiles: Boolean) {
         cancelled.set(true)
         if (!deleteFiles || update) return
-        val registered = runCatching {
-            BattleNet.games(app).firstOrNull { it.folder.absolutePath == folder.absolutePath }?.installUid
-        }.getOrNull()
-        val uid = effectiveUid ?: item.extra[BattleNetInstall.INSTALL_UID] ?: registered
-            ?: BattleNet.title(item.id)?.uid ?: return
         Thread({
-            if (started.get() && !ended.await(END_WAIT_S, TimeUnit.SECONDS)) Log.w("BattleNetInstall", "the cancelled install of $uid is still stopping")
-            val gone = BattleNetInstall.agentUninstall(app, uid)
+            if (started.get() && !ended.await(END_WAIT_S, TimeUnit.SECONDS)) Log.w("BattleNetInstall", "the cancelled install is still stopping")
+            val registered = runCatching {
+                BattleNet.games(app).firstOrNull {
+                    it.uid == item.id && it.folder.absolutePath == folder.absolutePath
+                }?.installUid
+            }.getOrNull()
+            val cached = if (started.get()) BattleNetInstall.cachedUid(app, item) else null
+            val uid = effectiveUid ?: item.extra[BattleNetInstall.INSTALL_UID] ?: cached ?: registered
+            val gone = uid?.let { BattleNetInstall.agentUninstall(app, it) } ?: false
             if (folder.isDirectory && (gone || folder.list().isNullOrEmpty())) com.droiddeck.launcher.core.FileUtils.delete(folder)
-            Log.i("BattleNetInstall", "cancelled install of $uid: ${if (gone) "removed" else "left for Battle.net to remove"}")
+            Log.i("BattleNetInstall", "cancelled install of ${uid ?: "an unstarted job"}: ${if (gone) "removed" else "left for Battle.net to remove"}")
         }, "battlenet-cancel").start()
     }
 }

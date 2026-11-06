@@ -83,7 +83,7 @@ D3 的 `d3` 构建就是这个状态；把目录重命名后装的 D2R `osi` 是
 - `BattleNet.kt`：`CN_UIDS` 改为带 code/product 的别名；`s2_cn` 带 product `s2c`，`osic` 带 product `osic`，新增 `d3cn` → `diablo3`（code `D3CN`，product `d3cn`）；删除独立的 `d3cn` 标题，`STORE`/`fetchCovers` 去掉 `d3cn` 过滤；`notInstalled()` 改为按 store uid 比较；别名保留 `flavor`。
 - `BattleNetInstall.kt`：新增 `chinaProduct()`（`osi→osic`、`s2→s2c`、`diablo3→d3cn`）；`check()` 在 `.build.info` 的 branch 为 `cn` 时用它构造 version URL。
 - `droiddeck-battlenet`：新增 `CHINA` / `CHINA_PRODUCT` 表（`s2: "s2c"`）；`zone == cn` 的所有 install 都发送 `CHN`/`CN`，不再只对四个映射商品生效；`s2_cn` 有独立仓库、`anbs_cn` 共用 `anbs`。
-- `BattleNetInstall.kt` / `StoresState` / `GameDetail` / `GameRemoval`：更新/卸载/移除按 `InstalledStoreGame.folder` 选对应的安装，避免两个 `diablo3` 记录串台；驱动通过 `BNET_UID` 回传映射后的 uid，取消安装时用它卸载。
+- `BattleNetInstall.kt` / `StoresState` / `GameDetail` / `GameRemoval`：更新/卸载/移除按 `InstalledStoreGame.folder` 和标题选对应的安装；folder 匹配不到时不再回退到另一个安装，歧义时拒绝操作。驱动通过 `BNET_UID` 回传映射后的 uid；取消失败时从 `.uid` 缓存恢复，且不再回退到 catalog uid。
 - 测试：`BattleNetTest` 覆盖 `osic`/`s2_cn`/`anbs_cn`/`d3cn` 的 product 与 locale 后缀、以及两个 `diablo3` 安装按目录选择；`BattleNetInstallTest` 覆盖 `chinaProduct()`、`s2c` URL 和 `osi`/`osic`、`s2`/`s2c`、`anbs` 的 versions 行内容；`test_battlenet.py` 覆盖驱动映射、`CHN`/`CN` 和 `BNET_UID`。
 
 ## 仍未覆盖
@@ -169,9 +169,11 @@ cannot migrate the build because the BuildConfig and product differ.
   (`osic`, `s2c`, `d3cn`); other regions are unchanged.
 - **Installation identity**: a game detail opened from a shortcut selects the installed record by its
   folder, and update/uninstall resolve the Agent uid from that folder. Two Diablo III records that
-  share `diablo3` no longer target each other.
-- **Cancellation**: the driver reports the effective uid after China mapping, and a cancelled install
-  uninstalls that uid instead of the original catalog uid.
+  share `diablo3`, or two WoW flavors in one folder, no longer target each other. A supplied folder
+  that matches nothing does not fall back to another installation; ambiguous updates/uninstalls stop.
+- **Cancellation**: the driver reports the effective uid after China mapping. If that report is lost,
+  cancellation reads the driver's `.uid` cache after the worker stops; it never falls back to the
+  original catalog uid, so a queued install cannot uninstall a legacy copy.
 
 ### Testing
 

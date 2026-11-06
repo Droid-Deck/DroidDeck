@@ -141,7 +141,8 @@ object StoresState {
         store: Store, id: String, folder: java.io.File?, candidates: List<InstalledStoreGame>,
     ): InstalledStoreGame? {
         val matches = candidates.filter { it.sidecar.store == store && it.sidecar.id == id }
-        return folder?.let { chosen -> matches.firstOrNull { it.folder.absolutePath == chosen.absolutePath } } ?: matches.firstOrNull()
+        if (folder != null) return matches.firstOrNull { it.folder.absolutePath == folder.absolutePath }
+        return matches.firstOrNull()
     }
 
     fun detailItem(store: Store, id: String): CatalogItem? = detailCatalogItem(
