@@ -72,6 +72,7 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
@@ -86,6 +87,7 @@ import com.droiddeck.launcher.session.ComponentUpdates
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.ComponentsManager.CatalogItem
 import com.droiddeck.launcher.session.ComponentsManager.Snapshot
+import com.droiddeck.launcher.session.ProtonExtras
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.rememberCoroutineScope
@@ -165,6 +167,7 @@ fun ComponentsPage(
     protons: ProtonsState = ProtonsState(),
     protonActions: ProtonsActions = ProtonsActions(),
     protonOptions: @Composable () -> Unit = {},
+    onSourcesChanged: (String) -> Unit = { onRefresh() },
     compModes: Map<String, String> = emptyMap(),
     compAuto: Map<String, List<ComponentUpdater.Status>> = emptyMap(),
     compAutoHeld: Set<String> = emptySet(),
@@ -608,11 +611,12 @@ fun ComponentsPage(
                 val available = availableRows(l, catalog, snapshot)
                 if (available.isEmpty()) EmptyLine(if (catalogAt == 0L) stringResource(R.string.comp_refresh_to_list) else stringResource(R.string.comp_nothing_new))
                 for ((stable, nightly) in available) {
-                    val d = if (nightly != null && nightlyPicked[stable.file] == true) nightly else stable
+                    val d = if (nightly != null && nightlyPicked[stable.id] == true) nightly else stable
                     GetLine(
-                        d.file.removeSuffix(".wcp"), "${d.release} · " + stringResource(R.string.common_size_mb, d.size / 1048576.0),
-                        progress = downloads[d.file], enabled = busy == null,
-                        channel = if (nightly != null) ({ ChannelToggle(d === nightly, enabled = busy == null) { nightlyPicked[stable.file] = d !== nightly } }) else null,
+                        d.file.removeSuffix(".wcp"), "${d.repository} · ${d.release} · " + stringResource(R.string.common_size_mb, d.size / 1048576.0),
+                        progress = downloads[d.id], enabled = busy == null,
+                        channel = if (nightly != null) ({ ChannelToggle(d === nightly, enabled = busy == null,
+                            modifier = Modifier.testTag("component-channel:${stable.id}")) { nightlyPicked[stable.id] = d !== nightly } }) else null,
                     ) { onDownload(d) }
                 }
             }
@@ -756,6 +760,24 @@ fun ComponentsPage(
                     fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 val refreshing = checking || gpu.checking
+                RepositorySourcesButton(
+                    scopeKey = when (layer) {
+                        GPU_TAB -> gpu.sourceKey
+                        PROTON_TAB -> ProtonExtras.SOURCE_SCOPE
+                        else -> ComponentsManager.sourceScope(layer)
+                    },
+                    builtIns = when (layer) {
+                        GPU_TAB -> gpu.sourceBuiltIns
+                        PROTON_TAB -> ProtonExtras.sourceBuiltIns()
+                        else -> ComponentsManager.sourceBuiltIns(layer)
+                    },
+                    enabled = downloads.isEmpty() &&
+                        gpu.linuxDownloads.none { it.progress != null } &&
+                        gpu.androidDownloads.none { it.progress != null } &&
+                        busy == null && gpu.busy == null &&
+                        (layer != PROTON_TAB || protons.busyId == null),
+                    onSaved = { if (layer == GPU_TAB) gpuActions.onSourcesChanged() else onSourcesChanged(layer) },
+                )
                 ToolIcon(Icons.Outlined.Refresh, stringResource(R.string.comp_check_all), busy = refreshing, enabled = !refreshing && gpu.busy == null) {
                     onRefresh(); gpuActions.onRefresh()
                 }
@@ -888,6 +910,7 @@ fun ComponentsPage(
                         status = gpu.releaseStatus, checking = gpu.checking, checkedAt = gpu.checkedAt, importLabel = stringResource(R.string.comp_import_turnip), canRestore = false,
                         onSelect = gpuActions.onSelectLinux, onDelete = gpuActions.onRemoveLinux, onRefresh = gpuActions.onRefresh,
                         onDownload = gpuActions.onDownloadDriver, onImport = gpuActions.onImportLinux, onRestore = {}, onBack = { driverPage = null },
+                        sourceKey = gpu.sourceKey, sourceBuiltIns = gpu.sourceBuiltIns, onSourcesChanged = gpuActions.onSourcesChanged,
                     )
                     else DriverPage(
                         title = stringResource(R.string.comp_display_driver), hint = stringResource(R.string.comp_display_driver_hint),
@@ -897,6 +920,7 @@ fun ComponentsPage(
                         onSelect = gpuActions.onSelectAndroid, onDelete = gpuActions.onRemoveAndroid, onRefresh = gpuActions.onRefresh,
                         onDownload = gpuActions.onDownloadDriver, onImport = gpuActions.onImportAndroid, onRestore = gpuActions.onRestoreBundled,
                         onBack = { driverPage = null },
+                        sourceKey = gpu.sourceKey, sourceBuiltIns = gpu.sourceBuiltIns, onSourcesChanged = gpuActions.onSourcesChanged,
                     )
                 }
             }
@@ -970,7 +994,7 @@ private fun installedFor(l: String, view: ComponentsManager.ProtonView?, snapsho
 
 private fun availableFor(l: String, catalog: List<CatalogItem>, snapshot: Snapshot?): List<CatalogItem> {
     val stored = (snapshot?.packages ?: emptyList()).map { it.file }.toSet()
-    return catalog.filter { it.comp == l && ComponentsManager.safeName(it.file) !in stored }
+    return catalog.filter { it.comp == l && it.localFile !in stored }
 }
 
 private fun availableRows(l: String, catalog: List<CatalogItem>, snapshot: Snapshot?): List<Pair<CatalogItem, CatalogItem?>> {
@@ -1524,7 +1548,7 @@ private fun GetLine(
 }
 
 @Composable
-private fun ChannelToggle(nightly: Boolean, enabled: Boolean, onFlip: () -> Unit) {
+private fun ChannelToggle(nightly: Boolean, enabled: Boolean, modifier: Modifier = Modifier, onFlip: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
@@ -1532,7 +1556,7 @@ private fun ChannelToggle(nightly: Boolean, enabled: Boolean, onFlip: () -> Unit
     val state = stringResource(if (nightly) R.string.comp_channel_nightly else R.string.comp_channel_stable)
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp),
-        modifier = Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp))
+        modifier = modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp))
             .background(colors.surfaceVariant)
             .glideBorder(hot, RoundedCornerShape(10.dp), colors.onBackground, pal.line2, restWidth = 2.dp)
             .hoverable(src).toggleable(value = nightly, interactionSource = src, indication = null, enabled = enabled, role = Role.Switch, onValueChange = { onFlip() })

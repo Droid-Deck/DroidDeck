@@ -2193,8 +2193,16 @@ class FrontEndActivity : ComponentActivity() {
             onDeleteOriginal = { version -> components.compProton?.let { pid -> components.componentAction(getString(R.string.comp_busy_deleting)) { ComponentsManager.deleteOriginal(this, pid, components.compComp, version) } } },
             onDownload = { components.downloadComponent(it) },
             onRefresh = {
-                components.refreshComponentCatalog()
+                val feedback = SharedRefreshFeedback { message ->
+                    android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
+                }
+                components.refreshComponentCatalog(onComplete = feedback::complete)
+                protons.checkUpdates(force = true, onComplete = feedback::complete)
                 if (components.compModes.values.any { it == ComponentUpdates.AUTO }) components.checkComponentUpdates(force = true)
+            },
+            onSourcesChanged = { layer ->
+                if (layer == com.droiddeck.launcher.ui.PROTON_TAB) protons.sourcesChanged()
+                else components.sourcesChanged(layer)
             },
             compModes = components.compModes,
             compAuto = components.compAuto,
@@ -2212,7 +2220,7 @@ class FrontEndActivity : ComponentActivity() {
                 onAuto = { on -> drivers.setMode(on) },
                 onPair = { key -> drivers.selectPair(key) },
                 onPairUpdate = { key -> drivers.updatePair(key) },
-                onRefresh = { if (drivers.mode == SessionPrefs.GPU_DRIVERS_AUTO) drivers.ensureAuto(force = true) else drivers.checkLatestTurnip() },
+                onRefresh = { drivers.refreshSources() },
                 onSelectLinux = { id -> drivers.selectDriver(id, linux = true) },
                 onSelectAndroid = { id -> drivers.selectDriver(id, linux = false) },
                 onRemoveLinux = { id -> drivers.deleteDriver(id, linux = true) },
@@ -2224,6 +2232,7 @@ class FrontEndActivity : ComponentActivity() {
                 onRestoreBundled = { TurnipDriver(this).restoreBundled(); drivers.refreshDrivers() },
                 onMode = { m -> drivers.chooseMode(m) },
                 onRestart = { drivers.restartApp() },
+                onSourcesChanged = { drivers.sourcesChanged() },
                 onTpUbwcMode = { drivers.chooseTpUbwcMode(it) },
             ),
             protons = com.droiddeck.launcher.ui.ProtonsState(
@@ -2232,7 +2241,7 @@ class FrontEndActivity : ComponentActivity() {
             ),
             protonActions = com.droiddeck.launcher.ui.ProtonsActions(
                 onInstall = { id -> protons.installProton(id) },
-                onCancel = { id -> ProtonExtras.tools.firstOrNull { it.id == id }?.let { ProtonExtras.unqueue(this, it) }; protons.refreshProtons() },
+                onCancel = { id -> ProtonExtras.displayTools(this).firstOrNull { it.id == id }?.let { ProtonExtras.unqueue(this, it) }; protons.refreshProtons() },
                 onRemove = { id, dir -> protons.removeProton(id, dir) },
                 onRemoveOlder = { id -> protons.removeProton(id, older = true) },
             ),

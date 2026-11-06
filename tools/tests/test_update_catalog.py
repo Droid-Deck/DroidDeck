@@ -1,11 +1,19 @@
+import base64
+import contextlib
+import io
+import json
 import unittest
+from unittest.mock import Mock, patch
 
 from tools.release.update_catalog import (
+    ApiError,
     asset_for_suffix,
     ci_description,
+    current_file,
     parse_gradle,
     parse_variants,
     published_millis,
+    publish_catalog,
     preview_history_entry,
     recent_previews,
     release_body_value,
@@ -14,6 +22,57 @@ from tools.release.update_catalog import (
 
 
 class UpdateCatalogTest(unittest.TestCase):
+    def test_current_file_uses_repository_default_branch_without_ref(self):
+        ci = Mock()
+        current_file(ci, "example/fork", "catalog.json")
+        ci.get.assert_called_once_with("/repos/example/fork/contents/catalog.json")
+
+    def test_current_file_encodes_explicit_branch_as_one_query_value(self):
+        ci = Mock()
+        current_file(ci, "example/fork", "catalog.json", "release/Updates+%2F")
+        ci.get.assert_called_once_with(
+            "/repos/example/fork/contents/catalog.json?ref=release%2FUpdates%2B%252F"
+        )
+
+    def test_publish_catalog_reads_and_writes_the_same_branch_selection(self):
+        catalog = {"schema": 1, "generatedAt": 2, "preview": {"commit": "b" * 40}}
+        old_catalog = {**catalog, "preview": {"commit": "a" * 40}}
+        for branch in (None, "dev", "release/Updates+%2F"):
+            with self.subTest(branch=branch):
+                ci = Mock()
+                ci.get.return_value = {
+                    "sha": "old-catalog-blob",
+                    "content": base64.b64encode(json.dumps(old_catalog).encode()).decode(),
+                }
+                ci.put.return_value = {
+                    "content": {"html_url": "https://github.com/example/fork/blob/dev/catalog.json"}
+                }
+                with patch("tools.release.update_catalog.build_catalog", return_value=catalog), \
+                        contextlib.redirect_stdout(io.StringIO()) as output:
+                    self.assertEqual(catalog, publish_catalog(Mock(), ci, "example/app", "example/fork", "catalog.json", branch))
+                endpoint, body = ci.put.call_args.args
+                self.assertEqual("/repos/example/fork/contents/catalog.json", endpoint)
+                self.assertEqual("old-catalog-blob", body["sha"])
+                self.assertEqual(catalog, json.loads(base64.b64decode(body["content"])))
+                if branch is None:
+                    self.assertNotIn("branch", body)
+                    ci.get.assert_called_once_with(endpoint)
+                else:
+                    self.assertEqual(branch, body["branch"])
+                    self.assertIn("?ref=", ci.get.call_args.args[0])
+                self.assertIn(ci.put.return_value["content"]["html_url"], output.getvalue())
+
+    def test_missing_explicit_branch_never_falls_back_to_default(self):
+        ci = Mock()
+        ci.get.side_effect = ApiError(404, "branch not found")
+        ci.put.side_effect = ApiError(404, "branch not found")
+        with patch("tools.release.update_catalog.build_catalog", return_value={"schema": 1}):
+            with self.assertRaises(ApiError):
+                publish_catalog(Mock(), ci, "example/app", "example/fork", "catalog.json", "missing")
+        ci.get.assert_called_once_with("/repos/example/fork/contents/catalog.json?ref=missing")
+        self.assertEqual("missing", ci.put.call_args.args[1]["branch"])
+        self.assertEqual(1, ci.put.call_count)
+
     def test_gradle_metadata(self):
         code, name = parse_gradle("""android {
     defaultConfig {

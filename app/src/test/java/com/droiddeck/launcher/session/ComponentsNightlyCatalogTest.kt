@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.session
 
+import com.droiddeck.launcher.artifact.RepositorySources
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -59,6 +60,21 @@ class ComponentsNightlyCatalogTest {
         assertEquals(mapOf(dxvk to nDxvkNewer), ComponentsManager.nightlyPairs(listOf(dxvk, nDxvkNewer, nDxvk)))
         assertEquals(mapOf(dxvk to nDxvkNewer), ComponentsManager.nightlyPairs(listOf(dxvk, nDxvk, nDxvkNewer)))
         assertEquals(emptyMap<Any, Any>(), ComponentsManager.nightlyPairs(listOf(item("dxvk-3.1-linux.wcp", "dxvk", "Dxvk-Linux"), nDxvk)))
+        val bannerSource = RepositorySources.source("the412banner/nightlies")
+        val ddSource = RepositorySources.source("droid-deck/droiddeck-components")
+        val builtInStable = dxvk.copy(sourceId = bannerSource.id, repository = bannerSource.repository)
+        val builtInNightly = nDxvk.copy(sourceId = ddSource.id, repository = ddSource.repository)
+        assertEquals(mapOf(builtInStable to builtInNightly), ComponentsManager.nightlyPairs(listOf(builtInStable, builtInNightly)))
+        assertEquals(emptyMap<Any, Any>(), ComponentsManager.nightlyPairs(listOf(
+            builtInStable, builtInNightly.copy(repository = "attacker/components"),
+        )))
+        val sourceA = RepositorySources.source("example/components-a")
+        val sourceB = RepositorySources.source("example/components-b")
+        val sourceAStable = dxvk.copy(sourceId = sourceA.id, repository = sourceA.repository)
+        val sourceANightly = nDxvk.copy(sourceId = sourceA.id, repository = sourceA.repository)
+        val sourceBNightly = nDxvk.copy(sourceId = sourceB.id, repository = sourceB.repository)
+        assertEquals(mapOf(sourceAStable to sourceANightly), ComponentsManager.nightlyPairs(listOf(sourceAStable, sourceANightly)))
+        assertEquals(emptyMap<Any, Any>(), ComponentsManager.nightlyPairs(listOf(sourceAStable, sourceBNightly)))
     }
 
     @Test

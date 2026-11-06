@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.artifact.RepositorySources
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.session.SessionPrefs
 import org.json.JSONObject
@@ -19,7 +20,17 @@ object DriverBundle {
 
     class Manifest(val name: String, val version: String, val tag: String, val androidPath: String, val linuxPath: String)
 
-    class Bundle(val id: String, val name: String, val version: String, val androidId: String, val linuxId: String) {
+    class Bundle(
+        val id: String,
+        val name: String,
+        val version: String,
+        val androidId: String,
+        val linuxId: String,
+        val sourceId: String = "",
+        val assetKey: String = "",
+        val pairKind: String = "",
+        val sha256: String = "",
+    ) {
         val label: String get() = if (version.isEmpty()) name else "$name $version"
     }
 
@@ -51,7 +62,9 @@ object DriverBundle {
         false
     }
 
-    fun install(context: Context, uri: Uri): Bundle {
+    fun install(context: Context, uri: Uri): Bundle = install(context, uri, null)
+
+    fun install(context: Context, uri: Uri, asset: TurnipReleases.Asset?): Bundle {
         val work = File(context.cacheDir, "bundle-${System.nanoTime()}")
         val td = TurnipDriver(context)
         val lm = LinuxVulkanDriverManager(context)
@@ -85,18 +98,24 @@ object DriverBundle {
                 throw e
             }
 
-            val base = LinuxVulkanDriverManager.sanitizeId(manifest.tag.ifEmpty { "${manifest.name}-${manifest.version}" })
-            get(context, base)?.takeIf { DriverPairs.isNonAdreno(it.id) }?.let { old ->
-                Log.i(TAG, "replacing bundle ${old.id} (display ${old.androidId}, runtime ${old.linuxId})")
-                remove(context, old)
-            }
+            val identity = manifest.tag.ifEmpty { "${manifest.name}-${manifest.version}" }
+            val base = LinuxVulkanDriverManager.sanitizeId(
+                asset?.sourceId?.takeIf { it.isNotEmpty() }?.let {
+                    "$identity-${RepositorySources.digest("$it:${asset.assetId}:${asset.sha256}")}"
+                } ?: identity,
+            )
             val saved = registry(context)
             var id = base
             var n = 2
             while (saved.contains(id)) id = "$base-${n++}"
-            val bundle = Bundle(id, manifest.name, manifest.version, androidId, linuxId)
+            val bundle = Bundle(
+                id, manifest.name, manifest.version, androidId, linuxId,
+                asset?.sourceId.orEmpty(), asset?.id.orEmpty(), asset?.pairKind.orEmpty(), asset?.sha256.orEmpty(),
+            )
             saved.edit().putString(id, JSONObject().put("name", bundle.name).put("version", bundle.version)
-                .put("android", androidId).put("linux", linuxId).toString()).apply()
+                .put("android", androidId).put("linux", linuxId).put("sourceId", bundle.sourceId)
+                .put("assetKey", bundle.assetKey).put("pairKind", bundle.pairKind)
+                .put("sha256", bundle.sha256).toString()).apply()
             Log.i(TAG, "installed bundle $id: display $androidId, runtime $linuxId")
             return bundle
         } catch (e: Exception) {
@@ -138,7 +157,10 @@ object DriverBundle {
         return registry(context).all.mapNotNull { (id, raw) ->
             runCatching {
                 val j = JSONObject(raw as String)
-                Bundle(id, j.getString("name"), j.optString("version"), j.getString("android"), j.getString("linux"))
+                Bundle(
+                    id, j.getString("name"), j.optString("version"), j.getString("android"), j.getString("linux"),
+                    j.optString("sourceId"), j.optString("assetKey"), j.optString("pairKind"), j.optString("sha256"),
+                )
             }.getOrNull()
         }.filter { td.isInstalled(it.androidId) && lm.isInstalled(it.linuxId) }.sortedBy { it.id }
     }
@@ -157,6 +179,25 @@ object DriverBundle {
     fun select(context: Context, bundle: Bundle) {
         SessionPrefs.setAndroidDriver(context, bundle.androidId)
         SessionPrefs.setLinuxDriver(context, bundle.linuxId)
+    }
+
+    fun finishRemoteReplacement(context: Context, bundle: Bundle, previousId: String? = null) {
+        if (bundle.sourceId.isEmpty() || bundle.pairKind.isEmpty() || !DriverPairs.isNonAdreno(bundle.pairKind)) return
+        val replaced = all(context).filter {
+            it.id != bundle.id && (
+                (it.sourceId == bundle.sourceId && it.pairKind == bundle.pairKind) ||
+                    (previousId != null && it.id == previousId)
+                )
+        }
+        if (replaced.isEmpty()) return
+        val selected = replaced.any {
+            SessionPrefs.androidDriver(context) == it.androidId && SessionPrefs.linuxDriver(context) == it.linuxId
+        }
+        if (selected) select(context, bundle)
+        replaced.forEach { previous ->
+            Log.i(TAG, "replacing bundle ${previous.id} (display ${previous.androidId}, runtime ${previous.linuxId})")
+            remove(context, previous)
+        }
     }
 
     fun remove(context: Context, bundle: Bundle) {
