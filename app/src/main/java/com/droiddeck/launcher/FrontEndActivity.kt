@@ -1230,10 +1230,10 @@ class FrontEndActivity : ComponentActivity() {
                                 Thread({
                                     val g = runCatching { com.droiddeck.launcher.stores.StoreLaunch.installedGame(app, store, id) }.getOrNull()
                                     runOnUiThread {
-                                        if (g != null) prepareAndLaunch(g, key)
+                                        if (g != null && !isFinishing && !isDestroyed) prepareAndLaunch(g, key)
                                         else {
                                             preparingGames = preparingGames - key
-                                            if (!isFinishing && !isDestroyed) android.widget.Toast.makeText(this, R.string.stores_launch_not_registered, android.widget.Toast.LENGTH_LONG).show()
+                                            if (g == null && !isFinishing && !isDestroyed) android.widget.Toast.makeText(this, R.string.stores_launch_not_registered, android.widget.Toast.LENGTH_LONG).show()
                                         }
                                     }
                                 }, "store-play").start()
