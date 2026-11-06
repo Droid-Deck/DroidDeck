@@ -41,6 +41,48 @@ reduced aggregate launcher RSS only from 263 to 255 MiB and backed off. Thus lau
 does not resolve this load failure, and this run did not exhaust swap. The unevictable/shmem
 growth needs allocation attribution before treating it as a driver or GPU-memory diagnosis.
 
+## Low-RAM devices: compressing idle game memory
+
+On devices with at most 13 GiB `MemTotal` (every 12 GB phone and handheld and below), the
+monitor also compresses the game session itself when memory runs out. The trigger is absolute
+headroom, not a percentage: Android's `lmkd` killed a session on a 7.5 GiB device with
+490 MiB still available, so a 95% used threshold (about 400 MiB left on 8 GB) is already past the
+kill. A world load added 1 GiB of GPU memory in about ten seconds, and compressing 1.4 GiB took
+2.6 seconds, so the request has to leave room for both.
+
+The session request runs when available memory falls below the headroom above (one fifth of
+RAM, bounded to 512–1536 MiB), or below one and a half times that with at least 1% `some avg10`
+memory stall. It sends the existing page-out request to every session process that loaded
+`libblsession.so` and is not a launcher process: the game, Wine and its services. While a game
+runs and available memory is under twice the headroom, memory is read every second instead of
+every five. Requests are at least 30 seconds apart and need the same swap reserve as launcher
+requests. When the session reads back more than half of what the previous request compressed,
+that memory was in use, and the wait doubles up to five minutes; a completed request after that
+resets it to 30 seconds. The state resets when the game exits. Devices above 13 GiB keep the
+launcher-only behaviour.
+
+Measured on a Retroid Pocket Duo (7.5 GiB, kernel 6.6, 6 GiB lzo-rle zram plus a 4 GiB swap file)
+entering the world in World of Warcraft: Forever, one run each:
+
+| | No session page-out | Session compressed at character select |
+| --- | --- | --- |
+| available before Enter World | 1,569–1,800 MiB | 2,329 MiB |
+| game resident / in zram before Enter World | 1,919 / 13 MiB | 409 / 1,523 MiB |
+| GPU (KGSL) memory during the load | 0.97 → 1.99 GiB | 0.96 → 1.99 GiB |
+| lowest available | 491 MiB | 623 MiB |
+| result | `LOW_MEMORY` kill of the whole session 58 s after Enter World | in the world at 35 FPS after three minutes |
+
+The killed run had 7.4 GiB of swap free at the time: reclaim did not keep up with the GPU
+allocation, not swap capacity. Little Nightmares at the same settings compressed from 1.41 GiB to
+0.25 GiB resident in 2.6 seconds (1.1 GiB stored in about 0.5 GiB of zram) and read back 70 MiB in
+the following minute at its menu and 440 MiB while loading the next area; frame rate stayed at
+44–46 FPS with one or two short frame-time spikes. These are single runs, not averages.
+
+Without root an app cannot write its memory cgroup's `memory.reclaim` (owned by `system`),
+`process_madvise` on another process returns `EPERM`, `PAGEMAP_SCAN` is absent before Linux 6.7,
+and KGSL's per-process GPU reclaim `state` is root-only. Page-out therefore runs inside each
+process through the preload, and GPU memory itself cannot be compressed from userspace.
+
 ## CRAM and the bounded pager experiment
 
 [Meta's CRAM proposal](https://lpc.events/event/20/contributions/2424/) uses memory compression

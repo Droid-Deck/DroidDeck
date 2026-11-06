@@ -137,5 +137,96 @@ echo "backoff:$_bl_pressure_backoff"
         self.assertEqual(['no'], self.run_policy('if bl_client_can_readback; then echo yes; else echo no; fi'))
 
 
+class SessionPressureTest(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+        self.memory()
+
+    def memory(self, available=1024, swap_free=6144, total=7168, swap_total=8192, psi='0.00'):
+        (self.root / 'meminfo').write_text(
+            f'MemTotal: {total * 1024} kB\nMemAvailable: {available * 1024} kB\n'
+            f'SwapTotal: {swap_total * 1024} kB\nSwapFree: {swap_free * 1024} kB\n')
+        (self.root / 'pressure').write_text(f'some avg10={psi} avg60=0.00 avg300=0.00 total=1234\n')
+
+    def run_policy(self, body):
+        functions = '\n'.join(function_source(name) for name in (
+            'bl_memory_read', 'bl_memory_tight', 'bl_memory_critical', 'bl_low_ram',
+            'bl_session_pressure', 'bl_watch_nap'))
+        functions = functions.replace('/proc/meminfo', str(self.root / 'meminfo'))
+        functions = functions.replace('/proc/pressure/memory', str(self.root / 'pressure'))
+        harness = '''
+set -u
+_bl_game=1 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_swap=0
+rss=$((1536 * 1024)) swap=0 pushed=$((1024 * 1024))
+step() { :; }
+nap() { echo "nap:$1"; }
+bl_session_others() { _bl_session=(321 654); }
+bl_zram_usage() { _bl_rss=$rss _bl_swap=$swap; }
+bl_zram_send() { echo "send:$1:$3"; rss=$((rss - pushed)); swap=$((swap + pushed)); _bl_pageout_complete=1; }
+''' + functions + '\nbl_memory_read\n' + body
+        result = run_bash(harness)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual('', result.stderr)
+        return result.stdout.splitlines()
+
+    def test_low_headroom_compresses_the_game_session_at_most_every_30_seconds(self):
+        self.assertEqual(['send:1:session', 'send:1:session'], self.run_policy('''
+SECONDS=0; bl_session_pressure
+SECONDS=10; bl_session_pressure
+SECONDS=29; bl_session_pressure
+SECONDS=30; bl_session_pressure
+'''))
+
+    def test_twelve_gigabyte_devices_are_included_and_larger_ones_are_not(self):
+        for total, expected in ((11264, ['send:1:session']), (12288, ['send:1:session']), (15360, [])):
+            with self.subTest(total=total):
+                self.memory(total=total)
+                self.assertEqual(expected, self.run_policy('bl_session_pressure'))
+
+    def test_no_game_does_not_compress_the_session(self):
+        self.assertEqual([], self.run_policy('_bl_game=0; bl_session_pressure'))
+
+    def test_enough_available_memory_does_not_compress_even_with_stalls(self):
+        self.memory(available=3072, psi='5.00')
+        self.assertEqual([], self.run_policy('bl_session_pressure'))
+
+    def test_stalls_with_moderate_headroom_compress_before_the_hard_limit(self):
+        self.memory(available=2048, psi='1.50')
+        self.assertEqual(['send:1:session'], self.run_policy('bl_session_pressure'))
+
+    def test_moderate_headroom_without_stalls_waits(self):
+        self.memory(available=2048)
+        self.assertEqual([], self.run_policy('bl_session_pressure'))
+
+    def test_game_reading_back_most_of_a_pageout_doubles_the_wait(self):
+        self.assertEqual(['send:1:session', 'backoff:60', 'send:1:session', 'backoff:30'], self.run_policy('''
+SECONDS=0; bl_session_pressure
+swap=$((swap / 4))
+SECONDS=30; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+SECONDS=60; bl_session_pressure
+SECONDS=90; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+'''))
+
+    def test_small_swap_headroom_skips_the_pageout(self):
+        self.memory(swap_free=1536, swap_total=2048)
+        self.assertEqual([], self.run_policy('bl_session_pressure'))
+
+    def test_small_session_is_left_alone(self):
+        self.assertEqual([], self.run_policy('rss=$((128 * 1024)); bl_session_pressure'))
+
+    def test_watch_polls_every_second_near_the_limit_and_stops_when_critical(self):
+        self.memory(available=2560)
+        self.assertEqual(['nap:1', 'nap:1', 'nap:1', 'nap:1', 'nap:1'], self.run_policy('bl_watch_nap'))
+        self.memory(available=1024)
+        self.assertEqual(['nap:1'], self.run_policy('_bl_available=$((2560 * 1024)); bl_watch_nap'))
+        self.memory(available=4096)
+        self.assertEqual(['nap:5'], self.run_policy('bl_watch_nap'))
+        self.assertEqual(['nap:5'], self.run_policy('_bl_game=0; bl_watch_nap'))
+
+
 if __name__ == '__main__':
     unittest.main()
