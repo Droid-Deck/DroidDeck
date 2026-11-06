@@ -136,6 +136,41 @@ class InputSourceOwnershipTest {
         } finally { surface.close() }
     }
 
+    @Test fun clearingOldDeckOwnerPreservesReplacementBindingsAndHeldKeys() {
+        val previous = InputRouter(RecordingOutput())
+        val output = RecordingOutput()
+        val replacement = InputRouter(output).also {
+            it.setProfile(InputProfile.defaults(InputProfile.GAME)
+                .withBinding(InputRole.PHYSICAL, InputControl.L4, InputAction.Keys(listOf(57))))
+        }
+        DeckControls.setRouter(previous)
+        DeckControls.setRouter(replacement)
+        DeckControls.setGrip(DeckControls.L4, true)
+        DeckControls.clearRouter(previous)
+        DeckControls.clearRouter(null)
+        assertEquals(listOf("key 57 true"), output.events)
+        DeckControls.setGrip(DeckControls.L4, false)
+        DeckControls.setGrip(DeckControls.L4, true)
+        assertEquals(listOf("key 57 true", "key 57 false", "key 57 true"), output.events)
+        assertEquals(0, JoyConPadTest.RecordingWriter.grips)
+    }
+
+    @Test fun clearingCurrentDeckOwnerReleasesItsKeysAndRemovesBindings() {
+        val output = RecordingOutput()
+        val router = InputRouter(output).also {
+            it.setProfile(InputProfile.defaults(InputProfile.GAME)
+                .withBinding(InputRole.PHYSICAL, InputControl.L4, InputAction.Keys(listOf(57))))
+        }
+        DeckControls.setRouter(router)
+        DeckControls.setGrip(DeckControls.L4, true)
+        DeckControls.clearRouter(router)
+        DeckControls.clearRouter(router)
+        DeckControls.setGrip(DeckControls.L4, false)
+        DeckControls.setGrip(DeckControls.L4, true)
+        assertEquals(listOf("key 57 true", "key 57 false"), output.events)
+        assertEquals(DeckControls.L4, JoyConPadTest.RecordingWriter.grips)
+    }
+
     @Test fun releasingAllKeepsPhysicalGripsBlockedUntilNeutral() {
         val router = InputRouter(RecordingOutput())
         bridge.setInputRouter(router)

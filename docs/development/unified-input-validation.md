@@ -42,6 +42,13 @@ Actual display captures and test reports are retained locally under
 `app/build/reports/input-publish/`. Screenshot publication is subject to the
 user's review. No new latency measurement was made for this UI revision.
 
+The follow-up router-ownership fix passed **47 tests** in `InputSourceOwnershipTest`,
+`InputSurfaceSourceTest`, and `InputRouterTest`, including two new regressions.
+An obsolete activity (or one without a router) cannot detach the replacement
+activity's Deck routes; the current owner still releases its held keys on cleanup.
+This follow-up changes teardown only and was not reinstalled or retested on Thor,
+which was no longer available over ADB after the screenshot pass.
+
 ## Input settings polish, 2026-11-06
 
 The final input/UI host run passed **941 tests in 124 suites, zero failures**.

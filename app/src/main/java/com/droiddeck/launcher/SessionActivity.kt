@@ -5115,7 +5115,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         padBridge?.setInputEnabled(false)
         physicalInputBindings?.close()
         padBridge?.stop()
-        DeckControls.setRouter(null)
+        DeckControls.clearRouter(inputRouter)
         inputRouter = null
         heldKeys.clear()
         heldButtons.clear()

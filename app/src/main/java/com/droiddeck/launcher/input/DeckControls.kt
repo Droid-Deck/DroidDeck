@@ -24,6 +24,11 @@ object DeckControls {
     }
 
     @Synchronized
+    fun clearRouter(owner: InputRouter?) {
+        if (owner != null && router === owner) setRouter(null)
+    }
+
+    @Synchronized
     @JvmOverloads
     fun source(role: InputRole, routed: Boolean = false) = Source(role, routed)
 
