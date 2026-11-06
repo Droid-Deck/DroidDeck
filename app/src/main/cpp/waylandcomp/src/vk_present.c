@@ -2028,6 +2028,16 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
     const int post_upscale = fx && fg && !hf && !cb && vkp_effects_upscaling() &&
                              !vkp_effects_postprocessing() &&
                              (upscale_w > input_w || upscale_h > input_h);
+    if (post_upscale) {
+        static int last_input_w, last_input_h, last_output_w, last_output_h;
+        if (input_w != last_input_w || input_h != last_input_h ||
+            upscale_w != last_output_w || upscale_h != last_output_h) {
+            droiddeck_log("framegen", "post-upscale: interpolate %dx%d, spatial filter each present to %dx%d",
+                          input_w, input_h, upscale_w, upscale_h);
+            last_input_w = input_w; last_input_h = input_h;
+            last_output_w = upscale_w; last_output_h = upscale_h;
+        }
+    }
     const int deep = hf && n > 0 && fg && g_swap_is_hdr && !hf->tonemap && vkp_framegen_format_ok(FG_HDR_FMT) &&
                      ensure_img(&g_fgscene, scene_w, scene_h, FG_HDR_FMT,
                                 VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
