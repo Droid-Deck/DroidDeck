@@ -14,6 +14,7 @@
 int bl_status_without_tracer(const char *path, int flags, const void *caller) __attribute__((visibility("hidden")));
 int bl_writable_retry(int dirfd, const char *path, int flags) __attribute__((visibility("hidden")));
 int bl_ntsync_open(const char *path, int flags) __attribute__((visibility("hidden")));
+const char *bl_oom_adj_redirect(const char *path, int writing) __attribute__((visibility("hidden")));
 int bl_venc_open(const char *path, int flags) __attribute__((visibility("hidden")));
 int bl_vdec_open(const char *path, int flags) __attribute__((visibility("hidden")));
 int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
@@ -53,6 +54,7 @@ int open(const char *path, int flags, ...) {
     errno = EACCES;
     return -1;
   }
+  path = bl_oom_adj_redirect(path, (flags & O_ACCMODE) != O_RDONLY);
   if ((fd = bl_status_without_tracer(path, flags, __builtin_return_address(0))) >= 0) return fd;
   if ((fd = bl_ntsync_open(path, flags)) != -2) return fd;
   if ((fd = bl_venc_open(path, flags)) != -2) return fd;
@@ -80,6 +82,7 @@ int openat(int dirfd, const char *path, int flags, ...) {
     errno = EACCES;
     return -1;
   }
+  path = bl_oom_adj_redirect(path, (flags & O_ACCMODE) != O_RDONLY);
   if ((fd = bl_status_without_tracer(path, flags, __builtin_return_address(0))) >= 0) return fd;
   if ((fd = bl_ntsync_open(path, flags)) != -2) return fd;
   if ((fd = bl_venc_open(path, flags)) != -2) return fd;

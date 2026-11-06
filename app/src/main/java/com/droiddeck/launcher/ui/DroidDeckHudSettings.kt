@@ -153,6 +153,8 @@ private val METRICS = listOf(
     HudMetric("FPS", "showFPS", R.string.drawer_hud_fps),
     HudMetric("FPS graph", "showFPSGraph", R.string.hud_metric_graph),
     HudMetric("FPS .1", "fpsDecimal", R.string.hud_metric_decimal),
+    HudMetric("1% low", "showLow1", R.string.hud_metric_low1),
+    HudMetric("0.1% low", "showLow01", R.string.hud_metric_low01),
     HudMetric("0.01% low", "showLow001", R.string.hud_metric_low001),
     HudMetric("Engine", "showEngine", R.string.hud_metric_engine),
     HudMetric("GPU model", "showGpuModel", R.string.hud_metric_gpu_model),
@@ -176,6 +178,6 @@ private val METRICS = listOf(
 private val HIDDEN = mapOf(
     DroidDeckHudSize.PILL to setOf("FPS", "FPS graph"),
     DroidDeckHudSize.MINIMAL to setOf("FPS"),
-    DroidDeckHudSize.TILES to setOf("FPS graph", "0.01% low"),
+    DroidDeckHudSize.TILES to setOf("FPS graph", "0.1% low", "0.01% low"),
     DroidDeckHudSize.STRIP to setOf("FPS"),
 )

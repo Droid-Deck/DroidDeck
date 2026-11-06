@@ -74,29 +74,36 @@ object StoresState {
 
     fun register(backend: StoreBackend) { backends[backend.store] = backend }
 
+    private val refreshRequests = java.util.concurrent.atomic.AtomicInteger()
+
     fun refresh(context: Context) {
         val app = context.applicationContext
         com.droiddeck.launcher.stores.download.SavedQueue.restore(app)
-        background("stores-refresh") {
-            runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetClient.syncAccount(app) }
-            val found = Store.entries.mapNotNull { store -> StoreAccounts.displayName(app, store)?.let { store to it } }
-            val onDisk = StoreInstallRoot.gameFolders(app).mapNotNull { folder ->
-                StoreGameSidecar.read(folder)?.takeIf { it.isInstalled || it.state == StoreGameSidecar.STATE_UPDATING }?.let { InstalledStoreGame(it, folder) }
-            } + runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetBackend.installedGames(app) }.getOrDefault(emptyList())
-            val partial = StoreInstallRoot.unfinished(app)
-            val version = if (StoresNative.available) StoresNative.version ?: "" else ""
-            main.post {
-                androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
-                    val restored = found.toMap()
-                    accounts.keys.toList().filter { it !in restored }.forEach { accounts.remove(it); libraryAsked.remove(it) }
-                    accounts.putAll(restored)
-                    installed = onDisk
-                    unfinished = partial
-                    engine = version
-                    accountsLoaded = true
+        if (refreshRequests.getAndIncrement() > 0) return
+        var seen = 0
+        background("stores-refresh", onFailure = { if (refreshRequests.getAndSet(0) > seen) main.post { refresh(app) } }) {
+            do {
+                seen = refreshRequests.get()
+                runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetClient.syncAccount(app) }
+                val found = Store.entries.mapNotNull { store -> StoreAccounts.displayName(app, store)?.let { store to it } }
+                val onDisk = StoreInstallRoot.gameFolders(app).mapNotNull { folder ->
+                    StoreGameSidecar.read(folder)?.takeIf { it.isInstalled || it.state == StoreGameSidecar.STATE_UPDATING }?.let { InstalledStoreGame(it, folder) }
+                } + runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetBackend.installedGames(app) }.getOrDefault(emptyList())
+                val partial = StoreInstallRoot.unfinished(app)
+                val version = if (StoresNative.available) StoresNative.version ?: "" else ""
+                main.post {
+                    androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
+                        val restored = found.toMap()
+                        accounts.keys.toList().filter { it !in restored }.forEach { accounts.remove(it); libraryAsked.remove(it) }
+                        accounts.putAll(restored)
+                        installed = onDisk
+                        unfinished = partial
+                        engine = version
+                        accountsLoaded = true
+                    }
+                    com.droiddeck.launcher.stores.gog.GogMaintenance.checkInstalled(app, onDisk)
                 }
-                com.droiddeck.launcher.stores.gog.GogMaintenance.checkInstalled(app, onDisk)
-            }
+            } while (!refreshRequests.compareAndSet(seen, 0))
         }
     }
 
@@ -206,6 +213,7 @@ object StoresState {
             main.post {
                 if (store == Store.XBOX && StoreAccounts.signedInAs(app, store) != null) return@post
                 accounts.remove(store); library.remove(store); status.remove(store); problems.remove(store); libraryAsked.remove(store)
+                if (store == Store.GOG) com.droiddeck.launcher.stores.gog.GogMaintenance.reset()
                 logLine("${store.label}: signed out")
             }
         }

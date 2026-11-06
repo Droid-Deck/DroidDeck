@@ -6,6 +6,7 @@ import subprocess
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 from unittest import mock
 from zipfile import ZipFile
 
@@ -20,6 +21,10 @@ class RuntimeInputsTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        # Component archive validation has its own binary/archive fixtures.
+        component_check = patch.object(runtime, 'verify_powervr')
+        component_check.start()
+        self.addCleanup(component_check.stop)
         paths = runtime.outputs(self.root)
         for name in runtime.required():
             path = self.root / paths.get(name, 'app/src/main/' + name)
@@ -115,6 +120,20 @@ class RuntimeInputsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'quest1.tzst'):
             runtime.record(self.root)
 
+    def test_changed_powervr_wrapper_rejects_old_outputs(self):
+        wrapper = self.root / 'tools/hybris/run-proton.py'
+        wrapper.parent.mkdir(parents=True)
+        wrapper.write_text('current wrapper')
+        runtime.record(self.root)
+        wrapper.write_text('changed wrapper')
+        with self.assertRaisesRegex(ValueError, 'sources changed'):
+            runtime.verify(self.root)
+
+    def test_missing_powervr_bundle_cannot_be_attested(self):
+        (self.root / 'app/src/main/assets/hybris/runtime.tzst').unlink()
+        with self.assertRaisesRegex(ValueError, 'assets/hybris/runtime.tzst'):
+            runtime.record(self.root)
+
     def test_modified_prebuilt_binary_is_rejected(self):
         runtime.record(self.root)
         (self.root / 'app/src/main/jniLibs/arm64-v8a/libproot.so').write_bytes(b'old APK binary')
@@ -158,6 +177,11 @@ class RuntimeInputsTest(unittest.TestCase):
     def test_an_apk_still_carrying_a_packed_tree_is_rejected(self):
         apk = self.current_apk(self.root / 'bundled.apk', {'assets/linuxfs/usr/local/lib/droiddeck-xbox/xodus-cli': b'prepared runtime'})
         with self.assertRaisesRegex(ValueError, 'xbox pack provides'):
+            runtime.check_apk(apk, self.root)
+
+    def test_an_apk_still_carrying_the_powervr_runtime_is_rejected(self):
+        apk = self.current_apk(self.root / 'bundled.apk', {'assets/hybris/runtime.tzst': b'runtime'})
+        with self.assertRaisesRegex(ValueError, 'powervr pack provides'):
             runtime.check_apk(apk, self.root)
 
     def test_an_apk_still_carrying_tracking_libraries_is_rejected(self):

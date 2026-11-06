@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s，透過 FEX</string>
     <string name="app_fex_not_ready">此程式是為 %1$s 電腦而設，需透過 FEX 執行，但 FEX 尚未設定。請在登入狀態下開啟一次 Steam：DroidDeck 會讓它下載 FEX 及所需的 Steam Linux Runtime，之後便會開啟此程式。</string>
     <string name="session_proot_missing">無法下載 DroidDeck 的 proot。請檢查連線後再試一次。會話未啟動，因為備用 proot 太慢，無法用來玩遊戲。</string>
+    <string name="session_powervr_missing">無法下載 PowerVR 圖形環境。請檢查網絡連線後再試。</string>
     <string name="session_directaudio_missing">無法下載 DirectAudio，因此本次會話的遊戲音訊會使用較慢的路徑。</string>
     <string name="session_end_program">此程式</string>
     <string name="session_end_steam_download">無法下載 Steam 用戶端。你的網絡或 VPN 可能封鎖了 Steam 的伺服器；請檢查連線後再試。</string>
@@ -583,7 +584,7 @@
     <string name="perf_ram_cap_hint">在 Steam 用戶端執行時生效，無論是 Steam 模式或從桌面啟動。當會話的用量超過此值時，會先將 Steam、再將會話中其他受支援的程序壓縮到 zRAM。這是軟性上限：不會關閉任何程式，但在分頁讀回時遊戲可能會卡頓。</string>
     <string name="perf_ram_cap_unavailable">需要 zRAM 交換空間，但此裝置沒有。</string>
     <string name="perf_vram_cap">VRAM 上限</string>
-    <string name="perf_vram_cap_hint">DXVK 向 Direct3D 遊戲回報的顯示記憶體，讓遊戲以較少的量規劃紋理。遊戲本身的 DXVK 設定仍優先。下次會話生效。</string>
+    <string name="perf_vram_cap_hint">向 Direct3D 9 至 12 遊戲報告此顯存預算，以促使遊戲減少記憶體用量。遊戲可能超出預算；此功能不提供 GPU 分頁，也不保證避免因記憶體不足而崩潰。下次工作階段生效。</string>
     <string name="perf_gpuclock">讓 GPU 保持最高頻率</string>
     <string name="perf_gpuclock_hint">只限 Adreno。減少卡頓，但更耗電、更發熱。</string>
     <string name="perf_fixes">會話修正</string>
@@ -668,6 +669,8 @@
     <string name="hud_group_metrics">讀數</string>
     <string name="hud_metric_graph">幀時間圖表</string>
     <string name="hud_metric_decimal">幀率顯示小數</string>
+    <string name="hud_metric_low1">1% 最低幀</string>
+    <string name="hud_metric_low01">0.1% 最低幀</string>
     <string name="hud_metric_low001">0.01% 最低幀</string>
     <string name="hud_metric_engine">圖形引擎</string>
     <string name="hud_metric_gpu_model">GPU 名稱</string>
@@ -808,7 +811,7 @@
     <string name="setup_gpu_unsupported">GPU 不受支援</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s：%2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam 需要 Adreno 驅動程式；%1$s 可能會出現黑畫面</string>
+    <string name="setup_gpu_unsupported_detail">沒有可用的兼容圖形後端；%1$s 可能會出現黑畫面</string>
     <string name="setup_runtime">Linux 運行環境</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">未安裝 · 約 3 GB，首次開啟 Steam 時安裝</string>
@@ -1100,6 +1103,7 @@
     <string name="ctrl_stick_click_hint">在搖桿上輕按兩下並按住，即可觸發 L3 或 R3</string>
     <string name="ctrl_adaptive">自動調整搖桿</string>
     <string name="ctrl_rumble">遊戲震動</string>
+    <string name="ctrl_dead_zone">搖桿死區</string>
     <string name="ctrl_steam_button">Steam 按鈕</string>
     <string name="ctrl_qam_button">QAM 按鈕</string>
     <string name="ctrl_keyboard_button">鍵盤按鈕</string>
@@ -1177,6 +1181,13 @@
     <string name="games_export_gamehub">匯出為 GameHub zip…</string>
     <string name="games_export_winlator">匯出為 Winlator zip…</string>
     <string name="games_open_save_folder">開啟存檔資料夾</string>
+    <string name="games_import_addons">從 zip 匯入外掛…</string>
+    <string name="games_open_addons_folder">開啟外掛資料夾</string>
+    <string name="games_delete_addon_title">刪除 %1$s？</string>
+    <string name="games_delete_addon_body">這會移除外掛的資料夾，其設定會保留。</string>
+    <plurals name="games_addons_count">
+        <item quantity="other">%1$d 個外掛</item>
+    </plurals>
     <string name="games_never_played">從未玩過</string>
     <string name="games_runtime_busy_percent">運行環境繁忙 · %1$d%%</string>
     <string name="games_runtime_busy">運行環境繁忙</string>
@@ -1353,6 +1364,16 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="other">已從 %2$s 匯入 %1$d 個檔案至 %3$s。舊存檔已備份至 Download/DroidDeck/Saves/backups</item>
     </plurals>
+    <string name="main_addons_close_session">請先關閉會話，以免遊戲在匯入期間使用外掛</string>
+    <string name="main_addons_importing">正在匯入外掛至 %1$s</string>
+    <string name="main_addons_pick_zip">選擇 %1$s 的外掛 zip</string>
+    <string name="main_addons_too_large">%1$s 太大，無法匯入</string>
+    <string name="main_addons_deleting">正在刪除 %1$s</string>
+    <string name="main_addons_deleted">已刪除 %1$s</string>
+    <string name="main_addons_none">在 %1$s 中找不到外掛</string>
+    <plurals name="main_addons_imported">
+        <item quantity="other">已匯入 %1$d 個外掛至 %2$s</item>
+    </plurals>
     <string name="main_saves_pick_zip">為 %1$s 選擇存檔 zip</string>
     <string name="main_saves_exporting">正在匯出 %1$s</string>
     <plurals name="main_saves_exported">
@@ -1370,8 +1391,8 @@
     <string name="main_wadb_unavailable">無法使用無線偵錯</string>
     <string name="main_adb_copied">已複製 ADB 指令</string>
     <string name="main_pick_roms">選擇 ROM 資料夾</string>
-    <string name="main_non_adreno_title">不是 Adreno GPU</string>
-    <string name="main_non_adreno_text">Turnip 支援 Adreno GPU。在 %1$s 上，Steam 可能會出現黑畫面。下載大小：%2$.0f MB。</string>
+    <string name="main_non_adreno_title">不受支援的 GPU</string>
+    <string name="main_non_adreno_text">沒有適用於 %1$s 的兼容圖形後端。Steam 可能會出現黑畫面。下載大小：%2$.0f MB。</string>
     <string name="main_install_anyway">仍要安裝</string>
     <string name="main_remove_runtime_title">移除 Linux 運行環境</string>
     <string name="main_remove_runtime_text">此操作會刪除運行環境、其中的 Steam 用戶端，以及安裝在其中的所有遊戲。</string>
@@ -2072,7 +2093,7 @@
     <string name="gpuinfo_experimental">實驗性：其驅動程式為測試版本</string>
     <string name="gpuinfo_a850_experimental">Adreno 850 實驗性支援：需要相容的實驗版顯示驅動程式及遊戲驅動程式；尚未在此裝置上驗證</string>
     <string name="gpuinfo_below_tested">低於已測試的硬件（Adreno 725 或更新）：可能無法執行</string>
-    <string name="gpuinfo_unsupported">不受支援：DroidDeck 需要 Adreno (Snapdragon) GPU</string>
+    <string name="gpuinfo_unsupported">不受支援：沒有適用於此 GPU 的兼容圖形後端</string>
 
     <string name="turnip_rate_limited">已達 GitHub 的速率限制 - 請稍後再試</string>
     <string name="turnip_github_http">GitHub 回應 HTTP %1$d</string>
@@ -3445,6 +3466,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">適用於存檔儲存在 Steam 帳戶中的遊戲</string>
     <string name="game_resource_search">網上搜尋</string>
+    <string name="game_tab_addons">外掛</string>
     <string name="game_tab_install">安裝</string>
     <string name="game_install_location">位置</string>
     <string name="game_install_folder">資料夾</string>

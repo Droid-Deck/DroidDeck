@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s през FEX</string>
     <string name="app_fex_not_ready">Тази програма е компилирана за %1$s компютри и се стартира през FEX, който още не е настроен. Отворете Steam веднъж, докато сте влезли: DroidDeck ще изтегли FEX и необходимата Steam Linux Runtime, след което тя ще се отвори.</string>
     <string name="session_proot_missing">proot на DroidDeck не можа да бъде изтеглен. Проверете връзката и опитайте пак. Сесията не беше стартирана, защото резервният proot е твърде бавен за игра.</string>
+    <string name="session_powervr_missing">Графичната среда за PowerVR не можа да бъде изтеглена. Проверете връзката и опитайте отново.</string>
     <string name="session_directaudio_missing">DirectAudio не можа да бъде изтеглен, затова звукът на игрите използва по-бавния път в тази сесия.</string>
     <string name="session_end_program">Тази програма</string>
     <string name="session_end_steam_download">Клиентът на Steam не можа да бъде изтеглен. Мрежата или VPN връзката ви може да блокира сървърите на Steam; проверете връзката и опитайте отново.</string>
@@ -585,7 +586,7 @@
     <string name="perf_ram_cap_hint">Прилага се, докато клиентът на Steam работи, в режим Steam или от работния плот. Когато сесията използва повече от това, Steam и след това другите поддържани процеси на сесията се компресират в zRAM. Меко ограничение: нищо не се затваря, но игрите може да засичат, докато страниците се връщат.</string>
     <string name="perf_ram_cap_unavailable">Изисква zRAM swap, който това устройство няма.</string>
     <string name="perf_vram_cap">Ограничение на VRAM</string>
-    <string name="perf_vram_cap_hint">Видеопаметта, която DXVK отчита на игрите с Direct3D, за да планират текстури за по-малко. Собствените настройки на DXVK на играта имат предимство. Прилага се от следващата сесия.</string>
+    <string name="perf_vram_cap_hint">Съобщава този бюджет за видео памет на игри с Direct3D 9 до 12, за да намали използването на памет. Игрите може да го надвишат; това не добавя странициране на GPU и не гарантира защита от сривове при недостиг на памет. Прилага се от следващата сесия.</string>
     <string name="perf_gpuclock">Задръжте GPU на максималната му честота</string>
     <string name="perf_gpuclock_hint">Само за Adreno. По-малко засечки, по-голямо използване на батерията и повече топлина.</string>
     <string name="perf_fixes">Корекции на сесията</string>
@@ -670,6 +671,8 @@
     <string name="hud_group_metrics">Показания</string>
     <string name="hud_metric_graph">Графика на времето на кадрите</string>
     <string name="hud_metric_decimal">Честота на кадрите с десетичен знак</string>
+    <string name="hud_metric_low1">1% най-ниски</string>
+    <string name="hud_metric_low01">0.1% най-ниски</string>
     <string name="hud_metric_low001">0.01% най-ниски</string>
     <string name="hud_metric_engine">Графичен двигател</string>
     <string name="hud_metric_gpu_model">Име на GPU</string>
@@ -811,7 +814,7 @@
     <string name="setup_gpu_unsupported">GPU не се поддържа</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam изисква драйвер за Adreno; %1$s може да покаже черен екран</string>
+    <string name="setup_gpu_unsupported_detail">Няма съвместим графичен бекенд за %1$s. Steam може да показва черен екран.</string>
     <string name="setup_runtime">Linux среда за изпълнение</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Не е инсталирано · около 3 GB, инсталира се при първото Play</string>
@@ -1106,6 +1109,7 @@
     <string name="ctrl_stick_click_hint">Докоснете двукратно и задръжте стик за L3 или R3</string>
     <string name="ctrl_adaptive">Адаптивни стикове</string>
     <string name="ctrl_rumble">Вибрация от играта</string>
+    <string name="ctrl_dead_zone">Мъртва зона на стика</string>
     <string name="ctrl_steam_button">Бутон Steam</string>
     <string name="ctrl_qam_button">Бутон QAM</string>
     <string name="ctrl_keyboard_button">Бутон за клавиатура</string>
@@ -1183,6 +1187,14 @@
     <string name="games_export_gamehub">Експортиране като GameHub zip…</string>
     <string name="games_export_winlator">Експортиране като Winlator zip…</string>
     <string name="games_open_save_folder">Отваряне на папката за записи</string>
+    <string name="games_import_addons">Импортиране на добавки от ZIP…</string>
+    <string name="games_open_addons_folder">Отваряне на папката с добавки</string>
+    <string name="games_delete_addon_title">Да се изтрие ли %1$s?</string>
+    <string name="games_delete_addon_body">Това изтрива папката на добавката. Настройките ѝ се запазват.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d добавка</item>
+        <item quantity="other">%1$d добавки</item>
+    </plurals>
     <string name="games_never_played">Никога не е играна</string>
     <string name="games_runtime_busy_percent">Средата за изпълнение е заета · %1$d%%</string>
     <string name="games_runtime_busy">Средата за изпълнение е заета</string>
@@ -1361,6 +1373,17 @@
         <item quantity="one">Импортиран %1$d файл от %2$s в %3$s. Старите запазвания са архивирани в Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Импортирани %1$d файла от %2$s в %3$s. Старите запазвания са архивирани в Download/DroidDeck/Saves/backups</item>
     </plurals>
+    <string name="main_addons_close_session">Затвори сесията първо, за да не използва играта добавките си по време на импортирането</string>
+    <string name="main_addons_importing">Импортиране на добавки в %1$s</string>
+    <string name="main_addons_pick_zip">Избор на ZIP файл с добавки за %1$s</string>
+    <string name="main_addons_too_large">%1$s е твърде голям за импортиране</string>
+    <string name="main_addons_deleting">Изтриване на %1$s</string>
+    <string name="main_addons_deleted">Изтрито: %1$s</string>
+    <string name="main_addons_none">Не са намерени добавки в %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Импортирана %1$d добавка в %2$s</item>
+        <item quantity="other">Импортирани %1$d добавки в %2$s</item>
+    </plurals>
     <string name="main_saves_pick_zip">Избор на ZIP файл със запазвания за %1$s</string>
     <string name="main_saves_exporting">Експортиране на %1$s</string>
     <plurals name="main_saves_exported">
@@ -1380,8 +1403,8 @@
     <string name="main_wadb_unavailable">Безжичното отстраняване на грешки не е достъпно</string>
     <string name="main_adb_copied">Командата за ADB е копирана</string>
     <string name="main_pick_roms">Избор на папката ROMs</string>
-    <string name="main_non_adreno_title">Не е Adreno GPU</string>
-    <string name="main_non_adreno_text">Turnip поддържа Adreno GPU-та. На %1$s Steam може да покаже черен екран. Изтегляне: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">Неподдържан GPU</string>
+    <string name="main_non_adreno_text">Няма съвместим графичен бекенд за %1$s. Steam може да показва черен екран. Изтегляне: %2$.0f MB.</string>
     <string name="main_install_anyway">Инсталиране въпреки това</string>
     <string name="main_remove_runtime_title">Премахване на средата на Linux</string>
     <string name="main_remove_runtime_text">Това изтрива средата, клиента на Steam в нея и всяка инсталирана в нея игра.</string>
@@ -2095,7 +2118,7 @@
     <string name="gpuinfo_experimental">Експериментален: драйверите му са тестови версии</string>
     <string name="gpuinfo_a850_experimental">Експериментална поддръжка на Adreno 850: изисква съвместими експериментални драйвери за дисплея и игрите; не е проверена на това устройство</string>
     <string name="gpuinfo_below_tested">Под тестваните устройства (Adreno 725 и по-нови): може да не работи</string>
-    <string name="gpuinfo_unsupported">Не се поддържа: DroidDeck изисква GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">Не се поддържа: няма съвместим графичен бекенд за този GPU</string>
 
     <string name="turnip_rate_limited">Достигнато е ограничението на GitHub за заявки - опитай отново по-късно</string>
     <string name="turnip_github_http">GitHub отговори с HTTP %1$d</string>
@@ -3472,6 +3495,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">За игри със записи в акаунта ви в Steam</string>
     <string name="game_resource_search">Търсене в мрежата</string>
+    <string name="game_tab_addons">Добавки</string>
     <string name="game_tab_install">Инсталиране</string>
     <string name="game_install_location">Местоположение</string>
     <string name="game_install_folder">Папка</string>

@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s przez FEX</string>
     <string name="app_fex_not_ready">Ten program jest zbudowany dla komputerów %1$s i działa przez FEX, który nie jest jeszcze skonfigurowany. Otwórz raz Steam po zalogowaniu: DroidDeck pobierze wtedy FEX i potrzebne Steam Linux Runtime, a potem program się otworzy.</string>
     <string name="session_proot_missing">Nie udało się pobrać proot DroidDeck. Sprawdź połączenie i spróbuj ponownie. Sesja nie została uruchomiona, bo zapasowy proot jest zbyt wolny do grania.</string>
+    <string name="session_powervr_missing">Nie udało się pobrać środowiska graficznego PowerVR. Sprawdź połączenie i spróbuj ponownie.</string>
     <string name="session_directaudio_missing">Nie udało się pobrać DirectAudio, więc w tej sesji dźwięk gier używa wolniejszej ścieżki.</string>
     <string name="session_end_program">Ten program</string>
     <string name="session_end_steam_download">Nie udało się pobrać klienta Steam. Twoja sieć lub VPN może blokować serwery Steam; sprawdź połączenie i spróbuj ponownie.</string>
@@ -589,7 +590,7 @@
     <string name="perf_ram_cap_hint">Działa, gdy działa klient Steam, w trybie Steam lub z pulpitu. Gdy sesja używa więcej, Steam, a następnie inne obsługiwane procesy sesji są kompresowane do zRAM. Miękki limit: nic nie jest zamykane, ale gry mogą się zacinać podczas wczytywania stron z powrotem.</string>
     <string name="perf_ram_cap_unavailable">Wymaga swapu zRAM, którego to urządzenie nie ma.</string>
     <string name="perf_vram_cap">Limit VRAM</string>
-    <string name="perf_vram_cap_hint">Pamięć wideo, którą DXVK zgłasza grom Direct3D, aby planowały tekstury na mniej. Własne ustawienia DXVK gry mają pierwszeństwo. Działa od następnej sesji.</string>
+    <string name="perf_vram_cap_hint">Zgłasza ten budżet pamięci wideo grom Direct3D od 9 do 12, aby ograniczyć zużycie pamięci. Gry mogą go przekroczyć; nie dodaje to stronicowania GPU ani nie gwarantuje ochrony przed awariami z powodu braku pamięci. Działa od następnej sesji.</string>
     <string name="perf_gpuclock">Utrzymuj GPU na najwyższym taktowaniu</string>
     <string name="perf_gpuclock_hint">Tylko Adreno. Mniej przycięć, większe zużycie baterii i więcej ciepła.</string>
     <string name="perf_fixes">Poprawki sesji</string>
@@ -674,6 +675,8 @@
     <string name="hud_group_metrics">Odczyty</string>
     <string name="hud_metric_graph">Wykres czasu klatek</string>
     <string name="hud_metric_decimal">Liczba klatek z miejscem po przecinku</string>
+    <string name="hud_metric_low1">1% najniższych</string>
+    <string name="hud_metric_low01">0.1% najniższych</string>
     <string name="hud_metric_low001">0.01% najniższych</string>
     <string name="hud_metric_engine">Silnik graficzny</string>
     <string name="hud_metric_gpu_model">Nazwa GPU</string>
@@ -817,7 +820,7 @@
     <string name="setup_gpu_unsupported">GPU nieobsługiwany</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam wymaga sterownika Adreno; %1$s może wyświetlać czarny ekran</string>
+    <string name="setup_gpu_unsupported_detail">Brak zgodnego zaplecza graficznego dla %1$s. Steam może wyświetlać czarny ekran.</string>
     <string name="setup_runtime">Środowisko Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Nie zainstalowano · ok. 3 GB, instalowane przy pierwszym „Graj”</string>
@@ -1118,6 +1121,7 @@
     <string name="ctrl_stick_click_hint">Dotknij dwukrotnie i przytrzymaj gałkę, aby uzyskać L3 lub R3</string>
     <string name="ctrl_adaptive">Adaptacyjne gałki</string>
     <string name="ctrl_rumble">Wibracje gry</string>
+    <string name="ctrl_dead_zone">Martwa strefa drążka</string>
     <string name="ctrl_steam_button">Przycisk Steam</string>
     <string name="ctrl_qam_button">Przycisk QAM</string>
     <string name="ctrl_keyboard_button">Przycisk klawiatury</string>
@@ -1195,6 +1199,16 @@
     <string name="games_export_gamehub">Eksportuj jako zip GameHub…</string>
     <string name="games_export_winlator">Eksportuj jako zip Winlator…</string>
     <string name="games_open_save_folder">Otwórz folder zapisów</string>
+    <string name="games_import_addons">Importuj dodatki z zip…</string>
+    <string name="games_open_addons_folder">Otwórz folder dodatków</string>
+    <string name="games_delete_addon_title">Usunąć %1$s?</string>
+    <string name="games_delete_addon_body">Spowoduje to usunięcie folderu dodatku. Jego ustawienia zostaną zachowane.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d dodatek</item>
+        <item quantity="few">%1$d dodatki</item>
+        <item quantity="many">%1$d dodatków</item>
+        <item quantity="other">%1$d dodatku</item>
+    </plurals>
     <string name="games_never_played">Nigdy nie grano</string>
     <string name="games_runtime_busy_percent">Środowisko zajęte · %1$d%%</string>
     <string name="games_runtime_busy">Środowisko zajęte</string>
@@ -1377,6 +1391,19 @@
         <item quantity="many">Zaimportowano %1$d plików z %2$s do %3$s. Kopię starych zapisów umieszczono w Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Zaimportowano %1$d pliku z %2$s do %3$s. Kopię starych zapisów umieszczono w Download/DroidDeck/Saves/backups</item>
     </plurals>
+    <string name="main_addons_close_session">Najpierw zamknij sesję, aby gra nie używała dodatków podczas importu</string>
+    <string name="main_addons_importing">Importowanie dodatków do %1$s</string>
+    <string name="main_addons_pick_zip">Wybierz plik zip z dodatkami dla %1$s</string>
+    <string name="main_addons_too_large">Plik %1$s jest za duży, aby go zaimportować</string>
+    <string name="main_addons_deleting">Usuwanie: %1$s</string>
+    <string name="main_addons_deleted">Usunięto: %1$s</string>
+    <string name="main_addons_none">Nie znaleziono dodatków w %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Zaimportowano %1$d dodatek do %2$s</item>
+        <item quantity="few">Zaimportowano %1$d dodatki do %2$s</item>
+        <item quantity="many">Zaimportowano %1$d dodatków do %2$s</item>
+        <item quantity="other">Zaimportowano %1$d dodatku do %2$s</item>
+    </plurals>
     <string name="main_saves_pick_zip">Wybierz plik zip z zapisami dla %1$s</string>
     <string name="main_saves_exporting">Eksportowanie %1$s</string>
     <plurals name="main_saves_exported">
@@ -1400,8 +1427,8 @@
     <string name="main_wadb_unavailable">Debugowanie bezprzewodowe jest niedostępne</string>
     <string name="main_adb_copied">Skopiowano polecenie ADB</string>
     <string name="main_pick_roms">Wybierz folder ROM-ów</string>
-    <string name="main_non_adreno_title">To nie jest GPU Adreno</string>
-    <string name="main_non_adreno_text">Turnip obsługuje GPU Adreno. Na tym urządzeniu (%1$s) Steam może wyświetlać czarny ekran. Pobieranie: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">Nieobsługiwany GPU</string>
+    <string name="main_non_adreno_text">Brak zgodnego zaplecza graficznego dla %1$s. Steam może wyświetlać czarny ekran. Do pobrania: %2$.0f MB.</string>
     <string name="main_install_anyway">Zainstaluj mimo to</string>
     <string name="main_remove_runtime_title">Usuń środowisko Linux</string>
     <string name="main_remove_runtime_text">Spowoduje to usunięcie środowiska, klienta Steam w nim i wszystkich zainstalowanych tam gier.</string>
@@ -2141,7 +2168,7 @@
     <string name="gpuinfo_experimental">Eksperymentalny: jego sterowniki to wersje testowe</string>
     <string name="gpuinfo_a850_experimental">Eksperymentalna obsługa Adreno 850: wymaga zgodnych eksperymentalnych sterowników ekranu i gier; nie zweryfikowano na tym urządzeniu</string>
     <string name="gpuinfo_below_tested">Poniżej testowanego sprzętu (Adreno 725 i nowsze): może nie działać</string>
-    <string name="gpuinfo_unsupported">Nieobsługiwany: DroidDeck wymaga GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">Nieobsługiwany: brak zgodnego zaplecza graficznego dla tego GPU</string>
 
     <string name="turnip_rate_limited">Osiągnięto limit zapytań GitHub – spróbuj ponownie później</string>
     <string name="turnip_github_http">GitHub odpowiedział HTTP %1$d</string>
@@ -3544,6 +3571,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Dla gier z zapisami na Twoim koncie Steam</string>
     <string name="game_resource_search">Wyszukiwanie w sieci</string>
+    <string name="game_tab_addons">Dodatki</string>
     <string name="game_tab_install">Zainstaluj</string>
     <string name="game_install_location">Lokalizacja</string>
     <string name="game_install_folder">Folder</string>

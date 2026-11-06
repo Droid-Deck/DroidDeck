@@ -1,0 +1,23 @@
+diff --git a/src/Backends/SDLBackend.cpp b/src/Backends/SDLBackend.cpp
+--- a/src/Backends/SDLBackend.cpp
++++ b/src/Backends/SDLBackend.cpp
+@@ -351,14 +351,15 @@ namespace gamescope
+ 		std::optional oCompositeResult = vulkan_composite( (FrameInfo_t *)pFrameInfo, nullptr, false );
+ 		if ( !oCompositeResult )
+ 			return -EINVAL;
+ 
++		// Present has no render-finished semaphore, so wait before the native consumer can read
++		// the old contents. This serializes composition and present; a future pipelined path must
++		// signal a binary render-finished semaphore and make vkQueuePresentKHR wait on it.
++		vulkan_wait( *oCompositeResult, true );
++
+ 		vulkan_present_to_window();
+ 
+ 		// TODO: Hook up PresentationFeedback.
+-
+-		// Wait for the composite result on our side *after* we
+-		// commit the buffer to the compositor to avoid a bubble.
+-		vulkan_wait( *oCompositeResult, true );
+ 
+ 		GetVBlankTimer().UpdateWasCompositing( true );
+ 		GetVBlankTimer().UpdateLastDrawTime( get_time_in_nanos() - g_SteamCompMgrVBlankTime.ulWakeupTime );

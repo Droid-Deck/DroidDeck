@@ -193,11 +193,13 @@ internal fun SetupPanel(
     )
     val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_launcher), stringResource(R.string.setup_tab_storage), stringResource(R.string.setup_tab_sync), stringResource(R.string.setup_tab_diagnostics), stringResource(R.string.setup_tab_glasses))
     var tab by rememberSaveable { mutableStateOf(if (SetupTabs.openLauncher) LAUNCHER_TAB else 0) }
+    var logsRefresh by remember { mutableStateOf(0) }
+    var deleteSessionLogs by remember { mutableStateOf<java.io.File?>(null) }
     SetupTabs.openLauncher = false
     if (SetupTabs.openOverview) { tab = 0; SetupTabs.openOverview = false }
     val chipFocus = remember { List(tabs.size) { FocusRequester() } }
     var tabTurned by remember { mutableStateOf(false) }
-    val pick: (Int) -> Unit = { i -> tab = i; tabTurned = true }
+    val pick: (Int) -> Unit = { i -> tab = i; tabTurned = true; if (i == 5) logsRefresh++ }
     val inputModeManager = LocalInputModeManager.current
     LaunchedEffect(com.droiddeck.launcher.storage.StorageState.openRequests) {
         if (com.droiddeck.launcher.storage.StorageState.openPending) {
@@ -246,6 +248,8 @@ internal fun SetupPanel(
             Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
                 when (tab) {
                     0 -> {
+                        // Setup's "Safe mode" row, under the GPU row while the bridge is on and can be used here.
+                        val bridgeModeRow = !s.adreno && s.vkBridge && com.droiddeck.launcher.core.DeviceSupport.bridgeUsable()
                         val gpuCheck: @Composable (Boolean) -> Unit = { divider ->
                             CheckRow(
                                 if (gpuOk) CheckState.OK else CheckState.WARN,
@@ -257,19 +261,32 @@ internal fun SetupPanel(
                                 },
                                 when (gpu.support) {
                                     com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED -> stringResource(R.string.setup_gpu_detail, gpu.displayName(ctx), gpuName)
-                                    com.droiddeck.launcher.gpu.GpuInfo.Support.UNTESTED -> stringResource(R.string.setup_gpu_untested_detail, gpu.displayName(ctx), gpu.supportText(ctx).replaceFirstChar { it.lowercase() })
-                                    else -> if (s.vkBridge) stringResource(R.string.setup_gpu_bridge_detail, gpuName)
+                                    com.droiddeck.launcher.gpu.GpuInfo.Support.UNTESTED ->
+                                        if (!s.adreno && s.venus && s.venusHostVulkan != null) stringResource(R.string.setup_gpu_venus_host_too_old, gpu.displayName(ctx), s.venusHostVulkan)
+                                        else if (!s.adreno && s.vkBridge && !com.droiddeck.launcher.core.DeviceSupport.bridgeUsable()) stringResource(R.string.setup_gpu_bridge_unusable, gpu.displayName(ctx))
+                                        else if (!s.adreno && s.vkBridge && s.bridgeFellBack) stringResource(if (s.bridgeFellBackMemory) R.string.setup_gpu_bridge_no_memory_sharing else R.string.setup_gpu_bridge_fell_back, gpu.displayName(ctx))
+                                        else stringResource(R.string.setup_gpu_untested_detail, gpu.displayName(ctx), gpu.supportText(ctx).replaceFirstChar { it.lowercase() })
+                                    else -> if (s.venus && s.venusHostVulkan != null) stringResource(R.string.setup_gpu_venus_host_too_old, gpuName, s.venusHostVulkan)
+                                    else if (s.vkBridge && !com.droiddeck.launcher.core.DeviceSupport.bridgeUsable()) stringResource(R.string.setup_gpu_bridge_unusable, gpuName)
+                                    else if (s.vkBridge && s.bridgeFellBack) stringResource(if (s.bridgeFellBackMemory) R.string.setup_gpu_bridge_no_memory_sharing else R.string.setup_gpu_bridge_fell_back, gpuName)
+                                    else if (s.vkBridge) stringResource(R.string.setup_gpu_bridge_detail, gpuName)
                                     else stringResource(R.string.setup_gpu_unsupported_detail, gpuName)
                                 },
-                                divider = divider || (!s.adreno && s.vkBridge),
+                                divider = divider || bridgeModeRow,
                                 action = if (s.adreno) null else { {
-                                    SecondaryButton(
-                                        stringResource(if (s.vkBridge) R.string.setup_gpu_bridge_on else R.string.setup_gpu_bridge_off),
-                                        enabled = !s.sessionRunning, compact = true, onClick = { a.onVkBridge(!s.vkBridge) },
-                                    )
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        SecondaryButton(
+                                            stringResource(if (s.venus) R.string.setup_gpu_venus_on else R.string.setup_gpu_venus_off),
+                                            enabled = !s.sessionRunning, compact = true, onClick = { a.onVenus(!s.venus) },
+                                        )
+                                        SecondaryButton(
+                                            stringResource(if (s.vkBridge) R.string.setup_gpu_bridge_on else R.string.setup_gpu_bridge_off),
+                                            enabled = !s.sessionRunning, compact = true, onClick = { a.onVkBridge(!s.vkBridge) },
+                                        )
+                                    }
                                 } },
                             )
-                            if (!s.adreno && s.vkBridge) CheckRow(
+                            if (bridgeModeRow) CheckRow(
                                 CheckState.OK,
                                 stringResource(R.string.setup_bridge_safe),
                                 stringResource(if (s.vkBridgeSafe) R.string.setup_bridge_safe_on_detail else R.string.setup_bridge_safe_off_detail),
@@ -382,11 +399,12 @@ internal fun SetupPanel(
                             val shownChecks = all.filterIndexed { i, _ -> checks[i] }
                             shownChecks.forEachIndexed { i, check -> check(i < shownChecks.lastIndex) }
                         }
-                        if (passing < checks.size) {
+                        val needsAttention = all.filterIndexed { i, _ -> !checks[i] && i != 1 }
+                        if (needsAttention.isNotEmpty()) {
                             SectionTitle(stringResource(R.string.setup_needs_you), null)
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                all.forEachIndexed { i, check ->
-                                    if (!checks[i]) Column(Modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, AttentionAmber.copy(alpha = 0.5f), Shape14)) { check(false) }
+                                needsAttention.forEach { check ->
+                                    Column(Modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, AttentionAmber.copy(alpha = 0.5f), Shape14)) { check(false) }
                                 }
                             }
                         }
@@ -544,6 +562,10 @@ internal fun SetupPanel(
                         SettingsGroup(stringResource(R.string.setup_tab_diagnostics)) {
                             ToggleRow(host, "logs", stringResource(R.string.setup_logs), stringResource(R.string.setup_logs_hint), s.logsEnabled) { a.onLogs() }
                             ToggleRow(
+                                host, "enhanced-diagnostics", stringResource(R.string.setup_enhanced_diagnostics),
+                                stringResource(R.string.setup_enhanced_diagnostics_hint), s.enhancedDiagnosticsArmed,
+                            ) { a.onEnhancedDiagnostics() }
+                            ToggleRow(
                                 host, "game-debug-logs", stringResource(R.string.setup_game_debug_logs),
                                 stringResource(if (s.gameDebugLogsNeedsRestart) R.string.setup_game_debug_logs_restart else R.string.setup_game_debug_logs_hint),
                                 s.gameDebugLogsEnabled,
@@ -551,8 +573,48 @@ internal fun SetupPanel(
                             ) { a.onGameDebugLogs() }
                             ToggleRow(host, "vacdiag", stringResource(R.string.setup_vac_diag), stringResource(R.string.setup_vac_diag_hint), s.vacDiagnostics) { a.onVacDiagnostics() }
                             ToggleRow(host, "agent-commands", stringResource(R.string.setup_agent_commands), null, s.agentCommands) { a.onAgentCommands() }
+                            ToggleRow(host, "graphics-logs", stringResource(R.string.setup_graphics_logs), stringResource(R.string.setup_graphics_logs_hint), s.graphicsLogs) { a.onGraphicsLogs() }
+                            if (!s.adreno && com.droiddeck.launcher.session.SessionPrefs.steamGpuCompositingAllowed()) ToggleRow(host, "steam-gpu-drawing", stringResource(R.string.setup_steam_gpu_drawing), stringResource(R.string.setup_steam_gpu_drawing_hint), s.steamGpuDrawing) { a.onSteamGpuDrawing() }
                             ActionRow(stringResource(R.string.setup_latest_logs), stringResource(R.string.drawer_logs_hint), stringResource(R.string.drawer_share_logs), a.onShareLogs,
                                 progress = com.droiddeck.launcher.session.SessionLogShare.progress)
+                            androidx.compose.material3.HorizontalDivider()
+                            Text(stringResource(R.string.setup_log_sessions), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
+                            Text(stringResource(R.string.setup_log_export_hint), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 8.dp))
+                            val sessionLogs = remember(ctx, logsRefresh) { com.droiddeck.launcher.session.SessionLogShare.sessions(ctx).asReversed() }
+                            if (sessionLogs.isEmpty()) {
+                                Text(stringResource(R.string.setup_log_empty), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
+                            }
+                            sessionLogs.forEach { folder ->
+                                val active = folder == com.droiddeck.launcher.session.SessionPaths.current()
+                                var details by remember(folder) { mutableStateOf<com.droiddeck.launcher.session.SessionLogShare.Details?>(null) }
+                                LaunchedEffect(folder, logsRefresh) {
+                                    details = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                        com.droiddeck.launcher.session.SessionLogShare.details(folder)
+                                    }
+                                }
+                                Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
+                                    Text(folder.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground,
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    details?.let { detail ->
+                                        Text(
+                                            stringResource(R.string.setup_log_size_date,
+                                                android.text.format.Formatter.formatShortFileSize(ctx, detail.sizeBytes),
+                                                "${android.text.format.DateFormat.getDateFormat(ctx).format(java.util.Date(detail.modifiedAt))} ${android.text.format.DateFormat.getTimeFormat(ctx).format(java.util.Date(detail.modifiedAt))}"),
+                                            fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    if (active) Text(stringResource(R.string.setup_log_current), fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                                    Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        SecondaryButton(stringResource(R.string.setup_log_share), enabled = com.droiddeck.launcher.session.SessionLogShare.progress == null, compact = true, modifier = Modifier.weight(1f)) { a.onShareSessionLog(folder) }
+                                        SecondaryButton(stringResource(R.string.setup_log_save), enabled = com.droiddeck.launcher.session.SessionLogShare.progress == null, compact = true, modifier = Modifier.weight(1f)) { a.onSaveSessionLog(folder) }
+                                        SecondaryButton(stringResource(R.string.setup_log_delete), compact = true, enabled = !active, modifier = Modifier.weight(1f)) { deleteSessionLogs = folder }
+                                    }
+                                }
+                                androidx.compose.material3.HorizontalDivider()
+                            }
                             ActionRow(stringResource(R.string.setup_saved_logs), stringResource(R.string.setup_saved_logs_hint, com.droiddeck.launcher.session.SessionPaths.KEEP_SESSIONS), stringResource(R.string.setup_clear_logs), a.onClearLogs)
                             ActionRow(stringResource(R.string.setup_reset_settings), stringResource(R.string.setup_reset_settings_hint),
                                 stringResource(R.string.setup_reset_settings_button), a.onResetSettings)
@@ -594,6 +656,20 @@ internal fun SetupPanel(
                 }
             }
         }
+    }
+    deleteSessionLogs?.let { folder ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { deleteSessionLogs = null },
+            title = { Text(stringResource(R.string.setup_log_delete_title)) },
+            text = { Text(stringResource(R.string.setup_log_delete_message, folder.name)) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    deleteSessionLogs = null
+                    a.onDeleteSessionLog(folder) { logsRefresh++ }
+                }) { Text(stringResource(R.string.setup_log_delete)) }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { deleteSessionLogs = null }) { Text(stringResource(R.string.common_cancel)) } },
+        )
     }
 }
 

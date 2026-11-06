@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s via FEX</string>
     <string name="app_fex_not_ready">Dit programma is gemaakt voor %1$s-pc’s en draait via FEX, dat nog niet is ingesteld. Open Steam één keer terwijl je bent ingelogd: DroidDeck laat het dan FEX en de benodigde Steam Linux Runtime downloaden. Daarna opent dit.</string>
     <string name="session_proot_missing">De proot van DroidDeck kon niet worden gedownload. Controleer de verbinding en probeer het opnieuw. De sessie is niet gestart, omdat de reserve-proot te traag is om op te spelen.</string>
+    <string name="session_powervr_missing">De PowerVR-grafische omgeving kon niet worden gedownload. Controleer de verbinding en probeer het opnieuw.</string>
     <string name="session_directaudio_missing">DirectAudio kon niet worden gedownload, dus gamegeluid gebruikt deze sessie de tragere route.</string>
     <string name="session_end_program">Dit programma</string>
     <string name="session_end_steam_download">De Steam-client kon niet worden gedownload. Je netwerk of VPN blokkeert mogelijk de servers van Steam; controleer de verbinding en probeer het opnieuw.</string>
@@ -585,7 +586,7 @@
     <string name="perf_ram_cap_hint">Geldt terwijl de Steam-client draait, in de Steam-modus of vanaf de desktop. Als de sessie meer gebruikt dan dit, worden Steam en daarna de andere ondersteunde processen van de sessie in zRAM gecomprimeerd. Een zachte limiet: er wordt niets gesloten, maar games kunnen haperen terwijl pagina’s terugkomen.</string>
     <string name="perf_ram_cap_unavailable">Vereist zRAM-swap, die dit apparaat niet heeft.</string>
     <string name="perf_vram_cap">VRAM-limiet</string>
-    <string name="perf_vram_cap_hint">Het videogeheugen dat DXVK aan Direct3D-games meldt, zodat ze minder ruimte voor texturen plannen. De eigen DXVK-instellingen van een game gaan voor. Geldt vanaf de volgende sessie.</string>
+    <string name="perf_vram_cap_hint">Meldt dit videogeheugenbudget aan Direct3D 9- tot 12-games om het geheugengebruik te verlagen. Games kunnen het overschrijden; dit voegt geen GPU-paging toe en garandeert geen bescherming tegen crashes door geheugentekort. Geldt vanaf de volgende sessie.</string>
     <string name="perf_gpuclock">GPU op hoogste kloksnelheid houden</string>
     <string name="perf_gpuclock_hint">Alleen Adreno. Minder haperingen, meer batterijverbruik en warmte.</string>
     <string name="perf_fixes">Sessiefixes</string>
@@ -670,6 +671,8 @@
     <string name="hud_group_metrics">Meetwaarden</string>
     <string name="hud_metric_graph">Frametijdgrafiek</string>
     <string name="hud_metric_decimal">Beeldsnelheid met decimaal</string>
+    <string name="hud_metric_low1">1% laagste</string>
+    <string name="hud_metric_low01">0.1% laagste</string>
     <string name="hud_metric_low001">0.01% laagste</string>
     <string name="hud_metric_engine">Grafische engine</string>
     <string name="hud_metric_gpu_model">GPU-naam</string>
@@ -811,7 +814,7 @@
     <string name="setup_gpu_unsupported">GPU niet ondersteund</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam heeft een Adreno-driver nodig; %1$s kan een zwart scherm tonen</string>
+    <string name="setup_gpu_unsupported_detail">Er is geen compatibele grafische backend beschikbaar voor %1$s. Steam kan een zwart scherm tonen.</string>
     <string name="setup_runtime">Linux-runtime</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Niet geïnstalleerd · ongeveer 3 GB, geïnstalleerd bij de eerste keer Spelen</string>
@@ -1106,6 +1109,7 @@
     <string name="ctrl_stick_click_hint">Dubbeltik en houd een stick ingedrukt voor L3 of R3</string>
     <string name="ctrl_adaptive">Adaptieve sticks</string>
     <string name="ctrl_rumble">Trillen in games</string>
+    <string name="ctrl_dead_zone">Dode zone van stick</string>
     <string name="ctrl_steam_button">Steam-knop</string>
     <string name="ctrl_qam_button">QAM-knop</string>
     <string name="ctrl_keyboard_button">Toetsenbordknop</string>
@@ -1183,6 +1187,14 @@
     <string name="games_export_gamehub">Exporteren als GameHub-zip…</string>
     <string name="games_export_winlator">Exporteren als Winlator-zip…</string>
     <string name="games_open_save_folder">Opslagmap openen</string>
+    <string name="games_import_addons">Addons importeren uit zip…</string>
+    <string name="games_open_addons_folder">Addonmap openen</string>
+    <string name="games_delete_addon_title">%1$s verwijderen?</string>
+    <string name="games_delete_addon_body">Hiermee wordt de map van de addon verwijderd. De instellingen blijven behouden.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d addon</item>
+        <item quantity="other">%1$d addons</item>
+    </plurals>
     <string name="games_never_played">Nooit gespeeld</string>
     <string name="games_runtime_busy_percent">Runtime bezig · %1$d%%</string>
     <string name="games_runtime_busy">Runtime bezig</string>
@@ -1361,6 +1373,17 @@
         <item quantity="one">%1$d bestand uit de %2$s geïmporteerd in %3$s. Oude savegames als back-up bewaard in Download/DroidDeck/Saves/backups</item>
         <item quantity="other">%1$d bestanden uit de %2$s geïmporteerd in %3$s. Oude savegames als back-up bewaard in Download/DroidDeck/Saves/backups</item>
     </plurals>
+    <string name="main_addons_close_session">Sluit eerst de sessie, zodat de game tijdens de import geen addons gebruikt</string>
+    <string name="main_addons_importing">Addons importeren in %1$s</string>
+    <string name="main_addons_pick_zip">Kies een addon-zip voor %1$s</string>
+    <string name="main_addons_too_large">%1$s is te groot om te importeren</string>
+    <string name="main_addons_deleting">%1$s wordt verwijderd</string>
+    <string name="main_addons_deleted">%1$s verwijderd</string>
+    <string name="main_addons_none">Geen addons gevonden in %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">%1$d addon geïmporteerd in %2$s</item>
+        <item quantity="other">%1$d addons geïmporteerd in %2$s</item>
+    </plurals>
     <string name="main_saves_pick_zip">Kies een savegame-zip voor %1$s</string>
     <string name="main_saves_exporting">%1$s exporteren</string>
     <plurals name="main_saves_exported">
@@ -1380,8 +1403,8 @@
     <string name="main_wadb_unavailable">Draadloze foutopsporing is niet beschikbaar</string>
     <string name="main_adb_copied">ADB-opdracht gekopieerd</string>
     <string name="main_pick_roms">Kies de ROM-map</string>
-    <string name="main_non_adreno_title">Geen Adreno-GPU</string>
-    <string name="main_non_adreno_text">Turnip ondersteunt Adreno-GPU\'s. Op %1$s kan Steam een zwart scherm tonen. Download: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">Niet-ondersteunde GPU</string>
+    <string name="main_non_adreno_text">Er is geen compatibele grafische backend beschikbaar voor %1$s. Steam kan een zwart scherm tonen. Download: %2$.0f MB.</string>
     <string name="main_install_anyway">Toch installeren</string>
     <string name="main_remove_runtime_title">Linux-runtime verwijderen</string>
     <string name="main_remove_runtime_text">Hiermee verwijder je de runtime, de Steam-client erin en alle games die daar zijn geïnstalleerd.</string>
@@ -2095,7 +2118,7 @@
     <string name="gpuinfo_experimental">Experimenteel: de drivers zijn testbuilds</string>
     <string name="gpuinfo_a850_experimental">Experimentele ondersteuning voor Adreno 850: vereist compatibele experimentele scherm- en gamedrivers; niet geverifieerd op dit apparaat</string>
     <string name="gpuinfo_below_tested">Onder de geteste hardware (Adreno 725 en nieuwer): werkt mogelijk niet</string>
-    <string name="gpuinfo_unsupported">Niet ondersteund: DroidDeck heeft een Adreno-GPU (Snapdragon) nodig</string>
+    <string name="gpuinfo_unsupported">Niet ondersteund: er is geen compatibele grafische backend beschikbaar voor deze GPU</string>
 
     <string name="turnip_rate_limited">De ratelimiet van GitHub is bereikt - probeer het later opnieuw</string>
     <string name="turnip_github_http">GitHub antwoordde met HTTP %1$d</string>
@@ -3472,6 +3495,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Voor games met opslagbestanden in je Steam-account</string>
     <string name="game_resource_search">Zoeken op het web</string>
+    <string name="game_tab_addons">Addons</string>
     <string name="game_tab_install">Installeren</string>
     <string name="game_install_location">Locatie</string>
     <string name="game_install_folder">Map</string>

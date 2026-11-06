@@ -12,6 +12,7 @@ import tempfile
 import textwrap
 import unittest
 import unittest.mock
+import zipfile
 
 TOOLS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS))
@@ -70,8 +71,17 @@ FAKE_ADB = textwrap.dedent('''\
         print(config.get("thermalservice", ""))
     elif args[:3] == ["shell", "grep", "."]:
         print(config.get("cpufreq", ""))
+    elif args[:1] == ["pull"] and args[1] in config.get("files", {}):
+        open(args[2], "wb").write(base64.b64decode(config["files"][args[1]]))
+    elif args[:1] == ["pull"]:
+        entry["denied"] = True
+        print(f"adb: error: failed to stat remote object '{args[1]}': Permission denied", file=sys.stderr)
+    elif args[:2] == ["shell", "rm"] and config.get("fail_cleanup"):
+        entry["denied"] = True
+        print("adb: error: cleanup denied", file=sys.stderr)
     with open(config["log"], "a") as log:
         log.write(json.dumps(entry) + "\\n")
+    sys.exit(1 if entry.get("denied") else 0)
 ''')
 
 DUMPSYS_DISPLAY = textwrap.dedent('''\
@@ -130,6 +140,24 @@ CPUFREQ = textwrap.dedent('''\
 
 def battery(tenths):
     return f"Current Battery Service state:\n  level: 80\n  temperature: {tenths}\n  technology: Li-poly"
+PRIVATE_LOG_DIR = "/data/user/0/com.droiddeck.launcher/files/logs/sessions/s1"
+AGENT_LOGS_DIR = "/storage/emulated/0/Android/data/com.droiddeck.launcher/files/agent-logs"
+EXPORTED_DIR = AGENT_LOGS_DIR + "/123e4567-e89b-12d3-a456-426614174000"
+EXPORTED_ZIP = EXPORTED_DIR + "/DroidDeck-s1.zip"
+
+
+def share_zip(entries):
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as z:
+        for name, text in entries.items():
+            z.writestr(name, text)
+    return base64.b64encode(buffer.getvalue()).decode()
+
+
+def ended_state():
+    ended = state(phase="IDLE")
+    ended["session"].update(logDir=PRIVATE_LOG_DIR, artifactsAvailable=True, artifactsComplete=True)
+    return ended
 
 
 def state(phase="READY", focused=None, focusable=()):
@@ -490,7 +518,7 @@ class DroiddeckctlTest(FakeAdbTest):
 
     def test_wait_cool_polls_until_the_battery_is_below(self):
         self.configure({}, battery=[battery(412), battery(395), battery(379)], thermalservice=THERMALSERVICE)
-        with unittest.mock.patch.object(ctl.time, "sleep") as slept:
+        with unittest.mock.patch.object(ctl, "wait_sleep") as slept:
             code, out = self.run_ctl("wait", "cool", "--below", "38", "--timeout", "600")
         self.assertEqual(0, code, out)
         self.assertEqual(["wait", 37.9], [out["command"], out["batteryC"]])
@@ -507,6 +535,191 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual(["INVALID_ARGUMENTS", 2], [out["error"]["code"], code])
         code, out = self.run_ctl("wait", "cool", "--below", "38")
         self.assertEqual("THERMAL_FAILED", out["error"]["code"])
+    def test_logs_pull_the_exported_zip_instead_of_the_private_folder(self):
+        self.configure({"state": ended_state(), "logs": {"ok": True, "sessionId": "s1", "zip": EXPORTED_ZIP,
+                                                                  "cleanupDir": EXPORTED_DIR}},
+                       files={EXPORTED_ZIP: share_zip({"s1/session.log": "booted", "s1/steam/console.log": "c",
+                                                       "stores/epic.log": "e", "../outside": "x"})})
+        destination = self.dir / "artifacts"
+        code, out = self.run_ctl("logs", "latest", str(destination))
+        self.assertEqual(0, code, out)
+        self.assertEqual("booted", (destination / "session.log").read_text())
+        self.assertEqual("c", (destination / "steam" / "console.log").read_text())
+        self.assertEqual("e", (destination / "stores" / "epic.log").read_text())
+        self.assertFalse((self.dir / "outside").exists())
+        self.assertEqual([["pull", EXPORTED_ZIP]], [c["args"][:2] for c in self.calls() if c["args"][:1] == ["pull"]])
+        self.assertIn(["shell", "rm", "-rf", EXPORTED_DIR], [c["args"] for c in self.calls()])
+
+    def test_logs_of_a_session_that_started_meanwhile_are_refused(self):
+        self.configure({"state": ended_state(), "logs": {"ok": True, "sessionId": "s2", "zip": EXPORTED_ZIP,
+                                                                  "cleanupDir": EXPORTED_DIR}},
+                       files={EXPORTED_ZIP: share_zip({"s2/session.log": "other"})})
+        code, out = self.run_ctl("logs", "latest", str(self.dir / "artifacts"))
+        self.assertEqual(6, code)
+        self.assertEqual("LOG_PULL_FAILED", out["error"]["code"])
+        self.assertFalse((self.dir / "artifacts").exists())
+        self.assertIn(["shell", "rm", "-rf", EXPORTED_DIR], [c["args"] for c in self.calls()])
+
+    def test_logs_from_a_legacy_provider_remove_only_the_export_zip(self):
+        legacy_zip = AGENT_LOGS_DIR + "/DroidDeck-s1.zip"
+        self.configure({"state": ended_state(),
+                        "logs": {"ok": True, "sessionId": "s1", "zip": legacy_zip}},
+                       files={legacy_zip: share_zip({"s1/session.log": "booted"})})
+        code, out = self.run_ctl("logs", "latest", str(self.dir / "artifacts"))
+        self.assertEqual(0, code, out)
+        commands = [c["args"] for c in self.calls()]
+        self.assertIn(["shell", "rm", "-f", legacy_zip], commands)
+        self.assertNotIn(["shell", "rm", "-rf", AGENT_LOGS_DIR], commands)
+
+    def test_logs_report_when_remote_export_cleanup_fails(self):
+        self.configure({"state": ended_state(),
+                        "logs": {"ok": True, "sessionId": "s1", "zip": EXPORTED_ZIP,
+                                 "cleanupDir": EXPORTED_DIR}},
+                       fail_cleanup=True, files={EXPORTED_ZIP: share_zip({"s1/session.log": "booted"})})
+        code, out = self.run_ctl("logs", "latest", str(self.dir / "artifacts"))
+        self.assertEqual(6, code, out)
+        self.assertEqual("LOG_CLEANUP_FAILED", out["error"]["code"])
+        self.assertIn("may remain in shared storage", out["error"]["message"])
+
+    def test_logs_keep_pull_failure_primary_when_remote_cleanup_fails(self):
+        self.configure({"state": ended_state(),
+                        "logs": {"ok": True, "sessionId": "s1", "zip": EXPORTED_ZIP,
+                                 "cleanupDir": EXPORTED_DIR}}, fail_cleanup=True)
+        code, out = self.run_ctl("logs", "latest", str(self.dir / "artifacts"))
+        self.assertEqual(6, code)
+        self.assertEqual("LOG_PULL_FAILED", out["error"]["code"])
+        self.assertIn("Permission denied", out["error"]["message"])
+        self.assertIn(["shell", "rm", "-rf", EXPORTED_DIR], [call["args"] for call in self.calls()])
+
+    def test_logs_replace_the_previous_snapshot_and_preserve_unrelated_files(self):
+        destination = self.dir / "artifacts"
+        destination.mkdir()
+        (destination / "notes.txt").write_text("keep me")
+        first = self.dir / "first.zip"
+        with zipfile.ZipFile(first, "w") as archive:
+            archive.writestr("s1/session.log", "first")
+            archive.writestr("s1/steam/console.log", "old")
+        ctl.unpack_logs(first, destination, "s1")
+        self.assertEqual("old", (destination / "steam/console.log").read_text())
+
+        second = self.dir / "second.zip"
+        with zipfile.ZipFile(second, "w") as archive:
+            archive.writestr("s1/session.log", "second")
+        ctl.unpack_logs(second, destination, "s1")
+        self.assertEqual("second", (destination / "session.log").read_text())
+        self.assertFalse((destination / "steam/console.log").exists())
+        self.assertEqual("keep me", (destination / "notes.txt").read_text())
+
+    def test_logs_map_destination_creation_failure_to_pull_error(self):
+        destination = (self.dir / "artifacts").resolve()
+        archive = self.dir / "logs.zip"
+        real_mkdir = Path.mkdir
+
+        def fail_destination(path, *args, **kwargs):
+            if path == destination:
+                raise PermissionError("injected destination failure")
+            return real_mkdir(path, *args, **kwargs)
+
+        with unittest.mock.patch.object(Path, "mkdir", new=fail_destination):
+            with self.assertRaises(ctl.ControlError) as raised:
+                ctl.unpack_logs(archive, destination, "s1")
+
+        self.assertEqual("LOG_PULL_FAILED", raised.exception.code)
+        self.assertIn("injected destination failure", str(raised.exception))
+
+    def test_logs_do_not_follow_a_stale_managed_symlink(self):
+        if os.name == "nt":
+            self.skipTest("symlink creation is unavailable on this Windows host")
+        destination = self.dir / "artifacts"
+        destination.mkdir()
+        victim = destination / "notes.txt"
+        victim.write_text("keep me")
+        (destination / ".droiddeckctl-managed-logs.json").write_text(json.dumps(["old.log"]))
+        (destination / "old.log").symlink_to(victim)
+        archive = self.dir / "logs.zip"
+        with zipfile.ZipFile(archive, "w") as z:
+            z.writestr("s1/session.log", "current")
+
+        ctl.unpack_logs(archive, destination, "s1")
+
+        self.assertEqual("keep me", victim.read_text())
+        self.assertTrue((destination / "old.log").is_symlink())
+        self.assertEqual("current", (destination / "session.log").read_text())
+
+    def test_logs_roll_back_a_failed_manifest_commit_and_can_retry(self):
+        destination = (self.dir / "artifacts").resolve()
+        destination.mkdir()
+        (destination / "notes.txt").write_text("keep me")
+        first = self.dir / "first.zip"
+        with zipfile.ZipFile(first, "w") as z:
+            z.writestr("s1/session.log", "first")
+            z.writestr("s1/steam/console.log", "old")
+        ctl.unpack_logs(first, destination, "s1")
+        old_manifest = (destination / ".droiddeckctl-managed-logs.json").read_bytes()
+        second = self.dir / "second.zip"
+        with zipfile.ZipFile(second, "w") as z:
+            z.writestr("s1/session.log", "second")
+            z.writestr("s1/new.log", "new")
+
+        real_replace = ctl.os.replace
+        failed = False
+        def fail_manifest_once(source, target):
+            nonlocal failed
+            if Path(target) == destination / ".droiddeckctl-managed-logs.json" and not failed:
+                failed = True
+                raise OSError("injected manifest failure")
+            return real_replace(source, target)
+
+        with unittest.mock.patch.object(ctl.os, "replace", side_effect=fail_manifest_once):
+            with self.assertRaises(ctl.ControlError):
+                ctl.unpack_logs(second, destination, "s1")
+
+        self.assertEqual("first", (destination / "session.log").read_text())
+        self.assertEqual("old", (destination / "steam/console.log").read_text())
+        self.assertFalse((destination / "new.log").exists())
+        self.assertEqual(old_manifest, (destination / ".droiddeckctl-managed-logs.json").read_bytes())
+        ctl.unpack_logs(second, destination, "s1")
+        self.assertEqual("second", (destination / "session.log").read_text())
+        self.assertEqual("new", (destination / "new.log").read_text())
+        self.assertFalse((destination / "steam/console.log").exists())
+        self.assertEqual("keep me", (destination / "notes.txt").read_text())
+
+    def test_logs_preserve_the_old_manifest_when_its_backup_fails(self):
+        destination = (self.dir / "artifacts").resolve()
+        destination.mkdir()
+        archive = self.dir / "logs.zip"
+        with zipfile.ZipFile(archive, "w") as z:
+            z.writestr("s1/session.log", "current")
+        manifest = destination / ".droiddeckctl-managed-logs.json"
+        manifest.write_text(json.dumps(["old.log"]))
+        original = manifest.read_bytes()
+        real_replace = ctl.os.replace
+
+        def fail_manifest_backup(source, target):
+            if Path(source) == manifest:
+                raise OSError("injected manifest backup failure")
+            return real_replace(source, target)
+
+        with unittest.mock.patch.object(ctl.os, "replace", side_effect=fail_manifest_backup):
+            with self.assertRaises(ctl.ControlError):
+                ctl.unpack_logs(archive, destination, "s1")
+
+        self.assertEqual(original, manifest.read_bytes())
+
+    def test_logs_from_an_older_build_fall_back_to_the_private_folder(self):
+        self.configure({"state": ended_state()})
+        code, out = self.run_ctl("logs", "latest", str(self.dir / "artifacts"))
+        self.assertEqual(6, code)
+        self.assertEqual("LOG_PULL_FAILED", out["error"]["code"])
+        self.assertIn("Permission denied", out["error"]["message"])
+        self.assertEqual([["pull", PRIVATE_LOG_DIR]], [c["args"][:2] for c in self.calls() if c["args"][:1] == ["pull"]])
+
+    def test_logs_without_a_session_folder_exit_6(self):
+        self.configure({"state": ended_state(),
+                        "logs": {"ok": False, "error": {"code": "NO_SESSION_LOGS", "message": "none"}}})
+        code, out = self.run_ctl("logs", "latest", str(self.dir / "artifacts"))
+        self.assertEqual(6, code)
+        self.assertEqual("NO_SESSION_LOGS", out["error"]["code"])
 
 
 class ScenarioTest(FakeAdbTest):
@@ -549,6 +762,19 @@ class ScenarioTest(FakeAdbTest):
         self.assertIn("is 769", report["runs"][0]["error"])
         evidence = json.loads((Path(report["runs"][0]["folder"]) / "evidence.json").read_text())
         self.assertEqual(769, evidence["focus"]["focusedApp"])
+
+    def test_a_failed_run_keeps_the_session_logs(self):
+        failing = ended_state()
+        failing["session"]["focus"] = {"focusedApp": 769}
+        self.configure({"state": failing, "focus": {"ok": True, "focusedApp": 769},
+                        "logs": {"ok": True, "sessionId": "s1", "zip": EXPORTED_ZIP}},
+                       dumpsys_display=DUMPSYS_DISPLAY, files={EXPORTED_ZIP: share_zip({"s1/session.log": "booted"})})
+        path = self.write({"name": "t", "steps": [["state"], {"assert": "session.focus.focusedApp", "equals": 7}]})
+        code, report = self.run_scenario(path)
+        self.assertEqual(1, code)
+        folder = Path(report["runs"][0]["folder"])
+        self.assertTrue(json.loads((folder / "evidence.json").read_text())["logs"]["ok"])
+        self.assertEqual("booted", (folder / "session" / "session.log").read_text())
 
     def test_after_steps_run_after_a_failure(self):
         self.configure({"state": state(focused=769), "quit": {"ok": True, "remaining": []}})

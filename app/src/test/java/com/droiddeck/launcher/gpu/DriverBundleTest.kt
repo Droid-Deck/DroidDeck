@@ -129,4 +129,19 @@ class DriverBundleTest {
         assertEquals(2, DriverBundle.all(context).size)
         assertFalse(first.androidId == second.androidId)
     }
+
+    @Test fun failedNonAdrenoReplacementKeepsTheInstalledPairAndSelection() {
+        manifest.put("tag", "PanVK-G610-v1")
+        val first = DriverBundle.install(context, bundle())
+        DriverBundle.select(context, first)
+        try {
+            DriverBundle.install(context, bundle(linuxLibc = "libc.so"))
+            fail("Accepted a bionic Linux driver")
+        } catch (_: IllegalArgumentException) {
+        }
+        assertEquals(first.id, DriverBundle.active(context)?.id)
+        assertTrue(TurnipDriver(context).isInstalled(first.androidId))
+        assertTrue(LinuxVulkanDriverManager(context).isInstalled(first.linuxId))
+        assertEquals(1, DriverBundle.all(context).size)
+    }
 }

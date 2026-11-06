@@ -41,7 +41,7 @@ internal object GogMaintenance {
     }
 
     fun checkInstalled(context: Context, games: List<InstalledStoreGame>) {
-        val user = StoreAccounts.displayName(context, Store.GOG).orEmpty()
+        val user = StoresState.accounts[Store.GOG].orEmpty()
         if (user != account) { reset(); account = user }
         if (user.isBlank()) return
         games.filter { it.sidecar.store == Store.GOG && it.sidecar.isInstalled }.forEach { check(context, it) }

@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s melalui FEX</string>
     <string name="app_fex_not_ready">Program ini dibuat untuk PC %1$s dan berjalan melalui FEX, yang belum disiapkan. Buka Steam sekali saat masuk: DroidDeck akan mengunduh FEX dan Steam Linux Runtime yang diperlukan, lalu ini akan terbuka.</string>
     <string name="session_proot_missing">proot DroidDeck tidak dapat diunduh. Periksa koneksi lalu coba lagi. Sesi tidak dimulai karena proot cadangan terlalu lambat untuk bermain.</string>
+    <string name="session_powervr_missing">Lingkungan grafis PowerVR tidak dapat diunduh. Periksa koneksi dan coba lagi.</string>
     <string name="session_directaudio_missing">DirectAudio tidak dapat diunduh, jadi audio gim menggunakan jalur yang lebih lambat di sesi ini.</string>
     <string name="session_end_program">Program ini</string>
     <string name="session_end_steam_download">Tidak dapat mengunduh klien Steam. Jaringan atau VPN Anda mungkin memblokir server Steam; periksa koneksi lalu coba lagi.</string>
@@ -583,7 +584,7 @@
     <string name="perf_ram_cap_hint">Berlaku saat klien Steam berjalan, di mode Steam atau dari desktop. Saat sesi menggunakan lebih dari ini, Steam lalu proses lain yang didukung dalam sesi dikompres ke zRAM. Batas lunak: tidak ada yang ditutup, tetapi gim dapat tersendat saat halaman dimuat kembali.</string>
     <string name="perf_ram_cap_unavailable">Memerlukan swap zRAM, yang tidak dimiliki perangkat ini.</string>
     <string name="perf_vram_cap">Batas VRAM</string>
-    <string name="perf_vram_cap_hint">Memori video yang dilaporkan DXVK ke gim Direct3D, sehingga gim menganggarkan tekstur lebih sedikit. Setelan DXVK milik gim tetap diutamakan. Berlaku pada sesi berikutnya.</string>
+    <string name="perf_vram_cap_hint">Melaporkan anggaran memori video ini ke game Direct3D 9 hingga 12 untuk mengurangi penggunaan memori. Game dapat melampauinya; ini tidak menambahkan paging GPU atau menjamin perlindungan dari crash akibat kehabisan memori. Berlaku pada sesi berikutnya.</string>
     <string name="perf_gpuclock">Pertahankan GPU pada clock tertingginya</string>
     <string name="perf_gpuclock_hint">Hanya Adreno. Lebih sedikit tersendat, lebih banyak penggunaan baterai dan panas.</string>
     <string name="perf_fixes">Perbaikan sesi</string>
@@ -668,6 +669,8 @@
     <string name="hud_group_metrics">Pembacaan</string>
     <string name="hud_metric_graph">Grafik waktu bingkai</string>
     <string name="hud_metric_decimal">Laju bingkai dengan desimal</string>
+    <string name="hud_metric_low1">1% terendah</string>
+    <string name="hud_metric_low01">0.1% terendah</string>
     <string name="hud_metric_low001">0.01% terendah</string>
     <string name="hud_metric_engine">Mesin grafis</string>
     <string name="hud_metric_gpu_model">Nama GPU</string>
@@ -808,7 +811,7 @@
     <string name="setup_gpu_unsupported">GPU tidak didukung</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam memerlukan driver Adreno; %1$s mungkin menampilkan layar hitam</string>
+    <string name="setup_gpu_unsupported_detail">Tidak ada backend grafis yang kompatibel untuk %1$s. Steam mungkin menampilkan layar hitam.</string>
     <string name="setup_runtime">Runtime Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Belum terinstal · sekitar 3 GB, terinstal saat Play pertama kali</string>
@@ -1100,6 +1103,7 @@
     <string name="ctrl_stick_click_hint">Ketuk dua kali dan tahan sebuah stik untuk L3 atau R3</string>
     <string name="ctrl_adaptive">Stik adaptif</string>
     <string name="ctrl_rumble">Getaran gim</string>
+    <string name="ctrl_dead_zone">Zona mati stik</string>
     <string name="ctrl_steam_button">Tombol Steam</string>
     <string name="ctrl_qam_button">Tombol QAM</string>
     <string name="ctrl_keyboard_button">Tombol keyboard</string>
@@ -1177,6 +1181,13 @@
     <string name="games_export_gamehub">Ekspor sebagai zip GameHub…</string>
     <string name="games_export_winlator">Ekspor sebagai zip Winlator…</string>
     <string name="games_open_save_folder">Buka folder simpanan</string>
+    <string name="games_import_addons">Impor addon dari zip…</string>
+    <string name="games_open_addons_folder">Buka folder addon</string>
+    <string name="games_delete_addon_title">Hapus %1$s?</string>
+    <string name="games_delete_addon_body">Ini menghapus folder addon. Pengaturannya tetap ada.</string>
+    <plurals name="games_addons_count">
+        <item quantity="other">%1$d addon</item>
+    </plurals>
     <string name="games_never_played">Belum pernah dimainkan</string>
     <string name="games_runtime_busy_percent">Runtime sibuk · %1$d%%</string>
     <string name="games_runtime_busy">Runtime sibuk</string>
@@ -1353,6 +1364,16 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="other">%1$d file diimpor dari %2$s ke %3$s. Save lama dicadangkan ke Download/DroidDeck/Saves/backups</item>
     </plurals>
+    <string name="main_addons_close_session">Tutup sesi dulu, agar game tidak memakai addon-nya saat impor</string>
+    <string name="main_addons_importing">Mengimpor addon ke %1$s</string>
+    <string name="main_addons_pick_zip">Pilih zip addon untuk %1$s</string>
+    <string name="main_addons_too_large">%1$s terlalu besar untuk diimpor</string>
+    <string name="main_addons_deleting">Menghapus %1$s</string>
+    <string name="main_addons_deleted">%1$s dihapus</string>
+    <string name="main_addons_none">Tidak ada addon di %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="other">%1$d addon diimpor ke %2$s</item>
+    </plurals>
     <string name="main_saves_pick_zip">Pilih zip save untuk %1$s</string>
     <string name="main_saves_exporting">Mengekspor %1$s</string>
     <plurals name="main_saves_exported">
@@ -1370,8 +1391,8 @@
     <string name="main_wadb_unavailable">Debugging nirkabel tidak tersedia</string>
     <string name="main_adb_copied">Perintah ADB disalin</string>
     <string name="main_pick_roms">Pilih folder ROMs</string>
-    <string name="main_non_adreno_title">Bukan GPU Adreno</string>
-    <string name="main_non_adreno_text">Turnip mendukung GPU Adreno. Di %1$s, Steam mungkin menampilkan layar hitam. Unduhan: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">GPU tidak didukung</string>
+    <string name="main_non_adreno_text">Tidak ada backend grafis yang kompatibel untuk %1$s. Steam mungkin menampilkan layar hitam. Unduhan: %2$.0f MB.</string>
     <string name="main_install_anyway">Tetap instal</string>
     <string name="main_remove_runtime_title">Hapus runtime Linux</string>
     <string name="main_remove_runtime_text">Ini menghapus runtime, klien Steam di dalamnya, dan setiap game yang terinstal di sana.</string>
@@ -2072,7 +2093,7 @@
     <string name="gpuinfo_experimental">Eksperimental: drivernya adalah build uji</string>
     <string name="gpuinfo_a850_experimental">Dukungan eksperimental Adreno 850: memerlukan driver tampilan dan driver gim eksperimental yang kompatibel; belum diverifikasi di perangkat ini</string>
     <string name="gpuinfo_below_tested">Di bawah perangkat keras yang diuji (Adreno 725 dan lebih baru): mungkin tidak dapat berjalan</string>
-    <string name="gpuinfo_unsupported">Tidak didukung: DroidDeck memerlukan GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">Tidak didukung: tidak ada backend grafis yang kompatibel untuk GPU ini</string>
 
     <string name="turnip_rate_limited">Batas kecepatan GitHub tercapai - coba lagi nanti</string>
     <string name="turnip_github_http">GitHub merespons HTTP %1$d</string>
@@ -3445,6 +3466,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Untuk gim dengan save di akun Steam Anda</string>
     <string name="game_resource_search">Penelusuran web</string>
+    <string name="game_tab_addons">Addon</string>
     <string name="game_tab_install">Pasang</string>
     <string name="game_install_location">Lokasi</string>
     <string name="game_install_folder">Folder</string>

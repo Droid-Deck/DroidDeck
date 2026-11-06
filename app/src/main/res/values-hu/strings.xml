@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s a FEX-en keresztül</string>
     <string name="app_fex_not_ready">Ez a program %1$s PC-khez készült, és a FEX-en keresztül fut, amely még nincs beállítva. Nyissa meg egyszer a Steamet bejelentkezve: a DroidDeck ekkor letölti a FEX-et és a szükséges Steam Linux Runtime-ot, majd ez megnyílik.</string>
     <string name="session_proot_missing">A DroidDeck proot nem tölthető le. Ellenőrizze a kapcsolatot, és próbálja újra. A munkamenet nem indult el, mert a tartalék proot túl lassú a játékhoz.</string>
+    <string name="session_powervr_missing">A PowerVR grafikus környezetet nem sikerült letölteni. Ellenőrizd a kapcsolatot, és próbáld újra.</string>
     <string name="session_directaudio_missing">A DirectAudio nem tölthető le, ezért a játékhang ebben a munkamenetben a lassabb útvonalat használja.</string>
     <string name="session_end_program">Ez a program</string>
     <string name="session_end_steam_download">A Steam-klienst nem sikerült letölteni. Lehet, hogy a hálózat vagy a VPN blokkolja a Steam szervereit; ellenőrizd a kapcsolatot, és próbáld újra.</string>
@@ -585,7 +586,7 @@
     <string name="perf_ram_cap_hint">Akkor érvényes, amikor a Steam-kliens fut, Steam módban vagy az asztalról. Ha a munkamenet ennél többet használ, a Steam, majd a munkamenet többi támogatott folyamata a zRAM-ba tömörül. Puha korlát: semmi sem zárul be, de a játékok akadhatnak, amíg a lapok visszatöltődnek.</string>
     <string name="perf_ram_cap_unavailable">zRAM swap szükséges, amely ezen az eszközön nincs.</string>
     <string name="perf_vram_cap">VRAM-korlát</string>
-    <string name="perf_vram_cap_hint">A DXVK által a Direct3D-játékoknak jelentett videomemória, így azok kevesebbel számolnak a textúráknál. A játék saját DXVK-beállításai elsőbbséget élveznek. A következő munkamenettől érvényes.</string>
+    <string name="perf_vram_cap_hint">Ezt a videomemória-keretet jelzi a Direct3D 9–12 játékoknak a memóriahasználat csökkentésére. A játékok túlléphetik; nem biztosít GPU-lapozást, és nem garantál védelmet a memóriahiány miatti összeomlás ellen. A következő munkamenettől érvényes.</string>
     <string name="perf_gpuclock">A GPU legmagasabb órajelen tartása</string>
     <string name="perf_gpuclock_hint">Csak Adreno. Kevesebb akadás, nagyobb akkumulátorhasználat és hőtermelés.</string>
     <string name="perf_fixes">Munkamenet-javítások</string>
@@ -670,6 +671,8 @@
     <string name="hud_group_metrics">Mért értékek</string>
     <string name="hud_metric_graph">Képkockaidő-grafikon</string>
     <string name="hud_metric_decimal">Képkockasebesség tizedesjeggyel</string>
+    <string name="hud_metric_low1">1% legalacsonyabb</string>
+    <string name="hud_metric_low01">0.1% legalacsonyabb</string>
     <string name="hud_metric_low001">0.01% legalacsonyabb</string>
     <string name="hud_metric_engine">Grafikus motor</string>
     <string name="hud_metric_gpu_model">GPU neve</string>
@@ -811,7 +814,7 @@
     <string name="setup_gpu_unsupported">A GPU nem támogatott</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">A Steamnek Adreno-illesztőprogram szükséges; a %1$s fekete képernyőt jeleníthet meg</string>
+    <string name="setup_gpu_unsupported_detail">Nincs kompatibilis grafikus háttérrendszer ehhez: %1$s. A Steam fekete képernyőt jeleníthet meg.</string>
     <string name="setup_runtime">Linux futtatókörnyezet</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Nincs telepítve · kb. 3 GB, az első Játék gombnyomáskor települ</string>
@@ -1106,6 +1109,7 @@
     <string name="ctrl_stick_click_hint">Koppintson duplán, és tartsa lenyomva a kart az L3 vagy R3 érdekében</string>
     <string name="ctrl_adaptive">Adaptív karok</string>
     <string name="ctrl_rumble">Játékvibráció</string>
+    <string name="ctrl_dead_zone">Kar holtzónája</string>
     <string name="ctrl_steam_button">Steam gomb</string>
     <string name="ctrl_qam_button">QAM gomb</string>
     <string name="ctrl_keyboard_button">Billentyűzet gomb</string>
@@ -1183,6 +1187,14 @@
     <string name="games_export_gamehub">Exportálás GameHub zipként…</string>
     <string name="games_export_winlator">Exportálás Winlator zipként…</string>
     <string name="games_open_save_folder">Mentésmappa megnyitása</string>
+    <string name="games_import_addons">Kiegészítők importálása zipből…</string>
+    <string name="games_open_addons_folder">Kiegészítők mappájának megnyitása</string>
+    <string name="games_delete_addon_title">Törlöd ezt: %1$s?</string>
+    <string name="games_delete_addon_body">Ez törli a kiegészítő mappáját. A beállításai megmaradnak.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d kiegészítő</item>
+        <item quantity="other">%1$d kiegészítő</item>
+    </plurals>
     <string name="games_never_played">Még nem játszott</string>
     <string name="games_runtime_busy_percent">Futtatókörnyezet dolgozik · %1$d%%</string>
     <string name="games_runtime_busy">Futtatókörnyezet dolgozik</string>
@@ -1361,6 +1373,17 @@
         <item quantity="one">%1$d fájl importálva innen: %2$s, ide: %3$s. A régi mentések mentve itt: Download/DroidDeck/Saves/backups</item>
         <item quantity="other">%1$d fájl importálva innen: %2$s, ide: %3$s. A régi mentések mentve itt: Download/DroidDeck/Saves/backups</item>
     </plurals>
+    <string name="main_addons_close_session">Előbb zárja be a munkamenetet, hogy a játék ne használja a kiegészítőit az importálás alatt</string>
+    <string name="main_addons_importing">Kiegészítők importálása ide: %1$s</string>
+    <string name="main_addons_pick_zip">Válasszon kiegészítő zip fájlt ehhez: %1$s</string>
+    <string name="main_addons_too_large">A(z) %1$s túl nagy az importáláshoz</string>
+    <string name="main_addons_deleting">%1$s törlése folyamatban</string>
+    <string name="main_addons_deleted">%1$s törölve</string>
+    <string name="main_addons_none">Nem található kiegészítő itt: %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">%1$d kiegészítő importálva ide: %2$s</item>
+        <item quantity="other">%1$d kiegészítő importálva ide: %2$s</item>
+    </plurals>
     <string name="main_saves_pick_zip">Válasszon mentés zip fájlt ehhez: %1$s</string>
     <string name="main_saves_exporting">%1$s exportálása</string>
     <plurals name="main_saves_exported">
@@ -1380,8 +1403,8 @@
     <string name="main_wadb_unavailable">A vezeték nélküli hibakeresés nem áll rendelkezésre</string>
     <string name="main_adb_copied">ADB-parancs másolva</string>
     <string name="main_pick_roms">ROMs mappa kiválasztása</string>
-    <string name="main_non_adreno_title">Nem Adreno GPU</string>
-    <string name="main_non_adreno_text">A Turnip Adreno GPU-kat támogat. %1$s esetén a Steam fekete képernyőt jeleníthet meg. Letöltés: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">Nem támogatott GPU</string>
+    <string name="main_non_adreno_text">Nincs kompatibilis grafikus háttérrendszer ehhez: %1$s. A Steam fekete képernyőt jeleníthet meg. Letöltés: %2$.0f MB.</string>
     <string name="main_install_anyway">Telepítés mindenképpen</string>
     <string name="main_remove_runtime_title">Linux futtatókörnyezet eltávolítása</string>
     <string name="main_remove_runtime_text">Ez törli a futtatókörnyezetet, a benne lévő Steam-klienst és az összes ott telepített játékot.</string>
@@ -2095,7 +2118,7 @@
     <string name="gpuinfo_experimental">Kísérleti: az illesztőprogramjai teszt buildek</string>
     <string name="gpuinfo_a850_experimental">Kísérleti Adreno 850-támogatás: kompatibilis kísérleti kijelző- és játék-illesztőprogramokat igényel; ezen az eszközön nincs ellenőrizve</string>
     <string name="gpuinfo_below_tested">A tesztelt hardver alatt (Adreno 725 és újabb): lehet, hogy nem fut</string>
-    <string name="gpuinfo_unsupported">Nem támogatott: a DroidDecknek Adreno (Snapdragon) GPU szükséges</string>
+    <string name="gpuinfo_unsupported">Nem támogatott: nincs kompatibilis grafikus háttérrendszer ehhez a GPU-hoz</string>
 
     <string name="turnip_rate_limited">A GitHub korlátja elérve – próbálja újra később</string>
     <string name="turnip_github_http">A GitHub HTTP %1$d választ adott</string>
@@ -3472,6 +3495,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">A Steam-fiókjában mentéseket tároló játékokhoz</string>
     <string name="game_resource_search">Webes keresés</string>
+    <string name="game_tab_addons">Kiegészítők</string>
     <string name="game_tab_install">Telepítés</string>
     <string name="game_install_location">Hely</string>
     <string name="game_install_folder">Mappa</string>

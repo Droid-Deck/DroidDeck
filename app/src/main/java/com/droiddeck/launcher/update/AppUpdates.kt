@@ -74,6 +74,12 @@ object AppUpdates {
         val updatable: Boolean,
         val committedAt: Long = 0L,
         val ciBuild: Boolean = BuildConfig.CI_BUILD,
+        /**
+         * A build of the non-Adreno test branch (Mali / Xclipse / PowerVR routes). The official
+         * channels carry the Adreno-only app: installing one over it drops those routes, so none is
+         * offered. Its updates are published on The412Banner/droiddeck-nonadreno-drivers.
+         */
+        val nonAdrenoTest: Boolean = false,
     )
 
     enum class PreviewHistoryKind { CURRENT, BEHIND, RECENT }
@@ -125,6 +131,7 @@ object AppUpdates {
         BuildConfig.VERSION_CODE,
         releaseSigned,
         BuildConfig.COMMIT_TIME,
+        nonAdrenoTest = BuildConfig.BUILD_LABEL.contains("non-adreno"),
     )
 
     fun release(catalog: Catalog, follow: Follow): Release? = when (follow.channel) {
@@ -191,6 +198,7 @@ object AppUpdates {
     }
 
     fun installBlock(r: Release, me: Installed = installed()): InstallBlock? = when {
+        me.nonAdrenoTest -> InstallBlock(R.string.upd_block_non_adreno_test)
         r.apk == null -> InstallBlock(R.string.upd_block_no_apk)
         r.apk.versionCode < me.versionCode -> InstallBlock(R.string.upd_block_version_code, r.apk.versionCode, me.versionCode)
         else -> null
