@@ -18,6 +18,7 @@ import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
 internal class ProtonMenu(
     private val activity: android.app.Activity,
     private val ui: Handler,
+    private val onInstalled: () -> Unit = {},
     private val idle: () -> Boolean = { true },
 ) {
     private object Operation {
@@ -61,6 +62,7 @@ internal class ProtonMenu(
                     if (automatic) Log.w("ProtonMenu", "auto-update ${tool.id}: $problem")
                     else android.widget.Toast.makeText(activity, problem, android.widget.Toast.LENGTH_LONG).show()
                 }
+                if (problem == null) onInstalled()
                 if (automatic) ensureAutoUpdates()
             }
         }, "install-proton-$id").start()
