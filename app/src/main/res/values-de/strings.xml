@@ -562,7 +562,6 @@
     <string name="comp_auto_hint">Neue Builds werden im Hintergrund installiert. Startet ein Spiel nicht mehr, kehrt Auto zum funktionierenden Build zurück.</string>
     <string name="comp_auto_fallback">Ausweich-Build: %1$s</string>
     <string name="comp_auto_checking">Suche nach Builds…</string>
-    <string name="comp_auto_pending">Noch nicht installiert</string>
     <string name="comp_auto_none">Kein installiertes Proton nutzt dies</string>
     <string name="comp_auto_waits_network">Auto-Updates warten auf eine Verbindung.</string>
     <string name="comp_auto_check_failed">Neue Builds konnten nicht geprüft werden.</string>

@@ -564,7 +564,6 @@
     <string name="comp_auto_hint">Versiunile noi se instalează în fundal. Dacă un joc nu mai pornește, Auto revine la versiunea care funcționa.</string>
     <string name="comp_auto_fallback">Rezervă: %1$s</string>
     <string name="comp_auto_checking">Se caută versiuni…</string>
-    <string name="comp_auto_pending">Încă neinstalat</string>
     <string name="comp_auto_none">Niciun Proton instalat nu folosește asta</string>
     <string name="comp_auto_waits_network">Actualizările Auto așteaptă o conexiune.</string>
     <string name="comp_auto_check_failed">Nu s-au putut căuta versiuni noi.</string>

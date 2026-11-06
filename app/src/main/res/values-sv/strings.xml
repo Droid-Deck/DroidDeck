@@ -562,7 +562,6 @@
     <string name="comp_auto_hint">Nya byggen installeras i bakgrunden. Om ett spel slutar starta går Auto tillbaka till bygget som fungerade.</string>
     <string name="comp_auto_fallback">Reserv: %1$s</string>
     <string name="comp_auto_checking">Söker efter byggen…</string>
-    <string name="comp_auto_pending">Inte installerat än</string>
     <string name="comp_auto_none">Ingen installerad Proton använder detta</string>
     <string name="comp_auto_waits_network">Auto-uppdateringar väntar på en anslutning.</string>
     <string name="comp_auto_check_failed">Kunde inte söka efter nya byggen.</string>

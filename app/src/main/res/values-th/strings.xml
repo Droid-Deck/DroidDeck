@@ -560,7 +560,6 @@
     <string name="comp_auto_hint">บิลด์ใหม่จะติดตั้งในเบื้องหลัง หากเกมเริ่มไม่ได้ Auto จะกลับไปใช้บิลด์ที่ใช้งานได้</string>
     <string name="comp_auto_fallback">สำรอง: %1$s</string>
     <string name="comp_auto_checking">กำลังค้นหาบิลด์…</string>
-    <string name="comp_auto_pending">ยังไม่ได้ติดตั้ง</string>
     <string name="comp_auto_none">ไม่มี Proton ที่ติดตั้งใช้สิ่งนี้</string>
     <string name="comp_auto_waits_network">การอัปเดต Auto กำลังรอการเชื่อมต่อ</string>
     <string name="comp_auto_check_failed">ตรวจหาบิลด์ใหม่ไม่ได้</string>

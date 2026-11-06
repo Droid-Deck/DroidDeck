@@ -562,7 +562,6 @@
     <string name="comp_auto_hint">Yeni sürümler arka planda yüklenir. Bir oyun açılmazsa Auto çalışan sürüme geri döner.</string>
     <string name="comp_auto_fallback">Yedek: %1$s</string>
     <string name="comp_auto_checking">Sürümler aranıyor…</string>
-    <string name="comp_auto_pending">Henüz yüklenmedi</string>
     <string name="comp_auto_none">Yüklü hiçbir Proton bunu kullanmıyor</string>
     <string name="comp_auto_waits_network">Auto güncellemeleri bağlantı bekliyor.</string>
     <string name="comp_auto_check_failed">Yeni sürümler denetlenemedi.</string>

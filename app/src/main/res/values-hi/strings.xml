@@ -562,7 +562,6 @@
     <string name="comp_auto_hint">नए बिल्ड बैकग्राउंड में इंस्टॉल होते हैं। अगर कोई गेम शुरू होना बंद हो जाए, तो Auto काम करने वाले बिल्ड पर लौट जाता है।</string>
     <string name="comp_auto_fallback">फ़ॉलबैक: %1$s</string>
     <string name="comp_auto_checking">बिल्ड खोजे जा रहे हैं…</string>
-    <string name="comp_auto_pending">अभी इंस्टॉल नहीं है</string>
     <string name="comp_auto_none">कोई इंस्टॉल Proton इसका उपयोग नहीं करता</string>
     <string name="comp_auto_waits_network">Auto अपडेट कनेक्शन का इंतज़ार कर रहे हैं।</string>
     <string name="comp_auto_check_failed">नए बिल्ड नहीं जाँचे जा सके।</string>

@@ -46,8 +46,8 @@ Auto keeps the current build and the one it replaced and deletes older builds it
 downloaded itself; packages selected anywhere, including in game profiles, are never
 removed. Steam's process log tells it how long each game ran. A game that ran
 for at least a minute on the previous build and then exits within 30 seconds twice
-on the new one rolls that line back to the previous build, and the failed build is
-skipped until a newer one is published. Games with their own component override are
+on the new one rolls back every component line that changed since that boot, and
+each failed build is skipped until a newer one is published. Games with their own component override are
 not counted. DXVK stays on Manual while a GPU rule pins a DXVK version (Adreno 6xx and
 the Vulkan bridge). Manual keeps the existing download, import and restore lists.
 

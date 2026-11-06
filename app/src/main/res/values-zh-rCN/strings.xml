@@ -560,7 +560,6 @@
     <string name="comp_auto_hint">新版本会在后台安装。如果游戏无法启动，Auto 会退回到之前可用的版本。</string>
     <string name="comp_auto_fallback">备用：%1$s</string>
     <string name="comp_auto_checking">正在检查版本…</string>
-    <string name="comp_auto_pending">尚未安装</string>
     <string name="comp_auto_none">没有已安装的 Proton 使用它</string>
     <string name="comp_auto_waits_network">Auto 更新正在等待网络连接。</string>
     <string name="comp_auto_check_failed">无法检查新版本。</string>

@@ -564,7 +564,6 @@
     <string name="comp_auto_hint">Le nuove build si installano in background. Se un gioco non si avvia più, Auto torna alla build che funzionava.</string>
     <string name="comp_auto_fallback">Riserva: %1$s</string>
     <string name="comp_auto_checking">Ricerca build…</string>
-    <string name="comp_auto_pending">Non ancora installato</string>
     <string name="comp_auto_none">Nessun Proton installato lo usa</string>
     <string name="comp_auto_waits_network">Gli aggiornamenti Auto attendono una connessione.</string>
     <string name="comp_auto_check_failed">Impossibile cercare nuove build.</string>

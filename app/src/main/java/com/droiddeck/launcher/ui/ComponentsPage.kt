@@ -1093,13 +1093,14 @@ private fun AutoComponentBody(label: String, lines: List<ComponentUpdater.Status
         if (lines.isEmpty()) EmptyLine(stringResource(R.string.comp_auto_none))
         for (line in lines) {
             val previous = line.previous.removeSuffix(".wcp").ifEmpty { stringResource(R.string.comp_tag_original) }
+            val fallback = if (line.current.isEmpty()) null else stringResource(R.string.comp_auto_fallback, previous)
             PanelRow(
-                line.current.removeSuffix(".wcp").ifEmpty { stringResource(if (checking) R.string.comp_auto_checking else R.string.comp_auto_pending) },
-                listOfNotNull(line.protons.joinToString(", ").ifEmpty { null }, stringResource(R.string.comp_auto_fallback, previous)).joinToString(" · "),
-                selected = line.current.isNotEmpty(), onClick = null,
+                line.current.removeSuffix(".wcp").ifEmpty { stringResource(if (checking) R.string.comp_auto_checking else R.string.comp_tag_original) },
+                listOfNotNull(line.protons.joinToString(", ").ifEmpty { null }, fallback).joinToString(" · "),
+                selected = true, onClick = null,
             )
         }
-        lines.firstOrNull()?.note?.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 13.sp, color = colors.onSurfaceVariant) }
+        lines.map { it.note }.filter { it.isNotEmpty() }.distinct().forEach { Text(it, fontSize = 13.sp, color = colors.onSurfaceVariant) }
     }
 }
 

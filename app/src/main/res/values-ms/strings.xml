@@ -560,7 +560,6 @@
     <string name="comp_auto_hint">Binaan baharu dipasang di latar belakang. Jika permainan tidak lagi bermula, Auto kembali ke binaan yang berfungsi.</string>
     <string name="comp_auto_fallback">Sandaran: %1$s</string>
     <string name="comp_auto_checking">Mencari binaan…</string>
-    <string name="comp_auto_pending">Belum dipasang</string>
     <string name="comp_auto_none">Tiada Proton terpasang yang menggunakannya</string>
     <string name="comp_auto_waits_network">Kemas kini Auto menunggu sambungan.</string>
     <string name="comp_auto_check_failed">Tidak dapat menyemak binaan baharu.</string>

@@ -562,7 +562,6 @@
     <string name="comp_auto_hint">Az új buildek a háttérben települnek. Ha egy játék nem indul el, az Auto visszaáll a működő buildre.</string>
     <string name="comp_auto_fallback">Tartalék: %1$s</string>
     <string name="comp_auto_checking">Buildek keresése…</string>
-    <string name="comp_auto_pending">Még nincs telepítve</string>
     <string name="comp_auto_none">Egyik telepített Proton sem használja</string>
     <string name="comp_auto_waits_network">Az Auto frissítések kapcsolatra várnak.</string>
     <string name="comp_auto_check_failed">Nem sikerült új buildeket keresni.</string>

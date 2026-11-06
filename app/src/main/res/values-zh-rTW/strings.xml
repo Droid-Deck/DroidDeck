@@ -560,7 +560,6 @@
     <string name="comp_auto_hint">新版本會在背景安裝。如果遊戲無法啟動，Auto 會退回到先前可用的版本。</string>
     <string name="comp_auto_fallback">備用：%1$s</string>
     <string name="comp_auto_checking">正在檢查版本…</string>
-    <string name="comp_auto_pending">尚未安裝</string>
     <string name="comp_auto_none">沒有已安裝的 Proton 使用它</string>
     <string name="comp_auto_waits_network">Auto 更新正在等待網路連線。</string>
     <string name="comp_auto_check_failed">無法檢查新版本。</string>

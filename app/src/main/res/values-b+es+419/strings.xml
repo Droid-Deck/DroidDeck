@@ -564,7 +564,6 @@
     <string name="comp_auto_hint">Las nuevas versiones se instalan en segundo plano. Si un juego deja de iniciar, Auto vuelve a la versión que funcionaba.</string>
     <string name="comp_auto_fallback">Respaldo: %1$s</string>
     <string name="comp_auto_checking">Buscando versiones…</string>
-    <string name="comp_auto_pending">Aún no instalado</string>
     <string name="comp_auto_none">Ningún Proton instalado lo usa</string>
     <string name="comp_auto_waits_network">Las actualizaciones Auto esperan una conexión.</string>
     <string name="comp_auto_check_failed">No se pudieron buscar nuevas versiones.</string>

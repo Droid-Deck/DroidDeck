@@ -100,8 +100,8 @@ object ComponentUpdater {
         for (comp in wanted) for (p in protons) {
             val line = lineOf(context, state, p, comp) ?: continue
             val ls = lines.obj(line.key)
-            val target = ComponentUpdates.pick(catalog, line, ls.strings("bad")) ?: continue
-            if (ls.optString("current") != target.file) {
+            val target = ComponentUpdates.pick(catalog, line, ls.strings("bad"))
+            if (target != null && ls.optString("current") != target.file) {
                 if (!ComponentsManager.isStored(context, target.file)) {
                     if (holdBack) { state.put("note", context.getString(R.string.comp_auto_waits_unmetered)); continue }
                     val got = runCatching { ComponentsManager.download(context, target) {} }
@@ -113,11 +113,12 @@ object ComponentUpdater {
                 }
                 ls.put("previous", ls.optString("current").ifEmpty { ComponentUpdates.ORIGINAL })
                     .put("current", target.file).put("since", latestStamp(context)).put("failed", JSONObject())
-                ls.put("owned", JSONArray(ls.strings("owned") + target.file))
+                ls.put("owned", JSONArray(ls.strings("owned") + target.file)).remove("note")
                 notes += context.getString(R.string.comp_auto_updated, ComponentsManager.LABEL[comp], target.file.removeSuffix(".wcp"))
             }
-            if (choices[p.id]?.get(comp)?.file != ls.optString("current")) {
-                runCatching { ComponentsManager.swap(context, p.id, ls.optString("current")) }
+            val current = ls.optString("current")
+            if (current.isNotEmpty() && choices[p.id]?.get(comp)?.file != current) {
+                runCatching { ComponentsManager.swap(context, p.id, current) }
                     .onFailure { Log.w(TAG, "${p.name} ${line.key}", it) }
             }
         }
@@ -144,7 +145,6 @@ object ComponentUpdater {
             }
             for ((key, list) in onLine) {
                 val ls = lines.obj(key)
-                if (ls.optString("current").isEmpty()) continue
                 val verdict = ComponentUpdates.judge(ComponentUpdates.Trial(
                     ls.optString("current"), ls.optString("previous"), ls.optString("since"),
                     ls.optJSONObject("booted").texts(), ls.optJSONObject("failed").ints(),
@@ -171,9 +171,9 @@ object ComponentUpdater {
         ls.put("bad", JSONArray(ls.strings("bad") + bad)).put("current", back).put("previous", ComponentUpdates.ORIGINAL)
             .put("since", latestStamp(context)).put("failed", JSONObject())
         val label = ComponentsManager.LABEL[comp]
-        val shown = back.ifEmpty { context.getString(R.string.comp_original) }.removeSuffix(".wcp")
+        val shown = back.ifEmpty { context.getString(R.string.comp_tag_original) }.removeSuffix(".wcp")
         val note = context.getString(R.string.comp_auto_rolled_back, label, bad.removeSuffix(".wcp"), shown)
-        state.put("note", note)
+        ls.put("note", note)
         notes += note
         Log.w(TAG, note)
         prune(context, state)
@@ -203,7 +203,8 @@ object ComponentUpdater {
             val on = byLine[line.key].orEmpty()
             val ls = lines.optJSONObject(line.key)
             if (on.isEmpty() && ls == null) return@mapNotNull null
-            Status(line.key, ls?.optString("current").orEmpty(), ls?.optString("previous").orEmpty(), on.map { it.name }, state.optString("note"))
+            val note = ls?.optString("note").orEmpty().ifEmpty { state.optString("note") }
+            Status(line.key, ls?.optString("current").orEmpty(), ls?.optString("previous").orEmpty(), on.map { it.name }, note)
         }
     }
 }

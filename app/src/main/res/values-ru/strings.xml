@@ -585,7 +585,6 @@
     <string name="comp_auto_hint">Новые сборки ставятся в фоне. Если игра перестанет запускаться, Auto вернётся к рабочей сборке.</string>
     <string name="comp_auto_fallback">Запасная: %1$s</string>
     <string name="comp_auto_checking">Поиск сборок…</string>
-    <string name="comp_auto_pending">Ещё не установлено</string>
     <string name="comp_auto_none">Ни один установленный Proton это не использует</string>
     <string name="comp_auto_waits_network">Обновления Auto ждут подключения.</string>
     <string name="comp_auto_check_failed">Не удалось проверить новые сборки.</string>

@@ -560,7 +560,6 @@
     <string name="comp_auto_hint">新しいビルドはバックグラウンドでインストールされます。ゲームが起動しなくなった場合、Auto は動作していたビルドに戻します。</string>
     <string name="comp_auto_fallback">予備: %1$s</string>
     <string name="comp_auto_checking">ビルドを確認中…</string>
-    <string name="comp_auto_pending">まだインストールされていません</string>
     <string name="comp_auto_none">これを使うインストール済み Proton はありません</string>
     <string name="comp_auto_waits_network">Auto 更新は接続を待っています。</string>
     <string name="comp_auto_check_failed">新しいビルドを確認できませんでした。</string>

@@ -562,7 +562,6 @@
     <string name="comp_auto_hint">Nieuwe builds worden op de achtergrond geïnstalleerd. Start een game niet meer, dan gaat Auto terug naar de build die werkte.</string>
     <string name="comp_auto_fallback">Terugval: %1$s</string>
     <string name="comp_auto_checking">Zoeken naar builds…</string>
-    <string name="comp_auto_pending">Nog niet geïnstalleerd</string>
     <string name="comp_auto_none">Geen geïnstalleerde Proton gebruikt dit</string>
     <string name="comp_auto_waits_network">Auto-updates wachten op een verbinding.</string>
     <string name="comp_auto_check_failed">Kon niet op nieuwe builds controleren.</string>

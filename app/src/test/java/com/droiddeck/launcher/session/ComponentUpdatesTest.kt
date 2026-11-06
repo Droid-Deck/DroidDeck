@@ -116,6 +116,15 @@ class ComponentUpdatesTest {
         assertNull(verdict.failed["100"])
     }
 
+    @Test fun bootsOnTheOriginalBeforeTheFirstUpdateLetTheFirstBuildRollBack() {
+        val original = ComponentUpdates.Trial(ComponentUpdates.ORIGINAL, ComponentUpdates.ORIGINAL, "", emptyMap(), emptyMap())
+        val before = ComponentUpdates.judge(original, listOf(run("100", "2026-11-05 10:00:00", 900), run("200", "2026-11-05 10:30:00", 3)))
+        assertFalse(before.rollBack)
+        assertEquals(mapOf("100" to ComponentUpdates.ORIGINAL), before.booted)
+        val after = ComponentUpdates.judge(trial.copy(booted = before.booted), listOf(run("100", "2026-11-05 13:00:00", 4), run("100", "2026-11-05 13:05:00", 6)))
+        assertTrue(after.rollBack)
+    }
+
     @Test fun onlyTheCurrentAndThePreviousBuildAndUserSelectionsAreKept() {
         assertEquals(setOf("b.wcp", "a.wcp", "mine.wcp"), ComponentUpdates.keep("b.wcp", "a.wcp", setOf("mine.wcp")))
         assertEquals(setOf("b.wcp"), ComponentUpdates.keep("b.wcp", ComponentUpdates.ORIGINAL, emptySet()))

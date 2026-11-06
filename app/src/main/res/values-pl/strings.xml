@@ -566,7 +566,6 @@
     <string name="comp_auto_hint">Nowe wersje instalują się w tle. Jeśli gra przestanie się uruchamiać, Auto wróci do działającej wersji.</string>
     <string name="comp_auto_fallback">Zapasowa: %1$s</string>
     <string name="comp_auto_checking">Szukanie wersji…</string>
-    <string name="comp_auto_pending">Jeszcze nie zainstalowano</string>
     <string name="comp_auto_none">Żaden zainstalowany Proton tego nie używa</string>
     <string name="comp_auto_waits_network">Aktualizacje Auto czekają na połączenie.</string>
     <string name="comp_auto_check_failed">Nie udało się sprawdzić nowych wersji.</string>

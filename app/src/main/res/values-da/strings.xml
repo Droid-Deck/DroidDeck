@@ -562,7 +562,6 @@
     <string name="comp_auto_hint">Nye builds installeres i baggrunden. Hvis et spil holder op med at starte, går Auto tilbage til det build, der virkede.</string>
     <string name="comp_auto_fallback">Reserve: %1$s</string>
     <string name="comp_auto_checking">Søger efter builds…</string>
-    <string name="comp_auto_pending">Ikke installeret endnu</string>
     <string name="comp_auto_none">Ingen installeret Proton bruger dette</string>
     <string name="comp_auto_waits_network">Auto-opdateringer venter på en forbindelse.</string>
     <string name="comp_auto_check_failed">Kunne ikke søge efter nye builds.</string>

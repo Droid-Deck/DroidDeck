@@ -562,7 +562,6 @@
     <string name="comp_auto_hint">Οι νέες εκδόσεις εγκαθίστανται στο παρασκήνιο. Αν ένα παιχνίδι σταματήσει να ξεκινά, το Auto επιστρέφει στην έκδοση που λειτουργούσε.</string>
     <string name="comp_auto_fallback">Εφεδρική: %1$s</string>
     <string name="comp_auto_checking">Αναζήτηση εκδόσεων…</string>
-    <string name="comp_auto_pending">Δεν έχει εγκατασταθεί ακόμα</string>
     <string name="comp_auto_none">Κανένα εγκατεστημένο Proton δεν το χρησιμοποιεί</string>
     <string name="comp_auto_waits_network">Οι ενημερώσεις Auto περιμένουν σύνδεση.</string>
     <string name="comp_auto_check_failed">Δεν ήταν δυνατός ο έλεγχος για νέες εκδόσεις.</string>

@@ -560,7 +560,6 @@
     <string name="comp_auto_hint">Build baru dipasang di latar belakang. Jika game berhenti bisa dimulai, Auto kembali ke build yang berfungsi.</string>
     <string name="comp_auto_fallback">Cadangan: %1$s</string>
     <string name="comp_auto_checking">Mencari build…</string>
-    <string name="comp_auto_pending">Belum dipasang</string>
     <string name="comp_auto_none">Tidak ada Proton terpasang yang memakainya</string>
     <string name="comp_auto_waits_network">Pembaruan Auto menunggu koneksi.</string>
     <string name="comp_auto_check_failed">Tidak dapat memeriksa build baru.</string>

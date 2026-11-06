@@ -566,7 +566,6 @@
     <string name="comp_auto_hint">Nová sestavení se instalují na pozadí. Pokud hra přestane startovat, Auto se vrátí k funkčnímu sestavení.</string>
     <string name="comp_auto_fallback">Záložní: %1$s</string>
     <string name="comp_auto_checking">Hledání sestavení…</string>
-    <string name="comp_auto_pending">Zatím nenainstalováno</string>
     <string name="comp_auto_none">Žádný nainstalovaný Proton to nepoužívá</string>
     <string name="comp_auto_waits_network">Aktualizace Auto čekají na připojení.</string>
     <string name="comp_auto_check_failed">Nová sestavení nelze zkontrolovat.</string>

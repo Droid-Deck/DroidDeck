@@ -562,7 +562,6 @@
     <string name="comp_auto_hint">Uudet versiot asentuvat taustalla. Jos peli lakkaa käynnistymästä, Auto palaa toimineeseen versioon.</string>
     <string name="comp_auto_fallback">Varaversio: %1$s</string>
     <string name="comp_auto_checking">Haetaan versioita…</string>
-    <string name="comp_auto_pending">Ei vielä asennettu</string>
     <string name="comp_auto_none">Mikään asennettu Proton ei käytä tätä</string>
     <string name="comp_auto_waits_network">Auto-päivitykset odottavat yhteyttä.</string>
     <string name="comp_auto_check_failed">Uusia versioita ei voitu tarkistaa.</string>
