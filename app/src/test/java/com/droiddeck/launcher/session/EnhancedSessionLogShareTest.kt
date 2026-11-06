@@ -49,11 +49,24 @@ class EnhancedSessionLogShareTest {
     @get:Rule val tmp = TemporaryFolder()
     private val app get() = RuntimeEnvironment.getApplication()
 
-    @Before fun installSecureSourceOpener() = installJvmSecureSourceOpener()
+    private fun resetFileProviderRoots() {
+        val field = FileProvider::class.java.getDeclaredField("sCache").apply { isAccessible = true }
+        @Suppress("UNCHECKED_CAST")
+        val cache = field.get(null) as MutableMap<String, Any>
+        synchronized(cache) { cache.remove(app.packageName + ".logs") }
+    }
+
+    @Before fun installTestFileOpeners() {
+        installJvmSecureSourceOpener()
+        // AndroidX caches FileProvider roots by authority, while Robolectric gives every test a
+        // different temporary cacheDir. Production has one stable cacheDir for the app process.
+        resetFileProviderRoots()
+    }
 
     @After fun resetTestOverrides() {
         resetSecureSourceOpener()
         SessionLogShare.setSaveDestinationValidatorForTest(null)
+        resetFileProviderRoots()
     }
 
     private class CountingChannel(
