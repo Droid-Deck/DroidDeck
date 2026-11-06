@@ -235,7 +235,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var screenKeyDir: Int? = null
     private var screenKeyTextFocus = false
     private val appTextFocus get() = screenKeyTextFocus || wowChat.request != null
-    private val wowChat by lazy { com.droiddeck.launcher.ui.WowChat(this, ::sendWowChat, ::cancelWowChat) }
+    private val wowChat by lazy { com.droiddeck.launcher.ui.WowChat(this, ::sendWowChat, ::cancelWowChat, ::readGameField) }
     private var wowChatBottom: SecondScreenPresentation? = null
     private var wowChatOnTop by mutableStateOf(false)
     private var screenKeyEdit by mutableStateOf<com.droiddeck.launcher.input.ScreenKey?>(null)
@@ -3621,8 +3621,23 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun sendWowChat(text: String) {
         val host = keyboard ?: return
-        host.type(text)
+        selectGameField()
+        if (text.isEmpty()) host.tap(KeyEvent.KEYCODE_DEL) else host.type(text)
         host.tap(KeyEvent.KEYCODE_ENTER)
+    }
+
+    private fun selectGameField(vararg then: Int) {
+        WaylandCompositor.nativeSendKey(KEY_LEFTCTRL, 1)
+        for (key in intArrayOf(KEY_A) + then) {
+            WaylandCompositor.nativeSendKey(key, 1)
+            WaylandCompositor.nativeSendKey(key, 0)
+        }
+        WaylandCompositor.nativeSendKey(KEY_LEFTCTRL, 0)
+    }
+
+    private fun readGameField(done: (String?) -> Unit) {
+        sessionClipboard.captureGuest(FIELD_READ_MS, done)
+        selectGameField(KEY_C)
     }
 
     private fun cancelWowChat() {
@@ -5260,6 +5275,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         private const val AXIS_UNITS_PER_PIXEL = 3f
         private const val KEY_LEFTCTRL = 29
         private const val KEY_RIGHTCTRL = 97
+        private const val KEY_A = 30
+        private const val KEY_C = 46
+        private const val FIELD_READ_MS = 600L
         private const val BTN_SIDE = 0x113
         private const val BTN_EXTRA = 0x114
         private const val DESKTOP_GRAB_TAP_MS = 500L

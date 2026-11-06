@@ -40,7 +40,12 @@ import androidx.compose.ui.unit.dp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.SessionPrefs
 
-class WowChat(private val context: Context, private val onSend: (String) -> Unit, private val onCancel: () -> Unit) {
+class WowChat(
+    private val context: Context,
+    private val onSend: (String) -> Unit,
+    private val onCancel: () -> Unit,
+    private val readField: ((String?) -> Unit) -> Unit = {},
+) {
     var request by mutableStateOf<TypingRequest?>(null)
         private set
     var asking by mutableStateOf(false)
@@ -99,7 +104,14 @@ class WowChat(private val context: Context, private val onSend: (String) -> Unit
     private fun start(mode: String) {
         voice = mode == SessionPrefs.WOW_CHAT_VOICE && voiceAvailable(context)
         if (mode == SessionPrefs.WOW_CHAT_VOICE && !voice) Toast.makeText(context, R.string.wow_chat_voice_unavailable, Toast.LENGTH_SHORT).show()
-        request = TypingRequest(TextFieldValue(""), ImeOptions(singleLine = true, imeAction = ImeAction.Send), {}, {})
+        val opened = TypingRequest(TextFieldValue(""), ImeOptions(singleLine = true, imeAction = ImeAction.Send), {}, {})
+        request = opened
+        readField { text ->
+            if (request === opened && !text.isNullOrEmpty() && opened.value.text.isEmpty()) {
+                opened.value = TextFieldValue(text, TextRange(text.length))
+                if (recognizer != null) spokenBase = "${text.trimEnd()} "
+            }
+        }
     }
 
     private fun finish() {

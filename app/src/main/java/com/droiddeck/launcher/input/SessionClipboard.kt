@@ -19,11 +19,18 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
     private var published = false
     private var shared: String? = null
     private var echo: String? = null
+    private var capture: ((String?) -> Unit)? = null
     private val androidListener = ClipboardManager.OnPrimaryClipChangedListener { refresh(changed = true) }
     private val guestListener = object : WaylandCompositor.ClipboardListener {
         override fun onGuestClipboardText(text: String) {
             handler.post {
-                if (active && hasFocus() && WaylandCompositor.isClipboardListener(this)) {
+                val taken = capture
+                if (taken != null && WaylandCompositor.isClipboardListener(this)) {
+                    capture = null
+                    handler.removeCallbacks(captureTimeout)
+                    WaylandCompositor.setClipboardText(shared)
+                    taken(text)
+                } else if (active && hasFocus() && WaylandCompositor.isClipboardListener(this)) {
                     val current = clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text
                     shared = text
                     published = true
@@ -34,6 +41,18 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
                 }
             }
         }
+    }
+
+    private val captureTimeout = Runnable {
+        val taken = capture ?: return@Runnable
+        capture = null
+        taken(null)
+    }
+
+    fun captureGuest(timeoutMs: Long, onText: (String?) -> Unit) {
+        capture?.let { handler.removeCallbacks(captureTimeout); it(null) }
+        capture = onText
+        handler.postDelayed(captureTimeout, timeoutMs)
     }
 
     fun start() {
