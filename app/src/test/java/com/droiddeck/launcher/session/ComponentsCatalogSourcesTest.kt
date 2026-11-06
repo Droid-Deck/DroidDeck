@@ -889,8 +889,10 @@ class ComponentsCatalogSourcesTest {
         ComponentsManager.packageBackupWriter = { source, backup ->
             source.copyTo(backup, overwrite = true)
             val part = requireNotNull(downloadedPart)
+            val replacement = File(part.parentFile, ".replacement-${System.nanoTime()}")
+            payload.copyTo(replacement)
             assertTrue(part.delete())
-            payload.copyTo(part)
+            assertTrue(replacement.renameTo(part))
         }
 
         assertTrue(runCatching { ComponentsManager.download(context, item) {} }.isFailure)

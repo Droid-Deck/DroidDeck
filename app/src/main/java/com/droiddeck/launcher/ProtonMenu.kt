@@ -99,7 +99,7 @@ internal class ProtonMenu(
         }
     }
 
-    fun checkUpdates(force: Boolean = false) {
+    fun checkUpdates(force: Boolean = false, onComplete: ((String?) -> Unit)? = null) {
         if (!force && inFlightChecks.get() > 0) return
         val id = checkRequest.incrementAndGet()
         inFlightChecks.incrementAndGet()
@@ -107,11 +107,16 @@ internal class ProtonMenu(
             val result = try { runCatching { ProtonExtras.checkLatest(activity, force) } }
                 finally { inFlightChecks.decrementAndGet() }
             ui.post {
-                if (id != checkRequest.get()) return@post
-                if (result.getOrDefault(false) || result.isFailure) refreshProtons()
-                if (force) result.exceptionOrNull()?.let {
-                    android.widget.Toast.makeText(activity, GitHubArtifacts.failureMessage(activity, it), android.widget.Toast.LENGTH_LONG).show()
+                if (id != checkRequest.get()) {
+                    onComplete?.invoke(null)
+                    return@post
                 }
+                if (result.getOrDefault(false) || result.isFailure) refreshProtons()
+                val feedback = if (force) result.exceptionOrNull()?.let { GitHubArtifacts.failureMessage(activity, it) } else null
+                if (feedback != null && onComplete == null) {
+                    android.widget.Toast.makeText(activity, feedback, android.widget.Toast.LENGTH_LONG).show()
+                }
+                onComplete?.invoke(feedback)
                 ensureAutoUpdates()
             }
         }, "proton-updates").start()

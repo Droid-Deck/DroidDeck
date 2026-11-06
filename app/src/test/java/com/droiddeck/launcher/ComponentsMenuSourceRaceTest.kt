@@ -68,9 +68,10 @@ class ComponentsMenuSourceRaceTest {
         assertTrue(entered.await(5, TimeUnit.SECONDS))
         menu.sourcesChanged("dxvk")
         assertTrue(refreshedDone.await(5, TimeUnit.SECONDS))
+        waitForWorker("components-catalog")
         release.countDown()
         assertTrue(staleDone.await(5, TimeUnit.SECONDS))
-        shadowOf(Looper.getMainLooper()).idle()
+        waitForWorker("components")
         assertTrue(menu.compCatalog.isEmpty())
     }
 
@@ -91,6 +92,29 @@ class ComponentsMenuSourceRaceTest {
         assertTrue(!menu.compChecking)
         assertEquals(activity.getString(R.string.sources_github_rate_limited), ShadowToast.getTextOfLatestToast())
         assertEquals(123L, menu.compCatalogAt)
+    }
+
+    @Test
+    fun sharedRefreshShowsIdenticalFailureOnlyOnceWithoutHidingDistinctErrors() {
+        val shown = ArrayList<String>()
+        val feedback = SharedRefreshFeedback(shown::add)
+
+        feedback.complete("rate limited")
+        feedback.complete("rate limited")
+
+        assertEquals(listOf("rate limited"), shown)
+
+        val distinct = ArrayList<String>()
+        val distinctFeedback = SharedRefreshFeedback(distinct::add)
+        distinctFeedback.complete("component failure")
+        distinctFeedback.complete("proton failure")
+        assertEquals(listOf("component failure", "proton failure"), distinct)
+
+        val partial = ArrayList<String>()
+        val partialFeedback = SharedRefreshFeedback(partial::add)
+        partialFeedback.complete(null)
+        partialFeedback.complete("proton failure")
+        assertEquals(listOf("proton failure"), partial)
     }
 
     @Test
