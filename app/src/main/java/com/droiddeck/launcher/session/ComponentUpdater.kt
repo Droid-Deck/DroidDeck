@@ -130,6 +130,10 @@ object ComponentUpdater {
         for (comp in wanted) for (p in protons) {
             val line = lineOf(context, state, p, comp) ?: continue
             val ls = lines.obj(line.key)
+            if (rollingBack(ls)) {
+                complete = false
+                continue
+            }
             val target = ComponentUpdates.pick(catalog, line, ls.strings("bad"))
             if (target == null || ls.optString("current") == target.file) continue
             val stored = ComponentsManager.isStored(context, target.file)
@@ -151,7 +155,6 @@ object ComponentUpdater {
                 .put("current", target.file).put("since", latestStamp(context)).put("failed", JSONObject())
             if (!stored) ls.put("owned", JSONArray(ls.strings("owned") + target.file))
             ls.remove("note")
-            ls.remove("restore")
             notes += context.getString(R.string.comp_auto_updated, ComponentsManager.LABEL[comp], target.file.removeSuffix(".wcp"))
         }
         return complete
@@ -194,6 +197,9 @@ object ComponentUpdater {
             notes += pending
         }
     }
+
+    internal fun rollingBack(ls: JSONObject): Boolean =
+        (ls.optJSONObject("restore")?.length() ?: 0) > 0 || ls.optString("pendingNote").isNotEmpty()
 
     private fun judge(context: Context, state: JSONObject, protons: List<ComponentsManager.Proton>, notes: MutableList<String>) {
         val mark = state.optString("logMark")

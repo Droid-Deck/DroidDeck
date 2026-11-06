@@ -177,6 +177,12 @@ class ComponentUpdatesTest {
         assertTrue(dir.list()!!.none { it.startsWith("updates.json.") })
     }
 
+    @Test fun aLineWithAnUnfinishedRollbackTakesNoNewerBuildUntilItIsApplied() {
+        assertTrue(ComponentUpdater.rollingBack(JSONObject().put("restore", JSONObject().put("proton", "DD-dxvk-2.5.wcp"))))
+        assertTrue(ComponentUpdater.rollingBack(JSONObject().put("pendingNote", "rolled back")))
+        assertFalse(ComponentUpdater.rollingBack(JSONObject().put("restore", JSONObject()).put("current", "DD-dxvk-2.4.wcp")))
+    }
+
     @Test fun aTwoDigitNightlyBuildIsNewerThanASingleDigitOne() {
         val items = listOf(item("DD-FEXCore-2611+9-nightly.wcp", "fex"), item("DD-FEXCore-2611+10-nightly.wcp", "fex"))
         assertEquals("DD-FEXCore-2611+10-nightly.wcp", ComponentUpdates.pick(items, ComponentUpdates.line("fex", false), emptySet())?.file)
