@@ -146,6 +146,45 @@ class DownloadQueueRetryTest {
         DownloadQueue.clear(app, entry.key)
     }
 
+    @Test fun aCancelledBattleNetJobBlocksAReplacementWhileCleanupRuns() {
+        val entry = DownloadEntry(Store.BATTLENET, "same-folder-race", "Same folder race")
+        val started = CountDownLatch(1)
+        val cancelled = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val job = object : DownloadQueue.DownloadJob {
+            override fun run(handle: DownloadQueue.JobHandle): String? {
+                started.countDown()
+                return null
+            }
+
+            override fun cancel(deleteFiles: Boolean) {
+                if (!deleteFiles) return
+                cancelled.countDown()
+                Thread({
+                    release.await(5, TimeUnit.SECONDS)
+                    DownloadQueue.cleanupFinished(entry.key)
+                }, "test-cleanup").start()
+            }
+        }
+        DownloadQueue.enqueue(app, entry) { job }
+        assertTrue(started.await(5, TimeUnit.SECONDS))
+        DownloadQueue.cancel(app, entry.key)
+        assertTrue(cancelled.await(5, TimeUnit.SECONDS))
+        assertTrue(DownloadQueue.isCancelling(entry.key))
+        DownloadQueue.enqueue(app, entry) {
+            object : DownloadQueue.DownloadJob {
+                override fun run(handle: DownloadQueue.JobHandle): String? = "replacement"
+                override fun cancel(deleteFiles: Boolean) {}
+            }
+        }
+        assertNull("replacement must not be published during cleanup", DownloadQueue.entry(entry.key)?.takeIf { it.state == DownloadState.QUEUED })
+        release.countDown()
+        val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (DownloadQueue.isCancelling(entry.key) && System.nanoTime() < until) Thread.sleep(10)
+        assertFalse(DownloadQueue.isCancelling(entry.key))
+        DownloadQueue.clear(app, entry.key)
+    }
+
     @Test fun heldPausedBackendRestoresAndResumesWithoutAPlaceholder() {
         val entry = DownloadEntry(Store.GOG, "restored-paused", "Paused")
         val ran = CountDownLatch(1)
