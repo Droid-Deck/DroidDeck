@@ -78,6 +78,7 @@ class BtControllerActivity : ComponentActivity() {
     private val merged = BtPadState()
     private var keyButtons = 0
     private var hatButtons = 0
+    private var touchEpoch by mutableStateOf(0)
     private val main = Handler(Looper.getMainLooper())
     private val exitHold = Runnable { finish() }
     private var exitArmed = false
@@ -130,6 +131,8 @@ class BtControllerActivity : ComponentActivity() {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) return
         physical.set(BtPadState())
+        touch.set(BtPadState())
+        touchEpoch++
         keyButtons = 0
         hatButtons = 0
         push()
@@ -385,7 +388,7 @@ class BtControllerActivity : ComponentActivity() {
         val px = with(LocalDensity.current) { size.toPx() }
         Box(
             Modifier.size(size).clip(RoundedCornerShape(18.dp)).background(colors.surface).border(1.dp, pal.line2, RoundedCornerShape(18.dp))
-                .pointerInput(left) {
+                .pointerInput(left, touchEpoch) {
                     awaitEachGesture {
                         val first = awaitFirstDown(requireUnconsumed = false)
                         val started = first.uptimeMillis
@@ -479,7 +482,7 @@ class BtControllerActivity : ComponentActivity() {
             modifier = Modifier.size(width, height).clip(shape)
                 .background(if (down) pal.signal else tint?.copy(alpha = 0.35f) ?: colors.surface)
                 .border(1.dp, pal.line2, shape)
-                .pointerInput(bit) {
+                .pointerInput(bit, touchEpoch) {
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false)
                         down = true; touchButton(bit, true)
@@ -505,7 +508,7 @@ class BtControllerActivity : ComponentActivity() {
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.size(size).clip(CircleShape).background(colors.surface).border(1.dp, pal.line2, CircleShape)
-                .pointerInput(left) {
+                .pointerInput(left, touchEpoch) {
                     awaitEachGesture {
                         val first = awaitFirstDown(requireUnconsumed = false)
                         val radius = this.size.width / 2f
