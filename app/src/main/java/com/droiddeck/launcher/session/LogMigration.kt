@@ -57,7 +57,7 @@ object LogMigration {
                     val pendingMarker = "$SESSION_PENDING_PREFIX$text"
                     val completeMarker = "$SESSION_COMPLETE_PREFIX$text"
                     var destinationExists = session && output.contains(text)
-                    if (session && destinationExists && output.containsRegular(completeMarker)) continue
+                    if (session && output.containsRegular(completeMarker)) continue
                     val hasPendingMarker = session && output.containsRegular(pendingMarker)
                     if (session && destinationExists && !hasPendingMarker && !recoverLegacyMigration) {
                         val empty = runCatching { output.child(text)?.use { it.deleteIfEmpty() } }

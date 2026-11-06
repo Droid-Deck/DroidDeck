@@ -477,6 +477,26 @@ class SessionLogShareZipTest {
         }
     }
 
+    @Test fun completedSessionIsNotRecreatedAfterItsDestinationIsDeleted() {
+        val legacy = LinuxRuntime.legacyLogDir().apply { mkdirs() }
+        val logs = LinuxRuntime.logDir(app).apply { mkdirs() }
+        val newMarker = File(logs, ".moved-from-downloads-v2")
+        val name = "2026-10-21-05-deleted-after-copy"
+        val source = File(legacy, name).apply { mkdirs() }
+        File(source, "session.log").writeText("retained legacy copy\n")
+        val complete = File(logs, ".legacy-migration-complete-$name").apply { writeText("complete\n") }
+        val destination = File(logs, name)
+        try {
+            LogMigration.run(app)
+            assertFalse(destination.exists())
+            assertTrue(newMarker.isFile)
+        } finally {
+            source.deleteRecursively()
+            complete.delete()
+            newMarker.delete()
+        }
+    }
+
     @Test fun preexistingNonemptySessionWithoutMigrationStateIsPreserved() {
         val legacy = LinuxRuntime.legacyLogDir().apply { mkdirs() }
         val logs = LinuxRuntime.logDir(app).apply { mkdirs() }
