@@ -1034,26 +1034,35 @@ object ComponentsManager {
 
     private val ARM64EC_PROBE = mapOf("dxvk" to "d3d11.dll", "vkd3d" to "d3d12.dll")
 
-    fun arm64ec(context: Context, p: Proton, comp: String): Boolean? = synchronized(lock) {
+    fun arm64ec(context: Context, p: Proton, comp: String): Boolean? = stockProbe(context, p, comp)?.let(ComponentUpdates::arm64ec)
+
+    fun arm64x(context: Context, p: Proton, comp: String): Boolean = stockProbe(context, p, comp)?.let(ComponentUpdates::arm64x) == true
+
+    fun packageArm64x(context: Context, file: String, comp: String): Boolean = synchronized(lock) {
+        val rel = "${COMP_DIR[comp] ?: return false}/aarch64-windows/${ARM64EC_PROBE.getValue(comp)}"
+        val f = File(packagesDir(context), safeName(file)).takeIf { it.isFile } ?: return false
+        runCatching { readWcpEntry(f, rel) }.getOrNull()?.let(ComponentUpdates::arm64x) == true
+    }
+
+    private fun readWcpEntry(f: File, rel: String): ByteArray? = readWcp(f) { tar ->
+        var found: ByteArray? = null
+        while (found == null) {
+            val e = tar.nextTarEntry ?: break
+            if (!e.isDirectory && normalize(e.name) == rel) found = tar.readBytes()
+        }
+        found
+    }
+
+    private fun stockProbe(context: Context, p: Proton, comp: String): ByteArray? = synchronized(lock) {
         val rel = "${COMP_DIR[comp] ?: return null}/aarch64-windows/${ARM64EC_PROBE.getValue(comp)}"
         val swapped = loadState(context).optJSONObject("active")?.optJSONObject(p.id)?.optJSONObject(comp)
             ?.let { liveSelection("active", it, p) } == true
         val original = originalFile(context, p, comp)
-        val bytes = when {
-            swapped && original.isFile -> runCatching {
-                readWcp(original) { tar ->
-                    var found: ByteArray? = null
-                    while (found == null) {
-                        val e = tar.nextTarEntry ?: break
-                        if (!e.isDirectory && normalize(e.name) == rel) found = tar.readBytes()
-                    }
-                    found
-                }
-            }.getOrNull()
+        when {
+            swapped && original.isFile -> runCatching { readWcpEntry(original, rel) }.getOrNull()
             swapped -> null
             else -> File(p.dir, rel).takeIf { it.isFile }?.let { runCatching { it.readBytes() }.getOrNull() }
         }
-        bytes?.let(ComponentUpdates::arm64ec)
     }
 
     fun supports(p: Proton, comp: String): Boolean =

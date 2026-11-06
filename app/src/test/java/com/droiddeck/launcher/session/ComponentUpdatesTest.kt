@@ -77,6 +77,13 @@ class ComponentUpdatesTest {
         assertNull(ComponentUpdates.arm64ec(ByteArray(16)))
     }
 
+    @Test fun onlyAHybridArm64ImageCountsAsArm64x() {
+        assertTrue(ComponentUpdates.arm64x(pe(0xaa64, true, true)))
+        assertFalse(ComponentUpdates.arm64x(pe(0x8664, true, true)))
+        assertFalse(ComponentUpdates.arm64x(pe(0xaa64, true, false)))
+        assertFalse(ComponentUpdates.arm64x(ByteArray(16)))
+    }
+
     private val log = """
         [2026-11-05 20:00:00] Game process added : AppID 49520 "/root/.local/share/Steam/linuxarm64/steam-launch-wrapper -- /root/.local/share/Steam/steamrtarm64/reaper SteamLaunch AppId=49520 -- '/root/.local/share/Steam/compatibilitytools.d/DroidDeck-Proton 11-12.1'/droiddeck-proton-wrap waitforexitandrun 'Borderlands2.exe'"
         [2026-11-05 20:00:05] Game process updated : AppID 49520 "x"

@@ -59,6 +59,12 @@ object ComponentUpdates {
         b.getInt(offset) >= 0xC8 + 8 && b.getLong(offset + 0xC8) != 0L
     }.getOrNull()
 
+    fun arm64x(pe: ByteArray): Boolean = runCatching {
+        val b = ByteBuffer.wrap(pe).order(ByteOrder.LITTLE_ENDIAN)
+        val header = b.getInt(0x3c)
+        b.getInt(header) == 0x4550 && (b.getShort(header + 4).toInt() and 0xffff) == 0xaa64 && arm64ec(pe) == true
+    }.getOrDefault(false)
+
     data class Launch(val app: String, val tool: String, val start: String, val seconds: Long)
 
     private val PROCESS = Regex("""^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)] Game process (added|removed)\s*: AppID (\d+)(?: "(.*))?""")

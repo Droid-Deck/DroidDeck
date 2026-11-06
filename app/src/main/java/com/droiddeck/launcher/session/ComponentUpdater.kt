@@ -152,6 +152,12 @@ object ComponentUpdater {
                     continue
                 }
             }
+            if (ComponentsManager.arm64x(context, p, comp) && !ComponentsManager.packageArm64x(context, target.file, comp)) {
+                Log.w(TAG, "${target.file} is not ARM64X like ${p.name}'s own ${line.key}; skipped")
+                ls.put("bad", JSONArray(ls.strings("bad") + target.file))
+                if (!stored) runCatching { ComponentsManager.deletePackage(context, target.file) }
+                continue
+            }
             ls.put("previous", ls.optString("current").ifEmpty { ComponentUpdates.ORIGINAL })
                 .put("current", target.file).put("since", latestStamp(context)).put("failed", JSONObject())
             if (!stored) ls.put("owned", JSONArray(ls.strings("owned") + target.file))
