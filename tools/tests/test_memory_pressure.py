@@ -153,12 +153,13 @@ class SessionPressureTest(unittest.TestCase):
     def run_policy(self, body):
         functions = '\n'.join(function_source(name) for name in (
             'bl_memory_read', 'bl_memory_tight', 'bl_memory_critical', 'bl_low_ram',
-            'bl_session_pressure', 'bl_watch_nap'))
+            'bl_session_pressure', 'bl_watch_nap', 'bl_zram_pick'))
         functions = functions.replace('/proc/meminfo', str(self.root / 'meminfo'))
         functions = functions.replace('/proc/pressure/memory', str(self.root / 'pressure'))
         harness = '''
 set -u
-_bl_game=1 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_swap=0
+_bl_game=1 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_swap=0 _bl_tier_pushed=0 _bl_pids=(999)
+_bl_pressure_at=-1 _bl_packed=-1
 rss=$((1536 * 1024)) swap=0 pushed=$((1024 * 1024))
 step() { :; }
 nap() { echo "nap:$1"; }
@@ -172,7 +173,7 @@ bl_zram_send() { echo "send:$1:$3"; rss=$((rss - pushed)); swap=$((swap + pushed
         return result.stdout.splitlines()
 
     def test_low_headroom_compresses_the_game_session_at_most_every_30_seconds(self):
-        self.assertEqual(['send:1:session', 'send:1:session'], self.run_policy('''
+        self.assertEqual(['send:1:game', 'send:1:game'], self.run_policy('''
 SECONDS=0; bl_session_pressure
 SECONDS=10; bl_session_pressure
 SECONDS=29; bl_session_pressure
@@ -180,7 +181,7 @@ SECONDS=30; bl_session_pressure
 '''))
 
     def test_twelve_gigabyte_devices_are_included_and_larger_ones_are_not(self):
-        for total, expected in ((11264, ['send:1:session']), (12288, ['send:1:session']), (15360, [])):
+        for total, expected in ((11264, ['send:1:game']), (12288, ['send:1:game']), (15360, [])):
             with self.subTest(total=total):
                 self.memory(total=total)
                 self.assertEqual(expected, self.run_policy('bl_session_pressure'))
@@ -194,15 +195,15 @@ SECONDS=30; bl_session_pressure
 
     def test_stalls_with_moderate_headroom_compress_before_the_hard_limit(self):
         self.memory(available=2048, psi='1.50')
-        self.assertEqual(['send:1:session'], self.run_policy('bl_session_pressure'))
+        self.assertEqual(['send:1:game'], self.run_policy('bl_session_pressure'))
 
     def test_moderate_headroom_without_stalls_waits(self):
         self.memory(available=2048)
         self.assertEqual([], self.run_policy('bl_session_pressure'))
 
     def test_game_reading_back_most_of_a_pageout_skips_and_doubles_the_wait(self):
-        self.assertEqual(['send:1:session', 'backoff:60', 'send:1:session', 'backoff:60',
-                          'send:1:session', 'backoff:30'], self.run_policy('''
+        self.assertEqual(['send:1:game', 'backoff:60', 'send:1:game', 'backoff:60',
+                          'send:1:game', 'backoff:30'], self.run_policy('''
 pushed=$((512 * 1024))
 SECONDS=0; bl_session_pressure
 swap=$((swap / 4))
@@ -224,7 +225,7 @@ echo "backoff:$_bl_tier_backoff"
 
     def test_nearly_out_of_memory_ignores_the_backoff_but_keeps_30_seconds(self):
         self.memory(available=512)
-        self.assertEqual(['send:1:session', 'send:1:session'], self.run_policy('''
+        self.assertEqual(['send:1:game', 'send:1:game'], self.run_policy('''
 _bl_tier_backoff=300
 SECONDS=0; bl_session_pressure
 swap=0
@@ -247,6 +248,27 @@ SECONDS=30; bl_session_pressure
         self.memory(available=4096)
         self.assertEqual(['nap:5'], self.run_policy('bl_watch_nap'))
         self.assertEqual(['nap:5'], self.run_policy('_bl_game=0; bl_watch_nap'))
+
+    def test_one_push_compresses_the_game_and_the_launcher_and_restarts_the_launcher_wait(self):
+        self.assertEqual(['send:1:game', 'pids:321 654 999', 'client:0:0'], self.run_policy('''
+SECONDS=0; bl_session_pressure
+bl_zram_pick game; echo "pids:${_pids[*]}"
+echo "client:$_bl_pressure_at:$_bl_packed"
+'''))
+
+    def test_launcher_compression_turned_off_keeps_the_launcher_out(self):
+        self.assertEqual(['pids:321 654', 'client:-1:-1'], self.run_policy('''
+BL_ZRAM_CLIENT=0
+SECONDS=0; bl_session_pressure
+bl_zram_pick game; echo "pids:${_pids[*]}"
+echo "client:$_bl_pressure_at:$_bl_packed"
+''')[1:])
+
+    def test_low_ram_devices_compress_with_a_quarter_of_memory_left(self):
+        self.memory(available=1700)
+        self.assertEqual(['send:1:game'], self.run_policy('bl_session_pressure'))
+        self.memory(available=1900)
+        self.assertEqual([], self.run_policy('bl_session_pressure'))
 
 
 if __name__ == '__main__':

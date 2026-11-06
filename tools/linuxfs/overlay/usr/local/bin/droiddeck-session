@@ -840,6 +840,9 @@ case $mode in
           _bl_headroom=$((_bl_mem_total / 5))
           [ "$_bl_headroom" -ge $((512 * 1024)) ] || _bl_headroom=$((512 * 1024))
           [ "$_bl_headroom" -le $((1536 * 1024)) ] || _bl_headroom=$((1536 * 1024))
+          _bl_tier_headroom=$((_bl_mem_total / 4))
+          [ "$_bl_tier_headroom" -ge $((768 * 1024)) ] || _bl_tier_headroom=$((768 * 1024))
+          [ "$_bl_tier_headroom" -le $((2560 * 1024)) ] || _bl_tier_headroom=$((2560 * 1024))
           _bl_swap_reserve=$((_bl_swap_total / 5))
           [ "$_bl_swap_reserve" -ge $((256 * 1024)) ] || _bl_swap_reserve=$((256 * 1024))
         }
@@ -886,8 +889,8 @@ case $mode in
         }
         bl_memory_critical() {
           [ "$_bl_mem_total" -gt 0 ] && [ "$_bl_available" -ge 0 ] &&
-            { [ "$_bl_available" -lt "$_bl_headroom" ] ||
-              { [ "$_bl_psi" -ge 1 ] && [ "$_bl_available" -lt $((_bl_headroom * 3 / 2)) ]; }; }
+            { [ "$_bl_available" -lt "$_bl_tier_headroom" ] ||
+              { [ "$_bl_psi" -ge 1 ] && [ "$_bl_available" -lt $((_bl_tier_headroom * 3 / 2)) ]; }; }
         }
         bl_low_ram() {
           [ "$_bl_mem_total" -gt 0 ] && [ "$_bl_mem_total" -le $((13 * 1024 * 1024)) ]
@@ -895,11 +898,11 @@ case $mode in
         bl_session_pressure() {
           bl_memory_read
           [ "$_bl_game" = 1 ] && bl_low_ram && bl_memory_critical || return 0
-          local _wait=$_bl_tier_backoff _urgent=0 _before
+          local _wait=$_bl_tier_backoff _urgent=0 _before _pids
           [ "$_bl_available" -ge $((_bl_headroom / 2)) ] || _urgent=1 _wait=30
           [ "$_bl_tier_at" -lt 0 ] || [ $((SECONDS - _bl_tier_at)) -ge "$_wait" ] || return 0
-          bl_session_others
-          bl_zram_usage "${_bl_session[@]}" > /dev/null
+          bl_zram_pick game
+          bl_zram_usage "${_pids[@]}" > /dev/null
           if [ "$_bl_tier_at" -ge 0 ] && [ "$_bl_tier_pushed" -gt 0 ]; then
             if [ $((_bl_tier_swap - _bl_swap)) -le $((_bl_tier_pushed / 2)) ]; then
               _bl_tier_backoff=30
@@ -917,13 +920,17 @@ case $mode in
             return 0
           fi
           _before=$_bl_swap
-          bl_zram_send 1 "low memory (available $((_bl_available / 1024)) MB), compressing idle game memory" session
-          bl_zram_usage "${_bl_session[@]}" > /dev/null
+          bl_zram_send 1 "low memory (available $((_bl_available / 1024)) MB), compressing idle game memory" game
+          bl_zram_pick game
+          bl_zram_usage "${_pids[@]}" > /dev/null
           _bl_tier_swap=$_bl_swap _bl_tier_pushed=$((_bl_swap - _before))
+          if [ "${BL_ZRAM_CLIENT:-1}" = 1 ] && [ "${#_bl_pids[@]}" -gt 0 ]; then
+            _bl_pressure_at=$SECONDS _bl_packed=$SECONDS
+          fi
         }
         bl_watch_nap() {
           local _i
-          if [ "$_bl_game" = 1 ] && bl_low_ram && [ "$_bl_available" -ge 0 ] && [ "$_bl_available" -lt $((_bl_headroom * 2)) ]; then
+          if [ "$_bl_game" = 1 ] && bl_low_ram && [ "$_bl_available" -ge 0 ] && [ "$_bl_available" -lt $((_bl_tier_headroom * 2)) ]; then
             for _i in 1 2 3 4 5; do
               nap 1
               bl_memory_read
@@ -942,7 +949,11 @@ case $mode in
           done
         }
         bl_zram_pick() {
-          if [ "$1" = session ]; then
+          if [ "$1" = game ]; then
+            bl_session_others
+            _pids=("${_bl_session[@]}")
+            [ "${BL_ZRAM_CLIENT:-1}" != 1 ] || _pids+=("${_bl_pids[@]}")
+          elif [ "$1" = session ]; then
             bl_session_others
             _pids=("${_bl_session[@]}")
           else
@@ -1031,8 +1042,8 @@ case $mode in
               _bl_backoff=30
             fi
           fi
-          bl_client_pressure
           bl_session_pressure
+          bl_client_pressure
           if [ "$_bl_game" = 1 ] && bl_game_focused; then
             if [ "$_bl_since" -lt 0 ] || [ "$_bl_since_apps" != "$_bl_apps" ]; then
               _bl_since=$SECONDS _bl_since_apps=$_bl_apps
