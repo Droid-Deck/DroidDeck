@@ -262,15 +262,17 @@ internal fun SteamLaunchOptionsPanel(appId: Int) {
     var version by remember(appId) { mutableIntStateOf(0) }
     var editing by remember(appId) { mutableStateOf<String?>(null) }
     var saving by remember(appId) { mutableStateOf(false) }
+    var loading by remember(appId) { mutableStateOf(false) }
     var error by remember(appId) { mutableStateOf<Int?>(null) }
     LaunchedEffect(appId, version) {
         options = withContext(Dispatchers.IO) { SteamLaunchOptions.current(app, appId) } ?: options.orEmpty()
+        loading = false
     }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME && !saving) {
-                options = null
+                loading = true
                 version++
             }
         }
@@ -280,9 +282,9 @@ internal fun SteamLaunchOptionsPanel(appId: Int) {
     Column(Modifier.fillMaxWidth().tabPanel(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         val value = options
         MenuItem(
-            stringResource(R.string.edit_launch_options), checked = false, enabled = value != null && !saving,
-            detail = if (value == null || saving) "…" else value.ifEmpty { "—" },
-        ) { if (!saving) options?.let { editing = it } }
+            stringResource(R.string.edit_launch_options), checked = false, enabled = value != null && !saving && !loading,
+            detail = if (value == null || saving || loading) "…" else value.ifEmpty { "—" },
+        ) { if (!saving && !loading) options?.let { editing = it } }
         val message = error
         Text(
             stringResource(message ?: R.string.edit_launch_options_steam_hint),

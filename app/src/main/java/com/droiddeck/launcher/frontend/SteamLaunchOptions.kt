@@ -35,6 +35,7 @@ object SteamLaunchOptions {
     internal fun steam(steamHome: File, appId: Int): String? {
         val config = AddedGames.accountConfig(steamHome) ?: return null
         val text = runCatching { File(config, "localconfig.vdf").readText() }.getOrNull() ?: return null
+        if (section(text, STEAM) == null) return null
         return launchOptions(text, appId).orEmpty()
     }
 
