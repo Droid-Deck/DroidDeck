@@ -889,7 +889,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         watchSession()
     }
 
-    private fun createSessionOverlay(): ComposeView = ComposeView(this).apply {
+    private fun createSessionOverlay(): ComposeView = object : ComposeView(this) {
+        override fun onResolvePointerIcon(event: MotionEvent, pointerIndex: Int): android.view.PointerIcon? =
+            if (platformPointerShown == true) super.onResolvePointerIcon(event, pointerIndex) else null
+    }.apply {
         isFocusable = true
         isFocusableInTouchMode = true
         defaultFocusHighlightEnabled = false
@@ -4080,7 +4083,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun appUiOwnsPointer(): Boolean =
-        drawerOpen || pcKeyboardOpen || achievementsOpen || pipUi || glassesOutputActive || bottomOutputActive || touchEditorOpen
+        drawerOpen || pcKeyboardOpen || achievementsOpen || pipUi || glassesOutputActive || bottomOutputActive || touchEditorOpen || wowChatOnTop
 
     private fun applyPlatformPointer(shown: Boolean) {
         if (!::sessionRoot.isInitialized || !::surfaceView.isInitialized) return
