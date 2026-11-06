@@ -403,6 +403,9 @@ class BattleNetTest {
         file.writeBytes("\uFEFFZ:/root/Games/Diablo II Resurrected\nosic".toByteArray(Charsets.UTF_16LE))
         assertEquals("osic", BattleNetInstall.cachedUid(context, item, folder))
         assertNull(BattleNetInstall.cachedUid(context, item, File(folder, "other")))
+        file.writeBytes("\uFEFFosic".toByteArray(Charsets.UTF_16LE))
+        assertNull(BattleNetInstall.cachedUid(context, item, folder))
+        file.writeBytes("\uFEFFZ:/root/Games/Diablo II Resurrected\nosic".toByteArray(Charsets.UTF_16LE))
         BattleNetInstall.clearCachedUid(context, item)
         assertNull(BattleNetInstall.cachedUid(context, item, folder))
     }
