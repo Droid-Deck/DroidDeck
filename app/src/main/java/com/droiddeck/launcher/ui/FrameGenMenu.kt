@@ -28,6 +28,8 @@ internal fun FrameGenMenu(
             }
         item(FrameGen.Mode.OFF, focus = firstItemFocus)
         for (m in 2..4) item(FrameGen.Mode(FrameGen.ENGINE_DDFG, m))
+        for (m in 2..4) item(FrameGen.Mode(FrameGen.ENGINE_WFG, m))
+        for (t in FrameGen.ADAPTIVE_TARGETS) item(FrameGen.Mode(FrameGen.ENGINE_WFG, target = t))
         val lsfg = (2..4).map { FrameGen.Mode(FrameGen.ENGINE_LSFG, it) } +
             FrameGen.ADAPTIVE_TARGETS.map { FrameGen.Mode(FrameGen.ENGINE_LSFG, target = it) }
         lsfg.forEachIndexed { i, m -> item(m, enabled = lossless.ready, detail = need.takeIf { i == 0 }) }

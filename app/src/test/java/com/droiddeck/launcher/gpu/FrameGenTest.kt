@@ -34,10 +34,17 @@ class FrameGenTest {
         assertEquals(FrameGen.Mode(FrameGen.ENGINE_LSFG, 3), FrameGen.mode(context))
     }
 
-    @Test fun onlyLsfgIsAdaptive() {
+    @Test fun ddFgIsNotAdaptive() {
         context.getSharedPreferences("frame_gen", Context.MODE_PRIVATE).edit()
             .putString("engine", FrameGen.ENGINE_DDFG).putInt("multiplier", 4).putInt("target", 60).commit()
         assertEquals(FrameGen.Mode(FrameGen.ENGINE_DDFG, 4), FrameGen.mode(context))
+    }
+
+    @Test fun wfgKeepsATargetOrAMultiplier() {
+        FrameGen.set(context, FrameGen.Mode(FrameGen.ENGINE_WFG, target = 60))
+        assertEquals(FrameGen.Mode(FrameGen.ENGINE_WFG, target = 60), FrameGen.mode(context))
+        FrameGen.set(context, FrameGen.Mode(FrameGen.ENGINE_WFG, 3))
+        assertEquals(FrameGen.Mode(FrameGen.ENGINE_WFG, 3), FrameGen.mode(context))
     }
 
     @Test fun aSavedWinFgChoiceBecomesDdFg() {

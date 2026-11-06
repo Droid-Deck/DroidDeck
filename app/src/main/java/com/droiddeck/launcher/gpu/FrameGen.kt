@@ -10,6 +10,7 @@ object FrameGen {
     const val ENGINE_DDFG = "ddfg"
     private const val LEGACY_ENGINE_WINFG = "winfg"
     const val ENGINE_LSFG = "lsfg"
+    const val ENGINE_WFG = "wfg"
 
     private const val DDFG_PERF_PRESET = 2
     private const val DDFG_MODEL = 4
@@ -32,7 +33,7 @@ object FrameGen {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val engine = prefs.getString("engine", ENGINE_OFF).let { if (it == LEGACY_ENGINE_WINFG) ENGINE_DDFG else it ?: ENGINE_OFF }
         val target = prefs.getInt("target", 0)
-        if (engine == ENGINE_LSFG && target in ADAPTIVE_TARGETS) return Mode(engine, target = target)
+        if ((engine == ENGINE_LSFG || engine == ENGINE_WFG) && target in ADAPTIVE_TARGETS) return Mode(engine, target = target)
         return Mode(engine, prefs.getInt("multiplier", 2).coerceIn(2, 4))
     }
 
@@ -47,6 +48,8 @@ object FrameGen {
         mode.engine == ENGINE_DDFG -> context.getString(R.string.frame_gen_ddfg, mode.multiplier)
         mode.engine == ENGINE_LSFG && mode.target > 0 -> context.getString(R.string.frame_gen_lsfg_adaptive, mode.target)
         mode.engine == ENGINE_LSFG -> context.getString(R.string.frame_gen_lsfg, mode.multiplier)
+        mode.engine == ENGINE_WFG && mode.target > 0 -> context.getString(R.string.frame_gen_wfg_adaptive, mode.target)
+        mode.engine == ENGINE_WFG -> context.getString(R.string.frame_gen_wfg, mode.multiplier)
         else -> context.getString(R.string.frame_gen_off)
     }
 
@@ -75,6 +78,11 @@ object FrameGen {
                 WaylandCompositor.nativeSetDdFgTuning(DDFG_MODEL, DDFG_PERF_PRESET)
                 WaylandCompositor.nativeSetFrameGenTuning(FLOW_SCALE_DDFG, refreshHz)
                 WaylandCompositor.nativeSetFrameGenArmed(true, mode.multiplier, 0)
+            }
+            ENGINE_WFG -> {
+                WaylandCompositor.nativeSetFrameGenEngine(WaylandCompositor.FG_ENGINE_WFG)
+                WaylandCompositor.nativeSetFrameGenTuning(1f, refreshHz)
+                WaylandCompositor.nativeSetFrameGenArmed(true, mode.multiplier, mode.target)
             }
             else -> WaylandCompositor.nativeSetFrameGenArmed(false, 0, 0)
         }

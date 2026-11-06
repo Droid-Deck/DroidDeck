@@ -32,7 +32,9 @@
     <string name="frame_gen_off">Nonaktif</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
+    <string name="frame_gen_wfg">WFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG Adaptif %1$d</string>
+    <string name="frame_gen_wfg_adaptive">WFG Adaptif %1$d</string>
     <string name="lsfg_needs_steam">Memerlukan Lossless Scaling di Steam</string>
     <string name="lsfg_needs_install">Instal Lossless Scaling di Steam atau impor Lossless.dll</string>
     <string name="lsfg_import">Impor Lossless.dll…</string>

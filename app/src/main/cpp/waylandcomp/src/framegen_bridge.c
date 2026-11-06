@@ -86,7 +86,7 @@ static int64_t now_ns(void) {
 
 
 void vkp_framegen_set_engine(int kind) {
-    if (kind != VKP_FG_ENGINE_LSFG && kind != VKP_FG_ENGINE_DDFG) kind = VKP_FG_ENGINE_LSFG;
+    if (kind != VKP_FG_ENGINE_LSFG && kind != VKP_FG_ENGINE_DDFG && kind != VKP_FG_ENGINE_WFG) kind = VKP_FG_ENGINE_LSFG;
     atomic_store(&g_kind, kind);
     atomic_store(&g_failed_kind, -1);
     atomic_store(&g_cfg_dirty, 1);
@@ -180,9 +180,10 @@ void vkp_framegen_device_ready(VkDevice dev, VkQueue queue, uint32_t qfam, int f
     g_vk.GetPhysicalDeviceMemoryProperties(g_pd, &g_memprops);
     fge_device_ready(g_gipa, g_inst, g_pd, dev, queue, qfam, features_enabled);
     g_dev_ready = vk.CreateImage && vk.CreateImageView && vk.CmdPipelineBarrier;
-    FGLOG("engines ready on the compositor's device: LSFG Native %s (%s), DD-FG Native %s",
+    FGLOG("engines ready on the compositor's device: LSFG Native %s (%s), DD-FG Native %s, WFG %s",
           fge_caps_ok(VKP_FG_ENGINE_LSFG) ? "available" : "unavailable", fge_caps_reason(),
-          fge_caps_ok(VKP_FG_ENGINE_DDFG) ? "available" : "unavailable");
+          fge_caps_ok(VKP_FG_ENGINE_DDFG) ? "available" : "unavailable",
+          fge_caps_ok(VKP_FG_ENGINE_WFG) ? "available" : "unavailable");
 }
 
 void vkp_framegen_device_lost(void) { g_dev_lost = 1; }
@@ -250,7 +251,7 @@ static int engine_usable(void) {
 int vkp_framegen_format_ok(VkFormat fmt) {
     if (fmt == VK_FORMAT_R8G8B8A8_UNORM) return 1;
     if (!g_dev_ready || g_dev_lost || format_refused(fmt)) return 0;
-    return fge_format_ok(fmt);
+    return fge_format_ok(atomic_load(&g_kind), fmt);
 }
 
 static void refuse_format(VkFormat fmt, int kind, int w, int h, const char *what) {

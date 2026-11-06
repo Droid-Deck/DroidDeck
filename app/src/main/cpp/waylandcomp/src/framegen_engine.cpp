@@ -13,6 +13,7 @@
 #include "lsfg/lsfg_probe.h"
 #include "lsfg/lsfg_vkd.h"
 #include "ddfg/ddfg_engine.h"
+#include "vkr_dis.h"
 
 #define ELOG(...) __android_log_print(ANDROID_LOG_INFO, "DroidDeckWayland", "framegen: " __VA_ARGS__)
 #define ELOGE(...) __android_log_print(ANDROID_LOG_ERROR, "DroidDeckWayland", "framegen: " __VA_ARGS__)
@@ -33,6 +34,15 @@ std::unique_ptr<lsfg::Engine> g_lsfg;
 std::unique_ptr<ddfg::Engine> g_ddfg;
 int g_kind = -1;
 char g_build[96] = "";
+
+constexpr int kKindWfg = 2;
+// The flow field's short side in pixels, between WFG's Fast (180) and Balanced (252) presets.
+constexpr uint32_t kWfgFlowSide = 210;
+PFN_vkGetInstanceProcAddr g_gipa = nullptr;
+VkInstance g_inst = VK_NULL_HANDLE;
+VkrDis *g_wfg = nullptr;
+uint64_t g_wfg_source = 0;
+bool g_wfg_unavailable = false;
 
 #define FGE_INSTANCE_FUNCS(X)                                                              \
     X(GetPhysicalDeviceProperties) X(GetPhysicalDeviceMemoryProperties)                    \
@@ -117,6 +127,7 @@ const void *fge_probe(PFN_vkGetInstanceProcAddr gipa, VkInstance inst, VkPhysica
 void fge_device_ready(PFN_vkGetInstanceProcAddr gipa, VkInstance inst, VkPhysicalDevice pd,
                       VkDevice dev, VkQueue queue, uint32_t qfam, int features_enabled) {
     if (!g_probed) fill_instance(gipa, inst);
+    g_gipa = gipa; g_inst = inst;
     g_pd = pd; g_dev = dev; g_queue = queue; g_qfam = qfam;
     fill_device(dev);
     g_caps.featuresEnabled = features_enabled != 0;
@@ -129,19 +140,39 @@ void fge_device_ready(PFN_vkGetInstanceProcAddr gipa, VkInstance inst, VkPhysica
 int fge_caps_ok(int kind) {
     if (!g_ready) return 0;
     if (kind == 1) return g_caps.storageOnSwapchainFormat ? 1 : 0;
+    // WFG's shaders store to rg16f/r16f/rg32f, which need the extended formats enabled here.
+    if (kind == kKindWfg) return g_gipa && g_inst && g_caps.featuresEnabled ? 1 : 0;
     return g_caps.supported() ? 1 : 0;
 }
 
 const char *fge_caps_reason(void) { return g_caps.reason; }
 
-int fge_format_ok(VkFormat fmt) {
+int fge_format_ok(int kind, VkFormat fmt) {
     if (!g_ready || !g_table.GetPhysicalDeviceFormatProperties || fmt == VK_FORMAT_UNDEFINED) return 0;
+    // WFG interpolates into RGBA8: an FP16 picture would mix 8-bit generated frames with deeper real ones.
+    if (kind == kKindWfg) return fmt == VK_FORMAT_R8G8B8A8_UNORM ? 1 : 0;
     return lsfg::probeStorageFormat(g_table, g_pd, fmt) && lsfg::probeLinearBlit(g_table, g_pd, fmt) ? 1 : 0;
 }
 
 int fge_start(int kind, const char *cache_path) {
     fge_stop();
     if (!g_ready) return -1;
+    if (kind == kKindWfg) {
+        if (!vkr_dis_bind_dispatch(g_gipa, g_inst)) {
+            ELOGE("wfg: dispatch incomplete");
+            return -1;
+        }
+        g_wfg = vkr_dis_create(g_dev, g_pd);
+        if (!g_wfg) {
+            ELOGE("wfg: engine init failed");
+            return -1;
+        }
+        g_wfg_unavailable = false;
+        g_wfg_source = 0;
+        g_kind = kKindWfg;
+        std::snprintf(g_build, sizeof(g_build), "flow side %u", kWfgFlowSide);
+        return 0;
+    }
     if (kind == 1) {
         auto e = std::make_unique<ddfg::Engine>();
         if (!e->init(g_table, g_pd, g_dev, g_qfam, g_queue)) {
@@ -176,13 +207,15 @@ int fge_start(int kind, const char *cache_path) {
 }
 
 void fge_stop(void) {
-    if ((g_lsfg || g_ddfg) && g_table.DeviceWaitIdle && g_dev) g_table.DeviceWaitIdle(g_dev);
+    if ((g_lsfg || g_ddfg || g_wfg) && g_table.DeviceWaitIdle && g_dev) g_table.DeviceWaitIdle(g_dev);
     g_lsfg.reset();
     g_ddfg.reset();
+    if (g_wfg) { vkr_dis_destroy(g_wfg); g_wfg = nullptr; }
     g_kind = -1;
 }
 
 int fge_unavailable(void) {
+    if (g_kind == kKindWfg) return g_wfg_unavailable ? 1 : 0;
     if (g_kind == 1) return g_ddfg && g_ddfg->unavailable() ? 1 : 0;
     return g_lsfg && g_lsfg->unavailable() ? 1 : 0;
 }
@@ -190,11 +223,25 @@ int fge_unavailable(void) {
 void fge_configure(uint32_t multiplier, uint32_t target_fps, float flow_scale, float refresh_hz,
                    int model, int perf_preset) {
     if (multiplier < 2) multiplier = 2;
-    if (g_kind == 1 && g_ddfg) g_ddfg->configure(multiplier, model, perf_preset, flow_scale);
+    if (g_kind == kKindWfg && g_wfg) {
+        // WFG paces to the target, else to the panel's rate. With neither known an unreachable
+        // target leaves the multiplier (the generation ring's size) as the only limit.
+        const uint32_t target = target_fps ? target_fps : (refresh_hz > 0.0f ? 0u : 1000u);
+        vkr_dis_configure(g_wfg, kWfgFlowSide, target, refresh_hz);
+    } else if (g_kind == 1 && g_ddfg) g_ddfg->configure(multiplier, model, perf_preset, flow_scale);
     else if (g_lsfg) g_lsfg->configure(multiplier, target_fps, flow_scale, refresh_hz);
 }
 
 int fge_prepare(uint32_t w, uint32_t h, VkFormat fmt) {
+    if (g_kind == kKindWfg) {
+        if (!g_wfg || g_wfg_unavailable) return 0;
+        const VkrDisContentRect content = {0, 0, w, h};
+        if (!vkr_dis_prepare(g_wfg, w, h, fmt, content)) {
+            g_wfg_unavailable = true;
+            return 0;
+        }
+        return 1;
+    }
     if (g_kind == 1) return g_ddfg && g_ddfg->prepare(w, h, fmt) ? 1 : 0;
     if (!g_lsfg) return 0;
     g_lsfg->setGuestExtent(w, h);
@@ -202,6 +249,14 @@ int fge_prepare(uint32_t w, uint32_t h, VkFormat fmt) {
 }
 
 uint32_t fge_plan(uint32_t capacity, uint64_t source_frames, float presented_rate) {
+    if (g_kind == kKindWfg) {
+        if (!g_wfg) return 0;
+        uint32_t n = vkr_dis_plan(g_wfg, capacity, source_frames);
+        // A redraw without a new game frame (an overlay, the cursor) has no motion to interpolate.
+        if (source_frames == g_wfg_source) n = 0;
+        g_wfg_source = source_frames;
+        return n;
+    }
     if (g_kind == 1) return g_ddfg ? g_ddfg->plan(capacity) : 0;
     if (!g_lsfg) return 0;
     g_lsfg->setPresentedRate(presented_rate);
@@ -209,12 +264,30 @@ uint32_t fge_plan(uint32_t capacity, uint64_t source_frames, float presented_rat
 }
 
 void fge_process(VkCommandBuffer cmd, VkImage source, uint32_t w, uint32_t h, uint32_t gens) {
+    if (g_kind == kKindWfg) { if (g_wfg) vkr_dis_process(g_wfg, cmd, source, w, h, gens); return; }
     if (g_kind == 1) { if (g_ddfg) g_ddfg->process(cmd, source, w, h, gens); return; }
     if (g_lsfg) g_lsfg->process(cmd, source, w, h, gens);
 }
 
 void fge_generate(VkCommandBuffer cmd, uint32_t g, uint32_t count, VkImage img, VkImageView view,
                   uint32_t w, uint32_t h) {
+    if (g_kind == kKindWfg) {
+        if (!g_wfg) return;
+        vkr_dis_generate_into(g_wfg, cmd, g, g, img, view, w, h, VK_NULL_HANDLE);
+        // WFG writes the target with a blit; the bridge's barrier after generation covers shader writes only.
+        VkImageMemoryBarrier b{};
+        b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        b.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        b.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_SHADER_READ_BIT;
+        b.oldLayout = b.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        b.srcQueueFamilyIndex = b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        b.image = img;
+        b.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+        g_table.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                   VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                   0, 0, nullptr, 0, nullptr, 1, &b);
+        return;
+    }
     if (g_kind == 1) { if (g_ddfg) g_ddfg->generateInto(cmd, g, count, img, view, w, h); return; }
     if (g_lsfg) g_lsfg->generateInto(cmd, g, g, img, view, w, h);
 }
@@ -232,7 +305,9 @@ void fge_telemetry(float *accepted, float *source_rate, float *thermal) {
     }
 }
 
-const char *fge_engine_name(int kind) { return kind == 1 ? "DD-FG Native" : "LSFG Native"; }
+const char *fge_engine_name(int kind) {
+    return kind == kKindWfg ? "WFG" : kind == 1 ? "DD-FG Native" : "LSFG Native";
+}
 const char *fge_build_info(void) { return g_build; }
 
 }

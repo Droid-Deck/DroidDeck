@@ -51,9 +51,9 @@ target_include_directories(droiddeckwayland PRIVATE
 
 set(DROIDDECK_FRAMEGEN_LSFG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../framegen/lsfg)
 set(DROIDDECK_FRAMEGEN_DDFG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../framegen/ddfg)
-if (TARGET dxbc AND EXISTS ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_engine.cpp
+if (TARGET dxbc AND TARGET wfg AND EXISTS ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_engine.cpp
         AND EXISTS ${DROIDDECK_FRAMEGEN_DDFG_DIR}/ddfg_engine.cpp)
-    message(STATUS "droiddeckwayland: frame-generation engines built in (LSFG Native, DD-FG Native)")
+    message(STATUS "droiddeckwayland: frame-generation engines built in (LSFG Native, DD-FG Native, WFG)")
     target_sources(droiddeckwayland PRIVATE
             src/framegen_engine.cpp
             ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_probe.cpp
@@ -87,7 +87,7 @@ if (TARGET dxbc AND EXISTS ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_engine.cpp
             DDFG_UPSTREAM="${DDFG_UPSTREAM}"
             DDFG_CHAIN_HASH="${DDFG_CHAIN_HASH}"
     )
-    target_link_libraries(droiddeckwayland dxbc atomic)
+    target_link_libraries(droiddeckwayland dxbc wfg atomic)
 else()
     message(STATUS "droiddeckwayland: frame-generation engines NOT built in (standalone build): stub")
     target_sources(droiddeckwayland PRIVATE src/framegen_engine_stub.c)
