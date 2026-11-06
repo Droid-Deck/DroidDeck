@@ -2229,9 +2229,6 @@
     <string name="source_added">Mukautettu</string>
     <string name="setup_stores">Kaupat</string>
     <string name="setup_stores_speed">Latausnopeuden taso</string>
-    <string name="setup_stores_engine">Kauppojen moottori</string>
-    <string name="setup_stores_engine_chip_ready">● Moottori valmis</string>
-    <string name="setup_stores_engine_chip_missing">Ei koottu</string>
     <string name="stores_tier_balanced">Tasapainotettu</string>
     <string name="stores_tier_fast">Nopea</string>
     <string name="stores_tier_max">Maksimi</string>

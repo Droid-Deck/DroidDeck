@@ -2454,9 +2454,6 @@
     <string name="source_added">Custom</string>
     <string name="setup_stores">Stores</string>
     <string name="setup_stores_speed">Download speed tier</string>
-    <string name="setup_stores_engine">Stores engine</string>
-    <string name="setup_stores_engine_chip_ready">● Engine ready</string>
-    <string name="setup_stores_engine_chip_missing">Not built</string>
     <string name="stores_tier_balanced">Balanced</string>
     <string name="stores_tier_fast">Fast</string>
     <string name="stores_tier_max">Max</string>
