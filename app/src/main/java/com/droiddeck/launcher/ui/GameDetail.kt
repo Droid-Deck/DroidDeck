@@ -156,7 +156,7 @@ internal fun GameDetail(
     SideEffect { if (store != null && id != null) known[0] = store to id }
     val game = found ?: if (store != null && id != null) s.steamGames.firstOrNull { it.source == store.id && it.storeId == id } else null
     val item = if (store != null && id != null) StoresState.detailItem(store, id) else null
-    val installed = if (store != null && id != null) StoresState.installedGame(store, id) else null
+    val installed = if (store != null && id != null) StoresState.installedGame(store, id, game?.gameFiles) else null
     val rawDownload = if (store != null && id != null) StoresState.download("${store.id}:$id") else null
     val download = rawDownload?.takeIf { it.isActive }
     val failed = rawDownload?.takeIf { it.state == DownloadState.FAILED }

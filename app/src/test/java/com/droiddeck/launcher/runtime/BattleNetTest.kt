@@ -3,6 +3,11 @@ package com.droiddeck.launcher.runtime
 import android.content.Context
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.GameEnvironmentStore
+import com.droiddeck.launcher.stores.InstalledStoreGame
+import com.droiddeck.launcher.stores.Store
+import com.droiddeck.launcher.stores.StoreGameSidecar
+import com.droiddeck.launcher.stores.StoresState
+import com.droiddeck.launcher.stores.battlenet.BattleNetInstall
 import com.github.luben.zstd.ZstdOutputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
@@ -358,6 +363,34 @@ class BattleNetTest {
         assertFalse(BattleNet.notInstalled(BattleNet.title("s2")!!, games.map { it.installUid }))
         assertFalse(BattleNet.notInstalled(BattleNet.title("diablo3")!!, listOf("d3cn")))
 
+    }
+
+    @Test fun theFolderPicksBetweenTwoDiabloThreeInstalls() {
+        val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent").mkdirs()
+        val legacy = File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/Diablo III")
+        val china = File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/Diablo III China")
+        legacy.mkdirs()
+        china.mkdirs()
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").writeBytes(message(
+            field(1, message(field(1, "diablo3"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/Diablo III"))))),
+            field(1, message(field(1, "d3cn"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/Diablo III China"))))),
+        ))
+        assertEquals(setOf("diablo3", "d3cn"), BattleNet.games(context).map { it.installUid }.toSet())
+
+        val sidecar = StoreGameSidecar(Store.BATTLENET, "diablo3", "Diablo III", "")
+        val oldGame = InstalledStoreGame(sidecar, legacy)
+        val chinaGame = InstalledStoreGame(sidecar, china)
+        val before = StoresState.installed
+        try {
+            StoresState.installed = listOf(oldGame, chinaGame)
+            assertEquals(chinaGame, StoresState.installedGame(Store.BATTLENET, "diablo3", china))
+            assertEquals(oldGame, StoresState.installedGame(Store.BATTLENET, "diablo3", legacy))
+            assertEquals("d3cn", BattleNetInstall.installUid(context, chinaGame))
+            assertEquals("diablo3", BattleNetInstall.installUid(context, oldGame))
+        } finally {
+            StoresState.installed = before
+        }
     }
 
     @Test fun aGamesShortcutHasBattleNetLaunchItInItsPrefix() {

@@ -1196,6 +1196,19 @@ class AgentJobTest(Harness):
         self.assertEqual([kind for kind, _ in self.lines], ["STATE", "PROGRESS", "DONE"])
         self.assertEqual(json.loads(self.lines[-1][1]), {"install_dir": "Z:" + folder, "exe": "WarcraftRumble.exe", "version": "16.1.2.119725"})
 
+    def test_the_effective_china_uid_is_reported_for_cancellation(self):
+        self.install()
+        folder = "/tmp/" + self.tmp.name + "/Diablo II Resurrected"
+        self.files = {
+            ".uid": "osic",
+            ".json": json.dumps({"progress": 1.0, "download_complete": True, "state": 1004}),
+            ".game": json.dumps({"installed": True, "install_dir": "Z:" + folder, "local_version": "3.3.93854",
+                                 "binaries": {"game": {"relative_path": "D2R.exe"}}}),
+        }
+        code = BNET["agent_job"](self.root, "install", "osi", "osi", folder, "zhCN", "CHN", "CN", poll=0)
+        self.assertEqual(code, 0)
+        self.assertIn(("UID", "osic"), self.lines)
+
     def test_an_agent_error_is_reported_with_its_code(self):
         self.install()
         self.files = {".json": json.dumps({"error": 2421, "progress": 0.0})}

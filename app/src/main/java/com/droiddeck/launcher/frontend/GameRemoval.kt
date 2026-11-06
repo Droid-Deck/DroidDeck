@@ -42,7 +42,7 @@ object GameRemoval {
         val folder = game.gameFiles ?: return null
         val store = Store.byId(game.source)
         val id = game.storeId
-        if (store != null && id != null) StoresState.installedGame(store, id)?.let { return it }
+        if (store != null && id != null) StoresState.installedGame(store, id, folder)?.let { return it }
         val sidecar = StoreGameSidecar.read(folder)?.takeIf { it.isInstalled } ?: return null
         return InstalledStoreGame(sidecar, folder)
     }

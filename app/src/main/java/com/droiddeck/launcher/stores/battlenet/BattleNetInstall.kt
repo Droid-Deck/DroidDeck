@@ -34,6 +34,7 @@ object BattleNetInstall {
     internal const val STATE = "BNET_STATE "
     internal const val DONE = "BNET_DONE "
     internal const val ERROR = "BNET_ERROR "
+    internal const val UID = "BNET_UID "
     private const val CN = "cn"
     private const val BUILD_INFO = ".build.info"
     private const val CHECK_AGAIN_MS = 30 * 60_000L
@@ -131,8 +132,12 @@ object BattleNetInstall {
 
     internal const val INSTALL_UID = "installUid"
 
-    internal fun installUid(context: Context, game: InstalledStoreGame): String =
-        runCatching { BattleNet.games(context).firstOrNull { it.uid == game.sidecar.id }?.installUid }.getOrNull() ?: game.sidecar.id
+    internal fun installUid(context: Context, game: InstalledStoreGame): String {
+        val games = runCatching { BattleNet.games(context) }.getOrDefault(emptyList())
+        val folder = game.folder.absolutePath
+        return (games.firstOrNull { it.folder.absolutePath == folder } ?: games.firstOrNull { it.uid == game.sidecar.id })
+            ?.installUid ?: game.sidecar.id
+    }
 
     fun uninstall(context: Context, game: InstalledStoreGame): Boolean {
         if (product(game.sidecar.id) == null || !BattleNet.installed(context)) return false
@@ -258,6 +263,7 @@ internal class BattleNetInstaller(
     private val cancelled = AtomicBoolean(false)
     private val started = AtomicBoolean(false)
     private val ended = java.util.concurrent.CountDownLatch(1)
+    @Volatile private var effectiveUid: String? = null
     private var before = 0L
     private var kept = -1L
 
@@ -293,6 +299,8 @@ internal class BattleNetInstaller(
                 line == BattleNetInstall.STATE + "starting" -> handle.stage(DownloadStage.MANIFEST, app.getString(R.string.bnet_dl_starting))
                 line.startsWith(BattleNetInstall.DONE) -> done = runCatching { JSONObject(line.removePrefix(BattleNetInstall.DONE)) }.getOrNull()
                 line.startsWith(BattleNetInstall.ERROR) -> reason = line.removePrefix(BattleNetInstall.ERROR)
+                line.startsWith(BattleNetInstall.UID) ->
+                    effectiveUid = line.removePrefix(BattleNetInstall.UID).trim().takeIf { it.isNotEmpty() }
             }
         }
         if (cancelled.get()) return null
@@ -322,7 +330,11 @@ internal class BattleNetInstaller(
     override fun cancel(deleteFiles: Boolean) {
         cancelled.set(true)
         if (!deleteFiles || update) return
-        val uid = item.extra[BattleNetInstall.INSTALL_UID] ?: BattleNet.title(item.id)?.uid ?: return
+        val registered = runCatching {
+            BattleNet.games(app).firstOrNull { it.folder.absolutePath == folder.absolutePath }?.installUid
+        }.getOrNull()
+        val uid = effectiveUid ?: item.extra[BattleNetInstall.INSTALL_UID] ?: registered
+            ?: BattleNet.title(item.id)?.uid ?: return
         Thread({
             if (started.get() && !ended.await(END_WAIT_S, TimeUnit.SECONDS)) Log.w("BattleNetInstall", "the cancelled install of $uid is still stopping")
             val gone = BattleNetInstall.agentUninstall(app, uid)

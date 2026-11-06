@@ -116,6 +116,7 @@ var CHINA = {osi: "osic", s2: "s2_cn", anbs: "anbs_cn", diablo3: "d3cn"};
 var CHINA_PRODUCT = {osi: "osic", s2: "s2c", diablo3: "d3cn"};
 
 function install() {
+  save(".uid", uid);
   // Blizzard's China repository moved to cn.patch.battlenet.com.cn; cn.patch.battle.net only redirects away from it.
   var patch = zone == "cn" ? "cn.patch.battlenet.com.cn" : zone + ".patch.battle.net";
   var form = call("POST", "/install", '{"uid":"' + uid + '","instructions_patch_url":"http://' + patch + ':1119/' +
@@ -1177,6 +1178,15 @@ def read_status(path):
     return None
 
 
+def read_text(path):
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError:
+        return None
+    return data.decode("utf-16" if data[:2] in (b"\xff\xfe", b"\xfe\xff") else "utf-8", "replace").strip()
+
+
 def summary(status):
     out = {key: status[key] for key in REPORTED if key in status}
     for key in ("download_current", "download_total"):
@@ -1227,7 +1237,7 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
         stop_leftovers(pfx)
         emit("STATE", "starting")
         base = os.path.join(CACHE, "agent-%s" % uid)
-        for suffix in (".json", ".game", ".form", ".error"):
+        for suffix in (".json", ".game", ".form", ".error", ".uid"):
             try:
                 os.unlink(base + suffix)
             except OSError:
@@ -1254,8 +1264,13 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
                 emit("ERROR", "stopped gamescope: %s" % error)
                 return 1
         seen = None
+        effective = None
         while True:
             done = child.poll() is not None
+            if effective is None:
+                effective = read_text(base + ".uid")
+                if effective:
+                    emit("UID", effective)
             status = read_status(base + ".json")
             if status is not None and action != "uninstall":
                 brief = summary(status)
@@ -1265,6 +1280,10 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
             if done:
                 break
             time.sleep(POLL if poll is None else poll)
+        if effective is None:
+            effective = read_text(base + ".uid")
+            if effective:
+                emit("UID", effective)
         leftovers = wine_processes(pfx)
         if leftovers and idle(leftovers):
             stop(leftovers)
