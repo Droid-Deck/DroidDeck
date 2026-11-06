@@ -843,7 +843,7 @@
     <string name="setup_gpu_unsupported">GPU no compatible</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam necesita un controlador Adreno; %1$s puede mostrar una pantalla negra</string>
+    <string name="setup_gpu_unsupported_detail">No hay un motor gráfico compatible disponible para %1$s. Steam puede mostrar una pantalla negra.</string>
     <string name="setup_runtime">Runtime de Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">No instalado · unos 3 GB, se instala al jugar por primera vez</string>
@@ -1483,8 +1483,8 @@
     <string name="main_wadb_unavailable">La Depuración inalámbrica no está disponible</string>
     <string name="main_adb_copied">Comando ADB copiado</string>
     <string name="main_pick_roms">Elige la carpeta de ROMs</string>
-    <string name="main_non_adreno_title">La GPU no es Adreno</string>
-    <string name="main_non_adreno_text">Turnip es compatible con GPU Adreno. En %1$s, Steam puede mostrar una pantalla negra. Descarga: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">GPU no compatible</string>
+    <string name="main_non_adreno_text">No hay un motor gráfico compatible disponible para %1$s. Steam puede mostrar una pantalla negra. Descarga: %2$.0f MB.</string>
     <string name="main_install_anyway">Instalar de todos modos</string>
     <string name="main_remove_runtime_title">Eliminar el runtime de Linux</string>
     <string name="main_remove_runtime_text">Esto elimina el runtime, el cliente de Steam que contiene y todos los juegos instalados en él.</string>
@@ -2192,7 +2192,7 @@
     <string name="gpuinfo_experimental">Experimental: sus controladores son versiones de prueba</string>
     <string name="gpuinfo_a850_experimental">Compatibilidad experimental con Adreno 850: requiere controladores experimentales de pantalla y de juegos compatibles; no verificada en este dispositivo</string>
     <string name="gpuinfo_below_tested">Por debajo del hardware probado (Adreno 725 y posteriores): puede que no funcione</string>
-    <string name="gpuinfo_unsupported">No compatible: DroidDeck necesita una GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">No compatible: no hay un motor gráfico compatible disponible para esta GPU</string>
     <string name="turnip_rate_limited">Se alcanzó el límite de solicitudes de GitHub - inténtalo más tarde</string>
     <string name="turnip_github_http">GitHub respondió HTTP %1$d</string>
     <string name="turnip_download_failed">Error en la descarga</string>

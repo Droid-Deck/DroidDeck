@@ -813,7 +813,7 @@
     <string name="setup_gpu_unsupported">GPU ei ole tuettu</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam tarvitsee Adreno-ajurin; %1$s saattaa näyttää mustan ruudun</string>
+    <string name="setup_gpu_unsupported_detail">GPU:lle %1$s ei ole saatavilla yhteensopivaa grafiikkataustajärjestelmää. Steam saattaa näyttää mustan ruudun.</string>
     <string name="setup_runtime">Linux-ajoympäristö</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Ei asennettu · noin 3 GB, asennetaan ensimmäisellä Pelaa-painalluksella</string>
@@ -1402,8 +1402,8 @@
     <string name="main_wadb_unavailable">Langaton virheenkorjaus ei ole käytettävissä</string>
     <string name="main_adb_copied">ADB-komento kopioitu</string>
     <string name="main_pick_roms">Valitse ROMs-kansio</string>
-    <string name="main_non_adreno_title">Ei Adreno-grafiikkapiiri</string>
-    <string name="main_non_adreno_text">Turnip tukee Adreno-grafiikkapiirejä. Laitteella %1$s Steam voi näyttää mustan ruudun. Latauksen koko: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">GPU:ta ei tueta</string>
+    <string name="main_non_adreno_text">GPU:lle %1$s ei ole saatavilla yhteensopivaa grafiikkataustajärjestelmää. Steam saattaa näyttää mustan ruudun. Lataus: %2$.0f Mt.</string>
     <string name="main_install_anyway">Asenna silti</string>
     <string name="main_remove_runtime_title">Poista Linux-ajoympäristö</string>
     <string name="main_remove_runtime_text">Tämä poistaa ajoympäristön, siihen asennetun Steam-asiakasohjelman ja kaikki sinne asennetut pelit.</string>
@@ -2117,7 +2117,7 @@
     <string name="gpuinfo_experimental">Kokeellinen: sen ajurit ovat testiversioita</string>
     <string name="gpuinfo_a850_experimental">Kokeellinen Adreno 850 -tuki: vaatii yhteensopivat kokeelliset näyttö- ja peliajurit; ei vahvistettu tällä laitteella</string>
     <string name="gpuinfo_below_tested">Testatun laitteiston alapuolella (Adreno 725 ja uudemmat): ei välttämättä toimi</string>
-    <string name="gpuinfo_unsupported">Ei tuettu: DroidDeck vaatii Adreno (Snapdragon) -grafiikkapiirin</string>
+    <string name="gpuinfo_unsupported">Ei tuettu: tälle GPU:lle ei ole saatavilla yhteensopivaa grafiikkataustajärjestelmää</string>
 
     <string name="turnip_rate_limited">GitHubin käyttörajoitus tuli vastaan - yritä myöhemmin uudelleen</string>
     <string name="turnip_github_http">GitHub vastasi HTTP %1$d</string>

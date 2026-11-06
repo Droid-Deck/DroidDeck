@@ -7,6 +7,7 @@ import android.system.ErrnoException;
 import android.system.Os;
 import android.system.StructStat;
 import android.system.StructUtsname;
+import com.droiddeck.launcher.gpu.SystemVulkanDriver;
 import com.droiddeck.launcher.session.SessionPrefs;
 
 
@@ -191,6 +192,13 @@ public final class LinuxRuntime {
         bind(cmd, "/dev");
         bind(cmd, "/proc");
         bind(cmd, "/sys");
+        if (com.droiddeck.launcher.gpu.SystemVulkanDriver.isPowerVr()) {
+            // The glibc bridge loads the device's existing Android HAL and its dependencies.
+            // These read-only Android partitions remain subject to the app's normal permissions.
+            for (String path : new String[]{"/system", "/vendor", "/apex", "/system_ext", "/product", "/odm"})
+                if (new File(path).isDirectory()) bind(cmd, path);
+            if (new File("/linkerconfig/ld.config.txt").isFile()) bind(cmd, "/linkerconfig/ld.config.txt");
+        }
         bind(cmd, DeviceControlsComponent.prepareBacklight(context, root).getPath() + ":/sys/class/backlight");
         bind(cmd, "/dev/urandom:/dev/random");
         bind(cmd, "/proc/self/fd:/dev/fd");
@@ -198,6 +206,10 @@ public final class LinuxRuntime {
         bind(cmd, "/proc/self/fd/1:/dev/stdout");
         bind(cmd, "/proc/self/fd/2:/dev/stderr");
         bind(cmd, new File(root, "etc/droiddeck/empty").getPath() + ":/sys/fs/selinux");
+        // A kernel that refuses to list /sys/class/thermal (Pixel 10, Android 17) made mangoapp abort
+        // at start ("filesystem_error ... Permission denied: '/sys/class/thermal/'") until its
+        // wrapper gave up: it lists the directory for CPU temperatures. Empty there instead.
+        if (new File("/sys/class/thermal").list() == null) bind(cmd, new File(root, "etc/droiddeck/empty").getPath() + ":/sys/class/thermal");
         bind(cmd, context.getFilesDir().getPath());
         bind(cmd, context.getCacheDir().getPath());
         bind(cmd, liveDir(context).getPath());
@@ -259,7 +271,11 @@ public final class LinuxRuntime {
         if (unreadablePciDevice()) {
             bind(cmd, new File(root, "etc/droiddeck/empty").getPath() + ":/sys/bus/pci/devices");
         }
-        bindGpuNode(context, cmd);
+        if (com.droiddeck.launcher.gpu.SystemVulkanDriver.isPowerVr()) {
+            bindPowerVrGpuNode(context, cmd);
+        } else {
+            bindGpuNode(context, cmd);
+        }
         bindAdrenoStats(cmd, extraBinds);
         bindCpuTemps(cmd, root);
         if (extraBinds != null) {
@@ -268,6 +284,24 @@ public final class LinuxRuntime {
         List<String> specs = new ArrayList<>();
         for (int i = 0; i + 1 < cmd.size(); i += 2) specs.add(cmd.get(i + 1));
         return specs;
+    }
+
+    private static void bindPowerVrGpuNode(Context context, List<String> cmd) {
+        if (new File("/dev/dri").list() != null) return;
+        String node = SystemVulkanDriver.renderNodePath();
+        if (node == null) return;
+        String name = new File(node).getName();
+        File dri = new File(context.getCacheDir(), "powervr-drm/" + name + "/dri");
+        try {
+            if (!dri.isDirectory() && !dri.mkdirs()) return;
+            new File(dri, name).createNewFile();
+        } catch (IOException e) {
+            android.util.Log.w("LinuxRuntime", "Cannot expose the PowerVR render node", e);
+            return;
+        }
+        bind(cmd, dri.getPath() + ":/dev/dri");
+        bind(cmd, node + ":" + node);
+        android.util.Log.i("LinuxRuntime", "PowerVR: exposing real " + name + " through a listable directory");
     }
 
     private static boolean unreadablePciDevice() {
@@ -279,7 +313,7 @@ public final class LinuxRuntime {
         return false;
     }
 
-    static final String MALI_DEVICE = "/dev/mali0";
+    public static final String MALI_DEVICE = "/dev/mali0";
 
     static final String[] DRM_RENDER_NODES = {
         "/dev/dri/renderD128", "/dev/dri/renderD129", "/dev/dri/renderD130", "/dev/dri/renderD131",
@@ -287,6 +321,7 @@ public final class LinuxRuntime {
 
     public static String gpuStandIn(Context context) {
         if (new File(KGSL_DEVICE).exists()) return KGSL_DEVICE;
+        if (com.droiddeck.launcher.core.DeviceSupport.INSTANCE.openDriverActive(context) && new File(MALI_DEVICE).exists()) return MALI_DEVICE;
         if (!com.droiddeck.launcher.core.DeviceSupport.INSTANCE.vkBridge(context)) return null;
         return bridgeStandIn(path -> new File(path).exists());
     }

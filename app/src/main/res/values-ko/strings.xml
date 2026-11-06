@@ -810,7 +810,7 @@
     <string name="setup_gpu_unsupported">GPU 지원되지 않음</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam에는 Adreno 드라이버가 필요합니다. %1$s에서 화면이 검게 변할 수 있습니다.</string>
+    <string name="setup_gpu_unsupported_detail">사용할 수 있는 호환 그래픽 백엔드가 없습니다. %1$s에서 화면이 검게 표시될 수 있습니다.</string>
     <string name="setup_runtime">Linux 런타임</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">설치되지 않음 · 약 3GB, 처음 \"Steam 실행\" 시 설치</string>
@@ -1390,8 +1390,8 @@
     <string name="main_wadb_unavailable">무선 디버깅을 사용할 수 없습니다</string>
     <string name="main_adb_copied">ADB 명령이 복사되었습니다</string>
     <string name="main_pick_roms">ROM 폴더 선택</string>
-    <string name="main_non_adreno_title">Adreno GPU가 아님</string>
-    <string name="main_non_adreno_text">Turnip은 Adreno GPU를 지원합니다. %1$s에서는 Steam 화면이 검게 표시될 수 있습니다. 다운로드: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">지원되지 않는 GPU</string>
+    <string name="main_non_adreno_text">%1$s에서 사용할 수 있는 호환 그래픽 백엔드가 없습니다. Steam 화면이 검게 표시될 수 있습니다. 다운로드: %2$.0f MB.</string>
     <string name="main_install_anyway">그래도 설치</string>
     <string name="main_remove_runtime_title">Linux 런타임 제거</string>
     <string name="main_remove_runtime_text">런타임과 그 안의 Steam 클라이언트, 그리고 런타임에 설치된 모든 게임이 삭제됩니다.</string>
@@ -2092,7 +2092,7 @@
     <string name="gpuinfo_experimental">실험적: 드라이버가 테스트 빌드입니다</string>
     <string name="gpuinfo_a850_experimental">실험적 Adreno 850 지원: 호환되는 실험용 디스플레이 및 게임 드라이버가 필요하며, 이 기기에서 검증되지 않았습니다</string>
     <string name="gpuinfo_below_tested">테스트된 하드웨어(Adreno 725 이상)보다 낮음: 실행되지 않을 수 있습니다</string>
-    <string name="gpuinfo_unsupported">지원되지 않음: DroidDeck에는 Adreno(Snapdragon) GPU가 필요합니다</string>
+    <string name="gpuinfo_unsupported">지원되지 않음: 이 GPU에서 사용할 수 있는 호환 그래픽 백엔드가 없습니다</string>
 
     <string name="turnip_rate_limited">GitHub 요청 한도에 도달했습니다. 나중에 다시 시도하세요</string>
     <string name="turnip_github_http">GitHub 응답: HTTP %1$d</string>

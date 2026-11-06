@@ -248,6 +248,8 @@ internal fun SetupPanel(
             Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
                 when (tab) {
                     0 -> {
+                        // Setup's "Safe mode" row, under the GPU row while the bridge is on and can be used here.
+                        val bridgeModeRow = !s.adreno && s.vkBridge && com.droiddeck.launcher.core.DeviceSupport.bridgeUsable()
                         val gpuCheck: @Composable (Boolean) -> Unit = { divider ->
                             CheckRow(
                                 if (gpuOk) CheckState.OK else CheckState.WARN,
@@ -259,19 +261,32 @@ internal fun SetupPanel(
                                 },
                                 when (gpu.support) {
                                     com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED -> stringResource(R.string.setup_gpu_detail, gpu.displayName(ctx), gpuName)
-                                    com.droiddeck.launcher.gpu.GpuInfo.Support.UNTESTED -> stringResource(R.string.setup_gpu_untested_detail, gpu.displayName(ctx), gpu.supportText(ctx).replaceFirstChar { it.lowercase() })
-                                    else -> if (s.vkBridge) stringResource(R.string.setup_gpu_bridge_detail, gpuName)
+                                    com.droiddeck.launcher.gpu.GpuInfo.Support.UNTESTED ->
+                                        if (!s.adreno && s.venus && s.venusHostVulkan != null) stringResource(R.string.setup_gpu_venus_host_too_old, gpu.displayName(ctx), s.venusHostVulkan)
+                                        else if (!s.adreno && s.vkBridge && !com.droiddeck.launcher.core.DeviceSupport.bridgeUsable()) stringResource(R.string.setup_gpu_bridge_unusable, gpu.displayName(ctx))
+                                        else if (!s.adreno && s.vkBridge && s.bridgeFellBack) stringResource(if (s.bridgeFellBackMemory) R.string.setup_gpu_bridge_no_memory_sharing else R.string.setup_gpu_bridge_fell_back, gpu.displayName(ctx))
+                                        else stringResource(R.string.setup_gpu_untested_detail, gpu.displayName(ctx), gpu.supportText(ctx).replaceFirstChar { it.lowercase() })
+                                    else -> if (s.venus && s.venusHostVulkan != null) stringResource(R.string.setup_gpu_venus_host_too_old, gpuName, s.venusHostVulkan)
+                                    else if (s.vkBridge && !com.droiddeck.launcher.core.DeviceSupport.bridgeUsable()) stringResource(R.string.setup_gpu_bridge_unusable, gpuName)
+                                    else if (s.vkBridge && s.bridgeFellBack) stringResource(if (s.bridgeFellBackMemory) R.string.setup_gpu_bridge_no_memory_sharing else R.string.setup_gpu_bridge_fell_back, gpuName)
+                                    else if (s.vkBridge) stringResource(R.string.setup_gpu_bridge_detail, gpuName)
                                     else stringResource(R.string.setup_gpu_unsupported_detail, gpuName)
                                 },
-                                divider = divider || (!s.adreno && s.vkBridge),
+                                divider = divider || bridgeModeRow,
                                 action = if (s.adreno) null else { {
-                                    SecondaryButton(
-                                        stringResource(if (s.vkBridge) R.string.setup_gpu_bridge_on else R.string.setup_gpu_bridge_off),
-                                        enabled = !s.sessionRunning, compact = true, onClick = { a.onVkBridge(!s.vkBridge) },
-                                    )
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        SecondaryButton(
+                                            stringResource(if (s.venus) R.string.setup_gpu_venus_on else R.string.setup_gpu_venus_off),
+                                            enabled = !s.sessionRunning, compact = true, onClick = { a.onVenus(!s.venus) },
+                                        )
+                                        SecondaryButton(
+                                            stringResource(if (s.vkBridge) R.string.setup_gpu_bridge_on else R.string.setup_gpu_bridge_off),
+                                            enabled = !s.sessionRunning, compact = true, onClick = { a.onVkBridge(!s.vkBridge) },
+                                        )
+                                    }
                                 } },
                             )
-                            if (!s.adreno && s.vkBridge) CheckRow(
+                            if (bridgeModeRow) CheckRow(
                                 CheckState.OK,
                                 stringResource(R.string.setup_bridge_safe),
                                 stringResource(if (s.vkBridgeSafe) R.string.setup_bridge_safe_on_detail else R.string.setup_bridge_safe_off_detail),
@@ -558,6 +573,8 @@ internal fun SetupPanel(
                             ) { a.onGameDebugLogs() }
                             ToggleRow(host, "vacdiag", stringResource(R.string.setup_vac_diag), stringResource(R.string.setup_vac_diag_hint), s.vacDiagnostics) { a.onVacDiagnostics() }
                             ToggleRow(host, "agent-commands", stringResource(R.string.setup_agent_commands), null, s.agentCommands) { a.onAgentCommands() }
+                            ToggleRow(host, "graphics-logs", stringResource(R.string.setup_graphics_logs), stringResource(R.string.setup_graphics_logs_hint), s.graphicsLogs) { a.onGraphicsLogs() }
+                            if (!s.adreno && com.droiddeck.launcher.session.SessionPrefs.steamGpuCompositingAllowed()) ToggleRow(host, "steam-gpu-drawing", stringResource(R.string.setup_steam_gpu_drawing), stringResource(R.string.setup_steam_gpu_drawing_hint), s.steamGpuDrawing) { a.onSteamGpuDrawing() }
                             ActionRow(stringResource(R.string.setup_latest_logs), stringResource(R.string.drawer_logs_hint), stringResource(R.string.drawer_share_logs), a.onShareLogs,
                                 progress = com.droiddeck.launcher.session.SessionLogShare.progress)
                             androidx.compose.material3.HorizontalDivider()

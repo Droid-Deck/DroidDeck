@@ -811,7 +811,7 @@
     <string name="setup_gpu_bridged">GPU 通过 Mali 桥接</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s：%2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam 需要 Adreno 驱动；%1$s 可能显示黑屏</string>
+    <string name="setup_gpu_unsupported_detail">没有可用的兼容图形后端；%1$s 可能显示黑屏</string>
     <string name="setup_runtime">Linux 运行时</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">未安装 · 约 3 GB，首次点“游玩”时安装</string>
@@ -1474,8 +1474,8 @@
     <string name="main_wadb_unavailable">无线调试不可用</string>
     <string name="main_adb_copied">已复制 ADB 命令</string>
     <string name="main_pick_roms">选择 ROM 文件夹</string>
-    <string name="main_non_adreno_title">不是 Adreno GPU</string>
-    <string name="main_non_adreno_text">Turnip 支持 Adreno GPU。在 %1$s 上，Steam 可能显示黑屏。需下载：%2$.0f MB。</string>
+    <string name="main_non_adreno_title">不受支持的 GPU</string>
+    <string name="main_non_adreno_text">没有适用于 %1$s 的兼容图形后端。Steam 可能显示黑屏。需下载：%2$.0f MB。</string>
     <string name="main_install_anyway">仍要安装</string>
     <string name="main_remove_runtime_title">移除 Linux 运行时</string>
     <string name="main_remove_runtime_text">这会删除运行时、其中的 Steam 客户端，以及安装在其中的所有游戏。</string>
@@ -2171,7 +2171,7 @@
     <string name="gpuinfo_experimental">实验性：其驱动为测试构建</string>
     <string name="gpuinfo_a850_experimental">Adreno 850 实验支持：需要配套的实验版显示驱动和游戏驱动；尚未在此设备上验证</string>
     <string name="gpuinfo_below_tested">低于已测试的硬件（Adreno 725 及更新）：可能无法运行</string>
-    <string name="gpuinfo_unsupported">不受支持：DroidDeck 需要 Adreno（骁龙）GPU</string>
+    <string name="gpuinfo_unsupported">不受支持：没有适用于此 GPU 的兼容图形后端</string>
     <string name="gpuinfo_bridge">通过 Mali 桥接运行，使用手机自带的 Vulkan 驱动</string>
     <string name="gpuinfo_bridge_off">关闭 Mali 桥接时不受支持：Turnip 需要 Adreno（骁龙）GPU</string>
 

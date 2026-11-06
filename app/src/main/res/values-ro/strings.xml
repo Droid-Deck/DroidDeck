@@ -816,7 +816,7 @@
     <string name="setup_gpu_unsupported">GPU neacceptat</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam are nevoie de un driver Adreno; %1$s poate arăta un ecran negru</string>
+    <string name="setup_gpu_unsupported_detail">Nu este disponibil un backend grafic compatibil pentru %1$s. Steam poate afișa un ecran negru.</string>
     <string name="setup_runtime">Mediul de execuție Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Neinstalat · circa 3 GB, instalat la prima apăsare pe Play</string>
@@ -1414,8 +1414,8 @@
     <string name="main_wadb_unavailable">Depanarea wireless nu este disponibilă</string>
     <string name="main_adb_copied">Comanda ADB copiată</string>
     <string name="main_pick_roms">Alege folderul ROMs</string>
-    <string name="main_non_adreno_title">Nu este un GPU Adreno</string>
-    <string name="main_non_adreno_text">Turnip acceptă GPU-uri Adreno. Pe %1$s, Steam poate arăta un ecran negru. Descărcare: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">GPU neacceptat</string>
+    <string name="main_non_adreno_text">Nu este disponibil un backend grafic compatibil pentru %1$s. Steam poate afișa un ecran negru. Descărcare: %2$.0f MB.</string>
     <string name="main_install_anyway">Instalează oricum</string>
     <string name="main_remove_runtime_title">Elimină mediul de execuție Linux</string>
     <string name="main_remove_runtime_text">Aceasta șterge mediul de execuție, clientul Steam din interiorul lui și fiecare joc instalat acolo.</string>
@@ -2142,7 +2142,7 @@
     <string name="gpuinfo_experimental">Experimental: driverele sale sunt versiuni de test</string>
     <string name="gpuinfo_a850_experimental">Suport experimental pentru Adreno 850: necesită drivere experimentale compatibile de afișaj și de jocuri; neverificat pe acest dispozitiv</string>
     <string name="gpuinfo_below_tested">Sub hardware-ul testat (Adreno 725 și mai nou): poate să nu ruleze</string>
-    <string name="gpuinfo_unsupported">Neacceptat: DroidDeck are nevoie de un GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">Neacceptat: nu este disponibil un backend grafic compatibil pentru acest GPU</string>
 
     <string name="turnip_rate_limited">S-a atins limita de solicitări a GitHub - încearcă din nou mai târziu</string>
     <string name="turnip_github_http">GitHub a răspuns cu HTTP %1$d</string>

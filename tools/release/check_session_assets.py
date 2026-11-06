@@ -1,4 +1,5 @@
 from pathlib import Path
+import importlib.util
 import re
 import sys
 from zipfile import ZipFile
@@ -9,7 +10,10 @@ SESSION_FILES = OVERLAY.parents[2] / 'app/src/main/java/com/droiddeck/launcher/s
 
 
 def check_extraction(overlay, source):
-    deployed = set(re.findall(r'"(usr/local/bin/droiddeck-[^"]+)"\s+to\s+"usr/local/bin/[^"/]+"', source))
+    # Extracted into usr/local/bin under any name, or (droiddeck-steam-taskset, which PATH puts in
+    # front of Steam's own taskset only for the client) into usr/local/libexec/droiddeck-steam.
+    deployed = set(re.findall(
+        r'"(usr/local/bin/droiddeck-[^"]+)"\s+to\s+"usr/local/(?:bin|libexec/droiddeck-steam)/[^"/]+"', source))
     return ['not extracted at session start: ' + path.relative_to(overlay).as_posix()
             for path in sorted((overlay / 'usr/local/bin').glob('droiddeck-*'))
             if path.relative_to(overlay).as_posix() not in deployed]
@@ -41,6 +45,16 @@ def check(apk, overlay=OVERLAY):
                 continue
             if content != source.read_bytes():
                 errors.append('stale ' + asset)
+        if overlay == OVERLAY:
+            spec = importlib.util.spec_from_file_location('powervr_fetch',
+                    OVERLAY.parents[1] / 'powervr/fetch.py')
+            runtime = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(runtime)
+            try:
+                runtime.verify_archive(package.read('assets/hybris/runtime.tzst'),
+                                       package.read('assets/hybris/version.txt').decode('ascii'))
+            except (KeyError, ValueError, OSError) as error:
+                errors.append('invalid PowerVR runtime: ' + str(error))
     return errors
 
 

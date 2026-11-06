@@ -813,7 +813,7 @@
     <string name="setup_gpu_unsupported">GPU समर्थित नहीं</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam को Adreno ड्राइवर चाहिए; %1$s में काली स्क्रीन दिख सकती है</string>
+    <string name="setup_gpu_unsupported_detail">%1$s के लिए कोई संगत ग्राफ़िक्स बैकएंड उपलब्ध नहीं है। Steam काली स्क्रीन दिखा सकता है।</string>
     <string name="setup_runtime">Linux रनटाइम</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">इंस्टॉल नहीं है · लगभग 3 GB, पहली बार Play पर इंस्टॉल होगा</string>
@@ -1402,8 +1402,8 @@
     <string name="main_wadb_unavailable">वायरलेस डीबगिंग उपलब्ध नहीं है</string>
     <string name="main_adb_copied">ADB कमांड कॉपी हो गया</string>
     <string name="main_pick_roms">ROM फ़ोल्डर चुनें</string>
-    <string name="main_non_adreno_title">Adreno GPU नहीं है</string>
-    <string name="main_non_adreno_text">Turnip Adreno GPU को सपोर्ट करता है। %1$s पर, Steam में काली स्क्रीन दिख सकती है। डाउनलोड: %2$.0f MB।</string>
+    <string name="main_non_adreno_title">असमर्थित GPU</string>
+    <string name="main_non_adreno_text">%1$s के लिए कोई संगत ग्राफ़िक्स बैकएंड उपलब्ध नहीं है। Steam काली स्क्रीन दिखा सकता है। डाउनलोड: %2$.0f MB।</string>
     <string name="main_install_anyway">फिर भी इंस्टॉल करें</string>
     <string name="main_remove_runtime_title">Linux रनटाइम हटाएं</string>
     <string name="main_remove_runtime_text">यह रनटाइम, इसके भीतर का Steam क्लाइंट, और वहां इंस्टॉल हर गेम हटा देता है।</string>
@@ -2117,7 +2117,7 @@
     <string name="gpuinfo_experimental">एक्सपेरिमेंटल: इसके ड्राइवर टेस्ट बिल्ड हैं</string>
     <string name="gpuinfo_a850_experimental">प्रयोगात्मक Adreno 850 समर्थन: कम्पैटिबल प्रयोगात्मक डिस्प्ले और गेम ड्राइवर चाहिए; इस डिवाइस पर जांचा नहीं गया</string>
     <string name="gpuinfo_below_tested">जांचे गए हार्डवेयर से नीचे (Adreno 725 और नए): यह शायद न चले</string>
-    <string name="gpuinfo_unsupported">समर्थित नहीं: DroidDeck को Adreno (Snapdragon) GPU चाहिए</string>
+    <string name="gpuinfo_unsupported">समर्थित नहीं: इस GPU के लिए कोई संगत ग्राफ़िक्स बैकएंड उपलब्ध नहीं है</string>
 
     <string name="turnip_rate_limited">GitHub की रेट लिमिट पार हो गई - बाद में फिर कोशिश करें</string>
     <string name="turnip_github_http">GitHub ने HTTP %1$d जवाब दिया</string>
