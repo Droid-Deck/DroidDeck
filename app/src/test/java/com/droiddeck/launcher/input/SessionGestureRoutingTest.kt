@@ -11,6 +11,7 @@ import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.wayland.WaylandCompositor
+import java.nio.file.Files
 import java.time.Duration
 import org.junit.After
 import org.junit.Assert.*
@@ -78,8 +79,10 @@ class SessionGestureRoutingTest {
         assertTrue(scrollDeltas.isEmpty())
     }
 
-    @Test fun stylusContactsUseTheConfiguredSurfaceListener() {
+    @Test fun stylusContactsInTouchModeUseTheConfiguredSurfaceListener() {
         prepare(SessionPrefs.TOUCH_GESTURES, TouchGestureConfig(tapAction = "key_E"))
+        ReflectionHelpers.getField<androidx.compose.runtime.MutableState<SessionPrefs.Pen>>(activity, "penSettings\$delegate")
+            .value = SessionPrefs.Pen(mode = SessionPrefs.PEN_TOUCH)
         val now = SystemClock.uptimeMillis()
         for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
             val event = MotionEvent.obtain(now, now + action, action, 400f, 300f, 0)
@@ -110,6 +113,36 @@ class SessionGestureRoutingTest {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(700))
         assertTrue(keys.isEmpty())
         assertFalse(steamTap.active)
+    }
+
+    @Test fun openingTheTouchEditorReleasesOwnedMouseButtons() {
+        prepare(SessionPrefs.TOUCH_GESTURES)
+        val surface = object : SurfaceView(activity) { override fun isShown() = true }
+        surface.layout(0, 0, 1000, 600)
+        setField("surfaceView", surface)
+        val now = SystemClock.uptimeMillis()
+        val press = MotionEvent.obtain(now, now, MotionEvent.ACTION_BUTTON_PRESS, 400f, 300f, 0)
+        try {
+            press.source = InputDevice.SOURCE_MOUSE
+            ReflectionHelpers.callInstanceMethod<Unit>(press, "setActionButton",
+                ReflectionHelpers.ClassParameter.from(Int::class.javaPrimitiveType!!, MotionEvent.BUTTON_PRIMARY))
+            assertTrue(activity.dispatchGenericMotionEvent(press))
+        } finally {
+            press.recycle()
+        }
+        val directory = Files.createTempDirectory("edit-touch-release").toFile()
+        try {
+            SteamTouchDevice.prepare(directory)
+            val controls = SteamTouchControls(activity, requireNotNull(SteamTouchDevice.current), {}, {})
+            controls.onEditingChanged = { ReflectionHelpers.callInstanceMethod<Unit>(activity, "touchEditorChanged") }
+            setField("steamTouchControls", controls)
+            controls.startEditing()
+            assertEquals(listOf(Triple(3, PointerGestures.BTN_LEFT, 1), Triple(3, PointerGestures.BTN_LEFT, 0)),
+                CompositorShadow.sceneInputs)
+        } finally {
+            SteamTouchDevice.release()
+            directory.deleteRecursively()
+        }
     }
 
     @Test fun directModeStillRoutesLauncherTouchesToScrolling() {
@@ -226,6 +259,7 @@ class SessionGestureRoutingTest {
     }
 
     private fun prepare(mode: String, config: TouchGestureConfig = TouchGestureConfig()) {
+        CompositorShadow.sceneInputs.clear()
         SessionState.mode = SessionService.MODE_STEAM
         SessionState.steamUi = "bigpicture"
         SessionState.suspended = false
@@ -316,9 +350,12 @@ class SessionGestureRoutingTest {
     @Implements(value = WaylandCompositor::class, isInAndroidSdk = false)
     class CompositorShadow {
         companion object {
+            val sceneInputs = mutableListOf<Triple<Int, Int, Int>>()
             @JvmStatic @Implementation fun __staticInitializer__() {}
             @JvmStatic @Implementation fun nativeSendTouch(action: Int, id: Int, x: Int, y: Int) {}
-            @JvmStatic @Implementation fun nativeSendSceneInput(type: Int, code: Int, value: Int) {}
+            @JvmStatic @Implementation fun nativeSendSceneInput(type: Int, code: Int, value: Int) {
+                sceneInputs += Triple(type, code, value)
+            }
         }
     }
 }

@@ -5300,6 +5300,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun touchEditorChanged() {
         touchEditorOpen = steamTouchControls?.isEditing == true
+        if (touchEditorOpen) releaseMainSurfaceMouseOwnership()
         updatePointerCapture()
         applyPlatformPointer(appUiOwnsPointer())
     }
