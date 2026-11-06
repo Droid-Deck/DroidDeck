@@ -207,6 +207,7 @@ class FrontEndActivity : ComponentActivity() {
     private var gameStoresSpeedTier by mutableStateOf("fast")
     private var navRequest by mutableStateOf<String?>(null)
     private val gameLaunchRequest = java.util.concurrent.atomic.AtomicLong()
+    private var preparingGames by mutableStateOf(emptySet<String>())
     private var storesShowMature by mutableStateOf(false)
     private var storesSort by mutableStateOf(SessionPrefs.STORES_SORTS.first())
     private var storesView by mutableStateOf(SessionPrefs.DEFAULT_STORES_VIEW)
@@ -1143,6 +1144,7 @@ class FrontEndActivity : ComponentActivity() {
                         installed = installed, ready = ready, available = available?.version, removalPending = removalPending, runtimeActionsBlocked = runtimeChangesBlocked(),
                         vkBridge = vkBridge, venus = venus, venusHostVulkan = venusHostVulkan, vkBridgeSafe = vkBridgeSafe, bridgeProtonDxvk = bridgeProtonDxvk, adreno = adrenoGpu,
                         shortcutPicker = shortcutPicker,
+                        preparingGames = preparingGames,
                         shortcutLibraryScanning = shortcutLibraryScanning,
                         gameSyncFolder = gameSyncFolder,
                         busy = busy, stage = stage, percent = percent,
@@ -1221,14 +1223,26 @@ class FrontEndActivity : ComponentActivity() {
                         },
                         onSteamGame = { g ->
                             if (shortcutPicker) chooseGameShortcut(g)
-                            else {
-                                val request = gameLaunchRequest.incrementAndGet()
-                                com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g) {
-                                    if (request != gameLaunchRequest.get() || isFinishing || isDestroyed) return@beforeLaunch
-                                    com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) {
-                                        if (request == gameLaunchRequest.get() && !isFinishing && !isDestroyed) launchGame(g)
+                            else if (g.launchKey !in preparingGames) {
+                                preparingGames = preparingGames + g.launchKey
+                                prepareAndLaunch(g, g.launchKey)
+                            }
+                        },
+                        onStoreGame = { store, id ->
+                            val key = "${store.id}:$id"
+                            if (key !in preparingGames) {
+                                preparingGames = preparingGames + key
+                                val app = applicationContext
+                                Thread({
+                                    val g = runCatching { com.droiddeck.launcher.stores.StoreLaunch.installedGame(app, store, id) }.getOrNull()
+                                    runOnUiThread {
+                                        if (g != null && !isFinishing && !isDestroyed) prepareAndLaunch(g, key)
+                                        else {
+                                            preparingGames = preparingGames - key
+                                            if (g == null && !isFinishing && !isDestroyed) android.widget.Toast.makeText(this, R.string.stores_launch_not_registered, android.widget.Toast.LENGTH_LONG).show()
+                                        }
                                     }
-                                }
+                                }, "store-play").start()
                             }
                         },
                         onEpicLauncher = { openEpicLauncher() },
@@ -1954,6 +1968,18 @@ class FrontEndActivity : ComponentActivity() {
     private fun savedIntent(state: Bundle, key: String): Intent? =
         if (Build.VERSION.SDK_INT >= 33) state.getParcelable(key, Intent::class.java)
         else @Suppress("DEPRECATION") state.getParcelable(key)
+
+    private fun prepareAndLaunch(g: Library.SteamGame, key: String) {
+        val request = gameLaunchRequest.incrementAndGet()
+        val done = { preparingGames = preparingGames - key }
+        com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g, onBlocked = done) {
+            if (request != gameLaunchRequest.get() || isFinishing || isDestroyed) { done(); return@beforeLaunch }
+            com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) {
+                done()
+                if (request == gameLaunchRequest.get() && !isFinishing && !isDestroyed) launchGame(g)
+            }
+        }
+    }
 
     override fun onDestroy() {
         gameLaunchRequest.incrementAndGet()
