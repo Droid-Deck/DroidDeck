@@ -360,6 +360,44 @@ object SessionLogShare {
         }
     }
 
+    fun saveLegacyAsync(context: Context, folder: File, destination: Uri, done: (Boolean) -> Unit) {
+        if (progress != null) return
+        progress = 0f
+        val app = context.applicationContext
+        Thread({
+            val saved = runCatching {
+                saveLegacy(app, folder, destination) { value ->
+                    main.post { if (progress != null) progress = value }
+                }
+            }.isSuccess
+            main.post {
+                progress = null
+                done(saved)
+            }
+        }, "save-session-logs").start()
+    }
+
+    internal fun saveLegacy(
+        context: Context,
+        folder: File,
+        destination: Uri,
+        onProgress: ((Float) -> Unit)? = null,
+    ) {
+        require(validSaveDestination(context, destination)) { "Invalid diagnostic save destination" }
+        var destinationOpened = false
+        try {
+            context.contentResolver.openOutputStream(destination, "w")?.use { output ->
+                destinationOpened = true
+                require(EnhancedSessionLogShare.writeLegacy(context, folder, output, onProgress)) {
+                    "Session log folder is unsafe or empty"
+                }
+            } ?: error("Could not open diagnostic bundle destination")
+        } catch (error: Exception) {
+            if (destinationOpened) removePartialDocument(context, destination)
+            throw error
+        }
+    }
+
     fun clear(context: Context) {
         SecureDiagnosticOutput.clear(context, shareDir(context))
         SecureDiagnosticOutput.clear(context, File(context.cacheDir, "shared-logs"))

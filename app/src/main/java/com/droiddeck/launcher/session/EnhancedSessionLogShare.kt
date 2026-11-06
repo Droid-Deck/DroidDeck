@@ -15,6 +15,7 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
+import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.channels.Channels
 import java.nio.channels.SeekableByteChannel
@@ -169,17 +170,41 @@ internal object EnhancedSessionLogShare {
         val output = SecureDiagnosticOutput.open(context, outputDirectory) ?: return null
         return output.use { out ->
             out.clear()
-            val redactionLearningComplete = LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
-            val discovery = collect(context, folder, limits.maxDiscoveredFiles, legacy = true)
-            val candidates = discovery.candidates.filter { it.linePrefix == null }
-            if (candidates.isEmpty()) {
+            if (!writeLegacy(context, folder, onProgress, limits) { name, write -> out.write(name, write) }) {
                 out.deleteIfEmpty()
                 return@use null
             }
-            val records = ArrayList<Record>()
-            val budget = Budget(limits.maxBytesTotal)
-            out.write("DroidDeck-${folder.name}.zip") { stream ->
-                ZipOutputStream(stream.buffered()).use { archive ->
+            File(out.file, "DroidDeck-${folder.name}.zip")
+        }
+    }
+
+    internal fun writeLegacy(
+        context: Context,
+        folder: File,
+        output: OutputStream,
+        onProgress: ((Float) -> Unit)? = null,
+        limits: EnhancedShareLimits = EnhancedShareLimits(maxFilesPerArchive = 512),
+    ): Boolean = writeLegacy(context, folder, onProgress, limits) { _, write -> write(output) }
+
+    private fun writeLegacy(
+        context: Context,
+        folder: File,
+        onProgress: ((Float) -> Unit)?,
+        limits: EnhancedShareLimits,
+        destination: (String, (OutputStream) -> Unit) -> Unit,
+    ): Boolean {
+        if (!folder.isDirectory || Files.isSymbolicLink(folder.toPath()) ||
+            limits.maxFilesPerArchive < 1 || limits.maxBytesPerFile < 1 || limits.maxBytesTotal < 1) {
+            return false
+        }
+        val redactionLearningComplete = LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
+        val discovery = collect(context, folder, limits.maxDiscoveredFiles, legacy = true)
+        val candidates = discovery.candidates.filter { it.linePrefix == null }
+        if (candidates.isEmpty()) return false
+        val records = ArrayList<Record>()
+        val budget = Budget(limits.maxBytesTotal)
+        destination("DroidDeck-${folder.name}.zip") { stream ->
+            ZipOutputStream(stream.buffered()).use { archive ->
                 val names = HashSet<String>()
                 candidates.forEachIndexed { index, candidate ->
                     val safeEntry = safeEntry(candidate.entry)
@@ -197,9 +222,9 @@ internal object EnhancedSessionLogShare {
                 if (discovery.truncated) records += Record("", "discovery", "truncated", reason = "candidate-limit")
                 if (discovery.partial) records += Record("", "discovery", "truncated", reason = "filesystem-error")
                 addManifest(archive, folder.name, "all", records, limits, budget.limit, redactionLearningComplete)
-                }
             }
         }
+        return true
     }
 
     private fun addTrustedActivation(

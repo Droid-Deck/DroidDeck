@@ -537,6 +537,61 @@ class EnhancedSessionLogShareTest {
         SessionLogShare.clear(app)
     }
 
+    @Test fun legacySaveWritesDirectlyAndCannotBeRedirectedThroughTheShareCache() {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"))
+        val session = tmp.newFolder("2026-11-06-01-steam")
+        session.resolve("session.log").writeText("game started\n")
+        val privateValue = "private-value-that-must-not-be-saved"
+        val privateFile = tmp.newFile("private.txt").apply { writeText(privateValue) }
+        val share = SessionLogShare.shareDir(app).apply { mkdirs() }
+        val oldIntermediate = share.resolve("DroidDeck-${session.name}.zip").toPath()
+        Files.createSymbolicLink(oldIntermediate, privateFile.toPath())
+
+        val output = tmp.newFile("legacy-save.zip")
+        val provider = NoDeleteOutputProvider(output)
+        val authority = "legacy-diagnostic-save-test"
+        provider.attachInfo(app, android.content.pm.ProviderInfo().apply { this.authority = authority })
+        ShadowContentResolver.registerProviderInternal(authority, provider)
+        val destination = Uri.parse("content://$authority/output.zip")
+        SessionLogShare.setSaveDestinationValidatorForTest { _, uri -> uri == destination }
+
+        SessionLogShare.saveLegacy(app, session, destination)
+
+        assertTrue(Files.isSymbolicLink(oldIntermediate))
+        assertEquals(privateValue, privateFile.readText())
+        ZipFile(output).use { archive ->
+            val saved = archive.getInputStream(archive.getEntry("${session.name}/session.log"))
+                .bufferedReader().readText()
+            assertEquals("game started\n", saved)
+            assertFalse(saved.contains(privateValue))
+        }
+        assertEquals(listOf("w"), provider.openModes)
+        Files.delete(oldIntermediate)
+        SessionLogShare.clear(app)
+    }
+
+    @Test fun failedLegacySaveRemovesThePartialDestination() {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"))
+        val realSession = tmp.newFolder("2026-11-06-02-real-steam")
+        val unsafeSession = tmp.root.toPath().resolve("2026-11-06-02-steam")
+        Files.createSymbolicLink(unsafeSession, realSession.toPath())
+        val output = tmp.newFile("partial-legacy-save.zip").apply { writeText("existing") }
+        val provider = NoDeleteOutputProvider(output)
+        val authority = "failed-legacy-diagnostic-save-test"
+        provider.attachInfo(app, android.content.pm.ProviderInfo().apply { this.authority = authority })
+        ShadowContentResolver.registerProviderInternal(authority, provider)
+        val destination = Uri.parse("content://$authority/output.zip")
+        SessionLogShare.setSaveDestinationValidatorForTest { _, uri -> uri == destination }
+
+        assertThrows(IllegalArgumentException::class.java) {
+            SessionLogShare.saveLegacy(app, unsafeSession.toFile(), destination)
+        }
+
+        assertEquals(listOf("w", "rwt"), provider.openModes)
+        assertEquals(1, provider.deleteCalls)
+        assertEquals(0L, output.length())
+    }
+
     @Test fun graphicsArchiveIncludesOnlyBoundedFrameTraceSummariesFromTheSessionLog() {
         val session = tmp.newFolder("2026-11-04-05-steam")
         session.resolve("session.log").writeText(

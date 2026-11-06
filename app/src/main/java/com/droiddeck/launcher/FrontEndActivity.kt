@@ -273,21 +273,11 @@ class FrontEndActivity : ComponentActivity() {
     }
     private val pickSessionLogExport = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         val folder = pendingSessionLogExport.also { pendingSessionLogExport = null } ?: return@registerForActivityResult
-        if (uri != null) {
-            SessionLogShare.prepare(this, { folder }) { zip ->
-                if (zip == null) {
-                    android.widget.Toast.makeText(this, R.string.setup_log_export_failed, android.widget.Toast.LENGTH_LONG).show()
-                } else Thread({
-                    val saved = runCatching {
-                        contentResolver.openOutputStream(uri)?.use { output -> zip.inputStream().buffered().use { it.copyTo(output) } }
-                            ?: error("Could not open destination")
-                    }.isSuccess
-                    ui.post {
-                        android.widget.Toast.makeText(this,
-                            if (saved) R.string.setup_log_export_saved else R.string.setup_log_export_failed,
-                            android.widget.Toast.LENGTH_LONG).show()
-                    }
-                }, "save-session-logs").start()
+        if (uri != null) SessionLogShare.saveLegacyAsync(applicationContext, folder, uri) { saved ->
+            if (!isFinishing && !isDestroyed) {
+                android.widget.Toast.makeText(this,
+                    if (saved) R.string.setup_log_export_saved else R.string.setup_log_export_failed,
+                    android.widget.Toast.LENGTH_LONG).show()
             }
         }
     }
