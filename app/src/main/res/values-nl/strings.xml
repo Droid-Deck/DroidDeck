@@ -585,7 +585,7 @@
     <string name="perf_ram_cap_hint">Geldt terwijl de Steam-client draait, in de Steam-modus of vanaf de desktop. Als de sessie meer gebruikt dan dit, worden Steam en daarna de andere ondersteunde processen van de sessie in zRAM gecomprimeerd. Een zachte limiet: er wordt niets gesloten, maar games kunnen haperen terwijl pagina’s terugkomen.</string>
     <string name="perf_ram_cap_unavailable">Vereist zRAM-swap, die dit apparaat niet heeft.</string>
     <string name="perf_vram_cap">VRAM-limiet</string>
-    <string name="perf_vram_cap_hint">Het videogeheugen dat DXVK aan Direct3D-games meldt, zodat ze minder ruimte voor texturen plannen. De eigen DXVK-instellingen van een game gaan voor. Geldt vanaf de volgende sessie.</string>
+    <string name="perf_vram_cap_hint">Meldt dit videogeheugenbudget aan Direct3D 9- tot 12-games om het geheugengebruik te verlagen. Games kunnen het overschrijden; dit voegt geen GPU-paging toe en garandeert geen bescherming tegen crashes door geheugentekort. Geldt vanaf de volgende sessie.</string>
     <string name="perf_gpuclock">GPU op hoogste kloksnelheid houden</string>
     <string name="perf_gpuclock_hint">Alleen Adreno. Minder haperingen, meer batterijverbruik en warmte.</string>
     <string name="perf_fixes">Sessiefixes</string>
@@ -670,6 +670,8 @@
     <string name="hud_group_metrics">Meetwaarden</string>
     <string name="hud_metric_graph">Frametijdgrafiek</string>
     <string name="hud_metric_decimal">Beeldsnelheid met decimaal</string>
+    <string name="hud_metric_low1">1% laagste</string>
+    <string name="hud_metric_low01">0.1% laagste</string>
     <string name="hud_metric_low001">0.01% laagste</string>
     <string name="hud_metric_engine">Grafische engine</string>
     <string name="hud_metric_gpu_model">GPU-naam</string>
@@ -1106,6 +1108,7 @@
     <string name="ctrl_stick_click_hint">Dubbeltik en houd een stick ingedrukt voor L3 of R3</string>
     <string name="ctrl_adaptive">Adaptieve sticks</string>
     <string name="ctrl_rumble">Trillen in games</string>
+    <string name="ctrl_dead_zone">Dode zone van stick</string>
     <string name="ctrl_steam_button">Steam-knop</string>
     <string name="ctrl_qam_button">QAM-knop</string>
     <string name="ctrl_keyboard_button">Toetsenbordknop</string>

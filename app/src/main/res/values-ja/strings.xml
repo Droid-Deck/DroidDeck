@@ -583,7 +583,7 @@
     <string name="perf_ram_cap_hint">Steamモードでもデスクトップからでも、Steamクライアントの実行中に適用されます。セッションの使用量がこの値を超えると、Steam、次にセッション内の対応する他のプロセスがzRAMに圧縮されます。ソフトな上限のため何も終了されませんが、ページの読み戻し中にゲームがカクつくことがあります。</string>
     <string name="perf_ram_cap_unavailable">zRAMスワップが必要ですが、このデバイスにはありません。</string>
     <string name="perf_vram_cap">VRAM上限</string>
-    <string name="perf_vram_cap_hint">DXVKがDirect3Dゲームに報告するビデオメモリ量です。ゲームはこれに合わせてテクスチャ量を抑えます。ゲーム独自のDXVK設定が優先されます。次回のセッションから有効になります。</string>
+    <string name="perf_vram_cap_hint">Direct3D 9～12のゲームにこのビデオメモリ予算を通知し、メモリ使用量の削減を促します。ゲームは予算を超える場合があります。GPUのページングを追加するものではなく、メモリ不足によるクラッシュの防止は保証されません。次のセッションから有効になります。</string>
     <string name="perf_gpuclock">GPUを最高クロックに保つ</string>
     <string name="perf_gpuclock_hint">Adrenoのみ。スタッターは減りますが、消費電力と発熱が増えます。</string>
     <string name="perf_fixes">セッション修正</string>
@@ -668,6 +668,8 @@
     <string name="hud_group_metrics">表示項目</string>
     <string name="hud_metric_graph">フレームタイムグラフ</string>
     <string name="hud_metric_decimal">フレームレートの小数表示</string>
+    <string name="hud_metric_low1">1%最低値</string>
+    <string name="hud_metric_low01">0.1%最低値</string>
     <string name="hud_metric_low001">0.01%最低値</string>
     <string name="hud_metric_engine">グラフィックスエンジン</string>
     <string name="hud_metric_gpu_model">GPU名</string>
@@ -1100,6 +1102,7 @@
     <string name="ctrl_stick_click_hint">スティックをダブルタップして長押しすると、L3またはR3がトリガーされます</string>
     <string name="ctrl_adaptive">アダプティブスティック</string>
     <string name="ctrl_rumble">ゲームの振動</string>
+    <string name="ctrl_dead_zone">スティックのデッドゾーン</string>
     <string name="ctrl_steam_button">Steamボタン</string>
     <string name="ctrl_qam_button">QAMボタン</string>
     <string name="ctrl_keyboard_button">キーボードボタン</string>

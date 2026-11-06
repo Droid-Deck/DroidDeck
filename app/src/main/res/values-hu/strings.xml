@@ -585,7 +585,7 @@
     <string name="perf_ram_cap_hint">Akkor érvényes, amikor a Steam-kliens fut, Steam módban vagy az asztalról. Ha a munkamenet ennél többet használ, a Steam, majd a munkamenet többi támogatott folyamata a zRAM-ba tömörül. Puha korlát: semmi sem zárul be, de a játékok akadhatnak, amíg a lapok visszatöltődnek.</string>
     <string name="perf_ram_cap_unavailable">zRAM swap szükséges, amely ezen az eszközön nincs.</string>
     <string name="perf_vram_cap">VRAM-korlát</string>
-    <string name="perf_vram_cap_hint">A DXVK által a Direct3D-játékoknak jelentett videomemória, így azok kevesebbel számolnak a textúráknál. A játék saját DXVK-beállításai elsőbbséget élveznek. A következő munkamenettől érvényes.</string>
+    <string name="perf_vram_cap_hint">Ezt a videomemória-keretet jelzi a Direct3D 9–12 játékoknak a memóriahasználat csökkentésére. A játékok túlléphetik; nem biztosít GPU-lapozást, és nem garantál védelmet a memóriahiány miatti összeomlás ellen. A következő munkamenettől érvényes.</string>
     <string name="perf_gpuclock">A GPU legmagasabb órajelen tartása</string>
     <string name="perf_gpuclock_hint">Csak Adreno. Kevesebb akadás, nagyobb akkumulátorhasználat és hőtermelés.</string>
     <string name="perf_fixes">Munkamenet-javítások</string>
@@ -670,6 +670,8 @@
     <string name="hud_group_metrics">Mért értékek</string>
     <string name="hud_metric_graph">Képkockaidő-grafikon</string>
     <string name="hud_metric_decimal">Képkockasebesség tizedesjeggyel</string>
+    <string name="hud_metric_low1">1% legalacsonyabb</string>
+    <string name="hud_metric_low01">0.1% legalacsonyabb</string>
     <string name="hud_metric_low001">0.01% legalacsonyabb</string>
     <string name="hud_metric_engine">Grafikus motor</string>
     <string name="hud_metric_gpu_model">GPU neve</string>
@@ -1106,6 +1108,7 @@
     <string name="ctrl_stick_click_hint">Koppintson duplán, és tartsa lenyomva a kart az L3 vagy R3 érdekében</string>
     <string name="ctrl_adaptive">Adaptív karok</string>
     <string name="ctrl_rumble">Játékvibráció</string>
+    <string name="ctrl_dead_zone">Kar holtzónája</string>
     <string name="ctrl_steam_button">Steam gomb</string>
     <string name="ctrl_qam_button">QAM gomb</string>
     <string name="ctrl_keyboard_button">Billentyűzet gomb</string>

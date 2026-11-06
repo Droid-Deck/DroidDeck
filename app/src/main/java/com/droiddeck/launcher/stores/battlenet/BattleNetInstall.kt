@@ -34,10 +34,15 @@ object BattleNetInstall {
     internal const val STATE = "BNET_STATE "
     internal const val DONE = "BNET_DONE "
     internal const val ERROR = "BNET_ERROR "
-    private const val VERSIONS = "https://%s.version.battle.net/v2/products/%s/versions"
+    private const val CN = "cn"
     private const val BUILD_INFO = ".build.info"
     private const val CHECK_AGAIN_MS = 30 * 60_000L
     private const val START_WAIT_MS = 60_000L
+
+    /** Blizzard serves China from battlenet.com.cn; its global version hostnames do not answer for that region. */
+    internal fun versionsUrl(region: String, product: String): String =
+        "https://" + (if (region == CN) "cn.version.battlenet.com.cn" else "$region.version.battle.net") +
+            "/v2/products/$product/versions"
 
     internal val LOCALES = listOf(
         "enUS", "enGB", "esMX", "esES", "ptBR", "ptPT", "frFR", "deDE", "itIT", "ruRU", "jaJP", "koKR", "plPL", "trTR",
@@ -187,7 +192,7 @@ object BattleNetInstall {
         checks.execute {
             val local = runCatching { buildKey(File(folder, BUILD_INFO).readText()) }.getOrNull()
                 ?: return@execute retryLater()
-            val latest = runCatching { latestBuild(fetch(VERSIONS.format(Locale.ROOT, local.first, product)), local.first) }
+            val latest = runCatching { latestBuild(fetch(versionsUrl(local.first, product)), local.first) }
                 .onFailure { Log.w(TAG, "versions of $product: ${it.javaClass.simpleName}") }.getOrNull()
                 ?: return@execute retryLater()
             val behind = latest != local.second

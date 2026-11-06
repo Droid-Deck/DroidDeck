@@ -76,7 +76,10 @@ Automatic process logs record environment keys and argument counts rather than v
 argument lists. UI nodes marked as passwords redact text, editable text, descriptions, and state
 text. This does not redact arbitrary authorized command results, CDP data, preferences, or screen
 captures. Scenario directories are owner-only and JSON reports are written with mode 0600. Review
-artifacts before sharing; a live `logs` pull copies the current folder without a fresh export scrub.
+artifacts before sharing. `logs` downloads the archive Share logs builds (scrubbed, Steam logs over
+8 MiB left out) from the app's external files folder, since adb cannot read the session folder itself.
+When the installed app predates archive export, the CLI falls back to pulling the private session folder;
+that legacy path is available only with root and is not scrubbed before download.
 
 ## Device selection and output
 
@@ -88,6 +91,10 @@ multiple devices remain. Pass `--serial` before the command to choose directly; 
 Every command writes one JSON object to stdout and its resolved serial to stderr. Exit codes: 0
 success, 2 invalid or rejected command, 3 ADB or device error, 4 session error, 5 timeout, 6
 artifact or file error, 7 debugging tools disabled.
+
+When upgrading the CLI, use a new destination for the first pull if the old destination contains
+archives created by an older CLI without a `.droiddeckctl-managed-logs.json` manifest and their
+filenames overlap. The upgraded CLI refuses to overwrite those files to preserve unrelated data.
 
 ## Commands
 

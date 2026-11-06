@@ -583,7 +583,7 @@
     <string name="perf_ram_cap_hint">Áp dụng khi client Steam đang chạy, ở chế độ Steam hoặc từ desktop. Khi phiên dùng nhiều hơn mức này, Steam rồi đến các tiến trình được hỗ trợ khác của phiên sẽ bị nén vào zRAM. Giới hạn mềm: không có gì bị đóng, nhưng game có thể giật khi các trang được nạp lại.</string>
     <string name="perf_ram_cap_unavailable">Cần swap zRAM, thiết bị này không có.</string>
     <string name="perf_vram_cap">Giới hạn VRAM</string>
-    <string name="perf_vram_cap_hint">Bộ nhớ video mà DXVK báo cho game Direct3D, để chúng dùng ít texture hơn. Thiết lập DXVK riêng của game vẫn được ưu tiên. Có hiệu lực từ phiên sau.</string>
+    <string name="perf_vram_cap_hint">Báo ngân sách bộ nhớ video này cho các trò chơi Direct3D 9 đến 12 để giảm mức dùng bộ nhớ. Trò chơi có thể vượt ngân sách; tính năng này không bổ sung phân trang GPU hay bảo đảm tránh lỗi do hết bộ nhớ. Có hiệu lực ở phiên tiếp theo.</string>
     <string name="perf_gpuclock">Giữ GPU ở xung nhịp cao nhất</string>
     <string name="perf_gpuclock_hint">Chỉ dành cho Adreno. Ít giật hơn, dùng nhiều pin và nhiệt hơn.</string>
     <string name="perf_fixes">Các bản sửa phiên</string>
@@ -668,6 +668,8 @@
     <string name="hud_group_metrics">Chỉ số</string>
     <string name="hud_metric_graph">Biểu đồ thời gian khung hình</string>
     <string name="hud_metric_decimal">Tốc độ khung hình có số thập phân</string>
+    <string name="hud_metric_low1">1% thấp nhất</string>
+    <string name="hud_metric_low01">0.1% thấp nhất</string>
     <string name="hud_metric_low001">0.01% thấp nhất</string>
     <string name="hud_metric_engine">Engine đồ họa</string>
     <string name="hud_metric_gpu_model">Tên GPU</string>
@@ -1100,6 +1102,7 @@
     <string name="ctrl_stick_click_hint">Chạm hai lần và giữ một cần để dùng L3 hoặc R3</string>
     <string name="ctrl_adaptive">Cần thích ứng</string>
     <string name="ctrl_rumble">Rung khi chơi game</string>
+    <string name="ctrl_dead_zone">Vùng chết của cần điều khiển</string>
     <string name="ctrl_steam_button">Nút Steam</string>
     <string name="ctrl_qam_button">Nút QAM</string>
     <string name="ctrl_keyboard_button">Nút bàn phím</string>

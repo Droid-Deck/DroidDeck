@@ -585,7 +585,7 @@
     <string name="perf_ram_cap_hint">Steam क्लाइंट चलते समय लागू होती है, Steam मोड में या डेस्कटॉप से। जब सेशन इससे ज़्यादा इस्तेमाल करता है, तो Steam और फिर सेशन की दूसरी समर्थित प्रोसेस zRAM में कंप्रेस होती हैं। यह सॉफ़्ट सीमा है: कुछ बंद नहीं होता, लेकिन पेज वापस आते समय गेम अटक सकते हैं।</string>
     <string name="perf_ram_cap_unavailable">zRAM स्वैप चाहिए, जो इस डिवाइस में नहीं है।</string>
     <string name="perf_vram_cap">VRAM सीमा</string>
-    <string name="perf_vram_cap_hint">वह वीडियो मेमोरी जो DXVK, Direct3D गेम को बताता है, ताकि वे टेक्सचर के लिए कम बजट रखें। गेम की अपनी DXVK सेटिंग को प्राथमिकता मिलती है। अगले सेशन से लागू होता है।</string>
+    <string name="perf_vram_cap_hint">मेमोरी का उपयोग कम करने के लिए Direct3D 9 से 12 गेम को यह वीडियो मेमोरी बजट बताता है। गेम इसे पार कर सकते हैं; यह GPU पेजिंग नहीं जोड़ता और मेमोरी खत्म होने से क्रैश रोकने की गारंटी नहीं देता। अगले सत्र से लागू होगा।</string>
     <string name="perf_gpuclock">GPU को उसकी टॉप क्लॉक पर बनाए रखें</string>
     <string name="perf_gpuclock_hint">सिर्फ़ Adreno के लिए। कम हिचकोले, लेकिन ज़्यादा बैटरी खर्च और गर्मी।</string>
     <string name="perf_fixes">सेशन फ़िक्स</string>
@@ -670,6 +670,8 @@
     <string name="hud_group_metrics">रीडिंग</string>
     <string name="hud_metric_graph">फ़्रेम टाइम ग्राफ़</string>
     <string name="hud_metric_decimal">दशमलव सहित फ़्रेम दर</string>
+    <string name="hud_metric_low1">1% लो</string>
+    <string name="hud_metric_low01">0.1% लो</string>
     <string name="hud_metric_low001">0.01% लो</string>
     <string name="hud_metric_engine">ग्राफ़िक्स इंजन</string>
     <string name="hud_metric_gpu_model">GPU का नाम</string>
@@ -1106,6 +1108,7 @@
     <string name="ctrl_stick_click_hint">L3 या R3 के लिए किसी स्टिक को डबल-टैप करके दबाए रखें</string>
     <string name="ctrl_adaptive">एडैप्टिव स्टिक</string>
     <string name="ctrl_rumble">गेम वाइब्रेशन</string>
+    <string name="ctrl_dead_zone">स्टिक का डेड ज़ोन</string>
     <string name="ctrl_steam_button">Steam बटन</string>
     <string name="ctrl_qam_button">QAM बटन</string>
     <string name="ctrl_keyboard_button">कीबोर्ड बटन</string>

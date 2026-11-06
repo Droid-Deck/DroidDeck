@@ -585,7 +585,7 @@
     <string name="perf_ram_cap_hint">Ισχύει όσο τρέχει ο πελάτης Steam, σε λειτουργία Steam ή από την επιφάνεια εργασίας. Όταν η συνεδρία χρησιμοποιεί περισσότερη, το Steam και έπειτα οι άλλες υποστηριζόμενες διεργασίες της συνεδρίας συμπιέζονται στη zRAM. Ήπιο όριο: τίποτα δεν κλείνει, αλλά τα παιχνίδια μπορεί να κολλάνε όσο επιστρέφουν οι σελίδες.</string>
     <string name="perf_ram_cap_unavailable">Απαιτεί zRAM swap, που δεν υπάρχει σε αυτή τη συσκευή.</string>
     <string name="perf_vram_cap">Όριο VRAM</string>
-    <string name="perf_vram_cap_hint">Η μνήμη βίντεο που αναφέρει το DXVK στα παιχνίδια Direct3D, ώστε να προγραμματίζουν υφές για λιγότερη. Οι δικές ρυθμίσεις DXVK του παιχνιδιού υπερισχύουν. Εφαρμόζεται στην επόμενη συνεδρία.</string>
+    <string name="perf_vram_cap_hint">Αναφέρει αυτόν τον προϋπολογισμό μνήμης βίντεο σε παιχνίδια Direct3D 9 έως 12 για να μειωθεί η χρήση μνήμης. Τα παιχνίδια μπορεί να τον υπερβούν· δεν προσθέτει σελιδοποίηση GPU ούτε εγγυάται προστασία από σφάλματα έλλειψης μνήμης. Ισχύει από την επόμενη συνεδρία.</string>
     <string name="perf_gpuclock">Διατήρηση της GPU στη μέγιστη συχνότητά της</string>
     <string name="perf_gpuclock_hint">Μόνο Adreno. Λιγότερα κολλήματα, μεγαλύτερη χρήση μπαταρίας και θερμότητα.</string>
     <string name="perf_fixes">Διορθώσεις συνεδρίας</string>
@@ -670,6 +670,8 @@
     <string name="hud_group_metrics">Μετρήσεις</string>
     <string name="hud_metric_graph">Γράφημα χρόνου καρέ</string>
     <string name="hud_metric_decimal">Ρυθμός καρέ με δεκαδικό</string>
+    <string name="hud_metric_low1">1% χαμηλότερα</string>
+    <string name="hud_metric_low01">0.1% χαμηλότερα</string>
     <string name="hud_metric_low001">0.01% χαμηλότερα</string>
     <string name="hud_metric_engine">Μηχανή γραφικών</string>
     <string name="hud_metric_gpu_model">Όνομα GPU</string>
@@ -1106,6 +1108,7 @@
     <string name="ctrl_stick_click_hint">Πατήστε δύο φορές και κρατήστε έναν μοχλό για L3 ή R3</string>
     <string name="ctrl_adaptive">Προσαρμοστικοί μοχλοί</string>
     <string name="ctrl_rumble">Κραδασμός παιχνιδιού</string>
+    <string name="ctrl_dead_zone">Νεκρή ζώνη μοχλού</string>
     <string name="ctrl_steam_button">Κουμπί Steam</string>
     <string name="ctrl_qam_button">Κουμπί QAM</string>
     <string name="ctrl_keyboard_button">Κουμπί πληκτρολογίου</string>

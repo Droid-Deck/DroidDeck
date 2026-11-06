@@ -37,11 +37,11 @@ enum class DroidDeckHudSize(val token: String, val label: String) {
         fun from(token: String?): DroidDeckHudSize =
             values().firstOrNull { it.token.equals(token, ignoreCase = true) } ?: FULL
 
-        val MINIMAL_CHIPS = setOf("FPS", "FPS graph", "0.01% low", "FPS .1", "Engine", "Clock")
+        val MINIMAL_CHIPS = setOf("FPS", "FPS graph", "1% low", "0.1% low", "0.01% low", "FPS .1", "Engine", "Clock")
         val PILL_CHIPS = setOf("FPS", "FPS graph", "GPU", "CPU", "VRAM", "RAM", "Battery", "GPU model", "FPS .1", "Engine", "Clock")
         val STANDARD_CHIPS = setOf(
             "FPS", "FPS graph", "GPU", "GPU temp", "CPU", "VRAM", "RAM", "Power", "Temp",
-            "Battery", "GPU model", "Engine", "0.01% low", "FPS .1", "Clock",
+            "Battery", "GPU model", "Engine", "1% low", "0.1% low", "0.01% low", "FPS .1", "Clock",
         )
         val MEGA_ONLY = setOf(
             "Per-core", "Swap", "Network", "Resolution", "Proton", "Wrapper", "DX ver", "Session",

@@ -585,7 +585,7 @@
     <string name="perf_ram_cap_hint">Koskee aikaa, jolloin Steam-asiakasohjelma on käynnissä, Steam-tilassa tai työpöydältä. Kun istunto käyttää tätä enemmän, Steam ja sen jälkeen istunnon muut tuetut prosessit pakataan zRAMiin. Pehmeä raja: mitään ei suljeta, mutta pelit voivat nykiä, kun sivuja luetaan takaisin.</string>
     <string name="perf_ram_cap_unavailable">Vaatii zRAM-swapin, jota tässä laitteessa ei ole.</string>
     <string name="perf_vram_cap">VRAM-raja</string>
-    <string name="perf_vram_cap_hint">Videomuisti, jonka DXVK ilmoittaa Direct3D-peleille, jotta ne mitoittavat tekstuurit pienemmälle. Pelin omat DXVK-asetukset menevät edelle. Tulee voimaan seuraavassa istunnossa.</string>
+    <string name="perf_vram_cap_hint">Ilmoittaa tämän videomuistibudjetin Direct3D 9–12 -peleille muistin käytön vähentämiseksi. Pelit voivat ylittää sen; tämä ei lisää GPU-sivutusta eikä takaa suojaa muistin loppumisesta johtuvilta kaatumisilta. Tulee voimaan seuraavassa istunnossa.</string>
     <string name="perf_gpuclock">Pidä GPU huippukellotaajuudessaan</string>
     <string name="perf_gpuclock_hint">Vain Adreno. Vähemmän nykäyksiä, enemmän akun kulutusta ja lämpöä.</string>
     <string name="perf_fixes">Istunnon korjaukset</string>
@@ -670,6 +670,8 @@
     <string name="hud_group_metrics">Lukemat</string>
     <string name="hud_metric_graph">Kuva-aikakäyrä</string>
     <string name="hud_metric_decimal">Kuvataajuus desimaalilla</string>
+    <string name="hud_metric_low1">1% alin</string>
+    <string name="hud_metric_low01">0.1% alin</string>
     <string name="hud_metric_low001">0.01% alin</string>
     <string name="hud_metric_engine">Grafiikkamoottori</string>
     <string name="hud_metric_gpu_model">GPU:n nimi</string>
@@ -1106,6 +1108,7 @@
     <string name="ctrl_stick_click_hint">Kaksoisnapauta ja pidä sauvaa pohjassa saadaksesi L3:n tai R3:n</string>
     <string name="ctrl_adaptive">Mukautuvat sauvat</string>
     <string name="ctrl_rumble">Pelin tärinä</string>
+    <string name="ctrl_dead_zone">Ohjaussauvan kuollut alue</string>
     <string name="ctrl_steam_button">Steam-painike</string>
     <string name="ctrl_qam_button">QAM-painike</string>
     <string name="ctrl_keyboard_button">Näppäimistöpainike</string>

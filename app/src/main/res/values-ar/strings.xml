@@ -593,7 +593,7 @@
     <string name="perf_ram_cap_hint">يُطبَّق أثناء تشغيل عميل Steam، في جلسة Steam أو من سطح المكتب. عندما تستخدم الجلسة أكثر من هذا الحد، يُضغط Steam ثم عمليات الجلسة المدعومة الأخرى في zRAM. حد مرن: لا يُغلَق شيء، لكن قد تتقطّع الألعاب أثناء استعادة الصفحات.</string>
     <string name="perf_ram_cap_unavailable">يتطلب مساحة تبديل zRAM، وهي غير متوفرة على هذا الجهاز.</string>
     <string name="perf_vram_cap">حد VRAM</string>
-    <string name="perf_vram_cap_hint">ذاكرة الفيديو التي يُبلغ بها DXVK ألعاب Direct3D، فتخصّص للأنسجة مساحة أقل. تظل إعدادات DXVK الخاصة باللعبة هي الأولى. يسري في الجلسة التالية.</string>
+    <string name="perf_vram_cap_hint">يُبلّغ ألعاب Direct3D من 9 إلى 12 بميزانية ذاكرة الفيديو هذه لتشجيع تقليل استخدامها. قد تتجاوزها الألعاب؛ لا يضيف هذا ترحيل ذاكرة GPU ولا يضمن منع الانهيار بسبب نفاد الذاكرة. يسري في الجلسة التالية.</string>
     <string name="perf_gpuclock">تثبيت GPU على أعلى تردد له</string>
     <string name="perf_gpuclock_hint">لـ Adreno فقط. تقطّع أقل، مع استهلاك أكبر للبطارية والحرارة.</string>
     <string name="perf_fixes">إصلاحات الجلسة</string>
@@ -678,6 +678,8 @@
     <string name="hud_group_metrics">القراءات</string>
     <string name="hud_metric_graph">مخطط زمن الإطار</string>
     <string name="hud_metric_decimal">معدل الإطارات بخانة عشرية</string>
+    <string name="hud_metric_low1">أدنى 1%</string>
+    <string name="hud_metric_low01">أدنى 0.1%</string>
     <string name="hud_metric_low001">أدنى 0.01%</string>
     <string name="hud_metric_engine">محرك الرسومات</string>
     <string name="hud_metric_gpu_model">اسم GPU</string>
@@ -1130,6 +1132,7 @@
     <string name="ctrl_stick_click_hint">انقر مرتين مع الاستمرار على عصا للحصول على L3 أو R3</string>
     <string name="ctrl_adaptive">عصي تكيّفية</string>
     <string name="ctrl_rumble">اهتزاز اللعبة</string>
+    <string name="ctrl_dead_zone">المنطقة الميتة لعصا التحكم</string>
     <string name="ctrl_steam_button">زر Steam</string>
     <string name="ctrl_qam_button">زر QAM</string>
     <string name="ctrl_keyboard_button">زر لوحة المفاتيح</string>

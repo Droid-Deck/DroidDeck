@@ -587,7 +587,7 @@
     <string name="perf_ram_cap_hint">Se aplica mientras se ejecuta el cliente de Steam, en modo Steam o desde el escritorio. Cuando la sesión usa más de esto, Steam y luego los demás procesos compatibles de la sesión se comprimen en zRAM. Es un límite flexible: no se cierra nada, pero los juegos pueden tener tirones mientras se recuperan las páginas.</string>
     <string name="perf_ram_cap_unavailable">Requiere swap de zRAM, y este dispositivo no lo tiene.</string>
     <string name="perf_vram_cap">Límite de VRAM</string>
-    <string name="perf_vram_cap_hint">La memoria de vídeo que DXVK indica a los juegos Direct3D, para que calculen sus texturas con menos. Los ajustes de DXVK propios de un juego siguen teniendo prioridad. Se aplica en la próxima sesión.</string>
+    <string name="perf_vram_cap_hint">Informa a los juegos Direct3D 9 a 12 de este presupuesto de memoria de vídeo para reducir su uso. Los juegos pueden superarlo; no añade paginación de GPU ni garantiza evitar fallos por falta de memoria. Se aplica en la próxima sesión.</string>
     <string name="perf_gpuclock">Mantener la GPU a su reloj máximo</string>
     <string name="perf_gpuclock_hint">Solo Adreno. Menos tirones, más consumo de batería y calor.</string>
     <string name="perf_fixes">Correcciones de sesión</string>
@@ -672,6 +672,8 @@
     <string name="hud_group_metrics">Lecturas</string>
     <string name="hud_metric_graph">Gráfico de tiempos de fotograma</string>
     <string name="hud_metric_decimal">Tasa de fotogramas con decimal</string>
+    <string name="hud_metric_low1">1% más bajo</string>
+    <string name="hud_metric_low01">0.1% más bajo</string>
     <string name="hud_metric_low001">0.01% más bajo</string>
     <string name="hud_metric_engine">Motor gráfico</string>
     <string name="hud_metric_gpu_model">Nombre de la GPU</string>
@@ -1112,6 +1114,7 @@
     <string name="ctrl_stick_click_hint">Toca dos veces y mantén un stick para L3 o R3</string>
     <string name="ctrl_adaptive">Sticks adaptables</string>
     <string name="ctrl_rumble">Vibración en juegos</string>
+    <string name="ctrl_dead_zone">Zona muerta de la palanca</string>
     <string name="ctrl_steam_button">Botón Steam</string>
     <string name="ctrl_qam_button">Botón QAM</string>
     <string name="ctrl_keyboard_button">Botón de teclado</string>

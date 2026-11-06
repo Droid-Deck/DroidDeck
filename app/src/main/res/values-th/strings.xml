@@ -583,7 +583,7 @@
     <string name="perf_ram_cap_hint">มีผลขณะไคลเอนต์ Steam ทำงาน ทั้งในโหมด Steam หรือจากเดสก์ท็อป เมื่อเซสชันใช้เกินค่านี้ Steam และโปรเซสอื่นที่รองรับของเซสชันจะถูกบีบอัดลงใน zRAM ตามลำดับ เป็นขีดจำกัดแบบอ่อน: ไม่มีอะไรถูกปิด แต่เกมอาจกระตุกขณะดึงหน้าหน่วยความจำกลับมา</string>
     <string name="perf_ram_cap_unavailable">ต้องใช้ zRAM swap ซึ่งอุปกรณ์นี้ไม่มี</string>
     <string name="perf_vram_cap">ขีดจำกัด VRAM</string>
-    <string name="perf_vram_cap_hint">หน่วยความจำวิดีโอที่ DXVK รายงานต่อเกม Direct3D เพื่อให้เกมจัดสรรเท็กซ์เจอร์น้อยลง การตั้งค่า DXVK ของเกมเองยังมีผลเหนือกว่า มีผลในเซสชันถัดไป</string>
+    <string name="perf_vram_cap_hint">แจ้งงบประมาณหน่วยความจำวิดีโอนี้ให้เกม Direct3D 9 ถึง 12 เพื่อลดการใช้หน่วยความจำ เกมอาจใช้เกินงบได้ ฟีเจอร์นี้ไม่ได้เพิ่มการสลับหน้าหน่วยความจำ GPU และไม่รับประกันว่าจะป้องกันการแครชเมื่อหน่วยความจำหมด มีผลในเซสชันถัดไป</string>
     <string name="perf_gpuclock">ตรึง GPU ไว้ที่ความเร็วสัญญาณนาฬิกาสูงสุด</string>
     <string name="perf_gpuclock_hint">สำหรับ Adreno เท่านั้น สะดุดน้อยลง แต่ใช้แบตเตอรี่และเกิดความร้อนมากขึ้น</string>
     <string name="perf_fixes">การแก้ไขเซสชัน</string>
@@ -668,6 +668,8 @@
     <string name="hud_group_metrics">ค่าที่แสดง</string>
     <string name="hud_metric_graph">กราฟเวลาเฟรม</string>
     <string name="hud_metric_decimal">อัตราเฟรมแบบทศนิยม</string>
+    <string name="hud_metric_low1">1% ต่ำสุด</string>
+    <string name="hud_metric_low01">0.1% ต่ำสุด</string>
     <string name="hud_metric_low001">0.01% ต่ำสุด</string>
     <string name="hud_metric_engine">เอนจินกราฟิก</string>
     <string name="hud_metric_gpu_model">ชื่อ GPU</string>
@@ -1100,6 +1102,7 @@
     <string name="ctrl_stick_click_hint">แตะสองครั้งแล้วกดสติ๊กค้างไว้สำหรับ L3 หรือ R3</string>
     <string name="ctrl_adaptive">สติ๊กแบบปรับอัตโนมัติ</string>
     <string name="ctrl_rumble">การสั่นของเกม</string>
+    <string name="ctrl_dead_zone">เดดโซนของแอนะล็อกสติ๊ก</string>
     <string name="ctrl_steam_button">ปุ่ม Steam</string>
     <string name="ctrl_qam_button">ปุ่ม QAM</string>
     <string name="ctrl_keyboard_button">ปุ่มแป้นพิมพ์</string>

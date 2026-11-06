@@ -583,7 +583,7 @@
     <string name="perf_ram_cap_hint">在 Steam 客户端运行时生效，无论是 Steam 模式还是从桌面启动。会话使用量超过此值时，会先将 Steam、再将会话中其他受支持的进程压缩到 zRAM。这是软上限：不会关闭任何进程，但在页面读回时游戏可能卡顿。</string>
     <string name="perf_ram_cap_unavailable">需要 zRAM 交换空间，但此设备不支持。</string>
     <string name="perf_vram_cap">VRAM 上限</string>
-    <string name="perf_vram_cap_hint">DXVK 向 Direct3D 游戏报告的显存大小，使游戏按更少的显存分配纹理。游戏自身的 DXVK 设置仍然优先。下次会话时生效。</string>
+    <string name="perf_vram_cap_hint">向 Direct3D 9 至 12 游戏报告此显存预算，以促使游戏减少内存使用。游戏可能超出预算；此功能不提供 GPU 分页，也不保证避免内存不足导致的崩溃。下次会话生效。</string>
     <string name="perf_gpuclock">把 GPU 锁定在最高频率</string>
     <string name="perf_gpuclock_hint">仅限 Adreno。卡顿更少，但更耗电、更发热。</string>
     <string name="perf_fixes">会话修复</string>
@@ -668,6 +668,8 @@
     <string name="hud_group_metrics">读数</string>
     <string name="hud_metric_graph">帧时间图表</string>
     <string name="hud_metric_decimal">帧率显示小数</string>
+    <string name="hud_metric_low1">1% 最低帧</string>
+    <string name="hud_metric_low01">0.1% 最低帧</string>
     <string name="hud_metric_low001">0.01% 最低帧</string>
     <string name="hud_metric_engine">图形引擎</string>
     <string name="hud_metric_gpu_model">GPU 名称</string>
@@ -1184,6 +1186,7 @@
     <string name="ctrl_stick_click_hint">双击并按住摇杆可触发 L3 或 R3</string>
     <string name="ctrl_adaptive">自适应摇杆</string>
     <string name="ctrl_rumble">游戏震动</string>
+    <string name="ctrl_dead_zone">摇杆死区</string>
     <string name="ctrl_steam_button">Steam 按钮</string>
     <string name="ctrl_qam_button">QAM 按钮</string>
     <string name="ctrl_keyboard_button">键盘按钮</string>
@@ -2087,6 +2090,7 @@
     <string name="loadstate_starting">正在启动会话…</string>
     <string name="loadstate_elapsed">已用时 %1$d:%2$02d · 仍在处理</string>
     <string name="loadstate_steam_update">正在下载 Steam 客户端更新 · %1$d%%</string>
+    <string name="loadstate_steam_update_applying">正在应用 Steam 客户端更新…</string>
     <string name="loadstate_steam_client">正在下载 Steam 客户端 · %1$s</string>
 
     <string name="pextra_busy">已有兼容性工具正在安装</string>

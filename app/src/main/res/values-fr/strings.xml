@@ -587,7 +587,7 @@
     <string name="perf_ram_cap_hint">S\'applique tant que le client Steam fonctionne, en mode Steam ou depuis le bureau. Lorsque la session dépasse cette valeur, Steam puis les autres processus pris en charge de la session sont compressés dans zRAM. Limite souple : rien n\'est fermé, mais les jeux peuvent saccader pendant le rechargement des pages.</string>
     <string name="perf_ram_cap_unavailable">Nécessite un swap zRAM, dont cet appareil ne dispose pas.</string>
     <string name="perf_vram_cap">Limite de VRAM</string>
-    <string name="perf_vram_cap_hint">La mémoire vidéo que DXVK signale aux jeux Direct3D, pour qu\'ils prévoient moins de textures. Les paramètres DXVK propres à un jeu restent prioritaires. Prendra effet à la prochaine session.</string>
+    <string name="perf_vram_cap_hint">Signale ce budget de mémoire vidéo aux jeux Direct3D 9 à 12 pour réduire leur consommation. Les jeux peuvent le dépasser ; cela ne fournit pas de pagination GPU et ne garantit pas une protection contre les plantages par manque de mémoire. Prend effet à la prochaine session.</string>
     <string name="perf_gpuclock">Maintenir le GPU à sa fréquence maximale</string>
     <string name="perf_gpuclock_hint">Uniquement pour Adreno. Moins de saccades, mais plus de consommation d\'énergie et de chaleur.</string>
     <string name="perf_fixes">Correctifs de session</string>
@@ -672,6 +672,8 @@
     <string name="hud_group_metrics">Mesures</string>
     <string name="hud_metric_graph">Graphique des temps d\'image</string>
     <string name="hud_metric_decimal">Fréquence d\'images avec une décimale</string>
+    <string name="hud_metric_low1">1% les plus bas</string>
+    <string name="hud_metric_low01">0.1% les plus bas</string>
     <string name="hud_metric_low001">0.01% les plus bas</string>
     <string name="hud_metric_engine">Moteur graphique</string>
     <string name="hud_metric_gpu_model">Nom du GPU</string>
@@ -1112,6 +1114,7 @@
     <string name="ctrl_stick_click_hint">Double-cliquez et maintenez le joystick pour déclencher L3 ou R3</string>
     <string name="ctrl_adaptive">Joystick adaptatif</string>
     <string name="ctrl_rumble">Vibration du jeu</string>
+    <string name="ctrl_dead_zone">Zone morte du stick</string>
     <string name="ctrl_steam_button">Bouton Steam</string>
     <string name="ctrl_qam_button">Bouton QAM</string>
     <string name="ctrl_keyboard_button">Bouton clavier</string>

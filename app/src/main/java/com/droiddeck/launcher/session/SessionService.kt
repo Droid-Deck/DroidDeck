@@ -568,6 +568,10 @@ class SessionService : Service() {
             components.add(encoder)
             guest.add("BL_VENC_SOCKET=" + encoder.socket.absolutePath)
         }
+        com.droiddeck.launcher.gpu.ClockLogComponent(File(sessionDir, "clocks.log")).let {
+            it.attach(this)
+            components.add(it)
+        }
 
         guest.add("BL_WIDTH=" + size.first)
         guest.add("BL_HEIGHT=" + size.second)
@@ -584,6 +588,7 @@ class SessionService : Service() {
         guest.add("BL_REFRESH=" + Math.round(SessionState.refreshHz))
         guest.add("BL_LOG=" + sessionLog.path)
         guest.add("BL_DEBUG_DIR=" + sessionDir.path)
+        if (EnhancedDiagnostics.isActive(this, sessionDir)) guest.add("DROIDDECK_ENHANCED_DIAGNOSTICS=1")
 
         val fakeInputDir = File(sessionRoot, "dev/input").apply { mkdirs() }
         val controllersOn = !File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()
@@ -823,6 +828,7 @@ class SessionService : Service() {
         SessionState.sessionId = sessionDir.name
         SessionState.eventsFile = File(sessionDir, "events.jsonl")
         SessionEvents.record("session.logs_ready", mapOf("logDir" to sessionDir.path))
+        if (EnhancedDiagnostics.isActive(this, sessionDir)) SessionEvents.record("diagnostics.enhanced", mapOf("schema" to 1))
         DeviceReport.write(this, File(sessionDir, "device.txt"), SessionState.mode)
         NetworkReport.write(this, File(sessionDir, "network.txt"))
         SessionLogCapture.start(File(sessionDir, "app.log"))
@@ -966,10 +972,6 @@ class SessionService : Service() {
         val bridge = com.droiddeck.launcher.gpu.VkBridgeComponent(socket, File(sessionDir, "vkbridge-server.log"))
         bridge.attach(this)
         components.add(bridge)
-        com.droiddeck.launcher.gpu.ClockLogComponent(File(sessionDir, "vkbridge-clocks.log")).let {
-            it.attach(this)
-            components.add(it)
-        }
         guest.add("BL_VKBRIDGE=1")
         if (SessionPrefs.steamGpuCompositing(this)) guest.add("BL_STEAM_GPU_COMPOSITING=1")
         SessionPrefs.linuxDriver(this).takeIf { it.isNotEmpty() }

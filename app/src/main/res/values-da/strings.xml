@@ -585,7 +585,7 @@
     <string name="perf_ram_cap_hint">Gælder, mens Steam-klienten kører, i Steam-tilstand eller fra skrivebordet. Når sessionen bruger mere end dette, komprimeres Steam og derefter sessionens andre understøttede processer i zRAM. En blød grænse: intet lukkes, men spil kan hakke, mens sider hentes tilbage.</string>
     <string name="perf_ram_cap_unavailable">Kræver zRAM-swap, som denne enhed ikke har.</string>
     <string name="perf_vram_cap">VRAM-grænse</string>
-    <string name="perf_vram_cap_hint">Den videohukommelse, DXVK rapporterer til Direct3D-spil, så de budgetterer teksturer til mindre. Et spils egne DXVK-indstillinger har forrang. Træder i kraft ved næste session.</string>
+    <string name="perf_vram_cap_hint">Rapporterer dette videohukommelsesbudget til Direct3D 9 til 12-spil for at mindske hukommelsesforbruget. Spil kan overskride det; dette tilføjer ikke GPU-paging og garanterer ikke beskyttelse mod nedbrud ved hukommelsesmangel. Gælder fra næste session.</string>
     <string name="perf_gpuclock">Hold GPU’en på dens højeste clock</string>
     <string name="perf_gpuclock_hint">Kun Adreno. Færre hak, mere batteribrug og varme.</string>
     <string name="perf_fixes">Sessionsrettelser</string>
@@ -670,6 +670,8 @@
     <string name="hud_group_metrics">Målinger</string>
     <string name="hud_metric_graph">Billedtidsgraf</string>
     <string name="hud_metric_decimal">Billedhastighed med decimal</string>
+    <string name="hud_metric_low1">1% laveste</string>
+    <string name="hud_metric_low01">0.1% laveste</string>
     <string name="hud_metric_low001">0.01% laveste</string>
     <string name="hud_metric_engine">Grafikmotor</string>
     <string name="hud_metric_gpu_model">GPU-navn</string>
@@ -1106,6 +1108,7 @@
     <string name="ctrl_stick_click_hint">Dobbelttryk og hold en stick nede for L3 eller R3</string>
     <string name="ctrl_adaptive">Adaptive styrepinde</string>
     <string name="ctrl_rumble">Spilvibration</string>
+    <string name="ctrl_dead_zone">Dødzone for styrepind</string>
     <string name="ctrl_steam_button">Steam-knap</string>
     <string name="ctrl_qam_button">QAM-knap</string>
     <string name="ctrl_keyboard_button">Tastaturknap</string>

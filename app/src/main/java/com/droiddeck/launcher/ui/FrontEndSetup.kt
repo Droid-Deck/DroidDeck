@@ -562,6 +562,10 @@ internal fun SetupPanel(
                         SettingsGroup(stringResource(R.string.setup_tab_diagnostics)) {
                             ToggleRow(host, "logs", stringResource(R.string.setup_logs), stringResource(R.string.setup_logs_hint), s.logsEnabled) { a.onLogs() }
                             ToggleRow(
+                                host, "enhanced-diagnostics", stringResource(R.string.setup_enhanced_diagnostics),
+                                stringResource(R.string.setup_enhanced_diagnostics_hint), s.enhancedDiagnosticsArmed,
+                            ) { a.onEnhancedDiagnostics() }
+                            ToggleRow(
                                 host, "game-debug-logs", stringResource(R.string.setup_game_debug_logs),
                                 stringResource(if (s.gameDebugLogsNeedsRestart) R.string.setup_game_debug_logs_restart else R.string.setup_game_debug_logs_hint),
                                 s.gameDebugLogsEnabled,

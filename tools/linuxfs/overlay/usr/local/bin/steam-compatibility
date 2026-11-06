@@ -24,6 +24,9 @@ SNIPER_APPID = "1628350"
 SLR4_APPID = "4183110"
 FEX_DEPENDENCIES = (FEX_APPID, SNIPER_APPID, SLR4_APPID)
 REQUIRED_TOOLS = (PROTON_ARM64_APPID,) + FEX_DEPENDENCIES
+# Linux builds that bundle an arm64 binary their launcher starts; Steamworks offers no arm64
+# launch-option architecture, so appinfo cannot say so (#1774).
+FEX_DEFAULT_APPS = frozenset({"4385780"})
 FULLY_INSTALLED = 4
 UPDATE_REQUIRED = 2
 REQUEST_HANDOFF_SECONDS = 30
@@ -780,20 +783,32 @@ def launch_options(config):
     return found
 
 
-def appinfo_entries(path):
+def appinfo_entries(path, wanted=None):
+    """Read metadata for all apps, or only the requested app-id strings."""
     import struct
+    if wanted is not None:
+        wanted = set(wanted)
+        if not wanted:
+            return {}
     try:
         stamp = os.stat(path).st_mtime_ns
     except OSError:
         return {}
     cached = APPINFO_CACHE.get(path)
     if cached and cached[0] == stamp:
-        return cached[1]
-    try:
-        with open(path, "rb") as f:
-            data = f.read()
-    except OSError:
-        return {}
+        covered = cached[2]
+        if covered is None or (wanted is not None and wanted <= covered):
+            return cached[1] if wanted is None else {app: cached[1][app] for app in wanted if app in cached[1]}
+        data = cached[3]
+        needed = None if wanted is None else wanted - covered
+    else:
+        cached = None
+        needed = wanted
+        try:
+            with open(path, "rb") as f:
+                data = f.read()
+        except OSError:
+            return {}
     if len(data) < 8:
         return {}
     magic = struct.unpack_from("<I", data, 0)[0]
@@ -855,6 +870,8 @@ def appinfo_entries(path):
             break
         start = offset + 8
         offset = start + size
+        if needed is not None and str(app) not in needed:
+            continue
         try:
             info = section(start + header)[0].get("appinfo", {})
         except (ValueError, IndexError, struct.error):
@@ -879,8 +896,14 @@ def appinfo_entries(path):
             entry["app_mappings"] = {str(m.get("appid", key)): str(m.get("tool", "")) for key, m in mappings.items()
                                      if isinstance(m, dict)} if isinstance(mappings, dict) else {}
         found[str(app)] = entry
-    APPINFO_CACHE[path] = (stamp, found)
-    return found
+    covered = wanted
+    if cached is not None and wanted is not None:
+        cached[1].update(found)
+        found = cached[1]
+        covered = cached[2] | wanted
+    # None coverage is complete; partial entries keep one immutable file snapshot.
+    APPINFO_CACHE[path] = (stamp, found, covered, data if covered is not None else None)
+    return found if wanted is None else {app: found[app] for app in wanted if app in found}
 
 
 def appinfo_platforms(path, wanted):
@@ -913,7 +936,7 @@ def native_targets(steam_root, apps):
         if "arm64" in osarch or "aarch64" in osarch:
             targets[app] = None
             continue
-        if "windows" in oslist:
+        if "windows" in oslist and app not in FEX_DEFAULT_APPS:
             targets[app] = NATIVE_CHOICE
             continue
         targets[app] = FEX_TOOL
@@ -1064,7 +1087,7 @@ def plan_mapping(current, installed, runnable, default, auto, native=None, picks
             continue
         mine = auto.get(app)
         target = native.get(app, default)
-        if not name and app in native_choices:
+        if not name and (app in native_choices or (app in current and app in FEX_DEFAULT_APPS)):
             target = NATIVE_CHOICE
         stale = unrunnable(name, runnable)
         if name and not stale and (mine is None or name != mine):

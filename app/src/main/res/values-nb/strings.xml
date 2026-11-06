@@ -585,7 +585,7 @@
     <string name="perf_ram_cap_hint">Gjelder mens Steam-klienten kjører, i Steam-modus eller fra skrivebordet. Når sesjonen bruker mer enn dette, komprimeres Steam og deretter sesjonens andre støttede prosesser til zRAM. En myk grense: ingenting lukkes, men spill kan hakke mens sider hentes tilbake.</string>
     <string name="perf_ram_cap_unavailable">Krever zRAM-swap, som denne enheten ikke har.</string>
     <string name="perf_vram_cap">VRAM-grense</string>
-    <string name="perf_vram_cap_hint">Videominnet DXVK rapporterer til Direct3D-spill, slik at de beregner teksturer for mindre. Spillets egne DXVK-innstillinger har forrang. Trer i kraft fra neste sesjon.</string>
+    <string name="perf_vram_cap_hint">Rapporterer dette videominnebudsjettet til Direct3D 9 til 12-spill for å redusere minnebruken. Spill kan overskride det; dette legger ikke til GPU-sideveksling og garanterer ikke beskyttelse mot krasj ved minnemangel. Gjelder fra neste økt.</string>
     <string name="perf_gpuclock">Hold GPU-en på toppfrekvens</string>
     <string name="perf_gpuclock_hint">Bare Adreno. Færre hikk, mer batteribruk og varme.</string>
     <string name="perf_fixes">Sesjonsfikser</string>
@@ -670,6 +670,8 @@
     <string name="hud_group_metrics">Måleverdier</string>
     <string name="hud_metric_graph">Bildetidsgraf</string>
     <string name="hud_metric_decimal">Bildefrekvens med desimal</string>
+    <string name="hud_metric_low1">1% laveste</string>
+    <string name="hud_metric_low01">0.1% laveste</string>
     <string name="hud_metric_low001">0.01% laveste</string>
     <string name="hud_metric_engine">Grafikkmotor</string>
     <string name="hud_metric_gpu_model">GPU-navn</string>
@@ -1106,6 +1108,7 @@
     <string name="ctrl_stick_click_hint">Dobbelttrykk og hold en stikke for L3 eller R3</string>
     <string name="ctrl_adaptive">Adaptive stikker</string>
     <string name="ctrl_rumble">Spillvibrasjon</string>
+    <string name="ctrl_dead_zone">Dødsone for styrespak</string>
     <string name="ctrl_steam_button">Steam-knapp</string>
     <string name="ctrl_qam_button">QAM-knapp</string>
     <string name="ctrl_keyboard_button">Tastatur-knapp</string>
