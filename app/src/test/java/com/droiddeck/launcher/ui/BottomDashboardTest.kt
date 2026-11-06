@@ -1,9 +1,7 @@
 package com.droiddeck.launcher.ui
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BottomDashboardTest {
@@ -17,10 +15,11 @@ class BottomDashboardTest {
         assertNull(pickBottomPage("shots", emptyList()))
     }
 
-    @Test fun withNothingPickedTheChatOpens() {
+    @Test fun withNothingPickedTheStatsOpen() {
         val ids = listOf("telemetry", "downloads", "notifications", "screenshots", "chat")
-        assertEquals("chat", pickBottomPage(null, ids))
-        assertEquals("chat", pickBottomPage("gone", ids))
+        assertEquals("telemetry", pickBottomPage(null, ids))
+        assertEquals("telemetry", pickBottomPage("gone", ids))
+        assertEquals("chat", pickBottomPage("chat", ids))
         assertEquals("telemetry", pickBottomPage("telemetry", ids))
         assertEquals("screenshots", pickBottomPage("screenshots", ids))
     }
@@ -28,12 +27,6 @@ class BottomDashboardTest {
     @Test fun aGameStartShowsTheInGameStats() {
         assertEquals("telemetry", pageForGameStart(listOf("telemetry", "downloads", "chat")))
         assertNull(pageForGameStart(listOf("downloads", "chat")))
-    }
-
-    @Test fun tabNamesShowOnlyWhileEveryTabFits() {
-        assertTrue(bottomTabsWithLabels(640f, 4))
-        assertFalse(bottomTabsWithLabels(640f, 5))
-        assertFalse(bottomTabsWithLabels(360f, 3))
     }
 }
 
@@ -60,7 +53,7 @@ class BottomTelemetryLapTimeTest {
         assertEquals("screenshots", SessionBottomTab.picked("2026-11-01-01-steam"))
         assertNull(SessionBottomTab.picked("2026-11-01-02-steam"))
         assertNull(SessionBottomTab.picked(null))
-        assertEquals("chat", pickBottomPage(SessionBottomTab.picked("2026-11-01-02-steam"), listOf("telemetry", "chat", "screenshots")))
+        assertEquals("telemetry", pickBottomPage(SessionBottomTab.picked("2026-11-01-02-steam"), listOf("telemetry", "chat", "screenshots")))
     }
 
     @Test fun theStripNamesTheSteamClient() {

@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s via FEX</string>
     <string name="app_fex_not_ready">Ce programme est conçu pour les PC %1$s et s\'exécute via FEX, qui n\'est pas encore configuré. Ouvrez Steam une fois en étant connecté : DroidDeck lui fait télécharger FEX et le Steam Linux Runtime nécessaires, puis ce programme s\'ouvre.</string>
     <string name="session_proot_missing">Impossible de télécharger le proot de DroidDeck. Vérifiez la connexion et réessayez. La session n\'a pas été démarrée, car le proot de secours est trop lent pour jouer.</string>
+    <string name="session_powervr_missing">L\'environnement graphique PowerVR n\'a pas pu être téléchargé. Vérifiez la connexion et réessayez.</string>
     <string name="session_directaudio_missing">Impossible de télécharger DirectAudio ; l\'audio des jeux utilise le chemin plus lent pour cette session.</string>
     <string name="session_end_program">Ce programme</string>
     <string name="session_end_steam_download">Impossible de télécharger le client Steam. Votre réseau ou votre VPN bloque peut-être les serveurs de Steam ; vérifiez la connexion et réessayez.</string>
@@ -587,7 +588,7 @@
     <string name="perf_ram_cap_hint">S\'applique tant que le client Steam fonctionne, en mode Steam ou depuis le bureau. Lorsque la session dépasse cette valeur, Steam puis les autres processus pris en charge de la session sont compressés dans zRAM. Limite souple : rien n\'est fermé, mais les jeux peuvent saccader pendant le rechargement des pages.</string>
     <string name="perf_ram_cap_unavailable">Nécessite un swap zRAM, dont cet appareil ne dispose pas.</string>
     <string name="perf_vram_cap">Limite de VRAM</string>
-    <string name="perf_vram_cap_hint">La mémoire vidéo que DXVK signale aux jeux Direct3D, pour qu\'ils prévoient moins de textures. Les paramètres DXVK propres à un jeu restent prioritaires. Prendra effet à la prochaine session.</string>
+    <string name="perf_vram_cap_hint">Signale ce budget de mémoire vidéo aux jeux Direct3D 9 à 12 pour réduire leur consommation. Les jeux peuvent le dépasser ; cela ne fournit pas de pagination GPU et ne garantit pas une protection contre les plantages par manque de mémoire. Prend effet à la prochaine session.</string>
     <string name="perf_gpuclock">Maintenir le GPU à sa fréquence maximale</string>
     <string name="perf_gpuclock_hint">Uniquement pour Adreno. Moins de saccades, mais plus de consommation d\'énergie et de chaleur.</string>
     <string name="perf_fixes">Correctifs de session</string>
@@ -672,6 +673,8 @@
     <string name="hud_group_metrics">Mesures</string>
     <string name="hud_metric_graph">Graphique des temps d\'image</string>
     <string name="hud_metric_decimal">Fréquence d\'images avec une décimale</string>
+    <string name="hud_metric_low1">1% les plus bas</string>
+    <string name="hud_metric_low01">0.1% les plus bas</string>
     <string name="hud_metric_low001">0.01% les plus bas</string>
     <string name="hud_metric_engine">Moteur graphique</string>
     <string name="hud_metric_gpu_model">Nom du GPU</string>
@@ -749,6 +752,10 @@
     <string name="drawer_low_latency_touch">Tactile à faible latence</string>
     <string name="drawer_low_latency_touch_hint">Les touchers ignorent le regroupement d\'images ; les commandes tactiles Steam passent à 1000 Hz. Un peu plus de CPU.</string>
     <string name="drawer_evdev_mouse">Canal souris brut</string>
+    <string name="drawer_relative_mouse">Souris relative</string>
+    <string name="drawer_relative_mouse_auto">Automatique</string>
+    <string name="drawer_relative_mouse_on">Activé</string>
+    <string name="drawer_relative_mouse_off">Désactivé</string>
     <string name="drawer_direct_cursor">Curseur</string>
     <string name="drawer_pc_keyboard">Clavier PC</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -810,7 +817,7 @@
     <string name="setup_gpu_unsupported">GPU non pris en charge</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s : %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam nécessite un pilote Adreno ; %1$s peut afficher un écran noir.</string>
+    <string name="setup_gpu_unsupported_detail">Aucun moteur graphique compatible n’est disponible ; %1$s peut afficher un écran noir.</string>
     <string name="setup_runtime">Environnement d\'exécution Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Non installé · Environ 3 Go, installé lors du premier lancement d\'un jeu</string>
@@ -872,6 +879,7 @@
     <string name="setup_home">Utiliser comme écran d\'accueil</string>
     <string name="setup_home_on">DroidDeck peut être utilisé comme application d\'écran d\'accueil</string>
     <string name="setup_home_off">DroidDeck ne sera pas proposé comme application d\'écran d\'accueil</string>
+    <string name="setup_home_game_space_first">Dans Ajouter des jeux, réglez DroidDeck sur Inclure</string>
     <string name="setup_orientation">Orientation</string>
     <string name="setup_launcher_orientation">Orientation du lanceur</string>
     <string name="setup_launcher_orientation_auto">Suivre la rotation de l\'appareil</string>
@@ -1107,6 +1115,7 @@
     <string name="ctrl_stick_click_hint">Double-cliquez et maintenez le joystick pour déclencher L3 ou R3</string>
     <string name="ctrl_adaptive">Joystick adaptatif</string>
     <string name="ctrl_rumble">Vibration du jeu</string>
+    <string name="ctrl_dead_zone">Zone morte du stick</string>
     <string name="ctrl_steam_button">Bouton Steam</string>
     <string name="ctrl_qam_button">Bouton QAM</string>
     <string name="ctrl_keyboard_button">Bouton clavier</string>
@@ -1184,6 +1193,15 @@
     <string name="games_export_gamehub">Exporter en tant qu\'archive GameHub…</string>
     <string name="games_export_winlator">Exporter en tant qu\'archive Winlator…</string>
     <string name="games_open_save_folder">Ouvrir le dossier de sauvegarde</string>
+    <string name="games_import_addons">Importer des addons depuis un zip…</string>
+    <string name="games_open_addons_folder">Ouvrir le dossier des addons</string>
+    <string name="games_delete_addon_title">Supprimer %1$s ?</string>
+    <string name="games_delete_addon_body">Cela supprime le dossier de l\'addon. Ses paramètres sont conservés.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d addon</item>
+        <item quantity="many">%1$d d\'addons</item>
+        <item quantity="other">%1$d addons</item>
+    </plurals>
     <string name="games_never_played">Jamais lancé</string>
     <string name="games_runtime_busy_percent">Environnement d\'exécution occupé · %1$d%%</string>
     <string name="games_runtime_busy">Environnement d\'exécution occupé</string>
@@ -1364,6 +1382,18 @@
         <item quantity="many">%1$d fichiers importés (%2$s) dans %3$s. Anciennes sauvegardes copiées dans Download/DroidDeck/Saves/backups</item>
         <item quantity="other">%1$d fichiers importés (%2$s) dans %3$s. Anciennes sauvegardes copiées dans Download/DroidDeck/Saves/backups</item>
     </plurals>
+    <string name="main_addons_close_session">Fermez d\'abord la session, pour que le jeu n\'utilise pas ses addons pendant l\'importation</string>
+    <string name="main_addons_importing">Importation des addons dans %1$s</string>
+    <string name="main_addons_pick_zip">Choisir un zip d\'addons pour %1$s</string>
+    <string name="main_addons_too_large">%1$s est trop volumineux pour être importé</string>
+    <string name="main_addons_deleting">Suppression de %1$s</string>
+    <string name="main_addons_deleted">%1$s supprimé</string>
+    <string name="main_addons_none">Aucun addon trouvé dans %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">%1$d addon importé dans %2$s</item>
+        <item quantity="many">%1$d d\'addons importés dans %2$s</item>
+        <item quantity="other">%1$d addons importés dans %2$s</item>
+    </plurals>
     <string name="main_saves_pick_zip">Choisir un zip de sauvegarde pour %1$s</string>
     <string name="main_saves_exporting">Exportation de %1$s</string>
     <plurals name="main_saves_exported">
@@ -1385,8 +1415,8 @@
     <string name="main_wadb_unavailable">Le débogage sans fil n\'est pas disponible</string>
     <string name="main_adb_copied">Commande ADB copiée</string>
     <string name="main_pick_roms">Choisir le dossier ROM</string>
-    <string name="main_non_adreno_title">GPU non Adreno</string>
-    <string name="main_non_adreno_text">Turnip prend en charge les GPU Adreno. Sur %1$s, Steam peut afficher un écran noir. Téléchargement : %2$.0f Mo.</string>
+    <string name="main_non_adreno_title">GPU non pris en charge</string>
+    <string name="main_non_adreno_text">Aucun moteur graphique compatible n’est disponible pour %1$s. Steam peut afficher un écran noir. Téléchargement : %2$.0f Mo.</string>
     <string name="main_install_anyway">Installer quand même</string>
     <string name="main_remove_runtime_title">Supprimer l\'environnement d\'exécution Linux</string>
     <string name="main_remove_runtime_text">Cela supprime l\'environnement d\'exécution, le client Steam qu\'il contient et tous les jeux qui y sont installés.</string>
@@ -2113,7 +2143,7 @@
     <string name="gpuinfo_experimental">Expérimental : ses pilotes sont des versions de test</string>
     <string name="gpuinfo_a850_experimental">Prise en charge expérimentale de l\'Adreno 850 : nécessite des pilotes d\'affichage et de jeu expérimentaux compatibles ; non vérifiée sur cet appareil</string>
     <string name="gpuinfo_below_tested">En dessous du matériel testé (Adreno 725 et plus récent) : risque de ne pas fonctionner</string>
-    <string name="gpuinfo_unsupported">Non pris en charge : DroidDeck nécessite un GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">Non pris en charge : aucun moteur graphique compatible n’est disponible pour ce GPU</string>
 
     <string name="turnip_rate_limited">Limite de requêtes GitHub atteinte - réessayez plus tard</string>
     <string name="turnip_github_http">GitHub a répondu HTTP %1$d</string>
@@ -2224,9 +2254,6 @@
     <string name="source_added">Personnalisé</string>
     <string name="setup_stores">Boutiques</string>
     <string name="setup_stores_speed">Niveau de vitesse de téléchargement</string>
-    <string name="setup_stores_engine">Moteur des boutiques</string>
-    <string name="setup_stores_engine_chip_ready">● Moteur prêt</string>
-    <string name="setup_stores_engine_chip_missing">Non compilé</string>
     <string name="stores_tier_balanced">Équilibré</string>
     <string name="stores_tier_fast">Rapide</string>
     <string name="stores_tier_max">Max</string>
@@ -3503,6 +3530,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Pour les jeux dont les sauvegardes sont sur votre compte Steam</string>
     <string name="game_resource_search">Recherche web</string>
+    <string name="game_tab_addons">Addons</string>
     <string name="game_tab_install">Installer</string>
     <string name="game_install_location">Emplacement</string>
     <string name="game_install_folder">Dossier</string>
@@ -3549,20 +3577,32 @@
     <string name="integration_wifi">Noms des réseaux Wi-Fi</string>
     <string name="integration_brightness">Luminosité</string>
     <string name="integration_home">DroidDeck comme écran d\'accueil</string>
-    <string name="integration_shortcuts">Raccourcis du bouton Accueil</string>
+    <string name="integration_shortcuts">Touches système</string>
     <string name="integration_wifi_hint">Afficher les réseaux dans Steam · nécessite l\'accès à la position, jamais suivie</string>
     <string name="integration_wifi_on">Les réseaux s\'affichent dans Steam</string>
     <string name="integration_wifi_location_off">La localisation est désactivée</string>
     <string name="integration_wifi_denied">Position refusée · autorisez-la dans Infos sur l\'appli</string>
     <string name="integration_brightness_hint">Le curseur de Steam règle la luminosité de l\'écran</string>
     <string name="integration_home_hint">Accueil ouvre le menu Steam pendant une session</string>
-    <string name="integration_shortcuts_hint">Maintenez Accueil pour les combinaisons Steam Guide</string>
-    <string name="integration_shortcuts_needs_home">Nécessite DroidDeck comme écran d\'accueil</string>
+    <string name="integration_shortcuts_hint">Alt+Tab, la touche Win et le bouton Accueil restent dans la session</string>
     <string name="integration_shortcuts_maybe_restricted">Grisé dans Android ? Infos sur l\'appli → ⋮ → Autoriser les paramètres restreints</string>
     <string name="integration_shortcuts_restricted">Bloqué par Android · Infos sur l\'appli → ⋮ → Autoriser les paramètres restreints</string>
-    <string name="integration_shortcuts_service">Bouton Accueil DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Transmet les appuis sur le bouton Accueil à Steam Guide lorsqu\'une session Steam est au premier plan et que DroidDeck est l\'application d\'écran d\'accueil par défaut. Ne lit pas le contenu de l\'écran.</string>
+    <string name="integration_shortcuts_service">Touches système DroidDeck</string>
+    <string name="integration_shortcuts_service_description">Garde Alt+Tab, la touche Win et le bouton Accueil dans une session DroidDeck active plutôt que dans Android.</string>
     <string name="integration_brightness_needed">Activez Luminosité dans Paramètres → Intégration Steam</string>
+    <string name="setup_gpu_bridge_off">Pont Mali : désactivé</string>
+    <string name="setup_gpu_bridge_on">Pont Mali : activé</string>
+    <string name="setup_gpu_bridge_detail">%1$s n\'est pas un Adreno. Le pont Vulkan expérimental est activé : la session dessine via le pilote du téléphone lui-même. Attendez-vous à des bugs ; envoyez les journaux de session.</string>
+    <string name="setup_bridge_safe">Mode sans échec</string>
+    <string name="setup_bridge_safe_on">Mode sans échec : activé</string>
+    <string name="setup_bridge_safe_off">Mode sans échec : désactivé</string>
+    <string name="setup_bridge_safe_on_detail">Le plus compatible. Recommandé pour un nouvel appareil.</string>
+    <string name="setup_bridge_safe_off_detail">Plus rapide là où ce GPU a réussi ses vérifications.</string>
+    <string name="setup_bridge_dxvk">DXVK</string>
+    <string name="setup_bridge_dxvk_auto">DXVK : automatique</string>
+    <string name="setup_bridge_dxvk_proton">DXVK : celui de Proton</string>
+    <string name="setup_bridge_dxvk_auto_detail">Utilise un DXVK plus ancien quand le Vulkan de ce GPU est trop ancien pour celui de Proton.</string>
+    <string name="setup_bridge_dxvk_proton_detail">Chaque Proton garde son propre DXVK, même quand le Vulkan de ce GPU risque d\'être trop ancien pour lui.</string>
     <string name="apps_search_hint">Rechercher des applications</string>
     <string name="apps_no_match">Aucune application ne correspond à « %1$s ».</string>
     <string name="apps_add_widget">Ajouter un widget</string>
@@ -3672,4 +3712,12 @@
     <string name="stores_gamejolt_filter_status">Statut</string>
     <string name="stores_gamejolt_filter_partners">Partenaires</string>
     <string name="stores_gamejolt_followed">Jeux suivis</string>
+    <string name="wow_chat_title">Saisie du chat</string>
+    <string name="wow_chat_voice">Saisie vocale</string>
+    <string name="wow_chat_remember">Mémoriser ce choix</string>
+    <string name="wow_chat_ask">Demander à chaque fois</string>
+    <string name="wow_chat_send">Envoyer</string>
+    <string name="wow_chat_listening">Écoute…</string>
+    <string name="wow_chat_voice_unavailable">La saisie vocale n\'est pas disponible sur cet appareil.</string>
+    <string name="wow_chat_mic_denied">L\'accès au micro est nécessaire pour la saisie vocale.</string>
 </resources>

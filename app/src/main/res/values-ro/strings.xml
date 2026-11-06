@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s prin FEX</string>
     <string name="app_fex_not_ready">Acest program este compilat pentru PC-uri %1$s și rulează prin FEX, care nu este încă configurat. Deschide Steam o dată, fiind autentificat: DroidDeck îl pune să descarce FEX și Steam Linux Runtime de care are nevoie, apoi acesta se deschide.</string>
     <string name="session_proot_missing">Proot-ul DroidDeck nu a putut fi descărcat. Verifică conexiunea și încearcă din nou. Sesiunea nu a fost pornită, deoarece proot-ul de rezervă este prea lent pentru jocuri.</string>
+    <string name="session_powervr_missing">Mediul grafic PowerVR nu a putut fi descărcat. Verifică conexiunea și încearcă din nou.</string>
     <string name="session_directaudio_missing">DirectAudio nu a putut fi descărcat, așa că sunetul jocurilor folosește calea mai lentă în această sesiune.</string>
     <string name="session_end_program">Acest program</string>
     <string name="session_end_steam_download">Clientul Steam nu a putut fi descărcat. Rețeaua sau VPN-ul tău poate bloca serverele Steam; verifică conexiunea și încearcă din nou.</string>
@@ -587,7 +588,7 @@
     <string name="perf_ram_cap_hint">Se aplică cât rulează clientul Steam, în modul Steam sau de pe desktop. Când sesiunea folosește mai mult de atât, Steam și apoi celelalte procese acceptate ale sesiunii sunt comprimate în zRAM. O limită flexibilă: nimic nu se închide, dar jocurile pot sacada cât paginile revin.</string>
     <string name="perf_ram_cap_unavailable">Necesită swap zRAM, pe care acest dispozitiv nu îl are.</string>
     <string name="perf_vram_cap">Limită VRAM</string>
-    <string name="perf_vram_cap_hint">Memoria video pe care DXVK o raportează jocurilor Direct3D, ca acestea să aloce mai puțin pentru texturi. Setările DXVK proprii ale unui joc au prioritate. Intră în vigoare la sesiunea următoare.</string>
+    <string name="perf_vram_cap_hint">Raportează acest buget de memorie video jocurilor Direct3D 9 până la 12 pentru a reduce utilizarea memoriei. Jocurile îl pot depăși; nu adaugă paginare GPU și nu garantează protecție împotriva blocărilor cauzate de lipsa memoriei. Se aplică din sesiunea următoare.</string>
     <string name="perf_gpuclock">Fixează GPU-ul la frecvența maximă</string>
     <string name="perf_gpuclock_hint">Doar Adreno. Mai puține întreruperi, consum mai mare de baterie și căldură.</string>
     <string name="perf_fixes">Remedieri de sesiune</string>
@@ -672,6 +673,8 @@
     <string name="hud_group_metrics">Valori</string>
     <string name="hud_metric_graph">Grafic timp de cadru</string>
     <string name="hud_metric_decimal">Rată de cadre cu zecimală</string>
+    <string name="hud_metric_low1">1% cele mai mici</string>
+    <string name="hud_metric_low01">0.1% cele mai mici</string>
     <string name="hud_metric_low001">0.01% cele mai mici</string>
     <string name="hud_metric_engine">Motor grafic</string>
     <string name="hud_metric_gpu_model">Nume GPU</string>
@@ -749,6 +752,10 @@
     <string name="drawer_low_latency_touch">Atingere cu latență mică</string>
     <string name="drawer_low_latency_touch_hint">Atingerile sar peste gruparea cadrelor, deci controlul tactil Steam rulează la 1000 Hz. Consum CPU puțin mai mare.</string>
     <string name="drawer_evdev_mouse">Canal brut de mouse</string>
+    <string name="drawer_relative_mouse">Mouse relativ</string>
+    <string name="drawer_relative_mouse_auto">Automat</string>
+    <string name="drawer_relative_mouse_on">Pornit</string>
+    <string name="drawer_relative_mouse_off">Oprit</string>
     <string name="drawer_direct_cursor">Cursor</string>
     <string name="drawer_pc_keyboard">Tastatură de PC</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -810,7 +817,7 @@
     <string name="setup_gpu_unsupported">GPU neacceptat</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam are nevoie de un driver Adreno; %1$s poate arăta un ecran negru</string>
+    <string name="setup_gpu_unsupported_detail">Nu este disponibil un backend grafic compatibil pentru %1$s. Steam poate afișa un ecran negru.</string>
     <string name="setup_runtime">Mediul de execuție Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Neinstalat · circa 3 GB, instalat la prima apăsare pe Play</string>
@@ -872,6 +879,7 @@
     <string name="setup_home">Folosește ca ecran Acasă</string>
     <string name="setup_home_on">DroidDeck poate fi aplicația Acasă</string>
     <string name="setup_home_off">DroidDeck nu este niciodată oferit ca aplicație Acasă</string>
+    <string name="setup_home_game_space_first">În Adaugă jocuri, setează DroidDeck pe Include</string>
     <string name="setup_orientation">Orientare</string>
     <string name="setup_launcher_orientation">Orientarea launcherului</string>
     <string name="setup_launcher_orientation_auto">Urmează rotirea dispozitivului</string>
@@ -1107,6 +1115,7 @@
     <string name="ctrl_stick_click_hint">Apasă de două ori și ține apăsată o manșă pentru L3 sau R3</string>
     <string name="ctrl_adaptive">Manșe adaptive</string>
     <string name="ctrl_rumble">Vibrații de joc</string>
+    <string name="ctrl_dead_zone">Zonă moartă a manetei</string>
     <string name="ctrl_steam_button">Butonul Steam</string>
     <string name="ctrl_qam_button">Butonul QAM</string>
     <string name="ctrl_keyboard_button">Butonul tastaturii</string>
@@ -1184,6 +1193,15 @@
     <string name="games_export_gamehub">Exportă ca arhivă GameHub…</string>
     <string name="games_export_winlator">Exportă ca arhivă Winlator…</string>
     <string name="games_open_save_folder">Deschide folderul de salvare</string>
+    <string name="games_import_addons">Importă suplimente din zip…</string>
+    <string name="games_open_addons_folder">Deschide folderul de suplimente</string>
+    <string name="games_delete_addon_title">Ștergi %1$s?</string>
+    <string name="games_delete_addon_body">Aceasta șterge folderul suplimentului. Setările sale rămân.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d supliment</item>
+        <item quantity="few">%1$d suplimente</item>
+        <item quantity="other">%1$d de suplimente</item>
+    </plurals>
     <string name="games_never_played">Niciodată jucat</string>
     <string name="games_runtime_busy_percent">Mediu de execuție ocupat · %1$d%%</string>
     <string name="games_runtime_busy">Mediu de execuție ocupat</string>
@@ -1364,6 +1382,18 @@
         <item quantity="few">S-au importat %1$d fișiere din %2$s în %3$s. Salvările vechi au fost copiate de rezervă în Download/DroidDeck/Saves/backups</item>
         <item quantity="other">S-au importat %1$d de fișiere din %2$s în %3$s. Salvările vechi au fost copiate de rezervă în Download/DroidDeck/Saves/backups</item>
     </plurals>
+    <string name="main_addons_close_session">Închide mai întâi sesiunea, ca jocul să nu folosească suplimentele în timpul importului</string>
+    <string name="main_addons_importing">Se importă suplimente în %1$s</string>
+    <string name="main_addons_pick_zip">Alege o arhivă zip de suplimente pentru %1$s</string>
+    <string name="main_addons_too_large">%1$s este prea mare pentru a fi importat</string>
+    <string name="main_addons_deleting">Se șterge %1$s</string>
+    <string name="main_addons_deleted">S-a șters %1$s</string>
+    <string name="main_addons_none">Nu s-au găsit suplimente în %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">S-a importat %1$d supliment în %2$s</item>
+        <item quantity="few">S-au importat %1$d suplimente în %2$s</item>
+        <item quantity="other">S-au importat %1$d de suplimente în %2$s</item>
+    </plurals>
     <string name="main_saves_pick_zip">Alege o arhivă de salvare pentru %1$s</string>
     <string name="main_saves_exporting">Se exportă %1$s</string>
     <plurals name="main_saves_exported">
@@ -1385,8 +1415,8 @@
     <string name="main_wadb_unavailable">Depanarea wireless nu este disponibilă</string>
     <string name="main_adb_copied">Comanda ADB copiată</string>
     <string name="main_pick_roms">Alege folderul ROMs</string>
-    <string name="main_non_adreno_title">Nu este un GPU Adreno</string>
-    <string name="main_non_adreno_text">Turnip acceptă GPU-uri Adreno. Pe %1$s, Steam poate arăta un ecran negru. Descărcare: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">GPU neacceptat</string>
+    <string name="main_non_adreno_text">Nu este disponibil un backend grafic compatibil pentru %1$s. Steam poate afișa un ecran negru. Descărcare: %2$.0f MB.</string>
     <string name="main_install_anyway">Instalează oricum</string>
     <string name="main_remove_runtime_title">Elimină mediul de execuție Linux</string>
     <string name="main_remove_runtime_text">Aceasta șterge mediul de execuție, clientul Steam din interiorul lui și fiecare joc instalat acolo.</string>
@@ -2113,7 +2143,7 @@
     <string name="gpuinfo_experimental">Experimental: driverele sale sunt versiuni de test</string>
     <string name="gpuinfo_a850_experimental">Suport experimental pentru Adreno 850: necesită drivere experimentale compatibile de afișaj și de jocuri; neverificat pe acest dispozitiv</string>
     <string name="gpuinfo_below_tested">Sub hardware-ul testat (Adreno 725 și mai nou): poate să nu ruleze</string>
-    <string name="gpuinfo_unsupported">Neacceptat: DroidDeck are nevoie de un GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">Neacceptat: nu este disponibil un backend grafic compatibil pentru acest GPU</string>
 
     <string name="turnip_rate_limited">S-a atins limita de solicitări a GitHub - încearcă din nou mai târziu</string>
     <string name="turnip_github_http">GitHub a răspuns cu HTTP %1$d</string>
@@ -2224,9 +2254,6 @@
     <string name="source_added">Personalizat</string>
     <string name="setup_stores">Magazine</string>
     <string name="setup_stores_speed">Nivelul vitezei de descărcare</string>
-    <string name="setup_stores_engine">Motorul magazinelor</string>
-    <string name="setup_stores_engine_chip_ready">● Motor pregătit</string>
-    <string name="setup_stores_engine_chip_missing">Necompilat</string>
     <string name="stores_tier_balanced">Echilibrat</string>
     <string name="stores_tier_fast">Rapid</string>
     <string name="stores_tier_max">Maxim</string>
@@ -3503,6 +3530,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Pentru jocurile cu salvări în contul tău Steam</string>
     <string name="game_resource_search">Căutare pe web</string>
+    <string name="game_tab_addons">Suplimente</string>
     <string name="game_tab_install">Instalează</string>
     <string name="game_install_location">Locație</string>
     <string name="game_install_folder">Folder</string>
@@ -3549,20 +3577,32 @@
     <string name="integration_wifi">Nume Wi-Fi</string>
     <string name="integration_brightness">Luminozitate</string>
     <string name="integration_home">DroidDeck ca Acasă</string>
-    <string name="integration_shortcuts">Comenzi rapide pentru butonul Acasă</string>
+    <string name="integration_shortcuts">Taste de sistem</string>
     <string name="integration_wifi_hint">Afișează rețelele în Steam · necesită acces la locație, fără urmărire</string>
     <string name="integration_wifi_on">Rețelele apar în Steam</string>
     <string name="integration_wifi_location_off">Locația este dezactivată</string>
     <string name="integration_wifi_denied">Locație refuzată · permite-o în Informații despre aplicație</string>
     <string name="integration_brightness_hint">Glisorul din Steam setează luminozitatea ecranului</string>
     <string name="integration_home_hint">Acasă deschide meniul Steam într-o sesiune</string>
-    <string name="integration_shortcuts_hint">Ține apăsat Acasă pentru combinațiile Steam Guide</string>
-    <string name="integration_shortcuts_needs_home">Necesită DroidDeck ca Acasă</string>
+    <string name="integration_shortcuts_hint">Alt+Tab, tasta Win și butonul Acasă rămân în sesiune</string>
     <string name="integration_shortcuts_maybe_restricted">Inactiv în Android? Informații despre aplicație → ⋮ → Permite setările restricționate</string>
     <string name="integration_shortcuts_restricted">Blocat de Android · Informații despre aplicație → ⋮ → Permite setările restricționate</string>
-    <string name="integration_shortcuts_service">Butonul Acasă DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Transmite apăsările butonului Acasă către Steam Guide cât timp o sesiune Steam este activă și DroidDeck este aplicația Acasă implicită. Nu citește conținutul ecranului.</string>
+    <string name="integration_shortcuts_service">Taste de sistem DroidDeck</string>
+    <string name="integration_shortcuts_service_description">Păstrează Alt+Tab, tasta Win și butonul Acasă într-o sesiune DroidDeck activă în loc de Android.</string>
     <string name="integration_brightness_needed">Activează Luminozitate în Configurare → Integrare Steam</string>
+    <string name="setup_gpu_bridge_off">Punte Mali: oprită</string>
+    <string name="setup_gpu_bridge_on">Punte Mali: pornită</string>
+    <string name="setup_gpu_bridge_detail">%1$s nu este Adreno. Puntea Vulkan experimentală este pornită: sesiunea desenează prin driverul propriu al telefonului. Așteaptă-te la erori; trimite jurnalele sesiunii.</string>
+    <string name="setup_bridge_safe">Mod sigur</string>
+    <string name="setup_bridge_safe_on">Mod sigur: pornit</string>
+    <string name="setup_bridge_safe_off">Mod sigur: oprit</string>
+    <string name="setup_bridge_safe_on_detail">Cel mai compatibil. Recomandat pentru un dispozitiv nou.</string>
+    <string name="setup_bridge_safe_off_detail">Mai rapid acolo unde acest GPU a trecut verificările.</string>
+    <string name="setup_bridge_dxvk">DXVK</string>
+    <string name="setup_bridge_dxvk_auto">DXVK: automat</string>
+    <string name="setup_bridge_dxvk_proton">DXVK: al Proton</string>
+    <string name="setup_bridge_dxvk_auto_detail">Folosește un DXVK mai vechi când Vulkan-ul acestui GPU este prea vechi pentru cel din Proton.</string>
+    <string name="setup_bridge_dxvk_proton_detail">Fiecare Proton își păstrează propriul DXVK, chiar dacă Vulkan-ul acestui GPU poate fi prea vechi pentru el.</string>
     <string name="apps_search_hint">Caută aplicații</string>
     <string name="apps_no_match">Nicio aplicație nu se potrivește cu „%1$s”.</string>
     <string name="apps_add_widget">Adaugă widget</string>
@@ -3672,4 +3712,12 @@
     <string name="stores_gamejolt_filter_status">Stare</string>
     <string name="stores_gamejolt_filter_partners">Parteneri</string>
     <string name="stores_gamejolt_followed">Jocuri urmărite</string>
+    <string name="wow_chat_title">Introducere în chat</string>
+    <string name="wow_chat_voice">Tastare vocală</string>
+    <string name="wow_chat_remember">Ține minte această alegere</string>
+    <string name="wow_chat_ask">Întreabă de fiecare dată</string>
+    <string name="wow_chat_send">Trimite</string>
+    <string name="wow_chat_listening">Se ascultă…</string>
+    <string name="wow_chat_voice_unavailable">Tastarea vocală nu este disponibilă pe acest dispozitiv.</string>
+    <string name="wow_chat_mic_denied">Pentru tastarea vocală este necesar accesul la microfon.</string>
 </resources>

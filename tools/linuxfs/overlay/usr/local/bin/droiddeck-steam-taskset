@@ -1,0 +1,17 @@
+#!/bin/bash
+# Staged as taskset in a PATH directory used only by the Steam client.
+# Valve's ARM64 helper uses `taskset 0x7c /path/to/steamwebhelper ...` and exits
+# before starting the browser when Android denies sched_setaffinity.
+set -u
+if [ "$#" -ge 2 ] && [[ "$1" =~ ^(0[xX])?[0-9a-fA-F]+$ ]] &&
+   [ -n "${BL_STEAM_WEBHELPER:-}" ] && [ "$2" -ef "$BL_STEAM_WEBHELPER" ]; then
+  mask=$1
+  shift
+  # Pin this wrapper before exec; never retry a helper that has already run.
+  if ! /usr/bin/taskset -p "$mask" "$$" >/dev/null 2>&1; then
+    echo "droiddeck: Steam helper CPU pinning unavailable; using the allowed CPUs" >&2
+  fi
+  exec -- "$@"
+fi
+# Queries, existing-process changes, and other programs retain taskset's behavior.
+exec /usr/bin/taskset "$@"

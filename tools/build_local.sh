@@ -41,6 +41,10 @@ if [[ ! -x "${java_dir}/bin/java" ]]; then
     echo "Java 17 not found at ${java_dir}; set JAVA_HOME." >&2
     exit 1
 fi
+if [[ ! -f "${repo_root}/external/MaliBridge/scripts/build-client-linux.sh" ]]; then
+    echo "external/MaliBridge is empty; run: git submodule update --init" >&2
+    exit 1
+fi
 if ! command -v docker >/dev/null 2>&1; then
     echo "Docker is required to cross-compile the glibc ARM64 preload libraries." >&2
     exit 1
@@ -111,9 +115,10 @@ image_id=$(docker image inspect --format '{{.Id}}' "${image_name}")
 rm -rf -- "${linuxfs_dir}"
 mkdir -p "${linuxfs_dir}"
 
+git_common=$(git -C "${repo_root}" rev-parse --path-format=absolute --git-common-dir)
 docker run --rm --platform "${docker_platform}" \
     --user "$(id -u):$(id -g)" \
-    -v "${repo_root}:/src" -w /src "${image_name}" bash -lc '
+    -v "${repo_root}:/src" -v "${git_common}:${git_common}" -w /src "${image_name}" bash -lc '
         set -euo pipefail
         d=app/src/main/assets/linuxfs
         mkdir -p "$d"
@@ -134,7 +139,15 @@ docker run --rm --platform "${docker_platform}" \
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$d/libssbs.so" tools/linuxfs/ssbs/ssbs_adapter.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/libssbs.so"
+        mkdir -p "$d/usr/local/lib/droiddeck-xclipse"
+        aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
+            -o "$d/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so" tools/linuxfs/xclipse-layer/xclipse_layer.c -ldl
+        aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so"
+        install -m644 tools/linuxfs/xclipse-layer/VkLayer_droiddeck_xclipse.json "$d/usr/local/lib/droiddeck-xclipse/"
         mkdir -p "$d/usr/local/bin"
+        external/MaliBridge/scripts/build-client-linux.sh "$d" aarch64-linux-gnu-gcc
+        aarch64-linux-gnu-gcc -O2 -Wall -o "$d/usr/local/bin/droiddeck-glprobe" tools/venus/glprobe.c -ldl
+        aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-glprobe"
         aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$d/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-clipboard"
         for script in tools/linuxfs/overlay/usr/local/bin/droiddeck-* tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
@@ -158,7 +171,7 @@ x86_key=$(inputs_hash bullseye tools/linuxfs/build-x86-preloads.sh tools/linuxfs
 x86_stage="${staging_dir}/x86-preloads"
 if restore_step x86-preloads "${x86_key}" "${linuxfs_dir}"; then :; else
     docker run --rm --platform linux/amd64 \
-        -v "${repo_root}:/src" -w /src public.ecr.aws/docker/library/debian:bullseye bash -c '
+        -v "${repo_root}:/src" -v "${git_common}:${git_common}" -w /src public.ecr.aws/docker/library/debian:bullseye bash -c '
             set -euo pipefail
             printf "deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n" > /etc/apt/sources.list
             apt-get -o Acquire::Check-Valid-Until=false update -qq
@@ -411,6 +424,7 @@ if ! restore_step comet "${comet_key}" "${comet_out}"; then
     DROIDDECK_BUILD_IMAGE="${image_name}" bash tools/comet/build-local.sh
     save_step comet "${comet_key}" "${comet_out}"
 fi
+python3 tools/powervr/fetch.py
 bash tools/packs/build.sh app/build/packs
 python3 tools/release/runtime_inputs.py record
 ./gradlew "${gradle_task}" --console=plain -PndkVersion="${ndk_version}" ${gradle_rust_arg}

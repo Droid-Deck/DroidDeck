@@ -23,7 +23,8 @@
     "outputs": [
       "app/src/main/assets/linuxfs/usr/local/bin/gamescope",
       "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-vr/droiddeck/bin/linuxarm64/driver_droiddeck.so",
-      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so"
+      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so",
+      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so"
     ],
     "ndk": true,
     "packages": [
@@ -223,6 +224,21 @@
       "protobuf-compiler",
       "cmake",
       "xz-utils"
+    ]
+  },
+  "vkbridge": {
+    "script": "tools/components/recipes/vkbridge.sh",
+    "inputs": [
+      "external/MaliBridge",
+      "tools/components/recipes/vkbridge.sh"
+    ],
+    "outputs": [
+      "app/src/main/assets/linuxfs/usr/local/lib/vkbridge/libvulkan_droidbridge.so",
+      "app/src/main/assets/linuxfs/usr/local/share/vkbridge/droidbridge_icd.json",
+      "app/src/main/assets/linuxfs/usr/local/bin/droiddeck-vkbridge-smoke"
+    ],
+    "packages": [
+      "gcc-aarch64-linux-gnu"
     ]
   },
   "dirt-ws2": {

@@ -60,7 +60,7 @@ internal fun SteamIntegration.State.enabled(feature: Feature) = when (feature) {
     Feature.WIFI -> wifi && locationPermission && locationOn
     Feature.BRIGHTNESS -> brightness
     Feature.HOME -> home
-    Feature.SHORTCUTS -> home && shortcuts
+    Feature.SHORTCUTS -> shortcuts
 }
 
 internal fun SteamIntegration.State.enabledCount() = Feature.entries.count { enabled(it) }
@@ -105,14 +105,12 @@ private fun IntegrationRow(
     val bg by animateColorAsState(if (flash) pal.signal.copy(alpha = 0.12f) else Color.Transparent, Motion.tw(400), label = "integrationFlash")
     val wifiLocationOff = feature == Feature.WIFI && state.wifi && state.locationPermission && !state.locationOn
     val wifiDenied = feature == Feature.WIFI && !state.locationPermission && state.locationBlocked
-    val needsHome = feature == Feature.SHORTCUTS && !state.home
-    val restricted = feature == Feature.SHORTCUTS && !needsHome && !state.shortcuts && state.shortcutsRestricted
-    val maybeRestricted = feature == Feature.SHORTCUTS && !needsHome && !state.shortcuts && !restricted && state.shortcutsTried &&
+    val restricted = feature == Feature.SHORTCUTS && !state.shortcuts && state.shortcutsRestricted
+    val maybeRestricted = feature == Feature.SHORTCUTS && !state.shortcuts && !restricted && state.shortcutsTried &&
         android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU
     val hint = stringResource(when {
         wifiLocationOff -> R.string.integration_wifi_location_off
         wifiDenied -> R.string.integration_wifi_denied
-        needsHome -> R.string.integration_shortcuts_needs_home
         restricted -> R.string.integration_shortcuts_restricted
         maybeRestricted -> R.string.integration_shortcuts_maybe_restricted
         feature == Feature.WIFI -> if (on) R.string.integration_wifi_on else R.string.integration_wifi_hint
@@ -141,7 +139,7 @@ private fun IntegrationRow(
                 restricted || maybeRestricted -> SecondaryButton(stringResource(R.string.integration_app_info), compact = true, onClick = onAppInfo)
             }
             val checked = if (feature == Feature.WIFI) state.wifi && state.locationPermission else on
-            ToggleSwitch(checked, enabled = !needsHome && !restricted, label = stringResource(featureTitle(feature)),
+            ToggleSwitch(checked, enabled = !restricted, label = stringResource(featureTitle(feature)),
                 modifier = Modifier.testTag("integration-action-${feature.name.lowercase()}")) { onFeature(feature) }
         }
     }
