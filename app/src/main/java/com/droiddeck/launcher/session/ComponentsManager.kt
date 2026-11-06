@@ -1043,14 +1043,14 @@ object ComponentsManager {
             (com.droiddeck.launcher.core.DeviceSupport.vkBridge(context) && !SessionPrefs.bridgeProtonDxvk(context) &&
                 bridgeDxvk(AppVulkan.detect(context)) != null)
 
-    data class Choice(val file: String, val auto: Boolean)
+    data class Choice(val file: String, val auto: Boolean, val protonVersion: String)
 
     fun activeChoices(context: Context): Map<String, Map<String, Choice>> = synchronized(lock) {
         val active = loadState(context).optJSONObject("active") ?: return emptyMap()
         active.keys().asSequence().toList().associateWith { pid ->
             val comps = active.optJSONObject(pid) ?: JSONObject()
             comps.keys().asSequence().toList().mapNotNull { c ->
-                comps.optJSONObject(c)?.let { c to Choice(it.optString("file"), it.optBoolean("auto")) }
+                comps.optJSONObject(c)?.let { c to Choice(it.optString("file"), it.optBoolean("auto"), it.optString("protonVersion")) }
             }.toMap()
         }
     }

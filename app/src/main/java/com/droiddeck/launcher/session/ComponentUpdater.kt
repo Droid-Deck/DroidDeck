@@ -23,8 +23,13 @@ object ComponentUpdater {
         runCatching { JSONObject(FileUtils.readString(file(context)) ?: "{}") }.getOrDefault(JSONObject())
 
     private fun save(context: Context, state: JSONObject) {
-        FileUtils.writeString(file(context), state.toString(1))
+        val target = file(context)
+        val tmp = File(target.parentFile, target.name + ".tmp")
+        if (FileUtils.writeString(tmp, state.toString(1))) tmp.renameTo(target)
     }
+
+    private fun Map<String, Map<String, ComponentsManager.Choice>>.fileOf(p: ComponentsManager.Proton, comp: String): String? =
+        this[p.id]?.get(comp)?.takeIf { it.protonVersion == p.version }?.file
 
     private fun JSONObject.obj(key: String): JSONObject = optJSONObject(key) ?: JSONObject().also { put(key, it) }
 
@@ -36,7 +41,7 @@ object ComponentUpdater {
 
     private fun JSONObject?.texts(): Map<String, String> = this?.keys()?.asSequence()?.associateWith { optString(it) } ?: emptyMap()
 
-    fun settle(context: Context) = synchronized(lock) {
+    fun settle(context: Context) {
         val owned = load(context).optJSONObject("lines")?.let { lines -> lines.keys().asSequence().flatMap { lines.optJSONObject(it).strings("owned") }.toSet() } ?: emptySet()
         val choices = ComponentsManager.activeChoices(context).values.flatMap { it.entries }
         for (comp in ComponentsManager.COMPONENTS) {
@@ -87,8 +92,9 @@ object ComponentUpdater {
             save(context, state)
             return notes
         }
-        val catalog = runCatching { ComponentsManager.catalog(context, true).items }.getOrElse {
-            Log.w(TAG, "catalog", it)
+        val catalog = runCatching { ComponentsManager.catalog(context, true).items }
+            .onFailure { Log.w(TAG, "catalog", it) }.getOrDefault(emptyList())
+        if (catalog.none { it.release == ComponentsManager.DD_NIGHTLY }) {
             state.put("note", context.getString(R.string.comp_auto_check_failed))
             save(context, state)
             return notes
@@ -102,7 +108,8 @@ object ComponentUpdater {
             val ls = lines.obj(line.key)
             val target = ComponentUpdates.pick(catalog, line, ls.strings("bad"))
             if (target != null && ls.optString("current") != target.file) {
-                if (!ComponentsManager.isStored(context, target.file)) {
+                val stored = ComponentsManager.isStored(context, target.file)
+                if (!stored) {
                     if (holdBack) { state.put("note", context.getString(R.string.comp_auto_waits_unmetered)); continue }
                     val got = runCatching { ComponentsManager.download(context, target) {} }
                     if (got.isFailure) {
@@ -113,11 +120,12 @@ object ComponentUpdater {
                 }
                 ls.put("previous", ls.optString("current").ifEmpty { ComponentUpdates.ORIGINAL })
                     .put("current", target.file).put("since", latestStamp(context)).put("failed", JSONObject())
-                ls.put("owned", JSONArray(ls.strings("owned") + target.file)).remove("note")
+                if (!stored) ls.put("owned", JSONArray(ls.strings("owned") + target.file))
+                ls.remove("note")
                 notes += context.getString(R.string.comp_auto_updated, ComponentsManager.LABEL[comp], target.file.removeSuffix(".wcp"))
             }
             val current = ls.optString("current")
-            if (current.isNotEmpty() && choices[p.id]?.get(comp)?.file != current) {
+            if (current.isNotEmpty() && choices.fileOf(p, comp) != current) {
                 runCatching { ComponentsManager.swap(context, p.id, current) }
                     .onFailure { Log.w(TAG, "${p.name} ${line.key}", it) }
             }
@@ -162,7 +170,7 @@ object ComponentUpdater {
         val back = ls.optString("previous")
         val choices = ComponentsManager.activeChoices(context)
         for (p in protons) {
-            if (lineOf(context, state, p, comp)?.key != key || choices[p.id]?.get(comp)?.file != bad) continue
+            if (lineOf(context, state, p, comp)?.key != key || choices.fileOf(p, comp) != bad) continue
             runCatching {
                 if (back == ComponentUpdates.ORIGINAL) ComponentsManager.restore(context, p.id, comp, ComponentsManager.safeName(p.version))
                 else ComponentsManager.swap(context, p.id, back)
@@ -194,12 +202,12 @@ object ComponentUpdater {
         }
     }
 
-    fun status(context: Context, comp: String): List<Status> = synchronized(lock) {
+    fun status(context: Context, comp: String): List<Status> {
         val state = load(context)
         val lines = state.optJSONObject("lines") ?: JSONObject()
         val protons = runCatching { ComponentsManager.protons(context) }.getOrDefault(emptyList())
         val byLine = protons.groupBy { lineOf(context, state, it, comp)?.key }
-        ComponentUpdates.LINES.filter { it.comp == comp }.mapNotNull { line ->
+        return ComponentUpdates.LINES.filter { it.comp == comp }.mapNotNull { line ->
             val on = byLine[line.key].orEmpty()
             val ls = lines.optJSONObject(line.key)
             if (on.isEmpty() && ls == null) return@mapNotNull null
