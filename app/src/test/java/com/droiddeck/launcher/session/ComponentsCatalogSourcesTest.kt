@@ -712,6 +712,12 @@ class ComponentsCatalogSourcesTest {
         val errors = ConcurrentLinkedQueue<Throwable>()
         val adopter = thread { runCatching { ComponentsManager.download(context, item) {} }.onFailure(errors::add) }
         assertTrue(hashing.await(5, TimeUnit.SECONDS))
+        val componentRead = CountDownLatch(1)
+        thread {
+            ComponentsManager.activeChoices(context)
+            componentRead.countDown()
+        }
+        assertTrue("component read waited for package hashing", componentRead.await(2, TimeUnit.SECONDS))
         val sourceSaved = CountDownLatch(1)
         thread {
             ComponentsManager.saveSources(context, comp, ComponentsManager.sources(context, comp).map {
@@ -728,6 +734,48 @@ class ComponentsCatalogSourcesTest {
         assertArrayEquals(previous, dest.readBytes())
         assertEquals("previous receipt", receipt.readText())
         assertFalse(File(packages, "slow.wcp.part").exists())
+        assertTrue(packages.listFiles().orEmpty().none { it.name.endsWith(".backup") })
+    }
+
+    @Test
+    fun packageSelectedDuringHashingIsRecheckedBeforeReplacement() {
+        val comp = "dxvk"
+        val custom = RepositorySources.source("wallentx/selection-components")
+        ComponentsManager.saveSources(context, comp, ComponentsManager.sources(context, comp).map { it.copy(hidden = true) } + custom)
+        val scope = ComponentsManager.sourceScope(comp)
+        val builtIns = ComponentsManager.sourceBuiltIns(comp)
+        val generation = RepositorySources.generation(context, scope, builtIns)
+        val bound = RepositorySources.bind(context, scope, builtIns, custom, 1234L, generation)
+        val payload = File(context.cacheDir, "selection-download.wcp").also { writeWcp(it, "new package") }
+        val packages = File(context.filesDir, "components/packages").apply { mkdirs() }
+        val dest = File(packages, "selected.wcp").also { writeWcp(it, "previous package") }
+        val previous = dest.readBytes()
+        val item = ComponentsManager.CatalogItem(
+            dest.name, comp, "v1", GitHubArtifacts.releaseAssetUrl(bound.repository, "v1", dest.name),
+            payload.length(), "sha256:${Hashes.sha256(payload)}", bound.id, bound.repository,
+            bound.repositoryId!!, 44, 55, dest.name,
+        )
+        ComponentsManager.packageDownloader = { _, output, _, _ -> payload.copyTo(output, overwrite = true); true }
+        val hashing = CountDownLatch(1)
+        val releaseHash = CountDownLatch(1)
+        ComponentsManager.packageHasher = { file ->
+            if (file == dest) {
+                hashing.countDown()
+                check(releaseHash.await(5, TimeUnit.SECONDS))
+            }
+            Hashes.sha256(file)
+        }
+        val errors = ConcurrentLinkedQueue<Throwable>()
+        val adopter = thread { runCatching { ComponentsManager.download(context, item) {} }.onFailure(errors::add) }
+        assertTrue(hashing.await(5, TimeUnit.SECONDS))
+        ComponentsManager.setGameComponent(context, "42", comp, dest.name) { false }
+        releaseHash.countDown()
+        adopter.join(5_000)
+
+        assertFalse(adopter.isAlive)
+        assertEquals(1, errors.size)
+        assertArrayEquals(previous, dest.readBytes())
+        assertEquals(dest.name, ComponentsManager.gameComponents(context, "42")[comp])
         assertTrue(packages.listFiles().orEmpty().none { it.name.endsWith(".backup") })
     }
 
@@ -812,6 +860,42 @@ class ComponentsCatalogSourcesTest {
         assertArrayEquals(replacement, dest.readBytes())
         assertTrue(packages.listFiles().orEmpty().none { it.name.endsWith(".backup") })
         assertFalse(File(packages, "replacement.wcp.part").exists())
+    }
+
+    @Test
+    fun validatedTemporaryPackageReplacementIsRejectedBeforePublication() {
+        val comp = "dxvk"
+        val custom = RepositorySources.source("wallentx/part-replacement-components")
+        ComponentsManager.saveSources(context, comp, ComponentsManager.sources(context, comp).map { it.copy(hidden = true) } + custom)
+        val scope = ComponentsManager.sourceScope(comp)
+        val builtIns = ComponentsManager.sourceBuiltIns(comp)
+        val generation = RepositorySources.generation(context, scope, builtIns)
+        val bound = RepositorySources.bind(context, scope, builtIns, custom, 1234L, generation)
+        val payload = File(context.cacheDir, "part-replacement-download.wcp").also { writeWcp(it, "new package") }
+        val packages = File(context.filesDir, "components/packages").apply { mkdirs() }
+        val dest = File(packages, "part-replacement.wcp").also { writeWcp(it, "previous package") }
+        val previous = dest.readBytes()
+        val item = ComponentsManager.CatalogItem(
+            dest.name, comp, "v1", GitHubArtifacts.releaseAssetUrl(bound.repository, "v1", dest.name),
+            payload.length(), "sha256:${Hashes.sha256(payload)}", bound.id, bound.repository,
+            bound.repositoryId!!, 44, 55, dest.name,
+        )
+        var downloadedPart: File? = null
+        ComponentsManager.packageDownloader = { _, output, _, _ ->
+            downloadedPart = output
+            payload.copyTo(output, overwrite = true)
+            true
+        }
+        ComponentsManager.packageBackupWriter = { source, backup ->
+            source.copyTo(backup, overwrite = true)
+            val part = requireNotNull(downloadedPart)
+            assertTrue(part.delete())
+            payload.copyTo(part)
+        }
+
+        assertTrue(runCatching { ComponentsManager.download(context, item) {} }.isFailure)
+        assertArrayEquals(previous, dest.readBytes())
+        assertTrue(packages.listFiles().orEmpty().none { it.name.endsWith(".backup") || it.name.endsWith(".part") })
     }
 
     @Test

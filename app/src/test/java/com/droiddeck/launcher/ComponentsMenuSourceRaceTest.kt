@@ -168,9 +168,174 @@ class ComponentsMenuSourceRaceTest {
         assertNull(ShadowToast.getTextOfLatestToast())
     }
 
+    @Test
+    fun delayedCacheReadCannotReplaceACompletedForcedRefresh() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val menu = ComponentsMenu(activity, Handler(Looper.getMainLooper()))
+        val forcedEntered = CountDownLatch(1)
+        val releaseForced = CountDownLatch(1)
+        val cacheEntered = CountDownLatch(1)
+        val releaseCache = CountDownLatch(1)
+        val cacheDone = CountDownLatch(1)
+        val stale = item("dxvk", "stale-cache.wcp")
+        val fresh = item("dxvk", "fresh-forced.wcp")
+        componentsCatalogReader = { _, force, _ ->
+            if (force) {
+                forcedEntered.countDown()
+                check(releaseForced.await(5, TimeUnit.SECONDS))
+                ComponentsManager.Catalog(listOf(fresh), 20)
+            } else {
+                cacheEntered.countDown()
+                check(releaseCache.await(5, TimeUnit.SECONDS))
+                cacheDone.countDown()
+                ComponentsManager.Catalog(listOf(stale), 10)
+            }
+        }
+
+        menu.refreshComponentCatalog(components = setOf("dxvk"))
+        assertTrue(forcedEntered.await(5, TimeUnit.SECONDS))
+        menu.refreshComponents()
+        assertTrue(cacheEntered.await(5, TimeUnit.SECONDS))
+        releaseForced.countDown()
+        val forcedDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (menu.compCatalog.none { it.id == fresh.id } && System.nanoTime() < forcedDeadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(5)
+        }
+        releaseCache.countDown()
+        assertTrue(cacheDone.await(5, TimeUnit.SECONDS))
+        waitForWorker("components")
+
+        assertEquals(listOf(fresh.id), menu.compCatalog.map { it.id })
+        assertEquals(20L, menu.compCatalogAt)
+    }
+
+    @Test
+    fun preRequestCacheReadCannotRestoreRowsAfterANewerForcedFailure() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val menu = ComponentsMenu(activity, Handler(Looper.getMainLooper()))
+        val cacheEntered = CountDownLatch(1)
+        val releaseCache = CountDownLatch(1)
+        val cacheDone = CountDownLatch(1)
+        val forcedDone = CountDownLatch(1)
+        val stale = item("dxvk", "stale-before-failure.wcp")
+        componentsCatalogReader = { _, force, _ ->
+            if (force) {
+                forcedDone.countDown()
+                throw java.io.IOException("forced refresh failed")
+            }
+            cacheEntered.countDown()
+            check(releaseCache.await(5, TimeUnit.SECONDS))
+            cacheDone.countDown()
+            ComponentsManager.Catalog(listOf(stale), 10)
+        }
+
+        menu.refreshComponents()
+        assertTrue(cacheEntered.await(5, TimeUnit.SECONDS))
+        menu.sourcesChanged("dxvk")
+        assertTrue(forcedDone.await(5, TimeUnit.SECONDS))
+        val forcedDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (menu.compChecking && System.nanoTime() < forcedDeadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(5)
+        }
+        assertFalse(menu.compChecking)
+        assertEquals(activity.getString(R.string.comp_nightlies_unreachable), ShadowToast.getTextOfLatestToast())
+        releaseCache.countDown()
+        assertTrue(cacheDone.await(5, TimeUnit.SECONDS))
+        waitForWorker("components")
+
+        assertTrue(menu.compCatalog.isEmpty())
+        assertEquals(10L, menu.compCatalogAt)
+        assertEquals(activity.getString(R.string.comp_nightlies_unreachable), ShadowToast.getTextOfLatestToast())
+    }
+
+    @Test
+    fun cacheReadDuringForcedRefreshCanLandFirstButForcedSuccessWins() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val menu = ComponentsMenu(activity, Handler(Looper.getMainLooper()))
+        val forcedEntered = CountDownLatch(1)
+        val releaseForced = CountDownLatch(1)
+        val stale = item("dxvk", "temporary-cache.wcp")
+        val fresh = item("dxvk", "forced-winner.wcp")
+        componentsCatalogReader = { _, force, _ ->
+            if (force) {
+                forcedEntered.countDown()
+                check(releaseForced.await(5, TimeUnit.SECONDS))
+                ComponentsManager.Catalog(listOf(fresh), 20)
+            } else ComponentsManager.Catalog(listOf(stale), 10)
+        }
+
+        menu.refreshComponentCatalog(components = setOf("dxvk"))
+        assertTrue(forcedEntered.await(5, TimeUnit.SECONDS))
+        menu.refreshComponents()
+        val cacheDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (menu.compCatalog.none { it.id == stale.id } && System.nanoTime() < cacheDeadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(5)
+        }
+        assertEquals(listOf(stale.id), menu.compCatalog.map { it.id })
+        assertTrue(menu.compChecking)
+        releaseForced.countDown()
+        val forcedDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (menu.compChecking && System.nanoTime() < forcedDeadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(5)
+        }
+
+        assertEquals(listOf(fresh.id), menu.compCatalog.map { it.id })
+        assertEquals(20L, menu.compCatalogAt)
+    }
+
+    @Test
+    fun laterCheckAllSupersedesAnEarlierScopedRefresh() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val menu = ComponentsMenu(activity, Handler(Looper.getMainLooper()))
+        val scopedEntered = CountDownLatch(1)
+        val releaseScoped = CountDownLatch(1)
+        val scoped = item("dxvk", "old-scoped.wcp")
+        val allDxvk = item("dxvk", "new-check-all.wcp")
+        val fex = item("fex", "check-all-fex.wcp")
+        componentsCatalogReader = { _, _, components ->
+            if (components.size == 1) {
+                scopedEntered.countDown()
+                check(releaseScoped.await(5, TimeUnit.SECONDS))
+                ComponentsManager.Catalog(listOf(scoped), 10)
+            } else ComponentsManager.Catalog(listOf(allDxvk, fex), 20)
+        }
+
+        menu.refreshComponentCatalog(components = setOf("dxvk"))
+        assertTrue(scopedEntered.await(5, TimeUnit.SECONDS))
+        menu.refreshComponentCatalog()
+        val allDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (menu.compCatalog.none { it.id == allDxvk.id } && System.nanoTime() < allDeadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(5)
+        }
+        assertTrue(menu.compChecking)
+        releaseScoped.countDown()
+        val doneDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (menu.compChecking && System.nanoTime() < doneDeadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(5)
+        }
+
+        assertEquals(setOf(allDxvk.id, fex.id), menu.compCatalog.map { it.id }.toSet())
+        assertEquals(20L, menu.compCatalogAt)
+    }
+
     private fun item(comp: String, file: String) = ComponentsManager.CatalogItem(
         file, comp, "${comp.replaceFirstChar { it.uppercase() }}-Linux",
         "https://github.com/the412banner/nightlies/releases/download/test/$file",
         1, "sha256:${comp.first().code.toString(16).repeat(64).take(64)}",
     )
+
+    private fun waitForWorker(name: String) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (Thread.getAllStackTraces().keys.any { it.name == name && it.isAlive } && System.nanoTime() < deadline) {
+            Thread.sleep(5)
+        }
+        assertFalse(Thread.getAllStackTraces().keys.any { it.name == name && it.isAlive })
+        shadowOf(Looper.getMainLooper()).idle()
+    }
 }
