@@ -3,6 +3,7 @@ package com.droiddeck.launcher.stores.download
 import android.content.Context
 import android.util.Log
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoresState
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -100,6 +101,7 @@ object DownloadQueue {
     }
 
     private val lock = Any()
+    private val cancelling = HashSet<String>()
     private val items = LinkedHashMap<String, Item>()
     private val heldPaused = HashSet<String>()
 
@@ -128,9 +130,19 @@ object DownloadQueue {
 
     fun isActive(key: String): Boolean = entry(key)?.isActive == true
 
+    fun isCancelling(key: String): Boolean = synchronized(lock) { key in cancelling }
+
+    internal fun cleanupFinished(key: String) {
+        synchronized(lock) { cancelling.remove(key) }
+    }
+
     fun enqueue(context: Context, entry: DownloadEntry, factory: () -> DownloadJob) {
         val app = context.applicationContext
         synchronized(lock) {
+            if (entry.store == Store.BATTLENET && entry.key in cancelling) {
+                Log.i(TAG, "${entry.key}: previous cancellation is still cleaning up")
+                return
+            }
             items[entry.key]?.let { if (it.entry.isActive) { Log.i(TAG, "${entry.key}: already queued"); return } }
             items.remove(entry.key)
             val state = if (heldPaused.remove(entry.key)) DownloadState.PAUSED else DownloadState.QUEUED
@@ -210,6 +222,7 @@ object DownloadQueue {
             item = items[key] ?: return
             if (!item.entry.interruptible) return
             wasRunning = item.entry.state == DownloadState.RUNNING
+            if (item.entry.store == Store.BATTLENET) cancelling.add(key)
             if (wasRunning) {
                 item.pauseRequested = false
                 item.cancelled.set(true)
@@ -234,6 +247,7 @@ object DownloadQueue {
         val item = synchronized(lock) { items[key] } ?: return
         if (item.entry.state == DownloadState.RUNNING || item.entry.state == DownloadState.QUEUED) return
         if (item.entry.state == DownloadState.FAILED || item.entry.state == DownloadState.PAUSED) {
+            if (item.entry.store == Store.BATTLENET) synchronized(lock) { cancelling.add(key) }
             Thread({ runCatching { item.factory?.invoke()?.cancel(deleteFiles = true) } }, "store-dl-clear").start()
         }
         synchronized(lock) { items.remove(key); publishLocked() }
