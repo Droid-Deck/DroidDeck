@@ -345,7 +345,7 @@ object SessionLogShare {
                         "Diagnostic save source changed"
                     }
                 }
-                context.contentResolver.openOutputStream(destination, "w")?.use { output ->
+                context.contentResolver.openOutputStream(destination, "wt")?.use { output ->
                     destinationOpened = true
                     if (opened.size == 1) {
                         val source = opened.single()
@@ -397,7 +397,7 @@ object SessionLogShare {
         require(validSaveDestination(context, destination)) { "Invalid diagnostic save destination" }
         var destinationOpened = false
         try {
-            context.contentResolver.openOutputStream(destination, "w")?.use { output ->
+            context.contentResolver.openOutputStream(destination, "wt")?.use { output ->
                 destinationOpened = true
                 require(EnhancedSessionLogShare.writeLegacy(context, folder, output, onProgress)) {
                     "Session log folder is unsafe or empty"
