@@ -2298,9 +2298,6 @@
     <string name="source_added">Personalizados</string>
     <string name="setup_stores">Tiendas</string>
     <string name="setup_stores_speed">Nivel de velocidad de descarga</string>
-    <string name="setup_stores_engine">Motor de las tiendas</string>
-    <string name="setup_stores_engine_chip_ready">● Motor listo</string>
-    <string name="setup_stores_engine_chip_missing">Sin compilar</string>
     <string name="stores_tier_balanced">Equilibrado</string>
     <string name="stores_tier_fast">Rápido</string>
     <string name="stores_tier_max">Máximo</string>

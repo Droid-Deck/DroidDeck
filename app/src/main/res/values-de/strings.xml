@@ -2221,9 +2221,6 @@
     <string name="source_added">Eigene</string>
     <string name="setup_stores">Stores</string>
     <string name="setup_stores_speed">Download-Tempo</string>
-    <string name="setup_stores_engine">Store-Engine</string>
-    <string name="setup_stores_engine_chip_ready">● Engine bereit</string>
-    <string name="setup_stores_engine_chip_missing">Nicht gebaut</string>
     <string name="stores_tier_balanced">Ausgewogen</string>
     <string name="stores_tier_fast">Schnell</string>
     <string name="stores_tier_max">Max.</string>

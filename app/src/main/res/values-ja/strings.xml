@@ -2204,9 +2204,6 @@
     <string name="source_added">カスタム</string>
     <string name="setup_stores">ストア</string>
     <string name="setup_stores_speed">ダウンロード速度レベル</string>
-    <string name="setup_stores_engine">ストアエンジン</string>
-    <string name="setup_stores_engine_chip_ready">● エンジン準備完了</string>
-    <string name="setup_stores_engine_chip_missing">未ビルド</string>
     <string name="stores_tier_balanced">バランス</string>
     <string name="stores_tier_fast">高速</string>
     <string name="stores_tier_max">最大</string>

@@ -2204,9 +2204,6 @@
     <string name="source_added">กำหนดเอง</string>
     <string name="setup_stores">สโตร์</string>
     <string name="setup_stores_speed">ระดับความเร็วการดาวน์โหลด</string>
-    <string name="setup_stores_engine">เอนจินสโตร์</string>
-    <string name="setup_stores_engine_chip_ready">● เอนจินพร้อมใช้งาน</string>
-    <string name="setup_stores_engine_chip_missing">ยังไม่สร้าง</string>
     <string name="stores_tier_balanced">สมดุล</string>
     <string name="stores_tier_fast">เร็ว</string>
     <string name="stores_tier_max">สูงสุด</string>
