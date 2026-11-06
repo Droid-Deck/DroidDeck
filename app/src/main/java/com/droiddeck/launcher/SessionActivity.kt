@@ -4283,6 +4283,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun showPipUi(show: Boolean) {
         pipUi = show
         if (show) {
+            if (::hud.isInitialized) hud.setHidden(true)
             drawerOpen = false
             pcKeyboardOpen = false
             achievementsOpen = false
