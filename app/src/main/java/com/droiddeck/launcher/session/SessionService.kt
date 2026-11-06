@@ -510,6 +510,10 @@ class SessionService : Service() {
         try {
             if (systemVulkan) {
                 SystemVulkanDriver.prepare(this)
+                if (!stillStarting()) {
+                    Log.i(TAG, "session stopped while the system graphics runtime was unpacking")
+                    return
+                }
                 pruneSystemVulkanRuntime()
             }
             SessionFiles.stage(this, root, startsSession = true)
