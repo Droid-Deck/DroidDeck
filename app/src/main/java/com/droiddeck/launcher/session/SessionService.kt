@@ -476,8 +476,15 @@ class SessionService : Service() {
         val stillStarting = { gen == sessionGen && SessionState.running }
         val prootPack = LinuxRuntime.patchedProot(this) || AddonPack.PROOT.await(this, stillStarting)
         val directAudioPack = AddonPack.DIRECTAUDIO.await(this, stillStarting)
+        val systemVulkan = SystemVulkanDriver.usesDefault(SessionPrefs.linuxDriver(this))
+        val powerVrPack = !systemVulkan || AddonPack.POWERVR.await(this, stillStarting)
         if (!stillStarting()) {
             Log.i(TAG, "session stopped while add-on packs were downloading")
+            return
+        }
+        if (!powerVrPack) {
+            Log.e(TAG, "powervr pack unavailable; the system graphics runtime cannot be prepared")
+            stopSession(-1, gen)
             return
         }
         if (!directAudioPack) {
@@ -501,7 +508,7 @@ class SessionService : Service() {
             .onFailure { Log.w(TAG, "agent environment skipped", it) }
             .getOrDefault(emptyList())
         try {
-            if (SystemVulkanDriver.usesDefault(SessionPrefs.linuxDriver(this))) {
+            if (systemVulkan) {
                 SystemVulkanDriver.prepare(this)
                 pruneSystemVulkanRuntime()
             }
