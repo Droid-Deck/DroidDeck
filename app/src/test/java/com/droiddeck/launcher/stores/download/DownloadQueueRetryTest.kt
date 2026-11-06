@@ -178,6 +178,10 @@ class DownloadQueueRetryTest {
         val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
         while (DownloadQueue.isCancelling(entry.key) && System.nanoTime() < until) Thread.sleep(10)
         assertFalse(DownloadQueue.isCancelling(entry.key))
+        val entryUntil = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (DownloadQueue.entry(entry.key)?.state != DownloadState.CANCELLED && System.nanoTime() < entryUntil) {
+            Thread.sleep(10)
+        }
         DownloadQueue.clear(app, entry.key)
     }
 
