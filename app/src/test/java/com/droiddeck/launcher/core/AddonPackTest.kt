@@ -114,14 +114,18 @@ class AddonPackTest {
     @Test fun malformedPreviewIdentityDoesNotCreateASourceReleaseFallback() {
         val validDigest = "5".repeat(64)
         val cases = listOf(
-            AddonPack("sample", validDigest, 1L, listOf("tool"), componentRepository = "bad repo", sourceCommit = "6".repeat(40)),
-            AddonPack("sample", validDigest, 1L, listOf("tool"), componentRepository = "wallentx/DroidDeck", sourceCommit = "short"),
-            AddonPack("sample", validDigest, 1L, listOf("tool"), componentRepository = "wallentx/DroidDeck", sourceCommit = "A".repeat(40)),
-            AddonPack("../sample", validDigest, 1L, listOf("tool"), componentRepository = "wallentx/DroidDeck", sourceCommit = "7".repeat(40)),
-            AddonPack("sample", "A".repeat(64), 1L, listOf("tool"), componentRepository = "wallentx/DroidDeck", sourceCommit = "8".repeat(40)),
+            { pr: Int -> AddonPack("sample", validDigest, 1L, listOf("tool"), componentRepository = "bad repo", sourceCommit = "6".repeat(40), prNumber = pr) },
+            { pr: Int -> AddonPack("sample", validDigest, 1L, listOf("tool"), componentRepository = "wallentx/DroidDeck", sourceCommit = "short", prNumber = pr) },
+            { pr: Int -> AddonPack("sample", validDigest, 1L, listOf("tool"), componentRepository = "wallentx/DroidDeck", sourceCommit = "A".repeat(40), prNumber = pr) },
+            { pr: Int -> AddonPack("../sample", validDigest, 1L, listOf("tool"), componentRepository = "wallentx/DroidDeck", sourceCommit = "7".repeat(40), prNumber = pr) },
+            { pr: Int -> AddonPack("sample", "A".repeat(64), 1L, listOf("tool"), componentRepository = "wallentx/DroidDeck", sourceCommit = "8".repeat(40), prNumber = pr) },
         )
 
-        for (pack in cases) assertEquals(1, pack.downloadUrls.size)
+        for (pr in listOf(0, 7)) for ((index, create) in cases.withIndex()) {
+            val urls = create(pr).downloadUrls
+            assertFalse("case $index with PR $pr added a source-release fallback", urls.any { "/releases/download/main-" in it })
+            assertEquals("case $index with PR $pr lost an official or PR fallback", if (pr > 0) 2 else 1, urls.size)
+        }
     }
 
     private fun tarZst(vararg files: Pair<String, String>): File =
