@@ -353,6 +353,11 @@ class InputSurfaceView(
         private var touching = false
         private var clicking = false
         private var lastUp = 0L
+        private var downAt = 0L
+        private var downX = 0f
+        private var downY = 0f
+        private var travel = 0f
+        private val tapSlop = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
         private var originX = 0f
         private var originY = 0f
         private var knobX = 0f
@@ -379,6 +384,10 @@ class InputSurfaceView(
             val r = reach().coerceAtLeast(1f)
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    downAt = event.eventTime
+                    downX = event.x
+                    downY = event.y
+                    travel = 0f
                     originX = if (floating) event.x else width / 2f
                     originY = if (floating) event.y else height / 2f
                     touching = true
@@ -389,7 +398,9 @@ class InputSurfaceView(
                 MotionEvent.ACTION_MOVE -> follow(event.getX(0), event.getY(0), r)
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     touching = false
-                    lastUp = if (clicking || event.actionMasked == MotionEvent.ACTION_CANCEL) 0L else event.eventTime
+                    val cancelled = event.actionMasked == MotionEvent.ACTION_CANCEL || event.flags and MotionEvent.FLAG_CANCELED != 0
+                    travel = maxOf(travel, hypot(event.x - downX, event.y - downY))
+                    lastUp = if (!clicking && !cancelled && event.eventTime - downAt <= STICK_TAP_MS && travel <= tapSlop) event.eventTime else 0L
                     setClick(false)
                     move(0f, 0f, 1f)
                 }
@@ -398,6 +409,7 @@ class InputSurfaceView(
         }
 
         private fun follow(x: Float, y: Float, r: Float, force: Boolean = false) {
+            travel = maxOf(travel, hypot(x - downX, y - downY))
             var dx = x - originX
             var dy = y - originY
             val length = hypot(dx, dy)
@@ -486,6 +498,7 @@ class InputSurfaceView(
 
     companion object {
         private const val CLICK_MS = 300L
+        private const val STICK_TAP_MS = 200L
 
 
         private const val CORNER = 20f

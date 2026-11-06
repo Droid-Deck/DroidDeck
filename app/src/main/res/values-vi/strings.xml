@@ -554,6 +554,19 @@
     <string name="comp_tag_in_use">Đang dùng</string>
     <string name="comp_tag_new">Mới</string>
     <string name="comp_tag_stored">Đã lưu</string>
+    <string name="comp_mode_title">Cách chọn bản dựng</string>
+    <string name="comp_mode_auto_detail">Bản dựng DroidDeck mới nhất, luôn cập nhật</string>
+    <string name="comp_mode_manual_detail">Tự chọn và cài bản dựng</string>
+    <string name="comp_auto_title">Auto giữ %1$s luôn cập nhật</string>
+    <string name="comp_auto_hint">Bản dựng mới được cài ở nền. Nếu một trò chơi từng chạy được bị đóng sau vài giây hai lần, Auto quay lại bản dựng đã chạy được.</string>
+    <string name="comp_auto_fallback">Dự phòng: %1$s</string>
+    <string name="comp_auto_checking">Đang tìm bản dựng…</string>
+    <string name="comp_auto_none">Không Proton nào đã cài dùng thành phần này</string>
+    <string name="comp_auto_waits_network">Cập nhật Auto đang chờ kết nối.</string>
+    <string name="comp_auto_check_failed">Không thể kiểm tra bản dựng mới.</string>
+    <string name="comp_auto_waits_unmetered">Bản dựng mới chờ kết nối không đo lưu lượng, tắt tiết kiệm pin và thiết bị đủ mát.</string>
+    <string name="comp_auto_updated">Đã cập nhật %1$s lên %2$s.</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s làm trò chơi đóng sau vài giây hai lần, nên Auto đã quay lại %3$s.</string>
     <string name="perf_title">Hiệu năng</string>
     <string name="perf_lede">Lõi CPU, các bản sửa phiên và tên máy chủ. Áp dụng từ phiên sau.</string>
     <string name="perf_client_cores_group">Lõi client Steam</string>
@@ -3643,4 +3656,12 @@
     <string name="stores_gamejolt_filter_status">Trạng thái</string>
     <string name="stores_gamejolt_filter_partners">Đối tác</string>
     <string name="stores_gamejolt_followed">Game đang theo dõi</string>
+    <string name="wow_chat_title">Nhập trò chuyện</string>
+    <string name="wow_chat_voice">Nhập bằng giọng nói</string>
+    <string name="wow_chat_remember">Ghi nhớ lựa chọn này</string>
+    <string name="wow_chat_ask">Hỏi mỗi lần</string>
+    <string name="wow_chat_send">Gửi</string>
+    <string name="wow_chat_listening">Đang nghe…</string>
+    <string name="wow_chat_voice_unavailable">Thiết bị này không hỗ trợ nhập bằng giọng nói.</string>
+    <string name="wow_chat_mic_denied">Cần quyền truy cập micrô để nhập bằng giọng nói.</string>
 </resources>

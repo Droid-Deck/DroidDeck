@@ -210,6 +210,15 @@ class SessionInputPointerTest {
         assertEquals(listOf(Triple(3, 272, 1), Triple(3, 272, 0)), CompositorShadow.events)
     }
 
+    @Test fun wowFieldSelectionPreservesCtrlHeldByTheInputProfile() {
+        output.key(29, true)
+        ReflectionHelpers.callInstanceMethod<Unit>(activity, "selectGameField",
+            ReflectionHelpers.ClassParameter.from(IntArray::class.java, intArrayOf(46)))
+        assertEquals(listOf(29 to 1, 30 to 1, 30 to 0, 46 to 1, 46 to 0), CompositorShadow.keys)
+        output.key(29, false)
+        assertEquals(29 to 0, CompositorShadow.keys.last())
+    }
+
     @Test fun horizontalWheelFinishesBeforeRawMouseDestruction() {
         checkWheelTransition(horizontal = true, transition = "releaseEvdevMouse", marker = "destroy")
     }

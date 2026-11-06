@@ -122,10 +122,63 @@ class OnScreenControlsTest {
         assertTrue(view.takesTouchAt(450f, 480f))
     }
 
-    private fun touch(action: Int, vararg pointers: Pair<Int, Pair<Float, Float>>): Boolean {
+    @Test fun aCancelledSecondFingerDoesNotArmAStickClick() {
+        touch(MotionEvent.ACTION_DOWN, 7 to (800f to 250f))
+        touch(MotionEvent.ACTION_POINTER_DOWN or (1 shl 8), 7 to (800f to 250f), 9 to (200f to 300f))
+        touch(MotionEvent.ACTION_POINTER_UP or (1 shl 8), 7 to (800f to 250f), 9 to (200f to 300f), flags = MotionEvent.FLAG_CANCELED)
+        touch(MotionEvent.ACTION_POINTER_DOWN or (1 shl 8), 7 to (800f to 250f), 9 to (200f to 300f))
+        assertFalse(state().isDown(PadState.L3))
+        touch(MotionEvent.ACTION_POINTER_UP or (1 shl 8), 7 to (800f to 250f), 9 to (200f to 300f))
+        touch(MotionEvent.ACTION_POINTER_DOWN or (1 shl 8), 7 to (800f to 250f), 9 to (200f to 300f))
+        assertTrue(state().isDown(PadState.L3))
+    }
+
+    @Test fun movingTheStickAndTouchingItAgainDoesNotClickIt() {
+        touch(MotionEvent.ACTION_DOWN, 1 to (200f to 300f))
+        touch(MotionEvent.ACTION_MOVE, 1 to (250f to 300f))
+        touch(MotionEvent.ACTION_UP, 1 to (250f to 300f))
+        touch(MotionEvent.ACTION_DOWN, 1 to (200f to 300f))
+        assertFalse(state().isDown(PadState.L3))
+    }
+
+    @Test fun liftingFarFromTheTouchPointDoesNotArmAStickClick() {
+        touch(MotionEvent.ACTION_DOWN, 1 to (200f to 300f))
+        touch(MotionEvent.ACTION_UP, 1 to (250f to 300f))
+        touch(MotionEvent.ACTION_DOWN, 1 to (200f to 300f))
+        assertFalse(state().isDown(PadState.L3))
+    }
+
+    @Test fun aLongHoldThenAQuickTouchDoesNotClickTheStick() {
+        touch(MotionEvent.ACTION_DOWN, 1 to (200f to 300f))
+        time += 600
+        touch(MotionEvent.ACTION_UP, 1 to (200f to 300f))
+        touch(MotionEvent.ACTION_DOWN, 1 to (200f to 300f))
+        assertFalse(state().isDown(PadState.L3))
+    }
+
+    @Test fun aFastDoubleTapClicksTheStickAndCanBeHeldWhileMoving() {
+        touch(MotionEvent.ACTION_DOWN, 1 to (200f to 300f))
+        touch(MotionEvent.ACTION_UP, 1 to (200f to 300f))
+        touch(MotionEvent.ACTION_DOWN, 1 to (200f to 300f))
+        touch(MotionEvent.ACTION_MOVE, 1 to (250f to 300f))
+        assertTrue(state().isDown(PadState.L3))
+        touch(MotionEvent.ACTION_UP, 1 to (250f to 300f))
+        touch(MotionEvent.ACTION_DOWN, 1 to (200f to 300f))
+        assertFalse(state().isDown(PadState.L3))
+    }
+
+    @Test fun aSlowSecondTapDoesNotClickTheStick() {
+        touch(MotionEvent.ACTION_DOWN, 1 to (200f to 300f))
+        touch(MotionEvent.ACTION_UP, 1 to (200f to 300f))
+        time += 400
+        touch(MotionEvent.ACTION_DOWN, 1 to (200f to 300f))
+        assertFalse(state().isDown(PadState.L3))
+    }
+
+    private fun touch(action: Int, vararg pointers: Pair<Int, Pair<Float, Float>>, flags: Int = 0): Boolean {
         val properties = pointers.map { (id, _) -> MotionEvent.PointerProperties().apply { this.id = id; toolType = MotionEvent.TOOL_TYPE_FINGER } }.toTypedArray()
         val coords = pointers.map { (_, position) -> MotionEvent.PointerCoords().apply { x = position.first; y = position.second; pressure = 1f; size = 1f } }.toTypedArray()
-        val event = MotionEvent.obtain(1000L, time++, action, pointers.size, properties, coords, 0, 0, 1f, 1f, 0, 0, 0, 0)
+        val event = MotionEvent.obtain(1000L, time++, action, pointers.size, properties, coords, 0, 0, 1f, 1f, 0, 0, 0, flags)
         return try { view.dispatchTouchEvent(event) } finally { event.recycle() }
     }
 }

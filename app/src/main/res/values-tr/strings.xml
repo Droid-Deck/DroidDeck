@@ -556,6 +556,19 @@
     <string name="comp_tag_in_use">Kullanımda</string>
     <string name="comp_tag_new">Yeni</string>
     <string name="comp_tag_stored">Saklandı</string>
+    <string name="comp_mode_title">Sürümler nasıl seçilir</string>
+    <string name="comp_mode_auto_detail">En yeni DroidDeck sürümü, hep güncel</string>
+    <string name="comp_mode_manual_detail">Sürümleri kendin seç ve yükle</string>
+    <string name="comp_auto_title">Auto %1$s bileşenini güncel tutar</string>
+    <string name="comp_auto_hint">Yeni sürümler arka planda yüklenir. Önceden çalışan bir oyun iki kez saniyeler içinde kapanırsa Auto çalışan sürüme geri döner.</string>
+    <string name="comp_auto_fallback">Yedek: %1$s</string>
+    <string name="comp_auto_checking">Sürümler aranıyor…</string>
+    <string name="comp_auto_none">Yüklü hiçbir Proton bunu kullanmıyor</string>
+    <string name="comp_auto_waits_network">Auto güncellemeleri bağlantı bekliyor.</string>
+    <string name="comp_auto_check_failed">Yeni sürümler denetlenemedi.</string>
+    <string name="comp_auto_waits_unmetered">Yeni sürümler sınırsız bir bağlantı, kapalı pil tasarrufu ve serin bir cihaz bekler.</string>
+    <string name="comp_auto_updated">%1$s, %2$s sürümüne güncellendi.</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s bir oyunu iki kez saniyeler içinde kapattı, bu yüzden Auto %3$s sürümüne döndü.</string>
     <string name="perf_title">Performans</string>
     <string name="perf_lede">CPU çekirdekleri, oturum düzeltmeleri ve ana bilgisayar adı. Sonraki oturumda uygulanır.</string>
     <string name="perf_client_cores_group">Steam istemcisi çekirdekleri</string>
@@ -3673,4 +3686,12 @@
     <string name="stores_gamejolt_filter_status">Durum</string>
     <string name="stores_gamejolt_filter_partners">Ortaklar</string>
     <string name="stores_gamejolt_followed">Takip edilen oyunlar</string>
+    <string name="wow_chat_title">Sohbet girişi</string>
+    <string name="wow_chat_voice">Sesle yazma</string>
+    <string name="wow_chat_remember">Bu seçimi hatırla</string>
+    <string name="wow_chat_ask">Her seferinde sor</string>
+    <string name="wow_chat_send">Gönder</string>
+    <string name="wow_chat_listening">Dinleniyor…</string>
+    <string name="wow_chat_voice_unavailable">Sesle yazma bu cihazda kullanılamıyor.</string>
+    <string name="wow_chat_mic_denied">Sesle yazma için mikrofon erişimi gerekiyor.</string>
 </resources>

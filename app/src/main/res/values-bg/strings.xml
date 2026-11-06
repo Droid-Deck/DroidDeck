@@ -556,6 +556,19 @@
     <string name="comp_tag_in_use">В употреба</string>
     <string name="comp_tag_new">Ново</string>
     <string name="comp_tag_stored">Запазено</string>
+    <string name="comp_mode_title">Как се избират версиите</string>
+    <string name="comp_mode_auto_detail">Най-новата версия на DroidDeck, винаги актуална</string>
+    <string name="comp_mode_manual_detail">Избирайте и инсталирайте версии сами</string>
+    <string name="comp_auto_title">Auto поддържа %1$s актуален</string>
+    <string name="comp_auto_hint">Новите версии се инсталират във фонов режим. Ако игра, която е работила, се затвори до секунди два пъти, Auto се връща към работещата версия.</string>
+    <string name="comp_auto_fallback">Резервна: %1$s</string>
+    <string name="comp_auto_checking">Търсене на версии…</string>
+    <string name="comp_auto_none">Нито един инсталиран Proton не го използва</string>
+    <string name="comp_auto_waits_network">Актуализациите Auto чакат връзка.</string>
+    <string name="comp_auto_check_failed">Новите версии не можаха да бъдат проверени.</string>
+    <string name="comp_auto_waits_unmetered">Новите версии чакат неотчитана връзка, изключен режим за пестене на батерията и охладено устройство.</string>
+    <string name="comp_auto_updated">%1$s е обновен до %2$s.</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s два пъти затвори игра до секунди, затова Auto се върна към %3$s.</string>
     <string name="perf_title">Производителност</string>
     <string name="perf_lede">CPU ядра, корекции на сесията и името на хоста. Прилага се от следващата сесия.</string>
     <string name="perf_client_cores_group">Ядра за клиента на Steam</string>
@@ -3673,4 +3686,12 @@
     <string name="stores_gamejolt_filter_status">Статус</string>
     <string name="stores_gamejolt_filter_partners">Партньори</string>
     <string name="stores_gamejolt_followed">Следвани игри</string>
+    <string name="wow_chat_title">Въвеждане в чата</string>
+    <string name="wow_chat_voice">Гласово въвеждане</string>
+    <string name="wow_chat_remember">Запомни този избор</string>
+    <string name="wow_chat_ask">Питай всеки път</string>
+    <string name="wow_chat_send">Изпрати</string>
+    <string name="wow_chat_listening">Слушане…</string>
+    <string name="wow_chat_voice_unavailable">Гласовото въвеждане не е налично на това устройство.</string>
+    <string name="wow_chat_mic_denied">За гласово въвеждане е нужен достъп до микрофона.</string>
 </resources>

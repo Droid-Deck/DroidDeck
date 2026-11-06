@@ -558,6 +558,19 @@
     <string name="comp_tag_in_use">Utilisé</string>
     <string name="comp_tag_new">Nouveau</string>
     <string name="comp_tag_stored">Enregistré</string>
+    <string name="comp_mode_title">Choix des versions</string>
+    <string name="comp_mode_auto_detail">Dernière version DroidDeck, toujours à jour</string>
+    <string name="comp_mode_manual_detail">Choisir et installer les versions vous-même</string>
+    <string name="comp_auto_title">Auto garde %1$s à jour</string>
+    <string name="comp_auto_hint">Les nouvelles versions s\'installent en arrière-plan. Si un jeu qui fonctionnait se ferme deux fois en quelques secondes, Auto revient à la version qui fonctionnait.</string>
+    <string name="comp_auto_fallback">Secours : %1$s</string>
+    <string name="comp_auto_checking">Recherche de versions…</string>
+    <string name="comp_auto_none">Aucun Proton installé ne l\'utilise</string>
+    <string name="comp_auto_waits_network">Les mises à jour Auto attendent une connexion.</string>
+    <string name="comp_auto_check_failed">Impossible de vérifier les nouvelles versions.</string>
+    <string name="comp_auto_waits_unmetered">Les nouvelles versions attendent une connexion non limitée, l\'économiseur de batterie désactivé et un appareil frais.</string>
+    <string name="comp_auto_updated">%1$s mis à jour vers %2$s.</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s a fermé un jeu en quelques secondes deux fois, Auto est donc revenu à %3$s.</string>
     <string name="perf_title">Performance</string>
     <string name="perf_lede">Cœurs CPU, correctifs de session et nom d\'hôte. Prendra effet à la prochaine session.</string>
     <string name="perf_client_cores_group">Cœurs du client Steam</string>
@@ -3712,4 +3725,12 @@
     <string name="stores_gamejolt_filter_status">Statut</string>
     <string name="stores_gamejolt_filter_partners">Partenaires</string>
     <string name="stores_gamejolt_followed">Jeux suivis</string>
+    <string name="wow_chat_title">Saisie du chat</string>
+    <string name="wow_chat_voice">Saisie vocale</string>
+    <string name="wow_chat_remember">Mémoriser ce choix</string>
+    <string name="wow_chat_ask">Demander à chaque fois</string>
+    <string name="wow_chat_send">Envoyer</string>
+    <string name="wow_chat_listening">Écoute…</string>
+    <string name="wow_chat_voice_unavailable">La saisie vocale n\'est pas disponible sur cet appareil.</string>
+    <string name="wow_chat_mic_denied">L\'accès au micro est nécessaire pour la saisie vocale.</string>
 </resources>

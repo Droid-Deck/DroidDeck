@@ -98,6 +98,21 @@ concurrent scroll versus raw-channel release/destruction. These changes add no
 input queue or timer. Physical BLE hardware and latency remain unmeasured for
 this follow-up.
 
+### Upstream integration, 2026-11-07
+
+Merged upstream through `542bbf89c`. The shared stick renderer retains the new
+fast-double-tap rule from #2173, including cancelled, dragged, long-held and slow
+second taps; the six upstream regressions were adapted to the profile-backed
+renderer. WoW chat uses the existing custom lower-screen presentation and shared
+key ownership, preserving Ctrl held by another input source. The new platform
+pointer, PiP, component-update and store-launch changes are retained.
+
+The merged candidate passed **1017 tests in 133 suites**, with no failures,
+errors or skips: all input/UI tests, global reset, component updates, PiP policy,
+runtime auto-update and Proton menu auto-selection. The gamescope p22 archive
+was downloaded from the newly pinned component repository and verified against
+upstream's SHA-256 before refreshing the local runtime inputs.
+
 ## Input settings polish, 2026-11-06
 
 The final input/UI host run passed **941 tests in 124 suites, zero failures**.
