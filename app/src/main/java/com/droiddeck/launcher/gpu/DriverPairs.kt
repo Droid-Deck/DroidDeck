@@ -125,15 +125,15 @@ object DriverPairs {
             .map { key ->
                 val halves = assets.filter { it.pair == key }
                 val pairKinds = halves.map { it.pairKind }.filter { it.isNotEmpty() }.distinct()
-                val pairKind = pairKinds.singleOrNull()
-                val (name, families) = pairKind?.let(::describe) ?: (key to emptySet())
-                halves.firstOrNull { it.bundle }?.let {
-                    return@map DriverPair(key, pairKind.orEmpty(), name, families, null, null, it)
-                }
+                val kind = pairKinds.singleOrNull().orEmpty()
+                val (classifiedName, families) = kind.takeIf { it.isNotEmpty() }?.let(::describe)
+                    ?: (key to emptySet())
+                val name = classifiedName.ifEmpty { key }
+                halves.firstOrNull { it.bundle }?.let { return@map DriverPair(key, kind, name, families, null, null, it) }
                 val display = halves.firstOrNull { !it.linux }
                 val linux = halves.firstOrNull { it.linux }
-                val sameRelease = !key.startsWith(BANNER) || display?.tag == linux?.tag
-                DriverPair(key, pairKind.orEmpty(), name, families, display, if (sameRelease) linux else null)
+                val sameRelease = !kind.startsWith(BANNER) || display?.tag == linux?.tag
+                DriverPair(key, kind, name, families, display, if (sameRelease) linux else null)
             }
     }
 

@@ -184,6 +184,50 @@ class DriverPairsTest {
     }
 
     @Test
+    fun adreno840RanksSourceQualifiedDdTurnipByItsUnqualifiedVersion() {
+        fun bundle(tag: String, sourceId: String): TurnipReleases.Asset {
+            val kind = DriverPairs.ddTurnip(tag)
+            return TurnipReleases.Asset(
+                "Custom", tag, "$tag.zip", "https://example/$tag", 6_000_000, false,
+                "Android + Linux", "0".repeat(64), "$kind:$sourceId", bundle = true, pairKind = kind,
+            )
+        }
+        val pairs = DriverPairs.from(TurnipReleases.Check(
+            listOf(bundle("DD-Turnip-v1.2.3", "a".repeat(64)), bundle("DD-Turnip-v2.0.0", "b".repeat(64))),
+            emptyList(), emptyList(), 0L,
+        ))
+        assertEquals(
+            "${DriverPairs.ddTurnip("DD-Turnip-v2.0.0")}:${"b".repeat(64)}",
+            DriverPairs.recommendedKey(gpu(840), pairs),
+        )
+    }
+
+    @Test
+    fun adreno840IgnoresDdTurnipWithAnOversizedVersionComponent() {
+        fun bundle(tag: String) = TurnipReleases.Asset(
+            "DroidDeck", tag, "$tag.zip", "https://example/$tag", 6_000_000, false,
+            "Android + Linux", "0".repeat(64), DriverPairs.ddTurnip(tag), bundle = true,
+        )
+        val valid = bundle("DD-Turnip-v2.0.0")
+        val oversized = bundle("DD-Turnip-v9223372036854775808.0.0")
+        val pairs = DriverPairs.from(TurnipReleases.Check(listOf(oversized, valid), emptyList(), emptyList(), 0L))
+        assertNull(DriverPairs.ddTurnipVersion(oversized.pairKind))
+        assertEquals(valid.pair, DriverPairs.recommendedKey(gpu(840), pairs))
+    }
+
+    @Test
+    fun adreno840ComparesLargeDdTurnipVersionsWithoutPackingOverflow() {
+        fun bundle(tag: String) = TurnipReleases.Asset(
+            "DroidDeck", tag, "$tag.zip", "https://example/$tag", 6_000_000, false,
+            "Android + Linux", "0".repeat(64), DriverPairs.ddTurnip(tag), bundle = true,
+        )
+        val newer = bundle("DD-Turnip-v9223373.0.0")
+        val older = bundle("DD-Turnip-v1.999999.999999")
+        val pairs = DriverPairs.from(TurnipReleases.Check(listOf(older, newer), emptyList(), emptyList(), 0L))
+        assertEquals(newer.pair, DriverPairs.recommendedKey(gpu(840), pairs))
+    }
+
+    @Test
     fun maliFamiliesFollowTheOpenDriverBuilds() {
         assertEquals(Family.MALI_JM, GpuInfo.familyOf(false, 0, mali = "Mali-G57 MC2"))
         assertEquals(Family.MALI_JM, GpuInfo.familyOf(false, 0, mali = "Mali-G77"))

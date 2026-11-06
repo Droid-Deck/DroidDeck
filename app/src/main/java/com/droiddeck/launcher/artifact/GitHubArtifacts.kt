@@ -65,7 +65,6 @@ object GitHubArtifacts {
         val proxy = DownloadSource.httpProxy()
         (if (proxy != null) url.openConnection(proxy) else url.openConnection()) as HttpURLConnection
     }
-
     @JvmStatic fun release(
         context: Context, key: String, builtIns: List<String>, source: RepositorySources.Source, tag: String,
     ): Release {

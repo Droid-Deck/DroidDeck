@@ -9,8 +9,8 @@ import com.droiddeck.launcher.session.ComponentUpdater
 import com.droiddeck.launcher.session.ComponentUpdates
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.ProtonDefault
-import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.artifact.GitHubArtifacts
+import com.droiddeck.launcher.session.SessionPrefs
 
 internal var componentsCatalogReader: (android.content.Context, Boolean) -> ComponentsManager.Catalog =
     ComponentsManager::catalog
