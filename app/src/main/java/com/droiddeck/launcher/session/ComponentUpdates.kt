@@ -23,6 +23,30 @@ object ComponentUpdates {
         Line("fex", "fex", "DD-FEXCore-"),
     )
 
+    private val OWN_PREFIX = ProtonExtras.tools.first { it.id == ProtonExtras.OWN }.prefix
+
+    fun follows(p: ComponentsManager.Proton): Boolean = !p.valve && p.dir.name.startsWith(OWN_PREFIX)
+
+    fun ownId(protonId: String): Boolean = protonId.startsWith(ComponentsManager.safeName(OWN_PREFIX))
+
+    fun strays(
+        protons: List<ComponentsManager.Proton>,
+        choices: Map<String, Map<String, ComponentsManager.Choice>>,
+        placed: Set<String>,
+    ): List<Pair<ComponentsManager.Proton, String>> =
+        protons.filterNot(::follows).flatMap { p ->
+            choices[p.id].orEmpty().filter { (_, c) -> !c.auto && c.protonVersion == p.version && c.file in placed }.keys.map { p to it }
+        }
+
+    fun unseen(
+        protons: List<ComponentsManager.Proton>,
+        choices: Map<String, Map<String, ComponentsManager.Choice>>,
+        placed: Set<String>,
+    ): Boolean {
+        val found = protons.mapTo(HashSet()) { it.id }
+        return choices.any { (id, comps) -> id !in found && comps.values.any { !it.auto && it.file in placed } }
+    }
+
     fun line(comp: String, arm64ec: Boolean): Line = LINES.first {
         it.comp == comp && (comp == "fex" || it.key.endsWith("-arm64ec") == arm64ec)
     }
@@ -133,9 +157,6 @@ object ComponentUpdates {
     fun manual(choice: ComponentsManager.Choice?, applied: String?, auto: Set<String>): Boolean =
         choice != null && !choice.auto && !choice.file.startsWith("original ") &&
             (if (applied.isNullOrEmpty()) choice.file !in auto else choice.file != applied)
-
-    fun released(choice: ComponentsManager.Choice?, auto: Set<String>, held: String? = null): Boolean =
-        choice != null && !choice.auto && choice.file in auto && (held.isNullOrEmpty() || choice.file == held)
 
     fun stale(line: Line?, owned: Set<String>, stored: List<String>, keep: Set<String>): List<String> =
         (owned + stored.filter { line != null && belongs(it, line) }).filter { it !in keep }.distinct()
