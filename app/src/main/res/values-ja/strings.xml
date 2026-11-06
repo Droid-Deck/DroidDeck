@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s（FEX経由）</string>
     <string name="app_fex_not_ready">このプログラムは%1$s PC向けにビルドされており、FEX経由で実行されますが、FEXはまだセットアップされていません。ログインした状態で一度Steamを開いてください。DroidDeckがFEXと必要なSteam Linux Runtimeをダウンロードした後、このプログラムが開きます。</string>
     <string name="session_proot_missing">DroidDeckのprootをダウンロードできませんでした。接続を確認して、もう一度お試しください。代替のprootではプレイするには遅すぎるため、セッションは開始されませんでした。</string>
+    <string name="session_powervr_missing">PowerVRのグラフィックス環境をダウンロードできませんでした。接続を確認して、もう一度お試しください。</string>
     <string name="session_directaudio_missing">DirectAudioをダウンロードできなかったため、このセッションではゲーム音声に低速な経路を使用します。</string>
     <string name="session_end_program">このプログラム</string>
     <string name="session_end_steam_download">Steamクライアントをダウンロードできませんでした。ネットワークまたはVPNがSteamのサーバーをブロックしている可能性があります。接続を確認して、もう一度お試しください。</string>

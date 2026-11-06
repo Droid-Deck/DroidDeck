@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s přes FEX</string>
     <string name="app_fex_not_ready">Tento program je sestaven pro PC %1$s a běží přes FEX, který ještě není nastaven. Jednou spusťte přihlášený Steam: DroidDeck tím stáhne FEX a Steam Linux Runtime, který potřebuje, a pak se tento program otevře.</string>
     <string name="session_proot_missing">Proot od DroidDeck se nepodařilo stáhnout. Zkontrolujte připojení a zkuste to znovu. Relace nebyla spuštěna, protože záložní proot je na hraní příliš pomalý.</string>
+    <string name="session_powervr_missing">Grafické prostředí PowerVR se nepodařilo stáhnout. Zkontrolujte připojení a zkuste to znovu.</string>
     <string name="session_directaudio_missing">DirectAudio se nepodařilo stáhnout, takže zvuk her v této relaci používá pomalejší cestu.</string>
     <string name="session_end_program">Tento program</string>
     <string name="session_end_steam_download">Klienta Steam se nepodařilo stáhnout. Vaše síť nebo VPN možná blokuje servery Steamu; zkontrolujte připojení a zkuste to znovu.</string>

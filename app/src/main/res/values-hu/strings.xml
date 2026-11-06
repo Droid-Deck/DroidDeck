@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s a FEX-en keresztül</string>
     <string name="app_fex_not_ready">Ez a program %1$s PC-khez készült, és a FEX-en keresztül fut, amely még nincs beállítva. Nyissa meg egyszer a Steamet bejelentkezve: a DroidDeck ekkor letölti a FEX-et és a szükséges Steam Linux Runtime-ot, majd ez megnyílik.</string>
     <string name="session_proot_missing">A DroidDeck proot nem tölthető le. Ellenőrizze a kapcsolatot, és próbálja újra. A munkamenet nem indult el, mert a tartalék proot túl lassú a játékhoz.</string>
+    <string name="session_powervr_missing">A PowerVR grafikus környezetet nem sikerült letölteni. Ellenőrizd a kapcsolatot, és próbáld újra.</string>
     <string name="session_directaudio_missing">A DirectAudio nem tölthető le, ezért a játékhang ebben a munkamenetben a lassabb útvonalat használja.</string>
     <string name="session_end_program">Ez a program</string>
     <string name="session_end_steam_download">A Steam-klienst nem sikerült letölteni. Lehet, hogy a hálózat vagy a VPN blokkolja a Steam szervereit; ellenőrizd a kapcsolatot, és próbáld újra.</string>

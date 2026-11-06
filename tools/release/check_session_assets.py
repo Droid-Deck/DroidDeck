@@ -51,9 +51,10 @@ def check(apk, overlay=OVERLAY):
             runtime = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(runtime)
             try:
-                runtime.verify_archive(package.read('assets/hybris/runtime.tzst'),
-                                       package.read('assets/hybris/version.txt').decode('ascii'))
-            except (KeyError, ValueError, OSError) as error:
+                bundle = OVERLAY.parents[2] / 'app/src/main/assets/hybris'
+                runtime.verify_archive((bundle / 'runtime.tzst').read_bytes(),
+                                       (bundle / 'version.txt').read_text('ascii'))
+            except (ValueError, OSError) as error:
                 errors.append('invalid PowerVR runtime: ' + str(error))
     return errors
 

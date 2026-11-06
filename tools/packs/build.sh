@@ -76,6 +76,7 @@ pack tracking "$work/tracking" hand_landmarker.task hand_landmarker_lite.task po
     libopencv_java4.so libmediapipe_tasks_jni.so
 pack xbox "$linuxfs/droiddeck-xbox" version xodus-cli xodus-service
 pack comet "$linuxfs/droiddeck-comet" version comet
+pack powervr "$repo/app/src/main/assets/hybris" runtime.tzst version.txt
 
 mkdir "$work/butler"
 fetch "https://broth.itch.zone/butler/linux-arm64/${BUTLER_VERSION}/archive/default" \

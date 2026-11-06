@@ -548,7 +548,9 @@ jobs:
           key: pack-inputs-v1-${{ hashFiles('tools/packs/build.sh', 'tools/packs/fetch-verified.sh', 'tools/packs/tracking/release.env') }}
           restore-keys: pack-inputs-v1-
       - name: Build the add-on packs
-        run: bash tools/packs/build.sh app/build/packs
+        run: |
+          python3 tools/powervr/fetch.py
+          bash tools/packs/build.sh app/build/packs
 
       - name: Pin the Syncthing source
         id: syncthing-src
