@@ -236,3 +236,42 @@ The launcher's Execute Steam settings, under Display, offer Picture position: To
 Positioning keeps the selected resolution, fit scale, aspect ratio and full surface intact. It distributes outer letterboxing above or below the picture; it does not crop game-authored black bars inside the surface. A surface that already fills the panel has no vertical space to move. Use a 16:9 resolution for fixed-16:9 games when a separate controls area is desired.
 
 The compositor publishes actual bounds for touch mapping and ignores touches starting outside the picture. The mapping harness covers top, bottom and center across tall, 16:9 and wide surfaces, including inverse input mapping and legacy half-screen mode compatibility.
+
+## Upscaler input resolution with a native-size session
+
+A low-resolution game buffer can have a native-resolution Wayland viewport destination. For
+example, Gamescope can forward a 1280x720 game buffer into a 1920x1080 Steam session. Copying
+that buffer into a 1920x1080 intermediate before the effects chain makes spatial upscalers
+see equal input and output sizes, so FSR/GSR/NIS skip their upscaling pass.
+
+With a spatial upscaler selected, the renderer keeps an opaque, uncropped SDR fullscreen
+source at its buffer size. That source hides preceding draws, which are omitted. Foreground
+planes are drawn over the upscaled result in their original order, preserving the cursor's
+native size. Their coordinates use the actual result dimensions, including a source-sized
+fallback when the effects chain cannot allocate its output. Both swapchain presentation and
+the SurfaceControl effects path retain the logical scene size and input mapping.
+
+Additional whole-scene effects, such as CAS, color adjustment and CRT, keep full composition
+when foreground planes are present, so those effects still cover every plane. Spatial
+upscaling can therefore still be bypassed in that combination. Cropped, blended, HDR and
+larger-source fullscreen sources, and scenes without an eligible fullscreen source, retain
+the existing path. Off, linear, nearest and sharpen-only modes retain their behavior.
+
+To reproduce, start a 1920x1080 Steam session on a native 1080p panel, run a game that presents
+real 1280x720 buffers, and compare Linear with FSR in DroidDeck's session drawer. Show and hide
+the game's cursor. The `effects` log should keep 1280x720 input and 1920x1080 output with both
+the game alone and its foreground cursor plane.
+
+Odin 3 validation, 2026-10-22: Risk of Rain 2 at 1280x720 with fullscreen disabled, a 1920x1080
+session, FSR at 70%, CAS off and Look Off. The user confirms the updated build works. Captured
+logs show `input 1280x720 -> 1920x1080, logical scene 1920x1080` with both two draws (background
+and game) and three draws (including the blended 24x24 cursor), without a native-size fallback
+when the cursor appears. Twelve source-resolution tests and four effects-cache tests pass;
+an ARM64 debug APK builds and passes the asset, runtime-input and native-library checks.
+Other scaler modes, a 720p -> 1080p -> 720p game-resolution round trip, HDR, frame generation
+and the SurfaceControl path have not been independently validated on this device.
+
+This cannot recover a lower internal render resolution from an already-native backbuffer.
+Steam's per-game Properties -> Game Resolution can instead provide a lower-resolution virtual
+display. Changing the whole session's resolution through Steam's Display settings is separate:
+the nested Wayland backend does not expose physical output modes there.

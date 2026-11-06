@@ -4,14 +4,8 @@ import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 
-/**
- * Controller state for the native cloud player, from Android key and motion events (no Gamepad API). Button
- * bits follow the xCloud input report (Greenlight's packet.ts): Nexus 2, Menu 4, View 8, A 16, B 32, X 64,
- * Y 128, D-pad 256..2048, shoulders 4096 / 8192, stick clicks 16384 / 32768.
- */
 internal class XboxNativePad {
     data class State(val buttons: Int, val lx: Float, val ly: Float, val rx: Float, val ry: Float, val lt: Float, val rt: Float) {
-        /** Greenlight's rule: any button change, a stick moved past 0.08 or held past 0.15, a trigger past 0.01. */
         fun differsFrom(o: State): Boolean = buttons != o.buttons ||
             listOf(lx to o.lx, ly to o.ly, rx to o.rx, ry to o.ry).any { (a, b) -> Math.abs(a - b) > 0.08f || Math.abs(a) > 0.15f } ||
             Math.abs(lt - o.lt) > 0.01f || Math.abs(rt - o.rt) > 0.01f
@@ -22,15 +16,12 @@ internal class XboxNativePad {
     @Volatile private var lx = 0f; @Volatile private var ly = 0f
     @Volatile private var rx = 0f; @Volatile private var ry = 0f
     @Volatile private var lt = 0f; @Volatile private var rt = 0f
-    /** Called after any change (instant controller input). */
     @Volatile var onChanged: (() -> Unit)? = null
 
-    /** Buttons pressed on behalf of the app (the menu's Xbox button), OR-ed in. */
     @Volatile var overrideButtons = 0
 
     fun snapshot() = State(buttons or hatButtons or overrideButtons, lx, ly, rx, ry, lt, rt)
 
-    /** True when the event was a controller button this pad tracks. */
     fun onKey(event: KeyEvent): Boolean {
         val bit = when (event.keyCode) {
             KeyEvent.KEYCODE_BUTTON_A -> 16
@@ -47,7 +38,6 @@ internal class XboxNativePad {
             KeyEvent.KEYCODE_BUTTON_THUMBR -> 32768
             KeyEvent.KEYCODE_BUTTON_START -> 4
             KeyEvent.KEYCODE_BUTTON_SELECT -> 8
-            // Digital triggers on pads without analog axes.
             KeyEvent.KEYCODE_BUTTON_L2 -> { lt = if (event.action == KeyEvent.ACTION_DOWN) 1f else 0f; onChanged?.invoke(); return true }
             KeyEvent.KEYCODE_BUTTON_R2 -> { rt = if (event.action == KeyEvent.ACTION_DOWN) 1f else 0f; onChanged?.invoke(); return true }
             else -> return false
@@ -57,7 +47,6 @@ internal class XboxNativePad {
         return true
     }
 
-    /** True when the event came from a joystick (sticks, triggers, hat). */
     fun onMotion(event: MotionEvent): Boolean {
         if (event.source and InputDevice.SOURCE_JOYSTICK != InputDevice.SOURCE_JOYSTICK || event.action != MotionEvent.ACTION_MOVE) return false
         val device = event.device

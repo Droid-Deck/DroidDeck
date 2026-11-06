@@ -27,11 +27,6 @@ import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 
-/**
- * Microsoft's web player (xbox.com/play) in its own process and WebView data directory: the store sign-in
- * clears its own web data after each attempt, so the player keeps a separate Microsoft session. Signing out of
- * the store clears it ([clearWebSignIn]).
- */
 class XboxCloudActivity : ComponentActivity() {
     private var web: WebView? = null
     private var custom: View? = null
@@ -61,7 +56,6 @@ class XboxCloudActivity : ComponentActivity() {
             loadWithOverviewMode = true
             userAgentString = chromeUserAgent(userAgentString)
         }
-        // No "X-Requested-With: <package>" header: it marks the page as embedded in an app.
         if (WebViewFeature.isFeatureSupported(WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST))
             WebSettingsCompat.setRequestedWithHeaderOriginAllowList(view.settings, emptySet())
         Log.i(TAG, "UA ${view.settings.userAgentString}")
@@ -107,7 +101,6 @@ class XboxCloudActivity : ComponentActivity() {
         intent.getStringExtra("url")?.takeIf { url -> runCatching { java.net.URI(url) }.getOrNull()?.let {
             it.scheme == "https" && it.host == "www.xbox.com" && it.userInfo == null && it.port == -1 } == true } ?: START_URL
 
-    // Without the WebView markers the page treats this as Chrome for Android.
     private fun chromeUserAgent(default: String): String =
         default.replace("; wv)", ")").replace(Regex(" Version/\\d+(\\.\\d+)*"), "")
 
@@ -124,7 +117,6 @@ class XboxCloudActivity : ComponentActivity() {
         if (hasFocus) hideBars()
     }
 
-    // A controller's unused B arrives as BACK; ask before leaving so a stray press never ends a stream.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
             val fromController = event.source and InputDevice.SOURCE_GAMEPAD == InputDevice.SOURCE_GAMEPAD ||

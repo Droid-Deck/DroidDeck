@@ -11,6 +11,7 @@ class PointerGestures {
         fun onScroll(dx: Float, dy: Float) {}
         fun onScrollEnd() {}
         fun onZoom(steps: Int) {}
+        fun onThreeFingerTap(): Boolean = false
     }
 
     companion object {

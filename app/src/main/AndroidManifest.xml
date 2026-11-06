@@ -3,11 +3,20 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <queries>
+        <package android:name="cn.nubia.gamelauncher" />
         <intent>
             <action android:name="android.content.pm.action.CONFIRM_INSTALL" />
         </intent>
         <intent>
             <action android:name="android.content.pm.action.CONFIRM_PERMISSIONS" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.SECONDARY_HOME" />
         </intent>
     </queries>
 
@@ -60,6 +69,19 @@
         <meta-data android:name="android.game_mode_config" android:resource="@xml/game_mode_config" />
         <service android:name=".glasses.LumaRgbCaptureService" android:exported="false"
             android:process=":rgb_diagnostic" />
+        <service android:name=".wallpaper.SteamWallService"
+            android:label="@string/steam_wall_label"
+            android:permission="android.permission.BIND_WALLPAPER"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data android:name="android.service.wallpaper" android:resource="@xml/steam_wall_wallpaper" />
+        </service>
+        <activity android:name=".wallpaper.WallpaperSettingsActivity"
+            android:label="@string/steam_wall_label"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:exported="true" />
         <service android:name=".input.HomeButtonService"
             android:label="@string/integration_shortcuts_service"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
@@ -68,6 +90,14 @@
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/home_button_service" />
+        </service>
+        <service android:name=".session.BottomNotificationListener"
+            android:label="@string/bottom_notifications_listener"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
         </service>
         <receiver android:name=".core.ShortcutsListingReceiver" android:exported="false"
             android:process=":shortcuts_sync">
@@ -105,6 +135,7 @@
             android:exported="true"
             android:screenOrientation="user"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboard|keyboardHidden|navigation">
+            <layout android:defaultWidth="1024dp" android:defaultHeight="640dp" />
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -184,6 +215,13 @@
             android:screenOrientation="sensorLandscape"
             android:resizeableActivity="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density" />
+
+        <activity
+            android:name=".sync.SyncthingWebActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
+            android:theme="@style/AppTheme" />
 
         <activity
             android:name=".files.FileManagerActivity"
@@ -284,6 +322,11 @@
             android:name=".session.SessionService"
             android:exported="false"
             android:stopWithTask="false" />
+        <!-- The compositor's native state is one per process, so the bottom-screen desktop's compositor runs in its own. -->
+        <service
+            android:name=".wayland.BottomDesktopCompositorService"
+            android:process=":bottom_desktop"
+            android:exported="false" />
         <service
             android:name=".runtime.RuntimeInstallService"
             android:exported="false" />
@@ -292,6 +335,10 @@
             android:exported="false" />
         <service
             android:name=".stores.download.StoreDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <service
+            android:name=".sync.SyncthingService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
         <provider

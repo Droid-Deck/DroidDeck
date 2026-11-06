@@ -130,6 +130,7 @@ import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.CatalogItem
+import com.droiddeck.launcher.stores.gamejolt.GameJoltBrowseState
 import com.droiddeck.launcher.stores.itch.ItchBrowseState
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreTab
@@ -389,7 +390,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                     }
                 }
             },
-        ) { key -> GameDetail(key, s, a, heroFocus, backLabel, hopRail = null, onBack = { closeGame() }) }
+        ) { key -> GameDetail(key, s, a, heroFocus, backLabel, hopRail = null, onBack = { closeGame() }, inStore = true) }
     }
     FlightLayer(hostAt)
     StoresMotion.step?.let { ask ->
@@ -808,14 +809,6 @@ private fun SignInButton(store: Store, large: Boolean = false) {
     }
 }
 
-@Composable
-internal fun StoreLogo(store: Store, size: Dp) {
-    val c = sourceColours(store.id)
-    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(size).clip(Shape14).background(c.fill).border(1.dp, c.dot.copy(alpha = 0.5f), Shape14)) {
-        Text(store.shortLabel, fontSize = (size.value / 4).sp, fontWeight = FontWeight.Black, color = c.ink, maxLines = 1)
-    }
-}
-
 
 @Composable
 private fun Storefront(
@@ -835,8 +828,10 @@ private fun Storefront(
     fun shown(i: CatalogItem) = s.storesShowMature || !i.mature || i.accessible
     fun shelf(l: List<CatalogItem>?) = l?.filter(::shown)
     LaunchedEffect(store, q) { StoresState.search(ctx, store, q) }
-    val browsing = store == Store.ITCH && q.isEmpty() && ItchBrowseState.active
-    val browseItems = if (browsing) ItchBrowseState.items else emptyList()
+    val gameJolt = store == Store.GAMEJOLT
+    LaunchedEffect(gameJolt, s.storesShowMature) { if (gameJolt) GameJoltBrowseState.sync(ctx, s.storesShowMature) }
+    val browsing = q.isEmpty() && ((store == Store.ITCH && ItchBrowseState.active) || gameJolt)
+    val browseItems = if (!browsing) emptyList() else if (gameJolt) GameJoltBrowseState.items else ItchBrowseState.items
     val catalog = store == Store.BATTLENET && q.isEmpty()
     val visible = remember(found, library, shelves, q, s.storesShowMature, browsing, browseItems, catalog) {
         if (catalog) shelf(shelves?.trending) ?: emptyList()
@@ -848,8 +843,10 @@ private fun Storefront(
             .filter { (it.title.lowercase().contains(q) || it.key in foundKeys) && shown(it) }
     }
     val nothing = stringResource(when {
-        browsing && ItchBrowseState.loading -> R.string.stores_shelves_loading
-        browsing && ItchBrowseState.failed -> R.string.stores_itch_browse_failed
+        browsing && gameJolt && GameJoltBrowseState.loading -> R.string.stores_shelves_loading
+        browsing && gameJolt && GameJoltBrowseState.failed -> R.string.stores_gamejolt_browse_failed
+        browsing && !gameJolt && ItchBrowseState.loading -> R.string.stores_shelves_loading
+        browsing && !gameJolt && ItchBrowseState.failed -> R.string.stores_itch_browse_failed
         catalog && shelves == null -> R.string.stores_shelves_loading
         else -> R.string.stores_nothing_matches
     })
@@ -862,11 +859,11 @@ private fun Storefront(
     val focus = LocalFrontFocus.current
     val scope = rememberCoroutineScope()
     val searching = q.isNotEmpty() || browsing || catalog
-    // A bar only while there is nothing else to look at: no shelves yet and no search results.
     val bareTab = if (searching) visible.isEmpty() else shelves == null || shelves.isEmpty
     val barLine = StoresState.status[store]?.takeIf { bareTab && syncCount(it) != null }
     val itchBar = store == Store.ITCH && q.isEmpty()
-    val headerItems = 2 + (if (barLine != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0) + (if (itchBar) 1 else 0) + (if (catalog) 1 else 0)
+    val gameJoltBar = gameJolt && q.isEmpty()
+    val headerItems = 2 + (if (barLine != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0) + (if (itchBar || gameJoltBar) 1 else 0) + (if (catalog) 1 else 0)
     val card: @Composable (CatalogItem) -> Unit = { item ->
         val first = if (searching) item.key == visible.firstOrNull()?.key else !firstPlaced
         firstPlaced = true
@@ -915,12 +912,14 @@ private fun Storefront(
         barLine?.let { line -> item(key = "sync", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { SyncBar(line) } } }
         StoresState.problems[store]?.let { line -> item(key = "problem", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(line) } } } }
         if (itchBar) item(key = "itch-browse-bar", span = { GridItemSpan(maxLineSpan) }) { ItchBrowseBar() }
+        if (gameJoltBar) item(key = "gamejolt-browse-bar", span = { GridItemSpan(maxLineSpan) }) { GameJoltBrowseBar(s.storesShowMature) }
         if (catalog) item(key = "catalog-label", span = { GridItemSpan(maxLineSpan) }) {
             Box(Modifier.padding(top = 10.dp)) { SectionLabel(stringResource(R.string.bnet_store)) }
         }
         if (searching) {
             storeGrid(visible, nothing, card)
-            if (browsing) item(key = "itch-more", span = { GridItemSpan(maxLineSpan) }) { ItchLoadMore() }
+            if (browsing && gameJolt) item(key = "gamejolt-more", span = { GridItemSpan(maxLineSpan) }) { GameJoltLoadMore() }
+            else if (browsing) item(key = "itch-more", span = { GridItemSpan(maxLineSpan) }) { ItchLoadMore() }
         } else item(key = "shelves", span = { GridItemSpan(maxLineSpan) }) {
             Column {
                 Shelf(stringResource(R.string.stores_shelf_new), shelf(shelves?.whatsNew), card)
@@ -1156,6 +1155,7 @@ internal fun storePalette(base: Palette, store: Store?): Palette {
         Store.AMAZON -> Color(0xFFFF9900) to Color(0xFFE07800)
         Store.XBOX -> Color(0xFF70C850) to Color(0xFF107C10)
         Store.ITCH -> Color(0xFFFF5C5C) to Color(0xFFD93B3B)
+        Store.GAMEJOLT -> Color(0xFFCCFF00) to Color(0xFFA3CC00)
         Store.BATTLENET -> Color(0xFF148EFF) to Color(0xFF0B6BD3)
         null -> return base
     }
@@ -1421,15 +1421,6 @@ internal fun ConfirmButton(label: String, confirm: String, compact: Boolean = fa
     var armed by remember { mutableStateOf(false) }
     LaunchedEffect(armed) { if (armed) { kotlinx.coroutines.delay(4000); armed = false } }
     SecondaryButton(if (armed) confirm else label, compact = compact) { if (!armed) armed = true else { armed = false; onConfirm() } }
-}
-
-@Composable
-internal fun stageLabel(stage: DownloadStage): String = when (stage) {
-    DownloadStage.MANIFEST -> stringResource(R.string.stores_stage_manifest)
-    DownloadStage.DOWNLOAD -> stringResource(R.string.stores_stage_download)
-    DownloadStage.VERIFY -> stringResource(R.string.stores_stage_verify)
-    DownloadStage.INSTALL -> stringResource(R.string.stores_stage_install)
-    DownloadStage.DONE -> stringResource(R.string.stores_stage_done)
 }
 
 internal fun openStoreUrl(ctx: android.content.Context, item: CatalogItem) = openUrl(ctx, item.storeUrl)

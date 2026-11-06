@@ -154,6 +154,16 @@ static void on_client_destroyed(struct wl_listener *l, void *data) {
     free(ci);
 }
 
+/* libwayland's own reasons for dropping a client (a failed read or flush, an invalid object, a
+ * malformed request) go through wl_log, which on Android writes to a closed stderr. */
+static void wl_log_to_session(const char *fmt, va_list ap) {
+    char line[512];
+    vsnprintf(line, sizeof(line), fmt, ap);
+    size_t n = strlen(line);
+    while (n && (line[n - 1] == '\n' || line[n - 1] == '\r')) line[--n] = 0;
+    droiddeck_log("program", "libwayland: %s", line);
+}
+
 static void on_client_created(struct wl_listener *l, void *data) {
     struct wl_client *client = data;
     struct client_info *ci = calloc(1, sizeof(*ci));
@@ -289,7 +299,6 @@ static struct wl_event_source *g_fallback_timer;
 static int g_fallback_armed;
 
 volatile int g_fps_limit;
-/* fps limit -1 (phone output, not mirrored): replaced buffers go back to the client at once instead of once per refresh. */
 volatile int g_release_unpaced;
 
 volatile int g_hide_shell;
@@ -350,6 +359,62 @@ static void perf_note_release(int64_t since_ns) {
 }
 
 
+/* Completion-unknown is terminal for externally owned DMA-BUF contents too.
+ * Keeping a VkImage alone cannot stop the client from overwriting its backing
+ * memory after wl_buffer.release. All paths (including cursors and idle roles)
+ * use this gate; copied SHM buffers retain their normal release behaviour. */
+static struct dmabuf_buffer *get_dmabuf(struct wl_resource *buffer);
+static int buffer_release_blocked(struct wl_resource *buffer) {
+    return vkp_completion_unknown() && get_dmabuf(buffer) != NULL;
+}
+/* Buffer tracing on a GPU that is not an Adreno (no KGSL node): every attach and release of the
+ * first 400 buffer events, by wl_buffer id and the line that sent it, and any release of a buffer
+ * already released and not attached again since (gamescope: "Compositor released us but we were
+ * not acquired"). Off on an Adreno. */
+static int g_buf_trace = -1;
+static int g_buf_trace_left = 400;
+static uint32_t g_released_ids[128];
+static int buf_trace_on(void) {
+    if (g_buf_trace < 0) g_buf_trace = access("/dev/kgsl-3d0", F_OK) != 0;
+    return g_buf_trace;
+}
+static void buf_trace_attach(struct wl_resource *buffer) {
+    if (!buffer || !buf_trace_on()) return;
+    uint32_t id = wl_resource_get_id(buffer);
+    for (int i = 0; i < 128; i++) if (g_released_ids[i] == id) g_released_ids[i] = 0;
+    if (g_buf_trace_left > 0) { g_buf_trace_left--; droiddeck_log("buffer", "attach id %u", id); }
+}
+static void buf_trace_release(struct wl_resource *buffer, int line) {
+    if (!buffer || !buf_trace_on()) return;
+    uint32_t id = wl_resource_get_id(buffer);
+    int twice = 0, slot = -1;
+    for (int i = 0; i < 128; i++) {
+        if (g_released_ids[i] == id) twice = 1;
+        if (slot < 0 && g_released_ids[i] == 0) slot = i;
+    }
+    if (twice) droiddeck_log("buffer", "DOUBLE release id %u (line %d): released again without an attach", id, line);
+    else if (slot >= 0) g_released_ids[slot] = id;
+    if (g_buf_trace_left > 0) { g_buf_trace_left--; droiddeck_log("buffer", "release id %u (line %d)", id, line); }
+}
+
+#define send_buffer_release(b) send_buffer_release_at((b), __LINE__)
+static void send_buffer_release_at(struct wl_resource *buffer, int line) {
+    if (!buffer_release_blocked(buffer)) { buf_trace_release(buffer, line); wl_buffer_send_release(buffer); }
+}
+
+/* Whether a surface other than `except` is showing this buffer right now. gamescope's Wayland
+ * backend moves one buffer between its planes (the game's frame goes from the window to a
+ * subsurface above a black backing while a Steam notification is up): releasing it when the first
+ * surface lets go handed gamescope a buffer still on screen ("Compositor released us but we were
+ * not acquired"). Only the last surface to let go releases it. */
+static int buffer_shown_elsewhere(struct wl_resource *buffer, const struct surface *except) {
+    struct surface *o;
+    if (!buffer) return 0;
+    wl_list_for_each(o, &g_surfaces, link)
+        if (o != except && o->dmabuf == buffer) return 1;
+    return 0;
+}
+
 static void pending_release_free(struct pending_release *pr) {
     if (pr->surface && pr->surface->releases_pending > 0) pr->surface->releases_pending--;
     wl_list_remove(&pr->destroy.link);
@@ -373,7 +438,8 @@ static void arm_release_timer(void) {
     int64_t earliest = 0;
     if (g_release_timer_fd < 0) return;
     wl_list_for_each(pr, &g_pending_releases, link)
-        if (!earliest || pr->at_ns < earliest) earliest = pr->at_ns;
+        if (!buffer_release_blocked(pr->buffer) && (!earliest || pr->at_ns < earliest))
+            earliest = pr->at_ns;
     struct itimerspec its = {0};
     if (earliest) { its.it_value.tv_sec = earliest / 1000000000LL; its.it_value.tv_nsec = earliest % 1000000000LL; }
     timerfd_settime(g_release_timer_fd, TFD_TIMER_ABSTIME, &its, NULL);
@@ -385,8 +451,13 @@ static int on_release_timer(int fd, uint32_t mask, void *data) {
     int64_t now = now_ns() + 300000;
     if (read(fd, &expirations, sizeof(expirations)) < 0 && errno != EAGAIN) return 0;
     wl_list_for_each_safe(pr, tmp, &g_pending_releases, link) {
-        if (pr->at_ns <= now) {
-            wl_buffer_send_release(pr->buffer);
+        if (pr->at_ns <= now && !buffer_release_blocked(pr->buffer)) {
+            /* Attached again since (to its surface or another): that surface releases it later. */
+            if (buffer_shown_elsewhere(pr->buffer, NULL)) {
+                pending_release_free(pr);
+                continue;
+            }
+            send_buffer_release(pr->buffer);
             perf_note_release(pr->since_ns);
             pending_release_free(pr);
         }
@@ -397,9 +468,12 @@ static int on_release_timer(int fd, uint32_t mask, void *data) {
 }
 
 static void release_buffer(struct surface *s, struct wl_resource *buffer, int64_t since_ns) {
+    /* No allocation or immediate-release fallback is allowed for a quarantined
+     * DMA-BUF. Existing queued releases stay held; their timer is disarmed. */
+    if (buffer_release_blocked(buffer)) return;
     const int limit = g_fps_limit;
     const int64_t interval = limit > 0 ? 1000000000LL / limit : g_refresh_ns;
-    if (g_release_unpaced || interval <= 0 || g_release_timer_fd < 0) { wl_buffer_send_release(buffer); perf_note_release(since_ns); return; }
+    if (g_release_unpaced || interval <= 0 || g_release_timer_fd < 0) { send_buffer_release(buffer); perf_note_release(since_ns); return; }
     int64_t now = now_ns();
     int64_t at = s->next_release_ns + interval;
     int64_t latest = now + interval * (int64_t)(s->releases_pending + 1);
@@ -407,7 +481,7 @@ static void release_buffer(struct surface *s, struct wl_resource *buffer, int64_
     if (at > latest) at = latest;
     s->next_release_ns = at;
     struct pending_release *pr = calloc(1, sizeof(*pr));
-    if (!pr) { wl_buffer_send_release(buffer); perf_note_release(since_ns); return; }
+    if (!pr) { send_buffer_release(buffer); perf_note_release(since_ns); return; }
     pr->buffer = buffer;
     pr->surface = s;
     pr->at_ns = at;
@@ -445,6 +519,12 @@ static uint32_t g_cursor_rb[CURSOR_MAX_PX];
 static int g_cursor_w, g_cursor_h;
 static int g_cursor_hidden = 1;
 static int g_cursor_serial;
+
+#define CURSOR_MAX_DRAWS 2
+static struct vkp_image *g_cursor_img;
+static int g_cursor_img_w, g_cursor_img_h, g_cursor_img_serial = -1;
+static atomic_int g_cursor_composite;
+static atomic_int g_cursor_composite_want;
 
 static void cursor_publish_shown(void) {
     pthread_mutex_lock(&g_cursor_lock);
@@ -518,7 +598,10 @@ static void constraints_focus_entered(struct wl_resource *target, struct wl_clie
 
 
 void dmabuf_buffer_unref(struct dmabuf_buffer *b) {
-    if (!b || --b->refs > 0) return;
+    /* Surface/client destruction must not close the backing FDs or free the
+     * imported-buffer record while a GPU read may still be pending. Retain the
+     * reference without allocating a quarantine node; process exit reclaims it. */
+    if (!b || vkp_completion_unknown() || --b->refs > 0) return;
     vkp_image_destroy(b->img);
     for (int i = 0; i < b->n_planes; i++)
         if (b->fd[i] >= 0) close(b->fd[i]);
@@ -617,9 +700,10 @@ static void unmap_toplevel(struct surface *s) {
 static void drop_dmabuf(struct surface *s, int paced) {
     if (s->dmabuf) {
         wl_list_remove(&s->dmabuf_destroy.link);
-        if (!ahb_swapchain_defer_release(s->dmabuf_buf, s->dmabuf, s, paced)) {
+        if (buffer_shown_elsewhere(s->dmabuf, s)) {
+        } else if (!ahb_swapchain_defer_release(s->dmabuf_buf, s->dmabuf, s, paced)) {
             if (paced) release_buffer(s, s->dmabuf, now_ns());
-            else wl_buffer_send_release(s->dmabuf);
+            else send_buffer_release(s->dmabuf);
         }
         s->dmabuf = NULL;
     }
@@ -728,7 +812,7 @@ static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_res
         vkp_image_upload_shm(s->shm_img, wl_shm_buffer_get_data(shm), stride);
         wl_shm_buffer_end_access(shm);
     }
-    wl_buffer_send_release(buffer);
+    send_buffer_release(buffer);
     s->buf_w = w;
     s->buf_h = h;
     s->buf_alpha = wl_shm_buffer_get_format(shm) == WL_SHM_FORMAT_ARGB8888;
@@ -772,7 +856,7 @@ static void take_pixel(struct surface *s, const uint8_t bgra[4], struct wl_resou
     }
     if (!s->shm_img) s->shm_img = vkp_image_create_shm(1, 1);
     if (s->shm_img) vkp_image_upload_shm(s->shm_img, bgra, 4);
-    wl_buffer_send_release(buffer);
+    send_buffer_release(buffer);
     s->buf_w = 1;
     s->buf_h = 1;
     s->buf_alpha = bgra[3] != 0xff;
@@ -875,8 +959,9 @@ void **droiddeck_dmabuf_ahb_slot(struct dmabuf_buffer *b) { return &b->ahb_state
 void droiddeck_dmabuf_ref(struct dmabuf_buffer *b) { b->refs++; }
 void droiddeck_dmabuf_unref(struct dmabuf_buffer *b) { dmabuf_buffer_unref(b); }
 void droiddeck_release_buffer(struct surface *s, struct wl_resource *buffer, int paced, int64_t since_ns) {
+    if (buffer_release_blocked(buffer)) return;
     if (paced && s) release_buffer(s, buffer, since_ns);
-    else { wl_buffer_send_release(buffer); perf_note_release(since_ns); }
+    else { send_buffer_release(buffer); perf_note_release(since_ns); }
 }
 void droiddeck_surface_describe(const struct surface *s, char *out, size_t size) { describe(s, out, size); }
 const struct droiddeck_color *droiddeck_surface_color(const struct surface *s) {
@@ -1096,7 +1181,7 @@ static void surface_hold_idle(struct surface *s, struct wl_resource *buffer) {
     struct wl_shm_buffer *shm = db ? NULL : wl_shm_buffer_get(buffer);
     int64_t px = db ? (int64_t)db->width * db->height
                : shm ? (int64_t)wl_shm_buffer_get_width(shm) * wl_shm_buffer_get_height(shm) : 0;
-    if (px <= 0 || px > CURSOR_MAX_PX) { wl_buffer_send_release(buffer); return; }
+    if (px <= 0 || px > CURSOR_MAX_PX) { send_buffer_release(buffer); return; }
     s->idle_buffer = buffer;
     s->idle_buffer_destroy.notify = on_idle_buffer_destroyed;
     wl_resource_add_destroy_listener(buffer, &s->idle_buffer_destroy);
@@ -1114,7 +1199,7 @@ static struct wl_resource *surface_take_idle(struct surface *s) {
 static void surface_drop_idle(struct surface *s) {
     surface_forget_idle_px(s);
     struct wl_resource *buffer = surface_take_idle(s);
-    if (buffer) wl_buffer_send_release(buffer);
+    if (buffer) send_buffer_release(buffer);
 }
 
 static void surface_commit(struct wl_client *c, struct wl_resource *r) {
@@ -1167,11 +1252,12 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
                 cursor_publish_hidden();
             } else {
                 cursor_publish_buffer(s, buffer);
-                wl_buffer_send_release(buffer);
+                send_buffer_release(buffer);
             }
         } else if (s->role == ROLE_NONE) {
             if (buffer) surface_hold_idle(s, buffer);
         } else if (db) {
+            buf_trace_attach(buffer);
             take_dmabuf(s, db, buffer);
         } else if (shm) {
             drop_dmabuf(s, 1);
@@ -1182,7 +1268,7 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
         } else {
             drop_dmabuf(s, 1);
             s->has_content = 0;
-            if (buffer) wl_buffer_send_release(buffer);
+            if (buffer) send_buffer_release(buffer);
         }
     }
 
@@ -1736,6 +1822,8 @@ static void bind_output(struct wl_client *c, void *data, uint32_t ver, uint32_t 
 
 struct draw_list { struct vkp_draw *d; int n, cap; };
 
+static int add_cursor(struct draw_list *dl, int scene_w);
+
 static struct vkp_image *surface_image(struct surface *s) {
     if (!s->has_content) return NULL;
     if (s->shm_img) return s->shm_img;
@@ -1909,7 +1997,7 @@ static int hdr_plan(const struct draw_list *dl, int w, int h, int fx_on, int fra
     }
     if (un && g_zero_copy) { hs->color = droiddeck_color_of(un->resource); hs->who = un; return 3; }
     hs->hf.tonemap = !droiddeck_color_output();
-    if (dl->n <= 0 || !(hs->is_hdr = calloc((size_t)dl->n, 1))) return 0;
+    if (dl->n <= 0 || !(hs->is_hdr = calloc((size_t)dl->n + CURSOR_MAX_DRAWS, 1))) return 0;
     for (int i = 0; i < dl->n; i++) {
         struct surface *s = surface_for_image(dl->d[i].img);
         if (!is_hdr_surface(s)) continue;
@@ -2011,12 +2099,6 @@ static void hdr_count_copied(const struct draw_list *dl, const char *reason) {
     }
 }
 
-/*
- * Stream mode (the Xbox Cloud Gaming native player, in its own process): no Wayland clients, the scene is one
- * picture handed over as AHardwareBuffers (ImageReader images of the decoded video). Each buffer is imported once
- * and kept while the reader cycles through its few buffers; the newest frame is the scene, so the screen effects
- * and frame generation apply to it as to a game.
- */
 #define STREAM_SLOTS 6
 static pthread_mutex_t g_stream_lock = PTHREAD_MUTEX_INITIALIZER;
 static atomic_int g_stream_on;
@@ -2036,7 +2118,6 @@ static void stream_forget_all(void) {
     g_stream_img = NULL;
 }
 
-/* Compositor thread: the newest handed-over buffer becomes the scene picture. */
 static void stream_take(void) {
     pthread_mutex_lock(&g_stream_lock);
     AHardwareBuffer *ahb = g_stream_pending;
@@ -2050,7 +2131,7 @@ static void stream_take(void) {
         if (g_stream_slots[i].used < g_stream_slots[oldest].used) oldest = i;
     }
     if (slot >= 0) {
-        AHardwareBuffer_release(ahb); /* the slot keeps its own reference */
+        AHardwareBuffer_release(ahb);
     } else {
         struct vkp_image *img = vkp_image_from_ahb(ahb);
         if (!img) {
@@ -2062,7 +2143,7 @@ static void stream_take(void) {
         droiddeck_log("stream", "decoded frame buffer imported (%dx%d)", vkp_image_width(img), vkp_image_height(img));
         slot = oldest;
         if (g_stream_slots[slot].img) {
-            vkp_wait_idle(); /* the GPU may still read the picture being replaced */
+            vkp_wait_idle();
             if (g_stream_img == g_stream_slots[slot].img) g_stream_img = NULL;
             vkp_image_destroy(g_stream_slots[slot].img);
         }
@@ -2108,7 +2189,6 @@ void droiddeck_stream_set(int on) {
     (void)n;
 }
 
-/* Any thread: hands over one decoded frame (acquires its own reference). */
 void droiddeck_stream_frame(AHardwareBuffer *ahb) {
     if (!ahb || !atomic_load(&g_stream_on) || g_input_pipe[1] < 0) return;
     AHardwareBuffer_acquire(ahb);
@@ -2116,7 +2196,7 @@ void droiddeck_stream_frame(AHardwareBuffer *ahb) {
     AHardwareBuffer *dropped = g_stream_pending;
     g_stream_pending = ahb;
     pthread_mutex_unlock(&g_stream_lock);
-    if (dropped) { AHardwareBuffer_release(dropped); return; } /* a wake-up is already queued */
+    if (dropped) { AHardwareBuffer_release(dropped); return; }
     struct input_msg m = { 20, 0, 0, 0, 0 };
     ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
     (void)n;
@@ -2185,6 +2265,28 @@ static void render_scene(void) {
         hdr_note_precedence(hdr_route == 3 ? hs.who : NULL, fx_on, framegen);
     }
     if (hdr_route == 3) { fx_on = 0; framegen = 0; }
+    struct surface *ahb_only = ahb_layer_only_candidate(w, h);
+    struct surface *layer_only = ahb_only ? ahb_only : hdr_unimported_fullscreen(&dl, w, h);
+    const int cursor_on = hdr_route == 3 || layer_only ? 0 : add_cursor(&dl, w);
+    static int cursor_layer_said;
+    if (layer_only && atomic_load(&g_cursor_composite) && !cursor_layer_said) {
+        cursor_layer_said = 1;
+        droiddeck_log("cursor", "the pointer stays out of the picture: the game's frames cannot be imported, "
+                      "so the game is shown on its own display layer");
+    } else if (!layer_only) {
+        cursor_layer_said = 0;
+    }
+    static int cursor_hdr_said;
+    if (cursor_on && hdr_route == 0 && hs.n_hdr > 0 && !cardboard) {
+        hdr_route = 2;
+        if (!cursor_hdr_said) {
+            cursor_hdr_said = 1;
+            droiddeck_log("cursor", "the pointer needs a composed scene: the HDR picture goes through the screen "
+                          "swapchain instead of the game's own display layer");
+        }
+    } else {
+        cursor_hdr_said = 0;
+    }
     if (hdr_route == 1) {
         static int fell_back;
         vkp_apply_window_request();
@@ -2210,21 +2312,19 @@ static void render_scene(void) {
         else if (rendered && how == 2) droiddeck_color_frame_shown(hs.color, DROIDDECK_HDR_TONEMAPPED, 0);
         else if (rendered) hdr_copy = "the HDR composition pass is unavailable on this driver";
     }
-    if (hdr_route == 0 && vkp_quest_layer_presentation() && !framegen && !cardboard &&
-        !ahb_layer_only_candidate(w, h)) {
-        /* The complete SDR scene stays on one display layer. Do not hide/re-show GAME
-         * on each desktop frame just because it is not a single fullscreen window. */
+    if (hdr_route == 0 && vkp_quest_layer_presentation() && !framegen && !cardboard && !cursor_on &&
+        !ahb_only) {
         rendered = vkp_render(w, h, dl.d, dl.n) == 0;
     } else if (hdr_route == 0 || hdr_route == 3) {
     const int pass_on = fx_on || framegen;
-    int li = (g_zero_copy && !framegen && !cardboard) ? layer_candidate(&dl, w, h) : -1;
+    int li = (g_zero_copy && !framegen && !cardboard && !cursor_on) ? layer_candidate(&dl, w, h) : -1;
     int over = li >= 0 ? dl.n - 1 - li : 0;
     const int fx_blocks = (li >= 0 && fx_on && over > 0);
     if (fx_blocks) { li = -1; over = 0; }
     const int ov_blocks = (li >= 0 && over > 0 && !fx_blocks && !sc_layer_overlay_affordable());
     if (ov_blocks) { li = -1; over = 0; }
     const int blocked = framegen ? 1 : (fx_blocks ? 2 : (ov_blocks ? 3 : 0));
-    if (g_zero_copy && blocked != g_zero_copy_paused) {
+    if (g_zero_copy && !cursor_on && blocked != g_zero_copy_paused) {
         g_zero_copy_paused = blocked;
         if (blocked == 1)
             droiddeck_log("framegen", "zero-copy paused: frame generation needs the compositor pass");
@@ -2237,9 +2337,9 @@ static void render_scene(void) {
             droiddeck_log("effects", "zero-copy resumed: the game is back on its own display layer");
     }
     struct surface *ls = li >= 0 ? surface_for_image(dl.d[li].img) : NULL;
-    if (li < 0) ls = ahb_layer_only_candidate(w, h);
-    if (li < 0 && !ls) ls = hdr_unimported_fullscreen(&dl, w, h);
+    if (li < 0) ls = layer_only;
     if (cardboard) ls = NULL;
+    if (cursor_on) ls = NULL;
     if (ls && pass_on && li < 0 && !g_zero_copy_fx_skip_said) {
         g_zero_copy_fx_skip_said = 1;
         droiddeck_log(framegen ? "framegen" : "effects",
@@ -2322,8 +2422,6 @@ static int on_fallback_timer(void *data) {
     return 0;
 }
 
-/* A new frame is drawn when it arrives instead of at the next screen tick, at most once per refresh,
-   while frames go straight back to the game (no compositor limit), without streaming or frame generation. */
 static int commit_renders_on(void) {
     return g_render_on_commit && g_release_unpaced && !atomic_load(&g_stream_on) && !vkp_framegen_active();
 }
@@ -2382,10 +2480,6 @@ static void on_vsync(int64_t frame_time_ns) {
     if (vkp_effects_sync()) tick_change = 1;
     if (vkp_cardboard_pose_changed()) tick_change = 1;
     if (tick_change) g_dirty = 1;
-    /* A frame that arrived after this refresh was already drawn is left for the next arrival to draw;
-       drawing it here would block that arrival too and keep every frame waiting for the tick. A client
-       that draws again only after its frame callback sends no such arrival: once a held frame is still
-       waiting at the next tick, the tick draws every frame for a second before holding one again. */
     if (g_tick_held && g_dirty) g_hold_missed_ns = now;
     g_tick_held = 0;
     if (!tick_change && commit_renders_on() && g_dirty_since_ns && now - g_dirty_since_ns < g_refresh_ns &&
@@ -2409,6 +2503,7 @@ static void pointer_set_cursor(struct wl_client *c, struct wl_resource *r, uint3
         if (g_cursor_surface) g_cursor_surface->role = ROLE_NONE;
         g_cursor_surface = NULL;
         cursor_publish_hidden();
+        if (atomic_load(&g_cursor_composite)) schedule_render();
         return;
     }
     struct surface *s = wl_resource_get_user_data(surface);
@@ -2416,18 +2511,21 @@ static void pointer_set_cursor(struct wl_client *c, struct wl_resource *r, uint3
     if (s->role != ROLE_NONE && s->role != ROLE_CURSOR) return;
     s->role = ROLE_CURSOR;
     g_cursor_surface = s;
+    pthread_mutex_lock(&g_cursor_lock);
     g_cursor_hx = hx;
     g_cursor_hy = hy;
+    pthread_mutex_unlock(&g_cursor_lock);
     struct wl_resource *buffer = surface_take_idle(s);
     if (buffer) {
         cursor_publish_buffer(s, buffer);
-        wl_buffer_send_release(buffer);
+        send_buffer_release(buffer);
     } else if (g_cursor_shown == s) {
         cursor_publish_shown();
     } else if (s->idle_px) {
         cursor_publish_pixels((const uint8_t *)s->idle_px, s->idle_w, s->idle_h, (size_t)s->idle_w * 4, hx, hy);
         g_cursor_shown = s;
     }
+    if (atomic_load(&g_cursor_composite)) schedule_render();
 }
 static void pointer_release(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
 static const struct wl_pointer_interface pointer_impl = {
@@ -2609,6 +2707,97 @@ static int g_ptr_known;
 static double g_raw_x, g_raw_y;
 static int g_raw_valid;
 
+static int pointer_locked_for_cursor(void) {
+    return g_active_constraint && g_active_constraint->is_lock;
+}
+
+static int cursor_scene_positions(int scene_w, int source, int ptr_x, int hx, int out[2]) {
+    out[0] = ptr_x - hx; out[1] = -1;
+    if (source != CARDBOARD_SOURCE_SBS || scene_w <= 1) return 1;
+    const int half = scene_w / 2;
+    out[1] = (ptr_x < half ? ptr_x + half : ptr_x - half) - hx;
+    return 2;
+}
+
+static int cursor_clip_to_eye(int scene_w, int eye, int x0, int w, int *dx, int *sx, int *dw) {
+    int left = x0, right = x0 + w;
+    if (eye >= 0 && scene_w > 1) {
+        const int half = scene_w / 2;
+        const int band = eye ? half : 0;
+        if (left < band) left = band;
+        if (right > band + half) right = band + half;
+    }
+    if (right <= left) return 0;
+    *dx = left;
+    *sx = left - x0;
+    *dw = right - left;
+    return 1;
+}
+
+static int add_cursor(struct draw_list *dl, int scene_w) {
+    if (!atomic_load(&g_cursor_composite) || !g_ptr_known || pointer_locked_for_cursor()) return 0;
+
+    int hidden, w, h, hx, hy, serial;
+    uint32_t *copy = NULL;
+    pthread_mutex_lock(&g_cursor_lock);
+    hidden = g_cursor_hidden;
+    w = g_cursor_w; h = g_cursor_h;
+    hx = g_cursor_hx; hy = g_cursor_hy;
+    serial = g_cursor_serial;
+    if (!hidden && w > 0 && h > 0 && serial != g_cursor_img_serial) {
+        copy = malloc((size_t)w * (size_t)h * 4);
+        if (copy) memcpy(copy, g_cursor_px, (size_t)w * (size_t)h * 4);
+    }
+    pthread_mutex_unlock(&g_cursor_lock);
+    if (hidden || w <= 0 || h <= 0) return 0;
+
+    if (copy) {
+        if (g_cursor_img && (g_cursor_img_w != w || g_cursor_img_h != h)) {
+            vkp_wait_idle();
+            vkp_image_destroy(g_cursor_img);
+            g_cursor_img = NULL;
+        }
+        if (!g_cursor_img) g_cursor_img = vkp_image_create_shm(w, h);
+        if (g_cursor_img) {
+            g_cursor_img_w = w; g_cursor_img_h = h;
+            vkp_image_upload_shm(g_cursor_img, copy, w * 4);
+            g_cursor_img_serial = serial;
+        }
+        free(copy);
+    }
+    if (!g_cursor_img || g_cursor_img_serial != serial) return 0;
+
+    int xs[CURSOR_MAX_DRAWS];
+    const int source = vkp_cardboard_source();
+    const int ptr_x = (int)(g_ptr_x + 0.5);
+    const int count = cursor_scene_positions(scene_w, source, ptr_x, hx, xs);
+    static int said_w = -1, said_source = -1, said_count = -1;
+    if (scene_w != said_w || source != said_source || count != said_count) {
+        said_w = scene_w; said_source = source; said_count = count;
+        droiddeck_log("cursor", "pointer drawn %d time(s) in a %d wide scene (%s picture)", count, scene_w,
+                      source == CARDBOARD_SOURCE_SBS ? "side-by-side" : "single");
+    }
+    if (dl->n + count > dl->cap) {
+        int cap = dl->cap ? dl->cap : 32;
+        while (cap < dl->n + count) cap *= 2;
+        struct vkp_draw *d = realloc(dl->d, (size_t)cap * sizeof(*d));
+        if (!d) return 0;
+        dl->d = d; dl->cap = cap;
+    }
+    const int sbs = source == CARDBOARD_SOURCE_SBS && scene_w > 1;
+    const int pointer_eye = ptr_x < scene_w / 2 ? 0 : 1;
+    int appended = 0;
+    for (int i = 0; i < count; i++) {
+        int dx, sx, cw;
+        const int eye = sbs ? (i ? 1 - pointer_eye : pointer_eye) : -1;
+        if (!cursor_clip_to_eye(scene_w, eye, xs[i], w, &dx, &sx, &cw)) continue;
+        dl->d[dl->n++] = (struct vkp_draw){g_cursor_img, (float)sx, 0, (float)cw, (float)h,
+                                           dx, (int)(g_ptr_y + 0.5) - hy, cw, h, 1};
+        appended++;
+    }
+    return appended ? 1 : 0;
+}
+
 extern void droiddeck_on_pointer_lock(int locked, int x, int y);
 
 static void sync_lock_notify(void) {
@@ -2617,6 +2806,7 @@ static void sync_lock_notify(void) {
     if (locked == last) return;
     last = locked;
     droiddeck_on_pointer_lock(locked, (int)g_ptr_x, (int)g_ptr_y);
+    if (atomic_load(&g_cursor_composite)) schedule_render();
 }
 
 static void constraint_describe(const struct constraint *k, char *out, size_t size) {
@@ -2696,7 +2886,10 @@ static void constraint_activate(struct constraint *k) {
         constraint_end(g_active_constraint, 1, "replaced by a newer request");
     k->active = 1;
     g_active_constraint = k;
+    const double was_x = g_ptr_x, was_y = g_ptr_y;
     if (!k->is_lock) confine_clamp(k, &g_ptr_x, &g_ptr_y);
+    if ((g_ptr_x != was_x || g_ptr_y != was_y) && atomic_load(&g_cursor_composite))
+        schedule_render();
     constraint_origin(k, &ox, &oy);
     pointer_focus(k->surface->resource, wl_fixed_from_double(g_ptr_x - ox), wl_fixed_from_double(g_ptr_y - oy));
     int focused = 0;
@@ -2755,6 +2948,7 @@ static void constraints_pointer_gone(struct wl_resource *pointer) {
 
 static void constraints_surface_commit(struct surface *s) {
     struct constraint *k;
+    const double was_x = g_ptr_x, was_y = g_ptr_y;
     wl_list_for_each(k, &g_constraints, link) {
         if (k->surface != s) continue;
         if (k->pending_hint_set) {
@@ -2778,6 +2972,8 @@ static void constraints_surface_commit(struct surface *s) {
             if (k->active && !k->is_lock) confine_clamp(k, &g_ptr_x, &g_ptr_y);
         }
     }
+    if ((g_ptr_x != was_x || g_ptr_y != was_y) && atomic_load(&g_cursor_composite))
+        schedule_render();
 }
 
 static void constraint_resource_destroy(struct wl_resource *r) {
@@ -2963,6 +3159,7 @@ static void pointer_input(double x, double y, int relative, uint32_t button, int
         if (k) confine_clamp(k, &x, &y);
         g_ptr_x = x; g_ptr_y = y;
         g_ptr_known = 1;
+        if (atomic_load(&g_cursor_composite)) schedule_render();
         if (k) {
             target = k->surface;
         } else if (g_desktop) {
@@ -2985,10 +3182,6 @@ static void pointer_input(double x, double y, int relative, uint32_t button, int
     uint32_t t = now_ms();
 
     pointer_focus(target->resource, fx, fy);
-    // A button-only input must not replay a cached absolute position. A game
-    // may have warped its cursor since the last motion (before taking lock,
-    // or while releasing it), so that replay can become an unintended pan.
-    // Absolute touch events still carry their position, including on clicks.
     int rel_consumed = send_relative_motion(client, dx, dy);
     if (!(k && k->is_lock) && !(relative && rel_consumed) && (!relative || dx != 0 || dy != 0))
         for_each_pointer_of(client, sp) wl_pointer_send_motion(sp->ptr, t, fx, fy);
@@ -3020,9 +3213,6 @@ static void pointer_button(uint32_t button, int pressed) {
         pointer_input(0, 0, 1, button, pressed);
         return;
     }
-    // Releases also clean up interrupted gestures. Deliver them to the existing
-    // pointer focus without motion or hit-testing: native touch has independent
-    // coordinates, so replaying g_ptr_x/y here can warp the game cursor.
     uint32_t t = now_ms();
     for (int i = 0; i < g_nptrs; i++) {
         struct seat_pointer *sp = &g_ptrs[i];
@@ -3442,6 +3632,7 @@ static int on_input_readable(int fd, uint32_t mask, void *data) {
         case 12: axis_event(m.p1, m.p2, 1); break;
         case 20: stream_take(); break;
         case 21: if (!m.p1) stream_forget_all(); schedule_render(); break;
+        case 22: schedule_render(); break;
         default: deliver_pointer(&m); break;
         }
     }
@@ -3512,6 +3703,17 @@ void droiddeck_wayland_vsync(int64_t frame_time_ns) {
 void droiddeck_wayland_send_scene_input(int type, int a, int b) {
     if (g_input_pipe[1] < 0) return;
     struct input_msg m = { type, a, b, 0, 0 };
+    ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
+    (void)n;
+}
+
+void droiddeck_wayland_set_cursor_composite(int on) {
+    const int want = on ? 1 : 0;
+    if (atomic_exchange(&g_cursor_composite_want, want) == want) return;
+    atomic_store(&g_cursor_composite, want);
+    droiddeck_log("cursor", "compositing the pointer into the output: %s", on ? "on" : "off");
+    if (g_input_pipe[1] < 0) return;
+    struct input_msg m = { 22, on ? 1 : 0, 0, 0, 0 };
     ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
     (void)n;
 }
@@ -3695,8 +3897,6 @@ int droiddeck_wayland_run(void) {
     open_session_log();
 
     if (vkp_ready() != 0) WLOGE("renderer unavailable; clients will connect but nothing is drawn");
-    /* Presentation compatibility is not HDR capability. Set the initial layer mode before
-     * clients bind, including when Desktop is the first session in this app process. */
     if (vkp_quest_layer_presentation() && sc_layer_available()) g_zero_copy = 1;
 
     struct wl_display *display = wl_display_create();
@@ -3717,6 +3917,10 @@ int droiddeck_wayland_run(void) {
         return 1;
     }
     droiddeck_log("display", "Wayland compositor listening on %s/wayland-0", rt ? rt : "?");
+    wl_log_set_handler_server(wl_log_to_session);
+    /* A client that falls behind reading (gamescope at a few fps) must not be dropped for a full
+     * event buffer: libwayland's default is 4 KB per direction. */
+    wl_display_set_default_max_buffer_size(display, 1u << 20);
     wl_display_add_client_created_listener(display, &g_client_created);
 
     wl_global_create(display, &wl_compositor_interface, 6, NULL, bind_compositor);
@@ -3727,6 +3931,7 @@ int droiddeck_wayland_run(void) {
     wl_global_create(display, &wl_output_interface, 4, NULL, bind_output);
     wl_global_create(display, &xdg_wm_base_interface, 1, NULL, bind_xdg_wm_base);
     wl_global_create(display, &zwp_linux_dmabuf_v1_interface, 4, NULL, bind_dmabuf);
+    droiddeck_android_wlegl_init(display);
     wl_global_create(display, &wl_seat_interface, 9, NULL, bind_seat);
     wl_global_create(display, &banner_desktop_v1_interface, 1, NULL, bind_desktop);
     wl_global_create(display, &wp_presentation_interface, 2, NULL, bind_presentation);

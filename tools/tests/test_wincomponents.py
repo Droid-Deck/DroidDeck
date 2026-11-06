@@ -25,6 +25,7 @@ class WinComponentsTest(unittest.TestCase):
 
     def component(self, cid, overrides, files):
         folder = self.store / cid
+        folder.mkdir(parents=True, exist_ok=True)
         for rel, data in files.items():
             path = folder / rel
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -248,7 +249,7 @@ class WinComponentsTest(unittest.TestCase):
         self.component("xaudio2.7", ["xaudio2_7"], {"system32/xaudio2_7.dll": b"xa"})
         self.pick("directmusic", "xaudio2.7")
         names, _ = self.apply()
-        self.assertEqual(MODULE["overrides_value"](names), "dmband=n,b;dsound=n;xaudio2_7=n,b")
+        self.assertEqual(MODULE["overrides_value"](names), "dmband=n,b;dsound=n,b;xaudio2_7=n,b")
         self.assertEqual((self.pfx / "syswow64/dmband.dll").read_bytes(), b"band")
         self.assertEqual(json.loads((self.compat / ".droiddeck-wincomponents.json").read_text())["components"],
                          ["dmband", "dsound", "directmusic", "xaudio2.7"])
@@ -263,6 +264,57 @@ class WinComponentsTest(unittest.TestCase):
         self.assertEqual(MODULE["overrides_value"](["a", "b=n", "a=b", "bad;name", "c=x"]), "b=n;a=b")
 
 
+    def prefix_dll(self, arch, name, data=None, link=None):
+        path = self.pfx / arch / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if link is not None:
+            link.parent.mkdir(parents=True, exist_ok=True)
+            link.write_bytes(b"MZ" + b"\0" * 126)
+            path.symlink_to(link)
+        else:
+            path.write_bytes(data)
+
+    def test_a_native_only_override_without_a_native_dll_falls_back_to_builtin(self):
+        self.component("dotnet48", ["mscoree=n"], {"drive_c/windows/Microsoft.NET/Framework64/clr.dll": b"clr"})
+        dist = Path(self.tmp.name) / "proton/lib/wine"
+        self.prefix_dll("system32", "mscoree.dll", link=dist / "aarch64-windows/mscoree.dll")
+        self.prefix_dll("syswow64", "mscoree.dll", link=dist / "i386-windows/mscoree.dll")
+        self.pick("dotnet48")
+        names, notes = self.apply()
+        self.assertEqual(MODULE["overrides_value"](names), "mscoree=n,b")
+        self.assertIn("mscoree=n has no native DLL in the prefix; using n,b", notes)
+
+    def test_a_wine_placeholder_file_is_not_a_native_dll(self):
+        self.component("dotnet48", ["mscoree=n"], {})
+        for arch in ("system32", "syswow64"):
+            self.prefix_dll(arch, "MSCOREE.DLL", b"MZ" + b"\0" * 62 + b"Wine placeholder DLL")
+        self.pick("dotnet48")
+        names, _ = self.apply()
+        self.assertEqual(MODULE["overrides_value"](names), "mscoree=n,b")
+
+    def test_a_native_only_override_stays_native_when_the_native_dll_is_there(self):
+        self.component("dotnet48", ["mscoree=n"], {})
+        for arch in ("system32", "syswow64"):
+            self.prefix_dll(arch, "mscoree.dll", b"MZ" + b"\0" * 62 + b"Microsoft .NET runtime")
+        self.pick("dotnet48")
+        names, notes = self.apply()
+        self.assertEqual(MODULE["overrides_value"](names), "mscoree=n")
+        self.assertFalse([n for n in notes if "has no native DLL" in n])
+
+    def test_a_native_only_override_with_one_architecture_missing_keeps_the_other_native(self):
+        self.component("physx", ["physxloader=n"], {"system32/PhysXLoader.dll": b"MZ native64"})
+        self.pick("physx")
+        names, _ = self.apply()
+        self.assertEqual(MODULE["overrides_value"](names), "physxloader=n,b")
+
+    def test_other_override_modes_are_left_alone(self):
+        self.component("mix", ["openal32", "xinput1_3=b", "d3dx9_43=n,b"], {})
+        self.pick("mix")
+        names, notes = self.apply()
+        self.assertEqual(MODULE["overrides_value"](names), "openal32=n,b;xinput1_3=b;d3dx9_43=n,b")
+        self.assertFalse([n for n in notes if "has no native DLL" in n])
+
+
 class PendingWaitTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -274,10 +326,13 @@ class PendingWaitTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def install(self, cid):
+    def install(self, cid, revision=0):
         folder = self.store / cid
         folder.mkdir(parents=True, exist_ok=True)
-        (folder / "component.json").write_text(json.dumps({"id": cid, "overrides": []}))
+        metadata = {"id": cid, "overrides": []}
+        if revision is not None:
+            metadata["revision"] = revision
+        (folder / "component.json").write_text(json.dumps(metadata))
 
     def clock(self):
         return len(self.slept) * 0.5
@@ -296,6 +351,8 @@ class PendingWaitTest(unittest.TestCase):
         self.install("d3dx9")
         self.pending.write_text(json.dumps({"games": {"1262580": ["d3dx9"]}}))
         self.assertIsNone(self.wait())
+        self.install("d3dx9", revision=None)
+        self.assertIsNone(self.wait())
         self.assertEqual([], self.slept)
 
     def test_waits_until_the_component_lands(self):
@@ -310,6 +367,21 @@ class PendingWaitTest(unittest.TestCase):
         note = self.wait(timeout=2.0)
         self.assertEqual(4, len(self.slept))
         self.assertEqual("wincomp: 1262580 launched without vcredist2019_dll (not ready)", note)
+
+    def test_an_existing_old_revision_waits_until_the_repair_lands(self):
+        self.install("vcredist2010_dll", revision=0)
+        self.pending.write_text(json.dumps({"games": {"1262580": ["vcredist2010_dll"]},
+                                           "revisions": {"vcredist2010_dll": 1}}))
+        note = self.wait(on_sleep=lambda n: self.install("vcredist2010_dll", revision=1) if n == 3 else None)
+        self.assertEqual(3, len(self.slept))
+        self.assertEqual(note, "wincomp: 1262580 waited 1500ms for vcredist2010_dll")
+
+    def test_an_old_revision_does_not_satisfy_a_pending_repair(self):
+        self.install("vcredist2010_dll", revision=1)
+        self.pending.write_text(json.dumps({"games": {"1262580": ["vcredist2010_dll"]},
+                                           "revisions": {"vcredist2010_dll": 2}}))
+        self.assertEqual(self.wait(timeout=1.0), "wincomp: 1262580 launched without vcredist2010_dll (not ready)")
+        self.assertEqual(2, len(self.slept))
 
     def test_a_damaged_pending_file_is_no_wait(self):
         self.pending.write_text("{not json")

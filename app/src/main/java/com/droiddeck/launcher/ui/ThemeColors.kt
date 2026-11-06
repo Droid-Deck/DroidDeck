@@ -7,9 +7,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-/** Colour maths for the custom gradient theme: hue, saturation and brightness in, a readable palette out. */
 internal object ThemeColors {
-    /** Hue 0..360, saturation and brightness 0..1. */
     class Hsv(val h: Float, val s: Float, val v: Float)
 
     fun toHsv(argb: Int): Hsv {
@@ -32,7 +30,6 @@ internal object ThemeColors {
 
     fun hex(argb: Int): String = "#%06X".format(argb and 0xFFFFFF)
 
-    /** `#RRGGBB`, `RRGGBB` or `#RGB`; null for anything else. */
     fun parseHex(text: String): Int? {
         val digits = text.trim().removePrefix("#")
         if (!digits.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }) return null
@@ -46,7 +43,6 @@ internal object ThemeColors {
 
     private const val MIN_LUMINANCE = 0.10f
 
-    /** The colour, made brighter (then paler, for a deep blue that brightness alone cannot lift) when it is too dark to show on the dark background. */
     fun readable(argb: Int): Int {
         if (Color(argb).luminance() >= MIN_LUMINANCE) return argb or 0xFF000000.toInt()
         val hsv = toHsv(argb)
@@ -64,7 +60,6 @@ internal object ThemeColors {
         return out
     }
 
-    /** A dark neutral tinted with the primary's hue; plain greys stay grey. */
     fun tint(primary: Int, saturation: Float, brightness: Float): Color {
         val hsv = toHsv(primary)
         val strength = (hsv.s / 0.35f).coerceIn(0f, 1f)
@@ -79,7 +74,6 @@ internal object ThemeColors {
         return (max(x, y) + 0.05f) / (min(x, y) + 0.05f)
     }
 
-    /** Dark or white text, whichever reads better on the worse of the two gradient colours. */
     internal fun inkFor(first: Int, second: Int): Color {
         fun worst(ink: Color) = min(contrast(ink, Color(first)), contrast(ink, Color(second)))
         return if (worst(DARK_INK) >= worst(Color.White)) DARK_INK else Color.White
@@ -87,7 +81,6 @@ internal object ThemeColors {
 
     private const val MIN_CONTRAST = 4.5f
 
-    /** The colour nudged just enough, lighter for dark text and darker for white text, to give [ink] a readable contrast on it. */
     private fun fitTo(ink: Color, argb: Int): Int {
         fun short(color: Int) = contrast(ink, Color(color)) < MIN_CONTRAST
         if (!short(argb)) return argb

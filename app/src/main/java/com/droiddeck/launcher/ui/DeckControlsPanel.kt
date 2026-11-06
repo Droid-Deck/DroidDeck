@@ -39,18 +39,23 @@ class DeckControlsPanel(
     private val pad: PadBridge? = null,
     private val portraitDock: Boolean = false,
     private val onMenu: (() -> Unit)? = null,
+    private val onSwap: (() -> Unit)? = null,
 ) : LinearLayout(context) {
     private enum class Tab(val label: Int) { GAMEPAD(R.string.deck_tab_gamepad), GRIPS(R.string.deck_tab_grips), LEFT(R.string.deck_tab_left), RIGHT(R.string.deck_tab_right), BOTH(R.string.deck_tab_both) }
 
     private val content = FrameLayout(context)
     val deckControls = pad == null || SessionState.deckPad
     private val tabViews = HashMap<Tab, TextView>()
-    private val topBar: View by lazy { topBar() }
+    private val topBar: View by lazy { tabsRow() }
 
     init {
         orientation = VERTICAL
         setBackgroundColor(Color.BLACK)
-        addView(topBar, LayoutParams(LayoutParams.MATCH_PARENT, dp(64)))
+        val title = context.getString(if (deckControls) R.string.second_mode_deck_controls else R.string.deck_tab_gamepad)
+        val extras = listOfNotNull(onSwap?.let { BarExtra(context.getString(R.string.swap_screens), icon = R.drawable.ic_bottom_swap, onClick = it) })
+        addView(bottomScreenBarView(context) { sessionBarModel(title, onClose, onMenu, onSteamMenu, onQam, extras) },
+            LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        addView(topBar, LayoutParams(LayoutParams.MATCH_PARENT, dp(52)))
         addView(content, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
         select(if (pad != null && !deckControls) Tab.GAMEPAD else if (pad != null) selectedWithPad else selected)
     }
@@ -60,11 +65,10 @@ class DeckControlsPanel(
         super.onDetachedFromWindow()
     }
 
-    private fun topBar(): View = LinearLayout(context).apply {
+    private fun tabsRow(): View = LinearLayout(context).apply {
         orientation = HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(12), dp(10), dp(12), dp(6))
-        addView(roundButton("×", context.getString(R.string.deck_close), onClose))
+        gravity = Gravity.CENTER
+        setPadding(dp(12), 0, dp(12), dp(8))
         val tabs = LinearLayout(context).apply {
             orientation = HORIZONTAL
             background = outline(CORNER_PILL, SURFACE)
@@ -90,16 +94,7 @@ class DeckControlsPanel(
             overScrollMode = View.OVER_SCROLL_NEVER
             addView(tabs, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, dp(44)))
         }
-        addView(centre, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
-        onMenu?.let {
-            addView(menuButton(context, it))
-            addView(space(dp(8)))
-        }
-        if (SessionState.mode == SessionService.MODE_STEAM) {
-            addView(roundButton("STEAM", context.getString(R.string.deck_open_steam_menu), onSteamMenu, wide = true))
-            addView(space(dp(8)))
-            addView(roundButton("•••", context.getString(R.string.drawer_open_qam), onQam, wide = true))
-        }
+        addView(centre, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
     }
 
     private fun select(tab: Tab) {
@@ -122,7 +117,7 @@ class DeckControlsPanel(
             }
         }
         content.removeAllViews()
-        topBar.visibility = if (tab == Tab.GAMEPAD) View.GONE else View.VISIBLE
+        topBar.visibility = if (tab == Tab.GAMEPAD || tabViews.size < 2) View.GONE else View.VISIBLE
         content.addView(
             when (tab) {
                 Tab.GRIPS -> gripsGrid()
@@ -189,10 +184,6 @@ class DeckControlsPanel(
         place(pill("RB") { st, d -> st.press(PadState.RB, d) }, GamepadGeometry.Slot.RIGHT_INNER_SHOULDER)
         place(pill("RT") { st, d -> st.rightTrigger = if (d) 1f else 0f }, GamepadGeometry.Slot.RIGHT_OUTER_SHOULDER)
         place(pill("VIEW") { st, d -> st.press(PadState.SELECT, d) }, GamepadGeometry.Slot.VIEW)
-        if (SessionState.mode == SessionService.MODE_STEAM) {
-            place(centreTap("STEAM", context.getString(R.string.deck_open_steam_menu), onSteamMenu), GamepadGeometry.Slot.STEAM)
-            place(centreTap("\u2022\u2022\u2022", context.getString(R.string.drawer_open_qam), onQam), GamepadGeometry.Slot.QAM)
-        }
         place(pill("MENU") { st, d -> st.press(PadState.START, d) }, GamepadGeometry.Slot.MENU)
         if (deckControls) place(centreTap("\u25a6 " + context.getString(R.string.deck_panels), context.getString(R.string.deck_more_controls)) { select(Tab.BOTH) },
             GamepadGeometry.Slot.PANELS)
@@ -254,25 +245,18 @@ class DeckControlsPanel(
         show()
     }
 
-    /** Whether a finger going down at ([x], [y]) lands on one of the panel's controls. */
     fun takesTouchAt(x: Float, y: Float): Boolean = controlUnder(this, x, y)
 
-    // Every control here takes the touches it gets: buttons and tabs (clickable), the scrolling tab strip,
-    // and the drawn surfaces, pads and face buttons. The layouts around them do not.
     private fun controlUnder(view: View, x: Float, y: Float): Boolean {
         if (view.visibility != VISIBLE || x < 0f || y < 0f || x >= view.width || y >= view.height) return false
-        if (view.isClickable || view is HorizontalScrollView || view is Surface || view is DirectionPad || view is FaceButtons) return true
+        if (view.isClickable || view is HorizontalScrollView || view is Surface || view is DirectionPad || view is FaceButtons ||
+            view is androidx.compose.ui.platform.ComposeView) return true
         val group = view as? ViewGroup ?: return false
         return (group.childCount - 1 downTo 0).any { i ->
             val child = group.getChildAt(i)
             controlUnder(child, x + group.scrollX - child.x, y + group.scrollY - child.y)
         }
     }
-
-    private fun roundButton(label: String, description: String, onClick: () -> Unit, wide: Boolean = false) =
-        roundButton(context, label, description, onClick, wide)
-
-    private fun space(width: Int) = View(context).apply { layoutParams = LayoutParams(width, 1) }
 
     private fun outline(radius: Float, fill: Int) = outline(context, radius, fill)
 
@@ -495,7 +479,7 @@ class DeckControlsPanel(
         private fun move(dx: Float, dy: Float, r: Float) {
             knobX = dx
             knobY = dy
-            pad.applyTouch { s ->
+            pad.applyTouch(if (right) PadBridge.RIGHT_STICK else PadBridge.LEFT_STICK) { s ->
                 if (right) { s.rightX = dx / r; s.rightY = dy / r } else { s.leftX = dx / r; s.leftY = dy / r }
             }
             invalidate()
@@ -715,10 +699,13 @@ class DeckControlsPanel(
                 }
             }
 
-        internal fun menuButton(context: Context, onClick: () -> Unit) = android.widget.ImageView(context).apply {
-            setImageResource(R.drawable.ic_stat_session)
+        internal fun menuButton(context: Context, onClick: () -> Unit) =
+            iconButton(context, R.drawable.ic_stat_session, context.getString(R.string.touch_droiddeck_menu), onClick)
+
+        internal fun iconButton(context: Context, icon: Int, description: String, onClick: () -> Unit) = android.widget.ImageView(context).apply {
+            setImageResource(icon)
             setColorFilter(TEXT)
-            contentDescription = context.getString(R.string.touch_droiddeck_menu)
+            contentDescription = description
             scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
             val pad = dp(context, 11)
             setPadding(pad, pad, pad, pad)

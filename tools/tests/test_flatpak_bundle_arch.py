@@ -70,19 +70,66 @@ class FlatpakBundleArchTest(unittest.TestCase):
                 rc = None
         return rc, [json.loads(line) for line in out.getvalue().splitlines()], installs
 
-    def test_a_bundle_for_another_architecture_is_refused_before_installing(self):
-        rc, events, installs = self.run_install("x86_64")
+    def test_a_bundle_for_an_architecture_fex_cannot_run_is_refused_before_installing(self):
+        rc, events, installs = self.run_install("riscv64")
         self.assertEqual(rc, 1)
         self.assertEqual(installs, [])
         self.assertEqual(events[0]["e"], "error")
         self.assertEqual(events[0]["code"], "arch")
-        self.assertEqual(events[0]["arch"], "x86_64")
+        self.assertEqual(events[0]["arch"], "riscv64")
         self.assertEqual(events[0]["id"], "io.github.ebkr.r2modman")
 
     def test_a_bundle_for_this_device_goes_on_to_install(self):
         rc, events, installs = self.run_install("aarch64")
         self.assertEqual(installs, ["bundle"])
         self.assertEqual(events, [])
+
+    def test_an_x86_64_bundle_goes_on_to_install_for_fex(self):
+        rc, events, installs = self.run_install("x86_64")
+        self.assertEqual(installs, ["bundle"])
+        self.assertEqual(events, [])
+
+    def test_flathub_falls_back_to_the_x86_64_build(self):
+        module = load("aarch64", [])
+        asked = []
+
+        class Remote:
+            def __init__(self, branch):
+                self.branch = branch
+
+            def get_branch(self):
+                return self.branch
+
+        class Installation:
+            def fetch_remote_ref_sync(self, remote, kind, app_id, arch, branch, cancellable):
+                asked.append((arch, branch))
+                if arch == "x86_64" and branch == "stable":
+                    return Remote("stable")
+                raise RuntimeError("not found")
+
+        added = []
+
+        class Transaction:
+            def add_install(self, remote, ref, subpaths):
+                added.append(ref)
+
+        module.Flatpak.RefKind = types.SimpleNamespace(APP=0)
+        module.installation = lambda: Installation()
+        installed = []
+        module.app_ref = lambda inst, app_id: (installed[0] if installed else None)
+        module.transaction = lambda inst: (Transaction(), {})
+
+        def run(t, state, report_done=True):
+            installed.append(object())
+            return 0
+
+        module.run = run
+        out = io.StringIO()
+        with redirect_stdout(out):
+            rc = module.install("io.github.ebkr.r2modman")
+        self.assertEqual(rc, 0)
+        self.assertEqual(asked, [("aarch64", "stable"), ("aarch64", "master"), ("x86_64", "stable")])
+        self.assertEqual(added, ["app/io.github.ebkr.r2modman/x86_64/stable"])
 
 
 if __name__ == "__main__":

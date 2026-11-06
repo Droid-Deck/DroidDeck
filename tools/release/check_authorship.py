@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Reject bot authors and bot co-author trailers without executing reviewed code."""
 import argparse
 import json
 import re
@@ -11,7 +10,6 @@ PRODUCT = re.compile(
     r"Amazon Q|Tabnine|github-actions|dependabot|renovate)(?![a-z0-9])|\[bot\]",
     re.IGNORECASE,
 )
-# These are also people's names, so they only count alone or followed by a product word.
 ASSISTANT = r"(?:Claude|Cursor|Devin|Cody|Gemini)"
 ASSISTANT_ALONE = re.compile(ASSISTANT, re.IGNORECASE)
 ASSISTANT_PRODUCT = re.compile(

@@ -43,7 +43,6 @@ import com.droiddeck.launcher.stores.StoresState
 import org.json.JSONObject
 import java.util.concurrent.Executors
 
-/** Runs the WebRTC client page (tools/xcloud-player); signalling and tokens stay on this side of the bridge. */
 class XboxCloudPlayerActivity : ComponentActivity() {
     private lateinit var root: FrameLayout
     private var web: WebView? = null
@@ -57,7 +56,6 @@ class XboxCloudPlayerActivity : ComponentActivity() {
     @Volatile private var webUrl: String? = null
     @Volatile private var settings = XboxCloudSettings()
     @Volatile private var sessionSignals: XboxCloudSignalling? = null
-    /** The settings this stream started with (stream-start settings changed since then need a restart). */
     @Volatile private var startedWith: XboxCloudSettings? = null
     private var menu: androidx.compose.ui.platform.ComposeView? = null
 
@@ -106,7 +104,6 @@ class XboxCloudPlayerActivity : ComponentActivity() {
             allowContentAccess = false
         }
         view.setBackgroundColor(Color.BLACK)
-        // The Gamepad API only sees controllers while the WebView has input focus.
         view.isFocusable = true
         view.isFocusableInTouchMode = true
         view.addJavascriptInterface(Bridge(), "DDCloud")
@@ -225,7 +222,6 @@ class XboxCloudPlayerActivity : ComponentActivity() {
 
     private fun isGuideKey(event: KeyEvent): Boolean = event.keyCode == KeyEvent.KEYCODE_BUTTON_MODE
 
-    /** One press is the stream's Xbox button; two quick presses or a hold open the player menu. */
     private fun guideKey(event: KeyEvent): Boolean {
         if (!isGuideKey(event)) return false
         if (event.action == KeyEvent.ACTION_DOWN) {
@@ -256,7 +252,6 @@ class XboxCloudPlayerActivity : ComponentActivity() {
         web?.evaluateJavascript("window.__ddButton && window.__ddButton('Nexus', $value)", null)
     }
 
-    // Back opens the player menu so a stray press never ends a stream.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (menu != null) {
             if (isGuideKey(event)) {
@@ -274,7 +269,6 @@ class XboxCloudPlayerActivity : ComponentActivity() {
             if (event.action == KeyEvent.ACTION_UP) { if (notice == null) openMenu() else finish() }
             return true
         }
-        // Reporting controller buttons handled stops Android turning an unused one into a fallback key.
         val handled = super.dispatchKeyEvent(event)
         val fromController = event.source and android.view.InputDevice.SOURCE_GAMEPAD == android.view.InputDevice.SOURCE_GAMEPAD ||
             event.source and android.view.InputDevice.SOURCE_JOYSTICK == android.view.InputDevice.SOURCE_JOYSTICK
@@ -389,7 +383,6 @@ class XboxCloudPlayerActivity : ComponentActivity() {
         fun intent(context: Context, productId: String, title: String): Intent = Intent(context, XboxCloudPlayerActivity::class.java)
             .putExtra("product", productId.uppercase()).putExtra("title", title)
 
-        /** The player the settings pick: the native engine (frame generation) where it can run, else the web player. */
         fun playerIntent(context: Context, productId: String, title: String): Intent {
             val native = XboxNativePlayerActivity.supported() && XboxCloudSettings.load(context).playerEngine == "native"
             return if (!native) intent(context, productId, title) else Intent(context, XboxNativePlayerActivity::class.java)

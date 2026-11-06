@@ -74,11 +74,6 @@ public final class RuntimeFileTree {
             throw new IOException("Cannot make directory removable: " + dir);
     }
 
-    /**
-     * Paths in a runtime tree that belong to the user: the home folder, imported AppImages and script apps, and catalog
-     * AppImages with their menu entries and markers. Tar-kind catalog packages (the desktop) unpack over /usr and cannot
-     * be carried.
-     */
     static java.util.List<String> userPaths(File tree) throws IOException {
         java.util.List<String> paths = new java.util.ArrayList<>(java.util.Arrays.asList("root", "opt/appimages/user", "opt/droiddeck-apps", "opt/droiddeck/wincomponents"));
         for (String n : children(new File(tree, "usr/local/share/applications"))) {
@@ -168,13 +163,6 @@ public final class RuntimeFileTree {
         return false;
     }
 
-    /**
-     * Moves each user path that exists in {@code from} into {@code to}, replacing what {@code to} ships there. With
-     * {@code onlyMissing}, a path already present in {@code to} is left alone. On failure the paths already moved go back
-     * before the exception is thrown. Rollback failures are suppressed on that exception; callers must retain the source
-     * of any incomplete rollback.
-     * Returns the moved paths.
-     */
     static java.util.List<String> carryUserData(File from, File to, boolean onlyMissing) throws IOException {
         return carryUserData(from, to, onlyMissing, new java.util.ArrayList<>(userPaths(from, to)));
     }
@@ -200,7 +188,6 @@ public final class RuntimeFileTree {
         return moved;
     }
 
-    /** Puts the given paths back from {@code from} into {@code to}; failures are collected, not stopped on. */
     static void carryBack(File from, File to, java.util.List<String> paths) throws IOException {
         IOException failed = null;
         for (int i = paths.size() - 1; i >= 0; i--) {

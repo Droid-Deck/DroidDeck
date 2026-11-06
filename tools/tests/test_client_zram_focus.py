@@ -43,16 +43,53 @@ class ClientZramFocusTest(unittest.TestCase):
         self.assertEqual('', result.stderr)
         self.assertEqual('5000010 5000011 5000012|5000013 5000014 5000015|1| 413150', result.stdout.strip())
 
+    def scan_fake(self, tasks):
+        with tempfile.TemporaryDirectory() as tmp:
+            for pid, argv in tasks:
+                self.write_cmd(Path(tmp), pid, argv)
+            source = function_source('bl_zram_scan').replace('/proc/[0-9]*', tmp + '/[0-9]*')
+            return run_bash(source + '\nbl_zram_scan\necho "${_bl_pids[*]}|${_bl_others[*]}|$_bl_game"')
+
+    def test_battlenet_is_compressed_with_the_client_while_one_of_its_games_runs(self):
+        launcher = [
+            (6000010, ['/s/steamrtarm64/steam', '-gamepadui']),
+            (6000011, ['/s/reaper', 'SteamLaunch', 'AppId=2899116412', '--', 'droiddeck-battlenet']),
+            (6000012, ['C:\\Program Files (x86)\\Battle.net\\Battle.net.exe', '--exec=launch S1']),
+            (6000013, ['C:\\Program Files (x86)\\Battle.net\\Battle.net.15511\\Battle.net Helper.exe', '--type=renderer']),
+            (6000014, ['C:\\ProgramData\\Battle.net\\Agent\\Agent.9324\\Agent.exe', '--internalclienttools']),
+            (6000015, ['C:\\windows\\system32\\services.exe']),
+            (6000016, ['C:\\windows\\system32\\winedevice.exe', '-uid']),
+        ]
+        game = [(6000017, ['S:\\Games\\StarCraft\\x86\\StarCraft.exe', '-launch', '-uid', 's1'])]
+        before = self.scan_fake(launcher)
+        during = self.scan_fake(launcher + game)
+        for result in (before, during):
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual('', result.stderr)
+        self.assertEqual('6000010|6000015 6000016 6000012 6000013 6000014|1', before.stdout.strip())
+        self.assertEqual('6000010 6000012 6000013 6000014|6000015 6000016 6000017|1', during.stdout.strip())
+
+    def test_a_game_without_a_battlenet_uid_leaves_battlenet_alone(self):
+        result = self.scan_fake([
+            (6000020, ['C:\\Program Files (x86)\\Battle.net\\Battle.net.exe']),
+            (6000021, ['D:\\Games\\Other\\Game.exe', '-windowed']),
+            (6000022, ['/usr/bin/wine', 'game.exe', '-uid']),
+        ])
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual('|6000021 6000022 6000020|0', result.stdout.strip())
+
     def test_refocus_restarts_the_delay_and_game_exit_restores_a_packed_client(self):
         source = SCRIPT.read_text()
         start = source.index('          if [ "$_bl_game" = 1 ] && bl_game_focused; then')
         stop = source.index('          nap 5', start)
         body = source[start:stop]
         harness = '''
-_bl_since=-1 _bl_since_apps= _bl_packed=-1 _bl_apps=" 413150"
+_bl_since=-1 _bl_since_apps= _bl_packed=-1 _bl_unpack=0 _bl_apps=" 413150"
 _bl_pids=(123)
 bl_game_focused() { [ "$focused" = 1 ]; }
 bl_over_cap() { return 1; }
+bl_client_can_pageout() { return 0; }
+bl_client_can_readback() { return 0; }
 bl_zram_send() { echo "send:$1"; }
 tick() {
   SECONDS=$1 _bl_game=$2 focused=$3
@@ -74,7 +111,7 @@ tick 60 0 0
 
     def monitor_harness(self):
         source = SCRIPT.read_text()
-        start = source.index('          bl_zram_scan\n          if bl_cap_due; then')
+        start = source.index('          bl_zram_scan\n          bl_memory_read\n')
         stop = source.index('          nap 5', start)
         return '''
 _bl_since=-1 _bl_since_apps= _bl_packed=-1 _bl_measured=-1 _bl_unpack=0 _bl_capped=-1 _bl_backoff=30
@@ -82,6 +119,10 @@ _bl_apps=" 413150"
 _bl_pids=(123)
 step() { :; }
 bl_zram_scan() { :; }
+bl_memory_read() { :; }
+bl_client_pressure() { :; }
+bl_client_can_pageout() { return 0; }
+bl_client_can_readback() { [ "${readback:-1}" = 1 ]; }
 bl_game_focused() { [ "$focused" = 1 ]; }
 bl_cap_due() { [ "$cap_due" = 1 ]; }
 bl_over_cap() { [ "$over_cap" = 1 ]; }
@@ -134,12 +175,27 @@ tick 20 1 1 0 0
 tick 25 1 0 0 0
 tick 30 0 0 1 0
 echo "deferred:$_bl_unpack:$_bl_packed"
-tick 35 0 0 0 1
+tick 35 0 0 0 0
 echo "restored:$_bl_unpack"
 ''')
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual('', result.stderr)
         self.assertEqual(['send:1:client', 'deferred:1:-1', 'send:0:client', 'restored:0'], result.stdout.splitlines())
+
+    def test_game_exit_defers_readback_under_pressure_even_without_a_ram_cap(self):
+        result = run_bash(self.monitor_harness() + """
+tick 0 1 1 0 0
+tick 20 1 1 0 0
+readback=0
+tick 25 0 0 0 0
+echo "deferred:$_bl_unpack"
+readback=1
+tick 30 0 0 0 0
+echo "restored:$_bl_unpack"
+""")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual('', result.stderr)
+        self.assertEqual(['send:1:client', 'deferred:1', 'send:0:client', 'restored:0'], result.stdout.splitlines())
 
     def test_scan_keeps_the_running_game_and_ignores_steams_own_reaper(self):
         temp = tempfile.TemporaryDirectory()

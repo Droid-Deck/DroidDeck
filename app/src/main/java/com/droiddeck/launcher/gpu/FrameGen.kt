@@ -52,7 +52,6 @@ object FrameGen {
 
     fun apply(context: Context, refreshHz: Float): String? = apply(context, mode(context), refreshHz)
 
-    /** Arms [mode] in this process's compositor; the cloud player passes its own mode and frame-rate cap. */
     fun apply(context: Context, mode: Mode, refreshHz: Float): String? {
         when (mode.engine) {
             ENGINE_LSFG -> {

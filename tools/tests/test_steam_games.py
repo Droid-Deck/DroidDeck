@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import zlib
 from unittest.mock import Mock, patch
 
 BIN = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin'
@@ -100,7 +101,8 @@ class ImportsTest(unittest.TestCase):
         imports.route(self.steam, self.acct, [self.game])
         path = self.steam / 'steamapps/appmanifest_42.acf'
         current = path.read_text()
-        legacy = current.replace('    "Universe" "1"\n', '').replace('"StateFlags" "4"', '"StateFlags" "2"')
+        legacy = (current.replace('    "AutoUpdateBehavior" "1"\n', '').replace('    "Universe" "1"\n', '')
+                  .replace('"StateFlags" "4"', '"StateFlags" "2"'))
         path.write_text(legacy)
         imports.route(self.steam, self.acct, [self.game])
         self.assertEqual(current, path.read_text())
@@ -247,6 +249,36 @@ class ImportsTest(unittest.TestCase):
         config.write_text(json.dumps({'installedManifestIDs': {'43': 0x7FFFFFFFFFFFFFFF}}))
         self.assertIsNone(imports.installed_build(self.folder, 42, 'DroidDeck-42'))
 
+    def test_compressed_protobuf_depot_config_records_installed_depots(self):
+        config = self.folder / '.DepotDownloader/depot.config'
+        config.parent.mkdir()
+        (self.folder / '.download_complete').touch()
+        entry = bytes([0x08, 43, 0x10, 99])
+        packed = zlib.compressobj(wbits=-15)
+        config.write_bytes(packed.compress(bytes([0x0A, len(entry)]) + entry) + packed.flush())
+        self.assertIn('"43"\n        {\n            "manifest" "99"', imports.installed_build(self.folder, 42, 'DroidDeck-42'))
+        config.write_bytes(b'not a config')
+        self.assertIsNone(imports.installed_build(self.folder, 42, 'DroidDeck-42'))
+        (config.parent / 'completed').mkdir()
+        (config.parent / 'completed/43_98.manifest').write_bytes(b'x')
+        self.assertIn('"manifest" "98"', imports.installed_build(self.folder, 42, 'DroidDeck-42'))
+        config.write_text(json.dumps({'installedManifestIDs': {}}))
+        self.assertIn('"manifest" "98"', imports.installed_build(self.folder, 42, 'DroidDeck-42'))
+
+    def test_completed_manifests_record_installed_depots(self):
+        completed = self.folder / '.DepotDownloader/completed'
+        completed.mkdir(parents=True)
+        (self.folder / '.download_complete').touch()
+        self.assertIsNone(imports.installed_build(self.folder, 42, 'DroidDeck-42'))
+        (completed / '43_98.manifest').write_bytes(b'old')
+        (completed / '43_99.manifest').write_bytes(b'new')
+        (completed / '44_7.manifest').write_bytes(b'x')
+        os.utime(completed / '43_98.manifest', (1, 1))
+        text = imports.installed_build(self.folder, 42, 'DroidDeck-42')
+        self.assertIn('"43"\n        {\n            "manifest" "99"', text)
+        self.assertIn('"44"\n        {\n            "manifest" "7"', text)
+        self.assertNotIn('"98"', text)
+
     def test_bare_import_manifest_gains_installed_build(self):
         self.snapshot()
         imports.route(self.steam, self.acct, [self.game])
@@ -268,6 +300,72 @@ class ImportsTest(unittest.TestCase):
         path = self.steam_fresh_install()
         imports.route(self.steam, self.acct, [self.game])
         self.assertIn('"buildid"\t\t"7"', path.read_text())
+
+    def test_import_without_a_build_updates_only_when_launched(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        path = self.steam / 'steamapps/appmanifest_42.acf'
+        current = path.read_text()
+        self.assertIn('    "AutoUpdateBehavior" "1"\n', current)
+        path.write_text(current.replace('    "AutoUpdateBehavior" "1"\n', ''))
+        imports.route(self.steam, self.acct, [self.game])
+        self.assertEqual(current, path.read_text())
+
+    def queued_bare_install(self, extra):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        path = self.steam / 'steamapps/appmanifest_42.acf'
+        path.write_text('"AppState"\n{\n\t"appid"\t\t"42"\n\t"StateFlags"\t\t"6"\n\t"installdir"\t\t"DroidDeck-42"\n'
+                        '\t"buildid"\t\t"0"\n\t"TargetBuildID"\t\t"9"\n%s\t"InstalledDepots"\n\t{\n\t}\n'
+                        '\t"UserConfig"\n\t{\n\t}\n}\n' % extra)
+        return path
+
+    def test_queued_import_without_a_build_waits_for_a_launch(self):
+        path = self.queued_bare_install('\t"AutoUpdateBehavior"\t\t"0"\n')
+        before = path.read_text()
+        imports.route(self.steam, self.acct, [self.game])
+        self.assertEqual(before.replace('"AutoUpdateBehavior"\t\t"0"', '"AutoUpdateBehavior"\t\t"1"'), path.read_text())
+        path = self.queued_bare_install('')
+        before = path.read_text()
+        imports.route(self.steam, self.acct, [self.game])
+        self.assertEqual(before[:-2] + '\t"AutoUpdateBehavior"\t\t"1"\n}\n', path.read_text())
+
+    def test_queued_import_keeps_a_chosen_update_priority(self):
+        path = self.queued_bare_install('\t"AutoUpdateBehavior"\t\t"2"\n')
+        before = path.read_text()
+        imports.route(self.steam, self.acct, [self.game])
+        self.assertEqual(before, path.read_text())
+
+    def test_an_untouched_import_is_left_alone_while_steam_stages_it(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        path = self.steam / 'steamapps/appmanifest_42.acf'
+        older = path.read_text().replace('    "AutoUpdateBehavior" "1"\n', '')
+        path.write_text(older)
+        (self.steam / 'steamapps/downloading/42').mkdir(parents=True)
+        imports.route(self.steam, self.acct, [self.game])
+        self.assertEqual(older, path.read_text())
+
+    def test_a_manifest_in_another_library_is_not_read(self):
+        other = self.root / 'Other'
+        (other / 'steamapps').mkdir(parents=True)
+        (other / 'steamapps/appmanifest_42.acf').write_bytes(b'"AppState"\n{\n    "name" "\xff\xfe"\n}\n')
+        (self.steam / 'steamapps').mkdir(parents=True)
+        (self.steam / 'steamapps/libraryfolders.vdf').write_text('"libraryfolders"\n{\n\t"1"\n\t{\n\t\t"path"\t\t"%s"\n\t}\n}\n' % other)
+        self.snapshot()
+        games, routes = imports.route(self.steam, self.acct, [self.game])
+        self.assertEqual({str(self.game['appid']): 42}, routes)
+        self.assertEqual(b'"AppState"\n{\n    "name" "\xff\xfe"\n}\n', (other / 'steamapps/appmanifest_42.acf').read_bytes())
+
+    def test_started_import_without_a_build_is_left_to_steam(self):
+        for extra, staging in [('\t"BytesDownloaded"\t\t"5"\n\t"AutoUpdateBehavior"\t\t"0"\n', False),
+                               ('\t"AutoUpdateBehavior"\t\t"0"\n', True)]:
+            path = self.queued_bare_install(extra)
+            if staging:
+                (self.steam / 'steamapps/downloading/42').mkdir(parents=True)
+            before = path.read_text()
+            imports.route(self.steam, self.acct, [self.game])
+            self.assertEqual(before, path.read_text())
 
     def test_started_fresh_install_is_left_to_steam(self):
         for downloaded, staging in [('5', False), ('0', True)]:
@@ -391,6 +489,61 @@ class ImportsTest(unittest.TestCase):
         with patch.object(imports.urllib.request, 'urlopen', side_effect=AssertionError):
             self.assertEqual(42, imports.identify(self.game))
 
+    def test_spacewar_appid_names_no_game(self):
+        (self.folder / 'steam_appid.txt').write_text('480\n')
+        with patch.object(imports.urllib.request, 'urlopen', side_effect=OSError):
+            self.assertIsNone(imports.identify(self.game))
+
+    def import_as(self, appid):
+        self.assertTrue(imports.seed_install(self.steam, self.game, appid))
+        self.assertTrue((self.steam / f'steamapps/appmanifest_{appid}.acf').is_file())
+
+    def snapshot_names(self, appid, owned):
+        imports.save_json(self.acct / 'config' / imports.STATE,
+                          dict(account='123', owned={str(appid): owned},
+                               candidates={str(self.folder): appid},
+                               sources={str(self.folder): imports.source_stamp(self.game)}))
+
+    def assert_not_imported_as(self, appid):
+        self.assertFalse((self.steam / f'steamapps/appmanifest_{appid}.acf').exists())
+        self.assertFalse(os.path.lexists(self.steam / f'steamapps/common/DroidDeck-{appid}'))
+
+    def test_spacewar_import_is_released_and_never_made_again(self):
+        self.import_as(480)
+        self.snapshot_names(480, owned=True)
+        with patch('builtins.print'):
+            self.assertEqual(([self.game], {}), imports.route(self.steam, self.acct, [self.game]))
+        self.assert_not_imported_as(480)
+        self.assertEqual(b'game', self.exe.read_bytes())
+
+    def test_import_follows_the_app_the_files_name_now(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        self.snapshot_names(43, owned=True)
+        with patch('builtins.print'):
+            self.assertEqual(([], {str(self.game['appid']): 43}), imports.route(self.steam, self.acct, [self.game]))
+        self.assert_not_imported_as(42)
+        self.assertEqual(self.folder, (self.steam / 'steamapps/common/DroidDeck-43').resolve())
+
+    def test_unowned_new_appid_leaves_a_shortcut(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        self.snapshot_names(43, owned=False)
+        with patch('builtins.print'):
+            self.assertEqual(([self.game], {}), imports.route(self.steam, self.acct, [self.game]))
+        self.assert_not_imported_as(42)
+        self.assert_not_imported_as(43)
+
+    def test_import_stays_while_the_new_identity_is_unknown(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        for candidates in ({}, {str(self.folder): 43}):
+            imports.save_json(self.acct / 'config' / imports.STATE,
+                              dict(account='123', owned={'43': True}, candidates=candidates,
+                                   sources={str(self.folder): ['stale']}))
+            imports.route(self.steam, self.acct, [self.game])
+            self.assertTrue((self.steam / 'steamapps/appmanifest_42.acf').is_file())
+
     def test_manifest_identity_uses_install_directory(self):
         folder = self.root / 'second/steamapps/common/Custom Name'
         folder.mkdir(parents=True)
@@ -398,6 +551,21 @@ class ImportsTest(unittest.TestCase):
         game = dict(self.game, folder=str(folder), exe=str(folder / 'game.exe'))
         with patch.object(imports.urllib.request, 'urlopen', side_effect=AssertionError):
             self.assertEqual(42, imports.identify(game))
+
+    def test_a_spacewar_manifest_names_no_game(self):
+        folder = self.root / 'second/steamapps/common/PEAK'
+        folder.mkdir(parents=True)
+        (folder.parent.parent / 'appmanifest_480.acf').write_text('"AppState" { "installdir" "PEAK" }')
+        (folder / 'steam_appid.txt').write_text('3527290\n')
+        game = dict(self.game, folder=str(folder), exe=str(folder / 'PEAK.exe'))
+        with patch.object(imports.urllib.request, 'urlopen', side_effect=AssertionError):
+            self.assertEqual(3527290, imports.identify(game))
+
+    def test_a_store_search_answering_spacewar_names_no_game(self):
+        with patch.object(imports.urllib.request, 'urlopen') as request:
+            request.return_value.__enter__.return_value.read.return_value = json.dumps(
+                {'items': [{'id': 480, 'name': 'Spacewar'}]}).encode()
+            self.assertIsNone(imports.identify(dict(self.game, name='Spacewar')))
 
     def test_store_requires_unique_exact_title(self):
         cases = [([{'id': 42, 'name': 'Example Deluxe'}], None),

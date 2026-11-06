@@ -26,7 +26,8 @@ object SessionPaths {
     @Synchronized
     fun beginOrCurrent(context: Context, label: String? = null): File {
         dir?.let { if (it.isDirectory) return it }
-        val parent = if (SessionPrefs.logsEnabled(context)) SessionFiles.logDirectory(context)
+        val enhanced = EnhancedDiagnostics.isArmed(context)
+        val parent = if (SessionPrefs.logsEnabled(context) || enhanced) SessionFiles.logDirectory(context)
             else File(context.cacheDir, "session-logs")
         val day = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
         val last = parent.listFiles()?.mapNotNull { f ->
@@ -36,15 +37,18 @@ object SessionPaths {
         var number = last + 1
         var made = File(parent, "$day-${"%02d".format(Locale.US, number)}-$what")
         while (made.exists()) made = File(parent, "$day-${"%02d".format(Locale.US, ++number)}-$what")
+        EnhancedDiagnostics.clearRecordFor(context, made)
         if (!made.isDirectory && !made.mkdirs()) Log.e(TAG, "could not create $made")
         dir = made
-        Log.i(TAG, "session logs: $made" + if (SessionPrefs.logsEnabled(context)) "" else " (logs off: discarded at the end)")
+        if (enhanced && !EnhancedDiagnostics.consumeInto(context, made)) {
+            Log.e(TAG, "could not activate enhanced diagnostics for $made")
+        }
+        Log.i(TAG, "session logs: $made" + if (parent == SessionFiles.logDirectory(context)) "" else " (logs off: discarded at the end)")
         return made
     }
 
     fun current(): File? = dir
 
-    /** Whether the current session folder will survive teardown. No session means the next one can retain logs. */
     fun currentSessionLogsRetained(context: Context): Boolean =
         dir?.let { it.parentFile == SessionFiles.logDirectory(context) } ?: true
 

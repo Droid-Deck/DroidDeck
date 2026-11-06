@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.ui
 
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.input.PC_KEY_HIDDEN_GROUPS
 import com.droiddeck.launcher.input.PC_KEY_ROWS
 import com.droiddeck.launcher.input.PC_MODIFIERS
 import com.droiddeck.launcher.input.PcKey
@@ -35,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -45,12 +47,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.nativeKeyCode
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -98,10 +102,17 @@ fun PcKeyboard(
     }
     LaunchedEffect(Unit) { runCatching { firstKey.requestFocus() } }
 
+    val prefsContext = LocalContext.current
+    remember { PcKeyboardPrefs.load(prefsContext) }
+    val hiddenCodes = PcKeyboardPrefs.hiddenKeys.flatMap { PC_KEY_HIDDEN_GROUPS[it].orEmpty() }.toSet()
+    val rows = PC_KEY_ROWS.map { row -> row.filter { it.code !in hiddenCodes } }.filter { it.isNotEmpty() }
+
     BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-        val rowHeight = ((maxHeight * 0.47f - 24.dp - 3.dp * 6 - 10.dp) / 6).coerceIn(24.dp, 44.dp)
+        val rowHeight = ((maxHeight * (PcKeyboardPrefs.size / 100f) - 24.dp - 3.dp * rows.size - 10.dp) / rows.size)
+            .coerceIn(20.dp, 56.dp)
         Box(
             Modifier.fillMaxWidth()
+                .graphicsLayer { alpha = PcKeyboardPrefs.opacity / 100f }
                 .background(Color(0xE6101418), RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
                 .border(1.dp, pal.line2, RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
                 .pointerInput(Unit) { awaitEachGesture { awaitFirstDown().consume(); waitForUpOrCancellation()?.consume() } }
@@ -115,7 +126,7 @@ fun PcKeyboard(
                     Spacer(Modifier.width(8.dp))
                     HeaderButton(stringResource(R.string.pckb_hide), onClose)
                 }
-                PC_KEY_ROWS.forEachIndexed { r, row ->
+                rows.forEachIndexed { r, row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.fillMaxWidth().height(rowHeight)) {
                         row.forEachIndexed { i, key ->
                             val state = mods[key.code] ?: MOD_OFF
@@ -126,11 +137,13 @@ fun PcKeyboard(
                                 key.label.length == 1 && key.label[0].isLetter() && (shifted xor capsOn) -> key.label.uppercase()
                                 else -> key.label
                             }
-                            KeyCap(
-                                label, key.weight, lit, locked = state == MOD_LOCKED,
-                                modifier = if (r == 0 && i == 0) Modifier.focusRequester(firstKey) else Modifier,
-                                onDown = { press(key) }, onUp = { release(key) },
-                            )
+                            key(key.code) {
+                                KeyCap(
+                                    label, key.weight, lit, locked = state == MOD_LOCKED,
+                                    modifier = if (r == 0 && i == 0) Modifier.focusRequester(firstKey) else Modifier,
+                                    onDown = { press(key) }, onUp = { release(key) },
+                                )
+                            }
                         }
                     }
                 }
@@ -164,8 +177,11 @@ private fun RowScope.KeyCap(
                 awaitEachGesture {
                     awaitFirstDown().consume()
                     down = true; onDown()
-                    waitForUpOrCancellation()?.consume()
-                    down = false; onUp()
+                    try {
+                        waitForUpOrCancellation()?.consume()
+                    } finally {
+                        down = false; onUp()
+                    }
                 }
             }
             .onPreviewKeyEvent { e ->

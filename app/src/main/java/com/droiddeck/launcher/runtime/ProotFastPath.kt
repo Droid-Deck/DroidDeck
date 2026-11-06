@@ -12,10 +12,6 @@ object ProotFastPath {
     const val LIBRARY = "/usr/local/lib/libblfastpath.so"
     const val MAX_BINDS = 256
 
-    /**
-     * The fast path's trampoline is let through only by the proot built with patches/0014.
-     * The rootfs copy (Termux's stock proot) is not that binary, so the library stays out.
-     */
     fun allows(preference: Boolean, noSeccomp: Boolean, source: String): Boolean =
         preference && !noSeccomp && source == LinuxRuntime.PROOT_PACK
 

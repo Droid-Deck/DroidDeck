@@ -1,0 +1,38 @@
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -2373,6 +2373,7 @@
+ 
+ 	std::vector<uint64_t> modifiers = {};
+ 	std::vector<uint64_t> unexportable = {};
++	bool linearRejected = false;
+ 	// TODO(JoshA): Move this code to backend for making flippable image.
+ 	if ( GetBackend()->UsesModifiers() && flags.bFlippable && g_device.supportsModifiers() && !pDMA )
+ 	{
+@@ -2414,7 +2415,10 @@
+ 			};
+ 			res = getModifierProps( &imageInfo, modifier, &externalFormatProps );
+ 			if ( res == VK_ERROR_FORMAT_NOT_SUPPORTED )
++			{
++				linearRejected |= modifier == DRM_FORMAT_MOD_LINEAR;
+ 				continue;
++			}
+ 			else if ( res != VK_SUCCESS ) {
+ 				vk_errorf( res, "getModifierProps failed" );
+ 				return false;
+@@ -2440,6 +2444,16 @@
+ 				drmFormat, unexportable.size() );
+ 			modifiers = unexportable;
+ 		}
++		// An r32p1 Mali driver (G610, Vulkan 1.1) behind the Mali bridge answers every modifier query
++		// with VK_ERROR_FORMAT_NOT_SUPPORTED, yet the bridge makes such an image without the handle type
++		// and exports it through a dma-heap. Linear, when the backend offered it, is tried rather than
++		// giving up; if the image cannot be made, BInit fails as before (Xiaomi 13T, AR24).
++		if ( modifiers.empty() && linearRejected )
++		{
++			vk_log.errorf( "flippable image: the driver supports none of the %zu modifier(s) offered for DRM format 0x%x; trying linear anyway",
++				numPossibleModifiers, drmFormat );
++			modifiers.push_back( DRM_FORMAT_MOD_LINEAR );
++		}
+ 		if ( modifiers.empty() )
+ 		{
+ 			vk_log.errorf( "flippable image: no usable modifier for DRM format 0x%x (%zu offered by the backend)", drmFormat, numPossibleModifiers );

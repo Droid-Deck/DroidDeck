@@ -3,7 +3,6 @@ package com.droiddeck.launcher.stores.xbox
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Request shapes follow Microsoft's web player as Greenlight (MIT) implements them. */
 internal class XboxCloudSignalling(
     private val session: XboxCloudSession.Session,
     private val titleId: String,
@@ -62,7 +61,6 @@ internal class XboxCloudSignalling(
 
     private fun version(min: Int, max: Int) = JSONObject().put("minVersion", min).put("maxVersion", max)
 
-    /** The exchange answers 204 until the console has replied. */
     private fun poll(path: String): XboxCloudSession.Reply {
         repeat(60) {
             val reply = XboxCloudSession.request(session, "GET", path)

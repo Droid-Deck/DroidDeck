@@ -7,11 +7,9 @@ import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 
-/** Steam keeps a game's custom art in `userdata/<account>/config/grid`; this is where DroidDeck's choices and Steam's meet. */
 object SteamGrid {
     private const val TAG = "SteamGrid"
 
-    /** Every change to a game's art, here or in a scan, takes this first so two of them never interleave. */
     internal val lock = Any()
     private const val MANIFEST = ".droiddeck-art.json"
     private val SUFFIX = mapOf(AddedGameArt.Slot.COVER to "p", AddedGameArt.Slot.WIDE to "", AddedGameArt.Slot.BACKGROUND to "_hero", AddedGameArt.Slot.LOGO to "_logo")
@@ -36,7 +34,6 @@ object SteamGrid {
 
     private fun signature(file: File?) = if (file == null) "" else "${file.length()}:${file.lastModified()}"
 
-    /** Each Steam client has its own grid folder, so what was last seen there is kept per client. */
     private fun sigName(context: Context, key: String) =
         if (SessionPrefs.activeSteamClientArch(context) == "x86_64") "grid-x86_64-$key" else "grid-$key"
 
@@ -45,10 +42,6 @@ object SteamGrid {
     private const val GRID_ID = ".droiddeck-grid"
     private const val UNKNOWN_GRID = "?"
 
-    /**
-     * A random id kept in the grid folder, so a record made against another account's folder, or one wiped with the
-     * runtime, reads as "not seen yet" instead of "removed in Steam". "?" never matches, so nothing is dropped.
-     */
     private fun gridId(grid: File): String = runCatching {
         val f = File(grid, GRID_ID)
         f.takeIf { it.isFile }?.readText()?.trim()?.takeIf { it.isNotEmpty() } ?: UUID.randomUUID().toString().also { id ->
@@ -83,7 +76,6 @@ object SteamGrid {
         manifest.keys().asSequence().filter { name -> File(grid, name).let { it.isFile && it.length() == manifest.optLong(name, -1L) } }.toSet()
     }.getOrDefault(emptySet())
 
-    /** Puts a choice (or, with null, the lack of one) where Steam reads it, whether or not Steam is running. */
     fun write(context: Context, target: Target, slot: AddedGameArt.Slot, file: File?): Boolean = synchronized(lock) { place(context, target, slot, file) }
 
     private fun place(context: Context, target: Target, slot: AddedGameArt.Slot, file: File?): Boolean {
@@ -116,7 +108,6 @@ object SteamGrid {
 
     private fun positionIn(file: File): LogoPosition.Value? = file.takeIf { it.isFile }?.let { runCatching { it.readText() }.getOrNull() }?.let(LogoPosition::parse)
 
-    /** The logo position chosen here (or taken over from Steam) for a game; null when Steam's own default applies. */
     fun position(target: Target): LogoPosition.Value? = positionIn(File(target.artDir, POSITION))
 
     private fun positionRecorded(context: Context, grid: File, target: Target): String? =
@@ -132,12 +123,10 @@ object SteamGrid {
         return runCatching { file.writeText(LogoPosition.toJson(value).toString()) }.isSuccess
     }
 
-    /** Sets (or with null, clears) a game's logo position here and in the client's grid folder, whether or not Steam is running. */
     fun writePosition(context: Context, target: Target, value: LogoPosition.Value?): Boolean = synchronized(lock) {
         placePosition(context, target, value) && storePosition(target, value)
     }
 
-    /** Steam keeps the position in `<id>.json`; anything else that file holds is left as it was. */
     private fun placePosition(context: Context, target: Target, value: LogoPosition.Value?): Boolean {
         val grid = dir(context) ?: return true
         val file = positionFile(grid, target.id)
@@ -160,7 +149,6 @@ object SteamGrid {
         return true
     }
 
-    /** A `logoPosition` this version cannot read (a pin it does not know, say) is left alone rather than read as "removed". */
     private fun hasUnknownPosition(file: File): Boolean {
         val json = runCatching { JSONObject(file.readText()) }.getOrNull() ?: return false
         return json.has("logoPosition") && LogoPosition.parse(json) == null
@@ -176,7 +164,6 @@ object SteamGrid {
         when {
             before == null && own != null && theirs == null -> placePosition(context, target, own)
             before == null || now != before -> {
-                // Recorded only once the local side agrees, so a failed take-over is tried again on the next scan.
                 if (theirs != null) {
                     if (own == theirs || storePosition(target, theirs)) recordPosition(context, grid, target, now)
                 } else {
@@ -187,7 +174,6 @@ object SteamGrid {
         }
     }
 
-    /** Takes over what changed in Steam since the last look; returns true when a choice was added, replaced or dropped. */
     fun sync(context: Context, targets: List<Target>): Boolean = synchronized(lock) { reconcile(context, targets) }
 
     private fun reconcile(context: Context, targets: List<Target>): Boolean {

@@ -8,6 +8,8 @@ import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.core.TextureFiltering
 import com.droiddeck.launcher.gpu.Cardboard
 import com.droiddeck.launcher.gpu.ScreenEffects
+import com.droiddeck.launcher.gpu.SystemVulkanDriver
+import com.droiddeck.launcher.gpu.TurnipDriver
 import org.json.JSONObject
 import java.io.File
 
@@ -86,12 +88,26 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("animations", on).apply()
     }
 
-    fun dualScreenMode(context: Context): String =
-        prefs(context).getString("dualScreenMode", null)?.takeIf { it in com.droiddeck.launcher.input.DualScreen.modes }
-            ?: com.droiddeck.launcher.input.DualScreen.MODE_AUTO
+    private fun savedDualScreenMode(context: Context, key: String): String? =
+        prefs(context).getString(key, null)?.takeIf { it in com.droiddeck.launcher.input.DualScreen.modes }
+
+    private fun legacyDualScreenMode(context: Context): String =
+        if (!prefs(context).getBoolean("dualScreenLauncher", true)) com.droiddeck.launcher.input.DualScreen.MODE_OFF
+        else savedDualScreenMode(context, "dualScreenMode") ?: com.droiddeck.launcher.input.DualScreen.MODE_AUTO
+
+    fun dualScreenMode(context: Context): String = legacyDualScreenMode(context)
 
     fun setDualScreenMode(context: Context, mode: String) {
-        prefs(context).edit().putString("dualScreenMode", mode).apply()
+        val sessions = dualScreenSessionMode(context)
+        prefs(context).edit().remove("dualScreenLauncher").putString("dualScreenMode", mode).putString("dualScreenSessionMode", sessions).apply()
+    }
+
+    fun dualScreenSessionMode(context: Context): String =
+        savedDualScreenMode(context, "dualScreenSessionMode") ?: legacyDualScreenMode(context)
+
+    fun setDualScreenSessionMode(context: Context, mode: String) {
+        val launcher = dualScreenMode(context)
+        prefs(context).edit().remove("dualScreenLauncher").putString("dualScreenMode", launcher).putString("dualScreenSessionMode", mode).apply()
     }
 
     fun secondScreenPanel(context: Context): String? = prefs(context).getString("secondScreenPanel", null)
@@ -100,10 +116,66 @@ object SessionPrefs {
         prefs(context).edit().putString("secondScreenPanel", mode).apply()
     }
 
-    fun dualScreenLauncher(context: Context): Boolean = prefs(context).getBoolean("dualScreenLauncher", true)
+    /** The bottom-screen desktop takes touch as a trackpad unless the user switched it to direct touch. */
+    fun bottomDesktopDirectTouch(context: Context): Boolean = prefs(context).getBoolean("bottomDesktopDirectTouch", false)
 
-    fun setDualScreenLauncher(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("dualScreenLauncher", on).apply()
+    fun setBottomDesktopDirectTouch(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("bottomDesktopDirectTouch", on).apply()
+    }
+
+    fun statsStrip(context: Context): String? = prefs(context).getString("statsStrip", null)
+
+    fun setStatsStrip(context: Context, id: String) {
+        prefs(context).edit().putString("statsStrip", id).apply()
+    }
+
+    fun bottomStripMetrics(context: Context): Set<StripMetric> = StripMetric.parse(prefs(context).getString("bottomStripMetrics", null))
+
+    fun setBottomStripMetric(context: Context, metric: StripMetric, on: Boolean) {
+        val now = bottomStripMetrics(context).let { if (on) it + metric else it - metric }
+        prefs(context).edit().putString("bottomStripMetrics", StripMetric.encode(now)).apply()
+    }
+
+    fun bottomHud(context: Context): Boolean = prefs(context).getBoolean("bottomHud", true)
+
+    fun setBottomHud(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("bottomHud", on).apply()
+    }
+
+    fun bottomStripOnTabs(context: Context): Boolean = prefs(context).getBoolean("bottomStripTabs", true)
+
+    fun setBottomStripOnTabs(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("bottomStripTabs", on).apply()
+    }
+
+    fun statsHud(context: Context): String? = prefs(context).getString("statsHud", null)
+
+    fun setStatsHud(context: Context, id: String) {
+        prefs(context).edit().putString("statsHud", id).apply()
+    }
+
+    fun statsSpeedUnit(context: Context): String? = prefs(context).getString("statsSpeedUnit", null)
+
+    fun setStatsSpeedUnit(context: Context, id: String) {
+        prefs(context).edit().putString("statsSpeedUnit", id).apply()
+    }
+
+    fun statsDash(context: Context): String? = prefs(context).getString("statsDash", null)
+
+    fun setStatsDash(context: Context, id: String) {
+        prefs(context).edit().putString("statsDash", id).apply()
+    }
+
+    fun telemetryAuto(context: Context): Boolean = prefs(context).getBoolean("telemetryAuto", true)
+
+    fun setTelemetryAuto(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("telemetryAuto", on).apply()
+    }
+
+    fun telemetryOff(context: Context): Set<String> = prefs(context).getStringSet("telemetryOff", null)?.toSet().orEmpty()
+
+    fun setTelemetryOff(context: Context, keys: Set<String>) {
+        prefs(context).edit().putStringSet("telemetryOff", keys.toSet()).apply()
     }
 
     fun dualScreenSessionControls(context: Context): Boolean = prefs(context).getBoolean("dualScreenSessionControls", true)
@@ -124,13 +196,6 @@ object SessionPrefs {
         prefs(context).edit().putString("gameStoresSpeedTier", tier).apply()
     }
 
-    /**
-     * Hidden A/B switch for the Epic installer: "adaptive" (default: native parallel fetch written
-     * straight into staged files), "lookahead" (the native ordered-lookahead engine that caches each
-     * chunk and copies it into staged files), "batch" (the older whole-cache native fetch, then
-     * native assembly; needs about twice the game's size free) or "java" (the bounded Java writer).
-     * No UI; set it in the `session` preferences for benchmarks.
-     */
     fun storesEpicMode(context: Context): String = prefs(context).getString("storesEpicMode", "adaptive") ?: "adaptive"
 
     fun storesShowMature(context: Context): Boolean = prefs(context).getBoolean("storesShowMature", false)
@@ -207,7 +272,6 @@ object SessionPrefs {
         prefs(context).edit().putString("storesInstallTarget", path).apply()
     }
 
-    /** Empty means follow the app/system language for GOG and Epic installs. */
     fun storesInstallLanguage(context: Context): String = prefs(context).getString("storesInstallLanguage", "") ?: ""
 
     fun setStoresInstallLanguage(context: Context, code: String) {
@@ -286,18 +350,44 @@ object SessionPrefs {
         prefs(context).edit().putInt("hudOpacity", percent.coerceIn(HUD_OPACITY_RANGE)).apply()
     }
 
-    fun fusionHudConfig(context: Context): String? = prefs(context).getString("fusionHud", null)
+    const val PC_KEYBOARD_SIZE_DEFAULT = 47
+    val PC_KEYBOARD_SIZE_RANGE = 25..70
+    const val PC_KEYBOARD_OPACITY_DEFAULT = 100
+    val PC_KEYBOARD_OPACITY_RANGE = 30..100
 
-    fun setFusionHudConfig(context: Context, config: String) {
-        prefs(context).edit().putString("fusionHud", config).apply()
+    fun pcKeyboardSize(context: Context): Int =
+        prefs(context).getInt("pcKeyboardSize", PC_KEYBOARD_SIZE_DEFAULT).takeIf { it in PC_KEYBOARD_SIZE_RANGE } ?: PC_KEYBOARD_SIZE_DEFAULT
+
+    fun setPcKeyboardSize(context: Context, percent: Int) {
+        prefs(context).edit().putInt("pcKeyboardSize", percent.coerceIn(PC_KEYBOARD_SIZE_RANGE)).apply()
     }
 
-    fun fusionHudPosition(context: Context): Pair<Float, Float>? =
-        prefs(context).getString("fusionHudPos", null)?.split(',')?.mapNotNull { it.toFloatOrNull() }
+    fun pcKeyboardOpacity(context: Context): Int =
+        prefs(context).getInt("pcKeyboardOpacity", PC_KEYBOARD_OPACITY_DEFAULT).takeIf { it in PC_KEYBOARD_OPACITY_RANGE } ?: PC_KEYBOARD_OPACITY_DEFAULT
+
+    fun setPcKeyboardOpacity(context: Context, percent: Int) {
+        prefs(context).edit().putInt("pcKeyboardOpacity", percent.coerceIn(PC_KEYBOARD_OPACITY_RANGE)).apply()
+    }
+
+    fun pcKeyboardHiddenKeys(context: Context): Set<String> =
+        idList(prefs(context).getString("pcKeyboardHiddenKeys", null)).toSet()
+
+    fun setPcKeyboardHiddenKeys(context: Context, hidden: Set<String>) {
+        prefs(context).edit().putString("pcKeyboardHiddenKeys", hidden.joinToString(",")).apply()
+    }
+
+    fun droidDeckHudConfig(context: Context): String? = prefs(context).getString("__KEEP_droidDeckHud__", null)
+
+    fun setDroidDeckHudConfig(context: Context, config: String) {
+        prefs(context).edit().putString("__KEEP_droidDeckHud__", config).apply()
+    }
+
+    fun droidDeckHudPosition(context: Context): Pair<Float, Float>? =
+        prefs(context).getString("__KEEP_droidDeckHudPos__", null)?.split(',')?.mapNotNull { it.toFloatOrNull() }
             ?.takeIf { it.size == 2 }?.let { it[0] to it[1] }
 
-    fun setFusionHudPosition(context: Context, x: Float, y: Float) {
-        prefs(context).edit().putString("fusionHudPos", "$x,$y").apply()
+    fun setDroidDeckHudPosition(context: Context, x: Float, y: Float) {
+        prefs(context).edit().putString("__KEEP_droidDeckHudPos__", "$x,$y").apply()
     }
 
     const val HUD_COLOR_MINT = "mint"
@@ -326,6 +416,12 @@ object SessionPrefs {
 
     fun setDirectCursor(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("directCursor", on).apply()
+    }
+
+    fun backHold(context: Context): Boolean = prefs(context).getBoolean("backHold", true)
+
+    fun setBackHold(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("backHold", on).apply()
     }
 
     fun backActionsInverted(context: Context): Boolean = prefs(context).getBoolean("backActionsInverted", false)
@@ -410,6 +506,17 @@ object SessionPrefs {
         p.edit().putString("gpuDriverMode", if (chosen) GPU_DRIVERS_MANUAL else GPU_DRIVERS_AUTO).apply()
     }
 
+    @JvmStatic
+    fun ensurePowerVrAutoDrivers(context: Context) {
+        if (com.droiddeck.launcher.core.DeviceSupport.openDriverActive(context)) return
+        ensurePowerVrAutoDrivers(context, SystemVulkanDriver.isPowerVr())
+    }
+
+    internal fun ensurePowerVrAutoDrivers(context: Context, powerVr: Boolean) {
+        if (!powerVr || gpuDriverMode(context) != GPU_DRIVERS_AUTO) return
+        prefs(context).edit().putString("linuxDriver", "").putString("androidDriver", TurnipDriver.AUTO).apply()
+    }
+
     fun gpuAutoInstalled(context: Context): Set<String> =
         prefs(context).getStringSet("gpuAutoInstalled", emptySet()).orEmpty()
 
@@ -427,10 +534,6 @@ object SessionPrefs {
             position.takeIf { it in listOf("top", "bottom", "center") } ?: "center").apply()
     }
 
-    /**
-     * After a game launched from the front end (or another launcher's link) closes, the client
-     * exits cleanly and the session returns there, instead of staying in Big Picture.
-     */
     fun returnAfterGame(context: Context): Boolean = prefs(context).getBoolean("returnAfterGame", true)
 
     fun setReturnAfterGame(context: Context, on: Boolean) {
@@ -440,11 +543,6 @@ object SessionPrefs {
     private fun shaderPrecacheApplied(context: Context) =
         java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.bl-shader-precache-applied")
 
-    /**
-     * Shader pre-caching as the launcher last set it, until a session reports it written into the
-     * client's config.vdf; after that the client's own toggle is the user's again. A client that
-     * has never written a config.vdf starts with pre-caching off.
-     */
     fun pendingShaderPrecache(context: Context): Boolean? {
         val prefs = prefs(context)
         if (!prefs.contains("shaderPrecache")) {
@@ -615,7 +713,6 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("gpuClockPin", on).apply()
     }
 
-    /** Whether the game's busiest threads are named to the power HAL for a boost (GameThreadHints). */
     fun gameThreadHints(context: Context): Boolean = prefs(context).getBoolean("gameThreadHints", true)
 
     fun prootNoSeccomp(context: Context): Boolean = prefs(context).getBoolean("prootNoSeccomp", false)
@@ -630,18 +727,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("prootFastPath", on).apply()
     }
 
-    /** gamescope draws the cursor itself. Off by default: on a phone that plane costs frames. */
     fun cursorComposite(context: Context): Boolean = prefs(context).getBoolean("cursorComposite", false)
 
     fun setCursorComposite(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("cursorComposite", on).apply()
     }
 
-    /**
-     * The rootfs ships Termux's unpatched proot. A session uses it only when this file exists,
-     * so a missing add-on pack cannot silently fall back to it.
-     * Path: Android/data/&lt;package&gt;/files/droiddeck-stock-proot
-     */
     @JvmStatic
     fun allowStockProot(context: Context): Boolean =
         context.getExternalFilesDir(null)?.let { File(it, "droiddeck-stock-proot").isFile } == true
@@ -694,6 +785,84 @@ object SessionPrefs {
 
     fun zinkLazy(context: Context): Boolean = prefs(context).getBoolean("zinkLazy", true)
 
+    @JvmStatic
+    fun vkBridge(context: Context): Boolean = prefs(context).getBoolean("vkBridge", com.droiddeck.launcher.core.DeviceSupport.mali())
+
+    fun venus(context: Context): Boolean = prefs(context).getBoolean("venus", false)
+
+    fun hostVulkanApi(context: Context): String = prefs(context).getString("hostVulkanApi", "").orEmpty()
+
+    fun setHostVulkanApi(context: Context, api: String) {
+        if (api != hostVulkanApi(context)) prefs(context).edit().putString("hostVulkanApi", api).apply()
+    }
+
+    fun bridgeFellBack(context: Context): Boolean = prefs(context).getBoolean("bridgeFellBack", false)
+
+    fun bridgeFellBackForMemory(context: Context): Boolean = prefs(context).getString("bridgeFallbackReason", "") == "memory"
+
+    fun setBridgeFellBack(context: Context, on: Boolean, reason: String = "") {
+        prefs(context).edit().putBoolean("bridgeFellBack", on).putString("bridgeFallbackReason", if (on) reason else "").apply()
+    }
+
+    fun steamGpuCompositing(context: Context): Boolean {
+        if (!steamGpuCompositingAllowed()) {
+            if (prefs(context).getBoolean("steamGpuCompositing", false))
+                prefs(context).edit().putBoolean("steamGpuCompositing", false).apply()
+            return false
+        }
+        return prefs(context).getBoolean("steamGpuCompositing", false)
+    }
+
+    fun steamGpuCompositingAllowed(): Boolean =
+        !com.droiddeck.launcher.core.DeviceSupport.adreno() && !com.droiddeck.launcher.core.DeviceSupport.mali()
+
+    fun setSteamGpuCompositing(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("steamGpuCompositing", on && steamGpuCompositingAllowed()).apply()
+    }
+
+    fun takeMemoryKillNotice(context: Context): Boolean {
+        val on = prefs(context).getBoolean("memoryKillNotice", false)
+        if (on) prefs(context).edit().putBoolean("memoryKillNotice", false).apply()
+        return on
+    }
+
+    fun setMemoryKillNotice(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("memoryKillNotice", on).apply()
+    }
+
+    fun maliFallbackByAuto(context: Context): String = prefs(context).getString("maliFallbackByAuto", "").orEmpty()
+
+    fun maliFallbackKnown(context: Context): Boolean = prefs(context).contains("maliFallbackByAuto")
+
+    fun setMaliFallbackByAuto(context: Context, route: String) {
+        prefs(context).edit().putString("maliFallbackByAuto", route).apply()
+    }
+
+    fun setVenus(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("venus", on).apply()
+    }
+
+    fun setVkBridge(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("vkBridge", on).putBoolean("bridgeFellBack", false).apply()
+    }
+
+    @JvmStatic
+    fun bridgeProtonDxvk(context: Context): Boolean = prefs(context).getBoolean("bridgeProtonDxvk", false)
+
+    fun setBridgeProtonDxvk(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("bridgeProtonDxvk", on).apply()
+    }
+
+    @JvmStatic
+    fun vkBridgeSafe(context: Context): Boolean = prefs(context).getBoolean("vkBridgeSafe", true)
+
+    fun setVkBridgeSafe(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("vkBridgeSafe", on).apply()
+    }
+
+    @JvmStatic
+    fun vkBridgeMode(context: Context): String = if (vkBridgeSafe(context)) "safe" else "performance"
+
     fun setZinkLazy(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("zinkLazy", on).apply()
     }
@@ -723,11 +892,10 @@ object SessionPrefs {
             key = "logs",
             oldValue = logsEnabled(context),
             newValue = on,
-            newEffective = on && gameDebugLogsEnabled(context) && SessionPaths.currentSessionLogsRetained(context),
+            newEffective = gameDebugLogsEffective(context, on, gameDebugLogsEnabled(context)),
         )
     }
 
-    /** Extra Proton, Wine and graphics diagnostics for the next game launch; off unless chosen. */
     fun gameDebugLogsEnabled(context: Context): Boolean =
         prefs(context).getBoolean("gameDebugLogsEnabled", false)
 
@@ -737,7 +905,7 @@ object SessionPrefs {
             key = "gameDebugLogsEnabled",
             oldValue = gameDebugLogsEnabled(context),
             newValue = on,
-            newEffective = logsEnabled(context) && on && SessionPaths.currentSessionLogsRetained(context),
+            newEffective = gameDebugLogsEffective(context, logsEnabled(context), on),
         )
     }
 
@@ -750,8 +918,7 @@ object SessionPrefs {
     ): Boolean {
         if (oldValue == newValue) return true
         val saved = prefs(context)
-        val oldEffective = logsEnabled(context) && gameDebugLogsEnabled(context) &&
-            SessionPaths.currentSessionLogsRetained(context)
+        val oldEffective = gameDebugLogsEffective(context)
         fun publish(value: Boolean) = GameEnvironmentStore.publish(context, gameDebugLogsOverride = value)
         if (oldEffective == newEffective) {
             if (saved.edit().putBoolean(key, newValue).commit()) return true
@@ -787,8 +954,25 @@ object SessionPrefs {
         }
     }
 
+    fun detailedGraphicsLogs(context: Context): Boolean =
+        prefs(context).getBoolean("detailedGraphicsLogs", false)
+
+    fun setDetailedGraphicsLogs(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("detailedGraphicsLogs", on).apply()
+    }
+
+    internal fun gameDebugLogsEffective(
+        context: Context,
+        logs: Boolean = logsEnabled(context),
+        gameLogs: Boolean = gameDebugLogsEnabled(context),
+    ): Boolean = EnhancedDiagnostics.isCurrentSessionActive(context) ||
+        (logs && gameLogs && SessionPaths.currentSessionLogsRetained(context))
+
     fun battleNetNoSteamSet(context: Context): Boolean = prefs(context).getBoolean("battleNetNoSteamSet", false)
     fun setBattleNetNoSteamSet(context: Context) { prefs(context).edit().putBoolean("battleNetNoSteamSet", true).apply() }
+
+    fun battleNetFolder(context: Context, code: String): String? = prefs(context).getString("battleNetFolder:$code", null)
+    fun setBattleNetFolder(context: Context, code: String, path: String) { prefs(context).edit().putString("battleNetFolder:$code", path).apply() }
 
     fun clearCachedApps(context: Context): Boolean = prefs(context).getBoolean("clearCachedApps", false)
     fun setClearCachedApps(context: Context, on: Boolean) { prefs(context).edit().putBoolean("clearCachedApps", on).apply() }
@@ -836,7 +1020,7 @@ object SessionPrefs {
     fun resolutionChoice(context: Context, mode: String, panel: Pair<Int, Int>): String {
         val saved = prefs(context)
         saved.getString("displayResolution.$mode", null)?.let { value ->
-            if (value == SessionDisplay.MATCH_SCREEN || value == SessionDisplay.FOLLOW_SCREEN ||
+            if (value == SessionDisplay.MATCH_SCREEN || SessionDisplay.isFollow(value) ||
                 SessionDisplay.presetHeight(value) != null) return value
             parseResolution(value)?.let { return "${it.first}x${it.second}" }
         }
@@ -849,7 +1033,7 @@ object SessionPrefs {
     }
 
     fun setResolutionChoice(context: Context, mode: String, choice: String) {
-        val value = if (choice == SessionDisplay.MATCH_SCREEN || choice == SessionDisplay.FOLLOW_SCREEN ||
+        val value = if (choice == SessionDisplay.MATCH_SCREEN || SessionDisplay.isFollow(choice) ||
                 SessionDisplay.presetHeight(choice) != null) choice else {
             val size = requireNotNull(parseResolution(choice)) { "Invalid resolution" }
             "${size.first}x${size.second}"
@@ -881,7 +1065,6 @@ object SessionPrefs {
         prefs(context).edit().putString("steamClientArch", id).apply()
     }
 
-    /** The running session's client, else the selected one: a changed setting applies from the next session. */
     fun activeSteamClientArch(context: Context): String =
         SessionState.steamClientArch?.takeIf { SessionState.running } ?: steamClientArch(context)
 
@@ -899,13 +1082,10 @@ object SessionPrefs {
     fun setBootMovieSound(context: Context, on: Boolean) { prefs(context).edit().putBoolean("bootMovieSound", on).apply() }
     fun bootMovieVolume(context: Context): Int = prefs(context).getInt("bootMovieVolume", 100).coerceIn(0, 100)
     fun setBootMovieVolume(context: Context, percent: Int) { prefs(context).edit().putInt("bootMovieVolume", percent.coerceIn(0, 100)).apply() }
-    /** How long the boot movie plays, in seconds; 0 plays all of it. */
     fun bootMovieSeconds(context: Context): Int = prefs(context).getInt("bootMovieSeconds", 0).coerceAtLeast(0)
     fun setBootMovieSeconds(context: Context, seconds: Int) { prefs(context).edit().putInt("bootMovieSeconds", seconds.coerceAtLeast(0)).apply() }
-    /** Set when a movie was picked here, so the next session makes it Steam's startup movie even if Steam had another one. */
     fun bootMovieApplyNext(context: Context): Boolean = prefs(context).getBoolean("bootMovieApplyNext", false)
     fun setBootMovieApplyNext(context: Context, on: Boolean) { prefs(context).edit().putBoolean("bootMovieApplyNext", on).apply() }
-    /** The startup movie path Steam's config held when it was last looked at, so only a change made in Steam is taken over. */
     fun bootMovieSteamSeen(context: Context): String? = prefs(context).getString("bootMovieSteamSeen", null)
     fun setBootMovieSteamSeen(context: Context, path: String) { prefs(context).edit().putString("bootMovieSteamSeen", path).apply() }
     fun bootMovieCustomName(context: Context): String? = prefs(context).getString("bootMovieCustomName", null)
@@ -913,10 +1093,17 @@ object SessionPrefs {
         prefs(context).edit().apply { if (name == null) remove("bootMovieCustomName") else putString("bootMovieCustomName", name) }.apply()
     }
 
-    fun runSteamAtStartup(context: Context): Boolean = prefs(context).getBoolean("runSteamAtStartup", false)
+    const val STARTUP_OFF = ""
+    const val STARTUP_STEAM = "steam"
+    const val STARTUP_DESKTOP = "desktop"
 
-    fun setRunSteamAtStartup(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("runSteamAtStartup", on).apply()
+    fun startupSession(context: Context): String {
+        val p = prefs(context)
+        return p.getString("startupSession", null) ?: if (p.getBoolean("runSteamAtStartup", false)) STARTUP_STEAM else STARTUP_OFF
+    }
+
+    fun setStartupSession(context: Context, id: String) {
+        prefs(context).edit().putString("startupSession", id).remove("runSteamAtStartup").apply()
     }
 
     fun addedGamesDirs(context: Context): List<String> {
@@ -1069,13 +1256,11 @@ object SessionPrefs {
         prefs(context).edit().putString("theme", id).apply()
     }
 
-    /** The custom Gradient theme's primary and secondary colours (ARGB). */
     fun gradientColors(context: Context): Pair<Int, Int> = prefs(context).let {
         it.getInt("gradientPrimary", com.droiddeck.launcher.ui.Themes.DEFAULT_PRIMARY) to
             it.getInt("gradientSecondary", com.droiddeck.launcher.ui.Themes.DEFAULT_SECONDARY)
     }
 
-    /** How fast the Inner Gamer theme cycles its colours, 1 to 10. */
     fun rgbSpeed(context: Context): Int =
         prefs(context).getInt("innerGamerSpeed", com.droiddeck.launcher.ui.Themes.DEFAULT_RGB_SPEED).coerceIn(1, com.droiddeck.launcher.ui.Themes.RGB_SPEEDS)
 
@@ -1105,18 +1290,11 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("hdr.$mode", on).apply()
     }
 
-    /** Compositor frame limit that releases buffers to the game unpaced. */
     const val FPS_UNPACED = -1
 
-    /** The drawer's frame limit slider: its first stop is Off. */
     const val FPS_LIMIT_OFF = 15
-    const val FPS_LIMIT_MAX = 120
+    const val FPS_LIMIT_MAX = 165
 
-    /**
-     * Buffers go back to the game as soon as they are replaced instead of once per refresh;
-     * Steam's Frame Limit in the Quick Access menu caps Steam games, and the drawer's limit caps games
-     * launched without Steam. Mirroring still follows the glasses' refresh rate.
-     */
     const val PIP_FPS = 30
 
     fun compositorFpsLimit(mirrorRefreshLimit: Int, sessionLimit: Int = 0, pip: Boolean = false): Int {
@@ -1416,5 +1594,17 @@ object SessionPrefs {
 
     fun setGameStorage(context: Context, path: String, label: String) {
         prefs(context).edit().putString("gameStorage", path).putString("gameStorageLabel", label).apply()
+    }
+
+    fun steamLibraries(context: Context): String = prefs(context).getString("steamLibraries", "") ?: ""
+
+    fun setSteamLibraries(context: Context, json: String) {
+        prefs(context).edit().putString("steamLibraries", json).apply()
+    }
+
+    fun steamLibraryNextId(context: Context): Int = prefs(context).getInt("steamLibraryNextId", 1)
+
+    fun setSteamLibraryNextId(context: Context, id: Int) {
+        prefs(context).edit().putInt("steamLibraryNextId", id).apply()
     }
 }

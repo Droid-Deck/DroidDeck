@@ -1,0 +1,145 @@
+diff --git a/src/Backends/WaylandBackend.cpp b/src/Backends/WaylandBackend.cpp
+index 953765a..572fb0e 100644
+--- a/src/Backends/WaylandBackend.cpp
++++ b/src/Backends/WaylandBackend.cpp
+@@ -464,6 +464,7 @@ namespace gamescope
+ 
+         virtual void SetCursorImage( std::shared_ptr<INestedHints::CursorInfo> info ) override;
+         virtual void SetRelativeMouseMode( bool bRelative ) override;
++        virtual void SetCursorPositionHint( double flX, double flY ) override;
+         virtual void SetVisible( bool bVisible ) override;
+         virtual void SetTitle( std::shared_ptr<std::string> szTitle ) override;
+         virtual void SetIcon( std::shared_ptr<std::vector<uint32_t>> uIconPixels ) override;
+@@ -719,6 +720,7 @@ namespace gamescope
+ 
+         void SetCursorImage( std::shared_ptr<INestedHints::CursorInfo> info );
+         void SetRelativeMouseMode( wl_surface *pSurface, bool bRelative );
++        void SetCursorPositionHint( wl_fixed_t fSurfaceX, wl_fixed_t fSurfaceY );
+         void UpdateCursor();
+ 
+         friend CWaylandConnector;
+@@ -1270,6 +1272,16 @@ namespace gamescope
+         // TODO: Do more tracking across multiple connectors, and activity here if we ever want to use this.
+         m_pBackend->SetRelativeMouseMode( m_Planes[0].GetSurface(), bRelative );
+     }
++    void CWaylandConnector::SetCursorPositionHint( double flX, double flY )
++    {
++        auto oState = m_Planes[0].GetCurrentState();
++        if ( !oState || !oState->uFractionalScale )
++            return;
++
++        const double flSurfaceX = ( flX * g_nOutputWidth - oState->nDestX ) * 120.0 / oState->uFractionalScale;
++        const double flSurfaceY = ( flY * g_nOutputHeight - oState->nDestY ) * 120.0 / oState->uFractionalScale;
++        m_pBackend->SetCursorPositionHint( wl_fixed_from_double( flSurfaceX ), wl_fixed_from_double( flSurfaceY ) );
++    }
+     void CWaylandConnector::SetVisible( bool bVisible )
+     {
+         if ( m_bVisible == bVisible )
+@@ -2484,6 +2496,15 @@ namespace gamescope
+ 
+         UpdateCursor();
+     }
++    void CWaylandBackend::SetCursorPositionHint( wl_fixed_t fSurfaceX, wl_fixed_t fSurfaceY )
++    {
++        if ( !m_pLockedPointer )
++            return;
++
++        zwp_locked_pointer_v1_set_cursor_position_hint( m_pLockedPointer, fSurfaceX, fSurfaceY );
++        wl_surface_commit( m_pLockedSurface );
++    }
++
+     void CWaylandBackend::SetRelativeMouseMode( wl_surface *pSurface, bool bRelative )
+     {
+         if ( !m_pPointer )
+diff --git a/src/backend.h b/src/backend.h
+index d264917..37b936e 100644
+--- a/src/backend.h
++++ b/src/backend.h
+@@ -271,6 +271,7 @@ namespace gamescope
+ 
+         virtual void SetCursorImage( std::shared_ptr<CursorInfo> info ) = 0;
+         virtual void SetRelativeMouseMode( bool bRelative ) = 0;
++        virtual void SetCursorPositionHint( double flX, double flY ) {}
+         virtual void SetVisible( bool bVisible ) = 0;
+         virtual void SetTitle( std::shared_ptr<std::string> szTitle ) = 0;
+         virtual void SetIcon( std::shared_ptr<std::vector<uint32_t>> uIconPixels ) = 0;
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+index f1346e5..2c92afe 100644
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -2078,6 +2078,18 @@ void MouseCursor::UpdatePosition()
+ 	}
+ }
+ 
++void MouseCursor::QueryRootPosition( int *pX, int *pY )
++{
++	Window root_ret, child_ret;
++	int win_x = 0, win_y = 0;
++	unsigned int mask;
++	*pX = m_x;
++	*pY = m_y;
++	XQueryPointer( m_ctx->dpy, DefaultRootWindow( m_ctx->dpy ), &root_ret, &child_ret, pX, pY, &win_x, &win_y, &mask );
++}
++
++static bool relative_mouse_forced();
++
+ void MouseCursor::checkSuspension()
+ {
+ 	getTexture();
+@@ -2085,7 +2097,12 @@ void MouseCursor::checkSuspension()
+ 	if ( ShouldDrawCursor() )
+ 	{
+ 		const bool suspended = int64_t( get_time_in_nanos() ) - int64_t( wlserver.ulLastMovedCursorTime ) > int64_t( cursorHideTime );
+-		if (!wlserver.bCursorHidden && suspended) {
++		if ( relative_mouse_forced() && wlserver.bCursorHidden )
++		{
++			wlserver.bCursorHidden = false;
++			hasRepaintNonBasePlane = true;
++		}
++		if (!wlserver.bCursorHidden && suspended && !relative_mouse_forced()) {
+ 			wlserver.bCursorHidden = true;
+ 
+ 			steamcompmgr_win_t *window = m_ctx->focus.inputFocusWindow;
+@@ -3064,6 +3081,11 @@ static void paint_pipewire()
+ gamescope::ConVar<int> cv_cursor_composite{ "cursor_composite", 1, "0 = Never composite a cursor. 1 = Composite cursor when not nested. 2 = Always composite a cursor manually" };
+ static gamescope::ConVar<int> cv_relative_mouse( "relative_mouse", 0,
+ "0 = Leave it to the game and the nested hints. 1 = Send host pointer motion as relative movement, for games that confine the cursor and warp it back to read movement. 2 = Never go relative." );
++static bool relative_mouse_forced()
++{
++	return cv_relative_mouse.Get() == 1;
++}
++
+ bool ShouldDrawCursor()
+ {
+ 	if ( cv_relative_mouse.Get() == 1 )
+@@ -10828,6 +10850,18 @@ steamcompmgr_main(int argc, char **argv)
+ 					? false
+ 					: ( bForcedRelativeMouse || ( bImageEmpty && bHasPointerConstraint && !bExcludedAppId ) );
+ 
++				static bool s_bRelativeMouseMode = false;
++				if ( s_bRelativeMouseMode && !bRelativeMouseMode && pPaintFocus->cursor &&
++				     g_nOutputWidth && g_nOutputHeight && focusedWindowScaleX > 0.0f && focusedWindowScaleY > 0.0f )
++				{
++					int nRootX, nRootY;
++					pPaintFocus->cursor->QueryRootPosition( &nRootX, &nRootY );
++					pPaintFocus->GetNestedHints()->SetCursorPositionHint(
++						( nRootX / focusedWindowScaleX - focusedWindowOffsetX ) / g_nOutputWidth,
++						( nRootY / focusedWindowScaleY - focusedWindowOffsetY ) / g_nOutputHeight );
++				}
++				s_bRelativeMouseMode = bRelativeMouseMode;
++
+ 				pPaintFocus->GetNestedHints()->SetRelativeMouseMode( bRelativeMouseMode );
+ 			}
+ 
+diff --git a/src/steamcompmgr.hpp b/src/steamcompmgr.hpp
+index 7a7119f..ff54d8e 100644
+--- a/src/steamcompmgr.hpp
++++ b/src/steamcompmgr.hpp
+@@ -85,6 +85,7 @@ public:
+ 	}
+ 
+ 	void UpdatePosition();
++	void QueryRootPosition( int *pX, int *pY );
+ 
+ 	bool isHidden() { return wlserver.bCursorHidden || m_imageEmpty; }
+ 	bool imageEmpty() const { return m_imageEmpty; }

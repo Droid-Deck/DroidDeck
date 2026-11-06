@@ -1,6 +1,5 @@
 package com.droiddeck.launcher.ui
 
-// `split` is the size of a leading section that starts its own rows; 0 means one continuous grid.
 internal fun storeGridNeighbor(index: Int, count: Int, columns: Int, direction: Int, split: Int = 0): Int? {
     if (index !in 0 until count || columns < 1 || direction !in listOf(-1, 1)) return null
     if (split !in 1 until count) return (index + columns * direction).takeIf { it in 0 until count }

@@ -621,7 +621,6 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
     Spacer(Modifier.height(8.dp))
     Note(stringResource(R.string.storage_games_note))
     confirm?.let { g ->
-        // steam://uninstall reaches only the session's client, the selected one.
         val otherClient = g.x64 != (SessionPrefs.steamClientArch(LocalContext.current) == "x86_64")
         if (otherClient) AlertDialog(
             onDismissRequest = { confirm = null },

@@ -97,7 +97,8 @@ object UserApps {
             App(
                 "flatpak:${app.id}", Kind.FLATPAK, readName(custom) ?: app.name,
                 File(custom, "icon.png").takeIf { it.isFile } ?: app.icon ?: FlathubApi.iconUrl(app.id),
-                app.summary, FlatpakManager.LAUNCHER, listOf(app.id),
+                app.summary, FlatpakManager.LAUNCHER, FlatpakManager.launchArgs(app),
+                arch = app.arch.takeIf { FlatpakManager.foreign(app) },
             )
         }
         return (scripts + images + flatpaks).sortedBy { it.name.lowercase() }

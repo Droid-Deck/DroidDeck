@@ -53,10 +53,10 @@ class StoreInstallRootTest {
         assertEquals(SessionPrefs.DEFAULT_STORAGE_ASK, SessionPrefs.defaultStorage(app))
     }
 
-    @Test fun defaultExternalStorageFallsBackToTheInstallDialogWhenNoCardIsPresent() {
+    @Test fun defaultExternalStorageFallsBackToInternalWhenNoCardIsPresent() {
         SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
         SessionPrefs.setDefaultStorage(app, SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
-        assertNull(StoreInstallRoot.defaultTarget(app))
+        assertEquals(StoreInstallRoot.internalRoot(app).absolutePath, StoreInstallRoot.defaultTarget(app)?.root?.absolutePath)
     }
 
     @Test fun aChosenFolderIsUsedForDefaultExternalStorage() {
@@ -74,7 +74,7 @@ class StoreInstallRootTest {
         assertFalse(File(root, ".droiddeck-write-probe").exists())
     }
 
-    @Test fun aDisconnectedChosenFolderDoesNotFallBackToAnotherTarget() {
+    @Test fun aDisconnectedChosenFolderFallsBackToInternalUntilItIsBack() {
         val card = File(app.filesDir, "card/steam").apply { mkdirs() }
         SessionPrefs.setGameStorage(app, card.path, "Card")
         val folder = File(app.filesDir, "usb/SSD").apply { mkdirs() }
@@ -83,8 +83,11 @@ class StoreInstallRootTest {
         assertNotNull(StoreInstallRoot.defaultTarget(app))
 
         assertTrue(folder.delete())
-        assertNull(StoreInstallRoot.defaultTarget(app))
+        assertEquals(StoreInstallRoot.internalRoot(app).absolutePath, StoreInstallRoot.defaultTarget(app)?.root?.absolutePath)
         assertEquals(File(card, "Games").absolutePath, StoreInstallRoot.detectedExternalTarget(app)?.root?.absolutePath)
+
+        assertTrue(folder.mkdirs())
+        assertEquals(File(folder, "Games").absolutePath, StoreInstallRoot.defaultTarget(app)?.root?.absolutePath)
     }
 
     @Test fun filesOnAChosenFolderAreMappedIntoTheGuest() {
@@ -201,6 +204,15 @@ class StoreInstallRootTest {
         assertTrue(StoreInstallRoot.unfinished(app).none { it.folder.absolutePath == half.absolutePath })
     }
 
+    @Test fun aGameBeingUpdatedIsNotAnUnfinishedInstallForAnyStore() {
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+        for (store in listOf(Store.EPIC, Store.ITCH, Store.XBOX, Store.AMAZON)) {
+            val folder = File(StoreInstallRoot.storeDir(StoreInstallRoot.internalRoot(app), store), StoreInstallRoot.folderName("Updating", "u1")).apply { mkdirs() }
+            StoreGameSidecar(store, "u1", "Updating", "Updating.exe", state = StoreGameSidecar.STATE_UPDATING).write(folder)
+            assertTrue(StoreInstallRoot.unfinished(app).none { it.folder.absolutePath == folder.absolutePath })
+        }
+    }
+
     @Test fun theScratchCacheIsPrivateAndNamedSafely() {
         val dir = StoreInstallRoot.scratchDir(app, Store.EPIC, "a/b:c")
         assertTrue(dir.absolutePath.startsWith(app.cacheDir.absolutePath))
@@ -288,5 +300,26 @@ class StoreInstallRootTest {
         assertTrue(StoreInstallRoot.insufficientSpace(1L, 0L))
         assertFalse(StoreInstallRoot.insufficientSpace(1L, 1L))
         assertFalse(StoreInstallRoot.insufficientSpace(0L, 0L))
+    }
+
+    @Test fun itchKeepsTheFolderItsGamesWereInstalledInWhateverItsDisplayName() {
+        assertEquals("itch", StoreInstallRoot.storeDir(File("/games"), Store.ITCH).name)
+        assertEquals("Game Jolt", StoreInstallRoot.storeDir(File("/games"), Store.GAMEJOLT).name)
+    }
+
+    @Test fun anUnpluggedLibraryDriveSendsInstallsToInternalUntilItIsBack() {
+        val files = File(app.filesDir, "usb-drive/files")
+        val library = File(files, "steam")
+        SessionPrefs.setGameStorage(app, library.path, "USB drive")
+        SessionPrefs.setDefaultStorage(app, SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
+        val internal = StoreInstallRoot.internalRoot(app).absolutePath
+
+        assertEquals(internal, StoreInstallRoot.defaultTarget(app)?.root?.absolutePath)
+        assertEquals(listOf(internal), StoreInstallRoot.targets(app).map { it.root.absolutePath })
+        assertNull(StoreInstallRoot.libraryRoot(app))
+
+        library.mkdirs()
+        assertEquals(File(library, "Games").absolutePath, StoreInstallRoot.defaultTarget(app)?.root?.absolutePath)
+        assertEquals(File(library, "Games").absolutePath, StoreInstallRoot.libraryRoot(app)?.absolutePath)
     }
 }
