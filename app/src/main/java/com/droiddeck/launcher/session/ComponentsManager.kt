@@ -778,18 +778,43 @@ object ComponentsManager {
 
     internal fun runtimeManaged(comp: String, runtimeManagedDxvk: Boolean): Boolean = comp == "dxvk" && runtimeManagedDxvk
 
+    internal fun runtimeManaged(
+        comp: String,
+        route: com.droiddeck.launcher.core.DeviceSupport.GraphicsRoute,
+        systemManagesDxvk: Boolean,
+    ): Boolean = runtimeManaged(comp, route.systemVulkan && systemManagesDxvk)
+
+    internal fun runtimeManaged(context: Context, comp: String, systemManagesDxvk: Boolean): Boolean =
+        runtimeManaged(
+            comp,
+            SessionState.effectiveGraphicsRoute(context),
+            systemManagesDxvk,
+        )
+
     private fun runtimeManaged(context: Context, comp: String): Boolean =
-        runtimeManaged(comp, SystemVulkanDriver.managesDxvk(SessionPrefs.linuxDriver(context)))
+        runtimeManaged(context, comp, SystemVulkanDriver.managesDxvk(SessionPrefs.linuxDriver(context)))
 
     private fun requireSelectable(context: Context, comp: String, managed: (String) -> Boolean = { runtimeManaged(context, it) }) {
         check(!managed(comp)) { context.getString(R.string.cmgr_system_dxvk_managed, SystemVulkanDriver.gpuName()) }
     }
 
-    fun swap(context: Context, protonId: String, file: String, auto: Boolean = false): String = synchronized(lock) {
+    fun swap(context: Context, protonId: String, file: String, auto: Boolean = false): String =
+        swap(context, protonId, file, auto, allowRuntimeManaged = false)
+
+    internal fun swapAutomatic(context: Context, protonId: String, file: String): String =
+        swap(context, protonId, file, auto = true, allowRuntimeManaged = true)
+
+    private fun swap(
+        context: Context,
+        protonId: String,
+        file: String,
+        auto: Boolean,
+        allowRuntimeManaged: Boolean,
+    ): String = synchronized(lock) {
         val p = proton(context, protonId)
         val wcp = File(packagesDir(context), safeName(file))
         val info = packageInfo(context, wcp)
-        requireSelectable(context, info.comp)
+        if (!allowRuntimeManaged) requireSelectable(context, info.comp)
         val state = loadState(context)
         if (inUse(context, p)) {
             state.sub("queued").sub(p.id).put(info.comp, JSONObject().put("kind", "package").put("file", wcp.name).put("label", info.version)
@@ -814,8 +839,17 @@ object ComponentsManager {
         Log.i(TAG, "swapped ${info.comp} ${info.version} into ${p.name} ${p.version}")
     }
 
-    fun restore(context: Context, protonId: String, comp: String, protonVersion: String): String = synchronized(lock) {
-        requireSelectable(context, comp)
+    fun restore(context: Context, protonId: String, comp: String, protonVersion: String): String =
+        restore(context, protonId, comp, protonVersion, allowRuntimeManaged = false)
+
+    private fun restore(
+        context: Context,
+        protonId: String,
+        comp: String,
+        protonVersion: String,
+        allowRuntimeManaged: Boolean,
+    ): String = synchronized(lock) {
+        if (!allowRuntimeManaged) requireSelectable(context, comp)
         val p = proton(context, protonId)
         val wcp = File(originalsDir(context), "$protonId/${safeName(protonVersion)}/$comp.wcp")
         check(wcp.isFile) { context.getString(R.string.cmgr_original_missing) }
@@ -1514,15 +1548,18 @@ object ComponentsManager {
 
     private val forcedLock = Any()
 
-    fun ensureForcedPackages(context: Context): String? = synchronized(forcedLock) { ensureForcedPackages(
+    fun ensureForcedPackages(
+        context: Context,
+        bridgeSession: Boolean = com.droiddeck.launcher.core.DeviceSupport.vkBridge(context),
+    ): String? = synchronized(forcedLock) { ensureForcedPackages(
         context, GpuInfo.detect(),
         { file, release -> catalogItem(context, file, release) },
         { download(context, it) {} },
         { id, file -> swap(context, id, file) },
         vulkan = AppVulkan.detect(context),
-        bridgeSession = com.droiddeck.launcher.core.DeviceSupport.vkBridge(context),
-        applyAuto = { id, file -> swap(context, id, file, auto = true) },
-        undoAuto = { id, comp -> undoAutoChoice(context, id, comp) },
+        bridgeSession = bridgeSession,
+        applyAuto = { id, file -> swapAutomatic(context, id, file) },
+        undoAuto = { id, comp -> undoAutoChoice(context, id, comp, allowRuntimeManaged = true) },
         keepProtonDxvk = SessionPrefs.bridgeProtonDxvk(context),
         autoPossible = !com.droiddeck.launcher.core.DeviceSupport.adreno(),
     ) }
@@ -1536,13 +1573,18 @@ object ComponentsManager {
         }, "auto-dxvk").start()
     }
 
-    internal fun undoAutoChoice(context: Context, protonId: String, comp: String): String = synchronized(lock) {
+    internal fun undoAutoChoice(
+        context: Context,
+        protonId: String,
+        comp: String,
+        allowRuntimeManaged: Boolean = false,
+    ): String = synchronized(lock) {
         val p = proton(context, protonId)
         val state = loadState(context)
         val entry = state.sub("active").optJSONObject(p.id)?.optJSONObject(comp)
         val sameProton = entry?.optString("protonVersion") == p.version
         if (sameProton && originalFile(context, p, comp).isFile)
-            return restore(context, protonId, comp, safeName(p.version))
+            return restore(context, protonId, comp, safeName(p.version), allowRuntimeManaged)
         if (sameProton) {
             Log.w(TAG, "${p.name}: its own ${LABEL[comp]} copy is gone; keeping ${entry?.optString("label")}")
             return "${LABEL[comp]}: ${p.name} keeps ${entry?.optString("label")} (its own copy is gone)"

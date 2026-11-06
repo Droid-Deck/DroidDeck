@@ -41,6 +41,7 @@ class DriverMenusSystemTest {
     @Before fun setUp() {
         activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         SessionState.running = false
+        SessionState.graphicsRoute = null
         SessionState.phase = SessionPhase.IDLE
         SessionPrefs.setGpuDriverMode(activity, SessionPrefs.GPU_DRIVERS_AUTO)
         SessionPrefs.setLinuxDriver(activity, "")
@@ -49,12 +50,26 @@ class DriverMenusSystemTest {
 
     @After fun tearDown() {
         SessionState.running = false
+        SessionState.graphicsRoute = null
         SessionState.phase = SessionPhase.IDLE
         File(activity.filesDir, "system_vulkan").deleteRecursively()
         File(activity.filesDir, "components/system-vulkan").deleteRecursively()
         File(activity.filesDir, "repository-sources").deleteRecursively()
         File(activity.cacheDir, "repository-metadata").deleteRecursively()
         activity.finish()
+    }
+
+    @Test fun aRunningBridgeSessionDoesNotReportSystemVulkanAsActive() {
+        SessionState.running = true
+        SessionState.graphicsRoute = com.droiddeck.launcher.core.DeviceSupport.GraphicsRoute.VK_BRIDGE
+        val menus = DriverMenus(activity, Handler(Looper.getMainLooper()), gpu)
+        menus.refreshDrivers()
+        val state = menus.state()
+
+        assertFalse(state.systemVulkan)
+        assertFalse(state.runtimeManagedDxvk)
+        assertFalse(state.runtime.pending)
+        assertEquals(activity.getString(R.string.gpu_runtime_bridge_live), state.runtime.status)
     }
 
     @Test fun legacyRuntimeHasAnHonestOriginAndIsSelectedBeforeFirstLaunch() {

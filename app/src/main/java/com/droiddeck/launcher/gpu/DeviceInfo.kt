@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import com.droiddeck.launcher.core.FileUtils
+import com.droiddeck.launcher.core.DeviceSupport
 import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 import java.util.Locale
@@ -67,6 +68,8 @@ object DeviceInfo {
         add("Load", read("$kgsl/gpu_busy_percentage")?.let { if (it.endsWith("%")) it else "$it %" })
         add("Temperature", read("$kgsl/temp")?.toLongOrNull()?.let { if (it > 1000) "${it / 1000} °C" else "$it °C" })
         add("Support", gpu.supportText(SessionPrefs.vkBridge(context)))
+        add("Graphics route", com.droiddeck.launcher.session.SessionState.effectiveGraphicsRoute(context).id)
+        add("Mali bridge requested", SessionPrefs.vkBridge(context).toString())
     })
 
     private fun cpu() = Section("CPU", buildList<Pair<String, String>> {

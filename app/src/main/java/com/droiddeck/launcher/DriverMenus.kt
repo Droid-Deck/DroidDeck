@@ -76,6 +76,7 @@ internal class DriverMenus(
     private var sessionRunning by mutableStateOf(false)
     private val systemProfile get() = gpu.family.systemProfile
     private val actualLinuxSelected get() = SessionPrefs.linuxDriver(activity)
+    private val graphicsRoute get() = SessionState.effectiveGraphicsRoute(activity)
     var tpUbwcMode: String by mutableStateOf(SessionPrefs.TP_UBWC_AUTO)
         private set
 
@@ -95,8 +96,8 @@ internal class DriverMenus(
         linuxRows = linuxRows, linuxSelected = linuxSelected, androidRows = androidRows, androidSelected = androidSelected,
         linuxDownloads = linuxDownloads, androidDownloads = androidDownloads, canRestoreBundled = canRestoreBundled,
         activeBundle = activeBundle,
-        systemVulkan = SystemVulkanDriver.usesDefault(actualLinuxSelected),
-        runtimeManagedDxvk = SystemVulkanDriver.managesDxvk(actualLinuxSelected),
+        systemVulkan = graphicsRoute.systemVulkan,
+        runtimeManagedDxvk = graphicsRoute.systemVulkan && SystemVulkanDriver.managesDxvk(actualLinuxSelected),
         systemGpu = systemGpu, systemDriverName = systemDriverName,
         mode = uiMode, display = displaySlot(), runtime = runtimeSlot(),
         canRestart = !sessionRunning,
@@ -150,6 +151,8 @@ internal class DriverMenus(
             source = slotSource(actualLinuxSelected.isEmpty(), R.string.gpu_src_default),
             pending = runtimePending,
             status = when {
+                sessionRunning && SessionState.effectiveGraphicsRoute(activity).bridge ->
+                    activity.getString(R.string.gpu_runtime_bridge_live)
                 runtimePending -> activity.getString(R.string.gpu_runtime_pending, live ?: activity.getString(R.string.gpu_previous_driver))
                 systemGpu && systemRows.isEmpty() && actualLinuxSelected.isEmpty() -> activity.getString(R.string.gpu_system_missing)
                 sessionRunning -> activity.getString(R.string.gpu_runtime_live)
@@ -248,7 +251,7 @@ internal class DriverMenus(
         activeBundle = DriverBundle.active(activity)?.label
         restartPending = CompositorHost.isStarted && CompositorHost.displayChoice.let { it != null && it != androidSelected }
         sessionRunning = SessionState.running
-        runtimePending = sessionRunning && if (systemProfile != null && chosenLinux.isEmpty()) {
+        runtimePending = sessionRunning && !SessionState.effectiveGraphicsRoute(activity).bridge && if (systemProfile != null && chosenLinux.isEmpty()) {
             installedSystem.any { it.pending }
         } else SessionState.runtimeDriver.let { it != null && it != chosenLinux }
         refreshReleaseRows()
@@ -257,7 +260,8 @@ internal class DriverMenus(
 
     fun summary(): String {
         val active = pairRows.firstOrNull { it.active }?.name ?: activeBundle
-            ?: if (SystemVulkanDriver.usesDefault(actualLinuxSelected) && androidSelected == TurnipDriver.AUTO) activity.getString(R.string.gpu_system_driver, systemDriverName) else null
+            ?: if (graphicsRoute.systemVulkan && androidSelected == TurnipDriver.AUTO)
+                activity.getString(R.string.gpu_system_driver, systemDriverName) else null
         val display = displaySlot().name
         val base = when {
             uiMode == GPU_MODE_AUTO -> activity.getString(R.string.drivers_summary, activity.getString(R.string.common_auto), active ?: display)

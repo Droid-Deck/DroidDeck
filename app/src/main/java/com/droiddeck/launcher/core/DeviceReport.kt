@@ -227,6 +227,8 @@ object DeviceReport {
                 blob = com.droiddeck.launcher.gpu.AutoPicks.blobVersion(
                     com.droiddeck.launcher.gpu.VulkanInfo.cachedOrNull()?.get("driver_version")))
                 ?.let { " (recommended pair: $it)" } ?: ""))
+        k("Graphics route", SessionState.effectiveGraphicsRoute(context).id)
+        k("Mali bridge requested", SessionPrefs.vkBridge(context))
         val turnip = TurnipDriver(context)
         val androidChoice = SessionPrefs.androidDriver(context)
         val displayId = androidChoice.ifEmpty { turnip.autoId() }

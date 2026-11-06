@@ -116,8 +116,10 @@ class BridgeDxvkTest {
         proton("proton-exp")
         val d3d11 = File(protonDir("proton-exp"), "files/lib/wine/dxvk/aarch64-windows/d3d11.dll")
         writePackage(old, "DXVK 1.10.3")
-        val auto: (String, String) -> String = { id, file -> ComponentsManager.swap(context, id, file, auto = true) }
-        val undo: (String, String) -> String = { id, comp -> ComponentsManager.undoAutoChoice(context, id, comp) }
+        val auto: (String, String) -> String = { id, file -> ComponentsManager.swapAutomatic(context, id, file) }
+        val undo: (String, String) -> String = { id, comp ->
+            ComponentsManager.undoAutoChoice(context, id, comp, allowRuntimeManaged = true)
+        }
 
         assertNotNull(run(g710, applyAuto = auto, undoAuto = undo))
         assertEquals("DXVK 1.10.3", d3d11.readText())
@@ -150,7 +152,9 @@ class BridgeDxvkTest {
     @Test fun aChoiceWhoseSavedCopyIsGoneIsKept() {
         proton("proton-exp")
         writeState("proton-exp", JSONObject().put("file", old).put("label", "DXVK 1.10.3").put("protonVersion", "experimental-11").put("auto", true))
-        val result = run(full, undoAuto = { id, comp -> ComponentsManager.undoAutoChoice(context, id, comp) })
+        val result = run(full, undoAuto = { id, comp ->
+            ComponentsManager.undoAutoChoice(context, id, comp, allowRuntimeManaged = true)
+        })
         assertTrue(result!!, result.contains("its own copy is gone"))
         assertEquals(old, state().getJSONObject("active").getJSONObject("proton-exp").getJSONObject("dxvk").getString("file"))
     }
@@ -158,7 +162,9 @@ class BridgeDxvkTest {
     @Test fun aProtonUpdateWithNoRuleLeftJustForgetsTheChoice() {
         proton("proton-exp", "experimental-12")
         writeState("proton-exp", JSONObject().put("file", old).put("protonVersion", "experimental-11").put("auto", true))
-        run(full, undoAuto = { id, comp -> ComponentsManager.undoAutoChoice(context, id, comp) })
+        run(full, undoAuto = { id, comp ->
+            ComponentsManager.undoAutoChoice(context, id, comp, allowRuntimeManaged = true)
+        })
         assertNull(state().getJSONObject("active").optJSONObject("proton-exp")?.optJSONObject("dxvk"))
         assertEquals("bundled DXVK experimental-12", File(protonDir("proton-exp"), "files/lib/wine/dxvk/aarch64-windows/d3d11.dll").readText())
     }
@@ -176,8 +182,10 @@ class BridgeDxvkTest {
         proton("proton-exp")
         val d3d11 = File(protonDir("proton-exp"), "files/lib/wine/dxvk/aarch64-windows/d3d11.dll")
         writePackage(old, "DXVK 1.10.3")
-        val auto: (String, String) -> String = { id, file -> ComponentsManager.swap(context, id, file, auto = true) }
-        val undo: (String, String) -> String = { id, comp -> ComponentsManager.undoAutoChoice(context, id, comp) }
+        val auto: (String, String) -> String = { id, file -> ComponentsManager.swapAutomatic(context, id, file) }
+        val undo: (String, String) -> String = { id, comp ->
+            ComponentsManager.undoAutoChoice(context, id, comp, allowRuntimeManaged = true)
+        }
         run(g710, applyAuto = auto, undoAuto = undo)
         assertEquals("DXVK 1.10.3", d3d11.readText())
         run(null, bridge = false, applyAuto = auto, undoAuto = undo)

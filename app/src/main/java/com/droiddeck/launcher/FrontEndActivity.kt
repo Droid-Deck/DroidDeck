@@ -2951,10 +2951,16 @@ class FrontEndActivity : ComponentActivity() {
 
     private fun startSession(intent: Intent, steamSession: Boolean = false): Boolean {
         if (busy || LinuxRuntimeInstaller.isBusy()) return false
-        if (!SessionState.running &&
-            com.droiddeck.launcher.gpu.SystemVulkanDriver.isAvailable() &&
-            com.droiddeck.launcher.gpu.SystemVulkanDriver.usesDefault(SessionPrefs.linuxDriver(this)) &&
-            !com.droiddeck.launcher.gpu.SystemVulkanDriver.isReady(this)) {
+        val graphicsRoute = com.droiddeck.launcher.core.DeviceSupport.graphicsRoute(
+            this,
+            SessionPrefs.linuxDriver(this),
+        )
+        if (com.droiddeck.launcher.core.DeviceSupport.needsSystemVulkanComponent(
+                SessionState.running,
+                graphicsRoute,
+                com.droiddeck.launcher.gpu.SystemVulkanDriver.isAvailable(),
+                com.droiddeck.launcher.gpu.SystemVulkanDriver.isReady(this),
+            )) {
             components.compComp = com.droiddeck.launcher.ui.GPU_TAB
             showComponents = true
             drivers.ensureAuto(force = false)

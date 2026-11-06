@@ -55,9 +55,17 @@ object AutoDriverTrial {
         p.edit().putInt("displayStarts", counted + 1).commit()
     }
 
-    fun sessionStarting(context: Context, display: String, linux: String) {
+    fun sessionStarting(context: Context, display: String, linux: String, active: Boolean = true) {
         val trial = current(context)
         watching = null
+        if (!active) {
+            // displayStarting() runs before the guest route is frozen. A bridge session does not
+            // exercise the Linux half of this paired trial, so do not count that display start.
+            if (trial?.display == display) {
+                prefs(context).edit().putInt("displayStarts", prefs(context).getInt("starts", 0)).commit()
+            }
+            return
+        }
         if (trial == null || trial.display != display || trial.linux != linux) return
         app = context.applicationContext
         watching = trial

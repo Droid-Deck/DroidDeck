@@ -7,6 +7,17 @@ import com.droiddeck.launcher.gpu.SystemVulkanDriver
 import java.io.File
 
 object DeviceSupport {
+    enum class GraphicsRoute(
+        val id: String,
+        val bridge: Boolean = false,
+        val systemVulkan: Boolean = false,
+        val linuxVulkan: Boolean = false,
+    ) {
+        VK_BRIDGE("vkbridge", bridge = true),
+        SYSTEM_VULKAN("system-vulkan", systemVulkan = true),
+        LINUX_VULKAN("linux-vulkan", linuxVulkan = true),
+    }
+
     private val adrenoGpu by lazy {
         File("/sys/class/kgsl/kgsl-3d0").exists() || File("/vendor/lib64/hw/vulkan.adreno.so").exists()
     }
@@ -19,6 +30,24 @@ object DeviceSupport {
 
     fun vkBridge(context: Context): Boolean =
         !adreno() && com.droiddeck.launcher.session.SessionPrefs.vkBridge(context)
+
+    fun graphicsRoute(context: Context, linuxDriverId: String): GraphicsRoute = graphicsRoute(
+        bridge = vkBridge(context),
+        systemVulkan = SystemVulkanDriver.usesDefault(linuxDriverId),
+    )
+
+    internal fun graphicsRoute(bridge: Boolean, systemVulkan: Boolean): GraphicsRoute = when {
+        bridge -> GraphicsRoute.VK_BRIDGE
+        systemVulkan -> GraphicsRoute.SYSTEM_VULKAN
+        else -> GraphicsRoute.LINUX_VULKAN
+    }
+
+    internal fun needsSystemVulkanComponent(
+        sessionRunning: Boolean,
+        route: GraphicsRoute,
+        available: Boolean,
+        ready: Boolean,
+    ): Boolean = !sessionRunning && route.systemVulkan && available && !ready
 
     fun canDraw(context: Context): Boolean = graphicsAvailable() || vkBridge(context)
 

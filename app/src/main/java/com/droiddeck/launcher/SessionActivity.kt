@@ -1219,8 +1219,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             backRequest = drawerBackRequests, onLayerChange = { drawerLayerOpen = it }, a = DrawerActions(
             steam = SessionState.mode == SessionService.MODE_STEAM,
             systemDriverName = com.droiddeck.launcher.gpu.SystemVulkanDriver.gpuName(),
-            runtimeManagedDxvk = com.droiddeck.launcher.gpu.SystemVulkanDriver.managesDxvk(
-                SessionPrefs.linuxDriver(this@SessionActivity)),
+            runtimeManagedDxvk = SessionState.effectiveGraphicsRoute(this@SessionActivity).systemVulkan &&
+                com.droiddeck.launcher.gpu.SystemVulkanDriver.managesDxvk(SessionPrefs.linuxDriver(this@SessionActivity)),
             direct = noSteamSession(),
             title = if (SessionState.mode == SessionService.MODE_RUN)
                 com.droiddeck.launcher.frontend.Library.nameForProgram(SessionState.program) ?: getString(R.string.session_title_game) else null,

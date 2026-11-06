@@ -2821,6 +2821,7 @@
     <string name="gpu_display_live">Drawing now</string>
     <string name="gpu_display_pending">Restart pending · %1$s draws until then</string>
     <string name="gpu_runtime_live">Running now</string>
+    <string name="gpu_runtime_bridge_live">Mali bridge is active; this driver is not used while the bridge is on.</string>
     <string name="gpu_runtime_pending">Next session · this session keeps %1$s</string>
     <string name="gpu_display_next">Draws the screen. Applies from the next session.</string>
     <string name="gpu_previous_driver">the previous driver</string>

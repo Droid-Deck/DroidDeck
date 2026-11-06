@@ -5,6 +5,7 @@ import com.droiddeck.launcher.gpu.LinuxVulkanDriver
 import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
 import com.droiddeck.launcher.gpu.SystemVulkanDriver
 import com.droiddeck.launcher.gpu.SystemVulkanComponentStore
+import com.droiddeck.launcher.core.DeviceSupport
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -441,6 +442,22 @@ class SessionService : Service() {
     private fun runSession(gen: Int) {
         systemVulkanSnapshot = null
         SessionPrefs.ensureSystemVulkanAutoDrivers(this)
+        val linuxDriverId = SessionPrefs.linuxDriver(this)
+        val graphicsRoute = DeviceSupport.graphicsRoute(this, linuxDriverId)
+        SessionState.graphicsRoute = graphicsRoute
+        if (graphicsRoute.bridge) {
+            if (SystemVulkanDriver.usesDefault(linuxDriverId)) {
+                Log.w(TAG, "Mali bridge is the exclusive graphics route; the selected System Vulkan component will not be loaded")
+            }
+            com.droiddeck.launcher.gpu.AutoDriverTrial.sessionStarting(
+                this,
+                com.droiddeck.launcher.wayland.CompositorHost.displayChoice
+                    .takeIf { com.droiddeck.launcher.wayland.CompositorHost.isStarted }
+                    ?: SessionPrefs.androidDriver(this),
+                linuxDriverId,
+                active = false,
+            )
+        }
         SessionTerminal.clear()
         com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice(this)
         try {
@@ -456,7 +473,7 @@ class SessionService : Service() {
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
         killStragglers()
         val (directAudioPack, agentEnvironment) = try {
-            if (SystemVulkanDriver.usesDefault(SessionPrefs.linuxDriver(this))) {
+            if (graphicsRoute.systemVulkan) {
                 systemVulkanSnapshot = SystemVulkanDriver.prepareSnapshot(this, !OrphanReaper.hasOtherProcesses())
                 pruneSystemVulkanRuntime()
             }
@@ -503,6 +520,12 @@ class SessionService : Service() {
         com.droiddeck.launcher.stores.StoreLaunchRequests.start(this)
 
         val sessionDir = openSessionFolder()
+        Log.i(TAG, "graphics route: ${graphicsRoute.id} (bridge requested=${SessionPrefs.vkBridge(this)}, linux driver=${linuxDriverId.ifEmpty { "default" }})")
+        SessionEvents.record("graphics.route", mapOf(
+            "route" to graphicsRoute.id,
+            "bridgeRequested" to SessionPrefs.vkBridge(this),
+            "linuxDriver" to linuxDriverId.ifEmpty { "default" },
+        ))
         try {
             GameEnvironmentStore.publish(this)
         } catch (e: Exception) {
@@ -526,12 +549,17 @@ class SessionService : Service() {
             .onSuccess { if (it) Log.i(TAG, "component selections published for the installed Proton builds") }
             .onFailure { Log.w(TAG, "component selections", it) }
         if (steamHere) {
-            runCatching { ComponentsManager.ensureForcedPackages(this) }
+            runCatching {
+                ComponentsManager.ensureForcedPackages(
+                    this,
+                    bridgeSession = graphicsRoute.bridge,
+                )
+            }
                 .onSuccess { if (it != null) Log.i(TAG, it) }
                 .onFailure { Log.w(TAG, "forced components", it) }
         }
         try {
-            addClientEnvironment(guest, steamHere, agentEnvironment)
+            addClientEnvironment(guest, steamHere, agentEnvironment, graphicsRoute, linuxDriverId)
         } catch (error: IllegalStateException) {
             Log.e(TAG, "Could not configure the session graphics driver", error)
             stopSession(-1, gen)
@@ -547,7 +575,7 @@ class SessionService : Service() {
             components.add(encoder)
             guest.add("BL_VENC_SOCKET=" + encoder.socket.absolutePath)
         }
-        startVkBridge(guest, sessionDir)
+        startVkBridge(guest, sessionDir, graphicsRoute)
         com.droiddeck.launcher.gpu.ClockLogComponent(File(sessionDir, "clocks.log")).let {
             it.attach(this)
             components.add(it)
@@ -811,7 +839,13 @@ class SessionService : Service() {
         return com.droiddeck.launcher.input.GesturePrefs.read(this, game).relativeMouseMode
     }
 
-    private fun addClientEnvironment(guest: MutableList<String>, steamHere: Boolean, agentEnvironment: List<String>) {
+    private fun addClientEnvironment(
+        guest: MutableList<String>,
+        steamHere: Boolean,
+        agentEnvironment: List<String>,
+        graphicsRoute: DeviceSupport.GraphicsRoute,
+        linuxDriverId: String,
+    ) {
         guest.add("/usr/bin/env")
         guest.add("-i")
         guest.add("DROIDDECK_BWRAP_SOCKET=" + com.droiddeck.launcher.runtime.BwrapSpawner.socket(this))
@@ -841,29 +875,28 @@ class SessionService : Service() {
         guest.add("GALLIUM_DRIVER=zink")
         guest.add("LIBGL_KOPPER_DRI2=true")
         LinuxRuntime.vulkanIcd(this)?.let { guest.add("VK_ICD_FILENAMES=" + it.path) }
-        val linuxDriverId = SessionPrefs.linuxDriver(this)
-        val systemVulkan = SystemVulkanDriver.usesDefault(linuxDriverId)
-        if (systemVulkan) {
-            val snapshot = systemVulkanSnapshot
-                ?: throw IllegalStateException("System Vulkan session snapshot is unavailable")
-            SystemVulkanDriver.addEnvironment(snapshot, guest)
-            SystemVulkanComponentStore.launchStarting(this, snapshot, SessionState.generation)
-        }
-        SessionState.runtimeDriver = linuxDriverId
-        com.droiddeck.launcher.gpu.AutoDriverTrial.sessionStarting(
-            this,
-            com.droiddeck.launcher.wayland.CompositorHost.displayChoice.takeIf { com.droiddeck.launcher.wayland.CompositorHost.isStarted }
-                ?: SessionPrefs.androidDriver(this),
-            linuxDriverId,
+        val systemVulkan = graphicsRoute.systemVulkan
+        configureGraphicsRouteEnvironment(
+            graphicsRoute,
+            guest,
+            addSystemVulkan = { environment ->
+                val snapshot = systemVulkanSnapshot
+                    ?: throw IllegalStateException("System Vulkan session snapshot is unavailable")
+                SystemVulkanDriver.addEnvironment(snapshot, environment)
+                SystemVulkanComponentStore.launchStarting(this, snapshot, SessionState.generation)
+                SystemVulkanDriver.icdPath(snapshot)
+            },
+            linuxIcd = { LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId) },
         )
-        (if (systemVulkan) {
-            SystemVulkanDriver.icdPath(
-                systemVulkanSnapshot ?: throw IllegalStateException("System Vulkan session snapshot is unavailable"),
+        SessionState.runtimeDriver = linuxDriverId.takeUnless { graphicsRoute.bridge }
+        if (!graphicsRoute.bridge) {
+            com.droiddeck.launcher.gpu.AutoDriverTrial.sessionStarting(
+                this,
+                com.droiddeck.launcher.wayland.CompositorHost.displayChoice.takeIf { com.droiddeck.launcher.wayland.CompositorHost.isStarted }
+                    ?: SessionPrefs.androidDriver(this),
+                linuxDriverId,
             )
-        } else if (!com.droiddeck.launcher.core.DeviceSupport.vkBridge(this)) {
-            LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId)
-        } else null)
-            ?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
+        }
         val tuOverride = tuDebugOverride()
         val tuDriver = sysmemDriver(linuxDriverId)
         (tuOverride ?: "sysmem".takeIf { tuDriver || SessionPrefs.tuSysmem(this) })?.let { guest.add("TU_DEBUG=$it") }
@@ -919,20 +952,26 @@ class SessionService : Service() {
     private fun noSteamGame(): Boolean =
         SessionState.mode == MODE_RUN && SessionState.program in setOf(NoSteamLaunch.PROTON_RUN, NoSteamLaunch.EPIC, NoSteamLaunch.BATTLENET)
 
-    private fun startVkBridge(guest: MutableList<String>, sessionDir: File) {
-        if (!com.droiddeck.launcher.core.DeviceSupport.vkBridge(this)) return
+    private fun startVkBridge(
+        guest: MutableList<String>,
+        sessionDir: File,
+        graphicsRoute: DeviceSupport.GraphicsRoute,
+    ) {
+        if (!graphicsRoute.bridge) return
         val socket = File(filesDir, "vkbridge/server.sock")
         val bridge = com.droiddeck.launcher.gpu.VkBridgeComponent(socket, File(sessionDir, "vkbridge-server.log"))
         bridge.attach(this)
         components.add(bridge)
-        guest.add("BL_VKBRIDGE=1")
-        guest.add("VKBRIDGE_SOCKET=" + socket.path)
-        guest.add("VKBRIDGE_CLIENT_LOG=" + File(sessionDir, "vkbridge-client.log").path)
-        guest.add("VKBRIDGE_MODE=" + SessionPrefs.vkBridgeMode(this))
-        LinuxRuntime.gpuStandIn(this)?.let { node ->
-            guest.add("BL_DRM_STANDIN=$node")
-            LinuxRuntime.deviceNumbers(node)?.let { guest.add("VKBRIDGE_DRM_RENDER=$it") }
-        }
+        val standIn = LinuxRuntime.gpuStandIn(this)
+        addBridgeGuestEnvironment(
+            graphicsRoute,
+            guest,
+            socket.path,
+            File(sessionDir, "vkbridge-client.log").path,
+            SessionPrefs.vkBridgeMode(this),
+            standIn,
+            standIn?.let { LinuxRuntime.deviceNumbers(it) },
+        )
         Log.i(TAG, "vkbridge: on (${com.droiddeck.launcher.core.DeviceSupport.gpuName(this)}, ${SessionPrefs.vkBridgeMode(this)} mode), socket $socket")
     }
 
@@ -1961,6 +2000,7 @@ class SessionService : Service() {
             SessionEvents.record("guest.exited", mapOf("status" to status))
             SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
             SessionState.running = false
+            SessionState.graphicsRoute = null
             val ended = SessionPaths.take()
             if (ended != null) SessionArtifacts.collectionStarted(ended)
             ended to SessionState.steamClientArch
@@ -2483,3 +2523,35 @@ internal fun shouldClearSystemVulkanSnapshot(
     stopped: SystemVulkanComponentStore.Snapshot?,
     current: SystemVulkanComponentStore.Snapshot?,
 ): Boolean = stoppedGeneration == currentGeneration && stopped === current
+
+internal fun configureGraphicsRouteEnvironment(
+    route: DeviceSupport.GraphicsRoute,
+    guest: MutableList<String>,
+    addSystemVulkan: (MutableList<String>) -> String,
+    linuxIcd: () -> String?,
+) {
+    val icd = when {
+        route.systemVulkan -> addSystemVulkan(guest)
+        route.linuxVulkan -> linuxIcd()
+        else -> null
+    }
+    icd?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
+}
+
+internal fun addBridgeGuestEnvironment(
+    route: DeviceSupport.GraphicsRoute,
+    guest: MutableList<String>,
+    socket: String,
+    clientLog: String,
+    mode: String,
+    drmStandIn: String?,
+    drmRender: String?,
+) {
+    if (!route.bridge) return
+    guest.add("BL_VKBRIDGE=1")
+    guest.add("VKBRIDGE_SOCKET=$socket")
+    guest.add("VKBRIDGE_CLIENT_LOG=$clientLog")
+    guest.add("VKBRIDGE_MODE=$mode")
+    drmStandIn?.let { guest.add("BL_DRM_STANDIN=$it") }
+    drmRender?.let { guest.add("VKBRIDGE_DRM_RENDER=$it") }
+}
