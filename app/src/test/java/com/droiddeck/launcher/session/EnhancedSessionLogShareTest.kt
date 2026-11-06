@@ -271,7 +271,8 @@ class EnhancedSessionLogShareTest {
         fun fresh() = EnhancedSessionLogShare.create(app, session)
         val untouched = "destination-not-opened".toByteArray()
         fun destination(): Pair<File, android.net.Uri> {
-            val file = SessionLogShare.shareDir(app).resolve("save-destination.zip").apply { writeBytes(untouched) }
+            val file = SessionLogShare.shareDir(app).apply { mkdirs() }
+                .resolve("save-destination.zip").apply { writeBytes(untouched) }
             return file to FileProvider.getUriForFile(app, app.packageName + ".logs", file)
         }
         SessionLogShare.setSaveDestinationValidatorForTest { _, _ -> true }
