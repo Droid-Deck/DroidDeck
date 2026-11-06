@@ -20,6 +20,9 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
 
 void vkp_effects_destroy(void);
 void vkp_effects_release_generated_sources(void);
+int vkp_effects_prepare_generated(void);
+VkImage vkp_effects_run_before_generated(VkCommandBuffer cmd, VkImage scene, int w, int h,
+                                         int *res_w, int *res_h);
 VkImage vkp_effects_run_generated(VkCommandBuffer cmd, VkImage scene, int scene_w, int scene_h,
                                   int out_w, int out_h, int slot, int *res_w, int *res_h);
 

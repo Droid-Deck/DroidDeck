@@ -2026,7 +2026,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
     const int upscale_w = (int)(scene_w * g_map.kx + 0.5f);
     const int upscale_h = (int)(scene_h * g_map.ky + 0.5f);
     const int post_upscale = fx && fg && !hf && !cb && vkp_effects_upscaling() &&
-                             !vkp_effects_postprocessing() &&
+                             vkp_effects_prepare_generated() &&
                              (upscale_w > input_w || upscale_h > input_h);
     if (post_upscale) {
         static int last_input_w, last_input_h, last_output_w, last_output_h;
@@ -2170,7 +2170,8 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
             if (fg) { mapped_w = scene_w; mapped_h = scene_h; }
             if (post_upscale) { mapped_w = input_w; mapped_h = input_h; }
             vkp_effects_set_formats(scene_fmt, scene_fmt);
-            result = vkp_effects_run(cmd, scene_img, input_w, input_h, mapped_w, mapped_h, &rw, &rh);
+            result = post_upscale ? vkp_effects_run_before_generated(cmd, scene_img, input_w, input_h, &rw, &rh)
+                                  : vkp_effects_run(cmd, scene_img, input_w, input_h, mapped_w, mapped_h, &rw, &rh);
             effects_overlay_draws(cmd, result, rw, rh, scene_w, scene_h,
                                   draws ? draws + overlay_start : NULL, n - overlay_start);
             release_external_client_draws(cmd, draws, n);

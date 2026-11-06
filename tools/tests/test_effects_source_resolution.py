@@ -148,7 +148,7 @@ typedef struct {
 #define HDR_FMT 101
 #define FG_HDR_FMT 102
 #define VK_FORMAT_R8G8B8A8_UNORM SCENE_FMT
-#define VKP_FG_MAX_GENERATIONS 2
+#define VKP_FG_MAX_GENERATIONS 3
 #define HDRC_OUT_PQ 1
 #define HDRC_OUT_SDR 2
 #define droiddeck_log(...) ((void)0)
@@ -185,7 +185,7 @@ static int g_dev_state = 1, g_window = 1, g_swapchain, g_swap_extra;
 static int g_colorspace_ext, g_swap_hdr_unavailable, g_swap_is_hdr, g_swap_hdr_want;
 static int g_plain_frame, g_first_frame_done, g_base_black;
 static int g_qfam, g_queue, g_dev, g_fence, g_swap_fmt = SCENE_FMT;
-static int g_cmds[3], g_acqs[3], g_rnds[3], images[1] = {2}, *g_images = images;
+static int g_cmds[4], g_acqs[4], g_rnds[4], images[1] = {2}, *g_images = images;
 static uint32_t g_swap_md_identity;
 static VkExtent2D g_extent = {1920, 1080};
 static struct { float kx, ky, off_x, off_y; int rx, ry, rw, rh; } g_map;
@@ -256,6 +256,12 @@ static VkImage vkp_effects_run(int cmd, int source, int w, int h, int ow, int oh
     if (!hdr_count) assert(g_scene.w == w && g_scene.h == h);
     if (fail_effects) { *rw = w; *rh = h; return source; }
     *rw = ow; *rh = oh; return 4;
+}
+static int vkp_effects_prepare_generated(void) {
+    return g_cur.scaling >= 3 && g_cur.scaling <= 8 && g_cur.scaling != 6 && !postprocessing;
+}
+static VkImage vkp_effects_run_before_generated(int cmd, int source, int w, int h, int *rw, int *rh) {
+    return vkp_effects_run(cmd, source, w, h, w, h, rw, rh);
 }
 static int generations, post_count, fg_w, fg_h;
 static int post_sources[4], screen_widths[4], screen_heights[4];

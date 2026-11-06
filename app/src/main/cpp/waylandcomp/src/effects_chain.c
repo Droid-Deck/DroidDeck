@@ -52,6 +52,7 @@ static struct fx_settings g_set = {
     .gamma = 1.0f, .saturation = 1.0f, .s_raw = 100.0f, .look = "Off"};
 static volatile int g_changed;
 static struct fx_settings g_cur;
+static struct fx_settings g_generated_settings;
 static int g_cur_valid;
 
 static void set_begin(void) { pthread_mutex_lock(&g_lock); }
@@ -156,6 +157,13 @@ int vkp_effects_upscaling(void) {
 int vkp_effects_postprocessing(void) {
     vkp_effects_sync();
     return effect_count(&g_cur) > 0;
+}
+
+int vkp_effects_prepare_generated(void) {
+    vkp_effects_sync();
+    g_generated_settings = g_cur;
+    return spatial_mode(g_generated_settings.scaling) && g_generated_settings.scaling != 6 &&
+           effect_count(&g_generated_settings) == 0;
 }
 
 VkFilter vkp_effects_blit_filter(void) {
@@ -507,11 +515,18 @@ static void pass(VkCommandBuffer cmd, VkPipeline p, struct fx_target *dst, VkDes
 static const float FULL_NDC[4] = {-1.0f, -1.0f, 1.0f, 1.0f};
 #define SET_NDC(pc) memcpy((pc).ndc, FULL_NDC, sizeof(FULL_NDC))
 
+struct fx_source_state {
+    VkImageLayout layout;
+    VkPipelineStageFlags stage;
+    VkAccessFlags access;
+};
+
 static VkImage effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int scene_h,
-                        int out_w, int out_h, int *res_w, int *res_h, VkImageLayout input_layout) {
-    const struct fx_settings *s;
-    vkp_effects_sync();
-    s = &g_cur;
+                        int out_w, int out_h, int *res_w, int *res_h, VkImageLayout input_layout,
+                        const struct fx_settings *frozen, struct fx_source_state *source_state) {
+    if (!frozen) vkp_effects_sync();
+    const struct fx_settings settings = frozen ? *frozen : g_cur;
+    const struct fx_settings *s = &settings;
     *res_w = scene_w; *res_h = scene_h;
 
     int cw = out_w > 0 ? out_w : scene_w, ch = out_h > 0 ? out_h : scene_h;
@@ -535,6 +550,8 @@ static VkImage effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int 
         const float sharp01 = (float)s->sharp_pct / 100.0f;
 
         if (spatial) {
+            if (source_state) *source_state = (struct fx_source_state){VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT};
             barrier(cmd, scene, input_layout, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_ACCESS_MEMORY_WRITE_BIT,
                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
@@ -568,6 +585,8 @@ static VkImage effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int 
             }
             cur = dst; cur_ds = dst->ds;
         } else if (resize) {
+            if (source_state) *source_state = (struct fx_source_state){VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT};
             struct fx_target *dst = FREE_TARGET();
             barrier(cmd, scene, input_layout, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                     VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_ACCESS_MEMORY_WRITE_BIT,
@@ -577,12 +596,14 @@ static VkImage effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int 
             VkImageBlit bl = {.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, .srcOffsets = {{0, 0, 0}, {scene_w, scene_h, 1}},
                               .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, .dstOffsets = {{0, 0, 0}, {cw, ch, 1}}};
             g_vk.CmdBlitImage(cmd, scene, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst->img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                              1, &bl, vkp_effects_blit_filter());
+                              1, &bl, s->scaling == 2 ? VK_FILTER_NEAREST : VK_FILTER_LINEAR);
             barrier(cmd, dst->img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_ACCESS_MEMORY_WRITE_BIT,
                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
             cur = dst; cur_ds = dst->ds;
         } else {
+            if (source_state) *source_state = (struct fx_source_state){VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT};
             barrier(cmd, scene, input_layout, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_ACCESS_MEMORY_WRITE_BIT,
                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
@@ -649,7 +670,15 @@ static VkImage effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int 
 VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int scene_h,
                         int out_w, int out_h, int *res_w, int *res_h) {
     return effects_run(cmd, scene, scene_w, scene_h, out_w, out_h, res_w, res_h,
-                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, NULL, NULL);
+}
+
+VkImage vkp_effects_run_before_generated(VkCommandBuffer cmd, VkImage scene, int w, int h,
+                                         int *res_w, int *res_h) {
+    struct fx_settings settings = g_generated_settings;
+    settings.scaling = 0;
+    return effects_run(cmd, scene, w, h, w, h, res_w, res_h,
+                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &settings, NULL);
 }
 
 VkImage vkp_effects_run_generated(VkCommandBuffer cmd, VkImage scene, int scene_w, int scene_h,
@@ -659,14 +688,15 @@ VkImage vkp_effects_run_generated(VkCommandBuffer cmd, VkImage scene, int scene_
         return scene;
     }
     g_context = slot + 1;
+    struct fx_source_state source_state = {0};
     VkImage result = effects_run(cmd, scene, scene_w, scene_h, out_w, out_h, res_w, res_h,
-                                 VK_IMAGE_LAYOUT_GENERAL);
+                                 VK_IMAGE_LAYOUT_GENERAL, &g_generated_settings, &source_state);
     barrier(cmd, result, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
             VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
             VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
     if (result != scene)
-        barrier(cmd, scene, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
-                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
+        barrier(cmd, scene, source_state.layout, VK_IMAGE_LAYOUT_GENERAL,
+                source_state.stage, source_state.access,
                 VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT);
     g_context = 0;
     return result;
