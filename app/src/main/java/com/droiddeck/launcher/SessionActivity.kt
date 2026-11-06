@@ -3654,8 +3654,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun readGameField(done: (String?) -> Unit) {
-        sessionClipboard.captureGuest(FIELD_READ_MS, onTimeout = ::endGameField) { text ->
-            if (text != null) endGameField()
+        val opened = wowChat.request
+        val stillOpen = { wowChat.request === opened && AgentGuest.gameTextField }
+        sessionClipboard.captureGuest(FIELD_READ_MS, onTimeout = { if (stillOpen()) endGameField() }) { text ->
+            if (text != null && stillOpen()) endGameField()
             done(text)
         }
         selectGameField(KEY_C)
