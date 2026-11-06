@@ -5,9 +5,11 @@ import android.os.Build;
 import android.system.ErrnoException;
 import android.system.Os;
 import android.system.OsConstants;
+import com.droiddeck.launcher.core.AddonPack;
 import com.droiddeck.launcher.core.FileUtils;
 import com.droiddeck.launcher.core.TarZst;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -21,7 +23,6 @@ import org.json.JSONObject;
 
 /** Isolated glibc-to-Android Vulkan bridge. It does not replace the rootfs's Mesa libraries. */
 public final class SystemVulkanDriver {
-    private static final String ASSET = "hybris/runtime.tzst";
     /** Vendor HALs the bridge loads. Samsung Xclipse (Exynos, sgpu) is experimental. */
     private static final String[] HALS = {
         "/vendor/lib64/hw/vulkan.powervr.so",
@@ -144,13 +145,17 @@ public final class SystemVulkanDriver {
         if (!isPowerVr()) throw new IOException("System PowerVR Vulkan driver is unavailable");
         if (!renderNodeAvailable()) throw new IOException(
                 "System PowerVR requires an identifiable, readable and writable DRM render node");
+        if (!AddonPack.POWERVR.await(context)) throw new IOException(
+                "Couldn't download the PowerVR graphics runtime. Check your connection and try again.");
         File target = runtimeDirectory(context);
         File base = target.getParentFile();
         if (complete(target)) return target;
         if (!base.isDirectory() && !base.mkdirs()) throw new IOException("Cannot create system Vulkan directory");
         File staged = new File(base, ".stage-" + UUID.randomUUID());
         try {
-            if (!TarZst.extractAsset(context, ASSET, staged)) throw new IOException("Cannot unpack system Vulkan runtime");
+            try (FileInputStream archive = new FileInputStream(AddonPack.POWERVR.file(context, "runtime.tzst"))) {
+                if (!TarZst.extract(archive, staged)) throw new IOException("Cannot unpack system Vulkan runtime");
+            }
             for (String name : REQUIRED)
                 if (!present(staged, name)) throw new IOException("Missing system Vulkan component: " + name);
             if (!new File(staged, "run-proton.py").canExecute())
@@ -175,8 +180,9 @@ public final class SystemVulkanDriver {
     /** The current APK's versioned runtime path, without extracting or modifying it. */
     public static File runtimeDirectory(Context context) throws IOException {
         String version;
+        if (!AddonPack.POWERVR.installed(context)) throw new IOException("PowerVR graphics runtime is not installed");
         try (BufferedReader input = new BufferedReader(new InputStreamReader(
-                context.getAssets().open("hybris/version.txt"), StandardCharsets.US_ASCII))) {
+                new FileInputStream(AddonPack.POWERVR.file(context, "version.txt")), StandardCharsets.US_ASCII))) {
             version = input.readLine();
         }
         if (version == null || !version.matches("[0-9a-f]{64}")) throw new IOException("Invalid system Vulkan runtime version");
