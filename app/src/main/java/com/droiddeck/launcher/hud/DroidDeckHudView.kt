@@ -275,9 +275,11 @@ class DroidDeckHudView(context: Context) : View(context) {
             periodDone.trySend(Unit)
         }
         if (graphRect == null) return
-        val now = SystemClock.uptimeMillis()
-        if (now - lastGraphDrawMs < GRAPH_REDRAW_MS) return
-        lastGraphDrawMs = now
+        if (stripRect != null) {
+            val now = SystemClock.uptimeMillis()
+            if (now - lastGraphDrawMs < GRAPH_REDRAW_MS) return
+            lastGraphDrawMs = now
+        }
         invalidate()
     }
 
@@ -432,7 +434,8 @@ class DroidDeckHudView(context: Context) : View(context) {
         val wasStrip = stripRect != null
         val oldW = contentW; val oldH = contentH
         rebuild()
-        if (oldW != contentW || oldH != contentH || wasStrip != (stripRect != null)) requestLayout()
+        val stillStrip = wasStrip && stripRect != null
+        if (!stillStrip || oldW != contentW || oldH != contentH) requestLayout()
         invalidate()
     }
 
