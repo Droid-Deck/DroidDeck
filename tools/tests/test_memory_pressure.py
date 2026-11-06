@@ -153,19 +153,20 @@ class SessionPressureTest(unittest.TestCase):
     def run_policy(self, body):
         functions = '\n'.join(function_source(name) for name in (
             'bl_memory_read', 'bl_memory_tight', 'bl_memory_critical', 'bl_low_ram',
-            'bl_session_pressure', 'bl_watch_nap', 'bl_zram_pick'))
+            'bl_session_pressure', 'bl_watch_nap', 'bl_zram_pick', 'bl_tier_note', 'bl_tier_readback'))
         functions = functions.replace('/proc/meminfo', str(self.root / 'meminfo'))
         functions = functions.replace('/proc/pressure/memory', str(self.root / 'pressure'))
         harness = '''
 set -u
-_bl_game=1 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_swap=0 _bl_tier_pushed=0 _bl_pids=(999)
+_bl_game=1 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_pushed=0 _bl_tier_back=0 _bl_tier_targets=() _bl_tier_swaps=() _bl_pids=(999)
 _bl_pressure_at=-1 _bl_packed=-1
-rss=$((1536 * 1024)) swap=0 pushed=$((1024 * 1024))
+rss=$((1536 * 1024)) swap=0 pushed=$((1024 * 1024)) alive=999 complete=1
 step() { :; }
+bl_alive() { case " $alive " in *" $1 "*) return 0 ;; esac; return 1; }
 nap() { echo "nap:$1"; }
 bl_session_others() { _bl_session=(321 654); }
 bl_zram_usage() { _bl_rss=$rss _bl_swap=$swap; }
-bl_zram_send() { echo "send:$1:$3"; rss=$((rss - pushed)); swap=$((swap + pushed)); _bl_pageout_complete=1; }
+bl_zram_send() { echo "send:$1:$3"; rss=$((rss - pushed)); swap=$((swap + pushed)); _bl_pageout_complete=$complete; }
 ''' + functions + '\nbl_memory_read\n' + body
         result = run_bash(harness)
         self.assertEqual(0, result.returncode, result.stderr)
@@ -218,7 +219,7 @@ echo "backoff:$_bl_tier_backoff"
 
     def test_repeated_read_back_keeps_doubling_up_to_five_minutes(self):
         self.assertEqual(['backoff:300'], self.run_policy('''
-_bl_tier_backoff=240 _bl_tier_at=0 _bl_tier_swap=$((1024 * 1024)) _bl_tier_pushed=$((1024 * 1024)) swap=0
+_bl_tier_backoff=240 _bl_tier_at=0 _bl_tier_targets=(999) _bl_tier_swaps=($((1024 * 1024))) _bl_tier_pushed=$((1024 * 1024)) swap=0
 SECONDS=240; bl_session_pressure
 echo "backoff:$_bl_tier_backoff"
 '''))
@@ -269,6 +270,31 @@ echo "client:$_bl_pressure_at:$_bl_packed"
         self.assertEqual(['send:1:game'], self.run_policy('bl_session_pressure'))
         self.memory(available=1900)
         self.assertEqual([], self.run_policy('bl_session_pressure'))
+
+
+    def test_a_compressed_process_that_exits_is_not_counted_as_read_back(self):
+        self.assertEqual(['send:1:game', 'send:1:game', 'backoff:30'], self.run_policy('''
+SECONDS=0; bl_session_pressure
+alive=""; swap=0
+SECONDS=30; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+'''))
+
+    def test_a_process_that_starts_after_a_pageout_is_not_in_its_read_back(self):
+        self.assertEqual(['send:1:game', 'targets:999', 'send:1:game', 'backoff:30'], self.run_policy('''
+SECONDS=0; bl_session_pressure
+echo "targets:${_bl_tier_targets[*]}"
+alive="999 1234"
+SECONDS=30; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+'''))
+
+    def test_an_incomplete_pageout_does_not_restart_the_launcher_wait(self):
+        self.assertEqual(['send:1:game', 'client:-1:-1'], self.run_policy('''
+complete=0
+SECONDS=0; bl_session_pressure
+echo "client:$_bl_pressure_at:$_bl_packed"
+'''))
 
 
 if __name__ == '__main__':

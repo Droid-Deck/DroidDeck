@@ -898,35 +898,57 @@ case $mode in
         bl_session_pressure() {
           bl_memory_read
           [ "$_bl_game" = 1 ] && bl_low_ram && bl_memory_critical || return 0
-          local _wait=$_bl_tier_backoff _urgent=0 _before _pids
+          local _wait=$_bl_tier_backoff _urgent=0 _before _pids _targets
           [ "$_bl_available" -ge $((_bl_headroom / 2)) ] || _urgent=1 _wait=30
           [ "$_bl_tier_at" -lt 0 ] || [ $((SECONDS - _bl_tier_at)) -ge "$_wait" ] || return 0
-          bl_zram_pick game
-          bl_zram_usage "${_pids[@]}" > /dev/null
           if [ "$_bl_tier_at" -ge 0 ] && [ "$_bl_tier_pushed" -gt 0 ]; then
-            if [ $((_bl_tier_swap - _bl_swap)) -le $((_bl_tier_pushed / 2)) ]; then
+            bl_tier_readback
+            if [ "$_bl_tier_back" -le $((_bl_tier_pushed / 2)) ]; then
               _bl_tier_backoff=30
             elif [ "$_urgent" = 0 ]; then
               _bl_tier_backoff=$((_bl_tier_backoff * 2 > 300 ? 300 : _bl_tier_backoff * 2))
-              _bl_tier_at=$SECONDS _bl_tier_swap=$_bl_swap _bl_tier_pushed=0
+              _bl_tier_at=$SECONDS _bl_tier_pushed=0
               step "zRAM: the game read back most of its last page-out, next try in ${_bl_tier_backoff} s"
               return 0
             fi
           fi
           _bl_tier_at=$SECONDS
+          bl_zram_pick game
+          bl_zram_usage "${_pids[@]}" > /dev/null
           [ "$_bl_rss" -ge $((256 * 1024)) ] || return 0
           if [ "$_bl_swap_total" -le 0 ] || [ $((_bl_swap_free - _bl_rss)) -lt "$_bl_swap_reserve" ]; then
             step "zRAM: low-memory page-out skipped, swap headroom too small ($((_bl_swap_free / 1024)) MB free)"
             return 0
           fi
-          _before=$_bl_swap
+          _targets=("${_pids[@]}") _before=$_bl_swap
           bl_zram_send 1 "low memory (available $((_bl_available / 1024)) MB), compressing idle game memory" game
-          bl_zram_pick game
-          bl_zram_usage "${_pids[@]}" > /dev/null
-          _bl_tier_swap=$_bl_swap _bl_tier_pushed=$((_bl_swap - _before))
-          if [ "${BL_ZRAM_CLIENT:-1}" = 1 ] && [ "${#_bl_pids[@]}" -gt 0 ]; then
+          bl_zram_usage "${_targets[@]}" > /dev/null
+          _bl_tier_pushed=$((_bl_swap - _before))
+          bl_tier_note "${_targets[@]}"
+          if [ "${_bl_pageout_complete:-0}" = 1 ] && [ "${BL_ZRAM_CLIENT:-1}" = 1 ] && [ "${#_bl_pids[@]}" -gt 0 ]; then
             _bl_pressure_at=$SECONDS _bl_packed=$SECONDS
           fi
+        }
+        bl_alive() {
+          [ -d "/proc/$1" ]
+        }
+        bl_tier_note() {
+          local _p
+          _bl_tier_targets=() _bl_tier_swaps=()
+          for _p in "$@"; do
+            bl_alive "$_p" || continue
+            bl_zram_usage "$_p" > /dev/null
+            _bl_tier_targets+=("$_p") _bl_tier_swaps+=("$_bl_swap")
+          done
+        }
+        bl_tier_readback() {
+          local _i _back=0
+          for _i in "${!_bl_tier_targets[@]}"; do
+            bl_alive "${_bl_tier_targets[$_i]}" || continue
+            bl_zram_usage "${_bl_tier_targets[$_i]}" > /dev/null
+            [ "${_bl_tier_swaps[$_i]}" -le "$_bl_swap" ] || _back=$((_back + _bl_tier_swaps[_i] - _bl_swap))
+          done
+          _bl_tier_back=$_back
         }
         bl_watch_nap() {
           local _i
@@ -1015,7 +1037,7 @@ case $mode in
           [ "$_bl_ram_cap" -gt 0 ] && { [ "$_bl_measured" -lt 0 ] || [ $((SECONDS - _bl_measured)) -ge 30 ]; }
         }
         _bl_since=-1 _bl_since_apps= _bl_packed=-1 _bl_measured=-1 _bl_unpack=0 _bl_capped=-1 _bl_backoff=30
-        _bl_pressure_at=-1 _bl_pressure_backoff=30 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_swap=0 _bl_tier_pushed=0
+        _bl_pressure_at=-1 _bl_pressure_backoff=30 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_pushed=0 _bl_tier_back=0 _bl_tier_targets=() _bl_tier_swaps=()
         while kill -0 $$ 2>/dev/null; do
           bl_zram_scan
           bl_memory_read
@@ -1057,7 +1079,7 @@ case $mode in
             if [ "$_bl_packed" -ge 0 ]; then
               _bl_unpack=1
             fi
-            _bl_since=-1 _bl_packed=-1 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_pushed=0
+            _bl_since=-1 _bl_packed=-1 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_pushed=0 _bl_tier_targets=() _bl_tier_swaps=()
           else
             _bl_since=-1
           fi
