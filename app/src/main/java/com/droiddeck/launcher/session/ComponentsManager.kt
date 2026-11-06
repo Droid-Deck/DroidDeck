@@ -1036,7 +1036,8 @@ object ComponentsManager {
 
     fun arm64ec(context: Context, p: Proton, comp: String): Boolean? = synchronized(lock) {
         val rel = "${COMP_DIR[comp] ?: return null}/aarch64-windows/${ARM64EC_PROBE.getValue(comp)}"
-        val swapped = loadState(context).optJSONObject("active")?.optJSONObject(p.id)?.has(comp) == true
+        val swapped = loadState(context).optJSONObject("active")?.optJSONObject(p.id)?.optJSONObject(comp)
+            ?.let { liveSelection("active", it, p) } == true
         val original = originalFile(context, p, comp)
         val bytes = when {
             swapped && original.isFile -> runCatching {

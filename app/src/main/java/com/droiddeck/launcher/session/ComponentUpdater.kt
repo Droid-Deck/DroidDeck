@@ -25,7 +25,10 @@ object ComponentUpdater {
     private fun save(context: Context, state: JSONObject) {
         val target = file(context)
         val tmp = File(target.parentFile, target.name + ".tmp")
-        if (FileUtils.writeString(tmp, state.toString(1))) tmp.renameTo(target)
+        val text = state.toString(1)
+        if (FileUtils.writeString(tmp, text) && tmp.renameTo(target)) return
+        tmp.delete()
+        if (!FileUtils.writeString(target, text)) Log.w(TAG, "could not save ${target.path}")
     }
 
     private fun Map<String, Map<String, ComponentsManager.Choice>>.fileOf(p: ComponentsManager.Proton, comp: String): String? =

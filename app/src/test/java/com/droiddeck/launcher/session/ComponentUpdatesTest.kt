@@ -4,10 +4,18 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import org.json.JSONObject
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.file.Files
 
+@RunWith(RobolectricTestRunner::class)
 class ComponentUpdatesTest {
     private fun item(file: String, comp: String, release: String = ComponentsManager.DD_NIGHTLY) =
         ComponentsManager.CatalogItem(file, comp, release, "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/x/$file", 1, "sha256:" + "0".repeat(64))
@@ -34,7 +42,9 @@ class ComponentUpdatesTest {
 
     @Test fun aBadBuildIsSkippedAndNothingElseIsPickedInItsPlace() {
         val plain = ComponentUpdates.line("dxvk", false)
-        assertEquals("DD-dxvk-3.1.1+188-nightly.wcp", ComponentUpdates.pick(catalog, plain, setOf("DD-dxvk-3.1.1+190-nightly.wcp"))?.file)
+        assertNull(ComponentUpdates.pick(catalog, plain, setOf("DD-dxvk-3.1.1+190-nightly.wcp")))
+        assertEquals("DD-dxvk-3.1.1+190-nightly.wcp", ComponentUpdates.pick(catalog, plain, setOf("DD-dxvk-3.1.1+188-nightly.wcp"))?.file)
+        assertEquals("DD-dxvk-3.1.1+190-nightly.wcp", ComponentUpdates.pick(catalog, plain, setOf("DD-vkd3d-proton-3.1+40-nightly.wcp"))?.file)
         assertNull(ComponentUpdates.pick(catalog, ComponentUpdates.line("fex", false), setOf("DD-FEXCore-2611+3-nightly.wcp")))
         assertNull(ComponentUpdates.pick(catalog.filter { it.release != ComponentsManager.DD_NIGHTLY }, plain, emptySet()))
     }
@@ -123,6 +133,21 @@ class ComponentUpdatesTest {
         assertEquals(mapOf("100" to ComponentUpdates.ORIGINAL), before.booted)
         val after = ComponentUpdates.judge(trial.copy(booted = before.booted), listOf(run("100", "2026-11-05 13:00:00", 4), run("100", "2026-11-05 13:05:00", 6)))
         assertTrue(after.rollBack)
+    }
+
+    @Test fun aProtonUpdatedInPlaceIsReadFromItsOwnFilesAgain() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val dir = Files.createTempDirectory(context.cacheDir.toPath(), "proton").toFile()
+        File(dir, "files/lib/wine/dxvk/aarch64-windows").apply { mkdirs() }.resolve("d3d11.dll").writeBytes(pe(0xaa64, true, true))
+        val proton = ComponentsManager.Proton("Test-Proton", "Test Proton", dir, "/p", "Test-Proton-2", false)
+        val state = File(context.filesDir, "components/state.json").apply { parentFile?.mkdirs() }
+        fun active(version: String) = state.writeText(JSONObject().put("active", JSONObject().put("Test-Proton", JSONObject()
+            .put("dxvk", JSONObject().put("file", "DD-dxvk-arm64ec-3.1.1+188-nightly.wcp").put("protonVersion", version)))).toString())
+
+        active("Test-Proton-1")
+        assertEquals(true, ComponentsManager.arm64ec(context, proton, "dxvk"))
+        active("Test-Proton-2")
+        assertNull(ComponentsManager.arm64ec(context, proton, "dxvk"))
     }
 
     @Test fun onlyTheCurrentAndThePreviousBuildAndUserSelectionsAreKept() {

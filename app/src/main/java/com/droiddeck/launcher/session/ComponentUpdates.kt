@@ -27,9 +27,12 @@ object ComponentUpdates {
         it.comp == comp && (comp == "fex" || it.key.endsWith("-arm64ec") == arm64ec)
     }
 
-    fun pick(items: List<ComponentsManager.CatalogItem>, line: Line, bad: Set<String>): ComponentsManager.CatalogItem? =
-        items.filter { it.release == ComponentsManager.DD_NIGHTLY && it.comp == line.comp && it.file !in bad && belongs(it.file, line) }
+    fun pick(items: List<ComponentsManager.CatalogItem>, line: Line, bad: Set<String>): ComponentsManager.CatalogItem? {
+        val newestBad = bad.filter { belongs(it, line) }.maxWithOrNull { a, b -> ProtonExtras.compareVersions(a, b) }
+        return items.filter { it.release == ComponentsManager.DD_NIGHTLY && it.comp == line.comp && belongs(it.file, line) }
+            .filter { newestBad == null || ProtonExtras.compareVersions(it.file, newestBad) > 0 }
             .maxWithOrNull { a, b -> ProtonExtras.compareVersions(a.file, b.file) }
+    }
 
     fun belongs(file: String, line: Line): Boolean =
         file.startsWith(line.prefix) && file.removePrefix(line.prefix).firstOrNull()?.isDigit() == true
