@@ -11,13 +11,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalView
 
-internal data class LauncherSafeInsets(
+internal data class FullscreenSafeInsets(
     val left: Int = 0,
     val top: Int = 0,
     val right: Int = 0,
     val bottom: Int = 0,
 ) {
-    fun maxWith(other: LauncherSafeInsets) = LauncherSafeInsets(
+    fun maxWith(other: FullscreenSafeInsets) = FullscreenSafeInsets(
         left = maxOf(left, other.left),
         top = maxOf(top, other.top),
         right = maxOf(right, other.right),
@@ -25,10 +25,10 @@ internal data class LauncherSafeInsets(
     )
 }
 
-internal enum class LauncherCorner { TOP_LEFT, TOP_RIGHT, BOTTOM_RIGHT, BOTTOM_LEFT }
+internal enum class FullscreenCorner { TOP_LEFT, TOP_RIGHT, BOTTOM_RIGHT, BOTTOM_LEFT }
 
-internal data class LauncherRoundedCorner(
-    val position: LauncherCorner,
+internal data class FullscreenRoundedCorner(
+    val position: FullscreenCorner,
     val radius: Int,
     val centerX: Int,
     val centerY: Int,
@@ -37,28 +37,28 @@ internal data class LauncherRoundedCorner(
 internal fun roundedCornerSafeInsets(
     width: Int,
     height: Int,
-    corners: Iterable<LauncherRoundedCorner>,
-): LauncherSafeInsets {
-    if (width <= 0 || height <= 0) return LauncherSafeInsets()
-    var result = LauncherSafeInsets()
+    corners: Iterable<FullscreenRoundedCorner>,
+): FullscreenSafeInsets {
+    if (width <= 0 || height <= 0) return FullscreenSafeInsets()
+    var result = FullscreenSafeInsets()
     corners.forEach { corner ->
         if (corner.radius <= 0) return@forEach
         val horizontallyVisible = corner.centerX + corner.radius > 0 && corner.centerX - corner.radius < width
         val verticallyVisible = corner.centerY + corner.radius > 0 && corner.centerY - corner.radius < height
         when (corner.position) {
-            LauncherCorner.TOP_LEFT -> result = result.maxWith(LauncherSafeInsets(
+            FullscreenCorner.TOP_LEFT -> result = result.maxWith(FullscreenSafeInsets(
                 left = if (horizontallyVisible && verticallyVisible && corner.centerX - corner.radius <= 0) corner.radius else 0,
                 top = if (horizontallyVisible && verticallyVisible && corner.centerY - corner.radius <= 0) corner.radius else 0,
             ))
-            LauncherCorner.TOP_RIGHT -> result = result.maxWith(LauncherSafeInsets(
+            FullscreenCorner.TOP_RIGHT -> result = result.maxWith(FullscreenSafeInsets(
                 top = if (horizontallyVisible && verticallyVisible && corner.centerY - corner.radius <= 0) corner.radius else 0,
                 right = if (horizontallyVisible && verticallyVisible && corner.centerX + corner.radius >= width) corner.radius else 0,
             ))
-            LauncherCorner.BOTTOM_RIGHT -> result = result.maxWith(LauncherSafeInsets(
+            FullscreenCorner.BOTTOM_RIGHT -> result = result.maxWith(FullscreenSafeInsets(
                 right = if (horizontallyVisible && verticallyVisible && corner.centerX + corner.radius >= width) corner.radius else 0,
                 bottom = if (horizontallyVisible && verticallyVisible && corner.centerY + corner.radius >= height) corner.radius else 0,
             ))
-            LauncherCorner.BOTTOM_LEFT -> result = result.maxWith(LauncherSafeInsets(
+            FullscreenCorner.BOTTOM_LEFT -> result = result.maxWith(FullscreenSafeInsets(
                 left = if (horizontallyVisible && verticallyVisible && corner.centerX - corner.radius <= 0) corner.radius else 0,
                 bottom = if (horizontallyVisible && verticallyVisible && corner.centerY + corner.radius >= height) corner.radius else 0,
             ))
@@ -68,33 +68,84 @@ internal fun roundedCornerSafeInsets(
 }
 
 @Composable
-internal fun rememberLauncherFullscreenSafeInsets(enabled: Boolean): LauncherSafeInsets {
+internal fun rememberFullscreenSafeInsets(enabled: Boolean): FullscreenSafeInsets {
     val view = LocalView.current
-    var insets by remember(view, enabled) { mutableStateOf(launcherFullscreenSafeInsets(view, enabled)) }
+    var insets by remember(view, enabled) { mutableStateOf(fullscreenSafeInsets(view, enabled)) }
     DisposableEffect(view, enabled) {
-        fun update() {
-            val next = launcherFullscreenSafeInsets(view, enabled)
+        val controller = FullscreenSafeInsetsController(view, { enabled }) { next ->
             if (next != insets) insets = next
         }
-        val layoutListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> update() }
-        val observer = view.viewTreeObserver
-        val globalLayoutListener = android.view.ViewTreeObserver.OnGlobalLayoutListener { update() }
-        view.addOnLayoutChangeListener(layoutListener)
-        if (observer.isAlive) observer.addOnGlobalLayoutListener(globalLayoutListener)
-        update()
-        onDispose {
-            view.removeOnLayoutChangeListener(layoutListener)
-            if (observer.isAlive) observer.removeOnGlobalLayoutListener(globalLayoutListener)
-        }
+        onDispose(controller::close)
     }
     return insets
 }
 
-private fun launcherFullscreenSafeInsets(view: View, enabled: Boolean): LauncherSafeInsets {
-    if (!enabled) return LauncherSafeInsets()
-    val insets = view.rootWindowInsets ?: return LauncherSafeInsets()
+internal class FullscreenSafeInsetsController(
+    private val view: View,
+    private val enabled: () -> Boolean,
+    private val onChanged: (FullscreenSafeInsets) -> Unit,
+) : AutoCloseable {
+    private var current: FullscreenSafeInsets? = null
+    private val layoutListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> refresh() }
+    private val observer = view.viewTreeObserver
+    private val globalLayoutListener = android.view.ViewTreeObserver.OnGlobalLayoutListener { refresh() }
+
+    init {
+        view.addOnLayoutChangeListener(layoutListener)
+        if (observer.isAlive) observer.addOnGlobalLayoutListener(globalLayoutListener)
+        view.requestApplyInsets()
+        refresh()
+    }
+
+    fun refresh() = update(view.rootWindowInsets)
+
+    private fun update(windowInsets: android.view.WindowInsets?) {
+        val next = fullscreenSafeInsets(view, enabled(), windowInsets)
+        if (current == next) return
+        current = next
+        onChanged(next)
+    }
+
+    override fun close() {
+        view.removeOnLayoutChangeListener(layoutListener)
+        if (observer.isAlive) observer.removeOnGlobalLayoutListener(globalLayoutListener)
+    }
+}
+
+internal fun safeContentSize(
+    width: Int,
+    height: Int,
+    insets: FullscreenSafeInsets,
+): Pair<Int, Int> = (width - insets.left - insets.right).coerceAtLeast(0) to
+    (height - insets.top - insets.bottom).coerceAtLeast(0)
+
+internal fun fullscreenSafeInsetsEnabled(inPictureInPicture: Boolean, opticalViewport: Boolean): Boolean =
+    !inPictureInPicture && !opticalViewport
+
+internal fun surfaceLocalPoint(
+    windowX: Float,
+    windowY: Float,
+    surfaceLeft: Int,
+    surfaceTop: Int,
+    surfaceWidth: Int,
+    surfaceHeight: Int,
+): Pair<Float, Float>? {
+    val localX = windowX - surfaceLeft
+    val localY = windowY - surfaceTop
+    return if (localX >= 0f && localY >= 0f && localX < surfaceWidth && localY < surfaceHeight) {
+        localX to localY
+    } else null
+}
+
+private fun fullscreenSafeInsets(
+    view: View,
+    enabled: Boolean,
+    windowInsets: android.view.WindowInsets? = view.rootWindowInsets,
+): FullscreenSafeInsets {
+    if (!enabled) return FullscreenSafeInsets()
+    val insets = windowInsets ?: return FullscreenSafeInsets()
     val cutout = if (Build.VERSION.SDK_INT >= 28) insets.displayCutout else null
-    val cutoutInsets = LauncherSafeInsets(
+    val cutoutInsets = FullscreenSafeInsets(
         left = cutout?.safeInsetLeft ?: 0,
         top = cutout?.safeInsetTop ?: 0,
         right = cutout?.safeInsetRight ?: 0,
@@ -102,15 +153,15 @@ private fun launcherFullscreenSafeInsets(view: View, enabled: Boolean): Launcher
     )
     if (Build.VERSION.SDK_INT < 31) return cutoutInsets
     val corners = listOfNotNull(
-        insets.getRoundedCorner(RoundedCorner.POSITION_TOP_LEFT)?.toLauncherCorner(LauncherCorner.TOP_LEFT),
-        insets.getRoundedCorner(RoundedCorner.POSITION_TOP_RIGHT)?.toLauncherCorner(LauncherCorner.TOP_RIGHT),
-        insets.getRoundedCorner(RoundedCorner.POSITION_BOTTOM_RIGHT)?.toLauncherCorner(LauncherCorner.BOTTOM_RIGHT),
-        insets.getRoundedCorner(RoundedCorner.POSITION_BOTTOM_LEFT)?.toLauncherCorner(LauncherCorner.BOTTOM_LEFT),
+        insets.getRoundedCorner(RoundedCorner.POSITION_TOP_LEFT)?.toFullscreenCorner(FullscreenCorner.TOP_LEFT),
+        insets.getRoundedCorner(RoundedCorner.POSITION_TOP_RIGHT)?.toFullscreenCorner(FullscreenCorner.TOP_RIGHT),
+        insets.getRoundedCorner(RoundedCorner.POSITION_BOTTOM_RIGHT)?.toFullscreenCorner(FullscreenCorner.BOTTOM_RIGHT),
+        insets.getRoundedCorner(RoundedCorner.POSITION_BOTTOM_LEFT)?.toFullscreenCorner(FullscreenCorner.BOTTOM_LEFT),
     )
     return cutoutInsets.maxWith(roundedCornerSafeInsets(view.width, view.height, corners))
 }
 
-private fun RoundedCorner.toLauncherCorner(position: LauncherCorner) = LauncherRoundedCorner(
+private fun RoundedCorner.toFullscreenCorner(position: FullscreenCorner) = FullscreenRoundedCorner(
     position = position,
     radius = radius,
     centerX = center.x,
