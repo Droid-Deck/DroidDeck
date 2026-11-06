@@ -117,6 +117,30 @@ class DownloadQueueRetryTest {
         assertNull(DownloadQueue.entry(entry.key))
     }
 
+    @Test fun cancellingBeforeTheJobIsPublishedCancelsIt() {
+        val entry = DownloadEntry(Store.GOG, "cancel-before-publish", "Cancel before publish")
+        val factoryEntered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val cancelled = CountDownLatch(1)
+        val job = object : DownloadQueue.DownloadJob {
+            override fun run(handle: DownloadQueue.JobHandle): String? = null
+            override fun cancel(deleteFiles: Boolean) {
+                if (deleteFiles) cancelled.countDown()
+            }
+        }
+        DownloadQueue.enqueue(app, entry) {
+            factoryEntered.countDown()
+            release.await(5, TimeUnit.SECONDS)
+            job
+        }
+        assertTrue(factoryEntered.await(5, TimeUnit.SECONDS))
+        DownloadQueue.pause(app, entry.key)
+        DownloadQueue.cancel(app, entry.key)
+        release.countDown()
+        assertTrue("cancel must reach the job published after the request", cancelled.await(5, TimeUnit.SECONDS))
+        DownloadQueue.clear(app, entry.key)
+    }
+
     @Test fun heldPausedBackendRestoresAndResumesWithoutAPlaceholder() {
         val entry = DownloadEntry(Store.GOG, "restored-paused", "Paused")
         val ran = CountDownLatch(1)

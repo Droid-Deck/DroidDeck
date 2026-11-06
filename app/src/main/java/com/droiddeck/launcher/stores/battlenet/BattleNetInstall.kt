@@ -165,7 +165,8 @@ object BattleNetInstall {
         if (lines.isEmpty()) return null
         val uid = lines.last()
         if (!uid.matches(Regex("[a-z0-9_]{1,32}"))) return null
-        if (folder != null && lines.size > 1) {
+        if (folder != null) {
+            if (lines.size < 2) return null
             val saved = BattleNet.hostFolder(context, lines.first()) ?: return null
             if (saved.absolutePath != folder.absolutePath) return null
         }
@@ -369,19 +370,18 @@ internal class BattleNetInstaller(
         if (!cleanupStarted.compareAndSet(false, true)) return
         val known = effectiveUid ?: item.extra[BattleNetInstall.INSTALL_UID]
             ?: BattleNetInstall.cachedUid(app, item, folder)
+            ?: runCatching {
+                BattleNet.games(app).firstOrNull {
+                    it.uid == item.id && it.folder.absolutePath == folder.absolutePath
+                }?.installUid
+            }.getOrNull()
         Thread({
             val stopped = !started.get() || ended.await(END_WAIT_S, TimeUnit.SECONDS)
             if (!stopped) {
                 Log.w("BattleNetInstall", "the cancelled install is still stopping; leaving it for Battle.net")
             } else {
-                val registered = runCatching {
-                    BattleNet.games(app).firstOrNull {
-                        it.uid == item.id && it.folder.absolutePath == folder.absolutePath
-                    }?.installUid
-                }.getOrNull()
-                val cached = BattleNetInstall.cachedUid(app, item, folder)
-                val uid = known ?: cached ?: registered
-                val gone = uid?.let(uninstall) ?: false
+                val gone = known?.let(uninstall) ?: false
+                val uid = known
                 if (folder.isDirectory && (gone || folder.list().isNullOrEmpty())) com.droiddeck.launcher.core.FileUtils.delete(folder)
                 Log.i("BattleNetInstall", "cancelled install of ${uid ?: "an unstarted job"}: ${if (gone) "removed" else "left for Battle.net to remove"}")
             }

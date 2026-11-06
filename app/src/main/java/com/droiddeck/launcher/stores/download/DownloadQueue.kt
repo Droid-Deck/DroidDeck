@@ -211,6 +211,7 @@ object DownloadQueue {
             if (!item.entry.interruptible) return
             wasRunning = item.entry.state == DownloadState.RUNNING
             if (wasRunning) {
+                item.pauseRequested = false
                 item.cancelled.set(true)
                 item.job?.cancel(deleteFiles = true)
             }
