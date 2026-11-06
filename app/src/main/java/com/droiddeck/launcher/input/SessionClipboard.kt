@@ -21,6 +21,7 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
     private var echo: String? = null
     private var capture: ((String?) -> Unit)? = null
     private var captureBefore: String? = null
+    private var captureLate: (() -> Unit)? = null
     private val androidListener = ClipboardManager.OnPrimaryClipChangedListener { refresh(changed = true) }
     private val guestListener = object : WaylandCompositor.ClipboardListener {
         override fun onGuestClipboardText(text: String) {
@@ -47,12 +48,14 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
     private val captureTimeout = Runnable {
         val taken = capture ?: return@Runnable
         capture = null
+        captureLate?.invoke()
         taken(null)
     }
 
-    fun captureGuest(timeoutMs: Long, onText: (String?) -> Unit) {
+    fun captureGuest(timeoutMs: Long, onTimeout: () -> Unit = {}, onText: (String?) -> Unit) {
         capture?.let { handler.removeCallbacks(captureTimeout); it(null) }
         capture = onText
+        captureLate = onTimeout
         captureBefore = shared
         handler.postDelayed(captureTimeout, timeoutMs)
     }

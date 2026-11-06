@@ -3585,8 +3585,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun onGameTextField(focused: Boolean) {
-        if (!focused) wowChat.chatClosed()
-        else if (com.droiddeck.launcher.ui.WowChat.isWow(AgentGuest.gameProgram) && resumed && !pipUi && !pcKeyboardOpen &&
+        if (!focused || !com.droiddeck.launcher.ui.WowChat.isWow(AgentGuest.gameProgram)) wowChat.chatClosed()
+        else if (resumed && !pipUi && !pcKeyboardOpen &&
             resources.configuration.hardKeyboardHidden != android.content.res.Configuration.HARDKEYBOARDHIDDEN_NO) {
             keyboard?.takeIf { it.shown }?.hide()
             wowChat.chatOpened()
@@ -3628,6 +3628,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (replace) {
             selectGameField()
             if (text.isEmpty()) host.tap(KeyEvent.KEYCODE_DEL)
+        } else {
+            WaylandCompositor.nativeSendKey(KEY_END, 1)
+            WaylandCompositor.nativeSendKey(KEY_END, 0)
         }
         host.type(text)
         host.tap(KeyEvent.KEYCODE_ENTER)
@@ -3644,13 +3647,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun readGameField(done: (String?) -> Unit) {
-        sessionClipboard.captureGuest(FIELD_READ_MS) { text ->
-            if (text == null) {
-                WaylandCompositor.nativeSendKey(KEY_END, 1)
-                WaylandCompositor.nativeSendKey(KEY_END, 0)
-            }
-            done(text)
-        }
+        sessionClipboard.captureGuest(FIELD_READ_MS, onTimeout = {
+            WaylandCompositor.nativeSendKey(KEY_END, 1)
+            WaylandCompositor.nativeSendKey(KEY_END, 0)
+        }, onText = done)
         selectGameField(KEY_C)
     }
 
