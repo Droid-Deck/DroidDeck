@@ -757,6 +757,12 @@ object ComponentsManager {
     internal fun liveSelection(key: String, entry: JSONObject, proton: Proton?): Boolean =
         proton != null && (key == "queued" || entry.optString("protonVersion") == proton.version)
 
+    internal fun packagesInUseByAny(state: JSONObject, installed: List<Proton>): Set<String> {
+        val byId = installed.groupBy { it.id }
+        val depth = byId.values.maxOfOrNull { it.size } ?: 1
+        return (0 until depth).flatMapTo(HashSet()) { i -> packagesInUse(state, byId.mapValues { (_, ps) -> ps[minOf(i, ps.size - 1)] }) }
+    }
+
     private fun packagesInUse(state: JSONObject, installed: Map<String, Proton>): Set<String> {
         val names = HashSet<String>()
         for (key in listOf("active", "queued")) {
@@ -1085,13 +1091,13 @@ object ComponentsManager {
     }
 
     fun selectedPackages(context: Context): Set<String> = synchronized(lock) {
-        packagesInUse(loadState(context), protons(context).distinctBy { it.id }.associateBy { it.id })
+        packagesInUseByAny(loadState(context), protons(context))
     }
 
     fun deleteUnused(context: Context, file: String): Boolean = synchronized(lock) {
         val name = safeName(file)
         val f = File(packagesDir(context), name)
-        if (!f.isFile || name in packagesInUse(loadState(context), protons(context).distinctBy { it.id }.associateBy { it.id })) return false
+        if (!f.isFile || name in packagesInUseByAny(loadState(context), protons(context))) return false
         deletePackage(context, name)
         true
     }

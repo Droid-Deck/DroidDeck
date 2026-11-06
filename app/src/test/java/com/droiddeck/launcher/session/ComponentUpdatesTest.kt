@@ -311,4 +311,20 @@ class ComponentUpdatesTest {
         assertFalse(old.isFile)
         assertFalse(ComponentsManager.deleteUnused(context, old.name))
     }
+
+    @Test fun aFailedReleaseIsRetriedOnlyWhileTheSameBuildIsStillSelected() {
+        val auto = setOf("DD-dxvk-3.1.1+188-nightly.wcp", "DD-dxvk-3.1.1+190-nightly.wcp")
+        assertTrue(ComponentUpdates.released(choice("DD-dxvk-3.1.1+190-nightly.wcp"), auto, "DD-dxvk-3.1.1+190-nightly.wcp"))
+        assertFalse(ComponentUpdates.released(choice("DD-dxvk-3.1.1+188-nightly.wcp"), auto, "DD-dxvk-3.1.1+190-nightly.wcp"))
+        assertTrue(ComponentUpdates.released(choice("DD-dxvk-3.1.1+188-nightly.wcp"), auto, ""))
+    }
+
+    @Test fun aSelectionStaysLiveWhenAnotherInstallSharesItsProtonId() {
+        fun p(version: String) = ComponentsManager.Proton("GE-Proton", "GE-Proton", File("/steam/$version"), "/p", version, false)
+        val state = JSONObject().put("active", JSONObject().put("GE-Proton", JSONObject()
+            .put("dxvk", JSONObject().put("file", "DD-dxvk-3.1.1+186-nightly.wcp").put("protonVersion", "2"))))
+        assertTrue("DD-dxvk-3.1.1+186-nightly.wcp" in ComponentsManager.packagesInUseByAny(state, listOf(p("1"), p("2"))))
+        assertTrue("DD-dxvk-3.1.1+186-nightly.wcp" in ComponentsManager.packagesInUseByAny(state, listOf(p("2"), p("1"))))
+        assertFalse("DD-dxvk-3.1.1+186-nightly.wcp" in ComponentsManager.packagesInUseByAny(state, listOf(p("1"))))
+    }
 }
