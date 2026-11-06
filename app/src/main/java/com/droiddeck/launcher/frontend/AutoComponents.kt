@@ -476,15 +476,15 @@ object AutoComponents {
         return true
     }
 
-    fun beforeLaunch(context: Context, game: Library.SteamGame, onReady: () -> Unit) {
+    fun beforeLaunch(context: Context, game: Library.SteamGame, onBlocked: () -> Unit = {}, onReady: () -> Unit) {
         val app = context.applicationContext
         Thread({
             val ready = runCatching { prepareLaunch(app, game) }.getOrElse {
                 Log.w(TAG, "${game.name}: launch repair discovery failed: ${it.javaClass.simpleName}: ${it.message}")
                 false
             }
+            Handler(Looper.getMainLooper()).post(if (ready) onReady else onBlocked)
             queueGame(app, game, asked = false)
-            if (ready) Handler(Looper.getMainLooper()).post(onReady)
         }, "auto-components-launch").apply { isDaemon = true; start() }
     }
 
