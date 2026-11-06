@@ -832,7 +832,7 @@
     <string name="setup_gpu_unsupported">GPU nepodporováno</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam vyžaduje ovladač Adreno; %1$s může zobrazit černou obrazovku</string>
+    <string name="setup_gpu_unsupported_detail">Pro %1$s není k dispozici kompatibilní grafický backend. Steam může zobrazit černou obrazovku.</string>
     <string name="setup_runtime">Běhové prostředí Linuxu</string>
     <string name="setup_runtime_progress">%1$s · %2$d %%</string>
     <string name="setup_runtime_missing">Nenainstalováno · přibližně 3 GB, instaluje se při prvním Play</string>
@@ -1439,8 +1439,8 @@
     <string name="main_wadb_unavailable">Bezdrátové ladění není k dispozici</string>
     <string name="main_adb_copied">Příkaz ADB zkopírován</string>
     <string name="main_pick_roms">Vybrat složku ROMs</string>
-    <string name="main_non_adreno_title">Není GPU Adreno</string>
-    <string name="main_non_adreno_text">Turnip podporuje GPU Adreno. Na %1$s může Steam zobrazit černou obrazovku. Stažení: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">Nepodporovaný GPU</string>
+    <string name="main_non_adreno_text">Pro %1$s není k dispozici kompatibilní grafický backend. Steam může zobrazit černou obrazovku. Ke stažení: %2$.0f MB.</string>
     <string name="main_install_anyway">Přesto instalovat</string>
     <string name="main_remove_runtime_title">Odstranit runtime Linuxu</string>
     <string name="main_remove_runtime_text">Tím se odstraní runtime, klient Steam v něm a všechny hry v něm nainstalované.</string>
@@ -2180,7 +2180,7 @@
     <string name="gpuinfo_experimental">Experimentální: jeho ovladače jsou testovací sestavení</string>
     <string name="gpuinfo_a850_experimental">Experimentální podpora Adreno 850: vyžaduje kompatibilní experimentální ovladače displeje a her; na tomto zařízení neověřeno</string>
     <string name="gpuinfo_below_tested">Pod testovaným hardwarem (Adreno 725 a novější): nemusí fungovat</string>
-    <string name="gpuinfo_unsupported">Není podporováno: DroidDeck potřebuje GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">Nepodporováno: pro tento GPU není k dispozici kompatibilní grafický backend</string>
 
     <string name="turnip_rate_limited">Byl dosažen limit požadavků GitHubu - zkuste to později</string>
     <string name="turnip_github_http">GitHub odpověděl HTTP %1$d</string>

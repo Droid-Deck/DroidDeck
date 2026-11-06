@@ -826,7 +826,7 @@
     <string name="setup_gpu_unsupported">GPU niet ondersteund</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam heeft een Adreno-driver nodig; %1$s kan een zwart scherm tonen</string>
+    <string name="setup_gpu_unsupported_detail">Er is geen compatibele grafische backend beschikbaar voor %1$s. Steam kan een zwart scherm tonen.</string>
     <string name="setup_runtime">Linux-runtime</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Niet geïnstalleerd · ongeveer 3 GB, geïnstalleerd bij de eerste keer Spelen</string>
@@ -1415,8 +1415,8 @@
     <string name="main_wadb_unavailable">Draadloze foutopsporing is niet beschikbaar</string>
     <string name="main_adb_copied">ADB-opdracht gekopieerd</string>
     <string name="main_pick_roms">Kies de ROM-map</string>
-    <string name="main_non_adreno_title">Geen Adreno-GPU</string>
-    <string name="main_non_adreno_text">Turnip ondersteunt Adreno-GPU\'s. Op %1$s kan Steam een zwart scherm tonen. Download: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">Niet-ondersteunde GPU</string>
+    <string name="main_non_adreno_text">Er is geen compatibele grafische backend beschikbaar voor %1$s. Steam kan een zwart scherm tonen. Download: %2$.0f MB.</string>
     <string name="main_install_anyway">Toch installeren</string>
     <string name="main_remove_runtime_title">Linux-runtime verwijderen</string>
     <string name="main_remove_runtime_text">Hiermee verwijder je de runtime, de Steam-client erin en alle games die daar zijn geïnstalleerd.</string>
@@ -2130,7 +2130,7 @@
     <string name="gpuinfo_experimental">Experimenteel: de drivers zijn testbuilds</string>
     <string name="gpuinfo_a850_experimental">Experimentele ondersteuning voor Adreno 850: vereist compatibele experimentele scherm- en gamedrivers; niet geverifieerd op dit apparaat</string>
     <string name="gpuinfo_below_tested">Onder de geteste hardware (Adreno 725 en nieuwer): werkt mogelijk niet</string>
-    <string name="gpuinfo_unsupported">Niet ondersteund: DroidDeck heeft een Adreno-GPU (Snapdragon) nodig</string>
+    <string name="gpuinfo_unsupported">Niet ondersteund: er is geen compatibele grafische backend beschikbaar voor deze GPU</string>
 
     <string name="turnip_rate_limited">De ratelimiet van GitHub is bereikt - probeer het later opnieuw</string>
     <string name="turnip_github_http">GitHub antwoordde met HTTP %1$d</string>

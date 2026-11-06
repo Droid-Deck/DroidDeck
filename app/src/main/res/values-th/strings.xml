@@ -823,7 +823,7 @@
     <string name="setup_gpu_unsupported">ไม่รองรับ GPU นี้</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam ต้องใช้ไดรเวอร์ Adreno; %1$s อาจแสดงจอดำ</string>
+    <string name="setup_gpu_unsupported_detail">ไม่มีแบ็กเอนด์กราฟิกที่เข้ากันได้สำหรับ %1$s Steam อาจแสดงหน้าจอสีดำ</string>
     <string name="setup_runtime">รันไทม์ Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">ยังไม่ติดตั้ง · ประมาณ 3 GB จะติดตั้งเมื่อกด Play ครั้งแรก</string>
@@ -1403,8 +1403,8 @@
     <string name="main_wadb_unavailable">Wireless debugging ไม่พร้อมใช้งาน</string>
     <string name="main_adb_copied">คัดลอกคำสั่ง ADB แล้ว</string>
     <string name="main_pick_roms">เลือกโฟลเดอร์ ROM</string>
-    <string name="main_non_adreno_title">ไม่ใช่ GPU Adreno</string>
-    <string name="main_non_adreno_text">Turnip รองรับ GPU Adreno บน %1$s Steam อาจแสดงจอดำ ดาวน์โหลด: %2$.0f MB</string>
+    <string name="main_non_adreno_title">ไม่รองรับ GPU</string>
+    <string name="main_non_adreno_text">ไม่มีแบ็กเอนด์กราฟิกที่เข้ากันได้สำหรับ %1$s Steam อาจแสดงหน้าจอสีดำ ดาวน์โหลด: %2$.0f MB</string>
     <string name="main_install_anyway">ติดตั้งอยู่ดี</string>
     <string name="main_remove_runtime_title">ลบรันไทม์ Linux</string>
     <string name="main_remove_runtime_text">การลบนี้จะลบรันไทม์ ไคลเอนต์ Steam ภายใน และเกมทุกเกมที่ติดตั้งอยู่ในนั้น</string>
@@ -2105,7 +2105,7 @@
     <string name="gpuinfo_experimental">ทดลอง: ไดรเวอร์เป็นบิลด์ทดสอบ</string>
     <string name="gpuinfo_a850_experimental">รองรับ Adreno 850 แบบทดลอง: ต้องใช้ไดรเวอร์จอแสดงผลและไดรเวอร์เกมแบบทดลองที่เข้ากันได้ ยังไม่ได้ตรวจสอบบนอุปกรณ์นี้</string>
     <string name="gpuinfo_below_tested">ต่ำกว่าฮาร์ดแวร์ที่ทดสอบแล้ว (Adreno 725 และรุ่นใหม่กว่า): อาจรันไม่ได้</string>
-    <string name="gpuinfo_unsupported">ไม่รองรับ: DroidDeck ต้องใช้ GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">ไม่รองรับ: ไม่มีแบ็กเอนด์กราฟิกที่เข้ากันได้สำหรับ GPU นี้</string>
 
     <string name="turnip_rate_limited">ติดขีดจำกัดอัตราของ GitHub - ลองใหม่ในหลัง</string>
     <string name="turnip_github_http">GitHub ตอบกลับด้วย HTTP %1$d</string>

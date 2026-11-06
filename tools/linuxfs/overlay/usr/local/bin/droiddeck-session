@@ -1,5 +1,15 @@
 #!/bin/bash
 set -u
+# A GPU that is not an Adreno (BL_RAISE_NOFILE=1): the open-files limit goes up to the hard limit
+# for the whole session tree (gamescope, Steam, games). A Mali PanVK session ran out after ten
+# minutes ("Too many open files" importing sync files and dma-bufs) and froze.
+if [ "${BL_RAISE_NOFILE:-0}" = 1 ] && [ -z "${BL_INSIDE:-}" ]; then
+  bl_nofile_was="$(ulimit -Sn)/$(ulimit -Hn)"
+  ulimit -Sn "$(ulimit -Hn)" 2>/dev/null || true
+  echo "== open files: soft/hard $bl_nofile_was -> soft $(ulimit -Sn)"
+  [ -n "${BL_DEBUG_DIR:-}" ] && echo "soft/hard $bl_nofile_was -> soft $(ulimit -Sn) (session tree)" > "$BL_DEBUG_DIR/limits.txt" 2>/dev/null
+  unset bl_nofile_was
+fi
 export HOME=${HOME:-/root}
 mode=${1:-desktop}
 shift || true
@@ -260,17 +270,77 @@ if [ "${BL_VKBRIDGE:-0}" = 1 ]; then
     unset TU_DEBUG
     if [ -z "${BL_INSIDE:-}" ]; then
       step "vkbridge self-test"
-      timeout 60 /usr/local/bin/droiddeck-vkbridge-smoke 2>&1 | sed 's/^/== vkbridge: /'
+      bl_vkb_smoke=$(timeout 60 /usr/local/bin/droiddeck-vkbridge-smoke 2>&1)
+      printf '%s\n' "$bl_vkb_smoke" | sed 's/^/== vkbridge: /'
+      bl_vkb_why=
+      if printf '%s\n' "$bl_vkb_smoke" | grep -qE '^FAIL memory sharing'; then
+        bl_vkb_why=memory
+      elif printf '%s\n' "$bl_vkb_smoke" | grep -qE '^FAIL (image clear|draw)'; then
+        bl_vkb_why=draw
+      fi
+      if [ -n "$bl_vkb_why" ] && [ -r "${BL_VKBRIDGE_FALLBACK_ICD:-}" ]; then
+        export VK_DRIVER_FILES=$BL_VKBRIDGE_FALLBACK_ICD VK_ICD_FILENAMES=$BL_VKBRIDGE_FALLBACK_ICD BL_VKBRIDGE=0
+        export BL_OPEN_DRIVER=1 BL_DRM_STANDIN=/dev/mali0
+        [ "${BL_STEAM_GPU_COMPOSITING:-0}" = 1 ] || export BL_STEAM_SOFT_COMPOSITING=1
+        if [ "$bl_vkb_why" = memory ]; then
+          echo "== vkbridge: memory sharing = none (no method passed the server's self-test); this session uses the PanVK pair instead ($BL_VKBRIDGE_FALLBACK_ICD)"
+        else
+          echo "== vkbridge: self-test failed images or draws; this session uses the PanVK pair instead ($BL_VKBRIDGE_FALLBACK_ICD)"
+        fi
+        [ -n "${BL_DEBUG_DIR:-}" ] && printf '%s\n%s\n' "$BL_VKBRIDGE_FALLBACK_ICD" "$bl_vkb_why" > "$BL_DEBUG_DIR/vkbridge-fallback" 2>/dev/null
+      elif [ -n "$bl_vkb_why" ]; then
+        echo "== vkbridge: self-test failed ($bl_vkb_why) and no PanVK pair is installed to fall back on; expect a black screen or a lost device - set a Mali driver pair in Setup"
+      fi
+      unset bl_vkb_why
+      unset bl_vkb_smoke
       if command -v vulkaninfo >/dev/null 2>&1; then
         timeout 30 vulkaninfo --summary 2>&1 | sed -n '/^Devices:/,$p' | head -40 | sed 's/^/== vulkaninfo: /'
       fi
     fi
-    echo "== vulkan driver: Mali bridge ($bl_vkb_icd, server at $VKBRIDGE_SOCKET)"
+    [ "${BL_VKBRIDGE:-0}" = 1 ] && echo "== vulkan driver: Mali bridge ($bl_vkb_icd, server at $VKBRIDGE_SOCKET)"
   else
     echo "== vulkan driver: Mali bridge requested but NOT usable (icd $bl_vkb_icd, socket ${VKBRIDGE_SOCKET:-unset}; missing:$bl_vkb_missing)"
     [ -n "${BL_INSIDE:-}" ] || exit 69
   fi
   unset bl_vkb_icd bl_vkb_missing
+fi
+if [ "${BL_VENUS:-0}" = 1 ] && [ -z "${BL_INSIDE:-}" ] && command -v vulkaninfo >/dev/null 2>&1; then
+  if bl_vn_info=$(timeout 30 vulkaninfo 2>/dev/null); then
+    case $(printf '%s\n' "$bl_vn_info" | grep -m1 'nullDescriptor') in
+      *true*) echo "== venus: nullDescriptor present (Zink keeps the GPU)" ;;
+      *)
+        export GALLIUM_DRIVER=llvmpipe LIBGL_ALWAYS_SOFTWARE=1
+        unset MESA_LOADER_DRIVER_OVERRIDE LIBGL_KOPPER_DRI2
+        echo "== venus: no nullDescriptor on this device even with the Mali compatibility layer; Steam's GL and Xwayland use llvmpipe (software)"
+        ;;
+    esac
+  else
+    echo "== venus: vulkaninfo failed or timed out; GL left on Zink"
+  fi
+  unset bl_vn_info
+fi
+if [ "${BL_GAME_LOGS:-0}" = 1 ] && [ -z "${BL_INSIDE:-}" ] && [ -n "${BL_DEBUG_DIR:-}" ]; then
+  (
+    {
+      echo "== VK_DRIVER_FILES=${VK_DRIVER_FILES:-} VK_ICD_FILENAMES=${VK_ICD_FILENAMES:-} BL_DRM_STANDIN=${BL_DRM_STANDIN:-}"
+      if command -v vulkaninfo >/dev/null 2>&1; then
+        timeout 10 vulkaninfo --summary
+        echo "== vulkaninfo exit: $?"
+        if timeout 20 vulkaninfo > "$BL_DEBUG_DIR/vulkan-full.txt" 2>&1; then
+          echo "== device extensions (full list in vulkan-full.txt):"
+          sed -n '/^Device Extensions:/,/^$/p' "$BL_DEBUG_DIR/vulkan-full.txt" | grep -o 'VK_[A-Za-z0-9_]*' | sort -u | tr '\n' ' ' | fold -s -w 200
+          echo
+          echo "== key features:"
+          grep -E '^[[:space:]]+(robustBufferAccess2?|robustImageAccess2?|nullDescriptor|logicOp|fillModeNonSolid|shaderClipDistance|shaderCullDistance|dualSrcBlend|geometryShader|scalarBlockLayout|timelineSemaphore|dynamicRendering|synchronization2|maintenance4|maintenance5|maintenance6|shaderDrawParameters|descriptorIndexing|bufferDeviceAddress|vulkanMemoryModel|hostQueryReset|imagelessFramebuffer|samplerYcbcrConversion|shaderInt64|shaderFloat64|shaderInt16|shaderFloat16|storageBuffer16BitAccess|extendedDynamicState[23]?|vertexInputDynamicState|customBorderColors|customBorderColorWithoutFormat|depthClipEnable|multiViewport|textureCompressionBC|indexTypeUint8|rectangularLines|bresenhamLines|transformFeedback|geometryStreams|graphicsPipelineLibrary|pushDescriptor|primitiveTopologyListRestart|dynamicRenderingLocalRead|shaderDemoteToHelperInvocation|subgroupSizeControl|computeFullSubgroups|inlineUniformBlock|pipelineCreationCacheControl) = ' "$BL_DEBUG_DIR/vulkan-full.txt" | sed 's/^[[:space:]]*/  /' | sort -u
+        else
+          echo "== full vulkaninfo failed or timed out (exit $?)"
+        fi
+      else
+        echo "== vulkaninfo is not in this runtime; GPU nodes:"
+        ls -l /dev/kgsl-3d0 /dev/mali0 /dev/dri 2>&1
+      fi
+    } > "$BL_DEBUG_DIR/vulkan-summary.txt" 2>&1
+  ) &
 fi
 export GAMESCOPE_FORCE_VULKAN_REALTIME=${BL_GAMESCOPE_REALTIME:-0}
 
@@ -283,6 +353,38 @@ nap() {
   [ -n "${bl_nap_fd:-}" ] || exec {bl_nap_fd}<> <(:)
   read -r -t "$1" -u "$bl_nap_fd" _ 2>/dev/null || :
 }
+# Which program a driver error came from: Mesa's lines ("radv/amdgpu: The CS has been rejected",
+# "ZINK: vkQueueWaitIdle failed") carry no process name. For the first three minutes of an open
+# driver pair's session, every process that appears goes into processes.txt with the session log's
+# line count at that moment, so an error's line number in session.log points at what had just
+# started. Pure bash over /proc (no execs: see nap).
+watch_processes() {
+  local out=$BL_DEBUG_DIR/processes.txt log=$BL_DEBUG_DIR/session.log i p pid comm lines
+  local -a argv new
+  local -A seen=()
+  echo "# seconds  session.log-lines  pid  name  command line" > "$out" 2>/dev/null || return 0
+  for ((i = 0; i < 360; i++)); do
+    new=()
+    for p in /proc/[0-9]*; do
+      pid=${p#/proc/}
+      [ -n "${seen[$pid]:-}" ] && continue
+      seen[$pid]=1
+      read -r comm < "$p/comm" 2>/dev/null || continue
+      argv=()
+      mapfile -d '' -t argv < "$p/cmdline" 2>/dev/null
+      new+=("$pid"$'\t'"$comm"$'\t'"${argv[*]:0:8}")
+    done
+    if [ ${#new[@]} -gt 0 ]; then
+      lines=0
+      [ -r "$log" ] && { mapfile -t argv < "$log"; lines=${#argv[@]}; argv=(); }
+      for p in "${new[@]}"; do printf '%s\t%s\t%.200s\n' "$SECONDS" "$lines" "$p"; done >> "$out"
+    fi
+    nap 0.5
+  done
+}
+if [ "${BL_OPEN_DRIVER:-0}" = 1 ] && [ -z "${BL_INSIDE:-}" ] && [ -n "${BL_DEBUG_DIR:-}" ]; then
+  watch_processes &
+fi
 export XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
 export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
 export XDG_CACHE_HOME=${XDG_CACHE_HOME:-$HOME/.cache}
@@ -400,6 +502,12 @@ if [ -z "${BL_INSIDE:-}" ]; then
       echo "== gamescope: games at ${nested}x${nested_h} stretched to the ${width}x${height} output"
     fi
   fi
+  backend=${BL_GAMESCOPE_BACKEND:-wayland}
+  case "$backend" in
+    wayland) ;;
+    sdl) export SDL_VIDEODRIVER=wayland ;;
+    *) echo "== unsupported gamescope backend: $backend"; exit 64 ;;
+  esac
   if [ "$mode" = steam ] && [ "${BL_CURSOR_COMPOSITE:-0}" = 1 ]; then
     export gamescope_cursor_composite=2
   fi
@@ -410,7 +518,7 @@ if [ -z "${BL_INSIDE:-}" ]; then
     export gamescope_composite_force=1
     echo "== gamescope: composites every frame (Mali bridge: the Steam UI flickers on separate planes)"
   fi
-  args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$nested_h")
+  args=(--backend "$backend" --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$nested_h")
   if [ "$nested" != "$width" ] || [ "$nested_h" != "$height" ]; then
     args+=(-S stretch)
     export BL_STRETCHED=1
@@ -1145,6 +1253,20 @@ case $mode in
     export STEAM_STEAMRT_RECURSION_GUARD=1
     export LD_LIBRARY_PATH=$steam_root/steamrtarm64:$steam_root/steamrtarm64/panorama${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
     export SDL_VIDEO_X11_DGAMOUSE=0
+    bl_steam_path=$PATH
+    bl_steam_angle=vulkan
+    bl_steam_presentation=()
+    if [ "${BL_STEAM_GL_PRESENT:-}" = 1 ]; then
+      bl_steam_path="/usr/local/libexec/droiddeck-steam:$PATH"
+      export DISABLE_GAMESCOPE_WSI=1 LIBGL_KOPPER_DISABLE=true
+      bl_steam_angle=gl
+      bl_steam_presentation=(-cef-disable-gpu-compositing)
+      echo "== steam: system PowerVR uses OpenGL/DRI3 through Zink with software CEF compositing"
+    elif [ "${BL_STEAM_SOFT_COMPOSITING:-}" = 1 ]; then
+      bl_steam_presentation=(-cef-disable-gpu-compositing)
+      echo "== steam: open driver pair - software CEF compositing, GPU raster"
+    fi
+    _bl_cef=(-cef-force-gpu "${bl_steam_presentation[@]}" -cef-use-gl=angle "-cef-use-angle=$bl_steam_angle")
     decky_loader=$HOME/homebrew/services/PluginLoader
     if [ -f "$HOME/.droiddeck-decky-enabled" ] && [ -x "$decky_loader" ]; then
       decky_arch=$(cat "$HOME/homebrew/services/.droiddeck-decky-arch" 2>/dev/null || echo unknown)
@@ -1194,7 +1316,9 @@ case $mode in
     fi
     _bl_ui=(-gamepadui)
     [ "${BL_STEAM_UI:-}" = desktop ] && _bl_ui=()
-    _bl_cef=(-cef-force-gpu -cef-use-gl=angle -cef-use-angle=vulkan)
+    # bl_steam_angle / bl_steam_presentation (set above) default to the Adreno values (vulkan,
+    # none); only the system-PowerVR path (BL_STEAM_GL_PRESENT=1) changes them.
+    _bl_cef=(-cef-force-gpu "${bl_steam_presentation[@]}" -cef-use-gl=angle "-cef-use-angle=${bl_steam_angle:-vulkan}")
     [ "${steam_cef_gpu:-1}" = 1 ] || _bl_cef=(-cef-disable-gpu)
     if [ "${BL_DESKTOP:-}" = 1 ] && [ "${BL_STEAM_UI:-}" = desktop ]; then
       _bl_cef=(-cef-disable-gpu)
@@ -1547,6 +1671,36 @@ case $mode in
       done
     ) &
     stop_watcher=$!
+    if [ "${BL_VENUS:-0}" = 1 ] && [ -x /usr/local/bin/droiddeck-glprobe ] && [ "${GALLIUM_DRIVER:-}" = zink ]; then
+      LIBGL_DEBUG=verbose MESA_LOG_LEVEL=debug timeout 20 /usr/local/bin/droiddeck-glprobe 2>&1 | grep -v drirc | head -60 | sed 's/^/== glprobe: /'
+      if [ "${PIPESTATUS[0]}" = 1 ]; then
+        VK_LOADER_DEBUG=error,warn timeout 20 /usr/local/bin/droiddeck-glprobe 2>&1 | grep -v drirc | head -40 | sed 's/^/== glprobe (loader): /'
+        DROIDDECK_MALI_COMPAT_TRACE=1 MESA_DEBUG=1 MESA_LOG_LEVEL=debug LIBGL_DEBUG=verbose ZINK_DEBUG=mem VN_DEBUG=init,result,log_ctx_info \
+          timeout 30 /usr/local/bin/droiddeck-glprobe > "${BL_DEBUG_DIR:-/tmp}/glprobe-trace.txt" 2>&1
+        grep -v drirc "${BL_DEBUG_DIR:-/tmp}/glprobe-trace.txt" | head -120 | sed 's/^/== glprobe (trace): /'
+        echo "== glprobe (trace): last pre-device query before Zink gave up: $(grep 'droiddeck-mali-compat: trace:' "${BL_DEBUG_DIR:-/tmp}/glprobe-trace.txt" | grep -v 'trace:   extensions:' | tail -1)"
+        command -v vulkaninfo >/dev/null 2>&1 && DROIDDECK_MALI_COMPAT_TRACE=1 timeout 20 vulkaninfo --summary 2>&1 | head -40 | sed 's/^/== glprobe (vulkaninfo): /'
+        bl_gl_ok=
+        for bl_variant in "ZINK_DEBUG=" "ZINK_DEBUG= ZINK_DESCRIPTORS=auto" "ZINK_DEBUG= LIBGL_KOPPER_DISABLE=true" "ZINK_DEBUG= DROIDDECK_MALI_COMPAT=0"; do
+          if env $bl_variant timeout 20 /usr/local/bin/droiddeck-glprobe 2>&1 | grep -v drirc | head -20 | sed "s/^/== glprobe ($bl_variant): /"; [ "${PIPESTATUS[0]}" = 0 ]; then
+            bl_gl_ok=$bl_variant
+            break
+          fi
+        done
+        if [ -n "$bl_gl_ok" ] && [ "$bl_gl_ok" != "ZINK_DEBUG= DROIDDECK_MALI_COMPAT=0" ]; then
+          for bl_kv in $bl_gl_ok; do
+            case $bl_kv in *=) unset "${bl_kv%=}" ;; *) export "$bl_kv" ;; esac
+          done
+          echo "== venus: GL through Zink starts with: $bl_gl_ok (the Steam client gets that)"
+        else
+          [ -n "$bl_gl_ok" ] && echo "== venus: Zink starts only without the Mali compatibility layer (then without nullDescriptor); not used"
+          export GALLIUM_DRIVER=llvmpipe LIBGL_ALWAYS_SOFTWARE=1
+          unset MESA_LOADER_DRIVER_OVERRIDE LIBGL_KOPPER_DRI2
+          echo "== venus: GL through Zink did not start (see glprobe above); the Steam client's GL uses llvmpipe (software)"
+        fi
+        unset bl_gl_ok bl_variant bl_kv
+      fi
+    fi
     rm -f "$HOME/.bl-restart-game" "$HOME/.bl-restarted-for"
     while :; do
       rm -f "$HOME/.bl-restart-once" "$HOME/.bl-restart-lost"
@@ -1572,6 +1726,8 @@ case $mode in
         desktop_ui_pid=$!
       fi
       steam_started=$SECONDS
+      PATH="$bl_steam_path" \
+      BL_STEAM_WEBHELPER="$steam_root/steamrtarm64/steamwebhelper" \
       "${steam_client[@]}" "${_bl_ui[@]}" "${_bl_cdp[@]}" "${_bl_lang[@]}" -clientbeta "$steam_channel" \
         -no-cef-sandbox -cef-ozone-platform=x11 "${_bl_cef[@]}" "$@"
       rc=$?

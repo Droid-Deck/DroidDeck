@@ -216,6 +216,24 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeCompositorTid(JNIEnv
     return (jint)g_comp_tid;
 }
 
+/* Why presenting failed ("" while it works), for the session-ended screen and the report. */
+JNIEXPORT jstring JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeCompositorFault(JNIEnv *env, jclass clazz) {
+    (void)clazz;
+    extern const char *vkp_fault(void);
+    const char *f = vkp_fault();
+    return (*env)->NewStringUTF(env, f ? f : "");
+}
+
+/* The display driver as the driver itself reports it ("" before the compositor's device exists). */
+JNIEXPORT jstring JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeDisplayDriver(JNIEnv *env, jclass clazz) {
+    (void)clazz;
+    extern const char *vkp_display_driver(void);
+    const char *d = vkp_display_driver();
+    return (*env)->NewStringUTF(env, d ? d : "");
+}
+
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeStart(JNIEnv *env, jclass clazz,
                                                              jstring xdgRuntimeDir) {

@@ -823,7 +823,7 @@
     <string name="setup_gpu_unsupported">GPU không được hỗ trợ</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam cần driver Adreno; %1$s có thể hiện màn hình đen</string>
+    <string name="setup_gpu_unsupported_detail">Không có backend đồ họa tương thích cho %1$s. Steam có thể hiển thị màn hình đen.</string>
     <string name="setup_runtime">Runtime Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Chưa cài · khoảng 3 GB, được cài vào lần Play đầu tiên</string>
@@ -1403,8 +1403,8 @@
     <string name="main_wadb_unavailable">Gỡ lỗi qua mạng không dây không khả dụng</string>
     <string name="main_adb_copied">Đã sao chép lệnh ADB</string>
     <string name="main_pick_roms">Chọn thư mục ROM</string>
-    <string name="main_non_adreno_title">Không phải GPU Adreno</string>
-    <string name="main_non_adreno_text">Turnip hỗ trợ GPU Adreno. Trên %1$s, Steam có thể hiện màn hình đen. Tải xuống: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">GPU không được hỗ trợ</string>
+    <string name="main_non_adreno_text">Không có backend đồ họa tương thích cho %1$s. Steam có thể hiển thị màn hình đen. Tải xuống: %2$.0f MB.</string>
     <string name="main_install_anyway">Vẫn cài</string>
     <string name="main_remove_runtime_title">Gỡ runtime Linux</string>
     <string name="main_remove_runtime_text">Việc này xóa runtime, client Steam bên trong nó, và mọi game đã cài ở đó.</string>
@@ -2105,7 +2105,7 @@
     <string name="gpuinfo_experimental">Thử nghiệm: driver của nó là bản build thử nghiệm</string>
     <string name="gpuinfo_a850_experimental">Hỗ trợ thử nghiệm Adreno 850: cần driver hiển thị và driver game thử nghiệm tương thích; chưa được xác minh trên thiết bị này</string>
     <string name="gpuinfo_below_tested">Dưới mức phần cứng đã kiểm thử (Adreno 725 và mới hơn): có thể không chạy được</string>
-    <string name="gpuinfo_unsupported">Không được hỗ trợ: DroidDeck cần GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">Không được hỗ trợ: không có backend đồ họa tương thích cho GPU này</string>
 
     <string name="turnip_rate_limited">Đã đạt giới hạn tốc độ của GitHub - hãy thử lại sau</string>
     <string name="turnip_github_http">GitHub trả về HTTP %1$d</string>

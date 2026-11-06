@@ -838,7 +838,7 @@
     <string name="setup_gpu_unsupported">GPU غير مدعوم</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">يحتاج Steam إلى برنامج تشغيل Adreno؛ قد يعرض %1$s شاشة سوداء</string>
+    <string name="setup_gpu_unsupported_detail">لا تتوفر واجهة رسومات متوافقة مع %1$s. قد يعرض Steam شاشة سوداء.</string>
     <string name="setup_runtime">بيئة تشغيل Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">غير مثبّت · نحو 3 GB، يُثبَّت عند أول تشغيل</string>
@@ -1463,8 +1463,8 @@
     <string name="main_wadb_unavailable">تصحيح الأخطاء اللاسلكي غير متاح</string>
     <string name="main_adb_copied">تم نسخ أمر ADB</string>
     <string name="main_pick_roms">اختر مجلد ROMs</string>
-    <string name="main_non_adreno_title">وحدة GPU ليست من نوع Adreno</string>
-    <string name="main_non_adreno_text">يدعم Turnip وحدات GPU من نوع Adreno. على %1$s، قد يعرض Steam شاشة سوداء. حجم التنزيل: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">وحدة معالجة رسومات غير مدعومة</string>
+    <string name="main_non_adreno_text">لا تتوفر واجهة رسومات متوافقة مع %1$s. قد يعرض Steam شاشة سوداء. التنزيل: %2$.0f ميغابايت.</string>
     <string name="main_install_anyway">التثبيت على أي حال</string>
     <string name="main_remove_runtime_title">إزالة بيئة تشغيل Linux</string>
     <string name="main_remove_runtime_text">سيؤدي هذا إلى حذف بيئة التشغيل وعميل Steam بداخلها وكل لعبة مثبَّتة فيها.</string>
@@ -2230,7 +2230,7 @@
     <string name="gpuinfo_experimental">تجريبي: برامج تشغيله إصدارات اختبارية</string>
     <string name="gpuinfo_a850_experimental">دعم تجريبي لـ Adreno 850: يتطلب برامج تشغيل تجريبية متوافقة للعرض والألعاب، ولم يُتحقَّق منه على هذا الجهاز</string>
     <string name="gpuinfo_below_tested">أقل من العتاد المُختبَر (Adreno 725 وأحدث): قد لا يعمل</string>
-    <string name="gpuinfo_unsupported">غير مدعوم: يحتاج DroidDeck إلى وحدة GPU من نوع Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">غير مدعوم: لا تتوفر واجهة رسومات متوافقة مع وحدة معالجة الرسومات هذه</string>
 
     <string name="turnip_rate_limited">تم الوصول إلى حدّ الطلبات في GitHub - حاوِل مرة أخرى لاحقًا</string>
     <string name="turnip_github_http">استجاب GitHub بـ HTTP %1$d</string>

@@ -823,7 +823,7 @@
     <string name="setup_gpu_unsupported">GPUはサポートされていません</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s：%2$s</string>
-    <string name="setup_gpu_unsupported_detail">SteamにはAdrenoドライバーが必要です。%1$sでは画面が真っ暗になる可能性があります。</string>
+    <string name="setup_gpu_unsupported_detail">利用できる互換グラフィックスバックエンドがありません。%1$sでは画面が真っ暗になる可能性があります。</string>
     <string name="setup_runtime">Linux実行環境</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">未インストール · 約3GB、初回ゲーム起動時にインストール</string>
@@ -1403,8 +1403,8 @@
     <string name="main_wadb_unavailable">ワイヤレスデバッグは利用できません</string>
     <string name="main_adb_copied">ADBコマンドをコピーしました</string>
     <string name="main_pick_roms">ROMフォルダを選択</string>
-    <string name="main_non_adreno_title">Adreno GPUではありません</string>
-    <string name="main_non_adreno_text">TurnipはAdreno GPUをサポートしています。%1$sでは、Steamの画面が真っ暗になる可能性があります。ダウンロード：%2$.0f MB。</string>
+    <string name="main_non_adreno_title">サポート対象外のGPU</string>
+    <string name="main_non_adreno_text">%1$sで利用できる互換グラフィックスバックエンドがありません。Steamの画面が真っ暗になる可能性があります。ダウンロード：%2$.0f MB。</string>
     <string name="main_install_anyway">インストールする</string>
     <string name="main_remove_runtime_title">Linux実行環境を削除</string>
     <string name="main_remove_runtime_text">実行環境、その中のSteamクライアント、そこにインストールされたすべてのゲームが削除されます。</string>
@@ -2105,7 +2105,7 @@
     <string name="gpuinfo_experimental">実験的：ドライバーはテストビルドです</string>
     <string name="gpuinfo_a850_experimental">Adreno 850の実験的サポート：互換性のある実験版のディスプレイドライバーとゲームドライバーが必要です。このデバイスでは未検証です</string>
     <string name="gpuinfo_below_tested">テスト済みハードウェア（Adreno 725以降）未満：動作しない可能性があります</string>
-    <string name="gpuinfo_unsupported">サポート対象外：DroidDeckにはAdreno（Snapdragon）GPUが必要です</string>
+    <string name="gpuinfo_unsupported">サポート対象外：このGPUで利用できる互換グラフィックスバックエンドがありません</string>
 
     <string name="turnip_rate_limited">GitHubのレート制限に達しました。後でもう一度お試しください</string>
     <string name="turnip_github_http">GitHubがHTTP %1$dを返しました</string>

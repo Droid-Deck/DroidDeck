@@ -210,6 +210,7 @@
     <string name="session_proot_missing">DroidDeck\'s proot could not be downloaded. Check the connection and try again. The session was not started, because the fallback proot is too slow to play on.</string>
     <string name="session_directaudio_missing">DirectAudio could not be downloaded, so game audio uses the slower path this session.</string>
     <string name="session_end_program">This program</string>
+    <string name="session_end_present_fault">The session could not draw to the screen: %1$s. This screen shows why instead of a black one; the session logs have the details.</string>
     <string name="session_end_steam_download">Couldn\'t download the Steam client. Your network or VPN may be blocking Steam\'s servers; check the connection and try again.</string>
     <string name="session_end_steam_setup">Couldn\'t set up the Steam client. Check your connection and free storage, then try again.</string>
     <string name="session_end_fex_missing">%1$s is built for x86 PCs and runs through FEX, which is not installed yet. Start Steam once while signed in and let it download FEX and the Steam Linux Runtime, then start this again.</string>
@@ -901,7 +902,7 @@
     <string name="setup_gpu_bridged">GPU via Mali bridge</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam needs an Adreno driver; %1$s may show a black screen</string>
+    <string name="setup_gpu_unsupported_detail">No compatible graphics backend is available; %1$s may show a black screen</string>
     <string name="setup_runtime">Linux runtime</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Not installed · about 3 GB, installed on first Play</string>
@@ -940,6 +941,14 @@
     <string name="setup_game_debug_logs_restart">Restart this session to save game debug logs</string>
     <string name="setup_logging_update_failed">Couldn\'t update logging. Check the switch and try again.</string>
     <string name="setup_agent_commands">Debugging tools</string>
+    <string name="setup_graphics_logs">Detailed graphics logs</string>
+    <string name="setup_steam_gpu_drawing">Steam interface: GPU drawing</string>
+    <string name="setup_steam_gpu_drawing_hint">With the Xclipse driver pair, Steam draws its pages in software (GPU drawing showed broken tiles). Turn on for a faster Steam interface if it looks right on this phone.</string>
+    <string name="drivers_built_on">built %1$s</string>
+    <string name="drivers_pair_updated">%1$s updated to the newest build</string>
+    <string name="setup_gpu_bridge_fell_back">The Mali bridge failed its self-test on %1$s last session (images or draws), so the session used the PanVK driver pair instead.</string>
+    <string name="setup_gpu_bridge_no_memory_sharing">The Mali bridge found no way to share memory with the driver on %1$s last session, so the session used the PanVK driver pair instead. The bridge cannot work on this phone; turning it off keeps the PanVK pair.</string>
+    <string name="setup_graphics_logs_hint">Each game\'s Proton, DXVK and driver logs in the session\'s logs. Always on when the GPU is not an Adreno.</string>
     <string name="setup_latest_logs">Latest session logs</string>
     <string name="setup_saved_logs">Saved session logs</string>
     <string name="setup_saved_logs_hint">Keeps the newest %1$d</string>
@@ -1565,8 +1574,8 @@
     <string name="main_wadb_unavailable">Wireless debugging is unavailable</string>
     <string name="main_adb_copied">ADB command copied</string>
     <string name="main_pick_roms">Choose the ROMs folder</string>
-    <string name="main_non_adreno_title">Not an Adreno GPU</string>
-    <string name="main_non_adreno_text">Turnip supports Adreno GPUs. On %1$s, Steam may show a black screen. Download: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">Unsupported GPU</string>
+    <string name="main_non_adreno_text">No compatible graphics backend is available for %1$s. Steam may show a black screen. Download: %2$.0f MB.</string>
     <string name="main_install_anyway">Install anyway</string>
     <string name="main_remove_runtime_title">Remove Linux runtime</string>
     <string name="main_remove_runtime_text">This deletes the runtime, the Steam client inside it, and every game installed there.</string>
@@ -2323,11 +2332,27 @@
     <string name="look_anime_edge_desc">Toon outlines plus sharpening.</string>
 
     <string name="gpuinfo_not_adreno">Not an Adreno GPU</string>
+    <string name="gpuinfo_powervr">System PowerVR driver: compatibility varies by device</string>
+    <string name="gpuinfo_xclipse">Experimental: RADV or the system Xclipse driver</string>
+    <string name="gpu_system_powervr">System PowerVR</string>
+    <string name="gpu_auto_system_hint">Uses the built-in drivers for this GPU</string>
+    <string name="drivers_powervr_builtin">The system PowerVR driver is selected for the runtime and display.</string>
+    <string name="drivers_mali_bridge_auto">No open driver covers this Mali yet: the Mali bridge is on.</string>
+    <string name="upd_block_non_adreno_test">This is the non-Snapdragon test build: the official builds here only run on Adreno, so they are not installed over it. New test builds are on github.com/The412Banner/droiddeck-nonadreno-drivers.</string>
+    <string name="session_killed_for_memory">The last session ended because Android closed DroidDeck to free memory, not a crash. Close other apps or lower the game\'s texture settings, then try again.</string>
+    <string name="drivers_route_venus">Mali (Venus)</string>
+    <string name="drivers_route_bridge">the Mali bridge</string>
+    <string name="drivers_mali_no_pair_auto">No open driver covers this Mali yet: %1$s is used, on the phone\'s own driver.</string>
+    <string name="drivers_mali_unpublished_auto">%1$s isn\'t published yet: %2$s is used until it is.</string>
+    <string name="drivers_mali_old_vulkan_bridge">%1$s isn\'t available, and this phone\'s driver reports Vulkan %2$s (Venus needs 1.2): the Mali bridge is used.</string>
+    <string name="drivers_mali_bridge_fallback">%1$s isn\'t published yet: the Mali bridge is on until it is.</string>
+    <string name="cmgr_powervr_dxvk_queued">Queued: %1$s (waiting for a different runtime driver)</string>
+    <string name="cmgr_powervr_dxvk_managed">DXVK is provided by the system PowerVR runtime. Other DXVK packages can be stored but are not applied with this driver.</string>
     <string name="gpuinfo_supported">Supported</string>
     <string name="gpuinfo_experimental">Experimental: its drivers are test builds</string>
     <string name="gpuinfo_a850_experimental">Experimental Adreno 850 support: requires compatible experimental display and game drivers; not verified on this device</string>
     <string name="gpuinfo_below_tested">Below tested hardware (Adreno 725 and newer): it may not run</string>
-    <string name="gpuinfo_unsupported">Not supported: DroidDeck needs an Adreno (Snapdragon) GPU</string>
+    <string name="gpuinfo_unsupported">Not supported: no compatible graphics backend is available for this GPU</string>
     <string name="gpuinfo_bridge">Runs through the Mali bridge, on the phone\'s own Vulkan driver</string>
     <string name="gpuinfo_bridge_off">Not supported with the Mali bridge off: Turnip needs an Adreno (Snapdragon) GPU</string>
 
@@ -2882,6 +2907,13 @@
     <string name="gog_achievements_enable_store">Enable GOG achievements in Stores settings</string>
     <string name="gog_achievements_unavailable">Achievements unavailable; check session logs</string>
     <string name="achievement_unlocked">Achievement unlocked</string>
+    <string name="setup_gpu_venus_off">Mali (Venus): off</string>
+    <string name="setup_gpu_venus_on">Mali (Venus): on</string>
+    <string name="setup_gpu_venus_host_too_old">The driver on %1$s reports Vulkan %2$s. Mali (Venus) needs Vulkan 1.2 or newer (gamescope does not start on older), so sessions skip Venus and use the PanVK driver pair instead.</string>
+    <string name="setup_gpu_bridge_off">Mali bridge: off</string>
+    <string name="setup_gpu_bridge_unusable">%1$s cannot use the Mali bridge (it needs a Mali GPU without a system-driver route), so this switch has no effect here.</string>
+    <string name="setup_gpu_bridge_on">Mali bridge: on</string>
+    <string name="setup_gpu_bridge_detail">%1$s is not an Adreno. The experimental Vulkan bridge is on: the session draws through the phone\'s own driver. Expect bugs; send the session logs.</string>
     <string name="touch_paste">Paste</string>
     <string name="touch_dpad">D-pad</string>
     <string name="touch_left_stick">Left stick</string>
@@ -3657,6 +3689,11 @@
     <string name="sync_web_title">Syncthing</string>
     <string name="sync_web_reload">Reload</string>
     <string name="sync_not_running">Syncthing isn\'t running.</string>
+    <string name="setup_bridge_safe">Safe mode</string>
+    <string name="setup_bridge_safe_on">Safe mode: on</string>
+    <string name="setup_bridge_safe_off">Safe mode: off</string>
+    <string name="setup_bridge_safe_on_detail">Most compatible. Recommended for a new device.</string>
+    <string name="setup_bridge_safe_off_detail">Faster where this GPU passed its checks.</string>
     <string name="session_end_steam_sigill">Steam stopped with an illegal instruction (SIGILL). This can be a CPU instruction compatibility problem or a client crash. Share the logs with your device details.</string>
     <string name="session_end_steam_try_x64">You can try Steam settings → Steam client → x86-64 (experimental). It needs an additional download and may run more slowly.</string>
     <string name="session_end_vulkan_device">The Linux graphics driver could not find a usable Vulkan device. Check that the selected Linux GPU driver supports this GPU.</string>
@@ -3736,19 +3773,11 @@
     <string name="stores_xbox_cloud_settings">Cloud settings</string>
     <string name="xbox_cloud_gaming" translatable="false">Xbox Cloud Gaming</string>
     <string name="xbox_filter_game_pass" translatable="false">Game Pass</string>
-    <string name="setup_gpu_bridge_off">Mali bridge: off</string>
-    <string name="setup_gpu_bridge_on">Mali bridge: on</string>
-    <string name="setup_bridge_safe">Safe mode</string>
-    <string name="setup_bridge_safe_on">Safe mode: on</string>
-    <string name="setup_bridge_safe_off">Safe mode: off</string>
-    <string name="setup_bridge_safe_on_detail">Most compatible. Recommended for a new device.</string>
-    <string name="setup_bridge_safe_off_detail">Faster where this GPU passed its checks.</string>
     <string name="setup_bridge_dxvk">DXVK</string>
     <string name="setup_bridge_dxvk_auto">DXVK: automatic</string>
     <string name="setup_bridge_dxvk_proton">DXVK: Proton\'s own</string>
     <string name="setup_bridge_dxvk_auto_detail">Uses an older DXVK where this GPU\'s Vulkan is too old for Proton\'s.</string>
     <string name="setup_bridge_dxvk_proton_detail">Every Proton keeps its own DXVK, even where this GPU\'s Vulkan may be too old for it.</string>
-    <string name="setup_gpu_bridge_detail">%1$s is not an Adreno. The experimental Vulkan bridge is on: the session draws through the phone\'s own driver. Expect bugs; send the session logs.</string>
     <string name="integration_title">Steam integration</string>
     <string name="integration_count">%1$d of %2$d on</string>
     <string name="integration_set_up">Set up</string>

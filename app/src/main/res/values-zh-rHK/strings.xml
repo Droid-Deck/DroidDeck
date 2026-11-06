@@ -823,7 +823,7 @@
     <string name="setup_gpu_unsupported">GPU 不受支援</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s：%2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam 需要 Adreno 驅動程式；%1$s 可能會出現黑畫面</string>
+    <string name="setup_gpu_unsupported_detail">沒有可用的兼容圖形後端；%1$s 可能會出現黑畫面</string>
     <string name="setup_runtime">Linux 運行環境</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">未安裝 · 約 3 GB，首次開啟 Steam 時安裝</string>
@@ -1403,8 +1403,8 @@
     <string name="main_wadb_unavailable">無法使用無線偵錯</string>
     <string name="main_adb_copied">已複製 ADB 指令</string>
     <string name="main_pick_roms">選擇 ROM 資料夾</string>
-    <string name="main_non_adreno_title">不是 Adreno GPU</string>
-    <string name="main_non_adreno_text">Turnip 支援 Adreno GPU。在 %1$s 上，Steam 可能會出現黑畫面。下載大小：%2$.0f MB。</string>
+    <string name="main_non_adreno_title">不受支援的 GPU</string>
+    <string name="main_non_adreno_text">沒有適用於 %1$s 的兼容圖形後端。Steam 可能會出現黑畫面。下載大小：%2$.0f MB。</string>
     <string name="main_install_anyway">仍要安裝</string>
     <string name="main_remove_runtime_title">移除 Linux 運行環境</string>
     <string name="main_remove_runtime_text">此操作會刪除運行環境、其中的 Steam 用戶端，以及安裝在其中的所有遊戲。</string>
@@ -2105,7 +2105,7 @@
     <string name="gpuinfo_experimental">實驗性：其驅動程式為測試版本</string>
     <string name="gpuinfo_a850_experimental">Adreno 850 實驗性支援：需要相容的實驗版顯示驅動程式及遊戲驅動程式；尚未在此裝置上驗證</string>
     <string name="gpuinfo_below_tested">低於已測試的硬件（Adreno 725 或更新）：可能無法執行</string>
-    <string name="gpuinfo_unsupported">不受支援：DroidDeck 需要 Adreno (Snapdragon) GPU</string>
+    <string name="gpuinfo_unsupported">不受支援：沒有適用於此 GPU 的兼容圖形後端</string>
 
     <string name="turnip_rate_limited">已達 GitHub 的速率限制 - 請稍後再試</string>
     <string name="turnip_github_http">GitHub 回應 HTTP %1$d</string>

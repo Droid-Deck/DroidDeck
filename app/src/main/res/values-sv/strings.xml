@@ -826,7 +826,7 @@
     <string name="setup_gpu_unsupported">GPU stöds inte</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam behöver en Adreno-drivrutin; %1$s kan visa en svart skärm</string>
+    <string name="setup_gpu_unsupported_detail">Ingen kompatibel grafikbackend är tillgänglig för %1$s. Steam kan visa en svart skärm.</string>
     <string name="setup_runtime">Linux-körmiljö</string>
     <string name="setup_runtime_progress">%1$s · %2$d %%</string>
     <string name="setup_runtime_missing">Inte installerad · cirka 3 GB, installeras första gången du trycker på Play</string>
@@ -1415,8 +1415,8 @@
     <string name="main_wadb_unavailable">Trådlös felsökning är inte tillgänglig</string>
     <string name="main_adb_copied">ADB-kommandot har kopierats</string>
     <string name="main_pick_roms">Välj ROM-mappen</string>
-    <string name="main_non_adreno_title">Inte en Adreno-GPU</string>
-    <string name="main_non_adreno_text">Turnip stöder Adreno-GPU:er. På %1$s kan Steam visa en svart skärm. Nedladdning: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">GPU stöds inte</string>
+    <string name="main_non_adreno_text">Ingen kompatibel grafikbackend är tillgänglig för %1$s. Steam kan visa en svart skärm. Hämtning: %2$.0f MB.</string>
     <string name="main_install_anyway">Installera trots det</string>
     <string name="main_remove_runtime_title">Ta bort Linux-körmiljön</string>
     <string name="main_remove_runtime_text">Det här tar bort körmiljön, Steam-klienten i den och alla spel som är installerade där.</string>
@@ -2130,7 +2130,7 @@
     <string name="gpuinfo_experimental">Experimentell: dess drivrutiner är testversioner</string>
     <string name="gpuinfo_a850_experimental">Experimentellt stöd för Adreno 850: kräver kompatibla experimentella skärm- och speldrivrutiner; inte verifierat på den här enheten</string>
     <string name="gpuinfo_below_tested">Under testad maskinvara (Adreno 725 och nyare): det kan hända att det inte fungerar</string>
-    <string name="gpuinfo_unsupported">Stöds inte: DroidDeck behöver en Adreno-GPU (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">Stöds inte: ingen kompatibel grafikbackend är tillgänglig för denna GPU</string>
 
     <string name="turnip_rate_limited">GitHubs hastighetsgräns nåddes - försök igen senare</string>
     <string name="turnip_github_http">GitHub svarade HTTP %1$d</string>

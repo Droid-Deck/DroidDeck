@@ -826,7 +826,7 @@
     <string name="setup_gpu_unsupported">A GPU nem támogatott</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">A Steamnek Adreno-illesztőprogram szükséges; a %1$s fekete képernyőt jeleníthet meg</string>
+    <string name="setup_gpu_unsupported_detail">Nincs kompatibilis grafikus háttérrendszer ehhez: %1$s. A Steam fekete képernyőt jeleníthet meg.</string>
     <string name="setup_runtime">Linux futtatókörnyezet</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Nincs telepítve · kb. 3 GB, az első Játék gombnyomáskor települ</string>
@@ -1415,8 +1415,8 @@
     <string name="main_wadb_unavailable">A vezeték nélküli hibakeresés nem áll rendelkezésre</string>
     <string name="main_adb_copied">ADB-parancs másolva</string>
     <string name="main_pick_roms">ROMs mappa kiválasztása</string>
-    <string name="main_non_adreno_title">Nem Adreno GPU</string>
-    <string name="main_non_adreno_text">A Turnip Adreno GPU-kat támogat. %1$s esetén a Steam fekete képernyőt jeleníthet meg. Letöltés: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">Nem támogatott GPU</string>
+    <string name="main_non_adreno_text">Nincs kompatibilis grafikus háttérrendszer ehhez: %1$s. A Steam fekete képernyőt jeleníthet meg. Letöltés: %2$.0f MB.</string>
     <string name="main_install_anyway">Telepítés mindenképpen</string>
     <string name="main_remove_runtime_title">Linux futtatókörnyezet eltávolítása</string>
     <string name="main_remove_runtime_text">Ez törli a futtatókörnyezetet, a benne lévő Steam-klienst és az összes ott telepített játékot.</string>
@@ -2130,7 +2130,7 @@
     <string name="gpuinfo_experimental">Kísérleti: az illesztőprogramjai teszt buildek</string>
     <string name="gpuinfo_a850_experimental">Kísérleti Adreno 850-támogatás: kompatibilis kísérleti kijelző- és játék-illesztőprogramokat igényel; ezen az eszközön nincs ellenőrizve</string>
     <string name="gpuinfo_below_tested">A tesztelt hardver alatt (Adreno 725 és újabb): lehet, hogy nem fut</string>
-    <string name="gpuinfo_unsupported">Nem támogatott: a DroidDecknek Adreno (Snapdragon) GPU szükséges</string>
+    <string name="gpuinfo_unsupported">Nem támogatott: nincs kompatibilis grafikus háttérrendszer ehhez a GPU-hoz</string>
 
     <string name="turnip_rate_limited">A GitHub korlátja elérve – próbálja újra később</string>
     <string name="turnip_github_http">A GitHub HTTP %1$d választ adott</string>

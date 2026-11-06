@@ -826,7 +826,7 @@
     <string name="setup_gpu_unsupported">GPU desteklenmiyor</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam için Adreno sürücüsü gerekir; %1$s siyah ekran gösterebilir</string>
+    <string name="setup_gpu_unsupported_detail">%1$s için uyumlu bir grafik arka ucu yok. Steam siyah ekran gösterebilir.</string>
     <string name="setup_runtime">Linux çalışma zamanı</string>
     <string name="setup_runtime_progress">%1$s · %%%2$d</string>
     <string name="setup_runtime_missing">Yüklü değil · yaklaşık 3 GB, ilk kez Oyna\'ya basınca yüklenir</string>
@@ -1407,8 +1407,8 @@
     <string name="main_wadb_unavailable">Kablosuz hata ayıklama kullanılamıyor</string>
     <string name="main_adb_copied">ADB komutu kopyalandı</string>
     <string name="main_pick_roms">ROM klasörünü seçin</string>
-    <string name="main_non_adreno_title">Adreno GPU değil</string>
-    <string name="main_non_adreno_text">Turnip, Adreno GPU\'larını destekler. %1$s üzerinde Steam siyah ekran gösterebilir. İndirme: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">Desteklenmeyen GPU</string>
+    <string name="main_non_adreno_text">%1$s için uyumlu bir grafik arka ucu yok. Steam siyah ekran gösterebilir. İndirme: %2$.0f MB.</string>
     <string name="main_install_anyway">Yine de yükle</string>
     <string name="main_remove_runtime_title">Linux çalışma ortamını kaldır</string>
     <string name="main_remove_runtime_text">Bu işlem çalışma ortamını, içindeki Steam istemcisini ve oraya yüklenen tüm oyunları siler.</string>
@@ -2122,7 +2122,7 @@
     <string name="gpuinfo_experimental">Deneysel: sürücüleri test derlemeleri</string>
     <string name="gpuinfo_a850_experimental">Deneysel Adreno 850 desteği: uyumlu deneysel ekran ve oyun sürücüleri gerekir; bu cihazda doğrulanmadı</string>
     <string name="gpuinfo_below_tested">Test edilen donanımın altında (Adreno 725 ve daha yenisi): çalışmayabilir</string>
-    <string name="gpuinfo_unsupported">Desteklenmiyor: DroidDeck bir Adreno (Snapdragon) GPU\'su gerektirir</string>
+    <string name="gpuinfo_unsupported">Desteklenmiyor: bu GPU için uyumlu bir grafik arka ucu yok</string>
 
     <string name="turnip_rate_limited">GitHub\'ın hız sınırına ulaşıldı - daha sonra yeniden deneyin</string>
     <string name="turnip_github_http">GitHub HTTP %1$d yanıtı verdi</string>

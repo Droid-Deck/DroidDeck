@@ -1,3 +1,4 @@
+Fixed-upstream: FEX-2611
 --- a/ThunkLibs/Generator/gen.cpp
 +++ b/ThunkLibs/Generator/gen.cpp
 @@ -840,6 +840,5 @@

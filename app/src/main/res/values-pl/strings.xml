@@ -832,7 +832,7 @@
     <string name="setup_gpu_unsupported">GPU nieobsługiwany</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam wymaga sterownika Adreno; %1$s może wyświetlać czarny ekran</string>
+    <string name="setup_gpu_unsupported_detail">Brak zgodnego zaplecza graficznego dla %1$s. Steam może wyświetlać czarny ekran.</string>
     <string name="setup_runtime">Środowisko Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Nie zainstalowano · ok. 3 GB, instalowane przy pierwszym „Graj”</string>
@@ -1439,8 +1439,8 @@
     <string name="main_wadb_unavailable">Debugowanie bezprzewodowe jest niedostępne</string>
     <string name="main_adb_copied">Skopiowano polecenie ADB</string>
     <string name="main_pick_roms">Wybierz folder ROM-ów</string>
-    <string name="main_non_adreno_title">To nie jest GPU Adreno</string>
-    <string name="main_non_adreno_text">Turnip obsługuje GPU Adreno. Na tym urządzeniu (%1$s) Steam może wyświetlać czarny ekran. Pobieranie: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">Nieobsługiwany GPU</string>
+    <string name="main_non_adreno_text">Brak zgodnego zaplecza graficznego dla %1$s. Steam może wyświetlać czarny ekran. Do pobrania: %2$.0f MB.</string>
     <string name="main_install_anyway">Zainstaluj mimo to</string>
     <string name="main_remove_runtime_title">Usuń środowisko Linux</string>
     <string name="main_remove_runtime_text">Spowoduje to usunięcie środowiska, klienta Steam w nim i wszystkich zainstalowanych tam gier.</string>
@@ -2180,7 +2180,7 @@
     <string name="gpuinfo_experimental">Eksperymentalny: jego sterowniki to wersje testowe</string>
     <string name="gpuinfo_a850_experimental">Eksperymentalna obsługa Adreno 850: wymaga zgodnych eksperymentalnych sterowników ekranu i gier; nie zweryfikowano na tym urządzeniu</string>
     <string name="gpuinfo_below_tested">Poniżej testowanego sprzętu (Adreno 725 i nowsze): może nie działać</string>
-    <string name="gpuinfo_unsupported">Nieobsługiwany: DroidDeck wymaga GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">Nieobsługiwany: brak zgodnego zaplecza graficznego dla tego GPU</string>
 
     <string name="turnip_rate_limited">Osiągnięto limit zapytań GitHub – spróbuj ponownie później</string>
     <string name="turnip_github_http">GitHub odpowiedział HTTP %1$d</string>
