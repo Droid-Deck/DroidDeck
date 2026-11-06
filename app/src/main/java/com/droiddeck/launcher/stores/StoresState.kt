@@ -134,8 +134,13 @@ object StoresState {
         StoreInstalls.discard(app, folder, listOf(java.io.File(folder, ".chunks"), java.io.File(folder, ".gog_chunks"), StoreInstallRoot.scratchDir(app, item.store, item.id)))
     }
 
-    fun installedGame(store: Store, id: String, folder: java.io.File? = null): InstalledStoreGame? {
-        val matches = installed.filter { it.sidecar.store == store && it.sidecar.id == id }
+    fun installedGame(store: Store, id: String, folder: java.io.File? = null): InstalledStoreGame? =
+        pickInstalled(store, id, folder, installed)
+
+    internal fun pickInstalled(
+        store: Store, id: String, folder: java.io.File?, candidates: List<InstalledStoreGame>,
+    ): InstalledStoreGame? {
+        val matches = candidates.filter { it.sidecar.store == store && it.sidecar.id == id }
         return folder?.let { chosen -> matches.firstOrNull { it.folder.absolutePath == chosen.absolutePath } } ?: matches.firstOrNull()
     }
 

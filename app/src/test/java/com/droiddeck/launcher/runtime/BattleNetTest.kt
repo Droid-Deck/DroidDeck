@@ -381,16 +381,11 @@ class BattleNetTest {
         val sidecar = StoreGameSidecar(Store.BATTLENET, "diablo3", "Diablo III", "")
         val oldGame = InstalledStoreGame(sidecar, legacy)
         val chinaGame = InstalledStoreGame(sidecar, china)
-        val before = StoresState.installed
-        try {
-            StoresState.installed = listOf(oldGame, chinaGame)
-            assertEquals(chinaGame, StoresState.installedGame(Store.BATTLENET, "diablo3", china))
-            assertEquals(oldGame, StoresState.installedGame(Store.BATTLENET, "diablo3", legacy))
-            assertEquals("d3cn", BattleNetInstall.installUid(context, chinaGame))
-            assertEquals("diablo3", BattleNetInstall.installUid(context, oldGame))
-        } finally {
-            StoresState.installed = before
-        }
+        val records = listOf(oldGame, chinaGame)
+        assertEquals(chinaGame, StoresState.pickInstalled(Store.BATTLENET, "diablo3", china, records))
+        assertEquals(oldGame, StoresState.pickInstalled(Store.BATTLENET, "diablo3", legacy, records))
+        assertEquals("d3cn", BattleNetInstall.installUid(context, chinaGame))
+        assertEquals("diablo3", BattleNetInstall.installUid(context, oldGame))
     }
 
     @Test fun aGamesShortcutHasBattleNetLaunchItInItsPrefix() {
