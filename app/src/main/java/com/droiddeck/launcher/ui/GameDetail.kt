@@ -808,10 +808,16 @@ private fun LaunchTab(game: Library.SteamGame, s: FrontEndState, a: FrontEndActi
     val host = rememberMenuHost()
     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
         LaunchSettings(s, a, host, game, hopRail ?: GameRef.key(game))
+        if (canEditSteamLaunchOptions(game, s.shortcutPicker)) {
+            SteamLaunchOptionsPanel(game.appId)
+        }
         val folder = game.gameFiles
         if (game.library == Library.ADDED && game.source == Library.ADDED && !s.shortcutPicker && folder != null) ShortcutFields(game, folder)
     }
 }
+
+internal fun canEditSteamLaunchOptions(game: Library.SteamGame, shortcutPicker: Boolean): Boolean =
+    !shortcutPicker && game.source == Library.SOURCE_STEAM && game.library != Library.ADDED
 
 @Composable
 private fun ShortcutFields(game: Library.SteamGame, folder: File) {
