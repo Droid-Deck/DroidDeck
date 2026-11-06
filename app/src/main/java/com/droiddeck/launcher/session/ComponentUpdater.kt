@@ -152,7 +152,7 @@ object ComponentUpdater {
                     continue
                 }
             }
-            if (ComponentsManager.arm64x(context, p, comp) && !ComponentsManager.packageArm64x(context, target.file, comp)) {
+            if (ComponentUpdates.needsArm64x(line, ComponentsManager.arm64x(context, p, comp)) && !ComponentsManager.packageArm64x(context, target.file, comp)) {
                 Log.w(TAG, "${target.file} is not ARM64X like ${p.name}'s own ${line.key}; skipped")
                 ls.put("bad", JSONArray(ls.strings("bad") + target.file))
                 if (!stored) runCatching { ComponentsManager.deletePackage(context, target.file) }

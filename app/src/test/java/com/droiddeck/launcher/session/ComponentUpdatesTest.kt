@@ -84,6 +84,15 @@ class ComponentUpdatesTest {
         assertFalse(ComponentUpdates.arm64x(ByteArray(16)))
     }
 
+    @Test fun anArm64ecLineNeedsArm64xUnlessTheProtonsOwnBuildIsKnownNotToBe() {
+        val ec = ComponentUpdates.line("dxvk", true)
+        assertTrue(ComponentUpdates.needsArm64x(ec, true))
+        assertTrue(ComponentUpdates.needsArm64x(ec, null))
+        assertFalse(ComponentUpdates.needsArm64x(ec, false))
+        assertFalse(ComponentUpdates.needsArm64x(ComponentUpdates.line("dxvk", false), null))
+        assertFalse(ComponentUpdates.needsArm64x(ComponentUpdates.line("fex", false), null))
+    }
+
     private val log = """
         [2026-11-05 20:00:00] Game process added : AppID 49520 "/root/.local/share/Steam/linuxarm64/steam-launch-wrapper -- /root/.local/share/Steam/steamrtarm64/reaper SteamLaunch AppId=49520 -- '/root/.local/share/Steam/compatibilitytools.d/DroidDeck-Proton 11-12.1'/droiddeck-proton-wrap waitforexitandrun 'Borderlands2.exe'"
         [2026-11-05 20:00:05] Game process updated : AppID 49520 "x"

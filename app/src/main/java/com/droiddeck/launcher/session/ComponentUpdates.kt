@@ -65,6 +65,9 @@ object ComponentUpdates {
         b.getInt(header) == 0x4550 && (b.getShort(header + 4).toInt() and 0xffff) == 0xaa64 && arm64ec(pe) == true
     }.getOrDefault(false)
 
+    fun needsArm64x(line: Line, stockArm64x: Boolean?): Boolean =
+        line.key.endsWith("-arm64ec") && stockArm64x != false
+
     data class Launch(val app: String, val tool: String, val start: String, val seconds: Long)
 
     private val PROCESS = Regex("""^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)] Game process (added|removed)\s*: AppID (\d+)(?: "(.*))?""")
