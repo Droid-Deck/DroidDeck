@@ -15,6 +15,7 @@ import android.view.View
 import android.view.WindowInsets
 import com.droiddeck.launcher.session.SessionPrefs
 import kotlin.math.abs
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
@@ -48,6 +49,10 @@ class OnScreenControls(
         var dirty = false
         var clicked = false
         var lastUp = 0L
+        var downAt = 0L
+        var downX = 0f
+        var downY = 0f
+        var travel = 0f
         val wide = id in shoulderIds
         val halfW get() = if (wide) radius * SHOULDER_WIDTH else radius
         val halfH get() = if (wide) radius * SHOULDER_HEIGHT else radius
@@ -61,6 +66,7 @@ class OnScreenControls(
         }
 
         fun drag(x: Float, y: Float): Boolean {
+            travel = max(travel, hypot(x - downX, y - downY))
             var dx = x - ax
             var dy = y - ay
             val d = sqrt(dx * dx + dy * dy)
@@ -73,6 +79,10 @@ class OnScreenControls(
     }
 
     private val stickRedraw = ThrottledRedraw(this, STICK_REDRAW_MS)
+    private val tapSlop = android.view.ViewConfiguration.get(context).scaledTouchSlop.toFloat()
+
+    private fun stickTap(control: Control, event: MotionEvent): Boolean =
+        stickTap(control.downAt, event.eventTime, control.travel, tapSlop, control.clicked, event.actionMasked == MotionEvent.ACTION_CANCEL)
 
     private val controls = listOf(
         Control("up", "dpad", -1, 26f, 0f, -52f),
@@ -545,6 +555,10 @@ class OnScreenControls(
                 control.pressedBy = event.getPointerId(index)
                 if (control.stick >= 0) {
                     control.clicked = settings.stickClick && control.lastUp > 0L && event.eventTime - control.lastUp < DOUBLE_TAP_MS
+                    control.downAt = event.eventTime
+                    control.downX = event.getX(index)
+                    control.downY = event.getY(index)
+                    control.travel = 0f
                     val adaptive = settings.adaptiveSticks
                     control.ax = if (adaptive) event.getX(index) else control.cx
                     control.ay = if (adaptive) event.getY(index) else control.cy
@@ -613,7 +627,7 @@ class OnScreenControls(
                 for (control in controls) {
                     if (control.pressedBy == pointer || event.actionMasked == MotionEvent.ACTION_CANCEL) {
                         if (control.pressedBy != -1) changed = true
-                        if (control.stick >= 0 && control.pressedBy != -1) control.lastUp = if (control.clicked || event.actionMasked == MotionEvent.ACTION_CANCEL) 0L else event.eventTime
+                        if (control.stick >= 0 && control.pressedBy != -1) control.lastUp = if (stickTap(control, event)) event.eventTime else 0L
                         control.pressedBy = -1
                         control.clicked = false
                         if (control.stick >= 0 && (control.kx != 0f || control.ky != 0f)) control.dirty = true
@@ -794,6 +808,10 @@ class OnScreenControls(
 
     private companion object {
         const val DOUBLE_TAP_MS = 300L
+        const val STICK_TAP_MS = 200L
+
+        internal fun stickTap(downAt: Long, upAt: Long, travel: Float, slop: Float, clicked: Boolean, cancelled: Boolean): Boolean =
+            !clicked && !cancelled && upAt - downAt <= STICK_TAP_MS && travel <= slop
         const val STICK_REDRAW_MS = 33L
         const val MIN_STICK_MOVE_PX = 1f
         const val MIN_FACE_MM = 9.5f

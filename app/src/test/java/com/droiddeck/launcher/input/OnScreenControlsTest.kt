@@ -169,6 +169,41 @@ class OnScreenControlsTest {
         assertEquals(true, field(control("ls"), "clicked"))
     }
 
+    @Test fun movingTheStickAndTouchingItAgainDoesNotClickIt() {
+        touch(MotionEvent.ACTION_DOWN, 1 to (540f to 400f))
+        touch(MotionEvent.ACTION_MOVE, 1 to (600f to 400f))
+        touch(MotionEvent.ACTION_UP, 1 to (600f to 400f))
+        touch(MotionEvent.ACTION_DOWN, 1 to (540f to 400f))
+        assertEquals(false, field(control("ls"), "clicked"))
+    }
+
+    @Test fun aLongHoldThenAQuickTouchDoesNotClickTheStick() {
+        touch(MotionEvent.ACTION_DOWN, 1 to (540f to 400f))
+        time += 600
+        touch(MotionEvent.ACTION_UP, 1 to (540f to 400f))
+        touch(MotionEvent.ACTION_DOWN, 1 to (540f to 400f))
+        assertEquals(false, field(control("ls"), "clicked"))
+    }
+
+    @Test fun aFastDoubleTapClicksTheStickAndCanBeHeldWhileMoving() {
+        touch(MotionEvent.ACTION_DOWN, 1 to (540f to 400f))
+        touch(MotionEvent.ACTION_UP, 1 to (540f to 400f))
+        touch(MotionEvent.ACTION_DOWN, 1 to (540f to 400f))
+        touch(MotionEvent.ACTION_MOVE, 1 to (600f to 400f))
+        assertEquals(true, field(control("ls"), "clicked"))
+        touch(MotionEvent.ACTION_UP, 1 to (600f to 400f))
+        touch(MotionEvent.ACTION_DOWN, 1 to (540f to 400f))
+        assertEquals(false, field(control("ls"), "clicked"))
+    }
+
+    @Test fun aSlowSecondTapDoesNotClickTheStick() {
+        touch(MotionEvent.ACTION_DOWN, 1 to (540f to 400f))
+        touch(MotionEvent.ACTION_UP, 1 to (540f to 400f))
+        time += 400
+        touch(MotionEvent.ACTION_DOWN, 1 to (540f to 400f))
+        assertEquals(false, field(control("ls"), "clicked"))
+    }
+
     @Test fun buttonsTakePriorityOverAdaptiveRegions() {
         val button = control("a")
         touch(MotionEvent.ACTION_DOWN, 3 to (value(button, "cx") to value(button, "cy")))
