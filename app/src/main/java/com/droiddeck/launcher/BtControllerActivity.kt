@@ -126,6 +126,15 @@ class BtControllerActivity : ComponentActivity() {
         if (!nearbyDenied) startPad()
     }
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) return
+        physical.set(BtPadState())
+        keyButtons = 0
+        hatButtons = 0
+        push()
+    }
+
     override fun onDestroy() {
         main.removeCallbacks(exitHold)
         if (isFinishing) BtGamepad.stop()
