@@ -1,8 +1,10 @@
 package com.droiddeck.launcher.stores.download
 
 import android.content.Context
+import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.*
+import com.droiddeck.launcher.stores.battlenet.BattleNetInstaller
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -143,6 +145,39 @@ class DownloadQueueRetryTest {
             Thread.sleep(10)
         }
         assertEquals(DownloadState.CANCELLED, DownloadQueue.entry(entry.key)?.state)
+        DownloadQueue.clear(app, entry.key)
+    }
+
+    @Test fun aPauseCallbackDoesNotReleaseAnotherCleanup() {
+        val title = "Pause during cleanup"
+        val entry = DownloadEntry(Store.BATTLENET, "pause-during-cleanup", title)
+        val cancelled = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val job = object : DownloadQueue.DownloadJob {
+            override fun run(handle: DownloadQueue.JobHandle): String? = null
+            override fun cancel(deleteFiles: Boolean) {
+                if (!deleteFiles) return
+                cancelled.countDown()
+                Thread({
+                    release.await()
+                    DownloadQueue.cleanupFinished(entry.key)
+                }, "test-pause-cleanup").start()
+            }
+        }
+        DownloadQueue.enqueue(app, entry) { job }
+        DownloadQueue.cancel(app, entry.key)
+        assertTrue(cancelled.await(5, TimeUnit.SECONDS))
+        assertTrue(DownloadQueue.isCancelling(entry.key))
+
+        val folder = File(LinuxRuntime.rootDir(app), "root/Games/Diablo II Resurrected").apply { mkdirs() }
+        val item = CatalogItem(Store.BATTLENET, entry.id, title, null)
+        BattleNetInstaller(app, item, folder, false).cancel(false)
+        assertTrue("a pause must not release the destructive cleanup guard", DownloadQueue.isCancelling(entry.key))
+
+        release.countDown()
+        val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (DownloadQueue.isCancelling(entry.key) && System.nanoTime() < until) Thread.sleep(10)
+        assertFalse(DownloadQueue.isCancelling(entry.key))
         DownloadQueue.clear(app, entry.key)
     }
 

@@ -9,6 +9,7 @@ import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.battlenet.BattleNetInstall
+import com.droiddeck.launcher.stores.battlenet.BattleNetInstaller
 import com.github.luben.zstd.ZstdOutputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
@@ -29,6 +30,7 @@ import java.io.File
 import java.nio.file.Files
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import java.util.zip.CRC32
 
@@ -424,6 +426,48 @@ class BattleNetTest {
             true
         }
         installer.cancel(true)
+        assertTrue(done.await(5, TimeUnit.SECONDS))
+        assertEquals("osic", seen.get())
+    }
+
+    @Test fun aLateUidReportedWhileTheWorkerStopsIsUsedForCancellation() {
+        val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
+        val item = CatalogItem(Store.BATTLENET, "osi", "Diablo II: Resurrected", null)
+        val seen = AtomicReference<String?>(null)
+        val done = CountDownLatch(1)
+        val installer = BattleNetInstaller(context, item, folder, false) { uid ->
+            seen.set(uid)
+            done.countDown()
+            true
+        }
+        val started = BattleNetInstaller::class.java.getDeclaredField("started").apply { isAccessible = true }
+        (started.get(installer) as AtomicBoolean).set(true)
+        val ended = BattleNetInstaller::class.java.getDeclaredField("ended").apply { isAccessible = true }
+            .get(installer) as CountDownLatch
+        val effective = BattleNetInstaller::class.java.getDeclaredField("effectiveUid").apply { isAccessible = true }
+        installer.cancel(true)
+        effective.set(installer, "osic")
+        ended.countDown()
+        assertTrue(done.await(5, TimeUnit.SECONDS))
+        assertEquals("osic", seen.get())
+    }
+
+    @Test fun aRestoredPausedInstallStillUninstallsTheMappedUid() {
+        val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
+        val item = CatalogItem(
+            Store.BATTLENET, "osi", "Diablo II: Resurrected", null,
+            extra = mapOf(BattleNetInstall.RESTORE to "1"),
+        )
+        val cache = File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/battlenet/agent-osi.uid")
+        cache.parentFile!!.mkdirs()
+        cache.writeBytes("\uFEFFZ:/root/Games/Diablo II Resurrected\nosic".toByteArray(Charsets.UTF_16LE))
+        val seen = AtomicReference<String?>(null)
+        val done = CountDownLatch(1)
+        BattleNetInstaller(context, item, folder, false) { uid ->
+            seen.set(uid)
+            done.countDown()
+            true
+        }.cancel(true)
         assertTrue(done.await(5, TimeUnit.SECONDS))
         assertEquals("osic", seen.get())
     }
