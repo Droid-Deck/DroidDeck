@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.session
 
+import android.os.Environment
 import com.droiddeck.launcher.frontend.AddedGames
 import java.io.File
 import org.junit.Assert.*
@@ -47,5 +48,47 @@ class GameStorageTest {
         odd.forEach { File(it, "steamapps").mkdirs(); File(it, "steamapps/appmanifest_220.acf").writeText("x") }
         SessionPrefs.setAddedGamesDirs(app, odd.map { it.path })
         assertTrue(GameStorage.gamesFolderLibraries(app).isEmpty())
+    }
+
+    @Test fun anUnpluggedDriveFallsBackToInternalWithoutForgettingIt() {
+        val gone = "/storage/0000-0000/Android/data/com.droiddeck.launcher/files/steam"
+        SessionPrefs.setGameStorage(app, gone, "USB drive")
+        assertNull(GameStorage.effective(app))
+        assertNull(GameStorage.x64CardLibrary(app))
+        assertEquals(gone, SessionPrefs.gameStorage(app))
+    }
+
+    @Test fun aPluggedInDriveStaysTheLibrary() {
+        val files = tmp.newFolder("files")
+        val steam = File(files, "steam")
+        SessionPrefs.setGameStorage(app, steam.path, "USB drive")
+        assertEquals(steam.path, GameStorage.effective(app)?.path)
+        steam.mkdirs()
+        assertEquals(steam.path, GameStorage.effective(app)?.path)
+        assertEquals("USB drive", GameStorage.effective(app)?.label)
+    }
+
+    @Test fun missingSubfolderIsAttachedWhenItsVolumeIsMounted() {
+        val path = File(tmp.newFolder("mounted-volume"), "missing/steam")
+        assertTrue(GameStorage.attached(path, Environment.MEDIA_MOUNTED, externalStoragePath = true))
+    }
+
+    @Test fun removedVolumeIsNotAttachedEvenWhenItsParentExists() {
+        val parent = tmp.newFolder("storage")
+        val volume = File(parent, "0000-0000")
+        assertTrue(parent.isDirectory)
+        assertFalse(GameStorage.attached(volume, Environment.MEDIA_REMOVED, externalStoragePath = true))
+        assertFalse(GameStorage.attached(volume, Environment.MEDIA_UNKNOWN, externalStoragePath = true))
+    }
+
+    @Test fun onlyASavedDriveThatIsMissingCountsAsDisconnected() {
+        SessionPrefs.setGameStorage(app, "", "")
+        assertFalse(GameStorage.disconnected(app))
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+        assertFalse(GameStorage.disconnected(app))
+        SessionPrefs.setGameStorage(app, "/storage/0000-0000/Android/data/com.droiddeck.launcher/files/steam", "USB drive")
+        assertTrue(GameStorage.disconnected(app))
+        SessionPrefs.setGameStorage(app, tmp.newFolder("plugged").path, "USB drive")
+        assertFalse(GameStorage.disconnected(app))
     }
 }

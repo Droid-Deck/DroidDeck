@@ -19,7 +19,11 @@ import java.io.OutputStream
 import java.security.MessageDigest
 import java.nio.ByteBuffer
 import java.nio.channels.SeekableByteChannel
+import java.nio.file.FileVisitResult
+import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.attribute.BasicFileAttributes
 import java.util.ArrayList
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -65,9 +69,23 @@ object SessionLogShare {
     fun details(folder: File): Details {
         var size = 0L
         var modified = folder.lastModified()
-        folder.walkTopDown().filter { it.isFile }.forEach { file ->
-            size += file.length()
-            modified = maxOf(modified, file.lastModified())
+        var visited = 0
+        val root = folder.toPath()
+        if (folder.isDirectory && !Files.isSymbolicLink(root)) runCatching {
+            Files.walkFileTree(root, object : SimpleFileVisitor<Path>() {
+                override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult =
+                    if (++visited > 16_384 || dir.nameCount - root.nameCount > 32) FileVisitResult.SKIP_SUBTREE
+                    else FileVisitResult.CONTINUE
+
+                override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                    if (++visited > 16_384) return FileVisitResult.TERMINATE
+                    if (attrs.isRegularFile && !attrs.isSymbolicLink) {
+                        size = if (attrs.size() > Long.MAX_VALUE - size) Long.MAX_VALUE else size + attrs.size()
+                        modified = maxOf(modified, attrs.lastModifiedTime().toMillis())
+                    }
+                    return FileVisitResult.CONTINUE
+                }
+            })
         }
         return Details(size, modified)
     }
@@ -75,7 +93,7 @@ object SessionLogShare {
     fun deleteSession(context: Context, folder: File): Boolean {
         if (runCatching { SessionPaths.current()?.canonicalFile == folder.canonicalFile }.getOrDefault(false)) return false
         val knownSession = runCatching { folder.canonicalFile }.getOrNull() in sessions(context).mapNotNull { runCatching { it.canonicalFile }.getOrNull() }
-        return knownSession && folder.isDirectory && folder.deleteRecursively()
+        return knownSession && folder.isDirectory && SecureDiagnosticOutput.deleteSession(context, folder)
     }
 
     fun prepareEnhanced(context: Context, folder: () -> File?, done: (List<File>) -> Unit) {
@@ -343,8 +361,8 @@ object SessionLogShare {
     }
 
     fun clear(context: Context) {
-        shareDir(context).deleteRecursively()
-        File(context.cacheDir, "shared-logs").deleteRecursively()
+        SecureDiagnosticOutput.clear(context, shareDir(context))
+        SecureDiagnosticOutput.clear(context, File(context.cacheDir, "shared-logs"))
     }
 
     fun shareIntent(context: Context, zip: File): Intent {

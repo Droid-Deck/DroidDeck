@@ -24,6 +24,9 @@ SNIPER_APPID = "1628350"
 SLR4_APPID = "4183110"
 FEX_DEPENDENCIES = (FEX_APPID, SNIPER_APPID, SLR4_APPID)
 REQUIRED_TOOLS = (PROTON_ARM64_APPID,) + FEX_DEPENDENCIES
+# Linux builds that bundle an arm64 binary their launcher starts; Steamworks offers no arm64
+# launch-option architecture, so appinfo cannot say so (#1774).
+FEX_DEFAULT_APPS = frozenset({"4385780"})
 FULLY_INSTALLED = 4
 UPDATE_REQUIRED = 2
 REQUEST_HANDOFF_SECONDS = 30
@@ -939,7 +942,7 @@ def native_targets(steam_root, apps):
         if "arm64" in osarch or "aarch64" in osarch:
             targets[app] = None
             continue
-        if "windows" in oslist:
+        if "windows" in oslist and app not in FEX_DEFAULT_APPS:
             targets[app] = NATIVE_CHOICE
             continue
         targets[app] = FEX_TOOL
@@ -1090,7 +1093,7 @@ def plan_mapping(current, installed, runnable, default, auto, native=None, picks
             continue
         mine = auto.get(app)
         target = native.get(app, default)
-        if not name and app in native_choices:
+        if not name and (app in native_choices or (app in current and app in FEX_DEFAULT_APPS)):
             target = NATIVE_CHOICE
         stale = unrunnable(name, runnable)
         if name and not stale and (mine is None or name != mine):

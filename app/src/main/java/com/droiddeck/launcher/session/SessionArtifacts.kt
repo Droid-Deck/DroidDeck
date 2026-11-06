@@ -103,12 +103,6 @@ object SessionArtifacts {
             if (failed > 0) ", $failed not fully (again at the next start)" else "")
     }
 
-    fun unmarkMoved(dirs: List<File>) {
-        dirs.filter { SessionPaths.isSessionFolder(it) }.forEach { dir ->
-            dir.listFiles { f -> OLD_SCRUBBED_MARKER.matches(f.name) || f.name == SCRUBBED_TREE_MARKER }?.forEach { it.delete() }
-        }
-    }
-
     private class Scrubbed(val length: Long, val modified: Long)
 
     private class Record(val dir: File) {
@@ -130,7 +124,11 @@ object SessionArtifacts {
         beforeReplace: (File) -> Unit,
         listFiles: (File) -> Array<File>?,
     ): Boolean {
-        val files = listFiles(dir)?.filter { f -> f.isFile && !f.name.startsWith(".") && f !in record.files }
+        val files = listFiles(dir)?.filter { f ->
+            !java.nio.file.Files.isSymbolicLink(f.toPath()) &&
+                java.nio.file.Files.isRegularFile(f.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS) &&
+                !f.name.startsWith(".") && f !in record.files
+        }
         if (files == null) {
             record.failed = true
             return true
@@ -611,18 +609,18 @@ object SessionArtifacts {
         val current = SessionPaths.current()
         val finished = SessionPaths.sessionFolders(context).filter { it != current && File(it, COMPLETE_MARKER).exists() }
         val old = finished.dropLast(SessionPaths.KEEP_SESSIONS)
-        old.forEach { com.droiddeck.launcher.core.FileUtils.delete(it) }
-        if (old.isNotEmpty()) Log.i(TAG, "deleted ${old.size} session folder(s) past the newest ${SessionPaths.KEEP_SESSIONS}")
+        val deleted = old.count { SecureDiagnosticOutput.deleteSession(context, it) }
+        if (deleted > 0) Log.i(TAG, "deleted $deleted session folder(s) past the newest ${SessionPaths.KEEP_SESSIONS}")
     }
 
     @Synchronized
     fun clearAll(context: Context): Int {
         val current = SessionPaths.current()
         val gone = SessionPaths.sessionFolders(context).filter { it != current }
-        gone.forEach { com.droiddeck.launcher.core.FileUtils.delete(it) }
-        com.droiddeck.launcher.core.FileUtils.delete(File(LinuxRuntime.logDir(context), SessionPaths.TOOLS_DIR))
-        Log.i(TAG, "cleared ${gone.size} session folder(s)")
-        return gone.size
+        val deleted = gone.count { SecureDiagnosticOutput.deleteSession(context, it) }
+        SecureDiagnosticOutput.deleteTools(context)
+        Log.i(TAG, "cleared $deleted session folder(s)")
+        return deleted
     }
 
     private fun now(): String = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())

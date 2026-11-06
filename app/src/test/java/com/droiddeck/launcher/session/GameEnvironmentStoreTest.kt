@@ -24,6 +24,7 @@ class GameEnvironmentStoreTest {
 
     @Before fun setUp() {
         context = RuntimeEnvironment.getApplication()
+        installJvmSecureSourceOpener()
         context.getSharedPreferences("session", Context.MODE_PRIVATE).edit()
             .remove("logs")
             .remove("gameDebugLogsEnabled")
@@ -37,6 +38,7 @@ class GameEnvironmentStoreTest {
             .remove("logs")
             .remove("gameDebugLogsEnabled")
             .commit()
+        resetSecureSourceOpener()
     }
 
     @Test fun gameDebugLogsAreOffByDefault() {
@@ -164,11 +166,22 @@ class GameEnvironmentStoreTest {
         assertEquals(config, GameEnvironmentStore.read(context))
         val published = GameEnvironmentStore.decode(JSONObject(guest.readText()))
         assertEquals("false", published.shared["MESA_SHADER_CACHE_DISABLE"])
-        assertEquals("12_2", published.shared["VKD3D_FEATURE_LEVEL"])
-        assertEquals("6_9", published.shared["VKD3D_SHADER_MODEL"])
+        assertFalse(published.shared.containsKey("VKD3D_FEATURE_LEVEL"))
+        assertFalse(published.shared.containsKey("VKD3D_SHADER_MODEL"))
         assertEquals(config.games, published.games)
         assertEquals(config.shared["LITERAL"], published.shared["LITERAL"])
         assertEquals("", published.shared["EMPTY"])
+    }
+
+    @Test fun publishingPreservesExplicitSharedGraphicsCapabilities() {
+        val config = GameEnvironment.Config(shared = mapOf(
+            "VKD3D_FEATURE_LEVEL" to "12_1", "VKD3D_SHADER_MODEL" to "6_6",
+        ))
+        GameEnvironmentStore.save(context, config)
+        val published = GameEnvironmentStore.decode(JSONObject(guest.readText()))
+        assertEquals(config, GameEnvironmentStore.read(context))
+        assertEquals("12_1", published.shared["VKD3D_FEATURE_LEVEL"])
+        assertEquals("6_6", published.shared["VKD3D_SHADER_MODEL"])
     }
 
     @Test fun changingFexPresetPublishesForNextGameLaunch() {

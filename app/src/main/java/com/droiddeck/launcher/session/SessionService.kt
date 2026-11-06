@@ -5,7 +5,6 @@ import com.droiddeck.launcher.gpu.LinuxVulkanDriver
 import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
 import com.droiddeck.launcher.gpu.SystemVulkanDriver
 import com.droiddeck.launcher.gpu.SystemVulkanComponentStore
-import com.droiddeck.launcher.core.DeviceSupport
 
 import android.app.Notification
 import android.app.NotificationChannel

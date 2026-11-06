@@ -22,6 +22,19 @@ STATE = tempfile.TemporaryDirectory()
 COMPAT["main"].__globals__["COMPAT_DIR"] = STATE.name
 
 
+class SupergiantDotnetReporterTest(unittest.TestCase):
+    def test_allows_the_builtin_mscoree_for_supergiant_reporter(self):
+        game = mock.Mock(files={"basecampbugreporter.native.dll"})
+        self.assertEqual(
+            ({"WINEDLLOVERRIDES": "mscoree=n,b"}, [], "Supergiant: allow the builtin mscoree"),
+            MODULE["supergiant_dotnet_reporter"](game),
+        )
+
+    def test_ignores_games_without_the_supergiant_reporter(self):
+        game = mock.Mock(files={"enginewin64s.dll"})
+        self.assertIsNone(MODULE["supergiant_dotnet_reporter"](game))
+
+
 def mapping_of(text):
     tokens = COMPAT["tokenize"](text)
     return COMPAT["read_mapping"](tokens, COMPAT["mapping_block"](tokens))
@@ -1584,6 +1597,12 @@ class GameEnvironmentTest(unittest.TestCase):
                          "dxgi.maxDeviceMemory = 2048; dxvk.maxFrameRate = 60")
         for off in ({}, {"BL_VRAM_MB": "0"}, {"BL_VRAM_MB": "lots"}, {"BL_VRAM_MB": "²"}, {"BL_VRAM_MB": "-1"}):
             self.assertNotIn("DXVK_CONFIG", cap(off))
+            self.assertNotIn("DROIDDECK_VRAM_CAP", cap(off))
+            self.assertNotIn("DROIDDECK_VRAM_CAP_MB", cap(off))
+
+    def test_the_vram_cap_also_turns_on_the_vulkan_layer_that_holds_the_game_to_it(self):
+        env = MODULE["vram_cap"]({"BL_VRAM_MB": "3072", "DXVK_CONFIG": "dxgi.maxDeviceMemory = 16384"})
+        self.assertEqual((env["DROIDDECK_VRAM_CAP"], env["DROIDDECK_VRAM_CAP_MB"]), ("1", "3072"))
 
     def test_a_games_wine_sync_choice_also_reaches_its_setup_runs(self):
         env = {"BL_SYNC": "1", "BL_SYNC_FALLBACK": "1", "BL_FSYNC_FIRST": "0", "OTHER": "kept"}
@@ -2072,62 +2091,33 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(speeds([0, 1], tmp), {0: 2265600, 1: 3302400})
             self.assertIsNone(speeds([0, 2], tmp))
 
-    def test_reskate_runs_at_feature_level_12_1(self):
+    def test_titles_with_former_feature_level_workarounds_keep_detected_capabilities(self):
         with tempfile.TemporaryDirectory() as tmp:
-            reskate = Path(tmp) / "ReSkate"
-            reskate.mkdir()
-            for name in ("Skate.exe", "ReSkate.dll", "ReSkateLauncher.exe", "EAAntiCheat.GameServiceLauncher.exe"):
-                (reskate / name).touch()
-            for exe in ("ReSkateLauncher.exe", "Skate.exe"):
-                env, extra, notes = MODULE["engine_fixes"](str(reskate / exe), [])
-                self.assertEqual((env, extra), ({"VKD3D_FEATURE_LEVEL": "12_1"}, []), exe)
-                self.assertTrue(notes)
-            config = {"version": 1, "shared": {"VKD3D_FEATURE_LEVEL": "12_2"}}
-            self.assertEqual(MODULE["apply_config"]({}, config, "3354750", env)["VKD3D_FEATURE_LEVEL"], "12_1")
-            config["games"] = {"3354750": {"VKD3D_FEATURE_LEVEL": "12_2"}}
-            self.assertEqual(MODULE["apply_config"]({}, config, "3354750", env)["VKD3D_FEATURE_LEVEL"], "12_2")
-            skate = Path(tmp) / "Skate"
-            skate.mkdir()
-            for name in ("Skate.exe", "EAAntiCheat.GameServiceLauncher.exe"):
-                (skate / name).touch()
-            self.assertEqual(MODULE["engine_fixes"](str(skate / "EAAntiCheat.GameServiceLauncher.exe"), [])[:2], ({}, []))
-
-    def test_caravan_sandwitch_robocop_and_cyberpunk_run_at_feature_level_12_1(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            caravan = Path(tmp) / "Caravan SandWitch"
-            shipping = caravan / "CaravanSandWitch/Binaries/Win64"
-            shipping.mkdir(parents=True)
-            for name in ("CaravanSandWitch.exe", ".droiddeck-launch.bat"):
-                (caravan / name).touch()
-            (shipping / "CaravanSandWitch-Win64-Shipping.exe").touch()
-            cyberpunk = Path(tmp) / "Cyberpunk 2077"
-            (cyberpunk / "bin/x64").mkdir(parents=True)
-            for name in ("REDprelauncher.exe", "bin/x64/Cyberpunk2077.exe"):
-                (cyberpunk / name).touch()
-            robocop = Path(tmp) / "RoboCop Rogue City"
-            (robocop / "RoboCop/Binaries/Win64").mkdir(parents=True)
-            for name in ("RoboCop.exe", "RoboCop/Binaries/Win64/RoboCop-Win64-Shipping.exe"):
-                (robocop / name).touch()
-            games = [caravan / "CaravanSandWitch.exe", caravan / ".droiddeck-launch.bat",
-                     shipping / "CaravanSandWitch-Win64-Shipping.exe",
-                     robocop / "RoboCop.exe", robocop / "RoboCop/Binaries/Win64/RoboCop-Win64-Shipping.exe",
-                     cyberpunk / "REDprelauncher.exe", cyberpunk / "bin/x64/Cyberpunk2077.exe"]
-            for exe in games:
-                env, extra, notes = MODULE["engine_fixes"](str(exe), [])
-                self.assertEqual((env, extra), ({"VKD3D_FEATURE_LEVEL": "12_1"}, []), exe)
-                self.assertTrue(notes)
-            config = {"version": 1, "shared": {"VKD3D_FEATURE_LEVEL": "12_2"}}
-            self.assertEqual(MODULE["apply_config"]({}, config, "1582650", env)["VKD3D_FEATURE_LEVEL"], "12_1")
-            config["games"] = {"1582650": {"VKD3D_FEATURE_LEVEL": "12_2"}}
-            self.assertEqual(MODULE["apply_config"]({}, config, "1582650", env)["VKD3D_FEATURE_LEVEL"], "12_2")
-            other = Path(tmp) / "Other/Binaries/Win64"
-            other.mkdir(parents=True)
-            (other / "Other-Win64-Shipping.exe").touch()
-            self.assertEqual(MODULE["engine_fixes"](str(other / "Other-Win64-Shipping.exe"), []), ({}, [], []))
-            witcher = Path(tmp) / "The Witcher 3"
-            witcher.mkdir()
-            (witcher / "REDprelauncher.exe").touch()
-            self.assertNotIn("VKD3D_FEATURE_LEVEL", MODULE["engine_fixes"](str(witcher / "REDprelauncher.exe"), [])[0])
+            root = Path(tmp)
+            names = (
+                "StellarBlade/SB.exe", "StellarBlade/.droiddeck-launch.bat",
+                "StellarBlade/SB/Binaries/Win64/SB-Win64-Shipping.exe",
+                "Caravan/CaravanSandWitch.exe", "Caravan/.droiddeck-launch.bat",
+                "Caravan/CaravanSandWitch/Binaries/Win64/CaravanSandWitch-Win64-Shipping.exe",
+                "RoboCop/RoboCop.exe", "RoboCop/RoboCop/Binaries/Win64/RoboCop-Win64-Shipping.exe",
+                "ReSkate/Skate.exe", "ReSkate/ReSkate.dll", "ReSkate/ReSkateLauncher.exe",
+                "Cyberpunk/REDprelauncher.exe", "Cyberpunk/bin/x64/Cyberpunk2077.exe",
+            )
+            for name in names:
+                p = root / name
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.touch()
+            for name in names:
+                if name.endswith(".dll"):
+                    continue
+                env, extra, notes = MODULE["engine_fixes"](str(root / name), [])
+                self.assertNotIn("VKD3D_FEATURE_LEVEL", env, name)
+                self.assertNotIn("VKD3D_SHADER_MODEL", env, name)
+                for values in ({}, {"VKD3D_FEATURE_LEVEL": "12_2", "VKD3D_SHADER_MODEL": "6_9"}):
+                    config = {"version": 1, "shared": values}
+                    self.assertEqual(MODULE["apply_config"]({}, config, "42", env), values, name)
+                    config = {"version": 1, "shared": {}, "games": {"42": values}}
+                    self.assertEqual(MODULE["apply_config"]({}, config, "42", env), values, name)
 
     def test_unity_players_keep_tso_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -2559,6 +2549,70 @@ class ProtonDefaultTest(unittest.TestCase):
                 })
             finally:
                 globals_["native_targets"] = original_native_targets
+
+    def test_a_listed_title_with_a_bundled_arm64_linux_build_defaults_to_fex(self):
+        globals_ = COMPAT["native_targets"].__globals__
+        original_platforms = globals_["appinfo_platforms"]
+        globals_["appinfo_platforms"] = lambda _path, wanted: {
+            app: ({"linux", "windows"}, "64", "game") for app in ("4385780", "42") if app in wanted
+        }
+        try:
+            native = COMPAT["native_targets"]("/nonexistent", ["4385780", "42"])
+        finally:
+            globals_["appinfo_platforms"] = original_platforms
+        self.assertEqual(native["4385780"], COMPAT["FEX_TOOL"])
+        self.assertIs(native["42"], COMPAT["NATIVE_CHOICE"])
+
+        changes, auto = COMPAT["plan_mapping"](
+            {"0": self.TOOL}, ["4385780"], self.NAMES, self.TOOL, {}, native)
+        self.assertEqual(changes, {"4385780": COMPAT["FEX_TOOL"]})
+        self.assertEqual(auto, {"4385780": COMPAT["FEX_TOOL"]})
+
+        for choice in (self.TOOL, "GE-Proton11-7"):
+            changes, auto = COMPAT["plan_mapping"](
+                {"0": self.TOOL, "4385780": choice}, ["4385780"], self.NAMES, self.TOOL, {}, native)
+            self.assertEqual(changes, {})
+            self.assertEqual(auto, {})
+
+    def test_a_cleared_fex_default_for_a_listed_title_is_kept_as_a_native_choice(self):
+        app = "4385780"
+        fex = COMPAT["FEX_TOOL"]
+        with tempfile.TemporaryDirectory() as tmp:
+            steam = Path(tmp) / "Steam"
+            config = steam / "config/config.vdf"
+            config.parent.mkdir(parents=True)
+            config.write_text(config_text([("0", self.TOOL)]))
+            (Path(tmp) / "state.json").write_text(json.dumps({"default": self.TOOL, "auto": {}}))
+
+            globals_ = COMPAT["native_targets"].__globals__
+            original_platforms = globals_["appinfo_platforms"]
+            globals_["appinfo_platforms"] = lambda _path, wanted: {
+                app: ({"linux", "windows"}, "64", "game")
+            } if app in wanted else {}
+            try:
+                def run():
+                    COMPAT["register_default"](str(config), [app], catalog=self.CATALOG, directory=tmp)
+                    return json.loads((Path(tmp) / "state.json").read_text())
+
+                state = run()
+                self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, app: fex})
+                self.assertEqual(state["auto"], {app: fex})
+
+                config.write_text(config_text([("0", self.TOOL), (app, "")]))
+                state = run()
+                cleared = config.read_bytes()
+                self.assertEqual(mapping_of(cleared.decode()), {"0": self.TOOL, app: ""})
+                self.assertEqual(state["auto"], {})
+                self.assertEqual(state["native_choices"], [app])
+                run()
+                self.assertEqual(config.read_bytes(), cleared)
+
+                config.write_text(config_text([("0", self.TOOL), (app, fex)]))
+                state = run()
+                self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, app: fex})
+                self.assertEqual(state["native_choices"], [])
+            finally:
+                globals_["appinfo_platforms"] = original_platforms
 
     def test_factorio_preserves_an_observed_native_choice_despite_ambiguous_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:

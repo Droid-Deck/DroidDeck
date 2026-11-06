@@ -2,13 +2,17 @@ package com.droiddeck.launcher.session
 
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
+import java.nio.file.Files
 import java.text.SimpleDateFormat
+import java.util.UUID
 import java.util.Date
 import java.util.Locale
 import java.util.zip.ZipFile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
+import org.junit.Assume.assumeFalse
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -26,18 +30,153 @@ class SessionLogShareZipTest {
 
     @After fun resetSourceOpener() = resetSecureSourceOpener()
 
+    @Test fun clearingDiagnosticOutputsNeverFollowsSymlinksOrHardLinks() {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"))
+        SessionLogShare.clear(app)
+        val share = SessionLogShare.shareDir(app)
+        val outside = File(app.cacheDir, "outside-diagnostic-tree").apply { mkdirs() }
+        val marker = File(outside, "keep.txt").apply { writeText("keep") }
+        Files.createSymbolicLink(share.toPath(), outside.toPath())
+
+        SessionLogShare.clear(app)
+
+        assertTrue(marker.isFile)
+        assertTrue(Files.isSymbolicLink(share.toPath()))
+        Files.delete(share.toPath())
+        share.mkdirs()
+        val childLink = File(share, "linked-directory")
+        Files.createSymbolicLink(childLink.toPath(), outside.toPath())
+        val outsideFile = File(outside, "hard-source.txt").apply { writeText("hard") }
+        Files.createLink(File(share, "hard-link.txt").toPath(), outsideFile.toPath())
+        File(share, "ordinary.txt").writeText("ordinary")
+
+        SessionLogShare.clear(app)
+
+        assertTrue(marker.isFile)
+        assertTrue(outsideFile.isFile)
+        assertFalse(share.exists())
+        outside.deleteRecursively()
+    }
+
+    @Test fun outputHandleFailsIfItsDirectoryPathIsReplaced() {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"))
+        SessionLogShare.clear(app)
+        val share = SessionLogShare.shareDir(app)
+        val output = checkNotNull(SecureDiagnosticOutput.open(app, share))
+        val moved = File(app.cacheDir, "moved-share")
+        val outside = File(app.cacheDir, "replacement-share").apply { mkdirs() }
+        try {
+            assertTrue(share.renameTo(moved))
+            Files.createSymbolicLink(share.toPath(), outside.toPath())
+            assertThrows(IllegalArgumentException::class.java) {
+                output.write("logs.zip") { it.write("redacted".toByteArray()) }
+            }
+            assertFalse(File(outside, "logs.zip").exists())
+        } finally {
+            output.close()
+            runCatching { Files.deleteIfExists(share.toPath()) }
+            moved.deleteRecursively()
+            outside.deleteRecursively()
+        }
+    }
+
+    @Test fun outputHandleRefusesASymlinkAtTheArchiveName() {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"))
+        SessionLogShare.clear(app)
+        val share = SessionLogShare.shareDir(app)
+        val output = checkNotNull(SecureDiagnosticOutput.open(app, share))
+        val outside = File(app.cacheDir, "outside-archive.zip").apply { writeText("keep") }
+        val link = File(share, "logs.zip")
+        try {
+            Files.createSymbolicLink(link.toPath(), outside.toPath())
+            assertThrows(Exception::class.java) {
+                output.write(link.name) { it.write("redacted".toByteArray()) }
+            }
+            assertEquals("keep", outside.readText())
+        } finally {
+            output.close()
+            runCatching { Files.deleteIfExists(link.toPath()) }
+            share.deleteRecursively()
+            outside.delete()
+        }
+    }
+
+    @Test fun deletingASessionDoesNotFollowSymlinkedChildren() {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"))
+        val session = File(LinuxRuntime.logDir(app), "2026-11-05-99-delete-test").apply { mkdirs() }
+        val outside = File(app.cacheDir, "outside-session-tree").apply { mkdirs() }
+        val marker = File(outside, "keep.txt").apply { writeText("keep") }
+        Files.createSymbolicLink(File(session, "linked-directory").toPath(), outside.toPath())
+        File(session, "session.log").writeText("session")
+
+        assertTrue(SessionLogShare.deleteSession(app, session))
+        assertFalse(session.exists())
+        assertTrue(marker.isFile)
+        outside.deleteRecursively()
+    }
+
+    @Test fun sessionDetailsIgnoreSymlinkedFiles() {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"))
+        val folder = File(app.cacheDir, "details-session").apply { mkdirs() }
+        val inside = File(folder, "inside.log").apply { writeText("inside") }
+        val outside = File(app.cacheDir, "details-private.log").apply { writeText("private-data") }
+        Files.createSymbolicLink(File(folder, "linked.log").toPath(), outside.toPath())
+        try {
+            val details = SessionLogShare.details(folder)
+            assertEquals(inside.length(), details.sizeBytes)
+        } finally {
+            folder.deleteRecursively()
+            outside.delete()
+        }
+    }
+
+    @Test fun startupRemovesAbandonedLegacyStagesWithoutTouchingAnActiveOne() {
+        val abandoned = File(app.cacheDir, "share-${UUID.randomUUID()}.diagnostic-stage").apply { mkdirs() }
+        File(abandoned, "raw.log").writeText("private raw diagnostic\n")
+        val active = File(app.cacheDir, "share-${UUID.randomUUID()}.diagnostic-stage").apply { mkdirs() }
+        File(active, ".active").writeText("")
+        try {
+            EnhancedSessionLogShare.cleanupAbandonedStages(app)
+            assertFalse(abandoned.exists())
+            assertTrue(active.isDirectory)
+        } finally {
+            active.deleteRecursively()
+        }
+    }
+
+    @Test fun legacyStageCleanupDoesNotFollowASymlinkedStage() {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"))
+        val outside = File(app.cacheDir, "outside-legacy-stage").apply { mkdirs() }
+        val marker = File(outside, "keep.txt").apply { writeText("keep") }
+        val stage = File(app.cacheDir, "share-${UUID.randomUUID()}.diagnostic-stage")
+        try {
+            Files.createSymbolicLink(stage.toPath(), outside.toPath())
+            EnhancedSessionLogShare.cleanupAbandonedStages(app)
+            assertTrue(marker.isFile)
+            assertTrue(Files.isSymbolicLink(stage.toPath()))
+        } finally {
+            runCatching { Files.deleteIfExists(stage.toPath()) }
+            outside.deleteRecursively()
+        }
+    }
+
     @Test fun anArchiveCanBeWrittenOutsideTheShareFolder() {
         SessionLogShare.clear(app)
         val session = File(LinuxRuntime.logDir(app), "2026-11-03-01-steam").apply { mkdirs() }
-        val out = File(app.getExternalFilesDir(null), "agent-logs")
+        val out = File(app.getExternalFilesDir(null), "agent-logs/request-1")
+        val secondOut = File(app.getExternalFilesDir(null), "agent-logs/request-2")
         try {
             File(session, "session.log").writeText("booted\n")
             val zip = SessionLogShare.zipFolder(app, session, out)!!
+            val secondZip = SessionLogShare.zipFolder(app, session, secondOut)!!
             assertEquals(out, zip.parentFile)
             assertFalse(File(app.cacheDir, "share").exists())
             assertTrue(zip.isFile)
+            assertEquals(secondOut, secondZip.parentFile)
+            assertTrue(secondZip.isFile)
         } finally {
             out.deleteRecursively()
+            secondOut.deleteRecursively()
             session.deleteRecursively()
         }
     }
@@ -164,7 +303,7 @@ class SessionLogShareZipTest {
         assertScrubbed(dir)
     }
 
-    @Test fun everyMigratedFolderIsScrubbedUnderTheCurrentRulesInOneStart() {
+    @Test fun everyCopiedLegacyFolderIsScrubbedUnderTheCurrentRulesInOneStart() {
         val legacy = LinuxRuntime.legacyLogDir().apply { mkdirs() }
         val names = (1..9).map { "2026-10-0${it}-01-steam" }
         names.forEachIndexed { i, name ->
@@ -177,6 +316,62 @@ class SessionLogShareZipTest {
 
         val logs = LinuxRuntime.logDir(app)
         for (name in names) assertScrubbed(File(logs, name))
-        assertEquals(listOf("Saves"), legacy.list()!!.toList())
+        assertTrue(legacy.list()!!.toSet().containsAll(names + "Saves"))
+    }
+
+    @Test fun legacyMigrationRejectsSymlinkedFilesAndKeepsTheSource() {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"))
+        val legacy = LinuxRuntime.legacyLogDir().apply { mkdirs() }
+        val name = "2026-10-20-01-unsafe"
+        val source = File(legacy, name).apply { mkdirs() }
+        val outside = File(app.cacheDir, "migration-private.txt").apply { writeText("private") }
+        Files.createSymbolicLink(File(source, "linked.log").toPath(), outside.toPath())
+        val destination = File(LinuxRuntime.logDir(app), name)
+
+        LogMigration.run(app)
+
+        assertTrue(source.isDirectory)
+        assertTrue(outside.isFile)
+        assertFalse(destination.exists())
+        assertFalse(File(LinuxRuntime.logDir(app), ".moved-from-downloads").exists())
+        runCatching { Files.deleteIfExists(File(source, "linked.log").toPath()) }
+        source.delete()
+        outside.delete()
+    }
+
+    @Test fun completedLegacyMigrationIsNotRepeated() {
+        val legacy = LinuxRuntime.legacyLogDir().apply { mkdirs() }
+        val logs = LinuxRuntime.logDir(app).apply { mkdirs() }
+        val marker = File(logs, ".moved-from-downloads").apply { writeText("complete\n") }
+        val name = "2026-10-21-01-after-marker"
+        val source = File(legacy, name).apply { mkdirs() }
+        File(source, "session.log").writeText("late legacy log\n")
+        val destination = File(logs, name)
+        try {
+            LogMigration.run(app)
+            assertFalse(destination.exists())
+            assertTrue(source.isDirectory)
+        } finally {
+            source.deleteRecursively()
+            marker.delete()
+        }
+    }
+
+    @Test fun traversalLimitDoesNotCreateACompletionMarker() {
+        val legacy = LinuxRuntime.legacyLogDir().apply { mkdirs() }
+        val marker = File(LinuxRuntime.logDir(app), ".moved-from-downloads")
+        marker.delete()
+        val prefix = "migration-limit-${UUID.randomUUID()}-"
+        val created = ArrayList<File>(16_385)
+        try {
+            repeat(16_385) { index ->
+                created += File(legacy, "$prefix$index").apply { writeText("") }
+            }
+            LogMigration.run(app)
+            assertFalse(marker.exists())
+        } finally {
+            created.forEach { it.delete() }
+            marker.delete()
+        }
     }
 }

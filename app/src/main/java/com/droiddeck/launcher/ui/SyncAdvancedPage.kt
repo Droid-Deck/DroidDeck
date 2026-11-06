@@ -24,9 +24,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.session.EnhancedSessionLogShare
+import com.droiddeck.launcher.session.SessionLogShare
+import com.droiddeck.launcher.session.SecureDiagnosticOutput
 import com.droiddeck.launcher.sync.SyncPrefs
 import com.droiddeck.launcher.sync.Syncthing
-import java.io.File
+import java.nio.channels.Channels
+import java.nio.file.Paths
+import java.util.UUID
 
 @Composable
 internal fun SyncAdvancedPage(host: MenuHost, onBack: () -> Unit) {
@@ -100,8 +105,19 @@ private fun ResetDialog(onDismiss: () -> Unit, onReset: () -> Unit) {
 
 private fun shareLog(context: Context) {
     val log = Syncthing.logFile(context).takeIf { it.isFile } ?: return
-    val out = File(File(context.cacheDir, "share").apply { mkdirs() }, "syncthing-log.txt")
-    log.copyTo(out, overwrite = true)
+    val logRoot = log.parentFile ?: return
+    // Guests share this UID, so hold both source and output directories while copying rather than
+    // reopening cache or Syncthing paths that a guest can replace.
+    val out = runCatching {
+        SecureDiagnosticOutput.open(context, SessionLogShare.shareDir(context))?.use { directory ->
+            EnhancedSessionLogShare.withSecureChannel(logRoot.toPath(), Paths.get(log.name)) { source ->
+                directory.write("syncthing-log-${UUID.randomUUID()}.txt") { output ->
+                    Channels.newInputStream(source).use { input -> input.copyTo(output) }
+                }
+            }
+        }
+    }.getOrNull()
+        ?: return
     val uri = FileProvider.getUriForFile(context, context.packageName + ".logs", out)
     val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     send.clipData = ClipData.newRawUri(out.name, uri)

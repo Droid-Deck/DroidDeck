@@ -585,7 +585,7 @@
     <string name="perf_ram_cap_hint">Berlaku saat klien Steam berjalan, di mode Steam atau dari desktop. Saat sesi menggunakan lebih dari ini, Steam lalu proses lain yang didukung dalam sesi dikompres ke zRAM. Batas lunak: tidak ada yang ditutup, tetapi gim dapat tersendat saat halaman dimuat kembali.</string>
     <string name="perf_ram_cap_unavailable">Memerlukan swap zRAM, yang tidak dimiliki perangkat ini.</string>
     <string name="perf_vram_cap">Batas VRAM</string>
-    <string name="perf_vram_cap_hint">Memori video yang dilaporkan DXVK ke gim Direct3D, sehingga gim menganggarkan tekstur lebih sedikit. Setelan DXVK milik gim tetap diutamakan. Berlaku pada sesi berikutnya.</string>
+    <string name="perf_vram_cap_hint">Melaporkan anggaran memori video ini ke game Direct3D 9 hingga 12 untuk mengurangi penggunaan memori. Game dapat melampauinya; ini tidak menambahkan paging GPU atau menjamin perlindungan dari crash akibat kehabisan memori. Berlaku pada sesi berikutnya.</string>
     <string name="perf_gpuclock">Pertahankan GPU pada clock tertingginya</string>
     <string name="perf_gpuclock_hint">Hanya Adreno. Lebih sedikit tersendat, lebih banyak penggunaan baterai dan panas.</string>
     <string name="perf_fixes">Perbaikan sesi</string>

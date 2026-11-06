@@ -585,7 +585,7 @@
     <string name="perf_ram_cap_hint">Berkuat kuasa semasa klien Steam berjalan, dalam mod Steam atau dari desktop. Apabila sesi menggunakan lebih daripada ini, Steam dan kemudian proses lain sesi yang disokong dimampatkan ke dalam zRAM. Had lembut: tiada apa yang ditutup, tetapi permainan mungkin tersekat-sekat semasa halaman dibaca semula.</string>
     <string name="perf_ram_cap_unavailable">Memerlukan swap zRAM, yang tiada pada peranti ini.</string>
     <string name="perf_vram_cap">Had VRAM</string>
-    <string name="perf_vram_cap_hint">Memori video yang dilaporkan DXVK kepada permainan Direct3D, supaya ia memperuntukkan tekstur untuk jumlah yang lebih kecil. Tetapan DXVK permainan itu sendiri tetap diutamakan. Berkuat kuasa pada sesi seterusnya.</string>
+    <string name="perf_vram_cap_hint">Melaporkan bajet memori video ini kepada permainan Direct3D 9 hingga 12 untuk mengurangkan penggunaan memori. Permainan boleh melebihinya; ini tidak menambah paging GPU atau menjamin perlindungan daripada ranap akibat kehabisan memori. Berkuat kuasa pada sesi seterusnya.</string>
     <string name="perf_gpuclock">Kekalkan GPU pada kelajuan tertinggi</string>
     <string name="perf_gpuclock_hint">Adreno sahaja. Kurang tersekat-sekat, lebih penggunaan bateri dan haba.</string>
     <string name="perf_fixes">Pembetulan sesi</string>

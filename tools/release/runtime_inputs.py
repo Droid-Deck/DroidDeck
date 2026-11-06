@@ -171,7 +171,8 @@ def required():
                'layer/VK_LAYER_DROIDDECK_vr.json', 'layer/VK_LAYER_DROIDDECK_vr_implicit.json',
                'layer/libdroiddeck_vr_scheduling.so']]
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-gpuload/' + name for name in
-              ['libVkLayer_droiddeck_gpuload.so', 'VK_LAYER_DROIDDECK_gpu_load.json']]
+              ['libVkLayer_droiddeck_gpuload.so', 'VK_LAYER_DROIDDECK_gpu_load.json',
+               'libVkLayer_droiddeck_vramcap.so', 'VK_LAYER_DROIDDECK_vram_cap.json']]
     for side in ['left', 'right']:
         paths += [f'assets/linuxfs/usr/local/lib/droiddeck-vr/droiddeck/resources/rendermodels/droiddeck_hand_{side}/{name}'
                   for name in [f'droiddeck_hand_{side}.json', 'hand.mtl', 'hand.png', 'hand_open.obj', 'hand_fist.obj',

@@ -726,7 +726,74 @@ case $mode in
             done 2>/dev/null < "/proc/$_p/status"
           done
           _bl_rss=$_rss
+          _bl_swap=$_swap
           echo "$# processes, resident $((_rss / 1024)) MB, in zram $((_swap / 1024)) MB"
+        }
+        bl_memory_read() {
+          local _k _v _u _kind _fields _avg
+          _bl_mem_total=0 _bl_available=-1 _bl_swap_total=0 _bl_swap_free=-1 _bl_psi=0
+          while read -r _k _v _u; do
+            case $_v in ''|*[!0-9]*) continue ;; esac
+            case $_k in
+              MemTotal:) _bl_mem_total=$_v ;;
+              MemAvailable:) _bl_available=$_v ;;
+              SwapTotal:) _bl_swap_total=$_v ;;
+              SwapFree:) _bl_swap_free=$_v ;;
+            esac
+          done 2>/dev/null < /proc/meminfo
+          if [ -r /proc/pressure/memory ]; then
+            while read -r _kind _fields; do
+              [ "$_kind" = some ] || continue
+              _avg=${_fields#avg10=} _avg=${_avg%% *} _avg=${_avg%%.*}
+              case $_avg in ''|*[!0-9]*) ;; *) _bl_psi=$((10#$_avg)) ;; esac
+            done 2>/dev/null < /proc/pressure/memory
+          fi
+          _bl_headroom=$((_bl_mem_total / 5))
+          [ "$_bl_headroom" -ge $((512 * 1024)) ] || _bl_headroom=$((512 * 1024))
+          [ "$_bl_headroom" -le $((1536 * 1024)) ] || _bl_headroom=$((1536 * 1024))
+          _bl_swap_reserve=$((_bl_swap_total / 5))
+          [ "$_bl_swap_reserve" -ge $((256 * 1024)) ] || _bl_swap_reserve=$((256 * 1024))
+        }
+        bl_memory_tight() {
+          [ "$_bl_mem_total" -gt 0 ] && [ "$_bl_available" -ge 0 ] &&
+            { [ "$_bl_available" -lt "$_bl_headroom" ] ||
+              { [ "$_bl_psi" -ge 1 ] && [ "$_bl_available" -lt $((_bl_mem_total / 3)) ]; }; }
+        }
+        bl_client_can_pageout() {
+          bl_memory_read
+          bl_zram_usage "${_bl_pids[@]}" > /dev/null
+          [ "$_bl_mem_total" -gt 0 ] && [ "$_bl_swap_total" -gt 0 ] &&
+            [ $((_bl_swap_free - _bl_rss)) -ge "$_bl_swap_reserve" ]
+        }
+        bl_client_can_readback() {
+          bl_memory_read
+          bl_zram_usage "${_bl_pids[@]}" > /dev/null
+          [ "$_bl_mem_total" -gt 0 ] && ! bl_memory_tight &&
+            [ "$_bl_available" -ge $((_bl_swap * 2)) ] &&
+            [ $((_bl_available - _bl_swap)) -ge "$_bl_headroom" ]
+        }
+        bl_client_pressure() {
+          [ "${BL_ZRAM_CLIENT:-1}" = 1 ] && [ "$_bl_game" = 1 ] &&
+            [ "${#_bl_pids[@]}" -gt 0 ] && bl_memory_tight || return 0
+          [ "$_bl_pressure_at" -lt 0 ] ||
+            [ $((SECONDS - _bl_pressure_at)) -ge "$_bl_pressure_backoff" ] || return 0
+          [ "$_bl_packed" -lt 0 ] || [ $((SECONDS - _bl_packed)) -ge 30 ] || return 0
+          _bl_pressure_at=$SECONDS
+          if ! bl_client_can_pageout; then
+            step "zRAM: pressure reclaim skipped, swap headroom too small ($((_bl_swap_free / 1024)) MB free)"
+            return 0
+          fi
+          [ "$_bl_rss" -ge $((128 * 1024)) ] || return 0
+          local _before=$_bl_rss
+          bl_zram_send 1 "memory pressure, compressing the client (available $((_bl_available / 1024)) MB, swap free $((_bl_swap_free / 1024)) MB)" client
+          _bl_packed=$SECONDS
+          [ "${_bl_pageout_complete:-0}" = 1 ] || return 0
+          bl_zram_usage "${_bl_pids[@]}" > /dev/null
+          if [ $((_before - _bl_rss)) -lt $((16 * 1024)) ]; then
+            _bl_pressure_backoff=$((_bl_pressure_backoff * 2 > 300 ? 300 : _bl_pressure_backoff * 2))
+          else
+            _bl_pressure_backoff=30
+          fi
         }
         bl_session_others() {
           local _p
@@ -756,7 +823,11 @@ case $mode in
             [ "$_left" = 1 ] || break
             nap 0.2
           done
-          for _p in "$@"; do rm -f "/tmp/.bl-zram.ack.$_p"; done
+          _bl_pageout_complete=1
+          for _p in "$@"; do
+            if [ -d "/proc/$_p" ] && [ ! -s "/tmp/.bl-zram.ack.$_p" ]; then _bl_pageout_complete=0; fi
+            rm -f "/tmp/.bl-zram.ack.$_p"
+          done
         }
         bl_zram_send() {
           local _mode=$1 _what=$2 _which=$3 _pids _p
@@ -794,8 +865,10 @@ case $mode in
           [ "$_bl_ram_cap" -gt 0 ] && { [ "$_bl_measured" -lt 0 ] || [ $((SECONDS - _bl_measured)) -ge 30 ]; }
         }
         _bl_since=-1 _bl_since_apps= _bl_packed=-1 _bl_measured=-1 _bl_unpack=0 _bl_capped=-1 _bl_backoff=30
+        _bl_pressure_at=-1 _bl_pressure_backoff=30
         while kill -0 $$ 2>/dev/null; do
           bl_zram_scan
+          bl_memory_read
           if bl_cap_due; then
             if bl_over_cap; then
               if [ "$_bl_capped" -lt 0 ] || [ $((SECONDS - _bl_capped)) -ge "$_bl_backoff" ]; then
@@ -817,28 +890,29 @@ case $mode in
               fi
             else
               _bl_backoff=30
-              if [ "$_bl_unpack" = 1 ] && [ "$_bl_game" = 0 ]; then
-                bl_zram_send 0 "back under the RAM cap, reading the client back" client
-                _bl_unpack=0
-              fi
             fi
           fi
+          bl_client_pressure
           if [ "$_bl_game" = 1 ] && bl_game_focused; then
             if [ "$_bl_since" -lt 0 ] || [ "$_bl_since_apps" != "$_bl_apps" ]; then
               _bl_since=$SECONDS _bl_since_apps=$_bl_apps
             fi
             if [ "${BL_ZRAM_CLIENT:-1}" = 1 ] && [ $((SECONDS - _bl_since)) -ge 20 ] && [ "${#_bl_pids[@]}" -gt 0 ] &&
-               { [ "$_bl_packed" -lt 0 ] || [ $((SECONDS - _bl_packed)) -ge 300 ]; }; then
+               { [ "$_bl_packed" -lt 0 ] || [ $((SECONDS - _bl_packed)) -ge 300 ]; } && bl_client_can_pageout; then
               bl_zram_send 1 "compressing the client" client
               _bl_packed=$SECONDS
             fi
           elif [ "$_bl_game" != 1 ]; then
             if [ "$_bl_packed" -ge 0 ]; then
-              if bl_over_cap; then _bl_unpack=1; else bl_zram_send 0 "game closed, reading the client back" client; _bl_unpack=0; fi
+              _bl_unpack=1
             fi
             _bl_since=-1 _bl_packed=-1
           else
             _bl_since=-1
+          fi
+          if [ "$_bl_unpack" = 1 ] && [ "$_bl_game" = 0 ] && ! bl_over_cap && bl_client_can_readback; then
+            bl_zram_send 0 "memory recovered, reading the client back" client
+            _bl_unpack=0
           fi
           nap 5
         done

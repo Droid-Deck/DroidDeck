@@ -29,6 +29,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import androidx.core.content.FileProvider
 import org.robolectric.shadows.ShadowContentResolver
+import java.io.IOException
 import java.io.RandomAccessFile
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -130,6 +131,30 @@ class EnhancedSessionLogShareTest {
         SessionLogShare.clear(app)
     }
 
+    @Test fun rawSnapshotsNeverAppearInTheGuestVisibleCache() {
+        val session = tmp.newFolder("2026-11-04-01-memory-snapshot")
+        session.resolve("session.log").writeText("account=test-user token=synthetic_private_value\n")
+        var inspected = false
+
+        val zips = EnhancedSessionLogShare.create(app, session, onProgress = {
+            inspected = true
+            assertFalse(app.cacheDir.walkTopDown().any { file ->
+                file.name.endsWith(".diagnostic-stage") || file.name.startsWith("diagnostic-")
+            })
+        })
+
+        assertTrue(inspected)
+        assertEquals(3, zips.size)
+        assertFalse(app.cacheDir.walkTopDown().any { it.name.endsWith(".diagnostic-stage") })
+        ZipFile(zips.single { it.name.endsWith("-session.zip") }).use { archive ->
+            val shared = archive.getInputStream(archive.getEntry("${session.name}/session.log"))
+                .bufferedReader().readText()
+            assertFalse(shared.contains("test-user"))
+            assertFalse(shared.contains("synthetic_private_value"))
+        }
+        SessionLogShare.clear(app)
+    }
+
     @Test fun oversizedFilesKeepBoundedBeginningAndTailAndDeclareTruncation() {
         val session = tmp.newFolder("2026-11-04-02-game")
         session.resolve("steam-7.log").writeText("begin\n" + "middle\n".repeat(100) + "tail\n")
@@ -223,12 +248,16 @@ class EnhancedSessionLogShareTest {
         val restoredState = SessionLogShare.saveState(prepared)
         val restored = SessionLogShare.restoreSave(app, restoredState)!!
         assertEquals(restoredState, SessionLogShare.saveState(restored))
-        val destination = SessionLogShare.shareDir(app).apply { mkdirs() }.resolve("saved-output.zip")
-            .apply { createNewFile() }
-        val destinationUri = FileProvider.getUriForFile(app, app.packageName + ".logs", destination)
+        val destination = tmp.newFile("saved-output.zip")
+        val provider = ExternalDocumentsProvider(destination)
+        val authority = "diagnostic-save-test"
+        provider.attachInfo(app, android.content.pm.ProviderInfo().apply { this.authority = authority })
+        ShadowContentResolver.registerProviderInternal(authority, provider)
+        val destinationUri = DocumentsContract.buildDocumentUri(authority, "saved-output")
         SessionLogShare.setSaveDestinationValidatorForTest { _, uri -> uri == destinationUri }
         SessionLogShare.saveEnhanced(app, restored, destinationUri)
         assertArrayEquals(all.readBytes(), destination.readBytes())
+        assertEquals(listOf("w"), provider.openModes)
         SessionLogShare.clear(app)
     }
 
@@ -839,6 +868,37 @@ class EnhancedSessionLogShareTest {
             resetSecureSourceOpener()
         }
         assertFalse(EnhancedSessionLogShare.hasSourceOpenerForTest())
+        SessionLogShare.clear(app)
+    }
+
+    @Test fun sourceReadFailureIsRecordedWithoutFailingTheArchive() {
+        val session = tmp.newFolder("2026-11-04-16-steam")
+        session.resolve("session.log").writeText("must not be shared\n")
+        EnhancedSessionLogShare.setSourceOpenerForTest(object : SecureSourceOpener {
+            override fun <T> withChannel(
+                root: java.nio.file.Path,
+                relative: java.nio.file.Path,
+                block: (java.nio.channels.SeekableByteChannel) -> T,
+            ): T? = FileChannel.open(root.resolve(relative), StandardOpenOption.READ).use { channel ->
+                block(object : SeekableByteChannel by channel {
+                    override fun read(dst: ByteBuffer): Int = throw IOException("injected source read failure")
+                })
+            }
+        })
+        try {
+            val sessionZip = EnhancedSessionLogShare.create(app, session).single { it.name.endsWith("-session.zip") }
+            ZipFile(sessionZip).use { archive ->
+                assertFalse(archive.entries().toList().any { it.name.endsWith("session.log") })
+                val manifest = JSONObject(archive.getInputStream(archive.getEntry("diagnostics-manifest.json"))
+                    .bufferedReader().readText()).getJSONArray("entries")
+                val record = (0 until manifest.length()).map { manifest.getJSONObject(it) }
+                    .single { it.optString("entry").endsWith("session.log") }
+                assertEquals("error", record.getString("status"))
+                assertEquals("IOException", record.getString("reason"))
+            }
+        } finally {
+            resetSecureSourceOpener()
+        }
         SessionLogShare.clear(app)
     }
 

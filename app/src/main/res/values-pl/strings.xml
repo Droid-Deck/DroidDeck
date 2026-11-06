@@ -591,7 +591,7 @@
     <string name="perf_ram_cap_hint">Działa, gdy działa klient Steam, w trybie Steam lub z pulpitu. Gdy sesja używa więcej, Steam, a następnie inne obsługiwane procesy sesji są kompresowane do zRAM. Miękki limit: nic nie jest zamykane, ale gry mogą się zacinać podczas wczytywania stron z powrotem.</string>
     <string name="perf_ram_cap_unavailable">Wymaga swapu zRAM, którego to urządzenie nie ma.</string>
     <string name="perf_vram_cap">Limit VRAM</string>
-    <string name="perf_vram_cap_hint">Pamięć wideo, którą DXVK zgłasza grom Direct3D, aby planowały tekstury na mniej. Własne ustawienia DXVK gry mają pierwszeństwo. Działa od następnej sesji.</string>
+    <string name="perf_vram_cap_hint">Zgłasza ten budżet pamięci wideo grom Direct3D od 9 do 12, aby ograniczyć zużycie pamięci. Gry mogą go przekroczyć; nie dodaje to stronicowania GPU ani nie gwarantuje ochrony przed awariami z powodu braku pamięci. Działa od następnej sesji.</string>
     <string name="perf_gpuclock">Utrzymuj GPU na najwyższym taktowaniu</string>
     <string name="perf_gpuclock_hint">Tylko Adreno. Mniej przycięć, większe zużycie baterii i więcej ciepła.</string>
     <string name="perf_fixes">Poprawki sesji</string>
