@@ -57,7 +57,7 @@ class LinuxRuntimeLiveFilesTest {
     @Test fun cacheEvictionPreservesSystemVulkanRenderNodeBindings() {
         val node = "/dev/dri/renderD130"
         val binds = mutableListOf<String>()
-        LinuxRuntime.bindSystemVulkanGpuNode(context, binds, node)
+        LinuxRuntime.bindSystemVulkanGpuNode(context, binds, node, false)
         val dri = File(binds.single { it.endsWith(":/dev/dri") }.removeSuffix(":/dev/dri"))
         val placeholder = File(dri, "renderD130")
         val disposable = File(context.cacheDir, "download").apply { writeText("cached") }
@@ -69,17 +69,26 @@ class LinuxRuntimeLiveFilesTest {
         assertTrue(dri.toPath().startsWith(context.noBackupFilesDir.toPath()))
         assertTrue(binds.contains("$node:$node"))
         val nextBinds = mutableListOf<String>()
-        LinuxRuntime.bindSystemVulkanGpuNode(context, nextBinds, node)
+        LinuxRuntime.bindSystemVulkanGpuNode(context, nextBinds, node, false)
         assertEquals(binds, nextBinds)
     }
 
     @Test fun onlyTheFrozenSystemVulkanRouteExposesItsRenderNode() {
         val node = "/dev/dri/renderD130"
-        val standard = LinuxRuntime.binds(context, null, null, null, null, false, null)
-        val system = LinuxRuntime.binds(context, null, null, null, null, true, node)
+        val standard = LinuxRuntime.binds(context, null, null, null, null, false, node, false)
+        val system = LinuxRuntime.binds(context, null, null, null, null, true, node, false)
 
         assertFalse(standard.contains("$node:$node"))
         assertTrue(system.contains("$node:$node"))
+    }
+
+    @Test fun listableHostDriAlreadyExposesTheSystemVulkanRenderNode() {
+        val node = "/dev/dri/renderD130"
+        val standard = LinuxRuntime.binds(context, null, null, null, null, false, node, true)
+        val system = LinuxRuntime.binds(context, null, null, null, null, true, node, true)
+
+        assertFalse(standard.contains("$node:$node"))
+        assertFalse(system.contains("$node:$node"))
     }
 
     @Test fun successfulRemovalClearsGuestScratchAndPreservesOtherNoBackupData() {

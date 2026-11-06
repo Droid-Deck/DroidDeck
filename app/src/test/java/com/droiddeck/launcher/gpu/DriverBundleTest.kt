@@ -68,16 +68,16 @@ class DriverBundleTest {
         repository = "owner/$sourceId", assetId = assetId, pairKind = DriverPairs.NAD_MALI_G710,
     )
 
-    @Test fun alternativeVendorRuntimeLibraryImportsWithTheSameElfValidation() {
-        val uri = zip(mapOf("libvulkan_mali.so" to library("libc.so.6"),
-            "meta.json" to JSONObject().put("name", "Experimental Mali ICD").toString().toByteArray()))
+    @Test fun openVendorRuntimeLibraryImportsWithTheSameElfValidation() {
+        val uri = zip(mapOf("libvulkan_panfrost.so" to library("libc.so.6"),
+            "meta.json" to JSONObject().put("name", "Experimental Panfrost ICD").toString().toByteArray()))
         val manager = LinuxVulkanDriverManager(context)
-        val id = manager.installDriver(uri, "mali-driver.zip")
+        val id = manager.installDriver(uri, "panfrost-driver.zip")
         assertTrue(manager.isInstalled(id))
-        assertEquals("Experimental Mali ICD", manager.getDriverName(id))
-        val rejected = zip(mapOf("libvulkan_mali.so" to library("libc.so")))
+        assertEquals("Experimental Panfrost ICD", manager.getDriverName(id))
+        val rejected = zip(mapOf("libvulkan_panfrost.so" to library("libc.so")))
         try {
-            manager.installDriver(rejected, "android-mali.zip")
+            manager.installDriver(rejected, "android-panfrost.zip")
             fail("an Android library must not be accepted as a Linux ICD")
         } catch (e: IllegalArgumentException) {
             assertTrue(e.message!!.contains("glibc"))

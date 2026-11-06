@@ -201,6 +201,14 @@ public final class LinuxRuntime {
     public static List<String> binds(Context context, File sessionRoot, File runtimeDir,
                                      File externalStorage, List<String> extraBinds,
                                      boolean systemVulkan, String systemVulkanRenderNode) {
+        return binds(context, sessionRoot, runtimeDir, externalStorage, extraBinds,
+                systemVulkan, systemVulkanRenderNode, new File("/dev/dri").list() != null);
+    }
+
+    static List<String> binds(Context context, File sessionRoot, File runtimeDir,
+                              File externalStorage, List<String> extraBinds,
+                              boolean systemVulkan, String systemVulkanRenderNode,
+                              boolean hostDriIsListable) {
         File root = rootDir(context);
         LegacyNames.migrateEtc(root);
         List<String> cmd = new ArrayList<>();
@@ -287,7 +295,7 @@ public final class LinuxRuntime {
             bind(cmd, new File(root, "etc/droiddeck/empty").getPath() + ":/sys/bus/pci/devices");
         }
         if (systemVulkan) {
-            bindSystemVulkanGpuNode(context, cmd, systemVulkanRenderNode);
+            bindSystemVulkanGpuNode(context, cmd, systemVulkanRenderNode, hostDriIsListable);
         } else {
             bindGpuNode(context, cmd);
         }
@@ -302,7 +310,12 @@ public final class LinuxRuntime {
     }
 
     static void bindSystemVulkanGpuNode(Context context, List<String> cmd, String node) {
-        if (node == null || new File("/dev/dri").list() != null) return;
+        bindSystemVulkanGpuNode(context, cmd, node, new File("/dev/dri").list() != null);
+    }
+
+    static void bindSystemVulkanGpuNode(Context context, List<String> cmd, String node,
+                                         boolean hostDriIsListable) {
+        if (node == null || hostDriIsListable) return;
         String name = new File(node).getName();
         File dri = new File(liveDir(context), "system-vulkan-drm/" + name + "/dri");
         try {

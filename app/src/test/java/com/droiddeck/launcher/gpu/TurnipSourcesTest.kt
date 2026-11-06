@@ -25,11 +25,11 @@ class TurnipSourcesTest {
         val context = RuntimeEnvironment.getApplication()
         val repo = TurnipReleases.sourceBuiltIns().first()
         val production = GitHubArtifacts.openConnection
-        var calls = 0
+        val requested = ArrayList<String>()
         try {
             GitHubArtifacts.clearRateLimits()
             GitHubArtifacts.openConnection = { url ->
-                calls++
+                requested += url.toString()
                 val body = when (url.path) {
                     "/repos/$repo" -> JSONObject().put("id", 1).put("full_name", repo).toString()
                     "/repositories/1/releases" -> JSONArray().put(JSONObject().put("id", 2).put("tag_name", "r1")
@@ -50,12 +50,17 @@ class TurnipSourcesTest {
             assertTrue(partial.rateLimited)
             assertEquals(1, partial.assets.size)
             assertEquals(TurnipReleases.sourceBuiltIns().size - 1, partial.failed.size)
-            assertEquals(TurnipReleases.sourceBuiltIns().size + 1, calls)
+            val api = requested.filter { java.net.URI(it).host == "api.github.com" }
+            assertEquals(3, api.size)
+            assertEquals(2, api.count { java.net.URI(it).path.startsWith("/repos/") })
+            assertEquals(1, api.count { java.net.URI(it).path == "/repositories/1/releases" })
+            assertEquals(1, requested.count { it == AutoPicks.URL })
+            val afterPartial = requested.toList()
             val warmFailure = TurnipReleases.refresh(context)
             assertTrue(warmFailure.rateLimited)
             assertEquals(partial.assets.single().id, warmFailure.assets.single().id)
             assertEquals(partial.checkedAt, warmFailure.checkedAt)
-            assertEquals(TurnipReleases.sourceBuiltIns().size + 1, calls)
+            assertEquals(afterPartial, requested)
         } finally {
             GitHubArtifacts.openConnection = production
             GitHubArtifacts.clearRateLimits()

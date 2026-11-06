@@ -475,6 +475,33 @@ object SessionPrefs {
         prefs(context).edit().putString("linuxDriver", id).apply()
     }
 
+    /**
+     * Builds before the PowerVR add-on pack stored an active managed runtime while leaving the
+     * Linux-driver preference empty. Preserve that working runtime once on upgrade. Recording the
+     * decision even when no legacy runtime exists prevents a later automatic install from silently
+     * replacing the add-on-pack default.
+     */
+    fun initializeSystemVulkanChoice(context: Context, profile: String, managedRowId: String?): String {
+        val preferences = prefs(context)
+        val key = "systemVulkanChoiceInitialized.$profile"
+        val current = linuxDriver(context)
+        if (preferences.getBoolean(key, false)) return current
+        val chosen = current.ifEmpty { managedRowId.orEmpty() }
+        val editor = preferences.edit().putBoolean(key, true).putString("linuxDriver", chosen)
+        if (current.isEmpty() && managedRowId != null) {
+            // Auto owns its choices and would clear the migrated row at session startup. Treat the
+            // preserved working runtime as the matched display/runtime pair it already represents.
+            editor.putString("gpuDriverMode", GPU_DRIVERS_PAIR)
+                .putString("androidDriver", TurnipDriver.AUTO)
+        }
+        editor.commit()
+        return chosen
+    }
+
+    fun markSystemVulkanChoiceInitialized(context: Context, profile: String) {
+        prefs(context).edit().putBoolean("systemVulkanChoiceInitialized.$profile", true).apply()
+    }
+
     const val GPU_DRIVERS_AUTO = "auto"
     const val GPU_DRIVERS_MANUAL = "manual"
     const val GPU_DRIVERS_MIX = "mix"

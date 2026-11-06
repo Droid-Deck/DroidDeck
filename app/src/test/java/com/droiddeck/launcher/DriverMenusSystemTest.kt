@@ -45,6 +45,8 @@ class DriverMenusSystemTest {
         SessionState.running = false
         SessionState.graphicsRoute = null
         SessionState.phase = SessionPhase.IDLE
+        activity.getSharedPreferences("session", Activity.MODE_PRIVATE).edit()
+            .remove("systemVulkanChoiceInitialized.xclipse").commit()
         SessionPrefs.setGpuDriverMode(activity, SessionPrefs.GPU_DRIVERS_AUTO)
         SessionPrefs.setLinuxDriver(activity, "")
         SessionPrefs.setAndroidDriver(activity, TurnipDriver.AUTO)
@@ -85,6 +87,9 @@ class DriverMenusSystemTest {
         val state = menus.state()
         val row = state.systemRows.single()
         assertEquals(SystemVulkanComponentStore.rowId(digest), state.linuxSelected)
+        assertEquals(GPU_MODE_PAIR, state.mode)
+        SessionPrefs.ensureSystemVulkanAutoDrivers(activity)
+        assertEquals(SystemVulkanComponentStore.rowId(digest), SessionPrefs.linuxDriver(activity))
         assertEquals(activity.getString(R.string.gpu_system_runtime_title, "Xclipse"), row.name)
         assertEquals(DriverRow.LEGACY, row.tag)
         assertTrue(row.detail.contains(activity.getString(R.string.gpu_system_legacy_detail)))
@@ -108,6 +113,49 @@ class DriverMenusSystemTest {
         val reopened = DriverMenus(activity, Handler(Looper.getMainLooper()), gpu)
         reopened.refreshDrivers()
         assertEquals(GPU_MODE_PAIR, reopened.state().mode)
+    }
+
+    @Test fun explicitlyChoosingTheAddonDefaultDoesNotRemigrateALegacyRuntime() {
+        val digest = "c".repeat(64)
+        legacy(digest)
+        val menus = DriverMenus(activity, Handler(Looper.getMainLooper()), gpu)
+        menus.refreshDrivers()
+        assertEquals(SystemVulkanComponentStore.rowId(digest), menus.state().linuxSelected)
+
+        menus.selectDriver("", linux = true)
+        val reopened = DriverMenus(activity, Handler(Looper.getMainLooper()), gpu)
+        reopened.refreshDrivers()
+
+        assertEquals("", reopened.state().linuxSelected)
+        assertEquals(GPU_MODE_PAIR, reopened.state().mode)
+        assertEquals(TurnipDriver.AUTO, reopened.state().androidSelected)
+    }
+
+    @Test fun newInstallKeepsTheAddonDefaultWhenAComponentAppearsLater() {
+        val menus = DriverMenus(activity, Handler(Looper.getMainLooper()), gpu)
+        menus.refreshDrivers()
+        assertEquals("", menus.state().linuxSelected)
+
+        legacy("d".repeat(64))
+        val reopened = DriverMenus(activity, Handler(Looper.getMainLooper()), gpu)
+        reopened.refreshDrivers()
+
+        assertEquals("", reopened.state().linuxSelected)
+    }
+
+    @Test fun pendingManagedRuntimeWinsTheOneTimeMigrationOverTheActiveRuntime() {
+        val active = "e".repeat(64)
+        val pending = "f".repeat(64)
+        legacy(active)
+        legacy(pending)
+        SystemVulkanComponentStore.activate(activity, SystemVulkanDriver.Profile.XCLIPSE, active, true)
+        SystemVulkanComponentStore.activate(activity, SystemVulkanDriver.Profile.XCLIPSE, pending, false)
+
+        val menus = DriverMenus(activity, Handler(Looper.getMainLooper()), gpu)
+        menus.refreshDrivers()
+
+        assertEquals(SystemVulkanComponentStore.rowId(pending), menus.state().linuxSelected)
+        assertEquals(GPU_MODE_PAIR, menus.state().mode)
     }
 
     @Test fun matchedSystemModeUsesAndroidDisplayAndPersistsAcrossRecreation() {

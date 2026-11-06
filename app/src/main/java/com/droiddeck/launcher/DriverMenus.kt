@@ -187,6 +187,9 @@ internal class DriverMenus(
             ?: installedSystem.firstOrNull { it.active }
             ?: installedSystem.takeIf { systemProfile?.let { profile -> SystemVulkanComponentStore.isReady(activity, profile) } == true }
                 ?.maxByOrNull { it.directory.lastModified() }
+        val legacySelection = installedSystem.firstOrNull { it.pending }
+            ?: installedSystem.firstOrNull { it.active }
+            ?: installedSystem.singleOrNull { it.legacy }
         val sessionStopped = !SessionState.running && SessionState.phase == SessionPhase.IDLE
         systemRows = installedSystem.map { component ->
             val removable = sessionStopped && SystemVulkanComponentStore.canRemove(activity, systemProfile!!, component.sha256, true)
@@ -228,7 +231,9 @@ internal class DriverMenus(
         }
         linuxRows = if (systemProfile != null) (listOf(defaultRow) + systemRows + importedRows)
             else listOf(defaultRow) + importedRows
-        val chosenLinux = SessionPrefs.linuxDriver(activity)
+        val chosenLinux = systemProfile?.let {
+            SessionPrefs.initializeSystemVulkanChoice(activity, it.id, legacySelection?.rowId)
+        } ?: SessionPrefs.linuxDriver(activity)
         linuxSelected = chosenLinux
         mode = SessionPrefs.gpuDriverMode(activity)
         val td = TurnipDriver(activity)
@@ -321,6 +326,7 @@ internal class DriverMenus(
         if (systemGpu && mode == SessionPrefs.GPU_DRIVERS_PAIR) {
             SessionPrefs.setAndroidDriver(activity, TurnipDriver.AUTO)
             SessionPrefs.setLinuxDriver(activity, "")
+            systemProfile?.let { SessionPrefs.markSystemVulkanChoiceInitialized(activity, it.id) }
         }
         autoStatus = ""
         if (auto) ensureAuto(force = false)
@@ -721,14 +727,25 @@ internal class DriverMenus(
     }
 
     fun selectDriver(id: String, linux: Boolean) {
+        if (linux && systemGpu && id.isEmpty()) {
+            // The built-in add-on is the matched System Vulkan display/runtime pair, not an
+            // independently mixed Linux driver.
+            setMode(auto = false)
+            pairModeOpen = false
+            refreshDrivers()
+            return
+        }
         if (linux && SystemVulkanComponentStore.rowDigest(id) != null) {
             val profile = systemProfile ?: return
             val digest = SystemVulkanComponentStore.rowDigest(id) ?: return
             runCatching {
                 SystemVulkanComponentStore.activate(activity, profile, digest, !SessionState.running)
+                // A System Vulkan row is a matched display/runtime pair. Establish Pair mode first
+                // because it resets the Linux choice to the add-on default, then persist this row.
+                setMode(auto = false)
                 SessionPrefs.setLinuxDriver(activity, id)
+                SessionPrefs.markSystemVulkanChoiceInitialized(activity, profile.id)
                 pairModeOpen = false
-                setMode(auto = false, mix = true)
             }.onFailure { error ->
                 android.widget.Toast.makeText(activity, error.message, android.widget.Toast.LENGTH_LONG).show()
             }
@@ -736,6 +753,7 @@ internal class DriverMenus(
             return
         }
         val bundle = DriverBundle.containing(activity, id, linux)
+        if (linux) systemProfile?.let { SessionPrefs.markSystemVulkanChoiceInitialized(activity, it.id) }
         when {
             bundle != null -> useBundle(bundle)
             linux -> SessionPrefs.setLinuxDriver(activity, id)

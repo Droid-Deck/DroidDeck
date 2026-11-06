@@ -16,7 +16,10 @@ import java.nio.file.attribute.BasicFileAttributes
 
 object LogMigration {
     private const val TAG = "LogMigration"
-    private const val MARKER = ".moved-from-downloads"
+    private const val LEGACY_MARKER = ".moved-from-downloads"
+    private const val MARKER = ".moved-from-downloads-v2"
+    private const val SESSION_PENDING_PREFIX = ".legacy-migration-pending-"
+    private const val SESSION_COMPLETE_PREFIX = ".legacy-migration-complete-"
     private const val MAX_ENTRIES = 16_384
     private const val MAX_BYTES = 1024L * 1024 * 1024
     private val oldScrubMarker = Regex("""^\.scrubbed-(?:r?\d+)$""")
@@ -32,6 +35,7 @@ object LogMigration {
         }
         target.use { output ->
             if (output.containsRegular(MARKER)) return
+            val recoverLegacyMigration = output.containsRegular(LEGACY_MARKER)
             val legacy = LinuxRuntime.legacyLogDir()
             var copied = 0
             var failed = false
@@ -50,7 +54,28 @@ object LogMigration {
                         failed = true
                         continue
                     }
-                    if (session && output.contains(text)) continue
+                    val pendingMarker = "$SESSION_PENDING_PREFIX$text"
+                    val completeMarker = "$SESSION_COMPLETE_PREFIX$text"
+                    var destinationExists = session && output.contains(text)
+                    if (session && output.containsRegular(completeMarker)) continue
+                    val hasPendingMarker = session && output.containsRegular(pendingMarker)
+                    if (session && destinationExists && !hasPendingMarker && !recoverLegacyMigration) {
+                        val empty = runCatching { output.child(text)?.use { it.deleteIfEmpty() } }
+                            .getOrNull()
+                        if (empty != true) continue
+                        destinationExists = false
+                    }
+                    var migrationOwned = hasPendingMarker
+                    if (session && !destinationExists && !hasPendingMarker) {
+                        val markedPending = runCatching {
+                            output.write(pendingMarker) { it.write("pending\n".toByteArray()) }
+                        }.isSuccess
+                        if (!markedPending) {
+                            failed = true
+                            continue
+                        }
+                        migrationOwned = true
+                    }
                     val destination = runCatching {
                         output.child(if (log) SessionPaths.TOOLS_DIR else text)
                     }.getOrNull()
@@ -62,16 +87,20 @@ object LogMigration {
                         val ok = if (attrs.isDirectory) copyDirectory(root, name, child, budget, 0)
                             else if (child.contains(text)) true else copyFile(root, name, child, text, budget)
                         if (ok) {
-                            copied++
+                            val completed = !session || output.containsRegular(completeMarker) || runCatching {
+                                output.write(completeMarker) { it.write("complete\n".toByteArray()) }
+                            }.isSuccess
+                            if (completed) copied++ else failed = true
                         } else {
                             failed = true
-                            if (session) {
+                            if (session && migrationOwned) {
                                 runCatching {
                                     child.clear()
                                     child.deleteIfEmpty()
                                 }.onFailure {
                                     Log.w(TAG, "could not clear the partial migration for $text: ${it.message}")
                                 }
+                                // The root-level pending marker remains even when partial cleanup fails.
                             }
                         }
                     }
