@@ -303,7 +303,10 @@ internal fun SteamLaunchOptionsPanel(appId: Int) {
                     SteamLaunchOptions.Saved.DESKTOP -> R.string.edit_launch_options_desktop
                     SteamLaunchOptions.Saved.NO -> R.string.edit_launch_options_not_saved
                 }
-                if (saved == SteamLaunchOptions.Saved.YES) options = value else {
+                if (saved == SteamLaunchOptions.Saved.YES) {
+                    options = value
+                    version++
+                } else {
                     options = null
                     version++
                 }
