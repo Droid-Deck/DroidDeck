@@ -100,6 +100,7 @@ object ComponentUpdater {
             return notes
         }
         try {
+            dropRemoved(state, protons)
             val checked = due && check(context, state, protons, wanted, force, notes)
             apply(context, state, protons, wanted, notes)
             prune(context, state)
@@ -195,6 +196,15 @@ object ComponentUpdater {
             ls.remove("pendingNote")
             ls.put("note", pending)
             notes += pending
+        }
+    }
+
+    internal fun dropRemoved(state: JSONObject, protons: List<ComponentsManager.Proton>) {
+        val installed = protons.mapTo(HashSet()) { it.id }
+        val lines = state.optJSONObject("lines") ?: return
+        for (key in lines.keys().asSequence().toList()) {
+            val restore = lines.optJSONObject(key)?.optJSONObject("restore") ?: continue
+            for (id in restore.keys().asSequence().toList()) if (id !in installed) restore.remove(id)
         }
     }
 

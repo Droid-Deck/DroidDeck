@@ -183,6 +183,13 @@ class ComponentUpdatesTest {
         assertFalse(ComponentUpdater.rollingBack(JSONObject().put("restore", JSONObject()).put("current", "DD-dxvk-2.4.wcp")))
     }
 
+    @Test fun aRemovedProtonNoLongerHoldsItsLineInARollback() {
+        val line = JSONObject().put("restore", JSONObject().put("gone", "DD-dxvk-2.5.wcp"))
+        val state = JSONObject().put("lines", JSONObject().put("dxvk", line))
+        ComponentUpdater.dropRemoved(state, emptyList())
+        assertFalse(ComponentUpdater.rollingBack(line))
+    }
+
     @Test fun aTwoDigitNightlyBuildIsNewerThanASingleDigitOne() {
         val items = listOf(item("DD-FEXCore-2611+9-nightly.wcp", "fex"), item("DD-FEXCore-2611+10-nightly.wcp", "fex"))
         assertEquals("DD-FEXCore-2611+10-nightly.wcp", ComponentUpdates.pick(items, ComponentUpdates.line("fex", false), emptySet())?.file)
