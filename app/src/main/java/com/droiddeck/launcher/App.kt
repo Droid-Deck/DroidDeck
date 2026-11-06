@@ -3,6 +3,7 @@ package com.droiddeck.launcher
 import android.app.Application
 import com.droiddeck.launcher.runtime.BwrapSpawner
 import com.droiddeck.launcher.session.CrashHandler
+import com.droiddeck.launcher.session.EnhancedSessionLogShare
 import com.droiddeck.launcher.session.GpuClockPin
 
 class App : Application() {
@@ -19,6 +20,7 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         com.droiddeck.launcher.core.ComponentDownloads.init(this)
+        Thread({ runCatching { EnhancedSessionLogShare.cleanupAbandonedStages(this) } }, "diagnostic-stage-cleanup").start()
         com.droiddeck.launcher.ui.Themes.loadGradient(this)
         com.droiddeck.launcher.ui.BuildWatermark.install(this)
         HomeApp.trackRecents(this)
@@ -58,6 +60,7 @@ class App : Application() {
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.epic.EpicBackend)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.amazon.AmazonBackend)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.itch.ItchBackend)
+        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.gamejolt.GameJoltBackend)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.xbox.XboxBackend)
         com.droiddeck.launcher.sync.Syncthing.init(this)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.battlenet.BattleNetBackend)

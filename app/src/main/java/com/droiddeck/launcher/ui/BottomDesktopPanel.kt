@@ -4,8 +4,8 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
+import android.os.Build
 import android.os.SystemClock
-import android.graphics.Typeface
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -13,13 +13,12 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.view.ViewConfiguration
+import android.view.WindowInsets
 import android.graphics.RectF
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.ComposeView
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ImageView
-import android.widget.TextView
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.GuestKeys
 import com.droiddeck.launcher.input.InputSpace
@@ -33,9 +32,11 @@ import com.droiddeck.launcher.session.BottomDesktop
 @SuppressLint("ViewConstructor")
 class BottomDesktopPanel(
     context: Context,
-    onClose: () -> Unit,
+    onClose: (() -> Unit)?,
     onMenu: (() -> Unit)?,
     steamButtons: Pair<() -> Unit, () -> Unit>?,
+    onSwap: (() -> Unit)? = null,
+    private val fullResolution: Boolean = false,
 ) : LinearLayout(context), SurfaceHolder.Callback {
     private lateinit var surfaceView: SurfaceView
     private val area = FrameLayout(context).apply { clipChildren = true }
@@ -45,8 +46,7 @@ class BottomDesktopPanel(
     }
     private val keyboardHost = KeyboardHost(context) { event -> sendKey(event) }
     private var directTouch = SessionPrefs.bottomDesktopDirectTouch(context)
-    private lateinit var touchButton: ImageView
-    private lateinit var title: TextView
+    private val touchMode = mutableStateOf(directTouch)
     private val trackpad = TouchpadGestures(ViewConfiguration.get(context).scaledTouchSlop.toFloat(), TrackpadInput()).apply {
         desktop = true
     }
@@ -66,7 +66,7 @@ class BottomDesktopPanel(
         setBackgroundColor(Color.BLACK)
         isFocusable = true
         isFocusableInTouchMode = true
-        addView(bar(onClose, onMenu, steamButtons), LayoutParams(-1, -2))
+        addView(bar(onClose, onMenu, steamButtons, onSwap), LayoutParams(-1, -2))
         area.addView(keyboardHost)
         addSurface()
         area.addView(status, FrameLayout.LayoutParams(-1, -1))
@@ -83,41 +83,21 @@ class BottomDesktopPanel(
         area.addView(surfaceView, 1, FrameLayout.LayoutParams(fullWidth.takeIf { it > 0 } ?: -1, fullHeight.takeIf { it > 0 } ?: -1))
     }
 
-    private fun bar(onClose: () -> Unit, onMenu: (() -> Unit)?, steamButtons: Pair<() -> Unit, () -> Unit>?): View {
-        val bar = LinearLayout(context).apply {
-            orientation = HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(6), dp(8), dp(6))
-            setBackgroundColor(Color.BLACK)
+    private fun bar(onClose: (() -> Unit)?, onMenu: (() -> Unit)?, steamButtons: Pair<() -> Unit, () -> Unit>?, onSwap: (() -> Unit)?): View =
+        bottomScreenBarView(context) {
+            val touch = touchMode.value
+            BottomBarModel(
+                context.getString(R.string.bottom_desktop_title,
+                    context.getString(if (touch) R.string.bottom_desktop_mode_touch else R.string.bottom_desktop_mode_trackpad)),
+                onClose, onMenu, steamButtons?.first, steamButtons?.second,
+                listOfNotNull(
+                    BarExtra(context.getString(if (touch) R.string.bottom_desktop_direct_touch else R.string.bottom_desktop_trackpad),
+                        icon = if (touch) R.drawable.ic_bottom_touch else R.drawable.ic_bottom_mouse) { setDirectTouch(!directTouch) },
+                    BarExtra(context.getString(R.string.second_show_keyboard), icon = R.drawable.ic_bottom_keyboard) { keyboardHost.toggle() },
+                    onSwap?.let { BarExtra(context.getString(R.string.swap_screens), icon = R.drawable.ic_bottom_swap, onClick = it) },
+                ),
+            )
         }
-        fun gap() = View(context).apply { layoutParams = LayoutParams(dp(6), 1) }
-        bar.addView(DeckControlsPanel.roundButton(context, "×", context.getString(R.string.deck_close), onClose))
-        title = TextView(context).apply {
-            textSize = 14f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            setTextColor(Color.rgb(0x7A, 0x80, 0x8A))
-            setPadding(dp(12), 0, dp(6), 0)
-            isSingleLine = true
-            ellipsize = android.text.TextUtils.TruncateAt.END
-        }
-        bar.addView(title, LayoutParams(0, -2, 1f))
-        touchButton = DeckControlsPanel.iconButton(context, R.drawable.ic_bottom_mouse, "") { setDirectTouch(!directTouch) }
-        bar.addView(touchButton)
-        bar.addView(gap())
-        bar.addView(DeckControlsPanel.iconButton(context, R.drawable.ic_bottom_keyboard,
-            context.getString(R.string.second_show_keyboard)) { keyboardHost.toggle() })
-        onMenu?.let {
-            bar.addView(gap())
-            bar.addView(DeckControlsPanel.menuButton(context, it))
-        }
-        steamButtons?.let { (steam, qam) ->
-            bar.addView(gap())
-            bar.addView(DeckControlsPanel.roundButton(context, "STEAM", context.getString(R.string.deck_open_steam_menu), steam, wide = true))
-            bar.addView(gap())
-            bar.addView(DeckControlsPanel.roundButton(context, "•••", context.getString(R.string.drawer_open_qam), qam, wide = true))
-        }
-        return bar
-    }
 
     private fun setDirectTouch(on: Boolean) {
         trackpad.cancel()
@@ -128,11 +108,7 @@ class BottomDesktopPanel(
     }
 
     private fun showTouchMode() {
-        touchButton.setImageResource(if (directTouch) R.drawable.ic_bottom_touch else R.drawable.ic_bottom_mouse)
-        touchButton.contentDescription = context.getString(
-            if (directTouch) R.string.bottom_desktop_direct_touch else R.string.bottom_desktop_trackpad)
-        title.text = context.getString(R.string.bottom_desktop_title,
-            context.getString(if (directTouch) R.string.bottom_desktop_mode_touch else R.string.bottom_desktop_mode_trackpad))
+        touchMode.value = directTouch
         BottomDesktop.showCursor(!directTouch)
         if (!directTouch && surfaceView.width > 0) {
             trackpad.bounds = RectF(0f, 0f, surfaceView.width.toFloat(), surfaceView.height.toFloat())
@@ -187,7 +163,9 @@ class BottomDesktopPanel(
             addSurface()
             return
         }
-        if (attached) attach(surfaceView.holder)
+        if (!attached) return
+        attached = false
+        syncSurface(surfaceView.holder)
     }
 
     private fun showState() {
@@ -208,13 +186,28 @@ class BottomDesktopPanel(
         if (w != fullWidth || h > fullHeight || !keyboardHost.shown) {
             fullWidth = w
             fullHeight = h
-            surfaceView.layoutParams = FrameLayout.LayoutParams(w, h)
+            val (desktopW, desktopH) = BottomDesktop.outputSizeFor(w, h, fullResolution)
+            val (fitW, fitH) = if (w - desktopW in 0..1 && h - desktopH in 0..1) desktopW to desktopH
+            else fitDesktop(w, h, desktopW, desktopH)
+            surfaceView.layoutParams = if (fitW == w && fitH == h) FrameLayout.LayoutParams(w, h)
+            else FrameLayout.LayoutParams(fitW, fitH, Gravity.CENTER_HORIZONTAL).apply { topMargin = (h - fitH) / 2 }
+            surfaceView.post { syncSurface(surfaceView.holder) }
         }
         pan()
     }
 
+    private fun imeOverlap(): Int {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return 0
+        if (area.height < fullHeight) return 0
+        val ime = rootWindowInsets?.getInsets(WindowInsets.Type.ime())?.bottom ?: return 0
+        if (ime <= 0) return 0
+        val at = IntArray(2)
+        area.getLocationInWindow(at)
+        return (at[1] + area.height - (rootView.height - ime)).coerceIn(0, area.height)
+    }
+
     private fun pan() {
-        val visible = area.height
+        val visible = area.height - imeOverlap()
         val hidden = (fullHeight - visible).coerceAtLeast(0)
         val anchor = if (directTouch) lastTouchY else trackpad.y
         surfaceView.translationY = if (hidden == 0 || !keyboardHost.shown) 0f
@@ -223,24 +216,27 @@ class BottomDesktopPanel(
 
     override fun surfaceCreated(holder: SurfaceHolder) = Unit
 
-    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        if (!attached) attach(holder)
-    }
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = syncSurface(holder)
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         if (holder !== surfaceView.holder) return
         attached = false
         surfaceUsed = false
-        BottomDesktop.detach()
+        BottomDesktop.detach(holder.surface)
     }
 
-    private fun attach(holder: SurfaceHolder) {
-        val frame = holder.surfaceFrame
-        val (width, height) = BottomDesktop.outputSizeFor(fullWidth.takeIf { it > 0 } ?: frame.width(),
-            fullHeight.takeIf { it > 0 } ?: frame.height())
+    private fun syncSurface(holder: SurfaceHolder) {
+        if (holder !== surfaceView.holder || fullWidth <= 0 || fullHeight <= 0 || !holder.surface.isValid) return
+        val (width, height) = BottomDesktop.outputSizeFor(fullWidth, fullHeight, fullResolution)
         if (width <= 0 || height <= 0) return
+        val frame = holder.surfaceFrame
         if (frame.width() != width || frame.height() != height) {
-            holder.setFixedSize(width, height)
+            val params = surfaceView.layoutParams
+            if (params.width == width && params.height == height) holder.setSizeFromLayout() else holder.setFixedSize(width, height)
+            return
+        }
+        if (attached) {
+            BottomDesktop.resize(holder.surface, width, height)
             return
         }
         attached = true
@@ -299,7 +295,7 @@ class BottomDesktopPanel(
         override fun onWheel(steps: Int) = BottomDesktop.sendScene(SCENE_WHEEL, steps)
 
         override fun onScroll(dx: Float, dy: Float) {
-            val (outW, outH) = BottomDesktop.outputSizeFor(surfaceView.width, surfaceView.height)
+            val (outW, outH) = BottomDesktop.outputSize
             scrollRestX += dx * outW / surfaceView.width.coerceAtLeast(1) * AXIS_UNITS_PER_PIXEL
             scrollRestY += dy * outH / surfaceView.height.coerceAtLeast(1) * AXIS_UNITS_PER_PIXEL
             val h = scrollRestX.toInt()
@@ -342,4 +338,12 @@ class BottomDesktopPanel(
         const val AXIS_UNITS_PER_PIXEL = 3f
         const val TEXT_FIELD_TAP_MS = 1_000L
     }
+}
+
+internal fun fitDesktop(areaW: Int, areaH: Int, desktopW: Int, desktopH: Int): Pair<Int, Int> {
+    if (areaW <= 0 || areaH <= 0 || desktopW <= 0 || desktopH <= 0) return areaW to areaH
+    val widthLimited = areaW.toLong() * desktopH <= areaH.toLong() * desktopW
+    val w = if (widthLimited) areaW else (desktopW.toLong() * areaH / desktopH).toInt()
+    val h = if (widthLimited) (desktopH.toLong() * areaW / desktopW).toInt() else areaH
+    return if (areaW - w <= 4 && areaH - h <= 4) areaW to areaH else w to h
 }

@@ -96,7 +96,7 @@ def trackingPack = rootProject.file('tools/packs/tracking/release.env').readLine
 def prootPackPin = rootProject.file('tools/packs/proot/release.env').readLines()
     .findAll { it.contains('=') && !it.startsWith('#') }
     .collectEntries { def kv = it.split('=', 2); [(kv[0].trim()): kv[1].trim()] }
-def addonPacks = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler'].collectEntries { name ->
+def addonPacks = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr'].collectEntries { name ->
     def pack = file("build/packs/${name}.tar.zst")
     if (!pack.isFile()) {
         if (ciBuild) throw new GradleException("Add-on pack ${pack} is missing: run tools/packs/build.sh app/build/packs")
@@ -134,7 +134,7 @@ android {
         applicationId "com.droiddeck.launcher"
         minSdkVersion 26
         targetSdkVersion 37
-        versionCode 19
+        versionCode 20
         versionName "0.6.9.2"
         buildConfigField "String", "BUILD_LABEL", "\"${escapedBuildLabel}\""
         buildConfigField "String", "SOURCE_COMMIT", "\"${sourceCommit}\""
@@ -209,7 +209,7 @@ android {
     }
 
     androidResources {
-        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:<dir>droiddeck-xbox:<dir>droiddeck-comet:<dir>directaudio'
+        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:<dir>droiddeck-xbox:<dir>droiddeck-comet:<dir>directaudio:<dir>hybris'
     }
 
     packagingOptions {
@@ -289,6 +289,12 @@ if (playDistribution) {
 }
 
 
+// No instrumented tests; the unused androidTest variant breaks the VS Code Kotlin import.
+androidComponents {
+    beforeVariants(selector().all()) { it.androidTest.enable = false }
+}
+
+// Vendor binaries remain in the user's SDK directory; never vendor them into Git.
 if (vitureSdkDir) {
     android.sourceSets.main.jniLibs.srcDir(new File(vitureSdkDir, 'android'))
     def stageVitureNotices = tasks.register('stageVitureNotices', Copy) {
@@ -400,6 +406,21 @@ def buildRustStores = tasks.register('buildRustStores', Exec) {
 }
 if (!skipRust) android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir.get().asFile)
 tasks.named('preBuild').configure { dependsOn(buildRustStores) }
+
+def maliBridgeDir = rootProject.file('external/MaliBridge')
+def vkbridgeJniLibsDir = layout.buildDirectory.dir('vkbridgeJniLibs')
+def buildVkBridgeServer = tasks.register('buildVkBridgeServer', Exec) {
+    description = 'Builds the Vulkan bridge server (libvkbridge_server.so) with the NDK.'
+    inputs.dir(new File(maliBridgeDir, 'common'))
+    inputs.dir(new File(maliBridgeDir, 'server'))
+    inputs.dir(new File(maliBridgeDir, 'third_party'))
+    inputs.file(new File(maliBridgeDir, 'scripts/build-server-android.sh'))
+    outputs.dir(vkbridgeJniLibsDir)
+    commandLine 'bash', new File(maliBridgeDir, 'scripts/build-server-android.sh').absolutePath,
+        androidComponents.sdkComponents.ndkDirectory.get().asFile.absolutePath, vkbridgeJniLibsDir.get().asFile.absolutePath
+}
+android.sourceSets.main.jniLibs.srcDir(vkbridgeJniLibsDir.get().asFile)
+tasks.named('preBuild').configure { dependsOn(buildVkBridgeServer) }
 
 dependencies {
     implementation 'com.google.android.play:app-update:2.1.0'

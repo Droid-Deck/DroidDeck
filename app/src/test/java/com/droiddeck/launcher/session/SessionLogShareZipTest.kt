@@ -2,14 +2,17 @@ package com.droiddeck.launcher.session
 
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
-import java.nio.charset.StandardCharsets
 import java.text.SimpleDateFormat
+import java.util.UUID
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import com.droiddeck.launcher.core.DroidDeckTestRunner as RobolectricTestRunner
@@ -20,6 +23,69 @@ import org.robolectric.annotation.Config
 @Config(sdk = [33])
 class SessionLogShareZipTest {
     private val app get() = RuntimeEnvironment.getApplication()
+
+    @Before fun installSecureSourceOpener() = installJvmSecureSourceOpener()
+
+    @After fun resetSourceOpener() = resetSecureSourceOpener()
+
+    @Test fun startupRemovesAbandonedDiagnosticStagesAndPreservesActiveSnapshots() {
+        val abandoned = File(app.cacheDir, "share-${UUID.randomUUID()}.diagnostic-stage").apply { mkdirs() }
+        val active = EnhancedSessionLogShare.acquireDiagnosticStage(app, "share")
+        try {
+            EnhancedSessionLogShare.cleanupAbandonedStages(app)
+            assertFalse(abandoned.exists())
+            assertTrue(active.directory.isDirectory)
+            EnhancedSessionLogShare.cleanupAbandonedStages(app)
+            assertTrue(active.directory.isDirectory)
+            val probeClassResource = checkNotNull(
+                DiagnosticStageLockProbe::class.java.getResource("DiagnosticStageLockProbe.class"),
+            )
+            val probeClass = File(probeClassResource.toURI())
+            var classPathRoot = checkNotNull(probeClass.parentFile)
+            repeat(4) { classPathRoot = checkNotNull(classPathRoot.parentFile) }
+            val classPath = classPathRoot.absolutePath
+            val javaName = if (checkNotNull(System.getProperty("os.name")).startsWith("Windows")) {
+                "java.exe"
+            } else {
+                "java"
+            }
+            val java = File(File(System.getProperty("java.home"), "bin"), javaName)
+            val probe = ProcessBuilder(
+                java.absolutePath,
+                "-cp",
+                classPath,
+                DiagnosticStageLockProbe::class.java.name,
+                File(active.directory, ".active").absolutePath,
+            ).redirectErrorStream(true).start()
+            val completed = probe.waitFor(5, TimeUnit.SECONDS)
+            if (!completed) probe.destroyForcibly()
+            assertTrue("lock probe timed out", completed)
+            assertEquals("cleanup released the active stage lock", 0, probe.exitValue())
+        } finally {
+            active.close()
+        }
+    }
+
+    @Test fun anArchiveCanBeWrittenOutsideTheShareFolder() {
+        SessionLogShare.clear(app)
+        val session = File(LinuxRuntime.logDir(app), "2026-11-03-01-steam").apply { mkdirs() }
+        val out = File(app.getExternalFilesDir(null), "agent-logs/request-1")
+        val secondOut = File(app.getExternalFilesDir(null), "agent-logs/request-2")
+        try {
+            File(session, "session.log").writeText("booted\n")
+            val zip = SessionLogShare.zipFolder(app, session, out)!!
+            val secondZip = SessionLogShare.zipFolder(app, session, secondOut)!!
+            assertEquals(out, zip.parentFile)
+            assertFalse(File(app.cacheDir, "share").exists())
+            assertTrue(zip.isFile)
+            assertEquals(secondOut, secondZip.parentFile)
+            assertTrue(secondZip.isFile)
+        } finally {
+            out.deleteRecursively()
+            secondOut.deleteRecursively()
+            session.deleteRecursively()
+        }
+    }
 
     @Test fun aLargeSteamLogIsRedactedInTheSharedArchive() {
         val session = File(LinuxRuntime.logDir(app), "2026-10-08-02-steam").apply { mkdirs() }
@@ -38,23 +104,11 @@ class SessionLogShareZipTest {
             val zip = SessionLogShare.zipFolder(app, session)!!
             ZipFile(zip).use { archive ->
                 val entry = archive.getEntry("${session.name}/steam-42.log")!!
-                archive.getInputStream(entry).use { input ->
-                    val expected = "${com.droiddeck.launcher.core.LogRedactor.OVERSIZED_LINE}\n"
-                    val prefix = ByteArray(expected.toByteArray(StandardCharsets.UTF_8).size)
-                    var offset = 0
-                    while (offset < prefix.size) {
-                        val count = input.read(prefix, offset, prefix.size - offset)
-                        assertTrue("zip entry ended before its scrubbed prefix", count > 0)
-                        offset += count
-                    }
-                    assertEquals(expected, String(prefix, StandardCharsets.UTF_8))
-                    input.bufferedReader().use { reader ->
-                        val trailing = requireNotNull(reader.readLine())
-                        assertFalse("trailing secret survived", trailing.contains(trailingSecret))
-                        assertEquals("refresh_token=<redacted:token>", trailing)
-                        assertEquals(null, reader.readLine())
-                    }
-                }
+                val shared = archive.getInputStream(entry).bufferedReader().readText()
+                assertTrue(shared.contains("diagnostic file truncated"))
+                assertFalse("early secret survived", shared.contains(earlySecret))
+                assertFalse("trailing secret survived", shared.contains(trailingSecret))
+                assertTrue(shared.contains("refresh_token=<redacted:token>"))
             }
         } finally {
             SessionLogShare.clear(app)

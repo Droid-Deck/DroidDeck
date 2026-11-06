@@ -1,0 +1,17 @@
+{
+    "file_format_version": "1.2.0",
+    "layer": {
+        "name": "VK_LAYER_DROIDDECK_mali_compat",
+        "type": "GLOBAL",
+        "library_path": "/usr/local/lib/droiddeck-mali/libVkLayer_droiddeck_mali_compat.so",
+        "api_version": "1.4.357",
+        "implementation_version": "1",
+        "description": "Features DXVK requires and Mali lacks, made up for",
+        "functions": {
+            "vkNegotiateLoaderLayerInterfaceVersion": "vkNegotiateLoaderLayerInterfaceVersion"
+        },
+        "disable_environment": {
+            "DROIDDECK_MALI_COMPAT_DISABLE": "1"
+        }
+    }
+}

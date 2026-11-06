@@ -73,6 +73,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -86,7 +87,9 @@ import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.GameRemoval
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.runtime.WowAddons
 import com.droiddeck.launcher.session.GameSaves
+import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.CloudSaves
 import com.droiddeck.launcher.stores.InstalledStoreGame
@@ -98,6 +101,7 @@ import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.StoreLanguage
 import com.droiddeck.launcher.stores.StoreSizes
 import com.droiddeck.launcher.stores.StoresState
+import com.droiddeck.launcher.stores.gamejolt.GameJoltApi
 import com.droiddeck.launcher.stores.battlenet.BattleNetInstall
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadState
@@ -135,11 +139,11 @@ internal class GameRef(val appId: Int?, val store: Store?, val storeId: String?)
     }
 }
 
-internal enum class GameTab { ABOUT, ACHIEVEMENTS, LAUNCH, SAVES, INSTALL }
+internal enum class GameTab { ABOUT, ACHIEVEMENTS, LAUNCH, SAVES, ADDONS, INSTALL }
 
 @Composable
 internal fun GameDetail(
-    key: String, s: FrontEndState, a: FrontEndActions, lead: FocusRequester, backLabel: String, hopRail: String?, onBack: () -> Unit,
+    key: String, s: FrontEndState, a: FrontEndActions, lead: FocusRequester, backLabel: String, hopRail: String?, onBack: () -> Unit, inStore: Boolean = false,
 ) {
     val narrow = LocalNarrowPane.current
     val stacked = narrow || LocalConfiguration.current.screenWidthDp < 700
@@ -179,12 +183,14 @@ internal fun GameDetail(
         .takeUnless { it.trim().equals(title.trim(), ignoreCase = true) }.orEmpty()
     val scored = scores != null && (scores.metacritic != Lookup.None || scores.hltb != Lookup.None)
     val prefix = game?.protonPrefix?.takeIf { it.isDirectory }
+    val addonTargets = remember(game?.gameId, game?.gameFiles) { game?.let(WowAddons::targets).orEmpty() }
     val tabs = buildList {
         if (description.isNotBlank() || developer.isNotBlank() || publisher.isNotBlank() || releaseDate.isNotBlank() || scored || (!s.shortcutPicker && title.isNotBlank() && title != id)) add(GameTab.ABOUT)
         if (achievementState != null) add(GameTab.ACHIEVEMENTS)
         val cloud = game?.library == Library.XBOX_CLOUD
         if (game != null && !cloud) add(GameTab.LAUNCH)
         if (game != null && game.library == Library.ADDED && prefix != null) add(GameTab.SAVES)
+        if (addonTargets.isNotEmpty()) add(GameTab.ADDONS)
         if ((game != null && !cloud) || installed != null) add(GameTab.INSTALL)
     }
     var picked by remember(key) { mutableStateOf<GameTab?>(null) }
@@ -218,6 +224,7 @@ internal fun GameDetail(
                     if (!s.shortcutPicker) CompositionLocalProvider(LocalPillButtons provides true) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (installed != null && installed.sidecar.store == Store.ITCH) ItchCheckButton(installed)
+                            if (installed != null && installed.sidecar.store == Store.GAMEJOLT) GameJoltCheckButton(installed)
                             RemoveButton(title, game, installed, a)
                         }
                     }
@@ -232,7 +239,7 @@ internal fun GameDetail(
                         color = MaterialTheme.colorScheme.error, maxLines = 3, overflow = TextOverflow.Ellipsis,
                     )
                     Spacer(Modifier.height(2.dp))
-                    GameCapsule(scores) { GameActions(store, id, game, item, installed, s, a, Modifier.focusRequester(lead), compactMenu = stacked) }
+                    GameCapsule(scores) { GameActions(store, id, game, item, installed, s, a, Modifier.focusRequester(lead), compactMenu = stacked, inStore = inStore) }
                 }
             }
             if (StoresMotion.heroLands) header() else Rise(1) { header() }
@@ -246,6 +253,7 @@ internal fun GameDetail(
                             } ?: stringResource(R.string.achievements_title)
                             GameTab.LAUNCH -> stringResource(R.string.game_tab_launch)
                             GameTab.SAVES -> stringResource(if (Store.byId(source).let { it == Store.GOG || it == Store.EPIC }) R.string.game_tab_saves_cloud else R.string.games_saves)
+                            GameTab.ADDONS -> stringResource(R.string.game_tab_addons)
                             GameTab.INSTALL -> stringResource(R.string.game_tab_install)
                         }
                     }
@@ -261,6 +269,7 @@ internal fun GameDetail(
                             GameTab.ACHIEVEMENTS -> achievementState?.let { st -> AchievementsTab(StoreAchievements.forSource(store?.id)?.label.orEmpty(), st) }
                             GameTab.LAUNCH -> if (game != null) LaunchTab(game, s, a, hopRail)
                             GameTab.SAVES -> if (game != null && prefix != null) SavesTab(game, prefix, a)
+                            GameTab.ADDONS -> if (game != null) AddonsTab(game, addonTargets, a)
                             GameTab.INSTALL -> InstallTab(game, installed, item, store)
                         }
                     }
@@ -382,7 +391,7 @@ private fun GameTitle(title: String, logo: Any?, titleSize: TextUnit) {
 @Composable
 internal fun GameActions(
     store: Store?, id: String?, game: Library.SteamGame?, item: CatalogItem?, installed: InstalledStoreGame?,
-    s: FrontEndState, a: FrontEndActions, leadOn: Modifier, compactMenu: Boolean = false,
+    s: FrontEndState, a: FrontEndActions, leadOn: Modifier, compactMenu: Boolean = false, inStore: Boolean = false,
 ) {
     val ctx = LocalContext.current
     val storeKey = if (store != null && id != null) "${store.id}:$id" else null
@@ -409,10 +418,16 @@ internal fun GameActions(
                     if (compactMenu) GameMoreMenu(game, a) else {
                         FileButtons(game, a)
                         GameShortcutMenu(game, a)
-                        EditArtButton(game)
                     }
                 }
                 if (store == Store.ITCH && installed != null) ItchUpdateButton(installed, download == null && StoresState.uninstalling[installed.key] == null)
+                if (store == Store.GAMEJOLT && installed != null) GameJoltUpdateButton(installed, download == null && StoresState.uninstalling[installed.key] == null)
+                if (store == Store.GAMEJOLT && installed != null) GameJoltVersionButton(installed, download == null && StoresState.uninstalling[installed.key] == null)
+                if (inStore && store == Store.GAMEJOLT && installed != null) {
+                    SecondaryButton(stringResource(R.string.stores_view_on, Store.GAMEJOLT.shortLabel)) {
+                        openUrl(ctx, item?.storeUrl.orEmpty().ifBlank { GameJoltApi.pageUrl("game", installed.sidecar.id) })
+                    }
+                }
                 if (store == Store.GOG && installed != null) GogMaintenanceActions(installed)
                 if (store == Store.XBOX && id != null) XboxInstalledStream(id, game?.name ?: item?.title.orEmpty(), item)
                 if (store == Store.XBOX && installed != null && id != null) {
@@ -435,6 +450,7 @@ internal fun GameActions(
                     }
                     SecondaryButton(stringResource(R.string.bnet_open)) { a.onBattleNet() }
                 }
+                if (game != null && !compactMenu) EditArtButton(game)
             }
             download != null -> {
                 ActionChip(downloadLabel(download), ok = false)
@@ -482,7 +498,7 @@ internal fun GameActions(
                 }
                 if (!item.accessible) SecondaryButton(buyLabel(item)) { openStoreUrl(ctx, item) }
             }
-            item != null && item.store == Store.ITCH && item.isFree -> {
+            item != null && (item.store == Store.ITCH || item.store == Store.GAMEJOLT) && item.isFree -> {
                 InstallButton(stringResource(R.string.stores_install), leadOn) { StoresState.requestInstall(ctx, item) }
                 SecondaryButton(stringResource(R.string.stores_view_on, item.store.shortLabel)) { openStoreUrl(ctx, item) }
             }
@@ -846,6 +862,44 @@ private fun SavesTab(g: Library.SteamGame, prefix: File, a: FrontEndActions) {
             }
         }
     }
+}
+
+@Composable
+private fun AddonsTab(g: Library.SteamGame, targets: List<WowAddons.Target>, a: FrontEndActions) {
+    Column(Modifier.fillMaxWidth().tabPanel(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        targets.forEach { target ->
+            val names by produceState(emptyList<String>(), target.addOns, WowAddons.imports) {
+                value = withContext(Dispatchers.IO) { WowAddons.installed(target) }
+            }
+            if (targets.size > 1) SectionLabel(target.flavor)
+            MenuItem(
+                stringResource(R.string.games_import_addons), checked = false,
+                detail = pluralStringResource(R.plurals.games_addons_count, names.size, names.size),
+            ) { a.onAddonImport(g, target) }
+            MenuItem(stringResource(R.string.games_open_addons_folder), checked = false) {
+                target.addOns.mkdirs()
+                a.onBrowseFiles(target.addOns)
+            }
+            names.forEach { name -> AddonRow(name, target, a) }
+        }
+    }
+}
+
+@Composable
+private fun AddonRow(name: String, target: WowAddons.Target, a: FrontEndActions) {
+    var asking by remember(target.addOns, name) { mutableStateOf(false) }
+    val delete = stringResource(R.string.common_delete)
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 2.dp, bottom = 2.dp)) {
+        Text(name, fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        if (!SessionState.running) IconAction(Icons.Outlined.Delete, delete, "addon:delete:${target.flavor}:$name", danger = true) { asking = true }
+    }
+    if (asking) ConfirmDialog(
+        title = stringResource(R.string.games_delete_addon_title, name),
+        text = stringResource(R.string.games_delete_addon_body),
+        confirm = delete,
+        onConfirm = { a.onAddonDelete(target, name) },
+        onDismiss = { asking = false },
+    )
 }
 
 @Composable

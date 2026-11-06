@@ -8,6 +8,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.After
+import org.junit.Before
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import com.droiddeck.launcher.core.DroidDeckTestRunner as RobolectricTestRunner
@@ -23,6 +25,10 @@ import java.util.zip.ZipFile
 @Config(sdk = [28], manifest = Config.NONE)
 class SessionLogShareTest {
     @get:Rule val tmp = TemporaryFolder()
+
+    @Before fun installSecureSourceOpener() = installJvmSecureSourceOpener()
+
+    @After fun resetSourceOpener() = resetSecureSourceOpener()
 
     private val secret = "GET /x?sessionid=abcdef123456 200"
     private val leaked = "abcdef123456"
@@ -86,8 +92,9 @@ class SessionLogShareTest {
         File(folder, "events.jsonl").writeText("$secret\n")
 
         val out = zip(folder)
-        for (name in listOf("app.log", "session.log", "steam/deep/nested.txt", ".hidden.txt", "events.jsonl"))
+        for (name in listOf("app.log", "session.log", "events.jsonl"))
             assertFalse(name, out.getValue(name).contains(leaked))
+        assertTrue(out.values.none { it.contains(leaked) })
     }
 
     @Test fun aRecordUnderOtherRedactorRulesVouchesForNothing() {
@@ -187,7 +194,7 @@ class SessionLogShareTest {
         assertFalse(File(folder, ".scrubbed-r${LogRedactor.RULES_VERSION}").exists())
     }
 
-    @Test fun steamLogsPastTheSizeLimitStayOut() {
+    @Test fun steamLogsPastTheSizeLimitAreBoundedAndDeclared() {
         val folder = tmp.newFolder("2026-10-06-07-steam")
         File(folder, "session.log").writeText("ok\n")
         File(folder, "steam").mkdirs()
@@ -196,9 +203,11 @@ class SessionLogShareTest {
             val line = ByteArray(1024) { 'x'.code.toByte() }.also { it[it.size - 1] = '\n'.code.toByte() }
             repeat(9 * 1024) { out.write(line) }
         }
-        val names = zip(folder).keys
-        assertTrue("steam/console_log.txt" in names)
-        assertFalse("steam/cef_log.previous.txt" in names)
+        val output = zip(folder)
+        assertTrue("steam/console_log.txt" in output)
+        assertTrue("steam/cef_log.previous.txt" in output)
+        assertTrue(output.getValue("steam/cef_log.previous.txt").contains("diagnostic file truncated"))
+        assertTrue(output.getValue("diagnostics-manifest.json").contains("\"status\": \"truncated\""))
     }
 
     @Test fun streamingComparisonPreservesUnchangedFileAndReplacesChangedFile() {

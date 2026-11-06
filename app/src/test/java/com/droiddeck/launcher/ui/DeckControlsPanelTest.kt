@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.ui
 
+import android.content.ComponentName
 import android.view.MotionEvent
+import androidx.activity.ComponentActivity
 import android.view.View
 import com.droiddeck.launcher.input.JoyConPadTest
 import com.droiddeck.launcher.input.PadBridge
@@ -10,7 +12,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import com.droiddeck.launcher.core.DroidDeckTestRunner as RobolectricTestRunner
+import org.robolectric.Robolectric
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.nio.file.Files
 
@@ -22,10 +26,14 @@ class DeckControlsPanelTest {
         val directory = Files.createTempDirectory("deck-panel").toFile()
         try {
             SessionState.deckPad = false
+            val app = RuntimeEnvironment.getApplication()
+            shadowOf(app.packageManager).addActivityIfNotPresent(ComponentName(app, ComponentActivity::class.java))
+            val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
             for (pad in listOf(null, PadBridge(directory))) for (portraitDock in listOf(false, true)) {
                 val name = "pad=${pad != null} portraitDock=$portraitDock"
-                val panel = DeckControlsPanel(RuntimeEnvironment.getApplication(), onClose = {}, onSteamMenu = {}, onQam = {},
+                val panel = DeckControlsPanel(activity, onClose = {}, onSteamMenu = {}, onQam = {},
                     pad = pad, portraitDock = portraitDock)
+                activity.setContentView(panel)
                 assertEquals(name, pad == null, panel.deckControls)
                 val (w, h) = if (portraitDock) 720 to 1000 else 1200 to 480
                 panel.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),

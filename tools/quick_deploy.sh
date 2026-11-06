@@ -2,6 +2,7 @@
 set -euo pipefail
 repo_root=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "${repo_root}"
+"${repo_root}/tools/seed_worktree.sh"
 sdk_dir=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-"${HOME}/Library/Android/sdk"}}
 export ANDROID_HOME=${sdk_dir} ANDROID_SDK_ROOT=${sdk_dir}
 export JAVA_HOME=${JAVA_HOME:-/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home}

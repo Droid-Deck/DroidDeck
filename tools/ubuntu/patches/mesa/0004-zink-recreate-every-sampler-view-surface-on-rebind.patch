@@ -1,0 +1,44 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: coffeemeist3r <jordanyehle@gmail.com>
+Date: Wed, 4 Nov 2026 19:40:00 -0500
+Subject: [PATCH] zink: recreate every sampler view surface on rebind
+
+rebind_image() and zink_rebind_all_images() refreshed only
+sv->image_view after a resource got a new backing object (for example the
+ZINK_BIND_MUTABLE switch that zink_get_surface() itself triggers). The
+view's cube_array and zs_view surfaces still belonged to the old object, and
+get_imageview_for_binding() hands those out. Once the old object was freed,
+its surfaces went with it, and the next descriptor update wrote a garbage
+VkImageView.
+
+Imagination drivers set needs_zs_shader_swizzle, so every view with a
+constant-1 swizzle (RGBX/BGRX alpha) gets a zs_view there. Steam's web
+helper (Chromium on ANGLE on Zink) hit this within seconds of fast Home
+shelf scrolling on a Pixel 10 Pro Fold and segfaulted in the driver's
+vkUpdateDescriptorSetWithTemplate. Rebuild all of the view's surfaces with
+init_sampler_view() instead. Still present in Mesa main.
+---
+diff --git a/src/gallium/drivers/zink/zink_context.c b/src/gallium/drivers/zink/zink_context.c
+--- a/src/gallium/drivers/zink/zink_context.c
++++ b/src/gallium/drivers/zink/zink_context.c
+@@ -5351,8 +5351,8 @@ rebind_image(struct zink_context *ctx, struct zink_resource *res)
+             struct zink_sampler_view *sv = zink_sampler_view(ctx->sampler_views[i][j]);
+             if (sv && sv->base.texture == &res->base.b) {
+                sv->rebind_count = res->rebind_count;
+-               struct pipe_surface tmpl = pipe_surface_templ_from_sampler_view(&sv->base, &res->base.b, sv->base.target);
+-               sv->image_view = zink_get_surface(ctx, &tmpl, &sv->ivci);
++               /* recreate every surface of the view: cube_array and zs_view belong to the old object too */
++               init_sampler_view(ctx, sv);
+                ctx->invalidate_descriptor_state(ctx, i, ZINK_DESCRIPTOR_TYPE_SAMPLER_VIEW, j, 1);
+                update_descriptor_state_sampler(ctx, i, j, res);
+             }
+@@ -5457,8 +5457,7 @@ zink_rebind_all_images(struct zink_context *ctx)
+          struct zink_resource *res = zink_resource(sv->base.texture);
+          if (res->rebind_count != sv->rebind_count) {
+             sv->rebind_count = res->rebind_count;
+-            struct pipe_surface tmpl = pipe_surface_templ_from_sampler_view(&sv->base, &res->base.b, sv->base.target);
+-            sv->image_view = zink_get_surface(ctx, &tmpl, &sv->ivci);
++            init_sampler_view(ctx, sv);
+             ctx->invalidate_descriptor_state(ctx, i, ZINK_DESCRIPTOR_TYPE_SAMPLER_VIEW, j, 1);
+             update_descriptor_state_sampler(ctx, i, j, res);
+          }

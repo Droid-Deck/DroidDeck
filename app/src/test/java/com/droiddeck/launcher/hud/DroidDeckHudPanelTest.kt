@@ -35,6 +35,32 @@ class DroidDeckHudPanelTest {
         assertEquals("1", DroidDeckHudConfig.DEFAULTS["hudLocked"])
     }
 
+    @Test fun lowMetricsCanBeHiddenIndependentlyInEveryLayoutThatShowsThem() {
+        val metrics = listOf("showLow1" to "1%", "showLow01" to "0.1%", "showLow001" to "0.01%")
+        for (size in DroidDeckHudSize.values().filter { it != DroidDeckHudSize.PILL }) {
+            for (mask in 0..7) {
+                val app = RuntimeEnvironment.getApplication()
+                val parent = FrameLayout(app)
+                val view = DroidDeckHudView(app)
+                parent.addView(view)
+                parent.layout(0, 0, 4000, 1080)
+                val settings = metrics.mapIndexed { index, (key, _) ->
+                    key to if (mask and (1 shl index) != 0) "1" else "0"
+                }.toMap()
+                view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS +
+                    ("hudSize" to size.token) + settings))
+                view.showForTest(SNAPSHOT, "DXVK", 0L)
+                val lines = view.linesForTest().joinToString(" ")
+                for ((index, metric) in metrics.withIndex()) {
+                    val supported = size != DroidDeckHudSize.TILES || index == 0
+                    val expected = supported && mask and (1 shl index) != 0
+                    val label = Regex("(?<![0-9.])${Regex.escape(metric.second)}")
+                    assertEquals("$size, mask=$mask, ${metric.second}: $lines", expected, label.containsMatchIn(lines))
+                }
+            }
+        }
+    }
+
     @Test fun everySizeDrawsTheDPanelWithEverythingInsideIt() {
         val stats = FrameStats()
         var now = 1_000_000_000L

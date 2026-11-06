@@ -75,8 +75,8 @@ object DriverBundle {
 
             val linuxStage = lm.newStagingDir()
             val linuxId = try {
-                val library = linuxDir.listFiles()?.firstOrNull { it.isFile && it.name.startsWith("libvulkan_freedreno") && it.name.endsWith(".so") }
-                library?.copyTo(File(linuxStage, LinuxVulkanDriverManager.LIB_NAME))
+                val library = linuxDir.listFiles()?.firstOrNull { it.isFile && LinuxVulkanDriverManager.isDriverLibrary(it.name) }
+                library?.copyTo(File(linuxStage, LinuxVulkanDriverManager.storedName(library.name)))
                 val meta = File(linuxDir, LinuxVulkanDriverManager.META_NAME).takeIf { it.isFile }
                     ?.let { runCatching { JSONObject(FileUtils.readString(it)) }.getOrNull() }
                 lm.adopt(linuxStage, library?.name, meta, manifest.name)
@@ -86,6 +86,10 @@ object DriverBundle {
             }
 
             val base = LinuxVulkanDriverManager.sanitizeId(manifest.tag.ifEmpty { "${manifest.name}-${manifest.version}" })
+            get(context, base)?.takeIf { DriverPairs.isNonAdreno(it.id) }?.let { old ->
+                Log.i(TAG, "replacing bundle ${old.id} (display ${old.androidId}, runtime ${old.linuxId})")
+                remove(context, old)
+            }
             val saved = registry(context)
             var id = base
             var n = 2

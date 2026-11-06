@@ -24,6 +24,9 @@ import kotlin.math.roundToInt
 
 object HomeApp {
     private const val ICON_DP = 72
+    private const val GAME_SPACE = "cn.nubia.gamelauncher"
+    private const val GAME_SPACE_ADD = "cn.nubia.gamelauncher.action.GAME_MANAGER"
+    private val GAME_SPACE_GAMES = Uri.parse("content://cn.nubia.gamelauncher.db.AppAddProvider/appadd")
 
     data class LaunchableApp(
         val label: String,
@@ -52,6 +55,24 @@ object HomeApp {
             if (enabled) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
             PackageManager.DONT_KILL_APP,
         )
+    }
+
+    fun hasGameSpace(context: Context): Boolean =
+        runCatching { context.packageManager.getPackageInfo(GAME_SPACE, 0) }.isSuccess
+
+    fun inGameSpace(context: Context): Boolean =
+        runCatching {
+            context.contentResolver.query(GAME_SPACE_GAMES, arrayOf("component"), null, null, null)?.use { rows ->
+                val prefix = context.packageName + ","
+                generateSequence { if (rows.moveToNext()) rows.getString(0) else null }.any { it.startsWith(prefix) }
+            }
+        }.getOrNull() ?: true
+
+    fun gameSpaceAddIntent(): Intent = Intent(GAME_SPACE_ADD).setPackage(GAME_SPACE)
+
+    fun releaseUnusedHomeEntry(context: Context) {
+        if (isHomeScreenEnabled(context) && !isDefault(context) && hasGameSpace(context))
+            setHomeScreenEnabled(context, false)
     }
 
     fun isDefault(context: Context): Boolean {

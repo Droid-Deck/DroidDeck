@@ -19,6 +19,15 @@ per-app compatibility mapping, including while Steam is running when its live
 compatibility helper is attached. A newly installed Proton that the running
 client has not discovered yet applies when Steam next starts.
 
+For **Start without Steam**, `droiddeck-proton-run --app` decodes only the requested
+game's `appinfo.vdf` records to choose its executable and arguments. The reader still
+supports formats 27-29 and reads the file/string table; this is not a reduction in
+disk-read bytes. Repeated queries reuse a process-local cache, with partial coverage
+kept distinct from a complete decode. Partial queries share one immutable byte
+snapshot; a complete decode drops that byte snapshot, and a file timestamp change
+invalidates the cache. Bulk callers still request all entries. Launch selection,
+prefix/Proton choices and saved settings are unchanged.
+
 Each game can also override the stored FEX, DXVK and VKD3D-Proton package used
 by its selected Proton. The launch wrapper applies that game’s component files
 immediately before Proton starts, removes managed files that are absent from the
@@ -51,6 +60,23 @@ editor's **Clear environment overrides** action clears only the selected
 environment entries and is intentionally narrower than **Reset game profile**.
 Values are literal strings, with no shell expansion; quotes are only needed when
 the consuming program expects them.
+
+## Saved compatibility mappings
+
+The file-backed `steam-compatibility` writer applies planned changes in a batch,
+rather than searching and copying the mapping for each game. This covers retired
+DroidDeck-Proton replacements, default/tool changes and the x86-64 client's Proton
+repointing. It does not change the planner, manual choices, native/FEX routing,
+locking or atomic file publication. Unchanged files are still not rewritten.
+
+Existing entry fields and duplicate entries are preserved, with the same first-match
+updates and reverse insertion order as the single-game writer. Single changes keep
+that writer's original path. This reduces bulk configuration work, not steady-state
+game rendering cost; large-library timings depend on the device and the number of
+entries actually changed.
+
+Run the batch/reference and work-budget regressions with
+`python3 -m unittest discover -s tools/tests -p test_steam_compat_mapping.py`.
 
 ## Game debug logs
 
@@ -90,6 +116,48 @@ logging can reduce performance and consume storage; disable it after collecting
 the report. If the session log directory is unavailable, the launcher reports
 that diagnostics were skipped instead of writing uncollected files elsewhere.
 
+## Enhanced diagnostics
+
+Use **Setup > Diagnostics > Enhanced diagnostics for next session** when normal
+session logs are not enough. The setting is one-shot: DroidDeck creates and
+retains the next session's log directory, records the diagnostic profile, then
+turns the setting off. It also enables the existing game diagnostic environment
+for that session without changing the user's saved **Session logs** or **Game
+debug logs** preferences.
+
+After reproducing the problem, use **Latest session logs > Share logs** or the
+in-session share action. Enhanced sessions offer separate, correlated archives:
+
+| Archive | Main contents |
+| --- | --- |
+| Session and device | Startup timeline, device/component selection, app, audio, network, and exit summaries |
+| Graphics | Graphics-related logs plus bounded Gamescope frame and process summaries when their providers are available |
+| Games and compatibility | Proton, Wine, DXVK/VKD3D, FEX, store, and game lifecycle logs |
+
+Choose one archive when an issue calls for a narrow report, or **All bundles**
+to share the three archives together. Every archive contains a
+`diagnostics-manifest.json` with the common session ID and the state of each
+artifact: captured, truncated, unavailable, omitted, or error. Some captured
+logs may themselves explain that a permission-limited source was unavailable.
+
+Exported archives sample a bounded amount of input. Large text logs retain
+complete lines from their beginning and end, and the manifest records partial
+scans and input limits. Raw game and component log writers are not yet safely byte-bounded while
+the session is running; they can use substantial storage, particularly during a
+long Proton game session. Enhanced diagnostics may also change timing because it
+keeps the game wrapper alive long enough to record an exit status. Turn it on
+only for a reproduction and review the archives before sharing them.
+
+The bundle does not promise unrestricted Android, kernel, or vendor-driver
+logs. If accessible, Android's crash buffer can include reports from other apps;
+redaction is best effort. Screen captures, pixels, input contents, memory dumps,
+and full system traces are not included automatically.
+
+The Gamescope frame summary is produced only by a Gamescope build that includes
+the enhanced frame-trace provider. An older bundled Gamescope safely ignores the
+diagnostic environment setting; the Graphics archive then records no frame-trace
+summary rather than inventing one.
+
 A Unity game under FEX (`UnityPlayer.dll` for Windows builds under Proton,
 `UnityPlayer.so` or `GameAssembly.so` for native Linux builds started by
 **Linux x86 (FEX)**) keeps FEX's TSO on when the Default profile's FEX preset
@@ -123,9 +191,10 @@ per-game value in the environment editor still wins.
 ## Defaults and available suggestions
 
 The initial configuration enables Mesa shader caching with
-`MESA_SHADER_CACHE_DISABLE=false`, sets `VKD3D_FEATURE_LEVEL=12_2` and
-`VKD3D_SHADER_MODEL=6_9`, and preserves the selected FEX preset. Existing edits
-and explicit removals take precedence over these defaults. FEX's own default
+`MESA_SHADER_CACHE_DISABLE=false` and preserves the selected FEX preset.
+`VKD3D_FEATURE_LEVEL` and `VKD3D_SHADER_MODEL` are unset by default, so VKD3D
+detects capabilities from the active Vulkan driver. Existing shared and per-game
+overrides, including explicit removals, are preserved. FEX's own default
 remains the default preset. Shader caching in VKD3D/DXVK, synchronization, ray
 tracing and diagnostic logging otherwise retain the runtime's defaults.
 
@@ -141,8 +210,8 @@ values. Custom variables have editable names and literal values.
 
 | Variable | Use |
 | --- | --- |
-| `VKD3D_FEATURE_LEVEL` | D3D12 capability override; defaults to `12_2`. |
-| `VKD3D_SHADER_MODEL` | Shader-model override; defaults to `6_9`. |
+| `VKD3D_FEATURE_LEVEL` | Optional D3D12 capability override; automatic detection by default. |
+| `VKD3D_SHADER_MODEL` | Optional shader-model override; automatic detection by default. |
 | `VKD3D_CONFIG` | Per-game workarounds such as `nodxr`; not a universal performance preset. |
 | `MESA_SHADER_CACHE_MAX_SIZE` | Storage budget for Mesa's shader cache, for example `1G`. |
 | `mesa_glthread` | OpenGL threading; test with the affected game. |
@@ -153,7 +222,11 @@ values. Custom variables have editable names and literal values.
 | `PROTON_USE_XALIA` | Proton's gamepad-navigation helper toggle. |
 
 Forcing `12_2` or `6_9` changes reported capabilities; it cannot implement a missing
-Vulkan feature. Remove either entry to use automatic detection for that capability.
+Vulkan feature. Remove or unset either entry to use automatic detection for that capability.
+The former feature-level rules for Caravan SandWitch, RoboCop: Rogue City,
+ReSkate and Cyberpunk 2077 compensated for the global `12_2` override and are
+removed. Stellar Blade also uses automatic detection. The separate Deep Rock
+Galactic GDK ray-tracing opt-out and Mali bridge capability cap remain.
 Other picker suggestions are editable starting values and are enabled only when
 added and saved. Older or
 custom components can support a different set of options. Android Wine wrapper,

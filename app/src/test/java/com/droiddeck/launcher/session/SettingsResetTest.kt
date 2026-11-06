@@ -35,6 +35,7 @@ class SettingsResetTest {
         SessionPrefs.setResolutionChoice(app, SessionService.MODE_STEAM, "1280x800")
         SessionPrefs.setGuestHostname(app, "MyDeck")
         assertTrue(SessionPrefs.setGameDebugLogsEnabled(app, true))
+        assertTrue(EnhancedDiagnostics.setArmed(app, true))
         SessionPrefs.setHudShowFps(app, false)
         SessionPrefs.setHudShowBattery(app, false)
         SessionPrefs.setHudShowGraph(app, false)
@@ -58,6 +59,7 @@ class SettingsResetTest {
         assertFalse(SessionPrefs.resolutionChosen(app, SessionService.MODE_STEAM))
         assertEquals(SessionPrefs.DEFAULT_GUEST_HOSTNAME, SessionPrefs.guestHostname(app))
         assertFalse(SessionPrefs.gameDebugLogsEnabled(app))
+        assertFalse(EnhancedDiagnostics.isArmed(app))
         val guest = java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app),
             "root/.config/droiddeck/game-environment.json")
         assertFalse(org.json.JSONObject(guest.readText()).getBoolean(GameEnvironmentStore.GAME_DEBUG_LOGS))

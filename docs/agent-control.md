@@ -26,7 +26,7 @@ and reports every run.
 
 Player controls and observations work over authorized ADB on any build: `state`, `start`, `stop`,
 `resume`, `wait`, `launch`, `quit`, `focus`, `input`, `ui`, `logs`, `screenshot`, `record`, `pacing`,
-`displays`, `wake`, `glasses` (except `glasses raw`), and `access`.
+`thermal`, `displays`, `wake`, `glasses` (except `glasses raw`), and `access`.
 
 **Setup > Diagnostics > Debugging tools** is off by default in every build, including debug builds.
 It enables `run`, `guest`, `cdp`, all `env` operations, `override`, `prefs`, and `glasses raw`. The
@@ -38,6 +38,21 @@ reports whether commands are enabled.
 Disabling the toggle clears queued and persistent agent environment settings and installed binary
 overrides. Disabled settings cannot apply at the next session start. Already running commands and
 effects already applied to a session are not undone; stop and restart that session to discard them.
+
+Program overrides prepend their directory to the normal session PATH, including `/usr/games`
+where Ubuntu installs `gamescopereaper`. An explicit `PATH=...` environment entry replaces that
+default. If an old persistent PATH hides runtime tools, inspect `tools/droiddeckctl env list`
+and correct only PATH with `env set --persistent`, which preserves other persistent entries.
+For example, to restore the normal runtime search path:
+
+```sh
+tools/droiddeckctl env set --persistent 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games'
+```
+
+Retain any custom directories you still need alongside these runtime directories, then restart
+the session. `env clear persistent` removes **all** persistent environment settings, not just
+PATH; there is no single-entry clear operation. Before clearing that scope, record any other
+entries you want to keep and reapply them afterward.
 
 Authorized command execution runs inside the runtime containing Steam's saved login. CDP evaluates
 JavaScript in the authenticated Steam client, and preferences can contain private values. These
@@ -61,7 +76,10 @@ Automatic process logs record environment keys and argument counts rather than v
 argument lists. UI nodes marked as passwords redact text, editable text, descriptions, and state
 text. This does not redact arbitrary authorized command results, CDP data, preferences, or screen
 captures. Scenario directories are owner-only and JSON reports are written with mode 0600. Review
-artifacts before sharing; a live `logs` pull copies the current folder without a fresh export scrub.
+artifacts before sharing. `logs` downloads the archive Share logs builds (scrubbed, Steam logs over
+8 MiB left out) from the app's external files folder, since adb cannot read the session folder itself.
+When the installed app predates archive export, the CLI falls back to pulling the private session folder;
+that legacy path is available only with root and is not scrubbed before download.
 
 ## Device selection and output
 
@@ -73,6 +91,10 @@ multiple devices remain. Pass `--serial` before the command to choose directly; 
 Every command writes one JSON object to stdout and its resolved serial to stderr. Exit codes: 0
 success, 2 invalid or rejected command, 3 ADB or device error, 4 session error, 5 timeout, 6
 artifact or file error, 7 debugging tools disabled.
+
+When upgrading the CLI, use a new destination for the first pull if the old destination contains
+archives created by an older CLI without a `.droiddeckctl-managed-logs.json` manifest and their
+filenames overlap. The upgraded CLI refuses to overwrite those files to preserve unrelated data.
 
 ## Commands
 
@@ -125,6 +147,8 @@ tools/droiddeckctl screenshot ./screen.png --display 4
 tools/droiddeckctl xr-frame ./xr-capture
 tools/droiddeckctl record ./clip.mp4 --seconds 8 --display 0
 tools/droiddeckctl pacing --seconds 30
+tools/droiddeckctl thermal
+tools/droiddeckctl wait cool --below 38 --timeout 900
 tools/droiddeckctl displays
 tools/droiddeckctl wake
 
@@ -161,6 +185,11 @@ compositor has no layer of its own) and reports the frames that reached the pane
 the present-to-present histogram and the share of intervals off the usual cadence. A game's own fps
 counter counts frames handed over, not frames shown, so it can read 60 while one frame in four
 stays on screen for two refreshes.
+
+`thermal` reports the battery temperature (`dumpsys battery`), the thermal status
+(`dumpsys thermalservice`, 0 NONE to 6 SHUTDOWN) and each CPU policy's `scaling_max_freq` against
+its `cpuinfo_max_freq`, with `capped` when the first is lower. `wait cool --below <°C>` polls it
+every 10 s until the battery is under that temperature, so runs being compared start equally cool.
 
 `input` needs a session that has drawn its first frame. Pad input goes through the session screen's
 virtual pad, the same one the on-screen controls drive, so games that ignore touch still respond.

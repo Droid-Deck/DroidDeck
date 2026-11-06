@@ -10,6 +10,13 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE)
 class GesturePrefsTest {
+    @Test fun relativeMouseModeSurvivesSerializationAndRejectsUnknownValues() {
+        val on = TouchGestureConfig(relativeMouseMode = TouchGestureConfig.RELATIVE_MOUSE_ON)
+        assertEquals(TouchGestureConfig.RELATIVE_MOUSE_ON, TouchGestureConfig.fromJson(on.toJson()).relativeMouseMode)
+        assertEquals(TouchGestureConfig.RELATIVE_MOUSE_AUTO, TouchGestureConfig.fromJson("""{"relativeMouseMode":9}""").relativeMouseMode)
+        assertEquals(TouchGestureConfig.RELATIVE_MOUSE_AUTO, TouchGestureConfig.fromJson("{}").relativeMouseMode)
+    }
+
     @Test fun removedOptionsAreIgnoredWhenLoadingExistingSettings() {
         val old = """{"holdMouseButtonWhileTouchingEnabled":true,"holdMouseButtonWhileTouchingAction":"right_click",
             "showClickHighlight":true,"showCursorInTouchscreenMode":true,"tapAction":"key_E","longPressDelay":650}"""
