@@ -243,6 +243,8 @@ object ComponentUpdater {
     private fun handBack(context: Context, state: JSONObject, protons: List<ComponentsManager.Proton>) {
         if (state.optBoolean(HANDED_BACK)) return
         val placed = placed(state)
+        val others = protons.filterNot(ComponentUpdates::follows).mapTo(HashSet()) { it.id }
+        runCatching { ComponentsManager.dropQueuedPackages(context, others, placed) }.onFailure { Log.w(TAG, "drop queued Auto builds", it) }.getOrNull() ?: return
         val strays = ComponentUpdates.strays(protons, ComponentsManager.activeChoices(context), placed)
         for ((p, comp) in strays) {
             runCatching { ComponentsManager.restoreUnlessQueued(context, p.id, comp, ComponentsManager.safeName(p.version)) }

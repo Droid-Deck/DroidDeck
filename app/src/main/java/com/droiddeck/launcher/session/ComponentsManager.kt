@@ -756,6 +756,24 @@ object ComponentsManager {
         saveState(context, state)
     }
 
+    fun dropQueuedPackages(context: Context, protonIds: Set<String>, files: Set<String>): Int = synchronized(lock) {
+        val state = loadState(context)
+        val queued = state.sub("queued")
+        var dropped = 0
+        for (pid in protonIds) {
+            val comps = queued.optJSONObject(pid) ?: continue
+            for (comp in comps.keys().asSequence().toList()) {
+                val entry = comps.optJSONObject(comp) ?: continue
+                if (entry.optString("kind") != "package" || entry.optBoolean("auto") || entry.optString("file") !in files) continue
+                comps.remove(comp)
+                dropped++
+            }
+            if (comps.length() == 0) queued.remove(pid)
+        }
+        if (dropped > 0) saveState(context, state)
+        dropped
+    }
+
     class StoredPackage(val pkg: Package, val inUse: Boolean)
     class StoredOriginal(val protonId: String, val protonName: String?, val comp: String, val protonVersion: String, val size: Long, val kept: Boolean)
     class Stored(val packages: List<StoredPackage>, val originals: List<StoredOriginal>)
