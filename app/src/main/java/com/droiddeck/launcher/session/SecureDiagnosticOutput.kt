@@ -535,12 +535,17 @@ private class AndroidDiagnosticOutputDirectory(
         val staging = AndroidDiagnosticOutputProvider.openInternalStaging(context, true)
             ?: throw IOException("Diagnostic staging directory is unavailable")
         val temporaryName = ".diagnostic-${UUID.randomUUID()}.partial"
-        val raw = Os.open(
-            AndroidDiagnosticOutputProvider.childPath(staging, temporaryName),
-            OsConstants.O_WRONLY or OsConstants.O_CREAT or OsConstants.O_EXCL or OsConstants.O_CLOEXEC or
-                OsConstants.O_NOFOLLOW,
-            AndroidDiagnosticOutputProvider.fileMode,
-        )
+        val raw = try {
+            Os.open(
+                AndroidDiagnosticOutputProvider.childPath(staging, temporaryName),
+                OsConstants.O_WRONLY or OsConstants.O_CREAT or OsConstants.O_EXCL or OsConstants.O_CLOEXEC or
+                    OsConstants.O_NOFOLLOW,
+                AndroidDiagnosticOutputProvider.fileMode,
+            )
+        } catch (error: Throwable) {
+            runCatching { staging.close() }
+            throw error
+        }
         var renamed = false
         var completed = false
         try {
