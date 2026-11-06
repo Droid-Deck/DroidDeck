@@ -328,6 +328,18 @@ class ComponentUpdatesTest {
         assertEquals(emptySet<String>(), ComponentUpdater.placed(JSONObject()))
     }
 
+    @Test fun aBuildAutoMovedPastStillCountsUntilTheHandBackCompletes() {
+        val first = JSONObject().put("lines", JSONObject().put("dxvk", JSONObject().put("current", "a.wcp")))
+        val remembered = ComponentUpdater.placed(first)
+        val later = JSONObject().put(ComponentUpdater.HAND_BACK_FILES, JSONArray(remembered.sorted()))
+            .put("lines", JSONObject().put("dxvk", JSONObject().put("current", "c.wcp").put("previous", "b.wcp")))
+        val placed = ComponentUpdater.placed(later)
+        assertEquals(setOf("a.wcp", "b.wcp", "c.wcp"), placed)
+        val proton = proton("GE-Proton10-25")
+        val choices = mapOf(proton.id to mapOf("dxvk" to ComponentsManager.Choice("a.wcp", false, proton.version)))
+        assertTrue(ComponentUpdates.unseen(emptyList(), choices, placed))
+    }
+
     @Test fun onlyTheCurrentAndThePreviousBuildAndUserSelectionsAreKept() {
         assertEquals(setOf("b.wcp", "a.wcp", "mine.wcp"), ComponentUpdates.keep("b.wcp", "a.wcp", setOf("mine.wcp")))
         assertEquals(setOf("b.wcp"), ComponentUpdates.keep("b.wcp", ComponentUpdates.ORIGINAL, emptySet()))

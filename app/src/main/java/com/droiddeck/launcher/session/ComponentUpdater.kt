@@ -14,6 +14,7 @@ object ComponentUpdater {
     private const val CHECK_EVERY_MS = 3_600_000L
     private const val BOOTED_KEPT = 200
     private const val HANDED_BACK = "handedBack"
+    internal const val HAND_BACK_FILES = "handBackFiles"
     private val lock = Any()
     private val io = Any()
 
@@ -233,8 +234,9 @@ object ComponentUpdater {
     }
 
     internal fun placed(state: JSONObject): Set<String> {
-        val lines = state.optJSONObject("lines") ?: return emptySet()
-        return lines.keys().asSequence().flatMap { k ->
+        val remembered = state.strings(HAND_BACK_FILES)
+        val lines = state.optJSONObject("lines") ?: return remembered
+        return remembered + lines.keys().asSequence().flatMap { k ->
             val ls = lines.optJSONObject(k) ?: return@flatMap emptySequence()
             (ls.strings("owned") + ls.strings("bad") + ls.optString("current") + ls.optString("previous")).asSequence()
         }.filter { it.isNotEmpty() }.toSet()
@@ -243,6 +245,7 @@ object ComponentUpdater {
     private fun handBack(context: Context, state: JSONObject, protons: List<ComponentsManager.Proton>) {
         if (state.optBoolean(HANDED_BACK)) return
         val placed = placed(state)
+        state.put(HAND_BACK_FILES, JSONArray(placed.sorted()))
         val others = protons.filterNot(ComponentUpdates::follows).mapTo(HashSet()) { it.id }
         runCatching { ComponentsManager.dropQueuedPackages(context, others, placed) }.onFailure { Log.w(TAG, "drop queued Auto builds", it) }.getOrNull() ?: return
         val strays = ComponentUpdates.strays(protons, ComponentsManager.activeChoices(context), placed)
@@ -251,7 +254,10 @@ object ComponentUpdater {
                 .onFailure { Log.w(TAG, "hand back ${p.name} $comp", it) }
         }
         val after = ComponentsManager.activeChoices(context)
-        if (ComponentUpdates.strays(protons, after, placed).isEmpty() && !ComponentUpdates.unseen(protons, after, placed)) state.put(HANDED_BACK, true)
+        if (ComponentUpdates.strays(protons, after, placed).isEmpty() && !ComponentUpdates.unseen(protons, after, placed)) {
+            state.put(HANDED_BACK, true)
+            state.remove(HAND_BACK_FILES)
+        }
     }
 
     internal fun dropRemoved(state: JSONObject, protons: List<ComponentsManager.Proton>) {
