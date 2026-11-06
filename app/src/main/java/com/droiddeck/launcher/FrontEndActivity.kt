@@ -3025,6 +3025,7 @@ class FrontEndActivity : ComponentActivity() {
                     android.widget.Toast.makeText(this, it, android.widget.Toast.LENGTH_LONG).show()
                 }
                 refresh()
+                if (ok == true && LinuxRuntime.isInstalled(this)) protons.checkUpdates()
             }
         }, "runtime-operation").start()
     }
@@ -3032,9 +3033,12 @@ class FrontEndActivity : ComponentActivity() {
     private fun autoUpdateRuntime() {
         val release = available?.takeIf { catalogFresh } ?: return
         if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) || runtimeChangesBlocked() || removalPending) return
-        if (release.version == installed || installed == null) return
+        if (installed != null) com.droiddeck.launcher.runtime.RuntimeAutoUpdate.seed(this)
+        if (release.version == installed) return
+        if (installed == null && (OfflineMode.enabled(this) || !com.droiddeck.launcher.core.DeviceSupport.canDraw(this) ||
+                !com.droiddeck.launcher.frontend.AutoComponents.online(this) || com.droiddeck.launcher.frontend.AutoComponents.unfavourable(this))) return
         if (com.droiddeck.launcher.runtime.RuntimeAutoUpdate.claim(this, installed, release.version)) {
-            Log.i(TAG, "runtime: updating $installed to ${release.version} by itself")
+            Log.i(TAG, "runtime: installing ${release.version} over ${installed ?: "nothing"} by itself")
             install(release)
         }
     }
