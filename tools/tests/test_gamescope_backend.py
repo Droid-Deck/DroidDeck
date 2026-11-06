@@ -9,12 +9,40 @@ import unittest
 
 SESSION = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/droiddeck-session"
 DESKTOP_GPU = Path(__file__).resolve().parents[1] / "linuxfs/desktop/droiddeck-gpu"
+PATCHES = Path(__file__).resolve().parents[1] / "gamescope/patches"
 GRAPHICS_KEYS = ("DROIDDECK_SYSTEM_VULKAN_GPU", "DROIDDECK_SYSTEM_VULKAN_RUNTIME", "DROIDDECK_POWERVR_RUNTIME",
                  "DROIDDECK_SYSTEM_VULKAN_PRESENTATION", "DROIDDECK_SYSTEM_VULKAN_DXVK",
                  "DROIDDECK_HYBRIS_SESSION_LAYERS", "DROIDDECK_HYBRIS_LAYER_PATH",
                  "DROIDDECK_HYBRIS_SESSION_BC_TEXTURES", "HYBRIS_BC_TEXTURES",
                  "VK_LAYER_PATH", "VK_INSTANCE_LAYERS", "WSI_X11_FORCE_SHM", "ENABLE_GAMESCOPE_WSI",
                  "VK_LOADER_LAYERS_DISABLE", "DISABLE_WSI_LAYER")
+
+
+class GamescopePatchSetTest(unittest.TestCase):
+    def test_non_adreno_patches_have_one_canonical_copy(self):
+        canonical = {
+            "0920-nested-swapchain-capability-fallback.patch",
+            "0921-powervr-single-pixel-rcas.patch",
+            "0922-powervr-linear-dmabuf-import.patch",
+            "0923-powervr-rgba-copy-surface.patch",
+            "0924-sdl-preserve-explicit-refresh.patch",
+            "0925-sdl-wait-before-present.patch",
+            "0927-shm-buffers-upload-every-commit.patch",
+        }
+        superseded = {
+            "0120-nested-swapchain-capability-fallback.patch",
+            "0121-powervr-single-pixel-rcas.patch",
+            "0122-powervr-linear-dmabuf-import.patch",
+            "0123-powervr-rgba-copy-surface.patch",
+            "0124-sdl-preserve-explicit-refresh.patch",
+            "0125-sdl-wait-before-present.patch",
+            "0127-refresh-shm-buffer-contents.patch",
+        }
+        names = {path.name for path in PATCHES.glob("*.patch")}
+        self.assertLessEqual(canonical, names)
+        self.assertTrue(superseded.isdisjoint(names))
+        contents = [path.read_bytes() for path in PATCHES.glob("*.patch")]
+        self.assertEqual(len(contents), len(set(contents)))
 
 
 class GamescopeBackendTest(unittest.TestCase):

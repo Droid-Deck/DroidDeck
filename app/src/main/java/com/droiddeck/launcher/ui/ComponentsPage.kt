@@ -1018,7 +1018,7 @@ private fun Stack(
         LayerCard(
             title = LayerTitle(l),
             value = when (l) {
-                GPU_TAB -> gpuCardValue(gpu, auto)
+                GPU_TAB -> if (gpu.systemVulkan) stringResource(R.string.gpu_system_driver, gpu.systemDriverName) else gpuCardValue(gpu, auto)
                 PROTON_TAB -> (view?.proton?.name ?: "") + " ▾"
                 else -> if (ComponentsManager.runtimeManaged(l, gpu.runtimeManagedDxvk)) stringResource(R.string.gpu_system_driver, gpu.systemDriverName)
                     else st?.let { if (it.activeFile == null) original else it.inUse } ?: ""

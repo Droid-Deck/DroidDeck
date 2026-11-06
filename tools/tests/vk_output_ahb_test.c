@@ -20,6 +20,7 @@ typedef struct AHardwareBuffer { int references; AHardwareBuffer_Desc desc; } AH
 static AHardwareBuffer buffer;
 static VkDevice g_dev = (VkDevice)(uintptr_t)1;
 static VkPhysicalDevice g_pd = (VkPhysicalDevice)(uintptr_t)2;
+static int g_dev_state = 1;
 static uint32_t g_vendor_id;
 static char *g_library_name;
 static VkPhysicalDeviceMemoryProperties g_memprops;

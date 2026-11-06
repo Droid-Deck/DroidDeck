@@ -1,5 +1,6 @@
 import hashlib
 import gzip
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -14,11 +15,11 @@ ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = Path('app/build/runtime-inputs.json')
 PACKS = Path('app/build/packs')
 PACKED = {'assets/linuxfs/usr/local/lib/droiddeck-xbox/': 'xbox', 'assets/linuxfs/usr/local/lib/droiddeck-comet/': 'comet',
-          'assets/directaudio/': 'directaudio'}
+          'assets/directaudio/': 'directaudio', 'assets/hybris/': 'powervr'}
 PACKED_FILES = {'lib/arm64-v8a/libproot.so': ('proot', 'libproot.so'),
                 'lib/arm64-v8a/libproot-loader.so': ('proot', 'libproot-loader.so')}
 PACKED_LIBRARIES = ['lib/arm64-v8a/libopencv_java4.so', 'lib/arm64-v8a/libmediapipe_tasks_jni.so']
-PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler']
+PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr']
 SYSTEM_VULKAN_COMPONENT_CONFIG = Path('tools/powervr/component-bootstrap.json')
 GAMESCOPE = 'assets/linuxfs/usr/local/bin/gamescope'
 # These are production diagnostics from 0120-nested-swapchain-capability-fallback.patch.
@@ -34,6 +35,7 @@ SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app
                 'tools/linuxfs', 'tools/proot', 'tools/aaudio-sink', 'tools/directaudio', 'tools/packs',
                 'tools/gamescope/release.env', 'tools/powervr/component-bootstrap.json', 'tools/droiddeck-esync/release.env',
                 'tools/mangoapp', 'tools/msitools', 'tools/pipewire', 'tools/comet', 'tools/xbox', 'tools/dirt-ws2', 'tools/components', 'tools/ci', 'tools/build_local.sh',
+                'tools/powervr', 'tools/hybris', 'tools/dxvk', 'tools/vulkan-wsi',
                 'tools/release/runtime_inputs.py', 'app/src/main/assets/desktop-removal',
                 'tools/quest', 'tools/vr/src', 'tools/vr/driver_droiddeck', 'tools/vr/layer', 'tools/vr/build.sh',
                 'tools/gpuload',
@@ -131,7 +133,7 @@ def sources(root):
 
 def outputs(root):
     result = {}
-    for tree in ['linuxfs', 'directaudio', 'droiddeck-esync', 'desktop-removal']:
+    for tree in ['linuxfs', 'directaudio', 'droiddeck-esync', 'desktop-removal', 'hybris']:
         base = root / 'app/src/main/assets' / tree
         for path in base.rglob('*'):
             if path.is_file() and not any(part.startswith('.') for part in path.relative_to(base).parts):
@@ -164,6 +166,8 @@ def required():
     paths += ['assets/linuxfs/i386/libfaultreport.so']
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-msitools/' + name for name in
               ['msiinfo', 'cabextract', '7z', '7z.so', 'libmsi-1.0.so.0', 'libgsf-1.so.114', 'libgcab-1.0.so.0']]
+    paths += ['assets/linuxfs/usr/local/lib/droiddeck-xclipse/' + name for name in
+              ['libVkLayer_droiddeck_xclipse.so', 'VkLayer_droiddeck_xclipse.json']]
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-vr/' + name for name in
               ['droiddeck/bin/linuxarm64/driver_droiddeck.so', 'droiddeck/bin/linuxarm64/xr-display-mode',
                'droiddeck/driver.vrdrivermanifest',
@@ -196,6 +200,7 @@ def required():
     paths += ['assets/desktop-removal/' + name for name in
               ['lxqt-r1.tsv.gzip', 'kde-remove.tsv.gzip', 'kde-keep.txt.gzip',
                'emulators-keep.txt.gzip', 'versions.txt', 'sources.json']]
+    paths += ['assets/hybris/runtime.tzst', 'assets/hybris/version.txt']
     return paths
 
 
@@ -210,6 +215,13 @@ def validate_gamescope_system_vulkan_fallbacks(root, gamescope):
         raise ValueError('Gamescope lacks System Vulkan nested-swapchain fallbacks: ' + '; '.join(missing))
 
 
+def verify_powervr(root):
+    spec = importlib.util.spec_from_file_location('powervr_fetch', ROOT / 'tools/powervr/fetch.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.verify(root)
+
+
 def record(root=ROOT):
     if root == ROOT:
         from check_session_assets import source_assets
@@ -222,6 +234,7 @@ def record(root=ROOT):
     if missing:
         raise ValueError('Missing runtime inputs:\n' + '\n'.join(missing))
     validate_gamescope_system_vulkan_fallbacks(root, (root / paths[GAMESCOPE]).read_bytes())
+    verify_powervr(root)
     for name, path in paths.items():
         if name.startswith('assets/desktop-removal/') and name.endswith('.gzip'):
             try:

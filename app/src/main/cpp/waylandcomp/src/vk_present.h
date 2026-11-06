@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <android/native_window.h>
 #include <android/hardware_buffer.h>
+
 void vk_present_set_driver(const char *driver_path, const char *library_name,
                            const char *native_lib_dir);
 
@@ -67,6 +68,10 @@ int vkp_ready(void);
 int vkp_has_window(void);
 int vkp_wait_window_request(int timeout_ms);
 int vkp_device_lost(void);
+/* Compositor thread only. Submitted reads may still be pending: retain imported
+ * buffer references and withhold DMA-BUF releases until the app process exits.
+ * This terminal state is distinct from genuine device loss. */
+int vkp_completion_unknown(void);
 
 int vkp_render(int scene_w, int scene_h, const struct vkp_draw *draws, int n);
 int vkp_render_plain(int scene_w, int scene_h);

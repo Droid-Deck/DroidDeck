@@ -30,34 +30,34 @@ public final class LinuxVulkanDriver {
     }
 
     public static String optionLabel(Context context, String value) {
-        if (value == null || value.isEmpty()) return SystemVulkanDriver.isSupportedGpu()
-                ? context.getString(R.string.gpu_system_driver, SystemVulkanDriver.gpuName()) : "Runtime default (built into the runtime)";
+        if (value == null || value.isEmpty()) return SystemVulkanDriver.isPowerVr()
+                ? context.getString(R.string.gpu_system_powervr) : "Runtime default (built into the runtime)";
         LinuxVulkanDriverManager m = new LinuxVulkanDriverManager(context);
-        if (!m.isInstalled(value)) return value + (SystemVulkanDriver.isSupportedGpu()
+        if (!m.isInstalled(value)) return value + (SystemVulkanDriver.isPowerVr()
                 ? " (imported, missing)" : " (imported, missing - uses the runtime default)");
         String ver = m.getDriverVersion(value);
         return m.getDriverName(value) + (ver.isEmpty() ? "" : " " + ver) + " (imported)";
     }
 
     public static String resolveIcdPath(Context context, String value) {
-        boolean systemGpu = SystemVulkanDriver.isSupportedGpu();
-        return resolveIcdPath(value, systemGpu,
+        boolean powerVr = SystemVulkanDriver.isPowerVr();
+        return resolveIcdPath(value, powerVr,
                 () -> SystemVulkanDriver.icdPath(context), id -> {
                     String icd = new LinuxVulkanDriverManager(context).getIcdPath(id);
                     if (icd == null) Log.w(TAG, "imported Linux driver \"" + id + "\" is gone"
-                            + (systemGpu ? "" : "; using the runtime's own driver"));
+                            + (powerVr ? "" : "; using the runtime's own driver"));
                     else Log.i(TAG, "Linux session draws with imported driver " + id + " (" + icd + ")");
                     return icd;
                 });
     }
 
     /** Resolve the selected backend before looking up an imported driver. */
-    static String resolveIcdPath(String value, boolean systemGpu, Supplier<String> systemIcd,
+    static String resolveIcdPath(String value, boolean powerVr, Supplier<String> systemIcd,
                                  Function<String, String> importedIcd) {
-        if (SystemVulkanDriver.usesDefault(systemGpu, value)) return systemIcd.get();
+        if (SystemVulkanDriver.usesDefault(powerVr, value)) return systemIcd.get();
         if (value == null || value.isEmpty()) return null;
         String icd = importedIcd.apply(value);
-        if (systemGpu && icd == null) throw new IllegalStateException(
+        if (powerVr && icd == null) throw new IllegalStateException(
                 "Selected Linux Vulkan driver \"" + value + "\" is unavailable. Select an installed driver or use Auto.");
         return icd;
     }

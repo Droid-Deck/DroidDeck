@@ -25,17 +25,20 @@ data class GpuInfo(
         A6XX("Adreno 6xx"),
         ADRENO_UNKNOWN("Adreno"),
         POWERVR("PowerVR"),
-        XCLIPSE("Xclipse"),
-        MALI("Mali"),
+        /** Mali on Arm's kbase driver, by the open PanVK build each generation needs. */
+        MALI_JM("Mali (G52-G78)"),
+        MALI_G610_G710("Mali-G610/G710"),
+        MALI_G615("Mali-G615"),
+        MALI_G720("Mali-G720"),
+        /** Mali-G715/G725/G925: only the one-binary PanVK kbase build covers them (Android 15+). */
+        MALI_LATEST("Mali-G715/G725/G925"),
+        /** A Mali no open driver build covers: the Vulkan bridge is its only path. */
+        MALI_OTHER("Mali"),
         NOT_ADRENO("Not an Adreno GPU");
 
-        val systemProfile: SystemVulkanDriver.Profile?
-            get() = when (this) {
-                POWERVR -> SystemVulkanDriver.Profile.POWERVR
-                XCLIPSE -> SystemVulkanDriver.Profile.XCLIPSE
-                MALI -> SystemVulkanDriver.Profile.MALI
-                else -> null
-            }
+        val mali: Boolean get() = name.startsWith("MALI_")
+
+        fun label(gpuName: String): String = if (this == POWERVR && gpuName.contains("Xclipse", ignoreCase = true)) "Samsung Xclipse" else label
 
         fun label(context: Context): String = if (this == NOT_ADRENO) context.getString(R.string.gpuinfo_not_adreno) else label
     }
@@ -59,8 +62,10 @@ data class GpuInfo(
         get() = when (support) {
             Support.TESTED -> "Supported"
             Support.UNTESTED -> when {
-                family.systemProfile != null && family == Family.POWERVR -> "System ${family.systemProfile!!.gpuName} driver: compatibility varies by device"
-                family.systemProfile != null -> "Experimental system ${family.systemProfile!!.gpuName} driver: compatibility varies by device"
+                family == Family.POWERVR -> if (name.contains("Xclipse", ignoreCase = true)) "Experimental: RADV or the system Xclipse driver"
+                    else "System PowerVR driver: compatibility varies by device"
+                family == Family.MALI_OTHER -> "Experimental: Mali through the phone's own driver (Venus)"
+                family.mali -> "Experimental: open Mali driver (test builds)"
                 isA850 -> "Experimental Adreno 850 support: requires compatible experimental display and game drivers; not verified on this device"
                 family == Family.A7XX_LOW -> "Experimental: its drivers are test builds"
                 else -> "Outside tested hardware (Adreno 650, 725 and newer): it may not run"
@@ -83,14 +88,13 @@ data class GpuInfo(
     fun supportText(context: Context): String = context.getString(when (support) {
         Support.TESTED -> R.string.gpuinfo_supported
         Support.UNTESTED -> when {
-            family == Family.POWERVR -> R.string.gpuinfo_system_driver
-            family == Family.XCLIPSE || family == Family.MALI -> R.string.gpuinfo_system_experimental
+            family == Family.POWERVR -> if (name.contains("Xclipse", ignoreCase = true)) R.string.gpuinfo_xclipse else R.string.gpuinfo_powervr
             isA850 -> R.string.gpuinfo_a850_experimental
-            family == Family.A7XX_LOW -> R.string.gpuinfo_experimental
+            family == Family.A7XX_LOW || family.mali -> R.string.gpuinfo_experimental
             else -> R.string.gpuinfo_below_tested
         }
         Support.UNSUPPORTED -> R.string.gpuinfo_unsupported
-    }, family.systemProfile?.gpuName.orEmpty())
+    })
 
     fun displayName(context: Context): String = if (name == UNNAMED) context.getString(R.string.gpu_this_gpu) else name
 
@@ -102,24 +106,22 @@ data class GpuInfo(
             val raw = FileUtils.readString(File("/sys/class/kgsl/kgsl-3d0/gpu_model"))?.trim()
             val chipId = FileUtils.readString(File("/sys/class/kgsl/kgsl-3d0/gpu_chipid"))?.trim().orEmpty()
             val soc = if (adreno) SocNames.label() else ""
-            val fromKernel = raw?.let { threeDigits(it) } ?: 0
-            val fromVulkan = if (fromKernel > 0 || !adreno) 0 else VulkanInfo.cachedOrNull()?.get("device")?.let { threeDigits(it) } ?: 0
-            val fromPlatform = if (fromKernel > 0 || fromVulkan > 0 || !adreno) 0 else platformModel()
-            val model = maxOf(fromKernel, fromVulkan, fromPlatform)
-            val source = when {
-                fromKernel > 0 -> "kernel"
-                fromVulkan > 0 -> "vulkan"
-                fromPlatform > 0 -> "platform"
-                else -> ""
-            }
             val platformGpuModel = if (adreno) platformModel() else 0
-            val family = familyOf(adreno, model, SystemVulkanDriver.profile())
-            val systemGpuName = family.systemProfile?.gpuName
+            val (model, source) = if (adreno) modelFromNames(
+                raw,
+                { VulkanInfo.cachedOrNull()?.get("device") },
+                { platformGpuModel },
+            ) else 0 to ""
+            // Mali, named by the vendor's Vulkan driver ("Mali-G720-Immortalis MC12") or by kbase.
+            val mali = if (adreno || !File("/dev/mali0").exists()) null else maliName()
+            val family = familyOf(adreno, model, SystemVulkanDriver.isPowerVr(), mali)
             val samsung = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
             return GpuInfo(
                 name = when {
-                    systemGpuName != null -> VulkanInfo.cachedOrNull()?.get("device")
-                        ?.takeIf { it.contains(systemGpuName, ignoreCase = true) } ?: systemGpuName
+                    family == Family.POWERVR -> SystemVulkanDriver.gpuName().let { gpu ->
+                        VulkanInfo.cachedOrNull()?.get("device")?.takeIf { it.contains(gpu, ignoreCase = true) } ?: gpu
+                    }
+                    mali != null && mali.isNotEmpty() -> mali
                     !adreno -> Build.HARDWARE.ifBlank { UNNAMED }
                     model > 0 -> "Adreno $model"
                     else -> "Adreno"
@@ -165,12 +167,68 @@ data class GpuInfo(
             ""
         }
 
-        internal fun familyOf(adreno: Boolean, model: Int, systemProfile: SystemVulkanDriver.Profile? = null): Family = when {
-            !adreno && systemProfile != null -> when (systemProfile) {
-                SystemVulkanDriver.Profile.POWERVR -> Family.POWERVR
-                SystemVulkanDriver.Profile.XCLIPSE -> Family.XCLIPSE
-                SystemVulkanDriver.Profile.MALI -> Family.MALI
+        /**
+         * The Mali's name, "" when nothing names it: the vendor Vulkan driver's own name when this
+         * process has asked it, kbase's gpuinfo where SELinux lets the app read it (most phones do
+         * not), else the GPU the chip is known to carry ([MALI_SOCS]).
+         */
+        private fun maliName(): String =
+            VulkanInfo.cachedOrNull()?.get("device")?.takeIf { it.contains("Mali", ignoreCase = true) }
+                ?: FileUtils.readString(File("/sys/class/misc/mali0/device/gpuinfo"))?.trim()?.takeIf { it.contains("Mali", ignoreCase = true) }
+                    ?.substringBefore(" ")
+                ?: maliOfSoc(socIds())
+                ?: ""
+
+        /** The chip's names as the platform gives them: "mt6989", "MT6989", "gs201". */
+        private fun socIds(): List<String> = listOfNotNull(
+            if (Build.VERSION.SDK_INT >= 31) Build.SOC_MODEL else null,
+            systemProperty("ro.board.platform"), systemProperty("ro.soc.model"), Build.HARDWARE, Build.BOARD,
+        ).filter { it.isNotBlank() }
+
+        /** Chips whose Mali is known for certain (MediaTek Dimensity / Helio / Kompanio, Google Tensor). */
+        private val MALI_SOCS = mapOf(
+            "mt6993" to "Mali-G1-Ultra", "mt6991" to "Mali-G925", "mt6989" to "Mali-G720", "mt6899" to "Mali-G720", "mt6985" to "Mali-G715",
+            "mt6983" to "Mali-G710", "mt6897" to "Mali-G615", "mt6878" to "Mali-G615", "mt6895" to "Mali-G610",
+            "mt6896" to "Mali-G610", "mt6886" to "Mali-G610", "mt6893" to "Mali-G77", "mt6891" to "Mali-G77",
+            "mt6889" to "Mali-G77", "mt6885" to "Mali-G77", "mt6877" to "Mali-G68", "mt6853" to "Mali-G57",
+            "mt6833" to "Mali-G57", "mt6835" to "Mali-G57", "mt6789" to "Mali-G57", "mt6785" to "Mali-G76",
+            "mt6781" to "Mali-G52", "mt6769" to "Mali-G52", "mt8192" to "Mali-G57", "mt8195" to "Mali-G57",
+            "gs101" to "Mali-G78", "gs201" to "Mali-G710", "zuma" to "Mali-G715", "zumapro" to "Mali-G715",
+            "s5e8835" to "Mali-G68", "s5e8825" to "Mali-G68",
+        )
+
+        /** The Mali [ids] name a chip of, "Mali-G720 (by chip mt6989)", or null for an unknown chip. */
+        internal fun maliOfSoc(ids: List<String>): String? = ids.firstNotNullOfOrNull { id ->
+            MALI_SOCS[id.trim().lowercase()]?.let { "$it (by chip ${id.trim().lowercase()})" }
+        }
+
+        /** The number in a Mali's name: 720 for "Mali-G720-Immortalis MC12". */
+        fun maliNumber(name: String): Int? =
+            Regex("""G(\d{2,3})""", RegexOption.IGNORE_CASE).find(name)?.groupValues?.get(1)?.toIntOrNull()
+
+        /**
+         * The Malis the one-binary PanVK kbase build covers (arch v9-v13): G57/G68/G77/G78,
+         * G610/G710, G615/G715, G720/G725 and G925. Not the older Bifrost G52/G76.
+         */
+        fun maliKbaseCovered(name: String): Boolean =
+            maliNumber(name) in setOf(57, 68, 77, 78, 610, 710, 615, 715, 720, 725, 925)
+
+        /** The PanVK generation a Mali name belongs to; MALI_OTHER when none of the builds covers it. */
+        internal fun maliFamily(name: String): Family {
+            val number = maliNumber(name) ?: return Family.MALI_OTHER
+            return when (number) {
+                31, 51, 52, 57, 68, 71, 72, 76, 77, 78 -> Family.MALI_JM
+                610, 710 -> Family.MALI_G610_G710
+                615 -> Family.MALI_G615
+                720 -> Family.MALI_G720
+                715, 725, 925 -> Family.MALI_LATEST
+                else -> Family.MALI_OTHER
             }
+        }
+
+        internal fun familyOf(adreno: Boolean, model: Int, powerVr: Boolean = false, mali: String? = null): Family = when {
+            !adreno && powerVr -> Family.POWERVR
+            !adreno && mali != null -> maliFamily(mali)
             !adreno -> Family.NOT_ADRENO
             model == 0 -> Family.ADRENO_UNKNOWN
             model >= 800 -> Family.A8XX

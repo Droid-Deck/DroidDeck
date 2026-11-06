@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s через FEX</string>
     <string name="app_fex_not_ready">Эта программа собрана для ПК на %1$s и работает через FEX, который еще не настроен. Откройте Steam один раз, войдя в аккаунт: DroidDeck скачает через него FEX и нужную Steam Linux Runtime, после чего программа откроется.</string>
     <string name="session_proot_missing">Не удалось скачать proot DroidDeck. Проверьте подключение и повторите попытку. Сессия не запущена, так как резервный proot слишком медленный для игры.</string>
+    <string name="session_powervr_missing">Не удалось скачать графическую среду PowerVR. Проверьте подключение и повторите попытку.</string>
     <string name="session_directaudio_missing">Не удалось скачать DirectAudio, поэтому в этой сессии звук игр идёт по более медленному пути.</string>
     <string name="session_end_program">Эта программа</string>
     <string name="session_end_steam_download">Не удалось скачать клиент Steam. Возможно, ваша сеть или VPN блокирует серверы Steam; проверьте подключение и повторите попытку.</string>
@@ -1474,8 +1475,8 @@
     <string name="main_wadb_unavailable">Отладка по Wi-Fi недоступна</string>
     <string name="main_adb_copied">Команда ADB скопирована</string>
     <string name="main_pick_roms">Выберите папку ROM</string>
-    <string name="main_non_adreno_title">GPU не Adreno</string>
-    <string name="main_non_adreno_text">Turnip поддерживает GPU Adreno. На %1$s в Steam может быть черный экран. Загрузка: %2$.0f МБ.</string>
+    <string name="main_non_adreno_title">Неподдерживаемый GPU</string>
+    <string name="main_non_adreno_text">Для %1$s нет совместимого графического бэкенда. В Steam может отображаться чёрный экран. Загрузка: %2$.0f МБ.</string>
     <string name="main_install_anyway">Все равно установить</string>
     <string name="main_remove_runtime_title">Удалить среду выполнения Linux</string>
     <string name="main_remove_runtime_text">Будут удалены среда выполнения, клиент Steam в ней и все установленные туда игры.</string>
@@ -2250,7 +2251,7 @@
     <string name="gpuinfo_experimental">Экспериментально: его драйверы — тестовые сборки</string>
     <string name="gpuinfo_a850_experimental">Экспериментальная поддержка Adreno 850: требуются совместимые экспериментальные драйверы дисплея и игр; не проверено на этом устройстве</string>
     <string name="gpuinfo_below_tested">Ниже проверенного оборудования (Adreno 725 и новее): может не работать</string>
-    <string name="gpuinfo_unsupported">Не поддерживается: DroidDeck требует GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">Не поддерживается: для этого GPU нет совместимого графического бэкенда</string>
     <string name="gpuinfo_bridge">Работает через мост Mali на собственном драйвере Vulkan телефона</string>
     <string name="gpuinfo_bridge_off">Не поддерживается без моста Mali: Turnip нужен GPU Adreno (Snapdragon)</string>
 

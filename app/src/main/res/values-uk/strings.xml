@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s через FEX</string>
     <string name="app_fex_not_ready">Цю програму зібрано для ПК з архітектурою %1$s, і вона працює через FEX, який ще не налаштовано. Один раз відкрийте Steam, увійшовши в обліковий запис: DroidDeck завантажить FEX і потрібний йому Steam Linux Runtime, після чого програма відкриється.</string>
     <string name="session_proot_missing">Не вдалося завантажити proot DroidDeck. Перевірте зʼєднання та спробуйте ще раз. Сеанс не запущено, бо резервний proot занадто повільний для гри.</string>
+    <string name="session_powervr_missing">Не вдалося завантажити графічне середовище PowerVR. Перевірте підключення й повторіть спробу.</string>
     <string name="session_directaudio_missing">Не вдалося завантажити DirectAudio, тому в цьому сеансі звук ігор іде повільнішим шляхом.</string>
     <string name="session_end_program">Ця програма</string>
     <string name="session_end_steam_download">Не вдалося завантажити клієнт Steam. Можливо, ваша мережа або VPN блокує сервери Steam; перевірте з’єднання та спробуйте ще раз.</string>
@@ -821,7 +822,7 @@
     <string name="setup_gpu_unsupported">GPU не підтримується</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam потребує драйвера Adreno; %1$s може показувати чорний екран</string>
+    <string name="setup_gpu_unsupported_detail">Для %1$s немає сумісного графічного бекенда. Steam може показувати чорний екран.</string>
     <string name="setup_runtime">Середовище Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Не встановлено · приблизно 3 GB, встановлюється під час першого натискання «Грати»</string>
@@ -1428,8 +1429,8 @@
     <string name="main_wadb_unavailable">Бездротове налагодження недоступне</string>
     <string name="main_adb_copied">Команду ADB скопійовано</string>
     <string name="main_pick_roms">Виберіть папку ROMs</string>
-    <string name="main_non_adreno_title">GPU не Adreno</string>
-    <string name="main_non_adreno_text">Turnip підтримує GPU Adreno. На %1$s Steam може показувати чорний екран. Завантаження: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">Непідтримуваний GPU</string>
+    <string name="main_non_adreno_text">Для %1$s немає сумісного графічного бекенда. Steam може показувати чорний екран. Завантаження: %2$.0f МБ.</string>
     <string name="main_install_anyway">Усе одно встановити</string>
     <string name="main_remove_runtime_title">Видалити середовище Linux</string>
     <string name="main_remove_runtime_text">Буде видалено середовище, клієнт Steam у ньому та всі встановлені там ігри.</string>
@@ -2169,7 +2170,7 @@
     <string name="gpuinfo_experimental">Експериментально: його драйвери - тестові збірки</string>
     <string name="gpuinfo_a850_experimental">Експериментальна підтримка Adreno 850: потрібні сумісні експериментальні драйвери дисплея та ігор; не перевірено на цьому пристрої</string>
     <string name="gpuinfo_below_tested">Нижче за протестоване обладнання (Adreno 725 і новіші): може не запрацювати</string>
-    <string name="gpuinfo_unsupported">Не підтримується: DroidDeck потребує GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">Не підтримується: для цього GPU немає сумісного графічного бекенда</string>
 
     <string name="turnip_rate_limited">Перевищено ліміт запитів GitHub - спробуйте пізніше</string>
     <string name="turnip_github_http">GitHub відповів HTTP %1$d</string>

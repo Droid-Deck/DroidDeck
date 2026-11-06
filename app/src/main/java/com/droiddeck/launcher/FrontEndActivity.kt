@@ -165,6 +165,8 @@ class FrontEndActivity : ComponentActivity() {
     private var tuSysmem by mutableStateOf(false)
     private var zinkLazy by mutableStateOf(false)
     private var vkBridge by mutableStateOf(false)
+    private var venus by mutableStateOf(false)
+    private var venusHostVulkan by mutableStateOf<String?>(null)
     private var vkBridgeSafe by mutableStateOf(true)
     private var bridgeProtonDxvk by mutableStateOf(false)
     private val adrenoGpu by lazy { com.droiddeck.launcher.core.DeviceSupport.adreno() }
@@ -579,6 +581,10 @@ class FrontEndActivity : ComponentActivity() {
     private var gameDebugLogsNeedsRestart by mutableStateOf(false)
     private var vacDiagnostics by mutableStateOf(false)
     private var agentCommands by mutableStateOf(false)
+    private var graphicsLogs by mutableStateOf(false)
+    private var steamGpuDrawing by mutableStateOf(false)
+    private var bridgeFellBack by mutableStateOf(false)
+    private var bridgeFellBackMemory by mutableStateOf(false)
     private var clearCachedApps by mutableStateOf(false)
     private var adbPaired by mutableStateOf(false)
     private var memoryHud by mutableStateOf(SessionPrefs.MEMORY_HUD_OFF)
@@ -1130,7 +1136,7 @@ class FrontEndActivity : ComponentActivity() {
                 FrontEndScreen(
                     FrontEndState(
                         installed = installed, ready = ready, available = available?.version, removalPending = removalPending, runtimeActionsBlocked = runtimeChangesBlocked(),
-                        vkBridge = vkBridge, vkBridgeSafe = vkBridgeSafe, bridgeProtonDxvk = bridgeProtonDxvk, adreno = adrenoGpu,
+                        vkBridge = vkBridge, venus = venus, venusHostVulkan = venusHostVulkan, vkBridgeSafe = vkBridgeSafe, bridgeProtonDxvk = bridgeProtonDxvk, adreno = adrenoGpu,
                         shortcutPicker = shortcutPicker,
                         shortcutLibraryScanning = shortcutLibraryScanning,
                         gameSyncFolder = gameSyncFolder,
@@ -1141,6 +1147,7 @@ class FrontEndActivity : ComponentActivity() {
                         enhancedDiagnosticsArmed = enhancedDiagnosticsArmed,
                         gameDebugLogsEnabled = gameDebugLogsEnabled, gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart,
                         vacDiagnostics = vacDiagnostics, agentCommands = agentCommands,
+                        graphicsLogs = graphicsLogs, steamGpuDrawing = steamGpuDrawing, bridgeFellBack = bridgeFellBack, bridgeFellBackMemory = bridgeFellBackMemory,
                         clearCachedApps = clearCachedApps, adbPaired = adbPaired, memoryHud = memoryHud, backgroundAppLimit = backgroundAppLimit,
                         steamGames = steamGames, steamGamesX64 = steamGamesX64, emulators = emulatorList, running = runningLabel,
                         frameGen = FrameGen.mode(this),
@@ -1286,8 +1293,17 @@ class FrontEndActivity : ComponentActivity() {
                         onRemovePackage = { id -> removePackage(id) },
                         onRuntime = { onRuntimeButton() },
                         onVkBridge = { on ->
-                            SessionPrefs.setVkBridge(this, on); vkBridge = on
+                            SessionPrefs.setVkBridge(this, on); SessionPrefs.setMaliFallbackByAuto(this, ""); vkBridge = on
                             if (!on) com.droiddeck.launcher.session.ComponentsManager.settleAutoDxvk(this)
+                        },
+                        onVenus = { on ->
+                            SessionPrefs.setVenus(this, on)
+                            SessionPrefs.setMaliFallbackByAuto(this, "")
+                            venus = on
+                            if (on && !com.droiddeck.launcher.core.DeviceSupport.adreno()) Thread({
+                                com.droiddeck.launcher.gpu.VulkanInfo.query()["api"]?.let { SessionPrefs.setHostVulkanApi(this, it) }
+                                runOnUiThread { venusHostVulkan = com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(this) }
+                            }, "venus-host-vulkan").start()
                         },
                         onVkBridgeSafe = { on -> SessionPrefs.setVkBridgeSafe(this, on); vkBridgeSafe = on },
                         onBridgeProtonDxvk = { on ->
@@ -1346,6 +1362,14 @@ class FrontEndActivity : ComponentActivity() {
                             ).show()
                             gameDebugLogsEnabled = SessionPrefs.gameDebugLogsEnabled(this)
                             gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart()
+                        },
+                        onSteamGpuDrawing = {
+                            SessionPrefs.setSteamGpuCompositing(this, !SessionPrefs.steamGpuCompositing(this))
+                            steamGpuDrawing = SessionPrefs.steamGpuCompositing(this)
+                        },
+                        onGraphicsLogs = {
+                            SessionPrefs.setDetailedGraphicsLogs(this, !SessionPrefs.detailedGraphicsLogs(this))
+                            graphicsLogs = SessionPrefs.detailedGraphicsLogs(this)
                         },
                         onVacDiagnostics = {
                             SessionPrefs.setVacDiagnostics(this, !SessionPrefs.vacDiagnostics(this))
@@ -1686,6 +1710,9 @@ class FrontEndActivity : ComponentActivity() {
             com.droiddeck.launcher.frontend.GamesFolderMigration.run(this)
             if (!preserveShareCache) SessionLogShare.clear(this)
             SessionArtifacts.finishAbandoned(this)
+            if (SessionPrefs.takeMemoryKillNotice(this)) runOnUiThread {
+                android.widget.Toast.makeText(this, R.string.session_killed_for_memory, android.widget.Toast.LENGTH_LONG).show()
+            }
             SessionArtifacts.scrubOlder(this)
             SessionArtifacts.prune(this)
         }, "finish-abandoned").start()
@@ -2146,6 +2173,7 @@ class FrontEndActivity : ComponentActivity() {
             gpuActions = com.droiddeck.launcher.ui.GpuDriversActions(
                 onAuto = { on -> drivers.setMode(on) },
                 onPair = { key -> drivers.selectPair(key) },
+                onPairUpdate = { key -> drivers.updatePair(key) },
                 onRefresh = { drivers.refreshSources() },
                 onSelectLinux = { id -> drivers.selectDriver(id, linux = true) },
                 onSelectAndroid = { id -> drivers.selectDriver(id, linux = false) },
@@ -2700,6 +2728,8 @@ class FrontEndActivity : ComponentActivity() {
         tuSysmem = SessionPrefs.tuSysmem(this)
         zinkLazy = SessionPrefs.zinkLazy(this)
         vkBridge = SessionPrefs.vkBridge(this)
+        venus = SessionPrefs.venus(this)
+        venusHostVulkan = com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(this)
         vkBridgeSafe = SessionPrefs.vkBridgeSafe(this)
         bridgeProtonDxvk = SessionPrefs.bridgeProtonDxvk(this)
         noXalia = SessionPrefs.noXalia(this)
@@ -2825,6 +2855,10 @@ class FrontEndActivity : ComponentActivity() {
         gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart()
         vacDiagnostics = SessionPrefs.vacDiagnostics(this)
         agentCommands = com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this)
+        graphicsLogs = SessionPrefs.detailedGraphicsLogs(this)
+        steamGpuDrawing = SessionPrefs.steamGpuCompositing(this)
+        bridgeFellBack = SessionPrefs.bridgeFellBack(this)
+        bridgeFellBackMemory = SessionPrefs.bridgeFellBackForMemory(this)
         clearCachedApps = SessionPrefs.clearCachedApps(this)
         adbPaired = WirelessAdbFix.hasSavedPairing(this)
         memoryHud = SessionPrefs.memoryHud(this)
@@ -2926,16 +2960,12 @@ class FrontEndActivity : ComponentActivity() {
 
     private fun startSession(intent: Intent, steamSession: Boolean = false): Boolean {
         if (busy || LinuxRuntimeInstaller.isBusy()) return false
-        val graphicsRoute = com.droiddeck.launcher.core.DeviceSupport.graphicsRoute(
-            this,
-            SessionPrefs.linuxDriver(this),
-        )
-        if (com.droiddeck.launcher.core.DeviceSupport.needsSystemVulkanComponent(
-                SessionState.running,
-                graphicsRoute,
-                com.droiddeck.launcher.gpu.SystemVulkanDriver.isAvailable(),
-                com.droiddeck.launcher.gpu.SystemVulkanDriver.isReady(this),
-            )) {
+        val linuxChoice = SessionPrefs.linuxDriver(this)
+        val graphicsRoute = com.droiddeck.launcher.core.DeviceSupport.graphicsRoute(this, linuxChoice)
+        val missingManagedSystemVulkan = !SessionState.running && graphicsRoute.systemVulkan &&
+            com.droiddeck.launcher.gpu.SystemVulkanDriver.requiresInstalledManagedComponent(linuxChoice) &&
+            !com.droiddeck.launcher.gpu.SystemVulkanDriver.isReady(this, linuxChoice)
+        if (missingManagedSystemVulkan) {
             components.compComp = com.droiddeck.launcher.ui.GPU_TAB
             showComponents = true
             drivers.ensureAuto(force = false)

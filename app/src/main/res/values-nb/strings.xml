@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s via FEX</string>
     <string name="app_fex_not_ready">Dette programmet er bygget for %1$s-PC-er og kjører via FEX, som ikke er satt opp ennå. Åpne Steam én gang mens du er innlogget: DroidDeck lar den laste ned FEX og Steam Linux Runtime den trenger, og så åpnes dette.</string>
     <string name="session_proot_missing">Kunne ikke laste ned DroidDecks proot. Sjekk tilkoblingen og prøv igjen. Sesjonen ble ikke startet, fordi reserve-proot er for treg til å spille på.</string>
+    <string name="session_powervr_missing">PowerVR-grafikkmiljøet kunne ikke lastes ned. Sjekk tilkoblingen og prøv igjen.</string>
     <string name="session_directaudio_missing">Kunne ikke laste ned DirectAudio, så spillyd bruker den tregere veien i denne sesjonen.</string>
     <string name="session_end_program">Dette programmet</string>
     <string name="session_end_steam_download">Kunne ikke laste ned Steam-klienten. Nettverket eller VPN-en din blokkerer kanskje Steams servere; sjekk tilkoblingen og prøv igjen.</string>
@@ -815,7 +816,7 @@
     <string name="setup_gpu_unsupported">GPU ikke støttet</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam krever en Adreno-driver; %1$s kan vise en svart skjerm</string>
+    <string name="setup_gpu_unsupported_detail">Ingen kompatibel grafikkbackend er tilgjengelig for %1$s. Steam kan vise en svart skjerm.</string>
     <string name="setup_runtime">Linux-kjøretid</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Ikke installert · omtrent 3 GB, installeres ved første Spill</string>
@@ -1404,8 +1405,8 @@
     <string name="main_wadb_unavailable">Trådløs feilsøking er ikke tilgjengelig</string>
     <string name="main_adb_copied">ADB-kommando kopiert</string>
     <string name="main_pick_roms">Velg ROM-mappen</string>
-    <string name="main_non_adreno_title">Ikke en Adreno-GPU</string>
-    <string name="main_non_adreno_text">Turnip støtter Adreno-GPU-er. På %1$s kan Steam vise en svart skjerm. Nedlasting: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">GPU støttes ikke</string>
+    <string name="main_non_adreno_text">Ingen kompatibel grafikkbackend er tilgjengelig for %1$s. Steam kan vise en svart skjerm. Nedlasting: %2$.0f MB.</string>
     <string name="main_install_anyway">Installer likevel</string>
     <string name="main_remove_runtime_title">Fjern Linux-kjøretid</string>
     <string name="main_remove_runtime_text">Dette sletter kjøretiden, Steam-klienten inni den, og hvert spill installert der.</string>
@@ -2119,7 +2120,7 @@
     <string name="gpuinfo_experimental">Eksperimentell: driverne er testbuilder</string>
     <string name="gpuinfo_a850_experimental">Eksperimentell støtte for Adreno 850: krever kompatible eksperimentelle skjerm- og spilldrivere; ikke bekreftet på denne enheten</string>
     <string name="gpuinfo_below_tested">Under testet maskinvare (Adreno 725 og nyere): den kan ikke kjøre</string>
-    <string name="gpuinfo_unsupported">Ikke støttet: DroidDeck krever en Adreno (Snapdragon) GPU</string>
+    <string name="gpuinfo_unsupported">Støttes ikke: ingen kompatibel grafikkbackend er tilgjengelig for denne GPU-en</string>
 
     <string name="turnip_rate_limited">GitHubs hastighetsgrense ble nådd – prøv igjen senere</string>
     <string name="turnip_github_http">GitHub svarte HTTP %1$d</string>

@@ -49,13 +49,13 @@ class TurnipSourcesTest {
             val partial = TurnipReleases.refresh(context)
             assertTrue(partial.rateLimited)
             assertEquals(1, partial.assets.size)
-            assertEquals(2, partial.failed.size)
-            assertEquals(4, calls)
+            assertEquals(TurnipReleases.sourceBuiltIns().size - 1, partial.failed.size)
+            assertEquals(TurnipReleases.sourceBuiltIns().size + 1, calls)
             val warmFailure = TurnipReleases.refresh(context)
             assertTrue(warmFailure.rateLimited)
             assertEquals(partial.assets.single().id, warmFailure.assets.single().id)
             assertEquals(partial.checkedAt, warmFailure.checkedAt)
-            assertEquals(4, calls)
+            assertEquals(TurnipReleases.sourceBuiltIns().size + 1, calls)
         } finally {
             GitHubArtifacts.openConnection = production
             GitHubArtifacts.clearRateLimits()
@@ -275,5 +275,6 @@ class TurnipSourcesTest {
             asset.label, asset.sha256, asset.pair, sourceId = custom.id, repository = custom.repository, assetId = 4)
         prefs.edit().putString("downloads", JSONObject().put(asset.name, "installed-2").toString()).commit()
         assertNull(TurnipReleases.installedId(context, forkAsset) { true })
+        assertNull(TurnipReleases.installedIdAnyBuild(context, forkAsset) { true })
     }
 }

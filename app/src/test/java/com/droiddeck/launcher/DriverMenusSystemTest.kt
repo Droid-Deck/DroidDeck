@@ -8,6 +8,7 @@ import com.droiddeck.launcher.artifact.RepositorySources
 import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.gpu.SystemVulkanComponentStore
 import com.droiddeck.launcher.gpu.SystemVulkanManifest
+import com.droiddeck.launcher.gpu.SystemVulkanDriver
 import com.droiddeck.launcher.gpu.TurnipDriver
 import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionPrefs
@@ -36,10 +37,11 @@ import java.util.concurrent.TimeUnit
 @Config(sdk = [28], application = Application::class)
 class DriverMenusSystemTest {
     private lateinit var activity: Activity
-    private val gpu = GpuInfo("Mali-G715", 0, GpuInfo.Family.MALI, "Tensor", false)
+    private val gpu = GpuInfo("Samsung Xclipse 940", 0, GpuInfo.Family.POWERVR, "Exynos", false)
 
     @Before fun setUp() {
         activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        SystemVulkanDriver.setProfileForTest(SystemVulkanDriver.Profile.XCLIPSE)
         SessionState.running = false
         SessionState.graphicsRoute = null
         SessionState.phase = SessionPhase.IDLE
@@ -56,6 +58,7 @@ class DriverMenusSystemTest {
         File(activity.filesDir, "components/system-vulkan").deleteRecursively()
         File(activity.filesDir, "repository-sources").deleteRecursively()
         File(activity.cacheDir, "repository-metadata").deleteRecursively()
+        SystemVulkanDriver.setProfileForTest(null)
         activity.finish()
     }
 
@@ -82,7 +85,7 @@ class DriverMenusSystemTest {
         val state = menus.state()
         val row = state.systemRows.single()
         assertEquals(SystemVulkanComponentStore.rowId(digest), state.linuxSelected)
-        assertEquals(activity.getString(R.string.gpu_system_runtime_title, "Mali"), row.name)
+        assertEquals(activity.getString(R.string.gpu_system_runtime_title, "Xclipse"), row.name)
         assertEquals(DriverRow.LEGACY, row.tag)
         assertTrue(row.detail.contains(activity.getString(R.string.gpu_system_legacy_detail)))
         assertFalse(row.removable)
@@ -123,7 +126,7 @@ class DriverMenusSystemTest {
         assertEquals(TurnipDriver.AUTO, reopened.state().androidSelected)
     }
 
-    @Test fun refreshingMaliMigratesBundledTurnipButRetainsManualImportedSelection() {
+    @Test fun refreshingXclipseMigratesBundledTurnipButRetainsManualImportedSelection() {
         SessionPrefs.setGpuDriverMode(activity, SessionPrefs.GPU_DRIVERS_MIX)
         SessionPrefs.setAndroidDriver(activity, TurnipDriver.BUNDLED.first())
         val menus = DriverMenus(activity, Handler(Looper.getMainLooper()), gpu)
@@ -194,16 +197,16 @@ class DriverMenusSystemTest {
     }
 
     @Test fun componentLabelsDistinguishVersionsFromCommitBuilds() {
-        assertEquals("Mali runtime component · Build 2eec15a5",
-            systemComponentTitle(activity, "Mali", "2eec15a54924"))
-        assertEquals("Mali runtime component · Version 2026.10.18",
-            systemComponentTitle(activity, "Mali", "2026.10.18"))
+        assertEquals("Xclipse runtime component · Build 2eec15a5",
+            systemComponentTitle(activity, "Xclipse", "2eec15a54924"))
+        assertEquals("Xclipse runtime component · Version 2026.10.18",
+            systemComponentTitle(activity, "Xclipse", "2026.10.18"))
         assertNull(systemComponentPublished(activity, "not-a-date"))
         assertTrue(systemComponentPublished(activity, "2026-10-18T09:48:00Z")!!.startsWith("Published "))
     }
 
     @Test fun systemRowsShowGithubChannelsAndKeepUnknownCachedBuildsUnlabelled() {
-        val profile = com.droiddeck.launcher.gpu.SystemVulkanDriver.Profile.MALI
+        val profile = SystemVulkanDriver.Profile.XCLIPSE
         val scope = SystemVulkanComponentStore.scope(profile)
         val defaults = SystemVulkanComponentStore.sourceBuiltIns()
         val initial = SystemVulkanComponentStore.initializeSources(activity, profile).single()
@@ -212,14 +215,14 @@ class DriverMenusSystemTest {
         val candidates = JSONArray()
         listOf(true, false, null).forEachIndexed { index, channel ->
             val hash = (index + 1).toString().repeat(64)
-            val tag = "system-vulkan-mali-v0.$index.0"
+            val tag = "system-vulkan-xclipse-v0.$index.0"
             candidates.put(JSONObject().put("key", "${source.id}:$hash").put("sourceId", source.id)
                 .put("repository", source.repository).put("repositoryId", source.repositoryId)
                 .put("releaseId", index + 1).put("tag", tag).put("publishedAt", "2026-10-18T00:00:00Z")
                 .put("version", "v0.$index.0").put("variant", profile.id).put("minSdk", 26)
                 .put("manifestSha256", "8".repeat(64)).put("assetId", index + 10)
-                .put("assetName", "system-vulkan-mali.tar.zst")
-                .put("assetUrl", "https://github.com/${source.repository}/releases/download/$tag/system-vulkan-mali.tar.zst")
+                .put("assetName", "system-vulkan-xclipse.tar.zst")
+                .put("assetUrl", "https://github.com/${source.repository}/releases/download/$tag/system-vulkan-xclipse.tar.zst")
                 .put("size", 100).put("sha256", hash).put("treeSha256", "9".repeat(64))
                 .put("producerCommit", "a".repeat(40))
                 .put("buildUrl", "https://github.com/${source.repository}/actions/runs/1").put("prerelease", channel))
@@ -269,7 +272,7 @@ class DriverMenusSystemTest {
     private fun legacy(digest: String) {
         val directory = File(activity.filesDir, "system_vulkan/$digest").apply { mkdirs() }
         File(directory, "icd.json").writeText("{}")
-        SystemVulkanManifest.required("mali").forEach { path ->
+        SystemVulkanManifest.required("xclipse").forEach { path ->
             File(directory, path).apply { parentFile!!.mkdirs(); writeText("payload") }
         }
         File(directory, "run-proton.py").setExecutable(true)

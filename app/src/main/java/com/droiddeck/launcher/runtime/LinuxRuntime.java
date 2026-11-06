@@ -139,8 +139,17 @@ public final class LinuxRuntime {
     public static List<String> command(Context context, File sessionRoot, File runtimeDir,
                                        File externalStorage, List<String> extraBinds,
                                        List<String> guestCommand) {
+        return command(context, sessionRoot, runtimeDir, externalStorage, extraBinds, guestCommand,
+                false, null);
+    }
+
+    public static List<String> command(Context context, File sessionRoot, File runtimeDir,
+                                       File externalStorage, List<String> extraBinds,
+                                       List<String> guestCommand, boolean systemVulkan,
+                                       String systemVulkanRenderNode) {
         File root = rootDir(context);
-        List<String> binds = binds(context, sessionRoot, runtimeDir, externalStorage, extraBinds);
+        List<String> binds = binds(context, sessionRoot, runtimeDir, externalStorage, extraBinds,
+                systemVulkan, systemVulkanRenderNode);
         if (sessionRoot != null) lastBinds = binds;
         return commandWithBinds(context, root, binds, guestCommand);
     }
@@ -186,13 +195,19 @@ public final class LinuxRuntime {
 
     public static List<String> binds(Context context, File sessionRoot, File runtimeDir,
                                      File externalStorage, List<String> extraBinds) {
+        return binds(context, sessionRoot, runtimeDir, externalStorage, extraBinds, false, null);
+    }
+
+    public static List<String> binds(Context context, File sessionRoot, File runtimeDir,
+                                     File externalStorage, List<String> extraBinds,
+                                     boolean systemVulkan, String systemVulkanRenderNode) {
         File root = rootDir(context);
         LegacyNames.migrateEtc(root);
         List<String> cmd = new ArrayList<>();
         bind(cmd, "/dev");
         bind(cmd, "/proc");
         bind(cmd, "/sys");
-        if (SystemVulkanDriver.isSupportedGpu()) {
+        if (systemVulkan) {
             // The glibc bridge loads the device's existing Android HAL and its dependencies.
             // These read-only Android partitions remain subject to the app's normal permissions.
             for (String path : new String[]{"/system", "/vendor", "/apex", "/system_ext", "/product", "/odm"})
@@ -206,6 +221,10 @@ public final class LinuxRuntime {
         bind(cmd, "/proc/self/fd/1:/dev/stdout");
         bind(cmd, "/proc/self/fd/2:/dev/stderr");
         bind(cmd, new File(root, "etc/droiddeck/empty").getPath() + ":/sys/fs/selinux");
+        // A kernel that refuses to list /sys/class/thermal (Pixel 10, Android 17) made mangoapp abort
+        // at start ("filesystem_error ... Permission denied: '/sys/class/thermal/'") until its
+        // wrapper gave up: it lists the directory for CPU temperatures. Empty there instead.
+        if (new File("/sys/class/thermal").list() == null) bind(cmd, new File(root, "etc/droiddeck/empty").getPath() + ":/sys/class/thermal");
         bind(cmd, context.getFilesDir().getPath());
         bind(cmd, context.getCacheDir().getPath());
         bind(cmd, liveDir(context).getPath());
@@ -267,9 +286,9 @@ public final class LinuxRuntime {
         if (unreadablePciDevice()) {
             bind(cmd, new File(root, "etc/droiddeck/empty").getPath() + ":/sys/bus/pci/devices");
         }
-        if (SystemVulkanDriver.requiresRenderNode()) {
-            bindSystemVulkanGpuNode(context, cmd);
-        } else if (!SystemVulkanDriver.isSupportedGpu()) {
+        if (systemVulkan) {
+            bindSystemVulkanGpuNode(context, cmd, systemVulkanRenderNode);
+        } else {
             bindGpuNode(context, cmd);
         }
         bindAdrenoStats(cmd, extraBinds);
@@ -282,14 +301,8 @@ public final class LinuxRuntime {
         return specs;
     }
 
-    private static void bindSystemVulkanGpuNode(Context context, List<String> cmd) {
-        if (new File("/dev/dri").list() != null) return;
-        String node = SystemVulkanDriver.renderNodePath();
-        if (node == null) return;
-        bindSystemVulkanGpuNode(context, cmd, node);
-    }
-
     static void bindSystemVulkanGpuNode(Context context, List<String> cmd, String node) {
+        if (node == null || new File("/dev/dri").list() != null) return;
         String name = new File(node).getName();
         File dri = new File(liveDir(context), "system-vulkan-drm/" + name + "/dri");
         try {
@@ -313,7 +326,7 @@ public final class LinuxRuntime {
         return false;
     }
 
-    static final String MALI_DEVICE = "/dev/mali0";
+    public static final String MALI_DEVICE = "/dev/mali0";
 
     static final String[] DRM_RENDER_NODES = {
         "/dev/dri/renderD128", "/dev/dri/renderD129", "/dev/dri/renderD130", "/dev/dri/renderD131",
@@ -321,6 +334,7 @@ public final class LinuxRuntime {
 
     public static String gpuStandIn(Context context) {
         if (new File(KGSL_DEVICE).exists()) return KGSL_DEVICE;
+        if (com.droiddeck.launcher.core.DeviceSupport.INSTANCE.openDriverActive(context) && new File(MALI_DEVICE).exists()) return MALI_DEVICE;
         if (!com.droiddeck.launcher.core.DeviceSupport.INSTANCE.vkBridge(context)) return null;
         return bridgeStandIn(path -> new File(path).exists());
     }

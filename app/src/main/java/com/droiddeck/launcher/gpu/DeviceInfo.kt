@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import com.droiddeck.launcher.core.FileUtils
-import com.droiddeck.launcher.core.DeviceSupport
 import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 import java.util.Locale
@@ -54,7 +53,7 @@ object DeviceInfo {
 
     private fun gpu(context: Context, gpu: GpuInfo) = Section("GPU", buildList<Pair<String, String>> {
         add("GPU", gpu.name)
-        add("Family", gpu.family.label)
+        add("Family", gpu.family.label(gpu.name))
         add("Model found from", when (gpu.modelSource) {
             "kernel" -> "the kernel's GPU name"
             "vulkan" -> "the Vulkan driver (the kernel's name has no model)"
@@ -68,8 +67,6 @@ object DeviceInfo {
         add("Load", read("$kgsl/gpu_busy_percentage")?.let { if (it.endsWith("%")) it else "$it %" })
         add("Temperature", read("$kgsl/temp")?.toLongOrNull()?.let { if (it > 1000) "${it / 1000} °C" else "$it °C" })
         add("Support", gpu.supportText(SessionPrefs.vkBridge(context)))
-        add("Graphics route", com.droiddeck.launcher.session.SessionState.effectiveGraphicsRoute(context).id)
-        add("Mali bridge requested", SessionPrefs.vkBridge(context).toString())
     })
 
     private fun cpu() = Section("CPU", buildList<Pair<String, String>> {
@@ -149,20 +146,26 @@ object DeviceInfo {
         add("Driver mode", SessionPrefs.gpuDriverMode(context))
         val turnip = TurnipDriver(context)
         val choice = SessionPrefs.androidDriver(context).ifEmpty { turnip.autoId() }
-        val profile = gpu.family.systemProfile
-        add("Display driver", if (choice == "system") builtinDriverLabel(profile, runtime = false)
+        val systemProfile = SystemVulkanDriver.profile()
+        add("Display driver", if (choice == "system") builtinDriverLabel(systemProfile, runtime = false)
             else "${turnip.displayName(choice)} ${turnip.driverVersion(choice)}".trim())
         val linux = LinuxVulkanDriverManager(context)
         val id = SessionPrefs.linuxDriver(context)
-        add("Game driver", if (id.isEmpty()) builtinDriverLabel(profile, runtime = true) else "${linux.getDriverName(id)} ${linux.getDriverVersion(id)}".trim())
+        add("Game driver", if (id.isEmpty()) builtinDriverLabel(systemProfile, runtime = true) else "${linux.getDriverName(id)} ${linux.getDriverVersion(id)}".trim())
         if (gpu.oneUi8Gen2) add("Note", "One UI on an 8 Gen 2: needs the OneUI Turnip build")
     })
 
     /** Shared by the device card and the session report, which are written in English. */
-    internal fun builtinDriverLabel(profile: SystemVulkanDriver.Profile?, runtime: Boolean): String = when {
-        profile != null -> "System ${profile.gpuName}"
+    internal fun builtinDriverLabel(powerVr: Boolean, runtime: Boolean): String = when {
+        powerVr -> "System PowerVR"
         runtime -> "the runtime's own Turnip"
         else -> "System Vulkan"
+    }
+
+    internal fun builtinDriverLabel(profile: SystemVulkanDriver.Profile?, runtime: Boolean): String = when (profile) {
+        SystemVulkanDriver.Profile.POWERVR -> "System PowerVR"
+        SystemVulkanDriver.Profile.XCLIPSE -> "System Xclipse"
+        else -> builtinDriverLabel(powerVr = false, runtime = runtime)
     }
 
 }

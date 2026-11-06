@@ -175,7 +175,7 @@ class SessionService : Service() {
         updateSuspendPolicy()
     }
     @Volatile private var sessionGen = 0
-    @Volatile private var systemVulkanSnapshot: SystemVulkanComponentStore.Snapshot? = null
+    @Volatile private var systemVulkanLease: SystemVulkanDriver.RuntimeLease? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -409,6 +409,7 @@ class SessionService : Service() {
     private fun collectSessionArtifacts(dir: File, steamArch: String?) {
         SessionLogCapture.stopFor(dir)
         try {
+            GraphicsReport.finish(dir)
             SessionArtifacts.collect(this, dir, "session stopped", steamArch)
         } finally {
             SessionPaths.release(this, dir)
@@ -428,6 +429,21 @@ class SessionService : Service() {
         return lines
     }
 
+    /** Whether a kernel release ("6.1.157-android14-11") is older than [major].[minor]; false if unreadable. */
+    internal fun kernelBefore(release: String, major: Int, minor: Int): Boolean {
+        val m = Regex("""^(\d+)\.(\d+)""").find(release) ?: return false
+        val (a, b) = m.destructured
+        return a.toInt() < major || (a.toInt() == major && b.toInt() < minor)
+    }
+
+    /** Whether the newest finished session's log shows Xwayland itself crashing. */
+    private fun lastXwaylandCrashed(): Boolean = runCatching {
+        val last = SessionPaths.sessionFolders(this).filter { it != SessionPaths.current() }.lastOrNull() ?: return false
+        val log = File(last, "session.log").takeIf { it.isFile } ?: return false
+        log.useLines { lines -> lines.any { it.contains("(EE) Segmentation fault") } } &&
+            log.useLines { lines -> lines.any { it.contains("X11 I/O error") || it.contains("Xwayland", ignoreCase = true) } }
+    }.getOrDefault(false)
+
     private fun tuDebugOverride(): String? = File(Environment.getExternalStorageDirectory(), TU_DEBUG_SWITCH)
         .takeIf { it.isFile }?.let { FileUtils.readString(it)?.trim() }?.takeIf { it.isNotEmpty() }
 
@@ -439,13 +455,25 @@ class SessionService : Service() {
 
 
     private fun runSession(gen: Int) {
-        systemVulkanSnapshot = null
+        if (!synchronized(stopLock) { sessionStartIsCurrent(gen, sessionGen, SessionState.running) }) {
+            Log.i(TAG, "session $gen stopped before its startup worker ran")
+            return
+        }
         SessionPrefs.ensureSystemVulkanAutoDrivers(this)
         val linuxDriverId = SessionPrefs.linuxDriver(this)
         val graphicsRoute = DeviceSupport.graphicsRoute(this, linuxDriverId)
-        SessionState.graphicsRoute = graphicsRoute
+        if (!synchronized(stopLock) {
+                updateCurrentSessionStart(gen, sessionGen, SessionState.running) {
+                    systemVulkanLease = null
+                    SessionState.graphicsRoute = graphicsRoute
+                }
+            }) {
+            Log.i(TAG, "session $gen was replaced while its graphics route was resolving")
+            return
+        }
+        val stillStarting = { gen == sessionGen && SessionState.running }
         if (graphicsRoute.bridge) {
-            if (SystemVulkanDriver.usesDefault(linuxDriverId)) {
+            if (SystemVulkanDriver.usesSystemVulkan(linuxDriverId)) {
                 Log.w(TAG, "Mali bridge is the exclusive graphics route; the selected System Vulkan component will not be loaded")
             }
             com.droiddeck.launcher.gpu.AutoDriverTrial.sessionStarting(
@@ -456,6 +484,12 @@ class SessionService : Service() {
                 linuxDriverId,
                 active = false,
             )
+        }
+        if (!com.droiddeck.launcher.core.DeviceSupport.adreno()) {
+            com.droiddeck.launcher.gpu.VulkanInfo.query()["api"]?.let { SessionPrefs.setHostVulkanApi(this, it) }
+            if (SessionPrefs.venus(this)) VenusComponent.hostVulkanTooOld(this)?.let {
+                Log.w(TAG, "venus: off for this session - the phone's driver reports Vulkan $it and gamescope needs 1.2 or newer; the session uses the PanVK pair or the bridge")
+            }
         }
         SessionTerminal.clear()
         com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice(this)
@@ -472,16 +506,44 @@ class SessionService : Service() {
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
         killStragglers()
         val (directAudioPack, agentEnvironment) = try {
-            if (graphicsRoute.systemVulkan) {
-                systemVulkanSnapshot = SystemVulkanDriver.prepareSnapshot(this, !OrphanReaper.hasOtherProcesses())
-                pruneSystemVulkanRuntime()
-            }
-            val stillStarting = { gen == sessionGen && SessionState.running }
             val prootPack = LinuxRuntime.patchedProot(this) || AddonPack.PROOT.await(this, stillStarting)
             val directAudioPack = AddonPack.DIRECTAUDIO.await(this, stillStarting)
+            if (graphicsRoute.systemVulkan && SystemVulkanDriver.requiresAddonPack(linuxDriverId)) {
+                val powerVrPack = AddonPack.POWERVR.await(this, stillStarting)
+                when (startupAwaitResult(stillStarting(), powerVrPack)) {
+                    StartupAwaitResult.CANCELLED -> {
+                        Log.i(TAG, "session stopped while the PowerVR add-on was downloading")
+                        return
+                    }
+                    StartupAwaitResult.MISSING -> {
+                        val message = getString(R.string.session_powervr_missing)
+                        Log.e(TAG, "powervr pack unavailable; the system graphics runtime cannot be prepared")
+                        failSession(gen, "POWERVR_MISSING", message, -1)
+                        stopSession(-1, gen)
+                        return
+                    }
+                    StartupAwaitResult.READY -> Unit
+                }
+            }
             if (!stillStarting()) {
                 Log.i(TAG, "session stopped while add-on packs were downloading")
                 return
+            }
+            if (graphicsRoute.systemVulkan) {
+                val preparedLease = SystemVulkanDriver.prepareLease(
+                    this,
+                    linuxDriverId,
+                    !OrphanReaper.hasOtherProcesses(),
+                )
+                if (!synchronized(stopLock) {
+                        updateCurrentSessionStart(gen, sessionGen, SessionState.running) {
+                            systemVulkanLease = preparedLease
+                        }
+                    }) {
+                    Log.i(TAG, "session stopped while the system graphics runtime was unpacking")
+                    return
+                }
+                pruneSystemVulkanRuntime()
             }
             if (!directAudioPack) {
                 Log.w(TAG, "directaudio pack unavailable; game audio drivers will not be staged")
@@ -503,10 +565,19 @@ class SessionService : Service() {
             val entries = runCatching { com.droiddeck.launcher.agent.AgentEnv.beginSession(this) }
                 .onFailure { Log.w(TAG, "agent environment skipped", it) }
                 .getOrDefault(emptyList())
+            if (!stillStarting()) {
+                Log.i(TAG, "session stopped before runtime files were staged")
+                return
+            }
             SessionFiles.stage(this, root, startsSession = true)
             directAudioPack to entries
         } catch (error: Exception) {
+            if (!stillStarting()) {
+                Log.i(TAG, "session stopped while the graphics runtime was being prepared")
+                return
+            }
             Log.e(TAG, "Could not prepare the session graphics runtime", error)
+            failSession(gen, "VULKAN_DRIVER_UNAVAILABLE", error.message ?: "Selected graphics runtime is unavailable", -1)
             stopSession(-1, gen)
             return
         }
@@ -561,6 +632,7 @@ class SessionService : Service() {
             addClientEnvironment(guest, steamHere, agentEnvironment, graphicsRoute, linuxDriverId)
         } catch (error: IllegalStateException) {
             Log.e(TAG, "Could not configure the session graphics driver", error)
+            failSession(gen, "VULKAN_DRIVER_UNAVAILABLE", error.message ?: "Selected graphics driver is unavailable", -1)
             stopSession(-1, gen)
             return
         }
@@ -568,6 +640,9 @@ class SessionService : Service() {
         val fastPathAt = guest.size
 
         val pulse = startAudio(guest, sessionDir, directAudioPack)
+        if (graphicsRoute.venus) {
+            components.add(VenusComponent(File(sessionDir, "venus.log")).also { it.attach(this) })
+        }
         if (steamHere) {
             val encoder = VideoEncodeBridge(File(filesDir, "venc/venc.sock"))
             encoder.attach(this)
@@ -625,6 +700,10 @@ class SessionService : Service() {
         guest.add("BL_LAUNCH_DIR=" + sessionRoot.path)
         GameStorage.effective(this)?.let { guest.add("BL_LIBRARY_LABEL=" + it.label.replace('"', ' ')) }
         if (SessionState.mode == MODE_STEAM && SessionState.steamUi == "desktop") guest.add("BL_STEAM_UI=desktop")
+        // Detailed graphics logs: per-game logs and the guest's Vulkan summary (a GPU that is not
+        // an Adreno, or Setup's switch), and graphics-report.txt for every session.
+        if (GraphicsReport.detailed(this)) guest.add("BL_GAME_LOGS=1")
+        GraphicsReport.begin(this, sessionDir, guest)
         val shellGuest = ArrayList(guest).apply {
             add("SHELL=/bin/bash")
             add("TERM=xterm-256color")
@@ -656,7 +735,7 @@ class SessionService : Service() {
 
         val binds = sessionBinds(controllersOn, fakeInputDir, sessionDir, guest, sessionRoot, runtimeDir)
         val fastPathKey = if (ProotFastPath.enabled(this)) {
-            val prootBinds = LinuxRuntime.binds(
+            val prootBinds = runtimeBinds(
                 this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds,
             )
             val root = LinuxRuntime.rootDir(this)
@@ -671,7 +750,7 @@ class SessionService : Service() {
             }
         } else null
 
-        val command = LinuxRuntime.command(
+        val command = runtimeCommand(
             this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds, guest,
         )
 
@@ -689,7 +768,7 @@ class SessionService : Service() {
         val prootLibs = LinuxRuntime.prootLibraryPath(this)
         if (prootLibs.isNotEmpty()) hostEnv["LD_LIBRARY_PATH"] = prootLibs
 
-        val terminalCommand = LinuxRuntime.command(
+        val terminalCommand = runtimeCommand(
             this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds, shellGuest,
         )
         val terminalHostEnvironment = LinkedHashMap(System.getenv())
@@ -724,7 +803,14 @@ class SessionService : Service() {
             if (gen == sessionGen) components.clear()
             return
         }
-        components.forEach { it.start() }
+        try {
+            components.forEach { it.start() }
+        } catch (e: Exception) {
+            Log.e(TAG, "Could not start the session components", e)
+            failSession(gen, "COMPONENT_START_FAILED", e.message ?: "Session component could not be started", -1)
+            stopSession(-1, gen)
+            return
+        }
 
         val line = command.joinToString(" ") {
             it.replace("\\", "\\\\").replace(" ", "\\ ")
@@ -832,6 +918,40 @@ class SessionService : Service() {
         return sessionDir
     }
 
+    private fun runtimeBinds(
+        context: Context,
+        sessionRoot: File,
+        runtimeDir: File,
+        externalStorage: File,
+        extraBinds: List<String>,
+    ): List<String> {
+        val systemVulkan = SessionState.graphicsRoute?.systemVulkan == true
+        val renderNode = if (systemVulkan) requireNotNull(systemVulkanLease) {
+            "System Vulkan runtime lease is unavailable"
+        }.renderNode else null
+        return LinuxRuntime.binds(
+            context, sessionRoot, runtimeDir, externalStorage, extraBinds, systemVulkan, renderNode,
+        )
+    }
+
+    private fun runtimeCommand(
+        context: Context,
+        sessionRoot: File,
+        runtimeDir: File,
+        externalStorage: File,
+        extraBinds: List<String>,
+        guestCommand: List<String>,
+    ): List<String> {
+        val systemVulkan = SessionState.graphicsRoute?.systemVulkan == true
+        val renderNode = if (systemVulkan) requireNotNull(systemVulkanLease) {
+            "System Vulkan runtime lease is unavailable"
+        }.renderNode else null
+        return LinuxRuntime.command(
+            context, sessionRoot, runtimeDir, externalStorage, extraBinds, guestCommand,
+            systemVulkan, renderNode,
+        )
+    }
+
     private fun relativeMouseForSession(): Int {
         val game = if (SessionState.mode == MODE_RUN) SessionState.program?.let { "program:$it" }
             else SessionState.gameId?.toLongOrNull()?.toString()
@@ -873,32 +993,59 @@ class SessionService : Service() {
         guest.add("MESA_LOADER_DRIVER_OVERRIDE=zink")
         guest.add("GALLIUM_DRIVER=zink")
         guest.add("LIBGL_KOPPER_DRI2=true")
-        LinuxRuntime.vulkanIcd(this)?.let { guest.add("VK_ICD_FILENAMES=" + it.path) }
+        val venus = graphicsRoute.venus
         val systemVulkan = graphicsRoute.systemVulkan
+        if (venus) VenusComponent.guestEnv(this).forEach { guest.add(it) }
         configureGraphicsRouteEnvironment(
             graphicsRoute,
             guest,
             addSystemVulkan = { environment ->
-                val snapshot = systemVulkanSnapshot
-                    ?: throw IllegalStateException("System Vulkan session snapshot is unavailable")
-                SystemVulkanDriver.addEnvironment(snapshot, environment)
-                SystemVulkanComponentStore.launchStarting(this, snapshot, SessionState.generation)
-                SystemVulkanDriver.icdPath(snapshot)
+                val lease = systemVulkanLease
+                    ?: throw IllegalStateException("System Vulkan session runtime is unavailable")
+                SystemVulkanDriver.addEnvironment(lease, environment)
+                lease.snapshot?.let {
+                    SystemVulkanComponentStore.launchStarting(this, it, SessionState.generation)
+                }
+                Log.i(TAG, "system Vulkan: ${lease.provider.name.lowercase()} ${lease.profile.id} ${lease.version}")
+                SystemVulkanDriver.icdPath(lease)
             },
             linuxIcd = { LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId) },
         )
-        SessionState.runtimeDriver = linuxDriverId.takeUnless { graphicsRoute.bridge }
-        if (!graphicsRoute.bridge) {
-            com.droiddeck.launcher.gpu.AutoDriverTrial.sessionStarting(
-                this,
-                com.droiddeck.launcher.wayland.CompositorHost.displayChoice.takeIf { com.droiddeck.launcher.wayland.CompositorHost.isStarted }
-                    ?: SessionPrefs.androidDriver(this),
-                linuxDriverId,
-            )
+        SessionState.runtimeDriver = linuxDriverId.takeIf { graphicsRoute.systemVulkan || graphicsRoute.linuxVulkan }
+        com.droiddeck.launcher.gpu.AutoDriverTrial.sessionStarting(
+            this,
+            com.droiddeck.launcher.wayland.CompositorHost.displayChoice.takeIf { com.droiddeck.launcher.wayland.CompositorHost.isStarted }
+                ?: SessionPrefs.androidDriver(this),
+            linuxDriverId,
+            active = graphicsRoute.linuxVulkan,
+        )
+        if (!com.droiddeck.launcher.core.DeviceSupport.adreno() && lastXwaylandCrashed()) {
+            guest.add("XWAYLAND_NO_GLAMOR=1")
+            Log.w(TAG, "xwayland: the last session's Xwayland crashed; glamor off for this one (XWAYLAND_NO_GLAMOR=1)")
+        }
+        if (!com.droiddeck.launcher.core.DeviceSupport.adreno()) guest.add("BL_RAISE_NOFILE=1")
+        if (!com.droiddeck.launcher.core.DeviceSupport.adreno()) {
+            val kernel = System.getProperty("os.version").orEmpty()
+            val old = kernelBefore(kernel, 6, 6)
+            val maliNode = LinuxRuntime.gpuStandIn(this) == LinuxRuntime.MALI_DEVICE
+            if (old || maliNode) {
+                guest.add("GAMESCOPE_DISABLE_EXPLICIT_SYNC=1")
+                Log.i(TAG, "gamescope: explicit sync off (" + (if (old) "kernel $kernel has no SYNCOBJ_EVENTFD" else "Mali stand-in node has no syncobjs") + ")")
+            }
+        }
+        if (graphicsRoute.linuxVulkan && com.droiddeck.launcher.core.DeviceSupport.openDriverActive(this)) {
+            if (SessionPrefs.steamGpuCompositing(this)) {
+                Log.i(TAG, "steam: GPU web compositing (Setup's \"Steam interface: GPU drawing\")")
+            } else {
+                guest.add("BL_STEAM_SOFT_COMPOSITING=1")
+                Log.i(TAG, "steam: software web compositing for the open driver pair (GPU raster kept)")
+            }
+            guest.add("BL_OPEN_DRIVER=1")
+            LinuxRuntime.gpuStandIn(this)?.takeIf { it == LinuxRuntime.MALI_DEVICE }?.let { guest.add("BL_DRM_STANDIN=$it") }
         }
         val tuOverride = tuDebugOverride()
         val tuDriver = sysmemDriver(linuxDriverId)
-        (tuOverride ?: "sysmem".takeIf { tuDriver || SessionPrefs.tuSysmem(this) })?.let { guest.add("TU_DEBUG=$it") }
+        if (!venus && com.droiddeck.launcher.core.DeviceSupport.adreno()) (tuOverride ?: "sysmem".takeIf { tuDriver || SessionPrefs.tuSysmem(this) })?.let { guest.add("TU_DEBUG=$it") }
         if (SessionPrefs.zinkLazy(this)) {
             guest.add("ZINK_DESCRIPTORS=lazy")
             guest.add("ZINK_DEBUG=compact")
@@ -971,6 +1118,7 @@ class SessionService : Service() {
             standIn,
             standIn?.let { LinuxRuntime.deviceNumbers(it) },
         )
+        if (SessionPrefs.steamGpuCompositing(this)) guest.add("BL_STEAM_GPU_COMPOSITING=1")
         Log.i(TAG, "vkbridge: on (${com.droiddeck.launcher.core.DeviceSupport.gpuName(this)}, ${SessionPrefs.vkBridgeMode(this)} mode), socket $socket")
     }
 
@@ -1201,7 +1349,7 @@ class SessionService : Service() {
         val gamesLibraries = GameStorage.gamesFolderLibraries(this)
         if (gamesLibraries.isNotEmpty()) {
             var room = if (ProotFastPath.enabled(this)) {
-                ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
+                ProotFastPath.MAX_BINDS - runtimeBinds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
             } else Int.MAX_VALUE
             for (games in gamesLibraries) {
                 if (games.host.path + ":" + games.guest !in binds) continue
@@ -1243,7 +1391,7 @@ class SessionService : Service() {
             }
             try {
                 val room = if (ProotFastPath.enabled(this)) {
-                    ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
+                    ProotFastPath.MAX_BINDS - runtimeBinds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
                 } else Int.MAX_VALUE
                 val content = SecondaryLibrary.contentPath(entry.host)
                 val extra = SecondaryLibrary.binds(filesDir, entry.host, listOf(entry.guest), content = content)
@@ -1272,7 +1420,7 @@ class SessionService : Service() {
                 Log.w(TAG, "x86-64 steam library: $problem")
             } else try {
                 val room = if (ProotFastPath.enabled(this)) {
-                    ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
+                    ProotFastPath.MAX_BINDS - runtimeBinds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
                 } else Int.MAX_VALUE
                 val extra = SecondaryLibrary.binds(filesDir, x64, listOf(GameStorage.X64_CARD_GUEST)).drop(1)
                 if (extra.size > room) {
@@ -1294,7 +1442,7 @@ class SessionService : Service() {
             }
             try {
                 val room = if (ProotFastPath.enabled(this)) {
-                    ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
+                    ProotFastPath.MAX_BINDS - runtimeBinds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
                 } else Int.MAX_VALUE
                 val extra = SecondaryLibrary.binds(filesDir, entry.x64Host, listOf(entry.x64Guest)).drop(1)
                 if (extra.size > room) {
@@ -1991,6 +2139,7 @@ class SessionService : Service() {
             return
         }
         completeNativeSleep()
+        var stoppedGen = -1
         val (ended, endedArch) = synchronized(stopLock) {
             if (gen != null && gen != sessionGen) return
             cancelQueuedSteamGame()
@@ -2000,6 +2149,7 @@ class SessionService : Service() {
             SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
             SessionState.running = false
             SessionState.graphicsRoute = null
+            stoppedGen = sessionGen
             val ended = SessionPaths.take()
             if (ended != null) SessionArtifacts.collectionStarted(ended)
             ended to SessionState.steamClientArch
@@ -2008,8 +2158,7 @@ class SessionService : Service() {
         SessionState.micEnabled = false
         xrActivityVisible = false
         updateDownloadMonitoring()
-        val stoppedGen = sessionGen
-        val stoppedSystemVulkanSnapshot = systemVulkanSnapshot
+        val stoppedSystemVulkanLease = systemVulkanLease
         val stoppedSession = SessionState.sessionId
         val launcherEnded = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP || SessionState.program == NoSteamLaunch.EPIC ||
             SessionState.program == NoSteamLaunch.BATTLENET
@@ -2038,8 +2187,8 @@ class SessionService : Service() {
         components.reversed().forEach {
             try {
                 it.stop()
-            } catch (e: Exception) {
-                Log.w(TAG, "stopping ${it.javaClass.simpleName}", e)
+            } catch (error: Exception) {
+                Log.w(TAG, "stopping ${it.javaClass.simpleName}", error)
             }
         }
         components.clear()
@@ -2058,9 +2207,9 @@ class SessionService : Service() {
                     if (prootPid > 1) teardown(prootPid)
                     killGuestLeftovers()
                     pruneSystemVulkanRuntime()
-                    SystemVulkanComponentStore.sessionStopped(stoppedGen)
-                    if (shouldClearSystemVulkanSnapshot(stoppedGen, sessionGen, stoppedSystemVulkanSnapshot, systemVulkanSnapshot)) {
-                        systemVulkanSnapshot = null
+                    stoppedSystemVulkanLease?.snapshot?.let { SystemVulkanComponentStore.sessionStopped(stoppedGen) }
+                    if (shouldClearSystemVulkanRuntime(stoppedGen, sessionGen, stoppedSystemVulkanLease, systemVulkanLease)) {
+                        systemVulkanLease = null
                     }
                     finishSessionStop(status, stoppedGen, collectEnded)
                     if (launcherEnded) importLauncherGames()
@@ -2069,9 +2218,9 @@ class SessionService : Service() {
                 Thread({
                     com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
                     pruneSystemVulkanRuntime()
-                    SystemVulkanComponentStore.sessionStopped(stoppedGen)
-                    if (shouldClearSystemVulkanSnapshot(stoppedGen, sessionGen, stoppedSystemVulkanSnapshot, systemVulkanSnapshot)) {
-                        systemVulkanSnapshot = null
+                    stoppedSystemVulkanLease?.snapshot?.let { SystemVulkanComponentStore.sessionStopped(stoppedGen) }
+                    if (shouldClearSystemVulkanRuntime(stoppedGen, sessionGen, stoppedSystemVulkanLease, systemVulkanLease)) {
+                        systemVulkanLease = null
                     }
                     finishSessionStop(status, stoppedGen, collectEnded)
                     if (launcherEnded) importLauncherGames()
@@ -2516,11 +2665,33 @@ class SessionService : Service() {
     }
 }
 
-internal fun shouldClearSystemVulkanSnapshot(
+internal fun sessionStartIsCurrent(generation: Int, currentGeneration: Int, running: Boolean): Boolean =
+    running && generation == currentGeneration
+
+internal inline fun updateCurrentSessionStart(
+    generation: Int,
+    currentGeneration: Int,
+    running: Boolean,
+    update: () -> Unit,
+): Boolean {
+    if (!sessionStartIsCurrent(generation, currentGeneration, running)) return false
+    update()
+    return true
+}
+
+internal enum class StartupAwaitResult { READY, MISSING, CANCELLED }
+
+internal fun startupAwaitResult(stillStarting: Boolean, ready: Boolean): StartupAwaitResult = when {
+    !stillStarting -> StartupAwaitResult.CANCELLED
+    ready -> StartupAwaitResult.READY
+    else -> StartupAwaitResult.MISSING
+}
+
+internal fun shouldClearSystemVulkanRuntime(
     stoppedGeneration: Int,
     currentGeneration: Int,
-    stopped: SystemVulkanComponentStore.Snapshot?,
-    current: SystemVulkanComponentStore.Snapshot?,
+    stopped: Any?,
+    current: Any?,
 ): Boolean = stoppedGeneration == currentGeneration && stopped === current
 
 internal fun configureGraphicsRouteEnvironment(

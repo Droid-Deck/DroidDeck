@@ -133,15 +133,15 @@ class ComponentsPageProfileTest {
         compose.runOnIdle { assertEquals(listOf(GPU_MODE_AUTO, GPU_MODE_PAIR, GPU_MODE_MIX), modes) }
     }
 
-    @Test fun systemAutoExplainsMatchingComponentsAndRetainsManualModes() {
+    @Test fun systemAutoExplainsItsRouteAndRetainsManualModes() {
         val context = RuntimeEnvironment.getApplication()
         var chosenMode = GPU_MODE_AUTO
         compose.setContent {
             DroidDeckTheme {
                 GpuDriversBody(
                     gpu = GpuDriversState(
-                        gpuName = "Mali-G715", gpuFamily = "Mali", systemGpu = true,
-                        systemVulkan = true, systemDriverName = "Mali",
+                        gpuName = "PowerVR C-Series", gpuFamily = "PowerVR", systemGpu = true,
+                        systemVulkan = true, systemDriverName = "PowerVR",
                     ),
                     actions = GpuDriversActions(onMode = { chosenMode = it }),
                     single = true,
@@ -152,9 +152,9 @@ class ComponentsPageProfileTest {
             }
         }
 
-        compose.onNodeWithText(context.getString(R.string.gpu_auto_system_title, "Mali-G715")).assertExists()
+        compose.onNodeWithText(context.getString(R.string.gpu_auto_system_title, "PowerVR C-Series")).assertExists()
         compose.onAllNodesWithText(context.getString(R.string.gpu_auto_system_hint)).onLast().assertExists()
-        compose.onNodeWithText(context.getString(R.string.gpu_auto_reason, "Mali")).assertDoesNotExist()
+        compose.onNodeWithText(context.getString(R.string.gpu_auto_reason, "PowerVR")).assertDoesNotExist()
         compose.onNodeWithText(context.getString(R.string.gpu_mode_auto_detail)).assertDoesNotExist()
         compose.onNodeWithText(context.getString(R.string.gpu_mode_pair)).performScrollTo().performClick()
         compose.runOnIdle { assertEquals(GPU_MODE_PAIR, chosenMode) }
@@ -162,7 +162,7 @@ class ComponentsPageProfileTest {
         compose.runOnIdle { assertEquals(GPU_MODE_MIX, chosenMode) }
     }
 
-    @Test fun systemAutoAndMatchedPairShowInstalledAndAvailableRuntimeBuildsWithoutZipImport() {
+    @Test fun systemAutoDefersManagedBuildsToPairMode() {
         val context = RuntimeEnvironment.getApplication()
         val selected = mutableListOf<String>()
         val removed = mutableListOf<String>()
@@ -172,16 +172,16 @@ class ComponentsPageProfileTest {
             DroidDeckTheme {
                 GpuDriversBody(
                     gpu = GpuDriversState(
-                        gpuName = "Mali-G715",
+                        gpuName = "PowerVR C-Series",
                         systemGpu = true,
-                        systemDriverName = "Mali",
+                        systemDriverName = "PowerVR",
                         mode = mode,
                         linuxSelected = "active",
                         systemRows = listOf(
-                            DriverRow("active", "Mali runtime", "Version 1.2.3", false, DriverRow.DOWNLOADED),
+                            DriverRow("active", "PowerVR runtime", "Version 1.2.3", false, DriverRow.DOWNLOADED),
                             DriverRow("previous", "Previous build", "Build abc123", true, DriverRow.LEGACY),
                         ),
-                        systemDownloads = listOf(DownloadRow("release:new", "Mali runtime 1.3.0", "Published today")),
+                        systemDownloads = listOf(DownloadRow("release:new", "PowerVR runtime 1.3.0", "Published today")),
                         autoStatus = "Recommended component is installed.",
                         releaseStatus = "Sources checked now.",
                         checkedAt = Long.MAX_VALUE,
@@ -200,9 +200,12 @@ class ComponentsPageProfileTest {
             }
         }
 
-        compose.onNodeWithText("Mali runtime").assertExists()
+        compose.onNodeWithText("PowerVR runtime").assertDoesNotExist()
+        compose.onNodeWithText(context.getString(R.string.gpu_mode_pair)).performScrollTo().performClick()
+        compose.onNodeWithText(context.getString(R.string.gpu_system_runtime_title, "PowerVR")).assertExists()
+        compose.onNodeWithText("PowerVR runtime").assertExists()
         compose.onNodeWithText("Previous build").performScrollTo().performClick()
-        compose.onNodeWithText("Mali runtime 1.3.0").assertExists()
+        compose.onNodeWithText("PowerVR runtime 1.3.0").assertExists()
         compose.onNodeWithText(context.getString(R.string.common_download)).performScrollTo().performClick()
         compose.onNodeWithContentDescription(context.getString(R.string.common_delete_named, "Previous build")).performScrollTo().performClick()
         compose.onNodeWithText(context.getString(R.string.common_delete)).performClick()
@@ -215,10 +218,6 @@ class ComponentsPageProfileTest {
             assertEquals(listOf("release:new"), downloaded)
         }
 
-        compose.onNodeWithText(context.getString(R.string.gpu_mode_pair)).performScrollTo().performClick()
-        compose.onNodeWithText(context.getString(R.string.gpu_system_runtime_title, "Mali")).assertExists()
-        compose.onNodeWithText("Mali runtime").assertExists()
-        compose.onNodeWithText("Mali runtime 1.3.0").assertExists()
         compose.onNodeWithText(context.getString(R.string.comp_import_zip)).assertDoesNotExist()
     }
 
@@ -401,8 +400,8 @@ class ComponentsPageProfileTest {
         show(
             comp = GPU_TAB,
             gpu = GpuDriversState(
-                systemGpu = true, systemDriverName = "Mali",
-                sourceKey = "gpu/system-vulkan/mali",
+                systemGpu = true, systemDriverName = "PowerVR",
+                sourceKey = "gpu/system-vulkan/powervr",
                 sourceBuiltIns = listOf("wallentx/DroidDeck"),
                 systemDownloads = listOf(DownloadRow("runtime", "Runtime", "Downloading", progress = 42)),
             ),

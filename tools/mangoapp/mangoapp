@@ -25,5 +25,12 @@ if [ "$(wc -l < "$starts")" -gt 5 ]; then
   echo "mangoapp: started $(wc -l < "$starts") times in 60 s; the performance overlay stays off for this session" >&2
   exec sleep infinity
 fi
+# The system PowerVR route (BL_POWERVR_RENDER_NODE): Zink could not make mangoapp a swapchain there
+# ("zink: could not create swapchain", then GLXBadCurrentWindow) and it crashed at every start. The
+# overlay is a few text lines: llvmpipe draws it.
+if [ -n "${BL_POWERVR_RENDER_NODE:-}" ]; then
+  export GALLIUM_DRIVER=llvmpipe LIBGL_ALWAYS_SOFTWARE=1
+  unset MESA_LOADER_DRIVER_OVERRIDE LIBGL_KOPPER_DRI2
+fi
 LD_LIBRARY_PATH=/usr/local/lib/mangoapp${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH} \
   LD_PRELOAD=/usr/local/lib/mangoapp/libsysfs-listing-shim.so${LD_PRELOAD:+:$LD_PRELOAD} exec /usr/local/lib/mangoapp/mangoapp "$@"

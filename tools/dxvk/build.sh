@@ -5,6 +5,15 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 . "$root/tools/dxvk/source.env"
 mkdir -p "${1:?output directory required}"
 out=$(cd "$1" && pwd)
+# Refuse to mix a pinned build with prior DLLs or an incomplete previous build.
+# Include dotfiles in the check and leave all existing contents untouched.
+shopt -s nullglob dotglob
+existing=("$out"/*)
+if ((${#existing[@]})); then
+  printf '%s\n' 'output directory must be empty; use a fresh build directory' >&2
+  exit 1
+fi
+shopt -u nullglob dotglob
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 git init -q "$work/source"

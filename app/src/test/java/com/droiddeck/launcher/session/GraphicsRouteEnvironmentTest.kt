@@ -8,6 +8,18 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GraphicsRouteEnvironmentTest {
+    @Test fun venusRouteDoesNotResolveAnotherVulkanProvider() {
+        val environment = mutableListOf<String>()
+        configureGraphicsRouteEnvironment(
+            DeviceSupport.GraphicsRoute.VENUS,
+            environment,
+            addSystemVulkan = { error("System Vulkan must not be prepared for a Venus session") },
+            linuxIcd = { error("A Linux ICD must not replace Venus") },
+        )
+
+        assertTrue(environment.isEmpty())
+    }
+
     @Test fun bridgeRouteHasOnlyBridgeDriverEnvironment() {
         val environment = mutableListOf<String>()
         configureGraphicsRouteEnvironment(

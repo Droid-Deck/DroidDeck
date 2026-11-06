@@ -14,8 +14,8 @@ class SystemVulkanSessionSnapshotTest {
     @Test fun olderTeardownCannotClearNewerSessionSnapshot() {
         val old = snapshot('a')
         val current = snapshot('b')
-        assertFalse(shouldClearSystemVulkanSnapshot(1, 2, old, current))
-        assertFalse(shouldClearSystemVulkanSnapshot(2, 2, old, current))
-        assertTrue(shouldClearSystemVulkanSnapshot(2, 2, current, current))
+        assertFalse(shouldClearSystemVulkanRuntime(1, 2, old, current))
+        assertFalse(shouldClearSystemVulkanRuntime(2, 2, old, current))
+        assertTrue(shouldClearSystemVulkanRuntime(2, 2, current, current))
     }
 }

@@ -154,6 +154,16 @@ static void on_client_destroyed(struct wl_listener *l, void *data) {
     free(ci);
 }
 
+/* libwayland's own reasons for dropping a client (a failed read or flush, an invalid object, a
+ * malformed request) go through wl_log, which on Android writes to a closed stderr. */
+static void wl_log_to_session(const char *fmt, va_list ap) {
+    char line[512];
+    vsnprintf(line, sizeof(line), fmt, ap);
+    size_t n = strlen(line);
+    while (n && (line[n - 1] == '\n' || line[n - 1] == '\r')) line[--n] = 0;
+    droiddeck_log("program", "libwayland: %s", line);
+}
+
 static void on_client_created(struct wl_listener *l, void *data) {
     struct wl_client *client = data;
     struct client_info *ci = calloc(1, sizeof(*ci));
@@ -349,6 +359,62 @@ static void perf_note_release(int64_t since_ns) {
 }
 
 
+/* Completion-unknown is terminal for externally owned DMA-BUF contents too.
+ * Keeping a VkImage alone cannot stop the client from overwriting its backing
+ * memory after wl_buffer.release. All paths (including cursors and idle roles)
+ * use this gate; copied SHM buffers retain their normal release behaviour. */
+static struct dmabuf_buffer *get_dmabuf(struct wl_resource *buffer);
+static int buffer_release_blocked(struct wl_resource *buffer) {
+    return vkp_completion_unknown() && get_dmabuf(buffer) != NULL;
+}
+/* Buffer tracing on a GPU that is not an Adreno (no KGSL node): every attach and release of the
+ * first 400 buffer events, by wl_buffer id and the line that sent it, and any release of a buffer
+ * already released and not attached again since (gamescope: "Compositor released us but we were
+ * not acquired"). Off on an Adreno. */
+static int g_buf_trace = -1;
+static int g_buf_trace_left = 400;
+static uint32_t g_released_ids[128];
+static int buf_trace_on(void) {
+    if (g_buf_trace < 0) g_buf_trace = access("/dev/kgsl-3d0", F_OK) != 0;
+    return g_buf_trace;
+}
+static void buf_trace_attach(struct wl_resource *buffer) {
+    if (!buffer || !buf_trace_on()) return;
+    uint32_t id = wl_resource_get_id(buffer);
+    for (int i = 0; i < 128; i++) if (g_released_ids[i] == id) g_released_ids[i] = 0;
+    if (g_buf_trace_left > 0) { g_buf_trace_left--; droiddeck_log("buffer", "attach id %u", id); }
+}
+static void buf_trace_release(struct wl_resource *buffer, int line) {
+    if (!buffer || !buf_trace_on()) return;
+    uint32_t id = wl_resource_get_id(buffer);
+    int twice = 0, slot = -1;
+    for (int i = 0; i < 128; i++) {
+        if (g_released_ids[i] == id) twice = 1;
+        if (slot < 0 && g_released_ids[i] == 0) slot = i;
+    }
+    if (twice) droiddeck_log("buffer", "DOUBLE release id %u (line %d): released again without an attach", id, line);
+    else if (slot >= 0) g_released_ids[slot] = id;
+    if (g_buf_trace_left > 0) { g_buf_trace_left--; droiddeck_log("buffer", "release id %u (line %d)", id, line); }
+}
+
+#define send_buffer_release(b) send_buffer_release_at((b), __LINE__)
+static void send_buffer_release_at(struct wl_resource *buffer, int line) {
+    if (!buffer_release_blocked(buffer)) { buf_trace_release(buffer, line); wl_buffer_send_release(buffer); }
+}
+
+/* Whether a surface other than `except` is showing this buffer right now. gamescope's Wayland
+ * backend moves one buffer between its planes (the game's frame goes from the window to a
+ * subsurface above a black backing while a Steam notification is up): releasing it when the first
+ * surface lets go handed gamescope a buffer still on screen ("Compositor released us but we were
+ * not acquired"). Only the last surface to let go releases it. */
+static int buffer_shown_elsewhere(struct wl_resource *buffer, const struct surface *except) {
+    struct surface *o;
+    if (!buffer) return 0;
+    wl_list_for_each(o, &g_surfaces, link)
+        if (o != except && o->dmabuf == buffer) return 1;
+    return 0;
+}
+
 static void pending_release_free(struct pending_release *pr) {
     if (pr->surface && pr->surface->releases_pending > 0) pr->surface->releases_pending--;
     wl_list_remove(&pr->destroy.link);
@@ -372,7 +438,8 @@ static void arm_release_timer(void) {
     int64_t earliest = 0;
     if (g_release_timer_fd < 0) return;
     wl_list_for_each(pr, &g_pending_releases, link)
-        if (!earliest || pr->at_ns < earliest) earliest = pr->at_ns;
+        if (!buffer_release_blocked(pr->buffer) && (!earliest || pr->at_ns < earliest))
+            earliest = pr->at_ns;
     struct itimerspec its = {0};
     if (earliest) { its.it_value.tv_sec = earliest / 1000000000LL; its.it_value.tv_nsec = earliest % 1000000000LL; }
     timerfd_settime(g_release_timer_fd, TFD_TIMER_ABSTIME, &its, NULL);
@@ -384,8 +451,13 @@ static int on_release_timer(int fd, uint32_t mask, void *data) {
     int64_t now = now_ns() + 300000;
     if (read(fd, &expirations, sizeof(expirations)) < 0 && errno != EAGAIN) return 0;
     wl_list_for_each_safe(pr, tmp, &g_pending_releases, link) {
-        if (pr->at_ns <= now) {
-            wl_buffer_send_release(pr->buffer);
+        if (pr->at_ns <= now && !buffer_release_blocked(pr->buffer)) {
+            /* Attached again since (to its surface or another): that surface releases it later. */
+            if (buffer_shown_elsewhere(pr->buffer, NULL)) {
+                pending_release_free(pr);
+                continue;
+            }
+            send_buffer_release(pr->buffer);
             perf_note_release(pr->since_ns);
             pending_release_free(pr);
         }
@@ -396,9 +468,12 @@ static int on_release_timer(int fd, uint32_t mask, void *data) {
 }
 
 static void release_buffer(struct surface *s, struct wl_resource *buffer, int64_t since_ns) {
+    /* No allocation or immediate-release fallback is allowed for a quarantined
+     * DMA-BUF. Existing queued releases stay held; their timer is disarmed. */
+    if (buffer_release_blocked(buffer)) return;
     const int limit = g_fps_limit;
     const int64_t interval = limit > 0 ? 1000000000LL / limit : g_refresh_ns;
-    if (g_release_unpaced || interval <= 0 || g_release_timer_fd < 0) { wl_buffer_send_release(buffer); perf_note_release(since_ns); return; }
+    if (g_release_unpaced || interval <= 0 || g_release_timer_fd < 0) { send_buffer_release(buffer); perf_note_release(since_ns); return; }
     int64_t now = now_ns();
     int64_t at = s->next_release_ns + interval;
     int64_t latest = now + interval * (int64_t)(s->releases_pending + 1);
@@ -406,7 +481,7 @@ static void release_buffer(struct surface *s, struct wl_resource *buffer, int64_
     if (at > latest) at = latest;
     s->next_release_ns = at;
     struct pending_release *pr = calloc(1, sizeof(*pr));
-    if (!pr) { wl_buffer_send_release(buffer); perf_note_release(since_ns); return; }
+    if (!pr) { send_buffer_release(buffer); perf_note_release(since_ns); return; }
     pr->buffer = buffer;
     pr->surface = s;
     pr->at_ns = at;
@@ -523,7 +598,10 @@ static void constraints_focus_entered(struct wl_resource *target, struct wl_clie
 
 
 void dmabuf_buffer_unref(struct dmabuf_buffer *b) {
-    if (!b || --b->refs > 0) return;
+    /* Surface/client destruction must not close the backing FDs or free the
+     * imported-buffer record while a GPU read may still be pending. Retain the
+     * reference without allocating a quarantine node; process exit reclaims it. */
+    if (!b || vkp_completion_unknown() || --b->refs > 0) return;
     vkp_image_destroy(b->img);
     for (int i = 0; i < b->n_planes; i++)
         if (b->fd[i] >= 0) close(b->fd[i]);
@@ -622,9 +700,10 @@ static void unmap_toplevel(struct surface *s) {
 static void drop_dmabuf(struct surface *s, int paced) {
     if (s->dmabuf) {
         wl_list_remove(&s->dmabuf_destroy.link);
-        if (!ahb_swapchain_defer_release(s->dmabuf_buf, s->dmabuf, s, paced)) {
+        if (buffer_shown_elsewhere(s->dmabuf, s)) {
+        } else if (!ahb_swapchain_defer_release(s->dmabuf_buf, s->dmabuf, s, paced)) {
             if (paced) release_buffer(s, s->dmabuf, now_ns());
-            else wl_buffer_send_release(s->dmabuf);
+            else send_buffer_release(s->dmabuf);
         }
         s->dmabuf = NULL;
     }
@@ -733,7 +812,7 @@ static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_res
         vkp_image_upload_shm(s->shm_img, wl_shm_buffer_get_data(shm), stride);
         wl_shm_buffer_end_access(shm);
     }
-    wl_buffer_send_release(buffer);
+    send_buffer_release(buffer);
     s->buf_w = w;
     s->buf_h = h;
     s->buf_alpha = wl_shm_buffer_get_format(shm) == WL_SHM_FORMAT_ARGB8888;
@@ -777,7 +856,7 @@ static void take_pixel(struct surface *s, const uint8_t bgra[4], struct wl_resou
     }
     if (!s->shm_img) s->shm_img = vkp_image_create_shm(1, 1);
     if (s->shm_img) vkp_image_upload_shm(s->shm_img, bgra, 4);
-    wl_buffer_send_release(buffer);
+    send_buffer_release(buffer);
     s->buf_w = 1;
     s->buf_h = 1;
     s->buf_alpha = bgra[3] != 0xff;
@@ -880,8 +959,9 @@ void **droiddeck_dmabuf_ahb_slot(struct dmabuf_buffer *b) { return &b->ahb_state
 void droiddeck_dmabuf_ref(struct dmabuf_buffer *b) { b->refs++; }
 void droiddeck_dmabuf_unref(struct dmabuf_buffer *b) { dmabuf_buffer_unref(b); }
 void droiddeck_release_buffer(struct surface *s, struct wl_resource *buffer, int paced, int64_t since_ns) {
+    if (buffer_release_blocked(buffer)) return;
     if (paced && s) release_buffer(s, buffer, since_ns);
-    else { wl_buffer_send_release(buffer); perf_note_release(since_ns); }
+    else { send_buffer_release(buffer); perf_note_release(since_ns); }
 }
 void droiddeck_surface_describe(const struct surface *s, char *out, size_t size) { describe(s, out, size); }
 const struct droiddeck_color *droiddeck_surface_color(const struct surface *s) {
@@ -1101,7 +1181,7 @@ static void surface_hold_idle(struct surface *s, struct wl_resource *buffer) {
     struct wl_shm_buffer *shm = db ? NULL : wl_shm_buffer_get(buffer);
     int64_t px = db ? (int64_t)db->width * db->height
                : shm ? (int64_t)wl_shm_buffer_get_width(shm) * wl_shm_buffer_get_height(shm) : 0;
-    if (px <= 0 || px > CURSOR_MAX_PX) { wl_buffer_send_release(buffer); return; }
+    if (px <= 0 || px > CURSOR_MAX_PX) { send_buffer_release(buffer); return; }
     s->idle_buffer = buffer;
     s->idle_buffer_destroy.notify = on_idle_buffer_destroyed;
     wl_resource_add_destroy_listener(buffer, &s->idle_buffer_destroy);
@@ -1119,7 +1199,7 @@ static struct wl_resource *surface_take_idle(struct surface *s) {
 static void surface_drop_idle(struct surface *s) {
     surface_forget_idle_px(s);
     struct wl_resource *buffer = surface_take_idle(s);
-    if (buffer) wl_buffer_send_release(buffer);
+    if (buffer) send_buffer_release(buffer);
 }
 
 static void surface_commit(struct wl_client *c, struct wl_resource *r) {
@@ -1172,11 +1252,12 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
                 cursor_publish_hidden();
             } else {
                 cursor_publish_buffer(s, buffer);
-                wl_buffer_send_release(buffer);
+                send_buffer_release(buffer);
             }
         } else if (s->role == ROLE_NONE) {
             if (buffer) surface_hold_idle(s, buffer);
         } else if (db) {
+            buf_trace_attach(buffer);
             take_dmabuf(s, db, buffer);
         } else if (shm) {
             drop_dmabuf(s, 1);
@@ -1187,7 +1268,7 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
         } else {
             drop_dmabuf(s, 1);
             s->has_content = 0;
-            if (buffer) wl_buffer_send_release(buffer);
+            if (buffer) send_buffer_release(buffer);
         }
     }
 
@@ -2437,7 +2518,7 @@ static void pointer_set_cursor(struct wl_client *c, struct wl_resource *r, uint3
     struct wl_resource *buffer = surface_take_idle(s);
     if (buffer) {
         cursor_publish_buffer(s, buffer);
-        wl_buffer_send_release(buffer);
+        send_buffer_release(buffer);
     } else if (g_cursor_shown == s) {
         cursor_publish_shown();
     } else if (s->idle_px) {
@@ -3836,6 +3917,10 @@ int droiddeck_wayland_run(void) {
         return 1;
     }
     droiddeck_log("display", "Wayland compositor listening on %s/wayland-0", rt ? rt : "?");
+    wl_log_set_handler_server(wl_log_to_session);
+    /* A client that falls behind reading (gamescope at a few fps) must not be dropped for a full
+     * event buffer: libwayland's default is 4 KB per direction. */
+    wl_display_set_default_max_buffer_size(display, 1u << 20);
     wl_display_add_client_created_listener(display, &g_client_created);
 
     wl_global_create(display, &wl_compositor_interface, 6, NULL, bind_compositor);

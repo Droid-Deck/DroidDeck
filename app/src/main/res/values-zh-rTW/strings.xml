@@ -180,6 +180,7 @@
     <string name="app_fex_x86">透過 FEX 執行 %1$s</string>
     <string name="app_fex_not_ready">此程式是為 %1$s 電腦組建的，需透過 FEX 執行，但 FEX 尚未設定。請在登入狀態下開啟一次 Steam：DroidDeck 會讓它下載 FEX 和所需的 Steam Linux Runtime，之後就能開啟此程式。</string>
     <string name="session_proot_missing">無法下載 DroidDeck 的 proot。請檢查連線後再試一次。工作階段未啟動，因為備用 proot 太慢，無法用來玩遊戲。</string>
+    <string name="session_powervr_missing">無法下載 PowerVR 圖形環境。請檢查網路連線後再試。</string>
     <string name="session_directaudio_missing">無法下載 DirectAudio，因此本次工作階段的遊戲音訊會使用較慢的路徑。</string>
     <string name="session_end_program">此程式</string>
     <string name="session_end_steam_download">無法下載 Steam 用戶端。你的網路或 VPN 可能封鎖了 Steam 的伺服器；請檢查連線後再試一次。</string>

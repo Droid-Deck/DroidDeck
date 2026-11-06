@@ -5,7 +5,6 @@ import java.nio.file.Files
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Assert.fail
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -25,8 +24,18 @@ class SystemVulkanPruningTest {
         assertEquals("current ICD", File(current, "icd.json").readText())
         assertTrue(File(current, "run-proton.py").canExecute())
         assertFalse(old.exists())
-        assertFalse(stage.exists())
+        assertTrue("another provider may own an unmarked staging directory", stage.exists())
         assertEquals("keep", File(unrelated, "keep").readText())
+    }
+
+    @Test fun placedMemoryLayerIsRequiredForACompleteRuntime() {
+        val base = temporary.newFolder("system_vulkan")
+        val runtime = completeRuntime(base, "a".repeat(64))
+        assertTrue(SystemVulkanDriver.complete(runtime))
+
+        File(runtime, "lib/libVkLayer_DROIDDECK_placed_memory.so").delete()
+
+        assertFalse(SystemVulkanDriver.complete(runtime))
     }
 
     @Test fun aSurvivingGuestKeepsOldVersionsButNotAbandonedStages() {
@@ -39,7 +48,7 @@ class SystemVulkanPruningTest {
 
         assertTrue(current.isDirectory)
         assertTrue(old.isDirectory)
-        assertFalse(stage.exists())
+        assertTrue(stage.exists())
         SystemVulkanDriver.pruneUnused(current, true)
         assertFalse("collect the old version once guests stop", old.exists())
     }
@@ -52,7 +61,7 @@ class SystemVulkanPruningTest {
 
         SystemVulkanDriver.pruneUnused(current, true)
         assertTrue("missing replacement", old.isDirectory)
-        assertFalse(stage.exists())
+        assertTrue(stage.exists())
 
         current.mkdir()
         File(current, "icd.json").writeText("incomplete")
@@ -60,21 +69,11 @@ class SystemVulkanPruningTest {
         assertEquals("current ICD", File(old, "icd.json").readText())
     }
 
-    @Test fun missingBundledMaliFilePreservesPreviousRuntime() {
-        val base = temporary.newFolder("system_vulkan")
-        val current = completeRuntime(base, "a".repeat(64))
-        val old = completeRuntime(base, "b".repeat(64))
-        File(current, "dxvk-mali/aarch64-windows/dxgi.dll").delete()
-
-        SystemVulkanDriver.pruneUnused(current, true)
-
-        assertTrue("incomplete replacement must preserve the old runtime", old.isDirectory)
-    }
-
     @Test fun deletingOldRuntimeDoesNotFollowItsSymlinks() {
         val base = temporary.newFolder("system_vulkan")
         val current = completeRuntime(base, "a".repeat(64))
         val old = File(base, "b".repeat(64)).apply { mkdir() }
+        File(old, ".droiddeck-addon-pack").writeText(old.name)
         val outside = temporary.newFolder("outside")
         val sentinel = File(outside, "keep").apply { writeText("keep") }
         Files.createSymbolicLink(File(old, "outside").toPath(), outside.toPath())
@@ -83,6 +82,33 @@ class SystemVulkanPruningTest {
 
         assertFalse(old.exists())
         assertEquals("keep", sentinel.readText())
+    }
+
+    @Test fun unmarkedManagedComponentIsNotPrunedAsAnAddon() {
+        val base = temporary.newFolder("system_vulkan")
+        val current = completeRuntime(base, "a".repeat(64))
+        val managed = completeRuntime(base, "b".repeat(64)).also {
+            File(it, ".droiddeck-addon-pack").delete()
+        }
+
+        SystemVulkanDriver.pruneUnused(current, true)
+
+        assertTrue(managed.isDirectory)
+    }
+
+    @Test fun onlyOwnedAddonStagesArePrunedAfterGuestsStop() {
+        val base = temporary.newFolder("system_vulkan")
+        val current = completeRuntime(base, "a".repeat(64))
+        val addonStage = addonStage(base)
+        val componentStage = abandonedStage(base)
+
+        SystemVulkanDriver.pruneUnused(current, false)
+        assertTrue(addonStage.isDirectory)
+        assertTrue(componentStage.isDirectory)
+
+        SystemVulkanDriver.pruneUnused(current, true)
+        assertFalse(addonStage.exists())
+        assertTrue("managed component cleanup owns generic stages", componentStage.isDirectory)
     }
 
     @Test fun linkedBaseOrCurrentRuntimePreventsCleanup() {
@@ -101,87 +127,26 @@ class SystemVulkanPruningTest {
         assertTrue(old.isDirectory)
     }
 
-    @Test fun interruptedCurrentRuntimeIsQuarantinedWithoutTouchingOtherEntries() {
-        val base = temporary.newFolder("system_vulkan")
-        val current = File(base, "a".repeat(64)).apply {
-            mkdir()
-            File(this, "partial").writeText("partial")
-        }
-        val old = completeRuntime(base, "b".repeat(64))
-        val unrelated = File(base, "notes").apply { mkdir(); File(this, "keep").writeText("keep") }
-
-        val quarantined = SystemVulkanDriver.quarantineIncompleteTarget(current, true)
-
-        assertFalse(current.exists())
-        assertTrue(quarantined!!.name.startsWith(".stage-"))
-        assertEquals("partial", File(quarantined, "partial").readText())
-        assertEquals("current ICD", File(old, "icd.json").readText())
-        assertEquals("keep", File(unrelated, "keep").readText())
-    }
-
-    @Test fun survivingGuestKeepsInterruptedCurrentRuntimeInPlace() {
-        val base = temporary.newFolder("system_vulkan")
-        val current = File(base, "a".repeat(64)).apply { mkdir(); File(this, "partial").writeText("partial") }
-
-        try {
-            SystemVulkanDriver.quarantineIncompleteTarget(current, false)
-            fail("active guests must prevent replacement")
-        } catch (expected: java.io.IOException) {
-            assertTrue(expected.message!!.contains("still in use"))
-        }
-        assertEquals("partial", File(current, "partial").readText())
-        assertEquals(listOf(current.name), base.list()!!.toList())
-    }
-
-    @Test fun recoveryRejectsSymlinksAndUnmanagedLocations() {
-        val base = temporary.newFolder("target-link-parent", "system_vulkan")
-        val incomplete = temporary.newFolder("incomplete")
-        val linkedCurrent = File(base, "a".repeat(64))
-        Files.createSymbolicLink(linkedCurrent.toPath(), incomplete.toPath())
-        assertRecoveryRejected(linkedCurrent)
-        assertTrue(incomplete.isDirectory)
-
-        val realBase = temporary.newFolder("real-system-vulkan")
-        val linkedBase = File(temporary.newFolder("base-link-parent"), "system_vulkan")
-        Files.createSymbolicLink(linkedBase.toPath(), realBase.toPath())
-        val throughLinkedBase = File(linkedBase, "b".repeat(64)).apply { mkdir() }
-        assertRecoveryRejected(throughLinkedBase)
-        assertTrue(throughLinkedBase.isDirectory)
-
-        val unrelatedBase = temporary.newFolder("unrelated")
-        val unrelated = File(unrelatedBase, "c".repeat(64)).apply { mkdir(); File(this, "keep").writeText("keep") }
-        assertRecoveryRejected(unrelated)
-        assertEquals("keep", File(unrelated, "keep").readText())
-    }
-
-    private fun assertRecoveryRejected(target: File) {
-        try {
-            SystemVulkanDriver.quarantineIncompleteTarget(target, true)
-            fail("unsafe path must be rejected: $target")
-        } catch (expected: java.io.IOException) {
-            assertTrue(expected.message!!.contains("Unsafe"))
-        }
-    }
-
     private fun abandonedStage(base: File) =
         File(base, ".stage-12345678-1234-1234-1234-123456789abc").apply { mkdir(); File(this, "partial").writeText("partial") }
+
+    private fun addonStage(base: File) =
+        File(base, ".addon-stage-12345678-1234-1234-1234-123456789abc").apply { mkdir(); File(this, "partial").writeText("partial") }
 
     private fun completeRuntime(base: File, version: String): File {
         val directory = File(base, version).apply { mkdir() }
         val components = listOf(
             "lib/libhybris-vulkan-icd.so.0", "lib/libhybris-common.so.1", "lib/libhybris/linker/q.so",
-            "lib/libVkLayer_hybris_compat.so", "run-proton.py",
-            "lib/libVkLayer_DROIDDECK_placed_memory.so", "lib/VkLayer_DROIDDECK_placed_memory.json",
+            "lib/libVkLayer_hybris_compat.so", "lib/libVkLayer_DROIDDECK_placed_memory.so",
+            "lib/VkLayer_DROIDDECK_placed_memory.json", "run-proton.py",
             "wsi/libVkLayer_window_system_integration.so", "wsi/VkLayer_window_system_integration.json",
         ) + listOf("x32", "x64").flatMap { arch ->
             listOf("d3d8", "d3d9", "d3d10core", "d3d11", "dxgi").map { "dxvk/$arch/$it.dll" }
         }
-        val mali = listOf("i386-windows", "x86_64-windows", "aarch64-windows").flatMap { arch ->
-            listOf("d3d8", "d3d9", "d3d10core", "d3d11", "dxgi").map { "dxvk-mali/$arch/$it.dll" }
-        }
-        (components + mali).forEach { path -> File(directory, path).apply { parentFile!!.mkdirs(); writeText("component") } }
+        components.forEach { path -> File(directory, path).apply { parentFile!!.mkdirs(); writeText("component") } }
         File(directory, "run-proton.py").setExecutable(true)
         File(directory, "icd.json").writeText("current ICD")
+        File(directory, ".droiddeck-addon-pack").writeText(version)
         return directory
     }
 }

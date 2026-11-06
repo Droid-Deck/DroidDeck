@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s melalui FEX</string>
     <string name="app_fex_not_ready">Program ini dibina untuk PC %1$s dan berjalan melalui FEX, yang belum disediakan lagi. Buka Steam sekali semasa anda log masuk: DroidDeck akan memuat turun FEX dan Steam Linux Runtime yang diperlukan, kemudian ini akan dibuka.</string>
     <string name="session_proot_missing">proot DroidDeck tidak dapat dimuat turun. Semak sambungan dan cuba lagi. Sesi tidak dimulakan kerana proot sandaran terlalu perlahan untuk bermain.</string>
+    <string name="session_powervr_missing">Persekitaran grafik PowerVR tidak dapat dimuat turun. Semak sambungan dan cuba lagi.</string>
     <string name="session_directaudio_missing">DirectAudio tidak dapat dimuat turun, jadi audio permainan menggunakan laluan yang lebih perlahan untuk sesi ini.</string>
     <string name="session_end_program">Program ini</string>
     <string name="session_end_steam_download">Tidak dapat memuat turun klien Steam. Rangkaian atau VPN anda mungkin menyekat pelayan Steam; semak sambungan dan cuba lagi.</string>
@@ -812,7 +813,7 @@
     <string name="setup_gpu_unsupported">GPU tidak disokong</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam memerlukan pemacu Adreno; %1$s mungkin memaparkan skrin hitam</string>
+    <string name="setup_gpu_unsupported_detail">Tiada backend grafik yang serasi tersedia untuk %1$s. Steam mungkin memaparkan skrin hitam.</string>
     <string name="setup_runtime">Masa jalan Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Belum dipasang · kira-kira 3 GB, dipasang pada Main pertama</string>
@@ -1392,8 +1393,8 @@
     <string name="main_wadb_unavailable">Debugging Wayarles tidak tersedia</string>
     <string name="main_adb_copied">Arahan ADB disalin</string>
     <string name="main_pick_roms">Pilih folder ROM</string>
-    <string name="main_non_adreno_title">Bukan GPU Adreno</string>
-    <string name="main_non_adreno_text">Turnip menyokong GPU Adreno. Pada %1$s, Steam mungkin memaparkan skrin hitam. Muat turun: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">GPU tidak disokong</string>
+    <string name="main_non_adreno_text">Tiada backend grafik yang serasi tersedia untuk %1$s. Steam mungkin memaparkan skrin hitam. Muat turun: %2$.0f MB.</string>
     <string name="main_install_anyway">Pasang juga</string>
     <string name="main_remove_runtime_title">Alih keluar masa jalan Linux</string>
     <string name="main_remove_runtime_text">Ini memadam masa jalan, klien Steam di dalamnya, dan setiap permainan yang dipasang di sana.</string>
@@ -2094,7 +2095,7 @@
     <string name="gpuinfo_experimental">Eksperimen: pemacunya ialah binaan ujian</string>
     <string name="gpuinfo_a850_experimental">Sokongan eksperimen Adreno 850: memerlukan pemacu paparan dan permainan eksperimen yang serasi; belum disahkan pada peranti ini</string>
     <string name="gpuinfo_below_tested">Di bawah perkakasan yang diuji (Adreno 725 dan lebih baharu): mungkin tidak dapat berjalan</string>
-    <string name="gpuinfo_unsupported">Tidak disokong: DroidDeck memerlukan GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">Tidak disokong: tiada backend grafik yang serasi tersedia untuk GPU ini</string>
 
     <string name="turnip_rate_limited">Had kadar GitHub dicapai - cuba lagi kemudian</string>
     <string name="turnip_github_http">GitHub menjawab HTTP %1$d</string>

@@ -774,7 +774,7 @@
   "hybris": {
     "provenance": {
       "component_ci_run": "https://github.com/wallentx/DroidDeck/actions/runs/41577977041",
-      "note": "Candidate pin: publish this exact archive and verify its URL before updating release.json.",
+      "note": "Published verified component; the release asset size and SHA-256 match this pin.",
       "producer_commit": "42ad6f699e4c95b612ac5ff80b6565467766be95",
       "upstream_source_commit": "aee1f6ab3483a6babc41b0def751cfeb0ace24f2",
       "vulkan_headers_commit": "8d6039a455a7ecc7d2a592ff97f62db4e59b70bf"

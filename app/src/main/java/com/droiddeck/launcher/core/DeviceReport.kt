@@ -10,9 +10,9 @@ import android.os.PowerManager
 import android.os.StatFs
 import android.provider.Settings
 import android.util.Log
-import android.view.Display
 import com.droiddeck.launcher.gpu.DeviceInfo
 import com.droiddeck.launcher.gpu.SystemVulkanDriver
+import android.view.Display
 import com.droiddeck.launcher.gpu.LinuxVulkanDriver
 import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
 import com.droiddeck.launcher.gpu.TurnipDriver
@@ -112,6 +112,7 @@ object DeviceReport {
         runCatching {
             val info = context.packageManager.getPackageInfo(context.packageName, 0)
             k("Version", "${info.versionName} (${info.longVersionCode})")
+            k("App build", "${com.droiddeck.launcher.BuildConfig.BUILD_LABEL} (source ${com.droiddeck.launcher.BuildConfig.SOURCE_COMMIT})")
         }
         k("Package", context.packageName)
         k("targetSdk", context.applicationInfo.targetSdkVersion)
@@ -188,7 +189,8 @@ object DeviceReport {
         h("GPU")
         k("KGSL gpu_model", readSys("/sys/class/kgsl/kgsl-3d0/gpu_model"))
         k("KGSL chip id", readSys("/sys/class/kgsl/kgsl-3d0/gpu_chipid"))
-        k("System Vulkan ICD", SystemVulkanDriver.hal() ?: when {
+        k("System Vulkan ICD", when {
+            SystemVulkanDriver.isSupportedGpu() -> SystemVulkanDriver.hal()
             File("/vendor/lib64/hw/vulkan.adreno.so").exists() -> "/vendor/lib64/hw/vulkan.adreno.so"
             else -> "not at the usual path"
         })
@@ -213,7 +215,7 @@ object DeviceReport {
 
         h("Drivers")
         val gpu = com.droiddeck.launcher.gpu.GpuInfo.detect()
-        k("GPU", "${gpu.name} · ${gpu.family.label} · ${gpu.supportText(SessionPrefs.vkBridge(context))}" + if (gpu.oneUi8Gen2) " · One UI 8 Gen 2" else "")
+        k("GPU", "${gpu.name} · ${gpu.family.label(gpu.name)} · ${gpu.supportText(SessionPrefs.vkBridge(context))}" + if (gpu.oneUi8Gen2) " · One UI 8 Gen 2" else "")
         if (gpu.model == 740) {
             val hint = com.droiddeck.launcher.gpu.TpUbwcHint
             k("TP UBWC hint", hint.forThisDevice(context) ?: "driver default")
@@ -223,12 +225,7 @@ object DeviceReport {
         k("Driver mode", SessionPrefs.gpuDriverMode(context) +
             (com.droiddeck.launcher.gpu.DriverPairs.recommendedKey(gpu, com.droiddeck.launcher.gpu.DriverPairs.from(
                 com.droiddeck.launcher.gpu.TurnipReleases.cached(context)), com.droiddeck.launcher.gpu.TurnipReleases.autoPicks(context),
-                com.droiddeck.launcher.gpu.AutoDriverTrial.bad(context),
-                blob = com.droiddeck.launcher.gpu.AutoPicks.blobVersion(
-                    com.droiddeck.launcher.gpu.VulkanInfo.cachedOrNull()?.get("driver_version")))
-                ?.let { " (recommended pair: $it)" } ?: ""))
-        k("Graphics route", SessionState.effectiveGraphicsRoute(context).id)
-        k("Mali bridge requested", SessionPrefs.vkBridge(context))
+                com.droiddeck.launcher.gpu.AutoDriverTrial.bad(context))?.let { " (recommended pair: $it)" } ?: ""))
         val turnip = TurnipDriver(context)
         val androidChoice = SessionPrefs.androidDriver(context)
         val displayId = androidChoice.ifEmpty { turnip.autoId() }
@@ -246,8 +243,15 @@ object DeviceReport {
                 if (lm.isInstalled(id)) "" else if (SystemVulkanDriver.isSupportedGpu()) "  [MISSING - select an installed driver or Auto]"
                 else "  [MISSING - falls back to the runtime's own]"
             k("Linux driver", label)
+            val route = DeviceSupport.graphicsRoute(context, id)
+            k("Graphics route", route.id)
+            if (route.systemVulkan) k("System Vulkan provider", runCatching {
+                SystemVulkanDriver.providerFor(id).name.lowercase(Locale.US)
+            }.getOrDefault("unavailable"))
         }
         k("Runtime's own ICD", LinuxRuntime.vulkanIcd(context)?.path)
+        k("Mali (Venus)", if (com.droiddeck.launcher.session.VenusComponent.wanted(context)) "in use"
+            else if (com.droiddeck.launcher.session.VenusComponent.available(context)) "available, off" else "not in this build")
 
         h("Runtime")
         k("Installed version", LinuxRuntimeInstaller.installedVersion(context))

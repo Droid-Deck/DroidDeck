@@ -9,10 +9,12 @@ import java.io.File
 object DeviceSupport {
     enum class GraphicsRoute(
         val id: String,
+        val venus: Boolean = false,
         val bridge: Boolean = false,
         val systemVulkan: Boolean = false,
         val linuxVulkan: Boolean = false,
     ) {
+        VENUS("venus", venus = true),
         VK_BRIDGE("vkbridge", bridge = true),
         SYSTEM_VULKAN("system-vulkan", systemVulkan = true),
         LINUX_VULKAN("linux-vulkan", linuxVulkan = true),
@@ -22,23 +24,35 @@ object DeviceSupport {
         File("/sys/class/kgsl/kgsl-3d0").exists() || File("/vendor/lib64/hw/vulkan.adreno.so").exists()
     }
 
-    private val maliGpu by lazy { !adrenoGpu && File("/dev/mali0").exists() }
-
     fun adreno(): Boolean = adrenoGpu
 
-    fun mali(): Boolean = maliGpu
+    fun graphicsAvailable(): Boolean = graphicsAvailable(adreno(), SystemVulkanDriver.isAvailable())
+
+    internal fun graphicsAvailable(adreno: Boolean, powerVrReady: Boolean): Boolean = adreno || powerVrReady
 
     fun vkBridge(context: Context): Boolean =
-        !adreno() && com.droiddeck.launcher.session.SessionPrefs.vkBridge(context)
+        bridgeUsable() && !com.droiddeck.launcher.session.VenusComponent.wanted(context) &&
+            com.droiddeck.launcher.session.SessionPrefs.vkBridge(context)
+
+    fun mali(): Boolean = isMali
+
+    private val isMali by lazy {
+        !adreno() && (File("/dev/mali0").exists() ||
+            com.droiddeck.launcher.gpu.GpuInfo.detect().family.name.startsWith("MALI"))
+    }
+
+    fun bridgeUsable(): Boolean = !adreno() && !SystemVulkanDriver.isAvailable() && File("/dev/mali0").exists()
 
     fun graphicsRoute(context: Context, linuxDriverId: String): GraphicsRoute = graphicsRoute(
-        bridge = vkBridge(context),
-        systemVulkan = SystemVulkanDriver.usesDefault(linuxDriverId),
+        venus = com.droiddeck.launcher.session.VenusComponent.wanted(context),
+        bridge = bridgeUsable() && com.droiddeck.launcher.session.SessionPrefs.vkBridge(context),
+        systemVulkan = SystemVulkanDriver.usesSystemVulkan(linuxDriverId),
     )
 
-    internal fun graphicsRoute(bridge: Boolean, systemVulkan: Boolean): GraphicsRoute = when {
-        bridge -> GraphicsRoute.VK_BRIDGE
+    internal fun graphicsRoute(venus: Boolean, bridge: Boolean, systemVulkan: Boolean): GraphicsRoute = when {
+        venus -> GraphicsRoute.VENUS
         systemVulkan -> GraphicsRoute.SYSTEM_VULKAN
+        bridge -> GraphicsRoute.VK_BRIDGE
         else -> GraphicsRoute.LINUX_VULKAN
     }
 
@@ -49,13 +63,20 @@ object DeviceSupport {
         ready: Boolean,
     ): Boolean = !sessionRunning && route.systemVulkan && available && !ready
 
-    fun canDraw(context: Context): Boolean = graphicsAvailable() || vkBridge(context)
+    fun openDriverActive(context: Context): Boolean {
+        if (adreno() || graphicsRoute(context, com.droiddeck.launcher.session.SessionPrefs.linuxDriver(context)) != GraphicsRoute.LINUX_VULKAN) return false
+        val linux = com.droiddeck.launcher.session.SessionPrefs.linuxDriver(context).ifEmpty { return false }
+        return com.droiddeck.launcher.gpu.DriverPairs.isNonAdreno(com.droiddeck.launcher.gpu.DriverBundle.containing(context, linux, true)?.id)
+    }
 
-    fun graphicsAvailable(): Boolean = graphicsAvailable(adreno(), SystemVulkanDriver.isAvailable())
+    fun canDraw(context: Context): Boolean = graphicsAvailable() || openDriverActive(context) || vkBridge(context) ||
+        com.droiddeck.launcher.session.VenusComponent.wanted(context)
 
-    fun graphicsReady(context: Context): Boolean = adreno() || SystemVulkanDriver.isReady(context)
-
-    internal fun graphicsAvailable(adreno: Boolean, systemVulkanReady: Boolean): Boolean = adreno || systemVulkanReady
+    fun graphicsReady(context: Context): Boolean {
+        val choice = com.droiddeck.launcher.session.SessionPrefs.linuxDriver(context)
+        return adreno() || graphicsRoute(context, choice) != GraphicsRoute.SYSTEM_VULKAN ||
+            SystemVulkanDriver.isReady(context, choice)
+    }
 
     fun gpuName(context: Context): String {
         val soc = if (Build.VERSION.SDK_INT >= 31) Build.SOC_MODEL.takeIf { it.isNotBlank() && it != Build.UNKNOWN } else null

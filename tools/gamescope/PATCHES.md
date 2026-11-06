@@ -64,49 +64,89 @@ library list, before anything is published.
   refresh output they now wait for it too, for at most `external_overlay_hold_cycles` refreshes (4,
   so 30 fps at 120 Hz still merges), and are painted on their own after that.
 
-The system GPU paths use the existing SDL/Wayland swapchain backend. Their additional patches are:
+The non-Adreno test branch's own patches are numbered 0920-0935 (0120-0135 until main took
+0121-0125), so they apply after DroidDeck's. Applied in either order the tree is the same.
 
-- `0120-nested-swapchain-capability-fallback.patch`: negotiate the surface's usages, mutable-format
+The system PowerVR driver uses the existing SDL/Wayland swapchain backend. Its additional patches are:
+
+- `0920-nested-swapchain-capability-fallback.patch`: negotiate the surface's usages, mutable-format
   support, image count, alpha and extent; use offscreen composition and GPU copies when required.
-- `0121-powervr-single-pixel-rcas.patch`: use the existing single-pixel RCAS shader on PowerVR,
+- `0921-powervr-single-pixel-rcas.patch`: use the existing single-pixel RCAS shader on PowerVR,
   where the quad variant fails compilation.
-- `0122-powervr-linear-dmabuf-import.patch`: retain the explicit linear layout when PowerVR
+- `0922-powervr-linear-dmabuf-import.patch`: retain the explicit linear layout when PowerVR
   rejects the mutable-format query, and intersect imported-image and FD memory-type masks.
-- `0123-powervr-rgba-copy-surface.patch`: require an advertised RGBA SDR copy surface matching
+- `0923-powervr-rgba-copy-surface.patch`: require an advertised RGBA SDR copy surface matching
   the shader's `rgba8` storage view. The tested workaround leaves other vendors, HDR and direct
   composition unchanged; it does not restrict game-facing BGRA formats.
-- `0124-sdl-preserve-explicit-refresh.patch` and `0125-sdl-wait-before-present.patch`: preserve
+- `0924-sdl-preserve-explicit-refresh.patch` and `0925-sdl-wait-before-present.patch`: preserve
   configured refresh across SDL events and finish composition before presenting without a
   render-finished semaphore. The build runs the focused capability, format and refresh tests.
-- `0126-shm-commit-ready.patch`: mark an SHM texture ready after its synchronous upload instead
-  of exporting image memory and treating the returned DMA-BUF fd as a sync fence. Explicit
-  acquire events and real DMA-BUF commits retain their existing wait paths. The build compiles
-  and runs the extracted production dispatch against SHM, explicit-acquire and DMA-BUF mocks.
-- `0127-refresh-shm-buffer-contents.patch`: upload a fresh texture for every SHM commit. The
-  texture cache remains enabled for DMA-BUF imports, which reference the producer's allocation;
-  SHM imports are snapshots and otherwise replay old pixels when a client reuses its buffers.
-  The build tests the production import function with reused buffers and retained older commits.
+- `0126-shm-commit-ready.patch`: mark a synchronously uploaded SHM texture ready without treating
+  an exported image-memory fd as a sync fence. Explicit acquire events and DMA-BUF commits keep
+  their normal wait paths. The build exercises the extracted production dispatch with SHM,
+  explicit-acquire and DMA-BUF mocks.
 - `0128-keep-swapchain-shm-textures-internal.patch`: keep SHM uploads internal on Vulkan-swapchain
-  backends, which sample them locally rather than consuming exported input buffers. This avoids
-  unsupported DMA-BUF allocations, optimal-image layout queries and foreign ownership transfers
-  on the SDL path. Backends that forward or scan out input buffers retain their export behavior.
-  The build tests the actual SHM texture flags for both backend types.
-- `0129-keep-swapchain-cursors-internal.patch`: keep Xwayland SHM cursor textures internal on
-  Vulkan-swapchain backends. The trace proves generic `CVulkanTexture` DMA-BUF-attribute cleanup
-  closed fd 0 after Wayland assigned it to Xwayland SHM; it does not identify an individual cursor
-  allocation or driver return as that source. SDL samples its cursor texture locally, so this removes
-  the remaining cursor external-FD ownership path. Cursor textures remain exportable for
-  hardware-plane and forwarding backends, and the existing linear requirement for a hardware cursor
-  plane is unchanged. The build tests the extracted production flags; device validation is pending.
+  backends, which sample them locally. Forwarding and scanout backends retain exportable textures.
+- `0129-keep-swapchain-cursors-internal.patch`: apply the same internal-texture rule to Xwayland
+  SHM cursors on Vulkan-swapchain backends while preserving exportable hardware-plane cursors.
 
 Sixteen more of Armada's patches are DRM/lease/HDR-on-KMS work for a native display, which this
 app's Wayland-hosted gamescope never reaches, or need a newer gamescope than the runtime has.
+- `0926-explicit-sync-switch.patch`: `GAMESCOPE_DISABLE_EXPLICIT_SYNC=1` makes the nested
+  (Wayland and SDL) backends report no explicit sync, so gamescope does not offer
+  wp_linux_drm_syncobj_manager_v1 and clients use implicit sync. The app sets it on a GPU that is
+  not an Adreno when the kernel is older than 6.6 (no DRM_IOCTL_SYNCOBJ_EVENTFD: an Exynos 2400e
+  on 6.1 logged hundreds of "timeline: DRM_IOCTL_SYNCOBJ_EVENTFD failed" and a game hung at a
+  black screen) or when the render node is Mali's stand-in (/dev/mali0 has no DRM syncobjs).
+- `0927-shm-buffers-upload-every-commit.patch` (David Cimo, for Mali through Venus; his `0114`): with
+  no DRM node, Xwayland has no glamor and commits a few wl_shm buffers over and over with new pixels.
+  gamescope memoizes one texture per `wlr_buffer`, and a shm buffer's texture is a copy taken at
+  import, so the screen cycled through the first few frames forever while Steam ran on behind them.
+  Only dma-buf textures are memoized now; a shm buffer is uploaded on every commit. Adreno never
+  takes this path, since its Xwayland hands over dma-bufs. Also what XWAYLAND_NO_GLAMOR sessions need.
+- `0928-robustness2-optional.patch`: do not require `VK_EXT_robustness2`; devices without null
+  descriptors use a 1x1 fallback texture for unused descriptor slots.
+- `0929-log-failing-compute-pipeline.patch`: when `vkCreateComputePipelines` fails, one extra line
+  per shader type names the pipeline (shader type, layer count, ycbcr/colorspace masks, fp16) and the
+  SPIR-V capabilities its shader declares. A Mali-G615 through Venus refused all 119 composite
+  pipelines with VK_ERROR_INITIALIZATION_FAILED and nothing said which feature it objected to.
+- `0930-composite-without-immutable-ycbcr-samplers.patch`: one composite pipeline is compiled at
+  start-up; when the driver refuses it, the descriptor layout is rebuilt without binding 4's immutable
+  YCbCr samplers (that binding then takes the slot's ordinary sampler) and the probe tried again, with
+  both outcomes in the log. `GAMESCOPE_NO_YCBCR_SAMPLERS=1` forces it. A Mali-G615 through Venus
+  refused every composite shader (blit, blur, RCAS: SPIR-V capabilities Shader, Sampled1D,
+  ImageQuery, no Float16) while EASU, NIS and the NV12 converter, which share the layout but never
+  touch binding 4, compiled.
+- `0931-memory-type-fallback-keep-probe.patch`: `findMemoryType` asked for DEVICE_LOCAL|HOST_VISIBLE
+  memory falls back to host-visible memory without DEVICE_LOCAL, and a failure logs the requested
+  properties, the type bits and every memory type. The Mali bridge models a unified-memory GPU like a
+  discrete one (host-visible types without DEVICE_LOCAL), so the upload buffer found nothing and the
+  backend failed. Also: 0930's probe pipeline is kept instead of destroyed, and skipped when
+  `GAMESCOPE_NO_YCBCR_SAMPLERS=1` (destroying a pipeline the Venus host had refused killed the
+  render server).
+- `0932-name-hung-up-waitable.patch`: "IWaitable hung up. Aborting." now names the waitable's class,
+  its fd and what the fd is (`/proc/self/fd`), and the Wayland backend's input thread says why the
+  compositor connection ended (protocol error or errno) first. An S24 FE aborted there after 60/120 Hz
+  flips and after a resume with nothing else in the log.
+- `0933-flippable-image-unexportable-modifiers.patch`: a flippable (dma-buf exported) image whose
+  modifiers the driver supports but does not report EXPORTABLE uses them anyway, and an image with no
+  usable modifier fails with a log line instead of asserting in `CVulkanTexture::BInit`. The Mali
+  bridge forwards the phone driver's answer, which leaves EXPORTABLE out, though it exports dma-bufs.
+- `0934-flippable-image-no-backend-modifiers.patch`: when the nested backend offers no modifier at all
+  for a flippable image's format, `CVulkanTexture::BInit` tries linear and logs it instead of asserting
+  `!modifiers.empty()`. NieR Replicant ended the session there on a Pixel 9a under Venus.
+- `0935-flippable-image-linear-when-driver-rejects-all.patch`: when the driver answers every offered
+  modifier with `VK_ERROR_FORMAT_NOT_SUPPORTED` and linear was among them, the flippable image tries
+  linear anyway; if it cannot be made, `BInit` fails as before. An r32p1 Mali-G610 (Vulkan 1.1) behind
+  the Mali bridge rejected both of the backend's modifiers for AR24, so the session ended at start
+  (0933's "no usable modifier"); the bridge makes such images without the handle type and exports
+  them through a dma-heap.
 
-- `0116-release-cursor-shm-buffers.patch` - this app: pointer cursor surfaces have no
-  X11/xdg window association, so routing their commits through `g_PendingCommits`
-  retained every old SHM buffer until the surface was destroyed. Ignore cursor-role
-  commits before taking the buffer lock; X11 cursor images still follow the existing
-  MouseCursor path. Window commits awaiting association are unchanged.
+The shared DroidDeck patch also includes `0116-release-cursor-shm-buffers.patch`: pointer cursor
+surfaces have no X11/xdg window association, so routing their commits through `g_PendingCommits`
+retained every old SHM buffer until the surface was destroyed. It ignores cursor-role commits before
+taking the buffer lock; X11 cursor images still follow the existing MouseCursor path. Window commits
+awaiting association are unchanged.
 
 The live regression probe is `tools/tests/test_gamescope_cursor_shm.py`. Run it
 inside an active Gamescope session with access to that process's `/proc` fd

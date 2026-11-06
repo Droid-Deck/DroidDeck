@@ -775,7 +775,6 @@ object ComponentsManager {
         return PreparedLaunchState(lines.toString(), keep)
     }
 
-
     internal fun runtimeManaged(comp: String, runtimeManagedDxvk: Boolean): Boolean = comp == "dxvk" && runtimeManagedDxvk
 
     internal fun runtimeManaged(
@@ -875,6 +874,7 @@ object ComponentsManager {
             .put("protonVersion", p.version).put("files", JSONObject(fingerprint(p.dir, comp) as Map<*, *>)).put("at", System.currentTimeMillis() / 1000))
     }
 
+    /** Runs the swaps that waited for a game to close. Cheap when nothing is queued. */
     fun applyQueued(context: Context): List<String> = applyQueued(context) { runtimeManaged(context, it) }
 
     internal fun applyQueued(context: Context, managed: (String) -> Boolean): List<String> = synchronized(lock) {

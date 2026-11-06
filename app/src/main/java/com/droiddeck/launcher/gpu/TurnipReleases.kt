@@ -27,15 +27,22 @@ object TurnipReleases {
     class Asset(val source: String, val tag: String, val name: String, val url: String, val size: Long, val linux: Boolean, val label: String,
                 val sha256: String = "", val pair: String = "", val bundle: Boolean = false,
                 val sourceId: String = "", val repository: String = "", val repositoryId: Long = 0,
-                val releaseId: Long = 0, val assetId: Long = 0, val pairKind: String = pair) {
+                val releaseId: Long = 0, val assetId: Long = 0, val pairKind: String = pair,
+                val updatedAt: String = "") {
         val id: String get() = if (sourceId.isEmpty()) name else "$sourceId:$assetId:$sha256"
+        val builtOn: String get() = updatedAt.take(10)
     }
     class Check(val assets: List<Asset>, val latest: List<Pair<String, String>>, val failed: List<String>, val checkedAt: Long,
                 val rateLimited: Boolean = false)
 
     private class Kind(val linux: Boolean, val label: String, val pair: String, val bundle: Boolean = false)
 
-    private class Adapter(val label: String, val repo: String, val classify: (name: String, tag: String) -> Kind?)
+    private class Adapter(
+        val label: String,
+        val repo: String,
+        val prerelease: Boolean = false,
+        val classify: (name: String, tag: String) -> Kind?,
+    )
 
     private val SOURCES = listOf(
         Adapter("Banners-Turnip", "the412banner/banners-turnip") { name, tag ->
@@ -66,7 +73,16 @@ object TurnipReleases {
             if (DriverPairs.ddTurnipVersion(pair) == null) return@Adapter null
             Kind(false, "Android + Linux · all Adreno", pair, bundle = true)
         },
+        Adapter(NON_ADRENO_LABEL, NON_ADRENO_REPO, prerelease = true) { name, _ ->
+            val match = Regex("""^(RADV-Xclipse(?:-[A-Za-z0-9]+)*?|PanVK-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*?)-Pair\.zip$""")
+                .find(name) ?: return@Adapter null
+            val pair = DriverPairs.nonAdreno(match.groupValues[1])
+            Kind(false, "Android + Linux · " + DriverPairs.nonAdrenoName(pair), pair, bundle = true)
+        },
     )
+
+    private const val NON_ADRENO_REPO = "the412banner/droiddeck-nonadreno-drivers"
+    const val NON_ADRENO_LABEL = "Non-Adreno"
 
     @JvmStatic fun sourceBuiltIns(): List<String> = SOURCES.map { it.repo }
 
@@ -76,12 +92,17 @@ object TurnipReleases {
     @JvmStatic fun saveSources(context: Context, rows: List<RepositorySources.Source>): List<RepositorySources.Source> =
         RepositorySources.save(context, SOURCE_SCOPE, sourceBuiltIns(), rows)
 
+    private fun visibleSources(context: Context): List<RepositorySources.Source> =
+        RepositorySources.visible(context, SOURCE_SCOPE, sourceBuiltIns()).filter {
+            !com.droiddeck.launcher.core.DeviceSupport.adreno() || it.repository != NON_ADRENO_REPO
+        }
+
     fun autoPicks(context: Context): List<AutoPicks.Rule> =
         AutoPicks.parse(prefs(context).getString(KEY_PICKS, null)) ?: AutoPicks.BUILT_IN
 
     fun cached(context: Context): Check? {
         val raw = prefs(context).getString(KEY_RELEASE, null) ?: return null
-        val visible = RepositorySources.visible(context, SOURCE_SCOPE, sourceBuiltIns()).map { it.id }.toSet()
+        val visible = visibleSources(context).map { it.id }.toSet()
         return runCatching { parse(JSONObject(raw), visible) }.getOrNull()
     }
 
@@ -94,10 +115,13 @@ object TurnipReleases {
         val failed = ArrayList<String>()
         var lastError: Exception? = null
         var rateLimited = false
-        val visibleSources = RepositorySources.visible(context, SOURCE_SCOPE, sourceBuiltIns())
+        val visibleSources = visibleSources(context)
         for (configured in visibleSources) {
             try {
-                val releases = GitHubArtifacts.refreshReleases(context, SOURCE_SCOPE, sourceBuiltIns(), configured)
+                val releases = GitHubArtifacts.refreshReleases(
+                    context, SOURCE_SCOPE, sourceBuiltIns(), configured,
+                    maxPages = if (configured.repository == NON_ADRENO_REPO) 5 else 3,
+                )
                 val source = RepositorySources.visible(context, SOURCE_SCOPE, sourceBuiltIns()).single { it.id == configured.id }
                 val preferred = SOURCES.firstOrNull { it.repo == source.repository }
                 val seen = HashSet<String>()
@@ -110,7 +134,7 @@ object TurnipReleases {
                         val matches = (listOfNotNull(preferred) + SOURCES.filter { it !== preferred })
                             .mapNotNull { adapter -> adapter.classify(name, tag)?.let { adapter to it } }
                         val (adapter, kind) = matches.firstOrNull() ?: continue
-                        if (kind.bundle && r.prerelease) continue
+                        if (kind.bundle && r.prerelease && !adapter.prerelease) continue
                         val linux = kind.linux
                         val label = kind.label
                         val pair = qualifiedPair(source.repository, source.id, kind.pair)
@@ -119,7 +143,8 @@ object TurnipReleases {
                             .put("url", a.url).put("size", a.size)
                             .put("linux", linux).put("label", label).put("sha256", a.sha256).put("pair", pair).put("pairKind", kind.pair)
                             .put("bundle", kind.bundle).put("sourceId", source.id).put("repository", source.repository)
-                            .put("repositoryId", source.repositoryId).put("releaseId", r.id).put("assetId", a.id))
+                            .put("repositoryId", source.repositoryId).put("releaseId", r.id).put("assetId", a.id)
+                            .put("updatedAt", a.updatedAt))
                     }
                 }
                 if (newest != null) latest.put(JSONObject().put("source", preferred?.label ?: source.repository)
@@ -150,7 +175,7 @@ object TurnipReleases {
         val stored = JSONObject().put("assets", assets).put("latest", latest)
             .put("failed", JSONArray(failed)).put("checkedAt", if (allFailed) previous?.checkedAt ?: 0L else System.currentTimeMillis())
         prefs(context).edit().putString(KEY_RELEASE, stored.toString()).apply()
-        val current = RepositorySources.visible(context, SOURCE_SCOPE, sourceBuiltIns()).map { it.id }.toSet()
+        val current = visibleSources(context).map { it.id }.toSet()
         return parse(stored, current, rateLimited)
     }
 
@@ -161,7 +186,7 @@ object TurnipReleases {
         .put("name", a.name).put("url", a.url).put("size", a.size).put("linux", a.linux)
         .put("label", a.label).put("sha256", a.sha256).put("pair", a.pair).put("pairKind", a.pairKind).put("bundle", a.bundle)
         .put("sourceId", a.sourceId).put("repository", a.repository).put("repositoryId", a.repositoryId)
-        .put("releaseId", a.releaseId).put("assetId", a.assetId)
+        .put("releaseId", a.releaseId).put("assetId", a.assetId).put("updatedAt", a.updatedAt)
 
     private fun parse(json: JSONObject, visible: Set<String>?, rateLimited: Boolean = false): Check {
         val out = ArrayList<Asset>()
@@ -185,7 +210,8 @@ object TurnipReleases {
             out.add(Asset(a.getString("source"), tag, name, a.getString("url"),
                 a.optLong("size"), a.getBoolean("linux"), a.getString("label"), a.optString("sha256", ""), pair,
                 a.optBoolean("bundle", false), sourceId, repository, a.optLong("repositoryId"),
-                a.optLong("releaseId"), a.optLong("assetId"), pairKind))
+                a.optLong("releaseId"), a.optLong("assetId"), pairKind,
+                a.optString("updatedAt").ifEmpty { a.optString("updated_at") }))
         }
         val latest = ArrayList<Pair<String, String>>()
         val l = json.optJSONArray("latest") ?: JSONArray()
@@ -208,6 +234,7 @@ object TurnipReleases {
         if (!canMigrateLegacyDownload(context, asset)) return null
         saved.remove(asset.name)
         saved.put(asset.id, legacy)
+        recordBuildMetadata(saved, asset, legacy)
         prefs(context).edit().putString(KEY_DOWNLOADS, saved.toString()).apply()
         return legacy
     }
@@ -223,20 +250,75 @@ object TurnipReleases {
 
     fun isDownloaded(context: Context, id: String): Boolean {
         val d = downloads(context)
-        return d.keys().asSequence().any { d.optString(it) == id }
+        return d.keys().asSequence().filterNot(::metadataKey).any { d.optString(it) == id }
     }
 
     fun recordDownload(context: Context, asset: Asset, id: String) {
-        prefs(context).edit().putString(KEY_DOWNLOADS, downloads(context).put(asset.id, id).toString()).apply()
+        val saved = downloads(context).put(asset.id, id)
+        recordBuildMetadata(saved, asset, id)
+        prefs(context).edit().putString(KEY_DOWNLOADS, saved.toString()).apply()
     }
+
+    fun installedIdAnyBuild(context: Context, asset: Asset, isInstalled: (String) -> Boolean): String? {
+        val saved = downloads(context)
+        saved.optString(stableBuildKey(asset), "").takeIf { it.isNotEmpty() && isInstalled(it) }?.let { return it }
+        val legacy = saved.optString(asset.name, "").takeIf { it.isNotEmpty() && isInstalled(it) } ?: return null
+        if (!canMigrateLegacyDownload(context, asset)) return null
+        saved.remove(asset.name)
+        saved.put(stableBuildKey(asset), legacy)
+        prefs(context).edit().putString(KEY_DOWNLOADS, saved.toString()).apply()
+        return legacy
+    }
+
+    fun updateAvailable(context: Context, asset: Asset): Boolean {
+        if (!DriverPairs.isNonAdreno(asset.pair)) return false
+        val saved = downloads(context)
+        val key = stableBuildKey(asset)
+        if (saved.optString(key).isEmpty()) return false
+        val sha = saved.optString(SHA_PREFIX + key)
+        val id = saved.optLong(ASSET_ID_PREFIX + key)
+        val updated = saved.optString(UPDATED_PREFIX + key)
+        return (sha.isNotEmpty() && asset.sha256.isNotEmpty() && !sha.equals(asset.sha256, ignoreCase = true)) ||
+            (id != 0L && asset.assetId != 0L && id != asset.assetId) ||
+            (updated.isNotEmpty() && asset.updatedAt.isNotEmpty() && updated != asset.updatedAt)
+    }
+
+    fun installedBuiltOn(context: Context, asset: Asset): String =
+        downloads(context).optString(UPDATED_PREFIX + stableBuildKey(asset)).take(10)
 
     fun forget(context: Context, id: String) {
         val d = downloads(context)
-        val keys = d.keys().asSequence().filter { d.optString(it) == id }.toList()
+        val keys = d.keys().asSequence().filterNot(::metadataKey).filter { d.optString(it) == id }.toList()
         if (keys.isEmpty()) return
         keys.forEach { d.remove(it) }
+        keys.filter { it.startsWith(PAIR_PREFIX) }.forEach { key ->
+            d.remove(SHA_PREFIX + key)
+            d.remove(ASSET_ID_PREFIX + key)
+            d.remove(UPDATED_PREFIX + key)
+        }
         prefs(context).edit().putString(KEY_DOWNLOADS, d.toString()).apply()
     }
+
+    private const val PAIR_PREFIX = "pair:"
+    private const val SHA_PREFIX = "sha256:"
+    private const val ASSET_ID_PREFIX = "asset:"
+    private const val UPDATED_PREFIX = "updated:"
+
+    private fun stableBuildKey(asset: Asset): String =
+        PAIR_PREFIX + asset.sourceId.ifEmpty { RepositorySources.digest(asset.repository.ifEmpty { asset.source }) } +
+            ":" + asset.pairKind
+
+    private fun recordBuildMetadata(saved: JSONObject, asset: Asset, installedId: String) {
+        if (!DriverPairs.isNonAdreno(asset.pair)) return
+        val key = stableBuildKey(asset)
+        saved.put(key, installedId)
+        if (asset.sha256.isNotEmpty()) saved.put(SHA_PREFIX + key, asset.sha256)
+        if (asset.assetId != 0L) saved.put(ASSET_ID_PREFIX + key, asset.assetId)
+        if (asset.updatedAt.isNotEmpty()) saved.put(UPDATED_PREFIX + key, asset.updatedAt)
+    }
+
+    private fun metadataKey(key: String): Boolean =
+        key.startsWith(SHA_PREFIX) || key.startsWith(ASSET_ID_PREFIX) || key.startsWith(UPDATED_PREFIX)
 
     fun download(context: Context, asset: Asset, progress: (Int) -> Unit): File {
         if (asset.sha256.isEmpty()) throw IOException(context.getString(R.string.turnip_list_predates_checksums))

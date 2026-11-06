@@ -94,6 +94,12 @@ object AppUpdates {
         val signerDigests: Set<String> = if (updatable) setOf(BuildConfig.RELEASE_SIGNER.lowercase()) else emptySet(),
         val signerLineageDigests: Set<String> = emptySet(),
         val signerRevision: Int = 0,
+        /**
+         * A build of the non-Adreno test branch (Mali / Xclipse / PowerVR routes). The official
+         * channels carry the Adreno-only app: installing one over it drops those routes, so none is
+         * offered. Its updates are published on The412Banner/droiddeck-nonadreno-drivers.
+         */
+        val nonAdrenoTest: Boolean = false,
     )
 
     enum class PreviewHistoryKind { CURRENT, BEHIND, RECENT }
@@ -205,6 +211,7 @@ object AppUpdates {
             signerDigests = identity.current,
             signerLineageDigests = identity.lineage,
             signerRevision = signerRevision,
+            nonAdrenoTest = BuildConfig.BUILD_LABEL.contains("non-adreno"),
         )
     }
 
@@ -287,6 +294,7 @@ object AppUpdates {
     }
 
     fun installBlock(r: Release, me: Installed = installed()): InstallBlock? = when {
+        me.nonAdrenoTest -> InstallBlock(R.string.upd_block_non_adreno_test)
         r.apk == null -> InstallBlock(R.string.upd_block_no_apk)
         signerCompatibility(r.apk, me) == SignerCompatibility.INCOMPATIBLE ->
             InstallBlock(R.string.selfinst_wrong_signer)

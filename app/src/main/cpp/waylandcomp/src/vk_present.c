@@ -20,6 +20,7 @@
 #include <poll.h>
 #include <time.h>
 #include <pthread.h>
+#include <stdarg.h>
 #include <android/log.h>
 #include <android/hardware_buffer.h>
 
@@ -46,9 +47,49 @@ static ANativeWindow *g_window;
 static int g_ahb_import;
 static char *g_driver_path, *g_library_name, *g_native_lib_dir;
 static int g_dev_state;
+static void device_lost(const char *where);
+static const char *vk_result_name(VkResult r);
+
+/* Why the compositor cannot present ("" while it can). Logged as a DD_PRESENT_FAULT line, read
+ * back over JNI, and shown on the session-ended screen instead of a silent black one. */
+static char g_fault[256];
+static char g_swap_reason[160];
+static pthread_mutex_t g_fault_lock = PTHREAD_MUTEX_INITIALIZER;
+static void set_fault(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+static void set_fault(const char *fmt, ...) {
+    char msg[sizeof(g_fault)];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(msg, sizeof(msg), fmt, ap);
+    va_end(ap);
+    pthread_mutex_lock(&g_fault_lock);
+    int same = !strcmp(msg, g_fault);
+    if (!same) snprintf(g_fault, sizeof(g_fault), "%s", msg);
+    pthread_mutex_unlock(&g_fault_lock);
+    if (!same) droiddeck_log("present", "DD_PRESENT_FAULT: %s", msg);
+}
+static void clear_fault(void) {
+    pthread_mutex_lock(&g_fault_lock);
+    int had = g_fault[0] != 0;
+    g_fault[0] = 0;
+    pthread_mutex_unlock(&g_fault_lock);
+    if (had) droiddeck_log("present", "presentation recovered: fault cleared");
+}
+const char *vkp_fault(void) {
+    static __thread char copy[sizeof(g_fault)];
+    pthread_mutex_lock(&g_fault_lock);
+    snprintf(copy, sizeof(copy), "%s", g_fault);
+    pthread_mutex_unlock(&g_fault_lock);
+    if (!copy[0] && g_dev_state == -3)
+        snprintf(copy, sizeof(copy), "the GPU did not confirm the compositor's work finished; presenting stopped");
+    return copy;
+}
+
+/* The driver that answered for the display, as the driver itself reports it. */
+static char g_display_driver[320];
+const char *vkp_display_driver(void) { return g_display_driver; }
 static VkInstance g_inst;
 static VkPhysicalDevice g_pd;
-static uint32_t g_vendor_id;
 static VkDevice g_dev;
 static VkQueue g_queue;
 static PFN_vkGetAndroidHardwareBufferPropertiesANDROID g_ahb_properties;
@@ -112,10 +153,22 @@ static void perf_add(int64_t *sum, int64_t *max, unsigned *count, int64_t d) {
     if (d > *max) *max = d;
     (*count)++;
 }
+static void quarantine_pending_work(VkResult result, const char *where) {
+    if (g_dev_state != 1) return;
+    g_dev_state = -3;
+    g_base_black = 0;
+    LOGE("GPU completion unconfirmed (%d in %s): presenting stopped; pending resources retained; "
+         "restart DroidDeck", (int)result, where);
+}
+
 static VkResult timed_wait(VkFence fence, uint64_t timeout) {
+    if (g_dev_state != 1)
+        return g_dev_state == -2 ? VK_ERROR_DEVICE_LOST : VK_ERROR_UNKNOWN;
     int64_t t0 = perf_now();
     VkResult r = g_vk.WaitForFences(g_dev, 1, &fence, VK_TRUE, timeout);
     perf_add(&g_perf.wait_ns, &g_perf.wait_max_ns, &g_perf.waits, perf_now() - t0);
+    if (r != VK_SUCCESS && r != VK_ERROR_DEVICE_LOST)
+        quarantine_pending_work(r, "fence wait");
     return r;
 }
 
@@ -210,7 +263,12 @@ static void reset_sync(void) {
 static void destroy_swapchain(void) {
     g_base_black = 0;
     if (g_dev_state != 1) return;
-    g_vk.DeviceWaitIdle(g_dev);
+    VkResult idle = g_vk.DeviceWaitIdle(g_dev);
+    if (idle != VK_SUCCESS) {
+        if (idle == VK_ERROR_DEVICE_LOST) device_lost("swapchain idle");
+        else quarantine_pending_work(idle, "swapchain idle");
+        return;
+    }
     reset_sync();
     for (uint32_t i = 0; i < g_nimg; i++) blendp_forget_image(g_images[i]);
     if (g_swapchain) g_vk.DestroySwapchainKHR(g_dev, g_swapchain, NULL);
@@ -300,6 +358,7 @@ int vkp_has_window(void) {
 }
 
 int vkp_device_lost(void) { return g_dev_state == -2; }
+int vkp_completion_unknown(void) { return g_dev_state == -3; }
 
 void vk_present_set_scale_mode(int mode, int alignment) {
     if (mode < VKP_MODE_OFF || mode > VKP_MODE_INTEGER) mode = VKP_MODE_FIT;
@@ -410,11 +469,43 @@ static int has_ext(VkExtensionProperties *e, uint32_t n, const char *name) {
     return 0;
 }
 
+static int is_proprietary(VkDriverId id) {
+    return id == VK_DRIVER_ID_ARM_PROPRIETARY || id == VK_DRIVER_ID_QUALCOMM_PROPRIETARY ||
+           id == VK_DRIVER_ID_IMAGINATION_PROPRIETARY || id == VK_DRIVER_ID_SAMSUNG_PROPRIETARY ||
+           id == VK_DRIVER_ID_BROADCOM_PROPRIETARY;
+}
+
+/* What really loaded: adrenotools falls back to the vendor driver when the requested one fails
+ * to load (hook_impl.cpp), so the name asked for is not proof of the driver in use. */
+static void log_display_driver(void) {
+    PFN_vkGetPhysicalDeviceProperties2 props2 = g_vk.GetPhysicalDeviceProperties2;
+    VkPhysicalDeviceDriverProperties drv = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES};
+    VkPhysicalDeviceProperties2 p2 = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, .pNext = &drv};
+    if (!props2) {
+        snprintf(g_display_driver, sizeof(g_display_driver), "%.200s (driver properties not available)", g_gpu_name);
+        droiddeck_log("gpu", "display driver: %s", g_display_driver);
+        return;
+    }
+    props2(g_pd, &p2);
+    int fell_back = g_library_name && is_proprietary(drv.driverID);
+    snprintf(g_display_driver, sizeof(g_display_driver), "%.80s: %.64s %.96s (driver id %d, Vulkan %u.%u.%u)%s", p2.properties.deviceName,
+             drv.driverName, drv.driverInfo, (int)drv.driverID, VK_API_VERSION_MAJOR(p2.properties.apiVersion),
+             VK_API_VERSION_MINOR(p2.properties.apiVersion), VK_API_VERSION_PATCH(p2.properties.apiVersion),
+             fell_back ? " - FELL BACK to the phone's own driver" : "");
+    droiddeck_log("gpu", "display driver loaded: %s", g_display_driver);
+    if (fell_back)
+        droiddeck_log("gpu", "display driver: %s was requested but the phone's own driver answered; the requested "
+                   "driver did not load (a missing library beside it, or a rejected ABI - see the adrenotools lines)",
+                   g_library_name);
+}
+
 static int dev_init(void) {
     if (g_dev_state != 0) return g_dev_state == 1 ? 0 : -1;
 
     if (vk_loader_open(g_driver_path, g_library_name, g_native_lib_dir) != 0) {
-        LOGE("present: vk_loader_open failed"); g_dev_state = -1; return -1;
+        LOGE("present: vk_loader_open failed"); g_dev_state = -1;
+        set_fault("no Vulkan driver could be loaded for the display (%s)", g_library_name ? g_library_name : "libvulkan.so");
+        return -1;
     }
 
     const char *inst_exts[3] = {VK_KHR_SURFACE_EXTENSION_NAME,
@@ -445,13 +536,19 @@ static int dev_init(void) {
                                 .enabledExtensionCount = n_inst_exts,
                                 .ppEnabledExtensionNames = inst_exts};
     if (g_vk.CreateInstance(&ici, NULL, &g_inst) != VK_SUCCESS) {
-        LOGE("present: vkCreateInstance failed"); g_dev_state = -1; return -1;
+        LOGE("present: vkCreateInstance failed"); g_dev_state = -1;
+        set_fault("vkCreateInstance failed on the display driver (%s)", g_library_name ? g_library_name : "the phone's own");
+        return -1;
     }
     vk_loader_load_instance(g_inst);
 
     uint32_t npd = 0;
     g_vk.EnumeratePhysicalDevices(g_inst, &npd, NULL);
-    if (!npd) { LOGE("present: no physical devices"); g_dev_state = -1; return -1; }
+    if (!npd) {
+        LOGE("present: no physical devices"); g_dev_state = -1;
+        set_fault("the display driver exposed no GPU to the app");
+        return -1;
+    }
     VkPhysicalDevice pds[8]; if (npd > 8) npd = 8;
     g_vk.EnumeratePhysicalDevices(g_inst, &npd, pds);
     g_pd = VK_NULL_HANDLE;
@@ -463,7 +560,11 @@ static int dev_init(void) {
         for (uint32_t q = 0; q < nq; q++)
             if (qs[q].queueFlags & VK_QUEUE_GRAPHICS_BIT) { g_pd = pds[i]; g_qfam = q; break; }
     }
-    if (g_pd == VK_NULL_HANDLE) { LOGE("present: no graphics queue"); g_dev_state = -1; return -1; }
+    if (g_pd == VK_NULL_HANDLE) {
+        LOGE("present: no graphics queue"); g_dev_state = -1;
+        set_fault("the display GPU offers no graphics queue");
+        return -1;
+    }
     {
         VkPhysicalDeviceProperties props;
         g_vk.GetPhysicalDeviceProperties(g_pd, &props);
@@ -483,6 +584,21 @@ static int dev_init(void) {
     g_vk.EnumerateDeviceExtensionProperties(g_pd, NULL, &ne, NULL);
     VkExtensionProperties *exts = calloc(ne ? ne : 1, sizeof(*exts));
     g_vk.EnumerateDeviceExtensionProperties(g_pd, NULL, &ne, exts);
+    if (!g_library_name || !strstr(g_library_name, "freedreno")) {
+        char names[440];
+        size_t len = 0;
+        names[0] = 0;
+        droiddeck_log("gpu", "device extensions: %u", ne);
+        for (uint32_t i = 0; i < ne; i++) {
+            if (len + strlen(exts[i].extensionName) + 2 > sizeof(names)) {
+                droiddeck_log("gpu", "  %s", names);
+                len = 0;
+                names[0] = 0;
+            }
+            len += (size_t)snprintf(names + len, sizeof(names) - len, "%s%s", len ? " " : "", exts[i].extensionName);
+        }
+        if (len) droiddeck_log("gpu", "  %s", names);
+    }
     for (unsigned i = 0; i < 4; i++) {
         if (has_ext(exts, ne, import_exts[i])) dev_exts[n_dev_exts++] = import_exts[i];
         else LOGE("present: driver MISSING %s (dmabuf import will fail)", import_exts[i]);
@@ -496,6 +612,7 @@ static int dev_init(void) {
     if (want_sem_fd) dev_exts[n_dev_exts++] = VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME;
     g_ahb_import = has_ext(exts, ne, VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME) &&
                    has_ext(exts, ne, VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME);
+    /* The present path's own AHB import (#561) stays on the phone's own driver. */
     const int want_ahb = !g_library_name && g_ahb_import;
     if (g_ahb_import) {
         dev_exts[n_dev_exts++] = VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME;
@@ -519,14 +636,17 @@ static int dev_init(void) {
         dr = g_vk.CreateDevice(g_pd, &dci, NULL, &g_dev);
     }
     if (dr != VK_SUCCESS) {
-        LOGE("present: vkCreateDevice failed"); g_dev_state = -1; return -1;
+        LOGE("present: vkCreateDevice failed"); g_dev_state = -1;
+        set_fault("vkCreateDevice failed on %s (%s)", g_gpu_name[0] ? g_gpu_name : "the display GPU", vk_result_name(dr));
+        return -1;
     }
     vk_loader_load_device(g_dev);
+    log_display_driver();
     g_vk.GetDeviceQueue(g_dev, g_qfam, 0, &g_queue);
+    vkp_gpu_busy_device(g_pd, g_dev, g_qfam);
     if (want_ahb)
         g_ahb_properties = (PFN_vkGetAndroidHardwareBufferPropertiesANDROID)
             g_vk.GetDeviceProcAddr(g_dev, "vkGetAndroidHardwareBufferPropertiesANDROID");
-    vkp_gpu_busy_device(g_pd, g_dev, g_qfam);
     if (want_sem_fd) {
         g_import_sem_fd = (PFN_vkImportSemaphoreFdKHR)g_vk.GetDeviceProcAddr(g_dev, "vkImportSemaphoreFdKHR");
         VkSemaphoreCreateInfo wsci = {.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
@@ -563,6 +683,7 @@ static int dev_init(void) {
     g_dev_state = 1;
     reset_sync();
     init_black_image();
+    if (g_dev_state != 1) return -1;
     vkp_framegen_device_ready(g_dev, g_queue, g_qfam, fg_features != NULL);
     return 0;
 }
@@ -574,13 +695,15 @@ static int swap_init_locked(void);
 static int swap_init(void) {
     struct timespec ts;
     int64_t now;
-    if (!g_window) return -1;
+    if (!g_window || g_dev_state != 1) return -1;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     now = (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
     if (now < g_swap_retry_at_ns) return -1;
+    g_swap_reason[0] = 0;
     if (swap_init_locked() == 0) {
         g_swap_retry_at_ns = 0;
         g_swap_fail_logged = 0;
+        clear_fault();
         return 0;
     }
     destroy_swapchain();
@@ -588,11 +711,12 @@ static int swap_init(void) {
     if (!g_swap_fail_logged) {
         g_swap_fail_logged = 1;
         LOGE("present: no swapchain on the screen surface; retrying every 0.5 s");
+        set_fault("no swapchain on the session screen (%s)", g_swap_reason[0] ? g_swap_reason : "unknown reason");
     }
     return -1;
 }
 
-#define SWLOGE(...) do { if (!g_swap_fail_logged) LOGE(__VA_ARGS__); } while (0)
+#define SWLOGE(...) do { snprintf(g_swap_reason, sizeof(g_swap_reason), __VA_ARGS__); if (!g_swap_fail_logged) LOGE(__VA_ARGS__); } while (0)
 
 static void vk_format_short(VkFormat f, char *out, size_t n) {
     const char *s = NULL;
@@ -832,10 +956,15 @@ static void init_black_image(void) {
     g_vk.EndCommandBuffer(cmd);
     VkSubmitInfo si = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO, .commandBufferCount = 1, .pCommandBuffers = &cmd};
     g_vk.ResetFences(g_dev, 1, &g_fence);
-    if (g_vk.QueueSubmit(g_queue, 1, &si, g_fence) == VK_SUCCESS &&
-        g_vk.WaitForFences(g_dev, 1, &g_fence, VK_TRUE, 1000000000ULL) == VK_SUCCESS)
-        g_black_state = 1;
-    else
+    VkResult qr = g_vk.QueueSubmit(g_queue, 1, &si, g_fence);
+    if (qr == VK_SUCCESS) {
+        VkResult fr = timed_wait(g_fence, 1000000000ULL);
+        if (fr == VK_SUCCESS) g_black_state = 1;
+        else if (fr == VK_ERROR_DEVICE_LOST) device_lost("black image");
+    } else if (qr == VK_ERROR_DEVICE_LOST) {
+        device_lost("black image submit");
+    }
+    if (g_black_state != 1)
         droiddeck_log("gpu", "letterbox black image unavailable: the whole output is cleared every copy-path frame");
 }
 
@@ -1135,7 +1264,27 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
     const VkImageUsageFlags sampled_usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     img->sampled = !as_blit_dst && g_vk.GetPhysicalDeviceImageFormatProperties2 &&
                    modifier_importable(img->fmt, modifier, sampled_usage);
+    /* Each new format/modifier/size a client hands over, once, for the graphics report: a colour
+     * or swizzle mismatch on a non-Adreno driver shows up as the pair it arrived as. */
+    {
+        static struct { uint32_t fmt; uint64_t mod; int w, h; } seen[32];
+        static int nseen;
+        int known = 0;
+        for (int i = 0; i < nseen; i++)
+            if (seen[i].fmt == drm_format && seen[i].mod == modifier && seen[i].w == w && seen[i].h == h) known = 1;
+        if (!known && nseen < 32) {
+            seen[nseen].fmt = drm_format; seen[nseen].mod = modifier; seen[nseen].w = w; seen[nseen].h = h; nseen++;
+            droiddeck_log("gpu", "dmabuf import: %c%c%c%c %s %dx%d stride %u offset %u -> vk format %d, %s%s",
+                          drm_format & 0xff, (drm_format >> 8) & 0xff, (drm_format >> 16) & 0xff, (drm_format >> 24) & 0xff,
+                          vkp_modifier_name(modifier), w, h, stride, offset, (int)img->fmt,
+                          img->sampled ? "sampled" : "copied", as_blit_dst ? ", blit target" : "");
+        }
+    }
 
+    /* Venus reports a row pitch of 0 for gamescope's 1x1 root buffer, and a zero pitch fails
+     * vkCreateImage, which left the whole window unshown (David Cimo). One packed, 64-byte aligned
+     * row is what a linear buffer that small holds. */
+    if (stride == 0 && modifier == 0) stride = ((uint32_t)w * 4 + 63) & ~63u;
     VkSubresourceLayout plane = {.offset = offset, .rowPitch = stride};
     VkImageDrmFormatModifierExplicitCreateInfoEXT modInfo = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT,
@@ -1406,7 +1555,7 @@ struct vkp_image *vkp_image_create_shm(int w, int h) {
 }
 
 void vkp_image_upload_shm(struct vkp_image *img, const void *data, int stride) {
-    if (!img || !img->map || !data) return;
+    if (g_dev_state != 1 || !img || !img->map || !data) return;
     size_t rowbytes = (size_t)img->w * 4;
     if ((size_t)stride < rowbytes) rowbytes = (size_t)stride;
     for (int y = 0; y < img->h; y++)
@@ -1419,6 +1568,7 @@ int vkp_image_height(const struct vkp_image *img) { return img ? img->h : 0; }
 
 void vkp_image_destroy(struct vkp_image *img) {
     if (!img) return;
+    if (g_dev_state == -3) return; /* completion unknown: retain GPU ownership */
     if (g_dev) {
         blendp_forget_image(img->image);
         if (img->map) g_vk.UnmapMemory(g_dev, img->mem);
@@ -1690,6 +1840,7 @@ static void device_lost(const char *where) {
     vkp_gpu_busy_device_lost();
     droiddeck_log("error", "GPU device lost (VK_ERROR_DEVICE_LOST in %s): the compositor has stopped presenting; "
                "restart the session", where);
+    set_fault("the display GPU was lost (VK_ERROR_DEVICE_LOST in %s)", where);
     for (uint32_t i = 0; i < g_nimg; i++) blendp_forget_image(g_images[i]);
     if (g_swapchain) g_vk.DestroySwapchainKHR(g_dev, g_swapchain, NULL);
     g_swapchain = VK_NULL_HANDLE;
@@ -1787,6 +1938,7 @@ static void record_screen_blit(VkCommandBuffer cmd, VkImage src, int src_w, int 
 
 static int acquire_image(int k, int first, uint32_t *img, VkResult *ar_out) {
     for (int attempt = 0; ; attempt++) {
+        if (g_dev_state != 1) return -1;
         if (!g_swapchain && (!first || swap_init() != 0)) return -1;
         const int64_t t_acq = perf_now();
         VkResult ar = g_vk.AcquireNextImageKHR(g_dev, g_swapchain, 1000000000ULL, g_acqs[k], VK_NULL_HANDLE, img);
@@ -1796,7 +1948,7 @@ static int acquire_image(int k, int first, uint32_t *img, VkResult *ar_out) {
         if (ar == VK_ERROR_OUT_OF_DATE_KHR || ar == VK_ERROR_SURFACE_LOST_KHR) {
             droiddeck_log("gpu", "screen surface %s on acquire: rebuilding the swapchain", vk_result_name(ar));
             destroy_swapchain();
-            if (first && attempt == 0) continue;
+            if (first && attempt == 0 && g_dev_state == 1) continue;
             return -1;
         }
         droiddeck_log("error", "present: acquire %d failed (%s %d)", k, vk_result_name(ar), (int)ar);
@@ -1913,6 +2065,7 @@ static void send_hdr_metadata(const struct droiddeck_color *c) {
 static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
                        const struct vkp_hdr_frame *hf, int *how) {
     if (how) *how = 0;
+    if (g_dev_state < 0) return -1;
     vkp_apply_window_request();
     sc_layer_hide_base();
     check_surface_changed();
@@ -1931,6 +2084,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
                                      : "no HDR frames through the screen swapchain any more: rebuilding it as SDR");
         destroy_swapchain();
     }
+    if (g_dev_state != 1) return -1;
     g_swap_hdr_want = want_hdr;
 
     uint32_t img = 0;
@@ -2077,6 +2231,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         drawn++;
     }
 
+    if (!(pass && fx)) release_external_client_draws(cmd, draws, n);
     int ngen = 0;
     VkImage gens[VKP_FG_MAX_GENERATIONS] = {VK_NULL_HANDLE};
     VkImage result = scene_img;
@@ -2098,6 +2253,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
             result = vkp_effects_run(cmd, scene_img, input_w, input_h, mapped_w, mapped_h, &rw, &rh);
             effects_overlay_draws(cmd, result, rw, rh, scene_w, scene_h,
                                   draws ? draws + overlay_start : NULL, n - overlay_start);
+            release_external_client_draws(cmd, draws, n);
             result_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
         }
         VkImageMemoryBarrier b_general = {
@@ -2119,8 +2275,6 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
 
         record_screen_blit(cmd, ngen ? gens[0] : result, rw, rh, scene_w, scene_h, img, blit_filter, cb);
     }
-    /* Foreground overlays may still sample client images after the effects pass. */
-    release_external_client_draws(cmd, draws, n);
     g_vk.EndCommandBuffer(cmd);
 
     const int presents = 1 + ngen;
@@ -2131,6 +2285,10 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         if (k > 0) {
             VkResult ark;
             if (acquire_image(k, 0, &img, &ark) != 0) {
+                /* Teardown may have retained this frame's pending work, or
+                 * acquire may have reported real device loss. Neither permits
+                 * a completion-marker submit or another fence wait. */
+                if (g_dev_state != 1) return -1;
                 droiddeck_log("framegen", "present %d/%d: no swapchain image; the frame ends early", k + 1, presents);
                 pr = VK_ERROR_OUT_OF_DATE_KHR;
                 break;
@@ -2162,15 +2320,22 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         pr = g_vk.QueuePresentKHR(g_queue, &pi);
         perf_add(&g_perf.present_ns, &g_perf.present_max_ns, &g_perf.presents, perf_now() - t_pres);
         if (k < ngen) presented_gen++;
-        if (pr == VK_ERROR_OUT_OF_DATE_KHR || pr == VK_ERROR_SURFACE_LOST_KHR || pr == VK_ERROR_DEVICE_LOST) break;
+        if (pr == VK_ERROR_DEVICE_LOST) { device_lost("present"); return -1; }
+        if (pr == VK_ERROR_OUT_OF_DATE_KHR || pr == VK_ERROR_SURFACE_LOST_KHR) break;
     }
     if (!fence_submitted) {
         VkSubmitInfo si = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO};
-        g_vk.QueueSubmit(g_queue, 1, &si, g_fence);
+        VkResult marker = g_vk.QueueSubmit(g_queue, 1, &si, g_fence);
+        if (marker != VK_SUCCESS) {
+            if (marker == VK_ERROR_DEVICE_LOST) device_lost("frame completion submit");
+            else quarantine_pending_work(marker, "frame completion submit");
+            return -1; /* no fence was submitted; never wait on its unsignalled state */
+        }
     }
     VkResult fr = timed_wait(g_fence, UINT64_MAX);
-    if (fg) vkp_framegen_presented(presented_gen);
     if (fr == VK_ERROR_DEVICE_LOST || pr == VK_ERROR_DEVICE_LOST) { device_lost("present"); return -1; }
+    if (fr != VK_SUCCESS) return -1;
+    if (fg) vkp_framegen_presented(presented_gen);
     if (pr == VK_ERROR_OUT_OF_DATE_KHR || pr == VK_ERROR_SURFACE_LOST_KHR) {
         droiddeck_log("gpu", "screen surface %s on present: rebuilding the swapchain", vk_result_name(pr));
         destroy_swapchain();
@@ -2237,6 +2402,7 @@ void vkp_reset_first_frame(void) {
 void vkp_signal_first_frame(void) {
     if (g_first_frame_done) return;
     g_first_frame_done = 1;
+    clear_fault();
     droiddeck_on_first_frame();
 }
 
@@ -2250,6 +2416,7 @@ int vkp_update_map(int scene_w, int scene_h) {
         return g_map.valid ? 0 : -1;
     }
     check_surface_changed();
+    if (g_dev_state != 1) return -1;
     if (!g_swapchain && swap_init() != 0) return -1;
     update_map(scene_w, scene_h);
     return g_map.valid ? 0 : -1;
@@ -2579,8 +2746,9 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
 int vkp_pass_copy_to(struct vkp_image *dst, int wait_fd) {
     if (!g_pass.active) { if (wait_fd >= 0) close(wait_fd); return -1; }
     g_pass.active = 0;
+    if (g_dev_state != 1) { if (wait_fd >= 0) close(wait_fd); return -1; }
     VkCommandBuffer cmd = g_cmds[0];
-    if (!dst || !dst->blit_dst || g_dev_state == -2) {
+    if (!dst || !dst->blit_dst) {
         if (wait_fd >= 0) close(wait_fd);
         g_vk.EndCommandBuffer(cmd);
         return -1;
@@ -2632,5 +2800,6 @@ int vkp_pass_copy_to(struct vkp_image *dst, int wait_fd) {
 void vkp_pass_abort(void) {
     if (!g_pass.active) return;
     g_pass.active = 0;
-    g_vk.EndCommandBuffer(g_cmds[0]);
+    if (g_dev_state == 1)
+        g_vk.EndCommandBuffer(g_cmds[0]);
 }

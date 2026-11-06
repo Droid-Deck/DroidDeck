@@ -73,6 +73,15 @@ class LinuxRuntimeLiveFilesTest {
         assertEquals(binds, nextBinds)
     }
 
+    @Test fun onlyTheFrozenSystemVulkanRouteExposesItsRenderNode() {
+        val node = "/dev/dri/renderD130"
+        val standard = LinuxRuntime.binds(context, null, null, null, null, false, null)
+        val system = LinuxRuntime.binds(context, null, null, null, null, true, node)
+
+        assertFalse(standard.contains("$node:$node"))
+        assertTrue(system.contains("$node:$node"))
+    }
+
     @Test fun successfulRemovalClearsGuestScratchAndPreservesOtherNoBackupData() {
         val runtime = runtime()
         val scratch = scratch()

@@ -500,14 +500,20 @@ object SessionArtifacts {
         return true
     }
 
+    /**
+     * Finishes the folders of sessions whose process died without its teardown. Returns true when
+     * the newest of them ended because Android killed the app for memory, so the app can say so
+     * (a game "crashing" on a phone with little free RAM is usually this, not a driver fault).
+     */
     @Synchronized
-    fun finishAbandoned(context: Context, beforeGuestStart: Boolean = false) {
+    fun finishAbandoned(context: Context, beforeGuestStart: Boolean = false): Boolean {
         val stopWhenSessionStarts = !beforeGuestStart
         val parent = LinuxRuntime.logDir(context)
         val abandoned = parent.listFiles { f ->
             SessionPaths.isSessionFolder(f) && !File(f, COMPLETE_MARKER).exists() && !inFlight(f)
-        }?.sortedWith(SessionPaths.chronological) ?: return
-        if (abandoned.isEmpty()) return
+        }?.sortedWith(SessionPaths.chronological) ?: return false
+        if (abandoned.isEmpty()) return false
+        var killedForMemory = false
         val current = SessionPaths.current()
         val latestPreviousSession = SessionPaths.sessionFolders(context).lastOrNull { it != current }
         LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
@@ -532,8 +538,10 @@ object SessionArtifacts {
                             "audio.log, device.txt) were on disk already and are as they were left.\n" +
                             (if (newest) "" else "Steam's logs are not included: a later session has overwritten them.\n") +
                             "crash.log holds Android's crash buffer as of the next app start - if this\n" +
-                            "session died of a crash, the entry is in there unless the device rebooted.\n"
+                            "session died of a crash, the entry is in there unless the device rebooted.\n" +
+                            (if (newest) exitReasons(context) else "")
                     )
+                    if (newest && lastExitForMemory(context)) killedForMemory = true
                 }
                 if (recoveryPreviouslyAttempted && !runtimeCaptured.exists() &&
                     (runtimeExpired.exists() || !beforeGuestStart) &&
@@ -591,7 +599,7 @@ object SessionArtifacts {
                     break
                 }
                 SessionEvents.record("session.artifacts_recovered", mapOf("newest" to newest), dir)
-                if (beforeGuestStart) return
+                if (beforeGuestStart) break
                 val scrubbed = scrubTree(record) { stopWhenSessionStarts && SessionState.running }
                 val marked = markScrubbed(scrubbed)
                 if (scrubbed.deferred) break
@@ -602,6 +610,54 @@ object SessionArtifacts {
                 Log.w(TAG, "could not finish $dir", e)
             }
         }
+        // Whoever finishes the folder first (the agent provider starts before the activity) leaves
+        // the notice for the launcher to show.
+        if (killedForMemory) SessionPrefs.setMemoryKillNotice(context, true)
+        return killedForMemory
+    }
+
+    /** Android's newest record for this app's main process says it was killed for memory. */
+    private fun lastExitForMemory(context: Context): Boolean {
+        if (android.os.Build.VERSION.SDK_INT < 30) return false
+        return runCatching {
+            val am = context.getSystemService(android.app.ActivityManager::class.java) ?: return false
+            am.getHistoricalProcessExitReasons(context.packageName, 0, 3)
+                .firstOrNull { it.processName == context.packageName }
+                ?.reason == android.app.ApplicationExitInfo.REASON_LOW_MEMORY
+        }.getOrDefault(false)
+    }
+
+    private fun exitReasons(context: Context): String {
+        if (android.os.Build.VERSION.SDK_INT < 30) return ""
+        return runCatching {
+            val am = context.getSystemService(android.app.ActivityManager::class.java) ?: return ""
+            val reasons = am.getHistoricalProcessExitReasons(context.packageName, 0, 3)
+            if (reasons.isEmpty()) return ""
+            val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
+            buildString {
+                append("\nAndroid's record of how this app's recent processes ended (newest first):\n")
+                reasons.forEach { r ->
+                    append("  ${fmt.format(java.util.Date(r.timestamp))} ${r.processName} pid ${r.pid}: reason ${reasonName(r.reason)}, " +
+                        "status ${r.status}, importance ${r.importance}, pss ${r.pss / 1024} MB, rss ${r.rss / 1024} MB" +
+                        (r.description?.let { " - $it" } ?: "") + "\n")
+                }
+            }
+        }.getOrDefault("")
+    }
+
+    private fun reasonName(reason: Int): String = when (reason) {
+        android.app.ApplicationExitInfo.REASON_LOW_MEMORY -> "LOW_MEMORY (killed for memory)"
+        android.app.ApplicationExitInfo.REASON_SIGNALED -> "SIGNALED"
+        android.app.ApplicationExitInfo.REASON_CRASH -> "CRASH"
+        android.app.ApplicationExitInfo.REASON_CRASH_NATIVE -> "CRASH_NATIVE"
+        android.app.ApplicationExitInfo.REASON_ANR -> "ANR"
+        android.app.ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "EXCESSIVE_RESOURCE_USAGE"
+        android.app.ApplicationExitInfo.REASON_USER_REQUESTED -> "USER_REQUESTED"
+        android.app.ApplicationExitInfo.REASON_USER_STOPPED -> "USER_STOPPED"
+        android.app.ApplicationExitInfo.REASON_EXIT_SELF -> "EXIT_SELF"
+        android.app.ApplicationExitInfo.REASON_DEPENDENCY_DIED -> "DEPENDENCY_DIED"
+        android.app.ApplicationExitInfo.REASON_OTHER -> "OTHER"
+        else -> reason.toString()
     }
 
     @Synchronized

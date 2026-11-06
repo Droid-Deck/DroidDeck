@@ -512,8 +512,16 @@ object SessionPrefs {
 
     internal fun ensureSystemVulkanAutoDrivers(context: Context, systemVulkan: Boolean) {
         if (!systemVulkan || gpuDriverMode(context) != GPU_DRIVERS_AUTO) return
+        if (com.droiddeck.launcher.core.DeviceSupport.openDriverActive(context)) return
         prefs(context).edit().putString("linuxDriver", "").putString("androidDriver", TurnipDriver.AUTO).apply()
     }
+
+    /** Compatibility alias for call sites that still name the original PowerVR-only policy. */
+    @JvmStatic
+    fun ensurePowerVrAutoDrivers(context: Context) = ensureSystemVulkanAutoDrivers(context)
+
+    internal fun ensurePowerVrAutoDrivers(context: Context, powerVr: Boolean) =
+        ensureSystemVulkanAutoDrivers(context, powerVr)
 
     fun gpuAutoInstalled(context: Context): Set<String> =
         prefs(context).getStringSet("gpuAutoInstalled", emptySet()).orEmpty()
@@ -789,8 +797,62 @@ object SessionPrefs {
     @JvmStatic
     fun vkBridge(context: Context): Boolean = prefs(context).getBoolean("vkBridge", com.droiddeck.launcher.core.DeviceSupport.mali())
 
+    fun venus(context: Context): Boolean = prefs(context).getBoolean("venus", false)
+
+    fun hostVulkanApi(context: Context): String = prefs(context).getString("hostVulkanApi", "").orEmpty()
+
+    fun setHostVulkanApi(context: Context, api: String) {
+        if (api != hostVulkanApi(context)) prefs(context).edit().putString("hostVulkanApi", api).apply()
+    }
+
+    fun bridgeFellBack(context: Context): Boolean = prefs(context).getBoolean("bridgeFellBack", false)
+
+    fun bridgeFellBackForMemory(context: Context): Boolean = prefs(context).getString("bridgeFallbackReason", "") == "memory"
+
+    fun setBridgeFellBack(context: Context, on: Boolean, reason: String = "") {
+        prefs(context).edit().putBoolean("bridgeFellBack", on).putString("bridgeFallbackReason", if (on) reason else "").apply()
+    }
+
+    fun steamGpuCompositing(context: Context): Boolean {
+        if (!steamGpuCompositingAllowed()) {
+            if (prefs(context).getBoolean("steamGpuCompositing", false))
+                prefs(context).edit().putBoolean("steamGpuCompositing", false).apply()
+            return false
+        }
+        return prefs(context).getBoolean("steamGpuCompositing", false)
+    }
+
+    fun steamGpuCompositingAllowed(): Boolean =
+        !com.droiddeck.launcher.core.DeviceSupport.adreno() && !com.droiddeck.launcher.core.DeviceSupport.mali()
+
+    fun setSteamGpuCompositing(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("steamGpuCompositing", on && steamGpuCompositingAllowed()).apply()
+    }
+
+    fun takeMemoryKillNotice(context: Context): Boolean {
+        val on = prefs(context).getBoolean("memoryKillNotice", false)
+        if (on) prefs(context).edit().putBoolean("memoryKillNotice", false).apply()
+        return on
+    }
+
+    fun setMemoryKillNotice(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("memoryKillNotice", on).apply()
+    }
+
+    fun maliFallbackByAuto(context: Context): String = prefs(context).getString("maliFallbackByAuto", "").orEmpty()
+
+    fun maliFallbackKnown(context: Context): Boolean = prefs(context).contains("maliFallbackByAuto")
+
+    fun setMaliFallbackByAuto(context: Context, route: String) {
+        prefs(context).edit().putString("maliFallbackByAuto", route).apply()
+    }
+
+    fun setVenus(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("venus", on).apply()
+    }
+
     fun setVkBridge(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("vkBridge", on).apply()
+        prefs(context).edit().putBoolean("vkBridge", on).putBoolean("bridgeFellBack", false).apply()
     }
 
     @JvmStatic
@@ -800,6 +862,7 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("bridgeProtonDxvk", on).apply()
     }
 
+    @JvmStatic
     fun vkBridgeSafe(context: Context): Boolean = prefs(context).getBoolean("vkBridgeSafe", true)
 
     fun setVkBridgeSafe(context: Context, on: Boolean) {
@@ -898,6 +961,13 @@ object SessionPrefs {
             android.util.Log.e("GameEnvironment", "Could not update game diagnostics", e)
             false
         }
+    }
+
+    fun detailedGraphicsLogs(context: Context): Boolean =
+        prefs(context).getBoolean("detailedGraphicsLogs", false)
+
+    fun setDetailedGraphicsLogs(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("detailedGraphicsLogs", on).apply()
     }
 
     internal fun gameDebugLogsEffective(
