@@ -284,6 +284,36 @@ class InputLibraryTest {
         assertEquals(original.compileActive(true), restored.compileActive(true))
     }
 
+    @Test fun explicitAutoSelectionStaysDistinctFromAnInheritedProfileAfterSaving() {
+        val original = InputLibraries.read(context)
+        val binding = original.profile("game").binding(InputRole.PHYSICAL)
+        val inherited = original.selectPart(false, InputRole.PHYSICAL, binding)
+        val explicit = original.selectProfile(false, InputProfiles.AUTO).selectPart(false, InputRole.PHYSICAL, binding)
+        assertFalse(InputLibraries.decode(InputLibraries.encode(inherited))!!.selection(false).profileSelected)
+        assertTrue(InputLibraries.decode(InputLibraries.encode(explicit))!!.selection(false).profileSelected)
+        assertEquals(inherited.compileActive(false), explicit.compileActive(false))
+    }
+
+    @Test fun versionSevenSelectionsRetainKnownProfileAndPartChoices() {
+        val original = InputLibraries.read(context)
+        val binding = original.profile("game").binding(InputRole.PHYSICAL)
+        val choices = listOf(
+            original.selectPart(false, InputRole.PHYSICAL, binding) to false,
+            original.selectProfile(false, InputProfiles.AUTO) to true,
+            original.selectProfile(false, "game").selectPart(false, InputRole.PHYSICAL, binding) to true,
+            original.selectPart(false, InputRole.SECONDARY, InputStockLayouts.TRACKPAD) to false,
+        )
+        for ((library, selected) in choices) {
+            val old = org.json.JSONObject(InputLibraries.encode(library)).put("version", 7)
+            old.getJSONObject("selections").getJSONObject("game").remove("profileSelected")
+            prefs.edit().putString("library", old.toString()).commit()
+            val restored = InputLibraries.read(context)
+            assertEquals(selected, restored.selection(false).profileSelected)
+            assertEquals(library, restored)
+            assertEquals(restored, InputLibraries.read(context))
+        }
+    }
+
     @Test fun savedQuickCombinationOwnsIndependentCopiesOfAllThreeParts() {
         val original = InputLibraries.read(context)
         val mixed = original.selectPart(true, InputRole.SECONDARY, InputStockLayouts.TRACKPAD)

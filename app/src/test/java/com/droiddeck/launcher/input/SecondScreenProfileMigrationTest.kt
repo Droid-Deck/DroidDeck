@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.input
 
+import android.content.Context
 import android.hardware.display.DisplayManager
 import android.view.Display
 import androidx.compose.runtime.MutableState
@@ -7,6 +8,7 @@ import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -85,6 +87,62 @@ class SecondScreenProfileMigrationTest {
         SessionPrefs.setSecondScreenPanel(activity, SecondScreenMode.DECK_CONTROLS.id)
         open(SecondScreenMode.DECK_CONTROLS.id, deckPad = true)
         assertEquals(original, InputLibraries.read(activity))
+        assertEquals(SecondScreenMode.CUSTOM_CONTROLS.id, SessionPrefs.secondScreenPanel(activity))
+    }
+
+    @Test fun unrelatedPartSelectionsDoNotSkipTheSavedPanelMigration() {
+        for (desktop in listOf(false, true)) for (role in listOf(InputRole.PHYSICAL, InputRole.PRIMARY)) {
+            customLibrary(desktop)
+            val original = InputLibraries.update(activity) { it.selectPart(desktop, role, it.profile("game").binding(role)) }
+            SessionPrefs.setSecondScreenPanel(activity, SecondScreenMode.KEYBOARD_TRACKPAD.id)
+            open(SecondScreenMode.KEYBOARD_TRACKPAD.id, deckPad = true)
+            assertEquals(original.selectPart(desktop, InputRole.SECONDARY, InputStockLayouts.TRACKPAD), InputLibraries.read(activity))
+            assertEquals(SecondScreenMode.CUSTOM_CONTROLS.id, SessionPrefs.secondScreenPanel(activity))
+        }
+    }
+
+    @Test fun explicitProfilesIncludingAutoKeepTheirSecondaryLayoutAfterOtherPartChanges() {
+        for (desktop in listOf(false, true)) for (profile in listOf(InputProfiles.AUTO, InputProfile.GAME, InputProfile.DESKTOP)) {
+            for (role in listOf(null, InputRole.PHYSICAL, InputRole.PRIMARY)) {
+                customLibrary(desktop)
+                val original = InputLibraries.update(activity) { library ->
+                    val selected = library.selectProfile(desktop, profile)
+                    if (role == null) selected else selected.selectPart(desktop, role, selected.profile("game").binding(role))
+                }
+                SessionPrefs.setSecondScreenPanel(activity, SecondScreenMode.DECK_CONTROLS.id)
+                open(SecondScreenMode.DECK_CONTROLS.id, deckPad = true)
+                assertEquals(original, InputLibraries.read(activity))
+                assertEquals(SecondScreenMode.CUSTOM_CONTROLS.id, SessionPrefs.secondScreenPanel(activity))
+            }
+        }
+    }
+
+    @Test fun unavailableDeckPanelKeepsItsSavedChoiceUntilItCanMigrate() {
+        for (desktop in listOf(false, true)) {
+            val original = customLibrary(desktop)
+            SessionPrefs.setSecondScreenPanel(activity, SecondScreenMode.DECK_CONTROLS.id)
+            open(SecondScreenMode.DECK_CONTROLS.id, deckPad = false)
+            assertEquals(original, InputLibraries.read(activity))
+            assertEquals(SecondScreenMode.DECK_CONTROLS.id, SessionPrefs.secondScreenPanel(activity))
+            open(SessionPrefs.secondScreenPanel(activity), deckPad = true)
+            assertEquals(original.selectPart(desktop, InputRole.SECONDARY, InputStockLayouts.DECK), InputLibraries.read(activity))
+            assertEquals(SecondScreenMode.CUSTOM_CONTROLS.id, SessionPrefs.secondScreenPanel(activity))
+        }
+    }
+
+    @Test fun failedMigrationKeepsTheSavedPanelAndCanBeRetried() {
+        val original = customLibrary(desktop = false)
+        val prefs = activity.getSharedPreferences("input-profiles", Context.MODE_PRIVATE)
+        val valid = prefs.getString("library", null)!!
+        val unsupported = JSONObject(valid).put("version", 999).toString()
+        prefs.edit().putString("library", unsupported).commit()
+        SessionPrefs.setSecondScreenPanel(activity, SecondScreenMode.KEYBOARD_TRACKPAD.id)
+        open(SecondScreenMode.KEYBOARD_TRACKPAD.id, deckPad = true)
+        assertEquals(unsupported, prefs.getString("library", null))
+        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD.id, SessionPrefs.secondScreenPanel(activity))
+        prefs.edit().putString("library", valid).commit()
+        open(SessionPrefs.secondScreenPanel(activity), deckPad = true)
+        assertEquals(original.selectPart(false, InputRole.SECONDARY, InputStockLayouts.TRACKPAD), InputLibraries.read(activity))
         assertEquals(SecondScreenMode.CUSTOM_CONTROLS.id, SessionPrefs.secondScreenPanel(activity))
     }
 

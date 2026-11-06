@@ -44,7 +44,9 @@ data class SavedInputBindings(
         ?: defaultElementClick(element, action(element)) { controls[it] ?: InputAction.Native() }
 }
 
-data class InputSelection(val profile: String = InputProfiles.AUTO, val parts: Map<InputRole, String> = emptyMap())
+data class InputSelection(
+    val profile: String = InputProfiles.AUTO, val parts: Map<InputRole, String> = emptyMap(), val profileSelected: Boolean = false,
+)
 
 data class InputPart(val bindings: String, val layout: String? = null)
 
@@ -68,7 +70,7 @@ data class InputLibrary(
         val id = selection(isDesktop).profile
         return if (id == InputProfiles.AUTO) { if (isDesktop) desktop else steam } else id
     }
-    fun selectProfile(isDesktop: Boolean, id: String) = copy(selections = selections + (mode(isDesktop) to InputSelection(id)))
+    fun selectProfile(isDesktop: Boolean, id: String) = copy(selections = selections + (mode(isDesktop) to InputSelection(id, profileSelected = true)))
     fun selectPart(isDesktop: Boolean, role: InputRole, bindingsId: String): InputLibrary {
         val previous = selection(isDesktop)
         return copy(selections = selections + (mode(isDesktop) to previous.copy(parts = previous.parts + (role to bindingsId))))

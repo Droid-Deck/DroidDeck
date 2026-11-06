@@ -9,7 +9,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 object InputLibraries {
-    private const val VERSION = 7
+    private const val VERSION = 8
     private const val KEY = "library"
     private const val RECOVERY = "library-recovery."
     const val OVERLAY = "builtin.overlay"
@@ -231,7 +231,7 @@ object InputLibraries {
         for ((mode, selection) in library.selections) {
             val parts = JSONObject()
             selection.parts.forEach { (role, id) -> parts.put(role.name, id) }
-            selections.put(mode, JSONObject().put("profile", selection.profile).put("parts", parts))
+            selections.put(mode, JSONObject().put("profile", selection.profile).put("parts", parts).put("profileSelected", selection.profileSelected))
         }
         return JSONObject().put("selections", selections).put("version", VERSION).put("selected", library.selected).put("steam", library.steam).put("desktop", library.desktop)
             .put("profiles", profiles).put("layouts", layouts).put("bindings", bindings).toString()
@@ -272,7 +272,9 @@ object InputLibraries {
                 val value = saved.getJSONObject(mode)
                 val parts = value.getJSONObject("parts")
                 require(parts.length() <= InputRole.entries.size)
-                InputSelection(value.getString("profile"), parts.keys().asSequence().associate { role -> InputRole.valueOf(role) to parts.getString(role) })
+                val profile = value.getString("profile")
+                InputSelection(profile, parts.keys().asSequence().associate { role -> InputRole.valueOf(role) to parts.getString(role) },
+                    value.optBoolean("profileSelected", profile != InputProfiles.AUTO || parts.length() == 0))
             }
         }.orEmpty()
         InputLibrary(profiles, layouts, bindings, doc.getString("selected"), doc.getString("steam"), doc.getString("desktop"), selections).validate()

@@ -3317,17 +3317,22 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (pipUi || !started) return
         val mode = if (requested == SecondScreenMode.DECK_CONTROLS || requested == SecondScreenMode.KEYBOARD_TRACKPAD) {
             val remembered = SessionPrefs.secondScreenPanel(this)
-            if (remembered == SecondScreenMode.DECK_CONTROLS.id || remembered == SecondScreenMode.KEYBOARD_TRACKPAD.id) {
+            if (remembered == requested.id) {
                 val desktop = SessionState.mode == SessionService.MODE_DESKTOP
-                val library = com.droiddeck.launcher.input.InputLibraries.read(this)
                 val key = if (desktop) InputProfile.DESKTOP else InputProfile.GAME
-                if (key !in library.selections) {
-                    val preset = if (requested == SecondScreenMode.DECK_CONTROLS) com.droiddeck.launcher.input.InputStockLayouts.DECK else com.droiddeck.launcher.input.InputStockLayouts.TRACKPAD
-                    runCatching { com.droiddeck.launcher.input.InputLibraries.update(this) { it.selectPart(desktop, InputRole.SECONDARY, preset) } }
-                        .onSuccess { refreshInputProfile() }
-                        .onFailure { Log.w(TAG, "could not migrate the saved second-screen selection", it) }
+                val preset = if (requested == SecondScreenMode.DECK_CONTROLS) com.droiddeck.launcher.input.InputStockLayouts.DECK else com.droiddeck.launcher.input.InputStockLayouts.TRACKPAD
+                runCatching {
+                    com.droiddeck.launcher.input.InputLibraries.update(this) { library ->
+                        val selection = library.selections[key]
+                        if (selection?.profileSelected == true || selection?.parts?.containsKey(InputRole.SECONDARY) == true) library
+                        else library.selectPart(desktop, InputRole.SECONDARY, preset)
+                    }
+                }.onSuccess {
+                    refreshInputProfile()
+                    SessionPrefs.setSecondScreenPanel(this, SecondScreenMode.CUSTOM_CONTROLS.id)
+                }.onFailure {
+                    Log.w(TAG, "could not migrate the saved second-screen selection", it)
                 }
-                SessionPrefs.setSecondScreenPanel(this, SecondScreenMode.CUSTOM_CONTROLS.id)
             }
             SecondScreenMode.CUSTOM_CONTROLS
         } else requested
