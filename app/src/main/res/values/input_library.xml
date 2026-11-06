@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="input_library_recovered">Unreadable input settings were preserved in a recovery copy. You can continue editing the restored profiles.</string>
     <string name="input_builtin_layout_hint">This built-in layout keeps its existing controls. Create a custom layout to add, move or resize elements.</string>
     <string name="input_properties">Properties</string>
     <string name="input_click_properties">Click properties</string>

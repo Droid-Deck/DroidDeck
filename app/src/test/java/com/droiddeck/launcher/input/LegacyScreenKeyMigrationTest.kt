@@ -65,4 +65,31 @@ class LegacyScreenKeyMigrationTest {
         assertEquals("28:NaN,0.5,44", ControllerPrefs.prefs(context).getString("screenKeys", null))
         assertFalse(prefs.contains(LegacyScreenKeyMigration.BACKUP))
     }
+
+    @Test fun failedScreenKeyMigrationKeepsUpgradedBindingIdsStableForEditorLookup() {
+        val original = InputLibraries.read(context).chooseLayout("game", InputRole.SECONDARY, InputLibraries.DECK)
+        val fixed = original.copy(layouts = original.layouts.map {
+            when (it.id) {
+                InputLibraries.OVERLAY -> it.copy(elements = emptyList(), template = InputLayoutTemplate.OVERLAY)
+                InputLibraries.DECK -> it.copy(elements = emptyList(), template = InputLayoutTemplate.DECK)
+                else -> it
+            }
+        }, bindings = original.bindings.map {
+            if (it.layoutId in setOf(InputLibraries.OVERLAY, InputLibraries.DECK)) it.copy(elements = emptyMap(), clicks = emptyMap()) else it
+        })
+        val raw = JSONObject(InputLibraries.encode(fixed)).put("version", 2).toString()
+        prefs.edit().putString("library", raw).commit()
+        ControllerPrefs.prefs(context).edit().putString("screenKeys", "28:NaN,0.5,44").commit()
+        val first = InputLibraries.read(context)
+        val second = InputLibraries.read(context)
+        assertEquals(first, second)
+        for (role in listOf(InputRole.PRIMARY, InputRole.SECONDARY)) {
+            val id = first.profile("game").binding(role)
+            assertEquals(first.preset(id), second.preset(id))
+            assertTrue(second.layout("game", role)!!.editable)
+        }
+        assertEquals(raw, prefs.getString("library", null))
+        assertTrue(InputLibraries.hasPendingScreenKeyMigration(context))
+        assertEquals("28:NaN,0.5,44", ControllerPrefs.prefs(context).getString("screenKeys", null))
+    }
 }

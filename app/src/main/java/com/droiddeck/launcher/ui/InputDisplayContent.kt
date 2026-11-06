@@ -47,10 +47,19 @@ internal fun InputDisplayContent(host: ComponentActivity, display: Display, onDi
             override fun dismiss() { compose?.disposeComposition(); compose = null; super.dismiss() }
         }
         presentation.setOnCancelListener { dismiss() }
-        presentation.show()
+        fun showPresentation() {
+            if (!display.isValid) { dismiss(); return }
+            try {
+                presentation.show()
+            } catch (_: WindowManager.InvalidDisplayException) {
+                presentation.dismiss()
+                dismiss()
+            }
+        }
+        showPresentation()
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP) presentation.hide()
-            if (event == Lifecycle.Event.ON_START) presentation.show()
+            if (event == Lifecycle.Event.ON_START) showPresentation()
         }
         host.lifecycle.addObserver(observer)
         onDispose { host.lifecycle.removeObserver(observer); presentation.dismiss() }

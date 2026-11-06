@@ -6,10 +6,12 @@ import android.util.DisplayMetrics
 import android.view.Display
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.UUID
 
 object InputLibraries {
     private const val VERSION = 6
     private const val KEY = "library"
+    private const val RECOVERY = "library-recovery."
     const val OVERLAY = "builtin.overlay"
     const val DECK = "builtin.deck"
     const val TRACKPAD = "builtin.trackpad"
@@ -46,11 +48,24 @@ object InputLibraries {
 
     fun hasPendingScreenKeyMigration(context: Context) = !prefs(context).contains(LegacyScreenKeyMigration.BACKUP) && LegacyScreenKeyMigration.snapshot(context) != null
 
+    fun hasLibraryRecovery(context: Context) = prefs(context).all.keys.any { it.startsWith(RECOVERY) }
+
     @Synchronized
     fun update(context: Context, change: (InputLibrary) -> InputLibrary): InputLibrary {
-        val stored = prefs(context).getString(KEY, null)
-        require(stored == null || decode(stored) != null) { "The saved input library cannot be edited by this version." }
-        return change(read(context)).validate().also { write(context, it) }
+        val p = prefs(context)
+        val stored = p.getString(KEY, null)
+        val invalid = stored != null && decode(stored) == null
+        require(!invalid || runCatching { JSONObject(stored!!).getInt("version") }.getOrNull()?.let { it <= VERSION } != false) {
+            "The saved input library cannot be edited by this version."
+        }
+        val updated = change(read(context)).validate()
+        if (invalid) {
+            val encoded = encode(updated)
+            require(encoded.length <= 2_000_000) { "The input library is too large to save." }
+            check(p.edit().putString(RECOVERY + UUID.nameUUIDFromBytes(stored!!.toByteArray(Charsets.UTF_8)), stored)
+                .putString(KEY, encoded).commit()) { "Could not save the input library and its recovery copy." }
+        } else write(context, updated)
+        return updated
     }
 
     private fun write(context: Context, library: InputLibrary) {
@@ -106,7 +121,7 @@ object InputLibraries {
                 val key = part.bindings to layout.id
                 val id = migrated.getOrPut(key) {
                     val old = library.preset(part.bindings)
-                    val newId = newInputId()
+                    val newId = migrationBindingId(result, old.id, layout.id)
                     val keyboard = elements.filter { it.id == "builtin:keyboard" }.associate { it.id to InputAction.Command(InputCommand.KEYBOARD) }
                     val clicks = if (settings.stickClick) old.clicks else old.clicks + elements.filter { it.hasClick }.associate { it.id to InputAction.Disabled }
                     result = result.withPreset(old.copy(id = newId, layoutId = layout.id, elements = old.elements + keyboard, clicks = clicks))
@@ -141,7 +156,7 @@ object InputLibraries {
                 val layout = replacements[part.layout] ?: return@mapValues part
                 val id = migrated.getOrPut(part.bindings to layout.id) {
                     val old = library.preset(part.bindings)
-                    val id = newInputId()
+                    val id = migrationBindingId(result, old.id, layout.id)
                     val original = library.layouts.first { it.id == layout.id }
                     val stockLayout = layout.copy(id = if (original.template == InputLayoutTemplate.TRACKPAD) TRACKPAD else DECK)
                     result = result.withPreset(old.copy(id = id, layoutId = layout.id,
@@ -157,6 +172,15 @@ object InputLibraries {
         for (layout in stock) if (result.layouts.none { it.id == layout.id }) result = result.withLayout(layout)
         for (preset in InputStockLayouts.presets(stock)) if (result.bindings.none { it.id == preset.id }) result = result.withPreset(preset)
         return result.validate()
+    }
+
+    private fun migrationBindingId(library: InputLibrary, binding: String, layout: String): String {
+        val seed = JSONArray(listOf(binding, layout)).toString().toByteArray(Charsets.UTF_8)
+        val base = "migrated.bindings." + UUID.nameUUIDFromBytes(seed)
+        var id = base
+        var suffix = 0
+        while (library.bindings.any { it.id == id }) id = "$base.${++suffix}"
+        return id
     }
 
     private fun scopeLayouts(library: InputLibrary): InputLibrary = library.copy(layouts = library.layouts.map { layout ->

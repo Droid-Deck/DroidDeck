@@ -171,6 +171,16 @@ class SessionInputPointerTest {
         assertTrue(CompositorShadow.events.isEmpty())
     }
 
+    @Test fun focusCleanupReleasesHardwareAndKeyboardKeysWithoutReleasingAnotherOwner() {
+        val held = ReflectionHelpers.getField<HeldInput>(activity, "heldKeys")
+        output.key(29, true)
+        for ((owner, code) in listOf(8 to 30, 16 to 31, 32 to 32, 16 to 29)) held.set(owner, code, true)
+        ReflectionHelpers.callInstanceMethod<Unit>(activity, "releaseHeldGuestInput")
+        assertEquals(setOf(30 to 0, 31 to 0, 32 to 0), CompositorShadow.keys.filter { it.second == 0 }.toSet())
+        output.key(29, false)
+        assertEquals(29 to 0, CompositorShadow.keys.last())
+    }
+
     @Test fun horizontalWheelUsesTheSameDirectionInBothMouseBackends() {
         output.scrollHorizontal(2)
         assertEquals(listOf(Triple(11, 0, 240)), CompositorShadow.events)

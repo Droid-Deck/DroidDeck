@@ -127,6 +127,26 @@ class InputLibraryTest {
         assertEquals(future, prefs.getString("library", null))
     }
 
+    @Test fun unreadableLibrariesKeepStableEditorReferencesUntilAnEditPreservesRecoveryData() {
+        val valid = InputLibraries.encode(InputLibraries.read(context))
+        val invalidValues = listOf("{broken", org.json.JSONObject(valid).put("selected", "missing").toString())
+        for (raw in invalidValues) {
+            prefs.edit().putString("library", raw).commit()
+            val first = InputLibraries.read(context)
+            val second = InputLibraries.read(context)
+            assertEquals(first, second)
+            val id = first.profile("game").binding(InputRole.PRIMARY)
+            assertEquals(first.preset(id), second.preset(id))
+            assertEquals(raw, prefs.getString("library", null))
+            val updated = InputLibraries.update(context) { it.copy(selected = "desktop") }
+            assertEquals("desktop", InputLibraries.read(context).selected)
+            assertEquals(updated, InputLibraries.read(context))
+            assertTrue(prefs.all.filterKeys { it.startsWith("library-recovery.") }.containsValue(raw))
+        }
+        assertTrue(InputLibraries.hasLibraryRecovery(context))
+        assertEquals(invalidValues.toSet(), prefs.all.filterKeys { it.startsWith("library-recovery.") }.values.toSet())
+    }
+
     @Test fun resettingAProfileDoesNotResetSharedBindingsOrAccumulatePrivateCopies() {
         var library = InputLibraries.read(context).duplicateProfile("desktop", "Editor", "editor", sharePhysical = true)
         val common = library.preset(library.profile("desktop").binding(InputRole.PHYSICAL))

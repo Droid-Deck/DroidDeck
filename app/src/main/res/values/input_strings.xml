@@ -41,6 +41,8 @@
     <string name="input_custom_controls">Custom controls</string>
     <string name="input_extra_keys">Device-specific buttons</string>
     <string name="input_capture">Assign a physical button</string>
+    <string name="input_capture_confirm">Release the button, then choose Edit, Retry, or Cancel. B or Back cancels after release.</string>
+    <string name="input_capture_retry">Retry</string>
     <string name="input_capture_hint">Press a button, including a back button reported as a keyboard key. Volume and Android system keys are reserved. The assignment applies only to this device.</string>
     <string name="input_remove_binding">Remove assignment</string>
     <string name="input_latency">Input diagnostics</string>

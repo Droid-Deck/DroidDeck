@@ -4224,7 +4224,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         mouseBackInput.cancel()
         heldButtons.release(1 or 2 or 8 or 16)
         guestKeysDown.toList().forEach { sendGuestKey(it, false) }
-        heldKeys.release(8)
+        heldKeys.release(8 or 16 or 32)
     }
 
     private fun sendGuestKey(key: Int, down: Boolean, owner: Int = 1) {

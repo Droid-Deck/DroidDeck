@@ -167,6 +167,7 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                         }
                     }
                     if (InputLibraries.hasPendingScreenKeyMigration(context)) InputHint(stringResource(R.string.input_import_failed))
+                    if (InputLibraries.hasLibraryRecovery(context)) InputHint(stringResource(R.string.input_library_recovered))
                     if (library.profiles.any { it.id.startsWith("migrated.screenkeys.") }) Text(stringResource(R.string.input_imported_keys_hint),
                         Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     SettingsGroup(stringResource(R.string.input_profiles)) {

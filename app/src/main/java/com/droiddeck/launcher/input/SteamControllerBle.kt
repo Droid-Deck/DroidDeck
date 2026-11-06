@@ -21,7 +21,9 @@ import java.util.UUID
 
 @SuppressLint("MissingPermission")
 class SteamControllerBle(private val context: Context, router: InputRouter? = null) {
-    private val routedInput = router?.let(::TritonInputRouter)
+    private val inputLock = router ?: Any()
+    private var routedInput = router?.let(::TritonInputRouter)
+    @Volatile private var stopped = false
     private val thread = HandlerThread("steam-controller-ble").apply { start() }
     private val handler = Handler(thread.looper)
     private val outputReports = mutableMapOf<Int, UUID>()
@@ -38,22 +40,32 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
     private var featureRead = 0L
 
     fun start() = handler.post {
-        if (running) return@post
+        if (stopped || running) return@post
         running = true
         Log.i(TAG, "looking for a paired Steam Controller")
         connect()
     }
 
-    fun stop() = handler.post {
-        running = false
-        handler.removeCallbacksAndMessages(null)
-        disconnect("session ended")
-        routedInput?.close()
-        thread.quitSafely()
+    fun stop() {
+        synchronized(inputLock) {
+            if (stopped) return
+            stopped = true
+            routedInput?.close()
+            routedInput = null
+            FakeInputWriter.writeTritonState(SLOT, if (reportId == 0x47) 0x47 else 0x45, ByteArray(STATE_BYTES))
+            connected = false
+            FakeInputWriter.setTritonConnected(SLOT, false)
+        }
+        handler.post {
+            running = false
+            handler.removeCallbacksAndMessages(null)
+            disconnect("session ended")
+            thread.quitSafely()
+        }
     }
 
     private fun connect() {
-        if (!running || gatt != null) return
+        if (stopped || !running || gatt != null) return
         if (SessionState.suspended) {
             handler.postDelayed(::connect, RETRY_MS)
             return
@@ -86,11 +98,15 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         featureRead = 0L
         queuedWrites.clear()
         outputReports.clear()
-        connected = false
-        FakeInputWriter.setTritonConnected(SLOT, false)
+        synchronized(inputLock) {
+            if (!stopped) {
+                connected = false
+                FakeInputWriter.setTritonConnected(SLOT, false)
+                release()
+            }
+        }
         g.disconnect()
         g.close()
-        release()
         Log.i(TAG, "disconnected: $why")
         listener?.invoke()
     }
@@ -121,10 +137,12 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         }
 
         override fun onDescriptorWrite(g: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
-            if (g !== gatt || descriptor.characteristic.uuid != input) return
-            Log.i(TAG, "subscribed to report 0x%02x (status %d)".format(reportId, status))
-            connected = status == BluetoothGatt.GATT_SUCCESS
-            FakeInputWriter.setTritonConnected(SLOT, connected)
+            synchronized(inputLock) {
+                if (stopped || g !== gatt || descriptor.characteristic.uuid != input) return
+                Log.i(TAG, "subscribed to report 0x%02x (status %d)".format(reportId, status))
+                connected = status == BluetoothGatt.GATT_SUCCESS
+                FakeInputWriter.setTritonConnected(SLOT, connected)
+            }
             listener?.invoke()
             if (connected) {
                 refreshLizardMode()
@@ -166,6 +184,7 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
     }
 
     private fun subscribe(g: BluetoothGatt) {
+        if (stopped) return
         val service = g.getService(SERVICE)
         if (service == null) {
             Log.w(TAG, "no Valve service on \"${g.device.name}\" (attempt ${discoveries + 1}); services: " +
@@ -210,27 +229,28 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
     }
 
     private fun refreshLizardMode() {
-        if (!connected) return
+        if (stopped || !connected) return
         val msg = ByteArray(FEATURE_BYTES)
         msg[0] = 0x87.toByte(); msg[1] = 3; msg[2] = 9
         enqueueOutput(REPORT, msg)
         handler.postDelayed(::refreshLizardMode, LIZARD_REFRESH_MS)
     }
 
-    private fun onState(data: ByteArray) {
-        if (data.size < STATE_BYTES) return
+    private fun onState(data: ByteArray) = synchronized(inputLock) {
+        if (stopped || data.size < STATE_BYTES) return@synchronized
         val timing = InputTiming.begin()
         FakeInputWriter.writeTritonState(SLOT, reportId, routedInput?.route(data) ?: data)
         InputTiming.end(timing)
     }
 
-    private fun release() {
+    private fun release() = synchronized(inputLock) {
+        if (stopped) return@synchronized
         routedInput?.release()
         FakeInputWriter.writeTritonState(SLOT, if (reportId == 0x47) 0x47 else 0x45, ByteArray(STATE_BYTES))
     }
 
     private fun pollOutput() {
-        if (!running || !connected || gatt == null) return
+        if (stopped || !running || !connected || gatt == null) return
         FakeInputWriter.readTritonOutput(SLOT, outputSequence)?.let { output ->
             outputSequence = ByteBuffer.wrap(output, 0, 8).order(ByteOrder.LITTLE_ENDIAN).long
             sendOutputReport(output[8] != 0.toByte(), output.copyOfRange(9, output.size))
@@ -244,7 +264,8 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         handler.postDelayed(::pollOutput, OUTPUT_POLL_MS)
     }
 
-    private fun onFeatureRead(value: ByteArray?) {
+    private fun onFeatureRead(value: ByteArray?) = synchronized(inputLock) {
+        if (stopped) return@synchronized
         outputWritePending = false
         if (featureRead != 0L) {
             if (value == null) Log.w(TAG, "feature read failed")
@@ -273,7 +294,7 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
     }
 
     private fun writeNextOutput() {
-        if (outputWritePending) return
+        if (stopped || outputWritePending) return
         val g = gatt ?: return
         val (uuid, value) = queuedWrites.pollFirst() ?: return
         val characteristic = g.getService(SERVICE)?.getCharacteristic(uuid)

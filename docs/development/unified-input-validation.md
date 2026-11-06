@@ -46,8 +46,36 @@ The follow-up router-ownership fix passed **47 tests** in `InputSourceOwnershipT
 `InputSurfaceSourceTest`, and `InputRouterTest`, including two new regressions.
 An obsolete activity (or one without a router) cannot detach the replacement
 activity's Deck routes; the current owner still releases its held keys on cleanup.
-This follow-up changes teardown only and was not reinstalled or retested on Thor,
-which was no longer available over ADB after the screenshot pass.
+GitHub's complete Build APK workflow passed for `7b7722bd2`.
+
+### Review follow-up
+
+- Upgrade binding IDs are deterministic across unsuccessful reads. Editor lookup
+  from an earlier read remains valid when legacy screen-key import fails.
+- An edit of malformed supported-version data commits both the restored library
+  and a recovery copy of the original text. Reads alone preserve the original;
+  newer unsupported versions remain protected against overwrite. Settings show
+  that recovery data was retained.
+- Focus/capture loss releases hardware, Android keyboard and PC-keyboard owners
+  without releasing another source's hold. Secondary settings handle an invalid
+  presentation display at initial show and resume.
+- Physical-button capture waits for release before confirmation/navigation.
+  Back and B remain assignable; another Back/B press cancels, A confirms, and
+  Retry starts a new capture. The existing dialog-window key hook is reused.
+- Steam Controller BLE teardown synchronously closes its routed source and
+  gates state/feature publication. Queued callbacks and starts cannot reactivate
+  it after stop returns; disconnect work remains on the existing BLE thread.
+
+The input/UI/global-reset run passed **959 tests in 127 suites**. After the
+additional BLE finding, **5 BLE/routing tests passed**, including two regressions
+for queued callbacks, synchronous release, source detachment and shared holds.
+The final APK passed packaging, runtime/native dependency and signature checks:
+`a5ec9120be120b829748f8489782a0c7158360d7f8deb61777fe75d601708d20`.
+It was installed over Input Test; saved profile preferences remained byte-for-byte
+identical and the existing environment was retained.
+The button-capture dialog opened and cancelled on Thor without a crash. No
+physical BLE-controller check or new latency measurement was made for these
+follow-ups.
 
 ## Input settings polish, 2026-11-06
 

@@ -189,7 +189,7 @@ internal fun PhysicalShortcutsDialog(
 }
 
 @Composable
-private fun CaptureShortcutKeys(onKey: (KeyEvent) -> Boolean) {
+internal fun CaptureShortcutKeys(onKey: (KeyEvent) -> Boolean) {
     val currentOnKey by rememberUpdatedState(onKey)
     val window = (LocalView.current.parent as DialogWindowProvider).window
     DisposableEffect(window) {

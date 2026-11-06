@@ -288,6 +288,22 @@ class InputSettingsTest {
         } finally { ShadowDisplayManager.removeDisplay(displayId) }
     }
 
+    @Test @Config(sdk = [34]) fun unavailableDisplayDismissesSettingsWithoutCrashing() {
+        val displayId = ShadowDisplayManager.addDisplay("w640dp-h480dp", ReflectionHelpers.getStaticField<Int>(Display::class.java, "TYPE_EXTERNAL"))
+        val display = context.getSystemService(DisplayManager::class.java).getDisplay(displayId)
+        shadowOf(display).setFlags(Display.FLAG_PRESENTATION)
+        ShadowDisplayManager.removeDisplay(displayId)
+        val open = mutableStateOf(true)
+        compose.setContent { DroidDeckTheme {
+            val host = androidx.compose.ui.platform.LocalContext.current.findActivity() as androidx.activity.ComponentActivity
+            if (open.value) InputDisplayContent(host, display, { open.value = false }) { InputSettingsPage({}) }
+        } }
+        compose.runOnIdle {
+            assertFalse(open.value)
+            assertTrue(ShadowDialog.getShownDialogs().none { it.isShowing })
+        }
+    }
+
     @Test @Config(sdk = [34]) fun mainEditorOpenedFromSecondarySettingsUsesAnActivityWindow() {
         val displayId = ShadowDisplayManager.addDisplay("w640dp-h480dp", ReflectionHelpers.getStaticField<Int>(Display::class.java, "TYPE_EXTERNAL"))
         val display = context.getSystemService(DisplayManager::class.java).getDisplay(displayId)
