@@ -236,6 +236,112 @@ class ComponentUpdatesTest {
         assertEquals("DD-FEXCore-2611+2-nightly.wcp", fex.getJSONArray("bad").getString(0))
     }
 
+    private fun proton(dir: String, valve: Boolean = false, version: String = "$dir-1") =
+        ComponentsManager.Proton(dir, dir, File("/steam/compatibilitytools.d/$dir"), "/p/$dir", version, valve)
+
+    @Test fun autoFollowsOnlyDroidDeckProton() {
+        assertTrue(ComponentUpdates.follows(proton("DroidDeck-Proton-10.0-7")))
+        assertFalse(ComponentUpdates.follows(proton("DroidDeck-Proton-10.0-7", valve = true)))
+        assertFalse(ComponentUpdates.follows(proton("droiddeck-proton-arm64")))
+        assertFalse(ComponentUpdates.follows(proton("droiddeck-proton-11-arm64")))
+        assertFalse(ComponentUpdates.follows(proton("GE-Proton10-25")))
+        assertFalse(ComponentUpdates.follows(proton("proton-cachyos-10.0-20251101-slr-arm64")))
+    }
+
+    @Test fun onlyAutosOwnBuildsInOtherProtonsAreHandedBack() {
+        val dd = proton("DroidDeck-Proton-10.0-7")
+        val ge = proton("GE-Proton10-25")
+        val valve = proton("Proton - Experimental", valve = true)
+        val choices = mapOf(
+            dd.id to mapOf("dxvk" to ComponentsManager.Choice("DD-dxvk-3.1.1+190-nightly.wcp", false, dd.version)),
+            ge.id to mapOf(
+                "dxvk" to ComponentsManager.Choice("DD-dxvk-3.1.1+190-nightly.wcp", false, ge.version),
+                "vkd3d" to ComponentsManager.Choice("vkd3d-proton-3.0-mine.wcp", false, ge.version),
+                "fex" to ComponentsManager.Choice("DD-FEXCore-2611+3-nightly.wcp", false, "GE-Proton10-24"),
+            ),
+            valve.id to mapOf(
+                "fex" to ComponentsManager.Choice("DD-FEXCore-2611+3-nightly.wcp", false, valve.version),
+                "dxvk" to ComponentsManager.Choice("DD-dxvk-3.1.1+190-nightly.wcp", true, valve.version),
+            ),
+        )
+        val placed = setOf("DD-dxvk-3.1.1+190-nightly.wcp", "DD-FEXCore-2611+3-nightly.wcp")
+        assertEquals(
+            setOf(ge.id to "dxvk", valve.id to "fex"),
+            ComponentUpdates.strays(listOf(dd, ge, valve), choices, placed).map { (p, c) -> p.id to c }.toSet(),
+        )
+    }
+
+    @Test fun aProtonMissingFromDiscoveryKeepsTheHandBackPending() {
+        val dd = proton("DroidDeck-Proton-10.0-7")
+        val ge = proton("GE-Proton10-25")
+        val placed = setOf("DD-dxvk-3.1.1+190-nightly.wcp")
+        val choices = mapOf(ge.id to mapOf("dxvk" to ComponentsManager.Choice("DD-dxvk-3.1.1+190-nightly.wcp", false, ge.version)))
+        assertTrue(ComponentUpdates.unseen(listOf(dd), choices, placed))
+        assertFalse(ComponentUpdates.unseen(listOf(dd, ge), choices, placed))
+        assertFalse(ComponentUpdates.unseen(listOf(dd), choices, emptySet()))
+    }
+
+    @Test fun queuedAutoBuildsInOtherProtonsAreDroppedAndEverythingElseStays() {
+        org.junit.Assume.assumeFalse(System.getProperty("os.name").startsWith("Windows"))
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val state = File(context.filesDir, "components/state.json").apply { parentFile?.mkdirs() }
+        fun pkg(file: String, auto: Boolean = false) = JSONObject().put("kind", "package").put("file", file).put("label", file).apply { if (auto) put("auto", true) }
+        state.writeText(JSONObject().put("queued", JSONObject()
+            .put("GE-Proton10-25", JSONObject().put("dxvk", pkg("DD-dxvk-3.1.1+190-nightly.wcp")).put("vkd3d", pkg("vkd3d-proton-3.0-mine.wcp"))
+                .put("fex", pkg("DD-FEXCore-2611+3-nightly.wcp", auto = true)))
+            .put("proton-cachyos-10.0-arm64", JSONObject().put("dxvk", pkg("DD-dxvk-3.1.1+190-nightly.wcp")))
+            .put("DroidDeck-Proton-10.0-7", JSONObject().put("dxvk", pkg("DD-dxvk-3.1.1+190-nightly.wcp")))).toString())
+        val placed = setOf("DD-dxvk-3.1.1+190-nightly.wcp", "DD-FEXCore-2611+3-nightly.wcp")
+        assertEquals(2, ComponentsManager.dropQueuedPackages(context, placed, ComponentUpdates::ownId))
+        val queued = JSONObject(state.readText()).getJSONObject("queued")
+        assertEquals(setOf("vkd3d", "fex"), queued.getJSONObject("GE-Proton10-25").keys().asSequence().toSet())
+        assertFalse(queued.has("proton-cachyos-10.0-arm64"))
+        assertTrue(queued.getJSONObject("DroidDeck-Proton-10.0-7").has("dxvk"))
+    }
+
+    @Test fun aQueuedSwapIsNotReplacedByTheHandBack() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val state = File(context.filesDir, "components/state.json").apply { parentFile?.mkdirs() }
+        val queued = JSONObject().put("kind", "package").put("file", "vkd3d-proton-3.0-mine.wcp").put("label", "3.0")
+        state.writeText(JSONObject().put("queued", JSONObject().put("GE-Proton10-25", JSONObject().put("vkd3d", queued))).toString())
+        assertFalse(ComponentsManager.restoreUnlessQueued(context, "GE-Proton10-25", "vkd3d", "GE-Proton10-25"))
+        val after = JSONObject(state.readText()).getJSONObject("queued").getJSONObject("GE-Proton10-25").getJSONObject("vkd3d")
+        assertEquals("vkd3d-proton-3.0-mine.wcp", after.getString("file"))
+    }
+
+    @Test fun aSourceThatFailsToListKeepsItsPreviousPackages() {
+        val previous = JSONArray()
+            .put(JSONObject().put("file", "DD-dxvk-arm64ec-3.1.1+198-nightly.wcp").put("release", ComponentsManager.DD_NIGHTLY))
+            .put(JSONObject().put("file", "dxvk-3.1.1-linux.wcp").put("release", "Dxvk-Linux"))
+        val into = JSONArray()
+        ComponentsManager.keepSource(previous, ComponentsManager.DD_NIGHTLY, into)
+        assertEquals(1, into.length())
+        assertEquals("DD-dxvk-arm64ec-3.1.1+198-nightly.wcp", into.getJSONObject(0).getString("file"))
+        ComponentsManager.keepSource(null, ComponentsManager.DD_NIGHTLY, into)
+        assertEquals(1, into.length())
+    }
+
+    @Test fun everyBuildAutoEverPlacedCountsAsItsOwn() {
+        val state = JSONObject().put("lines", JSONObject()
+            .put("dxvk", JSONObject().put("current", "b.wcp").put("previous", ComponentUpdates.ORIGINAL)
+                .put("owned", JSONArray().put("a.wcp").put("b.wcp")).put("bad", JSONArray().put("c.wcp")))
+            .put("fex", JSONObject().put("current", "f2.wcp").put("previous", "f1.wcp")))
+        assertEquals(setOf("a.wcp", "b.wcp", "c.wcp", "f1.wcp", "f2.wcp"), ComponentUpdater.placed(state))
+        assertEquals(emptySet<String>(), ComponentUpdater.placed(JSONObject()))
+    }
+
+    @Test fun aBuildAutoMovedPastStillCountsUntilTheHandBackCompletes() {
+        val first = JSONObject().put("lines", JSONObject().put("dxvk", JSONObject().put("current", "a.wcp")))
+        val remembered = ComponentUpdater.placed(first)
+        val later = JSONObject().put(ComponentUpdater.HAND_BACK_FILES, JSONArray(remembered.sorted()))
+            .put("lines", JSONObject().put("dxvk", JSONObject().put("current", "c.wcp").put("previous", "b.wcp")))
+        val placed = ComponentUpdater.placed(later)
+        assertEquals(setOf("a.wcp", "b.wcp", "c.wcp"), placed)
+        val proton = proton("GE-Proton10-25")
+        val choices = mapOf(proton.id to mapOf("dxvk" to ComponentsManager.Choice("a.wcp", false, proton.version)))
+        assertTrue(ComponentUpdates.unseen(emptyList(), choices, placed))
+    }
+
     @Test fun onlyTheCurrentAndThePreviousBuildAndUserSelectionsAreKept() {
         assertEquals(setOf("b.wcp", "a.wcp", "mine.wcp"), ComponentUpdates.keep("b.wcp", "a.wcp", setOf("mine.wcp")))
         assertEquals(setOf("b.wcp"), ComponentUpdates.keep("b.wcp", ComponentUpdates.ORIGINAL, emptySet()))

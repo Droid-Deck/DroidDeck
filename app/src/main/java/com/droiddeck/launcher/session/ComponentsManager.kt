@@ -700,6 +700,12 @@ object ComponentsManager {
         context.getString(R.string.cmgr_restore_done, LABEL[comp], p.name, protonVersion)
     }
 
+    fun restoreUnlessQueued(context: Context, protonId: String, comp: String, protonVersion: String): Boolean = synchronized(lock) {
+        if (loadState(context).optJSONObject("queued")?.optJSONObject(protonId)?.has(comp) == true) return false
+        restore(context, protonId, comp, protonVersion)
+        true
+    }
+
     private fun applyOriginal(context: Context, p: Proton, comp: String, protonVersion: String, wcp: File, state: JSONObject) {
         val current = protonVersion == safeName(p.version)
         if (!current) ensureOriginal(context, p, comp, state)
@@ -748,6 +754,25 @@ object ComponentsManager {
         val state = loadState(context)
         state.sub("queued").optJSONObject(protonId)?.remove(comp)
         saveState(context, state)
+    }
+
+    fun dropQueuedPackages(context: Context, files: Set<String>, keep: (String) -> Boolean): Int = synchronized(lock) {
+        val state = loadState(context)
+        val queued = state.sub("queued")
+        var dropped = 0
+        for (pid in queued.keys().asSequence().toList()) {
+            if (keep(pid)) continue
+            val comps = queued.optJSONObject(pid) ?: continue
+            for (comp in comps.keys().asSequence().toList()) {
+                val entry = comps.optJSONObject(comp) ?: continue
+                if (entry.optString("kind") != "package" || entry.optBoolean("auto") || entry.optString("file") !in files) continue
+                comps.remove(comp)
+                dropped++
+            }
+            if (comps.length() == 0) queued.remove(pid)
+        }
+        if (dropped > 0) saveState(context, state)
+        dropped
     }
 
     class StoredPackage(val pkg: Package, val inUse: Boolean)
@@ -968,9 +993,16 @@ object ComponentsManager {
         if (!force && cache.isFile) runCatching { return parseCatalog(JSONObject(cache.readText())) }
         if (!force) return Catalog(emptyList(), 0)
         val items = JSONArray()
+        val previous = if (cache.isFile) runCatching { JSONObject(cache.readText()).optJSONArray("items") }.getOrNull() else null
+        var fetched = 0
         for ((repo, tag) in SOURCES) {
-            val body = Downloader.downloadString("https://api.github.com/repos/$repo/releases/tags/$tag") ?: continue
-            val assets = runCatching { JSONObject(body).optJSONArray("assets") }.getOrNull() ?: continue
+            val body = Downloader.downloadString("https://api.github.com/repos/$repo/releases/tags/$tag")
+            val assets = body?.let { runCatching { JSONObject(it).optJSONArray("assets") }.getOrNull() }
+            if (assets == null) {
+                keepSource(previous, tag, items)
+                continue
+            }
+            fetched++
             for (i in 0 until assets.length()) {
                 val a = assets.getJSONObject(i)
                 val name = a.optString("name")
@@ -981,11 +1013,16 @@ object ComponentsManager {
                     .put("url", a.optString("browser_download_url")).put("size", a.optLong("size")).put("digest", a.optString("digest")))
             }
         }
-        if (items.length() == 0 && cache.isFile) runCatching { return parseCatalog(JSONObject(cache.readText())) }
+        if (fetched == 0 && cache.isFile) runCatching { return parseCatalog(JSONObject(cache.readText())) }
         val out = JSONObject().put("items", items).put("fetchedAt", System.currentTimeMillis() / 1000)
         val tmp = File(cache.parentFile, cache.name + ".tmp")
         tmp.writeText(out.toString()); tmp.renameTo(cache)
         return parseCatalog(out)
+    }
+
+    internal fun keepSource(previous: JSONArray?, tag: String, into: JSONArray) {
+        previous ?: return
+        for (i in 0 until previous.length()) previous.optJSONObject(i)?.takeIf { it.optString("release") == tag }?.let(into::put)
     }
 
     private fun parseCatalog(o: JSONObject): Catalog {
