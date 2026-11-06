@@ -2761,16 +2761,15 @@ class FrontEndActivity : ComponentActivity() {
             val prepared = runCatching { SessionLogShare.prepareEnhancedSave(context, zips) }
             ui.post {
                 val save = prepared.getOrNull()
-                if (save == null || isFinishing || isDestroyed) {
+                if (isFinishing || isDestroyed) return@post
+                if (save == null) {
                     val error = prepared.exceptionOrNull()
                     error?.let {
                         android.util.Log.w("SessionLogShare", "could not prepare diagnostic logs", it)
                     }
-                    if (!isDestroyed) {
-                        val message = if (error?.message?.contains("512 MiB") == true)
-                            getString(R.string.diagnostics_save_too_large) else getString(R.string.setup_log_export_failed)
-                        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
-                    }
+                    val message = if (error?.message?.contains("512 MiB") == true)
+                        getString(R.string.diagnostics_save_too_large) else getString(R.string.setup_log_export_failed)
+                    android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
                     return@post
                 }
                 pendingEnhancedLogExport = save

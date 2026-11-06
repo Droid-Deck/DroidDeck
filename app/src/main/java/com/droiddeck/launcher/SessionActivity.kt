@@ -1967,14 +1967,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             val prepared = runCatching { SessionLogShare.prepareEnhancedSave(context, zips) }
             uiHandler.post {
                 val save = prepared.getOrNull()
-                if (save == null || isFinishing || isDestroyed) {
+                if (isFinishing || isDestroyed) return@post
+                if (save == null) {
                     val error = prepared.exceptionOrNull()
                     error?.let { Log.w(TAG, "could not prepare diagnostic logs", it) }
-                    if (!isDestroyed) {
-                        val message = if (error?.message?.contains("512 MiB") == true)
-                            getString(R.string.diagnostics_save_too_large) else getString(R.string.setup_log_export_failed)
-                        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-                    }
+                    val message = if (error?.message?.contains("512 MiB") == true)
+                        getString(R.string.diagnostics_save_too_large) else getString(R.string.setup_log_export_failed)
+                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                     return@post
                 }
                 pendingEnhancedLogExport = save
