@@ -719,8 +719,8 @@
     <string name="hud_group_metrics">Readings</string>
     <string name="hud_metric_graph">Frame time graph</string>
     <string name="hud_metric_decimal">Frame rate with a decimal</string>
-    <string name="hud_metric_low1">1% low</string>
-    <string name="hud_metric_low01">0.1% low</string>
+    <string name="hud_metric_low1" formatted="false">1% low</string>
+    <string name="hud_metric_low01" formatted="false">0.1% low</string>
     <string name="hud_metric_low001" formatted="false">0.01% low</string>
     <string name="hud_metric_engine">Graphics engine</string>
     <string name="hud_metric_gpu_model">GPU name</string>

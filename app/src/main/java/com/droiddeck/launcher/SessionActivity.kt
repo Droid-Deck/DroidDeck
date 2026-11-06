@@ -2802,6 +2802,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return super.dispatchKeyEvent(event)
     }
 
+    @android.annotation.SuppressLint("RestrictedApi")
     private fun sendToTopDesktop(event: KeyEvent): Boolean {
         val key = event.deviceId to event.keyCode
         val owned = if (event.action == KeyEvent.ACTION_UP) topDesktopKeys.remove(key) else topDesktopFocused()

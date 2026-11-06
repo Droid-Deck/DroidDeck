@@ -513,7 +513,8 @@ internal object EnhancedSessionLogShare {
     private fun openDescriptor(path: String): java.io.FileDescriptor? = runCatching {
         Os.open(
             path,
-            OsConstants.O_RDONLY or OsConstants.O_CLOEXEC or OsConstants.O_NOFOLLOW or OsConstants.O_NONBLOCK,
+            OsConstants.O_RDONLY or OsConstants.O_NOFOLLOW or OsConstants.O_NONBLOCK or
+                if (android.os.Build.VERSION.SDK_INT >= 27) OsConstants.O_CLOEXEC else 0,
             0,
         )
     }.getOrNull()
