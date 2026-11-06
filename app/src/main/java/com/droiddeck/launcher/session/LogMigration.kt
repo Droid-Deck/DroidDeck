@@ -66,8 +66,12 @@ object LogMigration {
                         } else {
                             failed = true
                             if (session) {
-                                child.clear()
-                                child.deleteIfEmpty()
+                                runCatching {
+                                    child.clear()
+                                    child.deleteIfEmpty()
+                                }.onFailure {
+                                    Log.w(TAG, "could not clear the partial migration for $text: ${it.message}")
+                                }
                             }
                         }
                     }
@@ -99,22 +103,23 @@ object LogMigration {
         if (depth > 32) return false
         val child = runCatching { source.newDirectoryStream(name, LinkOption.NOFOLLOW_LINKS) }.getOrNull()
             ?: return false
-        return child.use { directory ->
-            val entries = names(directory, budget) ?: return@use false
+        return child.use directoryUse@ { directory ->
+            val entries = names(directory, budget) ?: return@directoryUse false
             for (entry in entries) {
                 val text = entry.toString()
-                if (!safeName(text)) return@use false
+                if (!safeName(text)) return@directoryUse false
                 if (oldScrubMarker.matches(text) || text == SessionArtifacts.SCRUBBED_TREE_MARKER) continue
-                val attrs = attributes(directory, entry) ?: return@use false
-                if (attrs.isSymbolicLink) return@use false
+                val attrs = attributes(directory, entry) ?: return@directoryUse false
+                if (attrs.isSymbolicLink) return@directoryUse false
                 if (attrs.isDirectory) {
-                    val output = runCatching { destination.child(text) }.getOrNull() ?: return@use false
-                    output.use { if (!copyDirectory(directory, entry, it, budget, depth + 1)) return@use false }
+                    val output = runCatching { destination.child(text) }.getOrNull() ?: return@directoryUse false
+                    val copied = output.use { copyDirectory(directory, entry, it, budget, depth + 1) }
+                    if (!copied) return@directoryUse false
                 } else if (attrs.isRegularFile) {
                     if (!destination.contains(text) && !copyFile(directory, entry, destination, text, budget)) {
-                        return@use false
+                        return@directoryUse false
                     }
-                } else return@use false
+                } else return@directoryUse false
             }
             true
         }

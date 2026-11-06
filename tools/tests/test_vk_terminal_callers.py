@@ -60,8 +60,12 @@ typedef struct AHardwareBuffer_Desc {
     uint64_t rfu1;
 } AHardwareBuffer_Desc;
 #define AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE (1ULL << 8)
+#define AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT (1ULL << 9)
+#define AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY (1ULL << 11)
 #define AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT (1ULL << 14)
 #define AHARDWAREBUFFER_USAGE_GPU_MIPMAP_COMPLETE (1ULL << 26)
+#define AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM 1
+#define AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM 43
 static inline void AHardwareBuffer_describe(const AHardwareBuffer *b, AHardwareBuffer_Desc *d) { (void)b; *d = (AHardwareBuffer_Desc){0}; }
 static inline void AHardwareBuffer_acquire(AHardwareBuffer *b) { (void)b; }
 static inline void AHardwareBuffer_release(AHardwareBuffer *b) { (void)b; }

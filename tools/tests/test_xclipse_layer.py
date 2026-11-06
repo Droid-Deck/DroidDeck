@@ -42,6 +42,16 @@ class XclipseLayerTest(unittest.TestCase):
                            check=True, capture_output=True)
             self.assertEqual(output.read_text(), (LAYER / "device_chain.inc").read_text())
 
+    def test_device_chain_guards_optional_extension_structures(self):
+        chain = (LAYER / "device_chain.inc").read_text()
+        self.assertIn(
+            "#if defined(VK_NV_cuda_kernel_launch)\n"
+            "DEVICE_CHAIN(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUDA_KERNEL_LAUNCH_FEATURES_NV, "
+            "VkPhysicalDeviceCudaKernelLaunchFeaturesNV)\n"
+            "#endif",
+            chain,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

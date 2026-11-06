@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.AtomicFile
 import android.util.Base64
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.core.DownloadSource
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -60,7 +61,10 @@ object GitHubArtifacts {
         val url: String, val size: Long, val sha256: String,
     )
 
-    internal var openConnection: (URL) -> HttpURLConnection = { it.openConnection() as HttpURLConnection }
+    internal var openConnection: (URL) -> HttpURLConnection = { url ->
+        val proxy = DownloadSource.httpProxy()
+        (if (proxy != null) url.openConnection(proxy) else url.openConnection()) as HttpURLConnection
+    }
 
     @JvmStatic fun release(
         context: Context, key: String, builtIns: List<String>, source: RepositorySources.Source, tag: String,

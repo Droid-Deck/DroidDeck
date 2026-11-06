@@ -22,9 +22,9 @@ on:
   workflow_dispatch:
     inputs:
       component:
-        description: 'Build an APK, libhybris component, or GPU-specific DXVK component for review'
+        description: 'Build an APK, libhybris component, or DXVK component for review'
         type: choice
-        options: [apk, system-vulkan, hybris, dxvk-mali, dxvk-xclipse]
+        options: [apk, system-vulkan, hybris, dxvk, dxvk-mali, dxvk-xclipse]
         default: apk
       system_vulkan_variant:
         description: GPU component when packaging system-vulkan
@@ -100,7 +100,7 @@ jobs:
 
   hybris:
     name: Build runtime components
-    if: github.event_name == 'workflow_dispatch' && (inputs.component == 'hybris' || inputs.component == 'dxvk-mali' || inputs.component == 'dxvk-xclipse')
+    if: github.event_name == 'workflow_dispatch' && (inputs.component == 'hybris' || inputs.component == 'dxvk' || inputs.component == 'dxvk-mali' || inputs.component == 'dxvk-xclipse')
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
@@ -112,12 +112,13 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y podman patchelf zstd libvulkan-dev spirv-tools
+          sudo apt-get install -y podman patchelf zstd libvulkan-dev spirv-tools meson ninja-build mingw-w64 glslang-tools pkg-config zip
       - name: Test component validation
         run: |
           set -euo pipefail
           python3 -m unittest \
             tools.tests.test_hybris_component_record \
+            tools.tests.test_dxvk_component \
             tools.tests.test_powervr_runtime \
             tools.tests.test_proton_wrapper
           if [ "${{ inputs.component }}" = dxvk-mali ]; then
@@ -133,6 +134,22 @@ jobs:
       - name: Build the patched runtime
         if: inputs.component == 'hybris'
         run: bash tools/hybris/build_runtime.sh out/hybris
+      - name: Build baseline DXVK from the pinned source
+        if: inputs.component == 'dxvk'
+        run: |
+          set -euo pipefail
+          bash tools/dxvk/build.sh out/dxvk
+          python3 tools/dxvk/component_record.py --write-recipe out/dxvk/build-recipe.json
+          archive="$PWD/out/dxvk/dxvk-${GITHUB_SHA}.zip"
+          ( cd out/dxvk && zip -q -9 "$archive" \
+              x32/*.dll x64/*.dll LICENSE source-commit submodules.txt downstream.patch source.tar.zst SHA256SUMS build-recipe.json )
+          git diff --exit-code
+      - uses: actions/upload-artifact@v4
+        if: inputs.component == 'dxvk'
+        with:
+          name: dxvk-built-${{ github.sha }}
+          path: out/dxvk/dxvk-${{ github.sha }}.zip
+          if-no-files-found: error
       - name: Record component provenance and candidate release pin
         if: inputs.component == 'hybris'
         env:
@@ -168,6 +185,45 @@ jobs:
         with:
           name: dxvk-xclipse-${{ github.sha }}
           path: out/dxvk-xclipse/
+          if-no-files-found: error
+
+  dxvk-record:
+    name: Verify baseline DXVK provenance
+    needs: hybris
+    if: github.event_name == 'workflow_dispatch' && inputs.component == 'dxvk'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: dxvk-built-${{ github.sha }}
+          path: out/dxvk
+      - name: Verify baseline DXVK from a clean checkout
+        env:
+          COMPONENT_URL: https://github.com/${{ github.repository }}/releases/download/dxvk-${{ github.sha }}/dxvk-${{ github.sha }}.zip
+          PRODUCER_RUN: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python3 -m unittest tools.tests.test_dxvk_component tools.tests.test_dxvk_build
+          python3 tools/dxvk/component_record.py "out/dxvk/dxvk-${GITHUB_SHA}.zip" \
+            --url "$COMPONENT_URL" \
+            --repository "$GITHUB_REPOSITORY" \
+            --tag "dxvk-${GITHUB_SHA}" \
+            --producer-commit "$GITHUB_SHA" \
+            --producer-run "$PRODUCER_RUN"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dxvk-${{ github.sha }}
+          path: |
+            out/dxvk/dxvk-${{ github.sha }}.zip
+            out/dxvk/dxvk-component.json
+            out/dxvk/dxvk-${{ github.sha }}.zip.sha256
           if-no-files-found: error
 
   source:

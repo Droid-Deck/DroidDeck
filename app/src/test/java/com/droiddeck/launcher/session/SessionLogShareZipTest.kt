@@ -2,7 +2,12 @@ package com.droiddeck.launcher.session
 
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
+import java.nio.channels.FileChannel
+import java.nio.file.FileVisitResult
 import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.SecureDirectoryStream
+import java.nio.file.StandardOpenOption
 import java.text.SimpleDateFormat
 import java.util.UUID
 import java.util.Date
@@ -134,14 +139,58 @@ class SessionLogShareZipTest {
         val abandoned = File(app.cacheDir, "share-${UUID.randomUUID()}.diagnostic-stage").apply { mkdirs() }
         File(abandoned, "raw.log").writeText("private raw diagnostic\n")
         val active = File(app.cacheDir, "share-${UUID.randomUUID()}.diagnostic-stage").apply { mkdirs() }
-        File(active, ".active").writeText("")
+        val activeMarker = File(active, ".active").apply { writeText("") }
+        val unlocked = File(app.cacheDir, "share-${UUID.randomUUID()}.diagnostic-stage").apply { mkdirs() }
+        File(unlocked, ".active").writeText("")
         try {
+            FileChannel.open(activeMarker.toPath(), StandardOpenOption.WRITE).use { channel ->
+                channel.lock().use {
+                    EnhancedSessionLogShare.cleanupAbandonedStages(app)
+                    assertFalse(abandoned.exists())
+                    assertTrue(active.isDirectory)
+                    assertFalse(unlocked.exists())
+                }
+            }
             EnhancedSessionLogShare.cleanupAbandonedStages(app)
-            assertFalse(abandoned.exists())
-            assertTrue(active.isDirectory)
+            assertFalse(active.exists())
         } finally {
             active.deleteRecursively()
+            unlocked.deleteRecursively()
         }
+    }
+
+    @Test fun diagnosticCleanupLimitFailureDoesNotEscapeLifecycleBoundaries() {
+        val throwingDirectory = object : DiagnosticOutputDirectory {
+            override val file = File(app.cacheDir, "throwing-diagnostic-output")
+            override fun clear() = throw IllegalArgumentException("entry limit")
+            override fun child(name: String) = this
+            override fun contains(name: String) = false
+            override fun containsRegular(name: String) = false
+            override fun write(name: String, body: (java.io.OutputStream) -> Unit) = File(file, name)
+            override fun deleteIfEmpty() = false
+            override fun close() = Unit
+        }
+        SecureDiagnosticOutput.setProviderForTest(object : DiagnosticOutputProvider {
+            override fun open(context: android.content.Context, requested: File) = throwingDirectory
+            override fun cleanupLegacyStages(context: android.content.Context) =
+                throw IllegalArgumentException("depth limit")
+            override fun <T> withExistingDirectory(
+                root: File,
+                block: (SecureDirectoryStream<Path>) -> T,
+            ): T? = null
+        })
+        try {
+            assertFalse(SecureDiagnosticOutput.clear(app, SessionLogShare.shareDir(app)))
+            SecureDiagnosticOutput.cleanupLegacyStages(app)
+        } finally {
+            SecureDiagnosticOutput.setProviderForTest(JvmDiagnosticOutputProvider)
+        }
+    }
+
+    @Test fun sessionDetailsTerminateAtEntryLimitButOnlySkipOverdeepTrees() {
+        assertEquals(FileVisitResult.CONTINUE, SessionLogShare.detailsDirectoryDecision(16_384, 32))
+        assertEquals(FileVisitResult.TERMINATE, SessionLogShare.detailsDirectoryDecision(16_385, 0))
+        assertEquals(FileVisitResult.SKIP_SUBTREE, SessionLogShare.detailsDirectoryDecision(1, 33))
     }
 
     @Test fun legacyStageCleanupDoesNotFollowASymlinkedStage() {
@@ -325,7 +374,8 @@ class SessionLogShareZipTest {
         val name = "2026-10-20-01-unsafe"
         val source = File(legacy, name).apply { mkdirs() }
         val outside = File(app.cacheDir, "migration-private.txt").apply { writeText("private") }
-        Files.createSymbolicLink(File(source, "linked.log").toPath(), outside.toPath())
+        val nested = File(source, "nested").apply { mkdirs() }
+        Files.createSymbolicLink(File(nested, "linked.log").toPath(), outside.toPath())
         val destination = File(LinuxRuntime.logDir(app), name)
 
         LogMigration.run(app)
@@ -334,7 +384,8 @@ class SessionLogShareZipTest {
         assertTrue(outside.isFile)
         assertFalse(destination.exists())
         assertFalse(File(LinuxRuntime.logDir(app), ".moved-from-downloads").exists())
-        runCatching { Files.deleteIfExists(File(source, "linked.log").toPath()) }
+        runCatching { Files.deleteIfExists(File(nested, "linked.log").toPath()) }
+        nested.delete()
         source.delete()
         outside.delete()
     }
@@ -371,6 +422,27 @@ class SessionLogShareZipTest {
             assertFalse(marker.exists())
         } finally {
             created.forEach { it.delete() }
+            marker.delete()
+        }
+    }
+
+    @Test fun overdeepLegacyMigrationFailsWithoutEscapingStartupOrWritingTheMarker() {
+        val legacy = LinuxRuntime.legacyLogDir().apply { mkdirs() }
+        val logs = LinuxRuntime.logDir(app).apply { mkdirs() }
+        val marker = File(logs, ".moved-from-downloads")
+        val name = "2026-10-22-01-overdeep"
+        val source = File(legacy, name).apply { mkdirs() }
+        var deepest = source
+        repeat(34) { depth -> deepest = File(deepest, "depth-$depth").apply { mkdirs() } }
+        File(deepest, "session.log").writeText("too deep\n")
+        val destination = File(logs, name)
+        try {
+            LogMigration.run(app)
+            assertTrue(source.isDirectory)
+            assertFalse(marker.exists())
+        } finally {
+            source.deleteRecursively()
+            destination.deleteRecursively()
             marker.delete()
         }
     }
