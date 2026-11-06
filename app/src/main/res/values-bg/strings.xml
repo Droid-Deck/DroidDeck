@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s през FEX</string>
     <string name="app_fex_not_ready">Тази програма е компилирана за %1$s компютри и се стартира през FEX, който още не е настроен. Отворете Steam веднъж, докато сте влезли: DroidDeck ще изтегли FEX и необходимата Steam Linux Runtime, след което тя ще се отвори.</string>
     <string name="session_proot_missing">proot на DroidDeck не можа да бъде изтеглен. Проверете връзката и опитайте пак. Сесията не беше стартирана, защото резервният proot е твърде бавен за игра.</string>
+    <string name="session_powervr_missing">Графичната среда за PowerVR не можа да бъде изтеглена. Проверете връзката и опитайте отново.</string>
     <string name="session_directaudio_missing">DirectAudio не можа да бъде изтеглен, затова звукът на игрите използва по-бавния път в тази сесия.</string>
     <string name="session_end_program">Тази програма</string>
     <string name="session_end_steam_download">Клиентът на Steam не можа да бъде изтеглен. Мрежата или VPN връзката ви може да блокира сървърите на Steam; проверете връзката и опитайте отново.</string>

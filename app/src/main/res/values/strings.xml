@@ -208,6 +208,7 @@
     <string name="app_fex_x86">%1$s through FEX</string>
     <string name="app_fex_not_ready">This program is built for %1$s PCs and runs through FEX, which is not set up yet. Open Steam once while signed in: DroidDeck has it download FEX and the Steam Linux Runtime it needs, then this opens.</string>
     <string name="session_proot_missing">DroidDeck\'s proot could not be downloaded. Check the connection and try again. The session was not started, because the fallback proot is too slow to play on.</string>
+    <string name="session_powervr_missing">The PowerVR graphics runtime could not be downloaded. Check the connection and try again.</string>
     <string name="session_directaudio_missing">DirectAudio could not be downloaded, so game audio uses the slower path this session.</string>
     <string name="session_end_program">This program</string>
     <string name="session_end_present_fault">The session could not draw to the screen: %1$s. This screen shows why instead of a black one; the session logs have the details.</string>

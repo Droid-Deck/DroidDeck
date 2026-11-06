@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s μέσω FEX</string>
     <string name="app_fex_not_ready">Αυτό το πρόγραμμα είναι χτισμένο για υπολογιστές %1$s και εκτελείται μέσω FEX, το οποίο δεν έχει ρυθμιστεί ακόμα. Ανοίξτε το Steam μία φορά ενώ είστε συνδεδεμένοι: το DroidDeck κάνει λήψη του FEX και του Steam Linux Runtime που χρειάζεται, και μετά αυτό ανοίγει.</string>
     <string name="session_proot_missing">Δεν ήταν δυνατή η λήψη του proot του DroidDeck. Ελέγξτε τη σύνδεση και δοκιμάστε ξανά. Η συνεδρία δεν ξεκίνησε, επειδή το εναλλακτικό proot είναι πολύ αργό για παιχνίδι.</string>
+    <string name="session_powervr_missing">Δεν ήταν δυνατή η λήψη του γραφικού περιβάλλοντος PowerVR. Ελέγξτε τη σύνδεση και δοκιμάστε ξανά.</string>
     <string name="session_directaudio_missing">Δεν ήταν δυνατή η λήψη του DirectAudio, οπότε ο ήχος των παιχνιδιών χρησιμοποιεί την πιο αργή διαδρομή σε αυτή τη συνεδρία.</string>
     <string name="session_end_program">Αυτό το πρόγραμμα</string>
     <string name="session_end_steam_download">Δεν ήταν δυνατή η λήψη του πελάτη Steam. Το δίκτυο ή το VPN σας ίσως αποκλείει τους διακομιστές του Steam· ελέγξτε τη σύνδεση και δοκιμάστε ξανά.</string>

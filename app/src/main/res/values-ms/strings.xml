@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s melalui FEX</string>
     <string name="app_fex_not_ready">Program ini dibina untuk PC %1$s dan berjalan melalui FEX, yang belum disediakan lagi. Buka Steam sekali semasa anda log masuk: DroidDeck akan memuat turun FEX dan Steam Linux Runtime yang diperlukan, kemudian ini akan dibuka.</string>
     <string name="session_proot_missing">proot DroidDeck tidak dapat dimuat turun. Semak sambungan dan cuba lagi. Sesi tidak dimulakan kerana proot sandaran terlalu perlahan untuk bermain.</string>
+    <string name="session_powervr_missing">Persekitaran grafik PowerVR tidak dapat dimuat turun. Semak sambungan dan cuba lagi.</string>
     <string name="session_directaudio_missing">DirectAudio tidak dapat dimuat turun, jadi audio permainan menggunakan laluan yang lebih perlahan untuk sesi ini.</string>
     <string name="session_end_program">Program ini</string>
     <string name="session_end_steam_download">Tidak dapat memuat turun klien Steam. Rangkaian atau VPN anda mungkin menyekat pelayan Steam; semak sambungan dan cuba lagi.</string>

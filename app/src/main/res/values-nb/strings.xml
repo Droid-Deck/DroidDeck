@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s via FEX</string>
     <string name="app_fex_not_ready">Dette programmet er bygget for %1$s-PC-er og kjører via FEX, som ikke er satt opp ennå. Åpne Steam én gang mens du er innlogget: DroidDeck lar den laste ned FEX og Steam Linux Runtime den trenger, og så åpnes dette.</string>
     <string name="session_proot_missing">Kunne ikke laste ned DroidDecks proot. Sjekk tilkoblingen og prøv igjen. Sesjonen ble ikke startet, fordi reserve-proot er for treg til å spille på.</string>
+    <string name="session_powervr_missing">PowerVR-grafikkmiljøet kunne ikke lastes ned. Sjekk tilkoblingen og prøv igjen.</string>
     <string name="session_directaudio_missing">Kunne ikke laste ned DirectAudio, så spillyd bruker den tregere veien i denne sesjonen.</string>
     <string name="session_end_program">Dette programmet</string>
     <string name="session_end_steam_download">Kunne ikke laste ned Steam-klienten. Nettverket eller VPN-en din blokkerer kanskje Steams servere; sjekk tilkoblingen og prøv igjen.</string>

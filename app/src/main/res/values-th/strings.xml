@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s ผ่าน FEX</string>
     <string name="app_fex_not_ready">โปรแกรมนี้สร้างมาสำหรับพีซี %1$s และรันผ่าน FEX ซึ่งยังไม่ได้ตั้งค่า เปิด Steam สักครั้งขณะลงชื่อเข้าใช้: DroidDeck จะดาวน์โหลด FEX และ Steam Linux Runtime ที่จำเป็น จากนั้นโปรแกรมนี้จะเปิดขึ้น</string>
     <string name="session_proot_missing">ดาวน์โหลด proot ของ DroidDeck ไม่ได้ ตรวจสอบการเชื่อมต่อแล้วลองใหม่ เซสชันไม่ได้เริ่มเพราะ proot สำรองช้าเกินกว่าจะเล่นได้</string>
+    <string name="session_powervr_missing">ดาวน์โหลดสภาพแวดล้อมกราฟิก PowerVR ไม่สำเร็จ ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง</string>
     <string name="session_directaudio_missing">ดาวน์โหลด DirectAudio ไม่ได้ เสียงเกมในเซสชันนี้จึงใช้เส้นทางที่ช้ากว่า</string>
     <string name="session_end_program">โปรแกรมนี้</string>
     <string name="session_end_steam_download">ดาวน์โหลดไคลเอนต์ Steam ไม่ได้ เครือข่ายหรือ VPN ของคุณอาจบล็อกเซิร์ฟเวอร์ของ Steam ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง</string>

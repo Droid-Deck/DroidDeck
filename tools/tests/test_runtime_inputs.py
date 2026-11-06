@@ -179,6 +179,11 @@ class RuntimeInputsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'xbox pack provides'):
             runtime.check_apk(apk, self.root)
 
+    def test_an_apk_still_carrying_the_powervr_runtime_is_rejected(self):
+        apk = self.current_apk(self.root / 'bundled.apk', {'assets/hybris/runtime.tzst': b'runtime'})
+        with self.assertRaisesRegex(ValueError, 'powervr pack provides'):
+            runtime.check_apk(apk, self.root)
+
     def test_an_apk_still_carrying_tracking_libraries_is_rejected(self):
         apk = self.current_apk(self.root / 'bundled.apk', {runtime.PACKED_LIBRARIES[0]: b'library'})
         with self.assertRaisesRegex(ValueError, 'tracking pack provides'):

@@ -149,5 +149,8 @@ internal class AddonPack(
             listOf("version", "comet"))
         val BUTLER = AddonPack("butler", BuildConfig.PACK_BUTLER_SHA256, BuildConfig.PACK_BUTLER_SIZE,
             listOf("version", "butler", "7z.so", "libc7zip.so"))
+        @JvmField
+        val POWERVR = AddonPack("powervr", BuildConfig.PACK_POWERVR_SHA256, BuildConfig.PACK_POWERVR_SIZE,
+            listOf("runtime.tzst", "version.txt"))
     }
 }
