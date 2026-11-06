@@ -340,6 +340,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
             runCatching { com.droiddeck.launcher.gpu.VulkanInfo.query() }
             ui.post {
                 releaseChecking = false
+                if (gpu.family == GpuInfo.Family.POWERVR) gpu = GpuInfo.detect()
                 refreshReleaseRows()
                 refreshPairs()
                 val pairs = DriverPairs.from(TurnipReleases.cached(activity))
