@@ -1,6 +1,7 @@
 import contextlib
 import hashlib
 import io
+import json
 import os
 from pathlib import Path
 import runpy
@@ -146,6 +147,20 @@ class ProtonExtraTest(unittest.TestCase):
                 tar.addfile(link)
             EXTRA["validate_archive"](str(tarball))
 
+    def test_archive_rejects_an_entry_below_a_link(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tarball = Path(tmp) / "unsafe.tar.gz"
+            with tarfile.open(tarball, "w:gz") as tar:
+                link = tarfile.TarInfo("Proton/files")
+                link.type = tarfile.SYMTYPE
+                link.linkname = "real-files"
+                tar.addfile(link)
+                child = tarfile.TarInfo("Proton/files/compatibilitytool.vdf")
+                child.size = 4
+                tar.addfile(child, io.BytesIO(b"tool"))
+            with self.assertRaisesRegex(SystemExit, "link used as a directory"):
+                EXTRA["validate_archive"](str(tarball))
+
     def test_source_identity_namespaces_the_internal_steam_tool(self):
         with tempfile.TemporaryDirectory() as tmp:
             tree = Path(tmp) / "GE-Proton"
@@ -157,6 +172,83 @@ class ProtonExtraTest(unittest.TestCase):
             rewritten = config.read_text()
             self.assertIn('"GE-Proton--dd-%s"' % identity, rewritten)
             self.assertNotIn('"GE-Proton" {', rewritten)
+
+    def test_namespacing_rejects_a_tool_that_resolves_outside_staging(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "staging"
+            outside = Path(tmp) / "installed"
+            root.mkdir()
+            outside.mkdir()
+            (outside / "compatibilitytool.vdf").write_text(
+                '"compatibilitytools" { "compat_tools" { "GE-Proton" { "install_path" "." } } }')
+            (root / "GE-Proton").symlink_to(outside, target_is_directory=True)
+            with self.assertRaisesRegex(SystemExit, "escapes the staging tree"):
+                EXTRA["namespace_tool"](str(root / "GE-Proton"), "a" * 64 + "-" + "b" * 64, str(root))
+            self.assertIn('"GE-Proton"', (outside / "compatibilitytool.vdf").read_text())
+
+    def test_namespacing_rejects_metadata_symlinked_to_a_staging_sibling(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "staging"
+            tool = root / "GE-Proton"
+            sibling = root / "sibling"
+            tool.mkdir(parents=True)
+            sibling.mkdir()
+            config = sibling / "compatibilitytool.vdf"
+            config.write_text('"compatibilitytools" { "compat_tools" { "GE-Proton" { "install_path" "." } } }')
+            (tool / "compatibilitytool.vdf").symlink_to(config)
+            with self.assertRaisesRegex(SystemExit, "escapes the staging tree"):
+                EXTRA["namespace_tool"](str(tool), "a" * 64 + "-" + "b" * 64, str(root))
+            self.assertIn('"GE-Proton"', config.read_text())
+
+    def test_reinstalling_the_same_source_archive_adopts_the_existing_tool(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            identity = "a" * 64 + "-" + "b" * 64
+            source = Path(tmp) / "source" / "GE-Proton"
+            source.mkdir(parents=True)
+            (source / "toolmanifest.vdf").write_text('"manifest" { "commandline" "/proton %verb%" }')
+            (source / "compatibilitytool.vdf").write_text(
+                '"compatibilitytools" { "compat_tools" { "GE-Proton" { "install_path" "." } } }')
+            tarball = Path(tmp) / "GE-Proton.tar.gz"
+            with tarfile.open(tarball, "w:gz") as tar:
+                tar.add(source, arcname=source.name)
+            steam = Path(tmp) / "Steam"
+            final = steam / "compatibilitytools.d" / ("GE-Proton--dd-" + identity)
+            final.mkdir(parents=True)
+            (final / "toolmanifest.vdf").write_text("old")
+            (final / "compatibilitytool.vdf").write_text(
+                '"compatibilitytools" { "compat_tools" { "GE-Proton--dd-%s" { "install_path" "." } } }' % identity)
+            (final / ".droiddeck-source.json").write_text(json.dumps({
+                "schema": 1, "sourceId": "a" * 64, "sha256": "b" * 64, "toolPrefix": "GE-Proton",
+            }))
+            (final / "keep-me").write_text("existing")
+            real = subprocess.call
+            fake = lambda args, **kw: 0 if args[0] == "steam-compatibility" else real(args, **kw)
+            argv = ["droiddeck-proton-extra", str(steam), str(tarball),
+                    "--identity", identity, "--prefix", "GE-Proton"]
+            with mock.patch.object(GLOBALS["subprocess"], "call", fake), \
+                    mock.patch.object(GLOBALS["sys"], "argv", argv), \
+                    contextlib.redirect_stdout(io.StringIO()) as said:
+                EXTRA["main"]()
+            self.assertEqual("existing", (final / "keep-me").read_text())
+            self.assertEqual("old", (final / "toolmanifest.vdf").read_text())
+            self.assertIn("droiddeck-proton-extra: adopted " + final.name, said.getvalue())
+
+    def test_reinstall_rejects_a_mismatched_existing_receipt_without_deleting_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            identity = "a" * 64 + "-" + "b" * 64
+            final = Path(tmp) / ("GE-Proton--dd-" + identity)
+            final.mkdir(parents=True)
+            (final / "toolmanifest.vdf").write_text("old")
+            (final / "compatibilitytool.vdf").write_text(
+                '"compatibilitytools" { "compat_tools" { "GE-Proton--dd-%s" { "install_path" "." } } }' % identity)
+            receipt = final / ".droiddeck-source.json"
+            receipt.write_text(json.dumps({
+                "schema": 1, "sourceId": "c" * 64, "sha256": "b" * 64, "toolPrefix": "GE-Proton",
+            }))
+            with self.assertRaisesRegex(SystemExit, "receipt does not match"):
+                EXTRA["validate_adopted_tool"](str(final), identity, "GE-Proton")
+            self.assertTrue(final.is_dir())
+            self.assertEqual("c" * 64, json.loads(receipt.read_text())["sourceId"])
 
 
 if __name__ == "__main__":
