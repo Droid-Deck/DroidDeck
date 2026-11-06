@@ -554,6 +554,19 @@
     <string name="comp_tag_in_use">使用中</string>
     <string name="comp_tag_new">新規</string>
     <string name="comp_tag_stored">保存済み</string>
+    <string name="comp_mode_title">ビルドの選び方</string>
+    <string name="comp_mode_auto_detail">最新の DroidDeck ビルドを常に維持</string>
+    <string name="comp_mode_manual_detail">ビルドを自分で選んでインストール</string>
+    <string name="comp_auto_title">Auto が %1$s を最新に保ちます</string>
+    <string name="comp_auto_hint">新しいビルドはバックグラウンドでインストールされます。以前動いていたゲームが数秒で 2 回終了した場合、Auto は動作していたビルドに戻します。</string>
+    <string name="comp_auto_fallback">予備: %1$s</string>
+    <string name="comp_auto_checking">ビルドを確認中…</string>
+    <string name="comp_auto_none">これを使うインストール済み Proton はありません</string>
+    <string name="comp_auto_waits_network">Auto 更新は接続を待っています。</string>
+    <string name="comp_auto_check_failed">新しいビルドを確認できませんでした。</string>
+    <string name="comp_auto_waits_unmetered">新しいビルドは従量制でない接続、バッテリーセーバーのオフ、端末が熱くない状態を待ちます。</string>
+    <string name="comp_auto_updated">%1$s を %2$s に更新しました。</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s でゲームが数秒で 2 回終了したため、Auto は %3$s に戻しました。</string>
     <string name="perf_title">パフォーマンス</string>
     <string name="perf_lede">CPUコア、セッション修正、ホスト名。次回のセッションで有効になります。</string>
     <string name="perf_client_cores_group">Steamクライアントコア</string>
@@ -2204,9 +2217,6 @@
     <string name="source_added">カスタム</string>
     <string name="setup_stores">ストア</string>
     <string name="setup_stores_speed">ダウンロード速度レベル</string>
-    <string name="setup_stores_engine">ストアエンジン</string>
-    <string name="setup_stores_engine_chip_ready">● エンジン準備完了</string>
-    <string name="setup_stores_engine_chip_missing">未ビルド</string>
     <string name="stores_tier_balanced">バランス</string>
     <string name="stores_tier_fast">高速</string>
     <string name="stores_tier_max">最大</string>
@@ -3646,4 +3656,12 @@
     <string name="stores_gamejolt_filter_status">ステータス</string>
     <string name="stores_gamejolt_filter_partners">パートナー</string>
     <string name="stores_gamejolt_followed">フォロー中のゲーム</string>
+    <string name="wow_chat_title">チャット入力</string>
+    <string name="wow_chat_voice">音声入力</string>
+    <string name="wow_chat_remember">この選択を記憶する</string>
+    <string name="wow_chat_ask">毎回確認する</string>
+    <string name="wow_chat_send">送信</string>
+    <string name="wow_chat_listening">聞き取り中…</string>
+    <string name="wow_chat_voice_unavailable">このデバイスでは音声入力を使用できません。</string>
+    <string name="wow_chat_mic_denied">音声入力にはマイクへのアクセスが必要です。</string>
 </resources>

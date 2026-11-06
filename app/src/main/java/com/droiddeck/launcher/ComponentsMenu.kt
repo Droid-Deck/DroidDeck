@@ -5,9 +5,12 @@ import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.droiddeck.launcher.session.ComponentUpdater
+import com.droiddeck.launcher.session.ComponentUpdates
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.ProtonDefault
 import com.droiddeck.launcher.artifact.GitHubArtifacts
+import com.droiddeck.launcher.session.SessionPrefs
 
 internal var componentsCatalogReader: (android.content.Context, Boolean) -> ComponentsManager.Catalog =
     ComponentsManager::catalog
@@ -24,6 +27,10 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
         get() = downloads
         private set(value) { downloads = value }
     val compDownloadRevision: Long get() = downloadRevision
+    var compModes by mutableStateOf<Map<String, String>>(emptyMap())
+    var compAuto by mutableStateOf<Map<String, List<ComponentUpdater.Status>>>(emptyMap())
+    var compAutoHeld by mutableStateOf<Set<String>>(emptySet())
+    var compAutoChecking by mutableStateOf(false)
     private var shownDefault: String? = null
     private var catalogRequest = 0
 
@@ -35,7 +42,14 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
             val snap = runCatching { ComponentsManager.snapshot(activity) }.onFailure { Log.w(TAG, "components", it) }.getOrNull()
             val cat = runCatching { componentsCatalogReader(activity, false) }.getOrNull()
             val chosen = snap?.let { s -> runCatching { ProtonDefault.selectedId(activity, s.protons.map { it.proton }) }.getOrNull() }
+            runCatching { ComponentUpdater.settle(activity) }
+            val modes = ComponentsManager.COMPONENTS.associateWith { SessionPrefs.componentMode(activity, it) }
+            val auto = ComponentsManager.COMPONENTS.associateWith { runCatching { ComponentUpdater.status(activity, it) }.getOrDefault(emptyList()) }
+            val held = if (runCatching { ComponentsManager.hardwareDxvk(activity) }.getOrDefault(false)) setOf("dxvk") else emptySet()
             ui.post {
+                compModes = modes
+                compAuto = auto
+                compAutoHeld = held
                 compSnapshot = snap ?: ComponentsManager.Snapshot(emptyList(), emptyList())
                 if (cat != null && catalogId == catalogRequest) {
                     compCatalog = cat.items
@@ -49,6 +63,35 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
                 }
             }
         }, "components").start()
+    }
+
+    fun chooseComponentMode(comp: String, mode: String) {
+        SessionPrefs.setComponentMode(activity, comp, mode)
+        compModes = compModes + (comp to mode)
+        if (mode != ComponentUpdates.AUTO) return
+        checkComponentUpdates(force = true)
+    }
+
+    private var checkAgain: Boolean? = null
+
+    fun checkComponentUpdates(force: Boolean) {
+        if (compAutoChecking) {
+            checkAgain = force || checkAgain == true
+            return
+        }
+        compAutoChecking = true
+        Thread({
+            val notes = runCatching { ComponentUpdater.ensure(activity, force) }.onFailure { Log.w(TAG, "component updates", it) }.getOrDefault(emptyList())
+            ui.post {
+                compAutoChecking = false
+                checkAgain?.let { again ->
+                    checkAgain = null
+                    checkComponentUpdates(again)
+                }
+                if (notes.isNotEmpty()) android.widget.Toast.makeText(activity, notes.joinToString("\n"), android.widget.Toast.LENGTH_LONG).show()
+                refreshComponents()
+            }
+        }, "component-updates").start()
     }
 
     fun chooseProton(id: String) {

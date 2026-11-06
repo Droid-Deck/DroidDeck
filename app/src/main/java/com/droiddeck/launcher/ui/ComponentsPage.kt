@@ -82,6 +82,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.session.ComponentUpdater
+import com.droiddeck.launcher.session.ComponentUpdates
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.ComponentsManager.CatalogItem
 import com.droiddeck.launcher.session.ComponentsManager.Snapshot
@@ -166,6 +168,11 @@ fun ComponentsPage(
     protonActions: ProtonsActions = ProtonsActions(),
     protonOptions: @Composable () -> Unit = {},
     onSourcesChanged: (String) -> Unit = { onRefresh() },
+    compModes: Map<String, String> = emptyMap(),
+    compAuto: Map<String, List<ComponentUpdater.Status>> = emptyMap(),
+    compAutoHeld: Set<String> = emptySet(),
+    compAutoChecking: Boolean = false,
+    onCompMode: (String, String) -> Unit = { _, _ -> },
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -524,6 +531,8 @@ fun ComponentsPage(
             else -> stringResource(R.string.comp_nightlies_count, availableRows(l, catalog, snapshot).size)
         }
     }
+    val moded: (String) -> Boolean = { it in compModes && it !in compAutoHeld && !ComponentsManager.runtimeManaged(it, gpu.systemPowerVr) }
+    val automatic: (String) -> Boolean = { moded(it) && compModes[it] == ComponentUpdates.AUTO }
     val installedRows: @Composable ColumnScope.(String, Boolean) -> Unit = { l, right ->
         when (l) {
             PROTON_TAB -> {
@@ -538,7 +547,7 @@ fun ComponentsPage(
                         (if (swaps > 0) stringResource(R.string.comp_swapped, v.proton.version, swaps) else stringResource(R.string.comp_all_original, v.proton.version))
                             .let { if (v.inUseByGame) stringResource(R.string.comp_game_running_suffix, it) else it },
                         v.proton.id == view?.proton?.id, removable = removable,
-                        modifier = (if (i == 0) Modifier.focusRequester(firstRow) else Modifier).trackRow(key, rowsAt),
+                        modifier = (if (i == 0 && !moded(l)) Modifier.focusRequester(firstRow) else Modifier).trackRow(key, rowsAt),
                         onSelect = { if (v.proton.id != view?.proton?.id) { onProton(v.proton.id); flyHome(key, PROTON_TAB) } },
                         onDelete = {
                             if (extra != null) ask(key, right, ctx.getString(R.string.proton_remove_title, v.proton.name), ctx.getString(R.string.proton_remove_body), ctx.getString(R.string.store_remove), true, v.proton.name) {
@@ -558,7 +567,7 @@ fun ComponentsPage(
                     val key = "row:$l:${item.file ?: item.protonVersion}"
                     ChoiceLine(
                         item.name, item.detail, item.selected, item.removable, tag = item.tag, enabled = !managedDxvk,
-                        modifier = (if (i == 0 && !managedDxvk) Modifier.focusRequester(firstRow) else Modifier).trackRow(key, rowsAt),
+                        modifier = (if (i == 0 && !managedDxvk && !moded(l)) Modifier.focusRequester(firstRow) else Modifier).trackRow(key, rowsAt),
                         onSelect = {
                             if (managedDxvk || item.selected || p == null) return@ChoiceLine
                             val waits = if (view.inUseByGame) ctx.getString(R.string.comp_waits_long) else ctx.getString(R.string.comp_applies_long)
@@ -684,15 +693,31 @@ fun ComponentsPage(
                         label = "layerRows",
                     ) { k -> body(k) }
                 }
-                if (single) {
-                    slide { k -> RowGroup(installedTitle(k)) { installedRows(k, false) } }
-                    Spacer(Modifier.height(12.dp))
-                    slide { k -> RowGroup(availableTitle(k)) { availableRows(k) } }
-                } else Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Top) {
-                    Column(Modifier.weight(1f)) { slide { k -> RowGroup(installedTitle(k)) { installedRows(k, false) } } }
-                    Column(Modifier.weight(1f)) { slide { k -> RowGroup(availableTitle(k)) { availableRows(k) } } }
+                if (moded(l)) slide { k ->
+                    if (moded(k)) Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(bottom = 14.dp)) {
+                        PanelHeading(stringResource(R.string.comp_mode_title))
+                        ModeChoices(
+                            listOf(
+                                Triple(ComponentUpdates.AUTO, R.string.common_auto, R.string.comp_mode_auto_detail),
+                                Triple(ComponentUpdates.MANUAL, R.string.drivers_manual, R.string.comp_mode_manual_detail),
+                            ),
+                            if (automatic(k)) ComponentUpdates.AUTO else ComponentUpdates.MANUAL, single, firstRow,
+                            onPick = { onCompMode(k, it) },
+                        )
+                        if (automatic(k)) AutoComponentBody(ComponentsManager.LABEL[k] ?: k, compAuto[k].orEmpty(), compAutoChecking)
+                    }
                 }
-                Box(Modifier.padding(top = 14.dp)) { slide { k -> actions(k) } }
+                if (!automatic(l)) {
+                    if (single) {
+                        slide { k -> RowGroup(installedTitle(k)) { installedRows(k, false) } }
+                        Spacer(Modifier.height(12.dp))
+                        slide { k -> RowGroup(availableTitle(k)) { availableRows(k) } }
+                    } else Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Top) {
+                        Column(Modifier.weight(1f)) { slide { k -> RowGroup(installedTitle(k)) { installedRows(k, false) } } }
+                        Column(Modifier.weight(1f)) { slide { k -> RowGroup(availableTitle(k)) { availableRows(k) } } }
+                    }
+                    Box(Modifier.padding(top = 14.dp)) { slide { k -> actions(k) } }
+                }
                 if (l == "fex") {
                     SettingsGroup(stringResource(R.string.fex_preset_title)) {
                         SettingsRow(stringResource(R.string.fex_preset_title), null) {
@@ -1099,6 +1124,25 @@ private fun RowGroup(title: String, content: @Composable ColumnScope.() -> Unit)
             Box(Modifier.weight(1f).height(1.dp).background(pal.line))
         }
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.surface).border(1.dp, pal.line, RoundedCornerShape(14.dp)), content = content)
+    }
+}
+
+@Composable
+private fun AutoComponentBody(label: String, lines: List<ComponentUpdater.Status>, checking: Boolean) {
+    val colors = MaterialTheme.colorScheme
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        PanelTitle(stringResource(R.string.comp_auto_title, label), stringResource(R.string.comp_auto_hint))
+        if (lines.isEmpty()) EmptyLine(stringResource(R.string.comp_auto_none))
+        for (line in lines) {
+            val previous = line.previous.removeSuffix(".wcp").ifEmpty { stringResource(R.string.comp_tag_original) }
+            val fallback = if (line.current.isEmpty()) null else stringResource(R.string.comp_auto_fallback, previous)
+            PanelRow(
+                line.current.removeSuffix(".wcp").ifEmpty { stringResource(if (checking) R.string.comp_auto_checking else R.string.comp_tag_original) },
+                listOfNotNull(line.protons.joinToString(", ").ifEmpty { null }, fallback).joinToString(" · "),
+                selected = true, onClick = null,
+            )
+        }
+        lines.map { it.note }.filter { it.isNotEmpty() }.distinct().forEach { Text(it, fontSize = 13.sp, color = colors.onSurfaceVariant) }
     }
 }
 

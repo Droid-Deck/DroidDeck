@@ -556,6 +556,19 @@
     <string name="comp_tag_in_use">In gebruik</string>
     <string name="comp_tag_new">Nieuw</string>
     <string name="comp_tag_stored">Bewaard</string>
+    <string name="comp_mode_title">Hoe builds worden gekozen</string>
+    <string name="comp_mode_auto_detail">Nieuwste DroidDeck-build, altijd actueel</string>
+    <string name="comp_mode_manual_detail">Kies en installeer builds zelf</string>
+    <string name="comp_auto_title">Auto houdt %1$s actueel</string>
+    <string name="comp_auto_hint">Nieuwe builds worden op de achtergrond geïnstalleerd. Sluit een game die eerder werkte twee keer binnen enkele seconden, dan gaat Auto terug naar de build die werkte.</string>
+    <string name="comp_auto_fallback">Terugval: %1$s</string>
+    <string name="comp_auto_checking">Zoeken naar builds…</string>
+    <string name="comp_auto_none">Geen geïnstalleerde Proton gebruikt dit</string>
+    <string name="comp_auto_waits_network">Auto-updates wachten op een verbinding.</string>
+    <string name="comp_auto_check_failed">Kon niet op nieuwe builds controleren.</string>
+    <string name="comp_auto_waits_unmetered">Nieuwe builds wachten op een onbeperkte verbinding, batterijbesparing uit en een koel apparaat.</string>
+    <string name="comp_auto_updated">%1$s bijgewerkt naar %2$s.</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s sloot een game twee keer binnen enkele seconden, dus Auto ging terug naar %3$s.</string>
     <string name="perf_title">Prestaties</string>
     <string name="perf_lede">CPU-cores, sessiefixes en de hostnaam. Geldt vanaf de volgende sessie.</string>
     <string name="perf_client_cores_group">Cores voor de Steam-client</string>
@@ -2229,9 +2242,6 @@
     <string name="source_added">Aangepast</string>
     <string name="setup_stores">Winkels</string>
     <string name="setup_stores_speed">Niveau voor downloadsnelheid</string>
-    <string name="setup_stores_engine">Winkels-engine</string>
-    <string name="setup_stores_engine_chip_ready">● Engine gereed</string>
-    <string name="setup_stores_engine_chip_missing">Niet gebouwd</string>
     <string name="stores_tier_balanced">Gebalanceerd</string>
     <string name="stores_tier_fast">Snel</string>
     <string name="stores_tier_max">Max</string>
@@ -3676,4 +3686,12 @@
     <string name="stores_gamejolt_filter_status">Status</string>
     <string name="stores_gamejolt_filter_partners">Partners</string>
     <string name="stores_gamejolt_followed">Gevolgde games</string>
+    <string name="wow_chat_title">Chatinvoer</string>
+    <string name="wow_chat_voice">Spraakinvoer</string>
+    <string name="wow_chat_remember">Deze keuze onthouden</string>
+    <string name="wow_chat_ask">Elke keer vragen</string>
+    <string name="wow_chat_send">Verzenden</string>
+    <string name="wow_chat_listening">Luisteren…</string>
+    <string name="wow_chat_voice_unavailable">Spraakinvoer is niet beschikbaar op dit apparaat.</string>
+    <string name="wow_chat_mic_denied">Voor spraakinvoer is toegang tot de microfoon nodig.</string>
 </resources>

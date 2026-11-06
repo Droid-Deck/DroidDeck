@@ -14,8 +14,8 @@ object SteamLaunchOptions {
     private const val TAG = "SteamLaunchOptions"
     private val STEAM = listOf("UserLocalConfigStore", "Software", "Valve", "Steam")
 
-    fun current(context: Context, appId: Int): String =
-        SteamLiveShortcuts.launchOptions(context, appId.toLong()) ?: steam(SessionPrefs.activeSteamRoot(context), appId).orEmpty()
+    fun current(context: Context, appId: Int): String? =
+        SteamLiveShortcuts.launchOptions(context, appId.toLong()) ?: steam(SessionPrefs.activeSteamRoot(context), appId)
 
     enum class Saved { YES, NO, DESKTOP }
 
@@ -35,7 +35,8 @@ object SteamLaunchOptions {
     internal fun steam(steamHome: File, appId: Int): String? {
         val config = AddedGames.accountConfig(steamHome) ?: return null
         val text = runCatching { File(config, "localconfig.vdf").readText() }.getOrNull() ?: return null
-        return launchOptions(text, appId)
+        if (section(text, STEAM) == null) return null
+        return launchOptions(text, appId).orEmpty()
     }
 
     internal fun write(steamHome: File, appId: Int, options: String): Boolean {

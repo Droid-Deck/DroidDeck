@@ -560,6 +560,19 @@
     <string name="comp_tag_in_use">Používá se</string>
     <string name="comp_tag_new">Nové</string>
     <string name="comp_tag_stored">Uloženo</string>
+    <string name="comp_mode_title">Jak se vybírají sestavení</string>
+    <string name="comp_mode_auto_detail">Nejnovější sestavení DroidDeck, stále aktuální</string>
+    <string name="comp_mode_manual_detail">Vyberte a instalujte sestavení sami</string>
+    <string name="comp_auto_title">Auto udržuje %1$s aktuální</string>
+    <string name="comp_auto_hint">Nová sestavení se instalují na pozadí. Pokud se hra, která dřív fungovala, dvakrát zavře během pár sekund, Auto se vrátí k funkčnímu sestavení.</string>
+    <string name="comp_auto_fallback">Záložní: %1$s</string>
+    <string name="comp_auto_checking">Hledání sestavení…</string>
+    <string name="comp_auto_none">Žádný nainstalovaný Proton to nepoužívá</string>
+    <string name="comp_auto_waits_network">Aktualizace Auto čekají na připojení.</string>
+    <string name="comp_auto_check_failed">Nová sestavení nelze zkontrolovat.</string>
+    <string name="comp_auto_waits_unmetered">Nová sestavení čekají na neměřené připojení, vypnutou úsporu baterie a nepřehřáté zařízení.</string>
+    <string name="comp_auto_updated">%1$s aktualizováno na %2$s.</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s dvakrát zavřelo hru během pár sekund, proto se Auto vrátilo k %3$s.</string>
     <string name="perf_title">Výkon</string>
     <string name="perf_lede">Jádra CPU, opravy relace a název hostitele. Použije se od příští relace.</string>
     <string name="perf_client_cores_group">Jádra pro klienta Steam</string>
@@ -2279,9 +2292,6 @@
     <string name="source_added">Vlastní</string>
     <string name="setup_stores">Obchody</string>
     <string name="setup_stores_speed">Úroveň rychlosti stahování</string>
-    <string name="setup_stores_engine">Jádro obchodů</string>
-    <string name="setup_stores_engine_chip_ready">● Jádro je připraveno</string>
-    <string name="setup_stores_engine_chip_missing">Není sestaveno</string>
     <string name="stores_tier_balanced">Vyvážené</string>
     <string name="stores_tier_fast">Rychlé</string>
     <string name="stores_tier_max">Maximální</string>
@@ -3754,4 +3764,12 @@
     <string name="stores_gamejolt_filter_status">Stav</string>
     <string name="stores_gamejolt_filter_partners">Partneři</string>
     <string name="stores_gamejolt_followed">Sledované hry</string>
+    <string name="wow_chat_title">Zadávání do chatu</string>
+    <string name="wow_chat_voice">Hlasové psaní</string>
+    <string name="wow_chat_remember">Zapamatovat tuto volbu</string>
+    <string name="wow_chat_ask">Pokaždé se zeptat</string>
+    <string name="wow_chat_send">Odeslat</string>
+    <string name="wow_chat_listening">Poslouchám…</string>
+    <string name="wow_chat_voice_unavailable">Hlasové psaní není na tomto zařízení k dispozici.</string>
+    <string name="wow_chat_mic_denied">Pro hlasové psaní je potřeba přístup k mikrofonu.</string>
 </resources>

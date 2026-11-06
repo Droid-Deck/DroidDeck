@@ -134,6 +134,7 @@ object ComponentsManager {
 
     private fun root(context: Context) = LinuxRuntime.rootDir(context)
     private fun steam(context: Context) = File(root(context), "root/.local/share/Steam")
+    fun steamLogs(context: Context) = File(steam(context), "logs")
     private fun host(context: Context, guest: String) = File(root(context), guest.removePrefix("/"))
     private fun dataDir(context: Context) = File(context.filesDir, "components").apply { mkdirs() }
     private fun packagesDir(context: Context) = File(dataDir(context), "packages").apply { mkdirs() }
@@ -1478,6 +1479,80 @@ object ComponentsManager {
         FORCED_PACKAGES.any { it.comp == comp && it.file == file && it.release == release } ||
             (comp == "dxvk" && release == "Dxvk-Linux" &&
                 (file == DXVK_FOR_VULKAN_1_1 || file == DXVK_FOR_VULKAN_1_3_NO_INT64))
+
+    private val ARM64EC_PROBE = mapOf("dxvk" to "d3d11.dll", "vkd3d" to "d3d12.dll")
+
+    fun arm64ec(context: Context, p: Proton, comp: String): Boolean? = stockProbe(context, p, comp)?.let(ComponentUpdates::arm64ec)
+
+    fun arm64x(context: Context, p: Proton, comp: String): Boolean? = stockProbe(context, p, comp)?.let(ComponentUpdates::arm64x)
+
+    fun packageArm64x(context: Context, file: String, comp: String): Boolean {
+        val rel = "${COMP_DIR[comp] ?: return false}/aarch64-windows/${ARM64EC_PROBE.getValue(comp)}"
+        val f = File(packagesDir(context), safeName(file)).takeIf { it.isFile } ?: return false
+        return runCatching { readWcpEntry(f, rel) }.getOrNull()?.let(ComponentUpdates::arm64x) == true
+    }
+
+    private fun readWcpEntry(f: File, rel: String): ByteArray? = readWcp(f) { tar ->
+        var entries = 0
+        while (true) {
+            val e = tar.nextTarEntry ?: break
+            require(++entries <= MAX_WCP_ENTRIES) { "Component archive has too many entries" }
+            val entry = safeArchivePath(e)
+            if (e.isFile && entry == rel) return@readWcp readEntry(tar, e.size, MAX_WCP_FILE_BYTES)
+        }
+        null
+    }
+
+    private fun stockProbe(context: Context, p: Proton, comp: String): ByteArray? {
+        val rel = "${COMP_DIR[comp] ?: return null}/aarch64-windows/${ARM64EC_PROBE.getValue(comp)}"
+        val original = synchronized(lock) {
+            val swapped = loadState(context).optJSONObject("active")?.optJSONObject(p.id)?.optJSONObject(comp)
+                ?.let { liveSelection("active", it, p) } == true
+            if (!swapped) return File(p.dir, rel).takeIf { it.isFile }?.let { runCatching { it.readBytes() }.getOrNull() }
+            originalFile(context, p, comp).takeIf { it.isFile } ?: return null
+        }
+        return runCatching { readWcpEntry(original, rel) }.getOrNull()
+    }
+
+    fun supports(p: Proton, comp: String): Boolean =
+        if (comp == "fex") File(p.dir, FEX_FILES.first()).isFile else File(p.dir, "${COMP_DIR.getValue(comp)}/aarch64-windows").isDirectory
+
+    fun hardwareDxvk(context: Context): Boolean =
+        runtimeManaged(context, "dxvk") || FORCED_PACKAGES.any { it.comp == "dxvk" && it.matches(GpuInfo.detect()) } ||
+            (com.droiddeck.launcher.core.DeviceSupport.vkBridge(context) && !SessionPrefs.bridgeProtonDxvk(context) &&
+                bridgeDxvk(AppVulkan.detect(context)) != null)
+
+    data class Choice(val file: String, val auto: Boolean, val protonVersion: String)
+
+    fun activeChoices(context: Context): Map<String, Map<String, Choice>> = synchronized(lock) {
+        val active = loadState(context).optJSONObject("active") ?: return emptyMap()
+        active.keys().asSequence().toList().associateWith { pid ->
+            val comps = active.optJSONObject(pid) ?: JSONObject()
+            comps.keys().asSequence().toList().mapNotNull { c ->
+                comps.optJSONObject(c)?.let { c to Choice(it.optString("file"), it.optBoolean("auto"), it.optString("protonVersion")) }
+            }.toMap()
+        }
+    }
+
+    fun selectedPackages(context: Context): Set<String> = synchronized(lock) {
+        val state = loadState(context)
+        buildSet {
+            for (key in listOf("active", "queued")) {
+                val byProton = state.optJSONObject(key) ?: continue
+                for (pid in byProton.keys()) {
+                    val comps = byProton.optJSONObject(pid) ?: continue
+                    for (c in comps.keys()) comps.optJSONObject(c)?.optString("file")?.takeIf(String::isNotEmpty)?.let(::add)
+                }
+            }
+            val profiles = state.optJSONObject("profiles")
+            profiles?.keys()?.forEach { scope ->
+                val profile = profiles.optJSONObject(scope) ?: return@forEach
+                for (c in COMPONENTS) profile.optString(c).takeIf(String::isNotEmpty)?.let(::add)
+            }
+        }
+    }
+
+    fun isStored(context: Context, file: String): Boolean = File(packagesDir(context), safeName(file)).isFile
 
     internal fun forcedPackageWanted(activeFile: String?, protonVersionMatches: Boolean): Boolean =
         activeFile.isNullOrEmpty() || !protonVersionMatches

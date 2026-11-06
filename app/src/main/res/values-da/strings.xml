@@ -556,6 +556,19 @@
     <string name="comp_tag_in_use">I brug</string>
     <string name="comp_tag_new">Ny</string>
     <string name="comp_tag_stored">Gemt</string>
+    <string name="comp_mode_title">Sådan vælges builds</string>
+    <string name="comp_mode_auto_detail">Nyeste DroidDeck-build, altid opdateret</string>
+    <string name="comp_mode_manual_detail">Vælg og installer builds selv</string>
+    <string name="comp_auto_title">Auto holder %1$s opdateret</string>
+    <string name="comp_auto_hint">Nye builds installeres i baggrunden. Hvis et spil, der virkede før, lukker inden for sekunder to gange, går Auto tilbage til det build, der virkede.</string>
+    <string name="comp_auto_fallback">Reserve: %1$s</string>
+    <string name="comp_auto_checking">Søger efter builds…</string>
+    <string name="comp_auto_none">Ingen installeret Proton bruger dette</string>
+    <string name="comp_auto_waits_network">Auto-opdateringer venter på en forbindelse.</string>
+    <string name="comp_auto_check_failed">Kunne ikke søge efter nye builds.</string>
+    <string name="comp_auto_waits_unmetered">Nye builds venter på en ubegrænset forbindelse, slået batterisparer fra og en kølig enhed.</string>
+    <string name="comp_auto_updated">%1$s opdateret til %2$s.</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s lukkede et spil inden for sekunder to gange, så Auto gik tilbage til %3$s.</string>
     <string name="perf_title">Ydelse</string>
     <string name="perf_lede">CPU-kerner, sessionsrettelser og værtsnavn. Gælder fra næste session.</string>
     <string name="perf_client_cores_group">Steam-klientens kerner</string>
@@ -2229,9 +2242,6 @@
     <string name="source_added">Brugerdefineret</string>
     <string name="setup_stores">Butikker</string>
     <string name="setup_stores_speed">Downloadhastighed</string>
-    <string name="setup_stores_engine">Butiksmotor</string>
-    <string name="setup_stores_engine_chip_ready">● Motor klar</string>
-    <string name="setup_stores_engine_chip_missing">Ikke bygget</string>
     <string name="stores_tier_balanced">Afbalanceret</string>
     <string name="stores_tier_fast">Hurtig</string>
     <string name="stores_tier_max">Maks</string>
@@ -3676,4 +3686,12 @@
     <string name="stores_gamejolt_filter_status">Status</string>
     <string name="stores_gamejolt_filter_partners">Partnere</string>
     <string name="stores_gamejolt_followed">Fulgte spil</string>
+    <string name="wow_chat_title">Chatinput</string>
+    <string name="wow_chat_voice">Stemmeindtastning</string>
+    <string name="wow_chat_remember">Husk dette valg</string>
+    <string name="wow_chat_ask">Spørg hver gang</string>
+    <string name="wow_chat_send">Send</string>
+    <string name="wow_chat_listening">Lytter…</string>
+    <string name="wow_chat_voice_unavailable">Stemmeindtastning er ikke tilgængelig på denne enhed.</string>
+    <string name="wow_chat_mic_denied">Mikrofonadgang er nødvendig for stemmeindtastning.</string>
 </resources>
