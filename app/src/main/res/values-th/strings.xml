@@ -3646,4 +3646,12 @@
     <string name="stores_gamejolt_filter_status">สถานะ</string>
     <string name="stores_gamejolt_filter_partners">พาร์ตเนอร์</string>
     <string name="stores_gamejolt_followed">เกมที่ติดตาม</string>
+    <string name="wow_chat_title">การป้อนแชท</string>
+    <string name="wow_chat_voice">พิมพ์ด้วยเสียง</string>
+    <string name="wow_chat_remember">จดจำตัวเลือกนี้</string>
+    <string name="wow_chat_ask">ถามทุกครั้ง</string>
+    <string name="wow_chat_send">ส่ง</string>
+    <string name="wow_chat_listening">กำลังฟัง…</string>
+    <string name="wow_chat_voice_unavailable">อุปกรณ์นี้ไม่รองรับการพิมพ์ด้วยเสียง</string>
+    <string name="wow_chat_mic_denied">ต้องอนุญาตให้เข้าถึงไมโครโฟนเพื่อพิมพ์ด้วยเสียง</string>
 </resources>

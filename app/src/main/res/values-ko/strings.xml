@@ -3646,4 +3646,12 @@
     <string name="stores_gamejolt_filter_status">상태</string>
     <string name="stores_gamejolt_filter_partners">파트너</string>
     <string name="stores_gamejolt_followed">팔로우한 게임</string>
+    <string name="wow_chat_title">채팅 입력</string>
+    <string name="wow_chat_voice">음성 입력</string>
+    <string name="wow_chat_remember">이 선택 기억하기</string>
+    <string name="wow_chat_ask">매번 묻기</string>
+    <string name="wow_chat_send">보내기</string>
+    <string name="wow_chat_listening">듣는 중…</string>
+    <string name="wow_chat_voice_unavailable">이 기기에서는 음성 입력을 사용할 수 없습니다.</string>
+    <string name="wow_chat_mic_denied">음성 입력을 하려면 마이크 접근 권한이 필요합니다.</string>
 </resources>

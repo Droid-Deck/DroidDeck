@@ -3834,4 +3834,12 @@
     <string name="stores_gamejolt_filter_status">Status</string>
     <string name="stores_gamejolt_filter_partners">Partners</string>
     <string name="stores_gamejolt_followed">Followed games</string>
+    <string name="wow_chat_title">Chat input</string>
+    <string name="wow_chat_voice">Voice type</string>
+    <string name="wow_chat_remember">Remember this selection</string>
+    <string name="wow_chat_ask">Ask each time</string>
+    <string name="wow_chat_send">Send</string>
+    <string name="wow_chat_listening">Listening…</string>
+    <string name="wow_chat_voice_unavailable">Voice typing is not available on this device.</string>
+    <string name="wow_chat_mic_denied">Microphone access is needed for voice typing.</string>
 </resources>

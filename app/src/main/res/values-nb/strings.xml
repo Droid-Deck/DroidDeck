@@ -3676,4 +3676,12 @@
     <string name="stores_gamejolt_filter_status">Status</string>
     <string name="stores_gamejolt_filter_partners">Partnere</string>
     <string name="stores_gamejolt_followed">Fulgte spill</string>
+    <string name="wow_chat_title">Chatinndata</string>
+    <string name="wow_chat_voice">Taleinntasting</string>
+    <string name="wow_chat_remember">Husk dette valget</string>
+    <string name="wow_chat_ask">Spør hver gang</string>
+    <string name="wow_chat_send">Send</string>
+    <string name="wow_chat_listening">Lytter…</string>
+    <string name="wow_chat_voice_unavailable">Taleinntasting er ikke tilgjengelig på denne enheten.</string>
+    <string name="wow_chat_mic_denied">Mikrofontilgang trengs for taleinntasting.</string>
 </resources>

@@ -3676,4 +3676,12 @@
     <string name="stores_gamejolt_filter_status">स्थिति</string>
     <string name="stores_gamejolt_filter_partners">पार्टनर</string>
     <string name="stores_gamejolt_followed">फ़ॉलो किए गए गेम</string>
+    <string name="wow_chat_title">चैट इनपुट</string>
+    <string name="wow_chat_voice">आवाज़ से टाइप करें</string>
+    <string name="wow_chat_remember">यह चुनाव याद रखें</string>
+    <string name="wow_chat_ask">हर बार पूछें</string>
+    <string name="wow_chat_send">भेजें</string>
+    <string name="wow_chat_listening">सुन रहा है…</string>
+    <string name="wow_chat_voice_unavailable">इस डिवाइस पर आवाज़ से टाइपिंग उपलब्ध नहीं है।</string>
+    <string name="wow_chat_mic_denied">आवाज़ से टाइपिंग के लिए माइक्रोफ़ोन की अनुमति चाहिए।</string>
 </resources>

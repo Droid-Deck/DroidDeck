@@ -3832,4 +3832,12 @@
     <string name="stores_gamejolt_filter_status">الحالة</string>
     <string name="stores_gamejolt_filter_partners">الشركاء</string>
     <string name="stores_gamejolt_followed">الألعاب المتابَعة</string>
+    <string name="wow_chat_title">إدخال الدردشة</string>
+    <string name="wow_chat_voice">الكتابة بالصوت</string>
+    <string name="wow_chat_remember">تذكّر هذا الاختيار</string>
+    <string name="wow_chat_ask">السؤال في كل مرة</string>
+    <string name="wow_chat_send">إرسال</string>
+    <string name="wow_chat_listening">جارٍ الاستماع…</string>
+    <string name="wow_chat_voice_unavailable">الكتابة بالصوت غير متاحة على هذا الجهاز.</string>
+    <string name="wow_chat_mic_denied">يلزم الوصول إلى الميكروفون للكتابة بالصوت.</string>
 </resources>

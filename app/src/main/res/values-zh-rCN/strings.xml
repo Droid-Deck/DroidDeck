@@ -3650,4 +3650,12 @@
     <string name="stores_gamejolt_filter_status">状态</string>
     <string name="stores_gamejolt_filter_partners">合作伙伴</string>
     <string name="stores_gamejolt_followed">已关注的游戏</string>
+    <string name="wow_chat_title">聊天输入</string>
+    <string name="wow_chat_voice">语音输入</string>
+    <string name="wow_chat_remember">记住此选择</string>
+    <string name="wow_chat_ask">每次询问</string>
+    <string name="wow_chat_send">发送</string>
+    <string name="wow_chat_listening">正在聆听…</string>
+    <string name="wow_chat_voice_unavailable">此设备不支持语音输入。</string>
+    <string name="wow_chat_mic_denied">语音输入需要麦克风权限。</string>
 </resources>

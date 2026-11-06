@@ -3715,4 +3715,12 @@
     <string name="stores_gamejolt_filter_status">Stare</string>
     <string name="stores_gamejolt_filter_partners">Parteneri</string>
     <string name="stores_gamejolt_followed">Jocuri urmărite</string>
+    <string name="wow_chat_title">Introducere în chat</string>
+    <string name="wow_chat_voice">Tastare vocală</string>
+    <string name="wow_chat_remember">Ține minte această alegere</string>
+    <string name="wow_chat_ask">Întreabă de fiecare dată</string>
+    <string name="wow_chat_send">Trimite</string>
+    <string name="wow_chat_listening">Se ascultă…</string>
+    <string name="wow_chat_voice_unavailable">Tastarea vocală nu este disponibilă pe acest dispozitiv.</string>
+    <string name="wow_chat_mic_denied">Pentru tastarea vocală este necesar accesul la microfon.</string>
 </resources>

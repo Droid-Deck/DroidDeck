@@ -3676,4 +3676,12 @@
     <string name="stores_gamejolt_filter_status">Status</string>
     <string name="stores_gamejolt_filter_partners">Partner</string>
     <string name="stores_gamejolt_followed">Följda spel</string>
+    <string name="wow_chat_title">Chattinmatning</string>
+    <string name="wow_chat_voice">Röstinmatning</string>
+    <string name="wow_chat_remember">Kom ihåg det här valet</string>
+    <string name="wow_chat_ask">Fråga varje gång</string>
+    <string name="wow_chat_send">Skicka</string>
+    <string name="wow_chat_listening">Lyssnar…</string>
+    <string name="wow_chat_voice_unavailable">Röstinmatning är inte tillgänglig på den här enheten.</string>
+    <string name="wow_chat_mic_denied">Mikrofonåtkomst krävs för röstinmatning.</string>
 </resources>

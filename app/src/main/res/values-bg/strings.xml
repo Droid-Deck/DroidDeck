@@ -3676,4 +3676,12 @@
     <string name="stores_gamejolt_filter_status">Статус</string>
     <string name="stores_gamejolt_filter_partners">Партньори</string>
     <string name="stores_gamejolt_followed">Следвани игри</string>
+    <string name="wow_chat_title">Въвеждане в чата</string>
+    <string name="wow_chat_voice">Гласово въвеждане</string>
+    <string name="wow_chat_remember">Запомни този избор</string>
+    <string name="wow_chat_ask">Питай всеки път</string>
+    <string name="wow_chat_send">Изпрати</string>
+    <string name="wow_chat_listening">Слушане…</string>
+    <string name="wow_chat_voice_unavailable">Гласовото въвеждане не е налично на това устройство.</string>
+    <string name="wow_chat_mic_denied">За гласово въвеждане е нужен достъп до микрофона.</string>
 </resources>

@@ -3646,4 +3646,12 @@
     <string name="stores_gamejolt_filter_status">Status</string>
     <string name="stores_gamejolt_filter_partners">Rakan kongsi</string>
     <string name="stores_gamejolt_followed">Permainan diikuti</string>
+    <string name="wow_chat_title">Input sembang</string>
+    <string name="wow_chat_voice">Taip dengan suara</string>
+    <string name="wow_chat_remember">Ingat pilihan ini</string>
+    <string name="wow_chat_ask">Tanya setiap kali</string>
+    <string name="wow_chat_send">Hantar</string>
+    <string name="wow_chat_listening">Mendengar…</string>
+    <string name="wow_chat_voice_unavailable">Taip dengan suara tidak tersedia pada peranti ini.</string>
+    <string name="wow_chat_mic_denied">Akses mikrofon diperlukan untuk menaip dengan suara.</string>
 </resources>
