@@ -264,7 +264,7 @@ internal fun SteamLaunchOptionsPanel(appId: Int) {
     var saving by remember(appId) { mutableStateOf(false) }
     var error by remember(appId) { mutableStateOf<Int?>(null) }
     LaunchedEffect(appId, version) {
-        options = withContext(Dispatchers.IO) { SteamLaunchOptions.current(app, appId) }
+        options = withContext(Dispatchers.IO) { SteamLaunchOptions.current(app, appId) } ?: options.orEmpty()
     }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {

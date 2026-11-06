@@ -117,7 +117,8 @@ class SteamLaunchOptionsTest {
         assertTrue(SteamLaunchOptions.write(home, 1790600, "-dx12"))
         config.writeText(SteamLaunchOptions.withLaunchOptions(config.readText(), 1790600, "-vulkan")!!)
         assertEquals("-vulkan", SteamLaunchOptions.steam(home, 1790600))
-        assertNull(SteamLaunchOptions.steam(home, 400))
+        assertEquals("", SteamLaunchOptions.steam(home, 400))
+        assertNull(SteamLaunchOptions.steam(steamHome(tmp.newFolder("Unread")), 1790600))
     }
 
     private val app get() = RuntimeEnvironment.getApplication()
