@@ -541,7 +541,7 @@ private class AndroidDiagnosticOutputDirectory(
                 OsConstants.O_NOFOLLOW,
             AndroidDiagnosticOutputProvider.fileMode,
         )
-        var renamed = false
+        var published = false
         var completed = false
         try {
             val initial = Os.fstat(raw)
@@ -555,11 +555,39 @@ private class AndroidDiagnosticOutputDirectory(
             require(staged.st_dev == after.st_dev && staged.st_ino == after.st_ino &&
                 OsConstants.S_ISREG(staged.st_mode) && staged.st_nlink == 1L)
             requireCurrentDirectoryPath()
-            val renameError = DiagnosticAtomicFiles.renameNoReplace(
-                staging.fd, temporaryName, descriptors.last().fd, name,
+            DiagnosticAtomicFiles.publishNoReplace(
+                rename = {
+                    DiagnosticAtomicFiles.renameNoReplace(staging.fd, temporaryName, descriptors.last().fd, name)
+                },
+                link = {
+                    Os.link(
+                        AndroidDiagnosticOutputProvider.childPath(staging, temporaryName),
+                        AndroidDiagnosticOutputProvider.childPath(descriptors.last(), name),
+                    )
+                },
+                // From this point, failure cleanup owns the linked destination inode.
+                onPublished = { published = true },
+                verifyLinked = {
+                    val linkedStage = Os.lstat(AndroidDiagnosticOutputProvider.childPath(staging, temporaryName))
+                    val linkedFinal = Os.lstat(
+                        AndroidDiagnosticOutputProvider.childPath(descriptors.last(), name),
+                    )
+                    require(linkedStage.st_dev == after.st_dev && linkedStage.st_ino == after.st_ino &&
+                        linkedFinal.st_dev == after.st_dev && linkedFinal.st_ino == after.st_ino &&
+                        OsConstants.S_ISREG(linkedStage.st_mode) && OsConstants.S_ISREG(linkedFinal.st_mode) &&
+                        linkedStage.st_nlink == 2L && linkedFinal.st_nlink == 2L)
+                },
+                unlinkStage = {
+                    withSecureDirectory(staging) { it.deleteFile(Paths.get(temporaryName)) }
+                },
+                verifyFinal = {
+                    val linkedFinal = Os.lstat(
+                        AndroidDiagnosticOutputProvider.childPath(descriptors.last(), name),
+                    )
+                    require(linkedFinal.st_dev == after.st_dev && linkedFinal.st_ino == after.st_ino &&
+                        OsConstants.S_ISREG(linkedFinal.st_mode) && linkedFinal.st_nlink == 1L)
+                },
             )
-            if (renameError != 0) throw ErrnoException("renameat2", renameError)
-            renamed = true
             val final = Os.lstat(AndroidDiagnosticOutputProvider.childPath(descriptors.last(), name))
             require(final.st_dev == after.st_dev && final.st_ino == after.st_ino && final.st_nlink == 1L)
             requireCurrentDirectoryPath()
@@ -573,7 +601,7 @@ private class AndroidDiagnosticOutputDirectory(
                 val publishedStat = runCatching {
                     Os.lstat(AndroidDiagnosticOutputProvider.childPath(descriptors.last(), name))
                 }.getOrNull()
-                if (renamed && publishedStat != null &&
+                if (published && publishedStat != null &&
                     publishedStat.st_dev == expected.st_dev && publishedStat.st_ino == expected.st_ino) {
                     withDirectory { it.deleteFile(Paths.get(name)) }
                 }

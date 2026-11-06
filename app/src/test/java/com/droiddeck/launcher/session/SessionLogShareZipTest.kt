@@ -233,6 +233,24 @@ class SessionLogShareZipTest {
         assertEquals("keep", unrelated.readText())
     }
 
+    @Test fun migrationStartupRemovesLinkedFallbackStageWithoutRemovingPublishedFile() {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"))
+        val staging = File(app.noBackupFilesDir, "diagnostic-staging").apply { mkdirs() }
+        val abandoned = File(staging, ".diagnostic-12345678-1234-1234-1234-123456789abd.partial")
+            .apply { writeText("complete published payload") }
+        val published = File(app.cacheDir, "linked-fallback-output.zip")
+        Files.createLink(published.toPath(), abandoned.toPath())
+        try {
+            SecureDiagnosticOutput.cleanupLegacyStages(app)
+
+            assertFalse(abandoned.exists())
+            assertEquals("complete published payload", published.readText())
+        } finally {
+            abandoned.delete()
+            published.delete()
+        }
+    }
+
     @Test fun sessionDetailsIgnoreSymlinkedFiles() {
         assumeFalse(System.getProperty("os.name").startsWith("Windows"))
         val folder = File(app.cacheDir, "details-session").apply { mkdirs() }
