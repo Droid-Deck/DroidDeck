@@ -1,0 +1,57 @@
+name: PR Release Sweep
+run-name: sweep test builds of closed PRs
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-release-sweep
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/create-github-app-token@v2
+        id: ci-token
+        with:
+          app-id: ${{ vars.DROIDDECK_CI_APP_ID }}
+          private-key: ${{ secrets.DROIDDECK_CI_APP_KEY }}
+          owner: Droid-Deck
+          repositories: DroidDeck-CI
+      - name: Delete test builds whose PR is no longer open
+        env:
+          CI_TOKEN: ${{ steps.ci-token.outputs.token }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          retry() {
+            for attempt in 1 2 3 4; do
+              "$@" && return 0
+              [ "$attempt" = 4 ] || sleep $((attempt * 20))
+            done
+            return 1
+          }
+          tags=$(GH_TOKEN="$CI_TOKEN" retry gh api --paginate "repos/Droid-Deck/DroidDeck-CI/releases?per_page=100" --jq '.[].tag_name' |
+            grep -E '^pr-[0-9]+(\.0)?$' || true)
+          failed=0
+          for tag in $tags; do
+            number=${tag#pr-}
+            number=${number%.0}
+            state=$(retry gh api "repos/$GITHUB_REPOSITORY/pulls/$number" --jq .state) || { failed=1; continue; }
+            if [ "$state" != open ]; then
+              if GH_TOKEN="$CI_TOKEN" retry gh release delete "$tag" -R Droid-Deck/DroidDeck-CI --yes --cleanup-tag; then
+                echo "Deleted $tag (PR #$number is $state)"
+              else
+                failed=1
+              fi
+            fi
+          done
+          exit "$failed"
