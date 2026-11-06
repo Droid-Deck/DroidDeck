@@ -46,6 +46,8 @@
     <string name="lsfg_import_failed">LSFG:n valmistelu tästä Lossless.dll-tiedostosta epäonnistui</string>
     <string name="lsfg_problem_missing">LSFG tarvitsee Lossless Scalingin Steamista tai tuodun Lossless.dll-tiedoston</string>
     <string name="lsfg_problem_failed">LSFG ei pystynyt valmistelemaan sävyttimiään Lossless.dll-tiedostosta</string>
+    <string name="lsfg_flow_scale">Vuon skaalaus %1$d%%</string>
+    <string name="lsfg_flow_scale_hint">Suurempi arvo näyttää vähemmän artefakteja ja kuormittaa GPU:ta enemmän</string>
     <string name="hud_fg_unsupported">%1$s: ei tuettu</string>
     <string name="hud_fg_failed">%1$s: moottori epäonnistui</string>
     <string name="hud_fg_needs_lossless">%1$s: vaatii Lossless Scalingin</string>

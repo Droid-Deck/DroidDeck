@@ -46,6 +46,8 @@
     <string name="lsfg_import_failed">تعذّر تجهيز LSFG من ملف Lossless.dll هذا</string>
     <string name="lsfg_problem_missing">يتطلب LSFG برنامج Lossless Scaling من Steam أو ملف Lossless.dll مستوردًا</string>
     <string name="lsfg_problem_failed">تعذّر على LSFG تجهيز أدوات التظليل من Lossless.dll</string>
+    <string name="lsfg_flow_scale">مقياس التدفق %1$d%%</string>
+    <string name="lsfg_flow_scale_hint">القيمة الأعلى تعرض تشوهات أقل وتستهلك المزيد من وحدة معالجة الرسومات</string>
     <string name="hud_fg_unsupported">%1$s: غير مدعوم</string>
     <string name="hud_fg_failed">%1$s: فشل المحرك</string>
     <string name="hud_fg_needs_lossless">%1$s: يتطلب Lossless Scaling</string>

@@ -46,6 +46,8 @@
     <string name="lsfg_import_failed">Nem sikerült előkészíteni az LSFG-t ebből a Lossless.dll fájlból</string>
     <string name="lsfg_problem_missing">Az LSFG-hez szükséges a Lossless Scaling a Steamről vagy egy importált Lossless.dll</string>
     <string name="lsfg_problem_failed">Az LSFG nem tudta előkészíteni a shadereket a Lossless.dll fájlból</string>
+    <string name="lsfg_flow_scale">Áramlási lépték %1$d%%</string>
+    <string name="lsfg_flow_scale_hint">Magasabb értéknél kevesebb a műtermék, de nagyobb a GPU-terhelés</string>
     <string name="hud_fg_unsupported">%1$s: nem támogatott</string>
     <string name="hud_fg_failed">%1$s: a motor hibát jelzett</string>
     <string name="hud_fg_needs_lossless">%1$s: a Lossless Scaling szükséges</string>

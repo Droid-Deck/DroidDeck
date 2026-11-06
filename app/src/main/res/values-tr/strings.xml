@@ -46,6 +46,8 @@
     <string name="lsfg_import_failed">Bu Lossless.dll ile LSFG hazırlanamadı</string>
     <string name="lsfg_problem_missing">LSFG için Steam\'den Lossless Scaling veya içe aktarılmış bir Lossless.dll gerekir</string>
     <string name="lsfg_problem_failed">LSFG, gölgelendiricilerini Lossless.dll dosyasından hazırlayamadı</string>
+    <string name="lsfg_flow_scale">Akış ölçeği %%%1$d</string>
+    <string name="lsfg_flow_scale_hint">Daha yüksek değer daha az bozulma gösterir ve daha fazla GPU kullanır</string>
     <string name="hud_fg_unsupported">%1$s: desteklenmiyor</string>
     <string name="hud_fg_failed">%1$s: motor hatası</string>
     <string name="hud_fg_needs_lossless">%1$s: Lossless Scaling gerekli</string>
