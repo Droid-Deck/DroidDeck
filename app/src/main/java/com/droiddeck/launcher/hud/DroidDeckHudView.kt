@@ -141,6 +141,8 @@ class DroidDeckHudView(context: Context) : View(context) {
     private var dDividerTop = -1f
     private var dFrame: Bitmap? = null
     private var dFrameKey = ""
+    private var sFrame: Bitmap? = null
+    private var sFrameKey = ""
     private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     private val colGpu = 0xFF5EE08A.toInt()
@@ -1380,17 +1382,30 @@ class DroidDeckHudView(context: Context) : View(context) {
     }
 
     private fun drawStrip(canvas: Canvas, rect: RectF) {
-        headerPaint.shader = null
-        headerPaint.color = panelColor()
-        canvas.drawRect(rect, headerPaint)
-        val stroke = outlineWidth()
-        if (stroke <= 0f) return
-        val line = max(stroke / 2f, density)
         val p = parent as? View
         val atBottom = p != null && p.height > 0 && y + height / 2f > p.height / 2f
-        headerPaint.color = withAlpha(outlineColor(), (110 + 145 * outlineIntensity).roundToInt().coerceAtMost(255))
-        if (atBottom) canvas.drawRect(rect.left, rect.top, rect.right, rect.top + line, headerPaint)
-        else canvas.drawRect(rect.left, rect.bottom - line, rect.right, rect.bottom, headerPaint)
+        stripFrame(rect, atBottom)?.let { canvas.drawBitmap(it, 0f, 0f, null) }
+    }
+
+    private fun stripFrame(rect: RectF, atBottom: Boolean): Bitmap? {
+        val w = rect.width().roundToInt(); val h = rect.height().roundToInt()
+        if (w <= 0 || h <= 0) return null
+        val stroke = outlineWidth()
+        val key = "$w,$h,$stroke,$atBottom,$surfaceRgb,$bgOpacity,$outlineIntensity,${outlineColor()}"
+        if (key == sFrameKey) sFrame?.let { return it }
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        headerPaint.shader = null
+        headerPaint.color = panelColor()
+        c.drawRect(rect, headerPaint)
+        if (stroke > 0f) {
+            val line = max(stroke / 2f, density)
+            headerPaint.color = withAlpha(outlineColor(), (110 + 145 * outlineIntensity).roundToInt().coerceAtMost(255))
+            if (atBottom) c.drawRect(rect.left, rect.top, rect.right, rect.top + line, headerPaint)
+            else c.drawRect(rect.left, rect.bottom - line, rect.right, rect.bottom, headerPaint)
+        }
+        sFrame = bmp; sFrameKey = key
+        return bmp
     }
 
     private fun outlineWidth(): Float = if (outlineIntensity > 0f) outlineIntensity * sp(3.5f) else 0f
