@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.session
 
+import android.system.OsConstants
+import android.util.Log
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
 import java.nio.channels.FileChannel
@@ -25,13 +27,17 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowLog
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class SessionLogShareZipTest {
     private val app get() = RuntimeEnvironment.getApplication()
 
-    @Before fun installSecureSourceOpener() = installJvmSecureSourceOpener()
+    @Before fun installSecureSourceOpener() {
+        ShadowLog.clear()
+        installJvmSecureSourceOpener()
+    }
 
     @After fun resetSourceOpener() = resetSecureSourceOpener()
 
@@ -231,24 +237,6 @@ class SessionLogShareZipTest {
 
         assertFalse(abandoned.exists())
         assertEquals("keep", unrelated.readText())
-    }
-
-    @Test fun migrationStartupRemovesLinkedFallbackStageWithoutRemovingPublishedFile() {
-        assumeFalse(System.getProperty("os.name").startsWith("Windows"))
-        val staging = File(app.noBackupFilesDir, "diagnostic-staging").apply { mkdirs() }
-        val abandoned = File(staging, ".diagnostic-12345678-1234-1234-1234-123456789abd.partial")
-            .apply { writeText("complete published payload") }
-        val published = File(app.cacheDir, "linked-fallback-output.zip")
-        Files.createLink(published.toPath(), abandoned.toPath())
-        try {
-            SecureDiagnosticOutput.cleanupLegacyStages(app)
-
-            assertFalse(abandoned.exists())
-            assertEquals("complete published payload", published.readText())
-        } finally {
-            abandoned.delete()
-            published.delete()
-        }
     }
 
     @Test fun sessionDetailsIgnoreSymlinkedFiles() {
@@ -526,6 +514,82 @@ class SessionLogShareZipTest {
         File(LinuxRuntime.logDir(app), ".legacy-migration-v3-pending-$name").delete()
         File(LinuxRuntime.logDir(app), ".legacy-migration-v3-complete-$name").delete()
         outside.delete()
+    }
+
+    @Test fun unsupportedAtomicPublicationAbortsTheMigrationAfterOneAttempt() {
+        val legacy = LinuxRuntime.legacyLogDir().apply { mkdirs() }
+        val logs = LinuxRuntime.logDir(app).apply { mkdirs() }
+        val name = "2026-10-20-02-unsupported-atomic"
+        val source = File(legacy, name).apply { mkdirs() }
+        val retainedSource = File(source, "session.log").apply { writeText("legacy value\n") }
+        val missingSource = File(source, "wayland.log").apply { writeText("missing value\n") }
+        val destination = File(logs, name).apply { mkdirs() }
+        val existingDestination = File(destination, "session.log").apply { writeText("preserve me\n") }
+        val pending = File(logs, ".legacy-migration-v3-pending-$name").apply { writeText("pending\n") }
+        val complete = File(logs, ".legacy-migration-v3-complete-$name")
+        val global = File(logs, ".moved-from-downloads-v3")
+        var attempts = 0
+        JvmDiagnosticOutputProvider.atomicPublicationFailureForTest = {
+            attempts++
+            AtomicPublicationUnsupportedException(OsConstants.ENOSYS)
+        }
+        try {
+            LogMigration.run(app)
+
+            assertEquals(1, attempts)
+            assertEquals("legacy value\n", retainedSource.readText())
+            assertEquals("missing value\n", missingSource.readText())
+            assertEquals("preserve me\n", existingDestination.readText())
+            assertFalse(File(destination, "wayland.log").exists())
+            assertTrue(pending.isFile)
+            assertFalse(complete.exists())
+            assertFalse(global.exists())
+            assertFalse(stagingFiles().any { it.name.endsWith(".partial") })
+            val warnings = ShadowLog.getLogsForTag("LogMigration").filter {
+                it.type == Log.WARN && it.msg.contains("unsupported on this device")
+            }
+            assertEquals(1, warnings.size)
+        } finally {
+            source.deleteRecursively()
+            destination.deleteRecursively()
+            pending.delete()
+            complete.delete()
+            global.delete()
+        }
+    }
+
+    @Test fun unsupportedPendingMarkerPublicationLeavesAFreshSessionUntouched() {
+        val legacy = LinuxRuntime.legacyLogDir().apply { mkdirs() }
+        val logs = LinuxRuntime.logDir(app).apply { mkdirs() }
+        val name = "2026-10-20-03-unsupported-pending"
+        val source = File(legacy, name).apply { mkdirs() }
+        val retainedSource = File(source, "session.log").apply { writeText("legacy value\n") }
+        val destination = File(logs, name)
+        val pending = File(logs, ".legacy-migration-v3-pending-$name")
+        val complete = File(logs, ".legacy-migration-v3-complete-$name")
+        val global = File(logs, ".moved-from-downloads-v3")
+        var attempts = 0
+        JvmDiagnosticOutputProvider.atomicPublicationFailureForTest = {
+            attempts++
+            AtomicPublicationUnsupportedException(OsConstants.ENOSYS)
+        }
+        try {
+            LogMigration.run(app)
+
+            assertEquals(1, attempts)
+            assertEquals("legacy value\n", retainedSource.readText())
+            assertFalse(destination.exists())
+            assertFalse(pending.exists())
+            assertFalse(complete.exists())
+            assertFalse(global.exists())
+            assertFalse(stagingFiles().any { it.name.endsWith(".partial") })
+        } finally {
+            source.deleteRecursively()
+            destination.deleteRecursively()
+            pending.delete()
+            complete.delete()
+            global.delete()
+        }
     }
 
     @Test fun completedLegacyMigrationIsNotRepeated() {
