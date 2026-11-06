@@ -47,9 +47,29 @@ class ComponentsArchiveTest {
     }
 
     @Test
+    fun repeatedTarRootDirectoriesAreAccepted() {
+        val stored = File(context.filesDir, "components/packages/repeated-root.wcp")
+        writeWcp(stored, repeatRoot = true)
+
+        assertEquals("repeated-root.wcp", ComponentsManager.packages(context).single().file)
+    }
+
+    @Test
+    fun repeatedNonRootDirectoriesRemainRejectedDuringApply() {
+        val source = File(context.cacheDir, "duplicate-directory.wcp")
+        writeWcp(source, repeatDirectory = true)
+        proton()
+        val imported = ComponentsManager.importPackage(context, source, source.name)
+
+        assertThrows(IllegalArgumentException::class.java) {
+            ComponentsManager.swap(context, "proton-exp", imported.file)
+        }
+    }
+
+    @Test
     fun importedDirectoryArchiveCanBeAppliedAndStagedForLaunch() {
         val source = File(context.cacheDir, "dxvk.wcp")
-        writeWcp(source)
+        writeWcp(source, repeatRoot = true)
         val proton = proton()
 
         val imported = ComponentsManager.importPackage(context, source, "dxvk.wcp")
@@ -66,7 +86,7 @@ class ComponentsArchiveTest {
     @Test
     fun perGameSelectionStagesDirectoryArchivesWithoutChangingBundledFiles() {
         val source = File(context.cacheDir, "game-dxvk.wcp")
-        writeWcp(source)
+        writeWcp(source, repeatRoot = true)
         val proton = proton()
         val imported = ComponentsManager.importPackage(context, source, "game-dxvk.wcp")
 
@@ -134,7 +154,13 @@ class ComponentsArchiveTest {
         TarArchiveEntry("./files/pipe", TarConstants.LF_FIFO),
     )
 
-    private fun writeWcp(file: File, extra: TarArchiveEntry? = null, beforeProfile: Boolean = false) {
+    private fun writeWcp(
+        file: File,
+        extra: TarArchiveEntry? = null,
+        beforeProfile: Boolean = false,
+        repeatRoot: Boolean = false,
+        repeatDirectory: Boolean = false,
+    ) {
         file.parentFile!!.mkdirs()
         val profile = JSONObject().put("type", "DXVK-Linux").put("versionName", "1.10.3")
             .put("description", "Directory archive fixture").toString().toByteArray()
@@ -146,10 +172,14 @@ class ComponentsArchiveTest {
                 tar.closeArchiveEntry()
             }
             entry(TarArchiveEntry("./", TarConstants.LF_DIR))
+            if (repeatRoot) entry(TarArchiveEntry(".", TarConstants.LF_DIR))
             if (beforeProfile) extra?.let { entry(it) }
             entry(TarArchiveEntry("./profile.json"), profile)
             for (directory in listOf("files", "files/lib", "files/lib/wine", "files/lib/wine/dxvk", "files/lib/wine/dxvk/aarch64-windows")) {
                 entry(TarArchiveEntry("./$directory/", TarConstants.LF_DIR))
+                if (repeatDirectory && directory == "files/lib") {
+                    entry(TarArchiveEntry("./$directory/", TarConstants.LF_DIR))
+                }
             }
             entry(TarArchiveEntry("./$dll"), payload.toByteArray())
             if (!beforeProfile) extra?.let { entry(it) }

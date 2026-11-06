@@ -28,6 +28,9 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.attribute.BasicFileAttributes
 
 object ComponentsManager {
     private const val TAG = "Components"
@@ -103,6 +106,7 @@ object ComponentsManager {
     data class Catalog(
         val items: List<CatalogItem>, val fetchedAt: Long, val failed: List<String> = emptyList(),
         val rateLimited: Boolean = false,
+        val rateLimitedComponents: Set<String> = emptySet(),
     )
 
     private val lock = Any()
@@ -451,7 +455,7 @@ object ComponentsManager {
             val e = tar.nextTarEntry ?: break
             require(++entries <= MAX_WCP_ENTRIES) { "Component archive has too many entries" }
             val rel = safeArchivePath(e)
-            require(seen.add(rel)) { "duplicate archive path $rel" }
+            require(rel.isEmpty() || seen.add(rel)) { "duplicate archive path $rel" }
             if (e.isFile) {
                 require(e.size in 0..MAX_WCP_FILE_BYTES) { "archive entry is too large" }
                 expanded += e.size
@@ -490,7 +494,7 @@ object ComponentsManager {
                     val e = tar.nextTarEntry ?: break
                     require(++entries <= MAX_WCP_ENTRIES) { "Component archive has too many entries" }
                     val rel = safeArchivePath(e)
-                    require(seen.add(rel)) { "duplicate archive path $rel" }
+                    require(rel.isEmpty() || seen.add(rel)) { "duplicate archive path $rel" }
                     if (e.isDirectory || !rel.startsWith("files/")) continue
                     require(e.size in 0..MAX_WCP_FILE_BYTES) { "archive entry is too large" }
                     expanded += e.size
@@ -681,7 +685,7 @@ object ComponentsManager {
                         val e = tar.nextTarEntry ?: break
                         require(++entries <= MAX_WCP_ENTRIES) { "Component archive has too many entries" }
                         val rel = safeArchivePath(e)
-                        require(seen.add(rel)) { "duplicate archive path $rel" }
+                        require(rel.isEmpty() || seen.add(rel)) { "duplicate archive path $rel" }
                         if (e.isDirectory || !rel.startsWith("files/")) continue
                         require(e.size in 0..MAX_WCP_FILE_BYTES) { "archive entry is too large" }
                         expanded += e.size
@@ -1047,10 +1051,18 @@ object ComponentsManager {
         }
     }
 
-    private fun storePackage(context: Context, part: File, dest: File) {
+    private fun storePackage(
+        context: Context,
+        part: File,
+        dest: File,
+        prechecked: Boolean = false,
+        deferCacheCleanup: Boolean = false,
+        onDestinationTouched: () -> Unit = {},
+    ): File? {
+        var staleCache: File? = null
         try {
-            if (dest.isFile && runCatching { Hashes.sha256(dest) }.getOrNull()?.equals(Hashes.sha256(part), true) == true) return
-            if (dest.exists()) checkPackageUnused(context, loadState(context), dest.name)
+            if (!prechecked && dest.isFile && runCatching { Hashes.sha256(dest) }.getOrNull()?.equals(Hashes.sha256(part), true) == true) return null
+            if (!prechecked && dest.exists()) checkPackageUnused(context, loadState(context), dest.name)
             val store = File(launchDir(context), "store").canonicalFile
             val cacheKey = unpackedCacheKey(dest.name)
             val unpacked = File(store, cacheKey).canonicalFile
@@ -1058,15 +1070,21 @@ object ComponentsManager {
             val complete = File(unpacked, ".complete")
             if (complete.exists()) check(complete.delete()) { "Could not invalidate unpacked component ${dest.name}" }
             if (!part.renameTo(dest)) {
+                onDestinationTouched()
                 dest.delete()
                 check(part.renameTo(dest)) { "Could not store ${dest.name}" }
-            }
-            if (!unpacked.deleteRecursively() && unpacked.exists()) {
-                check(!complete.exists()) { "Could not invalidate unpacked component ${dest.name}" }
-                Log.w(TAG, "Could not remove stale unpacked files for ${dest.name}; cache marker is invalidated")
-            }
+            } else onDestinationTouched()
+            if (deferCacheCleanup) staleCache = unpacked else cleanupUnpackedCache(unpacked, dest.name)
         } finally {
             part.delete()
+        }
+        return staleCache
+    }
+
+    private fun cleanupUnpackedCache(unpacked: File, name: String) {
+        if (!unpackedCacheCleaner(unpacked) && unpacked.exists()) {
+            check(!File(unpacked, ".complete").exists()) { "Could not invalidate unpacked component $name" }
+            Log.w(TAG, "Could not remove stale unpacked files for $name; cache marker is invalidated")
         }
     }
 
@@ -1133,28 +1151,49 @@ object ComponentsManager {
 
     internal data class ReleaseRefresh(val repositoryId: Long, val releases: List<GitHubArtifacts.Release>)
 
+    internal class CatalogRefreshCache {
+        internal val releases = HashMap<String, ReleaseRefresh>()
+        internal val sidecars = HashMap<SidecarKey, ByteArray>()
+    }
+
+    internal data class SidecarKey(val repository: String, val releaseId: Long, val assetId: Long)
+
     internal var catalogReleaseRefresher: (
         Context, String, RepositorySources.Source,
     ) -> ReleaseRefresh = ::refreshCatalogReleases
     internal var catalogRefresher: (
-        Context, String, RepositorySources.Source, MutableMap<String, ReleaseRefresh>,
+        Context, String, RepositorySources.Source, CatalogRefreshCache,
     ) -> List<CatalogItem> =
         ::refreshCatalogSource
+    internal var catalogSidecarReader: (
+        Context, String, List<String>, RepositorySources.Source, String, GitHubArtifacts.Asset, Int,
+    ) -> ByteArray = { context, key, builtIns, source, tag, asset, maxBytes ->
+        GitHubArtifacts.readReleaseAsset(context, key, builtIns, source, tag, asset, maxBytes)
+    }
     internal var packageReceiptWriter: (File, ByteArray) -> Unit = RepositorySources::atomicWrite
     internal var packageDownloader: (String, File, String, (Int) -> Unit) -> Boolean = { url, file, digest, progress ->
         Downloader.downloadFile(url, file, true, digest) { value ->
             progress(if (value < 0) -1 else (value * 100).toInt().coerceIn(0, 100))
         }
     }
+    internal var packageHasher: (File) -> String = Hashes::sha256
+    internal var packageBackupWriter: (File, File) -> Unit = { source, destination ->
+        source.copyTo(destination, overwrite = true)
+    }
+    internal var unpackedCacheCleaner: (File) -> Boolean = File::deleteRecursively
 
-    fun catalog(context: Context, force: Boolean): Catalog {
+    fun catalog(context: Context, force: Boolean): Catalog = catalog(context, force, COMPONENTS.toSet())
+
+    internal fun catalog(context: Context, force: Boolean, components: Set<String>): Catalog {
+        require(components.all { it in COMPONENTS }) { "Unknown component catalog scope" }
         val items = ArrayList<CatalogItem>()
         var fetchedAt = 0L
         val failed = ArrayList<String>()
         var rateLimited = false
+        val rateLimitedComponents = HashSet<String>()
         val legacy by lazy { readLegacyCatalog(context) }
-        val refreshedRepositories = HashMap<String, ReleaseRefresh>()
-        for (comp in COMPONENTS) {
+        val refreshCache = CatalogRefreshCache()
+        for (comp in COMPONENTS.filter { it in components }) {
             val scope = sourceScope(comp)
             val builtIns = sourceBuiltIns(comp)
             for (configured in RepositorySources.visible(context, scope, builtIns)) {
@@ -1162,7 +1201,7 @@ object ComponentsManager {
                 if (force) {
                     val generation = RepositorySources.generation(context, scope, builtIns)
                     runCatching {
-                        val refreshed = catalogRefresher(context, comp, configured, refreshedRepositories)
+                        val refreshed = catalogRefresher(context, comp, configured, refreshCache)
                         val bound = RepositorySources.visible(context, scope, builtIns)
                             .singleOrNull { it.id == configured.id }
                             ?: throw IOException("Component source changed while checking")
@@ -1172,7 +1211,10 @@ object ComponentsManager {
                     }.onSuccess {
                         cached = it
                     }.onFailure {
-                        rateLimited = rateLimited || GitHubArtifacts.isRateLimited(it)
+                        if (GitHubArtifacts.isRateLimited(it)) {
+                            rateLimited = true
+                            rateLimitedComponents.add(comp)
+                        }
                         failed.add("$comp:${configured.repository}")
                         Log.w(TAG, "catalog ${configured.repository} for $comp", it)
                     }
@@ -1190,6 +1232,7 @@ object ComponentsManager {
             fetchedAt,
             failed,
             rateLimited,
+            rateLimitedComponents,
         )
     }
 
@@ -1208,16 +1251,16 @@ object ComponentsManager {
         context: Context,
         comp: String,
         source: RepositorySources.Source,
-        refreshedRepositories: MutableMap<String, ReleaseRefresh>,
+        refreshCache: CatalogRefreshCache,
     ): List<CatalogItem> {
         val scope = sourceScope(comp)
         val builtIns = sourceBuiltIns(comp)
         val generation = RepositorySources.generation(context, scope, builtIns)
         val repository = RepositorySources.canonicalRepository(source.repository)
-        val refresh = refreshedRepositories[repository]
-            ?: catalogReleaseRefresher(context, comp, source).also { refreshedRepositories[repository] = it }
+        val refresh = refreshCache.releases[repository]
+            ?: catalogReleaseRefresher(context, comp, source).also { refreshCache.releases[repository] = it }
         val bound = RepositorySources.bind(context, scope, builtIns, source, refresh.repositoryId, generation)
-        return catalogItems(context, comp, bound, refresh.releases)
+        return catalogItems(context, comp, bound, generation, refresh.releases, refreshCache)
     }
 
     private fun sourceCatalogFile(context: Context, comp: String, source: RepositorySources.Source) =
@@ -1331,7 +1374,9 @@ object ComponentsManager {
         context: Context,
         comp: String,
         source: RepositorySources.Source,
+        generation: Long,
         releases: List<GitHubArtifacts.Release>,
+        refreshCache: CatalogRefreshCache,
     ): List<CatalogItem> {
         val items = ArrayList<CatalogItem>()
         for (release in releases) {
@@ -1350,9 +1395,14 @@ object ComponentsManager {
                 it.name == "droiddeck-component.json" || it.name == "droiddeck-component-$comp.json"
             }
             for (sidecar in sidecars) {
-                val bytes = GitHubArtifacts.readReleaseAsset(
-                    context, sourceScope(comp), sourceBuiltIns(comp), source, release.tag, sidecar, 256 * 1024,
-                )
+                val scope = sourceScope(comp)
+                val builtIns = sourceBuiltIns(comp)
+                RepositorySources.whileCurrent(context, scope, builtIns, source, generation) {}
+                val key = SidecarKey(source.repository, release.id, sidecar.id)
+                val bytes = refreshCache.sidecars[key] ?: catalogSidecarReader(
+                    context, scope, builtIns, source, release.tag, sidecar, 256 * 1024,
+                ).also { refreshCache.sidecars[key] = it }
+                RepositorySources.whileCurrent(context, scope, builtIns, source, generation) {}
                 val start = items.size
                 try {
                     val manifest = JSONObject(bytes.toString(Charsets.UTF_8))
@@ -1437,31 +1487,29 @@ object ComponentsManager {
         url.startsWith("https://github.com/$it/releases/download/", ignoreCase = true)
     }
 
-    private fun resolveLegacyLocalFile(context: Context, item: CatalogItem): CatalogItem {
+    private fun resolveLegacyLocalFile(context: Context, item: CatalogItem): CatalogItem = synchronized(lock) {
         val preferred = File(packagesDir(context), safeName(item.localFile))
         if (preferred.isFile) {
-            if (receiptMatches(preferred, item)) return item
+            if (receiptMatches(preferred, item)) return@synchronized item
             if (matchesCatalogPackage(context, preferred, item)) {
                 writeProvenance(preferred, item)
-                return item
+                return@synchronized item
             }
-            return item.copy(localFile = "${item.digest.substringAfter(':')}-${item.sourceId}-remote.wcp")
+            return@synchronized item.copy(localFile = "${item.digest.substringAfter(':')}-${item.sourceId}-remote.wcp")
         }
         val builtIn = item.repository in DOWNLOAD_REPOS &&
             item.sourceId == RepositorySources.source(item.repository).id
-        if (!builtIn) return item
+        if (!builtIn) return@synchronized item
         val legacy = File(packagesDir(context), safeName(item.file))
-        if (!legacy.isFile || legacy == preferred || legacy.length() != item.size) return item
-        if (!receiptMatches(legacy, item) && !matchesCatalogPackage(context, legacy, item)) return item
+        if (!legacy.isFile || legacy == preferred || legacy.length() != item.size) return@synchronized item
+        if (!receiptMatches(legacy, item) && !matchesCatalogPackage(context, legacy, item)) return@synchronized item
         writeProvenance(legacy, item)
-        return item.copy(localFile = legacy.name)
+        item.copy(localFile = legacy.name)
     }
 
     private fun writeProvenance(file: File, item: CatalogItem) {
         runCatching {
-            RepositorySources.atomicWrite(
-                provenanceFile(file), provenance(item).toString().toByteArray(Charsets.UTF_8),
-            )
+            packageReceiptWriter(provenanceFile(file), provenance(item).toString().toByteArray(Charsets.UTF_8))
         }.onFailure { Log.w(TAG, "component provenance ${file.name}", it) }
     }
 
@@ -1757,43 +1805,90 @@ object ComponentsManager {
         ) { commit() }
     }
 
-    private fun storeDownloadedPackage(context: Context, part: File, dest: File, item: CatalogItem) {
+    private data class DownloadPreparation(
+        val existed: Boolean,
+        val identical: Boolean,
+        val fileKey: Any?,
+        val backup: File?,
+    )
+
+    private fun prepareDownloadedPackage(context: Context, dest: File, item: CatalogItem): DownloadPreparation {
         val existed = dest.exists()
-        var backup: File? = null
-        var committed = false
-        try {
-            check(!existed || dest.isFile) { "Invalid existing component package ${dest.name}" }
-            val identical = existed && Hashes.sha256(dest).equals(item.digest.substringAfter(':'), true)
-            if (existed && !identical) {
-                checkPackageUnused(context, loadState(context), dest.name)
-                val previous = File.createTempFile(".component-", ".backup", dest.parentFile)
+        check(!existed || dest.isFile) { "Invalid existing component package ${dest.name}" }
+        val fileKey = if (existed) Files.readAttributes(
+            dest.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS,
+        ).fileKey() ?: throw IOException("Existing component identity is unavailable") else null
+        val identical = existed && packageHasher(dest).equals(item.digest.substringAfter(':'), true)
+        val backup = if (existed && !identical) {
+            checkPackageUnused(context, loadState(context), dest.name)
+            File.createTempFile(".component-", ".backup", dest.parentFile).also { previous ->
                 try {
-                    dest.copyTo(previous, overwrite = true)
+                    packageBackupWriter(dest, previous)
                 } catch (error: Throwable) {
                     previous.delete()
                     throw error
                 }
-                backup = previous
             }
-            if (!identical) storePackage(context, part, dest)
-            packageReceiptWriter(provenanceFile(dest), provenance(item).toString().toByteArray(Charsets.UTF_8))
-            committed = true
+        } else null
+        return DownloadPreparation(existed, identical, fileKey, backup)
+    }
+
+    private fun unchangedDestination(dest: File, prepared: DownloadPreparation): Boolean {
+        if (!prepared.existed) return !dest.exists()
+        if (!dest.isFile) return false
+        return runCatching {
+            Files.readAttributes(dest.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS).fileKey()
+        }.getOrNull() == prepared.fileKey
+    }
+
+    private fun storeDownloadedPackage(
+        context: Context,
+        part: File,
+        dest: File,
+        item: CatalogItem,
+        generation: Long,
+    ): Unit = synchronized(lock) {
+        val prepared = prepareDownloadedPackage(context, dest, item)
+        val backup = prepared.backup
+        var destinationTouched = false
+        var keepBackup = false
+        var staleCache: File? = null
+        try {
+            RepositorySources.whileCurrent(
+                context, sourceScope(item.comp), sourceBuiltIns(item.comp), item.sourceId, generation,
+            ) {
+                check(unchangedDestination(dest, prepared)) { "Component package changed while downloading" }
+                if (!prepared.identical) {
+                    staleCache = storePackage(
+                        context, part, dest, prechecked = true, deferCacheCleanup = true,
+                        onDestinationTouched = { destinationTouched = true },
+                    )
+                }
+                packageReceiptWriter(provenanceFile(dest), provenance(item).toString().toByteArray(Charsets.UTF_8))
+            }
+            staleCache?.let { cache ->
+                runCatching { cleanupUnpackedCache(cache, dest.name) }
+                    .onFailure { Log.w(TAG, "Could not clean stale unpacked files for ${dest.name}", it) }
+            }
         } catch (error: Throwable) {
-            if (backup != null) {
+            if (destinationTouched && backup != null) {
                 val restored = backup.renameTo(dest) ||
                     ((!dest.exists() || dest.delete()) && backup.renameTo(dest))
                 if (!restored) {
                     // Keep the previous bytes for recovery if the filesystem refuses restoration.
+                    keepBackup = true
                     if (dest.exists() && !dest.delete()) Log.e(TAG, "Could not remove uncommitted component ${dest.name}")
                     error.addSuppressed(IOException("Could not restore ${dest.name}; backup retained at ${backup.path}"))
                 }
-            } else if (!existed && dest.exists() && !dest.delete()) {
+            } else if (destinationTouched && !prepared.existed && dest.exists() && !dest.delete()) {
                 error.addSuppressed(IOException("Could not remove uncommitted component ${dest.name}"))
             }
             throw error
         } finally {
             part.delete()
-            if (committed && backup != null && !backup.delete()) Log.w(TAG, "Could not remove component backup ${backup.name}")
+            if (!keepBackup && backup?.exists() == true && !backup.delete()) {
+                Log.w(TAG, "Could not remove component backup ${backup.name}")
+            }
         }
     }
 
@@ -1837,10 +1932,8 @@ object ComponentsManager {
         val info = runCatching { packageInfo(context, part) }.getOrElse { part.delete(); throw it }
         require(info.comp == item.comp) { part.delete(); "Component archive type does not match its catalog" }
         try {
-            commitDownloadedPackage(context, item, generation) {
-                if (item.sourceId.isEmpty()) storePackage(context, part, dest)
-                else storeDownloadedPackage(context, part, dest, item)
-            }
+            if (generation == null) commitDownloadedPackage(context, item, null) { storePackage(context, part, dest) }
+            else storeDownloadedPackage(context, part, dest, item, generation)
         } catch (error: IOException) {
             part.delete()
             throw error
