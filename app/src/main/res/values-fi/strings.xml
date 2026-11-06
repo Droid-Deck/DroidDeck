@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s FEXin kautta</string>
     <string name="app_fex_not_ready">Tämä ohjelma on tehty %1$s-tietokoneille ja käynnistyy FEXin kautta, jota ei ole vielä määritetty. Avaa Steam kerran kirjautuneena: DroidDeck lataa sen myötä FEXin ja tarvittavan Steam Linux Runtimen, jonka jälkeen tämä avautuu.</string>
     <string name="session_proot_missing">DroidDeckin proota ei voitu ladata. Tarkista yhteys ja yritä uudelleen. Istuntoa ei käynnistetty, koska varaproot on liian hidas pelaamiseen.</string>
+    <string name="session_powervr_missing">PowerVR-grafiikkaympäristöä ei voitu ladata. Tarkista yhteys ja yritä uudelleen.</string>
     <string name="session_directaudio_missing">DirectAudiota ei voitu ladata, joten pelin ääni käyttää tässä istunnossa hitaampaa reittiä.</string>
     <string name="session_end_program">Tämä ohjelma</string>
     <string name="session_end_steam_download">Steam-asiakasohjelmaa ei voitu ladata. Verkkosi tai VPN saattaa estää Steamin palvelimet; tarkista yhteys ja yritä uudelleen.</string>
