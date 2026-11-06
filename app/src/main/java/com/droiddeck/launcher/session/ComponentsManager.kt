@@ -756,11 +756,12 @@ object ComponentsManager {
         saveState(context, state)
     }
 
-    fun dropQueuedPackages(context: Context, protonIds: Set<String>, files: Set<String>): Int = synchronized(lock) {
+    fun dropQueuedPackages(context: Context, files: Set<String>, keep: (String) -> Boolean): Int = synchronized(lock) {
         val state = loadState(context)
         val queued = state.sub("queued")
         var dropped = 0
-        for (pid in protonIds) {
+        for (pid in queued.keys().asSequence().toList()) {
+            if (keep(pid)) continue
             val comps = queued.optJSONObject(pid) ?: continue
             for (comp in comps.keys().asSequence().toList()) {
                 val entry = comps.optJSONObject(comp) ?: continue

@@ -27,6 +27,8 @@ object ComponentUpdates {
 
     fun follows(p: ComponentsManager.Proton): Boolean = !p.valve && p.dir.name.startsWith(OWN_PREFIX)
 
+    fun ownId(protonId: String): Boolean = protonId.startsWith(ComponentsManager.safeName(OWN_PREFIX))
+
     fun strays(
         protons: List<ComponentsManager.Proton>,
         choices: Map<String, Map<String, ComponentsManager.Choice>>,

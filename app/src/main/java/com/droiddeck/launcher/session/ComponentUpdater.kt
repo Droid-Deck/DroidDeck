@@ -246,8 +246,8 @@ object ComponentUpdater {
         if (state.optBoolean(HANDED_BACK)) return
         val placed = placed(state)
         state.put(HAND_BACK_FILES, JSONArray(placed.sorted()))
-        val others = protons.filterNot(ComponentUpdates::follows).mapTo(HashSet()) { it.id }
-        runCatching { ComponentsManager.dropQueuedPackages(context, others, placed) }.onFailure { Log.w(TAG, "drop queued Auto builds", it) }.getOrNull() ?: return
+        val own = protons.filter(ComponentUpdates::follows).mapTo(HashSet()) { it.id }
+        runCatching { ComponentsManager.dropQueuedPackages(context, placed) { it in own || ComponentUpdates.ownId(it) } }.onFailure { Log.w(TAG, "drop queued Auto builds", it) }.getOrNull() ?: return
         val strays = ComponentUpdates.strays(protons, ComponentsManager.activeChoices(context), placed)
         for ((p, comp) in strays) {
             runCatching { ComponentsManager.restoreUnlessQueued(context, p.id, comp, ComponentsManager.safeName(p.version)) }

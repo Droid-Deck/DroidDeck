@@ -289,11 +289,13 @@ class ComponentUpdatesTest {
         state.writeText(JSONObject().put("queued", JSONObject()
             .put("GE-Proton10-25", JSONObject().put("dxvk", pkg("DD-dxvk-3.1.1+190-nightly.wcp")).put("vkd3d", pkg("vkd3d-proton-3.0-mine.wcp"))
                 .put("fex", pkg("DD-FEXCore-2611+3-nightly.wcp", auto = true)))
+            .put("proton-cachyos-10.0-arm64", JSONObject().put("dxvk", pkg("DD-dxvk-3.1.1+190-nightly.wcp")))
             .put("DroidDeck-Proton-10.0-7", JSONObject().put("dxvk", pkg("DD-dxvk-3.1.1+190-nightly.wcp")))).toString())
         val placed = setOf("DD-dxvk-3.1.1+190-nightly.wcp", "DD-FEXCore-2611+3-nightly.wcp")
-        assertEquals(1, ComponentsManager.dropQueuedPackages(context, setOf("GE-Proton10-25"), placed))
+        assertEquals(2, ComponentsManager.dropQueuedPackages(context, placed, ComponentUpdates::ownId))
         val queued = JSONObject(state.readText()).getJSONObject("queued")
         assertEquals(setOf("vkd3d", "fex"), queued.getJSONObject("GE-Proton10-25").keys().asSequence().toSet())
+        assertFalse(queued.has("proton-cachyos-10.0-arm64"))
         assertTrue(queued.getJSONObject("DroidDeck-Proton-10.0-7").has("dxvk"))
     }
 
