@@ -50,36 +50,52 @@ internal object SecureDiagnosticOutput {
         return AndroidDiagnosticOutputProvider.open(context, requested)
     }
 
-    fun clear(context: Context, requested: File): Boolean = open(context, requested)?.use {
-        it.clear()
-        it.deleteIfEmpty()
-    } ?: false
+    fun clear(context: Context, requested: File): Boolean = try {
+        open(context, requested)?.use {
+            it.clear()
+            it.deleteIfEmpty()
+        } ?: false
+    } catch (_: Exception) {
+        false
+    }
 
     fun deleteSession(context: Context, folder: File): Boolean {
         val target = folder.toPath().toAbsolutePath().normalize()
         val persistent = LinuxRuntime.logDir(context).toPath().toAbsolutePath().normalize()
         val ephemeral = File(context.cacheDir, "session-logs").toPath().toAbsolutePath().normalize()
         if (target.parent !in setOf(persistent, ephemeral) || !SessionPaths.isSessionFolder(folder)) return false
-        return open(context, folder)?.use {
-            it.clear()
-            it.deleteIfEmpty()
-        } ?: false
+        return try {
+            open(context, folder)?.use {
+                it.clear()
+                it.deleteIfEmpty()
+            } ?: false
+        } catch (_: Exception) {
+            false
+        }
     }
 
     fun deleteTools(context: Context): Boolean {
         val tools = File(LinuxRuntime.logDir(context), SessionPaths.TOOLS_DIR)
-        return open(context, tools)?.use {
-            it.clear()
-            it.deleteIfEmpty()
-        } ?: false
+        return try {
+            open(context, tools)?.use {
+                it.clear()
+                it.deleteIfEmpty()
+            } ?: false
+        } catch (_: Exception) {
+            false
+        }
     }
 
     fun cleanupLegacyStages(context: Context) {
-        providerOverride.get()?.let {
-            it.cleanupLegacyStages(context)
-            return
+        try {
+            providerOverride.get()?.let {
+                it.cleanupLegacyStages(context)
+                return
+            }
+            AndroidDiagnosticOutputProvider.cleanupLegacyStages(context)
+        } catch (_: Exception) {
+            // Cleanup is best effort; traversal limits must not abort application startup.
         }
-        AndroidDiagnosticOutputProvider.cleanupLegacyStages(context)
     }
 
     fun <T> withExistingDirectory(root: File, block: (SecureDirectoryStream<Path>) -> T): T? {
@@ -182,8 +198,14 @@ private object AndroidDiagnosticOutputProvider : DiagnosticOutputProvider {
             return
         }
         try {
-            clear(child, 0, intArrayOf(0))
+            val cleared = try {
+                clear(child, 0, intArrayOf(0))
+                true
+            } catch (_: Exception) {
+                false
+            }
             child.close()
+            if (!cleared) return
             val currentKey = runCatching {
                 parent.getFileAttributeView(name, BasicFileAttributeView::class.java, LinkOption.NOFOLLOW_LINKS)
                     .readAttributes().fileKey()

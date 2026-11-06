@@ -73,9 +73,9 @@ object SessionLogShare {
         val root = folder.toPath()
         if (folder.isDirectory && !Files.isSymbolicLink(root)) runCatching {
             Files.walkFileTree(root, object : SimpleFileVisitor<Path>() {
-                override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult =
-                    if (++visited > 16_384 || dir.nameCount - root.nameCount > 32) FileVisitResult.SKIP_SUBTREE
-                    else FileVisitResult.CONTINUE
+                override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
+                    return detailsDirectoryDecision(++visited, dir.nameCount - root.nameCount)
+                }
 
                 override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                     if (++visited > 16_384) return FileVisitResult.TERMINATE
@@ -88,6 +88,12 @@ object SessionLogShare {
             })
         }
         return Details(size, modified)
+    }
+
+    internal fun detailsDirectoryDecision(visited: Int, depth: Int): FileVisitResult = when {
+        visited > 16_384 -> FileVisitResult.TERMINATE
+        depth > 32 -> FileVisitResult.SKIP_SUBTREE
+        else -> FileVisitResult.CONTINUE
     }
 
     fun deleteSession(context: Context, folder: File): Boolean {
@@ -318,7 +324,9 @@ object SessionLogShare {
     }
 
     private fun removePartialDocument(context: Context, destination: Uri) {
-        val removed = runCatching { context.contentResolver.delete(destination, null, null) > 0 }.getOrDefault(false)
+        val removed = runCatching {
+            DocumentsContract.deleteDocument(context.contentResolver, destination)
+        }.getOrDefault(false)
         if (!removed) runCatching { context.contentResolver.openOutputStream(destination, "rwt")?.close() }
     }
 
@@ -361,7 +369,10 @@ object SessionLogShare {
     }
 
     fun saveLegacyAsync(context: Context, folder: File, destination: Uri, done: (Boolean) -> Unit) {
-        if (progress != null) return
+        if (progress != null) {
+            main.post { done(false) }
+            return
+        }
         progress = 0f
         val app = context.applicationContext
         Thread({

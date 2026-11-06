@@ -5,6 +5,7 @@ import android.os.ParcelFileDescriptor
 import java.io.File
 import java.io.OutputStream
 import java.nio.channels.Channels
+import java.nio.channels.FileChannel
 import java.nio.channels.SeekableByteChannel
 import java.nio.file.DirectoryStream
 import java.nio.file.Files
@@ -163,18 +164,27 @@ internal object JvmDiagnosticOutputProvider : DiagnosticOutputProvider {
         if (!original.isDirectory || original.isSymbolicLink) return
         val stage = runCatching { parent.newDirectoryStream(name, LinkOption.NOFOLLOW_LINKS) }.getOrNull() ?: return
         stage.use { current ->
-            val activeExists = try {
-                current.getFileAttributeView(
-                    Paths.get(".active"), BasicFileAttributeView::class.java, LinkOption.NOFOLLOW_LINKS,
-                ).readAttributes()
-                true
+            val active = try {
+                current.newByteChannel(
+                    Paths.get(".active"),
+                    setOf(StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS),
+                )
             } catch (_: NoSuchFileException) {
-                false
+                null
             } catch (_: Exception) {
                 return
             }
-            if (activeExists) return
-            JvmDiagnosticOutputDirectory.clearSecure(current, 0, intArrayOf(0))
+            val lock = (active as? FileChannel)?.let { runCatching { it.tryLock() }.getOrNull() }
+            if (active != null && lock == null) {
+                active.close()
+                return
+            }
+            try {
+                JvmDiagnosticOutputDirectory.clearSecure(current, 0, intArrayOf(0))
+            } finally {
+                runCatching { lock?.close() }
+                runCatching { active?.close() }
+            }
         }
         val current = runCatching {
             parent.getFileAttributeView(name, BasicFileAttributeView::class.java, LinkOption.NOFOLLOW_LINKS)

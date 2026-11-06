@@ -40,6 +40,8 @@ import java.nio.file.Files
 import java.nio.file.StandardOpenOption
 import java.nio.file.attribute.PosixFilePermissions
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
 import org.junit.After
 import org.junit.Before
@@ -585,8 +587,59 @@ class EnhancedSessionLogShareTest {
         }
 
         assertEquals(listOf("w", "rwt"), provider.openModes)
-        assertEquals(1, provider.deleteCalls)
+        assertEquals(0, provider.deleteCalls)
         assertEquals(0L, output.length())
+    }
+
+    @Test fun failedLegacySaveUsesDocumentDeletionBeforeTruncation() {
+        val emptySession = tmp.newFolder("2026-11-06-03-steam")
+        val output = tmp.newFile("deletable-partial-legacy-save.zip").apply { writeText("existing") }
+        val provider = ExternalDocumentsProvider(output, deleteSupported = true)
+        val authority = "deletable-legacy-diagnostic-save-test"
+        val packageName = "external.deletable.documents"
+        val providerInfo = android.content.pm.ProviderInfo().apply {
+            this.authority = authority
+            this.packageName = packageName
+            name = ExternalDocumentsProvider::class.java.name
+            applicationInfo = android.content.pm.ApplicationInfo().apply { this.packageName = packageName }
+            exported = true
+            grantUriPermissions = true
+            readPermission = android.Manifest.permission.MANAGE_DOCUMENTS
+            writePermission = android.Manifest.permission.MANAGE_DOCUMENTS
+        }
+        provider.attachInfo(app, providerInfo)
+        ShadowContentResolver.registerProviderInternal(authority, provider)
+        val component = ComponentName(packageName, providerInfo.name)
+        shadowOf(app.packageManager).apply {
+            addOrUpdateProvider(providerInfo)
+            addIntentFilterForProvider(component, IntentFilter(DocumentsContract.PROVIDER_INTERFACE))
+        }
+        val destination = DocumentsContract.buildDocumentUri(authority, "output")
+
+        assertThrows(IllegalArgumentException::class.java) {
+            SessionLogShare.saveLegacy(app, emptySession, destination)
+        }
+
+        assertEquals(1, provider.deleteCalls)
+        assertFalse(output.exists())
+        assertEquals(listOf("w"), provider.openModes)
+    }
+
+    @Test fun busyLegacySaveReportsFailureInsteadOfDroppingTheCallback() {
+        val release = CountDownLatch(1)
+        val exited = CountDownLatch(1)
+        SessionLogShare.prepare(app, folder = {
+            release.await()
+            exited.countDown()
+            null
+        }) { }
+        var saved: Boolean? = null
+        SessionLogShare.saveLegacyAsync(app, tmp.newFolder("busy-save"), Uri.EMPTY) { saved = it }
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+        assertEquals(false, saved)
+        release.countDown()
+        assertTrue(exited.await(5, TimeUnit.SECONDS))
+        shadowOf(android.os.Looper.getMainLooper()).idle()
     }
 
     @Test fun graphicsArchiveIncludesOnlyBoundedFrameTraceSummariesFromTheSessionLog() {
@@ -994,8 +1047,12 @@ class EnhancedSessionLogShareTest {
         ) = 0
     }
 
-    private class ExternalDocumentsProvider(private val file: File) : DocumentsProvider() {
+    private class ExternalDocumentsProvider(
+        private val file: File,
+        private val deleteSupported: Boolean = false,
+    ) : DocumentsProvider() {
         val openModes = ArrayList<String>()
+        var deleteCalls = 0
 
         override fun onCreate() = true
 
@@ -1018,6 +1075,12 @@ class EnhancedSessionLogShareTest {
         ): ParcelFileDescriptor {
             openModes += mode
             return ParcelFileDescriptor.open(file, ParcelFileDescriptor.parseMode(mode))
+        }
+
+        override fun deleteDocument(documentId: String) {
+            deleteCalls++
+            if (!deleteSupported) throw UnsupportedOperationException("delete unsupported")
+            check(file.delete())
         }
     }
 }
