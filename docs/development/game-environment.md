@@ -135,7 +135,10 @@ in-session share action. Enhanced sessions offer separate, correlated archives:
 | Games and compatibility | Proton, Wine, DXVK/VKD3D, FEX, store, and game lifecycle logs |
 
 Choose one archive when an issue calls for a narrow report, or **All bundles**
-to share the three archives together. Every archive contains a
+to share the three archives together. Use **Save to device** to open Android's
+location picker; saving all produces one ZIP containing the three original
+archives. Direct saving refuses inputs above 512 MiB; save one bundle or use
+**Share** if that limit is reached. Every diagnostic archive contains a
 `diagnostics-manifest.json` with the common session ID and the state of each
 artifact: captured, truncated, unavailable, omitted, or error. Some captured
 logs may themselves explain that a permission-limited source was unavailable.

@@ -354,33 +354,44 @@ internal object EnhancedSessionLogShare {
         return truncated
     }
 
-    private fun <T> withSecureChannel(root: Path, relative: Path, block: (SeekableByteChannel) -> T): T? {
+    internal fun <T> withSecureChannel(root: Path, relative: Path, block: (SeekableByteChannel) -> T): T? {
         sourceOpenerOverride.get()?.let { return it.withChannel(root, relative, block) }
         return withAndroidSecureChannel(root, relative, block)
     }
 
     private fun <T> withAndroidSecureChannel(root: Path, relative: Path, block: (SeekableByteChannel) -> T): T? {
         val opened = ArrayList<ParcelFileDescriptor>()
-        return try {
-            val parts = relative.map { it.toString() }
-            if (parts.isEmpty()) return null
-            opened += openDirectoryDescriptor(root.toString()) ?: return null
-            for (part in parts.dropLast(1)) {
-                opened += openDirectoryDescriptor(procChild(opened.last(), part)) ?: return null
-            }
-            val leafFd = openDescriptor(procChild(opened.last(), parts.last())) ?: return null
-            try {
-                val stat = Os.fstat(leafFd)
-                if (!OsConstants.S_ISREG(stat.st_mode) || stat.st_nlink != 1L) return null
-                // Android's FileInputStream(FileDescriptor) is deliberately not the descriptor owner.
-                FileInputStream(leafFd).use { stream -> block(stream.channel) }
-            } finally {
-                runCatching { Os.close(leafFd) }
-            }
-        } catch (_: Exception) {
-            null
-        } finally {
+        var leafFd: java.io.FileDescriptor? = null
+        fun closeDescriptors() {
+            leafFd?.let { runCatching { Os.close(it) } }
             opened.asReversed().forEach { runCatching { it.close() } }
+        }
+        val stream = try {
+            val parts = relative.map { it.toString() }
+            if (parts.isEmpty()) throw IOException("empty source path")
+            opened += openDirectoryDescriptor(root.toString()) ?: throw IOException("source root unavailable")
+            for (part in parts.dropLast(1)) {
+                opened += openDirectoryDescriptor(procChild(opened.last(), part))
+                    ?: throw IOException("source directory unavailable")
+            }
+            val fd = openDescriptor(procChild(opened.last(), parts.last()))
+                ?: throw IOException("source file unavailable")
+            leafFd = fd
+            val stat = Os.fstat(fd)
+            if (!OsConstants.S_ISREG(stat.st_mode) || stat.st_nlink != 1L) {
+                throw IOException("source file is unsafe")
+            }
+            // Android's FileInputStream(FileDescriptor) is deliberately not the descriptor owner.
+            FileInputStream(fd)
+        } catch (error: Throwable) {
+            closeDescriptors()
+            if (error is Exception) return null
+            throw error
+        }
+        return try {
+            stream.use { block(it.channel) }
+        } finally {
+            closeDescriptors()
         }
     }
 
