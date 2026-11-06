@@ -323,8 +323,12 @@ class ComponentUpdatesTest {
         fun p(version: String) = ComponentsManager.Proton("GE-Proton", "GE-Proton", File("/steam/$version"), "/p", version, false)
         val state = JSONObject().put("active", JSONObject().put("GE-Proton", JSONObject()
             .put("dxvk", JSONObject().put("file", "DD-dxvk-3.1.1+186-nightly.wcp").put("protonVersion", "2"))))
-        assertTrue("DD-dxvk-3.1.1+186-nightly.wcp" in ComponentsManager.packagesInUseByAny(state, listOf(p("1"), p("2"))))
-        assertTrue("DD-dxvk-3.1.1+186-nightly.wcp" in ComponentsManager.packagesInUseByAny(state, listOf(p("2"), p("1"))))
-        assertFalse("DD-dxvk-3.1.1+186-nightly.wcp" in ComponentsManager.packagesInUseByAny(state, listOf(p("1"))))
+        assertTrue("DD-dxvk-3.1.1+186-nightly.wcp" in ComponentsManager.packagesInUse(state, listOf(p("1"), p("2"))))
+        assertTrue("DD-dxvk-3.1.1+186-nightly.wcp" in ComponentsManager.packagesInUse(state, listOf(p("2"), p("1"))))
+        assertFalse("DD-dxvk-3.1.1+186-nightly.wcp" in ComponentsManager.packagesInUse(state, listOf(p("1"))))
+        val entry = state.getJSONObject("active").getJSONObject("GE-Proton").getJSONObject("dxvk")
+        assertTrue(ComponentsManager.liveOnAny("active", entry, listOf(p("1"), p("2"))))
+        assertFalse(ComponentsManager.liveOnAny("active", entry, listOf(p("1"))))
+        assertFalse(ComponentsManager.liveOnAny("active", entry, null))
     }
 }
