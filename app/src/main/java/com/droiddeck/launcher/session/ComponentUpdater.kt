@@ -14,23 +14,27 @@ object ComponentUpdater {
     private const val CHECK_EVERY_MS = 3_600_000L
     private const val BOOTED_KEPT = 200
     private val lock = Any()
+    private val io = Any()
 
     data class Status(val line: String, val current: String, val previous: String, val protons: List<String>, val note: String)
 
     private fun file(context: Context) = File(File(context.filesDir, "components").apply { mkdirs() }, "updates.json")
 
-    private fun load(context: Context): JSONObject =
+    private fun load(context: Context): JSONObject = synchronized(io) {
         runCatching { JSONObject(String(AtomicFile(file(context)).readFully(), Charsets.UTF_8)) }.getOrDefault(JSONObject())
+    }
 
     private fun save(context: Context, state: JSONObject) {
-        val atomic = AtomicFile(file(context))
-        val output = runCatching { atomic.startWrite() }.onFailure { Log.w(TAG, "could not save", it) }.getOrNull() ?: return
-        try {
-            output.write(state.toString(1).toByteArray(Charsets.UTF_8))
-            atomic.finishWrite(output)
-        } catch (error: Exception) {
-            atomic.failWrite(output)
-            Log.w(TAG, "could not save", error)
+        synchronized(io) {
+            val atomic = AtomicFile(file(context))
+            val output = runCatching { atomic.startWrite() }.onFailure { Log.w(TAG, "could not save", it) }.getOrNull() ?: return
+            try {
+                output.write(state.toString(1).toByteArray(Charsets.UTF_8))
+                atomic.finishWrite(output)
+            } catch (error: Exception) {
+                atomic.failWrite(output)
+                Log.w(TAG, "could not save", error)
+            }
         }
     }
 

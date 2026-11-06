@@ -176,6 +176,34 @@ class ComponentUpdatesTest {
         assertTrue(dir.list()!!.none { it.startsWith("updates.json.") })
     }
 
+    @Test fun aTwoDigitNightlyBuildIsNewerThanASingleDigitOne() {
+        val items = listOf(item("DD-FEXCore-2611+9-nightly.wcp", "fex"), item("DD-FEXCore-2611+10-nightly.wcp", "fex"))
+        assertEquals("DD-FEXCore-2611+10-nightly.wcp", ComponentUpdates.pick(items, ComponentUpdates.line("fex", false), emptySet())?.file)
+        assertNull(ComponentUpdates.pick(items, ComponentUpdates.line("fex", false), setOf("DD-FEXCore-2611+10-nightly.wcp")))
+    }
+
+    @Test fun readsDuringSavesNeverLoseTheState() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val state = File(context.filesDir, "components/updates.json").apply { parentFile?.mkdirs() }
+        state.writeText(JSONObject().put("checkedAt", System.currentTimeMillis()).put("lines", JSONObject().put("fex", JSONObject()
+            .put("current", "DD-FEXCore-2611+3-nightly.wcp").put("bad", JSONArray().put("DD-FEXCore-2611+2-nightly.wcp")))).toString())
+        val done = java.util.concurrent.atomic.AtomicBoolean(false)
+        val reader = Thread {
+            while (!done.get()) {
+                ComponentUpdater.settle(context)
+                ComponentUpdater.status(context, "fex")
+            }
+        }.apply { start() }
+        try {
+            repeat(400) { ComponentUpdater.ensure(context, false) }
+        } finally {
+            done.set(true)
+            reader.join()
+        }
+        val fex = JSONObject(state.readText()).getJSONObject("lines").getJSONObject("fex")
+        assertEquals("DD-FEXCore-2611+2-nightly.wcp", fex.getJSONArray("bad").getString(0))
+    }
+
     @Test fun onlyTheCurrentAndThePreviousBuildAndUserSelectionsAreKept() {
         assertEquals(setOf("b.wcp", "a.wcp", "mine.wcp"), ComponentUpdates.keep("b.wcp", "a.wcp", setOf("mine.wcp")))
         assertEquals(setOf("b.wcp"), ComponentUpdates.keep("b.wcp", ComponentUpdates.ORIGINAL, emptySet()))
