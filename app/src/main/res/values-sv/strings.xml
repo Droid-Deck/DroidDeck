@@ -2231,9 +2231,6 @@
     <string name="source_added">Egna</string>
     <string name="setup_stores">Butiker</string>
     <string name="setup_stores_speed">Nedladdningshastighet</string>
-    <string name="setup_stores_engine">Butiksmotor</string>
-    <string name="setup_stores_engine_chip_ready">● Motor redo</string>
-    <string name="setup_stores_engine_chip_missing">Inte byggd</string>
     <string name="stores_tier_balanced">Balanserad</string>
     <string name="stores_tier_fast">Snabb</string>
     <string name="stores_tier_max">Max</string>

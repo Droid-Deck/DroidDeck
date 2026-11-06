@@ -2281,9 +2281,6 @@
     <string name="source_added">Vlastní</string>
     <string name="setup_stores">Obchody</string>
     <string name="setup_stores_speed">Úroveň rychlosti stahování</string>
-    <string name="setup_stores_engine">Jádro obchodů</string>
-    <string name="setup_stores_engine_chip_ready">● Jádro je připraveno</string>
-    <string name="setup_stores_engine_chip_missing">Není sestaveno</string>
     <string name="stores_tier_balanced">Vyvážené</string>
     <string name="stores_tier_fast">Rychlé</string>
     <string name="stores_tier_max">Maximální</string>

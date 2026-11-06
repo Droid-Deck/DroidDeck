@@ -2331,9 +2331,6 @@
     <string name="source_added">مخصَّص</string>
     <string name="setup_stores">المتاجر</string>
     <string name="setup_stores_speed">فئة سرعة التنزيل</string>
-    <string name="setup_stores_engine">محرك المتاجر</string>
-    <string name="setup_stores_engine_chip_ready">● المحرك جاهز</string>
-    <string name="setup_stores_engine_chip_missing">غير مبنيّ</string>
     <string name="stores_tier_balanced">متوازن</string>
     <string name="stores_tier_fast">سريع</string>
     <string name="stores_tier_max">أقصى</string>

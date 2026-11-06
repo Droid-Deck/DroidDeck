@@ -49,7 +49,9 @@ import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import android.content.Context
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -60,6 +62,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.AddedGameArt
@@ -211,7 +215,6 @@ private fun ArtOnlyEditor(
     onClose: () -> Unit, onChanged: () -> Unit,
 ) {
     val app = LocalContext.current.applicationContext
-    val colors = MaterialTheme.colorScheme
     val shown = rememberShown(onClose)
     val close = { shown.targetState = false }
     var version by remember { mutableIntStateOf(0) }
@@ -229,7 +232,7 @@ private fun ArtOnlyEditor(
             verticalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState()),
         ) {
-            Text(stringResource(R.string.edit_artwork), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
+            Text(stringResource(R.string.edit_artwork), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
             for (slot in AddedGameArt.Slot.values()) key(slot) {
                 val state = arts.firstOrNull { it.slot == slot }
                 FieldRow(slot.label(), focus = if (slot == AddedGameArt.Slot.COVER) first else null, onClick = { if (target != null) artSlot = slot }) {
@@ -259,16 +262,29 @@ internal fun SteamLaunchOptionsPanel(appId: Int) {
     var version by remember(appId) { mutableIntStateOf(0) }
     var editing by remember(appId) { mutableStateOf<String?>(null) }
     var saving by remember(appId) { mutableStateOf(false) }
+    var loading by remember(appId) { mutableStateOf(false) }
     var error by remember(appId) { mutableStateOf<Int?>(null) }
     LaunchedEffect(appId, version) {
-        options = withContext(Dispatchers.IO) { SteamLaunchOptions.current(app, appId) }
+        options = withContext(Dispatchers.IO) { SteamLaunchOptions.current(app, appId) } ?: options.orEmpty()
+        loading = false
+    }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle, appId) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && !saving) {
+                loading = true
+                version++
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
     }
     Column(Modifier.fillMaxWidth().tabPanel(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        SectionLabel(stringResource(R.string.edit_launch_options))
-        FieldRow(stringResource(R.string.edit_launch_options), onClick = { if (!saving) options?.let { editing = it } }) {
-            val value = options
-            if (value == null || saving) Loading() else ValueText(value.ifEmpty { "—" }, muted = value.isEmpty())
-        }
+        val value = options
+        MenuItem(
+            stringResource(R.string.edit_launch_options), checked = false, enabled = value != null && !saving && !loading,
+            detail = if (value == null || saving || loading) "…" else value.ifEmpty { "—" },
+        ) { if (!saving && !loading) options?.let { editing = it } }
         val message = error
         Text(
             stringResource(message ?: R.string.edit_launch_options_steam_hint),
@@ -289,7 +305,10 @@ internal fun SteamLaunchOptionsPanel(appId: Int) {
                     SteamLaunchOptions.Saved.DESKTOP -> R.string.edit_launch_options_desktop
                     SteamLaunchOptions.Saved.NO -> R.string.edit_launch_options_not_saved
                 }
-                if (saved == SteamLaunchOptions.Saved.YES) options = value else {
+                if (saved == SteamLaunchOptions.Saved.YES) {
+                    options = value
+                    version++
+                } else {
                     options = null
                     version++
                 }

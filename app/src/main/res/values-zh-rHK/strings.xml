@@ -2206,9 +2206,6 @@
     <string name="source_added">自訂</string>
     <string name="setup_stores">商店</string>
     <string name="setup_stores_speed">下載速度等級</string>
-    <string name="setup_stores_engine">商店引擎</string>
-    <string name="setup_stores_engine_chip_ready">● 引擎已就緒</string>
-    <string name="setup_stores_engine_chip_missing">未建置</string>
     <string name="stores_tier_balanced">平衡</string>
     <string name="stores_tier_fast">快速</string>
     <string name="stores_tier_max">最高</string>

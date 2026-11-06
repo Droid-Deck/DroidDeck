@@ -2206,9 +2206,6 @@
     <string name="source_added">Khusus</string>
     <string name="setup_stores">Toko</string>
     <string name="setup_stores_speed">Tingkat kecepatan unduhan</string>
-    <string name="setup_stores_engine">Mesin toko</string>
-    <string name="setup_stores_engine_chip_ready">● Mesin siap</string>
-    <string name="setup_stores_engine_chip_missing">Belum dibuat</string>
     <string name="stores_tier_balanced">Seimbang</string>
     <string name="stores_tier_fast">Cepat</string>
     <string name="stores_tier_max">Maks</string>

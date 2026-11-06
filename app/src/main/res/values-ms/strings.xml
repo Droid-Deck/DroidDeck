@@ -2206,9 +2206,6 @@
     <string name="source_added">Tersuai</string>
     <string name="setup_stores">Kedai</string>
     <string name="setup_stores_speed">Tahap kelajuan muat turun</string>
-    <string name="setup_stores_engine">Enjin kedai</string>
-    <string name="setup_stores_engine_chip_ready">● Enjin sedia</string>
-    <string name="setup_stores_engine_chip_missing">Tidak dibina</string>
     <string name="stores_tier_balanced">Seimbang</string>
     <string name="stores_tier_fast">Pantas</string>
     <string name="stores_tier_max">Maksimum</string>

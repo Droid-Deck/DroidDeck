@@ -2231,9 +2231,6 @@
     <string name="source_added">कस्टम</string>
     <string name="setup_stores">स्टोर</string>
     <string name="setup_stores_speed">डाउनलोड स्पीड टियर</string>
-    <string name="setup_stores_engine">स्टोर इंजन</string>
-    <string name="setup_stores_engine_chip_ready">● इंजन तैयार</string>
-    <string name="setup_stores_engine_chip_missing">नहीं बना</string>
     <string name="stores_tier_balanced">बैलेंस्ड</string>
     <string name="stores_tier_fast">फ़ास्ट</string>
     <string name="stores_tier_max">मैक्स</string>

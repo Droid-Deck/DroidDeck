@@ -2206,9 +2206,6 @@
     <string name="source_added">Tùy chỉnh</string>
     <string name="setup_stores">Cửa hàng</string>
     <string name="setup_stores_speed">Mức tốc độ tải</string>
-    <string name="setup_stores_engine">Engine stores</string>
-    <string name="setup_stores_engine_chip_ready">● Engine sẵn sàng</string>
-    <string name="setup_stores_engine_chip_missing">Chưa build</string>
     <string name="stores_tier_balanced">Cân bằng</string>
     <string name="stores_tier_fast">Nhanh</string>
     <string name="stores_tier_max">Tối đa</string>

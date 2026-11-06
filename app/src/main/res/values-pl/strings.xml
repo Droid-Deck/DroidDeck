@@ -2281,9 +2281,6 @@
     <string name="source_added">Własna</string>
     <string name="setup_stores">Sklepy</string>
     <string name="setup_stores_speed">Poziom szybkości pobierania</string>
-    <string name="setup_stores_engine">Mechanizm sklepów</string>
-    <string name="setup_stores_engine_chip_ready">● Mechanizm gotowy</string>
-    <string name="setup_stores_engine_chip_missing">Nie zbudowano</string>
     <string name="stores_tier_balanced">Zbalansowany</string>
     <string name="stores_tier_fast">Szybki</string>
     <string name="stores_tier_max">Maksymalny</string>

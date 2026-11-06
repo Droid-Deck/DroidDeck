@@ -2223,9 +2223,6 @@
     <string name="source_added">Özel</string>
     <string name="setup_stores">Mağazalar</string>
     <string name="setup_stores_speed">İndirme hızı katmanı</string>
-    <string name="setup_stores_engine">Mağazalar motoru</string>
-    <string name="setup_stores_engine_chip_ready">● Motor hazır</string>
-    <string name="setup_stores_engine_chip_missing">Derlenmedi</string>
     <string name="stores_tier_balanced">Dengeli</string>
     <string name="stores_tier_fast">Hızlı</string>
     <string name="stores_tier_max">Maks</string>

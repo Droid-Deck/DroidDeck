@@ -2364,9 +2364,6 @@
     <string name="source_added">Свои</string>
     <string name="setup_stores">Магазины</string>
     <string name="setup_stores_speed">Уровень скорости загрузки</string>
-    <string name="setup_stores_engine">Движок магазинов</string>
-    <string name="setup_stores_engine_chip_ready">● Движок готов</string>
-    <string name="setup_stores_engine_chip_missing">Не собран</string>
     <string name="stores_tier_balanced">Сбалансированный</string>
     <string name="stores_tier_fast">Быстрый</string>
     <string name="stores_tier_max">Максимальный</string>
