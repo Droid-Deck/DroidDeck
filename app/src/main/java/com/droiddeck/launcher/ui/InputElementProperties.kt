@@ -3,6 +3,7 @@ package com.droiddeck.launcher.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.Canvas
@@ -26,14 +27,16 @@ internal fun InputElementProperties(element: InputSurfaceElement, onChange: (Inp
         val open = host.open == "element-icon"
         SettingsRow(stringResource(R.string.input_button_symbol), null, highlighted = open) {
             Box {
-                ValueChip(if (element.image.isNotEmpty()) stringResource(R.string.input_imported_image) else if (element.icon == 0) stringResource(R.string.input_button_text) else pcKeyLabel(context, element.icon), open) { host.open = if (open) null else "element-icon" }
+                ValueChip(if (element.image.isNotEmpty()) stringResource(R.string.input_imported_image) else if (element.icon == 0) stringResource(R.string.input_button_text) else InputButtonIcons.label(context, element.icon), open) { host.open = if (open) null else "element-icon" }
                 AnchoredMenu(open, onDismiss = { host.open = null }, title = stringResource(R.string.input_button_symbol)) { firstItemFocus ->
                     MenuItem(stringResource(R.string.input_button_text), element.icon == 0 && element.image.isEmpty(), focusRequester = firstItemFocus) { onChange(element.copy(icon = 0, image = "")); host.open = null }
-                    for (code in InputButtonIcons.codes) MenuItem(pcKeyLabel(context, code), element.icon == code && element.image.isEmpty(), leading = {
+                    for (code in InputButtonIcons.codes) MenuItem(InputButtonIcons.label(context, code), element.icon == code && element.image.isEmpty(), leading = {
                         val color = MaterialTheme.colorScheme.onSurface
+                        val symbol = remember(context, code) { InputButtonIcons.drawable(context, code) }
+                        val paint = remember { android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG) }
                         Canvas(Modifier.size(22.dp)) {
-                            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { this.color = android.graphics.Color.argb((color.alpha * 255).toInt(), (color.red * 255).toInt(), (color.green * 255).toInt(), (color.blue * 255).toInt()) }
-                            InputButtonIcons.draw(drawContext.canvas.nativeCanvas, code, size.width / 2, size.height / 2, size.minDimension, paint)
+                            paint.color = android.graphics.Color.argb((color.alpha * 255).toInt(), (color.red * 255).toInt(), (color.green * 255).toInt(), (color.blue * 255).toInt())
+                            InputButtonIcons.draw(drawContext.canvas.nativeCanvas, code, size.width / 2, size.height / 2, size.minDimension, paint, symbol)
                         }
                     }) { onChange(element.copy(icon = code, image = "")); host.open = null }
                 }

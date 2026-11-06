@@ -58,6 +58,8 @@ object InputSurfaceLayout {
     fun read(context: Context, profile: String, role: InputRole = InputRole.SECONDARY): List<InputSurfaceElement> =
         InputLibraries.read(context).layout(profile, role)?.elements.orEmpty()
 
+    internal fun hasLegacy(context: Context, profile: String) = prefs(context).contains(profile)
+
     internal fun readLegacy(context: Context, profile: String): List<InputSurfaceElement> {
         val text = prefs(context).getString(profile, null) ?: return defaults()
         return runCatching {

@@ -36,6 +36,20 @@ class InputSettingsTest {
         context.getSharedPreferences("controller", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
+    @Test fun commandSymbolsAreSelectableForAnyCustomButton() {
+        val element = mutableStateOf(InputSurfaceElement(InputControl.A, .1f, .1f, .2f, .2f, name = "Custom button"))
+        compose.setContent { DroidDeckTheme {
+            androidx.compose.foundation.layout.Column { InputElementProperties(element.value) { element.value = it } }
+        } }
+        var current = context.getString(R.string.input_button_text)
+        for (code in listOf(InputButtonIcons.MENU, InputButtonIcons.KEYBOARD, InputButtonIcons.STEAM, InputButtonIcons.QUICK_ACCESS)) {
+            compose.onNodeWithText(current).performClick()
+            current = InputButtonIcons.label(context, code)
+            compose.onNodeWithText(current).performScrollTo().performClick()
+            compose.runOnIdle { assertEquals(code, element.value.icon) }
+        }
+    }
+
     @Test fun steamAndDesktopQuickSettingsOpenTheSameInputLibrary() {
         val mode = mutableStateOf(SessionService.MODE_STEAM)
         var opened = 0
@@ -63,10 +77,10 @@ class InputSettingsTest {
         compose.onNodeWithTag("setting-input-part-PHYSICAL").assertExists()
         compose.onNodeWithTag("setting-input-part-PRIMARY").assertExists()
         compose.onNodeWithTag("setting-input-part-SECONDARY").performClick()
-        compose.onNodeWithText("Left Deck trackpad").performScrollTo().performClick()
+        compose.onNodeWithText("Deck grips + trackpads").performScrollTo().performClick()
         compose.runOnIdle {
             val changed = InputLibraries.read(context)
-            assertEquals(InputStockLayouts.LEFT, changed.activePart(true, InputRole.SECONDARY).bindings)
+            assertEquals(InputStockLayouts.DECK, changed.activePart(true, InputRole.SECONDARY).bindings)
             assertEquals(original.profiles, changed.profiles)
             assertEquals(original.compileActive(false), changed.compileActive(false))
         }

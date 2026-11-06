@@ -1,16 +1,49 @@
 package com.droiddeck.launcher.input
 
+import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.drawable.Drawable
+import com.droiddeck.launcher.R
 
 object InputButtonIcons {
+    // Persisted symbol IDs must not depend on Android resource IDs or overlap Linux key codes.
+    const val MENU = 1001
+    const val KEYBOARD = 1002
+    const val STEAM = 1003
+    const val QUICK_ACCESS = 1004
+
     fun has(code: Int): Boolean = code in codes
 
-    val codes = listOf(28, 14, 15, 57, 42, 54, 29, 97, 125, 103, 108, 105, 106)
+    private val keyCodes = listOf(28, 14, 15, 57, 42, 54, 29, 97, 125, 103, 108, 105, 106)
+    val codes = listOf(MENU, KEYBOARD, STEAM, QUICK_ACCESS) + keyCodes
 
-    fun draw(canvas: Canvas, code: Int, cx: Float, cy: Float, box: Float, paint: Paint): Boolean {
-        if (!has(code)) return false
+    fun label(context: Context, code: Int): String = when (code) {
+        MENU -> context.getString(R.string.touch_droiddeck_menu)
+        KEYBOARD -> context.getString(R.string.drawer_keyboard)
+        STEAM -> context.getString(R.string.drawer_steam_menu)
+        QUICK_ACCESS -> context.getString(R.string.drawer_open_qam)
+        else -> pcKeyLabel(context, code)
+    }
+
+    fun drawable(context: Context, code: Int): Drawable? = when (code) {
+        MENU -> R.drawable.ic_stat_session
+        KEYBOARD -> R.drawable.ic_bottom_keyboard
+        STEAM -> R.drawable.ic_input_steam
+        QUICK_ACCESS -> R.drawable.ic_input_quick_access
+        else -> null
+    }?.let { context.getDrawable(it)?.mutate() }
+
+    fun draw(canvas: Canvas, code: Int, cx: Float, cy: Float, box: Float, paint: Paint, drawable: Drawable? = null): Boolean {
+        if (drawable != null) {
+            drawable.setTint(paint.color)
+            val half = box / 2f
+            drawable.setBounds((cx - half).toInt(), (cy - half).toInt(), (cx + half).toInt(), (cy + half).toInt())
+            drawable.draw(canvas)
+            return true
+        }
+        if (code !in keyCodes) return false
         val h = box / 2f
         val stroke = box * 0.085f
         val path = Path()

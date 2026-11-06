@@ -18,6 +18,69 @@ class InputLibraryTest {
         for (name in listOf("input-profiles", "input-surfaces", "controller")) context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().commit()
     }
 
+    @Test fun freshLibraryHasOnlyTheMainGamepadAndTwoLowerScreenLayouts() {
+        val library = InputLibraries.read(context)
+        assertEquals(listOf("game", "desktop"), library.profiles.map { it.id })
+        assertEquals(setOf(InputLibraries.OVERLAY, InputLibraries.DECK, InputLibraries.TRACKPAD), library.layouts.map { it.id }.toSet())
+        assertEquals(6, library.bindings.size)
+        assertEquals(InputLibraries.DECK, library.activeLayout(false, InputRole.SECONDARY)?.id)
+        assertEquals(InputLibraries.TRACKPAD, library.activeLayout(true, InputRole.SECONDARY)?.id)
+        assertEquals(InputAction.Pointer(), library.compileActive(true).action(InputRole.PHYSICAL, InputControl.LS))
+        assertEquals(InputAction.Native(), library.compileActive(false).action(InputRole.PHYSICAL, InputControl.LS))
+
+        val desktop = library.activeLayout(true, InputRole.SECONDARY)!!
+        val pad = desktop.elements.single { it.kind == InputElementKind.TRACKPAD }
+        assertTrue(pad.mouseGestures)
+        assertEquals(3, desktop.elements.size)
+        assertEquals(InputAction.Pointer(), library.compileActive(true).elementAction(InputRole.SECONDARY, pad.id, pad.control))
+        assertEquals(InputAction.MouseButton(272), library.compileActive(true).elementClickAction(InputRole.SECONDARY, pad))
+        val game = library.activeLayout(false, InputRole.SECONDARY)!!
+        assertEquals(9, game.elements.size)
+        assertEquals(setOf(InputControl.LEFT_PAD, InputControl.RIGHT_PAD), game.elements.filter { it.kind == InputElementKind.TRACKPAD }.map { it.control }.toSet())
+        for (control in listOf(InputControl.L4, InputControl.L5, InputControl.R4, InputControl.R5)) {
+            val element = game.elements.single { it.control == control }
+            assertEquals(InputAction.Native(), library.compileActive(false).elementAction(InputRole.SECONDARY, element.id, element.control))
+        }
+        for ((isDesktop, commands) in listOf(true to listOf(InputCommand.MENU, InputCommand.KEYBOARD),
+            false to listOf(InputCommand.STEAM, InputCommand.QUICK_ACCESS, InputCommand.MENU))) {
+            val elements = library.activeLayout(isDesktop, InputRole.SECONDARY)!!.elements.filter { it.id.startsWith("command:") }
+            assertEquals(commands.map { InputAction.Command(it) }, elements.map { library.compileActive(isDesktop).elementAction(InputRole.SECONDARY, it.id, it.control) })
+            assertTrue(elements.all { InputButtonIcons.has(it.icon) && it.icon > 255 })
+        }
+        assertEquals(library, InputLibraries.decode(InputLibraries.encode(library)))
+    }
+
+    @Test fun legacyLowerScreenBindingsKeepTheirOriginalControlsWithoutSavedGeometry() {
+        prefs.edit().putBoolean("migrated", true).putString("profile.game",
+            """{"version":1,"bindings":[{"role":"SECONDARY","control":"a","action":{"type":"keys","codes":[57]}}]}""").commit()
+        val library = InputLibraries.read(context)
+        assertEquals(InputSurfaceLayout.defaults(), library.layout("game", InputRole.SECONDARY)?.elements)
+        assertEquals(InputAction.Keys(listOf(57)), library.compile("game").elementAction(InputRole.SECONDARY, "legacy:a", InputControl.A))
+    }
+
+    @Test fun existingLibrariesKeepTheirSavedLayoutsBindingsAndSelections() {
+        var original = InputLibraries.read(context).duplicateProfile("desktop", "Browser", "browser")
+        val layout = SavedInputLayout("builtin.left-pad", "My left pad", InputSurfaceLayout.defaults(), screen = InputLayoutScreen.SECONDARY)
+        original = original.withLayout(layout).withPreset(SavedInputBindings("preset.left-pad", "My left pad", false, layout.id,
+            controls = mapOf(InputControl.LEFT_PAD to InputAction.Pointer(700f))))
+            .selectProfile(true, "browser").selectPart(true, InputRole.SECONDARY, "preset.left-pad").validate()
+        val raw = org.json.JSONObject(InputLibraries.encode(original)).put("version", 6).toString()
+        prefs.edit().putString("library", raw).commit()
+        assertEquals(original, InputLibraries.read(context))
+        assertEquals(original, InputLibraries.read(context))
+    }
+
+    @Test fun resettingDefaultActionsKeepsTheMenuAndKeyboardCommands() {
+        val library = InputLibraries.read(context)
+        for (id in listOf("game", "desktop")) {
+            val reset = library.resetProfile(id).validate()
+            for (element in library.layout(id, InputRole.SECONDARY)!!.elements.filter { it.id.startsWith("command:") }) {
+                assertEquals(library.compile(id).elementAction(InputRole.SECONDARY, element.id, element.control),
+                    reset.compile(id).elementAction(InputRole.SECONDARY, element.id, element.control))
+            }
+        }
+    }
+
     @Test fun migrationPreservesExistingBindingsGeometryAndActiveSelection() {
         prefs.edit().putString("selected", "desktop").putBoolean("migrated", true)
             .putString("profile.desktop", """{"version":1,"bindings":[{"role":"PHYSICAL","control":"a","action":{"type":"keys","codes":[29,33]}}]}""").commit()
@@ -238,10 +301,10 @@ class InputLibraryTest {
     }
 
     @Test fun activeQuickPartsCannotBeDeletedAndInvalidCombinationsAreRejected() {
-        val library = InputLibraries.read(context).selectPart(false, InputRole.SECONDARY, InputStockLayouts.RIGHT)
-        assertThrows(IllegalArgumentException::class.java) { library.removeBindings(InputStockLayouts.RIGHT) }
-        assertThrows(IllegalArgumentException::class.java) { library.removeLayout("builtin.right-pad") }
-        assertThrows(IllegalArgumentException::class.java) { library.selectPart(false, InputRole.PHYSICAL, InputStockLayouts.RIGHT).validate() }
+        val library = InputLibraries.read(context).selectPart(false, InputRole.SECONDARY, InputStockLayouts.TRACKPAD)
+        assertThrows(IllegalArgumentException::class.java) { library.removeBindings(InputStockLayouts.TRACKPAD) }
+        assertThrows(IllegalArgumentException::class.java) { library.removeLayout(InputLibraries.TRACKPAD) }
+        assertThrows(IllegalArgumentException::class.java) { library.selectPart(false, InputRole.PHYSICAL, InputStockLayouts.TRACKPAD).validate() }
         assertThrows(IllegalArgumentException::class.java) { library.selectProfile(false, "missing").validate() }
     }
 

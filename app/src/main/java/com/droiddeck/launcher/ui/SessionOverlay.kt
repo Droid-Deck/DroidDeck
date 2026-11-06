@@ -209,6 +209,7 @@ private class DrawerFocus {
 
 class DrawerActions(
     val steam: Boolean,
+    val desktop: Boolean,
     val direct: Boolean = false,
     val title: String? = null,
     val isHomeApp: Boolean,
@@ -589,7 +590,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         }
                         SessionDrawerPage.CONTROLLER -> {
                             SettingsGroup(stringResource(R.string.drawer_page_controller)) {
-                                InputQuickSettings(host, desktop = !a.steam && !a.direct, onChanged = a.onInputSelection, onEdit = a.onInputSettings) { key -> focus.track(page, key) }
+                                InputQuickSettings(host, desktop = a.desktop, onChanged = a.onInputSelection, onEdit = a.onInputSettings) { key -> focus.track(page, key) }
                             }
                             SettingsGroup(stringResource(R.string.input_device_settings)) {
                                 a.padType?.let { type ->

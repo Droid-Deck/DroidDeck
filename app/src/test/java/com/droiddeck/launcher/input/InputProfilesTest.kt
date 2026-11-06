@@ -68,7 +68,11 @@ class InputProfilesTest {
             .putString("profile.game", """{"version":999,"bindings":[]} """).commit()
         val profile = InputProfiles.read(context, InputProfile.GAME)
         assertEquals(InputProfile.defaults(InputProfile.GAME).bindings, profile.bindings)
-        assertEquals(mapOf(InputRole.PRIMARY to mapOf("builtin:keyboard" to InputAction.Command(InputCommand.KEYBOARD))), profile.elements)
+        assertEquals(mapOf(
+            InputRole.PRIMARY to mapOf("builtin:keyboard" to InputAction.Command(InputCommand.KEYBOARD)),
+            InputRole.SECONDARY to mapOf("command:0" to InputAction.Command(InputCommand.MENU),
+                "command:2" to InputAction.Command(InputCommand.STEAM), "command:3" to InputAction.Command(InputCommand.QUICK_ACCESS)),
+        ), profile.elements)
     }
 
     @Test fun layoutsPersistIndependentOfBindingsAndStayInsideScreen() {

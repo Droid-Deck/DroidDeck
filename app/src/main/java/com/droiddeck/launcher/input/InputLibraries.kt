@@ -9,7 +9,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 object InputLibraries {
-    private const val VERSION = 6
+    private const val VERSION = 7
     private const val KEY = "library"
     private const val RECOVERY = "library-recovery."
     const val OVERLAY = "builtin.overlay"
@@ -76,18 +76,21 @@ object InputLibraries {
 
     private fun migrate(context: Context): InputLibrary {
         val profiles = mutableListOf<SavedInputProfile>()
-        val layouts = mutableListOf(
-            SavedInputLayout(OVERLAY, "Built-in gamepad", template = InputLayoutTemplate.OVERLAY),
-            SavedInputLayout(DECK, "Deck grips + trackpads", template = InputLayoutTemplate.DECK),
-            SavedInputLayout(TRACKPAD, "Trackpad + keyboard", template = InputLayoutTemplate.TRACKPAD),
-        )
-        val bindings = mutableListOf<SavedInputBindings>()
+        val stock = InputStockLayouts.layouts()
+        val layouts = (listOf(SavedInputLayout(OVERLAY, "Built-in gamepad", template = InputLayoutTemplate.OVERLAY)) + stock).toMutableList()
+        val bindings = InputStockLayouts.presets(stock).toMutableList()
         for (id in listOf(InputProfile.GAME, InputProfile.DESKTOP)) {
             val old = InputProfiles.readLegacy(context, id)
             val name = if (id == InputProfile.GAME) "Game" else "Desktop"
-            val layout = SavedInputLayout("$id.layout", "$name touch", InputSurfaceLayout.readLegacy(context, id))
-            layouts += layout
+            val legacySurface = InputSurfaceLayout.hasLegacy(context, id) ||
+                old.bindings[InputRole.SECONDARY] != InputProfile.defaults(id).bindings[InputRole.SECONDARY]
+            val layout = if (legacySurface) SavedInputLayout("$id.layout", "$name touch", InputSurfaceLayout.readLegacy(context, id)).also { layouts += it }
+                else stock.first { it.id == if (id == InputProfile.DESKTOP) TRACKPAD else DECK }
             val parts = InputRole.entries.associateWith { role ->
+                if (role == InputRole.SECONDARY && !legacySurface) {
+                    val preset = bindings.first { it.layoutId == layout.id }
+                    return@associateWith InputPart(preset.id, layout.id)
+                }
                 val preset = SavedInputBindings("$id.${role.name.lowercase()}", "$name / ${role.name.lowercase()}",
                     role == InputRole.PHYSICAL, if (role == InputRole.SECONDARY) layout.id else null,
                     old.bindings[role].orEmpty(), keys = if (role == InputRole.PHYSICAL) old.keys else emptyList())

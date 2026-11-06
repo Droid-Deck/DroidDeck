@@ -197,6 +197,7 @@ class InputSurfaceView(
 
     private class HoldButton(context: Context, private val element: InputSurfaceElement, private val source: InputSurfaceSource?) : Surface(context) {
         private var down = false
+        private val symbol = InputButtonIcons.drawable(context, element.icon)
         private val bitmap = element.image.takeIf { it.matches(Regex("[A-Za-z0-9_.-]{1,128}")) && it != "." && it != ".." }?.let { name ->
             val file = File(File(context.filesDir, "screenkeys"), name)
             val size = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -221,7 +222,7 @@ class InputSurfaceView(
                 canvas.drawBitmap(it, null, imageRect, labelPaint)
                 return
             }
-            if (element.icon != 0 && InputButtonIcons.draw(canvas, element.icon, cx, height / 2f, min(width, height) * .68f, labelPaint)) return
+            if (element.icon != 0 && InputButtonIcons.draw(canvas, element.icon, cx, height / 2f, min(width, height) * .68f, labelPaint, symbol)) return
             if (!element.showLabel) return
             labelPaint.textSize = min(height * .3f, 30 * density)
             val labelWidth = labelPaint.measureText(element.name)

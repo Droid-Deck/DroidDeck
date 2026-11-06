@@ -203,7 +203,7 @@ data class InputLibrary(
             val preset = SavedInputBindings(if (isPrivate) previous.id else newInputId(),
                 if (isPrivate) previous.name else (p.name + " / " + role.name.lowercase()).take(80), role == InputRole.PHYSICAL,
                 part.layout?.takeIf { layout(id, role)?.editable == true }, defaults.bindings[role].orEmpty(),
-                elements = layout(id, role)?.elements.orEmpty().filter { it.id == "builtin:keyboard" }
+                elements = (layout(id, role)?.let { InputStockLayouts.actions(it) } ?: emptyMap()) + layout(id, role)?.elements.orEmpty().filter { it.id == "builtin:keyboard" }
                     .associate { it.id to InputAction.Command(InputCommand.KEYBOARD) })
             result = result.withPreset(preset)
             part.copy(bindings = preset.id)
