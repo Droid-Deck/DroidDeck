@@ -35,10 +35,13 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
     private var shownDefault: String? = null
     private var nextCatalogRequest = 0
     private val catalogRequestByComponent = ComponentsManager.COMPONENTS.associateWith { 0 }.toMutableMap()
+    private val catalogAppliedByComponent = ComponentsManager.COMPONENTS.associateWith { 0 }.toMutableMap()
+    private val catalogAtByComponent = ComponentsManager.COMPONENTS.associateWith { 0L }.toMutableMap()
     private val activeCatalogRequests = HashSet<Int>()
 
     fun refreshComponents(snapshotFirst: Boolean = false) {
-        val catalogIds = catalogRequestByComponent.toMap()
+        val requested = catalogRequestByComponent.toMap()
+        val applied = catalogAppliedByComponent.toMap()
         Thread({
             if (snapshotFirst) runCatching { ComponentsManager.snapshotAll(activity) }
             runCatching { ComponentsManager.applyQueued(activity) }
@@ -54,7 +57,12 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
                 compAuto = auto
                 compAutoHeld = held
                 compSnapshot = snap ?: ComponentsManager.Snapshot(emptyList(), emptyList())
-                if (cat != null) mergeCatalog(cat, catalogIds)
+                if (cat != null) {
+                    val current = applied.keys.filterTo(LinkedHashSet()) {
+                        catalogRequestByComponent[it] == requested[it] && catalogAppliedByComponent[it] == applied[it]
+                    }
+                    mergeCatalog(cat, current)
+                }
                 if (chosen != null && chosen != shownDefault) {
                     shownDefault = chosen
                     compProton = chosen
@@ -136,7 +144,10 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
                 activeCatalogRequests.remove(id)
                 compChecking = activeCatalogRequests.isNotEmpty()
                 val current = wanted.filterTo(LinkedHashSet()) { catalogRequestByComponent[it] == id }
-                if (cat != null && current.isNotEmpty()) mergeCatalog(cat, current.associateWith { id })
+                if (cat != null && current.isNotEmpty()) {
+                    mergeCatalog(cat, current)
+                    current.forEach { catalogAppliedByComponent[it] = id }
+                }
                 val currentFailures = cat?.failed.orEmpty().filter { failure ->
                     ':' !in failure || current.any { failure.startsWith("$it:") }
                 }
@@ -158,12 +169,12 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
         refreshComponentCatalog(force = true, components = setOf(component))
     }
 
-    private fun mergeCatalog(catalog: ComponentsManager.Catalog, requests: Map<String, Int>) {
-        val current = requests.keys.filterTo(HashSet()) { catalogRequestByComponent[it] == requests[it] }
+    private fun mergeCatalog(catalog: ComponentsManager.Catalog, current: Set<String>) {
         if (current.isEmpty()) return
         compCatalog = (compCatalog.filterNot { it.comp in current } + catalog.items.filter { it.comp in current })
             .distinctBy { it.id }.sortedWith(ComponentsManager.CATALOG_ORDER)
-        compCatalogAt = maxOf(compCatalogAt, catalog.fetchedAt)
+        current.forEach { catalogAtByComponent[it] = catalog.fetchedAt }
+        compCatalogAt = catalogAtByComponent.values.maxOrNull() ?: 0L
     }
 
     fun downloadComponent(item: ComponentsManager.CatalogItem) {

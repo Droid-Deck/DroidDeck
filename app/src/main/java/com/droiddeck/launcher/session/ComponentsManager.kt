@@ -1088,6 +1088,15 @@ object ComponentsManager {
         }
     }
 
+    private fun detachUnpackedCache(unpacked: File, name: String): File? {
+        if (!unpacked.exists()) return null
+        val cleanup = File(unpacked.parentFile, ".${unpacked.name}.cleanup-${System.nanoTime()}")
+        return if (unpacked.renameTo(cleanup)) cleanup else {
+            Log.w(TAG, "Could not detach stale unpacked files for $name; cache marker is invalidated")
+            null
+        }
+    }
+
     internal fun unpackedCacheKey(filename: String): String = safeName(filename.removeSuffix(".wcp")).also {
         require(it != "." && it != "..") { "Invalid component cache name" }
     }
@@ -1812,7 +1821,27 @@ object ComponentsManager {
         val backup: File?,
     )
 
-    private fun prepareDownloadedPackage(context: Context, dest: File, item: CatalogItem): DownloadPreparation {
+    private data class FileIdentity(val fileKey: Any, val size: Long)
+
+    private fun fileIdentity(file: File): FileIdentity {
+        val attributes = Files.readAttributes(
+            file.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS,
+        )
+        require(attributes.isRegularFile && !attributes.isSymbolicLink && attributes.fileKey() != null) {
+            "Downloaded component identity is unavailable"
+        }
+        return FileIdentity(requireNotNull(attributes.fileKey()), attributes.size())
+    }
+
+    private fun unchangedFile(file: File, identity: FileIdentity): Boolean = runCatching {
+        val attributes = Files.readAttributes(
+            file.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS,
+        )
+        attributes.isRegularFile && !attributes.isSymbolicLink &&
+            attributes.fileKey() == identity.fileKey && attributes.size() == identity.size
+    }.getOrDefault(false)
+
+    private fun prepareDownloadedPackage(dest: File, item: CatalogItem): DownloadPreparation {
         val existed = dest.exists()
         check(!existed || dest.isFile) { "Invalid existing component package ${dest.name}" }
         val fileKey = if (existed) Files.readAttributes(
@@ -1820,7 +1849,6 @@ object ComponentsManager {
         ).fileKey() ?: throw IOException("Existing component identity is unavailable") else null
         val identical = existed && packageHasher(dest).equals(item.digest.substringAfter(':'), true)
         val backup = if (existed && !identical) {
-            checkPackageUnused(context, loadState(context), dest.name)
             File.createTempFile(".component-", ".backup", dest.parentFile).also { previous ->
                 try {
                     packageBackupWriter(dest, previous)
@@ -1847,43 +1875,53 @@ object ComponentsManager {
         dest: File,
         item: CatalogItem,
         generation: Long,
-    ): Unit = synchronized(lock) {
-        val prepared = prepareDownloadedPackage(context, dest, item)
+        partIdentity: FileIdentity,
+    ) {
+        val prepared = prepareDownloadedPackage(dest, item)
         val backup = prepared.backup
         var destinationTouched = false
         var keepBackup = false
         var staleCache: File? = null
         try {
-            RepositorySources.whileCurrent(
-                context, sourceScope(item.comp), sourceBuiltIns(item.comp), item.sourceId, generation,
-            ) {
+            synchronized(lock) {
+                check(unchangedFile(part, partIdentity)) { "Downloaded component changed before publication" }
                 check(unchangedDestination(dest, prepared)) { "Component package changed while downloading" }
-                if (!prepared.identical) {
-                    staleCache = storePackage(
-                        context, part, dest, prechecked = true, deferCacheCleanup = true,
-                        onDestinationTouched = { destinationTouched = true },
-                    )
+                if (prepared.existed && !prepared.identical) {
+                    checkPackageUnused(context, loadState(context), dest.name)
                 }
-                packageReceiptWriter(provenanceFile(dest), provenance(item).toString().toByteArray(Charsets.UTF_8))
+                try {
+                    RepositorySources.whileCurrent(
+                        context, sourceScope(item.comp), sourceBuiltIns(item.comp), item.sourceId, generation,
+                    ) {
+                        if (!prepared.identical) {
+                            staleCache = storePackage(
+                                context, part, dest, prechecked = true, deferCacheCleanup = true,
+                                onDestinationTouched = { destinationTouched = true },
+                            )
+                        }
+                        packageReceiptWriter(provenanceFile(dest), provenance(item).toString().toByteArray(Charsets.UTF_8))
+                    }
+                } catch (error: Throwable) {
+                    if (destinationTouched && backup != null) {
+                        val restored = backup.renameTo(dest) ||
+                            ((!dest.exists() || dest.delete()) && backup.renameTo(dest))
+                        if (!restored) {
+                            // Keep the previous bytes for recovery if the filesystem refuses restoration.
+                            keepBackup = true
+                            if (dest.exists() && !dest.delete()) Log.e(TAG, "Could not remove uncommitted component ${dest.name}")
+                            error.addSuppressed(IOException("Could not restore ${dest.name}; backup retained at ${backup.path}"))
+                        }
+                    } else if (destinationTouched && !prepared.existed && dest.exists() && !dest.delete()) {
+                        error.addSuppressed(IOException("Could not remove uncommitted component ${dest.name}"))
+                    }
+                    throw error
+                }
+                staleCache = staleCache?.let { detachUnpackedCache(it, dest.name) }
             }
             staleCache?.let { cache ->
                 runCatching { cleanupUnpackedCache(cache, dest.name) }
                     .onFailure { Log.w(TAG, "Could not clean stale unpacked files for ${dest.name}", it) }
             }
-        } catch (error: Throwable) {
-            if (destinationTouched && backup != null) {
-                val restored = backup.renameTo(dest) ||
-                    ((!dest.exists() || dest.delete()) && backup.renameTo(dest))
-                if (!restored) {
-                    // Keep the previous bytes for recovery if the filesystem refuses restoration.
-                    keepBackup = true
-                    if (dest.exists() && !dest.delete()) Log.e(TAG, "Could not remove uncommitted component ${dest.name}")
-                    error.addSuppressed(IOException("Could not restore ${dest.name}; backup retained at ${backup.path}"))
-                }
-            } else if (destinationTouched && !prepared.existed && dest.exists() && !dest.delete()) {
-                error.addSuppressed(IOException("Could not remove uncommitted component ${dest.name}"))
-            }
-            throw error
         } finally {
             part.delete()
             if (!keepBackup && backup?.exists() == true && !backup.delete()) {
@@ -1917,28 +1955,29 @@ object ComponentsManager {
         require(Hashes.isGithubSha256(item.digest)) { context.getString(R.string.cmgr_list_predates_checksums) }
         require(item.size in 1..(2L * 1024 * 1024 * 1024)) { "Component archive has an invalid size" }
         val dest = File(packagesDir(context), safeName(item.localFile))
-        val part = File(dest.parentFile, dest.name + ".part")
-        check(packageDownloader(item.url, part, item.digest.substringAfter(':'), progress)) {
-            context.getString(R.string.user_apps_download_failed)
-        }
-        if (part.length() != item.size) { part.delete(); error("Component archive size does not match") }
-        if (!Hashes.sha256(part).equals(item.digest.substringAfter(':'), true)) { part.delete(); error(context.getString(R.string.cmgr_checksum_mismatch)) }
-        if (generation != null && !RepositorySources.isCurrent(
-                context, sourceScope(item.comp), sourceBuiltIns(item.comp), item.sourceId, generation,
-            )) {
-            part.delete()
-            error("Component source changed while downloading")
-        }
-        val info = runCatching { packageInfo(context, part) }.getOrElse { part.delete(); throw it }
-        require(info.comp == item.comp) { part.delete(); "Component archive type does not match its catalog" }
+        val part = File.createTempFile(".component-", ".part", dest.parentFile)
         try {
-            if (generation == null) commitDownloadedPackage(context, item, null) { storePackage(context, part, dest) }
-            else storeDownloadedPackage(context, part, dest, item, generation)
-        } catch (error: IOException) {
+            check(packageDownloader(item.url, part, item.digest.substringAfter(':'), progress)) {
+                context.getString(R.string.user_apps_download_failed)
+            }
+            require(part.length() == item.size) { "Component archive size does not match" }
+            require(Hashes.sha256(part).equals(item.digest.substringAfter(':'), true)) {
+                context.getString(R.string.cmgr_checksum_mismatch)
+            }
+            if (generation != null && !RepositorySources.isCurrent(
+                    context, sourceScope(item.comp), sourceBuiltIns(item.comp), item.sourceId, generation,
+                )) error("Component source changed while downloading")
+            val info = packageInfo(context, part)
+            require(info.comp == item.comp) { "Component archive type does not match its catalog" }
+            val partIdentity = fileIdentity(part)
+            if (generation == null) commitDownloadedPackage(context, item, null) {
+                check(unchangedFile(part, partIdentity)) { "Downloaded component changed before publication" }
+                storePackage(context, part, dest)
+            } else storeDownloadedPackage(context, part, dest, item, generation, partIdentity)
+            return info.copy(file = dest.name, source = item.repository)
+        } finally {
             part.delete()
-            throw error
         }
-        return info.copy(file = dest.name, source = item.repository)
     }
 
     private fun releaseUrlMatches(repository: String, tag: String, name: String, url: String): Boolean =
