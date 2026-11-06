@@ -453,12 +453,8 @@ class EnhancedSessionLogShareTest {
         })
 
         val output = tmp.newFile("partial-output.zip").apply { writeText("existing") }
-        val provider = NoDeleteOutputProvider(output)
-        val authority = "diagnostic-save-test"
-        provider.attachInfo(app, android.content.pm.ProviderInfo().apply { this.authority = authority })
-        ShadowContentResolver.registerProviderInternal(authority, provider)
-        val destination = Uri.parse("content://$authority/output.zip")
-        SessionLogShare.setSaveDestinationValidatorForTest { _, uri -> uri == destination }
+        val provider = ExternalDocumentsProvider(output)
+        val destination = registerExternalDocumentsProvider("mutating-diagnostic-save-test", provider)
 
         assertThrows(IllegalArgumentException::class.java) {
             SessionLogShare.saveEnhanced(app, prepared, destination)
@@ -575,19 +571,15 @@ class EnhancedSessionLogShareTest {
     @Test fun failedLegacySaveRemovesThePartialDestination() {
         val emptySession = tmp.newFolder("2026-11-06-02-steam")
         val output = tmp.newFile("partial-legacy-save.zip").apply { writeText("existing") }
-        val provider = NoDeleteOutputProvider(output)
-        val authority = "failed-legacy-diagnostic-save-test"
-        provider.attachInfo(app, android.content.pm.ProviderInfo().apply { this.authority = authority })
-        ShadowContentResolver.registerProviderInternal(authority, provider)
-        val destination = Uri.parse("content://$authority/output.zip")
-        SessionLogShare.setSaveDestinationValidatorForTest { _, uri -> uri == destination }
+        val provider = ExternalDocumentsProvider(output)
+        val destination = registerExternalDocumentsProvider("failed-legacy-diagnostic-save-test", provider)
 
         assertThrows(IllegalArgumentException::class.java) {
             SessionLogShare.saveLegacy(app, emptySession, destination)
         }
 
         assertEquals(listOf("w", "rwt"), provider.openModes)
-        assertEquals(0, provider.deleteCalls)
+        assertEquals(1, provider.deleteCalls)
         assertEquals(0L, output.length())
     }
 
@@ -1082,5 +1074,30 @@ class EnhancedSessionLogShareTest {
             if (!deleteSupported) throw UnsupportedOperationException("delete unsupported")
             check(file.delete())
         }
+    }
+
+    private fun registerExternalDocumentsProvider(
+        authority: String,
+        provider: ExternalDocumentsProvider,
+    ): Uri {
+        val packageName = "external.$authority"
+        val providerInfo = android.content.pm.ProviderInfo().apply {
+            this.authority = authority
+            this.packageName = packageName
+            name = ExternalDocumentsProvider::class.java.name
+            applicationInfo = android.content.pm.ApplicationInfo().apply { this.packageName = packageName }
+            exported = true
+            grantUriPermissions = true
+            readPermission = android.Manifest.permission.MANAGE_DOCUMENTS
+            writePermission = android.Manifest.permission.MANAGE_DOCUMENTS
+        }
+        provider.attachInfo(app, providerInfo)
+        ShadowContentResolver.registerProviderInternal(authority, provider)
+        val component = ComponentName(packageName, providerInfo.name)
+        shadowOf(app.packageManager).apply {
+            addOrUpdateProvider(providerInfo)
+            addIntentFilterForProvider(component, IntentFilter(DocumentsContract.PROVIDER_INTERFACE))
+        }
+        return DocumentsContract.buildDocumentUri(authority, "output")
     }
 }
