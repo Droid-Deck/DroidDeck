@@ -56,9 +56,10 @@ memory stall. It sends the existing page-out request to every session process th
 `libblsession.so` and is not a launcher process: the game, Wine and its services. While a game
 runs and available memory is under twice the headroom, memory is read every second instead of
 every five. Requests are at least 30 seconds apart and need the same swap reserve as launcher
-requests. When the session reads back more than half of what the previous request compressed,
-that memory was in use, and the wait doubles up to five minutes; a completed request after that
-resets it to 30 seconds. The state resets when the game exits. Devices above 13 GiB keep the
+requests. When the session has read back more than half of what the previous request compressed,
+that memory is in use: the request is skipped and the wait doubles, up to five minutes. A
+request whose memory stayed compressed resets it to 30 seconds. Below half the headroom the
+wait is ignored and only the 30-second spacing applies. The state resets when the game exits. Devices above 13 GiB keep the
 launcher-only behaviour.
 
 Measured on a Retroid Pocket Duo (7.5 GiB, kernel 6.6, 6 GiB lzo-rle zram plus a 4 GiB swap file)
@@ -77,6 +78,12 @@ allocation, not swap capacity. Little Nightmares at the same settings compressed
 0.25 GiB resident in 2.6 seconds (1.1 GiB stored in about 0.5 GiB of zram) and read back 70 MiB in
 the following minute at its menu and 440 MiB while loading the next area; frame rate stayed at
 44–46 FPS with one or two short frame-time spikes. These are single runs, not averages.
+
+On the PR build without any manual step, the monitor compressed WoW before character select and
+again during the load; the game entered the world and stayed there at 33 FPS. Once in the world,
+available memory settled near 1 GiB, under the headroom, and the first version of the policy
+compressed 200–400 MiB every 30 seconds while the game read back about 15 MiB/s. The
+read-back check therefore compares against the last request instead of all compressed memory.
 
 Without root an app cannot write its memory cgroup's `memory.reclaim` (owned by `system`),
 `process_madvise` on another process returns `EPERM`, `PAGEMAP_SCAN` is absent before Linux 6.7,

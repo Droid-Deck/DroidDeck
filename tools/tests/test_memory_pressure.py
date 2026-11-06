@@ -200,8 +200,10 @@ SECONDS=30; bl_session_pressure
         self.memory(available=2048)
         self.assertEqual([], self.run_policy('bl_session_pressure'))
 
-    def test_game_reading_back_most_of_a_pageout_doubles_the_wait(self):
-        self.assertEqual(['send:1:session', 'backoff:60', 'send:1:session', 'backoff:30'], self.run_policy('''
+    def test_game_reading_back_most_of_a_pageout_skips_and_doubles_the_wait(self):
+        self.assertEqual(['send:1:session', 'backoff:60', 'send:1:session', 'backoff:60',
+                          'send:1:session', 'backoff:30'], self.run_policy('''
+pushed=$((512 * 1024))
 SECONDS=0; bl_session_pressure
 swap=$((swap / 4))
 SECONDS=30; bl_session_pressure
@@ -209,6 +211,25 @@ echo "backoff:$_bl_tier_backoff"
 SECONDS=60; bl_session_pressure
 SECONDS=90; bl_session_pressure
 echo "backoff:$_bl_tier_backoff"
+SECONDS=150; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+'''))
+
+    def test_repeated_read_back_keeps_doubling_up_to_five_minutes(self):
+        self.assertEqual(['backoff:300'], self.run_policy('''
+_bl_tier_backoff=240 _bl_tier_at=0 _bl_tier_swap=$((1024 * 1024)) _bl_tier_pushed=$((1024 * 1024)) swap=0
+SECONDS=240; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+'''))
+
+    def test_nearly_out_of_memory_ignores_the_backoff_but_keeps_30_seconds(self):
+        self.memory(available=512)
+        self.assertEqual(['send:1:session', 'send:1:session'], self.run_policy('''
+_bl_tier_backoff=300
+SECONDS=0; bl_session_pressure
+swap=0
+SECONDS=20; bl_session_pressure
+SECONDS=30; bl_session_pressure
 '''))
 
     def test_small_swap_headroom_skips_the_pageout(self):
