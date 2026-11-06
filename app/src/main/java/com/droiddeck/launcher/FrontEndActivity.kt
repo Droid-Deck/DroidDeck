@@ -96,7 +96,11 @@ class FrontEndActivity : ComponentActivity() {
     private val components = ComponentsMenu(this, ui)
     private val decky = DeckyMenu(this, ui)
     private val updates = UpdatesMenu(this, ui)
-    private val protons = ProtonMenu(this, ui) { !busy && flood == null && compatLaunch == null && pkgStage == null && components.compBusy == null }
+    private val protons = ProtonMenu(
+        this, ui,
+        idle = { !busy && flood == null && compatLaunch == null && pkgStage == null && components.compBusy == null },
+        onInstalled = { if (!OfflineMode.enabled(this)) components.checkComponentUpdates(force = false) },
+    )
 
     private var installed by mutableStateOf<String?>(null)
     private var flood by mutableStateOf<PendingFlood?>(null)

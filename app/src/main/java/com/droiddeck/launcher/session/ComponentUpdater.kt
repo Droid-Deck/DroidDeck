@@ -93,7 +93,7 @@ object ComponentUpdater {
         judge(context, state, protons, notes)
         val due = force || System.currentTimeMillis() - state.optLong("checkedAt") >= CHECK_EVERY_MS
         val wanted = ComponentsManager.COMPONENTS.filter { managed(context, it) }
-        if (!due || wanted.isEmpty()) {
+        if (!due || wanted.isEmpty() || protons.isEmpty()) {
             save(context, state)
             return notes
         }
