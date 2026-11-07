@@ -46,6 +46,8 @@
     <string name="lsfg_import_failed">Δεν ήταν δυνατή η προετοιμασία του LSFG από αυτό το Lossless.dll</string>
     <string name="lsfg_problem_missing">Το LSFG απαιτεί το Lossless Scaling από το Steam ή ένα εισαγμένο Lossless.dll</string>
     <string name="lsfg_problem_failed">Το LSFG δεν μπόρεσε να προετοιμάσει τα shaders του από το Lossless.dll</string>
+    <string name="lsfg_flow_scale">Κλίμακα ροής %1$d%%</string>
+    <string name="lsfg_flow_scale_hint">Υψηλότερη τιμή δίνει λιγότερα σφάλματα εικόνας και χρησιμοποιεί περισσότερη GPU</string>
     <string name="hud_fg_unsupported">%1$s: μη υποστηριζόμενο</string>
     <string name="hud_fg_failed">%1$s: αποτυχία μηχανής</string>
     <string name="hud_fg_needs_lossless">%1$s: απαιτεί το Lossless Scaling</string>

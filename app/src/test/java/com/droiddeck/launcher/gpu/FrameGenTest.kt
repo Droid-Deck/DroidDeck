@@ -40,6 +40,21 @@ class FrameGenTest {
         assertEquals(FrameGen.Mode(FrameGen.ENGINE_DDFG, 4), FrameGen.mode(context))
     }
 
+    @Test fun lsfgFlowScaleDefaultsToEightyPercent() {
+        assertEquals(80, FrameGen.lsfgFlowPercent(context))
+    }
+
+    @Test fun lsfgFlowScaleIsKeptAcrossModeChanges() {
+        FrameGen.setLsfgFlowPercent(context, 100)
+        FrameGen.set(context, FrameGen.Mode(FrameGen.ENGINE_LSFG, 2))
+        assertEquals(100, FrameGen.lsfgFlowPercent(context))
+    }
+
+    @Test fun anUnknownLsfgFlowScaleFallsBackToTheDefault() {
+        context.getSharedPreferences("frame_gen", Context.MODE_PRIVATE).edit().putInt("lsfg_flow", 37).commit()
+        assertEquals(80, FrameGen.lsfgFlowPercent(context))
+    }
+
     @Test fun aSavedWinFgChoiceBecomesDdFg() {
         context.getSharedPreferences("frame_gen", Context.MODE_PRIVATE).edit()
             .putString("engine", "winfg").putInt("multiplier", 2).commit()

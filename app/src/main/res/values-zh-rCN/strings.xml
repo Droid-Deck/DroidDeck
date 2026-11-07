@@ -46,6 +46,8 @@
     <string name="lsfg_import_failed">无法由此 Lossless.dll 准备 LSFG</string>
     <string name="lsfg_problem_missing">LSFG 需要 Steam 上的 Lossless Scaling 或已导入的 Lossless.dll</string>
     <string name="lsfg_problem_failed">LSFG 无法从 Lossless.dll 准备其着色器</string>
+    <string name="lsfg_flow_scale">光流比例 %1$d%%</string>
+    <string name="lsfg_flow_scale_hint">数值越高，伪影越少，GPU 占用越高</string>
     <string name="hud_fg_unsupported">%1$s：不支持</string>
     <string name="hud_fg_failed">%1$s：引擎失败</string>
     <string name="hud_fg_needs_lossless">%1$s：需要 Lossless Scaling</string>

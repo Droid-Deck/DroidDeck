@@ -46,6 +46,8 @@
     <string name="lsfg_import_failed">Nu s-a putut pregăti LSFG din acest Lossless.dll</string>
     <string name="lsfg_problem_missing">LSFG are nevoie de Lossless Scaling din Steam sau de un Lossless.dll importat</string>
     <string name="lsfg_problem_failed">LSFG nu a putut pregăti shaderele din Lossless.dll</string>
+    <string name="lsfg_flow_scale">Scara fluxului %1$d%%</string>
+    <string name="lsfg_flow_scale_hint">O valoare mai mare afișează mai puține artefacte și folosește mai mult GPU</string>
     <string name="hud_fg_unsupported">%1$s: neacceptat</string>
     <string name="hud_fg_failed">%1$s: motor eșuat</string>
     <string name="hud_fg_needs_lossless">%1$s: necesită Lossless Scaling</string>
