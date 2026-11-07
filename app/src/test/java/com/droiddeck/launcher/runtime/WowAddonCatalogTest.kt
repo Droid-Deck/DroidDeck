@@ -94,35 +94,6 @@ class WowAddonCatalogTest {
         assertTrue(WowAddonCatalog.pageOf(all, 5, 3).items.isEmpty())
     }
 
-    private val cfTypes = """{"data":[
-      {"id":517,"name":"WoW Retail","slug":"wow_retail"},
-      {"id":67408,"name":"WoW Classic","slug":"wow_classic"},
-      {"id":73246,"name":"WoW Burning Crusade Classic","slug":"wow_burning_crusade_classic"},
-      {"id":73713,"name":"WoW Wrath of the Lich King Classic","slug":"wow-wrath-of-the-lich-king-classic"},
-      {"id":77522,"name":"WoW Cataclysm Classic","slug":"wow-cataclysm-classic"},
-      {"id":79434,"name":"WoW Mists of Pandaria Classic","slug":"wow-mists-of-pandaria-classic"}
-    ]}"""
-
-    private val cfTypesWithForever = cfTypes.replace("]}", """,{"id":81000,"name":"WoW Forever","slug":"wow-forever"}]}""")
-
-    @Test fun curseVersionTypesMapToFlavors() {
-        assertEquals(517, WowAddonCatalog.curseVersionType(cfTypes, c("_retail_")))
-        assertEquals(67408, WowAddonCatalog.curseVersionType(cfTypes, c("_classic_era_")))
-        assertEquals(73246, WowAddonCatalog.curseVersionType(cfTypes, c("_anniversary_")))
-        assertEquals(79434, WowAddonCatalog.curseVersionType(cfTypes, c("_classic_")))
-        assertEquals(517, WowAddonCatalog.curseVersionType(cfTypes, c("_retail_beta_")))
-        assertNull(WowAddonCatalog.curseVersionType("""{"data":[]}""", c("_retail_")))
-        assertNull(WowAddonCatalog.curseVersionType(cfTypes, c("_unknown_")))
-    }
-
-    @Test fun foreverUsesItsOwnCurseTypeAndFallsBackToTheClientFamily() {
-        assertEquals(81000, WowAddonCatalog.curseVersionType(cfTypesWithForever, c("_forever_")))
-        assertEquals(81000, WowAddonCatalog.curseVersionType(cfTypesWithForever, c("_forever_beta_")))
-        assertEquals(517, WowAddonCatalog.curseVersionType(cfTypes, c("_forever_")))
-        assertEquals(67408, WowAddonCatalog.curseVersionType(cfTypes, c("_forever_", "1.15.8.60000")))
-        assertEquals(517, WowAddonCatalog.curseVersionType(cfTypesWithForever, c("_retail_")))
-    }
-
     @Test fun clientVersionDecidesTheFamilyBeforeTheFolderName() {
         assertEquals("_retail_", c("_forever_").family)
         assertEquals("_classic_era_", c("_forever_", "1.15.8.61000").family)
@@ -177,61 +148,6 @@ us|1|aa|bb|cc||tpr/wow|h|s|t||1|12.1.0.65000|kk|wowf
         root.delete()
     }
 
-    @Test fun curseSearchDropsModsThatDisallowDistribution() {
-        val json = """{"data":[
-          {"id":10,"name":"Good","summary":"s","downloadCount":42,"dateModified":"2026-01-01T00:00:00Z","allowModDistribution":true,"logo":{"thumbnailUrl":"https://t/x.png"},"authors":[{"name":"Au"}],"latestFilesIndexes":[{"gameVersionTypeId":517,"fileId":99,"filename":"g.zip","releaseType":1}]},
-          {"id":11,"name":"Blocked","summary":"s","downloadCount":1,"allowModDistribution":false,"authors":[],"latestFilesIndexes":[{"gameVersionTypeId":517,"fileId":100}]},
-          {"id":12,"name":"WrongType","summary":"s","downloadCount":1,"allowModDistribution":true,"authors":[],"latestFilesIndexes":[{"gameVersionTypeId":67408,"fileId":101}]}
-        ],"pagination":{"index":0,"pageSize":3,"resultCount":3,"totalCount":50}}"""
-        val p = WowAddonCatalog.parseCurseSearch(json, 517)
-        assertEquals(listOf("10"), p.items.map { it.id })
-        val a = p.items[0]
-        assertEquals("99", a.fileId)
-        assertEquals("Au", a.author)
-        assertEquals(42L, a.downloads)
-        assertEquals("https://t/x.png", a.thumb)
-        assertEquals(WowAddonCatalog.Source.CURSEFORGE, a.source)
-        assertTrue(a.updated > 0)
-        assertTrue(p.more)
-    }
-
-    @Test fun curseDownloadUrlAndHashParsing() {
-        assertEquals("https://edge/x.zip", WowAddonCatalog.parseCurseDownloadUrl("""{"data":"https://edge/x.zip"}"""))
-        assertNull(WowAddonCatalog.parseCurseDownloadUrl("""{"data":null}"""))
-        val file = WowAddonCatalog.parseCurseFile("""{"data":{"id":5,"downloadUrl":"https://edge/f.zip","hashes":[{"value":"zzz","algo":1},{"value":"abc","algo":2}]}}""")
-        assertEquals("https://edge/f.zip", file.first)
-        assertEquals("abc", file.second)
-        val hidden = WowAddonCatalog.parseCurseFile("""{"data":{"id":5,"downloadUrl":null,"hashes":[]}}""")
-        assertNull(hidden.first)
-        assertNull(hidden.second)
-        assertNull(WowAddonCatalog.parseCurseFile("""{"data":null}""").first)
-    }
-
-    @Test fun pickCurseFileHonoursTypeAndDistribution() {
-        val mod = """{"data":{"id":7,"name":"M","allowModDistribution":true,"latestFilesIndexes":[{"gameVersionTypeId":67408,"fileId":1},{"gameVersionTypeId":517,"fileId":2}]}}"""
-        assertEquals("2", WowAddonCatalog.pickCurseFile(mod, 517))
-        assertEquals("1", WowAddonCatalog.pickCurseFile(mod, null))
-        assertNull(WowAddonCatalog.pickCurseFile(mod, 73246))
-        assertNull(WowAddonCatalog.pickCurseFile(mod.replace("\"allowModDistribution\":true", "\"allowModDistribution\":false"), 517))
-        assertNull(WowAddonCatalog.pickCurseFile("""{"data":null}""", 517))
-    }
-
-    @Test fun curseSearchUrlCarriesTypeSortAndPaging() {
-        val url = WowAddonCatalog.curseSearchUrl(WowAddonCatalog.Query("deadly boss", "1004", c("_retail_"), WowAddonCatalog.Sort.NAME), 517, 2, 40)
-        assertTrue(url.startsWith("https://api.curseforge.com/v1/mods/search?gameId=1&searchFilter=deadly+boss"))
-        assertTrue(url.contains("&categoryId=1004"))
-        assertTrue(url.contains("&gameVersionTypeId=517"))
-        assertTrue(url.contains("&sortField=4&sortOrder=asc&index=80&pageSize=40"))
-        val noType = WowAddonCatalog.curseSearchUrl(WowAddonCatalog.Query(client = c("_mystery_")), null, 0, 500)
-        assertFalse(noType.contains("gameVersionTypeId"))
-        assertTrue(noType.contains("sortField=2&sortOrder=desc&index=0&pageSize=50"))
-    }
-
-    @Test fun curseSearchStopsAtTheApiWindow() {
-        val json = """{"data":[],"pagination":{"index":9950,"pageSize":50,"resultCount":50,"totalCount":20000}}"""
-        assertFalse(WowAddonCatalog.parseCurseSearch(json, null).more)
-    }
-
     @Test fun wowiDetailsGiveUrlAndMd5() {
         val d = WowAddonCatalog.parseWowiDetails("""[{"UID":"1","UIMD5":"abc","UIDownload":"https://cdn.wowinterface.com/downloads/getfile.php?id=1"}]""")
         assertEquals("https://cdn.wowinterface.com/downloads/getfile.php?id=1", d?.first)
@@ -246,6 +162,11 @@ us|1|aa|bb|cc||tpr/wow|h|s|t||1|12.1.0.65000|kk|wowf
         assertTrue(WowAddonCatalog.isHttps("https://example.com/a.zip"))
     }
 
+    @Test fun curseForgeUrlAddsTheSearchText() {
+        assertEquals("https://www.curseforge.com/wow/search?class=addons", WowAddonCatalog.curseForgeUrl("  "))
+        assertEquals("https://www.curseforge.com/wow/search?class=addons&search=deadly+boss+%26+mods", WowAddonCatalog.curseForgeUrl(" deadly boss & mods "))
+    }
+
     @Test fun md5Check() {
         val f = File(context.cacheDir, "wowaddon-md5-test.zip")
         f.writeText("hello")
@@ -253,14 +174,6 @@ us|1|aa|bb|cc||tpr/wow|h|s|t||1|12.1.0.65000|kk|wowf
         assertTrue(WowAddonCatalog.md5Matches(f, "5D41402ABC4B2A76B9719D911017C592"))
         assertTrue(WowAddonCatalog.md5Matches(f, null))
         f.delete()
-    }
-
-    @Test fun userKeyIsTrimmedAndBlankMeansNone() {
-        WowAddonCatalog.setUserKey(context, "  k123  ")
-        assertEquals("k123", WowAddonCatalog.apiKey(context))
-        assertTrue(WowAddonCatalog.available(context))
-        WowAddonCatalog.setUserKey(context, "   ")
-        assertEquals(com.droiddeck.launcher.BuildConfig.CURSEFORGE_API_KEY.trim(), WowAddonCatalog.apiKey(context))
     }
 
     @Test fun staleCacheIsUsedWhenOfflineAndFreshCacheSkipsTheNetwork() {

@@ -3668,10 +3668,7 @@
     <string name="addons_sort_name">ชื่อ</string>
     <string name="addons_sort_downloads">ดาวน์โหลดมากที่สุด</string>
     <string name="addons_category_all">ทุกหมวดหมู่</string>
-    <string name="addons_curse_key">คีย์ API ของ CurseForge</string>
-    <string name="addons_curse_key_needed">CurseForge ต้องใช้คีย์ API</string>
     <string name="addons_none_found">ไม่พบแอดออน</string>
     <string name="addons_unreachable">ไม่สามารถเชื่อมต่อ %1$s ได้</string>
     <string name="addons_no_file">ไม่มีไฟล์สำหรับเกมเวอร์ชันนี้</string>
-    <string name="addons_not_distributable">ผู้สร้างอนุญาตให้ดาวน์โหลดผ่านแอป CurseForge เท่านั้น</string>
 </resources>

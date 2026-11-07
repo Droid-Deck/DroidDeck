@@ -3668,10 +3668,7 @@
     <string name="addons_sort_name">Tên</string>
     <string name="addons_sort_downloads">Tải nhiều nhất</string>
     <string name="addons_category_all">Tất cả danh mục</string>
-    <string name="addons_curse_key">Khóa API CurseForge</string>
-    <string name="addons_curse_key_needed">CurseForge cần khóa API.</string>
     <string name="addons_none_found">Không tìm thấy addon</string>
     <string name="addons_unreachable">Không thể kết nối tới %1$s</string>
     <string name="addons_no_file">Không có tệp cho phiên bản trò chơi này</string>
-    <string name="addons_not_distributable">Tác giả chỉ cho phép tải qua ứng dụng CurseForge</string>
 </resources>

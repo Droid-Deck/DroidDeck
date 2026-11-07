@@ -3698,10 +3698,7 @@
     <string name="addons_sort_name">Naam</string>
     <string name="addons_sort_downloads">Meest gedownload</string>
     <string name="addons_category_all">Alle categorieën</string>
-    <string name="addons_curse_key">CurseForge-API-sleutel</string>
-    <string name="addons_curse_key_needed">CurseForge heeft een API-sleutel nodig.</string>
     <string name="addons_none_found">Geen add-ons gevonden</string>
     <string name="addons_unreachable">Kan %1$s niet bereiken</string>
     <string name="addons_no_file">Geen bestand voor deze gameversie</string>
-    <string name="addons_not_distributable">De maker staat downloads alleen toe via de CurseForge-app</string>
 </resources>

@@ -3698,10 +3698,7 @@
     <string name="addons_sort_name">Navn</string>
     <string name="addons_sort_downloads">Mest downloadet</string>
     <string name="addons_category_all">Alle kategorier</string>
-    <string name="addons_curse_key">CurseForge API-nøgle</string>
-    <string name="addons_curse_key_needed">CurseForge kræver en API-nøgle.</string>
     <string name="addons_none_found">Ingen tilføjelser fundet</string>
     <string name="addons_unreachable">Kunne ikke nå %1$s</string>
     <string name="addons_no_file">Ingen fil til denne spilversion</string>
-    <string name="addons_not_distributable">Forfatteren tillader kun download via CurseForge-appen</string>
 </resources>

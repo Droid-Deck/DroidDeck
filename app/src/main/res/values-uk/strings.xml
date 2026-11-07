@@ -3776,10 +3776,7 @@
     <string name="addons_sort_name">Назва</string>
     <string name="addons_sort_downloads">Найбільше завантажень</string>
     <string name="addons_category_all">Усі категорії</string>
-    <string name="addons_curse_key">API-ключ CurseForge</string>
-    <string name="addons_curse_key_needed">Для CurseForge потрібен API-ключ.</string>
     <string name="addons_none_found">Аддонів не знайдено</string>
     <string name="addons_unreachable">Не вдалося під’єднатися до %1$s</string>
     <string name="addons_no_file">Немає файлу для цієї версії гри</string>
-    <string name="addons_not_distributable">Автор дозволяє завантаження лише через застосунок CurseForge</string>
 </resources>

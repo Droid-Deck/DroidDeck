@@ -3737,10 +3737,7 @@
     <string name="addons_sort_name">Nome</string>
     <string name="addons_sort_downloads">Più scaricati</string>
     <string name="addons_category_all">Tutte le categorie</string>
-    <string name="addons_curse_key">Chiave API di CurseForge</string>
-    <string name="addons_curse_key_needed">CurseForge richiede una chiave API.</string>
     <string name="addons_none_found">Nessun addon trovato</string>
     <string name="addons_unreachable">Impossibile raggiungere %1$s</string>
     <string name="addons_no_file">Nessun file per questa versione del gioco</string>
-    <string name="addons_not_distributable">L’autore consente il download solo tramite l’app CurseForge</string>
 </resources>

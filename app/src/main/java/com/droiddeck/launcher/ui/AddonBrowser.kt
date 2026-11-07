@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.ui
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
@@ -67,31 +69,26 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
     val shown = rememberShown(onDismiss)
     val close = { shown.targetState = false }
     var target by remember { mutableStateOf(initial) }
-    var source by remember { mutableStateOf(WowAddonCatalog.Source.WOWINTERFACE) }
     var text by remember { mutableStateOf("") }
     var category by remember { mutableStateOf<WowAddonCatalog.Category?>(null) }
     var sort by remember { mutableStateOf(WowAddonCatalog.Sort.POPULAR) }
-    var keyed by remember { mutableIntStateOf(0) }
-    var editingKey by remember { mutableStateOf(false) }
-    val results = remember(source, text, category, sort, target, keyed) { AddonResults() }
+    val results = remember(text, category, sort, target) { AddonResults() }
     val installing = remember { mutableStateMapOf<String, Int>() }
     val installed = remember { mutableStateMapOf<String, Boolean>() }
-    val usable = source != WowAddonCatalog.Source.CURSEFORGE || remember(keyed) { WowAddonCatalog.available(context) }
-    val categories by produceState(emptyList<WowAddonCatalog.Category>(), source, keyed) {
-        value = if (usable) withContext(Dispatchers.IO) { runCatching { WowAddonCatalog.categories(context, source) }.getOrDefault(emptyList()) } else emptyList()
+    val categories by produceState(emptyList<WowAddonCatalog.Category>()) {
+        value = withContext(Dispatchers.IO) { runCatching { WowAddonCatalog.categories(context) }.getOrDefault(emptyList()) }
     }
     fun load(page: Int) {
-        if (results.loading || !usable) return
+        if (results.loading) return
         results.loading = true
         results.failed = null
         val into = target
-        val from = source
         val words = text
         val cat = category?.id
         val order = sort
         scope.launch {
             val got = withContext(Dispatchers.IO) {
-                runCatching { WowAddonCatalog.search(context, from, WowAddonCatalog.Query(words, cat, WowAddonCatalog.client(into), order), page) }
+                runCatching { WowAddonCatalog.search(context, WowAddonCatalog.Query(words, cat, WowAddonCatalog.client(into), order), page) }
             }
             got.onSuccess {
                 if (page == 0) results.items.clear()
@@ -122,15 +119,12 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
             Toast.makeText(context, message.first, Toast.LENGTH_LONG).show()
         }
     }
-    val sourceName = stringResource(if (source == WowAddonCatalog.Source.CURSEFORGE) R.string.addons_source_curse else R.string.addons_source_wowi)
+    val sourceName = stringResource(R.string.addons_source_wowi)
     AppDialog(shown, close, "addonBrowser", wide = true, scrollable = false) {
         DialogTitleRow(stringResource(R.string.addons_download), close)
         ModeHeader(sourceName, text, { text = it }, stringResource(R.string.stores_search_catalog, sourceName)) {
-            BrowseChip(stringResource(R.string.addons_source_wowi), source == WowAddonCatalog.Source.WOWINTERFACE) {
-                source = WowAddonCatalog.Source.WOWINTERFACE; category = null
-            }
-            BrowseChip(stringResource(R.string.addons_source_curse), source == WowAddonCatalog.Source.CURSEFORGE) {
-                source = WowAddonCatalog.Source.CURSEFORGE; category = null
+            BrowseChip(stringResource(R.string.addons_source_curse), false) {
+                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(WowAddonCatalog.curseForgeUrl(text))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
             }
         }
         ChipRow {
@@ -148,19 +142,13 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
                     MenuItem(option.flavor, option.addOns == target.addOns, focusRequester = if (index == 0) first else null) { target = option; done() }
                 }
             }
-            if (source == WowAddonCatalog.Source.CURSEFORGE) BrowseChip(stringResource(R.string.addons_curse_key), false) { editingKey = true }
         }
         val height = (LocalConfiguration.current.screenHeightDp * 0.62f).dp
-        if (!usable) Box(Modifier.fillMaxWidth().height(height), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(stringResource(R.string.addons_curse_key_needed), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                PrimaryButton(stringResource(R.string.addons_curse_key)) { editingKey = true }
-            }
-        } else LazyVerticalGrid(
+        LazyVerticalGrid(
             GridCells.Adaptive(libraryTileWidth() + 40.dp), Modifier.fillMaxWidth().height(height),
             horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            items(results.items, key = { it.source.name + it.id }) { addon ->
+            items(results.items, key = { it.id }) { addon ->
                 AddonCard(addon, installing[installKey(addon, target)], installed[installKey(addon, target)] == true) { install(addon) }
             }
             item(key = "tail", span = { GridItemSpan(maxLineSpan) }) {
@@ -175,11 +163,6 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
             }
         }
     }
-    if (editingKey) TextEntryDialog(
-        stringResource(R.string.addons_curse_key), "", number = false, confirm = stringResource(R.string.common_ok),
-        onSubmit = { value -> WowAddonCatalog.setUserKey(context, value); keyed++ },
-        onDismiss = { editingKey = false }, id = "curseforge-key",
-    )
 }
 
 @Composable
@@ -224,9 +207,9 @@ private fun formatCount(count: Long): String = when {
 }
 
 private fun installAddon(context: Context, addon: WowAddonCatalog.Addon, target: WowAddons.Target, progress: (Int) -> Unit): Pair<String, Boolean> {
-    val zip = File(File(context.cacheDir, "wowaddons"), "download-${addon.source.name.lowercase()}-${addon.id.filter(Char::isLetterOrDigit)}.zip")
+    val zip = File(File(context.cacheDir, "wowaddons"), "download-wowi-${addon.id.filter(Char::isLetterOrDigit)}.zip")
     return try {
-        WowAddonCatalog.download(context, addon, WowAddonCatalog.client(target), zip, progress)
+        WowAddonCatalog.download(context, addon, zip, progress)
         if (SessionState.running) return context.getString(R.string.main_addons_close_session) to false
         val names = WowAddons.import(zip, target)
         if (names.isEmpty()) context.getString(R.string.main_addons_none, addon.name) to false
@@ -240,4 +223,4 @@ private fun installAddon(context: Context, addon: WowAddonCatalog.Addon, target:
     }
 }
 
-private fun installKey(addon: WowAddonCatalog.Addon, target: WowAddons.Target) = addon.source.name + addon.id + "|" + target.addOns.path
+private fun installKey(addon: WowAddonCatalog.Addon, target: WowAddons.Target) = addon.id + "|" + target.addOns.path

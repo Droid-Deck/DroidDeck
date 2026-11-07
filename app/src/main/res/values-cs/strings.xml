@@ -3776,10 +3776,7 @@
     <string name="addons_sort_name">Název</string>
     <string name="addons_sort_downloads">Nejstahovanější</string>
     <string name="addons_category_all">Všechny kategorie</string>
-    <string name="addons_curse_key">API klíč CurseForge</string>
-    <string name="addons_curse_key_needed">CurseForge vyžaduje API klíč.</string>
     <string name="addons_none_found">Nenalezeny žádné doplňky</string>
     <string name="addons_unreachable">Nelze se připojit k %1$s</string>
     <string name="addons_no_file">Pro tuto verzi hry není k dispozici soubor</string>
-    <string name="addons_not_distributable">Autor povoluje stahování jen přes aplikaci CurseForge</string>
 </resources>

@@ -3698,10 +3698,7 @@
     <string name="addons_sort_name">Όνομα</string>
     <string name="addons_sort_downloads">Περισσότερες λήψεις</string>
     <string name="addons_category_all">Όλες οι κατηγορίες</string>
-    <string name="addons_curse_key">Κλειδί API CurseForge</string>
-    <string name="addons_curse_key_needed">Το CurseForge χρειάζεται κλειδί API.</string>
     <string name="addons_none_found">Δεν βρέθηκαν πρόσθετα</string>
     <string name="addons_unreachable">Δεν ήταν δυνατή η σύνδεση με %1$s</string>
     <string name="addons_no_file">Δεν υπάρχει αρχείο για αυτή την έκδοση του παιχνιδιού</string>
-    <string name="addons_not_distributable">Ο δημιουργός επιτρέπει λήψεις μόνο μέσω της εφαρμογής CurseForge</string>
 </resources>

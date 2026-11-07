@@ -3698,10 +3698,7 @@
     <string name="addons_sort_name">Név</string>
     <string name="addons_sort_downloads">Legtöbbet letöltött</string>
     <string name="addons_category_all">Minden kategória</string>
-    <string name="addons_curse_key">CurseForge API-kulcs</string>
-    <string name="addons_curse_key_needed">A CurseForge-hoz API-kulcs szükséges.</string>
     <string name="addons_none_found">Nem található kiegészítő</string>
     <string name="addons_unreachable">A(z) %1$s nem érhető el</string>
     <string name="addons_no_file">Nincs fájl ehhez a játékverzióhoz</string>
-    <string name="addons_not_distributable">A szerző csak a CurseForge alkalmazáson keresztül engedi a letöltést</string>
 </resources>

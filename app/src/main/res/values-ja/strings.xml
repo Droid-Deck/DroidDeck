@@ -3668,10 +3668,7 @@
     <string name="addons_sort_name">名前</string>
     <string name="addons_sort_downloads">ダウンロード数順</string>
     <string name="addons_category_all">すべてのカテゴリ</string>
-    <string name="addons_curse_key">CurseForge API キー</string>
-    <string name="addons_curse_key_needed">CurseForge には API キーが必要です。</string>
     <string name="addons_none_found">アドオンが見つかりません</string>
     <string name="addons_unreachable">%1$s に接続できませんでした</string>
     <string name="addons_no_file">このゲームバージョン用のファイルがありません</string>
-    <string name="addons_not_distributable">作者は CurseForge アプリ経由でのダウンロードのみ許可しています</string>
 </resources>

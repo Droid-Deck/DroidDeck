@@ -3672,10 +3672,7 @@
     <string name="addons_sort_name">名称</string>
     <string name="addons_sort_downloads">下载最多</string>
     <string name="addons_category_all">所有类别</string>
-    <string name="addons_curse_key">CurseForge API 密钥</string>
-    <string name="addons_curse_key_needed">CurseForge 需要 API 密钥。</string>
     <string name="addons_none_found">未找到插件</string>
     <string name="addons_unreachable">无法连接到 %1$s</string>
     <string name="addons_no_file">没有适用于此游戏版本的文件</string>
-    <string name="addons_not_distributable">作者仅允许通过 CurseForge 应用下载</string>
 </resources>

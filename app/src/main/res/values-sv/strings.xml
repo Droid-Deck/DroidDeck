@@ -3698,10 +3698,7 @@
     <string name="addons_sort_name">Namn</string>
     <string name="addons_sort_downloads">Mest nedladdade</string>
     <string name="addons_category_all">Alla kategorier</string>
-    <string name="addons_curse_key">CurseForge API-nyckel</string>
-    <string name="addons_curse_key_needed">CurseForge kräver en API-nyckel.</string>
     <string name="addons_none_found">Inga tillägg hittades</string>
     <string name="addons_unreachable">Kunde inte nå %1$s</string>
     <string name="addons_no_file">Ingen fil för den här spelversionen</string>
-    <string name="addons_not_distributable">Upphovspersonen tillåter bara nedladdning via CurseForge-appen</string>
 </resources>

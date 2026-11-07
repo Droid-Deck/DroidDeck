@@ -3668,10 +3668,7 @@
     <string name="addons_sort_name">Nama</string>
     <string name="addons_sort_downloads">Paling banyak diunduh</string>
     <string name="addons_category_all">Semua kategori</string>
-    <string name="addons_curse_key">Kunci API CurseForge</string>
-    <string name="addons_curse_key_needed">CurseForge memerlukan kunci API.</string>
     <string name="addons_none_found">Tidak ada addon ditemukan</string>
     <string name="addons_unreachable">Tidak dapat menjangkau %1$s</string>
     <string name="addons_no_file">Tidak ada file untuk versi game ini</string>
-    <string name="addons_not_distributable">Pembuat hanya mengizinkan unduhan melalui aplikasi CurseForge</string>
 </resources>

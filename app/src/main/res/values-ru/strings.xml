@@ -3859,10 +3859,7 @@
     <string name="addons_sort_name">Название</string>
     <string name="addons_sort_downloads">Самые скачиваемые</string>
     <string name="addons_category_all">Все категории</string>
-    <string name="addons_curse_key">API-ключ CurseForge</string>
-    <string name="addons_curse_key_needed">Для CurseForge нужен API-ключ.</string>
     <string name="addons_none_found">Аддоны не найдены</string>
     <string name="addons_unreachable">Не удалось подключиться к %1$s</string>
     <string name="addons_no_file">Нет файла для этой версии игры</string>
-    <string name="addons_not_distributable">Автор разрешает загрузку только через приложение CurseForge</string>
 </resources>
