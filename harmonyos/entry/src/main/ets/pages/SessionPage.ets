@@ -100,26 +100,6 @@ struct SessionPage {
   }
 
   /**
-   * Starts the PulseAudio server the guest's audio client connects to.
-   *
-   * Upstream runs a PulseAudio server on the host and tells the guest where
-   * it is with PULSE_SERVER. The port does the same, with a sink module
-   * that writes the audio to the socket the native sink reads.
-   */
-  private startAudioServer(): void {
-    const result = NativeBridge.audioServerStart(
-      Paths.runtimeDir(),
-      Paths.bundleLibsDir(),
-      `${Paths.logDir()}/pulseaudio.log`
-    );
-    if (result.ok) {
-      Logger.info('the PulseAudio server started');
-    } else {
-      Logger.warn(`the PulseAudio server did not start: ${result.error}`);
-    }
-  }
-
-  /**
    * Starts the Linux guest.
    *
    * The compositor has to be up first: the guest looks for its Wayland

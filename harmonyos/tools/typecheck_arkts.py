@@ -341,6 +341,66 @@ def run_check(config: pathlib.Path, strict: bool = False) -> int:
     return 0
 
 
+MEMBER_KEYWORDS = {
+    'if', 'for', 'while', 'switch', 'catch', 'return', 'throw', 'new', 'await',
+    'function', 'class', 'struct', 'interface', 'enum', 'import', 'export',
+    'const', 'let', 'var', 'type', 'else', 'do', 'try', 'case', 'break',
+    'continue', 'default', 'finally', 'yield', 'void', 'delete', 'typeof',
+    'instanceof', 'in', 'of', 'extends', 'implements', 'super', 'this',
+    'constructor', 'get', 'set', 'static', 'public', 'private', 'protected',
+    'readonly', 'async', 'override', 'declare', 'from', 'as', 'is', 'in',
+}
+
+MEMBER_PATTERN = re.compile(
+    r"^(?:@\w+\s+)*"
+    r"(?:(?:public|private|protected|static|readonly|async|get|set|override|declare)\s+)*"
+    r"([A-Za-z_][A-Za-z0-9_]*)\s*(?:\(|=|<|:)"
+)
+
+
+def duplicate_members(text: str, label: str) -> list[str]:
+    """Members a class or struct declares twice.
+
+    The ArkUI DSL cannot be type checked without the ArkTS compiler, so a
+    duplicated member is a build error that only shows up when the app is
+    compiled. This is the one mistake that has already slipped through the
+    structural checks, so they look for it now.
+    """
+    problems = []
+    for declaration in re.finditer(r"\b(?:struct|class)\s+([A-Za-z_][A-Za-z0-9_]*)", text):
+        brace = text.find('{', declaration.end())
+        if brace < 0:
+            continue
+        depth = 0
+        end = len(text)
+        for index in range(brace, len(text)):
+            if text[index] == '{':
+                depth += 1
+            elif text[index] == '}':
+                depth -= 1
+                if depth == 0:
+                    end = index
+                    break
+        # The body starts after the opening brace, so that the members sit
+        # at depth one.
+        body = text[brace + 1:end]
+
+        seen: dict[str, int] = {}
+        depth = 1
+        for line in body.splitlines():
+            if depth == 1:
+                candidate = MEMBER_PATTERN.match(line.strip())
+                if candidate and candidate.group(1) not in MEMBER_KEYWORDS:
+                    member = candidate.group(1)
+                    seen[member] = seen.get(member, 0) + 1
+            depth += line.count('{') - line.count('}')
+        for member, count in sorted(seen.items()):
+            if count > 1:
+                problems.append(
+                    f'{label}: {declaration.group(1)} declares {member} {count} times')
+    return problems
+
+
 def check_ui_sources() -> int:
     """Structural checks for the ArkUI files."""
     problems = []
@@ -359,6 +419,10 @@ def check_ui_sources() -> int:
 
     for source in sorted(source_root.rglob('*.ets')):
         text = source.read_text()
+
+        # A member declared twice is a build error the ArkTS compiler would
+        # report and the structural checks would not.
+        problems.extend(duplicate_members(text, source.name))
 
         # Balanced delimiters, ignoring strings, comments and regex literals.
         depth = {'{': 0, '(': 0, '[': 0}

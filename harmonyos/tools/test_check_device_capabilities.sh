@@ -111,7 +111,9 @@ HILOG
 export STUB_DIR="${work}"
 
 failures=0
+checks=0
 check() {  # check <description> <pattern> <text>
+  checks=$((checks + 1))
   if printf '%s' "$3" | grep -q -- "$2"; then
     echo "  ok    $1"
   else
@@ -126,6 +128,7 @@ echo "==> a phone that is not connected"
 output="$(STUB_NO_DEVICE=1 bash "${probe}" "${work}/stub/hdc" 2>&1)"
 status=$?
 check "it says why" "no phone is connected" "${output}"
+checks=$((checks + 1))
 if [ "${status}" -ne 0 ]; then
   echo "  ok    it exits non-zero"
 else
@@ -138,6 +141,7 @@ fi
 echo "==> a phone that can run the port"
 output="$(bash "${probe}" "${work}/stub/hdc" 2>&1)"
 status=$?
+checks=$((checks + 1))
 if [ "${status}" -eq 0 ]; then
   echo "  ok    it succeeds"
 else
@@ -189,4 +193,4 @@ if [ "${failures}" -ne 0 ]; then
   exit 1
 fi
 
-echo "==> the capability probe behaves as it should"
+echo "==> the capability probe behaves as it should (${checks} checks)"

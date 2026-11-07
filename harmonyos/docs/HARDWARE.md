@@ -57,12 +57,12 @@ closed: the open driver builds need a device node (`/dev/kgsl`,
 `/dev/mali0`) that an app sandbox never gets, and the phone's own Vulkan
 driver is not visible to an app either.
 
-The image ships nine Vulkan manifests — `freedreno` (Adreno), `panfrost`
-(Mali), `nouveau`, `intel`, `virtio`, `powervr_mesa`, `asahi` and the
-software one, `lvp` — and every hardware driver needs a node the guest
-cannot have. So the port pins **`lvp_icd.json`**, Mesa's lavapipe, which
-renders on the CPU (`entry/src/main/ets/service/RuntimeService.ets`,
-`vulkanIcd()`).
+The image ships eleven Vulkan manifests — `intel`, `lvp`, `nouveau`, `virtio`,
+`powervr_mesa`, `asahi`, `freedreno` (Adreno), `panfrost` (Mali), `broadcom`,
+`gfxstream_vk` and `radeon` — and every hardware driver needs a node the
+guest cannot have. So the port pins **`lvp_icd.json`**, Mesa's lavapipe,
+which renders on the CPU
+(`entry/src/main/ets/service/RuntimeService.ets`, `vulkanIcd()`).
 
 The practical consequence: the launcher, the compositor, the input and the
 audio are all native and fast, but a 3D game inside the guest is rendered
