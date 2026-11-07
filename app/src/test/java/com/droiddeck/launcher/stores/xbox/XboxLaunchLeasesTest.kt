@@ -72,6 +72,22 @@ class XboxLaunchLeasesTest {
         assertFalse(leases.attach(token, Closeable { closed++ }))
         assertTrue(leases.attach(next, Closeable { closed++ }))
     }
+    @Test fun staleOfflineScopeCleanupKeepsTheOnlineFallbackLease() {
+        val cancelled = launch()
+        val fallback = leases.begin("fallback", "account", "session")
+
+        leases.clear(keep = fallback).forEach { it.close() }
+
+        assertEquals(1, closed)
+        assertFalse(leases.active("game"))
+        assertFalse(leases.attach(cancelled, Closeable { closed++ }))
+        assertTrue(leases.attach(fallback, Closeable { closed++ }))
+        assertTrue(leases.renew(fallback, "fallback", "account", "session"))
+        leases.clear().forEach { it.close() }
+        assertEquals(2, closed)
+        assertFalse(leases.active("fallback"))
+    }
+
     @Test fun suspensionKeepsLiveLeasesUntilResume() {
         val token = launch()
         time = 200_000

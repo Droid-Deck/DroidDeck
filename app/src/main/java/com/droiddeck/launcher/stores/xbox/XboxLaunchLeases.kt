@@ -32,7 +32,8 @@ internal class XboxLaunchLeases(private val now: () -> Long) {
         val expired = leases.filterValues { it.account != account || it.session != session || (!suspended && it.expires <= now()) }.keys
         return expired.mapNotNull { leases.remove(it)?.child }
     }
-    @Synchronized fun clear(): List<Closeable> {
-        return leases.values.mapNotNull { it.child }.also { leases.clear() }
+    @Synchronized fun clear(keep: String? = null): List<Closeable> {
+        val cancelled = leases.keys.filter { it != keep }
+        return cancelled.mapNotNull { leases.remove(it)?.child }
     }
 }

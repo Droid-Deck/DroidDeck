@@ -30,7 +30,9 @@ internal object XboxOffline {
     private fun cache(app: Context, scope: String): File = File(app.filesDir, "xbox-offline/$scope")
 
     @Synchronized
-    fun status(app: Context, desired: Boolean? = null): Status {
+    fun status(app: Context, desired: Boolean? = null): Status = status(app, desired, XboxRuntime::stop)
+
+    private fun status(app: Context, desired: Boolean?, onRevoked: () -> Unit): Status {
         check(supported(app) && online(app)) { "Xbox offline permissions require a compatible runtime and an internet connection." }
         val (account, credentials) = XboxCredentials.lifecycle(app) { epoch ->
             (StoreAccounts.signedInAs(app, Store.XBOX) ?: error("Sign in to Xbox first")) to epoch
@@ -54,7 +56,7 @@ internal object XboxOffline {
         val enabled = result.getBoolean("enabled")
         if (!enabled && oldScope != null) {
             check(preferences.edit().remove(key).commit())
-            XboxRuntime.stop()
+            onRevoked()
         }
         check(desired == null || (result.opt("requestSuccess") == true && enabled == desired)) {
             "Xbox did not apply the offline permission change"
@@ -71,13 +73,13 @@ internal object XboxOffline {
     }
 
     @Synchronized
-    fun launch(app: Context, account: String, credentials: String): Launch? {
+    fun launch(app: Context, account: String, credentials: String, onRevoked: () -> Unit): Launch? {
         if (!supported(app)) return null
         val preferences = app.getSharedPreferences("xbox-offline", Context.MODE_PRIVATE)
         val key = key(account, credentials)
         if (preferences.getString(key, null) == null) return null
         val offline = !online(app)
-        if (!offline && !runCatching { status(app).enabled }.getOrDefault(false)) return null
+        if (!offline && !runCatching { status(app, null, onRevoked).enabled }.getOrDefault(false)) return null
         return XboxCredentials.lifecycle(app, credentials) {
             val scope = preferences.getString(key, null) ?: return@lifecycle null
             Launch(scope, cache(app, scope), offline)

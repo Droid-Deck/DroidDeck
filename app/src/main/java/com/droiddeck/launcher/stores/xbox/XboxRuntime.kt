@@ -29,7 +29,7 @@ internal object XboxRuntime {
         val game = StoreInstallRoot.gameFolders(app).mapNotNull { folder ->
             StoreGameSidecar.read(folder)?.takeIf { it.store == Store.XBOX && it.id == id && it.isInstalled }?.let { folder to it }
         }.firstOrNull() ?: error("Xbox game is not installed")
-        val (account, token, current, credentials) = XboxCredentials.lifecycle(app) { epoch ->
+        val (account, token, authorizedGeneration, credentials) = XboxCredentials.lifecycle(app) { epoch ->
             val account = StoreAccounts.signedInAs(app, Store.XBOX) ?: error("Sign in to Xbox before playing")
             synchronized(state) { Authorization(account, launches.begin(id, account, session), generation, epoch) }
         }
@@ -41,7 +41,10 @@ internal object XboxRuntime {
             }
         }, "xbox-launch-expiry").start()
         try {
-            val offlineLaunch = XboxOffline.launch(app, account, credentials)
+            var current = authorizedGeneration
+            val offlineLaunch = XboxOffline.launch(app, account, credentials) {
+                current = resetRuntime(keep = token, expectedGeneration = current)
+            }
             val socket = if (offlineLaunch == null) service(app, account, current, credentials) else null
             check(synchronized(state) { generation == current }) { "Xbox launch was cancelled" }
             val market = game.second.extra["market"]?.takeIf { it.matches(Regex("[A-Z]{2}")) } ?: Xodus.market()
@@ -125,12 +128,18 @@ internal object XboxRuntime {
     }
 
     fun stop() {
-        val processes = synchronized(state) {
+        resetRuntime()
+    }
+
+    private fun resetRuntime(keep: String? = null, expectedGeneration: Long? = null): Long {
+        val (nextGeneration, processes) = synchronized(state) {
+            check(expectedGeneration == null || generation == expectedGeneration) { "Xbox launch was cancelled" }
             generation++
-            val all = launches.clear() + listOfNotNull(child)
+            val all = launches.clear(keep) + listOfNotNull(child)
             child = null; owner = null; serviceSocket = null
-            all
+            generation to all
         }
         Thread({ processes.forEach { runCatching { it.close() } } }, "xbox-runtime-stop").start()
+        return nextGeneration
     }
 }
