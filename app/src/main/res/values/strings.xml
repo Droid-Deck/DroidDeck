@@ -50,16 +50,21 @@
         <item>Stores lets you sign in to GOG, itch.io, Battle.net, Amazon Games and Game Jolt, then install and update their games from DroidDeck.</item>
         <item>Components like FEX, DXVK and VKD3D-Proton update themselves, and DroidDeck-Proton is the default.</item>
         <item>Compress Steam while a game runs frees RAM on devices that run low.</item>
-        <item>Hitting a bug? Share logs in the session menu bundles diagnostics for a report.</item>
+        <item>Swipe in from the right edge to open the session menu: touchpad mode, PC keyboard, low latency, game profile and more.</item>
+        <item>Game running slow? Cap the frame rate in Quick Access, then try another Proton version or FEX preset in the game's components.</item>
+        <item>Crackling or missing game audio? Try the DirectAudio for games toggle in Steam settings under Audio.</item>
+        <item>Setup, then Storage, can clear shader caches and leftover prefixes from games you removed.</item>
+        <item>Hitting a bug? Share logs in the session menu bundles diagnostics. Post them in #bug-reports on Discord.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
         <item>First run sets up the desktop. This may take a few minutes.</item>
         <item>Touch works as a touchpad: drag to move the pointer, tap to click.</item>
         <item>Background behavior decides what happens when you leave the app: Manual waits for Resume by default, Auto pauses, Never keeps it running.</item>
+        <item>Swipe in from the right edge to open the session menu, then pick PC keyboard to type in apps that ignore the Android keyboard.</item>
         <item>The PC keyboard in the session menu has adjustable size, opacity and key groups.</item>
         <item>Your controller shows up as an Xbox 360 pad. Otherwise, use the on-screen controls.</item>
         <item>The session menu has a microphone toggle and a Suspend now button to freeze the session on demand.</item>
-        <item>Hitting a bug? Share logs in the session menu bundles diagnostics for a report.</item>
+        <item>Hitting a bug? Share logs in the session menu bundles diagnostics. Post them in #bug-reports on Discord.</item>
     </string-array>
     <string name="session_channel">Session</string>
     <string name="session_channel_description">Shows while a Steam or desktop session is open</string>
