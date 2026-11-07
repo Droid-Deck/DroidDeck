@@ -387,7 +387,7 @@ internal class BattleNetInstaller(
         }
         if (!cleanupStarted.compareAndSet(false, true)) return
         if (!started.get()) preexisting = runCatching { registration() != null }.getOrDefault(true)
-        Thread({
+        val cleanup = Thread({
             try {
                 val stopped = !started.get() || ended.await(END_WAIT_S, TimeUnit.SECONDS)
                 if (!stopped) {
@@ -405,7 +405,13 @@ internal class BattleNetInstaller(
             } finally {
                 DownloadQueue.cleanupFinished(queueKey)
             }
-        }, "battlenet-cancel").start()
+        }, "battlenet-cancel")
+        try {
+            cleanup.start()
+        } catch (t: Throwable) {
+            DownloadQueue.cleanupFinished(queueKey)
+            throw t
+        }
     }
 }
 

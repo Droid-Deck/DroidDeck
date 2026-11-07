@@ -245,11 +245,17 @@ object DownloadQueue {
             if (cleanupKey == null) {
                 cleanupFinished(null)
             } else {
-                Thread({
+                val worker = Thread({
                     if (runCatching { item.factory?.invoke()?.cancel(deleteFiles = true) }.isFailure) {
                         cleanupFinished(cleanupKey)
                     }
-                }, "store-dl-cancel").start()
+                }, "store-dl-cancel")
+                try {
+                    worker.start()
+                } catch (t: Throwable) {
+                    cleanupFinished(cleanupKey)
+                    throw t
+                }
             }
         }
         StoresState.logLine("cancelled \"${item.entry.name}\"")
@@ -265,11 +271,17 @@ object DownloadQueue {
             val cleanupKey = item.entry.cleanupKey?.takeIf { item.factory != null }
             if (cleanupKey != null) {
                 synchronized(lock) { cancelling.add(cleanupKey) }
-                Thread({
+                val worker = Thread({
                     if (runCatching { item.factory?.invoke()?.cancel(deleteFiles = true) }.isFailure) {
                         cleanupFinished(cleanupKey)
                     }
-                }, "store-dl-clear").start()
+                }, "store-dl-clear")
+                try {
+                    worker.start()
+                } catch (t: Throwable) {
+                    cleanupFinished(cleanupKey)
+                    throw t
+                }
             }
         }
         synchronized(lock) { items.remove(key); publishLocked() }
