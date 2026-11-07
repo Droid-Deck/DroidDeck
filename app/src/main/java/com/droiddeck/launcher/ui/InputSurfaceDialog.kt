@@ -184,7 +184,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
         }
     }
     if (draft.adding) AlertDialog(onDismissRequest = { draft.adding = false }, title = { Text(stringResource(R.string.input_add_element)) }, confirmButton = {}, text = { Column {
-        for (kind in InputElementKind.entries) TextButton(onClick = { draft.checkpoint()
+        for (kind in InputElementKind.entries) PadTextButton(onClick = { draft.checkpoint()
             val w = if (kind.control.dimensions == 2) .4f else .2f
             val h = .3f
             val name = context.getString(kind.label()) + " " + (draft.elements.count { it.kind == kind } + 1)
@@ -193,10 +193,10 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
             draft.adding = false; draft.toolsExpanded = false }) { Text(stringResource(kind.label())) }
     } })
     if (discard) AlertDialog(onDismissRequest = { discard = false }, title = { Text(stringResource(R.string.input_editor_discard)) },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_ok)) } },
-        dismissButton = { TextButton(onClick = { discard = false }) { Text(stringResource(R.string.common_cancel)) } })
+        confirmButton = { PadTextButton(onClick = onDismiss) { Text(stringResource(R.string.common_ok)) } },
+        dismissButton = { PadTextButton(onClick = { discard = false }) { Text(stringResource(R.string.common_cancel)) } })
     failure?.let { AlertDialog(onDismissRequest = { failure = null }, title = { Text(stringResource(R.string.input_save_failed)) }, text = { Text(it) },
-        confirmButton = { TextButton(onClick = { failure = null }) { Text(stringResource(R.string.common_ok)) } }) }
+        confirmButton = { PadTextButton(onClick = { failure = null }) { Text(stringResource(R.string.common_ok)) } }) }
 }
 
 @Composable
