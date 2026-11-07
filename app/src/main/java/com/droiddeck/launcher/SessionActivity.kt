@@ -165,20 +165,15 @@ internal fun sessionDisplayCutoutMode(fullscreen: Boolean): Int = if (fullscreen
     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
 }
 
-internal const val SESSION_SCALE_FIT = 1
-internal const val SESSION_SCALE_HEIGHT_FIT = 5
-
-internal fun sessionCompositorScaleMode(
+internal fun useViewportOutputAspect(
     landscape: Boolean,
     primaryDisplay: Boolean,
     inPictureInPicture: Boolean,
     opticalViewport: Boolean,
     controlsBelow: Boolean,
-): Int = if (landscape && primaryDisplay && !inPictureInPicture && !opticalViewport && !controlsBelow) {
-    SESSION_SCALE_HEIGHT_FIT
-} else {
-    SESSION_SCALE_FIT
-}
+    portraitOutput: Boolean,
+): Boolean = landscape && primaryDisplay && !inPictureInPicture && !opticalViewport &&
+    !controlsBelow && !portraitOutput
 
 internal fun applySessionFullscreenWindow(window: android.view.Window, fullscreen: Boolean) {
     if (fullscreen) window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
@@ -214,23 +209,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             "bottom" -> ALIGN_PICTURE_BOTTOM
             else -> ALIGN_CENTER
         }
-        WaylandCompositor.nativeSetScaleMode(currentCompositorScaleMode(), alignment)
-    }
-
-    private fun currentCompositorScaleMode(): Int {
-        val width = if (::surfaceView.isInitialized && surfaceView.width > 0) surfaceView.width else surfaceW
-        val height = if (::surfaceView.isInitialized && surfaceView.height > 0) surfaceView.height else surfaceH
-        val landscape = if (width > 0 && height > 0) width > height else
-            resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-        val primaryDisplay = sessionActivityDisplayId == Display.DEFAULT_DISPLAY &&
-            glassesScreen == null && bottomGame == null && !glassesOutputActive && !bottomOutputActive
-        return sessionCompositorScaleMode(
-            landscape = landscape,
-            primaryDisplay = primaryDisplay,
-            inPictureInPicture = pipUi || isInPictureInPictureMode,
-            opticalViewport = activeCardboard.enabled,
-            controlsBelow = controlsBelowWanted(),
-        )
+        WaylandCompositor.nativeSetScaleMode(SCALE_FIT, alignment)
     }
     private var unfoldedPanel: com.droiddeck.launcher.ui.DeckControlsPanel? = null
     private lateinit var sessionRoot: FrameLayout
@@ -2347,7 +2326,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             runCatching { GameEnvironmentStore.publish(this) }
                 .onFailure { Log.e(TAG, "Could not update game environment", it) }
         }, "game-env-publish").start()
-        WaylandCompositor.nativeSetScaleMode(currentCompositorScaleMode(), ALIGN_CENTER)
+        WaylandCompositor.nativeSetScaleMode(SCALE_FIT, ALIGN_CENTER)
         WaylandCompositor.nativeSetUpscaler(SessionPrefs.upscaler(this))
         WaylandCompositor.nativeSetUpscaleSharpness(SessionPrefs.upscaleSharpness(this))
         SessionPrefs.screenEffects(this).push(SessionPrefs.upscaler(this))
@@ -2419,13 +2398,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         if (holder !== outputHolder()) return
-        val resized = surfaceW != 0 && (width != surfaceW || height != surfaceH)
+        val firstSize = surfaceW == 0 || surfaceH == 0
+        val resized = !firstSize && (width != surfaceW || height != surfaceH)
         surfaceW = width
         surfaceH = height
         if (resized) {
             cancelTouchGestures()
             Log.i(TAG, "surface resized to ${width}x$height - rebinding the compositor")
             CompositorHost.resize(holder.surface) { applyFrameGen() }
+        }
+        if (firstSize || resized) {
             resizeOutputForWindow(width, height)
             applyGameAlignment()
         }
@@ -2442,7 +2424,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         return if (SessionState.followScreen)
             com.droiddeck.launcher.session.SessionDisplay.followSize(width, height, controlsBelowWanted(), SessionState.followScale)
-        else if (glassesScreen == null) outputSize() else null
+        else if (glassesScreen == null) viewportOutputSize(width, height) ?: outputSize() else null
+    }
+
+    private fun viewportOutputSize(width: Int, height: Int): Pair<Int, Int>? {
+        val primaryDisplay = sessionActivityDisplayId == Display.DEFAULT_DISPLAY &&
+            glassesScreen == null && bottomGame == null && !glassesOutputActive && !bottomOutputActive
+        if (!useViewportOutputAspect(
+                landscape = width > height,
+                primaryDisplay = primaryDisplay,
+                inPictureInPicture = pipUi || isInPictureInPictureMode,
+                opticalViewport = cardboard.enabled || activeCardboard.enabled,
+                controlsBelow = controlsBelowWanted(),
+                portraitOutput = SessionPrefs.portrait(this),
+            )) return null
+        return com.droiddeck.launcher.session.SessionDisplay.resolveViewportChoice(
+            width to height,
+            resolutionChoice(),
+        )
     }
 
     private fun resizeOutputForWindow(width: Int, height: Int) {
