@@ -1442,6 +1442,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
             },
             onClose = { drawerOpen = false },
+            onDismissScreen = if (docked) ({ selectSecondScreenMode(SecondScreenMode.NONE) }) else null,
             components = drawerComponents,
             onComponentsRefresh = {
                 refreshDrawerComponents()
