@@ -98,8 +98,7 @@ Two things about this are worth knowing, because both cost time:
 ### The audio chain
 
 Upstream's audio runs the **server on the host** and the **client in the
-guest**, which is the opposite of what the port's code currently assumes.
-Reading upstream end to end:
+guest**, and the port now does the same. Reading upstream end to end:
 
 * `audio/PulseAudioComponent.java` unpacks a `pulseaudio.tzst` bundle on
   the host — `pactl` plus `module-aaudio-sink.so` and
@@ -124,29 +123,36 @@ The published runtime image contains none of the pieces the guest needs to
 `tools/pipewire/assemble.sh` and staged into the rootfs from the APK's
 assets at session time, so it is not in the published image either.
 
-So the port's current audio path — the native layer connecting to a raw
-PCM socket at `<runtime dir>/droiddeck-audio.sock` — cannot work: nothing
-in the guest creates that socket, and the guest speaks the Pulse protocol
-rather than raw PCM. The ArkTS side is ready (`audio.AudioRenderer` and
-the native pump), and the socket is bound into the guest at
-`/run/droiddeck`, so what is missing is a Pulse implementation on one side
-or the other:
+So the port keeps upstream's architecture — the host is the PulseAudio server
+and the guest is its client — and replaces only the last step, because
+upstream's sink module writes to **AAudio** and links against a bionic
+prebuilt that will not load on HarmonyOS:
 
-* **host as server** — upstream's design. Needs `libpulsecore` and
-  `libpulsecommon` cross-compiled for aarch64-musl, plus a sink module
-  that writes PCM where the native layer can read it. Upstream does not
-  build these either; it uses a bionic prebuilt, which is the same
-  problem the port has with `libwayland-server`.
-* **host as client** — the guest runs PipeWire with the Pulse protocol
-  exposed at `$XDG_RUNTIME_DIR/pulse/native`, and the host pulls the
-  stream with a PulseAudio *client* library, which is much smaller than
-  the server core. This still needs a Pulse library built for musl, and
-  it needs the guest's PipeWire bundle, which is not published.
+* `tools/build_pulseaudio.sh` cross-compiles PulseAudio 17 for aarch64-musl
+  (with a stub for the `caps` functions musl does not have) and ships
+  `libpulseaudio.so` — the daemon, in the shared-library form upstream runs it
+  in — together with `libpulsecore-17.0.so`, `libpulsecommon-17.0.so`,
+  `libpulse.so.0`, `libpulse-simple.so.0` and the protocol modules.
+* `audio/module-droiddeck-sink.c` is the port's counterpart of upstream's
+  AAudio sink: the daemon loads it, and it writes the guest's PCM to a Unix
+  socket.
+* `audio/pulse_server.cpp` starts that daemon inside the app and writes its
+  configuration; `RuntimeService.ets` puts the address in the guest's
+  environment as `PULSE_SERVER=unix:/run/droiddeck/pulse/native` — the guest's
+  path for the runtime directory, because a host path would resolve inside the
+  guest's rootfs, where the socket is not.
+* `audio/audio.cpp` reads the PCM from `<runtime dir>/droiddeck-audio.sock`
+  into a ring buffer, and the ArkTS side feeds the frames to an
+  `audio.AudioRenderer` — HarmonyOS's supported playback path.
 
-Both directions need a PulseAudio library for aarch64-musl. Neither is a
-small change, so the port does not pretend audio works: the guest session
-starts, the guest renders, and there is no sound until one of these is
-built.
+What is **not** proven is that it works: the chain has never run on a phone.
+What is also still true is that the guest cannot produce sound by itself —
+the published image has no `pulseaudio` daemon and no PipeWire, only the
+client libraries and tools — so the guest has to be a client of the host's
+server, exactly as upstream arranges it. The other direction (the guest runs
+PipeWire with the Pulse protocol exposed, and the host pulls the stream with
+a PulseAudio *client* library) needs the guest's PipeWire bundle, which
+upstream stages from its APK assets at session time and does not publish.
 
 ### The keymap the guest gets
 

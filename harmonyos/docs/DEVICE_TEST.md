@@ -71,18 +71,19 @@ DDK_KEYSTORE_PASSWORD=... DDK_KEY_PASSWORD=... \
 
 `tools/sign_hap.sh` drives DevEco Studio's own `hap-sign-tool`, so no IDE has
 to be open. The passwords come from the environment, so they stay out of the
-shell history and out of the repository.
+shell history and out of the repository. The signed HAP is written next to the
+unsigned one, with `-signed` in its name.
 
 ### 5. Install it
 
 ```bash
-hdc install entry/build/default/outputs/default/entry-default-signed.hap
+hdc install entry/build/default/outputs/default/entry-default-unsigned-signed.hap
 ```
 
 ### 6. Check what it managed to do
 
 ```bash
-tools/device_smoke.sh --hap entry/build/default/outputs/default/entry-default-signed.hap
+tools/device_smoke.sh --hap entry/build/default/outputs/default/entry-default-unsigned-signed.hap
 ```
 
 That installs it again, starts the app, waits for it to come up, reads the
