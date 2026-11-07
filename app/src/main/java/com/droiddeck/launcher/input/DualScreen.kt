@@ -16,6 +16,7 @@ object DualScreen {
     const val MODE_OFF = "off"
     val modes = listOf(MODE_AUTO, MODE_ON, MODE_OFF)
     private const val TYPE_INTERNAL = 1
+    private const val TYPE_EXTERNAL = 2
     private val knownModels = setOf("retroid pocket duo", "ayn thor")
     private val touchedDisplays = mutableSetOf<Int>()
     private val takenListeners = java.util.concurrent.CopyOnWriteArraySet<() -> Unit>()
@@ -85,8 +86,19 @@ object DualScreen {
         when (mode) {
             MODE_OFF -> null
             MODE_ON -> internalDisplay(displayManager, primaryDisplayId) ?: anyDisplay(displayManager, primaryDisplayId)
-            else -> builtInDisplay(displayManager, primaryDisplayId)
+            else -> if (dockedToDisplay(displayManager, primaryDisplayId)) null else builtInDisplay(displayManager, primaryDisplayId)
         }?.takeUnless { taken(it.displayId) }
+
+    fun leavesBottomOnDock(wasDocked: Boolean, docked: Boolean, mode: String, onBuiltIn: Boolean): Boolean =
+        docked && !wasDocked && mode == MODE_AUTO && onBuiltIn
+
+    fun dockedToDisplay(displayManager: DisplayManager, primaryDisplayId: Int): Boolean {
+        val glasses = com.droiddeck.launcher.glasses.Glasses.state.value
+        return displayManager.getDisplays().any {
+            it.isValid && it.displayId != primaryDisplayId && it.state != Display.STATE_OFF && displayType(it) == TYPE_EXTERNAL &&
+                it.displayId != glasses.displayId && com.droiddeck.launcher.glasses.Glasses.selectGlassesDisplay(listOf(it), glasses.present) == null
+        }
+    }
 
     fun anyDisplay(displayManager: DisplayManager, primaryDisplayId: Int): Display? =
         displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION).firstOrNull {

@@ -12,7 +12,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowDisplayManager
+import org.robolectric.util.ReflectionHelpers
 
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
@@ -49,6 +52,58 @@ class DualScreenTest {
         assertFalse(DualScreen.hasOwnTouchPanel(main, main, listOf(1080 to 1920)))
         assertTrue(DualScreen.hasOwnTouchPanel(main, main, listOf(1920 to 1080, 1920 to 1080)))
         assertTrue(DualScreen.hasOwnTouchPanel(main, null, listOf(1920 to 1080)))
+    }
+
+    @Test @Config(sdk = [34]) fun aWiredExternalDisplayDocksTheDevice() {
+        withDisplay(EXTERNAL, "HDMI Screen") { assertTrue(DualScreen.dockedToDisplay(displays, Display.DEFAULT_DISPLAY)) }
+        assertFalse(DualScreen.dockedToDisplay(displays, Display.DEFAULT_DISPLAY))
+    }
+
+    @Test @Config(sdk = [34]) fun glassesVirtualOverlayAndSwitchedOffDisplaysDoNotDock() {
+        withDisplay(EXTERNAL, "VITURE Luma Ultra") { assertFalse(DualScreen.dockedToDisplay(displays, Display.DEFAULT_DISPLAY)) }
+        withDisplay(VIRTUAL, "Screen recording") { assertFalse(DualScreen.dockedToDisplay(displays, Display.DEFAULT_DISPLAY)) }
+        withDisplay(OVERLAY, "Overlay #1") { assertFalse(DualScreen.dockedToDisplay(displays, Display.DEFAULT_DISPLAY)) }
+        withDisplay(EXTERNAL, "HDMI Screen") { display ->
+            shadowOf(display).setState(Display.STATE_OFF)
+            assertFalse(DualScreen.dockedToDisplay(displays, Display.DEFAULT_DISPLAY))
+        }
+    }
+
+    @Test @Config(sdk = [34]) fun dockingLeavesTheBuiltInPanelWhenDualScreenIsForcedOn() {
+        withDisplay(INTERNAL, "Bottom screen") { bottom ->
+            withDisplay(EXTERNAL, "HDMI Screen") {
+                assertTrue(DualScreen.dockedToDisplay(displays, Display.DEFAULT_DISPLAY))
+                assertEquals(bottom.displayId, DualScreen.display(context, displays, Display.DEFAULT_DISPLAY, DualScreen.MODE_ON)?.displayId)
+                assertNull(DualScreen.display(context, displays, Display.DEFAULT_DISPLAY, DualScreen.MODE_AUTO))
+                assertNull(DualScreen.display(context, displays, Display.DEFAULT_DISPLAY, DualScreen.MODE_OFF))
+            }
+        }
+    }
+
+    @Test fun onlyTheMomentOfDockingClosesAnAutomaticBottomPanel() {
+        assertTrue(DualScreen.leavesBottomOnDock(wasDocked = false, docked = true, DualScreen.MODE_AUTO, onBuiltIn = true))
+        assertFalse(DualScreen.leavesBottomOnDock(wasDocked = true, docked = true, DualScreen.MODE_AUTO, onBuiltIn = true))
+        assertFalse(DualScreen.leavesBottomOnDock(wasDocked = false, docked = false, DualScreen.MODE_AUTO, onBuiltIn = true))
+        assertFalse(DualScreen.leavesBottomOnDock(wasDocked = false, docked = true, DualScreen.MODE_AUTO, onBuiltIn = false))
+        assertFalse(DualScreen.leavesBottomOnDock(wasDocked = false, docked = true, DualScreen.MODE_ON, onBuiltIn = true))
+        assertFalse(DualScreen.leavesBottomOnDock(wasDocked = false, docked = true, DualScreen.MODE_OFF, onBuiltIn = true))
+    }
+
+    private companion object {
+        const val INTERNAL = 1
+        const val EXTERNAL = 2
+        const val OVERLAY = 4
+        const val VIRTUAL = 5
+    }
+
+    private fun withDisplay(type: Int, name: String, check: (Display) -> Unit) {
+        val id = ShadowDisplayManager.addDisplay("w640dp-h480dp", type)
+        try {
+            val display = displays.getDisplay(id)
+            shadowOf(display).setFlags(Display.FLAG_PRESENTATION)
+            shadowOf(display).setName(name)
+            check(display)
+        } finally { ShadowDisplayManager.removeDisplay(id) }
     }
 
     @Test fun oneScreenDevicesGetNoSecondScreenInAnyMode() {
