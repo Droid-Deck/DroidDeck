@@ -1456,6 +1456,17 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(result["FEX_TSOENABLED"], "0")
         self.assertEqual(result["WINEDLLOVERRIDES"], "dxgi=n;libsentry=d")
 
+    def test_empty_stored_overrides_clear_the_launcher_ones(self):
+        env = {"WINEDLLOVERRIDES": "steam_api64=n,b;lsteamclient=d"}
+        result = MODULE["apply_config"](env, {"version": 1, "shared": {"WINEDLLOVERRIDES": ""}}, "42")
+        self.assertEqual(result["WINEDLLOVERRIDES"], "")
+
+    def test_empty_per_game_overrides_clear_the_shared_ones(self):
+        config = {"version": 1, "shared": {"WINEDLLOVERRIDES": "foo=d"},
+                  "games": {"42": {"WINEDLLOVERRIDES": ""}}}
+        result = MODULE["apply_config"]({"WINEDLLOVERRIDES": "dxgi=n"}, config, "42")
+        self.assertEqual(result["WINEDLLOVERRIDES"], "")
+
     def test_invalid_configuration_is_atomic(self):
         env = {"ORIGINAL": "unchanged"}
         for entries in ({"A": "ok", "BAD=KEY": "x"}, {"A": "bad\0value"}, {"A": 1}):
