@@ -200,6 +200,7 @@ class FrontEndActivity : ComponentActivity() {
     private var downloadPrefix by mutableStateOf("")
     private var downloadProxy by mutableStateOf("")
     private var animationsEnabled by mutableStateOf(true)
+    private var lowStorageWarning by mutableStateOf(true)
     private var launcherIcon by mutableStateOf(LauncherIcon.DARK)
     private var gameStoresEnabled by mutableStateOf(true)
     private var gameStoresSpeedTier by mutableStateOf("fast")
@@ -1111,6 +1112,7 @@ class FrontEndActivity : ComponentActivity() {
         downloadProxy = DownloadSource.proxyHostPort(this)
         DownloadSource.probe()
         animationsEnabled = SessionPrefs.animationsEnabled(this)
+        lowStorageWarning = SessionPrefs.lowStorageWarning(this)
         LauncherIcon.repair(this, intent?.component)
         launcherIcon = LauncherIcon.current(this)
         gameStoresEnabled = SessionPrefs.gameStoresEnabled(this)
@@ -1200,6 +1202,7 @@ class FrontEndActivity : ComponentActivity() {
                         downloadPrefix = downloadPrefix,
                         downloadProxy = downloadProxy,
                         animationsEnabled = animationsEnabled,
+                        lowStorageWarning = lowStorageWarning,
                         launcherIcon = launcherIcon,
                         gameStoresEnabled = gameStoresEnabled,
                         gameStoresSpeedTier = gameStoresSpeedTier,
@@ -1512,6 +1515,10 @@ class FrontEndActivity : ComponentActivity() {
                             SessionPrefs.setAndroidTextFieldKeyboard(this, on)
                             androidTextFieldKeyboard = on
                         },
+                        onLowStorageWarning = { on ->
+                            SessionPrefs.setLowStorageWarning(this, on)
+                            lowStorageWarning = on
+                        },
                         onAnimationsEnabled = { on ->
                             SessionPrefs.setAnimationsEnabled(this, on)
                             animationsEnabled = on
@@ -1661,6 +1668,8 @@ class FrontEndActivity : ComponentActivity() {
                 lowSpace?.let { free ->
                     com.droiddeck.launcher.ui.LowSpaceDialog(
                         free,
+                        warn = lowStorageWarning,
+                        onWarnChange = { on -> SessionPrefs.setLowStorageWarning(this, on); lowStorageWarning = on },
                         onFreeUp = { lowSpace = null; com.droiddeck.launcher.storage.StorageState.requestOpen() },
                         onPlay = { lowSpace = null; com.droiddeck.launcher.storage.StorageState.lowSpaceDismissed = true; startSteamSession() },
                         onDismiss = { lowSpace = null },
@@ -1756,8 +1765,9 @@ class FrontEndActivity : ComponentActivity() {
 
     private fun playSteam() {
         val storage = com.droiddeck.launcher.storage.StorageState
-        if (!SessionState.running && !storage.lowSpaceDismissed && storage.lowOnSpace(this)) {
-            lowSpace = storage.freeBytes(this)
+        val free = storage.freeBytes(this)
+        if (storage.shouldWarnLowSpace(SessionPrefs.lowStorageWarning(this), storage.lowSpaceDismissed, SessionState.running, free)) {
+            lowSpace = free
             storage.refresh(this)
         } else startSteamSession()
     }

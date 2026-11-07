@@ -1102,6 +1102,8 @@
     <string name="ctrl_joycon_vr">將 Joy-Con 當作 VR 控制器</string>
     <string name="ctrl_joycon_vr_hint">SteamVR 執行時，每個 Joy-Con 都會變成一隻手。將它指向前方並按住 HOME 鍵或擷取鍵，即可重新置中。</string>
     <string name="setup_animations">動畫</string>
+    <string name="setup_low_storage_warning">儲存空間不足時提醒</string>
+    <string name="setup_low_storage_warning_hint">可用空間少於 10 GB 時，啟動 Steam 前先詢問。</string>
     <string name="ctrl_layout">版面配置</string>
     <string name="ctrl_edit">編輯</string>
     <string name="ctrl_reset">重設</string>
@@ -2943,6 +2945,7 @@
     <string name="storage_low_title">僅剩 %1$s 可用</string>
     <string name="storage_low_body">Steam 需要空間用於更新與著色器快取。低於 10 GB 時，遊戲更新可能中途失敗。</string>
     <string name="storage_low_safe">%1$s 可安全釋放。</string>
+    <string name="storage_low_never">不再提醒</string>
     <string name="storage_free_up">釋放空間</string>
     <string name="storage_play_anyway">仍要遊玩</string>
     <plurals name="storage_games_installed">

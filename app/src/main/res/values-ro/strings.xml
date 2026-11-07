@@ -1114,6 +1114,8 @@
     <string name="ctrl_joycon_vr">Joy-Con ca controllere VR</string>
     <string name="ctrl_joycon_vr_hint">Cât timp rulează SteamVR, fiecare Joy-Con devine o mână. Îndreaptă-l înainte și ține apăsat Home sau Capture pentru a-l recentra.</string>
     <string name="setup_animations">Animații</string>
+    <string name="setup_low_storage_warning">Avertizează când spațiul de stocare este redus</string>
+    <string name="setup_low_storage_warning_hint">Întreabă înainte de pornirea Steam când spațiul liber este sub 10 GB.</string>
     <string name="ctrl_layout">Aranjament</string>
     <string name="ctrl_edit">Editează</string>
     <string name="ctrl_reset">Resetează</string>
@@ -3001,6 +3003,7 @@
     <string name="storage_low_title">Doar %1$s liberi</string>
     <string name="storage_low_body">Steam are nevoie de spațiu pentru actualizări și cache-ul de shadere. Sub 10 GB, actualizările jocurilor pot eșua la mijloc.</string>
     <string name="storage_low_safe">%1$s pot fi eliberați în siguranță.</string>
+    <string name="storage_low_never">Nu mă mai avertiza</string>
     <string name="storage_free_up">Eliberează spațiu</string>
     <string name="storage_play_anyway">Joacă oricum</string>
     <plurals name="storage_games_installed">

@@ -23,6 +23,7 @@ object SessionPrefs {
     private const val LEGACY_SUSPEND_DOWNLOADS = "downloads"
     private const val STEAM_DOWNLOADS_IN_BACKGROUND = "steamDownloadsInBackground"
     private const val DECKY_ZIP_WARNING_SEEN = "deckyZipWarningSeen"
+    private const val LOW_STORAGE_WARNING = "lowStorageWarning"
     private const val SLOW_USB_WARNING_OFF = "slowUsbWarningOff"
     private const val SLOW_USB_DISMISSED = "slowUsbDismissed"
 
@@ -1591,6 +1592,12 @@ object SessionPrefs {
 
     fun setDeckyZipWarningSeen(context: Context) {
         prefs(context).edit().putBoolean(DECKY_ZIP_WARNING_SEEN, true).apply()
+    }
+
+    fun lowStorageWarning(context: Context): Boolean = prefs(context).getBoolean(LOW_STORAGE_WARNING, true)
+
+    fun setLowStorageWarning(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean(LOW_STORAGE_WARNING, on).apply()
     }
 
     fun slowUsbWarningOff(context: Context): Boolean = prefs(context).getBoolean(SLOW_USB_WARNING_OFF, false)

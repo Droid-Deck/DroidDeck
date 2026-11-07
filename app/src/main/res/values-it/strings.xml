@@ -1106,6 +1106,8 @@
     <string name="ctrl_joycon_vr">Joy-Con come controller VR</string>
     <string name="ctrl_joycon_vr_hint">Mentre SteamVR è in esecuzione, ogni Joy-Con diventa una mano. Puntalo in avanti e tieni premuto Home o Capture per ricentrarlo.</string>
     <string name="setup_animations">Animazioni</string>
+    <string name="setup_low_storage_warning">Avvisa quando lo spazio è scarso</string>
+    <string name="setup_low_storage_warning_hint">Chiedi conferma prima di avviare Steam quando lo spazio libero è inferiore a 10 GB.</string>
     <string name="ctrl_layout">Layout</string>
     <string name="ctrl_edit">Modifica</string>
     <string name="ctrl_reset">Ripristina</string>
@@ -3001,6 +3003,7 @@
     <string name="storage_low_title">Solo %1$s liberi</string>
     <string name="storage_low_body">Steam ha bisogno di spazio per aggiornamenti e cache shader. Sotto i 10 GB gli aggiornamenti dei giochi possono fallire a metà.</string>
     <string name="storage_low_safe">%1$s si possono liberare senza rischi.</string>
+    <string name="storage_low_never">Non avvisarmi più</string>
     <string name="storage_free_up">Libera spazio</string>
     <string name="storage_play_anyway">Gioca comunque</string>
     <plurals name="storage_games_installed">

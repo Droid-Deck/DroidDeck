@@ -66,6 +66,9 @@ object StorageState {
 
     fun lowOnSpace(context: Context): Boolean = freeBytes(context) < LOW_SPACE_BYTES
 
+    fun shouldWarnLowSpace(warningEnabled: Boolean, dismissed: Boolean, sessionRunning: Boolean, freeBytes: Long): Boolean =
+        warningEnabled && !dismissed && !sessionRunning && freeBytes < LOW_SPACE_BYTES
+
     fun bytes(report: StorageReport, item: CleanItem): Long = when (item) {
         CleanItem.OLD_TOOLS -> report.unusedTools.filter { it.reason != ToolReason.CUSTOM }.sumOf { it.bytes }
         CleanItem.LEFTOVERS -> report.leftovers.filter { it.safe }.sumOf { it.bytes }

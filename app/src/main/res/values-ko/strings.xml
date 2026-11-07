@@ -1102,6 +1102,8 @@
     <string name="ctrl_joycon_vr">Joy-Con을 VR 컨트롤러로 사용</string>
     <string name="ctrl_joycon_vr_hint">SteamVR이 실행되는 동안 각 Joy-Con이 손이 됩니다. 앞을 향하게 한 채 HOME 또는 캡처 버튼을 길게 누르면 다시 가운데로 맞춥니다.</string>
     <string name="setup_animations">애니메이션</string>
+    <string name="setup_low_storage_warning">저장 공간이 부족할 때 경고</string>
+    <string name="setup_low_storage_warning_hint">여유 공간이 10GB 미만이면 Steam을 시작하기 전에 확인합니다.</string>
     <string name="ctrl_layout">레이아웃</string>
     <string name="ctrl_edit">편집</string>
     <string name="ctrl_reset">초기화</string>
@@ -2943,6 +2945,7 @@
     <string name="storage_low_title">%1$s만 남았습니다</string>
     <string name="storage_low_body">Steam은 업데이트와 셰이더 캐시에 공간이 필요합니다. 10 GB 미만이면 게임 업데이트가 중간에 실패할 수 있습니다.</string>
     <string name="storage_low_safe">%1$s 안전하게 확보 가능.</string>
+    <string name="storage_low_never">다시 경고하지 않기</string>
     <string name="storage_free_up">공간 확보</string>
     <string name="storage_play_anyway">그래도 플레이</string>
     <plurals name="storage_games_installed">

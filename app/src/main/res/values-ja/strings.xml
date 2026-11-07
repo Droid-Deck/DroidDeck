@@ -1102,6 +1102,8 @@
     <string name="ctrl_joycon_vr">Joy-ConをVRコントローラーとして使う</string>
     <string name="ctrl_joycon_vr_hint">SteamVRの実行中は各Joy-Conが手になります。前に向けてHOMEボタンかキャプチャーボタンを長押しすると、向きを合わせ直します。</string>
     <string name="setup_animations">アニメーション</string>
+    <string name="setup_low_storage_warning">ストレージ残量が少ないときに警告する</string>
+    <string name="setup_low_storage_warning_hint">空き容量が 10 GB 未満のとき、Steam を起動する前に確認します。</string>
     <string name="ctrl_layout">レイアウト</string>
     <string name="ctrl_edit">編集</string>
     <string name="ctrl_reset">リセット</string>
@@ -2943,6 +2945,7 @@
     <string name="storage_low_title">空きが %1$s のみです</string>
     <string name="storage_low_body">Steam は更新とシェーダーキャッシュ用の空き容量を必要とします。10 GB を下回ると、ゲームの更新が途中で失敗することがあります。</string>
     <string name="storage_low_safe">%1$s を安全に解放できます。</string>
+    <string name="storage_low_never">今後は警告しない</string>
     <string name="storage_free_up">容量を空ける</string>
     <string name="storage_play_anyway">そのままプレイ</string>
     <plurals name="storage_games_installed">
