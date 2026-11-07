@@ -49,7 +49,7 @@ class CiChecksTest(unittest.TestCase):
     def test_fork_preview_workspace_is_exact_and_labeled(self):
         workflow = (ROOT / '.github/workflows/build.yml').read_text()
         self.assertIn('tree_state=preview', workflow)
-        self.assertIn('Preview 11 at ${BUILD_SHA:0:7}', workflow)
+        self.assertIn('Preview 12 at ${BUILD_SHA:0:7}', workflow)
         self.assertIn("Preview workspace has unexpected changes", workflow)
         self.assertIn("expected_status = [' M app/build.gradle', ' M keystore/release-signer.sha256']", workflow)
         self.assertIn("['clean', 'dirty', 'preview']", (ROOT / 'app/build.gradle').read_text())
