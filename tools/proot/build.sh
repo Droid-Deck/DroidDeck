@@ -53,8 +53,12 @@ cp "$HERE/talloc-config.h" "$WORK/talloc/config/config.h"
 mkdir -p "$WORK/bin"
 ln -s "$TOOLCHAIN/llvm-readelf" "$WORK/bin/readelf"
 # loader-info.awk needs strtonum, which mawk (the default awk on some runners) lacks.
-command -v gawk >/dev/null || { echo "gawk is required to build the proot loader" >&2; exit 1; }
-ln -s "$(command -v gawk)" "$WORK/bin/awk"
+if command -v gawk >/dev/null; then
+  ln -s "$(command -v gawk)" "$WORK/bin/awk"
+elif ! awk 'BEGIN { exit !(strtonum("0x10") == 16) }' 2>/dev/null; then
+  echo "gawk, or an awk with strtonum, is required to build the proot loader" >&2
+  exit 1
+fi
 PATH="$WORK/bin:$PATH" make -C "$WORK/proot/src" -j"$(getconf _NPROCESSORS_ONLN)" \
     CC="$CC" STRIP="$TOOLCHAIN/llvm-strip" OBJCOPY="$TOOLCHAIN/llvm-objcopy" OBJDUMP="$TOOLCHAIN/llvm-objdump" \
     CPPFLAGS="-D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -I. -I$WORK/talloc -DARG_MAX=131072 -Wno-error=implicit-function-declaration" \
