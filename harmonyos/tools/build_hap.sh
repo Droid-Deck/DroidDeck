@@ -18,10 +18,10 @@
 #            instead of shipping the prebuilt libraries that are in
 #            entry/libs/arm64-v8a.
 #
-# The result is an unsigned HAP. A phone only installs a HAP that Huawei has
-# signed, so open the project in DevEco Studio afterwards and use
-# File > Project Structure > Signing Configs > Automatically generate
-# signature.
+# The result is an unsigned HAP, and it is checked before the script returns.
+# A phone only installs a HAP that Huawei has signed: run tools/sign_hap.sh,
+# which drives DevEco Studio's own hap-sign-tool, or use File > Project
+# Structure > Signing Configs > Automatically generate signature in the IDE.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -156,10 +156,15 @@ esac
 
 metadata=""
 for name in oh-uni-package.json uni-package.json; do
-  if [ -f "${component}/ets/${name}" ]; then
-    metadata="${component}/ets/${name}"
-    break
-  fi
+  # DevEco keeps the metadata under ets/, the plain OpenHarmony SDK under
+  # toolchains/. Both layouts are looked for, so the SDK version is read from
+  # whichever one is in use.
+  for place in ets toolchains .; do
+    if [ -f "${component}/${place}/${name}" ]; then
+      metadata="${component}/${place}/${name}"
+      break 2
+    fi
+  done
 done
 
 read_metadata() {  # read_metadata <field>
@@ -276,3 +281,11 @@ find entry/build -name '*.hap' -type f 2>/dev/null | while read -r hap; do
   printf '\n%s\n' "${hap}"
   unzip -l "${hap}" 2>/dev/null | grep -E 'libs/|module\.json|\.abc|resources\.index' | head -30
 done
+
+# The build is not the end of it: check that the archive holds what the port
+# needs, so a packaging surprise is found here rather than on a phone.
+hap="$(find entry/build -name '*.hap' -type f 2>/dev/null | head -1)"
+if [ -n "${hap}" ]; then
+  log "checking the HAP"
+  bash tools/check_hap.sh "${hap}" || die "the HAP was built but it is not ready for a phone"
+fi
