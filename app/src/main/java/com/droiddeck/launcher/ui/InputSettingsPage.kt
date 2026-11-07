@@ -169,7 +169,7 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
             ?: b.controls[editing.control] ?: InputAction.Native()
         InputActionEditor(editing.control, current, if (editing.click) stringResource(R.string.input_click_name, editing.element!!.name)
             else editing.element?.name ?: editing.key?.label ?: editing.control.label,
-            properties = { if (!editing.click) elementProperties?.let { e -> InputElementProperties(e) { elementProperties = it } } },
+            properties = { if (!editing.click) elementProperties?.let { e -> InputElementProperties(e, current) { elementProperties = it } } },
             onBack = { edit = null }, element = editing.element, nativeTargets = editing.key == null, click = editing.click,
             detail = if (library.usersOfBindings(b.id).size > 1) stringResource(R.string.input_shared_detail, b.name, library.usersOfBindings(b.id).size)
                 else "${profile.name} · ${roleLabel(role)}", onSave = { action ->

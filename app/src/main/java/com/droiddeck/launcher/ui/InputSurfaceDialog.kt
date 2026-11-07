@@ -204,7 +204,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
                         if (draft.clickProperties) stringResource(R.string.input_click_name, element.name) else element.name,
                         onBack = { draft.properties = false }, element = element, click = draft.clickProperties,
                         properties = {
-                            if (!draft.clickProperties) InputElementProperties(properties) { properties = it }
+                            if (!draft.clickProperties) InputElementProperties(properties, draft.action(element)) { properties = it }
                             if (layoutUsers > 1) Text(stringResource(R.string.input_editor_shared, layoutUsers),
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(bottom = 12.dp))

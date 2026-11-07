@@ -383,9 +383,10 @@ class InputSettingsTest {
 
     @Test fun elementPropertiesEditOpacityLabelsAndOfferImages() {
         val element = mutableStateOf(InputSurfaceElement(InputControl.A, .1f, .1f, .2f, .2f, "custom", name = "Custom button"))
+        val action = mutableStateOf<InputAction?>(null)
         compose.setContent { DroidDeckTheme {
             androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) {
-                InputElementProperties(element.value) { element.value = it }
+                InputElementProperties(element.value, action.value) { element.value = it }
             }
         } }
         compose.onNodeWithTag("setting-element-opacity").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(60f) }
@@ -400,10 +401,13 @@ class InputSettingsTest {
         compose.onNodeWithTag("setting-element-label").assertDoesNotExist()
         compose.onNodeWithTag("setting-element-opacity").assertExists()
         for (kind in listOf(InputElementKind.DPAD, InputElementKind.STICK)) {
-            compose.runOnIdle { element.value = InputSurfaceElement(kind.control, .1f, .1f, .4f, .4f, "imported:0", kind, "WASD") }
+            compose.runOnIdle { element.value = InputSurfaceElement(kind.control, .1f, .1f, .4f, .4f, "imported:0", kind, "WASD"); action.value = InputAction.Directions(17, 32, 31, 30) }
             compose.onNodeWithTag("setting-element-label").performScrollTo().performClick()
-            compose.runOnIdle { assertFalse(element.value.showLabel) }
+            compose.runOnIdle { assertFalse(element.value.showLabel); action.value = InputAction.Native() }
+            compose.onNodeWithTag("setting-element-label").assertDoesNotExist()
         }
+        compose.runOnIdle { element.value = InputSurfaceElement(InputControl.LS, .1f, .1f, .4f, .4f, "legacy:left-stick", InputElementKind.STICK, "Move") }
+        compose.onNodeWithTag("setting-element-label").assertExists()
     }
 
     @Test fun editorScalesEveryControlAndRestoresStockPositions() {
