@@ -50,6 +50,56 @@ class LauncherRoundedCornersTest {
         assertEquals(FullscreenSafeInsets(left = 45, top = 45, right = 45, bottom = 45), result)
     }
 
+    @Test fun launcherPortraitUsesFullWidthAndReservesOnlyTopAndBottom() {
+        val corners = listOf(
+            FullscreenRoundedCorner(FullscreenCorner.TOP_LEFT, 153, 153, 153),
+            FullscreenRoundedCorner(FullscreenCorner.TOP_RIGHT, 153, 1_191, 153),
+            FullscreenRoundedCorner(FullscreenCorner.BOTTOM_RIGHT, 153, 1_191, 2_839),
+            FullscreenRoundedCorner(FullscreenCorner.BOTTOM_LEFT, 153, 153, 2_839),
+        )
+
+        assertEquals(FullscreenSafeInsets(top = 153, bottom = 153),
+            launcherRoundedCornerSafeInsets(1_344, 2_992, corners))
+        // The shared session default keeps its existing portrait policy.
+        assertEquals(FullscreenSafeInsets(left = 45, top = 45, right = 45, bottom = 45),
+            roundedCornerSafeInsets(1_344, 2_992, corners))
+    }
+
+    @Test fun launcherPortraitReservesAsymmetricCornersIndependently() {
+        val corners = listOf(
+            FullscreenRoundedCorner(FullscreenCorner.TOP_LEFT, 80, 80, 80),
+            FullscreenRoundedCorner(FullscreenCorner.TOP_RIGHT, 100, 980, 100),
+            FullscreenRoundedCorner(FullscreenCorner.BOTTOM_RIGHT, 120, 960, 2_280),
+            FullscreenRoundedCorner(FullscreenCorner.BOTTOM_LEFT, 64, 64, 2_336),
+        )
+
+        assertEquals(FullscreenSafeInsets(top = 100, bottom = 120),
+            launcherRoundedCornerSafeInsets(1_080, 2_400, corners))
+    }
+
+    @Test fun launcherPortraitReservesOnlyTheVisibleArcAfterWindowMoves() {
+        val corners = listOf(
+            // The left side of the window moved in 80 pixels from the screen edge.
+            FullscreenRoundedCorner(FullscreenCorner.TOP_LEFT, 153, 73, 153),
+            FullscreenRoundedCorner(FullscreenCorner.BOTTOM_LEFT, 153, 73, 2_839),
+        )
+
+        assertEquals(FullscreenSafeInsets(top = 19, bottom = 19),
+            launcherRoundedCornerSafeInsets(1_264, 2_992, corners))
+    }
+
+    @Test fun launcherLandscapeKeepsTheExistingGeometry() {
+        val corners = listOf(
+            FullscreenRoundedCorner(FullscreenCorner.TOP_LEFT, 153, 153, 153),
+            FullscreenRoundedCorner(FullscreenCorner.TOP_RIGHT, 153, 2_839, 153),
+            FullscreenRoundedCorner(FullscreenCorner.BOTTOM_RIGHT, 153, 2_839, 1_191),
+            FullscreenRoundedCorner(FullscreenCorner.BOTTOM_LEFT, 153, 153, 1_191),
+        )
+
+        assertEquals(roundedCornerSafeInsets(2_992, 1_344, corners),
+            launcherRoundedCornerSafeInsets(2_992, 1_344, corners))
+    }
+
     @Test fun landscapeUsesVisibleAsymmetricCornerCentersOnlyOnTheSides() {
         val result = roundedCornerSafeInsets(1_600, 900, listOf(
             FullscreenRoundedCorner(FullscreenCorner.TOP_LEFT, 80, 80, 80),
