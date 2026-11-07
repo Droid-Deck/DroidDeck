@@ -6,6 +6,9 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.github.luben.zstd.ZstdOutputStream
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Test
@@ -345,5 +348,187 @@ class ComponentUpdatesTest {
     @Test fun onlyTheCurrentAndThePreviousBuildAndUserSelectionsAreKept() {
         assertEquals(setOf("b.wcp", "a.wcp", "mine.wcp"), ComponentUpdates.keep("b.wcp", "a.wcp", setOf("mine.wcp")))
         assertEquals(setOf("b.wcp"), ComponentUpdates.keep("b.wcp", ComponentUpdates.ORIGINAL, emptySet()))
+    }
+
+    private fun choice(file: String, auto: Boolean = false) = ComponentsManager.Choice(file, auto, "1")
+
+    @Test fun aBuildTheUserPickedOnAProtonIsNeverReplacedByAuto() {
+        val auto = setOf("DD-dxvk-3.1.1+188-nightly.wcp", "DD-dxvk-3.1.1+190-nightly.wcp")
+        assertTrue(ComponentUpdates.manual(choice("DD-dxvk-gplasync-3.1.1+190-nightly.wcp"), null, auto))
+        assertTrue(ComponentUpdates.manual(choice("DD-dxvk-3.1.1+188-nightly.wcp"), "DD-dxvk-3.1.1+190-nightly.wcp", auto))
+        assertFalse(ComponentUpdates.manual(choice("DD-dxvk-3.1.1+190-nightly.wcp"), "DD-dxvk-3.1.1+190-nightly.wcp", auto))
+        assertFalse(ComponentUpdates.manual(choice("DD-dxvk-3.1.1+188-nightly.wcp"), null, auto))
+        assertFalse(ComponentUpdates.manual(choice("original 11-7.4"), null, auto))
+        assertFalse(ComponentUpdates.manual(choice("dxvk-2.6.2-linux.wcp", auto = true), null, auto))
+        assertFalse(ComponentUpdates.manual(null, null, auto))
+    }
+
+    @Test fun aQueuedSwapThatNeverRanLeavesTheOldAutoBuildToAuto() {
+        val auto = setOf("DD-dxvk-3.1.1+188-nightly.wcp", "DD-dxvk-3.1.1+190-nightly.wcp")
+        assertFalse(ComponentUpdates.manual(choice("DD-dxvk-3.1.1+188-nightly.wcp"), "DD-dxvk-3.1.1+188-nightly.wcp", auto, "DD-dxvk-3.1.1+190-nightly.wcp"))
+        assertFalse(ComponentUpdates.manual(choice("DD-dxvk-3.1.1+190-nightly.wcp"), "DD-dxvk-3.1.1+188-nightly.wcp", auto, "DD-dxvk-3.1.1+190-nightly.wcp"))
+        assertTrue(ComponentUpdates.manual(choice("DD-dxvk-3.1.1+186-nightly.wcp"), "DD-dxvk-3.1.1+188-nightly.wcp", auto, "DD-dxvk-3.1.1+190-nightly.wcp"))
+    }
+
+    @Test fun oldBuildsOfAnAutoLineAreDeletedButOtherFlavoursAndKeptBuildsStay() {
+        val line = ComponentUpdates.line("dxvk", false)
+        val stored = listOf(
+            "DD-dxvk-3.1.1+186-nightly.wcp", "DD-dxvk-3.1.1+188-nightly.wcp", "DD-dxvk-3.1.1+190-nightly.wcp",
+            "DD-dxvk-arm64ec-3.1.1+188-nightly.wcp", "DD-dxvk-gplasync-3.1.1+190-nightly.wcp", "dxvk-2.6.2-linux.wcp",
+        )
+        val keep = ComponentUpdates.keep("DD-dxvk-3.1.1+190-nightly.wcp", "DD-dxvk-3.1.1+188-nightly.wcp", emptySet())
+        assertEquals(listOf("DD-dxvk-3.1.1+186-nightly.wcp"), ComponentUpdates.stale(line, emptySet(), stored, keep, "DD-dxvk-3.1.1+190-nightly.wcp"))
+        assertEquals(listOf("DD-dxvk-3.1.1+184-nightly.wcp", "DD-dxvk-3.1.1+186-nightly.wcp"),
+            ComponentUpdates.stale(line, setOf("DD-dxvk-3.1.1+184-nightly.wcp", "DD-dxvk-3.1.1+190-nightly.wcp"), stored, keep, "DD-dxvk-3.1.1+190-nightly.wcp"))
+        assertEquals(emptyList<String>(), ComponentUpdates.stale(line, emptySet(), stored, keep + "DD-dxvk-3.1.1+186-nightly.wcp", "DD-dxvk-3.1.1+190-nightly.wcp"))
+        assertEquals(emptyList<String>(), ComponentUpdates.stale(null, emptySet(), stored, keep, "DD-dxvk-3.1.1+190-nightly.wcp"))
+    }
+
+    @Test fun aNewerAutoBuildIsKeptUnlessItWasRolledBack() {
+        val line = ComponentUpdates.line("dxvk", false)
+        val owned = setOf("DD-dxvk-3.1.1+188-nightly.wcp", "DD-dxvk-3.1.1+192-nightly.wcp", "DD-dxvk-3.1.1+194-nightly.wcp")
+        val current = "DD-dxvk-3.1.1+190-nightly.wcp"
+        val keep = ComponentUpdates.keep(current, ComponentUpdates.ORIGINAL, emptySet())
+        assertEquals(listOf("DD-dxvk-3.1.1+188-nightly.wcp", "DD-dxvk-3.1.1+194-nightly.wcp"),
+            ComponentUpdates.stale(line, owned, emptyList(), keep, current, setOf("DD-dxvk-3.1.1+194-nightly.wcp")))
+        assertEquals(listOf("DD-dxvk-3.1.1+188-nightly.wcp"), ComponentUpdates.stale(line, owned, emptyList(), keep, current))
+    }
+
+    @Test fun anImportBeforePruningTakesTheFileAwayFromAuto() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val updates = File(context.filesDir, "components/updates.json").apply { parentFile?.mkdirs() }
+        updates.writeText(JSONObject().put("lines", JSONObject().put("dxvk", JSONObject()
+            .put("current", "DD-dxvk-3.1.1+190-nightly.wcp")
+            .put("owned", JSONArray(listOf("DD-dxvk-3.1.1+190-nightly.wcp", "DD-dxvk-3.1.1+194-nightly.wcp")))
+            .put("bad", JSONArray(listOf("DD-dxvk-3.1.1+194-nightly.wcp"))))).toString())
+        ComponentUpdater.disown(context, "DD-dxvk-3.1.1+194-nightly.wcp")
+        val line = JSONObject(updates.readText()).getJSONObject("lines").getJSONObject("dxvk")
+        val owned = (0 until line.getJSONArray("owned").length()).map { line.getJSONArray("owned").getString(it) }.toSet()
+        assertEquals(setOf("DD-dxvk-3.1.1+190-nightly.wcp"), owned)
+        val auto = ComponentUpdater.placed(JSONObject(updates.readText()))
+        assertFalse("DD-dxvk-3.1.1+194-nightly.wcp" in auto)
+        assertTrue(ComponentUpdates.manual(choice("DD-dxvk-3.1.1+194-nightly.wcp"), null, auto, "DD-dxvk-3.1.1+190-nightly.wcp"))
+        val keep = ComponentUpdates.keep("DD-dxvk-3.1.1+190-nightly.wcp", ComponentUpdates.ORIGINAL, emptySet())
+        assertEquals(emptyList<String>(), ComponentUpdates.stale(ComponentUpdates.line("dxvk", false), owned,
+            listOf("DD-dxvk-3.1.1+194-nightly.wcp"), keep, "DD-dxvk-3.1.1+190-nightly.wcp", setOf("DD-dxvk-3.1.1+194-nightly.wcp")))
+    }
+
+    @Test fun aRolledBackBuildTheUserImportsAgainIsKept() {
+        val line = ComponentUpdates.line("dxvk", false)
+        val current = "DD-dxvk-3.1.1+190-nightly.wcp"
+        val bad = setOf("DD-dxvk-3.1.1+194-nightly.wcp")
+        val keep = ComponentUpdates.keep(current, ComponentUpdates.ORIGINAL, emptySet())
+        assertEquals(listOf("DD-dxvk-3.1.1+194-nightly.wcp"),
+            ComponentUpdates.stale(line, bad, listOf("DD-dxvk-3.1.1+194-nightly.wcp"), keep, current, bad))
+        assertEquals(emptyList<String>(), ComponentUpdates.stale(line, emptySet(), listOf("DD-dxvk-3.1.1+194-nightly.wcp"), keep, current, bad))
+    }
+
+    @Test fun aNewerBuildTheUserStoredIsNotPrunedBeforeAutoCatchesUp() {
+        val line = ComponentUpdates.line("dxvk", false)
+        val stored = listOf("DD-dxvk-3.1.1+186-nightly.wcp", "DD-dxvk-3.1.1+192-nightly.wcp")
+        val keep = ComponentUpdates.keep("DD-dxvk-3.1.1+190-nightly.wcp", ComponentUpdates.ORIGINAL, emptySet())
+        assertEquals(listOf("DD-dxvk-3.1.1+186-nightly.wcp"), ComponentUpdates.stale(line, emptySet(), stored, keep, "DD-dxvk-3.1.1+190-nightly.wcp"))
+        assertEquals(listOf("DD-dxvk-3.1.1+184-nightly.wcp"),
+            ComponentUpdates.stale(line, setOf("DD-dxvk-3.1.1+184-nightly.wcp"), stored, emptySet(), ComponentUpdates.ORIGINAL))
+    }
+
+    @Test fun aPackageLeftSelectedOnARemovedProtonIsNoLongerKept() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        File(context.filesDir, "components/state.json").apply { parentFile?.mkdirs() }.writeText(JSONObject()
+            .put("active", JSONObject().put("DroidDeck-Proton-11-7.4", JSONObject()
+                .put("dxvk", JSONObject().put("file", "DD-dxvk-3.1.1+186-nightly.wcp").put("protonVersion", "11-7.4"))))
+            .put("profiles", JSONObject().put("app:1", JSONObject().put("dxvk", "mine.wcp"))).toString())
+        assertEquals(setOf("mine.wcp"), ComponentsManager.selectedPackages(context))
+    }
+
+    @Test fun pruningNeverDeletesAPackageAGameProfileSelected() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val dir = File(context.filesDir, "components").apply { mkdirs() }
+        File(dir, "state.json").writeText(JSONObject()
+            .put("profiles", JSONObject().put("app:1", JSONObject().put("dxvk", "DD-dxvk-3.1.1+186-nightly.wcp"))).toString())
+        val packages = File(dir, "packages").apply { mkdirs() }
+        val kept = File(packages, "DD-dxvk-3.1.1+186-nightly.wcp").apply { writeText("x") }
+        val old = File(packages, "DD-dxvk-3.1.1+184-nightly.wcp").apply { writeText("x") }
+        assertFalse(ComponentsManager.deleteUnused(context, kept.name))
+        assertTrue(kept.isFile)
+        assertEquals("DD-dxvk-3.1.1+186-nightly.wcp", JSONObject(File(dir, "state.json").readText())
+            .getJSONObject("profiles").getJSONObject("app:1").getString("dxvk"))
+        assertTrue(ComponentsManager.deleteUnused(context, old.name))
+        assertFalse(old.isFile)
+        assertFalse(ComponentsManager.deleteUnused(context, old.name))
+    }
+
+    @Test fun aSelectionStaysLiveWhenAnotherInstallSharesItsProtonId() {
+        fun p(version: String) = ComponentsManager.Proton("GE-Proton", "GE-Proton", File("/steam/$version"), "/p", version, false)
+        val state = JSONObject().put("active", JSONObject().put("GE-Proton", JSONObject()
+            .put("dxvk", JSONObject().put("file", "DD-dxvk-3.1.1+186-nightly.wcp").put("protonVersion", "2"))))
+        assertTrue("DD-dxvk-3.1.1+186-nightly.wcp" in ComponentsManager.packagesInUse(state, listOf(p("1"), p("2"))))
+        assertTrue("DD-dxvk-3.1.1+186-nightly.wcp" in ComponentsManager.packagesInUse(state, listOf(p("2"), p("1"))))
+        assertFalse("DD-dxvk-3.1.1+186-nightly.wcp" in ComponentsManager.packagesInUse(state, listOf(p("1"))))
+        val entry = state.getJSONObject("active").getJSONObject("GE-Proton").getJSONObject("dxvk")
+        assertTrue(ComponentsManager.liveOnAny("active", entry, listOf(p("1"), p("2"))))
+        assertFalse(ComponentsManager.liveOnAny("active", entry, listOf(p("1"))))
+        assertFalse(ComponentsManager.liveOnAny("active", entry, null))
+    }
+
+    @Test fun aPackageIsArm64xOnlyWhenEveryGraphicsDllInItIs() {
+        val owned = setOf("d3d11.dll", "dxgi.dll", "d3d9.dll")
+        val hybrid = pe(0xaa64, true, true)
+        val ec = pe(0x8664, true, true)
+        assertTrue(ComponentUpdates.allArm64x(mapOf("d3d11.dll" to hybrid, "dxgi.dll" to hybrid, "openvr_api_dxvk.dll" to pe(0x8664, true, false)), owned))
+        assertFalse(ComponentUpdates.allArm64x(mapOf("d3d11.dll" to hybrid, "dxgi.dll" to ec), owned))
+        assertFalse(ComponentUpdates.allArm64x(mapOf("D3D9.DLL" to ec, "d3d11.dll" to hybrid), owned))
+        assertFalse(ComponentUpdates.allArm64x(mapOf("openvr_api_dxvk.dll" to hybrid), owned))
+        assertFalse(ComponentUpdates.allArm64x(emptyMap(), owned))
+    }
+
+    private fun wcp(context: Context, name: String, dlls: Map<String, ByteArray>) {
+        val out = File(context.filesDir, "components/packages/$name").apply { parentFile!!.mkdirs() }
+        TarArchiveOutputStream(ZstdOutputStream(out.outputStream())).use { tar ->
+            for ((path, body) in dlls) {
+                tar.putArchiveEntry(TarArchiveEntry(path).apply { size = body.size.toLong() })
+                tar.write(body)
+                tar.closeArchiveEntry()
+            }
+        }
+    }
+
+    @Test fun anImportWaitsForPruningAndLeavesTheFileTheUsers() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val name = "DD-dxvk-3.1.1+194-nightly.wcp"
+        File(context.filesDir, "components/updates.json").apply { parentFile?.mkdirs() }.writeText(JSONObject().put("lines", JSONObject()
+            .put("dxvk", JSONObject().put("current", "DD-dxvk-3.1.1+190-nightly.wcp").put("owned", JSONArray(listOf(name))))).toString())
+        wcp(context, "source.wcp", mapOf("profile.json" to JSONObject().put("type", "DXVK-Linux").put("versionName", "3.1.1+194").toString().toByteArray()))
+        val source = File(context.filesDir, "source.wcp").also { File(context.filesDir, "components/packages/source.wcp").renameTo(it) }
+        val lock = ComponentUpdater::class.java.getDeclaredField("lock").apply { isAccessible = true }.get(ComponentUpdater)
+        val held = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        val pruning = Thread { synchronized(lock) { held.countDown(); release.await() } }.apply { start() }
+        held.await()
+        val importing = Thread { ComponentUpdater.importPackage(context, source, name) }.apply { start() }
+        importing.join(300)
+        assertTrue(importing.isAlive)
+        assertFalse(File(context.filesDir, "components/packages/$name").exists())
+        release.countDown()
+        pruning.join()
+        importing.join(5000)
+        assertTrue(File(context.filesDir, "components/packages/$name").isFile)
+        val state = JSONObject(File(context.filesDir, "components/updates.json").readText())
+        assertEquals(0, state.getJSONObject("lines").getJSONObject("dxvk").getJSONArray("owned").length())
+        assertFalse(name in ComponentUpdater.placed(state))
+    }
+
+    @Test fun aStoredPackageWithOneArm64ecOnlyDllIsNotArm64x() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val dir = "files/lib/wine/dxvk/aarch64-windows"
+        val hybrid = pe(0xaa64, true, true)
+        wcp(context, "mixed.wcp", mapOf("$dir/d3d11.dll" to hybrid, "$dir/dxgi.dll" to pe(0x8664, true, true),
+            "files/lib/wine/dxvk/i386-windows/d3d11.dll" to pe(0x14c, false, null)))
+        wcp(context, "hybrid.wcp", mapOf("./$dir/d3d11.dll" to hybrid, "./$dir/dxgi.dll" to hybrid,
+            "$dir/openvr_api_dxvk.dll" to pe(0x8664, true, false)))
+        assertFalse(ComponentsManager.packageArm64x(context, "mixed.wcp", "dxvk"))
+        assertTrue(ComponentsManager.packageArm64x(context, "hybrid.wcp", "dxvk"))
+        assertFalse(ComponentsManager.packageArm64x(context, "hybrid.wcp", "vkd3d"))
+        assertFalse(ComponentsManager.packageArm64x(context, "missing.wcp", "dxvk"))
     }
 }

@@ -561,7 +561,7 @@
     <string name="comp_auto_hint">Bản dựng mới được cài ở nền. Nếu một trò chơi từng chạy được bị đóng sau vài giây hai lần, Auto quay lại bản dựng đã chạy được.</string>
     <string name="comp_auto_fallback">Dự phòng: %1$s</string>
     <string name="comp_auto_checking">Đang tìm bản dựng…</string>
-    <string name="comp_auto_none">Không Proton nào đã cài dùng thành phần này</string>
+    <string name="comp_auto_none">Không DroidDeck-Proton nào dùng thành phần này</string>
     <string name="comp_auto_waits_network">Cập nhật Auto đang chờ kết nối.</string>
     <string name="comp_auto_check_failed">Không thể kiểm tra bản dựng mới.</string>
     <string name="comp_auto_waits_unmetered">Bản dựng mới chờ kết nối không đo lưu lượng, tắt tiết kiệm pin và thiết bị đủ mát.</string>

@@ -563,7 +563,7 @@
     <string name="comp_auto_hint">Nye bygg installeres i bakgrunnen. Hvis et spill som fungerte før lukkes innen sekunder to ganger, går Auto tilbake til bygget som fungerte.</string>
     <string name="comp_auto_fallback">Reserve: %1$s</string>
     <string name="comp_auto_checking">Ser etter bygg…</string>
-    <string name="comp_auto_none">Ingen installert Proton bruker dette</string>
+    <string name="comp_auto_none">Ingen DroidDeck-Proton bruker dette</string>
     <string name="comp_auto_waits_network">Auto-oppdateringer venter på en tilkobling.</string>
     <string name="comp_auto_check_failed">Kunne ikke se etter nye bygg.</string>
     <string name="comp_auto_waits_unmetered">Nye bygg venter på en ubegrenset tilkobling, avslått batterisparing og en kjølig enhet.</string>
