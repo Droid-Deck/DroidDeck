@@ -266,6 +266,7 @@ class RuntimeUserDataCarryTest {
     }
 
     @Test fun anInaccessibleLiveHomeIsNeverTreatedAsMissing() {
+        assumeFilePermissionsEnforced()
         assumeTrue(Files.getFileStore(tmp.root.toPath()).supportsFileAttributeView("posix"))
         val root = tmp.newFolder("runtime")
         val staging = tmp.newFolder("runtime.new")
