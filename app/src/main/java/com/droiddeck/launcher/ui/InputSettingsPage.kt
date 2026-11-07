@@ -358,7 +358,7 @@ private fun InputNameDialog(request: InputNameRequest, onDismiss: () -> Unit) {
         OutlinedTextField(name, { name = it.take(80) }, label = { Text(stringResource(R.string.input_name)) }, singleLine = true, modifier = Modifier.testTag("input-name"))
         if (request.sources.isNotEmpty()) ChoiceRow(host, "input-copy-source", stringResource(R.string.input_start_from), null, request.sources, source) { source = it }
         if (request.offerSharing) {
-            Row(Modifier.fillMaxWidth().focusRow(role = Role.Checkbox) { shared = !shared }.testTag("input-share-physical"), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().focusRow(role = Role.Checkbox, checked = shared) { shared = !shared }.testTag("input-share-physical"), verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(shared, null)
                 Text(stringResource(R.string.input_share_physical))
             }
@@ -373,7 +373,7 @@ private fun InputReuseDialog(request: InputReuseRequest, onDismiss: () -> Unit) 
     var shared by remember { mutableStateOf(false) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text(request.name) }, text = { Column(Modifier.verticalScroll(rememberScrollState())) {
         Text(stringResource(if (request.layoutOnly) R.string.input_reuse_layout_detail else R.string.input_reuse_part_detail))
-        for (link in listOf(false, true)) Row(Modifier.fillMaxWidth().focusRow(role = Role.RadioButton) { shared = link }, verticalAlignment = Alignment.CenterVertically) {
+        for (link in listOf(false, true)) Row(Modifier.fillMaxWidth().focusRow(role = Role.RadioButton, checked = shared == link) { shared = link }, verticalAlignment = Alignment.CenterVertically) {
             RadioButton(shared == link, null)
             Text(stringResource(if (link) R.string.input_keep_shared else R.string.input_independent_copy))
         }
