@@ -8,6 +8,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
@@ -128,10 +129,11 @@ class InputSurfaceView(
                 }
             }
         }
+        canvas.clipChildren = customLayout.none { it.kind == InputElementKind.STICK && classic(it) }
         for (element in customLayout) {
             val source = pad?.let { InputSurfaceSource(it, inputRole, element).also { s -> elementSources += s } }
             canvas.addView(when (element.kind) {
-                InputElementKind.STICK -> StickView(context, source, element.floating, element.hideWhenIdle && pad != null)
+                InputElementKind.STICK -> StickView(context, element, source, element.floating, element.hideWhenIdle && pad != null)
                 InputElementKind.TRACKPAD -> TrackpadView(context, element.control == InputControl.RIGHT_PAD, source = source)
                 InputElementKind.DPAD -> DirectionPad(context, source)
                 else -> HoldButton(context, element, source)
@@ -183,16 +185,50 @@ class InputSurfaceView(
             color = TEXT_DIM
         }
 
-        protected fun drawSurface(canvas: Canvas, lit: Boolean, shape: InputButtonShape = InputButtonShape.ROUNDED) {
-            val inset = density
+        protected fun drawSurface(canvas: Canvas, lit: Boolean, shape: InputButtonShape = InputButtonShape.ROUNDED, classic: Boolean = false) {
+            val inset = if (classic && tint != null) 0.75f * density else density
             rect.set(inset, inset, width - inset, height - inset)
             val radius = when (shape) { InputButtonShape.CIRCLE, InputButtonShape.PILL -> min(width, height) / 2f; InputButtonShape.RECTANGLE -> 2 * density; else -> CORNER * density }
+            val color = tint
+            if (classic && color != null) {
+                val corner = if (shape == InputButtonShape.PILL) radius * 0.55f else radius
+                fill.color = if (lit) shade(color, 160, 1f) else shade(color, 80, 0.12f)
+                canvas.drawRoundRect(rect, corner, corner, fill)
+                stroke.color = if (lit) light(color, 230, 0.7f) else light(color, 150, 0.25f)
+                stroke.strokeWidth = 1.5f * density
+                canvas.drawRoundRect(rect, corner, corner, stroke)
+                return
+            }
             fill.color = tint?.let { color -> (color and 0x00ffffff) or ((if (lit) 140 else 48) shl 24) } ?: if (lit) ACCENT_WASH else SURFACE
             canvas.drawRoundRect(rect, radius, radius, fill)
             stroke.color = tint?.let { color -> (color and 0x00ffffff) or ((if (lit) 255 else 160) shl 24) } ?: if (lit) ACCENT else LINE
             stroke.strokeWidth = (if (lit) 2f else 1f) * density
             canvas.drawRoundRect(rect, radius, radius, stroke)
         }
+
+        protected fun drawCircle(canvas: Canvas, x: Float, y: Float, radius: Float, fillColor: Int, strokeColor: Int) {
+            fill.color = fillColor
+            canvas.drawCircle(x, y, radius, fill)
+            stroke.color = strokeColor
+            stroke.strokeWidth = 1.5f * density
+            canvas.drawCircle(x, y, radius, stroke)
+        }
+
+        protected fun drawKeyboard(canvas: Canvas, x: Float, y: Float, lit: Boolean) {
+            val color = tint ?: return
+            stroke.color = if (lit) light(color, 230, 0.7f) else light(color, 150, 0.25f)
+            stroke.strokeWidth = 1.5f * density
+            rect.set(x - 10 * density, y - 7 * density, x + 10 * density, y + 7 * density)
+            canvas.drawRoundRect(rect, 2 * density, 2 * density, stroke)
+            for (row in 0..1) for (col in 0..2) {
+                val kx = x + (-6f + col * 5f) * density
+                val ky = y + (-3f + row * 4f) * density
+                canvas.drawLine(kx, ky, kx + 2 * density, ky, stroke)
+            }
+            canvas.drawLine(x - 5 * density, y + 4 * density, x + 5 * density, y + 4 * density, stroke)
+        }
+
+        protected fun textColor(lit: Boolean) = if (lit) Color.WHITE else tint?.let { light(it, 210, 0.75f) } ?: TEXT
     }
 
     private class HoldButton(context: Context, private val element: InputSurfaceElement, private val source: InputSurfaceSource?) : Surface(context) {
@@ -212,9 +248,10 @@ class InputSurfaceView(
 
         override fun onDraw(canvas: Canvas) {
             val lit = if (element.toggle) source?.latched == true else down
-            drawSurface(canvas, lit, element.buttonShape)
+            val classic = classic(element)
+            drawSurface(canvas, lit, element.buttonShape, classic)
             val cx = width / 2f
-            labelPaint.color = if (lit) ACCENT else TEXT
+            labelPaint.color = if (classic && tint != null) textColor(lit) else if (lit) ACCENT else TEXT
             bitmap?.let {
                 val scale = min(width * .84f / it.width, height * .84f / it.height)
                 imageRect.set(cx - it.width * scale / 2, (height - it.height * scale) / 2,
@@ -222,8 +259,23 @@ class InputSurfaceView(
                 canvas.drawBitmap(it, null, imageRect, labelPaint)
                 return
             }
+            if (classic && element.id == "builtin:keyboard" && element.icon == InputButtonIcons.KEYBOARD) { drawKeyboard(canvas, cx, height / 2f, lit); return }
             if (element.icon != 0 && InputButtonIcons.draw(canvas, element.icon, cx, height / 2f, min(width, height) * .68f, labelPaint, symbol)) return
             if (!element.showLabel) return
+            labelPaint.style = Paint.Style.FILL
+            if (classic && element.name == element.control.label) {
+                val radius = min(width, height) / 2f
+                val direction = DIRECTIONS.indexOf(element.control)
+                if (direction >= 0) { drawArrow(canvas, cx, height / 2f, radius * 0.34f, direction, labelPaint); return }
+                val glyph = glyph(element.control)
+                labelPaint.textSize = when {
+                    element.buttonShape == InputButtonShape.PILL -> height / 2f * 0.8f
+                    glyph.length > 2 -> 11 * density
+                    else -> radius * if (glyph.length == 2) 0.62f else 0.85f
+                }
+                canvas.drawText(glyph, cx, height / 2f + labelPaint.textSize * .35f, labelPaint)
+                return
+            }
             labelPaint.textSize = min(height * .3f, 30 * density)
             val labelWidth = labelPaint.measureText(element.name)
             if (labelWidth > width * .84f) labelPaint.textSize *= width * .84f / labelWidth
@@ -350,7 +402,7 @@ class InputSurfaceView(
         }
     }
 
-    private inner class StickView(context: Context, private val source: InputSurfaceSource? = null, private val floating: Boolean = true, private val hideWhenIdle: Boolean = false) : Surface(context) {
+    private inner class StickView(context: Context, private val element: InputSurfaceElement, private val source: InputSurfaceSource? = null, private val floating: Boolean = true, private val hideWhenIdle: Boolean = false) : Surface(context) {
         private var touching = false
         private var clicking = false
         private var lastUp = 0L
@@ -368,11 +420,32 @@ class InputSurfaceView(
 
         private fun reach() = min(width, height) * 0.30f
 
+        private fun centreX() = when {
+            !classic(element) || width <= height -> width / 2f
+            element.control == InputControl.LS -> width - height / 2f
+            else -> height / 2f
+        }
+
         override fun onDraw(canvas: Canvas) {
             if (hideWhenIdle && !touching) return
-            drawSurface(canvas, clicking)
-            val cx = if (touching) originX else width / 2f
+            val cx = if (touching) originX else centreX()
             val cy = if (touching) originY else height / 2f
+            val color = tint
+            if (classic(element) && color != null) {
+                val radius = min(width, height) / 2f - 0.75f * density
+                drawCircle(canvas, cx, cy, radius,
+                    if (touching) shade(color, 160, 1f) else shade(color, 60, 0.12f), if (touching) light(color, 230, 0.7f) else light(color, 150, 0.25f))
+                val knobRadius = radius * 0.46f
+                drawCircle(canvas, cx + knobX, cy + knobY, knobRadius,
+                    if (touching || clicking) shade(color, 160, 1f) else shade(color, 120, 0.35f), if (touching) light(color, 230, 0.7f) else light(color, 150, 0.25f))
+                if (!element.showLabel) return
+                labelPaint.color = textColor(touching)
+                labelPaint.textSize = knobRadius * 0.8f
+                val label = if (element.name == element.control.label) glyph(element.control) else element.name
+                canvas.drawText(label, cx + knobX, cy + knobY + labelPaint.textSize * 0.35f, labelPaint)
+                return
+            }
+            drawSurface(canvas, clicking)
             ring.strokeWidth = 2 * density
             ring.color = if (touching) ACCENT else LINE
             canvas.drawCircle(cx, cy, reach(), ring)
@@ -389,7 +462,7 @@ class InputSurfaceView(
                     downX = event.x
                     downY = event.y
                     travel = 0f
-                    originX = if (floating) event.x else width / 2f
+                    originX = if (floating) event.x else centreX()
                     originY = if (floating) event.y else height / 2f
                     touching = true
                     performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
@@ -508,12 +581,43 @@ class InputSurfaceView(
         private val ACCENT_WASH = Color.argb(0x2E, 0x1A, 0x9F, 0xFF)
         private val ACCENT_GLOW = Color.argb(0x66, 0x1A, 0x9F, 0xFF)
         private val ON_ACCENT = Color.rgb(0x03, 0x11, 0x1F)
-        private val SURFACE = Color.rgb(0x0A, 0x0B, 0x0D)
-        private val LINE = Color.rgb(0x26, 0x29, 0x2E)
+        internal val SURFACE = Color.rgb(0x0A, 0x0B, 0x0D)
+        internal val LINE = Color.rgb(0x26, 0x29, 0x2E)
         private val GUIDE = Color.rgb(0x16, 0x18, 0x1B)
-        private val TEXT = Color.rgb(0xF2, 0xF4, 0xF7)
+        internal val TEXT = Color.rgb(0xF2, 0xF4, 0xF7)
         private val TEXT_DIM = Color.rgb(0x7A, 0x80, 0x8A)
         private val KNOB = Color.rgb(0x2A, 0x2D, 0x33)
+
+        private fun classic(element: InputSurfaceElement) = (element.id == "legacy:${element.control.id}" || element.id == "builtin:keyboard") &&
+            (element.buttonShape == InputButtonShape.CIRCLE || element.buttonShape == InputButtonShape.PILL)
+
+        private val DIRECTIONS = listOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT)
+
+        internal fun shade(tint: Int, alpha: Int, f: Float) =
+            Color.argb(alpha, (Color.red(tint) * f).toInt(), (Color.green(tint) * f).toInt(), (Color.blue(tint) * f).toInt())
+
+        internal fun light(tint: Int, alpha: Int, f: Float) = Color.argb(alpha, (Color.red(tint) + (255 - Color.red(tint)) * f).toInt(),
+            (Color.green(tint) + (255 - Color.green(tint)) * f).toInt(), (Color.blue(tint) + (255 - Color.blue(tint)) * f).toInt())
+
+        private fun glyph(control: InputControl) = when (control) {
+            InputControl.LS -> "L"
+            InputControl.RS -> "R"
+            InputControl.SELECT -> "⧉"
+            InputControl.START -> "☰"
+            InputControl.GUIDE -> "◉"
+            InputControl.QAM -> "⋯"
+            else -> control.id.uppercase()
+        }
+
+        private fun drawArrow(canvas: Canvas, x: Float, y: Float, size: Float, direction: Int, paint: Paint) {
+            val (fx, fy) = when (direction) { 0 -> 0f to -1f; 1 -> 1f to 0f; 2 -> 0f to 1f; else -> -1f to 0f }
+            val path = Path()
+            path.moveTo(x + fx * size, y + fy * size)
+            path.lineTo(x - fx * size * 0.7f - fy * size, y - fy * size * 0.7f + fx * size)
+            path.lineTo(x - fx * size * 0.7f + fy * size, y - fy * size * 0.7f - fx * size)
+            path.close()
+            canvas.drawPath(path, paint)
+        }
 
         internal fun dp(context: Context, value: Int): Int = (value * context.resources.displayMetrics.density + 0.5f).toInt()
 

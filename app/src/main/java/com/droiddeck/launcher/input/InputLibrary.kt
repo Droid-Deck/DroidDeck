@@ -18,6 +18,7 @@ data class SavedInputLayout(
     val screen: InputLayoutScreen = InputLayoutScreen.BOTH,
 ) {
     val editable get() = template == InputLayoutTemplate.CUSTOM
+    val adaptiveSticks get() = elements.filter { it.kind == InputElementKind.STICK }.takeIf { editable && it.isNotEmpty() }?.all { it.floating && it.hideWhenIdle }
     fun supports(role: InputRole) = screen.supports(role) && when (template) {
         InputLayoutTemplate.OVERLAY -> role == InputRole.PRIMARY
         InputLayoutTemplate.DECK, InputLayoutTemplate.TRACKPAD -> role == InputRole.SECONDARY

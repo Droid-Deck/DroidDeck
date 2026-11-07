@@ -159,6 +159,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var pipAutoEnter by mutableStateOf(false)
     private var unfoldedControls by mutableStateOf(false)
     private var unfoldedControlsWithController by mutableStateOf(false)
+    private var adaptiveSticks by mutableStateOf<Boolean?>(null)
     private var picturePosition by mutableStateOf("center")
 
     private fun applyGameAlignment() {
@@ -172,7 +173,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         WaylandCompositor.nativeSetScaleMode(SCALE_FIT, alignment)
     }
-    private var unfoldedPanel: com.droiddeck.launcher.ui.InputSurfaceView? = null
+    private var unfoldedPanel by mutableStateOf<com.droiddeck.launcher.ui.InputSurfaceView?>(null)
     private lateinit var sessionRoot: FrameLayout
     private var inputRouter: InputRouter? = null
     private var physicalInputBindings: com.droiddeck.launcher.input.PhysicalInputBindings? = null
@@ -196,12 +197,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         override fun scroll(steps: Int) { sendSceneWheel(steps) }
         override fun scrollHorizontal(steps: Int) { sendSceneWheel(steps, horizontal = true) }
         override fun requestMotion() { inputMotion.request() }
-        override fun command(command: InputCommand) {
+        override fun command(command: InputCommand) = command(command, InputRole.PHYSICAL)
+        override fun command(command: InputCommand, role: InputRole) {
             uiHandler.post {
                 if (!resumed || isDestroyed || pipUi || SessionState.suspended) return@post
                 when (command) {
                     InputCommand.MENU -> { releasePads(); drawerOpen = true }
-                    InputCommand.KEYBOARD -> if (secondScreenPresentation?.showKeyboard() != true) togglePcKeyboard()
+                    InputCommand.KEYBOARD -> if (role == InputRole.PRIMARY || secondScreenPresentation?.showKeyboard() != true) togglePcKeyboard()
                     InputCommand.STEAM -> tapSteamButton()
                     InputCommand.QUICK_ACCESS -> tapQam()
                 }
@@ -244,6 +246,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var secondaryInputLayout by mutableStateOf<com.droiddeck.launcher.input.SavedInputLayout?>(null)
     private var steamTouchControls: com.droiddeck.launcher.input.SteamTouchControls? = null
     private var steamTouchAvailable by mutableStateOf(false)
+    private var steamTouchInUse by mutableStateOf(false)
     private val steamTouchRetry = Runnable { updateOnScreenControls() }
     private var steamTouchOptions: com.droiddeck.launcher.input.SteamTouchConfig.Options? = null
     private var routedTouchMode = SessionPrefs.TOUCH_AUTO
@@ -1404,6 +1407,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             },
             unfoldedControls = unfoldedControls,
             onUnfoldedControls = ::chooseUnfoldedControls,
+            adaptiveSticks = adaptiveSticks.takeIf {
+                unfoldedPanel != null || oscMode != SessionPrefs.OSC_NEVER && oscMode != SessionPrefs.OSC_STEAM_QAM && !steamTouchInUse
+            },
+            onAdaptiveSticks = { on ->
+                primaryInputLayout?.let { com.droiddeck.launcher.input.InputLibraries.setAdaptiveSticks(this@SessionActivity, it.id, on) }
+                refreshInputProfile()
+            },
             unfoldedControlsWithController = unfoldedControlsWithController,
             onUnfoldedControlsWithController = ::chooseUnfoldedControlsWithController,
             onBackground = { drawerOpen = false; pip.background(); moveTaskToBack(true) },
@@ -3498,6 +3508,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val desktop = loadingMode() == SessionService.MODE_DESKTOP
         inputProfile = library.compileActive(desktop)
         primaryInputLayout = library.activeLayout(desktop, InputRole.PRIMARY)
+        adaptiveSticks = primaryInputLayout?.adaptiveSticks
         secondaryInputLayout = library.activeLayout(desktop, InputRole.SECONDARY)
         inputUsesLocalActions = InputControl.padControls.any { inputProfile.action(InputRole.PHYSICAL, it) !is InputAction.Native }
         inputUsesPointer = inputProfile.bindings.values.any { bindings ->
@@ -4212,6 +4223,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val buttonsOnly = forced == SessionPrefs.OSC_STEAM_QAM
         val wantsSteam = forced == SessionPrefs.OSC_STEAM_TOUCH && SessionState.mode == SessionService.MODE_STEAM
         val steam = if (wantsSteam) steamTouch() else null
+        steamTouchInUse = steam != null
         if (wantsSteam && steam == null && !isFinishing && !isDestroyed) {
             uiHandler.removeCallbacks(steamTouchRetry)
             uiHandler.postDelayed(steamTouchRetry, 1000)

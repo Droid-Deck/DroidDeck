@@ -266,10 +266,118 @@ class InputLibraryTest {
         ControllerPrefs.setTarget(context, "b", ControllerPrefs.OFF)
         val elements = LegacyGamepadLayout(context, 1200, 800).elements()
         val stick = elements.first { it.control == InputControl.LS }
-        assertEquals(.4f, stick.x + stick.width / 2f, .0001f)
+        assertEquals(.4f, stick.x + stick.width - stick.height * 800f / 1200f / 2f, .0001f)
         assertEquals(.5f, stick.y + stick.height / 2f, .0001f)
         assertFalse(elements.any { it.control == InputControl.GUIDE || it.control == InputControl.B })
         assertTrue(elements.all { it == it.bounded() })
+    }
+
+    @Test fun gamepadControlsAreRoundWithShoulderPillsAndACompactKeyboard() {
+        val elements = LegacyGamepadLayout(context, 1200, 800).elements()
+        val density = context.resources.displayMetrics.density
+        for (element in elements.filter { it.id.startsWith("legacy:") }) {
+            val shoulder = element.control in setOf(InputControl.LB, InputControl.RB, InputControl.LT, InputControl.RT)
+            assertEquals(element.control.id, if (shoulder) InputButtonShape.PILL else InputButtonShape.CIRCLE, element.buttonShape)
+        }
+        val keyboard = elements.single { it.id == "builtin:keyboard" }
+        assertEquals(InputButtonIcons.KEYBOARD, keyboard.icon)
+        assertEquals(InputButtonShape.CIRCLE, keyboard.buttonShape)
+        assertEquals(36 * density / 1200f, keyboard.width, .0001f)
+        assertEquals(90 * density / 1200f, keyboard.x + keyboard.width / 2f, .0001f)
+        assertEquals(1f - 34 * density / 800f, keyboard.y + keyboard.height / 2f, .0001f)
+    }
+
+    @Test fun dpadButtonsMatchTheFaceButtonsInSizeAndSpacing() {
+        val elements = LegacyGamepadLayout(context, 1200, 800).elements()
+        fun centre(c: InputControl) = elements.single { it.id == "legacy:${c.id}" }.let { (it.x + it.width / 2f) * 1200 to (it.y + it.height / 2f) * 800 }
+        fun size(c: InputControl) = elements.single { it.id == "legacy:${c.id}" }.width * 1200
+        assertEquals(size(InputControl.A), size(InputControl.UP), .01f)
+        assertEquals(centre(InputControl.A).second - centre(InputControl.Y).second, centre(InputControl.DOWN).second - centre(InputControl.UP).second, .01f)
+        assertEquals(centre(InputControl.B).first - centre(InputControl.X).first, centre(InputControl.RIGHT).first - centre(InputControl.LEFT).first, .01f)
+    }
+
+    @Test fun anUntouchedSavedDpadIsResizedAroundItsCentreAndAMovedOneIsKept() {
+        val fresh = LegacyGamepadLayout(context, 1200, 800)
+        val target = fresh.elements().filter { it.control in setOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT) }
+        val cx = target.map { it.x + it.width / 2f }.average().toFloat()
+        val cy = target.map { it.y + it.height / 2f }.average().toFloat()
+        val scale = 26f / 30f
+        val old = target.map { e ->
+            val ex = cx + (e.x + e.width / 2f - cx) * 52f / 50f
+            val ey = cy + (e.y + e.height / 2f - cy) * 52f / 50f
+            e.copy(x = ex - e.width * scale / 2f, y = ey - e.height * scale / 2f, width = e.width * scale, height = e.height * scale, buttonShape = InputButtonShape.ROUNDED)
+        }
+        val restyled = fresh.restyle(old)
+        for ((want, got) in target.zip(restyled)) {
+            assertEquals(want.x, got.x, .0005f); assertEquals(want.y, got.y, .0005f)
+            assertEquals(want.width, got.width, .0005f); assertEquals(InputButtonShape.CIRCLE, got.buttonShape)
+        }
+        val moved = old.mapIndexed { i, e -> if (i == 0) e.copy(buttonShape = InputButtonShape.RECTANGLE) else e }
+        assertEquals(moved.drop(1).map { it.width }, fresh.restyle(moved).drop(1).map { it.width })
+        val shifted = old.mapIndexed { i, e -> if (i == 0) e.copy(x = e.x + .03f) else e }
+        assertEquals(shifted.map { listOf(it.x, it.y, it.width, it.height) }, fresh.restyle(shifted).map { listOf(it.x, it.y, it.width, it.height) })
+    }
+
+    @Test fun stickTouchAreasReachFurtherOutwardButKeepTheirInnerEdge() {
+        val elements = LegacyGamepadLayout(context, 1200, 800).elements()
+        for (control in listOf(InputControl.LS, InputControl.RS)) {
+            val stick = elements.single { it.control == control }
+            assertEquals(control.id, stick.height * 800f * 1.25f, stick.width * 1200f, 1f)
+        }
+        val left = elements.single { it.control == InputControl.LS }
+        val right = elements.single { it.control == InputControl.RS }
+        ControllerPrefs.setLayout(context, 1200, 800, mapOf("ls" to (.3f to .5f), "rs" to (.7f to .5f)))
+        val placed = LegacyGamepadLayout(context, 1200, 800).elements()
+        val ls = placed.single { it.control == InputControl.LS }
+        val rs = placed.single { it.control == InputControl.RS }
+        assertEquals(.3f, ls.x + ls.width - ls.height * 800f / 1200f / 2f, .0001f)
+        assertEquals(.7f, rs.x + rs.height * 800f / 1200f / 2f, .0001f)
+        assertTrue(left.width > left.height * 800f / 1200f && right.width > right.height * 800f / 1200f)
+    }
+
+    @Test fun adaptiveSticksToggleChangesOnlyTheSticksOfThatLayout() {
+        val library = InputLibraries.read(context)
+        val overlay = library.layouts.single { it.id == InputLibraries.OVERLAY }
+        assertEquals(true, overlay.adaptiveSticks)
+        InputLibraries.setAdaptiveSticks(context, overlay.id, false)
+        val off = InputLibraries.read(context)
+        val changed = off.layouts.single { it.id == overlay.id }
+        assertEquals(false, changed.adaptiveSticks)
+        assertFalse(ControllerPrefs.read(context).adaptiveSticks)
+        assertEquals(overlay.elements.filter { it.kind != InputElementKind.STICK }, changed.elements.filter { it.kind != InputElementKind.STICK })
+        assertEquals(library.layouts.filter { it.id != overlay.id }, off.layouts.filter { it.id != overlay.id })
+        assertNull(off.layouts.single { it.id == InputLibraries.DECK }.adaptiveSticks)
+        assertTrue(InputLibraries.setAdaptiveSticks(context, overlay.id, true))
+        assertEquals(true, InputLibraries.read(context).layouts.single { it.id == overlay.id }.adaptiveSticks)
+        prefs.edit().putString("library", JSONObject().put("version", 99).toString()).commit()
+        assertFalse(InputLibraries.setAdaptiveSticks(context, overlay.id, false))
+        assertTrue(ControllerPrefs.read(context).adaptiveSticks)
+    }
+
+    @Test fun savedGamepadsFromTheFirstUnifiedBuildGetTheRoundLookOnce() {
+        val fresh = InputLibraries.read(context)
+        val overlay = fresh.layouts.single { it.id == InputLibraries.OVERLAY }
+        val old = overlay.copy(elements = overlay.elements.map { e ->
+            if (e.id == "builtin:keyboard") InputSurfaceElement(InputControl.A, .02f, .9f, .12f, .08f, "builtin:keyboard", name = "Keyboard")
+            else if (e.control == InputControl.A) e.copy(buttonShape = InputButtonShape.RECTANGLE, x = .5f)
+            else e.copy(buttonShape = InputButtonShape.ROUNDED)
+        })
+        val custom = SavedInputLayout("mine", "Mine", listOf(InputSurfaceElement(InputControl.B, .1f, .1f, .1f, .1f)))
+        val stored = fresh.withLayout(old).withLayout(custom)
+        val renamed = InputSurfaceElement(InputControl.A, .02f, .9f, .12f, .08f, "builtin:keyboard", name = "Keys")
+        assertEquals(renamed, LegacyGamepadLayout(context, 1200, 800).restyle(listOf(renamed)).single())
+        prefs.edit().putString("library", JSONObject(InputLibraries.encode(stored)).put("version", 8).toString()).commit()
+        val upgraded = InputLibraries.read(context)
+        val restyled = upgraded.layouts.single { it.id == InputLibraries.OVERLAY }.elements
+        assertEquals(overlay.elements.single { it.id == "builtin:keyboard" }, restyled.single { it.id == "builtin:keyboard" })
+        assertEquals(InputButtonShape.RECTANGLE, restyled.single { it.control == InputControl.A && it.id.startsWith("legacy:") }.buttonShape)
+        assertEquals(.5f, restyled.single { it.control == InputControl.A && it.id.startsWith("legacy:") }.x, .0001f)
+        assertEquals(InputButtonShape.PILL, restyled.single { it.control == InputControl.LB }.buttonShape)
+        assertEquals(InputButtonShape.CIRCLE, restyled.single { it.control == InputControl.UP }.buttonShape)
+        assertEquals(InputButtonShape.ROUNDED, upgraded.layouts.single { it.id == "mine" }.elements.single().buttonShape)
+        assertEquals(upgraded, InputLibraries.read(context))
+        for (desktop in listOf(false, true))
+            assertEquals(InputAction.Command(InputCommand.KEYBOARD), upgraded.compileActive(desktop).elementAction(InputRole.PRIMARY, "builtin:keyboard", InputControl.A))
     }
 
     @Test fun quickPartsAreModeSpecificAndDoNotEditSavedProfiles() {

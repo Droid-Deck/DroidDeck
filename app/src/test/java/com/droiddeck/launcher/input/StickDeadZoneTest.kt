@@ -405,8 +405,11 @@ class StickDeadZoneTest {
                 view.measure(android.view.View.MeasureSpec.makeMeasureSpec(1200, android.view.View.MeasureSpec.EXACTLY), android.view.View.MeasureSpec.makeMeasureSpec(800, android.view.View.MeasureSpec.EXACTLY))
                 view.layout(0, 0, 1200, 800)
                 val control = elements.first { it.control.id == id }
-                val x = (control.x + control.width / 2) * 1200
-                val y = (control.y + control.height / 2) * 800
+                val left = (control.x * 1200).toInt()
+                val top = (control.y * 800).toInt()
+                val height = (control.height * 800).toInt()
+                val x = left + if (id == "ls") (control.width * 1200).toInt() - height / 2f else height / 2f
+                val y = top + height / 2f
                 val down = MotionEvent.obtain(1000, 1000, MotionEvent.ACTION_DOWN, x, y, 0)
                 try { assertTrue(view.dispatchTouchEvent(down)) } finally { down.recycle() }
                 assertEquals(0f, if (id == "ls") pad().leftX else pad().rightX, 0f)

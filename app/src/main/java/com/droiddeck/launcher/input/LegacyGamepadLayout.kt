@@ -17,10 +17,10 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
         val halfH get() = if (id in shoulderIds) radius * SHOULDER_HEIGHT else radius
     }
     private val controls = listOf(
-        Control("up", "dpad", -1, 26f, 0f, -52f),
-        Control("right", "dpad", -1, 26f, 52f, 0f),
-        Control("down", "dpad", -1, 26f, 0f, 52f),
-        Control("left", "dpad", -1, 26f, -52f, 0f),
+        Control("up", "dpad", -1, 30f, 0f, -50f),
+        Control("right", "dpad", -1, 30f, 50f, 0f),
+        Control("down", "dpad", -1, 30f, 0f, 50f),
+        Control("left", "dpad", -1, 30f, -50f, 0f),
         Control("ls", "ls", 0, 48f, 0f, 0f),
         Control("rs", "rs", 1, 48f, 0f, 0f),
         Control("a", "face", -1, 30f, 0f, 50f),
@@ -188,11 +188,68 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
             settings.mapping[it.id] != ControllerPrefs.OFF && (it.id != "guide" || settings.steamButton) && (it.id != "qam" || settings.qamButton)
         }.map { c ->
             InputSurfaceElement(requireNotNull(InputControl.fromId(c.id)), (c.cx - c.halfW) / width, (c.cy - c.halfH) / height,
-                2 * c.halfW / width, 2 * c.halfH / height, floating = settings.adaptiveSticks, hideWhenIdle = c.stick >= 0 && settings.adaptiveSticks).bounded()
+                2 * c.halfW / width, 2 * c.halfH / height, floating = settings.adaptiveSticks, hideWhenIdle = c.stick >= 0 && settings.adaptiveSticks,
+                buttonShape = if (c.id in shoulderIds) InputButtonShape.PILL else InputButtonShape.CIRCLE).let(::widenStick).bounded()
         }.toMutableList()
-        if (settings.keyboardButton) result += InputSurfaceElement(InputControl.A, .02f, .9f, .12f, .08f,
-            "builtin:keyboard", name = "Keyboard")
+        if (settings.keyboardButton) result += keyboard()
         return result
+    }
+
+    private fun keyboard(): InputSurfaceElement {
+        val radius = dp(KEYBOARD_RADIUS_DP)
+        val cx = safe.left + dp(KEYBOARD_X_DP)
+        val cy = height - safe.bottom - dp(KEYBOARD_Y_DP)
+        return InputSurfaceElement(InputControl.A, (cx - radius) / width, (cy - radius) / height, 2 * radius / width, 2 * radius / height,
+            KEYBOARD_ID, name = "Keyboard", icon = InputButtonIcons.KEYBOARD, buttonShape = InputButtonShape.CIRCLE).bounded()
+    }
+
+    fun restyle(elements: List<InputSurfaceElement>): List<InputSurfaceElement> {
+        val dpad = elements.filter { it.id == "legacy:${it.control.id}" && it.control in DPAD && it.buttonShape == InputButtonShape.ROUNDED }
+        val centreX = dpad.map { (it.x + it.width / 2f) * width }.average().toFloat()
+        val centreY = dpad.map { (it.y + it.height / 2f) * height }.average().toFloat()
+        val resize = untouchedDpad(dpad, centreX, centreY)
+        return elements.map { e ->
+            when {
+                e.id == KEYBOARD_ID && e.icon == 0 && e.name == "Keyboard" && e.buttonShape == InputButtonShape.ROUNDED &&
+                    e.x == .02f && e.y == .9f && e.width == .12f && e.height == .08f -> keyboard()
+                e.id == "legacy:${e.control.id}" && e.buttonShape == InputButtonShape.ROUNDED -> {
+                    val round = e.copy(buttonShape = if (e.control.id in shoulderIds) InputButtonShape.PILL else InputButtonShape.CIRCLE)
+                    (if (resize && e.control in DPAD) resizeDpad(round, centreX, centreY) else widenStick(round)).bounded()
+                }
+                else -> e
+            }
+        }
+    }
+
+    private fun untouchedDpad(dpad: List<InputSurfaceElement>, centreX: Float, centreY: Float): Boolean {
+        if (dpad.size != DPAD.size) return false
+        val radius = dpad[0].width * width / 2f
+        val tolerance = 1.5f
+        val offset = radius * LEGACY_DPAD_OFFSET_DP / LEGACY_DPAD_RADIUS_DP
+        return dpad.all { e ->
+            val old = controls.first { it.id == e.control.id }
+            val dx = (e.x + e.width / 2f) * width - centreX
+            val dy = (e.y + e.height / 2f) * height - centreY
+            abs(e.width * width / 2f - radius) <= tolerance && abs(e.height * height / 2f - radius) <= tolerance &&
+                abs(dx - offset * sign(old.offsetXDp)) <= tolerance && abs(dy - offset * sign(old.offsetYDp)) <= tolerance
+        }
+    }
+
+    private fun resizeDpad(e: InputSurfaceElement, centreX: Float, centreY: Float): InputSurfaceElement {
+        val old = controls.first { it.id == e.control.id }
+        val radius = e.width * width / 2f * old.radiusDp / LEGACY_DPAD_RADIUS_DP
+        val cx = centreX + ((e.x + e.width / 2f) * width - centreX) * abs(old.offsetXDp + old.offsetYDp) / LEGACY_DPAD_OFFSET_DP
+        val cy = centreY + ((e.y + e.height / 2f) * height - centreY) * abs(old.offsetXDp + old.offsetYDp) / LEGACY_DPAD_OFFSET_DP
+        return e.copy(x = (cx - radius) / width, y = (cy - radius) / height, width = 2 * radius / width, height = 2 * radius / height)
+    }
+
+    private fun widenStick(e: InputSurfaceElement): InputSurfaceElement {
+        val extra = e.width * (STICK_REACH - 1f)
+        return when (e.control) {
+            InputControl.LS -> (e.x - extra).coerceAtLeast(0f).let { x -> e.copy(x = x, width = e.x + e.width - x) }
+            InputControl.RS -> e.copy(width = (e.width + extra).coerceAtMost(1f - e.x))
+            else -> e
+        }
     }
     private companion object {
         const val MIN_FACE_MM = 9.5f
@@ -203,5 +260,13 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
         const val SHOULDER_WIDTH = 1.45f
         const val SHOULDER_HEIGHT = 0.8f
         val shoulderIds = setOf("lb", "rb", "lt", "rt")
+        const val STICK_REACH = 1.25f
+        const val LEGACY_DPAD_RADIUS_DP = 26f
+        const val LEGACY_DPAD_OFFSET_DP = 52f
+        val DPAD = setOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT)
+        const val KEYBOARD_ID = "builtin:keyboard"
+        const val KEYBOARD_RADIUS_DP = 18f
+        const val KEYBOARD_X_DP = 90f
+        const val KEYBOARD_Y_DP = 34f
     }
 }
