@@ -115,6 +115,9 @@ function field(text, name) {
   return m ? m[1] : "";
 }
 
+var CHINA = {osi: "osic", s2: "s2_cn", anbs: "anbs_cn", diablo3: "d3cn"};
+var CHINA_PRODUCT = {osi: "osic", s2: "s2c", diablo3: "d3cn"};
+
 function install() {
   // Blizzard's China repository moved to cn.patch.battlenet.com.cn; cn.patch.battle.net only redirects away from it.
   var patch = zone == "cn" ? "cn.patch.battlenet.com.cn" : zone + ".patch.battle.net";
@@ -170,6 +173,15 @@ try {
   token = field(agent, "authorization");
   zone = field(agent, "region") || "us";
   if (!token) throw new Error("no authorization from the agent");
+  // The China client installs these under uids of its own. s2_cn is served from s2c; anbs_cn shares anbs.
+  if (zone == "cn" && action == "install") {
+    country = "CHN";
+    region = "CN";
+    if (CHINA[uid]) {
+      product = CHINA_PRODUCT[uid] || product;
+      uid = CHINA[uid];
+    }
+  }
   if (action == "install") install(); else if (action == "update") update(); else uninstall();
 } catch (e) {
   save(".error", e.message || "the agent stopped answering");
