@@ -315,6 +315,68 @@ class GameFolderTest(Temp):
         self.assertRegex(requests[0], "^id=[0-9a-f]{16}\nkind=folder\npath=%s\n$" % script)
 
 
+class ExecTest(Temp):
+    def setUp(self):
+        super().setUp()
+        self.storage = self.tmp / "storage"
+        self.write("storage/Download/Game/start.sh", b"#!/bin/sh\n./game.x86_64\n", 0o755)
+        self.write("storage/Download/Game/game.x86_64", elf(62), 0o755)
+        self.write("storage/Download/Game/helper.bin", elf(183), 0o755)
+        self.write("storage/Download/Game/libhelper.so", elf(183))
+        self.copied = []
+        env = {k: v for k, v in os.environ.items() if k not in ("BL_DESKTOP", "BL_BINFMT", "GAMESCOPE_WAYLAND_DISPLAY")}
+        for patcher in (mock.patch.dict(OPEN, {"noexec": lambda path: True, "storage_root": lambda folder: str(self.storage),
+                                               "copied_in": lambda path: self.copied.append(path) or "/opt/droiddeck-apps/game",
+                                               "steam_title": lambda path: None, "notify": lambda *a: None,
+                                               "CACHE": str(self.tmp / "cache")}),
+                        mock.patch.dict(os.environ, env, clear=True),
+                        mock.patch.object(OPEN["os"], "chdir"),
+                        mock.patch.object(OPEN["os"], "execv", side_effect=self.execv),
+                        mock.patch.object(OPEN["subprocess"], "call", side_effect=self.call)):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.ran = []
+
+    def execv(self, program, cmd):
+        self.ran.append(cmd)
+        raise SystemExit(0)
+
+    def call(self, cmd, *args, **kwargs):
+        self.ran.append(cmd)
+        return 0
+
+    def open(self, *argv, env=None):
+        os.environ.update(env or {})
+        with contextlib.suppress(SystemExit):
+            OPEN["main"](list(argv))
+        return self.ran[-1]
+
+    def test_an_x86_program_a_running_program_starts_runs_under_fex_where_it_lies(self):
+        program = str(self.storage / "Download/Game/game.x86_64")
+        for env in ({}, {"BL_BINFMT": "1"}):
+            with self.subTest(env=env):
+                self.assertEqual(self.open("--exec", program, "-x", env=env), [OPEN["FEX"], "run", "--mode", "auto", "--", program, "-x"])
+        self.assertEqual(self.copied, [])
+
+    def test_an_in_place_hand_off_keeps_the_callers_working_folder(self):
+        program = str(self.storage / "Download/Game/game.x86_64")
+        with mock.patch("os.chdir") as chdir:
+            self.open("--exec", program, env={"BL_BINFMT": "1"})
+            chdir.assert_not_called()
+            self.open("--exec", str(self.storage / "Download/Game/helper.bin"))
+            chdir.assert_called_once()
+
+    def test_a_native_program_a_running_program_starts_still_gets_its_folder_copied_in(self):
+        program = str(self.storage / "Download/Game/helper.bin")
+        self.assertEqual(self.open("--exec", program, "-y"), [OPEN["SCRIPT_RUN"], "/opt/droiddeck-apps/game", "-y"])
+        self.assertEqual(self.copied, [program])
+
+    def test_opening_an_x86_program_from_the_desktop_still_copies_its_folder_in(self):
+        program = str(self.storage / "Download/Game/game.x86_64")
+        self.assertEqual(self.open(program, env={"BL_DESKTOP": "1"}), [OPEN["SCRIPT_RUN"], "/opt/droiddeck-apps/game"])
+        self.assertEqual(self.copied, [program])
+
+
 def appinfo(apps):
     strings = []
 
