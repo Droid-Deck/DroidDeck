@@ -179,7 +179,10 @@ class FastPathBindNamesTest(unittest.TestCase):
             ("chown", "follow", "/nope"),
             ("chown", "follow", "/etc/x/y"),
             ("chown", "follow", "/mnt/droiddeck-sd/f"),
-        ), ["ok", "ok", "ok", "E2", "E20", "ok"])
+            ("chown", "follow", "/sys/class/thermal/zone28/temp"),
+            ("chown", "nofollow", "/sys/class/thermal/zone28/temp"),
+            ("chown", "follow", "/sys/class/thermal/zone28/other"),
+        ), ["ok", "ok", "ok", "E2", "E20", "ok", "ok", "ok", "SLOW"])
 
 
 if __name__ == "__main__":
