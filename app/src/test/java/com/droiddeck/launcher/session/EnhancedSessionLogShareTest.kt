@@ -1,9 +1,22 @@
 package com.droiddeck.launcher.session
 
+import android.content.ContentProvider
+import android.content.ContentValues
+import android.content.ComponentName
 import android.content.Intent
+import android.content.IntentFilter
+import android.database.Cursor
+import android.database.MatrixCursor
+import android.net.Uri
+import android.os.CancellationSignal
+import android.os.ParcelFileDescriptor
+import android.provider.DocumentsContract
+import android.provider.DocumentsProvider
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeFalse
 import org.junit.Rule
@@ -12,9 +25,14 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.io.IOException
+import androidx.core.content.FileProvider
+import org.robolectric.shadows.ShadowContentResolver
 import java.io.RandomAccessFile
+import java.io.ByteArrayOutputStream
+import java.io.File
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.channels.SeekableByteChannel
@@ -22,6 +40,8 @@ import java.nio.file.Files
 import java.nio.file.StandardOpenOption
 import java.nio.file.attribute.PosixFilePermissions
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
 import org.junit.After
 import org.junit.Before
@@ -32,9 +52,27 @@ class EnhancedSessionLogShareTest {
     @get:Rule val tmp = TemporaryFolder()
     private val app get() = RuntimeEnvironment.getApplication()
 
-    @Before fun installSecureSourceOpener() = installJvmSecureSourceOpener()
+    private fun resetFileProviderRoots() {
+        val field = FileProvider::class.java.getDeclaredField("sCache").apply { isAccessible = true }
+        @Suppress("UNCHECKED_CAST")
+        val cache = field.get(null) as MutableMap<String, Any>
+        synchronized(cache) { cache.remove(app.packageName + ".logs") }
+    }
 
-    @After fun resetSourceOpener() = resetSecureSourceOpener()
+    @Before fun installTestFileOpeners() {
+        installJvmSecureSourceOpener()
+        // AndroidX caches FileProvider roots by authority, while Robolectric gives every test a
+        // different temporary cacheDir. Production has one stable cacheDir for the app process.
+        resetFileProviderRoots()
+        SecureLogFileProvider.setOpenerForTest(JvmSecureLogOpener(SessionLogShare.shareDir(app)))
+    }
+
+    @After fun resetTestOverrides() {
+        resetSecureSourceOpener()
+        SecureLogFileProvider.setOpenerForTest(null)
+        SessionLogShare.setSaveDestinationValidatorForTest(null)
+        resetFileProviderRoots()
+    }
 
     private class CountingChannel(
         private val delegate: SeekableByteChannel,
@@ -93,6 +131,29 @@ class EnhancedSessionLogShareTest {
                     .single { it.optString("entry") == expected.getValue(category) }
                 assertEquals("captured", record.getString("status"))
             }
+        }
+        SessionLogShare.clear(app)
+    }
+
+    @Test fun rawSnapshotsNeverAppearInTheGuestVisibleCache() {
+        val session = tmp.newFolder("2026-11-04-01-memory-snapshot")
+        session.resolve("session.log").writeText("account=test-user token=synthetic_private_value\n")
+        var inspected = false
+
+        val zips = EnhancedSessionLogShare.create(app, session, onProgress = {
+            inspected = true
+            assertFalse(app.cacheDir.walkTopDown().any { file ->
+                file.name.endsWith(".diagnostic-stage") || file.name.startsWith("diagnostic-")
+            })
+        })
+
+        assertTrue(inspected)
+        assertEquals(3, zips.size)
+        assertFalse(app.cacheDir.walkTopDown().any { it.name.endsWith(".diagnostic-stage") })
+        ZipFile(zips.single { it.name.endsWith("-session.zip") }).use { archive ->
+            val shared = archive.getInputStream(archive.getEntry("${session.name}/session.log"))
+                .bufferedReader().readText()
+            assertFalse(shared.contains("synthetic_private_value"))
         }
         SessionLogShare.clear(app)
     }
@@ -156,6 +217,418 @@ class EnhancedSessionLogShareTest {
         val header = app.contentResolver.openInputStream(uris.first())!!.use { it.readNBytes(4) }
         assertEquals("PK\u0003\u0004", String(header, Charsets.ISO_8859_1))
         SessionLogShare.clear(app)
+    }
+
+    @Test fun enhancedBundlesCanBeSavedIndividuallyOrAsOneOuterArchive() {
+        val session = tmp.newFolder("2026-11-04-04-save")
+        session.resolve("session.log").writeText("startup\n")
+        session.resolve("wayland.log").writeText("frame\n")
+        session.resolve("steam-42.log").writeText("game\n")
+        val zips = EnhancedSessionLogShare.create(app, session)
+        val sessionZip = zips.single { it.name.endsWith("-session.zip") }
+
+        val single = ByteArrayOutputStream()
+        SessionLogShare.writeEnhancedSave(app, listOf(sessionZip), single)
+        assertEquals(sessionZip.name, SessionLogShare.enhancedSaveName(app, listOf(sessionZip)))
+        assertArrayEquals(sessionZip.readBytes(), single.toByteArray())
+
+        val all = tmp.newFile("saved-all.zip")
+        all.outputStream().use { SessionLogShare.writeEnhancedSave(app, zips, it) }
+        assertEquals("DroidDeck-${session.name}-all.zip", SessionLogShare.enhancedSaveName(app, zips))
+        ZipFile(all).use { archive ->
+            assertEquals(zips.map { it.name }.toSet(), archive.entries().toList().map { it.name }.toSet())
+            for (source in zips) {
+                val nested = archive.getInputStream(archive.getEntry(source.name)).readBytes()
+                assertArrayEquals(source.readBytes(), nested)
+                java.util.zip.ZipInputStream(nested.inputStream()).use { inner ->
+                    assertTrue(generateSequence { inner.nextEntry }.any { it.name == "diagnostics-manifest.json" })
+                }
+            }
+        }
+
+        val prepared = SessionLogShare.prepareEnhancedSave(app, zips)
+        assertEquals("DroidDeck-${session.name}-all.zip", prepared.outputName)
+        val restoredState = SessionLogShare.saveState(prepared)
+        val restored = SessionLogShare.restoreSave(app, restoredState)!!
+        assertEquals(restoredState, SessionLogShare.saveState(restored))
+        val destination = tmp.newFile("saved-output.zip")
+        val provider = ExternalDocumentsProvider(destination)
+        val authority = "diagnostic-save-test"
+        provider.attachInfo(app, android.content.pm.ProviderInfo().apply {
+            this.authority = authority
+            exported = true
+            grantUriPermissions = true
+            readPermission = android.Manifest.permission.MANAGE_DOCUMENTS
+            writePermission = android.Manifest.permission.MANAGE_DOCUMENTS
+        })
+        ShadowContentResolver.registerProviderInternal(authority, provider)
+        val destinationUri = DocumentsContract.buildDocumentUri(authority, "saved-output")
+        SessionLogShare.setSaveDestinationValidatorForTest { _, uri -> uri == destinationUri }
+        SessionLogShare.saveEnhanced(app, restored, destinationUri)
+        assertArrayEquals(all.readBytes(), destination.readBytes())
+        assertEquals(listOf("wt"), provider.openModes)
+        SessionLogShare.clear(app)
+    }
+
+    @Test fun enhancedSaveRejectsFilesOutsideThePrivateShareCacheAndDuplicateBundles() {
+        val outside = tmp.newFile("DroidDeck-2026-11-04-04-save-session.zip").apply { writeText("not a zip") }
+        assertThrows(IllegalArgumentException::class.java) {
+            SessionLogShare.writeEnhancedSave(app, listOf(outside), ByteArrayOutputStream())
+        }
+
+        val session = tmp.newFolder("2026-11-04-04-save-invalid")
+        session.resolve("session.log").writeText("startup\n")
+        val zips = EnhancedSessionLogShare.create(app, session)
+        assertThrows(IllegalArgumentException::class.java) {
+            SessionLogShare.writeEnhancedSave(app, listOf(zips[0], zips[0], zips[1]), ByteArrayOutputStream())
+        }
+
+        val oversized = SessionLogShare.shareDir(app).resolve("DroidDeck-${session.name}-session.zip")
+        RandomAccessFile(oversized, "rw").use { it.setLength(513L * 1024 * 1024) }
+        assertThrows(IllegalArgumentException::class.java) {
+            SessionLogShare.prepareEnhancedSave(app, listOf(oversized))
+        }
+
+        SessionLogShare.clear(app)
+        val root = SessionLogShare.shareDir(app).apply { mkdirs() }
+        val aggregate = listOf("session", "graphics", "games").map { category ->
+            root.resolve("DroidDeck-${session.name}-$category.zip").also { file ->
+                RandomAccessFile(file, "rw").use { it.setLength(171L * 1024 * 1024) }
+            }
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            SessionLogShare.prepareEnhancedSave(app, aggregate)
+        }
+        SessionLogShare.clear(app)
+    }
+
+    @Test fun preparedEnhancedSaveRejectsDeletionReplacementGrowthAndHardLinksBeforeWritingDestination() {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"))
+        val session = tmp.newFolder("2026-11-04-04-prepared-save")
+        session.resolve("session.log").writeText("startup\n")
+        fun fresh() = EnhancedSessionLogShare.create(app, session)
+        val untouched = "destination-not-opened".toByteArray()
+        fun destination(): Pair<File, android.net.Uri> {
+            val file = SessionLogShare.shareDir(app).apply { mkdirs() }
+                .resolve("save-destination.zip").apply { writeBytes(untouched) }
+            return file to FileProvider.getUriForFile(app, app.packageName + ".logs", file)
+        }
+        SessionLogShare.setSaveDestinationValidatorForTest { _, _ -> true }
+
+        var zips = fresh()
+        var prepared = SessionLogShare.prepareEnhancedSave(app, zips)
+        Files.write(zips.first().toPath(), byteArrayOf(0), StandardOpenOption.APPEND)
+        var (output, uri) = destination()
+        assertThrows(IllegalArgumentException::class.java) {
+            SessionLogShare.saveEnhanced(app, prepared, uri)
+        }
+        assertArrayEquals(untouched, output.readBytes())
+
+        zips = fresh()
+        prepared = SessionLogShare.prepareEnhancedSave(app, zips)
+        val hardLink = zips.first().toPath().resolveSibling("hard-link.zip")
+        Files.createLink(hardLink, zips.first().toPath())
+        destination().also { (file, target) -> output = file; uri = target }
+        assertThrows(IllegalArgumentException::class.java) {
+            SessionLogShare.saveEnhanced(app, prepared, uri)
+        }
+        assertArrayEquals(untouched, output.readBytes())
+        Files.delete(hardLink)
+
+        zips = fresh()
+        prepared = SessionLogShare.prepareEnhancedSave(app, zips)
+        val replacement = zips.first().readBytes().also { it[0] = (it[0].toInt() xor 1).toByte() }
+        zips.first().writeBytes(replacement)
+        destination().also { (file, target) -> output = file; uri = target }
+        assertThrows(IllegalArgumentException::class.java) {
+            SessionLogShare.saveEnhanced(app, prepared, uri)
+        }
+        assertArrayEquals(untouched, output.readBytes())
+
+        zips = fresh()
+        prepared = SessionLogShare.prepareEnhancedSave(app, zips)
+        SessionLogShare.clear(app)
+        destination().also { (file, target) -> output = file; uri = target }
+        assertThrows(IllegalArgumentException::class.java) {
+            SessionLogShare.saveEnhanced(app, prepared, uri)
+        }
+        assertArrayEquals(untouched, output.readBytes())
+        SessionLogShare.clear(app)
+    }
+
+    @Test fun enhancedSaveRejectsSymlinkHardlinkSwapAndGrowth() {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"))
+        val session = tmp.newFolder("2026-11-04-04-save-races")
+        session.resolve("session.log").writeText("startup\n")
+        val source = EnhancedSessionLogShare.create(app, session)
+            .single { it.name.endsWith("-session.zip") }
+        val root = SessionLogShare.shareDir(app).toPath()
+        val outside = tmp.newFile("outside.zip").apply { writeText("outside") }.toPath()
+
+        val symbolic = root.resolve("DroidDeck-${session.name}-symbolic-session.zip")
+        Files.createSymbolicLink(symbolic, outside)
+        assertThrows(IllegalArgumentException::class.java) {
+            SessionLogShare.writeEnhancedSave(app, listOf(symbolic.toFile()), ByteArrayOutputStream())
+        }
+
+        val hard = root.resolve("DroidDeck-${session.name}-hard-session.zip")
+        Files.createLink(hard, source.toPath())
+        assertThrows(IllegalArgumentException::class.java) {
+            SessionLogShare.writeEnhancedSave(app, listOf(hard.toFile()), ByteArrayOutputStream())
+        }
+        Files.delete(hard)
+
+        EnhancedSessionLogShare.setSourceOpenerForTest(object : SecureSourceOpener {
+            override fun <T> withChannel(
+                root: java.nio.file.Path,
+                relative: java.nio.file.Path,
+                block: (SeekableByteChannel) -> T,
+            ): T? {
+                val target = root.resolve(relative)
+                Files.delete(target)
+                Files.createSymbolicLink(target, outside)
+                return JvmSecureSourceOpener.withChannel(root, relative, block)
+            }
+        })
+        assertThrows(IllegalArgumentException::class.java) {
+            SessionLogShare.writeEnhancedSave(app, listOf(source), ByteArrayOutputStream())
+        }
+        EnhancedSessionLogShare.setSourceOpenerForTest(JvmSecureSourceOpener)
+        Files.delete(symbolic)
+        Files.delete(source.toPath())
+        val recreated = EnhancedSessionLogShare.create(app, session)
+            .single { it.name.endsWith("-session.zip") }
+        assertEquals(source.absolutePath, recreated.absolutePath)
+
+        EnhancedSessionLogShare.setSourceOpenerForTest(object : SecureSourceOpener {
+            override fun <T> withChannel(
+                root: java.nio.file.Path,
+                relative: java.nio.file.Path,
+                block: (SeekableByteChannel) -> T,
+            ): T? = JvmSecureSourceOpener.withChannel(root, relative) { channel ->
+                var grown = false
+                block(object : SeekableByteChannel by channel {
+                    override fun read(dst: ByteBuffer): Int {
+                        val read = channel.read(dst)
+                        if (!grown && read > 0) {
+                            Files.write(root.resolve(relative), byteArrayOf(0), StandardOpenOption.APPEND)
+                            grown = true
+                        }
+                        return read
+                    }
+                })
+            }
+        })
+        assertThrows(IllegalArgumentException::class.java) {
+            SessionLogShare.writeEnhancedSave(app, listOf(source), ByteArrayOutputStream())
+        }
+        SessionLogShare.clear(app)
+    }
+
+    @Test fun sameSizeMutationDuringCopyUsesProviderTruncateFallback() {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"))
+        val session = tmp.newFolder("2026-11-04-04-copy-race")
+        session.resolve("session.log").writeText("startup\n")
+        val source = EnhancedSessionLogShare.create(app, session)
+            .single { it.name.endsWith("-session.zip") }
+        val prepared = SessionLogShare.prepareEnhancedSave(app, listOf(source))
+
+        EnhancedSessionLogShare.setSourceOpenerForTest(object : SecureSourceOpener {
+            override fun <T> withChannel(
+                root: java.nio.file.Path,
+                relative: java.nio.file.Path,
+                block: (SeekableByteChannel) -> T,
+            ): T? = JvmSecureSourceOpener.withChannel(root, relative) { channel ->
+                var rewinds = 0
+                block(object : SeekableByteChannel by channel {
+                    override fun position(newPosition: Long): SeekableByteChannel {
+                        channel.position(newPosition)
+                        if (newPosition == 0L && ++rewinds == 2) {
+                            Files.write(root.resolve(relative), byteArrayOf(0x7f), StandardOpenOption.WRITE)
+                        }
+                        return this
+                    }
+                })
+            }
+        })
+
+        val output = tmp.newFile("partial-output.zip").apply { writeText("existing") }
+        val provider = ExternalDocumentsProvider(output)
+        val destination = registerExternalDocumentsProvider("mutating-diagnostic-save-test", provider)
+
+        assertThrows(IllegalArgumentException::class.java) {
+            SessionLogShare.saveEnhanced(app, prepared, destination)
+        }
+        assertEquals(listOf("wt", "rwt"), provider.openModes)
+        assertEquals(1, provider.deleteCalls)
+        assertEquals(0L, output.length())
+        SessionLogShare.clear(app)
+    }
+
+    @Test fun saveRejectsFileOwnAppAndNonDocumentUrisWithoutOpeningThem() {
+        val session = tmp.newFolder("2026-11-04-04-destination-validation")
+        session.resolve("session.log").writeText("startup\n")
+        val source = EnhancedSessionLogShare.create(app, session)
+            .single { it.name.endsWith("-session.zip") }
+        val prepared = SessionLogShare.prepareEnhancedSave(app, listOf(source))
+        val output = tmp.newFile("destination-not-opened.zip").apply { writeText("existing") }
+        val provider = NoDeleteOutputProvider(output)
+        val authority = "ordinary-save-provider"
+        provider.attachInfo(app, android.content.pm.ProviderInfo().apply {
+            this.authority = authority
+            packageName = "example.untrusted.picker"
+        })
+        ShadowContentResolver.registerProviderInternal(authority, provider)
+        val ownFile = SessionLogShare.shareDir(app).resolve("own-destination.zip").apply { createNewFile() }
+        val destinations = listOf(
+            Uri.fromFile(output),
+            FileProvider.getUriForFile(app, app.packageName + ".logs", ownFile),
+            Uri.parse("content://${app.packageName}.documents/document/private"),
+            Uri.parse("content://$authority/not-a-document"),
+        )
+
+        for (destination in destinations) {
+            assertFalse(SessionLogShare.validSaveDestination(app, destination))
+            assertThrows(IllegalArgumentException::class.java) {
+                SessionLogShare.saveEnhanced(app, prepared, destination)
+            }
+        }
+        assertTrue(provider.openModes.isEmpty())
+        assertEquals(0, provider.deleteCalls)
+        assertEquals("existing", output.readText())
+        SessionLogShare.clear(app)
+    }
+
+    @Test fun externalDocumentProviderPassesProductionValidationAndReceivesTheBundle() {
+        val session = tmp.newFolder("2026-11-04-04-external-document")
+        session.resolve("session.log").writeText("startup\n")
+        val source = EnhancedSessionLogShare.create(app, session)
+            .single { it.name.endsWith("-session.zip") }
+        val prepared = SessionLogShare.prepareEnhancedSave(app, listOf(source))
+        val output = tmp.newFile("external-document.zip").apply { writeBytes(ByteArray(4 * 1024 * 1024) { 0x5a }) }
+        val provider = ExternalDocumentsProvider(output)
+        val authority = "external.documents"
+        val packageName = "example.external.documents"
+        val providerInfo = android.content.pm.ProviderInfo().apply {
+            this.authority = authority
+            this.packageName = packageName
+            name = ExternalDocumentsProvider::class.java.name
+            applicationInfo = android.content.pm.ApplicationInfo().apply { this.packageName = packageName }
+            exported = true
+            grantUriPermissions = true
+            readPermission = android.Manifest.permission.MANAGE_DOCUMENTS
+            writePermission = android.Manifest.permission.MANAGE_DOCUMENTS
+        }
+        provider.attachInfo(app, providerInfo)
+        ShadowContentResolver.registerProviderInternal(authority, provider)
+        val component = ComponentName(packageName, providerInfo.name)
+        shadowOf(app.packageManager).apply {
+            addOrUpdateProvider(providerInfo)
+            addIntentFilterForProvider(component, IntentFilter(DocumentsContract.PROVIDER_INTERFACE))
+        }
+        val destination = DocumentsContract.buildDocumentUri(authority, "output")
+
+        assertTrue(SessionLogShare.validSaveDestination(app, destination))
+        SessionLogShare.saveEnhanced(app, prepared, destination)
+        assertArrayEquals(source.readBytes(), output.readBytes())
+        assertEquals(listOf("wt"), provider.openModes)
+        SessionLogShare.clear(app)
+    }
+
+    @Test fun legacySaveWritesDirectlyAndCannotBeRedirectedThroughTheShareCache() {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows"))
+        val session = tmp.newFolder("2026-11-06-01-steam")
+        session.resolve("session.log").writeText("game started\n")
+        val privateValue = "private-value-that-must-not-be-saved"
+        val privateFile = tmp.newFile("private.txt").apply { writeText(privateValue) }
+        val share = SessionLogShare.shareDir(app).apply { mkdirs() }
+        val oldIntermediate = share.resolve("DroidDeck-${session.name}.zip").toPath()
+        Files.createSymbolicLink(oldIntermediate, privateFile.toPath())
+
+        val output = tmp.newFile("legacy-save.zip").apply { writeBytes(ByteArray(4 * 1024 * 1024) { 0x5a }) }
+        val provider = ExternalDocumentsProvider(output)
+        val destination = registerExternalDocumentsProvider("legacy-diagnostic-save-test", provider)
+
+        SessionLogShare.saveLegacy(app, session, destination)
+
+        assertTrue(Files.isSymbolicLink(oldIntermediate))
+        assertEquals(privateValue, privateFile.readText())
+        assertTrue(output.length() < 4 * 1024 * 1024)
+        ZipFile(output).use { archive ->
+            val saved = archive.getInputStream(archive.getEntry("${session.name}/session.log"))
+                .bufferedReader().readText()
+            assertEquals("game started\n", saved)
+            assertFalse(saved.contains(privateValue))
+        }
+        assertEquals(listOf("wt"), provider.openModes)
+        Files.delete(oldIntermediate)
+        SessionLogShare.clear(app)
+    }
+
+    @Test fun failedLegacySaveRemovesThePartialDestination() {
+        val emptySession = tmp.newFolder("2026-11-06-02-steam")
+        val output = tmp.newFile("partial-legacy-save.zip").apply { writeText("existing") }
+        val provider = ExternalDocumentsProvider(output)
+        val destination = registerExternalDocumentsProvider("failed-legacy-diagnostic-save-test", provider)
+
+        assertThrows(IllegalArgumentException::class.java) {
+            SessionLogShare.saveLegacy(app, emptySession, destination)
+        }
+
+        assertEquals(listOf("wt", "rwt"), provider.openModes)
+        assertEquals(1, provider.deleteCalls)
+        assertEquals(0L, output.length())
+    }
+
+    @Test fun failedLegacySaveUsesDocumentDeletionBeforeTruncation() {
+        val emptySession = tmp.newFolder("2026-11-06-03-steam")
+        val output = tmp.newFile("deletable-partial-legacy-save.zip").apply { writeText("existing") }
+        val provider = ExternalDocumentsProvider(output, deleteSupported = true)
+        val authority = "deletable-legacy-diagnostic-save-test"
+        val packageName = "external.deletable.documents"
+        val providerInfo = android.content.pm.ProviderInfo().apply {
+            this.authority = authority
+            this.packageName = packageName
+            name = ExternalDocumentsProvider::class.java.name
+            applicationInfo = android.content.pm.ApplicationInfo().apply { this.packageName = packageName }
+            exported = true
+            grantUriPermissions = true
+            readPermission = android.Manifest.permission.MANAGE_DOCUMENTS
+            writePermission = android.Manifest.permission.MANAGE_DOCUMENTS
+        }
+        provider.attachInfo(app, providerInfo)
+        ShadowContentResolver.registerProviderInternal(authority, provider)
+        val component = ComponentName(packageName, providerInfo.name)
+        shadowOf(app.packageManager).apply {
+            addOrUpdateProvider(providerInfo)
+            addIntentFilterForProvider(component, IntentFilter(DocumentsContract.PROVIDER_INTERFACE))
+        }
+        val destination = DocumentsContract.buildDocumentUri(authority, "output")
+
+        assertThrows(IllegalArgumentException::class.java) {
+            SessionLogShare.saveLegacy(app, emptySession, destination)
+        }
+
+        assertEquals(1, provider.deleteCalls)
+        assertFalse(output.exists())
+        assertEquals(listOf("wt"), provider.openModes)
+    }
+
+    @Test fun busyLegacySaveReportsFailureInsteadOfDroppingTheCallback() {
+        val release = CountDownLatch(1)
+        val exited = CountDownLatch(1)
+        SessionLogShare.prepare(app, folder = {
+            release.await()
+            exited.countDown()
+            null
+        }) { }
+        var saved: Boolean? = null
+        SessionLogShare.saveLegacyAsync(app, tmp.newFolder("busy-save"), Uri.EMPTY) { saved = it }
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+        assertEquals(false, saved)
+        release.countDown()
+        assertTrue(exited.await(5, TimeUnit.SECONDS))
+        shadowOf(android.os.Looper.getMainLooper()).idle()
     }
 
     @Test fun graphicsArchiveIncludesOnlyBoundedFrameTraceSummariesFromTheSessionLog() {
@@ -528,5 +1001,100 @@ class EnhancedSessionLogShareTest {
             resetSecureSourceOpener()
         }
         SessionLogShare.clear(app)
+    }
+
+    private class NoDeleteOutputProvider(private val file: File) : ContentProvider() {
+        val openModes = ArrayList<String>()
+        var deleteCalls = 0
+
+        override fun onCreate() = true
+
+        override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
+            openModes += mode
+            return ParcelFileDescriptor.open(file, ParcelFileDescriptor.parseMode(mode))
+        }
+
+        override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int {
+            deleteCalls++
+            return 0
+        }
+
+        override fun getType(uri: Uri) = "application/zip"
+        override fun query(
+            uri: Uri,
+            projection: Array<out String>?,
+            selection: String?,
+            selectionArgs: Array<out String>?,
+            sortOrder: String?,
+        ): Cursor? = null
+        override fun insert(uri: Uri, values: ContentValues?): Uri? = null
+        override fun update(
+            uri: Uri,
+            values: ContentValues?,
+            selection: String?,
+            selectionArgs: Array<out String>?,
+        ) = 0
+    }
+
+    private class ExternalDocumentsProvider(
+        private val file: File,
+        private val deleteSupported: Boolean = false,
+    ) : DocumentsProvider() {
+        val openModes = ArrayList<String>()
+        var deleteCalls = 0
+
+        override fun onCreate() = true
+
+        override fun queryRoots(projection: Array<out String>?): Cursor =
+            MatrixCursor(projection ?: arrayOf(DocumentsContract.Root.COLUMN_ROOT_ID))
+
+        override fun queryDocument(documentId: String, projection: Array<out String>?): Cursor =
+            MatrixCursor(projection ?: arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID))
+
+        override fun queryChildDocuments(
+            parentDocumentId: String,
+            projection: Array<out String>?,
+            sortOrder: String?,
+        ): Cursor = MatrixCursor(projection ?: arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID))
+
+        override fun openDocument(
+            documentId: String,
+            mode: String,
+            signal: CancellationSignal?,
+        ): ParcelFileDescriptor {
+            openModes += mode
+            return ParcelFileDescriptor.open(file, ParcelFileDescriptor.parseMode(mode))
+        }
+
+        override fun deleteDocument(documentId: String) {
+            deleteCalls++
+            if (!deleteSupported) throw UnsupportedOperationException("delete unsupported")
+            check(file.delete())
+        }
+    }
+
+    private fun registerExternalDocumentsProvider(
+        authority: String,
+        provider: ExternalDocumentsProvider,
+    ): Uri {
+        val packageName = "external.$authority"
+        val providerInfo = android.content.pm.ProviderInfo().apply {
+            this.authority = authority
+            this.packageName = packageName
+            name = ExternalDocumentsProvider::class.java.name
+            applicationInfo = android.content.pm.ApplicationInfo().apply { this.packageName = packageName }
+            exported = true
+            grantUriPermissions = true
+            readPermission = android.Manifest.permission.MANAGE_DOCUMENTS
+            writePermission = android.Manifest.permission.MANAGE_DOCUMENTS
+        }
+        provider.attachInfo(app, providerInfo)
+        ShadowContentResolver.registerProviderInternal(authority, provider)
+        val component = ComponentName(packageName, providerInfo.name)
+        shadowOf(app.packageManager).apply {
+            addOrUpdateProvider(providerInfo)
+            addIntentFilterForProvider(component, IntentFilter(DocumentsContract.PROVIDER_INTERFACE))
+        }
+        return DocumentsContract.buildDocumentUri(authority, "output")
     }
 }

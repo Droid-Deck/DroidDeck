@@ -11,27 +11,22 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
-import java.io.Closeable
+import java.io.ByteArrayInputStream
 import java.io.File
-import java.io.FileOutputStream
 import java.io.FileInputStream
 import java.io.IOException
+import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.channels.Channels
-import java.nio.channels.FileChannel
-import java.nio.channels.FileLock
-import java.nio.channels.OverlappingFileLockException
 import java.nio.channels.SeekableByteChannel
 import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.nio.file.SimpleFileVisitor
-import java.nio.file.StandardOpenOption
 import java.nio.file.attribute.BasicFileAttributes
 import java.security.MessageDigest
 import java.util.Locale
-import java.util.UUID
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -48,28 +43,6 @@ internal interface SecureSourceOpener {
 
 internal object EnhancedSessionLogShare {
     private enum class Category(val suffix: String) { SESSION("session"), GRAPHICS("graphics"), GAMES("games") }
-
-    internal class DiagnosticStageLease internal constructor(
-        val directory: File,
-        private val canonicalPath: String,
-        private val channel: FileChannel,
-        private val lock: FileLock,
-    ) : Closeable {
-        override fun close() {
-            synchronized(stageLifecycleMonitor) {
-                activeStagePaths.remove(canonicalPath)
-                try {
-                    lock.release()
-                } finally {
-                    try {
-                        channel.close()
-                    } finally {
-                        directory.deleteRecursively()
-                    }
-                }
-            }
-        }
-    }
 
     private data class Candidate(
         val file: File,
@@ -89,9 +62,7 @@ internal object EnhancedSessionLogShare {
         val reason: String? = null,
     )
 
-    private data class Snapshot(val file: File, val sourceBytes: Long, val truncated: Boolean)
-
-    private class StageUnavailableException(cause: Throwable) : IOException("Diagnostic staging directory is unavailable", cause)
+    private data class Snapshot(val bytes: ByteArray, val sourceBytes: Long, val truncated: Boolean)
 
     private class SourceReadException(cause: Throwable) : IOException("Could not read diagnostic source", cause)
 
@@ -120,74 +91,7 @@ internal object EnhancedSessionLogShare {
     private val sourceOpenerOverride = object : ThreadLocal<SecureSourceOpener?>() {
         override fun initialValue(): SecureSourceOpener? = null
     }
-    private val stageLifecycleMonitor = Any()
-    private val activeStagePaths = mutableSetOf<String>()
-
-    internal fun acquireDiagnosticStage(context: Context, outputName: String): DiagnosticStageLease {
-        val cache = context.cacheDir
-        require(outputName.isNotBlank() && File(outputName).name == outputName)
-        return withStageLifecycleLock(cache) {
-            val stage = File(cache, "$outputName-${UUID.randomUUID()}.diagnostic-stage")
-            if (!stage.mkdir()) throw IOException("Could not create the diagnostic staging directory")
-            val channel = try {
-                FileChannel.open(File(stage, ".active").toPath(), StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)
-            } catch (error: Exception) {
-                stage.deleteRecursively()
-                throw IOException("Could not create the diagnostic staging lock", error)
-            }
-            try {
-                val lock = channel.tryLock()
-                    ?: throw IOException("Could not lock the diagnostic staging directory")
-                val canonicalPath = stage.canonicalPath
-                activeStagePaths += canonicalPath
-                DiagnosticStageLease(stage, canonicalPath, channel, lock)
-            } catch (error: Exception) {
-                channel.close()
-                stage.deleteRecursively()
-                throw IOException("Could not lock the diagnostic staging directory", error)
-            }
-        }
-    }
-
-    internal fun cleanupAbandonedStages(context: Context) {
-        val cache = context.cacheDir
-        val canonicalCache = cache.canonicalFile
-        withStageLifecycleLock(cache) {
-            cache.listFiles()?.forEach { stage ->
-                if (!stage.isDirectory || Files.isSymbolicLink(stage.toPath()) ||
-                    stage.canonicalFile.parentFile != canonicalCache || !isDiagnosticStage(stage.name)) return@forEach
-                if (stage.canonicalPath in activeStagePaths) return@forEach
-                val active = File(stage, ".active")
-                if (Files.isSymbolicLink(active.toPath())) return@forEach
-                val channel = runCatching {
-                    FileChannel.open(active.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE)
-                }.getOrNull() ?: return@forEach
-                val abandoned = try {
-                    channel.tryLock()?.let { lock -> lock.release(); true } ?: false
-                } catch (_: OverlappingFileLockException) {
-                    false
-                } finally {
-                    channel.close()
-                }
-                if (abandoned) stage.deleteRecursively()
-            }
-        }
-    }
-
-    private fun isDiagnosticStage(name: String): Boolean {
-        val suffix = ".diagnostic-stage"
-        if (!name.endsWith(suffix)) return false
-        val base = name.removeSuffix(suffix)
-        val uuidStart = base.length - 36
-        if (uuidStart < 2 || base[uuidStart - 1] != '-') return false
-        return runCatching { UUID.fromString(base.substring(uuidStart)).toString() == base.substring(uuidStart) }
-            .getOrDefault(false)
-    }
-
-    private fun <T> withStageLifecycleLock(cache: File, block: () -> T): T = synchronized(stageLifecycleMonitor) {
-        FileChannel.open(File(cache, ".diagnostic-stages.lock").toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE)
-            .use { channel -> channel.lock().use { block() } }
-    }
+    internal fun cleanupAbandonedStages(context: Context) = SecureDiagnosticOutput.cleanupLegacyStages(context)
 
     internal fun setSourceOpenerForTest(opener: SecureSourceOpener?) {
         if (opener == null) sourceOpenerOverride.remove() else sourceOpenerOverride.set(opener)
@@ -205,10 +109,9 @@ internal object EnhancedSessionLogShare {
             limits.maxFilesPerArchive < 1 || limits.maxBytesPerFile < 1 || limits.maxBytesTotal < 1) {
             return emptyList()
         }
-        val out = SessionLogShare.shareDir(context).apply { deleteRecursively(); mkdirs() }
-        val stageLease = acquireDiagnosticStage(context, out.name)
-        val stage = stageLease.directory
-        return try {
+        val output = SecureDiagnosticOutput.open(context, SessionLogShare.shareDir(context)) ?: return emptyList()
+        return output.use { out ->
+            out.clear()
             val redactionLearningComplete = LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
             val discovery = collect(context, folder, limits.maxDiscoveredFiles, legacy = false)
             val candidates = discovery.candidates
@@ -222,8 +125,9 @@ internal object EnhancedSessionLogShare {
                 val budget = budgets.getValue(category)
                 val records = ArrayList<Record>()
                 val selected = candidates.filter { it.category == category }
-                val zip = File(out, "DroidDeck-${folder.name}-${category.suffix}.zip")
-                ZipOutputStream(zip.outputStream().buffered()).use { archive ->
+                val name = "DroidDeck-${folder.name}-${category.suffix}.zip"
+                out.write(name) { stream ->
+                    ZipOutputStream(stream.buffered()).use { archive ->
                     val names = HashSet<String>()
                     selected.forEachIndexed { index, candidate ->
                         val safeEntry = safeEntry(candidate.entry)
@@ -233,7 +137,7 @@ internal object EnhancedSessionLogShare {
                             )
                             safeEntry == null -> Record("<invalid>", candidate.origin, "omitted", reason = "unsafe-entry-name")
                             !names.add(safeEntry) -> Record(safeEntry, candidate.origin, "omitted", reason = "duplicate-entry")
-                            else -> addCandidate(archive, candidate.copy(entry = safeEntry), stage, budget, limits)
+                            else -> addCandidate(archive, candidate.copy(entry = safeEntry), budget, limits)
                         }
                         records += record
                         completed++
@@ -246,11 +150,9 @@ internal object EnhancedSessionLogShare {
                     addManifest(
                         archive, folder.name, category.suffix, records, limits, budget.limit, redactionLearningComplete,
                     )
+                    }
                 }
-                zip
             }
-        } finally {
-            stageLease.close()
         }
     }
 
@@ -265,21 +167,44 @@ internal object EnhancedSessionLogShare {
             limits.maxFilesPerArchive < 1 || limits.maxBytesPerFile < 1 || limits.maxBytesTotal < 1) {
             return null
         }
-        val out = outputDirectory.apply { deleteRecursively(); mkdirs() }
+        val output = SecureDiagnosticOutput.open(context, outputDirectory) ?: return null
+        return output.use { out ->
+            out.clear()
+            if (!writeLegacy(context, folder, onProgress, limits) { name, write -> out.write(name, write) }) {
+                out.deleteIfEmpty()
+                return@use null
+            }
+            File(out.file, "DroidDeck-${folder.name}.zip")
+        }
+    }
+
+    internal fun writeLegacy(
+        context: Context,
+        folder: File,
+        output: OutputStream,
+        onProgress: ((Float) -> Unit)? = null,
+        limits: EnhancedShareLimits = EnhancedShareLimits(maxFilesPerArchive = 512),
+    ): Boolean = writeLegacy(context, folder, onProgress, limits) { _, write -> write(output) }
+
+    private fun writeLegacy(
+        context: Context,
+        folder: File,
+        onProgress: ((Float) -> Unit)?,
+        limits: EnhancedShareLimits,
+        destination: (String, (OutputStream) -> Unit) -> Unit,
+    ): Boolean {
+        if (!folder.isDirectory || Files.isSymbolicLink(folder.toPath()) ||
+            limits.maxFilesPerArchive < 1 || limits.maxBytesPerFile < 1 || limits.maxBytesTotal < 1) {
+            return false
+        }
         val redactionLearningComplete = LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
         val discovery = collect(context, folder, limits.maxDiscoveredFiles, legacy = true)
         val candidates = discovery.candidates.filter { it.linePrefix == null }
-        if (candidates.isEmpty()) {
-            out.deleteRecursively()
-            return null
-        }
-        val stageLease = acquireDiagnosticStage(context, out.name)
-        val stage = stageLease.directory
+        if (candidates.isEmpty()) return false
         val records = ArrayList<Record>()
         val budget = Budget(limits.maxBytesTotal)
-        val zip = File(out, "DroidDeck-${folder.name}.zip")
-        return try {
-            ZipOutputStream(zip.outputStream().buffered()).use { archive ->
+        destination("DroidDeck-${folder.name}.zip") { stream ->
+            ZipOutputStream(stream.buffered()).use { archive ->
                 val names = HashSet<String>()
                 candidates.forEachIndexed { index, candidate ->
                     val safeEntry = safeEntry(candidate.entry)
@@ -289,7 +214,7 @@ internal object EnhancedSessionLogShare {
                         )
                         safeEntry == null -> Record("<invalid>", candidate.origin, "omitted", reason = "unsafe-entry-name")
                         !names.add(safeEntry) -> Record(safeEntry, candidate.origin, "omitted", reason = "duplicate-entry")
-                        else -> addCandidate(archive, candidate.copy(entry = safeEntry), stage, budget, limits)
+                        else -> addCandidate(archive, candidate.copy(entry = safeEntry), budget, limits)
                     }
                     onProgress?.invoke((index + 1f) / candidates.size)
                 }
@@ -298,10 +223,8 @@ internal object EnhancedSessionLogShare {
                 if (discovery.partial) records += Record("", "discovery", "truncated", reason = "filesystem-error")
                 addManifest(archive, folder.name, "all", records, limits, budget.limit, redactionLearningComplete)
             }
-            zip
-        } finally {
-            stageLease.close()
         }
+        return true
     }
 
     private fun addTrustedActivation(
@@ -321,25 +244,19 @@ internal object EnhancedSessionLogShare {
     private fun addCandidate(
         archive: ZipOutputStream,
         candidate: Candidate,
-        stage: File,
         budget: Budget,
         limits: EnhancedShareLimits,
     ): Record {
         if (budget.remaining <= 0) {
             return Record(candidate.entry, candidate.origin, "omitted", reason = "bundle-byte-limit")
         }
-        if (!stage.isDirectory || !stage.canWrite()) throw StageUnavailableException(IOException("staging path is not writable"))
         val snapshot = try {
-            snapshot(candidate, stage, minOf(limits.maxBytesPerFile, budget.remaining))
-        } catch (error: StageUnavailableException) {
-            throw error
+            snapshot(candidate, minOf(limits.maxBytesPerFile, budget.remaining))
         } catch (error: Exception) {
-            if (!stage.isDirectory || !stage.canWrite()) throw StageUnavailableException(error)
             val reportedError = (error as? SourceReadException)?.cause ?: error
             return Record(candidate.entry, candidate.origin, "error", reason = reportedError.javaClass.simpleName)
         } ?: return Record(candidate.entry, candidate.origin, "omitted", reason = "unsafe-or-unavailable-source")
-        if (snapshot.file.length() == 0L && candidate.linePrefix != null) {
-            snapshot.file.delete()
+        if (snapshot.bytes.isEmpty() && candidate.linePrefix != null) {
             return Record(
                 candidate.entry,
                 candidate.origin,
@@ -348,85 +265,63 @@ internal object EnhancedSessionLogShare {
                 reason = if (snapshot.truncated) "no-matching-lines-in-bounded-scan" else "no-matching-lines",
             )
         }
-        return try {
-            budget.remaining -= snapshot.file.length()
-            archive.putNextEntry(ZipEntry(candidate.entry))
-            val writer = archive.bufferedWriter()
-            LogRedactor.scrubForShare(snapshot.file, writer)
-            writer.flush()
-            archive.closeEntry()
-            Record(
-                candidate.entry,
-                candidate.origin,
-                if (snapshot.truncated) "truncated" else "captured",
-                snapshot.sourceBytes,
-                snapshot.file.length(),
-                if (snapshot.truncated) "per-file-or-bundle-byte-limit" else null,
-            )
-        } finally {
-            snapshot.file.delete()
-        }
+        budget.remaining -= snapshot.bytes.size
+        archive.putNextEntry(ZipEntry(candidate.entry))
+        val writer = archive.bufferedWriter()
+        LogRedactor.scrubForShare(ByteArrayInputStream(snapshot.bytes), writer)
+        writer.flush()
+        archive.closeEntry()
+        return Record(
+            candidate.entry,
+            candidate.origin,
+            if (snapshot.truncated) "truncated" else "captured",
+            snapshot.sourceBytes,
+            snapshot.bytes.size.toLong(),
+            if (snapshot.truncated) "per-file-or-bundle-byte-limit" else null,
+        )
     }
 
-    private fun snapshot(candidate: Candidate, stage: File, limit: Long): Snapshot? {
+    private fun snapshot(candidate: Candidate, limit: Long): Snapshot? {
         val rootPath = candidate.anchor.toPath().toAbsolutePath().normalize()
         val sourcePath = candidate.file.toPath().toAbsolutePath().normalize()
         if (!sourcePath.startsWith(rootPath) || sourcePath == rootPath || limit < 1) return null
-        val target = try {
-            File.createTempFile("diagnostic-", ".log", stage)
-        } catch (error: Exception) {
-            throw StageUnavailableException(error)
-        }
-        try {
-            val relative = rootPath.relativize(sourcePath)
-            return withSecureChannel(rootPath, relative) { input ->
-                val size = readSource { input.size() }
-                candidate.linePrefix?.let { prefix ->
-                    val truncated = filterChannel(input, target, prefix, size, TRACE_SCAN_BYTES, limit)
-                    return@withSecureChannel Snapshot(target, size, truncated)
-                }
-                writeStage {
-                    FileOutputStream(target).channel.use { output ->
-                        if (size <= limit) {
-                            copy(input, output, 0, size)
-                        } else {
-                            val marker = "\n<diagnostic file truncated: beginning and tail retained>\n".toByteArray()
-                            val content = (limit - marker.size).coerceAtLeast(0)
-                            copyCompleteHead(input, output, content / 2)
-                            val markerBytes = minOf(marker.size.toLong(), limit - output.position()).toInt()
-                            output.write(ByteBuffer.wrap(marker, 0, markerBytes))
-                            copyCompleteTail(input, output, size, (limit - output.position()).coerceAtLeast(0))
-                        }
-                        output.force(false)
-                    }
-                }
-                Snapshot(target, size, size > limit)
-            } ?: target.delete().let { null }
-        } catch (e: Exception) {
-            if (e is StageUnavailableException) {
-                target.delete()
-                throw e
+        val relative = rootPath.relativize(sourcePath)
+        return withSecureChannel(rootPath, relative) { input ->
+            val size = readSource { input.size() }
+            candidate.linePrefix?.let { prefix ->
+                val (bytes, truncated) = filterChannel(input, prefix, size, TRACE_SCAN_BYTES, limit)
+                return@withSecureChannel Snapshot(bytes, size, truncated)
             }
-            val targetWasPresent = target.exists()
-            target.delete()
-            if (!stage.isDirectory || !stage.canWrite() || !targetWasPresent) throw StageUnavailableException(e)
-            throw e
+            if (size <= limit) {
+                Snapshot(readRange(input, 0, size), size, false)
+            } else {
+                val marker = "\n<diagnostic file truncated: beginning and tail retained>\n".toByteArray()
+                val content = (limit - marker.size).coerceAtLeast(0)
+                val head = completeHead(readRange(input, 0, content / 2))
+                val markerBytes = minOf(marker.size.toLong(), limit - head.size).toInt()
+                val tailLimit = (limit - head.size - markerBytes).coerceAtLeast(0)
+                val tail = completeTail(input, size, tailLimit)
+                val bytes = ByteArray(head.size + markerBytes + tail.size)
+                head.copyInto(bytes)
+                marker.copyInto(bytes, head.size, 0, markerBytes)
+                tail.copyInto(bytes, head.size + markerBytes)
+                Snapshot(bytes, size, true)
+            }
         }
     }
 
     private fun filterChannel(
         channel: SeekableByteChannel,
-        target: File,
         prefix: String,
         sourceSize: Long,
         scanLimit: Long,
         outputLimit: Long,
-    ): Boolean {
+    ): Pair<ByteArray, Boolean> {
         val wanted = prefix.toByteArray()
         var written = 0L
         var truncated = sourceSize > scanLimit
-        writeStage {
-            target.outputStream().buffered().use { output ->
+        val output = ByteArrayOutputStream(outputLimit.coerceAtMost(64 * 1024L).toInt())
+        output.use {
                 fun scan(start: Long, count: Long, discardPartialFirstLine: Boolean) {
                     readSource { channel.position(start) }
                     val input = BufferedInputStream(Channels.newInputStream(channel), COPY_BUFFER_BYTES)
@@ -438,8 +333,8 @@ internal object EnhancedSessionLogShare {
                         val bytes = line.toByteArray()
                         if (!discard && !oversized && bytes.size >= wanted.size && wanted.indices.all { bytes[it] == wanted[it] }) {
                             if (written + bytes.size + 1 <= outputLimit) {
-                                output.write(bytes)
-                                output.write('\n'.code)
+                                it.write(bytes)
+                                it.write('\n'.code)
                                 written += bytes.size + 1
                             } else truncated = true
                         }
@@ -470,43 +365,48 @@ internal object EnhancedSessionLogShare {
                     scan(0, head, false)
                     scan((sourceSize - tail).coerceAtLeast(0), tail, true)
                 }
-            }
         }
-        return truncated
+        return output.toByteArray() to truncated
     }
 
-    private fun <T> withSecureChannel(root: Path, relative: Path, block: (SeekableByteChannel) -> T): T? {
+    internal fun <T> withSecureChannel(root: Path, relative: Path, block: (SeekableByteChannel) -> T): T? {
         sourceOpenerOverride.get()?.let { return it.withChannel(root, relative, block) }
         return withAndroidSecureChannel(root, relative, block)
     }
 
     private fun <T> withAndroidSecureChannel(root: Path, relative: Path, block: (SeekableByteChannel) -> T): T? {
         val opened = ArrayList<ParcelFileDescriptor>()
-        var invokingBlock = false
-        return try {
-            val parts = relative.map { it.toString() }
-            if (parts.isEmpty()) return null
-            opened += openDirectoryDescriptor(root.toString()) ?: return null
-            for (part in parts.dropLast(1)) {
-                opened += openDirectoryDescriptor(procChild(opened.last(), part)) ?: return null
-            }
-            val leafFd = openDescriptor(procChild(opened.last(), parts.last())) ?: return null
-            try {
-                val stat = Os.fstat(leafFd)
-                if (!OsConstants.S_ISREG(stat.st_mode) || stat.st_nlink != 1L) return null
-                // Android's FileInputStream(FileDescriptor) is deliberately not the descriptor owner.
-                FileInputStream(leafFd).use { stream ->
-                    invokingBlock = true
-                    block(stream.channel)
-                }
-            } finally {
-                runCatching { Os.close(leafFd) }
-            }
-        } catch (error: Exception) {
-            if (invokingBlock) throw error
-            null
-        } finally {
+        var leafFd: java.io.FileDescriptor? = null
+        fun closeDescriptors() {
+            leafFd?.let { runCatching { Os.close(it) } }
             opened.asReversed().forEach { runCatching { it.close() } }
+        }
+        val stream = try {
+            val parts = relative.map { it.toString() }
+            if (parts.isEmpty()) throw IOException("empty source path")
+            opened += openDirectoryDescriptor(root.toString()) ?: throw IOException("source root unavailable")
+            for (part in parts.dropLast(1)) {
+                opened += openDirectoryDescriptor(procChild(opened.last(), part))
+                    ?: throw IOException("source directory unavailable")
+            }
+            val fd = openDescriptor(procChild(opened.last(), parts.last()))
+                ?: throw IOException("source file unavailable")
+            leafFd = fd
+            val stat = Os.fstat(fd)
+            if (!OsConstants.S_ISREG(stat.st_mode) || stat.st_nlink != 1L) {
+                throw IOException("source file is unsafe")
+            }
+            // Android's FileInputStream(FileDescriptor) is deliberately not the descriptor owner.
+            FileInputStream(fd)
+        } catch (error: Throwable) {
+            closeDescriptors()
+            if (error is Exception) return null
+            throw error
+        }
+        return try {
+            stream.use { block(it.channel) }
+        } finally {
+            closeDescriptors()
         }
     }
 
@@ -531,79 +431,53 @@ internal object EnhancedSessionLogShare {
     private fun procChild(directory: ParcelFileDescriptor, name: String): String =
         "/proc/self/fd/${directory.fd}/$name"
 
-    private fun copy(input: SeekableByteChannel, output: FileChannel, start: Long, count: Long) {
+    private fun readRange(input: SeekableByteChannel, start: Long, count: Long): ByteArray {
+        require(count in 0..Int.MAX_VALUE.toLong())
         readSource { input.position(start) }
+        val output = ByteArray(count.toInt())
+        var offset = 0
         var left = count
-        val buffer = ByteBuffer.allocate(64 * 1024)
         while (left > 0) {
-            buffer.clear()
-            buffer.limit(minOf(buffer.capacity().toLong(), left).toInt())
+            val length = minOf(64 * 1024L, left).toInt()
+            val buffer = ByteBuffer.wrap(output, offset, length)
             val read = readSource { input.read(buffer) }
             if (read < 0) break
-            buffer.flip()
-            while (buffer.hasRemaining()) writeStage { output.write(buffer) }
+            if (read == 0) throw SourceReadException(IOException("diagnostic source read made no progress"))
+            offset += read
             left -= read
         }
+        return if (offset == output.size) output else output.copyOf(offset)
     }
 
-    private fun copyCompleteHead(input: SeekableByteChannel, output: FileChannel, limit: Long) {
-        if (limit <= 0) return
-        copy(input, output, 0, limit)
-        val copied = output.position()
-        readSource { input.position(0) }
-        val buffer = ByteBuffer.allocate(64 * 1024)
-        var scanned = 0L
-        var lastComplete = 0L
-        while (scanned < copied) {
-            buffer.clear()
-            buffer.limit(minOf(buffer.capacity().toLong(), copied - scanned).toInt())
-            val read = readSource { input.read(buffer) }
-            if (read < 0) break
-            buffer.flip()
-            repeat(read) { index ->
-                if (buffer.get(index) == '\n'.code.toByte()) lastComplete = scanned + index + 1
-            }
-            scanned += read
-        }
-        writeStage { output.truncate(lastComplete) }
-        writeStage { output.position(lastComplete) }
+    private fun completeHead(bytes: ByteArray): ByteArray {
+        val lastNewline = bytes.indexOfLast { it == '\n'.code.toByte() }
+        return if (lastNewline < 0) ByteArray(0) else bytes.copyOf(lastNewline + 1)
     }
 
-    private fun copyCompleteTail(
+    private fun completeTail(
         input: SeekableByteChannel,
-        output: FileChannel,
         sourceSize: Long,
         limit: Long,
-    ) {
-        if (limit <= 0 || sourceSize <= 0) return
+    ): ByteArray {
+        if (limit <= 0 || sourceSize <= 0) return ByteArray(0)
         var start = (sourceSize - limit).coerceAtLeast(0)
         if (start > 0) {
             readSource { input.position(start) }
             val buffered = BufferedInputStream(Channels.newInputStream(input), COPY_BUFFER_BYTES)
             while (start < sourceSize) {
                 val value = readSource { buffered.read() }
-                if (value < 0) return
+                if (value < 0) return ByteArray(0)
                 start++
                 if (value == '\n'.code) break
             }
         }
-        copy(input, output, start, (sourceSize - start).coerceAtMost(limit))
+        return readRange(input, start, (sourceSize - start).coerceAtMost(limit))
     }
 
     private inline fun <T> readSource(block: () -> T): T = try {
         block()
     } catch (error: Exception) {
         throw SourceReadException(error)
-    }
-
-    private inline fun <T> writeStage(block: () -> T): T = try {
-        block()
-    } catch (error: SourceReadException) {
-        throw error
-    } catch (error: StageUnavailableException) {
-        throw error
-    } catch (error: Exception) {
-        throw StageUnavailableException(error)
     }
 
     private fun addManifest(
