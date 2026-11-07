@@ -263,6 +263,14 @@ plus C++ and Rust).
 * **The Mali bridge source is absent** from this clone (`external/MaliBridge`
   is an empty submodule), so the guest-to-host GPU path could not be
   audited.
+* **The native window is never released back to the framework.** The
+  XComponent hands the module an `OHNativeWindow` and `SurfaceHost` keeps
+  the pointer in `window_`, but the teardown only drops that pointer:
+  nothing releases the window to the framework. The EGL surface and the
+  context are destroyed, so the graphics objects are gone, but the
+  framework's own reference is not given back. The fix belongs in
+  `SurfaceHost::Detach()`, next to the EGL teardown, and it needs a
+  device to confirm.
 * **The EGL context was made current on two threads.** `SurfaceHost::CreateEgl`
   created the context on the ArkUI thread and left it current there, while
   the compositor thread draws the guest's frames into the same window. A
@@ -389,13 +397,12 @@ upstream. What the port adds around them:
   logs through `__android_log_print`, which has no HarmonyOS counterpart.
 * `compat/android/hardware_buffer.h` — an opaque `AHardwareBuffer`, because
   the ported compositor refers to the type without the `struct` tag.
-* `compositor/sc_layer.h`, `ahb_swapchain.h`, `effects_chain.h`,
-  `framegen_bridge.h`, `cardboard.h` — the same APIs as upstream, with the
-  Android-only entry points reporting that the capability is missing. The
-  compositor already handles that state: it only takes the zero-copy path
-  when `sc_layer_available()` and `vkp_quest_layer_presentation()` are
-  true, and otherwise presents through `vkp_render`, which is the port's
-  GLES path.
+* `compositor/{sc_layer,ahb_swapchain,effects_chain,framegen_bridge,cardboard}.h`
+  — the same APIs as upstream, with the Android-only entry points
+  reporting that the capability is missing. The compositor already handles
+  that state: it only takes the zero-copy path when `sc_layer_available()`
+  and `vkp_quest_layer_presentation()` are true, and otherwise presents
+  through `vkp_render`, which is the port's GLES path.
 
 ### The wlroots-patched Wayland headers
 
@@ -407,7 +414,17 @@ wlroots' patched Wayland headers, which add a `release` request to
 The port uses upstream's patched headers (they are portable C) with a
 **musl** `libwayland-server.so` built from stock Wayland 1.22. The
 compositor's extra `release` handler is simply never dispatched, because
-the library's interface does not describe that request.
+the library's interface does not describe that request. The two layouts
+agree where it matters: `release` is the third member, and the stock
+server only ever dispatches the first two, which sit at the same offsets
+in both.
+
+This is why `tools/build_wayland_server.sh` installs the **library** but
+never the headers. The generated headers in
+`entry/src/main/cpp/thirdparty/wayland/include/` are upstream's patched
+ones, and replacing them with stock ones silently breaks the compositor
+build with *field designator 'release' does not refer to any field*. The
+script now checks the vendored header instead of overwriting it.
 
 ### The Wayland socket
 
@@ -416,33 +433,22 @@ The compositor creates its socket at `$XDG_RUNTIME_DIR/wayland-0`
 details matter:
 
 * The app sets `XDG_RUNTIME_DIR` for the compositor thread to the
-  directory the guest's `/runtime` is bound to, so both sides name the
-  same place.
+  directory the guest's runtime directory is bound to, so both sides name
+  the same place.
 * The guest's environment is rebuilt from scratch by `env -i`, so the
   variables travel as **arguments** to `env -i` rather than being
-  inherited — `WAYLAND_DISPLAY=wayland-0` and `XDG_RUNTIME_DIR=/runtime`
-  are passed that way, exactly as upstream's `RootSpawner` does. Passing
-  them through the process environment instead would silently wipe them
-  and the guest would never find the socket.
+  inherited — `WAYLAND_DISPLAY=wayland-0` and
+  `XDG_RUNTIME_DIR=/run/droiddeck` are passed that way, exactly as
+  upstream's `RootSpawner` does. Passing them through the process
+  environment instead would clear them, and the guest would never find
+  the socket.
 
-The wiring is pinned by `TestProotPassesTheGuestEnvironment` in
-`entry/src/main/cpp/tests/runtime_test.cpp`.
-
-### The Wayland socket
-
-The compositor creates its socket at `$XDG_RUNTIME_DIR/wayland-0`
-(`compositor.c:3914`), and the guest has to be told where that is. Two
-details matter:
-
-* The app sets `XDG_RUNTIME_DIR` for the compositor thread to the
-  directory the guest's `/runtime` is bound to, so both sides name the
-  same place.
-* The guest's environment is rebuilt from scratch by `env -i`, so the
-  variables travel as **arguments** to `env -i` rather than being
-  inherited — `WAYLAND_DISPLAY=wayland-0` and `XDG_RUNTIME_DIR=/runtime`
-  are passed that way, exactly as upstream's `RootSpawner` does. Passing
-  them through the process environment instead would silently wipe them
-  and the guest would never find the socket.
+The guest path is `/run/droiddeck`, not `/runtime`. That is upstream's
+`LinuxRuntime.GUEST_RUNTIME_DIR`, and the guest's own programs look for
+the compositor's socket there; a port that picked a different path would
+have the compositor and the guest disagree about where the socket is.
+The host directory is bound into the guest twice, at its own path and at
+`/run/droiddeck`, so either name resolves.
 
 The wiring is pinned by `TestProotPassesTheGuestEnvironment` in
 `entry/src/main/cpp/tests/runtime_test.cpp`.
@@ -491,7 +497,7 @@ guest will see. In `RuntimeMode::Direct` there is no path rewriting at
 all, so absolute paths inside the guest are not remapped — which is one
 of the limits of that mode.
 
-### The presentation layer is done
+### The presentation layer
 
 `render/vk_present.h` keeps upstream's API **exactly**, declaration for
 declaration, so the ported `compositor.c` and `wl_dmabuf.c` compile against
@@ -519,112 +525,6 @@ The module exports the C symbols upstream's compositor links against
 (`vkp_render`, `vkp_image_create_shm`, `vkp_image_upload_shm`,
 `vkp_ready`, `vkp_output_size`, ...), so the ported compositor needs no
 source changes on this side.
-
-What is left is the compositor itself: copy the protocol layer, replace
-the AOSP files listed above, and turn the JNI entry points into Node-API.
-* Connect the compositor to the XComponent surface, replacing the
-  AHardwareBuffer path with a blit into `SurfaceHost::PublishFrame()`.
-* Rebuild the Wayland output layer on `VK_KHR_ohos_surface`.
-* Rebuild the PulseAudio chain against musl and replace the AAudio sink
-  with the ArkTS `audio.AudioRenderer` (already wired up in
-  `entry/src/main/ets/service/AudioService.ets`). See
-  **The audio chain** below for what that actually means — the direction
-  has to be chosen first, and it is not the one the port's current code
-  assumes.
-* Rebuild the Rust store engines as a `napi` module.
-
-### The compositor seam
-
-Upstream's compositor is `app/src/main/cpp/waylandcomp` — 15,739 lines of C
-across `src/` plus 14 generated protocol files. The protocol layer is
-OS-agnostic; the rendering layer is not, and it is woven into the core
-rather than sitting behind a clean seam. `src/compositor.c` includes
-`sc_layer.h`, `ahb_swapchain.h`, `vk_present.h`, `framegen_bridge.h`,
-`effects_chain.h` and `cardboard.h` directly.
-
-That gives the port its shape — replace these, keep the rest:
-
-| Upstream file | Role on Android | What HarmonyOS needs | Ported |
-|---|---|---|---|
-| `ahb_swapchain.c` | AHardwareBuffer swap chain | Not available: AHardwareBuffer is an AOSP type | `compositor/ohos_modules.c` |
-| `sc_layer.c` | SurfaceControl layers, zero-copy | **Delete.** `libandroid.so` has no OHOS counterpart | `compositor/ohos_modules.c` |
-| `wl_android_buffer.c` | `wl_buffer` over AHardwareBuffer | **Not ported** — the guest uses shared memory instead | not ported |
-| `vk_present.c` | `VK_KHR_android_surface` | `VK_KHR_ohos_surface`, or an EGL blit | **done** — `render/vk_present.cpp` |
-| `effects_chain.c`, `cardboard.c`, `framegen_*` | Post-processing | Optional; drop for the first working session | `compositor/ohos_modules.c` |
-| `waylandcomp_jni.c` | JNI entry points | Node-API, matching the rest of this port | **done** — `compositor/compositor_ohos.c` |
-| `wl_clipboard.c`, `wl_color_mgmt.c`, `wl_dmabuf.c`, `wl_single_pixel.c`, `wl_text_input.c`, `wl_toplevel_icon.c`, `droiddeck_ext.c` | Protocol plumbing | Carry over unchanged | **ported as-is** |
-
-The protocol layer and `compositor.c` are compiled **unchanged** from
-upstream. What the port adds around them:
-
-* `compat/android/log.h` — AOSP's liblog on top of hilog. The compositor
-  logs through `__android_log_print`, which has no HarmonyOS counterpart.
-* `compat/android/hardware_buffer.h` — an opaque `AHardwareBuffer`, because
-  the ported compositor refers to the type without the `struct` tag.
-* `compositor/{sc_layer,ahb_swapchain,effects_chain,framegen_bridge,cardboard}.h`
-  — the same APIs as upstream, with the Android-only entry points
-  reporting that the capability is missing. The compositor already handles
-  that state: it only takes the zero-copy path when `sc_layer_available()`
-  and `vkp_quest_layer_presentation()` are true, and otherwise presents
-  through `vkp_render`, which is the port's GLES path.
-
-### The wlroots-patched Wayland headers
-
-Upstream links a **bionic** `libwayland-server.so` built against
-wlroots' patched Wayland headers, which add a `release` request to
-`wl_data_device_manager`. Stock Wayland has no such request, so
-`wl_clipboard.c` does not compile against it.
-
-The port uses upstream's patched headers (they are portable C) with a
-**musl** `libwayland-server.so` built from stock Wayland. The
-compositor's extra `release` handler is simply never dispatched, because
-the library's interface does not describe that request. The two layouts
-agree where it matters: `release` is the third member, and the stock
-server only ever dispatches the first two, which sit at the same offsets
-in both.
-
-This is why `tools/build_wayland_server.sh` installs the **library** but
-never the headers. The generated headers in
-`entry/src/main/cpp/thirdparty/wayland/include/` are upstream's patched
-ones, and replacing them with stock ones silently breaks the compositor
-build with *field designator 'release' does not refer to any field*. The
-script now checks the vendored header instead of overwriting it.
-
-### The presentation layer
-
-Upstream keeps guest frames in Vulkan images and presents them with
-`VK_KHR_android_surface`. HarmonyOS guarantees EGL and GLES but not
-Vulkan, so the port keeps the API and swaps the implementation:
-`render/vkp_image.h` holds the frames in **GLES textures** created in the
-same EGL context as the XComponent's window, and `render/vk_present.cpp`
-presents them by drawing into that window.
-
-### The Wayland socket
-
-The compositor creates its socket at `$XDG_RUNTIME_DIR/wayland-0`
-(`compositor.c:3914`), and the guest has to be told where that is. Two
-details matter:
-
-* The app sets `XDG_RUNTIME_DIR` for the compositor thread to the
-  directory the guest's runtime directory is bound to, so both sides name
-  the same place.
-* The guest's environment is rebuilt from scratch by `env -i`, so the
-  variables travel as **arguments** to `env -i` rather than being
-  inherited — `WAYLAND_DISPLAY=wayland-0` and
-  `XDG_RUNTIME_DIR=/run/droiddeck` are passed that way, exactly as
-  upstream's `RootSpawner` does. Passing them through the process
-  environment instead would clear them, and the guest would never find
-  the socket.
-
-The guest path is `/run/droiddeck`, not `/runtime`. That is upstream's
-`LinuxRuntime.GUEST_RUNTIME_DIR`, and the guest's own programs look for
-the compositor's socket there; a port that picked a different path would
-have the compositor and the guest disagree about where the socket is.
-The host directory is bound into the guest twice, at its own path and at
-`/run/droiddeck`, so either name resolves.
-
-The wiring is pinned by `TestProotPassesTheGuestEnvironment` in
-`entry/src/main/cpp/tests/runtime_test.cpp`.
 
 ### The overlay: an upstream step the port has to add
 
@@ -701,81 +601,6 @@ The guest's offline apt cache (`/var/lib/droiddeck/apt/`, with the kwin and
 mesa packages) is therefore unusable here, which is worth knowing: it
 means the desktop stays out of reach until the app can install packages
 itself.
-
-### The compositor seam
-
-Upstream's compositor is `app/src/main/cpp/waylandcomp` — 15,739 lines of C
-across `src/` plus 14 generated protocol files. The protocol layer is
-OS-agnostic; the rendering layer is not, and it is woven into the core
-rather than sitting behind a clean seam. `src/compositor.c` includes
-`sc_layer.h`, `ahb_swapchain.h`, `vk_present.h`, `framegen_bridge.h`,
-`effects_chain.h` and `cardboard.h` directly.
-
-That gives the port its shape — replace these, keep the rest:
-
-| Upstream file | Role on Android | What HarmonyOS needs | Ported |
-|---|---|---|---|
-| `ahb_swapchain.c` | AHardwareBuffer swap chain | Not available: AHardwareBuffer is an AOSP type | `compositor/ohos_modules.c` |
-| `sc_layer.c` | SurfaceControl layers, zero-copy | **Delete.** `libandroid.so` has no OHOS counterpart | `compositor/ohos_modules.c` |
-| `wl_android_buffer.c` | `wl_buffer` over AHardwareBuffer | **Not ported** — the guest uses shared memory instead | not ported |
-| `vk_present.c` | `VK_KHR_android_surface` | `VK_KHR_ohos_surface`, or an EGL blit | **done** — `render/vk_present.cpp` |
-| `effects_chain.c`, `cardboard.c`, `framegen_*` | Post-processing | Optional; drop for the first working session | `compositor/ohos_modules.c` |
-| `waylandcomp_jni.c` | JNI entry points | Node-API, matching the rest of this port | **done** — `compositor/compositor_ohos.c` |
-| `wl_clipboard.c`, `wl_color_mgmt.c`, `wl_dmabuf.c`, `wl_single_pixel.c`, `wl_text_input.c`, `wl_toplevel_icon.c`, `droiddeck_ext.c` | Protocol plumbing | Carry over unchanged | **ported as-is** |
-
-The protocol layer and `compositor.c` are compiled **unchanged** from
-upstream. What the port adds around them:
-
-* `compat/android/log.h` — AOSP's liblog on top of hilog. The compositor
-  logs through `__android_log_print`, which has no HarmonyOS counterpart.
-* `compat/android/hardware_buffer.h` — an opaque `AHardwareBuffer`, because
-  the ported compositor refers to the type without the `struct` tag.
-* `compositor/{sc_layer,ahb_swapchain,effects_chain,framegen_bridge,cardboard}.h`
-  — the same APIs as upstream, with the Android-only entry points
-  reporting that the capability is missing. The compositor already handles
-  that state: it only takes the zero-copy path when `sc_layer_available()`
-  and `vkp_quest_layer_presentation()` are true, and otherwise presents
-  through `vkp_render`, which is the port's GLES path.
-
-### The wlroots-patched Wayland headers
-
-Upstream links a **bionic** `libwayland-server.so` built against
-wlroots' patched Wayland headers, which add a `release` request to
-`wl_data_device_manager`. Stock Wayland has no such request, so
-`wl_clipboard.c` does not compile against it.
-
-The port uses upstream's patched headers (they are portable C) with a
-**musl** `libwayland-server.so` built from stock Wayland. The
-compositor's extra `release` handler is simply never dispatched, because
-the library's interface does not describe that request.
-
-### The presentation layer
-
-Upstream keeps guest frames in Vulkan images and presents them with
-`VK_KHR_android_surface`. HarmonyOS guarantees EGL and GLES but not
-Vulkan, so the port keeps the API and swaps the implementation:
-`render/vkp_image.h` holds the frames in **GLES textures** created in the
-same EGL context as the XComponent's window, and `render/vk_present.cpp`
-presents them by drawing into that window.
-
-### The Wayland socket
-
-The compositor creates its socket at `$XDG_RUNTIME_DIR/wayland-0`
-(`compositor.c:3914`), and the guest has to be told where that is. Two
-details matter:
-
-* The app sets `XDG_RUNTIME_DIR` for the compositor thread to the
-  directory the guest's `/runtime` is bound to, so both sides name the
-  same place.
-* The guest's environment is rebuilt from scratch by `env -i`, so the
-  variables travel as **arguments** to `env -i` rather than being
-  inherited — `WAYLAND_DISPLAY=wayland-0` and `XDG_RUNTIME_DIR=/runtime`
-  are passed that way, exactly as upstream's `RootSpawner` does. Passing
-  them through the process environment instead would clear them, and the
-  guest would never find the socket.
-
-The wiring is pinned by `TestProotPassesTheGuestEnvironment` in
-`entry/src/main/cpp/tests/runtime_test.cpp`.
 
 **Phase 3 — the input and the rest of the surface**
 
