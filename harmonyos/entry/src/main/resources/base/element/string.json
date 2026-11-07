@@ -82,6 +82,7 @@
     { "name": "gpu_mali_other", "value": "Mali through the phone's own driver (Venus)" },
     { "name": "gpu_unknown", "value": "Unknown GPU" },
     { "name": "gpu_gpu_name", "value": "GPU" },
+    { "name": "gpu_gles_version", "value": "OpenGL ES" },
     { "name": "gpu_support", "value": "Upstream support" },
 
     { "name": "controller_title", "value": "Button mapping" },

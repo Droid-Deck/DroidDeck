@@ -74,11 +74,15 @@ GpuIdentity DetectGpu() {
   if (eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, context)) {
     const char *renderer = reinterpret_cast<const char *>(glGetString(GL_RENDERER));
     const char *vendor = reinterpret_cast<const char *>(glGetString(GL_VENDOR));
+    const char *version = reinterpret_cast<const char *>(glGetString(GL_VERSION));
     if (renderer != nullptr) {
       identity.name = renderer;
     }
     if (vendor != nullptr) {
       identity.vendor = vendor;
+    }
+    if (version != nullptr) {
+      identity.version = version;
     }
   }
 
@@ -94,6 +98,7 @@ GpuIdentity DetectGpu() {
 
   DDK_LOGI("gpu renderer=%{public}s vendor=%{public}s model=%{public}d",
            identity.name.c_str(), identity.vendor.c_str(), identity.model);
+  DDK_LOGI("gles version=%{public}s", identity.version.c_str());
   return identity;
 }
 

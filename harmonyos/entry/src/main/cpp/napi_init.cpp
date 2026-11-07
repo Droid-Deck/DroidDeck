@@ -125,6 +125,7 @@ napi_value GetDeviceInfo(napi_env env, napi_callback_info info) {
   SetString(env, result, "gpuName", gpu.name);
   SetString(env, result, "gpuVendor", gpu.vendor);
   SetNumber(env, result, "gpuModel", gpu.model);
+  SetString(env, result, "glesVersion", gpu.version);
   SetString(env, result, "abi", ddk::DetectAbi());
   SetNumber(env, result, "cpuCores", ddk::DetectCpuCores());
   SetNumber(env, result, "ramMiB", ddk::DetectRamMiB());

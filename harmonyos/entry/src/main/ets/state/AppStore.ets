@@ -109,6 +109,7 @@ export class AppStore {
     device.gpuName = native.gpuName;
     device.gpuVendor = native.gpuVendor;
     device.gpuModel = native.gpuModel;
+    device.glesVersion = native.glesVersion;
     device.gpuFamily = GpuClassifier.classify(native.gpuName);
     device.vulkanBridge = native.vulkanBridge;
     device.deviceBrand = deviceInfo.brand;

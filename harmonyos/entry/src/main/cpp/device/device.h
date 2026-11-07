@@ -16,6 +16,12 @@ struct GpuIdentity {
   std::string name;
   std::string vendor;
   int model = 0;
+  /**
+   * The OpenGL ES version the phone's driver reports, e.g.
+   * "OpenGL ES 3.2 V@0.0.0". The port needs 3.0 for the compositor, so this
+   * is the fact that decides whether the phone can run it.
+   */
+  std::string version;
 };
 
 GpuIdentity DetectGpu();

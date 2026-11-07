@@ -38,6 +38,8 @@ export class DeviceInfo {
   gpuSupport: GpuSupport = GpuSupport.UNSUPPORTED;
   /** Numeric model used to pick between driver builds. */
   gpuModel: number = 0;
+  /** The OpenGL ES version the phone's driver reports, e.g. "OpenGL ES 3.2". */
+  glesVersion: string = '';
   /** True when the GPU is reached through the phone's own Vulkan driver. */
   vulkanBridge: boolean = false;
 

@@ -27,6 +27,19 @@ set -uo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+# The only argument is the path to hdc, for the case where it is neither on
+# the PATH nor in the SDK that OHOS_SDK_HOME points at.
+hdc_override=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) sed -n '2,25p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -*) die "unknown argument: $1" ;;
+    *) hdc_override="$1"; shift ;;
+  esac
+done
+
 # --- find hdc -------------------------------------------------------------
 
 find_hdc() {
@@ -42,7 +55,7 @@ find_hdc() {
   return 1
 }
 
-hdc="$(find_hdc "${1:-}")" || {
+hdc="$(find_hdc "${hdc_override}")" || {
   cat >&2 <<'EOT'
 error: hdc was not found.
 
@@ -53,7 +66,6 @@ SDK or pass the path to hdc:
 EOT
   exit 1
 }
-
 echo "==> hdc: ${hdc}"
 
 # --- the device ------------------------------------------------------------

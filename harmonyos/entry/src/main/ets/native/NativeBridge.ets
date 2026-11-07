@@ -8,6 +8,11 @@ export interface NativeDeviceInfo {
   gpuName: string;
   gpuVendor: string;
   gpuModel: number;
+  /**
+   * The OpenGL ES version the phone's driver reports. The compositor needs
+   * 3.0, so this is the fact that decides whether the phone can run it.
+   */
+  glesVersion: string;
   deviceBrand: string;
   deviceModel: string;
   osRelease: string;

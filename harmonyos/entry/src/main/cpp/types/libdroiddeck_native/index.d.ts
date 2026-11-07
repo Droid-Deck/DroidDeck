@@ -20,6 +20,11 @@ export interface NativeDeviceInfo {
   gpuVendor: string;
   /** The vendor's model number, 0 when it is unknown. */
   gpuModel: number;
+  /**
+   * The OpenGL ES version the phone's driver reports, e.g.
+   * "OpenGL ES 3.2 V@0.0.0". The compositor needs 3.0.
+   */
+  glesVersion: string;
   /** The device brand, filled in by ArkTS. */
   deviceBrand: string;
   /** The device model, filled in by ArkTS. */

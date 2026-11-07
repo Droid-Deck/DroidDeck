@@ -88,6 +88,8 @@ export struct SettingsPage {
         this.section($r('app.string.settings_gpu'))
         this.row($r('app.string.settings_gpu_driver'), this.store.gpuDriverLabel());
         this.row($r('app.string.gpu_gpu_name'), this.store.device.gpuName.length > 0 ? this.store.device.gpuName : 'unknown');
+        this.row($r('app.string.gpu_gles_version'),
+          this.store.device.glesVersion.length > 0 ? this.store.device.glesVersion : 'unknown');
         this.row($r('app.string.gpu_support'), this.store.device.gpuSupport.toString());
 
         this.section($r('app.string.settings_runtime'))

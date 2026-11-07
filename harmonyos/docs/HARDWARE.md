@@ -82,13 +82,16 @@ tools/check_device_capabilities.sh
 The script reads the phone over `hdc` and reports the architecture, the
 cores, the memory, the free storage, and whether the app could get an EGL
 context. It needs the phone connected over USB with developer mode and USB
-debugging enabled.
+debugging enabled. `tools/test_check_device_capabilities.sh` checks the
+script itself against a stand-in for `hdc`, so it can be run without a
+phone.
 
 Two more sources of truth on the phone itself:
 
 * **The app's own report.** Open the app and look at *Settings > GPU*: the
   renderer string is read from a real ES 3 context, so a name there means
-  the phone's GPU gave the app one.
+  the phone's GPU gave the app one, and the OpenGL ES version it reports is
+  the version the driver offers.
 * **The log.** The native module logs what it finds:
 
   ```bash
@@ -96,7 +99,8 @@ Two more sources of truth on the phone itself:
   ```
 
   A line like `gpu renderer=Mali-G78 vendor=ARM model=78` is the port
-  telling you what it measured on the device.
+  telling you what it measured on the device, and
+  `gles version=OpenGL ES 3.2 V@0.0.0` says which ES level it got.
 
 ## What is still unproven
 

@@ -63,6 +63,7 @@ harmonyos/
     ├── check_native_deps.sh      checks the shipped libraries can be loaded
     ├── check_device_capabilities.sh  checks a connected phone against the
     │                                 hardware requirements
+    ├── test_check_device_capabilities.sh  tests that probe without a phone
     ├── fetch_upstream_runtime.sh downloads the published runtime
     ├── install_cxx_runtime.sh    installs libc++_shared.so into the HAP
     ├── package_port.sh           packs the port into a zip
