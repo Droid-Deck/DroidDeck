@@ -173,7 +173,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         WaylandCompositor.nativeSetScaleMode(SCALE_FIT, alignment)
     }
-    private var unfoldedPanel: com.droiddeck.launcher.ui.InputSurfaceView? = null
+    private var unfoldedPanel by mutableStateOf<com.droiddeck.launcher.ui.InputSurfaceView?>(null)
     private lateinit var sessionRoot: FrameLayout
     private var inputRouter: InputRouter? = null
     private var physicalInputBindings: com.droiddeck.launcher.input.PhysicalInputBindings? = null
@@ -1407,7 +1407,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             unfoldedControls = unfoldedControls,
             onUnfoldedControls = ::chooseUnfoldedControls,
             adaptiveSticks = adaptiveSticks.takeIf {
-                oscMode != SessionPrefs.OSC_NEVER && oscMode != SessionPrefs.OSC_STEAM_QAM &&
+                unfoldedPanel != null || oscMode != SessionPrefs.OSC_NEVER && oscMode != SessionPrefs.OSC_STEAM_QAM &&
                     !(oscMode == SessionPrefs.OSC_STEAM_TOUCH && SessionState.mode == SessionService.MODE_STEAM)
             },
             onAdaptiveSticks = { on ->
