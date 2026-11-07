@@ -77,6 +77,7 @@ class CiChecksTest(unittest.TestCase):
             update, install = log.read_text().splitlines()
             for command in (update, install):
                 self.assertIn('Dir::Etc::sourceparts=-', command)
+                self.assertIn(f'Dir::Etc::sourcelist={sources}', command)
                 self.assertIn('Acquire::https::Timeout=15', command)
                 self.assertIn('Acquire::Retries=1', command)
             self.assertIn('APT::Update::Error-Mode=any', update)

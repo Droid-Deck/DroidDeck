@@ -14,7 +14,7 @@ options=()
 # Runners without the deb822 Ubuntu sources file keep their own apt configuration.
 ubuntu_sources=${UBUNTU_SOURCES_FILE:-/etc/apt/sources.list.d/ubuntu.sources}
 if [ -f "$ubuntu_sources" ]; then
-  options+=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+  options+=(-o "Dir::Etc::sourcelist=$ubuntu_sources" -o Dir::Etc::sourceparts=-)
 fi
 options+=(
   -o Acquire::Retries=1
