@@ -358,6 +358,14 @@ class ExecTest(Temp):
                 self.assertEqual(self.open("--exec", program, "-x", env=env), [OPEN["FEX"], "run", "--mode", "auto", "--", program, "-x"])
         self.assertEqual(self.copied, [])
 
+    def test_an_in_place_hand_off_keeps_the_callers_working_folder(self):
+        program = str(self.storage / "Download/Game/game.x86_64")
+        with mock.patch("os.chdir") as chdir:
+            self.open("--exec", program, env={"BL_BINFMT": "1"})
+            chdir.assert_not_called()
+            self.open("--exec", str(self.storage / "Download/Game/helper.bin"))
+            chdir.assert_called_once()
+
     def test_a_native_program_a_running_program_starts_still_gets_its_folder_copied_in(self):
         program = str(self.storage / "Download/Game/helper.bin")
         self.assertEqual(self.open("--exec", program, "-y"), [OPEN["SCRIPT_RUN"], "/opt/droiddeck-apps/game", "-y"])

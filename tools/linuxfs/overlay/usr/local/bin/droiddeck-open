@@ -381,10 +381,11 @@ def main(argv):
     cmd = placed(cmd, what, mode, os.environ)
     if mode != "exec" or not sys.stderr.isatty():
         say("%s (%s): %s" % (path, what, " ".join(cmd[:4])))
-    try:
-        os.chdir(folder)
-    except OSError:
-        pass
+    if not (mode == "exec" and what in ("elf", "script", "x86 script")):
+        try:
+            os.chdir(folder)
+        except OSError:
+            pass
     if mode == "exec":
         os.execv(cmd[0], cmd)
     started = time.monotonic()
