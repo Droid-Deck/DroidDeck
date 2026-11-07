@@ -235,7 +235,7 @@ class InputSurfaceView(
         return x >= left - slack && x < left + view.width + slack && y >= top - slack && y < top + view.height + slack
     }
 
-    private fun slack(view: View) = min(view.width, view.height) / 2f * HIT_SLACK
+    private fun slack(view: View) = if ((view as? HoldButton)?.gamepad == true) min(view.width, view.height) / 2f * HIT_SLACK else 0f
 
     private fun distance(view: View, x: Float, y: Float): Float {
         val cx = originX(view) + ((view as? StickView)?.centreX() ?: (view.width / 2f))
@@ -323,6 +323,7 @@ class InputSurfaceView(
         private var down = false
         private val pointers = HashSet<Int>()
         val round get() = element.buttonShape == InputButtonShape.CIRCLE
+        val gamepad get() = round || element.buttonShape == InputButtonShape.PILL
         private val symbol = InputButtonIcons.drawable(context, element.icon)
         private val bitmap = element.image.takeIf { it.matches(Regex("[A-Za-z0-9_.-]{1,128}")) && it != "." && it != ".." }?.let { name ->
             val file = File(File(context.filesDir, "screenkeys"), name)

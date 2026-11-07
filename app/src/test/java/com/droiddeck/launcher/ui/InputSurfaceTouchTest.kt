@@ -52,7 +52,7 @@ class InputSurfaceTouchTest {
     @After fun close() { view.releaseAll(); bridge.stop() }
 
     private fun show(vararg elements: InputSurfaceElement) {
-        view.updateLayout(SavedInputLayout("touch", "Touch", elements.toList()))
+        view.updateLayout(SavedInputLayout("touch", "Touch", elements.toList(), aspect = 1000f / 600f))
         measure(view)
     }
 
@@ -131,8 +131,10 @@ class InputSurfaceTouchTest {
         touch(MotionEvent.ACTION_UP, 1 to (450f to 510f))
         view.setButtonsOnly(true)
         measure(view)
-        touch(MotionEvent.ACTION_DOWN, 1 to (450f to 510f))
-        touch(MotionEvent.ACTION_UP, 1 to (450f to 510f))
+        val (x, y) = centre(element(view, "builtin:keyboard"))
+        assertFalse(view.takesTouchAt(800f, 240f))
+        touch(MotionEvent.ACTION_DOWN, 1 to (x to y))
+        touch(MotionEvent.ACTION_UP, 1 to (x to y))
         assertEquals(listOf("KEYBOARD:PRIMARY", "KEYBOARD:PRIMARY"), events)
     }
 
@@ -173,13 +175,16 @@ class InputSurfaceTouchTest {
 
     @Test fun buttonsAcceptTouchesJustOutsideTheirEdge() {
         show(InputSurfaceElement(InputControl.A, .7f, .3f, .1f, 1f / 6f, buttonShape = InputButtonShape.CIRCLE),
-            InputSurfaceElement(InputControl.B, .3f, .3f, .2f, .1f))
+            InputSurfaceElement(InputControl.B, .3f, .3f, .2f, .1f, buttonShape = InputButtonShape.PILL),
+            InputSurfaceElement(InputControl.X, .3f, .6f, .2f, .1f))
         assertTrue(view.takesTouchAt(750f, 285f))
         assertTrue(view.takesTouchAt(805f, 230f))
         assertFalse(view.takesTouchAt(750f, 300f))
         assertFalse(view.takesTouchAt(805f, 285f))
         assertTrue(view.takesTouchAt(400f, 245f))
         assertFalse(view.takesTouchAt(400f, 255f))
+        assertFalse(view.takesTouchAt(400f, 359f))
+        assertTrue(view.takesTouchAt(400f, 361f))
         touch(MotionEvent.ACTION_DOWN, 1 to (750f to 285f))
         assertTrue(state().isDown(PadState.A))
         touch(MotionEvent.ACTION_UP, 1 to (750f to 285f))
@@ -206,6 +211,14 @@ class InputSurfaceTouchTest {
         assertFalse(view.takesTouchAt(815f, 300f))
     }
 
+    private fun element(root: View, id: String): View = descendants(root).first { (it.tag as? InputSurfaceElement)?.id == id }
+    private fun centre(target: View): Pair<Float, Float> {
+        var x = target.width / 2f
+        var y = target.height / 2f
+        var at: View = target
+        while (at !== view) { x += at.left; y += at.top; at = at.parent as View }
+        return x to y
+    }
     private fun button(root: View): View = descendants(root).first { it.javaClass.simpleName == "HoldButton" }
     private fun descendants(root: View): Sequence<View> = sequence {
         yield(root)
