@@ -75,6 +75,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -110,10 +111,13 @@ import androidx.compose.ui.zIndex
 import com.droiddeck.launcher.HomeApp
 import com.droiddeck.launcher.HomeFolders
 import com.droiddeck.launcher.HomeHidden
+import com.droiddeck.launcher.HomeIcons
 import com.droiddeck.launcher.HomePins
+import com.droiddeck.launcher.IconPack
 import android.content.pm.ShortcutInfo
 import android.graphics.Bitmap
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.withContext
 import com.droiddeck.launcher.HomeWidgets
 import com.droiddeck.launcher.R
@@ -281,7 +285,7 @@ internal interface AppEntryKey {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (HomeApp.LaunchableApp) -> Unit) {
+internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier, onLaunch: (HomeApp.LaunchableApp) -> Unit) {
     val ctx = LocalContext.current
     remember { HomeFolders.load(ctx); HomeWidgets.load(ctx); HomeHidden.load(ctx); AppsView.load(ctx); AppsGrid.load(ctx); true }
     val colors = MaterialTheme.colorScheme
@@ -291,6 +295,10 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
     var openFolder by rememberSaveable { mutableStateOf<String?>(null) }
     var renameOnOpen by rememberSaveable { mutableStateOf(false) }
     var picking by rememberSaveable { mutableStateOf(false) }
+    var iconFor by remember { mutableStateOf<HomeApp.LaunchableApp?>(null) }
+    LaunchedEffect(Unit) {
+        snapshotFlow { HomeIcons.overrides }.drop(1).collect { a.onAppIconsChanged() }
+    }
     val folders = HomeFolders.folders
     val byKey = remember(s.androidApps) { s.androidApps.associateBy { it.key } }
     val byPkg = remember(s.androidApps) { s.androidApps.filterNot { it.work }.groupBy { it.packageName }.mapNotNull { (pkg, apps) -> apps.singleOrNull()?.let { pkg to it } }.toMap() }
@@ -336,7 +344,7 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                 ModeHeader(
                     stringResource(R.string.content_android_apps), query, { query = it },
                     placeholder = stringResource(R.string.apps_search_hint),
-                    clearSearchFocus = openFolder != null || picking,
+                    clearSearchFocus = openFolder != null || picking || iconFor != null,
                     lead = {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(start = 2.dp, end = 4.dp)) {
                             Text(stringResource(R.string.content_android_apps), fontSize = if (narrow) 20.sp else 24.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
@@ -347,7 +355,7 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                 ) {
                     AppsFilterButton()
                     AppsSortButton()
-                    AppsAppearanceButton()
+                    AppsAppearanceButton(a)
                     HeaderIconButton(stringResource(R.string.apps_add_widget), Icons.Filled.Widgets, "add-widget") {
                         HomeWidgets.loadProviders(ctx)
                         picking = true
@@ -388,7 +396,7 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                     items(entries, key = { it.key }) { entry ->
                         when (entry) {
                             is AppEntry.App -> AppTile(
-                                entry.app, folderId = null, onLaunch = onLaunch, onNewFolder = newFolder,
+                                entry.app, folderId = null, onLaunch = onLaunch, onNewFolder = newFolder, onChangeIcon = { iconFor = it },
                                 first = entry === entries.first(),
                             )
                             is AppEntry.Shortcut -> PinnedTile(entry.pinned, first = entry === entries.first())
@@ -412,7 +420,7 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
             var last by remember { mutableStateOf(folder) }
             if (folder != null) last = folder
             last?.let { f ->
-                FolderSheet(f, f.apps.mapNotNull(member).filter { it.key !in hidden }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label }), renameOnOpen, onLaunch, newFolder) {
+                FolderSheet(f, f.apps.mapNotNull(member).filter { it.key !in hidden }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label }), renameOnOpen, onLaunch, newFolder, { iconFor = it }) {
                     openFolder = null
                     renameOnOpen = false
                 }
@@ -422,11 +430,19 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
             picking, enter = fadeIn(Motion.tw(180)), exit = fadeOut(Motion.tw(160)),
             modifier = Modifier.fillMaxSize().zIndex(3f),
         ) { WidgetPicker(padH) { picking = false } }
+        AnimatedVisibility(
+            iconFor != null, enter = fadeIn(Motion.tw(180)), exit = fadeOut(Motion.tw(160)),
+            modifier = Modifier.fillMaxSize().zIndex(4f),
+        ) {
+            var last by remember { mutableStateOf(iconFor) }
+            iconFor?.let { last = it }
+            last?.let { app -> AppIconPicker(app, padH) { iconFor = null } }
+        }
     }
 }
 
 @Composable
-private fun SwipeLock() {
+internal fun SwipeLock() {
     DisposableEffect(Unit) {
         PageSwipe.locks++
         onDispose { PageSwipe.locks-- }
@@ -613,7 +629,7 @@ private fun AppIcon(app: HomeApp.LaunchableApp, size: androidx.compose.ui.unit.D
 private fun AppTile(
     app: HomeApp.LaunchableApp, folderId: String?, first: Boolean,
     onLaunch: (HomeApp.LaunchableApp) -> Unit, onNewFolder: (HomeApp.LaunchableApp) -> Unit,
-    modifier: Modifier = Modifier,
+    onChangeIcon: (HomeApp.LaunchableApp) -> Unit, modifier: Modifier = Modifier,
 ) {
     var menu by remember { mutableStateOf(false) }
     Box(modifier) {
@@ -621,14 +637,14 @@ private fun AppTile(
             AppIcon(app, AppsGrid.iconDp.dp)
             if (AppsGrid.labels) TileLabel(app.label)
         }
-        AppMenu(app, folderId, menu, onDismiss = { menu = false }, onNewFolder = onNewFolder)
+        AppMenu(app, folderId, menu, onDismiss = { menu = false }, onNewFolder = onNewFolder, onChangeIcon = onChangeIcon)
     }
 }
 
 @Composable
 private fun AppMenu(
     app: HomeApp.LaunchableApp, folderId: String?, open: Boolean,
-    onDismiss: () -> Unit, onNewFolder: (HomeApp.LaunchableApp) -> Unit,
+    onDismiss: () -> Unit, onNewFolder: (HomeApp.LaunchableApp) -> Unit, onChangeIcon: (HomeApp.LaunchableApp) -> Unit,
 ) {
     val ctx = LocalContext.current
     var choosing by remember { mutableStateOf(false) }
@@ -680,6 +696,14 @@ private fun AppMenu(
                 focusRequester = if (isHidden && shortcuts.isEmpty()) first else null) {
                 onDismiss()
                 HomeHidden.set(ctx, app.key, !isHidden)
+            }
+            if (IconPack.active(ctx) != null) MenuItem(stringResource(R.string.apps_change_icon), checked = false) {
+                onDismiss()
+                onChangeIcon(app)
+            }
+            if (app.key in HomeIcons.overrides) MenuItem(stringResource(R.string.apps_reset_icon), checked = false) {
+                onDismiss()
+                HomeIcons.clear(ctx, app.key)
             }
             MenuItem(stringResource(R.string.apps_app_info), checked = false) {
                 onDismiss()
@@ -765,7 +789,8 @@ private fun FolderTile(entry: AppEntry.Folder, first: Boolean, onOpen: () -> Uni
 @Composable
 private fun FolderSheet(
     folder: HomeFolders.Folder, apps: List<HomeApp.LaunchableApp>, renameFirst: Boolean,
-    onLaunch: (HomeApp.LaunchableApp) -> Unit, onNewFolder: (HomeApp.LaunchableApp) -> Unit, onClose: () -> Unit,
+    onLaunch: (HomeApp.LaunchableApp) -> Unit, onNewFolder: (HomeApp.LaunchableApp) -> Unit,
+    onChangeIcon: (HomeApp.LaunchableApp) -> Unit, onClose: () -> Unit,
 ) {
     SwipeLock()
     val ctx = LocalContext.current
@@ -844,7 +869,7 @@ private fun FolderSheet(
                 ) {
                     items(apps, key = { it.key }) { app ->
                         AppTile(
-                            app, folderId = folder.id, first = false, onLaunch = { onClose(); onLaunch(it) }, onNewFolder = onNewFolder,
+                            app, folderId = folder.id, first = false, onLaunch = { onClose(); onLaunch(it) }, onNewFolder = onNewFolder, onChangeIcon = onChangeIcon,
                             modifier = if (app === apps.first()) Modifier.focusRequester(firstApp) else Modifier,
                         )
                     }
