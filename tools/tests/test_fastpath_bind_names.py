@@ -43,6 +43,24 @@ int main(int argc, char **argv) {
       if (detranslated(text, argv[i + 1]) == FP_SLOW) strcpy(text, "SLOW");
       i += 2;
       puts(text);
+    } else if (!strcmp(argv[i], "read")) {
+      long fd = fp_open(AT_FDCWD, argv[++i], O_RDONLY, 0);
+      if (fd == FP_SLOW) puts("SLOW");
+      else if (fd < 0) printf("E%ld\n", -fd);
+      else {
+        char data[64] = "";
+        ssize_t n = read((int)fd, data, sizeof data - 1);
+        close((int)fd);
+        data[n > 0 ? n : 0] = 0;
+        puts(data);
+      }
+    } else if (!strcmp(argv[i], "chown")) {
+      int flags = !strcmp(argv[i + 1], "nofollow") ? AT_SYMLINK_NOFOLLOW : 0;
+      long r = fp_chown(AT_FDCWD, argv[i + 2], getuid(), getgid(), flags);
+      i += 2;
+      if (r == FP_SLOW) puts("SLOW");
+      else if (r < 0) printf("E%ld\n", -r);
+      else puts("ok");
     } else if (!strcmp(argv[i], "lstat")) {
       struct stat st;
       long r = fstatat(AT_FDCWD, argv[++i], &st, AT_SYMLINK_NOFOLLOW);
@@ -65,13 +83,18 @@ class FastPathBindNamesTest(unittest.TestCase):
         cls.program = cls.work / "names"
         subprocess.run(["gcc", "-O1", "-w", "-pthread", "-o", str(cls.program), str(source), "-ldl"], check=True)
         t = cls.work / "tree"
-        for d in ["root/etc", "root/mnt", "root/opt", "root/d/real", "lib/common/game", "fonts", "a", "b"]:
+        for d in ["root/etc", "root/mnt", "root/opt", "root/d/real", "lib/common/game", "fonts", "a", "b",
+                  "root/sys/class/thermal", "root/sys/devices/zone28", "bound"]:
             (t / d).mkdir(parents=True, exist_ok=True)
         for f in ["root/etc/x", "lib/f", "lib/common/game/f", "fonts/f", "a/f", "b/f"]:
             (t / f).touch()
         os.symlink(t / "lib/f", t / "lib/l2")
         os.symlink(t / "lib/common", t / "lib/l")
         os.symlink("real", t / "root/d/link")
+        os.symlink("../../devices/zone28", t / "root/sys/class/thermal/zone28")
+        (t / "root/sys/devices/zone28/temp").write_text("real")
+        (t / "bound/temp").write_text("bound")
+        (t / "root/sys/devices/zone28/other").write_text("other")
         cls.tree = t
         cls.binds = [
             (t / "lib", "/mnt/droiddeck-sd"),
@@ -82,6 +105,7 @@ class FastPathBindNamesTest(unittest.TestCase):
             (t / "a", "/opt/g"),
             (t / "b", "/opt/g"),
             (t / "fonts", "/mnt/x"),
+            (t / "bound/temp", "/sys/class/thermal/zone28/temp"),
         ]
 
     @classmethod
@@ -133,6 +157,27 @@ class FastPathBindNamesTest(unittest.TestCase):
             ("lstat", "/d/link/./"),
             ("lstat", "/d/link/"),
         ), ["link", "dir", "dir", "dir"])
+
+    def test_a_bound_file_under_a_link_is_found_by_its_spelled_name(self):
+        self.assertEqual(self.ask(
+            ("read", "/sys/class/thermal/zone28/temp"),
+            ("read", "//sys/class/thermal/./zone28//temp"),
+            ("read", "/sys/class/thermal/zone28/other"),
+            ("read", "/sys/class/thermal/zone28/temp/"),
+            ("read", "/sys/class/thermal/zone28/../zone28/temp"),
+            ("read", "/sys/class/thermal/zone28/missing"),
+        ), ["bound", "bound", "SLOW", "SLOW", "SLOW", "SLOW"])
+
+    def test_chown_answers_like_the_kernel(self):
+        t = self.tree
+        self.assertEqual(self.ask(
+            ("chown", "follow", "/etc/x"),
+            ("chown", "follow", "/d/link"),
+            ("chown", "nofollow", "/d/link"),
+            ("chown", "follow", "/nope"),
+            ("chown", "follow", "/etc/x/y"),
+            ("chown", "follow", "/mnt/droiddeck-sd/f"),
+        ), ["ok", "ok", "ok", "E2", "E20", "ok"])
 
 
 if __name__ == "__main__":
