@@ -12,7 +12,8 @@ if [ "${#missing[@]}" = 0 ]; then
 fi
 options=()
 # Runners without the deb822 Ubuntu sources file keep their own apt configuration.
-if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+ubuntu_sources=${UBUNTU_SOURCES_FILE:-/etc/apt/sources.list.d/ubuntu.sources}
+if [ -f "$ubuntu_sources" ]; then
   options+=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
 fi
 options+=(
@@ -31,14 +32,14 @@ if install_packages; then
   exit 0
 fi
 echo "::warning::Runner mirror failed or timed out; retrying with the official Ubuntu mirror."
-[ -f /etc/apt/sources.list.d/ubuntu.sources ] || exit 1
+[ -f "$ubuntu_sources" ] || exit 1
 sources=$(mktemp --suffix=.sources)
 trap 'rm -f "$sources"' EXIT
 mirror=https://archive.ubuntu.com/ubuntu
 case "$(dpkg --print-architecture)" in
   arm64) mirror=https://ports.ubuntu.com/ubuntu-ports ;;
 esac
-sed -E "s@^URIs:.*@URIs: $mirror@" /etc/apt/sources.list.d/ubuntu.sources > "$sources"
+sed -E "s@^URIs:.*@URIs: $mirror@" "$ubuntu_sources" > "$sources"
 chmod 644 "$sources"
 options[1]="Dir::Etc::sourcelist=$sources"
 install_packages
