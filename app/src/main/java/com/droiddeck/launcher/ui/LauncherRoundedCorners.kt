@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalView
+import kotlin.math.sqrt
 
 internal data class FullscreenSafeInsets(
     val left: Int = 0,
@@ -45,22 +46,41 @@ internal fun roundedCornerSafeInsets(
         if (corner.radius <= 0) return@forEach
         val horizontallyVisible = corner.centerX + corner.radius > 0 && corner.centerX - corner.radius < width
         val verticallyVisible = corner.centerY + corner.radius > 0 && corner.centerY - corner.radius < height
+        if (!horizontallyVisible || !verticallyVisible) return@forEach
+        val cornerQuadrantIntersectsWindow = when (corner.position) {
+            FullscreenCorner.TOP_LEFT -> corner.centerX > 0 && corner.centerY > 0
+            FullscreenCorner.TOP_RIGHT -> corner.centerX < width && corner.centerY > 0
+            FullscreenCorner.BOTTOM_RIGHT -> corner.centerX < width && corner.centerY < height
+            FullscreenCorner.BOTTOM_LEFT -> corner.centerX > 0 && corner.centerY < height
+        }
+        if (!cornerQuadrantIntersectsWindow) return@forEach
+        // A rectangular viewport only has to clear the 45-degree point of the rounded arc.
+        // Reserving the full radius on both axes turns a local corner into a full-edge band.
+        val diagonalOffset = (corner.radius / sqrt(2.0)).toInt()
         when (corner.position) {
             FullscreenCorner.TOP_LEFT -> result = result.maxWith(FullscreenSafeInsets(
-                left = if (horizontallyVisible && verticallyVisible && corner.centerX - corner.radius <= 0) corner.radius else 0,
-                top = if (horizontallyVisible && verticallyVisible && corner.centerY - corner.radius <= 0) corner.radius else 0,
+                left = if (corner.centerX - corner.radius <= 0)
+                    (corner.centerX - diagonalOffset).coerceIn(0, width) else 0,
+                top = if (corner.centerY - corner.radius <= 0)
+                    (corner.centerY - diagonalOffset).coerceIn(0, height) else 0,
             ))
             FullscreenCorner.TOP_RIGHT -> result = result.maxWith(FullscreenSafeInsets(
-                top = if (horizontallyVisible && verticallyVisible && corner.centerY - corner.radius <= 0) corner.radius else 0,
-                right = if (horizontallyVisible && verticallyVisible && corner.centerX + corner.radius >= width) corner.radius else 0,
+                top = if (corner.centerY - corner.radius <= 0)
+                    (corner.centerY - diagonalOffset).coerceIn(0, height) else 0,
+                right = if (corner.centerX + corner.radius >= width)
+                    (width - corner.centerX - diagonalOffset).coerceIn(0, width) else 0,
             ))
             FullscreenCorner.BOTTOM_RIGHT -> result = result.maxWith(FullscreenSafeInsets(
-                right = if (horizontallyVisible && verticallyVisible && corner.centerX + corner.radius >= width) corner.radius else 0,
-                bottom = if (horizontallyVisible && verticallyVisible && corner.centerY + corner.radius >= height) corner.radius else 0,
+                right = if (corner.centerX + corner.radius >= width)
+                    (width - corner.centerX - diagonalOffset).coerceIn(0, width) else 0,
+                bottom = if (corner.centerY + corner.radius >= height)
+                    (height - corner.centerY - diagonalOffset).coerceIn(0, height) else 0,
             ))
             FullscreenCorner.BOTTOM_LEFT -> result = result.maxWith(FullscreenSafeInsets(
-                left = if (horizontallyVisible && verticallyVisible && corner.centerX - corner.radius <= 0) corner.radius else 0,
-                bottom = if (horizontallyVisible && verticallyVisible && corner.centerY + corner.radius >= height) corner.radius else 0,
+                left = if (corner.centerX - corner.radius <= 0)
+                    (corner.centerX - diagonalOffset).coerceIn(0, width) else 0,
+                bottom = if (corner.centerY + corner.radius >= height)
+                    (height - corner.centerY - diagonalOffset).coerceIn(0, height) else 0,
             ))
         }
     }
@@ -144,26 +164,29 @@ private fun fullscreenSafeInsets(
 ): FullscreenSafeInsets {
     if (!enabled) return FullscreenSafeInsets()
     val insets = windowInsets ?: return FullscreenSafeInsets()
-    val cutout = if (Build.VERSION.SDK_INT >= 28) insets.displayCutout else null
-    val cutoutInsets = FullscreenSafeInsets(
-        left = cutout?.safeInsetLeft ?: 0,
-        top = cutout?.safeInsetTop ?: 0,
-        right = cutout?.safeInsetRight ?: 0,
-        bottom = cutout?.safeInsetBottom ?: 0,
-    )
-    if (Build.VERSION.SDK_INT < 31) return cutoutInsets
+    if (Build.VERSION.SDK_INT < 31) return FullscreenSafeInsets()
+    val location = IntArray(2)
+    view.getLocationInWindow(location)
     val corners = listOfNotNull(
-        insets.getRoundedCorner(RoundedCorner.POSITION_TOP_LEFT)?.toFullscreenCorner(FullscreenCorner.TOP_LEFT),
-        insets.getRoundedCorner(RoundedCorner.POSITION_TOP_RIGHT)?.toFullscreenCorner(FullscreenCorner.TOP_RIGHT),
-        insets.getRoundedCorner(RoundedCorner.POSITION_BOTTOM_RIGHT)?.toFullscreenCorner(FullscreenCorner.BOTTOM_RIGHT),
-        insets.getRoundedCorner(RoundedCorner.POSITION_BOTTOM_LEFT)?.toFullscreenCorner(FullscreenCorner.BOTTOM_LEFT),
+        insets.getRoundedCorner(RoundedCorner.POSITION_TOP_LEFT)
+            ?.toFullscreenCorner(FullscreenCorner.TOP_LEFT, location[0], location[1]),
+        insets.getRoundedCorner(RoundedCorner.POSITION_TOP_RIGHT)
+            ?.toFullscreenCorner(FullscreenCorner.TOP_RIGHT, location[0], location[1]),
+        insets.getRoundedCorner(RoundedCorner.POSITION_BOTTOM_RIGHT)
+            ?.toFullscreenCorner(FullscreenCorner.BOTTOM_RIGHT, location[0], location[1]),
+        insets.getRoundedCorner(RoundedCorner.POSITION_BOTTOM_LEFT)
+            ?.toFullscreenCorner(FullscreenCorner.BOTTOM_LEFT, location[0], location[1]),
     )
-    return cutoutInsets.maxWith(roundedCornerSafeInsets(view.width, view.height, corners))
+    return roundedCornerSafeInsets(view.width, view.height, corners)
 }
 
-private fun RoundedCorner.toFullscreenCorner(position: FullscreenCorner) = FullscreenRoundedCorner(
+private fun RoundedCorner.toFullscreenCorner(
+    position: FullscreenCorner,
+    windowOffsetX: Int,
+    windowOffsetY: Int,
+) = FullscreenRoundedCorner(
     position = position,
     radius = radius,
-    centerX = center.x,
-    centerY = center.y,
+    centerX = center.x - windowOffsetX,
+    centerY = center.y - windowOffsetY,
 )
