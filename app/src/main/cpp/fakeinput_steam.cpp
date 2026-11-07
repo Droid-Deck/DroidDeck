@@ -36,6 +36,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/eventfd.h>
+#include <sys/file.h>
 #include <sys/inotify.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -194,6 +195,7 @@ static constexpr size_t kSnapshotButtonCount =
 
 namespace Logger {
 void init();
+void log(const char *message, ...);
 }
 
 static void controller_fork_prepare();
@@ -274,6 +276,68 @@ static const char *fake_udev_data_dir() { return config().udev_data_dir; }
 static bool fake_vibration_enabled() { return config().vibration_enabled; }
 static bool fake_xbox360_identity() { return config().xbox360_identity; }
 static bool fake_uinput_enabled() { return config().uinput_enabled; }
+
+static bool process_is_steam_client();
+
+// Steam and its Remote Play client write the same shared slots; the caller's mutex serialises its own threads.
+// Without the lock Steam stays the only writer, as before streaming_client could open these devices. The wait
+// is bounded because a session freeze can stop the holder, and callers wait with controller_mutex held.
+class ProcessSlotLock {
+public:
+  ProcessSlotLock(int &fd, const char *name, int timeout_ms) : fd_(fd) {
+    int saved_errno = errno;
+    if (fd_ < 0) {
+      std::string path = std::string(fake_hook_dir()) + "/." + name + ".lock";
+      fd_ = fd = static_cast<int>(syscall(SYS_openat, AT_FDCWD, path.c_str(), O_CREAT | O_RDWR | O_CLOEXEC, 0600));
+    }
+    int error = fd_ < 0 ? errno : 0;
+    if (fd_ >= 0) {
+      struct timespec start, now, pause = {0, 1000 * 1000};
+      clock_gettime(CLOCK_MONOTONIC, &start);
+      for (;;) {
+        if (flock(fd_, LOCK_EX | LOCK_NB) == 0) {
+          locked_ = true;
+          break;
+        }
+        if (errno == EINTR) continue;
+        if (errno != EWOULDBLOCK) {
+          error = errno;
+          break;
+        }
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        if ((now.tv_sec - start.tv_sec) * 1000 + (now.tv_nsec - start.tv_nsec) / 1000000 >= timeout_ms) {
+          busy_ = true;
+          break;
+        }
+        nanosleep(&pause, nullptr);
+      }
+    }
+    if (busy_) {
+      static std::atomic<unsigned> waits;
+      unsigned n = ++waits;
+      if ((n & (n - 1)) == 0) Logger::log("lock: %s still held after %d ms, skipped (x%u)\n", name, timeout_ms, n);
+    } else if (!locked_) {
+      static std::atomic<bool> noted{false};
+      if (!noted.exchange(true))
+        Logger::log("lock: %s not taken (%s)%s\n", name, strerror(error),
+                    process_is_steam_client() ? "" : "; this process leaves the shared slots alone");
+    }
+    errno = saved_errno;
+  }
+  ~ProcessSlotLock() {
+    int saved_errno = errno;
+    if (locked_) flock(fd_, LOCK_UN);
+    errno = saved_errno;
+  }
+  bool may_write() const { return locked_ || (!busy_ && process_is_steam_client()); }
+  ProcessSlotLock(const ProcessSlotLock &) = delete;
+  ProcessSlotLock &operator=(const ProcessSlotLock &) = delete;
+
+private:
+  int fd_;
+  bool locked_ = false;
+  bool busy_ = false;
+};
 
 static bool ring_paths_loaded = false;
 static int next_ff_id = 0;
@@ -1174,10 +1238,13 @@ struct DeckImu {
   uint32_t controls;
   uint32_t pad_type;
   uint32_t latency;
+  uint32_t remote_imu_mode;
+  uint32_t remote_imu_pid;
 };
 static_assert(offsetof(DeckImu, pad_type) == FAKE_INPUT_RING_PAD_TYPE_OFFSET,
                 "DeckImu::pad_type matches FakeInputWriter and the ring reader");
 static_assert(offsetof(DeckImu, latency) == 48, "DeckImu::latency matches FakeInputWriter");
+static_assert(offsetof(DeckImu, remote_imu_mode) == 52, "DeckImu::remote_imu_mode matches FakeInputWriter");
 static constexpr uint32_t LATENCY_CONTROLLER = 1, LATENCY_TOUCH = 2;
 static constexpr int LOW_LATENCY_REPORT_INTERVAL_US = 1000;
 static constexpr uint32_t DECK_EXTRA_L4 = 1, DECK_EXTRA_R4 = 2, DECK_EXTRA_L5 = 4,
@@ -1384,6 +1451,25 @@ __attribute__((visibility("hidden"))) static bool process_is_steam_client() {
   return known == 1;
 }
 
+// Steam's Remote Play client reads the controller itself, in its own streaming_client process.
+__attribute__((visibility("hidden"))) static bool process_reads_pads() {
+  static int known;
+  if (known == 0) {
+    bool reader = process_is_steam_client();
+    if (!reader) {
+      char exe[PATH_MAX];
+      ssize_t length = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
+      if (length > 0) {
+        exe[length] = '\0';
+        const char *name = strrchr(exe, '/');
+        reader = !strcmp(name ? name + 1 : exe, "streaming_client");
+      }
+    }
+    known = reader ? 1 : -1;
+  }
+  return known == 1;
+}
+
 __attribute__((constructor)) static void log_client_start() {
   config();
   if (process_is_steam_client())
@@ -1428,7 +1514,7 @@ __attribute__((visibility("hidden"))) static bool is_withdrawn_pad_path(const ch
     free(fake);
     return !exposed;
   }
-  return number == 0 || !process_is_steam_client();
+  return number == 0 || !process_reads_pads();
 }
 
 static bool fake_pad_withdrawn(const FakeController &fake) {
@@ -1643,7 +1729,7 @@ __attribute__((visibility("hidden"))) static void *sony_report_thread(void *arg)
 __attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags, uint8_t sony = 0) {
   const char *path = sony == 4 ? DS4_HIDRAW_PATH : sony == 5 ? DUALSENSE_HIDRAW_PATH : DECK_HIDRAW_PATH;
   static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
-  if (!process_is_steam_client()) {
+  if (!process_reads_pads()) {
     Logger::log("deck: %s refused: not the Steam client\n", path);
     errno = ENOENT;
     return -1;
@@ -1852,7 +1938,7 @@ __attribute__((visibility("hidden"))) static void *triton_pad_thread(void *arg) 
 
 __attribute__((visibility("hidden"))) static int open_triton_hidraw(int flags, bool emulated) {
   static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
-  if (!process_is_steam_client()) {
+  if (!process_reads_pads()) {
     errno = ENOENT;
     return -1;
   }
@@ -1993,15 +2079,19 @@ __attribute__((visibility("hidden"))) static bool touch_plugged() {
 }
 
 __attribute__((visibility("hidden"))) static bool is_touch_hidraw_path(const char *pathname) {
-  return pathname && !strcmp(pathname, TOUCH_HIDRAW_PATH) && process_is_steam_client() && touch_ring();
+  return pathname && !strcmp(pathname, TOUCH_HIDRAW_PATH) && process_reads_pads() && touch_ring();
 }
+
+static std::mutex touch_state_mutex;
+static int touch_state_lock_fd = -1;
 
 template <typename F>
 __attribute__((visibility("hidden"))) static void touch_state(F &&write) {
   TouchRingFile *ring = touch_ring();
   if (!ring) return;
-  static std::mutex mutex;
-  std::lock_guard<std::mutex> guard(mutex);
+  std::lock_guard<std::mutex> guard(touch_state_mutex);
+  ProcessSlotLock slot(touch_state_lock_fd, "touch-state", 20);
+  if (!slot.may_write()) return;
   __atomic_fetch_add(&ring->state_seq, 1, __ATOMIC_ACQ_REL);
   write(*ring);
   __atomic_fetch_add(&ring->state_seq, 1, __ATOMIC_ACQ_REL);
@@ -2253,9 +2343,10 @@ __attribute__((visibility("hidden"))) static void *pad_type_thread(void *) {
     struct timespec settle = {0, 300 * 1000 * 1000};
     nanosleep(&settle, nullptr);
     int added = pad_type_uevent(now, "add");
-    if (was != PAD_TYPE_XBOX) poke_hidraw_watchers(pad_type_minor(was));
-    if (now != PAD_TYPE_XBOX) poke_hidraw_watchers(pad_type_minor(now));
-    if (was == PAD_TYPE_XBOX || now == PAD_TYPE_XBOX) {
+    bool shared = process_is_steam_client();
+    if (shared && was != PAD_TYPE_XBOX) poke_hidraw_watchers(pad_type_minor(was));
+    if (shared && now != PAD_TYPE_XBOX) poke_hidraw_watchers(pad_type_minor(now));
+    if (shared && (was == PAD_TYPE_XBOX || now == PAD_TYPE_XBOX)) {
       std::string node = std::string(fake_hook_dir()) + "/event0";
       std::string aside = std::string(fake_hook_dir()) + "/.event0-switching";
       if (rename(node.c_str(), aside.c_str()) == 0) {
@@ -2274,7 +2365,7 @@ __attribute__((visibility("hidden"))) static void *pad_type_thread(void *) {
 
 __attribute__((constructor)) static void start_pad_type_watch() {
   config();
-  if (!process_is_steam_client() || !fake_deck_enabled()) return;
+  if (!process_reads_pads() || !fake_deck_enabled()) return;
   pthread_t thread;
   if (pthread_create(&thread, nullptr, pad_type_thread, nullptr) == 0) pthread_detach(thread);
 }
@@ -2295,7 +2386,7 @@ __attribute__((visibility("hidden"))) static void *touch_plug_thread(void *) {
 
 __attribute__((constructor)) static void start_touch_controller() {
   config();
-  if (!process_is_steam_client() || !touch_ring()) return;
+  if (!process_reads_pads() || !touch_ring()) return;
   pthread_t thread;
   if (pthread_create(&thread, nullptr, touch_plug_thread, nullptr) == 0) pthread_detach(thread);
 }
@@ -2394,8 +2485,13 @@ __attribute__((visibility("hidden"))) static void publish_imu_mode(const DeckHid
   std::string path = get_ring_path_for_slot(0);
   int fd = path.empty() ? -1 : my_open(path.c_str(), O_WRONLY | O_CLOEXEC);
   if (fd < 0) return;
-  uint32_t value = 0x80000000u | static_cast<uint32_t>(mode);
-  if (pwrite(fd, &value, sizeof(value), FAKE_INPUT_RING_SIZE + offsetof(DeckImu, imu_mode)) != sizeof(value))
+  // Steam and its Remote Play client each keep their own word, so one turning motion off does not starve the
+  // other; Android reads motion while either wants it. The pid lets it ignore a Remote Play client that has gone.
+  uint32_t value[2] = {0x80000000u | static_cast<uint32_t>(mode), static_cast<uint32_t>(getpid())};
+  bool steam = process_is_steam_client();
+  size_t length = steam ? sizeof(value[0]) : sizeof(value);
+  off_t offset = FAKE_INPUT_RING_SIZE + (steam ? offsetof(DeckImu, imu_mode) : offsetof(DeckImu, remote_imu_mode));
+  if (pwrite(fd, value, length, offset) != static_cast<ssize_t>(length))
     Logger::log("deck: imu mode not published (%s)\n", strerror(errno));
   syscall(SYS_close, fd);
 }
@@ -2600,7 +2696,10 @@ __attribute__((visibility("hidden"))) static void triton_queue_output(DeckHidraw
   auto *shared = reinterpret_cast<TritonSharedData *>(reinterpret_cast<uint8_t *>(triton.ring) + TRITON_SHARED_OFFSET);
   if (__atomic_load_n(&shared->magic, __ATOMIC_ACQUIRE) != TRITON_SHARED_MAGIC) return;
   static std::mutex one_at_a_time;
+  static int lock_fd = -1;
   std::lock_guard<std::mutex> guard(one_at_a_time);
+  ProcessSlotLock slot(lock_fd, "triton-output", TRITON_OUTPUT_TIMEOUT_MS * 2);
+  if (!slot.may_write()) return;
   for (int waited = 0;
        static_cast<uint32_t>(__atomic_load_n(&shared->output_seq, __ATOMIC_ACQUIRE)) !=
            __atomic_load_n(&shared->output_ack, __ATOMIC_ACQUIRE) &&
@@ -2632,7 +2731,13 @@ __attribute__((visibility("hidden"))) static int triton_get_feature(DeckHidraw &
   }
   auto *shared = reinterpret_cast<TritonSharedData *>(reinterpret_cast<uint8_t *>(triton.ring) + TRITON_SHARED_OFFSET);
   static std::mutex one_at_a_time;
+  static int lock_fd = -1;
   std::lock_guard<std::mutex> guard(one_at_a_time);
+  ProcessSlotLock slot(lock_fd, "triton-feature", TRITON_FEATURE_TIMEOUT_MS);
+  if (!slot.may_write()) {
+    errno = EIO;
+    return -1;
+  }
   uint8_t report_id = report[0];
   __atomic_store_n(&shared->get_report_id, report_id, __ATOMIC_RELAXED);
   uint64_t request = __atomic_add_fetch(&shared->get_request, 1, __ATOMIC_RELEASE);
@@ -2820,7 +2925,7 @@ __attribute__((visibility("hidden"))) static int ioctl_triton(DeckHidraw &triton
 __attribute__((visibility("hidden"))) static std::string note_sys_failure(int dirfd, const char *pathname) {
   int saved_errno = errno;
   std::string path;
-  if (saved_errno == ENOENT || !pathname || !process_is_steam_client()) {
+  if (saved_errno == ENOENT || !pathname || !process_reads_pads()) {
     errno = saved_errno;
     return path;
   }
@@ -2859,7 +2964,7 @@ __attribute__((visibility("hidden"))) static std::string note_sys_failure(int di
 
 __attribute__((visibility("hidden"))) static std::string deck_listing_for(const char *path) {
   const char *listing = deck_listing_dir();
-  if (!path || !listing || errno != EACCES || !fake_deck_enabled() || !process_is_steam_client()) return {};
+  if (!path || !listing || errno != EACCES || !fake_deck_enabled() || !process_reads_pads()) return {};
   std::string p(path);
   while (p.size() > 1 && p.back() == '/') p.pop_back();
   int which = p == "/sys" ? 0 : p == "/sys/class" ? 1 : p == "/sys/bus" ? 2 : -1;
@@ -2928,7 +3033,7 @@ EXPORT int statx(int dirfd, const char *path, int flags, unsigned mask, struct s
   constexpr unsigned unique_mount_id = 0x4000;
   if (result == 0 && (mask & STATX_MNT_ID) &&
       !(buf->stx_mask & (STATX_MNT_ID | unique_mount_id)) && fake_deck_enabled() &&
-      process_is_steam_client() && deck_device_library(__builtin_return_address(0))) {
+      process_reads_pads() && deck_device_library(__builtin_return_address(0))) {
     bool recovered = deck_mount_id_from_fdinfo(dirfd, path, flags, buf);
     static std::atomic<bool> noted_success{false}, noted_failure{false};
     if (!(recovered ? noted_success : noted_failure).exchange(true))
@@ -3113,7 +3218,7 @@ template <typename S, typename Real>
 static int fake_stat_path(const char *pathname, S *statbuf, Real real) {
   if (is_withdrawn_pad_path(pathname) ||
       ((is_deck_hidraw_path(pathname) || is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname) ||
-        sony_pad_path(pathname)) && !process_is_steam_client())) {
+        sony_pad_path(pathname)) && !process_reads_pads())) {
     errno = ENOENT;
     return -1;
   }
@@ -3238,9 +3343,9 @@ EXPORT int fstat(int fd, struct stat *buf) {
 EXPORT int access(const char *pathname, int mode) {
   static auto my_access = reinterpret_cast<decltype(&::access)>(dlsym(RTLD_NEXT, "access"));
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return 0;
-  if (is_deck_hidraw_path(pathname) && process_is_steam_client()) return 0;
+  if (is_deck_hidraw_path(pathname) && process_reads_pads()) return 0;
   if ((is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname) || sony_pad_path(pathname)) &&
-      process_is_steam_client())
+      process_reads_pads())
     return 0;
   if (is_touch_hidraw_path(pathname)) return 0;
   if (is_withdrawn_pad_path(pathname) || is_deck_hidraw_path(pathname) || is_triton_hidraw_path(pathname) ||
@@ -3279,9 +3384,9 @@ EXPORT int access(const char *pathname, int mode) {
 EXPORT int faccessat(int dirfd, const char *pathname, int mode, int flags) {
   static auto my_faccessat = reinterpret_cast<decltype(&::faccessat)>(dlsym(RTLD_NEXT, "faccessat"));
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return 0;
-  if (is_deck_hidraw_path(pathname) && process_is_steam_client()) return 0;
+  if (is_deck_hidraw_path(pathname) && process_reads_pads()) return 0;
   if ((is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname) || sony_pad_path(pathname)) &&
-      process_is_steam_client())
+      process_reads_pads())
     return 0;
   if (is_touch_hidraw_path(pathname)) return 0;
   if (is_withdrawn_pad_path(pathname) || is_deck_hidraw_path(pathname) || is_triton_hidraw_path(pathname) ||
@@ -3348,7 +3453,7 @@ EXPORT int inotify_add_watch(int fd, const char *pathname, uint32_t mask) {
       pathname = fake_path;
     } else if (!strcmp(pathname, "/dev/input")) {
       pathname = fake_hook_dir();
-    } else if (!strcmp(pathname, "/dev") && fake_deck_enabled() && process_is_steam_client()) {
+    } else if (!strcmp(pathname, "/dev") && fake_deck_enabled() && process_reads_pads()) {
       std::string events = hidraw_event_dir();
       mkdir(events.c_str(), 0700);
       my_inotify_add_watch(fd, events.c_str(), mask);
