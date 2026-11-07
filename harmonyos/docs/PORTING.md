@@ -263,16 +263,16 @@ plus C++ and Rust).
 * **The Mali bridge source is absent** from this clone (`external/MaliBridge`
   is an empty submodule), so the guest-to-host GPU path could not be
   audited.
-* **The EGL context is made current on two threads.** `SurfaceHost::CreateEgl`
-  creates the context and the XComponent's window surface on the ArkUI
-  thread, and the compositor thread then calls `eglMakeCurrent` with the same
-  context to draw the guest's frames. A context can be current to only one
-  thread at a time, so the compositor's call fails with `EGL_BAD_ACCESS` and
-  the guest's window stays blank. The fix is to give the compositor thread its
-  own context and let it own the window surface, which is a change to the
-  most device-sensitive part of the port and cannot be validated without a
-  phone. `tools/device_smoke.sh` reports the surface row, so the first run on
-  a device settles whether the path works as it stands.
+* **The EGL context was made current on two threads.** `SurfaceHost::CreateEgl`
+  created the context on the ArkUI thread and left it current there, while
+  the compositor thread draws the guest's frames into the same window. A
+  context can be current to only one thread at a time, so the compositor's
+  `eglMakeCurrent` failed with `EGL_BAD_ACCESS` and the guest's window would
+  have stayed blank. The thread that creates the context now lets go of it
+  once the texture is made, and the EGL work is serialised against the
+  teardown with a lock, so the compositor and the ArkUI thread cannot destroy
+  a context the other is using. What is still open is the compositor thread
+  itself: it is never stopped, so it lives for the life of the process.
 
 ## 5. What carried over unchanged
 

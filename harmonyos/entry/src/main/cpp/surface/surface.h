@@ -2,6 +2,7 @@
 #define DDK_SURFACE_H
 
 #include <cstdint>
+#include <mutex>
 
 namespace ddk {
 
@@ -106,6 +107,16 @@ class SurfaceHost {
   SurfaceHost() = default;
 
   bool CreateEgl();
+
+  /**
+   * Guards the EGL objects.
+   *
+   * The compositor thread draws the guest's frames into the surface while the
+   * ArkUI thread can tear the surface down, so the two are serialised here.
+   * Without it the teardown could destroy a context the compositor thread is
+   * still drawing with.
+   */
+  std::mutex lock_;
 
   void *window_ = nullptr;  // OHNativeWindow *
   void *display_ = nullptr;  // EGLDisplay

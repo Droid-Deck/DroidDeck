@@ -93,6 +93,13 @@ bool SurfaceHost::CreateEgl() {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
+  // The compositor thread is the one that draws the guest's frames into this
+  // window. An EGL context can be current to only one thread at a time, so
+  // the thread that created it lets go of it: otherwise the compositor's
+  // eglMakeCurrent fails with EGL_BAD_ACCESS and the guest's window stays
+  // blank.
+  eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+
   display_ = display;
   context_ = context;
   eglSurface_ = eglSurface;
@@ -111,6 +118,9 @@ bool SurfaceHost::Attach() {
 }
 
 void SurfaceHost::Detach() {
+  // The compositor thread may be drawing into this surface right now, so the
+  // teardown waits for it.
+  std::lock_guard<std::mutex> guard(lock_);
   if (display_ != nullptr) {
     eglMakeCurrent(static_cast<EGLDisplay>(display_), EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     if (eglSurface_ != nullptr) {
@@ -148,6 +158,7 @@ int32_t SurfaceHost::Height() const {
 }
 
 bool SurfaceHost::PublishFrame(const uint8_t *rgba, int width, int height) {
+  std::lock_guard<std::mutex> guard(lock_);
   if (display_ == nullptr || rgba == nullptr || width <= 0 || height <= 0) {
     return false;
   }
@@ -177,6 +188,7 @@ bool SurfaceHost::PublishFrame(const uint8_t *rgba, int width, int height) {
 }
 
 void SurfaceHost::SwapBuffers() {
+  std::lock_guard<std::mutex> guard(lock_);
   if (display_ == nullptr) {
     return;
   }
@@ -340,6 +352,7 @@ unsigned int SurfaceHost::CreateTexture(int width, int height) {
 }
 
 bool SurfaceHost::UploadTexture(unsigned int texture, const void *data, int width, int height, int stride) {
+  std::lock_guard<std::mutex> guard(lock_);
   if (display_ == nullptr || texture == 0 || data == nullptr || width <= 0 || height <= 0) {
     return false;
   }
@@ -376,6 +389,7 @@ bool SurfaceHost::DrawTexture(unsigned int texture, int width, int height) {
 
 bool SurfaceHost::DrawTextureRect(unsigned int texture, float sx, float sy, float sw, float sh,
                                   int dx, int dy, int dw, int dh) {
+  std::lock_guard<std::mutex> guard(lock_);
   if (display_ == nullptr || texture == 0) {
     return false;
   }
@@ -442,6 +456,7 @@ bool SurfaceHost::DrawTextureRect(unsigned int texture, float sx, float sy, floa
 }
 
 bool SurfaceHost::ReadTexture(unsigned int texture, int width, int height, void *out) {
+  std::lock_guard<std::mutex> guard(lock_);
   if (display_ == nullptr || texture == 0 || out == nullptr || width <= 0 || height <= 0) {
     return false;
   }
@@ -462,6 +477,7 @@ bool SurfaceHost::ReadTexture(unsigned int texture, int width, int height, void 
 }
 
 void SurfaceHost::DeleteTexture(unsigned int texture) {
+  std::lock_guard<std::mutex> guard(lock_);
   if (display_ == nullptr || texture == 0) {
     return;
   }
@@ -493,6 +509,7 @@ void SurfaceHost::Size(int *width, int *height) const {
 }
 
 void SurfaceHost::Clear() {
+  std::lock_guard<std::mutex> guard(lock_);
   if (display_ == nullptr) {
     return;
   }
