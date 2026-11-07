@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.ui
 
 import android.app.Application
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
 import org.junit.Assert.assertEquals
@@ -82,5 +83,27 @@ class PcKeyboardGestureTest {
         compose.runOnIdle {
             assertEquals(listOf(42 to true, 3 to true, 3 to false, 42 to false), sent)
         }
+    }
+
+    @Test fun punctuationTypesDirectlyEvenWhileShiftIsActive() {
+        setKeyboard()
+        val shift = compose.onAllNodesWithText("⇧ Shift")[0]
+        shift.performTouchInput { down(center) }
+        shift.performTouchInput { up() }
+        compose.runOnIdle { assertEquals(listOf(42 to true), sent) }
+        compose.onNodeWithText(",").performTouchInput { down(center) }
+        compose.runOnIdle {
+            assertEquals("wire shift lifts before the plain key", listOf(42 to true, 42 to false, 51 to true), sent)
+        }
+        compose.onNodeWithText(",").performTouchInput { up() }
+        compose.runOnIdle {
+            assertEquals(listOf(42 to true, 42 to false, 51 to true, 51 to false, 42 to false), sent)
+        }
+    }
+
+    @Test fun onlyDigitKeysKeepCornerHints() {
+        setKeyboard()
+        compose.onNodeWithText("!").assertExists()
+        compose.onNodeWithText("<").assertDoesNotExist()
     }
 }

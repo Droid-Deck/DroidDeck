@@ -78,6 +78,9 @@ val PC_KEY_HIDDEN_GROUPS: Map<String, Set<Int>> = mapOf(
 
 val PC_KEY_GROUP_IDS: Map<Int, String> = mapOf(0 to "function", 1 to "nav", 2 to "arrows")
 
+// The eleven punctuation keys of the ABC page; they type directly, without a shifted shadow.
+val PC_PUNCTUATION_CODES: Set<Int> = setOf(41, 12, 13, 26, 27, 43, 39, 40, 51, 52, 53)
+
 val PC_KEYS: Map<Int, PcKey> = PC_KEY_ROWS.flatten().associateBy { it.code }
 
 fun pcKeyLabel(context: Context, code: Int): String {

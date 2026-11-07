@@ -4,6 +4,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.PC_KEY_HIDDEN_GROUPS
 import com.droiddeck.launcher.input.PC_KEY_ROWS
 import com.droiddeck.launcher.input.PC_MODIFIERS
+import com.droiddeck.launcher.input.PC_PUNCTUATION_CODES
 import com.droiddeck.launcher.input.PC_SYMBOL_ROWS
 import com.droiddeck.launcher.input.PcKey
 import androidx.compose.ui.res.stringResource
@@ -80,6 +81,7 @@ fun PcKeyboard(
     var capsOn by remember { mutableStateOf(false) }
     var symbols by remember { mutableStateOf(false) }
     var synthShift by remember { mutableStateOf(false) }
+    val shiftSuppressedKeys = remember { mutableSetOf<Int>() }
     val firstKey = remember { FocusRequester() }
     val shifted = (mods[42] ?: MOD_OFF) != MOD_OFF || (mods[54] ?: MOD_OFF) != MOD_OFF
 
@@ -97,6 +99,14 @@ fun PcKeyboard(
             return
         }
         val userShifted = (mods[42] ?: MOD_OFF) != MOD_OFF || (mods[54] ?: MOD_OFF) != MOD_OFF
+        // The OS applies any held shift to the keycode, so lift the wire shift for direct-typed punctuation.
+        if (!symbols && key.code in PC_PUNCTUATION_CODES && userShifted) {
+            if (shiftSuppressedKeys.isEmpty()) {
+                if ((mods[42] ?: MOD_OFF) != MOD_OFF) sendKey(42, false)
+                if ((mods[54] ?: MOD_OFF) != MOD_OFF) sendKey(54, false)
+            }
+            shiftSuppressedKeys.add(key.code)
+        }
         if (key.synthShift && !userShifted && !synthShift) { sendKey(42, true); synthShift = true }
         sendKey(key.code, true)
     }
@@ -106,6 +116,10 @@ fun PcKeyboard(
         if (key.synthShift && synthShift) { sendKey(42, false); synthShift = false }
         if (key.code == 58) capsOn = !capsOn
         releaseOnceModifiers()
+        if (shiftSuppressedKeys.remove(key.code) && shiftSuppressedKeys.isEmpty()) {
+            if ((mods[42] ?: MOD_OFF) != MOD_OFF) sendKey(42, true)
+            if ((mods[54] ?: MOD_OFF) != MOD_OFF) sendKey(54, true)
+        }
     }
     // Long-press commit for symbol keys: send a full shift-wrapped sequence through a local
     // flag, never mods[42], so a held key must not flip the whole panel's shifted rendering.
@@ -130,7 +144,12 @@ fun PcKeyboard(
     val prefsContext = LocalContext.current
     remember { PcKeyboardPrefs.load(prefsContext) }
     val hiddenCodes = PcKeyboardPrefs.hiddenKeys.flatMap { PC_KEY_HIDDEN_GROUPS[it].orEmpty() }.toSet()
-    val abcRows = PC_KEY_ROWS.map { row -> row.filter { it.code !in hiddenCodes } }.filter { it.isNotEmpty() }
+    val hiddenSymbols = PcKeyboardPrefs.hiddenSymbols
+    // Punctuation drops its shifted shadow: it types directly, with no corner hint and no long-press.
+    val abcRows = PC_KEY_ROWS
+        .map { row -> row.filter { it.code !in hiddenCodes && it.code !in hiddenSymbols } }
+        .filter { it.isNotEmpty() }
+        .map { row -> row.map { key -> if (key.code in PC_PUNCTUATION_CODES) key.copy(shifted = null) else key } }
     val baseRows = if (symbols) PC_SYMBOL_ROWS else abcRows
     val toggleKey = PcKey(if (symbols) "ABC" else "?123", 0, 1.25f)
     val rows = baseRows.mapIndexed { i, row -> if (i == baseRows.lastIndex) listOf(toggleKey) + row else row }

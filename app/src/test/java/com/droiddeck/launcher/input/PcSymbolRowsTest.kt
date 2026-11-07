@@ -38,4 +38,14 @@ class PcSymbolRowsTest {
         assertEquals(32, punctuation.size)
         assertEquals((2..11).toList(), digits.map { it.code })
     }
+
+    @Test
+    fun everyAbcPunctuationKeyIsAlsoOnTheSymbolPage() {
+        val symbolLabels = PC_SYMBOL_ROWS.flatten().map { it.label }.toSet()
+        val punctuation = PC_KEY_ROWS.flatten().filter { it.code in PC_PUNCTUATION_CODES }
+        assertEquals(11, punctuation.size)
+        punctuation.forEach { key ->
+            assertTrue("ABC '${key.label}' is unreachable once hidden", key.label in symbolLabels)
+        }
+    }
 }

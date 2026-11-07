@@ -1471,6 +1471,8 @@
     <string name="pckb_group_function">Esc and function row</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">Arrow keys</string>
+    <string name="pckb_hidden_symbols">Hidden symbols</string>
+    <string name="pckb_hidden_symbols_hint">Punctuation you rarely use stays off the keyboard; the ?123 page still has every symbol.</string>
     <string name="pckb_long_press">Long press for symbols</string>
     <string name="pckb_long_press_hint">Hold a key with a corner symbol to type that symbol instead.</string>
     <string name="pckb_long_press_delay">Long press delay</string>

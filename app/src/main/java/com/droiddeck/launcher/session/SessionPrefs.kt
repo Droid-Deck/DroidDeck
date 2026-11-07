@@ -388,6 +388,13 @@ object SessionPrefs {
         prefs(context).edit().putString("pcKeyboardHiddenKeys", hidden.joinToString(",")).apply()
     }
 
+    fun pcKeyboardHiddenSymbols(context: Context): Set<Int> =
+        idList(prefs(context).getString("pcKeyboardHiddenSymbols", null)).mapNotNull { it.toIntOrNull() }.toSet()
+
+    fun setPcKeyboardHiddenSymbols(context: Context, hidden: Set<Int>) {
+        prefs(context).edit().putString("pcKeyboardHiddenSymbols", hidden.joinToString(",")).apply()
+    }
+
     fun pcKeyboardLongPress(context: Context): Boolean =
         prefs(context).getBoolean("pcKeyboardLongPress", PC_KEYBOARD_LONG_PRESS_DEFAULT)
 
