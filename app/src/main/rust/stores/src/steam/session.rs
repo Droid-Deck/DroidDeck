@@ -60,6 +60,7 @@ pub fn eresult_name(eresult: i32) -> &'static str {
         48 => "TryAnotherCM",
         63 => "AccountLogonDenied",
         84 => "RateLimitExceeded",
+        87 => "AccountLoginDeniedThrottle",
         _ => "",
     }
 }
