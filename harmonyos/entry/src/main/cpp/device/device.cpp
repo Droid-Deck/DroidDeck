@@ -59,7 +59,6 @@ GpuIdentity DetectGpu() {
   EGLint configCount = 0;
   if (!eglChooseConfig(display, configAttribs, &config, 1, &configCount) || configCount == 0) {
     DDK_LOGW("no EGL config, GPU unknown");
-    eglTerminate(display);
     return identity;
   }
 
@@ -67,7 +66,6 @@ GpuIdentity DetectGpu() {
   EGLContext context = eglCreateContext(display, config, EGL_NO_CONTEXT, contextAttribs);
   if (context == EGL_NO_CONTEXT) {
     DDK_LOGW("no EGL context, GPU unknown");
-    eglTerminate(display);
     return identity;
   }
 
@@ -94,7 +92,9 @@ GpuIdentity DetectGpu() {
 
   eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
   eglDestroyContext(display, context);
-  eglTerminate(display);
+  // The display is not terminated here. It is the process-wide default
+  // display, and the compositor's surface host keeps its own context on it;
+  // terminating it would take that context down with it.
 
   DDK_LOGI("gpu renderer=%{public}s vendor=%{public}s model=%{public}d",
            identity.name.c_str(), identity.vendor.c_str(), identity.model);

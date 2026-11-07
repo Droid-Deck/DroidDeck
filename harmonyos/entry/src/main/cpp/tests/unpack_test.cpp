@@ -137,6 +137,17 @@ int main(int argc, char **argv) {
           "the session script stays executable");
     Check(StatusFor(destination).installed,
           "the supervisor considers the runtime installed once the overlay is applied");
+
+    // The app asks about the runtime before it has ever started a session, so
+    // the status has to be able to see an installed runtime from the root
+    // directory alone. This is the check that says whether the runtime is
+    // installed, and the session cannot start without it.
+    Check(ddk::Runtime::Instance().StatusAt(destination, false).installed,
+          "the status reports an installed runtime for a root it is given");
+    Check(ddk::Runtime::Instance().StatusAt(destination, false).rootDir == destination,
+          "the status reports the root it was given");
+    Check(!ddk::Runtime::Instance().StatusAt("", false).installed,
+          "the status reports nothing installed without a root");
   }
 
   // The version marker is written the way upstream writes it.

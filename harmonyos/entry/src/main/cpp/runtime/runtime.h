@@ -116,6 +116,20 @@ class Runtime {
   RuntimeStatus Status() const;
 
   /**
+   * Current state of a runtime rooted at the given directory.
+   *
+   * The install check only depends on the root directory, so the app can ask
+   * whether a runtime is installed before it has ever started one — which is
+   * the only way the check can ever say yes.
+   *
+   * @param rootDir  the guest rootfs to look at, empty for the running one
+   * @param measureSize  measure how much space the rootfs takes. Measuring it
+   *        walks the whole tree, so it is only done when it is asked for and
+   *        never on the thread that drives the UI.
+   */
+  RuntimeStatus StatusAt(const std::string &rootDir, bool measureSize) const;
+
+  /**
    * Current state of a runtime rooted at the given options.
    *
    * The install check only depends on the root directory, so it can be

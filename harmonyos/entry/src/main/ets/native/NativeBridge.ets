@@ -152,9 +152,9 @@ export class NativeBridge {
     }
   }
 
-  static runtimeStatus(): NativeRuntimeStatus | undefined {
+  static runtimeStatus(rootDir?: string): NativeRuntimeStatus | undefined {
     try {
-      return nativeModule.runtimeStatus() as NativeRuntimeStatus;
+      return nativeModule.runtimeStatus(rootDir) as NativeRuntimeStatus;
     } catch (error) {
       Logger.error(`runtimeStatus failed: ${error}`);
       return undefined;

@@ -147,8 +147,14 @@ export interface NativeAudioServerResult {
 /** Reads the GPU and hardware facts. */
 export const getDeviceInfo: () => NativeDeviceInfo;
 
-/** Reads the state of the runtime and the running session. */
-export const runtimeStatus: () => NativeRuntimeStatus;
+/**
+ * Reads the state of the runtime and the running session.
+ *
+ * @param rootDir  the guest rootfs to look at. The install check depends on
+ *        it, so it has to be passed before a session has ever been started;
+ *        without it the running session's own root is used.
+ */
+export const runtimeStatus: (rootDir?: string) => NativeRuntimeStatus;
 
 /** Starts a guest session. */
 export const runtimeStart: (options: NativeRuntimeOptions) => boolean;

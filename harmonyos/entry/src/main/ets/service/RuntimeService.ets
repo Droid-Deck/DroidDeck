@@ -136,7 +136,11 @@ export class RuntimeService {
 
   /** Current state of the runtime and the running session. */
   status(): NativeRuntimeStatus | undefined {
-    const status = NativeBridge.runtimeStatus();
+    // The root directory is passed in because the install check depends on
+    // it: without it the native side can only report on a session that has
+    // already been started, and the runtime would never be seen as
+    // installed.
+    const status = NativeBridge.runtimeStatus(Paths.runtimeRoot());
     if (status !== undefined && status.rootDir.length === 0) {
       status.rootDir = Paths.runtimeRoot();
     }

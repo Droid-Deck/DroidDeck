@@ -57,6 +57,16 @@ echo "==> compiling the runtime install tests with ${CXX}"
 echo "==> running the guest-launch tests"
 "${out}/runtime_test"
 
+echo "==> compiling the audio ring tests with ${CXX}"
+"${CXX}" -std=c++17 -Wall -Wextra -Wno-unused-parameter \
+  "${INCLUDES[@]}" \
+  "${root}/entry/src/main/cpp/audio/audio.cpp" \
+  "${root}/entry/src/main/cpp/tests/audio_test.cpp" \
+  -o "${out}/audio_test"
+
+echo "==> running the audio ring tests"
+"${out}/audio_test"
+
 echo "==> building the runtime fixture"
 # The fixture mimics the published runtime image: it carries gamescope and
 # the stub directories, but NOT the session script. Upstream bakes its

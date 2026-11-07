@@ -140,7 +140,19 @@ napi_value GetDeviceInfo(napi_env env, napi_callback_info info) {
 }
 
 napi_value RuntimeStatus(napi_env env, napi_callback_info info) {
-  ddk::RuntimeStatus status = ddk::Runtime::Instance().Status();
+  // The root directory is optional: without it the running session's own
+  // root is used. The app passes it because the install check has to work
+  // before a session has ever been started, and the rootfs is what says
+  // whether the runtime is installed.
+  size_t argc = 1;
+  napi_value argv[1] = {nullptr};
+  napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
+  std::string rootDir;
+  if (argc >= 1 && argv[0] != nullptr) {
+    rootDir = GetStringArg(env, argv[0], "rootDir");
+  }
+
+  ddk::RuntimeStatus status = ddk::Runtime::Instance().StatusAt(rootDir, false);
 
   napi_value result = nullptr;
   napi_create_object(env, &result);

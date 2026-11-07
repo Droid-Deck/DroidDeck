@@ -55,10 +55,26 @@ class AudioSink {
 
   /** Ring buffer of interleaved stereo frames. */
   static constexpr size_t kCapacityFrames = 8192;
+  /** Bytes in one interleaved stereo frame. */
+  static constexpr size_t kFrameBytes = 2 * sizeof(float);
   std::vector<float> buffer_;
   size_t readIndex_ = 0;
   size_t writeIndex_ = 0;
   size_t count_ = 0;
+
+  /**
+   * Bytes read from the socket that are not yet a whole frame.
+   *
+   * The socket is a byte stream, so a read can end in the middle of a frame.
+   * The leftover bytes are carried over into the next read, so the frames
+   * stay aligned — without that, every frame after the first split one is
+   * read half a frame late.
+   */
+  std::vector<char> staging_;
+  size_t stagingStart_ = 0;
+  size_t stagingEnd_ = 0;
+  /** How many bytes the staging buffer holds. */
+  static constexpr size_t kStagingBytes = 64 * 1024;
 };
 
 }  // namespace ddk

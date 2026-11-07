@@ -472,18 +472,32 @@ bool Runtime::Stop() {
 }
 
 RuntimeStatus Runtime::Status() const {
-  return StatusFor(options_);
+  return StatusAt(options_.rootDir, false);
 }
 
 RuntimeStatus Runtime::StatusFor(const RuntimeOptions &options) const {
+  return StatusAt(options.rootDir, true);
+}
+
+RuntimeStatus Runtime::StatusAt(const std::string &rootDir, bool measureSize) const {
+  // A guest that exited on its own is reaped here. Without this the session
+  // keeps reporting "running" after the guest is gone, and it can never be
+  // started again.
+  if (pid_ > 0) {
+    int exitStatus = 0;
+    if (waitpid(pid_, &exitStatus, WNOHANG) == pid_) {
+      pid_ = -1;
+    }
+  }
+
   RuntimeStatus status;
-  status.rootDir = options.rootDir;
+  status.rootDir = rootDir;
   status.lastError = lastError_;
   status.pid = pid_ > 0 ? pid_ : 0;
   status.running = pid_ > 0;
   status.mode = mode_;
 
-  const std::string root = options.rootDir;
+  const std::string root = rootDir;
   if (root.empty()) {
     return status;
   }
@@ -501,7 +515,7 @@ RuntimeStatus Runtime::StatusFor(const RuntimeOptions &options) const {
   }
   status.installed = hasGamescope && hasSession;
   status.version = ReadVersionMarker(root);
-  status.sizeBytes = status.installed ? DirectorySize(root) : 0;
+  status.sizeBytes = (measureSize && status.installed) ? DirectorySize(root) : 0;
   return status;
 }
 
