@@ -19,7 +19,7 @@ class OnScreenLayoutTest {
     private val density get() = context.resources.displayMetrics.density
 
     @Before fun reset() {
-        for (name in listOf("input-profiles", "input-surfaces", "controller")) context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().commit()
+        for (name in listOf("input-profiles", "input-surfaces", "controller", "session")) context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().commit()
     }
 
     private fun gamepad() = InputLibraries.read(context).layouts.first { it.id == InputLibraries.OVERLAY }
@@ -256,5 +256,37 @@ class OnScreenLayoutTest {
             }
         })
         assertEquals(OnScreenLayout.Dock(false, true, InputControl.LEFT_PAD, InputControl.RS), OnScreenLayout.Dock.deck(false, swapped))
+    }
+
+    private fun deckGamepad(library: InputLibrary) = library.layouts.first { it.id == DeckPanel.GAMEPAD.layout }
+
+    private fun upgradeWithSurfaces(left: String?, right: String?, change: (InputLibrary) -> InputLibrary = { it }): InputLibrary {
+        val stored = change(InputLibraries.read(context))
+        context.getSharedPreferences("session", Context.MODE_PRIVATE).edit().putString("gamepadLeft", left).putString("gamepadRight", right).commit()
+        prefs.edit().putString("library", JSONObject(InputLibraries.encode(stored)).put("version", 13).toString()).commit()
+        return InputLibraries.read(context)
+    }
+
+    @Test fun theSavedDeckGamepadStickOrTrackpadChoiceMovesIntoTheUntouchedDeckGamepadOnce() {
+        val upgraded = upgradeWithSurfaces("trackpad", "stick")
+        val elements = deckGamepad(upgraded).elements
+        assertEquals(InputStockLayouts.gamepad(leftPad = true, rightStick = true), elements)
+        assertEquals(InputElementKind.TRACKPAD, elements.single { it.control == InputControl.LEFT_PAD }.kind)
+        assertEquals(InputElementKind.STICK, elements.single { it.control == InputControl.RS }.kind)
+        assertNull(elements.firstOrNull { it.control == InputControl.LS || it.control == InputControl.RIGHT_PAD })
+        assertEquals(OnScreenLayout.Dock(false, true, InputControl.LEFT_PAD, InputControl.RS), OnScreenLayout.Dock.deck(false, deckGamepad(upgraded)))
+        assertEquals(upgraded, InputLibraries.read(context))
+    }
+
+    @Test fun theDefaultDeckGamepadChoiceOrAnEditedDeckGamepadIsLeftAlone() {
+        val stock = InputStockLayouts.layouts().first { it.id == DeckPanel.GAMEPAD.layout }
+        assertEquals(stock.elements, deckGamepad(upgradeWithSurfaces(null, null)).elements)
+        assertEquals(stock.elements, deckGamepad(upgradeWithSurfaces("stick", "trackpad")).elements)
+        val moved = stock.elements.map { if (it.control == InputControl.A) it.copy(x = .7f) else it }
+        val edited = upgradeWithSurfaces("trackpad", "stick") { it.withLayout(deckGamepad(it).copy(elements = moved)) }
+        assertEquals(moved, deckGamepad(edited).elements)
+        val others = InputLibraries.read(context).layouts.filter { it.id != DeckPanel.GAMEPAD.layout }
+        assertEquals(InputStockLayouts.layouts().filter { it.id != DeckPanel.GAMEPAD.layout }.map { it.elements },
+            others.filter { l -> InputStockLayouts.layouts().any { it.id == l.id } }.map { it.elements })
     }
 }

@@ -4,12 +4,13 @@ import android.content.Context
 import android.hardware.display.DisplayManager
 import android.util.DisplayMetrics
 import android.view.Display
+import com.droiddeck.launcher.session.SessionPrefs
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
 object InputLibraries {
-    private const val VERSION = 13
+    private const val VERSION = 14
     private const val KEY = "library"
     private const val RECOVERY = "library-recovery."
     const val OVERLAY = "builtin.overlay"
@@ -31,6 +32,7 @@ object InputLibraries {
         if (version < 10) library = restyleGamepads(context, library)
         if (version < 12) library = barStockLayouts(library)
         if (version < 13) library = LegacyScreenKeyMigration.pin(library)
+        if (version < 14) library = deckGamepadSurfaces(context, library)
         if (version < 6 || !p.contains(LegacyScreenKeyMigration.BACKUP)) {
             val legacy = LegacyScreenKeyMigration.snapshot(context)
             if (legacy != null) {
@@ -262,6 +264,15 @@ object InputLibraries {
             if (untouched) result = result.withLayout(saved.copy(elements = stock.elements))
         }
         return addStockLayouts(result)
+    }
+
+    private fun deckGamepadSurfaces(context: Context, library: InputLibrary): InputLibrary {
+        val leftPad = SessionPrefs.gamepadSurface(context, right = false) == SessionPrefs.SURFACE_TRACKPAD
+        val rightStick = SessionPrefs.gamepadSurface(context, right = true) == SessionPrefs.SURFACE_STICK
+        if (!leftPad && !rightStick) return library
+        val saved = library.layouts.firstOrNull { it.id == DeckPanel.GAMEPAD.layout } ?: return library
+        if (saved.elements != InputStockLayouts.gamepad(leftPad = false, rightStick = false)) return library
+        return library.withLayout(saved.copy(elements = InputStockLayouts.gamepad(leftPad, rightStick))).validate()
     }
 
     private fun migrationBindingId(library: InputLibrary, binding: String, layout: String): String {
