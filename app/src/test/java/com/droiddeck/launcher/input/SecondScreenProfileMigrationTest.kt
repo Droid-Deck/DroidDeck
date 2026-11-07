@@ -90,6 +90,7 @@ class SecondScreenProfileMigrationTest {
     @Test fun trackpadAndDeckPanelsUseTheirStockBindingsWithoutChangingTheProfile() {
         for (desktop in listOf(false, true)) for (mode in listOf(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.DECK_CONTROLS)) {
             val original = customLibrary(desktop)
+            SessionState.deckPad = true
             val stock = original.preset(mode.bindings!!)
             show(mode)
             assertEquals(original, InputLibraries.read(activity))
@@ -98,6 +99,19 @@ class SecondScreenProfileMigrationTest {
             show(SecondScreenMode.CUSTOM_CONTROLS)
             assertEquals("custom.layout", routedLayout()?.id)
             assertEquals(InputAction.Keys(listOf(57)), routedProfile().elementAction(InputRole.SECONDARY, "custom.button", InputControl.A))
+        }
+    }
+
+    @Test fun aDeckPanelLeftOverWithoutTheDeckPadOpensTheFallbackInstead() {
+        for (desktop in listOf(false, true)) {
+            customLibrary(desktop)
+            SessionState.deckPad = false
+            show(SecondScreenMode.DECK_CONTROLS)
+            val fallback = ReflectionHelpers.callInstanceMethod<SecondScreenMode>(activity, "openingPanel")
+            assertNotEquals(SecondScreenMode.DECK_CONTROLS, fallback)
+            if (desktop) assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, fallback)
+            assertEquals(fallback, SessionState.secondScreenMode)
+            assertNotEquals(InputLibraries.DECK, routedLayout()?.id)
         }
     }
 
