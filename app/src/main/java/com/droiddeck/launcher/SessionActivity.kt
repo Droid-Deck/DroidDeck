@@ -180,6 +180,33 @@ internal fun sessionDisplayCutoutMode(fullscreen: Boolean): Int = if (fullscreen
     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
 }
 
+internal const val SESSION_SCALE_FIT = 1
+internal const val SESSION_SCALE_HEIGHT_FIT = 5
+
+internal fun sessionCompositorScaleMode(
+    landscape: Boolean,
+    primaryDisplay: Boolean,
+    inPictureInPicture: Boolean,
+    opticalViewport: Boolean,
+    controlsBelow: Boolean,
+): Int = if (landscape && primaryDisplay && !inPictureInPicture && !opticalViewport && !controlsBelow) {
+    SESSION_SCALE_HEIGHT_FIT
+} else {
+    SESSION_SCALE_FIT
+}
+
+internal fun applySessionFullscreenWindow(window: android.view.Window, fullscreen: Boolean) {
+    if (fullscreen) window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+    else window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+    @Suppress("DEPRECATION")
+    window.decorView.systemUiVisibility = sessionSystemUiVisibility(fullscreen)
+    if (Build.VERSION.SDK_INT >= 28) {
+        window.attributes = window.attributes.apply {
+            layoutInDisplayCutoutMode = sessionDisplayCutoutMode(fullscreen)
+        }
+    }
+}
+
 private const val SCREEN_EFFECTS_TARGET_AUTO = "auto"
 private const val SCREEN_EFFECTS_TARGET_GLOBAL = "global"
 
@@ -2850,6 +2877,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             Log.i(TAG, "surface resized to ${width}x$height - rebinding the compositor")
             CompositorHost.resize(holder.surface) { applyFrameGen(force = true) }
             resizeOutputForWindow(width, height)
+            applyGameAlignment()
         }
     }
 
@@ -2904,6 +2932,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         applyFollowOrientation(newConfig)
         applyUnfoldedControls()
         resizeOutputForWindow(surfaceW, surfaceH)
+        applyGameAlignment()
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -4467,6 +4496,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             Log.i(TAG, if (wanted) "unfolded controls: game ${width}x$gameHeight, controls ${width}x${height - gameHeight}"
                 else "unfolded controls: game full screen")
         }
+        applyGameAlignment()
         val portrait = !com.droiddeck.launcher.session.SessionDisplay.foldable(this)
         val dock = if (SessionState.deckPad) com.droiddeck.launcher.input.OnScreenLayout.Dock.deck(portrait, deckPanelLayouts[com.droiddeck.launcher.input.DeckPanel.GAMEPAD])
             else com.droiddeck.launcher.input.OnScreenLayout.Dock(portrait, false)
@@ -5726,6 +5756,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (inPip) releaseMainSurfaceMouseOwnership()
         fullscreenSafeInsetsController?.refresh()
         if (::pip.isInitialized) pip.changed(inPip)
+        applyGameAlignment()
         if (!inPip && surfaceW > 0) resizeOutputForWindow(surfaceW, surfaceH)
         applyUnfoldedControls()
         updateGlassesScreen()
@@ -6131,9 +6162,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         cardboard = c
         val e = effectiveCardboard(c)
         activeCardboard = e
-        applyGameAlignment()
         if (e.enabled && !was.enabled) releaseMainSurfaceMouseOwnership()
         fullscreenSafeInsetsController?.refresh()
+        applyGameAlignment()
         if (CompositorHost.isStarted) pushCardboard(e)
         if (e.enabled && !was.enabled) headTracker?.recenter()
         updateHeadTracker()
@@ -6565,13 +6596,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun applySessionFullscreen() {
         val fullscreen = SessionPrefs.launcherFullscreen(this)
-        @Suppress("DEPRECATION")
-        window.decorView.systemUiVisibility = sessionSystemUiVisibility(fullscreen)
-        if (Build.VERSION.SDK_INT >= 28) {
-            window.attributes = window.attributes.apply {
-                layoutInDisplayCutoutMode = sessionDisplayCutoutMode(fullscreen)
-            }
-        }
+        applySessionFullscreenWindow(window, fullscreen)
         fullscreenSafeInsetsController?.refresh()
     }
 

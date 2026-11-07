@@ -28,7 +28,7 @@ class LauncherRoundedCornersTest {
         assertEquals(FullscreenSafeInsets(right = 19, bottom = 19), result)
     }
 
-    @Test fun pixelRoundedCornersUseTheArcBoundaryInsteadOfTheFullRadius() {
+    @Test fun landscapeRoundedCornersKeepFullHeightAndReserveTheSides() {
         val result = roundedCornerSafeInsets(2_992, 1_344, listOf(
             FullscreenRoundedCorner(FullscreenCorner.TOP_LEFT, 153, 153, 153),
             FullscreenRoundedCorner(FullscreenCorner.TOP_RIGHT, 153, 2_839, 153),
@@ -36,7 +36,7 @@ class LauncherRoundedCornersTest {
             FullscreenRoundedCorner(FullscreenCorner.BOTTOM_LEFT, 153, 153, 1_191),
         ))
 
-        assertEquals(FullscreenSafeInsets(left = 45, top = 45, right = 45, bottom = 45), result)
+        assertEquals(FullscreenSafeInsets(left = 153, right = 153), result)
     }
 
     @Test fun pixelRoundedCornersRotateWithTheWindow() {
@@ -50,7 +50,37 @@ class LauncherRoundedCornersTest {
         assertEquals(FullscreenSafeInsets(left = 45, top = 45, right = 45, bottom = 45), result)
     }
 
-    @Test fun landscapeSystemBarsLeaveOnlyTheExposedRoundedEdgesInset() {
+    @Test fun landscapeUsesVisibleAsymmetricCornerCentersOnlyOnTheSides() {
+        val result = roundedCornerSafeInsets(1_600, 900, listOf(
+            FullscreenRoundedCorner(FullscreenCorner.TOP_LEFT, 80, 80, 80),
+            FullscreenRoundedCorner(FullscreenCorner.BOTTOM_LEFT, 120, 120, 780),
+            FullscreenRoundedCorner(FullscreenCorner.TOP_RIGHT, 64, 1_536, 64),
+            FullscreenRoundedCorner(FullscreenCorner.BOTTOM_RIGHT, 96, 1_504, 804),
+            FullscreenRoundedCorner(FullscreenCorner.TOP_LEFT, 100, -20, 100),
+        ))
+
+        assertEquals(FullscreenSafeInsets(left = 120, right = 96), result)
+    }
+
+    @Test fun landscapeTopBarOnlyReservesTheVisiblePartOfTheRoundedArc() {
+        val result = roundedCornerSafeInsets(2_992, 1_344, listOf(
+            // An 80 px status bar moves the Pixel's top-left corner center to y=73.
+            FullscreenRoundedCorner(FullscreenCorner.TOP_LEFT, 153, 153, 73),
+        ))
+
+        assertEquals(FullscreenSafeInsets(left = 19), result)
+    }
+
+    @Test fun landscapeBottomBarOnlyReservesTheVisiblePartOfTheRoundedArc() {
+        val result = roundedCornerSafeInsets(2_992, 1_344, listOf(
+            // The bottom edge ends 84 px above the corner center.
+            FullscreenRoundedCorner(FullscreenCorner.BOTTOM_LEFT, 153, 153, 1_260),
+        ))
+
+        assertEquals(FullscreenSafeInsets(left = 26), result)
+    }
+
+    @Test fun landscapeSystemBarsLeaveOnlyTheExposedRoundedSidesInset() {
         val result = roundedCornerSafeInsets(2_912, 1_264, listOf(
             FullscreenRoundedCorner(FullscreenCorner.TOP_LEFT, 153, 153, 73),
             FullscreenRoundedCorner(FullscreenCorner.TOP_RIGHT, 153, 2_839, 73),
@@ -58,9 +88,8 @@ class LauncherRoundedCornersTest {
             FullscreenRoundedCorner(FullscreenCorner.BOTTOM_LEFT, 153, 153, 1_111),
         ))
 
-        // The 80 px status and navigation bars already clear the top and right arcs. The left and
-        // bottom edges still touch the physical corners, so they use the 45-degree boundary.
-        assertEquals(FullscreenSafeInsets(left = 45, bottom = 45), result)
+        // The bars partly cover the arcs. Keep full height and reserve each exposed side.
+        assertEquals(FullscreenSafeInsets(left = 153, right = 73), result)
     }
 
     @Test fun aWindowOutsideTheRoundedQuadrantDoesNotReserveAnEdge() {

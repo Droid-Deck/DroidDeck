@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalView
+import kotlin.math.ceil
 import kotlin.math.sqrt
 
 internal data class FullscreenSafeInsets(
@@ -41,6 +42,7 @@ internal fun roundedCornerSafeInsets(
     corners: Iterable<FullscreenRoundedCorner>,
 ): FullscreenSafeInsets {
     if (width <= 0 || height <= 0) return FullscreenSafeInsets()
+    val landscape = width > height
     var result = FullscreenSafeInsets()
     corners.forEach { corner ->
         if (corner.radius <= 0) return@forEach
@@ -54,6 +56,26 @@ internal fun roundedCornerSafeInsets(
             FullscreenCorner.BOTTOM_LEFT -> corner.centerX > 0 && corner.centerY < height
         }
         if (!cornerQuadrantIntersectsWindow) return@forEach
+        if (landscape) {
+            val verticalDistance = when (corner.position) {
+                FullscreenCorner.TOP_LEFT, FullscreenCorner.TOP_RIGHT -> corner.centerY
+                FullscreenCorner.BOTTOM_RIGHT, FullscreenCorner.BOTTOM_LEFT -> height - corner.centerY
+            }.coerceIn(0, corner.radius)
+            val horizontalReach = sqrt(
+                (corner.radius.toDouble() * corner.radius - verticalDistance.toDouble() * verticalDistance),
+            )
+            result = when (corner.position) {
+                FullscreenCorner.TOP_LEFT, FullscreenCorner.BOTTOM_LEFT -> result.maxWith(FullscreenSafeInsets(
+                    left = if (corner.centerX - corner.radius <= 0)
+                        ceil((corner.centerX - horizontalReach).coerceAtLeast(0.0)).toInt() else 0,
+                ))
+                FullscreenCorner.TOP_RIGHT, FullscreenCorner.BOTTOM_RIGHT -> result.maxWith(FullscreenSafeInsets(
+                    right = if (corner.centerX + corner.radius >= width)
+                        ceil((width - (corner.centerX + horizontalReach)).coerceAtLeast(0.0)).toInt() else 0,
+                ))
+            }
+            return@forEach
+        }
         // A rectangular viewport only has to clear the 45-degree point of the rounded arc.
         // Reserving the full radius on both axes turns a local corner into a full-edge band.
         val diagonalOffset = (corner.radius / sqrt(2.0)).toInt()
