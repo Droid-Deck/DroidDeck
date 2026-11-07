@@ -109,14 +109,50 @@ internal fun roundedCornerSafeInsets(
     return result
 }
 
+/** Keep the launcher full width in portrait while retaining its existing landscape insets. */
+internal fun launcherRoundedCornerSafeInsets(
+    width: Int,
+    height: Int,
+    corners: Iterable<FullscreenRoundedCorner>,
+): FullscreenSafeInsets {
+    if (width <= 0 || height <= 0) return FullscreenSafeInsets()
+    if (width >= height) return roundedCornerSafeInsets(width, height, corners)
+
+    // Rotate portrait geometry clockwise so the existing landscape calculation can
+    // find each exposed arc at the window's left/right edges, then rotate it back.
+    val rotated = corners.map { corner ->
+        FullscreenRoundedCorner(
+            position = when (corner.position) {
+                FullscreenCorner.TOP_LEFT -> FullscreenCorner.TOP_RIGHT
+                FullscreenCorner.TOP_RIGHT -> FullscreenCorner.BOTTOM_RIGHT
+                FullscreenCorner.BOTTOM_RIGHT -> FullscreenCorner.BOTTOM_LEFT
+                FullscreenCorner.BOTTOM_LEFT -> FullscreenCorner.TOP_LEFT
+            },
+            radius = corner.radius,
+            centerX = height - corner.centerY,
+            centerY = corner.centerX,
+        )
+    }
+    val insets = roundedCornerSafeInsets(height, width, rotated)
+    return FullscreenSafeInsets(
+        top = insets.right.coerceIn(0, height),
+        bottom = insets.left.coerceIn(0, height),
+    )
+}
+
 @Composable
-internal fun rememberFullscreenSafeInsets(enabled: Boolean): FullscreenSafeInsets {
+internal fun rememberFullscreenSafeInsets(
+    enabled: Boolean,
+    preferFullWidthInPortrait: Boolean = false,
+): FullscreenSafeInsets {
     val view = LocalView.current
-    var insets by remember(view, enabled) { mutableStateOf(fullscreenSafeInsets(view, enabled)) }
-    DisposableEffect(view, enabled) {
-        val controller = FullscreenSafeInsetsController(view, { enabled }) { next ->
-            if (next != insets) insets = next
-        }
+    var insets by remember(view, enabled, preferFullWidthInPortrait) {
+        mutableStateOf(fullscreenSafeInsets(view, enabled, preferFullWidthInPortrait = preferFullWidthInPortrait))
+    }
+    DisposableEffect(view, enabled, preferFullWidthInPortrait) {
+        val controller = FullscreenSafeInsetsController(
+            view, { enabled }, { next -> if (next != insets) insets = next }, preferFullWidthInPortrait,
+        )
         onDispose(controller::close)
     }
     return insets
@@ -126,6 +162,7 @@ internal class FullscreenSafeInsetsController(
     private val view: View,
     private val enabled: () -> Boolean,
     private val onChanged: (FullscreenSafeInsets) -> Unit,
+    private val preferFullWidthInPortrait: Boolean = false,
 ) : AutoCloseable {
     private var current: FullscreenSafeInsets? = null
     private val layoutListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> refresh() }
@@ -142,7 +179,7 @@ internal class FullscreenSafeInsetsController(
     fun refresh() = update(view.rootWindowInsets)
 
     private fun update(windowInsets: android.view.WindowInsets?) {
-        val next = fullscreenSafeInsets(view, enabled(), windowInsets)
+        val next = fullscreenSafeInsets(view, enabled(), windowInsets, preferFullWidthInPortrait)
         if (current == next) return
         current = next
         onChanged(next)
@@ -183,6 +220,7 @@ private fun fullscreenSafeInsets(
     view: View,
     enabled: Boolean,
     windowInsets: android.view.WindowInsets? = view.rootWindowInsets,
+    preferFullWidthInPortrait: Boolean = false,
 ): FullscreenSafeInsets {
     if (!enabled) return FullscreenSafeInsets()
     val insets = windowInsets ?: return FullscreenSafeInsets()
@@ -199,7 +237,9 @@ private fun fullscreenSafeInsets(
         insets.getRoundedCorner(RoundedCorner.POSITION_BOTTOM_LEFT)
             ?.toFullscreenCorner(FullscreenCorner.BOTTOM_LEFT, location[0], location[1]),
     )
-    return roundedCornerSafeInsets(view.width, view.height, corners)
+    return if (preferFullWidthInPortrait)
+        launcherRoundedCornerSafeInsets(view.width, view.height, corners)
+    else roundedCornerSafeInsets(view.width, view.height, corners)
 }
 
 private fun RoundedCorner.toFullscreenCorner(
