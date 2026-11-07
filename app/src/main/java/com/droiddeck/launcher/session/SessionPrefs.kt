@@ -110,11 +110,15 @@ object SessionPrefs {
         prefs(context).edit().remove("dualScreenLauncher").putString("dualScreenMode", launcher).putString("dualScreenSessionMode", mode).apply()
     }
 
-    fun secondScreenPanel(context: Context): String? = prefs(context).getString("secondScreenPanel", null)
-
-    fun setSecondScreenPanel(context: Context, mode: String) {
-        prefs(context).edit().putString("secondScreenPanel", mode).apply()
+    fun secondScreenPanel(context: Context, desktop: Boolean): String? = prefs(context).let {
+        it.getString(secondScreenPanelKey(desktop), null) ?: it.getString("secondScreenPanel", null)?.takeIf { id -> id != "custom-controls" }
     }
+
+    fun setSecondScreenPanel(context: Context, desktop: Boolean, mode: String) {
+        prefs(context).edit().putString(secondScreenPanelKey(desktop), mode).apply()
+    }
+
+    private fun secondScreenPanelKey(desktop: Boolean) = if (desktop) "secondScreenPanel.desktop" else "secondScreenPanel.game"
 
     /** The bottom-screen desktop takes touch as a trackpad unless the user switched it to direct touch. */
     fun bottomDesktopDirectTouch(context: Context): Boolean = prefs(context).getBoolean("bottomDesktopDirectTouch", false)
