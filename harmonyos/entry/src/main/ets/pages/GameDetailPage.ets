@@ -1,5 +1,6 @@
 import { router } from '@kit.ArkUI';
 
+import { Logger } from '../common/Logger';
 import { Game, GameSource } from '../model/Game';
 import { AppStore } from '../state/AppStore';
 
@@ -81,7 +82,11 @@ struct GameDetailPage {
           .fontColor($r('app.color.onPrimary'))
           .enabled(!this.isStarting)
           .onClick(() => {
-            this.launch();
+            // The launch runs in the background; its failure is caught, or it
+            // would be an unhandled rejection.
+            this.launch().catch((error: Error) => {
+              Logger.error(`the game did not start: ${error}`);
+            });
           })
       }
       .padding(16)

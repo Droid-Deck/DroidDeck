@@ -1,3 +1,4 @@
+import { Logger } from '../common/Logger';
 import { Game, GameSource } from '../model/Game';
 import { HttpService } from './HttpService';
 
@@ -33,7 +34,11 @@ export class SteamService {
       }
       SteamService.appListCache = ids;
     } catch (error) {
-      // eslint-disable-next-line
+      // The store answers with an HTML page when it is unhappy, and a parse
+      // failure that is swallowed looks like an empty library. The reason is
+      // logged so the difference between "no games" and "the store is
+      // unreachable" is visible.
+      Logger.error(`the Steam app list is not valid JSON: ${error}`);
     }
     return SteamService.appListCache;
   }

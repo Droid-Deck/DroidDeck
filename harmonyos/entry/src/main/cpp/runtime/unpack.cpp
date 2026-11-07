@@ -69,14 +69,20 @@ bool MakeDirectories(const std::string &path) {
  * Archive entries are relative, but a hostile archive can name one with ".."
  * in it, and the entry would then be written outside the rootfs. Such an
  * entry is refused rather than normalised away.
+ *
+ * @param name  the entry's name
+ * @param resolved  the path under the destination, empty when there is none
+ * @param escapes  set when the name climbs out of the destination
  */
-bool SafeRelativePath(const std::string &name, std::string *resolved) {
+bool SafeRelativePath(const std::string &name, std::string *resolved, bool *escapes) {
+  *escapes = false;
   std::string current;
   size_t index = 0;
   while (index <= name.size()) {
     const size_t slash = name.find('/', index);
     const std::string part = name.substr(index, slash == std::string::npos ? name.size() - index : slash - index);
     if (part == "..") {
+      *escapes = true;
       return false;
     }
     if (!part.empty() && part != ".") {
@@ -91,6 +97,8 @@ bool SafeRelativePath(const std::string &name, std::string *resolved) {
     index = slash + 1;
   }
   if (current.empty()) {
+    // The name names nothing, such as the archive's own "./" entry. There is
+    // nothing to refuse, and nothing to write either.
     return false;
   }
   *resolved = current;
@@ -361,8 +369,11 @@ bool ExtractTar(const std::string &archive, const std::string &destination, long
     // The entry has to stay inside the rootfs. A name with ".." in it would
     // put the file outside the destination, so it is refused.
     std::string relative;
-    if (!SafeRelativePath(name, &relative)) {
-      DDK_LOGW("the archive names a path outside the rootfs: %{public}s", name.c_str());
+    bool escapes = false;
+    if (!SafeRelativePath(name, &relative, &escapes)) {
+      if (escapes) {
+        DDK_LOGW("the archive names a path outside the rootfs: %{public}s", name.c_str());
+      }
       SkipBytes(file, size + static_cast<long long>(padding));
       continue;
     }

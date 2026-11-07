@@ -59,7 +59,12 @@ export class AudioService {
     }
 
     this.pumping = true;
-    this.pump();
+    // The pump runs until it is stopped, so it is not awaited here. Its
+    // failure is caught, or it would be an unhandled rejection.
+    this.pump().catch((error: Error) => {
+      Logger.error(`the audio pump stopped: ${error}`);
+      this.pumping = false;
+    });
     return true;
   }
 

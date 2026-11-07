@@ -46,7 +46,11 @@ struct SessionPage {
     NativeBridge.surfaceDetach();
     NativeBridge.inputClose();
     NativeBridge.audioServerStop();
-    AudioService.Instance.stop();
+    // The stop is not awaited here: the page is going away. Its failure is
+    // caught, or it would be an unhandled rejection.
+    AudioService.Instance.stop().catch((error: Error) => {
+      Logger.error(`the audio service did not stop cleanly: ${error}`);
+    });
   }
 
   /** Starts the compositor once the surface exists. */
@@ -155,7 +159,13 @@ struct SessionPage {
           // OnSurfaceCreated entry point; this call reports whether the EGL
           // context is up.
           this.surfaceReady = NativeBridge.surfaceAttach();
-          this.startCompositor();
+          // The compositor is started in the background; the guest waits for
+          // its socket. A failure is caught, or it would be an unhandled
+          // rejection and the guest would look for a socket that never
+          // appears.
+          this.startCompositor().catch((error: Error) => {
+            Logger.error(`the compositor did not start: ${error}`);
+          });
         })
         .onDestroy(() => {
           NativeBridge.surfaceDetach();

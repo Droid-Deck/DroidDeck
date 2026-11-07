@@ -1,6 +1,7 @@
 import { router } from '@kit.ArkUI';
 
 import { GameCard } from '../components/GameCard';
+import { Logger } from '../common/Logger';
 import { Game } from '../model/Game';
 import { AppStore } from '../state/AppStore';
 
@@ -43,7 +44,11 @@ export struct HomePage {
           Button($r('app.string.action_install'))
             .margin({ top: 8 })
             .onClick(() => {
-              this.store.installRuntime();
+              // The install runs in the background and reports itself; the
+              // failure is caught, or it would be an unhandled rejection.
+              this.store.installRuntime().catch((error: Error) => {
+                Logger.error(`the runtime install did not finish: ${error}`);
+              });
             })
         }
       }
