@@ -219,7 +219,6 @@ class DrawerActions(
     val frameGen: FrameGen.Mode,
     val lossless: Lossless.State,
     val oscMode: String,
-    val onScreenButtonsVisible: Boolean,
     val suspendPolicy: String,
     val steamDownloadsInBackground: Boolean = false,
     val micAvailable: Boolean = false,

@@ -87,11 +87,6 @@ object ControllerPrefs {
         prefs(context).edit().putString("map.$id", target).apply()
     }
 
-    fun resetMapping(context: Context) {
-        val p = prefs(context)
-        p.edit().apply { p.all.keys.filter { it.startsWith("map.") }.forEach { remove(it) } }.apply()
-    }
-
     fun setTint(context: Context, tint: Int) {
         prefs(context).edit().putInt("tint", tint).apply()
     }
@@ -127,10 +122,6 @@ object ControllerPrefs {
 
     fun setSteamButton(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("steamButton", on).apply()
-    }
-
-    fun setQamButton(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("qamButton", on).apply()
     }
 
     fun setKeyboardButton(context: Context, on: Boolean) {
@@ -173,10 +164,5 @@ object ControllerPrefs {
 
     fun resetAll(context: Context) {
         prefs(context).edit().clear().putBoolean("rumble", true).apply()
-    }
-
-    fun resetAllLayouts(context: Context) {
-        val p = prefs(context)
-        p.edit().apply { p.all.keys.filter { it.startsWith("layout.") }.forEach { remove(it) } }.apply()
     }
 }
