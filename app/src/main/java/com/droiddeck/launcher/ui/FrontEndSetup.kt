@@ -245,7 +245,7 @@ internal fun SetupPanel(
             PageHeader(stringResource(R.string.setup_title)) {
                 Box(Modifier.weight(1f)) { SheetChips(tabs, tab, chipFocus, onPick = pick) }
             }
-            Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
+            Column(modifier = Modifier.weight(1f).fillMaxWidth().then(if (tab == 1) Modifier else Modifier.verticalScroll(rememberScrollState())).padding(bottom = if (tab == 1) 0.dp else 24.dp)) {
                 when (tab) {
                     0 -> {
                         // Setup's "Safe mode" row, under the GPU row while the bridge is on and can be used here.
@@ -413,9 +413,7 @@ internal fun SetupPanel(
                     }
                     1 -> {
                         val controller = s.controller
-                        if (controller != null && a.controller != null) SettingsGroup(stringResource(R.string.setup_controller)) {
-                            ControllerRows(host, s.oscMode, controller, a.controller)
-                        }
+                        if (controller != null && a.controller != null) InputSettingsPage(onBack = { pick(0) }, embedded = true)
                         if (s.controller == null || a.controller == null) Note(stringResource(R.string.setup_controller_unavailable))
                     }
                     2 -> {

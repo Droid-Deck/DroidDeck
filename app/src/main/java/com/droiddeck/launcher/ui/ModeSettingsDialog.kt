@@ -120,6 +120,7 @@ class ModeSettingsActions(
     val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
     val onPipAutoEnter: (Boolean) -> Unit = {},
     val onOsc: (String) -> Unit,
+    val onInputSettings: () -> Unit,
     val onBackHold: (Boolean) -> Unit = {},
     val onBackActionsInverted: (Boolean) -> Unit = {},
     val onDirectAudio: (Boolean) -> Unit,
@@ -259,6 +260,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
         extras.drivers(s.gpuDrivers)
     }
     if (tab == SheetTab.CONTROLS) {
+        InputQuickSettings(host, desktop = s.mode == SessionService.MODE_DESKTOP, onEdit = a.onInputSettings)
         SettingsGroup(if (steam) stringResource(R.string.mode_touch_controls) else stringResource(R.string.mode_touch)) {
             ChoiceRow(
                 host, "touch", stringResource(R.string.mode_touch), null,

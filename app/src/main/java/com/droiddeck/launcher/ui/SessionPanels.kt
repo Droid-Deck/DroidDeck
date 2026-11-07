@@ -2,21 +2,17 @@ package com.droiddeck.launcher.ui
 
 import android.content.ClipboardManager
 import android.content.Context
-import android.graphics.Canvas
 import android.graphics.Color
 import android.util.Log
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewConfiguration
 import android.view.inputmethod.InputMethodManager
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.input.PointerGestures
-import com.droiddeck.launcher.input.TouchpadGestures
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionTerminal
 import com.termux.terminal.TerminalEmulator
@@ -24,65 +20,6 @@ import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
 import com.termux.view.TerminalView
 import com.termux.view.TerminalViewClient
-
-class SessionTrackpadView(
-    context: Context,
-    private val sendPointer: (x: Float, y: Float, width: Float, height: Float) -> Unit,
-    private val sendButton: (button: Int, pressed: Boolean) -> Unit,
-    private val sendWheel: (steps: Int) -> Unit,
-) : View(context) {
-    private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
-
-    private val gestures = TouchpadGestures(ViewConfiguration.get(context).scaledTouchSlop.toFloat(),
-        object : PointerGestures.Listener {
-            override fun onMove(x: Float, y: Float) {
-                sendPointer(x, y, width.toFloat(), height.toFloat())
-                invalidate()
-            }
-
-            override fun onButton(button: Int, pressed: Boolean, x: Float, y: Float) {
-                sendPointer(x, y, width.toFloat(), height.toFloat())
-                sendButton(button, pressed)
-            }
-
-            override fun onWheel(steps: Int) = sendWheel(steps)
-            override fun onLongPress() { performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS) }
-        })
-
-    init {
-        isFocusable = true
-        setBackgroundColor(Color.BLACK)
-    }
-
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        gestures.bounds = android.graphics.RectF(0f, 0f, w.toFloat(), h.toFloat())
-        if (oldw == 0 || oldh == 0) gestures.place(w / 2f, h / 2f)
-    }
-
-    private val surface = android.graphics.RectF()
-    private val fill = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(0x0A, 0x0B, 0x0D) }
-    private val edge = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-        style = android.graphics.Paint.Style.STROKE
-        color = Color.rgb(0x26, 0x29, 0x2E)
-        strokeWidth = resources.displayMetrics.density
-    }
-
-    override fun onDraw(canvas: Canvas) {
-        val inset = dp(12).toFloat()
-        surface.set(inset, 0f, width - inset, height - inset)
-        if (surface.height() <= inset) return
-        val radius = dp(20).toFloat()
-        canvas.drawRoundRect(surface, radius, radius, fill)
-        canvas.drawRoundRect(surface, radius, radius, edge)
-    }
-
-    override fun onTouchEvent(event: MotionEvent): Boolean = gestures.onTouch(event)
-
-    override fun onDetachedFromWindow() {
-        gestures.cancel()
-        super.onDetachedFromWindow()
-    }
-}
 
 class SessionTerminalPanel(context: Context) : LinearLayout(context) {
     private var terminalSession: TerminalSession? = null
@@ -123,7 +60,7 @@ class SessionTerminalPanel(context: Context) : LinearLayout(context) {
         val keys = LinearLayout(context).apply { orientation = HORIZONTAL; setPadding(dp(12), 0, dp(12), dp(8)) }
         fun key(label: String, input: String, onClick: ((TextView) -> Unit)? = null) {
             lateinit var button: TextView
-            button = DeckControlsPanel.roundButton(context, label, label, { if (onClick != null) onClick(button) else session.write(input) }, wide = true)
+            button = InputSurfaceView.roundButton(context, label, label, { if (onClick != null) onClick(button) else session.write(input) }, wide = true)
             if (keys.childCount > 0) keys.addView(View(context), LinearLayout.LayoutParams(dp(8), 1))
             keys.addView(button)
         }

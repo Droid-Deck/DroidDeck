@@ -52,13 +52,16 @@ import com.droiddeck.launcher.input.PcKey
 import com.droiddeck.launcher.input.pcKeyLabel
 
 @Composable
-fun ScreenKeyPicker(
+fun KeyCombinationPicker(
     onDismiss: () -> Unit,
     onAdd: (List<Int>) -> Unit,
     initial: List<Int> = emptyList(),
     sequence: Boolean = false,
     sequenceLimit: Int = 4,
+    allowEmpty: Boolean = false,
     slots: List<String> = emptyList(),
+    title: String = stringResource(R.string.input_keys),
+    confirm: String = stringResource(R.string.gesture_save_changes),
 ) {
     var picked by remember { mutableStateOf(initial) }
     val p = LocalPalette.current
@@ -86,7 +89,7 @@ fun ScreenKeyPicker(
             ) {
                 Column {
                     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.screen_keys_add), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         IconButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Icon(Icons.Default.Close, null) }
                     }
                     Row(
@@ -136,10 +139,10 @@ fun ScreenKeyPicker(
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
                             onClick = { onAdd(picked) },
-                            enabled = picked.isNotEmpty(),
+                            enabled = allowEmpty || picked.isNotEmpty(),
                             modifier = Modifier.weight(1f).focusGlide(CircleShape),
                         ) {
-                            Text(stringResource(R.string.screen_keys_add))
+                            Text(confirm)
                         }
                     }
                 }
