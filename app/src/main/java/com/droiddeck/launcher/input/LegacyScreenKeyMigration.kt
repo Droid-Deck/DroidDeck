@@ -8,6 +8,8 @@ import org.json.JSONObject
 
 internal object LegacyScreenKeyMigration {
     const val BACKUP = "legacy-screen-keys-backup"
+    const val MERGED = "legacy-screen-keys-merged"
+    private const val SHOWN = "migrated.screenkeys.0"
 
     fun snapshot(context: Context): String? {
         val values = ControllerPrefs.prefs(context).all.filterKeys { it == "screenKeys" || it == "screenKeysShown" || it.startsWith("screenLayout.") }
@@ -38,11 +40,30 @@ internal object LegacyScreenKeyMigration {
             if (result.profiles.any { it.id == id }) continue
             val converted = convert(context, set.second, metrics.widthPixels, metrics.heightPixels, metrics.density)
             if (converted.isEmpty()) continue
-            val layout = SavedInputLayout("$id.layout", set.first, converted.map { it.first }, style = style, screen = InputLayoutScreen.MAIN)
+            val layout = SavedInputLayout("$id.layout", set.first, converted.map { it.first }, style = style, screen = InputLayoutScreen.MAIN,
+                aspect = (metrics.widthPixels.coerceAtLeast(1).toFloat() / metrics.heightPixels.coerceAtLeast(1)).coerceIn(.05f, 20f))
             val bindings = SavedInputBindings("$id.bindings", set.first, false, layout.id, elements = converted.associate { it.first.id to it.second })
             val base = library.profile(library.steam)
             val profile = SavedInputProfile(id, set.first, base.base, base.parts + (InputRole.PRIMARY to InputPart(bindings.id, layout.id)))
             result = result.withLayout(layout).withPreset(bindings).withProfile(profile)
+        }
+        return result.validate()
+    }
+
+    fun merge(library: InputLibrary, raw: String): InputLibrary {
+        val old = JSONObject(raw)
+        if (!old.optBoolean("screenKeysShown", true) || old.optString("screenKeys").isBlank()) return library
+        val keys = library.layouts.firstOrNull { it.id == "$SHOWN.layout" } ?: return library
+        val actions = library.bindings.firstOrNull { it.id == "$SHOWN.bindings" }?.elements.orEmpty()
+        var result = library
+        for (part in listOf(false, true).map { library.activePart(it, InputRole.PRIMARY) }.distinct()) {
+            val layout = result.layouts.firstOrNull { it.id == part.layout } ?: continue
+            val preset = result.preset(part.bindings)
+            if (!layout.editable || preset.layoutId != layout.id || layout.elements.any { e -> keys.elements.any { it.id == e.id } } ||
+                layout.elements.size + keys.elements.size > 64) continue
+            val added = keys.elements.mapNotNull { e -> actions[e.id]?.let { e.id to it } }.toMap()
+            result = result.withLayout(layout.copy(elements = layout.elements + keys.elements))
+                .withPreset(preset.copy(elements = added + preset.elements))
         }
         return result.validate()
     }

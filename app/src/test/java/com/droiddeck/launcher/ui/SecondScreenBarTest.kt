@@ -222,25 +222,9 @@ class SecondScreenBarTest {
         compose.onNodeWithTag("bottom-bar-close").assertIsDisplayed()
     }
 
-    @Test fun unfoldedControlsGetTheBarAboveThem() {
+    @Test fun unfoldedControlsGetTheSessionBar() {
         SessionState.mode = SessionService.MODE_STEAM
         val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
-        val root = FrameLayout(activity)
-        ReflectionHelpers.setField(activity, "sessionRoot", root)
-        val panel = View(activity)
-        root.addView(panel)
-        val height = ReflectionHelpers.callInstanceMethod<Int>(activity, "placeUnfoldedBar",
-            ReflectionHelpers.ClassParameter.from(View::class.java, panel), ReflectionHelpers.ClassParameter.from(Int::class.javaPrimitiveType, 500))
-        val bar = root.getChildAt(1)
-        assertTrue(bar is ComposeView)
-        val params = bar.layoutParams as FrameLayout.LayoutParams
-        assertEquals(height, params.height)
-        assertEquals(500 - height, params.bottomMargin)
-        assertTrue(height in 1..500)
-        ReflectionHelpers.callInstanceMethod<Int>(activity, "placeUnfoldedBar",
-            ReflectionHelpers.ClassParameter.from(View::class.java, panel), ReflectionHelpers.ClassParameter.from(Int::class.javaPrimitiveType, 400))
-        assertEquals(2, root.childCount)
-        ReflectionHelpers.callInstanceMethod<Unit>(activity, "dropUnfoldedBar")
-        assertEquals(1, root.childCount)
+        assertTrue(ReflectionHelpers.callInstanceMethod<View>(activity, "unfoldedBar") is ComposeView)
     }
 }
