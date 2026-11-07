@@ -1352,5 +1352,12 @@ class AgentJobTest(Harness):
         self.assertEqual(calls, [("install", "gryphon", "gryphon", "/g/Rumble", "enUS", "USA", "US"), ("update", "wow_classic")])
 
 
+class BattleNetFormTest(Temp):
+    def test_the_driver_waits_on_the_install_form_and_names_a_folder_that_is_taken(self):
+        script = BNET["AGENT_SCRIPT"]
+        self.assertIn(r'if (/"form"\s*:\s*\{/.test(s)) {', script)
+        self.assertIn("the game folder already holds a game", script)
+
+
 if __name__ == "__main__":
     unittest.main()
