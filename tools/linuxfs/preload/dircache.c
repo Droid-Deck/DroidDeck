@@ -22,7 +22,7 @@
 #define MAX_LISTINGS 16
 #define MAX_ENTRIES 100000
 #define MAX_HANDLES 64
-#define MAX_UP 16
+#define MAX_UP 32
 #define FUSE_MAGIC 0x65735546
 #define WATCHED (IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE_SELF | IN_MOVE_SELF | IN_ONLYDIR)
 #define ABOVE (IN_DELETE_SELF | IN_MOVE_SELF | IN_ONLYDIR | IN_MASK_ADD)
@@ -429,11 +429,13 @@ static int above(struct handle *h, const char *path) {
   if (n >= sizeof(up)) return 0;
   memcpy(up, path, n);
   up[n] = 0;
-  for (size_t i = (size_t)(strstr(path, "/steamapps") - path) + 10; i < n; i++) {
+  size_t root = (size_t)(strstr(path, "/steamapps") - path) + 10;
+  for (size_t i = 1; i < n; i++) {
     if (up[i] != '/') continue;
     up[i] = 0;
     int wd = watch(up, ABOVE);
     up[i] = '/';
+    if (wd < 0 && i < root) continue;
     if (wd < 0) return 0;
     if (wd == h->wd || under(h->up, h->nup, wd)) continue;
     if (h->nup == MAX_UP) {

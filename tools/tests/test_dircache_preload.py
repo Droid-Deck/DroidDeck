@@ -3,6 +3,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import threading
 import unittest
 
 PRELOAD = Path(__file__).resolve().parents[1] / "linuxfs/preload"
@@ -329,15 +330,25 @@ class DirCachePreloadTest(unittest.TestCase):
         return result.stdout.splitlines()
 
     def run_paused(self, *args, between, env=None):
-        with subprocess.Popen([str(self.steam), *map(str, args)], env=self.environment(env), text=True,
-                              stdin=subprocess.PIPE, stdout=subprocess.PIPE) as probe:
+        probe = subprocess.Popen([str(self.steam), *map(str, args)], env=self.environment(env), text=True,
+                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        timer = threading.Timer(60, probe.kill)
+        timer.start()
+        try:
             before = []
             for line in probe.stdout:
                 if line == "ready\n":
                     break
                 before.append(line.rstrip("\n"))
+            else:
+                self.fail("the probe stopped before it was ready")
             between()
             after, _ = probe.communicate("go\n", timeout=60)
+        finally:
+            timer.cancel()
+            if probe.poll() is None:
+                probe.kill()
+            probe.communicate()
         self.assertEqual(0, probe.returncode)
         return before + after.splitlines()
 
@@ -520,6 +531,18 @@ class DirCachePreloadTest(unittest.TestCase):
 
         def swap():
             parent.rename(parent.parent / "downloading.old")
+            s.mkdir(parents=True)
+            (s / "x.bundle").touch()
+
+        out = self.run_paused("list", s, "pause", "access", s / "x.bundle", "accesses", between=swap)
+        self.assertEqual(["0 0", "1"], out[1:])
+
+    def test_a_listing_is_dropped_when_another_process_renames_the_library_above_steamapps(self):
+        s = self.staging
+        root = self.lib.parent
+
+        def swap():
+            root.rename(root.parent / "fuse.old")
             s.mkdir(parents=True)
             (s / "x.bundle").touch()
 
