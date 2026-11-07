@@ -566,6 +566,7 @@
     <string name="comp_auto_none">Geen DroidDeck-Proton gebruikt dit</string>
     <string name="comp_auto_waits_network">Auto-updates wachten op een verbinding.</string>
     <string name="comp_auto_check_failed">Kon niet op nieuwe builds controleren.</string>
+    <string name="comp_auto_install_failed">Kon %1$s niet installeren.</string>
     <string name="comp_auto_waits_unmetered">Nieuwe builds wachten op een onbeperkte verbinding, batterijbesparing uit en een koel apparaat.</string>
     <string name="comp_auto_updated">%1$s bijgewerkt naar %2$s.</string>
     <string name="comp_auto_rolled_back">%1$s %2$s sloot een game twee keer binnen enkele seconden, dus Auto ging terug naar %3$s.</string>

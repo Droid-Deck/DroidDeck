@@ -566,6 +566,7 @@
     <string name="comp_auto_none">कोई DroidDeck-Proton इसका उपयोग नहीं करता</string>
     <string name="comp_auto_waits_network">Auto अपडेट कनेक्शन का इंतज़ार कर रहे हैं।</string>
     <string name="comp_auto_check_failed">नए बिल्ड नहीं जाँचे जा सके।</string>
+    <string name="comp_auto_install_failed">%1$s इंस्टॉल नहीं हो सका।</string>
     <string name="comp_auto_waits_unmetered">नए बिल्ड बिना सीमा वाले कनेक्शन, बंद बैटरी सेवर और ठंडे डिवाइस का इंतज़ार करते हैं।</string>
     <string name="comp_auto_updated">%1$s को %2$s पर अपडेट किया गया।</string>
     <string name="comp_auto_rolled_back">%1$s %2$s ने दो बार कुछ सेकंड में गेम बंद कर दिया, इसलिए Auto %3$s पर लौट गया।</string>

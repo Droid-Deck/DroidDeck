@@ -564,6 +564,7 @@
     <string name="comp_auto_none">Tiada DroidDeck-Proton yang menggunakannya</string>
     <string name="comp_auto_waits_network">Kemas kini Auto menunggu sambungan.</string>
     <string name="comp_auto_check_failed">Tidak dapat menyemak binaan baharu.</string>
+    <string name="comp_auto_install_failed">Tidak dapat memasang %1$s.</string>
     <string name="comp_auto_waits_unmetered">Binaan baharu menunggu sambungan tanpa meter, penjimat bateri dimatikan dan peranti yang sejuk.</string>
     <string name="comp_auto_updated">%1$s dikemas kini ke %2$s.</string>
     <string name="comp_auto_rolled_back">%1$s %2$s menutup permainan dalam beberapa saat dua kali, jadi Auto kembali ke %3$s.</string>

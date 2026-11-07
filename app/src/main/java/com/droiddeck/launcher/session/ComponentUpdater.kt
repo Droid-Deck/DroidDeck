@@ -14,6 +14,7 @@ object ComponentUpdater {
     private const val CHECK_EVERY_MS = 3_600_000L
     private const val BOOTED_KEPT = 200
     private const val HANDED_BACK = "handedBack"
+    private const val PINNED_NOTE = "pinnedNote"
     internal const val HAND_BACK_FILES = "handBackFiles"
     private const val IMPORTED = "imported"
     private val lock = Any()
@@ -103,8 +104,13 @@ object ComponentUpdater {
         val protons = found ?: emptyList()
         if (found != null) handBack(context, state, found)
         judge(context, state, protons, notes)
-        if (ComponentsManager.pinnedAutoDxvk(context) != null) runCatching { ComponentsManager.ensureForcedPackages(context) }
-            .onSuccess { if (it != null) Log.i(TAG, it) }.onFailure { Log.w(TAG, "pinned DXVK", it) }
+        ComponentsManager.pinnedAutoDxvk(context)?.let { pinned ->
+            runCatching { ComponentsManager.ensureForcedPackages(context) }
+                .onSuccess { if (it != null) Log.i(TAG, it) }.onFailure { Log.w(TAG, "pinned DXVK", it) }
+            val followers = protons.filter { ComponentUpdates.follows(it) && ComponentsManager.supports(it, "dxvk") }.map { it.id to it.version }
+            if (pinnedHeld(pinned, followers, ComponentsManager.activeChoices(context))) state.remove(PINNED_NOTE)
+            else state.put(PINNED_NOTE, context.getString(R.string.comp_auto_install_failed, pinned.removeSuffix(".wcp")))
+        }
         val due = force || System.currentTimeMillis() - state.optLong("checkedAt") >= CHECK_EVERY_MS
         val wanted = ComponentsManager.COMPONENTS.filter { managed(context, it) }
         if (wanted.isEmpty() || protons.isEmpty()) {
@@ -387,12 +393,17 @@ object ComponentUpdater {
         }
     }
 
+    internal fun pinnedHeld(pinned: String, followers: List<Pair<String, String>>, choices: Map<String, Map<String, ComponentsManager.Choice>>): Boolean =
+        followers.all { (id, version) -> choices[id]?.get("dxvk")?.let { it.file == ComponentsManager.safeName(pinned) && it.protonVersion == version } == true }
+
     fun status(context: Context, comp: String): List<Status> {
         val pinned = if (comp == "dxvk") ComponentsManager.pinnedAutoDxvk(context) else null
         if (pinned != null) {
             val on = runCatching { ComponentsManager.protons(context) }.getOrDefault(emptyList())
                 .filter { ComponentUpdates.follows(it) && ComponentsManager.supports(it, comp) }
-            return if (on.isEmpty()) emptyList() else listOf(Status(comp, pinned, pinned, on.map { it.name }, ""))
+            if (on.isEmpty()) return emptyList()
+            val held = pinnedHeld(pinned, on.map { it.id to it.version }, ComponentsManager.activeChoices(context))
+            return listOf(Status(comp, pinned, pinned, on.map { it.name }, if (held) "" else load(context).optString(PINNED_NOTE)))
         }
         val state = load(context)
         val lines = state.optJSONObject("lines") ?: JSONObject()
