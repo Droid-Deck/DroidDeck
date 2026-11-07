@@ -399,6 +399,11 @@ class InputSettingsTest {
         compose.runOnIdle { element.value = InputSurfaceElement(InputControl.LEFT_PAD, .1f, .1f, .4f, .4f, "pad", InputElementKind.TRACKPAD, "Pad") }
         compose.onNodeWithTag("setting-element-label").assertDoesNotExist()
         compose.onNodeWithTag("setting-element-opacity").assertExists()
+        for (kind in listOf(InputElementKind.DPAD, InputElementKind.STICK)) {
+            compose.runOnIdle { element.value = InputSurfaceElement(kind.control, .1f, .1f, .4f, .4f, "imported:0", kind, "WASD") }
+            compose.onNodeWithTag("setting-element-label").performScrollTo().performClick()
+            compose.runOnIdle { assertFalse(element.value.showLabel) }
+        }
     }
 
     @Test fun editorScalesEveryControlAndRestoresStockPositions() {
