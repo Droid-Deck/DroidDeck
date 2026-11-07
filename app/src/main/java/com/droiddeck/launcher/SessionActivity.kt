@@ -5064,7 +5064,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                                 com.droiddeck.launcher.ui.BottomScreenBar(bar(getString(SecondScreenMode.KEYBOARD_TRACKPAD.label), listOf(keyboardExtra)))
                             SecondScreenMode.DECK_CONTROLS -> com.droiddeck.launcher.ui.BottomScreenBar(bar(getString(SecondScreenMode.DECK_CONTROLS.label),
                                 tabs = com.droiddeck.launcher.ui.deckPanelTabs(this@SessionActivity, SessionPrefs.deckPanel(this@SessionActivity), ::selectDeckPanel)))
-                            else -> Unit
+                            else -> com.droiddeck.launcher.ui.BottomScreenBar(bar(getString(secondScreenMode.label)))
                         }
                         androidx.compose.runtime.key(profileLayout) {
                             androidx.compose.ui.viewinterop.AndroidView(
