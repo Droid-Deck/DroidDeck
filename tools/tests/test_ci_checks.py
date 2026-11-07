@@ -64,7 +64,10 @@ class CiChecksTest(unittest.TestCase):
             query.write_text('#!/bin/sh\nexit 1\n')
             query.chmod(0o755)
             log = root / 'apt.log'
-            env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ['PATH'], APT_LOG=str(log))
+            sources = root / 'ubuntu.sources'
+            sources.write_text('URIs: http://mirror.invalid/ubuntu\n')
+            env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ['PATH'], APT_LOG=str(log),
+                       UBUNTU_SOURCES_FILE=str(sources))
             installer = ROOT / 'tools/ci/install-ubuntu-packages.sh'
             result = subprocess.run(['bash', str(installer), 'qemu-user'], env=dict(env, APT_RESULT='17'))
             self.assertEqual(result.returncode, 17)
@@ -74,10 +77,18 @@ class CiChecksTest(unittest.TestCase):
             update, install = log.read_text().splitlines()
             for command in (update, install):
                 self.assertIn('Dir::Etc::sourceparts=-', command)
+                self.assertIn(f'Dir::Etc::sourcelist={sources}', command)
                 self.assertIn('Acquire::https::Timeout=15', command)
                 self.assertIn('Acquire::Retries=1', command)
             self.assertIn('APT::Update::Error-Mode=any', update)
             self.assertIn('install -y -q --no-install-recommends qemu-user', install)
+
+            log.unlink()
+            absent = dict(env, UBUNTU_SOURCES_FILE=str(root / 'missing.sources'), APT_RESULT='17')
+            result = subprocess.run(['bash', str(installer), 'qemu-user'], env=absent)
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(len(log.read_text().splitlines()), 1)
+            self.assertNotIn('Dir::Etc::sourceparts', log.read_text())
 
     def test_required_status_rejects_failed_cancelled_or_skipped_test_jobs(self):
         jobs = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())['jobs']
