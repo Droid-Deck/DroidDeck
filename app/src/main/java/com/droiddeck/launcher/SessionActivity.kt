@@ -1378,6 +1378,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             onSecondScreenMode = { mode ->
                 if (docked) drawerOpen = false
                 typingReturnMode = null
+                automaticPanel = false
                 if (mode != SecondScreenMode.NONE) SessionPrefs.setSecondScreenPanel(this@SessionActivity, desktopSession, mode.id)
                 selectSecondScreenMode(mode)
             },
@@ -3249,6 +3250,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private var dockedToDisplay = false
+    private var automaticPanel = false
 
     private val shownOnDisplayId: Int get() =
         if (Build.VERSION.SDK_INT >= 30) display?.displayId ?: windowManager.defaultDisplay.displayId
@@ -3262,8 +3264,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val oldIds = secondScreenDisplays.map { it.id }.toSet()
         secondScreenDisplays = candidates
         val nowDocked = com.droiddeck.launcher.input.DualScreen.dockedToDisplay(displayManager, primaryId)
-        if (com.droiddeck.launcher.input.DualScreen.leavesBottomOnDock(dockedToDisplay, nowDocked, SessionPrefs.dualScreenSessionMode(this),
-                secondScreenPresentation?.display?.let(com.droiddeck.launcher.input.DualScreen::builtIn) == true)) {
+        val automaticOnBuiltIn = automaticPanel && secondScreenMode != SecondScreenMode.NONE &&
+            displayManager.getDisplay(selectedSecondScreenDisplay)?.let(com.droiddeck.launcher.input.DualScreen::builtIn) == true
+        if (com.droiddeck.launcher.input.DualScreen.leavesBottomOnDock(dockedToDisplay, nowDocked, SessionPrefs.dualScreenSessionMode(this), automaticOnBuiltIn)) {
             closeSecondScreen(reset = true)
             SessionState.secondScreenAutoOpened = false
         }
@@ -3292,6 +3295,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         SessionState.secondScreenAutoOpened = true
         selectedSecondScreenDisplay = target.displayId
         selectSecondScreenMode(openingPanel())
+        automaticPanel = secondScreenMode != SecondScreenMode.NONE
         dualControlsProvisional = ::loading.isInitialized && loading.visible
     }
 
@@ -3706,7 +3710,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (focused && started) com.droiddeck.launcher.ui.SessionTyping.returnFocus(this, taskId)
         else com.droiddeck.launcher.ui.SessionTyping.close()
         updateKeyboardRoute()
-        if (reset) panelMode(SecondScreenMode.NONE)
+        if (reset) {
+            panelMode(SecondScreenMode.NONE)
+            automaticPanel = false
+        }
     }
 
     private fun panelMode(mode: SecondScreenMode) {

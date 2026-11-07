@@ -80,13 +80,30 @@ class DualScreenTest {
         }
     }
 
+    @Test @Config(sdk = [34]) fun glassesOnUsbDoNotHideAnUnnamedDockDisplay() {
+        val state = ReflectionHelpers.getField<kotlinx.coroutines.flow.MutableStateFlow<com.droiddeck.launcher.glasses.GlassesState>>(
+            com.droiddeck.launcher.glasses.Glasses, "_state")
+        val before = state.value
+        try {
+            state.value = before.copy(present = true)
+            withDisplay(EXTERNAL, "") { assertFalse(DualScreen.dockedToDisplay(displays, Display.DEFAULT_DISPLAY)) }
+            withDisplay(EXTERNAL, "VITURE Luma Ultra") {
+                withDisplay(EXTERNAL, "") { assertTrue(DualScreen.dockedToDisplay(displays, Display.DEFAULT_DISPLAY)) }
+            }
+            withDisplay(EXTERNAL, "") { glasses ->
+                state.value = before.copy(present = true, displayId = glasses.displayId)
+                withDisplay(EXTERNAL, "") { assertTrue(DualScreen.dockedToDisplay(displays, Display.DEFAULT_DISPLAY)) }
+            }
+        } finally { state.value = before }
+    }
+
     @Test fun onlyTheMomentOfDockingClosesAnAutomaticBottomPanel() {
-        assertTrue(DualScreen.leavesBottomOnDock(wasDocked = false, docked = true, DualScreen.MODE_AUTO, onBuiltIn = true))
-        assertFalse(DualScreen.leavesBottomOnDock(wasDocked = true, docked = true, DualScreen.MODE_AUTO, onBuiltIn = true))
-        assertFalse(DualScreen.leavesBottomOnDock(wasDocked = false, docked = false, DualScreen.MODE_AUTO, onBuiltIn = true))
-        assertFalse(DualScreen.leavesBottomOnDock(wasDocked = false, docked = true, DualScreen.MODE_AUTO, onBuiltIn = false))
-        assertFalse(DualScreen.leavesBottomOnDock(wasDocked = false, docked = true, DualScreen.MODE_ON, onBuiltIn = true))
-        assertFalse(DualScreen.leavesBottomOnDock(wasDocked = false, docked = true, DualScreen.MODE_OFF, onBuiltIn = true))
+        assertTrue(DualScreen.leavesBottomOnDock(wasDocked = false, docked = true, DualScreen.MODE_AUTO, automaticOnBuiltIn = true))
+        assertFalse(DualScreen.leavesBottomOnDock(wasDocked = true, docked = true, DualScreen.MODE_AUTO, automaticOnBuiltIn = true))
+        assertFalse(DualScreen.leavesBottomOnDock(wasDocked = false, docked = false, DualScreen.MODE_AUTO, automaticOnBuiltIn = true))
+        assertFalse(DualScreen.leavesBottomOnDock(wasDocked = false, docked = true, DualScreen.MODE_AUTO, automaticOnBuiltIn = false))
+        assertFalse(DualScreen.leavesBottomOnDock(wasDocked = false, docked = true, DualScreen.MODE_ON, automaticOnBuiltIn = true))
+        assertFalse(DualScreen.leavesBottomOnDock(wasDocked = false, docked = true, DualScreen.MODE_OFF, automaticOnBuiltIn = true))
     }
 
     private companion object {
