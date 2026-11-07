@@ -476,7 +476,7 @@ unless it was verified.
 | Wayland compositor | **done, links** | Upstream's protocol layer and `compositor.c` compile unchanged; JNI replaced with Node-API |
 | Guest input path | **done** | ArkUI touch and key events mapped to the guest's evdev codes; unit tested |
 | Wayland keymap | **done** | The guest is published upstream's keymap, without which every key comes out wrong |
-| Guest session launch | **done** | The session page starts `/usr/local/bin/droiddeck-session` with upstream's `BL_*` environment |
+| Guest session launch | **done** | The session page starts `/usr/local/bin/droiddeck-session` in Steam's mode with upstream's `BL_*` environment; the guest's desktop modes need packages HarmonyOS cannot install |
 | Guest launch without proot | **done, tested** | The published image has no proot, so the guest is started by the guest's own loader; a script command is run by the interpreter its `#!` line names |
 | Guest Vulkan driver | **done** | The guest is pinned to lavapipe, the only driver in the image that works without a GPU device node |
 | App configuration | **done, checked** | The manifests are validated against the SDK's own schemas; see `tools/check_app_config.py` |
@@ -533,6 +533,13 @@ The Linux guest is the hard part, and the port does not pretend otherwise:
 * The **virtual gamepad does not work**: `/dev/uinput` is not available to
   an app. Touch and keyboard still reach the guest, through the Wayland
   compositor.
+* The guest **cannot install packages**. Upstream's guest installs what it
+  needs through `droiddeck-root`, which asks the Android app's root helper
+  over a socket; HarmonyOS has no such helper, and the guest's own `apt`
+  needs a real root. So the port starts the guest in Steam's mode, which
+  downloads the client with `curl` instead, and the guest's desktop modes
+  (`desktop`, which execs pcmanfm, and `lxqt`, which needs the LXQt desktop
+  pack) stay out of reach until the app can install packages itself.
 
 `AppStore.runtime.mode` and the Settings page report which mode the device
 actually selected.

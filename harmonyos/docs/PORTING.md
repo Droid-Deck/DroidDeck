@@ -661,6 +661,30 @@ This is the kind of difference that only shows up when the real artifact
 is installed rather than a fixture built to match expectations, which is
 why `tools/verify_upstream_runtime.sh` exists.
 
+### The session mode the port can actually use
+
+Upstream's session script takes a mode: `desktop` execs `pcmanfm`, `lxqt`
+starts the KDE desktop, `steam` starts the Steam client and `run` starts a
+program. The port starts the guest in **`steam`**.
+
+The other two need more than the published runtime carries. `pcmanfm` comes
+with upstream's LXQt desktop pack (`tools/desktop-kde/lxqt-applications.txt`),
+and `lxqt` needs the pack's `/usr/bin/kwin_wayland_wrapper` as well — the
+one the port's `/usr/local/bin/kwin_wayland_wrapper` forwards to. The
+published image has neither, and the guest cannot install them: upstream
+installs packages through `droiddeck-root`, a helper that talks to the
+**Android** app's root service over `/etc/droiddeck/root-socket`, and the
+guest's own `apt` needs a real root that a HarmonyOS app does not have.
+
+The `steam` mode needs neither. `droiddeck-steam-install` downloads the
+client with `curl` and unpacks it into the guest's home, and both `curl`
+and `unzip` are in the image. That is also the mode DroidDeck is for.
+
+The guest's offline apt cache (`/var/lib/droiddeck/apt/`, with the kwin and
+mesa packages) is therefore unusable here, which is worth knowing: it
+means the desktop stays out of reach until the app can install packages
+itself.
+
 ### The compositor seam
 
 Upstream's compositor is `app/src/main/cpp/waylandcomp` — 15,739 lines of C

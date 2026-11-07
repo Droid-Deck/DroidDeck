@@ -124,6 +124,16 @@ struct SessionPage {
    *
    * The compositor has to be up first: the guest looks for its Wayland
    * socket as soon as it starts, and gives up if it is not there yet.
+   *
+   * The guest is started in Steam's mode, the way upstream starts it for a
+   * game. The guest's desktop modes need more than the published runtime
+   * carries: `desktop` execs pcmanfm, and `lxqt` needs the LXQt desktop
+   * pack and the real kwin wrapper, neither of which is in the image or
+   * the overlay. They cannot be installed either: the guest installs
+   * packages through `droiddeck-root`, which talks to the Android app's
+   * root helper over a socket that does not exist here. The Steam mode
+   * needs neither: it downloads the client with curl and unpacks it, and
+   * both are in the image.
    */
   private startGuest(): void {
     if (this.sessionStarted) {
@@ -131,7 +141,7 @@ struct SessionPage {
     }
     const started = RuntimeService.Instance.start({
       command: '/usr/local/bin/droiddeck-session',
-      args: ['desktop'],
+      args: ['steam'],
       width: this.outputWidth,
       height: this.outputHeight,
       logPath: `${Paths.logDir()}/session.log`,
