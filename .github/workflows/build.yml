@@ -668,8 +668,8 @@ jobs:
           path = Path('app/build.gradle')
           source = path.read_text()
           for old, new in (
-              (r'(?m)^        versionCode 17$', '        versionCode 24'),
-              (r'(?m)^        versionName "0\.6\.9"$', '        versionName "0.6.9-wallentx.11"'),
+              (r'(?m)^        versionCode 17$', '        versionCode 25'),
+              (r'(?m)^        versionName "0\.6\.9"$', '        versionName "0.6.9-wallentx.12"'),
           ):
               source, count = re.subn(old, new, source)
               if count != 1:
@@ -700,8 +700,8 @@ jobs:
               ['git', 'show', 'HEAD:app/build.gradle'], text=True,
           )
           for old, new in (
-              (r'(?m)^        versionCode 17$', '        versionCode 24'),
-              (r'(?m)^        versionName "0\.6\.9"$', '        versionName "0.6.9-wallentx.11"'),
+              (r'(?m)^        versionCode 17$', '        versionCode 25'),
+              (r'(?m)^        versionName "0\.6\.9"$', '        versionName "0.6.9-wallentx.12"'),
           ):
               expected_gradle, count = re.subn(old, new, expected_gradle)
               if count != 1:
@@ -725,7 +725,7 @@ jobs:
           fi
           echo "DROIDDECK_BUILD_TREE_STATE=$tree_state" >> "$GITHUB_ENV"
           if [[ "$PREVIEW" == true ]]; then
-            label="Preview 11 at ${BUILD_SHA:0:7}"
+            label="Preview 12 at ${BUILD_SHA:0:7}"
           elif [[ -n "$PR_NUMBER" ]]; then
             label="pr${PR_NUMBER} at ${PR_HEAD_SHA:0:7}"
           else
