@@ -33,6 +33,13 @@ object AppUiPrefs {
         context.getSharedPreferences("app-ui", Context.MODE_PRIVATE).getInt("scale", DEFAULT_SCALE),
     )
 
+    fun guideSeen(context: Context): Boolean =
+        context.getSharedPreferences("app-ui", Context.MODE_PRIVATE).getBoolean("guide_seen", false)
+
+    fun setGuideSeen(context: Context) {
+        context.getSharedPreferences("app-ui", Context.MODE_PRIVATE).edit().putBoolean("guide_seen", true).apply()
+    }
+
     fun setScale(context: Context, percent: Int) {
         context.getSharedPreferences("app-ui", Context.MODE_PRIVATE).edit()
             .putInt("scale", normalizeScale(percent)).apply()

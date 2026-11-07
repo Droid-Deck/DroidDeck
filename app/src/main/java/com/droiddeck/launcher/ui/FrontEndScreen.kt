@@ -469,6 +469,18 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val ctx = LocalContext.current
+    var showFirstGuide by rememberSaveable {
+        mutableStateOf(!com.droiddeck.launcher.core.AppUiPrefs.guideSeen(ctx) && !com.droiddeck.launcher.runtime.LinuxRuntime.isInstalled(ctx))
+    }
+    if (showFirstGuide) GettingStartedDialog(
+        runtimeReady = s.ready,
+        installEnabled = !s.busy && !s.runtimeActionsBlocked && !s.sessionRunning,
+        onInstallRuntime = a.onRuntime,
+        onDismiss = {
+            com.droiddeck.launcher.core.AppUiPrefs.setGuideSeen(ctx)
+            showFirstGuide = false
+        },
+    )
     val phantomGateVisible = s.showPhantomGate && PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
     val processSettingsPageVisible = phantomGateVisible || showWirelessAdbFix || showDeveloperDisplayChoice
     val requestDeveloperOptions = {

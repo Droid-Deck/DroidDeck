@@ -176,6 +176,13 @@ internal fun SetupPanel(
     val limitBlocks = PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
     val signedIn = s.offlineAccount != null
     var showLimitDetails by rememberSaveable { mutableStateOf(false) }
+    var showGuide by rememberSaveable { mutableStateOf(false) }
+    if (showGuide) GettingStartedDialog(
+        runtimeReady = s.ready,
+        installEnabled = !s.busy && !s.runtimeActionsBlocked && !s.sessionRunning,
+        onInstallRuntime = a.onRuntime,
+        onDismiss = { showGuide = false },
+    )
     var editSgdbKey by remember { mutableStateOf(false) }
     var editDownloadPrefix by remember { mutableStateOf(false) }
     var editDownloadProxy by remember { mutableStateOf(false) }
@@ -244,6 +251,7 @@ internal fun SetupPanel(
         ) {
             PageHeader(stringResource(R.string.setup_title)) {
                 Box(Modifier.weight(1f)) { SheetChips(tabs, tab, chipFocus, onPick = pick) }
+                SecondaryButton(stringResource(R.string.guide_button), compact = true) { showGuide = true }
             }
             Column(modifier = Modifier.weight(1f).fillMaxWidth().then(if (tab == 1) Modifier else Modifier.verticalScroll(rememberScrollState())).padding(bottom = if (tab == 1) 0.dp else 24.dp)) {
                 when (tab) {
