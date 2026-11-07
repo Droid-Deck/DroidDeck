@@ -9,7 +9,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 object InputLibraries {
-    private const val VERSION = 8
+    private const val VERSION = 9
     private const val KEY = "library"
     private const val RECOVERY = "library-recovery."
     const val OVERLAY = "builtin.overlay"
@@ -27,6 +27,7 @@ object InputLibraries {
         var library = decoded ?: scopeLayouts(upgradeStockLayouts(upgradeOverlay(context, migrate(context))))
         val version = raw?.let { JSONObject(it).getInt("version") } ?: 0
         if (version < 5) library = scopeLayouts(upgradeStockLayouts(upgradeOverlay(context, library)))
+        if (version < 9) library = restyleGamepads(context, library)
         if (version < 6 || !p.contains(LegacyScreenKeyMigration.BACKUP)) {
             val legacy = LegacyScreenKeyMigration.snapshot(context)
             if (legacy != null) {
@@ -104,12 +105,40 @@ object InputLibraries {
         return InputLibrary(profiles, layouts, bindings, selected).validate()
     }
 
+    fun setAdaptiveSticks(context: Context, layoutId: String, on: Boolean) {
+        ControllerPrefs.setAdaptiveSticks(context, on)
+        update(context) { library ->
+            library.copy(layouts = library.layouts.map { layout ->
+                if (layout.id != layoutId || !layout.editable) layout
+                else layout.copy(elements = layout.elements.map { if (it.kind == InputElementKind.STICK) it.copy(floating = on, hideWhenIdle = on) else it })
+            })
+        }
+    }
+
     @Suppress("DEPRECATION")
-    private fun upgradeOverlay(context: Context, library: InputLibrary): InputLibrary {
-        if (library.layouts.none { it.template == InputLayoutTemplate.OVERLAY }) return library
+    private fun primaryDisplay(context: Context): Pair<Context, DisplayMetrics> {
         val display = context.getSystemService(DisplayManager::class.java)?.getDisplay(Display.DEFAULT_DISPLAY)
         val surfaceContext = display?.let(context::createDisplayContext) ?: context
-        val metrics = DisplayMetrics().also { if (display != null) display.getRealMetrics(it) else it.setTo(context.resources.displayMetrics) }
+        return surfaceContext to DisplayMetrics().also { if (display != null) display.getRealMetrics(it) else it.setTo(context.resources.displayMetrics) }
+    }
+
+    private fun restyleGamepads(context: Context, library: InputLibrary): InputLibrary {
+        if (library.layouts.none { it.id == OVERLAY || it.id.startsWith("migrated.layout.") }) return library
+        val (surfaceContext, metrics) = primaryDisplay(context)
+        return library.copy(layouts = library.layouts.map { layout ->
+            val size = when {
+                layout.id == OVERLAY -> listOf(metrics.widthPixels, metrics.heightPixels)
+                layout.id.startsWith("migrated.layout.") -> layout.id.removePrefix("migrated.layout.").split('x').mapNotNull { it.toIntOrNull() }
+                else -> emptyList()
+            }
+            if (size.size != 2 || size.any { it <= 0 }) layout
+            else layout.copy(elements = LegacyGamepadLayout(surfaceContext, size[0], size[1]).restyle(layout.elements))
+        })
+    }
+
+    private fun upgradeOverlay(context: Context, library: InputLibrary): InputLibrary {
+        if (library.layouts.none { it.template == InputLayoutTemplate.OVERLAY }) return library
+        val (surfaceContext, metrics) = primaryDisplay(context)
         val settings = ControllerPrefs.read(context)
         val elements = LegacyGamepadLayout(surfaceContext, metrics.widthPixels.coerceAtLeast(1), metrics.heightPixels.coerceAtLeast(1)).elements()
         val style = InputSurfaceStyle(settings.tint, settings.opacity)

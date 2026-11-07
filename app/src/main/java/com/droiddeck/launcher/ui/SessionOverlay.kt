@@ -314,6 +314,8 @@ class DrawerActions(
     val onPause: () -> Unit = {},
     val onPipAutoEnter: (Boolean) -> Unit = {},
     val unfoldedControls: Boolean? = null,
+    val adaptiveSticks: Boolean? = null,
+    val onAdaptiveSticks: (Boolean) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val unfoldedControlsWithController: Boolean = false,
     val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
@@ -636,6 +638,10 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     else listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never)),
                                     if (!a.steam && a.oscMode == SessionPrefs.OSC_STEAM_TOUCH) SessionPrefs.OSC_AUTO else a.oscMode,
                                     chipModifier = focus.track(page, "osc"), onPick = a.onOsc)
+                                a.adaptiveSticks?.let { on ->
+                                    ToggleRow(host, "adaptive-sticks", stringResource(R.string.ctrl_adaptive), null, on,
+                                        chipModifier = focus.track(page, "adaptive-sticks"), onChange = a.onAdaptiveSticks)
+                                }
                                 a.onEditSteamTouch?.let { edit ->
                                     ActionRow(stringResource(R.string.osc_steam_layout), stringResource(R.string.osc_steam_layout_hint), stringResource(R.string.ctrl_edit), edit)
                                 }

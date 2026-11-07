@@ -188,11 +188,37 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
             settings.mapping[it.id] != ControllerPrefs.OFF && (it.id != "guide" || settings.steamButton) && (it.id != "qam" || settings.qamButton)
         }.map { c ->
             InputSurfaceElement(requireNotNull(InputControl.fromId(c.id)), (c.cx - c.halfW) / width, (c.cy - c.halfH) / height,
-                2 * c.halfW / width, 2 * c.halfH / height, floating = settings.adaptiveSticks, hideWhenIdle = c.stick >= 0 && settings.adaptiveSticks).bounded()
+                2 * c.halfW / width, 2 * c.halfH / height, floating = settings.adaptiveSticks, hideWhenIdle = c.stick >= 0 && settings.adaptiveSticks,
+                buttonShape = if (c.id in shoulderIds) InputButtonShape.PILL else InputButtonShape.CIRCLE).let(::widenStick).bounded()
         }.toMutableList()
-        if (settings.keyboardButton) result += InputSurfaceElement(InputControl.A, .02f, .9f, .12f, .08f,
-            "builtin:keyboard", name = "Keyboard")
+        if (settings.keyboardButton) result += keyboard()
         return result
+    }
+
+    private fun keyboard(): InputSurfaceElement {
+        val radius = dp(KEYBOARD_RADIUS_DP)
+        val cx = safe.left + dp(KEYBOARD_X_DP)
+        val cy = height - safe.bottom - dp(KEYBOARD_Y_DP)
+        return InputSurfaceElement(InputControl.A, (cx - radius) / width, (cy - radius) / height, 2 * radius / width, 2 * radius / height,
+            KEYBOARD_ID, name = "Keyboard", icon = InputButtonIcons.KEYBOARD, buttonShape = InputButtonShape.CIRCLE).bounded()
+    }
+
+    fun restyle(elements: List<InputSurfaceElement>): List<InputSurfaceElement> = elements.map { e ->
+        when {
+            e.id == KEYBOARD_ID && e.icon == 0 && e.x == .02f && e.y == .9f && e.width == .12f && e.height == .08f -> keyboard()
+            e.id == "legacy:${e.control.id}" && e.buttonShape == InputButtonShape.ROUNDED ->
+                widenStick(e.copy(buttonShape = if (e.control.id in shoulderIds) InputButtonShape.PILL else InputButtonShape.CIRCLE)).bounded()
+            else -> e
+        }
+    }
+
+    private fun widenStick(e: InputSurfaceElement): InputSurfaceElement {
+        val extra = e.width * (STICK_REACH - 1f)
+        return when (e.control) {
+            InputControl.LS -> (e.x - extra).coerceAtLeast(0f).let { x -> e.copy(x = x, width = e.x + e.width - x) }
+            InputControl.RS -> e.copy(width = (e.width + extra).coerceAtMost(1f - e.x))
+            else -> e
+        }
     }
     private companion object {
         const val MIN_FACE_MM = 9.5f
@@ -203,5 +229,10 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
         const val SHOULDER_WIDTH = 1.45f
         const val SHOULDER_HEIGHT = 0.8f
         val shoulderIds = setOf("lb", "rb", "lt", "rt")
+        const val STICK_REACH = 1.25f
+        const val KEYBOARD_ID = "builtin:keyboard"
+        const val KEYBOARD_RADIUS_DP = 18f
+        const val KEYBOARD_X_DP = 90f
+        const val KEYBOARD_Y_DP = 34f
     }
 }

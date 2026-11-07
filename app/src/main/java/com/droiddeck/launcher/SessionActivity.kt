@@ -159,6 +159,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var pipAutoEnter by mutableStateOf(false)
     private var unfoldedControls by mutableStateOf(false)
     private var unfoldedControlsWithController by mutableStateOf(false)
+    private var adaptiveSticks by mutableStateOf<Boolean?>(null)
     private var picturePosition by mutableStateOf("center")
 
     private fun applyGameAlignment() {
@@ -1404,6 +1405,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             },
             unfoldedControls = unfoldedControls,
             onUnfoldedControls = ::chooseUnfoldedControls,
+            adaptiveSticks = adaptiveSticks.takeIf { oscMode != SessionPrefs.OSC_NEVER && oscMode != SessionPrefs.OSC_STEAM_TOUCH },
+            onAdaptiveSticks = { on ->
+                primaryInputLayout?.let { com.droiddeck.launcher.input.InputLibraries.setAdaptiveSticks(this@SessionActivity, it.id, on) }
+                refreshInputProfile()
+            },
             unfoldedControlsWithController = unfoldedControlsWithController,
             onUnfoldedControlsWithController = ::chooseUnfoldedControlsWithController,
             onBackground = { drawerOpen = false; pip.background(); moveTaskToBack(true) },
@@ -3498,6 +3504,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val desktop = loadingMode() == SessionService.MODE_DESKTOP
         inputProfile = library.compileActive(desktop)
         primaryInputLayout = library.activeLayout(desktop, InputRole.PRIMARY)
+        adaptiveSticks = primaryInputLayout?.adaptiveSticks
         secondaryInputLayout = library.activeLayout(desktop, InputRole.SECONDARY)
         inputUsesLocalActions = InputControl.padControls.any { inputProfile.action(InputRole.PHYSICAL, it) !is InputAction.Native }
         inputUsesPointer = inputProfile.bindings.values.any { bindings ->
