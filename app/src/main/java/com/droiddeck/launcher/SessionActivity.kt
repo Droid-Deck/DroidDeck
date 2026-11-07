@@ -146,6 +146,23 @@ import com.droiddeck.launcher.ui.safeContentSize
 import com.droiddeck.launcher.ui.surfaceLocalPoint
 import kotlin.math.abs
 
+internal fun sessionSystemUiVisibility(fullscreen: Boolean): Int = if (fullscreen) {
+    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+        View.SYSTEM_UI_FLAG_FULLSCREEN or
+        View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+        View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+        View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+} else {
+    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+}
+
+internal fun sessionDisplayCutoutMode(fullscreen: Boolean): Int = if (fullscreen) {
+    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+} else {
+    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+}
+
 class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(newBase)
@@ -669,7 +686,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             SessionState.followScale = followScale()
         }
         applyFollowOrientation(resources.configuration)
-        goFullscreen()
+        applySessionFullscreen()
         volumeControlStream = android.media.AudioManager.STREAM_MUSIC
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         refreshSecondScreenDisplays()
@@ -4521,6 +4538,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onResume() {
         super.onResume()
+        if (!pipUi) applySessionFullscreen()
         com.droiddeck.launcher.input.SystemKeyCapture.attach(this, { hasWindowFocus() && !appUiOwnsPointer() && CompositorHost.isStarted }) { event ->
             com.droiddeck.launcher.input.GuestKeys.send(event, ::sendGuestKey)
         }
@@ -5149,7 +5167,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             releaseHeldGuestInput()
         }
         if (hasFocus && !pipUi) {
-            goFullscreen()
+            applySessionFullscreen()
             refreshClipboard()
         }
         updatePointerCapture()
@@ -5159,21 +5177,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (resumed) sessionClipboard.refresh()
     }
 
-    private fun goFullscreen() {
+    private fun applySessionFullscreen() {
+        val fullscreen = SessionPrefs.launcherFullscreen(this)
         @Suppress("DEPRECATION")
-        window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                or View.SYSTEM_UI_FLAG_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
+        window.decorView.systemUiVisibility = sessionSystemUiVisibility(fullscreen)
         if (Build.VERSION.SDK_INT >= 28) {
             window.attributes = window.attributes.apply {
-                layoutInDisplayCutoutMode = if (Build.VERSION.SDK_INT >= 30)
-                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
-                else WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                layoutInDisplayCutoutMode = sessionDisplayCutoutMode(fullscreen)
             }
         }
+        fullscreenSafeInsetsController?.refresh()
     }
 
     private val endListener: (Int) -> Unit = { status -> onSessionEnded(status) }
