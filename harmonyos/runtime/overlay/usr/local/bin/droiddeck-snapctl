@@ -1,0 +1,12 @@
+#!/bin/sh
+case $1 in
+  is-connected)
+    shift
+    while [ $# -gt 1 ]; do shift; done
+    case " $DROIDDECK_SNAP_PLUGS " in
+      *" ${1:-} "*) exit 0 ;;
+    esac
+    exit 1
+    ;;
+esac
+exit 0

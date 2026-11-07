@@ -1,0 +1,34 @@
+#!/bin/bash
+set -u
+root=${1:-/}
+root=${root%/}
+[ -n "$root" ] || root=/
+conf_dir=$root/etc/fonts
+defaults_dir=$root/usr/share/fontconfig/conf.default
+mkdir -p "$conf_dir/conf.d" 2>/dev/null
+
+if [ -d "$defaults_dir" ]; then
+  for f in "$defaults_dir"/*.conf; do
+    [ -e "$f" ] || continue
+    [ -e "$conf_dir/conf.d/${f##*/}" ] || ln -sf "$f" "$conf_dir/conf.d/${f##*/}"
+  done
+fi
+
+owned_conf=$conf_dir/conf.d/65-droiddeck-default-fonts.conf
+{
+  echo '<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd"><fontconfig>'
+  for generic in sans-serif sans serif monospace mono cursive fantasy system-ui ui-sans-serif; do
+    case $generic in
+      serif) face="DejaVu Serif" ;;
+      mono*|ui-mono) face="DejaVu Sans Mono" ;;
+      *) face="DejaVu Sans" ;;
+    esac
+    printf '<alias binding="weak"><family>%s</family><prefer><family>%s</family></prefer></alias>\n' "$generic" "$face"
+  done
+  echo '</fontconfig>'
+} > "$owned_conf.new"
+if ! cmp -s "$owned_conf.new" "$owned_conf" 2>/dev/null; then
+  mv -f "$owned_conf.new" "$owned_conf"
+  echo "== fontconfig: wrote DejaVu defaults"
+fi
+rm -f "$owned_conf.new"

@@ -1,0 +1,6 @@
+{
+  "name": "libdroiddeck_native.so",
+  "types": "./index.d.ts",
+  "version": "0.6.9-harmony",
+  "description": "The Node-API surface of DroidDeck's native module for HarmonyOS 7."
+}

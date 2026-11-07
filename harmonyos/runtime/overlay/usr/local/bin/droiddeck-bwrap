@@ -1,0 +1,477 @@
+#!/usr/bin/python3
+import base64
+import fcntl
+import json
+import os
+import signal
+import socket
+import struct
+import subprocess
+import sys
+
+SOCKET_FILE = "/etc/droiddeck/bwrap-socket"
+
+
+def socket_name():
+    name = os.environ.get("DROIDDECK_BWRAP_SOCKET", "")
+    if not name:
+        try:
+            with open(SOCKET_FILE, encoding="utf-8") as f:
+                name = f.read().strip()
+        except OSError:
+            pass
+    return "\0" + (name or "com.droiddeck.launcher.bwrap")
+
+
+SOCKET = socket_name()
+FEX_DIR = "/run/droiddeck-fex"
+OWN_FEX = "/usr/local"
+X86_MACHINES = (3, 62)
+ARM_LIBS = "/usr/lib/aarch64-linux-gnu"
+ARM_LOADER = "/usr/lib/ld-linux-aarch64.so.1"
+VERSION = "bubblewrap 0.11.0 (droiddeck)"
+
+NO_ARG = {
+    "--unshare-user", "--unshare-user-try", "--unshare-ipc", "--unshare-pid", "--unshare-net",
+    "--unshare-uts", "--unshare-cgroup", "--unshare-cgroup-try", "--unshare-all", "--share-net",
+    "--disable-userns", "--assert-userns-disabled", "--clearenv", "--new-session",
+    "--die-with-parent", "--as-pid-1", "--level-prefix", "--tmp-overlay", "--ro-overlay",
+}
+ONE_ARG = {
+    "--args", "--argv0", "--userns", "--userns2", "--pidns", "--uid", "--gid", "--hostname",
+    "--chdir", "--unsetenv", "--lock-file", "--sync-fd", "--remount-ro", "--exec-label",
+    "--file-label", "--proc", "--dev", "--tmpfs", "--mqueue", "--dir", "--seccomp",
+    "--add-seccomp-fd", "--block-fd", "--userns-block-fd", "--info-fd", "--json-status-fd",
+    "--cap-add", "--cap-drop", "--perms", "--size", "--overlay-src",
+}
+TWO_ARG = {
+    "--setenv", "--bind", "--bind-try", "--dev-bind", "--dev-bind-try", "--ro-bind",
+    "--ro-bind-try", "--bind-fd", "--ro-bind-fd", "--file", "--bind-data", "--ro-bind-data",
+    "--symlink", "--chmod",
+}
+THREE_ARG = {"--overlay"}
+
+
+def read_fd(fd):
+    chunks = []
+    while True:
+        b = os.read(fd, 65536)
+        if not b:
+            break
+        chunks.append(b)
+    os.close(fd)
+    return b"".join(chunks)
+
+
+def fd_path(fd):
+    return os.readlink("/proc/self/fd/%d" % fd)
+
+
+def expand(argv):
+    out = []
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--args" and i + 1 < len(argv):
+            data = read_fd(int(argv[i + 1]))
+            parts = data.split(b"\0")
+            if parts and parts[-1] == b"":
+                parts.pop()
+            out.extend(x.decode("utf-8", "surrogateescape") for x in parts)
+            i += 2
+            continue
+        out.append(a)
+        i += 1
+    return out
+
+
+class Spec:
+    def __init__(self):
+        self.ops = []
+        self.env = dict(os.environ)
+        self.cwd = None
+        self.info_fds = []
+        self.json_fds = []
+        self.keep_fds = []
+        self.lock_files = []
+        self.command = []
+        self.argv0 = None
+        self.env_tool = None
+
+
+def parse(argv):
+    s = Spec()
+    perms = None
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--":
+            s.command = argv[i + 1:]
+            break
+        if not a.startswith("--"):
+            s.command = argv[i:]
+            break
+        if a in ("--version",):
+            print(VERSION)
+            sys.exit(0)
+        if a == "--help":
+            print("usage: bwrap [OPTIONS...] [--] COMMAND [ARGS...]")
+            sys.exit(0)
+        n = 0 if a in NO_ARG else 1 if a in ONE_ARG else 2 if a in TWO_ARG else 3 if a in THREE_ARG else -1
+        if n < 0:
+            sys.stderr.write("bwrap: Unknown option %s\n" % a)
+            sys.exit(1)
+        args = argv[i + 1:i + 1 + n]
+        if len(args) < n:
+            sys.stderr.write("bwrap: %s takes %d arguments\n" % (a, n))
+            sys.exit(1)
+        i += 1 + n
+        op_perms, perms = perms, None
+        if a == "--perms":
+            perms = int(args[0], 8)
+        elif a == "--clearenv":
+            s.env = {"PWD": os.getcwd()} if "PWD" in os.environ else {}
+        elif a == "--setenv":
+            s.env[args[0]] = args[1]
+        elif a == "--unsetenv":
+            s.env.pop(args[0], None)
+        elif a == "--chdir":
+            s.cwd = args[0]
+        elif a == "--argv0":
+            s.argv0 = args[0]
+        elif a in ("--bind", "--bind-try", "--dev-bind", "--dev-bind-try", "--ro-bind", "--ro-bind-try"):
+            s.ops.append({"t": "bind", "src": args[0], "dest": args[1], "try": a.endswith("-try"),
+                          "ro": a.startswith("--ro")})
+        elif a in ("--bind-fd", "--ro-bind-fd"):
+            fd = int(args[0])
+            s.ops.append({"t": "bind", "src": fd_path(fd), "dest": args[1], "try": False,
+                          "ro": a.startswith("--ro")})
+            os.close(fd)
+        elif a in ("--file", "--bind-data", "--ro-bind-data"):
+            s.ops.append({"t": "file", "dest": args[1], "data": read_fd(int(args[0])),
+                          "perms": op_perms if op_perms is not None else 0o666 if a == "--file" else 0o600})
+        elif a == "--symlink":
+            s.ops.append({"t": "symlink", "target": args[0], "dest": args[1]})
+        elif a == "--dir":
+            s.ops.append({"t": "dir", "dest": args[0], "perms": op_perms if op_perms is not None else 0o755})
+        elif a in ("--tmpfs", "--mqueue"):
+            s.ops.append({"t": "dir", "dest": args[0], "perms": op_perms if op_perms is not None else 0o755,
+                          "empty": True})
+        elif a == "--proc":
+            s.ops.append({"t": "proc", "dest": args[0]})
+        elif a == "--dev":
+            s.ops.append({"t": "dev", "dest": args[0]})
+        elif a in ("--seccomp", "--add-seccomp-fd"):
+            os.close(int(args[0]))
+        elif a == "--block-fd":
+            read_fd(int(args[0]))
+        elif a == "--sync-fd":
+            s.keep_fds.append(int(args[0]))
+        elif a == "--lock-file":
+            s.lock_files.append(args[0])
+        elif a == "--info-fd":
+            s.info_fds.append(int(args[0]))
+        elif a == "--json-status-fd":
+            s.json_fds.append(int(args[0]))
+    if not s.command:
+        sys.stderr.write("bwrap: No command specified\n")
+        sys.exit(1)
+    return s
+
+
+def real(path):
+    try:
+        return os.path.realpath(path)
+    except OSError:
+        return path
+
+
+def remaps_nothing(s):
+    for op in s.ops:
+        t = op["t"]
+        if t == "bind":
+            src = real(op["src"])
+            if not os.path.exists(src):
+                if op["try"]:
+                    continue
+                return False
+            if src != real(op["dest"]) and not (op["src"] == "/" and op["dest"] == "/"):
+                return False
+        elif t == "symlink":
+            if not os.path.islink(op["dest"]) or os.readlink(op["dest"]) != op["target"]:
+                return False
+        elif t == "file":
+            if op["dest"] != "/.flatpak-info":
+                return False
+        elif t == "dir":
+            if not os.path.isdir(op["dest"]) or op.get("empty") and op["dest"] not in ("/tmp", "/var/tmp", "/run"):
+                return False
+        elif t in ("proc", "dev"):
+            if op["dest"] != "/" + t:
+                return False
+    return True
+
+
+def host_path(s, path):
+    for op in reversed(s.ops):
+        if op["t"] != "bind":
+            continue
+        dest = op["dest"].rstrip("/")
+        if path == dest or path.startswith(dest + "/"):
+            return op["src"].rstrip("/") + path[len(dest):]
+    return path
+
+
+def sandbox_link(s, path):
+    for op in reversed(s.ops):
+        if op.get("dest", "").rstrip("/") != path:
+            continue
+        if op["t"] == "symlink":
+            return op["target"]
+        if op["t"] == "bind":
+            return None
+        break
+    here = sandbox_source(s, path)
+    return os.readlink(here) if os.path.islink(here) else None
+
+
+def sandbox_source(s, path):
+    for op in reversed(s.ops):
+        if op["t"] != "bind":
+            continue
+        dest = op["dest"].rstrip("/")
+        if path == dest or path.startswith(dest + "/"):
+            return real(op["src"]).rstrip("/") + path[len(dest):]
+    return path
+
+
+def sandbox_file(s, path):
+    parts = [p for p in path.split("/") if p]
+    done = "/"
+    hops = 0
+    i = 0
+    while i < len(parts):
+        step = os.path.join(done, parts[i])
+        link = sandbox_link(s, step)
+        if link is None:
+            done = step
+            i += 1
+            continue
+        hops += 1
+        if hops > 40:
+            return None
+        base = "/" if link.startswith("/") else done
+        parts = [p for p in os.path.normpath(os.path.join(base, link)).split("/") if p] + parts[i + 1:]
+        done = "/"
+        i = 0
+    here = sandbox_source(s, done)
+    return here if os.path.isfile(here) else None
+
+
+def program_path(s, program):
+    if "/" in program:
+        return os.path.normpath(os.path.join(s.cwd or "/", program))
+    for folder in s.env.get("PATH", "/usr/bin:/bin").split(":"):
+        if not folder:
+            continue
+        candidate = os.path.normpath(os.path.join(s.cwd or "/", folder, program))
+        if sandbox_file(s, candidate):
+            return candidate
+    return None
+
+
+def machine(s, path, depth=0):
+    here = sandbox_file(s, path)
+    if here is None:
+        return None
+    try:
+        with open(here, "rb") as f:
+            head = f.read(256)
+    except OSError:
+        return None
+    if head[:4] == b"\x7fELF" and len(head) >= 20:
+        return struct.unpack("<H" if head[5] == 1 else ">H", head[18:20])[0]
+    if head[:2] == b"#!" and depth < 4:
+        words = head[2:].split(b"\n")[0].split()
+        if words:
+            return machine(s, words[0].decode("utf-8", "replace"), depth + 1)
+    return None
+
+
+def own_fex():
+    return all(os.access(os.path.join(OWN_FEX, "bin", name), os.X_OK) for name in ("FEX", "FEXServer")) \
+        and os.path.isfile(os.path.join(OWN_FEX, "lib", "libxxhash.so.0"))
+
+
+def fex_ready():
+    if own_fex():
+        return True
+    try:
+        subprocess.call([os.path.join(OWN_FEX, "bin", "droiddeck-fex-update")], stdout=sys.stderr)
+    except OSError:
+        return False
+    return own_fex()
+
+
+def start_fex_server():
+    try:
+        subprocess.Popen([os.path.join(OWN_FEX, "bin", "FEXServer"), "-p", "30"], stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError as e:
+        sys.stderr.write("bwrap: could not start FEXServer: %s\n" % e)
+
+
+def through_fex(s):
+    program = program_path(s, s.command[0])
+    if program is None or machine(s, program) not in X86_MACHINES:
+        return False
+    if not fex_ready():
+        sys.stderr.write("bwrap: %s is an x86 program and FEX is not installed\n" % program)
+        return False
+    for src, dest in ((os.path.join(OWN_FEX, "bin", "FEX"), FEX_DIR + "/bin/FEX"),
+                      (os.path.join(OWN_FEX, "bin", "FEXServer"), FEX_DIR + "/bin/FEXServer"),
+                      (os.path.join(OWN_FEX, "lib", "libxxhash.so.0"), FEX_DIR + "/lib/libxxhash.so.0"),
+                      ("/usr/bin/env", FEX_DIR + "/bin/env"),
+                      (ARM_LIBS, ARM_LIBS),
+                      (real(ARM_LOADER), ARM_LOADER)):
+        s.ops.append({"t": "bind", "src": src, "dest": dest, "try": False, "ro": True})
+    data = s.env.get("XDG_CACHE_HOME") or "/tmp"
+    s.env["FEX_APP_CONFIG_LOCATION"] = FEX_DIR + "/config/"
+    s.env["FEX_APP_DATA_LOCATION"] = data + "/droiddeck-fex/"
+    s.env["FEX_APP_CACHE_LOCATION"] = data + "/droiddeck-fex/cache/"
+    for name in ("FEX_ROOTFS", "FEX_THUNKHOSTLIBS", "FEX_THUNKGUESTLIBS", "FEX_THUNKCONFIG", "FEX_PORTABLE",
+                 "GLIBC_TUNABLES", "MESA_LOADER_DRIVER_OVERRIDE", "GALLIUM_DRIVER", "VK_ICD_FILENAMES",
+                 "VK_DRIVER_FILES"):
+        s.env.pop(name, None)
+    s.command = [FEX_DIR + "/bin/FEX", program] + s.command[1:]
+    s.argv0 = None
+    s.env_tool = FEX_DIR + "/bin/env"
+    start_fex_server()
+    return True
+
+
+def hold_locks(s):
+    for path in s.lock_files:
+        try:
+            fd = os.open(host_path(s, path), os.O_RDONLY)
+        except OSError as e:
+            sys.stderr.write("bwrap: Can't open lock file %s: %s\n" % (path, e.strerror))
+            sys.exit(1)
+        try:
+            fcntl.lockf(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except OSError as e:
+            sys.stderr.write("bwrap: Can't lock file %s: %s\n" % (path, e.strerror))
+            sys.exit(1)
+        os.set_inheritable(fd, True)
+
+
+def report_pid(s, pid):
+    for fd in s.info_fds:
+        try:
+            os.write(fd, json.dumps({"child-pid": pid}).encode() + b"\n")
+            os.close(fd)
+        except OSError:
+            pass
+    for fd in s.json_fds:
+        try:
+            os.write(fd, json.dumps({"child-pid": pid}).encode() + b"\n")
+        except OSError:
+            pass
+
+
+def run_here(s):
+    report_pid(s, os.getpid())
+    for fd in s.json_fds:
+        os.close(fd)
+    if s.cwd:
+        os.chdir(s.cwd)
+    argv = list(s.command)
+    program = argv[0]
+    if s.argv0:
+        argv[0] = s.argv0
+    try:
+        os.execvpe(program, argv, s.env)
+    except OSError as e:
+        sys.stderr.write("bwrap: execvp %s: %s\n" % (program, e.strerror))
+        sys.exit(1)
+
+
+def send(sock, kind, payload):
+    sock.sendall(kind + struct.pack(">I", len(payload)) + payload)
+
+
+def recv_exact(sock, n):
+    buf = b""
+    while len(buf) < n:
+        b = sock.recv(n - len(buf))
+        if not b:
+            return None
+        buf += b
+    return buf
+
+
+def run_by_app(s):
+    ops = []
+    for op in s.ops:
+        op = dict(op)
+        if op["t"] == "bind":
+            op["src"] = real(op["src"])
+        if op["t"] == "file":
+            op["data"] = base64.b64encode(op["data"]).decode()
+        ops.append(op)
+    argv = list(s.command)
+    if s.argv0:
+        argv[0] = s.argv0
+    request = {"argv": argv, "env": s.env, "cwd": s.cwd or "/", "ops": ops}
+    if s.env_tool:
+        request["envTool"] = s.env_tool
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        sock.connect(SOCKET)
+    except OSError as e:
+        sys.stderr.write("bwrap: DroidDeck is not answering (%s); open DroidDeck and try again\n" % e)
+        sys.exit(1)
+    send(sock, b"R", json.dumps(request).encode())
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(sig, lambda *_: os._exit(128 + 15))
+    status = 1
+    out = sys.stdout.buffer
+    while True:
+        head = recv_exact(sock, 5)
+        if head is None:
+            sys.stderr.write("bwrap: DroidDeck closed the sandbox\n")
+            break
+        kind, size = head[:1], struct.unpack(">I", head[1:])[0]
+        payload = recv_exact(sock, size) if size else b""
+        if payload is None:
+            break
+        if kind == b"P":
+            report_pid(s, os.getpid())
+        elif kind == b"O":
+            out.write(payload)
+            out.flush()
+        elif kind == b"E":
+            sys.stderr.write("bwrap: %s\n" % payload.decode("utf-8", "replace"))
+        elif kind == b"X":
+            status = int(payload)
+            break
+    for fd in s.json_fds:
+        try:
+            os.write(fd, json.dumps({"exit-code": status}).encode() + b"\n")
+        except OSError:
+            pass
+    sys.exit(status)
+
+
+def main():
+    s = parse(expand(sys.argv[1:]))
+    hold_locks(s)
+    if remaps_nothing(s):
+        run_here(s)
+        return
+    through_fex(s)
+    run_by_app(s)
+
+
+if __name__ == "__main__":
+    main()

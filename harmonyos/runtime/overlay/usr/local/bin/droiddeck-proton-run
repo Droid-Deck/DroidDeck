@@ -1,0 +1,512 @@
+#!/usr/bin/python3
+import json
+import os
+import re
+import runpy
+import shlex
+import struct
+import sys
+import zlib
+
+HOME = os.environ.get("HOME") or "/root"
+STEAM_ROOT = os.path.join(HOME, ".local", "share", "Steam")
+BIN_DIR = os.path.dirname(os.path.abspath(__file__))
+STATE = os.path.join(HOME, ".local", "share", "droiddeck-compat", "state.json")
+EXTRA_LIBRARIES = ("/mnt/droiddeck", "/mnt/droiddeck-sd")
+SYSTEM_TOOLS = ("/usr/share/steam/compatibilitytools.d", "/usr/local/share/steam/compatibilitytools.d")
+DESKTOP_GL = {"LIBGL_ALWAYS_SOFTWARE": "1", "GALLIUM_DRIVER": "llvmpipe"}
+NOT_DESKTOP_GL = ("MESA_LOADER_DRIVER_OVERRIDE", "LIBGL_KOPPER_DRI2")
+VERB = "waitforexitandrun"
+VERBS = (VERB, "run")
+SHORTCUT_BIT = 0x80000000
+STEAM_APP_LIMIT = 2 ** 31
+
+_compat = None
+
+
+def say(message):
+    print("droiddeck-proton-run: %s" % message, file=sys.stderr, flush=True)
+
+
+def compat():
+    global _compat
+    if _compat is None:
+        _compat = runpy.run_path(os.path.join(BIN_DIR, "steam-compatibility"))
+    return _compat
+
+
+def read_text(path):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return f.read()
+    except OSError:
+        return None
+
+
+def libraries(root):
+    found, seen = [], set()
+    for library in compat()["libraries"](root) + list(EXTRA_LIBRARIES):
+        try:
+            key = os.stat(os.path.join(library, "steamapps"))
+        except OSError:
+            continue
+        if (key.st_dev, key.st_ino) not in seen:
+            seen.add((key.st_dev, key.st_ino))
+            found.append(library)
+    return found
+
+
+def mapping(root):
+    text = read_text(os.path.join(root, "config", "config.vdf"))
+    if not text:
+        return {}
+    c = compat()
+    tokens = c["tokenize"](text)
+    steam = c["find_block"](tokens, ["InstallConfigStore", "Software", "Valve", "Steam"])
+    if steam is None:
+        return {}
+    block = c["find_block"](tokens[steam + 1:], ["CompatToolMapping"])
+    return {} if block is None else c["read_mapping"](tokens, block + steam + 1)
+
+
+def tools(root):
+    found = {}
+    for base in [os.path.join(root, "compatibilitytools.d")] + list(SYSTEM_TOOLS):
+        try:
+            entries = sorted(os.listdir(base))
+        except OSError:
+            continue
+        for entry in entries:
+            folder = os.path.join(base, entry)
+            vdf = os.path.join(folder, "compatibilitytool.vdf")
+            if not re.search(r'"from_oslist"\s+"[^"]*windows', read_text(vdf) or "", re.I):
+                continue
+            command = compat()["manifest_entry_point"](os.path.join(folder, "toolmanifest.vdf"))
+            if not command or not os.access(os.path.join(folder, command), os.X_OK):
+                continue
+            name = compat()["first_key"](vdf, ["compatibilitytools", "compat_tools"]) or entry
+            found.setdefault(name, (folder, command))
+    return found
+
+
+def state_default():
+    try:
+        with open(STATE, encoding="utf-8") as f:
+            value = json.load(f).get("default")
+        return value if isinstance(value, str) else None
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def choose_tool(appid, current, available):
+    for key, why in ((appid, "Steam's choice for this title"), ("0", "Steam's default")):
+        name = current.get(key)
+        if name in available:
+            return name, why
+    c = compat()
+    for name in (state_default(), c["TOOL"], c["TOOL_11"]):
+        if name in available:
+            return name, "the default ARM64 Proton"
+    return (sorted(available)[0], "the only one installed") if available else (None, None)
+
+
+class Target:
+    def __init__(self, appid, compatdata, install, library, kind, start=None):
+        self.appid = str(appid)
+        self.compatdata = compatdata
+        self.install = install
+        self.library = library
+        self.kind = kind
+        self.start = start or install
+
+
+def ancestors(path):
+    child, folder = path, os.path.dirname(path)
+    while True:
+        yield folder, os.path.basename(child)
+        if folder == os.path.dirname(folder):
+            return
+        child, folder = folder, os.path.dirname(folder)
+
+
+def identity(path):
+    try:
+        st = os.stat(path)
+        return st.st_dev, st.st_ino
+    except OSError:
+        return None
+
+
+def installed_app(steamapps, installdir):
+    for name in sorted(os.listdir(steamapps)):
+        m = re.fullmatch(r"appmanifest_(\d+)\.acf", name)
+        if not m:
+            continue
+        found = re.search(r'"installdir"\s+"([^"]+)"', read_text(os.path.join(steamapps, name)) or "")
+        if found and found.group(1).lower() == installdir.lower():
+            return m.group(1)
+    return None
+
+
+def steam_game(program, libs):
+    commons = {}
+    for library in libs:
+        key = identity(os.path.join(library, "steamapps", "common"))
+        if key:
+            commons.setdefault(key, library)
+    for folder, below in ancestors(program):
+        library = commons.get(identity(folder))
+        if library is None:
+            continue
+        appid = installed_app(os.path.join(library, "steamapps"), below)
+        if appid is None or appid in compat()["NOT_GAMES"]:
+            return None
+        return Target(appid, os.path.join(library, "steamapps", "compatdata", appid),
+                      os.path.join(folder, below), library, "steam")
+    return None
+
+
+def prefix_of(program):
+    for folder, below in ancestors(program):
+        parent = os.path.dirname(folder)
+        if below == "pfx" and os.path.basename(parent) == "compatdata" and re.fullmatch(r"-?[0-9]+", os.path.basename(folder)):
+            library = os.path.dirname(os.path.dirname(parent))
+            return Target(str(int(os.path.basename(folder)) % 2 ** 32), folder, os.path.dirname(program), library, "prefix")
+    return None
+
+
+def unquoted(value):
+    return value.strip().strip('"') if isinstance(value, str) else ""
+
+
+def same_file(a, b):
+    try:
+        return bool(b) and os.path.samefile(a, b)
+    except OSError:
+        return False
+
+
+def shortcut_entries(root):
+    entries = []
+    try:
+        tool = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-steam-shortcuts"))
+        account = tool["account_dir"](root)
+        if account:
+            with open(os.path.join(account, "config", "shortcuts.vdf"), "rb") as f:
+                shortcuts = tool["parse"](f.read()).get("shortcuts", {})
+            for value in shortcuts.values():
+                if not isinstance(value, dict):
+                    continue
+                appid = value.get("appid", value.get("AppId"))
+                exe = value.get("Exe", value.get("exe"))
+                if isinstance(appid, int) and exe:
+                    entries.append((appid & 0xFFFFFFFF, unquoted(exe), unquoted(value.get("StartDir", ""))))
+    except (OSError, ValueError, IndexError, KeyError, struct.error):
+        pass
+    try:
+        with open(os.environ.get("BL_ADDED_GAMES", ""), encoding="utf-8") as f:
+            for game in json.load(f):
+                if isinstance(game, dict) and game.get("exe") and str(game.get("appid", "")).isdigit():
+                    entries.append((int(game["appid"]) & 0xFFFFFFFF, game["exe"], game.get("dir") or ""))
+    except (OSError, ValueError, TypeError):
+        pass
+    return entries
+
+
+def prefix_folder(root, appid):
+    folder = os.path.join(root, "steamapps", "compatdata")
+    try:
+        names = sorted(os.listdir(folder))
+    except OSError:
+        names = []
+    candidates = []
+    for name in names:
+        if not re.fullmatch(r"-?[0-9]+", name):
+            continue
+        try:
+            matches = int(name) % 2 ** 32 == appid % 2 ** 32
+        except ValueError:
+            continue
+        match = os.path.join(folder, name)
+        if matches and os.path.isdir(match):
+            candidates.append((os.path.isdir(os.path.join(match, "pfx")),
+                               name == str(appid % 2 ** 32), name, match))
+    if candidates:
+        return min(candidates, key=lambda item: (not item[0], not item[1], item[2]))[3]
+    return os.path.join(folder, str(appid % 2 ** 32))
+
+
+def vdf_string(token):
+    return re.sub(r'\\(.)', r'\1', token[1:-1]) if token.startswith('"') else ""
+
+
+def steam_options(app, root):
+    try:
+        tool = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-steam-shortcuts"))
+        account = tool["account_dir"](root)
+        if not account:
+            return ""
+        if int(app) >= STEAM_APP_LIMIT:
+            with open(os.path.join(account, "config", "shortcuts.vdf"), "rb") as f:
+                shortcuts = tool["parse"](f.read()).get("shortcuts", {})
+            for value in shortcuts.values():
+                if isinstance(value, dict) and (value.get("appid", value.get("AppId")) or 0) & 0xFFFFFFFF == int(app):
+                    options = value.get("LaunchOptions", value.get("launchoptions", ""))
+                    return options if isinstance(options, str) else ""
+            return ""
+        tokens = compat()["tokenize"](read_text(os.path.join(account, "config", "localconfig.vdf")) or "")
+        start = compat()["find_block"](tokens, ["UserLocalConfigStore", "Software", "Valve", "Steam", "apps", app])
+        if start is None:
+            return ""
+        end, depth = compat()["block_end"](tokens, start), 0
+        for i in range(start + 1, end):
+            if tokens[i] in ("{", "}"):
+                depth += 1 if tokens[i] == "{" else -1
+            elif depth == 0 and tokens[i].lower() == '"launchoptions"' and i + 1 < end:
+                return vdf_string(tokens[i + 1])
+    except (OSError, ValueError, IndexError, KeyError, TypeError, AttributeError, struct.error):
+        pass
+    return ""
+
+
+def shortcut(program, root):
+    for appid, exe, start in shortcut_entries(root):
+        if same_file(program, exe):
+            return Target(appid, prefix_folder(root, appid),
+                          os.path.dirname(program), root, "shortcut", start if os.path.isdir(start) else None)
+    return None
+
+
+def own_id(program):
+    name = os.path.splitext(os.path.basename(program))[0]
+    return zlib.crc32(('"%s"%s' % (program, name)).encode("utf-8")) | SHORTCUT_BIT
+
+
+def locate(program, root):
+    libs = libraries(root)
+    found = steam_game(program, libs) or prefix_of(program) or shortcut(program, root)
+    if found:
+        return found
+    appid = own_id(program)
+    return Target(appid, prefix_folder(root, appid),
+                  os.path.dirname(program), root, "own")
+
+
+def fixed(program, root, appid):
+    return Target(appid, os.path.join(root, "steamapps", "compatdata", str(appid)),
+                  os.path.dirname(program), root, "fixed")
+
+
+def prefix_id(value):
+    return value if value.isdigit() and not value.startswith("0") and int(value) <= 0xFFFFFFFF else None
+
+
+def split_words(text):
+    try:
+        return shlex.split(text or "")
+    except ValueError:
+        return (text or "").split()
+
+
+def split_options(text):
+    words = split_words(text)
+    if "%command%" not in words:
+        return {}, words
+    at = words.index("%command%")
+    env = {}
+    for word in words[:at]:
+        name, equals, value = word.partition("=")
+        if equals and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+            env[name] = value
+    return env, words[at + 1:]
+
+
+def find_file(base, relative):
+    path = base
+    for part in [p for p in relative.replace("\\", "/").split("/") if p and p != "."]:
+        exact = os.path.join(path, part)
+        if part == ".." or os.path.exists(exact):
+            path = exact
+            continue
+        try:
+            match = next((name for name in sorted(os.listdir(path)) if name.lower() == part.lower()), None)
+        except OSError:
+            return None
+        if match is None:
+            return None
+        path = os.path.join(path, match)
+    return os.path.normpath(path)
+
+
+def steam_install(appid, root):
+    for library in libraries(root):
+        found = re.search(r'"installdir"\s+"([^"]+)"',
+                          read_text(os.path.join(library, "steamapps", "appmanifest_%s.acf" % appid)) or "")
+        if found:
+            return library, os.path.join(library, "steamapps", "common", found.group(1))
+    return None, None
+
+
+def steam_launch(appid, root):
+    library, install = steam_install(appid, root)
+    if not install or not os.path.isdir(install):
+        return None
+    entry = compat()["appinfo_entries"](os.path.join(root, "appcache", "appinfo.vdf"), wanted={str(appid)}).get(str(appid), {})
+    options = [option for option in entry.get("launch_options", ())
+               if not option["betakey"] and (not option["oslist"] or "windows" in option["oslist"])]
+    options.sort(key=lambda option: (option["type"] not in ("", "default", "none"),
+                                     int(option["key"]) if option["key"].isdigit() else 0))
+    for option in options:
+        program = find_file(install, option["executable"])
+        if not program or not os.path.isfile(program):
+            continue
+        start = find_file(install, option["workingdir"]) if option["workingdir"] else None
+        target = Target(appid, os.path.join(library, "steamapps", "compatdata", str(appid)), install, library, "steam",
+                        start if start and os.path.isdir(start) else os.path.dirname(program))
+        return target, program, split_words(option["arguments"])
+    return None
+
+
+def shortcut_target(appid, program, start, root):
+    appid = int(appid) % 2 ** 32
+    return Target(str(appid), prefix_folder(root, appid), os.path.dirname(program), root,
+                  "shortcut", start if start and os.path.isdir(start) else None)
+
+
+def steam_launches(target, program, root):
+    if target.kind != "steam":
+        return False
+    entry = compat()["appinfo_entries"](os.path.join(root, "appcache", "appinfo.vdf"), wanted={target.appid}).get(target.appid, {})
+    return os.path.relpath(program, target.install).replace(os.sep, "/").lower() in entry.get("launch", ())
+
+
+def environment(env, target, tool_folder, root, window=False, game_id=None):
+    env = dict(env)
+    steamapps = [os.path.join(lib, "steamapps") for lib in libraries(root)]
+    env.update({
+        "STEAM_COMPAT_DATA_PATH": target.compatdata,
+        "STEAM_COMPAT_CLIENT_INSTALL_PATH": root,
+        "STEAM_COMPAT_INSTALL_PATH": target.install,
+        "STEAM_COMPAT_LIBRARY_PATHS": ":".join(steamapps),
+        "STEAM_COMPAT_TOOL_PATHS": tool_folder,
+        "STEAM_COMPAT_SHADER_PATH": os.path.join(target.library, "steamapps", "shadercache", target.appid),
+    })
+    number = int(target.appid)
+    if number < STEAM_APP_LIMIT:
+        env.update(SteamAppId=target.appid, SteamGameId=target.appid, SteamOverlayGameId=target.appid,
+                   STEAM_COMPAT_APP_ID=target.appid)
+    else:
+        game = str(number << 32 | 0x02000000)
+        env.update(SteamAppId="0", STEAM_COMPAT_APP_ID="0", SteamGameId=game, SteamOverlayGameId=game)
+    if game_id:
+        env.update(SteamGameId=game_id, SteamOverlayGameId=game_id)
+    if window:
+        env.setdefault("PROTON_USE_WINED3D", "1")
+        env.update(DESKTOP_GL)
+        for name in NOT_DESKTOP_GL:
+            env.pop(name, None)
+    return env
+
+
+def windows_path(path, compatdata=None):
+    if compatdata:
+        drive = os.path.join(compatdata, "pfx", "drive_c")
+        inside = os.path.relpath(path, drive)
+        if inside != "." and not inside.startswith(".."):
+            return "C:\\" + inside.replace("/", "\\")
+    return "Z:" + path.replace("/", "\\")
+
+
+def arguments(program, args, desktop=None, compatdata=None):
+    if program.lower().endswith(".msi"):
+        return ["msiexec", "/i", windows_path(program)] + args
+    if desktop:
+        return ["explorer.exe", "/desktop=droiddeck,%s" % desktop, windows_path(program, compatdata)] + args
+    return [program] + args
+
+
+def main(argv):
+    window = False
+    prefix = None
+    verb = VERB
+    game_id = None
+    desktop = None
+    app, start, options = None, None, None
+    while argv and argv[0].startswith("--"):
+        option = argv.pop(0)
+        if option == "--window":
+            window = True
+        elif option == "--prefix" and argv and prefix_id(argv[0]):
+            prefix = argv.pop(0)
+        elif option == "--verb" and argv and argv[0] in VERBS:
+            verb = argv.pop(0)
+        elif option == "--game-id" and argv and argv[0].isdigit() and argv[0] != "0":
+            game_id = argv.pop(0)
+        elif option == "--desktop" and argv and re.fullmatch(r"[1-9][0-9]{2,4}x[1-9][0-9]{2,4}", argv[0]):
+            desktop = argv.pop(0)
+        elif option in ("--app", "--dir", "--options") and argv:
+            value = argv.pop(0)
+            if option == "--app":
+                app = value
+            elif option == "--dir":
+                start = value
+            else:
+                options = value
+        elif option == "--":
+            break
+        else:
+            say("unknown option %s" % option)
+            return 2
+    if app is not None and not (app.isdigit() and 0 < int(app) < 2 ** 32):
+        say("%s is not an app id" % app)
+        return 2
+    if not argv and app is None:
+        say("usage: droiddeck-proton-run [--window] [--prefix ID] [--verb run] [--game-id ID] [--desktop WxH] PROGRAM [ARGS...]")
+        return 2
+    root = os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or STEAM_ROOT
+    if options is None:
+        options = steam_options(app, root) if app is not None else ""
+    extra, args = split_options(options)
+    if not argv:
+        if int(app) >= STEAM_APP_LIMIT:
+            say("shortcut %s needs its program" % app)
+            return 2
+        found = steam_launch(app, root)
+        if found is None:
+            say("Steam game %s is not installed, or has no Windows launch option" % app)
+            return 2
+        target, program, own = found
+        args = own + args
+    else:
+        program = os.path.abspath(argv[0])
+        if not os.path.isfile(program):
+            say("%s does not exist" % program)
+            return 2
+        args = args + argv[1:]
+        if app is not None and int(app) >= STEAM_APP_LIMIT:
+            target = shortcut_target(app, program, start, root)
+        elif prefix:
+            target = fixed(program, root, prefix)
+        else:
+            target = locate(program, root)
+    available = tools(root)
+    name, why = choose_tool(target.appid, mapping(root), available)
+    if name is None:
+        say("no Proton is installed yet; open Steam once and it is downloaded for you")
+        return 69
+    folder, command = available[name]
+    os.makedirs(target.compatdata, exist_ok=True)
+    env = environment(os.environ, target, folder, root, window, game_id)
+    env.update(extra)
+    say("%s with %s (%s), %s prefix %s%s" % (program, name, why, target.kind, target.compatdata,
+                                              ", without the Steam client" if app is not None else ""))
+    try:
+        os.chdir(target.start)
+    except OSError:
+        os.chdir(os.path.dirname(program))
+    entry = os.path.join(folder, command)
+    os.execve(entry, [entry, verb] + arguments(program, args, desktop, target.compatdata), env)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

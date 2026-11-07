@@ -1,0 +1,9 @@
+#!/bin/sh
+[ "${1:-}" = waitforexitandrun ] || exit 1
+[ -z "${DROIDDECK_STEAMVR_PANEL:-}" ] || exit 1
+app=${SteamAppId:-}
+[ "$app" = 0 ] && app=${SteamGameId:-}
+case $app in '' | 0 | *[!0-9]*) exit 1 ;; esac
+pgrep -x vrserver >/dev/null 2>&1 || exit 1
+/usr/local/bin/droiddeck-agent --steam-supports-vr "$app" >/dev/null 2>&1
+[ $? -eq 5 ]

@@ -1,0 +1,31 @@
+#!/bin/bash
+free_name() {
+  local dir=$1 name=$2 base ext n=2
+  [ -e "$dir/$name" ] || { echo "$name"; return; }
+  base=${name%.*} ext=
+  [ "$base" != "$name" ] && [ -n "$base" ] && ext=.${name##*.} || base=$name
+  while [ -e "$dir/$base ($n)$ext" ]; do n=$((n + 1)); done
+  echo "$base ($n)$ext"
+}
+share() {
+  local android=$HOME/Storage/$1 link=$HOME/$2 f
+  [ -d "$android" ] && [ -w "$android" ] || return 0
+  [ "$(readlink "$link" 2>/dev/null)" = "$android" ] && return 0
+  if [ -L "$link" ]; then
+    rm -f "$link"
+  elif [ -d "$link" ]; then
+    shopt -s dotglob nullglob
+    for f in "$link"/*; do
+      mv -n -- "$f" "$android/$(free_name "$android" "${f##*/}")" || return 1
+    done
+    shopt -u dotglob nullglob
+    rmdir "$link" 2>/dev/null || mv "$link" "$link.old.$$" || return 1
+  elif [ -e "$link" ]; then
+    mv "$link" "$link.old.$$" || return 1
+  fi
+  ln -s "$android" "$link"
+}
+status=0
+share Download Downloads || status=1
+share Documents Documents || status=1
+exit $status
