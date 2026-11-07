@@ -158,7 +158,10 @@ object ComponentUpdates {
         choice != null && !choice.auto && !choice.file.startsWith("original ") && choice.file != current &&
             (if (applied.isNullOrEmpty()) choice.file !in auto else choice.file != applied)
 
-    fun stale(line: Line?, owned: Set<String>, stored: List<String>, keep: Set<String>, current: String): List<String> =
-        (owned + stored.filter { line != null && belongs(it, line) && belongs(current, line) && ProtonExtras.compareVersions(it, current) < 0 })
-            .filter { it !in keep }.distinct()
+    fun stale(line: Line?, owned: Set<String>, stored: List<String>, keep: Set<String>, current: String, bad: Set<String> = emptySet()): List<String> {
+        val ranked = line?.takeIf { belongs(current, it) }
+        fun newer(file: String) = ranked != null && belongs(file, ranked) && ProtonExtras.compareVersions(file, current) > 0
+        return (owned + stored.filter { ranked != null && belongs(it, ranked) })
+            .filter { it !in keep && (it in bad || !newer(it)) }.distinct()
+    }
 }

@@ -359,7 +359,7 @@ object ComponentUpdater {
         for (k in lines.keys().asSequence().toList()) {
             val ls = lines.optJSONObject(k) ?: continue
             val owned = ls.strings("owned")
-            val stale = ComponentUpdates.stale(followed.firstOrNull { it.key == k }, owned, stored, keep, ls.optString("current"))
+            val stale = ComponentUpdates.stale(followed.firstOrNull { it.key == k }, owned, stored, keep, ls.optString("current"), ls.strings("bad").toSet())
             val gone = stale.filter { runCatching { ComponentsManager.deleteUnused(context, it) }.getOrDefault(false) }
             ls.put("owned", JSONArray(owned - gone.toSet()))
         }

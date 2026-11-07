@@ -384,6 +384,16 @@ class ComponentUpdatesTest {
         assertEquals(emptyList<String>(), ComponentUpdates.stale(null, emptySet(), stored, keep, "DD-dxvk-3.1.1+190-nightly.wcp"))
     }
 
+    @Test fun aNewerAutoBuildIsKeptUnlessItWasRolledBack() {
+        val line = ComponentUpdates.line("dxvk", false)
+        val owned = setOf("DD-dxvk-3.1.1+188-nightly.wcp", "DD-dxvk-3.1.1+192-nightly.wcp", "DD-dxvk-3.1.1+194-nightly.wcp")
+        val current = "DD-dxvk-3.1.1+190-nightly.wcp"
+        val keep = ComponentUpdates.keep(current, ComponentUpdates.ORIGINAL, emptySet())
+        assertEquals(listOf("DD-dxvk-3.1.1+188-nightly.wcp", "DD-dxvk-3.1.1+194-nightly.wcp"),
+            ComponentUpdates.stale(line, owned, emptyList(), keep, current, setOf("DD-dxvk-3.1.1+194-nightly.wcp")))
+        assertEquals(listOf("DD-dxvk-3.1.1+188-nightly.wcp"), ComponentUpdates.stale(line, owned, emptyList(), keep, current))
+    }
+
     @Test fun aNewerBuildTheUserStoredIsNotPrunedBeforeAutoCatchesUp() {
         val line = ComponentUpdates.line("dxvk", false)
         val stored = listOf("DD-dxvk-3.1.1+186-nightly.wcp", "DD-dxvk-3.1.1+192-nightly.wcp")
