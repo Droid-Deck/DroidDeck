@@ -1472,7 +1472,7 @@
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">Arrow keys</string>
     <string name="pckb_long_press">Long press for symbols</string>
-    <string name="pckb_long_press_hint">Hold a letter to type it in caps, or hold a key with a corner symbol for that symbol.</string>
+    <string name="pckb_long_press_hint">Hold a key with a corner symbol to type that symbol instead.</string>
     <string name="pckb_long_press_delay">Long press delay</string>
     <string name="pckb_long_press_delay_hint">How long to hold a key before its shifted character is typed.</string>
     <string name="main_launch_named">Launch %1$s</string>

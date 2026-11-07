@@ -107,12 +107,11 @@ fun PcKeyboard(
         if (key.code == 58) capsOn = !capsOn
         releaseOnceModifiers()
     }
-    // Long-press commit for character keys: send a full shift-wrapped sequence through a local
+    // Long-press commit for symbol keys: send a full shift-wrapped sequence through a local
     // flag, never mods[42], so a held key must not flip the whole panel's shifted rendering.
     fun holdStart(key: PcKey) {
         val userShifted = (mods[42] ?: MOD_OFF) != MOD_OFF || (mods[54] ?: MOD_OFF) != MOD_OFF
-        val isLetter = key.label.length == 1 && key.label[0].isLetter()
-        if (!userShifted && !(isLetter && capsOn)) { sendKey(42, true); synthShift = true }
+        if (!userShifted) { sendKey(42, true); synthShift = true }
         sendKey(key.code, true)
     }
     fun holdEnd(key: PcKey) {
@@ -168,8 +167,7 @@ fun PcKeyboard(
                                 key.label.length == 1 && key.label[0].isLetter() && (shifted xor capsOn) -> key.label.uppercase()
                                 else -> key.label
                             }
-                            val isLetterKey = key.label.length == 1 && key.label[0].isLetter()
-                            val delayed = longPress && (key.shifted != null || isLetterKey)
+                            val delayed = longPress && key.shifted != null
                             val hint = if (longPress && rowHeight >= 26.dp && !shifted) key.shifted else null
                             key(key.code) {
                                 KeyCap(
