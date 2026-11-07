@@ -3695,4 +3695,11 @@
     <string name="wow_chat_listening">Figyelés…</string>
     <string name="wow_chat_voice_unavailable">A hangalapú gépelés nem érhető el ezen az eszközön.</string>
     <string name="wow_chat_mic_denied">A hangalapú gépeléshez mikrofon-hozzáférés szükséges.</string>
+    <string name="addons_download">Kiegészítők letöltése…</string>
+    <string name="addons_sort_name">Név</string>
+    <string name="addons_sort_downloads">Legtöbbet letöltött</string>
+    <string name="addons_category_all">Minden kategória</string>
+    <string name="addons_none_found">Nem található kiegészítő</string>
+    <string name="addons_unreachable">A(z) %1$s nem érhető el</string>
+    <string name="addons_no_file">Nincs fájl ehhez a játékverzióhoz</string>
 </resources>

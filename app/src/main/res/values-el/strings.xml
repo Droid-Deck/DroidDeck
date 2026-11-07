@@ -3695,4 +3695,11 @@
     <string name="wow_chat_listening">Ακρόαση…</string>
     <string name="wow_chat_voice_unavailable">Η φωνητική πληκτρολόγηση δεν είναι διαθέσιμη σε αυτή τη συσκευή.</string>
     <string name="wow_chat_mic_denied">Απαιτείται πρόσβαση στο μικρόφωνο για φωνητική πληκτρολόγηση.</string>
+    <string name="addons_download">Λήψη πρόσθετων…</string>
+    <string name="addons_sort_name">Όνομα</string>
+    <string name="addons_sort_downloads">Περισσότερες λήψεις</string>
+    <string name="addons_category_all">Όλες οι κατηγορίες</string>
+    <string name="addons_none_found">Δεν βρέθηκαν πρόσθετα</string>
+    <string name="addons_unreachable">Δεν ήταν δυνατή η σύνδεση με %1$s</string>
+    <string name="addons_no_file">Δεν υπάρχει αρχείο για αυτή την έκδοση του παιχνιδιού</string>
 </resources>

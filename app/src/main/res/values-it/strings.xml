@@ -3734,4 +3734,11 @@
     <string name="wow_chat_listening">In ascolto…</string>
     <string name="wow_chat_voice_unavailable">La digitazione vocale non è disponibile su questo dispositivo.</string>
     <string name="wow_chat_mic_denied">Per la digitazione vocale serve l\'accesso al microfono.</string>
+    <string name="addons_download">Scarica addon…</string>
+    <string name="addons_sort_name">Nome</string>
+    <string name="addons_sort_downloads">Più scaricati</string>
+    <string name="addons_category_all">Tutte le categorie</string>
+    <string name="addons_none_found">Nessun addon trovato</string>
+    <string name="addons_unreachable">Impossibile raggiungere %1$s</string>
+    <string name="addons_no_file">Nessun file per questa versione del gioco</string>
 </resources>

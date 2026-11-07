@@ -3734,4 +3734,11 @@
     <string name="wow_chat_listening">Se ascultă…</string>
     <string name="wow_chat_voice_unavailable">Tastarea vocală nu este disponibilă pe acest dispozitiv.</string>
     <string name="wow_chat_mic_denied">Pentru tastarea vocală este necesar accesul la microfon.</string>
+    <string name="addons_download">Descarcă suplimente…</string>
+    <string name="addons_sort_name">Nume</string>
+    <string name="addons_sort_downloads">Cele mai descărcate</string>
+    <string name="addons_category_all">Toate categoriile</string>
+    <string name="addons_none_found">Nu s-au găsit suplimente</string>
+    <string name="addons_unreachable">Nu s-a putut accesa %1$s</string>
+    <string name="addons_no_file">Nu există fișier pentru această versiune a jocului</string>
 </resources>

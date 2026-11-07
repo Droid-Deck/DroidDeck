@@ -3773,4 +3773,11 @@
     <string name="wow_chat_listening">Słucham…</string>
     <string name="wow_chat_voice_unavailable">Pisanie głosowe nie jest dostępne na tym urządzeniu.</string>
     <string name="wow_chat_mic_denied">Pisanie głosowe wymaga dostępu do mikrofonu.</string>
+    <string name="addons_download">Pobierz dodatki…</string>
+    <string name="addons_sort_name">Nazwa</string>
+    <string name="addons_sort_downloads">Najczęściej pobierane</string>
+    <string name="addons_category_all">Wszystkie kategorie</string>
+    <string name="addons_none_found">Nie znaleziono dodatków</string>
+    <string name="addons_unreachable">Nie można połączyć się z %1$s</string>
+    <string name="addons_no_file">Brak pliku dla tej wersji gry</string>
 </resources>

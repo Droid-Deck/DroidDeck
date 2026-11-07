@@ -3851,4 +3851,11 @@
     <string name="wow_chat_listening">جارٍ الاستماع…</string>
     <string name="wow_chat_voice_unavailable">الكتابة بالصوت غير متاحة على هذا الجهاز.</string>
     <string name="wow_chat_mic_denied">يلزم الوصول إلى الميكروفون للكتابة بالصوت.</string>
+    <string name="addons_download">تنزيل الإضافات…</string>
+    <string name="addons_sort_name">الاسم</string>
+    <string name="addons_sort_downloads">الأكثر تنزيلًا</string>
+    <string name="addons_category_all">كل الفئات</string>
+    <string name="addons_none_found">لم يتم العثور على إضافات</string>
+    <string name="addons_unreachable">تعذّر الوصول إلى %1$s</string>
+    <string name="addons_no_file">لا يوجد ملف لإصدار اللعبة هذا</string>
 </resources>

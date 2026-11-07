@@ -3773,4 +3773,11 @@
     <string name="wow_chat_listening">Poslouchám…</string>
     <string name="wow_chat_voice_unavailable">Hlasové psaní není na tomto zařízení k dispozici.</string>
     <string name="wow_chat_mic_denied">Pro hlasové psaní je potřeba přístup k mikrofonu.</string>
+    <string name="addons_download">Stáhnout doplňky…</string>
+    <string name="addons_sort_name">Název</string>
+    <string name="addons_sort_downloads">Nejstahovanější</string>
+    <string name="addons_category_all">Všechny kategorie</string>
+    <string name="addons_none_found">Nenalezeny žádné doplňky</string>
+    <string name="addons_unreachable">Nelze se připojit k %1$s</string>
+    <string name="addons_no_file">Pro tuto verzi hry není k dispozici soubor</string>
 </resources>

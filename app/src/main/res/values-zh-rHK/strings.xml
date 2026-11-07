@@ -3668,4 +3668,11 @@
     <string name="wow_chat_listening">正在聆聽…</string>
     <string name="wow_chat_voice_unavailable">此裝置不支援語音輸入。</string>
     <string name="wow_chat_mic_denied">語音輸入需要咪高峰權限。</string>
+    <string name="addons_download">下載插件…</string>
+    <string name="addons_sort_name">名稱</string>
+    <string name="addons_sort_downloads">下載最多</string>
+    <string name="addons_category_all">所有類別</string>
+    <string name="addons_none_found">找不到插件</string>
+    <string name="addons_unreachable">無法連接 %1$s</string>
+    <string name="addons_no_file">沒有適用於此遊戲版本的檔案</string>
 </resources>

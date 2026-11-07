@@ -3695,4 +3695,11 @@
     <string name="wow_chat_listening">Hört zu…</string>
     <string name="wow_chat_voice_unavailable">Spracheingabe ist auf diesem Gerät nicht verfügbar.</string>
     <string name="wow_chat_mic_denied">Für die Spracheingabe wird Mikrofonzugriff benötigt.</string>
+    <string name="addons_download">Addons herunterladen…</string>
+    <string name="addons_sort_name">Name</string>
+    <string name="addons_sort_downloads">Meistgeladen</string>
+    <string name="addons_category_all">Alle Kategorien</string>
+    <string name="addons_none_found">Keine Addons gefunden</string>
+    <string name="addons_unreachable">%1$s ist nicht erreichbar</string>
+    <string name="addons_no_file">Keine Datei für diese Spielversion</string>
 </resources>

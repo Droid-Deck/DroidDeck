@@ -3773,4 +3773,11 @@
     <string name="wow_chat_listening">Слухаю…</string>
     <string name="wow_chat_voice_unavailable">Голосове введення недоступне на цьому пристрої.</string>
     <string name="wow_chat_mic_denied">Для голосового введення потрібен доступ до мікрофона.</string>
+    <string name="addons_download">Завантажити аддони…</string>
+    <string name="addons_sort_name">Назва</string>
+    <string name="addons_sort_downloads">Найбільше завантажень</string>
+    <string name="addons_category_all">Усі категорії</string>
+    <string name="addons_none_found">Аддонів не знайдено</string>
+    <string name="addons_unreachable">Не вдалося під’єднатися до %1$s</string>
+    <string name="addons_no_file">Немає файлу для цієї версії гри</string>
 </resources>

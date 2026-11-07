@@ -3665,4 +3665,11 @@
     <string name="wow_chat_listening">Mendengarkan…</string>
     <string name="wow_chat_voice_unavailable">Ketik dengan suara tidak tersedia di perangkat ini.</string>
     <string name="wow_chat_mic_denied">Akses mikrofon diperlukan untuk mengetik dengan suara.</string>
+    <string name="addons_download">Unduh addon…</string>
+    <string name="addons_sort_name">Nama</string>
+    <string name="addons_sort_downloads">Paling banyak diunduh</string>
+    <string name="addons_category_all">Semua kategori</string>
+    <string name="addons_none_found">Tidak ada addon ditemukan</string>
+    <string name="addons_unreachable">Tidak dapat menjangkau %1$s</string>
+    <string name="addons_no_file">Tidak ada file untuk versi game ini</string>
 </resources>

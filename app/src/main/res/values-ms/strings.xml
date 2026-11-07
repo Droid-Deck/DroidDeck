@@ -3665,4 +3665,11 @@
     <string name="wow_chat_listening">Mendengar…</string>
     <string name="wow_chat_voice_unavailable">Taip dengan suara tidak tersedia pada peranti ini.</string>
     <string name="wow_chat_mic_denied">Akses mikrofon diperlukan untuk menaip dengan suara.</string>
+    <string name="addons_download">Muat turun addon…</string>
+    <string name="addons_sort_name">Nama</string>
+    <string name="addons_sort_downloads">Paling banyak dimuat turun</string>
+    <string name="addons_category_all">Semua kategori</string>
+    <string name="addons_none_found">Tiada addon ditemui</string>
+    <string name="addons_unreachable">Tidak dapat mencapai %1$s</string>
+    <string name="addons_no_file">Tiada fail untuk versi permainan ini</string>
 </resources>

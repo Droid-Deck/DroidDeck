@@ -3665,4 +3665,11 @@
     <string name="wow_chat_listening">듣는 중…</string>
     <string name="wow_chat_voice_unavailable">이 기기에서는 음성 입력을 사용할 수 없습니다.</string>
     <string name="wow_chat_mic_denied">음성 입력을 하려면 마이크 접근 권한이 필요합니다.</string>
+    <string name="addons_download">애드온 다운로드…</string>
+    <string name="addons_sort_name">이름</string>
+    <string name="addons_sort_downloads">다운로드 많은 순</string>
+    <string name="addons_category_all">모든 카테고리</string>
+    <string name="addons_none_found">애드온을 찾을 수 없음</string>
+    <string name="addons_unreachable">%1$s에 연결할 수 없습니다</string>
+    <string name="addons_no_file">이 게임 버전용 파일이 없습니다</string>
 </resources>

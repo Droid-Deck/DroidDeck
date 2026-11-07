@@ -3695,4 +3695,11 @@
     <string name="wow_chat_listening">Lytter…</string>
     <string name="wow_chat_voice_unavailable">Taleinntasting er ikke tilgjengelig på denne enheten.</string>
     <string name="wow_chat_mic_denied">Mikrofontilgang trengs for taleinntasting.</string>
+    <string name="addons_download">Last ned tillegg…</string>
+    <string name="addons_sort_name">Navn</string>
+    <string name="addons_sort_downloads">Mest nedlastet</string>
+    <string name="addons_category_all">Alle kategorier</string>
+    <string name="addons_none_found">Fant ingen tillegg</string>
+    <string name="addons_unreachable">Fikk ikke kontakt med %1$s</string>
+    <string name="addons_no_file">Ingen fil for denne spillversjonen</string>
 </resources>

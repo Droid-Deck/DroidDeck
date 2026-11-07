@@ -3665,4 +3665,11 @@
     <string name="wow_chat_listening">聞き取り中…</string>
     <string name="wow_chat_voice_unavailable">このデバイスでは音声入力を使用できません。</string>
     <string name="wow_chat_mic_denied">音声入力にはマイクへのアクセスが必要です。</string>
+    <string name="addons_download">アドオンをダウンロード…</string>
+    <string name="addons_sort_name">名前</string>
+    <string name="addons_sort_downloads">ダウンロード数順</string>
+    <string name="addons_category_all">すべてのカテゴリ</string>
+    <string name="addons_none_found">アドオンが見つかりません</string>
+    <string name="addons_unreachable">%1$s に接続できませんでした</string>
+    <string name="addons_no_file">このゲームバージョン用のファイルがありません</string>
 </resources>

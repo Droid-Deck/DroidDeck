@@ -3695,4 +3695,11 @@
     <string name="wow_chat_listening">Luisteren…</string>
     <string name="wow_chat_voice_unavailable">Spraakinvoer is niet beschikbaar op dit apparaat.</string>
     <string name="wow_chat_mic_denied">Voor spraakinvoer is toegang tot de microfoon nodig.</string>
+    <string name="addons_download">Add-ons downloaden…</string>
+    <string name="addons_sort_name">Naam</string>
+    <string name="addons_sort_downloads">Meest gedownload</string>
+    <string name="addons_category_all">Alle categorieën</string>
+    <string name="addons_none_found">Geen add-ons gevonden</string>
+    <string name="addons_unreachable">Kan %1$s niet bereiken</string>
+    <string name="addons_no_file">Geen bestand voor deze gameversie</string>
 </resources>
