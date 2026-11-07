@@ -231,4 +231,30 @@ class OnScreenLayoutTest {
         assertEquals(stored.layouts.map { l -> l.elements.map { it.copy(alwaysShown = false) } }, upgraded.layouts.filter { l -> stored.layouts.any { it.id == l.id } }
             .map { l -> l.elements.map { it.copy(alwaysShown = false) } })
     }
+
+    @Test fun aDeckStripPutsTheDeckGamepadSurfacesInTheStickSlotsAndOtherPadsKeepSticks() {
+        val stock = InputStockLayouts.layouts().first { it.id == DeckPanel.GAMEPAD.layout }
+        val deck = OnScreenLayout.Dock.deck(false, stock)
+        assertEquals(OnScreenLayout.Dock(false, true, InputControl.LS, InputControl.RIGHT_PAD), deck)
+        assertEquals(deck, OnScreenLayout.Dock.deck(false, null))
+        val (w, h) = 2208 to 800
+        val boxes = GamepadGeometry.layout(w.toFloat(), h.toFloat(), density, false)
+        val placed = OnScreenLayout.elements(context, gamepad(), w, h, Rect(), dock = deck)
+        val pad = placed.single { it.control == InputControl.RIGHT_PAD }
+        assertEquals(InputElementKind.TRACKPAD, pad.kind)
+        assertEquals(boxes.getValue(GamepadGeometry.Slot.RIGHT_MAIN).left, pad.x * w, 1f)
+        assertNull(placed.firstOrNull { it.control == InputControl.RS })
+        assertTrue(placed.any { it.control == InputControl.LS })
+        val plain = OnScreenLayout.elements(context, gamepad(), w, h, Rect(), dock = OnScreenLayout.Dock(false, false))
+        assertTrue(plain.any { it.control == InputControl.RS })
+        assertNull(plain.firstOrNull { it.kind == InputElementKind.TRACKPAD })
+        val swapped = stock.copy(elements = stock.elements.map {
+            when (it.control) {
+                InputControl.LS -> it.copy(control = InputControl.LEFT_PAD, id = "legacy:left-pad", kind = InputElementKind.TRACKPAD)
+                InputControl.RIGHT_PAD -> it.copy(control = InputControl.RS, id = "legacy:rs", kind = InputElementKind.STICK)
+                else -> it
+            }
+        })
+        assertEquals(OnScreenLayout.Dock(false, true, InputControl.LEFT_PAD, InputControl.RS), OnScreenLayout.Dock.deck(false, swapped))
+    }
 }
