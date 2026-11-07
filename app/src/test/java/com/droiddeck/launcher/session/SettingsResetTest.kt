@@ -49,6 +49,7 @@ class SettingsResetTest {
         SessionPrefs.setHudOpacity(app, 40)
         SessionPrefs.setDroidDeckHudConfig(app, "hudSize=mega,showFPSGraph=0")
         SessionPrefs.setDroidDeckHudPosition(app, 120f, 40f)
+        SessionPrefs.setPcKeyboardHiddenSymbols(app, setOf(41, 51))
         ControllerPrefs.setOpacity(app, 40)
         AppUiPrefs.setScale(app, 150)
         FrameGen.set(app, FrameGen.Mode(FrameGen.ENGINE_DDFG, 3))
@@ -79,6 +80,7 @@ class SettingsResetTest {
         assertEquals(100, ControllerPrefs.read(app).opacity)
         assertEquals(AppUiPrefs.DEFAULT_SCALE, AppUiPrefs.scale(app))
         assertEquals(FrameGen.Mode.OFF.engine, FrameGen.engine(app))
+        assertEquals(emptySet<Int>(), SessionPrefs.pcKeyboardHiddenSymbols(app))
         assertFalse(prefs("steam_touch").contains("gyro"))
     }
 
