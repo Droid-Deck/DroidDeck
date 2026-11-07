@@ -10,6 +10,7 @@ import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.battlenet.BattleNetInstall
 import com.droiddeck.launcher.stores.battlenet.BattleNetInstaller
+import com.droiddeck.launcher.stores.battlenet.Ownership
 import com.github.luben.zstd.ZstdOutputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
@@ -409,7 +410,7 @@ class BattleNetTest {
         folder.mkdirs()
         val uninstalled = AtomicBoolean(false)
         val item = CatalogItem(Store.BATTLENET, "diablo3", "Diablo III", null)
-        BattleNetInstaller(context, item, folder, false, {
+        BattleNetInstaller(context, item, folder, false, uninstall = {
             uninstalled.set(true)
             true
         }).cancel(true)
@@ -424,7 +425,7 @@ class BattleNetTest {
             extra = mapOf(BattleNetInstall.PREEXISTING to "1"),
         )
         val uninstalled = AtomicBoolean(false)
-        val installer = BattleNetInstaller(context, item, folder, false, {
+        val installer = BattleNetInstaller(context, item, folder, false, uninstall = {
             uninstalled.set(true)
             true
         }) { "osic" }
@@ -441,7 +442,7 @@ class BattleNetTest {
         )
         val seen = AtomicReference<String?>(null)
         val done = CountDownLatch(1)
-        val installer = BattleNetInstaller(context, item, folder, false, { uid ->
+        val installer = BattleNetInstaller(context, item, folder, false, uninstall = { uid ->
             seen.set(uid)
             done.countDown()
             true
@@ -459,7 +460,7 @@ class BattleNetTest {
         var visible = false
         val seen = AtomicReference<String?>(null)
         val done = CountDownLatch(1)
-        val installer = BattleNetInstaller(context, item, folder, false, { uid ->
+        val installer = BattleNetInstaller(context, item, folder, false, uninstall = { uid ->
             seen.set(uid)
             done.countDown()
             true
@@ -477,6 +478,23 @@ class BattleNetTest {
         assertEquals("osic", seen.get())
     }
 
+    @Test fun aResumedInstallerKeepsTheOwnershipDecision() {
+        val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
+        val item = CatalogItem(Store.BATTLENET, "osi", "Diablo II: Resurrected", null)
+        val ownership = Ownership(item)
+        ownership.known = true
+        ownership.preexisting = false
+        val seen = AtomicReference<String?>(null)
+        val done = CountDownLatch(1)
+        BattleNetInstaller(context, item, folder, false, ownership = ownership, uninstall = { uid ->
+            seen.set(uid)
+            done.countDown()
+            true
+        }) { "osic" }.cancel(true)
+        assertTrue(done.await(5, TimeUnit.SECONDS))
+        assertEquals("osic", seen.get())
+    }
+
     @Test fun aRestoredPausedInstallUninstallsTheRegistrationItCreated() {
         val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
         val item = CatalogItem(
@@ -485,7 +503,7 @@ class BattleNetTest {
         )
         val seen = AtomicReference<String?>(null)
         val done = CountDownLatch(1)
-        BattleNetInstaller(context, item, folder, false, { uid ->
+        BattleNetInstaller(context, item, folder, false, uninstall = { uid ->
             seen.set(uid)
             done.countDown()
             true

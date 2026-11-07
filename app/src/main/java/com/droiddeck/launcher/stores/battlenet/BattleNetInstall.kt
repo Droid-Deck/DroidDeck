@@ -121,9 +121,10 @@ object BattleNetInstall {
             location = StoreInstallRoot.labelFor(app, folder),
             cleanupKey = "${Store.BATTLENET.id}:${tagged.id}",
         )
+        val ownership = Ownership(tagged)
         DownloadQueue.enqueue(app, entry, onAccepted = {
             SavedQueue.remember(app, tagged, folder.parentFile?.parentFile)
-        }) { BattleNetInstaller(app, tagged, folder, update) }
+        }) { BattleNetInstaller(app, tagged, folder, update, ownership) }
     }
 
     fun update(context: Context, game: InstalledStoreGame) {
@@ -270,11 +271,17 @@ object BattleNetInstall {
     private const val APPLY_PHASE = 2000
 }
 
+internal class Ownership(item: CatalogItem) {
+    @Volatile var known = item.extra[BattleNetInstall.PREEXISTING] in setOf("0", "1")
+    @Volatile var preexisting = item.extra[BattleNetInstall.PREEXISTING] == "1"
+}
+
 internal class BattleNetInstaller(
     private val app: Context,
     private val item: CatalogItem,
     private val folder: File,
     private val update: Boolean,
+    private val ownership: Ownership = Ownership(item),
     private val uninstall: (String) -> Boolean = { BattleNetInstall.agentUninstall(app, it) },
     private val registration: () -> String? = {
         runCatching { BattleNet.registrationsAt(app, item.id, folder).firstOrNull() }.getOrNull()
@@ -285,18 +292,17 @@ internal class BattleNetInstaller(
     private val started = AtomicBoolean(false)
     private val queueKey = DownloadEntry(Store.BATTLENET, item.id, item.title).key
     private val ended = java.util.concurrent.CountDownLatch(1)
-    @Volatile private var ownershipKnown = item.extra[BattleNetInstall.PREEXISTING] in setOf("0", "1")
-    @Volatile private var preexisting = item.extra[BattleNetInstall.PREEXISTING] == "1"
+
     private var before = 0L
     private var kept = -1L
 
     override fun run(handle: DownloadQueue.JobHandle): String? {
-        if (!cancelled.get() && !ownershipKnown) {
-            preexisting = runCatching { registration() != null }.getOrDefault(true)
-            ownershipKnown = true
+        if (!cancelled.get() && !ownership.known) {
+            ownership.preexisting = runCatching { registration() != null }.getOrDefault(true)
+            ownership.known = true
             SavedQueue.remember(
                 app,
-                item.copy(extra = item.extra + (BattleNetInstall.PREEXISTING to if (preexisting) "1" else "0")),
+                item.copy(extra = item.extra + (BattleNetInstall.PREEXISTING to if (ownership.preexisting) "1" else "0")),
                 folder.parentFile?.parentFile,
             )
         }
@@ -364,13 +370,13 @@ internal class BattleNetInstaller(
             return
         }
         if (!cleanupStarted.compareAndSet(false, true)) return
-        if (!started.get() && !ownershipKnown) preexisting = true
+        if (!started.get() && !ownership.known) ownership.preexisting = true
         val cleanup = Thread({
             try {
                 val stopped = !started.get() || ended.await(END_WAIT_S, TimeUnit.SECONDS)
                 if (!stopped) {
                     Log.w("BattleNetInstall", "the cancelled install is still stopping; leaving it for Battle.net")
-                } else if (preexisting) {
+                } else if (ownership.preexisting) {
                     Log.i("BattleNetInstall", "cancelled install left the pre-existing registration in ${folder.path}")
                 } else {
                     val created = runCatching { registration() }.getOrNull()
