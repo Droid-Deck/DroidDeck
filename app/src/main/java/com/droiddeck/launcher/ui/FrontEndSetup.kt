@@ -833,6 +833,7 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
     )
     val appSync = syncLabels[com.droiddeck.launcher.session.SessionPrefs.syncBackend(appContext)]
     val useDefault = stringResource(R.string.comp_game_use_general)
+    val generalFex = com.droiddeck.launcher.core.FexPreset.byId(com.droiddeck.launcher.session.SessionPrefs.fexPreset(appContext))
     val custom = stringResource(R.string.comp_game_fex_custom)
     val customSync = stringResource(R.string.game_sync_custom)
     val resetDone = stringResource(R.string.comp_game_reset_done, game.name)
@@ -847,7 +848,7 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
             MenuItem(
                 stringResource(R.string.fex_preset_title), checked = false, enabled = ready,
                 detail = when {
-                    fex == null -> useDefault
+                    fex == null -> stringResource(generalFex.label)
                     chosen == null -> custom
                     else -> stringResource(chosen.label)
                 },
@@ -879,7 +880,7 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
         }
     }
     AnchoredMenu(host.open == fexKey, onDismiss = { if (host.open == fexKey) host.open = null }, title = stringResource(R.string.fex_preset_title)) { first ->
-        MenuItem(useDefault, checked = fex == null, enabled = ready, focusRequester = first) {
+        MenuItem(useDefault, checked = fex == null, enabled = ready, detail = stringResource(generalFex.label), focusRequester = first) {
             host.open = key
             save { com.droiddeck.launcher.session.GameEnvironmentStore.setGameFexPreset(it, scope, null) }
         }
