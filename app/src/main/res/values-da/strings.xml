@@ -1789,6 +1789,7 @@
     <string name="ctrl_tint_amber">Ravgul</string>
     <string name="ctrl_tint_red">Rød</string>
     <string name="ctrl_tint_pink">Pink</string>
+    <string name="ctrl_tint_gray">Grå</string>
     <string name="ctrl_button_a">A-knap</string>
     <string name="ctrl_button_b">B-knap</string>
     <string name="ctrl_button_x">X-knap</string>

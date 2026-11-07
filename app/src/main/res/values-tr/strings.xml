@@ -1781,6 +1781,7 @@
     <string name="ctrl_tint_amber">Kehribar</string>
     <string name="ctrl_tint_red">Kırmızı</string>
     <string name="ctrl_tint_pink">Pembe</string>
+    <string name="ctrl_tint_gray">Gri</string>
     <string name="ctrl_button_a">A düğmesi</string>
     <string name="ctrl_button_b">B düğmesi</string>
     <string name="ctrl_button_x">X düğmesi</string>

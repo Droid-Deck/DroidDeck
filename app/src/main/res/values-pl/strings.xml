@@ -1837,6 +1837,7 @@
     <string name="ctrl_tint_amber">Bursztynowy</string>
     <string name="ctrl_tint_red">Czerwony</string>
     <string name="ctrl_tint_pink">Różowy</string>
+    <string name="ctrl_tint_gray">Szary</string>
     <string name="ctrl_button_a">Przycisk A</string>
     <string name="ctrl_button_b">Przycisk B</string>
     <string name="ctrl_button_x">Przycisk X</string>

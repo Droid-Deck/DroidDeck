@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.input
 
 import android.content.Context
+import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -500,4 +501,24 @@ class InputLibraryTest {
         assertEquals(changed, InputLibraries.decode(InputLibraries.encode(changed)))
     }
 
+
+    @Test fun bottomScreenLayoutsKeepTheNeutralLookAndPickedColorsSurvive() {
+        val fresh = InputLibraries.read(context)
+        assertNull(fresh.layouts.single { it.id == InputLibraries.DECK }.style.tint)
+        assertNull(fresh.layouts.single { it.id == InputLibraries.TRACKPAD }.style.tint)
+        assertEquals(ControllerPrefs.STEAM_BLUE, fresh.layouts.single { it.id == InputLibraries.OVERLAY }.style.tint)
+        val red = ControllerPrefs.tints.last().first
+        val blue = fresh.layouts.map { it.copy(style = it.style.copy(tint = if (it.id == InputLibraries.TRACKPAD) red else ControllerPrefs.STEAM_BLUE)) }
+        val mine = SavedInputLayout("mine", "Mine", listOf(InputSurfaceElement(InputControl.B, .1f, .1f, .1f, .1f)))
+        val old = JSONObject(InputLibraries.encode(blue.fold(fresh) { library, layout -> library.withLayout(layout) }.withLayout(mine))).put("version", 8)
+        prefs.edit().putString("library", old.toString()).commit()
+        val upgraded = InputLibraries.read(context)
+        assertNull(upgraded.layouts.single { it.id == InputLibraries.DECK }.style.tint)
+        assertEquals(red, upgraded.layouts.single { it.id == InputLibraries.TRACKPAD }.style.tint)
+        assertEquals(ControllerPrefs.STEAM_BLUE, upgraded.layouts.single { it.id == InputLibraries.OVERLAY }.style.tint)
+        assertEquals(ControllerPrefs.STEAM_BLUE, upgraded.layouts.single { it.id == "mine" }.style.tint)
+        InputLibraries.update(context) { it.withLayout(it.layouts.single { l -> l.id == "mine" }.let { l -> l.copy(style = l.style.copy(tint = null)) }) }
+        assertNull(InputLibraries.read(context).layouts.single { it.id == "mine" }.style.tint)
+        assertEquals(InputLibraries.read(context), InputLibraries.read(context))
+    }
 }

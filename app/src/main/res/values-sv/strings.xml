@@ -1789,6 +1789,7 @@
     <string name="ctrl_tint_amber">Bärnsten</string>
     <string name="ctrl_tint_red">Röd</string>
     <string name="ctrl_tint_pink">Rosa</string>
+    <string name="ctrl_tint_gray">Grå</string>
     <string name="ctrl_button_a">A-knappen</string>
     <string name="ctrl_button_b">B-knappen</string>
     <string name="ctrl_button_x">X-knappen</string>

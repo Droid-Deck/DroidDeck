@@ -1789,6 +1789,7 @@
     <string name="ctrl_tint_amber">Amber</string>
     <string name="ctrl_tint_red">Rød</string>
     <string name="ctrl_tint_pink">Rosa</string>
+    <string name="ctrl_tint_gray">Grå</string>
     <string name="ctrl_button_a">A-knapp</string>
     <string name="ctrl_button_b">B-knapp</string>
     <string name="ctrl_button_x">X-knapp</string>

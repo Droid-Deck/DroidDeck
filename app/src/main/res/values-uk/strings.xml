@@ -1837,6 +1837,7 @@
     <string name="ctrl_tint_amber">Бурштиновий</string>
     <string name="ctrl_tint_red">Червоний</string>
     <string name="ctrl_tint_pink">Рожевий</string>
+    <string name="ctrl_tint_gray">Сірий</string>
     <string name="ctrl_button_a">Кнопка A</string>
     <string name="ctrl_button_b">Кнопка B</string>
     <string name="ctrl_button_x">Кнопка X</string>

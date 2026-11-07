@@ -1789,6 +1789,7 @@
     <string name="ctrl_tint_amber">Meripihka</string>
     <string name="ctrl_tint_red">Punainen</string>
     <string name="ctrl_tint_pink">Pinkki</string>
+    <string name="ctrl_tint_gray">Harmaa</string>
     <string name="ctrl_button_a">A-painike</string>
     <string name="ctrl_button_b">B-painike</string>
     <string name="ctrl_button_x">X-painike</string>

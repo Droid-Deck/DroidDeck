@@ -1781,6 +1781,7 @@
     <string name="ctrl_tint_amber">Bernstein</string>
     <string name="ctrl_tint_red">Rot</string>
     <string name="ctrl_tint_pink">Pink</string>
+    <string name="ctrl_tint_gray">Grau</string>
     <string name="ctrl_button_a">A-Taste</string>
     <string name="ctrl_button_b">B-Taste</string>
     <string name="ctrl_button_x">X-Taste</string>

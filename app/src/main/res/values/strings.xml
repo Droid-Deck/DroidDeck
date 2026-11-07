@@ -1948,6 +1948,7 @@
     <string name="ctrl_tint_amber">Amber</string>
     <string name="ctrl_tint_red">Red</string>
     <string name="ctrl_tint_pink">Pink</string>
+    <string name="ctrl_tint_gray">Gray</string>
     <string name="ctrl_button_a">A button</string>
     <string name="ctrl_button_b">B button</string>
     <string name="ctrl_button_x">X button</string>

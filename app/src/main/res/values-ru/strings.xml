@@ -1883,6 +1883,7 @@
     <string name="ctrl_tint_amber">Янтарный</string>
     <string name="ctrl_tint_red">Красный</string>
     <string name="ctrl_tint_pink">Розовый</string>
+    <string name="ctrl_tint_gray">Серый</string>
     <string name="ctrl_button_a">Кнопка A</string>
     <string name="ctrl_button_b">Кнопка B</string>
     <string name="ctrl_button_x">Кнопка X</string>

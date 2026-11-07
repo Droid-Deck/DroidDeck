@@ -9,7 +9,7 @@ enum class InputLayoutScreen { MAIN, SECONDARY, BOTH;
         if (role == InputRole.PRIMARY) this == MAIN else this == SECONDARY)
 }
 
-data class InputSurfaceStyle(val tint: Int = ControllerPrefs.STEAM_BLUE, val opacity: Int = 100)
+data class InputSurfaceStyle(val tint: Int? = ControllerPrefs.STEAM_BLUE, val opacity: Int = 100)
 
 data class SavedInputLayout(
     val id: String, val name: String, val elements: List<InputSurfaceElement> = emptyList(),

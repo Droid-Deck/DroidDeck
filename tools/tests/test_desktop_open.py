@@ -428,6 +428,23 @@ class ProtonRunTest(Temp):
         self.assertEqual(RUN["choose_tool"]("70", {"0": "GE-Proton"}, available), ("droiddeck-proton-arm64", "the default ARM64 Proton"))
         self.assertEqual(RUN["choose_tool"]("70", {}, {}), (None, None))
 
+    def test_a_removed_droiddeck_proton_build_is_replaced_by_the_newest_one(self):
+        for version in ("11-12.2", "11-12.3"):
+            folder = "compatibilitytools.d/DroidDeck-Proton %s" % version
+            self.write("Steam/%s/compatibilitytool.vdf" % folder, TOOL_VDF % ("DroidDeck-Proton-" + version, version, "windows"))
+            self.write("Steam/%s/toolmanifest.vdf" % folder, '"manifest"\n{\n  "commandline" "/proton %verb%"\n}\n')
+            self.write("Steam/%s/proton" % folder, b"#!/bin/sh\n", 0o755)
+        available = RUN["tools"](str(self.root))
+        newest = "DroidDeck-Proton-11-12.3"
+        self.assertEqual(RUN["choose_tool"]("70", {"0": "DroidDeck-Proton-11-12.1"}, available)[0], newest)
+        self.assertEqual(RUN["choose_tool"]("70", {"70": "DroidDeck-Proton-11-12.1", "0": "droiddeck-proton-arm64"}, available)[0], newest)
+        self.assertEqual(RUN["choose_tool"]("70", {"0": "DroidDeck-Proton-11-12.2"}, available), ("DroidDeck-Proton-11-12.2", "Steam's default"))
+        self.assertEqual(RUN["choose_tool"]("70", {"0": "GE-Proton"}, available), ("droiddeck-proton-arm64", "the default ARM64 Proton"))
+        (self.tmp / "state.json").write_text('{"default": "DroidDeck-Proton-11-12.1"}')
+        self.assertEqual(RUN["choose_tool"]("70", {}, available)[0], newest)
+        (self.tmp / "state.json").write_text('{"default": "droiddeck-proton-11-arm64"}')
+        self.assertEqual(RUN["choose_tool"]("70", {}, available), ("droiddeck-proton-11-arm64", "the default ARM64 Proton"))
+
     def test_a_steam_games_program_uses_its_prefix(self):
         program = self.game("413150", "Stardew Valley", "Stardew Valley.exe")
         target = RUN["locate"](str(program), str(self.root))

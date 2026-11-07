@@ -1765,6 +1765,7 @@
     <string name="ctrl_tint_amber">Hổ phách</string>
     <string name="ctrl_tint_red">Đỏ</string>
     <string name="ctrl_tint_pink">Hồng</string>
+    <string name="ctrl_tint_gray">Xám</string>
     <string name="ctrl_button_a">Nút A</string>
     <string name="ctrl_button_b">Nút B</string>
     <string name="ctrl_button_x">Nút X</string>

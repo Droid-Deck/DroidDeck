@@ -1805,6 +1805,7 @@
     <string name="ctrl_tint_amber">Âmbar</string>
     <string name="ctrl_tint_red">Vermelho</string>
     <string name="ctrl_tint_pink">Rosa</string>
+    <string name="ctrl_tint_gray">Cinzento</string>
     <string name="ctrl_button_a">Botão A</string>
     <string name="ctrl_button_b">Botão B</string>
     <string name="ctrl_button_x">Botão X</string>

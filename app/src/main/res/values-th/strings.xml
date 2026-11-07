@@ -1765,6 +1765,7 @@
     <string name="ctrl_tint_amber">อำพัน</string>
     <string name="ctrl_tint_red">แดง</string>
     <string name="ctrl_tint_pink">ชมพู</string>
+    <string name="ctrl_tint_gray">เทา</string>
     <string name="ctrl_button_a">ปุ่ม A</string>
     <string name="ctrl_button_b">ปุ่ม B</string>
     <string name="ctrl_button_x">ปุ่ม X</string>
