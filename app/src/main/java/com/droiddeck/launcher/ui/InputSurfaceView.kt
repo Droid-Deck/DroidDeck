@@ -186,7 +186,7 @@ class InputSurfaceView(
         }
 
         protected fun drawSurface(canvas: Canvas, lit: Boolean, shape: InputButtonShape = InputButtonShape.ROUNDED, classic: Boolean = false) {
-            val inset = density
+            val inset = if (classic && tint != null) 0.75f * density else density
             rect.set(inset, inset, width - inset, height - inset)
             val radius = when (shape) { InputButtonShape.CIRCLE, InputButtonShape.PILL -> min(width, height) / 2f; InputButtonShape.RECTANGLE -> 2 * density; else -> CORNER * density }
             val color = tint
@@ -268,7 +268,11 @@ class InputSurfaceView(
                 val direction = DIRECTIONS.indexOf(element.control)
                 if (direction >= 0) { drawArrow(canvas, cx, height / 2f, radius * 0.34f, direction, labelPaint); return }
                 val glyph = glyph(element.control)
-                labelPaint.textSize = if (glyph.length > 2) 11 * density else radius * if (glyph.length == 2) 0.62f else 0.85f
+                labelPaint.textSize = when {
+                    element.buttonShape == InputButtonShape.PILL -> height / 2f * 0.8f
+                    glyph.length > 2 -> 11 * density
+                    else -> radius * if (glyph.length == 2) 0.62f else 0.85f
+                }
                 canvas.drawText(glyph, cx, height / 2f + labelPaint.textSize * .35f, labelPaint)
                 return
             }
@@ -428,7 +432,7 @@ class InputSurfaceView(
             val cy = if (touching) originY else height / 2f
             val color = tint
             if (classic(element) && color != null) {
-                val radius = min(width, height) / 2f - density
+                val radius = min(width, height) / 2f - 0.75f * density
                 drawCircle(canvas, cx, cy, radius,
                     if (touching) shade(color, 160, 1f) else shade(color, 60, 0.12f), if (touching) light(color, 230, 0.7f) else light(color, 150, 0.25f))
                 val knobRadius = radius * 0.46f

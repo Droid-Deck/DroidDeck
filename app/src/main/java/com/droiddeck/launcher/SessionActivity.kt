@@ -197,12 +197,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         override fun scroll(steps: Int) { sendSceneWheel(steps) }
         override fun scrollHorizontal(steps: Int) { sendSceneWheel(steps, horizontal = true) }
         override fun requestMotion() { inputMotion.request() }
-        override fun command(command: InputCommand) {
+        override fun command(command: InputCommand) = command(command, InputRole.PHYSICAL)
+        override fun command(command: InputCommand, role: InputRole) {
             uiHandler.post {
                 if (!resumed || isDestroyed || pipUi || SessionState.suspended) return@post
                 when (command) {
                     InputCommand.MENU -> { releasePads(); drawerOpen = true }
-                    InputCommand.KEYBOARD -> if (secondScreenPresentation?.showKeyboard() != true) togglePcKeyboard()
+                    InputCommand.KEYBOARD -> if (role == InputRole.PRIMARY || secondScreenPresentation?.showKeyboard() != true) togglePcKeyboard()
                     InputCommand.STEAM -> tapSteamButton()
                     InputCommand.QUICK_ACCESS -> tapQam()
                 }

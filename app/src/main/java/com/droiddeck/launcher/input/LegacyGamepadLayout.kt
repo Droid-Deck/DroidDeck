@@ -17,10 +17,10 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
         val halfH get() = if (id in shoulderIds) radius * SHOULDER_HEIGHT else radius
     }
     private val controls = listOf(
-        Control("up", "dpad", -1, 26f, 0f, -52f),
-        Control("right", "dpad", -1, 26f, 52f, 0f),
-        Control("down", "dpad", -1, 26f, 0f, 52f),
-        Control("left", "dpad", -1, 26f, -52f, 0f),
+        Control("up", "dpad", -1, 30f, 0f, -50f),
+        Control("right", "dpad", -1, 30f, 50f, 0f),
+        Control("down", "dpad", -1, 30f, 0f, 50f),
+        Control("left", "dpad", -1, 30f, -50f, 0f),
         Control("ls", "ls", 0, 48f, 0f, 0f),
         Control("rs", "rs", 1, 48f, 0f, 0f),
         Control("a", "face", -1, 30f, 0f, 50f),
@@ -203,13 +203,28 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
             KEYBOARD_ID, name = "Keyboard", icon = InputButtonIcons.KEYBOARD, buttonShape = InputButtonShape.CIRCLE).bounded()
     }
 
-    fun restyle(elements: List<InputSurfaceElement>): List<InputSurfaceElement> = elements.map { e ->
-        when {
-            e.id == KEYBOARD_ID && e.icon == 0 && e.x == .02f && e.y == .9f && e.width == .12f && e.height == .08f -> keyboard()
-            e.id == "legacy:${e.control.id}" && e.buttonShape == InputButtonShape.ROUNDED ->
-                widenStick(e.copy(buttonShape = if (e.control.id in shoulderIds) InputButtonShape.PILL else InputButtonShape.CIRCLE)).bounded()
-            else -> e
+    fun restyle(elements: List<InputSurfaceElement>): List<InputSurfaceElement> {
+        val dpad = elements.filter { it.id == "legacy:${it.control.id}" && it.control in DPAD && it.buttonShape == InputButtonShape.ROUNDED }
+        val centreX = dpad.map { (it.x + it.width / 2f) * width }.average().toFloat()
+        val centreY = dpad.map { (it.y + it.height / 2f) * height }.average().toFloat()
+        return elements.map { e ->
+            when {
+                e.id == KEYBOARD_ID && e.icon == 0 && e.x == .02f && e.y == .9f && e.width == .12f && e.height == .08f -> keyboard()
+                e.id == "legacy:${e.control.id}" && e.buttonShape == InputButtonShape.ROUNDED -> {
+                    val round = e.copy(buttonShape = if (e.control.id in shoulderIds) InputButtonShape.PILL else InputButtonShape.CIRCLE)
+                    (if (dpad.size == DPAD.size && e.control in DPAD) resizeDpad(round, centreX, centreY) else widenStick(round)).bounded()
+                }
+                else -> e
+            }
         }
+    }
+
+    private fun resizeDpad(e: InputSurfaceElement, centreX: Float, centreY: Float): InputSurfaceElement {
+        val old = controls.first { it.id == e.control.id }
+        val radius = e.width * width / 2f * old.radiusDp / LEGACY_DPAD_RADIUS_DP
+        val cx = centreX + ((e.x + e.width / 2f) * width - centreX) * abs(old.offsetXDp + old.offsetYDp) / LEGACY_DPAD_OFFSET_DP
+        val cy = centreY + ((e.y + e.height / 2f) * height - centreY) * abs(old.offsetXDp + old.offsetYDp) / LEGACY_DPAD_OFFSET_DP
+        return e.copy(x = (cx - radius) / width, y = (cy - radius) / height, width = 2 * radius / width, height = 2 * radius / height)
     }
 
     private fun widenStick(e: InputSurfaceElement): InputSurfaceElement {
@@ -230,6 +245,9 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
         const val SHOULDER_HEIGHT = 0.8f
         val shoulderIds = setOf("lb", "rb", "lt", "rt")
         const val STICK_REACH = 1.25f
+        const val LEGACY_DPAD_RADIUS_DP = 26f
+        const val LEGACY_DPAD_OFFSET_DP = 52f
+        val DPAD = setOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT)
         const val KEYBOARD_ID = "builtin:keyboard"
         const val KEYBOARD_RADIUS_DP = 18f
         const val KEYBOARD_X_DP = 90f
