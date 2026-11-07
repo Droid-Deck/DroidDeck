@@ -162,6 +162,6 @@ object ComponentUpdates {
         val ranked = line?.takeIf { belongs(current, it) }
         fun newer(file: String) = ranked != null && belongs(file, ranked) && ProtonExtras.compareVersions(file, current) > 0
         return (owned + stored.filter { ranked != null && belongs(it, ranked) })
-            .filter { it !in keep && (it in bad || !newer(it)) }.distinct()
+            .filter { it !in keep && ((it in bad && it in owned) || !newer(it)) }.distinct()
     }
 }
