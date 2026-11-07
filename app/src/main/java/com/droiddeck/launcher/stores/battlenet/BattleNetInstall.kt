@@ -138,7 +138,6 @@ object BattleNetInstall {
                     Store.BATTLENET, game.sidecar.id, game.sidecar.title, game.sidecar.hero, tallImageUrl = game.sidecar.cover, owned = true,
                     extra = mapOf(INSTALL_UID to uid),
                 )
-                game.folder.parentFile?.parentFile?.let { com.droiddeck.launcher.stores.download.SavedQueue.remember(app, item, it) }
                 enqueue(app, item, game.folder, update = true)
             }
         }, "battlenet-update").start()
@@ -283,8 +282,8 @@ internal class BattleNetInstaller(
     private val update: Boolean,
     private val ownership: Ownership = Ownership(item),
     private val uninstall: (String) -> Boolean = { BattleNetInstall.agentUninstall(app, it) },
-    private val registration: () -> String? = {
-        runCatching { BattleNet.registrationsAt(app, item.id, folder).firstOrNull() }.getOrNull()
+    private val registration: () -> List<String>? = {
+        BattleNet.registrationsAt(app, item.id, folder)
     },
 ) : DownloadQueue.DownloadJob {
     private val cancelled = AtomicBoolean(false)
@@ -298,7 +297,8 @@ internal class BattleNetInstaller(
 
     override fun run(handle: DownloadQueue.JobHandle): String? {
         if (!cancelled.get() && !ownership.known) {
-            ownership.preexisting = runCatching { registration() != null }.getOrDefault(true)
+            val found = runCatching { registration() }.getOrNull()
+            ownership.preexisting = found == null || found.isNotEmpty()
             ownership.known = true
             SavedQueue.remember(
                 app,
@@ -380,11 +380,16 @@ internal class BattleNetInstaller(
                     Log.i("BattleNetInstall", "cancelled install left the pre-existing registration in ${folder.path}")
                 } else {
                     val created = runCatching { registration() }.getOrNull()
-                    val gone = created?.let(uninstall) ?: false
-                    if (gone || created == null && folder.isDirectory && folder.list().isNullOrEmpty()) {
-                        com.droiddeck.launcher.core.FileUtils.delete(folder)
+                    if (created == null) {
+                        Log.w("BattleNetInstall", "could not read registrations for ${folder.path}; leaving cleanup to the user")
+                    } else {
+                        val uid = created.firstOrNull()
+                        val gone = uid?.let(uninstall) ?: false
+                        if (gone || uid == null && folder.isDirectory && folder.list().isNullOrEmpty()) {
+                            com.droiddeck.launcher.core.FileUtils.delete(folder)
+                        }
+                        Log.i("BattleNetInstall", "cancelled install of ${uid ?: "an unstarted job"}: ${if (gone) "removed" else "left for Battle.net to remove"}")
                     }
-                    Log.i("BattleNetInstall", "cancelled install of ${created ?: "an unstarted job"}: ${if (gone) "removed" else "left for Battle.net to remove"}")
                 }
             } finally {
                 DownloadQueue.cleanupFinished(queueKey)

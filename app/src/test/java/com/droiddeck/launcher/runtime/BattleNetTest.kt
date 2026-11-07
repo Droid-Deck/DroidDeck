@@ -428,7 +428,7 @@ class BattleNetTest {
         val installer = BattleNetInstaller(context, item, folder, false, uninstall = {
             uninstalled.set(true)
             true
-        }) { "osic" }
+        }) { listOf("osic") }
         installer.cancel(true)
         Thread.sleep(100)
         assertFalse("a registration that existed before the task must survive", uninstalled.get())
@@ -446,9 +446,7 @@ class BattleNetTest {
             seen.set(uid)
             done.countDown()
             true
-        }) {
-            "osic"
-        }
+        }) { listOf("osic") }
         installer.cancel(true)
         assertTrue(done.await(5, TimeUnit.SECONDS))
         assertEquals("osic", seen.get())
@@ -465,7 +463,7 @@ class BattleNetTest {
             done.countDown()
             true
         }) {
-            if (visible) "osic" else null
+            if (visible) listOf("osic") else null
         }
         val started = BattleNetInstaller::class.java.getDeclaredField("started").apply { isAccessible = true }
         (started.get(installer) as AtomicBoolean).set(true)
@@ -476,6 +474,21 @@ class BattleNetTest {
         ended.countDown()
         assertTrue(done.await(5, TimeUnit.SECONDS))
         assertEquals("osic", seen.get())
+    }
+
+    @Test fun aFailedRegistrationReadDoesNotUninstall() {
+        val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
+        val item = CatalogItem(
+            Store.BATTLENET, "osi", "Diablo II: Resurrected", null,
+            extra = mapOf(BattleNetInstall.PREEXISTING to "0"),
+        )
+        val uninstalled = AtomicBoolean(false)
+        BattleNetInstaller(context, item, folder, false, uninstall = {
+            uninstalled.set(true)
+            true
+        }) { null }.cancel(true)
+        Thread.sleep(100)
+        assertFalse("an unreadable registration source must disable destructive cleanup", uninstalled.get())
     }
 
     @Test fun aResumedInstallerKeepsTheOwnershipDecision() {
@@ -490,7 +503,7 @@ class BattleNetTest {
             seen.set(uid)
             done.countDown()
             true
-        }) { "osic" }.cancel(true)
+        }) { listOf("osic") }.cancel(true)
         assertTrue(done.await(5, TimeUnit.SECONDS))
         assertEquals("osic", seen.get())
     }
@@ -507,7 +520,7 @@ class BattleNetTest {
             seen.set(uid)
             done.countDown()
             true
-        }) { "osic" }.cancel(true)
+        }) { listOf("osic") }.cancel(true)
         assertTrue(done.await(5, TimeUnit.SECONDS))
         assertEquals("osic", seen.get())
     }

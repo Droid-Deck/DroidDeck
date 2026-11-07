@@ -221,11 +221,14 @@ object BattleNet {
         }
     }
 
-    internal fun registrationsAt(context: Context, id: String, folder: File): List<String> {
+    internal fun registrationsAt(context: Context, id: String, folder: File): List<String>? {
         val pfx = File(prefix(context), "pfx")
-        val agent = runCatching { productDbInstalls(File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").readBytes()) }
-            .getOrNull().orEmpty()
-        val registry = runCatching { File(pfx, "system.reg").useLines { uninstallEntries(it) } }.getOrDefault(emptyList())
+        val agentFile = File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db")
+        val registryFile = File(pfx, "system.reg")
+        val agent = if (!agentFile.exists()) emptyList()
+        else runCatching { productDbInstalls(agentFile.readBytes()) }.getOrNull() ?: return null
+        val registry = if (!registryFile.exists()) emptyList()
+        else runCatching { registryFile.useLines { uninstallEntries(it) } }.getOrNull() ?: return null
         val products = agent.filter { it.product.isNotEmpty() }.associate { it.uid.lowercase() to it.product }
         return (registry + agent.map { it.uid to it.path }).mapNotNull { (uid, path) ->
             if (hostFolder(context, path)?.absolutePath != folder.absolutePath) return@mapNotNull null

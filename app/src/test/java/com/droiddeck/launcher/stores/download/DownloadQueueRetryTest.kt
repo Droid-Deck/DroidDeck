@@ -4,6 +4,7 @@ import android.content.Context
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.*
+import com.droiddeck.launcher.stores.battlenet.BattleNetInstall
 import com.droiddeck.launcher.stores.battlenet.BattleNetInstaller
 import java.io.File
 import java.util.concurrent.CountDownLatch
@@ -14,9 +15,11 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.json.JSONArray
+import org.json.JSONObject
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowLooper
 import org.robolectric.shadows.ShadowStatFs
 
 @RunWith(RobolectricTestRunner::class)
@@ -174,6 +177,96 @@ class DownloadQueueRetryTest {
             }
         })
         assertFalse(accepted)
+        release.countDown()
+        DownloadQueue.clear(app, entry.key)
+    }
+
+    @Test fun aSavedQueueRestoreCarriesOwnershipIntoEnqueue() {
+        val root = File(app.filesDir, "restore-root").apply { mkdirs() }
+        val key = "battlenet:restore-chain"
+        SavedQueue.resetForTest()
+        SavedQueue.remember(
+            app,
+            CatalogItem(
+                Store.BATTLENET, "restore-chain", "Restore chain", null,
+                extra = mapOf("preexisting" to "0"),
+            ),
+            root,
+        )
+        val row = JSONObject().apply {
+            put("paused", true)
+            put("root", root.absolutePath)
+            put("item", JSONObject().apply {
+                put("store", Store.BATTLENET.id); put("id", "restore-chain"); put("title", "Restore chain")
+                put("extra", JSONObject().put("preexisting", "0"))
+                put("owned", true)
+            })
+        }
+        File(app.filesDir, "store-queue.json").writeText(JSONArray().put(row).toString())
+        DownloadQueue.holdPaused(key)
+        val previous = StoresState.backend(Store.BATTLENET)
+        val installed = CountDownLatch(1)
+        StoresState.register(object : StoreBackend {
+            override val store = Store.BATTLENET
+            override fun signIn(context: Context) {}
+            override fun signOut(context: Context) {}
+            override fun syncLibrary(context: Context, force: Boolean) {}
+            override fun loadShelves(context: Context, force: Boolean) {}
+            override fun uninstall(context: Context, game: InstalledStoreGame) {}
+            override fun install(context: Context, item: CatalogItem, root: File) {
+                BattleNetInstall.enqueue(context, item, StoreInstallRoot.folderFor(context, store, item.id, item.title, root))
+                installed.countDown()
+            }
+        })
+        try {
+            SavedQueue.restore(app)
+            val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            while (installed.count > 0 && System.nanoTime() < until) {
+                ShadowLooper.idleMainLooper()
+                Thread.sleep(10)
+            }
+            assertTrue(installed.await(1, TimeUnit.SECONDS))
+            assertEquals("0", SavedQueue.remembered(key)?.extra?.get("preexisting"))
+            DownloadQueue.clear(app, key)
+        } finally {
+            if (previous != null) StoresState.register(previous)
+            SavedQueue.resetForTest()
+            File(app.filesDir, "store-queue.json").delete()
+        }
+    }
+
+    @Test fun aRejectedUpdateKeepsTheSavedOwnershipSnapshot() {
+        val original = CatalogItem(
+            Store.BATTLENET, "rejected-update", "Rejected update", null,
+            extra = mapOf("preexisting" to "0"),
+        )
+        SavedQueue.remember(app, original, null)
+        val entry = DownloadEntry(Store.BATTLENET, "rejected-update", "Rejected update")
+        val started = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        DownloadQueue.enqueue(app, entry) {
+            object : DownloadQueue.DownloadJob {
+                override fun run(handle: DownloadQueue.JobHandle): String? {
+                    started.countDown()
+                    release.await()
+                    return null
+                }
+                override fun cancel(deleteFiles: Boolean) {}
+            }
+        }
+        assertTrue(started.await(5, TimeUnit.SECONDS))
+        var accepted = false
+        assertFalse(DownloadQueue.enqueue(app, entry, onAccepted = {
+            accepted = true
+            SavedQueue.remember(app, original.copy(extra = mapOf("preexisting" to "1")), null)
+        }) {
+            object : DownloadQueue.DownloadJob {
+                override fun run(handle: DownloadQueue.JobHandle): String? = null
+                override fun cancel(deleteFiles: Boolean) {}
+            }
+        })
+        assertFalse(accepted)
+        assertEquals("0", SavedQueue.remembered(entry.key)?.extra?.get("preexisting"))
         release.countDown()
         DownloadQueue.clear(app, entry.key)
     }
