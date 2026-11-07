@@ -34,10 +34,13 @@ int stat(const char *path, struct stat *st) {
   static int (*next)(const char *, struct stat *);
   if (!next) next = dlsym(RTLD_NEXT, "stat");
   char folded[4096];
-  const char *upper = getenv("FOLD") ? strstr(path, "/STEAMAPPS") : NULL;
+  const char *fold = getenv("FOLD");
+  const char *upper = fold ? strstr(path, "/STEAMAPPS") : NULL;
   if (upper && strlen(path) < sizeof(folded)) {
     strcpy(folded, path);
     memcpy(folded + (upper - path) + 1, "steamapps", 9);
+    if (!strcmp(fold, "all"))
+      for (char *c = folded + (upper - path); *c; c++) if (*c >= 'A' && *c <= 'Z') *c += 'a' - 'A';
     path = folded;
   }
   int r = next(path, st);
@@ -457,8 +460,17 @@ class DirCachePreloadTest(unittest.TestCase):
         s = self.staging
         upper = Path(str(s).replace("downloading", "DOWNLOADING"))
         out = self.run_program("list", s, "access", upper / "x.bundle", "access", upper / "A.BUNDLE", "accesses",
-                               env={"FOLD": "1"})
+                               env={"FOLD": "all"})
         self.assertEqual(["-1 2", "-1 2", "1"], out[1:])
+
+    def test_a_case_sensitive_folder_below_a_folding_steamapps_reaches_the_filesystem(self):
+        s = self.staging
+        upper = self.lib / "DOWNLOADING" / s.name
+        upper.mkdir(parents=True)
+        (upper / "x.bundle").write_bytes(b"")
+        out = self.run_program("list", s, "access", upper / "x.bundle", "access", upper / "y.bundle", "accesses",
+                               env={"FOLD": "1"})
+        self.assertEqual(["0 0", "-1 2", "2"], out[1:])
 
     def test_misses_outside_the_client_or_fuse_steamapps_reach_the_filesystem(self):
         s = self.staging

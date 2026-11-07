@@ -458,19 +458,17 @@ static void abandon(struct handle *h) {
   h->fill = NULL;
 }
 
-static int folds(const char *path) {
-  char lower[PATH_MAX], upper[PATH_MAX];
-  struct stat a, b;
+static int folds(const char *path, const struct stat *st) {
+  char swapped[PATH_MAX];
+  struct stat b;
   const char *at = strstr(path, "/steamapps");
-  if (at == NULL) return 0;
-  size_t n = (size_t)(at - path) + 10;
-  if (n >= sizeof(lower)) return 0;
-  memcpy(lower, path, n);
-  lower[n] = 0;
-  memcpy(upper, lower, n + 1);
-  memcpy(upper + n - 9, "STEAMAPPS", 9);
+  size_t n = strlen(path);
+  if (at == NULL || n >= sizeof(swapped)) return 0;
+  memcpy(swapped, path, n + 1);
+  for (char *c = swapped + (at - path); *c; c++)
+    if ((*c >= 'a' && *c <= 'z') || (*c >= 'A' && *c <= 'Z')) *c ^= 0x20;
   int saved = errno;
-  int same_dir = stat(lower, &a) == 0 && stat(upper, &b) == 0 && a.st_dev == b.st_dev && a.st_ino == b.st_ino;
+  int same_dir = stat(swapped, &b) == 0 && b.st_dev == st->st_dev && b.st_ino == st->st_ino;
   errno = saved;
   return same_dir;
 }
@@ -480,7 +478,7 @@ static void finish(struct handle *h) {
   struct stat st;
   h->fill = NULL;
   int current = stat(h->path, &st) == 0 && same(l, &st);
-  if (current) l->folds = folds(h->path);
+  if (current) l->folds = folds(h->path, &st);
   pthread_mutex_lock(&lock);
   if (!changing) pump(NULL, 0);
   if (current && !__atomic_load_n(&h->dirty, __ATOMIC_RELAXED)) install(l);
