@@ -178,8 +178,6 @@ jobs:
         run: bash tools/ci/resolve-ndk.sh
       - name: Check out MaliBridge
         run: git submodule update --init external/MaliBridge
-      - name: Install gawk
-        run: command -v gawk >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq gawk >/dev/null; }
 
       - name: Plan component identities
         id: plan
@@ -280,6 +278,9 @@ jobs:
       - name: Build the AAudio sink into the audio bundle
         run: python3 tools/components/prepare.py audio
 
+      - name: Install gawk
+        if: steps.proot.outputs.cache-hit != 'true'
+        run: bash tools/ci/install-ubuntu-packages.sh gawk
       - name: Build proot
         if: steps.proot.outputs.cache-hit != 'true'
         run: python3 tools/components/prepare.py proot
