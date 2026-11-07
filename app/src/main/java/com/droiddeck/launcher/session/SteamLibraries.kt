@@ -96,7 +96,7 @@ object SteamLibraries {
             if (picked.none { overlaps(canonical(it.first), canonical(hit.first)) }) picked += hit
         }
         return picked.map { (dir, games) ->
-            val shown = File(storagePath(dir.path))
+            val shown = File(UsbLink.storagePath(dir.path))
             Found(dir.path, shown.path, defaultLabel(context, shown), games)
         }
     }
@@ -155,7 +155,7 @@ object SteamLibraries {
     }
 
     fun defaultLabel(context: Context, picked: File): String {
-        val folder = File(storagePath(picked.path))
+        val folder = File(UsbLink.storagePath(picked.path))
         val volume = try {
             context.getSystemService(StorageManager::class.java)?.getStorageVolume(folder)?.getDescription(context)
         } catch (e: Exception) {
@@ -171,9 +171,7 @@ object SteamLibraries {
 
     internal fun overlaps(a: String, b: String): Boolean = a == b || a.startsWith("$b/") || b.startsWith("$a/")
 
-    private fun storagePath(path: String): String = if (path.startsWith("/mnt/media_rw/")) "/storage/" + path.removePrefix("/mnt/media_rw/") else path
-
-    private fun canonical(file: File): String = storagePath(runCatching { file.canonicalPath }.getOrDefault(file.absolutePath))
+    private fun canonical(file: File): String = UsbLink.storagePath(runCatching { file.canonicalPath }.getOrDefault(file.absolutePath))
 
     private const val SCAN_DEPTH = 2
     private const val SCAN_LIMIT = 4000
