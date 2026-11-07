@@ -493,6 +493,31 @@ class ComponentUpdatesTest {
         }
     }
 
+    @Test fun anImportWaitsForPruningAndLeavesTheFileTheUsers() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val name = "DD-dxvk-3.1.1+194-nightly.wcp"
+        File(context.filesDir, "components/updates.json").apply { parentFile?.mkdirs() }.writeText(JSONObject().put("lines", JSONObject()
+            .put("dxvk", JSONObject().put("current", "DD-dxvk-3.1.1+190-nightly.wcp").put("owned", JSONArray(listOf(name))))).toString())
+        wcp(context, "source.wcp", mapOf("profile.json" to JSONObject().put("type", "DXVK-Linux").put("versionName", "3.1.1+194").toString().toByteArray()))
+        val source = File(context.filesDir, "source.wcp").also { File(context.filesDir, "components/packages/source.wcp").renameTo(it) }
+        val lock = ComponentUpdater::class.java.getDeclaredField("lock").apply { isAccessible = true }.get(ComponentUpdater)
+        val held = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        val pruning = Thread { synchronized(lock) { held.countDown(); release.await() } }.apply { start() }
+        held.await()
+        val importing = Thread { ComponentUpdater.importPackage(context, source, name) }.apply { start() }
+        importing.join(300)
+        assertTrue(importing.isAlive)
+        assertFalse(File(context.filesDir, "components/packages/$name").exists())
+        release.countDown()
+        pruning.join()
+        importing.join(5000)
+        assertTrue(File(context.filesDir, "components/packages/$name").isFile)
+        val state = JSONObject(File(context.filesDir, "components/updates.json").readText())
+        assertEquals(0, state.getJSONObject("lines").getJSONObject("dxvk").getJSONArray("owned").length())
+        assertFalse(name in ComponentUpdater.placed(state))
+    }
+
     @Test fun aStoredPackageWithOneArm64ecOnlyDllIsNotArm64x() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val dir = "files/lib/wine/dxvk/aarch64-windows"

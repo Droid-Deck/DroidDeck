@@ -247,6 +247,10 @@ object ComponentUpdater {
         state.put(IMPORTED, JSONArray(state.strings(IMPORTED) - file))
     }
 
+    fun importPackage(context: Context, source: File, name: String): ComponentsManager.Package = synchronized(lock) {
+        ComponentsManager.importPackage(context, source, name).also { disown(context, it.file) }
+    }
+
     fun disown(context: Context, file: String) = synchronized(lock) {
         val state = load(context)
         state.optJSONObject("lines")?.let { lines ->
