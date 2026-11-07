@@ -1239,6 +1239,7 @@ private fun DrawerFexPresetRow(host: MenuHost, a: DrawerActions, modifier: Modif
                     }
                 },
                 allowInheritance = appId != null,
+                generalPreset = a.fexPreset,
                 modifier = modifier,
             )
         }

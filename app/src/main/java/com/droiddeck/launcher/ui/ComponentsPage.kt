@@ -1183,6 +1183,7 @@ private fun GameComponentOverrides(
                     open = fexMenu,
                     enabled = config != null && !busy,
                     allowInheritance = true,
+                    generalPreset = generalFexPreset,
                     onToggle = { onFexMenu(!fexMenu) },
                     onDismiss = { onFexMenu(false) },
                     onPick = onFexPreset,
@@ -1349,15 +1350,16 @@ internal fun FexPresetChip(
     onDismiss: () -> Unit,
     onPick: (String?) -> Unit,
     allowInheritance: Boolean = false,
+    generalPreset: String = preset,
     modifier: Modifier = Modifier,
 ) {
-    val chosen = FexPreset.all.firstOrNull { it.id == preset }
+    val chosen = FexPreset.all.firstOrNull { it.id == if (inherited) generalPreset else preset }
     val label = when {
         preset == GameEnvironment.CUSTOM_FEX_PRESET -> stringResource(R.string.comp_game_fex_custom)
         chosen == null -> stringResource(FexPreset.byId("").label)
-        inherited -> stringResource(R.string.comp_game_use_general)
         else -> stringResource(chosen.label)
     }
+    val general = FexPreset.all.firstOrNull { it.id == generalPreset }
     Box {
         ValueChip(label, open, enabled = enabled, modifier = modifier.widthIn(max = 260.dp), onClick = onToggle)
         AnchoredMenu(open && enabled, onDismiss = onDismiss, title = stringResource(R.string.fex_preset_title)) { first ->
@@ -1365,6 +1367,7 @@ internal fun FexPresetChip(
                 MenuItem(
                     stringResource(R.string.comp_game_use_general),
                     checked = inherited,
+                    detail = general?.let { stringResource(it.label) },
                     focusRequester = first,
                 ) { onPick(null); onDismiss() }
             }
