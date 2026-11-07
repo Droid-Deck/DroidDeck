@@ -3706,4 +3706,14 @@
     <string name="wow_chat_listening">Escuchando…</string>
     <string name="wow_chat_voice_unavailable">El dictado por voz no está disponible en este dispositivo.</string>
     <string name="wow_chat_mic_denied">Se necesita acceso al micrófono para el dictado por voz.</string>
+    <string name="addons_download">Descargar complementos…</string>
+    <string name="addons_sort_name">Nombre</string>
+    <string name="addons_sort_downloads">Más descargados</string>
+    <string name="addons_category_all">Todas las categorías</string>
+    <string name="addons_curse_key">Clave de API de CurseForge</string>
+    <string name="addons_curse_key_needed">CurseForge necesita una clave de API.</string>
+    <string name="addons_none_found">No se encontraron complementos</string>
+    <string name="addons_unreachable">No se pudo conectar con %1$s</string>
+    <string name="addons_no_file">No hay archivo para esta versión del juego</string>
+    <string name="addons_not_distributable">El autor solo permite descargas desde la app de CurseForge</string>
 </resources>

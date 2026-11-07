@@ -874,12 +874,15 @@ private fun SavesTab(g: Library.SteamGame, prefix: File, a: FrontEndActions) {
 
 @Composable
 private fun AddonsTab(g: Library.SteamGame, targets: List<WowAddons.Target>, a: FrontEndActions) {
+    var browsing by remember(g.gameId) { mutableStateOf<WowAddons.Target?>(null) }
+    browsing?.let { AddonBrowserDialog(targets, it) { browsing = null } }
     Column(Modifier.fillMaxWidth().tabPanel(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         targets.forEach { target ->
             val names by produceState(emptyList<String>(), target.addOns, WowAddons.imports) {
                 value = withContext(Dispatchers.IO) { WowAddons.installed(target) }
             }
             if (targets.size > 1) SectionLabel(target.flavor)
+            MenuItem(stringResource(R.string.addons_download), checked = false) { browsing = target }
             MenuItem(
                 stringResource(R.string.games_import_addons), checked = false,
                 detail = pluralStringResource(R.plurals.games_addons_count, names.size, names.size),

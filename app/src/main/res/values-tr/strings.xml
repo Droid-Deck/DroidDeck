@@ -3694,4 +3694,14 @@
     <string name="wow_chat_listening">Dinleniyor…</string>
     <string name="wow_chat_voice_unavailable">Sesle yazma bu cihazda kullanılamıyor.</string>
     <string name="wow_chat_mic_denied">Sesle yazma için mikrofon erişimi gerekiyor.</string>
+    <string name="addons_download">Eklenti indir…</string>
+    <string name="addons_sort_name">Ad</string>
+    <string name="addons_sort_downloads">En çok indirilen</string>
+    <string name="addons_category_all">Tüm kategoriler</string>
+    <string name="addons_curse_key">CurseForge API anahtarı</string>
+    <string name="addons_curse_key_needed">CurseForge için API anahtarı gerekiyor.</string>
+    <string name="addons_none_found">Eklenti bulunamadı</string>
+    <string name="addons_unreachable">%1$s adresine ulaşılamadı</string>
+    <string name="addons_no_file">Bu oyun sürümü için dosya yok</string>
+    <string name="addons_not_distributable">Yazar yalnızca CurseForge uygulaması üzerinden indirmeye izin veriyor</string>
 </resources>

@@ -3733,4 +3733,14 @@
     <string name="wow_chat_listening">A ouvir…</string>
     <string name="wow_chat_voice_unavailable">A escrita por voz não está disponível neste dispositivo.</string>
     <string name="wow_chat_mic_denied">É necessário acesso ao microfone para a escrita por voz.</string>
+    <string name="addons_download">Transferir addons…</string>
+    <string name="addons_sort_name">Nome</string>
+    <string name="addons_sort_downloads">Mais transferidos</string>
+    <string name="addons_category_all">Todas as categorias</string>
+    <string name="addons_curse_key">Chave de API do CurseForge</string>
+    <string name="addons_curse_key_needed">O CurseForge precisa de uma chave de API.</string>
+    <string name="addons_none_found">Nenhum addon encontrado</string>
+    <string name="addons_unreachable">Não foi possível contactar %1$s</string>
+    <string name="addons_no_file">Não há ficheiro para esta versão do jogo</string>
+    <string name="addons_not_distributable">O autor só permite transferências através da aplicação CurseForge</string>
 </resources>

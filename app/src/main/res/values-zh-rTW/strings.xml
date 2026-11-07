@@ -3667,4 +3667,14 @@
     <string name="wow_chat_listening">正在聆聽…</string>
     <string name="wow_chat_voice_unavailable">此裝置不支援語音輸入。</string>
     <string name="wow_chat_mic_denied">語音輸入需要麥克風權限。</string>
+    <string name="addons_download">下載插件…</string>
+    <string name="addons_sort_name">名稱</string>
+    <string name="addons_sort_downloads">下載最多</string>
+    <string name="addons_category_all">所有類別</string>
+    <string name="addons_curse_key">CurseForge API 金鑰</string>
+    <string name="addons_curse_key_needed">CurseForge 需要 API 金鑰。</string>
+    <string name="addons_none_found">找不到插件</string>
+    <string name="addons_unreachable">無法連線至 %1$s</string>
+    <string name="addons_no_file">沒有適用於此遊戲版本的檔案</string>
+    <string name="addons_not_distributable">作者僅允許透過 CurseForge 應用程式下載</string>
 </resources>

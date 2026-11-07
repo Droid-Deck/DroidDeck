@@ -3694,4 +3694,14 @@
     <string name="wow_chat_listening">Слушане…</string>
     <string name="wow_chat_voice_unavailable">Гласовото въвеждане не е налично на това устройство.</string>
     <string name="wow_chat_mic_denied">За гласово въвеждане е нужен достъп до микрофона.</string>
+    <string name="addons_download">Изтегляне на добавки…</string>
+    <string name="addons_sort_name">Име</string>
+    <string name="addons_sort_downloads">Най-изтегляни</string>
+    <string name="addons_category_all">Всички категории</string>
+    <string name="addons_curse_key">API ключ за CurseForge</string>
+    <string name="addons_curse_key_needed">CurseForge изисква API ключ.</string>
+    <string name="addons_none_found">Няма намерени добавки</string>
+    <string name="addons_unreachable">Няма връзка с %1$s</string>
+    <string name="addons_no_file">Няма файл за тази версия на играта</string>
+    <string name="addons_not_distributable">Авторът позволява изтегляне само през приложението CurseForge</string>
 </resources>

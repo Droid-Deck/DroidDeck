@@ -3694,4 +3694,14 @@
     <string name="wow_chat_listening">सुन रहा है…</string>
     <string name="wow_chat_voice_unavailable">इस डिवाइस पर आवाज़ से टाइपिंग उपलब्ध नहीं है।</string>
     <string name="wow_chat_mic_denied">आवाज़ से टाइपिंग के लिए माइक्रोफ़ोन की अनुमति चाहिए।</string>
+    <string name="addons_download">ऐडऑन डाउनलोड करें…</string>
+    <string name="addons_sort_name">नाम</string>
+    <string name="addons_sort_downloads">सबसे ज़्यादा डाउनलोड</string>
+    <string name="addons_category_all">सभी श्रेणियाँ</string>
+    <string name="addons_curse_key">CurseForge API कुंजी</string>
+    <string name="addons_curse_key_needed">CurseForge को API कुंजी चाहिए।</string>
+    <string name="addons_none_found">कोई ऐडऑन नहीं मिला</string>
+    <string name="addons_unreachable">%1$s तक नहीं पहुँच सके</string>
+    <string name="addons_no_file">गेम के इस संस्करण के लिए कोई फ़ाइल नहीं है</string>
+    <string name="addons_not_distributable">लेखक केवल CurseForge ऐप से डाउनलोड की अनुमति देता है</string>
 </resources>

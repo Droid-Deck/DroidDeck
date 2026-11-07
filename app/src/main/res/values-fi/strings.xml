@@ -3694,4 +3694,14 @@
     <string name="wow_chat_listening">Kuunnellaan…</string>
     <string name="wow_chat_voice_unavailable">Puhekirjoitus ei ole käytettävissä tällä laitteella.</string>
     <string name="wow_chat_mic_denied">Puhekirjoitus vaatii mikrofonin käyttöoikeuden.</string>
+    <string name="addons_download">Lataa lisäosia…</string>
+    <string name="addons_sort_name">Nimi</string>
+    <string name="addons_sort_downloads">Ladatuimmat</string>
+    <string name="addons_category_all">Kaikki luokat</string>
+    <string name="addons_curse_key">CurseForge-API-avain</string>
+    <string name="addons_curse_key_needed">CurseForge vaatii API-avaimen.</string>
+    <string name="addons_none_found">Lisäosia ei löytynyt</string>
+    <string name="addons_unreachable">Yhteyttä palveluun %1$s ei saatu</string>
+    <string name="addons_no_file">Tälle peliversiolle ei ole tiedostoa</string>
+    <string name="addons_not_distributable">Tekijä sallii lataukset vain CurseForge-sovelluksen kautta</string>
 </resources>
