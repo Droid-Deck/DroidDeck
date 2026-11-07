@@ -44,7 +44,6 @@ jobs:
     outputs:
       base-sha: ${{ steps.merge.outputs.base-sha || steps.trusted.outputs.base-sha }}
       tree-sha: ${{ steps.source.outputs.tree-sha }}
-      heavy-runner: ${{ steps.runner.outputs.labels || '"ubuntu-24.04"' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -77,23 +76,6 @@ jobs:
       - name: Record pinned source tree
         id: source
         run: echo "tree-sha=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
-      - name: Pick the compile runner
-        id: runner
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
-        run: |
-          set -euo pipefail
-          labels='"ubuntu-24.04"'
-          if [ -n "$GH_TOKEN" ]; then
-            idle=$(gh api "orgs/${GITHUB_REPOSITORY_OWNER}/actions/runners" --jq '[.runners[] | select(.status == "online" and .busy == false and any(.labels[]; .name == "droiddeck-ws"))] | length' 2>/dev/null || echo 0)
-            if [ "${idle:-0}" -gt 0 ]; then
-              labels='["self-hosted","droiddeck-ws"]'
-            fi
-          fi
-          echo "labels=$labels" >> "$GITHUB_OUTPUT"
-          echo "Compile runner: \`$labels\`" >> "$GITHUB_STEP_SUMMARY"
 
   xbox:
     name: Xbox ARM64 backend
@@ -154,11 +136,18 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  components:
-    name: Prepare verified components
+  components-runner:
     needs: source
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
-    runs-on: ${{ fromJSON(needs.source.outputs.heavy-runner) }}
+    uses: ./.github/workflows/pick-runner.yml
+    secrets:
+      RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
+
+  components:
+    name: Prepare verified components
+    needs: [source, components-runner]
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ${{ fromJSON(needs.components-runner.outputs.labels) }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -336,11 +325,18 @@ jobs:
           compression-level: 0
           retention-days: 14
 
+  build-runner:
+    needs: [components]
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    uses: ./.github/workflows/pick-runner.yml
+    secrets:
+      RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
+
   build:
-    needs: [source, components, xbox]
+    needs: [source, components, xbox, build-runner]
     name: Compile APK and Android tests
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
-    runs-on: ${{ fromJSON(needs.source.outputs.heavy-runner) }}
+    runs-on: ${{ fromJSON(needs.build-runner.outputs.labels) }}
     timeout-minutes: 45
     outputs:
       variants: ${{ steps.variants.outputs.list }}

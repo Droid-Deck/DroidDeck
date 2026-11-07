@@ -1,0 +1,38 @@
+name: Pick runner
+
+on:
+  workflow_call:
+    outputs:
+      labels:
+        value: ${{ jobs.pick.outputs.labels }}
+    secrets:
+      RUNNER_STATUS_TOKEN:
+        required: false
+
+permissions: {}
+
+jobs:
+  pick:
+    name: Pick runner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    outputs:
+      labels: ${{ steps.runner.outputs.labels || '"ubuntu-24.04"' }}
+    steps:
+      - name: Pick the compile runner
+        id: runner
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
+        run: |
+          set -euo pipefail
+          labels='"ubuntu-24.04"'
+          if [ -n "$GH_TOKEN" ]; then
+            idle=$(gh api "orgs/${GITHUB_REPOSITORY_OWNER}/actions/runners" --jq '[.runners[] | select(.status == "online" and .busy == false and any(.labels[]; .name == "droiddeck-ws"))] | length' 2>/dev/null || echo 0)
+            if [ "${idle:-0}" -gt 0 ]; then
+              labels='["self-hosted","droiddeck-ws"]'
+            fi
+          fi
+          echo "labels=$labels" >> "$GITHUB_OUTPUT"
+          echo "Compile runner: \`$labels\`" >> "$GITHUB_STEP_SUMMARY"
