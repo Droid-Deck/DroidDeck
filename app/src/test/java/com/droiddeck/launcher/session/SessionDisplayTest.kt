@@ -23,6 +23,19 @@ class SessionDisplayTest {
         }
     }
 
+    @Test fun automaticChoicesFollowTheUsableLandscapeViewport() {
+        assertEquals(1438 to 720, SessionDisplay.resolveViewportChoice(2686 to 1344, "720p"))
+        assertEquals(1658 to 720, SessionDisplay.resolveViewportChoice(2912 to 1264, "720p"))
+        assertEquals(2686 to 1344, SessionDisplay.resolveViewportChoice(2687 to 1345, SessionDisplay.MATCH_SCREEN))
+    }
+
+    @Test fun viewportResolutionLeavesExplicitAndFollowChoicesAlone() {
+        assertNull(SessionDisplay.resolveViewportChoice(2686 to 1344, "1280x720"))
+        assertNull(SessionDisplay.resolveViewportChoice(2686 to 1344, SessionDisplay.FOLLOW_SCREEN))
+        assertNull(SessionDisplay.resolveViewportChoice(2686 to 1344, "follow/2"))
+        assertNull(SessionDisplay.resolveViewportChoice(0 to 1344, "720p"))
+    }
+
     @Test fun fixedSizesAndMatchScreenResolveWithoutAnyAspectSetting() {
         assertEquals(1280 to 720, SessionDisplay.resolveChoice(1440 to 1080, "1280x720"))
         assertEquals(1600 to 900, SessionDisplay.resolveChoice(1280 to 720, "1600x900"))
