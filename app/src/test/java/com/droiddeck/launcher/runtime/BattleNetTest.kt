@@ -414,19 +414,19 @@ class BattleNetTest {
 
     @Test fun aPreexistingRegistrationIsNotUninstalled() {
         val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
-        val item = CatalogItem(Store.BATTLENET, "osi", "Diablo II: Resurrected", null)
+        val item = CatalogItem(
+            Store.BATTLENET, "osi", "Diablo II: Resurrected", null,
+            extra = mapOf(BattleNetInstall.PREEXISTING to "1"),
+        )
         val game = BattleNet.Game(item.id, item.title, "OSI", folder, "osic")
-        val checked = CountDownLatch(1)
         val uninstalled = AtomicBoolean(false)
         val installer = BattleNetInstaller(context, item, folder, false, {
             uninstalled.set(true)
             true
         }) {
-            checked.countDown()
             game
         }
         installer.cancel(true)
-        assertTrue(checked.await(5, TimeUnit.SECONDS))
         Thread.sleep(100)
         assertFalse("a registration that existed before the task must survive", uninstalled.get())
     }
@@ -479,10 +479,9 @@ class BattleNetTest {
         val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
         val item = CatalogItem(
             Store.BATTLENET, "osi", "Diablo II: Resurrected", null,
-            extra = mapOf(BattleNetInstall.RESTORE to "1"),
+            extra = mapOf(BattleNetInstall.RESTORE to "1", BattleNetInstall.PREEXISTING to "0"),
         )
         val game = BattleNet.Game(item.id, item.title, "OSI", folder, "osic")
-        var calls = 0
         val seen = AtomicReference<String?>(null)
         val done = CountDownLatch(1)
         BattleNetInstaller(context, item, folder, false, { uid ->
@@ -490,7 +489,7 @@ class BattleNetTest {
             done.countDown()
             true
         }) {
-            if (++calls == 1) null else game
+            game
         }.cancel(true)
         assertTrue(done.await(5, TimeUnit.SECONDS))
         assertEquals("osic", seen.get())

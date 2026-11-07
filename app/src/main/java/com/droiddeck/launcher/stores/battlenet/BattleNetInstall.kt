@@ -19,6 +19,7 @@ import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadStage
+import com.droiddeck.launcher.stores.download.SavedQueue
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
@@ -113,14 +114,26 @@ object BattleNetInstall {
 
     fun enqueue(context: Context, item: CatalogItem, folder: File, update: Boolean = false) {
         val app = context.applicationContext
+        val recorded = item.extra[PREEXISTING]
+        val existing = when (recorded) {
+            "1" -> true
+            "0" -> false
+            else -> runCatching {
+                BattleNet.games(app).any {
+                    it.folder.absolutePath == folder.absolutePath && it.uid == item.id
+                }
+            }.getOrDefault(true)
+        }
+        val tagged = item.copy(extra = item.extra + (PREEXISTING to if (existing) "1" else "0"))
         val entry = DownloadEntry(
-            Store.BATTLENET, item.id, item.title, cover = item.tallImageUrl ?: item.imageUrl,
+            Store.BATTLENET, tagged.id, tagged.title, cover = tagged.tallImageUrl ?: tagged.imageUrl,
             location = StoreInstallRoot.labelFor(app, folder),
-            cleanupKey = "${Store.BATTLENET.id}:${item.id}",
+            cleanupKey = "${Store.BATTLENET.id}:${tagged.id}",
         )
+        SavedQueue.remember(app, tagged, folder.parentFile?.parentFile)
         if (!update && item.extra[RESTORE] != "1" && !DownloadQueue.isActive(entry.key) &&
             !DownloadQueue.isCancelling(entry.key)) clearCachedUid(app, item)
-        DownloadQueue.enqueue(app, entry) { BattleNetInstaller(app, item, folder, update) }
+        DownloadQueue.enqueue(app, entry) { BattleNetInstaller(app, tagged, folder, update) }
     }
 
     fun update(context: Context, game: InstalledStoreGame) {
@@ -142,6 +155,7 @@ object BattleNetInstall {
 
     internal const val INSTALL_UID = "installUid"
     internal const val RESTORE = "restore"
+    internal const val PREEXISTING = "preexisting"
 
     internal fun installUid(context: Context, game: InstalledStoreGame): String? {
         val games = runCatching { BattleNet.games(context) }.getOrDefault(emptyList())
@@ -314,12 +328,18 @@ internal class BattleNetInstaller(
     private val queueKey = DownloadEntry(Store.BATTLENET, item.id, item.title).key
     private val ended = java.util.concurrent.CountDownLatch(1)
     @Volatile private var effectiveUid: String? = null
-    @Volatile private var preexisting = false
+    @Volatile private var preexisting = when (item.extra[BattleNetInstall.PREEXISTING]) {
+        "1" -> true
+        "0" -> false
+        else -> false
+    }
     private var before = 0L
     private var kept = -1L
 
     override fun run(handle: DownloadQueue.JobHandle): String? {
-        if (!cancelled.get()) preexisting = runCatching { registration() != null }.getOrDefault(true)
+        if (!cancelled.get() && item.extra[BattleNetInstall.PREEXISTING] == null) {
+            preexisting = runCatching { registration() != null }.getOrDefault(true)
+        }
         started.set(true)
         try {
             return if (cancelled.get()) null else work(handle)
@@ -386,7 +406,9 @@ internal class BattleNetInstaller(
             return
         }
         if (!cleanupStarted.compareAndSet(false, true)) return
-        if (!started.get()) preexisting = runCatching { registration() != null }.getOrDefault(true)
+        if (!started.get() && item.extra[BattleNetInstall.PREEXISTING] == null) {
+            preexisting = runCatching { registration() != null }.getOrDefault(true)
+        }
         val cleanup = Thread({
             try {
                 val stopped = !started.get() || ended.await(END_WAIT_S, TimeUnit.SECONDS)
