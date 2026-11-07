@@ -208,11 +208,13 @@ class BinfmtPreloadTest(unittest.TestCase):
 @unittest.skipUnless(os.path.exists("/bin/bash") and not os.path.exists("/usr/local/bin/droiddeck-fex"),
                      "needs bash and no droiddeck-fex on this host")
 class ScriptRunTest(unittest.TestCase):
-    def run_app(self, env):
+    def run_app(self, env, fex=None):
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, tmp, True)
         (tmp / "app/files").mkdir(parents=True)
         (tmp / "app/entry").write_text("go.sh")
+        if fex:
+            (tmp / "app/fex").write_text(fex)
         (tmp / "app/files/go.sh").write_text("#!/bin/bash\necho \"${BL_BINFMT-unset} ${BL_DESKTOP-unset}\"\n")
         runner = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/droiddeck-script-run"
         base = {"PATH": "/usr/bin:/bin", "DBUS_SESSION_BUS_ADDRESS": "unix:path=/nonexistent"}
@@ -223,6 +225,11 @@ class ScriptRunTest(unittest.TestCase):
     def test_a_script_run_switches_the_hand_off_on_for_its_children_only(self):
         self.assertEqual(self.run_app({}), (0, "1 unset"))
         self.assertEqual(self.run_app({"BL_BINFMT": "0", "BL_DESKTOP": "1"}), (0, "1 1"))
+        self.assertEqual(self.run_app({}, fex="on"), (0, "1 unset"))
+
+    def test_fex_off_keeps_x86_children_away_from_the_hand_off(self):
+        self.assertEqual(self.run_app({}, fex="off"), (0, "unset unset"))
+        self.assertEqual(self.run_app({"BL_BINFMT": "1"}, fex="off"), (0, "unset unset"))
 
 
 if __name__ == "__main__":
