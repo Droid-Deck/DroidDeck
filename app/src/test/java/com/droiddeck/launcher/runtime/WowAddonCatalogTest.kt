@@ -176,6 +176,12 @@ us|1|aa|bb|cc||tpr/wow|h|s|t||1|12.1.0.65000|kk|wowf
         f.delete()
     }
 
+    @Test fun aFreshBodyIsReturnedWhenTheCacheCannotBeWritten() {
+        val blocker = File(context.cacheDir, "wowaddon-cache-blocker").apply { parentFile!!.mkdirs(); writeText("") }
+        assertEquals("[1]", WowAddonCatalog.cached(File(blocker, "x.json"), 1_000L) { "[1]" })
+        blocker.delete()
+    }
+
     @Test fun staleCacheIsUsedWhenOfflineAndFreshCacheSkipsTheNetwork() {
         val f = File(context.cacheDir, "wowaddon-cache-test/x.json")
         assertEquals("[1]", WowAddonCatalog.cached(f, 1_000L) { "[1]" })

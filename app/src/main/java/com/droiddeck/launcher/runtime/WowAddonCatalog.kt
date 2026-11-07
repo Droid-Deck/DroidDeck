@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.runtime
 
 import android.content.Context
+import android.util.Log
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.Hashes
@@ -11,6 +12,7 @@ import java.io.IOException
 import java.net.URLEncoder
 
 object WowAddonCatalog {
+    private const val TAG = "WowAddonCatalog"
     enum class Sort { POPULAR, UPDATED, NAME, DOWNLOADS }
 
     class Category(val id: String, val name: String)
@@ -161,15 +163,14 @@ object WowAddonCatalog {
         if (kept != null && isFresh(file, now)) return kept
         val body = fetch()?.takeIf(::isJsonArray)
         if (body != null) {
-            file.parentFile?.mkdirs()
             val part = File(file.parentFile, "${file.name}.${java.util.UUID.randomUUID()}.part")
-            try {
+            runCatching {
+                file.parentFile?.mkdirs()
                 part.writeText(body)
                 part.setLastModified(now)
-                part.renameTo(file)
-            } finally {
-                part.delete()
-            }
+                if (!part.renameTo(file)) Log.w(TAG, "could not keep ${file.name}")
+            }.onFailure { Log.w(TAG, "could not keep ${file.name}", it) }
+            part.delete()
             return body
         }
         return kept
