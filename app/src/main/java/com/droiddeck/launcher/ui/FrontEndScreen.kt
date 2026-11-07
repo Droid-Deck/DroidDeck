@@ -474,6 +474,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     }
     if (showFirstGuide) GettingStartedDialog(
         runtimeReady = s.ready,
+        installEnabled = !s.busy && !s.runtimeActionsBlocked && !s.sessionRunning,
         onInstallRuntime = a.onRuntime,
         onDismiss = {
             com.droiddeck.launcher.core.AppUiPrefs.setGuideSeen(ctx)

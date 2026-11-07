@@ -22,6 +22,7 @@ import com.droiddeck.launcher.R
 @Composable
 internal fun GettingStartedDialog(
     runtimeReady: Boolean,
+    installEnabled: Boolean,
     onInstallRuntime: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -40,7 +41,8 @@ internal fun GettingStartedDialog(
             steps.forEachIndexed { i, (title, body) -> GuideStep(i + 1, stringResource(title), stringResource(body)) }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-            if (!runtimeReady) PrimaryButton(stringResource(R.string.guide_install_runtime), compact = true) {
+            if (!runtimeReady) PrimaryButton(stringResource(R.string.guide_install_runtime), enabled = installEnabled, compact = true) {
+                if (!installEnabled) return@PrimaryButton
                 onInstallRuntime()
                 close()
             }

@@ -179,6 +179,7 @@ internal fun SetupPanel(
     var showGuide by rememberSaveable { mutableStateOf(false) }
     if (showGuide) GettingStartedDialog(
         runtimeReady = s.ready,
+        installEnabled = !s.busy && !s.runtimeActionsBlocked && !s.sessionRunning,
         onInstallRuntime = a.onRuntime,
         onDismiss = { showGuide = false },
     )
