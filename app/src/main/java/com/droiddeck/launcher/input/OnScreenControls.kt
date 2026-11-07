@@ -16,7 +16,7 @@ import android.widget.FrameLayout
 import com.droiddeck.launcher.ui.InputSurfaceView
 
 class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayout.Dock? = null) : FrameLayout(context) {
-    private val surface = InputSurfaceView(context, pad, inputRole = InputRole.PRIMARY)
+    private val surface = InputSurfaceView(context, pad, inputRole = InputRole.PRIMARY, haptics = dock != null)
     private var layout: SavedInputLayout? = null
     private val safe = Rect()
     private var viewWidth = 0

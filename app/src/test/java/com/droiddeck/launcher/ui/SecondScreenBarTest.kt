@@ -4,7 +4,6 @@ import android.hardware.display.DisplayManager
 import android.view.Display
 import android.view.View
 import android.view.ViewGroup
-import android.widget.FrameLayout
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.currentComposer
 import androidx.compose.ui.platform.ComposeView
