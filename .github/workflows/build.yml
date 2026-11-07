@@ -278,9 +278,6 @@ jobs:
       - name: Build the AAudio sink into the audio bundle
         run: python3 tools/components/prepare.py audio
 
-      - name: Install gawk
-        if: steps.proot.outputs.cache-hit != 'true'
-        run: bash tools/ci/install-ubuntu-packages.sh gawk
       - name: Build proot
         if: steps.proot.outputs.cache-hit != 'true'
         run: python3 tools/components/prepare.py proot
