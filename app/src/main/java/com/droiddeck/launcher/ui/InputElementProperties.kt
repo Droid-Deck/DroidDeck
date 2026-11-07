@@ -72,7 +72,7 @@ internal fun InputElementProperties(element: InputSurfaceElement, onChange: (Inp
     }
     val host = rememberMenuHost()
     if ((element.kind == InputElementKind.BUTTON || element.kind == InputElementKind.TRIGGER) && element.icon == 0 && element.image.isEmpty() ||
-        element.kind == InputElementKind.STICK && element.id.startsWith("legacy:"))
+        element.kind == InputElementKind.STICK || element.kind == InputElementKind.DPAD)
         ToggleRow(host, "element-label", stringResource(R.string.input_show_label), null, element.showLabel) { onChange(element.copy(showLabel = it)) }
     SliderRow(stringResource(R.string.ctrl_opacity), null, (element.opacity * 100).roundToInt().coerceIn(20, 100), 20..100, step = 5,
         format = { "$it%" }, modifier = Modifier.testTag("setting-element-opacity")) { onChange(element.copy(opacity = it / 100f)) }
