@@ -103,6 +103,8 @@ object ComponentUpdater {
         val protons = found ?: emptyList()
         if (found != null) handBack(context, state, found)
         judge(context, state, protons, notes)
+        if (ComponentsManager.pinnedAutoDxvk(context) != null) runCatching { ComponentsManager.ensureForcedPackages(context) }
+            .onSuccess { if (it != null) Log.i(TAG, it) }.onFailure { Log.w(TAG, "pinned DXVK", it) }
         val due = force || System.currentTimeMillis() - state.optLong("checkedAt") >= CHECK_EVERY_MS
         val wanted = ComponentsManager.COMPONENTS.filter { managed(context, it) }
         if (wanted.isEmpty() || protons.isEmpty()) {
@@ -386,6 +388,12 @@ object ComponentUpdater {
     }
 
     fun status(context: Context, comp: String): List<Status> {
+        val pinned = if (comp == "dxvk") ComponentsManager.pinnedAutoDxvk(context) else null
+        if (pinned != null) {
+            val on = runCatching { ComponentsManager.protons(context) }.getOrDefault(emptyList())
+                .filter { ComponentUpdates.follows(it) && ComponentsManager.supports(it, comp) }
+            return if (on.isEmpty()) emptyList() else listOf(Status(comp, pinned, pinned, on.map { it.name }, ""))
+        }
         val state = load(context)
         val lines = state.optJSONObject("lines") ?: JSONObject()
         val protons = runCatching { ComponentsManager.protons(context) }.getOrDefault(emptyList())

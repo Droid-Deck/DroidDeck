@@ -39,7 +39,7 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
             runCatching { ComponentUpdater.settle(activity) }
             val modes = ComponentsManager.COMPONENTS.associateWith { SessionPrefs.componentMode(activity, it) }
             val auto = ComponentsManager.COMPONENTS.associateWith { runCatching { ComponentUpdater.status(activity, it) }.getOrDefault(emptyList()) }
-            val held = if (runCatching { ComponentsManager.hardwareDxvk(activity) }.getOrDefault(false)) setOf("dxvk") else emptySet()
+            val held = if (runCatching { ComponentsManager.autoDxvkHeld(activity) }.getOrDefault(false)) setOf("dxvk") else emptySet()
             ui.post {
                 compModes = modes
                 compAuto = auto
