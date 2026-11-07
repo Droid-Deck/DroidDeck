@@ -1,6 +1,12 @@
 package com.droiddeck.launcher.ui
 
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
+import android.util.DisplayMetrics
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.focus.focusRequester
@@ -21,6 +27,9 @@ import androidx.compose.ui.window.DialogProperties
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.*
 import com.droiddeck.launcher.session.SessionPrefs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun InputSettingsDialog(onBack: () -> Unit, onChanged: () -> Unit) {
@@ -88,7 +97,9 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
     LaunchedEffect(surface) { onSurfaceEditing(surface) }
     DisposableEffect(Unit) { onDispose { onSurfaceEditing(false) } }
     var managingLayout by remember { mutableStateOf<SavedInputLayout?>(null) }
+    var exporting by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     val controller = rememberControllerSettings()
     var oscMode by remember { mutableStateOf(SessionPrefs.oscMode(context)) }
     fun update(change: (InputLibrary) -> InputLibrary): Boolean = runCatching { InputLibraries.update(context, change) }
@@ -107,6 +118,27 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
     val profile = library.profile(profileId)
     val preset = library.preset(profile.binding(role))
     val layout = library.layout(profileId, role)
+    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val target = role
+        scope.launch {
+            val raw = withContext(Dispatchers.IO) { readLayoutFile(context, uri) }
+            val metrics = inputDisplayMetrics(context, target)
+            val imported = raw?.let { InputLayoutFile.import(context, it, layoutFileName(context, uri) ?: context.getString(R.string.ctrl_layout),
+                if (target == InputRole.PRIMARY) InputLayoutScreen.MAIN else InputLayoutScreen.SECONDARY, layout?.style ?: InputSurfaceStyle(),
+                metrics.widthPixels, metrics.heightPixels, metrics.density) }
+            if (imported == null) error = context.getString(R.string.input_layout_import_failed)
+            else if (update { it.withLayout(imported.first).withPreset(imported.second).chooseLayout(profileId, target, imported.first.id) }) go(InputPage.SOURCE)
+        }
+    }
+    val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        val text = exporting
+        exporting = null
+        if (uri != null && text != null) scope.launch {
+            val saved = withContext(Dispatchers.IO) { runCatching { context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(text.toByteArray()) } != null }.getOrDefault(false) }
+            if (!saved) error = context.getString(R.string.input_save_failed)
+        }
+    }
     fun rename(title: Int, name: String, save: (String) -> Unit) {
         naming = InputNameRequest(title, name) { value, _, _ -> save(value) }
     }
@@ -249,6 +281,8 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                             InputColorRow(host, layout.style.tint) { color -> update { it.withLayout(layout.copy(style = layout.style.copy(tint = color))) } }
                             SliderRow(stringResource(R.string.ctrl_opacity), null, layout.style.opacity, 1..100, step = 1,
                                 format = { "$it%" }) { opacity -> update { it.withLayout(layout.copy(style = layout.style.copy(opacity = opacity))) } }
+                            for (button in layout.quickButtons) ToggleRow(host, "quick-${button.name.lowercase()}", stringResource(quickButtonLabel(button)), null,
+                                button !in layout.style.hidden) { on -> update { it.withLayout(layout.withQuickButton(button, on)) } }
                         }
                         if (role == InputRole.SECONDARY) InputHint(stringResource(R.string.input_second_screen_enable))
                     }
@@ -302,10 +336,14 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                         if (other.isNotEmpty()) PadTextButton(onClick = { showOther = !showOther }, modifier = Modifier.padding(8.dp)) {
                             Text(stringResource(if (showOther) R.string.input_hide_other_layouts else R.string.input_other_layouts, other.size))
                         }
-                        PadTextButton(onClick = { naming = InputNameRequest(R.string.input_new_layout, "") { name, _, _ ->
-                            val created = SavedInputLayout(newInputId(), name, screen = if (role == InputRole.PRIMARY) InputLayoutScreen.MAIN else InputLayoutScreen.SECONDARY)
-                            if (update { it.withLayout(created).useLayout(profileId, role, created.id, shared = true) }) { go(InputPage.SOURCE); surface = true }
-                        } }, modifier = Modifier.padding(8.dp)) { Text(stringResource(R.string.input_new_layout)) }
+                        Row {
+                            PadTextButton(onClick = { naming = InputNameRequest(R.string.input_new_layout, "") { name, _, _ ->
+                                val created = SavedInputLayout(newInputId(), name, screen = if (role == InputRole.PRIMARY) InputLayoutScreen.MAIN else InputLayoutScreen.SECONDARY)
+                                if (update { it.withLayout(created).useLayout(profileId, role, created.id, shared = true) }) { go(InputPage.SOURCE); surface = true }
+                            } }, modifier = Modifier.padding(8.dp)) { Text(stringResource(R.string.input_new_layout)) }
+                            PadTextButton(onClick = { importer.launch(arrayOf("application/json", "text/plain", "application/octet-stream", "*/*")) },
+                                modifier = Modifier.padding(8.dp).testTag("input-layout-import")) { Text(stringResource(R.string.boot_movie_import)) }
+                        }
                     }
 
                 }
@@ -328,6 +366,16 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
             SecondaryButton(stringResource(R.string.input_rename)) {
                 managingLayout = null
                 rename(R.string.input_rename_layout, saved.name) { name -> update { it.withLayout(saved.copy(name = name)) } }
+            }
+            val exported = remember(saved, library) {
+                val metrics = inputDisplayMetrics(context, if (saved.screen == InputLayoutScreen.SECONDARY) InputRole.SECONDARY else InputRole.PRIMARY)
+                InputLayoutFile.export(saved, library.bindings.firstOrNull { it.id == preset.id && it.layoutId == saved.id }
+                    ?: library.bindings.firstOrNull { it.layoutId == saved.id }, metrics.widthPixels, metrics.heightPixels)
+            }
+            if (exported != null) SecondaryButton(stringResource(R.string.screen_key_layout_export)) {
+                managingLayout = null
+                exporting = exported
+                exporter.launch(InputLayoutFile.fileName(saved))
             }
             val used = library.usersOfLayout(saved.id).isNotEmpty() || library.bindings.any { it.layoutId == saved.id && library.selectedBindings(it.id) }
             if (!used && saved.editable) SecondaryButton(stringResource(R.string.input_delete)) {
@@ -412,6 +460,38 @@ private fun InputNavigationRow(title: String, detail: String?, modifier: Modifie
         Text("›", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
+
+internal fun quickButtonLabel(button: InputCommand) = when (button) {
+    InputCommand.STEAM -> R.string.ctrl_steam_button
+    InputCommand.QUICK_ACCESS -> R.string.ctrl_qam_button
+    else -> R.string.ctrl_keyboard_button
+}
+
+@Suppress("DEPRECATION")
+internal fun inputDisplayMetrics(context: Context, role: InputRole): DisplayMetrics = DisplayMetrics().also { metrics ->
+    (context.findActivity() as? com.droiddeck.launcher.SessionActivity)?.inputEditorDisplay(role)?.getRealMetrics(metrics)
+        ?: metrics.setTo(context.resources.displayMetrics)
+}
+
+private fun readLayoutFile(context: Context, uri: Uri): String? = runCatching {
+    context.contentResolver.openInputStream(uri)?.use { input ->
+        val out = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(8192)
+        while (true) {
+            val read = input.read(buffer)
+            if (read < 0) break
+            out.write(buffer, 0, read)
+            if (out.size() > 1_000_000) return@use null
+        }
+        out.toString(Charsets.UTF_8.name())
+    }
+}.getOrNull()
+
+private fun layoutFileName(context: Context, uri: Uri): String? = runCatching {
+    context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+        if (cursor.moveToFirst()) cursor.getString(0)?.substringBeforeLast('.')?.trim()?.takeIf { it.isNotEmpty() } else null
+    }
+}.getOrNull()
 
 @Composable
 internal fun roleLabel(role: InputRole) = stringResource(when (role) {

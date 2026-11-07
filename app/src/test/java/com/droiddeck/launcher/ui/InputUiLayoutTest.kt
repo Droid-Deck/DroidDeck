@@ -110,7 +110,6 @@ class InputUiLayoutTest {
         compose.onNodeWithText(context.getString(R.string.setup_tab_controller)).performClick()
         compose.onNodeWithTag("input-profile-game").assertIsDisplayed()
         compose.onNodeWithText(context.getString(R.string.ctrl_layout)).assertDoesNotExist()
-        compose.onNodeWithText(context.getString(R.string.ctrl_configure)).assertDoesNotExist()
         screenshot("controller-tab")
         compose.onNodeWithTag("input-profile-game").performClick()
         compose.onNodeWithTag("input-part-physical").performScrollTo().performClick()

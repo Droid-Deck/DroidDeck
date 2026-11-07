@@ -301,23 +301,7 @@
     <string name="osc_steam_touch">Steam touch (beta)</string>
     <string name="osc_style_next_session">Steam\'s touch controls start with the next Steam session</string>
     <string name="osc_steam_layout">Steam touch layout</string>
-    <string name="screen_keys">Screen keys</string>
-    <string name="screen_keys_add">Add key</string>
-    <string name="screen_key_text">Text</string>
-    <string name="screen_key_size">Size</string>
-    <string name="screen_key_opacity">Alpha</string>
-    <string name="screen_key_type_button">Key</string>
-    <string name="screen_key_shape_pill">Pill</string>
-    <string name="screen_key_shape_round">Round</string>
-    <string name="screen_key_shape_circle">Circle</string>
-    <string name="screen_key_shape_rect">Rect</string>
-    <string name="screen_key_shape_trigger">Trigger</string>
-    <string name="screen_key_bind">Bind</string>
     <string name="screen_key_image">Image</string>
-    <string name="screen_key_image_clear">Clear</string>
-    <string name="screen_key_toggle">Toggle</string>
-    <string name="screen_key_layout">Layout</string>
-    <string name="screen_key_layout_save">Save</string>
     <string name="screen_key_layout_export">Export</string>
     <string name="osc_steam_layout_hint">Move, resize or hide this game\'s touch controls; saved to Steam</string>
     <string name="mode_controller">Controller</string>
@@ -839,7 +823,6 @@
     <string name="drawer_relative_mouse_auto">Auto</string>
     <string name="drawer_relative_mouse_on">On</string>
     <string name="drawer_relative_mouse_off">Off</string>
-    <string name="drawer_direct_cursor">Cursor</string>
     <string name="drawer_pc_keyboard">PC keyboard</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Second screen</string>
@@ -1218,43 +1201,23 @@
     <string name="wadb_computer_last">3 · Computer ADB (last resort)</string>
     <string name="wadb_only_if">Only if Wireless debugging is unavailable.</string>
     <string name="wadb_computer_group">3 · Computer ADB (last resort)</string>
-    <string name="ctrl_osc_hint">When the touch controls appear in a session</string>
     <string name="ctrl_color">Color</string>
-    <string name="ctrl_color_hint">Tint of the on-screen buttons</string>
     <string name="ctrl_custom">Custom</string>
     <string name="ctrl_opacity">Opacity</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">Button size</string>
-    <string name="ctrl_size_hint" formatted="false">100% is the standard size</string>
-    <string name="ctrl_stick_click">Stick click</string>
-    <string name="ctrl_stick_click_hint">Double-tap and hold a stick for L3 or R3</string>
     <string name="ctrl_adaptive">Adaptive sticks</string>
     <string name="ctrl_rumble">Game vibration</string>
     <string name="ctrl_dead_zone">Stick dead zone</string>
     <string name="ctrl_steam_button">Steam button</string>
     <string name="ctrl_qam_button">QAM button</string>
     <string name="ctrl_keyboard_button">Keyboard button</string>
-    <string name="ctrl_select_steam">Press Select to open the Steam menu</string>
-    <string name="ctrl_select_steam_hint">Instead of View/Select.</string>
     <string name="ctrl_joycon_vr">Joy-Cons as VR controllers</string>
     <string name="ctrl_joycon_vr_hint">While SteamVR runs, each Joy-Con becomes a hand. Point it ahead and hold Home or Capture to recenter it.</string>
     <string name="setup_animations">Animations</string>
-    <string name="ctrl_adaptive_hint">Sticks appear where you touch and hide on release</string>
     <string name="ctrl_layout">Layout</string>
-    <string name="ctrl_layout_custom">Custom positions saved</string>
-    <string name="ctrl_layout_default">Fitted to this screen</string>
     <string name="ctrl_edit">Edit</string>
     <string name="ctrl_reset">Reset</string>
-    <string name="ctrl_mapping">Button mapping</string>
-    <string name="ctrl_mapping_default">Every button sends its own input</string>
-    <string name="ctrl_mapping_count">%1$d of %2$d buttons remapped</string>
-    <string name="ctrl_configure">Configure</string>
-    <string name="ctrl_reset_all">Reset controller</string>
-    <string name="ctrl_reset_all_hint">Restores all controller settings and the layout</string>
-    <string name="ctrl_mapping_lede">What each on-screen button sends to the game. Hidden removes the button.</string>
-    <string name="ctrl_onscreen_buttons">On-screen buttons</string>
-    <string name="ctrl_defaults">Defaults</string>
-    <string name="ctrl_reset_mapping">Reset mapping</string>
     <string name="content_android_apps">Android apps</string>
     <string name="content_apps_count">%1$d apps</string>
     <string name="content_no_android_apps">No launchable Android apps found.</string>
@@ -1417,15 +1380,8 @@
     <string name="deck_surface_stick">Stick</string>
     <string name="deck_surface_trackpad">Trackpad</string>
     <string name="deck_surface_switch">Switch between stick and trackpad</string>
-    <string name="deck_more_controls">More Deck controls</string>
-    <string name="deck_panels">PANELS</string>
     <string name="deck_close">Close second-screen controls</string>
     <string name="deck_open_steam_menu">Open Steam menu</string>
-    <string name="deck_left_upper">Left · upper</string>
-    <string name="deck_left_lower">Left · lower</string>
-    <string name="deck_right_upper">Right · upper</string>
-    <string name="deck_right_lower">Right · lower</string>
-    <string name="deck_click">Click</string>
     <string name="deck_right_trackpad">Right trackpad</string>
     <string name="deck_left_trackpad">Left trackpad</string>
     <string name="second_trackpad">Trackpad</string>
@@ -1977,9 +1933,7 @@
     <string name="ctrl_target_left">D-pad left</string>
     <string name="ctrl_target_right">D-pad right</string>
     <string name="ctrl_target_hidden">Hidden</string>
-    <string name="ctrl_editor_drag">Drag to move</string>
     <string name="ctrl_editor_snap">Snap</string>
-    <string name="ctrl_editor_save">Save</string>
     <string name="second_mode_none">None</string>
     <string name="second_mode_keyboard_trackpad">Keyboard + trackpad</string>
     <string name="second_mode_terminal">Terminal</string>
@@ -2914,7 +2868,6 @@
     <string name="setup_gpu_bridge_on">Mali bridge: on</string>
     <string name="setup_gpu_bridge_detail">%1$s is not an Adreno. The experimental Vulkan bridge is on: the session draws through the phone\'s own driver. Expect bugs; send the session logs.</string>
     <string name="touch_paste">Paste</string>
-    <string name="touch_dpad">D-pad</string>
     <string name="touch_left_stick">Left stick</string>
     <string name="touch_right_stick">Right stick</string>
     <string name="touch_menu">Menu</string>
@@ -3862,4 +3815,7 @@
     <string name="addons_no_file">No file for this game version</string>
     <string name="addons_source_wowi" translatable="false">WoWInterface</string>
     <string name="addons_source_curse" translatable="false">CurseForge</string>
+    <string name="input_reset_positions">Reset positions</string>
+    <string name="input_show_label">Show label</string>
+    <string name="input_layout_import_failed">Could not import this layout</string>
 </resources>
