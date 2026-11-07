@@ -4,6 +4,8 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.PC_KEY_HIDDEN_GROUPS
 import com.droiddeck.launcher.input.PC_KEY_ROWS
 import com.droiddeck.launcher.input.PC_MODIFIERS
+import com.droiddeck.launcher.input.PC_PUNCTUATION_CODES
+import com.droiddeck.launcher.input.PC_SYMBOL_ROWS
 import com.droiddeck.launcher.input.PcKey
 import androidx.compose.ui.res.stringResource
 import android.view.KeyEvent
@@ -59,6 +61,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private const val MOD_OFF = 0
 private const val MOD_ONCE = 1
@@ -74,6 +79,9 @@ fun PcKeyboard(
     val colors = MaterialTheme.colorScheme
     val mods = remember { mutableStateMapOf<Int, Int>() }
     var capsOn by remember { mutableStateOf(false) }
+    var symbols by remember { mutableStateOf(false) }
+    var synthShift by remember { mutableStateOf(false) }
+    val shiftSuppressedKeys = remember { mutableSetOf<Int>() }
     val firstKey = remember { FocusRequester() }
     val shifted = (mods[42] ?: MOD_OFF) != MOD_OFF || (mods[54] ?: MOD_OFF) != MOD_OFF
 
@@ -81,6 +89,7 @@ fun PcKeyboard(
         for ((code, state) in mods.toMap()) if (state == MOD_ONCE) { sendKey(code, false); mods[code] = MOD_OFF }
     }
     fun press(key: PcKey) {
+        if (key.code == 0) { symbols = !symbols; return }
         if (key.code in PC_MODIFIERS) {
             when (mods[key.code] ?: MOD_OFF) {
                 MOD_OFF -> { sendKey(key.code, true); mods[key.code] = MOD_ONCE }
@@ -89,23 +98,66 @@ fun PcKeyboard(
             }
             return
         }
+        val userShifted = (mods[42] ?: MOD_OFF) != MOD_OFF || (mods[54] ?: MOD_OFF) != MOD_OFF
+        // The OS applies any held shift to the keycode, so lift the wire shift for keys that must
+        // type their printed symbol: direct-typed punctuation on ABC and every non-synthetic key on
+        // ?123. Synthetic keys keep the wire shift — it is their own wrap.
+        val liftForThisKey = if (symbols) !key.synthShift else key.code in PC_PUNCTUATION_CODES
+        if ((userShifted || synthShift) && liftForThisKey) {
+            if (shiftSuppressedKeys.isEmpty()) {
+                if (synthShift || (mods[42] ?: MOD_OFF) != MOD_OFF) sendKey(42, false)
+                if ((mods[54] ?: MOD_OFF) != MOD_OFF) sendKey(54, false)
+            }
+            shiftSuppressedKeys.add(key.code)
+        }
+        if (key.synthShift && !userShifted && !synthShift) { sendKey(42, true); synthShift = true }
         sendKey(key.code, true)
     }
     fun release(key: PcKey) {
-        if (key.code in PC_MODIFIERS) return
+        if (key.code == 0 || key.code in PC_MODIFIERS) return
         sendKey(key.code, false)
+        if (key.synthShift && synthShift) { sendKey(42, false); synthShift = false }
         if (key.code == 58) capsOn = !capsOn
+        releaseOnceModifiers()
+        if (shiftSuppressedKeys.remove(key.code) && shiftSuppressedKeys.isEmpty()) {
+            if ((mods[42] ?: MOD_OFF) != MOD_OFF || synthShift) sendKey(42, true)
+            if ((mods[54] ?: MOD_OFF) != MOD_OFF) sendKey(54, true)
+        }
+    }
+    // Long-press commit for symbol keys: send a full shift-wrapped sequence through a local
+    // flag, never mods[42], so a held key must not flip the whole panel's shifted rendering.
+    fun holdStart(key: PcKey) {
+        val userShifted = (mods[42] ?: MOD_OFF) != MOD_OFF || (mods[54] ?: MOD_OFF) != MOD_OFF
+        if (!userShifted) { sendKey(42, true); synthShift = true }
+        sendKey(key.code, true)
+    }
+    fun holdEnd(key: PcKey) {
+        sendKey(key.code, false)
+        if (synthShift) { sendKey(42, false); synthShift = false }
         releaseOnceModifiers()
     }
     androidx.compose.runtime.DisposableEffect(Unit) {
-        onDispose { for ((code, state) in mods.toMap()) if (state != MOD_OFF) sendKey(code, false) }
+        onDispose {
+            if (synthShift) { sendKey(42, false); synthShift = false }
+            for ((code, state) in mods.toMap()) if (state != MOD_OFF) sendKey(code, false)
+        }
     }
-    LaunchedEffect(Unit) { runCatching { firstKey.requestFocus() } }
+    LaunchedEffect(symbols) { runCatching { firstKey.requestFocus() } }
 
     val prefsContext = LocalContext.current
     remember { PcKeyboardPrefs.load(prefsContext) }
     val hiddenCodes = PcKeyboardPrefs.hiddenKeys.flatMap { PC_KEY_HIDDEN_GROUPS[it].orEmpty() }.toSet()
-    val rows = PC_KEY_ROWS.map { row -> row.filter { it.code !in hiddenCodes } }.filter { it.isNotEmpty() }
+    val hiddenSymbols = PcKeyboardPrefs.hiddenSymbols
+    // Punctuation drops its shifted shadow: it types directly, with no corner hint and no long-press.
+    val abcRows = PC_KEY_ROWS
+        .map { row -> row.filter { it.code !in hiddenCodes && it.code !in hiddenSymbols } }
+        .filter { it.isNotEmpty() }
+        .map { row -> row.map { key -> if (key.code in PC_PUNCTUATION_CODES) key.copy(shifted = null) else key } }
+    val baseRows = if (symbols) PC_SYMBOL_ROWS else abcRows
+    val toggleKey = PcKey(if (symbols) "ABC" else "?123", 0, 1.25f)
+    val rows = baseRows.mapIndexed { i, row -> if (i == baseRows.lastIndex) listOf(toggleKey) + row else row }
+    val longPress = PcKeyboardPrefs.longPress
+    val longPressMs = PcKeyboardPrefs.longPressMs
 
     BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
         val rowHeight = ((maxHeight * (PcKeyboardPrefs.size / 100f) - 24.dp - 3.dp * rows.size - 10.dp) / rows.size)
@@ -137,11 +189,16 @@ fun PcKeyboard(
                                 key.label.length == 1 && key.label[0].isLetter() && (shifted xor capsOn) -> key.label.uppercase()
                                 else -> key.label
                             }
+                            val delayed = longPress && key.shifted != null
+                            val hint = if (longPress && rowHeight >= 26.dp && !shifted) key.shifted else null
                             key(key.code) {
                                 KeyCap(
-                                    label, key.weight, lit, locked = state == MOD_LOCKED,
+                                    label, hint, key, key.weight, lit, locked = state == MOD_LOCKED,
                                     modifier = if (r == 0 && i == 0) Modifier.focusRequester(firstKey) else Modifier,
+                                    immediate = !delayed, thresholdMs = longPressMs.toLong(),
                                     onDown = { press(key) }, onUp = { release(key) },
+                                    onTap = { press(key); release(key) },
+                                    onHoldStart = { holdStart(key) }, onHoldEnd = { holdEnd(key) },
                                 )
                             }
                         }
@@ -154,8 +211,10 @@ fun PcKeyboard(
 
 @Composable
 private fun RowScope.KeyCap(
-    label: String, weight: Float, lit: Boolean, locked: Boolean,
-    modifier: Modifier, onDown: () -> Unit, onUp: () -> Unit,
+    label: String, hint: String?, key: PcKey, weight: Float, lit: Boolean, locked: Boolean,
+    modifier: Modifier, immediate: Boolean, thresholdMs: Long,
+    onDown: () -> Unit, onUp: () -> Unit,
+    onTap: () -> Unit, onHoldStart: () -> Unit, onHoldEnd: () -> Unit,
 ) {
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
@@ -173,14 +232,43 @@ private fun RowScope.KeyCap(
         modifier = modifier.weight(weight).fillMaxHeight()
             .background(fill, RoundedCornerShape(7.dp))
             .glideBorder(focused, RoundedCornerShape(7.dp), pal.signal, if (lit) pal.signal.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.12f))
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    awaitFirstDown().consume()
-                    down = true; onDown()
-                    try {
-                        waitForUpOrCancellation()?.consume()
-                    } finally {
-                        down = false; onUp()
+            .pointerInput(key, immediate, thresholdMs) {
+                if (immediate) {
+                    awaitEachGesture {
+                        awaitFirstDown().consume()
+                        down = true; onDown()
+                        try {
+                            waitForUpOrCancellation()?.consume()
+                        } finally {
+                            down = false; onUp()
+                        }
+                    }
+                } else {
+                    coroutineScope {
+                        val scope = this
+                        awaitEachGesture {
+                            awaitFirstDown().consume()
+                            down = true
+                            var held = false
+                            var done = false
+                            val timer = scope.launch {
+                                delay(thresholdMs)
+                                held = true
+                                onHoldStart()
+                            }
+                            try {
+                                val up = waitForUpOrCancellation()
+                                up?.consume()
+                                when {
+                                    held -> { onHoldEnd(); done = true }
+                                    up != null -> { onTap(); done = true }
+                                }
+                            } finally {
+                                timer.cancel()
+                                down = false
+                                if (!done && held) onHoldEnd()
+                            }
+                        }
                     }
                 }
             }
@@ -198,6 +286,11 @@ private fun RowScope.KeyCap(
         Text(
             label, fontSize = if (label.length > 2) 11.sp else 15.sp, fontWeight = FontWeight.SemiBold,
             color = Color.White, textAlign = TextAlign.Center, maxLines = 1,
+        )
+        if (hint != null) Text(
+            hint, fontSize = 9.sp, fontWeight = FontWeight.Medium, maxLines = 1,
+            color = Color.White.copy(alpha = 0.55f),
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 2.dp, end = 3.dp),
         )
     }
 }

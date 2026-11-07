@@ -155,6 +155,8 @@ import com.droiddeck.launcher.gpu.ScreenEffects
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.input.PC_KEY_GROUP_IDS
+import com.droiddeck.launcher.input.PC_KEY_ROWS
+import com.droiddeck.launcher.input.PC_PUNCTUATION_CODES
 import com.droiddeck.launcher.input.SecondScreenDisplay
 import com.droiddeck.launcher.input.SecondScreenMode
 import com.droiddeck.launcher.input.TouchGestureConfig.Companion.MOUSE_BEHAVIOR_CLICK
@@ -710,6 +712,22 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     ),
                                     PC_KEY_GROUP_IDS.filterValues { it in PcKeyboardPrefs.hiddenKeys }.keys,
                                     onToggle = { id, on -> PcKeyboardPrefs.toggleHiddenKey(keyboardContext, PC_KEY_GROUP_IDS.getValue(id), on) })
+                                MultiRow(
+                                    host, "pckb-symbols", stringResource(R.string.pckb_hidden_symbols),
+                                    stringResource(R.string.pckb_hidden_symbols_hint),
+                                    PC_KEY_ROWS.flatten().filter { it.code in PC_PUNCTUATION_CODES }.map { it.code to it.label },
+                                    PcKeyboardPrefs.hiddenSymbols,
+                                    onToggle = { id, on -> PcKeyboardPrefs.toggleHiddenSymbol(keyboardContext, id, on) })
+                                ToggleRow(host, "pckb-long-press", stringResource(R.string.pckb_long_press),
+                                    stringResource(R.string.pckb_long_press_hint), PcKeyboardPrefs.longPress,
+                                    chipModifier = focus.track(page, "pckb-long-press"),
+                                    onChange = { PcKeyboardPrefs.setLongPress(keyboardContext, it) })
+                                SliderRow(
+                                    stringResource(R.string.pckb_long_press_delay), stringResource(R.string.pckb_long_press_delay_hint),
+                                    PcKeyboardPrefs.longPressMs, SessionPrefs.PC_KEYBOARD_LONG_PRESS_MS_RANGE, step = 50,
+                                    enabled = PcKeyboardPrefs.longPress, format = { "$it ms" },
+                                    modifier = focus.track(page, "pckb-long-press-ms"),
+                                    onChange = { PcKeyboardPrefs.setLongPressMs(keyboardContext, it) })
                             }
                         }
                         SessionDrawerPage.SECOND_SCREEN -> {
