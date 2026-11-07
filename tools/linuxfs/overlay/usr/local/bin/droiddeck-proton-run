@@ -98,13 +98,25 @@ def state_default():
         return None
 
 
+def newest_own(available):
+    c = compat()
+    builds = c["own_builds"]([{"name": name, "dir": os.path.basename(folder)} for name, (folder, _) in available.items()])
+    return max(builds, key=lambda t: (c["build_key"](t["dir"]), t["dir"]))["name"] if builds else None
+
+
 def choose_tool(appid, current, available):
+    c = compat()
+    newest = newest_own(available)
     for key, why in ((appid, "Steam's choice for this title"), ("0", "Steam's default")):
         name = current.get(key)
         if name in available:
             return name, why
-    c = compat()
-    for name in (state_default(), c["TOOL"], c["TOOL_11"]):
+        if newest and isinstance(name, str) and name.startswith(c["OWN_PROTON"]):
+            return newest, "%s, replacing the removed %s" % (why, name)
+    default = state_default()
+    if newest and isinstance(default, str) and default.startswith(c["OWN_PROTON"]) and default not in available:
+        return newest, "the default, replacing the removed %s" % default
+    for name in (default, c["TOOL"], c["TOOL_11"]):
         if name in available:
             return name, "the default ARM64 Proton"
     return (sorted(available)[0], "the only one installed") if available else (None, None)
