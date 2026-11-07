@@ -98,6 +98,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
@@ -139,6 +140,7 @@ import com.droiddeck.launcher.stores.arrangeStoreTabs
 import com.droiddeck.launcher.stores.download.DownloadStage
 import com.droiddeck.launcher.stores.download.DownloadState
 import com.droiddeck.launcher.stores.formatBytes
+import com.droiddeck.launcher.stores.installedCards
 import androidx.compose.runtime.setValue
 
 
@@ -825,16 +827,21 @@ private fun Storefront(
     val installedKeys = remember(StoresState.installed) { StoresState.installed.filter { it.sidecar.store == store }.map { it.sidecar.id }.toSet() }
     val q = query.trim().lowercase()
     val foundKeys = remember(found) { found.map { it.key }.toSet() }
+    val xboxOffline = store == Store.XBOX && !rememberOnline()
+    val installedXbox = if (xboxOffline) remember(StoresState.installed) {
+        installedCards(Store.XBOX, StoresState.installed, emptyList())
+    } else emptyList()
     fun shown(i: CatalogItem) = s.storesShowMature || !i.mature || i.accessible
     fun shelf(l: List<CatalogItem>?) = l?.filter(::shown)
-    LaunchedEffect(store, q) { StoresState.search(ctx, store, q) }
+    LaunchedEffect(store, q, xboxOffline) { StoresState.search(ctx, store, if (xboxOffline) "" else q) }
     val gameJolt = store == Store.GAMEJOLT
     LaunchedEffect(gameJolt, s.storesShowMature) { if (gameJolt) GameJoltBrowseState.sync(ctx, s.storesShowMature) }
     val browsing = q.isEmpty() && ((store == Store.ITCH && ItchBrowseState.active) || gameJolt)
     val browseItems = if (!browsing) emptyList() else if (gameJolt) GameJoltBrowseState.items else ItchBrowseState.items
     val catalog = store == Store.BATTLENET && q.isEmpty()
-    val visible = remember(found, library, shelves, q, s.storesShowMature, browsing, browseItems, catalog) {
-        if (catalog) shelf(shelves?.trending) ?: emptyList()
+    val visible = remember(found, library, shelves, q, s.storesShowMature, browsing, browseItems, catalog, xboxOffline, installedXbox) {
+        if (xboxOffline) installedXbox.filter { it.title.contains(q, ignoreCase = true) }
+        else if (catalog) shelf(shelves?.trending) ?: emptyList()
         else if (browsing) {
             val owned = library.associateBy { it.id }
             browseItems.map { owned[it.id] ?: it }.filter(::shown)
@@ -843,6 +850,7 @@ private fun Storefront(
             .filter { (it.title.lowercase().contains(q) || it.key in foundKeys) && shown(it) }
     }
     val nothing = stringResource(when {
+        xboxOffline && q.isEmpty() -> R.string.stores_xbox_offline_empty
         browsing && gameJolt && GameJoltBrowseState.loading -> R.string.stores_shelves_loading
         browsing && gameJolt && GameJoltBrowseState.failed -> R.string.stores_gamejolt_browse_failed
         browsing && !gameJolt && ItchBrowseState.loading -> R.string.stores_shelves_loading
@@ -858,12 +866,13 @@ private fun Storefront(
     val tileWidth = libraryTileWidth()
     val focus = LocalFrontFocus.current
     val scope = rememberCoroutineScope()
-    val searching = q.isNotEmpty() || browsing || catalog
+    val searching = q.isNotEmpty() || browsing || catalog || xboxOffline
     val bareTab = if (searching) visible.isEmpty() else shelves == null || shelves.isEmpty
-    val barLine = StoresState.status[store]?.takeIf { bareTab && syncCount(it) != null }
+    val barLine = StoresState.status[store]?.takeIf { !xboxOffline && bareTab && syncCount(it) != null }
+    val problem = if (xboxOffline) stringResource(R.string.stores_xbox_offline_catalog) else StoresState.problems[store]
     val itchBar = store == Store.ITCH && q.isEmpty()
     val gameJoltBar = gameJolt && q.isEmpty()
-    val headerItems = 2 + (if (barLine != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0) + (if (itchBar || gameJoltBar) 1 else 0) + (if (catalog) 1 else 0)
+    val headerItems = 2 + (if (barLine != null) 1 else 0) + (if (problem != null) 1 else 0) + (if (itchBar || gameJoltBar) 1 else 0) + (if (catalog) 1 else 0)
     val card: @Composable (CatalogItem) -> Unit = { item ->
         val first = if (searching) item.key == visible.firstOrNull()?.key else !firstPlaced
         firstPlaced = true
@@ -910,7 +919,7 @@ private fun Storefront(
             Rise(2) { ModeHeader(store.label, query, onQuery, placeholder = stringResource(R.string.stores_search_catalog, store.label), clearSearchFocus = clearSearchFocus, inlineWhenStacked = true) { DisplayButton() } }
         }
         barLine?.let { line -> item(key = "sync", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { SyncBar(line) } } }
-        StoresState.problems[store]?.let { line -> item(key = "problem", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(line) } } } }
+        problem?.let { line -> item(key = "problem", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(line) } } } }
         if (itchBar) item(key = "itch-browse-bar", span = { GridItemSpan(maxLineSpan) }) { ItchBrowseBar() }
         if (gameJoltBar) item(key = "gamejolt-browse-bar", span = { GridItemSpan(maxLineSpan) }) { GameJoltBrowseBar(s.storesShowMature) }
         if (catalog) item(key = "catalog-label", span = { GridItemSpan(maxLineSpan) }) {
@@ -972,6 +981,69 @@ private fun ProfileStrip(store: Store, owned: Int, loaded: Boolean, s: FrontEndS
         }
         if (store == Store.EPIC) EpicLauncherRow(s, a)
         if (store == Store.BATTLENET) BattleNetLauncherRow(s, a)
+        if (store == Store.XBOX) androidx.compose.runtime.key(name) { XboxOfflinePermissions() }
+    }
+}
+
+@Composable
+private fun XboxOfflinePermissions() {
+    val context = LocalContext.current
+    val controller = com.droiddeck.launcher.stores.xbox.XboxOffline
+    val packState by com.droiddeck.launcher.core.AddonPack.XBOX.state.collectAsState()
+    if (packState is com.droiddeck.launcher.core.AddonPack.State.Downloading || !controller.supported(context)) return
+    val scope = rememberCoroutineScope()
+    var status by remember { mutableStateOf<com.droiddeck.launcher.stores.xbox.XboxOffline.Status?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var confirm by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf(false) }
+
+    fun request(desired: Boolean? = null) {
+        busy = true
+        failed = false
+        scope.launch {
+            try {
+                status = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    controller.status(context, desired)
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                status = null
+                failed = true
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    androidx.compose.material3.TextButton(enabled = !busy, onClick = { request() }) {
+        Text(stringResource(R.string.stores_xbox_offline_permissions))
+    }
+    if (failed) Text(stringResource(R.string.stores_xbox_offline_error))
+    status?.let { current ->
+        Text(stringResource(if (current.enabled) R.string.stores_xbox_offline_enabled else R.string.stores_xbox_offline_disabled))
+        current.remainingChanges?.let { Text(stringResource(R.string.stores_xbox_offline_changes, it)) }
+        androidx.compose.material3.TextButton(
+            enabled = !busy && current.remainingChanges != 0,
+            onClick = { confirm = true },
+        ) {
+            Text(stringResource(if (current.enabled) R.string.stores_xbox_offline_remove else R.string.stores_xbox_offline_designate))
+        }
+        if (confirm) androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirm = false },
+            title = { Text(stringResource(R.string.stores_xbox_offline_change)) },
+            text = {
+                Text(stringResource(R.string.stores_xbox_offline_limit))
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { confirm = false; request(!current.enabled) }) {
+                    Text(stringResource(R.string.stores_xbox_offline_confirm))
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirm = false }) { Text(stringResource(R.string.common_cancel)) }
+            },
+        )
     }
 }
 

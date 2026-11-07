@@ -416,7 +416,7 @@ private fun Arrive(arrived: Boolean, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun rememberOnline(): Boolean {
+internal fun rememberOnline(): Boolean {
     val context = LocalContext.current
     var online by remember { mutableStateOf(com.droiddeck.launcher.frontend.AutoComponents.isOnline(context)) }
     androidx.compose.runtime.DisposableEffect(Unit) {

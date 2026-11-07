@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "version": "0.2.12",
+  "version": "0.2.14",
   "repository": "https://github.com/xodus-gaming/xodus.git",
   "commit": "53ea781dcd073e31d7ea68e894134e9c959bff04",
   "rust": "1.99.0",
   "cargoLockSha256": "2259b343e00dadc263018beb7664b12e9d58a0b73bff502ad566f5f8619ce28a",
-  "patchId": "linux-run-v54",
+  "patchId": "linux-run-v75",
   "compatibility": "linux-run-v25",
   "patches": [
     {
@@ -215,7 +215,103 @@
     {
       "file": "xodus-social-stdout.patch",
       "sha256": "9386eedd91d6ac48fd7c369565bb3c2f7c22688a87239ef434d3c6aeb45cf115"
+    },
+    {
+      "file": "xodus-xbox-jwe-ticket.patch",
+      "sha256": "69c40949cdaabe32e554bb9a9065c9d67ed59252ac6e367303a6ded06d42f8e4"
+    },
+    {
+      "file": "xodus-plain-region-images.patch",
+      "sha256": "ca300dfc1eea193dcaa767808fd10ccdf0666db61a03ad937b973f8ddf224fc8"
+    },
+    {
+      "file": "xodus-plain-region-regressions.patch",
+      "sha256": "2d9c4ec0b3a12b697464b6c6417b55eb52a808c896dfacdc86da3e70e5a6919b"
+    },
+    {
+      "file": "xodus-auth-response-selection.patch",
+      "sha256": "78731bf2c7c4dcce5def27ca580c338a15f04376e47c833423a224790dc78f51"
+    },
+    {
+      "file": "xodus-device-registration-response.patch",
+      "sha256": "9b36ee0bbd9643faebe34016b523407a62c127f98823c58ec61f26d926ea88bb"
+    },
+    {
+      "file": "xodus-incremental-update.patch",
+      "sha256": "7e0fa3c96fd666bbf0898a43674a962d3dd07e582bddc7fcbb3563b1836d7701"
+    },
+    {
+      "file": "xodus-incremental-update-safety.patch",
+      "sha256": "f53d7d3c2a22c81d271ca5b18398a6dab1f8e1daeb1f4202659df4993c6fb02c"
+    },
+    {
+      "file": "xodus-launch-view-sweep.patch",
+      "sha256": "bf0e7b45e3c43143a2e6f2fe16a34b215a4827ed87e8b68e269aacbb9f76bb24"
+    },
+    {
+      "file": "xodus-launch-view-safety.patch",
+      "sha256": "3ba1785d6676d4bb3a5dc421fd5fadeccb49969068a9c996ae22b5b3907d3f41"
+    },
+    {
+      "file": "xodus-native-social.patch",
+      "sha256": "b58396239cf38ac724c721b5baf79d248eea79e38b8a7a6da7d9dcb744b7d4c2"
+    },
+    {
+      "file": "xodus-native-social-safety.patch",
+      "sha256": "3949ae461efad58d1281165d709a4f749c0cbafe23461efccb91bd9a51855683"
+    },
+    {
+      "file": "xodus-download-throughput.patch",
+      "sha256": "02e23563bc4af1f20703eae3b4ed539edcdb8f19d86e17682399eb59d942c6d4"
+    },
+    {
+      "file": "xodus-update-throughput.patch",
+      "sha256": "69945037e3cd7edad4f72fb5582d6cc76e39159f2a5a3b3c9cdb12d72486a798"
+    },
+    {
+      "file": "xodus-metadata-throughput.patch",
+      "sha256": "b439a9dfe5ac99170c8d9991a4299b1da498965b427aba852cf110e1e5ebd7a0"
+    },
+    {
+      "file": "xodus-reuse-pipeline.patch",
+      "sha256": "dc1b4a729de2d043153a7fcf8ee64f0278fb7f2a23ca8011ae29ccdf2cdff202"
+    },
+    {
+      "file": "xodus-smbios-optional.patch",
+      "sha256": "ddbfd1aaade3dedc4659ee69676301d56d7f53c74a30d9de7e12d4ac38608179"
+    },
+    {
+      "file": "xodus-offline-license.patch",
+      "sha256": "5c2960a66adbb79e6c0a00a166f8f98470ea83c6041374eadb9c3d8ac1dbcd7e"
+    },
+    {
+      "file": "xodus-offline-fast-path.patch",
+      "sha256": "0062f4ff46373a30b83a235a5862908d0f52c9cac5d7c916be17053e4b151d65"
+    },
+    {
+      "file": "xodus-offline-launch.patch",
+      "sha256": "2ff332a61a0ad8400d11b1c6370eab4c0a09a090a4dd7cacb483ed9bc5f96c1d"
+    },
+    {
+      "file": "xodus-offline-license-revocation.patch",
+      "sha256": "d9363ca35087ea10eed2b8ba6c9d9a6f770384ce16da141b113ff83e1ac36776"
+    },
+    {
+      "file": "xodus-offline-current-stack.patch",
+      "sha256": "961f54e99cb0b21418c8cf56bf1a45790e91b21331736131e42eda08b663acf8"
+    },
+    {
+      "file": "xodus-game-activity-locale.patch",
+      "sha256": "cc9e292af016b4df3cb49cfa8718bdc5b846745c38d1b3bc9615ffdbef1f6043"
+    },
+    {
+      "file": "xodus-private-launch-views.patch",
+      "sha256": "4541bfc1e65afeb5ffa8b0e1704ea4eccab3346996a60a0f9ac7459195b9ae65"
+    },
+    {
+      "file": "xodus-dlc-mount-workspace.patch",
+      "sha256": "e19556947f556c7d507801c09d024bd70020dc3f8534c30a38fb5d47c684b251"
     }
   ],
-  "nexusCommit": "ba0e191e1eb8088d00eee7bfe8da80f0a8c5ec72"
+  "nexusCommit": "cf5bdcf205bf91df5819a48864f5e473cf3f7911"
 }

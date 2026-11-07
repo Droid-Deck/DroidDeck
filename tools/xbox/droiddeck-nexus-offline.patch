@@ -1,0 +1,1213 @@
+diff --git a/crates/xodus-cli/src/commands.rs b/crates/xodus-cli/src/commands.rs
+index 4f1b211..088a6d0 100644
+--- a/crates/xodus-cli/src/commands.rs
++++ b/crates/xodus-cli/src/commands.rs
+@@ -7,6 +7,7 @@ pub mod login;
+ pub mod logout;
+ pub mod offline_pc;
+ pub mod profile;
++pub mod cloud_token;
+ pub mod social;
+ pub mod game_activity;
+ pub mod achievements;
+diff --git a/crates/xodus-cli/src/commands/cloud_token.rs b/crates/xodus-cli/src/commands/cloud_token.rs
+new file mode 100644
+index 0000000..e03bb5f
+--- /dev/null
++++ b/crates/xodus-cli/src/commands/cloud_token.rs
+@@ -0,0 +1,237 @@
++//! Xbox Cloud Gaming streaming token for the stored account (DroidDeck). Same bearer
++//! RPS -> Xbox user -> XSTS exchange as the profile read, for the cloud gaming relying party,
++//! then the streaming service's user login (as xbox.com and Greenlight's xal-node do).
++//! Never provisions a device or opens login.
++use std::{process::ExitCode, time::Duration};
++use serde_json::{Value, json};
++use xodus::{models::{live::ExchangeUserTokenOutcome, secrets::Token, soap}, tokens::TokenManager};
++
++const GSSV_RELYING_PARTY: &str = "http://gssv.xboxlive.com/";
++const OFFERINGS: [&str; 2] = ["xgpuweb", "xgpuwebf2p"];
++
++/// The stored account's compact Microsoft account ticket for one service target and policy.
++async fn ticket(tokens: &TokenManager, client: &reqwest::Client, target: &str, policy: soap::PolicyReference) -> Result<(String, String), &'static str> {
++    let (account, device, user) = super::session::prepare(tokens, client).await.map_err(|stage| {
++        super::session::diagnostic(stage); stage
++    })?;
++    let outcome = super::session::exchange(|| async { xodus::api::live::exchange_user_token(client, user.clone(), account.clone(), device.clone(),
++        None, Some("Silent".into()), "{d6d5a677-0872-4ab0-9442-bb792fce85c5}".into(),
++        &[(target.into(), Some(policy.clone()))])
++        .await.map_err(|error| super::session::classify(&error)) }).await?;
++    let response = match outcome {
++        ExchangeUserTokenOutcome::Issued(soap::BodyContent::RequestSecurityTokenResponseCollection(mut collection)) if !collection.security_tokens.is_empty() => collection.security_tokens.remove(0),
++        ExchangeUserTokenOutcome::Issued(soap::BodyContent::RequestSecurityTokenResponse(response)) => *response,
++        _ => return Err("msa-response"),
++    };
++    // Only accept compact forms here and reject incomplete token responses. The cloud
++    // transfer purpose answers with a login proof token, which is what /connect takes (Greenlight
++    // sends the MSAL response's "lpt").
++    let kind = response.token_type.clone();
++    if kind == "urn:passport:loginprooftoken" {
++        let shape = match (&response.requested_security_token.binary_security_token, &response.requested_security_token.encrypted_data) {
++            (Some(token), _) if !token.value.is_empty() => "binary",
++            (_, Some(_)) => "encrypted",
++            _ => "empty",
++        };
++        eprintln!("NEXUS_SESSION_DIAGNOSTIC_V1 login-proof-{shape}");
++        return match response.requested_security_token.binary_security_token {
++            Some(token) if !token.value.is_empty() => Ok((account, token.value)),
++            _ => Err("msa-ticket"),
++        };
++    }
++    let compact = matches!(kind.as_str(), "urn:passport:compact" | "urn:passport:delegationcompact")
++        && response.requested_security_token.binary_security_token.is_some();
++    if !compact {
++        let slug: String = kind.chars().map(|c| if c.is_ascii_alphabetic() { c.to_ascii_lowercase() } else { '-' }).take(40).collect();
++        eprintln!("NEXUS_SESSION_DIAGNOSTIC_V1 ticket-type-{slug}");
++        return Err("msa-ticket");
++    }
++    let Token::Compact(ticket) = Token::try_from(response).map_err(|_| "msa-ticket")? else { return Err("msa-ticket"); };
++    Ok((account, ticket))
++}
++
++async fn xsts(tokens: &TokenManager, client: &reqwest::Client) -> Result<(String, String), &'static str> {
++    let (account, ticket) = ticket(tokens, client, "user.auth.xboxlive.com", soap::PolicyReference::mbi_ssl()).await?;
++    let user = xodus::api::xbox::authenticate_xbox_user(client, ticket).await.map_err(|_| "xbox-user")?;
++    let xsts = xodus::api::xbox::request_xsts_token(client, user.token, GSSV_RELYING_PARTY).await.map_err(|_| "xsts")?;
++    Ok((account, xsts.token))
++}
++
++/// The Microsoft account token a cloud session's /connect step takes (xbox.com asks MSAL for
++/// "service::http://Passport.NET/purpose::PURPOSE_XBOX_CLOUD_CONSOLE_TRANSFER_TOKEN").
++async fn transfer_token(tokens: &TokenManager, client: &reqwest::Client) -> Result<String, &'static str> {
++    let policy = soap::PolicyReference { uri: "PURPOSE_XBOX_CLOUD_CONSOLE_TRANSFER_TOKEN".into(), val: String::default() };
++    Ok(ticket(tokens, client, "http://Passport.NET/purpose", policy).await?.1)
++}
++
++fn regions(value: &Value) -> Vec<Value> {
++    value["offeringSettings"]["regions"].as_array().map(|list| list.iter().filter_map(|region| {
++        let name = region["name"].as_str()?;
++        let base = reqwest::Url::parse(region["baseUri"].as_str()?).ok()?;
++        let host = base.host_str()?;
++        if base.scheme() != "https" || !host.ends_with(".xboxlive.com") || !base.username().is_empty() { return None; }
++        Some(json!({ "name": name, "baseUri": base.as_str().trim_end_matches('/'), "isDefault": region["isDefault"].as_bool().unwrap_or(false) }))
++    }).take(32).collect()).unwrap_or_default()
++}
++
++fn offering_response(body: &[u8]) -> Result<Value, &'static str> {
++    let value: Value = serde_json::from_slice(body).map_err(|_| "gssv-json")?;
++    value["gsToken"].as_str().filter(|token| !token.is_empty() && token.len() <= 16384).ok_or("gs-token")?;
++    Ok(value)
++}
++
++async fn request_offering(client: &reqwest::Client, endpoint: &str, xsts: &str, offering: &str) -> Result<Value, &'static str> {
++    let response = client.post(endpoint)
++        .header("x-gssv-client", "XboxComBrowser").header("Cache-Control", "no-store, must-revalidate, no-cache")
++        .json(&json!({ "token": xsts, "offeringId": offering })).send().await.map_err(|_| "gssv-request")?;
++    let body = super::profile::bounded(response, 256 * 1024).await.map_err(|_| "gssv-response")?;
++    offering_response(&body)
++}
++
++async fn select_offering<F, Fut>(mut request: F) -> Result<(&'static str, Value), String>
++where
++    F: FnMut(&'static str) -> Fut,
++    Fut: std::future::Future<Output = Result<Value, &'static str>>,
++{
++    let mut failures = Vec::new();
++    for offering in OFFERINGS {
++        match request(offering).await {
++            Ok(value) => return Ok((offering, value)),
++            Err(stage) => failures.push(format!("{offering}:{stage}")),
++        }
++    }
++    Err(format!("gssv-login {}", failures.join(" ")))
++}
++
++async fn login(tokens: &TokenManager) -> Result<Value, String> {
++    let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none())
++        .timeout(super::session::REQUEST_TIMEOUT).user_agent("xodus-nexus-cloud/1").build().map_err(|_| "http-client")?;
++    let (account, xsts) = xsts(tokens, &client).await?;
++    let (offering, value) = select_offering(|offering| {
++        let endpoint = format!("https://{offering}.gssv-play-prod.xboxlive.com/v2/login/user");
++        let client = &client;
++        let xsts = &xsts;
++        async move { request_offering(client, &endpoint, xsts, offering).await }
++    }).await?;
++    // Diagnostic lines are letters and dashes only (the app's allow-list).
++    eprintln!("NEXUS_SESSION_DIAGNOSTIC_V1 gssv-login-ok-{}", if offering == "xgpuweb" { "gamepass" } else { "free" });
++    let transfer = transfer_token(tokens, &client).await;
++    eprintln!("NEXUS_SESSION_DIAGNOSTIC_V1 transfer-token-{}", if transfer.is_ok() { "ok" } else { "missing" });
++    if tokens.get_user().map_err(|_| "account-changed")?.username != account { return Err("account-changed".into()); }
++    Ok(json!({ "schema": 1, "account": account, "offering": offering, "gsToken": value["gsToken"], "userToken": transfer.ok(),
++        "durationInSeconds": value["durationInSeconds"].as_u64().unwrap_or(0), "market": value["market"].as_str().unwrap_or_default(),
++        "regions": regions(&value) }))
++}
++
++pub async fn run(tokens: &TokenManager) -> ExitCode {
++    match tokio::time::timeout(Duration::from_secs(45), login(tokens)).await {
++        Ok(Ok(value)) => { println!("{value}"); ExitCode::SUCCESS }
++        Ok(Err(stage)) => { eprintln!("Xbox Cloud Gaming sign-in failed ({stage})."); ExitCode::FAILURE }
++        Err(_) => { eprintln!("Xbox Cloud Gaming sign-in timed out."); ExitCode::FAILURE }
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn only_https_xboxlive_regions_are_kept() {
++        let value = json!({"offeringSettings":{"regions":[
++            {"name":"WestEurope","baseUri":"https://weu.core.gssv-play-prod.xboxlive.com/","isDefault":true},
++            {"name":"Evil","baseUri":"https://evil.test/"},
++            {"name":"Plain","baseUri":"http://eus.core.gssv-play-prod.xboxlive.com"}]}});
++        let list = regions(&value);
++        assert_eq!(list.len(), 1);
++        assert_eq!(list[0]["baseUri"], "https://weu.core.gssv-play-prod.xboxlive.com");
++    }
++    #[tokio::test]
++    async fn cloud_fallback_first_success_does_not_call_second_offering() {
++        let mut calls = Vec::new();
++        let (offering, value) = select_offering(|name| {
++            calls.push(name);
++            std::future::ready(Ok(json!({"gsToken":"synthetic"})))
++        }).await.unwrap();
++        assert_eq!(calls, vec!["xgpuweb"]);
++        assert_eq!(offering, "xgpuweb");
++        assert_eq!(value["gsToken"], "synthetic");
++    }
++
++    #[tokio::test]
++    async fn cloud_fallback_request_failure_tries_second_offering() {
++        let mut calls = Vec::new();
++        let (offering, _) = select_offering(|name| {
++            calls.push(name);
++            std::future::ready(if name == "xgpuweb" { Err("gssv-request") }
++                else { Ok(json!({"gsToken":"synthetic"})) })
++        }).await.unwrap();
++        assert_eq!(calls, OFFERINGS);
++        assert_eq!(offering, "xgpuwebf2p");
++    }
++
++    #[tokio::test]
++    async fn cloud_fallback_invalid_json_or_token_tries_second_offering() {
++        let invalid = vec![b"not-json".to_vec(), b"{}".to_vec(),
++            br#"{"gsToken":""}"#.to_vec(), br#"{"gsToken":17}"#.to_vec(),
++            serde_json::to_vec(&json!({"gsToken":"x".repeat(16385)})).unwrap()];
++        for body in invalid {
++            let mut calls = Vec::new();
++            let (offering, _) = select_offering(|name| {
++                calls.push(name);
++                std::future::ready(if name == "xgpuweb" { offering_response(&body) }
++                    else { offering_response(br#"{"gsToken":"synthetic"}"#) })
++            }).await.unwrap();
++            assert_eq!(calls, OFFERINGS);
++            assert_eq!(offering, "xgpuwebf2p");
++        }
++        assert!(offering_response(&serde_json::to_vec(&json!({"gsToken":"x".repeat(16384)})).unwrap()).is_ok());
++    }
++
++    #[tokio::test]
++    async fn cloud_fallback_all_failures_report_only_fixed_stages() {
++        let mut calls = Vec::new();
++        let error = select_offering(|name| {
++            calls.push(name);
++            std::future::ready(offering_response(b"private response containing a token or URL"))
++        }).await.unwrap_err();
++        assert_eq!(calls, OFFERINGS);
++        assert_eq!(error, "gssv-login xgpuweb:gssv-json xgpuwebf2p:gssv-json");
++    }
++
++    async fn http_fixture(status: u16, body: Vec<u8>) -> (String, tokio::task::JoinHandle<()>) {
++        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
++        let server = TcpListener::bind("127.0.0.1:0").await.unwrap();
++        let address = server.local_addr().unwrap();
++        let task = tokio::spawn(async move {
++            let (mut socket, _) = server.accept().await.unwrap();
++            let mut request = Vec::new();
++            let mut buffer = [0u8; 4096];
++            loop {
++                let n = socket.read(&mut buffer).await.unwrap();
++                assert!(n > 0 && request.len() + n < 16384);
++                request.extend_from_slice(&buffer[..n]);
++                if let Some(end) = request.windows(4).position(|part| part == b"\r\n\r\n") {
++                    let headers = String::from_utf8_lossy(&request[..end]).to_ascii_lowercase();
++                    let length: usize = headers.lines().find_map(|line| line.strip_prefix("content-length:").map(str::trim)).unwrap_or("0").parse().unwrap();
++                    if request.len() >= end + 4 + length { break; }
++                }
++            }
++            let header = format!("HTTP/1.1 {status} Fixture\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
++            if socket.write_all(header.as_bytes()).await.is_ok() { let _ = socket.write_all(&body).await; }
++        });
++        (format!("http://{address}/login"), task)
++    }
++
++    #[tokio::test]
++    async fn cloud_fallback_http_refusal_or_oversized_body_reaches_second_offering() {
++        let client = reqwest::Client::builder().no_proxy().timeout(Duration::from_secs(15)).build().unwrap();
++        for (status, body) in [(403, b"<html>Forbidden</html>".to_vec()), (200, vec![b'x'; 256 * 1024 + 1])] {
++            let (first, first_task) = http_fixture(status, body).await;
++            let (second, second_task) = http_fixture(200, br#"{"gsToken":"synthetic"}"#.to_vec()).await;
++            let (offering, _) = select_offering(|name| request_offering(&client,
++                if name == "xgpuweb" { &first } else { &second }, "synthetic-xsts", name)).await.unwrap();
++            assert_eq!(offering, "xgpuwebf2p");
++            first_task.await.unwrap(); second_task.await.unwrap();
++        }
++    }
++
++}
+diff --git a/crates/xodus-cli/src/commands/library.rs b/crates/xodus-cli/src/commands/library.rs
+index 8cf87c6..45b1e32 100644
+--- a/crates/xodus-cli/src/commands/library.rs
++++ b/crates/xodus-cli/src/commands/library.rs
+@@ -99,6 +99,48 @@ fn diagnostic(stage: &'static str, status: u16, count: usize) {
+     eprintln!("NEXUS_LIBRARY_DIAGNOSTIC_V1 {stage} {status} {count}");
+ }
+ 
++const SUBSCRIPTION_PLANS: &[&str] = &[
++    "CFQ7TTC0KGQ8", "CFQ7TTC0KHS0", "CFQ7TTC0P85B",
++    "CFQ7TTC0K5DJ", "CFQ7TTC0K6L8", "CFQ7TTC10QFD",
++];
++
++fn subscription_rows(body: &Value) -> Result<Vec<Value>, &'static str> {
++    let rows = body["entitlements"].as_object().ok_or("subscriptions-shape")?;
++    if rows.len() > SUBSCRIPTION_PLANS.len() { return Err("subscriptions-count"); }
++    let mut plans = Vec::new();
++    for (id, row) in rows {
++        if !SUBSCRIPTION_PLANS.contains(&id.as_str()) { return Err("subscriptions-product"); }
++        let status = row["status"].as_str().ok_or("subscriptions-status")?;
++        if status != "Active" { continue; }
++        let expiry = row["endDate"].as_str().filter(|s| s.len() < 50)
++            .filter(|s| chrono::DateTime::parse_from_rfc3339(s).is_ok()).ok_or("subscriptions-expiry")?;
++        plans.push(json!({"productId":id,"status":status,"endDate":expiry}));
++    }
++    Ok(plans)
++}
++
++async fn subscriptions(client: &reqwest::Client, ticket: &str, market: &str) -> Result<Vec<Value>, &'static str> {
++    let url = format!("https://beige.xboxservices.com/PCGAFD/entitlements/subscriptions?market={market}&language=en-US&appVersion=0.2.3");
++    let cv = format!("{}.0", STANDARD_NO_PAD.encode(uuid::Uuid::new_v4().as_bytes()));
++    let mut response = client.post(url)
++        .header("Authorization", ticket).header("X-MS-API-Version", "1.1")
++        .header("Calling-App-Name", "Xodus-Nexus").header("MS-CV", cv)
++        .json(&json!({"productIds":SUBSCRIPTION_PLANS}))
++        .send().await.map_err(|_| "subscriptions-request")?;
++    if !response.status().is_success() {
++        diagnostic("subscriptions-http", response.status().as_u16(), 0);
++        return Err("subscriptions-http");
++    }
++    if response.content_length().is_some_and(|n| n > 262_144) { return Err("subscriptions-size"); }
++    let mut bytes = Vec::new();
++    while let Some(chunk) = response.chunk().await.map_err(|_| "subscriptions-read")? {
++        if bytes.len() + chunk.len() > 262_144 { return Err("subscriptions-size"); }
++        bytes.extend_from_slice(&chunk);
++    }
++    let body: Value = serde_json::from_slice(&bytes).map_err(|_| "subscriptions-json")?;
++    subscription_rows(&body)
++}
++
+ async fn query(tokens: &TokenManager, market: &str) -> Result<Value, &'static str> {
+     if market.len() != 2 || !market.bytes().all(|b| b.is_ascii_uppercase()) {
+         return Err("market");
+@@ -158,6 +200,7 @@ async fn query(tokens: &TokenManager, market: &str) -> Result<Value, &'static st
+         let page: Value = serde_json::from_slice(&bytes).map_err(|_| "entitlements-json")?;
+         all.add(&page)?;
+         if continuation.is_none() {
++            let subscriptions = subscriptions(&client, &ticket, market).await?;
+             if tokens.get_user().map_err(|_| "account-check")?.username != account {
+                 return Err("account-changed");
+             }
+@@ -165,7 +208,7 @@ async fn query(tokens: &TokenManager, market: &str) -> Result<Value, &'static st
+             for (reason, count) in &all.reasons { diagnostic(reason, 0, *count); }
+             diagnostic(if all.skipped > 0 { "partial" } else { "complete" }, 0, all.skipped);
+             return Ok(json!({"schema":1,"account":account,"market":market,
+-                "checkedAt":chrono::Utc::now().to_rfc3339(),"skippedEntitlements":all.skipped,
++                "checkedAt":chrono::Utc::now().to_rfc3339(),"skippedEntitlements":all.skipped,"subscriptions":subscriptions,
+                 "entitlements":all.entries.into_values().collect::<Vec<_>>()}));
+         }
+     }
+@@ -203,6 +246,26 @@ pub async fn run(tokens: &TokenManager, json_output: bool, market: String) -> Ex
+ #[cfg(test)]
+ mod tests {
+     use super::*;
++    #[test]
++    fn subscription_membership_is_separate_from_product_entitlements() {
++        let body = json!({"entitlements":{"CFQ7TTC0KGQ8":{
++            "status":"Active","endDate":"2099-01-01T00:00:00Z","autoRenew":true,"private":"not-output"}}});
++        assert_eq!(subscription_rows(&body).unwrap(), vec![json!({"productId":"CFQ7TTC0KGQ8",
++            "status":"Active","endDate":"2099-01-01T00:00:00Z"})]);
++        assert!(subscription_rows(&json!({"entitlements":{}})).unwrap().is_empty());
++        assert!(subscription_rows(&json!({"entitlements":{"CFQ7TTC0KGQ8":{"status":"Expired"}}})).unwrap().is_empty());
++    }
++
++    #[test]
++    fn malformed_membership_is_an_error_not_an_empty_subscription_list() {
++        for body in [json!({}), json!({"entitlements":[]}),
++            json!({"entitlements":{"unknown":{"status":"Active"}}}),
++            json!({"entitlements":{"CFQ7TTC0KGQ8":{"status":true}}}),
++            json!({"entitlements":{"CFQ7TTC0KGQ8":{"status":"Active","endDate":"invalid"}}})] {
++            assert!(subscription_rows(&body).is_err());
++        }
++    }
++
+     const A: &str = "9AAAAAAAAAAA";
+     const B: &str = "9BBBBBBBBBBB";
+     const C: &str = "9CCCCCCCCCCC";
+diff --git a/crates/xodus-cli/src/commands/run.rs b/crates/xodus-cli/src/commands/run.rs
+index cf29c56..7ea4e48 100644
+--- a/crates/xodus-cli/src/commands/run.rs
++++ b/crates/xodus-cli/src/commands/run.rs
+@@ -386,6 +386,7 @@ fn launch_file_maps(
+     launch_image: &Path,
+     materialize_chain: bool,
+ ) -> (String, String) {
++    if materialize_chain { return (String::new(), String::new()); }
+     let source_nt = source.to_string_lossy().replace('/', "\\");
+     let source_nt = source_nt.trim_end_matches('\\');
+     let mirror_unix = mirror_nt_prefix.map(|prefix| prefix.replace('\\', "/"));
+@@ -566,9 +567,7 @@ fn create_launch_chain_mirror(
+     let entry_path = checked_relative_path(entry_suffix)?;
+     let mut decrypted = HashMap::new();
+     for (name, fd) in fds {
+-        if name.to_ascii_lowercase().ends_with(".exe") || checked_relative_path(name)? == entry_path {
+-            decrypted.insert(checked_relative_path(name)?, *fd);
+-        }
++        decrypted.insert(checked_relative_path(name)?, *fd);
+     }
+     if !decrypted.contains_key(&entry_path) {
+         return Err(std::io::Error::new(
+@@ -588,7 +587,12 @@ fn create_launch_chain_mirror(
+         }
+     }
+     let decrypted_files: HashSet<PathBuf> = decrypted.keys().cloned().collect();
+-    let mirror = launch_view_directory(source_root, ".xodus-chain-")?;
++    let directory = Builder::new()
++        .prefix("droiddeck-xbox-")
++        .permissions(std::os::unix::fs::PermissionsExt::from_mode(0o700))
++        .tempdir()?;
++    check_private_launch_view(directory.path())?;
++    let mirror = LaunchView::new(directory);
+     populate_launch_view(
+         source_root,
+         mirror.path(),
+@@ -1019,7 +1023,7 @@ pub async fn run(
+     let mount_workspace = DlcMountWorkspace::new(&out_absolute)
+         .inspect_err(|error| eprintln!("could not prepare downloadable content workspace: {error}"))
+         .ok();
+-    let mut command = Command::new(wine);
++    let mut command = Command::new(&wine);
+     command
+         .arg(&stub_path)
+         .env("WINE_DLL_FILE_MAP", env_value)
+@@ -1039,21 +1043,47 @@ pub async fn run(
+     // checks, and keep the identity only when Microsoft issued this device an
+     // offline lease. Otherwise it removes the account's cached identity.
+     command.env_remove("XODUS_OFFLINE_IDENTITY");
+-    if let Some(mode) = offline_identity_mode(
+-        crate::license::OFFLINE_LICENSE_USED.load(std::sync::atomic::Ordering::Relaxed),
++    let offline_license_used =
++        crate::license::OFFLINE_LICENSE_USED.load(std::sync::atomic::Ordering::Relaxed);
++    let identity_mode = offline_identity_mode(
++        offline_license_used,
+         crate::license::OFFLINE_LEASE_STORED.load(std::sync::atomic::Ordering::Relaxed),
+-    ) {
++    );
++    if let Some(mode) = identity_mode {
+         command.env("XODUS_OFFLINE_IDENTITY", mode);
+     }
+-    if offline || crate::license::OFFLINE_LICENSE_USED.load(std::sync::atomic::Ordering::Relaxed) {
++    let playfab = if offline || offline_license_used {
+         eprintln!("Microsoft is unreachable; skipping PlayFab authorisation (the runtime signs in with its cached identity)");
++        None
+     } else {
+-        match playfab_auth_header(client, tokens).await {
+-            Some(header) => {
+-                command.env("XODUS_XSTS_PLAYFAB", header);
+-            }
+-            None => eprintln!("could not authorise a PlayFab token; in-game sign-in may fail"),
++        playfab_auth_header(client, tokens).await
++    };
++
++    if wine == "droiddeck:prepare" {
++        use std::io::Write;
++        if !materialize_chain {
++            cleanup().await;
++            return ExitCode::FAILURE;
+         }
++        let ready = serde_json::json!({
++            "exe": stub_path,
++            "playfab": playfab,
++            "offline": offline_license_used,
++            "offlineIdentity": identity_mode,
++        });
++        println!("DROIDDECK_LAUNCH_V1 {}", ready);
++        let _ = std::io::stdout().flush();
++        let mut release = String::new();
++        let _ = std::io::stdin().read_line(&mut release);
++        drop(mount_workspace);
++        drop(launch_mirror);
++        cleanup().await;
++        return ExitCode::SUCCESS;
++    }
++    if let Some(header) = playfab {
++        command.env("XODUS_XSTS_PLAYFAB", header);
++    } else if !offline && !offline_license_used {
++        eprintln!("could not authorise a PlayFab token; in-game sign-in may fail");
+     }
+ 
+     let mut wn = match command.spawn() {
+@@ -1236,21 +1266,15 @@ mod tests {
+     }
+ 
+     #[test]
+-    fn full_launch_view_uses_real_executables_and_preserves_encrypted_dll_maps() {
++    fn full_launch_view_needs_no_inherited_descriptor_maps() {
+         let entry = String::from("\\Launcher.exe");
+         let child = String::from("\\Bin\\Child.ExE");
+         let dll = String::from("\\Bin\\Encrypted.dll");
+         let files = [(&entry, 10), (&child, 11), (&dll, 12)];
+         let (nt, unix) = launch_file_maps(&files, Path::new("/package"), Some("\\view"),
+             &entry, 10, Path::new("/view/Launcher.exe"), true);
+-        assert!(nt.contains("10:\\??\\Z:\\package\\Launcher.exe"));
+-        assert!(unix.contains("10:/package/Launcher.exe"));
+-        assert!(!nt.contains("\\view\\Launcher.exe"));
+-        assert!(!nt.contains("\\view\\Bin\\Child.ExE"));
+-        assert!(!unix.contains("/view/Launcher.exe"));
+-        assert!(!unix.contains("/view/Bin/Child.ExE"));
+-        assert!(nt.contains("12:\\??\\Z:\\view\\Bin\\Encrypted.dll"));
+-        assert!(unix.contains("12:/view/Bin/Encrypted.dll"));
++        assert!(nt.is_empty());
++        assert!(unix.is_empty());
+     }
+ 
+     #[test]
+@@ -1602,6 +1626,46 @@ mod tests {
+         assert_eq!(std::fs::read(nested.join("Shipping.exe")).unwrap(), b"encrypted child");
+     }
+ 
++    #[test]
++    fn launch_view_materializes_encrypted_dlls_in_private_storage() {
++        let root = tempfile::tempdir().unwrap();
++        std::fs::write(root.path().join("Game.exe"), b"encrypted").unwrap();
++        std::fs::write(root.path().join("Secret.dll"), b"encrypted-dll").unwrap();
++        let mut image = tempfile::tempfile().unwrap();
++        image.write_all(&fake_pe()).unwrap();
++        let exe = String::from("Game.exe");
++        let dll = String::from("Secret.dll");
++        let files = [(&exe, image.as_raw_fd()), (&dll, image.as_raw_fd())];
++        let (view, _, count, _) = create_launch_chain_mirror(root.path(), &exe, &files).unwrap();
++        assert_eq!(count, 2);
++        assert_eq!(std::fs::read(view.path().join("Secret.dll")).unwrap(), fake_pe());
++        assert!(!view.path().join("Secret.dll").is_symlink());
++        assert_eq!(std::fs::read(root.path().join("Secret.dll")).unwrap(), b"encrypted-dll");
++        use std::os::unix::fs::PermissionsExt;
++        assert_eq!(std::fs::metadata(view.path()).unwrap().permissions().mode() & 0o077, 0);
++    }
++
++
++    #[test]
++    fn launch_view_rejects_invalid_decrypted_library_without_changing_sources() {
++        let root = tempfile::tempdir().unwrap();
++        std::fs::write(root.path().join("Game.exe"), b"encrypted executable").unwrap();
++        std::fs::write(root.path().join("Bad.dll"), b"encrypted library").unwrap();
++        let mut exe_image = tempfile::tempfile().unwrap();
++        exe_image.write_all(&fake_pe()).unwrap();
++        let mut dll_image = tempfile::tempfile().unwrap();
++        dll_image.write_all(b"not a PE library").unwrap();
++        let exe = String::from("Game.exe");
++        let dll = String::from("Bad.dll");
++        let images = [(&exe, exe_image.as_raw_fd()), (&dll, dll_image.as_raw_fd())];
++        let Err(error) = create_launch_chain_mirror(root.path(), &exe, &images) else {
++            panic!("an invalid launch image should be rejected");
++        };
++        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
++        assert_eq!(std::fs::read(root.path().join("Game.exe")).unwrap(), b"encrypted executable");
++        assert_eq!(std::fs::read(root.path().join("Bad.dll")).unwrap(), b"encrypted library");
++    }
++
+     #[test]
+     fn launch_chain_rejects_parent_path_components() {
+         assert!(checked_relative_path("..\\outside.exe").is_err());
+@@ -1619,16 +1683,20 @@ mod tests {
+         assert_eq!(name, "Bin\\MINECRAFT.WINDOWS.EXE");
+         assert!(!fcntl_getfd(file.as_fd()).unwrap().contains(FdFlags::CLOEXEC));
+         let dll_name = String::from("Encrypted.dll");
+-        let mut dll = tempfile::tempfile().unwrap(); dll.write_all(b"synthetic decrypted library").unwrap();
++        std::fs::write(root.path().join("Encrypted.dll"), b"encrypted library").unwrap();
++        let mut dll = tempfile::tempfile().unwrap(); dll.write_all(&fake_pe()).unwrap();
+         let images = [(&dll_name, dll.as_raw_fd()), (&name, file.as_raw_fd())];
+         assert!(select_launch_entry(&images[..1], Some("bin/Minecraft.Windows.exe")).is_err());
+         assert_eq!(select_launch_entry(&images, Some("bin/Minecraft.Windows.exe")).unwrap().1, file.as_raw_fd());
+         let (mirror, entry, count, bytes) = create_launch_chain_mirror(root.path(), &name, &images).unwrap();
+-        assert_eq!(count, 1); assert_eq!(bytes, original.len() as u64);
++        assert_eq!(count, 2); assert_eq!(bytes, 2 * original.len() as u64);
+         assert_eq!(std::fs::read(entry).unwrap(), original);
+-        let (nt, _) = launch_file_maps(&images, root.path(), Some("\\synthetic-view"), &name, file.as_raw_fd(), &mirror.path().join("Bin/MINECRAFT.WINDOWS.EXE"), true);
+-        assert!(nt.contains("synthetic-view\\Encrypted.dll"));
+-        assert!(!nt.contains("synthetic-view\\Bin\\MINECRAFT.WINDOWS.EXE"));
++        let (nt, unix) = launch_file_maps(&images, root.path(), Some("\\synthetic-view"), &name, file.as_raw_fd(), &mirror.path().join("Bin/MINECRAFT.WINDOWS.EXE"), true);
++        assert!(nt.is_empty());
++        assert!(unix.is_empty());
++        assert_eq!(std::fs::read(mirror.path().join("Encrypted.dll")).unwrap(), fake_pe());
++        assert!(!std::fs::symlink_metadata(mirror.path().join("Encrypted.dll")).unwrap().file_type().is_symlink());
++        assert_eq!(std::fs::read(root.path().join("Encrypted.dll")).unwrap(), b"encrypted library");
+         assert_eq!(std::fs::read(root.path().join("Bin/MINECRAFT.WINDOWS.EXE")).unwrap(), original);
+         assert_eq!(std::fs::read(root.path().join("MicrosoftGame.config")).unwrap(), b"metadata unchanged");
+     }
+diff --git a/crates/xodus-cli/src/main.rs b/crates/xodus-cli/src/main.rs
+index 80eea13..aee553a 100644
+--- a/crates/xodus-cli/src/main.rs
++++ b/crates/xodus-cli/src/main.rs
+@@ -20,24 +20,6 @@ mod webview;
+ 
+ #[derive(Subcommand)]
+ enum SubCommand {
+-    #[cfg(target_os = "linux")]
+-    #[command(about = "Gracefully stop only a Nexus-owned session keyring without accessing credentials")]
+-    KeyringSessionStop {
+-        #[arg(long)]
+-        provider_pid: u32,
+-    },
+-    #[cfg(target_os = "linux")]
+-    #[command(about = "Create the first default wallet using the provider's password dialog")]
+-    KeyringCreate {
+-        #[arg(long, default_value = "")]
+-        window_id: String,
+-    },
+-    #[cfg(target_os = "linux")]
+-    #[command(about = "Unlock the default system wallet without reading credentials or signing in")]
+-    KeyringUnlock {
+-        #[arg(long, default_value = "")]
+-        window_id: String,
+-    },
+     #[command(about = "Resolve public Store packages without sign-in or downloading")]
+     ResolvePackage {
+         product: String,
+@@ -90,6 +72,8 @@ enum SubCommand {
+         #[arg(long, default_value_t = false)]
+         json: bool,
+     },
++    #[command(about = "Get an Xbox Cloud Gaming streaming token for the stored account")]
++    CloudToken,
+     #[command(about = "Read Xbox gamertag and gamerpic for the stored account")]
+     Profile {
+         #[arg(long, default_value_t = false)]
+@@ -268,29 +252,6 @@ async fn main() -> ExitCode {
+         .build()
+         .unwrap();
+     let args = CliArgs::parse();
+-    #[cfg(target_os = "linux")]
+-    if let SubCommand::KeyringSessionStop { provider_pid } = &args.command {
+-        let state = xodus::keyring_session::stop_session_provider(*provider_pid);
+-        println!("{}", serde_json::json!({"schema": 1, "state": state.as_str()}));
+-        return if state == xodus::keyring_session::StopState::Unavailable { ExitCode::FAILURE } else { ExitCode::SUCCESS };
+-    }
+-    #[cfg(target_os = "linux")]
+-    if let SubCommand::KeyringUnlock { window_id } | SubCommand::KeyringCreate { window_id } = &args.command {
+-        use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+-        let cancelled = Arc::new(AtomicBool::new(false));
+-        let signal = cancelled.clone();
+-        let state = if ctrlc::set_handler(move || { signal.store(true, Ordering::SeqCst); }).is_err() {
+-            xodus::keyring_unlock::UnlockState::Unavailable
+-        } else {
+-            if matches!(&args.command, SubCommand::KeyringCreate { .. }) {
+-                xodus::keyring_unlock::create_default(window_id, &cancelled)
+-            } else {
+-                xodus::keyring_unlock::unlock_default(window_id, &cancelled)
+-            }
+-        };
+-        println!("{}", serde_json::json!({"schema": 1, "state": state.as_str()}));
+-        return ExitCode::SUCCESS;
+-    }
+     #[cfg(not(feature = "native-webview"))]
+     if args.external_webview_stdio {
+         webview::enable_stdio();
+@@ -322,6 +283,7 @@ async fn main() -> ExitCode {
+         args.command,
+         SubCommand::Account { .. }
+             | SubCommand::Profile { .. }
++            | SubCommand::CloudToken
+             | SubCommand::Social { .. }
+             | SubCommand::NativeSocial { .. }
+             | SubCommand::GameActivity { .. }
+@@ -360,12 +322,6 @@ async fn main() -> ExitCode {
+     }
+ 
+     let code = match args.command {
+-        #[cfg(target_os = "linux")]
+-        SubCommand::KeyringSessionStop { .. } => unreachable!(),
+-        #[cfg(target_os = "linux")]
+-        SubCommand::KeyringUnlock { .. } => unreachable!(),
+-        #[cfg(target_os = "linux")]
+-        SubCommand::KeyringCreate { .. } => unreachable!(),
+         SubCommand::ResolvePackage { .. } => unreachable!(),
+         SubCommand::Download {
+             product,
+@@ -416,6 +372,7 @@ async fn main() -> ExitCode {
+             }
+         },
+         SubCommand::Profile { json } => commands::profile::run(&tokens, json).await,
++        SubCommand::CloudToken => commands::cloud_token::run(&tokens).await,
+         SubCommand::NativeSocial { action } => commands::native_social::run(&tokens,action).await,
+         SubCommand::Social { .. } => commands::social::run(&tokens).await,
+         SubCommand::GameActivity { title_id, json } => commands::game_activity::run(&tokens, title_id, json).await,
+diff --git a/crates/xodus/Cargo.toml b/crates/xodus/Cargo.toml
+index 773e8f7..47ef9b1 100644
+--- a/crates/xodus/Cargo.toml
++++ b/crates/xodus/Cargo.toml
+@@ -43,9 +43,9 @@ libc = "=0.2.189"
+ smbios-lib = "0.9.4"
+ 
+ [target.'cfg(target_os = "linux")'.dependencies]
+-dbus = "=0.9.12"
+-x11-dl = "=2.21.0"
+-dbus-secret-service-keyring-store = { version = "1.0.1", features = ["crypto-openssl"]}
++dbus = { version = "=0.9.12", optional = true }
++x11-dl = { version = "=2.21.0", optional = true }
++dbus-secret-service-keyring-store = { version = "1.0.1", features = ["crypto-openssl"], optional = true}
+ 
+ [target.'cfg(target_os = "macos")'.dependencies]
+ apple-native-keyring-store = { version = "1.0.2", features = ["keychain"]}
+diff --git a/crates/xodus/src/api/xbox/auth.rs b/crates/xodus/src/api/xbox/auth.rs
+index 692e722..f9701bf 100644
+--- a/crates/xodus/src/api/xbox/auth.rs
++++ b/crates/xodus/src/api/xbox/auth.rs
+@@ -21,7 +21,7 @@ fn xbox_user_request(client: &reqwest::Client, rps_ticket: String) -> reqwest::R
+         properties: UserAuthProperties {
+             auth_method: "RPS".to_string(),
+             site_name: "user.auth.xboxlive.com".to_string(),
+-            rps_ticket,
++            rps_ticket: crate::models::secrets::xbox_ticket(rps_ticket),
+         },
+     };
+ 
+diff --git a/crates/xodus/src/lib.rs b/crates/xodus/src/lib.rs
+index a811bae..133a2ed 100644
+--- a/crates/xodus/src/lib.rs
++++ b/crates/xodus/src/lib.rs
+@@ -2,12 +2,6 @@ pub mod api;
+ pub mod auth;
+ pub mod clep;
+ pub mod hardware;
+-#[cfg(target_os = "linux")]
+-mod keyring_persistence;
+-#[cfg(target_os = "linux")]
+-pub mod keyring_session;
+-#[cfg(target_os = "linux")]
+-pub mod keyring_unlock;
+ pub mod licensing;
+ pub mod models;
+ pub mod secrets;
+diff --git a/crates/xodus/src/models/licensing_ticket_tests.rs b/crates/xodus/src/models/licensing_ticket_tests.rs
+index 1a57db1..bdced30 100644
+--- a/crates/xodus/src/models/licensing_ticket_tests.rs
++++ b/crates/xodus/src/models/licensing_ticket_tests.rs
+@@ -1,5 +1,5 @@
+ //! Public synthetic data only, no account, keyring or network access.
+-use super::{Token, licensing_ticket, store_ticket};
++use super::{Token, licensing_ticket, store_ticket, xbox_ticket};
+ use crate::models::soap;
+ use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+ use serde_json::json;
+@@ -88,3 +88,36 @@ fn content_ticket_formatting_does_not_decode_or_rewrite_ciphertext() {
+     let long_header = jwe(json!({"alg":"dir","enc":"A256GCM","kid":"a".repeat(9000)}), "");
+     assert_eq!(licensing_ticket(format!("d={long_header}")), format!("t={long_header}"));
+ }
++
++#[test]
++fn credential_xbox_ticket_compact_jwe_uses_bare_wire_format_without_changing_store_conversion() {
++    for raw in [
++        jwe(json!({"alg":"dir","enc":"A128CBC-HS256"}), ""),
++        jwe(json!({"alg":"RSA-OAEP-256","enc":"A256GCM"}), "a2V5"),
++    ] {
++        let Token::Compact(original) = delegation(&raw) else { panic!("fixture"); };
++        assert_eq!(original, format!("t={raw}"));
++        assert_eq!(store_ticket(original.clone()), format!("t={raw}"));
++        assert_eq!(xbox_ticket(original), format!("t={raw}"));
++        assert_eq!(xbox_ticket(format!("d={raw}")), raw);
++        assert_eq!(xbox_ticket(raw.clone()), raw);
++        assert_eq!(xbox_ticket(format!("t={raw}")), format!("t={raw}"));
++    }
++}
++
++#[test]
++fn credential_xbox_ticket_opaque_and_malformed_tokens_are_preserved() {
++    let valid = jwe(json!({"alg":"dir","enc":"A256GCM"}), "");
++    let mut cases = vec!["d=opaque".to_string(), "opaque".into(), "".into(), "d=".into(),
++        "d=opaque..iv.ciphertext.tag".into(), "d=eyJ..a.b.c".into(),
++        format!("d={valid}.extra"), format!("d={}", valid.replace("..", ".+.")),
++        format!("d={}", jwe(json!({"alg":"dir"}), "")),
++        format!("d={}", jwe(json!({"alg":"dir","enc":""}), "")),
++        format!("d={}", jwe(json!({"alg":"dir","enc":"A256GCM","kid":"a".repeat(9000)}), ""))];
++    let mut parts: Vec<_> = valid.split('.').map(str::to_string).collect();
++    for index in [2, 3, 4] {
++        let old = parts[index].clone(); parts[index].clear();
++        cases.push(format!("d={}", parts.join("."))); parts[index] = old;
++    }
++    for ticket in cases { assert_eq!(xbox_ticket(ticket.clone()), ticket); }
++}
+diff --git a/crates/xodus/src/models/secrets.rs b/crates/xodus/src/models/secrets.rs
+index c44308d..e8b8995 100644
+--- a/crates/xodus/src/models/secrets.rs
++++ b/crates/xodus/src/models/secrets.rs
+@@ -86,6 +86,14 @@ fn delegation_ticket(value: String) -> String {
+     if is_compact_jwe(&value) { format!("t={value}") } else { format!("d={value}") }
+ }
+ 
++/// Keep the upstream format for new tickets and accept older stored compact tickets.
++pub fn xbox_ticket(ticket: String) -> String {
++    match ticket.strip_prefix("d=") {
++        Some(raw) if is_compact_jwe(raw) => raw.to_owned(),
++        _ => ticket,
++    }
++}
++
+ /// Store and licensing services reject delegation-compact tickets in the "d="
+ /// form that Xbox Live sign-in needs (InvalidMsaTicketFormat) and accept the
+ /// same value as "t=". Convert only where a ticket is sent to those services.
+diff --git a/crates/xodus/src/secrets.rs b/crates/xodus/src/secrets.rs
+index 50cd884..2b258c0 100644
+--- a/crates/xodus/src/secrets.rs
++++ b/crates/xodus/src/secrets.rs
+@@ -1,73 +1,14 @@
+-pub static SERVICE_NAME: &str = "Xodus Service";
++use crate::tokens::{backend::KeychainBackend, store::{TokenBackend, TokenStoreError}};
+ 
+ pub fn init_secrets() -> Result<(), keyring_core::Error> {
+-    #[cfg(feature = "key-chain-file")]
+-    {
+-        let store = keyring_core::sample::Store::new_with_backing(
+-            secrets_backing_file()
+-                .to_str()
+-                .expect("Invalid secrets backing path"),
+-        )?;
+-        keyring_core::set_default_store(store);
+-    }
+-
+-    #[cfg(not(feature = "key-chain-file"))]
+-    {
+-        #[cfg(target_os = "linux")]
+-        {
+-            activate_desktop_keyring();
+-            keyring_core::set_default_store(dbus_secret_service_keyring_store::Store::new()?);
+-        }
+-
+-        #[cfg(target_os = "macos")]
+-        {
+-            keyring_core::set_default_store(apple_native_keyring_store::keychain::Store::new()?);
+-        }
+-
+-        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+-        {
+-            let store = keyring_core::sample::Store::new_with_configuration(
+-                &std::collections::HashMap::from([("persist", "true")]),
+-            )?;
+-            keyring_core::set_default_store(store);
+-        }
+-    }
+-
++    if std::env::var_os("DROIDDECK_XBOX_CREDENTIAL_SOCKET").is_none() { return Err(keyring_core::Error::NoEntry); }
+     Ok(())
+ }
+-
+-// Some KDE installations advertise ksecretd only under its compatibility
+-// activation name. Respect an existing/default Secret Service provider first.
+-// This starts a packaged user service, never installs or configures a keyring.
+-#[cfg(all(target_os = "linux", not(feature = "key-chain-file")))]
+-fn activate_desktop_keyring() {
+-    use dbus::blocking::Connection;
+-    use std::time::Duration;
+-    let Ok(connection) = Connection::new_session() else { return; };
+-    let bus = connection.with_proxy("org.freedesktop.DBus", "/org/freedesktop/DBus", Duration::from_secs(3));
+-    let Ok((owned,)): Result<(bool,), _> = bus.method_call("org.freedesktop.DBus", "NameHasOwner", ("org.freedesktop.secrets",)) else { return; };
+-    if owned { return; }
+-    let Ok((names,)): Result<(Vec<String>,), _> = bus.method_call("org.freedesktop.DBus", "ListActivatableNames", ()) else { return; };
+-    if names.iter().any(|name| name == "org.freedesktop.secrets") { return; }
+-    if names.iter().any(|name| name == "org.kde.secretservicecompat") {
+-        // On failure, Store::new below still returns the genuine keyring error.
+-        let _: Result<(u32,), _> = bus.method_call("org.freedesktop.DBus", "StartServiceByName", ("org.kde.secretservicecompat", 0u32));
+-    }
+-}
+-
+-pub fn get_entry(user: &str) -> Result<keyring_core::Entry, keyring_core::Error> {
+-    keyring_core::Entry::new(SERVICE_NAME, user)
+-}
+-
+-pub fn destroy_secrets() {
+-    keyring_core::unset_default_store();
+-}
+-
+-#[cfg(feature = "key-chain-file")]
+-fn secrets_backing_file() -> std::path::PathBuf {
+-    std::env::var_os("HOME")
+-        .or_else(|| std::env::var_os("USERPROFILE"))
+-        .map(std::path::PathBuf::from)
+-        .unwrap_or_else(std::env::temp_dir)
+-        .join(".xodus-keyring.ron")
++pub struct Entry(String);
++pub fn get_entry(user: &str) -> Result<Entry, keyring_core::Error> { Ok(Entry(user.into())) }
++impl Entry {
++    pub fn get_secret(&self) -> Result<Vec<u8>, TokenStoreError> { KeychainBackend.get(&self.0)?.ok_or(TokenStoreError::NotFound) }
++    pub fn set_secret(&self, value: &[u8]) -> Result<(), TokenStoreError> { KeychainBackend.set(&self.0, value) }
++    pub fn delete_credential(&self) -> Result<(), TokenStoreError> { KeychainBackend.remove(&self.0) }
+ }
++pub fn destroy_secrets() {}
+diff --git a/crates/xodus/src/tokens/backend/keychain.rs b/crates/xodus/src/tokens/backend/keychain.rs
+index de726f2..dc8f136 100644
+--- a/crates/xodus/src/tokens/backend/keychain.rs
++++ b/crates/xodus/src/tokens/backend/keychain.rs
+@@ -1,131 +1,115 @@
+-use base64::{Engine as _, engine::general_purpose::STANDARD};
+-
+ use crate::tokens::store::{TokenBackend, TokenStoreError};
++use serde_json::{Value, json};
++use std::io::{BufRead, Read, Write};
++use std::net::{Ipv4Addr, SocketAddrV4, TcpStream};
++use std::os::linux::net::SocketAddrExt;
++use std::os::unix::net::{SocketAddr, UnixStream};
++use std::sync::atomic::{AtomicBool, Ordering};
++use std::time::Duration;
++
++pub struct KeychainBackend;
++
++// Some Android devices refuse the abstract socket from inside PRoot; after one failure the
++// keyed loopback port the app also listens on is used for the rest of the process.
++static LOOPBACK: AtomicBool = AtomicBool::new(false);
++static REPORTED: AtomicBool = AtomicBool::new(false);
++// The app seals credentials with the Android Keystore, which took over 10 s on some phones.
++const REPLY_TIMEOUT: Duration = Duration::from_secs(30);
+ 
+-// GNOME Keyring's passwordless textual format writes secrets with
+-// g_key_file_set_value but reads them with g_key_file_get_string. Backslash
+-// escapes in JSON (notably XML token attributes) can therefore be rejected or
+-// changed on reload. ASCII base64 avoids those escapes without changing the
+-// selected keyring or its security policy. This is encoding, not encryption.
+-const ENVELOPE: &[u8] = b"XODUS_KEYRING_BASE64_V1:";
++use crate::tokens::store::io_reason as reason;
+ 
+-fn encode_secret(value: &[u8]) -> Vec<u8> {
+-    let mut encoded = ENVELOPE.to_vec();
+-    encoded.extend_from_slice(STANDARD.encode(value).as_bytes());
+-    encoded
++fn exchange<S: Read + Write>(stream: S, prefix: Option<&str>, value: &Value) -> Result<Value, TokenStoreError> {
++    let route = if prefix.is_some() { "loopback" } else { "socket" };
++    transfer(stream, prefix, value).inspect_err(|error| {
++        // Kind Other is the host's own refusal, already reported.
++        if let TokenStoreError::Io(error) = error
++            && error.kind() != std::io::ErrorKind::Other
++        {
++            eprintln!("NEXUS_CREDENTIAL_ERROR_V1 {route}-exchange-{}", reason(error));
++        }
++    })
+ }
+ 
+-fn decode_secret(bytes: Vec<u8>) -> Result<Vec<u8>, TokenStoreError> {
+-    match bytes.strip_prefix(ENVELOPE) {
+-        Some(encoded) => STANDARD.decode(encoded).map_err(|_| {
+-            std::io::Error::new(
+-                std::io::ErrorKind::InvalidData,
+-                "Invalid encoded Xodus credential",
+-            )
+-            .into()
+-        }),
+-        // Existing credentials are raw JSON. Do not rewrite or delete on reads.
+-        None => Ok(bytes),
++fn transfer<S: Read + Write>(mut stream: S, prefix: Option<&str>, value: &Value) -> Result<Value, TokenStoreError> {
++    if let Some(key) = prefix {
++        stream.write_all(key.as_bytes())?;
++        stream.write_all(b"\n")?;
++    }
++    serde_json::to_writer(&mut stream, value)?;
++    stream.write_all(b"\n")?;
++    let mut bytes = Vec::new();
++    std::io::BufReader::new(stream).take(2_097_153).read_until(b'\n', &mut bytes)?;
++    if bytes.len() > 2_097_152 || bytes.last() != Some(&b'\n') {
++        eprintln!("NEXUS_CREDENTIAL_ERROR_V1 host-response-invalid");
++        return Err(std::io::Error::other("Invalid Android credential response").into());
+     }
++    let response: Value = serde_json::from_slice(&bytes)?;
++    if response["ok"] != true {
++        eprintln!("NEXUS_CREDENTIAL_ERROR_V1 host-refused");
++        return Err(std::io::Error::other("Android credential storage unavailable").into());
++    }
++    Ok(response)
+ }
+ 
+-fn deletion_result(result: Result<(), keyring_core::Error>) -> Result<(), TokenStoreError> {
+-    match result {
+-        Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
+-        Err(error) => Err(error.into()),
+-    }
++fn loopback(value: &Value) -> Result<Value, TokenStoreError> {
++    let port: u16 = std::env::var("DROIDDECK_XBOX_CREDENTIAL_PORT").ok().and_then(|v| v.parse().ok()).ok_or_else(|| {
++        eprintln!("NEXUS_CREDENTIAL_ERROR_V1 loopback-port-missing");
++        std::io::Error::other("Android credential port is unavailable")
++    })?;
++    let key = std::env::var("DROIDDECK_XBOX_CREDENTIAL_KEY").map_err(|_| {
++        eprintln!("NEXUS_CREDENTIAL_ERROR_V1 loopback-key-missing");
++        std::io::Error::other("Android credential key is unavailable")
++    })?;
++    let address = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port).into();
++    let stream = TcpStream::connect_timeout(&address, Duration::from_secs(5)).inspect_err(|error| {
++        eprintln!("NEXUS_CREDENTIAL_ERROR_V1 loopback-{}", reason(error));
++    })?;
++    stream.set_read_timeout(Some(REPLY_TIMEOUT))?;
++    stream.set_write_timeout(Some(REPLY_TIMEOUT))?;
++    exchange(stream, Some(&key), value)
+ }
+ 
+-pub struct KeychainBackend;
++fn request(value: Value) -> Result<Value, TokenStoreError> {
++    if LOOPBACK.load(Ordering::Relaxed) { return loopback(&value); }
++    let name = std::env::var("DROIDDECK_XBOX_CREDENTIAL_SOCKET").map_err(|_| {
++        eprintln!("NEXUS_CREDENTIAL_ERROR_V1 socket-name-missing");
++        std::io::Error::other("Android credential host is unavailable")
++    })?;
++    let address = SocketAddr::from_abstract_name(name).inspect_err(|_| {
++        eprintln!("NEXUS_CREDENTIAL_ERROR_V1 socket-name-invalid");
++    })?;
++    match UnixStream::connect_addr(&address) {
++        Ok(stream) => {
++            stream.set_read_timeout(Some(REPLY_TIMEOUT))?;
++            stream.set_write_timeout(Some(REPLY_TIMEOUT))?;
++            exchange(stream, None, &value)
++        }
++        Err(error) => {
++            if !REPORTED.swap(true, Ordering::Relaxed) {
++                eprintln!("NEXUS_CREDENTIAL_ERROR_V1 socket-{}", reason(&error));
++            }
++            let result = loopback(&value);
++            if result.is_ok() {
++                LOOPBACK.store(true, Ordering::Relaxed);
++                eprintln!("NEXUS_CREDENTIAL_ERROR_V1 loopback-in-use");
++            }
++            result
++        }
++    }
++}
+ 
+ impl TokenBackend for KeychainBackend {
+     fn get(&self, key: &str) -> Result<Option<Vec<u8>>, TokenStoreError> {
+-        let entry = crate::secrets::get_entry(key)?;
+-        match entry.get_secret() {
+-            Ok(bytes) => Ok(Some(decode_secret(bytes)?)),
+-            Err(keyring_core::Error::NoEntry) => Ok(None),
+-            Err(e) => Err(e.into()),
+-        }
++        let response = request(json!({"op":"get", "key":key}))?;
++        if response["value"].is_null() { return Ok(None); }
++        Ok(Some(serde_json::from_value(response["value"].clone())?))
+     }
+-
+     fn set(&self, key: &str, value: &[u8]) -> Result<(), TokenStoreError> {
+-        crate::secrets::get_entry(key)?.set_secret(&encode_secret(value))?;
+-        #[cfg(all(target_os = "linux", not(feature = "key-chain-file")))]
+-        crate::keyring_persistence::sync_after_write();
++        request(json!({"op":"set", "key":key, "value":value}))?;
+         Ok(())
+     }
+-
+     fn remove(&self, key: &str) -> Result<(), TokenStoreError> {
+-        deletion_result(crate::secrets::get_entry(key)?.delete_credential())?;
+-        #[cfg(all(target_os = "linux", not(feature = "key-chain-file")))]
+-        crate::keyring_persistence::sync_after_write();
++        request(json!({"op":"remove", "key":key}))?;
+         Ok(())
+     }
+ }
+-
+-#[cfg(test)]
+-mod tests {
+-    use super::*;
+-
+-    #[test]
+-    fn credential_encoding_preserves_xml_json_and_binary() {
+-        let xml_json = br#"{"token":"<EncryptedData Id=\"synthetic\">dummy</EncryptedData>","escapes":"a\\b\n\t\r"}"#;
+-        let binary: Vec<u8> = (0..=255).collect();
+-        for value in [
+-            xml_json.as_slice(),
+-            b"".as_slice(),
+-            binary.as_slice(),
+-            "synthetic-\u{00e9}".as_bytes(),
+-        ] {
+-            let encoded = encode_secret(value);
+-            assert!(encoded.starts_with(ENVELOPE));
+-            // No GKeyFile escapes or physical line breaks can be introduced.
+-            assert!(encoded.is_ascii());
+-            assert!(
+-                !encoded
+-                    .iter()
+-                    .any(|byte| matches!(byte, b'\\' | b'\n' | b'\r' | 0))
+-            );
+-            assert_eq!(decode_secret(encoded).unwrap(), value);
+-        }
+-    }
+-
+-    #[test]
+-    fn credential_encoding_accepts_legacy_values_without_rewriting() {
+-        for value in [
+-            br#"{"username":"synthetic"}"#.as_slice(),
+-            b"".as_slice(),
+-            b"invalid legacy JSON".as_slice(),
+-        ] {
+-            // Validation of legacy JSON remains the TokenManager's job.
+-            assert_eq!(decode_secret(value.to_vec()).unwrap(), value);
+-        }
+-    }
+-
+-    #[test]
+-    fn credential_encoding_rejects_malformed_envelopes_without_leaking_values() {
+-        for bad in [
+-            b"%%%synthetic-secret-never-print".as_slice(),
+-            b"YQ".as_slice(),
+-        ] {
+-            let mut encoded = ENVELOPE.to_vec();
+-            encoded.extend_from_slice(bad);
+-            let error = decode_secret(encoded).unwrap_err();
+-            assert!(matches!(error, TokenStoreError::Io(_)));
+-            assert!(!error.to_string().contains("synthetic-secret-never-print"));
+-        }
+-    }
+-
+-    #[test]
+-    fn credential_deletion_is_idempotent_but_keeps_other_errors() {
+-        assert!(deletion_result(Ok(())).is_ok());
+-        assert!(deletion_result(Err(keyring_core::Error::NoEntry)).is_ok());
+-        assert!(matches!(
+-            deletion_result(Err(keyring_core::Error::Invalid(
+-                "synthetic".into(),
+-                "failure".into()
+-            ))),
+-            Err(TokenStoreError::Keychain(_))
+-        ));
+-    }
+-}
+diff --git a/crates/xodus/src/tokens/session.rs b/crates/xodus/src/tokens/session.rs
+index 38c4b2b..254c14f 100644
+--- a/crates/xodus/src/tokens/session.rs
++++ b/crates/xodus/src/tokens/session.rs
+@@ -44,14 +44,30 @@ async fn renewal_lock_at(
+     wait: WaitDuration,
+ ) -> std::io::Result<std::fs::File> {
+     use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
++    fn report(stage: &'static str) -> impl Fn(&std::io::Error) {
++        move |error| eprintln!("NEXUS_CREDENTIAL_ERROR_V1 lock-{stage}-{}", super::store::io_reason(error))
++    }
++    fn unsafe_lock(stage: &str, check: &str) -> std::io::Error {
++        eprintln!("NEXUS_CREDENTIAL_ERROR_V1 lock-{stage}-{check}");
++        std::io::Error::other(if stage == "dir" { "Unsafe session lock directory" } else { "Unsafe session lock" })
++    }
+     match std::fs::DirBuilder::new().mode(0o700).create(&root) {
+         Ok(()) => {}
+         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+-        Err(error) => return Err(error),
++        Err(error) => {
++            report("dir-create")(&error);
++            return Err(error);
++        }
++    }
++    let dir = std::fs::symlink_metadata(&root).inspect_err(report("dir-stat"))?;
++    if !dir.is_dir() {
++        return Err(unsafe_lock("dir", "type"));
++    }
++    if dir.uid() != uid {
++        return Err(unsafe_lock("dir", "owner"));
+     }
+-    let dir = std::fs::symlink_metadata(&root)?;
+-    if !dir.is_dir() || dir.uid() != uid || dir.mode() & 0o077 != 0 {
+-        return Err(std::io::Error::other("Unsafe session lock directory"));
++    if dir.mode() & 0o077 != 0 {
++        return Err(unsafe_lock("dir", "mode"));
+     }
+     let file = std::fs::OpenOptions::new()
+         .read(true)
+@@ -60,10 +76,20 @@ async fn renewal_lock_at(
+         .truncate(false)
+         .mode(0o600)
+         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+-        .open(root.join("device.lock"))?;
+-    let meta = file.metadata()?;
+-    if !meta.is_file() || meta.uid() != uid || meta.nlink() != 1 || meta.mode() & 0o077 != 0 {
+-        return Err(std::io::Error::other("Unsafe session lock"));
++        .open(root.join("device.lock"))
++        .inspect_err(report("file-open"))?;
++    let meta = file.metadata().inspect_err(report("file-stat"))?;
++    if !meta.is_file() {
++        return Err(unsafe_lock("file", "type"));
++    }
++    if meta.uid() != uid {
++        return Err(unsafe_lock("file", "owner"));
++    }
++    if meta.nlink() != 1 {
++        return Err(unsafe_lock("file", "links"));
++    }
++    if meta.mode() & 0o077 != 0 {
++        return Err(unsafe_lock("file", "mode"));
+     }
+     let deadline = tokio::time::Instant::now() + wait;
+     loop {
+@@ -75,7 +101,10 @@ async fn renewal_lock_at(
+             {
+                 tokio::time::sleep(WaitDuration::from_millis(100)).await
+             }
+-            Err(error) => return Err(error),
++            Err(error) => {
++                report("flock")(&error);
++                return Err(error);
++            }
+         }
+     }
+ }
+diff --git a/crates/xodus/src/tokens/store.rs b/crates/xodus/src/tokens/store.rs
+index 78b73d0..15cbff0 100644
+--- a/crates/xodus/src/tokens/store.rs
++++ b/crates/xodus/src/tokens/store.rs
+@@ -50,3 +50,51 @@ impl TokenStoreError {
+         eprintln!("{self}");
+     }
+ }
++
++/// Letters and dashes only: DroidDeck passes `NEXUS_CREDENTIAL_ERROR_V1 [a-z-]{1,48}` lines to its
++/// log. Unlisted errno values are spelled with letters, a = 0 ... j = 9 (`os-dh` = errno 37).
++pub(crate) fn io_reason(error: &std::io::Error) -> String {
++    let known = match error.raw_os_error() {
++        Some(111) => "refused",
++        Some(13) => "denied",
++        Some(1) => "not-permitted",
++        Some(2) => "missing",
++        Some(110) => "timed-out",
++        Some(38) => "unsupported",
++        Some(97) => "family-unsupported",
++        Some(22) => "invalid",
++        Some(104) => "reset",
++        Some(32) => "broken-pipe",
++        Some(4) => "interrupted",
++        Some(11) => "would-block",
++        Some(17) => "exists",
++        Some(20) => "not-directory",
++        Some(21) => "is-directory",
++        Some(28) => "no-space",
++        Some(30) => "read-only",
++        Some(37) => "no-locks",
++        Some(40) => "symlink-loop",
++        Some(95) => "not-supported",
++        Some(code) => {
++            let letters: String = code.unsigned_abs().to_string().bytes().map(|b| (b - b'0' + b'a') as char).collect();
++            return format!("os-{letters}");
++        }
++        None => match error.kind() {
++            std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock => "timed-out",
++            std::io::ErrorKind::UnexpectedEof => "closed",
++            _ => "other",
++        },
++    };
++    known.to_string()
++}
++
++#[cfg(test)]
++mod io_reason_tests {
++    #[test]
++    fn io_reason_is_letters_and_dashes() {
++        for (code, expected) in [(37, "no-locks"), (13, "denied"), (99, "os-jj"), (125, "os-bcf")] {
++            assert_eq!(super::io_reason(&std::io::Error::from_raw_os_error(code)), expected);
++        }
++        assert_eq!(super::io_reason(&std::io::Error::other("x")), "other");
++    }
++}

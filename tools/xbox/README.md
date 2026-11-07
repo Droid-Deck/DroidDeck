@@ -5,15 +5,16 @@ service. It does not install the Nexus desktop launcher or x86 Linux Wine.
 `backend.lock.json` pins Xodus, the Nexus commit, Rust, and the ordered patch
 checksums. `runtime.lock.json` pins the Nexus Windows runtime release and each
 extracted PE DLL. `prepare.py` verifies both source revisions and all Nexus patch
-checksums before applying the local transport, launch and library patches.
+checksums before applying `droiddeck-nexus-offline.patch`, which contains the local
+transport, launch and library changes.
 
-`droiddeck-cloud-token.patch` adds `xodus-cli cloud-token`: the stored account's
+The Android account adapter includes `xodus-cli cloud-token`: the stored account's
 Xbox Cloud Gaming sign-in (XSTS for `http://gssv.xboxlive.com/`, then the streaming
 service's `/v2/login/user`) and the login proof token a session's `/connect` step
 takes. It prints one JSON object and never opens a login or provisions a device.
 Ported from Bannerlator.
 
-`droiddeck-library-subscriptions.patch` queries fresh subscription membership
+The library adapter queries fresh subscription membership
 alongside product entitlements using the same Store session, account and market.
 Android can validate a Game Pass child's parent plan when that plan is absent
 from the product response. A failed membership query fails the refresh and
@@ -36,17 +37,17 @@ patched backend source archive and the checksum-verified runtime source archive
 in the build cache and publishes both in CI's `xbox-corresponding-source`
 artifact; distribute corresponding sources with published binaries.
 
-`droiddeck-credential-fallback.patch` names the reason when the backend cannot reach the
+The credential transport names the reason when the backend cannot reach the
 app's credential socket (`NEXUS_CREDENTIAL_ERROR_V1 socket-refused`, `-denied`, ...) and then
 uses a keyed loopback port the app also listens on; some devices refuse the abstract socket
 from inside PRoot. The key is passed in the backend's environment only.
 
-`droiddeck-credential-diagnostics.patch` names the step behind a `credential-io` failure: the
+The credential diagnostics name the step behind a `credential-io` failure: the
 session lock (`lock-dir-owner`, `lock-file-mode`, `lock-flock-<reason>`, ...), a socket or loopback
 exchange that broke after connecting (`socket-exchange-<reason>`), a malformed host reply, or a
 missing socket name, port or key. Errno values without a name are spelled with letters, a = 0 ... j = 9.
 
-`droiddeck-credentials.patch` replaces Linux Secret Service with a bounded,
+The credential adapter replaces Linux Secret Service with a bounded,
 Android abstract socket restricted to the backend process started by the host. The Android host encrypts every persistent
 write using its existing Keystore cipher, verifies backend read-backs, and
 rejects writes when Keystore is unavailable. No token values enter process
@@ -82,7 +83,7 @@ Cookies and page storage are cleared for each attempt. This protocol requires
 an embedded host for CloudExperienceHost messages; opening its URL in an ordinary
 Android browser does not complete it. Passkey behavior needs device testing.
 
-`droiddeck-launch-view.patch` materializes all licensed encrypted images,
+The launch adapter materializes all licensed encrypted images,
 including DLLs, in a private temporary directory. Original package files remain
 encrypted, and the temporary view is removed after the Wine child exits. Wine
 receives normal files with no Xodus FD-map requirement. This costs temporary
@@ -97,7 +98,12 @@ Steam games and other store prefixes retain their selected runtimes.
 
 Cloud saves and in-game identity use the reused XGameRuntime/service interfaces;
 those are game-dependent. Entitlements distinguish purchases from Game Pass
-access, and the backend performs a fresh license check for downloads and launch.
+access. Downloads and online launches perform a fresh license check. To prepare
+a compatible installed game for offline play, download the Xbox add-on, designate
+the device in the Xbox store profile, and launch the game online once. Offline
+launches validate a cached Xbox license scoped to the current account and device
+designation. They omit the live Xbox service. Games can still require their own
+online services. The add-on exposes this capability via `offline-permissions-v1`.
 The store lists PC MSIXVC games only. It does not emulate Xbox consoles or add
 support for UWP/APPX packages. Update / verify refreshes an installed package through the normal licensed
 streaming path. Manage content resolves manifest-related licensed PC DLC into

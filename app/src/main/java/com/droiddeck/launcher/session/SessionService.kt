@@ -329,14 +329,15 @@ class SessionService : Service() {
             stopSelf(startId)
             return START_NOT_STICKY
         }
-        startForeground(NOTIFICATION_ID, buildNotification())
+        val requestedMode = intent?.getStringExtra(EXTRA_MODE) ?: MODE_STEAM
+        startForeground(NOTIFICATION_ID, buildNotification(if (SessionState.running) SessionState.mode else requestedMode))
         if (SessionState.running) return START_NOT_STICKY
         if (SessionState.stopRequested) {
             SessionState.running = true
             stopSession(0)
             return START_NOT_STICKY
         }
-        SessionState.mode = intent?.getStringExtra(EXTRA_MODE) ?: MODE_STEAM
+        SessionState.mode = requestedMode
         SessionState.fpsLimit = 0
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
@@ -2190,7 +2191,7 @@ class SessionService : Service() {
     }
 
 
-    private fun buildNotification(): Notification {
+    private fun buildNotification(mode: String = SessionState.mode): Notification {
         val manager = getSystemService(NotificationManager::class.java)
         val channel = NotificationChannel(CHANNEL_ID, getString(R.string.session_channel),
             NotificationManager.IMPORTANCE_LOW).apply {
@@ -2225,7 +2226,8 @@ class SessionService : Service() {
                 when {
                     SessionState.suspended -> R.string.session_notification_paused
                     downloadsKeepAwake() -> R.string.session_notification_downloads
-                    else -> R.string.session_notification
+                    mode == MODE_STEAM -> R.string.session_notification
+                    else -> R.string.session_notification_active
                 }
             ))
             .setContentIntent(open)

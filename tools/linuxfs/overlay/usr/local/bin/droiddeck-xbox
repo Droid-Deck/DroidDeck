@@ -3,6 +3,7 @@ import hmac
 import json
 import os
 from pathlib import Path
+import re
 import runpy
 import secrets
 import shutil
@@ -228,7 +229,9 @@ def launch(command, env):
     stopped = threading.Event()
     close = lambda: None
     try:
-        port, key, close = bridge(reply['socket'])
+        offline = reply.get('offline') is True
+        if not offline:
+            port, key, close = bridge(reply['socket'])
 
         threading.Thread(target=renew_lease, args=(store['ask'], Path(launch_dir) / 'stores',
                          sidecar['id'], reply['lease'], stopped), daemon=True).start()
@@ -237,12 +240,28 @@ def launch(command, env):
             context.write_text(json.dumps(command), encoding='utf-8')
             context.chmod(0o600)
             owned_env = dict(env, DROIDDECK_XBOX_ACTIVE='1', DROIDDECK_XBOX_COMMAND_FILE=str(context),
-                             XODUS_SOCKET=reply['socket'], XODUS_BRIDGE_PORT=str(port), XODUS_BRIDGE_KEY=key,
                              XODUS_LOG='off', RUST_LOG='off', XODUS_SAVE_SYNC='auto' if sidecar.get('cloud', True) else 'off')
             for name in ('DROIDDECK_XBOX_CREDENTIAL_SOCKET', 'DROIDDECK_XBOX_CREDENTIAL_PORT', 'DROIDDECK_XBOX_CREDENTIAL_KEY'):
                 owned_env.pop(name, None)
-            if reply.get('playfab'):
-                owned_env['XODUS_XSTS_PLAYFAB'] = reply['playfab']
+            for name in ('XODUS_FORCE_OFFLINE', 'XODUS_OFFLINE_IDENTITY', 'XODUS_ACCOUNT_HASH', 'XODUS_XSTS_PLAYFAB'):
+                owned_env.pop(name, None)
+            identity = reply.get('offlineIdentity')
+            account_hash = reply.get('accountHash')
+            valid_account = isinstance(account_hash, str) and re.fullmatch(r'[0-9a-f]{32}', account_hash)
+            if offline and (identity != 'use' or not valid_account):
+                raise RuntimeError('Xbox offline launch returned an invalid identity scope')
+            if valid_account and identity == ('use' if offline else 'store'):
+                owned_env['XODUS_OFFLINE_IDENTITY'] = identity
+                owned_env['XODUS_ACCOUNT_HASH'] = account_hash
+            if offline:
+                for name in ('XODUS_SOCKET', 'XODUS_BRIDGE_PORT', 'XODUS_BRIDGE_KEY'):
+                    owned_env.pop(name, None)
+                owned_env['XODUS_FORCE_OFFLINE'] = '1'
+                owned_env['XODUS_SAVE_SYNC'] = 'off'
+            else:
+                owned_env.update(XODUS_SOCKET=reply['socket'], XODUS_BRIDGE_PORT=str(port), XODUS_BRIDGE_KEY=key)
+                if reply.get('playfab'):
+                    owned_env['XODUS_XSTS_PLAYFAB'] = reply['playfab']
             content = folder / '.xbox-content'
             roots = []
             if content.is_dir():

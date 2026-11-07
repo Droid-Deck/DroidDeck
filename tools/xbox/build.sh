@@ -27,11 +27,12 @@ install -m644 "$repo/tools/xbox/LICENSE.nexus" "$out/LICENSE.nexus"
 install -m644 "$repo/tools/xbox/LICENSE.LGPL-2.1" "$out/LICENSE.LGPL-2.1"
 install -m644 "$repo/tools/xbox/LICENSE.nghttp2" "$out/LICENSE.nghttp2"
 cp "$repo/tools/xbox/"*.lock.json "$out/"
-python3 - "$out" "$repo/tools/xbox/droiddeck-credentials.patch" <<'PY'
+printf '%s\n' '1' > "$out/offline-permissions-v1"
+python3 - "$out" "$repo/tools/xbox/droiddeck-nexus-offline.patch" <<'PY'
 import hashlib,json,pathlib,sys
 out=pathlib.Path(sys.argv[1])
 files={str(p.relative_to(out)):hashlib.sha256(p.read_bytes()).hexdigest() for p in out.rglob('*') if p.is_file() and p.name!='version'}
-files['credentialPatch']=hashlib.sha256(pathlib.Path(sys.argv[2]).read_bytes()).hexdigest()
+files['backendPatch']=hashlib.sha256(pathlib.Path(sys.argv[2]).read_bytes()).hexdigest()
 (out/'version').write_text(hashlib.sha256(json.dumps(files,sort_keys=True).encode()).hexdigest()+'\n')
 PY
 tar -cJf "$cache/xodus-droiddeck-source.tar.xz" --exclude=.git --exclude=target -C "$source_dir" . -C "$repo" tools/xbox
