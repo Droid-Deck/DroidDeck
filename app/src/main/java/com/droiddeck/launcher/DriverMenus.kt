@@ -79,9 +79,11 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         mode = uiMode, display = displaySlot(), runtime = runtimeSlot(),
         canRestart = !sessionRunning,
         checkedAt = TurnipReleases.cached(activity)?.checkedAt ?: 0L,
-        tpUbwcMode = tpUbwcMode.takeIf { gpu.model == 740 },
-        tpUbwcRestartRequired = com.droiddeck.launcher.gpu.TpUbwcHint.restartRequired(activity),
     )
+
+    fun tpUbwcModeForDevice(): String? = tpUbwcMode.takeIf { gpu.model == 740 }
+
+    fun tpUbwcRestartRequired(): Boolean = com.droiddeck.launcher.gpu.TpUbwcHint.restartRequired(activity)
 
     fun chooseTpUbwcMode(mode: String) {
         if (gpu.model != 740) return
@@ -127,8 +129,14 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         )
     }
 
+    var restartBlocked: () -> Boolean = { SessionState.running }
+
+    fun loadTpUbwcMode() {
+        tpUbwcMode = SessionPrefs.tpUbwcMode(activity)
+    }
+
     fun restartApp() {
-        if (SessionState.running) return
+        if (restartBlocked()) return
         val launch = activity.packageManager.getLaunchIntentForPackage(activity.packageName) ?: return
         activity.startActivity(android.content.Intent.makeRestartActivityTask(launch.component)
             .putExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV, "components"))

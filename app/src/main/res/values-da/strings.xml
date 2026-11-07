@@ -1226,7 +1226,6 @@
     <string name="gpu_none_listed">Ingen drivere på listen endnu. Opdater for at søge efter dem.</string>
     <string name="gpu_hide_other">Skjul drivere til andre GPU’er</string>
     <string name="gpu_show_other">Vis drivere til andre GPU’er</string>
-    <string name="gpu_advanced">Avanceret</string>
     <string name="gpu_ubwc_title">UBWC-kompatibilitet</string>
     <string name="gpu_ubwc_hint">Prøv Til eller Fra, hvis Steam eller Android viser striber eller flimmer. Gælder begge drivere efter genstart af DroidDeck.</string>
     <string name="gpu_ubwc_restart">Genstart DroidDeck for at anvende.</string>

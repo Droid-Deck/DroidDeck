@@ -1233,7 +1233,6 @@
     <string name="gpu_none_listed">Aucun pilote répertorié pour le moment. Actualisez pour rechercher des pilotes.</string>
     <string name="gpu_hide_other">Masquer les pilotes des autres GPU</string>
     <string name="gpu_show_other">Afficher les pilotes des autres GPU</string>
-    <string name="gpu_advanced">Avancé</string>
     <string name="gpu_ubwc_title">Compatibilité UBWC</string>
     <string name="gpu_ubwc_hint">Essayez Activé ou Désactivé si Steam ou Android affiche des bandes ou des scintillements. S\'applique aux deux pilotes après le redémarrage de DroidDeck.</string>
     <string name="gpu_ubwc_restart">Redémarrez DroidDeck pour appliquer.</string>

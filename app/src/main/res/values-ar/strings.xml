@@ -1254,7 +1254,6 @@
     <string name="gpu_none_listed">لا توجد برامج تشغيل مُدرَجة حتى الآن. حدِّث للبحث عنها.</string>
     <string name="gpu_hide_other">إخفاء برامج التشغيل لوحدات GPU الأخرى</string>
     <string name="gpu_show_other">إظهار برامج التشغيل لوحدات GPU الأخرى</string>
-    <string name="gpu_advanced">متقدّم</string>
     <string name="gpu_ubwc_title">توافق UBWC</string>
     <string name="gpu_ubwc_hint">جرّب التشغيل أو الإيقاف إذا ظهرت خطوط أو وميض في Steam أو Android. يُطبَّق على برنامجَي التشغيل كليهما بعد إعادة تشغيل DroidDeck.</string>
     <string name="gpu_ubwc_restart">أعِد تشغيل DroidDeck للتطبيق.</string>

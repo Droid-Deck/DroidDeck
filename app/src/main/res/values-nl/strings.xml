@@ -1226,7 +1226,6 @@
     <string name="gpu_none_listed">Nog geen drivers vermeld. Vernieuw om ernaar te zoeken.</string>
     <string name="gpu_hide_other">Drivers voor andere GPU’s verbergen</string>
     <string name="gpu_show_other">Drivers voor andere GPU’s tonen</string>
-    <string name="gpu_advanced">Geavanceerd</string>
     <string name="gpu_ubwc_title">UBWC-compatibiliteit</string>
     <string name="gpu_ubwc_hint">Probeer Aan of Uit als Steam of Android strepen of flikkering toont. Geldt voor beide drivers na het herstarten van DroidDeck.</string>
     <string name="gpu_ubwc_restart">Start DroidDeck opnieuw om dit toe te passen.</string>

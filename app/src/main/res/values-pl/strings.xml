@@ -1240,7 +1240,6 @@
     <string name="gpu_none_listed">Brak sterowników na liście. Odśwież, aby ich poszukać.</string>
     <string name="gpu_hide_other">Ukryj sterowniki innych GPU</string>
     <string name="gpu_show_other">Pokaż sterowniki innych GPU</string>
-    <string name="gpu_advanced">Zaawansowane</string>
     <string name="gpu_ubwc_title">Zgodność UBWC</string>
     <string name="gpu_ubwc_hint">Wypróbuj Włączone lub Wyłączone, jeśli Steam lub Android pokazuje pasy lub migotanie. Dotyczy obu sterowników po ponownym uruchomieniu DroidDeck.</string>
     <string name="gpu_ubwc_restart">Uruchom ponownie DroidDeck, aby zastosować.</string>

@@ -1303,7 +1303,6 @@
     <string name="gpu_none_listed">Aún no hay controladores listados. Actualiza para buscarlos.</string>
     <string name="gpu_hide_other">Ocultar controladores de otras GPU</string>
     <string name="gpu_show_other">Mostrar controladores de otras GPU</string>
-    <string name="gpu_advanced">Avanzado</string>
     <string name="gpu_ubwc_title">Compatibilidad con UBWC</string>
     <string name="gpu_ubwc_hint">Prueba Activado o Desactivado si Steam o Android muestran franjas o parpadeos. Se aplica a ambos controladores después de reiniciar DroidDeck.</string>
     <string name="gpu_ubwc_restart">Reinicia DroidDeck para aplicarlo.</string>

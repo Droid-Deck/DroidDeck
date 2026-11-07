@@ -1226,7 +1226,6 @@
     <string name="gpu_none_listed">Inga drivrutiner listade än. Uppdatera för att söka efter dem.</string>
     <string name="gpu_hide_other">Dölj drivrutiner för andra GPU:er</string>
     <string name="gpu_show_other">Visa drivrutiner för andra GPU:er</string>
-    <string name="gpu_advanced">Avancerat</string>
     <string name="gpu_ubwc_title">UBWC-kompatibilitet</string>
     <string name="gpu_ubwc_hint">Prova På eller Av om Steam eller Android visar ränder eller flimmer. Gäller båda drivrutinerna efter omstart av DroidDeck.</string>
     <string name="gpu_ubwc_restart">Starta om DroidDeck för att tillämpa.</string>

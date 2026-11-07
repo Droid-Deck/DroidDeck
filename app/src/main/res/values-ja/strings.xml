@@ -1219,7 +1219,6 @@
     <string name="gpu_none_listed">ドライバーがまだ一覧表示されていません。更新してドライバーを検索してください。</string>
     <string name="gpu_hide_other">他のGPUのドライバーを非表示</string>
     <string name="gpu_show_other">他のGPUのドライバーを表示</string>
-    <string name="gpu_advanced">詳細設定</string>
     <string name="gpu_ubwc_title">UBWC互換性</string>
     <string name="gpu_ubwc_hint">SteamやAndroidで縞模様やちらつきが出る場合は、オンまたはオフを試してください。DroidDeckの再起動後、両方のドライバーに適用されます。</string>
     <string name="gpu_ubwc_restart">適用するにはDroidDeckを再起動してください。</string>

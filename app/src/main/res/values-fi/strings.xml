@@ -1226,7 +1226,6 @@
     <string name="gpu_none_listed">Ei ajureita listattuna vielä. Päivitä etsiäksesi niitä.</string>
     <string name="gpu_hide_other">Piilota muiden GPU:iden ajurit</string>
     <string name="gpu_show_other">Näytä muiden GPU:iden ajurit</string>
-    <string name="gpu_advanced">Lisäasetukset</string>
     <string name="gpu_ubwc_title">UBWC-yhteensopivuus</string>
     <string name="gpu_ubwc_hint">Kokeile Päällä tai Pois, jos Steamissa tai Androidissa näkyy raitoja tai välkyntää. Koskee molempia ajureita DroidDeckin uudelleenkäynnistyksen jälkeen.</string>
     <string name="gpu_ubwc_restart">Käynnistä DroidDeck uudelleen, jotta muutos tulee voimaan.</string>
