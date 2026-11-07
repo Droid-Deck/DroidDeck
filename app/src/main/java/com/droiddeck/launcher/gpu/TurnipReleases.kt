@@ -96,7 +96,7 @@ object TurnipReleases {
                 // The non-Adreno repo keeps one release per driver plus many component builds (gamescope,
                 // Venus): its driver pairs fall past the first 15, so it is read in one full page.
                 val perPage = if (src.repo == NON_ADRENO_REPO) 100 else 15
-                val releases = JSONArray(get(context, "https://api.github.com/repos/${src.repo}/releases?per_page=$perPage"))
+                val releases = JSONArray(fetch(context, "https://api.github.com/repos/${src.repo}/releases?per_page=$perPage"))
                 val seen = HashSet<String>()
                 var newest: String? = null
                 for (i in 0 until releases.length()) {
@@ -137,6 +137,8 @@ object TurnipReleases {
         prefs(context).edit().putString(KEY_RELEASE, stored.toString()).apply()
         return parse(stored)
     }
+
+    internal var fetch: (Context, String) -> String = { context, url -> get(context, url) }
 
     internal fun carryOver(failed: List<String>, previous: JSONObject?, assets: JSONArray, latest: JSONArray) {
         if (previous == null || failed.isEmpty()) return
