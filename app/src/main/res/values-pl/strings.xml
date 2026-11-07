@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">Resetowanie grafiki i ponowne otwieranie SteamVR…</string>
     <string name="steamvr_recovery_failed">Nie udało się automatycznie uruchomić ponownie DroidDeck. Całkowicie zamknij aplikację, a potem otwórz ją ponownie.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>Przy pierwszym uruchomieniu pobierany jest Steam. Może to potrwać kilka minut.</item>
-        <item>Domyślnie wyjście z aplikacji wstrzymuje Steam; po powrocie wznowi on działanie tam, gdzie przerwał.</item>
-        <item>Twój kontroler jest widoczny jako pad Xbox 360. Bez niego użyj sterowania ekranowego.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Przy pierwszym uruchomieniu konfigurowany jest pulpit. Może to potrwać kilka minut.</item>
-        <item>Domyślnie wyjście z aplikacji wstrzymuje sesję; po powrocie wznowi się ona tam, gdzie została przerwana.</item>
-        <item>Ekran działa jak touchpad: przeciągnij, aby przesunąć kursor, dotknij, aby kliknąć.</item>
-        <item>Twój kontroler jest widoczny jako pad Xbox 360. Bez niego użyj sterowania ekranowego.</item>
-    </string-array>
     <string name="session_channel">Sesja</string>
     <string name="session_channel_description">Widoczne, gdy otwarta jest sesja Steam lub pulpitu</string>
     <string name="session_notification">Steam działa</string>

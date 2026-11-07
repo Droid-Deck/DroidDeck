@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">그래픽을 초기화하고 SteamVR을 다시 여는 중…</string>
     <string name="steamvr_recovery_failed">DroidDeck을 자동으로 다시 시작하지 못했습니다. 앱을 완전히 종료한 후 다시 여세요.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>첫 실행 시 Steam을 다운로드합니다. 몇 분 정도 걸릴 수 있습니다.</item>
-        <item>기본적으로 앱을 나가면 Steam이 일시 중지되며, 다시 돌아오면 중단된 부분부터 재개됩니다.</item>
-        <item>컨트롤러는 Xbox 360 컨트롤러로 인식됩니다. 컨트롤러가 없으면 화면 컨트롤을 사용하세요.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>첫 실행 시 데스크톱을 설정합니다. 몇 분 정도 걸릴 수 있습니다.</item>
-        <item>기본적으로 앱을 나가면 세션이 일시 중지되며, 다시 돌아오면 중단된 부분부터 재개됩니다.</item>
-        <item>터치는 트랙패드처럼 작동합니다. 드래그하여 포인터를 이동하고, 탭하여 클릭합니다.</item>
-        <item>컨트롤러는 Xbox 360 컨트롤러로 인식됩니다. 컨트롤러가 없으면 화면 컨트롤을 사용하세요.</item>
-    </string-array>
     <string name="session_channel">세션</string>
     <string name="session_channel_description">Steam 또는 데스크톱 세션이 실행 중일 때 표시</string>
     <string name="session_notification">Steam이 실행 중입니다</string>

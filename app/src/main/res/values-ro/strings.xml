@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">Se resetează grafica și se redeschide SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck nu a putut reporni automat. Închide complet aplicația, apoi redeschide-o.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>Prima rulare descarcă Steam. Poate dura câteva minute.</item>
-        <item>În mod implicit, la părăsirea aplicației, Steam este pus pe pauză; continuă de unde ai rămas când te întorci.</item>
-        <item>Controllerul tău apare ca un gamepad Xbox 360. Altfel, folosește comenzile de pe ecran.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Prima rulare configurează desktopul. Poate dura câteva minute.</item>
-        <item>În mod implicit, la părăsirea aplicației, sesiunea este pusă pe pauză; continuă de unde ai rămas când te întorci.</item>
-        <item>Atingerea funcționează ca un touchpad: trage pentru a mișca cursorul, apasă scurt pentru a face clic.</item>
-        <item>Controllerul tău apare ca un gamepad Xbox 360. Altfel, folosește comenzile de pe ecran.</item>
-    </string-array>
     <string name="session_channel">Sesiune</string>
     <string name="session_channel_description">Apare cât timp o sesiune Steam sau desktop este activă</string>
     <string name="session_notification">Steam este în execuție</string>

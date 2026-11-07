@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">Grafikler sıfırlanıyor ve SteamVR yeniden açılıyor…</string>
     <string name="steamvr_recovery_failed">DroidDeck otomatik olarak yeniden başlatılamadı. Uygulamayı tamamen kapatıp yeniden açın.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>İlk çalıştırmada Steam indirilir. Bu işlem birkaç dakika sürebilir.</item>
-        <item>Varsayılan olarak uygulamadan çıkınca Steam duraklatılır; geri döndüğünüzde kaldığı yerden devam eder.</item>
-        <item>Kumandanız Xbox 360 kumandası olarak görünür. Kumanda yoksa ekran üstü kontrolleri kullanın.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>İlk çalıştırmada masaüstü kurulur. Bu işlem birkaç dakika sürebilir.</item>
-        <item>Varsayılan olarak uygulamadan çıkınca oturum duraklatılır; geri döndüğünüzde kaldığı yerden devam eder.</item>
-        <item>Dokunma, dokunmatik yüzey gibi çalışır: işaretçiyi taşımak için sürükleyin, tıklamak için dokunun.</item>
-        <item>Kumandanız Xbox 360 kumandası olarak görünür. Kumanda yoksa ekran üstü kontrolleri kullanın.</item>
-    </string-array>
     <string name="session_channel">Oturum</string>
     <string name="session_channel_description">Steam veya masaüstü oturumu açıkken gösterilir</string>
     <string name="session_notification">Steam çalışıyor</string>

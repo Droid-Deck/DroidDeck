@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">Återställer grafiken och öppnar SteamVR igen…</string>
     <string name="steamvr_recovery_failed">DroidDeck kunde inte starta om automatiskt. Stäng appen helt och öppna den sedan igen.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>Första starten laddar ned Steam. Det kan ta några minuter.</item>
-        <item>Som standard pausas Steam när du lämnar appen. Det fortsätter där det slutade när du kommer tillbaka.</item>
-        <item>Din handkontroll visas som en Xbox 360-kontroll. Annars kan du använda skärmkontrollerna.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Första starten konfigurerar skrivbordet. Det kan ta några minuter.</item>
-        <item>Som standard pausas sessionen när du lämnar appen. Den fortsätter där den slutade när du kommer tillbaka.</item>
-        <item>Pekskärmen fungerar som en pekplatta: dra för att flytta pekaren, tryck för att klicka.</item>
-        <item>Din handkontroll visas som en Xbox 360-kontroll. Annars kan du använda skärmkontrollerna.</item>
-    </string-array>
     <string name="session_channel">Session</string>
     <string name="session_channel_description">Visas medan en Steam- eller skrivbordssession är öppen</string>
     <string name="session_notification">Steam körs</string>

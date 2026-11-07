@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">Сброс графики и повторный запуск SteamVR…</string>
     <string name="steamvr_recovery_failed">Не удалось автоматически перезапустить DroidDeck. Полностью закройте приложение и откройте его снова.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>При первом запуске будет загружен Steam. Это может занять несколько минут.</item>
-        <item>По умолчанию при выходе из приложения Steam приостанавливается; при возвращении работа возобновляется с того же места.</item>
-        <item>Ваш контроллер отображается как геймпад Xbox 360. Если контроллера нет, используйте экранные элементы управления.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>При первом запуске будет настроен рабочий стол. Это может занять несколько минут.</item>
-        <item>По умолчанию при выходе из приложения сессия приостанавливается; при возвращении работа возобновляется с того же места.</item>
-        <item>Сенсорный ввод работает как тачпад: перетаскивайте для перемещения курсора, нажимайте для клика.</item>
-        <item>Ваш контроллер отображается как геймпад Xbox 360. Если контроллера нет, используйте экранные элементы управления.</item>
-    </string-array>
     <string name="session_channel">Сессия</string>
     <string name="session_channel_description">Отображается, пока открыта сессия Steam или рабочего стола</string>
     <string name="session_notification">Steam запущен</string>

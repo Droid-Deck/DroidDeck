@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">Nollataan grafiikkaa ja avataan SteamVR uudelleen…</string>
     <string name="steamvr_recovery_failed">DroidDeck ei pystynyt käynnistymään uudelleen automaattisesti. Sulje sovellus kokonaan ja avaa se sitten uudelleen.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>Ensimmäinen käynnistys lataa Steamin. Tämä voi kestää muutaman minuutin.</item>
-        <item>Oletuksena sovelluksesta poistuminen keskeyttää Steamin; se jatkuu siitä mihin jäit, kun palaat takaisin.</item>
-        <item>Ohjaimesi näkyy Xbox 360 -ohjaimena. Muussa tapauksessa käytä näytön ohjaimia.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Ensimmäinen käynnistys määrittää työpöydän. Tämä voi kestää muutaman minuutin.</item>
-        <item>Oletuksena sovelluksesta poistuminen keskeyttää istunnon; se jatkuu siitä mihin jäit, kun palaat takaisin.</item>
-        <item>Kosketus toimii kosketuslevynä: vedä liikuttaaksesi osoitinta, napauta napsauttaaksesi.</item>
-        <item>Ohjaimesi näkyy Xbox 360 -ohjaimena. Muussa tapauksessa käytä näytön ohjaimia.</item>
-    </string-array>
     <string name="session_channel">Istunto</string>
     <string name="session_channel_description">Näkyy, kun Steam- tai työpöytäistunto on käynnissä</string>
     <string name="session_notification">Steam on käynnissä</string>

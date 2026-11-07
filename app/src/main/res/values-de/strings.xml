@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">Grafik wird zurückgesetzt und SteamVR neu geöffnet …</string>
     <string name="steamvr_recovery_failed">DroidDeck konnte nicht automatisch neu starten. Schließe die App vollständig und öffne sie dann erneut.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>Beim ersten Start wird Steam heruntergeladen. Das kann ein paar Minuten dauern.</item>
-        <item>Standardmäßig pausiert Steam, wenn du die App verlässt, und macht bei deiner Rückkehr dort weiter, wo es aufgehört hat.</item>
-        <item>Dein Controller erscheint als Xbox-360-Pad. Ansonsten nutze die Bildschirmsteuerung.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Beim ersten Start wird der Desktop eingerichtet. Das kann ein paar Minuten dauern.</item>
-        <item>Standardmäßig wird die Sitzung pausiert, wenn du die App verlässt, und macht bei deiner Rückkehr dort weiter, wo sie aufgehört hat.</item>
-        <item>Touch funktioniert wie ein Touchpad: Ziehen bewegt den Zeiger, Tippen klickt.</item>
-        <item>Dein Controller erscheint als Xbox-360-Pad. Ansonsten nutze die Bildschirmsteuerung.</item>
-    </string-array>
     <string name="session_channel">Sitzung</string>
     <string name="session_channel_description">Wird angezeigt, solange eine Steam- oder Desktop-Sitzung geöffnet ist</string>
     <string name="session_notification">Steam läuft</string>

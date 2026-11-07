@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">Нулиране на графиката и повторно отваряне на SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck не успя да се рестартира автоматично. Затворете приложението напълно и след това го отворете отново.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>Първото стартиране изтегля Steam. Това може да отнеме няколко минути.</item>
-        <item>По подразбиране излизането от приложението поставя Steam на пауза; при връщане продължава от същото място.</item>
-        <item>Контролерът ви се разпознава като контролер Xbox 360. В противен случай използвайте екранните контроли.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Първото стартиране подготвя работния плот. Това може да отнеме няколко минути.</item>
-        <item>По подразбиране излизането от приложението поставя сесията на пауза; при връщане тя продължава от същото място.</item>
-        <item>Докосването действа като тъчпад: плъзгане премества показалеца, докосване щраква.</item>
-        <item>Контролерът ви се разпознава като контролер Xbox 360. В противен случай използвайте екранните контроли.</item>
-    </string-array>
     <string name="session_channel">Сесия</string>
     <string name="session_channel_description">Показва се, докато има отворена сесия на Steam или работния плот</string>
     <string name="session_notification">Steam работи</string>

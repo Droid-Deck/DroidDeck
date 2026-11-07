@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">جارٍ إعادة ضبط الرسومات وإعادة فتح SteamVR…</string>
     <string name="steamvr_recovery_failed">تعذّر على DroidDeck إعادة التشغيل تلقائيًا. أغلق التطبيق تمامًا، ثم أعد فتحه.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>يُنزَّل Steam عند التشغيل الأول. قد يستغرق ذلك بضع دقائق.</item>
-        <item>افتراضيًا، يؤدي الخروج من التطبيق إلى إيقاف Steam مؤقتًا، ويُستأنف من حيث توقف عند عودتك.</item>
-        <item>تظهر وحدة التحكم لديك كوحدة تحكم Xbox 360. وإلا، فاستخدم عناصر التحكم على الشاشة.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>يُعَدّ سطح المكتب عند التشغيل الأول. قد يستغرق ذلك بضع دقائق.</item>
-        <item>افتراضيًا، يؤدي الخروج من التطبيق إلى إيقاف الجلسة مؤقتًا، وتُستأنف من حيث توقفت عند عودتك.</item>
-        <item>يعمل اللمس كلوحة لمس: اسحب لتحريك المؤشر، وانقر لتنفيذ نقرة.</item>
-        <item>تظهر وحدة التحكم لديك كوحدة تحكم Xbox 360. وإلا، فاستخدم عناصر التحكم على الشاشة.</item>
-    </string-array>
     <string name="session_channel">الجلسة</string>
     <string name="session_channel_description">يظهر أثناء فتح جلسة Steam أو جلسة سطح المكتب</string>
     <string name="session_notification">Steam قيد التشغيل</string>
