@@ -5,7 +5,6 @@ import android.util.Log
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoresState
-import com.droiddeck.launcher.stores.battlenet.BattleNetInstall
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -74,9 +73,7 @@ object SavedQueue {
                             runCatching { com.droiddeck.launcher.stores.gog.GogMaintenance.restore(app, item) }
                                 .onFailure { DownloadQueue.recordFailed(app, DownloadEntry(item.store, item.id, item.title), it.message ?: "GOG recovery failed") }
                         }, "gog-restore").start()
-                    } else StoresState.install(app, if (item.store == Store.BATTLENET) {
-                        item.copy(extra = item.extra + (BattleNetInstall.RESTORE to "1"))
-                    } else item, root)
+                    } else StoresState.install(app, item, root)
                 }
             }
         }, "store-queue-restore").start()

@@ -136,23 +136,25 @@ object DownloadQueue {
         synchronized(lock) { cancelling.remove(key) }
     }
 
-    fun enqueue(context: Context, entry: DownloadEntry, factory: () -> DownloadJob) {
+    fun enqueue(context: Context, entry: DownloadEntry, onAccepted: (() -> Unit)? = null, factory: () -> DownloadJob): Boolean {
         val app = context.applicationContext
         synchronized(lock) {
             val cleanupKey = entry.cleanupKey
             if (cleanupKey != null && isCancelling(cleanupKey)) {
                 Log.i(TAG, "${entry.key}: previous cancellation is still cleaning up")
-                return
+                return false
             }
-            items[entry.key]?.let { if (it.entry.isActive) { Log.i(TAG, "${entry.key}: already queued"); return } }
+            items[entry.key]?.let { if (it.entry.isActive) { Log.i(TAG, "${entry.key}: already queued"); return false } }
             items.remove(entry.key)
             val state = if (heldPaused.remove(entry.key)) DownloadState.PAUSED else DownloadState.QUEUED
             items[entry.key] = Item(entry.copy(state = state, stage = DownloadStage.MANIFEST, startedAt = System.currentTimeMillis()), factory)
             renumber()
         }
+        onAccepted?.invoke()
         StoresState.logLine("${entry.store.label}: queued \"${entry.name}\"" + if (entry.bytesTotal > 0) " (${com.droiddeck.launcher.stores.formatBytes(entry.bytesTotal)})" else "")
         publish(app)
         advance(app)
+        return true
     }
 
     fun recordFailed(context: Context, entry: DownloadEntry, error: String, retry: (() -> Unit)? = null) {
@@ -265,26 +267,34 @@ object DownloadQueue {
     }
 
     fun clear(context: Context, key: String) {
-        val item = synchronized(lock) { items[key] } ?: return
-        if (item.entry.state == DownloadState.RUNNING || item.entry.state == DownloadState.QUEUED) return
-        if (item.entry.state == DownloadState.FAILED || item.entry.state == DownloadState.PAUSED) {
-            val cleanupKey = item.entry.cleanupKey?.takeIf { item.factory != null }
-            if (cleanupKey != null) {
-                synchronized(lock) { cancelling.add(cleanupKey) }
-                val worker = Thread({
-                    if (runCatching { item.factory?.invoke()?.cancel(deleteFiles = true) }.isFailure) {
-                        cleanupFinished(cleanupKey)
-                    }
-                }, "store-dl-clear")
-                try {
-                    worker.start()
-                } catch (t: Throwable) {
-                    cleanupFinished(cleanupKey)
-                    throw t
+        var claim: String? = null
+        val item = synchronized(lock) {
+            val current = items[key] ?: return
+            if (current.entry.state == DownloadState.RUNNING || current.entry.state == DownloadState.QUEUED) return
+            if (current.entry.state == DownloadState.FAILED || current.entry.state == DownloadState.PAUSED) {
+                val cleanupKey = current.entry.cleanupKey?.takeIf { current.factory != null }
+                if (cleanupKey != null && cleanupKey !in cancelling) {
+                    cancelling.add(cleanupKey)
+                    claim = cleanupKey
                 }
             }
+            items.remove(key)
+            publishLocked()
+            current
         }
-        synchronized(lock) { items.remove(key); publishLocked() }
+        claim?.let { cleanupKey ->
+            val worker = Thread({
+                if (runCatching { item.factory?.invoke()?.cancel(deleteFiles = true) }.isFailure) {
+                    cleanupFinished(cleanupKey)
+                }
+            }, "store-dl-clear")
+            try {
+                worker.start()
+            } catch (t: Throwable) {
+                cleanupFinished(cleanupKey)
+                throw t
+            }
+        }
         StoreDownloadService.finish(context.applicationContext, key)
     }
 

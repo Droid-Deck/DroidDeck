@@ -397,19 +397,24 @@ class BattleNetTest {
         assertNull(BattleNetInstall.installUid(context, InstalledStoreGame(sidecar, missing)))
     }
 
-    @Test fun aCancelledInstallRecoversTheMappedUidFromTheDriverCache() {
-        val item = CatalogItem(Store.BATTLENET, "osi", "Diablo II: Resurrected", null)
-        val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
-        val file = File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/battlenet/agent-osi.uid")
-        file.parentFile!!.mkdirs()
-        file.writeBytes("\uFEFFZ:/root/Games/Diablo II Resurrected\nosic".toByteArray(Charsets.UTF_16LE))
-        assertEquals("osic", BattleNetInstall.cachedUid(context, item, folder))
-        assertNull(BattleNetInstall.cachedUid(context, item, File(folder, "other")))
-        file.writeBytes("\uFEFFosic".toByteArray(Charsets.UTF_16LE))
-        assertNull(BattleNetInstall.cachedUid(context, item, folder))
-        file.writeBytes("\uFEFFZ:/root/Games/Diablo II Resurrected\nosic".toByteArray(Charsets.UTF_16LE))
-        BattleNetInstall.clearCachedUid(context, item)
-        assertNull(BattleNetInstall.cachedUid(context, item, folder))
+    @Test fun aRegistrationForAMissingFolderStillCountsAsPreexisting() {
+        val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent").mkdirs()
+        val folder = File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/Diablo III")
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").writeBytes(message(
+            field(1, message(field(1, "d3cn"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/Diablo III"))))),
+        ))
+        assertTrue(BattleNet.games(context).none { it.folder.absolutePath == folder.absolutePath })
+        assertEquals(listOf("d3cn"), BattleNet.registrationsAt(context, "diablo3", folder))
+        folder.mkdirs()
+        val uninstalled = AtomicBoolean(false)
+        val item = CatalogItem(Store.BATTLENET, "diablo3", "Diablo III", null)
+        BattleNetInstaller(context, item, folder, false, {
+            uninstalled.set(true)
+            true
+        }).cancel(true)
+        Thread.sleep(100)
+        assertFalse("a registration whose folder was missing is still pre-existing", uninstalled.get())
     }
 
     @Test fun aPreexistingRegistrationIsNotUninstalled() {
@@ -418,14 +423,11 @@ class BattleNetTest {
             Store.BATTLENET, "osi", "Diablo II: Resurrected", null,
             extra = mapOf(BattleNetInstall.PREEXISTING to "1"),
         )
-        val game = BattleNet.Game(item.id, item.title, "OSI", folder, "osic")
         val uninstalled = AtomicBoolean(false)
         val installer = BattleNetInstaller(context, item, folder, false, {
             uninstalled.set(true)
             true
-        }) {
-            game
-        }
+        }) { "osic" }
         installer.cancel(true)
         Thread.sleep(100)
         assertFalse("a registration that existed before the task must survive", uninstalled.get())
@@ -433,9 +435,10 @@ class BattleNetTest {
 
     @Test fun aCancelledInstallUninstallsOnlyTheRegistrationItCreated() {
         val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
-        val item = CatalogItem(Store.BATTLENET, "osi", "Diablo II: Resurrected", null)
-        val game = BattleNet.Game(item.id, item.title, "OSI", folder, "osic")
-        var calls = 0
+        val item = CatalogItem(
+            Store.BATTLENET, "osi", "Diablo II: Resurrected", null,
+            extra = mapOf(BattleNetInstall.PREEXISTING to "0"),
+        )
         val seen = AtomicReference<String?>(null)
         val done = CountDownLatch(1)
         val installer = BattleNetInstaller(context, item, folder, false, { uid ->
@@ -443,7 +446,7 @@ class BattleNetTest {
             done.countDown()
             true
         }) {
-            if (++calls == 1) null else game
+            "osic"
         }
         installer.cancel(true)
         assertTrue(done.await(5, TimeUnit.SECONDS))
@@ -453,7 +456,6 @@ class BattleNetTest {
     @Test fun aLateRegistrationReportedWhileTheWorkerStopsIsUsedForCancellation() {
         val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
         val item = CatalogItem(Store.BATTLENET, "osi", "Diablo II: Resurrected", null)
-        val game = BattleNet.Game(item.id, item.title, "OSI", folder, "osic")
         var visible = false
         val seen = AtomicReference<String?>(null)
         val done = CountDownLatch(1)
@@ -462,7 +464,7 @@ class BattleNetTest {
             done.countDown()
             true
         }) {
-            if (visible) game else null
+            if (visible) "osic" else null
         }
         val started = BattleNetInstaller::class.java.getDeclaredField("started").apply { isAccessible = true }
         (started.get(installer) as AtomicBoolean).set(true)
@@ -479,18 +481,15 @@ class BattleNetTest {
         val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
         val item = CatalogItem(
             Store.BATTLENET, "osi", "Diablo II: Resurrected", null,
-            extra = mapOf(BattleNetInstall.RESTORE to "1", BattleNetInstall.PREEXISTING to "0"),
+            extra = mapOf(BattleNetInstall.PREEXISTING to "0"),
         )
-        val game = BattleNet.Game(item.id, item.title, "OSI", folder, "osic")
         val seen = AtomicReference<String?>(null)
         val done = CountDownLatch(1)
         BattleNetInstaller(context, item, folder, false, { uid ->
             seen.set(uid)
             done.countDown()
             true
-        }) {
-            game
-        }.cancel(true)
+        }) { "osic" }.cancel(true)
         assertTrue(done.await(5, TimeUnit.SECONDS))
         assertEquals("osic", seen.get())
     }

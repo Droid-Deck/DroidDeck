@@ -148,6 +148,36 @@ class DownloadQueueRetryTest {
         DownloadQueue.clear(app, entry.key)
     }
 
+    @Test fun aRejectedEnqueueDoesNotRunItsAcceptedCallback() {
+        val entry = DownloadEntry(
+            Store.BATTLENET, "rejected-enqueue", "Rejected enqueue",
+            cleanupKey = "${Store.BATTLENET.id}:rejected-enqueue",
+        )
+        val started = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        DownloadQueue.enqueue(app, entry) {
+            object : DownloadQueue.DownloadJob {
+                override fun run(handle: DownloadQueue.JobHandle): String? {
+                    started.countDown()
+                    release.await()
+                    return null
+                }
+                override fun cancel(deleteFiles: Boolean) {}
+            }
+        }
+        assertTrue(started.await(5, TimeUnit.SECONDS))
+        var accepted = false
+        assertFalse(DownloadQueue.enqueue(app, entry, onAccepted = { accepted = true }) {
+            object : DownloadQueue.DownloadJob {
+                override fun run(handle: DownloadQueue.JobHandle): String? = null
+                override fun cancel(deleteFiles: Boolean) {}
+            }
+        })
+        assertFalse(accepted)
+        release.countDown()
+        DownloadQueue.clear(app, entry.key)
+    }
+
     @Test fun aFactorylessFailedBattleNetEntryDoesNotBlockAReplacement() {
         val entry = DownloadEntry(Store.BATTLENET, "factoryless-failure", "Factoryless failure")
         DownloadQueue.recordFailed(app, entry, "failed before a job existed")
@@ -215,6 +245,42 @@ class DownloadQueueRetryTest {
             Thread.sleep(10)
         }
         DownloadQueue.clear(app, entry.key)
+    }
+
+    @Test fun aDoubleClearStartsOneCleanup() {
+        val entry = DownloadEntry(
+            Store.BATTLENET, "double-clear", "Double clear",
+            cleanupKey = "${Store.BATTLENET.id}:double-clear",
+        )
+        val cancelled = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val cancels = AtomicInteger()
+        val job = object : DownloadQueue.DownloadJob {
+            override fun run(handle: DownloadQueue.JobHandle): String? = null
+            override fun cancel(deleteFiles: Boolean) {
+                if (!deleteFiles) return
+                cancels.incrementAndGet()
+                cancelled.countDown()
+                Thread({
+                    release.await()
+                    DownloadQueue.cleanupFinished(entry.key)
+                }, "test-double-clear").start()
+            }
+        }
+        DownloadQueue.enqueue(app, entry) { job }
+        val failedUntil = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (DownloadQueue.entry(entry.key)?.state != DownloadState.FAILED && System.nanoTime() < failedUntil) {
+            Thread.sleep(10)
+        }
+        DownloadQueue.clear(app, entry.key)
+        DownloadQueue.clear(app, entry.key)
+        assertTrue(cancelled.await(5, TimeUnit.SECONDS))
+        assertEquals(1, cancels.get())
+        assertTrue(DownloadQueue.isCancelling(entry.key))
+        release.countDown()
+        val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (DownloadQueue.isCancelling(entry.key) && System.nanoTime() < until) Thread.sleep(10)
+        assertFalse(DownloadQueue.isCancelling(entry.key))
     }
 
     @Test fun aCancelledBattleNetJobBlocksAReplacementWhileCleanupRuns() {

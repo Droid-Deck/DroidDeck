@@ -35,7 +35,6 @@ object BattleNetInstall {
     internal const val STATE = "BNET_STATE "
     internal const val DONE = "BNET_DONE "
     internal const val ERROR = "BNET_ERROR "
-    internal const val UID = "BNET_UID "
     private const val CN = "cn"
     private const val BUILD_INFO = ".build.info"
     private const val CHECK_AGAIN_MS = 30 * 60_000L
@@ -115,25 +114,16 @@ object BattleNetInstall {
     fun enqueue(context: Context, item: CatalogItem, folder: File, update: Boolean = false) {
         val app = context.applicationContext
         val recorded = item.extra[PREEXISTING]
-        val existing = when (recorded) {
-            "1" -> true
-            "0" -> false
-            else -> runCatching {
-                BattleNet.games(app).any {
-                    it.folder.absolutePath == folder.absolutePath && it.uid == item.id
-                }
-            }.getOrDefault(true)
-        }
-        val tagged = item.copy(extra = item.extra + (PREEXISTING to if (existing) "1" else "0"))
+        val tagged = if (recorded == "0" || recorded == "1") item
+        else item.copy(extra = item.extra + (PREEXISTING to "pending"))
         val entry = DownloadEntry(
             Store.BATTLENET, tagged.id, tagged.title, cover = tagged.tallImageUrl ?: tagged.imageUrl,
             location = StoreInstallRoot.labelFor(app, folder),
             cleanupKey = "${Store.BATTLENET.id}:${tagged.id}",
         )
-        SavedQueue.remember(app, tagged, folder.parentFile?.parentFile)
-        if (!update && item.extra[RESTORE] != "1" && !DownloadQueue.isActive(entry.key) &&
-            !DownloadQueue.isCancelling(entry.key)) clearCachedUid(app, item)
-        DownloadQueue.enqueue(app, entry) { BattleNetInstaller(app, tagged, folder, update) }
+        DownloadQueue.enqueue(app, entry, onAccepted = {
+            SavedQueue.remember(app, tagged, folder.parentFile?.parentFile)
+        }) { BattleNetInstaller(app, tagged, folder, update) }
     }
 
     fun update(context: Context, game: InstalledStoreGame) {
@@ -154,7 +144,6 @@ object BattleNetInstall {
     }
 
     internal const val INSTALL_UID = "installUid"
-    internal const val RESTORE = "restore"
     internal const val PREEXISTING = "preexisting"
 
     internal fun installUid(context: Context, game: InstalledStoreGame): String? {
@@ -162,33 +151,6 @@ object BattleNetInstall {
         val folder = game.folder.absolutePath
         val sameTitle = games.filter { it.uid == game.sidecar.id }
         return sameTitle.firstOrNull { it.folder.absolutePath == folder }?.installUid
-    }
-
-    private fun cachedUidFile(context: Context, item: CatalogItem): File {
-        val original = item.extra[INSTALL_UID] ?: BattleNet.title(item.id)?.uid ?: item.id
-        return File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/battlenet/agent-$original.uid")
-    }
-
-    internal fun clearCachedUid(context: Context, item: CatalogItem) {
-        runCatching { cachedUidFile(context, item).delete() }
-    }
-
-    internal fun cachedUid(context: Context, item: CatalogItem, folder: File? = null): String? {
-        val bytes = runCatching { cachedUidFile(context, item).readBytes() }.getOrNull() ?: return null
-        val text = runCatching {
-            if (bytes.size >= 2 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xFE.toByte()) String(bytes, Charsets.UTF_16LE)
-            else String(bytes, Charsets.UTF_8)
-        }.getOrNull() ?: return null
-        val lines = text.removePrefix("\uFEFF").lines().map { it.trim() }.filter { it.isNotEmpty() }
-        if (lines.isEmpty()) return null
-        val uid = lines.last()
-        if (!uid.matches(Regex("[a-z0-9_]{1,32}"))) return null
-        if (folder != null) {
-            if (lines.size < 2) return null
-            val saved = BattleNet.hostFolder(context, lines.first()) ?: return null
-            if (saved.absolutePath != folder.absolutePath) return null
-        }
-        return uid
     }
 
     fun uninstall(context: Context, game: InstalledStoreGame): Boolean {
@@ -314,12 +276,8 @@ internal class BattleNetInstaller(
     private val folder: File,
     private val update: Boolean,
     private val uninstall: (String) -> Boolean = { BattleNetInstall.agentUninstall(app, it) },
-    private val registration: () -> BattleNet.Game? = {
-        runCatching {
-            BattleNet.games(app).firstOrNull {
-                it.folder.absolutePath == folder.absolutePath && it.uid == item.id
-            }
-        }.getOrNull()
+    private val registration: () -> String? = {
+        runCatching { BattleNet.registrationsAt(app, item.id, folder).firstOrNull() }.getOrNull()
     },
 ) : DownloadQueue.DownloadJob {
     private val cancelled = AtomicBoolean(false)
@@ -327,18 +285,20 @@ internal class BattleNetInstaller(
     private val started = AtomicBoolean(false)
     private val queueKey = DownloadEntry(Store.BATTLENET, item.id, item.title).key
     private val ended = java.util.concurrent.CountDownLatch(1)
-    @Volatile private var effectiveUid: String? = null
-    @Volatile private var preexisting = when (item.extra[BattleNetInstall.PREEXISTING]) {
-        "1" -> true
-        "0" -> false
-        else -> false
-    }
+    @Volatile private var ownershipKnown = item.extra[BattleNetInstall.PREEXISTING] in setOf("0", "1")
+    @Volatile private var preexisting = item.extra[BattleNetInstall.PREEXISTING] == "1"
     private var before = 0L
     private var kept = -1L
 
     override fun run(handle: DownloadQueue.JobHandle): String? {
-        if (!cancelled.get() && item.extra[BattleNetInstall.PREEXISTING] == null) {
+        if (!cancelled.get() && !ownershipKnown) {
             preexisting = runCatching { registration() != null }.getOrDefault(true)
+            ownershipKnown = true
+            SavedQueue.remember(
+                app,
+                item.copy(extra = item.extra + (BattleNetInstall.PREEXISTING to if (preexisting) "1" else "0")),
+                folder.parentFile?.parentFile,
+            )
         }
         started.set(true)
         try {
@@ -371,8 +331,6 @@ internal class BattleNetInstaller(
                 line == BattleNetInstall.STATE + "starting" -> handle.stage(DownloadStage.MANIFEST, app.getString(R.string.bnet_dl_starting))
                 line.startsWith(BattleNetInstall.DONE) -> done = runCatching { JSONObject(line.removePrefix(BattleNetInstall.DONE)) }.getOrNull()
                 line.startsWith(BattleNetInstall.ERROR) -> reason = line.removePrefix(BattleNetInstall.ERROR)
-                line.startsWith(BattleNetInstall.UID) ->
-                    effectiveUid = line.removePrefix(BattleNetInstall.UID).trim().takeIf { it.isNotEmpty() }
             }
         }
         if (cancelled.get()) return null
@@ -406,9 +364,7 @@ internal class BattleNetInstaller(
             return
         }
         if (!cleanupStarted.compareAndSet(false, true)) return
-        if (!started.get() && item.extra[BattleNetInstall.PREEXISTING] == null) {
-            preexisting = runCatching { registration() != null }.getOrDefault(true)
-        }
+        if (!started.get() && !ownershipKnown) preexisting = true
         val cleanup = Thread({
             try {
                 val stopped = !started.get() || ended.await(END_WAIT_S, TimeUnit.SECONDS)
@@ -418,11 +374,11 @@ internal class BattleNetInstaller(
                     Log.i("BattleNetInstall", "cancelled install left the pre-existing registration in ${folder.path}")
                 } else {
                     val created = runCatching { registration() }.getOrNull()
-                    val gone = created?.installUid?.let(uninstall) ?: false
+                    val gone = created?.let(uninstall) ?: false
                     if (gone || created == null && folder.isDirectory && folder.list().isNullOrEmpty()) {
                         com.droiddeck.launcher.core.FileUtils.delete(folder)
                     }
-                    Log.i("BattleNetInstall", "cancelled install of ${created?.installUid ?: "an unstarted job"}: ${if (gone) "removed" else "left for Battle.net to remove"}")
+                    Log.i("BattleNetInstall", "cancelled install of ${created ?: "an unstarted job"}: ${if (gone) "removed" else "left for Battle.net to remove"}")
                 }
             } finally {
                 DownloadQueue.cleanupFinished(queueKey)
