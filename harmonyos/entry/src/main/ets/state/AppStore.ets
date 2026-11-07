@@ -243,8 +243,19 @@ export class AppStore {
     return this.runtime !== undefined && this.runtime.running;
   }
 
-  /** Human readable label for the detected GPU driver. */
+  /**
+   * Human readable label for the driver the guest renders with.
+   *
+   * Upstream's taxonomy names the driver *builds* it ships for each GPU
+   * family (Turnip for Adreno, PanVK for Mali), and the phone's GPU does
+   * drive the compositor. The guest itself cannot use it: those builds
+   * need a device node (/dev/kgsl, /dev/mali0) that an app sandbox on
+   * HarmonyOS does not get, so the runtime pins Mesa's software driver
+   * instead (see RuntimeService.vulkanIcd()). The label therefore names
+   * the phone's GPU and says where the guest's frames are rendered.
+   */
   gpuDriverLabel(): string {
-    return GpuClassifier.driverLabel(this.device.gpuFamily);
+    const name = this.device.gpuName.length > 0 ? this.device.gpuName : 'Unknown GPU';
+    return `${name} - the guest renders on the CPU (Mesa lavapipe)`;
   }
 }

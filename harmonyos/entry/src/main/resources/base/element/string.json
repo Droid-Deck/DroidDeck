@@ -62,7 +62,7 @@
 
     { "name": "settings_title", "value": "Settings" },
     { "name": "settings_gpu", "value": "Graphics" },
-    { "name": "settings_gpu_driver", "value": "Vulkan driver" },
+    { "name": "settings_gpu_driver", "value": "Guest graphics driver" },
     { "name": "settings_runtime", "value": "Runtime" },
     { "name": "settings_runtime_path", "value": "Runtime location" },
     { "name": "settings_controller", "value": "Controllers" },
@@ -82,7 +82,7 @@
     { "name": "gpu_mali_other", "value": "Mali through the phone's own driver (Venus)" },
     { "name": "gpu_unknown", "value": "Unknown GPU" },
     { "name": "gpu_gpu_name", "value": "GPU" },
-    { "name": "gpu_support", "value": "Support" },
+    { "name": "gpu_support", "value": "Upstream support" },
 
     { "name": "controller_title", "value": "Button mapping" },
     { "name": "controller_hint", "value": "Tap a button, then press the gamepad button you want to assign." },

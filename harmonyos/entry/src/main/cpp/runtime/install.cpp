@@ -261,7 +261,7 @@ UnpackResult ApplyOverlay(const std::string &archivePath, const std::string &roo
   if (!result.ok) {
     return result;
   }
-  DDK_LOGI("applied the overlay: %lld files", result.files);
+  DDK_LOGI("applied the overlay: %{public}lld files", result.files);
   return result;
 }
 
@@ -273,7 +273,7 @@ bool PrepareRootfs(const std::string &rootDir) {
   // Upstream binds this empty directory over /sys/fs/selinux, because the
   // guest's kernel interface refuses to list it.
   if (!MakeDirectories(rootDir + "/etc/droiddeck/empty")) {
-    DDK_LOGE("cannot create the empty directory in %s", rootDir.c_str());
+    DDK_LOGE("cannot create the empty directory in %{public}s", rootDir.c_str());
     return false;
   }
 
@@ -319,7 +319,7 @@ bool WriteVersionMarker(const std::string &rootDir, const std::string &version) 
     safe.push_back(ok ? c : '_');
   }
   if (!WriteTextFile(rootDir + "/.version", safe + "\n")) {
-    DDK_LOGE("cannot write the version marker in %s", rootDir.c_str());
+    DDK_LOGE("cannot write the version marker in %{public}s", rootDir.c_str());
     return false;
   }
   return true;

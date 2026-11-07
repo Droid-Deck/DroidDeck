@@ -48,7 +48,8 @@ harmonyos/
 │   │   └── resources/            strings, colours, media, rawfile/overlay
 │   ├── libs/arm64-v8a/             the libraries the HAP ships
 │   └── build-profile.json5       native build options (arm64-v8a)
-├── docs/PORTING.md               the full Android -> HarmonyOS mapping
+├── docs/HARDWARE.md               what a phone has to be able to do
+├── docs/PORTING.md                the full Android -> HarmonyOS mapping
 └── tools/
     ├── build_hap.sh               builds the HAP with DevEco Studio's hvigor
     ├── build_wayland_server.sh   rebuilds libwayland-server for musl
@@ -60,6 +61,8 @@ harmonyos/
     ├── check_guest_tools.py      checks the image has the guest's programs
     ├── check_native_api.py       checks the declarations against the module
     ├── check_native_deps.sh      checks the shipped libraries can be loaded
+    ├── check_device_capabilities.sh  checks a connected phone against the
+    │                                 hardware requirements
     ├── fetch_upstream_runtime.sh downloads the published runtime
     ├── install_cxx_runtime.sh    installs libc++_shared.so into the HAP
     ├── package_port.sh           packs the port into a zip
@@ -466,12 +469,13 @@ unless it was verified.
 | Guest session launch | **done** | The session page starts `/usr/local/bin/droiddeck-session` with upstream's `BL_*` environment |
 | Guest Vulkan driver | **done** | The guest is pinned to lavapipe, the only driver in the image that works without a GPU device node |
 | App configuration | **done, checked** | The manifests are validated against the SDK's own schemas; see `tools/check_app_config.py` |
-| Guest audio | **built, untested** | A PulseAudio server for aarch64-musl and the sink module that feeds the speaker; see `docs/PORTING.md` |
+| Guest audio | **built, untested** | A PulseAudio server for aarch64-musl, its daemon and the sink module that feeds the speaker; see `docs/PORTING.md` |
 | Virtual gamepad | **not working** | `/dev/uinput` is not available to an app; touch and keyboard still reach the guest |
 | Runtime smoke artifact | **done** | A minimal installable rootfs that proves the guest can start in the sandbox |
 | ArkTS type check | **done, clean** | 0 errors and 0 warnings against the API 26 SDK; the native calls are checked too; see `tools/typecheck_arkts.py` |
 | Native module declarations | **done** | `entry/src/main/cpp/types/libdroiddeck_native/index.d.ts`, checked against the module by `tools/check_native_api.py` |
 | ArkUI sources | **structurally checked** | The ArkUI DSL needs the ArkTS compiler, so these are checked structurally |
+| Phone hardware | **documented** | What the port needs from a phone, and how to check the one in your hand: `docs/HARDWARE.md` and `tools/check_device_capabilities.sh` |
 | Guest bring-up on a real device | **not verified** | Needs a HarmonyOS 7 device and the runtime artifact |
 | HAP packaging | **not verified** | Hvigor and the ArkTS compiler are not publicly obtainable, so the build itself needs DevEco Studio |
 | Steam / Proton inside the guest | **not done** | Needs the guest runtime to boot first; see `docs/PORTING.md` |

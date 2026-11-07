@@ -136,7 +136,7 @@ bool DecompressZstd(const std::string &source, const std::string &destination) {
       outputBuffer.pos = 0;
       const size_t result = ZSTD_decompressStream(stream, &outputBuffer, &inputBuffer);
       if (ZSTD_isError(result)) {
-        DDK_LOGE("zstd: %s", ZSTD_getErrorName(result));
+        DDK_LOGE("zstd: %{public}s", ZSTD_getErrorName(result));
         ok = false;
         break;
       }
@@ -302,7 +302,7 @@ bool ExtractTar(const std::string &archive, const std::string &destination, long
       }
       unlink(path.c_str());
       if (symlink(linkName.c_str(), path.c_str()) != 0) {
-        DDK_LOGW("symlink failed: %s", path.c_str());
+        DDK_LOGW("symlink failed: %{public}s", path.c_str());
       }
       if (fileCount != nullptr) {
         ++(*fileCount);
@@ -328,7 +328,7 @@ bool ExtractTar(const std::string &archive, const std::string &destination, long
       if (link(targetPath.c_str(), path.c_str()) != 0) {
         // A hard link across devices cannot be made, so the content is
         // copied instead.
-        DDK_LOGW("hard link failed, copying instead: %s", path.c_str());
+        DDK_LOGW("hard link failed, copying instead: %{public}s", path.c_str());
         std::vector<char> payload(1 << 16);
         FILE *source = fopen(targetPath.c_str(), "rb");
         if (source != nullptr) {
@@ -373,7 +373,7 @@ bool ExtractTar(const std::string &archive, const std::string &destination, long
     std::vector<char> payload(static_cast<size_t>(size));
     const size_t filled = payload.empty() ? 0 : fread(payload.data(), 1, payload.size(), file);
     if (!WriteFile(path, payload.data(), filled, fileMode)) {
-      DDK_LOGW("write failed: %s", path.c_str());
+      DDK_LOGW("write failed: %{public}s", path.c_str());
     }
     if (fileCount != nullptr) {
       ++(*fileCount);
@@ -439,7 +439,7 @@ UnpackResult UnpackArchive(const std::string &archivePath, const std::string &de
   }
 
   result.ok = true;
-  DDK_LOGI("unpacked %lld files into %s", result.files, destination.c_str());
+  DDK_LOGI("unpacked %{public}lld files into %{public}s", result.files, destination.c_str());
   return result;
 }
 

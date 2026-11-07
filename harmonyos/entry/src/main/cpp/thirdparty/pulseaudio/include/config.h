@@ -229,7 +229,7 @@
 
 #define PA_BINARY "/usr/local/bin/pulseaudio"
 
-#define PA_BUILDDIR "/private/var/folders/9h/7ygyr1zd4q71vd43666wqc_w0000gp/T/droiddeck-pulseaudio/build"
+#define PA_BUILDDIR "/Users/hermes/ddk-toolchain/build/pulseaudio/build"
 
 #define PA_CFLAGS "Not yet supported on meson"
 
@@ -255,7 +255,7 @@
 
 #define PA_SOEXT ".so"
 
-#define PA_SRCDIR "/private/var/folders/9h/7ygyr1zd4q71vd43666wqc_w0000gp/T/droiddeck-pulseaudio/pulseaudio-17.0/src"
+#define PA_SRCDIR "/Users/hermes/ddk-toolchain/build/pulseaudio/pulseaudio-17.0/src"
 
 #define PA_SYSTEM_CONFIG_PATH "/var/local/lib/pulse"
 
@@ -269,5 +269,5 @@
 
 #define PULSE_LOCALEDIR "/usr/local/share/locale"
 
-#define top_srcdir /private/var/folders/9h/7ygyr1zd4q71vd43666wqc_w0000gp/T/droiddeck-pulseaudio/pulseaudio-17.0
+#define top_srcdir /Users/hermes/ddk-toolchain/build/pulseaudio/pulseaudio-17.0
 

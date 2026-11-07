@@ -24,7 +24,7 @@ struct vkp_image *vkp_image_create_shm(int w, int h) {
   }
   image->texture = ddk::SurfaceHost::Instance().CreateTexture(w, h);
   if (image->texture == 0) {
-    DDK_LOGW("cannot create a %dx%d guest frame texture", w, h);
+    DDK_LOGW("cannot create a %{public}dx%{public}d guest frame texture", w, h);
     std::free(image);
     return nullptr;
   }

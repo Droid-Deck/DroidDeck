@@ -264,6 +264,45 @@ cpu = 'aarch64'
 endian = 'little'
 EOF
 
+# The daemon.
+#
+# The port ships it as a shared library, the way upstream does: the app's
+# native library directory is where the HAP's binaries are packaged and the
+# one place on HarmonyOS where a binary can be executed. The entry point is
+# main(), so the library can be run directly.
+#
+# The patch has to be in place before meson configures the daemon, so it
+# runs before the build below.
+python3 - "${source_dir}" <<'PY'
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+manifest = root / 'src/daemon/meson.build'
+text = manifest.read_text()
+
+old = "executable('pulseaudio',"
+new = """shared_library('pulseaudio',
+  pulseaudio_sources,
+  pulseaudio_headers,
+  name_prefix : 'lib',
+  include_directories : [configinc, topinc],
+  link_args : ['-Wl,-e,main', '-ffast-math'],
+  link_with : [libpulsecore],
+  dependencies : [ltdl_dep, cap_dep, dbus_dep, libsystemd_dep, dl_dep, libintl_dep, platform_dep, platform_socket_dep, libpulsecommon_dep, libpulse_dep],
+  c_args : pa_c_args,
+  install : true,
+)
+
+executable('pulseaudio',"""
+
+if new not in text:
+    manifest.write_text(text.replace(old, new, 1))
+    print('patched: the daemon is built as a shared library too')
+else:
+    print('the daemon is already built as a shared library')
+PY
+
 if [ ! -f "${build_dir}/build.ninja" ]; then
   echo "==> configuring for aarch64-linux-musl"
   # Everything that needs a desktop or a service manager is off: this build
@@ -301,41 +340,6 @@ fi
 echo "==> building"
 meson compile -C "${build_dir}"
 
-# The daemon.
-#
-# The port ships it as a shared library, the way upstream does: the app's
-# native library directory is where the HAP's binaries are packaged and the
-# one place on HarmonyOS where a binary can be executed. The entry point is
-# main(), so the library can be run directly.
-python3 - "${source_dir}" <<'PY'
-import pathlib
-import sys
-
-root = pathlib.Path(sys.argv[1])
-manifest = root / 'src/daemon/meson.build'
-text = manifest.read_text()
-
-old = "executable('pulseaudio',"
-new = """shared_library('pulseaudio',
-  pulseaudio_sources,
-  pulseaudio_headers,
-  name_prefix : 'lib',
-  include_directories : [configinc, topinc],
-  link_args : ['-Wl,-e,main', '-ffast-math'],
-  link_with : [libpulsecore],
-  dependencies : [ltdl_dep, cap_dep, dbus_dep, libsystemd_dep, dl_dep, libintl_dep, platform_dep, platform_socket_dep, libpulsecommon_dep, libpulse_dep],
-  c_args : pa_c_args,
-  install : true,
-)
-
-executable('pulseaudio',"""
-
-if new not in text:
-    manifest.write_text(text.replace(old, new, 1))
-    print('patched: the daemon is built as a shared library too')
-else:
-    print('the daemon is already built as a shared library')
-PY
 
 echo "==> installing into the project"
 mkdir -p "${root}/entry/libs/arm64-v8a" "${root}/entry/src/main/cpp/thirdparty/pulseaudio/include"
@@ -369,10 +373,15 @@ while IFS= read -r lib; do
   install_one "${lib}" "${root}/entry/libs/arm64-v8a/${soname}"
 done < <(find "${build_dir}" -maxdepth 3 \( -name "libpulse*.so*" -o -name "libprotocol-native.so*" \) -type f)
 
-install_one "${build_dir}/src/pulseaudio/pulseaudio" \
+install_one "${build_dir}/src/daemon/pulseaudio" \
              "${root}/entry/libs/arm64-v8a/pulseaudio"
 # The daemon is built as a shared library, and meson prefixes the name with
-# "lib" of its own accord.
+# "lib" of its own accord. The app launches it by that name, so a build
+# without it has to fail here rather than at the first session on a phone.
+if [ ! -f "${build_dir}/src/daemon/libpulseaudio.so" ]; then
+  echo "the PulseAudio daemon was not built; look at ${work}/meson-logs" >&2
+  exit 1
+fi
 install_one "${build_dir}/src/daemon/libpulseaudio.so" \
              "${root}/entry/libs/arm64-v8a/libpulseaudio.so"
 
