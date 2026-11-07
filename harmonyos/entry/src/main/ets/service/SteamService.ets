@@ -24,6 +24,9 @@ export class SteamService {
     }
     const response = await HttpService.get(SteamService.APP_LIST_URL);
     if (!response.ok) {
+      // The store cannot be reached. Without this the library looks empty,
+      // which reads as "no games" rather than "the store is down".
+      Logger.error(`the Steam app list could not be fetched: ${response.code}`);
       return SteamService.appListCache;
     }
     try {

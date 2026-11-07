@@ -130,7 +130,13 @@ Two switches change what it does:
 
 A phone only installs a HAP that Huawei has signed, so the next step is
 DevEco Studio's **File > Project Structure > Signing Configs > Automatically
-generate signature**.
+generate signature**. `tools/sign_hap.sh` then signs the HAP from the
+command line with DevEco's own `hap-sign-tool`, and
+`tools/device_smoke.sh` installs it and reports what the port managed to do
+on the phone.
+
+`docs/DEVICE_TEST.md` has the whole path, from the DevEco download to the
+report the smoke test prints.
 
 ### What the HAP ships in `entry/libs/arm64-v8a/`
 

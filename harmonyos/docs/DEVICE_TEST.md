@@ -15,18 +15,79 @@ The first asks the phone what it is. The second installs the app, starts it
 and reads back what the port actually did. `harmonyos/docs/HARDWARE.md` has
 the requirements the first script checks against.
 
-## Before you start
+## From a checkout to a phone
 
-1. **The phone**: Settings > About phone > tap the build number seven times to
-   turn on developer mode, then Settings > System and updates > Developer
-   options > USB debugging. Plug it in and trust the computer.
-2. **The HAP**: build it with `tools/build_hap.sh`, check it with
-   `tools/check_hap.sh`, and sign it with `tools/sign_hap.sh`. The repository
-   ships no keys on purpose — signing needs your own Huawei account.
-   `tools/sign_hap.sh` drives DevEco Studio's own `hap-sign-tool`, so the
-   whole path is one command and no IDE has to be open.
-3. **The phone needs**: 3 GiB of free storage (the runtime image unpacks to
-   1.09 GiB) and 4 GiB of RAM. The first script says whether it has both.
+The whole path, in order. Every step is one command except the first two.
+
+### 1. Get DevEco Studio
+
+The build orchestrator (Hvigor), the package manager (ohpm) and Node are not
+in the public OpenHarmony SDK — they ship inside DevEco Studio.
+
+* Download the **macOS (ARM)** build for an Apple Silicon Mac from
+  <https://developer.huawei.com/consumer/cn/deveco-studio/>. The page asks for
+  a Huawei account; the file is named `devecostudio-mac-arm-<version>.dmg`.
+  The Intel build will not run on an Apple Silicon Mac.
+* Open the `.dmg` and drag **DevEco-Studio.app** into `/Applications`.
+* Launch it once and accept the licence. It may want to download the
+  HarmonyOS SDK (3–5 GB); the port builds against its own SDK copy if you
+  point `--sdk` at one, so this is not required.
+
+If DevEco Studio lives somewhere else, set `DEVECO_HOME` to its app bundle.
+
+### 2. Put the phone in developer mode
+
+Settings > About phone > tap the build number seven times, then Settings >
+System and updates > Developer options > **USB debugging**. Plug it in and
+trust the computer. `hdc list targets` must show it.
+
+### 3. Build the HAP
+
+```bash
+cd harmonyos
+tools/build_hap.sh
+```
+
+The script finds DevEco Studio, points the build at the SDK it installed, and
+writes an **unsigned** HAP under `entry/build/default/outputs/default/`. It
+checks the result with `tools/check_hap.sh` before it returns, so a HAP that
+is missing a library is caught here rather than on the phone.
+
+### 4. Sign it
+
+A phone only installs a HAP that Huawei has signed, and the signature is
+yours: the repository ships no keys on purpose.
+
+Generate a signature once in DevEco Studio — File > Project Structure >
+Signing Configs > *Automatically generate signature*, and sign in with your
+Huawei account. The files land in `~/.ohos/config/`.
+
+Then sign the HAP from the command line:
+
+```bash
+DDK_KEYSTORE_PASSWORD=... DDK_KEY_PASSWORD=... \
+  tools/sign_hap.sh --in entry/build/default/outputs/default/entry-default-unsigned.hap
+```
+
+`tools/sign_hap.sh` drives DevEco Studio's own `hap-sign-tool`, so no IDE has
+to be open. The passwords come from the environment, so they stay out of the
+shell history and out of the repository.
+
+### 5. Install it
+
+```bash
+hdc install entry/build/default/outputs/default/entry-default-signed.hap
+```
+
+### 6. Check what it managed to do
+
+```bash
+tools/device_smoke.sh --hap entry/build/default/outputs/default/entry-default-signed.hap
+```
+
+That installs it again, starts the app, waits for it to come up, reads the
+port's own log out of the phone and reports row by row what worked. The table
+below says what each row means.
 
 ## What the smoke test reports
 
