@@ -86,4 +86,62 @@ class InputLayoutToolsTest {
         val custom = InputSurfaceElement(InputControl.A, .1f, .1f, .1f, .1f, "custom", name = "Steam")
         assertFalse(InputSurfaceStyle(hidden = QUICK_BUTTONS.toSet()).hides(custom))
     }
+
+    private fun overlapping(elements: List<InputSurfaceElement>, width: Int, height: Int): List<Pair<String, String>> {
+        fun round(e: InputSurfaceElement) = e.buttonShape == InputButtonShape.CIRCLE && e.kind != InputElementKind.STICK
+        val result = mutableListOf<Pair<String, String>>()
+        for ((i, a) in elements.withIndex()) for (b in elements.drop(i + 1)) {
+            val ax = (a.x + a.width / 2) * width; val ay = (a.y + a.height / 2) * height
+            val bx = (b.x + b.width / 2) * width; val by = (b.y + b.height / 2) * height
+            val hit = if (round(a) && round(b)) {
+                val ra = minOf(a.width * width, a.height * height) / 2; val rb = minOf(b.width * width, b.height * height) / 2
+                kotlin.math.hypot(ax - bx, ay - by) < ra + rb - .5f
+            } else kotlin.math.abs(ax - bx) < (a.width + b.width) * width / 2 - .5f && kotlin.math.abs(ay - by) < (a.height + b.height) * height / 2 - .5f
+            if (hit) result += a.id to b.id
+        }
+        return result
+    }
+
+    @Test fun generatedGamepadSpacingFollowsButtonSize() {
+        for ((w, h) in listOf(1920 to 1080, 1280 to 960)) {
+            val normal = LegacyGamepadLayout(context, w, h).elements()
+            for (scale in listOf(.8f, 1.25f)) {
+                val elements = LegacyGamepadLayout(context, w, h, scale = scale).elements()
+                assertEquals("$w x $h at $scale", emptyList<Pair<String, String>>(), overlapping(elements, w, h))
+                val face = listOf("legacy:a", "legacy:y").map { id -> elements.first { it.id == id } }
+                val faceNormal = listOf("legacy:a", "legacy:y").map { id -> normal.first { it.id == id } }
+                val gap = (face[0].y - face[1].y) / (faceNormal[0].y - faceNormal[1].y)
+                if (scale > 1f) assertTrue(gap > 1f) else assertTrue(gap < 1f)
+            }
+        }
+    }
+
+    @Test fun scalingACustomLayoutScalesTheGapsBetweenNeighbours() {
+        val left = listOf(InputSurfaceElement(InputControl.A, .05f, .5f, .08f, .1f, "one", name = "One"),
+            InputSurfaceElement(InputControl.A, .16f, .5f, .08f, .1f, "two", name = "Two"))
+        val right = listOf(InputSurfaceElement(InputControl.A, .7f, .2f, .1f, .1f, "three", name = "Three"),
+            InputSurfaceElement(InputControl.A, .85f, .2f, .1f, .1f, "four", name = "Four"))
+        for (pair in listOf(left, right)) {
+            val gap = pair[1].x - (pair[0].x + pair[0].width)
+            val bigger = pair.scaled(1.25f)
+            assertEquals(gap * 1.25f, bigger[1].x - (bigger[0].x + bigger[0].width), .0001f)
+            val smaller = pair.scaled(.8f)
+            assertEquals(gap * .8f, smaller[1].x - (smaller[0].x + smaller[0].width), .0001f)
+            assertTrue((bigger + smaller).all { it.x >= 0f && it.x + it.width <= 1.0001f && it.y >= 0f && it.y + it.height <= 1.0001f })
+        }
+    }
+
+    @Test fun aScaledGamepadStaysGeneratedAndRegeneratesOnRotation() {
+        val (display, metrics) = InputLibraries.primaryDisplay(context)
+        val long = maxOf(metrics.widthPixels, metrics.heightPixels)
+        val short = minOf(metrics.widthPixels, metrics.heightPixels)
+        val gamepad = InputLibraries.read(context).layouts.first { it.id == InputLibraries.OVERLAY }
+        val scaled = gamepad.copy(scale = 1.25f, elements = LegacyGamepadLayout(display, long, short, scale = 1.25f).regenerate(gamepad.elements))
+        assertEquals(long to short, OnScreenLayout.generatedSize(context, scaled, long, short))
+        val rotated = OnScreenLayout.elements(context, scaled, short, long, android.graphics.Rect())
+        assertEquals(LegacyGamepadLayout(context, short, long, scale = 1.25f).regenerate(scaled.elements), rotated)
+        assertNull(OnScreenLayout.generatedSize(context, scaled.copy(scale = 1f), long, short))
+        InputLibraries.update(context) { it.withLayout(scaled) }
+        assertEquals(1.25f, InputLibraries.read(context).layouts.first { it.id == gamepad.id }.scale)
+    }
 }

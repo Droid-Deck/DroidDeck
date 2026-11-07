@@ -16,7 +16,7 @@ object OnScreenLayout {
         buttonsOnly: Boolean = false, dock: Dock? = null): List<InputSurfaceElement> {
         val stored = layout?.elements ?: return emptyList()
         if (width <= 0 || height <= 0) return stored
-        val generator = LegacyGamepadLayout(context, width, height, safe)
+        val generator = LegacyGamepadLayout(context, width, height, safe, layout.scale)
         if (buttonsOnly && dock == null) return generator.buttonsOnly(stored)
         val (reference, generated) = reference(context, layout, width, height)
         val gamepad = if (generated) stored.filter(::isGamepad) else emptyList()
@@ -53,7 +53,10 @@ object OnScreenLayout {
         }
     }
 
-    private fun isGamepad(e: InputSurfaceElement) = e.id.startsWith("legacy:") || e.id == KEYBOARD_ID
+    fun isGamepad(e: InputSurfaceElement) = e.id.startsWith("legacy:") || e.id == KEYBOARD_ID
+
+    fun generatedSize(context: Context, layout: SavedInputLayout, width: Int, height: Int): Pair<Int, Int>? =
+        reference(context, layout, width, height).takeIf { it.second }?.first?.let { it.first.toInt() to it.second.toInt() }
 
     private fun reference(context: Context, layout: SavedInputLayout, width: Int, height: Int): Pair<Pair<Float, Float>, Boolean> {
         val (display, metrics) = InputLibraries.primaryDisplay(context)
@@ -64,14 +67,14 @@ object OnScreenLayout {
             val named = layout.id.removePrefix("migrated.layout.").takeIf { it != layout.id }?.split('x')?.mapNotNull { it.toIntOrNull() }
                 ?.takeIf { it.size == 2 && it.all { size -> size > 0 } }?.let { it[0] to it[1] }
             for ((w, h) in listOfNotNull(named, width to height, long to short, short to long).distinct()) {
-                if (matches(gamepad, LegacyGamepadLayout(display, w, h).elements())) return (w.toFloat() to h.toFloat()) to true
+                if (matches(gamepad, LegacyGamepadLayout(display, w, h, scale = layout.scale).elements())) return (w.toFloat() to h.toFloat()) to true
             }
         }
         val aspect = layout.aspect.takeIf { it > 0f } ?: (long.toFloat() / short)
         return (aspect to 1f) to false
     }
 
-    private fun matches(stored: List<InputSurfaceElement>, generated: List<InputSurfaceElement>): Boolean {
+    fun matches(stored: List<InputSurfaceElement>, generated: List<InputSurfaceElement>): Boolean {
         val byId = generated.associateBy { it.id }
         return stored.all { e ->
             val g = byId[e.id] ?: return@all false

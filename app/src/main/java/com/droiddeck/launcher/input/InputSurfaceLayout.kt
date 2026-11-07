@@ -51,9 +51,15 @@ val InputSurfaceElement.quickButton: InputCommand? get() = when {
 }
 
 internal fun List<InputSurfaceElement>.scaled(factor: Float): List<InputSurfaceElement> = map { e ->
+    fun anchor(centre: Float) = when { centre < 1f / 3f -> 0f; centre > 2f / 3f -> 1f; else -> .5f }
     val w = (e.width * factor).coerceIn(.03f, 1f)
     val h = (e.height * factor).coerceIn(.03f, 1f)
-    e.copy(x = (e.x + (e.width - w) / 2).coerceIn(0f, 1f - w), y = (e.y + (e.height - h) / 2).coerceIn(0f, 1f - h), width = w, height = h).bounded()
+    val cx = e.x + e.width / 2
+    val cy = e.y + e.height / 2
+    val ax = anchor(cx)
+    val ay = anchor(cy)
+    e.copy(x = (ax + (cx - ax) * factor - w / 2).coerceIn(0f, 1f - w), y = (ay + (cy - ay) * factor - h / 2).coerceIn(0f, 1f - h),
+        width = w, height = h).bounded()
 }
 
 internal fun List<InputSurfaceElement>.withPositionsOf(defaults: List<InputSurfaceElement>): List<InputSurfaceElement> {

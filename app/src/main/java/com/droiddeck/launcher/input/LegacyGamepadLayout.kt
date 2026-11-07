@@ -4,7 +4,8 @@ import android.content.Context
 import android.graphics.Rect
 import kotlin.math.*
 
-internal class LegacyGamepadLayout(private val context: Context, private val width: Int, private val height: Int, private val safe: Rect = Rect()) {
+internal class LegacyGamepadLayout(private val context: Context, private val width: Int, private val height: Int, private val safe: Rect = Rect(),
+    private val scale: Float = 1f) {
     private val resources get() = context.resources
     private val settings = ControllerPrefs.read(context)
     private var fit = 1f
@@ -40,7 +41,7 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
 
     private fun dp(value: Float) = value * resources.displayMetrics.density
 
-    private fun scaled(value: Float) = dp(value) * settings.size / 100f * fit
+    private fun scaled(value: Float) = dp(value) * settings.size / 100f * scale * fit
 
     private fun fitScale(): Float {
         val metrics = resources.displayMetrics

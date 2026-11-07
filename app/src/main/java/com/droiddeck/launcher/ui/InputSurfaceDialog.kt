@@ -58,7 +58,11 @@ import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.input.*
 import com.droiddeck.launcher.session.SessionState
 
-private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputBindings, val defaults: List<InputSurfaceElement>? = null) {
+private data class SurfaceSnapshot(val elements: List<InputSurfaceElement>, val actions: Map<String, InputAction>,
+    val clicks: Map<String, InputAction>, val scale: Float)
+
+private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputBindings, val defaults: List<InputSurfaceElement>? = null,
+    private val generator: ((Float, List<InputSurfaceElement>) -> List<InputSurfaceElement>)? = null) {
     var elements by mutableStateOf(layout.elements)
     var actions by mutableStateOf(preset.elements)
     var clicks by mutableStateOf(preset.clicks)
@@ -70,20 +74,43 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     var adding by mutableStateOf(false)
     var properties by mutableStateOf(false)
     var clickProperties by mutableStateOf(false)
-    var history by mutableStateOf<List<Triple<List<InputSurfaceElement>, Map<String, InputAction>, Map<String, InputAction>>>>(emptyList())
-    private var scaleBase by mutableStateOf<Pair<List<InputSurfaceElement>, List<InputSurfaceElement>>?>(null)
+    var history by mutableStateOf<List<SurfaceSnapshot>>(emptyList())
+    var layoutScale by mutableFloatStateOf(layout.scale)
+    private var scaleBase by mutableStateOf<Triple<List<InputSurfaceElement>, List<InputSurfaceElement>, Float>?>(null)
     private var scaleValue by mutableIntStateOf(100)
-    val scale get() = if (scaleBase?.second == elements) scaleValue else 100
-    val positioned get() = defaults?.let { elements.withPositionsOf(it) }?.takeIf { it != elements }
-    val element get() = elements.firstOrNull { it.id == selected }
-    val dirty get() = elements != layout.elements || actions != preset.elements || clicks != preset.clicks
-    fun checkpoint() { history = (history + Triple(elements, actions, clicks)).takeLast(40) }
-    fun undo() { history.lastOrNull()?.let { elements = it.first; actions = it.second; clicks = it.third; history = history.dropLast(1) } }
-    fun scaleAll(percent: Int) {
-        val base = scaleBase?.takeIf { it.second == elements }?.first ?: elements.also { checkpoint() }
-        elements = base.scaled(percent / 100f); scaleValue = percent; scaleBase = base to elements
+    private var generatedCache: Triple<List<InputSurfaceElement>, Float, Boolean>? = null
+    private fun generatedAt(scale: Float, from: List<InputSurfaceElement> = elements): List<InputSurfaceElement>? = generator?.let { generate ->
+        val placed = generate(scale, from.filter(OnScreenLayout::isGamepad)).associateBy { it.id }
+        from.map { placed[it.id] ?: it }
     }
-    fun resetPositions() { positioned?.let { checkpoint(); elements = it } }
+    val generated: Boolean get() {
+        generatedCache?.takeIf { it.first == elements && it.second == layoutScale }?.let { return it.third }
+        val result = generatedAt(layoutScale)?.let { OnScreenLayout.matches(elements.filter(OnScreenLayout::isGamepad), it) } == true
+        generatedCache = Triple(elements, layoutScale, result)
+        return result
+    }
+    val scale get() = when {
+        scaleBase?.second == elements -> scaleValue
+        generated -> (layoutScale * 100).roundToInt()
+        else -> 100
+    }
+    val positioned get() = (if (generator != null) generatedAt(1f) else defaults?.let { elements.withPositionsOf(it) })
+        ?.takeIf { it != elements || layoutScale != 1f }
+    val element get() = elements.firstOrNull { it.id == selected }
+    val dirty get() = elements != layout.elements || actions != preset.elements || clicks != preset.clicks || layoutScale != layout.scale
+    fun checkpoint() { history = (history + SurfaceSnapshot(elements, actions, clicks, layoutScale)).takeLast(40) }
+    fun undo() { history.lastOrNull()?.let { elements = it.elements; actions = it.actions; clicks = it.clicks; layoutScale = it.scale; history = history.dropLast(1) } }
+    fun scaleAll(percent: Int) {
+        val base = scaleBase?.takeIf { it.second == elements } ?: Triple(elements, elements, if (generated) layoutScale else 0f).also { checkpoint() }
+        val factor = percent / 100f
+        elements = if (base.third > 0f) {
+            layoutScale = factor
+            val others = base.first.filterNot(OnScreenLayout::isGamepad).scaled(factor / base.third).associateBy { it.id }
+            generatedAt(factor, base.first)!!.map { others[it.id] ?: it }
+        } else base.first.scaled(factor)
+        scaleValue = percent; scaleBase = Triple(base.first, elements, base.third)
+    }
+    fun resetPositions() { positioned?.let { checkpoint(); elements = it; if (generator != null) layoutScale = 1f } }
     fun action(e: InputSurfaceElement) = preset.copy(elements = actions).action(e)
     fun clickAction(e: InputSurfaceElement) = preset.copy(elements = actions, clicks = clicks).clickAction(e)
 }
@@ -102,7 +129,13 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
     val savedBindings = remember { library.preset(bindingsId ?: library.profile(profile).binding(role)) }
     val layoutUsers = library.usersOfLayout(savedLayout.id).size
     val bindingUsers = library.usersOfBindings(savedBindings.id).size
-    val draft = remember { SurfaceDraft(savedLayout, savedBindings, InputLibraries.defaultPositions(context, library, savedLayout)) }
+    val draft = remember {
+        val (display, metrics) = InputLibraries.primaryDisplay(context)
+        val generator = OnScreenLayout.generatedSize(context, savedLayout, metrics.widthPixels, metrics.heightPixels)?.let { (w, h) ->
+            { scale: Float, stored: List<InputSurfaceElement> -> LegacyGamepadLayout(display, w, h, scale = scale).regenerate(stored) }
+        }
+        SurfaceDraft(savedLayout, savedBindings, InputLibraries.defaultPositions(context, library, savedLayout), generator)
+    }
     val manager = remember { context.getSystemService(DisplayManager::class.java) }
     var revision by remember { mutableIntStateOf(0) }
     var discard by remember { mutableStateOf(false) }
@@ -122,7 +155,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
             InputLibraries.update(context) { latest ->
                 val l = latest.layouts.first { it.id == savedLayout.id }
                 val p = latest.preset(savedBindings.id)
-                latest.withLayout(l.copy(elements = draft.elements, aspect = target?.let(::displayAspect) ?: l.aspect)).withPreset(p.copy(elements = draft.actions.filterKeys { id -> draft.elements.any { it.id == id } },
+                latest.withLayout(l.copy(elements = draft.elements, aspect = target?.let(::displayAspect) ?: l.aspect, scale = draft.layoutScale)).withPreset(p.copy(elements = draft.actions.filterKeys { id -> draft.elements.any { it.id == id } },
                     clicks = draft.clicks.filterKeys { id -> draft.elements.any { it.id == id && it.hasClick } }))
             }
         }.onSuccess { onChanged(); onDismiss() }.onFailure { failure = it.message ?: context.getString(R.string.input_save_failed) }
