@@ -49,6 +49,7 @@ harmonyos/
 │   ├── libs/arm64-v8a/             the libraries the HAP ships
 │   └── build-profile.json5       native build options (arm64-v8a)
 ├── docs/HARDWARE.md               what a phone has to be able to do
+├── docs/DEVICE_TEST.md             what the port has to do on a phone
 ├── docs/PORTING.md                the full Android -> HarmonyOS mapping
 └── tools/
     ├── build_hap.sh               builds the HAP with DevEco Studio's hvigor
@@ -64,6 +65,10 @@ harmonyos/
     ├── check_device_capabilities.sh  checks a connected phone against the
     │                                 hardware requirements
     ├── test_check_device_capabilities.sh  tests that probe without a phone
+    ├── device_smoke.sh              runs the port on a phone and reports what
+    │                                 it managed to do
+    ├── test_device_smoke.sh         tests that against a stand-in for hdc
+    ├── check_all.sh                 runs every check above, in one command
     ├── fetch_upstream_runtime.sh downloads the published runtime
     ├── install_cxx_runtime.sh    installs libc++_shared.so into the HAP
     ├── package_port.sh           packs the port into a zip
@@ -487,7 +492,7 @@ unless it was verified.
 | Native module declarations | **done** | `entry/src/main/cpp/types/libdroiddeck_native/index.d.ts`, checked against the module by `tools/check_native_api.py` |
 | ArkUI sources | **structurally checked** | The ArkUI DSL needs the ArkTS compiler, so these are checked structurally |
 | Phone hardware | **documented** | What the port needs from a phone, and how to check the one in your hand: `docs/HARDWARE.md` and `tools/check_device_capabilities.sh` |
-| Guest bring-up on a real device | **not verified** | Needs a HarmonyOS 7 device and the runtime artifact |
+| Guest bring-up on a real device | **ready to test** | `tools/device_smoke.sh` installs the HAP, starts the app and reports what the port managed to do, row by row; see `docs/DEVICE_TEST.md` |
 | HAP packaging | **not verified** | Hvigor and the ArkTS compiler are not publicly obtainable, so the build itself needs DevEco Studio |
 | Steam / Proton inside the guest | **not done** | Needs the guest runtime to boot first; see `docs/PORTING.md` |
 | Wayland desktop compositor | **partial** | The XComponent + EGL surface is in place; the Wayland server that draws into it is Phase 2 |
