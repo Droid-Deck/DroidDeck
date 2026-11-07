@@ -370,7 +370,7 @@ def main(argv):
         what = "steam"
     elif what == "script" and for_x86(path):
         what = "x86 script"
-    elif what in ("script", "elf") and not (mode == "exec" and (what == "script" or machine(head(path)) in EMULATED)) and game_folder(path):
+    elif what in ("script", "elf") and not (mode == "exec" and machine(head(path)) in EMULATED) and game_folder(path):
         what = "folder"
     try:
         cmd, folder = command(path, argv[1:], what, mode == "window", appid)
