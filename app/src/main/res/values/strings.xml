@@ -3852,4 +3852,18 @@
     <string name="wow_chat_listening">Listening…</string>
     <string name="wow_chat_voice_unavailable">Voice typing is not available on this device.</string>
     <string name="wow_chat_mic_denied">Microphone access is needed for voice typing.</string>
+    <string name="guide_button">Getting started</string>
+    <string name="guide_title">Getting started with DroidDeck</string>
+    <string name="guide_step_device_title">Check your device</string>
+    <string name="guide_step_device_body">You need Android 9 or newer and an Adreno 730 or newer GPU, or any Adreno 8xx. Keep about 3 GB free for the runtime, plus 1.1 GB if you want the desktop and emulators.</string>
+    <string name="guide_step_runtime_title">Install the Linux runtime</string>
+    <string name="guide_step_runtime_body">Tap Install next to Linux runtime on the Overview tab, or just press Play. The download is about 3 GB, so use Wi-Fi.</string>
+    <string name="guide_step_limit_title">Turn off the child-process limit</string>
+    <string name="guide_step_limit_body">On Android 14 and newer, turn on Disable child process restrictions in Developer options. On Android 12 and 13, use Fix it on the Overview tab. Without this, Android may close Steam.</string>
+    <string name="guide_step_steam_title">Press Play and sign in to Steam</string>
+    <string name="guide_step_steam_body">Steam opens in Gaming Mode. Sign in, and your library is ready to install and play.</string>
+    <string name="guide_step_help_title">Need help?</string>
+    <string name="guide_step_help_body">Ask on the DroidDeck Discord. For bugs, post in #bug-reports with the zip from Share logs.</string>
+    <string name="guide_install_runtime">Install runtime</string>
+    <string name="guide_done">Got it</string>
 </resources>
