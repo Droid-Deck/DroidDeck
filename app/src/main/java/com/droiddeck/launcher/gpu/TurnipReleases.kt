@@ -127,6 +127,7 @@ object TurnipReleases {
             }
         }
         if (failed.size == sources.size) throw lastError ?: IOException("no source answered")
+        carryOver(failed, prefs(context).getString(KEY_RELEASE, null)?.let { runCatching { JSONObject(it) }.getOrNull() }, assets, latest)
         runCatching { get(context, AutoPicks.URL, AutoPicks.URL) }
             .onFailure { Log.i(TAG, "auto picks: ${it.message}") }
             .getOrNull()?.takeIf { AutoPicks.parse(it) != null }
@@ -135,6 +136,14 @@ object TurnipReleases {
             .put("failed", JSONArray(failed)).put("checkedAt", System.currentTimeMillis())
         prefs(context).edit().putString(KEY_RELEASE, stored.toString()).apply()
         return parse(stored)
+    }
+
+    internal fun carryOver(failed: List<String>, previous: JSONObject?, assets: JSONArray, latest: JSONArray) {
+        if (previous == null || failed.isEmpty()) return
+        for ((key, into) in listOf("assets" to assets, "latest" to latest)) {
+            val old = previous.optJSONArray(key) ?: continue
+            for (i in 0 until old.length()) old.optJSONObject(i)?.takeIf { it.optString("source") in failed }?.let(into::put)
+        }
     }
 
     private fun get(context: Context, url: String): String {
