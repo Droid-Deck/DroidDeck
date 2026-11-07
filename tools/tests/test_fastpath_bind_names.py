@@ -106,6 +106,7 @@ class FastPathBindNamesTest(unittest.TestCase):
             (t / "b", "/opt/g"),
             (t / "fonts", "/mnt/x"),
             (t / "bound/temp", "/sys/class/thermal/zone28/temp"),
+            (t / "bound/temp", "/dev/stdin/x"),
         ]
 
     @classmethod
@@ -166,7 +167,8 @@ class FastPathBindNamesTest(unittest.TestCase):
             ("read", "/sys/class/thermal/zone28/temp/"),
             ("read", "/sys/class/thermal/zone28/../zone28/temp"),
             ("read", "/sys/class/thermal/zone28/missing"),
-        ), ["bound", "bound", "SLOW", "SLOW", "SLOW", "SLOW"])
+            ("read", "/dev/stdin/x"),
+        ), ["bound", "bound", "SLOW", "SLOW", "SLOW", "SLOW", "SLOW"])
 
     def test_chown_answers_like_the_kernel(self):
         t = self.tree

@@ -674,7 +674,7 @@ static int base_of(int dirfd, char *h) {
 
 static long bound_literal(const char *literal, struct res *r) {
   struct bind *bd;
-  if (bind_of(literal, &bd) < 0 || !bd || bd->glen != strlen(literal) || bd->glen < 2) return FP_SLOW;
+  if (reserved(literal) || bind_of(literal, &bd) < 0 || !bd || bd->glen != strlen(literal) || bd->glen < 2) return FP_SLOW;
   if (snprintf(r->host, PATH_MAX, "%s", bd->host) >= PATH_MAX) return FP_SLOW;
   if (sc(SYS_newfstatat, AT_FDCWD, (long)r->host, (long)&r->st, AT_SYMLINK_NOFOLLOW, 0) < 0 || S_ISLNK(r->st.st_mode)) return FP_SLOW;
   snprintf(r->guest, PATH_MAX, "%s", literal);
