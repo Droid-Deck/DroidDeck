@@ -271,8 +271,14 @@ plus C++ and Rust).
   have stayed blank. The thread that creates the context now lets go of it
   once the texture is made, and the EGL work is serialised against the
   teardown with a lock, so the compositor and the ArkUI thread cannot destroy
-  a context the other is using. What is still open is the compositor thread
-  itself: it is never stopped, so it lives for the life of the process.
+  a context the other is using.
+* **The compositor thread outlived the session.** It ran the Wayland event
+  loop for the life of the process, so a second session found the socket
+  already taken and its own compositor never started. The loop is now stopped
+  with `wl_display_terminate()` — the documented way to end a Wayland loop
+  from another thread — and the thread is joined before the session page
+  takes the surface down, so the compositor no longer delivers events to a
+  component that has gone away.
 
 ## 5. What carried over unchanged
 

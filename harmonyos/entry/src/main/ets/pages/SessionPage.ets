@@ -42,6 +42,10 @@ struct SessionPage {
   }
 
   aboutToDisappear(): void {
+    // The compositor is stopped first: it draws into the surface, and it has
+    // to be done with it before the surface is taken down.
+    CompositorBridge.stop();
+    this.compositorRunning = false;
     RuntimeService.Instance.stop();
     NativeBridge.surfaceDetach();
     NativeBridge.inputClose();

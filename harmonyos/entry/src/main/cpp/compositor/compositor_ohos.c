@@ -36,6 +36,7 @@
 
 // The compositor's own entry points, from compositor.c.
 extern int droiddeck_wayland_run(void);
+extern void droiddeck_wayland_stop(void);
 extern void droiddeck_wayland_send_pointer(int action, int x, int y);
 extern void droiddeck_wayland_send_touch(int action, int pointer_id, int x, int y);
 extern void droiddeck_wayland_send_key(int evdev, int state);
@@ -62,6 +63,8 @@ static napi_threadsafe_function g_events = NULL;
 static pthread_mutex_t g_events_lock = PTHREAD_MUTEX_INITIALIZER;
 static volatile pid_t g_comp_tid = 0;
 static volatile int g_running = 0;
+/** The compositor thread, so that it can be waited for when it is stopped. */
+static pthread_t g_thread = 0;
 
 /** The payload handed to the JS thread for one compositor event. */
 typedef struct {
@@ -238,7 +241,9 @@ static napi_value CompositorStart(napi_env env, napi_callback_info info) {
 
   pthread_t thread;
   if (pthread_create(&thread, NULL, comp_thread, NULL) == 0) {
-    pthread_detach(thread);
+    // The thread is not detached: the stop path waits for it, so it does not
+    // outlive the session and the surface it draws into.
+    g_thread = thread;
   } else {
     ALOGE("the compositor thread could not be started");
     // The caller has to be told: without a compositor there is nothing to
@@ -257,6 +262,16 @@ static napi_value CompositorStart(napi_env env, napi_callback_info info) {
 static napi_value CompositorStop(napi_env env, napi_callback_info info) {
   (void)info;
   g_running = 0;
+
+  // The event loop is stopped first, and the thread is waited for, so the
+  // compositor is not drawing into the surface any more by the time the
+  // session page takes it down.
+  droiddeck_wayland_stop();
+  if (g_thread != 0) {
+    pthread_join(g_thread, NULL);
+    g_thread = 0;
+  }
+
   pthread_mutex_lock(&g_events_lock);
   if (g_events != NULL) {
     napi_release_threadsafe_function(g_events, napi_tsfn_release);

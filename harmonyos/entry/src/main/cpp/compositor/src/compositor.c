@@ -3888,6 +3888,31 @@ static void start_test_input(struct wl_event_loop *loop) {
 
 static struct wl_listener g_client_created = { .notify = on_client_created };
 
+/**
+ * The display the event loop runs on, and the lock that guards it.
+ *
+ * The loop is stopped from another thread and the display is destroyed when
+ * the loop returns, so the two have to agree on when it is still alive:
+ * droiddeck_wayland_stop() takes the lock before it terminates the display,
+ * and the loop takes it before it clears the pointer and destroys it.
+ */
+static struct wl_display *g_display = NULL;
+static pthread_mutex_t g_display_lock = PTHREAD_MUTEX_INITIALIZER;
+
+/**
+ * Stops the event loop.
+ *
+ * wl_display_terminate() is the documented way to stop a Wayland event loop
+ * from another thread: it wakes the loop, which then returns.
+ */
+void droiddeck_wayland_stop(void) {
+    pthread_mutex_lock(&g_display_lock);
+    if (g_display != NULL) {
+        wl_display_terminate(g_display);
+    }
+    pthread_mutex_unlock(&g_display_lock);
+}
+
 int droiddeck_wayland_run(void) {
     wl_list_init(&g_surfaces);
     wl_list_init(&g_toplevels);
@@ -3963,7 +3988,21 @@ int droiddeck_wayland_run(void) {
         wl_event_source_timer_update(g_stats_timer, 10000);
 
     g_output_announced_refresh_mhz = atomic_load(&g_output_refresh_mhz);
+
+    // The display is published before the loop starts, so a stop that arrives
+    // while the loop is being set up still reaches it.
+    pthread_mutex_lock(&g_display_lock);
+    g_display = display;
+    pthread_mutex_unlock(&g_display_lock);
+
     wl_display_run(display);
+
+    // The display is about to be destroyed. Clearing the pointer under the
+    // lock means a stop that arrives now finds no display and does nothing,
+    // rather than terminating one that is on its way out.
+    pthread_mutex_lock(&g_display_lock);
+    g_display = NULL;
+    pthread_mutex_unlock(&g_display_lock);
 
     wl_display_destroy(display);
     return 0;
