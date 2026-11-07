@@ -31,6 +31,9 @@ WALLPAPER_DIR = ("users", "steamuser", "AppData", "Local", "DroidDeck")
 DESKTOP_KEY = "[Control Panel\\\\Desktop]"
 COLORS_KEY = "[Control Panel\\\\Colors]"
 WALLPAPER_EDGE = (4, 6, 11)
+USER_PREFERENCES = "UserPreferencesMask"
+WINE_USER_PREFERENCES = bytes((0x10, 0x00, 0x00, 0x80, 0x12, 0x00, 0x00, 0x00))
+CLIENT_AREA_ANIMATION = (4, 0x02)
 WALLPAPER_MAX = (1280, 720)
 FEX_REQUEST = "battlenet-fex.request"
 FEX_RESULT = "battlenet-fex.result"
@@ -52,7 +55,7 @@ CLIENT_WAIT = 300
 GAME_GRACE = 15
 LAUNCH_WAIT = 15
 LAUNCH_ASKS = 3
-CLIENT_PATH = re.compile(r"[a-z]:\\(program files \(x86\)|programdata)\\battle\.net\\")
+CLIENT_PATH = re.compile(r"[a-z]:\\(program files \(x86\)\\battle\.net\\([^\\]+$|battle\.net\.\d+\\)|programdata\\battle\.net\\)")
 IDLE = {"agent.exe", "conhost.exe", "explorer.exe", "lsass.exe", "plugplay.exe", "rpcss.exe", "services.exe",
         "start.exe", "steam.exe", "svchost.exe", "tabtip.exe", "winedevice.exe", "wineserver"}
 NOT_GAME = IDLE | {"rundll32.exe", "wineboot.exe", "winemenubuilder.exe"}
@@ -124,7 +127,9 @@ function object(text, name) {
 }
 
 function install() {
-  var form = call("POST", "/install", '{"uid":"' + uid + '","instructions_patch_url":"http://' + zone + '.patch.battle.net:1119/' +
+  // Blizzard's China repository moved to cn.patch.battlenet.com.cn; cn.patch.battle.net only redirects away from it.
+  var patch = zone == "cn" ? "cn.patch.battlenet.com.cn" : zone + ".patch.battle.net";
+  var form = call("POST", "/install", '{"uid":"' + uid + '","instructions_patch_url":"http://' + patch + ':1119/' +
     product + '","instructions_product":"NGDP","monitor_pid":12345,"priority":{"insert_at_head":true,"value":900}}');
   save(".form", form);
   if (form.indexOf('"' + lang + '"') < 0) lang = "enUS";
@@ -336,21 +341,51 @@ def wallpaper_bmp(width, height):
 
 
 def reg_value(reg, key, name, value):
-    line = '"%s"="%s"' % (name, value.replace("\\", "\\\\").replace('"', '\\"'))
-    try:
-        with open(reg, encoding="utf-8", errors="replace") as f:
-            rows = f.read().splitlines()
-    except OSError:
-        return False
+    return reg_line(reg, key, name, '"%s"="%s"' % (name, value.replace("\\", "\\\\").replace('"', '\\"')))
+
+
+def reg_dword(reg, key, name, number):
+    return reg_line(reg, key, name, '"%s"=dword:%08x' % (name, number))
+
+
+def reg_read(reg, key, name):
+    with open(reg, encoding="utf-8", errors="replace") as f:
+        rows = f.read().splitlines()
     inside, last = False, None
     for row in rows:
         if row.startswith("["):
             inside = row.startswith(key + " ") or row == key
         elif inside and row.startswith('"%s"=' % name):
             last = row
+    return last
+
+
+def reg_line(reg, key, name, line):
+    try:
+        last = reg_read(reg, key, name)
+    except OSError:
+        return False
     if last != line:
         with open(reg, "a", encoding="utf-8") as out:
             out.write("\n%s %d\n%s\n" % (key, int(time.time()), line))
+    return True
+
+
+def still_pages(root):
+    reg = os.path.join(prefix(root), "pfx", "user.reg")
+    if not os.path.isfile(reg):
+        return False
+    row = reg_read(reg, DESKTOP_KEY, USER_PREFERENCES)
+    found = re.fullmatch(r'"%s"=hex:([0-9a-fA-F]{2}(?:,[0-9a-fA-F]{2})*)' % USER_PREFERENCES, row or "")
+    mask = bytearray(bytes.fromhex(found.group(1).replace(",", "")) if found else WINE_USER_PREFERENCES)
+    at, bit = CLIENT_AREA_ANIMATION
+    if len(mask) <= at or not mask[at] & bit:
+        return False
+    mask[at] &= ~bit
+    if wine_processes(os.path.join(prefix(root), "pfx")):
+        say("Battle.net's prefix is in use; Windows animations go off the next time it starts on its own")
+        return False
+    reg_line(reg, DESKTOP_KEY, USER_PREFERENCES, '"%s"=hex:%s' % (USER_PREFERENCES, ",".join("%02x" % b for b in mask)))
     return True
 
 
@@ -359,6 +394,16 @@ def desktop_size():
     if width.isdigit() and height.isdigit() and 0 < int(width) <= 7680 and 0 < int(height) <= 4320:
         return int(width), int(height)
     return 1280, 720
+
+
+def desktop_dpi():
+    width, height = desktop_size()
+    return 96 * max(4, int(min(width / 1920.0, height / 1080.0) * 4)) // 4
+
+
+def dpi(root):
+    reg = os.path.join(prefix(root), "pfx", "user.reg")
+    return os.path.isfile(reg) and reg_dword(reg, DESKTOP_KEY, "LogPixels", desktop_dpi())
 
 
 def wallpaper(root):
@@ -506,6 +551,15 @@ def configure(root, library=None):
         wallpaper(root)
     except OSError as error:
         say("Battle.net's desktop wallpaper not set: %s" % error)
+    try:
+        dpi(root)
+    except OSError as error:
+        say("Battle.net's desktop scale not set: %s" % error)
+    try:
+        if still_pages(root):
+            say("Battle.net's desktop: Windows animations off, so its pages do not play videos the CPU has to draw")
+    except OSError as error:
+        say("Battle.net's desktop animations not set: %s" % error)
     wow_settings(root)
     if change == "first":
         say("wrote Battle.net's first config: hardware acceleration off, streaming off, closing itself as it launches a game, "

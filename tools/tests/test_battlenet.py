@@ -293,11 +293,13 @@ class ProcessTest(Temp):
     def test_battle_nets_own_processes_are_those_under_its_folders(self):
         for argv in (["C:\\Program Files (x86)\\Battle.net\\Battle.net.exe", "--type=renderer"],
                      ["C:/ProgramData/Battle.net/Agent/Agent.9824/Agent.exe"],
-                     ["C:\\Program Files (x86)\\Battle.net\\Battle.net Launcher.exe"]):
+                     ["C:\\Program Files (x86)\\Battle.net\\Battle.net Launcher.exe"],
+                     ["C:\\Program Files (x86)\\Battle.net\\Battle.net.17952\\BlizzardError.exe"]):
             with self.subTest(argv):
                 self.assertTrue(BNET["is_battlenet"](argv))
         for argv in (["Z:\\root\\.cache\\droiddeck\\battlenet\\Battle.net-Setup.exe"],
                      ["Z:\\root\\Games\\Stores\\Battle.net\\Hearthstone\\Hearthstone.exe"],
+                     ["C:\\Program Files (x86)\\Battle.net\\World of Warcraft\\_forever_\\Wow-arm64.exe"],
                      ["C:\\Program Files (x86)\\Diablo IV\\Diablo IV.exe"], ["C:\\windows\\system32\\services.exe"], []):
             with self.subTest(argv):
                 self.assertFalse(BNET["is_battlenet"](argv))
@@ -305,6 +307,8 @@ class ProcessTest(Temp):
     def test_a_game_battle_net_launched_carries_its_uid(self):
         self.assertTrue(BNET["launched"](["C:\\Program Files (x86)\\Diablo II Resurrected\\D2R.exe", "-uid", "osi"]))
         self.assertTrue(BNET["launched"](["C:\\Program Files (x86)\\Diablo IV\\Diablo IV.exe", "-launch", "-UID", "fenris"]))
+        self.assertTrue(BNET["launched"](["C:\\Program Files (x86)\\Battle.net\\World of Warcraft\\_forever_\\Wow-arm64.exe",
+                                          "-launcherlogin", "-uid", "wowf"]))
         for argv in (["C:\\Program Files (x86)\\Diablo IV\\Diablo IV.exe"],
                      ["C:\\Program Files (x86)\\Diablo IV\\vc_redist.x64.exe", "/quiet"],
                      ["C:\\Program Files (x86)\\Battle.net\\Battle.net.exe", "-uid", "battle.net"]):
@@ -831,6 +835,15 @@ class LaunchTest(Harness):
             self.assertEqual(BNET["launch"](self.root, "Fen"), 0)
         self.assertEqual([c for c in self.calls if c[0] == "stop"], [("stop", [10, 11, 12, 13, 14, 30])])
 
+    def test_a_game_installed_in_battle_nets_folder_is_followed_not_stopped(self):
+        self.install()
+        up = self.clients() + [(30, self.AGENT)]
+        wow = (40, ["C:\\Program Files (x86)\\Battle.net\\World of Warcraft\\_forever_\\Wow-arm64.exe", "-launcherlogin", "-uid", "wowf"])
+        wine = (50, ["C:\\windows\\system32\\services.exe"])
+        self.states = [[], [], up, up + [wow], [wow, wine], [wow, wine], [wine], [wine]]
+        self.assertEqual(BNET["launch"](self.root, "WoWF"), 0)
+        self.assertEqual([c for c in self.calls if c[0] == "stop"], [("stop", [50])])
+
     def test_battle_net_closing_itself_as_it_launches_the_game_is_not_an_end(self):
         game = (40, self.GAME + ["-uid", "fenris"])
         self.states = [[], [game], [game], [], []]
@@ -895,6 +908,69 @@ class LaunchTest(Harness):
         image = pfx / "drive_c/users/steamuser/AppData/Local/DroidDeck/wallpaper-1152x720.bmp"
         self.assertEqual(image.read_bytes(), b"BM1152x720")
         self.assertIn('"WallpaperStyle"="2"', (pfx / "user.reg").read_text())
+
+    def test_battle_nets_desktop_turns_windows_animations_off_once(self):
+        self.install()
+        reg = Path(self.root) / ("steamapps/compatdata/%s/pfx/user.reg" % BNET["APP_ID"])
+        reg.write_text('WINE REGISTRY Version 2\n\n[Control Panel\\\\Desktop] 1\n"UserPreferencesMask"=hex:30,00,02,80,12,00,00,00\n')
+        self.assertTrue(BNET["still_pages"](self.root))
+        self.assertFalse(BNET["still_pages"](self.root))
+        text = reg.read_text()
+        self.assertEqual(text.count('"UserPreferencesMask"=hex:30,00,02,80,10,00,00,00'), 1)
+        self.assertEqual(BNET["reg_read"](str(reg), BNET["DESKTOP_KEY"], "UserPreferencesMask"),
+                         '"UserPreferencesMask"=hex:30,00,02,80,10,00,00,00')
+
+    def test_a_new_prefix_gets_wines_default_preferences_without_animations(self):
+        self.install()
+        reg = Path(self.root) / ("steamapps/compatdata/%s/pfx/user.reg" % BNET["APP_ID"])
+        reg.write_text("WINE REGISTRY Version 2\n")
+        self.assertTrue(BNET["still_pages"](self.root))
+        self.assertEqual(BNET["reg_read"](str(reg), BNET["DESKTOP_KEY"], "UserPreferencesMask"),
+                         '"UserPreferencesMask"=hex:10,00,00,80,10,00,00,00')
+
+    def test_animations_already_off_and_other_preferences_are_left_alone(self):
+        self.install()
+        reg = Path(self.root) / ("steamapps/compatdata/%s/pfx/user.reg" % BNET["APP_ID"])
+        before = 'WINE REGISTRY Version 2\n\n[Control Panel\\\\Desktop] 1\n"UserPreferencesMask"=hex:9e,3e,07,80,31,00,00,00\n'
+        reg.write_text(before)
+        self.assertFalse(BNET["still_pages"](self.root))
+        self.assertEqual(reg.read_text(), before)
+        reg.write_text('WINE REGISTRY Version 2\n\n[Control Panel\\\\Desktop] 1\n"UserPreferencesMask"=hex:9e,3e,07,80,33,00,00,00\n')
+        self.assertTrue(BNET["still_pages"](self.root))
+        self.assertEqual(BNET["reg_read"](str(reg), BNET["DESKTOP_KEY"], "UserPreferencesMask"),
+                         '"UserPreferencesMask"=hex:9e,3e,07,80,31,00,00,00')
+        self.assertFalse(BNET["still_pages"](self.root + "/missing"))
+
+    def test_a_prefix_in_use_keeps_its_registry_until_it_starts_on_its_own(self):
+        self.install()
+        reg = Path(self.root) / ("steamapps/compatdata/%s/pfx/user.reg" % BNET["APP_ID"])
+        before = 'WINE REGISTRY Version 2\n\n[Control Panel\\\\Desktop] 1\n"UserPreferencesMask"=hex:30,00,02,80,12,00,00,00\n'
+        reg.write_text(before)
+        with mock.patch.dict(BNET, {"wine_processes": lambda pfx: [(1, ["C:\\Games\\game.exe"])]}):
+            self.assertFalse(BNET["still_pages"](self.root))
+        self.assertEqual(reg.read_text(), before)
+        self.assertTrue(BNET["still_pages"](self.root))
+
+    def test_a_large_desktop_scales_battle_net_to_fit_it(self):
+        sizes = {("1280", "720"): 96, ("1920", "1080"): 96, ("2400", "1504"): 120, ("2448", "1848"): 120,
+                 ("1080", "2400"): 96, ("3840", "2160"): 192, ("2560", "1600"): 120}
+        for (width, height), want in sizes.items():
+            with mock.patch.dict(os.environ, {"BL_WIDTH": width, "BL_HEIGHT": height}):
+                self.assertEqual(BNET["desktop_dpi"](), want, (width, height))
+
+    def test_battle_nets_desktop_scale_is_written_once_and_follows_the_size(self):
+        self.install()
+        pfx = Path(self.root) / ("steamapps/compatdata/%s/pfx" % BNET["APP_ID"])
+        (pfx / "user.reg").write_text('WINE REGISTRY Version 2\n\n[Control Panel\\\\Desktop] 1\n"LogPixels"=dword:00000060\n')
+        with mock.patch.dict(os.environ, {"BL_WIDTH": "1280", "BL_HEIGHT": "720"}):
+            self.assertTrue(BNET["dpi"](self.root))
+        self.assertEqual((pfx / "user.reg").read_text().count("LogPixels"), 1)
+        with mock.patch.dict(os.environ, {"BL_WIDTH": "2448", "BL_HEIGHT": "1848"}):
+            self.assertTrue(BNET["dpi"](self.root))
+            self.assertTrue(BNET["dpi"](self.root))
+        reg = (pfx / "user.reg").read_text()
+        self.assertEqual(reg.count('"LogPixels"=dword:00000078'), 1)
+        self.assertTrue(reg.rstrip().endswith('"LogPixels"=dword:00000078'))
 
     def test_an_open_battle_net_is_handed_the_game(self):
         self.install()
@@ -1095,6 +1171,11 @@ class AgentTest(Temp):
         self.assertIn("port = a(0), action = a(1), uid = a(2), product = a(3), dir = a(4)", script)
         self.assertIn("lang = a(5), country = a(6), region = a(7), out = a(8)", script)
         self.assertIn('"--internalclienttools"', (BIN / "droiddeck-battlenet").read_text())
+
+    def test_the_driver_asks_blizzards_chinese_repository_for_chinese_installs(self):
+        script = BNET["AGENT_SCRIPT"]
+        self.assertIn('var patch = zone == "cn" ? "cn.patch.battlenet.com.cn" : zone + ".patch.battle.net";', script)
+        self.assertIn("+ patch + ':1119/'", script)
 
 
 class AgentJobTest(Harness):
