@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s FEXin kautta</string>
     <string name="app_fex_not_ready">Tämä ohjelma on tehty %1$s-tietokoneille ja käynnistyy FEXin kautta, jota ei ole vielä määritetty. Avaa Steam kerran kirjautuneena: DroidDeck lataa sen myötä FEXin ja tarvittavan Steam Linux Runtimen, jonka jälkeen tämä avautuu.</string>
     <string name="session_proot_missing">DroidDeckin proota ei voitu ladata. Tarkista yhteys ja yritä uudelleen. Istuntoa ei käynnistetty, koska varaproot on liian hidas pelaamiseen.</string>
+    <string name="session_powervr_missing">PowerVR-grafiikkaympäristöä ei voitu ladata. Tarkista yhteys ja yritä uudelleen.</string>
     <string name="session_directaudio_missing">DirectAudiota ei voitu ladata, joten pelin ääni käyttää tässä istunnossa hitaampaa reittiä.</string>
     <string name="session_end_program">Tämä ohjelma</string>
     <string name="session_end_steam_download">Steam-asiakasohjelmaa ei voitu ladata. Verkkosi tai VPN saattaa estää Steamin palvelimet; tarkista yhteys ja yritä uudelleen.</string>
@@ -555,6 +556,19 @@
     <string name="comp_tag_in_use">Käytössä</string>
     <string name="comp_tag_new">Uusi</string>
     <string name="comp_tag_stored">Tallennettu</string>
+    <string name="comp_mode_title">Miten versiot valitaan</string>
+    <string name="comp_mode_auto_detail">Uusin DroidDeck-versio, aina ajan tasalla</string>
+    <string name="comp_mode_manual_detail">Valitse ja asenna versiot itse</string>
+    <string name="comp_auto_title">Auto pitää %1$s ajan tasalla</string>
+    <string name="comp_auto_hint">Uudet versiot asentuvat taustalla. Jos aiemmin toiminut peli sulkeutuu sekunneissa kahdesti, Auto palaa toimineeseen versioon.</string>
+    <string name="comp_auto_fallback">Varaversio: %1$s</string>
+    <string name="comp_auto_checking">Haetaan versioita…</string>
+    <string name="comp_auto_none">Mikään DroidDeck-Proton ei käytä tätä</string>
+    <string name="comp_auto_waits_network">Auto-päivitykset odottavat yhteyttä.</string>
+    <string name="comp_auto_check_failed">Uusia versioita ei voitu tarkistaa.</string>
+    <string name="comp_auto_waits_unmetered">Uudet versiot odottavat rajoittamatonta yhteyttä, virransäästön poistoa ja viileää laitetta.</string>
+    <string name="comp_auto_updated">%1$s päivitetty versioon %2$s.</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s sulki pelin sekunneissa kahdesti, joten Auto palasi versioon %3$s.</string>
     <string name="perf_title">Suorituskyky</string>
     <string name="perf_lede">CPU-ytimet, istunnon korjaukset ja isäntänimi. Tulee voimaan seuraavassa istunnossa.</string>
     <string name="perf_client_cores_group">Steam-asiakasohjelman ytimet</string>
@@ -585,7 +599,7 @@
     <string name="perf_ram_cap_hint">Koskee aikaa, jolloin Steam-asiakasohjelma on käynnissä, Steam-tilassa tai työpöydältä. Kun istunto käyttää tätä enemmän, Steam ja sen jälkeen istunnon muut tuetut prosessit pakataan zRAMiin. Pehmeä raja: mitään ei suljeta, mutta pelit voivat nykiä, kun sivuja luetaan takaisin.</string>
     <string name="perf_ram_cap_unavailable">Vaatii zRAM-swapin, jota tässä laitteessa ei ole.</string>
     <string name="perf_vram_cap">VRAM-raja</string>
-    <string name="perf_vram_cap_hint">Videomuisti, jonka DXVK ilmoittaa Direct3D-peleille, jotta ne mitoittavat tekstuurit pienemmälle. Pelin omat DXVK-asetukset menevät edelle. Tulee voimaan seuraavassa istunnossa.</string>
+    <string name="perf_vram_cap_hint">Ilmoittaa tämän videomuistibudjetin Direct3D 9–12 -peleille muistin käytön vähentämiseksi. Pelit voivat ylittää sen; tämä ei lisää GPU-sivutusta eikä takaa suojaa muistin loppumisesta johtuvilta kaatumisilta. Tulee voimaan seuraavassa istunnossa.</string>
     <string name="perf_gpuclock">Pidä GPU huippukellotaajuudessaan</string>
     <string name="perf_gpuclock_hint">Vain Adreno. Vähemmän nykäyksiä, enemmän akun kulutusta ja lämpöä.</string>
     <string name="perf_fixes">Istunnon korjaukset</string>
@@ -670,6 +684,8 @@
     <string name="hud_group_metrics">Lukemat</string>
     <string name="hud_metric_graph">Kuva-aikakäyrä</string>
     <string name="hud_metric_decimal">Kuvataajuus desimaalilla</string>
+    <string name="hud_metric_low1">1% alin</string>
+    <string name="hud_metric_low01">0.1% alin</string>
     <string name="hud_metric_low001">0.01% alin</string>
     <string name="hud_metric_engine">Grafiikkamoottori</string>
     <string name="hud_metric_gpu_model">GPU:n nimi</string>
@@ -747,6 +763,10 @@
     <string name="drawer_low_latency_touch">Matalan viiveen kosketus</string>
     <string name="drawer_low_latency_touch_hint">Kosketukset ohittavat ruutujen niputuksen, joten Steamin kosketusohjaus toimii 1000 Hz:llä. Hieman enemmän CPU:ta.</string>
     <string name="drawer_evdev_mouse">Raaka hiirikanava</string>
+    <string name="drawer_relative_mouse">Suhteellinen hiiri</string>
+    <string name="drawer_relative_mouse_auto">Automaattinen</string>
+    <string name="drawer_relative_mouse_on">Päällä</string>
+    <string name="drawer_relative_mouse_off">Pois</string>
     <string name="drawer_direct_cursor">Osoitin</string>
     <string name="drawer_pc_keyboard">PC-näppäimistö</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -807,7 +827,7 @@
     <string name="setup_gpu_unsupported">GPU ei ole tuettu</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam tarvitsee Adreno-ajurin; %1$s saattaa näyttää mustan ruudun</string>
+    <string name="setup_gpu_unsupported_detail">GPU:lle %1$s ei ole saatavilla yhteensopivaa grafiikkataustajärjestelmää. Steam saattaa näyttää mustan ruudun.</string>
     <string name="setup_runtime">Linux-ajoympäristö</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Ei asennettu · noin 3 GB, asennetaan ensimmäisellä Pelaa-painalluksella</string>
@@ -869,6 +889,7 @@
     <string name="setup_home">Käytä Aloitusnäyttönä</string>
     <string name="setup_home_on">DroidDeck voi olla kotisovellus</string>
     <string name="setup_home_off">DroidDeckiä ei koskaan tarjota kotisovellukseksi</string>
+    <string name="setup_home_game_space_first">Aseta Lisää pelejä -kohdassa DroidDeck tilaan Sisällytä</string>
     <string name="setup_orientation">Suunta</string>
     <string name="setup_launcher_orientation">Käynnistimen suunta</string>
     <string name="setup_launcher_orientation_auto">Seuraa laitteen kiertoa</string>
@@ -1101,6 +1122,7 @@
     <string name="ctrl_stick_click_hint">Kaksoisnapauta ja pidä sauvaa pohjassa saadaksesi L3:n tai R3:n</string>
     <string name="ctrl_adaptive">Mukautuvat sauvat</string>
     <string name="ctrl_rumble">Pelin tärinä</string>
+    <string name="ctrl_dead_zone">Ohjaussauvan kuollut alue</string>
     <string name="ctrl_steam_button">Steam-painike</string>
     <string name="ctrl_qam_button">QAM-painike</string>
     <string name="ctrl_keyboard_button">Näppäimistöpainike</string>
@@ -1178,6 +1200,14 @@
     <string name="games_export_gamehub">Vie GameHub-zipinä…</string>
     <string name="games_export_winlator">Vie Winlator-zipinä…</string>
     <string name="games_open_save_folder">Avaa tallennuskansio</string>
+    <string name="games_import_addons">Tuo lisäosat zip-tiedostosta…</string>
+    <string name="games_open_addons_folder">Avaa lisäosakansio</string>
+    <string name="games_delete_addon_title">Poistetaanko %1$s?</string>
+    <string name="games_delete_addon_body">Tämä poistaa lisäosan kansion. Sen asetukset säilyvät.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d lisäosa</item>
+        <item quantity="other">%1$d lisäosaa</item>
+    </plurals>
     <string name="games_never_played">Ei pelattu koskaan</string>
     <string name="games_runtime_busy_percent">Ajoympäristö varattu · %1$d %%</string>
     <string name="games_runtime_busy">Ajoympäristö varattu</string>
@@ -1355,6 +1385,17 @@
         <item quantity="one">Tuotiin %1$d tiedosto %2$s-muodosta kohteeseen %3$s. Vanhat tallennukset varmuuskopioitu kansioon Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Tuotiin %1$d tiedostoa %2$s-muodosta kohteeseen %3$s. Vanhat tallennukset varmuuskopioitu kansioon Download/DroidDeck/Saves/backups</item>
     </plurals>
+    <string name="main_addons_close_session">Sulje istunto ensin, jotta peli ei käytä lisäosiaan tuonnin aikana</string>
+    <string name="main_addons_importing">Tuodaan lisäosia kohteeseen %1$s</string>
+    <string name="main_addons_pick_zip">Valitse lisäosien zip-tiedosto kohteelle %1$s</string>
+    <string name="main_addons_too_large">%1$s on liian suuri tuotavaksi</string>
+    <string name="main_addons_deleting">Poistetaan %1$s</string>
+    <string name="main_addons_deleted">%1$s poistettu</string>
+    <string name="main_addons_none">Lisäosia ei löytynyt kohteesta %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Tuotiin %1$d lisäosa kohteeseen %2$s</item>
+        <item quantity="other">Tuotiin %1$d lisäosaa kohteeseen %2$s</item>
+    </plurals>
     <string name="main_saves_pick_zip">Valitse tallennusten zip-tiedosto kohteelle %1$s</string>
     <string name="main_saves_exporting">Viedään %1$s</string>
     <plurals name="main_saves_exported">
@@ -1374,8 +1415,8 @@
     <string name="main_wadb_unavailable">Langaton virheenkorjaus ei ole käytettävissä</string>
     <string name="main_adb_copied">ADB-komento kopioitu</string>
     <string name="main_pick_roms">Valitse ROMs-kansio</string>
-    <string name="main_non_adreno_title">Ei Adreno-grafiikkapiiri</string>
-    <string name="main_non_adreno_text">Turnip tukee Adreno-grafiikkapiirejä. Laitteella %1$s Steam voi näyttää mustan ruudun. Latauksen koko: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">GPU:ta ei tueta</string>
+    <string name="main_non_adreno_text">GPU:lle %1$s ei ole saatavilla yhteensopivaa grafiikkataustajärjestelmää. Steam saattaa näyttää mustan ruudun. Lataus: %2$.0f Mt.</string>
     <string name="main_install_anyway">Asenna silti</string>
     <string name="main_remove_runtime_title">Poista Linux-ajoympäristö</string>
     <string name="main_remove_runtime_text">Tämä poistaa ajoympäristön, siihen asennetun Steam-asiakasohjelman ja kaikki sinne asennetut pelit.</string>
@@ -1747,6 +1788,7 @@
     <string name="ctrl_tint_amber">Meripihka</string>
     <string name="ctrl_tint_red">Punainen</string>
     <string name="ctrl_tint_pink">Pinkki</string>
+    <string name="ctrl_tint_gray">Harmaa</string>
     <string name="ctrl_button_a">A-painike</string>
     <string name="ctrl_button_b">B-painike</string>
     <string name="ctrl_button_x">X-painike</string>
@@ -2089,7 +2131,7 @@
     <string name="gpuinfo_experimental">Kokeellinen: sen ajurit ovat testiversioita</string>
     <string name="gpuinfo_a850_experimental">Kokeellinen Adreno 850 -tuki: vaatii yhteensopivat kokeelliset näyttö- ja peliajurit; ei vahvistettu tällä laitteella</string>
     <string name="gpuinfo_below_tested">Testatun laitteiston alapuolella (Adreno 725 ja uudemmat): ei välttämättä toimi</string>
-    <string name="gpuinfo_unsupported">Ei tuettu: DroidDeck vaatii Adreno (Snapdragon) -grafiikkapiirin</string>
+    <string name="gpuinfo_unsupported">Ei tuettu: tälle GPU:lle ei ole saatavilla yhteensopivaa grafiikkataustajärjestelmää</string>
 
     <string name="turnip_rate_limited">GitHubin käyttörajoitus tuli vastaan - yritä myöhemmin uudelleen</string>
     <string name="turnip_github_http">GitHub vastasi HTTP %1$d</string>
@@ -2200,9 +2242,6 @@
     <string name="source_added">Mukautettu</string>
     <string name="setup_stores">Kaupat</string>
     <string name="setup_stores_speed">Latausnopeuden taso</string>
-    <string name="setup_stores_engine">Kauppojen moottori</string>
-    <string name="setup_stores_engine_chip_ready">● Moottori valmis</string>
-    <string name="setup_stores_engine_chip_missing">Ei koottu</string>
     <string name="stores_tier_balanced">Tasapainotettu</string>
     <string name="stores_tier_fast">Nopea</string>
     <string name="stores_tier_max">Maksimi</string>
@@ -3466,6 +3505,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Peleille, joiden tallennukset ovat Steam-tililläsi</string>
     <string name="game_resource_search">Verkkohaku</string>
+    <string name="game_tab_addons">Lisäosat</string>
     <string name="game_tab_install">Asenna</string>
     <string name="game_install_location">Sijainti</string>
     <string name="game_install_folder">Kansio</string>
@@ -3512,20 +3552,32 @@
     <string name="integration_wifi">Wi-Fi-nimet</string>
     <string name="integration_brightness">Kirkkaus</string>
     <string name="integration_home">DroidDeck aloitusnäyttönä</string>
-    <string name="integration_shortcuts">Koti-painikkeen pikakomennot</string>
+    <string name="integration_shortcuts">Järjestelmänäppäimet</string>
     <string name="integration_wifi_hint">Näytä verkot Steamissa · vaatii sijaintiluvan, ei koskaan seurata</string>
     <string name="integration_wifi_on">Verkot näkyvät Steamissa</string>
     <string name="integration_wifi_location_off">Sijainti on pois päältä</string>
     <string name="integration_wifi_denied">Sijainti estetty · salli se Sovelluksen tiedoissa</string>
     <string name="integration_brightness_hint">Steamin liukusäädin säätää näytön kirkkautta</string>
     <string name="integration_home_hint">Koti avaa Steam-valikon istunnossa</string>
-    <string name="integration_shortcuts_hint">Pidä Koti-painiketta Steam Guide -yhdistelmiä varten</string>
-    <string name="integration_shortcuts_needs_home">Vaatii DroidDeckin aloitusnäytöksi</string>
+    <string name="integration_shortcuts_hint">Alt+Tab, Win-näppäin ja Koti-painike pysyvät istunnossa</string>
     <string name="integration_shortcuts_maybe_restricted">Harmaana Androidissa? Sovelluksen tiedot → ⋮ → Salli rajoitetut asetukset</string>
     <string name="integration_shortcuts_restricted">Androidin estämä · Sovelluksen tiedot → ⋮ → Salli rajoitetut asetukset</string>
-    <string name="integration_shortcuts_service">DroidDeckin Koti-painike</string>
-    <string name="integration_shortcuts_service_description">Välittää Koti-painikkeen painallukset Steam Guidelle, kun Steam-istunto on aktiivinen ja DroidDeck on oletusaloitusnäyttösovellus. Ei lue näytön sisältöä.</string>
+    <string name="integration_shortcuts_service">DroidDeckin järjestelmänäppäimet</string>
+    <string name="integration_shortcuts_service_description">Pitää Alt+Tabin, Win-näppäimen ja Koti-painikkeen aktiivisessa DroidDeck-istunnossa Androidin sijaan.</string>
     <string name="integration_brightness_needed">Ota Kirkkaus käyttöön kohdassa Käyttöönotto → Steam-integraatio</string>
+    <string name="setup_gpu_bridge_off">Mali-silta: pois</string>
+    <string name="setup_gpu_bridge_on">Mali-silta: päällä</string>
+    <string name="setup_gpu_bridge_detail">%1$s ei ole Adreno. Kokeellinen Vulkan-silta on päällä: istunto piirtää puhelimen oman ajurin kautta. Odota virheitä; lähetä istunnon lokit.</string>
+    <string name="setup_bridge_safe">Turvatila</string>
+    <string name="setup_bridge_safe_on">Turvatila: päällä</string>
+    <string name="setup_bridge_safe_off">Turvatila: pois</string>
+    <string name="setup_bridge_safe_on_detail">Yhteensopivin. Suositellaan uudelle laitteelle.</string>
+    <string name="setup_bridge_safe_off_detail">Nopeampi siellä, missä tämä GPU läpäisi tarkistuksensa.</string>
+    <string name="setup_bridge_dxvk">DXVK</string>
+    <string name="setup_bridge_dxvk_auto">DXVK: automaattinen</string>
+    <string name="setup_bridge_dxvk_proton">DXVK: Protonin oma</string>
+    <string name="setup_bridge_dxvk_auto_detail">Käyttää vanhempaa DXVK:ta, kun tämän GPU:n Vulkan on liian vanha Protonin omalle.</string>
+    <string name="setup_bridge_dxvk_proton_detail">Jokainen Proton pitää oman DXVK:nsa, vaikka tämän GPU:n Vulkan voi olla sille liian vanha.</string>
     <string name="apps_search_hint">Hae sovelluksia</string>
     <string name="apps_no_match">Mikään sovellus ei vastaa hakua ”%1$s”.</string>
     <string name="apps_add_widget">Lisää widget</string>
@@ -3634,4 +3686,19 @@
     <string name="stores_gamejolt_filter_status">Tila</string>
     <string name="stores_gamejolt_filter_partners">Kumppanit</string>
     <string name="stores_gamejolt_followed">Seuratut pelit</string>
+    <string name="wow_chat_title">Chatin syöttö</string>
+    <string name="wow_chat_voice">Puhekirjoitus</string>
+    <string name="wow_chat_remember">Muista tämä valinta</string>
+    <string name="wow_chat_ask">Kysy joka kerta</string>
+    <string name="wow_chat_send">Lähetä</string>
+    <string name="wow_chat_listening">Kuunnellaan…</string>
+    <string name="wow_chat_voice_unavailable">Puhekirjoitus ei ole käytettävissä tällä laitteella.</string>
+    <string name="wow_chat_mic_denied">Puhekirjoitus vaatii mikrofonin käyttöoikeuden.</string>
+    <string name="addons_download">Lataa lisäosia…</string>
+    <string name="addons_sort_name">Nimi</string>
+    <string name="addons_sort_downloads">Ladatuimmat</string>
+    <string name="addons_category_all">Kaikki luokat</string>
+    <string name="addons_none_found">Lisäosia ei löytynyt</string>
+    <string name="addons_unreachable">Yhteyttä palveluun %1$s ei saatu</string>
+    <string name="addons_no_file">Tälle peliversiolle ei ole tiedostoa</string>
 </resources>

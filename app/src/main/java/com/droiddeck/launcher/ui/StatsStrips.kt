@@ -111,8 +111,7 @@ private fun LogoBadge(size: Dp) {
 private fun LogoHeader(clock: String, game: String?) {
     val colors = MaterialTheme.colorScheme
     Row(Modifier.fillMaxWidth().padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        DroidDeckLogo(16.dp)
-        Text("DroidDeck", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
+        Wordmark(14.dp, ink = colors.onBackground)
         Text(game.orEmpty(), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, textAlign = TextAlign.Center,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         if (clock.isNotEmpty()) Text(clock, fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = colors.onSurfaceVariant)

@@ -48,7 +48,33 @@ object GameStorage {
         return when {
             pref == SessionPrefs.GAME_STORAGE_OFF -> null
             pref.isEmpty() -> options(context).firstOrNull()?.let { Option(it.name, it.path) }
-            else -> Option(SessionPrefs.gameStorageLabel(context), pref)
+            else -> Option(SessionPrefs.gameStorageLabel(context), pref).takeIf { attached(File(pref)) }
+        }
+    }
+
+    fun disconnected(context: Context): Boolean {
+        val pref = SessionPrefs.gameStorage(context)
+        return pref.isNotEmpty() && pref != SessionPrefs.GAME_STORAGE_OFF && !attached(File(pref))
+    }
+
+    internal fun attached(path: File): Boolean =
+        attached(path, runCatching { Environment.getExternalStorageState(path) }.getOrNull())
+
+    internal fun attached(
+        path: File,
+        state: String?,
+        externalStoragePath: Boolean = isExternalStoragePath(path),
+    ): Boolean = when {
+        state == Environment.MEDIA_MOUNTED || state == Environment.MEDIA_MOUNTED_READ_ONLY -> true
+        externalStoragePath -> false
+        state == Environment.MEDIA_UNKNOWN || state == null -> path.isDirectory || path.parentFile?.isDirectory == true
+        else -> false
+    }
+
+    private fun isExternalStoragePath(path: File): Boolean {
+        val absolute = path.absoluteFile.toPath().normalize()
+        return listOf(File("/storage"), File("/mnt/media_rw")).any {
+            absolute.startsWith(it.absoluteFile.toPath().normalize())
         }
     }
 

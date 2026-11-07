@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s през FEX</string>
     <string name="app_fex_not_ready">Тази програма е компилирана за %1$s компютри и се стартира през FEX, който още не е настроен. Отворете Steam веднъж, докато сте влезли: DroidDeck ще изтегли FEX и необходимата Steam Linux Runtime, след което тя ще се отвори.</string>
     <string name="session_proot_missing">proot на DroidDeck не можа да бъде изтеглен. Проверете връзката и опитайте пак. Сесията не беше стартирана, защото резервният proot е твърде бавен за игра.</string>
+    <string name="session_powervr_missing">Графичната среда за PowerVR не можа да бъде изтеглена. Проверете връзката и опитайте отново.</string>
     <string name="session_directaudio_missing">DirectAudio не можа да бъде изтеглен, затова звукът на игрите използва по-бавния път в тази сесия.</string>
     <string name="session_end_program">Тази програма</string>
     <string name="session_end_steam_download">Клиентът на Steam не можа да бъде изтеглен. Мрежата или VPN връзката ви може да блокира сървърите на Steam; проверете връзката и опитайте отново.</string>
@@ -555,6 +556,19 @@
     <string name="comp_tag_in_use">В употреба</string>
     <string name="comp_tag_new">Ново</string>
     <string name="comp_tag_stored">Запазено</string>
+    <string name="comp_mode_title">Как се избират версиите</string>
+    <string name="comp_mode_auto_detail">Най-новата версия на DroidDeck, винаги актуална</string>
+    <string name="comp_mode_manual_detail">Избирайте и инсталирайте версии сами</string>
+    <string name="comp_auto_title">Auto поддържа %1$s актуален</string>
+    <string name="comp_auto_hint">Новите версии се инсталират във фонов режим. Ако игра, която е работила, се затвори до секунди два пъти, Auto се връща към работещата версия.</string>
+    <string name="comp_auto_fallback">Резервна: %1$s</string>
+    <string name="comp_auto_checking">Търсене на версии…</string>
+    <string name="comp_auto_none">Нито един DroidDeck-Proton не го използва</string>
+    <string name="comp_auto_waits_network">Актуализациите Auto чакат връзка.</string>
+    <string name="comp_auto_check_failed">Новите версии не можаха да бъдат проверени.</string>
+    <string name="comp_auto_waits_unmetered">Новите версии чакат неотчитана връзка, изключен режим за пестене на батерията и охладено устройство.</string>
+    <string name="comp_auto_updated">%1$s е обновен до %2$s.</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s два пъти затвори игра до секунди, затова Auto се върна към %3$s.</string>
     <string name="perf_title">Производителност</string>
     <string name="perf_lede">CPU ядра, корекции на сесията и името на хоста. Прилага се от следващата сесия.</string>
     <string name="perf_client_cores_group">Ядра за клиента на Steam</string>
@@ -585,7 +599,7 @@
     <string name="perf_ram_cap_hint">Прилага се, докато клиентът на Steam работи, в режим Steam или от работния плот. Когато сесията използва повече от това, Steam и след това другите поддържани процеси на сесията се компресират в zRAM. Меко ограничение: нищо не се затваря, но игрите може да засичат, докато страниците се връщат.</string>
     <string name="perf_ram_cap_unavailable">Изисква zRAM swap, който това устройство няма.</string>
     <string name="perf_vram_cap">Ограничение на VRAM</string>
-    <string name="perf_vram_cap_hint">Видеопаметта, която DXVK отчита на игрите с Direct3D, за да планират текстури за по-малко. Собствените настройки на DXVK на играта имат предимство. Прилага се от следващата сесия.</string>
+    <string name="perf_vram_cap_hint">Съобщава този бюджет за видео памет на игри с Direct3D 9 до 12, за да намали използването на памет. Игрите може да го надвишат; това не добавя странициране на GPU и не гарантира защита от сривове при недостиг на памет. Прилага се от следващата сесия.</string>
     <string name="perf_gpuclock">Задръжте GPU на максималната му честота</string>
     <string name="perf_gpuclock_hint">Само за Adreno. По-малко засечки, по-голямо използване на батерията и повече топлина.</string>
     <string name="perf_fixes">Корекции на сесията</string>
@@ -670,6 +684,8 @@
     <string name="hud_group_metrics">Показания</string>
     <string name="hud_metric_graph">Графика на времето на кадрите</string>
     <string name="hud_metric_decimal">Честота на кадрите с десетичен знак</string>
+    <string name="hud_metric_low1">1% най-ниски</string>
+    <string name="hud_metric_low01">0.1% най-ниски</string>
     <string name="hud_metric_low001">0.01% най-ниски</string>
     <string name="hud_metric_engine">Графичен двигател</string>
     <string name="hud_metric_gpu_model">Име на GPU</string>
@@ -747,6 +763,10 @@
     <string name="drawer_low_latency_touch">Докосване с ниско закъснение</string>
     <string name="drawer_low_latency_touch_hint">Докосванията пропускат групирането на кадри; управлението с докосване в Steam работи при 1000 Hz. Малко повече CPU.</string>
     <string name="drawer_evdev_mouse">Суров канал за мишка</string>
+    <string name="drawer_relative_mouse">Относителна мишка</string>
+    <string name="drawer_relative_mouse_auto">Автоматично</string>
+    <string name="drawer_relative_mouse_on">Включено</string>
+    <string name="drawer_relative_mouse_off">Изключено</string>
     <string name="drawer_direct_cursor">Курсор</string>
     <string name="drawer_pc_keyboard">Клавиатура за компютър</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -807,7 +827,7 @@
     <string name="setup_gpu_unsupported">GPU не се поддържа</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam изисква драйвер за Adreno; %1$s може да покаже черен екран</string>
+    <string name="setup_gpu_unsupported_detail">Няма съвместим графичен бекенд за %1$s. Steam може да показва черен екран.</string>
     <string name="setup_runtime">Linux среда за изпълнение</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Не е инсталирано · около 3 GB, инсталира се при първото Play</string>
@@ -869,6 +889,7 @@
     <string name="setup_home">Използване като начален екран</string>
     <string name="setup_home_on">DroidDeck може да бъде приложението за начален екран</string>
     <string name="setup_home_off">DroidDeck никога не се предлага като приложение за начален екран</string>
+    <string name="setup_home_game_space_first">В „Добавяне на игри“ задайте DroidDeck на „Включване“</string>
     <string name="setup_orientation">Ориентация</string>
     <string name="setup_launcher_orientation">Ориентация на стартера</string>
     <string name="setup_launcher_orientation_auto">Следва завъртането на устройството</string>
@@ -1101,6 +1122,7 @@
     <string name="ctrl_stick_click_hint">Докоснете двукратно и задръжте стик за L3 или R3</string>
     <string name="ctrl_adaptive">Адаптивни стикове</string>
     <string name="ctrl_rumble">Вибрация от играта</string>
+    <string name="ctrl_dead_zone">Мъртва зона на стика</string>
     <string name="ctrl_steam_button">Бутон Steam</string>
     <string name="ctrl_qam_button">Бутон QAM</string>
     <string name="ctrl_keyboard_button">Бутон за клавиатура</string>
@@ -1178,6 +1200,14 @@
     <string name="games_export_gamehub">Експортиране като GameHub zip…</string>
     <string name="games_export_winlator">Експортиране като Winlator zip…</string>
     <string name="games_open_save_folder">Отваряне на папката за записи</string>
+    <string name="games_import_addons">Импортиране на добавки от ZIP…</string>
+    <string name="games_open_addons_folder">Отваряне на папката с добавки</string>
+    <string name="games_delete_addon_title">Да се изтрие ли %1$s?</string>
+    <string name="games_delete_addon_body">Това изтрива папката на добавката. Настройките ѝ се запазват.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d добавка</item>
+        <item quantity="other">%1$d добавки</item>
+    </plurals>
     <string name="games_never_played">Никога не е играна</string>
     <string name="games_runtime_busy_percent">Средата за изпълнение е заета · %1$d%%</string>
     <string name="games_runtime_busy">Средата за изпълнение е заета</string>
@@ -1355,6 +1385,17 @@
         <item quantity="one">Импортиран %1$d файл от %2$s в %3$s. Старите запазвания са архивирани в Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Импортирани %1$d файла от %2$s в %3$s. Старите запазвания са архивирани в Download/DroidDeck/Saves/backups</item>
     </plurals>
+    <string name="main_addons_close_session">Затвори сесията първо, за да не използва играта добавките си по време на импортирането</string>
+    <string name="main_addons_importing">Импортиране на добавки в %1$s</string>
+    <string name="main_addons_pick_zip">Избор на ZIP файл с добавки за %1$s</string>
+    <string name="main_addons_too_large">%1$s е твърде голям за импортиране</string>
+    <string name="main_addons_deleting">Изтриване на %1$s</string>
+    <string name="main_addons_deleted">Изтрито: %1$s</string>
+    <string name="main_addons_none">Не са намерени добавки в %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Импортирана %1$d добавка в %2$s</item>
+        <item quantity="other">Импортирани %1$d добавки в %2$s</item>
+    </plurals>
     <string name="main_saves_pick_zip">Избор на ZIP файл със запазвания за %1$s</string>
     <string name="main_saves_exporting">Експортиране на %1$s</string>
     <plurals name="main_saves_exported">
@@ -1374,8 +1415,8 @@
     <string name="main_wadb_unavailable">Безжичното отстраняване на грешки не е достъпно</string>
     <string name="main_adb_copied">Командата за ADB е копирана</string>
     <string name="main_pick_roms">Избор на папката ROMs</string>
-    <string name="main_non_adreno_title">Не е Adreno GPU</string>
-    <string name="main_non_adreno_text">Turnip поддържа Adreno GPU-та. На %1$s Steam може да покаже черен екран. Изтегляне: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">Неподдържан GPU</string>
+    <string name="main_non_adreno_text">Няма съвместим графичен бекенд за %1$s. Steam може да показва черен екран. Изтегляне: %2$.0f MB.</string>
     <string name="main_install_anyway">Инсталиране въпреки това</string>
     <string name="main_remove_runtime_title">Премахване на средата на Linux</string>
     <string name="main_remove_runtime_text">Това изтрива средата, клиента на Steam в нея и всяка инсталирана в нея игра.</string>
@@ -1747,6 +1788,7 @@
     <string name="ctrl_tint_amber">Кехлибарено</string>
     <string name="ctrl_tint_red">Червено</string>
     <string name="ctrl_tint_pink">Розово</string>
+    <string name="ctrl_tint_gray">Сиво</string>
     <string name="ctrl_button_a">Бутон A</string>
     <string name="ctrl_button_b">Бутон B</string>
     <string name="ctrl_button_x">Бутон X</string>
@@ -2089,7 +2131,7 @@
     <string name="gpuinfo_experimental">Експериментален: драйверите му са тестови версии</string>
     <string name="gpuinfo_a850_experimental">Експериментална поддръжка на Adreno 850: изисква съвместими експериментални драйвери за дисплея и игрите; не е проверена на това устройство</string>
     <string name="gpuinfo_below_tested">Под тестваните устройства (Adreno 725 и по-нови): може да не работи</string>
-    <string name="gpuinfo_unsupported">Не се поддържа: DroidDeck изисква GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">Не се поддържа: няма съвместим графичен бекенд за този GPU</string>
 
     <string name="turnip_rate_limited">Достигнато е ограничението на GitHub за заявки - опитай отново по-късно</string>
     <string name="turnip_github_http">GitHub отговори с HTTP %1$d</string>
@@ -2200,9 +2242,6 @@
     <string name="source_added">Персонализирана</string>
     <string name="setup_stores">Магазини</string>
     <string name="setup_stores_speed">Скорост на изтегляне</string>
-    <string name="setup_stores_engine">Ядро на магазините</string>
-    <string name="setup_stores_engine_chip_ready">● Ядрото е готово</string>
-    <string name="setup_stores_engine_chip_missing">Не е компилирано</string>
     <string name="stores_tier_balanced">Балансирано</string>
     <string name="stores_tier_fast">Бързо</string>
     <string name="stores_tier_max">Максимално</string>
@@ -3466,6 +3505,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">За игри със записи в акаунта ви в Steam</string>
     <string name="game_resource_search">Търсене в мрежата</string>
+    <string name="game_tab_addons">Добавки</string>
     <string name="game_tab_install">Инсталиране</string>
     <string name="game_install_location">Местоположение</string>
     <string name="game_install_folder">Папка</string>
@@ -3512,20 +3552,32 @@
     <string name="integration_wifi">Имена на Wi-Fi</string>
     <string name="integration_brightness">Яркост</string>
     <string name="integration_home">DroidDeck като начален екран</string>
-    <string name="integration_shortcuts">Преки пътища с бутона за начален екран</string>
+    <string name="integration_shortcuts">Системни клавиши</string>
     <string name="integration_wifi_hint">Показване на мрежите в Steam · изисква достъп до местоположението, никога не се проследява</string>
     <string name="integration_wifi_on">Мрежите се показват в Steam</string>
     <string name="integration_wifi_location_off">Местоположението е изключено</string>
     <string name="integration_wifi_denied">Местоположението е отказано · разрешете го в „Информация за приложението“</string>
     <string name="integration_brightness_hint">Плъзгачът на Steam задава яркостта на екрана</string>
     <string name="integration_home_hint">Бутонът за начален екран отваря менюто на Steam в сесия</string>
-    <string name="integration_shortcuts_hint">Задръжте бутона за начален екран за комбинации със Steam Guide</string>
-    <string name="integration_shortcuts_needs_home">Изисква DroidDeck като начален екран</string>
+    <string name="integration_shortcuts_hint">Alt+Tab, клавишът Win и бутонът Начало остават в сесията</string>
     <string name="integration_shortcuts_maybe_restricted">Неактивно в Android? Информация за приложението → ⋮ → Разрешаване на ограничените настройки</string>
     <string name="integration_shortcuts_restricted">Блокирано от Android · Информация за приложението → ⋮ → Разрешаване на ограничените настройки</string>
-    <string name="integration_shortcuts_service">Бутон за начален екран на DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Предава натисканията на бутона за начален екран към Steam Guide, докато сесия на Steam е на фокус и DroidDeck е приложението за начален екран по подразбиране. Не чете съдържанието на екрана.</string>
+    <string name="integration_shortcuts_service">Системни клавиши на DroidDeck</string>
+    <string name="integration_shortcuts_service_description">Задържа Alt+Tab, клавиша Win и бутона Начало в активната сесия на DroidDeck вместо в Android.</string>
     <string name="integration_brightness_needed">Включете „Яркост“ в Настройка → Интеграция със Steam</string>
+    <string name="setup_gpu_bridge_off">Mali мост: изкл.</string>
+    <string name="setup_gpu_bridge_on">Mali мост: вкл.</string>
+    <string name="setup_gpu_bridge_detail">%1$s не е Adreno. Експерименталният Vulkan мост е включен: сесията рисува през собствения драйвер на телефона. Очаквайте грешки; изпратете логовете на сесията.</string>
+    <string name="setup_bridge_safe">Безопасен режим</string>
+    <string name="setup_bridge_safe_on">Безопасен режим: вкл.</string>
+    <string name="setup_bridge_safe_off">Безопасен режим: изкл.</string>
+    <string name="setup_bridge_safe_on_detail">Най-съвместим. Препоръчва се за ново устройство.</string>
+    <string name="setup_bridge_safe_off_detail">По-бързо там, където този GPU е минал проверките си.</string>
+    <string name="setup_bridge_dxvk">DXVK</string>
+    <string name="setup_bridge_dxvk_auto">DXVK: автоматично</string>
+    <string name="setup_bridge_dxvk_proton">DXVK: на Proton</string>
+    <string name="setup_bridge_dxvk_auto_detail">Използва по-стар DXVK, когато Vulkan на този GPU е твърде стар за този на Proton.</string>
+    <string name="setup_bridge_dxvk_proton_detail">Всеки Proton запазва своя DXVK, дори когато Vulkan на този GPU може да е твърде стар за него.</string>
     <string name="apps_search_hint">Търсене на приложения</string>
     <string name="apps_no_match">Няма приложения, отговарящи на „%1$s“.</string>
     <string name="apps_add_widget">Добавяне на приспособление</string>
@@ -3634,4 +3686,19 @@
     <string name="stores_gamejolt_filter_status">Статус</string>
     <string name="stores_gamejolt_filter_partners">Партньори</string>
     <string name="stores_gamejolt_followed">Следвани игри</string>
+    <string name="wow_chat_title">Въвеждане в чата</string>
+    <string name="wow_chat_voice">Гласово въвеждане</string>
+    <string name="wow_chat_remember">Запомни този избор</string>
+    <string name="wow_chat_ask">Питай всеки път</string>
+    <string name="wow_chat_send">Изпрати</string>
+    <string name="wow_chat_listening">Слушане…</string>
+    <string name="wow_chat_voice_unavailable">Гласовото въвеждане не е налично на това устройство.</string>
+    <string name="wow_chat_mic_denied">За гласово въвеждане е нужен достъп до микрофона.</string>
+    <string name="addons_download">Изтегляне на добавки…</string>
+    <string name="addons_sort_name">Име</string>
+    <string name="addons_sort_downloads">Най-изтегляни</string>
+    <string name="addons_category_all">Всички категории</string>
+    <string name="addons_none_found">Няма намерени добавки</string>
+    <string name="addons_unreachable">Няма връзка с %1$s</string>
+    <string name="addons_no_file">Няма файл за тази версия на играта</string>
 </resources>

@@ -77,6 +77,7 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
         var stepText: String? = null
         var downloadAt = -1
         var downloadPercent = -1
+        var applyingAt = -1
         var clientDownloadAt = -1
         var clientDownload: String? = null
         var clientPercent = -1
@@ -99,10 +100,16 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
                     val done = m.groupValues[1].toLong()
                     val total = maxOf(1L, m.groupValues[2].toLong())
                     downloadPercent = (done * 100 / total).toInt()
+                } else if (steam && UPDATE_APPLYING.matches(line)) {
+                    applyingAt = at
                 }
             }
         }
         return when {
+            applyingAt > stepAt && applyingAt > downloadAt -> Line(
+                context.getString(com.droiddeck.launcher.R.string.loadstate_steam_update_applying), -1,
+                Topic.STEAM, readable = true,
+            )
             downloadAt > stepAt && downloadPercent >= 0 -> Line(
                 context.getString(com.droiddeck.launcher.R.string.loadstate_steam_update, downloadPercent), downloadPercent,
                 Topic.STEAM, readable = true,
@@ -151,6 +158,7 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
 
         private const val TAIL_BYTES = 48L * 1024
         private val UPDATE_PROGRESS = Regex("""Downloading update \((\d+) of (\d+) KB\)""")
+        private val UPDATE_APPLYING = Regex("""^\s*(?:\[[^\]]+\]\s*)*(?:Extracting package|Installing update)\.\.\.\s*$""")
         private val INSTALL_COUNT = Regex("""downloading Steam: (\S+) \((\d+)/(\d+)\)""")
         private val INSTALL_MEGABYTES = Regex("""^, (\d+) of (\d+) MB""")
     }

@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s ผ่าน FEX</string>
     <string name="app_fex_not_ready">โปรแกรมนี้สร้างมาสำหรับพีซี %1$s และรันผ่าน FEX ซึ่งยังไม่ได้ตั้งค่า เปิด Steam สักครั้งขณะลงชื่อเข้าใช้: DroidDeck จะดาวน์โหลด FEX และ Steam Linux Runtime ที่จำเป็น จากนั้นโปรแกรมนี้จะเปิดขึ้น</string>
     <string name="session_proot_missing">ดาวน์โหลด proot ของ DroidDeck ไม่ได้ ตรวจสอบการเชื่อมต่อแล้วลองใหม่ เซสชันไม่ได้เริ่มเพราะ proot สำรองช้าเกินกว่าจะเล่นได้</string>
+    <string name="session_powervr_missing">ดาวน์โหลดสภาพแวดล้อมกราฟิก PowerVR ไม่สำเร็จ ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง</string>
     <string name="session_directaudio_missing">ดาวน์โหลด DirectAudio ไม่ได้ เสียงเกมในเซสชันนี้จึงใช้เส้นทางที่ช้ากว่า</string>
     <string name="session_end_program">โปรแกรมนี้</string>
     <string name="session_end_steam_download">ดาวน์โหลดไคลเอนต์ Steam ไม่ได้ เครือข่ายหรือ VPN ของคุณอาจบล็อกเซิร์ฟเวอร์ของ Steam ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง</string>
@@ -553,6 +554,19 @@
     <string name="comp_tag_in_use">ใช้งานอยู่</string>
     <string name="comp_tag_new">ใหม่</string>
     <string name="comp_tag_stored">บันทึกไว้</string>
+    <string name="comp_mode_title">วิธีเลือกบิลด์</string>
+    <string name="comp_mode_auto_detail">บิลด์ DroidDeck ล่าสุด อัปเดตอยู่เสมอ</string>
+    <string name="comp_mode_manual_detail">เลือกและติดตั้งบิลด์เอง</string>
+    <string name="comp_auto_title">Auto ทำให้ %1$s เป็นปัจจุบัน</string>
+    <string name="comp_auto_hint">บิลด์ใหม่จะติดตั้งในเบื้องหลัง หากเกมที่เคยเล่นได้ปิดลงภายในไม่กี่วินาทีสองครั้ง Auto จะกลับไปใช้บิลด์ที่ใช้งานได้</string>
+    <string name="comp_auto_fallback">สำรอง: %1$s</string>
+    <string name="comp_auto_checking">กำลังค้นหาบิลด์…</string>
+    <string name="comp_auto_none">ไม่มี DroidDeck-Proton ที่ใช้สิ่งนี้</string>
+    <string name="comp_auto_waits_network">การอัปเดต Auto กำลังรอการเชื่อมต่อ</string>
+    <string name="comp_auto_check_failed">ตรวจหาบิลด์ใหม่ไม่ได้</string>
+    <string name="comp_auto_waits_unmetered">บิลด์ใหม่จะรอการเชื่อมต่อที่ไม่จำกัดปริมาณ ปิดโหมดประหยัดแบตเตอรี่ และอุปกรณ์ที่ไม่ร้อน</string>
+    <string name="comp_auto_updated">อัปเดต %1$s เป็น %2$s แล้ว</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s ทำให้เกมปิดภายในไม่กี่วินาทีสองครั้ง Auto จึงกลับไปใช้ %3$s</string>
     <string name="perf_title">ประสิทธิภาพ</string>
     <string name="perf_lede">คอร์ CPU การแก้ไขเซสชัน และชื่อโฮสต์ จะมีผลในเซสชันถัดไป</string>
     <string name="perf_client_cores_group">คอร์สำหรับไคลเอนต์ Steam</string>
@@ -583,7 +597,7 @@
     <string name="perf_ram_cap_hint">มีผลขณะไคลเอนต์ Steam ทำงาน ทั้งในโหมด Steam หรือจากเดสก์ท็อป เมื่อเซสชันใช้เกินค่านี้ Steam และโปรเซสอื่นที่รองรับของเซสชันจะถูกบีบอัดลงใน zRAM ตามลำดับ เป็นขีดจำกัดแบบอ่อน: ไม่มีอะไรถูกปิด แต่เกมอาจกระตุกขณะดึงหน้าหน่วยความจำกลับมา</string>
     <string name="perf_ram_cap_unavailable">ต้องใช้ zRAM swap ซึ่งอุปกรณ์นี้ไม่มี</string>
     <string name="perf_vram_cap">ขีดจำกัด VRAM</string>
-    <string name="perf_vram_cap_hint">หน่วยความจำวิดีโอที่ DXVK รายงานต่อเกม Direct3D เพื่อให้เกมจัดสรรเท็กซ์เจอร์น้อยลง การตั้งค่า DXVK ของเกมเองยังมีผลเหนือกว่า มีผลในเซสชันถัดไป</string>
+    <string name="perf_vram_cap_hint">แจ้งงบประมาณหน่วยความจำวิดีโอนี้ให้เกม Direct3D 9 ถึง 12 เพื่อลดการใช้หน่วยความจำ เกมอาจใช้เกินงบได้ ฟีเจอร์นี้ไม่ได้เพิ่มการสลับหน้าหน่วยความจำ GPU และไม่รับประกันว่าจะป้องกันการแครชเมื่อหน่วยความจำหมด มีผลในเซสชันถัดไป</string>
     <string name="perf_gpuclock">ตรึง GPU ไว้ที่ความเร็วสัญญาณนาฬิกาสูงสุด</string>
     <string name="perf_gpuclock_hint">สำหรับ Adreno เท่านั้น สะดุดน้อยลง แต่ใช้แบตเตอรี่และเกิดความร้อนมากขึ้น</string>
     <string name="perf_fixes">การแก้ไขเซสชัน</string>
@@ -668,6 +682,8 @@
     <string name="hud_group_metrics">ค่าที่แสดง</string>
     <string name="hud_metric_graph">กราฟเวลาเฟรม</string>
     <string name="hud_metric_decimal">อัตราเฟรมแบบทศนิยม</string>
+    <string name="hud_metric_low1">1% ต่ำสุด</string>
+    <string name="hud_metric_low01">0.1% ต่ำสุด</string>
     <string name="hud_metric_low001">0.01% ต่ำสุด</string>
     <string name="hud_metric_engine">เอนจินกราฟิก</string>
     <string name="hud_metric_gpu_model">ชื่อ GPU</string>
@@ -745,6 +761,10 @@
     <string name="drawer_low_latency_touch">การสัมผัสความหน่วงต่ำ</string>
     <string name="drawer_low_latency_touch_hint">การสัมผัสข้ามการรวมเฟรม ทำให้ระบบสัมผัสของ Steam ทำงานที่ 1000 Hz ใช้ CPU เพิ่มขึ้นเล็กน้อย</string>
     <string name="drawer_evdev_mouse">ช่องเมาส์ดิบ</string>
+    <string name="drawer_relative_mouse">เมาส์แบบสัมพัทธ์</string>
+    <string name="drawer_relative_mouse_auto">อัตโนมัติ</string>
+    <string name="drawer_relative_mouse_on">เปิด</string>
+    <string name="drawer_relative_mouse_off">ปิด</string>
     <string name="drawer_direct_cursor">เคอร์เซอร์</string>
     <string name="drawer_pc_keyboard">แป้นพิมพ์พีซี</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -804,7 +824,7 @@
     <string name="setup_gpu_unsupported">ไม่รองรับ GPU นี้</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam ต้องใช้ไดรเวอร์ Adreno; %1$s อาจแสดงจอดำ</string>
+    <string name="setup_gpu_unsupported_detail">ไม่มีแบ็กเอนด์กราฟิกที่เข้ากันได้สำหรับ %1$s Steam อาจแสดงหน้าจอสีดำ</string>
     <string name="setup_runtime">รันไทม์ Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">ยังไม่ติดตั้ง · ประมาณ 3 GB จะติดตั้งเมื่อกด Play ครั้งแรก</string>
@@ -866,6 +886,7 @@
     <string name="setup_home">ใช้เป็นหน้าจอหลัก</string>
     <string name="setup_home_on">DroidDeck สามารถเป็นแอปหน้าจอหลักได้</string>
     <string name="setup_home_off">DroidDeck จะไม่ถูกเสนอให้เป็นแอปหน้าจอหลัก</string>
+    <string name="setup_home_game_space_first">ในเพิ่มเกม ให้ตั้ง DroidDeck เป็นรวม</string>
     <string name="setup_orientation">การวางแนว</string>
     <string name="setup_launcher_orientation">การวางแนวของตัวเปิดใช้</string>
     <string name="setup_launcher_orientation_auto">หมุนตามอุปกรณ์</string>
@@ -1095,6 +1116,7 @@
     <string name="ctrl_stick_click_hint">แตะสองครั้งแล้วกดสติ๊กค้างไว้สำหรับ L3 หรือ R3</string>
     <string name="ctrl_adaptive">สติ๊กแบบปรับอัตโนมัติ</string>
     <string name="ctrl_rumble">การสั่นของเกม</string>
+    <string name="ctrl_dead_zone">เดดโซนของแอนะล็อกสติ๊ก</string>
     <string name="ctrl_steam_button">ปุ่ม Steam</string>
     <string name="ctrl_qam_button">ปุ่ม QAM</string>
     <string name="ctrl_keyboard_button">ปุ่มแป้นพิมพ์</string>
@@ -1172,6 +1194,13 @@
     <string name="games_export_gamehub">ส่งออกเป็น GameHub zip…</string>
     <string name="games_export_winlator">ส่งออกเป็น Winlator zip…</string>
     <string name="games_open_save_folder">เปิดโฟลเดอร์เซฟ</string>
+    <string name="games_import_addons">นำเข้าแอดออนจาก zip…</string>
+    <string name="games_open_addons_folder">เปิดโฟลเดอร์แอดออน</string>
+    <string name="games_delete_addon_title">ลบ %1$s ไหม</string>
+    <string name="games_delete_addon_body">การดำเนินการนี้จะลบโฟลเดอร์ของแอดออน ส่วนการตั้งค่ายังคงอยู่</string>
+    <plurals name="games_addons_count">
+        <item quantity="other">%1$d แอดออน</item>
+    </plurals>
     <string name="games_never_played">ยังไม่เคยเล่น</string>
     <string name="games_runtime_busy_percent">รันไทม์กำลังทำงาน · %1$d%%</string>
     <string name="games_runtime_busy">รันไทม์กำลังทำงาน</string>
@@ -1347,6 +1376,16 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="other">นำเข้า %1$d ไฟล์จาก %2$s สู่ %3$s แล้ว เซฟเก่าสำรองไว้ที่ Download/DroidDeck/Saves/backups</item>
     </plurals>
+    <string name="main_addons_close_session">ปิดเซสชันก่อน เพื่อไม่ให้เกมใช้แอดออนระหว่างการนำเข้า</string>
+    <string name="main_addons_importing">กำลังนำเข้าแอดออนสู่ %1$s</string>
+    <string name="main_addons_pick_zip">เลือกไฟล์ zip แอดออนสำหรับ %1$s</string>
+    <string name="main_addons_too_large">%1$s มีขนาดใหญ่เกินกว่าจะนำเข้าได้</string>
+    <string name="main_addons_deleting">กำลังลบ %1$s</string>
+    <string name="main_addons_deleted">ลบ %1$s แล้ว</string>
+    <string name="main_addons_none">ไม่พบแอดออนใน %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="other">นำเข้า %1$d แอดออนสู่ %2$s แล้ว</item>
+    </plurals>
     <string name="main_saves_pick_zip">เลือกไฟล์ zip เซฟสำหรับ %1$s</string>
     <string name="main_saves_exporting">กำลังส่งออก %1$s</string>
     <plurals name="main_saves_exported">
@@ -1364,8 +1403,8 @@
     <string name="main_wadb_unavailable">Wireless debugging ไม่พร้อมใช้งาน</string>
     <string name="main_adb_copied">คัดลอกคำสั่ง ADB แล้ว</string>
     <string name="main_pick_roms">เลือกโฟลเดอร์ ROM</string>
-    <string name="main_non_adreno_title">ไม่ใช่ GPU Adreno</string>
-    <string name="main_non_adreno_text">Turnip รองรับ GPU Adreno บน %1$s Steam อาจแสดงจอดำ ดาวน์โหลด: %2$.0f MB</string>
+    <string name="main_non_adreno_title">ไม่รองรับ GPU</string>
+    <string name="main_non_adreno_text">ไม่มีแบ็กเอนด์กราฟิกที่เข้ากันได้สำหรับ %1$s Steam อาจแสดงหน้าจอสีดำ ดาวน์โหลด: %2$.0f MB</string>
     <string name="main_install_anyway">ติดตั้งอยู่ดี</string>
     <string name="main_remove_runtime_title">ลบรันไทม์ Linux</string>
     <string name="main_remove_runtime_text">การลบนี้จะลบรันไทม์ ไคลเอนต์ Steam ภายใน และเกมทุกเกมที่ติดตั้งอยู่ในนั้น</string>
@@ -1725,6 +1764,7 @@
     <string name="ctrl_tint_amber">อำพัน</string>
     <string name="ctrl_tint_red">แดง</string>
     <string name="ctrl_tint_pink">ชมพู</string>
+    <string name="ctrl_tint_gray">เทา</string>
     <string name="ctrl_button_a">ปุ่ม A</string>
     <string name="ctrl_button_b">ปุ่ม B</string>
     <string name="ctrl_button_x">ปุ่ม X</string>
@@ -2066,7 +2106,7 @@
     <string name="gpuinfo_experimental">ทดลอง: ไดรเวอร์เป็นบิลด์ทดสอบ</string>
     <string name="gpuinfo_a850_experimental">รองรับ Adreno 850 แบบทดลอง: ต้องใช้ไดรเวอร์จอแสดงผลและไดรเวอร์เกมแบบทดลองที่เข้ากันได้ ยังไม่ได้ตรวจสอบบนอุปกรณ์นี้</string>
     <string name="gpuinfo_below_tested">ต่ำกว่าฮาร์ดแวร์ที่ทดสอบแล้ว (Adreno 725 และรุ่นใหม่กว่า): อาจรันไม่ได้</string>
-    <string name="gpuinfo_unsupported">ไม่รองรับ: DroidDeck ต้องใช้ GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">ไม่รองรับ: ไม่มีแบ็กเอนด์กราฟิกที่เข้ากันได้สำหรับ GPU นี้</string>
 
     <string name="turnip_rate_limited">ติดขีดจำกัดอัตราของ GitHub - ลองใหม่ในหลัง</string>
     <string name="turnip_github_http">GitHub ตอบกลับด้วย HTTP %1$d</string>
@@ -2177,9 +2217,6 @@
     <string name="source_added">กำหนดเอง</string>
     <string name="setup_stores">สโตร์</string>
     <string name="setup_stores_speed">ระดับความเร็วการดาวน์โหลด</string>
-    <string name="setup_stores_engine">เอนจินสโตร์</string>
-    <string name="setup_stores_engine_chip_ready">● เอนจินพร้อมใช้งาน</string>
-    <string name="setup_stores_engine_chip_missing">ยังไม่สร้าง</string>
     <string name="stores_tier_balanced">สมดุล</string>
     <string name="stores_tier_fast">เร็ว</string>
     <string name="stores_tier_max">สูงสุด</string>
@@ -3439,6 +3476,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">สำหรับเกมที่มีเซฟอยู่ในบัญชี Steam ของคุณ</string>
     <string name="game_resource_search">ค้นหาเว็บ</string>
+    <string name="game_tab_addons">แอดออน</string>
     <string name="game_tab_install">ติดตั้ง</string>
     <string name="game_install_location">ตำแหน่ง</string>
     <string name="game_install_folder">โฟลเดอร์</string>
@@ -3485,20 +3523,32 @@
     <string name="integration_wifi">ชื่อ Wi-Fi</string>
     <string name="integration_brightness">ความสว่าง</string>
     <string name="integration_home">DroidDeck เป็นหน้าหลัก</string>
-    <string name="integration_shortcuts">ทางลัดปุ่มหน้าหลัก</string>
+    <string name="integration_shortcuts">ปุ่มระบบ</string>
     <string name="integration_wifi_hint">แสดงเครือข่ายใน Steam · ต้องใช้สิทธิ์ตำแหน่ง ไม่มีการติดตาม</string>
     <string name="integration_wifi_on">เครือข่ายแสดงใน Steam</string>
     <string name="integration_wifi_location_off">ตำแหน่งปิดอยู่</string>
     <string name="integration_wifi_denied">ปฏิเสธตำแหน่ง · อนุญาตในข้อมูลแอป</string>
     <string name="integration_brightness_hint">แถบเลื่อนของ Steam ปรับความสว่างหน้าจอ</string>
     <string name="integration_home_hint">ปุ่มหน้าหลักเปิดเมนู Steam ในเซสชัน</string>
-    <string name="integration_shortcuts_hint">กดปุ่มหน้าหลักค้างไว้เพื่อใช้คอร์ด Steam Guide</string>
-    <string name="integration_shortcuts_needs_home">ต้องตั้ง DroidDeck เป็นหน้าหลัก</string>
+    <string name="integration_shortcuts_hint">Alt+Tab ปุ่ม Win และปุ่มโฮมทำงานในเซสชัน</string>
     <string name="integration_shortcuts_maybe_restricted">เป็นสีเทาใน Android? ข้อมูลแอป → ⋮ → อนุญาตการตั้งค่าที่จำกัด</string>
     <string name="integration_shortcuts_restricted">ถูกบล็อกโดย Android · ข้อมูลแอป → ⋮ → อนุญาตการตั้งค่าที่จำกัด</string>
-    <string name="integration_shortcuts_service">ปุ่มหน้าหลัก DroidDeck</string>
-    <string name="integration_shortcuts_service_description">ส่งการกดปุ่มหน้าหลักไปยัง Steam Guide ขณะเซสชัน Steam อยู่ในโฟกัสและ DroidDeck เป็นแอปหน้าหลักเริ่มต้น ไม่อ่านเนื้อหาบนหน้าจอ</string>
+    <string name="integration_shortcuts_service">ปุ่มระบบของ DroidDeck</string>
+    <string name="integration_shortcuts_service_description">ให้ Alt+Tab ปุ่ม Win และปุ่มโฮมทำงานในเซสชัน DroidDeck ที่ใช้งานอยู่แทน Android</string>
     <string name="integration_brightness_needed">เปิดความสว่างในการตั้งค่า → การผสานรวม Steam</string>
+    <string name="setup_gpu_bridge_off">บริดจ์ Mali: ปิด</string>
+    <string name="setup_gpu_bridge_on">บริดจ์ Mali: เปิด</string>
+    <string name="setup_gpu_bridge_detail">%1$s ไม่ใช่ Adreno บริดจ์ Vulkan รุ่นทดลองเปิดอยู่: เซสชันวาดผ่านไดรเวอร์ของโทรศัพท์เอง อาจพบบั๊ก โปรดส่งบันทึกของเซสชัน</string>
+    <string name="setup_bridge_safe">โหมดปลอดภัย</string>
+    <string name="setup_bridge_safe_on">โหมดปลอดภัย: เปิด</string>
+    <string name="setup_bridge_safe_off">โหมดปลอดภัย: ปิด</string>
+    <string name="setup_bridge_safe_on_detail">เข้ากันได้มากที่สุด แนะนำสำหรับอุปกรณ์ใหม่</string>
+    <string name="setup_bridge_safe_off_detail">เร็วขึ้นในส่วนที่ GPU นี้ผ่านการตรวจสอบ</string>
+    <string name="setup_bridge_dxvk">DXVK</string>
+    <string name="setup_bridge_dxvk_auto">DXVK: อัตโนมัติ</string>
+    <string name="setup_bridge_dxvk_proton">DXVK: ของ Proton</string>
+    <string name="setup_bridge_dxvk_auto_detail">ใช้ DXVK รุ่นเก่ากว่าเมื่อ Vulkan ของ GPU นี้เก่าเกินไปสำหรับ DXVK ของ Proton</string>
+    <string name="setup_bridge_dxvk_proton_detail">Proton แต่ละตัวใช้ DXVK ของตัวเอง แม้ Vulkan ของ GPU นี้อาจเก่าเกินไปสำหรับมัน</string>
     <string name="apps_search_hint">ค้นหาแอป</string>
     <string name="apps_no_match">ไม่มีแอปที่ตรงกับ “%1$s”</string>
     <string name="apps_add_widget">เพิ่มวิดเจ็ต</string>
@@ -3606,4 +3656,19 @@
     <string name="stores_gamejolt_filter_status">สถานะ</string>
     <string name="stores_gamejolt_filter_partners">พาร์ตเนอร์</string>
     <string name="stores_gamejolt_followed">เกมที่ติดตาม</string>
+    <string name="wow_chat_title">การป้อนแชท</string>
+    <string name="wow_chat_voice">พิมพ์ด้วยเสียง</string>
+    <string name="wow_chat_remember">จดจำตัวเลือกนี้</string>
+    <string name="wow_chat_ask">ถามทุกครั้ง</string>
+    <string name="wow_chat_send">ส่ง</string>
+    <string name="wow_chat_listening">กำลังฟัง…</string>
+    <string name="wow_chat_voice_unavailable">อุปกรณ์นี้ไม่รองรับการพิมพ์ด้วยเสียง</string>
+    <string name="wow_chat_mic_denied">ต้องอนุญาตให้เข้าถึงไมโครโฟนเพื่อพิมพ์ด้วยเสียง</string>
+    <string name="addons_download">ดาวน์โหลดแอดออน…</string>
+    <string name="addons_sort_name">ชื่อ</string>
+    <string name="addons_sort_downloads">ดาวน์โหลดมากที่สุด</string>
+    <string name="addons_category_all">ทุกหมวดหมู่</string>
+    <string name="addons_none_found">ไม่พบแอดออน</string>
+    <string name="addons_unreachable">ไม่สามารถเชื่อมต่อ %1$s ได้</string>
+    <string name="addons_no_file">ไม่มีไฟล์สำหรับเกมเวอร์ชันนี้</string>
 </resources>

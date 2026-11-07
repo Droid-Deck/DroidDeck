@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s melalui FEX</string>
     <string name="app_fex_not_ready">Program ini dibuat untuk PC %1$s dan berjalan melalui FEX, yang belum disiapkan. Buka Steam sekali saat masuk: DroidDeck akan mengunduh FEX dan Steam Linux Runtime yang diperlukan, lalu ini akan terbuka.</string>
     <string name="session_proot_missing">proot DroidDeck tidak dapat diunduh. Periksa koneksi lalu coba lagi. Sesi tidak dimulai karena proot cadangan terlalu lambat untuk bermain.</string>
+    <string name="session_powervr_missing">Lingkungan grafis PowerVR tidak dapat diunduh. Periksa koneksi dan coba lagi.</string>
     <string name="session_directaudio_missing">DirectAudio tidak dapat diunduh, jadi audio gim menggunakan jalur yang lebih lambat di sesi ini.</string>
     <string name="session_end_program">Program ini</string>
     <string name="session_end_steam_download">Tidak dapat mengunduh klien Steam. Jaringan atau VPN Anda mungkin memblokir server Steam; periksa koneksi lalu coba lagi.</string>
@@ -553,6 +554,19 @@
     <string name="comp_tag_in_use">Digunakan</string>
     <string name="comp_tag_new">Baru</string>
     <string name="comp_tag_stored">Tersimpan</string>
+    <string name="comp_mode_title">Cara build dipilih</string>
+    <string name="comp_mode_auto_detail">Build DroidDeck terbaru, selalu mutakhir</string>
+    <string name="comp_mode_manual_detail">Pilih dan pasang build sendiri</string>
+    <string name="comp_auto_title">Auto menjaga %1$s tetap mutakhir</string>
+    <string name="comp_auto_hint">Build baru dipasang di latar belakang. Jika game yang sebelumnya berjalan tertutup dalam hitungan detik dua kali, Auto kembali ke build yang berfungsi.</string>
+    <string name="comp_auto_fallback">Cadangan: %1$s</string>
+    <string name="comp_auto_checking">Mencari build…</string>
+    <string name="comp_auto_none">Tidak ada DroidDeck-Proton yang memakainya</string>
+    <string name="comp_auto_waits_network">Pembaruan Auto menunggu koneksi.</string>
+    <string name="comp_auto_check_failed">Tidak dapat memeriksa build baru.</string>
+    <string name="comp_auto_waits_unmetered">Build baru menunggu koneksi tanpa kuota, penghemat baterai mati, dan perangkat yang dingin.</string>
+    <string name="comp_auto_updated">%1$s diperbarui ke %2$s.</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s menutup game dalam hitungan detik dua kali, jadi Auto kembali ke %3$s.</string>
     <string name="perf_title">Performa</string>
     <string name="perf_lede">Core CPU, perbaikan sesi, dan nama host. Berlaku pada sesi berikutnya.</string>
     <string name="perf_client_cores_group">Core klien Steam</string>
@@ -583,7 +597,7 @@
     <string name="perf_ram_cap_hint">Berlaku saat klien Steam berjalan, di mode Steam atau dari desktop. Saat sesi menggunakan lebih dari ini, Steam lalu proses lain yang didukung dalam sesi dikompres ke zRAM. Batas lunak: tidak ada yang ditutup, tetapi gim dapat tersendat saat halaman dimuat kembali.</string>
     <string name="perf_ram_cap_unavailable">Memerlukan swap zRAM, yang tidak dimiliki perangkat ini.</string>
     <string name="perf_vram_cap">Batas VRAM</string>
-    <string name="perf_vram_cap_hint">Memori video yang dilaporkan DXVK ke gim Direct3D, sehingga gim menganggarkan tekstur lebih sedikit. Setelan DXVK milik gim tetap diutamakan. Berlaku pada sesi berikutnya.</string>
+    <string name="perf_vram_cap_hint">Melaporkan anggaran memori video ini ke game Direct3D 9 hingga 12 untuk mengurangi penggunaan memori. Game dapat melampauinya; ini tidak menambahkan paging GPU atau menjamin perlindungan dari crash akibat kehabisan memori. Berlaku pada sesi berikutnya.</string>
     <string name="perf_gpuclock">Pertahankan GPU pada clock tertingginya</string>
     <string name="perf_gpuclock_hint">Hanya Adreno. Lebih sedikit tersendat, lebih banyak penggunaan baterai dan panas.</string>
     <string name="perf_fixes">Perbaikan sesi</string>
@@ -668,6 +682,8 @@
     <string name="hud_group_metrics">Pembacaan</string>
     <string name="hud_metric_graph">Grafik waktu bingkai</string>
     <string name="hud_metric_decimal">Laju bingkai dengan desimal</string>
+    <string name="hud_metric_low1">1% terendah</string>
+    <string name="hud_metric_low01">0.1% terendah</string>
     <string name="hud_metric_low001">0.01% terendah</string>
     <string name="hud_metric_engine">Mesin grafis</string>
     <string name="hud_metric_gpu_model">Nama GPU</string>
@@ -745,6 +761,10 @@
     <string name="drawer_low_latency_touch">Sentuh latensi rendah</string>
     <string name="drawer_low_latency_touch_hint">Sentuhan melewati pengelompokan frame, jadi kontrol sentuh Steam berjalan pada 1000 Hz. Sedikit lebih banyak CPU.</string>
     <string name="drawer_evdev_mouse">Kanal mouse mentah</string>
+    <string name="drawer_relative_mouse">Mouse relatif</string>
+    <string name="drawer_relative_mouse_auto">Otomatis</string>
+    <string name="drawer_relative_mouse_on">Aktif</string>
+    <string name="drawer_relative_mouse_off">Nonaktif</string>
     <string name="drawer_direct_cursor">Kursor</string>
     <string name="drawer_pc_keyboard">Keyboard PC</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -804,7 +824,7 @@
     <string name="setup_gpu_unsupported">GPU tidak didukung</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam memerlukan driver Adreno; %1$s mungkin menampilkan layar hitam</string>
+    <string name="setup_gpu_unsupported_detail">Tidak ada backend grafis yang kompatibel untuk %1$s. Steam mungkin menampilkan layar hitam.</string>
     <string name="setup_runtime">Runtime Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Belum terinstal · sekitar 3 GB, terinstal saat Play pertama kali</string>
@@ -866,6 +886,7 @@
     <string name="setup_home">Gunakan sebagai Layar Utama</string>
     <string name="setup_home_on">DroidDeck dapat menjadi aplikasi Utama</string>
     <string name="setup_home_off">DroidDeck tidak pernah ditawarkan sebagai aplikasi Utama</string>
+    <string name="setup_home_game_space_first">Di Tambahkan Game, setel DroidDeck ke Sertakan</string>
     <string name="setup_orientation">Orientasi</string>
     <string name="setup_launcher_orientation">Orientasi peluncur</string>
     <string name="setup_launcher_orientation_auto">Ikuti rotasi perangkat</string>
@@ -1095,6 +1116,7 @@
     <string name="ctrl_stick_click_hint">Ketuk dua kali dan tahan sebuah stik untuk L3 atau R3</string>
     <string name="ctrl_adaptive">Stik adaptif</string>
     <string name="ctrl_rumble">Getaran gim</string>
+    <string name="ctrl_dead_zone">Zona mati stik</string>
     <string name="ctrl_steam_button">Tombol Steam</string>
     <string name="ctrl_qam_button">Tombol QAM</string>
     <string name="ctrl_keyboard_button">Tombol keyboard</string>
@@ -1172,6 +1194,13 @@
     <string name="games_export_gamehub">Ekspor sebagai zip GameHub…</string>
     <string name="games_export_winlator">Ekspor sebagai zip Winlator…</string>
     <string name="games_open_save_folder">Buka folder simpanan</string>
+    <string name="games_import_addons">Impor addon dari zip…</string>
+    <string name="games_open_addons_folder">Buka folder addon</string>
+    <string name="games_delete_addon_title">Hapus %1$s?</string>
+    <string name="games_delete_addon_body">Ini menghapus folder addon. Pengaturannya tetap ada.</string>
+    <plurals name="games_addons_count">
+        <item quantity="other">%1$d addon</item>
+    </plurals>
     <string name="games_never_played">Belum pernah dimainkan</string>
     <string name="games_runtime_busy_percent">Runtime sibuk · %1$d%%</string>
     <string name="games_runtime_busy">Runtime sibuk</string>
@@ -1347,6 +1376,16 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="other">%1$d file diimpor dari %2$s ke %3$s. Save lama dicadangkan ke Download/DroidDeck/Saves/backups</item>
     </plurals>
+    <string name="main_addons_close_session">Tutup sesi dulu, agar game tidak memakai addon-nya saat impor</string>
+    <string name="main_addons_importing">Mengimpor addon ke %1$s</string>
+    <string name="main_addons_pick_zip">Pilih zip addon untuk %1$s</string>
+    <string name="main_addons_too_large">%1$s terlalu besar untuk diimpor</string>
+    <string name="main_addons_deleting">Menghapus %1$s</string>
+    <string name="main_addons_deleted">%1$s dihapus</string>
+    <string name="main_addons_none">Tidak ada addon di %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="other">%1$d addon diimpor ke %2$s</item>
+    </plurals>
     <string name="main_saves_pick_zip">Pilih zip save untuk %1$s</string>
     <string name="main_saves_exporting">Mengekspor %1$s</string>
     <plurals name="main_saves_exported">
@@ -1364,8 +1403,8 @@
     <string name="main_wadb_unavailable">Debugging nirkabel tidak tersedia</string>
     <string name="main_adb_copied">Perintah ADB disalin</string>
     <string name="main_pick_roms">Pilih folder ROMs</string>
-    <string name="main_non_adreno_title">Bukan GPU Adreno</string>
-    <string name="main_non_adreno_text">Turnip mendukung GPU Adreno. Di %1$s, Steam mungkin menampilkan layar hitam. Unduhan: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">GPU tidak didukung</string>
+    <string name="main_non_adreno_text">Tidak ada backend grafis yang kompatibel untuk %1$s. Steam mungkin menampilkan layar hitam. Unduhan: %2$.0f MB.</string>
     <string name="main_install_anyway">Tetap instal</string>
     <string name="main_remove_runtime_title">Hapus runtime Linux</string>
     <string name="main_remove_runtime_text">Ini menghapus runtime, klien Steam di dalamnya, dan setiap game yang terinstal di sana.</string>
@@ -1725,6 +1764,7 @@
     <string name="ctrl_tint_amber">Ambar</string>
     <string name="ctrl_tint_red">Merah</string>
     <string name="ctrl_tint_pink">Merah muda</string>
+    <string name="ctrl_tint_gray">Abu-abu</string>
     <string name="ctrl_button_a">Tombol A</string>
     <string name="ctrl_button_b">Tombol B</string>
     <string name="ctrl_button_x">Tombol X</string>
@@ -2066,7 +2106,7 @@
     <string name="gpuinfo_experimental">Eksperimental: drivernya adalah build uji</string>
     <string name="gpuinfo_a850_experimental">Dukungan eksperimental Adreno 850: memerlukan driver tampilan dan driver gim eksperimental yang kompatibel; belum diverifikasi di perangkat ini</string>
     <string name="gpuinfo_below_tested">Di bawah perangkat keras yang diuji (Adreno 725 dan lebih baru): mungkin tidak dapat berjalan</string>
-    <string name="gpuinfo_unsupported">Tidak didukung: DroidDeck memerlukan GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">Tidak didukung: tidak ada backend grafis yang kompatibel untuk GPU ini</string>
 
     <string name="turnip_rate_limited">Batas kecepatan GitHub tercapai - coba lagi nanti</string>
     <string name="turnip_github_http">GitHub merespons HTTP %1$d</string>
@@ -2177,9 +2217,6 @@
     <string name="source_added">Khusus</string>
     <string name="setup_stores">Toko</string>
     <string name="setup_stores_speed">Tingkat kecepatan unduhan</string>
-    <string name="setup_stores_engine">Mesin toko</string>
-    <string name="setup_stores_engine_chip_ready">● Mesin siap</string>
-    <string name="setup_stores_engine_chip_missing">Belum dibuat</string>
     <string name="stores_tier_balanced">Seimbang</string>
     <string name="stores_tier_fast">Cepat</string>
     <string name="stores_tier_max">Maks</string>
@@ -3439,6 +3476,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Untuk gim dengan save di akun Steam Anda</string>
     <string name="game_resource_search">Penelusuran web</string>
+    <string name="game_tab_addons">Addon</string>
     <string name="game_tab_install">Pasang</string>
     <string name="game_install_location">Lokasi</string>
     <string name="game_install_folder">Folder</string>
@@ -3485,20 +3523,32 @@
     <string name="integration_wifi">Nama Wi-Fi</string>
     <string name="integration_brightness">Kecerahan</string>
     <string name="integration_home">DroidDeck sebagai Beranda</string>
-    <string name="integration_shortcuts">Pintasan tombol Home</string>
+    <string name="integration_shortcuts">Tombol sistem</string>
     <string name="integration_wifi_hint">Tampilkan jaringan di Steam · memerlukan akses Lokasi, tidak pernah dilacak</string>
     <string name="integration_wifi_on">Jaringan tampil di Steam</string>
     <string name="integration_wifi_location_off">Lokasi nonaktif</string>
     <string name="integration_wifi_denied">Lokasi ditolak · izinkan di Info aplikasi</string>
     <string name="integration_brightness_hint">Penggeser Steam mengatur kecerahan layar</string>
     <string name="integration_home_hint">Home membuka menu Steam dalam sesi</string>
-    <string name="integration_shortcuts_hint">Tahan Home untuk kombinasi Steam Guide</string>
-    <string name="integration_shortcuts_needs_home">Memerlukan DroidDeck sebagai Beranda</string>
+    <string name="integration_shortcuts_hint">Alt+Tab, tombol Win, dan tombol Beranda tetap di sesi</string>
     <string name="integration_shortcuts_maybe_restricted">Berwarna abu-abu di Android? Info aplikasi → ⋮ → Izinkan setelan terbatas</string>
     <string name="integration_shortcuts_restricted">Diblokir oleh Android · Info aplikasi → ⋮ → Izinkan setelan terbatas</string>
-    <string name="integration_shortcuts_service">Tombol Home DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Meneruskan tekanan tombol Home ke Steam Guide saat sesi Steam sedang aktif dan DroidDeck adalah aplikasi Beranda default. Tidak membaca konten layar.</string>
+    <string name="integration_shortcuts_service">Tombol sistem DroidDeck</string>
+    <string name="integration_shortcuts_service_description">Menjaga Alt+Tab, tombol Win, dan tombol Beranda tetap di sesi DroidDeck yang aktif, bukan di Android.</string>
     <string name="integration_brightness_needed">Aktifkan Kecerahan di Penyiapan → Integrasi Steam</string>
+    <string name="setup_gpu_bridge_off">Jembatan Mali: mati</string>
+    <string name="setup_gpu_bridge_on">Jembatan Mali: nyala</string>
+    <string name="setup_gpu_bridge_detail">%1$s bukan Adreno. Jembatan Vulkan eksperimental menyala: sesi menggambar melalui driver ponsel itu sendiri. Bersiaplah menemui bug; kirim log sesi.</string>
+    <string name="setup_bridge_safe">Mode aman</string>
+    <string name="setup_bridge_safe_on">Mode aman: nyala</string>
+    <string name="setup_bridge_safe_off">Mode aman: mati</string>
+    <string name="setup_bridge_safe_on_detail">Paling kompatibel. Disarankan untuk perangkat baru.</string>
+    <string name="setup_bridge_safe_off_detail">Lebih cepat di bagian yang lolos pemeriksaan GPU ini.</string>
+    <string name="setup_bridge_dxvk">DXVK</string>
+    <string name="setup_bridge_dxvk_auto">DXVK: otomatis</string>
+    <string name="setup_bridge_dxvk_proton">DXVK: bawaan Proton</string>
+    <string name="setup_bridge_dxvk_auto_detail">Memakai DXVK lebih lama jika Vulkan GPU ini terlalu lama untuk DXVK bawaan Proton.</string>
+    <string name="setup_bridge_dxvk_proton_detail">Setiap Proton tetap memakai DXVK bawaannya, meski Vulkan GPU ini mungkin terlalu lama untuknya.</string>
     <string name="apps_search_hint">Cari aplikasi</string>
     <string name="apps_no_match">Tidak ada aplikasi yang cocok dengan “%1$s”.</string>
     <string name="apps_add_widget">Tambahkan widget</string>
@@ -3606,4 +3656,19 @@
     <string name="stores_gamejolt_filter_status">Status</string>
     <string name="stores_gamejolt_filter_partners">Mitra</string>
     <string name="stores_gamejolt_followed">Game yang diikuti</string>
+    <string name="wow_chat_title">Input obrolan</string>
+    <string name="wow_chat_voice">Ketik dengan suara</string>
+    <string name="wow_chat_remember">Ingat pilihan ini</string>
+    <string name="wow_chat_ask">Tanya setiap kali</string>
+    <string name="wow_chat_send">Kirim</string>
+    <string name="wow_chat_listening">Mendengarkan…</string>
+    <string name="wow_chat_voice_unavailable">Ketik dengan suara tidak tersedia di perangkat ini.</string>
+    <string name="wow_chat_mic_denied">Akses mikrofon diperlukan untuk mengetik dengan suara.</string>
+    <string name="addons_download">Unduh addon…</string>
+    <string name="addons_sort_name">Nama</string>
+    <string name="addons_sort_downloads">Paling banyak diunduh</string>
+    <string name="addons_category_all">Semua kategori</string>
+    <string name="addons_none_found">Tidak ada addon ditemukan</string>
+    <string name="addons_unreachable">Tidak dapat menjangkau %1$s</string>
+    <string name="addons_no_file">Tidak ada file untuk versi game ini</string>
 </resources>

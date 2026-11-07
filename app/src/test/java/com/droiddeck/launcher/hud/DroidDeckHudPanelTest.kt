@@ -35,6 +35,32 @@ class DroidDeckHudPanelTest {
         assertEquals("1", DroidDeckHudConfig.DEFAULTS["hudLocked"])
     }
 
+    @Test fun lowMetricsCanBeHiddenIndependentlyInEveryLayoutThatShowsThem() {
+        val metrics = listOf("showLow1" to "1%", "showLow01" to "0.1%", "showLow001" to "0.01%")
+        for (size in DroidDeckHudSize.values().filter { it != DroidDeckHudSize.PILL }) {
+            for (mask in 0..7) {
+                val app = RuntimeEnvironment.getApplication()
+                val parent = FrameLayout(app)
+                val view = DroidDeckHudView(app)
+                parent.addView(view)
+                parent.layout(0, 0, 4000, 1080)
+                val settings = metrics.mapIndexed { index, (key, _) ->
+                    key to if (mask and (1 shl index) != 0) "1" else "0"
+                }.toMap()
+                view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS +
+                    ("hudSize" to size.token) + settings))
+                view.showForTest(SNAPSHOT, "DXVK", 0L)
+                val lines = view.linesForTest().joinToString(" ")
+                for ((index, metric) in metrics.withIndex()) {
+                    val supported = size != DroidDeckHudSize.TILES || index == 0
+                    val expected = supported && mask and (1 shl index) != 0
+                    val label = Regex("(?<![0-9.])${Regex.escape(metric.second)}")
+                    assertEquals("$size, mask=$mask, ${metric.second}: $lines", expected, label.containsMatchIn(lines))
+                }
+            }
+        }
+    }
+
     @Test fun everySizeDrawsTheDPanelWithEverythingInsideIt() {
         val stats = FrameStats()
         var now = 1_000_000_000L
@@ -111,6 +137,36 @@ class DroidDeckHudPanelTest {
         val line = view.linesForTest().single()
         assertTrue(line, "fps" in line)
         assertFalse(line, "BAT" in line)
+    }
+
+    @Test fun stripGraphClearsThePreviousTraceWhenFrameHistoryChanges() {
+        val app = RuntimeEnvironment.getApplication()
+        val parent = FrameLayout(app)
+        val view = DroidDeckHudView(app)
+        parent.addView(view)
+        parent.layout(0, 0, 2400, 1080)
+        val stats = FrameStats()
+        var now = 1_000_000_000L
+        repeat(300) { now += 25_000_000L; stats.add(25_000_000L, now) }
+        view.setFrameStats(stats)
+        view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS +
+            ("hudSize" to "strip") + ("showFPSGraph" to "1") + ("hudOpacity" to "100")))
+        view.showForTest(SNAPSHOT, "DXVK", now)
+        val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        view.measure(unspecified, unspecified)
+        view.layout(0, 0, view.measuredWidth, view.measuredHeight)
+        fun render() = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also {
+            view.draw(Canvas(it))
+        }
+        val graph = requireNotNull(view.graphForTest())
+        val x = (graph.left + graph.width() * 0.75f).toInt()
+        val y = graph.centerY().toInt()
+        val before = render()
+        stats.reset()
+        val after = render()
+        assertTrue("the graph initially crosses its midpoint", before.getPixel(x, y) != after.getPixel(x, y))
+        assertEquals("the previous trace is cleared to the strip background",
+            after.getPixel(x, graph.top.toInt() + 2), after.getPixel(x, y))
     }
 
     @Test fun stripFollowsTheHudScaleInHeightAndKeepsTheFullWidth() {

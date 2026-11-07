@@ -11,6 +11,7 @@ import time
 import unicodedata
 import urllib.parse
 import urllib.request
+import zlib
 
 STATE = ".droiddeck-games.json"
 TRIED = ".droiddeck-import-tried.json"
@@ -301,13 +302,74 @@ def installed_build(folder, appid, installdir):
     if not (folder / ".download_complete").is_file():
         return None
     try:
-        ids = json.loads((folder / ".DepotDownloader/depot.config").read_text())["installedManifestIDs"]
-        depots = sorted((int(depot), int(gid)) for depot, gid in ids.items())
-    except (OSError, ValueError, KeyError, TypeError, AttributeError):
-        return None
+        depots = config_depots((folder / ".DepotDownloader/depot.config").read_bytes())
+    except OSError:
+        depots = None
+    if not depots:
+        depots = completed_depots(folder / ".DepotDownloader/completed")
     if not depots or not all(0 < depot < 0x80000000 and 0 < gid < 0x7FFFFFFFFFFFFFFF for depot, gid in depots):
         return None
     return "".join(f'        "{depot}"\n        {{\n            "manifest" "{gid}"\n        }}\n' for depot, gid in depots)
+
+
+def varint(data, i):
+    value = shift = 0
+    while True:
+        byte = data[i]
+        i += 1
+        value |= (byte & 0x7F) << shift
+        shift += 7
+        if byte < 0x80:
+            return value, i
+
+
+def proto_fields(data):
+    i = 0
+    while i < len(data):
+        key, i = varint(data, i)
+        kind = key & 7
+        if kind == 0:
+            value, i = varint(data, i)
+        elif kind == 2:
+            size, i = varint(data, i)
+            value, i = data[i:i + size], i + size
+        elif kind in (1, 5):
+            value, i = None, i + (8 if kind == 1 else 4)
+        else:
+            raise ValueError
+        yield key >> 3, kind, value
+
+
+def config_depots(data):
+    try:
+        ids = json.loads(data.decode())["installedManifestIDs"]
+        return sorted((int(depot), int(gid)) for depot, gid in ids.items())
+    except (ValueError, KeyError, TypeError, AttributeError):
+        pass
+    try:
+        depots = {}
+        for number, kind, entry in proto_fields(zlib.decompress(data, -15)):
+            if number == 1 and kind == 2:
+                fields = {n: v for n, k, v in proto_fields(entry) if k == 0}
+                if 1 in fields and 2 in fields:
+                    depots[fields[1]] = fields[2]
+        return sorted(depots.items()) or None
+    except (zlib.error, ValueError, IndexError):
+        return None
+
+
+def completed_depots(completed):
+    newest = {}
+    try:
+        for manifest in completed.iterdir():
+            match = re.fullmatch(r"(\d+)_(\d+)\.manifest", manifest.name)
+            if match and manifest.is_file():
+                depot, gid, mtime = int(match[1]), int(match[2]), manifest.stat().st_mtime
+                if depot not in newest or mtime > newest[depot][0]:
+                    newest[depot] = (mtime, gid)
+    except OSError:
+        return []
+    return sorted((depot, gid) for depot, (_, gid) in newest.items())
 
 
 def update_not_started(text, steamapps, appid, installdir):
@@ -316,6 +378,13 @@ def update_not_started(text, steamapps, appid, installdir):
             and fields.get("BytesDownloaded", "0") == "0" and fields.get("BytesStaged", "0") == "0"
             and re.search(r'"InstalledDepots"\s*\{\s*\}', text) is not None
             and not (steamapps / "downloading" / str(appid)).exists())
+
+
+def update_on_launch(text):
+    if re.search(r'^\s*"AutoUpdateBehavior"', text, re.M):
+        return re.sub(r'^(\s*"AutoUpdateBehavior"\s*")0(")', r"\g<1>1\2", text, count=1, flags=re.M)
+    end = text.rstrip().rfind("}")
+    return text[:end] + '\t"AutoUpdateBehavior"\t\t"1"\n' + text[end:]
 
 
 def libraries(steam_root):
@@ -374,9 +443,11 @@ def seed_install(steam_root, game, appid):
     minimal = ('"AppState"\n{\n' + f'    "appid" "{appid}"\n    "Universe" "1"\n    "name" "{title}"\n'
                + f'    "StateFlags" "4"\n    "installdir" "{name}"\n' + '}\n')
     legacy = minimal.replace('    "Universe" "1"\n', '')
+    # Steam checks every file of an import with no build before updating it, from scratch each time it is interrupted.
+    bare = minimal[:-2] + '    "AutoUpdateBehavior" "1"\n}\n'
     build = installed_build(source, appid, name)
     if build is None:
-        content = minimal
+        content = bare
     elif build.lstrip().startswith('"AppState"'):
         content = build
     else:
@@ -390,13 +461,21 @@ def seed_install(steam_root, game, appid):
     for root in libraries(steam_root):
         existing = root / "steamapps" / manifest.name
         if existing.is_file():
-            if (existing == manifest and source.is_dir() and target.is_symlink()
-                    and os.readlink(target) == str(source)
-                    and existing.read_text() != content
-                    and (existing.read_text() in (minimal, legacy, legacy.replace('"StateFlags" "4"', '"StateFlags" "2"'))
-                         or (build is not None and update_not_started(existing.read_text(), steamapps, appid, name)))):
+            if not (existing == manifest and source.is_dir() and target.is_symlink()
+                    and os.readlink(target) == str(source)):
+                return True
+            text = existing.read_text()
+            staging = (steamapps / "downloading" / str(appid)).exists()
+            if build is None and update_not_started(text, steamapps, appid, name):
+                wanted = update_on_launch(text)
+            elif ((text in (minimal, bare, legacy, legacy.replace('"StateFlags" "4"', '"StateFlags" "2"')) and not staging)
+                  or (build is not None and update_not_started(text, steamapps, appid, name))):
+                wanted = content
+            else:
+                wanted = text
+            if wanted != text:
                 temp = manifest.with_suffix(".droiddeck")
-                temp.write_text(content)
+                temp.write_text(wanted)
                 os.replace(temp, manifest)
             return True
     if not source.is_dir():

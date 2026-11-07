@@ -48,9 +48,11 @@ class CiChecksTest(unittest.TestCase):
 
     def test_independent_jobs_wait_only_for_the_pinned_source(self):
         jobs = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())['jobs']
-        for name in ('xbox', 'components', 'python-tests'):
+        for name in ('xbox', 'python-tests', 'components-runner'):
             self.assertEqual(jobs[name]['needs'], 'source')
-        self.assertEqual(set(jobs['build']['needs']), {'source', 'components', 'xbox'})
+        self.assertEqual(set(jobs['components']['needs']), {'source', 'components-runner'})
+        self.assertEqual(jobs['build-runner']['needs'], ['components'])
+        self.assertEqual(set(jobs['build']['needs']), {'source', 'components', 'xbox', 'build-runner'})
 
     def test_dependency_update_errors_block_installation(self):
         with tempfile.TemporaryDirectory() as directory:

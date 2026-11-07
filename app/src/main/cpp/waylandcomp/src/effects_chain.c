@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include "effects_chain.h"
+#include "blend_pass.h"
 #include "vk_loader.h"
 #include "vk_present.h"
 #include <pthread.h>
@@ -146,6 +147,16 @@ int vkp_effects_active(void) {
     return spatial_mode(g_cur.scaling) || effect_count(&g_cur) > 0;
 }
 
+int vkp_effects_upscaling(void) {
+    vkp_effects_sync();
+    return spatial_mode(g_cur.scaling) && g_cur.scaling != 6;
+}
+
+int vkp_effects_postprocessing(void) {
+    vkp_effects_sync();
+    return effect_count(&g_cur) > 0;
+}
+
 VkFilter vkp_effects_blit_filter(void) {
     vkp_effects_sync();
     return g_cur.scaling == 2 ? VK_FILTER_NEAREST : VK_FILTER_LINEAR;
@@ -233,6 +244,7 @@ static VkImageView make_view(VkImage img, VkFormat fmt) {
 }
 
 static void target_destroy(struct fx_target *t) {
+    if (t->img) blendp_forget_image(t->img);
     if (t->ds) g_vk.FreeDescriptorSets(g_dev, g_dpool, 1, &t->ds);
     if (t->fb) g_vk.DestroyFramebuffer(g_dev, t->fb, NULL);
     if (t->view) g_vk.DestroyImageView(g_dev, t->view, NULL);

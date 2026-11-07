@@ -81,13 +81,15 @@ class ClientZramFocusTest(unittest.TestCase):
     def test_refocus_restarts_the_delay_and_game_exit_restores_a_packed_client(self):
         source = SCRIPT.read_text()
         start = source.index('          if [ "$_bl_game" = 1 ] && bl_game_focused; then')
-        stop = source.index('          nap 5', start)
+        stop = source.index('          bl_watch_nap\n', start)
         body = source[start:stop]
         harness = '''
-_bl_since=-1 _bl_since_apps= _bl_packed=-1 _bl_apps=" 413150"
+_bl_since=-1 _bl_since_apps= _bl_packed=-1 _bl_unpack=0 _bl_apps=" 413150"
 _bl_pids=(123)
 bl_game_focused() { [ "$focused" = 1 ]; }
 bl_over_cap() { return 1; }
+bl_client_can_pageout() { return 0; }
+bl_client_can_readback() { return 0; }
 bl_zram_send() { echo "send:$1"; }
 tick() {
   SECONDS=$1 _bl_game=$2 focused=$3
@@ -109,14 +111,19 @@ tick 60 0 0
 
     def monitor_harness(self):
         source = SCRIPT.read_text()
-        start = source.index('          bl_zram_scan\n          if bl_cap_due; then')
-        stop = source.index('          nap 5', start)
+        start = source.index('          bl_zram_scan\n          bl_memory_read\n')
+        stop = source.index('          bl_watch_nap\n', start)
         return '''
 _bl_since=-1 _bl_since_apps= _bl_packed=-1 _bl_measured=-1 _bl_unpack=0 _bl_capped=-1 _bl_backoff=30
 _bl_apps=" 413150"
 _bl_pids=(123)
 step() { :; }
 bl_zram_scan() { :; }
+bl_memory_read() { :; }
+bl_client_pressure() { :; }
+bl_session_pressure() { :; }
+bl_client_can_pageout() { return 0; }
+bl_client_can_readback() { [ "${readback:-1}" = 1 ]; }
 bl_game_focused() { [ "$focused" = 1 ]; }
 bl_cap_due() { [ "$cap_due" = 1 ]; }
 bl_over_cap() { [ "$over_cap" = 1 ]; }
@@ -169,12 +176,27 @@ tick 20 1 1 0 0
 tick 25 1 0 0 0
 tick 30 0 0 1 0
 echo "deferred:$_bl_unpack:$_bl_packed"
-tick 35 0 0 0 1
+tick 35 0 0 0 0
 echo "restored:$_bl_unpack"
 ''')
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual('', result.stderr)
         self.assertEqual(['send:1:client', 'deferred:1:-1', 'send:0:client', 'restored:0'], result.stdout.splitlines())
+
+    def test_game_exit_defers_readback_under_pressure_even_without_a_ram_cap(self):
+        result = run_bash(self.monitor_harness() + """
+tick 0 1 1 0 0
+tick 20 1 1 0 0
+readback=0
+tick 25 0 0 0 0
+echo "deferred:$_bl_unpack"
+readback=1
+tick 30 0 0 0 0
+echo "restored:$_bl_unpack"
+""")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual('', result.stderr)
+        self.assertEqual(['send:1:client', 'deferred:1', 'send:0:client', 'restored:0'], result.stdout.splitlines())
 
     def test_scan_keeps_the_running_game_and_ignores_steams_own_reaper(self):
         temp = tempfile.TemporaryDirectory()
