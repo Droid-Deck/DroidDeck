@@ -568,6 +568,7 @@
     <string name="comp_auto_none">Nenhum DroidDeck-Proton usa isto</string>
     <string name="comp_auto_waits_network">As atualizações Auto aguardam uma ligação.</string>
     <string name="comp_auto_check_failed">Não foi possível procurar novas versões.</string>
+    <string name="comp_auto_install_failed">Não foi possível instalar %1$s.</string>
     <string name="comp_auto_waits_unmetered">As novas versões aguardam uma ligação não limitada, a poupança de bateria desligada e o dispositivo fresco.</string>
     <string name="comp_auto_updated">%1$s atualizado para %2$s.</string>
     <string name="comp_auto_rolled_back">%1$s %2$s fechou um jogo em segundos duas vezes, por isso Auto voltou a %3$s.</string>

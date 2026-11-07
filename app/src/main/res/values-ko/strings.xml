@@ -564,6 +564,7 @@
     <string name="comp_auto_none">이를 사용하는 DroidDeck-Proton이 없습니다</string>
     <string name="comp_auto_waits_network">Auto 업데이트가 연결을 기다리는 중입니다.</string>
     <string name="comp_auto_check_failed">새 빌드를 확인할 수 없습니다.</string>
+    <string name="comp_auto_install_failed">%1$s을(를) 설치할 수 없습니다.</string>
     <string name="comp_auto_waits_unmetered">새 빌드는 데이터 무제한 연결, 배터리 세이버 꺼짐, 기기가 뜨겁지 않은 상태를 기다립니다.</string>
     <string name="comp_auto_updated">%1$s을(를) %2$s(으)로 업데이트했습니다.</string>
     <string name="comp_auto_rolled_back">%1$s %2$s(으)로 게임이 몇 초 만에 두 번 종료되어 Auto가 %3$s(으)로 되돌렸습니다.</string>

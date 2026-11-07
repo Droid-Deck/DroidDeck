@@ -566,6 +566,7 @@
     <string name="comp_auto_none">Ingen DroidDeck-Proton bruger dette</string>
     <string name="comp_auto_waits_network">Auto-opdateringer venter på en forbindelse.</string>
     <string name="comp_auto_check_failed">Kunne ikke søge efter nye builds.</string>
+    <string name="comp_auto_install_failed">Kunne ikke installere %1$s.</string>
     <string name="comp_auto_waits_unmetered">Nye builds venter på en ubegrænset forbindelse, slået batterisparer fra og en kølig enhed.</string>
     <string name="comp_auto_updated">%1$s opdateret til %2$s.</string>
     <string name="comp_auto_rolled_back">%1$s %2$s lukkede et spil inden for sekunder to gange, så Auto gik tilbage til %3$s.</string>

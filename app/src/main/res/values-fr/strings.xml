@@ -568,6 +568,7 @@
     <string name="comp_auto_none">Aucun DroidDeck-Proton ne l\'utilise</string>
     <string name="comp_auto_waits_network">Les mises à jour Auto attendent une connexion.</string>
     <string name="comp_auto_check_failed">Impossible de vérifier les nouvelles versions.</string>
+    <string name="comp_auto_install_failed">Impossible d\'installer %1$s.</string>
     <string name="comp_auto_waits_unmetered">Les nouvelles versions attendent une connexion non limitée, l\'économiseur de batterie désactivé et un appareil frais.</string>
     <string name="comp_auto_updated">%1$s mis à jour vers %2$s.</string>
     <string name="comp_auto_rolled_back">%1$s %2$s a fermé un jeu en quelques secondes deux fois, Auto est donc revenu à %3$s.</string>

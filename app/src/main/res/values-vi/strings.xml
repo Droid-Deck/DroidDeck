@@ -564,6 +564,7 @@
     <string name="comp_auto_none">Không DroidDeck-Proton nào dùng thành phần này</string>
     <string name="comp_auto_waits_network">Cập nhật Auto đang chờ kết nối.</string>
     <string name="comp_auto_check_failed">Không thể kiểm tra bản dựng mới.</string>
+    <string name="comp_auto_install_failed">Không thể cài đặt %1$s.</string>
     <string name="comp_auto_waits_unmetered">Bản dựng mới chờ kết nối không đo lưu lượng, tắt tiết kiệm pin và thiết bị đủ mát.</string>
     <string name="comp_auto_updated">Đã cập nhật %1$s lên %2$s.</string>
     <string name="comp_auto_rolled_back">%1$s %2$s làm trò chơi đóng sau vài giây hai lần, nên Auto đã quay lại %3$s.</string>

@@ -564,6 +564,7 @@
     <string name="comp_auto_none">沒有 DroidDeck-Proton 使用它</string>
     <string name="comp_auto_waits_network">Auto 更新正在等待網絡連線。</string>
     <string name="comp_auto_check_failed">無法檢查新版本。</string>
+    <string name="comp_auto_install_failed">無法安裝 %1$s。</string>
     <string name="comp_auto_waits_unmetered">新版本將等待非按流量收費的網絡、關閉省電模式且裝置不過熱時下載。</string>
     <string name="comp_auto_updated">%1$s 已更新至 %2$s。</string>
     <string name="comp_auto_rolled_back">%1$s %2$s 兩次在幾秒內關閉了遊戲，因此 Auto 已退回到 %3$s。</string>

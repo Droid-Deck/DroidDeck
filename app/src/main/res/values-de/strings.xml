@@ -566,6 +566,7 @@
     <string name="comp_auto_none">Kein DroidDeck-Proton nutzt dies</string>
     <string name="comp_auto_waits_network">Auto-Updates warten auf eine Verbindung.</string>
     <string name="comp_auto_check_failed">Neue Builds konnten nicht geprüft werden.</string>
+    <string name="comp_auto_install_failed">%1$s konnte nicht installiert werden.</string>
     <string name="comp_auto_waits_unmetered">Neue Builds warten auf eine nicht getaktete Verbindung, ausgeschalteten Energiesparmodus und ein kühles Gerät.</string>
     <string name="comp_auto_updated">%1$s auf %2$s aktualisiert.</string>
     <string name="comp_auto_rolled_back">%1$s %2$s hat ein Spiel zweimal nach wenigen Sekunden beendet, daher ist Auto zu %3$s zurückgekehrt.</string>

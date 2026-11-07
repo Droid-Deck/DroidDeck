@@ -1112,7 +1112,7 @@ private fun AutoComponentBody(label: String, lines: List<ComponentUpdater.Status
         if (lines.isEmpty()) EmptyLine(stringResource(R.string.comp_auto_none))
         for (line in lines) {
             val previous = line.previous.removeSuffix(".wcp").ifEmpty { stringResource(R.string.comp_tag_original) }
-            val fallback = if (line.current.isEmpty()) null else stringResource(R.string.comp_auto_fallback, previous)
+            val fallback = if (line.current.isEmpty() || line.current == line.previous) null else stringResource(R.string.comp_auto_fallback, previous)
             PanelRow(
                 line.current.removeSuffix(".wcp").ifEmpty { stringResource(if (checking) R.string.comp_auto_checking else R.string.comp_tag_original) },
                 listOfNotNull(line.protons.joinToString(", ").ifEmpty { null }, fallback).joinToString(" · "),
