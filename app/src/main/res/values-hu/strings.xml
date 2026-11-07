@@ -1229,7 +1229,6 @@
     <string name="deck_tab_gamepad">Kontroller</string>
     <string name="deck_surface_stick">Kar</string>
     <string name="deck_surface_trackpad">Érintőpad</string>
-    <string name="deck_surface_switch">Váltás a kar és az érintőpad között</string>
     <string name="deck_close">Második képernyős vezérlők bezárása</string>
     <string name="deck_open_steam_menu">Steam-menü megnyitása</string>
     <string name="deck_right_trackpad">Jobb érintőpad</string>

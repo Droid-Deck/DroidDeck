@@ -1221,7 +1221,6 @@
     <string name="deck_tab_gamepad">Oyun kolu</string>
     <string name="deck_surface_stick">Çubuk</string>
     <string name="deck_surface_trackpad">Dokunmatik yüzey</string>
-    <string name="deck_surface_switch">Çubuk ile dokunmatik yüzey arasında geçiş yap</string>
     <string name="deck_close">İkinci ekran kontrollerini kapat</string>
     <string name="deck_open_steam_menu">Steam menüsünü aç</string>
     <string name="deck_right_trackpad">Sağ dokunmatik yüzey</string>

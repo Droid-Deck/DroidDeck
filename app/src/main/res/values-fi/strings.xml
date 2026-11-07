@@ -1229,7 +1229,6 @@
     <string name="deck_tab_gamepad">Peliohjain</string>
     <string name="deck_surface_stick">Tatti</string>
     <string name="deck_surface_trackpad">Kosketuslevy</string>
-    <string name="deck_surface_switch">Vaihda tatin ja kosketuslevyn välillä</string>
     <string name="deck_close">Sulje toisen näytön ohjaimet</string>
     <string name="deck_open_steam_menu">Avaa Steam-valikko</string>
     <string name="deck_right_trackpad">Oikea kosketuslevy</string>

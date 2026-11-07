@@ -1228,7 +1228,6 @@
     <string name="deck_tab_gamepad">Comando</string>
     <string name="deck_surface_stick">Joystick</string>
     <string name="deck_surface_trackpad">Trackpad</string>
-    <string name="deck_surface_switch">Alternar entre joystick e trackpad</string>
     <string name="deck_close">Fechar controlos do segundo ecrã</string>
     <string name="deck_open_steam_menu">Abrir menu Steam</string>
     <string name="deck_right_trackpad">Trackpad direito</string>

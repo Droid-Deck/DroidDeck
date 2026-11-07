@@ -1222,7 +1222,6 @@
     <string name="deck_tab_gamepad">ゲームパッド</string>
     <string name="deck_surface_stick">スティック</string>
     <string name="deck_surface_trackpad">トラックパッド</string>
-    <string name="deck_surface_switch">スティックとトラックパッドを切り替え</string>
     <string name="deck_close">セカンドスクリーンコントロールを閉じる</string>
     <string name="deck_open_steam_menu">Steamメニューを開く</string>
     <string name="deck_right_trackpad">右トラックパッド</string>

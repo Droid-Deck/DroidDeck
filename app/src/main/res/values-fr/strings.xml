@@ -1236,7 +1236,6 @@
     <string name="deck_tab_gamepad">Manette</string>
     <string name="deck_surface_stick">Joystick</string>
     <string name="deck_surface_trackpad">Pavé tactile</string>
-    <string name="deck_surface_switch">Basculer entre joystick et pavé tactile</string>
     <string name="deck_close">Fermer les commandes du deuxième écran</string>
     <string name="deck_open_steam_menu">Ouvrir le menu Steam</string>
     <string name="deck_right_trackpad">Pavé tactile droit</string>

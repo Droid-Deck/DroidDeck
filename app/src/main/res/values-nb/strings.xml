@@ -1229,7 +1229,6 @@
     <string name="deck_tab_gamepad">Kontroller</string>
     <string name="deck_surface_stick">Stikke</string>
     <string name="deck_surface_trackpad">Styreflate</string>
-    <string name="deck_surface_switch">Bytt mellom stikke og styreflate</string>
     <string name="deck_close">Lukk kontroller for andre skjerm</string>
     <string name="deck_open_steam_menu">Åpne Steam-menyen</string>
     <string name="deck_right_trackpad">Høyre styreflate</string>

@@ -1306,7 +1306,6 @@
     <string name="deck_tab_gamepad">Control</string>
     <string name="deck_surface_stick">Stick</string>
     <string name="deck_surface_trackpad">Trackpad</string>
-    <string name="deck_surface_switch">Cambiar entre stick y trackpad</string>
     <string name="deck_close">Cerrar controles de la segunda pantalla</string>
     <string name="deck_open_steam_menu">Abrir menú de Steam</string>
     <string name="deck_right_trackpad">Trackpad derecho</string>
