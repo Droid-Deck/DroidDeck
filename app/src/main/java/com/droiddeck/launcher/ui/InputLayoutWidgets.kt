@@ -5,7 +5,6 @@ import android.graphics.Canvas
 import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
@@ -22,15 +21,17 @@ import com.droiddeck.launcher.input.*
 
 @Composable
 internal fun InputLayoutRow(layout: SavedInputLayout, role: InputRole, detail: String?, onManage: () -> Unit, onPick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onPick).padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        InputLayoutThumbnail(layout, role)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(layout.name, style = MaterialTheme.typography.titleMedium)
-            Text(detail ?: stringResource(R.string.input_layout_count, layout.elements.size),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.weight(1f).focusRow(onClick = onPick).padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            InputLayoutThumbnail(layout, role)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(layout.name, style = MaterialTheme.typography.titleMedium)
+                Text(detail ?: stringResource(R.string.input_layout_count, layout.elements.size),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
-        TextButton(onClick = onManage, modifier = Modifier.testTag("layout-manage-${layout.id}")) { Text("⋮", style = MaterialTheme.typography.titleLarge) }
+        PadTextButton(onClick = onManage, modifier = Modifier.testTag("layout-manage-${layout.id}")) { Text("⋮", style = MaterialTheme.typography.titleLarge) }
     }
 }
 
