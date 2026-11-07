@@ -11,6 +11,7 @@ import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.battlenet.BattleNetInstall
 import com.droiddeck.launcher.stores.battlenet.BattleNetInstaller
 import com.droiddeck.launcher.stores.battlenet.Ownership
+import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.github.luben.zstd.ZstdOutputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
@@ -474,6 +475,31 @@ class BattleNetTest {
         ended.countDown()
         assertTrue(done.await(5, TimeUnit.SECONDS))
         assertEquals("osic", seen.get())
+    }
+
+    @Test fun aRegistrationSourceFailureMakesOwnershipUnknown() {
+        val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent").mkdirs()
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db")
+            .writeBytes(byteArrayOf(0x0a, 0x03, 0x0a, 0x7f, 0x01))
+        assertNull(BattleNet.registrationsAt(context, "osi", File(LinuxRuntime.rootDir(context), "root/Games/D2R")))
+    }
+
+    @Test fun aWorkerOwnershipSnapshotFailureDoesNotUninstall() {
+        val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
+        val item = CatalogItem(Store.BATTLENET, "osi", "Diablo II: Resurrected", null)
+        val ownership = Ownership(item)
+        val uninstalled = AtomicBoolean(false)
+        val installer = BattleNetInstaller(context, item, folder, false, ownership = ownership, uninstall = {
+            uninstalled.set(true)
+            true
+        }) { null }
+        runCatching { installer.run(DownloadQueue.JobHandle("battlenet:snapshot-failure", AtomicBoolean(false))) }
+        assertTrue(ownership.known)
+        assertTrue(ownership.preexisting)
+        installer.cancel(true)
+        Thread.sleep(100)
+        assertFalse("a failed worker snapshot must disable destructive cleanup", uninstalled.get())
     }
 
     @Test fun aFailedRegistrationReadDoesNotUninstall() {
