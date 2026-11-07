@@ -46,6 +46,8 @@ struct listing {
   struct entry *e;
   char *recs;
   size_t len;
+  char *where;
+  int folds;
 };
 
 struct handle {
@@ -147,6 +149,7 @@ static void destroy(struct listing *l) {
   for (size_t i = 0; i < l->n; i++) free(l->e[i].name);
   free(l->e);
   free(l->recs);
+  free(l->where);
   free(l);
 }
 
@@ -404,6 +407,7 @@ static void filling(struct handle *h, DIR *real, const struct stat *st, long lon
     h->fill->filled = now;
     h->fill->used = now;
     h->fill->wd = h->wd;
+    h->fill->where = strdup(h->path);
   }
 }
 
@@ -454,11 +458,27 @@ static void abandon(struct handle *h) {
   h->fill = NULL;
 }
 
+static int folds(const char *path, const struct stat *st) {
+  char swapped[PATH_MAX];
+  struct stat b;
+  const char *at = strstr(path, "/steamapps");
+  size_t n = strlen(path);
+  if (at == NULL || n >= sizeof(swapped)) return 0;
+  memcpy(swapped, path, n + 1);
+  for (char *c = swapped + (at - path); *c; c++)
+    if ((*c >= 'a' && *c <= 'z') || (*c >= 'A' && *c <= 'Z')) *c ^= 0x20;
+  int saved = errno;
+  int same_dir = stat(swapped, &b) == 0 && b.st_dev == st->st_dev && b.st_ino == st->st_ino;
+  errno = saved;
+  return same_dir;
+}
+
 static void finish(struct handle *h) {
   struct listing *l = h->fill;
   struct stat st;
   h->fill = NULL;
   int current = stat(h->path, &st) == 0 && same(l, &st);
+  if (current) l->folds = folds(h->path, &st);
   pthread_mutex_lock(&lock);
   if (!changing) pump(NULL, 0);
   if (current && !__atomic_load_n(&h->dirty, __ATOMIC_RELAXED)) install(l);
@@ -658,6 +678,8 @@ static int patch(struct side *s, int what, uint32_t event, int ok, int error, co
     copy->filled = l->filled;
     copy->used = l->used;
     copy->wd = l->wd;
+    copy->where = l->where ? strdup(l->where) : NULL;
+    copy->folds = l->folds;
     copy->detached = 0;
     stamp(copy, &s->before);
     table[slot] = copy;
@@ -784,7 +806,53 @@ TWO_PATHS(rename, 1, IN_MOVED_TO, next_rename)
 TWO_PATHS(link, 0, IN_CREATE, link_or_lock)
 TWO_PATHS(symlink, 0, IN_CREATE, next_symlink)
 
+static int named(const struct listing *l, const char *name) {
+  for (size_t i = 0; i < l->n; i++)
+    if (strcasecmp(l->e[i].name, name) == 0) return 1;
+  return 0;
+}
+
+static int folded_match(const char *where, const char *dir) {
+  const char *at = strstr(where, "/steamapps");
+  if (at == NULL) return 0;
+  size_t n = (size_t)(at - where);
+  return strncmp(where, dir, n) == 0 && strcasecmp(where + n, dir + n) == 0;
+}
+
+static int listed_absent(const char *dir, const char *name, long long now) {
+  for (int i = 0; i < MAX_LISTINGS; i++) {
+    struct listing *l = table[i];
+    if (l && l->where && now - l->filled < DIR_TTL_NS &&
+        (strcmp(l->where, dir) == 0 || (l->folds && folded_match(l->where, dir))))
+      return !named(l, name);
+  }
+  return 0;
+}
+
+int bl_dircache_absent(const char *path) __attribute__((visibility("hidden")));
+int bl_dircache_absent(const char *path) {
+  struct side s;
+  if (!watching(path) || !split(path, &s)) return 0;
+  for (const char *c = s.name; *c; c++)
+    if ((unsigned char)*c >= 0x80) return 0;
+  long long now = now_ns();
+  pthread_mutex_lock(&lock);
+  int absent = 0;
+  if (!changing) {
+    pump(NULL, 0);
+    absent = listed_absent(s.dir, s.name, now);
+  }
+  pthread_mutex_unlock(&lock);
+  return absent;
+}
+
 #else
+
+int bl_dircache_absent(const char *path) __attribute__((visibility("hidden")));
+int bl_dircache_absent(const char *path) {
+  (void)path;
+  return 0;
+}
 
 int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
                        int (*real)(int, const char *, int, mode_t)) __attribute__((visibility("hidden")));

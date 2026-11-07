@@ -20,6 +20,7 @@ FAKE = r"""
 #include <unistd.h>
 
 int real_opendirs;
+int real_accesses;
 
 static void coarse(const char *path, struct stat *st) {
   if (getenv("COARSE") && strstr(path, "/fuse/") && S_ISDIR(st->st_mode)) {
@@ -32,6 +33,16 @@ static void coarse(const char *path, struct stat *st) {
 int stat(const char *path, struct stat *st) {
   static int (*next)(const char *, struct stat *);
   if (!next) next = dlsym(RTLD_NEXT, "stat");
+  char folded[4096];
+  const char *fold = getenv("FOLD");
+  const char *upper = fold ? strstr(path, "/STEAMAPPS") : NULL;
+  if (upper && strlen(path) < sizeof(folded)) {
+    strcpy(folded, path);
+    memcpy(folded + (upper - path) + 1, "steamapps", 9);
+    if (!strcmp(fold, "all"))
+      for (char *c = folded + (upper - path); *c; c++) if (*c >= 'A' && *c <= 'Z') *c += 'a' - 'A';
+    path = folded;
+  }
   int r = next(path, st);
   if (r == 0) coarse(path, st);
   return r;
@@ -82,6 +93,13 @@ DIR *opendir(const char *path) {
   return next(path);
 }
 
+int faccessat(int dirfd, const char *path, int mode, int flags) {
+  static int (*next)(int, const char *, int, int);
+  if (!next) next = dlsym(RTLD_NEXT, "faccessat");
+  if (strstr(path, "/fuse/")) real_accesses++;
+  return next(dirfd, path, mode, flags);
+}
+
 DIR *fdopendir(int fd) {
   static DIR *(*next)(int);
   if (!next) next = dlsym(RTLD_NEXT, "fdopendir");
@@ -94,6 +112,7 @@ PROGRAM = r"""
 #define _GNU_SOURCE
 #include <dirent.h>
 #include <dlfcn.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -171,6 +190,7 @@ static void stress(const char *dir) {
 
 int main(int argc, char **argv) {
   int *opens = dlsym(RTLD_DEFAULT, "real_opendirs");
+  int *accesses = dlsym(RTLD_DEFAULT, "real_accesses");
   for (int i = 1; i < argc; i++) {
     const char *op = argv[i], *a = argv[i + 1];
     if (!strcmp(op, "list")) { list(a); i++; }
@@ -246,6 +266,12 @@ int main(int argc, char **argv) {
       waitpid(child, NULL, 0);
       i += 2;
     }
+    else if (!strcmp(op, "access")) {
+      int r = access(a, F_OK);
+      printf("%d %d\n", r, r ? errno : 0);
+      i++;
+    }
+    else if (!strcmp(op, "accesses")) printf("%d\n", accesses ? *accesses : -1);
     else if (!strcmp(op, "opens")) printf("%d\n", opens ? *opens : -1);
   }
   return 0;
@@ -398,6 +424,79 @@ class DirCachePreloadTest(unittest.TestCase):
         outside = self.lib.parent / "elsewhere"
         outside.mkdir()
         self.assertEqual("2", self.run_program("list", outside, "list", outside, "opens")[-1])
+
+    def test_missing_names_are_answered_from_the_listing(self):
+        s = self.staging
+        out = self.run_program("list", s, "access", s / "x.bundle", "access", s / "y/z.bundle",
+                               "access", s / "c.bundle", "accesses", "access", s / "a.bundle", "accesses", "opens")
+        self.assertEqual(["-1 2", "-1 2", "-1 2", "1", "0 0", "2", "1"], out[1:])
+
+    def test_a_name_that_differs_only_in_case_is_asked_of_the_filesystem(self):
+        s = self.staging
+        out = self.run_program("list", s, "access", s / "A.BUNDLE", "accesses")
+        self.assertEqual(["-1 2", "1"], out[1:])
+
+    def test_misses_before_the_client_lists_a_directory_reach_the_filesystem(self):
+        s = self.staging
+        out = self.run_program("access", s / "x.bundle", "access", s / "y.bundle", "accesses", "opens")
+        self.assertEqual(["-1 2", "-1 2", "2", "0"], out)
+
+    def test_names_created_after_a_miss_are_found(self):
+        s = self.staging
+        out = self.run_program("list", s, "access", s / "x.bundle", "create", s / "x.bundle", "access", s / "x.bundle",
+                               "access", s / "y.bundle", "sneak", s / "y.bundle", "access", s / "y.bundle",
+                               "rename", s / "y.bundle", s / "w.bundle", "access", s / "w.bundle",
+                               "mkdir", s / "sub", "access", s / "sub",
+                               env={"COARSE": "1"})
+        self.assertEqual(["-1 2", "0 0", "-1 2", "0 0", "0 0", "0 0"], out[1:])
+
+    def test_a_differently_cased_directory_reaches_the_filesystem_when_case_matters(self):
+        s = self.staging
+        upper = Path(str(s).replace("downloading", "DOWNLOADING"))
+        out = self.run_program("list", s, "access", upper / "x.bundle", "accesses")
+        self.assertEqual(["-1 2", "1"], out[1:])
+
+    def test_a_differently_cased_directory_uses_the_listing_when_the_filesystem_folds_case(self):
+        s = self.staging
+        upper = Path(str(s).replace("downloading", "DOWNLOADING"))
+        out = self.run_program("list", s, "access", upper / "x.bundle", "access", upper / "A.BUNDLE", "accesses",
+                               env={"FOLD": "all"})
+        self.assertEqual(["-1 2", "-1 2", "1"], out[1:])
+
+    def test_a_case_sensitive_folder_below_a_folding_steamapps_reaches_the_filesystem(self):
+        s = self.staging
+        upper = self.lib / "DOWNLOADING" / s.name
+        upper.mkdir(parents=True)
+        (upper / "x.bundle").write_bytes(b"")
+        out = self.run_program("list", s, "access", upper / "x.bundle", "access", upper / "y.bundle", "accesses",
+                               env={"FOLD": "1"})
+        self.assertEqual(["0 0", "-1 2", "2"], out[1:])
+
+    def test_a_differently_cased_folder_above_steamapps_reaches_the_filesystem(self):
+        s = self.staging
+        top = self.lib.parent.parent
+        other = top.parent / top.name.swapcase() / s.relative_to(top)
+        self.assertNotEqual(top.name, top.name.swapcase())
+        other.mkdir(parents=True)
+        (other / "x.bundle").write_bytes(b"")
+        out = self.run_program("list", s, "access", other / "x.bundle", "accesses", env={"FOLD": "all"})
+        self.assertEqual(["0 0", "1"], out[1:])
+
+    def test_misses_outside_the_client_or_fuse_steamapps_reach_the_filesystem(self):
+        s = self.staging
+        other = self.run_program("list", s, "access", s / "x.bundle", "access", s / "y.bundle", "accesses",
+                                 program=self.other)
+        self.assertEqual(["-1 2", "-1 2", "2"], other[1:])
+        outside = self.lib.parent / "elsewhere"
+        outside.mkdir()
+        out = self.run_program("list", outside, "access", outside / "x", "access", outside / "y", "accesses")
+        self.assertEqual(["-1 2", "-1 2", "2"], out[1:])
+
+    def test_misses_reach_the_filesystem_when_turned_off(self):
+        s = self.staging
+        out = self.run_program("list", s, "access", s / "x.bundle", "access", s / "y.bundle", "accesses",
+                               env={"BL_NO_DIR_CACHE": "1"})
+        self.assertEqual(["-1 2", "-1 2", "2"], out[1:])
 
     def test_can_be_turned_off(self):
         out = self.run_program("list", self.staging, "list", self.staging, "opens", env={"BL_NO_DIR_CACHE": "1"})
