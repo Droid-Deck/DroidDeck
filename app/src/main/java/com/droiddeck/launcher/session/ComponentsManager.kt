@@ -81,6 +81,7 @@ object ComponentsManager {
         val file: String, val comp: String, val version: String, val description: String, val size: Long,
         val source: String? = null,
     )
+    internal data class PackageCatalogIdentity(val id: String, val name: String)
     data class CatalogItem(
         val file: String,
         val comp: String,
@@ -975,23 +976,33 @@ object ComponentsManager {
         return names
     }
 
-    private fun originalKept(state: JSONObject, installed: Map<String, Proton>, protonId: String, comp: String, version: String): Boolean {
-        val current = installed[protonId]?.let { safeName(it.version) == version } == true
+    internal fun originalKept(
+        state: JSONObject,
+        installed: Map<String, List<Proton>>,
+        protonId: String,
+        comp: String,
+        version: String,
+    ): Boolean {
+        val current = originalInstalled(installed[protonId], version)
         val queued = state.optJSONObject("queued")?.optJSONObject(protonId)?.optJSONObject(comp)
             ?.takeIf { it.optString("kind") == "original" }?.let { safeName(it.optString("protonVersion")) == version } == true
         return current || queued
     }
 
+    internal fun originalInstalled(installs: List<Proton>?, version: String): Boolean =
+        installs?.any { safeName(it.version) == version } == true
+
     fun stored(context: Context): Stored = synchronized(lock) {
         val state = loadState(context)
-        val installed = protons(context).distinctBy { it.id }.associateBy { it.id }
-        val used = packagesInUse(state, protons(context))
+        val protons = protons(context)
+        val installed = protons.groupBy { it.id }
+        val used = packagesInUse(state, protons)
         val originals = originalsDir(context).listFiles()?.filter { it.isDirectory }?.flatMap { proton ->
             proton.listFiles()?.filter { it.isDirectory }?.flatMap { version ->
                 COMPONENTS.mapNotNull { comp ->
                     val f = File(version, "$comp.wcp")
                     if (!f.isFile) null else StoredOriginal(
-                        proton.name, installed[proton.name]?.name, comp, version.name, f.length(),
+                        proton.name, installed[proton.name]?.firstOrNull()?.name, comp, version.name, f.length(),
                         originalKept(state, installed, proton.name, comp, version.name),
                     )
                 }
@@ -1002,7 +1013,7 @@ object ComponentsManager {
 
     fun deleteUnusedOriginal(context: Context, protonId: String, comp: String, protonVersion: String): Boolean = synchronized(lock) {
         val state = loadState(context)
-        if (originalKept(state, protons(context).associateBy { it.id }, protonId, comp, protonVersion)) return false
+        if (originalKept(state, protons(context).groupBy { it.id }, protonId, comp, protonVersion)) return false
         if (comp !in COMPONENTS || listOf(protonId, protonVersion).any { it.isEmpty() || '/' in it || it == "." || it == ".." }) return false
         val f = File(originalsDir(context), "$protonId/$protonVersion/$comp.wcp")
         if (!f.isFile || !f.delete()) return false
@@ -1168,8 +1179,9 @@ object ComponentsManager {
     }
 
     fun deleteOriginal(context: Context, protonId: String, comp: String, protonVersion: String): String = synchronized(lock) {
-        val p = proton(context, protonId)
-        check(safeName(p.version) != protonVersion) { context.getString(R.string.cmgr_original_kept) }
+        val installed = protons(context).filter { it.id == protonId }
+        check(installed.isNotEmpty()) { "No Proton with id $protonId" }
+        check(!originalInstalled(installed, protonVersion)) { context.getString(R.string.cmgr_original_kept) }
         val f = File(originalsDir(context), "$protonId/${safeName(protonVersion)}/$comp.wcp")
         check(f.isFile) { context.getString(R.string.cmgr_not_stored) }
         f.delete()
@@ -1690,6 +1702,48 @@ object ComponentsManager {
 
     fun storedFiles(context: Context): List<String> =
         packagesDir(context).listFiles()?.filter { it.isFile && it.name.endsWith(".wcp") }?.map { it.name } ?: emptyList()
+
+    internal fun packageCatalogIdentity(context: Context, file: String): PackageCatalogIdentity? {
+        val local = safeName(file)
+        val packageFile = File(packagesDir(context), local)
+        val receipt = runCatching {
+            require(packageFile.isFile)
+            val receiptFile = provenanceFile(packageFile)
+            require(receiptFile.isFile && receiptFile.length() in 1..64L * 1024)
+            AtomicFile(receiptFile).openRead().use {
+                JSONObject(RepositorySources.readBounded(it, 64 * 1024).toString(Charsets.UTF_8))
+            }
+        }.getOrNull()
+        if (receipt != null) runCatching {
+            require(receipt.getInt("schema") == 1)
+            val scope = receipt.getString("scope")
+            val comp = scope.removePrefix("wcp/")
+            require(comp in COMPONENTS && scope == sourceScope(comp))
+            val repository = RepositorySources.canonicalRepository(receipt.getString("repository"))
+            val sourceId = receipt.getString("sourceId")
+            val repositoryId = receipt.getLong("repositoryId")
+            val releaseId = receipt.getLong("releaseId")
+            val assetId = receipt.getLong("assetId")
+            val tag = receipt.getString("tag")
+            val digest = receipt.getString("sha256")
+            val remote = receipt.getString("name")
+            require(sourceId == RepositorySources.source(repository).id && repositoryId > 0 && releaseId > 0 && assetId > 0 && tag.isNotEmpty())
+            require(remote == safeName(remote) && remote.endsWith(".wcp") && Regex("[0-9a-f]{64}").matches(digest))
+            require(receipt.getLong("size") == packageFile.length())
+            val qualified = "$digest-$sourceId.wcp"
+            val collision = "$digest-$sourceId-remote.wcp"
+            require(local == qualified || local == collision || (local == remote && repository in DOWNLOAD_REPOS))
+            val id = if (sourceId.isEmpty()) remote else "$comp:$sourceId:$assetId:$digest"
+            return PackageCatalogIdentity(id, remote)
+        }
+        return local.takeIf { candidate -> ComponentUpdates.LINES.any { ComponentUpdates.belongs(candidate, it) } }
+            ?.let { PackageCatalogIdentity("", it) }
+    }
+
+    internal fun packageMatchesCatalogItem(context: Context, item: CatalogItem): Boolean {
+        val file = File(packagesDir(context), safeName(item.localFile))
+        return file.isFile && receiptMatches(file, item)
+    }
 
     fun isStored(context: Context, file: String): Boolean = File(packagesDir(context), safeName(file)).isFile
 
