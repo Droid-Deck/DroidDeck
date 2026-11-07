@@ -72,6 +72,19 @@ void vkp_effects_bind_device(VkDevice d, VkPhysicalDevice p, const VkPhysicalDev
 int vkp_effects_active(void) { return 0; }
 int vkp_effects_upscaling(void) { return 0; }
 int vkp_effects_postprocessing(void) { return 0; }
+void vkp_effects_release_generated_sources(void) {}
+int vkp_effects_prepare_generated(void) { assert(0); return 0; }
+VkImage vkp_effects_run_before_generated(VkCommandBuffer c, VkImage i, int w, int h, int *rw, int *rh) {
+    assert(0);
+    *rw = w; *rh = h;
+    return i;
+}
+VkImage vkp_effects_run_generated(VkCommandBuffer c, VkImage i, int w, int h,
+                                 int ow, int oh, int slot, int *rw, int *rh) {
+    assert(0);
+    *rw = w; *rh = h;
+    return i;
+}
 VkFilter vkp_effects_blit_filter(void) { return VK_FILTER_NEAREST; }
 void vkp_effects_set_formats(VkFormat a, VkFormat b) {}
 VkImage vkp_effects_run(VkCommandBuffer c, VkImage i, int w, int h, int ow, int oh, int *rw, int *rh) {

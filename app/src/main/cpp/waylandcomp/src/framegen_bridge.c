@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 #include "framegen_bridge.h"
 #include "framegen_engine.h"
+#include "effects_chain.h"
 #include "vk_loader.h"
 #include <pthread.h>
 #include <stdatomic.h>
@@ -193,7 +194,10 @@ static void destroy_ring(void) {
     if (vk.DeviceWaitIdle) vk.DeviceWaitIdle(g_dev);
     for (uint32_t i = 0; i < g_ring_n; i++) {
         if (g_ring[i].view) vk.DestroyImageView(g_dev, g_ring[i].view, NULL);
-        if (g_ring[i].img) vk.DestroyImage(g_dev, g_ring[i].img, NULL);
+        if (g_ring[i].img) {
+            vkp_effects_forget_image(g_ring[i].img);
+            vk.DestroyImage(g_dev, g_ring[i].img, NULL);
+        }
         if (g_ring[i].mem) vk.FreeMemory(g_dev, g_ring[i].mem, NULL);
         memset(&g_ring[i], 0, sizeof(g_ring[i]));
     }
