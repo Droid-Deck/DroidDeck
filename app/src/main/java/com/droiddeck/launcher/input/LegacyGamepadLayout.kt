@@ -4,10 +4,10 @@ import android.content.Context
 import android.graphics.Rect
 import kotlin.math.*
 
-internal class LegacyGamepadLayout(private val context: Context, private val width: Int, private val height: Int) {
+internal class LegacyGamepadLayout(private val context: Context, private val width: Int, private val height: Int, private val safe: Rect = Rect(),
+    private val scale: Float = 1f) {
     private val resources get() = context.resources
     private val settings = ControllerPrefs.read(context)
-    private val safe = Rect()
     private var fit = 1f
     private class Control(val id: String, val group: String, val stick: Int, val radiusDp: Float, val offsetXDp: Float, val offsetYDp: Float) {
         var radius = 0f
@@ -41,7 +41,7 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
 
     private fun dp(value: Float) = value * resources.displayMetrics.density
 
-    private fun scaled(value: Float) = dp(value) * settings.size / 100f * fit
+    private fun scaled(value: Float) = dp(value) * settings.size / 100f * scale * fit
 
     private fun fitScale(): Float {
         val metrics = resources.displayMetrics
@@ -195,6 +195,76 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
         return result
     }
 
+    fun regenerate(stored: List<InputSurfaceElement>): List<InputSurfaceElement> = withGeometry(stored, elements())
+
+    fun rescale(stored: List<InputSurfaceElement>, from: LegacyGamepadLayout): List<InputSurfaceElement> {
+        val before = from.elements().associateBy { it.id }
+        val after = elements().associateBy { it.id }
+        return stored.map { e ->
+            val b = before[e.id] ?: return@map e
+            val a = after[e.id] ?: return@map e
+            val w = (a.width * e.width / b.width).coerceIn(.03f, 1f)
+            val h = (a.height * e.height / b.height).coerceIn(.03f, 1f)
+            val cx = a.x + a.width / 2 + (e.x + e.width / 2 - b.x - b.width / 2)
+            val cy = a.y + a.height / 2 + (e.y + e.height / 2 - b.y - b.height / 2)
+            e.copy(x = (cx - w / 2).coerceIn(0f, 1f - w), y = (cy - h / 2).coerceIn(0f, 1f - h), width = w, height = h).bounded()
+        }
+    }
+
+    fun buttonsOnly(stored: List<InputSurfaceElement>): List<InputSurfaceElement> {
+        val inset = dp(BUTTONS_ONLY_INSET_DP)
+        val bottom = height - safe.bottom - inset
+        val radius = dp(BUTTONS_ONLY_RADIUS_DP)
+        fun pick(control: InputControl, shown: Boolean) = stored.firstOrNull { it.id == "legacy:${control.id}" }
+            ?: stored.firstOrNull { it.control == control && it.kind == InputElementKind.BUTTON }
+            ?: InputSurfaceElement(control, 0f, 0f, 0f, 0f, buttonShape = InputButtonShape.CIRCLE).takeIf { shown }
+        return listOfNotNull(
+            pick(InputControl.GUIDE, settings.steamButton)?.let { circle(it, safe.left + inset, bottom, radius) },
+            pick(InputControl.QAM, settings.qamButton)?.let { circle(it, width - safe.right - inset, bottom, radius) },
+            stored.firstOrNull { it.id == KEYBOARD_ID }?.let { circle(it, width / 2f, bottom, dp(KEYBOARD_RADIUS_DP)) },
+        )
+    }
+
+    fun dock(stored: List<InputSurfaceElement>, portrait: Boolean, grips: Boolean): List<InputSurfaceElement> {
+        val boxes = GamepadGeometry.layout(width.toFloat(), height.toFloat(), resources.displayMetrics.density, portrait)
+        val placed = mutableListOf<InputSurfaceElement>()
+        fun box(control: InputControl, slot: GamepadGeometry.Slot, shape: InputButtonShape) {
+            val b = boxes[slot] ?: return
+            placed += InputSurfaceElement(control, b.left / width, b.top / height, b.width / width, b.height / height,
+                floating = false, buttonShape = shape).bounded()
+        }
+        fun cross(controls: List<InputControl>, slot: GamepadGeometry.Slot) {
+            val b = boxes[slot] ?: return
+            val side = min(b.width, b.height)
+            val spread = side * CROSS_SPREAD
+            val radius = side * CROSS_RADIUS
+            controls.zip(listOf(0f to -1f, 1f to 0f, 0f to 1f, -1f to 0f)).forEach { (control, direction) ->
+                placed += circle(InputSurfaceElement(control, 0f, 0f, 0f, 0f, buttonShape = InputButtonShape.CIRCLE),
+                    b.cx + direction.first * spread, b.cy + direction.second * spread, radius)
+            }
+        }
+        box(InputControl.LS, GamepadGeometry.Slot.LEFT_MAIN, InputButtonShape.CIRCLE)
+        cross(DPAD_ORDER, GamepadGeometry.Slot.LEFT_SECOND)
+        box(InputControl.RS, GamepadGeometry.Slot.RIGHT_MAIN, InputButtonShape.CIRCLE)
+        cross(FACE_ORDER, GamepadGeometry.Slot.RIGHT_SECOND)
+        box(InputControl.LT, GamepadGeometry.Slot.LEFT_OUTER_SHOULDER, InputButtonShape.PILL)
+        box(InputControl.LB, GamepadGeometry.Slot.LEFT_INNER_SHOULDER, InputButtonShape.PILL)
+        box(InputControl.RB, GamepadGeometry.Slot.RIGHT_INNER_SHOULDER, InputButtonShape.PILL)
+        box(InputControl.RT, GamepadGeometry.Slot.RIGHT_OUTER_SHOULDER, InputButtonShape.PILL)
+        box(InputControl.SELECT, GamepadGeometry.Slot.VIEW, InputButtonShape.PILL)
+        box(InputControl.START, GamepadGeometry.Slot.MENU, InputButtonShape.PILL)
+        if (grips) GRIPS.forEach { (control, slot) -> box(control, slot, InputButtonShape.ROUNDED) }
+        return withGeometry(stored, placed) + placed.filter { p -> GRIPS.any { it.first == p.control } && stored.none { it.id == p.id } }
+    }
+
+    private fun circle(e: InputSurfaceElement, cx: Float, cy: Float, radius: Float) =
+        e.copy(x = (cx - radius) / width, y = (cy - radius) / height, width = 2 * radius / width, height = 2 * radius / height).bounded()
+
+    private fun withGeometry(stored: List<InputSurfaceElement>, placed: List<InputSurfaceElement>): List<InputSurfaceElement> {
+        val byId = placed.associateBy { it.id }
+        return stored.mapNotNull { e -> byId[e.id]?.let { e.copy(x = it.x, y = it.y, width = it.width, height = it.height) } }
+    }
+
     private fun keyboard(): InputSurfaceElement {
         val radius = dp(KEYBOARD_RADIUS_DP)
         val cx = safe.left + dp(KEYBOARD_X_DP)
@@ -268,5 +338,13 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
         const val KEYBOARD_RADIUS_DP = 18f
         const val KEYBOARD_X_DP = 90f
         const val KEYBOARD_Y_DP = 34f
+        const val BUTTONS_ONLY_RADIUS_DP = 30f
+        const val BUTTONS_ONLY_INSET_DP = 44f
+        const val CROSS_SPREAD = .30f
+        const val CROSS_RADIUS = .16f
+        val DPAD_ORDER = listOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT)
+        val FACE_ORDER = listOf(InputControl.Y, InputControl.B, InputControl.A, InputControl.X)
+        val GRIPS = listOf(InputControl.L4 to GamepadGeometry.Slot.L4, InputControl.L5 to GamepadGeometry.Slot.L5,
+            InputControl.R5 to GamepadGeometry.Slot.R5, InputControl.R4 to GamepadGeometry.Slot.R4)
     }
 }

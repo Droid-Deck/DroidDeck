@@ -9,7 +9,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 object InputLibraries {
-    private const val VERSION = 11
+    private const val VERSION = 12
     private const val KEY = "library"
     private const val RECOVERY = "library-recovery."
     const val OVERLAY = "builtin.overlay"
@@ -29,24 +29,40 @@ object InputLibraries {
         if (version < 5) library = scopeLayouts(upgradeStockLayouts(upgradeOverlay(context, library)))
         if (version < 11) library = neutralStockLayouts(library)
         if (version < 10) library = restyleGamepads(context, library)
+        if (version < 12) library = barStockLayouts(library)
         if (version < 6 || !p.contains(LegacyScreenKeyMigration.BACKUP)) {
             val legacy = LegacyScreenKeyMigration.snapshot(context)
             if (legacy != null) {
-                val upgraded = runCatching { LegacyScreenKeyMigration.migrate(context, library, legacy) }.getOrElse {
+                val migrated = runCatching { LegacyScreenKeyMigration.migrate(context, library, legacy) }.getOrElse {
                     android.util.Log.e("InputLibraries", "Could not migrate screen keys; keeping the original settings", it)
                     return library
                 }
+                val merged = mergeScreenKeys(migrated, legacy)
+                val upgraded = merged ?: migrated
                 val encoded = encode(upgraded)
                 require(encoded.length <= 2_000_000)
-                if (!p.edit().putString(KEY, encoded).putString(LegacyScreenKeyMigration.BACKUP, legacy).commit()) return library
+                val edit = p.edit().putString(KEY, encoded).putString(LegacyScreenKeyMigration.BACKUP, legacy)
+                if (merged != null) edit.putBoolean(LegacyScreenKeyMigration.MERGED, true)
+                if (!edit.commit()) return library
                 LegacyScreenKeyMigration.clean(context)
                 return upgraded
+            }
+        }
+        val backup = p.getString(LegacyScreenKeyMigration.BACKUP, null)
+        if (backup != null && !p.contains(LegacyScreenKeyMigration.MERGED)) {
+            val merged = mergeScreenKeys(library, backup)
+            if (merged != null) {
+                val encoded = encode(merged)
+                if (encoded.length <= 2_000_000 && p.edit().putString(KEY, encoded).putBoolean(LegacyScreenKeyMigration.MERGED, true).commit()) library = merged
             }
         }
         if (raw == null || version < VERSION) write(context, library)
         if (p.contains(LegacyScreenKeyMigration.BACKUP)) LegacyScreenKeyMigration.clean(context)
         return library
     }
+
+    private fun mergeScreenKeys(library: InputLibrary, legacy: String): InputLibrary? = runCatching { LegacyScreenKeyMigration.merge(library, legacy) }
+        .onFailure { android.util.Log.e("InputLibraries", "Could not show the imported screen keys with the gamepad", it) }.getOrNull()
 
     fun hasPendingScreenKeyMigration(context: Context) = !prefs(context).contains(LegacyScreenKeyMigration.BACKUP) && LegacyScreenKeyMigration.snapshot(context) != null
 
@@ -115,8 +131,24 @@ object InputLibraries {
         }
     }.onSuccess { ControllerPrefs.setAdaptiveSticks(context, on) }.isSuccess
 
+    fun setQuickButton(context: Context, layoutId: String, button: InputCommand, shown: Boolean): Boolean = runCatching {
+        update(context) { library -> library.layouts.firstOrNull { it.id == layoutId && it.editable }?.let { library.withLayout(it.withQuickButton(button, shown)) } ?: library }
+    }.isSuccess
+
+    fun defaultPositions(context: Context, library: InputLibrary, layout: SavedInputLayout): List<InputSurfaceElement>? {
+        val origin = layout.origin ?: layout.id
+        InputStockLayouts.layouts().firstOrNull { it.id == origin }?.let { return it.elements }
+        if (origin == OVERLAY || origin.startsWith("migrated.layout.")) {
+            val (surfaceContext, metrics) = primaryDisplay(context)
+            val size = if (origin == OVERLAY) listOf(metrics.widthPixels, metrics.heightPixels)
+                else origin.removePrefix("migrated.layout.").split('x').mapNotNull { it.toIntOrNull() }
+            return size.takeIf { it.size == 2 && it.all { side -> side > 0 } }?.let { LegacyGamepadLayout(surfaceContext, it[0], it[1]).elements() }
+        }
+        return library.layouts.firstOrNull { it.id == origin && it.id != layout.id }?.elements
+    }
+
     @Suppress("DEPRECATION")
-    private fun primaryDisplay(context: Context): Pair<Context, DisplayMetrics> {
+    internal fun primaryDisplay(context: Context): Pair<Context, DisplayMetrics> {
         val display = context.getSystemService(DisplayManager::class.java)?.getDisplay(Display.DEFAULT_DISPLAY)
         val surfaceContext = display?.let(context::createDisplayContext) ?: context
         return surfaceContext to DisplayMetrics().also { if (display != null) display.getRealMetrics(it) else it.setTo(context.resources.displayMetrics) }
@@ -143,7 +175,8 @@ object InputLibraries {
         val elements = LegacyGamepadLayout(surfaceContext, metrics.widthPixels.coerceAtLeast(1), metrics.heightPixels.coerceAtLeast(1)).elements()
         val style = InputSurfaceStyle(settings.tint, settings.opacity)
         val replacements = library.layouts.filter { it.template == InputLayoutTemplate.OVERLAY }.associate { old ->
-            old.id to old.copy(name = "Gamepad", elements = elements, template = InputLayoutTemplate.CUSTOM, style = style)
+            old.id to old.copy(name = "Gamepad", elements = elements, template = InputLayoutTemplate.CUSTOM, style = style,
+                aspect = (metrics.widthPixels.coerceAtLeast(1).toFloat() / metrics.heightPixels.coerceAtLeast(1)).coerceIn(.05f, 20f))
         }
         var result = library.copy(layouts = library.layouts.map { replacements[it.id] ?: it })
         val migrated = mutableMapOf<Pair<String, String>, String>()
@@ -172,7 +205,7 @@ object InputLibraries {
             if (size[0] == metrics.widthPixels && size[1] == metrics.heightPixels) continue
             val id = "migrated.$key"
             if (result.layouts.none { it.id == id }) result = result.withLayout(SavedInputLayout(id, "Gamepad ${size[0]} × ${size[1]}",
-                LegacyGamepadLayout(surfaceContext, size[0], size[1]).elements(), style = style))
+                LegacyGamepadLayout(surfaceContext, size[0], size[1]).elements(), style = style, aspect = (size[0].toFloat() / size[1]).coerceIn(.05f, 20f)))
         }
         return result.validate()
     }
@@ -206,9 +239,28 @@ object InputLibraries {
         }
         val oldBindings = migrated.keys.map { it.first }.toSet()
         result = result.copy(bindings = result.bindings.filter { it.id !in oldBindings || result.usersOfBindings(it.id).isNotEmpty() })
+        return addStockLayouts(result)
+    }
+
+    private fun addStockLayouts(library: InputLibrary): InputLibrary {
+        val stock = InputStockLayouts.layouts()
+        var result = library
         for (layout in stock) if (result.layouts.none { it.id == layout.id }) result = result.withLayout(layout)
         for (preset in InputStockLayouts.presets(stock)) if (result.bindings.none { it.id == preset.id }) result = result.withPreset(preset)
         return result.validate()
+    }
+
+    private fun barStockLayouts(library: InputLibrary): InputLibrary {
+        var result = library
+        for (stock in InputStockLayouts.layouts().filter { it.id == DECK || it.id == TRACKPAD }) {
+            val saved = result.layouts.firstOrNull { it.id == stock.id } ?: continue
+            val (commands, rest) = saved.elements.partition { it.id.startsWith("command:") }
+            val untouched = commands.isNotEmpty() && commands.all { it.control == InputControl.A && it.kind == InputElementKind.BUTTON } &&
+                rest.size == stock.elements.size && rest.all { e -> stock.elements.any { s -> s.id == e.id && s.copy(y = e.y, height = e.height) == e &&
+                    kotlin.math.abs(s.y + s.height - e.y - e.height) < 1e-3f } }
+            if (untouched) result = result.withLayout(saved.copy(elements = stock.elements))
+        }
+        return addStockLayouts(result)
     }
 
     private fun migrationBindingId(library: InputLibrary, binding: String, layout: String): String {
@@ -242,7 +294,8 @@ object InputLibraries {
                 .put("width", e.width.toDouble()).put("height", e.height.toDouble()).put("floating", e.floating).put("hideWhenIdle", e.hideWhenIdle).put("mouseGestures", e.mouseGestures).put("toggle", e.toggle).put("icon", e.icon).put("image", e.image)
                 .put("elementOpacity", e.opacity.toDouble()).put("buttonShape", e.buttonShape.name).put("showLabel", e.showLabel))
             layouts.put(JSONObject().put("id", layout.id).put("name", layout.name).put("template", layout.template.name).put("elements", elements)
-                .put("tint", layout.style.tint ?: JSONObject.NULL).put("opacity", layout.style.opacity).put("screen", layout.screen.name))
+                .put("tint", layout.style.tint ?: JSONObject.NULL).put("opacity", layout.style.opacity).put("screen", layout.screen.name).put("aspect", layout.aspect.toDouble()).put("scale", layout.scale.toDouble())
+                .put("hidden", JSONArray(layout.style.hidden.map { it.name }.sorted())).put("origin", layout.origin ?: JSONObject.NULL))
         }
         val bindings = JSONArray()
         for (b in library.bindings) {
@@ -283,8 +336,10 @@ object InputLibraries {
                     e.optDouble("elementOpacity", 1.0).toFloat(), InputButtonShape.valueOf(e.optString("buttonShape", InputButtonShape.ROUNDED.name)), e.optBoolean("showLabel", true))
             }
             SavedInputLayout(layout.getString("id"), layout.getString("name"), elements, InputLayoutTemplate.valueOf(layout.getString("template")),
-                InputSurfaceStyle(if (!layout.has("tint")) ControllerPrefs.STEAM_BLUE else if (layout.isNull("tint")) null else layout.getInt("tint"), layout.optInt("opacity", 100)),
-                InputLayoutScreen.valueOf(layout.optString("screen", InputLayoutScreen.BOTH.name)))
+                InputSurfaceStyle(if (!layout.has("tint")) ControllerPrefs.STEAM_BLUE else if (layout.isNull("tint")) null else layout.getInt("tint"), layout.optInt("opacity", 100),
+                    layout.optJSONArray("hidden")?.let { hidden -> (0 until hidden.length()).map { InputCommand.valueOf(hidden.getString(it)) }.toSet() }.orEmpty()),
+                InputLayoutScreen.valueOf(layout.optString("screen", InputLayoutScreen.BOTH.name)), layout.optDouble("aspect", 0.0).toFloat(), layout.optionalString("origin"),
+                    layout.optDouble("scale", 1.0).toFloat())
         }
         val bindings = doc.getJSONArray("bindings").objects(512).map { b ->
             val controls = b.getJSONObject("controls").actions(28).mapKeys { requireNotNull(InputControl.fromId(it.key)) }

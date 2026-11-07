@@ -5,6 +5,7 @@ import android.app.Presentation
 import android.hardware.display.DisplayManager
 import android.view.Display
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.test.*
 import com.droiddeck.launcher.input.*
 import com.droiddeck.launcher.R
@@ -377,6 +378,149 @@ class InputSettingsTest {
         } finally {
             SessionState.secondScreenDisplay = previous
             if (display.isValid) ShadowDisplayManager.removeDisplay(displayId)
+        }
+    }
+
+    @Test fun elementPropertiesEditOpacityLabelsAndOfferImages() {
+        val element = mutableStateOf(InputSurfaceElement(InputControl.A, .1f, .1f, .2f, .2f, "custom", name = "Custom button"))
+        compose.setContent { DroidDeckTheme {
+            androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+                InputElementProperties(element.value) { element.value = it }
+            }
+        } }
+        compose.onNodeWithTag("setting-element-opacity").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(60f) }
+        compose.runOnIdle { assertEquals(.6f, element.value.opacity, .001f) }
+        compose.onNodeWithTag("setting-element-label").performScrollTo().performClick()
+        compose.runOnIdle { assertFalse(element.value.showLabel) }
+        compose.onNodeWithText(context.getString(R.string.input_button_text)).performScrollTo().performClick()
+        compose.onNodeWithText(context.getString(R.string.screen_key_image)).assertExists()
+        compose.runOnIdle { element.value = element.value.copy(icon = InputButtonIcons.MENU) }
+        compose.onNodeWithTag("setting-element-label").assertDoesNotExist()
+        compose.runOnIdle { element.value = InputSurfaceElement(InputControl.LEFT_PAD, .1f, .1f, .4f, .4f, "pad", InputElementKind.TRACKPAD, "Pad") }
+        compose.onNodeWithTag("setting-element-label").assertDoesNotExist()
+        compose.onNodeWithTag("setting-element-opacity").assertExists()
+    }
+
+    @Test fun editorScalesEveryControlAndRestoresStockPositions() {
+        val library = InputLibraries.read(context)
+        val layout = library.layout("game", InputRole.SECONDARY)!!
+        assertEquals(InputLibraries.DECK, layout.id)
+        val round = mutableStateOf(0)
+        compose.setContent { DroidDeckTheme { androidx.compose.runtime.key(round.value) { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
+            layoutId = layout.id, bindingsId = library.profile("game").binding(InputRole.SECONDARY)) } } }
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNodeWithText(context.getString(R.string.input_reset_positions)).performScrollTo().assertIsNotEnabled()
+        compose.onNodeWithTag("input-editor-scale").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(80f) }
+        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
+        val scaled = InputLibraries.read(context).layouts.first { it.id == layout.id }
+        assertEquals(layout.elements.scaled(.8f), scaled.elements)
+        compose.runOnIdle { round.value = 1 }
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNodeWithText(context.getString(R.string.input_reset_positions)).performScrollTo().performClick()
+        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
+        compose.runOnIdle { assertEquals(layout.elements, InputLibraries.read(context).layouts.first { it.id == layout.id }.elements) }
+    }
+
+    @Test fun quickButtonTogglesHideBuiltInButtonsWithoutDeletingThem() {
+        compose.setContent { DroidDeckTheme { InputSettingsPage({}) } }
+        compose.onNodeWithTag("input-profile-game").performScrollTo().performClick()
+        compose.onNodeWithTag("input-part-primary").performScrollTo().performClick()
+        val before = InputLibraries.read(context).layout("game", InputRole.PRIMARY)!!
+        compose.onNodeWithTag("setting-quick-keyboard").performScrollTo().performClick()
+        compose.runOnIdle {
+            val after = InputLibraries.read(context).layout("game", InputRole.PRIMARY)!!
+            assertEquals(before.elements, after.elements)
+            assertEquals(setOf(InputCommand.KEYBOARD), after.style.hidden)
+        }
+        compose.onNodeWithTag("setting-quick-keyboard").performScrollTo().performClick()
+        compose.runOnIdle { assertTrue(InputLibraries.read(context).layout("game", InputRole.PRIMARY)!!.style.hidden.isEmpty()) }
+    }
+
+    @Test fun layoutsCanBeImportedAndExported() {
+        val source = java.io.File(context.cacheDir, "jump.icp").apply {
+            writeText("""{"name":"Jump keys","elements":[{"type":"BUTTON","shape":"CIRCLE","bindings":["KEY_SPACE"],"scale":1.0,"x":0.8,"y":0.7,"text":"Jump"}]}""")
+        }
+        val target = java.io.File(context.cacheDir, "out.icp").apply { delete() }
+        val registry = object : androidx.activity.result.ActivityResultRegistry() {
+            override fun <I, O> onLaunch(requestCode: Int, contract: androidx.activity.result.contract.ActivityResultContract<I, O>, input: I,
+                options: androidx.core.app.ActivityOptionsCompat?) {
+                dispatchResult(requestCode, android.net.Uri.fromFile(if (input is String) target else source))
+            }
+        }
+        val owner = object : androidx.activity.result.ActivityResultRegistryOwner { override val activityResultRegistry = registry }
+        compose.setContent { androidx.compose.runtime.CompositionLocalProvider(androidx.activity.compose.LocalActivityResultRegistryOwner provides owner) {
+            DroidDeckTheme { InputSettingsPage({}) }
+        } }
+        compose.onNodeWithTag("input-profile-game").performScrollTo().performClick()
+        compose.onNodeWithTag("input-part-primary").performScrollTo().performClick()
+        compose.onNodeWithText(context.getString(R.string.input_saved_layouts)).performScrollTo().performClick()
+        compose.onNodeWithTag("layout-manage-${InputLibraries.OVERLAY}").performScrollTo().performClick()
+        compose.onNodeWithText(context.getString(R.string.screen_key_layout_export)).assertDoesNotExist()
+        compose.onNodeWithText(context.getString(R.string.common_close)).performClick()
+        compose.onNodeWithTag("input-layout-import").performScrollTo().performClick()
+        compose.waitUntil(5_000) { InputLibraries.read(context).layout("game", InputRole.PRIMARY)!!.name == "Jump keys" }
+        val imported = InputLibraries.read(context).layout("game", InputRole.PRIMARY)!!
+        assertEquals(InputLayoutScreen.MAIN, imported.screen)
+        assertEquals(InputAction.Keys(listOf(57)), InputLibraries.read(context).compile("game").elementAction(InputRole.PRIMARY, imported.elements.single().id, InputControl.A))
+        compose.onNodeWithText(context.getString(R.string.input_saved_layouts)).performScrollTo().performClick()
+        compose.onNodeWithTag("layout-manage-${imported.id}").performScrollTo().performClick()
+        compose.onNodeWithText(context.getString(R.string.screen_key_layout_export)).performClick()
+        compose.waitUntil(5_000) { target.isFile && target.length() > 0 }
+        assertEquals(source.readText().let { org.json.JSONObject(it).getString("name") }, org.json.JSONObject(target.readText()).getString("name"))
+        assertEquals("KEY_SPACE", org.json.JSONObject(target.readText()).getJSONArray("elements").getJSONObject(0).getJSONArray("bindings").getString(0))
+    }
+
+    @Test fun buttonSizeRegeneratesTheGamepadAndUndoesAsOneStep() {
+        val library = InputLibraries.read(context)
+        val layout = library.layout("game", InputRole.PRIMARY)!!
+        val (_, metrics) = InputLibraries.primaryDisplay(context)
+        assertNotNull(OnScreenLayout.generatedSize(context, layout, metrics.widthPixels, metrics.heightPixels))
+        compose.setContent { DroidDeckTheme { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
+            layoutId = layout.id, bindingsId = library.profile("game").binding(InputRole.PRIMARY)) } }
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        val slider = compose.onNodeWithTag("input-editor-scale").performScrollTo()
+        slider.assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.StateDescription, "100%"))
+        for (value in listOf(110f, 125f)) slider.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(value) }
+        compose.onNodeWithText(context.getString(R.string.input_editor_undo)).performScrollTo().performClick()
+        slider.assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.StateDescription, "100%"))
+        slider.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(125f) }
+        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
+        compose.runOnIdle {
+            val saved = InputLibraries.read(context).layouts.first { it.id == layout.id }
+            assertEquals(1.25f, saved.scale)
+            assertNotNull(OnScreenLayout.generatedSize(context, saved, metrics.widthPixels, metrics.heightPixels))
+            assertNotEquals(layout.elements.first { it.id == "legacy:a" }.y, saved.elements.first { it.id == "legacy:a" }.y)
+        }
+    }
+
+    @Test @Config(qualifiers = "w833dp-h468dp-land-369dpi")
+    fun buttonSizeKeepsMovedGamepadGroupsInShape() {
+        val face = setOf("legacy:a", "legacy:b", "legacy:x", "legacy:y")
+        val original = InputLibraries.read(context)
+        val gamepad = original.layout("game", InputRole.PRIMARY)!!
+        val moved = gamepad.copy(elements = gamepad.elements.map { if (it.id in face) it.copy(x = it.x + .012f, y = it.y + .017f) else it })
+        InputLibraries.update(context) { it.withLayout(moved) }
+        val (_, metrics) = InputLibraries.primaryDisplay(context)
+        assertNull(OnScreenLayout.generatedSize(context, moved, metrics.widthPixels, metrics.heightPixels))
+        val library = InputLibraries.read(context)
+        compose.setContent { DroidDeckTheme { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
+            layoutId = moved.id, bindingsId = library.profile("game").binding(InputRole.PRIMARY)) } }
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNodeWithTag("input-editor-scale").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(125f) }
+        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
+        compose.runOnIdle {
+            val saved = InputLibraries.read(context).layouts.first { it.id == moved.id }
+            assertEquals(1.25f, saved.scale)
+            val w = metrics.widthPixels; val h = metrics.heightPixels
+            fun centre(id: String) = saved.elements.first { it.id == id }.let { (it.x + it.width / 2) * w to (it.y + it.height / 2) * h }
+            assertEquals(centre("legacy:y").first, centre("legacy:a").first, 1f)
+            assertEquals(centre("legacy:x").second, centre("legacy:b").second, 1f)
+            assertTrue(centre("legacy:y").second < centre("legacy:x").second && centre("legacy:x").second < centre("legacy:a").second)
+            assertEquals(centre("legacy:a").second - centre("legacy:y").second, centre("legacy:b").first - centre("legacy:x").first, 1f)
+            assertEquals(centre("legacy:up").first, centre("legacy:down").first, 1f)
+            assertEquals(centre("legacy:left").second, centre("legacy:right").second, 1f)
+            val before = moved.elements.first { it.id == "legacy:a" }
+            assertTrue(saved.elements.first { it.id == "legacy:a" }.width > before.width * 1.2f)
         }
     }
 }

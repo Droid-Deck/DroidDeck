@@ -71,6 +71,12 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
         InputTiming.end(timing)
     }
 
+    fun cancel() {
+        if (closed) return
+        route?.takeIf { it.action is InputAction.Command }?.release()
+        update(0f)
+    }
+
     fun click(down: Boolean) {
         if (closed) return
         val timing = InputTiming.begin()

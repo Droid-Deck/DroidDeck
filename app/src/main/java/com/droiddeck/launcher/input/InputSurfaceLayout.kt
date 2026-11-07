@@ -38,7 +38,33 @@ data class InputSurfaceElement(
     val hasClick get() = kind == InputElementKind.STICK || kind == InputElementKind.TRACKPAD
 
     fun bounded() = copy(x = x.coerceIn(0f, 0.97f), y = y.coerceIn(0f, 0.97f),
-        width = width.coerceIn(0.03f, 1f - x.coerceIn(0f, 0.97f)), height = height.coerceIn(0.03f, 1f - y.coerceIn(0f, 0.97f)))
+        width = width.coerceIn(0.03f, (1f - x.coerceIn(0f, 0.97f)).coerceAtLeast(0.03f)), height = height.coerceIn(0.03f, (1f - y.coerceIn(0f, 0.97f)).coerceAtLeast(0.03f)))
+}
+
+internal val QUICK_BUTTONS = listOf(InputCommand.STEAM, InputCommand.QUICK_ACCESS, InputCommand.KEYBOARD)
+
+val InputSurfaceElement.quickButton: InputCommand? get() = when {
+    id == "legacy:${InputControl.GUIDE.id}" -> InputCommand.STEAM
+    id == "legacy:${InputControl.QAM.id}" -> InputCommand.QUICK_ACCESS
+    id == "builtin:keyboard" -> InputCommand.KEYBOARD
+    else -> null
+}
+
+internal fun List<InputSurfaceElement>.scaled(factor: Float): List<InputSurfaceElement> = map { e ->
+    fun anchor(centre: Float) = when { centre < 1f / 3f -> 0f; centre > 2f / 3f -> 1f; else -> .5f }
+    val w = (e.width * factor).coerceIn(.03f, 1f)
+    val h = (e.height * factor).coerceIn(.03f, 1f)
+    val cx = e.x + e.width / 2
+    val cy = e.y + e.height / 2
+    val ax = anchor(cx)
+    val ay = anchor(cy)
+    e.copy(x = (ax + (cx - ax) * factor - w / 2).coerceIn(0f, 1f - w), y = (ay + (cy - ay) * factor - h / 2).coerceIn(0f, 1f - h),
+        width = w, height = h).bounded()
+}
+
+internal fun List<InputSurfaceElement>.withPositionsOf(defaults: List<InputSurfaceElement>): List<InputSurfaceElement> {
+    val byId = defaults.associateBy { it.id }
+    return map { e -> byId[e.id]?.let { d -> e.copy(x = d.x, y = d.y, width = d.width, height = d.height).bounded() } ?: e }
 }
 
 object InputSurfaceLayout {

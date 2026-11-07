@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.os.Build
 import android.view.Gravity
@@ -14,9 +15,15 @@ import android.view.WindowInsets
 import android.widget.FrameLayout
 import com.droiddeck.launcher.ui.InputSurfaceView
 
-class OnScreenControls(context: Context, pad: PadBridge?) : FrameLayout(context) {
-    private val surface = InputSurfaceView(context, pad, inputRole = InputRole.PRIMARY)
+class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayout.Dock? = null) : FrameLayout(context) {
+    private val surface = InputSurfaceView(context, pad, inputRole = InputRole.PRIMARY, haptics = dock != null)
     private var layout: SavedInputLayout? = null
+    private val safe = Rect()
+    private var viewWidth = 0
+    private var viewHeight = 0
+    private val placements = object : LinkedHashMap<Placement, List<InputSurfaceElement>>(4, .75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Placement, List<InputSurfaceElement>>) = size > PLACEMENT_CACHE
+    }
     private val quickToggle = QuickToggle(context)
     var isButtonsOnly = false
         private set
@@ -54,25 +61,41 @@ class OnScreenControls(context: Context, pad: PadBridge?) : FrameLayout(context)
         render()
     }
 
+    private data class Placement(val layout: SavedInputLayout?, val width: Int, val height: Int, val safe: Rect, val buttonsOnly: Boolean)
+
+    private fun placed(): List<InputSurfaceElement> {
+        val key = Placement(layout, viewWidth, viewHeight, Rect(safe), isButtonsOnly)
+        return placements.getOrPut(key) {
+            OnScreenLayout.elements(context, layout, viewWidth, viewHeight, safe, isButtonsOnly, dock)
+        }
+    }
+
     private fun render() {
-        val elements = layout?.elements.orEmpty()
-        surface.updateCustomLayout(when {
-            isButtonsOnly -> elements.filter { it.control == InputControl.GUIDE || it.control == InputControl.QAM || it.id == "builtin:keyboard" }
-            isQuickHidden -> elements.filter { it.id == "builtin:keyboard" }
-            else -> elements
-        })
+        val elements = placed()
+        surface.updateCustomLayout(if (isQuickHidden) elements.filter { it.id == "builtin:keyboard" } else elements)
         val style = layout?.style ?: InputSurfaceStyle()
         surface.updateStyle(style)
         quickToggle.tint = style.tint
         quickToggle.alpha = style.opacity / 100f
-        quickToggle.visibility = if (isButtonsOnly || layout == null) GONE else VISIBLE
+        quickToggle.visibility = if (isButtonsOnly || layout == null || dock != null) GONE else VISIBLE
         quickToggle.invalidate()
     }
 
     fun takesTouchAt(x: Float, y: Float) = surface.takesTouchAt(x, y) ||
         quickToggle.visibility == VISIBLE && x >= quickToggle.left && x < quickToggle.right && y >= quickToggle.top && y < quickToggle.bottom
     fun releaseAll() = surface.releaseInputs()
-    fun reload() { releaseAll(); render() }
+    fun reload() { releaseAll(); placements.clear(); render() }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val w = MeasureSpec.getSize(widthMeasureSpec)
+        val h = MeasureSpec.getSize(heightMeasureSpec)
+        if (w != viewWidth || h != viewHeight) {
+            viewWidth = w
+            viewHeight = h
+            render()
+        }
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+    }
 
     override fun onDetachedFromWindow() { releaseAll(); super.onDetachedFromWindow() }
 
@@ -86,6 +109,11 @@ class OnScreenControls(context: Context, pad: PadBridge?) : FrameLayout(context)
             params.leftMargin = left
             params.bottomMargin = bottom
             quickToggle.layoutParams = params
+        }
+        val fresh = Rect(cutout?.safeInsetLeft ?: 0, if (dock == null) cutout?.safeInsetTop ?: 0 else 0, cutout?.safeInsetRight ?: 0, cutout?.safeInsetBottom ?: 0)
+        if (fresh != safe) {
+            safe.set(fresh)
+            render()
         }
         return super.onApplyWindowInsets(insets)
     }
@@ -136,5 +164,6 @@ class OnScreenControls(context: Context, pad: PadBridge?) : FrameLayout(context)
         const val QUICK_CENTER_DP = 34f
         const val QUICK_HIT_DP = 26f
         const val QUICK_RADIUS_DP = 18f
+        const val PLACEMENT_CACHE = 4
     }
 }

@@ -1558,6 +1558,13 @@ object SessionPrefs {
         prefs(context).edit().putString(if (right) "gamepadRight" else "gamepadLeft", surface).apply()
     }
 
+    fun deckPanel(context: Context): com.droiddeck.launcher.input.DeckPanel =
+        com.droiddeck.launcher.input.DeckPanel.from(prefs(context).getString("deckPanel", null))
+
+    fun setDeckPanel(context: Context, panel: com.droiddeck.launcher.input.DeckPanel) {
+        prefs(context).edit().putString("deckPanel", panel.id).apply()
+    }
+
     fun suspendPolicy(context: Context, mode: String): String =
         prefs(context).getString("suspendPolicy.${prefMode(mode)}",
             if (mode == SessionService.MODE_STEAM) SUSPEND_NATIVE else SUSPEND_MANUAL)
