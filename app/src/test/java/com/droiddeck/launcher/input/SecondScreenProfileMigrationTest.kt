@@ -75,10 +75,14 @@ class SecondScreenProfileMigrationTest {
         assertEquals(SecondScreenMode.CUSTOM_CONTROLS, SessionState.secondScreenMode)
     }
 
-    @Test fun theSharedPanelChoiceCarriesOverExceptTheForcedProfileControls() {
+    @Test fun theSharedPanelChoiceCarriesOverToGamesExceptTheForcedProfileControls() {
         val prefs = activity.getSharedPreferences("session", Context.MODE_PRIVATE)
         prefs.edit().putString("secondScreenPanel", SecondScreenMode.TERMINAL.id).commit()
-        for (desktop in listOf(false, true)) assertEquals(SecondScreenMode.TERMINAL.id, SessionPrefs.secondScreenPanel(activity, desktop))
+        assertEquals(SecondScreenMode.TERMINAL.id, SessionPrefs.secondScreenPanel(activity, false))
+        assertNull(SessionPrefs.secondScreenPanel(activity, true))
+        customLibrary(desktop = true)
+        open(desktop = true, deckPad = true)
+        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SessionState.secondScreenMode)
         prefs.edit().putString("secondScreenPanel", SecondScreenMode.CUSTOM_CONTROLS.id).commit()
         for (desktop in listOf(false, true)) assertNull(SessionPrefs.secondScreenPanel(activity, desktop))
     }

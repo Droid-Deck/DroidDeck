@@ -111,7 +111,7 @@ object SessionPrefs {
     }
 
     fun secondScreenPanel(context: Context, desktop: Boolean): String? = prefs(context).let {
-        it.getString(secondScreenPanelKey(desktop), null) ?: it.getString("secondScreenPanel", null)?.takeIf { id -> id != "custom-controls" }
+        it.getString(secondScreenPanelKey(desktop), null) ?: if (desktop) null else it.getString("secondScreenPanel", null)?.takeIf { id -> id != "custom-controls" }
     }
 
     fun setSecondScreenPanel(context: Context, desktop: Boolean, mode: String) {
