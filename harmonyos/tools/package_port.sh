@@ -38,6 +38,8 @@ mkdir -p "${staging}/harmonyos"
   --exclude='*.symbols' \
   --exclude='*.so.0.*' \
   --exclude='./local.properties' \
+  --exclude='__pycache__' \
+  --exclude='*.pyc' \
   .) | (cd "${staging}/harmonyos" && tar -xf -)
 
 echo "==> contents"
