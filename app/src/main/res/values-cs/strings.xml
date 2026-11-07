@@ -3772,4 +3772,6 @@
     <string name="wow_chat_listening">Poslouchám…</string>
     <string name="wow_chat_voice_unavailable">Hlasové psaní není na tomto zařízení k dispozici.</string>
     <string name="wow_chat_mic_denied">Pro hlasové psaní je potřeba přístup k mikrofonu.</string>
+    <string name="steam_store_close_steam">Nejprve zavřete Steam</string>
+    <string name="steam_store_session_wait">Nejprve pozastavte stahování ze Steamu</string>
 </resources>

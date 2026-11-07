@@ -3694,4 +3694,6 @@
     <string name="wow_chat_listening">Слушане…</string>
     <string name="wow_chat_voice_unavailable">Гласовото въвеждане не е налично на това устройство.</string>
     <string name="wow_chat_mic_denied">За гласово въвеждане е нужен достъп до микрофона.</string>
+    <string name="steam_store_close_steam">Първо затворете Steam</string>
+    <string name="steam_store_session_wait">Първо поставете на пауза изтеглянето от Steam</string>
 </resources>

@@ -3852,4 +3852,6 @@
     <string name="wow_chat_listening">Listening…</string>
     <string name="wow_chat_voice_unavailable">Voice typing is not available on this device.</string>
     <string name="wow_chat_mic_denied">Microphone access is needed for voice typing.</string>
+    <string name="steam_store_close_steam">Close Steam first</string>
+    <string name="steam_store_session_wait">Pause the Steam download first</string>
 </resources>

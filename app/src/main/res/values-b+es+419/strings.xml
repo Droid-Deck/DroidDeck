@@ -3706,4 +3706,6 @@
     <string name="wow_chat_listening">Escuchando…</string>
     <string name="wow_chat_voice_unavailable">El dictado por voz no está disponible en este dispositivo.</string>
     <string name="wow_chat_mic_denied">Se necesita acceso al micrófono para el dictado por voz.</string>
+    <string name="steam_store_close_steam">Cierra Steam primero</string>
+    <string name="steam_store_session_wait">Pausa primero la descarga de Steam</string>
 </resources>

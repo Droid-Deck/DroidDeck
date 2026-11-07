@@ -3694,4 +3694,6 @@
     <string name="wow_chat_listening">Kuunnellaan…</string>
     <string name="wow_chat_voice_unavailable">Puhekirjoitus ei ole käytettävissä tällä laitteella.</string>
     <string name="wow_chat_mic_denied">Puhekirjoitus vaatii mikrofonin käyttöoikeuden.</string>
+    <string name="steam_store_close_steam">Sulje Steam ensin</string>
+    <string name="steam_store_session_wait">Keskeytä Steam-lataus ensin</string>
 </resources>

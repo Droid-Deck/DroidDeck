@@ -3694,4 +3694,6 @@
     <string name="wow_chat_listening">सुन रहा है…</string>
     <string name="wow_chat_voice_unavailable">इस डिवाइस पर आवाज़ से टाइपिंग उपलब्ध नहीं है।</string>
     <string name="wow_chat_mic_denied">आवाज़ से टाइपिंग के लिए माइक्रोफ़ोन की अनुमति चाहिए।</string>
+    <string name="steam_store_close_steam">पहले Steam बंद करें</string>
+    <string name="steam_store_session_wait">पहले Steam डाउनलोड रोकें</string>
 </resources>

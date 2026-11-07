@@ -3694,4 +3694,6 @@
     <string name="wow_chat_listening">Ακρόαση…</string>
     <string name="wow_chat_voice_unavailable">Η φωνητική πληκτρολόγηση δεν είναι διαθέσιμη σε αυτή τη συσκευή.</string>
     <string name="wow_chat_mic_denied">Απαιτείται πρόσβαση στο μικρόφωνο για φωνητική πληκτρολόγηση.</string>
+    <string name="steam_store_close_steam">Κλείστε πρώτα το Steam</string>
+    <string name="steam_store_session_wait">Θέστε πρώτα σε παύση τη λήψη του Steam</string>
 </resources>

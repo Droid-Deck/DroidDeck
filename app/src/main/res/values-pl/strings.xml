@@ -3772,4 +3772,6 @@
     <string name="wow_chat_listening">Słucham…</string>
     <string name="wow_chat_voice_unavailable">Pisanie głosowe nie jest dostępne na tym urządzeniu.</string>
     <string name="wow_chat_mic_denied">Pisanie głosowe wymaga dostępu do mikrofonu.</string>
+    <string name="steam_store_close_steam">Najpierw zamknij Steam</string>
+    <string name="steam_store_session_wait">Najpierw wstrzymaj pobieranie ze Steam</string>
 </resources>

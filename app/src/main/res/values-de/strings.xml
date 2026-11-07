@@ -3694,4 +3694,6 @@
     <string name="wow_chat_listening">Hört zu…</string>
     <string name="wow_chat_voice_unavailable">Spracheingabe ist auf diesem Gerät nicht verfügbar.</string>
     <string name="wow_chat_mic_denied">Für die Spracheingabe wird Mikrofonzugriff benötigt.</string>
+    <string name="steam_store_close_steam">Schließe zuerst Steam</string>
+    <string name="steam_store_session_wait">Pausiere zuerst den Steam-Download</string>
 </resources>

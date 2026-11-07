@@ -3733,4 +3733,6 @@
     <string name="wow_chat_listening">Écoute…</string>
     <string name="wow_chat_voice_unavailable">La saisie vocale n\'est pas disponible sur cet appareil.</string>
     <string name="wow_chat_mic_denied">L\'accès au micro est nécessaire pour la saisie vocale.</string>
+    <string name="steam_store_close_steam">Fermez d\'abord Steam</string>
+    <string name="steam_store_session_wait">Mettez d\'abord en pause le téléchargement Steam</string>
 </resources>

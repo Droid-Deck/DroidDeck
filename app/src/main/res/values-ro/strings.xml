@@ -3733,4 +3733,6 @@
     <string name="wow_chat_listening">Se ascultă…</string>
     <string name="wow_chat_voice_unavailable">Tastarea vocală nu este disponibilă pe acest dispozitiv.</string>
     <string name="wow_chat_mic_denied">Pentru tastarea vocală este necesar accesul la microfon.</string>
+    <string name="steam_store_close_steam">Închide mai întâi Steam</string>
+    <string name="steam_store_session_wait">Pune mai întâi pe pauză descărcarea Steam</string>
 </resources>

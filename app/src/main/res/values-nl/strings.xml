@@ -3694,4 +3694,6 @@
     <string name="wow_chat_listening">Luisteren…</string>
     <string name="wow_chat_voice_unavailable">Spraakinvoer is niet beschikbaar op dit apparaat.</string>
     <string name="wow_chat_mic_denied">Voor spraakinvoer is toegang tot de microfoon nodig.</string>
+    <string name="steam_store_close_steam">Sluit eerst Steam</string>
+    <string name="steam_store_session_wait">Pauzeer eerst de Steam-download</string>
 </resources>

@@ -3694,4 +3694,6 @@
     <string name="wow_chat_listening">Figyelés…</string>
     <string name="wow_chat_voice_unavailable">A hangalapú gépelés nem érhető el ezen az eszközön.</string>
     <string name="wow_chat_mic_denied">A hangalapú gépeléshez mikrofon-hozzáférés szükséges.</string>
+    <string name="steam_store_close_steam">Előbb zárd be a Steamet</string>
+    <string name="steam_store_session_wait">Előbb szüneteltesd a Steam-letöltést</string>
 </resources>

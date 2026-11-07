@@ -3694,4 +3694,6 @@
     <string name="wow_chat_listening">Lytter…</string>
     <string name="wow_chat_voice_unavailable">Stemmeindtastning er ikke tilgængelig på denne enhed.</string>
     <string name="wow_chat_mic_denied">Mikrofonadgang er nødvendig for stemmeindtastning.</string>
+    <string name="steam_store_close_steam">Luk Steam først</string>
+    <string name="steam_store_session_wait">Sæt Steam-downloaden på pause først</string>
 </resources>

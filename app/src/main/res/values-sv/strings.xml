@@ -3694,4 +3694,6 @@
     <string name="wow_chat_listening">Lyssnar…</string>
     <string name="wow_chat_voice_unavailable">Röstinmatning är inte tillgänglig på den här enheten.</string>
     <string name="wow_chat_mic_denied">Mikrofonåtkomst krävs för röstinmatning.</string>
+    <string name="steam_store_close_steam">Stäng Steam först</string>
+    <string name="steam_store_session_wait">Pausa Steam-nedladdningen först</string>
 </resources>

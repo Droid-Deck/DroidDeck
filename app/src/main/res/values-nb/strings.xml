@@ -3694,4 +3694,6 @@
     <string name="wow_chat_listening">Lytter…</string>
     <string name="wow_chat_voice_unavailable">Taleinntasting er ikke tilgjengelig på denne enheten.</string>
     <string name="wow_chat_mic_denied">Mikrofontilgang trengs for taleinntasting.</string>
+    <string name="steam_store_close_steam">Lukk Steam først</string>
+    <string name="steam_store_session_wait">Sett Steam-nedlastingen på pause først</string>
 </resources>

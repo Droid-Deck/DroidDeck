@@ -136,7 +136,7 @@ internal fun libraryEntries(
         out += LibraryEntry(GameRef.key(g), g.source, g.name, g, item,
             installed = g.library != Library.XBOX_CLOUD || storeKey in installedStore)
     }
-    for (store in Store.entries) for (item in owned[store].orEmpty()) {
+    for (store in Store.entries) if (store != Store.STEAM) for (item in owned[store].orEmpty()) {
         if (!claimed.add(item.key)) continue
         out += LibraryEntry(GameRef.key(item), store.id, item.title, null, item, installed = item.key in installedStore)
     }
@@ -215,7 +215,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     LaunchedEffect(Unit) { StoresState.refresh(ctx) }
     remember { LibraryDisplay.load(ctx) }
     val stores = s.gameStoresEnabled && !s.shortcutPicker
-    val signedIn = Store.entries.filter { StoresState.isSignedIn(it) }
+    val signedIn = Store.entries.filter { it != Store.STEAM && StoresState.isSignedIn(it) }
     LaunchedEffect(stores, signedIn) { if (stores) signedIn.forEach { StoresState.loadLibrary(ctx, it) } }
     val owned = if (stores) signedIn.associateWith { StoresState.library[it].orEmpty() } else emptyMap()
     val installedStore = StoresState.installed.map { it.key }.toSet()

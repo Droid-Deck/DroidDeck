@@ -3772,4 +3772,6 @@
     <string name="wow_chat_listening">Слухаю…</string>
     <string name="wow_chat_voice_unavailable">Голосове введення недоступне на цьому пристрої.</string>
     <string name="wow_chat_mic_denied">Для голосового введення потрібен доступ до мікрофона.</string>
+    <string name="steam_store_close_steam">Спочатку закрийте Steam</string>
+    <string name="steam_store_session_wait">Спочатку призупиніть завантаження Steam</string>
 </resources>

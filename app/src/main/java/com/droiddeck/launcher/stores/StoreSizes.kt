@@ -55,7 +55,7 @@ object StoreSizes {
                         Store.EPIC -> EpicPrefs.get(app).edit().putLong("size_${item.id}", it).apply()
                         Store.AMAZON -> AmazonPrefs.get(app).edit().putLong("size_${item.id}", it).apply()
                         Store.ITCH, Store.GAMEJOLT -> {}
-                        Store.GOG, Store.XBOX, Store.BATTLENET -> {}
+                        Store.GOG, Store.XBOX, Store.BATTLENET, Store.STEAM -> {}
                     }
                 }
             }, pool).exceptionally { error ->
@@ -114,5 +114,6 @@ object StoreSizes {
         Store.GOG, Store.XBOX, Store.BATTLENET -> 0L
         Store.ITCH -> com.droiddeck.launcher.stores.itch.ItchLibrary.size(context, item)
         Store.GAMEJOLT -> com.droiddeck.launcher.stores.gamejolt.GameJoltBuilds.size(context, item)
+        Store.STEAM -> com.droiddeck.launcher.stores.steam.SteamStore.plannedBytes(context, item)
     } }
 }

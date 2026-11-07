@@ -7,7 +7,8 @@ enum class Store(val id: String, val label: String, val shortLabel: String) {
     XBOX("xbox", "Xbox", "Xbox"),
     ITCH("itch", "Itch.io", "Itch.io"),
     GAMEJOLT("gamejolt", "Game Jolt", "Game Jolt"),
-    BATTLENET("battlenet", "Battle.net", "Battle.net");
+    BATTLENET("battlenet", "Battle.net", "Battle.net"),
+    STEAM("steamstore", "Steam", "Steam");
 
     val folder: String get() = if (this == ITCH) "itch" else shortLabel
 

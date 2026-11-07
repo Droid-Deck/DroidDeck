@@ -103,6 +103,7 @@ import com.droiddeck.launcher.stores.StoreSizes
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.gamejolt.GameJoltApi
 import com.droiddeck.launcher.stores.battlenet.BattleNetInstall
+import com.droiddeck.launcher.stores.steam.SteamStore
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadState
 import com.droiddeck.launcher.stores.formatBytes
@@ -122,6 +123,7 @@ import androidx.compose.runtime.getValue
 internal class GameRef(val appId: Int?, val store: Store?, val storeId: String?) {
     fun game(games: List<Library.SteamGame>): Library.SteamGame? = when {
         appId != null -> games.firstOrNull { it.appId == appId }
+        store == Store.STEAM && storeId != null -> games.firstOrNull { Library.fromSteamClient(it) && it.appId.toString() == storeId }
         store != null && storeId != null -> games.firstOrNull { it.source == store.id && it.storeId == storeId }
         else -> null
     }
@@ -225,7 +227,7 @@ internal fun GameDetail(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (installed != null && installed.sidecar.store == Store.ITCH) ItchCheckButton(installed)
                             if (installed != null && installed.sidecar.store == Store.GAMEJOLT) GameJoltCheckButton(installed)
-                            RemoveButton(title, game, installed, a)
+                            if (store == Store.STEAM) SteamRemoveButton(title, id?.toIntOrNull(), a) else RemoveButton(title, game, installed, a)
                         }
                     }
                 }
@@ -715,6 +717,43 @@ private fun RemoveButton(title: String, game: Library.SteamGame?, installed: Ins
         onConfirm = { a.onGameRemoved(g) },
         onDismiss = { asking = false },
     )
+}
+
+@Composable
+private fun SteamRemoveButton(title: String, appId: Int?, a: FrontEndActions) {
+    val ctx = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    val game = appId?.let { SteamStore.installed[it] } ?: return
+    val key = SteamStore.key(game.appId)
+    if (StoresState.uninstalling[key] != null) {
+        val uninstalling = stringResource(R.string.stores_uninstalling)
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(40.dp).glass(CircleShape).semantics { contentDescription = uninstalling }) {
+            CircularProgressIndicator(strokeWidth = 2.dp, color = colors.error, modifier = Modifier.size(20.dp))
+        }
+        return
+    }
+    val heading = stringResource(R.string.stores_uninstall_title, title)
+    val body = if (game.sizeOnDisk > 0) stringResource(R.string.stores_uninstall_body_size, formatBytes(game.sizeOnDisk)) else stringResource(R.string.games_uninstall_body)
+    val keep = stringResource(R.string.stores_notification_keep)
+    val remove = stringResource(R.string.stores_uninstall)
+    val busy = StoresState.download(key)?.isActive == true
+    val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
+    Box(Modifier.onGloballyPositioned { placed[0] = it }) {
+        IconAction(Icons.Outlined.Delete, remove, "game:remove", danger = true, enabled = !busy, frosted = true) {
+            val at = placed[0]?.takeIf { it.isAttached }?.boundsInRoot() ?: return@IconAction
+            var confirmed = false
+            Steps.ask(StepAsk(anchor = at, side = StepSide.Left, accent = colors.error, items = 3, pillCorner = 12.dp, maxWidth = 340.dp,
+                onDismiss = { if (confirmed) SteamStore.uninstall(ctx, game.appId) { StoresState.refresh(ctx); a.onLibraryChanged() } },
+                handle = { Icon(Icons.Outlined.Delete, null, tint = colors.error, modifier = Modifier.size(18.dp)) }) {
+                StepTitle(heading)
+                Text(body, fontSize = 13.sp, lineHeight = 18.sp, color = colors.onSurfaceVariant, modifier = Modifier.stepItem(1).padding(start = 4.dp, bottom = 12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth().stepItem(2)) {
+                    StepChoice(keep, enabled = open, modifier = Modifier.focusRequester(first)) { Steps.fold() }
+                    StepChoice(remove, danger = true, enabled = open) { confirmed = true; Steps.fold() }
+                }
+            })
+        }
+    }
 }
 
 @Composable

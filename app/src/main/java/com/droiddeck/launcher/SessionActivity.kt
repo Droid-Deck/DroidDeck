@@ -629,6 +629,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             finish()
             return
         }
+        if (savedInstanceState == null && !SessionState.running && com.droiddeck.launcher.stores.steam.SteamStore.blocksSession(intent)) {
+            runtimeRemovalBlocked = true
+            android.widget.Toast.makeText(this, R.string.steam_store_session_wait, android.widget.Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
         if (!SessionState.running && SessionState.phase in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
             val mode = intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
             SessionState.programArgs = intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS)?.toList().orEmpty()

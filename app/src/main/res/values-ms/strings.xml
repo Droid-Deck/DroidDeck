@@ -3664,4 +3664,6 @@
     <string name="wow_chat_listening">Mendengar…</string>
     <string name="wow_chat_voice_unavailable">Taip dengan suara tidak tersedia pada peranti ini.</string>
     <string name="wow_chat_mic_denied">Akses mikrofon diperlukan untuk menaip dengan suara.</string>
+    <string name="steam_store_close_steam">Tutup Steam dahulu</string>
+    <string name="steam_store_session_wait">Jeda muat turun Steam dahulu</string>
 </resources>

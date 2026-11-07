@@ -3850,4 +3850,6 @@
     <string name="wow_chat_listening">جارٍ الاستماع…</string>
     <string name="wow_chat_voice_unavailable">الكتابة بالصوت غير متاحة على هذا الجهاز.</string>
     <string name="wow_chat_mic_denied">يلزم الوصول إلى الميكروفون للكتابة بالصوت.</string>
+    <string name="steam_store_close_steam">أغلق Steam أولاً</string>
+    <string name="steam_store_session_wait">أوقف تنزيل Steam مؤقتًا أولاً</string>
 </resources>

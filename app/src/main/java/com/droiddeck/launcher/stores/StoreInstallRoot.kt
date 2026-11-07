@@ -226,7 +226,7 @@ object StoreInstallRoot {
     fun storeDir(root: File, store: Store): File = File(root, store.folder)
 
     fun gameFolders(context: Context): List<File> = roots(context).flatMap { root ->
-        Store.entries.flatMap { store ->
+        Store.entries.filter { it != Store.STEAM }.flatMap { store ->
             storeDir(root, store).listFiles { f -> f.isDirectory }?.sortedBy { it.name.lowercase() } ?: emptyList()
         }
     }
@@ -246,7 +246,7 @@ object StoreInstallRoot {
     fun isFinished(folder: File): Boolean = StoreGameSidecar.read(folder)?.isInstalled == true
 
     fun unfinished(context: Context): List<Unfinished> = roots(context).flatMap { root ->
-        Store.entries.filter { it != Store.BATTLENET }.flatMap { store ->
+        Store.entries.filter { it != Store.BATTLENET && it != Store.STEAM }.flatMap { store ->
             storeDir(root, store).listFiles { f -> f.isDirectory }.orEmpty().mapNotNull { folder ->
                 val sidecar = StoreGameSidecar.read(folder)
                 when {

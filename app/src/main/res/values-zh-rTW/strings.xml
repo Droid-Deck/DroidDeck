@@ -3667,4 +3667,6 @@
     <string name="wow_chat_listening">正在聆聽…</string>
     <string name="wow_chat_voice_unavailable">此裝置不支援語音輸入。</string>
     <string name="wow_chat_mic_denied">語音輸入需要麥克風權限。</string>
+    <string name="steam_store_close_steam">請先關閉 Steam</string>
+    <string name="steam_store_session_wait">請先暫停 Steam 下載</string>
 </resources>

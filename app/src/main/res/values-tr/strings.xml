@@ -3694,4 +3694,6 @@
     <string name="wow_chat_listening">Dinleniyor…</string>
     <string name="wow_chat_voice_unavailable">Sesle yazma bu cihazda kullanılamıyor.</string>
     <string name="wow_chat_mic_denied">Sesle yazma için mikrofon erişimi gerekiyor.</string>
+    <string name="steam_store_close_steam">Önce Steam\'i kapatın</string>
+    <string name="steam_store_session_wait">Önce Steam indirmesini duraklatın</string>
 </resources>
