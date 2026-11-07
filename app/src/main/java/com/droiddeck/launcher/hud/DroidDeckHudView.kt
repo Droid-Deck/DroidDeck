@@ -534,9 +534,6 @@ class DroidDeckHudView(context: Context) : View(context) {
     private val inkRect = android.graphics.Rect()
 
     private fun rebuild() {
-        val renderingLayer = if (size == DroidDeckHudSize.STRIP && dock == DroidDeckHudDock.NONE)
-            LAYER_TYPE_SOFTWARE else LAYER_TYPE_NONE
-        if (layerType != renderingLayer) setLayerType(renderingLayer, null)
         glyphs.clear(); tileRects.clear(); graphRect = null
         headerMark = null; headerWordmark = null; chipRect = null; dPanel = null; dDividerTop = -1f; tabRect = null; stripRect = null
         val s = snap
@@ -1353,10 +1350,15 @@ class DroidDeckHudView(context: Context) : View(context) {
             canvas.drawText(g.text, g.x, g.baseline, paint)
             if (g.glow) paint.clearShadowLayer()
         }
-        headerMark?.let { DroidDeckMark.draw(canvas, it.left, it.top, it.height(), blend(colValue), accent) }
+        headerMark?.let {
+            if (stripRect != null && layerType != LAYER_TYPE_SOFTWARE) drawCachedMark(canvas, it)
+            else DroidDeckMark.draw(canvas, it.left, it.top, it.height(), blend(colValue), accent)
+        }
         headerWordmark?.let { WordmarkArt.draw(canvas, it.left, it.top, it.height(), blend(colValue), accent) }
 
-        graphRect?.let { drawGraph(canvas, it) }
+        graphRect?.let {
+            if (stripRect != null && layerType != LAYER_TYPE_SOFTWARE) drawCachedGraph(canvas, it) else drawGraph(canvas, it)
+        }
 
         lockController.drawBadge(canvas)
     }
@@ -1379,6 +1381,41 @@ class DroidDeckHudView(context: Context) : View(context) {
         graphPaint.strokeWidth = sp(1.6f)
         graphPaint.color = blend(colGraph)
         canvas.drawPath(graphPath, graphPaint)
+    }
+
+    private var cachedGraphBitmap: Bitmap? = null
+    private var cachedGraphCanvas: Canvas? = null
+    private val cachedGraphRect = RectF()
+    private var cachedMarkBitmap: Bitmap? = null
+    private var cachedMarkKey = ""
+
+    private fun drawCachedGraph(canvas: Canvas, rect: RectF) {
+        val w = rect.width().roundToInt().coerceAtLeast(1)
+        val h = rect.height().roundToInt().coerceAtLeast(1)
+        var bitmap = cachedGraphBitmap
+        if (bitmap == null || bitmap.width != w || bitmap.height != h) {
+            bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            cachedGraphBitmap = bitmap
+            cachedGraphCanvas = Canvas(bitmap)
+            cachedGraphRect.set(0f, 0f, w.toFloat(), h.toFloat())
+        }
+        bitmap.eraseColor(Color.TRANSPARENT)
+        drawGraph(cachedGraphCanvas!!, cachedGraphRect)
+        canvas.drawBitmap(bitmap, rect.left, rect.top, null)
+    }
+
+    private fun drawCachedMark(canvas: Canvas, rect: RectF) {
+        val w = rect.width().roundToInt().coerceAtLeast(1)
+        val h = rect.height().roundToInt().coerceAtLeast(1)
+        val key = "$w,$h,${blend(colValue)},$accent"
+        var bitmap = cachedMarkBitmap
+        if (bitmap == null || key != cachedMarkKey) {
+            bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            DroidDeckMark.draw(Canvas(bitmap), 0f, 0f, h.toFloat(), blend(colValue), accent)
+            cachedMarkBitmap = bitmap
+            cachedMarkKey = key
+        }
+        canvas.drawBitmap(bitmap, rect.left, rect.top, null)
     }
 
     private fun drawStrip(canvas: Canvas, rect: RectF) {
