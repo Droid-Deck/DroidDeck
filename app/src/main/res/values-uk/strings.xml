@@ -4161,4 +4161,6 @@
     <string name="theme_custom_error">Помилка</string>
     <string name="hud_only_during_game">Показувати HUD лише під час гри</string>
     <string name="hud_only_during_game_hint">Приховувати HUD, коли кадри гри не виявляються.</string>
+    <string name="steam_store_close_steam">Спочатку закрийте Steam</string>
+    <string name="steam_store_session_wait">Спочатку призупиніть завантаження Steam</string>
 </resources>

@@ -4120,4 +4120,6 @@
     <string name="drawer_antialiasing">Suavização de serrilhado</string>
     <string name="hud_only_during_game">Mostrar o HUD apenas durante um jogo</string>
     <string name="hud_only_during_game_hint">Ocultar o HUD quando não forem detetados fotogramas do jogo.</string>
+    <string name="steam_store_close_steam">Feche primeiro o Steam</string>
+    <string name="steam_store_session_wait">Coloque primeiro em pausa a transferência do Steam</string>
 </resources>

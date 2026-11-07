@@ -4121,4 +4121,6 @@
     <string name="theme_custom_error">Eroare</string>
     <string name="hud_only_during_game">Afișează HUD-ul doar în timpul jocului</string>
     <string name="hud_only_during_game_hint">Ascunde HUD-ul când nu sunt detectate cadre ale jocului.</string>
+    <string name="steam_store_close_steam">Închide mai întâi Steam</string>
+    <string name="steam_store_session_wait">Pune mai întâi pe pauză descărcarea Steam</string>
 </resources>

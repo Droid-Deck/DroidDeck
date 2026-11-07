@@ -4081,4 +4081,6 @@
     <string name="theme_custom_error">Hata</string>
     <string name="hud_only_during_game">HUD\'yi yalnızca oyun sırasında göster</string>
     <string name="hud_only_during_game_hint">Oyun kareleri algılanmadığında HUD\'yi gizle.</string>
+    <string name="steam_store_close_steam">Önce Steam\'i kapatın</string>
+    <string name="steam_store_session_wait">Önce Steam indirmesini duraklatın</string>
 </resources>

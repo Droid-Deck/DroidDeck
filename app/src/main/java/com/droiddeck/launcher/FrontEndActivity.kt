@@ -3471,6 +3471,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             android.widget.Toast.makeText(this, R.string.storage_cleanup_busy, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
+        if (!SessionState.running && com.droiddeck.launcher.stores.steam.SteamStore.blocksSession(intent)) {
+            android.widget.Toast.makeText(this, R.string.steam_store_session_wait, android.widget.Toast.LENGTH_SHORT).show()
+            return false
+        }
         refreshPhantomStatus()
         if (steamSession && PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
             if (queueIfBlocked) queuedLaunch.queue(intent, System.currentTimeMillis())

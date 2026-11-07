@@ -4051,4 +4051,6 @@
     <string name="theme_custom_error">錯誤</string>
     <string name="hud_only_during_game">只在遊戲期間顯示 HUD</string>
     <string name="hud_only_during_game_hint">未偵測到遊戲畫面時隱藏 HUD。</string>
+    <string name="steam_store_close_steam">請先關閉 Steam</string>
+    <string name="steam_store_session_wait">請先暫停 Steam 下載</string>
 </resources>

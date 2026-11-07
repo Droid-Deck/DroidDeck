@@ -4390,4 +4390,6 @@
     <string name="hud_only_during_game_hint">Hide the HUD when no game frames are detected.</string>
     <string name="onboarding_button_getting_ready">Getting ready · %1$d%%</string>
     <string name="onboarding_button_finish">Finish setup · %1$d%%</string>
+    <string name="steam_store_close_steam">Close Steam first</string>
+    <string name="steam_store_session_wait">Pause the Steam download first</string>
 </resources>

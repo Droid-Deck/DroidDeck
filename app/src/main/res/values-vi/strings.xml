@@ -4051,4 +4051,6 @@
     <string name="theme_custom_error">Lỗi</string>
     <string name="hud_only_during_game">Chỉ hiển thị HUD khi đang chơi</string>
     <string name="hud_only_during_game_hint">Ẩn HUD khi không phát hiện khung hình trò chơi.</string>
+    <string name="steam_store_close_steam">Hãy đóng Steam trước</string>
+    <string name="steam_store_session_wait">Hãy tạm dừng tải xuống Steam trước</string>
 </resources>

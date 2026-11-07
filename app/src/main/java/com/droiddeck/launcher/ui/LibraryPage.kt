@@ -158,7 +158,7 @@ internal fun libraryEntries(
         out += LibraryEntry(GameRef.key(g), g.source, g.name, g, item,
             installed = g.library != Library.XBOX_CLOUD || storeKey in installedStore)
     }
-    for (store in Store.entries) for (item in owned[store].orEmpty()) {
+    for (store in Store.entries) if (store != Store.STEAM) for (item in owned[store].orEmpty()) {
         if (!claimed.add(item.key)) continue
         out += LibraryEntry(GameRef.key(item), store.id, item.title, null, item, installed = item.key in installedStore)
     }
