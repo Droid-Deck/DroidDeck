@@ -548,6 +548,7 @@
     <string name="comp_auto_none">これを使う DroidDeck-Proton はありません</string>
     <string name="comp_auto_waits_network">Auto 更新は接続を待っています。</string>
     <string name="comp_auto_check_failed">新しいビルドを確認できませんでした。</string>
+    <string name="comp_auto_install_failed">%1$s をインストールできませんでした。</string>
     <string name="comp_auto_waits_unmetered">新しいビルドは従量制でない接続、バッテリーセーバーのオフ、端末が熱くない状態を待ちます。</string>
     <string name="comp_auto_updated">%1$s を %2$s に更新しました。</string>
     <string name="comp_auto_rolled_back">%1$s %2$s でゲームが数秒で 2 回終了したため、Auto は %3$s に戻しました。</string>
@@ -1182,7 +1183,6 @@
     <string name="gpu_none_listed">ドライバーがまだ一覧表示されていません。更新してドライバーを検索してください。</string>
     <string name="gpu_hide_other">他のGPUのドライバーを非表示</string>
     <string name="gpu_show_other">他のGPUのドライバーを表示</string>
-    <string name="gpu_advanced">詳細設定</string>
     <string name="gpu_ubwc_title">UBWC互換性</string>
     <string name="gpu_ubwc_hint">SteamやAndroidで縞模様やちらつきが出る場合は、オンまたはオフを試してください。DroidDeckの再起動後、両方のドライバーに適用されます。</string>
     <string name="gpu_ubwc_restart">適用するにはDroidDeckを再起動してください。</string>

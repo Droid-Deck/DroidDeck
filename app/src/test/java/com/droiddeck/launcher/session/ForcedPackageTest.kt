@@ -21,6 +21,7 @@ import java.io.File
 @Config(sdk = [28], manifest = Config.NONE)
 class ForcedPackageTest {
     private val dxvk2 = "dxvk-2.7.1-linux.wcp"
+    private val gplasync = "dxvk-gplasync-2.7.1-1-linux.wcp"
     private lateinit var context: Context
 
     @Before fun setUp() {
@@ -52,6 +53,74 @@ class ForcedPackageTest {
         assertFalse(rule.matches(gpu(740, GpuInfo.Family.A7XX)))
         assertFalse(rule.matches(gpu(830, GpuInfo.Family.A8XX)))
         assertTrue(ComponentsManager.FORCED_PACKAGES.none { GpuInfo.Family.A7XX in it.families })
+    }
+
+    @Test fun onlyAdreno6xxPinsDxvkAutoToGplasync() {
+        val rule = ComponentsManager.autoDxvk(gpu(644, GpuInfo.Family.A6XX))!!
+        assertEquals(gplasync, rule.file)
+        assertEquals("Dxvk-gplasync-Linux", rule.release)
+        assertNull(rule.autoRule())
+        assertNull(ComponentsManager.autoDxvk(gpu(740, GpuInfo.Family.A7XX)))
+        assertNull(ComponentsManager.autoDxvk(gpu(830, GpuInfo.Family.A8XX)))
+    }
+
+    @Test fun dxvkAutoGivesDroidDeckProtonGplasyncAndOtherProtonsKeepDxvk2() {
+        proton("dd-proton")
+        proton("valve")
+        val fetched = mutableListOf<String>()
+        val plain = mutableListOf<String>()
+        val auto = mutableListOf<String>()
+        installAuto(
+            gpu(644, GpuInfo.Family.A6XX),
+            fetch = { fetched += it.file },
+            apply = { id, file -> plain += "$id $file"; "" },
+            applyAuto = { id, file -> auto += "$id $file"; "" },
+        )
+        assertEquals(listOf("valve $dxvk2"), plain)
+        assertEquals(listOf("dd-proton $gplasync"), auto)
+        assertEquals(listOf(dxvk2, gplasync), fetched)
+    }
+
+    @Test fun dxvkAutoReplacesTheForcedDxvk2ButKeepsAUserChoice() {
+        proton("dd-proton")
+        proton("dd-picked")
+        proton("valve")
+        writeState("dd-proton", dxvk2, "experimental-11")
+        writeState("dd-picked", "dxvk-3.1-linux.wcp", "experimental-11")
+        writeState("valve", dxvk2, "experimental-11")
+        val plain = mutableListOf<String>()
+        val auto = mutableListOf<String>()
+        installAuto(
+            gpu(644, GpuInfo.Family.A6XX),
+            apply = { id, file -> plain += "$id $file"; "" },
+            applyAuto = { id, file -> auto += "$id $file"; "" },
+        )
+        assertTrue(plain.isEmpty())
+        assertEquals(listOf("dd-proton $gplasync"), auto)
+    }
+
+    @Test fun dxvkAutoLeavesGplasyncInPlace() {
+        proton("dd-proton")
+        writeState("dd-proton", gplasync, "experimental-11")
+        assertNull(installAuto(gpu(644, GpuInfo.Family.A6XX)))
+    }
+
+    @Test fun dxvkManualKeepsDxvk2ForEveryProton() {
+        proton("dd-proton")
+        proton("valve")
+        val plain = mutableListOf<String>()
+        installAuto(
+            gpu(644, GpuInfo.Family.A6XX),
+            apply = { id, file -> plain += "$id $file"; "" },
+            dxvkAuto = false,
+        )
+        assertEquals(listOf("dd-proton $dxvk2", "valve $dxvk2"), plain)
+    }
+
+    @Test fun dxvkAutoLeavesAdreno7xxAnd8xxAlone() {
+        proton("dd-proton")
+        assertNull(installAuto(gpu(740, GpuInfo.Family.A7XX)))
+        assertNull(installAuto(gpu(830, GpuInfo.Family.A8XX)))
     }
 
     @Test fun aModelListOnlyMatchesThoseChips() {
@@ -516,6 +585,17 @@ class ForcedPackageTest {
         fetch: (ComponentsManager.CatalogItem) -> Unit = ::refuseFetch,
         apply: (String, String) -> String = ::refuseApply,
     ) = ComponentsManager.ensureForcedPackages(context, gpu, lookup, fetch, apply)
+
+    private fun installAuto(
+        gpu: GpuInfo,
+        fetch: (ComponentsManager.CatalogItem) -> Unit = {},
+        apply: (String, String) -> String = ::refuseApply,
+        applyAuto: (String, String) -> String = ::refuseApply,
+        dxvkAuto: Boolean = true,
+    ) = ComponentsManager.ensureForcedPackages(
+        context, gpu, { file, release -> item(file, release) }, fetch, apply,
+        applyAuto = applyAuto, dxvkAuto = dxvkAuto, follows = { it.id.startsWith("dd-") },
+    )
 
     private fun refuseLookup(file: String, release: String): ComponentsManager.CatalogItem? = error("catalog $file $release")
 

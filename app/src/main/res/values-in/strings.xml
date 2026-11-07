@@ -548,6 +548,7 @@
     <string name="comp_auto_none">Tidak ada DroidDeck-Proton yang memakainya</string>
     <string name="comp_auto_waits_network">Pembaruan Auto menunggu koneksi.</string>
     <string name="comp_auto_check_failed">Tidak dapat memeriksa build baru.</string>
+    <string name="comp_auto_install_failed">Tidak dapat memasang %1$s.</string>
     <string name="comp_auto_waits_unmetered">Build baru menunggu koneksi tanpa kuota, penghemat baterai mati, dan perangkat yang dingin.</string>
     <string name="comp_auto_updated">%1$s diperbarui ke %2$s.</string>
     <string name="comp_auto_rolled_back">%1$s %2$s menutup game dalam hitungan detik dua kali, jadi Auto kembali ke %3$s.</string>
@@ -1182,7 +1183,6 @@
     <string name="gpu_none_listed">Belum ada driver yang terdaftar. Segarkan untuk mencarinya.</string>
     <string name="gpu_hide_other">Sembunyikan driver untuk GPU lain</string>
     <string name="gpu_show_other">Tampilkan driver untuk GPU lain</string>
-    <string name="gpu_advanced">Lanjutan</string>
     <string name="gpu_ubwc_title">Kompatibilitas UBWC</string>
     <string name="gpu_ubwc_hint">Coba Aktif atau Nonaktif jika Steam atau Android menampilkan garis-garis atau berkedip. Berlaku untuk kedua driver setelah DroidDeck dimulai ulang.</string>
     <string name="gpu_ubwc_restart">Mulai ulang DroidDeck untuk menerapkan.</string>

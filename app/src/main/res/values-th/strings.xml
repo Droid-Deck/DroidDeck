@@ -548,6 +548,7 @@
     <string name="comp_auto_none">ไม่มี DroidDeck-Proton ที่ใช้สิ่งนี้</string>
     <string name="comp_auto_waits_network">การอัปเดต Auto กำลังรอการเชื่อมต่อ</string>
     <string name="comp_auto_check_failed">ตรวจหาบิลด์ใหม่ไม่ได้</string>
+    <string name="comp_auto_install_failed">ติดตั้ง %1$s ไม่ได้</string>
     <string name="comp_auto_waits_unmetered">บิลด์ใหม่จะรอการเชื่อมต่อที่ไม่จำกัดปริมาณ ปิดโหมดประหยัดแบตเตอรี่ และอุปกรณ์ที่ไม่ร้อน</string>
     <string name="comp_auto_updated">อัปเดต %1$s เป็น %2$s แล้ว</string>
     <string name="comp_auto_rolled_back">%1$s %2$s ทำให้เกมปิดภายในไม่กี่วินาทีสองครั้ง Auto จึงกลับไปใช้ %3$s</string>
@@ -1182,7 +1183,6 @@
     <string name="gpu_none_listed">ยังไม่มีไดรเวอร์ในรายการ รีเฟรชเพื่อค้นหา</string>
     <string name="gpu_hide_other">ซ่อนไดรเวอร์สำหรับ GPU อื่น</string>
     <string name="gpu_show_other">แสดงไดรเวอร์สำหรับ GPU อื่น</string>
-    <string name="gpu_advanced">ขั้นสูง</string>
     <string name="gpu_ubwc_title">ความเข้ากันได้ของ UBWC</string>
     <string name="gpu_ubwc_hint">ลองเปิดหรือปิดหาก Steam หรือ Android แสดงเป็นแถบลายหรือกะพริบ มีผลกับไดรเวอร์ทั้งสองหลังรีสตาร์ท DroidDeck</string>
     <string name="gpu_ubwc_restart">รีสตาร์ท DroidDeck เพื่อใช้การเปลี่ยนแปลง</string>

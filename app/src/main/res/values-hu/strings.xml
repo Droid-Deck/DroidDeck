@@ -550,6 +550,7 @@
     <string name="comp_auto_none">Egyik DroidDeck-Proton sem használja</string>
     <string name="comp_auto_waits_network">Az Auto frissítések kapcsolatra várnak.</string>
     <string name="comp_auto_check_failed">Nem sikerült új buildeket keresni.</string>
+    <string name="comp_auto_install_failed">Nem sikerült telepíteni: %1$s.</string>
     <string name="comp_auto_waits_unmetered">Az új buildek nem forgalomkorlátos kapcsolatra, kikapcsolt energiatakarékos módra és hűvös eszközre várnak.</string>
     <string name="comp_auto_updated">%1$s frissítve: %2$s.</string>
     <string name="comp_auto_rolled_back">%1$s %2$s kétszer is másodperceken belül bezárt egy játékot, ezért az Auto visszaállt erre: %3$s.</string>
@@ -1189,7 +1190,6 @@
     <string name="gpu_none_listed">Még nincs felsorolt illesztőprogram. Frissítsen a kereséshez.</string>
     <string name="gpu_hide_other">Más GPU-k illesztőprogramjainak elrejtése</string>
     <string name="gpu_show_other">Más GPU-k illesztőprogramjainak megjelenítése</string>
-    <string name="gpu_advanced">Speciális</string>
     <string name="gpu_ubwc_title">UBWC-kompatibilitás</string>
     <string name="gpu_ubwc_hint">Próbálja a Be vagy Ki beállítást, ha a Steam vagy az Android csíkokat vagy villódzást mutat. A DroidDeck újraindítása után mindkét illesztőprogramra érvényes.</string>
     <string name="gpu_ubwc_restart">Indítsa újra a DroidDecket az alkalmazáshoz.</string>

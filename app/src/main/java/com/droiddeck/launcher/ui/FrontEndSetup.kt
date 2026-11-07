@@ -472,6 +472,20 @@ internal fun SetupPanel(
                                     com.droiddeck.launcher.core.AppUiPrefs.orientationOptions.map { (value, label) -> value to stringResource(label) },
                                     s.launcherOrientation, onPick = a.onLauncherOrientation,
                                 )
+                                s.tpUbwcMode?.let { ubwc ->
+                                    ChoiceRow(
+                                        host, "tp-ubwc", stringResource(R.string.gpu_ubwc_title), stringResource(R.string.gpu_ubwc_hint),
+                                        listOf(
+                                            SessionPrefs.TP_UBWC_AUTO to stringResource(R.string.common_auto),
+                                            SessionPrefs.TP_UBWC_ON to stringResource(R.string.widgets_on),
+                                            SessionPrefs.TP_UBWC_OFF to stringResource(R.string.widgets_off),
+                                        ), ubwc, onPick = a.onTpUbwcMode,
+                                    )
+                                    if (s.tpUbwcRestartRequired) {
+                                        if (s.canRestartApp) ActionRow(stringResource(R.string.gpu_ubwc_restart), null, stringResource(R.string.gpu_restart_now), a.onRestartApp)
+                                        else Note(stringResource(R.string.gpu_ubwc_restart))
+                                    }
+                                }
                                 ChoiceRow(
                                     host, "orientation", stringResource(R.string.setup_session_orientation), stringResource(R.string.setup_session_orientation_hint),
                                     SessionPrefs.orientationOptions.map { (value, label) -> value to stringResource(label) },

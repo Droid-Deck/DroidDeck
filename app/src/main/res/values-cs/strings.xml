@@ -554,6 +554,7 @@
     <string name="comp_auto_none">Žádný DroidDeck-Proton to nepoužívá</string>
     <string name="comp_auto_waits_network">Aktualizace Auto čekají na připojení.</string>
     <string name="comp_auto_check_failed">Nová sestavení nelze zkontrolovat.</string>
+    <string name="comp_auto_install_failed">%1$s nelze nainstalovat.</string>
     <string name="comp_auto_waits_unmetered">Nová sestavení čekají na neměřené připojení, vypnutou úsporu baterie a nepřehřáté zařízení.</string>
     <string name="comp_auto_updated">%1$s aktualizováno na %2$s.</string>
     <string name="comp_auto_rolled_back">%1$s %2$s dvakrát zavřelo hru během pár sekund, proto se Auto vrátilo k %3$s.</string>
@@ -1203,7 +1204,6 @@
     <string name="gpu_none_listed">Zatím žádné ovladače. Obnovte, aby se vyhledaly.</string>
     <string name="gpu_hide_other">Skrýt ovladače pro jiné GPU</string>
     <string name="gpu_show_other">Zobrazit ovladače pro jiné GPU</string>
-    <string name="gpu_advanced">Pokročilé</string>
     <string name="gpu_ubwc_title">Kompatibilita UBWC</string>
     <string name="gpu_ubwc_hint">Pokud Steam nebo Android zobrazuje pruhy nebo blikání, zkuste Zapnuto nebo Vypnuto. Platí pro oba ovladače po restartu DroidDeck.</string>
     <string name="gpu_ubwc_restart">Pro použití restartujte DroidDeck.</string>

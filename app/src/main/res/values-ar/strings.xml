@@ -558,6 +558,7 @@
     <string name="comp_auto_none">لا يستخدمه أي DroidDeck-Proton</string>
     <string name="comp_auto_waits_network">تنتظر تحديثات Auto اتصالًا.</string>
     <string name="comp_auto_check_failed">تعذّر البحث عن إصدارات جديدة.</string>
+    <string name="comp_auto_install_failed">تعذّر تثبيت %1$s.</string>
     <string name="comp_auto_waits_unmetered">تنتظر الإصدارات الجديدة اتصالًا غير محدود، وإيقاف توفير البطارية، وجهازًا غير ساخن.</string>
     <string name="comp_auto_updated">تم تحديث %1$s إلى %2$s.</string>
     <string name="comp_auto_rolled_back">أغلق %1$s %2$s لعبة خلال ثوانٍ مرتين، لذا عاد Auto إلى %3$s.</string>
@@ -1217,7 +1218,6 @@
     <string name="gpu_none_listed">لا توجد برامج تشغيل مُدرَجة حتى الآن. حدِّث للبحث عنها.</string>
     <string name="gpu_hide_other">إخفاء برامج التشغيل لوحدات GPU الأخرى</string>
     <string name="gpu_show_other">إظهار برامج التشغيل لوحدات GPU الأخرى</string>
-    <string name="gpu_advanced">متقدّم</string>
     <string name="gpu_ubwc_title">توافق UBWC</string>
     <string name="gpu_ubwc_hint">جرّب التشغيل أو الإيقاف إذا ظهرت خطوط أو وميض في Steam أو Android. يُطبَّق على برنامجَي التشغيل كليهما بعد إعادة تشغيل DroidDeck.</string>
     <string name="gpu_ubwc_restart">أعِد تشغيل DroidDeck للتطبيق.</string>

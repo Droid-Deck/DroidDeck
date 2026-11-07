@@ -132,6 +132,16 @@ Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-per
   path, and PRoot refused the call unless the descriptor was `AT_FDCWD`. FEX starts every child of an
   emulated program with `execveat(fd, "/proc/self/exe")`, so x86 programs in a Flatpak sandbox, which
   does not carry the session's preloads, could not start other programs.
+- `0025-fastpath-trampoline-sigsys-enosys.patch` - Android 10 and older refuse `statx` with
+  `SIGSYS`. A `statx` from the fast path's trampoline page already carries the host path, but
+  proot's `SIGSYS` emulation translated it again as a guest path (`<rootfs>/<rootfs>/...`) and
+  returned `ENOENT`, so every existing file looked missing to Rust's `metadata` and GNU `stat`:
+  uutils `mkdir -p` on an existing directory failed with "Already exists" and Steam setup stopped
+  (Pico 4, Android 10). A refused syscall from the trampoline now gets `ENOSYS` without
+  translation or extension handling, and the fast path falls back as it already does for
+  `statx` (`newfstatat`) and `memfd_create`. Syscalls outside the trampoline and sessions
+  without `PROOT_FASTPATH` are unchanged. `bench/statx-trap.c` traps `statx` and checks an
+  existing directory still reads as one.
 
 Old kernel fixes:
 

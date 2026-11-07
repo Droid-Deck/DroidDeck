@@ -552,6 +552,7 @@
     <string name="comp_auto_none">Niciun DroidDeck-Proton nu folosește asta</string>
     <string name="comp_auto_waits_network">Actualizările Auto așteaptă o conexiune.</string>
     <string name="comp_auto_check_failed">Nu s-au putut căuta versiuni noi.</string>
+    <string name="comp_auto_install_failed">Nu s-a putut instala %1$s.</string>
     <string name="comp_auto_waits_unmetered">Versiunile noi așteaptă o conexiune fără limită de date, economisirea bateriei oprită și un dispozitiv răcit.</string>
     <string name="comp_auto_updated">%1$s actualizat la %2$s.</string>
     <string name="comp_auto_rolled_back">%1$s %2$s a închis un joc în câteva secunde de două ori, așa că Auto a revenit la %3$s.</string>
@@ -1196,7 +1197,6 @@
     <string name="gpu_none_listed">Niciun driver listat încă. Reîmprospătează pentru a le căuta.</string>
     <string name="gpu_hide_other">Ascunde driverele pentru alte GPU-uri</string>
     <string name="gpu_show_other">Arată driverele pentru alte GPU-uri</string>
-    <string name="gpu_advanced">Avansat</string>
     <string name="gpu_ubwc_title">Compatibilitate UBWC</string>
     <string name="gpu_ubwc_hint">Încearcă Activat sau Dezactivat dacă Steam sau Android afișează dungi ori pâlpâiri. Se aplică ambelor drivere după repornirea DroidDeck.</string>
     <string name="gpu_ubwc_restart">Repornește DroidDeck pentru a aplica.</string>

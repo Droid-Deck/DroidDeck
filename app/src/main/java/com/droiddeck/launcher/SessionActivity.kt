@@ -679,6 +679,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             SessionEvents.begin(this, mode, SessionPaths.label(mode, intent.getStringExtra(SessionService.EXTRA_PROGRAM)))
             SessionState.secondScreenAutoOpened = false
             SessionState.secondScreenProvisional = false
+            SessionState.secondScreenAutomatic = false
             SessionState.gameOnBottom = false
             gameOnBottom = false
         }
@@ -1381,6 +1382,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             onSecondScreenMode = { mode ->
                 if (docked) drawerOpen = false
                 typingReturnMode = null
+                automaticPanel = false
                 if (mode != SecondScreenMode.NONE) SessionPrefs.setSecondScreenPanel(this@SessionActivity, desktopSession, mode.id)
                 selectSecondScreenMode(mode)
             },
@@ -3260,6 +3262,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return true
     }
 
+    private var dockedToDisplay = false
+    private var automaticPanel: Boolean
+        get() = SessionState.secondScreenAutomatic
+        set(value) { SessionState.secondScreenAutomatic = value }
+
     private val shownOnDisplayId: Int get() =
         if (Build.VERSION.SDK_INT >= 30) display?.displayId ?: windowManager.defaultDisplay.displayId
         else windowManager.defaultDisplay.displayId
@@ -3271,6 +3278,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             .filter { glassesScreen == null || it.id != glasses.displayId }
         val oldIds = secondScreenDisplays.map { it.id }.toSet()
         secondScreenDisplays = candidates
+        reconcileDock(primaryId)
         bottomSwapAvailable = bottomGame != null || bottomGameDisplay() != null
         val newIds = candidates.map { it.id }.toSet()
         if (secondScreenMode != SecondScreenMode.NONE && oldIds.isNotEmpty() && selectedSecondScreenDisplay !in newIds) {
@@ -3287,6 +3295,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         updateKeyboardRoute()
     }
 
+    private fun reconcileDock(primaryId: Int) {
+        val nowDocked = com.droiddeck.launcher.input.DualScreen.dockedToDisplay(displayManager, primaryId)
+        val automaticOnBuiltIn = automaticPanel && secondScreenMode != SecondScreenMode.NONE &&
+            displayManager.getDisplay(selectedSecondScreenDisplay)?.let(com.droiddeck.launcher.input.DualScreen::builtIn) == true
+        if (com.droiddeck.launcher.input.DualScreen.leavesBottomOnDock(dockedToDisplay, nowDocked, SessionPrefs.dualScreenSessionMode(this), automaticOnBuiltIn)) {
+            closeSecondScreen(reset = true)
+            SessionState.secondScreenAutoOpened = false
+        }
+        dockedToDisplay = nowDocked
+    }
+
     private fun openDualScreenControls() {
         if (SessionState.secondScreenAutoOpened || secondScreenMode != SecondScreenMode.NONE || pipUi) return
         if (!SessionPrefs.dualScreenSessionControls(this)) return
@@ -3295,6 +3314,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         SessionState.secondScreenAutoOpened = true
         selectedSecondScreenDisplay = target.displayId
         selectSecondScreenMode(openingPanel())
+        automaticPanel = secondScreenMode != SecondScreenMode.NONE
         dualControlsProvisional = ::loading.isInitialized && loading.visible
     }
 
@@ -3733,7 +3753,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (focused && started) com.droiddeck.launcher.ui.SessionTyping.returnFocus(this, taskId)
         else com.droiddeck.launcher.ui.SessionTyping.close()
         updateKeyboardRoute()
-        if (reset) panelMode(SecondScreenMode.NONE)
+        if (reset) {
+            panelMode(SecondScreenMode.NONE)
+            automaticPanel = false
+        }
     }
 
     private fun panelMode(mode: SecondScreenMode) {
@@ -4521,6 +4544,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         for (name in arrayOf("peak_refresh_rate", "min_refresh_rate")) {
             contentResolver.registerContentObserver(android.provider.Settings.System.getUriFor(name), false, refreshSettingObserver)
         }
+        reconcileDock(shownOnDisplayId)
         settleDualScreenControls()
         refreshSecondScreenDisplays()
         if (secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)

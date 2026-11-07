@@ -550,6 +550,7 @@
     <string name="comp_auto_none">Kein DroidDeck-Proton nutzt dies</string>
     <string name="comp_auto_waits_network">Auto-Updates warten auf eine Verbindung.</string>
     <string name="comp_auto_check_failed">Neue Builds konnten nicht geprüft werden.</string>
+    <string name="comp_auto_install_failed">%1$s konnte nicht installiert werden.</string>
     <string name="comp_auto_waits_unmetered">Neue Builds warten auf eine nicht getaktete Verbindung, ausgeschalteten Energiesparmodus und ein kühles Gerät.</string>
     <string name="comp_auto_updated">%1$s auf %2$s aktualisiert.</string>
     <string name="comp_auto_rolled_back">%1$s %2$s hat ein Spiel zweimal nach wenigen Sekunden beendet, daher ist Auto zu %3$s zurückgekehrt.</string>
@@ -1181,7 +1182,6 @@
     <string name="gpu_none_listed">Noch keine Treiber aufgeführt. Aktualisiere, um danach zu suchen.</string>
     <string name="gpu_hide_other">Treiber für andere GPUs ausblenden</string>
     <string name="gpu_show_other">Treiber für andere GPUs anzeigen</string>
-    <string name="gpu_advanced">Erweitert</string>
     <string name="gpu_ubwc_title">UBWC-Kompatibilität</string>
     <string name="gpu_ubwc_hint">Probiere An oder Aus, wenn Steam oder Android Streifen oder Flackern zeigt. Gilt für beide Treiber nach einem Neustart von DroidDeck.</string>
     <string name="gpu_ubwc_restart">Starte DroidDeck neu, um dies anzuwenden.</string>

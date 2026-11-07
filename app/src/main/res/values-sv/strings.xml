@@ -550,6 +550,7 @@
     <string name="comp_auto_none">Ingen DroidDeck-Proton använder detta</string>
     <string name="comp_auto_waits_network">Auto-uppdateringar väntar på en anslutning.</string>
     <string name="comp_auto_check_failed">Kunde inte söka efter nya byggen.</string>
+    <string name="comp_auto_install_failed">Kunde inte installera %1$s.</string>
     <string name="comp_auto_waits_unmetered">Nya byggen väntar på en obegränsad anslutning, avstängt batterisparläge och en sval enhet.</string>
     <string name="comp_auto_updated">%1$s uppdaterat till %2$s.</string>
     <string name="comp_auto_rolled_back">%1$s %2$s stängde ett spel inom sekunder två gånger, så Auto gick tillbaka till %3$s.</string>
@@ -1189,7 +1190,6 @@
     <string name="gpu_none_listed">Inga drivrutiner listade än. Uppdatera för att söka efter dem.</string>
     <string name="gpu_hide_other">Dölj drivrutiner för andra GPU:er</string>
     <string name="gpu_show_other">Visa drivrutiner för andra GPU:er</string>
-    <string name="gpu_advanced">Avancerat</string>
     <string name="gpu_ubwc_title">UBWC-kompatibilitet</string>
     <string name="gpu_ubwc_hint">Prova På eller Av om Steam eller Android visar ränder eller flimmer. Gäller båda drivrutinerna efter omstart av DroidDeck.</string>
     <string name="gpu_ubwc_restart">Starta om DroidDeck för att tillämpa.</string>

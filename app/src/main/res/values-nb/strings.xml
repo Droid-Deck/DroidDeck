@@ -550,6 +550,7 @@
     <string name="comp_auto_none">Ingen DroidDeck-Proton bruker dette</string>
     <string name="comp_auto_waits_network">Auto-oppdateringer venter på en tilkobling.</string>
     <string name="comp_auto_check_failed">Kunne ikke se etter nye bygg.</string>
+    <string name="comp_auto_install_failed">Kunne ikke installere %1$s.</string>
     <string name="comp_auto_waits_unmetered">Nye bygg venter på en ubegrenset tilkobling, avslått batterisparing og en kjølig enhet.</string>
     <string name="comp_auto_updated">%1$s oppdatert til %2$s.</string>
     <string name="comp_auto_rolled_back">%1$s %2$s lukket et spill innen sekunder to ganger, så Auto gikk tilbake til %3$s.</string>
@@ -1189,7 +1190,6 @@
     <string name="gpu_none_listed">Ingen drivere listet ennå. Oppdater for å se etter dem.</string>
     <string name="gpu_hide_other">Skjul drivere for andre GPU-er</string>
     <string name="gpu_show_other">Vis drivere for andre GPU-er</string>
-    <string name="gpu_advanced">Avansert</string>
     <string name="gpu_ubwc_title">UBWC-kompatibilitet</string>
     <string name="gpu_ubwc_hint">Prøv På eller Av hvis Steam eller Android viser striper eller flimring. Gjelder begge driverne etter at DroidDeck startes på nytt.</string>
     <string name="gpu_ubwc_restart">Start DroidDeck på nytt for å bruke endringen.</string>

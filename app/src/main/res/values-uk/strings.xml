@@ -554,6 +554,7 @@
     <string name="comp_auto_none">Жоден DroidDeck-Proton цього не використовує</string>
     <string name="comp_auto_waits_network">Оновлення Auto чекають на з’єднання.</string>
     <string name="comp_auto_check_failed">Не вдалося перевірити нові збірки.</string>
+    <string name="comp_auto_install_failed">Не вдалося встановити %1$s.</string>
     <string name="comp_auto_waits_unmetered">Нові збірки чекають на безлімітне з’єднання, вимкнену економію заряду та охолоджений пристрій.</string>
     <string name="comp_auto_updated">%1$s оновлено до %2$s.</string>
     <string name="comp_auto_rolled_back">%1$s %2$s двічі закрив гру за кілька секунд, тому Auto повернувся до %3$s.</string>
@@ -1203,7 +1204,6 @@
     <string name="gpu_none_listed">Драйверів у списку ще немає. Оновіть, щоб їх знайти.</string>
     <string name="gpu_hide_other">Приховати драйвери для інших GPU</string>
     <string name="gpu_show_other">Показати драйвери для інших GPU</string>
-    <string name="gpu_advanced">Додатково</string>
     <string name="gpu_ubwc_title">Сумісність UBWC</string>
     <string name="gpu_ubwc_hint">Спробуйте «Увімк.» або «Вимк.», якщо в Steam чи Android зʼявляються смуги або мерехтіння. Застосовується до обох драйверів після перезапуску DroidDeck.</string>
     <string name="gpu_ubwc_restart">Перезапустіть DroidDeck, щоб застосувати.</string>

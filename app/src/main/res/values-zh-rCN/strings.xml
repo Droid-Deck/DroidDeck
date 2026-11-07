@@ -548,6 +548,7 @@
     <string name="comp_auto_none">没有 DroidDeck-Proton 使用它</string>
     <string name="comp_auto_waits_network">Auto 更新正在等待网络连接。</string>
     <string name="comp_auto_check_failed">无法检查新版本。</string>
+    <string name="comp_auto_install_failed">无法安装 %1$s。</string>
     <string name="comp_auto_waits_unmetered">新版本将等待不按流量计费的网络、关闭省电模式且设备不过热时下载。</string>
     <string name="comp_auto_updated">%1$s 已更新到 %2$s。</string>
     <string name="comp_auto_rolled_back">%1$s %2$s 两次在几秒内关闭了游戏，因此 Auto 已退回到 %3$s。</string>
@@ -1266,7 +1267,6 @@
     <string name="gpu_none_listed">尚未列出任何驱动。刷新以查找。</string>
     <string name="gpu_hide_other">隐藏其他 GPU 的驱动</string>
     <string name="gpu_show_other">显示其他 GPU 的驱动</string>
-    <string name="gpu_advanced">高级</string>
     <string name="gpu_ubwc_title">UBWC 兼容性</string>
     <string name="gpu_ubwc_hint">如果 Steam 或 Android 出现条纹或闪烁，请尝试开启或关闭。重启 DroidDeck 后对两种驱动均生效。</string>
     <string name="gpu_ubwc_restart">重启 DroidDeck 以应用。</string>

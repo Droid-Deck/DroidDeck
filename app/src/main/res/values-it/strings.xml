@@ -552,6 +552,7 @@
     <string name="comp_auto_none">Nessun DroidDeck-Proton lo usa</string>
     <string name="comp_auto_waits_network">Gli aggiornamenti Auto attendono una connessione.</string>
     <string name="comp_auto_check_failed">Impossibile cercare nuove build.</string>
+    <string name="comp_auto_install_failed">Impossibile installare %1$s.</string>
     <string name="comp_auto_waits_unmetered">Le nuove build attendono una connessione non a consumo, il risparmio batteria disattivato e un dispositivo fresco.</string>
     <string name="comp_auto_updated">%1$s aggiornato a %2$s.</string>
     <string name="comp_auto_rolled_back">%1$s %2$s ha chiuso un gioco in pochi secondi per due volte, quindi Auto è tornato a %3$s.</string>
@@ -1188,7 +1189,6 @@
     <string name="gpu_none_listed">Ancora nessun driver elencato. Aggiorna per cercarli.</string>
     <string name="gpu_hide_other">Nascondi i driver per altre GPU</string>
     <string name="gpu_show_other">Mostra i driver per altre GPU</string>
-    <string name="gpu_advanced">Avanzate</string>
     <string name="gpu_ubwc_title">Compatibilità UBWC</string>
     <string name="gpu_ubwc_hint">Prova Attivo o Disattivo se Steam o Android mostrano strisce o sfarfallii. Si applica a entrambi i driver dopo il riavvio di DroidDeck.</string>
     <string name="gpu_ubwc_restart">Riavvia DroidDeck per applicare.</string>

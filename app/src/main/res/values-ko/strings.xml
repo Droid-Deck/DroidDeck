@@ -548,6 +548,7 @@
     <string name="comp_auto_none">이를 사용하는 DroidDeck-Proton이 없습니다</string>
     <string name="comp_auto_waits_network">Auto 업데이트가 연결을 기다리는 중입니다.</string>
     <string name="comp_auto_check_failed">새 빌드를 확인할 수 없습니다.</string>
+    <string name="comp_auto_install_failed">%1$s을(를) 설치할 수 없습니다.</string>
     <string name="comp_auto_waits_unmetered">새 빌드는 데이터 무제한 연결, 배터리 세이버 꺼짐, 기기가 뜨겁지 않은 상태를 기다립니다.</string>
     <string name="comp_auto_updated">%1$s을(를) %2$s(으)로 업데이트했습니다.</string>
     <string name="comp_auto_rolled_back">%1$s %2$s(으)로 게임이 몇 초 만에 두 번 종료되어 Auto가 %3$s(으)로 되돌렸습니다.</string>
@@ -1182,7 +1183,6 @@
     <string name="gpu_none_listed">아직 나열된 드라이버가 없습니다. 새로 고쳐 드라이버를 찾으세요.</string>
     <string name="gpu_hide_other">다른 GPU의 드라이버 숨기기</string>
     <string name="gpu_show_other">다른 GPU의 드라이버 표시</string>
-    <string name="gpu_advanced">고급</string>
     <string name="gpu_ubwc_title">UBWC 호환성</string>
     <string name="gpu_ubwc_hint">Steam이나 Android에 줄무늬나 깜박임이 보이면 켜기 또는 끄기를 시도하세요. DroidDeck을 다시 시작한 후 두 드라이버 모두에 적용됩니다.</string>
     <string name="gpu_ubwc_restart">적용하려면 DroidDeck을 다시 시작하세요.</string>
