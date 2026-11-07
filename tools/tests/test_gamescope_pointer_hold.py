@@ -64,9 +64,9 @@ int main() {
     assert(!run(recentring, 2, -40.0, 12.0, 0.0, 0.0, now));
     assert(run(recentring, 1, -40.0, 12.0, 1.0, 0.0, now));
     assert(run(recentring, 600, 0.0, 0.0, 0.0, 0.0, now));
-    assert(run(recentring, 59, 10.0, 4.0, 10.0, 4.0, now));
+    assert(run(recentring, 29, 10.0, 4.0, 10.0, 4.0, now));
     assert(run(recentring, 1, 20.0, 0.0, 0.0, 0.0, now));
-    assert(run(recentring, 59, 10.0, 4.0, 10.0, 4.0, now));
+    assert(run(recentring, 29, 10.0, 4.0, 10.0, 4.0, now));
     assert(!run(recentring, 1, 10.0, 4.0, 10.0, 4.0, now));
 
     PointerHold clipped;
@@ -77,6 +77,15 @@ int main() {
         assert(!run(spaced, 1, 50.0, 0.0, 0.0, 0.0, now));
         now += 600'000'000ul;
     }
+
+    PointerHold hinted;
+    hinted.bHeld = true;
+    assert(run(hinted, 29, 0.0, 15.0, 0.0, 15.0, now));
+    assert(!run(hinted, 1, 0.0, 15.0, 0.0, 15.0, now));
+
+    PointerHold hintedCamera;
+    hintedCamera.bHeld = true;
+    assert(run(hintedCamera, 600, 30.0, -8.0, 0.0, 0.0, now));
 
     PointerHold released;
     assert(run(released, 3, 0.0, -25.0, 0.0, 0.0, now));
@@ -99,12 +108,18 @@ class PointerHoldTest(unittest.TestCase):
             subprocess.run(["c++", "-std=c++17", "-Wall", "-Wextra", "-Werror", str(source), "-o", str(binary)], check=True)
             self.assertEqual(subprocess.run([str(binary)], capture_output=True, text=True, check=True).stdout.strip(), "ok")
 
-    def test_every_constraint_waits_for_the_hold(self):
+    def test_a_hinted_constraint_starts_relative_and_others_wait_for_the_hold(self):
         added = [line.strip() for line in added_source().splitlines()]
-        self.assertIn("update_pointer_hold( pPaintFocus, bHasPointerConstraint && bImageEmpty && nRelativeMouse != 2 && !bExcludedAppId );", added)
+        self.assertIn("update_pointer_hold( pPaintFocus, bHasPointerConstraint && bImageEmpty && nRelativeMouse != 2 && !bExcludedAppId,", added)
+        self.assertIn("pPaintFocus->cursor && pPaintFocus->cursor->IsConstrained() );", added)
+        self.assertIn("s_Hold.bHeld = bHinted;", added)
         self.assertIn("const bool bGameHoldsPointer = bHasPointerConstraint && s_bPointerHeld;", added)
         self.assertIn(": ( bForcedRelativeMouse || s_bFollowClientPointer || ( bImageEmpty && bGameHoldsPointer && !bExcludedAppId ) );", added)
-        self.assertFalse(any("IsConstrained()" in line for line in added))
+
+    def test_the_motion_sent_to_clients_is_counted(self):
+        added = [line.strip() for line in added_source().splitlines()]
+        self.assertIn("wlserver.flSentDX += unaccel_dx;", added)
+        self.assertIn("wlserver.flSentDY += unaccel_dy;", added)
 
     def test_the_forced_and_follow_rules_are_unchanged(self):
         removed = [line[1:].strip() for line in PATCH.read_text().splitlines() if line.startswith("-") and not line.startswith("---")]

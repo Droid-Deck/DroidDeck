@@ -333,14 +333,14 @@ asking for `_NET_WM_STATE_FULLSCREEN`, or a Steam game covering the X screen wit
 decorations in `_MOTIF_WM_HINTS`, makes the outer window fullscreen on the desktop. Anything else makes it a normal window of the
 game window's size, or a maximised one when that size does not fit the desktop with its title bar and panel. A change is applied only when the wanted mode changes, so a manual resize or Super+F stays.
 
-## 0133 steamcompmgr: a pointer constraint is relative only while the game holds the X pointer
+## 0133 steamcompmgr, wlserver: a pointer constraint is relative only while the game holds the X pointer
 
 A game that hides the system cursor, draws its own and grabs the pointer to its window (Stardew Valley, Balatro) gets a lock
-from Xwayland, which emulates the game's warps with a cursor position hint. Upstream made any hinted lock relative, and 0128
-added every other constraint, so gamescope took the host's pointer lock. DroidDeck turns a direct touch swipe under a lock into
-camera motion, so dragging in those games only moved their cursor. While gamescope stays absolute, Xwayland's lock still
-follows its relative motion and touches still place the pointer, so those games work without relative mode. A constraint now
-goes relative once the X pointer stops following the seat, moving less than a quarter of the seat's motion on three frames
-within half a second, as it does when the game recentres it or clips it to a small rectangle (PEAK). It stops after 60 moving
-frames that the X pointer follows again, or when the constraint ends. `tools/tests/test_gamescope_pointer_hold.py` compiles
-the rule from this patch.
+from Xwayland, which emulates the game's warps with a cursor position hint. Upstream kept any hinted lock relative and 0128
+added every other constraint, so gamescope held the host's pointer lock and DroidDeck turned every direct touch swipe into
+camera motion: dragging in those games only moved their cursor. Without relative mode such a lock still follows gamescope's
+relative motion and touches still place the pointer. gamescope now compares the motion it sends (seat movement, or relative
+motion while the seat is locked) with how the X pointer moves. A hinted constraint starts relative, as upstream, and is released
+after 30 moving frames on which the X pointer follows. Any constraint goes relative once the X pointer moves less than a quarter
+of that motion on three frames within half a second, as it does when the game recentres it or clips it to a small rectangle
+(PEAK). `tools/tests/test_gamescope_pointer_hold.py` compiles the rule from this patch.
