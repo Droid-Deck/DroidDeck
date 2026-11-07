@@ -5,9 +5,10 @@ import android.util.AtomicFile
 import android.util.Log
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.AutoComponents
+import com.droiddeck.launcher.gpu.GpuInfo
+import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
 
 object ComponentUpdater {
     private const val TAG = "ComponentUpdater"
@@ -108,7 +109,7 @@ object ComponentUpdater {
             runCatching { ComponentsManager.ensureForcedPackages(context) }
                 .onSuccess { if (it != null) Log.i(TAG, it) }.onFailure { Log.w(TAG, "pinned DXVK", it) }
             val followers = protons.filter { ComponentUpdates.follows(it) && ComponentsManager.supports(it, "dxvk") }.map { it.id to it.version }
-            if (pinnedHeld(pinned, followers, ComponentsManager.activeChoices(context))) state.remove(PINNED_NOTE)
+            if (pinnedHeld(pinned, followers, ComponentsManager.activeChoices(context), pinnedBase())) state.remove(PINNED_NOTE)
             else state.put(PINNED_NOTE, context.getString(R.string.comp_auto_install_failed, pinned.removeSuffix(".wcp")))
         }
         val due = force || System.currentTimeMillis() - state.optLong("checkedAt") >= CHECK_EVERY_MS
@@ -393,8 +394,17 @@ object ComponentUpdater {
         }
     }
 
-    internal fun pinnedHeld(pinned: String, followers: List<Pair<String, String>>, choices: Map<String, Map<String, ComponentsManager.Choice>>): Boolean =
-        followers.all { (id, version) -> choices[id]?.get("dxvk")?.let { it.file == ComponentsManager.safeName(pinned) && it.protonVersion == version } == true }
+    internal fun pinnedHeld(pinned: String, followers: List<Pair<String, String>>, choices: Map<String, Map<String, ComponentsManager.Choice>>, base: String?): Boolean =
+        followers.all { (id, version) ->
+            val choice = choices[id]?.get("dxvk")
+            ownChoice(choice, version, pinned, base) || choice?.let { it.file == ComponentsManager.safeName(pinned) && it.protonVersion == version } == true
+        }
+
+    internal fun ownChoice(choice: ComponentsManager.Choice?, version: String, pinned: String, base: String?): Boolean =
+        choice != null && !choice.auto && choice.protonVersion == version && choice.file != ComponentsManager.safeName(pinned) &&
+            (base == null || choice.file != ComponentsManager.safeName(base))
+
+    private fun pinnedBase(): String? = ComponentsManager.forcedDxvk(GpuInfo.detect())?.file
 
     fun status(context: Context, comp: String): List<Status> {
         val pinned = if (comp == "dxvk") ComponentsManager.pinnedAutoDxvk(context) else null
@@ -402,8 +412,13 @@ object ComponentUpdater {
             val on = runCatching { ComponentsManager.protons(context) }.getOrDefault(emptyList())
                 .filter { ComponentUpdates.follows(it) && ComponentsManager.supports(it, comp) }
             if (on.isEmpty()) return emptyList()
-            val held = pinnedHeld(pinned, on.map { it.id to it.version }, ComponentsManager.activeChoices(context))
-            return listOf(Status(comp, pinned, pinned, on.map { it.name }, if (held) "" else load(context).optString(PINNED_NOTE)))
+            val choices = ComponentsManager.activeChoices(context)
+            val base = pinnedBase()
+            val (own, auto) = on.partition { ownChoice(choices[it.id]?.get(comp), it.version, pinned, base) }
+            val held = pinnedHeld(pinned, auto.map { it.id to it.version }, choices, base)
+            val pinnedLine = if (auto.isEmpty()) emptyList()
+                else listOf(Status(comp, pinned, pinned, auto.map { it.name }, if (held) "" else load(context).optString(PINNED_NOTE)))
+            return pinnedLine + own.groupBy { choices.getValue(it.id).getValue(comp).file }.map { (file, ps) -> Status(comp, file, file, ps.map { it.name }, "") }
         }
         val state = load(context)
         val lines = state.optJSONObject("lines") ?: JSONObject()

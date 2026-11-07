@@ -1079,8 +1079,9 @@ object ComponentsManager {
             autoFile = "dxvk-gplasync-2.7.1-1-linux.wcp", autoRelease = "Dxvk-gplasync-Linux"),
     )
 
-    internal fun autoDxvk(gpu: GpuInfo): ForcedPackage? =
-        FORCED_PACKAGES.firstOrNull { it.comp == "dxvk" && it.matches(gpu) }?.autoRule()
+    internal fun autoDxvk(gpu: GpuInfo): ForcedPackage? = forcedDxvk(gpu)?.autoRule()
+
+    internal fun forcedDxvk(gpu: GpuInfo): ForcedPackage? = FORCED_PACKAGES.firstOrNull { it.comp == "dxvk" && it.matches(gpu) }
 
     private val ARM64EC_PROBE = mapOf("dxvk" to "d3d11.dll", "vkd3d" to "d3d12.dll")
 
