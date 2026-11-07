@@ -4244,7 +4244,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         updateOnScreenPad()
         val c = onScreenControls
         glassesSlot = when {
-            c == null || c.visibility != View.VISIBLE -> 0
+            c == null || c.visibility != View.VISIBLE || c.isPinnedOnly -> 0
             c.isButtonsOnly -> -1
             primaryInputLayout?.let { l -> l.elements.any { it.quickButton == InputCommand.KEYBOARD && !l.style.hides(it) } }
                 ?: (controllerSettings?.keyboardButton != false) -> 2
@@ -4259,12 +4259,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             ?.let { FileUtils.readString(it)?.trim()?.lowercase() }
             ?: SessionPrefs.oscMode(this)
         val controls = onScreenControls ?: return
+        fun showPinned() {
+            controls.setPinnedOnly(true)
+            val pinned = controls.hasPinned && !pipUi && !inputSettingsOpen
+            if (!pinned) controls.releaseAll()
+            controls.visibility = if (pinned) View.VISIBLE else View.GONE
+        }
         if (pipUi || unfoldedPanel != null || pcKeyboardOpen || inputSettingsOpen ||
             (SessionState.mode == SessionService.MODE_STEAM && !SessionPrefs.builtinPad(this))) {
             onScreenButtonsVisible = false
             hideBottomControls()
-            controls.releaseAll()
-            controls.visibility = View.GONE
+            showPinned()
             steamTouchControls?.let { it.cancelEditing(); it.releaseAll(); it.visibility = View.GONE }
             com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = false
             applyTouchRouting()
@@ -4297,7 +4302,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val drawn = show && !keyboardCoversPad()
         if (steam != null) {
             hideBottomControls()
-            if (controls.visibility == View.VISIBLE) { controls.releaseAll(); controls.visibility = View.GONE }
+            showPinned()
             if (!drawn) { steam.cancelEditing(); steam.releaseAll() }
             steam.visibility = if (drawn) View.VISIBLE else View.GONE
             com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = show
@@ -4306,7 +4311,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return
         }
         val bottomRoot = bottomGame?.surfaceView?.parent as? android.view.ViewGroup
-        if (drawn && bottomRoot != null) {
+        if (bottomRoot != null && (drawn || controls.hasPinned)) {
             controls.releaseAll(); controls.visibility = View.GONE
             var bottom = bottomInputControls
             if (bottom?.parent !== bottomRoot) {
@@ -4319,13 +4324,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
             bottom.updateLayout(primaryInputLayout)
             bottom.setButtonsOnly(buttonsOnly)
+            bottom.setPinnedOnly(!drawn)
             bottom.visibility = View.VISIBLE
             return
         }
         hideBottomControls()
-        if (drawn == (controls.visibility == View.VISIBLE)) return
-        if (!drawn) controls.releaseAll()
-        controls.visibility = if (drawn) View.VISIBLE else View.GONE
+        val wasDrawn = controls.visibility == View.VISIBLE && !controls.isPinnedOnly
+        if (!drawn) showPinned() else { controls.setPinnedOnly(false); controls.visibility = View.VISIBLE }
+        if (drawn == wasDrawn) return
         Log.i(TAG, "on-screen controls " + when {
             !drawn -> "hidden"
             buttonsOnly -> "Steam + QAM"

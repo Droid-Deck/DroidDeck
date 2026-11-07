@@ -188,4 +188,47 @@ class OnScreenLayoutTest {
         val selected = old.selectProfile(false, "migrated.screenkeys.0").selectProfile(true, "migrated.screenkeys.0")
         assertEquals(selected, LegacyScreenKeyMigration.merge(selected, shown))
     }
+
+    @Test fun alwaysShownKeysStayInButtonsOnlyModeAndLeaveTheUnfoldedStrip() {
+        val key = InputSurfaceElement(InputControl.A, .45f, .1f, .1f, .1f, "imported:0", name = "Find", alwaysShown = true)
+        val plain = InputSurfaceElement(InputControl.A, .45f, .4f, .1f, .1f, "imported:1", name = "Jump")
+        val layout = gamepad().let { it.copy(elements = it.elements + key + plain) }
+        val buttons = OnScreenLayout.elements(context, layout, 1000, 500, Rect(), buttonsOnly = true)
+        assertTrue(buttons.any { it.id == key.id })
+        assertFalse(buttons.any { it.id == plain.id })
+        assertEquals(OnScreenLayout.elements(context, gamepad(), 1000, 500, Rect(), buttonsOnly = true), buttons.filterNot { it.id == key.id })
+        val strip = OnScreenLayout.elements(context, layout, 2208, 800, Rect(), dock = OnScreenLayout.Dock(false, grips = false))
+        assertFalse(strip.any { it.id == key.id })
+        assertTrue(strip.any { it.id == plain.id })
+        assertTrue(OnScreenLayout.elements(context, layout, 1000, 500, Rect()).map { it.id }.containsAll(listOf(key.id, plain.id)))
+    }
+
+    @Test fun migratedScreenKeysAreAlwaysShownButOtherElementsAreNot() {
+        prefs.edit().clear().commit()
+        ControllerPrefs.prefs(context).edit().putString("screenKeys", legacyKeys).commit()
+        val migrated = InputLibraries.read(context)
+        assertTrue(importedOn(migrated).all { it.alwaysShown })
+        assertTrue(migrated.layouts.first { it.id == "migrated.screenkeys.0.layout" }.elements.all { it.alwaysShown })
+        assertTrue(migrated.layouts.flatMap { it.elements }.filterNot { it.id.startsWith("imported:") }.none { it.alwaysShown })
+        assertFalse(LegacyScreenKeyMigration.convert(context, legacyKeys, 1000, 500, 2f).any { it.first.alwaysShown })
+    }
+
+    @Test fun keysMergedByAnEarlierVersionBecomeAlwaysShownOnUpgrade() {
+        val fresh = InputLibraries.read(context)
+        val backup = JSONObject().put("screenKeys", legacyKeys).toString()
+        val unpinned = LegacyScreenKeyMigration.merge(LegacyScreenKeyMigration.migrate(context, fresh, backup), backup).let { library ->
+            library.copy(layouts = library.layouts.map { l -> l.copy(elements = l.elements.map { it.copy(alwaysShown = false) }) })
+        }
+        val other = SavedInputLayout("user.keys", "Mine", listOf(InputSurfaceElement(InputControl.A, .1f, .1f, .1f, .1f, "imported:0", name = "Other")))
+        val stored = unpinned.withLayout(other)
+        prefs.edit().putString("library", JSONObject(InputLibraries.encode(stored)).put("version", 12).toString())
+            .putString(LegacyScreenKeyMigration.BACKUP, backup).putBoolean(LegacyScreenKeyMigration.MERGED, true).commit()
+        val upgraded = InputLibraries.read(context)
+        assertEquals(1, importedOn(upgraded).size)
+        assertTrue(importedOn(upgraded).single().alwaysShown)
+        assertTrue(upgraded.layouts.first { it.id == "migrated.screenkeys.0.layout" }.elements.all { it.alwaysShown })
+        assertFalse(upgraded.layouts.first { it.id == "user.keys" }.elements.single().alwaysShown)
+        assertEquals(stored.layouts.map { l -> l.elements.map { it.copy(alwaysShown = false) } }, upgraded.layouts.filter { l -> stored.layouts.any { it.id == l.id } }
+            .map { l -> l.elements.map { it.copy(alwaysShown = false) } })
+    }
 }
