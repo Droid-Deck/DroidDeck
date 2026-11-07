@@ -3698,7 +3698,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun updateKeyboardRoute() {
         AgentGuest.routeKeyboard(this, SessionState.mode == SessionService.MODE_STEAM &&
-            (secondScreenPresentation?.showsKeyboard == true || dockDrawer()))
+            (secondScreenPresentation?.showsKeyboard == true || dockDrawer()) &&
+            SessionPrefs.androidTextFieldKeyboard(this))
     }
 
     private fun dropDockedDrawer() {

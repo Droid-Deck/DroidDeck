@@ -514,6 +514,8 @@ internal fun SetupPanel(
                                         ToggleRow(host, "dual-screen-controls", stringResource(R.string.setup_dual_screen_controls),
                                             stringResource(R.string.setup_dual_screen_controls_hint), s.dualScreenControls) { a.onDualScreenControls(it) }
                                     }
+                                    ToggleRow(host, "android-text-field-keyboard", stringResource(R.string.setup_android_text_field_keyboard),
+                                        null, s.androidTextFieldKeyboard) { a.onAndroidTextFieldKeyboard(it) }
                                 }
                             }
                         }
