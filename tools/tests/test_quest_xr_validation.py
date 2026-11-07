@@ -1,4 +1,5 @@
 import sys
+import shlex
 import unittest
 from pathlib import Path
 
@@ -62,6 +63,15 @@ class QuestXrValidationTest(unittest.TestCase):
         self.assertTrue(metrics['battery']['available'])
         self.assertFalse(metrics['thermal']['available'])
         self.assertFalse(metrics['memory']['available'])
+
+    def test_metrics_package_is_one_remote_shell_argument(self):
+        commands = []
+        package = "com.example; echo 'test name' $(id)"
+        def adb(*command):
+            commands.append(command)
+            return ''
+        collect_device_metrics(adb, package)
+        self.assertEqual(shlex.split(' '.join(commands[-1][1:])), ['dumpsys', 'meminfo', package])
 
     def test_steamvr_requires_owned_images_and_source_frame_ids(self):
         samples = self.samples('frames')

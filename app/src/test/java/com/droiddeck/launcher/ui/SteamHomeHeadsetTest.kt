@@ -31,6 +31,19 @@ class SteamHomeHeadsetTest {
 
     @After fun unplug() { headset(GlassesState()) }
 
+    @Test fun androidXrCanPlayWithoutConnectedGlasses() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        org.robolectric.Shadows.shadowOf(context.packageManager)
+            .setSystemFeature("android.software.xr.api.openxr", true)
+        headset(GlassesState())
+        show()
+        compose.onNodeWithTag("play-steamvr").assertIsEnabled().performClick()
+        assertEquals(1, vrStarts)
+        compose.onNodeWithTag("drop-open").performClick()
+        settle()
+        compose.onNodeWithTag("drop-close").assertExists()
+    }
+
     @Test fun nothingShowsUntilAHeadsetIsConnected() {
         show()
         for (state in listOf(GlassesState(), GlassesState(present = true, displayId = 2, width = 1920, height = 1080),
