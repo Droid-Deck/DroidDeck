@@ -41,6 +41,26 @@ data class InputSurfaceElement(
         width = width.coerceIn(0.03f, 1f - x.coerceIn(0f, 0.97f)), height = height.coerceIn(0.03f, 1f - y.coerceIn(0f, 0.97f)))
 }
 
+internal val QUICK_BUTTONS = listOf(InputCommand.STEAM, InputCommand.QUICK_ACCESS, InputCommand.KEYBOARD)
+
+val InputSurfaceElement.quickButton: InputCommand? get() = when {
+    id == "legacy:${InputControl.GUIDE.id}" -> InputCommand.STEAM
+    id == "legacy:${InputControl.QAM.id}" -> InputCommand.QUICK_ACCESS
+    id == "builtin:keyboard" -> InputCommand.KEYBOARD
+    else -> null
+}
+
+internal fun List<InputSurfaceElement>.scaled(factor: Float): List<InputSurfaceElement> = map { e ->
+    val w = (e.width * factor).coerceIn(.03f, 1f)
+    val h = (e.height * factor).coerceIn(.03f, 1f)
+    e.copy(x = (e.x + (e.width - w) / 2).coerceIn(0f, 1f - w), y = (e.y + (e.height - h) / 2).coerceIn(0f, 1f - h), width = w, height = h).bounded()
+}
+
+internal fun List<InputSurfaceElement>.withPositionsOf(defaults: List<InputSurfaceElement>): List<InputSurfaceElement> {
+    val byId = defaults.associateBy { it.id }
+    return map { e -> byId[e.id]?.let { d -> e.copy(x = d.x, y = d.y, width = d.width, height = d.height).bounded() } ?: e }
+}
+
 object InputSurfaceLayout {
     private fun prefs(context: Context) = context.getSharedPreferences("input-surfaces", Context.MODE_PRIVATE)
 

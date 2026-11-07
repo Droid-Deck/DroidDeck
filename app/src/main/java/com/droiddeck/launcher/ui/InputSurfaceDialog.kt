@@ -58,7 +58,7 @@ import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.input.*
 import com.droiddeck.launcher.session.SessionState
 
-private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputBindings) {
+private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputBindings, val defaults: List<InputSurfaceElement>? = null) {
     var elements by mutableStateOf(layout.elements)
     var actions by mutableStateOf(preset.elements)
     var clicks by mutableStateOf(preset.clicks)
@@ -71,10 +71,19 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     var properties by mutableStateOf(false)
     var clickProperties by mutableStateOf(false)
     var history by mutableStateOf<List<Triple<List<InputSurfaceElement>, Map<String, InputAction>, Map<String, InputAction>>>>(emptyList())
+    private var scaleBase by mutableStateOf<Pair<List<InputSurfaceElement>, List<InputSurfaceElement>>?>(null)
+    private var scaleValue by mutableIntStateOf(100)
+    val scale get() = if (scaleBase?.second == elements) scaleValue else 100
+    val positioned get() = defaults?.let { elements.withPositionsOf(it) }?.takeIf { it != elements }
     val element get() = elements.firstOrNull { it.id == selected }
     val dirty get() = elements != layout.elements || actions != preset.elements || clicks != preset.clicks
     fun checkpoint() { history = (history + Triple(elements, actions, clicks)).takeLast(40) }
     fun undo() { history.lastOrNull()?.let { elements = it.first; actions = it.second; clicks = it.third; history = history.dropLast(1) } }
+    fun scaleAll(percent: Int) {
+        val base = scaleBase?.takeIf { it.second == elements }?.first ?: elements.also { checkpoint() }
+        elements = base.scaled(percent / 100f); scaleValue = percent; scaleBase = base to elements
+    }
+    fun resetPositions() { positioned?.let { checkpoint(); elements = it } }
     fun action(e: InputSurfaceElement) = preset.copy(elements = actions).action(e)
     fun clickAction(e: InputSurfaceElement) = preset.copy(elements = actions, clicks = clicks).clickAction(e)
 }
@@ -89,7 +98,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
     val savedBindings = remember { library.preset(bindingsId ?: library.profile(profile).binding(role)) }
     val layoutUsers = library.usersOfLayout(savedLayout.id).size
     val bindingUsers = library.usersOfBindings(savedBindings.id).size
-    val draft = remember { SurfaceDraft(savedLayout, savedBindings) }
+    val draft = remember { SurfaceDraft(savedLayout, savedBindings, InputLibraries.defaultPositions(context, library, savedLayout)) }
     val manager = remember { context.getSystemService(DisplayManager::class.java) }
     var revision by remember { mutableIntStateOf(0) }
     var discard by remember { mutableStateOf(false) }
@@ -204,7 +213,7 @@ private fun SurfaceCanvas(draft: SurfaceDraft, transparent: Boolean = false) {
     AndroidView(factory = { InputSurfaceEditorView(it) }, modifier = Modifier.fillMaxSize().testTag("input-layout-canvas"),
         update = { view ->
             view.setBackgroundColor(if (transparent) android.graphics.Color.TRANSPARENT else android.graphics.Color.rgb(10, 11, 13))
-            view.style = draft.layout.style; view.elements = draft.elements; view.selected = draft.selected; view.snap = draft.snap
+            view.style = draft.layout.style.copy(hidden = emptySet()); view.elements = draft.elements; view.selected = draft.selected; view.snap = draft.snap
             view.isEnabled = !draft.properties && !draft.adding
             view.onSelect = { if (!draft.properties) draft.selected = it }
             view.onBeginEdit = draft::checkpoint
@@ -269,12 +278,15 @@ private fun SurfaceToolbar(draft: SurfaceDraft, onSave: () -> Unit, onLeave: () 
         SecondaryButton(stringResource(R.string.common_cancel), compact = true, onClick = onLeave)
         SecondaryButton(stringResource(R.string.input_editor_add), enabled = draft.elements.size < 64, compact = true) { draft.adding = true }
         SecondaryButton(stringResource(R.string.input_editor_undo), enabled = draft.history.isNotEmpty(), compact = true) { draft.undo() }
+        if (draft.defaults != null) SecondaryButton(stringResource(R.string.input_reset_positions), enabled = draft.positioned != null, compact = true) { draft.resetPositions() }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(draft.snap, { draft.snap = it })
             Text(stringResource(R.string.ctrl_editor_snap))
         }
         PrimaryButton(stringResource(R.string.input_editor_done), compact = true, onClick = onSave)
     }
+    if (draft.elements.isNotEmpty()) SliderRow(stringResource(R.string.ctrl_size), null, draft.scale, 80..125, step = 5,
+        format = { "$it%" }, modifier = Modifier.testTag("input-editor-scale")) { draft.scaleAll(it) }
 }
 
 @OptIn(ExperimentalLayoutApi::class)

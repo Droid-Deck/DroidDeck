@@ -316,6 +316,8 @@ class DrawerActions(
     val unfoldedControls: Boolean? = null,
     val adaptiveSticks: Boolean? = null,
     val onAdaptiveSticks: (Boolean) -> Unit = {},
+    val quickButtons: Map<com.droiddeck.launcher.input.InputCommand, Boolean> = emptyMap(),
+    val onQuickButton: (com.droiddeck.launcher.input.InputCommand, Boolean) -> Unit = { _, _ -> },
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val unfoldedControlsWithController: Boolean = false,
     val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
@@ -641,6 +643,11 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 a.adaptiveSticks?.let { on ->
                                     ToggleRow(host, "adaptive-sticks", stringResource(R.string.ctrl_adaptive), null, on,
                                         chipModifier = focus.track(page, "adaptive-sticks"), onChange = a.onAdaptiveSticks)
+                                }
+                                for ((button, shown) in a.quickButtons) {
+                                    val key = "quick-${button.name.lowercase()}"
+                                    ToggleRow(host, key, stringResource(quickButtonLabel(button)), null, shown,
+                                        chipModifier = focus.track(page, key)) { a.onQuickButton(button, it) }
                                 }
                                 a.onEditSteamTouch?.let { edit ->
                                     ActionRow(stringResource(R.string.osc_steam_layout), stringResource(R.string.osc_steam_layout_hint), stringResource(R.string.ctrl_edit), edit)

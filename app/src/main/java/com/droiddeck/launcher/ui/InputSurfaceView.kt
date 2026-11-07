@@ -35,7 +35,7 @@ import com.droiddeck.launcher.input.InputSurfaceSource
 import com.droiddeck.launcher.input.InputElementKind
 import com.droiddeck.launcher.input.InputButtonIcons
 import com.droiddeck.launcher.input.InputButtonShape
-import java.io.File
+import com.droiddeck.launcher.input.InputButtonImages
 import com.droiddeck.launcher.input.PadBridge
 import com.droiddeck.launcher.session.SessionPrefs
 import kotlin.math.atan2
@@ -53,7 +53,8 @@ class InputSurfaceView(
     private val content = FrameLayout(context)
     private val elementSources = ArrayList<InputSurfaceSource>()
     private var customCanvas: ViewGroup? = null
-    init { addView(content, LayoutParams(-1, -1)); renderCustom(pad) }
+    private var requestedLayout = customLayout
+    init { customLayout = surfaceStyle.shown(customLayout); addView(content, LayoutParams(-1, -1)); renderCustom(pad) }
 
     var onTouchMiss: ((MotionEvent) -> Unit)? = null
     private var forwardedPointers = 0
@@ -82,7 +83,9 @@ class InputSurfaceView(
 
     fun updateStyle(style: InputSurfaceStyle) {
         if (surfaceStyle == style) return
+        val relayout = surfaceStyle.hidden != style.hidden
         surfaceStyle = style
+        if (relayout) updateCustomLayout(requestedLayout)
         customCanvas?.let { canvas -> for (i in 0 until canvas.childCount) styleElement(canvas.getChildAt(i)) }
     }
 
@@ -92,7 +95,9 @@ class InputSurfaceView(
         view.invalidate()
     }
 
-    fun updateCustomLayout(layout: List<InputSurfaceElement>) {
+    fun updateCustomLayout(requested: List<InputSurfaceElement>) {
+        requestedLayout = requested
+        val layout = surfaceStyle.shown(requested)
         val sameElements = customLayout.map { it.copy(x = 0f, y = 0f, width = 1f, height = 1f) } == layout.map { it.copy(x = 0f, y = 0f, width = 1f, height = 1f) }
         customLayout = layout
         if (sameElements) customCanvas?.requestLayout() else {
@@ -234,8 +239,7 @@ class InputSurfaceView(
     private class HoldButton(context: Context, private val element: InputSurfaceElement, private val source: InputSurfaceSource?) : Surface(context) {
         private var down = false
         private val symbol = InputButtonIcons.drawable(context, element.icon)
-        private val bitmap = element.image.takeIf { it.matches(Regex("[A-Za-z0-9_.-]{1,128}")) && it != "." && it != ".." }?.let { name ->
-            val file = File(File(context.filesDir, "screenkeys"), name)
+        private val bitmap = InputButtonImages.file(context, element.image)?.let { file ->
             val size = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(file.path, size)
             val options = BitmapFactory.Options().apply {

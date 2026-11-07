@@ -48,29 +48,39 @@ internal object LegacyScreenKeyMigration {
     }
 
     internal fun convert(context: Context, raw: String, width: Int, height: Int, density: Float): List<Pair<InputSurfaceElement, InputAction>> =
-        raw.split(';').filter { it.isNotBlank() }.mapIndexed { index, entry ->
-            val parts = entry.split(':')
-            require(parts.size >= 2) { "Invalid legacy screen key" }
-            val codes = parts[0].split('+').map { it.toInt() }
+        convert(context, parse(raw), width, height, density)
+
+    internal fun parse(raw: String): List<LegacyScreenKey> = raw.split(';').filter { it.isNotBlank() }.map { entry ->
+        val parts = entry.split(':')
+        require(parts.size >= 2) { "Invalid legacy screen key" }
+        val codes = parts[0].split('+').map { it.toInt() }
+        val position = parts[1].split(',').map { it.toFloat() }
+        require(position.size == 3)
+        fun text(at: Int) = parts.getOrNull(at).orEmpty().replace("%2C", ",").replace("%3A", ":").replace("%3B", ";").replace("%25", "%")
+        LegacyScreenKey(codes, position[0], position[1], position[2], text(2), text(3), text(4),
+            parts.getOrNull(5)?.toFloatOrNull() ?: 1f, parts.getOrNull(6)?.toIntOrNull() ?: 0, parts.getOrNull(7) == "1", parts.getOrNull(8) != "0")
+    }
+
+    internal fun convert(context: Context, keys: List<LegacyScreenKey>, width: Int, height: Int, density: Float): List<Pair<InputSurfaceElement, InputAction>> =
+        keys.mapIndexed { index, key ->
+            val codes = key.codes
             require(codes.all { it in 0..255 })
-            val position = parts[1].split(',').map { it.toFloat() }
-            require(position.size == 3 && position.all { it.isFinite() })
-            fun text(at: Int) = parts.getOrNull(at).orEmpty().replace("%2C", ",").replace("%3A", ":").replace("%3B", ";").replace("%25", "%")
-            val shape = parts.getOrNull(6)?.toIntOrNull() ?: 0
+            require(listOf(key.x, key.y, key.size).all { it.isFinite() })
+            val shape = key.shape
             val kind = when (shape) { 5 -> InputElementKind.DPAD; 6 -> InputElementKind.STICK; 4 -> InputElementKind.TRIGGER; else -> InputElementKind.BUTTON }
-            val label = text(3).ifEmpty { text(2) }.ifEmpty { codes.filter { it != 0 }.joinToString("+") { pcKeyLabel(context, it) } }.ifBlank { "Button" }.take(80)
-            val image = text(4)
-            val icon = codes.singleOrNull()?.takeIf { InputButtonIcons.has(it) && text(3).isEmpty() && text(2).isEmpty() } ?: 0
-            val heightPx = position[2].coerceIn(24f, 140f) * density
+            val label = key.text.ifEmpty { key.glyph }.ifEmpty { codes.filter { it != 0 }.joinToString("+") { pcKeyLabel(context, it) } }.ifBlank { "Button" }.take(80)
+            val image = key.image
+            val icon = codes.singleOrNull()?.takeIf { InputButtonIcons.has(it) && key.text.isEmpty() && key.glyph.isEmpty() } ?: 0
+            val heightPx = key.size.coerceIn(24f, 140f) * density
             val ratio = when { shape == 2 -> 1f; shape == 4 -> 1.7f; shape == 5 || shape == 6 || image.isNotEmpty() || icon != 0 -> 1.15f; else -> (.55f * label.length + 1.05f).coerceIn(1.7f, 4.6f) }
             val w = (heightPx * ratio / width.coerceAtLeast(1)).coerceIn(.03f, 1f)
             val h = (heightPx / height.coerceAtLeast(1)).coerceIn(.03f, 1f)
-            val element = InputSurfaceElement(kind.control, (position[0] - w / 2).coerceIn(0f, 1f - w), (position[1] - h / 2).coerceIn(0f, 1f - h), w, h,
+            val element = InputSurfaceElement(kind.control, (key.x - w / 2).coerceIn(0f, 1f - w), (key.y - h / 2).coerceIn(0f, 1f - h), w, h,
                 id = "imported:$index", kind = kind, name = label, floating = false,
-                toggle = parts.getOrNull(7) == "1" && kind != InputElementKind.DPAD && kind != InputElementKind.STICK,
-                icon = icon, image = image, opacity = (parts.getOrNull(5)?.toFloatOrNull() ?: 1f).coerceIn(.2f, 1f),
+                toggle = key.toggle && kind != InputElementKind.DPAD && kind != InputElementKind.STICK,
+                icon = icon, image = image, opacity = key.opacity.coerceIn(.2f, 1f),
                 buttonShape = when (shape) { 0 -> InputButtonShape.PILL; 2 -> InputButtonShape.CIRCLE; 3 -> InputButtonShape.RECTANGLE; else -> InputButtonShape.ROUNDED },
-                showLabel = parts.getOrNull(8) != "0").bounded()
+                showLabel = key.labels).bounded()
             val action = when (kind) {
                 InputElementKind.DPAD -> InputAction.Directions(codes.getOrElse(0) { 0 }, codes.getOrElse(1) { 0 }, codes.getOrElse(2) { 0 }, codes.getOrElse(3) { 0 })
                 InputElementKind.STICK -> InputAction.Directions(codes.getOrElse(0) { 0 }, codes.getOrElse(2) { 0 }, codes.getOrElse(4) { 0 }, codes.getOrElse(6) { 0 }, listOf(1, 3, 5, 7).map { codes.getOrElse(it) { 0 } })
@@ -80,3 +90,9 @@ internal object LegacyScreenKeyMigration {
             element to action
         }
 }
+
+internal data class LegacyScreenKey(
+    val codes: List<Int>, val x: Float, val y: Float, val size: Float,
+    val glyph: String = "", val text: String = "", val image: String = "",
+    val opacity: Float = 1f, val shape: Int = 0, val toggle: Boolean = false, val labels: Boolean = true,
+)
