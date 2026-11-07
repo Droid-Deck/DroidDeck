@@ -6,7 +6,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
-PATCH = ROOT / "tools/gamescope/patches/0133-unhinted-constraint-relative-when-held.patch"
+PATCH = ROOT / "tools/gamescope/patches/0133-constraint-relative-when-held.patch"
 
 
 def added_source():
@@ -23,7 +23,6 @@ def rules():
     return "\n".join([
         block(text, "struct PointerHold"),
         block(text, "static bool pointer_hold_step"),
-        block(text, "static bool game_holds_pointer"),
     ])
 
 
@@ -38,11 +37,11 @@ PREAMBLE = r'''
 MAIN = r'''
 static const uint64_t FRAME = 16'666'667ul;
 
-static bool run(PointerHold &state, int frames, double seatDX, double seatDY, double pointerDX, double pointerDY, uint64_t &now, bool unhinted = true) {
+static bool run(PointerHold &state, int frames, double seatDX, double seatDY, double pointerDX, double pointerDY, uint64_t &now, bool constrained = true) {
     bool held = state.bHeld;
     for (int i = 0; i < frames; i++) {
         now += FRAME;
-        held = pointer_hold_step(state, unhinted, seatDX, seatDY, pointerDX, pointerDY, now);
+        held = pointer_hold_step(state, constrained, seatDX, seatDY, pointerDX, pointerDY, now);
     }
     return held;
 }
@@ -84,11 +83,6 @@ int main() {
     assert(!run(released, 1, 0.0, -25.0, 0.0, 0.0, now, false));
     assert(!run(released, 2, 0.0, -25.0, 0.0, 0.0, now));
 
-    assert(game_holds_pointer(true, false, false));
-    assert(game_holds_pointer(false, true, true));
-    assert(!game_holds_pointer(false, true, false));
-    assert(!game_holds_pointer(false, false, true));
-
     puts("ok");
     return 0;
 }
@@ -105,12 +99,12 @@ class PointerHoldTest(unittest.TestCase):
             subprocess.run(["c++", "-std=c++17", "-Wall", "-Wextra", "-Werror", str(source), "-o", str(binary)], check=True)
             self.assertEqual(subprocess.run([str(binary)], capture_output=True, text=True, check=True).stdout.strip(), "ok")
 
-    def test_a_hinted_constraint_stays_relative_and_an_unhinted_one_waits_for_the_hold(self):
+    def test_every_constraint_waits_for_the_hold(self):
         added = [line.strip() for line in added_source().splitlines()]
-        self.assertIn("const bool bHintedConstraint = pPaintFocus->cursor && pPaintFocus->cursor->IsConstrained();", added)
-        self.assertIn("const bool bUnhintedConstraint = bHasPointerConstraint && !bHintedConstraint;", added)
-        self.assertIn("const bool bGameHoldsPointer = game_holds_pointer( bHintedConstraint, bUnhintedConstraint, s_bPointerHeld );", added)
+        self.assertIn("update_pointer_hold( pPaintFocus, bHasPointerConstraint && bImageEmpty && nRelativeMouse != 2 && !bExcludedAppId );", added)
+        self.assertIn("const bool bGameHoldsPointer = bHasPointerConstraint && s_bPointerHeld;", added)
         self.assertIn(": ( bForcedRelativeMouse || s_bFollowClientPointer || ( bImageEmpty && bGameHoldsPointer && !bExcludedAppId ) );", added)
+        self.assertFalse(any("IsConstrained()" in line for line in added))
 
     def test_the_forced_and_follow_rules_are_unchanged(self):
         removed = [line[1:].strip() for line in PATCH.read_text().splitlines() if line.startswith("-") and not line.startswith("---")]

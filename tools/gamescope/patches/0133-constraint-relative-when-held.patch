@@ -2,7 +2,7 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 index c847a48..c759ff9 100644
 --- a/src/steamcompmgr.cpp
 +++ b/src/steamcompmgr.cpp
-@@ -3165,6 +3165,89 @@
+@@ -3165,6 +3165,84 @@
  	wlserver_unlock();
  }
  
@@ -14,9 +14,9 @@ index c847a48..c759ff9 100644
 +	bool bHeld = false;
 +};
 +
-+static bool pointer_hold_step( PointerHold &state, bool bUnhinted, double flSeatDX, double flSeatDY, double flPointerDX, double flPointerDY, uint64_t ulNow )
++static bool pointer_hold_step( PointerHold &state, bool bConstrained, double flSeatDX, double flSeatDY, double flPointerDX, double flPointerDY, uint64_t ulNow )
 +{
-+	if ( !bUnhinted )
++	if ( !bConstrained )
 +	{
 +		state = PointerHold{};
 +		return false;
@@ -44,14 +44,9 @@ index c847a48..c759ff9 100644
 +	return state.bHeld;
 +}
 +
-+static bool game_holds_pointer( bool bHinted, bool bUnhinted, bool bHeld )
-+{
-+	return bHinted || ( bUnhinted && bHeld );
-+}
-+
 +static bool s_bPointerHeld = false;
 +
-+static void update_pointer_hold( global_focus_t *pFocus, bool bUnhinted )
++static void update_pointer_hold( global_focus_t *pFocus, bool bConstrained )
 +{
 +	static PointerHold s_Hold;
 +	static bool s_bTracking = false;
@@ -60,7 +55,7 @@ index c847a48..c759ff9 100644
 +	static int s_nRootX = 0;
 +	static int s_nRootY = 0;
 +
-+	if ( !bUnhinted || !pFocus->cursor )
++	if ( !bConstrained || !pFocus->cursor )
 +	{
 +		s_bTracking = false;
 +		s_bPointerHeld = pointer_hold_step( s_Hold, false, 0.0, 0.0, 0.0, 0.0, 0 );
@@ -92,16 +87,14 @@ index c847a48..c759ff9 100644
  bool ShouldDrawCursor()
  {
  	if ( relative_mouse_forced() )
-@@ -11029,9 +11112,16 @@
+@@ -11029,9 +11107,14 @@
  						nRelativeMouse != 2 && !bExcludedAppId && !bHasPointerConstraint && !window_is_steam( pPaintFocus->inputFocusWindow ) );
  				}
  
-+				const bool bHintedConstraint = pPaintFocus->cursor && pPaintFocus->cursor->IsConstrained();
-+				const bool bUnhintedConstraint = bHasPointerConstraint && !bHintedConstraint;
 +				if ( vblank )
-+					update_pointer_hold( pPaintFocus, bUnhintedConstraint && bImageEmpty && nRelativeMouse != 2 && !bExcludedAppId );
++					update_pointer_hold( pPaintFocus, bHasPointerConstraint && bImageEmpty && nRelativeMouse != 2 && !bExcludedAppId );
 +
-+				const bool bGameHoldsPointer = game_holds_pointer( bHintedConstraint, bUnhintedConstraint, s_bPointerHeld );
++				const bool bGameHoldsPointer = bHasPointerConstraint && s_bPointerHeld;
 +
  				const bool bRelativeMouseMode = nRelativeMouse == 2
  					? false
