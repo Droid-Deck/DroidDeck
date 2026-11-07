@@ -47,6 +47,8 @@ class SessionFullscreenTest {
     @Test fun nonFullscreenClearsTheThemeFullscreenWindowFlagAndFullscreenRestoresIt() {
         val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
         val fullscreenFlag = WindowManager.LayoutParams.FLAG_FULLSCREEN
+        // Robolectric may not apply the manifest theme before the activity is created.
+        activity.window.addFlags(fullscreenFlag)
         assertTrue(activity.window.attributes.flags and fullscreenFlag != 0)
 
         applySessionFullscreenWindow(activity.window, fullscreen = false)
