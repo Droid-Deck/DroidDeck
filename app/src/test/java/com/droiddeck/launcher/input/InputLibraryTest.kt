@@ -520,4 +520,17 @@ class InputLibraryTest {
         assertNull(InputLibraries.read(context).layouts.single { it.id == "mine" }.style.tint)
         assertEquals(InputLibraries.read(context), InputLibraries.read(context))
     }
+
+    @Test fun versionTenStockPanelsReturnToGrayOnce() {
+        val fresh = InputLibraries.read(context)
+        val blue = fresh.layouts.filter { it.id == InputLibraries.DECK || it.id == InputLibraries.TRACKPAD }
+            .map { it.copy(style = it.style.copy(tint = ControllerPrefs.STEAM_BLUE)) }
+        val old = JSONObject(InputLibraries.encode(blue.fold(fresh) { library, layout -> library.withLayout(layout) })).put("version", 10)
+        prefs.edit().putString("library", old.toString()).commit()
+        val upgraded = InputLibraries.read(context)
+        assertNull(upgraded.layouts.single { it.id == InputLibraries.DECK }.style.tint)
+        assertNull(upgraded.layouts.single { it.id == InputLibraries.TRACKPAD }.style.tint)
+        assertEquals(ControllerPrefs.STEAM_BLUE, upgraded.layouts.single { it.id == InputLibraries.OVERLAY }.style.tint)
+        assertEquals(upgraded, InputLibraries.read(context))
+    }
 }
