@@ -135,9 +135,11 @@ export class AppStore {
       const games: Game[] = [];
       const ids = await SteamService.appList();
       // The full Steam catalogue is far too large for a launcher grid, so
-      // the port starts from the most recently released titles and lets the
-      // player search the rest from the library page.
-      for (const id of ids.slice(0, 60)) {
+      // the port starts from the newest titles and lets the player search
+      // the rest from the library page. The catalogue comes back ordered by
+      // app id, and the app ids grow with the games, so the newest are the
+      // last ones: taking the first sixty would have shown the oldest.
+      for (const id of ids.slice(-60)) {
         const details = await SteamService.details(id);
         if (details !== undefined) {
           games.push(SteamService.toGame(details));

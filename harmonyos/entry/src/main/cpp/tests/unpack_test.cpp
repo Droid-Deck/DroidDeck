@@ -26,6 +26,8 @@
 #include <cstring>
 #include <fstream>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "runtime/install.h"
 #include "runtime/runtime.h"
@@ -72,6 +74,50 @@ ddk::RuntimeStatus StatusFor(const std::string &root) {
   options.rootDir = root;
   options.command = "/usr/local/bin/droiddeck-session";
   return ddk::Runtime::Instance().StatusFor(options);
+}
+
+/**
+ * Builds a tar archive with the given entries.
+ *
+ * The host test needs archives that a real publisher would never ship: one
+ * whose entry climbs out of the rootfs, and one whose header claims more
+ * than the archive holds.
+ */
+std::string BuildTar(const std::vector<std::pair<std::string, std::string>> &files) {
+  std::string archive;
+  for (const auto &entry : files) {
+    char header[512];
+    std::memset(header, 0, sizeof(header));
+    std::snprintf(header, 100, "%s", entry.first.c_str());
+    std::snprintf(header + 100, 8, "%07o", 0644);
+    std::snprintf(header + 108, 8, "%07o", 0);
+    std::snprintf(header + 116, 8, "%07o", 0);
+    std::snprintf(header + 124, 12, "%011llo", static_cast<unsigned long long>(entry.second.size()));
+    std::snprintf(header + 136, 12, "%011o", 0);
+    header[156] = '0';
+    std::snprintf(header + 257, 6, "ustar");
+    header[263] = '0';
+    header[264] = '0';
+    std::memset(header + 148, ' ', 8);
+    unsigned checksum = 0;
+    for (size_t index = 0; index < sizeof(header); ++index) {
+      checksum += static_cast<unsigned char>(header[index]);
+    }
+    std::snprintf(header + 148, 8, "%06o", checksum);
+    header[154] = '\0';
+    header[155] = ' ';
+    archive.append(header, sizeof(header));
+    archive.append(entry.second);
+    archive.append((512 - (entry.second.size() % 512)) % 512, '\0');
+  }
+  archive.append(1024, '\0');
+  return archive;
+}
+
+/** Writes a string to a file. */
+void WriteText(const std::string &path, const std::string &content) {
+  std::ofstream file(path, std::ios::binary | std::ios::trunc);
+  file.write(content.data(), static_cast<std::streamsize>(content.size()));
 }
 
 }  // namespace
@@ -172,6 +218,44 @@ int main(int argc, char **argv) {
           "the supervisor considers the smoke artifact installed");
     Check(IsFile(smokeDestination + "/usr/local/bin/droiddeck-session"),
           "the smoke artifact carries the guest session");
+  }
+
+  // A hostile archive must not be able to write outside the rootfs.
+  {
+    const std::string area = destination + "-hostile";
+    const std::string tar = area + ".tar";
+    const std::string root = area + "/root";
+    WriteText(tar, BuildTar({{"../escape.txt", "escaped\n"}, {"inside.txt", "fine\n"}}));
+    const ddk::UnpackResult hostile = ddk::UnpackArchive(tar, root);
+    Check(!IsFile(area + "/escape.txt"), "an entry that climbs out of the rootfs is not written");
+    Check(!IsFile(destination + "-hostile/../escape.txt"), "nothing is written above the destination");
+    Check(IsFile(root + "/inside.txt"), "the other entries are still unpacked");
+    Check(hostile.ok, "the archive unpacks despite the refused entry");
+  }
+
+  // A header that claims more than the archive holds must not ask for a
+  // huge allocation.
+  {
+    const std::string area = destination + "-lying";
+    const std::string tar = area + ".tar";
+    std::string archive = BuildTar({{"big.bin", "small\n"}});
+    // The size field is at offset 124 of the first header.
+    std::snprintf(&archive[124], 12, "%011llo", 8589934592ULL);
+    WriteText(tar, archive);
+    const ddk::UnpackResult lying = ddk::UnpackArchive(tar, area + "/root");
+    Check(!lying.ok, "an archive that lies about a member's size is refused");
+    Check(!lying.error.empty(), "the refusal says what went wrong");
+  }
+
+  // The unpack reports how much it wrote.
+  {
+    const std::string area = destination + "-sized";
+    const std::string tar = area + ".tar";
+    WriteText(tar, BuildTar({{"one.txt", "12345\n"}, {"two.txt", "6789\n"}}));
+    const ddk::UnpackResult sized = ddk::UnpackArchive(tar, area + "/root");
+    Check(sized.ok, "the archive unpacks");
+    Check(sized.files == 2, "the unpack counts the files it wrote");
+    Check(sized.bytes == 11, "the unpack reports the bytes it wrote");
   }
 
   if (g_failures == 0) {

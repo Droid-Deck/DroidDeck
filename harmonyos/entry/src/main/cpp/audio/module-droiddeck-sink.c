@@ -164,14 +164,14 @@ static void socket_accept(struct userdata *u) {
     pa_log_info("droiddeck-sink: the reader connected");
 }
 
-/** Writes one rendered chunk to the socket. */
-static void write_chunk(struct userdata *u, pa_memchunk *chunk) {
+/** Writes one rendered chunk to the socket. Returns 0 when the stream is gone. */
+static int write_chunk(struct userdata *u, pa_memchunk *chunk) {
     const void *data;
     size_t length;
     ssize_t written;
 
     if (!chunk->memblock)
-        return;
+        return 1;
 
     data = pa_memblock_acquire_chunk(chunk);
     length = chunk->length;
@@ -185,11 +185,12 @@ static void write_chunk(struct userdata *u, pa_memchunk *chunk) {
             pa_log_debug("droiddeck-sink: write failed: %s", strerror(errno));
         socket_close(u);
         chunk->length = 0;
-        return;
+        return 0;
     }
 
     chunk->index += (size_t) written;
     chunk->length -= (size_t) written;
+    return 1;
 }
 
 /** Renders the audio the guest produced and writes it out. */
@@ -208,7 +209,14 @@ static void process_render(struct userdata *u, pa_usec_t now) {
         if (!chunk.memblock)
             break;
 
-        write_chunk(u, &chunk);
+        /* When the write fails the stream is gone. The loop has to stop
+         * there: the chunk is empty, so the timestamp would never move on
+         * and the thread would spin at full speed for the rest of the
+         * process's life. */
+        if (!write_chunk(u, &chunk)) {
+            pa_memblock_unref(chunk.memblock);
+            break;
+        }
 
         u->timestamp += pa_bytes_to_usec(chunk.length, &u->sink->sample_spec);
         ate += chunk.length;

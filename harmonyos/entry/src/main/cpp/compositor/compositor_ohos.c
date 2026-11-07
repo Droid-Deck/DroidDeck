@@ -51,6 +51,15 @@ extern volatile int g_output_w, g_output_h;
 #define COMPOSITOR_NICE (-8)
 
 static napi_threadsafe_function g_events = NULL;
+/**
+ * Guards the threadsafe function.
+ *
+ * The compositor thread queues events into it and the JS thread releases it
+ * when the compositor is stopped, so the pointer is read and written under
+ * this lock: without it the compositor thread could call into a function
+ * that has already been released.
+ */
+static pthread_mutex_t g_events_lock = PTHREAD_MUTEX_INITIALIZER;
 static volatile pid_t g_comp_tid = 0;
 static volatile int g_running = 0;
 
@@ -62,9 +71,6 @@ typedef struct {
 
 /** Queues an event for the ArkTS side. */
 static void EmitEvent(const char *name, const char *detail) {
-  if (g_events == NULL) {
-    return;
-  }
   EventPayload *payload = (EventPayload *)calloc(1, sizeof(EventPayload));
   if (payload == NULL) {
     return;
@@ -73,7 +79,12 @@ static void EmitEvent(const char *name, const char *detail) {
   if (detail != NULL) {
     payload->detail = strdup(detail);
   }
-  if (napi_call_threadsafe_function(g_events, payload, napi_tsfn_nonblocking) != napi_ok) {
+  pthread_mutex_lock(&g_events_lock);
+  const napi_threadsafe_function events = g_events;
+  const int queued = events != NULL &&
+                     napi_call_threadsafe_function(events, payload, napi_tsfn_nonblocking) == napi_ok;
+  pthread_mutex_unlock(&g_events_lock);
+  if (!queued) {
     free(payload->detail);
     free(payload);
   }
@@ -209,9 +220,19 @@ static napi_value CompositorStart(napi_env env, napi_callback_info info) {
     if (type == napi_function) {
       napi_value resourceName = NULL;
       napi_create_string_utf8(env, "DroidDeckWaylandEvent", NAPI_AUTO_LENGTH, &resourceName);
+      napi_threadsafe_function events = NULL;
       napi_create_threadsafe_function(env, argv[1], NULL, resourceName, 0, 1, NULL, NULL, NULL,
-                                      CallJsEvent, &g_events);
-      napi_unref_threadsafe_function(env, g_events);
+                                      CallJsEvent, &events);
+      napi_unref_threadsafe_function(env, events);
+      // A second start replaces the callback of the first one. The old one is
+      // released under the lock, so the compositor thread cannot be using it
+      // at that moment.
+      pthread_mutex_lock(&g_events_lock);
+      if (g_events != NULL) {
+        napi_release_threadsafe_function(g_events, napi_tsfn_release);
+      }
+      g_events = events;
+      pthread_mutex_unlock(&g_events_lock);
     }
   }
 
@@ -220,6 +241,11 @@ static napi_value CompositorStart(napi_env env, napi_callback_info info) {
     pthread_detach(thread);
   } else {
     ALOGE("the compositor thread could not be started");
+    // The caller has to be told: without a compositor there is nothing to
+    // draw the guest's windows into.
+    napi_value failure = NULL;
+    napi_get_boolean(env, false, &failure);
+    return failure;
   }
 
   napi_value result = NULL;
@@ -231,10 +257,12 @@ static napi_value CompositorStart(napi_env env, napi_callback_info info) {
 static napi_value CompositorStop(napi_env env, napi_callback_info info) {
   (void)info;
   g_running = 0;
+  pthread_mutex_lock(&g_events_lock);
   if (g_events != NULL) {
     napi_release_threadsafe_function(g_events, napi_tsfn_release);
     g_events = NULL;
   }
+  pthread_mutex_unlock(&g_events_lock);
   napi_value result = NULL;
   napi_get_boolean(env, true, &result);
   return result;
