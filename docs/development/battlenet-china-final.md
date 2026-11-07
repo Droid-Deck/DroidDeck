@@ -171,11 +171,13 @@ cannot migrate the build because the BuildConfig and product differ.
   folder, and update/uninstall resolve the Agent uid from that folder. Two Diablo III records that
   share `diablo3`, or two WoW flavors in one folder, no longer target each other. A supplied folder
   that matches nothing does not fall back to another installation; ambiguous updates/uninstalls stop.
-- **Cancellation**: the driver reports the effective uid after China mapping. If that report is lost,
-  cancellation reads the driver's `.uid` cache after the worker stops; it never falls back to the
-  original catalog uid, so a queued install cannot uninstall a legacy copy. The cache is cleared when
-  a new install is enqueued but preserved across pause/resume, and cleanup is skipped if the worker
-  has not stopped after the wait.
+- **Cancellation**: destructive cleanup is ownership-based. At enqueue time the item records whether
+  the target folder already had a Battle.net registration; that flag is persisted in the saved queue.
+  Cancel only uninstalls a registration that appeared after a task recorded “no registration”. A
+  pre-existing registration is never removed, and the `.uid` cache is not used as ownership proof.
+  Cleanup is skipped if the worker has not stopped after the wait.
+- **Update checks**: `updates` and `checkedAt` are keyed by store id plus install folder, so the
+  international and China Diablo III copies do not share a stale update marker.
 
 ### Testing
 
