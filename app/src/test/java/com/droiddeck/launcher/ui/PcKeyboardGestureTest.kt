@@ -48,24 +48,39 @@ class PcKeyboardGestureTest {
         compose.runOnIdle { assertTrue((59 to false) in sent) }
     }
 
+    @Test fun letterKeySendsOnDownAndNeverWrapsShift() {
+        setKeyboard()
+        compose.onNodeWithText("a").performTouchInput { down(center) }
+        compose.runOnIdle {
+            assertTrue("letters stay immediate", (30 to true) in sent)
+            assertFalse("no shift wrap for letters", (42 to true) in sent)
+        }
+        compose.mainClock.advanceTimeBy(400)
+        compose.runOnIdle { assertFalse("holding a letter must not add shift", (42 to true) in sent) }
+        compose.onNodeWithText("a").performTouchInput { up() }
+        compose.runOnIdle { assertEquals(listOf(30 to true, 30 to false), sent) }
+    }
+
     @Test fun delayedKeyTapSendsNothingUntilLift() {
         setKeyboard()
-        compose.onNodeWithText("a").performTouchInput { down(center); up() }
-        compose.runOnIdle { assertEquals(listOf(30 to true, 30 to false), sent) }
+        compose.onNodeWithText("2").performTouchInput { down(center) }
+        compose.runOnIdle { assertEquals("delayed key silent while held", emptyList<Pair<Int, Boolean>>(), sent) }
+        compose.onNodeWithText("2").performTouchInput { up() }
+        compose.runOnIdle { assertEquals(listOf(3 to true, 3 to false), sent) }
     }
 
     @Test fun delayedKeyLongPressSendsShiftWrappedSequence() {
         setKeyboard()
-        compose.onNodeWithText("a").performTouchInput { down(center) }
+        compose.onNodeWithText("2").performTouchInput { down(center) }
         compose.mainClock.advanceTimeBy(400)
         compose.runOnIdle {
             assertTrue((42 to true) in sent)
-            assertTrue((30 to true) in sent)
-            assertFalse("key stays down while held", (30 to false) in sent)
+            assertTrue((3 to true) in sent)
+            assertFalse("key stays down while held", (3 to false) in sent)
         }
-        compose.onNodeWithText("a").performTouchInput { up() }
+        compose.onNodeWithText("2").performTouchInput { up() }
         compose.runOnIdle {
-            assertEquals(listOf(42 to true, 30 to true, 30 to false, 42 to false), sent)
+            assertEquals(listOf(42 to true, 3 to true, 3 to false, 42 to false), sent)
         }
     }
 }
