@@ -567,7 +567,7 @@
     <string name="comp_auto_hint">Les nouvelles versions s\'installent en arrière-plan. Si un jeu qui fonctionnait se ferme deux fois en quelques secondes, Auto revient à la version qui fonctionnait.</string>
     <string name="comp_auto_fallback">Secours : %1$s</string>
     <string name="comp_auto_checking">Recherche de versions…</string>
-    <string name="comp_auto_none">Aucun Proton installé ne l\'utilise</string>
+    <string name="comp_auto_none">Aucun DroidDeck-Proton ne l\'utilise</string>
     <string name="comp_auto_waits_network">Les mises à jour Auto attendent une connexion.</string>
     <string name="comp_auto_check_failed">Impossible de vérifier les nouvelles versions.</string>
     <string name="comp_auto_waits_unmetered">Les nouvelles versions attendent une connexion non limitée, l\'économiseur de batterie désactivé et un appareil frais.</string>

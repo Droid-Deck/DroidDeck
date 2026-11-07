@@ -377,3 +377,76 @@ diagnostics remained enabled. Temporary probe files, executables and obsolete
 partial staging were removed after validation. Original effective mount options
 were restored; no app-specific Magisk root policy remained. The primary checkout's
 unrelated `SessionService.kt` modification was preserved.
+
+## Install phases on current main (2026-11-07)
+
+A fresh install of 1000xRESIST (app 1675830, 2,216 files, 7.45 GB) to the same Thor SD
+card, on the build from main at the time (`0652b0d`), with the fast path and storage
+shim from the earlier work. Phase times come from Steam's `content_log.txt`.
+
+| Run | Reserving space | Download and stage | Commit | Total |
+|---|---|---|---|---|
+| Clean | 78 s | 25 min 01 s | 205 s | 29 min 46 s |
+| Profiled | 79 s | 18 min 43 s | 146 s | 22 min 28 s |
+
+Reserving space was 404 s on 2026-10-04 and is now about 36 ms per file, which is the
+file-creation floor measured above (25-36 ms). The two runs differ by 7 minutes because
+the download phase follows the network: Steam logged 12 to 83 Mbps for the whole phase.
+Raw sequential write to the card with `dd conv=fsync` was 15 MB/s (120 Mbps), so the
+card is not the limit during most of the download. The run-to-run spread is larger than
+any change a path-translation fix could make, so install totals are not used to judge
+the fast path changes below.
+
+Kernel stacks of Steam's blocked threads, sampled every 0.2 s from `/proc/<pid>/task/*`:
+
+- **Commit:** every sampled thread was inside `renameat`, waiting on synchronous
+  directory entry writes (`exfat_rename`, `exfat_init_ext_entry`, `exfat_remove_entries`,
+  `exfat_free_dentry_set`, all through `__sync_dirty_buffer`). That is the `dirsync`
+  mount option, at about 65 to 92 ms per file. PRoot is not involved in that time.
+- **Download:** blocked threads were in `pwrite64`, in `exfat_get_block`,
+  `exfat_alloc_cluster` and `cont_write_begin`, which allocate clusters as the unreserved
+  files grow.
+
+PRoot's own handler time during the reserving phase (profiler, 1 ms slow threshold) was
+7.3 s of the 79 s, of which 6.3 s was `openat` handler visits. Almost all of those came
+from the HUD reading the three bound thermal files (22,326 fast path misses logged
+against `/sys/class/thermal/thermal_zone{22,26,28}/temp`), not from Steam. `fchownat`
+accounted for 2,795 visits at about 70 us. Steam's own calls were answered by the fast
+path.
+
+### Fast path changes
+
+- `fchownat`, `chown` and `lchown` are answered in the fast path, through the libc
+  wrappers and the patched `svc` sites. The site cache name moves to `svc-v3` so cached
+  site lists from older builds are rebuilt.
+- A path that names a bound file exactly, spelled through a symlinked directory
+  (`/sys/class/thermal/thermal_zone28/temp`, where `thermal_zone28` is a symlink), now
+  resolves to the bind's host path. Before, any path through a symlink with a binding
+  beneath it fell back to PRoot. Paths with `..`, a trailing slash or any other ending
+  still fall back.
+
+Same workloads on the Thor, stock library against the new one (session started with
+`droiddeckctl override libblfastpath.so`, PRoot profiler on):
+
+| Workload | Stock | New |
+|---|---|---|
+| `chown` of 2,000 files, internal storage | 40-50 us each | 6 us each |
+| `chown` of 2,000 files, SD card | 61-62 us each | 9 us each |
+| Open of the three bound thermal files, 6,000 opens | 128-133 us each | 24-25 us each |
+| PRoot `openat` handler visits for both workloads | 15,496 (1,205 ms) | 7,458 (366 ms) |
+| PRoot `fchownat` handler visits | 6,873 (288 ms) | 0 |
+
+`bench/chown.py` compares 87 `chown` results (paths, links, dangling and looping links,
+descriptors, directory descriptors, foreign owners, trailing slashes) with the fast path
+on and with `PROOT_FP_OFF=1`; they were identical. The thermal paths were compared the
+same way for every spelling the HUD can use (absolute, doubled slashes, `.` and `..`
+components, relative to a working directory or descriptor on the parent directory) and
+matched. They differ only when the working directory or descriptor is inside the
+symlinked directory, or the path uses its canonical `/sys/devices/virtual/...` name: PRoot
+returns the bound file there and the fast path returns the real node. That difference
+existed before these changes, and the HUD does not read those spellings.
+
+What this does not change: the commit and the file creation costs above are the card's
+synchronous directory updates, so SD installs stay bound by them (about 4 to 5 minutes per
+2,000 files of reserving plus commit on this card). Removing those costs needs fewer
+directory operations per file, not faster path translation.

@@ -531,7 +531,11 @@ fun ComponentsPage(
             else -> stringResource(R.string.comp_nightlies_count, availableRows(l, catalog, snapshot).size)
         }
     }
-    val moded: (String) -> Boolean = { it in compModes && it !in compAutoHeld && !ComponentsManager.runtimeManaged(it, gpu.runtimeManagedDxvk) }
+    val followed = view?.proton?.let(ComponentUpdates::follows) == true
+    val moded: (String) -> Boolean = {
+        followed && it in compModes && it !in compAutoHeld &&
+            !ComponentsManager.runtimeManaged(it, gpu.runtimeManagedDxvk)
+    }
     val automatic: (String) -> Boolean = { moded(it) && compModes[it] == ComponentUpdates.AUTO }
     val installedRows: @Composable ColumnScope.(String, Boolean) -> Unit = { l, right ->
         when (l) {

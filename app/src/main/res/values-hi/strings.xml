@@ -565,7 +565,7 @@
     <string name="comp_auto_hint">नए बिल्ड बैकग्राउंड में इंस्टॉल होते हैं। अगर पहले चलने वाला गेम दो बार कुछ सेकंड में बंद हो जाए, तो Auto काम करने वाले बिल्ड पर लौट जाता है।</string>
     <string name="comp_auto_fallback">फ़ॉलबैक: %1$s</string>
     <string name="comp_auto_checking">बिल्ड खोजे जा रहे हैं…</string>
-    <string name="comp_auto_none">कोई इंस्टॉल Proton इसका उपयोग नहीं करता</string>
+    <string name="comp_auto_none">कोई DroidDeck-Proton इसका उपयोग नहीं करता</string>
     <string name="comp_auto_waits_network">Auto अपडेट कनेक्शन का इंतज़ार कर रहे हैं।</string>
     <string name="comp_auto_check_failed">नए बिल्ड नहीं जाँचे जा सके।</string>
     <string name="comp_auto_waits_unmetered">नए बिल्ड बिना सीमा वाले कनेक्शन, बंद बैटरी सेवर और ठंडे डिवाइस का इंतज़ार करते हैं।</string>

@@ -615,7 +615,7 @@
     <string name="comp_auto_hint">New builds install in the background. If a game that ran before closes within seconds twice, Auto goes back to the build that worked.</string>
     <string name="comp_auto_fallback">Fallback: %1$s</string>
     <string name="comp_auto_checking">Checking for builds…</string>
-    <string name="comp_auto_none">No installed Proton uses this</string>
+    <string name="comp_auto_none">No DroidDeck-Proton uses this</string>
     <string name="comp_auto_waits_network">Auto updates wait for a connection.</string>
     <string name="comp_auto_check_failed">Couldn\'t check for new builds.</string>
     <string name="comp_auto_waits_unmetered">New builds wait for an unmetered connection, battery saver off and a cool device.</string>

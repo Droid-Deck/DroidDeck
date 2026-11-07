@@ -563,7 +563,7 @@
     <string name="comp_auto_hint">새 빌드는 백그라운드에서 설치됩니다. 이전에 실행되던 게임이 몇 초 만에 두 번 종료되면 Auto가 작동하던 빌드로 되돌립니다.</string>
     <string name="comp_auto_fallback">대체: %1$s</string>
     <string name="comp_auto_checking">빌드 확인 중…</string>
-    <string name="comp_auto_none">이를 사용하는 설치된 Proton이 없습니다</string>
+    <string name="comp_auto_none">이를 사용하는 DroidDeck-Proton이 없습니다</string>
     <string name="comp_auto_waits_network">Auto 업데이트가 연결을 기다리는 중입니다.</string>
     <string name="comp_auto_check_failed">새 빌드를 확인할 수 없습니다.</string>
     <string name="comp_auto_waits_unmetered">새 빌드는 데이터 무제한 연결, 배터리 세이버 꺼짐, 기기가 뜨겁지 않은 상태를 기다립니다.</string>

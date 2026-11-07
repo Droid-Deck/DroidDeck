@@ -672,6 +672,18 @@ static int base_of(int dirfd, char *h) {
   return gone(h, n) ? -1 : 0;
 }
 
+static long bound_literal(const char *literal, struct res *r) {
+  struct bind *bd;
+  if (reserved(literal) || bind_of(literal, &bd) < 0 || !bd || bd->glen != strlen(literal) || bd->glen < 2) return FP_SLOW;
+  if (snprintf(r->host, PATH_MAX, "%s", bd->host) >= PATH_MAX) return FP_SLOW;
+  if (sc(SYS_newfstatat, AT_FDCWD, (long)r->host, (long)&r->st, AT_SYMLINK_NOFOLLOW, 0) < 0 || S_ISLNK(r->st.st_mode)) return FP_SLOW;
+  snprintf(r->guest, PATH_MAX, "%s", literal);
+  r->exists = 1;
+  r->moving = 0;
+  r->magic = 0;
+  return 0;
+}
+
 static long resolve_in(const char *base, const char *path, int follow, struct res *r) {
   char norm[PATH_MAX];
   size_t o = 0;
@@ -707,6 +719,10 @@ static long resolve_in(const char *base, const char *path, int follow, struct re
     unsigned h = hash_of(norm);
     if (!cached(norm, h, r->guest)) {
       w = walk(r, norm, 1, 0);
+      if (w == FP_SLOW && !trailing) {
+        *slash = '/';
+        return bound_literal(norm, r);
+      }
       if (w < 0) return w;
       if (w != GLUE && !S_ISDIR(r->st.st_mode)) return -ENOTDIR;
       if (!r->moving) remember(norm, h, r->guest);
@@ -1203,6 +1219,20 @@ int fchmodat(int dirfd, const char *path, mode_t mode, int flags) {
   ANSWER(fp_chmod(dirfd, path, mode, flags), dirfd, path, real_fchmodat(dirfd, path, mode, flags));
 }
 int chmod(const char *path, mode_t mode) { return fchmodat(AT_FDCWD, path, mode, 0); }
+
+static long fp_chown(int dirfd, const char *path, uid_t uid, gid_t gid, int flags) {
+  struct res r;
+  long rs = flags & ~AT_SYMLINK_NOFOLLOW ? FP_SLOW : resolve(dirfd, path, (flags & AT_SYMLINK_NOFOLLOW ? 0 : 1) | MAY_BE_UNSEEN, &r);
+  if (rs == 1) rs = -ENOENT;
+  if (rs == 0 || rs == UNSEEN) rs = sc(SYS_fchownat, AT_FDCWD, (long)r.host, (long)uid, (long)gid, flags);
+  return rs;
+}
+int fchownat(int dirfd, const char *path, uid_t uid, gid_t gid, int flags) {
+  REAL(fchownat, int (*)(int, const char *, uid_t, gid_t, int));
+  ANSWER(fp_chown(dirfd, path, uid, gid, flags), dirfd, path, real_fchownat(dirfd, path, uid, gid, flags));
+}
+int chown(const char *path, uid_t uid, gid_t gid) { return fchownat(AT_FDCWD, path, uid, gid, 0); }
+int lchown(const char *path, uid_t uid, gid_t gid) { return fchownat(AT_FDCWD, path, uid, gid, AT_SYMLINK_NOFOLLOW); }
 
 static long fp_utimens(int dirfd, const char *path, const struct timespec times[2], int flags) {
   struct res r;
