@@ -128,9 +128,27 @@ class BattleNetInstallTest {
         try {
             BattleNetInstall.check("gryphon", folder, false)
             BattleNetInstall.checks.submit {}.get()
-            assertFalse(synchronized(BattleNetInstall.checkedAt) { "gryphon" in BattleNetInstall.checkedAt })
+            assertFalse(synchronized(BattleNetInstall.checkedAt) {
+                BattleNetInstall.updateKey("gryphon", folder) in BattleNetInstall.checkedAt
+            })
         } finally {
             folder.deleteRecursively()
+        }
+    }
+
+    @Test fun updateStateIsSeparateForEachInstallFolder() {
+        val one = Files.createTempDirectory("bnet-one").toFile()
+        val two = Files.createTempDirectory("bnet-two").toFile()
+        try {
+            val first = BattleNetInstall.updateKey("diablo3", one)
+            val second = BattleNetInstall.updateKey("diablo3", two)
+            assertFalse(first == second)
+            BattleNetInstall.updates[first] = true
+            assertNull(BattleNetInstall.updates[second])
+            BattleNetInstall.updates.remove(first)
+        } finally {
+            one.deleteRecursively()
+            two.deleteRecursively()
         }
     }
 

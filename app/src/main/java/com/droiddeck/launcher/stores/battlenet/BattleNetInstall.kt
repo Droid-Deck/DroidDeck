@@ -55,6 +55,8 @@ object BattleNetInstall {
 
     val updates = mutableStateMapOf<String, Boolean>()
 
+    fun updateKey(id: String, folder: File?): String = "$id@${folder?.absolutePath ?: ""}"
+
     fun product(id: String): String? = BattleNet.title(id)?.product
 
     /** The China client serves StarCraft II, Diablo II and Diablo III from products of their own; anbs_cn shares anbs. */
@@ -114,6 +116,7 @@ object BattleNetInstall {
         val entry = DownloadEntry(
             Store.BATTLENET, item.id, item.title, cover = item.tallImageUrl ?: item.imageUrl,
             location = StoreInstallRoot.labelFor(app, folder),
+            cleanupKey = "${Store.BATTLENET.id}:${item.id}",
         )
         if (!update && item.extra[RESTORE] != "1" && !DownloadQueue.isActive(entry.key) &&
             !DownloadQueue.isCancelling(entry.key)) clearCachedUid(app, item)
@@ -233,12 +236,13 @@ object BattleNetInstall {
 
     internal fun check(id: String, folder: File, force: Boolean) {
         val product = product(id) ?: return
+        val key = updateKey(id, folder)
         val now = System.currentTimeMillis()
         synchronized(checkedAt) {
-            if (!force && now - (checkedAt[id] ?: 0L) < CHECK_AGAIN_MS) return
-            checkedAt[id] = now
+            if (!force && now - (checkedAt[key] ?: 0L) < CHECK_AGAIN_MS) return
+            checkedAt[key] = now
         }
-        fun retryLater() = synchronized(checkedAt) { if (checkedAt[id] == now) checkedAt.remove(id) }
+        fun retryLater() = synchronized(checkedAt) { if (checkedAt[key] == now) checkedAt.remove(key) }
         checks.execute {
             val local = runCatching { buildKey(File(folder, BUILD_INFO).readText()) }.getOrNull()
                 ?: return@execute retryLater()
@@ -248,7 +252,7 @@ object BattleNetInstall {
                 ?: return@execute retryLater()
             val behind = latest != local.second
             Log.i(TAG, "$id: ${if (behind) "update available" else "up to date"}")
-            StoresState.post { if (behind) updates[id] = true else updates.remove(id) }
+            StoresState.post { if (behind) updates[key] = true else updates.remove(key) }
         }
     }
 
@@ -296,6 +300,13 @@ internal class BattleNetInstaller(
     private val folder: File,
     private val update: Boolean,
     private val uninstall: (String) -> Boolean = { BattleNetInstall.agentUninstall(app, it) },
+    private val registration: () -> BattleNet.Game? = {
+        runCatching {
+            BattleNet.games(app).firstOrNull {
+                it.folder.absolutePath == folder.absolutePath && it.uid == item.id
+            }
+        }.getOrNull()
+    },
 ) : DownloadQueue.DownloadJob {
     private val cancelled = AtomicBoolean(false)
     private val cleanupStarted = AtomicBoolean(false)
@@ -303,10 +314,12 @@ internal class BattleNetInstaller(
     private val queueKey = DownloadEntry(Store.BATTLENET, item.id, item.title).key
     private val ended = java.util.concurrent.CountDownLatch(1)
     @Volatile private var effectiveUid: String? = null
+    @Volatile private var preexisting = false
     private var before = 0L
     private var kept = -1L
 
     override fun run(handle: DownloadQueue.JobHandle): String? {
+        if (!cancelled.get()) preexisting = runCatching { registration() != null }.getOrDefault(true)
         started.set(true)
         try {
             return if (cancelled.get()) null else work(handle)
@@ -346,7 +359,7 @@ internal class BattleNetInstaller(
         if (done == null) throw IllegalStateException(BattleNetInstall.failure(app, reason, code))
         handle.log("Battle.net: ${item.title} ${if (update) "updated" else "installed"} ${done?.optString("version").orEmpty()}".trimEnd())
         StoresState.post {
-            BattleNetInstall.updates.remove(item.id)
+            BattleNetInstall.updates.remove(BattleNetInstall.updateKey(item.id, folder))
             StoresState.notifyLibraryChanged(app)
         }
         BattleNetInstall.check(item.id, folder, force = true)
@@ -373,22 +386,21 @@ internal class BattleNetInstaller(
             return
         }
         if (!cleanupStarted.compareAndSet(false, true)) return
+        if (!started.get()) preexisting = runCatching { registration() != null }.getOrDefault(true)
         Thread({
             try {
                 val stopped = !started.get() || ended.await(END_WAIT_S, TimeUnit.SECONDS)
                 if (!stopped) {
                     Log.w("BattleNetInstall", "the cancelled install is still stopping; leaving it for Battle.net")
+                } else if (preexisting) {
+                    Log.i("BattleNetInstall", "cancelled install left the pre-existing registration in ${folder.path}")
                 } else {
-                    val known = effectiveUid ?: item.extra[BattleNetInstall.INSTALL_UID]
-                        ?: BattleNetInstall.cachedUid(app, item, folder)
-                        ?: runCatching {
-                            BattleNet.games(app).firstOrNull {
-                                it.uid == item.id && it.folder.absolutePath == folder.absolutePath
-                            }?.installUid
-                        }.getOrNull()
-                    val gone = known?.let(uninstall) ?: false
-                    if (folder.isDirectory && (gone || folder.list().isNullOrEmpty())) com.droiddeck.launcher.core.FileUtils.delete(folder)
-                    Log.i("BattleNetInstall", "cancelled install of ${known ?: "an unstarted job"}: ${if (gone) "removed" else "left for Battle.net to remove"}")
+                    val created = runCatching { registration() }.getOrNull()
+                    val gone = created?.installUid?.let(uninstall) ?: false
+                    if (gone || created == null && folder.isDirectory && folder.list().isNullOrEmpty()) {
+                        com.droiddeck.launcher.core.FileUtils.delete(folder)
+                    }
+                    Log.i("BattleNetInstall", "cancelled install of ${created?.installUid ?: "an unstarted job"}: ${if (gone) "removed" else "left for Battle.net to remove"}")
                 }
             } finally {
                 DownloadQueue.cleanupFinished(queueKey)

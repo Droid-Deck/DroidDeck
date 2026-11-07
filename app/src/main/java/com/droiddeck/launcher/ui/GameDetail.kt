@@ -439,12 +439,13 @@ internal fun GameActions(
                 }
                 if (store == Store.BATTLENET) {
                     if (installed != null && id != null) {
-                        LaunchedEffect(id) { BattleNetInstall.checkUpdate(ctx, installed) }
+                        val updateKey = BattleNetInstall.updateKey(id, installed.folder)
+                        LaunchedEffect(updateKey) { BattleNetInstall.checkUpdate(ctx, installed) }
                         if (download != null) {
                             ActionChip(downloadLabel(download), ok = false)
                             if (download.state != DownloadState.PAUSED) SecondaryButton(stringResource(R.string.stores_dl_pause)) { DownloadQueue.pause(download.key) }
                             else SecondaryButton(stringResource(R.string.stores_dl_resume)) { DownloadQueue.resume(ctx, download.key) }
-                        } else if (BattleNetInstall.updates[id] == true) {
+                        } else if (BattleNetInstall.updates[updateKey] == true) {
                             SecondaryButton(stringResource(R.string.bnet_update)) { BattleNetInstall.update(ctx, installed) }
                         }
                     }

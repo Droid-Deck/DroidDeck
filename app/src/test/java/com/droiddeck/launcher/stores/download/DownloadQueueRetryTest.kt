@@ -148,9 +148,41 @@ class DownloadQueueRetryTest {
         DownloadQueue.clear(app, entry.key)
     }
 
+    @Test fun aFactorylessFailedBattleNetEntryDoesNotBlockAReplacement() {
+        val entry = DownloadEntry(Store.BATTLENET, "factoryless-failure", "Factoryless failure")
+        DownloadQueue.recordFailed(app, entry, "failed before a job existed")
+        DownloadQueue.clear(app, entry.key)
+        DownloadQueue.enqueue(app, entry) {
+            object : DownloadQueue.DownloadJob {
+                override fun run(handle: DownloadQueue.JobHandle): String? = null
+                override fun cancel(deleteFiles: Boolean) {}
+            }
+        }
+        assertNotNull("a cleared factoryless failure must not hold a cleanup key", DownloadQueue.entry(entry.key))
+        val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (DownloadQueue.entry(entry.key)?.isActive == true && System.nanoTime() < until) Thread.sleep(10)
+        DownloadQueue.clear(app, entry.key)
+    }
+
+    @Test fun aBattleNetClientDownloadIsNotInTheGameCleanupGuard() {
+        val entry = DownloadEntry(Store.BATTLENET, "battlenet-client", "Battle.net")
+        DownloadQueue.enqueue(app, entry) {
+            object : DownloadQueue.DownloadJob {
+                override fun run(handle: DownloadQueue.JobHandle): String? = null
+                override fun cancel(deleteFiles: Boolean) {}
+            }
+        }
+        DownloadQueue.cancel(app, entry.key)
+        assertFalse(DownloadQueue.isCancelling(entry.key))
+        DownloadQueue.clear(app, entry.key)
+    }
+
     @Test fun aPauseCallbackDoesNotReleaseAnotherCleanup() {
         val title = "Pause during cleanup"
-        val entry = DownloadEntry(Store.BATTLENET, "pause-during-cleanup", title)
+        val entry = DownloadEntry(
+            Store.BATTLENET, "pause-during-cleanup", title,
+            cleanupKey = "${Store.BATTLENET.id}:pause-during-cleanup",
+        )
         val cancelled = CountDownLatch(1)
         val release = CountDownLatch(1)
         val job = object : DownloadQueue.DownloadJob {
@@ -186,7 +218,10 @@ class DownloadQueueRetryTest {
     }
 
     @Test fun aCancelledBattleNetJobBlocksAReplacementWhileCleanupRuns() {
-        val entry = DownloadEntry(Store.BATTLENET, "same-folder-race", "Same folder race")
+        val entry = DownloadEntry(
+            Store.BATTLENET, "same-folder-race", "Same folder race",
+            cleanupKey = "${Store.BATTLENET.id}:same-folder-race",
+        )
         val started = CountDownLatch(1)
         val cancelled = CountDownLatch(1)
         val release = CountDownLatch(1)

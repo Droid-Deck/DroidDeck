@@ -3,7 +3,6 @@ package com.droiddeck.launcher.stores.download
 import android.content.Context
 import android.util.Log
 import com.droiddeck.launcher.session.SessionPrefs
-import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoresState
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -132,14 +131,16 @@ object DownloadQueue {
 
     fun isCancelling(key: String): Boolean = synchronized(lock) { key in cancelling }
 
-    internal fun cleanupFinished(key: String) {
+    internal fun cleanupFinished(key: String?) {
+        if (key == null) return
         synchronized(lock) { cancelling.remove(key) }
     }
 
     fun enqueue(context: Context, entry: DownloadEntry, factory: () -> DownloadJob) {
         val app = context.applicationContext
         synchronized(lock) {
-            if (entry.store == Store.BATTLENET && entry.key in cancelling) {
+            val cleanupKey = entry.cleanupKey
+            if (cleanupKey != null && isCancelling(cleanupKey)) {
                 Log.i(TAG, "${entry.key}: previous cancellation is still cleaning up")
                 return
             }
@@ -218,19 +219,21 @@ object DownloadQueue {
         val app = context.applicationContext
         val item: Item
         val wasRunning: Boolean
+        var cleanupKey: String? = null
         synchronized(lock) {
             item = items[key] ?: return
             if (!item.entry.interruptible) return
-            if (item.entry.store == Store.BATTLENET && key in cancelling) {
+            cleanupKey = item.entry.cleanupKey?.takeIf { item.factory != null }
+            if (cleanupKey?.let { isCancelling(it) } == true) {
                 Log.i(TAG, "$key: already cancelling")
                 return
             }
             wasRunning = item.entry.state == DownloadState.RUNNING
-            if (item.entry.store == Store.BATTLENET) cancelling.add(key)
+            cleanupKey?.let { cancelling.add(it) }
             if (wasRunning) {
                 item.pauseRequested = false
                 item.cancelled.set(true)
-                item.job?.cancel(deleteFiles = true)
+                if (runCatching { item.job?.cancel(deleteFiles = true) }.isFailure) cleanupFinished(cleanupKey)
             }
             if (!wasRunning) {
                 item.entry = item.entry.copy(state = DownloadState.CANCELLED, queuePosition = 0, finishedAt = System.currentTimeMillis())
@@ -239,7 +242,15 @@ object DownloadQueue {
             }
         }
         if (!wasRunning) {
-            Thread({ runCatching { item.factory?.invoke()?.cancel(deleteFiles = true) } }, "store-dl-cancel").start()
+            if (cleanupKey == null) {
+                cleanupFinished(null)
+            } else {
+                Thread({
+                    if (runCatching { item.factory?.invoke()?.cancel(deleteFiles = true) }.isFailure) {
+                        cleanupFinished(cleanupKey)
+                    }
+                }, "store-dl-cancel").start()
+            }
         }
         StoresState.logLine("cancelled \"${item.entry.name}\"")
         StoreDownloadService.finish(app, key)
@@ -251,8 +262,15 @@ object DownloadQueue {
         val item = synchronized(lock) { items[key] } ?: return
         if (item.entry.state == DownloadState.RUNNING || item.entry.state == DownloadState.QUEUED) return
         if (item.entry.state == DownloadState.FAILED || item.entry.state == DownloadState.PAUSED) {
-            if (item.entry.store == Store.BATTLENET) synchronized(lock) { cancelling.add(key) }
-            Thread({ runCatching { item.factory?.invoke()?.cancel(deleteFiles = true) } }, "store-dl-clear").start()
+            val cleanupKey = item.entry.cleanupKey?.takeIf { item.factory != null }
+            if (cleanupKey != null) {
+                synchronized(lock) { cancelling.add(cleanupKey) }
+                Thread({
+                    if (runCatching { item.factory?.invoke()?.cancel(deleteFiles = true) }.isFailure) {
+                        cleanupFinished(cleanupKey)
+                    }
+                }, "store-dl-clear").start()
+            }
         }
         synchronized(lock) { items.remove(key); publishLocked() }
         StoreDownloadService.finish(context.applicationContext, key)
@@ -349,6 +367,9 @@ object DownloadQueue {
         } catch (t: Throwable) {
             error = t.message ?: t.javaClass.simpleName
             Log.w(TAG, "${item.entry.key} failed", t)
+            synchronized(lock) {
+                if (item.job == null) cleanupFinished(item.entry.cleanupKey)
+            }
         }
         synchronized(lock) {
             running--

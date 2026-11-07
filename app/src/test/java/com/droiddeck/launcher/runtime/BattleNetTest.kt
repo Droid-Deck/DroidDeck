@@ -412,61 +412,85 @@ class BattleNetTest {
         assertNull(BattleNetInstall.cachedUid(context, item, folder))
     }
 
-    @Test fun aCancelledPausedInstallUninstallsTheMappedUid() {
+    @Test fun aPreexistingRegistrationIsNotUninstalled() {
         val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
         val item = CatalogItem(Store.BATTLENET, "osi", "Diablo II: Resurrected", null)
-        val cache = File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/battlenet/agent-osi.uid")
-        cache.parentFile!!.mkdirs()
-        cache.writeBytes("\uFEFFZ:/root/Games/Diablo II Resurrected\nosic".toByteArray(Charsets.UTF_16LE))
+        val game = BattleNet.Game(item.id, item.title, "OSI", folder, "osic")
+        val checked = CountDownLatch(1)
+        val uninstalled = AtomicBoolean(false)
+        val installer = BattleNetInstaller(context, item, folder, false, {
+            uninstalled.set(true)
+            true
+        }) {
+            checked.countDown()
+            game
+        }
+        installer.cancel(true)
+        assertTrue(checked.await(5, TimeUnit.SECONDS))
+        Thread.sleep(100)
+        assertFalse("a registration that existed before the task must survive", uninstalled.get())
+    }
+
+    @Test fun aCancelledInstallUninstallsOnlyTheRegistrationItCreated() {
+        val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
+        val item = CatalogItem(Store.BATTLENET, "osi", "Diablo II: Resurrected", null)
+        val game = BattleNet.Game(item.id, item.title, "OSI", folder, "osic")
+        var calls = 0
         val seen = AtomicReference<String?>(null)
         val done = CountDownLatch(1)
-        val installer = com.droiddeck.launcher.stores.battlenet.BattleNetInstaller(context, item, folder, false) { uid ->
+        val installer = BattleNetInstaller(context, item, folder, false, { uid ->
             seen.set(uid)
             done.countDown()
             true
+        }) {
+            if (++calls == 1) null else game
         }
         installer.cancel(true)
         assertTrue(done.await(5, TimeUnit.SECONDS))
         assertEquals("osic", seen.get())
     }
 
-    @Test fun aLateUidReportedWhileTheWorkerStopsIsUsedForCancellation() {
+    @Test fun aLateRegistrationReportedWhileTheWorkerStopsIsUsedForCancellation() {
         val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
         val item = CatalogItem(Store.BATTLENET, "osi", "Diablo II: Resurrected", null)
+        val game = BattleNet.Game(item.id, item.title, "OSI", folder, "osic")
+        var visible = false
         val seen = AtomicReference<String?>(null)
         val done = CountDownLatch(1)
-        val installer = BattleNetInstaller(context, item, folder, false) { uid ->
+        val installer = BattleNetInstaller(context, item, folder, false, { uid ->
             seen.set(uid)
             done.countDown()
             true
+        }) {
+            if (visible) game else null
         }
         val started = BattleNetInstaller::class.java.getDeclaredField("started").apply { isAccessible = true }
         (started.get(installer) as AtomicBoolean).set(true)
         val ended = BattleNetInstaller::class.java.getDeclaredField("ended").apply { isAccessible = true }
             .get(installer) as CountDownLatch
-        val effective = BattleNetInstaller::class.java.getDeclaredField("effectiveUid").apply { isAccessible = true }
         installer.cancel(true)
-        effective.set(installer, "osic")
+        visible = true
         ended.countDown()
         assertTrue(done.await(5, TimeUnit.SECONDS))
         assertEquals("osic", seen.get())
     }
 
-    @Test fun aRestoredPausedInstallStillUninstallsTheMappedUid() {
+    @Test fun aRestoredPausedInstallUninstallsTheRegistrationItCreated() {
         val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
         val item = CatalogItem(
             Store.BATTLENET, "osi", "Diablo II: Resurrected", null,
             extra = mapOf(BattleNetInstall.RESTORE to "1"),
         )
-        val cache = File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/battlenet/agent-osi.uid")
-        cache.parentFile!!.mkdirs()
-        cache.writeBytes("\uFEFFZ:/root/Games/Diablo II Resurrected\nosic".toByteArray(Charsets.UTF_16LE))
+        val game = BattleNet.Game(item.id, item.title, "OSI", folder, "osic")
+        var calls = 0
         val seen = AtomicReference<String?>(null)
         val done = CountDownLatch(1)
-        BattleNetInstaller(context, item, folder, false) { uid ->
+        BattleNetInstaller(context, item, folder, false, { uid ->
             seen.set(uid)
             done.countDown()
             true
+        }) {
+            if (++calls == 1) null else game
         }.cancel(true)
         assertTrue(done.await(5, TimeUnit.SECONDS))
         assertEquals("osic", seen.get())
