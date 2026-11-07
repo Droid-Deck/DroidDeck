@@ -198,6 +198,14 @@ int main(int argc, char **argv) {
     else if (!strcmp(op, "create")) { close(open(a, O_WRONLY | O_CREAT, 0644)); i++; }
     else if (!strcmp(op, "sneak")) { close((int)syscall(SYS_openat, AT_FDCWD, a, O_WRONLY | O_CREAT, 0644)); i++; }
     else if (!strcmp(op, "sneak-unlink")) { syscall(SYS_unlinkat, AT_FDCWD, a, 0); i++; }
+    else if (!strcmp(op, "sneak-rename")) { syscall(SYS_renameat, AT_FDCWD, a, AT_FDCWD, argv[i + 2]); i += 2; }
+    else if (!strcmp(op, "sneak-mkdir")) { syscall(SYS_mkdirat, AT_FDCWD, a, 0755); i++; }
+    else if (!strcmp(op, "pause")) {
+      char line[16];
+      printf("ready\n");
+      fflush(stdout);
+      if (!fgets(line, sizeof(line), stdin)) return 1;
+    }
     else if (!strcmp(op, "unlink")) { unlink(a); i++; }
     else if (!strcmp(op, "remove")) { remove(a); i++; }
     else if (!strcmp(op, "mkdir")) { mkdir(a, 0755); i++; }
@@ -310,12 +318,28 @@ class DirCachePreloadTest(unittest.TestCase):
         for name in ("a.bundle", "b.bundle"):
             (self.staging / name).touch()
 
-    def run_program(self, *args, program=None, env=None):
+    def environment(self, env):
         environment = dict(os.environ, LD_PRELOAD="%s:%s" % (self.cache, self.fake))
         environment.update(env or {})
-        result = subprocess.run([str(program or self.steam), *map(str, args)], env=environment,
+        return environment
+
+    def run_program(self, *args, program=None, env=None):
+        result = subprocess.run([str(program or self.steam), *map(str, args)], env=self.environment(env),
                                 capture_output=True, text=True, check=True, timeout=60)
         return result.stdout.splitlines()
+
+    def run_paused(self, *args, between, env=None):
+        with subprocess.Popen([str(self.steam), *map(str, args)], env=self.environment(env), text=True,
+                              stdin=subprocess.PIPE, stdout=subprocess.PIPE) as probe:
+            before = []
+            for line in probe.stdout:
+                if line == "ready\n":
+                    break
+                before.append(line.rstrip("\n"))
+            between()
+            after, _ = probe.communicate("go\n", timeout=60)
+        self.assertEqual(0, probe.returncode)
+        return before + after.splitlines()
 
     def test_repeated_listings_read_the_directory_once(self):
         out = self.run_program("list", self.staging, "list", self.staging, "list", self.staging, "opens")
@@ -489,6 +513,54 @@ class DirCachePreloadTest(unittest.TestCase):
         out = self.run_program("list", s, "rename", parent, moved, "mkdir", parent, "mkdir", s,
                                "sneak", s / "x.bundle", "access", s / "x.bundle", "accesses")
         self.assertEqual(["0 0", "1"], out[1:])
+
+    def test_a_listing_is_dropped_when_another_process_renames_a_folder_above_it(self):
+        s = self.staging
+        parent = s.parent
+
+        def swap():
+            parent.rename(parent.parent / "downloading.old")
+            s.mkdir(parents=True)
+            (s / "x.bundle").touch()
+
+        out = self.run_paused("list", s, "pause", "access", s / "x.bundle", "accesses", between=swap)
+        self.assertEqual(["0 0", "1"], out[1:])
+
+    def test_a_listing_is_dropped_when_another_process_removes_a_folder_above_it(self):
+        deep = self.staging / "deep"
+        deep.mkdir()
+        parent = self.staging.parent
+
+        def swap():
+            self.staging.rename(self.lib / "moved")
+            parent.rmdir()
+            deep.mkdir(parents=True)
+            (deep / "x.bundle").touch()
+
+        out = self.run_paused("list", deep, "pause", "access", deep / "x.bundle", "accesses", between=swap)
+        self.assertEqual(["", "0 0", "1"], out)
+
+    def test_a_listing_is_dropped_when_a_folder_above_it_is_renamed_around_the_cache(self):
+        s = self.staging
+        parent = s.parent
+        out = self.run_program("list", s, "sneak-rename", parent, parent.parent / "downloading.old",
+                               "sneak-mkdir", parent, "sneak-mkdir", s, "sneak", s / "x.bundle",
+                               "access", s / "x.bundle", "accesses")
+        self.assertEqual(["0 0", "1"], out[1:])
+
+    def test_changes_in_a_cached_folder_above_keep_the_listing_below(self):
+        s = self.staging
+        parent = s.parent
+
+        def churn():
+            (parent / "z").touch()
+            (parent / "z").unlink()
+            (parent / "sibling").mkdir()
+            (parent / "sibling").rmdir()
+
+        out = self.run_paused("list", parent, "list", s, "pause", "list", parent, "list", s,
+                              "access", s / "x.bundle", "accesses", "opens", between=churn)
+        self.assertEqual([s.name, "a.bundle,b.bundle", s.name, "a.bundle,b.bundle", "-1 2", "0", "3"], out)
 
     def test_misses_outside_the_client_or_fuse_steamapps_reach_the_filesystem(self):
         s = self.staging
