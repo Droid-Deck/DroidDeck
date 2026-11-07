@@ -20,8 +20,11 @@ the requirements the first script checks against.
 1. **The phone**: Settings > About phone > tap the build number seven times to
    turn on developer mode, then Settings > System and updates > Developer
    options > USB debugging. Plug it in and trust the computer.
-2. **The HAP**: build it with `tools/build_hap.sh` and sign it with your own
-   Huawei account. The repository ships no keys on purpose.
+2. **The HAP**: build it with `tools/build_hap.sh`, check it with
+   `tools/check_hap.sh`, and sign it with `tools/sign_hap.sh`. The repository
+   ships no keys on purpose — signing needs your own Huawei account.
+   `tools/sign_hap.sh` drives DevEco Studio's own `hap-sign-tool`, so the
+   whole path is one command and no IDE has to be open.
 3. **The phone needs**: 3 GiB of free storage (the runtime image unpacks to
    1.09 GiB) and 4 GiB of RAM. The first script says whether it has both.
 

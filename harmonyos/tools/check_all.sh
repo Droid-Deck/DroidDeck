@@ -83,6 +83,15 @@ run "check_native_deps.sh" bash tools/check_native_deps.sh
 run "test_native_host.sh" bash tools/test_native_host.sh
 run "test_check_device_capabilities.sh" bash tools/test_check_device_capabilities.sh
 run "test_device_smoke.sh" bash tools/test_device_smoke.sh
+run "test_check_hap.sh" bash tools/test_check_hap.sh
+
+# The HAP check itself needs a built HAP, which needs DevEco Studio.
+hap="$(find entry/build -name '*.hap' -type f 2>/dev/null | head -1)"
+if [ -n "${hap}" ]; then
+  run "check_hap.sh" bash tools/check_hap.sh "${hap}"
+else
+  skip "check_hap.sh" "no HAP has been built yet"
+fi
 
 # --- the ones that need the published runtime image ------------------------
 

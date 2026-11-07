@@ -68,6 +68,11 @@ harmonyos/
     ├── device_smoke.sh              runs the port on a phone and reports what
     │                                 it managed to do
     ├── test_device_smoke.sh         tests that against a stand-in for hdc
+    ├── check_hap.sh                 checks a built HAP before it goes on a phone
+    ├── test_check_hap.sh            tests that against an archive of the port's
+    │                                 own files
+    ├── sign_hap.sh                  signs an unsigned HAP with DevEco's
+    │                                 hap-sign-tool
     ├── check_all.sh                 runs every check above, in one command
     ├── fetch_upstream_runtime.sh downloads the published runtime
     ├── install_cxx_runtime.sh    installs libc++_shared.so into the HAP

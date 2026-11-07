@@ -10,7 +10,8 @@
 #
 # What is produced:
 #
-#   pulseaudio                the server daemon
+#   libpulseaudio.so           the server daemon, in the shared-library form
+#                              the app launches it in
 #   libpulsecore-<n>.so       the server core
 #   libpulsecommon-<n>.so     the code both sides share
 #   libpulse-<n>.so           the client library
@@ -374,10 +375,13 @@ while IFS= read -r lib; do
 done < <(find "${build_dir}" -maxdepth 3 \( -name "libpulse*.so*" -o -name "libprotocol-native.so*" \) -type f)
 
 install_one "${build_dir}/src/daemon/pulseaudio" \
-             "${root}/entry/libs/arm64-v8a/pulseaudio"
+             "${work}/pulseaudio-standalone"
 # The daemon is built as a shared library, and meson prefixes the name with
 # "lib" of its own accord. The app launches it by that name, so a build
 # without it has to fail here rather than at the first session on a phone.
+# The standalone binary the same build produces is not installed: the app
+# never runs it, and an executable in the library directory would otherwise
+# ship in the HAP without a reason.
 if [ ! -f "${build_dir}/src/daemon/libpulseaudio.so" ]; then
   echo "the PulseAudio daemon was not built; look at ${work}/meson-logs" >&2
   exit 1
