@@ -302,7 +302,7 @@ For games that confine a visible cursor and warp it, which the automatic rule ca
 The rule only counted a lock with a cursor position hint. A game that hides the cursor and confines the
 pointer through a grab (Wine's ClipCursor) has a constraint with no hint, so the nested pointer stayed
 absolute, the constraint held the X pointer still and no raw motion was produced: the camera froze.
-0133 narrows this for confines.
+0133 narrows this to constraints whose game holds the X pointer.
 
 ## 0129 steamcompmgr, wayland: release a pointer lock at the game's pointer
 
@@ -333,11 +333,12 @@ asking for `_NET_WM_STATE_FULLSCREEN`, or a Steam game covering the X screen wit
 decorations in `_MOTIF_WM_HINTS`, makes the outer window fullscreen on the desktop. Anything else makes it a normal window of the
 game window's size, or a maximised one when that size does not fit the desktop with its title bar and panel. A change is applied only when the wanted mode changes, so a manual resize or Super+F stays.
 
-## 0133 steamcompmgr: a confine is relative only while it holds the X pointer
+## 0133 steamcompmgr: a constraint without a hint is relative only while the game holds the X pointer
 
-0128 made every hidden-cursor confine relative, which also caught games that hide the system cursor, draw their own and
-confine the pointer to their window (Balatro, Stardew Valley). DroidDeck turns a direct touch swipe under a lock into camera
-motion, so dragging in those games only moved the pointer. A confine now goes relative once the X pointer stays more than
-48 px from the seat position on three moving frames within half a second, as it does when the game recentres it or clips it to
-a small rectangle (PEAK), and stops after 60 moving frames that it follows again or when the confine ends. Locks are unchanged.
-`tools/tests/test_gamescope_confined_pointer_hold.py` compiles the rule from this patch.
+0128 made every hidden-cursor constraint relative, which also caught games that hide the system cursor, draw their own and
+grab the pointer to their window (Balatro, Stardew Valley). Xwayland turns that grab into a lock without a cursor position
+hint, and DroidDeck turns a direct touch swipe under a lock into camera motion, so dragging in those games only moved the
+pointer. A constraint with a hint stays relative at once, as upstream. One without a hint goes relative once the X pointer
+stops following the seat, moving less than a quarter of the seat's motion on three frames within half a second, as it does
+when the game recentres it or clips it to a small rectangle (PEAK). It stops after 60 moving frames that the X pointer
+follows again, or when the constraint ends. `tools/tests/test_gamescope_pointer_hold.py` compiles the rule from this patch.

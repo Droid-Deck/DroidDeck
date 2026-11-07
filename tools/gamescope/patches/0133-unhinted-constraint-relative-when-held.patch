@@ -1,0 +1,112 @@
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+index c847a48..c759ff9 100644
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -3165,6 +3165,89 @@
+ 	wlserver_unlock();
+ }
+ 
++struct PointerHold
++{
++	int nAwayFrames = 0;
++	int nFreeFrames = 0;
++	uint64_t ulLastAway = 0;
++	bool bHeld = false;
++};
++
++static bool pointer_hold_step( PointerHold &state, bool bUnhinted, double flSeatDX, double flSeatDY, double flPointerDX, double flPointerDY, uint64_t ulNow )
++{
++	if ( !bUnhinted )
++	{
++		state = PointerHold{};
++		return false;
++	}
++
++	const double flSeat = std::max( std::abs( flSeatDX ), std::abs( flSeatDY ) );
++	if ( flSeat < 4.0 )
++		return state.bHeld;
++
++	const double flMiss = std::max( std::abs( flSeatDX - flPointerDX ), std::abs( flSeatDY - flPointerDY ) );
++	if ( flMiss > flSeat * 0.75 )
++	{
++		if ( ulNow - state.ulLastAway > 500'000'000ul )
++			state.nAwayFrames = 0;
++		state.ulLastAway = ulNow;
++		state.nFreeFrames = 0;
++		if ( ++state.nAwayFrames >= 3 )
++			state.bHeld = true;
++	}
++	else if ( state.bHeld && ++state.nFreeFrames >= 60 )
++	{
++		state = PointerHold{};
++	}
++
++	return state.bHeld;
++}
++
++static bool game_holds_pointer( bool bHinted, bool bUnhinted, bool bHeld )
++{
++	return bHinted || ( bUnhinted && bHeld );
++}
++
++static bool s_bPointerHeld = false;
++
++static void update_pointer_hold( global_focus_t *pFocus, bool bUnhinted )
++{
++	static PointerHold s_Hold;
++	static bool s_bTracking = false;
++	static double s_flSeatX = 0.0;
++	static double s_flSeatY = 0.0;
++	static int s_nRootX = 0;
++	static int s_nRootY = 0;
++
++	if ( !bUnhinted || !pFocus->cursor )
++	{
++		s_bTracking = false;
++		s_bPointerHeld = pointer_hold_step( s_Hold, false, 0.0, 0.0, 0.0, 0.0, 0 );
++		return;
++	}
++
++	wlserver_lock();
++	const double flX = wlserver.mouse_surface_cursorx;
++	const double flY = wlserver.mouse_surface_cursory;
++	wlserver_unlock();
++
++	if ( s_bTracking && flX == s_flSeatX && flY == s_flSeatY )
++		return;
++
++	int nRootX = 0;
++	int nRootY = 0;
++	pFocus->cursor->QueryRootPosition( &nRootX, &nRootY );
++
++	if ( s_bTracking )
++		s_bPointerHeld = pointer_hold_step( s_Hold, true, flX - s_flSeatX, flY - s_flSeatY, nRootX - s_nRootX, nRootY - s_nRootY, get_time_in_nanos() );
++
++	s_bTracking = true;
++	s_flSeatX = flX;
++	s_flSeatY = flY;
++	s_nRootX = nRootX;
++	s_nRootY = nRootY;
++}
++
+ bool ShouldDrawCursor()
+ {
+ 	if ( relative_mouse_forced() )
+@@ -11029,9 +11112,16 @@
+ 						nRelativeMouse != 2 && !bExcludedAppId && !bHasPointerConstraint && !window_is_steam( pPaintFocus->inputFocusWindow ) );
+ 				}
+ 
++				const bool bHintedConstraint = pPaintFocus->cursor && pPaintFocus->cursor->IsConstrained();
++				const bool bUnhintedConstraint = bHasPointerConstraint && !bHintedConstraint;
++				if ( vblank )
++					update_pointer_hold( pPaintFocus, bUnhintedConstraint && bImageEmpty && nRelativeMouse != 2 && !bExcludedAppId );
++
++				const bool bGameHoldsPointer = game_holds_pointer( bHintedConstraint, bUnhintedConstraint, s_bPointerHeld );
++
+ 				const bool bRelativeMouseMode = nRelativeMouse == 2
+ 					? false
+-					: ( bForcedRelativeMouse || s_bFollowClientPointer || ( bImageEmpty && bHasPointerConstraint && !bExcludedAppId ) );
++					: ( bForcedRelativeMouse || s_bFollowClientPointer || ( bImageEmpty && bGameHoldsPointer && !bExcludedAppId ) );
+ 
+ 				static bool s_bRelativeMouseMode = false;
+ 				if ( s_bRelativeMouseMode && !bRelativeMouseMode && pPaintFocus->cursor &&
