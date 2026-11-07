@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">Đang đặt lại đồ họa và mở lại SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck không thể tự khởi động lại. Hãy đóng hẳn ứng dụng rồi mở lại.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>Lần chạy đầu tải Steam. Quá trình này có thể mất vài phút.</item>
-        <item>Theo mặc định, rời khỏi ứng dụng sẽ tạm dừng Steam; nó tiếp tục từ nơi bạn dừng lại khi bạn quay lại.</item>
-        <item>Tay cầm của bạn hiện ra như tay cầm Xbox 360. Nếu không, hãy dùng các nút điều khiển trên màn hình.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Lần chạy đầu thiết lập desktop. Quá trình này có thể mất vài phút.</item>
-        <item>Theo mặc định, rời khỏi ứng dụng sẽ tạm dừng phiên; nó tiếp tục từ nơi bạn dừng lại khi bạn quay lại.</item>
-        <item>Chạm hoạt động như touchpad: kéo để di chuyển con trỏ, chạm để nhấp.</item>
-        <item>Tay cầm của bạn hiện ra như tay cầm Xbox 360. Nếu không, hãy dùng các nút điều khiển trên màn hình.</item>
-    </string-array>
     <string name="session_channel">Phiên</string>
     <string name="session_channel_description">Hiển thị khi có phiên Steam hoặc desktop đang mở</string>
     <string name="session_notification">Steam đang chạy</string>

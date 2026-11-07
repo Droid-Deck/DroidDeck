@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">กำลังรีเซ็ตกราฟิกและเปิด SteamVR อีกครั้ง…</string>
     <string name="steamvr_recovery_failed">DroidDeck รีสตาร์ทโดยอัตโนมัติไม่ได้ ปิดแอปให้สนิทแล้วเปิดใหม่อีกครั้ง</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>การเริ่มใช้งานครั้งแรกจะดาวน์โหลด Steam ซึ่งอาจใช้เวลาสักครู่</item>
-        <item>ตามค่าเริ่มต้น การออกจากแอปจะหยุด Steam ไว้ชั่วคราว แล้วกลับมาทำงานต่อจากจุดเดิมเมื่อคุณเปิดแอปอีกครั้ง</item>
-        <item>คอนโทรลเลอร์ของคุณจะปรากฏเป็นจอย Xbox 360 หากไม่เช่นนั้นให้ใช้ปุ่มควบคุมบนหน้าจอ</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>การเริ่มใช้งานครั้งแรกจะตั้งค่าเดสก์ท็อป ซึ่งอาจใช้เวลาสักครู่</item>
-        <item>ตามค่าเริ่มต้น การออกจากแอปจะหยุดเซสชันไว้ชั่วคราว แล้วกลับมาทำงานต่อจากจุดเดิมเมื่อคุณเปิดแอปอีกครั้ง</item>
-        <item>การสัมผัสหน้าจอทำงานเหมือนทัชแพด ลากเพื่อเลื่อนตัวชี้ แตะเพื่อคลิก</item>
-        <item>คอนโทรลเลอร์ของคุณจะปรากฏเป็นจอย Xbox 360 หากไม่เช่นนั้นให้ใช้ปุ่มควบคุมบนหน้าจอ</item>
-    </string-array>
     <string name="session_channel">เซสชัน</string>
     <string name="session_channel_description">แสดงขณะมีเซสชัน Steam หรือเดสก์ท็อปเปิดอยู่</string>
     <string name="session_notification">Steam กำลังทำงาน</string>

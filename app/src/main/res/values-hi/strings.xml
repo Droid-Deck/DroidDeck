@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">ग्राफ़िक्स रीसेट हो रहे हैं और SteamVR फिर से खुल रहा है…</string>
     <string name="steamvr_recovery_failed">DroidDeck अपने-आप रीस्टार्ट नहीं हो सका। ऐप को पूरी तरह बंद करें, फिर उसे दोबारा खोलें।</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>पहली बार चलाने पर Steam डाउनलोड होता है। इसमें कुछ मिनट लग सकते हैं।</item>
-        <item>डिफ़ॉल्ट रूप से, ऐप से बाहर जाने पर Steam रुक जाता है; वापस आने पर यह वहीं से शुरू होता है जहां छोड़ा था।</item>
-        <item>आपका कंट्रोलर Xbox 360 पैड के रूप में दिखाई देता है। नहीं तो, ऑन-स्क्रीन कंट्रोल का उपयोग करें।</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>पहली बार चलाने पर डेस्कटॉप सेट हो जाता है। इसमें कुछ मिनट लग सकते हैं।</item>
-        <item>डिफ़ॉल्ट रूप से, ऐप से बाहर जाने पर सेशन रुक जाता है; वापस आने पर यह वहीं से शुरू होता है जहां छोड़ा था।</item>
-        <item>टच टचपैड की तरह काम करता है: पॉइंटर घुमाने के लिए ड्रैग करें, क्लिक के लिए टैप करें।</item>
-        <item>आपका कंट्रोलर Xbox 360 पैड के रूप में दिखाई देता है। नहीं तो, ऑन-स्क्रीन कंट्रोल का उपयोग करें।</item>
-    </string-array>
     <string name="session_channel">सेशन</string>
     <string name="session_channel_description">Steam या डेस्कटॉप सेशन खुला होने पर दिखता है</string>
     <string name="session_notification">Steam चल रहा है</string>

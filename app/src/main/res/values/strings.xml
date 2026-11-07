@@ -37,14 +37,29 @@
     <string name="wall_settings_speed" translatable="false">Scroll speed</string>
     <string-array name="loading_hints">
         <item>First run downloads Steam. This may take a few minutes.</item>
-        <item>By default, leaving the app pauses Steam; it picks up where it left off when you come back.</item>
-        <item>Your controller appears as an Xbox 360 pad. Otherwise, use the on-screen controls.</item>
+        <item>Your controller shows up to Steam as a Steam Deck controller. Switch it to a Steam Controller, DualShock 4, DualSense or Xbox 360 pad in the session settings; it applies next session.</item>
+        <item>Hold Back on your controller to open Steam\'s Quick Access menu.</item>
+        <item>Background behavior decides what happens when you leave the app: Native readies Steam for sleep, Auto pauses it, Manual waits for Resume, Never keeps it running.</item>
+        <item>Steam games use Steam\'s Frame Limit in Quick Access. The display switches to a refresh rate the cap divides evenly.</item>
+        <item>Low latency mode in the session menu sends controller input at 1000 Hz instead of 250 Hz, for a bit more CPU and battery.</item>
+        <item>Each game has its own profile with Proton, FEX, components and environment settings.</item>
+        <item>The session menu has a microphone toggle for voice chat and a Suspend now button to freeze the session on demand.</item>
+        <item>Drag the DroidDeck HUD to move it, pinch to resize it, and push it off an edge to dock it as a small FPS tab.</item>
+        <item>On dual-screen handhelds, the bottom screen can show downloads, notifications, screenshots and Steam chat. Swap screens puts the game down there instead.</item>
+        <item>Add Steam libraries from an SD card, USB drive or SSD, and DroidDeck keeps the games together in your Library.</item>
+        <item>Stores lets you sign in to GOG, itch.io, Battle.net, Amazon Games and Game Jolt, then install and update their games from DroidDeck.</item>
+        <item>Components like FEX, DXVK and VKD3D-Proton update themselves, and DroidDeck-Proton is the default.</item>
+        <item>Compress Steam while a game runs frees RAM on devices that run low.</item>
+        <item>Hitting a bug? Share logs in the session menu bundles diagnostics for a report.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
         <item>First run sets up the desktop. This may take a few minutes.</item>
-        <item>By default, leaving the app pauses the session; it picks up where it left off when you come back.</item>
         <item>Touch works as a touchpad: drag to move the pointer, tap to click.</item>
-        <item>Your controller appears as an Xbox 360 pad. Otherwise, use the on-screen controls.</item>
+        <item>Background behavior decides what happens when you leave the app: Manual waits for Resume by default, Auto pauses, Never keeps it running.</item>
+        <item>The PC keyboard in the session menu has adjustable size, opacity and key groups.</item>
+        <item>Your controller shows up as an Xbox 360 pad. Otherwise, use the on-screen controls.</item>
+        <item>The session menu has a microphone toggle and a Suspend now button to freeze the session on demand.</item>
+        <item>Hitting a bug? Share logs in the session menu bundles diagnostics for a report.</item>
     </string-array>
     <string name="session_channel">Session</string>
     <string name="session_channel_description">Shows while a Steam or desktop session is open</string>

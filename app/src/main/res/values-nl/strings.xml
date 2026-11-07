@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">Grafische weergave resetten en SteamVR opnieuw openen…</string>
     <string name="steamvr_recovery_failed">DroidDeck kon niet automatisch opnieuw starten. Sluit de app volledig af en open hem daarna opnieuw.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>Bij de eerste start wordt Steam gedownload. Dit kan een paar minuten duren.</item>
-        <item>Standaard wordt Steam gepauzeerd als je de app verlaat; als je terugkomt, gaat het verder waar je was.</item>
-        <item>Je controller wordt gezien als Xbox 360-controller. Gebruik anders de schermbediening.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Bij de eerste start wordt de desktop ingericht. Dit kan een paar minuten duren.</item>
-        <item>Standaard wordt de sessie gepauzeerd als je de app verlaat; als je terugkomt, gaat die verder waar je was.</item>
-        <item>Aanraken werkt als touchpad: sleep om de aanwijzer te verplaatsen, tik om te klikken.</item>
-        <item>Je controller wordt gezien als Xbox 360-controller. Gebruik anders de schermbediening.</item>
-    </string-array>
     <string name="session_channel">Sessie</string>
     <string name="session_channel_description">Wordt getoond zolang er een Steam- of desktopsessie open is</string>
     <string name="session_notification">Steam is actief</string>

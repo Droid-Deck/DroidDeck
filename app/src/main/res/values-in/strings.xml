@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">Mereset grafis dan membuka kembali SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck tidak bisa dimulai ulang secara otomatis. Tutup aplikasi sepenuhnya, lalu buka lagi.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>Proses pertama mengunduh Steam. Ini mungkin memerlukan beberapa menit.</item>
-        <item>Secara default, keluar dari aplikasi akan menjeda Steam; sesi dilanjutkan dari posisi terakhir saat Anda kembali.</item>
-        <item>Pengontrol Anda akan terlihat sebagai gamepad Xbox 360. Jika tidak, gunakan kontrol di layar.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Proses pertama menyiapkan desktop. Ini mungkin memerlukan beberapa menit.</item>
-        <item>Secara default, keluar dari aplikasi akan menjeda sesi; sesi dilanjutkan dari posisi terakhir saat Anda kembali.</item>
-        <item>Sentuhan berfungsi seperti touchpad: geser untuk menggerakkan penunjuk, ketuk untuk mengeklik.</item>
-        <item>Pengontrol Anda akan terlihat sebagai gamepad Xbox 360. Jika tidak, gunakan kontrol di layar.</item>
-    </string-array>
     <string name="session_channel">Sesi</string>
     <string name="session_channel_description">Ditampilkan saat sesi Steam atau desktop berjalan</string>
     <string name="session_notification">Steam berjalan</string>

@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">Redefinindo os gráficos e reabrindo o SteamVR…</string>
     <string name="steamvr_recovery_failed">O DroidDeck não conseguiu reiniciar automaticamente. Feche o app completamente e abra-o de novo.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>Na primeira execução, a Steam é baixada. Isso pode levar alguns minutos.</item>
-        <item>Por padrão, sair do app pausa a Steam; ela continua de onde parou quando você voltar.</item>
-        <item>Seu controle aparece como um controle de Xbox 360. Sem controle, use os controles na tela.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Na primeira execução, a área de trabalho é preparada. Isso pode levar alguns minutos.</item>
-        <item>Por padrão, sair do app pausa a sessão; ela continua de onde parou quando você voltar.</item>
-        <item>O toque funciona como um touchpad: arraste para mover o ponteiro, toque para clicar.</item>
-        <item>Seu controle aparece como um controle de Xbox 360. Sem controle, use os controles na tela.</item>
-    </string-array>
     <string name="session_channel">Sessão</string>
     <string name="session_channel_description">Aparece enquanto uma sessão da Steam ou da área de trabalho está aberta</string>
     <string name="session_notification">A Steam está em execução</string>

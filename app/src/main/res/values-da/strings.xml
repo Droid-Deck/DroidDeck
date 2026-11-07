@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">Nulstiller grafikken og åbner SteamVR igen…</string>
     <string name="steamvr_recovery_failed">DroidDeck kunne ikke genstarte automatisk. Luk appen helt, og åbn den så igen.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>Den første start downloader Steam. Det kan tage nogle minutter.</item>
-        <item>Som standard sætter Steam på pause, når du forlader appen, og fortsætter, hvor du slap, når du kommer tilbage.</item>
-        <item>Din controller vises som en Xbox 360-controller. Brug ellers kontrollerne på skærmen.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Den første start sætter skrivebordet op. Det kan tage nogle minutter.</item>
-        <item>Som standard sætter sessionen på pause, når du forlader appen, og fortsætter, hvor du slap, når du kommer tilbage.</item>
-        <item>Berøring fungerer som et touchpad: Træk for at flytte markøren, tryk for at klikke.</item>
-        <item>Din controller vises som en Xbox 360-controller. Brug ellers kontrollerne på skærmen.</item>
-    </string-array>
     <string name="session_channel">Session</string>
     <string name="session_channel_description">Vises, når en Steam- eller skrivebordssession er åben</string>
     <string name="session_notification">Steam kører</string>

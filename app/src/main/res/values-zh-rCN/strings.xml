@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">正在重置图形并重新打开 SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck 无法自动重启。请完全关闭应用，然后重新打开。</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>首次运行会下载 Steam，这可能需要几分钟。</item>
-        <item>默认情况下，离开应用会暂停 Steam；返回后会从原处继续。</item>
-        <item>你的手柄会被识别为 Xbox 360 手柄；若没有手柄，请使用屏幕控制。</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>首次运行会设置桌面环境，这可能需要几分钟。</item>
-        <item>默认情况下，离开应用会暂停会话；返回后会从原处继续。</item>
-        <item>触控区域可当作触控板使用：拖动可移动指针，轻点即可点击。</item>
-        <item>你的手柄会被识别为 Xbox 360 手柄；若没有手柄，请使用屏幕控制。</item>
-    </string-array>
     <string name="session_channel">会话</string>
     <string name="session_channel_description">在 Steam 或桌面会话打开时显示</string>
     <string name="session_notification">Steam 正在运行</string>

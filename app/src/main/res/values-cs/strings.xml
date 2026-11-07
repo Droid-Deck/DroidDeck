@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">Resetování grafiky a opětovné otevírání SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck se nepodařilo automaticky restartovat. Aplikaci úplně zavřete a pak ji znovu otevřete.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>První spuštění stáhne Steam. Může to trvat několik minut.</item>
-        <item>Ve výchozím nastavení se po opuštění aplikace Steam pozastaví; po návratu pokračuje, kde skončil.</item>
-        <item>Váš ovladač se zobrazí jako ovladač Xbox 360. Jinak použijte ovládání na obrazovce.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>První spuštění připraví Plochu. Může to trvat několik minut.</item>
-        <item>Ve výchozím nastavení se po opuštění aplikace relace pozastaví; po návratu pokračuje, kde skončila.</item>
-        <item>Dotyk funguje jako touchpad: tažením posouváte kurzor, dotykem klikáte.</item>
-        <item>Váš ovladač se zobrazí jako ovladač Xbox 360. Jinak použijte ovládání na obrazovce.</item>
-    </string-array>
     <string name="session_channel">Relace</string>
     <string name="session_channel_description">Zobrazuje se, když je otevřená relace Steamu nebo Plochy</string>
     <string name="session_notification">Steam běží</string>

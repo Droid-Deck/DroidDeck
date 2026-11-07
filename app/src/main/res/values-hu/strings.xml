@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">A grafika visszaállítása és a SteamVR újranyitása…</string>
     <string name="steamvr_recovery_failed">A DroidDeck nem tudott automatikusan újraindulni. Zárja be teljesen az alkalmazást, majd nyissa meg újra.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>Az első indítás letölti a Steamet. Ez néhány percet vehet igénybe.</item>
-        <item>Alapértelmezés szerint az alkalmazás elhagyása szünetelteti a Steamet; visszatéréskor ott folytatja, ahol abbahagyta.</item>
-        <item>A kontroller Xbox 360 kontrollerként jelenik meg. Egyébként használja a képernyőn lévő vezérlőket.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Az első indítás beállítja az asztalt. Ez néhány percet vehet igénybe.</item>
-        <item>Alapértelmezés szerint az alkalmazás elhagyása szünetelteti a munkamenetet; visszatéréskor ott folytatja, ahol abbahagyta.</item>
-        <item>Az érintés érintőpadként működik: húzással mozgathatja a kurzort, koppintással kattinthat.</item>
-        <item>A kontroller Xbox 360 kontrollerként jelenik meg. Egyébként használja a képernyőn lévő vezérlőket.</item>
-    </string-array>
     <string name="session_channel">Munkamenet</string>
     <string name="session_channel_description">Megjelenik, amíg egy Steam- vagy asztali munkamenet aktív</string>
     <string name="session_notification">A Steam fut</string>

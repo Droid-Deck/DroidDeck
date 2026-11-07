@@ -8,17 +8,6 @@
     <string name="steamvr_recovery_restarting">Réinitialisation du rendu graphique et réouverture de SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck n\'a pas pu redémarrer automatiquement. Fermez complètement l\'application, puis rouvrez-la.</string>
     <string name="app_name">DroidDeck</string>
-    <string-array name="loading_hints">
-        <item>Le premier lancement télécharge Steam. Cela peut prendre quelques minutes.</item>
-        <item>Par défaut, quitter l\'application met Steam en pause ; y revenir reprend là où vous vous étiez arrêté.</item>
-        <item>Votre manette apparaîtra comme une manette Xbox 360. Sinon, utilisez les commandes à l\'écran.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Le premier lancement configure le bureau. Cela peut prendre quelques minutes.</item>
-        <item>Par défaut, quitter l\'application met la session en pause ; y revenir reprend là où vous vous étiez arrêté.</item>
-        <item>Le tactile fonctionne comme un pavé tactile : faites glisser pour déplacer le pointeur, tapotez pour cliquer.</item>
-        <item>Votre manette apparaîtra comme une manette Xbox 360. Sinon, utilisez les commandes à l\'écran.</item>
-    </string-array>
     <string name="session_channel">Session</string>
     <string name="session_channel_description">Affiché lorsqu\'une session Steam ou Bureau est ouverte</string>
     <string name="session_notification">Steam est en cours d\'exécution</string>
