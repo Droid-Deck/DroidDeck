@@ -239,6 +239,35 @@ class SecondScreenBarTest {
         compose.onNodeWithTag("bottom-bar-close").assertIsDisplayed()
     }
 
+    @Test fun theBottomPanelWaitsUnderAnOpenInputEditorAndReturnsWhenItCloses() {
+        SessionState.mode = SessionService.MODE_STEAM
+        val id = org.robolectric.shadows.ShadowDisplayManager.addDisplay("w1280dp-h960dp")
+        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
+        val displays = activity.getSystemService(DisplayManager::class.java)
+        org.robolectric.Shadows.shadowOf(displays.getDisplay(id)).setFlags(Display.FLAG_PRESENTATION)
+        ReflectionHelpers.setField(activity, "displayManager", displays)
+        ReflectionHelpers.setField(activity, "started", true)
+        ReflectionHelpers.getField<MutableState<Int>>(activity, "selectedSecondScreenDisplay\$delegate").value = id
+        val mode = ReflectionHelpers.getField<MutableState<SecondScreenMode>>(activity, "secondScreenMode\$delegate")
+        mode.value = SecondScreenMode.KEYBOARD_TRACKPAD
+        fun panel() = ReflectionHelpers.getField<SecondScreenPresentation?>(activity, "secondScreenPresentation")
+        fun show() = ReflectionHelpers.callInstanceMethod<Unit>(activity, "showSecondScreen",
+            ReflectionHelpers.ClassParameter.from(SecondScreenMode::class.java, SecondScreenMode.KEYBOARD_TRACKPAD))
+        activity.inputWindowShown(Display.DEFAULT_DISPLAY)
+        activity.inputWindowShown(id)
+        activity.inputWindowShown(id)
+        show()
+        assertNull(panel())
+        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, mode.value)
+        activity.inputWindowClosed(id)
+        assertNull(panel())
+        activity.inputWindowClosed(id)
+        try {
+            assertEquals(id, panel()!!.display.displayId)
+            assertTrue(panel()!!.isShowing)
+        } finally { panel()?.closeControls() }
+    }
+
     @Test fun unfoldedControlsGetTheSessionBar() {
         SessionState.mode = SessionService.MODE_STEAM
         val activity = Robolectric.buildActivity(SessionActivity::class.java).get()

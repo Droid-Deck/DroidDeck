@@ -52,4 +52,7 @@ object SecondScreenDisplays {
                 )
             }
             .toList()
+
+    fun editorCandidates(selected: Int, available: List<Int>, taken: (Int) -> Boolean): List<Int> =
+        (listOf(selected) + available).distinct().filterNot(taken)
 }

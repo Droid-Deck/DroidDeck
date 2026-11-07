@@ -56,12 +56,17 @@ internal fun InputDisplayContent(host: ComponentActivity, display: Display, onDi
                 dismiss()
             }
         }
+        (host as? com.droiddeck.launcher.SessionActivity)?.inputWindowShown(display.displayId)
         showPresentation()
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP) presentation.hide()
             if (event == Lifecycle.Event.ON_START) showPresentation()
         }
         host.lifecycle.addObserver(observer)
-        onDispose { host.lifecycle.removeObserver(observer); presentation.dismiss() }
+        onDispose {
+            host.lifecycle.removeObserver(observer)
+            presentation.dismiss()
+            (host as? com.droiddeck.launcher.SessionActivity)?.inputWindowClosed(display.displayId)
+        }
     }
 }

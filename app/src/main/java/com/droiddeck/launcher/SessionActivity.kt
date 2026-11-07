@@ -564,6 +564,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var sessionActivityDisplayId = Display.DEFAULT_DISPLAY
     private lateinit var displayManager: DisplayManager
     private var secondScreenPresentation: SecondScreenPresentation? = null
+    private val inputWindowDisplays = mutableListOf<Int>()
     private val bottomScreenListener: () -> Unit = {
         if (secondScreenPresentation?.display?.displayId?.let(com.droiddeck.launcher.input.DualScreen::taken) == true) closeSecondScreen(reset = false)
         updateBottomGame()
@@ -3378,6 +3379,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         var presentation = secondScreenPresentation
         if (presentation?.display?.displayId != target.displayId) {
+            if (target.displayId in inputWindowDisplays) {
+                panelMode(mode)
+                return
+            }
             dropDockedDrawer()
             presentation?.closeControls()
             presentation = secondScreenPresentation(target)
@@ -3518,8 +3523,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val main = window.decorView.display
         if (role == InputRole.PRIMARY) return bottomGame?.display ?: main
         if (bottomGame != null) return main
-        return displayManager.getDisplay(selectedSecondScreenDisplay)
-            ?: secondScreenDisplays.firstOrNull()?.let { displayManager.getDisplay(it.id) }
+        return com.droiddeck.launcher.input.SecondScreenDisplays.editorCandidates(selectedSecondScreenDisplay,
+            secondScreenDisplays.map { it.id }, com.droiddeck.launcher.input.DualScreen::taken).firstNotNullOfOrNull(displayManager::getDisplay)
+    }
+
+    fun inputWindowShown(displayId: Int) { inputWindowDisplays += displayId }
+
+    fun inputWindowClosed(displayId: Int) {
+        inputWindowDisplays -= displayId
+        if (started && displayId !in inputWindowDisplays && secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
     }
 
     private fun refreshInputProfile() {

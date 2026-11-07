@@ -162,7 +162,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
         val listener = object : DisplayManager.DisplayListener {
             override fun onDisplayAdded(id: Int) { revision++ }
             override fun onDisplayRemoved(id: Int) { revision++ }
-            override fun onDisplayChanged(id: Int) { revision++ }
+            override fun onDisplayChanged(id: Int) = Unit
         }
         manager.registerDisplayListener(listener, Handler(Looper.getMainLooper()))
         onDispose { manager.unregisterDisplayListener(listener) }
@@ -171,13 +171,18 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
         val presentation = SurfaceEditorPresentation(host, target, transparent = host is SessionActivity && role == InputRole.PRIMARY) {
             SurfaceCanvas(draft, transparent = host is SessionActivity && role == InputRole.PRIMARY)
         }
+        (host as? SessionActivity)?.inputWindowShown(target.displayId)
         runCatching { presentation.show() }.onFailure { failure = it.message }
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP) presentation.hide()
             if (event == Lifecycle.Event.ON_START) runCatching { presentation.show() }
         }
         host.lifecycle.addObserver(observer)
-        onDispose { host.lifecycle.removeObserver(observer); presentation.dismiss() }
+        onDispose {
+            host.lifecycle.removeObserver(observer)
+            presentation.dismiss()
+            (host as? SessionActivity)?.inputWindowClosed(target.displayId)
+        }
     }
     // Compose 1.6 custom dialog sizing subtracts system bars even when they are hidden.
     Dialog(onDismissRequest = ::leave, properties = DialogProperties(usePlatformDefaultWidth = true, decorFitsSystemWindows = false)) {
