@@ -354,7 +354,7 @@ class SessionSecondScreenTest {
                 SessionDrawer(true, SessionDrawerPage.SECOND_SCREEN, false, {}, actions(steam, displays) { selected += it })
             }
         }
-        val modes = listOf(SecondScreenMode.CUSTOM_CONTROLS, SecondScreenMode.TERMINAL)
+        val modes = listOf(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL, SecondScreenMode.CUSTOM_CONTROLS)
         for (mode in modes) {
             compose.onNodeWithText(context.getString(mode.label)).performScrollTo().assertIsDisplayed().performClick()
         }

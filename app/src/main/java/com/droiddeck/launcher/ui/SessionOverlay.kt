@@ -428,7 +428,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                 page == SessionDrawerPage.GLASSES -> "glasses-tab-$glassesTab"
                 page == SessionDrawerPage.SESSION && a.isHomeApp -> "apps"
                 page == SessionDrawerPage.SECOND_SCREEN -> "second-screen:" +
-                    (if (a.secondScreenMode == SecondScreenMode.NONE && !a.secondScreenNone) SecondScreenMode.CUSTOM_CONTROLS else a.secondScreenMode).id
+                    (if (a.secondScreenMode == SecondScreenMode.NONE && !a.secondScreenNone) SecondScreenMode.KEYBOARD_TRACKPAD else a.secondScreenMode).id
                 else -> page.firstControl
             }
             if (turned) focus.forget(page)
@@ -1158,7 +1158,8 @@ private fun SteamVrRow(a: DrawerActions) {
 }
 
 internal fun secondScreenModes(none: Boolean, deckPad: Boolean, dashboard: Boolean, desktop: Boolean): List<SecondScreenMode> =
-    (if (none) listOf(SecondScreenMode.NONE) else emptyList()) + listOf(SecondScreenMode.CUSTOM_CONTROLS, SecondScreenMode.TERMINAL) +
+    (if (none) listOf(SecondScreenMode.NONE) else emptyList()) + listOf(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL) +
+        (if (deckPad) listOf(SecondScreenMode.DECK_CONTROLS) else emptyList()) + listOf(SecondScreenMode.CUSTOM_CONTROLS) +
         (if (dashboard) listOf(SecondScreenMode.DASHBOARD) else emptyList()) +
         (if (desktop) listOf(SecondScreenMode.DESKTOP) else emptyList())
 

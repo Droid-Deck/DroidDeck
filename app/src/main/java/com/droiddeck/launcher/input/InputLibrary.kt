@@ -81,7 +81,12 @@ data class InputLibrary(
         return if (binding != null) InputPart(binding.id, binding.layoutId) else profile(activeId(isDesktop)).parts.getValue(role)
     }
     fun activeLayout(isDesktop: Boolean, role: InputRole) = activePart(isDesktop, role).layout?.let { id -> layouts.first { it.id == id } }
-    fun compileActive(isDesktop: Boolean): InputProfile = compileParts(activeId(isDesktop), InputRole.entries.associateWith { preset(activePart(isDesktop, it).bindings) })
+    fun panelPart(isDesktop: Boolean, panel: String?): InputPart =
+        panel?.let { id -> bindings.firstOrNull { it.id == id } }?.let { InputPart(it.id, it.layoutId) } ?: activePart(isDesktop, InputRole.SECONDARY)
+    fun panelLayout(isDesktop: Boolean, panel: String?) = panelPart(isDesktop, panel).layout?.let { id -> layouts.firstOrNull { it.id == id } }
+    fun compileActive(isDesktop: Boolean, panel: String? = null): InputProfile = compileParts(activeId(isDesktop), InputRole.entries.associateWith {
+        preset(if (it == InputRole.SECONDARY) panelPart(isDesktop, panel).bindings else activePart(isDesktop, it).bindings)
+    })
 
     fun saveSelection(isDesktop: Boolean, name: String, id: String = newInputId()): InputLibrary {
         val current = profile(activeId(isDesktop))
