@@ -15,6 +15,7 @@ object ComponentUpdater {
     private const val BOOTED_KEPT = 200
     private const val HANDED_BACK = "handedBack"
     internal const val HAND_BACK_FILES = "handBackFiles"
+    private const val IMPORTED = "imported"
     private val lock = Any()
     private val io = Any()
 
@@ -160,7 +161,7 @@ object ComponentUpdater {
                     complete = false
                     continue
                 }
-                ls.put("owned", JSONArray(ls.strings("owned") + current))
+                own(state, ls, current)
             }
             val target = ComponentUpdates.pick(catalog, line, ls.strings("bad"))
             if (target == null || current == target.file) continue
@@ -188,7 +189,7 @@ object ComponentUpdater {
             }
             ls.put("previous", if (missing && relisted == null) ComponentUpdates.ORIGINAL else current.ifEmpty { ComponentUpdates.ORIGINAL })
                 .put("current", target.file).put("since", latestStamp(context)).put("failed", JSONObject())
-            if (!stored) ls.put("owned", JSONArray(ls.strings("owned") + target.file))
+            if (!stored) own(state, ls, target.file)
             ls.remove("note")
             notes += context.getString(R.string.comp_auto_updated, ComponentsManager.LABEL[comp], target.file.removeSuffix(".wcp"))
         }
@@ -241,21 +242,28 @@ object ComponentUpdater {
         }
     }
 
+    private fun own(state: JSONObject, ls: JSONObject, file: String) {
+        ls.put("owned", JSONArray(ls.strings("owned") + file))
+        state.put(IMPORTED, JSONArray(state.strings(IMPORTED) - file))
+    }
+
     fun disown(context: Context, file: String) = synchronized(lock) {
         val state = load(context)
-        val lines = state.optJSONObject("lines") ?: return@synchronized
-        val holders = lines.keys().asSequence().mapNotNull { lines.optJSONObject(it) }.filter { file in it.strings("owned") }.toList()
-        holders.forEach { it.put("owned", JSONArray(it.strings("owned") - file)) }
-        if (holders.isNotEmpty()) save(context, state)
+        state.optJSONObject("lines")?.let { lines ->
+            lines.keys().asSequence().mapNotNull { lines.optJSONObject(it) }.filter { file in it.strings("owned") }
+                .forEach { it.put("owned", JSONArray(it.strings("owned") - file)) }
+        }
+        state.put(IMPORTED, JSONArray(state.strings(IMPORTED) + file))
+        save(context, state)
     }
 
     internal fun placed(state: JSONObject): Set<String> {
         val remembered = state.strings(HAND_BACK_FILES)
-        val lines = state.optJSONObject("lines") ?: return remembered
+        val lines = state.optJSONObject("lines") ?: return remembered - state.strings(IMPORTED)
         return remembered + lines.keys().asSequence().flatMap { k ->
             val ls = lines.optJSONObject(k) ?: return@flatMap emptySequence()
             (ls.strings("owned") + ls.strings("bad") + ls.optString("current") + ls.optString("previous")).asSequence()
-        }.filter { it.isNotEmpty() }.toSet()
+        }.filter { it.isNotEmpty() }.toSet() - state.strings(IMPORTED)
     }
 
     private fun handBack(context: Context, state: JSONObject, protons: List<ComponentsManager.Proton>) {

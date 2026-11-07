@@ -405,6 +405,9 @@ class ComponentUpdatesTest {
         val line = JSONObject(updates.readText()).getJSONObject("lines").getJSONObject("dxvk")
         val owned = (0 until line.getJSONArray("owned").length()).map { line.getJSONArray("owned").getString(it) }.toSet()
         assertEquals(setOf("DD-dxvk-3.1.1+190-nightly.wcp"), owned)
+        val auto = ComponentUpdater.placed(JSONObject(updates.readText()))
+        assertFalse("DD-dxvk-3.1.1+194-nightly.wcp" in auto)
+        assertTrue(ComponentUpdates.manual(choice("DD-dxvk-3.1.1+194-nightly.wcp"), null, auto, "DD-dxvk-3.1.1+190-nightly.wcp"))
         val keep = ComponentUpdates.keep("DD-dxvk-3.1.1+190-nightly.wcp", ComponentUpdates.ORIGINAL, emptySet())
         assertEquals(emptyList<String>(), ComponentUpdates.stale(ComponentUpdates.line("dxvk", false), owned,
             listOf("DD-dxvk-3.1.1+194-nightly.wcp"), keep, "DD-dxvk-3.1.1+190-nightly.wcp", setOf("DD-dxvk-3.1.1+194-nightly.wcp")))
