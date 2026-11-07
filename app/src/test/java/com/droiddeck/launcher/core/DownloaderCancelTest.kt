@@ -6,10 +6,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.InputStream
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutorService
+import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
 class DownloaderCancelTest {
@@ -49,14 +49,14 @@ class DownloaderCancelTest {
     }
 
     private fun survivesItsTask(closer: Thread): Boolean {
+        val pool = cancelExecutor as ThreadPoolExecutor
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
         while (System.nanoTime() < deadline) {
             if (!closer.isAlive) return false
-            val ran = CompletableFuture<Thread>()
-            cancelExecutor.execute { ran.complete(Thread.currentThread()) }
-            if (ran.get(5, TimeUnit.SECONDS) === closer) return true
+            if (pool.activeCount == 0 && closer.state == Thread.State.TIMED_WAITING) return true
+            Thread.sleep(5)
         }
-        error("the cancel thread neither ended nor took another task")
+        error("the cancel thread neither ended nor went back to waiting for work")
     }
 
     @Test fun unbalancedTimeoutOnCancelDoesNotCrash() {
