@@ -1,9 +1,11 @@
 package com.droiddeck.launcher.input
 
+import android.content.Context
 import android.hardware.display.DisplayManager
 import android.view.Display
 import androidx.annotation.StringRes
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.session.SessionPrefs
 
 enum class SecondScreenMode(val id: String, @StringRes val label: Int, val bindings: String? = null) {
     NONE("none", R.string.second_mode_none),
@@ -15,6 +17,8 @@ enum class SecondScreenMode(val id: String, @StringRes val label: Int, val bindi
     DESKTOP("desktop", R.string.second_mode_desktop);
 
     val controls: Boolean get() = this == CUSTOM_CONTROLS || bindings != null
+
+    fun panel(context: Context): String? = if (this == DECK_CONTROLS) SessionPrefs.deckPanel(context).bindings else bindings
 
     companion object {
         fun opening(remembered: String?, deckPad: Boolean, dashboard: Boolean = false, bottomDesktop: Boolean = false, desktopSession: Boolean = false): SecondScreenMode {

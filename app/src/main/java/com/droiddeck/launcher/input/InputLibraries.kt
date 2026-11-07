@@ -9,7 +9,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 object InputLibraries {
-    private const val VERSION = 11
+    private const val VERSION = 12
     private const val KEY = "library"
     private const val RECOVERY = "library-recovery."
     const val OVERLAY = "builtin.overlay"
@@ -29,6 +29,7 @@ object InputLibraries {
         if (version < 5) library = scopeLayouts(upgradeStockLayouts(upgradeOverlay(context, library)))
         if (version < 11) library = neutralStockLayouts(library)
         if (version < 10) library = restyleGamepads(context, library)
+        if (version < 12) library = barStockLayouts(library)
         if (version < 6 || !p.contains(LegacyScreenKeyMigration.BACKUP)) {
             val legacy = LegacyScreenKeyMigration.snapshot(context)
             if (legacy != null) {
@@ -206,9 +207,28 @@ object InputLibraries {
         }
         val oldBindings = migrated.keys.map { it.first }.toSet()
         result = result.copy(bindings = result.bindings.filter { it.id !in oldBindings || result.usersOfBindings(it.id).isNotEmpty() })
+        return addStockLayouts(result)
+    }
+
+    private fun addStockLayouts(library: InputLibrary): InputLibrary {
+        val stock = InputStockLayouts.layouts()
+        var result = library
         for (layout in stock) if (result.layouts.none { it.id == layout.id }) result = result.withLayout(layout)
         for (preset in InputStockLayouts.presets(stock)) if (result.bindings.none { it.id == preset.id }) result = result.withPreset(preset)
         return result.validate()
+    }
+
+    private fun barStockLayouts(library: InputLibrary): InputLibrary {
+        var result = library
+        for (stock in InputStockLayouts.layouts().filter { it.id == DECK || it.id == TRACKPAD }) {
+            val saved = result.layouts.firstOrNull { it.id == stock.id } ?: continue
+            val (commands, rest) = saved.elements.partition { it.id.startsWith("command:") }
+            val untouched = commands.isNotEmpty() && commands.all { it.control == InputControl.A && it.kind == InputElementKind.BUTTON } &&
+                rest.size == stock.elements.size && rest.all { e -> stock.elements.any { s -> s.id == e.id && s.copy(y = e.y, height = e.height) == e &&
+                    kotlin.math.abs(s.y + s.height - e.y - e.height) < 1e-3f } }
+            if (untouched) result = result.withLayout(saved.copy(elements = stock.elements))
+        }
+        return addStockLayouts(result)
     }
 
     private fun migrationBindingId(library: InputLibrary, binding: String, layout: String): String {
