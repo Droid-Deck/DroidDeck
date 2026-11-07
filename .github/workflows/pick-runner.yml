@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     outputs:
-      labels: ${{ steps.runner.outputs.labels || '"ubuntu-24.04"' }}
+      labels: ${{ steps.runner.outputs.labels || steps.fork.outputs.labels || '"ubuntu-24.04"' }}
     steps:
       - name: Pick the compile runner
         id: runner
@@ -33,6 +33,20 @@ jobs:
             if [ "${idle:-0}" -gt 0 ]; then
               labels='["self-hosted","droiddeck-ws"]'
             fi
+          fi
+          echo "labels=$labels" >> "$GITHUB_OUTPUT"
+          echo "Compile runner: \`$labels\`" >> "$GITHUB_STEP_SUMMARY"
+      - name: Pick the fork runner
+        id: fork
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        continue-on-error: true
+        env:
+          IDLE_AT: ${{ vars.FORK_RUNNER_IDLE_AT }}
+        run: |
+          set -euo pipefail
+          labels='"ubuntu-24.04"'
+          if [[ "${IDLE_AT:-0}" =~ ^[0-9]+$ ]] && [ "${IDLE_AT:-0}" -gt 0 ] && [ $(( $(date +%s) - IDLE_AT )) -lt 180 ]; then
+            labels='["self-hosted","droiddeck-fork"]'
           fi
           echo "labels=$labels" >> "$GITHUB_OUTPUT"
           echo "Compile runner: \`$labels\`" >> "$GITHUB_STEP_SUMMARY"
