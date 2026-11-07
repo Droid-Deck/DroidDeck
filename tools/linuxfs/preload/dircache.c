@@ -27,6 +27,7 @@
 #define WATCHED (IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE_SELF | IN_MOVE_SELF | IN_ONLYDIR)
 #define ABOVE (IN_DELETE_SELF | IN_MOVE_SELF | IN_ONLYDIR | IN_MASK_ADD)
 #define GONE (IN_DELETE_SELF | IN_MOVE_SELF | IN_IGNORED)
+#define LINKED (IN_DELETE_SELF | IN_MOVE_SELF | IN_DONT_FOLLOW | IN_MASK_ADD)
 
 #if __SIZEOF_POINTER__ == 8
 
@@ -46,6 +47,7 @@ struct listing {
   int detached;
   int wd;
   int up[MAX_UP], nup;
+  int blind;
   size_t n, cap;
   struct entry *e;
   char *recs;
@@ -62,6 +64,7 @@ struct handle {
   int fd;
   int wd;
   int up[MAX_UP], nup;
+  int blind;
   int dirty;
   char *path;
   struct dirent64 out;
@@ -430,12 +433,22 @@ static int above(struct handle *h, const char *path) {
   memcpy(up, path, n);
   up[n] = 0;
   size_t root = (size_t)(strstr(path, "/steamapps") - path) + 10;
-  for (size_t i = 1; i < n; i++) {
-    if (up[i] != '/') continue;
+  for (size_t i = 1; i <= n; i++) {
+    if (up[i] != '/' && up[i] != 0) continue;
+    char at = up[i];
     up[i] = 0;
-    int wd = watch(up, ABOVE);
-    up[i] = '/';
-    if (wd < 0 && i < root) continue;
+    int wd = i < n ? watch(up, ABOVE) : h->wd;
+    int link = watch(up, LINKED);
+    up[i] = at;
+    if (link >= 0 && link != wd) {
+      h->blind = 1;
+      release(link);
+    }
+    if (i == n) break;
+    if (wd < 0 && i < root) {
+      h->blind = 1;
+      continue;
+    }
     if (wd < 0) return 0;
     if (wd == h->wd || under(h->up, h->nup, wd)) continue;
     if (h->nup == MAX_UP) {
@@ -466,6 +479,7 @@ static void filling(struct handle *h, DIR *real, const struct stat *st, long lon
     h->fill->wd = h->wd;
     memcpy(h->fill->up, h->up, sizeof(h->up));
     h->fill->nup = h->nup;
+    h->fill->blind = h->blind;
     h->fill->where = strdup(h->path);
   }
 }
@@ -739,6 +753,7 @@ static int patch(struct side *s, int what, uint32_t event, int ok, int error, co
     copy->wd = l->wd;
     memcpy(copy->up, l->up, sizeof(l->up));
     copy->nup = l->nup;
+    copy->blind = l->blind;
     copy->where = l->where ? strdup(l->where) : NULL;
     copy->folds = l->folds;
     copy->detached = 0;
@@ -885,7 +900,7 @@ static int folded_match(const char *where, const char *dir) {
 static int listed_absent(const char *dir, const char *name, long long now) {
   for (int i = 0; i < MAX_LISTINGS; i++) {
     struct listing *l = table[i];
-    if (l && l->where && now - l->filled < DIR_TTL_NS &&
+    if (l && l->where && !l->blind && now - l->filled < DIR_TTL_NS &&
         (strcmp(l->where, dir) == 0 || (l->folds && folded_match(l->where, dir))))
       return !named(l, name);
   }

@@ -549,6 +549,40 @@ class DirCachePreloadTest(unittest.TestCase):
         out = self.run_paused("list", s, "pause", "access", s / "x.bundle", "accesses", between=swap)
         self.assertEqual(["0 0", "1"], out[1:])
 
+    def test_a_repointed_symlink_above_a_listing_does_not_hide_files(self):
+        s = self.staging
+        real = self.lib / "dl-a"
+        s.parent.rename(real)
+        s.parent.symlink_to(real.name)
+        other = self.lib / "dl-b" / s.name
+        other.mkdir(parents=True)
+        (other / "x.bundle").touch()
+
+        def repoint():
+            link = self.lib / "downloading.new"
+            link.symlink_to("dl-b")
+            link.replace(s.parent)
+
+        out = self.run_paused("list", s, "pause", "access", s / "x.bundle", between=repoint)
+        self.assertEqual("0 0", out[1])
+
+    def test_an_unreadable_folder_above_steamapps_does_not_hide_files(self):
+        s = self.staging
+        root = self.lib.parent
+        moved = root.parent / "fuse.old"
+        root.chmod(0o311)
+        self.addCleanup(lambda: moved.chmod(0o755) if moved.exists() else root.chmod(0o755))
+        if os.access(root, os.R_OK):
+            self.skipTest("folder permissions are not enforced here")
+
+        def swap():
+            root.rename(moved)
+            s.mkdir(parents=True)
+            (s / "x.bundle").touch()
+
+        out = self.run_paused("list", s, "pause", "access", s / "x.bundle", between=swap)
+        self.assertEqual("0 0", out[1])
+
     def test_a_listing_is_dropped_when_another_process_removes_a_folder_above_it(self):
         deep = self.staging / "deep"
         deep.mkdir()
