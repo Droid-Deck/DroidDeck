@@ -15,6 +15,8 @@ internal object SteamEngine {
     const val MISSING_TEXT = "Steam: the store engine is not available"
 
     private const val RETRY_MS = 60_000L
+    /** After Steam refuses sign-ins for coming too often, wait well past its limit. */
+    private const val THROTTLED_MS = 30 * 60_000L
 
     private val lock = Any()
     @Volatile private var signedIn = false
@@ -40,7 +42,7 @@ internal object SteamEngine {
     fun signIn(context: Context): JSONObject {
         synchronized(lock) {
             if (signedIn) return JSONObject().put("ok", true)
-            failed?.takeIf { SystemClock.elapsedRealtime() - failedAt < RETRY_MS }?.let { return it }
+            failed?.takeIf { SystemClock.elapsedRealtime() - failedAt < waitAfter(it) }?.let { return it }
             val roots = JSONArray()
                 .put(SessionPrefs.steamRoot(context, "arm64").absolutePath)
                 .put(SessionPrefs.steamRoot(context, SteamClient.X86_64).absolutePath)
@@ -52,6 +54,11 @@ internal object SteamEngine {
             if (!signedIn) Log.w(TAG, "sign-in: ${answer.optString("error")}")
             return answer
         }
+    }
+
+    private fun waitAfter(failure: JSONObject): Long {
+        val error = failure.optString("error")
+        return if ("RateLimitExceeded" in error || "Throttle" in error) THROTTLED_MS else RETRY_MS
     }
 
     fun forget() {

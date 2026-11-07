@@ -635,6 +635,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             finish()
             return
         }
+        if (savedInstanceState == null && !SessionState.running) {
+            // The Steam client signs in itself; the store's own sign-in must not overlap it.
+            Thread({ com.droiddeck.launcher.stores.steam.SteamEngine.forget() }, "steam-store-signout").start()
+        }
         if (!SessionState.running && SessionState.phase in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
             val mode = intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
             SessionState.programArgs = intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS)?.toList().orEmpty()

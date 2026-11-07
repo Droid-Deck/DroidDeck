@@ -65,14 +65,19 @@ impl LibraryRoot {
     }
 }
 
+/// Orders a block's entries by numeric key (depot ids), the way the client lists them.
+fn sort_by_numeric_key(node: &mut crate::steam::vdf::KVNode) {
+    node.children
+        .sort_by_key(|c| c.name.parse::<u64>().unwrap_or(u64::MAX));
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Takeover {
     /// No app manifest: a fresh install.
     Fresh,
     /// Fully installed at the build being installed: nothing to do.
     AlreadyInstalled,
-    /// Fully installed at another build: files are checked and updated in place, the manifest
-    /// is merged.
+    /// Fully installed at another build: left to the Steam client, which updates it.
     Update,
     /// A half-finished client download was removed (its manifest, `downloading/<appid>` and
     /// `temp/<appid>`).
@@ -357,10 +362,12 @@ pub fn register_shared_depot(
         kv::set(&mut entry, "manifest", shared.manifest_id.to_string());
         kv::set(&mut entry, "size", shared.size.to_string());
         installed.children.push(entry);
+        sort_by_numeric_key(installed);
     }
     if let Some(script) = &shared.install_script {
         let scripts = insert_after(&mut root, "InstallScripts", "InstalledDepots");
         kv::set(scripts, &depot_key, script.as_str());
+        sort_by_numeric_key(scripts);
     }
     if root.child("UserConfig").is_none() {
         kv::object_mut(&mut root, "UserConfig");
@@ -806,6 +813,12 @@ mod tests {
             "\t\t\"228988\"\t\t\"_CommonRedist\\\\vcredist\\\\2019\\\\installscript.vdf\"\n"
         ));
         assert!(text.contains("\t\t\"228988\"\n\t\t{\n\t\t\t\"manifest\"\t\t\"6645201662696499616\"\n\t\t\t\"size\"\t\t\"29212173\"\n\t\t}\n"));
+        // Depot entries are listed by id, as the client lists them.
+        let pos = |s: &str| text.find(s).unwrap();
+        assert!(pos("\t\t\"228988\"\n") < pos("\t\t\"228989\"\n"));
+        assert!(
+            pos("\t\t\"228988\"\t\t\"_CommonRedist") < pos("\t\t\"228989\"\t\t\"_CommonRedist")
+        );
         // Unknown keys and order of the shared manifest are kept.
         assert!(text.starts_with("\"AppState\"\n{\n\t\"appid\"\t\t\"228980\"\n"));
 
@@ -869,7 +882,7 @@ mod tests {
             takeover(&fx.sd, 291550, 26465982).unwrap(),
             Takeover::AlreadyInstalled
         );
-        assert_eq!(takeover(&fx.sd, 291550, 1).unwrap(), Takeover::Update);
+        assert_eq!(takeover(&fx.sd, 291550, 1).unwrap(), Takeover::Update); // left to the client
         assert!(state_is_finished(4));
         assert!(!state_is_finished(6));
         assert!(!state_is_finished(1));

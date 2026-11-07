@@ -180,6 +180,10 @@ pub fn run(
     if takeover == Takeover::AlreadyInstalled {
         return json!({"ok": true, "alreadyInstalled": true});
     }
+    if takeover == Takeover::Update {
+        // Updates stay with the Steam client: it removes files a new build dropped.
+        return fail("update_in_steam");
+    }
     if !register::library_registered(&req.steam_root, &req.game_library.guest) {
         return fail("library_not_in_libraryfolders");
     }
