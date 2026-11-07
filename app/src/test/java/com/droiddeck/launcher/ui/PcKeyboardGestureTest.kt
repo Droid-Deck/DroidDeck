@@ -106,4 +106,43 @@ class PcKeyboardGestureTest {
         compose.onNodeWithText("!").assertExists()
         compose.onNodeWithText("<").assertDoesNotExist()
     }
+
+    @Test fun symbolPageNonSyntheticKeysIgnoreLockedShift() {
+        setKeyboard()
+        val shift = compose.onAllNodesWithText("⇧ Shift")[0]
+        shift.performTouchInput { down(center); up() }
+        shift.performTouchInput { down(center); up() } // ONCE -> LOCKED, wire stays down
+        compose.runOnIdle { assertEquals(listOf(42 to true), sent) }
+        compose.onNodeWithText("?123").performTouchInput { down(center); up() }
+        compose.onNodeWithText(",").performTouchInput { down(center) }
+        compose.runOnIdle {
+            assertEquals("wire shift lifts before the plain key", listOf(42 to true, 42 to false, 51 to true), sent)
+        }
+        compose.onNodeWithText(",").performTouchInput { up() }
+        compose.runOnIdle {
+            assertEquals(
+                "locked shift restores after the last suppressed key",
+                listOf(42 to true, 42 to false, 51 to true, 51 to false, 42 to true),
+                sent,
+            )
+        }
+        compose.onNodeWithText("1").performTouchInput { down(center) }
+        compose.runOnIdle {
+            assertEquals(
+                "digits type their printed symbol too",
+                listOf(42 to true, 42 to false, 51 to true, 51 to false, 42 to true, 42 to false, 2 to true),
+                sent,
+            )
+        }
+        compose.onNodeWithText("1").performTouchInput { up() }
+        compose.runOnIdle {
+            assertEquals(
+                listOf(
+                    42 to true, 42 to false, 51 to true, 51 to false, 42 to true,
+                    42 to false, 2 to true, 2 to false, 42 to true,
+                ),
+                sent,
+            )
+        }
+    }
 }

@@ -99,10 +99,13 @@ fun PcKeyboard(
             return
         }
         val userShifted = (mods[42] ?: MOD_OFF) != MOD_OFF || (mods[54] ?: MOD_OFF) != MOD_OFF
-        // The OS applies any held shift to the keycode, so lift the wire shift for direct-typed punctuation.
-        if (!symbols && key.code in PC_PUNCTUATION_CODES && userShifted) {
+        // The OS applies any held shift to the keycode, so lift the wire shift for keys that must
+        // type their printed symbol: direct-typed punctuation on ABC and every non-synthetic key on
+        // ?123. Synthetic keys keep the wire shift — it is their own wrap.
+        val liftForThisKey = if (symbols) !key.synthShift else key.code in PC_PUNCTUATION_CODES
+        if ((userShifted || synthShift) && liftForThisKey) {
             if (shiftSuppressedKeys.isEmpty()) {
-                if ((mods[42] ?: MOD_OFF) != MOD_OFF) sendKey(42, false)
+                if (synthShift || (mods[42] ?: MOD_OFF) != MOD_OFF) sendKey(42, false)
                 if ((mods[54] ?: MOD_OFF) != MOD_OFF) sendKey(54, false)
             }
             shiftSuppressedKeys.add(key.code)
@@ -117,7 +120,7 @@ fun PcKeyboard(
         if (key.code == 58) capsOn = !capsOn
         releaseOnceModifiers()
         if (shiftSuppressedKeys.remove(key.code) && shiftSuppressedKeys.isEmpty()) {
-            if ((mods[42] ?: MOD_OFF) != MOD_OFF) sendKey(42, true)
+            if ((mods[42] ?: MOD_OFF) != MOD_OFF || synthShift) sendKey(42, true)
             if ((mods[54] ?: MOD_OFF) != MOD_OFF) sendKey(54, true)
         }
     }
