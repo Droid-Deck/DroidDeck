@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.input
 
 internal object InputStockLayouts {
+    private val NEUTRAL = InputSurfaceStyle(tint = null)
     const val DECK = "preset.deck"
     const val TRACKPAD = "preset.trackpad"
     private fun commands(indices: List<Int>): List<InputSurfaceElement> {
@@ -20,9 +21,9 @@ internal object InputStockLayouts {
     private fun pads() = listOf(InputSurfaceElement(InputControl.LEFT_PAD, .02f, .14f, .47f, .62f),
         InputSurfaceElement(InputControl.RIGHT_PAD, .51f, .14f, .47f, .62f))
     fun layouts() = listOf(
-        SavedInputLayout(InputLibraries.DECK, "Deck grips + trackpads", commands(listOf(2, 3, 0)) + pads() + grips(), screen = InputLayoutScreen.SECONDARY),
+        SavedInputLayout(InputLibraries.DECK, "Deck grips + trackpads", commands(listOf(2, 3, 0)) + pads() + grips(), style = NEUTRAL, screen = InputLayoutScreen.SECONDARY),
         SavedInputLayout(InputLibraries.TRACKPAD, "Trackpad + keyboard", commands(listOf(0, 1)) +
-            InputSurfaceElement(InputControl.RIGHT_PAD, .02f, .14f, .96f, .84f, mouseGestures = true), screen = InputLayoutScreen.SECONDARY),
+            InputSurfaceElement(InputControl.RIGHT_PAD, .02f, .14f, .96f, .84f, mouseGestures = true), style = NEUTRAL, screen = InputLayoutScreen.SECONDARY),
     )
 
     fun actions(layout: SavedInputLayout): Map<String, InputAction> = (commandActions() + if (layout.id == InputLibraries.TRACKPAD) mapOf(

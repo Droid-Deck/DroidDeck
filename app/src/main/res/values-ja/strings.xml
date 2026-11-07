@@ -1765,6 +1765,7 @@
     <string name="ctrl_tint_amber">アンバー</string>
     <string name="ctrl_tint_red">レッド</string>
     <string name="ctrl_tint_pink">ピンク</string>
+    <string name="ctrl_tint_gray">グレー</string>
     <string name="ctrl_button_a">Aボタン</string>
     <string name="ctrl_button_b">Bボタン</string>
     <string name="ctrl_button_x">Xボタン</string>

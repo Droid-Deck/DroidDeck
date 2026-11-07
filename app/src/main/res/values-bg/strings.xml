@@ -1789,6 +1789,7 @@
     <string name="ctrl_tint_amber">Кехлибарено</string>
     <string name="ctrl_tint_red">Червено</string>
     <string name="ctrl_tint_pink">Розово</string>
+    <string name="ctrl_tint_gray">Сиво</string>
     <string name="ctrl_button_a">Бутон A</string>
     <string name="ctrl_button_b">Бутон B</string>
     <string name="ctrl_button_x">Бутон X</string>

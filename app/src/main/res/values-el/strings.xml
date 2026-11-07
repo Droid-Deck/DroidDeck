@@ -1789,6 +1789,7 @@
     <string name="ctrl_tint_amber">Κεχριμπαρί</string>
     <string name="ctrl_tint_red">Κόκκινο</string>
     <string name="ctrl_tint_pink">Ροζ</string>
+    <string name="ctrl_tint_gray">Γκρι</string>
     <string name="ctrl_button_a">Κουμπί A</string>
     <string name="ctrl_button_b">Κουμπί B</string>
     <string name="ctrl_button_x">Κουμπί X</string>

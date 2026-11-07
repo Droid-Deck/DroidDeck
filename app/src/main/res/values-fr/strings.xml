@@ -1813,6 +1813,7 @@
     <string name="ctrl_tint_amber">Ambre</string>
     <string name="ctrl_tint_red">Rouge</string>
     <string name="ctrl_tint_pink">Rose</string>
+    <string name="ctrl_tint_gray">Gris</string>
     <string name="ctrl_button_a">Bouton A</string>
     <string name="ctrl_button_b">Bouton B</string>
     <string name="ctrl_button_x">Bouton X</string>

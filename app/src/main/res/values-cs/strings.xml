@@ -1837,6 +1837,7 @@
     <string name="ctrl_tint_amber">Ambrová</string>
     <string name="ctrl_tint_red">Červená</string>
     <string name="ctrl_tint_pink">Růžová</string>
+    <string name="ctrl_tint_gray">Šedá</string>
     <string name="ctrl_button_a">Tlačítko A</string>
     <string name="ctrl_button_b">Tlačítko B</string>
     <string name="ctrl_button_x">Tlačítko X</string>

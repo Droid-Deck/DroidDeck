@@ -1765,6 +1765,7 @@
     <string name="ctrl_tint_amber">Ambar</string>
     <string name="ctrl_tint_red">Merah</string>
     <string name="ctrl_tint_pink">Merah muda</string>
+    <string name="ctrl_tint_gray">Abu-abu</string>
     <string name="ctrl_button_a">Tombol A</string>
     <string name="ctrl_button_b">Tombol B</string>
     <string name="ctrl_button_x">Tombol X</string>
