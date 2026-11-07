@@ -20,6 +20,7 @@ import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.droiddeck.launcher.input.KeyboardHost
 import com.droiddeck.launcher.input.PadBridge
+import com.droiddeck.launcher.wayland.WaylandCompositor
 import com.droiddeck.launcher.input.SecondScreenMode
 import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.session.BottomDesktop
@@ -325,12 +326,16 @@ class SecondScreenPresentation(
     }
 
     private fun attachKeyboard() {
-        val host = KeyboardHost(context) { event ->
-            val handled = sessionActivity.dispatchKeyEvent(event)
-            if (fieldKeyboard && event.action == KeyEvent.ACTION_UP &&
-                (event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)) root.post { closeFieldKeyboard() }
-            handled
-        }
+        val host = KeyboardHost(
+            context,
+            sendKeyEvent = { event ->
+                val handled = sessionActivity.dispatchKeyEvent(event)
+                if (fieldKeyboard && event.action == KeyEvent.ACTION_UP &&
+                    (event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)) root.post { closeFieldKeyboard() }
+                handled
+            },
+            sendText = { WaylandCompositor.textInputCommit(it) },
+        )
         host.onImeChanged = { visible -> if (!visible && keyboardShown.value) keyboardClosed() }
         keyboardHost = host
         root.addView(host, ViewGroup.LayoutParams(1, 1))

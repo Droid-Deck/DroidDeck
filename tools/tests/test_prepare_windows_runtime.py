@@ -1,4 +1,6 @@
+import hashlib
 import importlib.util
+import json
 from pathlib import Path
 import struct
 import tempfile
@@ -78,6 +80,7 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
                     mock.patch.object(prepare, 'read_gamescope', return_value=({}, {
                         'GAMESCOPE_REPO': 'repo', 'GAMESCOPE_TAG': 'tag', 'GAMESCOPE_SHA256': 'hash'})), \
                     mock.patch.object(prepare, 'validate_tracked_assets', return_value={}), \
+                    mock.patch.object(prepare, 'prepare_ime', return_value=({}, {})), \
                     mock.patch.object(prepare, 'git', return_value=b''), \
                     mock.patch.object(prepare.runtime, 'record'), mock.patch.object(prepare.runtime, 'verify'), \
                     mock.patch.object(prepare.vr_build, 'build', return_value=({vr_name: b'new library'}, vr_manifest)) as build:
@@ -173,6 +176,162 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
                     b'app/src/main/cpp/unreviewed.cpp\0']):
             with self.assertRaisesRegex(ValueError, 'Unreviewed runtime'):
                 prepare.check_sources()
+
+
+    def test_ime_sources_are_regenerated_from_pinned_rpms_in_every_stage(self):
+        ime = {'tools/ime/prepare.py', 'tools/ime/packages.json', 'tools/ime/smoke.py'}
+        with mock.patch.object(prepare, 'changed', side_effect=[ime, ime, ime]), \
+                mock.patch.object(prepare, 'git', side_effect=[prepare.DONOR_TREE.encode(), b'']):
+            classifications = prepare.check_sources()
+        self.assertEqual(set(classifications), ime)
+        for action in classifications.values():
+            self.assertIn('regenerated from checksum-pinned RPMs', action)
+            self.assertIn('never reused from donor', action)
+
+    def test_unknown_ime_and_native_sources_still_fail_the_audit(self):
+        for path in ('tools/ime/unreviewed.py', 'app/src/main/cpp/unreviewed.cpp'):
+            with self.subTest(path=path), \
+                    mock.patch.object(prepare, 'git', return_value=prepare.DONOR_TREE.encode()), \
+                    mock.patch.object(prepare, 'changed', return_value={path}):
+                with self.assertRaisesRegex(ValueError, 'Sources changed since'):
+                    prepare.check_sources()
+        with mock.patch.object(prepare, 'changed', side_effect=[set(), set(), set()]), \
+                mock.patch.object(prepare, 'git', side_effect=[prepare.DONOR_TREE.encode(),
+                    b'tools/ime/unreviewed.py\0']):
+            with self.assertRaisesRegex(ValueError, 'Unreviewed runtime'):
+                prepare.check_sources()
+
+    def test_ime_payload_is_staged_before_record_and_overrides_donor_files(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            apk = root / 'donor.apk'
+            files = {prepare.IME_MANIFEST: b'generated manifest',
+                     'usr/local/share/droiddeck/pinyin.so': b'generated ime'}
+            with ZipFile(apk, 'w') as package:
+                package.writestr('assets/linuxfs/' + prepare.IME_MANIFEST, b'donor manifest')
+                package.writestr('assets/linuxfs/usr/local/share/droiddeck/pinyin.so', b'donor ime')
+            (root / 'app/build').mkdir(parents=True)
+            (root / 'app/build/runtime-inputs.json').write_text('{}')
+            staged = {}
+
+            def record():
+                for name in files:
+                    staged[name] = (root / 'app/src/main/assets/linuxfs' / name).read_bytes()
+
+            with mock.patch.object(prepare, 'ROOT', root), \
+                    mock.patch.object(prepare, 'check_sources', return_value={}), \
+                    mock.patch.object(prepare, 'DONOR_SHA256', prepare.runtime.digest(apk)), \
+                    mock.patch.object(prepare, 'REBUILT', {}), \
+                    mock.patch.object(prepare, 'JNI', ()), mock.patch.object(prepare, 'PREPARED', ()), \
+                    mock.patch.object(prepare, 'LOCAL_BUILD_PLUMBING', set()), \
+                    mock.patch.object(prepare, 'source_assets', return_value={}), \
+                    mock.patch.object(prepare, 'read_gamescope', return_value=({}, {
+                        'GAMESCOPE_REPO': 'repo', 'GAMESCOPE_TAG': 'tag', 'GAMESCOPE_SHA256': 'hash'})), \
+                    mock.patch.object(prepare, 'validate_tracked_assets', return_value={}), \
+                    mock.patch.object(prepare, 'prepare_ime',
+                                       return_value=(files, {'version': 1, 'files': {}})), \
+                    mock.patch.object(prepare, 'git', return_value=b''), \
+                    mock.patch.object(prepare.runtime, 'record', side_effect=record), \
+                    mock.patch.object(prepare.runtime, 'verify'), \
+                    mock.patch.object(prepare.vr_build, 'build', return_value=({}, {})):
+                prepare.prepare(apk, root, root, llvm_strip=root / 'bin/llvm-strip')
+            self.assertEqual(staged, files)
+            output = json.loads((root / 'app/build/windows-runtime-provenance.json').read_text())
+            self.assertEqual(output['ime_build'], {'version': 1, 'files': {}})
+            self.assertIn('regenerated from checksum-pinned RPMs',
+                          output['outputs']['app/src/main/assets/linuxfs/' + prepare.IME_MANIFEST]['origin'])
+
+    def test_second_preparation_accepts_existing_generated_ime_files(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            apk = root / 'donor.apk'
+            with ZipFile(apk, 'w') as package:
+                package.writestr('assets/linuxfs/unchanged.so', b'unchanged component')
+            (root / 'app/build').mkdir(parents=True)
+            (root / 'app/build/runtime-inputs.json').write_text('{}')
+            files = {prepare.IME_MANIFEST: b'generated manifest'}
+            with mock.patch.object(prepare, 'ROOT', root), \
+                    mock.patch.object(prepare, 'check_sources', return_value={}), \
+                    mock.patch.object(prepare, 'DONOR_SHA256', prepare.runtime.digest(apk)), \
+                    mock.patch.object(prepare, 'REBUILT', {}), \
+                    mock.patch.object(prepare, 'JNI', ()), mock.patch.object(prepare, 'PREPARED', ()), \
+                    mock.patch.object(prepare, 'LOCAL_BUILD_PLUMBING', set()), \
+                    mock.patch.object(prepare, 'source_assets', return_value={}), \
+                    mock.patch.object(prepare, 'read_gamescope', return_value=({}, {
+                        'GAMESCOPE_REPO': 'repo', 'GAMESCOPE_TAG': 'tag', 'GAMESCOPE_SHA256': 'hash'})), \
+                    mock.patch.object(prepare, 'validate_tracked_assets', return_value={}), \
+                    mock.patch.object(prepare, 'prepare_ime', return_value=(files, {'version': 1, 'files': {}})), \
+                    mock.patch.object(prepare, 'git', return_value=b''), \
+                    mock.patch.object(prepare.runtime, 'record'), \
+                    mock.patch.object(prepare.runtime, 'verify'), \
+                    mock.patch.object(prepare.vr_build, 'build', return_value=({}, {})):
+                prepare.prepare(apk, root, root, llvm_strip=root / 'bin/llvm-strip')
+                prepare.prepare(apk, root, root, llvm_strip=root / 'bin/llvm-strip')
+            self.assertEqual((root / 'app/src/main/assets/linuxfs' / prepare.IME_MANIFEST).read_bytes(),
+                             b'generated manifest')
+
+    def test_windows_ime_preparation_uses_docker_without_local_extractors(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'tools/ime').mkdir(parents=True)
+            (root / 'tools/ime/prepare.py').write_text('# prepare', encoding='utf-8')
+            (root / 'tools/ime/packages.json').write_text('{}', encoding='utf-8')
+            manifest = {'version': 1, 'files': {
+                'usr/local/share/droiddeck/pinyin.so': {
+                    'sha256': hashlib.sha256(b'ime').hexdigest(), 'mode': 420}}}
+            commands = []
+
+            def run(command, check=True, capture_output=True, text=True):
+                commands.append(command)
+                if command[1:3] == ['image', 'inspect']:
+                    return mock.Mock(returncode=0, stdout='sha256:image-id\n', stderr='')
+                mounted = next(part for part in command if part.endswith(':/out'))
+                output = Path(mounted.removesuffix(':/out'))
+                target = output / 'usr/local/share/droiddeck/pinyin.so'
+                target.parent.mkdir(parents=True)
+                target.write_bytes(b'ime')
+                (output / prepare.IME_MANIFEST).write_text(json.dumps(manifest), encoding='utf-8')
+                return mock.Mock(returncode=0, stdout='', stderr='')
+
+            with mock.patch.object(prepare, 'ROOT', root), \
+                    mock.patch.object(prepare.sys, 'platform', 'win32'), \
+                    mock.patch.object(prepare.shutil, 'which', return_value='docker') as locate, \
+                    mock.patch.object(prepare.subprocess, 'run', side_effect=run):
+                files, provenance = prepare.prepare_ime('compiler-image')
+            inspect_command, command = commands
+            self.assertEqual(inspect_command, ['docker', 'image', 'inspect', '--format', '{{.Id}}',
+                                               'compiler-image'])
+            self.assertEqual(command[0], 'docker')
+            self.assertIn('--rm', command)
+            self.assertIn('--platform', command)
+            self.assertIn('linux/amd64', command)
+            self.assertIn('sha256:image-id', command)
+            self.assertNotIn('compiler-image', command)
+            shell = command[-1]
+            self.assertIn('apt-get update', shell)
+            self.assertIn('apt-get install', shell)
+            self.assertIn('rpm2cpio cpio', shell)
+            self.assertIn('python3 /src/tools/ime/prepare.py', shell)
+            self.assertIn('--packages /cache', shell)
+            self.assertIn('--download', shell)
+            self.assertIn('--output /out', shell)
+            locate.assert_called_once_with('docker')
+            self.assertEqual(files['usr/local/share/droiddeck/pinyin.so'], b'ime')
+            self.assertEqual(json.loads(files[prepare.IME_MANIFEST]), manifest)
+            self.assertEqual(provenance, manifest)
+
+    def test_windows_ime_preparation_rejects_a_missing_image_before_running(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            with mock.patch.object(prepare, 'ROOT', root), \
+                    mock.patch.object(prepare.sys, 'platform', 'win32'), \
+                    mock.patch.object(prepare.shutil, 'which', return_value='docker'), \
+                    mock.patch.object(prepare.subprocess, 'run', return_value=mock.Mock(
+                        returncode=1, stdout='', stderr='No such image')) as run:
+                with self.assertRaisesRegex(ValueError, 'requires the existing Docker image'):
+                    prepare.prepare_ime('missing-image')
+            run.assert_called_once()
+            self.assertEqual(run.call_args.args[0][:3], ['docker', 'image', 'inspect'])
 
 
 if __name__ == '__main__':

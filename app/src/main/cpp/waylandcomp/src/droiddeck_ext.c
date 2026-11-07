@@ -79,7 +79,8 @@ static int on_wake(int fd, uint32_t mask, void *data) {
             m->text = NULL;
             break;
         case HOST_TEXT_COMMIT:
-            text_input_host_commit(m->text ? m->text : "", m->len);
+            if (!text_input_host_commit(m->text ? m->text : "", m->len))
+                droiddeck_on_text_input_fallback(m->text ? m->text : "", (int)m->len);
             break;
         case HOST_TEXT_PREEDIT:
             text_input_host_preedit(m->text ? m->text : "", m->len, m->a, m->b);

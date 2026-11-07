@@ -23,7 +23,7 @@ SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app
                 'tools/linuxfs', 'tools/proot', 'tools/aaudio-sink', 'tools/directaudio', 'tools/packs',
                 'tools/gamescope/release.env', 'tools/droiddeck-esync/release.env',
                 'tools/mangoapp', 'tools/msitools', 'tools/pipewire', 'tools/comet', 'tools/xbox', 'tools/dirt-ws2', 'tools/components', 'tools/ci', 'tools/build_local.sh',
-                'tools/powervr', 'tools/hybris', 'tools/dxvk', 'tools/vulkan-wsi',
+                'tools/ime', 'tools/powervr', 'tools/hybris', 'tools/dxvk', 'tools/vulkan-wsi',
                 'tools/release/runtime_inputs.py', 'app/src/main/assets/desktop-removal',
                 'tools/quest', 'tools/vr/src', 'tools/vr/driver_droiddeck', 'tools/vr/layer', 'tools/vr/build.sh',
                 'tools/gpuload',
@@ -109,6 +109,10 @@ def required():
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-xbox/' + name for name in
               ['xodus-cli', 'xodus-service', 'version', 'backend.lock.json', 'runtime.lock.json', 'LICENSE.xodus', 'LICENSE.nexus', 'LICENSE.LGPL-2.1', 'LICENSE.nghttp2',
                'windows/xgameruntime.dll', 'windows/winhttp.dll', 'windows/windows.web.dll', 'windows/twinapi.appcore.dll', 'windows/libnghttp2.dll']]
+    paths += ['assets/linuxfs/' + name for name in
+              ['usr/local/share/droiddeck/ime-files.json', 'usr/local/share/droiddeck/ibus.profile',
+               'usr/local/lib/droiddeck-ime/ibus-engine-pinyin', 'usr/local/lib/droiddeck-ime/libpyzy-1.0.so.0',
+               'usr/local/lib/droiddeck-ime/liblua-5.4.so', 'usr/share/pyzy/db/android.db']]
     for driver in ['linux-wine11', 'linux-wine11-systhread']:
         paths += ['assets/directaudio/' + driver + '/' + name for name in
                   ['aarch64-unix/winedirectaudio.so', 'aarch64-windows/winedirectaudio.drv',
