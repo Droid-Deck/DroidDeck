@@ -10,9 +10,12 @@ if [ "${#missing[@]}" = 0 ]; then
   echo "Ubuntu build dependencies are already installed."
   exit 0
 fi
-options=(
-  -o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources
-  -o Dir::Etc::sourceparts=-
+options=()
+# Runners without the deb822 Ubuntu sources file keep their own apt configuration.
+if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+  options+=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+fi
+options+=(
   -o Acquire::Retries=1
   -o Acquire::http::Timeout=15
   -o Acquire::https::Timeout=15
@@ -28,6 +31,7 @@ if install_packages; then
   exit 0
 fi
 echo "::warning::Runner mirror failed or timed out; retrying with the official Ubuntu mirror."
+[ -f /etc/apt/sources.list.d/ubuntu.sources ] || exit 1
 sources=$(mktemp --suffix=.sources)
 trap 'rm -f "$sources"' EXIT
 mirror=https://archive.ubuntu.com/ubuntu
