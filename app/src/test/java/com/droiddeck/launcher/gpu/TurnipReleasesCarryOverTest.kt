@@ -67,7 +67,7 @@ class TurnipReleasesCarryOverTest {
                 .put("browser_download_url", "https://example/$name").put("size", 1L).put("digest", "sha256:" + "0".repeat(64)))
         })
         val original = TurnipReleases.fetch
-        TurnipReleases.fetch = { _, url ->
+        TurnipReleases.fetch = { _, _, url ->
             if ("Banners-Turnip" in url) JSONArray().put(release).toString() else throw java.io.IOException("rate limited")
         }
         try {
@@ -76,6 +76,28 @@ class TurnipReleasesCarryOverTest {
             assertEquals(listOf("Banners-Turnip" to "r6", "DroidDeck" to "v0.4.0"), check.latest)
             assertEquals(true, "DroidDeck" in check.failed)
             assertEquals(DriverPairs.ddTurnip("v0.4.0"), DriverPairs.recommendedKey(a644, DriverPairs.from(check)))
+        } finally { TurnipReleases.fetch = original }
+    }
+
+    @Test fun aRepoWhoseAnswerBreaksHalfwayKeepsOnlyItsDriversFromTheLastCheck() {
+        context.getSharedPreferences("turnip_releases", Context.MODE_PRIVATE).edit().putString("latest", previous().toString()).commit()
+        val release = JSONObject().put("tag_name", "r6").put("assets", JSONArray().apply {
+            for (name in listOf("Turnip-r6.zip", "Turnip-r6-Linux.zip")) put(JSONObject().put("name", name)
+                .put("browser_download_url", "https://example/$name").put("size", 1L).put("digest", "sha256:" + "0".repeat(64)))
+        })
+        val original = TurnipReleases.fetch
+        TurnipReleases.fetch = { _, _, url ->
+            when {
+                "Banners-Turnip" in url -> JSONArray().put(release).put(JSONObject().put("assets", JSONArray())).toString()
+                "api.github.com" in url -> "[]"
+                else -> throw java.io.IOException("offline")
+            }
+        }
+        try {
+            val check = TurnipReleases.refresh(context)
+            assertEquals(true, "Banners-Turnip" in check.failed)
+            assertEquals(listOf("r5", "r5"), check.assets.map { it.tag })
+            assertEquals(listOf("Banners-Turnip" to "r5"), check.latest)
         } finally { TurnipReleases.fetch = original }
     }
 }
