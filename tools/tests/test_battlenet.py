@@ -1096,11 +1096,6 @@ class AgentTest(Temp):
         self.assertIn("lang = a(5), country = a(6), region = a(7), out = a(8)", script)
         self.assertIn('"--internalclienttools"', (BIN / "droiddeck-battlenet").read_text())
 
-    def test_the_driver_waits_on_the_install_form_and_names_a_folder_that_is_taken(self):
-        script = BNET["AGENT_SCRIPT"]
-        self.assertIn(r'if (/"form"\s*:\s*\{/.test(s)) {', script)
-        self.assertIn("the game folder already holds a game", script)
-
 
 class AgentJobTest(Harness):
     def setUp(self):
@@ -1274,6 +1269,13 @@ class AgentJobTest(Harness):
             self.assertEqual(BNET["main"](["agent-install", "gryphon", "gryphon", "/g/../g/Rumble", "enUS", "USA", "US"]), 0)
             self.assertEqual(BNET["main"](["agent-update", "wow_classic"]), 0)
         self.assertEqual(calls, [("install", "gryphon", "gryphon", "/g/Rumble", "enUS", "USA", "US"), ("update", "wow_classic")])
+
+
+class BattleNetFormTest(Temp):
+    def test_the_driver_waits_on_the_install_form_and_names_a_folder_that_is_taken(self):
+        script = BNET["AGENT_SCRIPT"]
+        self.assertIn(r'if (/"form"\s*:\s*\{/.test(s)) {', script)
+        self.assertIn("the game folder already holds a game", script)
 
 
 if __name__ == "__main__":
