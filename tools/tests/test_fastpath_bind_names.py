@@ -92,7 +92,6 @@ class FastPathBindNamesTest(unittest.TestCase):
         os.symlink(t / "lib/common", t / "lib/l")
         os.symlink("real", t / "root/d/link")
         os.symlink("../../devices/zone28", t / "root/sys/class/thermal/zone28")
-        (t / "root/sys/devices/zone28/temp").write_text("real")
         (t / "bound/temp").write_text("bound")
         (t / "root/sys/devices/zone28/other").write_text("other")
         cls.tree = t
