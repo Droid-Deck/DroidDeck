@@ -184,8 +184,10 @@ us|1|aa|bb|cc||tpr/wow|h|s|t||1|12.1.0.65000|kk|wowf
         assertEquals("[2]", WowAddonCatalog.cached(f, later) { "[2]" })
         assertEquals("[2]", WowAddonCatalog.cached(f, later + WowAddonCatalog.FRESH_MS * 2) { null })
         assertEquals("[2]", WowAddonCatalog.cached(f, later * 4) { "<html>busy</html>" })
+        assertEquals("[2]", WowAddonCatalog.cached(f, later * 4) { "{\"error\":\"busy\"}" })
         f.writeText("[2")
-        assertEquals("{}", WowAddonCatalog.cached(f, later * 4 + 1) { "{}" })
+        assertEquals("[3]", WowAddonCatalog.cached(f, later * 4 + 1) { "[3]" })
+        assertEquals(listOf("x.json"), f.parentFile!!.list()!!.toList())
         f.delete()
     }
 }

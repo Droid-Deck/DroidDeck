@@ -6,7 +6,6 @@ import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.Hashes
 import com.droiddeck.launcher.stores.StoreNet
 import org.json.JSONArray
-import org.json.JSONObject
 import java.io.File
 import java.io.IOException
 import java.net.URLEncoder
@@ -158,22 +157,26 @@ object WowAddonCatalog {
     }
 
     internal fun cached(file: File, now: Long, fetch: () -> String?): String? {
-        val kept = if (file.isFile) file.readText().takeIf(::isJson) else null
+        val kept = if (file.isFile) file.readText().takeIf(::isJsonArray) else null
         if (kept != null && isFresh(file, now)) return kept
-        val body = fetch()?.takeIf(::isJson)
+        val body = fetch()?.takeIf(::isJsonArray)
         if (body != null) {
             file.parentFile?.mkdirs()
-            val part = File(file.path + ".part")
-            part.writeText(body)
-            part.setLastModified(now)
-            if (!part.renameTo(file)) part.delete()
+            val part = File(file.parentFile, "${file.name}.${java.util.UUID.randomUUID()}.part")
+            try {
+                part.writeText(body)
+                part.setLastModified(now)
+                part.renameTo(file)
+            } finally {
+                part.delete()
+            }
             return body
         }
         return kept
     }
 
-    private fun isJson(body: String): Boolean =
-        runCatching { org.json.JSONTokener(body).nextValue() }.getOrNull().let { it is JSONObject || it is JSONArray }
+    private fun isJsonArray(body: String): Boolean =
+        runCatching { org.json.JSONTokener(body).nextValue() }.getOrNull() is JSONArray
 
     private fun isFresh(file: File, now: Long) = file.isFile && now - file.lastModified() < FRESH_MS
 
