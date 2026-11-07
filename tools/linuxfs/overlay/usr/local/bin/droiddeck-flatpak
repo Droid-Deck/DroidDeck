@@ -302,10 +302,24 @@ def install_bundle(path):
     return rc
 
 
+def stale_app_dir(inst, app_id):
+    if not app_id or "/" in app_id or app_id in (".", ".."):
+        return None
+    path = os.path.join(inst.get_path().get_path(), "app", app_id)
+    return path if os.path.isdir(path) and not os.path.islink(path) else None
+
+
 def uninstall(app_id):
     inst = installation()
     ref = app_ref(inst, app_id)
     if ref is None:
+        stale = stale_app_dir(inst, app_id)
+        if stale:
+            try:
+                shutil.rmtree(stale)
+            except OSError as e:
+                emit(e="error", message=str(e))
+                return 1
         emit(e="done", note="not installed")
         return 0
     t, state = transaction(inst)
