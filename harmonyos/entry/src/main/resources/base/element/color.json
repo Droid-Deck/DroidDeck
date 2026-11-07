@@ -1,0 +1,18 @@
+{
+  "color": [
+    { "name": "primary", "value": "#905FFF" },
+    { "name": "primary2", "value": "#22D3EE" },
+    { "name": "onPrimary", "value": "#03111F" },
+    { "name": "background", "value": "#07060B" },
+    { "name": "surface", "value": "#0D0B13" },
+    { "name": "surfaceVariant", "value": "#15111D" },
+    { "name": "line", "value": "#1D1829" },
+    { "name": "line2", "value": "#2A2438" },
+    { "name": "onBackground", "value": "#EFEBF7" },
+    { "name": "onSurfaceVariant", "value": "#9A92AD" },
+    { "name": "good", "value": "#4CD37F" },
+    { "name": "warning", "value": "#F5A524" },
+    { "name": "danger", "value": "#F2555A" },
+    { "name": "start_window_background", "value": "#07060B" }
+  ]
+}

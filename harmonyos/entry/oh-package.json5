@@ -1,0 +1,18 @@
+{
+  "name": "entry",
+  "version": "0.6.9-harmony",
+  "description": "DroidDeck entry module for HarmonyOS 7",
+  "main": "",
+  "author": "",
+  "license": "GPL-3.0",
+  "dependencies": {
+    // The native module's Node-API surface. The declaration file lives
+    // beside the C++ sources, and the library itself ships in
+    // entry/libs/arm64-v8a/.
+    "libdroiddeck_native.so": "file:./src/main/cpp/types/libdroiddeck_native"
+  },
+  "devDependencies": {
+    "@ohos/hypium": "1.0.21",
+    "@ohos/hamock": "1.0.0"
+  }
+}

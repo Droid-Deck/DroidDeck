@@ -1,0 +1,15 @@
+#!/bin/bash
+[ "${1:-}" = run ] || exec /usr/bin/snap "$@"
+shift
+while [ $# -gt 0 ]; do
+  case $1 in
+    --) shift; break ;;
+    -*) shift ;;
+    *) break ;;
+  esac
+done
+target=${1:?usage: snap run <snap>[.<app>] [args...]}
+shift
+name=${target%%.*}
+app=${target#*.}
+exec /usr/local/bin/droiddeck-snap-run "$name" "$app" "$@"

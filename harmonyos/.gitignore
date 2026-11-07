@@ -1,0 +1,9 @@
+# Hvigor / DevEco build output
+build/
+.hvigor/
+.idea/
+.cxx/
+*.log
+
+# Local SDK pointers
+local.properties

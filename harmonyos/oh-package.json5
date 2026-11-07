@@ -1,0 +1,11 @@
+{
+  "modelVersion": "5.0.0",
+  "name": "droiddeck-harmony",
+  "version": "0.6.9-harmony",
+  "description": "DroidDeck for HarmonyOS 7 (API 26) - SteamOS-style gaming launcher for Huawei devices",
+  "dependencies": {},
+  "devDependencies": {
+    "@ohos/hvigor": "6.0.0",
+    "@ohos/hvigor-ohos-plugin": "6.0.0"
+  }
+}
