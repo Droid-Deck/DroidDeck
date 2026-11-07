@@ -163,6 +163,33 @@ internal fun sessionDisplayCutoutMode(fullscreen: Boolean): Int = if (fullscreen
     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
 }
 
+internal const val SESSION_SCALE_FIT = 1
+internal const val SESSION_SCALE_HEIGHT_FIT = 5
+
+internal fun sessionCompositorScaleMode(
+    landscape: Boolean,
+    primaryDisplay: Boolean,
+    inPictureInPicture: Boolean,
+    opticalViewport: Boolean,
+    controlsBelow: Boolean,
+): Int = if (landscape && primaryDisplay && !inPictureInPicture && !opticalViewport && !controlsBelow) {
+    SESSION_SCALE_HEIGHT_FIT
+} else {
+    SESSION_SCALE_FIT
+}
+
+internal fun applySessionFullscreenWindow(window: android.view.Window, fullscreen: Boolean) {
+    if (fullscreen) window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+    else window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+    @Suppress("DEPRECATION")
+    window.decorView.systemUiVisibility = sessionSystemUiVisibility(fullscreen)
+    if (Build.VERSION.SDK_INT >= 28) {
+        window.attributes = window.attributes.apply {
+            layoutInDisplayCutoutMode = sessionDisplayCutoutMode(fullscreen)
+        }
+    }
+}
+
 class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(newBase)
@@ -185,7 +212,23 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             "bottom" -> ALIGN_PICTURE_BOTTOM
             else -> ALIGN_CENTER
         }
-        WaylandCompositor.nativeSetScaleMode(SCALE_FIT, alignment)
+        WaylandCompositor.nativeSetScaleMode(currentCompositorScaleMode(), alignment)
+    }
+
+    private fun currentCompositorScaleMode(): Int {
+        val width = if (::surfaceView.isInitialized && surfaceView.width > 0) surfaceView.width else surfaceW
+        val height = if (::surfaceView.isInitialized && surfaceView.height > 0) surfaceView.height else surfaceH
+        val landscape = if (width > 0 && height > 0) width > height else
+            resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val primaryDisplay = sessionActivityDisplayId == Display.DEFAULT_DISPLAY &&
+            glassesScreen == null && bottomGame == null && !glassesOutputActive && !bottomOutputActive
+        return sessionCompositorScaleMode(
+            landscape = landscape,
+            primaryDisplay = primaryDisplay,
+            inPictureInPicture = pipUi || isInPictureInPictureMode,
+            opticalViewport = activeCardboard.enabled,
+            controlsBelow = controlsBelowWanted(),
+        )
     }
     private var unfoldedPanel: com.droiddeck.launcher.ui.DeckControlsPanel? = null
     private lateinit var sessionRoot: FrameLayout
@@ -2219,7 +2262,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             runCatching { GameEnvironmentStore.publish(this) }
                 .onFailure { Log.e(TAG, "Could not update game environment", it) }
         }, "game-env-publish").start()
-        WaylandCompositor.nativeSetScaleMode(SCALE_FIT, ALIGN_CENTER)
+        WaylandCompositor.nativeSetScaleMode(currentCompositorScaleMode(), ALIGN_CENTER)
         WaylandCompositor.nativeSetUpscaler(SessionPrefs.upscaler(this))
         WaylandCompositor.nativeSetUpscaleSharpness(SessionPrefs.upscaleSharpness(this))
         SessionPrefs.screenEffects(this).push(SessionPrefs.upscaler(this))
@@ -2299,6 +2342,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             Log.i(TAG, "surface resized to ${width}x$height - rebinding the compositor")
             CompositorHost.resize(holder.surface) { applyFrameGen() }
             resizeOutputForWindow(width, height)
+            applyGameAlignment()
         }
     }
 
@@ -2355,6 +2399,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         applyFollowOrientation(newConfig)
         applyUnfoldedControls()
         resizeOutputForWindow(surfaceW, surfaceH)
+        applyGameAlignment()
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -3554,6 +3599,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             Log.i(TAG, if (wanted) "unfolded controls: game ${width}x$gameHeight, controls ${width}x${height - gameHeight}"
                 else "unfolded controls: game full screen")
         }
+        applyGameAlignment()
         var panel = unfoldedPanel
         if (panel != null && panel.deckControls != SessionState.deckPad) {
             sessionRoot.removeView(panel)
@@ -4457,6 +4503,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (inPip) releaseMainSurfaceMouseOwnership()
         fullscreenSafeInsetsController?.refresh()
         if (::pip.isInitialized) pip.changed(inPip)
+        applyGameAlignment()
         if (!inPip && surfaceW > 0) resizeOutputForWindow(surfaceW, surfaceH)
         applyUnfoldedControls()
         updateGlassesScreen()
@@ -4768,6 +4815,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         activeCardboard = e
         if (e.enabled && !was.enabled) releaseMainSurfaceMouseOwnership()
         fullscreenSafeInsetsController?.refresh()
+        applyGameAlignment()
         if (CompositorHost.isStarted) pushCardboard(e)
         if (e.enabled && !was.enabled) headTracker?.recenter()
         updateHeadTracker()
@@ -5179,13 +5227,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun applySessionFullscreen() {
         val fullscreen = SessionPrefs.launcherFullscreen(this)
-        @Suppress("DEPRECATION")
-        window.decorView.systemUiVisibility = sessionSystemUiVisibility(fullscreen)
-        if (Build.VERSION.SDK_INT >= 28) {
-            window.attributes = window.attributes.apply {
-                layoutInDisplayCutoutMode = sessionDisplayCutoutMode(fullscreen)
-            }
-        }
+        applySessionFullscreenWindow(window, fullscreen)
         fullscreenSafeInsetsController?.refresh()
     }
 

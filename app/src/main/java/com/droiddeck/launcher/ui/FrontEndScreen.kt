@@ -40,7 +40,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -603,11 +602,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     }
     androidx.compose.foundation.layout.BoxWithConstraints(
         modifier = Modifier.fillMaxSize().background(colors.background)
-            .then(
-                Modifier.windowInsetsPadding(
-                    if (s.launcherFullscreen) launcherWindowInsets else WindowInsets.systemBars,
-                ),
-            )
+            .windowInsetsPadding(launcherWindowInsets)
             .onFocusChanged { anyFocused = it.hasFocus },
     ) {
         val bottomNavigation = maxHeight > maxWidth
