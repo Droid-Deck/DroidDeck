@@ -85,14 +85,19 @@ The HAP lands in `entry/build/default/outputs/default/entry-default-signed.hap`.
 
 ### From the command line
 
+The public OpenHarmony SDK ships the NDK, the ArkTS compiler
+(`ets/build-tools/ets-loader`), the resource compiler (`toolchains/restool`) and
+`hdc`. **Hvigor, ohpm and Node are not in it** — they ship with DevEco Studio,
+so point the build at that installation:
+
 ```bash
-# The HarmonyOS SDK ships Hvigor, ohpm and Node.
+export DEVECO=/Applications/DevEco-Studio.app/Contents/tools
 export OHOS_SDK_HOME=/path/to/openharmony-sdk
-export PATH="$OHOS_SDK_HOME/node/bin:$OHOS_SDK_HOME/ohpm/bin:$PATH"
+export PATH="$DEVECO/node/bin:$DEVECO/ohpm/bin:$PATH"
 
 cd harmonyos
-ohpm install
-hvigorw --mode module -p product=default assembleHap
+"$DEVECO/ohpm/bin/ohpm" install
+"$DEVECO/hvigor/bin/hvigorw" --mode module -p product=default assembleHap
 ```
 
 The native module is built by the same invocation; it needs the OHOS NDK
