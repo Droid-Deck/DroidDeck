@@ -366,6 +366,13 @@ class ExecTest(Temp):
             self.open("--exec", str(self.storage / "Download/Game/helper.bin"))
             chdir.assert_called_once()
 
+    def test_a_script_a_running_program_starts_runs_in_place(self):
+        script = str(self.storage / "Download/Game/start.sh")
+        with mock.patch.dict(OPEN, {"for_x86": lambda path: False}), mock.patch("os.chdir") as chdir:
+            self.assertEqual(self.open("--exec", script, "-z", env={"BL_BINFMT": "1"}), ["/bin/sh", script, "-z"])
+            chdir.assert_not_called()
+        self.assertEqual(self.copied, [])
+
     def test_a_native_program_a_running_program_starts_still_gets_its_folder_copied_in(self):
         program = str(self.storage / "Download/Game/helper.bin")
         self.assertEqual(self.open("--exec", program, "-y"), [OPEN["SCRIPT_RUN"], "/opt/droiddeck-apps/game", "-y"])
