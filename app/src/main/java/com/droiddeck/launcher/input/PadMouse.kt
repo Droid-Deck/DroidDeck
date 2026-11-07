@@ -90,8 +90,8 @@ class PadMouse(private val listener: Listener, private val clock: () -> Long = S
         val wired = wiredLayout.getOrPut(event.deviceId) { PadBridge.wiredXboxLayout(event) }
         sticks.leftX = event.getAxisValue(MotionEvent.AXIS_X)
         sticks.leftY = event.getAxisValue(MotionEvent.AXIS_Y)
-        sticks.rightX = PadBridge.rightX(event, wired)
-        sticks.rightY = PadBridge.rightY(event, wired)
+        sticks.rightX = scrollAxis(event, if (wired) MotionEvent.AXIS_RX else MotionEvent.AXIS_Z)
+        sticks.rightY = scrollAxis(event, if (wired) MotionEvent.AXIS_RY else MotionEvent.AXIS_RZ)
         if (hasTriggerAxes(event)) {
             sticks.leftTrigger = PadBridge.leftTrigger(event, wired)
             sticks.rightTrigger = PadBridge.rightTrigger(event, wired)
@@ -295,6 +295,7 @@ class PadMouse(private val listener: Listener, private val clock: () -> Long = S
     }
 
     companion object {
+        private const val SCROLL_AXIS_DEAD_ZONE = 0.12f
         private const val DEAD_ZONE = 0.15f
         private const val STICK_NAVIGATE = 0.5f
         private const val REPEAT_FIRST_MS = 300L
@@ -347,6 +348,9 @@ class PadMouse(private val listener: Listener, private val clock: () -> Long = S
             val scaled = (length.coerceAtMost(1f) - DEAD_ZONE) / (1f - DEAD_ZONE)
             return scaled * scaled / length
         }
+
+        private fun scrollAxis(event: MotionEvent, axis: Int): Float =
+            event.getAxisValue(axis).let { if (abs(it) < SCROLL_AXIS_DEAD_ZONE) 0f else it }
 
         private fun source(deviceId: Int, kind: Int): Int = deviceId * 2 + kind
 

@@ -1,0 +1,26 @@
+diff --git a/src/rendervulkan.cpp b/src/rendervulkan.cpp
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -2235,9 +2235,19 @@
+ 		else
+ 		{
+ 			std::span<const uint64_t> modifiers = GetBackend()->GetSupportedModifiers( drmFormat );
+-			assert( !modifiers.empty() );
+-			possibleModifiers = modifiers.data();
+-			numPossibleModifiers = modifiers.size();
++			if ( modifiers.empty() )
++			{
++				// The nested backend offered no modifier for this format (a game's buffer on Venus,
++				// NieR Replicant on a Pixel 9a): linear instead of the assert that ended the session.
++				vk_log.errorf( "flippable image: the backend offers no modifier for DRM format 0x%x; trying linear", drmFormat );
++				possibleModifiers = &linear;
++				numPossibleModifiers = 1;
++			}
++			else
++			{
++				possibleModifiers = modifiers.data();
++				numPossibleModifiers = modifiers.size();
++			}
+ 		}
+ 
+ 		for ( size_t i = 0; i < numPossibleModifiers; i++ )

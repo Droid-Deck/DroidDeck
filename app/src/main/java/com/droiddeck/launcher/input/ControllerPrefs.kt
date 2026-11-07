@@ -22,6 +22,9 @@ object ControllerPrefs {
 
     val sizes = listOf(80, 90, 100, 110, 125)
 
+    val deadZones = listOf(0, 5, 8, 12, 15, 20, 25)
+    const val DEFAULT_DEAD_ZONE_PERCENT = 12
+
     val mappable = listOf(
         "a" to R.string.ctrl_button_a, "b" to R.string.ctrl_button_b, "x" to R.string.ctrl_button_x, "y" to R.string.ctrl_button_y,
         "lb" to R.string.ctrl_button_lb, "rb" to R.string.ctrl_button_rb, "lt" to R.string.ctrl_button_lt, "rt" to R.string.ctrl_button_rt,
@@ -51,6 +54,7 @@ object ControllerPrefs {
         val snap: Boolean,
         val customLayout: Boolean,
         val mapping: Map<String, String>,
+        val deadZone: Int,
     )
 
     internal fun prefs(context: Context) = context.getSharedPreferences("controller", Context.MODE_PRIVATE)
@@ -72,6 +76,7 @@ object ControllerPrefs {
             snap = p.getBoolean("snap", true),
             customLayout = p.all.keys.any { it.startsWith("layout.") },
             mapping = mappable.associate { (id, _) -> id to target(context, id) },
+            deadZone = deadZone(context),
         )
     }
 
@@ -108,6 +113,13 @@ object ControllerPrefs {
     }
 
     fun rumbleEnabled(context: Context): Boolean = prefs(context).getBoolean("rumble", true)
+
+    fun deadZone(context: Context): Int =
+        prefs(context).getInt("deadZone", DEFAULT_DEAD_ZONE_PERCENT).takeIf { it in deadZones } ?: DEFAULT_DEAD_ZONE_PERCENT
+
+    fun setDeadZone(context: Context, percent: Int) {
+        prefs(context).edit().putInt("deadZone", percent).apply()
+    }
 
     fun setRumble(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("rumble", on).apply()
@@ -156,56 +168,6 @@ object ControllerPrefs {
     fun resetLayout(context: Context, width: Int, height: Int) {
         prefs(context).edit().remove("layout.${width}x$height").apply()
     }
-
-    fun screenKeysShown(context: Context): Boolean = prefs(context).getBoolean("screenKeysShown", true)
-
-    fun setScreenKeysShown(context: Context, shown: Boolean) {
-        prefs(context).edit().putBoolean("screenKeysShown", shown).apply()
-    }
-
-    fun screenKeys(context: Context): List<ScreenKey> = decodeScreenKeys(prefs(context).getString("screenKeys", null).orEmpty())
-
-    fun setScreenKeys(context: Context, keys: List<ScreenKey>) {
-        prefs(context).edit().putString("screenKeys", encodeScreenKeys(keys)).apply()
-    }
-
-    fun encodeScreenKeys(keys: List<ScreenKey>): String = keys.joinToString(";") {
-        "${it.codes.joinToString("+")}:${it.x},${it.y},${it.size}:${escape(it.glyph)}:${escape(it.text)}:${escape(it.image)}:${it.opacity}:${it.shape}:${if (it.toggle) 1 else 0}:${if (it.labels) 1 else 0}"
-    }
-
-    fun decodeScreenKeys(raw: String): List<ScreenKey> = raw.split(';').mapNotNull { entry ->
-        val parts = entry.split(':')
-        if (parts.size < 2) return@mapNotNull null
-        val keys = parts[0].split('+').mapNotNull { it.toIntOrNull() }.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-        val nums = parts[1].split(',').mapNotNull { it.toFloatOrNull() }.takeIf { it.size == 3 } ?: return@mapNotNull null
-        ScreenKey(
-            keys, nums[0], nums[1], nums[2].toInt(),
-            parts.getOrNull(2)?.let(::unescape).orEmpty(),
-            parts.getOrNull(3)?.let(::unescape).orEmpty(),
-            parts.getOrNull(4)?.let(::unescape).orEmpty(),
-            parts.getOrNull(5)?.toFloatOrNull()?.coerceIn(0.2f, 1f) ?: 1f,
-            parts.getOrNull(6)?.toIntOrNull()?.coerceIn(SCREEN_KEY_PILL, SCREEN_KEY_STICK) ?: SCREEN_KEY_PILL,
-            parts.getOrNull(7) == "1",
-            parts.getOrNull(8) != "0",
-        )
-    }
-
-    fun screenLayouts(context: Context): Map<String, String> =
-        prefs(context).all.mapNotNull { (key, value) ->
-            if (!key.startsWith("screenLayout.") || value !is String) null else key.removePrefix("screenLayout.") to value
-        }.toMap()
-
-    fun saveScreenLayout(context: Context, name: String, raw: String) {
-        prefs(context).edit().putString("screenLayout.$name", raw).apply()
-    }
-
-    fun deleteScreenLayout(context: Context, name: String) {
-        prefs(context).edit().remove("screenLayout.$name").apply()
-    }
-
-    private fun escape(value: String) = value.replace("%", "%25").replace(";", "%3B").replace(":", "%3A").replace(",", "%2C")
-
-    private fun unescape(value: String) = value.replace("%2C", ",").replace("%3A", ":").replace("%3B", ";").replace("%25", "%")
 
     fun resetAll(context: Context) {
         prefs(context).edit().clear().putBoolean("rumble", true).apply()

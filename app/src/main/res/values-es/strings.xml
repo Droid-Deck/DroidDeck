@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s con FEX</string>
     <string name="app_fex_not_ready">Este programa está hecho para PC %1$s y se ejecuta con FEX, que aún no está listo. Abre Steam una vez con tu sesión iniciada: DroidDeck hará que descargue FEX y el Steam Linux Runtime que necesita, y después se abrirá.</string>
     <string name="session_proot_missing">No se ha podido descargar el proot de DroidDeck. Comprueba la conexión y vuelve a intentarlo. La sesión no se ha iniciado porque el proot alternativo es demasiado lento para jugar.</string>
+    <string name="session_powervr_missing">No se pudo descargar el entorno gráfico de PowerVR. Comprueba la conexión e inténtalo de nuevo.</string>
     <string name="session_directaudio_missing">No se ha podido descargar DirectAudio, así que el audio de los juegos usa la ruta más lenta en esta sesión.</string>
     <string name="session_end_program">Este programa</string>
     <string name="session_end_steam_download">No se ha podido descargar el cliente de Steam. Puede que tu red o VPN esté bloqueando los servidores de Steam; comprueba la conexión y vuelve a intentarlo.</string>
@@ -557,6 +558,19 @@
     <string name="comp_tag_in_use">En uso</string>
     <string name="comp_tag_new">Nuevo</string>
     <string name="comp_tag_stored">Guardado</string>
+    <string name="comp_mode_title">Cómo se eligen las versiones</string>
+    <string name="comp_mode_auto_detail">Versión más reciente de DroidDeck, siempre al día</string>
+    <string name="comp_mode_manual_detail">Elige e instala las versiones tú mismo</string>
+    <string name="comp_auto_title">Auto mantiene %1$s al día</string>
+    <string name="comp_auto_hint">Las nuevas versiones se instalan en segundo plano. Si un juego que funcionaba se cierra en segundos dos veces, Auto vuelve a la versión que funcionaba.</string>
+    <string name="comp_auto_fallback">Respaldo: %1$s</string>
+    <string name="comp_auto_checking">Buscando versiones…</string>
+    <string name="comp_auto_none">Ningún DroidDeck-Proton lo usa</string>
+    <string name="comp_auto_waits_network">Las actualizaciones Auto esperan una conexión.</string>
+    <string name="comp_auto_check_failed">No se pudieron buscar nuevas versiones.</string>
+    <string name="comp_auto_waits_unmetered">Las nuevas versiones esperan una conexión sin límite de datos, el ahorro de batería desactivado y el dispositivo frío.</string>
+    <string name="comp_auto_updated">%1$s actualizado a %2$s.</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s cerró un juego en segundos dos veces, así que Auto volvió a %3$s.</string>
     <string name="perf_title">Rendimiento</string>
     <string name="perf_lede">Núcleos de CPU, correcciones de sesión y nombre del host. Se aplica en la próxima sesión.</string>
     <string name="perf_client_cores_group">Núcleos del cliente de Steam</string>
@@ -587,7 +601,7 @@
     <string name="perf_ram_cap_hint">Se aplica mientras se ejecuta el cliente de Steam, en modo Steam o desde el escritorio. Cuando la sesión usa más de esto, Steam y luego los demás procesos compatibles de la sesión se comprimen en zRAM. Es un límite flexible: no se cierra nada, pero los juegos pueden tener tirones mientras se recuperan las páginas.</string>
     <string name="perf_ram_cap_unavailable">Requiere swap de zRAM, y este dispositivo no lo tiene.</string>
     <string name="perf_vram_cap">Límite de VRAM</string>
-    <string name="perf_vram_cap_hint">La memoria de vídeo que DXVK indica a los juegos Direct3D, para que calculen sus texturas con menos. Los ajustes de DXVK propios de un juego siguen teniendo prioridad. Se aplica en la próxima sesión.</string>
+    <string name="perf_vram_cap_hint">Informa a los juegos Direct3D 9 a 12 de este presupuesto de memoria de vídeo para reducir su uso. Los juegos pueden superarlo; no añade paginación de GPU ni garantiza evitar fallos por falta de memoria. Se aplica en la próxima sesión.</string>
     <string name="perf_gpuclock">Mantener la GPU a su reloj máximo</string>
     <string name="perf_gpuclock_hint">Solo Adreno. Menos tirones, más consumo de batería y calor.</string>
     <string name="perf_fixes">Correcciones de sesión</string>
@@ -672,6 +686,8 @@
     <string name="hud_group_metrics">Lecturas</string>
     <string name="hud_metric_graph">Gráfico de tiempos de fotograma</string>
     <string name="hud_metric_decimal">Tasa de fotogramas con decimal</string>
+    <string name="hud_metric_low1">1% más bajo</string>
+    <string name="hud_metric_low01">0.1% más bajo</string>
     <string name="hud_metric_low001">0.01% más bajo</string>
     <string name="hud_metric_engine">Motor gráfico</string>
     <string name="hud_metric_gpu_model">Nombre de la GPU</string>
@@ -749,6 +765,10 @@
     <string name="drawer_low_latency_touch">Táctil de baja latencia</string>
     <string name="drawer_low_latency_touch_hint">Los toques omiten la agrupación de fotogramas; los controles táctiles de Steam van a 1000 Hz. Usa algo más de CPU.</string>
     <string name="drawer_evdev_mouse">Canal de ratón sin procesar</string>
+    <string name="drawer_relative_mouse">Ratón relativo</string>
+    <string name="drawer_relative_mouse_auto">Automático</string>
+    <string name="drawer_relative_mouse_on">Activado</string>
+    <string name="drawer_relative_mouse_off">Desactivado</string>
     <string name="drawer_direct_cursor">Cursor</string>
     <string name="drawer_pc_keyboard">Teclado de PC</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -810,7 +830,7 @@
     <string name="setup_gpu_unsupported">GPU no compatible</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam necesita un controlador Adreno; %1$s puede mostrar una pantalla negra</string>
+    <string name="setup_gpu_unsupported_detail">No hay un motor gráfico compatible disponible; %1$s puede mostrar una pantalla negra</string>
     <string name="setup_runtime">Runtime de Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">No instalado · unos 3 GB, se instala al jugar por primera vez</string>
@@ -872,6 +892,7 @@
     <string name="setup_home">Usar como pantalla de inicio</string>
     <string name="setup_home_on">DroidDeck puede ser la app de inicio</string>
     <string name="setup_home_off">DroidDeck nunca se ofrece como app de inicio</string>
+    <string name="setup_home_game_space_first">En Añadir juegos, pon DroidDeck en Incluir</string>
     <string name="setup_orientation">Orientación</string>
     <string name="setup_launcher_orientation">Orientación del launcher</string>
     <string name="setup_launcher_orientation_auto">Seguir la rotación del dispositivo</string>
@@ -1107,6 +1128,7 @@
     <string name="ctrl_stick_click_hint">Toca dos veces y mantén un stick para L3 o R3</string>
     <string name="ctrl_adaptive">Sticks adaptables</string>
     <string name="ctrl_rumble">Vibración en juegos</string>
+    <string name="ctrl_dead_zone">Zona muerta de la palanca</string>
     <string name="ctrl_steam_button">Botón Steam</string>
     <string name="ctrl_qam_button">Botón QAM</string>
     <string name="ctrl_keyboard_button">Botón de teclado</string>
@@ -1184,6 +1206,15 @@
     <string name="games_export_gamehub">Exportar como zip de GameHub…</string>
     <string name="games_export_winlator">Exportar como zip de Winlator…</string>
     <string name="games_open_save_folder">Abrir carpeta de guardado</string>
+    <string name="games_import_addons">Importar addons desde zip…</string>
+    <string name="games_open_addons_folder">Abrir carpeta de addons</string>
+    <string name="games_delete_addon_title">¿Eliminar %1$s?</string>
+    <string name="games_delete_addon_body">Esto elimina la carpeta del addon. Sus ajustes se conservan.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d addon</item>
+        <item quantity="many">%1$d de addons</item>
+        <item quantity="other">%1$d addons</item>
+    </plurals>
     <string name="games_never_played">Nunca jugado</string>
     <string name="games_runtime_busy_percent">Runtime ocupado · %1$d%%</string>
     <string name="games_runtime_busy">Runtime ocupado</string>
@@ -1364,6 +1395,18 @@
         <item quantity="many">Se importaron %1$d archivos del %2$s en %3$s. Copia de las partidas anteriores en Download/DroidDeck/Saves/backups</item>
         <item quantity="other">Se importaron %1$d archivos del %2$s en %3$s. Copia de las partidas anteriores en Download/DroidDeck/Saves/backups</item>
     </plurals>
+    <string name="main_addons_close_session">Cierra primero la sesión para que el juego no use sus addons durante la importación</string>
+    <string name="main_addons_importing">Importando addons en %1$s</string>
+    <string name="main_addons_pick_zip">Elige un zip de addons para %1$s</string>
+    <string name="main_addons_too_large">%1$s es demasiado grande para importarlo</string>
+    <string name="main_addons_deleting">Eliminando %1$s</string>
+    <string name="main_addons_deleted">Se eliminó %1$s</string>
+    <string name="main_addons_none">No se encontraron addons en %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">Se importó %1$d addon en %2$s</item>
+        <item quantity="many">Se importaron %1$d de addons en %2$s</item>
+        <item quantity="other">Se importaron %1$d addons en %2$s</item>
+    </plurals>
     <string name="main_saves_pick_zip">Elige un zip de partidas guardadas para %1$s</string>
     <string name="main_saves_exporting">Exportando %1$s</string>
     <plurals name="main_saves_exported">
@@ -1385,8 +1428,8 @@
     <string name="main_wadb_unavailable">La Depuración inalámbrica no está disponible</string>
     <string name="main_adb_copied">Comando ADB copiado</string>
     <string name="main_pick_roms">Elige la carpeta de ROMs</string>
-    <string name="main_non_adreno_title">La GPU no es Adreno</string>
-    <string name="main_non_adreno_text">Turnip es compatible con GPU Adreno. En %1$s, Steam puede mostrar una pantalla negra. Descarga: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">GPU no compatible</string>
+    <string name="main_non_adreno_text">No hay un motor gráfico compatible disponible para %1$s. Steam puede mostrar una pantalla negra. Descarga: %2$.0f MB.</string>
     <string name="main_install_anyway">Instalar de todos modos</string>
     <string name="main_remove_runtime_title">Eliminar el runtime de Linux</string>
     <string name="main_remove_runtime_text">Esto elimina el runtime, el cliente de Steam que contiene y todos los juegos instalados en él.</string>
@@ -1770,6 +1813,7 @@
     <string name="ctrl_tint_amber">Ámbar</string>
     <string name="ctrl_tint_red">Rojo</string>
     <string name="ctrl_tint_pink">Rosa</string>
+    <string name="ctrl_tint_gray">Gris</string>
     <string name="ctrl_button_a">Botón A</string>
     <string name="ctrl_button_b">Botón B</string>
     <string name="ctrl_button_x">Botón X</string>
@@ -2113,7 +2157,7 @@
     <string name="gpuinfo_experimental">Experimental: sus controladores son versiones de prueba</string>
     <string name="gpuinfo_a850_experimental">Compatibilidad experimental con Adreno 850: requiere controladores experimentales de pantalla y de juegos compatibles; no verificada en este dispositivo</string>
     <string name="gpuinfo_below_tested">Por debajo del hardware probado (Adreno 725 y posteriores): puede que no funcione</string>
-    <string name="gpuinfo_unsupported">No compatible: DroidDeck necesita una GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">No compatible: no hay un motor gráfico compatible disponible para esta GPU</string>
 
     <string name="turnip_rate_limited">Se alcanzó el límite de solicitudes de GitHub - inténtalo más tarde</string>
     <string name="turnip_github_http">GitHub respondió HTTP %1$d</string>
@@ -2224,9 +2268,6 @@
     <string name="source_added">Personalizados</string>
     <string name="setup_stores">Tiendas</string>
     <string name="setup_stores_speed">Nivel de velocidad de descarga</string>
-    <string name="setup_stores_engine">Motor de las tiendas</string>
-    <string name="setup_stores_engine_chip_ready">● Motor listo</string>
-    <string name="setup_stores_engine_chip_missing">Sin compilar</string>
     <string name="stores_tier_balanced">Equilibrado</string>
     <string name="stores_tier_fast">Rápido</string>
     <string name="stores_tier_max">Máximo</string>
@@ -3503,6 +3544,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Para juegos con partidas guardadas en tu cuenta de Steam</string>
     <string name="game_resource_search">Búsqueda web</string>
+    <string name="game_tab_addons">Addons</string>
     <string name="game_tab_install">Instalar</string>
     <string name="game_install_location">Ubicación</string>
     <string name="game_install_folder">Carpeta</string>
@@ -3549,19 +3591,18 @@
     <string name="integration_wifi">Nombres de Wi-Fi</string>
     <string name="integration_brightness">Brillo</string>
     <string name="integration_home">DroidDeck como inicio</string>
-    <string name="integration_shortcuts">Atajos del botón de inicio</string>
+    <string name="integration_shortcuts">Teclas del sistema</string>
     <string name="integration_wifi_hint">Muestra las redes en Steam · requiere acceso a la ubicación, nunca se rastrea</string>
     <string name="integration_wifi_on">Las redes se muestran en Steam</string>
     <string name="integration_wifi_location_off">La ubicación está desactivada</string>
     <string name="integration_wifi_denied">Ubicación denegada · permítela en Información de la aplicación</string>
     <string name="integration_brightness_hint">El control deslizante de Steam ajusta el brillo de la pantalla</string>
     <string name="integration_home_hint">Inicio abre el menú de Steam en una sesión</string>
-    <string name="integration_shortcuts_hint">Mantén Inicio para las combinaciones de Steam Guide</string>
-    <string name="integration_shortcuts_needs_home">Requiere DroidDeck como inicio</string>
+    <string name="integration_shortcuts_hint">Alt+Tab, la tecla Win y el botón Inicio se quedan en la sesión</string>
     <string name="integration_shortcuts_maybe_restricted">¿Aparece en gris en Android? Información de la aplicación → ⋮ → Permitir ajustes restringidos</string>
     <string name="integration_shortcuts_restricted">Bloqueado por Android · Información de la aplicación → ⋮ → Permitir ajustes restringidos</string>
-    <string name="integration_shortcuts_service">Botón de inicio de DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Pasa las pulsaciones del botón de inicio a Steam Guide mientras una sesión de Steam está en primer plano y DroidDeck es la app de inicio predeterminada. No lee el contenido de la pantalla.</string>
+    <string name="integration_shortcuts_service">Teclas del sistema de DroidDeck</string>
+    <string name="integration_shortcuts_service_description">Mantiene Alt+Tab, la tecla Win y el botón Inicio en una sesión activa de DroidDeck en lugar de Android.</string>
     <string name="integration_brightness_needed">Activa Brillo en Configuración → Integración con Steam</string>
     <string name="setup_gpu_bridge_off">Puente Mali: desactivado</string>
     <string name="setup_gpu_bridge_on">Puente Mali: activado</string>
@@ -3685,4 +3726,12 @@
     <string name="stores_gamejolt_filter_status">Estado</string>
     <string name="stores_gamejolt_filter_partners">Socios</string>
     <string name="stores_gamejolt_followed">Juegos seguidos</string>
+    <string name="wow_chat_title">Entrada del chat</string>
+    <string name="wow_chat_voice">Dictado por voz</string>
+    <string name="wow_chat_remember">Recordar esta selección</string>
+    <string name="wow_chat_ask">Preguntar cada vez</string>
+    <string name="wow_chat_send">Enviar</string>
+    <string name="wow_chat_listening">Escuchando…</string>
+    <string name="wow_chat_voice_unavailable">El dictado por voz no está disponible en este dispositivo.</string>
+    <string name="wow_chat_mic_denied">Se necesita acceso al micrófono para el dictado por voz.</string>
 </resources>

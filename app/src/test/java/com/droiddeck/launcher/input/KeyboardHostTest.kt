@@ -304,6 +304,30 @@ class KeyboardHostTest {
                      listOf(KeyEvent.KEYCODE_TAB, KeyEvent.KEYCODE_TAB), keys.map { it.keyCode })
     }
 
+    @Config(sdk = [33])
+    @Test fun typedChatTextAndSoftEditsStayOrdered() {
+        host.type("你好😀")
+        host.tap(KeyEvent.KEYCODE_DEL)
+        host.tap(KeyEvent.KEYCODE_ENTER)
+        idle()
+
+        assertEquals("text, delete and enter must keep their order",
+                     listOf("你好😀", "\b", "\r"), texts)
+        assertTrue("chat text and edits must not become key events", keys.isEmpty())
+    }
+
+    @Config(sdk = [33])
+    @Test fun tappingEscapeStillSendsKeyEvents() {
+        host.tap(KeyEvent.KEYCODE_ESCAPE)
+        idle()
+
+        assertEquals("escape must keep its down/up pair",
+                     listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP), keys.map { it.action })
+        assertEquals("escape must target the escape key",
+                     listOf(KeyEvent.KEYCODE_ESCAPE, KeyEvent.KEYCODE_ESCAPE), keys.map { it.keyCode })
+        assertTrue("escape must not use the text channel", texts.isEmpty())
+    }
+
     private fun keyEvent(action: Int, keyCode: Int, metaState: Int = 0, repeat: Int = 0) =
         KeyEvent(0L, 0L, action, keyCode, repeat, metaState)
 

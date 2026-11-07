@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s（FEX経由）</string>
     <string name="app_fex_not_ready">このプログラムは%1$s PC向けにビルドされており、FEX経由で実行されますが、FEXはまだセットアップされていません。ログインした状態で一度Steamを開いてください。DroidDeckがFEXと必要なSteam Linux Runtimeをダウンロードした後、このプログラムが開きます。</string>
     <string name="session_proot_missing">DroidDeckのprootをダウンロードできませんでした。接続を確認して、もう一度お試しください。代替のprootではプレイするには遅すぎるため、セッションは開始されませんでした。</string>
+    <string name="session_powervr_missing">PowerVRのグラフィックス環境をダウンロードできませんでした。接続を確認して、もう一度お試しください。</string>
     <string name="session_directaudio_missing">DirectAudioをダウンロードできなかったため、このセッションではゲーム音声に低速な経路を使用します。</string>
     <string name="session_end_program">このプログラム</string>
     <string name="session_end_steam_download">Steamクライアントをダウンロードできませんでした。ネットワークまたはVPNがSteamのサーバーをブロックしている可能性があります。接続を確認して、もう一度お試しください。</string>
@@ -553,6 +554,19 @@
     <string name="comp_tag_in_use">使用中</string>
     <string name="comp_tag_new">新規</string>
     <string name="comp_tag_stored">保存済み</string>
+    <string name="comp_mode_title">ビルドの選び方</string>
+    <string name="comp_mode_auto_detail">最新の DroidDeck ビルドを常に維持</string>
+    <string name="comp_mode_manual_detail">ビルドを自分で選んでインストール</string>
+    <string name="comp_auto_title">Auto が %1$s を最新に保ちます</string>
+    <string name="comp_auto_hint">新しいビルドはバックグラウンドでインストールされます。以前動いていたゲームが数秒で 2 回終了した場合、Auto は動作していたビルドに戻します。</string>
+    <string name="comp_auto_fallback">予備: %1$s</string>
+    <string name="comp_auto_checking">ビルドを確認中…</string>
+    <string name="comp_auto_none">これを使う DroidDeck-Proton はありません</string>
+    <string name="comp_auto_waits_network">Auto 更新は接続を待っています。</string>
+    <string name="comp_auto_check_failed">新しいビルドを確認できませんでした。</string>
+    <string name="comp_auto_waits_unmetered">新しいビルドは従量制でない接続、バッテリーセーバーのオフ、端末が熱くない状態を待ちます。</string>
+    <string name="comp_auto_updated">%1$s を %2$s に更新しました。</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s でゲームが数秒で 2 回終了したため、Auto は %3$s に戻しました。</string>
     <string name="perf_title">パフォーマンス</string>
     <string name="perf_lede">CPUコア、セッション修正、ホスト名。次回のセッションで有効になります。</string>
     <string name="perf_client_cores_group">Steamクライアントコア</string>
@@ -583,7 +597,7 @@
     <string name="perf_ram_cap_hint">Steamモードでもデスクトップからでも、Steamクライアントの実行中に適用されます。セッションの使用量がこの値を超えると、Steam、次にセッション内の対応する他のプロセスがzRAMに圧縮されます。ソフトな上限のため何も終了されませんが、ページの読み戻し中にゲームがカクつくことがあります。</string>
     <string name="perf_ram_cap_unavailable">zRAMスワップが必要ですが、このデバイスにはありません。</string>
     <string name="perf_vram_cap">VRAM上限</string>
-    <string name="perf_vram_cap_hint">DXVKがDirect3Dゲームに報告するビデオメモリ量です。ゲームはこれに合わせてテクスチャ量を抑えます。ゲーム独自のDXVK設定が優先されます。次回のセッションから有効になります。</string>
+    <string name="perf_vram_cap_hint">Direct3D 9～12のゲームにこのビデオメモリ予算を通知し、メモリ使用量の削減を促します。ゲームは予算を超える場合があります。GPUのページングを追加するものではなく、メモリ不足によるクラッシュの防止は保証されません。次のセッションから有効になります。</string>
     <string name="perf_gpuclock">GPUを最高クロックに保つ</string>
     <string name="perf_gpuclock_hint">Adrenoのみ。スタッターは減りますが、消費電力と発熱が増えます。</string>
     <string name="perf_fixes">セッション修正</string>
@@ -668,6 +682,8 @@
     <string name="hud_group_metrics">表示項目</string>
     <string name="hud_metric_graph">フレームタイムグラフ</string>
     <string name="hud_metric_decimal">フレームレートの小数表示</string>
+    <string name="hud_metric_low1">1%最低値</string>
+    <string name="hud_metric_low01">0.1%最低値</string>
     <string name="hud_metric_low001">0.01%最低値</string>
     <string name="hud_metric_engine">グラフィックスエンジン</string>
     <string name="hud_metric_gpu_model">GPU名</string>
@@ -745,6 +761,10 @@
     <string name="drawer_low_latency_touch">低遅延タッチ</string>
     <string name="drawer_low_latency_touch_hint">タッチはフレームの結合を省略し、Steam のタッチは 1000 Hz で報告されます。CPU 使用率がわずかに上がります。</string>
     <string name="drawer_evdev_mouse">生のマウス経路</string>
+    <string name="drawer_relative_mouse">相対マウス</string>
+    <string name="drawer_relative_mouse_auto">自動</string>
+    <string name="drawer_relative_mouse_on">オン</string>
+    <string name="drawer_relative_mouse_off">オフ</string>
     <string name="drawer_direct_cursor">カーソル</string>
     <string name="drawer_pc_keyboard">PCキーボード</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -804,7 +824,7 @@
     <string name="setup_gpu_unsupported">GPUはサポートされていません</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s：%2$s</string>
-    <string name="setup_gpu_unsupported_detail">SteamにはAdrenoドライバーが必要です。%1$sでは画面が真っ暗になる可能性があります。</string>
+    <string name="setup_gpu_unsupported_detail">利用できる互換グラフィックスバックエンドがありません。%1$sでは画面が真っ暗になる可能性があります。</string>
     <string name="setup_runtime">Linux実行環境</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">未インストール · 約3GB、初回ゲーム起動時にインストール</string>
@@ -866,6 +886,7 @@
     <string name="setup_home">ホーム画面として使用</string>
     <string name="setup_home_on">DroidDeckをホームアプリとして使用できます</string>
     <string name="setup_home_off">DroidDeckはホームアプリとして提供されません</string>
+    <string name="setup_home_game_space_first">「ゲームを追加」で DroidDeck を「含める」に設定してください</string>
     <string name="setup_orientation">画面の向き</string>
     <string name="setup_launcher_orientation">ランチャーの向き</string>
     <string name="setup_launcher_orientation_auto">デバイスの回転に合わせる</string>
@@ -1095,6 +1116,7 @@
     <string name="ctrl_stick_click_hint">スティックをダブルタップして長押しすると、L3またはR3がトリガーされます</string>
     <string name="ctrl_adaptive">アダプティブスティック</string>
     <string name="ctrl_rumble">ゲームの振動</string>
+    <string name="ctrl_dead_zone">スティックのデッドゾーン</string>
     <string name="ctrl_steam_button">Steamボタン</string>
     <string name="ctrl_qam_button">QAMボタン</string>
     <string name="ctrl_keyboard_button">キーボードボタン</string>
@@ -1172,6 +1194,13 @@
     <string name="games_export_gamehub">GameHubアーカイブとしてエクスポート…</string>
     <string name="games_export_winlator">Winlatorアーカイブとしてエクスポート…</string>
     <string name="games_open_save_folder">セーブフォルダを開く</string>
+    <string name="games_import_addons">zipからアドオンをインポート…</string>
+    <string name="games_open_addons_folder">アドオンフォルダを開く</string>
+    <string name="games_delete_addon_title">%1$sを削除しますか？</string>
+    <string name="games_delete_addon_body">アドオンのフォルダが削除されます。設定は残ります。</string>
+    <plurals name="games_addons_count">
+        <item quantity="other">%1$d個のアドオン</item>
+    </plurals>
     <string name="games_never_played">未プレイ</string>
     <string name="games_runtime_busy_percent">実行環境は使用中 · %1$d%%</string>
     <string name="games_runtime_busy">実行環境は使用中</string>
@@ -1348,6 +1377,16 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="other">%2$sから%1$d個のファイルを%3$sにインポートしました。以前のセーブデータはDownload/DroidDeck/Saves/backupsにバックアップされました</item>
     </plurals>
+    <string name="main_addons_close_session">インポート中にゲームがアドオンを使用しないよう、先にセッションを終了してください</string>
+    <string name="main_addons_importing">%1$sにアドオンをインポート中</string>
+    <string name="main_addons_pick_zip">%1$sのアドオンzipを選択</string>
+    <string name="main_addons_too_large">%1$s は大きすぎるためインポートできません</string>
+    <string name="main_addons_deleting">%1$sを削除中</string>
+    <string name="main_addons_deleted">%1$sを削除しました</string>
+    <string name="main_addons_none">%1$sにアドオンが見つかりません</string>
+    <plurals name="main_addons_imported">
+        <item quantity="other">%1$d個のアドオンを%2$sにインポートしました</item>
+    </plurals>
     <string name="main_saves_pick_zip">%1$sのセーブデータzipを選択</string>
     <string name="main_saves_exporting">%1$sをエクスポート中</string>
     <plurals name="main_saves_exported">
@@ -1365,8 +1404,8 @@
     <string name="main_wadb_unavailable">ワイヤレスデバッグは利用できません</string>
     <string name="main_adb_copied">ADBコマンドをコピーしました</string>
     <string name="main_pick_roms">ROMフォルダを選択</string>
-    <string name="main_non_adreno_title">Adreno GPUではありません</string>
-    <string name="main_non_adreno_text">TurnipはAdreno GPUをサポートしています。%1$sでは、Steamの画面が真っ暗になる可能性があります。ダウンロード：%2$.0f MB。</string>
+    <string name="main_non_adreno_title">サポート対象外のGPU</string>
+    <string name="main_non_adreno_text">%1$sで利用できる互換グラフィックスバックエンドがありません。Steamの画面が真っ暗になる可能性があります。ダウンロード：%2$.0f MB。</string>
     <string name="main_install_anyway">インストールする</string>
     <string name="main_remove_runtime_title">Linux実行環境を削除</string>
     <string name="main_remove_runtime_text">実行環境、その中のSteamクライアント、そこにインストールされたすべてのゲームが削除されます。</string>
@@ -1726,6 +1765,7 @@
     <string name="ctrl_tint_amber">アンバー</string>
     <string name="ctrl_tint_red">レッド</string>
     <string name="ctrl_tint_pink">ピンク</string>
+    <string name="ctrl_tint_gray">グレー</string>
     <string name="ctrl_button_a">Aボタン</string>
     <string name="ctrl_button_b">Bボタン</string>
     <string name="ctrl_button_x">Xボタン</string>
@@ -2067,7 +2107,7 @@
     <string name="gpuinfo_experimental">実験的：ドライバーはテストビルドです</string>
     <string name="gpuinfo_a850_experimental">Adreno 850の実験的サポート：互換性のある実験版のディスプレイドライバーとゲームドライバーが必要です。このデバイスでは未検証です</string>
     <string name="gpuinfo_below_tested">テスト済みハードウェア（Adreno 725以降）未満：動作しない可能性があります</string>
-    <string name="gpuinfo_unsupported">サポート対象外：DroidDeckにはAdreno（Snapdragon）GPUが必要です</string>
+    <string name="gpuinfo_unsupported">サポート対象外：このGPUで利用できる互換グラフィックスバックエンドがありません</string>
 
     <string name="turnip_rate_limited">GitHubのレート制限に達しました。後でもう一度お試しください</string>
     <string name="turnip_github_http">GitHubがHTTP %1$dを返しました</string>
@@ -2178,9 +2218,6 @@
     <string name="source_added">カスタム</string>
     <string name="setup_stores">ストア</string>
     <string name="setup_stores_speed">ダウンロード速度レベル</string>
-    <string name="setup_stores_engine">ストアエンジン</string>
-    <string name="setup_stores_engine_chip_ready">● エンジン準備完了</string>
-    <string name="setup_stores_engine_chip_missing">未ビルド</string>
     <string name="stores_tier_balanced">バランス</string>
     <string name="stores_tier_fast">高速</string>
     <string name="stores_tier_max">最大</string>
@@ -3440,6 +3477,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Steamアカウントにセーブデータがあるゲーム向け</string>
     <string name="game_resource_search">ウェブ検索</string>
+    <string name="game_tab_addons">アドオン</string>
     <string name="game_tab_install">インストール</string>
     <string name="game_install_location">場所</string>
     <string name="game_install_folder">フォルダ</string>
@@ -3486,19 +3524,18 @@
     <string name="integration_wifi">Wi-Fi名</string>
     <string name="integration_brightness">明るさ</string>
     <string name="integration_home">DroidDeckをホームに設定</string>
-    <string name="integration_shortcuts">ホームボタンのショートカット</string>
+    <string name="integration_shortcuts">システムキー</string>
     <string name="integration_wifi_hint">Steamにネットワークを表示 · 位置情報へのアクセスが必要ですが、追跡はしません</string>
     <string name="integration_wifi_on">Steamにネットワークが表示されます</string>
     <string name="integration_wifi_location_off">位置情報がオフです</string>
     <string name="integration_wifi_denied">位置情報が拒否されています · アプリ情報で許可してください</string>
     <string name="integration_brightness_hint">Steamのスライダーで画面の明るさを調整します</string>
     <string name="integration_home_hint">セッション中はホームでSteamメニューを開きます</string>
-    <string name="integration_shortcuts_hint">ホームを長押しでSteamガイドの同時押し操作を使用</string>
-    <string name="integration_shortcuts_needs_home">DroidDeckをホームに設定する必要があります</string>
+    <string name="integration_shortcuts_hint">Alt+Tab、Win キー、ホームボタンをセッション内で使えます</string>
     <string name="integration_shortcuts_maybe_restricted">Androidでグレー表示されていますか？アプリ情報 → ⋮ → 制限付き設定を許可</string>
     <string name="integration_shortcuts_restricted">Androidによってブロックされています · アプリ情報 → ⋮ → 制限付き設定を許可</string>
-    <string name="integration_shortcuts_service">DroidDeckホームボタン</string>
-    <string name="integration_shortcuts_service_description">Steamセッションがフォーカスされ、DroidDeckがデフォルトのホームアプリの場合に、ホームボタンの操作をSteamガイドに渡します。画面のコンテンツは読み取りません。</string>
+    <string name="integration_shortcuts_service">DroidDeck システムキー</string>
+    <string name="integration_shortcuts_service_description">Alt+Tab、Win キー、ホームボタンを Android ではなく操作中の DroidDeck セッションで使えるようにします。</string>
     <string name="integration_brightness_needed">「セットアップ」→「Steam連携」で明るさをオンにしてください</string>
     <string name="setup_gpu_bridge_off">Mali ブリッジ: オフ</string>
     <string name="setup_gpu_bridge_on">Mali ブリッジ: オン</string>
@@ -3620,4 +3657,12 @@
     <string name="stores_gamejolt_filter_status">ステータス</string>
     <string name="stores_gamejolt_filter_partners">パートナー</string>
     <string name="stores_gamejolt_followed">フォロー中のゲーム</string>
+    <string name="wow_chat_title">チャット入力</string>
+    <string name="wow_chat_voice">音声入力</string>
+    <string name="wow_chat_remember">この選択を記憶する</string>
+    <string name="wow_chat_ask">毎回確認する</string>
+    <string name="wow_chat_send">送信</string>
+    <string name="wow_chat_listening">聞き取り中…</string>
+    <string name="wow_chat_voice_unavailable">このデバイスでは音声入力を使用できません。</string>
+    <string name="wow_chat_mic_denied">音声入力にはマイクへのアクセスが必要です。</string>
 </resources>

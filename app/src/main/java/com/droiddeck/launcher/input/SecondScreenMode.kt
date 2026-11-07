@@ -10,6 +10,7 @@ enum class SecondScreenMode(val id: String, @StringRes val label: Int) {
     KEYBOARD_TRACKPAD("keyboard-trackpad", R.string.second_mode_keyboard_trackpad),
     TERMINAL("terminal", R.string.second_mode_terminal),
     DECK_CONTROLS("deck-controls", R.string.second_mode_deck_controls),
+    CUSTOM_CONTROLS("custom-controls", R.string.input_profile_controls_mode),
     DASHBOARD("dashboard", R.string.second_mode_dashboard),
     DESKTOP("desktop", R.string.second_mode_desktop);
 
@@ -21,8 +22,8 @@ enum class SecondScreenMode(val id: String, @StringRes val label: Int) {
             }?.let { return it }
             val picked = entries.any { it != NONE && it.id == remembered }
             return when {
-                dashboard && !picked -> DASHBOARD
                 deckPad -> DECK_CONTROLS
+                dashboard && !picked -> DASHBOARD
                 else -> KEYBOARD_TRACKPAD
             }
         }

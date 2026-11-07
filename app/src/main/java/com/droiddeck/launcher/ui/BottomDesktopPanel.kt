@@ -6,7 +6,6 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Build
 import android.os.SystemClock
-import android.graphics.Typeface
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -20,8 +19,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.ComposeView
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ImageView
-import android.widget.TextView
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.GuestKeys
 import com.droiddeck.launcher.input.InputSpace
@@ -53,8 +50,7 @@ class BottomDesktopPanel(
         sendText = BottomDesktop::sendText,
     )
     private var directTouch = SessionPrefs.bottomDesktopDirectTouch(context)
-    private lateinit var touchButton: ImageView
-    private lateinit var title: TextView
+    private val touchMode = mutableStateOf(directTouch)
     private val trackpad = TouchpadGestures(ViewConfiguration.get(context).scaledTouchSlop.toFloat(), TrackpadInput()).apply {
         desktop = true
     }
@@ -91,45 +87,21 @@ class BottomDesktopPanel(
         area.addView(surfaceView, 1, FrameLayout.LayoutParams(fullWidth.takeIf { it > 0 } ?: -1, fullHeight.takeIf { it > 0 } ?: -1))
     }
 
-    private fun bar(onClose: (() -> Unit)?, onMenu: (() -> Unit)?, steamButtons: Pair<() -> Unit, () -> Unit>?, onSwap: (() -> Unit)?): View {
-        val bar = LinearLayout(context).apply {
-            orientation = HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(6), dp(8), dp(6))
-            setBackgroundColor(Color.BLACK)
+    private fun bar(onClose: (() -> Unit)?, onMenu: (() -> Unit)?, steamButtons: Pair<() -> Unit, () -> Unit>?, onSwap: (() -> Unit)?): View =
+        bottomScreenBarView(context) {
+            val touch = touchMode.value
+            BottomBarModel(
+                context.getString(R.string.bottom_desktop_title,
+                    context.getString(if (touch) R.string.bottom_desktop_mode_touch else R.string.bottom_desktop_mode_trackpad)),
+                onClose, onMenu, steamButtons?.first, steamButtons?.second,
+                listOfNotNull(
+                    BarExtra(context.getString(if (touch) R.string.bottom_desktop_direct_touch else R.string.bottom_desktop_trackpad),
+                        icon = if (touch) R.drawable.ic_bottom_touch else R.drawable.ic_bottom_mouse) { setDirectTouch(!directTouch) },
+                    BarExtra(context.getString(R.string.second_show_keyboard), icon = R.drawable.ic_bottom_keyboard) { keyboardHost.toggle() },
+                    onSwap?.let { BarExtra(context.getString(R.string.swap_screens), icon = R.drawable.ic_bottom_swap, onClick = it) },
+                ),
+            )
         }
-        fun gap() = View(context).apply { layoutParams = LayoutParams(dp(6), 1) }
-        onClose?.let { bar.addView(DeckControlsPanel.roundButton(context, "×", context.getString(R.string.deck_close), it)) }
-        title = TextView(context).apply {
-            textSize = 14f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            setTextColor(Color.rgb(0x7A, 0x80, 0x8A))
-            setPadding(dp(12), 0, dp(6), 0)
-            isSingleLine = true
-            ellipsize = android.text.TextUtils.TruncateAt.END
-        }
-        bar.addView(title, LayoutParams(0, -2, 1f))
-        touchButton = DeckControlsPanel.iconButton(context, R.drawable.ic_bottom_mouse, "") { setDirectTouch(!directTouch) }
-        bar.addView(touchButton)
-        bar.addView(gap())
-        bar.addView(DeckControlsPanel.iconButton(context, R.drawable.ic_bottom_keyboard,
-            context.getString(R.string.second_show_keyboard)) { keyboardHost.toggle() })
-        onSwap?.let {
-            bar.addView(gap())
-            bar.addView(DeckControlsPanel.iconButton(context, R.drawable.ic_bottom_swap, context.getString(R.string.swap_screens), it))
-        }
-        onMenu?.let {
-            bar.addView(gap())
-            bar.addView(DeckControlsPanel.menuButton(context, it))
-        }
-        steamButtons?.let { (steam, qam) ->
-            bar.addView(gap())
-            bar.addView(DeckControlsPanel.roundButton(context, "STEAM", context.getString(R.string.deck_open_steam_menu), steam, wide = true))
-            bar.addView(gap())
-            bar.addView(DeckControlsPanel.roundButton(context, "•••", context.getString(R.string.drawer_open_qam), qam, wide = true))
-        }
-        return bar
-    }
 
     private fun setDirectTouch(on: Boolean) {
         trackpad.cancel()
@@ -140,11 +112,7 @@ class BottomDesktopPanel(
     }
 
     private fun showTouchMode() {
-        touchButton.setImageResource(if (directTouch) R.drawable.ic_bottom_touch else R.drawable.ic_bottom_mouse)
-        touchButton.contentDescription = context.getString(
-            if (directTouch) R.string.bottom_desktop_direct_touch else R.string.bottom_desktop_trackpad)
-        title.text = context.getString(R.string.bottom_desktop_title,
-            context.getString(if (directTouch) R.string.bottom_desktop_mode_touch else R.string.bottom_desktop_mode_trackpad))
+        touchMode.value = directTouch
         BottomDesktop.showCursor(!directTouch)
         if (!directTouch && surfaceView.width > 0) {
             trackpad.bounds = RectF(0f, 0f, surfaceView.width.toFloat(), surfaceView.height.toFloat())

@@ -12,6 +12,31 @@ struct vk_api g_vk;
 
 static unsigned views, sets, freed_views, freed_sets;
 static VkImageView bound_view;
+static VkImage target_image;
+static unsigned target_events, target_forgot_at, target_destroyed_at;
+
+void blendp_forget_image(VkImage image) {
+    assert(image == target_image && target_forgot_at == 0);
+    target_forgot_at = ++target_events;
+}
+
+static void VKAPI_CALL destroy_image(VkDevice dev, VkImage image, const VkAllocationCallbacks *alloc) {
+    (void)dev; (void)alloc;
+    assert(image == target_image && target_forgot_at > 0);
+    target_destroyed_at = ++target_events;
+}
+
+static void check_blend_cache_target_lifetime(void) {
+    target_image = (VkImage)(uintptr_t)50;
+    struct fx_target target = {.img = target_image};
+    g_vk.DestroyImage = destroy_image;
+    target_destroy(&target);
+    assert(target_forgot_at == 1 && target_destroyed_at == 2);
+    assert(target.img == VK_NULL_HANDLE);
+    target_destroy(&target);
+    assert(target_events == 2);
+}
+
 static VkResult VKAPI_CALL create_view(VkDevice dev, const VkImageViewCreateInfo *info,
                                       const VkAllocationCallbacks *alloc, VkImageView *out) {
     (void)dev; (void)alloc;
@@ -78,6 +103,7 @@ int main(int argc, char **argv) {
         assert(scene_ensure(source, 1920, 1080) == 0);
         assert(bound_view != original && views == 2 && freed_views == 1 && freed_sets == 1);
     }
+    check_blend_cache_target_lifetime();
     puts("PASS");
     return 0;
 }

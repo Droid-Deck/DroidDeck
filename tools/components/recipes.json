@@ -28,7 +28,8 @@
       "app/src/main/assets/linuxfs/usr/local/share/droiddeck/ibus.profile",
       "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-ime/ibus-engine-pinyin",
       "app/src/main/assets/linuxfs/usr/share/pyzy/db/android.db",
-      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so"
+      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so",
+      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so"
     ],
     "ndk": true,
     "packages": [

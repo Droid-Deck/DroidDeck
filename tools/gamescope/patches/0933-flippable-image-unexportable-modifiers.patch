@@ -1,0 +1,44 @@
+diff --git a/src/rendervulkan.cpp b/src/rendervulkan.cpp
+index e699c85..0ddd249 100644
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -2372,6 +2372,7 @@ bool CVulkanTexture::BInit( uint32_t width, uint32_t height, uint32_t depth, uin
+ 	}
+ 
+ 	std::vector<uint64_t> modifiers = {};
++	std::vector<uint64_t> unexportable = {};
+ 	// TODO(JoshA): Move this code to backend for making flippable image.
+ 	if ( GetBackend()->UsesModifiers() && flags.bFlippable && g_device.supportsModifiers() && !pDMA )
+ 	{
+@@ -2410,12 +2411,30 @@ bool CVulkanTexture::BInit( uint32_t width, uint32_t height, uint32_t depth, uin
+ 			}
+ 
+ 			if ( !( externalFormatProps.externalMemoryProperties.externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT ) )
++			{
++				vk_log.infof( "flippable image: modifier 0x%" PRIx64 " for DRM format 0x%x supported but not reported exportable (features 0x%x)",
++					modifier, drmFormat, externalFormatProps.externalMemoryProperties.externalMemoryFeatures );
++				unexportable.push_back( modifier );
+ 				continue;
++			}
+ 
+ 			modifiers.push_back( modifier );
+ 		}
+ 
+-		assert( modifiers.size() > 0 );
++		// A driver that supports the modifier but leaves EXPORTABLE out (the Mali bridge forwards the
++		// phone's own driver's answer) can still export the memory as a dma-buf: the bridge's
++		// swapchains do exactly that. Try those rather than assert (rendervulkan.cpp, CVulkanTexture::BInit).
++		if ( modifiers.empty() && !unexportable.empty() )
++		{
++			vk_log.errorf( "flippable image: no modifier reported exportable for DRM format 0x%x; trying %zu supported one(s) anyway",
++				drmFormat, unexportable.size() );
++			modifiers = unexportable;
++		}
++		if ( modifiers.empty() )
++		{
++			vk_log.errorf( "flippable image: no usable modifier for DRM format 0x%x (%zu offered by the backend)", drmFormat, numPossibleModifiers );
++			return false;
++		}
+ 
+ 		modifierListInfo = {
+ 			.sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT,

@@ -263,6 +263,7 @@ private class BelowEndProvider(private val gap: Int) : PopupPositionProvider {
     }
 }
 
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun AnchoredMenu(
     open: Boolean, onDismiss: () -> Unit, title: String? = null, note: String? = null,
@@ -288,6 +289,20 @@ fun AnchoredMenu(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     Popup(popupPositionProvider = provider, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
+      TrackKeyWindow()
+      val popupInput = LocalInputModeManager.current
+      LaunchedEffect(open, inputMode) {
+          if (!open || inputMode != InputMode.Keyboard) return@LaunchedEffect
+          popupInput.requestInputMode(InputMode.Keyboard)
+          repeat(8) {
+              androidx.compose.runtime.withFrameNanos { }
+              if (runCatching { firstItemFocus.captureFocus() }.getOrDefault(false)) {
+                  firstItemFocus.freeFocus()
+                  return@LaunchedEffect
+              }
+              runCatching { firstItemFocus.requestFocus() }
+          }
+      }
       CompositionLocalProvider(LocalDensity provides density, LocalConfiguration provides configuration) {
         AnimatedVisibility(
             visibleState = state,
@@ -494,16 +509,23 @@ fun <T> ChoiceRow(
     stacked: Boolean = false,
     onPick: (T) -> Unit,
 ) {
+    SettingsRow(label, hint, highlighted = host.open == key, hintLines = hintLines, stacked = stacked) {
+        ChoiceChip(host, key, label, options, selected, enabled, note, chipModifier, onPick)
+    }
+}
+
+@Composable
+internal fun <T> ChoiceChip(host: MenuHost, key: String, label: String, options: List<Pair<T, String>>, selected: T,
+    enabled: Boolean = true, note: String? = null, modifier: Modifier = Modifier, onPick: (T) -> Unit) {
     val open = host.open == key
-    SettingsRow(label, hint, highlighted = open, hintLines = hintLines, stacked = stacked) {
-        Box {
-            ValueChip(options.firstOrNull { it.first == selected }?.second ?: "-", open, enabled, modifier = chipModifier.testTag("setting-$key")) { host.open = if (open) null else key }
-            AnchoredMenu(open, onDismiss = { if (host.open == key) host.open = null }, title = label, note = note) { firstItemFocus ->
-                options.forEachIndexed { index, (value, text) ->
-                    MenuItem(text, checked = value == selected, focusRequester = if (index == 0) firstItemFocus else null) {
-                        onPick(value)
-                        host.open = null
-                    }
+    Box {
+        ValueChip(options.firstOrNull { it.first == selected }?.second ?: "-", open, enabled,
+            modifier = modifier.testTag("setting-$key")) { host.open = if (open) null else key }
+        AnchoredMenu(open, onDismiss = { if (host.open == key) host.open = null }, title = label, note = note) { firstItemFocus ->
+            options.forEachIndexed { index, (value, text) ->
+                MenuItem(text, checked = value == selected, focusRequester = if (index == 0) firstItemFocus else null) {
+                    onPick(value)
+                    host.open = null
                 }
             }
         }
@@ -699,6 +721,7 @@ fun SettingsPage(
     scroll: androidx.compose.foundation.ScrollState? = null,
     scrollContent: Boolean = true,
     compactLayout: Boolean = false,
+    showBack: Boolean = true,
     header: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
@@ -721,7 +744,7 @@ fun SettingsPage(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    BackLink(stringResource(R.string.mode_back), compact = true, onClick = onBack)
+                    if (showBack) BackLink(stringResource(R.string.mode_back), compact = true, onClick = onBack)
                     if (header != null) Box(Modifier.weight(1f)) { header() }
                 }
             }
@@ -731,7 +754,7 @@ fun SettingsPage(
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.padding(bottom = 6.dp),
                 ) {
-                    BackLink(stringResource(R.string.mode_back), compact = true, onClick = onBack)
+                    if (showBack) BackLink(stringResource(R.string.mode_back), compact = true, onClick = onBack)
                     Text(
                         title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = colors.onBackground,
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
@@ -743,7 +766,7 @@ fun SettingsPage(
         } else {
             Rise(0) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    BackLink(stringResource(R.string.mode_back), compact = compactLayout, onClick = onBack)
+                    if (showBack) BackLink(stringResource(R.string.mode_back), compact = compactLayout, onClick = onBack)
                     if (eyebrow != null) {
                         Spacer(Modifier.width(10.dp))
                         Eyebrow(eyebrow)

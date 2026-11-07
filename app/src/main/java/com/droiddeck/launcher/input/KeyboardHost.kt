@@ -89,14 +89,29 @@ class KeyboardHost(
         clearFocus()
     }
 
+    fun type(text: CharSequence?) {
+        if (text.isNullOrEmpty()) return
+        // Text and soft editing actions share this queue to preserve IME ordering.
+        sendText(text.toString())
+    }
+
+    fun tap(keyCode: Int) {
+        val control = softControl(keyCode)
+        if (control != null) {
+            sendText(control.toString())
+            return
+        }
+        val t = System.currentTimeMillis()
+        sendKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_DOWN, keyCode, 0))
+        sendKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_UP, keyCode, 0))
+    }
+
     private inner class KeyConnection : BaseInputConnection(this, false) {
         // A press keeps the route chosen on its first down across repeats and the matching up.
         private val controlRoutes = HashMap<Int, Boolean>()
 
         override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
-            if (text.isNullOrEmpty()) return true
-            // Text and soft editing actions share this queue to preserve IME ordering.
-            sendText(text.toString())
+            type(text)
             return true
         }
 

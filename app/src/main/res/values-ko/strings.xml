@@ -180,6 +180,7 @@
     <string name="app_fex_x86">FEX로 실행되는 %1$s</string>
     <string name="app_fex_not_ready">이 프로그램은 %1$s PC용으로 빌드되어 FEX를 통해 실행되지만, FEX가 아직 설정되지 않았습니다. 로그인한 상태로 Steam을 한 번 열면 DroidDeck이 FEX와 필요한 Steam Linux Runtime을 다운로드한 후 이 프로그램을 엽니다.</string>
     <string name="session_proot_missing">DroidDeck의 proot를 다운로드할 수 없습니다. 연결을 확인하고 다시 시도하세요. 대체 proot는 플레이하기에 너무 느리므로 세션을 시작하지 않았습니다.</string>
+    <string name="session_powervr_missing">PowerVR 그래픽 환경을 다운로드하지 못했습니다. 연결을 확인하고 다시 시도하세요.</string>
     <string name="session_directaudio_missing">DirectAudio를 다운로드할 수 없어 이번 세션에서는 게임 오디오가 더 느린 경로를 사용합니다.</string>
     <string name="session_end_program">이 프로그램</string>
     <string name="session_end_steam_download">Steam 클라이언트를 다운로드할 수 없습니다. 네트워크나 VPN이 Steam 서버를 차단하고 있을 수 있습니다. 연결을 확인하고 다시 시도하세요.</string>
@@ -553,6 +554,19 @@
     <string name="comp_tag_in_use">사용 중</string>
     <string name="comp_tag_new">신규</string>
     <string name="comp_tag_stored">저장됨</string>
+    <string name="comp_mode_title">빌드 선택 방식</string>
+    <string name="comp_mode_auto_detail">최신 DroidDeck 빌드, 항상 최신 유지</string>
+    <string name="comp_mode_manual_detail">빌드를 직접 선택하고 설치</string>
+    <string name="comp_auto_title">Auto가 %1$s을(를) 최신으로 유지합니다</string>
+    <string name="comp_auto_hint">새 빌드는 백그라운드에서 설치됩니다. 이전에 실행되던 게임이 몇 초 만에 두 번 종료되면 Auto가 작동하던 빌드로 되돌립니다.</string>
+    <string name="comp_auto_fallback">대체: %1$s</string>
+    <string name="comp_auto_checking">빌드 확인 중…</string>
+    <string name="comp_auto_none">이를 사용하는 DroidDeck-Proton이 없습니다</string>
+    <string name="comp_auto_waits_network">Auto 업데이트가 연결을 기다리는 중입니다.</string>
+    <string name="comp_auto_check_failed">새 빌드를 확인할 수 없습니다.</string>
+    <string name="comp_auto_waits_unmetered">새 빌드는 데이터 무제한 연결, 배터리 세이버 꺼짐, 기기가 뜨겁지 않은 상태를 기다립니다.</string>
+    <string name="comp_auto_updated">%1$s을(를) %2$s(으)로 업데이트했습니다.</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s(으)로 게임이 몇 초 만에 두 번 종료되어 Auto가 %3$s(으)로 되돌렸습니다.</string>
     <string name="perf_title">성능</string>
     <string name="perf_lede">CPU 코어, 세션 수정 및 호스트 이름. 다음 세션에 적용됩니다.</string>
     <string name="perf_client_cores_group">Steam 클라이언트 코어</string>
@@ -583,7 +597,7 @@
     <string name="perf_ram_cap_hint">Steam 모드나 데스크톱에서 Steam 클라이언트가 실행되는 동안 적용됩니다. 세션이 이 값보다 많이 사용하면 Steam과 세션의 다른 지원 프로세스를 차례로 zRAM으로 압축합니다. 소프트 제한이므로 종료되는 것은 없지만, 페이지를 다시 읽어 들이는 동안 게임이 끊길 수 있습니다.</string>
     <string name="perf_ram_cap_unavailable">zRAM 스왑이 필요하지만 이 기기에는 없습니다.</string>
     <string name="perf_vram_cap">VRAM 제한</string>
-    <string name="perf_vram_cap_hint">DXVK가 Direct3D 게임에 보고하는 비디오 메모리로, 게임이 더 적은 양에 맞춰 텍스처를 할당합니다. 게임 자체의 DXVK 설정이 우선합니다. 다음 세션에 적용됩니다.</string>
+    <string name="perf_vram_cap_hint">메모리 사용량을 줄이도록 Direct3D 9~12 게임에 이 비디오 메모리 예산을 알립니다. 게임은 예산을 초과할 수 있으며, GPU 페이징을 추가하거나 메모리 부족으로 인한 충돌 방지를 보장하지 않습니다. 다음 세션부터 적용됩니다.</string>
     <string name="perf_gpuclock">GPU를 최고 클럭으로 유지</string>
     <string name="perf_gpuclock_hint">Adreno에만 해당됩니다. 끊김이 줄어들지만 전력 소모와 발열이 증가합니다.</string>
     <string name="perf_fixes">세션 수정</string>
@@ -668,6 +682,8 @@
     <string name="hud_group_metrics">측정값</string>
     <string name="hud_metric_graph">프레임 타임 그래프</string>
     <string name="hud_metric_decimal">소수점 프레임 속도</string>
+    <string name="hud_metric_low1">1% 최저</string>
+    <string name="hud_metric_low01">0.1% 최저</string>
     <string name="hud_metric_low001">0.01% 최저</string>
     <string name="hud_metric_engine">그래픽 엔진</string>
     <string name="hud_metric_gpu_model">GPU 이름</string>
@@ -745,6 +761,10 @@
     <string name="drawer_low_latency_touch">저지연 터치</string>
     <string name="drawer_low_latency_touch_hint">터치가 프레임 병합을 건너뛰고 Steam 터치가 1000 Hz로 보고됩니다. CPU 사용량이 약간 늘어납니다.</string>
     <string name="drawer_evdev_mouse">원시 마우스 채널</string>
+    <string name="drawer_relative_mouse">상대 마우스</string>
+    <string name="drawer_relative_mouse_auto">자동</string>
+    <string name="drawer_relative_mouse_on">켜기</string>
+    <string name="drawer_relative_mouse_off">끄기</string>
     <string name="drawer_direct_cursor">커서</string>
     <string name="drawer_pc_keyboard">PC 키보드</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -804,7 +824,7 @@
     <string name="setup_gpu_unsupported">GPU 지원되지 않음</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam에는 Adreno 드라이버가 필요합니다. %1$s에서 화면이 검게 변할 수 있습니다.</string>
+    <string name="setup_gpu_unsupported_detail">사용할 수 있는 호환 그래픽 백엔드가 없습니다. %1$s에서 화면이 검게 표시될 수 있습니다.</string>
     <string name="setup_runtime">Linux 런타임</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">설치되지 않음 · 약 3GB, 처음 \"Steam 실행\" 시 설치</string>
@@ -866,6 +886,7 @@
     <string name="setup_home">홈 화면으로 사용</string>
     <string name="setup_home_on">DroidDeck을 홈 앱으로 사용할 수 있습니다</string>
     <string name="setup_home_off">DroidDeck은 홈 앱으로 제공되지 않습니다</string>
+    <string name="setup_home_game_space_first">게임 추가에서 DroidDeck을 포함으로 설정하세요</string>
     <string name="setup_orientation">화면 방향</string>
     <string name="setup_launcher_orientation">런처 방향</string>
     <string name="setup_launcher_orientation_auto">기기 회전 따르기</string>
@@ -1095,6 +1116,7 @@
     <string name="ctrl_stick_click_hint">스틱을 두 번 탭한 후 길게 누르면 L3 또는 R3이 입력됩니다</string>
     <string name="ctrl_adaptive">적응형 스틱</string>
     <string name="ctrl_rumble">게임 진동</string>
+    <string name="ctrl_dead_zone">스틱 데드존</string>
     <string name="ctrl_steam_button">Steam 버튼</string>
     <string name="ctrl_qam_button">QAM 버튼</string>
     <string name="ctrl_keyboard_button">키보드 버튼</string>
@@ -1172,6 +1194,13 @@
     <string name="games_export_gamehub">GameHub 아카이브로 내보내기…</string>
     <string name="games_export_winlator">Winlator 아카이브로 내보내기…</string>
     <string name="games_open_save_folder">저장 폴더 열기</string>
+    <string name="games_import_addons">zip에서 애드온 가져오기…</string>
+    <string name="games_open_addons_folder">애드온 폴더 열기</string>
+    <string name="games_delete_addon_title">%1$s을(를) 삭제할까요?</string>
+    <string name="games_delete_addon_body">애드온 폴더가 삭제됩니다. 설정은 유지됩니다.</string>
+    <plurals name="games_addons_count">
+        <item quantity="other">애드온 %1$d개</item>
+    </plurals>
     <string name="games_never_played">플레이한 적 없음</string>
     <string name="games_runtime_busy_percent">런타임 사용 중 · %1$d%%</string>
     <string name="games_runtime_busy">런타임 사용 중</string>
@@ -1348,6 +1377,16 @@
     <plurals name="main_saves_imported_backup">
         <item quantity="other">%2$s에서 %3$s(으)로 파일 %1$d개를 가져왔습니다. 이전 저장 데이터는 Download/DroidDeck/Saves/backups에 백업되었습니다</item>
     </plurals>
+    <string name="main_addons_close_session">가져오는 동안 게임이 애드온을 사용하지 않도록 먼저 세션을 종료하세요</string>
+    <string name="main_addons_importing">%1$s(으)로 애드온 가져오는 중</string>
+    <string name="main_addons_pick_zip">%1$s의 애드온 zip 선택</string>
+    <string name="main_addons_too_large">%1$s은(는) 너무 커서 가져올 수 없습니다</string>
+    <string name="main_addons_deleting">%1$s 삭제 중</string>
+    <string name="main_addons_deleted">%1$s 삭제됨</string>
+    <string name="main_addons_none">%1$s에서 애드온을 찾을 수 없습니다</string>
+    <plurals name="main_addons_imported">
+        <item quantity="other">애드온 %1$d개를 %2$s(으)로 가져왔습니다</item>
+    </plurals>
     <string name="main_saves_pick_zip">%1$s의 저장 데이터 zip 선택</string>
     <string name="main_saves_exporting">%1$s 내보내는 중</string>
     <plurals name="main_saves_exported">
@@ -1365,8 +1404,8 @@
     <string name="main_wadb_unavailable">무선 디버깅을 사용할 수 없습니다</string>
     <string name="main_adb_copied">ADB 명령이 복사되었습니다</string>
     <string name="main_pick_roms">ROM 폴더 선택</string>
-    <string name="main_non_adreno_title">Adreno GPU가 아님</string>
-    <string name="main_non_adreno_text">Turnip은 Adreno GPU를 지원합니다. %1$s에서는 Steam 화면이 검게 표시될 수 있습니다. 다운로드: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">지원되지 않는 GPU</string>
+    <string name="main_non_adreno_text">%1$s에서 사용할 수 있는 호환 그래픽 백엔드가 없습니다. Steam 화면이 검게 표시될 수 있습니다. 다운로드: %2$.0f MB.</string>
     <string name="main_install_anyway">그래도 설치</string>
     <string name="main_remove_runtime_title">Linux 런타임 제거</string>
     <string name="main_remove_runtime_text">런타임과 그 안의 Steam 클라이언트, 그리고 런타임에 설치된 모든 게임이 삭제됩니다.</string>
@@ -1726,6 +1765,7 @@
     <string name="ctrl_tint_amber">호박색</string>
     <string name="ctrl_tint_red">빨간색</string>
     <string name="ctrl_tint_pink">분홍색</string>
+    <string name="ctrl_tint_gray">회색</string>
     <string name="ctrl_button_a">A 버튼</string>
     <string name="ctrl_button_b">B 버튼</string>
     <string name="ctrl_button_x">X 버튼</string>
@@ -2067,7 +2107,7 @@
     <string name="gpuinfo_experimental">실험적: 드라이버가 테스트 빌드입니다</string>
     <string name="gpuinfo_a850_experimental">실험적 Adreno 850 지원: 호환되는 실험용 디스플레이 및 게임 드라이버가 필요하며, 이 기기에서 검증되지 않았습니다</string>
     <string name="gpuinfo_below_tested">테스트된 하드웨어(Adreno 725 이상)보다 낮음: 실행되지 않을 수 있습니다</string>
-    <string name="gpuinfo_unsupported">지원되지 않음: DroidDeck에는 Adreno(Snapdragon) GPU가 필요합니다</string>
+    <string name="gpuinfo_unsupported">지원되지 않음: 이 GPU에서 사용할 수 있는 호환 그래픽 백엔드가 없습니다</string>
 
     <string name="turnip_rate_limited">GitHub 요청 한도에 도달했습니다. 나중에 다시 시도하세요</string>
     <string name="turnip_github_http">GitHub 응답: HTTP %1$d</string>
@@ -2178,9 +2218,6 @@
     <string name="source_added">사용자 정의</string>
     <string name="setup_stores">스토어</string>
     <string name="setup_stores_speed">다운로드 속도 단계</string>
-    <string name="setup_stores_engine">스토어 엔진</string>
-    <string name="setup_stores_engine_chip_ready">● 엔진 준비됨</string>
-    <string name="setup_stores_engine_chip_missing">빌드되지 않음</string>
     <string name="stores_tier_balanced">균형</string>
     <string name="stores_tier_fast">빠름</string>
     <string name="stores_tier_max">최대</string>
@@ -3440,6 +3477,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">Steam 계정에 저장 파일이 있는 게임용</string>
     <string name="game_resource_search">웹 검색</string>
+    <string name="game_tab_addons">애드온</string>
     <string name="game_tab_install">설치</string>
     <string name="game_install_location">위치</string>
     <string name="game_install_folder">폴더</string>
@@ -3486,19 +3524,18 @@
     <string name="integration_wifi">Wi-Fi 이름</string>
     <string name="integration_brightness">밝기</string>
     <string name="integration_home">DroidDeck을 홈으로</string>
-    <string name="integration_shortcuts">홈 버튼 단축키</string>
+    <string name="integration_shortcuts">시스템 키</string>
     <string name="integration_wifi_hint">Steam에 네트워크 표시 · 위치 접근 권한 필요, 위치는 추적하지 않음</string>
     <string name="integration_wifi_on">Steam에 네트워크가 표시됨</string>
     <string name="integration_wifi_location_off">위치가 꺼져 있음</string>
     <string name="integration_wifi_denied">위치 거부됨 · 앱 정보에서 허용하세요</string>
     <string name="integration_brightness_hint">Steam 슬라이더로 화면 밝기 조절</string>
     <string name="integration_home_hint">세션 중 홈 버튼으로 Steam 메뉴 열기</string>
-    <string name="integration_shortcuts_hint">홈 버튼을 길게 눌러 Steam Guide 조합 사용</string>
-    <string name="integration_shortcuts_needs_home">DroidDeck을 홈으로 설정해야 함</string>
+    <string name="integration_shortcuts_hint">Alt+Tab, Win 키, 홈 버튼이 세션 안에서 작동합니다</string>
     <string name="integration_shortcuts_maybe_restricted">Android에서 회색으로 표시되나요? 앱 정보 → ⋮ → 제한된 설정 허용</string>
     <string name="integration_shortcuts_restricted">Android에서 차단됨 · 앱 정보 → ⋮ → 제한된 설정 허용</string>
-    <string name="integration_shortcuts_service">DroidDeck 홈 버튼</string>
-    <string name="integration_shortcuts_service_description">Steam 세션에 포커스가 있고 DroidDeck이 기본 홈 앱일 때 홈 버튼 입력을 Steam Guide로 전달합니다. 화면 콘텐츠는 읽지 않습니다.</string>
+    <string name="integration_shortcuts_service">DroidDeck 시스템 키</string>
+    <string name="integration_shortcuts_service_description">Alt+Tab, Win 키, 홈 버튼을 Android 대신 사용 중인 DroidDeck 세션에서 작동하게 합니다.</string>
     <string name="integration_brightness_needed">설정 → Steam 연동에서 밝기를 켜세요</string>
     <string name="setup_gpu_bridge_off">Mali 브리지: 끔</string>
     <string name="setup_gpu_bridge_on">Mali 브리지: 켬</string>
@@ -3620,4 +3657,12 @@
     <string name="stores_gamejolt_filter_status">상태</string>
     <string name="stores_gamejolt_filter_partners">파트너</string>
     <string name="stores_gamejolt_followed">팔로우한 게임</string>
+    <string name="wow_chat_title">채팅 입력</string>
+    <string name="wow_chat_voice">음성 입력</string>
+    <string name="wow_chat_remember">이 선택 기억하기</string>
+    <string name="wow_chat_ask">매번 묻기</string>
+    <string name="wow_chat_send">보내기</string>
+    <string name="wow_chat_listening">듣는 중…</string>
+    <string name="wow_chat_voice_unavailable">이 기기에서는 음성 입력을 사용할 수 없습니다.</string>
+    <string name="wow_chat_mic_denied">음성 입력을 하려면 마이크 접근 권한이 필요합니다.</string>
 </resources>

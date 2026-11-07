@@ -180,6 +180,7 @@
     <string name="app_fex_x86">%1$s a FEX-en keresztül</string>
     <string name="app_fex_not_ready">Ez a program %1$s PC-khez készült, és a FEX-en keresztül fut, amely még nincs beállítva. Nyissa meg egyszer a Steamet bejelentkezve: a DroidDeck ekkor letölti a FEX-et és a szükséges Steam Linux Runtime-ot, majd ez megnyílik.</string>
     <string name="session_proot_missing">A DroidDeck proot nem tölthető le. Ellenőrizze a kapcsolatot, és próbálja újra. A munkamenet nem indult el, mert a tartalék proot túl lassú a játékhoz.</string>
+    <string name="session_powervr_missing">A PowerVR grafikus környezetet nem sikerült letölteni. Ellenőrizd a kapcsolatot, és próbáld újra.</string>
     <string name="session_directaudio_missing">A DirectAudio nem tölthető le, ezért a játékhang ebben a munkamenetben a lassabb útvonalat használja.</string>
     <string name="session_end_program">Ez a program</string>
     <string name="session_end_steam_download">A Steam-klienst nem sikerült letölteni. Lehet, hogy a hálózat vagy a VPN blokkolja a Steam szervereit; ellenőrizd a kapcsolatot, és próbáld újra.</string>
@@ -555,6 +556,19 @@
     <string name="comp_tag_in_use">Használatban</string>
     <string name="comp_tag_new">Új</string>
     <string name="comp_tag_stored">Tárolva</string>
+    <string name="comp_mode_title">Hogyan választódnak a buildek</string>
+    <string name="comp_mode_auto_detail">Legújabb DroidDeck build, mindig naprakész</string>
+    <string name="comp_mode_manual_detail">Buildek kiválasztása és telepítése saját kézzel</string>
+    <string name="comp_auto_title">Az Auto naprakészen tartja: %1$s</string>
+    <string name="comp_auto_hint">Az új buildek a háttérben települnek. Ha egy korábban működő játék kétszer is másodperceken belül bezárul, az Auto visszaáll a működő buildre.</string>
+    <string name="comp_auto_fallback">Tartalék: %1$s</string>
+    <string name="comp_auto_checking">Buildek keresése…</string>
+    <string name="comp_auto_none">Egyik DroidDeck-Proton sem használja</string>
+    <string name="comp_auto_waits_network">Az Auto frissítések kapcsolatra várnak.</string>
+    <string name="comp_auto_check_failed">Nem sikerült új buildeket keresni.</string>
+    <string name="comp_auto_waits_unmetered">Az új buildek nem forgalomkorlátos kapcsolatra, kikapcsolt energiatakarékos módra és hűvös eszközre várnak.</string>
+    <string name="comp_auto_updated">%1$s frissítve: %2$s.</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s kétszer is másodperceken belül bezárt egy játékot, ezért az Auto visszaállt erre: %3$s.</string>
     <string name="perf_title">Teljesítmény</string>
     <string name="perf_lede">CPU-magok, munkamenet-javítások és a hosztnév. A következő munkamenettől érvényes.</string>
     <string name="perf_client_cores_group">Steam-kliens magok</string>
@@ -585,7 +599,7 @@
     <string name="perf_ram_cap_hint">Akkor érvényes, amikor a Steam-kliens fut, Steam módban vagy az asztalról. Ha a munkamenet ennél többet használ, a Steam, majd a munkamenet többi támogatott folyamata a zRAM-ba tömörül. Puha korlát: semmi sem zárul be, de a játékok akadhatnak, amíg a lapok visszatöltődnek.</string>
     <string name="perf_ram_cap_unavailable">zRAM swap szükséges, amely ezen az eszközön nincs.</string>
     <string name="perf_vram_cap">VRAM-korlát</string>
-    <string name="perf_vram_cap_hint">A DXVK által a Direct3D-játékoknak jelentett videomemória, így azok kevesebbel számolnak a textúráknál. A játék saját DXVK-beállításai elsőbbséget élveznek. A következő munkamenettől érvényes.</string>
+    <string name="perf_vram_cap_hint">Ezt a videomemória-keretet jelzi a Direct3D 9–12 játékoknak a memóriahasználat csökkentésére. A játékok túlléphetik; nem biztosít GPU-lapozást, és nem garantál védelmet a memóriahiány miatti összeomlás ellen. A következő munkamenettől érvényes.</string>
     <string name="perf_gpuclock">A GPU legmagasabb órajelen tartása</string>
     <string name="perf_gpuclock_hint">Csak Adreno. Kevesebb akadás, nagyobb akkumulátorhasználat és hőtermelés.</string>
     <string name="perf_fixes">Munkamenet-javítások</string>
@@ -670,6 +684,8 @@
     <string name="hud_group_metrics">Mért értékek</string>
     <string name="hud_metric_graph">Képkockaidő-grafikon</string>
     <string name="hud_metric_decimal">Képkockasebesség tizedesjeggyel</string>
+    <string name="hud_metric_low1">1% legalacsonyabb</string>
+    <string name="hud_metric_low01">0.1% legalacsonyabb</string>
     <string name="hud_metric_low001">0.01% legalacsonyabb</string>
     <string name="hud_metric_engine">Grafikus motor</string>
     <string name="hud_metric_gpu_model">GPU neve</string>
@@ -747,6 +763,10 @@
     <string name="drawer_low_latency_touch">Alacsony késleltetésű érintés</string>
     <string name="drawer_low_latency_touch_hint">Az érintések kihagyják a képkockák kötegelését, így a Steam érintésvezérlése 1000 Hz-en fut. Kicsit több CPU.</string>
     <string name="drawer_evdev_mouse">Nyers egércsatorna</string>
+    <string name="drawer_relative_mouse">Relatív egér</string>
+    <string name="drawer_relative_mouse_auto">Automatikus</string>
+    <string name="drawer_relative_mouse_on">Be</string>
+    <string name="drawer_relative_mouse_off">Ki</string>
     <string name="drawer_direct_cursor">Kurzor</string>
     <string name="drawer_pc_keyboard">PC-billentyűzet</string>
     <string name="drawer_android_keyboard">Android</string>
@@ -807,7 +827,7 @@
     <string name="setup_gpu_unsupported">A GPU nem támogatott</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">A Steamnek Adreno-illesztőprogram szükséges; a %1$s fekete képernyőt jeleníthet meg</string>
+    <string name="setup_gpu_unsupported_detail">Nincs kompatibilis grafikus háttérrendszer ehhez: %1$s. A Steam fekete képernyőt jeleníthet meg.</string>
     <string name="setup_runtime">Linux futtatókörnyezet</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Nincs telepítve · kb. 3 GB, az első Játék gombnyomáskor települ</string>
@@ -869,6 +889,7 @@
     <string name="setup_home">Használat kezdőképernyőként</string>
     <string name="setup_home_on">A DroidDeck lehet a kezdőképernyő alkalmazás</string>
     <string name="setup_home_off">A DroidDeck soha nem jelenik meg kezdőképernyő alkalmazásként</string>
+    <string name="setup_home_game_space_first">A Játékok hozzáadása részben állítsd a DroidDecket Belefoglalásra</string>
     <string name="setup_orientation">Tájolás</string>
     <string name="setup_launcher_orientation">Az indító tájolása</string>
     <string name="setup_launcher_orientation_auto">Az eszköz elforgatásának követése</string>
@@ -1101,6 +1122,7 @@
     <string name="ctrl_stick_click_hint">Koppintson duplán, és tartsa lenyomva a kart az L3 vagy R3 érdekében</string>
     <string name="ctrl_adaptive">Adaptív karok</string>
     <string name="ctrl_rumble">Játékvibráció</string>
+    <string name="ctrl_dead_zone">Kar holtzónája</string>
     <string name="ctrl_steam_button">Steam gomb</string>
     <string name="ctrl_qam_button">QAM gomb</string>
     <string name="ctrl_keyboard_button">Billentyűzet gomb</string>
@@ -1178,6 +1200,14 @@
     <string name="games_export_gamehub">Exportálás GameHub zipként…</string>
     <string name="games_export_winlator">Exportálás Winlator zipként…</string>
     <string name="games_open_save_folder">Mentésmappa megnyitása</string>
+    <string name="games_import_addons">Kiegészítők importálása zipből…</string>
+    <string name="games_open_addons_folder">Kiegészítők mappájának megnyitása</string>
+    <string name="games_delete_addon_title">Törlöd ezt: %1$s?</string>
+    <string name="games_delete_addon_body">Ez törli a kiegészítő mappáját. A beállításai megmaradnak.</string>
+    <plurals name="games_addons_count">
+        <item quantity="one">%1$d kiegészítő</item>
+        <item quantity="other">%1$d kiegészítő</item>
+    </plurals>
     <string name="games_never_played">Még nem játszott</string>
     <string name="games_runtime_busy_percent">Futtatókörnyezet dolgozik · %1$d%%</string>
     <string name="games_runtime_busy">Futtatókörnyezet dolgozik</string>
@@ -1356,6 +1386,17 @@
         <item quantity="one">%1$d fájl importálva innen: %2$s, ide: %3$s. A régi mentések mentve itt: Download/DroidDeck/Saves/backups</item>
         <item quantity="other">%1$d fájl importálva innen: %2$s, ide: %3$s. A régi mentések mentve itt: Download/DroidDeck/Saves/backups</item>
     </plurals>
+    <string name="main_addons_close_session">Előbb zárja be a munkamenetet, hogy a játék ne használja a kiegészítőit az importálás alatt</string>
+    <string name="main_addons_importing">Kiegészítők importálása ide: %1$s</string>
+    <string name="main_addons_pick_zip">Válasszon kiegészítő zip fájlt ehhez: %1$s</string>
+    <string name="main_addons_too_large">A(z) %1$s túl nagy az importáláshoz</string>
+    <string name="main_addons_deleting">%1$s törlése folyamatban</string>
+    <string name="main_addons_deleted">%1$s törölve</string>
+    <string name="main_addons_none">Nem található kiegészítő itt: %1$s</string>
+    <plurals name="main_addons_imported">
+        <item quantity="one">%1$d kiegészítő importálva ide: %2$s</item>
+        <item quantity="other">%1$d kiegészítő importálva ide: %2$s</item>
+    </plurals>
     <string name="main_saves_pick_zip">Válasszon mentés zip fájlt ehhez: %1$s</string>
     <string name="main_saves_exporting">%1$s exportálása</string>
     <plurals name="main_saves_exported">
@@ -1375,8 +1416,8 @@
     <string name="main_wadb_unavailable">A vezeték nélküli hibakeresés nem áll rendelkezésre</string>
     <string name="main_adb_copied">ADB-parancs másolva</string>
     <string name="main_pick_roms">ROMs mappa kiválasztása</string>
-    <string name="main_non_adreno_title">Nem Adreno GPU</string>
-    <string name="main_non_adreno_text">A Turnip Adreno GPU-kat támogat. %1$s esetén a Steam fekete képernyőt jeleníthet meg. Letöltés: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">Nem támogatott GPU</string>
+    <string name="main_non_adreno_text">Nincs kompatibilis grafikus háttérrendszer ehhez: %1$s. A Steam fekete képernyőt jeleníthet meg. Letöltés: %2$.0f MB.</string>
     <string name="main_install_anyway">Telepítés mindenképpen</string>
     <string name="main_remove_runtime_title">Linux futtatókörnyezet eltávolítása</string>
     <string name="main_remove_runtime_text">Ez törli a futtatókörnyezetet, a benne lévő Steam-klienst és az összes ott telepített játékot.</string>
@@ -1748,6 +1789,7 @@
     <string name="ctrl_tint_amber">Borostyán</string>
     <string name="ctrl_tint_red">Piros</string>
     <string name="ctrl_tint_pink">Rózsaszín</string>
+    <string name="ctrl_tint_gray">Szürke</string>
     <string name="ctrl_button_a">A gomb</string>
     <string name="ctrl_button_b">B gomb</string>
     <string name="ctrl_button_x">X gomb</string>
@@ -2090,7 +2132,7 @@
     <string name="gpuinfo_experimental">Kísérleti: az illesztőprogramjai teszt buildek</string>
     <string name="gpuinfo_a850_experimental">Kísérleti Adreno 850-támogatás: kompatibilis kísérleti kijelző- és játék-illesztőprogramokat igényel; ezen az eszközön nincs ellenőrizve</string>
     <string name="gpuinfo_below_tested">A tesztelt hardver alatt (Adreno 725 és újabb): lehet, hogy nem fut</string>
-    <string name="gpuinfo_unsupported">Nem támogatott: a DroidDecknek Adreno (Snapdragon) GPU szükséges</string>
+    <string name="gpuinfo_unsupported">Nem támogatott: nincs kompatibilis grafikus háttérrendszer ehhez a GPU-hoz</string>
 
     <string name="turnip_rate_limited">A GitHub korlátja elérve – próbálja újra később</string>
     <string name="turnip_github_http">A GitHub HTTP %1$d választ adott</string>
@@ -2201,9 +2243,6 @@
     <string name="source_added">Egyéni</string>
     <string name="setup_stores">Áruházak</string>
     <string name="setup_stores_speed">Letöltési sebességi szint</string>
-    <string name="setup_stores_engine">Áruházmotor</string>
-    <string name="setup_stores_engine_chip_ready">● A motor kész</string>
-    <string name="setup_stores_engine_chip_missing">Nincs buildelve</string>
     <string name="stores_tier_balanced">Kiegyensúlyozott</string>
     <string name="stores_tier_fast">Gyors</string>
     <string name="stores_tier_max">Max</string>
@@ -3467,6 +3506,7 @@
     <string name="game_resource_steam_cloud">Steam Cloud</string>
     <string name="game_resource_steam_cloud_detail">A Steam-fiókjában mentéseket tároló játékokhoz</string>
     <string name="game_resource_search">Webes keresés</string>
+    <string name="game_tab_addons">Kiegészítők</string>
     <string name="game_tab_install">Telepítés</string>
     <string name="game_install_location">Hely</string>
     <string name="game_install_folder">Mappa</string>
@@ -3513,19 +3553,18 @@
     <string name="integration_wifi">Wi-Fi-nevek</string>
     <string name="integration_brightness">Fényerő</string>
     <string name="integration_home">DroidDeck kezdőképernyőként</string>
-    <string name="integration_shortcuts">Kezdőképernyő gomb parancsikonjai</string>
+    <string name="integration_shortcuts">Rendszerbillentyűk</string>
     <string name="integration_wifi_hint">Hálózatok megjelenítése a Steamben · helyhozzáférést igényel, követés nélkül</string>
     <string name="integration_wifi_on">A hálózatok megjelennek a Steamben</string>
     <string name="integration_wifi_location_off">A hely ki van kapcsolva</string>
     <string name="integration_wifi_denied">Hely megtagadva · engedélyezze az Alkalmazásinformációban</string>
     <string name="integration_brightness_hint">A Steam csúszkája állítja a képernyő fényerejét</string>
     <string name="integration_home_hint">A Kezdőképernyő gomb megnyitja a Steam menüt egy munkamenetben</string>
-    <string name="integration_shortcuts_hint">Tartsa lenyomva a Kezdőképernyő gombot a Steam Guide-kombinációkhoz</string>
-    <string name="integration_shortcuts_needs_home">A DroidDecknek kell kezdőképernyőnek lennie</string>
+    <string name="integration_shortcuts_hint">Az Alt+Tab, a Win billentyű és a Kezdőlap gomb a munkamenetben marad</string>
     <string name="integration_shortcuts_maybe_restricted">Szürke az Androidban? Alkalmazásinformáció → ⋮ → Korlátozott beállítások engedélyezése</string>
     <string name="integration_shortcuts_restricted">Az Android letiltotta · Alkalmazásinformáció → ⋮ → Korlátozott beállítások engedélyezése</string>
-    <string name="integration_shortcuts_service">DroidDeck Kezdőképernyő gomb</string>
-    <string name="integration_shortcuts_service_description">A Kezdőképernyő gomb lenyomásait továbbítja a Steam Guide-nak, amíg egy Steam-munkamenet van fókuszban, és a DroidDeck az alapértelmezett kezdőképernyő alkalmazás. Nem olvassa a képernyő tartalmát.</string>
+    <string name="integration_shortcuts_service">DroidDeck rendszerbillentyűk</string>
+    <string name="integration_shortcuts_service_description">Az Alt+Tab, a Win billentyű és a Kezdőlap gomb az aktív DroidDeck-munkamenetben marad az Android helyett.</string>
     <string name="integration_brightness_needed">Kapcsolja be a Fényerőt itt: Beállítás → Steam-integráció</string>
     <string name="setup_gpu_bridge_off">Mali híd: ki</string>
     <string name="setup_gpu_bridge_on">Mali híd: be</string>
@@ -3648,4 +3687,12 @@
     <string name="stores_gamejolt_filter_status">Állapot</string>
     <string name="stores_gamejolt_filter_partners">Partnerek</string>
     <string name="stores_gamejolt_followed">Követett játékok</string>
+    <string name="wow_chat_title">Csevegés bevitele</string>
+    <string name="wow_chat_voice">Hangalapú gépelés</string>
+    <string name="wow_chat_remember">Választás megjegyzése</string>
+    <string name="wow_chat_ask">Kérdezzen minden alkalommal</string>
+    <string name="wow_chat_send">Küldés</string>
+    <string name="wow_chat_listening">Figyelés…</string>
+    <string name="wow_chat_voice_unavailable">A hangalapú gépelés nem érhető el ezen az eszközön.</string>
+    <string name="wow_chat_mic_denied">A hangalapú gépeléshez mikrofon-hozzáférés szükséges.</string>
 </resources>

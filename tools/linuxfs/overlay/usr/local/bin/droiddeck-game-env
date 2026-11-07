@@ -112,6 +112,12 @@ def d3dgear_hook(game):
 
 
 @fix
+def supergiant_dotnet_reporter(game):
+    if "basecampbugreporter.native.dll" in game.files:
+        return {"WINEDLLOVERRIDES": "mscoree=n,b"}, [], "Supergiant: allow the builtin mscoree"
+
+
+@fix
 def deep_rock_gdk_raytracing(game):
     if game.stem == "fsd-wingdk-shipping" and not any(game.has_arg(arg) for arg in ("-raytracing", "-noraytracing")):
         return {}, ["-noraytracing", "-ini:Engine:[/Script/Engine.RendererSettings]:r.RayTracing=False"], "Deep Rock Galactic GDK: ray tracing off (D3D12 pipeline creation fails on Thor)"
@@ -152,32 +158,6 @@ def little_nightmares_threads(game):
     if game.stem == "littlenightmares":
         return {"PROTONFIXES_DISABLE": "1"}, [], "Little Nightmares: umu-protonfixes off (its -onethread puts the game and renderer on one thread)"
 
-
-@fix
-def caravan_sandwitch_feature_level(game):
-    if "caravansandwitch.exe" in game.files or game.stem == "caravansandwitch-win64-shipping":
-        return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "Caravan SandWitch: D3D12 feature level 12_1 (12_2 hands it mesh shader pipelines vkd3d-proton cannot build)"
-
-
-@fix
-def robocop_rogue_city_feature_level(game):
-    if "robocop.exe" in game.files or game.stem == "robocop-win64-shipping":
-        return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "RoboCop: Rogue City: D3D12 feature level 12_1"
-
-
-@fix
-def reskate_feature_level(game):
-    if "skate.exe" in game.files and "reskate.dll" in game.files:
-        return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "ReSkate (skate.): D3D12 feature level 12_1"
-
-
-@fix
-def cyberpunk_feature_level(game):
-    if game.stem == "cyberpunk2077" or (
-        game.stem == "redprelauncher"
-        and os.path.isfile(os.path.join(os.path.dirname(game.exe), "bin", "x64", "Cyberpunk2077.exe"))
-    ):
-        return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "Cyberpunk 2077: D3D12 feature level 12_1"
 
 def skip_red_launcher(command):
     if len(command) > 2 and os.path.basename(command[2]).lower() == "redprelauncher.exe":
@@ -241,6 +221,20 @@ def ubisoft_overlay_off(env):
         print("droiddeck-game-env: Ubisoft Connect overlay turned off", file=sys.stderr)
     except (OSError, UnicodeDecodeError) as error:
         print("droiddeck-game-env: Ubisoft Connect overlay left as is (%s)" % error, file=sys.stderr)
+
+
+def ubisoft_composition_off(proton, env):
+    prefix = Path(env.get("STEAM_COMPAT_DATA_PATH", "/nonexistent")) / "pfx"
+    if not (prefix / UBISOFT_LAUNCHER).is_dir() or not (prefix / "user.reg").is_file():
+        return
+    try:
+        for program in ("upc.exe", "UplayWebCore.exe"):
+            key = r"HKCU\Software\Wine\AppDefaults\%s\DllOverrides" % program
+            subprocess.run([proton, "runinprefix", "reg.exe", "add", key,
+                            "/v", "dcomp", "/t", "REG_SZ", "/d", "", "/f"], env=env, check=True)
+        print("droiddeck-game-env: Ubisoft Connect uses CEF without DirectComposition", file=sys.stderr)
+    except (OSError, ValueError, subprocess.CalledProcessError) as error:
+        print("droiddeck-game-env: Ubisoft Connect composition configuration failed (%s)" % error, file=sys.stderr)
 
 
 PZ_JVM_FLAGS = ("-XX:+UseG1GC", "-XX:TieredStopAtLevel=1")
@@ -372,6 +366,8 @@ def vram_cap(env):
     cap = "dxgi.maxDeviceMemory = %d" % int(value)
     own = result.get("DXVK_CONFIG", "").strip().strip(";").strip()
     result["DXVK_CONFIG"] = cap + "; " + own if own else cap
+    result["DROIDDECK_VRAM_CAP"] = "1"
+    result["DROIDDECK_VRAM_CAP_MB"] = value
     return result
 
 
@@ -528,7 +524,41 @@ def apply_config(env, config, app_id, fixes=None):
         if dxvk:
             own = result.get("DXVK_CONFIG", "").strip().rstrip(";").strip()
             result["DXVK_CONFIG"] = own + "; " + dxvk if own else dxvk
+    # An open driver pair (PanVK, RADV) on a GPU that is not an Adreno: vkd3d-proton reports the
+    # driver's own feature level and shader model. The app-wide 12_2 / 6_9 over-promised what PanVK
+    # has, and an Unreal DX12 game took paths that crashed. A game's own setting still wins.
+    if env.get("BL_OPEN_DRIVER") == "1":
+        game = config.get("games", {}).get(app_id, {}) or {}
+        for name in ("VKD3D_FEATURE_LEVEL", "VKD3D_SHADER_MODEL"):
+            if name not in game and name in result:
+                result.pop(name)
+                result["DROIDDECK_VKD3D_CAPS"] = "driver"
     return result
+
+
+def render_path_defaults(command, env):
+    if len(command) < 3 or command[1] != "waitforexitandrun" or Path(command[2]).name.lower() != "spintires.exe":
+        return None
+    own = env.get("DXVK_CONFIG", "")
+    if re.search(r"(?:^|;)\s*dxvk\.tilerMode\s*=", own) or env.get("DXVK_CONFIG_FILE"):
+        return None
+    if Path("dxvk.conf").is_file() or Path(command[2]).with_name("dxvk.conf").is_file():
+        return None
+    driver = env.get("VK_DRIVER_FILES", env.get("VK_ICD_FILENAMES", ""))
+    if Path(driver).parent.name != "DD-Turnip_v0.4.0":
+        return None
+    try:
+        if Path("/sys/class/kgsl/kgsl-3d0/gpu_model").read_text().strip() != "Adreno722":
+            return None
+        with open(driver, encoding="utf-8") as source:
+            library = json.load(source)["ICD"]["library_path"]
+        if Path(library).name != "libvulkan_freedreno.so":
+            return None
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    own = own.strip().rstrip(";").strip()
+    env["DXVK_CONFIG"] = own + "; dxvk.tilerMode = False" if own else "dxvk.tilerMode = False"
+    return "Spintires: DXVK tiler heuristics off on Adreno 722"
 
 
 def bridge_feature_level(env):
@@ -931,7 +961,7 @@ def ego_core_plan(command, env):
     return "%s had no thread plan for %d cores; added a copy of its %s-core plan" % (EGO_RESTRICTIONS, count, source.group(2))
 
 
-def wait_forwarding_signals(process):
+def wait_forwarding_signals_raw(process):
     def forward(signum, frame):
         try:
             process.send_signal(signum)
@@ -944,26 +974,166 @@ def wait_forwarding_signals(process):
     finally:
         for signum, handler in previous.items():
             signal.signal(signum, handler)
+    return code
+
+
+def wait_forwarding_signals(process):
+    code = wait_forwarding_signals_raw(process)
     return 128 - code if code < 0 else code
 
 
-def start(launch, launch_env, digest, after=None):
-    if after:
+def diagnostic_game_event(event, app_id, values=None):
+    fields = ["event=" + event, "app_id=" + app_id]
+    fields.extend("%s=%s" % item for item in (values or {}).items())
+    print("DROIDDECK_DIAGNOSTICS " + " ".join(fields), file=sys.stderr, flush=True)
+
+
+def diagnostic_game_exit(app_id, raw_code, source=None, wrapper_status=None):
+    normalized = 128 - raw_code if raw_code < 0 else raw_code
+    values = {
+        "raw_status": raw_code,
+        "normalized_status": normalized,
+        "wrapper_status": normalized if wrapper_status is None else wrapper_status,
+        "signal": -raw_code if raw_code < 0 else 0,
+    }
+    if source is not None:
+        values["source"] = source
+    diagnostic_game_event("game_exit", app_id, values)
+
+
+def start(launch, launch_env, digest, after=None, diagnostic_app_id=None):
+    if len(launch) > 1 and launch[1] == "waitforexitandrun":
+        ubisoft_composition_off(launch[0], launch_env)
+    launch, launch_env = system_graphics_launch(launch, launch_env)
+    if after or diagnostic_app_id is not None:
         process = subprocess.Popen(launch, env=launch_env)
+        if diagnostic_app_id is not None:
+            diagnostic_game_event("game_start", diagnostic_app_id)
         try:
-            return wait_forwarding_signals(process)
+            raw_code = wait_forwarding_signals_raw(process)
         finally:
-            try:
-                after()
-            except OSError as error:
-                print("droiddeck-game-env: DiRT telemetry fix: prefix ws2_32 not put back (%s); the next launch does it" % error,
-                      file=sys.stderr)
+            if after:
+                try:
+                    after()
+                except OSError as error:
+                    print("droiddeck-game-env: DiRT telemetry fix: prefix ws2_32 not put back (%s); the next launch does it" % error,
+                          file=sys.stderr)
+        code = 128 - raw_code if raw_code < 0 else raw_code
+        if digest and after is None and code == 0:
+            record_install_scripts(digest, launch_env)
+        if diagnostic_app_id is not None:
+            diagnostic_game_exit(diagnostic_app_id, raw_code)
+        return code
     if digest:
         code = subprocess.run(launch, env=launch_env, check=False).returncode
         if code == 0:
             record_install_scripts(digest, launch_env)
         return code
     return os.execvpe(launch[0], launch, launch_env)
+
+
+class SystemGraphicsError(ValueError):
+    pass
+
+
+def system_graphics_launch(command, env):
+    """Use the APK's PowerVR compatibility files only for actual Proton game launches."""
+    runtime = env.get("DROIDDECK_POWERVR_RUNTIME")
+    if not runtime or not game_id(env) or len(command) < 3 or command[1] != "waitforexitandrun":
+        return command, env
+    directory = Path(runtime)
+    if not directory.is_absolute():
+        raise SystemGraphicsError("system Vulkan runtime path is not absolute")
+    # run-proton.py picks the same payload by name; Xclipse needs a DXVK within 128 bytes of push data.
+    payload = env.get("DROIDDECK_HYBRIS_DXVK") or "dxvk"
+    if not payload.startswith("dxvk") or "/" in payload:
+        raise SystemGraphicsError("invalid DXVK payload name: %s" % payload)
+    required = (
+        "run-proton.py", "wsi/libVkLayer_window_system_integration.so",
+        "wsi/VkLayer_window_system_integration.json", "lib/libVkLayer_hybris_compat.so",
+        *("%s/%s/%s.dll" % (payload, arch, name) for arch in ("x32", "x64")
+          for name in ("d3d8", "d3d9", "d3d10core", "d3d11", "dxgi")),
+    )
+    try:
+        for name in required:
+            path = directory / name
+            if not path.is_file() or not path.stat().st_size:
+                raise SystemGraphicsError("missing system Vulkan component: %s" % name)
+        wrapper = directory / "run-proton.py"
+        if not os.access(wrapper, os.X_OK):
+            raise SystemGraphicsError("system Vulkan Proton wrapper is not executable")
+    except OSError as error:
+        raise SystemGraphicsError("system Vulkan component is unreadable: %s" % error) from error
+    result = dict(env)
+    layers = "VK_LAYER_window_system_integration:" + env.get("DROIDDECK_HYBRIS_LAYERS", "VK_LAYER_HYBRIS_compat")
+    result.update({
+        "HYBRIS_BC_TEXTURES": "dxvk",
+        "VK_LAYER_PATH": ":".join(filter(None, (str(directory / "wsi"), str(directory / "lib"),
+                                                env.get("DROIDDECK_HYBRIS_LAYER_PATH")))),
+        "VK_INSTANCE_LAYERS": layers,
+        "ENABLE_GAMESCOPE_WSI": "0",
+        "VK_LOADER_LAYERS_DISABLE": "*gamescope*",
+        "DISABLE_VK_LAYER_VALVE_steam_fossilize_1": "1",
+    })
+    for name in ("DISABLE_WSI_LAYER", "PROTON_USE_WINED3D", "ENABLE_VK_LAYER_VALVE_steam_fossilize_1"):
+        result.pop(name, None)
+    return [str(wrapper), *command], result
+
+
+def game_logs(command, env, app_id, now=None):
+    """Detailed graphics logs for one game launch, in the session's log folder: Proton's own log,
+    DXVK's and vkd3d-proton's, and the Vulkan driver's startup messages. The app turns this on
+    (BL_GAME_LOGS=1) on a GPU that is not an Adreno, or with Setup's "Detailed graphics logs"."""
+    if env.get("BL_GAME_LOGS") != "1" or not env.get("BL_DEBUG_DIR") or len(command) < 3 \
+            or command[1] != "waitforexitandrun":
+        return env
+    import time
+    stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(now))
+    name = app_id or re.sub(r"[^A-Za-z0-9._-]+", "_", Path(command[2]).stem)[:40] or "game"
+    parent = Path(env["BL_DEBUG_DIR"]) / "games"
+    try:
+        parent.mkdir(parents=True, exist_ok=True)
+        folder = Path(tempfile.mkdtemp(prefix=stamp + "-", suffix="-" + name, dir=parent))
+    except OSError as error:
+        print("droiddeck-game-env: no game log folder (%s)" % error, file=sys.stderr)
+        return env
+    result = dict(env)
+    result.update({
+        "PROTON_LOG": "1",
+        "PROTON_LOG_DIR": str(folder),
+        "DXVK_LOG_PATH": str(folder),
+        "DXVK_LOG_LEVEL": env.get("DXVK_LOG_LEVEL", "info"),
+        "VKD3D_LOG_FILE": str(folder / "vkd3d.log"),
+        "VKD3D_DEBUG": env.get("VKD3D_DEBUG", "warn"),
+        "VKD3D_SHADER_DEBUG": env.get("VKD3D_SHADER_DEBUG", "none"),
+        "MESA_LOG_FILE": str(folder / "mesa.log"),
+        "PANVK_DEBUG": env.get("PANVK_DEBUG", "startup"),
+    })
+    try:
+        (folder / "launch.txt").write_text("\n".join([
+            "app: %s" % (app_id or "-"),
+            "exe: %s" % command[2],
+            "proton: %s" % command[0],
+            "started: %s" % time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now)),
+        ] + ["%s=%s" % (key, env[key]) for key in sorted(env)
+             if key.startswith(("VK_", "BL_VK", "BL_DRM", "BL_OPEN", "MESA_", "PANVK", "DXVK_", "VKD3D", "ZINK", "TU_", "DROIDDECK_VKD3D"))]) + "\n")
+    except OSError:
+        pass
+    # Whether the game's sound reaches PulseAudio: the streams 20 s and 60 s in, without waiting.
+    try:
+        subprocess.Popen(["sh", "-c", 'for t in 20 40; do sleep $t; { echo "== $(date +%T)"; '
+                          'pactl list sink-inputs 2>&1 | head -80; } >> "$1/audio-streams.txt"; done', "audio", str(folder)],
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
+    except OSError:
+        pass
+    return result
+
+
+def exec_proton(command, env):
+    # Synchronization selection has already picked the actual Proton executable.
+    command, env = system_graphics_launch(command, env)
+    os.execvpe(command[0], command, env)
 
 
 def main():
@@ -982,10 +1152,11 @@ def main():
     except OSError:
         digest = None
     app_id = game_id(env)
+    waiting = bool(app_id and len(command) > 1 and command[1] == "waitforexitandrun")
+    diagnostic_app_id = app_id if waiting and os.environ.get("DROIDDECK_ENHANCED_DIAGNOSTICS") == "1" else None
     dirt_prefix = None
     if app_id:
         gl_default = gl_vsync(env)
-        waiting = len(command) > 1 and command[1] == "waitforexitandrun"
         if waiting:
             game_images(env)
         fixes = {}
@@ -1032,10 +1203,14 @@ def main():
             print("droiddeck-game-env: OpenGL does not wait for the screen refresh (vblank_mode=0)", file=sys.stderr)
     if app_id and len(command) > 1 and command[1] == "waitforexitandrun":
         command = offline_without_anticheat(command, env)
+    env = game_logs(command, env, app_id)
     if mic_enabled == "0":
         env["AUDIO_DIRECT_MIC"] = "0"
     env = directaudio_settings(env)
     env = vram_cap(env)
+    note = render_path_defaults(command, env) if app_id else None
+    if note:
+        print("droiddeck-game-env: " + note, file=sys.stderr)
     note = bridge_feature_level(env)
     if note:
         print("droiddeck-game-env: " + note, file=sys.stderr)
@@ -1060,6 +1235,8 @@ def main():
         print("droiddeck-game-env: Xbox launch could not start (%s)" % error, file=sys.stderr)
         return 1
     if xbox_result is not None:
+        if diagnostic_app_id is not None and isinstance(xbox_result, int):
+            diagnostic_game_exit(diagnostic_app_id, xbox_result, "xbox", xbox_result % 256)
         return xbox_result
     after = None
     prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
@@ -1085,13 +1262,13 @@ def main():
     launch, launch_env = select_sync(command, env, sync)
     if launch[0] != command[0]:
         try:
-            return start(launch, launch_env, digest, after)
+            return start(launch, launch_env, digest, after, diagnostic_app_id)
         except OSError as error:
             print("droiddeck-game-env: %s could not start (%s); stock launch" % (launch[0], error), file=sys.stderr)
             launch, launch_env = command, without_pack(launch_env, env)
             record_stock(sync, launch, launch_env)
     try:
-        return start(launch, launch_env, digest, after)
+        return start(launch, launch_env, digest, after, diagnostic_app_id)
     except OSError:
         if after:
             try:
@@ -1103,4 +1280,8 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except SystemGraphicsError as error:
+        print("droiddeck-game-env: PowerVR graphics runtime unavailable (%s)" % error, file=sys.stderr)
+        sys.exit(1)

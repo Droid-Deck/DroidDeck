@@ -11,7 +11,7 @@ install)
   droiddeck-root /usr/bin/apt-get install -y -q retroarch retroarch-assets $cores || { echo "== FAIL apt-get install"; exit 1; }
   echo "== STEP PPSSPP"
   flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || { echo "== FAIL flathub"; exit 1; }
-  flatpak install --user -y --noninteractive flathub org.ppsspp.PPSSPP || { echo "== FAIL org.ppsspp.PPSSPP"; exit 1; }
+  /usr/bin/python3 /usr/local/bin/droiddeck-flatpak install org.ppsspp.PPSSPP || { echo "== FAIL org.ppsspp.PPSSPP"; exit 1; }
   printf '#!/bin/sh\nexec /usr/local/bin/droiddeck-flatpak-run org.ppsspp.PPSSPP "$@"\n' > /usr/local/bin/PPSSPPSDL.new &&
     chmod 755 /usr/local/bin/PPSSPPSDL.new && mv -f /usr/local/bin/PPSSPPSDL.new /usr/local/bin/PPSSPPSDL || { echo "== FAIL PPSSPPSDL"; exit 1; }
   ;;

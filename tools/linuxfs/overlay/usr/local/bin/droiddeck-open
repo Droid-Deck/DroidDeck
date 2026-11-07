@@ -17,6 +17,7 @@ PROTON_RUN = os.path.join(BIN, "droiddeck-proton-run")
 APPIMAGE_RUN = os.path.join(BIN, "droiddeck-appimage-run")
 SCRIPT_RUN = os.path.join(BIN, "droiddeck-script-run")
 STEAM_LAUNCH = os.path.join(BIN, "droiddeck-steam-launch")
+PROGRAMS = os.path.join(BIN, "droiddeck-desktop-programs")
 CACHE = os.path.join(HOME, ".cache", "droiddeck")
 IMPORTS = {"appimage": ("/opt/appimages/user", "app"), "folder": ("/opt/droiddeck-apps", "entry")}
 SHARED_FOLDERS = ("alarms", "android", "audiobooks", "dcim", "documents", "download", "movies", "music",
@@ -369,7 +370,7 @@ def main(argv):
         what = "steam"
     elif what == "script" and for_x86(path):
         what = "x86 script"
-    elif what in ("script", "elf") and game_folder(path):
+    elif what in ("script", "elf") and not (mode == "exec" and machine(head(path)) in EMULATED) and game_folder(path):
         what = "folder"
     try:
         cmd, folder = command(path, argv[1:], what, mode == "window", appid)
@@ -380,10 +381,11 @@ def main(argv):
     cmd = placed(cmd, what, mode, os.environ)
     if mode != "exec" or not sys.stderr.isatty():
         say("%s (%s): %s" % (path, what, " ".join(cmd[:4])))
-    try:
-        os.chdir(folder)
-    except OSError:
-        pass
+    if not (mode == "exec" and what in ("elf", "script", "x86 script")):
+        try:
+            os.chdir(folder)
+        except OSError:
+            pass
     if mode == "exec":
         os.execv(cmd[0], cmd)
     started = time.monotonic()
@@ -395,6 +397,11 @@ def main(argv):
     if status != 0 and time.monotonic() - started < QUICK_FAILURE:
         notify("%s did not start" % os.path.basename(path),
                "It exited with status %d; the session's desktop.log says why." % status)
+    if what == "windows":
+        try:
+            subprocess.call([sys.executable, PROGRAMS])
+        except OSError as error:
+            say("%s: %s" % (PROGRAMS, error))
     return status
 
 
