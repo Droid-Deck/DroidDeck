@@ -394,6 +394,22 @@ class ComponentUpdatesTest {
         assertEquals(listOf("DD-dxvk-3.1.1+188-nightly.wcp"), ComponentUpdates.stale(line, owned, emptyList(), keep, current))
     }
 
+    @Test fun anImportBeforePruningTakesTheFileAwayFromAuto() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val updates = File(context.filesDir, "components/updates.json").apply { parentFile?.mkdirs() }
+        updates.writeText(JSONObject().put("lines", JSONObject().put("dxvk", JSONObject()
+            .put("current", "DD-dxvk-3.1.1+190-nightly.wcp")
+            .put("owned", JSONArray(listOf("DD-dxvk-3.1.1+190-nightly.wcp", "DD-dxvk-3.1.1+194-nightly.wcp")))
+            .put("bad", JSONArray(listOf("DD-dxvk-3.1.1+194-nightly.wcp"))))).toString())
+        ComponentUpdater.disown(context, "DD-dxvk-3.1.1+194-nightly.wcp")
+        val line = JSONObject(updates.readText()).getJSONObject("lines").getJSONObject("dxvk")
+        val owned = (0 until line.getJSONArray("owned").length()).map { line.getJSONArray("owned").getString(it) }.toSet()
+        assertEquals(setOf("DD-dxvk-3.1.1+190-nightly.wcp"), owned)
+        val keep = ComponentUpdates.keep("DD-dxvk-3.1.1+190-nightly.wcp", ComponentUpdates.ORIGINAL, emptySet())
+        assertEquals(emptyList<String>(), ComponentUpdates.stale(ComponentUpdates.line("dxvk", false), owned,
+            listOf("DD-dxvk-3.1.1+194-nightly.wcp"), keep, "DD-dxvk-3.1.1+190-nightly.wcp", setOf("DD-dxvk-3.1.1+194-nightly.wcp")))
+    }
+
     @Test fun aRolledBackBuildTheUserImportsAgainIsKept() {
         val line = ComponentUpdates.line("dxvk", false)
         val current = "DD-dxvk-3.1.1+190-nightly.wcp"

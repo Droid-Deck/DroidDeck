@@ -241,6 +241,14 @@ object ComponentUpdater {
         }
     }
 
+    fun disown(context: Context, file: String) = synchronized(lock) {
+        val state = load(context)
+        val lines = state.optJSONObject("lines") ?: return@synchronized
+        val holders = lines.keys().asSequence().mapNotNull { lines.optJSONObject(it) }.filter { file in it.strings("owned") }.toList()
+        holders.forEach { it.put("owned", JSONArray(it.strings("owned") - file)) }
+        if (holders.isNotEmpty()) save(context, state)
+    }
+
     internal fun placed(state: JSONObject): Set<String> {
         val remembered = state.strings(HAND_BACK_FILES)
         val lines = state.optJSONObject("lines") ?: return remembered

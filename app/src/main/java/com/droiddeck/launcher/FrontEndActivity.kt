@@ -2168,7 +2168,11 @@ class FrontEndActivity : ComponentActivity() {
         components.componentAction(getString(R.string.comp_busy_importing)) {
             val tmp = File(cacheDir, "component-import.wcp")
             contentResolver.openInputStream(uri)?.use { input -> tmp.outputStream().use { input.copyTo(it) } } ?: error(getString(R.string.comp_cannot_read))
-            try { getString(R.string.comp_imported, ComponentsManager.importPackage(this, tmp, name).version) } finally { tmp.delete() }
+            try {
+                val imported = ComponentsManager.importPackage(this, tmp, name)
+                ComponentUpdater.disown(this, imported.file)
+                getString(R.string.comp_imported, imported.version)
+            } finally { tmp.delete() }
         }
     }
 
