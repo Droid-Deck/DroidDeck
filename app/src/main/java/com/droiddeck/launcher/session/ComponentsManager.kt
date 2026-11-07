@@ -1611,10 +1611,22 @@ object ComponentsManager {
         val dlls = runCatching {
             readWcp(f) { tar ->
                 val found = HashMap<String, ByteArray>()
+                val seen = HashSet<String>()
+                var entries = 0
+                var expanded = 0L
                 while (true) {
                     val e = tar.nextTarEntry ?: break
-                    val rel = normalize(e.name)
-                    if (!e.isDirectory && rel.startsWith(dir) && '/' !in rel.removePrefix(dir)) found[rel.removePrefix(dir)] = tar.readBytes()
+                    require(++entries <= MAX_WCP_ENTRIES) { "Component archive has too many entries" }
+                    val rel = safeArchivePath(e)
+                    require(rel.isEmpty() || seen.add(rel)) { "duplicate archive path $rel" }
+                    if (e.isFile) {
+                        require(e.size in 0..MAX_WCP_FILE_BYTES) { "archive entry is too large" }
+                        expanded += e.size
+                        require(expanded <= MAX_WCP_EXPANDED_BYTES) { "Component archive expands beyond its limit" }
+                    }
+                    if (e.isFile && rel.startsWith(dir) && '/' !in rel.removePrefix(dir)) {
+                        found[rel.removePrefix(dir)] = readEntry(tar, e.size, MAX_WCP_FILE_BYTES)
+                    }
                 }
                 found
             }

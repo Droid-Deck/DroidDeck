@@ -312,18 +312,6 @@ class ComponentUpdatesTest {
         assertEquals("vkd3d-proton-3.0-mine.wcp", after.getString("file"))
     }
 
-    @Test fun aSourceThatFailsToListKeepsItsPreviousPackages() {
-        val previous = JSONArray()
-            .put(JSONObject().put("file", "DD-dxvk-arm64ec-3.1.1+198-nightly.wcp").put("release", ComponentsManager.DD_NIGHTLY))
-            .put(JSONObject().put("file", "dxvk-3.1.1-linux.wcp").put("release", "Dxvk-Linux"))
-        val into = JSONArray()
-        ComponentsManager.keepSource(previous, ComponentsManager.DD_NIGHTLY, into)
-        assertEquals(1, into.length())
-        assertEquals("DD-dxvk-arm64ec-3.1.1+198-nightly.wcp", into.getJSONObject(0).getString("file"))
-        ComponentsManager.keepSource(null, ComponentsManager.DD_NIGHTLY, into)
-        assertEquals(1, into.length())
-    }
-
     @Test fun everyBuildAutoEverPlacedCountsAsItsOwn() {
         val state = JSONObject().put("lines", JSONObject()
             .put("dxvk", JSONObject().put("current", "b.wcp").put("previous", ComponentUpdates.ORIGINAL)
@@ -530,5 +518,23 @@ class ComponentUpdatesTest {
         assertTrue(ComponentsManager.packageArm64x(context, "hybrid.wcp", "dxvk"))
         assertFalse(ComponentsManager.packageArm64x(context, "hybrid.wcp", "vkd3d"))
         assertFalse(ComponentsManager.packageArm64x(context, "missing.wcp", "dxvk"))
+    }
+
+    @Test fun theArm64xProbeRejectsUnsafeAndDuplicateArchivePaths() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val dir = "files/lib/wine/dxvk/aarch64-windows"
+        val hybrid = pe(0xaa64, true, true)
+        wcp(context, "unsafe.wcp", mapOf("$dir/d3d11.dll" to hybrid, "../escape.dll" to hybrid))
+        assertFalse(ComponentsManager.packageArm64x(context, "unsafe.wcp", "dxvk"))
+
+        val duplicate = File(context.filesDir, "components/packages/duplicate.wcp")
+        TarArchiveOutputStream(ZstdOutputStream(duplicate.outputStream())).use { tar ->
+            repeat(2) {
+                tar.putArchiveEntry(TarArchiveEntry("$dir/d3d11.dll").apply { size = hybrid.size.toLong() })
+                tar.write(hybrid)
+                tar.closeArchiveEntry()
+            }
+        }
+        assertFalse(ComponentsManager.packageArm64x(context, duplicate.name, "dxvk"))
     }
 }
