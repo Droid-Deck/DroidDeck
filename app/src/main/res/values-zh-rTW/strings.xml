@@ -1219,7 +1219,6 @@
     <string name="gpu_none_listed">尚未列出驅動程式。重新整理以尋找驅動程式。</string>
     <string name="gpu_hide_other">隱藏其他 GPU 的驅動程式</string>
     <string name="gpu_show_other">顯示其他 GPU 的驅動程式</string>
-    <string name="gpu_advanced">進階</string>
     <string name="gpu_ubwc_title">UBWC 相容性</string>
     <string name="gpu_ubwc_hint">如果 Steam 或 Android 出現條紋或閃爍，請試試開啟或關閉。重新啟動 DroidDeck 後會套用到兩種驅動程式。</string>
     <string name="gpu_ubwc_restart">重新啟動 DroidDeck 以套用。</string>

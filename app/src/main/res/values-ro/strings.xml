@@ -1233,7 +1233,6 @@
     <string name="gpu_none_listed">Niciun driver listat încă. Reîmprospătează pentru a le căuta.</string>
     <string name="gpu_hide_other">Ascunde driverele pentru alte GPU-uri</string>
     <string name="gpu_show_other">Arată driverele pentru alte GPU-uri</string>
-    <string name="gpu_advanced">Avansat</string>
     <string name="gpu_ubwc_title">Compatibilitate UBWC</string>
     <string name="gpu_ubwc_hint">Încearcă Activat sau Dezactivat dacă Steam sau Android afișează dungi ori pâlpâiri. Se aplică ambelor drivere după repornirea DroidDeck.</string>
     <string name="gpu_ubwc_restart">Repornește DroidDeck pentru a aplica.</string>

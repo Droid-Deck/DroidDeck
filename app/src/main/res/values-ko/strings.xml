@@ -1219,7 +1219,6 @@
     <string name="gpu_none_listed">아직 나열된 드라이버가 없습니다. 새로 고쳐 드라이버를 찾으세요.</string>
     <string name="gpu_hide_other">다른 GPU의 드라이버 숨기기</string>
     <string name="gpu_show_other">다른 GPU의 드라이버 표시</string>
-    <string name="gpu_advanced">고급</string>
     <string name="gpu_ubwc_title">UBWC 호환성</string>
     <string name="gpu_ubwc_hint">Steam이나 Android에 줄무늬나 깜박임이 보이면 켜기 또는 끄기를 시도하세요. DroidDeck을 다시 시작한 후 두 드라이버 모두에 적용됩니다.</string>
     <string name="gpu_ubwc_restart">적용하려면 DroidDeck을 다시 시작하세요.</string>

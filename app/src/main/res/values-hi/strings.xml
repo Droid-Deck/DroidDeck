@@ -1226,7 +1226,6 @@
     <string name="gpu_none_listed">अभी कोई ड्राइवर सूचीबद्ध नहीं है। उन्हें देखने के लिए रीफ़्रेश करें।</string>
     <string name="gpu_hide_other">दूसरे GPU के ड्राइवर छिपाएं</string>
     <string name="gpu_show_other">दूसरे GPU के ड्राइवर दिखाएं</string>
-    <string name="gpu_advanced">एडवांस्ड</string>
     <string name="gpu_ubwc_title">UBWC कम्पैटिबिलिटी</string>
     <string name="gpu_ubwc_hint">अगर Steam या Android में धारियां या झिलमिलाहट दिखे तो चालू या बंद आज़माएं। DroidDeck रीस्टार्ट करने के बाद दोनों ड्राइवर पर लागू होता है।</string>
     <string name="gpu_ubwc_restart">लागू करने के लिए DroidDeck रीस्टार्ट करें।</string>

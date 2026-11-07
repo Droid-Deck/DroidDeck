@@ -1219,7 +1219,6 @@
     <string name="gpu_none_listed">Belum ada driver yang terdaftar. Segarkan untuk mencarinya.</string>
     <string name="gpu_hide_other">Sembunyikan driver untuk GPU lain</string>
     <string name="gpu_show_other">Tampilkan driver untuk GPU lain</string>
-    <string name="gpu_advanced">Lanjutan</string>
     <string name="gpu_ubwc_title">Kompatibilitas UBWC</string>
     <string name="gpu_ubwc_hint">Coba Aktif atau Nonaktif jika Steam atau Android menampilkan garis-garis atau berkedip. Berlaku untuk kedua driver setelah DroidDeck dimulai ulang.</string>
     <string name="gpu_ubwc_restart">Mulai ulang DroidDeck untuk menerapkan.</string>

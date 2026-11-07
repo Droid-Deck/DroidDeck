@@ -1219,7 +1219,6 @@
     <string name="gpu_none_listed">Belum ada pemacu disenaraikan. Segarkan untuk mencarinya.</string>
     <string name="gpu_hide_other">Sembunyikan pemacu untuk GPU lain</string>
     <string name="gpu_show_other">Papar pemacu untuk GPU lain</string>
-    <string name="gpu_advanced">Lanjutan</string>
     <string name="gpu_ubwc_title">Keserasian UBWC</string>
     <string name="gpu_ubwc_hint">Cuba Hidup atau Mati jika Steam atau Android memaparkan jalur atau kelipan. Berkuat kuasa pada kedua-dua pemacu selepas DroidDeck dimulakan semula.</string>
     <string name="gpu_ubwc_restart">Mulakan semula DroidDeck untuk menggunakannya.</string>

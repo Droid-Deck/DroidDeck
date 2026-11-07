@@ -1154,6 +1154,7 @@ class FrontEndActivity : ComponentActivity() {
                         vacDiagnostics = vacDiagnostics, agentCommands = agentCommands,
                         graphicsLogs = graphicsLogs, steamGpuDrawing = steamGpuDrawing, bridgeFellBack = bridgeFellBack, bridgeFellBackMemory = bridgeFellBackMemory,
                         clearCachedApps = clearCachedApps, adbPaired = adbPaired, memoryHud = memoryHud, backgroundAppLimit = backgroundAppLimit,
+                        tpUbwcMode = drivers.tpUbwcModeForDevice(), tpUbwcRestartRequired = drivers.tpUbwcRestartRequired(), canRestartApp = !SessionState.running,
                         steamGames = steamGames, steamGamesX64 = steamGamesX64, emulators = emulatorList, running = runningLabel,
                         frameGen = FrameGen.mode(this),
                         lossless = lossless,
@@ -1398,6 +1399,8 @@ class FrontEndActivity : ComponentActivity() {
                         },
                         onClearCachedApps = { on -> SessionPrefs.setClearCachedApps(this, on); clearCachedApps = on },
                         onMemoryHud = { value -> SessionPrefs.setMemoryHud(this, value); memoryHud = value },
+                        onTpUbwcMode = { drivers.chooseTpUbwcMode(it) },
+                        onRestartApp = { drivers.restartApp() },
                         onBackgroundAppLimit = { limit ->
                             SessionPrefs.setBackgroundAppLimit(this, limit); backgroundAppLimit = limit
                             if (limit == com.droiddeck.launcher.core.BackgroundAppLimit.OFF) com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(this)
@@ -2202,7 +2205,6 @@ class FrontEndActivity : ComponentActivity() {
                 onRestoreBundled = { TurnipDriver(this).restoreBundled(); drivers.refreshDrivers() },
                 onMode = { m -> drivers.chooseMode(m) },
                 onRestart = { drivers.restartApp() },
-                onTpUbwcMode = { drivers.chooseTpUbwcMode(it) },
             ),
             protons = com.droiddeck.launcher.ui.ProtonsState(
                 rows = protons.protonRows, busyId = protons.protonBusyId, stage = protons.protonStage, percent = protons.protonPercent,
