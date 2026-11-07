@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import android.hardware.input.InputManager
 import android.hardware.display.DisplayManager
 import android.content.Intent
@@ -282,6 +283,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var screenKeyBind: List<Int>? = null
     private var screenKeyDir: Int? = null
     private var screenKeyTextFocus = false
+    private val appTextFocus get() = screenKeyTextFocus || wowChat.request != null
+    private val wowChat by lazy { com.droiddeck.launcher.ui.WowChat(this, ::sendWowChat, ::cancelWowChat, ::readGameField) }
+    private var wowChatBottom: SecondScreenPresentation? = null
+    private var wowChatOnTop by mutableStateOf(false)
     private var screenKeyEdit by mutableStateOf<com.droiddeck.launcher.input.ScreenKey?>(null)
     private var screenLayoutsOpen by mutableStateOf(false)
     private var screenKeysShown by mutableStateOf(true)
@@ -870,7 +875,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(it))
         }
         sessionOverlay = createSessionOverlay()
-        root.addView(sessionOverlay)
+        root.addView(object : FrameLayout(this) {
+            override fun onResolvePointerIcon(event: MotionEvent, pointerIndex: Int): android.view.PointerIcon? =
+                if (platformPointerShown == true) super.onResolvePointerIcon(event, pointerIndex) else null
+        }.apply { addView(sessionOverlay) })
         setContentView(root)
         fullscreenSafeInsetsController = FullscreenSafeInsetsController(
             root,
@@ -964,6 +972,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
             androidx.compose.runtime.LaunchedEffect(AgentGuest.steamKeyboard) { updateOnScreenControls() }
             androidx.compose.runtime.LaunchedEffect(AgentGuest.desktopTextField) { onDesktopTextField(AgentGuest.desktopTextField) }
+            androidx.compose.runtime.LaunchedEffect(AgentGuest.gameTextField, AgentGuest.gameProgram) { onGameTextField(AgentGuest.gameTextField) }
+            androidx.compose.runtime.LaunchedEffect(wowChat.request) { placeWowChat() }
             androidx.compose.runtime.LaunchedEffect(pipUi, pcKeyboardOpen) { updateDesktopKeyboardButton() }
             val keyboardRequestsSeen = androidx.compose.runtime.remember { intArrayOf(AgentGuest.keyboardRequests) }
             androidx.compose.runtime.LaunchedEffect(AgentGuest.keyboardRequests) {
@@ -1088,6 +1098,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         }
                     }
                 }
+                if (wowChat.asking) com.droiddeck.launcher.ui.WowChatChoiceDialog(wowChat)
+                if (wowChatOnTop && wowChat.request != null) androidx.compose.foundation.layout.Box(
+                    Modifier.fillMaxSize().imePadding(), contentAlignment = androidx.compose.ui.Alignment.BottomCenter,
+                ) { com.droiddeck.launcher.ui.WowChatPanel(wowChat) }
                 if (gestureSettingsOpen) com.droiddeck.launcher.ui.TouchGestureDialog(
                     game = gestureGame,
                     onDismiss = { gestureSettingsOpen = false },
@@ -1365,6 +1379,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             },
             onKeyboard = { drawerOpen = false; pcKeyboardOpen = false; keyboard?.toggle() },
             onHardwareKeyboard = ::togglePcKeyboard,
+            wowChatShown = com.droiddeck.launcher.ui.WowChat.isWow(AgentGuest.gameProgram),
+            wowChat = wowChat.remembered,
+            onWowChat = wowChat::choose,
             controller = controllerSettings,
             onRumble = { on -> updateControllerPrefs { ControllerPrefs.setRumble(this@SessionActivity, on) } },
             onSteamButton = { on -> updateControllerPrefs { ControllerPrefs.setSteamButton(this@SessionActivity, on) } },
@@ -2329,9 +2346,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun windowOutputSize(width: Int, height: Int): Pair<Int, Int>? {
-        if (width <= 0 || height <= 0) return null
-        if (isInPictureInPictureMode) return com.droiddeck.launcher.session.PipPolicy.outputSize(
-            width, height, SessionState.outputSize.first, SessionState.outputSize.second)
+        if (width <= 0 || height <= 0 || isInPictureInPictureMode) return null
         if (bottomGame != null) return when {
             SessionState.followScreen ->
                 com.droiddeck.launcher.session.SessionDisplay.followSize(width, height, false, SessionState.followScale)
@@ -2719,7 +2734,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     SessionState.mode == SessionService.MODE_STEAM && SessionState.running &&
                     SessionState.firstFrameSeen && !SessionState.suspended && !ended &&
                     !pipUi && !drawerOpen && !pcKeyboardOpen && !achievementsOpen &&
-                    !gestureSettingsOpen && !screenKeyTextFocus && window.decorView.hasWindowFocus()
+                    !gestureSettingsOpen && !appTextFocus && window.decorView.hasWindowFocus()
                 if (steamVolume) {
                     val audio = getSystemService(android.media.AudioManager::class.java)
                     if (com.droiddeck.launcher.input.SteamVolumeKeys.dispatch(event, !audio.isVolumeFixed) { direction ->
@@ -2733,10 +2748,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             Log.i(TAG, String.format(java.util.Locale.ROOT, "back key device=%d (%s) source=0x%x flags=0x%x",
                 event.deviceId, event.device?.name, event.source, event.flags))
         }
-        val mouseToGuest = !pipUi && !screenKeyTextFocus && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !gestureSettingsOpen &&
+        val mouseToGuest = !pipUi && !appTextFocus && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !gestureSettingsOpen &&
             !SessionState.suspended && !(::loading.isInitialized && (loading.visible || loading.ended))
         if (mouseBackInput.onKeyEvent(event, mouseToGuest)) return true
-        val backToQam = !pipUi && !screenKeyTextFocus && !drawerOpen && !pcKeyboardOpen && !achievementsOpen &&
+        val backToQam = !pipUi && !appTextFocus && !drawerOpen && !pcKeyboardOpen && !achievementsOpen &&
             SessionState.mode == SessionService.MODE_STEAM && SessionState.running && SessionState.firstFrameSeen &&
             !SessionState.suspended && padBridge?.canHoldQam() == true
         if (backQamInput.onKeyEvent(event, backToQam)) {
@@ -2745,7 +2760,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return true
         }
         if (pipUi) return true
-        if (screenKeyTextFocus) return super.dispatchKeyEvent(event)
+        if (appTextFocus) return super.dispatchKeyEvent(event)
         if (physicalShortcuts.onKey(
                 event,
                 enabled = SessionState.running && !SessionState.suspended &&
@@ -3651,20 +3666,105 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         showCursor(px, py)
     }
 
-    private fun openBottomKeyboard() {
-        if (!started) return
+    private fun bottomKeyboardPresentation(): SecondScreenPresentation? {
+        if (!started) return null
         if (secondScreenPresentation?.showsKeyboard != true && dockDrawer()) {
-            val target = com.droiddeck.launcher.input.DualScreen.sessionDisplay(this, displayManager, shownOnDisplayId) ?: return
+            val target = com.droiddeck.launcher.input.DualScreen.sessionDisplay(this, displayManager, shownOnDisplayId) ?: return null
             if (drawerOpen || drawerPinned) drawerOpen = false
             typingReturnMode = secondScreenMode
             selectedSecondScreenDisplay = target.displayId
             selectSecondScreenMode(SecondScreenMode.KEYBOARD_TRACKPAD)
         }
-        val presentation = secondScreenPresentation ?: return
-        if (!presentation.showsKeyboard) return
-        val display = presentation.display?.displayId ?: return
+        return secondScreenPresentation?.takeIf { it.showsKeyboard && it.display != null }
+    }
+
+    private fun openBottomKeyboard() {
+        val presentation = bottomKeyboardPresentation() ?: return
         presentation.requestKeyboard(forField = true)
-        com.droiddeck.launcher.ui.SessionTyping.focusDisplay(this, display)
+        com.droiddeck.launcher.ui.SessionTyping.focusDisplay(this, presentation.display.displayId)
+    }
+
+    private fun onGameTextField(focused: Boolean) {
+        if (!focused || !com.droiddeck.launcher.ui.WowChat.isWow(AgentGuest.gameProgram)) wowChat.chatClosed()
+        else if (resumed && !pipUi && !pcKeyboardOpen &&
+            resources.configuration.hardKeyboardHidden != android.content.res.Configuration.HARDKEYBOARDHIDDEN_NO) {
+            keyboard?.takeIf { it.shown }?.hide()
+            wowChat.chatOpened()
+        }
+    }
+
+    private fun placeWowChat() {
+        val open = wowChat.request != null
+        val shown = wowChatBottom
+        wowChatOnTop = false
+        if (open && shown == null) {
+            val presentation = bottomKeyboardPresentation()
+            if (presentation == null) {
+                wowChatOnTop = true
+                return
+            }
+            wowChatBottom = presentation
+            presentation.showChat(onLost = {
+                if (wowChatBottom === presentation) {
+                    wowChatBottom = null
+                    wowChatOnTop = wowChat.request != null
+                }
+            }) {
+                androidx.compose.runtime.CompositionLocalProvider(
+                    androidx.activity.compose.LocalActivityResultRegistryOwner provides this,
+                    androidx.activity.compose.LocalOnBackPressedDispatcherOwner provides this,
+                ) { DroidDeckTheme { com.droiddeck.launcher.ui.WowChatPanel(wowChat) } }
+            }
+            com.droiddeck.launcher.ui.SessionTyping.focusDisplay(this, presentation.display.displayId)
+        } else if (!open && shown != null) {
+            wowChatBottom = null
+            shown.hideChat()
+            if (secondScreenPresentation === shown) bottomKeyboardClosed()
+        }
+    }
+
+    private fun sendWowChat(text: String, replace: Boolean) {
+        val host = keyboard ?: return
+        if (replace) {
+            selectGameField()
+            if (text.isEmpty()) host.tap(KeyEvent.KEYCODE_DEL)
+        } else {
+            endGameField()
+        }
+        host.type(text)
+        host.tap(KeyEvent.KEYCODE_ENTER)
+        uiHandler.postDelayed({
+            if (AgentGuest.gameTextField && com.droiddeck.launcher.ui.WowChat.isWow(AgentGuest.gameProgram)) endGameField()
+        }, FIELD_SETTLE_MS)
+    }
+
+    private fun endGameField() {
+        WaylandCompositor.nativeSendKey(KEY_END, 1)
+        WaylandCompositor.nativeSendKey(KEY_END, 0)
+    }
+
+    private fun selectGameField(vararg then: Int) {
+        val held = KEY_LEFTCTRL in guestKeysDown || KEY_LEFTCTRL in gestureKeysDown
+        if (!held) WaylandCompositor.nativeSendKey(KEY_LEFTCTRL, 1)
+        for (key in intArrayOf(KEY_A) + then) {
+            WaylandCompositor.nativeSendKey(key, 1)
+            WaylandCompositor.nativeSendKey(key, 0)
+        }
+        if (!held) WaylandCompositor.nativeSendKey(KEY_LEFTCTRL, 0)
+    }
+
+    private fun readGameField(done: (String?) -> Unit) {
+        val opened = wowChat.request
+        val stillOpen = { wowChat.request === opened && AgentGuest.gameTextField }
+        sessionClipboard.captureGuest(FIELD_READ_MS, onTimeout = { if (stillOpen()) endGameField() }) { text ->
+            if (text != null && stillOpen()) endGameField()
+            done(text)
+        }
+        selectGameField(KEY_C)
+    }
+
+    private fun cancelWowChat() {
+        keyboard?.tap(KeyEvent.KEYCODE_ESCAPE)
     }
 
     private fun bottomKeyboardClosed() {
@@ -4156,7 +4256,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun appUiOwnsPointer(): Boolean =
-        drawerOpen || pcKeyboardOpen || achievementsOpen || pipUi || glassesOutputActive || bottomOutputActive || touchEditorOpen
+        drawerOpen || pcKeyboardOpen || achievementsOpen || pipUi || glassesOutputActive || bottomOutputActive || touchEditorOpen || wowChatOnTop
 
     private fun applyPlatformPointer(shown: Boolean) {
         if (!::sessionRoot.isInitialized || !::surfaceView.isInitialized) return
@@ -4452,6 +4552,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun showPipUi(show: Boolean) {
         pipUi = show
         if (show) {
+            if (::hud.isInitialized) hud.setHidden(true)
             drawerOpen = false
             pcKeyboardOpen = false
             achievementsOpen = false
@@ -5366,6 +5467,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         private const val AXIS_UNITS_PER_PIXEL = 3f
         private const val KEY_LEFTCTRL = 29
         private const val KEY_RIGHTCTRL = 97
+        private const val KEY_A = 30
+        private const val KEY_C = 46
+        private const val KEY_END = 107
+        private const val FIELD_READ_MS = 600L
+        private const val FIELD_SETTLE_MS = 200L
         private const val BTN_SIDE = 0x113
         private const val BTN_EXTRA = 0x114
         private const val DESKTOP_GRAB_TAP_MS = 500L

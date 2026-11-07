@@ -556,6 +556,19 @@
     <string name="comp_tag_in_use">Használatban</string>
     <string name="comp_tag_new">Új</string>
     <string name="comp_tag_stored">Tárolva</string>
+    <string name="comp_mode_title">Hogyan választódnak a buildek</string>
+    <string name="comp_mode_auto_detail">Legújabb DroidDeck build, mindig naprakész</string>
+    <string name="comp_mode_manual_detail">Buildek kiválasztása és telepítése saját kézzel</string>
+    <string name="comp_auto_title">Az Auto naprakészen tartja: %1$s</string>
+    <string name="comp_auto_hint">Az új buildek a háttérben települnek. Ha egy korábban működő játék kétszer is másodperceken belül bezárul, az Auto visszaáll a működő buildre.</string>
+    <string name="comp_auto_fallback">Tartalék: %1$s</string>
+    <string name="comp_auto_checking">Buildek keresése…</string>
+    <string name="comp_auto_none">Egyik DroidDeck-Proton sem használja</string>
+    <string name="comp_auto_waits_network">Az Auto frissítések kapcsolatra várnak.</string>
+    <string name="comp_auto_check_failed">Nem sikerült új buildeket keresni.</string>
+    <string name="comp_auto_waits_unmetered">Az új buildek nem forgalomkorlátos kapcsolatra, kikapcsolt energiatakarékos módra és hűvös eszközre várnak.</string>
+    <string name="comp_auto_updated">%1$s frissítve: %2$s.</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s kétszer is másodperceken belül bezárt egy játékot, ezért az Auto visszaállt erre: %3$s.</string>
     <string name="perf_title">Teljesítmény</string>
     <string name="perf_lede">CPU-magok, munkamenet-javítások és a hosztnév. A következő munkamenettől érvényes.</string>
     <string name="perf_client_cores_group">Steam-kliens magok</string>
@@ -2229,9 +2242,6 @@
     <string name="source_added">Egyéni</string>
     <string name="setup_stores">Áruházak</string>
     <string name="setup_stores_speed">Letöltési sebességi szint</string>
-    <string name="setup_stores_engine">Áruházmotor</string>
-    <string name="setup_stores_engine_chip_ready">● A motor kész</string>
-    <string name="setup_stores_engine_chip_missing">Nincs buildelve</string>
     <string name="stores_tier_balanced">Kiegyensúlyozott</string>
     <string name="stores_tier_fast">Gyors</string>
     <string name="stores_tier_max">Max</string>
@@ -3676,4 +3686,12 @@
     <string name="stores_gamejolt_filter_status">Állapot</string>
     <string name="stores_gamejolt_filter_partners">Partnerek</string>
     <string name="stores_gamejolt_followed">Követett játékok</string>
+    <string name="wow_chat_title">Csevegés bevitele</string>
+    <string name="wow_chat_voice">Hangalapú gépelés</string>
+    <string name="wow_chat_remember">Választás megjegyzése</string>
+    <string name="wow_chat_ask">Kérdezzen minden alkalommal</string>
+    <string name="wow_chat_send">Küldés</string>
+    <string name="wow_chat_listening">Figyelés…</string>
+    <string name="wow_chat_voice_unavailable">A hangalapú gépelés nem érhető el ezen az eszközön.</string>
+    <string name="wow_chat_mic_denied">A hangalapú gépeléshez mikrofon-hozzáférés szükséges.</string>
 </resources>

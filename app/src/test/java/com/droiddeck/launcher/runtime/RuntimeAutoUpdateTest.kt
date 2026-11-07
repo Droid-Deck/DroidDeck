@@ -17,8 +17,23 @@ class RuntimeAutoUpdateTest {
         assertTrue(RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc2"))
     }
 
-    @Test fun noRuntimeOrTheSameOneIsLeftAlone() {
+    @Test fun aFirstLaunchInstallsTheRuntimeByItself() {
+        assertTrue(RuntimeAutoUpdate.claim(context, null, "ubuntu-r1-rc2"))
+    }
+
+    @Test fun aRuntimeTheUserRemovedIsNotPutBack() {
+        RuntimeAutoUpdate.seed(context)
         assertFalse(RuntimeAutoUpdate.claim(context, null, "ubuntu-r1-rc2"))
+        assertTrue(RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc2"))
+    }
+
+    @Test fun aFailingFirstInstallStopsTryingAfterAFewLaunches() {
+        repeat(RuntimeAutoUpdate.MAX_ATTEMPTS) { assertTrue(RuntimeAutoUpdate.claim(context, null, "ubuntu-r1-rc2", it * RuntimeAutoUpdate.RETRY_MS)) }
+        assertFalse(RuntimeAutoUpdate.claim(context, null, "ubuntu-r1-rc2", 10 * RuntimeAutoUpdate.RETRY_MS))
+    }
+
+    @Test fun theSameOrNoReleaseIsLeftAlone() {
+        assertFalse(RuntimeAutoUpdate.claim(context, null, null))
         assertFalse(RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc2", "ubuntu-r1-rc2"))
         assertFalse(RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", null))
         assertFalse(RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", ""))

@@ -39,7 +39,7 @@ object GogComet {
     var status by mutableStateOf("off")
         private set
 
-    fun enabled(context: Context) = GogPrefs.get(context).getBoolean("achievements", false)
+    fun enabled(context: Context) = GogPrefs.get(context).getBoolean("achievements", true)
 
     fun setEnabled(context: Context, on: Boolean) {
         GogPrefs.get(context).edit().putBoolean("achievements", on).apply()

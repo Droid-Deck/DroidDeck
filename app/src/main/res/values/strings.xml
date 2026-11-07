@@ -604,6 +604,19 @@
     <string name="comp_tag_in_use">In use</string>
     <string name="comp_tag_new">New</string>
     <string name="comp_tag_stored">Stored</string>
+    <string name="comp_mode_title">How builds are chosen</string>
+    <string name="comp_mode_auto_detail">Newest DroidDeck build, kept current</string>
+    <string name="comp_mode_manual_detail">Pick and install builds yourself</string>
+    <string name="comp_auto_title">Auto keeps %1$s current</string>
+    <string name="comp_auto_hint">New builds install in the background. If a game that ran before closes within seconds twice, Auto goes back to the build that worked.</string>
+    <string name="comp_auto_fallback">Fallback: %1$s</string>
+    <string name="comp_auto_checking">Checking for builds…</string>
+    <string name="comp_auto_none">No DroidDeck-Proton uses this</string>
+    <string name="comp_auto_waits_network">Auto updates wait for a connection.</string>
+    <string name="comp_auto_check_failed">Couldn\'t check for new builds.</string>
+    <string name="comp_auto_waits_unmetered">New builds wait for an unmetered connection, battery saver off and a cool device.</string>
+    <string name="comp_auto_updated">%1$s updated to %2$s.</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s closed a game within seconds twice, so Auto went back to %3$s.</string>
     <string name="perf_title">Performance</string>
     <string name="perf_lede">CPU cores, session fixes and the host name. Applies next session.</string>
     <string name="perf_client_cores_group">Steam client cores</string>
@@ -2454,9 +2467,6 @@
     <string name="source_added">Custom</string>
     <string name="setup_stores">Stores</string>
     <string name="setup_stores_speed">Download speed tier</string>
-    <string name="setup_stores_engine">Stores engine</string>
-    <string name="setup_stores_engine_chip_ready">● Engine ready</string>
-    <string name="setup_stores_engine_chip_missing">Not built</string>
     <string name="stores_tier_balanced">Balanced</string>
     <string name="stores_tier_fast">Fast</string>
     <string name="stores_tier_max">Max</string>
@@ -3834,4 +3844,12 @@
     <string name="stores_gamejolt_filter_status">Status</string>
     <string name="stores_gamejolt_filter_partners">Partners</string>
     <string name="stores_gamejolt_followed">Followed games</string>
+    <string name="wow_chat_title">Chat input</string>
+    <string name="wow_chat_voice">Voice type</string>
+    <string name="wow_chat_remember">Remember this selection</string>
+    <string name="wow_chat_ask">Ask each time</string>
+    <string name="wow_chat_send">Send</string>
+    <string name="wow_chat_listening">Listening…</string>
+    <string name="wow_chat_voice_unavailable">Voice typing is not available on this device.</string>
+    <string name="wow_chat_mic_denied">Microphone access is needed for voice typing.</string>
 </resources>

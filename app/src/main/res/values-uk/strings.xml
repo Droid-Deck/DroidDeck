@@ -560,6 +560,19 @@
     <string name="comp_tag_in_use">Використовується</string>
     <string name="comp_tag_new">Нове</string>
     <string name="comp_tag_stored">Збережено</string>
+    <string name="comp_mode_title">Як вибираються збірки</string>
+    <string name="comp_mode_auto_detail">Найновіша збірка DroidDeck, завжди актуальна</string>
+    <string name="comp_mode_manual_detail">Вибирайте та встановлюйте збірки самостійно</string>
+    <string name="comp_auto_title">Auto підтримує %1$s в актуальному стані</string>
+    <string name="comp_auto_hint">Нові збірки встановлюються у фоні. Якщо гра, яка раніше працювала, двічі закриється за кілька секунд, Auto повернеться до робочої збірки.</string>
+    <string name="comp_auto_fallback">Запасна: %1$s</string>
+    <string name="comp_auto_checking">Пошук збірок…</string>
+    <string name="comp_auto_none">Жоден DroidDeck-Proton цього не використовує</string>
+    <string name="comp_auto_waits_network">Оновлення Auto чекають на з’єднання.</string>
+    <string name="comp_auto_check_failed">Не вдалося перевірити нові збірки.</string>
+    <string name="comp_auto_waits_unmetered">Нові збірки чекають на безлімітне з’єднання, вимкнену економію заряду та охолоджений пристрій.</string>
+    <string name="comp_auto_updated">%1$s оновлено до %2$s.</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s двічі закрив гру за кілька секунд, тому Auto повернувся до %3$s.</string>
     <string name="perf_title">Продуктивність</string>
     <string name="perf_lede">Ядра CPU, виправлення сеансу та ім’я хоста. Застосовується в наступному сеансі.</string>
     <string name="perf_client_cores_group">Ядра клієнта Steam</string>
@@ -2279,9 +2292,6 @@
     <string name="source_added">Власна</string>
     <string name="setup_stores">Магазини</string>
     <string name="setup_stores_speed">Рівень швидкості завантаження</string>
-    <string name="setup_stores_engine">Рушій магазинів</string>
-    <string name="setup_stores_engine_chip_ready">● Рушій готовий</string>
-    <string name="setup_stores_engine_chip_missing">Не зібрано</string>
     <string name="stores_tier_balanced">Збалансований</string>
     <string name="stores_tier_fast">Швидкий</string>
     <string name="stores_tier_max">Максимальний</string>
@@ -3754,4 +3764,12 @@
     <string name="stores_gamejolt_filter_status">Статус</string>
     <string name="stores_gamejolt_filter_partners">Партнери</string>
     <string name="stores_gamejolt_followed">Ігри, за якими ви стежите</string>
+    <string name="wow_chat_title">Введення в чат</string>
+    <string name="wow_chat_voice">Голосове введення</string>
+    <string name="wow_chat_remember">Запам\'ятати цей вибір</string>
+    <string name="wow_chat_ask">Питати щоразу</string>
+    <string name="wow_chat_send">Надіслати</string>
+    <string name="wow_chat_listening">Слухаю…</string>
+    <string name="wow_chat_voice_unavailable">Голосове введення недоступне на цьому пристрої.</string>
+    <string name="wow_chat_mic_denied">Для голосового введення потрібен доступ до мікрофона.</string>
 </resources>

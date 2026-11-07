@@ -81,7 +81,7 @@ class ClientZramFocusTest(unittest.TestCase):
     def test_refocus_restarts_the_delay_and_game_exit_restores_a_packed_client(self):
         source = SCRIPT.read_text()
         start = source.index('          if [ "$_bl_game" = 1 ] && bl_game_focused; then')
-        stop = source.index('          nap 5', start)
+        stop = source.index('          bl_watch_nap\n', start)
         body = source[start:stop]
         harness = '''
 _bl_since=-1 _bl_since_apps= _bl_packed=-1 _bl_unpack=0 _bl_apps=" 413150"
@@ -112,7 +112,7 @@ tick 60 0 0
     def monitor_harness(self):
         source = SCRIPT.read_text()
         start = source.index('          bl_zram_scan\n          bl_memory_read\n')
-        stop = source.index('          nap 5', start)
+        stop = source.index('          bl_watch_nap\n', start)
         return '''
 _bl_since=-1 _bl_since_apps= _bl_packed=-1 _bl_measured=-1 _bl_unpack=0 _bl_capped=-1 _bl_backoff=30
 _bl_apps=" 413150"
@@ -121,6 +121,7 @@ step() { :; }
 bl_zram_scan() { :; }
 bl_memory_read() { :; }
 bl_client_pressure() { :; }
+bl_session_pressure() { :; }
 bl_client_can_pageout() { return 0; }
 bl_client_can_readback() { [ "${readback:-1}" = 1 ]; }
 bl_game_focused() { [ "$focused" = 1 ]; }

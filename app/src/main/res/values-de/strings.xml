@@ -556,6 +556,19 @@
     <string name="comp_tag_in_use">In Verwendung</string>
     <string name="comp_tag_new">Neu</string>
     <string name="comp_tag_stored">Gespeichert</string>
+    <string name="comp_mode_title">Wie Builds gewählt werden</string>
+    <string name="comp_mode_auto_detail">Neuester DroidDeck-Build, stets aktuell</string>
+    <string name="comp_mode_manual_detail">Builds selbst auswählen und installieren</string>
+    <string name="comp_auto_title">Auto hält %1$s aktuell</string>
+    <string name="comp_auto_hint">Neue Builds werden im Hintergrund installiert. Schließt sich ein Spiel, das vorher lief, zweimal nach wenigen Sekunden, kehrt Auto zum funktionierenden Build zurück.</string>
+    <string name="comp_auto_fallback">Ausweich-Build: %1$s</string>
+    <string name="comp_auto_checking">Suche nach Builds…</string>
+    <string name="comp_auto_none">Kein DroidDeck-Proton nutzt dies</string>
+    <string name="comp_auto_waits_network">Auto-Updates warten auf eine Verbindung.</string>
+    <string name="comp_auto_check_failed">Neue Builds konnten nicht geprüft werden.</string>
+    <string name="comp_auto_waits_unmetered">Neue Builds warten auf eine nicht getaktete Verbindung, ausgeschalteten Energiesparmodus und ein kühles Gerät.</string>
+    <string name="comp_auto_updated">%1$s auf %2$s aktualisiert.</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s hat ein Spiel zweimal nach wenigen Sekunden beendet, daher ist Auto zu %3$s zurückgekehrt.</string>
     <string name="perf_title">Leistung</string>
     <string name="perf_lede">CPU-Kerne, Sitzungskorrekturen und der Hostname. Gilt ab der nächsten Sitzung.</string>
     <string name="perf_client_cores_group">Steam-Client-Kerne</string>
@@ -2221,9 +2234,6 @@
     <string name="source_added">Eigene</string>
     <string name="setup_stores">Stores</string>
     <string name="setup_stores_speed">Download-Tempo</string>
-    <string name="setup_stores_engine">Store-Engine</string>
-    <string name="setup_stores_engine_chip_ready">● Engine bereit</string>
-    <string name="setup_stores_engine_chip_missing">Nicht gebaut</string>
     <string name="stores_tier_balanced">Ausgewogen</string>
     <string name="stores_tier_fast">Schnell</string>
     <string name="stores_tier_max">Max.</string>
@@ -3676,4 +3686,12 @@
     <string name="stores_gamejolt_filter_status">Status</string>
     <string name="stores_gamejolt_filter_partners">Partner</string>
     <string name="stores_gamejolt_followed">Gefolgte Spiele</string>
+    <string name="wow_chat_title">Chat-Eingabe</string>
+    <string name="wow_chat_voice">Spracheingabe</string>
+    <string name="wow_chat_remember">Diese Auswahl merken</string>
+    <string name="wow_chat_ask">Jedes Mal fragen</string>
+    <string name="wow_chat_send">Senden</string>
+    <string name="wow_chat_listening">Hört zu…</string>
+    <string name="wow_chat_voice_unavailable">Spracheingabe ist auf diesem Gerät nicht verfügbar.</string>
+    <string name="wow_chat_mic_denied">Für die Spracheingabe wird Mikrofonzugriff benötigt.</string>
 </resources>

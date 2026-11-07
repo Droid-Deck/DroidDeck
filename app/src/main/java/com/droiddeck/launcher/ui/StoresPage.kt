@@ -1430,18 +1430,7 @@ internal fun openUrl(ctx: android.content.Context, url: String) {
     runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
 
-internal fun launchStoreGame(ctx: android.content.Context, store: Store, id: String, s: FrontEndState, a: FrontEndActions) {
+internal fun launchStoreGame(store: Store, id: String, s: FrontEndState, a: FrontEndActions) {
     val game = s.steamGames.firstOrNull { it.source == store.id && it.storeId == id }
-    if (game != null) {
-        a.onSteamGame(game)
-        return
-    }
-    val app = ctx.applicationContext
-    Thread({
-        val installed = runCatching { com.droiddeck.launcher.stores.StoreLaunch.installedGame(app, store, id) }.getOrNull()
-        StoresState.post {
-            if (installed == null) android.widget.Toast.makeText(ctx, R.string.stores_launch_not_registered, android.widget.Toast.LENGTH_LONG).show()
-            else a.onSteamGame(installed)
-        }
-    }, "store-play").start()
+    if (game != null) a.onSteamGame(game) else a.onStoreGame(store, id)
 }

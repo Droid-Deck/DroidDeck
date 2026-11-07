@@ -556,6 +556,19 @@
     <string name="comp_tag_in_use">उपयोग में</string>
     <string name="comp_tag_new">नया</string>
     <string name="comp_tag_stored">सेव है</string>
+    <string name="comp_mode_title">बिल्ड कैसे चुने जाते हैं</string>
+    <string name="comp_mode_auto_detail">सबसे नया DroidDeck बिल्ड, हमेशा अपडेट</string>
+    <string name="comp_mode_manual_detail">बिल्ड खुद चुनें और इंस्टॉल करें</string>
+    <string name="comp_auto_title">Auto %1$s को अपडेट रखता है</string>
+    <string name="comp_auto_hint">नए बिल्ड बैकग्राउंड में इंस्टॉल होते हैं। अगर पहले चलने वाला गेम दो बार कुछ सेकंड में बंद हो जाए, तो Auto काम करने वाले बिल्ड पर लौट जाता है।</string>
+    <string name="comp_auto_fallback">फ़ॉलबैक: %1$s</string>
+    <string name="comp_auto_checking">बिल्ड खोजे जा रहे हैं…</string>
+    <string name="comp_auto_none">कोई DroidDeck-Proton इसका उपयोग नहीं करता</string>
+    <string name="comp_auto_waits_network">Auto अपडेट कनेक्शन का इंतज़ार कर रहे हैं।</string>
+    <string name="comp_auto_check_failed">नए बिल्ड नहीं जाँचे जा सके।</string>
+    <string name="comp_auto_waits_unmetered">नए बिल्ड बिना सीमा वाले कनेक्शन, बंद बैटरी सेवर और ठंडे डिवाइस का इंतज़ार करते हैं।</string>
+    <string name="comp_auto_updated">%1$s को %2$s पर अपडेट किया गया।</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s ने दो बार कुछ सेकंड में गेम बंद कर दिया, इसलिए Auto %3$s पर लौट गया।</string>
     <string name="perf_title">परफ़ॉर्मेंस</string>
     <string name="perf_lede">CPU कोर, सेशन फ़िक्स और होस्ट नाम। अगले सेशन से लागू होता है।</string>
     <string name="perf_client_cores_group">Steam क्लाइंट कोर</string>
@@ -2229,9 +2242,6 @@
     <string name="source_added">कस्टम</string>
     <string name="setup_stores">स्टोर</string>
     <string name="setup_stores_speed">डाउनलोड स्पीड टियर</string>
-    <string name="setup_stores_engine">स्टोर इंजन</string>
-    <string name="setup_stores_engine_chip_ready">● इंजन तैयार</string>
-    <string name="setup_stores_engine_chip_missing">नहीं बना</string>
     <string name="stores_tier_balanced">बैलेंस्ड</string>
     <string name="stores_tier_fast">फ़ास्ट</string>
     <string name="stores_tier_max">मैक्स</string>
@@ -3676,4 +3686,12 @@
     <string name="stores_gamejolt_filter_status">स्थिति</string>
     <string name="stores_gamejolt_filter_partners">पार्टनर</string>
     <string name="stores_gamejolt_followed">फ़ॉलो किए गए गेम</string>
+    <string name="wow_chat_title">चैट इनपुट</string>
+    <string name="wow_chat_voice">आवाज़ से टाइप करें</string>
+    <string name="wow_chat_remember">यह चुनाव याद रखें</string>
+    <string name="wow_chat_ask">हर बार पूछें</string>
+    <string name="wow_chat_send">भेजें</string>
+    <string name="wow_chat_listening">सुन रहा है…</string>
+    <string name="wow_chat_voice_unavailable">इस डिवाइस पर आवाज़ से टाइपिंग उपलब्ध नहीं है।</string>
+    <string name="wow_chat_mic_denied">आवाज़ से टाइपिंग के लिए माइक्रोफ़ोन की अनुमति चाहिए।</string>
 </resources>

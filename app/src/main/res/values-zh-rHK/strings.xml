@@ -554,6 +554,19 @@
     <string name="comp_tag_in_use">使用中</string>
     <string name="comp_tag_new">新</string>
     <string name="comp_tag_stored">已儲存</string>
+    <string name="comp_mode_title">版本的選擇方式</string>
+    <string name="comp_mode_auto_detail">最新 DroidDeck 版本，持續保持更新</string>
+    <string name="comp_mode_manual_detail">自行選擇並安裝版本</string>
+    <string name="comp_auto_title">Auto 會令 %1$s 保持最新</string>
+    <string name="comp_auto_hint">新版本會在背景安裝。如果之前能執行的遊戲兩次在幾秒內關閉，Auto 會退回到之前可用的版本。</string>
+    <string name="comp_auto_fallback">備用：%1$s</string>
+    <string name="comp_auto_checking">正在檢查版本…</string>
+    <string name="comp_auto_none">沒有 DroidDeck-Proton 使用它</string>
+    <string name="comp_auto_waits_network">Auto 更新正在等待網絡連線。</string>
+    <string name="comp_auto_check_failed">無法檢查新版本。</string>
+    <string name="comp_auto_waits_unmetered">新版本將等待非按流量收費的網絡、關閉省電模式且裝置不過熱時下載。</string>
+    <string name="comp_auto_updated">%1$s 已更新至 %2$s。</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s 兩次在幾秒內關閉了遊戲，因此 Auto 已退回到 %3$s。</string>
     <string name="perf_title">效能</string>
     <string name="perf_lede">CPU 核心、會話修正和主機名稱。下次會話生效。</string>
     <string name="perf_client_cores_group">Steam 用戶端核心</string>
@@ -2204,9 +2217,6 @@
     <string name="source_added">自訂</string>
     <string name="setup_stores">商店</string>
     <string name="setup_stores_speed">下載速度等級</string>
-    <string name="setup_stores_engine">商店引擎</string>
-    <string name="setup_stores_engine_chip_ready">● 引擎已就緒</string>
-    <string name="setup_stores_engine_chip_missing">未建置</string>
     <string name="stores_tier_balanced">平衡</string>
     <string name="stores_tier_fast">快速</string>
     <string name="stores_tier_max">最高</string>
@@ -3649,4 +3659,12 @@
     <string name="setup_gpu_bridged">GPU 透過 Mali 橋接</string>
     <string name="gpuinfo_bridge">透過 Mali 橋接執行，使用手機內建的 Vulkan 驅動程式</string>
     <string name="gpuinfo_bridge_off">關閉 Mali 橋接時不受支援：Turnip 需要 Adreno（Snapdragon）GPU</string>
+    <string name="wow_chat_title">聊天輸入</string>
+    <string name="wow_chat_voice">語音輸入</string>
+    <string name="wow_chat_remember">記住此選擇</string>
+    <string name="wow_chat_ask">每次詢問</string>
+    <string name="wow_chat_send">傳送</string>
+    <string name="wow_chat_listening">正在聆聽…</string>
+    <string name="wow_chat_voice_unavailable">此裝置不支援語音輸入。</string>
+    <string name="wow_chat_mic_denied">語音輸入需要咪高峰權限。</string>
 </resources>

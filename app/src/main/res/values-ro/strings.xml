@@ -558,6 +558,19 @@
     <string name="comp_tag_in_use">În uz</string>
     <string name="comp_tag_new">Nou</string>
     <string name="comp_tag_stored">Salvat</string>
+    <string name="comp_mode_title">Cum se aleg versiunile</string>
+    <string name="comp_mode_auto_detail">Cea mai nouă versiune DroidDeck, mereu actualizată</string>
+    <string name="comp_mode_manual_detail">Alege și instalează singur versiunile</string>
+    <string name="comp_auto_title">Auto menține %1$s actualizat</string>
+    <string name="comp_auto_hint">Versiunile noi se instalează în fundal. Dacă un joc care mergea se închide în câteva secunde de două ori, Auto revine la versiunea care funcționa.</string>
+    <string name="comp_auto_fallback">Rezervă: %1$s</string>
+    <string name="comp_auto_checking">Se caută versiuni…</string>
+    <string name="comp_auto_none">Niciun DroidDeck-Proton nu folosește asta</string>
+    <string name="comp_auto_waits_network">Actualizările Auto așteaptă o conexiune.</string>
+    <string name="comp_auto_check_failed">Nu s-au putut căuta versiuni noi.</string>
+    <string name="comp_auto_waits_unmetered">Versiunile noi așteaptă o conexiune fără limită de date, economisirea bateriei oprită și un dispozitiv răcit.</string>
+    <string name="comp_auto_updated">%1$s actualizat la %2$s.</string>
+    <string name="comp_auto_rolled_back">%1$s %2$s a închis un joc în câteva secunde de două ori, așa că Auto a revenit la %3$s.</string>
     <string name="perf_title">Performanță</string>
     <string name="perf_lede">Nuclee CPU, remedieri de sesiune și numele hostului. Se aplică la sesiunea următoare.</string>
     <string name="perf_client_cores_group">Nuclee pentru clientul Steam</string>
@@ -2254,9 +2267,6 @@
     <string name="source_added">Personalizat</string>
     <string name="setup_stores">Magazine</string>
     <string name="setup_stores_speed">Nivelul vitezei de descărcare</string>
-    <string name="setup_stores_engine">Motorul magazinelor</string>
-    <string name="setup_stores_engine_chip_ready">● Motor pregătit</string>
-    <string name="setup_stores_engine_chip_missing">Necompilat</string>
     <string name="stores_tier_balanced">Echilibrat</string>
     <string name="stores_tier_fast">Rapid</string>
     <string name="stores_tier_max">Maxim</string>
@@ -3715,4 +3725,12 @@
     <string name="stores_gamejolt_filter_status">Stare</string>
     <string name="stores_gamejolt_filter_partners">Parteneri</string>
     <string name="stores_gamejolt_followed">Jocuri urmărite</string>
+    <string name="wow_chat_title">Introducere în chat</string>
+    <string name="wow_chat_voice">Tastare vocală</string>
+    <string name="wow_chat_remember">Ține minte această alegere</string>
+    <string name="wow_chat_ask">Întreabă de fiecare dată</string>
+    <string name="wow_chat_send">Trimite</string>
+    <string name="wow_chat_listening">Se ascultă…</string>
+    <string name="wow_chat_voice_unavailable">Tastarea vocală nu este disponibilă pe acest dispozitiv.</string>
+    <string name="wow_chat_mic_denied">Pentru tastarea vocală este necesar accesul la microfon.</string>
 </resources>

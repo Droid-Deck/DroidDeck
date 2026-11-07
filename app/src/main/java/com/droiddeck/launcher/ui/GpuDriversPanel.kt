@@ -250,18 +250,8 @@ internal fun GpuDriversBody(
             Triple(GPU_MODE_PAIR, R.string.gpu_mode_pair, R.string.gpu_mode_pair_detail),
             Triple(GPU_MODE_MIX, R.string.gpu_mode_mix, R.string.gpu_mode_mix_detail),
         )
-        val choice: @Composable (Int, Modifier) -> Unit = { i, mod ->
-            val (id, title, detail) = modes[i]
-            PanelRow(
-                stringResource(title), stringResource(detail), gpu.mode == id,
-                modifier = mod.then(if (gpu.mode == id) Modifier.focusRequester(first) else Modifier)
-                    .then(if (i == 0) Modifier.onGloballyPositioned { placed[1] = it }.onFocusChanged { if (it.isFocused) revealCard() } else Modifier),
-                onClick = { if (gpu.mode != id) actions.onMode(id) },
-            )
-        }
-        if (single) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { modes.indices.forEach { choice(it, Modifier) } }
-        else Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-            modes.indices.forEach { choice(it, Modifier.weight(1f).fillMaxHeight()) }
+        ModeChoices(modes, gpu.mode, single, first, onPick = actions.onMode) { i ->
+            if (i == 0) Modifier.onGloballyPositioned { placed[1] = it }.onFocusChanged { if (it.isFocused) revealCard() } else Modifier
         }
         when (gpu.mode) {
             GPU_MODE_AUTO -> AutoBody(gpu, actions)
@@ -439,12 +429,35 @@ internal const val SLOT_DISPLAY = "panel"
 internal const val SLOT_RUNTIME = "rt"
 
 @Composable
-private fun PanelHeading(text: String) {
+internal fun ModeChoices(
+    modes: List<Triple<String, Int, Int>>,
+    selected: String,
+    single: Boolean,
+    first: FocusRequester,
+    onPick: (String) -> Unit,
+    extra: (Int) -> Modifier = { Modifier },
+) {
+    val choice: @Composable (Int, Modifier) -> Unit = { i, mod ->
+        val (id, title, detail) = modes[i]
+        PanelRow(
+            stringResource(title), stringResource(detail), selected == id,
+            modifier = mod.then(if (selected == id) Modifier.focusRequester(first) else Modifier).then(extra(i)),
+            onClick = { if (selected != id) onPick(id) },
+        )
+    }
+    if (single) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { modes.indices.forEach { choice(it, Modifier) } }
+    else Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+        modes.indices.forEach { choice(it, Modifier.weight(1f).fillMaxHeight()) }
+    }
+}
+
+@Composable
+internal fun PanelHeading(text: String) {
     Text(text.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable
-private fun PanelTitle(title: String, hint: String) {
+internal fun PanelTitle(title: String, hint: String) {
     Column(verticalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.padding(top = 4.dp)) {
         Text(title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
         Text(hint, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -461,7 +474,7 @@ private fun Pill(text: String, fill: Color, ink: Color) {
 }
 
 @Composable
-private fun PanelRow(
+internal fun PanelRow(
     title: String,
     detail: String,
     selected: Boolean,

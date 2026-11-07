@@ -408,11 +408,13 @@ internal fun GameActions(
             !cloud && (game != null || installed != null) -> {
                 val gone = storeKey?.let { StoresState.uninstalling[it] }
                 val xboxBusy = store == Store.XBOX && id != null && XboxContent.busy(id)
+                val preparing = (game?.launchKey ?: storeKey)?.let { it in s.preparingGames } == true
                 PrimaryButton(
-                    stringResource(R.string.stores_play), enabled = !s.busy && gone == null && download == null && !xboxBusy && (store != Store.GOG || installed?.sidecar?.isInstalled != false),
+                    stringResource(if (preparing) R.string.store_starting else R.string.stores_play),
+                    enabled = !s.busy && !preparing && gone == null && download == null && !xboxBusy && (store != Store.GOG || installed?.sidecar?.isInstalled != false),
                     main = true, icon = Icons.Filled.PlayArrow, modifier = leadOn,
                 ) {
-                    if (game != null) a.onSteamGame(game) else if (store != null && id != null) launchStoreGame(ctx, store, id, s, a)
+                    if (game != null) a.onSteamGame(game) else if (store != null && id != null) launchStoreGame(store, id, s, a)
                 }
                 if (game != null) {
                     if (compactMenu) GameMoreMenu(game, a) else {
@@ -808,10 +810,16 @@ private fun LaunchTab(game: Library.SteamGame, s: FrontEndState, a: FrontEndActi
     val host = rememberMenuHost()
     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
         LaunchSettings(s, a, host, game, hopRail ?: GameRef.key(game))
+        if (canEditSteamLaunchOptions(game, s.shortcutPicker)) {
+            SteamLaunchOptionsPanel(game.appId)
+        }
         val folder = game.gameFiles
         if (game.library == Library.ADDED && game.source == Library.ADDED && !s.shortcutPicker && folder != null) ShortcutFields(game, folder)
     }
 }
+
+internal fun canEditSteamLaunchOptions(game: Library.SteamGame, shortcutPicker: Boolean): Boolean =
+    !shortcutPicker && game.source == Library.SOURCE_STEAM && game.library != Library.ADDED
 
 @Composable
 private fun ShortcutFields(game: Library.SteamGame, folder: File) {
