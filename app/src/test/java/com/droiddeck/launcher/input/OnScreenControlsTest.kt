@@ -183,6 +183,9 @@ class OnScreenControlsTest {
         val x = 34 * density
         val y = 600 - 34 * density
         assertTrue(view.takesTouchAt(x, y))
+        touch(MotionEvent.ACTION_UP, 4 to (x to y))
+        touch(MotionEvent.ACTION_DOWN, 5 to (x to y)); touch(MotionEvent.ACTION_CANCEL, 5 to (x to y)); touch(MotionEvent.ACTION_UP, 5 to (x to y))
+        assertFalse(view.isQuickHidden)
         touch(MotionEvent.ACTION_DOWN, 1 to (x to y)); touch(MotionEvent.ACTION_UP, 1 to (x to y))
         measure(view)
         assertTrue(view.isQuickHidden)

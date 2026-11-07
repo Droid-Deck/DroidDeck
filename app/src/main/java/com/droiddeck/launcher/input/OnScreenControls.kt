@@ -93,6 +93,7 @@ class OnScreenControls(context: Context, pad: PadBridge?) : FrameLayout(context)
     private inner class QuickToggle(context: Context) : View(context) {
         var tint = ControllerPrefs.STEAM_BLUE
         private val density = resources.displayMetrics.density
+        private var armed = false
         private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
         private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 1.5f * density }
         private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -115,9 +116,16 @@ class OnScreenControls(context: Context, pad: PadBridge?) : FrameLayout(context)
 
         @SuppressLint("ClickableViewAccessibility")
         override fun onTouchEvent(event: MotionEvent): Boolean {
-            if (event.actionMasked == MotionEvent.ACTION_UP && event.x in 0f..width.toFloat() && event.y in 0f..height.toFloat()) {
-                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                setQuickHidden(!isQuickHidden)
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> armed = true
+                MotionEvent.ACTION_CANCEL -> armed = false
+                MotionEvent.ACTION_UP -> {
+                    if (armed && event.x in 0f..width.toFloat() && event.y in 0f..height.toFloat()) {
+                        performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                        setQuickHidden(!isQuickHidden)
+                    }
+                    armed = false
+                }
             }
             return true
         }

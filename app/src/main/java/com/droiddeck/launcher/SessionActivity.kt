@@ -1406,7 +1406,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             },
             unfoldedControls = unfoldedControls,
             onUnfoldedControls = ::chooseUnfoldedControls,
-            adaptiveSticks = adaptiveSticks.takeIf { oscMode != SessionPrefs.OSC_NEVER && oscMode != SessionPrefs.OSC_STEAM_TOUCH },
+            adaptiveSticks = adaptiveSticks.takeIf {
+                oscMode != SessionPrefs.OSC_NEVER && oscMode != SessionPrefs.OSC_STEAM_QAM &&
+                    !(oscMode == SessionPrefs.OSC_STEAM_TOUCH && SessionState.mode == SessionService.MODE_STEAM)
+            },
             onAdaptiveSticks = { on ->
                 primaryInputLayout?.let { com.droiddeck.launcher.input.InputLibraries.setAdaptiveSticks(this@SessionActivity, it.id, on) }
                 refreshInputProfile()

@@ -314,6 +314,8 @@ class InputLibraryTest {
         }
         val moved = old.mapIndexed { i, e -> if (i == 0) e.copy(buttonShape = InputButtonShape.RECTANGLE) else e }
         assertEquals(moved.drop(1).map { it.width }, fresh.restyle(moved).drop(1).map { it.width })
+        val shifted = old.mapIndexed { i, e -> if (i == 0) e.copy(x = e.x + .03f) else e }
+        assertEquals(shifted.map { listOf(it.x, it.y, it.width, it.height) }, fresh.restyle(shifted).map { listOf(it.x, it.y, it.width, it.height) })
     }
 
     @Test fun stickTouchAreasReachFurtherOutwardButKeepTheirInnerEdge() {
@@ -345,8 +347,11 @@ class InputLibraryTest {
         assertEquals(overlay.elements.filter { it.kind != InputElementKind.STICK }, changed.elements.filter { it.kind != InputElementKind.STICK })
         assertEquals(library.layouts.filter { it.id != overlay.id }, off.layouts.filter { it.id != overlay.id })
         assertNull(off.layouts.single { it.id == InputLibraries.DECK }.adaptiveSticks)
-        InputLibraries.setAdaptiveSticks(context, overlay.id, true)
+        assertTrue(InputLibraries.setAdaptiveSticks(context, overlay.id, true))
         assertEquals(true, InputLibraries.read(context).layouts.single { it.id == overlay.id }.adaptiveSticks)
+        prefs.edit().putString("library", JSONObject().put("version", 99).toString()).commit()
+        assertFalse(InputLibraries.setAdaptiveSticks(context, overlay.id, false))
+        assertTrue(ControllerPrefs.read(context).adaptiveSticks)
     }
 
     @Test fun savedGamepadsFromTheFirstUnifiedBuildGetTheRoundLookOnce() {
@@ -359,6 +364,8 @@ class InputLibraryTest {
         })
         val custom = SavedInputLayout("mine", "Mine", listOf(InputSurfaceElement(InputControl.B, .1f, .1f, .1f, .1f)))
         val stored = fresh.withLayout(old).withLayout(custom)
+        val renamed = InputSurfaceElement(InputControl.A, .02f, .9f, .12f, .08f, "builtin:keyboard", name = "Keys")
+        assertEquals(renamed, LegacyGamepadLayout(context, 1200, 800).restyle(listOf(renamed)).single())
         prefs.edit().putString("library", JSONObject(InputLibraries.encode(stored)).put("version", 8).toString()).commit()
         val upgraded = InputLibraries.read(context)
         val restyled = upgraded.layouts.single { it.id == InputLibraries.OVERLAY }.elements

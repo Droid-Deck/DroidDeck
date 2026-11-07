@@ -207,15 +207,31 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
         val dpad = elements.filter { it.id == "legacy:${it.control.id}" && it.control in DPAD && it.buttonShape == InputButtonShape.ROUNDED }
         val centreX = dpad.map { (it.x + it.width / 2f) * width }.average().toFloat()
         val centreY = dpad.map { (it.y + it.height / 2f) * height }.average().toFloat()
+        val resize = untouchedDpad(dpad, centreX, centreY)
         return elements.map { e ->
             when {
-                e.id == KEYBOARD_ID && e.icon == 0 && e.x == .02f && e.y == .9f && e.width == .12f && e.height == .08f -> keyboard()
+                e.id == KEYBOARD_ID && e.icon == 0 && e.name == "Keyboard" && e.buttonShape == InputButtonShape.ROUNDED &&
+                    e.x == .02f && e.y == .9f && e.width == .12f && e.height == .08f -> keyboard()
                 e.id == "legacy:${e.control.id}" && e.buttonShape == InputButtonShape.ROUNDED -> {
                     val round = e.copy(buttonShape = if (e.control.id in shoulderIds) InputButtonShape.PILL else InputButtonShape.CIRCLE)
-                    (if (dpad.size == DPAD.size && e.control in DPAD) resizeDpad(round, centreX, centreY) else widenStick(round)).bounded()
+                    (if (resize && e.control in DPAD) resizeDpad(round, centreX, centreY) else widenStick(round)).bounded()
                 }
                 else -> e
             }
+        }
+    }
+
+    private fun untouchedDpad(dpad: List<InputSurfaceElement>, centreX: Float, centreY: Float): Boolean {
+        if (dpad.size != DPAD.size) return false
+        val radius = dpad[0].width * width / 2f
+        val tolerance = 1.5f
+        val offset = radius * LEGACY_DPAD_OFFSET_DP / LEGACY_DPAD_RADIUS_DP
+        return dpad.all { e ->
+            val old = controls.first { it.id == e.control.id }
+            val dx = (e.x + e.width / 2f) * width - centreX
+            val dy = (e.y + e.height / 2f) * height - centreY
+            abs(e.width * width / 2f - radius) <= tolerance && abs(e.height * height / 2f - radius) <= tolerance &&
+                abs(dx - offset * sign(old.offsetXDp)) <= tolerance && abs(dy - offset * sign(old.offsetYDp)) <= tolerance
         }
     }
 

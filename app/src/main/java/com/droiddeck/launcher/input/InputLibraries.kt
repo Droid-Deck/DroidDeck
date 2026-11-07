@@ -105,15 +105,14 @@ object InputLibraries {
         return InputLibrary(profiles, layouts, bindings, selected).validate()
     }
 
-    fun setAdaptiveSticks(context: Context, layoutId: String, on: Boolean) {
-        ControllerPrefs.setAdaptiveSticks(context, on)
+    fun setAdaptiveSticks(context: Context, layoutId: String, on: Boolean): Boolean = runCatching {
         update(context) { library ->
             library.copy(layouts = library.layouts.map { layout ->
                 if (layout.id != layoutId || !layout.editable) layout
                 else layout.copy(elements = layout.elements.map { if (it.kind == InputElementKind.STICK) it.copy(floating = on, hideWhenIdle = on) else it })
             })
         }
-    }
+    }.onSuccess { ControllerPrefs.setAdaptiveSticks(context, on) }.isSuccess
 
     @Suppress("DEPRECATION")
     private fun primaryDisplay(context: Context): Pair<Context, DisplayMetrics> {
