@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.frontend
 
+import com.droiddeck.launcher.assumeFilePermissionsEnforced
 import android.os.Environment
 import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
@@ -308,6 +309,7 @@ class AddedExesTest {
     }
 
     @Test fun anExeInAFolderTheAppCannotReadIsNotAdded() {
+        assumeFilePermissionsEnforced()
         noGamesFolders()
         val outside = exe(File(tmp.newFolder("elsewhere"), "Game/Game.exe"))
         outside.parentFile!!.setReadable(false)
