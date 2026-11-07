@@ -21,11 +21,31 @@ class GameTopMappingTest(unittest.TestCase):
             start = source.index(signature)
             return source[start:source.index('\n}\n', start) + 3]
         funcs = '\n'.join(function(name) for name in ['static const char *mode_name(',
-            'static const char *align_name(', 'static void update_map(', 'int vkp_output_to_scene(', 'int vkp_game_picture_rect('])
+            'static const char *align_name(', 'static void update_map(', 'int vkp_output_to_scene(',
+            'int vkp_scene_to_output(', 'int vkp_game_picture_rect(', 'static int map_draw(',
+            'static int draw_to_blit(', 'int vkp_map_draw(', 'int vkp_map_rect('])
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             code = '#include <assert.h>\n#include <math.h>\n#include <stdio.h>\n#include <string.h>\n#include <pthread.h>\n'
             code += '#define droiddeck_log(...) ((void)0)\nstatic struct { unsigned width, height; } g_extent;\n'
+            code += r'''
+#define VK_IMAGE_ASPECT_COLOR_BIT 1
+typedef struct { unsigned aspectMask, mipLevel, baseArrayLayer, layerCount; } VkImageSubresourceLayers;
+typedef struct { int x, y, z; } VkOffset3D;
+typedef struct {
+    VkImageSubresourceLayers srcSubresource;
+    VkOffset3D srcOffsets[2];
+    VkImageSubresourceLayers dstSubresource;
+    VkOffset3D dstOffsets[2];
+} VkImageBlit;
+struct vkp_image { int w, h; };
+struct vkp_draw {
+    struct vkp_image *img;
+    float sx, sy, sw, sh;
+    int dx, dy, dw, dh;
+    int blend;
+};
+'''
             code += enums + state + funcs
             code += r'''
 static void near(double a, double b) { assert(fabs(a - b) < 0.01); }
@@ -50,6 +70,42 @@ static void check(int sw, int sh, int ow, int oh, int alignment) {
     assert(!vkp_game_picture_rect(rect));
     near(g_map.off_y, (int)((oh - sh * g_map.ky) * 0.5));
 }
+static void check_height_fit(void) {
+    int blit[8];
+    double sx, sy, ox, oy;
+    g_extent.width = 2400; g_extent.height = 1080;
+    g_mode = VKP_MODE_HEIGHT_FIT; g_align = VKP_ALIGN_CENTER;
+
+    /* A wider scene keeps the full height and is cropped equally on both sides. */
+    update_map(2560, 1080);
+    near(g_map.kx, 1.0); near(g_map.ky, 1.0);
+    near(g_map.off_x, -80.0); near(g_map.off_y, 0.0);
+    assert(vkp_output_to_scene(0, 0, &sx, &sy)); near(sx, 80.0); near(sy, 0.0);
+    assert(vkp_output_to_scene(2400, 1080, &sx, &sy)); near(sx, 2480.0); near(sy, 1080.0);
+    assert(vkp_scene_to_output(0, 540, &ox, &oy)); near(ox, -80.0); near(oy, 540.0);
+    assert(vkp_scene_to_output(80, 0, &ox, &oy)); near(ox, 0.0); near(oy, 0.0);
+    assert(vkp_scene_to_output(2480, 1080, &ox, &oy)); near(ox, 2400.0); near(oy, 1080.0);
+    assert(vkp_scene_to_output(2560, 540, &ox, &oy)); near(ox, 2480.0); near(oy, 540.0);
+    assert(vkp_map_rect(2560, 1080, 2560, 1080, blit));
+    assert(blit[0] == 80 && blit[1] == 0 && blit[2] == 2480 && blit[3] == 1080);
+    assert(blit[4] == 0 && blit[5] == 0 && blit[6] == 2400 && blit[7] == 1080);
+
+    /* A narrower scene keeps the full height and is pillarboxed horizontally. */
+    update_map(1280, 720);
+    near(g_map.kx, 1.5); near(g_map.ky, 1.5);
+    near(g_map.off_x, 240.0); near(g_map.off_y, 0.0);
+    assert(vkp_output_to_scene(0, 540, &sx, &sy)); near(sx, -160.0); near(sy, 360.0);
+    assert(vkp_output_to_scene(240, 0, &sx, &sy)); near(sx, 0.0); near(sy, 0.0);
+    assert(vkp_scene_to_output(1280, 720, &ox, &oy)); near(ox, 2160.0); near(oy, 1080.0);
+    assert(vkp_map_rect(1280, 720, 1280, 720, blit));
+    assert(blit[0] == 0 && blit[1] == 0 && blit[2] == 1280 && blit[3] == 720);
+    assert(blit[4] == 240 && blit[5] == 0 && blit[6] == 2160 && blit[7] == 1080);
+
+    /* Matching aspects fill the output without cropping or bars. */
+    update_map(1920, 864);
+    near(g_map.kx, 1.25); near(g_map.ky, 1.25);
+    near(g_map.off_x, 0.0); near(g_map.off_y, 0.0);
+}
 int main(void) {
     for (int alignment = VKP_ALIGN_PICTURE_TOP; alignment <= VKP_ALIGN_PICTURE_BOTTOM; alignment++) {
         check(1240, 1100, 2480, 2200, alignment);
@@ -60,6 +116,7 @@ int main(void) {
     }
     g_align = VKP_ALIGN_TOP; update_map(1280, 720);
     assert(g_map.rh == 697 && g_map.ry == 0);
+    check_height_fit();
     puts("PASS");
 }
 '''

@@ -361,7 +361,7 @@ int vkp_device_lost(void) { return g_dev_state == -2; }
 int vkp_completion_unknown(void) { return g_dev_state == -3; }
 
 void vk_present_set_scale_mode(int mode, int alignment) {
-    if (mode < VKP_MODE_OFF || mode > VKP_MODE_INTEGER) mode = VKP_MODE_FIT;
+    if (mode < VKP_MODE_OFF || mode > VKP_MODE_HEIGHT_FIT) mode = VKP_MODE_FIT;
     if (alignment < VKP_ALIGN_CENTER || alignment > VKP_ALIGN_PICTURE_BOTTOM) alignment = VKP_ALIGN_CENTER;
     g_mode = mode;
     g_align = alignment;
@@ -374,6 +374,7 @@ static const char *mode_name(int m) {
     case VKP_MODE_STRETCH: return "stretch";
     case VKP_MODE_FILL: return "fill";
     case VKP_MODE_INTEGER: return "integer";
+    case VKP_MODE_HEIGHT_FIT: return "height fit";
     default: return "?";
     }
 }
@@ -409,6 +410,7 @@ static void update_map(int scene_w, int scene_h) {
     } else {
         float aspect;
         if (mode == VKP_MODE_FILL) aspect = sx > sy ? sx : sy;
+        else if (mode == VKP_MODE_HEIGHT_FIT) aspect = sy;
         else if (mode == VKP_MODE_INTEGER) {
             float m = sx < sy ? sx : sy;
             aspect = (float)(int)m;
