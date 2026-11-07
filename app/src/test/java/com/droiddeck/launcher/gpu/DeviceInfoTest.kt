@@ -5,9 +5,9 @@ import org.junit.Test
 
 class DeviceInfoTest {
     @Test fun builtinLabelsDistinguishPowerVrFromTurnipAndGenericSystemVulkan() {
-        assertEquals("System PowerVR", DeviceInfo.builtinDriverLabel(powerVr = true, runtime = true))
-        assertEquals("System PowerVR", DeviceInfo.builtinDriverLabel(powerVr = true, runtime = false))
-        assertEquals("the runtime's own Turnip", DeviceInfo.builtinDriverLabel(powerVr = false, runtime = true))
-        assertEquals("System Vulkan", DeviceInfo.builtinDriverLabel(powerVr = false, runtime = false))
+        assertEquals("System PowerVR", DeviceInfo.builtinDriverLabel(SystemVulkanDriver.Profile.POWERVR, runtime = true))
+        assertEquals("System Xclipse", DeviceInfo.builtinDriverLabel(SystemVulkanDriver.Profile.XCLIPSE, runtime = false))
+        assertEquals("the runtime's own Turnip", DeviceInfo.builtinDriverLabel(null, runtime = true))
+        assertEquals("System Vulkan", DeviceInfo.builtinDriverLabel(null, runtime = false))
     }
 }

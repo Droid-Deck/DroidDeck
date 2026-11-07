@@ -342,7 +342,7 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
         <provider
-            android:name="androidx.core.content.FileProvider"
+            android:name=".session.SecureLogFileProvider"
             android:authorities="${applicationId}.logs"
             android:exported="false"
             android:grantUriPermissions="true">

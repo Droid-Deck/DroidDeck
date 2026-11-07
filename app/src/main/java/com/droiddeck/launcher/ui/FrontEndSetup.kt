@@ -171,7 +171,8 @@ internal fun SetupPanel(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val gpu = remember { com.droiddeck.launcher.gpu.GpuInfo.detect() }
-    val gpuOk = gpu.support == com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED || s.vkBridge
+    val gpuOk = DeviceSupport.canDraw(ctx)
+    val gpuTested = gpu.support == com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED
     val gpuName = remember { DeviceSupport.gpuName(ctx) }
     val limitBlocks = PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
     val signedIn = s.offlineAccount != null
@@ -251,15 +252,19 @@ internal fun SetupPanel(
                         // Setup's "Safe mode" row, under the GPU row while the bridge is on and can be used here.
                         val bridgeModeRow = !s.adreno && s.vkBridge && com.droiddeck.launcher.core.DeviceSupport.bridgeUsable()
                         val gpuCheck: @Composable (Boolean) -> Unit = { divider ->
+                            val experimentalBridge = s.vkBridge && !s.adreno &&
+                                !com.droiddeck.launcher.core.DeviceSupport.mali()
                             CheckRow(
-                                if (gpuOk) CheckState.OK else CheckState.WARN,
+                                if (!experimentalBridge && gpuOk && (gpuTested || s.vkBridge)) CheckState.OK else CheckState.WARN,
                                 when {
+                                    experimentalBridge -> stringResource(R.string.setup_gpu_bridged)
                                     gpu.support == com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED -> stringResource(R.string.setup_gpu_supported)
                                     gpu.support == com.droiddeck.launcher.gpu.GpuInfo.Support.UNTESTED -> stringResource(R.string.setup_gpu_untested)
                                     s.vkBridge -> stringResource(R.string.setup_gpu_bridged)
                                     else -> stringResource(R.string.setup_gpu_unsupported)
                                 },
-                                when (gpu.support) {
+                                if (experimentalBridge) stringResource(R.string.setup_gpu_bridge_other_gpu_detail)
+                                else when (gpu.support) {
                                     com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED -> stringResource(R.string.setup_gpu_detail, gpu.displayName(ctx), gpuName)
                                     com.droiddeck.launcher.gpu.GpuInfo.Support.UNTESTED ->
                                         if (!s.adreno && s.venus && s.venusHostVulkan != null) stringResource(R.string.setup_gpu_venus_host_too_old, gpu.displayName(ctx), s.venusHostVulkan)
@@ -395,6 +400,7 @@ internal fun SetupPanel(
                                 s.offlineAccount?.takeIf { it.isNotEmpty() }?.let { stringResource(R.string.setup_ready_signed_in, it) },
                             ).joinToString(" · "),
                             open = showChecks, onDetails = { showChecks = !showChecks },
+                            warning = gpuOk && !gpuTested,
                         ) {
                             val shownChecks = all.filterIndexed { i, _ -> checks[i] }
                             shownChecks.forEachIndexed { i, check -> check(i < shownChecks.lastIndex) }
@@ -408,7 +414,7 @@ internal fun SetupPanel(
                                 }
                             }
                         }
-                        SettingsGroup(stringResource(R.string.setup_runtime)) { runtimeCheck(false) }
+                        if (runtimeOk && !showChecks) SettingsGroup(stringResource(R.string.setup_runtime)) { runtimeCheck(false) }
                         SteamIntegrationGroup(s.integration, s.integrationFocus, a.onIntegration, a.onIntegrationAppInfo, a.onIntegrationLocation)
                     }
                     1 -> {
@@ -674,7 +680,7 @@ internal fun SetupPanel(
 }
 
 @Composable
-private fun ReadinessCard(passing: Int, total: Int, line: String, open: Boolean, onDetails: () -> Unit, checks: @Composable () -> Unit) {
+private fun ReadinessCard(passing: Int, total: Int, line: String, open: Boolean, onDetails: () -> Unit, warning: Boolean = false, checks: @Composable () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val ready = passing == total
@@ -683,7 +689,7 @@ private fun ReadinessCard(passing: Int, total: Int, line: String, open: Boolean,
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
-            val tint = if (ready) pal.good else AttentionAmber
+            val tint = if (ready && !warning) pal.good else AttentionAmber
             Box(contentAlignment = Alignment.Center, modifier = Modifier.size(52.dp)) {
                 androidx.compose.material3.CircularProgressIndicator(
                     progress = { passing / total.toFloat().coerceAtLeast(1f) }, strokeWidth = 4.dp,
@@ -692,10 +698,14 @@ private fun ReadinessCard(passing: Int, total: Int, line: String, open: Boolean,
                 Text("$passing/$total", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
             }
             Column(Modifier.weight(1f)) {
-                Text(
-                    stringResource(if (ready) R.string.setup_ready else R.string.setup_not_ready),
-                    fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.onBackground,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (warning) Icon(Icons.Filled.PriorityHigh, contentDescription = stringResource(R.string.setup_check_warn),
+                        tint = AttentionAmber, modifier = Modifier.size(20.dp))
+                    Text(
+                        stringResource(if (ready) R.string.setup_ready else R.string.setup_not_ready),
+                        fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.onBackground,
+                    )
+                }
                 if (line.isNotEmpty()) Text(line, fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             if (passing > 0) SecondaryButton(stringResource(if (open) R.string.common_hide else R.string.setup_details), compact = true, onClick = onDetails)

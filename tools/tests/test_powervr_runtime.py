@@ -72,6 +72,19 @@ def upstream_dxvk(version, architecture_of=lambda arch: arch):
 
 
 class PowerVRRuntimeTest(unittest.TestCase):
+    def test_new_hybris_patch_requires_a_rebuilt_component_pin(self):
+        patch = self.root / 'tools/hybris/patches/0002-vendor.patch'
+        patch.parent.mkdir(parents=True)
+        patch.write_text('a new native fix')
+        with self.assertRaisesRegex(ValueError, 'patch stack changed'):
+            runtime.load_release(self.root)
+
+    def test_removed_hybris_patch_requires_a_new_component_pin(self):
+        self.release['hybris']['recipe_inputs']['tools/hybris/patches/removed.patch'] = '0' * 64
+        (self.root / 'tools/powervr/release.json').write_text(json.dumps(self.release))
+        with self.assertRaisesRegex(ValueError, 'patch stack changed'):
+            runtime.load_release(self.root)
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
@@ -89,6 +102,9 @@ class PowerVRRuntimeTest(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(content)
         bridge = {name: ('file', 0o755, elf()) for name in runtime.REQUIRED_LIBRARIES if name.startswith('lib/')}
+        bridge[runtime.PLACED_MANIFEST] = ('file', 0o644, runtime.json_bytes({'layer': {
+            'name': 'VK_LAYER_DROIDDECK_placed_memory', 'type': 'GLOBAL',
+            'library_path': './libVkLayer_DROIDDECK_placed_memory.so'}}))
         bridge['lib/libhybris-common.so.1.0.0'] = bridge.pop('lib/libhybris-common.so.1')
         bridge['lib/libhybris-common.so.1'] = ('symlink', 0o777, 'libhybris-common.so.1.0.0')
         data = runtime.pack(bridge)
@@ -150,6 +166,40 @@ class PowerVRRuntimeTest(unittest.TestCase):
         for name, content in files.items():
             self.assertEqual(entries[name], ('file', 0o755, content))
         self.assertIn('dxvk/x64/d3d9.dll', entries)
+
+    def add_mali_payload(self, plain_arm64=False, missing=None):
+        if __package__:
+            from .test_proton_wrapper import pe_fixture, plain_arm64_fixture
+        else:
+            from test_proton_wrapper import pe_fixture, plain_arm64_fixture
+        (self.root / "tools/hybris/run-proton.py").write_bytes((runtime.ROOT / "tools/hybris/run-proton.py").read_bytes())
+        files = {}
+        for arch, machine in (("i386-windows", 0x14c), ("x86_64-windows", 0x8664), ("aarch64-windows", 0xaa64)):
+            for name in ("d3d8.dll", "d3d9.dll", "d3d10core.dll", "d3d11.dll", "dxgi.dll"):
+                path = "dxvk-mali/" + arch + "/" + name
+                if path == missing:
+                    continue
+                files[path] = (plain_arm64_fixture() if plain_arm64 and arch == "aarch64-windows"
+                               else pe_fixture(machine, arm64x=arch == "aarch64-windows"))
+        self.add_upstream_dxvk(files)
+        return files
+
+    def test_mali_bundle_preserves_all_three_architectures(self):
+        files = self.add_mali_payload()
+        entries = self.assembled()
+        runtime.verify(self.root)
+        for name, data in files.items():
+            self.assertEqual(entries[name], ("file", 0o755, data))
+
+    def test_mali_bundle_rejects_plain_arm64_even_with_matching_pins(self):
+        self.add_mali_payload(plain_arm64=True)
+        with self.assertRaisesRegex(ValueError, "plain ARM64"):
+            self.assembled()
+
+    def test_mali_bundle_rejects_missing_native_architecture_file(self):
+        self.add_mali_payload(missing="dxvk-mali/aarch64-windows/dxgi.dll")
+        with self.assertRaisesRegex(ValueError, "missing runtime file"):
+            self.assembled()
 
     def test_second_dxvk_payload_with_wrong_pe_architecture_is_rejected(self):
         self.add_upstream_dxvk(upstream_dxvk('2.6.2', lambda arch: 'x64' if arch == 'x32' else 'x32'))

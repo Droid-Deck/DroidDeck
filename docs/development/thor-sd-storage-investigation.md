@@ -450,4 +450,3 @@ What this does not change: the commit and the file creation costs above are the 
 synchronous directory updates, so SD installs stay bound by them (about 4 to 5 minutes per
 2,000 files of reserving plus commit on this card). Removing those costs needs fewer
 directory operations per file, not faster path translation.
-

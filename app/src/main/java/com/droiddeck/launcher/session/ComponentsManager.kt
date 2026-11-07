@@ -4,9 +4,12 @@ import com.droiddeck.launcher.core.Hashes
 import com.droiddeck.launcher.R
 import android.content.Context
 import android.util.Log
+import android.util.AtomicFile
 import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.core.GameEnvironment
+import com.droiddeck.launcher.artifact.GitHubArtifacts
+import com.droiddeck.launcher.artifact.RepositorySources
 import com.droiddeck.launcher.gpu.AppVulkan
 import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.gpu.SystemVulkanDriver
@@ -16,6 +19,7 @@ import com.github.luben.zstd.ZstdOutputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
+import org.apache.commons.compress.archivers.tar.TarConstants
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedInputStream
@@ -23,11 +27,15 @@ import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.attribute.BasicFileAttributes
 
 object ComponentsManager {
     private const val TAG = "Components"
-    private const val NIGHTLIES = "The412Banner/Nightlies"
-    private const val DD_COMPONENTS = "Droid-Deck/DroidDeck-Components"
+    private const val NIGHTLIES = "the412banner/nightlies"
+    private const val DD_COMPONENTS = "droid-deck/droiddeck-components"
     internal const val DD_NIGHTLY = "linux-nightly"
     private val RELEASES = linkedMapOf(
         "FexCore-Linux" to "fex",
@@ -69,17 +77,64 @@ object ComponentsManager {
         val queued: String?,
     )
     data class Original(val comp: String, val protonVersion: String, val label: String, val size: Long)
-    data class Package(val file: String, val comp: String, val version: String, val description: String, val size: Long)
-    data class CatalogItem(val file: String, val comp: String, val release: String, val url: String, val size: Long, val digest: String)
+    data class Package(
+        val file: String, val comp: String, val version: String, val description: String, val size: Long,
+        val source: String? = null,
+    )
+    internal data class PackageCatalogIdentity(val id: String, val name: String)
+    data class CatalogItem(
+        val file: String,
+        val comp: String,
+        val release: String,
+        val url: String,
+        val size: Long,
+        val digest: String,
+        val sourceId: String = "",
+        val repository: String = NIGHTLIES,
+        val repositoryId: Long = 0,
+        val releaseId: Long = 0,
+        val assetId: Long = 0,
+        val localFile: String = file,
+    ) {
+        val id: String get() = if (sourceId.isEmpty()) file else "$comp:$sourceId:$assetId:${digest.substringAfter(':')}"
+    }
     data class ProtonView(
         val proton: Proton, val components: Map<String, Component>, val originals: List<Original>, val inUseByGame: Boolean,
         val reappliedAt: Long = 0,
         val sync: EsyncPacks.ToolState? = null,
     )
     data class Snapshot(val protons: List<ProtonView>, val packages: List<Package>)
-    data class Catalog(val items: List<CatalogItem>, val fetchedAt: Long)
+    data class Catalog(
+        val items: List<CatalogItem>, val fetchedAt: Long, val failed: List<String> = emptyList(),
+        val rateLimited: Boolean = false,
+        val rateLimitedComponents: Set<String> = emptySet(),
+    )
 
     private val lock = Any()
+    private const val MAX_WCP_BYTES = 2L * 1024 * 1024 * 1024
+    private const val MAX_WCP_ENTRIES = 8192
+    private const val MAX_WCP_FILE_BYTES = 512L * 1024 * 1024
+    private const val MAX_WCP_EXPANDED_BYTES = 4L * 1024 * 1024 * 1024
+    private const val MAX_PROFILE_BYTES = 256 * 1024
+
+    @JvmStatic fun sourceScope(comp: String): String {
+        require(comp in COMPONENTS) { "Unknown component source scope" }
+        return "wcp/$comp"
+    }
+
+    @JvmStatic fun sourceBuiltIns(comp: String): List<String> {
+        require(comp in COMPONENTS) { "Unknown component source scope" }
+        return listOf(NIGHTLIES, DD_COMPONENTS)
+    }
+
+    @JvmStatic fun sources(context: Context, comp: String): List<RepositorySources.Source> =
+        RepositorySources.list(context, sourceScope(comp), sourceBuiltIns(comp))
+
+    @JvmStatic fun saveSources(
+        context: Context,
+        comp: String,
+        rows: List<RepositorySources.Source>,
+    ): List<RepositorySources.Source> = RepositorySources.save(context, sourceScope(comp), sourceBuiltIns(comp), rows)
 
 
     private fun root(context: Context) = LinuxRuntime.rootDir(context)
@@ -88,9 +143,10 @@ object ComponentsManager {
     private fun host(context: Context, guest: String) = File(root(context), guest.removePrefix("/"))
     private fun dataDir(context: Context) = File(context.filesDir, "components").apply { mkdirs() }
     private fun packagesDir(context: Context) = File(dataDir(context), "packages").apply { mkdirs() }
+    private fun provenanceFile(packageFile: File) = File(packageFile.parentFile, packageFile.name + ".source.json")
     private fun originalsDir(context: Context) = File(dataDir(context), "originals").apply { mkdirs() }
     private fun stateFile(context: Context) = File(dataDir(context), "state.json")
-    private fun catalogFile(context: Context) = File(dataDir(context), "catalog.json")
+    private fun legacyCatalogFile(context: Context) = File(dataDir(context), "catalog.json")
     private const val LAUNCH_DIR = "root/.local/share/droiddeck-components"
     private const val LEGACY_LAUNCH_DIR = "root/.local/share/bannerlator-components"
     private fun launchDir(context: Context): File {
@@ -356,15 +412,59 @@ object ComponentsManager {
         compFiles(dir, comp).filter { owned(comp, it) }.associateWith { Hashes.sha256(File(dir, it)) }
 
 
-    private fun normalize(name: String) = name.removePrefix("./").trimStart('/')
-
     private inline fun <T> readWcp(f: File, block: (TarArchiveInputStream) -> T): T =
-        TarArchiveInputStream(ZstdInputStream(BufferedInputStream(FileInputStream(f), 1 shl 16))).use(block)
+        f.let {
+            require(it.isFile && it.length() in 1..MAX_WCP_BYTES) { "Component archive has an invalid size" }
+            TarArchiveInputStream(ZstdInputStream(BufferedInputStream(FileInputStream(it), 1 shl 16))).use(block)
+        }
+
+    internal fun safeArchivePath(name: String, isDirectory: Boolean = false): String {
+        require(name.isNotEmpty() && !name.startsWith('/') && '\\' !in name && name.none(Char::isISOControl)) {
+            "unsafe archive path"
+        }
+        if (isDirectory && (name == "." || name == "./")) return ""
+        val rel = name.removePrefix("./").let { if (isDirectory) it.removeSuffix("/") else it }
+        require(rel.isNotEmpty() && rel.length <= 1024 && rel.split('/').all { it.isNotEmpty() && it != "." && it != ".." }) {
+            "unsafe archive path $name"
+        }
+        return rel
+    }
+
+    private fun safeArchivePath(entry: TarArchiveEntry): String {
+        require(entry.linkFlag == TarConstants.LF_NORMAL || entry.linkFlag == TarConstants.LF_OLDNORM ||
+            entry.linkFlag == TarConstants.LF_DIR) { "unsupported archive entry ${entry.name}" }
+        return safeArchivePath(entry.name, entry.isDirectory)
+    }
+
+    private fun readEntry(input: TarArchiveInputStream, size: Long, limit: Long): ByteArray {
+        require(size in 0..limit && size <= Int.MAX_VALUE) { "archive entry is too large" }
+        val bytes = ByteArray(size.toInt())
+        var offset = 0
+        while (offset < bytes.size) {
+            val count = input.read(bytes, offset, bytes.size - offset)
+            if (count < 0) throw IOException("archive entry is truncated")
+            offset += count
+        }
+        return bytes
+    }
 
     private fun readProfile(context: Context, f: File): JSONObject = readWcp(f) { tar ->
+        var entries = 0
+        var expanded = 0L
+        val seen = HashSet<String>()
         while (true) {
             val e = tar.nextTarEntry ?: break
-            if (!e.isDirectory && normalize(e.name) == "profile.json") return@readWcp JSONObject(tar.readBytes().decodeToString())
+            require(++entries <= MAX_WCP_ENTRIES) { "Component archive has too many entries" }
+            val rel = safeArchivePath(e)
+            require(rel.isEmpty() || seen.add(rel)) { "duplicate archive path $rel" }
+            if (e.isFile) {
+                require(e.size in 0..MAX_WCP_FILE_BYTES) { "archive entry is too large" }
+                expanded += e.size
+                require(expanded <= MAX_WCP_EXPANDED_BYTES) { "Component archive expands beyond its limit" }
+            }
+            if (e.isFile && rel == "profile.json") {
+                return@readWcp JSONObject(readEntry(tar, e.size, MAX_PROFILE_BYTES.toLong()).decodeToString())
+            }
         }
         throw IllegalArgumentException(context.getString(R.string.cmgr_no_profile, f.name))
     }
@@ -373,7 +473,9 @@ object ComponentsManager {
         val prof = readProfile(context, f)
         val comp = TYPES[prof.optString("type")]
             ?: throw IllegalArgumentException(context.getString(R.string.cmgr_not_component_package, f.name, prof.optString("type")))
-        return Package(f.name, comp, prof.optString("versionName", f.nameWithoutExtension), prof.optString("description"), f.length())
+        val origin = runCatching { JSONObject(FileUtils.readString(provenanceFile(f)) ?: "{}").optString("repository").ifEmpty { null } }
+            .getOrNull()
+        return Package(f.name, comp, prof.optString("versionName", f.nameWithoutExtension), prof.optString("description"), f.length(), origin)
     }
 
     fun packages(context: Context): List<Package> = packagesDir(context).listFiles()
@@ -386,14 +488,31 @@ object ComponentsManager {
         val staged = File(dataDir(context), "staging-${System.nanoTime()}")
         try {
             readWcp(wcp) { tar ->
+                var entries = 0
+                var expanded = 0L
+                val seen = HashSet<String>()
                 while (true) {
                     val e = tar.nextTarEntry ?: break
-                    val rel = normalize(e.name)
+                    require(++entries <= MAX_WCP_ENTRIES) { "Component archive has too many entries" }
+                    val rel = safeArchivePath(e)
+                    require(rel.isEmpty() || seen.add(rel)) { "duplicate archive path $rel" }
                     if (e.isDirectory || !rel.startsWith("files/")) continue
-                    require(rel.split('/').none { it == ".." }) { "unsafe path $rel" }
+                    require(e.size in 0..MAX_WCP_FILE_BYTES) { "archive entry is too large" }
+                    expanded += e.size
+                    require(expanded <= MAX_WCP_EXPANDED_BYTES) { "Component archive expands beyond its limit" }
                     val out = File(staged, rel)
+                    require(out.canonicalPath.startsWith(staged.canonicalPath + File.separator)) { "unsafe path $rel" }
                     out.parentFile?.mkdirs()
-                    FileOutputStream(out).use { tar.copyTo(it) }
+                    FileOutputStream(out).use { output ->
+                        var remaining = e.size
+                        val buffer = ByteArray(1 shl 16)
+                        while (remaining > 0) {
+                            val count = tar.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
+                            if (count < 0) throw IOException("archive entry is truncated")
+                            output.write(buffer, 0, count)
+                            remaining -= count
+                        }
+                    }
                 }
             }
             require(File(staged, "files").isDirectory) { "${wcp.name} has no files/" }
@@ -560,13 +679,31 @@ object ComponentsManager {
                 unpacked.deleteRecursively()
                 check(unpacked.mkdirs()) { "Could not stage component bundle ${wcp.name}" }
                 readWcp(wcp) { tar ->
+                    var entries = 0
+                    var expanded = 0L
+                    val seen = HashSet<String>()
                     while (true) {
                         val e = tar.nextTarEntry ?: break
-                        val rel = normalize(e.name)
-                        if (e.isDirectory || !rel.startsWith("files/") || rel.split('/').any { it == ".." }) continue
+                        require(++entries <= MAX_WCP_ENTRIES) { "Component archive has too many entries" }
+                        val rel = safeArchivePath(e)
+                        require(rel.isEmpty() || seen.add(rel)) { "duplicate archive path $rel" }
+                        if (e.isDirectory || !rel.startsWith("files/")) continue
+                        require(e.size in 0..MAX_WCP_FILE_BYTES) { "archive entry is too large" }
+                        expanded += e.size
+                        require(expanded <= MAX_WCP_EXPANDED_BYTES) { "Component archive expands beyond its limit" }
                         val out = File(unpacked, rel)
+                        require(out.canonicalPath.startsWith(unpacked.canonicalPath + File.separator)) { "unsafe path $rel" }
                         out.parentFile?.mkdirs()
-                        FileOutputStream(out).use { tar.copyTo(it) }
+                        FileOutputStream(out).use { output ->
+                            var remaining = e.size
+                            val buffer = ByteArray(1 shl 16)
+                            while (remaining > 0) {
+                                val count = tar.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
+                                if (count < 0) throw IOException("archive entry is truncated")
+                                output.write(buffer, 0, count)
+                                remaining -= count
+                            }
+                        }
                     }
                 }
                 File(unpacked, ".complete").writeText("1\n")
@@ -644,21 +781,45 @@ object ComponentsManager {
         return PreparedLaunchState(lines.toString(), keep)
     }
 
-    internal fun runtimeManaged(comp: String, systemPowerVr: Boolean): Boolean = comp == "dxvk" && systemPowerVr
+    internal fun runtimeManaged(comp: String, runtimeManagedDxvk: Boolean): Boolean = comp == "dxvk" && runtimeManagedDxvk
+
+    internal fun runtimeManaged(
+        comp: String,
+        route: com.droiddeck.launcher.core.DeviceSupport.GraphicsRoute,
+        systemManagesDxvk: Boolean,
+    ): Boolean = runtimeManaged(comp, route.systemVulkan && systemManagesDxvk)
+
+    internal fun runtimeManaged(context: Context, comp: String, systemManagesDxvk: Boolean): Boolean =
+        runtimeManaged(
+            comp,
+            SessionState.effectiveGraphicsRoute(context),
+            systemManagesDxvk,
+        )
 
     private fun runtimeManaged(context: Context, comp: String): Boolean =
-        runtimeManaged(comp, SystemVulkanDriver.usesDefault(SessionPrefs.linuxDriver(context)))
+        runtimeManaged(context, comp, SystemVulkanDriver.managesDxvk(SessionPrefs.linuxDriver(context)))
 
     private fun requireSelectable(context: Context, comp: String, managed: (String) -> Boolean = { runtimeManaged(context, it) }) {
-        check(!managed(comp)) { context.getString(R.string.cmgr_powervr_dxvk_managed) }
+        check(!managed(comp)) { context.getString(R.string.cmgr_system_dxvk_managed, SystemVulkanDriver.gpuName()) }
     }
 
+    fun swap(context: Context, protonId: String, file: String, auto: Boolean = false): String =
+        swap(context, protonId, file, auto, allowRuntimeManaged = false)
 
-    fun swap(context: Context, protonId: String, file: String, auto: Boolean = false): String = synchronized(lock) {
+    internal fun swapAutomatic(context: Context, protonId: String, file: String): String =
+        swap(context, protonId, file, auto = true, allowRuntimeManaged = true)
+
+    private fun swap(
+        context: Context,
+        protonId: String,
+        file: String,
+        auto: Boolean,
+        allowRuntimeManaged: Boolean,
+    ): String = synchronized(lock) {
         val p = proton(context, protonId)
         val wcp = File(packagesDir(context), safeName(file))
         val info = packageInfo(context, wcp)
-        requireSelectable(context, info.comp)
+        if (!allowRuntimeManaged) requireSelectable(context, info.comp)
         val state = loadState(context)
         if (inUse(context, p)) {
             state.sub("queued").sub(p.id).put(info.comp, JSONObject().put("kind", "package").put("file", wcp.name).put("label", info.version)
@@ -683,8 +844,17 @@ object ComponentsManager {
         Log.i(TAG, "swapped ${info.comp} ${info.version} into ${p.name} ${p.version}")
     }
 
-    fun restore(context: Context, protonId: String, comp: String, protonVersion: String): String = synchronized(lock) {
-        requireSelectable(context, comp)
+    fun restore(context: Context, protonId: String, comp: String, protonVersion: String): String =
+        restore(context, protonId, comp, protonVersion, allowRuntimeManaged = false)
+
+    private fun restore(
+        context: Context,
+        protonId: String,
+        comp: String,
+        protonVersion: String,
+        allowRuntimeManaged: Boolean,
+    ): String = synchronized(lock) {
+        if (!allowRuntimeManaged) requireSelectable(context, comp)
         val p = proton(context, protonId)
         val wcp = File(originalsDir(context), "$protonId/${safeName(protonVersion)}/$comp.wcp")
         check(wcp.isFile) { context.getString(R.string.cmgr_original_missing) }
@@ -806,23 +976,33 @@ object ComponentsManager {
         return names
     }
 
-    private fun originalKept(state: JSONObject, installed: Map<String, Proton>, protonId: String, comp: String, version: String): Boolean {
-        val current = installed[protonId]?.let { safeName(it.version) == version } == true
+    internal fun originalKept(
+        state: JSONObject,
+        installed: Map<String, List<Proton>>,
+        protonId: String,
+        comp: String,
+        version: String,
+    ): Boolean {
+        val current = originalInstalled(installed[protonId], version)
         val queued = state.optJSONObject("queued")?.optJSONObject(protonId)?.optJSONObject(comp)
             ?.takeIf { it.optString("kind") == "original" }?.let { safeName(it.optString("protonVersion")) == version } == true
         return current || queued
     }
 
+    internal fun originalInstalled(installs: List<Proton>?, version: String): Boolean =
+        installs?.any { safeName(it.version) == version } == true
+
     fun stored(context: Context): Stored = synchronized(lock) {
         val state = loadState(context)
-        val installed = protons(context).distinctBy { it.id }.associateBy { it.id }
-        val used = packagesInUse(state, protons(context))
+        val protons = protons(context)
+        val installed = protons.groupBy { it.id }
+        val used = packagesInUse(state, protons)
         val originals = originalsDir(context).listFiles()?.filter { it.isDirectory }?.flatMap { proton ->
             proton.listFiles()?.filter { it.isDirectory }?.flatMap { version ->
                 COMPONENTS.mapNotNull { comp ->
                     val f = File(version, "$comp.wcp")
                     if (!f.isFile) null else StoredOriginal(
-                        proton.name, installed[proton.name]?.name, comp, version.name, f.length(),
+                        proton.name, installed[proton.name]?.firstOrNull()?.name, comp, version.name, f.length(),
                         originalKept(state, installed, proton.name, comp, version.name),
                     )
                 }
@@ -833,7 +1013,7 @@ object ComponentsManager {
 
     fun deleteUnusedOriginal(context: Context, protonId: String, comp: String, protonVersion: String): Boolean = synchronized(lock) {
         val state = loadState(context)
-        if (originalKept(state, protons(context).associateBy { it.id }, protonId, comp, protonVersion)) return false
+        if (originalKept(state, protons(context).groupBy { it.id }, protonId, comp, protonVersion)) return false
         if (comp !in COMPONENTS || listOf(protonId, protonVersion).any { it.isEmpty() || '/' in it || it == "." || it == ".." }) return false
         val f = File(originalsDir(context), "$protonId/$protonVersion/$comp.wcp")
         if (!f.isFile || !f.delete()) return false
@@ -911,10 +1091,18 @@ object ComponentsManager {
         }
     }
 
-    private fun storePackage(context: Context, part: File, dest: File) {
+    private fun storePackage(
+        context: Context,
+        part: File,
+        dest: File,
+        prechecked: Boolean = false,
+        deferCacheCleanup: Boolean = false,
+        onDestinationTouched: () -> Unit = {},
+    ): File? {
+        var staleCache: File? = null
         try {
-            if (dest.isFile && runCatching { Hashes.sha256(dest) }.getOrNull()?.equals(Hashes.sha256(part), true) == true) return
-            if (dest.exists()) checkPackageUnused(context, loadState(context), dest.name)
+            if (!prechecked && dest.isFile && runCatching { Hashes.sha256(dest) }.getOrNull()?.equals(Hashes.sha256(part), true) == true) return null
+            if (!prechecked && dest.exists()) checkPackageUnused(context, loadState(context), dest.name)
             val store = File(launchDir(context), "store").canonicalFile
             val cacheKey = unpackedCacheKey(dest.name)
             val unpacked = File(store, cacheKey).canonicalFile
@@ -922,15 +1110,30 @@ object ComponentsManager {
             val complete = File(unpacked, ".complete")
             if (complete.exists()) check(complete.delete()) { "Could not invalidate unpacked component ${dest.name}" }
             if (!part.renameTo(dest)) {
+                onDestinationTouched()
                 dest.delete()
                 check(part.renameTo(dest)) { "Could not store ${dest.name}" }
-            }
-            if (!unpacked.deleteRecursively() && unpacked.exists()) {
-                check(!complete.exists()) { "Could not invalidate unpacked component ${dest.name}" }
-                Log.w(TAG, "Could not remove stale unpacked files for ${dest.name}; cache marker is invalidated")
-            }
+            } else onDestinationTouched()
+            if (deferCacheCleanup) staleCache = unpacked else cleanupUnpackedCache(unpacked, dest.name)
         } finally {
             part.delete()
+        }
+        return staleCache
+    }
+
+    private fun cleanupUnpackedCache(unpacked: File, name: String) {
+        if (!unpackedCacheCleaner(unpacked) && unpacked.exists()) {
+            check(!File(unpacked, ".complete").exists()) { "Could not invalidate unpacked component $name" }
+            Log.w(TAG, "Could not remove stale unpacked files for $name; cache marker is invalidated")
+        }
+    }
+
+    private fun detachUnpackedCache(unpacked: File, name: String): File? {
+        if (!unpacked.exists()) return null
+        val cleanup = File(unpacked.parentFile, ".${unpacked.name}.cleanup-${System.nanoTime()}")
+        return if (unpacked.renameTo(cleanup)) cleanup else {
+            Log.w(TAG, "Could not detach stale unpacked files for $name; cache marker is invalidated")
+            null
         }
     }
 
@@ -970,13 +1173,15 @@ object ComponentsManager {
             if (profile.length() == 0) profiles.remove(scope)
         }
         check(f.delete()) { name }
+        provenanceFile(f).delete()
         if (changed) saveState(context, state)
         context.getString(R.string.cmgr_deleted, name)
     }
 
     fun deleteOriginal(context: Context, protonId: String, comp: String, protonVersion: String): String = synchronized(lock) {
-        val p = proton(context, protonId)
-        check(safeName(p.version) != protonVersion) { context.getString(R.string.cmgr_original_kept) }
+        val installed = protons(context).filter { it.id == protonId }
+        check(installed.isNotEmpty()) { "No Proton with id $protonId" }
+        check(!originalInstalled(installed, protonVersion)) { context.getString(R.string.cmgr_original_kept) }
         val f = File(originalsDir(context), "$protonId/${safeName(protonVersion)}/$comp.wcp")
         check(f.isFile) { context.getString(R.string.cmgr_not_stored) }
         f.delete()
@@ -987,50 +1192,314 @@ object ComponentsManager {
     fun importPackage(context: Context, source: File, name: String): Package = synchronized(lock) {
         val info = packageInfo(context, source)
         val dest = File(packagesDir(context), safeName(name).let { if (it.endsWith(".wcp")) it else "$it.wcp" })
-        storePackage(context, source.copyTo(File(dest.parentFile, dest.name + ".part"), overwrite = true), dest)
+        val part = File(dest.parentFile, dest.name + ".part")
+        source.copyTo(part, overwrite = true)
+        storePackage(context, part, dest)
+        provenanceFile(dest).delete()
         info.copy(file = dest.name)
     }
 
+    internal data class ReleaseRefresh(val repositoryId: Long, val releases: List<GitHubArtifacts.Release>)
 
-    fun catalog(context: Context, force: Boolean): Catalog {
-        val cache = catalogFile(context)
-        if (!force && cache.isFile) runCatching { return parseCatalog(JSONObject(cache.readText())) }
-        if (!force) return Catalog(emptyList(), 0)
-        val items = JSONArray()
-        val previous = if (cache.isFile) runCatching { JSONObject(cache.readText()).optJSONArray("items") }.getOrNull() else null
-        var fetched = 0
-        for ((repo, tag) in SOURCES) {
-            val body = Downloader.downloadString("https://api.github.com/repos/$repo/releases/tags/$tag")
-            val assets = body?.let { runCatching { JSONObject(it).optJSONArray("assets") }.getOrNull() }
-            if (assets == null) {
-                keepSource(previous, tag, items)
-                continue
-            }
-            fetched++
-            for (i in 0 until assets.length()) {
-                val a = assets.getJSONObject(i)
-                val name = a.optString("name")
-                if (!name.endsWith(".wcp")) continue
-                if (!Hashes.isGithubSha256(a.optString("digest"))) continue
-                val comp = assetComp(tag, name) ?: continue
-                items.put(JSONObject().put("file", name).put("comp", comp).put("release", tag)
-                    .put("url", a.optString("browser_download_url")).put("size", a.optLong("size")).put("digest", a.optString("digest")))
+    internal class CatalogRefreshCache {
+        internal val releases = HashMap<String, ReleaseRefresh>()
+        internal val sidecars = HashMap<SidecarKey, ByteArray>()
+    }
+
+    internal data class SidecarKey(val repository: String, val releaseId: Long, val assetId: Long)
+
+    internal var catalogReleaseRefresher: (
+        Context, String, RepositorySources.Source,
+    ) -> ReleaseRefresh = ::refreshCatalogReleases
+    internal var catalogRefresher: (
+        Context, String, RepositorySources.Source, CatalogRefreshCache,
+    ) -> List<CatalogItem> =
+        ::refreshCatalogSource
+    internal var catalogSidecarReader: (
+        Context, String, List<String>, RepositorySources.Source, String, GitHubArtifacts.Asset, Int,
+    ) -> ByteArray = { context, key, builtIns, source, tag, asset, maxBytes ->
+        GitHubArtifacts.readReleaseAsset(context, key, builtIns, source, tag, asset, maxBytes)
+    }
+    internal var packageReceiptWriter: (File, ByteArray) -> Unit = RepositorySources::atomicWrite
+    internal var packageDownloader: (String, File, String, (Int) -> Unit) -> Boolean = { url, file, digest, progress ->
+        Downloader.downloadFile(url, file, true, digest) { value ->
+            progress(if (value < 0) -1 else (value * 100).toInt().coerceIn(0, 100))
+        }
+    }
+    internal var packageHasher: (File) -> String = Hashes::sha256
+    internal var packageBackupWriter: (File, File) -> Unit = { source, destination ->
+        source.copyTo(destination, overwrite = true)
+    }
+    internal var unpackedCacheCleaner: (File) -> Boolean = File::deleteRecursively
+
+    fun catalog(context: Context, force: Boolean): Catalog = catalog(context, force, COMPONENTS.toSet())
+
+    internal fun catalog(context: Context, force: Boolean, components: Set<String>): Catalog {
+        require(components.all { it in COMPONENTS }) { "Unknown component catalog scope" }
+        val items = ArrayList<CatalogItem>()
+        var fetchedAt = 0L
+        val failed = ArrayList<String>()
+        var rateLimited = false
+        val rateLimitedComponents = HashSet<String>()
+        val legacy by lazy { readLegacyCatalog(context) }
+        val refreshCache = CatalogRefreshCache()
+        for (comp in COMPONENTS.filter { it in components }) {
+            val scope = sourceScope(comp)
+            val builtIns = sourceBuiltIns(comp)
+            for (configured in RepositorySources.visible(context, scope, builtIns)) {
+                var cached: Catalog? = null
+                if (force) {
+                    val generation = RepositorySources.generation(context, scope, builtIns)
+                    runCatching {
+                        val refreshed = catalogRefresher(context, comp, configured, refreshCache)
+                        val bound = RepositorySources.visible(context, scope, builtIns)
+                            .singleOrNull { it.id == configured.id }
+                            ?: throw IOException("Component source changed while checking")
+                        val checkedAt = System.currentTimeMillis() / 1000
+                        writeSourceCatalog(context, comp, bound, refreshed, checkedAt, generation)
+                        Catalog(refreshed.map { resolveLegacyLocalFile(context, it) }, checkedAt)
+                    }.onSuccess {
+                        cached = it
+                    }.onFailure {
+                        if (GitHubArtifacts.isRateLimited(it)) {
+                            rateLimited = true
+                            rateLimitedComponents.add(comp)
+                        }
+                        failed.add("$comp:${configured.repository}")
+                        Log.w(TAG, "catalog ${configured.repository} for $comp", it)
+                    }
+                }
+                if (cached == null) cached = readSourceCatalog(context, comp, configured)
+                    ?: legacyCatalogFor(context, comp, configured, legacy)
+                cached?.let {
+                    items.addAll(it.items)
+                    fetchedAt = maxOf(fetchedAt, it.fetchedAt)
+                }
             }
         }
-        if (fetched == 0 && cache.isFile) runCatching { return parseCatalog(JSONObject(cache.readText())) }
-        val out = JSONObject().put("items", items).put("fetchedAt", System.currentTimeMillis() / 1000)
-        val tmp = File(cache.parentFile, cache.name + ".tmp")
-        tmp.writeText(out.toString()); tmp.renameTo(cache)
-        return parseCatalog(out)
+        return Catalog(
+            items.distinctBy { it.id }.sortedWith(CATALOG_ORDER),
+            fetchedAt,
+            failed,
+            rateLimited,
+            rateLimitedComponents,
+        )
     }
 
-    internal fun keepSource(previous: JSONArray?, tag: String, into: JSONArray) {
-        previous ?: return
-        for (i in 0 until previous.length()) previous.optJSONObject(i)?.takeIf { it.optString("release") == tag }?.let(into::put)
+    private fun refreshCatalogReleases(
+        context: Context,
+        comp: String,
+        source: RepositorySources.Source,
+    ): ReleaseRefresh {
+        val releases = GitHubArtifacts.refreshReleases(context, sourceScope(comp), sourceBuiltIns(comp), source)
+        val bound = RepositorySources.visible(context, sourceScope(comp), sourceBuiltIns(comp))
+            .singleOrNull { it.id == source.id } ?: throw IOException("Component source changed while checking")
+        return ReleaseRefresh(bound.repositoryId ?: throw IOException("Repository identity is not bound"), releases)
     }
 
-    private fun parseCatalog(o: JSONObject): Catalog {
+    internal fun refreshCatalogSource(
+        context: Context,
+        comp: String,
+        source: RepositorySources.Source,
+        refreshCache: CatalogRefreshCache,
+    ): List<CatalogItem> {
+        val scope = sourceScope(comp)
+        val builtIns = sourceBuiltIns(comp)
+        val generation = RepositorySources.generation(context, scope, builtIns)
+        val repository = RepositorySources.canonicalRepository(source.repository)
+        val refresh = refreshCache.releases[repository]
+            ?: catalogReleaseRefresher(context, comp, source).also { refreshCache.releases[repository] = it }
+        val bound = RepositorySources.bind(context, scope, builtIns, source, refresh.repositoryId, generation)
+        return catalogItems(context, comp, bound, generation, refresh.releases, refreshCache)
+    }
+
+    private fun sourceCatalogFile(context: Context, comp: String, source: RepositorySources.Source) =
+        File(RepositorySources.cacheDirectory(context, sourceScope(comp), source), "components.json")
+
+    private fun writeSourceCatalog(
+        context: Context,
+        comp: String,
+        source: RepositorySources.Source,
+        items: List<CatalogItem>,
+        checkedAt: Long,
+        generation: Long,
+    ) {
+        val repositoryId = source.repositoryId ?: throw IOException("Component source identity is not bound")
+        require(items.size <= 2000 && items.all {
+            it.comp == comp && it.sourceId == source.id && it.repository == source.repository &&
+                it.repositoryId == repositoryId
+        }) { "Component catalog provenance does not match its source" }
+        val rows = JSONArray()
+        items.forEach { rows.put(encodeCatalogItem(it)) }
+        val json = JSONObject().put("schema", 1).put("scope", sourceScope(comp))
+            .put("sourceId", source.id).put("repository", source.repository).put("repositoryId", repositoryId)
+            .put("checkedAt", checkedAt).put("items", rows)
+        val bytes = json.toString().toByteArray(Charsets.UTF_8)
+        require(bytes.size <= 8 * 1024 * 1024) { "Component catalog cache is too large" }
+        RepositorySources.whileCurrent(context, sourceScope(comp), sourceBuiltIns(comp), source.id, generation) {
+            RepositorySources.atomicWrite(sourceCatalogFile(context, comp, source), bytes)
+        }
+    }
+
+    private fun readSourceCatalog(
+        context: Context,
+        comp: String,
+        source: RepositorySources.Source,
+    ): Catalog? {
+        val current = RepositorySources.visible(context, sourceScope(comp), sourceBuiltIns(comp))
+            .singleOrNull { it.id == source.id && it.repository == source.repository } ?: return null
+        val repositoryId = current.repositoryId ?: return null
+        return runCatching {
+            val json = AtomicFile(sourceCatalogFile(context, comp, current)).openRead().use {
+                JSONObject(RepositorySources.readBounded(it, 8 * 1024 * 1024).toString(Charsets.UTF_8))
+            }
+            require(json.getInt("schema") == 1 && json.getString("scope") == sourceScope(comp) &&
+                json.getString("sourceId") == current.id && json.getString("repository") == current.repository &&
+                json.getLong("repositoryId") == repositoryId)
+            val rows = json.getJSONArray("items")
+            require(rows.length() <= 2000)
+            val items = (0 until rows.length()).map { decodeCatalogItem(rows.getJSONObject(it)) }
+            require(items.all {
+                it.comp == comp && it.sourceId == current.id && it.repository == current.repository &&
+                    it.repositoryId == repositoryId
+            })
+            Catalog(items.map { resolveLegacyLocalFile(context, it) }, json.getLong("checkedAt"))
+        }.getOrNull()
+    }
+
+    private fun encodeCatalogItem(item: CatalogItem): JSONObject = JSONObject()
+        .put("file", item.file).put("comp", item.comp).put("release", item.release).put("url", item.url)
+        .put("size", item.size).put("digest", item.digest).put("sourceId", item.sourceId)
+        .put("repository", item.repository).put("repositoryId", item.repositoryId)
+        .put("releaseId", item.releaseId).put("assetId", item.assetId).put("localFile", item.localFile)
+
+    private fun decodeCatalogItem(row: JSONObject): CatalogItem {
+        val item = CatalogItem(
+            row.getString("file"), row.getString("comp"), row.getString("release"), row.getString("url"),
+            row.getLong("size"), row.getString("digest"), row.getString("sourceId"),
+            row.getString("repository"), row.getLong("repositoryId"), row.getLong("releaseId"),
+            row.getLong("assetId"), row.getString("localFile"),
+        )
+        require(item.comp in COMPONENTS && Hashes.isGithubSha256(item.digest) && item.size > 0 &&
+            item.repositoryId > 0 && item.releaseId > 0 && item.assetId > 0 &&
+            item.localFile == safeName(item.localFile) && item.localFile.endsWith(".wcp") &&
+            item.sourceId == RepositorySources.source(item.repository).id && releaseUrlMatches(
+                item.repository, item.release, item.file, item.url,
+            )) { "Invalid component catalog cache" }
+        return item
+    }
+
+    private fun readLegacyCatalog(context: Context): Catalog? {
+        val file = legacyCatalogFile(context)
+        return runCatching {
+            require(file.isFile && file.length() <= 12L * 1024 * 1024)
+            parseLegacyCatalog(JSONObject(file.readText()))
+        }.getOrNull()
+    }
+
+    private fun legacyCatalogFor(
+        context: Context,
+        comp: String,
+        source: RepositorySources.Source,
+        legacy: Catalog?,
+    ): Catalog? {
+        if (source.repository != NIGHTLIES || source.id != RepositorySources.source(NIGHTLIES).id) return null
+        val rows = legacy?.items.orEmpty().filter {
+            it.comp == comp && releaseUrlMatches(NIGHTLIES, it.release, it.file, it.url)
+        }.map { old ->
+            val sha = old.digest.substringAfter(':')
+            val forced = fixedPackageName(comp, old.file, old.release)
+            val local = if (forced) safeName(old.file) else "$sha-${source.id}.wcp"
+            old.copy(
+                sourceId = source.id,
+                repository = source.repository,
+                repositoryId = source.repositoryId ?: 0,
+                localFile = local,
+            ).let { resolveLegacyLocalFile(context, it) }
+        }
+        return legacy?.let { Catalog(rows, it.fetchedAt) }
+    }
+
+    private fun catalogItems(
+        context: Context,
+        comp: String,
+        source: RepositorySources.Source,
+        generation: Long,
+        releases: List<GitHubArtifacts.Release>,
+        refreshCache: CatalogRefreshCache,
+    ): List<CatalogItem> {
+        val items = ArrayList<CatalogItem>()
+        for (release in releases) {
+            if (RELEASES[release.tag] == comp) {
+                release.assets.filter { it.name.endsWith(".wcp", ignoreCase = true) }.forEach { asset ->
+                    items.add(catalogItem(comp, source, release, asset))
+                }
+                continue
+            }
+            if (release.tag == DD_NIGHTLY) {
+                release.assets.filter { it.name.endsWith(".wcp", ignoreCase = true) && assetComp(release.tag, it.name) == comp }
+                    .forEach { asset -> items.add(catalogItem(comp, source, release, asset)) }
+                continue
+            }
+            val sidecars = release.assets.filter {
+                it.name == "droiddeck-component.json" || it.name == "droiddeck-component-$comp.json"
+            }
+            for (sidecar in sidecars) {
+                val scope = sourceScope(comp)
+                val builtIns = sourceBuiltIns(comp)
+                RepositorySources.whileCurrent(context, scope, builtIns, source, generation) {}
+                val key = SidecarKey(source.repository, release.id, sidecar.id)
+                val bytes = refreshCache.sidecars[key] ?: catalogSidecarReader(
+                    context, scope, builtIns, source, release.tag, sidecar, 256 * 1024,
+                ).also { refreshCache.sidecars[key] = it }
+                RepositorySources.whileCurrent(context, scope, builtIns, source, generation) {}
+                val start = items.size
+                try {
+                    val manifest = JSONObject(bytes.toString(Charsets.UTF_8))
+                    if (manifest.optString("component") != comp) continue
+                    require(manifest.getInt("schema") == 1) { "Component manifest has an invalid schema" }
+                    val rows = manifest.optJSONArray("artifacts") ?: JSONArray().apply {
+                        manifest.optJSONObject("artifact")?.let { put(it) }
+                    }
+                    require(rows.length() in 1..64) { "Component manifest has an invalid artifact count" }
+                    for (index in 0 until rows.length()) {
+                        val row = rows.getJSONObject(index)
+                        val name = row.getString("name")
+                        require(name.endsWith(".wcp", ignoreCase = true)) { "Component artifact is not a WCP" }
+                        val asset = release.assets.singleOrNull { it.name == name }
+                            ?: throw IllegalArgumentException("Component artifact is missing or ambiguous")
+                        val declaredSha = row.getString("sha256")
+                        require(Regex("[0-9a-f]{64}").matches(declaredSha) && declaredSha == asset.sha256) {
+                            "Component artifact digest does not match"
+                        }
+                        require(row.getLong("size") == asset.size) { "Component artifact size does not match" }
+                        items.add(catalogItem(comp, source, release, asset))
+                    }
+                } catch (error: Exception) {
+                    items.subList(start, items.size).clear()
+                    Log.w(TAG, "sidecar ${sidecar.name} in ${release.tag}", error)
+                }
+            }
+        }
+        return items
+    }
+
+    private fun catalogItem(
+        comp: String,
+        source: RepositorySources.Source,
+        release: GitHubArtifacts.Release,
+        asset: GitHubArtifacts.Asset,
+    ): CatalogItem {
+        val ref = GitHubArtifacts.artifactRef(sourceScope(comp), source, release, asset)
+        val forced = source.repository == NIGHTLIES && fixedPackageName(comp, asset.name, release.tag)
+        val local = if (forced) safeName(asset.name) else "${ref.sha256}-${source.id}.wcp"
+        return CatalogItem(asset.name, comp, release.tag, asset.url, asset.size, "sha256:${asset.sha256}",
+            source.id, source.repository, ref.repositoryId, ref.releaseId, ref.assetId, local)
+    }
+
+    private fun parseLegacyCatalog(o: JSONObject): Catalog {
         val arr = o.optJSONArray("items") ?: JSONArray()
+        require(arr.length() <= 2000) { "Component catalog has too many items" }
         val items = (0 until arr.length()).map { arr.getJSONObject(it) }.map {
             CatalogItem(it.optString("file"), it.optString("comp"), it.optString("release"), it.optString("url"), it.optLong("size"), it.optString("digest"))
         }.sortedWith(CATALOG_ORDER)
@@ -1043,18 +1512,82 @@ object ComponentsManager {
     internal val CATALOG_ORDER: Comparator<CatalogItem> =
         compareBy<CatalogItem> { it.comp }.thenBy { it.release == DD_NIGHTLY }.then(newestFirst { it.file })
 
+    private fun pairingSourceMatches(stable: CatalogItem, nightly: CatalogItem): Boolean {
+        if (stable.sourceId.isEmpty() || nightly.sourceId.isEmpty()) {
+            return stable.sourceId.isEmpty() && nightly.sourceId.isEmpty() &&
+                stable.repository == NIGHTLIES && nightly.repository == NIGHTLIES
+        }
+        if (stable.sourceId == nightly.sourceId) return stable.repository == nightly.repository
+        return stable.repository == NIGHTLIES && stable.sourceId == RepositorySources.source(NIGHTLIES).id &&
+            nightly.repository == DD_COMPONENTS && nightly.sourceId == RepositorySources.source(DD_COMPONENTS).id
+    }
+
     internal fun nightlyPairs(items: List<CatalogItem>): Map<CatalogItem, CatalogItem> {
         val stable = items.filter { it.release != DD_NIGHTLY }
         return items.filter { it.release == DD_NIGHTLY }.mapNotNull { n ->
             val base = n.file.removePrefix("DD-").removeSuffix("-nightly.wcp").substringBefore('+')
             val rev = Regex(Regex.escape(base) + "(-\\d+)?-linux\\.wcp")
-            stable.filter { it.comp == n.comp && rev.matches(it.file) }
+            stable.filter { it.comp == n.comp && pairingSourceMatches(it, n) && rev.matches(it.file) }
                 .maxWithOrNull { a, b -> ProtonExtras.compareVersions(a.file, b.file) }?.let { it to n }
         }.groupBy({ it.first }, { it.second })
             .mapValues { (_, ns) -> ns.maxWith { a, b -> ProtonExtras.compareVersions(a.file, b.file) } }
     }
 
-    internal fun allowedDownload(url: String) = DOWNLOAD_REPOS.any { url.startsWith("https://github.com/$it/releases/download/") }
+    internal fun allowedDownload(url: String) = DOWNLOAD_REPOS.any {
+        url.startsWith("https://github.com/$it/releases/download/", ignoreCase = true)
+    }
+
+    private fun resolveLegacyLocalFile(context: Context, item: CatalogItem): CatalogItem = synchronized(lock) {
+        val preferred = File(packagesDir(context), safeName(item.localFile))
+        if (preferred.isFile) {
+            if (receiptMatches(preferred, item)) return@synchronized item
+            if (matchesCatalogPackage(context, preferred, item)) {
+                writeProvenance(preferred, item)
+                return@synchronized item
+            }
+            return@synchronized item.copy(localFile = "${item.digest.substringAfter(':')}-${item.sourceId}-remote.wcp")
+        }
+        val builtIn = item.repository in DOWNLOAD_REPOS &&
+            item.sourceId == RepositorySources.source(item.repository).id
+        if (!builtIn) return@synchronized item
+        val legacy = File(packagesDir(context), safeName(item.file))
+        if (!legacy.isFile || legacy == preferred || legacy.length() != item.size) return@synchronized item
+        if (!receiptMatches(legacy, item) && !matchesCatalogPackage(context, legacy, item)) return@synchronized item
+        writeProvenance(legacy, item)
+        item.copy(localFile = legacy.name)
+    }
+
+    private fun writeProvenance(file: File, item: CatalogItem) {
+        runCatching {
+            packageReceiptWriter(provenanceFile(file), provenance(item).toString().toByteArray(Charsets.UTF_8))
+        }.onFailure { Log.w(TAG, "component provenance ${file.name}", it) }
+    }
+
+    private fun matchesCatalogPackage(context: Context, file: File, item: CatalogItem): Boolean = runCatching {
+        file.length() == item.size && Hashes.sha256(file).equals(item.digest.substringAfter(':'), true) &&
+            packageInfo(context, file).comp == item.comp
+    }.getOrDefault(false)
+
+    private fun receiptMatches(file: File, item: CatalogItem): Boolean = runCatching {
+        if (file.length() != item.size) return@runCatching false
+        val receiptFile = provenanceFile(file)
+        if (!receiptFile.isFile || receiptFile.length() !in 1..64L * 1024) return@runCatching false
+        val receipt = AtomicFile(receiptFile).openRead().use {
+            JSONObject(RepositorySources.readBounded(it, 64 * 1024).toString(Charsets.UTF_8))
+        }
+        receipt.getInt("schema") == 1 && receipt.getString("scope") == sourceScope(item.comp) &&
+            receipt.getString("sourceId") == item.sourceId && receipt.getString("repository") == item.repository &&
+            receipt.getLong("repositoryId") == item.repositoryId && receipt.getLong("releaseId") == item.releaseId &&
+            receipt.getString("tag") == item.release && receipt.getLong("assetId") == item.assetId &&
+            receipt.getString("name") == item.file && receipt.getLong("size") == item.size &&
+            receipt.getString("sha256") == item.digest.substringAfter(':')
+    }.getOrDefault(false)
+
+    private fun provenance(item: CatalogItem): JSONObject = JSONObject().put("schema", 1)
+        .put("scope", sourceScope(item.comp)).put("sourceId", item.sourceId)
+        .put("repository", item.repository).put("repositoryId", item.repositoryId)
+        .put("releaseId", item.releaseId).put("tag", item.release).put("assetId", item.assetId)
+        .put("name", item.file).put("size", item.size).put("sha256", item.digest.substringAfter(':'))
 
     private fun <T> newestFirst(of: (T) -> String): Comparator<T> =
         Comparator { a, b -> ProtonExtras.compareVersions(of(b), of(a)) }
@@ -1073,6 +1606,11 @@ object ComponentsManager {
         ForcedPackage(setOf(GpuInfo.Family.A6XX), "dxvk", "dxvk-2.7.1-linux.wcp", "Dxvk-Linux"),
     )
 
+    internal fun fixedPackageName(comp: String, file: String, release: String): Boolean =
+        FORCED_PACKAGES.any { it.comp == comp && it.file == file && it.release == release } ||
+            (comp == "dxvk" && release == "Dxvk-Linux" &&
+                (file == DXVK_FOR_VULKAN_1_1 || file == DXVK_FOR_VULKAN_1_3_NO_INT64))
+
     private val ARM64EC_PROBE = mapOf("dxvk" to "d3d11.dll", "vkd3d" to "d3d12.dll")
 
     fun arm64ec(context: Context, p: Proton, comp: String): Boolean? = stockProbe(context, p, comp)?.let(ComponentUpdates::arm64ec)
@@ -1085,10 +1623,22 @@ object ComponentsManager {
         val dlls = runCatching {
             readWcp(f) { tar ->
                 val found = HashMap<String, ByteArray>()
+                val seen = HashSet<String>()
+                var entries = 0
+                var expanded = 0L
                 while (true) {
                     val e = tar.nextTarEntry ?: break
-                    val rel = normalize(e.name)
-                    if (!e.isDirectory && rel.startsWith(dir) && '/' !in rel.removePrefix(dir)) found[rel.removePrefix(dir)] = tar.readBytes()
+                    require(++entries <= MAX_WCP_ENTRIES) { "Component archive has too many entries" }
+                    val rel = safeArchivePath(e)
+                    require(rel.isEmpty() || seen.add(rel)) { "duplicate archive path $rel" }
+                    if (e.isFile) {
+                        require(e.size in 0..MAX_WCP_FILE_BYTES) { "archive entry is too large" }
+                        expanded += e.size
+                        require(expanded <= MAX_WCP_EXPANDED_BYTES) { "Component archive expands beyond its limit" }
+                    }
+                    if (e.isFile && rel.startsWith(dir) && '/' !in rel.removePrefix(dir)) {
+                        found[rel.removePrefix(dir)] = readEntry(tar, e.size, MAX_WCP_FILE_BYTES)
+                    }
                 }
                 found
             }
@@ -1097,12 +1647,14 @@ object ComponentsManager {
     }
 
     private fun readWcpEntry(f: File, rel: String): ByteArray? = readWcp(f) { tar ->
-        var found: ByteArray? = null
-        while (found == null) {
+        var entries = 0
+        while (true) {
             val e = tar.nextTarEntry ?: break
-            if (!e.isDirectory && normalize(e.name) == rel) found = tar.readBytes()
+            require(++entries <= MAX_WCP_ENTRIES) { "Component archive has too many entries" }
+            val entry = safeArchivePath(e)
+            if (e.isFile && entry == rel) return@readWcp readEntry(tar, e.size, MAX_WCP_FILE_BYTES)
         }
-        found
+        null
     }
 
     private fun stockProbe(context: Context, p: Proton, comp: String): ByteArray? {
@@ -1151,6 +1703,48 @@ object ComponentsManager {
     fun storedFiles(context: Context): List<String> =
         packagesDir(context).listFiles()?.filter { it.isFile && it.name.endsWith(".wcp") }?.map { it.name } ?: emptyList()
 
+    internal fun packageCatalogIdentity(context: Context, file: String): PackageCatalogIdentity? {
+        val local = safeName(file)
+        val packageFile = File(packagesDir(context), local)
+        val receipt = runCatching {
+            require(packageFile.isFile)
+            val receiptFile = provenanceFile(packageFile)
+            require(receiptFile.isFile && receiptFile.length() in 1..64L * 1024)
+            AtomicFile(receiptFile).openRead().use {
+                JSONObject(RepositorySources.readBounded(it, 64 * 1024).toString(Charsets.UTF_8))
+            }
+        }.getOrNull()
+        if (receipt != null) runCatching {
+            require(receipt.getInt("schema") == 1)
+            val scope = receipt.getString("scope")
+            val comp = scope.removePrefix("wcp/")
+            require(comp in COMPONENTS && scope == sourceScope(comp))
+            val repository = RepositorySources.canonicalRepository(receipt.getString("repository"))
+            val sourceId = receipt.getString("sourceId")
+            val repositoryId = receipt.getLong("repositoryId")
+            val releaseId = receipt.getLong("releaseId")
+            val assetId = receipt.getLong("assetId")
+            val tag = receipt.getString("tag")
+            val digest = receipt.getString("sha256")
+            val remote = receipt.getString("name")
+            require(sourceId == RepositorySources.source(repository).id && repositoryId > 0 && releaseId > 0 && assetId > 0 && tag.isNotEmpty())
+            require(remote == safeName(remote) && remote.endsWith(".wcp") && Regex("[0-9a-f]{64}").matches(digest))
+            require(receipt.getLong("size") == packageFile.length())
+            val qualified = "$digest-$sourceId.wcp"
+            val collision = "$digest-$sourceId-remote.wcp"
+            require(local == qualified || local == collision || (local == remote && repository in DOWNLOAD_REPOS))
+            val id = if (sourceId.isEmpty()) remote else "$comp:$sourceId:$assetId:$digest"
+            return PackageCatalogIdentity(id, remote)
+        }
+        return local.takeIf { candidate -> ComponentUpdates.LINES.any { ComponentUpdates.belongs(candidate, it) } }
+            ?.let { PackageCatalogIdentity("", it) }
+    }
+
+    internal fun packageMatchesCatalogItem(context: Context, item: CatalogItem): Boolean {
+        val file = File(packagesDir(context), safeName(item.localFile))
+        return file.isFile && receiptMatches(file, item)
+    }
+
     fun isStored(context: Context, file: String): Boolean = File(packagesDir(context), safeName(file)).isFile
 
     internal fun forcedPackageWanted(activeFile: String?, protonVersionMatches: Boolean): Boolean =
@@ -1185,19 +1779,22 @@ object ComponentsManager {
         entry != null && entry.optBoolean("auto") && entry.optString("file") != wantedFile
 
     internal fun catalogMatch(items: List<CatalogItem>, file: String, release: String): CatalogItem? =
-        items.firstOrNull { it.file == file && it.release == release }
+        items.firstOrNull { it.file == file && it.release == release && it.repository == NIGHTLIES }
 
     private val forcedLock = Any()
 
-    fun ensureForcedPackages(context: Context): String? = synchronized(forcedLock) { ensureForcedPackages(
+    fun ensureForcedPackages(
+        context: Context,
+        bridgeSession: Boolean = com.droiddeck.launcher.core.DeviceSupport.vkBridge(context),
+    ): String? = synchronized(forcedLock) { ensureForcedPackages(
         context, GpuInfo.detect(),
         { file, release -> catalogItem(context, file, release) },
         { download(context, it) {} },
         { id, file -> swap(context, id, file) },
         vulkan = AppVulkan.detect(context),
-        bridgeSession = com.droiddeck.launcher.core.DeviceSupport.vkBridge(context),
-        applyAuto = { id, file -> swap(context, id, file, auto = true) },
-        undoAuto = { id, comp -> undoAutoChoice(context, id, comp) },
+        bridgeSession = bridgeSession,
+        applyAuto = { id, file -> swapAutomatic(context, id, file) },
+        undoAuto = { id, comp -> undoAutoChoice(context, id, comp, allowRuntimeManaged = true) },
         keepProtonDxvk = SessionPrefs.bridgeProtonDxvk(context),
         autoPossible = !com.droiddeck.launcher.core.DeviceSupport.adreno(),
     ) }
@@ -1211,13 +1808,18 @@ object ComponentsManager {
         }, "auto-dxvk").start()
     }
 
-    internal fun undoAutoChoice(context: Context, protonId: String, comp: String): String = synchronized(lock) {
+    internal fun undoAutoChoice(
+        context: Context,
+        protonId: String,
+        comp: String,
+        allowRuntimeManaged: Boolean = false,
+    ): String = synchronized(lock) {
         val p = proton(context, protonId)
         val state = loadState(context)
         val entry = state.sub("active").optJSONObject(p.id)?.optJSONObject(comp)
         val sameProton = entry?.optString("protonVersion") == p.version
         if (sameProton && originalFile(context, p, comp).isFile)
-            return restore(context, protonId, comp, safeName(p.version))
+            return restore(context, protonId, comp, safeName(p.version), allowRuntimeManaged)
         if (sameProton) {
             Log.w(TAG, "${p.name}: its own ${LABEL[comp]} copy is gone; keeping ${entry?.optString("label")}")
             return "${LABEL[comp]}: ${p.name} keeps ${entry?.optString("label")} (its own copy is gone)"
@@ -1284,6 +1886,7 @@ object ComponentsManager {
         val wcp = File(packagesDir(context), safeName(rule.file))
         if (wcp.isFile && runCatching { packageInfo(context, wcp) }.isSuccess) return null
         wcp.delete()
+        provenanceFile(wcp).delete()
         val item = lookup(rule.file, rule.release)
             ?: return "${rule.file} is not in the Nightlies listing; ${LABEL.getValue(rule.comp)} stays on the Proton's copy"
         fetch(item)
@@ -1300,17 +1903,186 @@ object ComponentsManager {
         refresh: () -> List<CatalogItem>,
     ): CatalogItem? = catalogMatch(cached(), file, release) ?: catalogMatch(refresh(), file, release)
 
-    fun download(context: Context, item: CatalogItem, progress: (Int) -> Unit): Package {
-        require(allowedDownload(item.url)) { context.getString(R.string.cmgr_nightlies_only) }
-        require(Hashes.isGithubSha256(item.digest)) { context.getString(R.string.cmgr_list_predates_checksums) }
-        val dest = File(packagesDir(context), safeName(item.file))
-        val part = File(dest.parentFile, dest.name + ".part")
-        check(Downloader.downloadFile(item.url, part, true, item.digest.substringAfter(':')) { f -> progress(if (f < 0) -1 else (f * 100).toInt().coerceIn(0, 100)) }) {
-            context.getString(if (item.release == DD_NIGHTLY) R.string.cmgr_nightly_replaced else R.string.user_apps_download_failed)
-        }
-        if (!Hashes.sha256(part).equals(item.digest.substringAfter(':'), true)) { part.delete(); error(context.getString(R.string.cmgr_checksum_mismatch)) }
-        val info = runCatching { packageInfo(context, part) }.getOrElse { part.delete(); throw it }
-        synchronized(lock) { storePackage(context, part, dest) }
-        return info.copy(file = dest.name)
+    internal fun commitDownloadedPackage(
+        context: Context,
+        item: CatalogItem,
+        generation: Long?,
+        commit: () -> Unit,
+    ): Unit = synchronized(lock) {
+        if (generation == null) {
+            require(item.sourceId.isEmpty()) { "Qualified component download has no source generation" }
+            commit()
+        } else RepositorySources.whileCurrent(
+            context, sourceScope(item.comp), sourceBuiltIns(item.comp), item.sourceId, generation,
+        ) { commit() }
     }
+
+    private data class DownloadPreparation(
+        val existed: Boolean,
+        val identical: Boolean,
+        val fileKey: Any?,
+        val backup: File?,
+    )
+
+    private data class FileIdentity(val fileKey: Any, val size: Long)
+
+    private fun fileIdentity(file: File): FileIdentity {
+        val attributes = Files.readAttributes(
+            file.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS,
+        )
+        require(attributes.isRegularFile && !attributes.isSymbolicLink && attributes.fileKey() != null) {
+            "Downloaded component identity is unavailable"
+        }
+        return FileIdentity(requireNotNull(attributes.fileKey()), attributes.size())
+    }
+
+    private fun unchangedFile(file: File, identity: FileIdentity): Boolean = runCatching {
+        val attributes = Files.readAttributes(
+            file.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS,
+        )
+        attributes.isRegularFile && !attributes.isSymbolicLink &&
+            attributes.fileKey() == identity.fileKey && attributes.size() == identity.size
+    }.getOrDefault(false)
+
+    private fun prepareDownloadedPackage(dest: File, item: CatalogItem): DownloadPreparation {
+        val existed = dest.exists()
+        check(!existed || dest.isFile) { "Invalid existing component package ${dest.name}" }
+        val fileKey = if (existed) Files.readAttributes(
+            dest.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS,
+        ).fileKey() ?: throw IOException("Existing component identity is unavailable") else null
+        val identical = existed && packageHasher(dest).equals(item.digest.substringAfter(':'), true)
+        val backup = if (existed && !identical) {
+            File.createTempFile(".component-", ".backup", dest.parentFile).also { previous ->
+                try {
+                    packageBackupWriter(dest, previous)
+                } catch (error: Throwable) {
+                    previous.delete()
+                    throw error
+                }
+            }
+        } else null
+        return DownloadPreparation(existed, identical, fileKey, backup)
+    }
+
+    private fun unchangedDestination(dest: File, prepared: DownloadPreparation): Boolean {
+        if (!prepared.existed) return !dest.exists()
+        if (!dest.isFile) return false
+        return runCatching {
+            Files.readAttributes(dest.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS).fileKey()
+        }.getOrNull() == prepared.fileKey
+    }
+
+    private fun storeDownloadedPackage(
+        context: Context,
+        part: File,
+        dest: File,
+        item: CatalogItem,
+        generation: Long,
+        partIdentity: FileIdentity,
+    ) {
+        val prepared = prepareDownloadedPackage(dest, item)
+        val backup = prepared.backup
+        var destinationTouched = false
+        var keepBackup = false
+        var staleCache: File? = null
+        try {
+            synchronized(lock) {
+                check(unchangedFile(part, partIdentity)) { "Downloaded component changed before publication" }
+                check(unchangedDestination(dest, prepared)) { "Component package changed while downloading" }
+                if (prepared.existed && !prepared.identical) {
+                    checkPackageUnused(context, loadState(context), dest.name)
+                }
+                try {
+                    RepositorySources.whileCurrent(
+                        context, sourceScope(item.comp), sourceBuiltIns(item.comp), item.sourceId, generation,
+                    ) {
+                        if (!prepared.identical) {
+                            staleCache = storePackage(
+                                context, part, dest, prechecked = true, deferCacheCleanup = true,
+                                onDestinationTouched = { destinationTouched = true },
+                            )
+                        }
+                        packageReceiptWriter(provenanceFile(dest), provenance(item).toString().toByteArray(Charsets.UTF_8))
+                    }
+                } catch (error: Throwable) {
+                    if (destinationTouched && backup != null) {
+                        val restored = backup.renameTo(dest) ||
+                            ((!dest.exists() || dest.delete()) && backup.renameTo(dest))
+                        if (!restored) {
+                            // Keep the previous bytes for recovery if the filesystem refuses restoration.
+                            keepBackup = true
+                            if (dest.exists() && !dest.delete()) Log.e(TAG, "Could not remove uncommitted component ${dest.name}")
+                            error.addSuppressed(IOException("Could not restore ${dest.name}; backup retained at ${backup.path}"))
+                        }
+                    } else if (destinationTouched && !prepared.existed && dest.exists() && !dest.delete()) {
+                        error.addSuppressed(IOException("Could not remove uncommitted component ${dest.name}"))
+                    }
+                    throw error
+                }
+                staleCache = staleCache?.let { detachUnpackedCache(it, dest.name) }
+            }
+            staleCache?.let { cache ->
+                runCatching { cleanupUnpackedCache(cache, dest.name) }
+                    .onFailure { Log.w(TAG, "Could not clean stale unpacked files for ${dest.name}", it) }
+            }
+        } finally {
+            part.delete()
+            if (!keepBackup && backup?.exists() == true && !backup.delete()) {
+                Log.w(TAG, "Could not remove component backup ${backup.name}")
+            }
+        }
+    }
+
+    fun download(context: Context, item: CatalogItem, progress: (Int) -> Unit): Package {
+        val repository = RepositorySources.canonicalRepository(item.repository)
+        val legacyUnbound = repository == NIGHTLIES &&
+            item.sourceId == RepositorySources.source(NIGHTLIES).id && item.repositoryId == 0L
+        val generation = if (item.sourceId.isEmpty()) null else {
+            val scope = sourceScope(item.comp)
+            val builtIns = sourceBuiltIns(item.comp)
+            val value = RepositorySources.generation(context, scope, builtIns)
+            require(RepositorySources.visible(context, scope, builtIns).any {
+                it.id == item.sourceId && it.repository == repository &&
+                    (it.repositoryId == item.repositoryId || (legacyUnbound && it.repositoryId == null))
+            } && RepositorySources.isCurrent(context, scope, builtIns, item.sourceId, value)) {
+                "Component source is hidden, unavailable, or does not match its catalog"
+            }
+            value
+        }
+        require(releaseUrlMatches(repository, item.release, item.file, item.url)) {
+            context.getString(R.string.cmgr_nightlies_only)
+        }
+        require((item.sourceId.isNotEmpty() && !legacyUnbound) || allowedDownload(item.url)) {
+            context.getString(R.string.cmgr_nightlies_only)
+        }
+        require(Hashes.isGithubSha256(item.digest)) { context.getString(R.string.cmgr_list_predates_checksums) }
+        require(item.size in 1..(2L * 1024 * 1024 * 1024)) { "Component archive has an invalid size" }
+        val dest = File(packagesDir(context), safeName(item.localFile))
+        val part = File.createTempFile(".component-", ".part", dest.parentFile)
+        try {
+            check(packageDownloader(item.url, part, item.digest.substringAfter(':'), progress)) {
+                context.getString(R.string.user_apps_download_failed)
+            }
+            require(part.length() == item.size) { "Component archive size does not match" }
+            require(Hashes.sha256(part).equals(item.digest.substringAfter(':'), true)) {
+                context.getString(R.string.cmgr_checksum_mismatch)
+            }
+            if (generation != null && !RepositorySources.isCurrent(
+                    context, sourceScope(item.comp), sourceBuiltIns(item.comp), item.sourceId, generation,
+                )) error("Component source changed while downloading")
+            val info = packageInfo(context, part)
+            require(info.comp == item.comp) { "Component archive type does not match its catalog" }
+            val partIdentity = fileIdentity(part)
+            if (generation == null) commitDownloadedPackage(context, item, null) {
+                check(unchangedFile(part, partIdentity)) { "Downloaded component changed before publication" }
+                storePackage(context, part, dest)
+            } else storeDownloadedPackage(context, part, dest, item, generation, partIdentity)
+            return info.copy(file = dest.name, source = item.repository)
+        } finally {
+            part.delete()
+        }
+    }
+
+    private fun releaseUrlMatches(repository: String, tag: String, name: String, url: String): Boolean =
+        GitHubArtifacts.releaseAssetUrlMatches(repository, tag, name, url)
 }

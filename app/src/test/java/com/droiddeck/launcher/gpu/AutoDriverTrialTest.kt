@@ -83,4 +83,18 @@ class AutoDriverTrialTest {
         AutoDriverTrial.displayStarting(context, "new-display")
         assertEquals(2, AutoDriverTrial.rollbackDue(context)?.starts)
     }
+
+    @Test fun aBridgeSessionDoesNotCountOrAcceptAnUnusedDriverTrial() {
+        AutoDriverTrial.displayStarting(context, "new-display")
+        AutoDriverTrial.sessionStarting(context, "new-display", "new-linux", active = false)
+
+        assertEquals(0, AutoDriverTrial.current(context)?.starts)
+        AutoDriverTrial.sessionReady()
+        assertEquals("banner@r5", AutoDriverTrial.current(context)?.release)
+
+        AutoDriverTrial.displayStarting(context, "new-display")
+        AutoDriverTrial.sessionStarting(context, "new-display", "new-linux")
+        AutoDriverTrial.sessionReady()
+        assertNull(AutoDriverTrial.current(context))
+    }
 }

@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.runtime
 
 import android.content.Context
+import com.droiddeck.launcher.artifact.RepositorySources
+import com.droiddeck.launcher.core.Hashes
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.GameEnvironmentStore
 import com.github.luben.zstd.ZstdOutputStream
@@ -65,6 +67,7 @@ class BattleNetTest {
     @Before fun setUp() {
         context = RuntimeEnvironment.getApplication()
         File(context.filesDir, "components").deleteRecursively()
+        File(context.filesDir, "repository-sources").deleteRecursively()
         LinuxRuntime.rootDir(context).deleteRecursively()
     }
 
@@ -94,8 +97,8 @@ class BattleNetTest {
     }
 
     @Test fun theNewestStoredBuildIsSetForThePrefix() {
-        catalog("FEXCore-2609-d2rfix25-linux.wcp", "FEXCore-2610-d2rfix28-linux.wcp", "FEXCore-2610-linux.wcp")
         store("FEXCore-2610-d2rfix28-linux.wcp")
+        catalog("FEXCore-2609-d2rfix25-linux.wcp", "FEXCore-2610-d2rfix28-linux.wcp", "FEXCore-2610-linux.wcp")
 
         assertEquals("FEXCore-2610-d2rfix28-linux.wcp", BattleNet.ensureFex(context, ::noRefresh))
 
@@ -103,12 +106,48 @@ class BattleNetTest {
         assertEquals("FEXCore-2610-d2rfix28-linux.wcp", BattleNet.ensureFex(context, ::noRefresh))
     }
 
+    @Test fun aFreshSourceQualifiedBuildIsDownloadedSelectedAndReusedByItsStoredFilename() {
+        val remote = "FEXCore-2610-d2rfix28-linux.wcp"
+        val local = "${"ab".repeat(32)}-source.wcp"
+        val payload = File(context.cacheDir, "battlenet-fex.wcp")
+        writePackage(payload, local)
+        val scope = ComponentsManager.sourceScope("fex")
+        val builtIns = ComponentsManager.sourceBuiltIns("fex")
+        val source = ComponentsManager.sources(context, "fex").single {
+            it.repository == RepositorySources.canonicalRepository("The412Banner/Nightlies")
+        }
+        val bound = RepositorySources.bind(
+            context, scope, builtIns, source, 1234, RepositorySources.generation(context, scope, builtIns),
+        )
+        val listed = item(remote).copy(
+            size = payload.length(), digest = "sha256:${Hashes.sha256(payload)}", sourceId = bound.id,
+            repository = bound.repository, repositoryId = 1234, releaseId = 11, assetId = 12, localFile = local,
+        )
+        val downloader = ComponentsManager.packageDownloader
+        var downloads = 0
+        try {
+            ComponentsManager.packageDownloader = { _, destination, _, _ ->
+                downloads++
+                payload.copyTo(destination, overwrite = true)
+                true
+            }
+
+            assertEquals(local, BattleNet.ensureFex(context) { listOf(listed) })
+            assertEquals(local, BattleNet.ensureFex(context) { listOf(listed) })
+        } finally {
+            ComponentsManager.packageDownloader = downloader
+        }
+
+        assertEquals(1, downloads)
+        assertEquals(mapOf("fex" to local), ComponentsManager.gameComponents(context, BattleNet.APP_ID.toString()))
+    }
+
     @Test fun aNewerBuildReplacesTheOldOne() {
-        catalog("FEXCore-2609-d2rfix25-linux.wcp")
         store("FEXCore-2609-d2rfix25-linux.wcp")
+        catalog("FEXCore-2609-d2rfix25-linux.wcp")
         BattleNet.ensureFex(context, ::noRefresh)
-        catalog("FEXCore-2609-d2rfix25-linux.wcp", "FEXCore-2610-d2rfix28-linux.wcp")
         store("FEXCore-2610-d2rfix28-linux.wcp")
+        catalog("FEXCore-2609-d2rfix25-linux.wcp", "FEXCore-2610-d2rfix28-linux.wcp")
 
         BattleNet.ensureFex(context, ::noRefresh)
 
@@ -125,8 +164,8 @@ class BattleNetTest {
     }
 
     @Test fun aFailedFetchFallsBackOnTheCachedListing() {
-        catalog("FEXCore-2609-d2rfix25-linux.wcp", fetchedAt = 1)
         store("FEXCore-2609-d2rfix25-linux.wcp")
+        catalog("FEXCore-2609-d2rfix25-linux.wcp", fetchedAt = 1)
 
         assertEquals("FEXCore-2609-d2rfix25-linux.wcp", BattleNet.ensureFex(context) { error("offline") })
     }
@@ -152,8 +191,8 @@ class BattleNetTest {
     }
 
     @Test fun removeTakesThePrefixItsMenuEntryAndCacheButNothingItLinksTo() {
-        catalog("FEXCore-2610-d2rfix28-linux.wcp")
         store("FEXCore-2610-d2rfix28-linux.wcp")
+        catalog("FEXCore-2610-d2rfix28-linux.wcp")
         BattleNet.ensureFex(context, ::noRefresh)
         val root = LinuxRuntime.rootDir(context)
         fun put(relative: String) = File(root, relative).apply { parentFile!!.mkdirs(); writeText("x") }
@@ -469,13 +508,22 @@ class BattleNetTest {
         val cache = File(context.filesDir, "components/catalog.json")
         cache.parentFile!!.mkdirs()
         val items = JSONArray()
-        for (file in files) items.put(JSONObject().put("file", file).put("comp", "fex").put("release", "FexCore-Linux")
-            .put("url", item(file).url).put("size", 4).put("digest", item(file).digest))
+        for (file in files) {
+            val stored = File(context.filesDir, "components/packages/$file")
+            val size = if (stored.isFile) stored.length() else 4
+            val digest = if (stored.isFile) "sha256:${Hashes.sha256(stored)}" else item(file).digest
+            items.put(JSONObject().put("file", file).put("comp", "fex").put("release", "FexCore-Linux")
+                .put("url", item(file).url).put("size", size).put("digest", digest))
+        }
         cache.writeText(JSONObject().put("items", items).put("fetchedAt", fetchedAt).toString())
     }
 
     private fun store(file: String) {
         val wcp = File(context.filesDir, "components/packages/$file")
+        writePackage(wcp, file)
+    }
+
+    private fun writePackage(wcp: File, file: String) {
         wcp.parentFile!!.mkdirs()
         TarArchiveOutputStream(ZstdOutputStream(wcp.outputStream())).use { tar ->
             fun put(name: String, bytes: ByteArray) {

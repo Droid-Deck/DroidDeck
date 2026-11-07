@@ -61,6 +61,7 @@ private fun originName(origin: String): String = if (origin == WinCompSources.Or
         WinCompSources.Origin.GOG.name -> R.string.wincomp_src_gog
         WinCompSources.Origin.EPIC.name -> R.string.wincomp_src_epic
         WinCompSources.Origin.AMAZON.name -> R.string.wincomp_src_amazon
+        WinCompSources.Origin.KNOWN_GAME.name -> R.string.wincomp_src_game
         else -> R.string.wincomp_src_steam
     },
 )
@@ -71,6 +72,7 @@ private fun autoReason(r: WinComponents.AutoReason): String = when (r.kind) {
     WinCompSources.Origin.GOG.name -> stringResource(R.string.wincomp_auto_gog)
     WinCompSources.Origin.EPIC.name -> stringResource(R.string.wincomp_auto_epic)
     WinCompSources.Origin.AMAZON.name -> stringResource(R.string.wincomp_auto_amazon)
+    WinCompSources.Origin.KNOWN_GAME.name -> stringResource(R.string.wincomp_auto_known_game, r.args.getOrElse(1) { "" }, r.args.getOrElse(2) { "" })
     WinCompSources.Origin.XBOX.name -> "Xbox games install it with the game (${r.args.getOrElse(0) { "VC14" }})"
     else -> ""
 }

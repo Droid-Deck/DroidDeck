@@ -139,8 +139,17 @@ public final class LinuxRuntime {
     public static List<String> command(Context context, File sessionRoot, File runtimeDir,
                                        File externalStorage, List<String> extraBinds,
                                        List<String> guestCommand) {
+        return command(context, sessionRoot, runtimeDir, externalStorage, extraBinds, guestCommand,
+                false, null);
+    }
+
+    public static List<String> command(Context context, File sessionRoot, File runtimeDir,
+                                       File externalStorage, List<String> extraBinds,
+                                       List<String> guestCommand, boolean systemVulkan,
+                                       String systemVulkanRenderNode) {
         File root = rootDir(context);
-        List<String> binds = binds(context, sessionRoot, runtimeDir, externalStorage, extraBinds);
+        List<String> binds = binds(context, sessionRoot, runtimeDir, externalStorage, extraBinds,
+                systemVulkan, systemVulkanRenderNode);
         if (sessionRoot != null) lastBinds = binds;
         return commandWithBinds(context, root, binds, guestCommand);
     }
@@ -186,13 +195,27 @@ public final class LinuxRuntime {
 
     public static List<String> binds(Context context, File sessionRoot, File runtimeDir,
                                      File externalStorage, List<String> extraBinds) {
+        return binds(context, sessionRoot, runtimeDir, externalStorage, extraBinds, false, null);
+    }
+
+    public static List<String> binds(Context context, File sessionRoot, File runtimeDir,
+                                     File externalStorage, List<String> extraBinds,
+                                     boolean systemVulkan, String systemVulkanRenderNode) {
+        return binds(context, sessionRoot, runtimeDir, externalStorage, extraBinds,
+                systemVulkan, systemVulkanRenderNode, new File("/dev/dri").list() != null);
+    }
+
+    static List<String> binds(Context context, File sessionRoot, File runtimeDir,
+                              File externalStorage, List<String> extraBinds,
+                              boolean systemVulkan, String systemVulkanRenderNode,
+                              boolean hostDriIsListable) {
         File root = rootDir(context);
         LegacyNames.migrateEtc(root);
         List<String> cmd = new ArrayList<>();
         bind(cmd, "/dev");
         bind(cmd, "/proc");
         bind(cmd, "/sys");
-        if (com.droiddeck.launcher.gpu.SystemVulkanDriver.isPowerVr()) {
+        if (systemVulkan) {
             // The glibc bridge loads the device's existing Android HAL and its dependencies.
             // These read-only Android partitions remain subject to the app's normal permissions.
             for (String path : new String[]{"/system", "/vendor", "/apex", "/system_ext", "/product", "/odm"})
@@ -271,8 +294,8 @@ public final class LinuxRuntime {
         if (unreadablePciDevice()) {
             bind(cmd, new File(root, "etc/droiddeck/empty").getPath() + ":/sys/bus/pci/devices");
         }
-        if (com.droiddeck.launcher.gpu.SystemVulkanDriver.isPowerVr()) {
-            bindPowerVrGpuNode(context, cmd);
+        if (systemVulkan) {
+            bindSystemVulkanGpuNode(context, cmd, systemVulkanRenderNode, hostDriIsListable);
         } else {
             bindGpuNode(context, cmd);
         }
@@ -286,22 +309,25 @@ public final class LinuxRuntime {
         return specs;
     }
 
-    private static void bindPowerVrGpuNode(Context context, List<String> cmd) {
-        if (new File("/dev/dri").list() != null) return;
-        String node = SystemVulkanDriver.renderNodePath();
-        if (node == null) return;
+    static void bindSystemVulkanGpuNode(Context context, List<String> cmd, String node) {
+        bindSystemVulkanGpuNode(context, cmd, node, new File("/dev/dri").list() != null);
+    }
+
+    static void bindSystemVulkanGpuNode(Context context, List<String> cmd, String node,
+                                         boolean hostDriIsListable) {
+        if (node == null || hostDriIsListable) return;
         String name = new File(node).getName();
-        File dri = new File(context.getCacheDir(), "powervr-drm/" + name + "/dri");
+        File dri = new File(liveDir(context), "system-vulkan-drm/" + name + "/dri");
         try {
             if (!dri.isDirectory() && !dri.mkdirs()) return;
             new File(dri, name).createNewFile();
         } catch (IOException e) {
-            android.util.Log.w("LinuxRuntime", "Cannot expose the PowerVR render node", e);
+            android.util.Log.w("LinuxRuntime", "Cannot expose the system Vulkan render node", e);
             return;
         }
         bind(cmd, dri.getPath() + ":/dev/dri");
         bind(cmd, node + ":" + node);
-        android.util.Log.i("LinuxRuntime", "PowerVR: exposing real " + name + " through a listable directory");
+        android.util.Log.i("LinuxRuntime", "System Vulkan: exposing real " + name + " through a listable directory");
     }
 
     private static boolean unreadablePciDevice() {

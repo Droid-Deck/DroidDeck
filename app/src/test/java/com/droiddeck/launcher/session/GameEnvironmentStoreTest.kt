@@ -24,6 +24,7 @@ class GameEnvironmentStoreTest {
 
     @Before fun setUp() {
         context = RuntimeEnvironment.getApplication()
+        installJvmSecureSourceOpener()
         context.getSharedPreferences("session", Context.MODE_PRIVATE).edit()
             .remove("logs")
             .remove("gameDebugLogsEnabled")
@@ -37,6 +38,7 @@ class GameEnvironmentStoreTest {
             .remove("logs")
             .remove("gameDebugLogsEnabled")
             .commit()
+        resetSecureSourceOpener()
     }
 
     @Test fun gameDebugLogsAreOffByDefault() {

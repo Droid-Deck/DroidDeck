@@ -51,11 +51,19 @@ object ComponentUpdates {
         it.comp == comp && (comp == "fex" || it.key.endsWith("-arm64ec") == arm64ec)
     }
 
-    fun pick(items: List<ComponentsManager.CatalogItem>, line: Line, bad: Set<String>): ComponentsManager.CatalogItem? {
+    fun pick(
+        items: List<ComponentsManager.CatalogItem>,
+        line: Line,
+        bad: Set<String>,
+        badIds: Set<String> = emptySet(),
+    ): ComponentsManager.CatalogItem? {
         val newestBad = bad.filter { belongs(it, line) }.maxWithOrNull { a, b -> ProtonExtras.compareVersions(a, b) }
         return items.filter { it.release == ComponentsManager.DD_NIGHTLY && it.comp == line.comp && belongs(it.file, line) }
+            .filter { it.id !in badIds }
             .filter { newestBad == null || ProtonExtras.compareVersions(it.file, newestBad) > 0 }
-            .maxWithOrNull { a, b -> ProtonExtras.compareVersions(a.file, b.file) }
+            .maxWithOrNull { a, b ->
+                ProtonExtras.compareVersions(a.file, b.file).takeIf { it != 0 } ?: a.id.compareTo(b.id)
+            }
     }
 
     fun belongs(file: String, line: Line): Boolean =
@@ -158,10 +166,22 @@ object ComponentUpdates {
         choice != null && !choice.auto && !choice.file.startsWith("original ") && choice.file != current &&
             (if (applied.isNullOrEmpty()) choice.file !in auto else choice.file != applied)
 
-    fun stale(line: Line?, owned: Set<String>, stored: List<String>, keep: Set<String>, current: String, bad: Set<String> = emptySet()): List<String> {
-        val ranked = line?.takeIf { belongs(current, it) }
-        fun newer(file: String) = ranked != null && belongs(file, ranked) && ProtonExtras.compareVersions(file, current) > 0
-        return (owned + stored.filter { ranked != null && belongs(it, ranked) })
-            .filter { it !in keep && ((it in bad && it in owned) || !newer(it)) }.distinct()
+    fun stale(
+        line: Line?,
+        owned: Set<String>,
+        stored: List<String>,
+        keep: Set<String>,
+        currentName: String,
+        bad: Set<String> = emptySet(),
+        nameOf: (String) -> String? = { it },
+    ): List<String> {
+        val ranked = line?.takeIf { belongs(currentName, it) }
+        fun newer(name: String) = ranked != null && belongs(name, ranked) && ProtonExtras.compareVersions(name, currentName) > 0
+        val candidates = owned + stored.filter { file -> nameOf(file)?.let { ranked != null && belongs(it, ranked) } == true }
+        return candidates.filter { file ->
+            if (file in keep) return@filter false
+            val name = nameOf(file) ?: return@filter false
+            (name in bad && file in owned) || !newer(name)
+        }.distinct()
     }
 }

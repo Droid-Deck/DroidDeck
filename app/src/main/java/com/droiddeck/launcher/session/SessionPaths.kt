@@ -3,6 +3,7 @@ package com.droiddeck.launcher.session
 import android.content.Context
 import android.util.Log
 import java.io.File
+import java.nio.file.Files
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -67,8 +68,9 @@ object SessionPaths {
     @Synchronized
     fun release(context: Context, ended: File) {
         if (dir == ended) dir = null
-        if (ended != null && ended.path.startsWith(context.cacheDir.path)) {
-            com.droiddeck.launcher.core.FileUtils.delete(ended)
+        val ephemeralRoot = File(context.cacheDir, "session-logs").toPath().toAbsolutePath().normalize()
+        if (ended.toPath().toAbsolutePath().normalize().parent == ephemeralRoot) {
+            SecureDiagnosticOutput.deleteSession(context, ended)
         }
     }
 
@@ -81,7 +83,10 @@ object SessionPaths {
     }
 
     fun isSessionFolder(f: File): Boolean =
-        f.isDirectory && (NAMED.matches(f.name) || LEGACY.matches(f.name))
+        isSessionName(f.name) && !Files.isSymbolicLink(f.toPath()) &&
+            Files.isDirectory(f.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)
+
+    internal fun isSessionName(name: String): Boolean = NAMED.matches(name) || LEGACY.matches(name)
 
     val chronological: Comparator<File> = compareBy { f ->
         NAMED.matchEntire(f.name)?.groupValues?.let { g -> "${g[1]}${g[2]}${g[3]}1${g[4].padStart(6, '0')}" }

@@ -35,13 +35,11 @@ import androidx.compose.runtime.key
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -584,6 +582,13 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     val inputModeManager = LocalInputModeManager.current
     val window = LocalWindowInfo.current
     val androidContext = androidx.compose.ui.platform.LocalContext.current
+    val launcherSafeInsets = rememberFullscreenSafeInsets(s.launcherFullscreen, preferFullWidthInPortrait = true)
+    val launcherWindowInsets = WindowInsets(
+        left = launcherSafeInsets.left,
+        top = launcherSafeInsets.top,
+        right = launcherSafeInsets.right,
+        bottom = launcherSafeInsets.bottom,
+    )
     var anyFocused by remember { mutableStateOf(false) }
     val paneRequester = remember { FocusRequester() }
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
@@ -598,8 +603,9 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         }
     }
     androidx.compose.foundation.layout.BoxWithConstraints(
-        modifier = Modifier.fillMaxSize().background(colors.background)
-            .windowInsetsPadding(if (s.launcherFullscreen) WindowInsets.displayCutout else WindowInsets.systemBars)
+        modifier = Modifier.fillMaxSize().background(if (s.launcherFullscreen) Color.Black else colors.background)
+            .windowInsetsPadding(launcherWindowInsets)
+            .background(colors.background)
             .onFocusChanged { anyFocused = it.hasFocus },
     ) {
         val bottomNavigation = maxHeight > maxWidth

@@ -54,6 +54,43 @@ class LinuxRuntimeLiveFilesTest {
         assertTrue(live.toPath().startsWith(context.noBackupFilesDir.toPath()))
     }
 
+    @Test fun cacheEvictionPreservesSystemVulkanRenderNodeBindings() {
+        val node = "/dev/dri/renderD130"
+        val binds = mutableListOf<String>()
+        LinuxRuntime.bindSystemVulkanGpuNode(context, binds, node, false)
+        val dri = File(binds.single { it.endsWith(":/dev/dri") }.removeSuffix(":/dev/dri"))
+        val placeholder = File(dri, "renderD130")
+        val disposable = File(context.cacheDir, "download").apply { writeText("cached") }
+
+        context.cacheDir.deleteRecursively()
+
+        assertFalse(disposable.exists())
+        assertTrue(placeholder.isFile)
+        assertTrue(dri.toPath().startsWith(context.noBackupFilesDir.toPath()))
+        assertTrue(binds.contains("$node:$node"))
+        val nextBinds = mutableListOf<String>()
+        LinuxRuntime.bindSystemVulkanGpuNode(context, nextBinds, node, false)
+        assertEquals(binds, nextBinds)
+    }
+
+    @Test fun onlyTheFrozenSystemVulkanRouteExposesItsRenderNode() {
+        val node = "/dev/dri/renderD130"
+        val standard = LinuxRuntime.binds(context, null, null, null, null, false, node, false)
+        val system = LinuxRuntime.binds(context, null, null, null, null, true, node, false)
+
+        assertFalse(standard.contains("$node:$node"))
+        assertTrue(system.contains("$node:$node"))
+    }
+
+    @Test fun listableHostDriAlreadyExposesTheSystemVulkanRenderNode() {
+        val node = "/dev/dri/renderD130"
+        val standard = LinuxRuntime.binds(context, null, null, null, null, false, node, true)
+        val system = LinuxRuntime.binds(context, null, null, null, null, true, node, true)
+
+        assertFalse(standard.contains("$node:$node"))
+        assertFalse(system.contains("$node:$node"))
+    }
+
     @Test fun successfulRemovalClearsGuestScratchAndPreservesOtherNoBackupData() {
         val runtime = runtime()
         val scratch = scratch()

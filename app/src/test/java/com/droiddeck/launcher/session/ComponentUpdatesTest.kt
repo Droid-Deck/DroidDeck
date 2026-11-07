@@ -6,6 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.droiddeck.launcher.artifact.RepositorySources
 import com.github.luben.zstd.ZstdOutputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
@@ -18,11 +19,22 @@ import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.file.Files
+import java.security.MessageDigest
 
 @RunWith(RobolectricTestRunner::class)
 class ComponentUpdatesTest {
     private fun item(file: String, comp: String, release: String = ComponentsManager.DD_NIGHTLY) =
         ComponentsManager.CatalogItem(file, comp, release, "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/x/$file", 1, "sha256:" + "0".repeat(64))
+
+    private fun sourcedItem(source: String, asset: Long, digestDigit: Char): ComponentsManager.CatalogItem {
+        val file = "DD-dxvk-3.1.1+200-nightly.wcp"
+        val digest = digestDigit.toString().repeat(64)
+        return ComponentsManager.CatalogItem(
+            file, "dxvk", ComponentsManager.DD_NIGHTLY, "https://example.invalid/$file", 4, "sha256:$digest",
+            sourceId = source, repository = "example/$source", repositoryId = 10, releaseId = 20,
+            assetId = asset, localFile = "$digest-$source.wcp",
+        )
+    }
 
     private val catalog = listOf(
         item("DD-dxvk-3.1.1+188-nightly.wcp", "dxvk"),
@@ -51,6 +63,72 @@ class ComponentUpdatesTest {
         assertEquals("DD-dxvk-3.1.1+190-nightly.wcp", ComponentUpdates.pick(catalog, plain, setOf("DD-vkd3d-proton-3.1+40-nightly.wcp"))?.file)
         assertNull(ComponentUpdates.pick(catalog, ComponentUpdates.line("fex", false), setOf("DD-FEXCore-2611+3-nightly.wcp")))
         assertNull(ComponentUpdates.pick(catalog.filter { it.release != ComponentsManager.DD_NIGHTLY }, plain, emptySet()))
+    }
+
+    @Test fun equalRemoteVersionsUseDeterministicSourceIdentityAndBadIdsStaySourceSpecific() {
+        val first = sourcedItem("source-a", 1, 'a')
+        val second = sourcedItem("source-b", 2, 'b')
+        val line = ComponentUpdates.line("dxvk", false)
+        val expected = listOf(first, second).maxBy { it.id }
+        assertEquals(expected.id, ComponentUpdates.pick(listOf(first, second), line, emptySet())?.id)
+        assertEquals(expected.id, ComponentUpdates.pick(listOf(second, first), line, emptySet())?.id)
+        val alternative = listOf(first, second).single { it.id != expected.id }
+        assertEquals(alternative.id, ComponentUpdates.pick(listOf(first, second), line, emptySet(), setOf(expected.id))?.id)
+        assertNull(ComponentUpdates.pick(listOf(first, second), line, setOf(expected.file))?.id)
+    }
+
+    @Test fun updaterStateKeepsLocalRemoteAndSourceIdentitiesSeparate() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val first = sourcedItem("source-a", 1, 'a')
+        val second = sourcedItem("source-b", 2, 'b')
+        val state = JSONObject()
+        ComponentUpdater.putPackageRef(state, "current", ComponentUpdater.catalogRef(first))
+        ComponentUpdater.putPackageRef(state, "previous", ComponentUpdater.catalogRef(second))
+        assertEquals(first.localFile, state.getString("current"))
+        assertEquals(first.file, state.getString("currentName"))
+        assertEquals(first.id, state.getString("currentId"))
+        assertEquals(ComponentUpdater.catalogRef(first), ComponentUpdater.packageRef(context, state, "current"))
+        assertEquals(first.id, ComponentUpdater.relisted(listOf(second, first), ComponentUpdater.packageRef(context, state, "current"))?.id)
+        val firstIdentity = ComponentsManager.PackageCatalogIdentity(first.id, first.file)
+        val secondIdentity = ComponentsManager.PackageCatalogIdentity(second.id, second.file)
+        assertTrue(ComponentUpdater.currentAvailable(ComponentUpdater.catalogRef(first), stored = true, identity = firstIdentity))
+        assertFalse(ComponentUpdater.currentAvailable(ComponentUpdater.catalogRef(first), stored = true, identity = null))
+        assertFalse(ComponentUpdater.currentAvailable(ComponentUpdater.catalogRef(first), stored = true, identity = secondIdentity))
+
+        ComponentUpdater.markBad(state, ComponentUpdater.catalogRef(first))
+        assertEquals(setOf(first.id), (0 until state.getJSONArray("badIds").length()).map { state.getJSONArray("badIds").getString(it) }.toSet())
+        assertFalse(state.has("bad"))
+        val identities = mapOf(
+            first.localFile to ComponentsManager.PackageCatalogIdentity(first.id, first.file),
+            second.localFile to ComponentsManager.PackageCatalogIdentity(second.id, second.file),
+        )
+        assertEquals(listOf(first.localFile), ComponentUpdater.badOwned(
+            setOf(first.localFile, second.localFile, "unknown.wcp"), emptySet(), setOf(first.id), identities::get,
+        ))
+
+        val official = item(first.file, "dxvk")
+        val legacy = JSONObject().put("current", official.file)
+        assertEquals(official, ComponentUpdater.relisted(listOf(first, second, official), ComponentUpdater.packageRef(context, legacy, "current")))
+        assertEquals("", ComponentUpdater.catalogRef(official).id)
+        assertTrue(ComponentUpdater.currentAvailable(ComponentUpdater.catalogRef(official), stored = true, identity = null))
+        val unqualified = JSONObject()
+        ComponentUpdater.putPackageRef(unqualified, "current", ComponentUpdater.catalogRef(official))
+        assertFalse(unqualified.has("currentId"))
+
+        val transition = JSONObject()
+        ComponentUpdater.adopt(transition, ComponentUpdater.catalogRef(first), ComponentUpdater.catalogRef(second), keepPrevious = true)
+        assertEquals(first.localFile, transition.getString("previous"))
+        assertEquals(first.file, transition.getString("previousName"))
+        assertEquals(second.localFile, transition.getString("current"))
+        assertEquals(second.id, transition.getString("currentId"))
+        ComponentUpdater.recordRollback(
+            transition, ComponentUpdater.catalogRef(second), ComponentUpdater.catalogRef(first),
+        )
+        assertEquals(first.localFile, transition.getString("current"))
+        assertEquals(first.file, transition.getString("currentName"))
+        assertFalse(transition.has("previous"))
+        assertEquals(setOf(second.id), (0 until transition.getJSONArray("badIds").length())
+            .map { transition.getJSONArray("badIds").getString(it) }.toSet())
     }
 
     private fun pe(machine: Int, pe32plus: Boolean, hybrid: Boolean?): ByteArray {
@@ -312,18 +390,6 @@ class ComponentUpdatesTest {
         assertEquals("vkd3d-proton-3.0-mine.wcp", after.getString("file"))
     }
 
-    @Test fun aSourceThatFailsToListKeepsItsPreviousPackages() {
-        val previous = JSONArray()
-            .put(JSONObject().put("file", "DD-dxvk-arm64ec-3.1.1+198-nightly.wcp").put("release", ComponentsManager.DD_NIGHTLY))
-            .put(JSONObject().put("file", "dxvk-3.1.1-linux.wcp").put("release", "Dxvk-Linux"))
-        val into = JSONArray()
-        ComponentsManager.keepSource(previous, ComponentsManager.DD_NIGHTLY, into)
-        assertEquals(1, into.length())
-        assertEquals("DD-dxvk-arm64ec-3.1.1+198-nightly.wcp", into.getJSONObject(0).getString("file"))
-        ComponentsManager.keepSource(null, ComponentsManager.DD_NIGHTLY, into)
-        assertEquals(1, into.length())
-    }
-
     @Test fun everyBuildAutoEverPlacedCountsAsItsOwn() {
         val state = JSONObject().put("lines", JSONObject()
             .put("dxvk", JSONObject().put("current", "b.wcp").put("previous", ComponentUpdates.ORIGINAL)
@@ -432,6 +498,74 @@ class ComponentUpdatesTest {
             ComponentUpdates.stale(line, setOf("DD-dxvk-3.1.1+184-nightly.wcp"), stored, emptySet(), ComponentUpdates.ORIGINAL))
     }
 
+    @Test fun sourceQualifiedPruningUsesRemoteVersionsAndKeepsUnknownProvenance() {
+        val line = ComponentUpdates.line("dxvk", false)
+        val old = "hash-source-old.wcp"
+        val current = "hash-source-current.wcp"
+        val unknown = "user-import-without-receipt.wcp"
+        val names = mapOf(
+            old to "DD-dxvk-3.1.1+188-nightly.wcp",
+            current to "DD-dxvk-3.1.1+190-nightly.wcp",
+        )
+        assertEquals(
+            listOf(old),
+            ComponentUpdates.stale(line, setOf(old, current, unknown), listOf(old, current, unknown), setOf(current),
+                names.getValue(current), nameOf = names::get),
+        )
+    }
+
+    @Test fun packageCatalogIdentityRequiresMatchingAtomicProvenance() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val repository = "wallentx/custom-components"
+        val sourceId = RepositorySources.source(repository).id
+        val bytes = "verified package".toByteArray()
+        val digest = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+        val local = "$digest-$sourceId.wcp"
+        val packageFile = File(context.filesDir, "components/packages/$local").apply {
+            parentFile!!.mkdirs()
+            writeBytes(bytes)
+        }
+        val receipt = JSONObject().put("schema", 1).put("scope", "wcp/dxvk").put("sourceId", sourceId)
+            .put("repository", repository).put("repositoryId", 10).put("releaseId", 20)
+            .put("tag", ComponentsManager.DD_NIGHTLY).put("assetId", 30)
+            .put("name", "DD-dxvk-3.1.1+200-nightly.wcp").put("size", bytes.size).put("sha256", digest)
+        File(packageFile.parentFile, "$local.source.json").writeText(receipt.toString())
+        val item = ComponentsManager.CatalogItem(
+            "DD-dxvk-3.1.1+200-nightly.wcp", "dxvk", ComponentsManager.DD_NIGHTLY,
+            "https://example.invalid/DD-dxvk-3.1.1+200-nightly.wcp", bytes.size.toLong(), "sha256:$digest",
+            sourceId, repository, 10, 20, 30, local,
+        )
+        val identity = ComponentsManager.packageCatalogIdentity(context, local)
+        assertEquals("dxvk:$sourceId:30:$digest", identity?.id)
+        assertEquals("DD-dxvk-3.1.1+200-nightly.wcp", identity?.name)
+        assertTrue(ComponentsManager.packageMatchesCatalogItem(context, item))
+        assertTrue(ComponentUpdater.packageRefAvailable(context, ComponentUpdater.catalogRef(item)))
+
+        File(packageFile.parentFile, "$local.source.json").writeText(receipt.put("size", bytes.size + 1).toString())
+        assertNull(ComponentsManager.packageCatalogIdentity(context, local))
+        assertFalse(ComponentsManager.packageMatchesCatalogItem(context, item))
+        assertFalse(ComponentUpdater.packageRefAvailable(context, ComponentUpdater.catalogRef(item)))
+    }
+
+    @Test fun originalsStayKeptForEveryLiveVersionSharingAProtonId() {
+        fun proton(version: String) = ComponentsManager.Proton("shared", "Shared $version", File("/steam/$version"), "/p", version, false)
+        val first = proton("v1")
+        val second = proton("v2")
+        val state = JSONObject()
+        for (installs in listOf(listOf(first, second), listOf(second, first))) {
+            val grouped = installs.groupBy { it.id }
+            assertTrue(ComponentsManager.originalInstalled(installs, "v1"))
+            assertTrue(ComponentsManager.originalInstalled(installs, "v2"))
+            assertFalse(ComponentsManager.originalInstalled(installs, "v3"))
+            assertTrue(ComponentsManager.originalKept(state, grouped, "shared", "dxvk", "v1"))
+            assertTrue(ComponentsManager.originalKept(state, grouped, "shared", "dxvk", "v2"))
+            assertFalse(ComponentsManager.originalKept(state, grouped, "shared", "dxvk", "v3"))
+        }
+        val queued = JSONObject().put("queued", JSONObject().put("shared", JSONObject().put("dxvk", JSONObject()
+            .put("kind", "original").put("protonVersion", "v3"))))
+        assertTrue(ComponentsManager.originalKept(queued, listOf(first, second).groupBy { it.id }, "shared", "dxvk", "v3"))
+    }
+
     @Test fun aPackageLeftSelectedOnARemovedProtonIsNoLongerKept() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         File(context.filesDir, "components/state.json").apply { parentFile?.mkdirs() }.writeText(JSONObject()
@@ -530,5 +664,23 @@ class ComponentUpdatesTest {
         assertTrue(ComponentsManager.packageArm64x(context, "hybrid.wcp", "dxvk"))
         assertFalse(ComponentsManager.packageArm64x(context, "hybrid.wcp", "vkd3d"))
         assertFalse(ComponentsManager.packageArm64x(context, "missing.wcp", "dxvk"))
+    }
+
+    @Test fun theArm64xProbeRejectsUnsafeAndDuplicateArchivePaths() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val dir = "files/lib/wine/dxvk/aarch64-windows"
+        val hybrid = pe(0xaa64, true, true)
+        wcp(context, "unsafe.wcp", mapOf("$dir/d3d11.dll" to hybrid, "../escape.dll" to hybrid))
+        assertFalse(ComponentsManager.packageArm64x(context, "unsafe.wcp", "dxvk"))
+
+        val duplicate = File(context.filesDir, "components/packages/duplicate.wcp")
+        TarArchiveOutputStream(ZstdOutputStream(duplicate.outputStream())).use { tar ->
+            repeat(2) {
+                tar.putArchiveEntry(TarArchiveEntry("$dir/d3d11.dll").apply { size = hybrid.size.toLong() })
+                tar.write(hybrid)
+                tar.closeArchiveEntry()
+            }
+        }
+        assertFalse(ComponentsManager.packageArm64x(context, duplicate.name, "dxvk"))
     }
 }

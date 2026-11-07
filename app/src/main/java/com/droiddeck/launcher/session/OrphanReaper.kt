@@ -11,6 +11,7 @@ object OrphanReaper {
 
     fun release(pid: Int) { kept.remove(pid) }
 
+    /** Signal 0 checks ownership/liveness without sending a signal, even when /proc is unreadable. */
     fun hasOtherProcesses(): Boolean = hasOtherProcesses(
         File("/proc").list()?.mapNotNull { it.toIntOrNull() }, android.os.Process.myPid(),
     ) { pid ->

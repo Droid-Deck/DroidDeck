@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.session
 
+import android.content.Context
+import com.droiddeck.launcher.core.DeviceSupport
 import java.io.File
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -7,6 +9,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 object SessionState {
+    @Volatile
+    var generation = 0
+
     @Volatile
     var phase = SessionPhase.IDLE
 
@@ -49,6 +54,12 @@ object SessionState {
     var activityDisplayId = 0
     @Volatile
     var runtimeDriver: String? = null
+    @Volatile
+    var graphicsRoute: DeviceSupport.GraphicsRoute? = null
+
+    fun effectiveGraphicsRoute(context: Context): DeviceSupport.GraphicsRoute =
+        graphicsRoute.takeIf { running }
+            ?: DeviceSupport.graphicsRoute(context, SessionPrefs.linuxDriver(context))
     var micAvailable by mutableStateOf(false)
     var micEnabled by mutableStateOf(false)
     var suspended by mutableStateOf(false)

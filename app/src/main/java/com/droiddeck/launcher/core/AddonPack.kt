@@ -17,6 +17,9 @@ internal class AddonPack(
     val name: String, private val sha256: String, val size: Long, private val required: List<String>,
     private val reuseDeviceCopy: Boolean = sha256.isEmpty() && !BuildConfig.CI_BUILD,
     private val bundle: (Context) -> java.io.InputStream = { it.assets.open("packs/$name.tar.zst") },
+    private val componentRepository: String = BuildConfig.COMPONENT_REPOSITORY,
+    private val sourceCommit: String = BuildConfig.SOURCE_COMMIT,
+    private val prNumber: Int = BuildConfig.PR_NUMBER,
 ) {
     sealed interface State {
         data object Missing : State
@@ -31,10 +34,17 @@ internal class AddonPack(
 
     val available: Boolean get() = sha256.isNotEmpty()
     private val tag get() = "pack-$name-${sha256.take(16)}"
-    private val urls get() = listOfNotNull(
+    internal val downloadUrls get() = listOfNotNull(
         "https://github.com/$REPO/releases/download/$tag/$name.tar.zst",
-        BuildConfig.PR_NUMBER.takeIf { it > 0 }?.let { "https://github.com/$PR_REPO/releases/download/pr-$it/$tag.tar.zst" },
+        prNumber.takeIf { it > 0 }?.let { "https://github.com/$PR_REPO/releases/download/pr-$it/$tag.tar.zst" },
+        sourceReleaseUrl(),
     )
+
+    private fun sourceReleaseUrl(): String? {
+        if (!componentRepository.matches(REPOSITORY) || !sourceCommit.matches(COMMIT) ||
+            !name.matches(PACK_NAME) || !sha256.matches(SHA256)) return null
+        return "https://github.com/$componentRepository/releases/download/main-$sourceCommit/$tag.tar.zst"
+    }
 
     private fun root(context: Context) = File(context.filesDir, "addons/$name")
     fun dir(context: Context) = File(root(context), version(context))
@@ -95,7 +105,7 @@ internal class AddonPack(
         }
         val root = root(context).apply { mkdirs() }
         val archive = File(root, "$sha256.tar.zst")
-        val downloaded = bundled(context, archive) || urls.any { url ->
+        val downloaded = bundled(context, archive) || downloadUrls.any { url ->
             Downloader.downloadFile(url, archive, true, sha256) { p -> mutableState.value = State.Downloading(p.coerceIn(0f, 1f)) }
                 .also { if (!it) archive.delete() }
         }
@@ -131,6 +141,10 @@ internal class AddonPack(
         private const val TAG = "AddonPack"
         private const val REPO = "Droid-Deck/DroidDeck-Components"
         private const val PR_REPO = "Droid-Deck/DroidDeck-CI"
+        private val REPOSITORY = Regex("[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}")
+        private val COMMIT = Regex("(?:[a-f0-9]{40}|[a-f0-9]{64})")
+        private val PACK_NAME = Regex("[a-z0-9][a-z0-9-]*")
+        private val SHA256 = Regex("[a-f0-9]{64}")
         const val COMPLETE = ".complete"
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 

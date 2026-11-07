@@ -1,0 +1,12 @@
+diff --git a/hybris/vulkan/compat/malibridge/spirv_edit.c b/hybris/vulkan/compat/malibridge/spirv_edit.c
+index 66b2982..ff47d3f 100644
+--- a/hybris/vulkan/compat/malibridge/spirv_edit.c
++++ b/hybris/vulkan/compat/malibridge/spirv_edit.c
+@@ -124,5 +124,7 @@ uint32_t spv_types_end(const spv_mod *m)
+ uint32_t spv_annotations_end(const spv_mod *m)
+ {
++    /* The logical layout keeps source/debug, execution-mode and module-processed
++     * instructions before the first type, so inserted decorations follow them. */
+     uint32_t end = spv_types_end(m);
+     for (uint32_t i = 0; i < end; i++) {
+         uint16_t op = m->ins[i].op;

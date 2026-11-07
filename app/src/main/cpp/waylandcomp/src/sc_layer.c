@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -412,6 +413,9 @@ static const char *tier_name(int tier) {
 
 static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fmt) {
     g_alloc_failed = 0;
+    if (w <= 0 || h <= 0 || (fmt != AHB_RGBA8 && fmt != AHB_RGB10A2)) { g_alloc_failed = 1; return -1; }
+    const int native_ahb = vkp_output_ahb_supported();
+    if (native_ahb && l->alloc_tier == TIER_UBWC) l->alloc_tier = TIER_PLAIN;
     while (l->alloc_tier <= TIER_LINEAR) {
         const int tier = l->alloc_tier;
         AHardwareBuffer_Desc d = {
@@ -435,13 +439,19 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
         }
         AHardwareBuffer_Desc got; AHardwareBuffer_describe(ahb, &got);
         const struct droiddeck_native_handle *nh = api.getNativeHandle(ahb);
+        if (got.width != (uint32_t)w || got.height != (uint32_t)h || got.layers != 1 || got.format != fmt) {
+            AHardwareBuffer_release(ahb);
+            g_alloc_failed = 1;
+            return -1;
+        }
         uint64_t mod = MOD_LINEAR;
         struct vkp_image *img = NULL;
-        const char *path;
+        const char *path = "none";
         char info[160] = "";
         if (sniff_modifier(nh, &mod)) {
-            img = vkp_image_import_dmabuf(nh->data[0], fmt == AHB_RGB10A2 ? DRM_ABGR2101010 : DRM_ABGR8888, mod, w, h,
-                                          got.stride * 4, 0, 1);
+            img = got.stride >= (uint32_t)w && got.stride <= UINT32_MAX / 4 ?
+                vkp_image_import_dmabuf(nh->data[0], fmt == AHB_RGB10A2 ? DRM_ABGR2101010 : DRM_ABGR8888,
+                                        mod, w, h, got.stride * 4, 0, 1) : NULL;
             path = "dma-buf (QTI handle)";
         } else {
             if (tier == TIER_UBWC) {
@@ -449,15 +459,23 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
                 describe_handle(nh, hd, sizeof(hd));
                 droiddeck_log("layer", "%s: gralloc handle is not a QTI one (%d fds, %d ints: %s): no UBWC request; "
                            "pool buffers are imported %s", l->name, nh ? nh->numFds : -1, nh ? nh->numInts : -1, hd,
-                           vkp_can_import_ahb() ? "as AHardwareBuffers (the driver takes gralloc's own layout)"
-                                                : "as linear dma-bufs (this driver has no AHardwareBuffer import)");
+                           (native_ahb || vkp_can_import_ahb()) ?
+                               "as AHardwareBuffers (the driver takes gralloc's own layout)" :
+                               "as linear dma-bufs (this driver has no AHardwareBuffer import)");
                 AHardwareBuffer_release(ahb);
-                l->alloc_tier = vkp_can_import_ahb() ? TIER_PLAIN : TIER_LINEAR;
+                l->alloc_tier = (native_ahb || vkp_can_import_ahb()) ? TIER_PLAIN : TIER_LINEAR;
                 continue;
             }
             mod = SC_MOD_GRALLOC;
-            path = "AHardwareBuffer";
-            img = vkp_image_import_ahb(ahb, info, sizeof(info));
+            if (native_ahb) {
+                path = "AHardwareBuffer (typed output)";
+                img = vkp_image_import_output_ahb(ahb, w, h, fmt);
+                if (img) snprintf(info, sizeof(info), "typed output import");
+            }
+            if (!img && !native_ahb && vkp_can_import_ahb()) {
+                path = "AHardwareBuffer";
+                img = vkp_image_import_ahb(ahb, info, sizeof(info));
+            }
             if (!img && tier == TIER_LINEAR) {
                 const off_t need = (off_t)got.stride * 4 * h;
                 int fd = -1, which = -1;
@@ -469,8 +487,9 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
                 if (fd < 0 && nh && nh->numFds > 0) { fd = nh->data[0]; which = 0; }
                 mod = MOD_LINEAR;
                 path = "linear dma-buf";
-                img = fd >= 0 ? vkp_image_import_dmabuf(fd, fmt == AHB_RGB10A2 ? DRM_ABGR2101010 : DRM_ABGR8888, mod,
-                                                        w, h, got.stride * 4, 0, 1) : NULL;
+                img = fd >= 0 && got.stride >= (uint32_t)w && got.stride <= UINT32_MAX / 4 ?
+                    vkp_image_import_dmabuf(fd, fmt == AHB_RGB10A2 ? DRM_ABGR2101010 : DRM_ABGR8888, mod,
+                                            w, h, got.stride * 4, 0, 1) : NULL;
                 snprintf(info, sizeof(info), "handle fd %d of %d", which, nh ? nh->numFds : 0);
                 if (vkp_can_import_ahb())
                     droiddeck_log("layer", "%s: AHardwareBuffer import failed: the linear dma-buf in the handle's fd %d "
@@ -481,7 +500,7 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
             char hd[256];
             describe_handle(nh, hd, sizeof(hd));
             droiddeck_log("layer", "%s: import of a %s %dx%d pool buffer (stride %u px, %s, usage %#llx) into the "
-                       "compositor's Turnip failed via %s; gralloc handle %d fds / %d ints: %s", l->name,
+                       "compositor failed via %s; gralloc handle %d fds / %d ints: %s", l->name,
                        pool_kind(mod), w, h, got.stride, tier_name(tier), (unsigned long long)got.usage, path,
                        nh ? nh->numFds : -1, nh ? nh->numInts : -1, hd);
             AHardwareBuffer_release(ahb);

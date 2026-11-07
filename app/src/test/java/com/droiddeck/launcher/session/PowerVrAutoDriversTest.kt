@@ -21,23 +21,23 @@ class PowerVrAutoDriversTest {
         SessionPrefs.setAndroidDriver(context, "imported-display")
     }
 
-    @Test fun autoRepairsStaleAdrenoSelectionsOnPowerVr() {
+    @Test fun autoRepairsStaleAdrenoSelectionsOnSystemVulkan() {
         SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_AUTO)
-        SessionPrefs.ensurePowerVrAutoDrivers(context, powerVr = true)
+        SessionPrefs.ensureSystemVulkanAutoDrivers(context, systemVulkan = true)
         assertEquals("", SessionPrefs.linuxDriver(context))
         assertEquals(TurnipDriver.AUTO, SessionPrefs.androidDriver(context))
     }
 
-    @Test fun explicitManualChoicesRemainOnPowerVr() {
+    @Test fun explicitManualChoicesRemainOnSystemVulkan() {
         SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_MANUAL)
-        SessionPrefs.ensurePowerVrAutoDrivers(context, powerVr = true)
+        SessionPrefs.ensureSystemVulkanAutoDrivers(context, systemVulkan = true)
         assertEquals("imported-linux", SessionPrefs.linuxDriver(context))
         assertEquals("imported-display", SessionPrefs.androidDriver(context))
     }
 
     @Test fun adrenoAutoChoicesRemain() {
         SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_AUTO)
-        SessionPrefs.ensurePowerVrAutoDrivers(context, powerVr = false)
+        SessionPrefs.ensureSystemVulkanAutoDrivers(context, systemVulkan = false)
         assertEquals("imported-linux", SessionPrefs.linuxDriver(context))
         assertEquals("imported-display", SessionPrefs.androidDriver(context))
     }

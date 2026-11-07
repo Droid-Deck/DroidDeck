@@ -12,9 +12,17 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE)
 class DriverPairUpdateTest {
-    private fun pair(sha: String, id: Long, updated: String, key: String = DriverPairs.nonAdreno("PanVK-Mali-G615")) =
+    private fun pair(
+        sha: String,
+        id: Long,
+        updated: String,
+        key: String = DriverPairs.nonAdreno("PanVK-Mali-G615"),
+        sourceId: String = "",
+        repository: String = "",
+    ) =
         TurnipReleases.Asset("Non-Adreno", "panvk-mali-g615", "PanVK-Mali-G615-Pair.zip", "https://example/p", 9_000_000, false,
-            "label", sha, key, bundle = true, assetId = id, updatedAt = updated)
+            "label", sha, key, bundle = true, sourceId = sourceId, repository = repository,
+            assetId = id, pairKind = DriverPairs.nonAdreno("PanVK-Mali-G615"), updatedAt = updated)
 
     @Test fun aRebuildUnderTheSameTagIsAnUpdate() {
         val context = RuntimeEnvironment.getApplication()
@@ -33,5 +41,16 @@ class DriverPairUpdateTest {
         val turnip = pair("a".repeat(64), 1, "2026-10-13T10:00:00Z", key = DriverPairs.BANNER)
         TurnipReleases.recordDownload(context, turnip, "Turnip-x")
         assertFalse(TurnipReleases.updateAvailable(context, pair("b".repeat(64), 2, "2026-10-15T10:00:00Z", key = DriverPairs.BANNER)))
+    }
+
+    @Test fun rebuildTrackingDoesNotCrossRepositorySources() {
+        val context = RuntimeEnvironment.getApplication()
+        val first = pair("a".repeat(64), 1, "2026-10-13T10:00:00Z", sourceId = "source-a", repository = "owner/a")
+        val second = pair("b".repeat(64), 2, "2026-10-15T10:00:00Z", sourceId = "source-b", repository = "owner/b")
+        TurnipReleases.recordDownload(context, first, "PanVK-source-a")
+
+        assertFalse(TurnipReleases.updateAvailable(context, second))
+        assertEquals(null, TurnipReleases.installedIdAnyBuild(context, second) { true })
+        assertEquals("PanVK-source-a", TurnipReleases.installedIdAnyBuild(context, first) { true })
     }
 }

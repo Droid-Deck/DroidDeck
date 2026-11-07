@@ -12,6 +12,26 @@ object DriverPairs {
     const val DD_TURNIP = "dd-turnip"
     fun ddTurnip(tag: String) = "$DD_TURNIP:$tag"
 
+    internal data class DdTurnipVersion(val major: Long, val minor: Long, val patch: Long) : Comparable<DdTurnipVersion> {
+        override fun compareTo(other: DdTurnipVersion): Int {
+            major.compareTo(other.major).takeIf { it != 0 }?.let { return it }
+            minor.compareTo(other.minor).takeIf { it != 0 }?.let { return it }
+            return patch.compareTo(other.patch)
+        }
+    }
+
+    private val DD_TURNIP_VERSION = Regex("""(\d+)\.(\d+)\.(\d+)$""")
+
+    internal fun ddTurnipVersion(pairKind: String): DdTurnipVersion? {
+        val match = DD_TURNIP_VERSION.find(pairKind) ?: return null
+        val (major, minor, patch) = match.destructured
+        return DdTurnipVersion(
+            major.toLongOrNull() ?: return null,
+            minor.toLongOrNull() ?: return null,
+            patch.toLongOrNull() ?: return null,
+        )
+    }
+
     /** The open non-Adreno drivers (The412Banner/droiddeck-nonadreno-drivers), one pair per driver. */
     const val NON_ADRENO = "nad"
     const val NAD_RADV_XCLIPSE = "nad:radv-xclipse"
@@ -56,6 +76,7 @@ object DriverPairs {
 
     class DriverPair(
         val key: String,
+        val pairKind: String,
         val name: String,
         val families: Set<Family>,
         val display: TurnipReleases.Asset?,
@@ -68,11 +89,11 @@ object DriverPairs {
             get() = listOfNotNull(bundle?.tag, display?.tag, linux?.tag).distinct().joinToString(" + ") { it.removePrefix("linux-").removePrefix("DD-Turnip-") }
         fun suits(gpu: GpuInfo) = when {
             // The system-driver family covers PowerVR and Xclipse; RADV is only for the Xclipse.
-            key == NAD_RADV_XCLIPSE || key == NAD_RADV_XCLIPSE_UPSTREAM ->
+            pairKind == NAD_RADV_XCLIPSE || pairKind == NAD_RADV_XCLIPSE_UPSTREAM ->
                 gpu.family == Family.POWERVR && gpu.name.contains("Xclipse", ignoreCase = true)
             // One binary for Mali v9-v13, not the older G52/G76 in the Job Manager family.
-            key == NAD_MALI_KBASE -> gpu.family.mali && GpuInfo.maliKbaseCovered(gpu.name)
-            key in DEVICE_BUILDS -> gpu.family.mali && GpuInfo.maliNumber(gpu.name) == DEVICE_BUILDS[key]
+            pairKind == NAD_MALI_KBASE -> gpu.family.mali && GpuInfo.maliKbaseCovered(gpu.name)
+            pairKind in DEVICE_BUILDS -> gpu.family.mali && GpuInfo.maliNumber(gpu.name) == DEVICE_BUILDS[pairKind]
             else -> gpu.family in families ||
                 (gpu.family == Family.ADRENO_UNKNOWN && (Family.A7XX in families || Family.A8XX in families))
         }
@@ -80,10 +101,10 @@ object DriverPairs {
 
     private val ALL_ADRENO = setOf(Family.A6XX, Family.A7XX, Family.A7XX_LOW, Family.A8XX, Family.ADRENO_UNKNOWN)
 
-    private fun describe(key: String): Pair<String, Set<Family>> = when {
-        key.startsWith(DD_TURNIP) -> "DroidDeck · DD-Turnip" to ALL_ADRENO
-        key.startsWith("$NON_ADRENO:") -> describeNonAdreno(key)
-        else -> describeFixed(key)
+    private fun describe(pairKind: String): Pair<String, Set<Family>> = when {
+        pairKind.startsWith(DD_TURNIP) -> "DroidDeck · DD-Turnip" to ALL_ADRENO
+        pairKind.startsWith("$NON_ADRENO:") -> describeNonAdreno(pairKind)
+        else -> describeFixed(pairKind)
     }
 
     private fun describeFixed(key: String): Pair<String, Set<Family>> = when (key) {
@@ -93,7 +114,7 @@ object DriverPairs {
         BANNER_ONEUI -> "Banners-Turnip · 8 Gen 2 on One UI" to setOf(Family.A7XX)
         WN_BALANCED -> "WinNative · Balanced" to ALL_ADRENO
         WN_PERFORMANCE -> "WinNative · Performance" to ALL_ADRENO
-        else -> key to ALL_ADRENO
+        else -> key to emptySet()
     }
 
     fun from(check: TurnipReleases.Check?): List<DriverPair> {
@@ -102,13 +123,17 @@ object DriverPairs {
         return assets.map { it.pair }.distinct()
             .sortedBy { key -> order.indexOf(key.substringBefore(':')).let { i -> if (i < 0) order.size else i } }
             .map { key ->
-                val (name, families) = describe(key)
                 val halves = assets.filter { it.pair == key }
-                halves.firstOrNull { it.bundle }?.let { return@map DriverPair(key, name, families, null, null, it) }
+                val pairKinds = halves.map { it.pairKind }.filter { it.isNotEmpty() }.distinct()
+                val kind = pairKinds.singleOrNull().orEmpty()
+                val (classifiedName, families) = kind.takeIf { it.isNotEmpty() }?.let(::describe)
+                    ?: (key to emptySet())
+                val name = classifiedName.ifEmpty { key }
+                halves.firstOrNull { it.bundle }?.let { return@map DriverPair(key, kind, name, families, null, null, it) }
                 val display = halves.firstOrNull { !it.linux }
                 val linux = halves.firstOrNull { it.linux }
-                val sameRelease = !key.startsWith(BANNER) || display?.tag == linux?.tag
-                DriverPair(key, name, families, display, if (sameRelease) linux else null)
+                val sameRelease = !kind.startsWith(BANNER) || display?.tag == linux?.tag
+                DriverPair(key, kind, name, families, display, if (sameRelease) linux else null)
             }
     }
 
@@ -155,8 +180,7 @@ object DriverPairs {
 
     fun newestDdTurnip(pairs: List<DriverPair>): String? = pairs
         .filter { it.key.startsWith("$DD_TURNIP:") && it.complete }
-        .maxByOrNull { p ->
-            Regex("""(\d+)\.(\d+)\.(\d+)$""").find(p.key)?.destructured
-                ?.let { (major, minor, patch) -> major.toLong() * 1_000_000_000_000 + minor.toLong() * 1_000_000 + patch.toLong() } ?: -1L
-        }?.key
+        .mapNotNull { pair -> ddTurnipVersion(pair.assets.firstOrNull()?.pairKind ?: pair.key)?.let { pair to it } }
+        .maxWithOrNull { first, second -> first.second.compareTo(second.second) }
+        ?.first?.key
 }

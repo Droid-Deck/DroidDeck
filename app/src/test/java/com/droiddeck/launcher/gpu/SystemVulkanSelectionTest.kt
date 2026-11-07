@@ -10,6 +10,62 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class SystemVulkanSelectionTest {
+    @Test fun maliProfileIsRetainedOnlyForStoredComponentMetadata() {
+        assertFalse(SystemVulkanDriver.Profile.MALI.systemSupported)
+        assertTrue(SystemVulkanDriver.Profile.POWERVR.systemSupported)
+        assertTrue(SystemVulkanDriver.Profile.XCLIPSE.systemSupported)
+    }
+
+    @Test fun runtimeLeasePublishesTheEnvironmentConsumedBySessionScripts() {
+        val environment = mutableListOf<String>()
+        val runtime = File("/runtime/system-vulkan")
+        val lease = SystemVulkanDriver.RuntimeLease(
+            SystemVulkanDriver.Provider.ADDON_PACK,
+            SystemVulkanDriver.Profile.POWERVR,
+            "version",
+            runtime,
+            "/dev/dri/renderD128",
+            null,
+        )
+
+        SystemVulkanDriver.addEnvironment(lease, environment)
+
+        assertTrue(environment.contains("BL_STEAM_WSI_LAYER_PATH=/runtime/system-vulkan/wsi"))
+        assertTrue(environment.contains("DROIDDECK_SYSTEM_VULKAN_DXVK=managed"))
+        assertTrue(environment.contains("DROIDDECK_SYSTEM_VULKAN_PROVIDER=addon_pack"))
+        assertTrue(environment.contains("DROIDDECK_SYSTEM_VULKAN_VERSION=version"))
+    }
+
+    @Test fun systemProfileDetectionDoesNotTreatMaliSamsungHalAsXclipse() {
+        assertEquals(SystemVulkanDriver.Profile.POWERVR,
+            SystemVulkanDriver.findProfile({ it.endsWith("vulkan.powervr.so") }, false))
+        assertEquals(SystemVulkanDriver.Profile.XCLIPSE,
+            SystemVulkanDriver.findProfile({ it.endsWith("vulkan.samsung.so") }, false))
+        assertNull(SystemVulkanDriver.findProfile({ it.endsWith("vulkan.samsung.so") }, true))
+        assertNull(SystemVulkanDriver.findProfile({ it.endsWith("vulkan.mali.so") }, true))
+    }
+
+    @Test fun defaultUsesAddonPackAndExplicitManagedRowsUseComponentStore() {
+        assertEquals(SystemVulkanDriver.Provider.ADDON_PACK,
+            SystemVulkanDriver.providerFor(true, ""))
+        assertTrue(SystemVulkanDriver.requiresAddonPack(true, ""))
+        assertFalse(SystemVulkanDriver.requiresInstalledManagedComponent(true, ""))
+        val managed = SystemVulkanComponentStore.rowId("a".repeat(64))
+        assertTrue(SystemVulkanDriver.usesSystemVulkan(true, managed))
+        assertEquals(SystemVulkanDriver.Provider.MANAGED_COMPONENT,
+            SystemVulkanDriver.providerFor(true, managed))
+        assertTrue(SystemVulkanDriver.requiresInstalledManagedComponent(true, managed))
+        assertFalse(SystemVulkanDriver.usesSystemVulkan(true, "custom-linux-driver"))
+        assertFalse(SystemVulkanDriver.usesSystemVulkan(false, managed))
+    }
+
+    @Test fun gpuProfilesKeepTheirRenderNodesSeparate() {
+        assertTrue(SystemVulkanDriver.renderNodeDriver(SystemVulkanDriver.Profile.POWERVR, "pvrsrvkm"))
+        assertFalse(SystemVulkanDriver.renderNodeDriver(SystemVulkanDriver.Profile.POWERVR, "sgpu"))
+        assertTrue(SystemVulkanDriver.renderNodeDriver(SystemVulkanDriver.Profile.XCLIPSE, "sgpu"))
+        assertFalse(SystemVulkanDriver.renderNodeDriver(SystemVulkanDriver.Profile.XCLIPSE, "pvrsrvkm"))
+    }
+
     @Test fun defaultPowerVrUsesTheSystemBridge() {
         assertTrue(SystemVulkanDriver.usesDefault(true, ""))
         assertTrue(SystemVulkanDriver.usesDefault(true, null))

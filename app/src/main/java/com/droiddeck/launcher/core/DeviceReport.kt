@@ -190,7 +190,7 @@ object DeviceReport {
         k("KGSL gpu_model", readSys("/sys/class/kgsl/kgsl-3d0/gpu_model"))
         k("KGSL chip id", readSys("/sys/class/kgsl/kgsl-3d0/gpu_chipid"))
         k("System Vulkan ICD", when {
-            SystemVulkanDriver.isPowerVr() -> SystemVulkanDriver.hal()
+            SystemVulkanDriver.isSupportedGpu() -> SystemVulkanDriver.hal()
             File("/vendor/lib64/hw/vulkan.adreno.so").exists() -> "/vendor/lib64/hw/vulkan.adreno.so"
             else -> "not at the usual path"
         })
@@ -229,7 +229,7 @@ object DeviceReport {
         val turnip = TurnipDriver(context)
         val androidChoice = SessionPrefs.androidDriver(context)
         val displayId = androidChoice.ifEmpty { turnip.autoId() }
-        val displayLabel = if (displayId == "system") DeviceInfo.builtinDriverLabel(SystemVulkanDriver.isPowerVr(), runtime = false)
+        val displayLabel = if (displayId == "system") DeviceInfo.builtinDriverLabel(SystemVulkanDriver.profile(), runtime = false)
             else "${turnip.displayName(displayId)} ${turnip.driverVersion(displayId)}".trim()
         k("Display driver (chosen)", if (androidChoice.isEmpty()) "Auto -> $displayLabel" else androidChoice)
         k("  name / version", displayLabel)
@@ -237,12 +237,17 @@ object DeviceReport {
         val lm = LinuxVulkanDriverManager(context)
         run {
             val id = SessionPrefs.linuxDriver(context)
-            val label = if (id.isEmpty()) DeviceInfo.builtinDriverLabel(SystemVulkanDriver.isPowerVr(), runtime = true)
+            val label = if (id.isEmpty()) DeviceInfo.builtinDriverLabel(SystemVulkanDriver.profile(), runtime = true)
             else "${lm.getDriverName(id)} ${lm.getDriverVersion(id)}".trim() +
                 lm.getMinGlibc(id).let { if (it.isEmpty()) "" else " (glibc $it+)" } +
-                if (lm.isInstalled(id)) "" else if (SystemVulkanDriver.isPowerVr()) "  [MISSING - select an installed driver or Auto]"
+                if (lm.isInstalled(id)) "" else if (SystemVulkanDriver.isSupportedGpu()) "  [MISSING - select an installed driver or Auto]"
                 else "  [MISSING - falls back to the runtime's own]"
             k("Linux driver", label)
+            val route = DeviceSupport.graphicsRoute(context, id)
+            k("Graphics route", route.id)
+            if (route.systemVulkan) k("System Vulkan provider", runCatching {
+                SystemVulkanDriver.providerFor(id).name.lowercase(Locale.US)
+            }.getOrDefault("unavailable"))
         }
         k("Runtime's own ICD", LinuxRuntime.vulkanIcd(context)?.path)
         k("Mali (Venus)", if (com.droiddeck.launcher.session.VenusComponent.wanted(context)) "in use"

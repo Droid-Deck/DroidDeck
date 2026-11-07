@@ -77,6 +77,57 @@ class AddonPackTest {
         assertFalse(copy.exists())
     }
 
+    @Test fun manualPreviewTriesItsExactSourceReleaseAfterTheOfficialPack() {
+        val commit = "1".repeat(40)
+        val digest = "abcdef0123456789" + "2".repeat(48)
+        val pack = AddonPack(
+            "sample", digest, 1L, listOf("tool"), componentRepository = "wallentx/DroidDeck",
+            sourceCommit = commit, prNumber = 0,
+        )
+
+        assertEquals(listOf(
+            "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/" +
+                "pack-sample-abcdef0123456789/sample.tar.zst",
+            "https://github.com/wallentx/DroidDeck/releases/download/main-$commit/" +
+                "pack-sample-abcdef0123456789.tar.zst",
+        ), pack.downloadUrls)
+    }
+
+    @Test fun pullRequestPackRemainsAheadOfTheExactSourceReleaseFallback() {
+        val commit = "3".repeat(40)
+        val digest = "4".repeat(64)
+        val pack = AddonPack(
+            "powervr", digest, 1L, listOf("tool"), componentRepository = "wallentx/DroidDeck",
+            sourceCommit = commit, prNumber = 7,
+        )
+
+        assertEquals(listOf(
+            "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/" +
+                "pack-powervr-4444444444444444/powervr.tar.zst",
+            "https://github.com/Droid-Deck/DroidDeck-CI/releases/download/pr-7/" +
+                "pack-powervr-4444444444444444.tar.zst",
+            "https://github.com/wallentx/DroidDeck/releases/download/main-$commit/" +
+                "pack-powervr-4444444444444444.tar.zst",
+        ), pack.downloadUrls)
+    }
+
+    @Test fun malformedPreviewIdentityDoesNotCreateASourceReleaseFallback() {
+        val validDigest = "5".repeat(64)
+        val cases = listOf(
+            { pr: Int -> AddonPack("sample", validDigest, 1L, listOf("tool"), componentRepository = "bad repo", sourceCommit = "6".repeat(40), prNumber = pr) },
+            { pr: Int -> AddonPack("sample", validDigest, 1L, listOf("tool"), componentRepository = "wallentx/DroidDeck", sourceCommit = "short", prNumber = pr) },
+            { pr: Int -> AddonPack("sample", validDigest, 1L, listOf("tool"), componentRepository = "wallentx/DroidDeck", sourceCommit = "A".repeat(40), prNumber = pr) },
+            { pr: Int -> AddonPack("../sample", validDigest, 1L, listOf("tool"), componentRepository = "wallentx/DroidDeck", sourceCommit = "7".repeat(40), prNumber = pr) },
+            { pr: Int -> AddonPack("sample", "A".repeat(64), 1L, listOf("tool"), componentRepository = "wallentx/DroidDeck", sourceCommit = "8".repeat(40), prNumber = pr) },
+        )
+
+        for (pr in listOf(0, 7)) for ((index, create) in cases.withIndex()) {
+            val urls = create(pr).downloadUrls
+            assertFalse("case $index with PR $pr added a source-release fallback", urls.any { "/releases/download/main-" in it })
+            assertEquals("case $index with PR $pr lost an official or PR fallback", if (pr > 0) 2 else 1, urls.size)
+        }
+    }
+
     private fun tarZst(vararg files: Pair<String, String>): File =
         File(context.cacheDir, "sample-${System.nanoTime()}.tar.zst").apply {
             TarArchiveOutputStream(ZstdOutputStream(outputStream())).use { tar ->

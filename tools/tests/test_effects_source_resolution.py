@@ -24,6 +24,7 @@ class EffectsSourceResolutionTest(unittest.TestCase):
             raise unittest.SkipTest('A host C compiler is required')
         source = (REPO / 'app/src/main/cpp/waylandcomp/src/vk_present.c').read_text()
         header = (REPO / 'app/src/main/cpp/waylandcomp/src/vk_present.h').read_text()
+        external_sync = (REPO / 'app/src/main/cpp/waylandcomp/src/vk_external_image_sync.h').read_text()
         effects = (REPO / 'app/src/main/cpp/waylandcomp/src/effects_chain.c').read_text()
         functions = '\n'.join(function(source, signature) for signature in (
             'static void release_external_client_image(', 'static void release_external_client_draws(',
@@ -38,13 +39,12 @@ class EffectsSourceResolutionTest(unittest.TestCase):
         image = source[source.index('struct vkp_image {'):source.index('\n};', source.index('struct vkp_image {')) + 3]
         draw = header[header.index('struct vkp_draw {'):header.index('\n};', header.index('struct vkp_draw {')) + 3]
         hdr = header[header.index('struct vkp_hdr_frame {'):header.index('\n};', header.index('struct vkp_hdr_frame {')) + 3]
-        sync = (REPO / 'app/src/main/cpp/waylandcomp/src/vk_external_image_sync.h').read_text()
-        sync = re.sub(r'^#(include|ifndef|define|endif).*$', '', sync, flags=re.M)
-        constants = sorted(set(re.findall(r'\bVK_[A-Z0-9_]+\b', functions + image + sync)) -
+        external_sync = re.sub(r'^#(?:ifndef|define|include|endif).*$', '', external_sync, flags=re.MULTILINE)
+        constants = sorted(set(re.findall(r'\bVK_[A-Z0-9_]+\b', functions + image + external_sync)) -
                            {'VK_FORMAT_R8G8B8A8_UNORM'})
         definitions = '\n'.join(f'#define {name} {0 if name in ("VK_SUCCESS", "VK_NULL_HANDLE") else i + 1}'
                                 for i, name in enumerate(constants))
-        code = TYPES + definitions + '\n' + sync + '\n' + image + '\n' + draw + '\n' + hdr + STUBS + functions + CASES
+        code = TYPES + definitions + '\n' + external_sync + '\n' + image + '\n' + draw + '\n' + hdr + STUBS + functions + CASES
         cls.temp = tempfile.TemporaryDirectory(prefix='droiddeck-effects-resolution-')
         cls.addClassCleanup(cls.temp.cleanup)
         folder = Path(cls.temp.name)
@@ -111,6 +111,7 @@ TYPES = r'''
 typedef int VkImage, VkDeviceMemory, VkFormat, VkCommandBuffer, VkResult, VkFilter;
 typedef int VkImageLayout, VkPipelineStageFlags, VkImageUsageFlags;
 typedef uint64_t VkDeviceSize;
+typedef struct AHardwareBuffer AHardwareBuffer;
 typedef struct { unsigned width, height; } VkExtent2D;
 typedef struct { int x, y, z; } VkOffset3D;
 typedef struct { unsigned aspectMask, mipLevel, baseArrayLayer, layerCount; } VkImageSubresourceLayers;
@@ -160,6 +161,9 @@ static void quarantine_pending_work(VkResult result, const char *where) { (void)
 static int noop(int handle, ...) { return VK_SUCCESS; }
 static VkImageMemoryBarrier recorded_barriers[64];
 static int barrier_count;
+static int operation_order;
+static int release_order[64];
+static int draw_order[16];
 static int note_barriers(int cmd, int src_stage, int dst_stage, int flags,
                           unsigned memory_count, const VkMemoryBarrier *memory,
                           unsigned buffer_count, const void *buffers,
@@ -167,6 +171,12 @@ static int note_barriers(int cmd, int src_stage, int dst_stage, int flags,
     for (unsigned i = 0; i < image_count; i++) {
         assert(barrier_count < 64);
         recorded_barriers[barrier_count++] = images[i];
+        operation_order++;
+        if (images[i].oldLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL &&
+            images[i].newLayout == VK_IMAGE_LAYOUT_GENERAL &&
+            images[i].dstQueueFamilyIndex == VK_QUEUE_FAMILY_FOREIGN_EXT &&
+            images[i].image >= 0 && images[i].image < (int)(sizeof(release_order) / sizeof(release_order[0])))
+            release_order[images[i].image] = operation_order;
     }
     return VK_SUCCESS;
 }
@@ -276,6 +286,9 @@ static struct vkp_draw fullscreen(void) {
 }
 static void reset(void) {
     copy_count = effects_count = screen_count = hdr_count = barrier_count = 0;
+    operation_order = 0;
+    memset(release_order, 0, sizeof(release_order));
+    memset(draw_order, 0, sizeof(draw_order));
     effects_active = 1; g_cur.scaling = 4;
     framegen = cardboard = fail_scene = fail_effects = postprocessing = g_plain_frame = 0;
     g_pass.active = 0; g_extent = (VkExtent2D){1920, 1080};

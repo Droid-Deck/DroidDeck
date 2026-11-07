@@ -1,0 +1,956 @@
+diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
+index a2c4b4d..9f58370 100644
+--- a/hybris/vulkan/Makefile.am
++++ b/hybris/vulkan/Makefile.am
+@@ -32,6 +32,7 @@ libVkLayer_hybris_compat_la_SOURCES = layer/entry.c layer/device.c layer/physica
+     compat/point_size.c compat/point_size.h \
+     compat/spirv_inout.c compat/spirv_inout.h \
+     compat/clip_distance.c compat/clip_distance.h compat/distance_lowering.c compat/distance_lowering.h \
++    compat/primitive_adapter.c compat/primitive_adapter.h \
+     compat/malibridge/spirv_edit.c compat/malibridge/spirv_edit.h \
+     compat/malibridge/spirv_clip.c compat/malibridge/spirv_clip.h \
+     compat/malibridge/spirv_pervertex.c compat/malibridge/spirv_pervertex.h \
+diff --git a/hybris/vulkan/compat/clip_distance.c b/hybris/vulkan/compat/clip_distance.c
+index 10e19c1..931bf7e 100644
+--- a/hybris/vulkan/compat/clip_distance.c
++++ b/hybris/vulkan/compat/clip_distance.c
+@@ -35,7 +35,7 @@ int hybris_cull_active(VkPhysicalDevice physical)
+         context.resolver(context.instance, "vkGetPhysicalDeviceFeatures");
+     if (!query) return 0;
+     query(physical, &features);
+-    return !features.shaderCullDistance;
++    return !features.shaderCullDistance && features.geometryShader;
+ }
+ 
+ int hybris_clip_extension_allowed(const char *name)
+diff --git a/hybris/vulkan/compat/distance_lowering.c b/hybris/vulkan/compat/distance_lowering.c
+index 0389905..32b3272 100644
+--- a/hybris/vulkan/compat/distance_lowering.c
++++ b/hybris/vulkan/compat/distance_lowering.c
+@@ -108,11 +108,15 @@ VkResult hybris_distance_pipeline(unsigned what, int wrap, unsigned count,
+                 goto done;
+             }
+             changed[k] |= demote;
++            if (info.in[1] || info.out[1]) out[index[k]].cull_used = 1;
+             for (unsigned b = 0; b < 3; ++b) approximate |= info.in[b] && info.in[b] != previous[b];
+             if (k < 4) {
+                 memcpy(previous, info.out, sizeof(previous));
+                 clip = info.out[0]; first = 0;
+-                if (info.out[1]) note("CullDistance_unapplied", info.out[1]);
++                if (k == 0 && info.out[1]) {
++                    out[index[k]].cull_location = base + info.out[0];
++                    out[index[k]].cull_count = info.out[1];
++                }
+             } else if (clip) {
+                 if (vkb_spv_clip_discard(module, base, clip, info.clip_in_var) < 0) {
+                     *reason = "MaliBridge fragment discard failed";
+diff --git a/hybris/vulkan/compat/distance_lowering.h b/hybris/vulkan/compat/distance_lowering.h
+index 646d18d..b5eed09 100644
+--- a/hybris/vulkan/compat/distance_lowering.h
++++ b/hybris/vulkan/compat/distance_lowering.h
+@@ -8,7 +8,12 @@ struct hybris_distance_stage {
+     const uint32_t *code;
+     size_t size;
+ };
+-struct hybris_distance_code { uint32_t *code; size_t size; };
++struct hybris_distance_code {
++    uint32_t *code;
++    size_t size;
++    uint32_t cull_location, cull_count;
++    int cull_used;
++};
+ /* Masks use MaliBridge VKB_SPV_CLIP/CULL/POINT_SIZE bit values. */
+ VkResult hybris_distance_module(unsigned what, int wrap, const uint32_t *code, size_t size,
+     const VkAllocationCallbacks *allocator, struct hybris_distance_code *out, const char **reason);
+diff --git a/hybris/vulkan/compat/primitive_adapter.c b/hybris/vulkan/compat/primitive_adapter.c
+new file mode 100644
+index 0000000..27c010f
+--- /dev/null
++++ b/hybris/vulkan/compat/primitive_adapter.c
+@@ -0,0 +1,388 @@
++/* SPDX-License-Identifier: Apache-2.0 */
++#include "primitive_adapter.h"
++#include <stdarg.h>
++#include <string.h>
++
++struct id { size_t at; uint32_t op, type, input, input_ptr, value_ptr, read_ptr, write_ptr, in_type; unsigned needed; };
++struct module { uint32_t *w; size_t n, cap; uint32_t next; const VkAllocationCallbacks *alloc; };
++static int reserve(struct module *m, size_t count)
++{
++    if (count > SIZE_MAX - m->n) return 0;
++    if (m->n + count <= m->cap) return 1;
++    size_t cap = m->cap ? m->cap : 256;
++    while (cap < m->n + count) { if (cap > SIZE_MAX / 8) return 0; cap *= 2; }
++    uint32_t *w = hybris_scaled_alloc(m->alloc, cap * 4, VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
++    if (!w) return 0;
++    if (m->w) memcpy(w, m->w, m->n * 4);
++    hybris_scaled_free(m->alloc, m->w); m->w = w; m->cap = cap;
++    return 1;
++}
++static int words(struct module *m, const uint32_t *p, size_t n)
++{ if (!reserve(m, n)) return 0; memcpy(m->w + m->n, p, n * 4); m->n += n; return 1; }
++static int ins(struct module *m, unsigned op, unsigned count, ...)
++{
++    if (!reserve(m, count)) return 0;
++    m->w[m->n++] = (count << 16) | op;
++    va_list args; va_start(args, count);
++    for (unsigned i = 1; i < count; ++i) m->w[m->n++] = va_arg(args, uint32_t);
++    va_end(args); return 1;
++}
++/* Only value types are cloned. Resources, pointers nested in interface values,
++ * runtime arrays and specialization-dependent array lengths need separate work. */
++static int needed(const uint32_t *w, struct id *ids, uint32_t bound, uint32_t id, unsigned depth)
++{
++    if (!id || id >= bound || !ids[id].at || depth > 64) return 0;
++    if (ids[id].needed) return 1;
++    const uint32_t *p = w + ids[id].at;
++    unsigned n = p[0] >> 16, op = ids[id].op;
++    ids[id].needed = 1;
++    switch (op) {
++    case 20: return n == 2;
++    case 21: return n == 4;
++    case 22: return n == 3;
++    case 23: case 24: return n == 4 && needed(w, ids, bound, p[2], depth + 1);
++    case 28: return n == 4 && p[3] < bound && ids[p[3]].op == 43 &&
++        needed(w, ids, bound, p[2], depth + 1) && needed(w, ids, bound, p[3], depth + 1);
++    case 30:
++        for (unsigned i = 2; i < n; ++i) if (!needed(w, ids, bound, p[i], depth + 1)) return 0;
++        return 1;
++    case 32: return n == 4 && p[2] == 3 && needed(w, ids, bound, p[3], depth + 1);
++    case 43: return n >= 4 && needed(w, ids, bound, p[1], depth + 1);
++    default: return 0;
++    }
++}
++
++/* Some drivers cannot lower whole gl_PerVertex block loads/stores in geometry
++ * shaders. Walk aggregates and copy their scalar/vector leaves instead. */
++static int pass_value(struct module *m, const uint32_t *w, struct id *ids,
++    uint32_t type, uint32_t in, uint32_t out, const uint32_t constants[64],
++    uint32_t path[65], unsigned depth)
++{
++    if (depth >= 64) return 0;
++    const uint32_t *p = w + ids[type].at;
++    unsigned count = 0;
++    if (ids[type].op == 30) count = (p[0] >> 16) - 2;
++    if (ids[type].op == 24) count = p[3];
++    if (ids[type].op == 28) count = w[ids[p[3]].at + 3];
++    if (count) {
++        if (count > 64) return 0;
++        for (unsigned i = 0; i < count; ++i) {
++            path[depth + 1] = constants[i];
++            uint32_t child = ids[type].op == 30 ? p[i + 2] : p[2];
++            if (!pass_value(m, w, ids, child, in, out, constants, path, depth + 1)) return 0;
++        }
++        return 1;
++    }
++    uint32_t ptr = m->next++, value = m->next++, chain[70];
++    unsigned n = 5 + depth;
++    chain[0] = (n << 16) | 65; chain[1] = ids[type].read_ptr; chain[2] = ptr; chain[3] = in;
++    memcpy(chain + 4, path, (depth + 1) * 4);
++    if (!words(m, chain, n) || !ins(m, 61, 4, type, value, ptr)) return 0;
++    uint32_t target = out;
++    if (depth) {
++        target = m->next++;
++        n = 4 + depth;
++        chain[0] = (n << 16) | 65; chain[1] = ids[type].write_ptr; chain[2] = target; chain[3] = out;
++        memcpy(chain + 4, path + 1, depth * 4);
++        if (!words(m, chain, n)) return 0;
++    }
++    return ins(m, 62, 3, target, value);
++}
++
++VkResult hybris_spirv_primitive_adapter_topology(const uint32_t *v, size_t bytes,
++    uint32_t location, uint32_t distances, VkPrimitiveTopology topology, int edges,
++    const struct hybris_primitive_faces *faces, const VkAllocationCallbacks *alloc,
++    uint32_t **output, size_t *output_bytes, const char **reason)
++{
++    *output = NULL; *output_bytes = 0;
++    *reason = "unsupported primitive-adapter vertex interface";
++    uint32_t vertices, input_mode, output_mode;
++    switch (topology) {
++    case VK_PRIMITIVE_TOPOLOGY_POINT_LIST:
++        vertices = 1; input_mode = 19; output_mode = 27; break;
++    case VK_PRIMITIVE_TOPOLOGY_LINE_LIST:
++    case VK_PRIMITIVE_TOPOLOGY_LINE_STRIP:
++        vertices = 2; input_mode = 20; output_mode = 28; break;
++    case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST:
++    case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP:
++    case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN:
++        vertices = 3; input_mode = 22; output_mode = 29; break;
++    default: return VK_ERROR_FEATURE_NOT_PRESENT;
++    }
++    if (edges && vertices != 3) return VK_ERROR_FEATURE_NOT_PRESENT;
++    if (faces && (!edges || faces->cull_mode > VK_CULL_MODE_FRONT_AND_BACK ||
++        (faces->front_face != VK_FRONT_FACE_COUNTER_CLOCKWISE &&
++         faces->front_face != VK_FRONT_FACE_CLOCKWISE))) return VK_ERROR_FEATURE_NOT_PRESENT;
++    if (!v || bytes < 20 || bytes % 4 || v[0] != 0x07230203 || !v[3] ||
++        v[3] > 1000000 || (!distances && !edges) || distances > 8) return VK_ERROR_FEATURE_NOT_PRESENT;
++    size_t total = bytes / 4;
++    uint32_t bound = v[3], outputs[64], count = 0, distance_var = 0;
++    uint32_t position_var = 0, position_member = UINT32_MAX;
++    struct id *ids = hybris_scaled_alloc(alloc, bound * sizeof(*ids), VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
++    if (!ids) return VK_ERROR_OUT_OF_HOST_MEMORY;
++    memset(ids, 0, bound * sizeof(*ids));
++    struct module m = {.next = bound, .alloc = alloc};
++    VkResult status = VK_ERROR_FEATURE_NOT_PRESENT;
++    unsigned entries = 0;
++    for (size_t at = 5; at < total;) {
++        const uint32_t *p = v + at;
++        unsigned n = p[0] >> 16, op = p[0] & 65535;
++        if (!n || n > total - at) goto done;
++        if (op == 14 && (n != 3 || p[1] != 0 || p[2] != 1)) goto done;
++        if (op == 15 && (n < 4 || p[1] != 0 || ++entries != 1)) goto done;
++        if (op == 73 || op == 74 || op == 75 || op == 332) goto done;
++        if (op >= 19 && op <= 32) {
++            if (n < 2 || !p[1] || p[1] >= bound) goto done;
++            ids[p[1]] = (struct id){.at = at, .op = op};
++        }
++        if (op == 43 || op == 59) {
++            if (n < 4 || !p[2] || p[2] >= bound || p[1] >= bound) goto done;
++            ids[p[2]] = (struct id){.at = at, .op = op, .type = p[1]};
++            if (op == 59 && p[3] == 3) {
++                if (n != 4 || count == 64) goto done;
++                outputs[count++] = p[2];
++            }
++        }
++        at += n;
++    }
++    if (!entries || !count) goto done;
++    for (uint32_t i = 0; i < count; ++i) {
++        uint32_t var = outputs[i];
++        if (ids[ids[var].type].op != 32 || !needed(v, ids, bound, ids[var].type, 0)) goto done;
++        ids[var].needed = 1;
++        ids[var].input = m.next++; ids[var].input_ptr = m.next++; ids[var].value_ptr = m.next++;
++    }
++    for (size_t at = 5; at < total; at += v[at] >> 16) {
++        const uint32_t *p = v + at;
++        unsigned n = p[0] >> 16, op = p[0] & 65535;
++        if (op == 71 && n >= 3 && p[1] < bound && ids[p[1]].needed) {
++            /* Reject transform feedback, streams, per-view/per-primitive and
++             * other decorations whose primitive-stage meaning is not handled. */
++            if (p[2] != 2 && p[2] != 11 && p[2] != 13 && p[2] != 14 && p[2] != 16 &&
++                p[2] != 17 && p[2] != 30 && p[2] != 31 && p[2] != 32) goto done;
++            if (p[2] == 11 && (n != 4 || p[3] > 3 || p[3] == 2)) goto done;
++            if (p[2] == 11 && p[3] == 0 && ids[p[1]].op == 59) {
++                if (position_var) goto done;
++                position_var = p[1];
++            }
++            if (distances && p[2] == 30 && n == 4 && p[3] == location && ids[p[1]].op == 59) {
++                if (distance_var) goto done;
++                distance_var = p[1];
++            }
++        }
++        if (op == 72 && n >= 4 && p[1] < bound && ids[p[1]].needed) {
++            if (p[3] != 11 && p[3] != 13 && p[3] != 14 && p[3] != 16 && p[3] != 17 && p[3] != 30 && p[3] != 31) goto done;
++            if (p[3] == 11 && (n != 5 || p[4] > 3 || p[4] == 2)) goto done;
++            if (p[3] == 11 && p[4] == 0) {
++                for (uint32_t i = 0; i < count; ++i)
++                    if (v[ids[ids[outputs[i]].type].at + 3] == p[1]) {
++                        if (position_var) goto done;
++                        position_var = outputs[i]; position_member = p[2];
++                    }
++            }
++        }
++    }
++    uint32_t float_type = 0;
++    if (distances) {
++        if (!distance_var) goto done;
++        uint32_t array = v[ids[ids[distance_var].type].at + 3];
++        if (array >= bound || ids[array].op != 28) goto done;
++        const uint32_t *arr = v + ids[array].at;
++        uint32_t length = arr[3];
++        float_type = arr[2];
++        if (float_type >= bound || ids[float_type].op != 22 || v[ids[float_type].at + 2] != 32 ||
++            length >= bound || ids[length].op != 43 || (v[ids[length].at] >> 16) != 4 ||
++            v[ids[length].at + 3] != distances) goto done;
++    } else {
++        /* Edge output must also work for ordinary vertex shaders, without
++         * manufacturing a CullDistance varying or enabling that feature. */
++        for (uint32_t type = 1; type < bound; ++type)
++            if (ids[type].needed && ids[type].op == 22 && v[ids[type].at + 2] == 32) {
++                float_type = type; break;
++            }
++        if (!float_type) goto done;
++    }
++    if (faces && faces->cull_mode && faces->cull_mode != VK_CULL_MODE_FRONT_AND_BACK) {
++        if (!position_var) goto done;
++        uint32_t type = v[ids[ids[position_var].type].at + 3];
++        if (position_member != UINT32_MAX) {
++            if (ids[type].op != 30 || position_member >= (v[ids[type].at] >> 16) - 2) goto done;
++            type = v[ids[type].at + 2 + position_member];
++        }
++        if (ids[type].op != 23 || v[ids[type].at + 2] != float_type || v[ids[type].at + 3] != 4) goto done;
++    }
++    uint32_t void_type = m.next++, bool_type = m.next++, uint_type = m.next++;
++    int new_uint = 1;
++    for (uint32_t id = 1; id < bound; ++id)
++        if (ids[id].needed && ids[id].op == 21 && v[ids[id].at + 2] == 32 && v[ids[id].at + 3] == 0) {
++            uint_type = id; new_uint = 0; break;
++        }
++    uint32_t function_type = m.next++, fn = m.next++, label = m.next++;
++    uint32_t constants[64]; for (unsigned i = 0; i < 64; ++i) constants[i] = m.next++;
++    uint32_t three = m.next++, zero = m.next++, false_id = m.next++, float_ptr = m.next++;
++    uint32_t true_id = m.next++;
++    for (uint32_t type = 1; type < bound; ++type) {
++        if (!ids[type].needed || ids[type].op < 20 || ids[type].op > 30) continue;
++        const uint32_t *p = v + ids[type].at;
++        if ((ids[type].op == 30 && (p[0] >> 16) > 66) ||
++            (ids[type].op == 28 && v[ids[p[3]].at + 3] > 64)) goto done;
++        ids[type].read_ptr = type == float_type ? float_ptr : m.next++;
++        ids[type].in_type = (ids[type].op == 24 || ids[type].op == 28 || ids[type].op == 30) ? m.next++ : type;
++        for (uint32_t id = 1; id < bound; ++id)
++            if (ids[id].op == 32 && v[ids[id].at + 2] == 3 && v[ids[id].at + 3] == type) {
++                ids[type].write_ptr = id; ids[id].needed = 1; break;
++            }
++        if (!ids[type].write_ptr) ids[type].write_ptr = m.next++;
++    }
++#define EMIT(op, n, ...) do { if (!ins(&m, op, n, __VA_ARGS__)) { status = VK_ERROR_OUT_OF_HOST_MEMORY; goto done; } } while (0)
++#define COPY(p, n) do { if (!words(&m, p, n)) { status = VK_ERROR_OUT_OF_HOST_MEMORY; goto done; } } while (0)
++    COPY(v, 5);
++    for (size_t at = 5; at < total; at += v[at] >> 16)
++        if ((v[at] & 65535) == 17 || (v[at] & 65535) == 10) COPY(v + at, v[at] >> 16);
++    EMIT(17, 2, 2u); /* Geometry */
++    EMIT(14, 3, 0u, 1u); /* Logical GLSL450 */
++    uint32_t entry[133] = {(uint32_t)((5 + count * 2) << 16) | 15, 3, fn, 0x6e69616d, 0};
++    for (uint32_t i = 0; i < count; ++i) { entry[5 + i * 2] = outputs[i]; entry[6 + i * 2] = ids[outputs[i]].input; }
++    COPY(entry, 5 + count * 2);
++    EMIT(16, 3, fn, input_mode);
++    EMIT(16, 4, fn, 0u, 1u); /* Invocations */
++    EMIT(16, 3, fn, edges ? 28u : output_mode);
++    EMIT(16, 4, fn, 26u, edges ? 6u : vertices); /* OutputVertices */
++    for (size_t at = 5; at < total; at += v[at] >> 16) {
++        const uint32_t *p = v + at; unsigned n = p[0] >> 16, op = p[0] & 65535;
++        if ((op == 71 || op == 72) && p[1] < bound && ids[p[1]].needed) {
++            COPY(p, n);
++            if (op == 71 && ids[p[1]].op == 59) {
++                size_t start = m.n; COPY(p, n); m.w[start + 1] = ids[p[1]].input;
++            }
++            if (ids[p[1]].in_type && ids[p[1]].in_type != p[1]) {
++                size_t start = m.n; COPY(p, n); m.w[start + 1] = ids[p[1]].in_type;
++            }
++        }
++    }
++    for (size_t at = 5; at < total; at += v[at] >> 16) {
++        const uint32_t *p = v + at; unsigned n = p[0] >> 16, op = p[0] & 65535;
++        if (op >= 19 && op <= 32 && ids[p[1]].needed) COPY(p, n);
++        if (op == 43 && ids[p[2]].needed) COPY(p, n);
++    }
++    EMIT(19, 2, void_type); EMIT(20, 2, bool_type);
++    if (new_uint) EMIT(21, 4, uint_type, 32u, 0u);
++    EMIT(33, 3, function_type, void_type);
++    for (unsigned i = 0; i < 64; ++i) EMIT(43, 4, uint_type, constants[i], i);
++    EMIT(43, 4, uint_type, three, vertices); EMIT(43, 4, float_type, zero, 0u);
++    EMIT(42, 3, bool_type, false_id); EMIT(32, 4, float_ptr, 1u, float_type);
++    EMIT(41, 3, bool_type, true_id);
++    for (size_t at = 5; at < total; at += v[at] >> 16) {
++        const uint32_t *p = v + at; unsigned n = p[0] >> 16, op = p[0] & 65535;
++        if ((op == 24 || op == 28 || op == 30) && ids[p[1]].in_type && ids[p[1]].in_type != p[1]) {
++            size_t start = m.n; COPY(p, n); m.w[start + 1] = ids[p[1]].in_type;
++            unsigned end = op == 30 ? n : 3;
++            for (unsigned i = 2; i < end; ++i) m.w[start + i] = ids[p[i]].in_type;
++        }
++    }
++    for (uint32_t type = 1; type < bound; ++type) {
++        if (!ids[type].read_ptr) continue;
++        if (type != float_type) EMIT(32, 4, ids[type].read_ptr, 1u, ids[type].in_type);
++        if (ids[type].write_ptr >= bound) EMIT(32, 4, ids[type].write_ptr, 3u, type);
++    }
++    for (uint32_t i = 0; i < count; ++i) {
++        uint32_t var = outputs[i], value_type = v[ids[ids[var].type].at + 3], input_array = m.next++;
++        EMIT(28, 4, input_array, ids[value_type].in_type, three);
++        EMIT(32, 4, ids[var].input_ptr, 1u, input_array);
++    }
++    for (uint32_t i = 0; i < count; ++i) {
++        uint32_t var = outputs[i];
++        EMIT(59, 4, ids[var].type, var, 3u);
++        EMIT(59, 4, ids[var].input_ptr, ids[var].input, 1u);
++    }
++    EMIT(54, 5, void_type, fn, 0u, function_type); EMIT(248, 2, label);
++    uint32_t discard = false_id;
++    if (faces && faces->cull_mode == VK_CULL_MODE_FRONT_AND_BACK) discard = true_id;
++    else if (faces && faces->cull_mode) {
++        uint32_t xy[3][2];
++        for (uint32_t vert = 0; vert < vertices; ++vert) {
++            uint32_t components[3];
++            for (uint32_t c = 0; c < 3; ++c) {
++                uint32_t ptr = m.next++; components[c] = m.next++;
++                uint32_t component = c == 2 ? 3 : c;
++                if (position_member == UINT32_MAX)
++                    EMIT(65, 6, float_ptr, ptr, ids[position_var].input, constants[vert], constants[component]);
++                else
++                    EMIT(65, 7, float_ptr, ptr, ids[position_var].input, constants[vert], constants[position_member], constants[component]);
++                EMIT(61, 4, float_type, components[c], ptr);
++            }
++            for (uint32_t c = 0; c < 2; ++c) {
++                xy[vert][c] = m.next++;
++                EMIT(136, 5, float_type, xy[vert][c], components[c], components[2]);
++            }
++        }
++        uint32_t delta[2][2];
++        for (uint32_t vert = 0; vert < 2; ++vert) for (uint32_t c = 0; c < 2; ++c) {
++            delta[vert][c] = m.next++;
++            EMIT(131, 5, float_type, delta[vert][c], xy[vert+1][c], xy[0][c]);
++        }
++        uint32_t a = m.next++, b = m.next++, area = m.next++, front = m.next++;
++        EMIT(133, 5, float_type, a, delta[0][0], delta[1][1]);
++        EMIT(133, 5, float_type, b, delta[0][1], delta[1][0]);
++        EMIT(131, 5, float_type, area, a, b);
++        /* Vulkan's framebuffer-area formula has a negative half factor.
++         * Translation/positive scale do not change orientation. Strict
++         * comparison makes zero-area triangles back-facing, as specified. */
++        int front_positive = (faces->front_face == VK_FRONT_FACE_CLOCKWISE) != !!faces->viewport_inverted;
++        EMIT(184, 5, bool_type, front, front_positive ? zero : area, front_positive ? area : zero);
++        discard = front;
++        if (faces->cull_mode == VK_CULL_MODE_BACK_BIT) {
++            discard = m.next++; EMIT(168, 4, bool_type, discard, front);
++        }
++    }
++    for (uint32_t plane = 0; plane < distances; ++plane) {
++        uint32_t negative[3];
++        for (uint32_t vert = 0; vert < vertices; ++vert) {
++            uint32_t ptr = m.next++, value = m.next++; negative[vert] = m.next++;
++            EMIT(65, 6, float_ptr, ptr, ids[distance_var].input, constants[vert], constants[plane]);
++            EMIT(61, 4, float_type, value, ptr);
++            EMIT(184, 5, bool_type, negative[vert], value, zero); /* FOrdLessThan */
++        }
++        uint32_t all = negative[0];
++        for (uint32_t vert = 1; vert < vertices; ++vert) {
++            uint32_t both = m.next++;
++            EMIT(167, 5, bool_type, both, all, negative[vert]); all = both;
++        }
++        uint32_t any = m.next++;
++        EMIT(166, 5, bool_type, any, discard, all); discard = any;
++    }
++    uint32_t culled = m.next++, keep = m.next++;
++    EMIT(247, 3, keep, 0u); EMIT(250, 4, discard, culled, keep);
++    EMIT(248, 2, culled); EMIT(253, 1, 0u); EMIT(248, 2, keep);
++    for (uint32_t vert = 0; vert < (edges ? 6u : vertices); ++vert) {
++        uint32_t source = edges ? ((vert / 2 + vert % 2) % 3) : vert;
++        for (uint32_t i = 0; i < count; ++i) {
++            uint32_t var = outputs[i], value_type = v[ids[ids[var].type].at + 3];
++            uint32_t path[65] = {constants[source]};
++            if (!pass_value(&m, v, ids, value_type, ids[var].input, var, constants, path, 0)) {
++                status = VK_ERROR_OUT_OF_HOST_MEMORY; goto done;
++            }
++        }
++        EMIT(218, 1, 0u);
++        if (edges && vert % 2) EMIT(219, 1, 0u);
++    }
++    if (!edges) EMIT(219, 1, 0u);
++    EMIT(253, 1, 0u); EMIT(56, 1, 0u);
++    m.w[3] = m.next;
++    *output = m.w; *output_bytes = m.n * 4; m.w = NULL; *reason = NULL; status = VK_SUCCESS;
++done:
++    hybris_scaled_free(alloc, ids); hybris_scaled_free(alloc, m.w);
++    return status;
++#undef EMIT
++#undef COPY
++}
++
++VkResult hybris_spirv_primitive_adapter(const uint32_t *v, size_t bytes,
++    uint32_t location, uint32_t distances, int edges,
++    const struct hybris_primitive_faces *faces, const VkAllocationCallbacks *alloc,
++    uint32_t **output, size_t *output_bytes, const char **reason)
++{
++    return hybris_spirv_primitive_adapter_topology(v, bytes, location, distances,
++        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, edges, faces, alloc,
++        output, output_bytes, reason);
++}
+diff --git a/hybris/vulkan/compat/primitive_adapter.h b/hybris/vulkan/compat/primitive_adapter.h
+new file mode 100644
+index 0000000..4686b33
+--- /dev/null
++++ b/hybris/vulkan/compat/primitive_adapter.h
+@@ -0,0 +1,30 @@
++/* SPDX-License-Identifier: Apache-2.0 */
++#ifndef HYBRIS_PRIMITIVE_ADAPTER_H
++#define HYBRIS_PRIMITIVE_ADAPTER_H
++#include "scaled_vertex.h"
++struct hybris_primitive_faces {
++    VkCullModeFlags cull_mode;
++    VkFrontFace front_face;
++    int viewport_inverted;
++};
++/* Generate a triangle geometry stage from a selected, distance-extracted
++ * vertex module. All output types/locations and vertex positions are preserved.
++ * For edge output, distance_count may be zero: no cull varying is needed.
++ * Unsupported interfaces fail closed. Edge output is not polygonMode LINE
++ * emulation: dynamic raster state and polygon clipping remain separate work.
++ * faces is optional and applies only to edges; viewport_inverted means the
++ * viewport transform reverses orientation (negative width*height). */
++VkResult hybris_spirv_primitive_adapter(const uint32_t *vertex, size_t bytes,
++    uint32_t distance_location, uint32_t distance_count, int edges,
++    const struct hybris_primitive_faces *faces,
++    const VkAllocationCallbacks *allocator, uint32_t **output, size_t *output_bytes,
++    const char **reason);
++/* CullDistance removes a whole primitive only when all its vertices have a
++ * negative value for the same plane. Native point/line/triangle assembly is
++ * retained; this is not fragment clipping or a CPU readback path. */
++VkResult hybris_spirv_primitive_adapter_topology(const uint32_t *vertex, size_t bytes,
++    uint32_t distance_location, uint32_t distance_count, VkPrimitiveTopology topology,
++    int edges, const struct hybris_primitive_faces *faces,
++    const VkAllocationCallbacks *allocator, uint32_t **output, size_t *output_bytes,
++    const char **reason);
++#endif
+diff --git a/hybris/vulkan/compat/shader_dispatch.c b/hybris/vulkan/compat/shader_dispatch.c
+index 839ae23..ac0481a 100644
+--- a/hybris/vulkan/compat/shader_dispatch.c
++++ b/hybris/vulkan/compat/shader_dispatch.c
+@@ -15,6 +15,7 @@
+ #include "spirv_inout.h"
+ #include "clip_distance.h"
+ #include "distance_lowering.h"
++#include "primitive_adapter.h"
+ #include "shader_policy.h"
+ #include "vertex_stores.h"
+ #include "polygon_pipeline.h"
+@@ -48,6 +49,7 @@ struct shader_device {
+     int inout;
+     int clip;
+     int cull;
++    int cull_multiview_geometry;
+     int stage_point_size, pervertex;
+     int vertex_stores;
+     int polygon;
+@@ -55,6 +57,7 @@ struct shader_device {
+     int multi_viewport;
+     int dual_src;
+     uint32_t output_limit;
++    uint32_t cull_location_limit;
+     _Atomic unsigned spec_changes;
+     VkAllocationCallbacks allocator;
+     int custom;
+@@ -65,6 +68,22 @@ static pthread_mutex_t guard = PTHREAD_MUTEX_INITIALIZER;
+ static struct shader_device *devices;
+ static _Atomic unsigned point_reports;
+ static _Atomic unsigned inout_reports;
++static int multiview_geometry_requested(const VkDeviceCreateInfo *info)
++{
++    int multiview = 0, geometry = 0;
++    for (const VkBaseInStructure *node = info->pNext; node; node = node->pNext) {
++        if (node->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES) {
++            const VkPhysicalDeviceMultiviewFeatures *features = (const void *)node;
++            multiview |= features->multiview;
++            geometry |= features->multiviewGeometryShader;
++        } else if (node->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES) {
++            const VkPhysicalDeviceVulkan11Features *features = (const void *)node;
++            multiview |= features->multiview;
++            geometry |= features->multiviewGeometryShader;
++        }
++    }
++    return multiview && geometry;
++}
+ int hybris_shader_enabled(void)
+ {
+     return hybris_scaled_enabled() || hybris_point_size_enabled() ||
+@@ -83,7 +102,8 @@ int hybris_shader_device_proc_allowed(VkDevice handle, const char *name)
+     struct shader_device *device = find_device(handle);
+     if(device && device->dual_src && !strcmp(name,"vkCmdSetColorBlendEquationEXT"))return 0;
+     if(device && device->polygon && !strcmp(name,"vkCmdSetPolygonModeEXT"))return 0;
+-    if (device && device->clip && !hybris_clip_command_allowed(name)) return 0;
++    if (device && (device->clip || device->cull || device->stage_point_size) &&
++        !hybris_clip_command_allowed(name)) return 0;
+     if (hybris_shader_command_allowed(name)) return 1;
+     return !device || (!device->mask && !device->vertex_stores && !device->polygon && !device->dual_src);
+ }
+@@ -135,12 +155,23 @@ VkResult hybris_shader_device_create(VkDevice handle, VkPhysicalDevice physical,
+     device->inout = hybris_inout_enabled();
+     device->clip = hybris_clip_active(physical);
+     device->cull = hybris_cull_active(physical);
++    device->cull_multiview_geometry = device->cull && multiview_geometry_requested(requested);
+     device->stage_point_size = hybris_stage_point_active(physical);
+     struct hybris_layer_physical owner;
+     if (hybris_layer_lookup_physical(physical, &owner)) {
+         PFN_vkGetPhysicalDeviceProperties get = (PFN_vkGetPhysicalDeviceProperties)
+             owner.resolver(owner.instance, "vkGetPhysicalDeviceProperties");
+-        if (get) { VkPhysicalDeviceProperties p; get(physical, &p); device->pervertex = p.vendorID == 0x13b5; }
++        if (get) {
++            VkPhysicalDeviceProperties p;
++            get(physical, &p);
++            device->pervertex = p.vendorID == 0x13b5;
++            uint32_t components = p.limits.maxVertexOutputComponents;
++            if (components > p.limits.maxGeometryInputComponents)
++                components = p.limits.maxGeometryInputComponents;
++            if (components > p.limits.maxGeometryOutputComponents)
++                components = p.limits.maxGeometryOutputComponents;
++            device->cull_location_limit = components / 4;
++        }
+     }
+     device->vertex_stores = hybris_vertex_stores_active(physical);
+     pthread_mutex_lock(&guard);
+@@ -343,6 +374,8 @@ static VkResult convert_pipeline(struct shader_device *device, VkGraphicsPipelin
+     unsigned what = (device->clip ? 1u : 0u) | (device->cull ? 2u : 0u) |
+         (device->stage_point_size ? 4u : 0u);
+     int distance = 0;
++    int cull_stage = -1;
++    uint32_t cull_location = 0, cull_count = 0;
+     if (what || device->pervertex) {
+         if (info->stageCount > 5 || (info->flags & VK_PIPELINE_CREATE_LIBRARY_BIT_KHR)) {
+             *reason = "MaliBridge lowering does not support graphics libraries or mesh stages";
+@@ -364,7 +397,127 @@ static VkResult convert_pipeline(struct shader_device *device, VkGraphicsPipelin
+         VkResult result = hybris_distance_pipeline(what, device->pervertex, info->stageCount,
+             sources, allocator, copy->distances, reason);
+         if (result != VK_SUCCESS) return result;
+-        for (uint32_t j = 0; j < info->stageCount; ++j) distance |= copy->distances[j].code != NULL;
++        for (uint32_t j = 0; j < info->stageCount; ++j) {
++            distance |= copy->distances[j].code != NULL;
++            if (!copy->distances[j].cull_used) continue;
++            if (info->pStages[j].stage != VK_SHADER_STAGE_VERTEX_BIT || cull_stage >= 0 ||
++                !copy->distances[j].cull_count) {
++                *reason = "CullDistance adapter requires one vertex producer";
++                return VK_ERROR_FEATURE_NOT_PRESENT;
++            }
++            cull_stage = (int)j;
++            cull_location = copy->distances[j].cull_location;
++            cull_count = copy->distances[j].cull_count;
++        }
++    }
++    if (cull_stage >= 0) {
++        if (cull_location > UINT32_MAX - cull_count ||
++            cull_location + cull_count > device->cull_location_limit) {
++            *reason = "CullDistance adapter cannot reserve geometry interface locations";
++            return VK_ERROR_FEATURE_NOT_PRESENT;
++        }
++        VkPipelineCreateFlags2 effective_flags = info->flags;
++        for (const VkBaseInStructure *node = info->pNext; node; node = node->pNext) {
++            switch (node->sType) {
++            case VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO:
++            case VK_STRUCTURE_TYPE_PIPELINE_ROBUSTNESS_CREATE_INFO_EXT:
++            case VK_STRUCTURE_TYPE_PIPELINE_FRAGMENT_SHADING_RATE_STATE_CREATE_INFO_KHR:
++            case VK_STRUCTURE_TYPE_PIPELINE_FRAGMENT_SHADING_RATE_ENUM_STATE_CREATE_INFO_NV:
++            case VK_STRUCTURE_TYPE_PIPELINE_DISCARD_RECTANGLE_STATE_CREATE_INFO_EXT:
++            case VK_STRUCTURE_TYPE_ATTACHMENT_SAMPLE_COUNT_INFO_AMD:
++            case VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_LOCATION_INFO:
++            case VK_STRUCTURE_TYPE_RENDERING_INPUT_ATTACHMENT_INDEX_INFO:
++            case VK_STRUCTURE_TYPE_EXTERNAL_FORMAT_ANDROID:
++            case VK_STRUCTURE_TYPE_PIPELINE_COMPILER_CONTROL_CREATE_INFO_AMD:
++            case VK_STRUCTURE_TYPE_PIPELINE_REPRESENTATIVE_FRAGMENT_TEST_STATE_CREATE_INFO_NV:
++                break;
++            case VK_STRUCTURE_TYPE_PIPELINE_CREATE_FLAGS_2_CREATE_INFO:
++                effective_flags |= ((const VkPipelineCreateFlags2CreateInfo *)node)->flags;
++                break;
++            case VK_STRUCTURE_TYPE_PIPELINE_CREATION_FEEDBACK_CREATE_INFO:
++                if (((const VkPipelineCreationFeedbackCreateInfo *)node)->pipelineStageCreationFeedbackCount) {
++                    *reason = "CullDistance adapter does not support per-stage pipeline creation feedback";
++                    return VK_ERROR_FEATURE_NOT_PRESENT;
++                }
++                break;
++            case VK_STRUCTURE_TYPE_PIPELINE_BINARY_INFO_KHR:
++                if (((const VkPipelineBinaryInfoKHR *)node)->binaryCount) {
++                    *reason = "CullDistance adapter does not support pipeline binaries";
++                    return VK_ERROR_FEATURE_NOT_PRESENT;
++                }
++                break;
++            case VK_STRUCTURE_TYPE_PIPELINE_LIBRARY_CREATE_INFO_KHR:
++                if (((const VkPipelineLibraryCreateInfoKHR *)node)->libraryCount) {
++                    *reason = "CullDistance adapter does not support linked pipeline libraries";
++                    return VK_ERROR_FEATURE_NOT_PRESENT;
++                }
++                break;
++            case VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_SHADER_GROUPS_CREATE_INFO_NV: {
++                const VkGraphicsPipelineShaderGroupsCreateInfoNV *groups = (const void *)node;
++                if (groups->groupCount || groups->pipelineCount) {
++                    *reason = "CullDistance adapter does not support alternate shader groups";
++                    return VK_ERROR_FEATURE_NOT_PRESENT;
++                }
++                break;
++            }
++            default:
++                *reason = "CullDistance adapter does not support this pipeline extension chain";
++                return VK_ERROR_FEATURE_NOT_PRESENT;
++            }
++        }
++        if (effective_flags & (VK_PIPELINE_CREATE_2_LIBRARY_BIT_KHR |
++            VK_PIPELINE_CREATE_2_CAPTURE_STATISTICS_BIT_KHR |
++            VK_PIPELINE_CREATE_2_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR |
++            VK_PIPELINE_CREATE_2_CAPTURE_DATA_BIT_KHR)) {
++            *reason = "CullDistance adapter does not support pipeline library or capture flags";
++            return VK_ERROR_FEATURE_NOT_PRESENT;
++        }
++        unsigned vertex = 0, fragment = 0;
++        for (uint32_t j = 0; j < info->stageCount; ++j) {
++            vertex += info->pStages[j].stage == VK_SHADER_STAGE_VERTEX_BIT;
++            fragment += info->pStages[j].stage == VK_SHADER_STAGE_FRAGMENT_BIT;
++            if (info->pStages[j].stage != VK_SHADER_STAGE_VERTEX_BIT &&
++                info->pStages[j].stage != VK_SHADER_STAGE_FRAGMENT_BIT) {
++                *reason = "CullDistance adapter requires plain vertex/fragment stages";
++                return VK_ERROR_FEATURE_NOT_PRESENT;
++            }
++        }
++        if (vertex != 1 || fragment != 1 || !info->pInputAssemblyState ||
++            !info->pRasterizationState || info->pRasterizationState->rasterizerDiscardEnable) {
++            *reason = "CullDistance adapter requires a rasterized vertex/fragment pipeline";
++            return VK_ERROR_FEATURE_NOT_PRESENT;
++        }
++        if (info->pInputAssemblyState->pNext || info->pRasterizationState->pNext ||
++            (info->pDynamicState && info->pDynamicState->pNext)) {
++            *reason = "CullDistance adapter does not support extended assembly or raster state";
++            return VK_ERROR_FEATURE_NOT_PRESENT;
++        }
++        struct hybris_vertex_rendering rendering = {0};
++        if (hybris_vertex_rendering_info(device->handle, info, &rendering) != VK_SUCCESS ||
++            !rendering.view_mask_known) {
++            *reason = "CullDistance adapter cannot determine the pipeline view mask";
++            return VK_ERROR_FEATURE_NOT_PRESENT;
++        }
++        if (rendering.view_mask && !device->cull_multiview_geometry) {
++            *reason = "CullDistance adapter requires multiviewGeometryShader for multiview";
++            return VK_ERROR_FEATURE_NOT_PRESENT;
++        }
++        VkPrimitiveTopology topology = info->pInputAssemblyState->topology;
++        if (topology != VK_PRIMITIVE_TOPOLOGY_POINT_LIST &&
++            topology != VK_PRIMITIVE_TOPOLOGY_LINE_LIST &&
++            topology != VK_PRIMITIVE_TOPOLOGY_LINE_STRIP &&
++            topology != VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST &&
++            topology != VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP &&
++            topology != VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN) {
++            *reason = "CullDistance adapter does not support adjacency or patch topology";
++            return VK_ERROR_FEATURE_NOT_PRESENT;
++        }
++        if (info->pDynamicState) for (uint32_t j = 0; j < info->pDynamicState->dynamicStateCount; ++j)
++            if (info->pDynamicState->pDynamicStates[j] == VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY ||
++                info->pDynamicState->pDynamicStates[j] == VK_DYNAMIC_STATE_RASTERIZER_DISCARD_ENABLE) {
++                *reason = "CullDistance adapter does not support dynamic topology or discard";
++                return VK_ERROR_FEATURE_NOT_PRESENT;
++            }
+     }
+     int discard = 0;
+     VkShaderStageFlagBits last_stage = VK_SHADER_STAGE_VERTEX_BIT;
+@@ -549,6 +702,29 @@ static VkResult convert_pipeline(struct shader_device *device, VkGraphicsPipelin
+             if (result != VK_SUCCESS) { hybris_scaled_free(allocator, code); goto done; }
+             if (clean) { hybris_scaled_free(allocator, code); code = clean; size = clean_size; }
+         }
++        if ((int)j == cull_stage) {
++            uint32_t *geometry = NULL;
++            size_t geometry_size = 0;
++            result = hybris_spirv_primitive_adapter_topology(code, size,
++                cull_location, cull_count, info->pInputAssemblyState->topology,
++                0, NULL, allocator, &geometry, &geometry_size, reason);
++            uint32_t slot = info->stageCount;
++            if (result == VK_SUCCESS) {
++                VkShaderModuleCreateInfo module = {.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
++                    .codeSize = geometry_size, .pCode = geometry};
++                result = device->create_shader(device->handle, &module, allocator,
++                    &copy->temporary[slot]);
++                if (result == VK_SUCCESS) {
++                    copy->stages[slot] = (VkPipelineShaderStageCreateInfo){
++                        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
++                        .stage = VK_SHADER_STAGE_GEOMETRY_BIT,
++                        .module = copy->temporary[slot], .pName = "main"};
++                    ++copy->stage_count;
++                } else copy->temporary[slot] = VK_NULL_HANDLE;
++            }
++            hybris_scaled_free(allocator, geometry);
++            if (result != VK_SUCCESS) { hybris_scaled_free(allocator, code); goto done; }
++        }
+         if (stage_discard) {
+             uint32_t *clipped = NULL;
+             size_t clipped_size = 0;
+diff --git a/hybris/vulkan/compat/shader_policy.c b/hybris/vulkan/compat/shader_policy.c
+index 3844ea3..88b4316 100644
+--- a/hybris/vulkan/compat/shader_policy.c
++++ b/hybris/vulkan/compat/shader_policy.c
+@@ -44,11 +44,12 @@ VkResult hybris_shader_prepare_device(VkPhysicalDevice physical, const VkDeviceC
+ {
+     int full = hybris_shader_physical_mask(physical) || hybris_vertex_stores_active(physical) ||
+         hybris_shader_polygon_emulated(physical) || hybris_dual_source_active(physical);
+-    int clip = hybris_clip_active(physical);
+-    if (!full && !clip) return VK_SUCCESS;
++    int distance = hybris_clip_active(physical) || hybris_cull_active(physical) ||
++        hybris_stage_point_active(physical);
++    if (!full && !distance) return VK_SUCCESS;
+     for (uint32_t i = 0; i < info->enabledExtensionCount; ++i)
+         if ((full && !hybris_shader_extension_allowed(info->ppEnabledExtensionNames[i])) ||
+-            (clip && !hybris_clip_extension_allowed(info->ppEnabledExtensionNames[i])))
++            (distance && !hybris_clip_extension_allowed(info->ppEnabledExtensionNames[i])))
+             return VK_ERROR_EXTENSION_NOT_PRESENT;
+     for (const VkBaseInStructure *node = info->pNext; node; node = node->pNext) {
+         VkBool32 enabled = VK_FALSE;
+@@ -61,11 +62,11 @@ VkResult hybris_shader_prepare_device(VkPhysicalDevice physical, const VkDeviceC
+             enabled = full && ((const VkPhysicalDeviceVertexInputDynamicStateFeaturesEXT *)node)->vertexInputDynamicState;
+             break;
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT:
+-            enabled = (full || clip) &&
++            enabled = (full || distance) &&
+                 ((const VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT *)node)->graphicsPipelineLibrary;
+             break;
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_OBJECT_FEATURES_EXT:
+-            enabled = (full || clip) &&
++            enabled = (full || distance) &&
+                 ((const VkPhysicalDeviceShaderObjectFeaturesEXT *)node)->shaderObject;
+             break;
+         default: break;
+@@ -105,8 +106,9 @@ static void features2(VkPhysicalDevice physical, VkPhysicalDeviceFeatures2 *out,
+     if(polygon) out->features.fillModeNonSolid=VK_TRUE;
+     int full = hybris_shader_physical_mask(physical) || hybris_vertex_stores_active(physical) ||
+         polygon || hybris_dual_source_active(physical);
+-    int clip = hybris_clip_active(physical);
+-    if (!full && !clip) return;
++    int distance = hybris_clip_active(physical) || hybris_cull_active(physical) ||
++        hybris_stage_point_active(physical);
++    if (!full && !distance) return;
+     for (VkBaseOutStructure *node = out->pNext; node; node = node->pNext) {
+         switch (node->sType) {
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_3_FEATURES_EXT:
+@@ -117,10 +119,10 @@ static void features2(VkPhysicalDevice physical, VkPhysicalDeviceFeatures2 *out,
+             if (full) ((VkPhysicalDeviceVertexInputDynamicStateFeaturesEXT *)node)->vertexInputDynamicState = VK_FALSE;
+             break;
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT:
+-            if (full || clip) ((VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT *)node)->graphicsPipelineLibrary = VK_FALSE;
++            if (full || distance) ((VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT *)node)->graphicsPipelineLibrary = VK_FALSE;
+             break;
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_OBJECT_FEATURES_EXT:
+-            if (full || clip) ((VkPhysicalDeviceShaderObjectFeaturesEXT *)node)->shaderObject = VK_FALSE;
++            if (full || distance) ((VkPhysicalDeviceShaderObjectFeaturesEXT *)node)->shaderObject = VK_FALSE;
+             break;
+         default: break;
+         }
+diff --git a/hybris/vulkan/compat/vertex_stores.c b/hybris/vulkan/compat/vertex_stores.c
+index f3c1646..d73e94d 100644
+--- a/hybris/vulkan/compat/vertex_stores.c
++++ b/hybris/vulkan/compat/vertex_stores.c
+@@ -1,6 +1,7 @@
+ /* SPDX-License-Identifier: Apache-2.0 */
+ #define VK_NO_PROTOTYPES
+ #include "vertex_stores.h"
++#include "clip_distance.h"
+ #include "../layer/layer.h"
+ #include <pthread.h>
+ #include <string.h>
+@@ -69,13 +70,24 @@ static VkResult VKAPI_CALL create_pass(VkDevice handle, const VkRenderPassCreate
+     struct hybris_layer_device device;
+     if (!hybris_layer_lookup_device(handle, &device)) return VK_ERROR_INITIALIZATION_FAILED;
+     PFN_vkCreateRenderPass create = (PFN_vkCreateRenderPass)device.resolver(handle, "vkCreateRenderPass");
+-    if (!hybris_vertex_stores_active(device.physical)) return create(handle, info, allocator, out);
++    if (!hybris_vertex_stores_active(device.physical) && !hybris_cull_active(device.physical))
++        return create(handle, info, allocator, out);
+     *out = VK_NULL_HANDLE;
+     struct render_pass *p = allocate_pass(handle, info->subpassCount, allocator);
+     if (!p) return VK_ERROR_OUT_OF_HOST_MEMORY;
++    const VkRenderPassMultiviewCreateInfo *multiview = NULL;
++    for (const VkBaseInStructure *node = info->pNext; node; node = node->pNext)
++        if (node->sType == VK_STRUCTURE_TYPE_RENDER_PASS_MULTIVIEW_CREATE_INFO)
++            multiview = (const VkRenderPassMultiviewCreateInfo *)node;
++    int view_masks_known = !multiview ||
++        (multiview->subpassCount == info->subpassCount &&
++         (!multiview->subpassCount || multiview->pViewMasks));
+     for (uint32_t i = 0; i < info->subpassCount; ++i) {
+         const VkSubpassDescription *s = &info->pSubpasses[i];
+-        p->subpasses[i] = (struct hybris_vertex_rendering){s->colorAttachmentCount, VK_SAMPLE_COUNT_1_BIT};
++        p->subpasses[i] = (struct hybris_vertex_rendering){
++            .colors = s->colorAttachmentCount, .samples = VK_SAMPLE_COUNT_1_BIT,
++            .view_mask = view_masks_known && multiview ? multiview->pViewMasks[i] : 0,
++            .view_mask_known = view_masks_known};
+         for (uint32_t j = 0; j < s->colorAttachmentCount; ++j)
+             if (s->pColorAttachments[j].attachment != VK_ATTACHMENT_UNUSED)
+                 p->subpasses[i].samples = info->pAttachments[s->pColorAttachments[j].attachment].samples;
+@@ -93,13 +105,16 @@ static VkResult create_pass2(VkDevice handle, const VkRenderPassCreateInfo2 *inf
+     struct hybris_layer_device device;
+     if (!hybris_layer_lookup_device(handle, &device)) return VK_ERROR_INITIALIZATION_FAILED;
+     PFN_vkCreateRenderPass2 create = (PFN_vkCreateRenderPass2)device.resolver(handle, name);
+-    if (!hybris_vertex_stores_active(device.physical)) return create(handle, info, allocator, out);
++    if (!hybris_vertex_stores_active(device.physical) && !hybris_cull_active(device.physical))
++        return create(handle, info, allocator, out);
+     *out = VK_NULL_HANDLE;
+     struct render_pass *p = allocate_pass(handle, info->subpassCount, allocator);
+     if (!p) return VK_ERROR_OUT_OF_HOST_MEMORY;
+     for (uint32_t i = 0; i < info->subpassCount; ++i) {
+         const VkSubpassDescription2 *s = &info->pSubpasses[i];
+-        p->subpasses[i] = (struct hybris_vertex_rendering){s->colorAttachmentCount, VK_SAMPLE_COUNT_1_BIT};
++        p->subpasses[i] = (struct hybris_vertex_rendering){
++            .colors = s->colorAttachmentCount, .samples = VK_SAMPLE_COUNT_1_BIT,
++            .view_mask = s->viewMask, .view_mask_known = 1};
+         for (uint32_t j = 0; j < s->colorAttachmentCount; ++j)
+             if (s->pColorAttachments[j].attachment != VK_ATTACHMENT_UNUSED)
+                 p->subpasses[i].samples = info->pAttachments[s->pColorAttachments[j].attachment].samples;
+@@ -167,8 +182,10 @@ VkResult hybris_vertex_rendering_info(VkDevice handle,
+     for (const VkBaseInStructure *node = info->pNext; node; node = node->pNext)
+         if (node->sType == VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO) {
+             *out = (struct hybris_vertex_rendering){
+-                ((const VkPipelineRenderingCreateInfo *)node)->colorAttachmentCount,
+-                info->pMultisampleState->rasterizationSamples};
++                .colors = ((const VkPipelineRenderingCreateInfo *)node)->colorAttachmentCount,
++                .samples = info->pMultisampleState->rasterizationSamples,
++                .view_mask = ((const VkPipelineRenderingCreateInfo *)node)->viewMask,
++                .view_mask_known = 1};
+             return VK_SUCCESS;
+         }
+     return VK_ERROR_UNKNOWN;
+diff --git a/hybris/vulkan/compat/vertex_stores.h b/hybris/vulkan/compat/vertex_stores.h
+index 991b4b0..105f048 100644
+--- a/hybris/vulkan/compat/vertex_stores.h
++++ b/hybris/vulkan/compat/vertex_stores.h
+@@ -3,7 +3,12 @@
+ #define HYBRIS_VERTEX_STORES_H
+ #include "scaled_vertex.h"
+ int hybris_vertex_stores_active(VkPhysicalDevice physical);
+-struct hybris_vertex_rendering { uint32_t colors; VkSampleCountFlagBits samples; };
++struct hybris_vertex_rendering {
++    uint32_t colors;
++    VkSampleCountFlagBits samples;
++    uint32_t view_mask;
++    int view_mask_known;
++};
+ VkResult hybris_vertex_rendering_info(VkDevice device,
+     const VkGraphicsPipelineCreateInfo *info, struct hybris_vertex_rendering *out);
+ PFN_vkVoidFunction hybris_vertex_stores_proc(const char *name);
+diff --git a/hybris/vulkan/layer/device_features.c b/hybris/vulkan/layer/device_features.c
+index 39d95aa..cef8609 100644
+--- a/hybris/vulkan/layer/device_features.c
++++ b/hybris/vulkan/layer/device_features.c
+@@ -138,7 +138,10 @@ VkResult hybris_device_features_prepare(VkPhysicalDevice physical,
+         if (clip) out->features.shaderClipDistance = VK_FALSE;
+         if (stores) out->features.vertexPipelineStoresAndAtomics = VK_FALSE;
+         if (bc) out->features.textureCompressionBC = VK_FALSE;
+-        if (cull) out->features.shaderCullDistance = VK_FALSE;
++        if (cull) {
++            out->features.shaderCullDistance = VK_FALSE;
++            out->features.geometryShader = VK_TRUE;
++        }
+         if (stage_point) out->features.shaderTessellationAndGeometryPointSize = VK_FALSE;
+         if (polygon && out->features.fillModeNonSolid) {
+             out->features.fillModeNonSolid=VK_FALSE;
+@@ -233,7 +236,10 @@ VkResult hybris_device_features_prepare(VkPhysicalDevice physical,
+             if (clip) ((VkPhysicalDeviceFeatures2 *)copy)->features.shaderClipDistance = VK_FALSE;
+             if (stores) ((VkPhysicalDeviceFeatures2 *)copy)->features.vertexPipelineStoresAndAtomics = VK_FALSE;
+             if (bc) ((VkPhysicalDeviceFeatures2 *)copy)->features.textureCompressionBC = VK_FALSE;
+-            if (cull) ((VkPhysicalDeviceFeatures2 *)copy)->features.shaderCullDistance = VK_FALSE;
++            if (cull) {
++                ((VkPhysicalDeviceFeatures2 *)copy)->features.shaderCullDistance = VK_FALSE;
++                ((VkPhysicalDeviceFeatures2 *)copy)->features.geometryShader = VK_TRUE;
++            }
+             if (stage_point) ((VkPhysicalDeviceFeatures2 *)copy)->features.shaderTessellationAndGeometryPointSize = VK_FALSE;
+             if (polygon && ((VkPhysicalDeviceFeatures2*)copy)->features.fillModeNonSolid) {
+                 ((VkPhysicalDeviceFeatures2*)copy)->features.fillModeNonSolid=VK_FALSE;
+diff --git a/hybris/vulkan/layer/physical.c b/hybris/vulkan/layer/physical.c
+index 9aa2285..30e0311 100644
+--- a/hybris/vulkan/layer/physical.c
++++ b/hybris/vulkan/layer/physical.c
+@@ -71,7 +71,8 @@ static VkResult VKAPI_CALL enumerate_device_extensions(VkPhysicalDevice physical
+     unsigned bc_mask = layer ? 0 : hybris_bc_physical_mask(physical);
+     unsigned shader_mask = layer ? 0 : hybris_shader_physical_mask(physical);
+     int pipeline_compat = !layer && (hybris_dual_source_active(physical) || hybris_shader_polygon_emulated(physical));
+-    int clip = !layer && hybris_clip_active(physical);
++    int distance = !layer && (hybris_clip_active(physical) || hybris_cull_active(physical) ||
++        hybris_stage_point_active(physical));
+     int vertex_stores = !layer && hybris_vertex_stores_active(physical);
+     int dynamic = !layer && hybris_dynamic_emulated(physical);
+     int maintenance5 = !layer && hybris_maintenance5_emulated(physical);
+@@ -80,7 +81,7 @@ static VkResult VKAPI_CALL enumerate_device_extensions(VkPhysicalDevice physical
+         VkResult policy_result=hybris_robustness2_policy(physical,&robust);
+         if(policy_result!=VK_SUCCESS)return policy_result;
+     }
+-    if (layer || (!bc_mask && !shader_mask && !pipeline_compat && !clip && !vertex_stores && !robust.emulated && !dynamic && !maintenance5))
++    if (layer || (!bc_mask && !shader_mask && !pipeline_compat && !distance && !vertex_stores && !robust.emulated && !dynamic && !maintenance5))
+         return enumerate(physical, layer, count, properties);
+     uint32_t available = 0;
+     VkResult result = enumerate(physical, NULL, &available, NULL);
+@@ -101,7 +102,7 @@ static VkResult VKAPI_CALL enumerate_device_extensions(VkPhysicalDevice physical
+              !strcmp(all[i].extensionName,"VK_KHR_ray_query")))continue;
+         if ((bc_mask && !hybris_bc_extension_allowed(all[i].extensionName)) ||
+             ((shader_mask || pipeline_compat || vertex_stores) && !hybris_shader_extension_allowed(all[i].extensionName)) ||
+-            (clip && !hybris_clip_extension_allowed(all[i].extensionName))) continue;
++            (distance && !hybris_clip_extension_allowed(all[i].extensionName))) continue;
+         if (properties && written < capacity) properties[written++] = all[i];
+         ++kept;
+     }

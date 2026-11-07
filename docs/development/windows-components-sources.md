@@ -16,6 +16,27 @@ Custom) decides whose list is trusted (`WinCompSources`):
 
 The folder scan is offered as Recommended for every game.
 
+## Known game fonts
+
+Portal (Steam app 400) requests Trebuchet MS and Verdana in its interface schemes. DroidDeck
+adds those two font components to its known requirements, separately from Steam's redistributable
+list. No other app id or name-only match gets automatic font downloads. The components remain
+available for manual selection on other games.
+
+The app pins the Microsoft `trebuc32.exe` and `verdan32.exe` installers to the SHA-256 hashes
+used by [Winetricks](https://github.com/Winetricks/winetricks/blob/master/src/winetricks). Only
+the four named TrueType faces from each archive are copied into the shared component store.
+Their real family names are registered in the prefix's Windows Fonts keys; no font substitution
+or renamed font files are used, and font binaries are not bundled in the APK or repository.
+Remote catalog entries cannot replace these pinned recipes.
+
+Installation uses the existing component queue, download progress, network/session restrictions,
+and per-game user switches. Each component is downloaded once and reused by selected games;
+an explicit off switch takes precedence. Offline or failed downloads leave the game launchable
+with its existing fonts. Once the component finishes, the next game launch applies its files and
+registration through `droiddeck-wincomponents`. Existing findings caches are invalidated once
+so already-installed Portal copies receive the requirement.
+
 ## Steam's data
 
 Never scraped from a website. `SteamAppInfo` reads the Steam client's own app-info cache in the

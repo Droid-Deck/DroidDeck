@@ -1,0 +1,128 @@
+diff --git a/wsi/extensions/external_memory_extension.cpp b/wsi/extensions/external_memory_extension.cpp
+index 1e15ae7..d0aa607 100644
+--- a/wsi/extensions/external_memory_extension.cpp
++++ b/wsi/extensions/external_memory_extension.cpp
+@@ -38,6 +38,7 @@
+ 
+ #include "external_memory_extension.hpp"
+ #include "wsi/image_usage.hpp"
++#include "wsi/dri3_fallback_policy.hpp"
+ 
+ namespace
+ {
+@@ -202,8 +203,10 @@ VkResult get_surface_compatible_formats(const VkImageCreateInfo &image_create_in
+       }
+ 
+       const VkExternalMemoryFeatureFlags external_features = external_props.externalMemoryProperties.externalMemoryFeatures;
+-      if ((external_features & VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT_KHR) &&
+-          !(external_features & VK_EXTERNAL_MEMORY_FEATURE_DEDICATED_ONLY_BIT_KHR))
++      if (x11::can_use_no_heap_driver_export(true,
++                                             external_features & VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT_KHR,
++                                             external_features & VK_EXTERNAL_MEMORY_FEATURE_DEDICATED_ONLY_BIT_KHR,
++                                             false, true))
+       {
+          if (!exportable_modifers.try_push_back(drm_format.modifier))
+          {
+@@ -384,9 +387,11 @@ std::variant<VkResult, util::unique_ptr<swapchain_image_create_external_memory>>
+ 
+    auto wsialloc_preferred_format = std::get<wsialloc_allocate_result>(wsialloc_preferred_format_result);
+ 
+-   if ((get_image_create_flags(image_create_info) & VK_IMAGE_CREATE_PROTECTED_BIT) != 0 ||
+-       wsialloc_preferred_format.is_disjoint ||
+-       util::drm::drm_fourcc_format_get_num_planes(wsialloc_preferred_format.format.fourcc) != 1)
++   if (!x11::can_use_no_heap_driver_export(allow_driver_export_fallback, true, false,
++                                            (get_image_create_flags(image_create_info) & VK_IMAGE_CREATE_PROTECTED_BIT) != 0,
++                                            !wsialloc_preferred_format.is_disjoint &&
++                                               util::drm::drm_fourcc_format_get_num_planes(
++                                                  wsialloc_preferred_format.format.fourcc) == 1))
+    {
+       WSI_LOG_ERROR("No-heap DRI3 fallback requires an unprotected, single-plane exportable image.");
+       return VK_ERROR_FORMAT_NOT_SUPPORTED;
+diff --git a/wsi/image_backing_memory_external.cpp b/wsi/image_backing_memory_external.cpp
+index c9b3bc9..7f6849d 100644
+--- a/wsi/image_backing_memory_external.cpp
++++ b/wsi/image_backing_memory_external.cpp
+@@ -29,6 +29,7 @@
+  */
+ 
+ #include "image_backing_memory_external.hpp"
++#include "wsi/dri3_fallback_policy.hpp"
+ 
+ using util::MAX_PLANES;
+ 
+@@ -79,7 +80,7 @@ VkResult image_backing_memory_external::allocate(VkImage image)
+    {
+       return VK_SUCCESS;
+    }
+-   if (!m_driver_export_fallback_allowed)
++   if (!x11::should_allocate_from_driver_after_heap_failure(m_driver_export_fallback_allowed))
+    {
+       return allocation_result;
+    }
+diff --git a/wsi/x11/swapchain.cpp b/wsi/x11/swapchain.cpp
+index 9034656..c9fd679 100644
+--- a/wsi/x11/swapchain.cpp
++++ b/wsi/x11/swapchain.cpp
+@@ -55,6 +55,7 @@
+ #include "util/log.hpp"
+ #include "util/macros.hpp"
+ #include "wsi/external_memory.hpp"
++#include "wsi/dri3_fallback_policy.hpp"
+ #include "wsi/image_backing_memory_external.hpp"
+ #include "wsi/wsi_alloc_utils.hpp"
+ #include "wsi/swapchain_base.hpp"
+@@ -511,7 +512,7 @@ VkResult swapchain::init_image_factory(const VkSwapchainCreateInfoKHR &swapchain
+          requirements.pNext = &dedicated_requirements;
+          m_device_data.disp.GetImageMemoryRequirements2KHR(m_device, &requirements_info, &requirements);
+          m_device_data.disp.DestroyImage(m_device, probe_image, m_allocator.get_original_callbacks());
+-         if (dedicated_requirements.requiresDedicatedAllocation)
++         if (!x11::preserves_swapchain_aliasing(false, dedicated_requirements.requiresDedicatedAllocation))
+          {
+             WSI_LOG_WARNING("DRI3 image requires dedicated allocation; falling back to SHM to preserve aliasing.");
+             return VK_ERROR_FEATURE_NOT_PRESENT;
+diff --git a/wsi/dri3_fallback_policy.hpp b/wsi/dri3_fallback_policy.hpp
+new file mode 100644
+index 0000000..0f2e2f1
+--- /dev/null
++++ b/wsi/dri3_fallback_policy.hpp
+@@ -0,0 +1,40 @@
++/*
++ * Copyright (c) 2026 DroidDeck contributors.
++ *
++ * SPDX-License-Identifier: MIT
++ */
++
++#pragma once
++
++namespace wsi::x11
++{
++
++/**
++ * A DRI3 allocation cannot require dedicated memory because a swapchain image
++ * may later be aliased through VkBindImageMemorySwapchainInfoKHR.
++ */
++constexpr bool preserves_swapchain_aliasing(bool dedicated_only, bool requires_dedicated)
++{
++   return !dedicated_only && !requires_dedicated;
++}
++
++/**
++ * The driver-export fallback is only valid for an ordinary, single-plane image
++ * whose selected modifier can be exported without a dedicated allocation.
++ */
++constexpr bool can_use_no_heap_driver_export(bool fallback_enabled, bool exportable, bool dedicated_only,
++                                             bool protected_image, bool single_plane)
++{
++   return fallback_enabled && exportable && preserves_swapchain_aliasing(dedicated_only, false) &&
++          !protected_image && single_plane;
++}
++
++/**
++ * A late allocator failure may use the already-approved driver-export path.
++ */
++constexpr bool should_allocate_from_driver_after_heap_failure(bool fallback_enabled)
++{
++   return fallback_enabled;
++}
++
++} // namespace wsi::x11

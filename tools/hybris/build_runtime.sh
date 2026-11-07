@@ -16,17 +16,74 @@ fetch() {
 }
 fetch https://github.com/taowen/libhybris.git "$HYBRIS_REVISION" "$work/libhybris"
 fetch https://github.com/taowen/arlinux-rootfs.git "$PROTOCOL_REVISION" "$work/rootfs"
+fetch https://github.com/KhronosGroup/Vulkan-Headers.git "$VULKAN_HEADERS_REVISION" "$work/vulkan-headers"
+export VULKAN_INCLUDE="$work/vulkan-headers/include"
+for symbol in VK_KHR_ROBUSTNESS_2_EXTENSION_NAME VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES; do
+  if ! grep -q "$symbol" "$VULKAN_INCLUDE/vulkan/vulkan_core.h"; then
+    echo "Pinned Vulkan-Headers $VULKAN_HEADERS_REVISION lacks required declaration $symbol" >&2
+    exit 1
+  fi
+done
+HYBRIS_TLS_SOURCE="$work/libhybris" python3 -m unittest discover \
+  -s "$root/tools/tests" -p test_hybris_tls_capacity.py
+# The feature-chain regression compiles patched production source. Supply the
+# pinned checkout explicitly so component CI cannot silently skip this gate.
+HYBRIS_VENDOR_SOURCE="$work/libhybris" python3 -m unittest discover \
+  -s "$root/tools/tests" -p test_hybris_vendor_compat.py
+HYBRIS_PLACED_SOURCE="$work/libhybris" python3 -m unittest discover \
+  -s "$root/tools/tests" -p test_placed_memory_layer.py
+HYBRIS_SIZES_SOURCE="$work/libhybris" python3 -m unittest discover \
+  -s "$root/tools/tests" -p test_hybris_device_create_sizes.py
+python3 -m unittest discover \
+  -s "$root/tools/tests" -p test_hybris_mapping_lock.py
+python3 -m unittest discover \
+  -s "$root/tools/tests" -p test_hybris_inline_shader.py
+HYBRIS_CLIP_SOURCE="$work/libhybris" python3 -m unittest discover \
+  -s "$root/tools/tests" -p test_hybris_clip_shader.py
+HYBRIS_CLIP_SOURCE="$work/libhybris" python3 -m unittest discover \
+  -s "$root/tools/tests" -p test_hybris_cull_policy.py
+HYBRIS_CLIP_SOURCE="$work/libhybris" python3 -m unittest discover \
+  -s "$root/tools/tests" -p test_hybris_multiview_cull.py
+HYBRIS_PUSH_SOURCE="$work/libhybris" python3 -m unittest discover \
+  -s "$root/tools/tests" -p test_hybris_push_descriptors.py
+python3 -m unittest discover \
+  -s "$root/tools/tests" -p test_hybris_strip_names.py
+python3 -m unittest discover \
+  -s "$root/tools/tests" -p test_hybris_zink_profile.py
 git -C "$work/libhybris" apply --check "$root/tools/hybris/powervr-hal-version.patch"
 git -C "$work/libhybris" apply "$root/tools/hybris/powervr-hal-version.patch"
 for patch in "$root"/tools/hybris/patches/*.patch; do
   git -C "$work/libhybris" apply --check "$patch"
   git -C "$work/libhybris" apply "$patch"
 done
-export ARLINUX_WSI_PROTOCOL_DIR="$work/rootfs/graphics-protocols"
+# Include new source files in the patch shipped with the runtime's licenses.
+git -C "$work/libhybris" add --intent-to-add .
 export CONTAINER_ENGINE=podman
-"$work/libhybris/tools/build-aarch64.sh" --out "$work/build"
+builder_image="${BUILDER_IMAGE:-}"
+if [[ -z "$builder_image" ]]; then
+  builder_image="$("$work/libhybris/tools/ensure-builder.sh")"
+fi
+export BUILDER_IMAGE="$builder_image"
+export ARLINUX_WSI_PROTOCOL_DIR="$work/libhybris/arlinux/graphics-protocols"
+VULKAN_HEADERS_DIR="$VULKAN_INCLUDE" VULKAN_HEADERS_COMMIT="$VULKAN_HEADERS_REVISION" \
+  "$work/libhybris/tools/build-aarch64.sh" --out "$work/build"
+
+ndk="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-}}}"
+if [[ -z "$ndk" ]]; then
+  echo 'An Android NDK is required to build the BC push-descriptor probes.' >&2
+  exit 1
+fi
+OUT="$work/build" \
+  BIONIC_CC="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang" \
+  "$work/libhybris/tests/baseline/build.sh"
+mkdir -p "$out/probes"
+cp "$work/build/bundle/probe-glibc" "$work/build/bundle/probe-manifest.json" "$out/probes/"
+(cd "$out/probes" && sha256sum probe-glibc probe-manifest.json > SHA256SUMS)
 
 mkdir -p "$work/package/lib" "$work/package/licenses"
+python3 "$root/tools/hybris/component_record.py" --write-recipe "$work/package/build-recipe.json"
+printf '%s\n' "$VULKAN_HEADERS_REVISION" > "$work/package/vulkan-headers-commit"
+cp "$work/vulkan-headers/LICENSE.md" "$work/package/licenses/Vulkan-Headers-LICENSE.md"
 cp -a "$work/build/install/usr/lib/hybris/." "$work/package/lib/"
 find "$work/package/lib" -name '*.la' -delete
 rm -rf "$work/package/lib/include" "$work/package/lib/pkgconfig" "$work/package/lib/bin"
@@ -35,7 +92,8 @@ rm -rf "$work/package/lib/include" "$work/package/lib/pkgconfig" "$work/package/
 while IFS= read -r -d '' library; do
   patchelf --set-rpath '$ORIGIN:$ORIGIN/../..' "$library"
 done < <(find "$work/package/lib" -type f -name '*.so*' -print0)
-for library in libhybris-vulkan-icd.so.0 libhybris-common.so.1 libVkLayer_hybris_compat.so libhybris/linker/q.so; do
+for library in libhybris-vulkan-icd.so.0 libhybris-common.so.1 libVkLayer_hybris_compat.so \
+    libVkLayer_DROIDDECK_placed_memory.so VkLayer_DROIDDECK_placed_memory.json libhybris/linker/q.so; do
   test -s "$work/package/lib/$library"
 done
 cp "$work/libhybris"/LICENSE.* "$work/package/licenses/"

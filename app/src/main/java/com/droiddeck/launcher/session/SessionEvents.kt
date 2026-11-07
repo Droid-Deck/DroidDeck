@@ -25,6 +25,7 @@ object SessionEvents {
             SessionState.logFile = File(dir, "session.log")
             SessionState.eventsFile = File(dir, "events.jsonl")
             SessionState.guestPid = -1
+            SessionState.graphicsRoute = null
             SessionState.installing = null
             SessionState.stopRequested = false
             SessionState.program = null
@@ -104,7 +105,11 @@ object SessionEvents {
         if (!SessionState.running || SessionState.guestPid <= 1 || !SessionState.firstFrameSeen || SessionState.suspended) return
         if (SessionState.phase != SessionPhase.READY) {
             transition(SessionPhase.READY, "session.ready")
-            Thread({ com.droiddeck.launcher.gpu.AutoDriverTrial.sessionReady() }, "gpu-driver-trial").start()
+            val generation = SessionState.generation
+            Thread({
+                com.droiddeck.launcher.gpu.AutoDriverTrial.sessionReady()
+                com.droiddeck.launcher.gpu.SystemVulkanComponentStore.sessionReady(generation)
+            }, "gpu-driver-trial").start()
         }
     }
 

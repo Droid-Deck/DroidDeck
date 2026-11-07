@@ -38,15 +38,51 @@ class SessionAssetsTest(unittest.TestCase):
             package.writestr(self.name, self.helper.read_bytes())
         self.assertEqual([], assets.check(self.apk, self.overlay))
 
+    def test_apk_rejects_embedded_system_vulkan_payloads(self):
+        with ZipFile(self.apk, 'w') as package:
+            package.writestr(self.name, self.helper.read_bytes())
+            package.writestr('assets/hybris/runtime.tzst', b'old bundled runtime')
+            package.writestr('assets/hybris/version.txt', b'0' * 64)
+        self.assertEqual(
+            ['embedded System Vulkan payload must not ship in the APK: '
+             'assets/hybris/runtime.tzst, assets/hybris/version.txt'],
+            assets.check(self.apk, self.overlay),
+        )
+
     def test_bundled_helper_must_also_be_extracted(self):
         self.assertEqual(['not extracted at session start: usr/local/bin/droiddeck-login1'],
                          assets.check_extraction(self.overlay, ''))
         mapping = '"usr/local/bin/droiddeck-login1" to "usr/local/bin/droiddeck-login1"'
         self.assertEqual([], assets.check_extraction(self.overlay, mapping))
 
-    def test_helper_extracted_under_another_name_counts(self):
-        mapping = '"usr/local/bin/droiddeck-login1" to "usr/local/bin/login1"'
-        self.assertEqual([], assets.check_extraction(self.overlay, mapping))
-        mapping = '"usr/local/bin/droiddeck-login1" to "usr/local/bin/sub/login1"'
+    def test_helper_at_an_unexpected_destination_is_rejected(self):
+        mapping = '"usr/local/bin/droiddeck-login1" to "usr/local/bin/unrelated"'
         self.assertEqual(['not extracted at session start: usr/local/bin/droiddeck-login1'],
                          assets.check_extraction(self.overlay, mapping))
+
+    def test_steam_taskset_requires_its_private_destination(self):
+        self.helper.rename(self.helper.with_name('droiddeck-steam-taskset'))
+        source = 'usr/local/bin/droiddeck-steam-taskset'
+        target = 'usr/local/libexec/droiddeck-steam/taskset'
+        self.assertEqual([], assets.check_extraction(self.overlay, f'"{source}" to "{target}"'))
+        for destination in (source, 'usr/local/libexec/unrelated/taskset'):
+            with self.subTest(destination=destination):
+                self.assertEqual(['not extracted at session start: ' + source],
+                                 assets.check_extraction(self.overlay, f'"{source}" to "{destination}"'))
+
+    def test_renamed_snap_helpers_require_their_expected_destinations(self):
+        for helper, target in (('droiddeck-systemd-run', 'systemd-run'),
+                               ('droiddeck-snap-cli', 'snap')):
+            with self.subTest(helper=helper):
+                path = self.helper.with_name(helper)
+                self.helper.rename(path)
+                source = 'usr/local/bin/' + helper
+                expected = 'usr/local/bin/' + target
+                self.assertEqual([], assets.check_extraction(self.overlay, f'"{source}" to "{expected}"'))
+                for destination in (source, 'usr/local/bin/unrelated'):
+                    self.assertEqual(['not extracted at session start: ' + source],
+                                     assets.check_extraction(self.overlay, f'"{source}" to "{destination}"'))
+                path.rename(self.helper)
+
+    def test_current_session_stages_all_bundled_helpers(self):
+        self.assertEqual([], assets.check_extraction(assets.OVERLAY, assets.SESSION_FILES.read_text()))

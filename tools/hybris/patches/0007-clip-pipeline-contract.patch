@@ -1,0 +1,156 @@
+diff --git a/hybris/vulkan/compat/clip_distance.c b/hybris/vulkan/compat/clip_distance.c
+index ecd1e2f..10e19c1 100644
+--- a/hybris/vulkan/compat/clip_distance.c
++++ b/hybris/vulkan/compat/clip_distance.c
+@@ -38,6 +38,18 @@ int hybris_cull_active(VkPhysicalDevice physical)
+     return !features.shaderCullDistance;
+ }
+ 
++int hybris_clip_extension_allowed(const char *name)
++{
++    return strcmp(name, VK_EXT_GRAPHICS_PIPELINE_LIBRARY_EXTENSION_NAME) &&
++        strcmp(name, VK_EXT_SHADER_OBJECT_EXTENSION_NAME);
++}
++
++int hybris_clip_command_allowed(const char *name)
++{
++    return strcmp(name, "vkCreateShadersEXT") && strcmp(name, "vkDestroyShaderEXT") &&
++        strcmp(name, "vkGetShaderBinaryDataEXT") && strcmp(name, "vkCmdBindShadersEXT");
++}
++
+ int hybris_stage_point_active(VkPhysicalDevice physical)
+ {
+     struct hybris_layer_physical context;
+diff --git a/hybris/vulkan/compat/clip_distance.h b/hybris/vulkan/compat/clip_distance.h
+index 63e7cd3..e38c3e7 100644
+--- a/hybris/vulkan/compat/clip_distance.h
++++ b/hybris/vulkan/compat/clip_distance.h
+@@ -6,5 +6,7 @@ int hybris_clip_enabled(void);
+ int hybris_clip_active(VkPhysicalDevice physical);
+ int hybris_cull_active(VkPhysicalDevice physical);
+ int hybris_stage_point_active(VkPhysicalDevice physical);
++int hybris_clip_extension_allowed(const char *name);
++int hybris_clip_command_allowed(const char *name);
+ PFN_vkVoidFunction hybris_clip_policy_proc(const char *name);
+ #endif
+diff --git a/hybris/vulkan/compat/shader_dispatch.c b/hybris/vulkan/compat/shader_dispatch.c
+index f91786e..6ab43be 100644
+--- a/hybris/vulkan/compat/shader_dispatch.c
++++ b/hybris/vulkan/compat/shader_dispatch.c
+@@ -83,6 +83,7 @@ int hybris_shader_device_proc_allowed(VkDevice handle, const char *name)
+     struct shader_device *device = find_device(handle);
+     if(device && device->dual_src && !strcmp(name,"vkCmdSetColorBlendEquationEXT"))return 0;
+     if(device && device->polygon && !strcmp(name,"vkCmdSetPolygonModeEXT"))return 0;
++    if (device && device->clip && !hybris_clip_command_allowed(name)) return 0;
+     if (hybris_shader_command_allowed(name)) return 1;
+     return !device || (!device->mask && !device->vertex_stores && !device->polygon && !device->dual_src);
+ }
+diff --git a/hybris/vulkan/compat/shader_policy.c b/hybris/vulkan/compat/shader_policy.c
+index 9206bea..3844ea3 100644
+--- a/hybris/vulkan/compat/shader_policy.c
++++ b/hybris/vulkan/compat/shader_policy.c
+@@ -11,6 +11,7 @@
+ #include "scaled_formats.h"
+ #include "bc_policy.h"
+ #include "shader_dispatch.h"
++#include "clip_distance.h"
+ #include "../layer/layer.h"
+ #include <string.h>
+ #include <stdlib.h>
+@@ -41,10 +42,14 @@ int hybris_shader_command_allowed(const char *name)
+ }
+ VkResult hybris_shader_prepare_device(VkPhysicalDevice physical, const VkDeviceCreateInfo *info)
+ {
+-    if (!hybris_shader_physical_mask(physical) && !hybris_vertex_stores_active(physical) &&
+-        !hybris_shader_polygon_emulated(physical) && !hybris_dual_source_active(physical)) return VK_SUCCESS;
++    int full = hybris_shader_physical_mask(physical) || hybris_vertex_stores_active(physical) ||
++        hybris_shader_polygon_emulated(physical) || hybris_dual_source_active(physical);
++    int clip = hybris_clip_active(physical);
++    if (!full && !clip) return VK_SUCCESS;
+     for (uint32_t i = 0; i < info->enabledExtensionCount; ++i)
+-        if (!hybris_shader_extension_allowed(info->ppEnabledExtensionNames[i])) return VK_ERROR_EXTENSION_NOT_PRESENT;
++        if ((full && !hybris_shader_extension_allowed(info->ppEnabledExtensionNames[i])) ||
++            (clip && !hybris_clip_extension_allowed(info->ppEnabledExtensionNames[i])))
++            return VK_ERROR_EXTENSION_NOT_PRESENT;
+     for (const VkBaseInStructure *node = info->pNext; node; node = node->pNext) {
+         VkBool32 enabled = VK_FALSE;
+         switch (node->sType) {
+@@ -53,13 +58,15 @@ VkResult hybris_shader_prepare_device(VkPhysicalDevice physical, const VkDeviceC
+                 (hybris_shader_polygon_emulated(physical) && ((const VkPhysicalDeviceExtendedDynamicState3FeaturesEXT*)node)->extendedDynamicState3PolygonMode);
+             break;
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_INPUT_DYNAMIC_STATE_FEATURES_EXT:
+-            enabled = ((const VkPhysicalDeviceVertexInputDynamicStateFeaturesEXT *)node)->vertexInputDynamicState;
++            enabled = full && ((const VkPhysicalDeviceVertexInputDynamicStateFeaturesEXT *)node)->vertexInputDynamicState;
+             break;
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT:
+-            enabled = ((const VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT *)node)->graphicsPipelineLibrary;
++            enabled = (full || clip) &&
++                ((const VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT *)node)->graphicsPipelineLibrary;
+             break;
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_OBJECT_FEATURES_EXT:
+-            enabled = ((const VkPhysicalDeviceShaderObjectFeaturesEXT *)node)->shaderObject;
++            enabled = (full || clip) &&
++                ((const VkPhysicalDeviceShaderObjectFeaturesEXT *)node)->shaderObject;
+             break;
+         default: break;
+         }
+@@ -96,7 +103,10 @@ static void features2(VkPhysicalDevice physical, VkPhysicalDeviceFeatures2 *out,
+     hybris_maintenance5_features(physical,out);
+     int polygon=hybris_shader_polygon_emulated(physical);
+     if(polygon) out->features.fillModeNonSolid=VK_TRUE;
+-    if (!hybris_shader_physical_mask(physical) && !hybris_vertex_stores_active(physical) && !polygon && !hybris_dual_source_active(physical)) return;
++    int full = hybris_shader_physical_mask(physical) || hybris_vertex_stores_active(physical) ||
++        polygon || hybris_dual_source_active(physical);
++    int clip = hybris_clip_active(physical);
++    if (!full && !clip) return;
+     for (VkBaseOutStructure *node = out->pNext; node; node = node->pNext) {
+         switch (node->sType) {
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_3_FEATURES_EXT:
+@@ -104,13 +114,13 @@ static void features2(VkPhysicalDevice physical, VkPhysicalDeviceFeatures2 *out,
+             if(hybris_shader_polygon_emulated(physical))((VkPhysicalDeviceExtendedDynamicState3FeaturesEXT*)node)->extendedDynamicState3PolygonMode=VK_FALSE;
+             break;
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_INPUT_DYNAMIC_STATE_FEATURES_EXT:
+-            ((VkPhysicalDeviceVertexInputDynamicStateFeaturesEXT *)node)->vertexInputDynamicState = VK_FALSE;
++            if (full) ((VkPhysicalDeviceVertexInputDynamicStateFeaturesEXT *)node)->vertexInputDynamicState = VK_FALSE;
+             break;
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT:
+-            ((VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT *)node)->graphicsPipelineLibrary = VK_FALSE;
++            if (full || clip) ((VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT *)node)->graphicsPipelineLibrary = VK_FALSE;
+             break;
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_OBJECT_FEATURES_EXT:
+-            ((VkPhysicalDeviceShaderObjectFeaturesEXT *)node)->shaderObject = VK_FALSE;
++            if (full || clip) ((VkPhysicalDeviceShaderObjectFeaturesEXT *)node)->shaderObject = VK_FALSE;
+             break;
+         default: break;
+         }
+diff --git a/hybris/vulkan/layer/physical.c b/hybris/vulkan/layer/physical.c
+index 80c30e6..9aa2285 100644
+--- a/hybris/vulkan/layer/physical.c
++++ b/hybris/vulkan/layer/physical.c
+@@ -71,6 +71,7 @@ static VkResult VKAPI_CALL enumerate_device_extensions(VkPhysicalDevice physical
+     unsigned bc_mask = layer ? 0 : hybris_bc_physical_mask(physical);
+     unsigned shader_mask = layer ? 0 : hybris_shader_physical_mask(physical);
+     int pipeline_compat = !layer && (hybris_dual_source_active(physical) || hybris_shader_polygon_emulated(physical));
++    int clip = !layer && hybris_clip_active(physical);
+     int vertex_stores = !layer && hybris_vertex_stores_active(physical);
+     int dynamic = !layer && hybris_dynamic_emulated(physical);
+     int maintenance5 = !layer && hybris_maintenance5_emulated(physical);
+@@ -79,7 +80,7 @@ static VkResult VKAPI_CALL enumerate_device_extensions(VkPhysicalDevice physical
+         VkResult policy_result=hybris_robustness2_policy(physical,&robust);
+         if(policy_result!=VK_SUCCESS)return policy_result;
+     }
+-    if (layer || (!bc_mask && !shader_mask && !pipeline_compat && !vertex_stores && !robust.emulated && !dynamic && !maintenance5))
++    if (layer || (!bc_mask && !shader_mask && !pipeline_compat && !clip && !vertex_stores && !robust.emulated && !dynamic && !maintenance5))
+         return enumerate(physical, layer, count, properties);
+     uint32_t available = 0;
+     VkResult result = enumerate(physical, NULL, &available, NULL);
+@@ -99,7 +100,8 @@ static VkResult VKAPI_CALL enumerate_device_extensions(VkPhysicalDevice physical
+              !strcmp(all[i].extensionName,"VK_KHR_ray_tracing_pipeline") ||
+              !strcmp(all[i].extensionName,"VK_KHR_ray_query")))continue;
+         if ((bc_mask && !hybris_bc_extension_allowed(all[i].extensionName)) ||
+-            ((shader_mask || pipeline_compat || vertex_stores) && !hybris_shader_extension_allowed(all[i].extensionName))) continue;
++            ((shader_mask || pipeline_compat || vertex_stores) && !hybris_shader_extension_allowed(all[i].extensionName)) ||
++            (clip && !hybris_clip_extension_allowed(all[i].extensionName))) continue;
+         if (properties && written < capacity) properties[written++] = all[i];
+         ++kept;
+     }

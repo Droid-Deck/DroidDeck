@@ -24,6 +24,7 @@ class EnhancedDiagnosticsTest {
 
     @Before fun setUp() {
         context = RuntimeEnvironment.getApplication()
+        installJvmSecureSourceOpener()
         SessionPaths.take()?.let { SessionPaths.release(context, it) }
         context.getSharedPreferences("session", Context.MODE_PRIVATE).edit()
             .remove("logs")
@@ -46,6 +47,7 @@ class EnhancedDiagnosticsTest {
             .remove("enhancedDiagnosticsActiveSessions")
             .commit()
         GameEnvironmentStore.publish(context)
+        resetSecureSourceOpener()
     }
 
     @Test fun armedSessionIsRetainedAndConsumesTheOneShotPreference() {

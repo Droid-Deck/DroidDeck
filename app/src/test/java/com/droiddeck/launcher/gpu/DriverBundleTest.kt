@@ -32,6 +32,7 @@ class DriverBundleTest {
         context.getSharedPreferences("driver_bundles", Context.MODE_PRIVATE).edit().clear().commit()
         SessionPrefs.setAndroidDriver(context, "")
         SessionPrefs.setLinuxDriver(context, "")
+        manifest.put("package", "DD-Turnip").put("version", "0.1.0").put("tag", "DD-Turnip-v0.1.0")
     }
 
     private fun library(libc: String) = ByteArray(64).also {
@@ -60,6 +61,28 @@ class DriverBundleTest {
         "linux/libvulkan_freedreno.so" to library(linuxLibc),
         "manifest.json" to manifest.toString().toByteArray(),
     ) + extra)
+
+    private fun remoteAsset(sourceId: String, sha: String, assetId: Long) = TurnipReleases.Asset(
+        "Non-Adreno", "panvk-g610", "PanVK-Mali-G610-Pair.zip", "https://example/$sourceId", 9_000_000,
+        false, "PanVK", sha, DriverPairs.NAD_MALI_G710, bundle = true, sourceId = sourceId,
+        repository = "owner/$sourceId", assetId = assetId, pairKind = DriverPairs.NAD_MALI_G710,
+    )
+
+    @Test fun openVendorRuntimeLibraryImportsWithTheSameElfValidation() {
+        val uri = zip(mapOf("libvulkan_panfrost.so" to library("libc.so.6"),
+            "meta.json" to JSONObject().put("name", "Experimental Panfrost ICD").toString().toByteArray()))
+        val manager = LinuxVulkanDriverManager(context)
+        val id = manager.installDriver(uri, "panfrost-driver.zip")
+        assertTrue(manager.isInstalled(id))
+        assertEquals("Experimental Panfrost ICD", manager.getDriverName(id))
+        val rejected = zip(mapOf("libvulkan_panfrost.so" to library("libc.so")))
+        try {
+            manager.installDriver(rejected, "android-panfrost.zip")
+            fail("an Android library must not be accepted as a Linux ICD")
+        } catch (e: IllegalArgumentException) {
+            assertTrue(e.message!!.contains("glibc"))
+        }
+    }
 
     @Test fun manifestNeedsBothHalvesInSeparateSafeDirectories() {
         val m = DriverBundle.parseManifest(manifest)!!
@@ -143,5 +166,70 @@ class DriverBundleTest {
         assertTrue(TurnipDriver(context).isInstalled(first.androidId))
         assertTrue(LinuxVulkanDriverManager(context).isInstalled(first.linuxId))
         assertEquals(1, DriverBundle.all(context).size)
+    }
+
+    @Test fun sameTagBundlesFromTwoSourcesKeepDistinctProvenanceAndMappings() {
+        manifest.put("tag", "PanVK-G610-v1")
+        val sourceA = remoteAsset("source-a", "a".repeat(64), 1)
+        val sourceB = remoteAsset("source-b", "b".repeat(64), 2)
+        val first = DriverBundle.install(context, bundle(), sourceA)
+        TurnipReleases.recordDownload(context, sourceA, first.id)
+        val second = DriverBundle.install(context, bundle(), sourceB)
+        TurnipReleases.recordDownload(context, sourceB, second.id)
+
+        assertFalse(first.id == second.id)
+        assertEquals(sourceA.sourceId, DriverBundle.get(context, first.id)?.sourceId)
+        assertEquals(sourceA.sha256, DriverBundle.get(context, first.id)?.sha256)
+        assertEquals(sourceB.sourceId, DriverBundle.get(context, second.id)?.sourceId)
+        assertEquals(sourceB.sha256, DriverBundle.get(context, second.id)?.sha256)
+        assertEquals(first.id, TurnipReleases.installedId(context, sourceA) { DriverBundle.get(context, it) != null })
+        assertEquals(second.id, TurnipReleases.installedId(context, sourceB) { DriverBundle.get(context, it) != null })
+    }
+
+    @Test fun rebuiltBundleFromOneSourceDoesNotLeaveTheOldAssetClaimingNewBytes() {
+        manifest.put("tag", "PanVK-G610-v1")
+        val oldAsset = remoteAsset("source-a", "a".repeat(64), 1)
+        val newAsset = remoteAsset("source-a", "b".repeat(64), 2)
+        val first = DriverBundle.install(context, bundle(), oldAsset)
+        TurnipReleases.recordDownload(context, oldAsset, first.id)
+        val second = DriverBundle.install(context, bundle(), newAsset)
+        TurnipReleases.recordDownload(context, newAsset, second.id)
+
+        assertFalse(first.id == second.id)
+        assertNotNull(DriverBundle.get(context, first.id))
+        DriverBundle.finishRemoteReplacement(context, second)
+        assertNull(DriverBundle.get(context, first.id))
+        assertNull(TurnipReleases.installedId(context, oldAsset) { DriverBundle.get(context, it) != null })
+        assertEquals(second.id, TurnipReleases.installedId(context, newAsset) { DriverBundle.get(context, it) != null })
+    }
+
+    @Test fun staleSourceDuringRebuildKeepsThePreviousSelectedBundle() {
+        manifest.put("tag", "PanVK-G610-v1")
+        val oldAsset = remoteAsset("source-a", "a".repeat(64), 1)
+        val newAsset = remoteAsset("source-a", "b".repeat(64), 2)
+        val first = DriverBundle.install(context, bundle(), oldAsset)
+        TurnipReleases.recordDownload(context, oldAsset, first.id)
+        DriverBundle.select(context, first)
+
+        val uncommitted = DriverBundle.install(context, bundle(), newAsset)
+        assertEquals(first.id, DriverBundle.active(context)?.id)
+
+        DriverBundle.remove(context, uncommitted)
+        assertEquals(first.id, DriverBundle.active(context)?.id)
+        assertNotNull(DriverBundle.get(context, first.id))
+        assertEquals(first.id, TurnipReleases.installedId(context, oldAsset) { DriverBundle.get(context, it) != null })
+    }
+
+    @Test fun committedBuiltInUpdateRetiresTheSelectedLegacyBundle() {
+        manifest.put("tag", "PanVK-G610-v1")
+        val legacy = DriverBundle.install(context, bundle())
+        DriverBundle.select(context, legacy)
+        val asset = remoteAsset("builtin-source", "b".repeat(64), 2)
+        val replacement = DriverBundle.install(context, bundle(), asset)
+
+        DriverBundle.finishRemoteReplacement(context, replacement, legacy.id)
+
+        assertNull(DriverBundle.get(context, legacy.id))
+        assertEquals(replacement.id, DriverBundle.active(context)?.id)
     }
 }

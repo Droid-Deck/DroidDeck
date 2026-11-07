@@ -61,6 +61,19 @@ class WebhelperPreloadTest(unittest.TestCase):
         args = [WEBHELPER, "--enable-features=A"]
         self.assertEqual(self.argv(*args, spec="stock"), args)
 
+    def test_software_gpu_flags_survive_process_consolidation(self):
+        args = [WEBHELPER, "--disable-gpu", "--disable-gpu-compositing"]
+        for spec in (None, "stock"):
+            with self.subTest(spec=spec):
+                out = self.argv(*args, spec=spec)
+                self.assertEqual(out[:len(args)], args)
+                self.assertEqual(out.count("--disable-gpu"), 1)
+                self.assertEqual(out.count("--disable-gpu-compositing"), 1)
+                if spec is None:
+                    self.assertIn("--in-process-gpu", out)
+                else:
+                    self.assertEqual(out, args)
+
     def test_angle_switches_are_appended_with_the_gpu_process_kept_out_of_process(self):
         out = self.argv(WEBHELPER, "-lang=en_US", "--enable-features=A", spec="--use-gl=angle --use-angle=vulkan")
         self.assertEqual(out, [WEBHELPER, "-lang=en_US", "--use-gl=angle", "--use-angle=vulkan",

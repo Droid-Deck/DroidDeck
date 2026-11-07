@@ -143,6 +143,7 @@ object SessionFiles {
             "usr/local/lib/mangoapp/libglfw.so.3",
             "usr/local/lib/mangoapp/libtraceevent.so.1",
             "usr/local/lib/mangoapp/libtracefs.so.1",
+            "usr/local/lib/mangoapp/libsysfs-listing-shim.so",
         ).map { it to it }
         val xclipse = listOf("libVkLayer_droiddeck_xclipse.so", "VkLayer_droiddeck_xclipse.json")
             .map { "usr/local/lib/droiddeck-xclipse/$it" }

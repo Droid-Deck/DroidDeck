@@ -65,6 +65,10 @@ PREPARED = ('pulseaudio.tzst',
             'graphics_driver/adrenotools-turnip25.1.0-quest1.tzst',
             'graphics_driver/adrenotools-turnip26.3.0-a6xx.tzst',
             'graphics_driver/adrenotools-turnip26.3.0-quest2.tzst')
+GAMESCOPE_BINARY = 'usr/local/bin/gamescope'
+GAMESCOPE_WSI_LAYER = 'usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so'
+GAMESCOPE_LEGACY_FILES = {GAMESCOPE_BINARY}
+GAMESCOPE_LAYERED_FILES = GAMESCOPE_LEGACY_FILES | {GAMESCOPE_WSI_LAYER}
 
 
 def git(*args):
@@ -156,16 +160,25 @@ def read_gamescope(path):
             if name in files:
                 raise ValueError('Duplicate Gamescope archive member: ' + name)
             files[name] = archive.extractfile(member).read()
-    if set(files) != {'usr/local/bin/gamescope'}:
+    names = set(files)
+    if names not in (GAMESCOPE_LEGACY_FILES, GAMESCOPE_LAYERED_FILES):
         raise ValueError('Unexpected Gamescope archive payload: ' + ', '.join(files))
+    for name in names:
+        validate_rebuilt_bytes(files[name], 183, 'Gamescope archive member: ' + name)
+    if GAMESCOPE_WSI_LAYER in files and struct.unpack('<H', files[GAMESCOPE_WSI_LAYER][16:18])[0] != 3:
+        raise ValueError('Gamescope WSI layer is not an ELF shared object')
     return files, pins
 
 
-def validate_rebuilt(path, machine):
-    data = path.read_bytes()
-    if len(data) < 20 or data[:4] != b'\x7fELF' or data[5] != 1 or struct.unpack('<H', data[18:20])[0] != machine:
-        raise ValueError('Replacement has the wrong ELF architecture: ' + str(path))
+def validate_rebuilt_bytes(data, machine, label):
+    if (len(data) < 20 or data[:4] != b'\x7fELF' or data[4] != 2 or data[5] != 1 or data[6] != 1 or
+            struct.unpack('<H', data[18:20])[0] != machine):
+        raise ValueError('Replacement has the wrong ELF architecture: ' + label)
     return data
+
+
+def validate_rebuilt(path, machine):
+    return validate_rebuilt_bytes(path.read_bytes(), machine, str(path))
 
 
 def validate_tracked_assets(package, llvm_strip):

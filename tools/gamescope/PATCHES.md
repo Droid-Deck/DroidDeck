@@ -81,6 +81,14 @@ The system PowerVR driver uses the existing SDL/Wayland swapchain backend. Its a
 - `0924-sdl-preserve-explicit-refresh.patch` and `0925-sdl-wait-before-present.patch`: preserve
   configured refresh across SDL events and finish composition before presenting without a
   render-finished semaphore. The build runs the focused capability, format and refresh tests.
+- `0126-shm-commit-ready.patch`: mark a synchronously uploaded SHM texture ready without treating
+  an exported image-memory fd as a sync fence. Explicit acquire events and DMA-BUF commits keep
+  their normal wait paths. The build exercises the extracted production dispatch with SHM,
+  explicit-acquire and DMA-BUF mocks.
+- `0128-keep-swapchain-shm-textures-internal.patch`: keep SHM uploads internal on Vulkan-swapchain
+  backends, which sample them locally. Forwarding and scanout backends retain exportable textures.
+- `0129-keep-swapchain-cursors-internal.patch`: apply the same internal-texture rule to Xwayland
+  SHM cursors on Vulkan-swapchain backends while preserving exportable hardware-plane cursors.
 
 Sixteen more of Armada's patches are DRM/lease/HDR-on-KMS work for a native display, which this
 app's Wayland-hosted gamescope never reaches, or need a newer gamescope than the runtime has.
@@ -96,6 +104,8 @@ app's Wayland-hosted gamescope never reaches, or need a newer gamescope than the
   import, so the screen cycled through the first few frames forever while Steam ran on behind them.
   Only dma-buf textures are memoized now; a shm buffer is uploaded on every commit. Adreno never
   takes this path, since its Xwayland hands over dma-bufs. Also what XWAYLAND_NO_GLAMOR sessions need.
+- `0928-robustness2-optional.patch`: do not require `VK_EXT_robustness2`; devices without null
+  descriptors use a 1x1 fallback texture for unused descriptor slots.
 - `0929-log-failing-compute-pipeline.patch`: when `vkCreateComputePipelines` fails, one extra line
   per shader type names the pipeline (shader type, layer count, ycbcr/colorspace masks, fp16) and the
   SPIR-V capabilities its shader declares. A Mali-G615 through Venus refused all 119 composite
@@ -274,6 +284,15 @@ the connector's windows (`mangoapp_nudge_app_frame`). With `DROIDDECK_HUD_FRAMES
 sets `/run/droiddeck-hud/frames`), gamescope maps that file and writes the same commits of connector 0,
 whether or not a mangoapp runs, plus the focused pid, output size, refresh, Steam focus and engine name.
 The layout is in the comment above `droiddeck_hud_frames_map`; the app reads it in `hudframes.c`.
+
+## 0126 SHM: complete synchronously uploaded buffers without a fence
+
+SHM buffers are uploaded before the commit is queued, so they are marked ready without
+exporting the texture's memory as a fence. DMA-BUFs and explicit acquire fences keep their
+normal synchronization; already-ready DMA-BUFs still skip duplication when the upstream
+ready-at-import check is enabled. Ready commits enter the same-pass completion queue even
+when that optional polling check is disabled. Fence ownership, shared completion lists, and
+DroidDeck HUD frame reporting follow the preceding 0123–0125 patches.
 
 ## 0126 steamcompmgr: a topmost focus window keeps other processes' windows beneath it
 

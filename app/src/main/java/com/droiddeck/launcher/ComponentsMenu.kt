@@ -9,7 +9,22 @@ import com.droiddeck.launcher.session.ComponentUpdater
 import com.droiddeck.launcher.session.ComponentUpdates
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.ProtonDefault
+import com.droiddeck.launcher.artifact.GitHubArtifacts
 import com.droiddeck.launcher.session.SessionPrefs
+
+internal var componentsCatalogReader: (
+    android.content.Context, Boolean, Set<String>,
+) -> ComponentsManager.Catalog = ComponentsManager::catalog
+
+internal class SharedRefreshFeedback(
+    private val show: (String) -> Unit,
+) {
+    private val shown = HashSet<String>()
+
+    fun complete(message: String?) {
+        if (message != null && shown.add(message)) show(message)
+    }
+}
 
 internal class ComponentsMenu(private val activity: android.app.Activity, private val ui: Handler) {
     var compSnapshot by mutableStateOf<ComponentsManager.Snapshot?>(null)
@@ -28,13 +43,20 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
     var compAutoHeld by mutableStateOf<Set<String>>(emptySet())
     var compAutoChecking by mutableStateOf(false)
     private var shownDefault: String? = null
+    private var nextCatalogRequest = 0
+    private val catalogRequestByComponent = ComponentsManager.COMPONENTS.associateWith { 0 }.toMutableMap()
+    private val catalogAppliedByComponent = ComponentsManager.COMPONENTS.associateWith { 0 }.toMutableMap()
+    private val catalogAtByComponent = ComponentsManager.COMPONENTS.associateWith { 0L }.toMutableMap()
+    private val activeCatalogRequests = HashSet<Int>()
 
     fun refreshComponents(snapshotFirst: Boolean = false) {
+        val requested = catalogRequestByComponent.toMap()
+        val applied = catalogAppliedByComponent.toMap()
         Thread({
             if (snapshotFirst) runCatching { ComponentsManager.snapshotAll(activity) }
             runCatching { ComponentsManager.applyQueued(activity) }
             val snap = runCatching { ComponentsManager.snapshot(activity) }.onFailure { Log.w(TAG, "components", it) }.getOrNull()
-            val cat = runCatching { ComponentsManager.catalog(activity, false) }.getOrNull()
+            val cat = runCatching { componentsCatalogReader(activity, false, ComponentsManager.COMPONENTS.toSet()) }.getOrNull()
             val chosen = snap?.let { s -> runCatching { ProtonDefault.selectedId(activity, s.protons.map { it.proton }) }.getOrNull() }
             runCatching { ComponentUpdater.settle(activity) }
             val modes = ComponentsManager.COMPONENTS.associateWith { SessionPrefs.componentMode(activity, it) }
@@ -45,7 +67,12 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
                 compAuto = auto
                 compAutoHeld = held
                 compSnapshot = snap ?: ComponentsManager.Snapshot(emptyList(), emptyList())
-                if (cat != null && cat.fetchedAt > 0) { compCatalog = cat.items; compCatalogAt = cat.fetchedAt }
+                if (cat != null) {
+                    val current = applied.keys.filterTo(LinkedHashSet()) {
+                        catalogRequestByComponent[it] == requested[it] && catalogAppliedByComponent[it] == applied[it]
+                    }
+                    mergeCatalog(cat, current)
+                }
                 if (chosen != null && chosen != shownDefault) {
                     shownDefault = chosen
                     compProton = chosen
@@ -113,29 +140,70 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
         }, "components-action").start()
     }
 
-    fun refreshComponentCatalog(force: Boolean = true) {
-        if (compChecking) return
+    fun refreshComponentCatalog(
+        force: Boolean = true,
+        components: Set<String> = ComponentsManager.COMPONENTS.toSet(),
+        onComplete: ((String?) -> Unit)? = null,
+    ) {
+        val wanted = components.filterTo(LinkedHashSet()) { it in ComponentsManager.COMPONENTS }
+        if (wanted.isEmpty()) return
+        val id = ++nextCatalogRequest
+        wanted.forEach { catalogRequestByComponent[it] = id }
+        activeCatalogRequests.add(id)
         compChecking = true
         Thread({
-            val cat = runCatching { ComponentsManager.catalog(activity, force) }.getOrNull()
+            val result = runCatching { componentsCatalogReader(activity, force, wanted) }
+            val cat = result.getOrNull()
             ui.post {
-                compChecking = false
-                if (cat != null && cat.items.isNotEmpty()) { compCatalog = cat.items; compCatalogAt = cat.fetchedAt }
-                else if (force) android.widget.Toast.makeText(activity, activity.getString(R.string.comp_nightlies_unreachable), android.widget.Toast.LENGTH_LONG).show()
+                activeCatalogRequests.remove(id)
+                compChecking = activeCatalogRequests.isNotEmpty()
+                val current = wanted.filterTo(LinkedHashSet()) { catalogRequestByComponent[it] == id }
+                if (cat != null && current.isNotEmpty()) {
+                    mergeCatalog(cat, current)
+                    current.forEach { catalogAppliedByComponent[it] = id }
+                }
+                val currentFailures = cat?.failed.orEmpty().filter { failure ->
+                    ':' !in failure || current.any { failure.startsWith("$it:") }
+                }
+                var feedback: String? = null
+                if (force && current.isNotEmpty() && (cat == null || currentFailures.isNotEmpty())) {
+                    val rateLimited = cat?.let {
+                        it.rateLimitedComponents.any(current::contains) ||
+                            (it.rateLimited && it.rateLimitedComponents.isEmpty() && currentFailures.isNotEmpty())
+                    } == true || result.exceptionOrNull()?.let(GitHubArtifacts::isRateLimited) == true
+                    val message = activity.getString(if (rateLimited) R.string.sources_github_rate_limited else R.string.comp_nightlies_unreachable)
+                    if (onComplete == null) android.widget.Toast.makeText(activity, message, android.widget.Toast.LENGTH_LONG).show()
+                    else feedback = message
+                }
+                onComplete?.invoke(feedback)
             }
         }, "components-catalog").start()
     }
 
+    fun sourcesChanged(component: String) {
+        if (component !in ComponentsManager.COMPONENTS) return
+        compCatalog = compCatalog.filterNot { it.comp == component }
+        refreshComponentCatalog(force = true, components = setOf(component))
+    }
+
+    private fun mergeCatalog(catalog: ComponentsManager.Catalog, current: Set<String>) {
+        if (current.isEmpty()) return
+        compCatalog = (compCatalog.filterNot { it.comp in current } + catalog.items.filter { it.comp in current })
+            .distinctBy { it.id }.sortedWith(ComponentsManager.CATALOG_ORDER)
+        current.forEach { catalogAtByComponent[it] = catalog.fetchedAt }
+        compCatalogAt = catalogAtByComponent.values.maxOrNull() ?: 0L
+    }
+
     fun downloadComponent(item: ComponentsManager.CatalogItem) {
-        if (compDownloads.containsKey(item.file)) return
-        compDownloads = compDownloads + (item.file to -1)
+        if (compDownloads.containsKey(item.id)) return
+        compDownloads = compDownloads + (item.id to -1)
         Thread({
             val message = runCatching {
-                val pkg = ComponentsManager.download(activity, item) { pc -> ui.post { if (compDownloads.containsKey(item.file)) compDownloads = compDownloads + (item.file to pc) } }
+                val pkg = ComponentsManager.download(activity, item) { pc -> ui.post { if (compDownloads.containsKey(item.id)) compDownloads = compDownloads + (item.id to pc) } }
                 activity.getString(R.string.comp_stored, pkg.version)
             }.getOrElse { e -> activity.getString(R.string.comp_download_failed, e.message ?: e.javaClass.simpleName) }
             ui.post {
-                compDownloads = compDownloads - item.file
+                compDownloads = compDownloads - item.id
                 downloadRevision++
                 android.widget.Toast.makeText(activity, message, android.widget.Toast.LENGTH_SHORT).show()
                 refreshComponents()

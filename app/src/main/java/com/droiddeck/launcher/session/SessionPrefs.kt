@@ -484,9 +484,37 @@ object SessionPrefs {
         prefs(context).edit().putString("linuxDriver", id).apply()
     }
 
+    /**
+     * Builds before the PowerVR add-on pack stored an active managed runtime while leaving the
+     * Linux-driver preference empty. Preserve that working runtime once on upgrade. Recording the
+     * decision even when no legacy runtime exists prevents a later automatic install from silently
+     * replacing the add-on-pack default.
+     */
+    fun initializeSystemVulkanChoice(context: Context, profile: String, managedRowId: String?): String {
+        val preferences = prefs(context)
+        val key = "systemVulkanChoiceInitialized.$profile"
+        val current = linuxDriver(context)
+        if (preferences.getBoolean(key, false)) return current
+        val chosen = current.ifEmpty { managedRowId.orEmpty() }
+        val editor = preferences.edit().putBoolean(key, true).putString("linuxDriver", chosen)
+        if (current.isEmpty() && managedRowId != null) {
+            // Auto owns its choices and would clear the migrated row at session startup. Treat the
+            // preserved working runtime as the matched display/runtime pair it already represents.
+            editor.putString("gpuDriverMode", GPU_DRIVERS_PAIR)
+                .putString("androidDriver", TurnipDriver.AUTO)
+        }
+        editor.commit()
+        return chosen
+    }
+
+    fun markSystemVulkanChoiceInitialized(context: Context, profile: String) {
+        prefs(context).edit().putBoolean("systemVulkanChoiceInitialized.$profile", true).apply()
+    }
+
     const val GPU_DRIVERS_AUTO = "auto"
     const val GPU_DRIVERS_MANUAL = "manual"
     const val GPU_DRIVERS_MIX = "mix"
+    const val GPU_DRIVERS_PAIR = "pair"
 
     const val TP_UBWC_AUTO = "auto"
     const val TP_UBWC_ON = "on"
@@ -527,15 +555,20 @@ object SessionPrefs {
     }
 
     @JvmStatic
-    fun ensurePowerVrAutoDrivers(context: Context) {
-        if (com.droiddeck.launcher.core.DeviceSupport.openDriverActive(context)) return
-        ensurePowerVrAutoDrivers(context, SystemVulkanDriver.isPowerVr())
-    }
+    fun ensureSystemVulkanAutoDrivers(context: Context) = ensureSystemVulkanAutoDrivers(context, SystemVulkanDriver.isSupportedGpu())
 
-    internal fun ensurePowerVrAutoDrivers(context: Context, powerVr: Boolean) {
-        if (!powerVr || gpuDriverMode(context) != GPU_DRIVERS_AUTO) return
+    internal fun ensureSystemVulkanAutoDrivers(context: Context, systemVulkan: Boolean) {
+        if (!systemVulkan || gpuDriverMode(context) != GPU_DRIVERS_AUTO) return
+        if (com.droiddeck.launcher.core.DeviceSupport.openDriverActive(context)) return
         prefs(context).edit().putString("linuxDriver", "").putString("androidDriver", TurnipDriver.AUTO).apply()
     }
+
+    /** Compatibility alias for call sites that still name the original PowerVR-only policy. */
+    @JvmStatic
+    fun ensurePowerVrAutoDrivers(context: Context) = ensureSystemVulkanAutoDrivers(context)
+
+    internal fun ensurePowerVrAutoDrivers(context: Context, powerVr: Boolean) =
+        ensureSystemVulkanAutoDrivers(context, powerVr)
 
     fun gpuAutoInstalled(context: Context): Set<String> =
         prefs(context).getStringSet("gpuAutoInstalled", emptySet()).orEmpty()
@@ -802,6 +835,9 @@ object SessionPrefs {
     fun vsyncThread(context: Context): Boolean = prefs(context).getBoolean("vsyncThread", true)
     fun renderOnCommit(context: Context): Boolean = prefs(context).getBoolean("renderOnCommit", true)
     fun setMangoapp(context: Context, on: Boolean) { prefs(context).edit().putBoolean("mangoapp", on).apply() }
+
+    fun steamUiSoftware(context: Context): Boolean = prefs(context).getBoolean("steamUiSoftware", false)
+    fun setSteamUiSoftware(context: Context, on: Boolean) { prefs(context).edit().putBoolean("steamUiSoftware", on).apply() }
 
     fun zinkLazy(context: Context): Boolean = prefs(context).getBoolean("zinkLazy", true)
 

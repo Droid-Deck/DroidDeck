@@ -64,6 +64,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.update.AppUpdates
+import com.droiddeck.launcher.artifact.RepositorySources
 import com.droiddeck.launcher.update.AppUpdates.Channel
 import com.droiddeck.launcher.update.AppUpdates.Follow
 import com.droiddeck.launcher.update.AppUpdates.Offer
@@ -77,6 +78,8 @@ class UpdatesState(
     val stage: String? = null,
     val percent: Int = -1,
     val askPermission: Boolean = false,
+    val sources: List<RepositorySources.Source> = emptyList(),
+    val selectedSourceId: String? = null,
 ) {
     val hasUpdate: Boolean get() = AppUpdates.hasUpdate(catalog, follow)
 }
@@ -87,6 +90,8 @@ class UpdatesActions(
     val onInstall: (Release) -> Unit = {},
     val onAllowInstalls: () -> Unit = {},
     val onDismissPermission: () -> Unit = {},
+    val onSourcesChanged: () -> Unit = {},
+    val onSource: (String) -> Unit = {},
 )
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -94,7 +99,9 @@ class UpdatesActions(
 internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
     val u = s.updates
     val ua = a.updates
-    val me = remember { AppUpdates.installed() }
+    val signerRevision = AppUpdates.signerRevision
+    val me = remember(signerRevision) { AppUpdates.installed() }
+    val previewNumber = AppUpdates.previewNumber(me.version)
     val colors = MaterialTheme.colorScheme
     Column(modifier = modifier) {
         Row(
@@ -102,7 +109,9 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
             modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
         ) {
             Text(
-                stringResource(R.string.upd_build, me.version, s.buildLabel), fontSize = 12.5.sp, color = colors.onSurfaceVariant,
+                if (previewNumber != null) stringResource(R.string.upd_build_preview, previewNumber)
+                else stringResource(R.string.upd_build, me.version, s.buildLabel),
+                fontSize = 12.5.sp, color = colors.onSurfaceVariant,
                 maxLines = 1, modifier = Modifier.weight(1f)
                     .basicMarquee(iterations = Int.MAX_VALUE, initialDelayMillis = 700, velocity = 40.dp),
             )
@@ -111,8 +120,17 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                 if (u.checking) stringResource(R.string.common_checking) else if (checked != null) stringResource(R.string.upd_checked, ago(checked).replaceFirstChar { it.lowercase() }) else stringResource(R.string.upd_not_checked),
                 fontSize = 13.sp, color = colors.onSurfaceVariant,
             )
+            RepositorySourcesButton(
+                scopeKey = AppUpdates.SOURCE_SCOPE,
+                builtIns = AppUpdates.sourceBuiltIns(),
+                enabled = u.stage == null,
+                title = stringResource(R.string.sources_updates_title),
+                showCatalogBranch = true,
+                onSaved = ua.onSourcesChanged,
+            )
             ToolIcon(Icons.Outlined.Refresh, stringResource(R.string.store_check_updates), busy = u.checking, enabled = !u.checking && u.stage == null, onClick = ua.onCheck)
         }
+        UpdateSourcePicker(u, ua)
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val stacked = LocalNarrowPane.current || maxWidth < 600.dp
             Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
@@ -145,6 +163,30 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
 }
 
 @Composable
+private fun UpdateSourcePicker(state: UpdatesState, actions: UpdatesActions) {
+    var open by remember { mutableStateOf(false) }
+    val selected = state.sources.firstOrNull { it.id == state.selectedSourceId }
+    Row(
+        Modifier.fillMaxWidth().padding(bottom = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(stringResource(R.string.sources_update_from), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+        Box(Modifier.weight(1f, fill = false)) {
+            ValueChip(selected?.repository ?: stringResource(R.string.sources_selected_unavailable), open, enabled = state.stage == null && state.sources.isNotEmpty()) { open = !open }
+            AnchoredMenu(open, onDismiss = { open = false }, title = stringResource(R.string.sources_updates_title)) { first ->
+                state.sources.forEachIndexed { index, source ->
+                    MenuItem(source.repository, checked = source.id == state.selectedSourceId, focusRequester = if (index == 0) first else null) {
+                        actions.onSource(source.id)
+                        open = false
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, me: AppUpdates.Installed) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -162,6 +204,12 @@ private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, m
         offered && installBlock != null -> Look(colors.onSurfaceVariant, stringResource(R.string.upd_blocked_status), newBuild(u.follow, release!!), null)
         offer == Offer.UPDATE -> Look(AttentionAmber, stringResource(R.string.upd_available), newBuild(u.follow, release!!), null)
         offer == Offer.SWITCH -> Look(pal.signal, stringResource(R.string.upd_switch), newBuild(u.follow, release!!), null)
+        offer == Offer.AHEAD && u.follow.channel == Channel.NIGHTLY -> Look(
+            pal.signal,
+            stringResource(R.string.upd_preview_ahead_status),
+            stringResource(R.string.upd_preview_ahead_headline),
+            stringResource(R.string.upd_preview_ahead_detail),
+        )
         offer == Offer.AHEAD -> Look(pal.signal, stringResource(R.string.upd_ahead_status), stringResource(R.string.upd_ahead_headline),
             stringResource(R.string.upd_ahead_detail))
         offer == Offer.GONE -> Look(AttentionAmber, stringResource(R.string.upd_gone_status), stringResource(R.string.upd_gone_headline),
@@ -197,7 +245,7 @@ private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, m
                 offered && installBlock != null -> Unit
                 offer == Offer.UPDATE -> PrimaryButton(stringResource(R.string.upd_update_button, button), enabled = installable, main = true) { ua.onInstall(release!!) }
                 offer == Offer.SWITCH -> PrimaryButton(stringResource(R.string.upd_install_button, button), enabled = installable, main = true) { ua.onInstall(release!!) }
-                offer == Offer.AHEAD && installBlock == null ->
+                offer == Offer.AHEAD && u.follow.channel == Channel.STABLE && installBlock == null ->
                     SecondaryButton(stringResource(R.string.upd_install_anyway, release?.version.orEmpty()), enabled = installable) { ua.onInstall(release!!) }
                 offer == Offer.GONE -> PrimaryButton(stringResource(R.string.upd_follow_preview), main = true) { ua.onFollow(Follow(Channel.NIGHTLY)) }
             }
