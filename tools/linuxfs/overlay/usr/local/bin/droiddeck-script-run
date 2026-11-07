@@ -16,6 +16,7 @@ run=("${interp[@]}" "./$entry")
 if [ -x /usr/local/bin/droiddeck-fex ]; then
   run=(/usr/local/bin/droiddeck-fex run --mode "$fex" --for "$folder" -- "${interp[@]}" "./$entry")
 fi
+export BL_BINFMT=1
 echo "== script $entry in $folder (${interp[*]:-a program}, FEX $fex)"
 case ${DBUS_SESSION_BUS_ADDRESS:-} in
   unix:*) "${run[@]}" "$@" ;;

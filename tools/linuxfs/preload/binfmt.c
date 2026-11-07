@@ -21,9 +21,13 @@ typedef int (*spawn_fn)(pid_t *, const char *, const posix_spawn_file_actions_t 
 
 #if defined(__aarch64__) || defined(BINFMT_TEST)
 
-static int desktop(void) {
-  const char *value = getenv("BL_DESKTOP");
+static int flag(const char *name) {
+  const char *value = getenv(name);
   return value && value[0] == '1' && value[1] == 0;
+}
+
+static int handing_off(void) {
+  return flag("BL_DESKTOP") || flag("BL_BINFMT");
 }
 
 static int foreign(const char *path, int error) {
@@ -49,7 +53,7 @@ static int foreign(const char *path, int error) {
 }
 
 static int wanted(const char *path, int error) {
-  return (error == ENOEXEC || error == ENOENT || error == EACCES) && desktop() && foreign(path, error);
+  return (error == ENOEXEC || error == ENOENT || error == EACCES) && handing_off() && foreign(path, error);
 }
 
 static int lookup(const char *file, char *out, size_t size) {
@@ -100,7 +104,7 @@ static int spawn_handler(pid_t *pid, const char *path, const posix_spawn_file_ac
 }
 
 __attribute__((visibility("hidden"))) void bl_binfmt_before(const char *path, char *const argv[], char *const envp[]) {
-  if (desktop() && foreign(path, ENOEXEC)) hand_off(path, argv, envp);
+  if (handing_off() && foreign(path, ENOEXEC)) hand_off(path, argv, envp);
 }
 
 __attribute__((visibility("hidden"))) int bl_binfmt_retry(const char *path, char *const argv[], char *const envp[], int error) {
@@ -111,18 +115,18 @@ __attribute__((visibility("hidden"))) int bl_binfmt_retry(const char *path, char
 
 __attribute__((visibility("hidden"))) void bl_binfmt_before_search(const char *file, char *const argv[], char *const envp[]) {
   char path[PATH_MAX];
-  if (desktop() && lookup(file, path, sizeof path)) bl_binfmt_before(path, argv, envp);
+  if (handing_off() && lookup(file, path, sizeof path)) bl_binfmt_before(path, argv, envp);
 }
 
 __attribute__((visibility("hidden"))) int bl_binfmt_after_search(const char *file, char *const argv[], char *const envp[], int error) {
   char path[PATH_MAX];
-  if (desktop() && lookup(file, path, sizeof path)) return bl_binfmt_retry(path, argv, envp, error);
+  if (handing_off() && lookup(file, path, sizeof path)) return bl_binfmt_retry(path, argv, envp, error);
   errno = error;
   return -1;
 }
 
 __attribute__((visibility("hidden"))) int bl_binfmt_runnable(const char *path, int mode) {
-  if (mode != X_OK || !desktop()) return 0;
+  if (mode != X_OK || !handing_off()) return 0;
   int runs = foreign(path, EACCES) != 0;
   errno = EACCES;
   return runs;
@@ -131,7 +135,7 @@ __attribute__((visibility("hidden"))) int bl_binfmt_runnable(const char *path, i
 __attribute__((visibility("hidden"))) int bl_binfmt_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa,
                                                           const posix_spawnattr_t *attr, char *const argv[], char *const envp[],
                                                           spawn_fn real) {
-  if (desktop() && foreign(path, ENOEXEC)) return spawn_handler(pid, path, fa, attr, argv, envp, real);
+  if (handing_off() && foreign(path, ENOEXEC)) return spawn_handler(pid, path, fa, attr, argv, envp, real);
   int error = real(pid, path, fa, attr, argv, envp);
   return error && wanted(path, error) ? spawn_handler(pid, path, fa, attr, argv, envp, real) : error;
 }
@@ -150,7 +154,7 @@ int posix_spawnp(pid_t *pid, const char *file, const posix_spawn_file_actions_t 
   if (!real) real = (spawn_fn)dlsym(RTLD_NEXT, "posix_spawnp");
   if (!spawn) spawn = (spawn_fn)dlsym(RTLD_NEXT, "posix_spawn");
   char path[PATH_MAX];
-  if (!desktop() || !lookup(file, path, sizeof path)) return real(pid, file, fa, attr, argv, envp);
+  if (!handing_off() || !lookup(file, path, sizeof path)) return real(pid, file, fa, attr, argv, envp);
   return bl_binfmt_spawn(pid, path, fa, attr, argv, envp, spawn);
 }
 
