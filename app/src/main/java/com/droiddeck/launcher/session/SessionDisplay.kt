@@ -48,6 +48,14 @@ object SessionDisplay {
         else orient(resolve(panel, 720, SessionPrefs.SHAPE_AUTO))
     }
 
+    /** Resolve only choices whose width is derived automatically from a usable viewport. */
+    fun resolveViewportChoice(viewport: Pair<Int, Int>, choice: String): Pair<Int, Int>? {
+        if (viewport.first <= 0 || viewport.second <= 0) return null
+        if (choice == MATCH_SCREEN) return screenSize(viewport)
+        val height = presetHeight(choice) ?: return null
+        return resolve(viewport, height, SessionPrefs.SHAPE_EXACT)
+    }
+
     fun resolutionOptions(panel: Pair<Int, Int>): List<String> {
         val panelHeight = minOf(panel.first, panel.second)
         return PRESET_HEIGHTS.filter { it <= panelHeight }.map { "${it}p" }

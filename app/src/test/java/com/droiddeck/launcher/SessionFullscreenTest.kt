@@ -66,25 +66,28 @@ class SessionFullscreenTest {
         assertEquals(0, activity.window.attributes.flags and fullscreenFlag)
     }
 
-    @Test fun normalPrimaryLandscapeUsesFullHeightInBothFullscreenStates() {
-        assertEquals(SESSION_SCALE_HEIGHT_FIT, sessionCompositorScaleMode(
+    @Test fun normalPrimaryLandscapeUsesTheSafeViewportAspect() {
+        assertTrue(useViewportOutputAspect(
             landscape = true,
             primaryDisplay = true,
             inPictureInPicture = false,
             opticalViewport = false,
             controlsBelow = false,
+            portraitOutput = false,
         ))
     }
 
-    @Test fun specialAndPortraitOutputsKeepAspectFit() {
+    @Test fun specialAndPortraitOutputsKeepTheirExistingResolutionRules() {
         val cases = listOf(
-            sessionCompositorScaleMode(false, true, false, false, false),
-            sessionCompositorScaleMode(true, false, false, false, false),
-            sessionCompositorScaleMode(true, true, true, false, false),
-            sessionCompositorScaleMode(true, true, false, true, false),
-            sessionCompositorScaleMode(true, true, false, false, true),
+            useViewportOutputAspect(false, true, false, false, false, false),
+            useViewportOutputAspect(true, false, false, false, false, false),
+            useViewportOutputAspect(true, true, true, false, false, false),
+            useViewportOutputAspect(true, true, false, true, false, false),
+            useViewportOutputAspect(true, true, false, false, true, false),
+            useViewportOutputAspect(true, true, false, false, false, true),
         )
 
-        cases.forEach { assertEquals(SESSION_SCALE_FIT, it) }
+        cases.forEach { assertFalse(it) }
     }
+
 }
