@@ -93,8 +93,7 @@ class InputSurfaceOwnershipTest {
 
     @Test fun removingAButtonReleasesOnlyItsOwnInput() {
         val buttons = child("HoldButton")
-        buttons.layout(0, 0, 300, 300)
-        touch(buttons, MotionEvent.ACTION_DOWN, 150f, 240f)
+        press(buttons)
         assertTrue(state().isDown(PadState.A))
         val position = JoyConPadTest.RecordingWriter.deckPads.copyOf()
         (buttons.parent as ViewGroup).removeView(buttons)
@@ -123,8 +122,7 @@ class InputSurfaceOwnershipTest {
 
     private fun holdFaceButton() {
         val buttons = child("HoldButton")
-        buttons.layout(0, 0, 300, 300)
-        touch(buttons, MotionEvent.ACTION_DOWN, 150f, 240f)
+        press(buttons)
     }
 
     private fun assertTrackpadStillHeld(position: ShortArray) {
@@ -137,6 +135,11 @@ class InputSurfaceOwnershipTest {
     private fun descendants(view: View): Sequence<View> = sequence {
         yield(view)
         if (view is ViewGroup) for (i in 0 until view.childCount) yieldAll(descendants(view.getChildAt(i)))
+    }
+
+    private fun press(button: View) {
+        button.javaClass.getDeclaredMethod("press", Int::class.java, Boolean::class.java, Boolean::class.java)
+            .apply { isAccessible = true }.invoke(button, 0, true, false)
     }
 
     private fun touch(view: View, action: Int, x: Float, y: Float, fingers: Int = 1) {
