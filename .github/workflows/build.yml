@@ -136,11 +136,18 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  components:
-    name: Prepare verified components
+  components-runner:
     needs: source
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
-    runs-on: ubuntu-24.04
+    uses: ./.github/workflows/pick-runner.yml
+    secrets:
+      RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
+
+  components:
+    name: Prepare verified components
+    needs: [source, components-runner]
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ${{ fromJSON(needs.components-runner.outputs.labels) }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -318,11 +325,18 @@ jobs:
           compression-level: 0
           retention-days: 14
 
+  build-runner:
+    needs: [components]
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    uses: ./.github/workflows/pick-runner.yml
+    secrets:
+      RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
+
   build:
-    needs: [source, components, xbox]
+    needs: [source, components, xbox, build-runner]
     name: Compile APK and Android tests
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(needs.build-runner.outputs.labels) }}
     timeout-minutes: 45
     outputs:
       variants: ${{ steps.variants.outputs.list }}
