@@ -898,12 +898,20 @@ static int folded_match(const char *where, const char *dir) {
   return strncmp(where, dir, n) == 0 && strcasecmp(where + n, dir + n) == 0;
 }
 
+static int same_dir(const struct listing *l, const char *dir) {
+  struct stat st;
+  int saved = errno;
+  int same = stat(dir, &st) == 0 && st.st_dev == l->dev && st.st_ino == l->ino;
+  errno = saved;
+  return same;
+}
+
 static int listed_absent(const char *dir, const char *name, long long now) {
   for (int i = 0; i < MAX_LISTINGS; i++) {
     struct listing *l = table[i];
-    if (l && l->where && !l->blind && now - l->filled < DIR_TTL_NS &&
-        (strcmp(l->where, dir) == 0 || (l->folds && folded_match(l->where, dir))))
-      return !named(l, name);
+    if (l == NULL || l->where == NULL || l->blind || now - l->filled >= DIR_TTL_NS) continue;
+    if (strcmp(l->where, dir) == 0) return !named(l, name);
+    if (l->folds && folded_match(l->where, dir)) return same_dir(l, dir) && !named(l, name);
   }
   return 0;
 }

@@ -39,6 +39,7 @@ int stat(const char *path, struct stat *st) {
   char folded[4096];
   const char *fold = getenv("FOLD");
   const char *upper = fold ? strstr(path, "/STEAMAPPS") : NULL;
+  if (!upper && fold && !strcmp(fold, "all")) upper = strcasestr(path, "/steamapps/");
   if (upper && strlen(path) < sizeof(folded)) {
     strcpy(folded, path);
     memcpy(folded + (upper - path) + 1, "steamapps", 9);
@@ -528,6 +529,16 @@ class DirCachePreloadTest(unittest.TestCase):
         (other / "x.bundle").write_bytes(b"")
         out = self.run_program("list", s, "access", other / "x.bundle", "accesses", env={"FOLD": "all"})
         self.assertEqual(["0 0", "1"], out[1:])
+
+    def test_a_differently_cased_sibling_of_a_folded_listing_reaches_the_filesystem(self):
+        s = self.staging
+        (self.lib.parent / "STEAMAPPS").symlink_to("steamapps")
+        (self.lib / "DOWNLOADING").symlink_to("downloading")
+        other = self.lib / "Downloading" / s.name
+        other.mkdir(parents=True)
+        (other / "x.bundle").touch()
+        out = self.run_program("list", s, "access", other / "x.bundle", "accesses")
+        self.assertEqual("0 0", out[1])
 
     def test_a_listing_is_dropped_when_a_folder_above_it_is_renamed(self):
         s = self.staging
