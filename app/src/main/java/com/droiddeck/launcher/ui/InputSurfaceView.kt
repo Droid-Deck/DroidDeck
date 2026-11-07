@@ -581,10 +581,10 @@ class InputSurfaceView(
         private val ACCENT_WASH = Color.argb(0x2E, 0x1A, 0x9F, 0xFF)
         private val ACCENT_GLOW = Color.argb(0x66, 0x1A, 0x9F, 0xFF)
         private val ON_ACCENT = Color.rgb(0x03, 0x11, 0x1F)
-        private val SURFACE = Color.rgb(0x0A, 0x0B, 0x0D)
-        private val LINE = Color.rgb(0x26, 0x29, 0x2E)
+        internal val SURFACE = Color.rgb(0x0A, 0x0B, 0x0D)
+        internal val LINE = Color.rgb(0x26, 0x29, 0x2E)
         private val GUIDE = Color.rgb(0x16, 0x18, 0x1B)
-        private val TEXT = Color.rgb(0xF2, 0xF4, 0xF7)
+        internal val TEXT = Color.rgb(0xF2, 0xF4, 0xF7)
         private val TEXT_DIM = Color.rgb(0x7A, 0x80, 0x8A)
         private val KNOB = Color.rgb(0x2A, 0x2D, 0x33)
 

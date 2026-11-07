@@ -91,7 +91,7 @@ class OnScreenControls(context: Context, pad: PadBridge?) : FrameLayout(context)
     }
 
     private inner class QuickToggle(context: Context) : View(context) {
-        var tint = ControllerPrefs.STEAM_BLUE
+        var tint: Int? = ControllerPrefs.STEAM_BLUE
         private val density = resources.displayMetrics.density
         private var armed = false
         private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -106,11 +106,12 @@ class OnScreenControls(context: Context, pad: PadBridge?) : FrameLayout(context)
             val x = width / 2f
             val y = height / 2f
             val radius = QUICK_RADIUS_DP * density
-            fill.color = InputSurfaceView.shade(tint, 190, 0.12f)
+            val color = tint
+            fill.color = if (color != null) InputSurfaceView.shade(color, 190, 0.12f) else (InputSurfaceView.SURFACE and 0x00ffffff) or (190 shl 24)
             canvas.drawCircle(x, y, radius, fill)
-            stroke.color = InputSurfaceView.light(tint, 150, 0.25f)
+            stroke.color = if (color != null) InputSurfaceView.light(color, 150, 0.25f) else InputSurfaceView.LINE
             canvas.drawCircle(x, y, radius, stroke)
-            text.color = InputSurfaceView.light(tint, 210, 0.75f)
+            text.color = if (color != null) InputSurfaceView.light(color, 210, 0.75f) else InputSurfaceView.TEXT
             canvas.drawText(if (isQuickHidden) "+" else "−", x, y + text.textSize * 0.35f, text)
         }
 

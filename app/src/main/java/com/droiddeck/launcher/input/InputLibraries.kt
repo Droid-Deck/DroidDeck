@@ -9,7 +9,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 object InputLibraries {
-    private const val VERSION = 9
+    private const val VERSION = 10
     private const val KEY = "library"
     private const val RECOVERY = "library-recovery."
     const val OVERLAY = "builtin.overlay"
@@ -27,7 +27,8 @@ object InputLibraries {
         var library = decoded ?: scopeLayouts(upgradeStockLayouts(upgradeOverlay(context, migrate(context))))
         val version = raw?.let { JSONObject(it).getInt("version") } ?: 0
         if (version < 5) library = scopeLayouts(upgradeStockLayouts(upgradeOverlay(context, library)))
-        if (version < 9) library = neutralStockLayouts(restyleGamepads(context, library))
+        if (version < 9) library = neutralStockLayouts(library)
+        if (version < 10) library = restyleGamepads(context, library)
         if (version < 6 || !p.contains(LegacyScreenKeyMigration.BACKUP)) {
             val legacy = LegacyScreenKeyMigration.snapshot(context)
             if (legacy != null) {
