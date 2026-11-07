@@ -1014,6 +1014,7 @@
     <string name="setup_dual_screen_on">On</string>
     <string name="setup_dual_screen_off">Off</string>
     <string name="setup_dual_screen_controls">Bottom screen controls in games</string>
+    <string name="setup_android_text_field_keyboard">Android keyboard for text fields</string>
     <string name="setup_dual_screen_controls_hint">Opens a panel on the second screen when a session starts: the Deck buttons and trackpads with a Steam Deck or Steam Controller, otherwise the one you used last.</string>
     <string name="dual_typing_title">Typing on the top screen</string>
     <string name="dual_typing_done">Done</string>

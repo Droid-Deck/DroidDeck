@@ -623,6 +623,7 @@ class FrontEndActivity : ComponentActivity() {
     private var dualScreenMode by mutableStateOf(com.droiddeck.launcher.input.DualScreen.MODE_AUTO)
     private var dualScreenSessions by mutableStateOf(com.droiddeck.launcher.input.DualScreen.MODE_AUTO)
     private var dualScreenControls by mutableStateOf(true)
+    private var androidTextFieldKeyboard by mutableStateOf(false)
     private var launcherStarted = false
     private lateinit var displayManager: DisplayManager
     private val secondScreenDisplayListener = object : DisplayManager.DisplayListener {
@@ -1173,6 +1174,7 @@ class FrontEndActivity : ComponentActivity() {
                         dualScreenMode = dualScreenMode,
                         dualScreenSessions = dualScreenSessions,
                         dualScreenControls = dualScreenControls,
+                        androidTextFieldKeyboard = androidTextFieldKeyboard,
                         packages = packageRows,
                         packageCatalogLoading = catalogLoading,
                         packageBusyId = pkgId,
@@ -1500,6 +1502,10 @@ class FrontEndActivity : ComponentActivity() {
                         onDualScreenControls = { on ->
                             SessionPrefs.setDualScreenSessionControls(this, on)
                             dualScreenControls = on
+                        },
+                        onAndroidTextFieldKeyboard = { on ->
+                            SessionPrefs.setAndroidTextFieldKeyboard(this, on)
+                            androidTextFieldKeyboard = on
                         },
                         onAnimationsEnabled = { on ->
                             SessionPrefs.setAnimationsEnabled(this, on)
@@ -2026,6 +2032,7 @@ class FrontEndActivity : ComponentActivity() {
         dualScreenDevice = com.droiddeck.launcher.input.DualScreen.anyDisplay(displayManager, ownDisplayId) != null
         dualScreenSessions = SessionPrefs.dualScreenSessionMode(this)
         dualScreenControls = SessionPrefs.dualScreenSessionControls(this)
+        androidTextFieldKeyboard = SessionPrefs.androidTextFieldKeyboard(this)
         val target = com.droiddeck.launcher.input.DualScreen.display(this, displayManager, ownDisplayId)
         dualDisplayId = target?.displayId ?: -1
         syncDualPanel()

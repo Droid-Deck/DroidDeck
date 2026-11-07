@@ -188,6 +188,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("dualScreenSessionControls", on).apply()
     }
 
+    fun androidTextFieldKeyboard(context: Context): Boolean = prefs(context).getBoolean("androidTextFieldKeyboard", false)
+
+    fun setAndroidTextFieldKeyboard(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("androidTextFieldKeyboard", on).apply()
+    }
+
     fun gameStoresEnabled(context: Context): Boolean = prefs(context).getBoolean("gameStoresEnabled", true)
 
     fun setGameStoresEnabled(context: Context, on: Boolean) {
