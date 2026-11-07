@@ -909,6 +909,38 @@ class LaunchTest(Harness):
         self.assertEqual(image.read_bytes(), b"BM1152x720")
         self.assertIn('"WallpaperStyle"="2"', (pfx / "user.reg").read_text())
 
+    def test_battle_nets_desktop_turns_windows_animations_off_once(self):
+        self.install()
+        reg = Path(self.root) / ("steamapps/compatdata/%s/pfx/user.reg" % BNET["APP_ID"])
+        reg.write_text('WINE REGISTRY Version 2\n\n[Control Panel\\\\Desktop] 1\n"UserPreferencesMask"=hex:30,00,02,80,12,00,00,00\n')
+        self.assertTrue(BNET["still_pages"](self.root))
+        self.assertFalse(BNET["still_pages"](self.root))
+        text = reg.read_text()
+        self.assertEqual(text.count('"UserPreferencesMask"=hex:30,00,02,80,10,00,00,00'), 1)
+        self.assertEqual(BNET["reg_read"](str(reg), BNET["DESKTOP_KEY"], "UserPreferencesMask"),
+                         '"UserPreferencesMask"=hex:30,00,02,80,10,00,00,00')
+
+    def test_a_new_prefix_gets_wines_default_preferences_without_animations(self):
+        self.install()
+        reg = Path(self.root) / ("steamapps/compatdata/%s/pfx/user.reg" % BNET["APP_ID"])
+        reg.write_text("WINE REGISTRY Version 2\n")
+        self.assertTrue(BNET["still_pages"](self.root))
+        self.assertEqual(BNET["reg_read"](str(reg), BNET["DESKTOP_KEY"], "UserPreferencesMask"),
+                         '"UserPreferencesMask"=hex:10,00,00,80,10,00,00,00')
+
+    def test_animations_already_off_and_other_preferences_are_left_alone(self):
+        self.install()
+        reg = Path(self.root) / ("steamapps/compatdata/%s/pfx/user.reg" % BNET["APP_ID"])
+        before = 'WINE REGISTRY Version 2\n\n[Control Panel\\\\Desktop] 1\n"UserPreferencesMask"=hex:9e,3e,07,80,31,00,00,00\n'
+        reg.write_text(before)
+        self.assertFalse(BNET["still_pages"](self.root))
+        self.assertEqual(reg.read_text(), before)
+        reg.write_text('WINE REGISTRY Version 2\n\n[Control Panel\\\\Desktop] 1\n"UserPreferencesMask"=hex:9e,3e,07,80,33,00,00,00\n')
+        self.assertTrue(BNET["still_pages"](self.root))
+        self.assertEqual(BNET["reg_read"](str(reg), BNET["DESKTOP_KEY"], "UserPreferencesMask"),
+                         '"UserPreferencesMask"=hex:9e,3e,07,80,31,00,00,00')
+        self.assertFalse(BNET["still_pages"](self.root + "/missing"))
+
     def test_a_large_desktop_scales_battle_net_to_fit_it(self):
         sizes = {("1280", "720"): 96, ("1920", "1080"): 96, ("2400", "1504"): 120, ("2448", "1848"): 120,
                  ("1080", "2400"): 96, ("3840", "2160"): 192, ("2560", "1600"): 120}
