@@ -580,7 +580,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     val inputModeManager = LocalInputModeManager.current
     val window = LocalWindowInfo.current
     val androidContext = androidx.compose.ui.platform.LocalContext.current
-    val launcherSafeInsets = rememberFullscreenSafeInsets(s.launcherFullscreen)
+    val launcherSafeInsets = rememberFullscreenSafeInsets(s.launcherFullscreen, preferFullWidthInPortrait = true)
     val launcherWindowInsets = WindowInsets(
         left = launcherSafeInsets.left,
         top = launcherSafeInsets.top,
@@ -601,8 +601,9 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         }
     }
     androidx.compose.foundation.layout.BoxWithConstraints(
-        modifier = Modifier.fillMaxSize().background(colors.background)
+        modifier = Modifier.fillMaxSize().background(if (s.launcherFullscreen) Color.Black else colors.background)
             .windowInsetsPadding(launcherWindowInsets)
+            .background(colors.background)
             .onFocusChanged { anyFocused = it.hasFocus },
     ) {
         val bottomNavigation = maxHeight > maxWidth
