@@ -14,13 +14,14 @@ object HomeIcons {
 
     var overrides by mutableStateOf<Map<String, Choice>>(emptyMap())
         private set
-    private var loaded = false
+    @Volatile private var loaded = false
 
+    @Synchronized
     fun load(context: Context) {
         if (loaded) return
-        loaded = true
         overrides = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getStringSet(KEY, emptySet()).orEmpty().mapNotNull(::decode).toMap()
+        loaded = true
     }
 
     fun set(context: Context, key: String, pack: String, drawable: String) = save(context, overrides + (key to Choice(pack, drawable)))
