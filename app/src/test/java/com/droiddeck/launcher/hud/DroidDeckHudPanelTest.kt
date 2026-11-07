@@ -139,6 +139,36 @@ class DroidDeckHudPanelTest {
         assertFalse(line, "BAT" in line)
     }
 
+    @Test fun stripGraphClearsThePreviousTraceWhenFrameHistoryChanges() {
+        val app = RuntimeEnvironment.getApplication()
+        val parent = FrameLayout(app)
+        val view = DroidDeckHudView(app)
+        parent.addView(view)
+        parent.layout(0, 0, 2400, 1080)
+        val stats = FrameStats()
+        var now = 1_000_000_000L
+        repeat(300) { now += 25_000_000L; stats.add(25_000_000L, now) }
+        view.setFrameStats(stats)
+        view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS +
+            ("hudSize" to "strip") + ("showFPSGraph" to "1") + ("hudOpacity" to "100")))
+        view.showForTest(SNAPSHOT, "DXVK", now)
+        val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        view.measure(unspecified, unspecified)
+        view.layout(0, 0, view.measuredWidth, view.measuredHeight)
+        fun render() = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also {
+            view.draw(Canvas(it))
+        }
+        val graph = requireNotNull(view.graphForTest())
+        val x = (graph.left + graph.width() * 0.75f).toInt()
+        val y = graph.centerY().toInt()
+        val before = render()
+        stats.reset()
+        val after = render()
+        assertTrue("the graph initially crosses its midpoint", before.getPixel(x, y) != after.getPixel(x, y))
+        assertEquals("the previous trace is cleared to the strip background",
+            after.getPixel(x, graph.top.toInt() + 2), after.getPixel(x, y))
+    }
+
     @Test fun stripFollowsTheHudScaleInHeightAndKeepsTheFullWidth() {
         val app = RuntimeEnvironment.getApplication()
         val parent = FrameLayout(app)
