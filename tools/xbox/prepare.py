@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Reproduce the pinned Nexus backend and apply the DroidDeck adaptations."""
 import hashlib
 import json
 from pathlib import Path
@@ -8,9 +9,8 @@ import sys
 recipe = Path(__file__).resolve().parent
 cache = Path(sys.argv[1]).resolve()
 lock = json.loads((recipe / 'backend.lock.json').read_text())
-local_patches = ['droiddeck-credentials.patch', 'droiddeck-launch-view.patch', 'droiddeck-library-subscriptions.patch',
-                 'droiddeck-credential-fallback.patch', 'droiddeck-credential-diagnostics.patch', 'droiddeck-cloud-token.patch', 'droiddeck-xbox-ticket.patch']
-identity = hashlib.sha256((recipe / 'backend.lock.json').read_bytes() + b''.join((recipe / name).read_bytes() for name in local_patches)).hexdigest()
+local_patch = recipe / 'droiddeck-nexus-offline.patch'
+identity = hashlib.sha256((recipe / 'backend.lock.json').read_bytes() + local_patch.read_bytes()).hexdigest()
 source = cache / ('source-' + identity[:16])
 if not (source / '.prepared').is_file():
     if source.exists():
@@ -30,8 +30,7 @@ if not (source / '.prepared').is_file():
         file = nexus / 'assets' / patch['file']
         assert hashlib.sha256(file.read_bytes()).hexdigest() == patch['sha256']
         subprocess.run(['git', '-C', str(source), 'apply', str(file)], check=True)
-    for name in local_patches:
-        subprocess.run(['git', '-C', str(source), 'apply', str(recipe / name)], check=True)
+    subprocess.run(['git', '-C', str(source), 'apply', str(local_patch)], check=True)
     (source / '.prepared').write_text(identity + '\n')
 assert (source / '.prepared').read_text().strip() == identity
 print(source)

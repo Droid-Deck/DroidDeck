@@ -41,13 +41,21 @@ internal object XboxRuntime {
             }
         }, "xbox-launch-expiry").start()
         try {
-            val socket = service(app, account, current, credentials)
+            val offlineLaunch = XboxOffline.launch(app, account, credentials)
+            val socket = if (offlineLaunch == null) service(app, account, current, credentials) else null
             check(synchronized(state) { generation == current }) { "Xbox launch was cancelled" }
             val market = game.second.extra["market"]?.takeIf { it.matches(Regex("[A-Z]{2}")) } ?: Xodus.market()
             val directory = views.create(app.filesDir)
             val process = try {
-                Xodus.start(app, listOf("run", StoreInstallRoot.guestPathForXodus(app, game.first), "droiddeck:prepare", "--exe", game.second.exe,
-                    "--materialize-chain", "--market", market), launchDirectory = directory, credentialGeneration = credentials)
+                val args = buildList {
+                    addAll(listOf("run", StoreInstallRoot.guestPathForXodus(app, game.first), "droiddeck:prepare",
+                        "--exe", game.second.exe, "--materialize-chain", "--market", market))
+                    if (offlineLaunch != null) {
+                        addAll(listOf("--license-cache", offlineLaunch.cache.path))
+                        if (offlineLaunch.offline) add("--offline")
+                    }
+                }
+                Xodus.start(app, args, launchDirectory = directory, credentialGeneration = credentials)
             } catch (e: Exception) { XboxLaunchViews.remove(directory); throw e }
             if (!launches.attach(token, process)) { process.close(); error("Xbox launch was cancelled") }
             Xodus.diagnostics(process)
@@ -59,14 +67,26 @@ internal object XboxRuntime {
             }
             Thread(result, "xbox-launch-view").start()
             val view = result.get(90, java.util.concurrent.TimeUnit.SECONDS)
+            val offline = view.opt("offline") == true
+            val identity = view.optString("offlineIdentity")
+            check(!offline || (identity == "use" && offlineLaunch != null)) { "Xbox offline launch returned an invalid identity mode" }
+            check(offlineLaunch?.offline != true || offline) { "Xbox did not validate an offline license" }
+            val reply = JSONObject().put("ok", true).put("lease", token).put("exe", view.getString("exe"))
+            if (!offline) {
+                val onlineSocket = socket ?: service(app, account, current, credentials)
+                reply.put("socket", onlineSocket.path).put("playfab", view.opt("playfab"))
+            }
+            if (offlineLaunch != null && identity == (if (offline) "use" else "store")) {
+                reply.put("offline", offline).put("offlineIdentity", identity).put("accountHash", offlineLaunch.accountHash)
+            }
             check(renew(app, id, token) && synchronized(state) { generation == current }) { "Xbox launch was cancelled" }
-            return JSONObject().put("ok", true).put("socket", socket.path).put("lease", token)
-                .put("exe", view.getString("exe")).put("playfab", view.opt("playfab"))
+            return reply
         } catch (e: Exception) { released(token); throw e }
     }
 
     internal fun newServiceSocket(files: File): File =
-        File(files, "xbox-runtime/s-${java.util.UUID.randomUUID().toString().replace("-", "")}/xodus.sock")
+        // Leave room for Android user IDs and local application ID suffixes in sun_path.
+        File(files, "xb/s-${java.util.UUID.randomUUID().toString().replace("-", "")}/xodus.sock")
 
     private fun service(app: Context, account: String, current: Long, credentials: String): File = synchronized(startup) {
         val existing = synchronized(state) {

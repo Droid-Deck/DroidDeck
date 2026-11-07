@@ -3862,4 +3862,17 @@
     <string name="addons_no_file">No file for this game version</string>
     <string name="addons_source_wowi" translatable="false">WoWInterface</string>
     <string name="addons_source_curse" translatable="false">CurseForge</string>
+    <string name="stores_xbox_offline_permissions">Xbox offline permissions</string>
+    <string name="stores_xbox_offline_error">Could not check or change offline permissions. Check your connection and try again.</string>
+    <string name="stores_xbox_offline_enabled">This device is designated for offline play.</string>
+    <string name="stores_xbox_offline_disabled">This device is not designated for offline play.</string>
+    <string name="stores_xbox_offline_changes">Remaining changes: %1$d</string>
+    <string name="stores_xbox_offline_remove">Remove designation</string>
+    <string name="stores_xbox_offline_designate">Designate this device</string>
+    <string name="stores_xbox_offline_change">Change offline permissions</string>
+    <string name="stores_xbox_offline_limit">Xbox allows one offline device per account. Changing the designation uses one available change and can replace another device.</string>
+    <string name="stores_xbox_offline_confirm">Confirm</string>
+    <string name="stores_xbox_offline_catalog">Xbox catalog unavailable offline. Installed games are listed here.</string>
+    <string name="stores_xbox_offline_empty">No installed Xbox games.</string>
+    <string name="session_notification_active">DroidDeck session is running</string>
 </resources>

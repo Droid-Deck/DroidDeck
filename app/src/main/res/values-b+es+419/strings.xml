@@ -3714,4 +3714,17 @@
     <string name="addons_none_found">No se encontraron complementos</string>
     <string name="addons_unreachable">No se pudo conectar con %1$s</string>
     <string name="addons_no_file">No hay archivo para esta versión del juego</string>
+    <string name="stores_xbox_offline_permissions">Permisos de Xbox sin conexión</string>
+    <string name="stores_xbox_offline_error">No se pudieron consultar o cambiar los permisos. Comprueba la conexión y vuelve a intentar.</string>
+    <string name="stores_xbox_offline_enabled">Este dispositivo está designado para jugar sin conexión.</string>
+    <string name="stores_xbox_offline_disabled">Este dispositivo aún no está designado para jugar sin conexión.</string>
+    <string name="stores_xbox_offline_changes">Cambios disponibles: %1$d</string>
+    <string name="stores_xbox_offline_remove">Quitar designación</string>
+    <string name="stores_xbox_offline_designate">Designar este dispositivo</string>
+    <string name="stores_xbox_offline_change">Cambiar permisos sin conexión</string>
+    <string name="stores_xbox_offline_limit">Xbox permite un dispositivo sin conexión por cuenta. Cambiar la designación consume un cambio disponible y puede reemplazar otro dispositivo.</string>
+    <string name="stores_xbox_offline_confirm">Confirmar</string>
+    <string name="stores_xbox_offline_catalog">El catálogo de Xbox requiere conexión. Aquí se muestran los juegos instalados.</string>
+    <string name="stores_xbox_offline_empty">No hay juegos de Xbox instalados.</string>
+    <string name="session_notification_active">Sesión de DroidDeck en curso</string>
 </resources>

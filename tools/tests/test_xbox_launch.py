@@ -81,6 +81,39 @@ class XboxLaunchTest(unittest.TestCase):
                     xbox['launch'](['/proton', 'waitforexitandrun', '/Game.exe'], {'BL_LAUNCH_DIR': '/launch'})
             self.assertEqual(ask.call_args.args[1], {'op': 'xbox-released', 'lease': 'lease-1'})
 
+    def test_offline_launch_uses_only_the_prepared_account_scope(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime = root / 'windows'
+            runtime.mkdir()
+            for name in xbox['DLLS']:
+                (runtime / name).touch()
+            reply = {'ok': True, 'lease': 'lease-1', 'exe': '/prepared/Game.exe',
+                     'offline': True, 'offlineIdentity': 'use', 'accountHash': 'a' * 32}
+            store = {'find_store_game': lambda argv: (root, {'store': 'xbox', 'id': 'GAME'}),
+                     'ask': unittest.mock.Mock(return_value=reply)}
+            wine = unittest.mock.Mock(return_value=0)
+            launch = xbox['launch']
+            command = ['/proton', 'waitforexitandrun', '/Game.exe']
+            environment = {'BL_LAUNCH_DIR': '/launch', 'XODUS_ACCOUNT_HASH': 'b' * 32,
+                           'XODUS_XSTS_PLAYFAB': 'stale', 'XODUS_SOCKET': 'stale'}
+            with patch('runpy.run_path', return_value=store), patch.dict(
+                launch.__globals__, RUNTIME=root, wine=wine,
+                bridge=unittest.mock.Mock(side_effect=AssertionError('offline launch started the online bridge')),
+            ):
+                self.assertEqual(launch(command, environment), 0)
+                guest_env = wine.call_args.args[1]
+                self.assertEqual(guest_env['XODUS_ACCOUNT_HASH'], 'a' * 32)
+                self.assertEqual(guest_env['XODUS_OFFLINE_IDENTITY'], 'use')
+                self.assertEqual(guest_env['XODUS_FORCE_OFFLINE'], '1')
+                self.assertEqual(guest_env['XODUS_SAVE_SYNC'], 'off')
+                self.assertNotIn('XODUS_XSTS_PLAYFAB', guest_env)
+                self.assertNotIn('XODUS_SOCKET', guest_env)
+                reply['accountHash'] = 'invalid'
+                with self.assertRaisesRegex(RuntimeError, 'invalid identity scope'):
+                    launch(command, environment)
+                self.assertEqual(wine.call_count, 1)
+
     def test_bridge_authenticates_before_forwarding(self):
         with tempfile.TemporaryDirectory() as root:
             path = str(Path(root) / 'service.sock')

@@ -74,7 +74,7 @@ pack directaudio "$repo/app/src/main/assets/directaudio" \
     linux-wine11/version.txt linux-wine11-systhread/version.txt
 pack tracking "$work/tracking" hand_landmarker.task hand_landmarker_lite.task pose_landmarker_lite.task \
     libopencv_java4.so libmediapipe_tasks_jni.so
-pack xbox "$linuxfs/droiddeck-xbox" version xodus-cli xodus-service
+pack xbox "$linuxfs/droiddeck-xbox" version xodus-cli xodus-service offline-permissions-v1
 pack comet "$linuxfs/droiddeck-comet" version comet
 pack powervr "$repo/app/src/main/assets/hybris" runtime.tzst version.txt
 
