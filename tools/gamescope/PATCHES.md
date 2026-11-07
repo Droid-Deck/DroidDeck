@@ -340,7 +340,7 @@ from Xwayland, which emulates the game's warps with a cursor position hint. Upst
 added every other constraint, so gamescope held the host's pointer lock and DroidDeck turned every direct touch swipe into
 camera motion: dragging in those games only moved their cursor. Without relative mode such a lock still follows gamescope's
 relative motion and touches still place the pointer. gamescope now compares the motion it sends (seat movement, or relative
-motion while the seat is locked) with how the X pointer moves. A hinted constraint starts relative, as upstream, and is released
+motion while the seat is locked) with how the X pointer moves. A hinted constraint starts relative, as upstream, also when its hint arrives with the game's first warp, and is released
 after 30 moving frames on which the X pointer follows. Any constraint goes relative once the X pointer moves less than a quarter
 of that motion on three frames within half a second, as it does when the game recentres it or clips it to a small rectangle
 (PEAK). `tools/tests/test_gamescope_pointer_hold.py` compiles the rule from this patch.

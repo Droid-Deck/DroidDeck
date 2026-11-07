@@ -1,7 +1,7 @@
 diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 --- a/src/steamcompmgr.cpp
 +++ b/src/steamcompmgr.cpp
-@@ -3165,6 +3165,106 @@
+@@ -3165,6 +3165,116 @@
  	wlserver_unlock();
  }
  
@@ -55,6 +55,7 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 +	static double s_flSeatY = 0.0;
 +	static int s_nRootX = 0;
 +	static int s_nRootY = 0;
++	static bool s_bHinted = false;
 +
 +	wlserver_lock();
 +	const double flX = wlserver.mouse_surface_cursorx;
@@ -68,9 +69,18 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 +	if ( !bConstrained || !pFocus->cursor )
 +	{
 +		s_bTracking = false;
++		s_bHinted = false;
 +		s_bPointerHeld = pointer_hold_step( s_Hold, false, 0.0, 0.0, 0.0, 0.0, 0 );
 +		return;
 +	}
++
++	if ( s_bTracking && bHinted && !s_bHinted )
++	{
++		s_Hold = PointerHold{};
++		s_Hold.bHeld = true;
++		s_bPointerHeld = true;
++	}
++	s_bHinted = bHinted;
 +
 +	double flDX = flX - s_flSeatX;
 +	double flDY = flY - s_flSeatY;
@@ -108,7 +118,7 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
  bool ShouldDrawCursor()
  {
  	if ( relative_mouse_forced() )
-@@ -11029,9 +11129,15 @@
+@@ -11029,9 +11139,15 @@
  						nRelativeMouse != 2 && !bExcludedAppId && !bHasPointerConstraint && !window_is_steam( pPaintFocus->inputFocusWindow ) );
  				}
  
