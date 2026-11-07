@@ -636,6 +636,27 @@ supervisor refuses to report a runtime as installed until
 `/usr/local/bin/droiddeck-session` exists, which is what stops a
 half-installed runtime from looking usable.
 
+The overlay carries a second upstream directory as well:
+`tools/linuxfs/desktop/`. Upstream bakes five of its files into the image
+it builds (`tools/components/recipes/runtime.sh`) and stages all six from
+its APK assets (`SessionFiles.DESKTOP_FILES`), and the published image has
+none of them:
+
+| Guest path | Upstream's file |
+|---|---|
+| `usr/local/bin/droiddeck-desktop` | `tools/linuxfs/desktop/droiddeck-desktop` |
+| `usr/local/bin/droiddeck-gpu` | `tools/linuxfs/desktop/droiddeck-gpu` |
+| `usr/local/bin/droiddeck-desktop-gpu` | `tools/linuxfs/desktop/droiddeck-desktop-gpu` |
+| `usr/local/bin/kwin_wayland_wrapper` | `tools/linuxfs/desktop/kwin_wayland_wrapper` |
+| `usr/lib/firefox/defaults/pref/droiddeck.js` | `tools/linuxfs/desktop/firefox-droiddeck.js` |
+| `etc/xdg/autostart/droiddeck-clipboard.desktop` | `tools/linuxfs/desktop/droiddeck-clipboard.desktop` |
+
+The first one is what the session script's desktop mode execs, so without
+it the guest session starts and dies on the first `exec`. The port vendors
+all six into the overlay, at the paths upstream uses, and
+`tools/verify_upstream_runtime.sh` checks that they land in the unpacked
+rootfs.
+
 This is the kind of difference that only shows up when the real artifact
 is installed rather than a fixture built to match expectations, which is
 why `tools/verify_upstream_runtime.sh` exists.

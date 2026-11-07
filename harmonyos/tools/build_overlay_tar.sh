@@ -10,6 +10,13 @@
 # ("usr/local/bin/droiddeck-session"), which is exactly what the native
 # extractor expects. File modes are preserved, because the session script has
 # to stay executable.
+#
+# The overlay carries upstream's tools/linuxfs/overlay/ and the six desktop
+# files from upstream's tools/linuxfs/desktop/. Upstream bakes both into the
+# image it builds and stages the desktop files from its APK assets; the
+# published image has neither, so the port has to supply them itself.
+# Without /usr/local/bin/droiddeck-desktop the session script has no desktop
+# to start.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -34,7 +41,14 @@ else
   format_args=(--format=gnu)
 fi
 
-tar -czf "${output}" "${format_args[@]}" -C "${overlay}" usr
+# Every top-level entry of the overlay is packed, not just "usr": the
+# clipboard autostart file belongs in etc/xdg/autostart.
+entries=()
+while IFS= read -r entry; do
+  entries+=("${entry}")
+done < <(cd "${overlay}" && find . -mindepth 1 -maxdepth 1 -print | sed 's|^\./||' | sort)
+
+tar -czf "${output}" "${format_args[@]}" -C "${overlay}" "${entries[@]}"
 
 cp "${output}" "${rawfile}"
 

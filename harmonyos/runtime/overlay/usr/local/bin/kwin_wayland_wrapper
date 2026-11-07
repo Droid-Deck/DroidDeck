@@ -1,0 +1,5 @@
+#!/bin/bash
+if [ "${BL_DESKTOP:-}" = 1 ]; then
+  set -- --wayland-display wayland-0 --socket wayland-1 --width "${BL_WIDTH:-1280}" --height "${BL_HEIGHT:-720}" --no-lockscreen "$@"
+fi
+exec /usr/bin/kwin_wayland_wrapper "$@"

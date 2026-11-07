@@ -362,6 +362,15 @@ by `tools/build_overlay_tar.sh` into
 unpacked rootfs by the native installer, with the file modes preserved so
 the session script stays executable.
 
+The overlay carries a second thing as well: the six desktop files from
+upstream's `tools/linuxfs/desktop/` — `droiddeck-desktop`,
+`droiddeck-gpu`, `droiddeck-desktop-gpu`, `kwin_wayland_wrapper`, the
+Firefox preferences and the clipboard autostart file. Upstream bakes five of
+them into the image it builds and stages all six from its APK assets, and
+the published image has none of them. The session script's desktop mode
+execs `/usr/local/bin/droiddeck-desktop`, so without them the guest session
+starts and then dies on the first `exec`.
+
 This is the difference between "the download finished" and "the runtime
 works", and it is the reason the supervisor insists on finding
 `/usr/local/bin/droiddeck-session` before it reports a runtime as installed.
@@ -461,7 +470,7 @@ unless it was verified.
 | Guest supervisor | **done, tested** | Reproduces upstream's proot argv and bind list; pinned by `tools/test_native_host.sh` |
 | Runtime install path | **done, tested** | Catalog → download → checksum → unpack → overlay; the real published image installs correctly |
 | Guest environment | **done, checked** | The guest is told guest paths, and the image holds every program the session runs |
-| Runtime overlay | **done** | Upstream's `tools/linuxfs/overlay/` vendored and applied over the unpacked rootfs |
+| Runtime overlay | **done** | Upstream's `tools/linuxfs/overlay/` vendored and applied over the unpacked rootfs, together with the six desktop files from `tools/linuxfs/desktop/` |
 | `libwayland-server` for musl | **done** | Rebuilt from source for arm64-v8a; upstream's bionic prebuilt cannot load on HarmonyOS |
 | Presentation layer | **done** | Upstream's `vk_present` API, reimplemented over GLES textures instead of Vulkan |
 | Wayland compositor | **done, links** | Upstream's protocol layer and `compositor.c` compile unchanged; JNI replaced with Node-API |

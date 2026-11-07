@@ -84,6 +84,10 @@ int main(int argc, char **argv) {
   // into the image at build time and publishes the image without it.
   Check(!IsFile(destination + "/usr/local/bin/droiddeck-session"),
         "the published image carries no session script");
+  // Nor the desktop: upstream stages those from its APK assets, and the
+  // session script's desktop mode execs /usr/local/bin/droiddeck-desktop.
+  Check(!IsFile(destination + "/usr/local/bin/droiddeck-desktop"),
+        "the published image carries no desktop script");
 
   ddk::RuntimeOptions options;
   options.rootDir = destination;
@@ -98,6 +102,20 @@ int main(int argc, char **argv) {
         "the overlay brings the guest session script");
   Check(IsExecutable(destination + "/usr/local/bin/droiddeck-session"),
         "the session script stays executable");
+
+  // The desktop scripts the session script's desktop mode needs.
+  Check(IsFile(destination + "/usr/local/bin/droiddeck-desktop"),
+        "the overlay brings the desktop script");
+  Check(IsFile(destination + "/usr/local/bin/droiddeck-gpu"),
+        "the overlay brings the gpu helper");
+  Check(IsFile(destination + "/usr/local/bin/droiddeck-desktop-gpu"),
+        "the overlay brings the gpu desktop");
+  Check(IsFile(destination + "/usr/local/bin/kwin_wayland_wrapper"),
+        "the overlay brings the kwin wrapper");
+  Check(IsFile(destination + "/usr/lib/firefox/defaults/pref/droiddeck.js"),
+        "the overlay brings the firefox preferences");
+  Check(IsFile(destination + "/etc/xdg/autostart/droiddeck-clipboard.desktop"),
+        "the overlay brings the clipboard autostart file");
 
   Check(ddk::PrepareRootfs(destination), "the rootfs is prepared");
   Check(IsFile(destination + "/etc/droiddeck/proc/file-max"), "file-max is seeded");
