@@ -69,7 +69,7 @@ private class GamepadScaler(private val context: android.content.Context, privat
 }
 
 private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputBindings, val defaults: List<InputSurfaceElement>? = null,
-    private val gamepad: GamepadScaler? = null) {
+    private val gamepad: GamepadScaler? = null, snap: Boolean = true) {
     var elements by mutableStateOf(layout.elements)
     var actions by mutableStateOf(preset.elements)
     var clicks by mutableStateOf(preset.clicks)
@@ -77,7 +77,7 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     var toolsExpanded by mutableStateOf(false)
     var toolsX by mutableFloatStateOf(.02f)
     var toolsY by mutableFloatStateOf(.02f)
-    var snap by mutableStateOf(true)
+    var snap by mutableStateOf(snap)
     var adding by mutableStateOf(false)
     var properties by mutableStateOf(false)
     var clickProperties by mutableStateOf(false)
@@ -132,7 +132,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
             val (w, h) = OnScreenLayout.generatedSize(context, savedLayout, metrics.widthPixels, metrics.heightPixels) ?: (metrics.widthPixels to metrics.heightPixels)
             GamepadScaler(display, w, h)
         }
-        SurfaceDraft(savedLayout, savedBindings, InputLibraries.defaultPositions(context, library, savedLayout), gamepad)
+        SurfaceDraft(savedLayout, savedBindings, InputLibraries.defaultPositions(context, library, savedLayout), gamepad, ControllerPrefs.snap(context))
     }
     val manager = remember { context.getSystemService(DisplayManager::class.java) }
     var revision by remember { mutableIntStateOf(0) }
@@ -314,13 +314,14 @@ private fun FloatingSurfaceTools(draft: SurfaceDraft, onSave: () -> Unit, onLeav
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SurfaceToolbar(draft: SurfaceDraft, onSave: () -> Unit, onLeave: () -> Unit) {
+    val context = LocalContext.current
     FlowRow(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         SecondaryButton(stringResource(R.string.common_cancel), compact = true, onClick = onLeave)
         SecondaryButton(stringResource(R.string.input_editor_add), enabled = draft.elements.size < 64, compact = true) { draft.adding = true }
         SecondaryButton(stringResource(R.string.input_editor_undo), enabled = draft.history.isNotEmpty(), compact = true) { draft.undo() }
         if (draft.defaults != null) SecondaryButton(stringResource(R.string.input_reset_positions), enabled = draft.positioned != null, compact = true) { draft.resetPositions() }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(draft.snap, { draft.snap = it })
+            Checkbox(draft.snap, { draft.snap = it; ControllerPrefs.setSnap(context, it) })
             Text(stringResource(R.string.ctrl_editor_snap))
         }
         PrimaryButton(stringResource(R.string.input_editor_done), compact = true, onClick = onSave)

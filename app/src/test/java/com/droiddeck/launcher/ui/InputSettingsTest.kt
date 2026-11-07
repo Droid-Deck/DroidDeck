@@ -421,6 +421,23 @@ class InputSettingsTest {
         compose.runOnIdle { assertEquals(layout.elements, InputLibraries.read(context).layouts.first { it.id == layout.id }.elements) }
     }
 
+    @Test fun editorSnapChoiceIsRemembered() {
+        com.droiddeck.launcher.input.ControllerPrefs.setSnap(context, true)
+        val library = InputLibraries.read(context)
+        val layout = library.layout("game", InputRole.SECONDARY)!!
+        val round = mutableStateOf(0)
+        compose.setContent { DroidDeckTheme { androidx.compose.runtime.key(round.value) { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
+            layoutId = layout.id, bindingsId = library.profile("game").binding(InputRole.SECONDARY)) } } }
+        val snap = isToggleable() and hasAnySibling(hasText(context.getString(R.string.ctrl_editor_snap)))
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNode(snap).performScrollTo().assertIsOn().performClick()
+        compose.runOnIdle { assertFalse(com.droiddeck.launcher.input.ControllerPrefs.snap(context)) }
+        compose.runOnIdle { round.value = 1 }
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNode(snap).performScrollTo().assertIsOff()
+        com.droiddeck.launcher.input.ControllerPrefs.setSnap(context, true)
+    }
+
     @Test fun quickButtonTogglesHideBuiltInButtonsWithoutDeletingThem() {
         compose.setContent { DroidDeckTheme { InputSettingsPage({}) } }
         compose.onNodeWithTag("input-profile-game").performScrollTo().performClick()

@@ -73,7 +73,7 @@ object ControllerPrefs {
             keyboardButton = p.getBoolean("keyboardButton", true),
             selectSteam = p.getBoolean("selectSteam", false),
             joyConVr = joyConVr(context),
-            snap = p.getBoolean("snap", true),
+            snap = snap(context),
             customLayout = p.all.keys.any { it.startsWith("layout.") },
             mapping = mappable.associate { (id, _) -> id to target(context, id) },
             deadZone = deadZone(context),
@@ -146,6 +146,8 @@ object ControllerPrefs {
     fun setJoyConVr(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("joyConVr", on).apply()
     }
+
+    fun snap(context: Context): Boolean = prefs(context).getBoolean("snap", true)
 
     fun setSnap(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("snap", on).apply()
