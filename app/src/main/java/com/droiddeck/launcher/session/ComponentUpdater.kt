@@ -225,7 +225,7 @@ object ComponentUpdater {
                 if (after.fileOf(t.p, t.comp) == from) unfinished += t.key
                 else {
                     restore?.remove(t.p.id)
-                    t.ls.optJSONObject("applied")?.remove(t.p.id)
+                    if (after.choiceOf(t.p, t.comp)?.file?.startsWith("original ") != false) t.ls.optJSONObject("applied")?.remove(t.p.id)
                 }
             } else if (current.isNotEmpty()) {
                 if (after.fileOf(t.p, t.comp) == current) t.ls.obj("applied").put(t.p.id, current) else unfinished += t.key
