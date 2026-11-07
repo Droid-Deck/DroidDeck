@@ -1,7 +1,7 @@
 diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 --- a/src/steamcompmgr.cpp
 +++ b/src/steamcompmgr.cpp
-@@ -3165,6 +3165,104 @@
+@@ -3165,6 +3165,106 @@
  	wlserver_unlock();
  }
  
@@ -9,7 +9,7 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 +{
 +	int nAwayFrames = 0;
 +	int nFreeFrames = 0;
-+	uint64_t ulLastAway = 0;
++	uint64_t ulFirstAway = 0;
 +	bool bHeld = false;
 +};
 +
@@ -28,9 +28,11 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 +	const double flMiss = std::max( std::abs( flSeatDX - flPointerDX ), std::abs( flSeatDY - flPointerDY ) );
 +	if ( flMiss > flSeat * 0.75 )
 +	{
-+		if ( ulNow - state.ulLastAway > 500'000'000ul )
++		if ( state.nAwayFrames == 0 || ulNow - state.ulFirstAway > 500'000'000ul )
++		{
 +			state.nAwayFrames = 0;
-+		state.ulLastAway = ulNow;
++			state.ulFirstAway = ulNow;
++		}
 +		state.nFreeFrames = 0;
 +		if ( ++state.nAwayFrames >= 3 )
 +			state.bHeld = true;
@@ -106,7 +108,7 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
  bool ShouldDrawCursor()
  {
  	if ( relative_mouse_forced() )
-@@ -11029,9 +11127,15 @@
+@@ -11029,9 +11129,15 @@
  						nRelativeMouse != 2 && !bExcludedAppId && !bHasPointerConstraint && !window_is_steam( pPaintFocus->inputFocusWindow ) );
  				}
  

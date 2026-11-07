@@ -87,6 +87,12 @@ int main() {
     hintedCamera.bHeld = true;
     assert(run(hintedCamera, 600, 30.0, -8.0, 0.0, 0.0, now));
 
+    PointerHold chained;
+    for (int i = 0; i < 6; i++) {
+        assert(!run(chained, 1, 50.0, 0.0, 0.0, 0.0, now));
+        now += 400'000'000ul;
+    }
+
     PointerHold released;
     assert(run(released, 3, 0.0, -25.0, 0.0, 0.0, now));
     assert(!run(released, 1, 0.0, -25.0, 0.0, 0.0, now, false));
