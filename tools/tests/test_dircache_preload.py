@@ -472,6 +472,16 @@ class DirCachePreloadTest(unittest.TestCase):
                                env={"FOLD": "1"})
         self.assertEqual(["0 0", "-1 2", "2"], out[1:])
 
+    def test_a_differently_cased_folder_above_steamapps_reaches_the_filesystem(self):
+        s = self.staging
+        top = self.lib.parent.parent
+        other = top.parent / top.name.swapcase() / s.relative_to(top)
+        self.assertNotEqual(top.name, top.name.swapcase())
+        other.mkdir(parents=True)
+        (other / "x.bundle").write_bytes(b"")
+        out = self.run_program("list", s, "access", other / "x.bundle", "accesses", env={"FOLD": "all"})
+        self.assertEqual(["0 0", "1"], out[1:])
+
     def test_misses_outside_the_client_or_fuse_steamapps_reach_the_filesystem(self):
         s = self.staging
         other = self.run_program("list", s, "access", s / "x.bundle", "access", s / "y.bundle", "accesses",

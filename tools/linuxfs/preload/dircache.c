@@ -812,11 +812,18 @@ static int named(const struct listing *l, const char *name) {
   return 0;
 }
 
+static int folded_match(const char *where, const char *dir) {
+  const char *at = strstr(where, "/steamapps");
+  if (at == NULL) return 0;
+  size_t n = (size_t)(at - where);
+  return strncmp(where, dir, n) == 0 && strcasecmp(where + n, dir + n) == 0;
+}
+
 static int listed_absent(const char *dir, const char *name, long long now) {
   for (int i = 0; i < MAX_LISTINGS; i++) {
     struct listing *l = table[i];
     if (l && l->where && now - l->filled < DIR_TTL_NS &&
-        (strcmp(l->where, dir) == 0 || (l->folds && strcasecmp(l->where, dir) == 0)))
+        (strcmp(l->where, dir) == 0 || (l->folds && folded_match(l->where, dir))))
       return !named(l, name);
   }
   return 0;
@@ -830,8 +837,11 @@ int bl_dircache_absent(const char *path) {
     if ((unsigned char)*c >= 0x80) return 0;
   long long now = now_ns();
   pthread_mutex_lock(&lock);
-  if (!changing) pump(NULL, 0);
-  int absent = listed_absent(s.dir, s.name, now);
+  int absent = 0;
+  if (!changing) {
+    pump(NULL, 0);
+    absent = listed_absent(s.dir, s.name, now);
+  }
   pthread_mutex_unlock(&lock);
   return absent;
 }
