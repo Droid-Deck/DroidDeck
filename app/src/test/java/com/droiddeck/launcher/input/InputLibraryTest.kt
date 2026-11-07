@@ -19,11 +19,12 @@ class InputLibraryTest {
         for (name in listOf("input-profiles", "input-surfaces", "controller")) context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().commit()
     }
 
-    @Test fun freshLibraryHasOnlyTheMainGamepadAndTwoLowerScreenLayouts() {
+    @Test fun freshLibraryHasTheMainGamepadAndTheStockLowerScreenLayouts() {
         val library = InputLibraries.read(context)
         assertEquals(listOf("game", "desktop"), library.profiles.map { it.id })
-        assertEquals(setOf(InputLibraries.OVERLAY, InputLibraries.DECK, InputLibraries.TRACKPAD), library.layouts.map { it.id }.toSet())
-        assertEquals(6, library.bindings.size)
+        assertEquals(setOf(InputLibraries.OVERLAY, InputLibraries.TRACKPAD) + DeckPanel.entries.map { it.layout }, library.layouts.map { it.id }.toSet())
+        assertEquals(10, library.bindings.size)
+        for (panel in DeckPanel.entries) assertEquals(panel.layout, library.panelLayout(false, panel.bindings)?.id)
         assertEquals(InputLibraries.DECK, library.activeLayout(false, InputRole.SECONDARY)?.id)
         assertEquals(InputLibraries.TRACKPAD, library.activeLayout(true, InputRole.SECONDARY)?.id)
         assertEquals(InputAction.Pointer(), library.compileActive(true).action(InputRole.PHYSICAL, InputControl.LS))
@@ -32,22 +33,18 @@ class InputLibraryTest {
         val desktop = library.activeLayout(true, InputRole.SECONDARY)!!
         val pad = desktop.elements.single { it.kind == InputElementKind.TRACKPAD }
         assertTrue(pad.mouseGestures)
-        assertEquals(3, desktop.elements.size)
+        assertEquals(1, desktop.elements.size)
         assertEquals(InputAction.Pointer(), library.compileActive(true).elementAction(InputRole.SECONDARY, pad.id, pad.control))
         assertEquals(InputAction.MouseButton(272), library.compileActive(true).elementClickAction(InputRole.SECONDARY, pad))
         val game = library.activeLayout(false, InputRole.SECONDARY)!!
-        assertEquals(9, game.elements.size)
+        assertEquals(6, game.elements.size)
         assertEquals(setOf(InputControl.LEFT_PAD, InputControl.RIGHT_PAD), game.elements.filter { it.kind == InputElementKind.TRACKPAD }.map { it.control }.toSet())
         for (control in listOf(InputControl.L4, InputControl.L5, InputControl.R4, InputControl.R5)) {
             val element = game.elements.single { it.control == control }
             assertEquals(InputAction.Native(), library.compileActive(false).elementAction(InputRole.SECONDARY, element.id, element.control))
         }
-        for ((isDesktop, commands) in listOf(true to listOf(InputCommand.MENU, InputCommand.KEYBOARD),
-            false to listOf(InputCommand.STEAM, InputCommand.QUICK_ACCESS, InputCommand.MENU))) {
-            val elements = library.activeLayout(isDesktop, InputRole.SECONDARY)!!.elements.filter { it.id.startsWith("command:") }
-            assertEquals(commands.map { InputAction.Command(it) }, elements.map { library.compileActive(isDesktop).elementAction(InputRole.SECONDARY, it.id, it.control) })
-            assertTrue(elements.all { InputButtonIcons.has(it.icon) && it.icon > 255 })
-        }
+        for (layout in InputStockLayouts.layouts()) assertTrue(layout.elements.none { it.id.startsWith("command:") })
+        assertTrue(game.elements.filter { it.kind == InputElementKind.TRACKPAD }.all { it.y == .02f })
         assertEquals(library, InputLibraries.decode(InputLibraries.encode(library)))
     }
 
@@ -71,11 +68,11 @@ class InputLibraryTest {
         assertEquals(original, InputLibraries.read(context))
     }
 
-    @Test fun resettingDefaultActionsKeepsTheMenuAndKeyboardCommands() {
+    @Test fun resettingDefaultActionsKeepsTheStockPanelActions() {
         val library = InputLibraries.read(context)
         for (id in listOf("game", "desktop")) {
             val reset = library.resetProfile(id).validate()
-            for (element in library.layout(id, InputRole.SECONDARY)!!.elements.filter { it.id.startsWith("command:") }) {
+            for (element in library.layout(id, InputRole.SECONDARY)!!.elements) {
                 assertEquals(library.compile(id).elementAction(InputRole.SECONDARY, element.id, element.control),
                     reset.compile(id).elementAction(InputRole.SECONDARY, element.id, element.control))
             }
@@ -460,7 +457,7 @@ class InputLibraryTest {
         assertTrue(upgraded.layout("game", InputRole.SECONDARY)!!.editable)
         val output = upgraded.compile("game")
         assertEquals(InputAction.Keys(listOf(57)), output.elementAction(InputRole.SECONDARY, "legacy:l4", InputControl.L4))
-        assertEquals(InputAction.Command(InputCommand.MENU), output.elementAction(InputRole.SECONDARY, "command:0", InputControl.A))
+        assertEquals(InputStockLayouts.layouts().single { it.id == InputLibraries.DECK }.elements, upgraded.layout("game", InputRole.SECONDARY)!!.elements)
         assertEquals(upgraded, InputLibraries.read(context))
     }
 
@@ -473,7 +470,9 @@ class InputLibraryTest {
             val copy = changed.layout("game", role)!!
             assertNotEquals(layout.id, copy.id)
             assertEquals(layout.elements, copy.elements)
-            assertEquals(InputAction.Command(InputCommand.MENU), changed.compile("game").elementAction(role, "command:0", InputControl.A))
+            val stock = InputStockLayouts.presets(listOf(layout)).single()
+            for (element in layout.elements) assertEquals(stock.elements[element.id] ?: stock.controls[element.control] ?: InputAction.Native(),
+                changed.compile("game").elementAction(role, element.id, element.control))
         }
     }
 
@@ -532,5 +531,65 @@ class InputLibraryTest {
         assertNull(upgraded.layouts.single { it.id == InputLibraries.TRACKPAD }.style.tint)
         assertEquals(ControllerPrefs.STEAM_BLUE, upgraded.layouts.single { it.id == InputLibraries.OVERLAY }.style.tint)
         assertEquals(upgraded, InputLibraries.read(context))
+    }
+    private fun versionElevenPanel(layout: SavedInputLayout, commands: List<Int>, padTop: Float = .14f) = layout.copy(elements = commands.mapIndexed { position, i ->
+        InputSurfaceElement(InputControl.A, .02f + position * .3f, .01f, .28f, .11f, "command:$i", name = "Command $i", icon = InputButtonIcons.MENU)
+    } + layout.elements.map { if (it.kind == InputElementKind.TRACKPAD) it.copy(y = padTop, height = it.y + it.height - padTop) else it })
+
+    private fun versionElevenLibrary(change: (InputLibrary) -> InputLibrary = { it }): InputLibrary {
+        val fresh = InputLibraries.read(context)
+        val stock = InputStockLayouts.layouts()
+        var old = fresh.copy(layouts = fresh.layouts.filter { it.id == InputLibraries.OVERLAY || it.id == InputLibraries.DECK || it.id == InputLibraries.TRACKPAD },
+            bindings = fresh.bindings.filter { b -> DeckPanel.entries.none { it != DeckPanel.BOTH && it.bindings == b.id } })
+        old = old.withLayout(versionElevenPanel(stock.single { it.id == InputLibraries.DECK }, listOf(2, 3, 0)))
+            .withLayout(versionElevenPanel(stock.single { it.id == InputLibraries.TRACKPAD }, listOf(0, 1)))
+        old = old.copy(bindings = old.bindings.map { b ->
+            when (b.layoutId) {
+                InputLibraries.DECK -> b.copy(elements = b.elements + mapOf("command:0" to InputAction.Command(InputCommand.MENU), "command:2" to InputAction.Command(InputCommand.STEAM)))
+                InputLibraries.TRACKPAD -> b.copy(elements = b.elements + ("command:1" to InputAction.Command(InputCommand.KEYBOARD)))
+                else -> b
+            }
+        })
+        return change(old).validate()
+    }
+
+    private fun storeVersionEleven(library: InputLibrary) {
+        prefs.edit().putString("library", JSONObject(InputLibraries.encode(library)).put("version", 11).toString()).commit()
+    }
+
+    @Test fun versionTwelveMovesStockPanelCommandsToTheBarAndAddsTheDeckTabs() {
+        val mine = SavedInputLayout("mine", "Mine", listOf(InputSurfaceElement(InputControl.A, .1f, .1f, .2f, .2f, "command:0", name = "Menu")),
+            screen = InputLayoutScreen.SECONDARY)
+        val minePreset = SavedInputBindings("mine.bindings", "Mine", false, mine.id, elements = mapOf("command:0" to InputAction.Command(InputCommand.MENU)))
+        val old = versionElevenLibrary { it.withLayout(mine).withPreset(minePreset) }
+        assertTrue(old.layouts.single { it.id == InputLibraries.DECK }.elements.any { it.id.startsWith("command:") })
+        storeVersionEleven(old)
+        val upgraded = InputLibraries.read(context)
+        val stock = InputStockLayouts.layouts()
+        for (id in listOf(InputLibraries.DECK, InputLibraries.TRACKPAD))
+            assertEquals(stock.single { it.id == id }.elements, upgraded.layouts.single { it.id == id }.elements)
+        assertTrue(upgraded.bindings.filter { it.layoutId == InputLibraries.DECK || it.layoutId == InputLibraries.TRACKPAD }
+            .all { b -> b.elements.keys.none { it.startsWith("command:") } })
+        assertEquals(InputAction.Pointer(), upgraded.preset(InputStockLayouts.TRACKPAD).elements["legacy:right-pad"])
+        assertEquals(mine, upgraded.layouts.single { it.id == mine.id })
+        assertEquals(minePreset, upgraded.preset(minePreset.id))
+        for (panel in DeckPanel.entries) {
+            assertEquals(stock.single { it.id == panel.layout }, upgraded.layouts.single { it.id == panel.layout })
+            assertEquals(panel.layout, upgraded.preset(panel.bindings).layoutId)
+        }
+        assertEquals(old.profiles, upgraded.profiles)
+        assertEquals(upgraded, InputLibraries.read(context))
+    }
+
+    @Test fun versionTwelveLeavesEditedStockPanelsAlone() {
+        val old = versionElevenLibrary { library ->
+            val trackpad = library.layouts.single { it.id == InputLibraries.TRACKPAD }
+            library.withLayout(trackpad.copy(elements = trackpad.elements.map { if (it.kind == InputElementKind.TRACKPAD) it.copy(x = .1f, width = .8f) else it }))
+        }
+        storeVersionEleven(old)
+        val upgraded = InputLibraries.read(context)
+        assertEquals(old.layouts.single { it.id == InputLibraries.TRACKPAD }, upgraded.layouts.single { it.id == InputLibraries.TRACKPAD })
+        assertEquals(old.preset(InputStockLayouts.TRACKPAD), upgraded.preset(InputStockLayouts.TRACKPAD))
+        assertEquals(InputStockLayouts.layouts().single { it.id == InputLibraries.DECK }.elements, upgraded.layouts.single { it.id == InputLibraries.DECK }.elements)
     }
 }

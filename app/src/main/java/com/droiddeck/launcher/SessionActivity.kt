@@ -174,6 +174,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         WaylandCompositor.nativeSetScaleMode(SCALE_FIT, alignment)
     }
     private var unfoldedPanel by mutableStateOf<com.droiddeck.launcher.ui.InputSurfaceView?>(null)
+    private var unfoldedBar: View? = null
     private lateinit var sessionRoot: FrameLayout
     private var inputRouter: InputRouter? = null
     private var physicalInputBindings: com.droiddeck.launcher.input.PhysicalInputBindings? = null
@@ -2811,7 +2812,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         return onScreenControls?.let { takes(it, it::takesTouchAt) } == true ||
             steamTouchControls?.let { takes(it, it::takesTouchAt) } == true ||
-            unfoldedPanel?.let { takes(it, it::takesTouchAt) } == true
+            unfoldedPanel?.let { takes(it, it::takesTouchAt) } == true ||
+            unfoldedBar?.let { takes(it) { _, _ -> true } } == true
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
@@ -3381,6 +3383,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             DroidDeckTheme { SessionMenu(docked = true) }
         },
         onSwap = if (bottomSwapAvailable && com.droiddeck.launcher.input.DualScreen.builtIn(target)) ({ putGameOnBottom(true) }) else null,
+        onDeckPanel = ::selectDeckPanel,
         dashboard = if (bottomPages().isEmpty()) null else ({
             DroidDeckTheme {
                 BottomDashboard(
@@ -3491,10 +3494,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun refreshInputProfile() {
         val library = com.droiddeck.launcher.input.InputLibraries.read(this)
         val desktop = loadingMode() == SessionService.MODE_DESKTOP
-        inputProfile = library.compileActive(desktop, secondScreenMode.bindings)
+        inputProfile = library.compileActive(desktop, secondScreenMode.panel(this))
         primaryInputLayout = library.activeLayout(desktop, InputRole.PRIMARY)
         adaptiveSticks = primaryInputLayout?.adaptiveSticks
-        secondaryInputLayout = library.panelLayout(desktop, secondScreenMode.bindings)
+        secondaryInputLayout = library.panelLayout(desktop, secondScreenMode.panel(this))
         inputUsesLocalActions = InputControl.padControls.any { inputProfile.action(InputRole.PHYSICAL, it) !is InputAction.Native }
         inputUsesPointer = inputProfile.bindings.values.any { bindings ->
             bindings.values.any { it is InputAction.Pointer || it is InputAction.MouseButton || it is InputAction.Scroll }
@@ -3515,6 +3518,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun tapQam() {
         if (SessionState.mode == SessionService.MODE_STEAM) padBridge?.triggerQam()
+    }
+
+    private fun selectDeckPanel(panel: com.droiddeck.launcher.input.DeckPanel) {
+        if (SessionPrefs.deckPanel(this) == panel) return
+        releasePads()
+        SessionPrefs.setDeckPanel(this, panel)
+        refreshInputProfile()
     }
 
     private fun chooseUnfoldedControls(on: Boolean) {
@@ -3555,6 +3565,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         var panel = unfoldedPanel
         if (!wanted) {
+            dropUnfoldedBar()
             if (panel != null) { sessionRoot.removeView(panel); unfoldedPanel = null; updateOnScreenControls() }
             return
         }
@@ -3565,7 +3576,23 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             unfoldedPanel = panel
             updateOnScreenControls()
         }
-        panel.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, height - gameHeight, Gravity.BOTTOM)
+        panel.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
+            height - gameHeight - placeUnfoldedBar(panel, height - gameHeight), Gravity.BOTTOM)
+    }
+
+    private fun placeUnfoldedBar(panel: View, area: Int): Int {
+        val bar = unfoldedBar ?: com.droiddeck.launcher.ui.bottomScreenBarView(this) {
+            com.droiddeck.launcher.ui.sessionBarModel(getString(R.string.deck_tab_gamepad), { chooseUnfoldedControls(false) },
+                { drawerOpen = true }, ::tapSteamButton, ::tapQam)
+        }.also { unfoldedBar = it; sessionRoot.addView(it, sessionRoot.indexOfChild(panel) + 1) }
+        val barHeight = (com.droiddeck.launcher.ui.BAR_HEIGHT.value * resources.displayMetrics.density + 0.5f).toInt().coerceAtMost(area)
+        bar.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, barHeight, Gravity.BOTTOM).apply { bottomMargin = area - barHeight }
+        return barHeight
+    }
+
+    private fun dropUnfoldedBar() {
+        unfoldedBar?.let(sessionRoot::removeView)
+        unfoldedBar = null
     }
 
     private fun bottomKeyboardPresentation(): SecondScreenPresentation? {
@@ -3701,7 +3728,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun panelMode(mode: SecondScreenMode) {
-        val rebind = secondScreenMode.bindings != mode.bindings
+        val rebind = secondScreenMode.panel(this) != mode.panel(this)
         secondScreenMode = mode
         SessionState.secondScreenMode = mode
         if (rebind) refreshInputProfile()
@@ -4971,10 +4998,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val swapBack = { putGameOnBottom(false) }
         val steam = SessionState.mode == SessionService.MODE_STEAM
         val openMenu = { drawerOpen = true }
-        fun bar(title: String?, extras: List<com.droiddeck.launcher.ui.BarExtra> = emptyList()) = com.droiddeck.launcher.ui.BottomBarModel(
-            title, openMenu, openMenu, if (steam) ({ tapSteamButton() }) else null, if (steam) ({ tapQam() }) else null,
-            extras + com.droiddeck.launcher.ui.BarExtra(getString(R.string.swap_screens), icon = R.drawable.ic_bottom_swap, onClick = swapBack),
-        )
+        fun bar(title: String?, extras: List<com.droiddeck.launcher.ui.BarExtra> = emptyList(), tabs: com.droiddeck.launcher.ui.BarTabs? = null) =
+            com.droiddeck.launcher.ui.BottomBarModel(
+                title, openMenu, openMenu, if (steam) ({ tapSteamButton() }) else null, if (steam) ({ tapQam() }) else null,
+                extras + com.droiddeck.launcher.ui.BarExtra(getString(R.string.swap_screens), icon = R.drawable.ic_bottom_swap, onClick = swapBack),
+                tabs = tabs,
+            )
+        val keyboardExtra = com.droiddeck.launcher.ui.BarExtra(getString(R.string.second_show_keyboard), icon = R.drawable.ic_bottom_keyboard) {
+            keyboard?.toggle()
+        }
         val profileLayout = secondaryInputLayout
         androidx.compose.foundation.layout.Box(
             Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black)
@@ -4989,16 +5021,34 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         },
                         modifier = Modifier.fillMaxSize(),
                     )
-                secondScreenMode.controls && (secondScreenMode != SecondScreenMode.DECK_CONTROLS || SessionState.deckPad) -> {
-                    androidx.compose.runtime.key(profileLayout) {
-                        androidx.compose.ui.viewinterop.AndroidView(
-                            factory = { context -> com.droiddeck.launcher.ui.InputSurfaceView(context, padBridge, profileLayout?.elements.orEmpty(),
-                                surfaceStyle = profileLayout?.style ?: com.droiddeck.launcher.input.InputSurfaceStyle()) },
-                            modifier = Modifier.fillMaxSize(),
-                        )
+                secondScreenMode.controls && (secondScreenMode != SecondScreenMode.DECK_CONTROLS || SessionState.deckPad) ->
+                    androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
+                        when (secondScreenMode) {
+                            SecondScreenMode.KEYBOARD_TRACKPAD ->
+                                com.droiddeck.launcher.ui.BottomScreenBar(bar(getString(SecondScreenMode.KEYBOARD_TRACKPAD.label), listOf(keyboardExtra)))
+                            SecondScreenMode.DECK_CONTROLS -> com.droiddeck.launcher.ui.BottomScreenBar(bar(getString(SecondScreenMode.DECK_CONTROLS.label),
+                                tabs = com.droiddeck.launcher.ui.deckPanelTabs(this@SessionActivity, SessionPrefs.deckPanel(this@SessionActivity), ::selectDeckPanel)))
+                            else -> Unit
+                        }
+                        androidx.compose.runtime.key(profileLayout) {
+                            androidx.compose.ui.viewinterop.AndroidView(
+                                factory = { context -> com.droiddeck.launcher.ui.InputSurfaceView(context, padBridge, profileLayout?.elements.orEmpty(),
+                                    surfaceStyle = profileLayout?.style ?: com.droiddeck.launcher.input.InputSurfaceStyle()) },
+                                modifier = Modifier.fillMaxWidth().weight(1f),
+                            )
+                        }
                     }
+                secondScreenMode == SecondScreenMode.TERMINAL -> androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
+                    var terminal by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<com.droiddeck.launcher.ui.SessionTerminalPanel?>(null) }
+                    com.droiddeck.launcher.ui.BottomScreenBar(bar(getString(SecondScreenMode.TERMINAL.label), listOf(
+                        com.droiddeck.launcher.ui.BarExtra(getString(R.string.drawer_keyboard), icon = R.drawable.ic_bottom_keyboard) { terminal?.showKeyboard() },
+                    )))
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        factory = { context -> com.droiddeck.launcher.ui.SessionTerminalPanel(context).also { terminal = it } },
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                    )
                 }
-
+                pages.isEmpty() -> com.droiddeck.launcher.ui.BottomScreenBar(bar(null))
                 else -> BottomDashboard(
                     pages, com.droiddeck.launcher.ui.SessionBottomTab.picked(SessionState.sessionId),
                     gameStarts = gameStarts,
