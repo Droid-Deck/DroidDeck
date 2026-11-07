@@ -9,6 +9,8 @@
 //
 //   tools/test_native_host.sh
 
+#include <sys/stat.h>
+
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -181,13 +183,58 @@ void TestDirectModeUsesTheGuestLoader() {
   CheckEquals(argv[0], options.rootDir + "/lib/ld-linux-aarch64.so.1", "guest loader");
   CheckEquals(argv[1], "--library-path", "library path flag");
   Check(ContainsSubstring(argv[2], options.rootDir + "/lib:"), "library path points into the rootfs");
-  CheckEquals(argv[3], options.rootDir + "/" + options.command, "guest command");
+  CheckEquals(argv[3], options.rootDir + options.command, "guest command");
   CheckEquals(argv[argv.size() - 2], "steam", "first guest argument");
   CheckEquals(argv[argv.size() - 1], "440", "second guest argument");
 
   // Direct mode must not pretend to have proot's path rewriting.
   Check(!Contains(argv, "-b"), "direct mode has no binds");
   Check(!Contains(argv, "-r"), "direct mode has no root flag");
+}
+
+/**
+ * A rootfs with a session script in it, for the direct-mode test.
+ *
+ * The published runtime carries no proot, so direct mode is the path the
+ * port actually takes, and the guest's command is a shell script. This
+ * rootfs merges /usr the way the published one does, so the interpreter
+ * the script names only exists at /usr/bin/bash.
+ */
+std::string MakeScriptRoot() {
+  const std::string root = "/tmp/droiddeck-runtime-test-root";
+  mkdir(root.c_str(), 0755);
+  mkdir((root + "/usr").c_str(), 0755);
+  mkdir((root + "/usr/bin").c_str(), 0755);
+  mkdir((root + "/usr/local").c_str(), 0755);
+  mkdir((root + "/usr/local/bin").c_str(), 0755);
+
+  FILE *file = fopen((root + "/usr/local/bin/droiddeck-session").c_str(), "w");
+  if (file != nullptr) {
+    fputs("#!/bin/bash\n", file);
+    fclose(file);
+  }
+  file = fopen((root + "/usr/bin/bash").c_str(), "w");
+  if (file != nullptr) {
+    fputs("#!/bin/sh\n", file);
+    fclose(file);
+  }
+  return root;
+}
+
+void TestDirectModeRunsAScriptWithItsInterpreter() {
+  const std::string root = MakeScriptRoot();
+  ddk::RuntimeOptions options = MakeOptions();
+  options.rootDir = root;
+  options.command = "/usr/local/bin/droiddeck-session";
+  options.args = {"desktop"};
+
+  const std::vector<std::string> argv =
+      ddk::Runtime::Instance().BuildArgv(options, ddk::RuntimeMode::Direct);
+
+  // The loader can only run ELF files, so the script is run by the
+  // interpreter its "#!" line names, taken out of the rootfs.
+  CheckEquals(argv[3], root + "/usr/bin/bash", "the interpreter from the shebang");
+  CheckEquals(argv[4], root + "/usr/local/bin/droiddeck-session", "the script itself");  CheckEquals(argv[5], "desktop", "the first guest argument");
 }
 
 void TestModeNames() {
@@ -203,6 +250,7 @@ int main() {
   TestBindsMatchUpstream();
   TestTheGuestIsPinnedToAVulkanManifest();
   TestDirectModeUsesTheGuestLoader();
+  TestDirectModeRunsAScriptWithItsInterpreter();
   TestModeNames();
 
   if (g_failures == 0) {

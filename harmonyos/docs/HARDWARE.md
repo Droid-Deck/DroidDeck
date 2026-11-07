@@ -73,6 +73,27 @@ itself are the realistic target on HarmonyOS.
 So the phone's GPU model — Adreno or Maleoon — does not change the verdict.
 Both are fine for the shell; neither can accelerate the guest's games.
 
+## How the guest is started
+
+The published runtime carries **no proot**: its 26,022 entries hold no
+`host/proot` and no proot anywhere, because upstream ships the patched
+binary in an addon pack rather than in the runtime image. So the guest is
+started in **direct mode** — the supervisor execs the guest's own dynamic
+loader with the rootfs on its library path.
+
+That has one wrinkle worth knowing about: a loader can only run an ELF file,
+and the guest's command (`/usr/local/bin/droiddeck-session`) is a shell
+script. The port therefore reads the script's `#!` line and runs it with the
+interpreter that line names, taken out of the rootfs. The published image
+merges `/usr`, so the interpreter a script names as `/bin/bash` is really at
+`/usr/bin/bash`.
+
+Direct mode has no path rewriting, so it only works for a guest that does
+not depend on absolute paths. Upstream's path rewriting needs proot, and
+proot needs `ptrace`, which HarmonyOS may not grant to an app at all: the
+supervisor probes for it (`PTRACE_TRACEME` in a throwaway child) and reports
+the mode it actually got on the Settings page.
+
 ## Checking the phone in your hand
 
 ```bash

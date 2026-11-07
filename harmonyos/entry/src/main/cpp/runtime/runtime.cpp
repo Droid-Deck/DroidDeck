@@ -62,6 +62,51 @@ bool IsFile(const std::string &path) {
   return stat(path.c_str(), &info) == 0 && S_ISREG(info.st_mode);
 }
 
+/**
+ * The interpreter a script asks for in its "#!" line.
+ *
+ * Direct mode hands the guest command to the guest's dynamic loader, and a
+ * loader can only run an ELF file. The guest's session command is a shell
+ * script, so it has to be run by the interpreter the script names, taken
+ * out of the rootfs. Returns an empty string when the file is not a script
+ * or cannot be read.
+ */
+std::string ScriptInterpreter(const std::string &path) {
+  std::ifstream file(path, std::ios::binary);
+  if (!file.good()) {
+    return std::string();
+  }
+  std::string line;
+  if (!std::getline(file, line) || line.rfind("#!", 0) != 0) {
+    return std::string();
+  }
+
+  std::string rest = line.substr(2);
+  const size_t start = rest.find_first_not_of(" \t");
+  if (start == std::string::npos) {
+    return std::string();
+  }
+  rest = rest.substr(start);
+  const size_t end = rest.find_first_of(" \t");
+  std::string interpreter = rest.substr(0, end);
+
+  // "#!/usr/bin/env bash" asks for bash by name rather than by path.
+  if (interpreter == "/usr/bin/env" || interpreter == "/bin/env") {
+    const std::string arguments = end == std::string::npos ? std::string() : rest.substr(end + 1);
+    const size_t argumentStart = arguments.find_first_not_of(" \t");
+    if (argumentStart == std::string::npos) {
+      return std::string();
+    }
+    const std::string name = arguments.substr(argumentStart).substr(
+        0, arguments.substr(argumentStart).find_first_of(" \t"));
+    if (name.rfind("/", 0) != 0) {
+      return "/bin/" + name;
+    }
+    return name;
+  }
+  return interpreter;
+}
+
 long long DirectorySize(const std::string &path) {
   long long total = 0;
   DIR *dir = opendir(path.c_str());
@@ -275,11 +320,42 @@ std::vector<std::string> Runtime::BuildArgv(const RuntimeOptions &options, Runti
   if (mode == RuntimeMode::Direct) {
     // Without proot there is no path remapping, so the guest's own loader is
     // invoked with the rootfs on its library path.
-    argv.push_back(options.rootDir + "/lib/ld-linux-aarch64.so.1");
+    const std::string root = options.rootDir;
+    // The guest's command is an absolute path inside the rootfs.
+    const std::string command = options.command.rfind("/", 0) == 0
+                                    ? root + options.command
+                                    : root + "/" + options.command;
+
+    argv.push_back(root + "/lib/ld-linux-aarch64.so.1");
     argv.push_back("--library-path");
-    argv.push_back(options.rootDir + "/lib:" + options.rootDir + "/usr/lib:" +
-                  options.rootDir + "/usr/lib/aarch64-linux-gnu");
-    argv.push_back(options.rootDir + "/" + options.command);
+    argv.push_back(root + "/lib:" + root + "/usr/lib:" + root + "/usr/lib/aarch64-linux-gnu");
+
+    // The loader runs ELF files, and the guest's command is a shell script.
+    // A script is run by the interpreter its "#!" line names, and that
+    // interpreter has to come out of the rootfs.
+    const std::string interpreter = ScriptInterpreter(command);
+    std::string shell;
+    if (!interpreter.empty()) {
+      shell = root + interpreter;
+      if (!IsFile(shell)) {
+        // The rootfs merges /usr into the top level, so the interpreter a
+        // script names as /bin/bash can live at /usr/bin/bash.
+        const std::string merged = root + "/usr" + interpreter;
+        if (IsFile(merged)) {
+          shell = merged;
+        } else {
+          shell.clear();
+        }
+      }
+    }
+    if (!shell.empty()) {
+      argv.push_back(shell);
+      argv.push_back(command);
+      DDK_LOGI("direct mode runs %{public}s with %{public}s",
+               options.command.c_str(), shell.c_str());
+    } else {
+      argv.push_back(command);
+    }
   } else {
     argv.push_back(options.command);
   }

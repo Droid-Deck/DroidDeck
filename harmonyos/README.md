@@ -468,6 +468,7 @@ unless it was verified.
 | Guest input path | **done** | ArkUI touch and key events mapped to the guest's evdev codes; unit tested |
 | Wayland keymap | **done** | The guest is published upstream's keymap, without which every key comes out wrong |
 | Guest session launch | **done** | The session page starts `/usr/local/bin/droiddeck-session` with upstream's `BL_*` environment |
+| Guest launch without proot | **done, tested** | The published image has no proot, so the guest is started by the guest's own loader; a script command is run by the interpreter its `#!` line names |
 | Guest Vulkan driver | **done** | The guest is pinned to lavapipe, the only driver in the image that works without a GPU device node |
 | App configuration | **done, checked** | The manifests are validated against the SDK's own schemas; see `tools/check_app_config.py` |
 | Guest audio | **built, untested** | A PulseAudio server for aarch64-musl, its daemon and the sink module that feeds the speaker; see `docs/PORTING.md` |
@@ -489,12 +490,22 @@ The Linux guest is the hard part, and the port does not pretend otherwise:
 * Upstream launches the guest with **proot**, which needs `ptrace`.
   HarmonyOS sandboxes app processes, and whether `ptrace` is granted is not
   documented for third-party apps.
+* The published image carries **no proot**: listing its 26,022 entries finds
+  no `host/proot` and no proot anywhere, and upstream ships the patched
+  binary in an addon pack rather than in the runtime image. So the guest is
+  started in **direct mode** unless a patched proot is put at
+  `<runtime>/host/proot`.
 * The native layer therefore **probes** at runtime: `Runtime::PtraceAvailable()`
   tries `PTRACE_TRACEME` in a throwaway child. If it succeeds the port uses
   proot and gets upstream parity. If it fails the port falls back to
   `RuntimeMode::Direct`, which execs the guest loader directly with the
   rootfs on its library path. Direct mode has **no path remapping**, so it
   only works for guests that do not depend on absolute paths.
+* Direct mode hands the command to the guest's dynamic loader, and a loader
+  can only run an ELF file. The guest's command is a shell script, so the
+  port reads the `#!` line and runs the script with the interpreter it
+  names, taken out of the rootfs — the published image merges `/usr`, so
+  `/bin/bash` lives at `/usr/bin/bash`.
 * The rootfs lives in the app's private `filesDir`. HarmonyOS has no
   `MANAGE_EXTERNAL_STORAGE`, so upstream's "bind the shared storage into the
   guest" trick is not available.
