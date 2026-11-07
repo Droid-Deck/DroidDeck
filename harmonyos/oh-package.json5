@@ -3,9 +3,8 @@
   "name": "droiddeck-harmony",
   "version": "0.6.9-harmony",
   "description": "DroidDeck for HarmonyOS 7 (API 26) - SteamOS-style gaming launcher for Huawei devices",
-  "dependencies": {},
-  "devDependencies": {
-    "@ohos/hvigor": "6.0.0",
-    "@ohos/hvigor-ohos-plugin": "6.0.0"
-  }
+  "dependencies": {}
+  // Hvigor and its OpenHarmony plugin come from the toolchain bundled in
+  // DevEco Studio. Declaring them here would make the build depend on a
+  // package registry that does not publish them.
 }

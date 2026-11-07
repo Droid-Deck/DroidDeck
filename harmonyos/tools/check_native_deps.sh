@@ -28,6 +28,9 @@ if [ ! -x "${READELF}" ]; then
 fi
 
 # The libraries the platform provides. Everything else has to ship.
+# libc++_shared.so is deliberately not in this list: the C++ runtime belongs
+# to the app, not to the platform, so the HAP has to carry it. Run
+# tools/install_cxx_runtime.sh to put it there.
 platform=(
   libace_napi.z.so
   libace_ndk.z.so
@@ -40,7 +43,6 @@ platform=(
   libm.so
   libdl.so
   libc.so
-  libc++_shared.so
 )
 
 failures=0

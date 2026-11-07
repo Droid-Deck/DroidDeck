@@ -50,6 +50,7 @@ harmonyos/
 │   └── build-profile.json5       native build options (arm64-v8a)
 ├── docs/PORTING.md               the full Android -> HarmonyOS mapping
 └── tools/
+    ├── build_hap.sh               builds the HAP with DevEco Studio's hvigor
     ├── build_wayland_server.sh   rebuilds libwayland-server for musl
     ├── build_overlay_tar.sh      packs the runtime overlay into the HAP
     ├── build_pulseaudio.sh       rebuilds PulseAudio for musl, and the sink
@@ -62,6 +63,7 @@ harmonyos/
     ├── fetch_upstream_runtime.sh downloads the published runtime
     ├── install_cxx_runtime.sh    installs libc++_shared.so into the HAP
     ├── package_port.sh           packs the port into a zip
+    ├── patch_build_profile.py    patches the build profiles for the CLI build
     ├── pulseaudio/               the stubs musl needs for PulseAudio
     ├── test_native_host.sh       runs the native unit tests
     ├── verify_upstream_runtime.sh  installs the real published runtime
@@ -88,20 +90,33 @@ The HAP lands in `entry/build/default/outputs/default/entry-default-signed.hap`.
 The public OpenHarmony SDK ships the NDK, the ArkTS compiler
 (`ets/build-tools/ets-loader`), the resource compiler (`toolchains/restool`) and
 `hdc`. **Hvigor, ohpm and Node are not in it** — they ship with DevEco Studio,
-so point the build at that installation:
+so the build has to borrow that installation:
 
 ```bash
-export DEVECO=/Applications/DevEco-Studio.app/Contents/tools
-export OHOS_SDK_HOME=/path/to/openharmony-sdk
-export PATH="$DEVECO/node/bin:$DEVECO/ohpm/bin:$PATH"
-
 cd harmonyos
-"$DEVECO/ohpm/bin/ohpm" install
-"$DEVECO/hvigor/bin/hvigorw" --mode module -p product=default assembleHap
+tools/build_hap.sh
 ```
 
-The native module is built by the same invocation; it needs the OHOS NDK
-from `$OHOS_SDK_HOME/native` and a C++ toolchain.
+The script finds DevEco Studio (set `DEVECO_HOME` if it is not in
+`/Applications`), uses the SDK that DevEco installed, derives the SDK version
+string from that SDK and writes `local.properties`. The result is an
+**unsigned** HAP under `entry/build/default/outputs/default/`.
+
+Two switches change what it does:
+
+- `--sdk <root>` builds against another SDK root, for example a plain
+  OpenHarmony SDK. The root has to hold the `openharmony` and/or `hms`
+  component directories, because Hvigor picks the API from them based on the
+  `runtimeOS` in `build-profile.json5`.
+- `--native` rebuilds the native module from source with the SDK's NDK
+  instead of shipping the prebuilt libraries in `entry/libs/arm64-v8a`. The
+  default is to ship them: Hvigor packages that directory as it stands, and
+  rebuilding the native module in place would replace the prebuilt PulseAudio
+  and Wayland libraries that the HAP needs.
+
+A phone only installs a HAP that Huawei has signed, so the next step is
+DevEco Studio's **File > Project Structure > Signing Configs > Automatically
+generate signature**.
 
 ### What the HAP ships in `entry/libs/arm64-v8a/`
 
@@ -114,12 +129,13 @@ soname says:
 | `libdroiddeck_native.so` | the native module itself, built by hvigor or by cmake |
 | `libwayland-server.so` | the Wayland server core, rebuilt for musl |
 | `libc++_shared.so` | the C++ runtime the native module links against |
-| `libpulseaudio.so` | the PulseAudio server the guest's audio client connects to |
 | `libpulsecore-17.0.so` | the PulseAudio server core, rebuilt for musl |
 | `libpulsecommon-17.0.so` | the code PulseAudio's two sides share |
-| `libpulse.so.0` | PulseAudio's client library |
+| `libpulse.so.0` | PulseAudio's client library, which the guest's audio client links against |
+| `libpulse-simple.so.0` | PulseAudio's simple client API |
 | `libprotocol-native.so` | the native protocol's wire format, which the modules link against |
 | `module-native-protocol-unix.so` | the socket the guest's clients connect to |
+| `module-native-protocol-fd.so` | the same protocol over a file descriptor |
 | `module-droiddeck-sink.so` | the sink module that writes the audio to the speaker |
 
 ```bash
