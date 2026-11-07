@@ -368,6 +368,9 @@ def still_pages(root):
     if len(mask) <= at or not mask[at] & bit:
         return False
     mask[at] &= ~bit
+    if wine_processes(os.path.join(prefix(root), "pfx")):
+        say("Battle.net's prefix is in use; Windows animations go off the next time it starts on its own")
+        return False
     reg_line(reg, DESKTOP_KEY, USER_PREFERENCES, '"%s"=hex:%s' % (USER_PREFERENCES, ",".join("%02x" % b for b in mask)))
     return True
 

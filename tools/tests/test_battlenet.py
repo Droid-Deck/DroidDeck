@@ -941,6 +941,16 @@ class LaunchTest(Harness):
                          '"UserPreferencesMask"=hex:9e,3e,07,80,31,00,00,00')
         self.assertFalse(BNET["still_pages"](self.root + "/missing"))
 
+    def test_a_prefix_in_use_keeps_its_registry_until_it_starts_on_its_own(self):
+        self.install()
+        reg = Path(self.root) / ("steamapps/compatdata/%s/pfx/user.reg" % BNET["APP_ID"])
+        before = 'WINE REGISTRY Version 2\n\n[Control Panel\\\\Desktop] 1\n"UserPreferencesMask"=hex:30,00,02,80,12,00,00,00\n'
+        reg.write_text(before)
+        with mock.patch.dict(BNET, {"wine_processes": lambda pfx: [(1, ["C:\\Games\\game.exe"])]}):
+            self.assertFalse(BNET["still_pages"](self.root))
+        self.assertEqual(reg.read_text(), before)
+        self.assertTrue(BNET["still_pages"](self.root))
+
     def test_a_large_desktop_scales_battle_net_to_fit_it(self):
         sizes = {("1280", "720"): 96, ("1920", "1080"): 96, ("2400", "1504"): 120, ("2448", "1848"): 120,
                  ("1080", "2400"): 96, ("3840", "2160"): 192, ("2560", "1600"): 120}
