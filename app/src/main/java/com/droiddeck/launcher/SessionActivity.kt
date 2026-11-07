@@ -173,7 +173,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         WaylandCompositor.nativeSetScaleMode(SCALE_FIT, alignment)
     }
-    private var unfoldedPanel by mutableStateOf<com.droiddeck.launcher.ui.InputSurfaceView?>(null)
+    private var unfoldedPanel by mutableStateOf<OnScreenControls?>(null)
+    private var unfoldedColumn: android.widget.LinearLayout? = null
     private lateinit var sessionRoot: FrameLayout
     private var inputRouter: InputRouter? = null
     private var physicalInputBindings: com.droiddeck.launcher.input.PhysicalInputBindings? = null
@@ -3507,8 +3508,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         DeckControls.refresh()
         onScreenControls?.updateLayout(primaryInputLayout)
         bottomInputControls?.updateLayout(primaryInputLayout)
-        unfoldedPanel?.updateCustomLayout(primaryInputLayout?.elements.orEmpty())
-        unfoldedPanel?.updateStyle(primaryInputLayout?.style ?: com.droiddeck.launcher.input.InputSurfaceStyle())
+        unfoldedPanel?.updateLayout(primaryInputLayout)
         updateOnScreenPad()
         secondScreenPresentation?.refreshControls()
     }
@@ -3553,19 +3553,28 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             Log.i(TAG, if (wanted) "unfolded controls: game ${width}x$gameHeight, controls ${width}x${height - gameHeight}"
                 else "unfolded controls: game full screen")
         }
+        val dock = com.droiddeck.launcher.input.OnScreenLayout.Dock(!com.droiddeck.launcher.session.SessionDisplay.foldable(this), SessionState.deckPad)
         var panel = unfoldedPanel
-        if (!wanted) {
-            if (panel != null) { sessionRoot.removeView(panel); unfoldedPanel = null; updateOnScreenControls() }
-            return
+        if (panel != null && (!wanted || panel.dock != dock)) {
+            sessionRoot.removeView(unfoldedColumn)
+            unfoldedColumn = null
+            unfoldedPanel = null
+            panel = null
+            if (!wanted) updateOnScreenControls()
         }
+        if (!wanted) return
         if (panel == null) {
-            panel = com.droiddeck.launcher.ui.InputSurfaceView(this, padBridge, primaryInputLayout?.elements.orEmpty(), InputRole.PRIMARY,
-                primaryInputLayout?.style ?: com.droiddeck.launcher.input.InputSurfaceStyle())
-            sessionRoot.addView(panel, sessionRoot.indexOfChild(surfaceView) + 1)
+            panel = OnScreenControls(this, padBridge, dock).also { it.updateLayout(primaryInputLayout) }
+            val column = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                addView(panel, android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+            }
+            sessionRoot.addView(column, sessionRoot.indexOfChild(surfaceView) + 1)
+            unfoldedColumn = column
             unfoldedPanel = panel
             updateOnScreenControls()
         }
-        panel.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, height - gameHeight, Gravity.BOTTOM)
+        unfoldedColumn?.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, height - gameHeight, Gravity.BOTTOM)
     }
 
     private fun bottomKeyboardPresentation(): SecondScreenPresentation? {

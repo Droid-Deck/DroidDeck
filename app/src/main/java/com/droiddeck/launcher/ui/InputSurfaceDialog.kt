@@ -79,6 +79,10 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     fun clickAction(e: InputSurfaceElement) = preset.copy(elements = actions, clicks = clicks).clickAction(e)
 }
 
+@Suppress("DEPRECATION")
+private fun displayAspect(display: Display): Float? = android.util.DisplayMetrics().also(display::getRealMetrics)
+    .takeIf { it.widthPixels > 0 && it.heightPixels > 0 }?.let { (it.widthPixels.toFloat() / it.heightPixels).coerceIn(.05f, 20f) }
+
 @Composable
 fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> Unit,
     role: InputRole = InputRole.SECONDARY, layoutId: String? = null, bindingsId: String? = null) {
@@ -109,7 +113,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
             InputLibraries.update(context) { latest ->
                 val l = latest.layouts.first { it.id == savedLayout.id }
                 val p = latest.preset(savedBindings.id)
-                latest.withLayout(l.copy(elements = draft.elements)).withPreset(p.copy(elements = draft.actions.filterKeys { id -> draft.elements.any { it.id == id } },
+                latest.withLayout(l.copy(elements = draft.elements, aspect = target?.let(::displayAspect) ?: l.aspect)).withPreset(p.copy(elements = draft.actions.filterKeys { id -> draft.elements.any { it.id == id } },
                     clicks = draft.clicks.filterKeys { id -> draft.elements.any { it.id == id && it.hasClick } }))
             }
         }.onSuccess { onChanged(); onDismiss() }.onFailure { failure = it.message ?: context.getString(R.string.input_save_failed) }

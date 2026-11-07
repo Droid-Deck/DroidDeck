@@ -16,6 +16,7 @@ data class SavedInputLayout(
     val template: InputLayoutTemplate = InputLayoutTemplate.CUSTOM,
     val style: InputSurfaceStyle = InputSurfaceStyle(),
     val screen: InputLayoutScreen = InputLayoutScreen.BOTH,
+    val aspect: Float = 0f,
 ) {
     val editable get() = template == InputLayoutTemplate.CUSTOM
     val adaptiveSticks get() = elements.filter { it.kind == InputElementKind.STICK }.takeIf { editable && it.isNotEmpty() }?.all { it.floating && it.hideWhenIdle }
@@ -228,6 +229,7 @@ data class InputLibrary(
         require(profiles.any { it.id == steam } && profiles.any { it.id == desktop })
         for (layout in layouts) {
             require(layout.style.opacity in 1..100)
+            require(layout.aspect == 0f || layout.aspect.isFinite() && layout.aspect in .05f..20f)
             inputName(layout.name); require(layout.elements.size <= 64); unique(layout.elements.map { it.id })
             for (e in layout.elements) {
                 inputName(e.name)

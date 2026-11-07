@@ -38,7 +38,7 @@ data class InputSurfaceElement(
     val hasClick get() = kind == InputElementKind.STICK || kind == InputElementKind.TRACKPAD
 
     fun bounded() = copy(x = x.coerceIn(0f, 0.97f), y = y.coerceIn(0f, 0.97f),
-        width = width.coerceIn(0.03f, 1f - x.coerceIn(0f, 0.97f)), height = height.coerceIn(0.03f, 1f - y.coerceIn(0f, 0.97f)))
+        width = width.coerceIn(0.03f, (1f - x.coerceIn(0f, 0.97f)).coerceAtLeast(0.03f)), height = height.coerceIn(0.03f, (1f - y.coerceIn(0f, 0.97f)).coerceAtLeast(0.03f)))
 }
 
 object InputSurfaceLayout {

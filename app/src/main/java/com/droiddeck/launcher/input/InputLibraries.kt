@@ -32,21 +32,36 @@ object InputLibraries {
         if (version < 6 || !p.contains(LegacyScreenKeyMigration.BACKUP)) {
             val legacy = LegacyScreenKeyMigration.snapshot(context)
             if (legacy != null) {
-                val upgraded = runCatching { LegacyScreenKeyMigration.migrate(context, library, legacy) }.getOrElse {
+                val migrated = runCatching { LegacyScreenKeyMigration.migrate(context, library, legacy) }.getOrElse {
                     android.util.Log.e("InputLibraries", "Could not migrate screen keys; keeping the original settings", it)
                     return library
                 }
+                val merged = mergeScreenKeys(migrated, legacy)
+                val upgraded = merged ?: migrated
                 val encoded = encode(upgraded)
                 require(encoded.length <= 2_000_000)
-                if (!p.edit().putString(KEY, encoded).putString(LegacyScreenKeyMigration.BACKUP, legacy).commit()) return library
+                val edit = p.edit().putString(KEY, encoded).putString(LegacyScreenKeyMigration.BACKUP, legacy)
+                if (merged != null) edit.putBoolean(LegacyScreenKeyMigration.MERGED, true)
+                if (!edit.commit()) return library
                 LegacyScreenKeyMigration.clean(context)
                 return upgraded
+            }
+        }
+        val backup = p.getString(LegacyScreenKeyMigration.BACKUP, null)
+        if (backup != null && !p.contains(LegacyScreenKeyMigration.MERGED)) {
+            val merged = mergeScreenKeys(library, backup)
+            if (merged != null) {
+                val encoded = encode(merged)
+                if (encoded.length <= 2_000_000 && p.edit().putString(KEY, encoded).putBoolean(LegacyScreenKeyMigration.MERGED, true).commit()) library = merged
             }
         }
         if (raw == null || version < VERSION) write(context, library)
         if (p.contains(LegacyScreenKeyMigration.BACKUP)) LegacyScreenKeyMigration.clean(context)
         return library
     }
+
+    private fun mergeScreenKeys(library: InputLibrary, legacy: String): InputLibrary? = runCatching { LegacyScreenKeyMigration.merge(library, legacy) }
+        .onFailure { android.util.Log.e("InputLibraries", "Could not show the imported screen keys with the gamepad", it) }.getOrNull()
 
     fun hasPendingScreenKeyMigration(context: Context) = !prefs(context).contains(LegacyScreenKeyMigration.BACKUP) && LegacyScreenKeyMigration.snapshot(context) != null
 
@@ -116,7 +131,7 @@ object InputLibraries {
     }.onSuccess { ControllerPrefs.setAdaptiveSticks(context, on) }.isSuccess
 
     @Suppress("DEPRECATION")
-    private fun primaryDisplay(context: Context): Pair<Context, DisplayMetrics> {
+    internal fun primaryDisplay(context: Context): Pair<Context, DisplayMetrics> {
         val display = context.getSystemService(DisplayManager::class.java)?.getDisplay(Display.DEFAULT_DISPLAY)
         val surfaceContext = display?.let(context::createDisplayContext) ?: context
         return surfaceContext to DisplayMetrics().also { if (display != null) display.getRealMetrics(it) else it.setTo(context.resources.displayMetrics) }
@@ -143,7 +158,8 @@ object InputLibraries {
         val elements = LegacyGamepadLayout(surfaceContext, metrics.widthPixels.coerceAtLeast(1), metrics.heightPixels.coerceAtLeast(1)).elements()
         val style = InputSurfaceStyle(settings.tint, settings.opacity)
         val replacements = library.layouts.filter { it.template == InputLayoutTemplate.OVERLAY }.associate { old ->
-            old.id to old.copy(name = "Gamepad", elements = elements, template = InputLayoutTemplate.CUSTOM, style = style)
+            old.id to old.copy(name = "Gamepad", elements = elements, template = InputLayoutTemplate.CUSTOM, style = style,
+                aspect = (metrics.widthPixels.coerceAtLeast(1).toFloat() / metrics.heightPixels.coerceAtLeast(1)).coerceIn(.05f, 20f))
         }
         var result = library.copy(layouts = library.layouts.map { replacements[it.id] ?: it })
         val migrated = mutableMapOf<Pair<String, String>, String>()
@@ -172,7 +188,7 @@ object InputLibraries {
             if (size[0] == metrics.widthPixels && size[1] == metrics.heightPixels) continue
             val id = "migrated.$key"
             if (result.layouts.none { it.id == id }) result = result.withLayout(SavedInputLayout(id, "Gamepad ${size[0]} × ${size[1]}",
-                LegacyGamepadLayout(surfaceContext, size[0], size[1]).elements(), style = style))
+                LegacyGamepadLayout(surfaceContext, size[0], size[1]).elements(), style = style, aspect = (size[0].toFloat() / size[1]).coerceIn(.05f, 20f)))
         }
         return result.validate()
     }
@@ -242,7 +258,7 @@ object InputLibraries {
                 .put("width", e.width.toDouble()).put("height", e.height.toDouble()).put("floating", e.floating).put("hideWhenIdle", e.hideWhenIdle).put("mouseGestures", e.mouseGestures).put("toggle", e.toggle).put("icon", e.icon).put("image", e.image)
                 .put("elementOpacity", e.opacity.toDouble()).put("buttonShape", e.buttonShape.name).put("showLabel", e.showLabel))
             layouts.put(JSONObject().put("id", layout.id).put("name", layout.name).put("template", layout.template.name).put("elements", elements)
-                .put("tint", layout.style.tint ?: JSONObject.NULL).put("opacity", layout.style.opacity).put("screen", layout.screen.name))
+                .put("tint", layout.style.tint ?: JSONObject.NULL).put("opacity", layout.style.opacity).put("screen", layout.screen.name).put("aspect", layout.aspect.toDouble()))
         }
         val bindings = JSONArray()
         for (b in library.bindings) {
@@ -284,7 +300,7 @@ object InputLibraries {
             }
             SavedInputLayout(layout.getString("id"), layout.getString("name"), elements, InputLayoutTemplate.valueOf(layout.getString("template")),
                 InputSurfaceStyle(if (!layout.has("tint")) ControllerPrefs.STEAM_BLUE else if (layout.isNull("tint")) null else layout.getInt("tint"), layout.optInt("opacity", 100)),
-                InputLayoutScreen.valueOf(layout.optString("screen", InputLayoutScreen.BOTH.name)))
+                InputLayoutScreen.valueOf(layout.optString("screen", InputLayoutScreen.BOTH.name)), layout.optDouble("aspect", 0.0).toFloat())
         }
         val bindings = doc.getJSONArray("bindings").objects(512).map { b ->
             val controls = b.getJSONObject("controls").actions(28).mapKeys { requireNotNull(InputControl.fromId(it.key)) }
