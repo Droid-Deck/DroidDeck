@@ -129,8 +129,14 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         )
     }
 
+    var restartBlocked: () -> Boolean = { SessionState.running }
+
+    fun loadTpUbwcMode() {
+        tpUbwcMode = SessionPrefs.tpUbwcMode(activity)
+    }
+
     fun restartApp() {
-        if (SessionState.running) return
+        if (restartBlocked()) return
         val launch = activity.packageManager.getLaunchIntentForPackage(activity.packageName) ?: return
         activity.startActivity(android.content.Intent.makeRestartActivityTask(launch.component)
             .putExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV, "components"))
