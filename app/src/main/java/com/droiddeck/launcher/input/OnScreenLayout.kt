@@ -53,7 +53,7 @@ object OnScreenLayout {
         }
     }
 
-    fun isGamepad(e: InputSurfaceElement) = e.id.startsWith("legacy:") || e.id == KEYBOARD_ID
+    private fun isGamepad(e: InputSurfaceElement) = e.id.startsWith("legacy:") || e.id == KEYBOARD_ID
 
     fun generatedSize(context: Context, layout: SavedInputLayout, width: Int, height: Int): Pair<Int, Int>? =
         reference(context, layout, width, height).takeIf { it.second }?.first?.let { it.first.toInt() to it.second.toInt() }
@@ -74,7 +74,7 @@ object OnScreenLayout {
         return (aspect to 1f) to false
     }
 
-    fun matches(stored: List<InputSurfaceElement>, generated: List<InputSurfaceElement>): Boolean {
+    private fun matches(stored: List<InputSurfaceElement>, generated: List<InputSurfaceElement>): Boolean {
         val byId = generated.associateBy { it.id }
         return stored.all { e ->
             val g = byId[e.id] ?: return@all false

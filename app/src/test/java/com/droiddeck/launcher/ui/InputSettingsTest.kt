@@ -492,4 +492,35 @@ class InputSettingsTest {
             assertNotEquals(layout.elements.first { it.id == "legacy:a" }.y, saved.elements.first { it.id == "legacy:a" }.y)
         }
     }
+
+    @Test @Config(qualifiers = "w833dp-h468dp-land-369dpi")
+    fun buttonSizeKeepsMovedGamepadGroupsInShape() {
+        val face = setOf("legacy:a", "legacy:b", "legacy:x", "legacy:y")
+        val original = InputLibraries.read(context)
+        val gamepad = original.layout("game", InputRole.PRIMARY)!!
+        val moved = gamepad.copy(elements = gamepad.elements.map { if (it.id in face) it.copy(x = it.x + .012f, y = it.y + .017f) else it })
+        InputLibraries.update(context) { it.withLayout(moved) }
+        val (_, metrics) = InputLibraries.primaryDisplay(context)
+        assertNull(OnScreenLayout.generatedSize(context, moved, metrics.widthPixels, metrics.heightPixels))
+        val library = InputLibraries.read(context)
+        compose.setContent { DroidDeckTheme { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
+            layoutId = moved.id, bindingsId = library.profile("game").binding(InputRole.PRIMARY)) } }
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNodeWithTag("input-editor-scale").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(125f) }
+        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
+        compose.runOnIdle {
+            val saved = InputLibraries.read(context).layouts.first { it.id == moved.id }
+            assertEquals(1.25f, saved.scale)
+            val w = metrics.widthPixels; val h = metrics.heightPixels
+            fun centre(id: String) = saved.elements.first { it.id == id }.let { (it.x + it.width / 2) * w to (it.y + it.height / 2) * h }
+            assertEquals(centre("legacy:y").first, centre("legacy:a").first, 1f)
+            assertEquals(centre("legacy:x").second, centre("legacy:b").second, 1f)
+            assertTrue(centre("legacy:y").second < centre("legacy:x").second && centre("legacy:x").second < centre("legacy:a").second)
+            assertEquals(centre("legacy:a").second - centre("legacy:y").second, centre("legacy:b").first - centre("legacy:x").first, 1f)
+            assertEquals(centre("legacy:up").first, centre("legacy:down").first, 1f)
+            assertEquals(centre("legacy:left").second, centre("legacy:right").second, 1f)
+            val before = moved.elements.first { it.id == "legacy:a" }
+            assertTrue(saved.elements.first { it.id == "legacy:a" }.width > before.width * 1.2f)
+        }
+    }
 }

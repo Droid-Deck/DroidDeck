@@ -144,4 +144,51 @@ class InputLayoutToolsTest {
         InputLibraries.update(context) { it.withLayout(scaled) }
         assertEquals(1.25f, InputLibraries.read(context).layouts.first { it.id == gamepad.id }.scale)
     }
+
+    private fun assertCross(elements: List<InputSurfaceElement>, width: Int, height: Int, ids: List<String>) {
+        val (up, right, down, left) = ids.map { id -> elements.first { it.id == id }.let { (it.x + it.width / 2) * width to (it.y + it.height / 2) * height } }
+        val cx = (up.first + right.first + down.first + left.first) / 4
+        val cy = (up.second + right.second + down.second + left.second) / 4
+        assertEquals(up.first, down.first, 1f)
+        assertEquals(left.second, right.second, 1f)
+        assertTrue(up.second < down.second && left.first < right.first)
+        val reach = listOf(up, right, down, left).map { kotlin.math.hypot(it.first - cx, it.second - cy) }
+        reach.forEach { assertEquals(reach[0], it, 1f) }
+    }
+
+    private fun assertGamepadShape(elements: List<InputSurfaceElement>, width: Int, height: Int, label: String) {
+        assertCross(elements, width, height, listOf("legacy:y", "legacy:b", "legacy:a", "legacy:x"))
+        assertCross(elements, width, height, listOf("legacy:up", "legacy:right", "legacy:down", "legacy:left"))
+        assertEquals(label, emptyList<Pair<String, String>>(), overlapping(elements, width, height))
+    }
+
+    @Test @Config(qualifiers = "w833dp-h468dp-land-369dpi")
+    fun buttonSizeKeepsTheGamepadShapeAtHandheldDensity() {
+        for ((w, h) in listOf(1920 to 1080, 1920 to 1200)) {
+            val normal = LegacyGamepadLayout(context, w, h).elements()
+            assertGamepadShape(normal, w, h, "$w x $h")
+            val right = setOf("legacy:a", "legacy:b", "legacy:x", "legacy:y", "legacy:rs", "legacy:rb", "legacy:rt", "legacy:start")
+            val left = setOf("legacy:up", "legacy:right", "legacy:down", "legacy:left", "legacy:ls", "legacy:lb", "legacy:lt", "legacy:select")
+            val moved = normal.map { e ->
+                when (e.id) {
+                    in right -> e.copy(x = e.x + 21f / w, y = e.y + 18f / h)
+                    in left -> e.copy(x = e.x - 20f / w, y = e.y + 15f / h)
+                    else -> e
+                }
+            }
+            for (scale in listOf(.8f, 1.25f)) {
+                val generator = LegacyGamepadLayout(context, w, h, scale = scale)
+                assertGamepadShape(generator.elements(), w, h, "$w x $h generated at $scale")
+                val rescaled = generator.rescale(moved, LegacyGamepadLayout(context, w, h))
+                assertGamepadShape(rescaled, w, h, "$w x $h moved at $scale")
+                val a = rescaled.first { it.id == "legacy:a" }
+                val generatedA = generator.elements().first { it.id == "legacy:a" }
+                assertEquals(generatedA.x + 21f / w, a.x, .001f)
+                assertEquals(generatedA.y + 18f / h, a.y, .001f)
+                assertEquals(moved, LegacyGamepadLayout(context, w, h).rescale(rescaled, generator).let { back ->
+                    back.zip(moved).map { (b, m) -> if (kotlin.math.abs(b.x - m.x) < .001f && kotlin.math.abs(b.y - m.y) < .001f && kotlin.math.abs(b.width - m.width) < .001f) m else b }
+                })
+            }
+        }
+    }
 }

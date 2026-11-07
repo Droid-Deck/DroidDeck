@@ -197,6 +197,20 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
 
     fun regenerate(stored: List<InputSurfaceElement>): List<InputSurfaceElement> = withGeometry(stored, elements())
 
+    fun rescale(stored: List<InputSurfaceElement>, from: LegacyGamepadLayout): List<InputSurfaceElement> {
+        val before = from.elements().associateBy { it.id }
+        val after = elements().associateBy { it.id }
+        return stored.map { e ->
+            val b = before[e.id] ?: return@map e
+            val a = after[e.id] ?: return@map e
+            val w = (a.width * e.width / b.width).coerceIn(.03f, 1f)
+            val h = (a.height * e.height / b.height).coerceIn(.03f, 1f)
+            val cx = a.x + a.width / 2 + (e.x + e.width / 2 - b.x - b.width / 2)
+            val cy = a.y + a.height / 2 + (e.y + e.height / 2 - b.y - b.height / 2)
+            e.copy(x = (cx - w / 2).coerceIn(0f, 1f - w), y = (cy - h / 2).coerceIn(0f, 1f - h), width = w, height = h).bounded()
+        }
+    }
+
     fun buttonsOnly(stored: List<InputSurfaceElement>): List<InputSurfaceElement> {
         val inset = dp(BUTTONS_ONLY_INSET_DP)
         val bottom = height - safe.bottom - inset

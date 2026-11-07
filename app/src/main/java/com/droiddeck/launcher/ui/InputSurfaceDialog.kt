@@ -61,8 +61,15 @@ import com.droiddeck.launcher.session.SessionState
 private data class SurfaceSnapshot(val elements: List<InputSurfaceElement>, val actions: Map<String, InputAction>,
     val clicks: Map<String, InputAction>, val scale: Float)
 
+private class GamepadScaler(private val context: android.content.Context, private val width: Int, private val height: Int) {
+    private fun generator(scale: Float) = LegacyGamepadLayout(context, width, height, scale = scale)
+    val ids = generator(1f).elements().map { it.id }.toSet()
+    fun rescale(stored: List<InputSurfaceElement>, from: Float, to: Float) = generator(to).rescale(stored, generator(from))
+    fun reset(stored: List<InputSurfaceElement>) = generator(1f).regenerate(stored).associateBy { it.id }.let { placed -> stored.map { placed[it.id] ?: it } }
+}
+
 private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputBindings, val defaults: List<InputSurfaceElement>? = null,
-    private val generator: ((Float, List<InputSurfaceElement>) -> List<InputSurfaceElement>)? = null) {
+    private val gamepad: GamepadScaler? = null) {
     var elements by mutableStateOf(layout.elements)
     var actions by mutableStateOf(preset.elements)
     var clicks by mutableStateOf(preset.clicks)
@@ -78,39 +85,29 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     var layoutScale by mutableFloatStateOf(layout.scale)
     private var scaleBase by mutableStateOf<Triple<List<InputSurfaceElement>, List<InputSurfaceElement>, Float>?>(null)
     private var scaleValue by mutableIntStateOf(100)
-    private var generatedCache: Triple<List<InputSurfaceElement>, Float, Boolean>? = null
-    private fun generatedAt(scale: Float, from: List<InputSurfaceElement> = elements): List<InputSurfaceElement>? = generator?.let { generate ->
-        val placed = generate(scale, from.filter(OnScreenLayout::isGamepad)).associateBy { it.id }
-        from.map { placed[it.id] ?: it }
-    }
-    val generated: Boolean get() {
-        generatedCache?.takeIf { it.first == elements && it.second == layoutScale }?.let { return it.third }
-        val result = generatedAt(layoutScale)?.let { OnScreenLayout.matches(elements.filter(OnScreenLayout::isGamepad), it) } == true
-        generatedCache = Triple(elements, layoutScale, result)
-        return result
-    }
+    private val rescales get() = gamepad != null && elements.any { it.id in gamepad.ids }
     val scale get() = when {
         scaleBase?.second == elements -> scaleValue
-        generated -> (layoutScale * 100).roundToInt()
+        rescales -> (layoutScale * 100).roundToInt()
         else -> 100
     }
-    val positioned get() = (if (generator != null) generatedAt(1f) else defaults?.let { elements.withPositionsOf(it) })
-        ?.takeIf { it != elements || layoutScale != 1f }
+    val positioned get() = (if (rescales) gamepad!!.reset(elements) else defaults?.let { elements.withPositionsOf(it) })
+        ?.takeIf { it != elements || rescales && layoutScale != 1f }
     val element get() = elements.firstOrNull { it.id == selected }
     val dirty get() = elements != layout.elements || actions != preset.elements || clicks != preset.clicks || layoutScale != layout.scale
     fun checkpoint() { history = (history + SurfaceSnapshot(elements, actions, clicks, layoutScale)).takeLast(40) }
     fun undo() { history.lastOrNull()?.let { elements = it.elements; actions = it.actions; clicks = it.clicks; layoutScale = it.scale; history = history.dropLast(1) } }
     fun scaleAll(percent: Int) {
-        val base = scaleBase?.takeIf { it.second == elements } ?: Triple(elements, elements, if (generated) layoutScale else 0f).also { checkpoint() }
+        val base = scaleBase?.takeIf { it.second == elements } ?: Triple(elements, elements, if (rescales) layoutScale else 0f).also { checkpoint() }
         val factor = percent / 100f
-        elements = if (base.third > 0f) {
+        elements = if (base.third > 0f && gamepad != null) {
             layoutScale = factor
-            val others = base.first.filterNot(OnScreenLayout::isGamepad).scaled(factor / base.third).associateBy { it.id }
-            generatedAt(factor, base.first)!!.map { others[it.id] ?: it }
+            val others = base.first.filterNot { it.id in gamepad.ids }.scaled(factor / base.third).associateBy { it.id }
+            gamepad.rescale(base.first, base.third, factor).map { others[it.id] ?: it }
         } else base.first.scaled(factor)
         scaleValue = percent; scaleBase = Triple(base.first, elements, base.third)
     }
-    fun resetPositions() { positioned?.let { checkpoint(); elements = it; if (generator != null) layoutScale = 1f } }
+    fun resetPositions() { positioned?.let { checkpoint(); elements = it; if (rescales) layoutScale = 1f } }
     fun action(e: InputSurfaceElement) = preset.copy(elements = actions).action(e)
     fun clickAction(e: InputSurfaceElement) = preset.copy(elements = actions, clicks = clicks).clickAction(e)
 }
@@ -131,10 +128,11 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
     val bindingUsers = library.usersOfBindings(savedBindings.id).size
     val draft = remember {
         val (display, metrics) = InputLibraries.primaryDisplay(context)
-        val generator = OnScreenLayout.generatedSize(context, savedLayout, metrics.widthPixels, metrics.heightPixels)?.let { (w, h) ->
-            { scale: Float, stored: List<InputSurfaceElement> -> LegacyGamepadLayout(display, w, h, scale = scale).regenerate(stored) }
+        val gamepad = savedLayout.elements.takeIf { e -> e.any { it.id.startsWith("legacy:") } }?.let {
+            val (w, h) = OnScreenLayout.generatedSize(context, savedLayout, metrics.widthPixels, metrics.heightPixels) ?: (metrics.widthPixels to metrics.heightPixels)
+            GamepadScaler(display, w, h)
         }
-        SurfaceDraft(savedLayout, savedBindings, InputLibraries.defaultPositions(context, library, savedLayout), generator)
+        SurfaceDraft(savedLayout, savedBindings, InputLibraries.defaultPositions(context, library, savedLayout), gamepad)
     }
     val manager = remember { context.getSystemService(DisplayManager::class.java) }
     var revision by remember { mutableIntStateOf(0) }
