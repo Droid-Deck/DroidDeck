@@ -168,16 +168,22 @@ object WowAddonCatalog {
     }
 
     internal fun cached(file: File, now: Long, fetch: () -> String?): String? {
-        if (isFresh(file, now)) return file.readText()
-        val body = fetch()
+        val kept = if (file.isFile) file.readText().takeIf(::isJson) else null
+        if (kept != null && isFresh(file, now)) return kept
+        val body = fetch()?.takeIf(::isJson)
         if (body != null) {
             file.parentFile?.mkdirs()
-            file.writeText(body)
-            file.setLastModified(now)
+            val part = File(file.path + ".part")
+            part.writeText(body)
+            part.setLastModified(now)
+            if (!part.renameTo(file)) part.delete()
             return body
         }
-        return if (file.isFile) file.readText() else null
+        return kept
     }
+
+    private fun isJson(body: String): Boolean =
+        runCatching { org.json.JSONTokener(body).nextValue() }.getOrNull().let { it is JSONObject || it is JSONArray }
 
     private fun isFresh(file: File, now: Long) = file.isFile && now - file.lastModified() < FRESH_MS
 

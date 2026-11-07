@@ -107,7 +107,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
         load(0)
     }
     fun install(addon: WowAddonCatalog.Addon) {
-        val key = addon.source.name + addon.id
+        val key = installKey(addon, target)
         if (key in installing) return
         if (SessionState.running) {
             Toast.makeText(context, R.string.main_addons_close_session, Toast.LENGTH_LONG).show()
@@ -161,7 +161,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
             horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             items(results.items, key = { it.source.name + it.id }) { addon ->
-                AddonCard(addon, installing[addon.source.name + addon.id], installed[addon.source.name + addon.id] == true) { install(addon) }
+                AddonCard(addon, installing[installKey(addon, target)], installed[installKey(addon, target)] == true) { install(addon) }
             }
             item(key = "tail", span = { GridItemSpan(maxLineSpan) }) {
                 Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
@@ -239,3 +239,5 @@ private fun installAddon(context: Context, addon: WowAddonCatalog.Addon, target:
         zip.delete()
     }
 }
+
+private fun installKey(addon: WowAddonCatalog.Addon, target: WowAddons.Target) = addon.source.name + addon.id + "|" + target.addOns.path

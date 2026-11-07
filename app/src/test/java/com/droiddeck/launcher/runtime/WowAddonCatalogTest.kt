@@ -265,11 +265,14 @@ us|1|aa|bb|cc||tpr/wow|h|s|t||1|12.1.0.65000|kk|wowf
 
     @Test fun staleCacheIsUsedWhenOfflineAndFreshCacheSkipsTheNetwork() {
         val f = File(context.cacheDir, "wowaddon-cache-test/x.json")
-        assertEquals("a", WowAddonCatalog.cached(f, 1_000L) { "a" })
-        assertEquals("a", WowAddonCatalog.cached(f, 2_000L) { "b" })
+        assertEquals("[1]", WowAddonCatalog.cached(f, 1_000L) { "[1]" })
+        assertEquals("[1]", WowAddonCatalog.cached(f, 2_000L) { "[2]" })
         val later = 1_000L + WowAddonCatalog.FRESH_MS + 1
-        assertEquals("b", WowAddonCatalog.cached(f, later) { "b" })
-        assertEquals("b", WowAddonCatalog.cached(f, later + WowAddonCatalog.FRESH_MS * 2) { null })
+        assertEquals("[2]", WowAddonCatalog.cached(f, later) { "[2]" })
+        assertEquals("[2]", WowAddonCatalog.cached(f, later + WowAddonCatalog.FRESH_MS * 2) { null })
+        assertEquals("[2]", WowAddonCatalog.cached(f, later * 4) { "<html>busy</html>" })
+        f.writeText("[2")
+        assertEquals("{}", WowAddonCatalog.cached(f, later * 4 + 1) { "{}" })
         f.delete()
     }
 }
