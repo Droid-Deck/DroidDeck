@@ -363,6 +363,13 @@ class ComponentUpdatesTest {
         assertFalse(ComponentUpdates.manual(null, null, auto))
     }
 
+    @Test fun aQueuedSwapThatNeverRanLeavesTheOldAutoBuildToAuto() {
+        val auto = setOf("DD-dxvk-3.1.1+188-nightly.wcp", "DD-dxvk-3.1.1+190-nightly.wcp")
+        assertFalse(ComponentUpdates.manual(choice("DD-dxvk-3.1.1+188-nightly.wcp"), "DD-dxvk-3.1.1+188-nightly.wcp", auto, "DD-dxvk-3.1.1+190-nightly.wcp"))
+        assertFalse(ComponentUpdates.manual(choice("DD-dxvk-3.1.1+190-nightly.wcp"), "DD-dxvk-3.1.1+188-nightly.wcp", auto, "DD-dxvk-3.1.1+190-nightly.wcp"))
+        assertTrue(ComponentUpdates.manual(choice("DD-dxvk-3.1.1+186-nightly.wcp"), "DD-dxvk-3.1.1+188-nightly.wcp", auto, "DD-dxvk-3.1.1+190-nightly.wcp"))
+    }
+
     @Test fun oldBuildsOfAnAutoLineAreDeletedButOtherFlavoursAndKeptBuildsStay() {
         val line = ComponentUpdates.line("dxvk", false)
         val stored = listOf(
@@ -370,11 +377,20 @@ class ComponentUpdatesTest {
             "DD-dxvk-arm64ec-3.1.1+188-nightly.wcp", "DD-dxvk-gplasync-3.1.1+190-nightly.wcp", "dxvk-2.6.2-linux.wcp",
         )
         val keep = ComponentUpdates.keep("DD-dxvk-3.1.1+190-nightly.wcp", "DD-dxvk-3.1.1+188-nightly.wcp", emptySet())
-        assertEquals(listOf("DD-dxvk-3.1.1+186-nightly.wcp"), ComponentUpdates.stale(line, emptySet(), stored, keep))
+        assertEquals(listOf("DD-dxvk-3.1.1+186-nightly.wcp"), ComponentUpdates.stale(line, emptySet(), stored, keep, "DD-dxvk-3.1.1+190-nightly.wcp"))
         assertEquals(listOf("DD-dxvk-3.1.1+184-nightly.wcp", "DD-dxvk-3.1.1+186-nightly.wcp"),
-            ComponentUpdates.stale(line, setOf("DD-dxvk-3.1.1+184-nightly.wcp", "DD-dxvk-3.1.1+190-nightly.wcp"), stored, keep))
-        assertEquals(emptyList<String>(), ComponentUpdates.stale(line, emptySet(), stored, keep + "DD-dxvk-3.1.1+186-nightly.wcp"))
-        assertEquals(emptyList<String>(), ComponentUpdates.stale(null, emptySet(), stored, keep))
+            ComponentUpdates.stale(line, setOf("DD-dxvk-3.1.1+184-nightly.wcp", "DD-dxvk-3.1.1+190-nightly.wcp"), stored, keep, "DD-dxvk-3.1.1+190-nightly.wcp"))
+        assertEquals(emptyList<String>(), ComponentUpdates.stale(line, emptySet(), stored, keep + "DD-dxvk-3.1.1+186-nightly.wcp", "DD-dxvk-3.1.1+190-nightly.wcp"))
+        assertEquals(emptyList<String>(), ComponentUpdates.stale(null, emptySet(), stored, keep, "DD-dxvk-3.1.1+190-nightly.wcp"))
+    }
+
+    @Test fun aNewerBuildTheUserStoredIsNotPrunedBeforeAutoCatchesUp() {
+        val line = ComponentUpdates.line("dxvk", false)
+        val stored = listOf("DD-dxvk-3.1.1+186-nightly.wcp", "DD-dxvk-3.1.1+192-nightly.wcp")
+        val keep = ComponentUpdates.keep("DD-dxvk-3.1.1+190-nightly.wcp", ComponentUpdates.ORIGINAL, emptySet())
+        assertEquals(listOf("DD-dxvk-3.1.1+186-nightly.wcp"), ComponentUpdates.stale(line, emptySet(), stored, keep, "DD-dxvk-3.1.1+190-nightly.wcp"))
+        assertEquals(listOf("DD-dxvk-3.1.1+184-nightly.wcp"),
+            ComponentUpdates.stale(line, setOf("DD-dxvk-3.1.1+184-nightly.wcp"), stored, emptySet(), ComponentUpdates.ORIGINAL))
     }
 
     @Test fun aPackageLeftSelectedOnARemovedProtonIsNoLongerKept() {

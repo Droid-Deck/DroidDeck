@@ -201,22 +201,18 @@ object ComponentUpdater {
         val choices = ComponentsManager.activeChoices(context)
         val targets = wanted.flatMap { comp ->
             protons.mapNotNull { p -> lineOf(context, state, p, comp)?.let { line -> lines.optJSONObject(line.key)?.let { Target(comp, p, line, it) } } }
-        }.filterNot { t -> ComponentUpdates.manual(choices.choiceOf(t.p, t.comp), t.ls.optJSONObject("applied")?.optString(t.p.id), auto) }
+        }.filterNot { t -> ComponentUpdates.manual(choices.choiceOf(t.p, t.comp), t.ls.optJSONObject("applied")?.optString(t.p.id), auto, t.ls.optString("current")) }
         for (t in targets) {
             val from = t.ls.optJSONObject("restore")?.optString(t.p.id).orEmpty()
             val current = t.ls.optString("current")
             if (from.isNotEmpty()) {
                 if (choices.fileOf(t.p, t.comp) == from) runCatching { ComponentsManager.restore(context, t.p.id, t.comp, ComponentsManager.safeName(t.p.version)) }
-                    .onSuccess { t.ls.optJSONObject("applied")?.remove(t.p.id) }
                     .onFailure { Log.w(TAG, "restore ${t.p.name} ${t.key}", it) }
             } else if (current.isNotEmpty() && choices.fileOf(t.p, t.comp) != current) {
                 if (ComponentUpdates.needsArm64x(t.line, listOf(ComponentsManager.arm64x(context, t.p, t.comp))) &&
                     !ComponentsManager.packageArm64x(context, current, t.comp)) continue
                 runCatching { ComponentsManager.swap(context, t.p.id, current) }
-                    .onSuccess { t.ls.obj("applied").put(t.p.id, current) }
                     .onFailure { Log.w(TAG, "${t.p.name} ${t.key}", it) }
-            } else if (current.isNotEmpty()) {
-                t.ls.obj("applied").put(t.p.id, current)
             }
         }
         val after = ComponentsManager.activeChoices(context)
@@ -226,9 +222,13 @@ object ComponentUpdater {
             val from = restore?.optString(t.p.id).orEmpty()
             val current = t.ls.optString("current")
             if (from.isNotEmpty()) {
-                if (after.fileOf(t.p, t.comp) == from) unfinished += t.key else restore?.remove(t.p.id)
-            } else if (current.isNotEmpty() && after.fileOf(t.p, t.comp) != current) {
-                unfinished += t.key
+                if (after.fileOf(t.p, t.comp) == from) unfinished += t.key
+                else {
+                    restore?.remove(t.p.id)
+                    t.ls.optJSONObject("applied")?.remove(t.p.id)
+                }
+            } else if (current.isNotEmpty()) {
+                if (after.fileOf(t.p, t.comp) == current) t.ls.obj("applied").put(t.p.id, current) else unfinished += t.key
             }
         }
         for (key in lines.keys().asSequence().toList()) {
@@ -322,11 +322,14 @@ object ComponentUpdater {
             runCatching {
                 if (back == ComponentUpdates.ORIGINAL) ComponentsManager.restore(context, p.id, comp, ComponentsManager.safeName(p.version))
                 else ComponentsManager.swap(context, p.id, back)
-            }.onSuccess { if (back == ComponentUpdates.ORIGINAL) ls.optJSONObject("applied")?.remove(p.id) else ls.obj("applied").put(p.id, back) }
-                .onFailure { Log.w(TAG, "roll back ${p.name} $key", it) }
+            }.onFailure { Log.w(TAG, "roll back ${p.name} $key", it) }
         }
         val after = ComponentsManager.activeChoices(context)
         val unfinished = targets.filter { after.fileOf(it, comp) == bad }
+        for (p in targets - unfinished.toSet()) {
+            if (back == ComponentUpdates.ORIGINAL) ls.optJSONObject("applied")?.remove(p.id)
+            else if (after.fileOf(p, comp) == back) ls.obj("applied").put(p.id, back)
+        }
         ls.put("bad", JSONArray(ls.strings("bad") + bad)).put("current", back).put("previous", ComponentUpdates.ORIGINAL)
             .put("since", latestStamp(context)).put("failed", JSONObject())
         if (back == ComponentUpdates.ORIGINAL) ls.obj("restore").let { restore -> unfinished.forEach { restore.put(it.id, bad) } }
@@ -356,7 +359,7 @@ object ComponentUpdater {
         for (k in lines.keys().asSequence().toList()) {
             val ls = lines.optJSONObject(k) ?: continue
             val owned = ls.strings("owned")
-            val stale = ComponentUpdates.stale(followed.firstOrNull { it.key == k }, owned, stored, keep)
+            val stale = ComponentUpdates.stale(followed.firstOrNull { it.key == k }, owned, stored, keep, ls.optString("current"))
             val gone = stale.filter { runCatching { ComponentsManager.deleteUnused(context, it) }.getOrDefault(false) }
             ls.put("owned", JSONArray(owned - gone.toSet()))
         }
