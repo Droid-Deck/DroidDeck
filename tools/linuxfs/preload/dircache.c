@@ -440,7 +440,8 @@ static int above(struct handle *h, const char *path) {
     int wd = i < n ? watch(up, ABOVE) : h->wd;
     int link = watch(up, LINKED);
     up[i] = at;
-    if (link >= 0 && link != wd) {
+    if (link < 0) h->blind = 1;
+    else if (link != wd) {
       h->blind = 1;
       release(link);
     }

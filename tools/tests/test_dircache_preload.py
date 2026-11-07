@@ -11,6 +11,7 @@ PRELOAD = Path(__file__).resolve().parents[1] / "linuxfs/preload"
 FAKE = r"""
 #define _GNU_SOURCE
 #include <dirent.h>
+#include <errno.h>
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <string.h>
@@ -18,6 +19,7 @@ FAKE = r"""
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/statfs.h>
+#include <sys/inotify.h>
 #include <unistd.h>
 
 int real_opendirs;
@@ -71,6 +73,16 @@ int fstatfs(int fd, struct statfs *out) {
   int r = next(fd, out);
   if (r == 0 && strstr(path, "/fuse/")) out->f_type = 0x65735546;
   return r;
+}
+
+int inotify_add_watch(int fd, const char *path, uint32_t mask) {
+  static int (*next)(int, const char *, uint32_t);
+  if (!next) next = dlsym(RTLD_NEXT, "inotify_add_watch");
+  if (getenv("NOFOLLOW_FAIL") && (mask & IN_DONT_FOLLOW)) {
+    errno = ENOSPC;
+    return -1;
+  }
+  return next(fd, path, mask);
 }
 
 int statfs(const char *path, struct statfs *out) {
@@ -564,6 +576,23 @@ class DirCachePreloadTest(unittest.TestCase):
             link.replace(s.parent)
 
         out = self.run_paused("list", s, "pause", "access", s / "x.bundle", between=repoint)
+        self.assertEqual("0 0", out[1])
+
+    def test_a_symlink_check_that_cannot_be_watched_does_not_hide_files(self):
+        s = self.staging
+        real = self.lib / "dl-a"
+        s.parent.rename(real)
+        s.parent.symlink_to(real.name)
+        other = self.lib / "dl-b" / s.name
+        other.mkdir(parents=True)
+        (other / "x.bundle").touch()
+
+        def repoint():
+            link = self.lib / "downloading.new"
+            link.symlink_to("dl-b")
+            link.replace(s.parent)
+
+        out = self.run_paused("list", s, "pause", "access", s / "x.bundle", between=repoint, env={"NOFOLLOW_FAIL": "1"})
         self.assertEqual("0 0", out[1])
 
     def test_an_unreadable_folder_above_steamapps_does_not_hide_files(self):
