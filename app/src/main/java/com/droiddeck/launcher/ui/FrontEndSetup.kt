@@ -848,7 +848,7 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
             MenuItem(
                 stringResource(R.string.fex_preset_title), checked = false, enabled = ready,
                 detail = when {
-                    fex == null -> stringResource(generalFex.label)
+                    fex == null -> "$useDefault · ${stringResource(generalFex.label)}"
                     chosen == null -> custom
                     else -> stringResource(chosen.label)
                 },
