@@ -1065,13 +1065,22 @@ object ComponentsManager {
         val file: String,
         val release: String,
         val models: Set<Int> = emptySet(),
+        val autoFile: String? = null,
+        val autoRelease: String? = null,
     ) {
         fun matches(gpu: GpuInfo) = gpu.family in families && (models.isEmpty() || gpu.model in models)
+
+        fun autoRule(): ForcedPackage? =
+            if (autoFile != null && autoRelease != null) copy(file = autoFile, release = autoRelease, autoFile = null, autoRelease = null) else null
     }
 
     internal val FORCED_PACKAGES = listOf(
-        ForcedPackage(setOf(GpuInfo.Family.A6XX), "dxvk", "dxvk-2.7.1-linux.wcp", "Dxvk-Linux"),
+        ForcedPackage(setOf(GpuInfo.Family.A6XX), "dxvk", "dxvk-2.7.1-linux.wcp", "Dxvk-Linux",
+            autoFile = "dxvk-gplasync-2.7.1-1-linux.wcp", autoRelease = "Dxvk-gplasync-Linux"),
     )
+
+    internal fun autoDxvk(gpu: GpuInfo): ForcedPackage? =
+        FORCED_PACKAGES.firstOrNull { it.comp == "dxvk" && it.matches(gpu) }?.autoRule()
 
     private val ARM64EC_PROBE = mapOf("dxvk" to "d3d11.dll", "vkd3d" to "d3d12.dll")
 
@@ -1124,6 +1133,12 @@ object ComponentsManager {
             (com.droiddeck.launcher.core.DeviceSupport.vkBridge(context) && !SessionPrefs.bridgeProtonDxvk(context) &&
                 bridgeDxvk(AppVulkan.detect(context)) != null)
 
+    fun autoDxvkHeld(context: Context): Boolean =
+        hardwareDxvk(context) && (runtimeManaged(context, "dxvk") || autoDxvk(GpuInfo.detect()) == null)
+
+    fun pinnedAutoDxvk(context: Context): String? =
+        if (SessionPrefs.componentMode(context, "dxvk") == ComponentUpdates.AUTO) autoDxvk(GpuInfo.detect())?.file else null
+
     data class Choice(val file: String, val auto: Boolean, val protonVersion: String)
 
     fun activeChoices(context: Context): Map<String, Map<String, Choice>> = synchronized(lock) {
@@ -1168,6 +1183,14 @@ object ComponentsManager {
     internal const val DXVK_FOR_VULKAN_1_1 = "dxvk-1.10.3-linux.wcp"
     internal const val DXVK_FOR_VULKAN_1_3_NO_INT64 = "dxvk-2.6.2-linux.wcp"
 
+    private data class ForcedRule(
+        val pkg: ForcedPackage,
+        val auto: Boolean,
+        val covers: (Proton) -> Boolean,
+        val replaces: String? = null,
+        val label: String? = null,
+    )
+
     internal fun autoDxvkUndoWanted(bridgeSession: Boolean, keepProtonDxvk: Boolean, vulkan: AppVulkan?, bridgeRule: ForcedPackage?): Boolean =
         !bridgeSession || keepProtonDxvk || (vulkan != null && bridgeRule == null)
 
@@ -1200,6 +1223,7 @@ object ComponentsManager {
         undoAuto = { id, comp -> undoAutoChoice(context, id, comp) },
         keepProtonDxvk = SessionPrefs.bridgeProtonDxvk(context),
         autoPossible = !com.droiddeck.launcher.core.DeviceSupport.adreno(),
+        dxvkAuto = pinnedAutoDxvk(context) != null,
     ) }
 
     fun settleAutoDxvk(context: Context) {
@@ -1239,10 +1263,16 @@ object ComponentsManager {
         undoAuto: (protonId: String, comp: String) -> String = { _, _ -> "" },
         keepProtonDxvk: Boolean = false,
         autoPossible: Boolean = true,
+        dxvkAuto: Boolean = false,
+        follows: (Proton) -> Boolean = ComponentUpdates::follows,
     ): String? {
         val chooseDxvk = bridgeSession && !keepProtonDxvk
         val bridgeRule = if (chooseDxvk) bridgeDxvk(vulkan) else null
-        val rules = FORCED_PACKAGES.filter { it.matches(gpu) }.map { it to false } + listOfNotNull(bridgeRule?.let { it to true })
+        val family = FORCED_PACKAGES.filter { it.matches(gpu) }
+        val pinned = if (dxvkAuto) family.mapNotNull { base -> base.autoRule()?.let { base to it } } else emptyList()
+        val rules = family.map { base -> ForcedRule(base, false, if (pinned.any { it.first == base }) { p -> !follows(p) } else { _ -> true }) } +
+            pinned.map { (base, rule) -> ForcedRule(rule, true, follows, replaces = base.file) } +
+            listOfNotNull(bridgeRule?.let { ForcedRule(it, true, { true }, label = "${vulkan?.label}: DXVK ${it.file}") })
         if (rules.isEmpty() && !autoPossible) return null
         val installed = protons(context)
         val lines = mutableListOf<String>()
@@ -1256,12 +1286,13 @@ object ComponentsManager {
                 if (autoChoiceStale(entry, null)) lines.add(each(p) { undoAuto(p.id, "dxvk") })
             }
         }
-        for ((rule, auto) in rules) {
+        for ((rule, auto, covers, replaces, label) in rules) {
             val state = loadState(context)
             val targets = installed.filter { p ->
                 val active = state.optJSONObject("active")?.optJSONObject(p.id)?.optJSONObject(rule.comp)
-                forcedPackageWanted(active?.optString("file"), active?.optString("protonVersion") == p.version) ||
-                    (auto && autoChoiceStale(active, rule.file))
+                val current = active?.optString("protonVersion") == p.version
+                covers(p) && (forcedPackageWanted(active?.optString("file"), current) ||
+                    (auto && autoChoiceStale(active, rule.file)) || (replaces != null && current && active?.optString("file") == replaces))
             }
             if (targets.isEmpty()) continue
             val missing = missingPackage(context, rule, lookup, fetch)
@@ -1269,7 +1300,7 @@ object ComponentsManager {
                 lines.add(missing)
                 continue
             }
-            if (auto) lines.add("${vulkan?.label}: DXVK ${rule.file}")
+            if (label != null) lines.add(label)
             lines.add(targets.joinToString("; ") { p -> if (auto) each(p) { applyAuto(p.id, rule.file) } else apply(p.id, rule.file) })
         }
         return lines.filter { it.isNotEmpty() }.joinToString("; ").ifEmpty { null }
