@@ -9,7 +9,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 object InputLibraries {
-    private const val VERSION = 8
+    private const val VERSION = 9
     private const val KEY = "library"
     private const val RECOVERY = "library-recovery."
     const val OVERLAY = "builtin.overlay"
@@ -27,6 +27,7 @@ object InputLibraries {
         var library = decoded ?: scopeLayouts(upgradeStockLayouts(upgradeOverlay(context, migrate(context))))
         val version = raw?.let { JSONObject(it).getInt("version") } ?: 0
         if (version < 5) library = scopeLayouts(upgradeStockLayouts(upgradeOverlay(context, library)))
+        if (version < 9) library = neutralStockLayouts(library)
         if (version < 6 || !p.contains(LegacyScreenKeyMigration.BACKUP)) {
             val legacy = LegacyScreenKeyMigration.snapshot(context)
             if (legacy != null) {
@@ -148,6 +149,11 @@ object InputLibraries {
         return result.validate()
     }
 
+    private fun neutralStockLayouts(library: InputLibrary): InputLibrary = library.copy(layouts = library.layouts.map { layout ->
+        if ((layout.id == DECK || layout.id == TRACKPAD) && layout.style.tint == ControllerPrefs.STEAM_BLUE) layout.copy(style = layout.style.copy(tint = null))
+        else layout
+    })
+
     private fun upgradeStockLayouts(library: InputLibrary): InputLibrary {
         val stock = InputStockLayouts.layouts()
         val replacements = library.layouts.filter { it.template == InputLayoutTemplate.DECK || it.template == InputLayoutTemplate.TRACKPAD }
@@ -208,7 +214,7 @@ object InputLibraries {
                 .put("width", e.width.toDouble()).put("height", e.height.toDouble()).put("floating", e.floating).put("hideWhenIdle", e.hideWhenIdle).put("mouseGestures", e.mouseGestures).put("toggle", e.toggle).put("icon", e.icon).put("image", e.image)
                 .put("elementOpacity", e.opacity.toDouble()).put("buttonShape", e.buttonShape.name).put("showLabel", e.showLabel))
             layouts.put(JSONObject().put("id", layout.id).put("name", layout.name).put("template", layout.template.name).put("elements", elements)
-                .put("tint", layout.style.tint).put("opacity", layout.style.opacity).put("screen", layout.screen.name))
+                .put("tint", layout.style.tint ?: JSONObject.NULL).put("opacity", layout.style.opacity).put("screen", layout.screen.name))
         }
         val bindings = JSONArray()
         for (b in library.bindings) {
@@ -249,7 +255,7 @@ object InputLibraries {
                     e.optDouble("elementOpacity", 1.0).toFloat(), InputButtonShape.valueOf(e.optString("buttonShape", InputButtonShape.ROUNDED.name)), e.optBoolean("showLabel", true))
             }
             SavedInputLayout(layout.getString("id"), layout.getString("name"), elements, InputLayoutTemplate.valueOf(layout.getString("template")),
-                InputSurfaceStyle(layout.optInt("tint", ControllerPrefs.STEAM_BLUE), layout.optInt("opacity", 100)),
+                InputSurfaceStyle(if (!layout.has("tint")) ControllerPrefs.STEAM_BLUE else if (layout.isNull("tint")) null else layout.getInt("tint"), layout.optInt("opacity", 100)),
                 InputLayoutScreen.valueOf(layout.optString("screen", InputLayoutScreen.BOTH.name)))
         }
         val bindings = doc.getJSONArray("bindings").objects(512).map { b ->

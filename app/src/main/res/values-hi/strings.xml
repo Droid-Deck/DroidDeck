@@ -1789,6 +1789,7 @@
     <string name="ctrl_tint_amber">एम्बर</string>
     <string name="ctrl_tint_red">लाल</string>
     <string name="ctrl_tint_pink">गुलाबी</string>
+    <string name="ctrl_tint_gray">धूसर</string>
     <string name="ctrl_button_a">A बटन</string>
     <string name="ctrl_button_b">B बटन</string>
     <string name="ctrl_button_x">X बटन</string>

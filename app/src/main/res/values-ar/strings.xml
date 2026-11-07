@@ -1885,6 +1885,7 @@
     <string name="ctrl_tint_amber">كهرماني</string>
     <string name="ctrl_tint_red">أحمر</string>
     <string name="ctrl_tint_pink">وردي</string>
+    <string name="ctrl_tint_gray">رمادي</string>
     <string name="ctrl_button_a">الزر A</string>
     <string name="ctrl_button_b">الزر B</string>
     <string name="ctrl_button_x">الزر X</string>

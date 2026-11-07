@@ -1765,6 +1765,7 @@
     <string name="ctrl_tint_amber">호박색</string>
     <string name="ctrl_tint_red">빨간색</string>
     <string name="ctrl_tint_pink">분홍색</string>
+    <string name="ctrl_tint_gray">회색</string>
     <string name="ctrl_button_a">A 버튼</string>
     <string name="ctrl_button_b">B 버튼</string>
     <string name="ctrl_button_x">X 버튼</string>

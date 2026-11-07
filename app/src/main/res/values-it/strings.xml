@@ -1805,6 +1805,7 @@
     <string name="ctrl_tint_amber">Ambra</string>
     <string name="ctrl_tint_red">Rosso</string>
     <string name="ctrl_tint_pink">Rosa</string>
+    <string name="ctrl_tint_gray">Grigio</string>
     <string name="ctrl_button_a">Pulsante A</string>
     <string name="ctrl_button_b">Pulsante B</string>
     <string name="ctrl_button_x">Pulsante X</string>

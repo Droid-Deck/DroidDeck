@@ -1789,6 +1789,7 @@
     <string name="ctrl_tint_amber">Borostyán</string>
     <string name="ctrl_tint_red">Piros</string>
     <string name="ctrl_tint_pink">Rózsaszín</string>
+    <string name="ctrl_tint_gray">Szürke</string>
     <string name="ctrl_button_a">A gomb</string>
     <string name="ctrl_button_b">B gomb</string>
     <string name="ctrl_button_x">X gomb</string>

@@ -1813,6 +1813,7 @@
     <string name="ctrl_tint_amber">Chihlimbariu</string>
     <string name="ctrl_tint_red">Roșu</string>
     <string name="ctrl_tint_pink">Roz</string>
+    <string name="ctrl_tint_gray">Gri</string>
     <string name="ctrl_button_a">Butonul A</string>
     <string name="ctrl_button_b">Butonul B</string>
     <string name="ctrl_button_x">Butonul X</string>

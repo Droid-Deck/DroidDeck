@@ -1765,6 +1765,7 @@
     <string name="ctrl_tint_amber">琥珀</string>
     <string name="ctrl_tint_red">紅色</string>
     <string name="ctrl_tint_pink">粉紅</string>
+    <string name="ctrl_tint_gray">灰色</string>
     <string name="ctrl_button_a">A 按鈕</string>
     <string name="ctrl_button_b">B 按鈕</string>
     <string name="ctrl_button_x">X 按鈕</string>

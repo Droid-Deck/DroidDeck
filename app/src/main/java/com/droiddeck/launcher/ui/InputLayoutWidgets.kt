@@ -65,18 +65,19 @@ internal class InputLayoutPreviewView(context: Context) : View(context) {
 }
 
 @Composable
-internal fun InputColorRow(host: MenuHost, value: Int, onPick: (Int) -> Unit) {
+internal fun InputColorRow(host: MenuHost, value: Int?, onPick: (Int?) -> Unit) {
     val open = host.open == "layout-color"
+    val tints = listOf<Pair<Int?, Int>>(null to R.string.ctrl_tint_gray) + ControllerPrefs.tints
     SettingsRow(stringResource(R.string.ctrl_color), null, highlighted = open) {
         Box {
-            ValueChip(ControllerPrefs.tints.firstOrNull { it.first == value }?.second?.let { stringResource(it) }
+            ValueChip(tints.firstOrNull { it.first == value }?.second?.let { stringResource(it) }
                 ?: stringResource(R.string.ctrl_custom), open, modifier = Modifier.testTag("setting-layout-color")) {
                 host.open = if (open) null else "layout-color"
             }
             AnchoredMenu(open, onDismiss = { if (host.open == "layout-color") host.open = null }, title = stringResource(R.string.ctrl_color)) { firstItemFocus ->
-                ControllerPrefs.tints.forEachIndexed { index, (color, name) ->
+                tints.forEachIndexed { index, (color, name) ->
                     MenuItem(stringResource(name), checked = value == color, leading = {
-                        Box(Modifier.size(14.dp).background(Color(color), CircleShape).border(1.dp, Color.White.copy(alpha = .35f), CircleShape))
+                        Box(Modifier.size(14.dp).background(Color(color ?: GRAY_SWATCH), CircleShape).border(1.dp, Color.White.copy(alpha = .35f), CircleShape))
                     }, focusRequester = if (index == 0) firstItemFocus else null) {
                         onPick(color)
                         host.open = null
@@ -86,3 +87,5 @@ internal fun InputColorRow(host: MenuHost, value: Int, onPick: (Int) -> Unit) {
         }
     }
 }
+
+private const val GRAY_SWATCH = 0xFF26292E.toInt()
