@@ -482,6 +482,14 @@ class DirCachePreloadTest(unittest.TestCase):
         out = self.run_program("list", s, "access", other / "x.bundle", "accesses", env={"FOLD": "all"})
         self.assertEqual(["0 0", "1"], out[1:])
 
+    def test_a_listing_is_dropped_when_a_folder_above_it_is_renamed(self):
+        s = self.staging
+        parent = s.parent
+        moved = parent.parent / "downloading.old"
+        out = self.run_program("list", s, "rename", parent, moved, "mkdir", parent, "mkdir", s,
+                               "sneak", s / "x.bundle", "access", s / "x.bundle", "accesses")
+        self.assertEqual(["0 0", "1"], out[1:])
+
     def test_misses_outside_the_client_or_fuse_steamapps_reach_the_filesystem(self):
         s = self.staging
         other = self.run_program("list", s, "access", s / "x.bundle", "access", s / "y.bundle", "accesses",

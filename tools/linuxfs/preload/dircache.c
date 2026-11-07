@@ -188,6 +188,18 @@ static void changed(int wd) {
     if (handles[i] && (handles[i]->wd == wd || wd < 0)) __atomic_store_n(&handles[i]->dirty, 1, __ATOMIC_RELAXED);
 }
 
+static void forget_below(const char *path) {
+  if (path == NULL || path[0] != '/') return;
+  size_t n = strlen(path);
+  while (n > 1 && path[n - 1] == '/') n--;
+  for (int i = 0; i < MAX_LISTINGS; i++) {
+    struct listing *l = table[i];
+    if (l == NULL || l->where == NULL) continue;
+    int prefix = l->folds ? strncasecmp(l->where, path, n) == 0 : strncmp(l->where, path, n) == 0;
+    if (prefix && (l->where[n] == '/' || l->where[n] == 0)) drop(i);
+  }
+}
+
 static void pump(struct expect *x, int nx) {
   char buf[4096] __attribute__((aligned(__alignof__(struct inotify_event))));
   if (notify < 0 || forked) return;
@@ -760,6 +772,7 @@ int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
     struct expect x; \
     pthread_mutex_lock(&lock); \
     int nx = patch(&s, what, event, r == 0, saved, what == ADDED ? path : NULL, &x); \
+    if (r == 0 && what == REMOVED) forget_below(path); \
     pthread_mutex_unlock(&lock); \
     end(&x, nx); \
     pthread_mutex_unlock(&oplock); \
@@ -792,6 +805,7 @@ ONE_PATH(remove, REMOVED, IN_DELETE, next_remove(path))
       if (track_a && strcmp(a.dir, b.dir) == 0) b.known = stat(b.dir, &b.before) == 0; \
       nx += patch(&b, ADDED, event, r == 0, saved, to, &x[nx]); \
     } \
+    if (r == 0 && gone) { forget_below(from); forget_below(to); } \
     pthread_mutex_unlock(&lock); \
     end(x, nx); \
     pthread_mutex_unlock(&oplock); \
