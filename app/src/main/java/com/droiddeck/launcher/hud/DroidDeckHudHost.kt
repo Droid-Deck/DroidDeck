@@ -21,6 +21,55 @@ import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
 import kotlin.math.roundToInt
 
+internal data class DroidDeckHudBounds(
+    val left: Float,
+    val top: Float,
+    val right: Float,
+    val bottom: Float,
+) {
+    fun maxX(width: Float): Float = (right - width).coerceAtLeast(left)
+    fun maxY(height: Float): Float = (bottom - height).coerceAtLeast(top)
+}
+
+internal fun droidDeckHudBounds(
+    parentWidth: Int,
+    parentHeight: Int,
+    paddingLeft: Int,
+    paddingTop: Int,
+    paddingRight: Int,
+    paddingBottom: Int,
+): DroidDeckHudBounds {
+    val width = parentWidth.coerceAtLeast(0)
+    val height = parentHeight.coerceAtLeast(0)
+    val left = paddingLeft.coerceIn(0, width)
+    val top = paddingTop.coerceIn(0, height)
+    val right = (width - paddingRight.coerceAtLeast(0)).coerceIn(left, width)
+    val bottom = (height - paddingBottom.coerceAtLeast(0)).coerceIn(top, height)
+    return DroidDeckHudBounds(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat())
+}
+
+internal fun droidDeckHudPosition(
+    bounds: DroidDeckHudBounds,
+    dock: DroidDeckHudDock,
+    width: Float,
+    height: Float,
+    wantedX: Float,
+    wantedY: Float,
+): Pair<Float, Float> {
+    val maxX = bounds.maxX(width)
+    val maxY = bounds.maxY(height)
+    var x = wantedX.coerceIn(bounds.left, maxX)
+    var y = wantedY.coerceIn(bounds.top, maxY)
+    when (dock) {
+        DroidDeckHudDock.LEFT -> x = bounds.left
+        DroidDeckHudDock.RIGHT -> x = maxX
+        DroidDeckHudDock.TOP -> y = bounds.top
+        DroidDeckHudDock.BOTTOM -> y = maxY
+        DroidDeckHudDock.NONE -> {}
+    }
+    return x to y
+}
+
 class DroidDeckHudHost(context: Context) {
     private val context = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
@@ -251,15 +300,16 @@ class DroidDeckHudHost(context: Context) {
     private fun overhang(v: View): Map.Entry<DroidDeckHudDock, Float>? {
         val p = v.parent as? View ?: return null
         if (p.width <= 0 || p.height <= 0 || v.width <= 0 || v.height <= 0) return null
+        val bounds = hudBounds(p)
         val strip = (v as? DroidDeckHudView)?.isStrip == true
         val density = v.resources.displayMetrics.density
         val w = if (strip) minOf(v.width.toFloat(), STRIP_PULL_ACROSS_DP * density) else v.width.toFloat()
         val h = if (strip) maxOf(v.height.toFloat(), STRIP_PULL_OFF_DP * density) else v.height.toFloat()
         return mapOf(
-            DroidDeckHudDock.LEFT to -v.x / w,
-            DroidDeckHudDock.RIGHT to (v.x + v.width - p.width) / w,
-            DroidDeckHudDock.TOP to -v.y / h,
-            DroidDeckHudDock.BOTTOM to (v.y + v.height - p.height) / h,
+            DroidDeckHudDock.LEFT to (bounds.left - v.x) / w,
+            DroidDeckHudDock.RIGHT to (v.x + v.width - bounds.right) / w,
+            DroidDeckHudDock.TOP to (bounds.top - v.y) / h,
+            DroidDeckHudDock.BOTTOM to (v.y + v.height - bounds.bottom) / h,
         ).maxByOrNull { it.value }
     }
 
@@ -267,18 +317,21 @@ class DroidDeckHudHost(context: Context) {
         val p = hud.parent as? View ?: return
         stopMotion(hud)
         snapping = false
-        hud.x = x.coerceIn(0f, (p.width - hud.width).toFloat().coerceAtLeast(0f))
-        hud.y = y.coerceIn(0f, (p.height - hud.height).toFloat().coerceAtLeast(0f))
+        val bounds = hudBounds(p)
+        hud.x = x.coerceIn(bounds.left, bounds.maxX(hud.width.toFloat()))
+        hud.y = y.coerceIn(bounds.top, bounds.maxY(hud.height.toFloat()))
     }
 
     private fun dropTab(hud: DroidDeckHudView) {
         val p = hud.parent as? View ?: return
-        val maxX = (p.width - hud.width).toFloat().coerceAtLeast(0f)
-        val maxY = (p.height - hud.height).toFloat().coerceAtLeast(0f)
+        val bounds = hudBounds(p)
+        val minX = bounds.left; val minY = bounds.top
+        val maxX = bounds.maxX(hud.width.toFloat())
+        val maxY = bounds.maxY(hud.height.toFloat())
         val pulled = when (hud.dock) {
-            DroidDeckHudDock.LEFT -> hud.x / hud.width
+            DroidDeckHudDock.LEFT -> (hud.x - minX) / hud.width
             DroidDeckHudDock.RIGHT -> (maxX - hud.x) / hud.width
-            DroidDeckHudDock.TOP -> hud.y / hud.height
+            DroidDeckHudDock.TOP -> (hud.y - minY) / hud.height
             DroidDeckHudDock.BOTTOM -> (maxY - hud.y) / hud.height
             DroidDeckHudDock.NONE -> 0f
         }
@@ -325,11 +378,12 @@ class DroidDeckHudHost(context: Context) {
 
     private fun snapToAnchor(hud: DroidDeckHudView, vx: Float) {
         val p = hud.parent as? View ?: return
-        val maxX = (p.width - hud.width).toFloat().coerceAtLeast(0f)
-        val maxY = (p.height - hud.height).toFloat().coerceAtLeast(0f)
-        anchorX = if (hud.x + vx * FLING_REACH_S < maxX / 2f) 0f else 1f
-        wantX = anchorX * maxX
-        wantY = hud.y.coerceIn(0f, maxY)
+        val bounds = hudBounds(p)
+        val maxX = bounds.maxX(hud.width.toFloat())
+        val maxY = bounds.maxY(hud.height.toFloat())
+        anchorX = if (hud.x + vx * FLING_REACH_S < (bounds.left + maxX) / 2f) 0f else 1f
+        wantX = if (anchorX == 0f) bounds.left else maxX
+        wantY = hud.y.coerceIn(bounds.top, maxY)
         SessionPrefs.setDroidDeckHudPosition(context, wantX, wantY)
         stopMotion(hud)
         if (Motion.scale == 0f) {
@@ -375,8 +429,9 @@ class DroidDeckHudHost(context: Context) {
         if (edge != DroidDeckHudDock.NONE) {
             val p = hud.parent as? View
             if (p != null) {
-                wantX = wantX.coerceIn(0f, p.width.toFloat())
-                wantY = wantY.coerceIn(0f, p.height.toFloat())
+                val bounds = hudBounds(p)
+                wantX = wantX.coerceIn(bounds.left, bounds.right)
+                wantY = wantY.coerceIn(bounds.top, bounds.bottom)
             }
             SessionPrefs.setDroidDeckHudPosition(context, wantX, wantY)
         }
@@ -389,11 +444,13 @@ class DroidDeckHudHost(context: Context) {
 
     private fun settleOutOfTab(hud: DroidDeckHudView, tabX: Float, tabY: Float) {
         val p = hud.parent as? View
-        val maxX = if (p == null) Float.MAX_VALUE else (p.width - hud.contentWidth).coerceAtLeast(0f)
-        val maxY = if (p == null) Float.MAX_VALUE else (p.height - hud.contentHeight).coerceAtLeast(0f)
-        wantX = tabX.coerceIn(0f, maxX); wantY = tabY.coerceIn(0f, maxY)
-        anchorX = if (snaps && !hud.isStrip && p != null) (if (wantX < maxX / 2f) 0f else 1f) else Float.NaN
-        if (!anchorX.isNaN()) wantX = anchorX * maxX
+        val bounds = p?.let(::hudBounds)
+        val maxX = bounds?.maxX(hud.contentWidth) ?: Float.MAX_VALUE
+        val maxY = bounds?.maxY(hud.contentHeight) ?: Float.MAX_VALUE
+        val minX = bounds?.left ?: 0f; val minY = bounds?.top ?: 0f
+        wantX = tabX.coerceIn(minX, maxX); wantY = tabY.coerceIn(minY, maxY)
+        anchorX = if (snaps && !hud.isStrip && bounds != null) (if (wantX < (minX + maxX) / 2f) 0f else 1f) else Float.NaN
+        if (!anchorX.isNaN()) wantX = if (anchorX == 0f) minX else maxX
         SessionPrefs.setDroidDeckHudPosition(context, wantX, wantY)
     }
 
@@ -456,16 +513,7 @@ class DroidDeckHudHost(context: Context) {
         if (scale > 0.999f) from else (to - from * scale) / (1f - scale)
 
     private fun settled(p: View, dock: DroidDeckHudDock, w: Float, h: Float): Pair<Float, Float> {
-        val maxX = (p.width - w).coerceAtLeast(0f); val maxY = (p.height - h).coerceAtLeast(0f)
-        var x = wantX.coerceIn(0f, maxX); var y = wantY.coerceIn(0f, maxY)
-        when (dock) {
-            DroidDeckHudDock.LEFT -> x = 0f
-            DroidDeckHudDock.RIGHT -> x = maxX
-            DroidDeckHudDock.TOP -> y = 0f
-            DroidDeckHudDock.BOTTOM -> y = maxY
-            DroidDeckHudDock.NONE -> {}
-        }
-        return Pair(x, y)
+        return droidDeckHudPosition(hudBounds(p), dock, w, h, wantX, wantY)
     }
 
     private fun keepOnScreen(v: View) {
@@ -473,26 +521,24 @@ class DroidDeckHudHost(context: Context) {
         val p = v.parent as? View ?: return
         if (p.width <= 0 || p.height <= 0 || v.width <= 0 || v.height <= 0) return
         if (wantX.isNaN()) { wantX = v.x; wantY = v.y }
-        val maxX = (p.width - v.width).toFloat().coerceAtLeast(0f)
-        val maxY = (p.height - v.height).toFloat().coerceAtLeast(0f)
+        val bounds = hudBounds(p)
+        val maxX = bounds.maxX(v.width.toFloat())
+        val maxY = bounds.maxY(v.height.toFloat())
         val anchored = (v as? DroidDeckHudView)?.let { it.dock == DroidDeckHudDock.NONE && !it.isStrip } == true
         if (snaps && anchored && anchorX.isNaN()) {
-            anchorX = if (wantX.coerceIn(0f, maxX) < maxX / 2f) 0f else 1f
+            anchorX = if (wantX.coerceIn(bounds.left, maxX) < (bounds.left + maxX) / 2f) 0f else 1f
         }
-        if (snaps && anchored && !anchorX.isNaN()) wantX = anchorX * maxX
-        var x = wantX.coerceIn(0f, maxX)
-        var y = wantY.coerceIn(0f, maxY)
-        if ((v as? DroidDeckHudView)?.isStrip == true) y = if (y + v.height / 2f < p.height / 2f) 0f else maxY
-        when (v.let { it as? DroidDeckHudView }?.dock) {
-            DroidDeckHudDock.LEFT -> x = 0f
-            DroidDeckHudDock.RIGHT -> x = maxX
-            DroidDeckHudDock.TOP -> y = 0f
-            DroidDeckHudDock.BOTTOM -> y = maxY
-            else -> {}
-        }
+        if (snaps && anchored && !anchorX.isNaN()) wantX = if (anchorX == 0f) bounds.left else maxX
+        var (x, y) = droidDeckHudPosition(bounds, v.let { it as? DroidDeckHudView }?.dock ?: DroidDeckHudDock.NONE,
+            v.width.toFloat(), v.height.toFloat(), wantX, wantY)
+        if ((v as? DroidDeckHudView)?.isStrip == true) y = if (y + v.height / 2f < (bounds.top + bounds.bottom) / 2f) bounds.top else maxY
         if (v.x != x) v.x = x
         if (v.y != y) v.y = y
     }
+
+    private fun hudBounds(parent: View): DroidDeckHudBounds = droidDeckHudBounds(
+        parent.width, parent.height, parent.paddingLeft, parent.paddingTop, parent.paddingRight, parent.paddingBottom,
+    )
 
     companion object {
         private const val DOCK_OVERHANG = 0.4f
