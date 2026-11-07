@@ -452,9 +452,10 @@ Two details matter, and the port had both of them wrong at first:
   *directory* that holds them, which the loader ignores, leaving the guest
   to pick a driver on its own.
 * **The driver has to be one the guest can use.** The published image
-  ships nine manifests — `freedreno`, `panfrost`, `nouveau`, `intel`,
-  `virtio`, `powervr_mesa`, `asahi` and the software one, `lvp` — and
-  every hardware driver needs a device node the guest cannot have:
+  ships eleven manifests — `intel`, `lvp`, `nouveau`, `virtio`,
+  `powervr_mesa`, `asahi`, `freedreno`, `panfrost`, `broadcom`,
+  `gfxstream_vk` and `radeon` — and every hardware driver needs a device
+  node the guest cannot have:
   HarmonyOS does not give an app a `/dev/kgsl` or a `/dev/mali0`. Only
   **lavapipe** (`lvp_icd.json`, Mesa's software Vulkan driver) renders
   without one, so the port pins that.
