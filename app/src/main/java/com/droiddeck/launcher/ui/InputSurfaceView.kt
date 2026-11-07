@@ -23,7 +23,6 @@ import com.droiddeck.launcher.input.PointerGestures
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.droiddeck.launcher.input.InputRole
@@ -49,35 +48,86 @@ class InputSurfaceView(
     private var customLayout: List<InputSurfaceElement> = emptyList(),
     private val inputRole: InputRole = InputRole.SECONDARY,
     private var surfaceStyle: InputSurfaceStyle = InputSurfaceStyle(),
+    private val haptics: Boolean = inputRole != InputRole.PRIMARY,
 ) : FrameLayout(context) {
     private val content = FrameLayout(context)
     private val elementSources = ArrayList<InputSurfaceSource>()
     private var customCanvas: ViewGroup? = null
+    private val owners = HashMap<Int, View>()
     init { addView(content, LayoutParams(-1, -1)); renderCustom(pad) }
 
     var onTouchMiss: ((MotionEvent) -> Unit)? = null
     private var forwardedPointers = 0
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        if (event.actionMasked == MotionEvent.ACTION_DOWN) forwardedPointers = 0
-        if (onTouchMiss == null) return super.dispatchTouchEvent(event)
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) { forwardedPointers = 0; cancelOwners(event) }
         if (event.actionMasked == MotionEvent.ACTION_DOWN || event.actionMasked == MotionEvent.ACTION_POINTER_DOWN) {
             val index = event.actionIndex
-            if (!takesTouchAt(event.getX(index), event.getY(index))) forwardedPointers = forwardedPointers or (1 shl event.getPointerId(index))
-            else if (SessionPrefs.lowLatency(context)) requestUnbufferedDispatch(event)
+            if (event.getToolType(index) == MotionEvent.TOOL_TYPE_MOUSE || !takesTouchAt(event.getX(index), event.getY(index)))
+                forwardedPointers = forwardedPointers or (1 shl event.getPointerId(index))
+            else if (onTouchMiss != null && SessionPrefs.lowLatency(context)) requestUnbufferedDispatch(event)
         }
-        if (forwardedPointers == 0) return super.dispatchTouchEvent(event)
+        if (forwardedPointers == 0) return route(event)
         var all = 0
         for (index in 0 until event.pointerCount) all = all or (1 shl event.getPointerId(index))
-        event.pointerSubset(all and forwardedPointers.inv())?.let { split ->
-            try { super.dispatchTouchEvent(split) } finally { split.recycle() }
-        }
+        val routed = event.pointerSubset(all and forwardedPointers.inv())?.let { split ->
+            try { route(split) } finally { split.recycle() }
+        } ?: false
         event.pointerSubset(all and forwardedPointers)?.let { split ->
             try { onTouchMiss?.invoke(split) } finally { split.recycle() }
         }
         if (event.actionMasked == MotionEvent.ACTION_POINTER_UP) forwardedPointers = forwardedPointers and (1 shl event.getPointerId(event.actionIndex)).inv()
         if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) forwardedPointers = 0
-        return true
+        return onTouchMiss != null || routed
+    }
+
+    private fun route(event: MotionEvent): Boolean {
+        val action = event.actionMasked
+        if (action == MotionEvent.ACTION_CANCEL) { cancelOwners(event); return true }
+        val index = event.actionIndex
+        val pointer = event.getPointerId(index)
+        var taken = true
+        if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) {
+            val target = elementAt(event.getX(index), event.getY(index))
+            taken = target != null
+            when {
+                target is HoldButton -> { owners[pointer] = target; target.press(pointer, true) }
+                target != null && !(target is StickView && target in owners.values) -> owners[pointer] = target
+            }
+        }
+        if (action == MotionEvent.ACTION_MOVE) for (i in 0 until event.pointerCount) slide(event.getPointerId(i), event.getX(i), event.getY(i))
+        for (view in owners.values.distinct()) {
+            if (view is HoldButton) continue
+            var bits = 0
+            for ((id, owner) in owners) if (owner === view) bits = bits or (1 shl id)
+            event.pointerSubset(bits)?.let { split ->
+                try { split.offsetLocation(-originX(view), -originY(view)); view.dispatchTouchEvent(split) } finally { split.recycle() }
+            }
+        }
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP) {
+            (owners.remove(pointer) as? HoldButton)?.press(pointer, false, event.flags and MotionEvent.FLAG_CANCELED != 0)
+        }
+        return taken
+    }
+
+    private fun slide(pointer: Int, x: Float, y: Float) {
+        val owner = owners[pointer]
+        if (owner != null && owner !is HoldButton) return
+        val over = elementAt(x, y) as? HoldButton
+        if (over === owner) return
+        (owner as? HoldButton)?.press(pointer, false, cancelled = true)
+        if (over == null) owners.remove(pointer) else { owners[pointer] = over; over.press(pointer, true) }
+    }
+
+    private fun cancelOwners(event: MotionEvent) {
+        if (owners.isEmpty()) return
+        val views = owners.values.distinct()
+        owners.clear()
+        for (view in views) {
+            if (view is HoldButton) { view.cancel(); continue }
+            val cancel = MotionEvent.obtain(event.downTime, event.eventTime, MotionEvent.ACTION_CANCEL, 0f, 0f, 0)
+            try { view.dispatchTouchEvent(cancel) } finally { cancel.recycle() }
+        }
     }
 
     fun updateStyle(style: InputSurfaceStyle) {
@@ -97,16 +147,21 @@ class InputSurfaceView(
         customLayout = layout
         if (sameElements) customCanvas?.requestLayout() else {
             elementSources.forEach { it.close() }; elementSources.clear()
-            content.removeAllViews(); renderCustom(pad)
+            owners.clear(); content.removeAllViews(); renderCustom(pad)
         }
     }
 
     fun releaseInputs() {
         val now = android.os.SystemClock.uptimeMillis()
         val cancel = MotionEvent.obtain(now, now, MotionEvent.ACTION_CANCEL, 0f, 0f, 0)
-        try { super.dispatchTouchEvent(cancel) } finally { cancel.recycle() }
+        try { cancelOwners(cancel) } finally { cancel.recycle() }
         forwardedPointers = 0
         elementSources.forEach { it.release() }
+    }
+
+    override fun onVisibilityChanged(changedView: View, visibility: Int) {
+        super.onVisibilityChanged(changedView, visibility)
+        if (visibility != VISIBLE) releaseInputs()
     }
 
     private fun renderCustom(pad: PadBridge?) {
@@ -129,7 +184,7 @@ class InputSurfaceView(
                 }
             }
         }
-        canvas.clipChildren = customLayout.none { it.kind == InputElementKind.STICK && classic(it) }
+        canvas.clipChildren = customLayout.none { it.kind == InputElementKind.STICK && (classic(it) || adaptive(it)) }
         for (element in customLayout) {
             val source = pad?.let { InputSurfaceSource(it, inputRole, element).also { s -> elementSources += s } }
             canvas.addView(when (element.kind) {
@@ -146,7 +201,7 @@ class InputSurfaceView(
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         if (pad != null && elementSources.isEmpty()) {
-            content.removeAllViews()
+            owners.clear(); content.removeAllViews()
             renderCustom(pad)
         }
     }
@@ -157,18 +212,51 @@ class InputSurfaceView(
         super.onDetachedFromWindow()
     }
 
-    fun takesTouchAt(x: Float, y: Float): Boolean = controlUnder(this, x, y)
+    fun takesTouchAt(x: Float, y: Float): Boolean = elementAt(x, y) != null
 
-    private fun controlUnder(view: View, x: Float, y: Float): Boolean {
-        if (view.visibility != VISIBLE || x < 0f || y < 0f || x >= view.width || y >= view.height) return false
-        if (view.isClickable || view is HorizontalScrollView || view is Surface || view is DirectionPad ||
-            view is androidx.compose.ui.platform.ComposeView) return true
-        val group = view as? ViewGroup ?: return false
-        return (group.childCount - 1 downTo 0).any { i ->
-            val child = group.getChildAt(i)
-            controlUnder(child, x + group.scrollX - child.x, y + group.scrollY - child.y)
-        }
+    private fun elementAt(x: Float, y: Float): View? {
+        val canvas = customCanvas ?: return null
+        if (visibility != VISIBLE || x < 0f || y < 0f || x >= width || y >= height) return null
+        val views = (canvas.childCount - 1 downTo 0).map(canvas::getChildAt).filter { it.visibility == VISIBLE }
+        views.firstOrNull { !(it is StickView && it.adaptive) && hits(it, x, y, 0f) }?.let { return it }
+        views.filter { it is HoldButton && hits(it, x, y, slack(it)) }.minByOrNull { distance(it, x, y) }?.let { return it }
+        if (views.any { it is HoldButton && hits(it, x, y, slack(it) + ADAPTIVE_CLEARANCE_PX) }) return null
+        return views.filter { it is StickView && it.adaptive && it !in owners.values && (hits(it, x, y, 0f) || it.captures(x - originX(it), y - originY(it))) }
+            .minByOrNull { distance(it, x, y) }
     }
+
+    private fun hits(view: View, x: Float, y: Float, slack: Float): Boolean {
+        val left = originX(view)
+        val top = originY(view)
+        if ((view as? HoldButton)?.round == true && slack > 0f) {
+            val reach = min(view.width, view.height) / 2f + slack
+            return hypot(x - left - view.width / 2f, y - top - view.height / 2f) <= reach
+        }
+        return x >= left - slack && x < left + view.width + slack && y >= top - slack && y < top + view.height + slack
+    }
+
+    private fun slack(view: View) = min(view.width, view.height) / 2f * HIT_SLACK
+
+    private fun distance(view: View, x: Float, y: Float): Float {
+        val cx = originX(view) + ((view as? StickView)?.centreX() ?: (view.width / 2f))
+        return hypot(x - cx, y - originY(view) - view.height / 2f)
+    }
+
+    private fun originX(view: View): Float {
+        var x = 0f
+        var at: View = view
+        while (at !== this) { x += at.left - ((at.parent as? View)?.scrollX ?: 0); at = at.parent as? View ?: break }
+        return x
+    }
+
+    private fun originY(view: View): Float {
+        var y = 0f
+        var at: View = view
+        while (at !== this) { y += at.top - ((at.parent as? View)?.scrollY ?: 0); at = at.parent as? View ?: break }
+        return y
+    }
+
+    private fun feedback(view: View, type: Int) { if (haptics) view.performHapticFeedback(type) }
 
     private abstract class Surface(context: Context) : View(context) {
         var tint: Int? = null
@@ -231,8 +319,10 @@ class InputSurfaceView(
         protected fun textColor(lit: Boolean) = if (lit) Color.WHITE else tint?.let { light(it, 210, 0.75f) } ?: TEXT
     }
 
-    private class HoldButton(context: Context, private val element: InputSurfaceElement, private val source: InputSurfaceSource?) : Surface(context) {
+    private inner class HoldButton(context: Context, private val element: InputSurfaceElement, private val source: InputSurfaceSource?) : Surface(context) {
         private var down = false
+        private val pointers = HashSet<Int>()
+        val round get() = element.buttonShape == InputButtonShape.CIRCLE
         private val symbol = InputButtonIcons.drawable(context, element.icon)
         private val bitmap = element.image.takeIf { it.matches(Regex("[A-Za-z0-9_.-]{1,128}")) && it != "." && it != ".." }?.let { name ->
             val file = File(File(context.filesDir, "screenkeys"), name)
@@ -282,23 +372,20 @@ class InputSurfaceView(
             canvas.drawText(element.name, cx, height / 2f + labelPaint.textSize * .35f, labelPaint)
         }
 
-        @SuppressLint("ClickableViewAccessibility")
-        override fun onTouchEvent(event: MotionEvent): Boolean {
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> set(true)
-                MotionEvent.ACTION_UP -> set(false)
-                MotionEvent.ACTION_CANCEL -> { set(false); source?.release() }
-            }
-            return true
+        fun press(pointer: Int, pressed: Boolean, cancelled: Boolean = false) {
+            if (pressed) pointers.add(pointer) else pointers.remove(pointer)
+            set(pointers.isNotEmpty(), cancelled)
         }
 
-        override fun onDetachedFromWindow() { set(false); source?.release(); super.onDetachedFromWindow() }
+        fun cancel() { pointers.clear(); set(false, cancelled = true); source?.release() }
 
-        private fun set(pressed: Boolean) {
+        override fun onDetachedFromWindow() { cancel(); super.onDetachedFromWindow() }
+
+        private fun set(pressed: Boolean, cancelled: Boolean = false) {
             if (down == pressed) return
             down = pressed
-            if (pressed) performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-            source?.update(if (pressed) 1f else 0f)
+            if (pressed) feedback(this, HapticFeedbackConstants.VIRTUAL_KEY)
+            if (!pressed && cancelled) source?.cancel() else source?.update(if (pressed) 1f else 0f)
             invalidate()
         }
     }
@@ -314,7 +401,7 @@ class InputSurfaceView(
             }
             override fun onButton(button: Int, pressed: Boolean, x: Float, y: Float) { source?.gestureButton(button, pressed) }
             override fun onWheel(steps: Int) { source?.gestureWheel(steps) }
-            override fun onLongPress() { performHapticFeedback(HapticFeedbackConstants.LONG_PRESS) }
+            override fun onLongPress() { feedback(this@TrackpadView, HapticFeedbackConstants.LONG_PRESS) }
         }).apply { bounds = RectF(-1e9f, -1e9f, 1e9f, 1e9f) }
 
         private var touching = false
@@ -396,7 +483,7 @@ class InputSurfaceView(
         private fun click(down: Boolean) {
             if (clicked == down) return
             clicked = down
-            if (down) performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            if (down) feedback(this, HapticFeedbackConstants.VIRTUAL_KEY)
             source?.click(down)
             invalidate()
         }
@@ -418,9 +505,18 @@ class InputSurfaceView(
         private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
         private val knob = Paint(Paint.ANTI_ALIAS_FLAG)
 
-        private fun reach() = min(width, height) * 0.30f
+        val adaptive get() = adaptive(element)
 
-        private fun centreX() = when {
+        fun reach() = min(width, height) * if (classic(element)) CLASSIC_REACH else PANEL_REACH
+
+        fun captures(x: Float, y: Float): Boolean {
+            val cx = centreX()
+            val dx = if (element.control == InputControl.LS) maxOf(0f, x - cx) else x - cx
+            val limit = reach() * ADAPTIVE_REACH
+            return dx * dx + (y - height / 2f) * (y - height / 2f) <= limit * limit
+        }
+
+        fun centreX() = when {
             !classic(element) || width <= height -> width / 2f
             element.control == InputControl.LS -> width - height / 2f
             else -> height / 2f
@@ -465,7 +561,7 @@ class InputSurfaceView(
                     originX = if (floating) event.x else centreX()
                     originY = if (floating) event.y else height / 2f
                     touching = true
-                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    feedback(this, HapticFeedbackConstants.VIRTUAL_KEY)
                     if (lastUp != 0L && event.eventTime - lastUp < CLICK_MS) setClick(true)
                     follow(event.x, event.y, r, force = true)
                 }
@@ -501,7 +597,7 @@ class InputSurfaceView(
         private fun setClick(down: Boolean) {
             if (clicking == down) return
             clicking = down
-            if (down) performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            if (down) feedback(this, HapticFeedbackConstants.VIRTUAL_KEY)
             source?.click(down)
         }
 
@@ -556,7 +652,7 @@ class InputSurfaceView(
 
         private fun set(bits: Int) {
             if (bits == held) return
-            if (bits and held.inv() != 0) performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            if (bits and held.inv() != 0) feedback(this, HapticFeedbackConstants.VIRTUAL_KEY)
             held = bits
             source?.update((if (bits and 2 != 0) 1f else 0f) - (if (bits and 8 != 0) 1f else 0f),
                 (if (bits and 4 != 0) 1f else 0f) - (if (bits and 1 != 0) 1f else 0f))
@@ -573,6 +669,11 @@ class InputSurfaceView(
     companion object {
         private const val CLICK_MS = 300L
         private const val STICK_TAP_MS = 200L
+        private const val CLASSIC_REACH = 0.5f
+        private const val PANEL_REACH = 0.30f
+        private const val HIT_SLACK = 0.25f
+        private const val ADAPTIVE_CLEARANCE_PX = 5f
+        private val ADAPTIVE_REACH = 1.4f * kotlin.math.sqrt(1.5f)
 
 
         private const val CORNER = 20f
@@ -587,6 +688,8 @@ class InputSurfaceView(
         internal val TEXT = Color.rgb(0xF2, 0xF4, 0xF7)
         private val TEXT_DIM = Color.rgb(0x7A, 0x80, 0x8A)
         private val KNOB = Color.rgb(0x2A, 0x2D, 0x33)
+
+        private fun adaptive(element: InputSurfaceElement) = element.kind == InputElementKind.STICK && element.floating && element.hideWhenIdle
 
         private fun classic(element: InputSurfaceElement) = (element.id == "legacy:${element.control.id}" || element.id == "builtin:keyboard") &&
             (element.buttonShape == InputButtonShape.CIRCLE || element.buttonShape == InputButtonShape.PILL)
