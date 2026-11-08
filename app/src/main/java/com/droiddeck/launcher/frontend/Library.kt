@@ -220,7 +220,7 @@ object Library {
                     AddedGames.guestPath(context, g.folder).let { it == null || it !in claimed })
         }
         val played = shortcutsLastPlayed(SessionPrefs.steamRoot(context, arch))
-        return (steam + own.map { g -> addedGame(context, g, roots, maxOf(played[g.appId] ?: 0L, recordedPlay(context, g.gameId))) }).distinctBy { it.gameId }
+        return (steam + own.map { g -> addedGame(context, g, roots, played[g.appId] ?: 0L) }).distinctBy { it.gameId }
     }
 
     fun recordPlayed(context: Context, game: SteamGame) {
@@ -260,7 +260,7 @@ object Library {
         AddedGameArt.resolve(context, g).let { art ->
             SteamGame(
                 g.steamAppId ?: g.appId.toInt(), g.name, art.portrait ?: art.header, ADDED, g.gameId,
-                hero = art.hero ?: art.header, lastPlayed = lastPlayed, gameFiles = g.folder,
+                hero = art.hero ?: art.header, lastPlayed = maxOf(lastPlayed, recordedPlay(context, g.gameId)), gameFiles = g.folder,
                 protonPrefix = if (g.source == com.droiddeck.launcher.stores.Store.BATTLENET.id) File(com.droiddeck.launcher.runtime.BattleNet.prefix(context), "pfx").takeIf { it.isDirectory }
                     else protonPrefix(context, g.steamAppId?.toLong() ?: g.appId, libraries = roots),
                 icon = art.icon?.takeIf { it.extension.lowercase() != "ico" },

@@ -862,7 +862,6 @@ class FrontEndActivity : ComponentActivity() {
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
-        Library.recordPlayed(this, game)
         if (com.droiddeck.launcher.session.NoSteamLaunch.enabled(this, game)) return launchWithoutSteam(game, returnHome)
         if (SessionState.running) {
             if (SessionState.mode != SessionService.MODE_STEAM || SessionState.stopRequested) {
@@ -874,6 +873,7 @@ class FrontEndActivity : ComponentActivity() {
                 android.widget.Toast.makeText(this, R.string.game_link_failed, android.widget.Toast.LENGTH_LONG).show()
                 return false
             }
+            Library.recordPlayed(this, game)
             startActivity(Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
                 .putExtra(SessionActivity.EXTRA_STEAMVR, steamVr)
                 .returnTo(returnHome)
@@ -889,7 +889,7 @@ class FrontEndActivity : ComponentActivity() {
                         putExtra(SessionService.EXTRA_STEAM_URL,
                             com.droiddeck.launcher.frontend.GameLaunchLink.steamUrl(game.gameIdString))
                     }
-                }, steamSession = true)
+                }, steamSession = true).also { if (it) Library.recordPlayed(this, game) }
     }
 
     private fun Intent.returnTo(returnHome: Boolean): Intent {
@@ -909,6 +909,7 @@ class FrontEndActivity : ComponentActivity() {
                     android.widget.Toast.makeText(this, R.string.game_link_failed, android.widget.Toast.LENGTH_LONG).show()
                     return@post
                 }
+                Library.recordPlayed(this, game)
                 com.droiddeck.launcher.session.NoSteamLaunch.remember(command)
                 val next = Intent(this, SessionActivity::class.java)
                     .returnTo(returnHome)
