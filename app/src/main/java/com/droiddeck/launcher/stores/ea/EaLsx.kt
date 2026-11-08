@@ -74,7 +74,6 @@ object EaLsx {
     private val lock = Any()
     private const val MAX_CLIENTS = 8
     private val WHITESPACE = Regex("[ \t]+")
-    private val clients = java.util.concurrent.atomic.AtomicInteger()
 
     fun start(context: Context, game: Game): Boolean {
         synchronized(lock) { closeSessions() }
@@ -126,18 +125,13 @@ object EaLsx {
                 runCatching { client.close() }
                 continue
             }
-            if (clients.incrementAndGet() > MAX_CLIENTS && !evictUntrusted()) {
-                clients.decrementAndGet()
+            val session = runCatching { Session(client, client.getOutputStream(), verified == true) }.getOrNull()
+            val live = session != null && synchronized(lock) { server === socket && admit(session).also { if (it) open += client } }
+            if (!live) {
                 runCatching { client.close() }
                 continue
             }
-            val live = synchronized(lock) { (server === socket).also { if (it) open += client } }
-            if (!live) {
-                clients.decrementAndGet()
-                runCatching { client.close() }
-                break
-            }
-            Thread({ try { serve(client, verified == true) } finally { open -= client; clients.decrementAndGet() } }, "ea-lsx-client").apply { isDaemon = true }.start()
+            Thread({ try { serve(client, session!!) } finally { synchronized(sessions) { sessions -= session!! }; open -= client } }, "ea-lsx-client").apply { isDaemon = true }.start()
         }
     }
 
@@ -159,18 +153,28 @@ object EaLsx {
         if (local == port && remote == PORT) f.getOrNull(7)?.toIntOrNull() else null
     }
 
-    /** Frees a slot for a new connection by closing the oldest session that never became trusted. */
-    private fun evictUntrusted(): Boolean {
-        val victim = synchronized(sessions) { sessions.firstOrNull { !it.trusted && !it.evicted }?.also { it.evicted = true } } ?: return false
-        runCatching { victim.socket.close() }
-        return true
+    /**
+     * Adds [session] unless the cap is reached by sessions that cannot be replaced; otherwise the
+     * oldest session that never claimed the prepared game (then the oldest untrusted one) makes room.
+     * Counting and eviction share one lock, so the live total never passes the cap.
+     */
+    internal fun admit(session: Session): Boolean = synchronized(sessions) {
+        if (sessions.count { !it.evicted } >= MAX_CLIENTS) {
+            val candidates = sessions.filter { !it.trusted && !it.evicted }
+            val victim = candidates.firstOrNull { !it.claimed } ?: candidates.firstOrNull() ?: return false
+            victim.evicted = true
+            runCatching { victim.socket.close() }
+        }
+        sessions += session
+        true
     }
 
-    private val sessions = LinkedHashSet<Session>()
+    internal val sessions = LinkedHashSet<Session>()
 
-    private class Session(val socket: Socket, val output: OutputStream, val verified: Boolean) {
+    internal class Session(val socket: Socket, val output: OutputStream, val verified: Boolean) {
         val connectedAt = System.currentTimeMillis()
         @Volatile var evicted = false
+        @Volatile var claimed = false
         var key: ByteArray? = null
         @Volatile var trusted = false
         var pending: ByteArray? = null
@@ -187,14 +191,12 @@ object EaLsx {
 
     private fun note(line: String) = com.droiddeck.launcher.stores.StoresState.logLine("ea lsx: $line")
 
-    private fun serve(client: Socket, verified: Boolean) {
+    private fun serve(client: Socket, session: Session) {
         client.tcpNoDelay = true
         client.soTimeout = HANDSHAKE_TIMEOUT_MS
-        val session = Session(client, client.getOutputStream(), verified)
         val seen = LinkedHashSet<String>()
         var why = "closed by the game"
         note("game connected")
-        synchronized(sessions) { sessions += session }
         try {
             session.send("<LSX><Event sender=\"$SENDER\"><Challenge build=\"release\" key=\"$CHALLENGE_KEY\" version=\"$CHALLENGE_VERSION\"/></Event></LSX>")
             val input = client.getInputStream()
@@ -231,7 +233,6 @@ object EaLsx {
             why = e.javaClass.simpleName
         } finally {
             holder.compareAndSet(session, null)
-            synchronized(sessions) { sessions -= session }
             note("game disconnected ($why)")
             runCatching { client.close() }
         }
@@ -319,7 +320,8 @@ object EaLsx {
                 val version = m.attrs["version"].orEmpty()
                 val seed = EaCrypto.challengeSeed(version, answer) ?: 0
                 val content = m.children.firstOrNull { it.first == "ContentId" }?.second.orEmpty()
-                val matches = session.verified && g != null && content.isNotEmpty() && (content == g.contentId || content in g.contentIds)
+                session.claimed = g != null && content.isNotEmpty() && (content == g.contentId || content in g.contentIds)
+                val matches = session.verified && session.claimed
                 session.trusted = matches && holder.compareAndSet(null, session)
                 note("challenge version '$version' content '$content' ${when { session.trusted -> "matches the prepared game"; matches -> "matches, but another session holds this launch"; !session.verified -> "comes from an unverified peer"; else -> "does not match the prepared game" }}")
                 session.pending = EaCrypto.lsxKey(seed)

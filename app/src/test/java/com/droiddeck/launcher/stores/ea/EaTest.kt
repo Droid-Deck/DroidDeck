@@ -5,6 +5,7 @@ import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoreLaunch
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -110,6 +111,19 @@ class EaTest {
         assertEquals(10234, EaLsx.owner(rows, 0xC350))
         assertNull(EaLsx.owner(rows, 1234))
         assertNull(EaLsx.owner(emptyList(), 0xC350))
+    }
+
+    @Test fun rapidConnectionsNeverPassTheClientCap() {
+        fun session() = EaLsx.Session(java.net.Socket(), java.io.ByteArrayOutputStream(), false)
+        EaLsx.sessions.clear()
+        val first = (1..8).map { session().also { s -> assertTrue(EaLsx.admit(s)) } }
+        first[0].claimed = true
+        repeat(20) { assertTrue(EaLsx.admit(session())) }
+        assertEquals(8, EaLsx.sessions.count { !it.evicted })
+        assertFalse(first[0].evicted)
+        EaLsx.sessions.forEach { it.trusted = true }
+        assertFalse(EaLsx.admit(session()))
+        EaLsx.sessions.clear()
     }
 
     @Test fun lateExitDoesNotStopANewerLaunch() {
