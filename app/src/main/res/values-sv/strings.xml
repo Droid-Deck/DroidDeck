@@ -1231,7 +1231,6 @@
     <string name="deck_tab_gamepad">Handkontroll</string>
     <string name="deck_surface_stick">Styrspak</string>
     <string name="deck_surface_trackpad">Styrplatta</string>
-    <string name="deck_surface_switch">Växla mellan styrspak och styrplatta</string>
     <string name="deck_close">Stäng kontrollerna på andra skärmen</string>
     <string name="deck_open_steam_menu">Öppna Steam-menyn</string>
     <string name="deck_right_trackpad">Höger styrplatta</string>

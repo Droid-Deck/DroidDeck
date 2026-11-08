@@ -1555,10 +1555,6 @@ object SessionPrefs {
         prefs(context).getString(if (right) "gamepadRight" else "gamepadLeft", null)
             ?: if (right) SURFACE_TRACKPAD else SURFACE_STICK
 
-    fun setGamepadSurface(context: Context, right: Boolean, surface: String) {
-        prefs(context).edit().putString(if (right) "gamepadRight" else "gamepadLeft", surface).apply()
-    }
-
     fun deckPanel(context: Context): com.droiddeck.launcher.input.DeckPanel =
         com.droiddeck.launcher.input.DeckPanel.from(prefs(context).getString("deckPanel", null))
 

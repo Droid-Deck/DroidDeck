@@ -1224,7 +1224,6 @@
     <string name="deck_tab_gamepad">Gamepad</string>
     <string name="deck_surface_stick">Stik</string>
     <string name="deck_surface_trackpad">Trackpad</string>
-    <string name="deck_surface_switch">Tukar antara stik dan trackpad</string>
     <string name="deck_close">Tutup kawalan skrin kedua</string>
     <string name="deck_open_steam_menu">Buka menu Steam</string>
     <string name="deck_right_trackpad">Trackpad kanan</string>

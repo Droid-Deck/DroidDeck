@@ -205,6 +205,28 @@ class OnScreenControlsTest {
         assertFalse(view.isQuickHidden)
     }
 
+    @Test fun hidingTheGamepadKeepsAlwaysShownKeysDrawnAndTouchable() {
+        val key = InputSurfaceElement(InputControl.A, .45f, .1f, .1f, .1f, "imported:0", name = "Find", alwaysShown = true)
+        view.updateLayout(SavedInputLayout("test", "Test", listOf(left, button, key), aspect = ASPECT))
+        measure(view)
+        assertTrue(view.hasPinned)
+        view.setPinnedOnly(true)
+        measure(view)
+        assertTrue(view.takesTouchAt(500f, 90f))
+        assertFalse(view.takesTouchAt(800f, 250f))
+        assertFalse(view.takesTouchAt(200f, 300f))
+        view.setPinnedOnly(false)
+        measure(view)
+        assertTrue(view.takesTouchAt(800f, 250f))
+        assertTrue(view.takesTouchAt(500f, 90f))
+        view.setQuickHidden(true)
+        measure(view)
+        assertTrue(view.takesTouchAt(500f, 90f))
+        assertFalse(view.takesTouchAt(800f, 250f))
+        view.updateLayout(SavedInputLayout("test", "Test", listOf(left, button), aspect = ASPECT))
+        assertFalse(view.hasPinned)
+    }
+
     private companion object { const val ASPECT = 1000f / 600f }
 
     private fun touch(action: Int, vararg pointers: Pair<Int, Pair<Float, Float>>, flags: Int = 0): Boolean {

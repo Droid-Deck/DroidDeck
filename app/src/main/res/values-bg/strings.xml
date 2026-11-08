@@ -1231,7 +1231,6 @@
     <string name="deck_tab_gamepad">Геймпад</string>
     <string name="deck_surface_stick">Стик</string>
     <string name="deck_surface_trackpad">Тракпад</string>
-    <string name="deck_surface_switch">Превключване между стик и тракпад</string>
     <string name="deck_close">Затваряне на контролите за втория екран</string>
     <string name="deck_open_steam_menu">Отваряне на менюто на Steam</string>
     <string name="deck_right_trackpad">Десен тракпад</string>

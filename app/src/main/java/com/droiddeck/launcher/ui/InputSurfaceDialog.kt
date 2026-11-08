@@ -69,7 +69,7 @@ private class GamepadScaler(private val context: android.content.Context, privat
 }
 
 private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputBindings, val defaults: List<InputSurfaceElement>? = null,
-    private val gamepad: GamepadScaler? = null) {
+    private val gamepad: GamepadScaler? = null, snap: Boolean = true) {
     var elements by mutableStateOf(layout.elements)
     var actions by mutableStateOf(preset.elements)
     var clicks by mutableStateOf(preset.clicks)
@@ -77,7 +77,7 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     var toolsExpanded by mutableStateOf(false)
     var toolsX by mutableFloatStateOf(.02f)
     var toolsY by mutableFloatStateOf(.02f)
-    var snap by mutableStateOf(true)
+    var snap by mutableStateOf(snap)
     var adding by mutableStateOf(false)
     var properties by mutableStateOf(false)
     var clickProperties by mutableStateOf(false)
@@ -132,7 +132,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
             val (w, h) = OnScreenLayout.generatedSize(context, savedLayout, metrics.widthPixels, metrics.heightPixels) ?: (metrics.widthPixels to metrics.heightPixels)
             GamepadScaler(display, w, h)
         }
-        SurfaceDraft(savedLayout, savedBindings, InputLibraries.defaultPositions(context, library, savedLayout), gamepad)
+        SurfaceDraft(savedLayout, savedBindings, InputLibraries.defaultPositions(context, library, savedLayout), gamepad, ControllerPrefs.snap(context))
     }
     val manager = remember { context.getSystemService(DisplayManager::class.java) }
     var revision by remember { mutableIntStateOf(0) }
@@ -162,7 +162,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
         val listener = object : DisplayManager.DisplayListener {
             override fun onDisplayAdded(id: Int) { revision++ }
             override fun onDisplayRemoved(id: Int) { revision++ }
-            override fun onDisplayChanged(id: Int) { revision++ }
+            override fun onDisplayChanged(id: Int) = Unit
         }
         manager.registerDisplayListener(listener, Handler(Looper.getMainLooper()))
         onDispose { manager.unregisterDisplayListener(listener) }
@@ -171,13 +171,18 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
         val presentation = SurfaceEditorPresentation(host, target, transparent = host is SessionActivity && role == InputRole.PRIMARY) {
             SurfaceCanvas(draft, transparent = host is SessionActivity && role == InputRole.PRIMARY)
         }
+        (host as? SessionActivity)?.inputWindowShown(target.displayId)
         runCatching { presentation.show() }.onFailure { failure = it.message }
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP && !host.screenIsOff()) presentation.hide()
             if (event == Lifecycle.Event.ON_START) runCatching { presentation.show() }
         }
         host.lifecycle.addObserver(observer)
-        onDispose { host.lifecycle.removeObserver(observer); presentation.dismiss() }
+        onDispose {
+            host.lifecycle.removeObserver(observer)
+            presentation.dismiss()
+            (host as? SessionActivity)?.inputWindowClosed(target.displayId)
+        }
     }
     // Compose 1.6 custom dialog sizing subtracts system bars even when they are hidden.
     Dialog(onDismissRequest = ::leave, properties = DialogProperties(usePlatformDefaultWidth = true, decorFitsSystemWindows = false)) {
@@ -198,8 +203,8 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
                         if (draft.clickProperties) draft.clickAction(element) else draft.action(element),
                         if (draft.clickProperties) stringResource(R.string.input_click_name, element.name) else element.name,
                         onBack = { draft.properties = false }, element = element, click = draft.clickProperties,
-                        properties = {
-                            if (!draft.clickProperties) InputElementProperties(properties) { properties = it }
+                        properties = { action ->
+                            if (!draft.clickProperties) InputElementProperties(properties, action) { properties = it }
                             if (layoutUsers > 1) Text(stringResource(R.string.input_editor_shared, layoutUsers),
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(bottom = 12.dp))
@@ -309,13 +314,14 @@ private fun FloatingSurfaceTools(draft: SurfaceDraft, onSave: () -> Unit, onLeav
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SurfaceToolbar(draft: SurfaceDraft, onSave: () -> Unit, onLeave: () -> Unit) {
+    val context = LocalContext.current
     FlowRow(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         SecondaryButton(stringResource(R.string.common_cancel), compact = true, onClick = onLeave)
         SecondaryButton(stringResource(R.string.input_editor_add), enabled = draft.elements.size < 64, compact = true) { draft.adding = true }
         SecondaryButton(stringResource(R.string.input_editor_undo), enabled = draft.history.isNotEmpty(), compact = true) { draft.undo() }
         if (draft.defaults != null) SecondaryButton(stringResource(R.string.input_reset_positions), enabled = draft.positioned != null, compact = true) { draft.resetPositions() }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(draft.snap, { draft.snap = it })
+            Checkbox(draft.snap, { draft.snap = it; ControllerPrefs.setSnap(context, it) })
             Text(stringResource(R.string.ctrl_editor_snap))
         }
         PrimaryButton(stringResource(R.string.input_editor_done), compact = true, onClick = onSave)

@@ -1231,7 +1231,6 @@
     <string name="deck_tab_gamepad">गेमपैड</string>
     <string name="deck_surface_stick">स्टिक</string>
     <string name="deck_surface_trackpad">ट्रैकपैड</string>
-    <string name="deck_surface_switch">स्टिक और ट्रैकपैड के बीच बदलें</string>
     <string name="deck_close">दूसरी स्क्रीन के कंट्रोल बंद करें</string>
     <string name="deck_open_steam_menu">Steam मेनू खोलें</string>
     <string name="deck_right_trackpad">दायां ट्रैकपैड</string>

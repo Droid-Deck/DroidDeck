@@ -1259,7 +1259,6 @@
     <string name="deck_tab_gamepad">يد التحكّم</string>
     <string name="deck_surface_stick">عصا التحكّم</string>
     <string name="deck_surface_trackpad">لوحة اللمس</string>
-    <string name="deck_surface_switch">التبديل بين عصا التحكّم ولوحة اللمس</string>
     <string name="deck_close">إغلاق عناصر التحكّم على الشاشة الثانية</string>
     <string name="deck_open_steam_menu">فتح قائمة Steam</string>
     <string name="deck_right_trackpad">لوحة اللمس اليمنى</string>

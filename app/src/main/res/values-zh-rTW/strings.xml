@@ -1224,7 +1224,6 @@
     <string name="deck_tab_gamepad">手把</string>
     <string name="deck_surface_stick">搖桿</string>
     <string name="deck_surface_trackpad">觸控板</string>
-    <string name="deck_surface_switch">在搖桿與觸控板之間切換</string>
     <string name="deck_close">關閉第二螢幕控制</string>
     <string name="deck_open_steam_menu">開啟 Steam 選單</string>
     <string name="deck_right_trackpad">右側觸控板</string>

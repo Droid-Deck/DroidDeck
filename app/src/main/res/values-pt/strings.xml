@@ -1230,7 +1230,6 @@
     <string name="deck_tab_gamepad">Controle</string>
     <string name="deck_surface_stick">Analógico</string>
     <string name="deck_surface_trackpad">Trackpad</string>
-    <string name="deck_surface_switch">Alternar entre analógico e trackpad</string>
     <string name="deck_close">Fechar controles da segunda tela</string>
     <string name="deck_open_steam_menu">Abrir o menu Steam</string>
     <string name="deck_right_trackpad">Trackpad direito</string>

@@ -1224,7 +1224,6 @@
     <string name="deck_tab_gamepad">เกมแพด</string>
     <string name="deck_surface_stick">สติ๊ก</string>
     <string name="deck_surface_trackpad">แทร็กแพด</string>
-    <string name="deck_surface_switch">สลับระหว่างสติ๊กและแทร็กแพด</string>
     <string name="deck_close">ปิดการควบคุมหน้าจอที่สอง</string>
     <string name="deck_open_steam_menu">เปิดเมนู Steam</string>
     <string name="deck_right_trackpad">แทร็กแพดขวา</string>

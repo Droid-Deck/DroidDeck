@@ -1245,7 +1245,6 @@
     <string name="deck_tab_gamepad">Геймпад</string>
     <string name="deck_surface_stick">Стік</string>
     <string name="deck_surface_trackpad">Трекпад</string>
-    <string name="deck_surface_switch">Перемкнути між стіком і трекпадом</string>
     <string name="deck_close">Закрити керування на другому екрані</string>
     <string name="deck_open_steam_menu">Відкрити меню Steam</string>
     <string name="deck_right_trackpad">Правий трекпад</string>

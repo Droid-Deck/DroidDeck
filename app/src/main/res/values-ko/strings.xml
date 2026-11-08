@@ -1224,7 +1224,6 @@
     <string name="deck_tab_gamepad">게임패드</string>
     <string name="deck_surface_stick">스틱</string>
     <string name="deck_surface_trackpad">터치패드</string>
-    <string name="deck_surface_switch">스틱과 터치패드 간 전환</string>
     <string name="deck_close">보조 화면 컨트롤 닫기</string>
     <string name="deck_open_steam_menu">Steam 메뉴 열기</string>
     <string name="deck_right_trackpad">오른쪽 터치패드</string>
