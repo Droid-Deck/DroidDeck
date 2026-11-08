@@ -1794,10 +1794,14 @@ case $mode in
     rm -f "$HOME/.bl-restart-game" "$HOME/.bl-restarted-for"
     while :; do
       rm -f "$HOME/.bl-restart-once" "$HOME/.bl-restart-lost"
-      if [ -f "$steam_beta" ] && [ "$(cat "$steam_beta" 2>/dev/null)" != "$steam_channel" ]; then
-        echo "== steam: client branch on disk was '$(cat "$steam_beta" 2>/dev/null)', set to '$steam_channel' to match -clientbeta"
+      # The desktop client deletes package/beta a few seconds after it starts. Without the file the
+      # updater reports installed version 0 and offers the same update on every start.
+      _bl_beta=$(cat "$steam_beta" 2>/dev/null || true)
+      if [ "$_bl_beta" != "$steam_channel" ] && [ -d "${steam_beta%/*}" ]; then
+        echo "== steam: client branch on disk was '${_bl_beta:-missing}', set to '$steam_channel' to match -clientbeta"
         echo "$steam_channel" > "$steam_beta"
       fi
+      unset _bl_beta
       if [ -z "${_bl_counted:-}" ] && [ -z "${BL_DESKTOP:-}" ]; then
         echo start >> "$steam_root/package/droiddeck-unconfirmed"
         _bl_counted=1

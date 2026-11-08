@@ -119,5 +119,45 @@ class SessionChannelTest(unittest.TestCase):
         self.assertIn('echo "$steam_channel" > "$steam_beta"', SESSION)
 
 
+class SessionBetaFileTest(unittest.TestCase):
+    BLOCK = re.search(r'\n( +_bl_beta=\$\(cat "\$steam_beta".*?\n +unset _bl_beta\n)', SESSION, re.S).group(1)
+
+    def run_block(self, package, existing=None):
+        beta = package / 'beta'
+        if existing is not None:
+            package.mkdir(parents=True)
+            beta.write_text(existing)
+        env = dict(os.environ, steam_beta=str(beta), steam_channel='steamdeck_stable')
+        result = subprocess.run(['bash', '-uc', self.BLOCK], env=env, capture_output=True, text=True, timeout=30)
+        self.assertEqual(0, result.returncode, result.stderr)
+        return beta, result.stdout
+
+    def test_a_deleted_branch_file_is_written_again(self):
+        with tempfile.TemporaryDirectory() as temp:
+            package = Path(temp) / 'package'
+            package.mkdir()
+            beta, out = self.run_block(package)
+            self.assertEqual('steamdeck_stable\n', beta.read_text())
+            self.assertIn("was 'missing', set to 'steamdeck_stable'", out)
+
+    def test_another_branch_is_replaced(self):
+        with tempfile.TemporaryDirectory() as temp:
+            beta, out = self.run_block(Path(temp) / 'package', 'publicbeta\n')
+            self.assertEqual('steamdeck_stable\n', beta.read_text())
+            self.assertIn("was 'publicbeta'", out)
+
+    def test_the_right_branch_is_left_alone(self):
+        with tempfile.TemporaryDirectory() as temp:
+            beta, out = self.run_block(Path(temp) / 'package', 'steamdeck_stable\n')
+            self.assertEqual('steamdeck_stable\n', beta.read_text())
+            self.assertEqual('', out)
+
+    def test_nothing_is_created_without_a_client(self):
+        with tempfile.TemporaryDirectory() as temp:
+            beta, out = self.run_block(Path(temp) / 'package')
+            self.assertFalse(beta.parent.exists())
+            self.assertEqual('', out)
+
+
 if __name__ == '__main__':
     unittest.main()
