@@ -102,6 +102,25 @@ class EaTest {
         assertNull(EaLsx.parse("<LSX><Event sender=\"x\"><Challenge/></Event></LSX>"))
     }
 
+    @Test fun socketOwnerIsReadFromTheProcTable() {
+        val rows = listOf(
+            "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode",
+            "   0: 0100007F:C350 0100007F:0C90 01 00000000:00000000 00:00000000 00000000 10234        0 1 1 0",
+        )
+        assertEquals(10234, EaLsx.owner(rows, 0xC350))
+        assertNull(EaLsx.owner(rows, 1234))
+        assertNull(EaLsx.owner(emptyList(), 0xC350))
+    }
+
+    @Test fun lateExitDoesNotStopANewerLaunch() {
+        val game = EaLsx.Game("Origin.OFR.2", "2", "Two", "1", "en_US", null, 0)
+        EaLsx.game = game
+        EaLsx.stop("Origin.OFR.1")
+        assertEquals(game, EaLsx.game)
+        EaLsx.stop("Origin.OFR.2")
+        assertNull(EaLsx.game)
+    }
+
     @Test fun redirectCarriesTheCode() {
         assertEquals("QUOX", EaAuth.redirectValue("qrc:///html/login_successful.html?code=QUOX&state=1", "code"))
         assertEquals("tok", EaAuth.redirectValue("qrc:/html/login_successful.html#access_token=tok&token_type=Bearer", "access_token"))

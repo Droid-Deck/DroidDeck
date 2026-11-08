@@ -62,7 +62,7 @@ object StoreLaunchRequests {
             "ea-prepare" -> runCatching { lastLaunched = Store.EA to request.optString("id"); com.droiddeck.launcher.stores.ea.EaLaunch.prepare(app, request) }
                 .getOrElse { JSONObject().put("ok", false).put("reason", "error-" + it.javaClass.simpleName) }
             "ea-exited" -> {
-                com.droiddeck.launcher.stores.ea.EaLsx.stop()
+                com.droiddeck.launcher.stores.ea.EaLsx.stop(request.optString("id"))
                 JSONObject().put("ok", true)
             }
             "gog-achievements" -> runCatching { com.droiddeck.launcher.stores.gog.GogComet.prepare(app, request.optString("id")) }

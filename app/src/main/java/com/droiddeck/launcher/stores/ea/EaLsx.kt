@@ -77,8 +77,8 @@ object EaLsx {
     private val clients = java.util.concurrent.atomic.AtomicInteger()
 
     fun start(context: Context, game: Game): Boolean {
+        synchronized(lock) { closeSessions() }
         this.game = game
-        holder.set(null)
         account = AppAccount(context.applicationContext)
         synchronized(lock) {
             if (server?.isClosed == false) return true
@@ -95,16 +95,22 @@ object EaLsx {
         }
     }
 
-    fun stop() {
+    /** Ends the endpoint; with [offerId], only if it still serves that game, so a late exit cannot stop a newer launch. */
+    fun stop(offerId: String? = null) {
         synchronized(lock) {
+            if (offerId != null && game?.offerId != offerId) return
             runCatching { server?.close() }
             server = null
             game = null
             account = null
-            holder.set(null)
-            for (socket in open) runCatching { socket.close() }
-            open.clear()
+            closeSessions()
         }
+    }
+
+    private fun closeSessions() {
+        holder.set(null)
+        for (socket in open) runCatching { socket.close() }
+        open.clear()
     }
 
     private val open = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<Socket, Boolean>())
@@ -113,7 +119,8 @@ object EaLsx {
     private fun accept(socket: ServerSocket) {
         while (!socket.isClosed) {
             val client = runCatching { socket.accept() }.getOrNull() ?: continue
-            if (!fromThisApp(client)) {
+            val verified = ownerUid(client)?.let { it == android.os.Process.myUid() }
+            if (verified == false) {
                 Log.w(TAG, "refused a connection from another app")
                 runCatching { client.close() }
                 continue
@@ -124,28 +131,29 @@ object EaLsx {
                 continue
             }
             open += client
-            Thread({ try { serve(client) } finally { open -= client; clients.decrementAndGet() } }, "ea-lsx-client").apply { isDaemon = true }.start()
+            Thread({ try { serve(client, verified == true) } finally { open -= client; clients.decrementAndGet() } }, "ea-lsx-client").apply { isDaemon = true }.start()
         }
     }
 
     /**
-     * The guest runs under this app's uid, so a connection from any other uid is another app on the
-     * device. Readable only where SELinux allows /proc/net; elsewhere every local client is accepted.
+     * The uid owning the connecting socket, or null where SELinux hides /proc/net. The guest runs
+     * under this app's uid, so any other uid is another app; an unknown owner never gets credentials.
      */
-    private fun fromThisApp(client: Socket): Boolean {
+    private fun ownerUid(client: Socket): Int? {
         val port = client.port
-        val owner = listOf("/proc/net/tcp6", "/proc/net/tcp").firstNotNullOfOrNull { path ->
-            runCatching { java.io.File(path).readLines() }.getOrNull()?.drop(1)?.firstNotNullOfOrNull { line ->
-                val f = line.trim().split(WHITESPACE)
-                val local = f.getOrNull(1)?.substringAfterLast(':')?.toIntOrNull(16)
-                val remote = f.getOrNull(2)?.substringAfterLast(':')?.toIntOrNull(16)
-                if (local == port && remote == PORT) f.getOrNull(7)?.toIntOrNull() else null
-            }
-        } ?: return true
-        return owner == android.os.Process.myUid()
+        return listOf("/proc/net/tcp6", "/proc/net/tcp").firstNotNullOfOrNull { path ->
+            runCatching { java.io.File(path).readLines() }.getOrNull()?.let { owner(it, port) }
+        }
     }
 
-    private class Session(val output: OutputStream) {
+    internal fun owner(lines: List<String>, port: Int): Int? = lines.drop(1).firstNotNullOfOrNull { line ->
+        val f = line.trim().split(WHITESPACE)
+        val local = f.getOrNull(1)?.substringAfterLast(':')?.toIntOrNull(16)
+        val remote = f.getOrNull(2)?.substringAfterLast(':')?.toIntOrNull(16)
+        if (local == port && remote == PORT) f.getOrNull(7)?.toIntOrNull() else null
+    }
+
+    private class Session(val output: OutputStream, val verified: Boolean) {
         var key: ByteArray? = null
         var trusted = false
         var pending: ByteArray? = null
@@ -162,10 +170,10 @@ object EaLsx {
 
     private fun note(line: String) = com.droiddeck.launcher.stores.StoresState.logLine("ea lsx: $line")
 
-    private fun serve(client: Socket) {
+    private fun serve(client: Socket, verified: Boolean) {
         client.tcpNoDelay = true
         client.soTimeout = HANDSHAKE_TIMEOUT_MS
-        val session = Session(client.getOutputStream())
+        val session = Session(client.getOutputStream(), verified)
         val seen = LinkedHashSet<String>()
         var why = "closed by the game"
         note("game connected")
@@ -283,9 +291,9 @@ object EaLsx {
                 val version = m.attrs["version"].orEmpty()
                 val seed = EaCrypto.challengeSeed(version, answer) ?: 0
                 val content = m.children.firstOrNull { it.first == "ContentId" }?.second.orEmpty()
-                val matches = g != null && content.isNotEmpty() && (content == g.contentId || content in g.contentIds)
+                val matches = session.verified && g != null && content.isNotEmpty() && (content == g.contentId || content in g.contentIds)
                 session.trusted = matches && holder.compareAndSet(null, session)
-                note("challenge version '$version' content '$content' ${when { session.trusted -> "matches the prepared game"; matches -> "matches, but another session holds this launch"; else -> "does not match the prepared game" }}")
+                note("challenge version '$version' content '$content' ${when { session.trusted -> "matches the prepared game"; matches -> "matches, but another session holds this launch"; !session.verified -> "comes from an unverified peer"; else -> "does not match the prepared game" }}")
                 session.pending = EaCrypto.lsxKey(seed)
                 Log.i(TAG, "game connected: ${m.children.firstOrNull { it.first == "Title" }?.second.orEmpty()}")
                 tag("ChallengeAccepted", "response" to answer)
