@@ -981,7 +981,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
             } else {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize()) {
-                CursorOverlay({ cursorPos }, cursorVisible && !uiPointer && !bottomOutputActive,
+                CursorOverlay({ cursorPos }, cursorVisible && (!uiPointer || onlyPcKeyboardOpen()) && !bottomOutputActive,
                     resources.displayMetrics.density,
                     cursorImage, cursorHotX, cursorHotY, cursorImageScale)
                 if (memoryHud.text.isNotEmpty()) HudText(memoryHud.text, hudColor, hudOpacity)
@@ -4200,6 +4200,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         updatePointerCapture()
         applyPlatformPointer(appUiOwnsPointer())
     }
+
+    private fun onlyPcKeyboardOpen(): Boolean =
+        pcKeyboardOpen && !drawerOpen && !achievementsOpen && !inputSettingsOpen && !pipUi && !glassesOutputActive && !touchEditorOpen && !wowChatOnTop
 
     private fun appUiOwnsPointer(): Boolean =
         drawerOpen || pcKeyboardOpen || achievementsOpen || inputSettingsOpen || pipUi || glassesOutputActive || bottomOutputActive || touchEditorOpen || wowChatOnTop
