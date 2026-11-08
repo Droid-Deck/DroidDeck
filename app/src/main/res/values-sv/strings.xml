@@ -1061,6 +1061,7 @@
     <string name="gate_enter_manually">Ange adress manuellt</string>
     <string name="gate_from_computer">Från en dator med ADB:</string>
     <string name="gate_copy_command">Kopiera kommando</string>
+    <string name="gate_sidequest_steps">Anslut headsetet till en dator och öppna SideQuest. Välj ”Run ADB Command” och sedan ”Custom Command”, klistra in detta och välj ”Run Command”.</string>
     <string name="gate_choose_display">Välj vilken skärm Android-inställningar ska öppnas på.</string>
     <string name="gate_main_screen">Huvudskärm</string>
     <string name="wadb_finding_port">Ihopkopplad. Letar efter porten för Trådlös felsökning…</string>

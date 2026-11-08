@@ -1139,6 +1139,7 @@
     <string name="gate_enter_manually">手动输入地址</string>
     <string name="gate_from_computer">通过装有 ADB 的电脑：</string>
     <string name="gate_copy_command">复制命令</string>
+    <string name="gate_sidequest_steps">将头显连接到电脑并打开 SideQuest。依次选择“Run ADB Command”和“Custom Command”，粘贴此命令，然后选择“Run Command”。</string>
     <string name="gate_choose_display">选择在哪个屏幕上打开 Android 设置。</string>
     <string name="gate_main_screen">主屏幕</string>
     <string name="wadb_finding_port">已配对。正在查找无线调试端口…</string>

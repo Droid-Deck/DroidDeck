@@ -1073,6 +1073,7 @@
     <string name="gate_enter_manually">Zadat adresu ručně</string>
     <string name="gate_from_computer">Z počítače s ADB:</string>
     <string name="gate_copy_command">Kopírovat příkaz</string>
+    <string name="gate_sidequest_steps">Připojte headset k počítači a otevřete SideQuest. Zvolte „Run ADB Command“, pak „Custom Command“, vložte tento příkaz a vyberte „Run Command“.</string>
     <string name="gate_choose_display">Vyberte, na kterém displeji se má otevřít Nastavení Androidu.</string>
     <string name="gate_main_screen">Hlavní obrazovka</string>
     <string name="wadb_finding_port">Spárováno. Hledání portu Bezdrátového ladění…</string>

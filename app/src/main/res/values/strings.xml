@@ -1170,6 +1170,8 @@
     <string name="gate_enter_manually">Enter address manually</string>
     <string name="gate_from_computer">From a computer with ADB:</string>
     <string name="gate_copy_command">Copy command</string>
+    <string name="gate_sidequest" translatable="false">SideQuest</string>
+    <string name="gate_sidequest_steps">Connect the headset to a computer and open SideQuest. Choose “Run ADB Command”, then “Custom Command”, paste this and select “Run Command”.</string>
     <string name="gate_choose_display">Choose which display to open Android Settings on.</string>
     <string name="gate_main_screen">Main screen</string>
     <string name="wadb_finding_port">Paired. Finding the Wireless debugging port…</string>

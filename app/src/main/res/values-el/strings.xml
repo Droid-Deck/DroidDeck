@@ -1061,6 +1061,7 @@
     <string name="gate_enter_manually">Μη αυτόματη εισαγωγή διεύθυνσης</string>
     <string name="gate_from_computer">Από υπολογιστή με ADB:</string>
     <string name="gate_copy_command">Αντιγραφή εντολής</string>
+    <string name="gate_sidequest_steps">Συνδέστε το headset σε υπολογιστή και ανοίξτε το SideQuest. Επιλέξτε «Run ADB Command», μετά «Custom Command», επικολλήστε αυτό και επιλέξτε «Run Command».</string>
     <string name="gate_choose_display">Επιλέξτε σε ποια οθόνη θα ανοίξουν οι Ρυθμίσεις Android.</string>
     <string name="gate_main_screen">Κύρια οθόνη</string>
     <string name="wadb_finding_port">Έγινε σύζευξη. Αναζήτηση θύρας Ασύρματου εντοπισμού σφαλμάτων…</string>

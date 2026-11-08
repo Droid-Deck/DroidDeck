@@ -1067,6 +1067,7 @@
     <string name="gate_enter_manually">Introdu adresa manual</string>
     <string name="gate_from_computer">De pe un computer cu ADB:</string>
     <string name="gate_copy_command">Copiază comanda</string>
+    <string name="gate_sidequest_steps">Conectează căștile la un computer și deschide SideQuest. Alege „Run ADB Command”, apoi „Custom Command”, lipește aceasta și selectează „Run Command”.</string>
     <string name="gate_choose_display">Alege pe care afișaj se deschid Setările Android.</string>
     <string name="gate_main_screen">Ecranul principal</string>
     <string name="wadb_finding_port">Asociat. Se caută portul de Depanare wireless…</string>

@@ -1055,6 +1055,7 @@
     <string name="gate_enter_manually">手動でアドレスを入力</string>
     <string name="gate_from_computer">PCでADBを使用：</string>
     <string name="gate_copy_command">コマンドをコピー</string>
+    <string name="gate_sidequest_steps">ヘッドセットをパソコンにつないで SideQuest を開きます。「Run ADB Command」→「Custom Command」を選び、これを貼り付けて「Run Command」を選びます。</string>
     <string name="gate_choose_display">Android設定をどの画面で開くか選択してください。</string>
     <string name="gate_main_screen">メイン画面</string>
     <string name="wadb_finding_port">ペアリング済み。ワイヤレスデバッグのポートを検索中…</string>

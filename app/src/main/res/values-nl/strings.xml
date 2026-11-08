@@ -1061,6 +1061,7 @@
     <string name="gate_enter_manually">Adres handmatig invoeren</string>
     <string name="gate_from_computer">Vanaf een computer met ADB:</string>
     <string name="gate_copy_command">Opdracht kopiëren</string>
+    <string name="gate_sidequest_steps">Sluit de headset aan op een computer en open SideQuest. Kies ‘Run ADB Command’ en dan ‘Custom Command’, plak dit en selecteer ‘Run Command’.</string>
     <string name="gate_choose_display">Kies op welk scherm Android-instellingen wordt geopend.</string>
     <string name="gate_main_screen">Hoofdscherm</string>
     <string name="wadb_finding_port">Gekoppeld. Poort van Draadloos debuggen zoeken…</string>

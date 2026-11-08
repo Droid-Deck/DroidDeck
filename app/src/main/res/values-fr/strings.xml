@@ -1067,6 +1067,7 @@
     <string name="gate_enter_manually">Saisir l\'adresse manuellement</string>
     <string name="gate_from_computer">Utiliser ADB depuis un ordinateur :</string>
     <string name="gate_copy_command">Copier la commande</string>
+    <string name="gate_sidequest_steps">Branchez le casque à un ordinateur et ouvrez SideQuest. Choisissez « Run ADB Command », puis « Custom Command », collez ceci et sélectionnez « Run Command ».</string>
     <string name="gate_choose_display">Choisissez l\'écran sur lequel ouvrir les paramètres Android.</string>
     <string name="gate_main_screen">Écran principal</string>
     <string name="wadb_finding_port">Appairé. Recherche du port de débogage sans fil…</string>

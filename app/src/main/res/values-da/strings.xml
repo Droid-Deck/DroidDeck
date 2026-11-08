@@ -1061,6 +1061,7 @@
     <string name="gate_enter_manually">Indtast adresse manuelt</string>
     <string name="gate_from_computer">Fra en computer med ADB:</string>
     <string name="gate_copy_command">Kopier kommando</string>
+    <string name="gate_sidequest_steps">Slut headsettet til en computer, og åbn SideQuest. Vælg “Run ADB Command” og derefter “Custom Command”, indsæt dette, og vælg “Run Command”.</string>
     <string name="gate_choose_display">Vælg, hvilken skærm Android-indstillinger skal åbnes på.</string>
     <string name="gate_main_screen">Hovedskærm</string>
     <string name="wadb_finding_port">Parret. Finder porten for Trådløs fejlretning…</string>

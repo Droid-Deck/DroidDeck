@@ -1061,6 +1061,7 @@
     <string name="gate_enter_manually">Syötä osoite manuaalisesti</string>
     <string name="gate_from_computer">Tietokoneelta ADB:llä:</string>
     <string name="gate_copy_command">Kopioi komento</string>
+    <string name="gate_sidequest_steps">Liitä lasit tietokoneeseen ja avaa SideQuest. Valitse ”Run ADB Command” ja sitten ”Custom Command”, liitä tämä ja valitse ”Run Command”.</string>
     <string name="gate_choose_display">Valitse, millä näytöllä Android-asetukset avataan.</string>
     <string name="gate_main_screen">Päänäyttö</string>
     <string name="wadb_finding_port">Pariutui. Etsitään Langattoman virheenkorjauksen porttia…</string>

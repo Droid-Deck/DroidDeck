@@ -1053,6 +1053,7 @@
     <string name="gate_enter_manually">Adresi elle girin</string>
     <string name="gate_from_computer">ADB\'li bir bilgisayardan:</string>
     <string name="gate_copy_command">Komutu kopyala</string>
+    <string name="gate_sidequest_steps">Başlığı bir bilgisayara bağlayın ve SideQuest’i açın. “Run ADB Command”, ardından “Custom Command” seçin, bunu yapıştırın ve “Run Command” seçin.</string>
     <string name="gate_choose_display">Android Ayarları\'nın hangi ekranda açılacağını seçin.</string>
     <string name="gate_main_screen">Ana ekran</string>
     <string name="wadb_finding_port">Eşleşti. Kablosuz hata ayıklama bağlantı noktası bulunuyor…</string>

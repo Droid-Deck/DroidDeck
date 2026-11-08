@@ -1110,6 +1110,7 @@
     <string name="gate_enter_manually">Ввести адрес вручную</string>
     <string name="gate_from_computer">С компьютера через ADB:</string>
     <string name="gate_copy_command">Копировать команду</string>
+    <string name="gate_sidequest_steps">Подключите шлем к компьютеру и откройте SideQuest. Выберите «Run ADB Command», затем «Custom Command», вставьте эту команду и нажмите «Run Command».</string>
     <string name="gate_choose_display">Выберите экран для открытия настроек Android.</string>
     <string name="gate_main_screen">Главный экран</string>
     <string name="wadb_finding_port">Сопряжено. Поиск порта отладки по Wi-Fi…</string>
