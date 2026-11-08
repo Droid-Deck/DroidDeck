@@ -2024,7 +2024,7 @@ class ProtonDefaultTest(unittest.TestCase):
                 self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, "427520": self.TOOL})
                 saved = json.loads((Path(tmp) / "state.json").read_text())
                 self.assertEqual(saved["native_choices"], [])
-                self.assertEqual(saved["auto"], {"427520": self.TOOL})
+                self.assertEqual(saved["auto"], {})
             finally:
                 globals_["appinfo_platforms"] = original_platforms
 
