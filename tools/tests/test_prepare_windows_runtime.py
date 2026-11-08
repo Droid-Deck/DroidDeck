@@ -420,6 +420,36 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
             self.assertEqual(files['usr/local/share/droiddeck/pinyin.so'], b'ime')
             self.assertEqual(provenance, manifest)
 
+    def test_windows_ime_preparation_reports_default_image_build_failure(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'tools').mkdir(parents=True)
+            (root / 'tools/local-cross.Dockerfile').write_bytes(b'FROM ubuntu:24.04\n')
+            commands = []
+            build_error = prepare.subprocess.CalledProcessError(17, ['docker', 'build'])
+
+            def run(command, check=True, capture_output=False, text=False, input=None):
+                commands.append(command)
+                if command[1:3] == ['image', 'inspect']:
+                    return mock.Mock(returncode=1, stdout='', stderr='No such image')
+                if command[1] == 'build':
+                    raise build_error
+                self.fail('unexpected command: ' + repr(command))
+
+            with mock.patch.object(prepare, 'ROOT', root), \
+                    mock.patch.object(prepare.sys, 'platform', 'win32'), \
+                    mock.patch.object(prepare.shutil, 'which', return_value='docker'), \
+                    mock.patch.object(prepare.subprocess, 'run', side_effect=run):
+                with self.assertRaises(ValueError) as context:
+                    prepare.prepare_ime(prepare.vr_build.IMAGE)
+            message = str(context.exception)
+            self.assertIn(prepare.vr_build.IMAGE, message)
+            self.assertRegex(message, r'(?i)build.*default compiler')
+            self.assertRegex(message, r'(?i)output.*rerun')
+            self.assertIs(context.exception.__cause__, build_error)
+            self.assertEqual(context.exception.__cause__.returncode, 17)
+            self.assertEqual([cmd[1] for cmd in commands], ['image', 'build'])
+
     def test_windows_ime_preparation_stops_if_default_image_still_has_no_id_after_build(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

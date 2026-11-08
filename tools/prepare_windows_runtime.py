@@ -198,8 +198,12 @@ def prepare_ime(image):
             image_id = inspected.stdout.strip() if inspected.returncode == 0 else ''
             if not image_id and image == vr_build.IMAGE:
                 dockerfile = (ROOT / 'tools/local-cross.Dockerfile').read_bytes().replace(b'\r\n', b'\n')
-                subprocess.run([docker, 'build', '--platform', 'linux/amd64', '--tag', image,
-                                '--file', '-', str(temporary)], input=dockerfile, check=True)
+                try:
+                    subprocess.run([docker, 'build', '--platform', 'linux/amd64', '--tag', image,
+                                    '--file', '-', str(temporary)], input=dockerfile, check=True)
+                except subprocess.CalledProcessError as error:
+                    raise ValueError('IME preparation failed to build default compiler Docker image ' + image +
+                                     '; inspect the Docker build output above, resolve the build error, and rerun preparation') from error
                 inspected = subprocess.run([docker, 'image', 'inspect', '--format', '{{.Id}}', image],
                                            capture_output=True, text=True, check=False)
                 image_id = inspected.stdout.strip() if inspected.returncode == 0 else ''
