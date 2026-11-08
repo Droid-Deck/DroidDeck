@@ -686,10 +686,7 @@ class FrontEndActivity : ComponentActivity() {
             }
         }
         super.startActivity(intent)
-        if (intent?.component?.className == SessionActivity::class.java.name) {
-            recordPlayed(intent)
-            overridePendingTransition(R.anim.session_rise, R.anim.session_hold)
-        }
+        if (intent?.component?.className == SessionActivity::class.java.name) overridePendingTransition(R.anim.session_rise, R.anim.session_hold)
     }
 
     private fun launchFlooded(f: PendingFlood) {
@@ -707,7 +704,6 @@ class FrontEndActivity : ComponentActivity() {
         }
         val signal = com.droiddeck.launcher.ui.Themes.byId(theme).signal
         super.startActivity(f.intent.putExtra(com.droiddeck.launcher.ui.EXTRA_FLOOD, signal.toArgb()))
-        recordPlayed(f.intent)
         overridePendingTransition(0, 0)
     }
 
@@ -898,10 +894,10 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun Intent.playing(game: Library.SteamGame): Intent =
-        apply { if (game.library == Library.ADDED) putExtra(EXTRA_PLAYED_GAME, game.gameIdString) }
+        apply { if (game.library == Library.ADDED) putExtra(SessionActivity.EXTRA_PLAYED_GAME, game.gameIdString) }
 
     private fun recordPlayed(intent: Intent) {
-        intent.getStringExtra(EXTRA_PLAYED_GAME)?.let { Library.recordPlayed(this, it) }
+        intent.getStringExtra(SessionActivity.EXTRA_PLAYED_GAME)?.let { Library.recordPlayed(this, it) }
     }
 
     private fun Intent.returnTo(returnHome: Boolean): Intent {
@@ -3115,7 +3111,6 @@ class FrontEndActivity : ComponentActivity() {
         private const val SESSION_SWITCH_WAIT_MS = 30_000L
         private const val SESSION_SWITCH_POLL_MS = 250L
         private const val KEY_PENDING_SWITCH = "pending_switch"
-        private const val EXTRA_PLAYED_GAME = "com.droiddeck.launcher.PLAYED_GAME"
         private const val KEY_COMPAT_LAUNCH = "compat_launch"
         private const val KEY_COMPAT_MENU_INSTALL = "compat_menu_install"
         private const val KEY_COMPAT_PROBLEM = "compat_problem"

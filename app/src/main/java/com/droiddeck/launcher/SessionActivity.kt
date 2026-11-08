@@ -2225,6 +2225,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 intent.getStringExtra(SessionService.EXTRA_GAME_ID),
                 sessionActivityDisplayId,
             )
+            intent.getStringExtra(EXTRA_PLAYED_GAME)?.let { com.droiddeck.launcher.frontend.Library.recordPlayed(this, it) }
         }
         applyFrameGen()
         applyGameAlignment()
@@ -5390,6 +5391,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         const val EXTRA_RETURN_HOME = "returnHome"
         const val EXTRA_LINK_TASK = "linkTask"
         const val EXTRA_STEAMVR = "steamVr"
+        const val EXTRA_PLAYED_GAME = "com.droiddeck.launcher.PLAYED_GAME"
         const val EXTRA_REPAIR_RUNTIME = "repairRuntime"
         private const val LEAVE_TIMEOUT_MS = 1_500L
         private const val TEXT_FIELD_TAP_MS = 1_000L
