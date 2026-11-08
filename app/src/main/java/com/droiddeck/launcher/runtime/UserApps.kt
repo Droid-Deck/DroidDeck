@@ -307,11 +307,12 @@ object UserApps {
     }
 
     fun githubAsset(input: String): String? =
-        Regex("github\\.com/[\\w.-]+/[\\w.-]+/releases/download/[^/]+/([^/?#]+\\.appimage)(?:[?#].*)?$", RegexOption.IGNORE_CASE)
-            .find(input.trim())?.groupValues?.get(1)?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+        Regex("github\\.com/[\\w.-]+/[\\w.-]+/releases/(?:download/[^/]+|latest/download)/([^/?#]+\\.appimage)(?:[?#].*)?$", RegexOption.IGNORE_CASE)
+            .find(input.trim())?.groupValues?.get(1)?.let { runCatching { java.net.URLDecoder.decode(it, "UTF-8") }.getOrNull() }
 
     private fun assetVariant(name: String): Set<String> =
-        name.lowercase().split(Regex("[^a-z0-9]+")).filter { it.isNotEmpty() && !Regex("[0-9a-f]{7,}|v?[0-9]+").matches(it) }.toSet()
+        name.lowercase().replace(Regex("x86[_-]64|amd64"), "x64").replace(Regex("x86[_-]32|i[36]86"), "x32")
+            .split(Regex("[^a-z0-9]+")).filter { it.isNotEmpty() && !Regex("[0-9a-f]{7,}|v?[0-9]+").matches(it) }.toSet()
 
     internal fun pickAsset(names: List<String>, wanted: String? = null): String? {
         val images = names.filter { it.endsWith(".appimage", ignoreCase = true) }

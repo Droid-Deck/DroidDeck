@@ -85,5 +85,15 @@ class LinuxFexTest {
         assertNull(UserApps.githubAsset("Djihads80/Eglantine"))
         assertNull(UserApps.githubAsset("https://github.com/o/r/releases/download/v1/notes.txt"))
         assertEquals("My App-1.0-arm64.AppImage", UserApps.githubAsset("https://github.com/o/r/releases/download/v1.0/My%20App-1.0-arm64.AppImage"))
+        assertEquals("App-arm64.AppImage", UserApps.githubAsset("https://github.com/o/r/releases/latest/download/App-arm64.AppImage"))
+        assertEquals("o/r", UserApps.githubRepo("https://github.com/o/r/releases/latest/download/App-arm64.AppImage"))
+        assertNull(UserApps.githubAsset("https://github.com/o/r/releases/download/v1/bad%ZZ.AppImage"))
+    }
+
+    @Test fun theLinkedArchitectureWidthIsKept() {
+        val release = listOf("App-2.0-x86-32.AppImage", "App-2.0-x86_64.AppImage", "App-2.0-i686.AppImage")
+        assertEquals("App-2.0-x86_64.AppImage", UserApps.pickAsset(release, "App-1.0-x86_64.AppImage"))
+        assertEquals("App-2.0-x86-32.AppImage", UserApps.pickAsset(release, "App-1.0-x86-32.AppImage"))
+        assertEquals("App-2.0-amd64.AppImage", UserApps.pickAsset(listOf("App-2.0-i386.AppImage", "App-2.0-amd64.AppImage"), "App-1.0-x86_64.AppImage"))
     }
 }
