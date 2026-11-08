@@ -6,6 +6,8 @@ import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.os.Handler
+import com.droiddeck.launcher.input.steamcontroller.SteamControllerModel
+import com.droiddeck.launcher.input.steamcontroller.SteamControllerUuids
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -144,6 +146,39 @@ class SteamControllerBleTest {
             unused.stop()
             ReflectionHelpers.getField<Handler>(unused, "handler").looper.quit()
         }
+    }
+
+    @Test fun recognizesAllSteamControllerBleNames() {
+        assertTrue(SteamControllerUuids.isSteamControllerName("Steam Controller"))
+        assertTrue(SteamControllerUuids.isSteamControllerName("SteamController"))
+        assertTrue(SteamControllerUuids.isSteamControllerName("Steam Ctrl"))
+        assertFalse(SteamControllerUuids.isSteamControllerName("Xbox Wireless Controller"))
+        assertFalse(SteamControllerUuids.isSteamControllerName(null))
+    }
+
+    @Test fun original2015FragmentedNotificationRoutesThroughInputRouterAndTritonState() {
+        val device = BluetoothAdapter.getDefaultAdapter().getRemoteDevice("00:11:22:33:44:66")
+        val gatt = ShadowBluetoothGatt.newInstance(device)
+        val input2015 = SteamControllerUuids.INPUT_2015
+        val characteristic = BluetoothGattCharacteristic(input2015, BluetoothGattCharacteristic.PROPERTY_NOTIFY, 0)
+        val descriptor = BluetoothGattDescriptor(SteamControllerUuids.CCCD, 0)
+        characteristic.addDescriptor(descriptor)
+        ReflectionHelpers.setField(controller, "gatt", gatt)
+        ReflectionHelpers.setField(controller, "input", input2015)
+        ReflectionHelpers.setField(controller, "reportId", 0x45)
+        ReflectionHelpers.setField(controller, "model", SteamControllerModel.ORIGINAL_2015)
+
+        val callback = ReflectionHelpers.getField<BluetoothGattCallback>(controller, "callback")
+        callback.onDescriptorWrite(gatt, descriptor, BluetoothGatt.GATT_SUCCESS)
+        assertEquals(SteamControllerModel.ORIGINAL_2015, SteamControllerBle.activeModel)
+
+        val frag0 = byteArrayOf(0x80.toByte(), 0x14, 0x00, 0x80.toByte())
+        val frag1 = byteArrayOf(0xC1.toByte(), 0x00, 0x00)
+        callback.onCharacteristicChanged(gatt, characteristic, frag0)
+        assertTrue(keys.isEmpty())
+        callback.onCharacteristicChanged(gatt, characteristic, frag1)
+        assertEquals(listOf(57 to true), keys)
+        assertEquals(45, Writer.reports.last().size)
     }
 
     private fun subscribe(target: SteamControllerBle) {

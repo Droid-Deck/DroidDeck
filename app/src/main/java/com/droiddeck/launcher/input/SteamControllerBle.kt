@@ -12,7 +12,14 @@ import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.SystemClock
 import android.util.Log
+import com.droiddeck.launcher.input.steamcontroller.Sc2015PacketReassembler
+import com.droiddeck.launcher.input.steamcontroller.Sc2015ReportParser
+import com.droiddeck.launcher.input.steamcontroller.Sc2015State
+import com.droiddeck.launcher.input.steamcontroller.SteamControllerDebug
+import com.droiddeck.launcher.input.steamcontroller.SteamControllerModel
+import com.droiddeck.launcher.input.steamcontroller.SteamControllerUuids
 import com.droiddeck.launcher.session.SessionState
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -33,6 +40,15 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
     private var running = false
     private var input: UUID? = null
     private var reportId = 0
+    private var model = SteamControllerModel.TRITON_2025
+    private val reassembler2015 = Sc2015PacketReassembler()
+    private val state2015 = Sc2015State()
+    private val tritonBuffer2015 = ByteArray(STATE_BYTES)
+    private var packetCounter2015 = 0
+    private var connectTimeNs = 0L
+    private var pendingFeatureCmd2015 = 0
+    private var lastImuModeCmd2015: ByteArray? = null
+    private var lastHapticWriteMs = 0L
     private var lizardOffSent = false
     private var reportedNone = false
     private var discoveries = 0
@@ -46,6 +62,7 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         synchronized(slotLock) {
             slotOwner = this
             connected = false
+            activeModel = null
             FakeInputWriter.writeTritonState(SLOT, 0x45, ByteArray(STATE_BYTES))
             FakeInputWriter.setTritonConnected(SLOT, false)
         }
@@ -73,6 +90,7 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
                 if (slotOwner === this) {
                     FakeInputWriter.writeTritonState(SLOT, if (reportId == 0x47) 0x47 else 0x45, ByteArray(STATE_BYTES))
                     connected = false
+                    activeModel = null
                     FakeInputWriter.setTritonConnected(SLOT, false)
                     slotOwner = null
                 }
@@ -106,7 +124,8 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
             handler.postDelayed(::connect, RETRY_MS)
             return
         }
-        Log.i(TAG, "connecting to \"${device.name}\"")
+        reportedNone = false
+        Log.i(TAG, "connecting to \"${device.name}\" (${device.address})")
         gatt = device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE, BluetoothDevice.PHY_LE_1M_MASK, handler)
     }
 
@@ -118,6 +137,10 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         lizardOffSent = false
         outputWritePending = false
         featureRead = 0L
+        pendingFeatureCmd2015 = 0
+        lastImuModeCmd2015 = null
+        reassembler2015.reset()
+        state2015.reset()
         queuedWrites.clear()
         outputReports.clear()
         synchronized(inputLock) {
@@ -125,6 +148,7 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
                 release()
                 withSlot {
                     connected = false
+                    activeModel = null
                     FakeInputWriter.setTritonConnected(SLOT, false)
                 }
             }
@@ -138,6 +162,7 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
     private val callback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
             if (g !== gatt) return
+            SteamControllerDebug.log("GATT connection state change: status=$status newState=$newState")
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 g.discoverServices()
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
@@ -153,22 +178,28 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
                 if (running) handler.postDelayed(::connect, RETRY_MS)
                 return
             }
+            SteamControllerDebug.log("GATT services discovered, requesting MTU 517")
             if (!g.requestMtu(517)) subscribe(g)
         }
 
         override fun onMtuChanged(g: BluetoothGatt, mtu: Int, status: Int) {
+            SteamControllerDebug.log("GATT MTU changed: mtu=$mtu status=$status")
             if (g === gatt) subscribe(g)
         }
 
         override fun onDescriptorWrite(g: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
             withSlot {
                 if (g !== gatt || descriptor.characteristic.uuid != input) return
-                Log.i(TAG, "subscribed to report 0x%02x (status %d)".format(reportId, status))
+                Log.i(TAG, "subscribed to $model report 0x%02x (status %d)".format(reportId, status))
                 connected = status == BluetoothGatt.GATT_SUCCESS
+                activeModel = if (connected) model else null
                 FakeInputWriter.setTritonConnected(SLOT, connected)
             }
             listener?.invoke()
             if (connected) {
+                if (model == SteamControllerModel.ORIGINAL_2015) {
+                    runCatching { g.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH) }
+                }
                 refreshLizardMode()
                 pollOutput()
             }
@@ -178,7 +209,7 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
             if (g !== gatt) return
             if (characteristic.uuid == REPORT && !lizardOffSent) {
                 lizardOffSent = true
-                Log.i(TAG, "lizard mode off (status $status)")
+                Log.i(TAG, "lizard mode off for $model (status $status)")
             } else if (status != BluetoothGatt.GATT_SUCCESS) {
                 Log.w(TAG, "output report write failed for ${characteristic.uuid} (status $status)")
             }
@@ -197,13 +228,18 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         }
 
         override fun onCharacteristicChanged(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray) {
-            if (g === gatt && characteristic.uuid == input) onState(value)
+            if (g === gatt && characteristic.uuid == input) {
+                if (model == SteamControllerModel.ORIGINAL_2015) onNotification2015(value) else onState(value)
+            }
         }
 
         @Deprecated("Below Android 13 only", ReplaceWith(""))
         override fun onCharacteristicChanged(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
             @Suppress("DEPRECATION")
-            if (g === gatt && characteristic.uuid == input) onState(characteristic.value ?: return)
+            if (g === gatt && characteristic.uuid == input) {
+                val value = characteristic.value ?: return
+                if (model == SteamControllerModel.ORIGINAL_2015) onNotification2015(value) else onState(value)
+            }
         }
     }
 
@@ -222,27 +258,52 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
             }
             return
         }
-        val chr = service.getCharacteristic(INPUT_0X47)?.also { reportId = 0x47 }
-            ?: service.getCharacteristic(INPUT_0X45)?.also { reportId = 0x45 }
+        SteamControllerDebug.log("Valve service characteristics: " +
+            service.characteristics.joinToString { "${it.uuid.toString().take(8)}(props=0x${it.properties.toString(16)})" })
+
+        val chr = service.getCharacteristic(INPUT_0X47)?.also {
+            reportId = 0x47
+            model = SteamControllerModel.TRITON_2025
+        } ?: service.getCharacteristic(INPUT_0X45)?.also {
+            reportId = 0x45
+            model = SteamControllerModel.TRITON_2025
+        } ?: service.getCharacteristic(INPUT_2015)?.also {
+            reportId = 0x45
+            model = SteamControllerModel.ORIGINAL_2015
+        }
         if (chr == null) {
             disconnect("no state report characteristic")
             return
         }
         outputReports.clear()
-        service.characteristics.forEach { characteristic ->
-            val uuid = characteristic.uuid.toString().lowercase()
-            if (uuid.startsWith(OUTPUT_UUID_PREFIX)) {
-                val characteristicId = uuid.substring(6, 8).toIntOrNull(16) ?: return@forEach
-                val outputId = characteristicId - OUTPUT_UUID_OFFSET
-                if (outputId in 0x80..0x85) outputReports[outputId] = characteristic.uuid
+        if (model == SteamControllerModel.TRITON_2025) {
+            service.characteristics.forEach { characteristic ->
+                val uuid = characteristic.uuid.toString().lowercase()
+                if (uuid.startsWith(OUTPUT_UUID_PREFIX)) {
+                    val characteristicId = uuid.substring(6, 8).toIntOrNull(16) ?: return@forEach
+                    val outputId = characteristicId - OUTPUT_UUID_OFFSET
+                    if (outputId in 0x80..0x85) outputReports[outputId] = characteristic.uuid
+                }
             }
+            Log.i(TAG, "found Triton haptic reports: ${outputReports.keys.sorted().joinToString { "0x%02x".format(it) }}")
+        } else {
+            reassembler2015.reset()
+            state2015.reset()
+            packetCounter2015 = 0
+            connectTimeNs = System.nanoTime()
+            Log.i(TAG, "detected Steam Controller (2015 BLE) on characteristic ${chr.uuid.toString().take(8)}")
         }
-        Log.i(TAG, "found Triton haptic reports: ${outputReports.keys.sorted().joinToString { "0x%02x".format(it) }}")
         input = chr.uuid
         g.setCharacteristicNotification(chr, true)
         val cccd = chr.getDescriptor(CCCD) ?: return disconnect("state report cannot notify")
+        val useIndicate = chr.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY == 0 &&
+            chr.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE != 0
         @Suppress("DEPRECATION")
-        cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+        cccd.value = if (useIndicate) {
+            BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
+        } else {
+            BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+        }
         @Suppress("DEPRECATION")
         g.writeDescriptor(cccd)
     }
@@ -254,10 +315,36 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
 
     private fun refreshLizardMode() = withSlot {
         if (!connected) return@withSlot
-        val msg = ByteArray(FEATURE_BYTES)
-        msg[0] = 0x87.toByte(); msg[1] = 3; msg[2] = 9
-        enqueueOutput(REPORT, msg)
+        if (model == SteamControllerModel.ORIGINAL_2015) {
+            enqueueOutput(REPORT, SteamControllerUuids.VALVE_MODE_2015.copyOf())
+            lastImuModeCmd2015?.let { enqueueOutput(REPORT, it.copyOf()) }
+        } else {
+            val msg = ByteArray(FEATURE_BYTES)
+            msg[0] = 0x87.toByte(); msg[1] = 3; msg[2] = 9
+            enqueueOutput(REPORT, msg)
+        }
         handler.postDelayed(::refreshLizardMode, LIZARD_REFRESH_MS)
+    }
+
+    private fun onNotification2015(packet: ByteArray) = withSlot {
+        val deframed = reassembler2015.onNotification(packet) ?: return@withSlot
+        when (val parsed = Sc2015ReportParser.parse(deframed, state2015)) {
+            is Sc2015ReportParser.ParsedReport.State -> {
+                val elapsedUs = (System.nanoTime() - connectTimeNs) / 1_000L
+                val report = Sc2015ReportParser.toTritonReport(
+                    state = state2015,
+                    packetNum = ++packetCounter2015,
+                    elapsedUs = elapsedUs,
+                    out = tritonBuffer2015
+                )
+                onState(report)
+            }
+            is Sc2015ReportParser.ParsedReport.Status -> {
+                batteryVoltageMv = parsed.voltageMv
+                batteryPercent = parsed.batteryPercent
+            }
+            else -> Unit
+        }
     }
 
     private fun onState(data: ByteArray) = withSlot {
@@ -284,8 +371,13 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         val request = FakeInputWriter.readTritonFeatureRequest(SLOT)
         if (request != 0L && request != featureRead) {
             featureRead = request
-            queuedWrites.addLast(REPORT to null)
-            writeNextOutput()
+            if (model == SteamControllerModel.ORIGINAL_2015) {
+                val reply = Sc2015ReportParser.buildFeatureReply(pendingFeatureCmd2015, state2015.batteryVoltageMv)
+                FakeInputWriter.writeTritonFeatureReply(SLOT, featureRead, reply)
+            } else {
+                queuedWrites.addLast(REPORT to null)
+                writeNextOutput()
+            }
         }
         handler.postDelayed(::pollOutput, OUTPUT_POLL_MS)
     }
@@ -301,6 +393,24 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
 
     private fun sendOutputReport(feature: Boolean, report: ByteArray) {
         if (report.size < 2) return
+        if (model == SteamControllerModel.ORIGINAL_2015) {
+            if (feature) {
+                pendingFeatureCmd2015 = report[1].toInt() and 0xFF
+                Sc2015ReportParser.extractImuModeCommand(report)?.let { imuCmd ->
+                    lastImuModeCmd2015 = imuCmd
+                    enqueueOutput(REPORT, imuCmd)
+                }
+            } else {
+                val now = SystemClock.uptimeMillis()
+                if (now - lastHapticWriteMs >= HAPTIC_MIN_INTERVAL_2015_MS) {
+                    Sc2015ReportParser.toHapticPulseCommand(report)?.let { pulse ->
+                        lastHapticWriteMs = now
+                        enqueueOutput(REPORT, pulse)
+                    }
+                }
+            }
+            return
+        }
         val characteristic = if (feature) {
             REPORT
         } else {
@@ -358,20 +468,22 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         private const val LIZARD_REFRESH_MS = 3_000L
         private const val OUTPUT_POLL_MS = 4L
         private const val OUTPUT_RETRY_MS = 10L
+        private const val HAPTIC_MIN_INTERVAL_2015_MS = 25L
         private const val FEATURE_BYTES = 62
         private const val STATE_BYTES = 45
         private const val OUTPUT_UUID_PREFIX = "100f6c"
         private const val OUTPUT_UUID_OFFSET = 0x35
 
-        private val SERVICE = UUID.fromString("100F6C32-1735-4313-B402-38567131E5F3")
-        private val INPUT_0X45 = UUID.fromString("100F6C7A-1735-4313-B402-38567131E5F3")
-        private val INPUT_0X47 = UUID.fromString("100F6C7C-1735-4313-B402-38567131E5F3")
-        private val REPORT = UUID.fromString("100F6C34-1735-4313-B402-38567131E5F3")
-        private val CCCD = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+        private val SERVICE = SteamControllerUuids.SERVICE
+        private val INPUT_2015 = SteamControllerUuids.INPUT_2015
+        private val INPUT_0X45 = SteamControllerUuids.INPUT_0X45
+        private val INPUT_0X47 = SteamControllerUuids.INPUT_0X47
+        private val REPORT = SteamControllerUuids.REPORT
+        private val CCCD = SteamControllerUuids.CCCD
 
-        private fun isSteamController(device: BluetoothDevice): Boolean =
+        internal fun isSteamController(device: BluetoothDevice): Boolean =
             device.type and BluetoothDevice.DEVICE_TYPE_LE != 0 &&
-                (device.name ?: "").let { it.startsWith("Steam Ctrl") || it.startsWith("SteamController") }
+                SteamControllerUuids.isSteamControllerName(device.name)
 
         @JvmStatic
         fun hasPairedController(context: Context): Boolean {
@@ -383,6 +495,18 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
 
         @Volatile @JvmStatic
         var connected = false
+            private set
+
+        @Volatile @JvmStatic
+        var activeModel: SteamControllerModel? = null
+            private set
+
+        @Volatile @JvmStatic
+        var batteryVoltageMv = 0
+            private set
+
+        @Volatile @JvmStatic
+        var batteryPercent = 100
             private set
 
         @Volatile @JvmStatic
