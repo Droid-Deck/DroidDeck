@@ -103,18 +103,20 @@ class KeyboardHostTest {
     }
 
     @Config(sdk = [33])
-    @Test fun composingWithoutACommitReachesNoGuest() {
+    @Test fun latestCompositionIsCommittedOnceWhenFinished() {
         host.show()
         idle()
         val connection = connection()
 
         connection.setComposingText("zhong", 1)
         connection.setComposingText("中文", 1)
+        assertTrue(texts.isEmpty())
+        connection.finishComposingText()
         connection.finishComposingText()
         idle()
 
         assertTrue(keys.isEmpty())
-        assertTrue(texts.isEmpty())
+        assertEquals(listOf("中文"), texts)
     }
 
     @Config(sdk = [33])
@@ -125,9 +127,25 @@ class KeyboardHostTest {
 
         connection.setComposingText("zhong", 1)
         connection.commitText("中文", 1)
+        connection.finishComposingText()
         idle()
 
         assertEquals(listOf("中文"), texts)
+        assertTrue(keys.isEmpty())
+    }
+
+    @Config(sdk = [33])
+    @Test fun emptyCompositionCancelsPendingText() {
+        host.show()
+        idle()
+        val connection = connection()
+
+        connection.setComposingText("zhong", 1)
+        connection.setComposingText("", 1)
+        connection.finishComposingText()
+        idle()
+
+        assertTrue(texts.isEmpty())
         assertTrue(keys.isEmpty())
     }
 
@@ -150,11 +168,12 @@ class KeyboardHostTest {
         val connection = connection()
 
         assertTrue(connection.commitText("中文", 1))
+        assertTrue(connection.commitText("中文", 1))
         assertTrue(connection.commitText(" ", 1))
         assertTrue(connection.commitText("abc", 1))
         idle()
 
-        assertEquals("every commit must keep the order the IME sent it", listOf("中文", " ", "abc"), texts)
+        assertEquals("every commit must keep the order the IME sent it", listOf("中文", "中文", " ", "abc"), texts)
         assertTrue("no commit may take the key event path", keys.isEmpty())
     }
 

@@ -110,13 +110,25 @@ class KeyboardHost(
         // A press keeps the route chosen on its first down across repeats and the matching up.
         private val controlRoutes = HashMap<Int, Boolean>()
 
+        private var composingText = ""
+
         override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
+            composingText = ""
             type(text)
             return true
         }
 
-        override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean = true
-        override fun finishComposingText(): Boolean = true
+        override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
+            composingText = text?.toString().orEmpty()
+            return true
+        }
+
+        override fun finishComposingText(): Boolean {
+            val text = composingText
+            composingText = ""
+            type(text)
+            return true
+        }
 
         override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
             val controls = StringBuilder()

@@ -206,8 +206,9 @@ def prepare_ime(image):
                        '-v', str(packages) + ':/cache',
                        '-v', str(linuxfs) + ':/out',
                        image_id, 'sh', '-c',
-                       'apt-get update && apt-get install -y rpm2cpio cpio && '
-                       'python3 /src/tools/ime/prepare.py --packages /cache --download --output /out']
+                       'for tool in rpm2cpio cpio; do command -v "$tool" >/dev/null 2>&1 || { '
+                       'echo "missing $tool; rebuild compiler image using tools/local-cross.Dockerfile" >&2; exit 1; }; done; '
+                       'exec python3 /src/tools/ime/prepare.py --packages /cache --download --output /out']
         else:
             command = [sys.executable, str(script), '--packages', str(packages), '--download',
                        '--output', str(linuxfs)]

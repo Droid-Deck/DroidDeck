@@ -1807,7 +1807,7 @@ case $mode in
     rm -f "$HOME/.bl-restart-game" "$HOME/.bl-restarted-for"
     export IBUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR:-/run/droiddeck}/droiddeck-ibus-$$.sock"
     ime_ibus_pid=
-    if [ -x /usr/local/bin/droiddeck-steam-ime ]; then
+    if [ -x /usr/local/bin/droiddeck-steam-ime ] && [ -x /usr/local/lib/droiddeck-ime/ibus-engine-pinyin ]; then
       /usr/local/bin/droiddeck-steam-ime &
       ime_ibus_pid=$!
       ime_ready=0

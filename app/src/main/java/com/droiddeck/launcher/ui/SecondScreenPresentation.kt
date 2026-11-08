@@ -334,7 +334,10 @@ class SecondScreenPresentation(
                     (event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)) root.post { closeFieldKeyboard() }
                 handled
             },
-            sendText = { WaylandCompositor.textInputCommit(it) },
+            sendText = { text ->
+                WaylandCompositor.textInputCommit(text)
+                if (fieldKeyboard && text == "\r") root.post { closeFieldKeyboard() }
+            },
         )
         host.onImeChanged = { visible -> if (!visible && keyboardShown.value) keyboardClosed() }
         keyboardHost = host
