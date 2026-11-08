@@ -69,6 +69,8 @@ object EaLsx {
     @Volatile var game: Game? = null
     @Volatile private var account: Account? = null
     /** The one session of the current launch that may act for the account. */
+    /** Bumped whenever the launch changes; a connection accepted under an older one is not admitted. */
+    @Volatile private var generation = 0
     private val holder = java.util.concurrent.atomic.AtomicReference<Any?>(null)
     private var server: ServerSocket? = null
     private val lock = Any()
@@ -107,7 +109,9 @@ object EaLsx {
     }
 
     private fun closeSessions() {
+        generation++
         holder.set(null)
+        synchronized(sessions) { sessions.forEach { it.trusted = false } }
         for (socket in open) runCatching { socket.close() }
         open.clear()
     }
@@ -125,8 +129,9 @@ object EaLsx {
                 runCatching { client.close() }
                 continue
             }
+            val born = generation
             val session = runCatching { Session(client, client.getOutputStream(), verified == true) }.getOrNull()
-            val live = session != null && synchronized(lock) { server === socket && admit(session).also { if (it) open += client } }
+            val live = session != null && synchronized(lock) { server === socket && born == generation && admit(session).also { if (it) open += client } }
             if (!live) {
                 runCatching { client.close() }
                 continue
@@ -365,10 +370,10 @@ object EaLsx {
                 "AreChunksInstalledResponse", "ItemId" to m.attrs["ItemId"].orEmpty(), "Installed" to true,
                 body = m.children.joinToString("") { tag(it.first, body = esc(it.second)) },
             )
-            "GetAuthCode" -> tag("AuthCode", "value" to (who?.takeIf { session.trusted }?.authCode(m.attrs["ClientId"].orEmpty(), m.attrs["Scope"]) ?: "invalid"))
+            "GetAuthCode" -> tag("AuthCode", "value" to (who?.takeIf { session.trusted }?.authCode(m.attrs["ClientId"].orEmpty(), m.attrs["Scope"])?.takeIf { session.trusted } ?: "invalid"))
             "GetAuthToken" -> tag("AuthToken", "value" to if (!session.trusted) "" else (g?.validToken ?: who?.token().orEmpty()))
             "RequestLicense" -> {
-                val token = who?.takeIf { session.trusted }?.license(g?.contentId.orEmpty(), m.attrs["RequestTicket"].orEmpty(), m.attrs["TicketEngine"].orEmpty()).orEmpty()
+                val token = who?.takeIf { session.trusted }?.license(g?.contentId.orEmpty(), m.attrs["RequestTicket"].orEmpty(), m.attrs["TicketEngine"].orEmpty())?.takeIf { session.trusted }.orEmpty()
                 tag("RequestLicenseResponse", "License" to token)
             }
             "QueryEntitlements" -> {
