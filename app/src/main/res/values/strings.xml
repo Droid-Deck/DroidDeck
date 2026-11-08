@@ -1723,8 +1723,12 @@
     <string name="theme_icon_blue_detail">Black ground, white type, the blue for everything selected, focused or pressed.</string>
     <string name="theme_electric">Electric navy</string>
     <string name="theme_electric_detail">The blue brighter, on surfaces that lean navy instead of grey.</string>
-    <string name="theme_forest">Forest</string>
-    <string name="theme_forest_detail">Lighter forest-green surfaces with fresh leaf-green highlights.</string>
+    <string name="theme_forest">Leafy Green</string>
+    <string name="theme_forest_detail">Deep forest-green surfaces with fresh leafy-green highlights.</string>
+    <string name="theme_yellow">Solar Flare</string>
+    <string name="theme_yellow_detail">Dark surfaces with warm yellow and golden highlights.</string>
+    <string name="theme_white_red">Scarlet Snow</string>
+    <string name="theme_white_red_detail">Clean white surfaces with bold red highlights.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Colors that cycle through the rainbow. Follows Android\'s animation settings.</string>
     <string name="theme_rgb_speed">Speed</string>

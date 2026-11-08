@@ -1599,6 +1599,10 @@
     <string name="theme_icon_blue_detail">Černé pozadí, bílé písmo, modrá pro vše vybrané, zaměřené nebo stisknuté.</string>
     <string name="theme_electric">Elektrická modř</string>
     <string name="theme_electric_detail">Jasnější modrá na povrchách, které jsou spíše tmavomodré než šedé.</string>
+    <string name="theme_yellow">Sluneční erupce</string>
+    <string name="theme_yellow_detail">Tmavé povrchy s teplými žlutými a zlatými akcenty.</string>
+    <string name="theme_white_red">Šarlatový sníh</string>
+    <string name="theme_white_red_detail">Čistě bílé povrchy s výraznými červenými akcenty.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Barvy, které procházejí celou duhu. Respektuje nastavení animací v Androidu.</string>
     <string name="theme_rgb_speed">Rychlost</string>

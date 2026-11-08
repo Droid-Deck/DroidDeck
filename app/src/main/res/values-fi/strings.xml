@@ -1563,6 +1563,10 @@
     <string name="theme_icon_blue_detail">Musta pohja, valkoinen teksti, sininen kaikessa valitussa, kohdistetussa tai painetussa.</string>
     <string name="theme_electric">Sähköinen laivastonsininen</string>
     <string name="theme_electric_detail">Sininen kirkkaampana pinnoilla, jotka taittuvat harmaan sijaan laivastonsiniseen.</string>
+    <string name="theme_yellow">Auringonpurkaus</string>
+    <string name="theme_yellow_detail">Tummat pinnat lämpimin keltaisin ja kultaisin korostuksin.</string>
+    <string name="theme_white_red">Helakanpunainen lumi</string>
+    <string name="theme_white_red_detail">Puhtaanvalkoiset pinnat voimakkain punaisin korostuksin.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Värit, jotka kiertävät sateenkaaren läpi. Noudattaa Androidin animaatioasetuksia.</string>
     <string name="theme_rgb_speed">Nopeus</string>

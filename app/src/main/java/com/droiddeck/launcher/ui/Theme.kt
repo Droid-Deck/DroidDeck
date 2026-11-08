@@ -47,6 +47,8 @@ object Themes {
     const val ICON_BLUE = "blue"
     const val ELECTRIC = "electric"
     const val FOREST = "forest"
+    const val YELLOW = "yellow"
+    const val WHITE_RED = "white_red"
     const val INNER_GAMER = "inner_gamer"
     const val GRADIENT = "gradient"
 
@@ -134,6 +136,20 @@ object Themes {
             onBackground = Color(0xFFF0FAF1), onSurfaceVariant = Color(0xFFA8C4AC),
             primary = Color(0xFF55C93F), primary2 = Color(0xFF389B32), onPrimary = Color(0xFF071A05), signal = Color(0xFF55C93F),
             good = Color(0xFF4CD37F),
+        ),
+        Palette(
+            YELLOW, R.string.theme_yellow, R.string.theme_yellow_detail,
+            background = Color(0xFF171305), surface = Color(0xFF241E0B), surfaceVariant = Color(0xFF352B10), line = Color(0xFF4C3D17), line2 = Color(0xFF69531D),
+            onBackground = Color(0xFFFFF9E6), onSurfaceVariant = Color(0xFFD4C58F),
+            primary = Color(0xFFFFD43B), primary2 = Color(0xFFE6A817), onPrimary = Color(0xFF241800), signal = Color(0xFFFFD43B),
+            good = Color(0xFF4CD37F),
+        ),
+        Palette(
+            WHITE_RED, R.string.theme_white_red, R.string.theme_white_red_detail,
+            background = Color(0xFFF8F8F8), surface = Color(0xFFFFFFFF), surfaceVariant = Color(0xFFF0F0F0), line = Color(0xFFDDDDDD), line2 = Color(0xFFC8C8C8),
+            onBackground = Color(0xFF191919), onSurfaceVariant = Color(0xFF555555),
+            primary = Color(0xFFD62828), primary2 = Color(0xFFB71C1C), onPrimary = Color(0xFFFFFFFF), signal = Color(0xFFD62828),
+            good = Color(0xFF248548),
         ),
         innerGamer(0f),
         ThemeColors.palette(DEFAULT_PRIMARY, DEFAULT_SECONDARY, R.string.theme_gradient, R.string.theme_gradient_detail),

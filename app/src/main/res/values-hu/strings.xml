@@ -1563,6 +1563,10 @@
     <string name="theme_icon_blue_detail">Fekete alap, fehér betűk, a kék minden kijelölt, fókuszált vagy lenyomott elemhez.</string>
     <string name="theme_electric">Elektromos tengerészkék</string>
     <string name="theme_electric_detail">Fényesebb kék, szürke helyett tengerészkék felületeken.</string>
+    <string name="theme_yellow">Napkitörés</string>
+    <string name="theme_yellow_detail">Sötét felületek meleg sárga és arany kiemelésekkel.</string>
+    <string name="theme_white_red">Skarlátvörös hó</string>
+    <string name="theme_white_red_detail">Letisztult fehér felületek élénk piros kiemelésekkel.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">A szivárvány színein végigfutó színek. Követi az Android animációs beállításait.</string>
     <string name="theme_rgb_speed">Sebesség</string>
