@@ -749,6 +749,26 @@ class ReconcileTest(unittest.TestCase):
         self.assertIn(entry % ("10", COMPAT["FEX_TOOL"]), " ".join(config.read_text().split()))
         self.assertEqual(self.games(), {})
 
+    def test_our_default_the_client_does_not_list_survives_to_the_next_start(self):
+        build = "DroidDeck-Proton 11-11.4"
+        (self.steam / "compatibilitytools.d" / build).mkdir(parents=True)
+        (self.steam / "compatibilitytools.d" / build / COMPAT["EXTRA_WRAPPER"]).write_text("")
+        (self.state / "state.json").write_text(json.dumps({"default": build, "written": build, "source": "update", "auto": {"10": build}}))
+        page = FakePage({"0": TOOL, "10": build}, [TOOL, TOOL_11])
+        state = self.reconcile(page)
+        self.assertEqual((state["default"], state["source"], state["written"]), (build, "update", TOOL))
+        self.assertEqual(page.sets, [("10", TOOL), ("11", TOOL)])
+        config = self.steam / "config/config.vdf"
+        config.parent.mkdir(parents=True)
+        vdf = '"InstallConfigStore" { "Software" { "Valve" { "Steam" { "CompatToolMapping" { %s } } } } }'
+        entry = '"%s" { "name" "%s" "config" "" "priority" "250" }'
+        config.write_text(vdf % "".join(entry % (app, page.mapping[app]) for app in ("0", "10", "11")))
+        with mock.patch.dict(COMPAT["register_default"].__globals__, steam_running=lambda: False):
+            default = COMPAT["register_default"](str(config), ["10", "11"], catalog=COMPAT["tool_catalog"](str(self.steam)),
+                                                 directory=str(self.state), settle=True)
+        self.assertEqual(default, build)
+        self.assertEqual(COMPAT["read_config_mapping"](str(config)), {"0": build, "10": build, "11": build})
+
     def test_file_mode_defers_to_the_live_helper(self):
         (self.state / "live.pid").write_text("%d\n" % os.getpid())
         self.assertTrue(COMPAT["live_helper_running"]())

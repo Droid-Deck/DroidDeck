@@ -1078,7 +1078,8 @@ class Helper:
             wanted = COMPAT["requested_tool"](request, catalog)
             newer = isinstance(request.get("seq"), int) and request["seq"] > int(state.get("applied", 0) or 0)
             waiting = newer and wanted is not None and wanted not in self.known
-            default, state = COMPAT["choose_default"](top["selected"], state, request, live, apply_request=not waiting)
+            default, state = COMPAT["choose_default"](top["selected"], state, request, catalog, apply_request=not waiting,
+                                                     listed=[t["name"] for t in live])
             installed = COMPAT["installed_apps"](self.steam_root)
             self.installed = installed
             picks = COMPAT["valve_picks"](self.steam_root)
@@ -1137,7 +1138,7 @@ class Helper:
             state.update(
                 auto={app: tool for app, tool in auto.items() if tool is not COMPAT["NATIVE_CHOICE"]},
                 native_choices=sorted(refused_native | {app for app, tool in auto.items() if tool is COMPAT["NATIVE_CHOICE"]}),
-                picked=COMPAT["picked_after"](current, changes), tools=catalog, live=True,
+                picked=COMPAT["picked_after"](current, changes), tools=catalog, live=True, written=default,
                 games_applied=COMPAT["applied_game_requests"](requests, overrides, state))
             state.pop("native", None)
             if waiting:
