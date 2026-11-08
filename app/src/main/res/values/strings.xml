@@ -3222,6 +3222,7 @@
     <string name="storage_tool_redist">VC++ and DirectX installers games ask for</string>
     <string name="storage_tool_fex">Runs Linux x86 games</string>
     <string name="storage_tool_steam">Steam tool</string>
+    <string name="storage_tool_anticheat">Steam downloads this for games that ship anti-cheat, even when it is off. Removing it stalls their install at 0%</string>
     <string name="storage_tool_old_runtime">DroidDeck runs games without this runtime</string>
     <string name="storage_tool_x86_proton">x86 Proton, which DroidDeck cannot run</string>
     <string name="storage_tool_custom_default">Default for every game</string>
