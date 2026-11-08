@@ -686,7 +686,10 @@ class FrontEndActivity : ComponentActivity() {
             }
         }
         super.startActivity(intent)
-        if (intent?.component?.className == SessionActivity::class.java.name) overridePendingTransition(R.anim.session_rise, R.anim.session_hold)
+        if (intent?.component?.className == SessionActivity::class.java.name) {
+            recordPlayed(intent)
+            overridePendingTransition(R.anim.session_rise, R.anim.session_hold)
+        }
     }
 
     private fun launchFlooded(f: PendingFlood) {
@@ -704,6 +707,7 @@ class FrontEndActivity : ComponentActivity() {
         }
         val signal = com.droiddeck.launcher.ui.Themes.byId(theme).signal
         super.startActivity(f.intent.putExtra(com.droiddeck.launcher.ui.EXTRA_FLOOD, signal.toArgb()))
+        recordPlayed(f.intent)
         overridePendingTransition(0, 0)
     }
 
@@ -2977,7 +2981,6 @@ class FrontEndActivity : ComponentActivity() {
         val warn = installed == null && !com.droiddeck.launcher.core.DeviceSupport.canDraw(this)
         if (warn && available != null) { showNonAdreno = available; return false }
         startActivity(intent)
-        recordPlayed(intent)
         return true
     }
 
