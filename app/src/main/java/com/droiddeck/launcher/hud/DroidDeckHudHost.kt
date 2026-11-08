@@ -238,8 +238,10 @@ class DroidDeckHudHost(context: Context) {
     }
 
     private fun presentedFps(): Float {
-        if (FrameGen.mode(context).engine == FrameGen.ENGINE_OFF) return 0f
-        val stats = runCatching { WaylandCompositor.nativeFrameGenStats() }.getOrNull() ?: return 0f
+        val stats = runCatching {
+            WaylandCompositor.nativeFrameGenStats()
+        }.getOrNull() ?: return 0f
+
         return if (stats.size > 3 && stats[3] > 1f) stats[3] else 0f
     }
 

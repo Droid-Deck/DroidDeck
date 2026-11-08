@@ -1030,6 +1030,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     },
                 )
                 LaunchedEffect(AgentGuest.focusRevision, secondScreenDisplays.isNotEmpty()) {
+                    // Reaplica o perfil de Frame Generation quando o jogo em foco muda.
+                    if (
+                        SessionState.mode == SessionService.MODE_STEAM &&
+                        CompositorHost.isStarted
+                    ) {
+                        applyFrameGen()
+                    }
+
                     val nextGame = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         if (SessionState.mode == SessionService.MODE_RUN) SessionState.program?.let { "program:$it" }
                         else {
@@ -1708,6 +1716,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (refresh.followsSteam) {
             if (drawerGameProfileFollowState.followsSteam) {
                 drawerGameProfileId = result.selectedAppId
+                frameGen = FrameGen.mode(this, result.selectedAppId?.toString())
                 readDrawerTextureFiltering(result.selectedAppId)
             }
         }
