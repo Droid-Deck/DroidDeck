@@ -50,7 +50,7 @@ jobs:
             age=$(( $(date +%s) - IDLE_AT ))
           fi
           if [ "$age" -ge 0 ] && [ "$age" -lt 180 ]; then
-            labels='["self-hosted","droiddeck-fork"]'
+            labels='"droiddeck-fork"'
           fi
           echo "labels=$labels" >> "$GITHUB_OUTPUT"
           echo "Compile runner: \`$labels\`" >> "$GITHUB_STEP_SUMMARY"
