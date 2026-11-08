@@ -260,6 +260,8 @@ object SessionFiles {
         if (nativeUserland) {
             val relinked = com.droiddeck.launcher.runtime.NativeGuest.relinkAbsoluteSymlinks(context, root)
             if (relinked > 0) Log.i(TAG, "native userland: $relinked absolute symlinks made relative")
+            val patched = com.droiddeck.launcher.runtime.NativeGuest.patchForSeccomp(root)
+            if (patched > 0) Log.i(TAG, "native userland: $patched system call sites in ld.so and libc answer Android's blocked calls")
             com.droiddeck.launcher.runtime.NativeGuest.syncLibraryDirs(root)
         }
         if (ProotFastPath.enabled(context) && !nativeUserland) {

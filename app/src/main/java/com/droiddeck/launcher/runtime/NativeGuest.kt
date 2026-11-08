@@ -23,6 +23,13 @@ object NativeGuest {
     fun enabled(context: Context): Boolean =
         SessionPrefs.nativeUserland(context) && available(LinuxRuntime.rootDir(context))
 
+    /**
+     * Development switch: a guest path in etc/droiddeck/seccomp-sim names a helper that applies Android's
+     * app seccomp filter before the program starts, for devices (eng builds) that run apps without one.
+     */
+    fun simulator(root: File): File? = File(root, "etc/droiddeck/seccomp-sim").takeIf { it.isFile }
+        ?.readText()?.trim()?.takeIf { it.startsWith("/") }?.let { File(root, it.removePrefix("/")) }?.takeIf { it.isFile }
+
     fun hook(root: File): File = File(root, HOOK)
 
     fun loader(root: File): File? =
@@ -46,7 +53,8 @@ object NativeGuest {
     fun command(root: File, program: String, args: List<String>): List<String> {
         val loader = checkNotNull(loader(root)) { "no glibc loader in ${root.path}" }
         val host = File(root, program.removePrefix("/"))
-        return listOf(loader.path, "--argv0", host.name, host.path) + args
+        val launch = listOf(loader.path, "--argv0", host.name, host.path) + args
+        return simulator(root)?.let { listOf(it.path) + launch } ?: launch
     }
 
     /** The environment of the session process: the hook's root, the mounts proot used to make, the preload list. */
@@ -86,6 +94,13 @@ object NativeGuest {
         stamp.parentFile?.mkdirs()
         stamp.writeText(signature)
     }
+
+    /** See [ElfSeccompPatch]: the linker and libc must survive Android's seccomp filter before the hook loads. */
+    fun patchForSeccomp(root: File): Int =
+        listOf("usr/lib/ld-linux-aarch64.so.1", "usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1",
+            "usr/lib/aarch64-linux-gnu/libc.so.6", "usr/lib/libc.so.6")
+            .map { File(root, it) }.filter { it.exists() }
+            .distinctBy { it.canonicalPath }.sumOf { runCatching { ElfSeccompPatch.patchFile(it) }.getOrDefault(0) }
 
     private val HOST_LINK_TARGETS = listOf("/proc", "/dev", "/sys", "/sdcard", "/storage", "/data", "/system", "/vendor", "/apex",
         "/system_ext", "/product", "/odm", "/linkerconfig", "/mnt")

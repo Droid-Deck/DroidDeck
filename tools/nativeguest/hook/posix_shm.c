@@ -31,3 +31,26 @@ int shm_unlink(const char *name) {
 }
 
 #endif /* !DDNATV_HOST_TEST */
+
+#ifndef DDNATV_HOST_TEST
+// glibc's posix_spawn child resets every signal handler to its default, the hook's SIGSYS handler
+// included, before it runs the file actions, and "close everything from N" is close_range(), which
+// Android's seccomp filter answers with SIGSYS: the child died of it (Python's subprocess with
+// close_fds does this). The descriptors that are open now are closed one by one instead.
+int posix_spawn_file_actions_addclosefrom_np(posix_spawn_file_actions_t *actions, int from) {
+    if (!actions || from < 0) return EINVAL;
+    DIR *dir = opendir("/proc/self/fd");
+    if (!dir) return errno ? errno : ENOENT;
+    int self = dirfd(dir);
+    int ret = 0;
+    struct dirent *entry;
+    while (ret == 0 && (entry = readdir(dir)) != NULL) {
+        if (entry->d_name[0] < '0' || entry->d_name[0] > '9') continue;
+        int fd = atoi(entry->d_name);
+        if (fd < from || fd == self) continue;
+        ret = posix_spawn_file_actions_addclose(actions, fd);
+    }
+    closedir(dir);
+    return ret;
+}
+#endif
