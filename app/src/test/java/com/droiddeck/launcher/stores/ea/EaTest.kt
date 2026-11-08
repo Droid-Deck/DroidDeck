@@ -201,4 +201,29 @@ class EaTest {
         assertEquals("Mass Effect 3", m.title("de_DE"))
         assertEquals("/__Installer/touchup.exe", m.touchupPath)
     }
+
+    @Test fun aSyncRequestedWhileOneRunsIsNotLost() {
+        val gate = SyncGate()
+        assertTrue(gate.enter())
+        assertTrue(!gate.enter())
+        assertTrue(gate.leave())
+        assertTrue(!gate.leave())
+        assertTrue(gate.enter())
+        assertTrue(!gate.leave())
+    }
+
+    @Test fun aRequestRacingTheRunnersExitIsPickedUpBySomeone() {
+        repeat(200) {
+            val gate = SyncGate()
+            val runs = java.util.concurrent.atomic.AtomicInteger()
+            assertTrue(gate.enter())
+            val latch = java.util.concurrent.CountDownLatch(1)
+            val requester = Thread { latch.await(); if (gate.enter()) { runs.incrementAndGet(); while (gate.leave()) runs.incrementAndGet() } }
+            requester.start()
+            latch.countDown()
+            while (gate.leave()) runs.incrementAndGet()
+            requester.join()
+            assertTrue("the second request was dropped", runs.get() >= 1)
+        }
+    }
 }

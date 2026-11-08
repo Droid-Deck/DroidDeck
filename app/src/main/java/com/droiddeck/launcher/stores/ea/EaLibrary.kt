@@ -75,7 +75,7 @@ object EaLibrary {
     private const val ART_TTL_MS = 7 * 24 * 60 * 60 * 1000L
     private const val ART_THREADS = 4
     const val STORE_URL = "https://www.ea.com/ea-app/library"
-    private val running = AtomicBoolean(false)
+    private val gate = SyncGate()
     private val generation = java.util.concurrent.atomic.AtomicInteger()
 
     /** Makes any sync already running drop its results instead of writing or showing them. */
@@ -84,7 +84,6 @@ object EaLibrary {
     }
 
     private val cacheLock = Any()
-    private val again = AtomicBoolean(false)
     private val store = Store.EA
 
     fun cached(context: Context): List<EaGame> {
@@ -196,11 +195,15 @@ object EaLibrary {
     }
 
     fun sync(context: Context, force: Boolean) {
-        if (!running.compareAndSet(false, true)) {
-            again.set(true)
-            return
-        }
-        val app = context.applicationContext
+        if (!gate.enter()) return
+        var forced = force
+        do {
+            runCatching { syncOnce(context.applicationContext, forced) }
+            forced = true
+        } while (gate.leave())
+    }
+
+    private fun syncOnce(app: Context, force: Boolean) {
         val gen = generation.get()
         val prefs = EaPrefs.get(app)
         val cache = cached(app)
@@ -253,9 +256,34 @@ object EaLibrary {
         } catch (e: Exception) {
             StoresState.logLine("ea: library sync failed: ${e.javaClass.simpleName} ${e.message.orEmpty()}")
             problem(if (cache.isEmpty()) e.message ?: app.getString(R.string.stores_sync_failed) else null)
-        } finally {
-            running.set(false)
-            if (again.getAndSet(false)) sync(app, force = true)
         }
+    }
+}
+
+/** One sync at a time; a request made meanwhile makes the running one go round again rather than being lost. */
+internal class SyncGate {
+    private var busy = false
+    private var again = false
+
+    /** True when the caller should run; false when a running sync will pick the request up. */
+    @Synchronized
+    fun enter(): Boolean {
+        if (busy) {
+            again = true
+            return false
+        }
+        busy = true
+        return true
+    }
+
+    /** True when another round was requested while running; the caller stays the runner. */
+    @Synchronized
+    fun leave(): Boolean {
+        if (again) {
+            again = false
+            return true
+        }
+        busy = false
+        return false
     }
 }
