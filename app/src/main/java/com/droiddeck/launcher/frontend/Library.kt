@@ -224,9 +224,12 @@ object Library {
     }
 
     fun recordPlayed(context: Context, game: SteamGame) {
-        if (game.library != ADDED) return
+        if (game.library == ADDED) recordPlayed(context, game.gameIdString)
+    }
+
+    fun recordPlayed(context: Context, gameId: String) {
         context.getSharedPreferences(PLAYED, Context.MODE_PRIVATE).edit()
-            .putLong(game.gameIdString, System.currentTimeMillis() / 1000).apply()
+            .putLong(gameId, System.currentTimeMillis() / 1000).apply()
     }
 
     internal fun recordedPlay(context: Context, gameId: Long): Long =
