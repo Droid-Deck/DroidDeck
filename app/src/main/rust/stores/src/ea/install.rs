@@ -5,6 +5,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
+use std::os::unix::fs::FileExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Mutex;
@@ -26,6 +27,44 @@ const PROGRESS_EVERY_MS: u64 = 50;
 const CHECK_REPORT_EVERY: Duration = Duration::from_millis(200);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 const INFLATE_BUFFER: usize = 256 * 1024;
+/// Records larger than this are fetched as parallel ranges into a scratch file, then inflated,
+/// so one big file does not ride a single connection.
+pub const PART_BYTES: u64 = 16 * 1024 * 1024;
+const SPLIT_SUFFIX: &str = ".ddzip";
+
+struct Split {
+    tmp: PathBuf,
+    file: Mutex<Option<File>>,
+    received: Vec<AtomicU64>,
+    left: AtomicUsize,
+}
+
+#[derive(Clone, Copy)]
+enum Work {
+    Whole(usize),
+    Part { job: usize, part: usize, start: u64, len: u64 },
+}
+
+/// The fetches for each job: whole records, or byte ranges of one when it is large.
+fn works(jobs: &[&Planned], part_bytes: u64) -> Vec<Work> {
+    let mut out = Vec::new();
+    for (i, p) in jobs.iter().enumerate() {
+        let span = p.range_end - p.entry.local_offset + 1;
+        if span <= part_bytes * 2 {
+            out.push(Work::Whole(i));
+            continue;
+        }
+        let mut start = 0;
+        let mut part = 0;
+        while start < span {
+            let len = part_bytes.min(span - start);
+            out.push(Work::Part { job: i, part, start, len });
+            start += len;
+            part += 1;
+        }
+    }
+    out
+}
 pub const REPLACE_REFUSED: &str = "The install record could not be switched to updating; nothing was replaced";
 
 pub struct Request {
@@ -34,6 +73,7 @@ pub struct Request {
     pub max_workers: usize,
     pub process_workers: usize,
     pub ca_bundle: String,
+    pub part_bytes: u64,
 }
 
 impl Request {
@@ -53,6 +93,7 @@ impl Request {
             max_workers: v.get("maxWorkers").and_then(|n| n.as_u64()).unwrap_or(8) as usize,
             process_workers: v.get("processWorkers").and_then(|n| n.as_u64()).unwrap_or(2) as usize,
             ca_bundle: text("caBundle"),
+            part_bytes: v.get("partBytes").and_then(|n| n.as_u64()).filter(|n| *n > 0).unwrap_or(PART_BYTES),
         })
     }
 }
@@ -187,6 +228,8 @@ struct Placer<'a> {
     jobs: &'a [&'a Planned],
     game_dir: &'a Path,
     slots: Vec<Mutex<Option<Slot>>>,
+    splits: Vec<Option<Split>>,
+    works: Vec<Work>,
     placed: Vec<AtomicBool>,
     ledger: Mutex<Option<File>>,
     events: &'a dyn Events,
@@ -322,6 +365,10 @@ impl Placer<'_> {
         let Some(slot) = guard.as_mut() else {
             return Err(SinkError::Retry(format!("{}: data arrived before the start of the record", job.path)));
         };
+        self.consume(job, slot, data)
+    }
+
+    fn consume(&self, job: &Planned, slot: &mut Slot, data: &[u8]) -> Result<(), SinkError> {
         if slot.payload_from.is_none() {
             slot.header.extend_from_slice(data);
             match zip::local_header_len(&slot.header) {
@@ -355,9 +402,14 @@ impl Placer<'_> {
     fn finish(&self, i: usize) -> Result<u64, SinkError> {
         let job = self.jobs[i];
         let taken = self.slots[i].lock().expect("slot lock").take();
-        let Some(mut slot) = taken else {
+        let Some(slot) = taken else {
             return Err(SinkError::Retry(format!("{}: the record arrived empty", job.path)));
         };
+        self.complete(i, slot)
+    }
+
+    fn complete(&self, i: usize, mut slot: Slot) -> Result<u64, SinkError> {
+        let job = self.jobs[i];
         self.in_flight.fetch_sub(slot.consumed, Ordering::Relaxed);
         if slot.consumed != job.entry.compressed {
             let got = slot.consumed;
@@ -403,6 +455,90 @@ impl Placer<'_> {
         Ok(0)
     }
 
+    fn part_chunk(&self, i: usize, part: usize, start: u64, offset: u64, data: &[u8]) -> Result<(), SinkError> {
+        let job = self.jobs[i];
+        let Some(split) = self.splits[i].as_ref() else {
+            return Err(SinkError::Fatal(format!("{}: no split state", job.path)));
+        };
+        let mut file = split.file.lock().expect("split lock");
+        if file.is_none() {
+            let dest = self.game_dir.join(&job.path);
+            if let Some(parent) = dest.parent() {
+                fs::create_dir_all(parent).map_err(|e| SinkError::Fatal(self.fail(format!("Could not create the folder for {}: {e}", job.path))))?;
+            }
+            *file = Some(File::create(&split.tmp).map_err(|e| SinkError::Fatal(self.fail(format!("Could not write {}: {e}", job.path))))?);
+        }
+        let handle = file.as_ref().expect("split file");
+        if offset == 0 {
+            let old = split.received[part].swap(0, Ordering::Relaxed);
+            self.in_flight.fetch_sub(old, Ordering::Relaxed);
+        }
+        handle
+            .write_all_at(data, start + offset)
+            .map_err(|e| SinkError::Fatal(self.fail(format!("Could not write {}: {e}", job.path))))?;
+        drop(file);
+        split.received[part].fetch_add(data.len() as u64, Ordering::Relaxed);
+        self.in_flight.fetch_add(data.len() as u64, Ordering::Relaxed);
+        self.emit(false);
+        Ok(())
+    }
+
+    fn part_finish(&self, i: usize, part: usize, len: u64) -> Result<u64, SinkError> {
+        let job = self.jobs[i];
+        let Some(split) = self.splits[i].as_ref() else {
+            return Err(SinkError::Fatal(format!("{}: no split state", job.path)));
+        };
+        let got = split.received[part].load(Ordering::Relaxed);
+        if got != len {
+            return Err(SinkError::Retry(format!("{}: part {part} got {got} of {len} bytes", job.path)));
+        }
+        if split.left.fetch_sub(1, Ordering::SeqCst) != 1 {
+            return Ok(0);
+        }
+        let received: u64 = split.received.iter().map(|r| r.swap(0, Ordering::Relaxed)).sum();
+        self.in_flight.fetch_sub(received, Ordering::Relaxed);
+        let result = self.assemble(i, split);
+        let _ = fs::remove_file(&split.tmp);
+        *split.file.lock().expect("split lock") = None;
+        result.map_err(|e| match e {
+            SinkError::Retry(m) => SinkError::Fatal(self.fail(m)),
+            fatal => fatal,
+        })
+    }
+
+    fn assemble(&self, i: usize, split: &Split) -> Result<u64, SinkError> {
+        let job = self.jobs[i];
+        let mut source = File::open(&split.tmp).map_err(|e| SinkError::Fatal(self.fail(format!("Could not read {}: {e}", job.path))))?;
+        let mut slot = self.open(job).map_err(|e| SinkError::Fatal(self.fail(e)))?;
+        let mut buf = vec![0u8; 1024 * 1024];
+        loop {
+            if self.stop.load(Ordering::Relaxed) {
+                self.in_flight.fetch_sub(slot.consumed, Ordering::Relaxed);
+                discard(slot);
+                return Ok(0);
+            }
+            let n = match source.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => n,
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                Err(e) => {
+                    self.in_flight.fetch_sub(slot.consumed, Ordering::Relaxed);
+                    discard(slot);
+                    return Err(SinkError::Fatal(self.fail(format!("Could not read {}: {e}", job.path))));
+                }
+            };
+            if let Err(e) = self.consume(job, &mut slot, &buf[..n]) {
+                self.in_flight.fetch_sub(slot.consumed, Ordering::Relaxed);
+                discard(slot);
+                return Err(e);
+            }
+            if slot.consumed >= job.entry.compressed {
+                break;
+            }
+        }
+        self.complete(i, slot)
+    }
+
     fn record(&self, job: &Planned, dest: &Path) {
         let known = Known { crc: job.entry.crc32, size: job.entry.size, modified: modified_ms(dest) };
         if let Some(file) = self.ledger.lock().expect("ledger lock").as_mut() {
@@ -419,11 +555,17 @@ impl FetchSink for Sink<'_, '_> {
     }
 
     fn on_chunk(&self, item: &FetchItem, offset: u64, data: &[u8]) -> Result<(), SinkError> {
-        self.0.piece(item.id as usize, offset, data)
+        match self.0.works[item.id as usize] {
+            Work::Whole(i) => self.0.piece(i, offset, data),
+            Work::Part { job, part, start, .. } => self.0.part_chunk(job, part, start, offset, data),
+        }
     }
 
     fn on_finish(&self, item: &FetchItem, _total_len: u64) -> Result<u64, SinkError> {
-        self.0.finish(item.id as usize)
+        match self.0.works[item.id as usize] {
+            Work::Whole(i) => self.0.finish(i),
+            Work::Part { job, part, len, .. } => self.0.part_finish(job, part, len),
+        }
     }
 }
 
@@ -464,7 +606,11 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
     ));
 
     for p in &planned {
-        let _ = fs::remove_file(temp_path(&req.game_dir.join(&p.path)));
+        let dest = req.game_dir.join(&p.path);
+        let _ = fs::remove_file(temp_path(&dest));
+        let mut split = dest.into_os_string();
+        split.push(SPLIT_SUFFIX);
+        let _ = fs::remove_file(split);
     }
 
     ev.status("Checking files…");
@@ -541,10 +687,30 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
     let ledger_file = OpenOptions::new().append(true).open(req.game_dir.join(LEDGER)).ok();
 
     let host = origin(&req.url);
+    let works = works(&remote, req.part_bytes);
+    let splits: Vec<Option<Split>> = remote
+        .iter()
+        .enumerate()
+        .map(|(i, p)| {
+            let parts = works.iter().filter(|w| matches!(w, Work::Part { job, .. } if *job == i)).count();
+            (parts > 0).then(|| {
+                let mut name = req.game_dir.join(&p.path).into_os_string();
+                name.push(SPLIT_SUFFIX);
+                Split {
+                    tmp: PathBuf::from(name),
+                    file: Mutex::new(None),
+                    received: (0..parts).map(|_| AtomicU64::new(0)).collect(),
+                    left: AtomicUsize::new(parts),
+                }
+            })
+        })
+        .collect();
     let placer = Placer {
         jobs: &remote,
         game_dir: &req.game_dir,
         slots: remote.iter().map(|_| Mutex::new(None)).collect(),
+        splits,
+        works: works.clone(),
         placed: remote.iter().map(|_| AtomicBool::new(false)).collect(),
         ledger: Mutex::new(ledger_file),
         events: ev,
@@ -568,7 +734,7 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
     let hosts = vec![host.clone()];
     let options = FetchOptions {
         max_workers: window,
-        per_host_cap: window.max(6),
+        per_host_cap: window,
         timeout: REQUEST_TIMEOUT,
         headers: vec![("User-Agent".to_string(), net::user_agent())],
         ca_bundle_path: req.ca_bundle.clone(),
@@ -576,13 +742,22 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
         label: "ea".to_string(),
         stream: true,
     };
-    let items: Vec<FetchItem> = remote
+    let items: Vec<FetchItem> = works
         .iter()
         .enumerate()
-        .map(|(i, p)| FetchItem { id: i as u64, urls: vec![req.url.clone()], reserve: 0, range: Some((p.entry.local_offset, p.range_end)) })
+        .map(|(n, w)| {
+            let range = match *w {
+                Work::Whole(i) => (remote[i].entry.local_offset, remote[i].range_end),
+                Work::Part { job, start, len, .. } => {
+                    let at = remote[job].entry.local_offset + start;
+                    (at, at + len - 1)
+                }
+            };
+            FetchItem { id: n as u64, urls: vec![req.url.clone()], reserve: 0, range: Some(range) }
+        })
         .collect();
     ev.status("Downloading…");
-    ev.log(&format!("engine files={} window={window} hosts={}", remote.len(), distinct_host_count(&hosts)));
+    ev.log(&format!("engine files={} requests={} window={window} hosts={}", remote.len(), items.len(), distinct_host_count(&hosts)));
     placer.emit(true);
     let log = |line: &str| ev.log(line);
     let outcome = if items.is_empty() {
@@ -594,6 +769,10 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
         if let Some(active) = slot.lock().expect("slot lock").take() {
             discard(active);
         }
+    }
+    for split in placer.splits.iter().flatten() {
+        *split.file.lock().expect("split lock") = None;
+        let _ = fs::remove_file(&split.tmp);
     }
     placer.emit(true);
     let placed_all = placer.placed.iter().all(|p| p.load(Ordering::SeqCst));

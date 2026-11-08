@@ -155,7 +155,8 @@ impl Events for Recorder {
 }
 
 fn sample() -> Vec<(&'static str, Vec<u8>, bool)> {
-    let big: Vec<u8> = (0..900_000u32).map(|i| (i * 7 % 251) as u8).collect();
+    let mut seed = 0x1234_5678u32;
+    let big: Vec<u8> = (0..900_000u32).map(|_| { seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12_345); (seed >> 16) as u8 }).collect();
     vec![
         ("__Installer/installerdata.xml", b"<DiPManifest version=\"4.0\"></DiPManifest>".to_vec(), true),
         ("Game.exe", big, true),
@@ -166,7 +167,7 @@ fn sample() -> Vec<(&'static str, Vec<u8>, bool)> {
 }
 
 fn request(url: &str, dir: &Path) -> Request {
-    Request { url: url.to_string(), game_dir: dir.to_path_buf(), max_workers: 4, process_workers: 2, ca_bundle: String::new() }
+    Request { url: url.to_string(), game_dir: dir.to_path_buf(), max_workers: 4, process_workers: 2, ca_bundle: String::new(), part_bytes: 64 * 1024 }
 }
 
 fn temp_dir(name: &str) -> PathBuf {
@@ -241,4 +242,17 @@ fn reports_the_archive_size() {
     assert_eq!(answer["fileCount"], 4);
     let expected: usize = sample().iter().map(|f| f.1.len()).sum();
     assert_eq!(answer["totalBytes"], expected as u64);
+}
+
+#[test]
+fn large_records_arrive_in_parallel_parts() {
+    let dir = temp_dir("parts");
+    let server = serve(build_zip(&sample()).bytes);
+    let before = server.requests.load(Ordering::SeqCst);
+    let done = run(&request(&server.url, &dir), &AtomicBool::new(false), &Recorder::default()).unwrap();
+    assert_eq!(done.files_written, 4);
+    assert!(server.requests.load(Ordering::SeqCst) - before > 6);
+    assert_eq!(fs::read(dir.join("Game.exe")).unwrap(), sample()[1].1);
+    assert!(fs::read_dir(&dir).unwrap().all(|e| !e.unwrap().file_name().to_string_lossy().ends_with(".ddzip")));
+    let _ = fs::remove_dir_all(&dir);
 }
