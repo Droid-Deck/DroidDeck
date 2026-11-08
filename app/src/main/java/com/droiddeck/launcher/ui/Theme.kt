@@ -58,7 +58,7 @@ object Themes {
     const val RGB_SPEEDS = 10
     const val DEFAULT_RGB_SPEED = 3
     const val RGB_HUE_STEP = 3f
-const val WHITE_RED = "white_red"
+    const val WHITE_RED = "white_red"
 
     var rgbSpeed by mutableStateOf(DEFAULT_RGB_SPEED)
         private set
