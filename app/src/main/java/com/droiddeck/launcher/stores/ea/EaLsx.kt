@@ -97,8 +97,14 @@ object EaLsx {
             runCatching { server?.close() }
             server = null
             game = null
+            account = null
+            for (socket in open) runCatching { socket.close() }
+            open.clear()
         }
     }
+
+    private val open = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<Socket, Boolean>())
+    private const val HANDSHAKE_TIMEOUT_MS = 15_000
 
     private fun accept(socket: ServerSocket) {
         while (!socket.isClosed) {
@@ -113,7 +119,8 @@ object EaLsx {
                 runCatching { client.close() }
                 continue
             }
-            Thread({ try { serve(client) } finally { clients.decrementAndGet() } }, "ea-lsx-client").apply { isDaemon = true }.start()
+            open += client
+            Thread({ try { serve(client) } finally { open -= client; clients.decrementAndGet() } }, "ea-lsx-client").apply { isDaemon = true }.start()
         }
     }
 
@@ -153,6 +160,7 @@ object EaLsx {
 
     private fun serve(client: Socket) {
         client.tcpNoDelay = true
+        client.soTimeout = HANDSHAKE_TIMEOUT_MS
         val session = Session(client.getOutputStream())
         val seen = LinkedHashSet<String>()
         var why = "closed by the game"
@@ -174,10 +182,13 @@ object EaLsx {
                             .onFailure { note("${message.name} failed: ${it.javaClass.simpleName}") }.getOrNull()
                         if (reply != null) session.send("<LSX><Response sender=\"${esc(message.recipient)}\" id=\"${esc(message.id)}\">$reply</Response></LSX>")
                         session.pending?.let { session.key = it; session.pending = null }
+                        if (session.trusted && client.soTimeout != 0) client.soTimeout = 0
                     }
                 }
                 if (pending.size() > 4 * 1024 * 1024) { why = "message too large"; break }
             }
+        } catch (e: java.net.SocketTimeoutException) {
+            why = "no trusted handshake in time"
         } catch (e: Exception) {
             why = e.javaClass.simpleName
         } finally {
