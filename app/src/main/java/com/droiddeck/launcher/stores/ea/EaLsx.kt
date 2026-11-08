@@ -131,7 +131,12 @@ object EaLsx {
                 runCatching { client.close() }
                 continue
             }
-            open += client
+            val live = synchronized(lock) { (server === socket).also { if (it) open += client } }
+            if (!live) {
+                clients.decrementAndGet()
+                runCatching { client.close() }
+                break
+            }
             Thread({ try { serve(client, verified == true) } finally { open -= client; clients.decrementAndGet() } }, "ea-lsx-client").apply { isDaemon = true }.start()
         }
     }
