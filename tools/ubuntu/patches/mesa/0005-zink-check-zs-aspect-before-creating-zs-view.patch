@@ -1,0 +1,41 @@
+From d55418dae753c8daacf66ab81a7481094808576a Mon Sep 17 00:00:00 2001
+From: Icenowy Zheng <zhengxingda@iscas.ac.cn>
+Date: Sun, 31 May 2026 21:56:32 +0800
+Subject: [PATCH] zink: check Z/S aspect before creating Z/S image view
+
+When moving the code of creating image views to the init_sampler_view()
+function, the check for Z/S aspect bits was forgotten to be added
+(because it was a big if gating a lot of code originally).
+
+When the driver doesn't have needs_zs_shader_swizzle set, this is not
+problematic, because the condition for creating Z/S view is to have only
+Z aspect; however the needs_zs_shader_swizzle case now fails because Z/S
+views are now created for color images.
+
+Fix the issue by re-adding the Z/S aspect check before checking
+needs_zs_shader_swizzle flag.
+
+Fixes: cafa22142bf1 ("zink: create views for samplers lazily")
+Signed-off-by: Icenowy Zheng <zhengxingda@iscas.ac.cn>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/41923>
+---
+ src/gallium/drivers/zink/zink_context.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/gallium/drivers/zink/zink_context.c b/src/gallium/drivers/zink/zink_context.c
+index e264e57b2703..41bc1b6932a7 100644
+--- a/src/gallium/drivers/zink/zink_context.c
++++ b/src/gallium/drivers/zink/zink_context.c
+@@ -1173,7 +1173,8 @@ init_sampler_view(struct zink_context *ctx, struct zink_sampler_view *sv)
+ 
+    bool red_depth_sampler_view = false;
+    if (sv->ivci.subresourceRange.aspectMask == VK_IMAGE_ASPECT_DEPTH_BIT ||
+-       screen->driver_compiler_workarounds.needs_zs_shader_swizzle) {
++       ((sv->ivci.subresourceRange.aspectMask & (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)) &&
++        screen->driver_compiler_workarounds.needs_zs_shader_swizzle)) {
+       VkComponentSwizzle *swizzle = (VkComponentSwizzle*)&sv->ivci.components;
+       for (unsigned i = 0; i < 4; i++) {
+          if (swizzle[i] == VK_COMPONENT_SWIZZLE_ONE ||
+-- 
+GitLab
+
