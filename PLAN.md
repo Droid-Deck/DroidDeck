@@ -1,55 +1,33 @@
 # Implementation Plan: Native Bluetooth LE Support for Steam Controller (2015)
 
 ## Done (with commit hashes)
-- `2dfc2c00`: Initial exploration pass of DroidDeck codebase and reference implementations (`HIDDeviceBLESteamController.java`, `hid-steam.c`, `SDL_hidapi_steam.c`, `controller_structs.h`, `SdlBridge`).
-- `2dfc2c00`: Produced architectural design document: `DESIGN.md`.
-- `fd816b3c`: Updated `DESIGN.md` and `PLAN.md` with pair-programming architectural decisions.
+- `2dfc2c00`: Initial exploration pass of DroidDeck codebase and reference implementations (`HIDDeviceBLESteamController.java`, `hid-steam.c`, `SDL_hidapi_steam.c`, `controller_structs.h`, `SdlBridge`); produced `DESIGN.md` and initialized `PLAN.md`.
+- `81c3ad85`: Recorded pair-programming architectural decisions in `DESIGN.md` and `PLAN.md`.
+- `f961c5e9`: Implemented `com.droiddeck.launcher.input.steamcontroller` package (`SteamControllerModel`, `SteamControllerDebug`, `Sc2015PacketReassembler`, `Sc2015State`, `Sc2015ReportParser`) plus JVM unit tests (`Sc2015PacketReassemblerTest`, `Sc2015ReportParserTest`).
+- `6ebe1702`: Integrated Steam Controller 2015 BLE detection, MTU-23 handling, ValveMode switch (`{0xC0, 0x87, 0x03, 0x08, 0x07, 0x00}`), `CONNECTION_PRIORITY_HIGH`, fragmented notification reassembly, Triton 45-byte state translation, feature reply synthesis, and haptic pulse translation into `SteamControllerBle.kt`, with Robolectric unit tests in `SteamControllerBleTest.kt`.
 
 ## In progress
-- **Phase 0 — Research & design**:
-  - Validating design assumptions with maintainer / team partner.
-  - Reviewing BLE GATT characteristics, fragment reassembly strategy, and input pipeline adaptation.
+- **Hardware verification (Phases 1–4)**:
+  - Testing BLE connection, service discovery, ValveMode switch, and full input/trackpad/gyro/grip/haptic pipeline on a physical Steam Controller (2015) with `adb logcat`.
 
 ## Next steps
-- **Phase 1 — BLE GATT connection layer**:
-  - Scan/filter for the 2015 controller (`Steam Controller*` / `Steam Ctrl*`).
-  - Connect, discover services and characteristics (detect `100F6C33` for 2015 vs `100F6C7A`/`7C` for 2025 Triton).
-  - Handle MTU negotiation (fallback safely if MTU 23 is enforced).
-  - Subscribe to CCCD on `100F6C33` with Android version-compatible descriptors.
-  - Add debug logging with raw hex dumps behind `SC_DEBUG_LOG` flag.
-  - Provide hardware test checklist for Phase 1.
-- **Phase 2 — Mode switch**:
-  - Send the ValveMode feature report `{0xC0, 0x87, 0x03, 0x08, 0x07, 0x00}` to `100F6C34`.
-  - Verify exit from lizard mode.
-  - Implement 3-second keep-alive refresh to prevent reversion to lizard mode.
-  - Handle re-sending on reconnect.
-  - Provide hardware test checklist for Phase 2.
-- **Phase 3 — Input report parsing**:
-  - Implement `Sc2015PacketReassembler` (handling `0x80..0x8F` and `0xC0..0xCF`).
-  - Implement `Sc2015ReportParser` for state report ID 4 (`k_EBLEReportState` with chunk bitmask) and status report ID 5 (`k_EBLEReportStatus`).
-  - Unit tests for packet reassembly and report decoding with synthetic binary fixtures.
-  - Provide hardware test checklist for Phase 3.
-- **Phase 4 — Integration with the input pipeline**:
-  - Map decoded 2015 events into DroidDeck's controller abstraction (`FakeInputWriter` / `TritonInputRouter` / `DeckControls`).
-  - Verify full mapping: face buttons (A/B/X/Y), bumpers, triggers (analog + click), stick, both trackpads (coordinates + touches + clicks), rear grips (LG/RG), and IMU/gyro.
-  - Hardware test checklist for Phase 4.
 - **Phase 5 — Robustness & UX**:
-  - Reconnect resilience during session suspension / resume.
-  - Battery level reporting from status packet (Report 5).
-  - User documentation (BLE firmware requirement via steamcontroller.tools, pairing combo Steam+Y, BLE bandwidth vs 2.4GHz dongle limits).
+  - Verify reconnect resilience across session suspend/resume on physical hardware.
+  - Evaluate exposing `SteamControllerBle.batteryPercent` / `batteryVoltageMv` in FusionHUD if desired by upstream.
+  - Add user-facing documentation (2018 BLE firmware requirement via `steamcontroller.tools`, `Steam+Y` pairing combo, BLE vs 2.4GHz dongle limits).
 - **Phase 6 — PR preparation**:
-  - Codebase cleanup and unit test verification (`./gradlew testDebugUnitTest`).
-  - Finalize documentation and PR description.
-  - Draft coordination message for GitHub Discussion #149.
+  - Final cleanup and consolidation based on hardware test logs.
+  - Draft coordination message for GitHub Discussion #149 (`@xXJSONDeruloXx`) and upstream PR description.
 
 ## Open questions & Decisions
-1. **Input Pipeline Representation**:
-   - **Decision:** Target Option B (native hidraw node `0005:28DE:1106` via `/dev/hidraw22`) as primary implementation; preserve Option A (Triton 45-byte ring buffer translation) as fallback.
+1. **Input Pipeline Representation (Option B vs Option A Constraint Discovered)**:
+   - **Finding**: `app/src/main/cpp/fakeinput_steam.cpp` is SHA-256 pinned in `tools/components/preloads.lock.json` (`3d11e859...`), and `tools/prepare_windows_runtime.py` rejects local Windows APK builds (`ValueError: Unreviewed runtime/native/Rust changes: app/src/main/cpp/fakeinput_steam.cpp`) unless the Linux/x86/arm64 preload archives are rebuilt in Docker and re-locked.
+   - **Resolution**: Activated **Option A** (translating `Sc2015State` in Kotlin into the 45-byte Triton report format on `/dev/hidraw18` and synthesizing feature replies in `Sc2015ReportParser.buildFeatureReply`), which requires zero modifications to `fakeinput_steam.cpp` and works directly with the prebuilt `libfakeinput.so` in local Windows builds. We will ask `@xXJSONDeruloXx` in Discussion #149 whether he prefers keeping this zero-native-diff Option A or adding a dedicated `/dev/hidraw22` (`0005:28DE:1106`) node when he regenerates `preloads.lock.json`.
 2. **Modularization Strategy**:
-   - **Decision:** Option B (subpackage `com.droiddeck.launcher.input.steamcontroller.*` with isolated protocol handlers and unit tests).
+   - **Decision**: Implemented Option B (`com.droiddeck.launcher.input.steamcontroller.*` subpackage with isolated unit tests).
 3. **Battery Exposure**:
-   - **Decision:** Decode and log in debug during early phases; evaluate FusionHUD exposure in Phase 5.
+   - **Decision**: Decoded from BLE Report 5 (`k_EBLEReportStatus`), logged in debug, exposed on `SteamControllerBle.batteryVoltageMv` / `batteryPercent`, and reported in `GET_ATTRIBUTES_VALUES` (`0x83` tag `0x0B`).
 4. **Connection Priority**:
-   - **Decision:** Request `BluetoothGatt.CONNECTION_PRIORITY_HIGH` upon entering ValveMode.
+   - **Decision**: Requests `BluetoothGatt.CONNECTION_PRIORITY_HIGH` upon entering ValveMode.
 5. **Haptics/Rumble**:
-   - **Decision:** Option A (implement rumble in Phase 4/5 after inputs are proven stable).
+   - **Decision**: Translates Triton haptic/rumble output reports (`0x80`–`0x85`) into 10-byte 2015 BLE haptic pulse packets (`0x8F`) on `100F6C34` with 25ms rate limiting.
