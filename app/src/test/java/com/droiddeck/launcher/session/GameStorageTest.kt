@@ -95,6 +95,14 @@ class GameStorageTest {
         assertFalse(GameStorage.attached(File("/mnt/media_rw/B2BD-BCFC/STEAM GAMES")) { null })
     }
 
+    @Test fun aSavedFolderThatIsThereIsAttachedWhateverItsVolumeReports() {
+        val folder = tmp.newFolder("card", "STEAM GAMES")
+        listOf(Environment.MEDIA_UNKNOWN, Environment.MEDIA_UNMOUNTED, Environment.MEDIA_REMOVED, null).forEach {
+            assertTrue(GameStorage.attached(folder, it, externalStoragePath = true))
+        }
+        assertTrue(GameStorage.attached(folder) { Environment.MEDIA_UNKNOWN })
+    }
+
     @Test fun onlyASavedDriveThatIsMissingCountsAsDisconnected() {
         SessionPrefs.setGameStorage(app, "", "")
         assertFalse(GameStorage.disconnected(app))

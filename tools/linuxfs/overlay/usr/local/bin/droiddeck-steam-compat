@@ -1078,7 +1078,9 @@ class Helper:
             wanted = COMPAT["requested_tool"](request, catalog)
             newer = isinstance(request.get("seq"), int) and request["seq"] > int(state.get("applied", 0) or 0)
             waiting = newer and wanted is not None and wanted not in self.known
-            default, state = COMPAT["choose_default"](top["selected"], state, request, live, apply_request=not waiting)
+            listed = [t["name"] for t in live]
+            default, state = COMPAT["choose_default"](COMPAT["built_from"](top["selected"], catalog, listed) or top["selected"],
+                                                     state, request, catalog, apply_request=not waiting, listed=listed)
             installed = COMPAT["installed_apps"](self.steam_root)
             self.installed = installed
             picks = COMPAT["valve_picks"](self.steam_root)
@@ -1123,13 +1125,20 @@ class Helper:
                         current[app] = ""
                     elif not current.get(app):
                         current.pop(app, None)
+            moved = COMPAT["rebuilt_picks"](current, catalog, set(prior_auto) | picked, listed)
+            if moved:
+                following = COMPAT["followers"](state, current)
+                state["auto"] = {app: name for app, name in following.items() if app not in moved} if isinstance(following, dict) else {}
+                prior_auto = {app: name for app, name in prior_auto.items() if app not in moved}
+                current.update(moved)
             requests = COMPAT["settled_game_requests"](state, current, catalog)
-            overrides = COMPAT["requested_games"](requests or {}, catalog, [t["name"] for t in live])
+            overrides = COMPAT["requested_games"](requests or {}, catalog, listed)
             overrides = {app: tool for app, tool in overrides.items() if app not in refused}
             changes, auto = COMPAT["plan_mapping"](
-                current, installed, [t["name"] for t in live], default,
+                current, installed, listed, default,
                 COMPAT["followers"](state, current), native, picks, overrides,
                 prior_auto.keys(), native_choices)
+            changes = dict(moved, **changes)
             for app, tool in sorted(changes.items(), key=lambda item: COMPAT["app_order"](item[0])):
                 page.compat("set(%d, %s)" % (int(app), json.dumps(tool if tool is not None else "")))
                 say("%s -> %s" % ("default" if app == "0" else "app %s" % app,
@@ -1137,7 +1146,7 @@ class Helper:
             state.update(
                 auto={app: tool for app, tool in auto.items() if tool is not COMPAT["NATIVE_CHOICE"]},
                 native_choices=sorted(refused_native | {app for app, tool in auto.items() if tool is COMPAT["NATIVE_CHOICE"]}),
-                picked=COMPAT["picked_after"](current, changes), tools=catalog, live=True,
+                picked=COMPAT["picked_after"](current, changes), tools=catalog, live=True, written=default,
                 games_applied=COMPAT["applied_game_requests"](requests, overrides, state))
             state.pop("native", None)
             if waiting:

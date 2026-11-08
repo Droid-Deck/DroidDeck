@@ -56,6 +56,16 @@ sync_timezone() {
 } 2>/dev/null
 sync_timezone
 
+ensure_machine_id() {
+  local id=
+  id=$(< /etc/machine-id)
+  [[ $id =~ ^[0-9a-f]{32}$ && $id != 00000000000000000000000000000000 ]] && return 0
+  id=$(dbus-uuidgen) || return 0
+  [[ $id =~ ^[0-9a-f]{32}$ ]] || return 0
+  printf '%s\n' "$id" > /etc/machine-id.droiddeck && mv -f /etc/machine-id.droiddeck /etc/machine-id
+} 2>/dev/null
+ensure_machine_id
+
 write_system_bus_config() {
   mkdir -p /run/dbus /usr/local/share/droiddeck
   cat > /usr/local/share/droiddeck/system-bus.conf <<'BUSCONF'
@@ -642,13 +652,7 @@ case $mode in
     fi
     case ${target,,} in
       *.appimage)
-        export APPIMAGE_EXTRACT_AND_RUN=1
-        chmod +x "$target" 2>/dev/null
-        if [ ${#fex[@]} -eq 0 ] && [ -x /usr/local/lib/droiddeck/uruntime ]; then
-          export TARGET_APPIMAGE=$target
-          run_program /usr/local/lib/droiddeck/uruntime "$@"
-        fi
-        run_program "${fex[@]}" "$target" "$@"
+        run_program /usr/local/bin/droiddeck-appimage-exec "$target" "$@"
         ;;
       *.sh)
         if [ -x /usr/local/bin/droiddeck-fex ]; then
@@ -1333,6 +1337,23 @@ case $mode in
     else
       echo "== network: no dbus-daemon or netmanager in this runtime; the client will show no connection"
       exit 69
+    fi
+    # Without a session bus libdbus autolaunches one under the game; it never exits and Steam's
+    # reaper waits on it, so the launch or exit never finishes.
+    if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+      _bl_bus=${XDG_RUNTIME_DIR:-/run/droiddeck}/bus
+      rm -f "$_bl_bus"
+      dbus-daemon --session --address="unix:path=$_bl_bus" --nofork --nopidfile &
+      for _ in $(seq 1 50); do
+        [ -S "$_bl_bus" ] && break
+        nap 0.1
+      done
+      if [ -S "$_bl_bus" ]; then
+        export DBUS_SESSION_BUS_ADDRESS="unix:path=$_bl_bus"
+        echo "== session bus up at $_bl_bus"
+      else
+        echo "== session bus did not come up; programs may start their own"
+      fi
     fi
 
     _bl_compat_env=(env -u LD_LIBRARY_PATH -u STEAM_RUNTIME -u STEAM_STEAMRT_RECURSION_GUARD)

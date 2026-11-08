@@ -65,6 +65,8 @@ private fun releaseDateValue(raw: String): Long =
         runCatching { java.time.LocalDate.parse(day).toEpochDay() }.getOrDefault(0L)
     } ?: 0L
 
+internal fun entryTime(first: Long?, fallback: Long?): Long = first?.takeIf { it > 0 } ?: fallback?.takeIf { it > 0 } ?: 0L
+
 fun <T> sortGames(
     items: List<T>,
     sort: String,
