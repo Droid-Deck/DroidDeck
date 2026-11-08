@@ -126,11 +126,16 @@ class KeyboardHostTest {
         val connection = connection()
 
         connection.setComposingText("zhong", 1)
+        connection.deleteSurroundingText(1, 0)
         connection.commitText("中文", 1)
+        connection.finishComposingText()
+        connection.setComposingText("ab", 1)
+        connection.deleteSurroundingText(1, 0)
+        connection.setComposingText("xy", 1)
         connection.finishComposingText()
         idle()
 
-        assertEquals(listOf("中文"), texts)
+        assertEquals(listOf("中文", "xy"), texts)
         assertTrue(keys.isEmpty())
     }
 
@@ -146,6 +151,76 @@ class KeyboardHostTest {
         idle()
 
         assertTrue(texts.isEmpty())
+        assertTrue(keys.isEmpty())
+    }
+
+    @Config(sdk = [33])
+    @Test fun deleteWithinCompositionShortensPendingTextWithoutGuestBackspace() {
+        host.show()
+        idle()
+        val connection = connection()
+
+        connection.setComposingText("abc", 1)
+        connection.deleteSurroundingText(1, 0)
+        idle()
+        assertTrue(texts.isEmpty())
+        assertTrue(keys.isEmpty())
+
+        connection.finishComposingText()
+        idle()
+
+        assertEquals(listOf("ab"), texts)
+        assertTrue(keys.isEmpty())
+    }
+
+    @Config(sdk = [33])
+    @Test fun deleteBeyondCompositionForwardsOnlyResidualCountsWithoutResurrectingText() {
+        host.show()
+        idle()
+        val connection = connection()
+
+        connection.setComposingText("ab", 1)
+        connection.deleteSurroundingText(3, 2)
+        connection.finishComposingText()
+        connection.setComposingText("cd", 0)
+        connection.deleteSurroundingText(1, 3)
+        connection.finishComposingText()
+        idle()
+
+        assertEquals(listOf("\b\u007f\u007f", "\b\u007f"), texts)
+        assertTrue(keys.isEmpty())
+    }
+
+    @Config(sdk = [33])
+    @Test fun composingCursorAtStartConsumesForwardDeleteAndForwardsBackspace() {
+        host.show()
+        idle()
+        val connection = connection()
+
+        connection.setComposingText("abc", 0)
+        connection.deleteSurroundingText(1, 0)
+        assertEquals(listOf("\b"), texts)
+
+        connection.deleteSurroundingText(0, 1)
+        connection.finishComposingText()
+        idle()
+
+        assertEquals(listOf("\b", "bc"), texts)
+        assertTrue(keys.isEmpty())
+    }
+
+    @Config(sdk = [33])
+    @Test fun utf16DeleteOfTrailingEmojiInCompositionPreservesChineseText() {
+        host.show()
+        idle()
+        val connection = connection()
+
+        connection.setComposingText("中文😀", 1)
+        connection.deleteSurroundingText(2, 0)
+        connection.finishComposingText()
+        idle()
+
+        assertEquals(listOf("中文"), texts)
         assertTrue(keys.isEmpty())
     }
 

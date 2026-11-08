@@ -112,7 +112,14 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
                 archive.assert_not_called()
 
     def test_current_helpers_are_allowed_only_when_restaged_from_source(self):
-        helpers = prepare.LOCAL_SESSION_HELPERS
+        helpers = {
+            'tools/linuxfs/overlay/usr/local/bin/droiddeck-session',
+            'tools/linuxfs/overlay/usr/local/bin/droiddeck-steam-compat',
+            'tools/linuxfs/overlay/usr/local/bin/droiddeck-steam-ime',
+            'tools/linuxfs/overlay/usr/local/bin/droiddeck-steamvr',
+            'tools/linuxfs/overlay/usr/local/bin/droiddeck-text-input',
+        }
+        self.assertEqual(prepare.LOCAL_SESSION_HELPERS, helpers)
         sources = {prepare.ROOT / path: 'assets/linuxfs/' + path.split('/overlay/')[1]
                    for path in helpers}
         for local_changes in (set(), helpers):
@@ -141,7 +148,7 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
     def test_other_helper_changes_still_need_an_audit(self):
         with mock.patch.object(prepare, 'git', return_value=prepare.DONOR_TREE.encode()), \
                 mock.patch.object(prepare, 'changed', return_value={
-                    'tools/linuxfs/overlay/usr/local/bin/droiddeck-session'}):
+                    'tools/linuxfs/overlay/usr/local/bin/droiddeck-unreviewed'}):
             with self.assertRaisesRegex(ValueError, 'Sources changed since'):
                 prepare.check_sources()
 
@@ -260,13 +267,21 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
                     mock.patch.object(prepare, 'read_gamescope', return_value=({}, {
                         'GAMESCOPE_REPO': 'repo', 'GAMESCOPE_TAG': 'tag', 'GAMESCOPE_SHA256': 'hash'})), \
                     mock.patch.object(prepare, 'validate_tracked_assets', return_value={}), \
-                    mock.patch.object(prepare, 'prepare_ime', return_value=(files, {'version': 1, 'files': {}})), \
+                    mock.patch.object(prepare, 'prepare_ime',
+                                      return_value=(files, {'version': 1, 'files': {}})) as prepare_ime, \
                     mock.patch.object(prepare, 'git', return_value=b''), \
                     mock.patch.object(prepare.runtime, 'record'), \
                     mock.patch.object(prepare.runtime, 'verify'), \
-                    mock.patch.object(prepare.vr_build, 'build', return_value=({}, {})):
+                    mock.patch.object(prepare.vr_build, 'build', return_value=({}, {})) as build_vr, \
+                    mock.patch.object(prepare.vr_build, 'validate', return_value=({}, {})) as validate_vr:
                 prepare.prepare(apk, root, root, llvm_strip=root / 'bin/llvm-strip')
-                prepare.prepare(apk, root, root, llvm_strip=root / 'bin/llvm-strip')
+                prepare.prepare(apk, root, root, llvm_strip=root / 'bin/llvm-strip', rebuilt_vr=root / 'cached-vr')
+            build_vr.assert_called_once()
+            validate_vr.assert_called_once()
+            self.assertEqual(prepare_ime.call_args_list, [
+                mock.call(prepare.vr_build.IMAGE),
+                mock.call(prepare.vr_build.IMAGE),
+            ])
             self.assertEqual((root / 'app/src/main/assets/linuxfs' / prepare.IME_MANIFEST).read_bytes(),
                              b'generated manifest')
 
@@ -320,6 +335,111 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
             self.assertEqual(files['usr/local/share/droiddeck/pinyin.so'], b'ime')
             self.assertEqual(json.loads(files[prepare.IME_MANIFEST]), manifest)
             self.assertEqual(provenance, manifest)
+
+    def test_windows_ime_preparation_reuses_existing_default_image_without_building(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'tools/ime').mkdir(parents=True)
+            (root / 'tools/ime/prepare.py').write_text('# prepare', encoding='utf-8')
+            (root / 'tools/ime/packages.json').write_text('{}', encoding='utf-8')
+            manifest = {'version': 1, 'files': {
+                'usr/local/share/droiddeck/pinyin.so': {
+                    'sha256': hashlib.sha256(b'ime').hexdigest(), 'mode': 420}}}
+            commands = []
+
+            def run(command, check=True, capture_output=True, text=True, input=None):
+                commands.append(command)
+                if command[1:3] == ['image', 'inspect']:
+                    return mock.Mock(returncode=0, stdout='sha256:existing-v5\n', stderr='')
+                mounted = next(part for part in command if part.endswith(':/out'))
+                output = Path(mounted.removesuffix(':/out'))
+                target = output / 'usr/local/share/droiddeck/pinyin.so'
+                target.parent.mkdir(parents=True)
+                target.write_bytes(b'ime')
+                (output / prepare.IME_MANIFEST).write_text(json.dumps(manifest), encoding='utf-8')
+                return mock.Mock(returncode=0, stdout='', stderr='')
+
+            with mock.patch.object(prepare, 'ROOT', root), \
+                    mock.patch.object(prepare.sys, 'platform', 'win32'), \
+                    mock.patch.object(prepare.shutil, 'which', return_value='docker'), \
+                    mock.patch.object(prepare.subprocess, 'run', side_effect=run):
+                files, provenance = prepare.prepare_ime(prepare.vr_build.IMAGE)
+            self.assertEqual(prepare.vr_build.IMAGE, 'droiddeck-local-cross:24.04-v5')
+            self.assertEqual([cmd[1] for cmd in commands], ['image', 'run'])
+            self.assertIn('sha256:existing-v5', commands[1])
+            self.assertEqual(files['usr/local/share/droiddeck/pinyin.so'], b'ime')
+            self.assertEqual(provenance, manifest)
+
+    def test_windows_ime_preparation_builds_missing_default_image_and_runs_by_id(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'tools/ime').mkdir(parents=True)
+            (root / 'tools/ime/prepare.py').write_text('# prepare', encoding='utf-8')
+            (root / 'tools/ime/packages.json').write_text('{}', encoding='utf-8')
+            (root / 'tools/local-cross.Dockerfile').write_bytes(b'FROM ubuntu:24.04\r\nRUN echo ok\r\n')
+            manifest = {'version': 1, 'files': {
+                'usr/local/share/droiddeck/pinyin.so': {
+                    'sha256': hashlib.sha256(b'ime').hexdigest(), 'mode': 420}}}
+            calls = []
+            inspected = 0
+
+            def run(command, check=True, capture_output=False, text=False, input=None):
+                nonlocal inspected
+                calls.append((command, input))
+                if command[1:3] == ['image', 'inspect']:
+                    inspected += 1
+                    if inspected == 1:
+                        return mock.Mock(returncode=1, stdout='', stderr='No such image')
+                    return mock.Mock(returncode=0, stdout='sha256:built-v5-id\n', stderr='')
+                if command[1] == 'build':
+                    return mock.Mock(returncode=0)
+                mounted = next(part for part in command if part.endswith(':/out'))
+                output = Path(mounted.removesuffix(':/out'))
+                target = output / 'usr/local/share/droiddeck/pinyin.so'
+                target.parent.mkdir(parents=True)
+                target.write_bytes(b'ime')
+                (output / prepare.IME_MANIFEST).write_text(json.dumps(manifest), encoding='utf-8')
+                return mock.Mock(returncode=0)
+
+            with mock.patch.object(prepare, 'ROOT', root), \
+                    mock.patch.object(prepare.sys, 'platform', 'win32'), \
+                    mock.patch.object(prepare.shutil, 'which', return_value='docker'), \
+                    mock.patch.object(prepare.subprocess, 'run', side_effect=run):
+                files, provenance = prepare.prepare_ime(prepare.vr_build.IMAGE)
+            self.assertEqual([cmd[1] for cmd, _ in calls], ['image', 'build', 'image', 'run'])
+            self.assertEqual(calls[0][0], ['docker', 'image', 'inspect', '--format', '{{.Id}}',
+                                           'droiddeck-local-cross:24.04-v5'])
+            build_cmd, build_input = calls[1]
+            self.assertEqual(build_cmd[:8], ['docker', 'build', '--platform', 'linux/amd64',
+                                             '--tag', 'droiddeck-local-cross:24.04-v5', '--file', '-'])
+            self.assertEqual(build_input, b'FROM ubuntu:24.04\nRUN echo ok\n')
+            run_cmd = calls[3][0]
+            self.assertIn('sha256:built-v5-id', run_cmd)
+            self.assertNotIn('droiddeck-local-cross:24.04-v5', run_cmd)
+            self.assertNotIn('apt-get', run_cmd[-1])
+            self.assertEqual(files['usr/local/share/droiddeck/pinyin.so'], b'ime')
+            self.assertEqual(provenance, manifest)
+
+    def test_windows_ime_preparation_stops_if_default_image_still_has_no_id_after_build(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'tools').mkdir(parents=True)
+            (root / 'tools/local-cross.Dockerfile').write_bytes(b'FROM ubuntu:24.04\n')
+            commands = []
+
+            def run(command, check=True, capture_output=False, text=False, input=None):
+                commands.append(command)
+                if command[1:3] == ['image', 'inspect']:
+                    return mock.Mock(returncode=1, stdout='', stderr='still missing')
+                return mock.Mock(returncode=0)
+
+            with mock.patch.object(prepare, 'ROOT', root), \
+                    mock.patch.object(prepare.sys, 'platform', 'win32'), \
+                    mock.patch.object(prepare.shutil, 'which', return_value='docker'), \
+                    mock.patch.object(prepare.subprocess, 'run', side_effect=run):
+                with self.assertRaisesRegex(ValueError, 'requires the existing Docker image'):
+                    prepare.prepare_ime(prepare.vr_build.IMAGE)
+            self.assertEqual([cmd[1] for cmd in commands], ['image', 'build', 'image'])
 
     def test_windows_ime_preparation_rejects_a_missing_image_before_running(self):
         with tempfile.TemporaryDirectory() as folder:

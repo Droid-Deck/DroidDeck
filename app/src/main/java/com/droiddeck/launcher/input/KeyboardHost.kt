@@ -111,29 +111,49 @@ class KeyboardHost(
         private val controlRoutes = HashMap<Int, Boolean>()
 
         private var composingText = ""
+        private var composingCursor = 0
 
         override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
             composingText = ""
+            composingCursor = 0
             type(text)
             return true
         }
 
         override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
             composingText = text?.toString().orEmpty()
+            val rawCursor = if (newCursorPosition > 0) {
+                composingText.length.toLong() + newCursorPosition - 1L
+            } else {
+                newCursorPosition.toLong()
+            }
+            composingCursor = rawCursor.coerceIn(0L, composingText.length.toLong()).toInt()
             return true
         }
 
         override fun finishComposingText(): Boolean {
             val text = composingText
             composingText = ""
+            composingCursor = 0
             type(text)
             return true
         }
 
         override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+            val before = beforeLength.coerceAtLeast(0)
+            val after = afterLength.coerceAtLeast(0)
+            val consumedBefore = minOf(before, composingCursor)
+            val consumedAfter = minOf(after, composingText.length - composingCursor)
+            if (consumedBefore > 0 || consumedAfter > 0) {
+                composingText = composingText.removeRange(
+                    composingCursor - consumedBefore,
+                    composingCursor + consumedAfter,
+                )
+                composingCursor -= consumedBefore
+            }
             val controls = StringBuilder()
-            repeat(beforeLength) { controls.append(BACKSPACE) }
-            repeat(afterLength) { controls.append(FORWARD_DELETE) }
+            repeat(before - consumedBefore) { controls.append(BACKSPACE) }
+            repeat(after - consumedAfter) { controls.append(FORWARD_DELETE) }
             if (controls.isNotEmpty()) sendText(controls.toString())
             return true
         }

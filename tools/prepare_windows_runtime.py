@@ -50,8 +50,11 @@ LOCAL_ANDROID_SOURCES = {'app/src/main/cpp/CMakeLists.txt',
                          'app/src/main/cpp/waylandcomp/src/waylandcomp_jni.c',
                          'app/src/main/cpp/waylandcomp/src/spatialpose.c',
                          'app/src/main/cpp/waylandcomp/CMakeLists.txt'}
-LOCAL_SESSION_HELPERS = {'tools/linuxfs/overlay/usr/local/bin/droiddeck-steam-compat',
-                         'tools/linuxfs/overlay/usr/local/bin/droiddeck-steamvr'}
+LOCAL_SESSION_HELPERS = {'tools/linuxfs/overlay/usr/local/bin/droiddeck-session',
+                         'tools/linuxfs/overlay/usr/local/bin/droiddeck-steam-compat',
+                         'tools/linuxfs/overlay/usr/local/bin/droiddeck-steam-ime',
+                         'tools/linuxfs/overlay/usr/local/bin/droiddeck-steamvr',
+                         'tools/linuxfs/overlay/usr/local/bin/droiddeck-text-input'}
 IME_SOURCES = {'tools/ime/packages.json', 'tools/ime/prepare.py', 'tools/ime/smoke.py'}
 IME_MANIFEST = 'usr/local/share/droiddeck/ime-files.json'
 IME_PACKAGES = 'build/windows-setup/ime-packages'
@@ -193,6 +196,13 @@ def prepare_ime(image):
             inspected = subprocess.run([docker, 'image', 'inspect', '--format', '{{.Id}}', image],
                                        capture_output=True, text=True, check=False)
             image_id = inspected.stdout.strip() if inspected.returncode == 0 else ''
+            if not image_id and image == vr_build.IMAGE:
+                dockerfile = (ROOT / 'tools/local-cross.Dockerfile').read_bytes().replace(b'\r\n', b'\n')
+                subprocess.run([docker, 'build', '--platform', 'linux/amd64', '--tag', image,
+                                '--file', '-', str(temporary)], input=dockerfile, check=True)
+                inspected = subprocess.run([docker, 'image', 'inspect', '--format', '{{.Id}}', image],
+                                           capture_output=True, text=True, check=False)
+                image_id = inspected.stdout.strip() if inspected.returncode == 0 else ''
             if not image_id:
                 raise ValueError('IME preparation requires the existing Docker image ' + image +
                                  '; build or load it first (inspect failed: ' +
@@ -405,7 +415,8 @@ def main():
                         'AppData/Local/Android/Sdk/ndk/27.3.13750724/toolchains/llvm/prebuilt/windows-x86_64/bin/llvm-strip.exe')
     parser.add_argument('--rebuilt-vr', type=Path, help='Reuse a VR build with vr-build.json; default rebuilds in Docker')
     parser.add_argument('--vk-include', type=Path, help='NDK Vulkan headers; defaults to the sysroot beside --llvm-strip')
-    parser.add_argument('--vr-image', default=vr_build.IMAGE, help='Docker compiler image for a fresh VR build')
+    parser.add_argument('--vr-image', default=vr_build.IMAGE,
+                        help='Docker compiler image for VR/IME preparation; default is built if missing')
     parser.add_argument('--check-sources', action='store_true', help='Audit source differences without extracting files')
     args = parser.parse_args()
     zstd = ROOT / 'build/windows-setup/tools/zstd/zstd.exe'
