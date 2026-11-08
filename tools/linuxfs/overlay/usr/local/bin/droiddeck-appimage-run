@@ -25,6 +25,12 @@ if [ -n "$(find -H "$APPDIR" -maxdepth 4 \( -name chrome-sandbox -o -name chrome
     flags+=(--ozone-platform=x11)
   fi
 fi
+if [ -n "${DROIDDECK_GAME_TU_DEBUG+set}" ]; then
+  if [ ${#flags[@]} -eq 0 ]; then
+    if [ -n "$DROIDDECK_GAME_TU_DEBUG" ]; then export TU_DEBUG=$DROIDDECK_GAME_TU_DEBUG; else unset TU_DEBUG; fi
+  fi
+  unset DROIDDECK_GAME_TU_DEBUG
+fi
 qt=$(cat "$dir/qt" 2>/dev/null)
 case $qt in wayland|xcb) ;; *) qt=auto ;; esac
 wayland=${GAMESCOPE_WAYLAND_DISPLAY:-${WAYLAND_DISPLAY:-}}
