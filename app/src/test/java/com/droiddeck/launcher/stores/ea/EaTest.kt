@@ -126,6 +126,17 @@ class EaTest {
         EaLsx.sessions.clear()
     }
 
+    @Test fun anEvictedSessionCannotBecomeTrusted() {
+        val s = EaLsx.Session(java.net.Socket(), java.io.ByteArrayOutputStream(), true)
+        s.evicted = true
+        EaLsx.promote(s, true)
+        assertFalse(s.trusted)
+        val ok = EaLsx.Session(java.net.Socket(), java.io.ByteArrayOutputStream(), true)
+        EaLsx.promote(ok, true)
+        assertTrue(ok.trusted)
+        EaLsx.stop()
+    }
+
     @Test fun lateExitDoesNotStopANewerLaunch() {
         val game = EaLsx.Game("Origin.OFR.2", "2", "Two", "1", "en_US", null, 0)
         EaLsx.game = game

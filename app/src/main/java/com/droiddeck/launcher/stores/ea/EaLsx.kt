@@ -171,6 +171,11 @@ object EaLsx {
 
     internal val sessions = LinkedHashSet<Session>()
 
+    /** Trust and eviction exclude each other: an evicted session never becomes trusted, a trusted one is never evicted. */
+    internal fun promote(session: Session, matches: Boolean) {
+        synchronized(sessions) { session.trusted = matches && !session.evicted && holder.compareAndSet(null, session) }
+    }
+
     internal class Session(val socket: Socket, val output: OutputStream, val verified: Boolean) {
         val connectedAt = System.currentTimeMillis()
         @Volatile var evicted = false
@@ -322,7 +327,7 @@ object EaLsx {
                 val content = m.children.firstOrNull { it.first == "ContentId" }?.second.orEmpty()
                 session.claimed = g != null && content.isNotEmpty() && (content == g.contentId || content in g.contentIds)
                 val matches = session.verified && session.claimed
-                session.trusted = matches && holder.compareAndSet(null, session)
+                promote(session, matches)
                 note("challenge version '$version' content '$content' ${when { session.trusted -> "matches the prepared game"; matches -> "matches, but another session holds this launch"; !session.verified -> "comes from an unverified peer"; else -> "does not match the prepared game" }}")
                 session.pending = EaCrypto.lsxKey(seed)
                 Log.i(TAG, "game connected: ${m.children.firstOrNull { it.first == "Title" }?.second.orEmpty()}")
