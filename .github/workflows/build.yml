@@ -563,9 +563,11 @@ jobs:
       - name: Cache checksum-pinned pack inputs
         uses: actions/cache@v4
         with:
-          path: ~/.cache/droiddeck-pack-inputs
-          key: pack-inputs-v1-${{ hashFiles('tools/packs/build.sh', 'tools/packs/fetch-verified.sh', 'tools/packs/tracking/release.env') }}
-          restore-keys: pack-inputs-v1-
+          path: |
+            ~/.cache/droiddeck-pack-inputs
+            ~/.cache/droiddeck-build
+          key: pack-inputs-v2-${{ hashFiles('tools/packs/build.sh', 'tools/packs/fetch-verified.sh', 'tools/packs/tracking/release.env', 'tools/powervr/release.json') }}
+          restore-keys: pack-inputs-v2-
       - name: Build the add-on packs
         run: |
           python3 tools/powervr/fetch.py
