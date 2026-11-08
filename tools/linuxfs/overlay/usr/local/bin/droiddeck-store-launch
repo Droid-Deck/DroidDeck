@@ -731,12 +731,20 @@ def cpuid_values(raw):
             "cpuEcx": "%08x" % regs[1][2], "cpuBrand": brand}
 
 
+EA_PROBE_FIELDS = ("boardManufacturer", "biosManufacturer", "osInstallDate", "osSerial", "volumeSerial", "hostname",
+                   "cpuVendor", "cpuEax", "cpuEdx", "cpuEcx")
+
+
+def probe_complete(values):
+    return all(str(values.get(key) or "").strip() for key in EA_PROBE_FIELDS)
+
+
 def ea_hardware(compat_data, proton, timeout=240):
     pfx = Path(compat_data) / "pfx"
     cache = pfx / EA_HARDWARE
     try:
         cached = json.loads(cache.read_text())
-        if isinstance(cached, dict) and cached.get("processorId") and cached.get("cpuVendor"):
+        if isinstance(cached, dict) and probe_complete(cached):
             return cached, "cached"
     except (OSError, ValueError):
         pass
@@ -779,7 +787,7 @@ def ea_hardware(compat_data, proton, timeout=240):
             values.update(cpuid_values((folder / "cpuid.bin").read_bytes()))
         except OSError:
             pass
-    if values.get("processorId") and values.get("cpuVendor"):
+    if probe_complete(values):
         try:
             cache.write_text(json.dumps(values))
         except OSError:

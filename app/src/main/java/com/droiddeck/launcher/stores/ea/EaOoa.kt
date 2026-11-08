@@ -37,11 +37,14 @@ object EaOoa {
     ) {
         /** Whether the probe reported everything the hash of this activation version is built from. */
         fun complete(version: Int): Boolean {
-            val base = listOf(boardManufacturer, biosManufacturer, osSerial).all { it.isNotEmpty() }
-            return when {
-                version <= 1 -> base && osInstallDate.isNotEmpty() && hostname.isNotEmpty()
-                else -> base && cpuVendor.isNotEmpty() && cpuEdx.isNotEmpty() && cpuEax.isNotEmpty() && cpuEcx.isNotEmpty()
+            val needed = arrayListOf(boardManufacturer, biosManufacturer)
+            when {
+                version <= 1 -> needed += listOf(hostname, osInstallDate, osSerial)
+                version == 2 -> needed += listOf(osInstallDate, osSerial, volumeSerial, cpuVendor, cpuEdx, cpuEcx)
+                version == 3 -> needed += listOf(volumeSerial, cpuVendor, cpuEdx, cpuEcx)
+                else -> needed += listOf(volumeSerial, cpuVendor, cpuEdx, cpuEax)
             }
+            return needed.all { it.isNotEmpty() }
         }
 
         companion object {

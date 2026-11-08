@@ -183,6 +183,11 @@ class EaTest {
         assertTrue(wmiOnly.complete(0))
         assertTrue(!wmiOnly.complete(4))
         assertTrue(wine.complete(4))
+        assertTrue(wine.complete(2))
+        val noInstallDate = EaOoa.Hardware.fromJson(JSONObject().put("boardManufacturer", "Wine").put("biosManufacturer", "Wine").put("osSerial", "1")
+            .put("volumeSerial", "43000000").put("cpuVendor", "GenuineIntel").put("cpuEdx", "BFEBFBFF").put("cpuEax", "000906EA").put("cpuEcx", "7ffafbbf"))
+        assertTrue(!noInstallDate.complete(2))
+        assertTrue(noInstallDate.complete(3) && noInstallDate.complete(4))
     }
 
     @Test fun legacyManifestNamesItsContentAndTitle() {

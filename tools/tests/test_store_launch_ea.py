@@ -95,7 +95,8 @@ class EaHook(unittest.TestCase):
             compat = Path(tmp) / 'compat'
             (compat / 'pfx').mkdir(parents=True)
             (compat / 'pfx/user.reg').write_text('')
-            (compat / 'pfx' / store.EA_HARDWARE).write_text(json.dumps({'processorId': 'ABC', 'cpuVendor': 'GenuineIntel'}))
+            probe = {key: 'x' for key in store.EA_PROBE_FIELDS}
+            (compat / 'pfx' / store.EA_HARDWARE).write_text(json.dumps(probe))
             folder = Path(tmp) / 'game'
             folder.mkdir()
             asked = {}
@@ -108,8 +109,20 @@ class EaHook(unittest.TestCase):
                     patch.object(store, 'ea_touchup', lambda *a, **k: 'none'), patch.dict('os.environ', {'BL_STORE_PROTON': ''}):
                 store.prepare_ea(folder, {'id': 'Origin.OFR.1'}, str(compat), str(Path(tmp) / 'launch'))
             self.assertEqual(asked['op'], 'ea-prepare')
-            self.assertEqual(asked['hardware'], {'processorId': 'ABC', 'cpuVendor': 'GenuineIntel'})
+            self.assertEqual(asked['hardware'], probe)
             self.assertEqual((compat / 'pfx/drive_c/ProgramData/L/x.dlf').read_bytes(), b'z')
+
+    def test_an_incomplete_cached_probe_is_probed_again(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pfx = Path(tmp) / 'pfx'
+            pfx.mkdir()
+            partial = {key: 'x' for key in store.EA_PROBE_FIELDS if key != 'osInstallDate'}
+            (pfx / store.EA_HARDWARE).write_text(json.dumps(partial))
+            self.assertFalse(store.probe_complete(partial))
+            self.assertEqual(store.ea_hardware(tmp, ''), ({}, 'no-proton'))
+            whole = dict(partial, osInstallDate='20261108')
+            (pfx / store.EA_HARDWARE).write_text(json.dumps(whole))
+            self.assertEqual(store.ea_hardware(tmp, ''), (whole, 'cached'))
 
 
 if __name__ == '__main__':
