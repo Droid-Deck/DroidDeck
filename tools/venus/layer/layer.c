@@ -212,6 +212,8 @@ uint32_t physical_device_gaps(struct instance *inst, VkPhysicalDevice physical_d
         gaps |= GAP_ROBUSTNESS2;
     if (!features.features.multiDrawIndirect)
         gaps |= GAP_MULTI_DRAW;
+    if (!features.features.dualSrcBlend)
+        gaps |= GAP_DUAL_SRC_BLEND;
     if (!has_extension(inst, physical_device, VK_EXT_DEPTH_CLIP_ENABLE_EXTENSION_NAME))
         gaps |= GAP_DEPTH_CLIP;
     /* No robustness2 at all: the extension is offered with robustBufferAccess2 (as robustBufferAccess)
@@ -284,6 +286,8 @@ static void report_features(VkPhysicalDeviceFeatures *features, uint32_t gaps)
         features->textureCompressionBC = VK_TRUE;
     if (gaps & GAP_MULTI_DRAW)
         features->multiDrawIndirect = VK_TRUE;
+    if (gaps & GAP_DUAL_SRC_BLEND)
+        features->dualSrcBlend = VK_TRUE;
 }
 
 /* Which made-up features the application asked for, and off with them before the driver sees them. */
@@ -314,6 +318,10 @@ static uint32_t take_features(VkPhysicalDeviceFeatures *features, uint32_t gaps)
         requested |= GAP_MULTI_DRAW;
         features->multiDrawIndirect = VK_FALSE;
     }
+    if ((gaps & GAP_DUAL_SRC_BLEND) && features->dualSrcBlend) {
+        requested |= GAP_DUAL_SRC_BLEND;
+        features->dualSrcBlend = VK_FALSE;
+    }
     return requested;
 }
 
@@ -323,6 +331,8 @@ static void report_limits(VkPhysicalDeviceLimits *limits, uint32_t gaps)
         limits->maxViewports = 16;
     if ((gaps & GAP_MULTI_DRAW) && limits->maxDrawIndirectCount < (1u << 30))
         limits->maxDrawIndirectCount = 1u << 30;
+    if ((gaps & GAP_DUAL_SRC_BLEND) && !limits->maxFragmentDualSrcAttachments)
+        limits->maxFragmentDualSrcAttachments = 1;
     if (gaps & GAPS_SHADER) {
         limits->maxClipDistances = 8;
         limits->maxCullDistances = 8;
@@ -616,7 +626,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physical_dev
     pthread_mutex_unlock(&global_lock);
 
     if (requested) {
-        layer_log("emulating%s%s%s%s%s%s%s%s%s for %s", (requested & GAP_FILL_MODE) ? " fillModeNonSolid" : "",
+        layer_log("emulating%s%s%s%s%s%s%s%s%s%s for %s", (requested & GAP_FILL_MODE) ? " fillModeNonSolid" : "",
                   (requested & GAP_MULTI_VIEWPORT) ? " multiViewport" : "",
                   (requested & GAP_CLIP_DISTANCE) ? " shaderClipDistance" : "",
                   (requested & GAP_CULL_DISTANCE) ? " shaderCullDistance" : "",
@@ -624,7 +634,8 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physical_dev
                   (requested & GAP_BC) ? " textureCompressionBC" : "",
                   (requested & GAP_MULTI_DRAW) ? " multiDrawIndirect" : "",
                   (requested & GAP_DEPTH_CLIP) ? " depthClipEnable" : "",
-                  (requested & GAP_NULL_DESCRIPTOR) ? " nullDescriptor" : "", properties.deviceName);
+                  (requested & GAP_NULL_DESCRIPTOR) ? " nullDescriptor" : "",
+                  (requested & GAP_DUAL_SRC_BLEND) ? " dualSrcBlend" : "", properties.deviceName);
     }
     return VK_SUCCESS;
 }
@@ -667,8 +678,8 @@ struct hook {
 #define HOOK_ALIAS(name, alias, gaps) {"vk" #alias, (PFN_vkVoidFunction)name, gaps}
 
 static const struct hook device_hooks[] = {
-    HOOK(CreateShaderModule, GAPS_SHADER),
-    HOOK(DestroyShaderModule, GAPS_SHADER),
+    HOOK(CreateShaderModule, GAPS_SHADER | GAP_DUAL_SRC_BLEND),
+    HOOK(DestroyShaderModule, GAPS_SHADER | GAP_DUAL_SRC_BLEND),
     HOOK(CreateGraphicsPipelines, GAPS_PIPELINE),
     HOOK(CmdSetViewport, GAP_MULTI_VIEWPORT),
     HOOK(CmdSetScissor, GAP_MULTI_VIEWPORT),
@@ -676,6 +687,7 @@ static const struct hook device_hooks[] = {
     HOOK_ALIAS(CmdSetViewportWithCount, CmdSetViewportWithCountEXT, GAP_MULTI_VIEWPORT),
     HOOK(CmdSetScissorWithCount, GAP_MULTI_VIEWPORT),
     HOOK_ALIAS(CmdSetScissorWithCount, CmdSetScissorWithCountEXT, GAP_MULTI_VIEWPORT),
+    HOOK(CmdSetColorBlendEquationEXT, GAP_DUAL_SRC_BLEND),
     HOOK(CreateImage, GAP_BC),
     HOOK(DestroyImage, GAP_BC),
     HOOK(CreateImageView, GAP_BC),

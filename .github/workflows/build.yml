@@ -825,7 +825,7 @@ jobs:
         run: test "$(git rev-parse 'HEAD^{tree}')" = "$XBOX_SOURCE_TREE"
       - name: Install Python test dependencies
         timeout-minutes: 7
-        run: bash tools/ci/install-ubuntu-packages.sh python3-yaml gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user libvulkan-dev mesa-vulkan-drivers
+        run: bash tools/ci/install-ubuntu-packages.sh python3-yaml gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user libvulkan-dev mesa-vulkan-drivers spirv-tools
       - name: Resolve the pinned Android NDK
         run: bash tools/ci/resolve-ndk.sh
 
@@ -854,6 +854,16 @@ jobs:
             tools/vr/tests/test_presenter_shutdown.cpp tools/vr/src/presenter.cpp /tmp/test-wayland-stub.o /tmp/test-xdg-shell.o \
             -ldl -o /tmp/test-presenter-shutdown
           timeout 10 /tmp/test-presenter-shutdown
+
+      - name: Fetch the Mali compatibility layer's headers
+        run: |
+          set -euo pipefail
+          sdk=$(sed -n 's/^SDK=//p' tools/venus/ci-build.sh)
+          bcdec=$(grep -o 'https://raw.githubusercontent.com/iOrange/bcdec/[^ ]*' tools/venus/ci-build.sh)
+          mkdir -p build/layer-deps/bcdec
+          git -c advice.detachedHead=false clone -q --depth 1 -b "$sdk" https://github.com/KhronosGroup/Vulkan-Headers.git build/layer-deps/vulkan
+          git -c advice.detachedHead=false clone -q --depth 1 -b "$sdk" https://github.com/KhronosGroup/SPIRV-Headers.git build/layer-deps/spirv
+          curl -sSfL -o build/layer-deps/bcdec/bcdec.h "$bcdec"
 
       - name: Steam import and game environment tests
         run: bash tools/ci/run-python-tests.sh

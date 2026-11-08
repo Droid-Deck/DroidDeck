@@ -29,10 +29,11 @@ enum gap {
     GAP_MULTI_DRAW = 1u << 6,     /* multiDrawIndirect: indirect draws looped one by one */
     GAP_DEPTH_CLIP = 1u << 7,     /* VK_EXT_depth_clip_enable: depthClipEnable off becomes depth clamp */
     GAP_NULL_DESCRIPTOR = 1u << 8, /* VK_EXT_robustness2 missing entirely: nullDescriptor stand-ins */
+    GAP_DUAL_SRC_BLEND = 1u << 9,
 };
 
 #define GAPS_SHADER (GAP_CLIP_DISTANCE | GAP_CULL_DISTANCE)
-#define GAPS_PIPELINE (GAP_FILL_MODE | GAP_MULTI_VIEWPORT | GAPS_SHADER | GAP_DEPTH_CLIP)
+#define GAPS_PIPELINE (GAP_FILL_MODE | GAP_MULTI_VIEWPORT | GAPS_SHADER | GAP_DEPTH_CLIP | GAP_DUAL_SRC_BLEND)
 
 void layer_log(const char *format, ...) __attribute__((format(printf, 1, 2)));
 
@@ -135,7 +136,8 @@ struct instance {
     X(UpdateDescriptorSetWithTemplate) \
     X(CmdPushDescriptorSetWithTemplate) \
     X(CmdBindVertexBuffers) \
-    X(CmdBindVertexBuffers2)
+    X(CmdBindVertexBuffers2) \
+    X(CmdSetColorBlendEquationEXT)
 
 struct staging_block;
 
@@ -183,6 +185,8 @@ struct spirv_code {
 bool spirv_uses_distances(const uint32_t *words, size_t count);
 /* The module with clip and cull distances taken out; false when it cannot be rewritten. */
 bool spirv_strip_distances(const uint32_t *words, size_t count, struct spirv_code *out);
+bool spirv_uses_dual_source(const uint32_t *words, size_t count);
+bool spirv_strip_dual_source(const uint32_t *words, size_t count, struct spirv_code *out);
 
 enum clip_role { CLIP_STRIP, CLIP_PRODUCER, CLIP_CONSUMER };
 
@@ -216,6 +220,8 @@ VKAPI_ATTR void VKAPI_CALL CmdSetScissor(VkCommandBuffer cmd, uint32_t first, ui
 VKAPI_ATTR void VKAPI_CALL CmdSetViewportWithCount(VkCommandBuffer cmd, uint32_t count,
                                                    const VkViewport *viewports);
 VKAPI_ATTR void VKAPI_CALL CmdSetScissorWithCount(VkCommandBuffer cmd, uint32_t count, const VkRect2D *scissors);
+VKAPI_ATTR void VKAPI_CALL CmdSetColorBlendEquationEXT(VkCommandBuffer cmd, uint32_t first, uint32_t count,
+                                                       const VkColorBlendEquationEXT *equations);
 
 /* bc.c */
 VkFormat bc_substitute(VkFormat format);
