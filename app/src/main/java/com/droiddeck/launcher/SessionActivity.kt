@@ -408,8 +408,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         override fun onChanged() = updatePointerCapture()
     })
     private var pointerCaptureRefused = false
+    // Android grants capture on the focused display, which the phone's own screen is; only sessions shown on
+    // another display, like REDMAGIC's cast-mode virtual display, are refused, so only they ask for the USB mouse.
     private val usbMouseFallback = Runnable {
-        if (window.decorView.hasPointerCapture()) return@Runnable
+        if (window.decorView.hasPointerCapture() || window.decorView.display?.displayId == android.view.Display.DEFAULT_DISPLAY) return@Runnable
         pointerCaptureRefused = true
         if (usbMouse.grab()) Log.i(TAG, "pointer capture refused; reading the USB mouse directly")
     }
