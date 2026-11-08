@@ -1563,7 +1563,7 @@
     <string name="theme_icon_blue_detail">Svart bakgrund, vit text, den blå färgen för allt som är markerat, i fokus eller nedtryckt.</string>
     <string name="theme_electric">Elektrisk marinblå</string>
     <string name="theme_electric_detail">Den blå färgen klarare, på ytor som lutar åt marinblått i stället för grått.</string>
-<string name="theme_white_red">Scharlakansröd snö</string>
+    <string name="theme_white_red">Scharlakansröd snö</string>
     <string name="theme_white_red_detail">Rena vita ytor med tydliga röda accenter.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Färger som växlar genom regnbågen. Följer Androids animationsinställningar.</string>

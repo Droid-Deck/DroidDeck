@@ -1563,7 +1563,7 @@
     <string name="theme_icon_blue_detail">Черен фон, бял текст, синьото за всичко избрано, на фокус или натиснато.</string>
     <string name="theme_electric">Яркосиньо</string>
     <string name="theme_electric_detail">По-яркото синьо, върху повърхности, по-близки до тъмносиньо, вместо сиво.</string>
-<string name="theme_white_red">Ален сняг</string>
+    <string name="theme_white_red">Ален сняг</string>
     <string name="theme_white_red_detail">Чисти бели повърхности със смели червени акценти.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Цветове, които преминават през дъгата. Следва настройките за анимации на Android.</string>

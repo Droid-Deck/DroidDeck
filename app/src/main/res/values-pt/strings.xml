@@ -1573,7 +1573,7 @@
     <string name="theme_icon_blue_detail">Fundo preto, texto branco e o azul em tudo que estiver selecionado, em foco ou pressionado.</string>
     <string name="theme_electric">Marinho elétrico</string>
     <string name="theme_electric_detail">O azul mais vivo, sobre superfícies puxadas para o marinho em vez do cinza.</string>
-<string name="theme_white_red">Neve Escarlate</string>
+    <string name="theme_white_red">Neve Escarlate</string>
     <string name="theme_white_red_detail">Superfícies brancas limpas com detalhes em vermelho intenso.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Cores que percorrem o arco-íris. Respeita as configurações de animação do Android.</string>

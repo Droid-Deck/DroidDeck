@@ -1623,7 +1623,7 @@
     <string name="theme_icon_blue_detail">黑色背景、白色文字，选中、聚焦或按下的元素使用蓝色。</string>
     <string name="theme_electric">电光藏青</string>
     <string name="theme_electric_detail">更明亮的蓝色，配以偏藏青而非灰色的界面。</string>
-<string name="theme_white_red">猩红之雪</string>
+    <string name="theme_white_red">猩红之雪</string>
     <string name="theme_white_red_detail">纯净的白色表面搭配醒目的红色点缀。</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">在彩虹色之间循环变化的颜色。遵循 Android 的动画设置。</string>

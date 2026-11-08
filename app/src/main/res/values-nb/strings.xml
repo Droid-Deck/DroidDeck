@@ -1563,7 +1563,7 @@
     <string name="theme_icon_blue_detail">Svart bakgrunn, hvit skrift, det blå for alt som er valgt, fokusert eller trykket.</string>
     <string name="theme_electric">Elektrisk marineblå</string>
     <string name="theme_electric_detail">Det blå lysere, på flater som lener mer mot marineblått enn grått.</string>
-<string name="theme_white_red">Skarlagenssnø</string>
+    <string name="theme_white_red">Skarlagenssnø</string>
     <string name="theme_white_red_detail">Rene hvite flater med tydelige røde detaljer.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Farger som går gjennom regnbuen. Følger Androids animasjonsinnstillinger.</string>

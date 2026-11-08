@@ -1645,7 +1645,7 @@
     <string name="theme_icon_blue_detail">Черный фон, белый текст, синий — для всего выбранного, активного или нажатого.</string>
     <string name="theme_electric">Электрик</string>
     <string name="theme_electric_detail">Более яркий синий на поверхностях темно-синего, а не серого оттенка.</string>
-<string name="theme_white_red">Алый снег</string>
+    <string name="theme_white_red">Алый снег</string>
     <string name="theme_white_red_detail">Чистые белые поверхности с яркими красными акцентами.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Цвета, плавно переходящие по всей радуге. Учитывает настройки анимации Android.</string>

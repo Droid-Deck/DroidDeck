@@ -1563,7 +1563,7 @@
     <string name="theme_icon_blue_detail">Sort baggrund, hvid skrift, blå til alt, der er valgt, fokuseret eller trykket.</string>
     <string name="theme_electric">Elektrisk marineblå</string>
     <string name="theme_electric_detail">Den blå er klarere, på overflader der trækker mod marineblåt i stedet for gråt.</string>
-<string name="theme_white_red">Skarlagensne</string>
+    <string name="theme_white_red">Skarlagensne</string>
     <string name="theme_white_red_detail">Rene hvide overflader med markante røde detaljer.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Farver, der skifter gennem regnbuen. Følger Androids animationsindstillinger.</string>
