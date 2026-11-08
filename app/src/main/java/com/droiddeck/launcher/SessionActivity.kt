@@ -3636,7 +3636,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             val column = android.widget.LinearLayout(this).apply {
                 orientation = android.widget.LinearLayout.VERTICAL
                 addView(unfoldedBar(), android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                    (com.droiddeck.launcher.ui.BAR_HEIGHT.value * resources.displayMetrics.density + 0.5f).toInt()))
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT))
                 addView(panel, android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
             }
             sessionRoot.addView(column, sessionRoot.indexOfChild(surfaceView) + 1)
