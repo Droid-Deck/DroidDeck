@@ -840,10 +840,15 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
     val ready = current != null && !state.saving
     val launcher = game.library == com.droiddeck.launcher.frontend.Library.EPIC_LAUNCHER
     fun save(change: (android.content.Context) -> com.droiddeck.launcher.core.GameEnvironment.Config?) = state.save(change)
-    val inputLibrary = remember(host.open) { com.droiddeck.launcher.input.InputLibraries.read(appContext) }
     var controlsProfile by remember(scope) { mutableStateOf(com.droiddeck.launcher.input.GameInputControls.profile(appContext, scope)) }
     val controlsKey = "game-settings-controls"
     val key = GAME_SETTINGS_MENU
+    val controlsMenuOpen = host.open == key || host.open == controlsKey
+    val inputLibrary by androidx.compose.runtime.produceState<com.droiddeck.launcher.input.InputLibrary?>(null, controlsMenuOpen) {
+        value = if (controlsMenuOpen) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.droiddeck.launcher.input.InputLibraries.read(appContext)
+        } else null
+    }
     val fexKey = "game-settings-fex"
     val syncKey = "game-settings-sync"
     val syncLabels = mapOf(
@@ -886,7 +891,7 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
             ) { host.open = syncKey }
         }
         MenuItem(stringResource(R.string.community_game_controls), checked = false,
-            detail = inputLibrary.profiles.firstOrNull { it.id == controlsProfile }?.name ?: useDefault) { host.open = controlsKey }
+            detail = inputLibrary?.profiles?.firstOrNull { it.id == controlsProfile }?.name ?: useDefault) { host.open = controlsKey }
         MenuItem(stringResource(R.string.game_settings_default), checked = false, enabled = ready,
             detail = stringResource(R.string.game_settings_default_detail)) {
             save {
@@ -910,7 +915,7 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
                 .onSuccess { controlsProfile = null; host.open = key }
                 .onFailure { android.widget.Toast.makeText(appContext, it.message, android.widget.Toast.LENGTH_SHORT).show() }
         }
-        for (profile in inputLibrary.profiles) MenuItem(profile.name, checked = profile.id == controlsProfile,
+        for (profile in inputLibrary?.profiles.orEmpty()) MenuItem(profile.name, checked = profile.id == controlsProfile,
             detail = stringResource(R.string.community_game_controls_hint)) {
             runCatching { com.droiddeck.launcher.input.GameInputControls.set(appContext, scope, profile.id) }
                 .onSuccess { controlsProfile = profile.id; host.open = key }

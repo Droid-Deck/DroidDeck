@@ -22,6 +22,25 @@ class GameInputControlsTest {
         GameInputControls.set(context, "42", "my-game")
         return result
     }
+    @Test fun directLaunchResolvesTheGameBeforeSessionServiceStarts() {
+        val original = library()
+        val state = com.droiddeck.launcher.session.SessionState
+        val previousRunning = state.running
+        val previousMode = state.mode
+        val previousGame = state.gameId
+        try {
+            state.running = false
+            state.mode = com.droiddeck.launcher.session.SessionService.MODE_STEAM
+            state.gameId = null
+            val intent = android.content.Intent(context, com.droiddeck.launcher.SessionActivity::class.java)
+                .putExtra(com.droiddeck.launcher.session.SessionService.EXTRA_MODE, com.droiddeck.launcher.session.SessionService.MODE_RUN)
+                .putExtra(com.droiddeck.launcher.session.SessionService.EXTRA_GAME_ID, "42")
+            val activity = org.robolectric.Robolectric.buildActivity(com.droiddeck.launcher.SessionActivity::class.java, intent).get()
+            assertEquals("42", activity.inputGameScope())
+            assertEquals(original.profile("my-game").binding(InputRole.PRIMARY),
+                GameInputControls.resolve(context, original, false, activity.inputGameScope()).activePart(false, InputRole.PRIMARY).bindings)
+        } finally { state.running = previousRunning; state.mode = previousMode; state.gameId = previousGame }
+    }
     @Test fun gameOverridesOnlyScreenPartsAndRestoresGeneralControlsOnExit() {
         val original = library()
         val game = GameInputControls.resolve(context, original, false, "42")

@@ -3547,8 +3547,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (started && displayId !in inputWindowDisplays && secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
     }
 
-    fun inputGameScope(): String? =
-        if (SessionState.mode == SessionService.MODE_RUN) SessionState.gameId ?: gestureGame else gestureGame
+    fun inputGameScope(): String? = if (loadingMode() == SessionService.MODE_RUN) {
+        (if (SessionState.running) SessionState.gameId else null)
+            ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID) ?: gestureGame
+    } else gestureGame
 
     private fun refreshInputProfile() {
         val desktop = loadingMode() == SessionService.MODE_DESKTOP
