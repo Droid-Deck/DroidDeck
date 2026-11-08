@@ -123,6 +123,14 @@ class PointerHoldTest(unittest.TestCase):
         self.assertIn("const bool bGameHoldsPointer = bHasPointerConstraint && s_bPointerHeld;", added)
         self.assertIn(": ( bForcedRelativeMouse || s_bFollowClientPointer || ( bImageEmpty && bGameHoldsPointer && !bExcludedAppId ) );", added)
 
+    def test_a_new_window_or_constraint_starts_its_own_hold(self):
+        tracker = block(added_source(), "static void update_pointer_hold")
+        reset = tracker.index("if ( pWindow != s_pWindow || pConstraint != s_pConstraint )")
+        self.assertIn("const steamcompmgr_win_t *pWindow = pFocus->inputFocusWindow;", tracker)
+        self.assertIn("wlserver.GetCursorConstraint();", tracker)
+        self.assertLess(reset, tracker.index("if ( s_bTracking && bHinted && !s_bHinted )"))
+        self.assertIn("s_bTracking = false;", tracker[reset:reset + 120])
+
     def test_the_motion_sent_to_clients_is_counted(self):
         added = [line.strip() for line in added_source().splitlines()]
         self.assertIn("wlserver.flSentDX += unaccel_dx;", added)
