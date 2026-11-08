@@ -28,8 +28,9 @@ class UsbMouse(private val context: Context, private val listener: Listener) {
         fun onMove(dx: Int, dy: Int)
         fun onButton(index: Int, down: Boolean)
         fun onWheel(steps: Int)
-        /** Access was granted, or the mouse was lost. */
         fun onChanged()
+        /** The mouse stopped responding while read here, so buttons held then never got their releases. */
+        fun onLost()
     }
 
     private val usb by lazy { context.getSystemService(Context.USB_SERVICE) as UsbManager }
@@ -166,7 +167,7 @@ class UsbMouse(private val context: Context, private val listener: Listener) {
             if (grab !== this) return
             Log.i(TAG, "USB mouse stopped responding")
             grab = null
-            listener.onChanged()
+            listener.onLost()
         }
     }
 

@@ -44,6 +44,8 @@ class HidMouseReport(
         private const val Y = 0x00010031
         private const val WHEEL = 0x00010038
         private const val MAX_BUTTONS = 8
+        private const val MAX_FIELD_BITS = 32
+        private const val MAX_REPORT_COUNT = 4096
 
         private class Global(var usagePage: Int = 0, var logicalMin: Int = 0, var reportSize: Int = 0,
                              var reportCount: Int = 0, var reportId: Int = 0) {
@@ -93,6 +95,7 @@ class HidMouseReport(
                     0 -> {
                         when (tag) {
                             0x8 -> {
+                                if (global.reportSize !in 0..MAX_FIELD_BITS || global.reportCount !in 0..MAX_REPORT_COUNT) return null
                                 val start = offsets[global.reportId] ?: 0
                                 val isData = data and 1 == 0
                                 val isVariable = data and 2 != 0

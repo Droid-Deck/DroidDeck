@@ -406,6 +406,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         override fun onWheel(steps: Int) = sendSceneWheel(-steps)
         override fun onChanged() = updatePointerCapture()
+        override fun onLost() {
+            usbMenuHold.reset()
+            heldButtons.release(8)
+            updatePointerCapture()
+        }
     })
     private var pointerCaptureRefused = false
     // Android grants capture on the focused display, which the phone's own screen is; only sessions shown on
