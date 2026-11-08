@@ -4,7 +4,6 @@ import collections
 import fcntl
 import filecmp
 import http.client
-import io
 import json
 import os
 import re
@@ -72,6 +71,14 @@ APP_ID = "com.epicgames.eglv2"
 DBUS_NAME = APP_ID + ".SingleInstance"
 DBUS_PATH = "/" + APP_ID.replace(".", "/") + "/SingleInstance"
 DBUS_METHOD = "org.SingleInstance.DBus.ExecuteCallback"
+APP_BIN = "usr/bin/EpicGamesLauncher"
+DEB_ICON = "usr/share/icons/hicolor/256x256@2/apps/EpicGamesLauncher.png"
+ICON = "epic-games-launcher.png"
+DESKTOP = "desktop"
+DESKTOP_KEEP = "usr/lib/x86_64-linux-gnu/"
+DESKTOP_LIB = DESKTOP + "/" + DESKTOP_KEEP.rstrip("/")
+WEBKIT_DIR = "webkit2gtk-4.1"
+WEBKIT_LIB = "libwebkit2gtk-4.1.so.0"
 SKIPPED = ("lib/i386-linux-gnu", "lib32", "libx32", "i686-pc-linux-gnu", "share/doc", "include")
 SETTINGS_SEED = {
     "minimizeToTray": False,
@@ -254,6 +261,35 @@ def inside(root, path):
     return real == root or real.startswith(root + os.sep)
 
 
+def unpack_member(archive, member, staging, root, name, link):
+    target = os.path.join(staging, name)
+    if not inside(root, os.path.dirname(target)):
+        return False
+    if member.isdir():
+        os.makedirs(target, exist_ok=True)
+        return False
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    if not inside(root, os.path.dirname(target)):
+        return False
+    if member.issym():
+        remove(target)
+        os.symlink(link(target, member.linkname), target)
+    elif member.islnk():
+        source = safe_name(member.linkname)
+        source = os.path.join(staging, source) if source else None
+        if source and os.path.isfile(source) and inside(root, source):
+            remove(target)
+            shutil.copy2(source, target)
+    elif member.isfile():
+        remove(target)
+        with archive.extractfile(member) as src, open(target, "wb") as out:
+            shutil.copyfileobj(src, out, 1 << 20)
+        os.chmod(target, (member.mode & 0o777) | 0o600)
+    else:
+        return False
+    return True
+
+
 def extract_runtime(tarball, dest):
     staging = dest + ".staging"
     remove(staging)
@@ -271,32 +307,12 @@ def extract_runtime(tarball, dest):
                 continue
             if top == "files" and rest and skipped(rest):
                 continue
-            target = os.path.join(staging, name)
-            if not inside(root, os.path.dirname(target)):
-                continue
-            if member.isdir():
-                os.makedirs(target, exist_ok=True)
-                continue
-            os.makedirs(os.path.dirname(target), exist_ok=True)
-            if not inside(root, os.path.dirname(target)):
-                continue
-            if member.issym():
-                remove(target)
-                os.symlink(rooted_link(files_root, target, member.linkname) if top == "files" else member.linkname, target)
-            elif member.islnk():
-                source = safe_name(member.linkname)
-                source = os.path.join(staging, source) if source else None
-                if source and os.path.isfile(source) and inside(root, source):
-                    remove(target)
-                    shutil.copy2(source, target)
-            elif member.isfile():
-                remove(target)
-                with archive.extractfile(member) as src, open(target, "wb") as out:
-                    shutil.copyfileobj(src, out, 1 << 20)
-                os.chmod(target, (member.mode & 0o777) | 0o600)
+            if top == "files":
+                link = lambda target, linkname: rooted_link(files_root, target, linkname)
             else:
-                continue
-            count += 1
+                link = lambda target, linkname: linkname
+            if unpack_member(archive, member, staging, root, name, link):
+                count += 1
     if not os.path.isfile(os.path.join(files_root, "lib", "x86_64-linux-gnu", "libc.so.6")) and \
             not os.path.islink(os.path.join(files_root, "lib", "x86_64-linux-gnu", "libc.so.6")):
         remove(staging)
@@ -306,63 +322,126 @@ def extract_runtime(tarball, dest):
     return staging, count
 
 
-def ar_members(path):
+@contextlib.contextmanager
+def deb_data(path, reason):
     with open(path, "rb") as f:
         if f.read(8) != b"!<arch>\n":
-            raise Failure("gles-format")
+            raise Failure(reason)
         while True:
             header = f.read(60)
             if len(header) < 60:
-                return
+                raise Failure(reason)
             name = header[:16].decode("ascii", "replace").strip().rstrip("/")
             size = int(header[48:58].decode("ascii").strip())
-            data = f.read(size)
-            if size % 2:
-                f.read(1)
-            yield name, data
+            if name.startswith("data.tar"):
+                with tarfile.open(fileobj=f, mode="r|*") as archive:
+                    yield archive
+                return
+            f.seek(size + size % 2, os.SEEK_CUR)
+
+
+def is_deb(path):
+    try:
+        with open(path, "rb") as f:
+            return f.read(21) == b"!<arch>\ndebian-binary"
+    except OSError:
+        return False
 
 
 def install_gles(deb, files_root):
     libdir = os.path.join(files_root, "lib", "x86_64-linux-gnu")
     os.makedirs(libdir, exist_ok=True)
-    for name, data in ar_members(deb):
-        if not name.startswith("data.tar"):
-            continue
-        with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as archive:
-            for member in archive:
-                base = os.path.basename(member.name)
-                if not base.startswith("libGLESv2.so"):
-                    continue
-                target = os.path.join(libdir, base)
-                remove(target)
-                if member.issym():
-                    os.symlink(os.path.basename(member.linkname), target)
-                elif member.isfile():
-                    with archive.extractfile(member) as src, open(target, "wb") as out:
-                        shutil.copyfileobj(src, out)
-                    os.chmod(target, 0o644)
-        if os.path.exists(os.path.join(libdir, "libGLESv2.so.2")):
-            return
-    raise Failure("gles-missing")
+    with deb_data(deb, "gles-format") as archive:
+        for member in archive:
+            base = os.path.basename(member.name)
+            if not base.startswith("libGLESv2.so"):
+                continue
+            target = os.path.join(libdir, base)
+            remove(target)
+            if member.issym():
+                os.symlink(os.path.basename(member.linkname), target)
+            elif member.isfile():
+                with archive.extractfile(member) as src, open(target, "wb") as out:
+                    shutil.copyfileobj(src, out)
+                os.chmod(target, 0o644)
+    if not os.path.exists(os.path.join(libdir, "libGLESv2.so.2")):
+        raise Failure("gles-missing")
 
 
-def extract_app(image, dest):
+def extract_deb(deb, dest, wanted=None):
+    root = os.path.realpath(dest)
+
+    def link(target, linkname):
+        if not linkname.startswith("/"):
+            return linkname
+        return os.path.relpath(os.path.join(dest, linkname.lstrip("/")), os.path.dirname(target))
+
+    count = 0
+    with deb_data(deb, "app-format") as archive:
+        for member in archive:
+            name = safe_name(member.name)
+            if name is None or (wanted is not None and not wanted(name)):
+                continue
+            if unpack_member(archive, member, dest, root, name, link):
+                count += 1
+    return count
+
+
+def extract_app(image, dest, desktop=()):
     staging = dest + ".staging"
     remove(staging)
     os.makedirs(staging)
-    status = subprocess.call([os.path.join(BIN_DIR, "droiddeck-fex"), "extract", os.path.abspath(image)],
-                             cwd=staging, stdout=subprocess.DEVNULL)
-    root = os.path.realpath(os.path.join(staging, "squashfs-root"))
-    if status != 0 or not app_complete(root):
+    try:
+        if not is_deb(image):
+            raise Failure("app-format")
+        extract_deb(image, staging)
+        layer = os.path.join(staging, DESKTOP)
+        os.makedirs(layer, exist_ok=True)
+        for package in desktop:
+            if not is_deb(package):
+                raise Failure("desktop-format")
+            extract_deb(package, layer, lambda name: name.startswith(DESKTOP_KEEP))
+        icon = os.path.join(staging, DEB_ICON)
+        if os.path.isfile(icon):
+            shutil.copyfile(icon, os.path.join(staging, ICON))
+        if not app_complete(staging):
+            raise Failure("app-extract")
+    except Exception:
         remove(staging)
-        raise Failure("app-extract")
+        raise
     remove(dest)
-    os.rename(root, dest)
-    remove(staging)
+    os.rename(staging, dest)
 
 
 def app_complete(root):
-    return os.path.isfile(os.path.join(root, "AppRun")) and os.path.isfile(os.path.join(root, "usr", "bin", "EpicGamesLauncher"))
+    if not os.path.isfile(os.path.join(root, APP_BIN)):
+        return False
+    return os.path.isfile(os.path.join(root, "AppRun")) or os.path.isfile(os.path.join(root, DESKTOP_LIB, WEBKIT_LIB))
+
+
+def app_command(app_dir):
+    apprun = os.path.join(app_dir, "AppRun")
+    return apprun if os.path.isfile(apprun) else os.path.join(app_dir, APP_BIN)
+
+
+def desktop_libs(app_dir):
+    path = os.path.join(app_dir, DESKTOP_LIB)
+    return path if os.path.isdir(path) else None
+
+
+def link_webkit(files, libs):
+    target = os.path.join(files, "lib", "x86_64-linux-gnu", WEBKIT_DIR)
+    if os.path.isdir(target) and not os.path.islink(target):
+        return
+    source = os.path.join(libs, WEBKIT_DIR) if libs else None
+    if source is None or not os.path.isdir(source):
+        remove(target)
+        return
+    link = os.path.relpath(source, os.path.dirname(target))
+    if os.path.islink(target) and os.readlink(target) == link:
+        return
+    remove(target)
+    os.symlink(link, target)
 
 
 def ready(path):
@@ -396,8 +475,11 @@ def install(options):
             image = options.get("app")
             if not image or not os.path.isfile(image):
                 raise Failure("no-app-image")
-            say("unpacking the Epic Games Launcher %s" % app)
-            extract_app(image, app_dir)
+            desktop = options.get("desktop") or []
+            if not all(os.path.isfile(package) for package in desktop):
+                raise Failure("no-desktop-package")
+            say("unpacking the Epic Games Launcher %s (%d desktop packages)" % (app, len(desktop)))
+            extract_app(image, app_dir, desktop)
             mark_ready(app_dir)
         if not ready(runtime_dir):
             tarball, deb = options.get("runtime"), options.get("gles")
@@ -729,11 +811,13 @@ def fex_environment(fex, files, env):
     return result
 
 
-def client_environment(base, fex, files, display, bus, broker, a11y=None, hidden=False):
+def client_environment(base, fex, files, display, bus, broker, a11y=None, hidden=False, libs=None):
     env = {name: base[name] for name in KEPT_ENV if base.get(name)}
     env.setdefault("HOME", HOME)
     env.setdefault("LANG", "C.UTF-8")
     env["PATH"] = SHIMS + ":/usr/bin:/bin"
+    if libs:
+        env["LD_LIBRARY_PATH"] = libs
     env["DISPLAY"] = display
     env["DBUS_SESSION_BUS_ADDRESS"] = bus
     env[BROKER_ENV] = broker
@@ -1238,6 +1322,8 @@ class Session:
         seed_settings()
         install_shims()
         install_preload(files)
+        libs = desktop_libs(app_dir)
+        link_webkit(files, libs)
         fex_module()["install_fonts"](files)
         clear_playing()
         sync_installations()
@@ -1254,8 +1340,8 @@ class Session:
         path = broker_path()
         self.broker = Broker(path, self.mode, base)
         write_json(instance_file(), {"pid": os.getpid(), "mode": self.mode, "bus": bus, "broker": path})
-        env = client_environment(base, fex, files, display, bus, path, self.a11y, hidden=self.mode == "hidden")
-        self.command = [fex["bin"], os.path.join(app_dir, "AppRun")]
+        env = client_environment(base, fex, files, display, bus, path, self.a11y, hidden=self.mode == "hidden", libs=libs)
+        self.command = [fex["bin"], app_command(app_dir)]
         self.env = env
         say("starting the Epic Games Launcher %s (%s, display %s)" % (current.get("app"), self.mode, display))
         self.start_client()
@@ -1471,12 +1557,14 @@ def forward(bus, url):
         return False
 
 
-def parse_options(args, flags=()):
+def parse_options(args, flags=(), lists=()):
     options, rest = {}, []
     while args:
         arg = args.pop(0)
         if arg.startswith("--") and arg[2:] in flags:
             options[arg[2:]] = True
+        elif arg.startswith("--") and arg[2:] in lists and args:
+            options.setdefault(arg[2:], []).append(args.pop(0))
         elif arg.startswith("--") and args:
             options[arg[2:]] = args.pop(0)
         else:
@@ -1830,7 +1918,7 @@ def main(argv):
         if action == "xdg-open":
             return shim_open(args)
         if action == "install":
-            options, _ = parse_options(args)
+            options, _ = parse_options(args, lists=("desktop",))
             try:
                 return install(options)
             except (ValueError, tarfile.TarError, OSError) as error:

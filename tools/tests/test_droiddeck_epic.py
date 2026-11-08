@@ -175,17 +175,27 @@ class RuntimeExtractTest(EpicTestCase):
         old = self.state / "app/0.1"
         old.mkdir(parents=True)
 
-        def extract_app(image, dest):
-            os.makedirs(os.path.join(dest, "usr/bin"))
-            Path(dest, "AppRun").write_text("run")
-            Path(dest, "usr/bin/EpicGamesLauncher").write_text("bin")
+        layers = []
 
+        def extract_app(image, dest, desktop=()):
+            layers.append(list(desktop))
+            os.makedirs(os.path.join(dest, "usr/bin"))
+            os.makedirs(os.path.join(dest, "desktop/usr/lib/x86_64-linux-gnu"))
+            Path(dest, "usr/bin/EpicGamesLauncher").write_text("bin")
+            Path(dest, "desktop/usr/lib/x86_64-linux-gnu/libwebkit2gtk-4.1.so.0").write_text("webkit")
+
+        package = self.tmp / "libwebkit.deb"
+        package.write_bytes(b"x")
         with mock.patch.dict(G, {"extract_app": extract_app, "fex_tool": lambda request=False: {"bin": "/fex", "server": "/s"}}), \
                 mock.patch("sys.stdout", new_callable=io.StringIO) as out:
             image = self.tmp / "image"
             image.write_bytes(b"x")
+            with self.assertRaises(G["Failure"]):
+                G["install"]({"app": str(image), "app-version": "0.95.2+g1", "runtime": str(tarball),
+                              "runtime-version": "4.0.1", "gles": str(deb), "desktop": [str(self.tmp / "missing.deb")]})
             code = G["install"]({"app": str(image), "app-version": "0.95.2+g1", "runtime": str(tarball),
-                                 "runtime-version": "4.0.1", "gles": str(deb)})
+                                 "runtime-version": "4.0.1", "gles": str(deb), "desktop": [str(package)]})
+        self.assertEqual([[str(package)]], layers)
         self.assertEqual(0, code)
         report = json.loads(out.getvalue())
         self.assertTrue(report["installed"])
@@ -195,6 +205,122 @@ class RuntimeExtractTest(EpicTestCase):
         self.assertEqual("", (files / "etc/ld.so.preload").read_text())
         self.assertTrue((self.state / "runtime/4.0.1/.droiddeck-ready").is_file())
         self.assertTrue((self.state / "app/0.95.2+g1/.droiddeck-ready").is_file())
+
+
+def deb(path, entries, compression="gz"):
+    data = io.BytesIO()
+    with tarfile.open(fileobj=data, mode="w:" + compression) as archive:
+        for entry in entries:
+            tar_add(archive, *entry[:1], **entry[1])
+    path.write_bytes(ar([("debian-binary", b"2.0\n"), ("control.tar.xz", b"c"), ("data.tar." + compression, data.getvalue())]))
+    return path
+
+
+class LauncherDebTest(EpicTestCase):
+    def launcher(self):
+        return deb(self.tmp / "EpicGamesLauncher-x86_64.deb", [
+            ("./usr", {"kind": "dir"}),
+            ("./usr/bin/EpicGamesLauncher", {"data": b"egl", "mode": 0o755}),
+            ("./usr/lib/epic-games-launcher/libEOSSDK-Linux-Shipping.so", {"data": b"eos"}),
+            ("./usr/share/icons/hicolor/256x256@2/apps/EpicGamesLauncher.png", {"data": b"png"}),
+            ("./usr/share/applications/epic-games-launcher.desktop", {"data": b"[Desktop Entry]\n"}),
+            ("./usr/bin/egl", {"link": "/usr/bin/EpicGamesLauncher"}),
+            ("../escape", {"data": b"x"}),
+        ])
+
+    def webkit(self):
+        return deb(self.tmp / "libwebkit2gtk-4.1-0_amd64.deb", [
+            ("./usr/lib/x86_64-linux-gnu/libwebkit2gtk-4.1.so.0.19.1", {"data": b"webkit"}),
+            ("./usr/lib/x86_64-linux-gnu/libwebkit2gtk-4.1.so.0", {"link": "libwebkit2gtk-4.1.so.0.19.1"}),
+            ("./usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/WebKitNetworkProcess", {"data": b"net", "mode": 0o755}),
+            ("./usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/injected-bundle/libwebkit2gtkinjectedbundle.so", {"data": b"bundle"}),
+            ("./usr/share/doc/libwebkit2gtk-4.1-0/copyright", {"data": b"c"}),
+            ("./usr/share/locale/fr/LC_MESSAGES/WebKitGTK-4.1.mo", {"data": b"fr"}),
+        ], "xz")
+
+    def test_the_launcher_and_its_desktop_layer_come_out_of_debs(self):
+        dest = self.state / "app/0.113.0+g1"
+        G["extract_app"](str(self.launcher()), str(dest), [str(self.webkit())])
+        self.assertEqual(b"egl", (dest / "usr/bin/EpicGamesLauncher").read_bytes())
+        self.assertTrue(os.access(dest / "usr/bin/EpicGamesLauncher", os.X_OK))
+        self.assertEqual(b"eos", (dest / "usr/lib/epic-games-launcher/libEOSSDK-Linux-Shipping.so").read_bytes())
+        self.assertEqual("EpicGamesLauncher", os.readlink(dest / "usr/bin/egl"))
+        self.assertEqual(b"png", (dest / "epic-games-launcher.png").read_bytes())
+        libs = dest / "desktop/usr/lib/x86_64-linux-gnu"
+        self.assertEqual(b"webkit", (libs / "libwebkit2gtk-4.1.so.0").read_bytes())
+        self.assertEqual(b"net", (libs / "webkit2gtk-4.1/WebKitNetworkProcess").read_bytes())
+        self.assertFalse((dest / "desktop/usr/share").exists())
+        self.assertFalse((self.state / "app/escape").exists())
+        self.assertFalse((self.state / "app/0.113.0+g1.staging").exists())
+        self.assertTrue(G["app_complete"](str(dest)))
+        self.assertEqual(str(dest / "usr/bin/EpicGamesLauncher"), G["app_command"](str(dest)))
+        self.assertEqual(str(libs), G["desktop_libs"](str(dest)))
+
+    def test_a_launcher_without_its_desktop_layer_is_refused(self):
+        dest = self.state / "app/0.113.0+g1"
+        with self.assertRaises(G["Failure"]) as caught:
+            G["extract_app"](str(self.launcher()), str(dest))
+        self.assertEqual("app-extract", str(caught.exception))
+        self.assertFalse(dest.exists())
+        self.assertFalse(Path(str(dest) + ".staging").exists())
+
+    def test_anything_but_a_deb_is_refused_and_leaves_nothing_behind(self):
+        image = self.tmp / "EpicGamesLauncher-x86_64.AppImage"
+        image.write_bytes(b"\x7fELF\x02\x01\x01\x00AI\x02" + bytes(64))
+        dest = self.state / "app/0.95.2+g1"
+        with self.assertRaises(G["Failure"]) as caught:
+            G["extract_app"](str(image), str(dest), [str(self.webkit())])
+        self.assertEqual("app-format", str(caught.exception))
+        plain = self.tmp / "plain.deb"
+        plain.write_bytes(ar([("data.tar.gz", b"x")]))
+        with self.assertRaises(G["Failure"]) as caught:
+            G["extract_app"](str(self.launcher()), str(dest), [str(plain)])
+        self.assertEqual("desktop-format", str(caught.exception))
+        self.assertFalse(dest.exists())
+        self.assertFalse(Path(str(dest) + ".staging").exists())
+
+    def test_an_installed_appimage_launcher_still_runs_through_apprun(self):
+        app = self.state / "app/0.95.2+g1"
+        (app / "usr/bin").mkdir(parents=True)
+        (app / "AppRun").write_text("run")
+        (app / "usr/bin/EpicGamesLauncher").write_text("bin")
+        self.assertTrue(G["app_complete"](str(app)))
+        self.assertEqual(str(app / "AppRun"), G["app_command"](str(app)))
+        self.assertIsNone(G["desktop_libs"](str(app)))
+        (app / "usr/bin/EpicGamesLauncher").unlink()
+        self.assertFalse(G["app_complete"](str(app)))
+
+    def test_the_webkit_helpers_are_linked_into_the_runtime(self):
+        dest = self.state / "app/0.113.0+g1"
+        G["extract_app"](str(self.launcher()), str(dest), [str(self.webkit())])
+        files = self.state / "runtime/4.0.1/files"
+        (files / "lib/x86_64-linux-gnu").mkdir(parents=True)
+        link = files / "lib/x86_64-linux-gnu/webkit2gtk-4.1"
+        G["link_webkit"](str(files), G["desktop_libs"](str(dest)))
+        self.assertFalse(os.path.isabs(os.readlink(link)))
+        self.assertEqual(b"net", (link / "WebKitNetworkProcess").read_bytes())
+        G["link_webkit"](str(files), G["desktop_libs"](str(dest)))
+        self.assertEqual(b"net", (link / "WebKitNetworkProcess").read_bytes())
+        G["link_webkit"](str(files), None)
+        self.assertFalse(os.path.lexists(link))
+        link.mkdir()
+        (link / "own").write_text("x")
+        G["link_webkit"](str(files), G["desktop_libs"](str(dest)))
+        self.assertTrue((link / "own").is_file())
+        self.assertTrue((dest / "desktop/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/WebKitNetworkProcess").is_file())
+
+    def test_only_the_deb_launcher_gets_the_desktop_libraries(self):
+        with mock.patch.dict(G, {"fex_environment": lambda fex, files, base: {}}):
+            plain = G["client_environment"]({"LD_LIBRARY_PATH": "/host"}, None, None, ":0", "bus", "broker")
+            layered = G["client_environment"]({}, None, None, ":0", "bus", "broker", libs="/app/desktop/usr/lib/x86_64-linux-gnu")
+        self.assertNotIn("LD_LIBRARY_PATH", plain)
+        self.assertEqual("/app/desktop/usr/lib/x86_64-linux-gnu", layered["LD_LIBRARY_PATH"])
+
+    def test_every_desktop_package_reaches_the_install(self):
+        options, rest = G["parse_options"](["--app", "a.deb", "--desktop", "one.deb", "--desktop", "two.deb", "x"], lists=("desktop",))
+        self.assertEqual({"app": "a.deb", "desktop": ["one.deb", "two.deb"]}, options)
+        self.assertEqual(["x"], rest)
+        self.assertEqual({"desktop": "two.deb"}, G["parse_options"](["--desktop", "one.deb", "--desktop", "two.deb"])[0])
 
 
 class ArgumentsTest(EpicTestCase):
