@@ -12,7 +12,7 @@ aarch64-linux-gnu-strip --strip-unneeded "$D/libblsession.so"
 aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
   -o "$D/libblfastpath.so" tools/proot/fastpath/fastpath.c -ldl
 aarch64-linux-gnu-strip --strip-unneeded "$D/libblfastpath.so"
-tools/nativeguest/build.sh "$D/libddnatv-hook.so"
+bash tools/nativeguest/build.sh "$D/libddnatv-hook.so"
 aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -nostdlib -ffreestanding -fno-stack-protector \
   -fno-tree-loop-distribute-patterns -Wl,-z,defs -o "$D/libblaudit.so" tools/proot/fastpath/audit.c
 aarch64-linux-gnu-strip --strip-unneeded "$D/libblaudit.so"
