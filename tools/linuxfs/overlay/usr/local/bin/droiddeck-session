@@ -1338,6 +1338,23 @@ case $mode in
       echo "== network: no dbus-daemon or netmanager in this runtime; the client will show no connection"
       exit 69
     fi
+    # Without a session bus libdbus autolaunches one under the game; it never exits and Steam's
+    # reaper waits on it, so the launch or exit never finishes.
+    if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+      _bl_bus=${XDG_RUNTIME_DIR:-/run/droiddeck}/bus
+      rm -f "$_bl_bus"
+      dbus-daemon --session --address="unix:path=$_bl_bus" --nofork --nopidfile &
+      for _ in $(seq 1 50); do
+        [ -S "$_bl_bus" ] && break
+        nap 0.1
+      done
+      if [ -S "$_bl_bus" ]; then
+        export DBUS_SESSION_BUS_ADDRESS="unix:path=$_bl_bus"
+        echo "== session bus up at $_bl_bus"
+      else
+        echo "== session bus did not come up; programs may start their own"
+      fi
+    fi
 
     _bl_compat_env=(env -u LD_LIBRARY_PATH -u STEAM_RUNTIME -u STEAM_STEAMRT_RECURSION_GUARD)
     [ "${LD_LIBRARY_PATH+x}" ] && _bl_compat_env+=("LD_LIBRARY_PATH=$LD_LIBRARY_PATH")
