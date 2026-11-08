@@ -76,7 +76,7 @@ def required():
     paths += [f'assets/graphics_driver/adrenotools-{name}.tzst'
               for name in ['turnip26.3.0-a6xx', 'turnip26.3.0-quest2']]
     paths += ['assets/linuxfs/' + name for name in ['libfakeinput.so', 'libblsession.so',
-             'libblfastpath.so', 'libssbs.so', 'usr/local/bin/droiddeck-clipboard',
+             'libblfastpath.so', 'libddnatv-hook.so', 'libssbs.so', 'usr/local/bin/droiddeck-clipboard',
              'usr/local/bin/droiddeck-gog-maintenance',
              'usr/local/bin/gamescope', 'usr/local/lib/droiddeck/uruntime',
              'usr/local/lib/droiddeck-pipewire.tzst']]

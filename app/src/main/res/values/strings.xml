@@ -648,6 +648,8 @@
     <string name="perf_xalia_hint">Disables Proton\'s gamepad navigation helper, which costs CPU in every game.</string>
     <string name="perf_seccomp">Run proot without seccomp</string>
     <string name="perf_seccomp_hint">May fix missing-syscall errors on some kernels. Can reduce performance.</string>
+    <string name="perf_native_userland">Run without proot (experimental)</string>
+    <string name="perf_native_userland_hint">Starts the Linux side directly on Android. Applies to the next session. Turn off if something fails to start.</string>
     <string name="perf_fastpath">proot fast path</string>
     <string name="perf_fastpath_needs_seccomp">Needs proot\'s seccomp filter.</string>
     <string name="perf_fastpath_hint">Faster file lookups and less stutter. Turn off if a program can\'t find its files.</string>

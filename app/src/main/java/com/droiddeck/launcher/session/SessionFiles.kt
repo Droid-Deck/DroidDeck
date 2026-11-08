@@ -50,6 +50,7 @@ object SessionFiles {
             "libblsession.so" to "usr/local/lib/libblsession.so",
             "libfakeinput.so" to "usr/local/lib/libfakeinput.so",
             "libblfastpath.so" to "usr/local/lib/libblfastpath.so",
+            "libddnatv-hook.so" to "usr/lib/libddnatv-hook.so",
             "libblaudit.so" to "usr/local/lib/libblaudit.so",
             "libssbs.so" to "usr/local/lib/libssbs.so",
             "usr/local/bin/droiddeck-session" to "usr/local/bin/droiddeck-session",
@@ -255,12 +256,20 @@ object SessionFiles {
         if (!File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()) {
             preload.append("/usr/local/lib/libfakeinput.so\n")
         }
-        if (ProotFastPath.enabled(context)) {
+        val nativeUserland = SessionPrefs.nativeUserland(context)
+        if (nativeUserland) {
+            val relinked = com.droiddeck.launcher.runtime.NativeGuest.relinkAbsoluteSymlinks(context, root)
+            if (relinked > 0) Log.i(TAG, "native userland: $relinked absolute symlinks made relative")
+            com.droiddeck.launcher.runtime.NativeGuest.syncLibraryDirs(root)
+        }
+        if (ProotFastPath.enabled(context) && !nativeUserland) {
             val library = com.droiddeck.launcher.agent.AgentEnv.fastPathLibrary(context)
             preload.append(library + "\n")
             if (startsSession && library != ProotFastPath.LIBRARY) Log.i(TAG, "fast path preload: $library (debugging override)")
         }
         val etc = File(root, "etc").apply { mkdirs() }
+        File(etc, "droiddeck").mkdirs()
+        FileUtils.writeString(File(etc, "droiddeck/native-preload"), preload.toString())
         val staged = File(etc, "ld.so.preload.staged")
         if (!FileUtils.writeString(staged, preload.toString())
             || !staged.renameTo(File(etc, "ld.so.preload"))) {

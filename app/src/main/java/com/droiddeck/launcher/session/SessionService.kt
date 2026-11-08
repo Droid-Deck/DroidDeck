@@ -665,7 +665,8 @@ class SessionService : Service() {
         FileUtils.clear(File(LinuxRuntime.liveDir(this), "shm"))
 
         val binds = sessionBinds(controllersOn, fakeInputDir, sessionDir, guest, sessionRoot, runtimeDir)
-        val fastPathKey = if (ProotFastPath.enabled(this)) {
+        val nativeUserland = com.droiddeck.launcher.runtime.NativeGuest.enabled(this)
+        val fastPathKey = if (ProotFastPath.enabled(this) && !nativeUserland) {
             val prootBinds = LinuxRuntime.binds(
                 this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds,
             )
@@ -681,11 +682,18 @@ class SessionService : Service() {
             }
         } else null
 
-        val command = LinuxRuntime.command(
-            this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds, guest,
-        )
+        val sessionBindSpecs = LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds)
+        val command = if (nativeUserland) {
+            com.droiddeck.launcher.runtime.NativeGuest.command(root, guest.first(), guest.drop(1))
+        } else {
+            LinuxRuntime.command(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds, guest)
+        }
 
         val hostEnv = HostEnvironment()
+        if (nativeUserland) {
+            Log.i(TAG, "native userland: no proot (${sessionBindSpecs.size} mounts)")
+            com.droiddeck.launcher.runtime.NativeGuest.sessionEnvironment(root, sessionBindSpecs).forEach { (k, v) -> hostEnv[k] = v }
+        } else {
         hostEnv["PROOT_LOADER"] = LinuxRuntime.prootLoader(this).path
         hostEnv["PROOT_TMP_DIR"] = LinuxRuntime.prootTempDir(this).path
         if (SessionPrefs.prootNoSeccomp(this)) {
@@ -698,6 +706,7 @@ class SessionService : Service() {
         }
         val prootLibs = LinuxRuntime.prootLibraryPath(this)
         if (prootLibs.isNotEmpty()) hostEnv["LD_LIBRARY_PATH"] = prootLibs
+        }
 
         val terminalCommand = LinuxRuntime.command(
             this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds, shellGuest,

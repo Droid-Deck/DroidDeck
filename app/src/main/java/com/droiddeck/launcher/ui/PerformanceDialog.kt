@@ -53,6 +53,7 @@ fun PerformancePage(
     ramCapAvailable: Boolean,
     prootNoSeccomp: Boolean,
     prootFastPath: Boolean,
+    nativeUserland: Boolean,
     cursorComposite: Boolean,
     guestHostname: String,
     phantomWarning: String?,
@@ -72,6 +73,7 @@ fun PerformancePage(
     onVramCapMb: (Int) -> Unit,
     onProotNoSeccomp: (Boolean) -> Unit,
     onProotFastPath: (Boolean) -> Unit,
+    onNativeUserland: (Boolean) -> Unit,
     onCursorComposite: (Boolean) -> Unit,
     onGuestHostname: (String) -> Unit,
     onClientCore: (Int, Boolean) -> Unit,
@@ -190,6 +192,11 @@ fun PerformancePage(
                 if (prootNoSeccomp) stringResource(R.string.perf_fastpath_needs_seccomp)
                 else stringResource(R.string.perf_fastpath_hint),
                 prootFastPath && !prootNoSeccomp, enabled = !prootNoSeccomp, onChange = onProotFastPath,
+            )
+            ToggleRow(
+                host, "nativeuserland", stringResource(R.string.perf_native_userland),
+                stringResource(R.string.perf_native_userland_hint),
+                nativeUserland, onChange = onNativeUserland,
             )
             ToggleRow(
                 host, "cursorcomposite", stringResource(R.string.perf_cursor_composite),

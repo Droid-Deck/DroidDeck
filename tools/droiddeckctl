@@ -98,8 +98,41 @@ def encode_request(request: dict) -> str:
     return encoded
 
 
+_CONTENT_COMMAND: dict[str, bool] = {}
+
+
+def has_content_command(adb: str, serial: str) -> bool:
+    if serial not in _CONTENT_COMMAND:
+        result = run_adb(adb, serial, "shell", "command -v content", timeout=15)
+        _CONTENT_COMMAND[serial] = result.returncode == 0 and bool(result.stdout.strip())
+    return _CONTENT_COMMAND[serial]
+
+
+def receiver_call(adb: str, serial: str, method: str, request: dict | None, timeout: float) -> dict:
+    """The agent bridge through a broadcast, for shells without the `content` command."""
+    call_id = uuid.uuid4().hex[:16]
+    remote = f"/sdcard/Android/data/{PACKAGE}/files/agent-calls/{call_id}.json"
+    command = ["shell", "am", "broadcast", "-a", f"{PACKAGE}.AGENT_CALL", "-p", PACKAGE,
+               "--es", "method", method, "--es", "id", call_id]
+    if request is not None:
+        command += ["--es", "request", encode_request(request)]
+    started = run_adb(adb, serial, *command, timeout=timeout + 30)
+    if started.returncode != 0:
+        raise ControlError((started.stdout + started.stderr).decode(errors="replace").strip() or "ADB broadcast failed", "ADB_FAILED")
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        result = run_adb(adb, serial, "shell", f"cat {remote} 2>/dev/null && rm -f {remote}", timeout=30)
+        text = result.stdout.decode(errors="replace").strip()
+        if result.returncode == 0 and text:
+            return json.loads(text)
+        time.sleep(0.25)
+    raise ControlError(f"No answer to {method} within {timeout:g} s", "TIMEOUT")
+
+
 def provider_call(adb: str, serial: str, method: str, arg: str | None = None, request: dict | None = None,
                   timeout: float = 30) -> dict:
+    if not has_content_command(adb, serial):
+        return receiver_call(adb, serial, method, request, timeout)
     command = ["shell", "content", "call", "--uri", AUTHORITY, "--method", method]
     if arg is not None:
         command.extend(["--arg", arg])
@@ -750,6 +783,21 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
                                f"{(response.get('stderr') or {}).get('text', '')[-400:]}", "GUEST_EXIT")
         return add_serial(response, serial)
 
+    if command == "native":
+        argv = args.argv[1:] if args.argv[:1] == ["--"] else args.argv
+        if not argv:
+            raise ControlError("native needs a command after --", "INVALID_ARGUMENTS")
+        env = dict(item.partition("=")[::2] for item in args.env or [])
+        request = {"argv": argv, "timeout": args.timeout, "env": env}
+        if args.cwd:
+            request["cwd"] = args.cwd
+        if args.stdin is not None:
+            request["stdin"] = args.stdin
+        if args.preload:
+            request["preload"] = args.preload
+        response = checked(provider_call(adb, serial, "native", request=request, timeout=args.timeout + 40), "NATIVE_FAILED")
+        return add_serial(response, serial)
+
     if command == "cdp":
         if args.cdp_op == "targets":
             request = {"op": "targets"}
@@ -983,6 +1031,14 @@ def build_parser() -> argparse.ArgumentParser:
     guest.add_argument("--stdin")
     guest.add_argument("--check", action="store_true", help="fail unless the command exits 0")
     guest.add_argument("argv", nargs=argparse.REMAINDER)
+
+    native = commands.add_parser("native", help="run a command in the rootfs without proot (debugging tools)")
+    native.add_argument("--timeout", type=float, default=30)
+    native.add_argument("--env", action="append", metavar="KEY=VALUE")
+    native.add_argument("--cwd")
+    native.add_argument("--stdin")
+    native.add_argument("--preload", action="append", help="guest path of another library to preload before the hook")
+    native.add_argument("argv", nargs=argparse.REMAINDER)
 
     cdp = commands.add_parser("cdp", help="the Steam client's DevTools (debugging tools)")
     cdp_ops = cdp.add_subparsers(dest="cdp_op", required=True)

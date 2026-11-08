@@ -1,0 +1,996 @@
+// Part of libddnatv-hook.so, included by ddnatv-hook.c (one translation unit, so the
+// parts share their static functions and are built with the same command as before).
+//
+// Name resolution: DNS packets, the network's DNS servers, the fallback resolver, getaddrinfo()
+// and the resolver state, and DNS queries to loopback redirected to a real server.
+
+// ---- DNS packets and servers -------------------------------------------------------------
+// Pure functions (no syscalls apart from if_nametoindex), so tests/native can check them directly.
+
+#define DDNATV_DNS_TYPE_A 1
+#define DDNATV_DNS_TYPE_AAAA 28
+#define DDNATV_DNS_MAX_SERVERS 8
+
+typedef struct {
+    struct sockaddr_storage addr;
+    socklen_t len;
+} ddnatv_dns_server_t;
+
+// Fills `server` with the DNS server `text` (an IPv4 or IPv6 address, IPv6 optionally with a
+// "%interface" scope) on port 53. Returns 0 for loopback and unspecified addresses (nothing answers
+// there on Android), for a link-local IPv6 address without a scope, and for anything invalid.
+static int dns_server_from_string(const char *text, ddnatv_dns_server_t *server) {
+    memset(server, 0, sizeof(*server));
+    if (!text) return 0;
+    struct in_addr a4;
+    if (inet_pton(AF_INET, text, &a4) == 1) {
+        if ((ntohl(a4.s_addr) >> 24) == 127 || a4.s_addr == 0) return 0;
+        struct sockaddr_in *sin = (struct sockaddr_in *)&server->addr;
+        sin->sin_family = AF_INET;
+        sin->sin_port = htons(53);
+        sin->sin_addr = a4;
+        server->len = sizeof(*sin);
+        return 1;
+    }
+    char host[INET6_ADDRSTRLEN + IF_NAMESIZE + 2];
+    if (strlen(text) >= sizeof(host)) return 0;
+    strcpy(host, text);
+    unsigned int scope = 0;
+    char *pct = strchr(host, '%');
+    if (pct) {
+        *pct++ = '\0';
+        if (*pct >= '0' && *pct <= '9') {
+            scope = (unsigned int)strtoul(pct, NULL, 10);
+        } else {
+            scope = if_nametoindex(pct);
+        }
+    }
+    struct in6_addr a6;
+    if (inet_pton(AF_INET6, host, &a6) != 1) return 0;
+    if (IN6_IS_ADDR_LOOPBACK(&a6) || IN6_IS_ADDR_UNSPECIFIED(&a6)) return 0;
+    if (IN6_IS_ADDR_V4MAPPED(&a6) && (a6.s6_addr[12] == 127 || (a6.s6_addr[12] | a6.s6_addr[13] | a6.s6_addr[14] | a6.s6_addr[15]) == 0)) return 0;
+    if (IN6_IS_ADDR_LINKLOCAL(&a6) && scope == 0) return 0;
+    struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)&server->addr;
+    sin6->sin6_family = AF_INET6;
+    sin6->sin6_port = htons(53);
+    sin6->sin6_addr = a6;
+    sin6->sin6_scope_id = scope;
+    server->len = sizeof(*sin6);
+    return 1;
+}
+
+// The "nameserver" lines of a resolv.conf, in order: up to `max` usable servers, IPv4 and IPv6.
+static int parse_nameservers(const char *text, ddnatv_dns_server_t *out, int max) {
+    int count = 0;
+    const char *line = text;
+    while (line && *line && count < max) {
+        const char *next = strchr(line, '\n');
+        size_t len = next ? (size_t)(next - line) : strlen(line);
+        char buf[256];
+        if (len >= sizeof(buf)) len = sizeof(buf) - 1;
+        memcpy(buf, line, len);
+        buf[len] = '\0';
+        char *p = buf;
+        while (*p == ' ' || *p == '\t') p++;
+        if (strncmp(p, "nameserver", 10) == 0 && (p[10] == ' ' || p[10] == '\t')) {
+            p += 10;
+            while (*p == ' ' || *p == '\t') p++;
+            char *end = p;
+            while (*end && *end != ' ' && *end != '\t' && *end != '\r' && *end != '#' && *end != ';') end++;
+            *end = '\0';
+            if (dns_server_from_string(p, &out[count])) count++;
+        }
+        line = next ? next + 1 : NULL;
+    }
+    return count;
+}
+
+static int dns_server_equal(const ddnatv_dns_server_t *a, const ddnatv_dns_server_t *b) {
+    return a->len == b->len && memcmp(&a->addr, &b->addr, a->len) == 0;
+}
+
+// Builds a recursive query for one name and record type; returns its length, or -1 when the name
+// is not a valid DNS name (an empty label, a label over 63 bytes, over 253 bytes in all).
+static int dns_build_query(const char *name, int qtype, uint16_t txid, unsigned char *packet, size_t size) {
+    if (!name || !packet || size < 12) return -1;
+    size_t name_len = strlen(name);
+    if (name_len > 0 && name[name_len - 1] == '.') name_len--; // "example.com." is absolute
+    if (name_len == 0 || name_len > 253) return -1;
+    memset(packet, 0, 12);
+    packet[0] = (unsigned char)(txid >> 8);
+    packet[1] = (unsigned char)(txid & 0xff);
+    packet[2] = 0x01; // recursion desired
+    packet[5] = 0x01; // one question
+    size_t pos = 12;
+    size_t start = 0;
+    for (;;) {
+        size_t end = start;
+        while (end < name_len && name[end] != '.') end++;
+        size_t len = end - start;
+        if (len == 0 || len > 63 || pos + 1 + len + 1 + 4 > size) return -1;
+        packet[pos++] = (unsigned char)len;
+        memcpy(packet + pos, name + start, len);
+        pos += len;
+        if (end == name_len) break;
+        start = end + 1;
+    }
+    packet[pos++] = 0;
+    packet[pos++] = (unsigned char)(qtype >> 8);
+    packet[pos++] = (unsigned char)(qtype & 0xff);
+    packet[pos++] = 0x00;
+    packet[pos++] = 0x01; // class IN
+    return (int)pos;
+}
+
+// Offset after the (possibly compressed) name at `off`, or -1 when it is malformed.
+static int dns_skip_name(const unsigned char *msg, int n, int off) {
+    for (int labels = 0; labels < 128; labels++) {
+        if (off >= n) return -1;
+        unsigned char len = msg[off];
+        if (len == 0) return off + 1;
+        if ((len & 0xc0) == 0xc0) return off + 2 <= n ? off + 2 : -1;
+        if (len & 0xc0) return -1;
+        off += 1 + len;
+    }
+    return -1;
+}
+
+// Copies the first address of type `qtype` (4 bytes for A, 16 for AAAA) from the reply `msg` to the
+// query `txid` and returns 0. Returns 1 when the reply says there is no such address (the name does
+// not exist, or has no record of that type): asking other servers would only send the name to more
+// of them. Returns -1 for anything that is worth asking another server about: a failure (SERVFAIL,
+// REFUSED), a truncated, malformed or foreign reply.
+static int dns_parse_answer(const unsigned char *msg, int n, uint16_t txid, int qtype, unsigned char *out) {
+    if (!msg || n < 12) return -1;
+    if (((msg[0] << 8) | msg[1]) != txid) return -1;
+    if (!(msg[2] & 0x80)) return -1; // not a reply
+    int rcode = msg[3] & 0x0f;
+    if (rcode == 3) return 1;        // NXDOMAIN
+    if (rcode != 0) return -1;
+    int qdcount = (msg[4] << 8) | msg[5];
+    int ancount = (msg[6] << 8) | msg[7];
+    int off = 12;
+    for (int q = 0; q < qdcount; q++) {
+        off = dns_skip_name(msg, n, off);
+        if (off < 0 || off + 4 > n) return -1;
+        off += 4;
+    }
+    int want = qtype == DDNATV_DNS_TYPE_AAAA ? 16 : 4;
+    for (int a = 0; a < ancount; a++) {
+        off = dns_skip_name(msg, n, off);
+        if (off < 0 || off + 10 > n) return -1;
+        int rtype = (msg[off] << 8) | msg[off + 1];
+        int rclass = (msg[off + 2] << 8) | msg[off + 3];
+        int rdlen = (msg[off + 8] << 8) | msg[off + 9];
+        off += 10;
+        if (off + rdlen > n) return -1;
+        if (rtype == qtype && rclass == 1 && rdlen == want) {
+            memcpy(out, msg + off, (size_t)want);
+            return 0;
+        }
+        off += rdlen;
+    }
+    return (msg[2] & 0x02) ? -1 : 1; // no such record, unless the reply was truncated
+}
+
+// ---- Sockets bound to a port the program chose ----------------------------------------------
+// Which descriptors are TCP/UDP sockets that bind() gave a port the program asked for (not 0,
+// where the kernel picks one). listen() reports only those to the app, which connects to a
+// reported port to see whether it serves web pages (sockets.c). Descriptors past the bitmap
+// are taken as not chosen: they are not reported.
+#define DDNATV_CHOSEN_PORT_FDS 65536
+static unsigned char g_chosen_port_fds[DDNATV_CHOSEN_PORT_FDS / 8];
+
+static void set_chosen_port_fd(int fd, int chosen) {
+    if (fd < 0 || fd >= DDNATV_CHOSEN_PORT_FDS) return;
+    unsigned char bit = (unsigned char)(1u << (fd & 7));
+    // Written only when it changes: a page of the bitmap is copied for a forked child only then
+    if (chosen) {
+        if (!(__atomic_load_n(&g_chosen_port_fds[fd >> 3], __ATOMIC_RELAXED) & bit))
+            __atomic_fetch_or(&g_chosen_port_fds[fd >> 3], bit, __ATOMIC_RELAXED);
+    } else if (__atomic_load_n(&g_chosen_port_fds[fd >> 3], __ATOMIC_RELAXED) & bit) {
+        __atomic_fetch_and(&g_chosen_port_fds[fd >> 3], (unsigned char)~bit, __ATOMIC_RELAXED);
+    }
+}
+
+static int is_chosen_port_fd(int fd) {
+    if (fd < 0 || fd >= DDNATV_CHOSEN_PORT_FDS) return 0;
+    return (__atomic_load_n(&g_chosen_port_fds[fd >> 3], __ATOMIC_RELAXED) >> (fd & 7)) & 1;
+}
+
+#ifndef DDNATV_HOST_TEST
+
+// DNS resolution hooking and localhost DNS redirect
+#define DNS_REDIRECT_MAX 64
+static struct {
+    int fd;
+    struct sockaddr_storage orig;
+    socklen_t orig_len;
+    uint32_t active;
+} g_dns_redirects[DNS_REDIRECT_MAX];
+static pthread_mutex_t g_dns_redirect_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static void record_dns_redirect(int fd, const struct sockaddr *orig, socklen_t orig_len) {
+    if (fd < 0 || !orig) return;
+    if (orig_len > sizeof(struct sockaddr_storage)) orig_len = sizeof(struct sockaddr_storage);
+    pthread_mutex_lock(&g_dns_redirect_mutex);
+    int target_idx = (fd >= 0 ? fd : -fd) % DNS_REDIRECT_MAX;
+    g_dns_redirects[target_idx].fd = fd;
+    memcpy(&g_dns_redirects[target_idx].orig, orig, orig_len);
+    g_dns_redirects[target_idx].orig_len = orig_len;
+    g_dns_redirects[target_idx].active = 1;
+    pthread_mutex_unlock(&g_dns_redirect_mutex);
+}
+
+static void clear_dns_redirect(int fd) {
+    if (fd < 0) return;
+    int target_idx = (fd >= 0 ? fd : -fd) % DNS_REDIRECT_MAX;
+    if (!g_dns_redirects[target_idx].active || g_dns_redirects[target_idx].fd != fd) {
+        return;
+    }
+    pthread_mutex_lock(&g_dns_redirect_mutex);
+    if (g_dns_redirects[target_idx].active && g_dns_redirects[target_idx].fd == fd) {
+        g_dns_redirects[target_idx].active = 0;
+        g_dns_redirects[target_idx].fd = -1;
+        g_dns_redirects[target_idx].orig_len = 0;
+    }
+    pthread_mutex_unlock(&g_dns_redirect_mutex);
+}
+
+int close(int fd) {
+    static int (*orig_close)(int) = NULL;
+    if (!orig_close) orig_close = (int (*)(int))dlsym(RTLD_NEXT, "close");
+    // The ARM translator's memory file (privileged.c): left open, as if it were closed
+    if (g_kept_fd_count > 0 && is_kept_fd(fd)) return 0;
+    clear_dns_redirect(fd);
+    set_chosen_port_fd(fd, 0);
+    return orig_close ? orig_close(fd) : -1;
+}
+
+int dup2(int oldfd, int newfd) {
+    static int (*orig_dup2)(int, int) = NULL;
+    if (!orig_dup2) orig_dup2 = (int (*)(int, int))dlsym(RTLD_NEXT, "dup2");
+    if (oldfd != newfd) {
+        clear_dns_redirect(newfd);
+        set_chosen_port_fd(newfd, is_chosen_port_fd(oldfd));
+    }
+    return orig_dup2 ? orig_dup2(oldfd, newfd) : -1;
+}
+
+int dup3(int oldfd, int newfd, int flags) {
+    static int (*orig_dup3)(int, int, int) = NULL;
+    if (!orig_dup3) orig_dup3 = (int (*)(int, int, int))dlsym(RTLD_NEXT, "dup3");
+    if (oldfd != newfd) {
+        clear_dns_redirect(newfd);
+        set_chosen_port_fd(newfd, is_chosen_port_fd(oldfd));
+    }
+    return orig_dup3 ? orig_dup3(oldfd, newfd, flags) : -1;
+}
+
+static int get_dns_redirect(int fd, struct sockaddr_storage *orig, socklen_t *orig_len) {
+    if (fd < 0) return 0;
+    int found = 0;
+    pthread_mutex_lock(&g_dns_redirect_mutex);
+    int target_idx = (fd >= 0 ? fd : -fd) % DNS_REDIRECT_MAX;
+    if (g_dns_redirects[target_idx].active && g_dns_redirects[target_idx].fd == fd) {
+        if (orig) *orig = g_dns_redirects[target_idx].orig;
+        if (orig_len) *orig_len = g_dns_redirects[target_idx].orig_len;
+        found = 1;
+    }
+    pthread_mutex_unlock(&g_dns_redirect_mutex);
+    return found;
+}
+
+// A DNS query to 127.0.0.0/8 or ::1 (or ::ffff:127.x), where nothing listens on Android.
+static inline int is_loopback_dns(const struct sockaddr *addr, socklen_t addrlen) {
+    if (!addr || addrlen < sizeof(sa_family_t)) return 0;
+    if (addr->sa_family == AF_INET && addrlen >= sizeof(struct sockaddr_in)) {
+        const struct sockaddr_in *sin = (const struct sockaddr_in *)addr;
+        return (sin->sin_port == htons(53) && ((ntohl(sin->sin_addr.s_addr) >> 24) == 127));
+    }
+    if (addr->sa_family == AF_INET6 && addrlen >= sizeof(struct sockaddr_in6)) {
+        const struct sockaddr_in6 *sin6 = (const struct sockaddr_in6 *)addr;
+        if (sin6->sin6_port != htons(53)) return 0;
+        return IN6_IS_ADDR_LOOPBACK(&sin6->sin6_addr) ||
+               (IN6_IS_ADDR_V4MAPPED(&sin6->sin6_addr) && sin6->sin6_addr.s6_addr[12] == 127);
+    }
+    return 0;
+}
+
+static in_addr_t get_primary_dns(void) {
+    static in_addr_t cached_dns = 0;
+    static time_t last_check = 0;
+    static pthread_mutex_t dns_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    time_t now = ts.tv_sec;
+
+    // Fast path: cached value valid within 5s TTL
+    if (cached_dns != 0 && (now - last_check < 5)) {
+        return cached_dns;
+    }
+
+    pthread_mutex_lock(&dns_mutex);
+    if (cached_dns != 0 && (now - last_check < 5)) {
+        in_addr_t val = cached_dns;
+        pthread_mutex_unlock(&dns_mutex);
+        return val;
+    }
+    last_check = now;
+
+    in_addr_t new_dns = 0;
+    init_ddnatv_hook();
+
+    // 1. Check Android system property net.dns1 via Bionic libc
+    static int (*orig_sys_prop_get)(const char *, char *) = NULL;
+    static int prop_lookup_done = 0;
+    if (!prop_lookup_done) {
+        orig_sys_prop_get = (int (*)(const char *, char *))dlsym(RTLD_DEFAULT, "__system_property_get");
+        prop_lookup_done = 1;
+    }
+    if (orig_sys_prop_get) {
+        char prop_val[256];
+        if (orig_sys_prop_get("net.dns1", prop_val) > 0 && prop_val[0] != '\0') {
+            struct in_addr a;
+            if (inet_aton(prop_val, &a)) {
+                if ((ntohl(a.s_addr) >> 24) != 127 && a.s_addr != 0) {
+                    new_dns = a.s_addr;
+                }
+            }
+        }
+    }
+
+    // 2. Parse /etc/resolv.conf in The native userland rootfs
+    char resolv_path[PATH_MAX];
+    if (g_ddnatv_root[0] != '\0') {
+        snprintf(resolv_path, sizeof(resolv_path), "%s/etc/resolv.conf", g_ddnatv_root);
+    } else {
+        snprintf(resolv_path, sizeof(resolv_path), "/etc/resolv.conf");
+    }
+
+    struct stat st;
+    if (stat(resolv_path, &st) == 0) {
+        if (new_dns == 0) {
+            FILE *f = fopen(resolv_path, "r");
+            if (f) {
+                char line[256];
+                while (fgets(line, sizeof(line), f)) {
+                    char *p = line;
+                    while (*p == ' ' || *p == '\t') p++;
+                    if (strncmp(p, "nameserver", 10) == 0) {
+                        p += 10;
+                        while (*p == ' ' || *p == '\t') p++;
+                        char *end = p;
+                        while (*end && *end != ' ' && *end != '\t' && *end != '\r' && *end != '\n') end++;
+                        *end = '\0';
+                        struct in_addr a;
+                        if (inet_aton(p, &a)) {
+                            // Only accept valid, non-loopback DNS servers
+                            if ((ntohl(a.s_addr) >> 24) != 127 && a.s_addr != 0) {
+                                new_dns = a.s_addr;
+                                break;
+                            }
+                        }
+                    }
+                }
+                fclose(f);
+            }
+        }
+    }
+
+    if (new_dns == 0) {
+        new_dns = inet_addr("8.8.8.8");
+    }
+
+    cached_dns = new_dns;
+    pthread_mutex_unlock(&dns_mutex);
+    return cached_dns;
+}
+
+
+// The DNS servers in the rootfs resolv.conf (which the app writes from Android's network settings),
+// read again at most every 5 seconds.
+static int get_dns_servers(ddnatv_dns_server_t *out, int max) {
+    static ddnatv_dns_server_t cached[DDNATV_DNS_MAX_SERVERS];
+    static int cached_count = 0;
+    static time_t last_check = 0;
+    static int checked = 0;
+    static pthread_mutex_t servers_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    pthread_mutex_lock(&servers_mutex);
+    if (!checked || ts.tv_sec - last_check >= 5) {
+        checked = 1;
+        last_check = ts.tv_sec;
+        init_ddnatv_hook();
+        char path[PATH_MAX];
+        snprintf(path, sizeof(path), "%s/etc/resolv.conf", g_ddnatv_root[0] ? g_ddnatv_root : "");
+        char text[4096];
+        ssize_t n = -1;
+        int fd = open(path, O_RDONLY | O_CLOEXEC);
+        if (fd >= 0) {
+            n = read(fd, text, sizeof(text) - 1);
+            close(fd);
+        }
+        text[n > 0 ? n : 0] = '\0';
+        cached_count = parse_nameservers(text, cached, DDNATV_DNS_MAX_SERVERS);
+    }
+    int count = cached_count < max ? cached_count : max;
+    memcpy(out, cached, (size_t)count * sizeof(cached[0]));
+    pthread_mutex_unlock(&servers_mutex);
+    return count;
+}
+
+// Where a DNS query to a loopback address goes instead: the network's DNS server, in the family of
+// the socket (an IPv6 socket gets the first IPv6 server, else the IPv4 one as ::ffff:a.b.c.d).
+// Returns the length of the address written to `out`.
+static socklen_t dns_redirect_target(const struct sockaddr *orig, struct sockaddr_storage *out) {
+    memset(out, 0, sizeof(*out));
+    if (orig->sa_family == AF_INET) {
+        memcpy(out, orig, sizeof(struct sockaddr_in));
+        ((struct sockaddr_in *)out)->sin_addr.s_addr = get_primary_dns();
+        return sizeof(struct sockaddr_in);
+    }
+    struct sockaddr_in6 *dst = (struct sockaddr_in6 *)out;
+    memcpy(dst, orig, sizeof(*dst));
+    ddnatv_dns_server_t servers[DDNATV_DNS_MAX_SERVERS];
+    int n = get_dns_servers(servers, DDNATV_DNS_MAX_SERVERS);
+    for (int i = 0; i < n; i++) {
+        if (servers[i].addr.ss_family == AF_INET6) {
+            const struct sockaddr_in6 *s6 = (const struct sockaddr_in6 *)&servers[i].addr;
+            dst->sin6_addr = s6->sin6_addr;
+            dst->sin6_scope_id = s6->sin6_scope_id;
+            return sizeof(*dst);
+        }
+    }
+    in_addr_t v4 = get_primary_dns();
+    memset(&dst->sin6_addr, 0, sizeof(dst->sin6_addr));
+    dst->sin6_addr.s6_addr[10] = 0xff;
+    dst->sin6_addr.s6_addr[11] = 0xff;
+    memcpy(&dst->sin6_addr.s6_addr[12], &v4, 4);
+    dst->sin6_scope_id = 0;
+    return sizeof(*dst);
+}
+
+// Puts the loopback address that a DNS socket was redirected from back into the source address of a
+// reply (`cap` is the size of the caller's buffer), so resolvers that check the sender accept it.
+static void restore_dns_source(int fd, struct sockaddr *addr, socklen_t cap, socklen_t *len) {
+    if (!addr || cap < sizeof(sa_family_t)) return;
+    in_port_t port;
+    if (addr->sa_family == AF_INET && cap >= sizeof(struct sockaddr_in)) {
+        port = ((const struct sockaddr_in *)addr)->sin_port;
+    } else if (addr->sa_family == AF_INET6 && cap >= sizeof(struct sockaddr_in6)) {
+        port = ((const struct sockaddr_in6 *)addr)->sin6_port;
+    } else {
+        return;
+    }
+    if (port != htons(53)) return;
+    struct sockaddr_storage orig;
+    socklen_t orig_len = 0;
+    if (!get_dns_redirect(fd, &orig, &orig_len) || orig.ss_family != addr->sa_family) return;
+    memcpy(addr, &orig, orig_len < cap ? orig_len : cap);
+    if (len) *len = orig_len;
+}
+
+#define DDNATV_ADDRINFO_MAGIC 0x434f5254
+
+// One addrinfo for an IPv4 (4 bytes) or IPv6 (16 bytes) address; freed by the freeaddrinfo hook.
+static struct addrinfo *alloc_addrinfo(const char *node, int family, const void *addr, int port, int socktype, int protocol) {
+    struct addrinfo *ai = (struct addrinfo *)calloc(1, sizeof(struct addrinfo));
+    if (!ai) return NULL;
+    socklen_t len = family == AF_INET6 ? sizeof(struct sockaddr_in6) : sizeof(struct sockaddr_in);
+    void *sa = calloc(1, len);
+    if (!sa) {
+        free(ai);
+        return NULL;
+    }
+    if (family == AF_INET6) {
+        struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)sa;
+        sin6->sin6_family = AF_INET6;
+        sin6->sin6_port = htons((uint16_t)port);
+        memcpy(&sin6->sin6_addr, addr, 16);
+    } else {
+        struct sockaddr_in *sin = (struct sockaddr_in *)sa;
+        sin->sin_family = AF_INET;
+        sin->sin_port = htons((uint16_t)port);
+        memcpy(&sin->sin_addr, addr, 4);
+    }
+
+    ai->ai_flags = DDNATV_ADDRINFO_MAGIC;
+    ai->ai_family = family;
+    ai->ai_socktype = socktype ? socktype : SOCK_STREAM;
+    ai->ai_protocol = protocol ? protocol : IPPROTO_TCP;
+    ai->ai_addrlen = len;
+    ai->ai_addr = (struct sockaddr *)sa;
+    ai->ai_canonname = node ? strdup(node) : NULL;
+    ai->ai_next = NULL;
+    return ai;
+}
+
+static struct addrinfo *alloc_one_addrinfo(const char *node, const char *ip_str, int port, int socktype, int protocol) {
+    struct in_addr a;
+    if (inet_pton(AF_INET, ip_str, &a) != 1) return NULL;
+    return alloc_addrinfo(node, AF_INET, &a, port, socktype, protocol);
+}
+
+static uint16_t generate_dns_txid(void) {
+    uint16_t txid = 0;
+    static ssize_t (*libc_getrandom)(void *, size_t, unsigned int) = NULL;
+    static int getrandom_checked = 0;
+    if (!getrandom_checked) {
+        libc_getrandom = (ssize_t (*)(void *, size_t, unsigned int))dlsym(RTLD_DEFAULT, "getrandom");
+        getrandom_checked = 1;
+    }
+    if (libc_getrandom) {
+        if (libc_getrandom(&txid, sizeof(txid), 1 /* GRND_NONBLOCK */) == sizeof(txid) && txid != 0) {
+            return txid;
+        }
+    }
+#if defined(SYS_getrandom) || defined(__NR_getrandom)
+#ifndef __NR_getrandom
+#define __NR_getrandom SYS_getrandom
+#endif
+    long r = syscall(__NR_getrandom, &txid, sizeof(txid), 1 /* GRND_NONBLOCK */);
+    if (r == (long)sizeof(txid) && txid != 0) {
+        return txid;
+    }
+#endif
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    uint32_t val = (uint32_t)(ts.tv_nsec ^ (ts.tv_sec << 16) ^ (uintptr_t)&txid);
+    txid = (uint16_t)((val & 0xffff) ^ (val >> 16));
+    if (txid == 0) txid = 0x5a6b;
+    return txid;
+}
+
+static void add_dns_server(ddnatv_dns_server_t *list, int *count, int max, const ddnatv_dns_server_t *server) {
+    if (*count >= max) return;
+    for (int i = 0; i < *count; i++) {
+        if (dns_server_equal(&list[i], server)) return;
+    }
+    list[(*count)++] = *server;
+}
+
+// Looks one address of `name` up itself, for when glibc found none: asks the network's DNS servers,
+// then public ones (IPv4 first, then IPv6, for IPv6-only networks without IPv4 translation), and
+// stops at the first that answers. `qtype` is DDNATV_DNS_TYPE_A (4 bytes into `out`) or
+// DDNATV_DNS_TYPE_AAAA (16 bytes). `*server` is -1 to ask them in turn, or the index of the only
+// server to ask; on return it holds the server that answered (-1 when none did).
+static int dns_lookup(const char *name, int qtype, unsigned char *out, int *server) {
+    if (!name || !out) return -1;
+    int family = qtype == DDNATV_DNS_TYPE_AAAA ? AF_INET6 : AF_INET;
+    if (inet_pton(family, name, out) == 1) return 0;
+
+    static const char *const k_public_dns[] = {
+        "8.8.8.8", "1.1.1.1", "9.9.9.9", "2001:4860:4860::8888", "2606:4700:4700::1111",
+    };
+    ddnatv_dns_server_t servers[DDNATV_DNS_MAX_SERVERS + 6];
+    int max = (int)(sizeof(servers) / sizeof(servers[0]));
+    int count = 0;
+    ddnatv_dns_server_t s;
+    char primary[INET_ADDRSTRLEN];
+    in_addr_t p_dns = get_primary_dns(); // also covers net.dns1 of older Android versions
+    if (inet_ntop(AF_INET, &p_dns, primary, sizeof(primary)) && dns_server_from_string(primary, &s)) {
+        add_dns_server(servers, &count, max, &s);
+    }
+    ddnatv_dns_server_t network[DDNATV_DNS_MAX_SERVERS];
+    int network_count = get_dns_servers(network, DDNATV_DNS_MAX_SERVERS);
+    for (int i = 0; i < network_count; i++) add_dns_server(servers, &count, max, &network[i]);
+    for (size_t i = 0; i < sizeof(k_public_dns) / sizeof(k_public_dns[0]); i++) {
+        if (dns_server_from_string(k_public_dns[i], &s)) add_dns_server(servers, &count, max, &s);
+    }
+
+    unsigned char packet[512];
+    uint16_t txid = generate_dns_txid();
+    int packet_len = dns_build_query(name, qtype, txid, packet, sizeof(packet));
+    if (packet_len < 0) return -1;
+
+    int only = *server;
+    *server = -1;
+    for (int i = (only >= 0 ? only : 0); i < count && (only < 0 || i == only); i++) {
+        int sock = socket(servers[i].addr.ss_family, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+        if (sock < 0) continue;
+
+        struct timeval tv;
+        tv.tv_sec = 0;
+        tv.tv_usec = 600000; // 600ms fast failover
+        setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+        // A connected socket only receives datagrams from that server.
+        if (connect(sock, (const struct sockaddr *)&servers[i].addr, servers[i].len) != 0 ||
+            send(sock, packet, (size_t)packet_len, 0) != packet_len) {
+            close(sock);
+            continue;
+        }
+        unsigned char resp[1500];
+        ssize_t n = recv(sock, resp, sizeof(resp), 0);
+        close(sock);
+        int result = n > 0 ? dns_parse_answer(resp, (int)n, txid, qtype, out) : -1;
+        if (result >= 0) {
+            *server = i;
+            return result == 0 ? 0 : -1;
+        }
+    }
+    return -1;
+}
+
+// Whether the network's DNS servers are all IPv6 ones, as on an IPv6-only mobile network.
+static int network_dns_is_ipv6_only(void) {
+    ddnatv_dns_server_t servers[DDNATV_DNS_MAX_SERVERS];
+    int n = get_dns_servers(servers, DDNATV_DNS_MAX_SERVERS);
+    for (int i = 0; i < n; i++) {
+        if (servers[i].addr.ss_family != AF_INET6) return 0;
+    }
+    return n > 0;
+}
+
+static int domain_matches(const char *node, const char *suffix) {
+    if (!node || !suffix) return 0;
+    size_t nlen = strlen(node);
+    size_t slen = strlen(suffix);
+    if (nlen < slen) return 0;
+    if (strcasecmp(node + (nlen - slen), suffix) != 0) return 0;
+    if (nlen == slen) return 1;
+    return (node[nlen - slen - 1] == '.');
+}
+
+static int synthesize_fallback_addrinfo(const char *node, const char *service,
+                                        const struct addrinfo *hints,
+                                        struct addrinfo **res) {
+    if (!node || !res) return EAI_NONAME;
+
+    int socktype = (hints && hints->ai_socktype) ? hints->ai_socktype : SOCK_STREAM;
+    int protocol = (hints && hints->ai_protocol) ? hints->ai_protocol : IPPROTO_TCP;
+    int family = hints ? hints->ai_family : AF_UNSPEC;
+
+    int port = 80;
+    if (service) {
+        if (strcmp(service, "https") == 0 || strcmp(service, "443") == 0) {
+            port = 443;
+        } else if (strcmp(service, "http") == 0 || strcmp(service, "80") == 0) {
+            port = 80;
+        } else if (service[0] >= '0' && service[0] <= '9') {
+            int p = 0;
+            const char *sp = service;
+            while (*sp >= '0' && *sp <= '9') {
+                p = p * 10 + (*sp - '0');
+                sp++;
+            }
+            if (p > 0 && p < 65536) port = p;
+        } else {
+            // A service name such as "ssh" or "domain", from /etc/services
+            struct servent se, *found = NULL;
+            char se_buf[1024];
+            if (getservbyname_r(service, socktype == SOCK_DGRAM ? "udp" : "tcp", &se, se_buf, sizeof(se_buf), &found) == 0 && found) {
+                port = ntohs((uint16_t)found->s_port);
+            }
+        }
+    }
+
+    // The address families the caller asked for: an IPv6-only caller must not get an IPv4 address,
+    // and AF_UNSPEC gets both, IPv6 first on a network whose DNS servers are all IPv6 ones. The second
+    // lookup only asks the server that answered the first, and is skipped when none answered.
+    int want4 = family == AF_UNSPEC || family == AF_INET;
+    int want6 = family == AF_UNSPEC || family == AF_INET6;
+    int v6_first = want6 && (!want4 || network_dns_is_ipv6_only());
+    unsigned char resolved[16];
+    int server = -1;
+    struct addrinfo *first = NULL;
+    struct addrinfo *second = NULL;
+    if (dns_lookup(node, v6_first ? DDNATV_DNS_TYPE_AAAA : DDNATV_DNS_TYPE_A, resolved, &server) == 0) {
+        first = alloc_addrinfo(node, v6_first ? AF_INET6 : AF_INET, resolved, port, socktype, protocol);
+    }
+    if (want4 && want6 && server >= 0 &&
+        dns_lookup(node, v6_first ? DDNATV_DNS_TYPE_A : DDNATV_DNS_TYPE_AAAA, resolved, &server) == 0) {
+        second = alloc_addrinfo(node, v6_first ? AF_INET : AF_INET6, resolved, port, socktype, protocol);
+    }
+    if (first && second) {
+        first->ai_next = second;
+    }
+    struct addrinfo *ai = first ? first : second;
+    if (ai) {
+        *res = ai;
+        return 0;
+    }
+
+    // The built-in addresses below are IPv4 ones.
+    if (family == AF_INET6) return EAI_NONAME;
+
+    if (domain_matches(node, "ubuntu.com")) {
+        struct addrinfo *ai1 = alloc_one_addrinfo(node, "91.189.91.103", port, socktype, protocol);
+        if (!ai1) return EAI_MEMORY;
+        struct addrinfo *ai2 = alloc_one_addrinfo(node, "91.189.92.21", port, socktype, protocol);
+        if (ai2) {
+            ai1->ai_next = ai2;
+        }
+        *res = ai1;
+        return 0;
+    }
+
+    if (domain_matches(node, "debian.org")) {
+        struct addrinfo *ai1 = alloc_one_addrinfo(node, "151.101.130.132", port, socktype, protocol);
+        if (!ai1) return EAI_MEMORY;
+        struct addrinfo *ai2 = alloc_one_addrinfo(node, "151.101.2.132", port, socktype, protocol);
+        if (ai2) {
+            ai1->ai_next = ai2;
+        }
+        *res = ai1;
+        return 0;
+    }
+
+    if (domain_matches(node, "opencode.ai")) {
+        struct addrinfo *ai1 = alloc_one_addrinfo(node, "172.65.90.22", port, socktype, protocol);
+        if (!ai1) return EAI_MEMORY;
+        struct addrinfo *ai2 = alloc_one_addrinfo(node, "172.65.90.23", port, socktype, protocol);
+        if (ai2) {
+            ai1->ai_next = ai2;
+        }
+        *res = ai1;
+        return 0;
+    }
+
+    if (domain_matches(node, "github.com")) {
+        struct addrinfo *ai1 = alloc_one_addrinfo(node, "140.82.121.6", port, socktype, protocol);
+        if (!ai1) return EAI_MEMORY;
+        struct addrinfo *ai2 = alloc_one_addrinfo(node, "140.82.121.4", port, socktype, protocol);
+        if (ai2) {
+            ai1->ai_next = ai2;
+        }
+        *res = ai1;
+        return 0;
+    }
+
+    if (domain_matches(node, "githubusercontent.com")) {
+        struct addrinfo *ai1 = alloc_one_addrinfo(node, "185.199.110.133", port, socktype, protocol);
+        if (!ai1) return EAI_MEMORY;
+        struct addrinfo *ai2 = alloc_one_addrinfo(node, "185.199.108.133", port, socktype, protocol);
+        if (ai2) {
+            ai1->ai_next = ai2;
+        }
+        *res = ai1;
+        return 0;
+    }
+
+    if (domain_matches(node, "npmjs.org") || domain_matches(node, "npmjs.com")) {
+        struct addrinfo *ai1 = alloc_one_addrinfo(node, "104.16.2.34", port, socktype, protocol);
+        if (!ai1) return EAI_MEMORY;
+        struct addrinfo *ai2 = alloc_one_addrinfo(node, "104.16.3.34", port, socktype, protocol);
+        if (ai2) {
+            ai1->ai_next = ai2;
+        }
+        *res = ai1;
+        return 0;
+    }
+
+    if (domain_matches(node, "googleapis.com") || domain_matches(node, "accounts.google.com")) {
+        struct addrinfo *ai1 = alloc_one_addrinfo(node, "142.251.127.95", port, socktype, protocol);
+        if (!ai1) return EAI_MEMORY;
+        struct addrinfo *ai2 = alloc_one_addrinfo(node, "142.251.127.84", port, socktype, protocol);
+        if (ai2) {
+            ai1->ai_next = ai2;
+        }
+        *res = ai1;
+        return 0;
+    }
+
+    if (domain_matches(node, "meta.ai") || domain_matches(node, "meta.com") || domain_matches(node, "facebook.com")) {
+        const char *ip = domain_matches(node, "lookaside.facebook.com") ? "57.144.36.128" : "57.144.36.141";
+        struct addrinfo *ai = alloc_one_addrinfo(node, ip, port, socktype, protocol);
+        if (ai) {
+            *res = ai;
+            return 0;
+        }
+    }
+
+    return EAI_NONAME;
+}
+
+int getaddrinfo(const char *node, const char *service,
+                const struct addrinfo *hints,
+                struct addrinfo **res) {
+    static int (*orig_getaddrinfo)(const char *, const char *, const struct addrinfo *, struct addrinfo **) = NULL;
+    if (!orig_getaddrinfo) orig_getaddrinfo = (int (*)(const char *, const char *, const struct addrinfo *, struct addrinfo **))dlsym(RTLD_NEXT, "getaddrinfo");
+
+    struct addrinfo mod_hints;
+    if (hints) {
+        mod_hints = *hints;
+        // On Android, unprivileged apps are blocked by SELinux from querying netlink routing interfaces.
+        // Glibc's AI_ADDRCONFIG flag causes getaddrinfo to fail or return no addresses when netlink fails.
+        // Clearing AI_ADDRCONFIG ensures normal, robust DNS resolution.
+        mod_hints.ai_flags &= ~AI_ADDRCONFIG;
+    } else {
+        memset(&mod_hints, 0, sizeof(mod_hints));
+        mod_hints.ai_family = AF_UNSPEC;
+        mod_hints.ai_flags = 0;
+    }
+
+    int ret = orig_getaddrinfo ? orig_getaddrinfo(node, service, &mod_hints, res) : EAI_FAIL;
+    // A numeric-only lookup must never turn into a DNS query.
+    if ((ret != 0 || !res || !*res) && node && !(hints && (hints->ai_flags & AI_NUMERICHOST))) {
+        int fallback = synthesize_fallback_addrinfo(node, service, hints, res);
+        // When the fallback finds nothing either, glibc's own error (EAI_AGAIN: try again later,
+        // EAI_NONAME: no such name) is the more precise one.
+        if (fallback == 0 || ret == 0) ret = fallback;
+    }
+    return ret;
+}
+
+void freeaddrinfo(struct addrinfo *res) {
+    static void (*orig_freeaddrinfo)(struct addrinfo *) = NULL;
+    if (!orig_freeaddrinfo) orig_freeaddrinfo = (void (*)(struct addrinfo *))dlsym(RTLD_NEXT, "freeaddrinfo");
+
+    if (!res) return;
+    if (res->ai_flags == DDNATV_ADDRINFO_MAGIC) {
+        struct addrinfo *curr = res;
+        while (curr) {
+            struct addrinfo *next = curr->ai_next;
+            if (curr->ai_canonname) free(curr->ai_canonname);
+            if (curr->ai_addr) free(curr->ai_addr);
+            free(curr);
+            curr = next;
+        }
+        return;
+    }
+    if (orig_freeaddrinfo) orig_freeaddrinfo(res);
+}
+
+// Whether a resolver state names a server other than loopback. glibc keeps IPv6 servers in the
+// extension (their nsaddr_list entry has family 0), so an IPv6-only resolv.conf counts too.
+static int res_state_has_usable_server(res_state statp) {
+    for (int i = 0; i < statp->nscount && i < MAXNS; i++) {
+        if (statp->nsaddr_list[i].sin_family == AF_INET) {
+            in_addr_t a = statp->nsaddr_list[i].sin_addr.s_addr;
+            if ((ntohl(a) >> 24) != 127 && a != 0) return 1;
+        } else if (statp->_u._ext.nsaddrs[i] != NULL) {
+            const struct in6_addr *a6 = &statp->_u._ext.nsaddrs[i]->sin6_addr;
+            if (!IN6_IS_ADDR_LOOPBACK(a6) && !IN6_IS_ADDR_UNSPECIFIED(a6)) return 1;
+        }
+    }
+    return 0;
+}
+
+int res_init(void) {
+    static int (*orig_res_init)(void) = NULL;
+    if (!orig_res_init) orig_res_init = (int (*)(void))dlsym(RTLD_NEXT, "res_init");
+    int ret = orig_res_init ? orig_res_init() : 0;
+    res_state statp = __res_state();
+    if (statp) {
+        if (!res_state_has_usable_server(statp)) {
+            statp->nscount = 2;
+            statp->nsaddr_list[0].sin_family = AF_INET;
+            statp->nsaddr_list[0].sin_port = htons(53);
+            statp->nsaddr_list[0].sin_addr.s_addr = get_primary_dns();
+            statp->nsaddr_list[1].sin_family = AF_INET;
+            statp->nsaddr_list[1].sin_port = htons(53);
+            inet_pton(AF_INET, "8.8.8.8", &statp->nsaddr_list[1].sin_addr);
+        }
+        statp->retrans = 1;
+        statp->retry = 2;
+    }
+    return ret;
+}
+
+int res_ninit(res_state statp) {
+    static int (*orig_res_ninit)(res_state) = NULL;
+    if (!orig_res_ninit) orig_res_ninit = (int (*)(res_state))dlsym(RTLD_NEXT, "res_ninit");
+    if (statp) {
+        memset(statp, 0, sizeof(*statp));
+        statp->_vcsock = -1;
+        for (int i = 0; i < MAXNS; i++) {
+            statp->_u._ext.nssocks[i] = -1;
+        }
+    }
+    int ret = orig_res_ninit ? orig_res_ninit(statp) : 0;
+    if (statp) {
+        if (!res_state_has_usable_server(statp)) {
+            statp->nscount = 2;
+            statp->nsaddr_list[0].sin_family = AF_INET;
+            statp->nsaddr_list[0].sin_port = htons(53);
+            statp->nsaddr_list[0].sin_addr.s_addr = get_primary_dns();
+            statp->nsaddr_list[1].sin_family = AF_INET;
+            statp->nsaddr_list[1].sin_port = htons(53);
+            inet_pton(AF_INET, "8.8.8.8", &statp->nsaddr_list[1].sin_addr);
+        }
+        statp->retrans = 1;
+        statp->retry = 2;
+    }
+    return ret;
+}
+
+int res_nquery(res_state statp, const char *dname, int class, int type,
+               unsigned char *answer, int anslen) {
+    static int (*orig_res_nquery)(res_state, const char *, int, int, unsigned char *, int) = NULL;
+    if (!orig_res_nquery) orig_res_nquery = (int (*)(res_state, const char *, int, int, unsigned char *, int))dlsym(RTLD_NEXT, "res_nquery");
+    // DNS SRV queries are optional for APT mirrors and frequently cause delays or issues
+    if (type == 33 /* T_SRV */) {
+        h_errno = NO_DATA;
+        return -1;
+    }
+    return orig_res_nquery ? orig_res_nquery(statp, dname, class, type, answer, anslen) : -1;
+}
+
+int res_query(const char *dname, int class, int type,
+              unsigned char *answer, int anslen) {
+    static int (*orig_res_query)(const char *, int, int, unsigned char *, int) = NULL;
+    if (!orig_res_query) orig_res_query = (int (*)(const char *, int, int, unsigned char *, int))dlsym(RTLD_NEXT, "res_query");
+    if (type == 33 /* T_SRV */) {
+        h_errno = NO_DATA;
+        return -1;
+    }
+    return orig_res_query ? orig_res_query(dname, class, type, answer, anslen) : -1;
+}
+
+int res_nsearch(res_state statp, const char *dname, int class, int type,
+                unsigned char *answer, int anslen) {
+    static int (*orig_res_nsearch)(res_state, const char *, int, int, unsigned char *, int) = NULL;
+    if (!orig_res_nsearch) orig_res_nsearch = (int (*)(res_state, const char *, int, int, unsigned char *, int))dlsym(RTLD_NEXT, "res_nsearch");
+    if (type == 33 /* T_SRV */) {
+        h_errno = NO_DATA;
+        return -1;
+    }
+    return orig_res_nsearch ? orig_res_nsearch(statp, dname, class, type, answer, anslen) : -1;
+}
+
+int res_search(const char *dname, int class, int type,
+               unsigned char *answer, int anslen) {
+    static int (*orig_res_search)(const char *, int, int, unsigned char *, int) = NULL;
+    if (!orig_res_search) orig_res_search = (int (*)(const char *, int, int, unsigned char *, int))dlsym(RTLD_NEXT, "res_search");
+    if (type == 33 /* T_SRV */) {
+        h_errno = NO_DATA;
+        return -1;
+    }
+    return orig_res_search ? orig_res_search(dname, class, type, answer, anslen) : -1;
+}
+
+static struct hostent s_fallback_hostent;
+static char *s_fallback_aliases[1] = { NULL };
+static in_addr_t s_fallback_addr1;
+static in_addr_t s_fallback_addr2;
+static char *s_fallback_addr_list[3] = { NULL, NULL, NULL };
+
+static struct hostent *get_fallback_hostent(const char *name) {
+    if (!name) return NULL;
+    if (strstr(name, "ubuntu.com") != NULL) {
+        inet_pton(AF_INET, "91.189.91.103", &s_fallback_addr1);
+        inet_pton(AF_INET, "91.189.92.21", &s_fallback_addr2);
+    } else if (strstr(name, "debian.org") != NULL) {
+        inet_pton(AF_INET, "151.101.130.132", &s_fallback_addr1);
+        inet_pton(AF_INET, "151.101.2.132", &s_fallback_addr2);
+    } else {
+        return NULL;
+    }
+    s_fallback_addr_list[0] = (char *)&s_fallback_addr1;
+    s_fallback_addr_list[1] = (char *)&s_fallback_addr2;
+    s_fallback_addr_list[2] = NULL;
+
+    s_fallback_hostent.h_name = (char *)name;
+    s_fallback_hostent.h_aliases = s_fallback_aliases;
+    s_fallback_hostent.h_addrtype = AF_INET;
+    s_fallback_hostent.h_length = sizeof(in_addr_t);
+    s_fallback_hostent.h_addr_list = s_fallback_addr_list;
+    return &s_fallback_hostent;
+}
+
+struct hostent *gethostbyname(const char *name) {
+    static struct hostent *(*orig_gethostbyname)(const char *) = NULL;
+    if (!orig_gethostbyname) orig_gethostbyname = (struct hostent *(*)(const char *))dlsym(RTLD_NEXT, "gethostbyname");
+    struct hostent *ret = orig_gethostbyname ? orig_gethostbyname(name) : NULL;
+    if (!ret && name && (strstr(name, "ubuntu.com") || strstr(name, "debian.org"))) {
+        return get_fallback_hostent(name);
+    }
+    return ret;
+}
+
+struct hostent *gethostbyname2(const char *name, int af) {
+    static struct hostent *(*orig_gethostbyname2)(const char *, int) = NULL;
+    if (!orig_gethostbyname2) orig_gethostbyname2 = (struct hostent *(*)(const char *, int))dlsym(RTLD_NEXT, "gethostbyname2");
+    struct hostent *ret = orig_gethostbyname2 ? orig_gethostbyname2(name, af) : NULL;
+    if (!ret && (af == AF_INET || af == AF_UNSPEC) && name && (strstr(name, "ubuntu.com") || strstr(name, "debian.org"))) {
+        return get_fallback_hostent(name);
+    }
+    return ret;
+}
+
+#endif /* !DDNATV_HOST_TEST */
