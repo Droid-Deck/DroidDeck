@@ -68,8 +68,9 @@ object GameStorage {
         externalStoragePath: Boolean = isExternalStoragePath(path),
     ): Boolean = when {
         state == Environment.MEDIA_MOUNTED || state == Environment.MEDIA_MOUNTED_READ_ONLY -> true
+        path.isDirectory -> true
         externalStoragePath -> false
-        state == Environment.MEDIA_UNKNOWN || state == null -> path.isDirectory || path.parentFile?.isDirectory == true
+        state == Environment.MEDIA_UNKNOWN || state == null -> path.parentFile?.isDirectory == true
         else -> false
     }
 
