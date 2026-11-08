@@ -1,0 +1,16 @@
+#!/bin/bash
+set -u
+image=${1:?usage: droiddeck-appimage-exec <AppImage> [args...]}
+shift
+export APPIMAGE_EXTRACT_AND_RUN=1
+chmod +x "$image" 2>/dev/null
+if [ -x /usr/local/bin/droiddeck-fex ]; then
+  case $(od -An -tu2 -j18 -N2 "$image" 2>/dev/null | tr -d ' ') in
+    3|62) exec /usr/local/bin/droiddeck-fex run --mode on -- "$image" "$@" ;;
+  esac
+fi
+if [ -x /usr/local/lib/droiddeck/uruntime ]; then
+  export TARGET_APPIMAGE=$image
+  exec /usr/local/lib/droiddeck/uruntime "$@"
+fi
+exec "$image" "$@"
