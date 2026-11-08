@@ -133,6 +133,17 @@ class ThemeColorsTest {
         assertEquals(Themes.GRAPHITE, Themes.byId("nonsense").id)
     }
 
+    @Test fun addedColorPresetsAreSelectableAndKeepReadableAccentText() {
+        val expected = setOf(Themes.FOREST)
+        assertTrue(Themes.all.map { it.id }.containsAll(expected))
+        for (id in expected) {
+            val palette = Themes.byId(id)
+            assertEquals(id, palette.id)
+            assertTrue("$id primary contrast", contrast(palette.onPrimary, palette.primary) >= 4.5f)
+            assertTrue("$id secondary contrast", contrast(palette.onPrimary, palette.primary2) >= 4.5f)
+        }
+    }
+
     @Test fun innerGamerSitsJustAboveGradientInTheThemeList() {
         val ids = Themes.all.map { it.id }
         assertEquals(ids.indexOf(Themes.GRADIENT) - 1, ids.indexOf(Themes.INNER_GAMER))
