@@ -173,7 +173,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
         }
         runCatching { presentation.show() }.onFailure { failure = it.message }
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) presentation.hide()
+            if (event == Lifecycle.Event.ON_STOP && !host.screenIsOff()) presentation.hide()
             if (event == Lifecycle.Event.ON_START) runCatching { presentation.show() }
         }
         host.lifecycle.addObserver(observer)

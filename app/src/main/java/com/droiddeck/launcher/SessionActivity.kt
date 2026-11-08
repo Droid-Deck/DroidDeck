@@ -55,6 +55,7 @@ import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoreLaunchRequests
 import com.droiddeck.launcher.stores.epic.EpicClient
 import com.droiddeck.launcher.ui.SessionAchievements
+import com.droiddeck.launcher.ui.screenIsOff
 import com.droiddeck.launcher.gpu.Cardboard
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.HeadTracker
@@ -4566,7 +4567,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         displayManager.unregisterDisplayListener(displayListener)
         com.droiddeck.launcher.input.DualScreen.unwatchTaken(bottomScreenListener)
         contentResolver.unregisterContentObserver(refreshSettingObserver)
-        closeSecondScreen(reset = false)
+        if (!screenIsOff()) closeSecondScreen(reset = false)
         startedScreens = (startedScreens - 1).coerceAtLeast(0)
         updateGlassesScreen()
         updateBottomGame()
@@ -4665,14 +4666,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (::twoFingerGestures.isInitialized) twoFingerGestures.cancel()
         uiHandler.removeCallbacks(clearRecognizedGesture)
         uiHandler.removeCallbacks(cursorResync)
-        gestureSettingsOpen = false
-        inputSettingsOpen = false
+        val screenOff = screenIsOff()
+        if (!screenOff) {
+            gestureSettingsOpen = false
+            inputSettingsOpen = false
+        }
         releasePads()
         heldKeys.clear()
         heldButtons.clear()
-        drawerOpen = false
-        pcKeyboardOpen = false
-        achievementsOpen = false
+        if (!screenOff) {
+            drawerOpen = false
+            pcKeyboardOpen = false
+            achievementsOpen = false
+        }
         (getSystemService(INPUT_SERVICE) as? InputManager)?.unregisterInputDeviceListener(deviceListener)
         releaseDrawerDirection()
         onScreenControls?.releaseAll()
