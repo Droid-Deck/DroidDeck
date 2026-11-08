@@ -442,6 +442,27 @@ class GogSupportData(unittest.TestCase):
             self.assertEqual('ready', store.gog_support_data(folder, root + '/compat', '/proton'))
             self.assertEqual('player order', (user / 'AppData/Local/G/Plugins.txt').read_text())
 
+    def test_a_link_never_carries_a_copy_outside(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            outside = Path(root) / 'outside'
+            outside.mkdir()
+            (outside / 'secret.ini').write_text('s')
+            (folder / '__AppData').mkdir()
+            (folder / '__AppData/linked').symlink_to(outside)
+            (folder / 'support/9').mkdir(parents=True)
+            (folder / 'support/9/a.ini').write_text('a')
+            gog_script(folder, '9', [
+                support_data(type='folder', overwrite=True, source='{app}/__AppData', target='{localappdata}/G'),
+                support_data(type='file', overwrite=True, source='{supportDir}/a.ini', target='{localappdata}/G/linked/a.ini'),
+                support_data(type='file', overwrite=True, source='{app}/__AppData/linked/secret.ini', target='{userdocs}/secret.ini'),
+            ])
+            self.assertEqual('copied=1 skipped=2', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertTrue((user / 'AppData/Local/G/linked').is_symlink())
+            self.assertEqual(['secret.ini'], sorted(p.name for p in outside.iterdir()))
+            self.assertFalse((user / 'Documents/secret.ini').exists())
+
     def test_a_changed_script_applies_again(self):
         with tempfile.TemporaryDirectory() as root:
             folder = game(root, store_id='gog', ident='9')

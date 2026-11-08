@@ -636,6 +636,12 @@ def gog_support_bases(folder, product, pfx):
             "userdocs": user / "Documents", "localappdata": user / "AppData" / "Local"}
 
 
+def gog_inside(path, base):
+    root = os.path.realpath(base)
+    real = os.path.realpath(path)
+    return real == root or real.startswith(root + os.sep)
+
+
 def gog_support_path(text, bases):
     match = re.fullmatch(r"\{(\w+)\}(.*)", text) if isinstance(text, str) else None
     if not match or match.group(1).lower() not in bases:
@@ -643,16 +649,21 @@ def gog_support_path(text, bases):
     parts = [part for part in re.split(r"[\\/]+", match.group(2)) if part]
     if any(part in (".", "..") for part in parts):
         return None
-    path = bases[match.group(1).lower()]
+    base = bases[match.group(1).lower()]
+    path = base
     for part in parts:
         exact = path / part
         if not exact.exists() and path.is_dir():
             exact = next((child for child in path.iterdir() if child.name.lower() == part.lower()), exact)
         path = exact
-    return path
+    if path != base and not gog_inside(path.parent, base):
+        return None
+    return path, base
 
 
-def gog_copy_file(source, target):
+def gog_copy_file(source, target, root):
+    if not gog_inside(target.parent, root):
+        raise OSError("outside " + str(root))
     target.parent.mkdir(parents=True, exist_ok=True)
     if target.is_symlink():
         target.unlink()
@@ -678,11 +689,13 @@ def gog_support_data(folder, compat_data, proton):
     copied = skipped = missing = 0
     for product, arguments in actions:
         bases = gog_support_bases(folder, product, pfx)
-        target = gog_support_path(arguments.get("target"), bases)
-        source = gog_support_path(arguments["source"], bases) if "source" in arguments else None
-        if target is None or ("source" in arguments and source is None):
+        found = gog_support_path(arguments.get("target"), bases)
+        origin = gog_support_path(arguments["source"], bases) if "source" in arguments else None
+        if found is None or ("source" in arguments and origin is None):
             skipped += 1
             continue
+        target, root = found
+        source = origin[0] if origin else None
         try:
             if source is None:
                 target.mkdir(parents=True, exist_ok=True)
@@ -695,13 +708,13 @@ def gog_support_data(folder, compat_data, proton):
                         destination = target / item.relative_to(source)
                         if destination.exists() and not arguments.get("overwrite"):
                             continue
-                        gog_copy_file(item, destination)
+                        gog_copy_file(item, destination, root)
                         copied += 1
                 target.mkdir(parents=True, exist_ok=True)
             elif target.exists() and not target.is_symlink() and not arguments.get("overwrite"):
                 continue
             else:
-                gog_copy_file(source, target)
+                gog_copy_file(source, target, root)
                 copied += 1
         except OSError:
             skipped += 1
