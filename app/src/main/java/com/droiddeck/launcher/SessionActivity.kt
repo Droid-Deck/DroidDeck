@@ -3971,7 +3971,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) return onMouse(event)
         when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> sessionTouchDown = true
+            MotionEvent.ACTION_DOWN -> {
+                sessionTouchDown = true
+                dismissTouch = false
+            }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> sessionTouchDown = false
         }
         if (drawerOpen && drawerDocked && event.actionMasked == MotionEvent.ACTION_DOWN) {
