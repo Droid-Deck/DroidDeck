@@ -389,6 +389,21 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         sendRight = { down -> heldButtons.set(32, PointerGestures.BTN_RIGHT, down) },
         mouseAttached = ::mouseAttached,
     )
+    private val usbMouse = com.droiddeck.launcher.input.UsbMouse(this, object : com.droiddeck.launcher.input.UsbMouse.Listener {
+        override fun onMove(dx: Int, dy: Int) = onRelativeMouse(dx.toFloat(), dy.toFloat())
+        override fun onButton(index: Int, down: Boolean) {
+            if (down) lastUserPressMs = android.os.SystemClock.uptimeMillis()
+            heldButtons.set(8, USB_MOUSE_BUTTONS[index], down)
+        }
+        override fun onWheel(steps: Int) = sendSceneWheel(-steps)
+        override fun onChanged() = updatePointerCapture()
+    })
+    private var pointerCaptureRefused = false
+    private val usbMouseFallback = Runnable {
+        if (window.decorView.hasPointerCapture()) return@Runnable
+        pointerCaptureRefused = true
+        if (usbMouse.grab()) Log.i(TAG, "pointer capture refused; reading the USB mouse directly")
+    }
     private var drawerDirectionKey = KeyEvent.KEYCODE_UNKNOWN
     private var drawerDirectionDownTime = 0L
     private var drawerDirectionDeviceId = -1
@@ -726,7 +741,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             override fun dispatchPointerCaptureChanged(hasCapture: Boolean) {
                 super.dispatchPointerCaptureChanged(hasCapture)
                 Log.i(TAG, "pointer capture " + if (hasCapture) "on" else "off")
-                if (!hasCapture) {
+                if (hasCapture) {
+                    pointerCaptureRefused = false
+                    if (usbMouse.active) updatePointerCapture()
+                } else {
                     releaseHeldGuestInput()
                     uiHandler.postDelayed(::updatePointerCapture, 250)
                 }
@@ -4142,23 +4160,33 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         else -> PointerGestures.BTN_LEFT
     }
 
-    private fun mouseAttached(): Boolean = InputDevice.getDeviceIds().any { id ->
+    private fun mouseAttached(): Boolean = usbMouse.active || InputDevice.getDeviceIds().any { id ->
         val d = InputDevice.getDevice(id)
         isHardwareMouse(d) && d?.supportsSource(InputDevice.SOURCE_TOUCHPAD) != true
     }
 
-    private fun relativeMouseAttached(): Boolean = !isInMultiWindowMode && !glassesOutputActive && InputDevice.getDeviceIds().any { id ->
-        val d = InputDevice.getDevice(id)
-        isHardwareMouse(d) && d?.supportsSource(InputDevice.SOURCE_TOUCHPAD) != true
-    }
+    private fun relativeMouseAttached(): Boolean = !isInMultiWindowMode && !glassesOutputActive && mouseAttached()
 
     private fun updatePointerCapture() {
         if (!::surfaceView.isInitialized) return
         val view = window.decorView
         val want = (pointerLocked || relativeMouseAttached()) && resumed && hasWindowFocus() && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !inputSettingsOpen && !pipUi && !bottomOutputActive && !touchEditorOpen && mouseAttached()
         releaseDesktopMouseGrab()
+        updateUsbMouse(want)
         if (want == view.hasPointerCapture()) return
         if (want) view.requestPointerCapture() else view.releasePointerCapture()
+    }
+
+    private fun updateUsbMouse(want: Boolean) {
+        uiHandler.removeCallbacks(usbMouseFallback)
+        if (!want || window.decorView.hasPointerCapture()) {
+            if (usbMouse.active) {
+                usbMouse.release()
+                heldButtons.release(8)
+            }
+            return
+        }
+        if (!usbMouse.active) uiHandler.postDelayed(usbMouseFallback, if (pointerCaptureRefused) 0L else POINTER_CAPTURE_GRANT_MS)
     }
 
     private fun programLocksPointer(): Boolean =
@@ -4229,6 +4257,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         surfaceView.pointerIcon = icon
     }
 
+    private fun onRelativeMouse(dx: Float, dy: Float) {
+        if (pointerLocked) sendSceneDelta(dx, dy)
+        else {
+            grabDesktopMouse()
+            moveCapturedMouse(dx, dy)
+        }
+    }
+
     private fun onCapturedPointer(event: MotionEvent): Boolean {
         if (!event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) return false
         notePress(event)
@@ -4240,11 +4276,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     dx += event.getHistoricalX(i)
                     dy += event.getHistoricalY(i)
                 }
-                if (pointerLocked) sendSceneDelta(dx, dy)
-                else {
-                    grabDesktopMouse()
-                    moveCapturedMouse(dx, dy)
-                }
+                onRelativeMouse(dx, dy)
             }
             MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE ->
                 guestMouseButton(event.actionButton)?.let { heldButtons.set(8, it, event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS) }
@@ -5359,6 +5391,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         steamVrRecovery.close()
         uiHandler.removeCallbacks(steamTouchRetry)
         uiHandler.removeCallbacks(cursorResync)
+        uiHandler.removeCallbacks(usbMouseFallback)
+        usbMouse.close()
         releaseEvdevMouse()
         if (runtimeRemovalBlocked) { super.onDestroy(); return }
         watching = false
@@ -5487,6 +5521,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         private const val FIELD_SETTLE_MS = 200L
         private const val BTN_SIDE = 0x113
         private const val BTN_EXTRA = 0x114
+        private val USB_MOUSE_BUTTONS = intArrayOf(PointerGestures.BTN_LEFT, PointerGestures.BTN_RIGHT, PointerGestures.BTN_MIDDLE, BTN_SIDE, BTN_EXTRA)
+        private const val POINTER_CAPTURE_GRANT_MS = 500L
         private const val DESKTOP_GRAB_TAP_MS = 500L
         private const val DESKTOP_GRAB_MAX_TAPS = 8
         private const val DESKTOP_GRAB_RETRY_MS = 30_000L
