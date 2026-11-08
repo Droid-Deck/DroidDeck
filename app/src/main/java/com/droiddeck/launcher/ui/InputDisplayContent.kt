@@ -18,6 +18,8 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 
 internal val LocalInputActivity = staticCompositionLocalOf<ComponentActivity?> { null }
 
+fun ComponentActivity.screenIsOff(): Boolean = getSystemService(android.os.PowerManager::class.java)?.isInteractive == false
+
 @Composable
 internal fun InputDisplayContent(host: ComponentActivity, display: Display, onDismiss: () -> Unit, content: @Composable () -> Unit) {
     val parent = rememberCompositionContext()
@@ -58,7 +60,7 @@ internal fun InputDisplayContent(host: ComponentActivity, display: Display, onDi
         }
         showPresentation()
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) presentation.hide()
+            if (event == Lifecycle.Event.ON_STOP && !host.screenIsOff()) presentation.hide()
             if (event == Lifecycle.Event.ON_START) showPresentation()
         }
         host.lifecycle.addObserver(observer)
