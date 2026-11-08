@@ -45,7 +45,11 @@ jobs:
         run: |
           set -euo pipefail
           labels='"ubuntu-24.04"'
-          if [[ "${IDLE_AT:-0}" =~ ^[0-9]+$ ]] && [ "${IDLE_AT:-0}" -gt 0 ] && [ $(( $(date +%s) - IDLE_AT )) -lt 180 ]; then
+          age=-1
+          if [[ "${IDLE_AT:-0}" =~ ^[0-9]+$ ]] && [ "${IDLE_AT:-0}" -gt 0 ]; then
+            age=$(( $(date +%s) - IDLE_AT ))
+          fi
+          if [ "$age" -ge 0 ] && [ "$age" -lt 180 ]; then
             labels='["self-hosted","droiddeck-fork"]'
           fi
           echo "labels=$labels" >> "$GITHUB_OUTPUT"
