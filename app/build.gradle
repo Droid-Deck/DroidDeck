@@ -128,7 +128,7 @@ android {
     ndkVersion project.findProperty('ndkVersion') ?: '27.3.13750724'
 
     defaultConfig {
-        applicationId "com.droiddeck.launcher"
+        applicationId "com.droiddeckdlsiperdk"
         minSdkVersion 26
         targetSdkVersion 28
         versionCode 17
