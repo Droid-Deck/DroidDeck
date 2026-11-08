@@ -16,3 +16,19 @@ same length: the code compares environment names by length) and extended with:
 - starting Wine without its static preloader, which opens files with raw system calls.
 
 Build: `tools/nativeguest/build.sh out.so` with an aarch64 glibc cross compiler.
+
+## Testing under Android's seccomp filter
+
+Some devices (eng builds, `setenforce 0` ROMs) run apps with no seccomp filter, so a hook that
+passes there can still die with SIGSYS on a stock phone (`GUEST_EXIT 159`). `seccomp-sim.c` applies
+a filter that answers the calls Android blocks with SIGSYS, then runs the program:
+
+```
+aarch64-linux-gnu-gcc -static -O2 -o seccomp-sim tools/nativeguest/seccomp-sim.c
+# copy it into the rootfs, then name it for every native launch:
+echo /usr/local/bin/seccomp-sim > <rootfs>/etc/droiddeck/seccomp-sim
+```
+
+`grep Seccomp: /proc/<pid>/status` should then show `2` for the session's processes. Empty the file
+to turn it off. `seccomp-sim -a NR,NR PROGRAM` leaves the listed calls allowed, to find which one
+kills a program.
