@@ -209,10 +209,13 @@ int inotify_add_watch(int fd, const char *pathname, uint32_t mask) {
     if (!pathname) return -1;
     char buf[PATH_MAX];
     const char *target = rewrite_path(pathname, buf, sizeof(buf));
-    if (target && access(target, F_OK) != 0) {
+    if (!orig_inotify_add_watch) return -1;
+    int wd = orig_inotify_add_watch(fd, target, mask);
+    if (wd < 0 && errno == ENOENT && (mask & IN_ONLYDIR)) {
         ensure_dir_exists(target);
+        wd = orig_inotify_add_watch(fd, target, mask);
     }
-    return orig_inotify_add_watch ? orig_inotify_add_watch(fd, target, mask) : -1;
+    return wd;
 }
 
 // Hook rename

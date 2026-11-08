@@ -841,7 +841,9 @@ static int ddnatv_posix_spawn(pid_t *pid, const char *path,
         char ld_lib_path[PATH_MAX * 6];
         build_ld_library_path(orig_ep, probe.runpath, probe.runpath_is_rpath, elf_target, ld_lib_path, sizeof(ld_lib_path));
         char **new_argv = build_ldso_argv(ld_so, hook_so, ld_lib_path, elf_target, prog_name, argv);
-        if (new_argv) {
+        if (!new_argv) {
+            ret = ENOMEM;
+        } else {
             if (orig_posix_spawn) {
                 ret = orig_posix_spawn(pid, ld_so, file_actions, attrp, new_argv, new_envp);
                 if (ret == EACCES && chmod(ld_so, 0755) == 0) {
@@ -858,7 +860,7 @@ static int ddnatv_posix_spawn(pid_t *pid, const char *path,
         }
     }
 
-    if (ret != 0) {
+    if (!orig_posix_spawn) {
         pid_t child = fork();
         if (child < 0) {
             free_modified_env(new_envp, orig_ep);

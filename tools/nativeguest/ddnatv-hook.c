@@ -44,6 +44,7 @@
 #include <sys/shm.h>
 #include <sys/sysmacros.h>
 #include <net/if.h>
+#include <sys/inotify.h>
 
 #ifndef RENAME_EXCHANGE
 #define RENAME_EXCHANGE (1 << 1)
@@ -71,7 +72,6 @@
 #include "hook/fileops.c"
 #include "hook/identity.c"
 #include "hook/privileged.c"
-#include "hook/compression.c"
 #include "hook/env.c"
 #include "hook/exec_probe.c"
 #include "hook/static_programs.c"

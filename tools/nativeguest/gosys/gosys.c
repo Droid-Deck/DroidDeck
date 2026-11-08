@@ -386,7 +386,7 @@ static i64 with_execve(const struct gosys_hdr *h, u32 *held, i64 a0, i64 a1, i64
     int has_root = 0;
     while (envp && envp[envc]) {
         const char *e = envp[envc];
-        if (e[0] == 'C' && e[1] == 'O' && e[2] == 'R' && e[3] == 'T' && e[4] == 'E' && e[5] == 'X' &&
+        if (e[0] == 'D' && e[1] == 'D' && e[2] == 'N' && e[3] == 'A' && e[4] == 'T' && e[5] == 'V' &&
             e[6] == '_' && e[7] == 'R' && e[8] == 'O' && e[9] == 'O' && e[10] == 'T' && e[11] == '=')
             has_root = 1;
         envc++;

@@ -11,14 +11,6 @@ import java.io.File
  * [AgentBridgeProvider], answered in a file under the app's external files folder.
  */
 class AgentCallReceiver : BroadcastReceiver() {
-    companion object {
-        fun action(context: Context) = "${context.packageName}.AGENT_CALL"
-
-        fun register(context: Context) {
-            context.registerReceiver(AgentCallReceiver(), android.content.IntentFilter(action(context)),
-                android.Manifest.permission.DUMP, null)
-        }
-    }
 
     override fun onReceive(context: Context, intent: Intent) {
         val method = intent.getStringExtra("method") ?: return

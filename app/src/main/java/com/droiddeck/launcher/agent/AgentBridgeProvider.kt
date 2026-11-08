@@ -40,7 +40,6 @@ class AgentBridgeProvider : ContentProvider() {
                 recoveryComplete.countDown()
             }
         }, "agent-recover-artifacts").start()
-        AgentCallReceiver.register(appContext)
         return true
     }
 

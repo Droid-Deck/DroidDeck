@@ -182,6 +182,7 @@ static int shm_create(long key, size_t size, unsigned mode) {
         if (page <= 0) page = 4096;
         if (size > (size_t)INTPTR_MAX - (size_t)page) {
             // no file (and no mapping) can be that large
+            if (seg_fd >= 0) syscall(SYS_close, seg_fd);
             syscall(SYS_close, meta_fd);
             shm_remove(id, IPC_PRIVATE);
             errno = EINVAL;

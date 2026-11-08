@@ -139,7 +139,14 @@ int DDNATV_SHADOW_SYM(lckpwdf)(void) {
             memset(&fl, 0, sizeof(fl));
             fl.l_type = F_WRLCK;
             fl.l_whence = SEEK_SET;
-            fcntl(g_pwd_lock_fd, F_SETLK, &fl);
+            if (fcntl(g_pwd_lock_fd, F_SETLK, &fl) != 0) {
+                int saved = errno;
+                close(g_pwd_lock_fd);
+                g_pwd_lock_fd = -1;
+                pthread_mutex_unlock(&g_pwd_lock_mutex);
+                errno = saved;
+                return -1;
+            }
         }
     }
     if (g_pwd_lock_fd < 0) {
