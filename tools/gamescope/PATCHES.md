@@ -331,3 +331,14 @@ With `--follow-game-window-mode`, the outer window of a nested SDL gamescope fol
 asking for `_NET_WM_STATE_FULLSCREEN`, or a Steam game covering the X screen without minimise or maximise functions or
 decorations in `_MOTIF_WM_HINTS`, makes the outer window fullscreen on the desktop. Anything else makes it a normal window of the
 game window's size, or a maximised one when that size does not fit the desktop with its title bar and panel. A change is applied only when the wanted mode changes, so a manual resize or Super+F stays.
+
+
+- `0936-nms-asynchronous-frame-readiness.patch` - opt-in No Man's Sky
+  (Steam app 275850) producer readiness for the tested KGSL Turnip WSI path.
+  Adds a per-image present fence and sends a pollable readiness descriptor for
+  the matching surface commit. A background worker signals it after the
+  driver's rendering/presentation work completes, and Gamescope's image waiter
+  gates sampling on that signal. Application present semaphores are preserved.
+  Enable with `DROIDDECK_ASYNC_PRESENT=1` only after rebuilding both Gamescope
+  and its WSI layer. See `docs/development/nms-frame-readiness.md` for driver
+  constraints, component-release integration, device results and limitations.
