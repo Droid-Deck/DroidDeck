@@ -25,6 +25,17 @@ class GogListingTest {
     }
 
     @Test
+    fun ownedGamesTheListingLeavesOutStayOwned() {
+        assertEquals(setOf("1", "2", "1086370078"), GogLibrary.ownedSet(setOf("1", "2"), listOf("2", "1086370078")))
+    }
+
+    @Test
+    fun withoutTheAccountListTheListingStillCounts() {
+        assertEquals(setOf("1", "2"), GogLibrary.ownedSet(setOf("1", "2"), null))
+        assertEquals(setOf("3"), GogLibrary.ownedSet(emptySet(), listOf("3")))
+    }
+
+    @Test
     fun moviesOtherPlatformsAndGalaxysOwnEntryAreLeftOut() {
         assertEquals(listOf("1207660413", "1207664663"), GogLibrary.parseListing(PAGE)!!.games.map { it.gameId })
     }
