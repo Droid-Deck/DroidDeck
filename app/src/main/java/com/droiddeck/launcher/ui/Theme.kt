@@ -46,7 +46,6 @@ object Themes {
     const val PAPER = "paper"
     const val ICON_BLUE = "blue"
     const val ELECTRIC = "electric"
-    const val FOREST = "forest"
     const val WHITE_RED = "white_red"
     const val INNER_GAMER = "inner_gamer"
     const val GRADIENT = "gradient"
@@ -127,13 +126,6 @@ object Themes {
             background = Color(0xFF070A10), surface = Color(0xFF0F1522), surfaceVariant = Color(0xFF16203A), line = Color(0xFF1E2A47), line2 = Color(0xFF2A3A5E),
             onBackground = Color(0xFFEEF3FF), onSurfaceVariant = Color(0xFF8B9AB8),
             primary = Color(0xFF2E86FF), primary2 = Color(0xFF2684FF), onPrimary = Color(0xFF03111F), signal = Color(0xFF2E86FF),
-            good = Color(0xFF4CD37F),
-        ),
-        Palette(
-            FOREST, R.string.theme_forest, R.string.theme_forest_detail,
-            background = Color(0xFF08140B), surface = Color(0xFF13251A), surfaceVariant = Color(0xFF1B3323), line = Color(0xFF294633), line2 = Color(0xFF3A5B42),
-            onBackground = Color(0xFFF0FAF1), onSurfaceVariant = Color(0xFFA8C4AC),
-            primary = Color(0xFF55C93F), primary2 = Color(0xFF389B32), onPrimary = Color(0xFF071A05), signal = Color(0xFF55C93F),
             good = Color(0xFF4CD37F),
         ),
         Palette(

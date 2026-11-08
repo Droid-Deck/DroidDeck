@@ -1723,8 +1723,6 @@
     <string name="theme_icon_blue_detail">Black ground, white type, the blue for everything selected, focused or pressed.</string>
     <string name="theme_electric">Electric navy</string>
     <string name="theme_electric_detail">The blue brighter, on surfaces that lean navy instead of grey.</string>
-    <string name="theme_forest">Forest</string>
-    <string name="theme_forest_detail">Lighter forest-green surfaces with fresh leaf-green highlights.</string>
 <string name="theme_white_red">Scarlet Snow</string>
     <string name="theme_white_red_detail">Clean white surfaces with bold red highlights.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
