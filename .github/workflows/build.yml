@@ -313,6 +313,11 @@ jobs:
       - name: Build the DiRT 3 / DiRT Showdown ws2_32 stand-in
         run: python3 tools/components/prepare.py dirt-ws2
 
+      - name: Cache graphics driver inputs
+        uses: actions/cache@v4
+        with:
+          path: app/build/quest-inputs
+          key: quest-inputs-${{ hashFiles('tools/quest/build-driver.py') }}
       - name: Prepare graphics driver variants
         run: python3 tools/quest/build-driver.py "$ANDROID_HOME/ndk/$NDK_VERSION"
       - name: Record and pack prepared components
