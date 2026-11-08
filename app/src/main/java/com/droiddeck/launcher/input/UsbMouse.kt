@@ -184,5 +184,27 @@ class UsbMouse(private val context: Context, private val listener: Listener) {
 
         private fun isBootMouse(iface: UsbInterface) = iface.interfaceClass == UsbConstants.USB_CLASS_HID &&
             iface.interfaceSubclass == SUBCLASS_BOOT && iface.interfaceProtocol == PROTOCOL_MOUSE
+
+        /**
+         * A process killed while reading a mouse leaves it with no driver until it is replugged. Claiming without
+         * force only succeeds when no driver has the interface, and releasing it reattaches Android's.
+         */
+        fun returnLeftover(context: Context) {
+            Thread({
+                runCatching {
+                    val usb = context.getSystemService(Context.USB_SERVICE) as UsbManager
+                    for (device in usb.deviceList.values) {
+                        if (!usb.hasPermission(device)) continue
+                        val mouse = (0 until device.interfaceCount).map(device::getInterface).firstOrNull(::isBootMouse) ?: continue
+                        val connection = usb.openDevice(device) ?: continue
+                        if (connection.claimInterface(mouse, false)) {
+                            connection.releaseInterface(mouse)
+                            Log.i(TAG, "returned USB mouse \"${device.productName}\" to Android")
+                        }
+                        connection.close()
+                    }
+                }.onFailure { Log.w(TAG, "returning a USB mouse to Android failed", it) }
+            }, "usb-mouse-return").start()
+        }
     }
 }

@@ -47,6 +47,7 @@ class App : Application() {
         com.droiddeck.launcher.core.DownloadSource.init(this)
         prefetchAddonPacks()
         GpuClockPin.clearLeftover(this)
+        com.droiddeck.launcher.input.UsbMouse.returnLeftover(this)
         com.droiddeck.launcher.glasses.Glasses.init(this)
         com.droiddeck.launcher.glasses.GlassesMenuMirror.initialize(this)
         BwrapSpawner.start(this)
