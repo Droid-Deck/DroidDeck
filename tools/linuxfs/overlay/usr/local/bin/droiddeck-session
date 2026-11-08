@@ -56,6 +56,16 @@ sync_timezone() {
 } 2>/dev/null
 sync_timezone
 
+ensure_machine_id() {
+  local id=
+  read -r id < /etc/machine-id
+  [[ $id =~ ^[0-9a-f]{32}$ ]] && return 0
+  id=$(dbus-uuidgen) || return 0
+  [[ $id =~ ^[0-9a-f]{32}$ ]] || return 0
+  printf '%s\n' "$id" > /etc/machine-id.droiddeck && mv -f /etc/machine-id.droiddeck /etc/machine-id
+} 2>/dev/null
+ensure_machine_id
+
 write_system_bus_config() {
   mkdir -p /run/dbus /usr/local/share/droiddeck
   cat > /usr/local/share/droiddeck/system-bus.conf <<'BUSCONF'
