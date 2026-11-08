@@ -604,6 +604,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
 
     fun selectDriver(id: String, linux: Boolean) {
         if (!linux && id == TurnipDriver.AUTO) {
+            DriverBundle.selectDisplay(activity, id)
             pairModeOpen = false
             lastAutoCheck = 0L
             setMode(auto = true)
