@@ -1417,10 +1417,10 @@ class GameEnvironmentTest(unittest.TestCase):
 
     def test_ff7_rebirth_runs_at_feature_level_12_2_unless_the_game_overrides_it(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp) / "FFVII Rebirth"
-            shipping = root / "ff7rebirth_/Binaries/Win64/ff7rebirth_-Win64-Shipping.exe"
-            shipping.parent.mkdir(parents=True)
-            for exe in (root / "ff7rebirth_.exe", shipping):
+            root = Path(tmp) / "FINAL FANTASY VII REBIRTH"
+            game = root / "End/Binaries/Win64/ff7rebirth_.exe"
+            game.parent.mkdir(parents=True)
+            for exe in (root / "ff7rebirth.exe", game):
                 exe.touch()
                 env, extra, notes = MODULE["engine_fixes"](str(exe), [])
                 self.assertEqual(env, {"VKD3D_FEATURE_LEVEL": "12_2"}, exe.name)
