@@ -97,6 +97,14 @@ com.droiddeck.launcher.input/
               |                                              |
               |                                              | Sc2015State (Typed)
               |                                              v
+              |                       +---------------------------------------------+
+              |                       | Primary: Native Hidraw Path (Option B)      |
+              |                       | -> FakeInputWriter.writeSc2015State(...)     |
+              |                       | -> /dev/hidraw22 (28de:1106) in PRoot guest  |
+              |                       +---------------------------------------------+
+              |                                              |
+              |                                              | [Fallback: Option A]
+              |                                              v
               |                               +-----------------------------+
               |                               |  Sc2015 -> Triton Adapter   |
               |                               | (Maps SC 2015 to 45B format)|
@@ -243,17 +251,22 @@ com.droiddeck.launcher.input/
 
 ---
 
-## 7. Open Questions for Maintainer (@xXJSONDeruloXx)
+## 7. Architectural Alignment & Discussion Topics for Upstream (@xXJSONDeruloXx)
 
+### 7.1 Pair-Programming Decisions
 1. **Input Pipeline Representation**:
-   - *Question:* Should the 2015 Steam Controller feed into DroidDeck's existing Triton 45-byte ring buffer (`writeTritonState` / `/dev/hidraw18`), or would you prefer a separate virtual hidraw node (e.g. `/dev/hidraw22` exposing `28de:1106`) in `SteamDeckPad.kt` and `fakeinput_steam.cpp`?
-   - *Recommendation:* Adapting to Triton's 45-byte format allows complete reuse of the existing guest hidraw shim and input routing with minimal diff and zero risk of breaking existing Linux container bindings.
-2. **Architecture Modularization**:
-   - *Question:* Do you prefer keeping both models in a unified `SteamControllerBle.kt` file, or extracting model protocol handlers into a `steamcontroller/` subpackage?
-   - *Recommendation:* Extracting protocol handlers (`Sc2015ProtocolHandler`, `TritonProtocolHandler`) keeps `SteamControllerBle.kt` concise and focused strictly on Android GATT connection lifecycle and threading.
-3. **Battery Reporting**:
-   - *Question:* SC 2015 sends battery status packets (`k_EBLEReportStatus`, report ID 5) with voltage (mV) and battery percentage. Should this battery level be exposed to DroidDeck's HUD / battery indicator, or ignored?
-4. **Connection Priority**:
-   - *Question:* Should we invoke `requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)` upon entering ValveMode?
-5. **Haptics & Rumble**:
-   - *Question:* The 2015 Steam Controller supports basic haptic rumble commands over BLE via `100F6C34`. Should we wire DroidDeck's virtual gamepad rumble to SC 2015 haptics in this PR, or defer haptic rumble to a subsequent follow-up PR?
+   - **Primary Target (Option B):** Native hidraw presentation (`0005:28DE:1106` via `/dev/hidraw22`) so Steam Big Picture natively detects the original 2015 controller identity.
+   - **Fallback (Option A):** Translation of SC 2015 reports into Triton's 45-byte format written to `/dev/hidraw18`, used if native sysfs / container descriptor constraints arise.
+2. **Modularization Strategy (Option B):**
+   - Clean subpackage `com.droiddeck.launcher.input.steamcontroller` decoupling GATT connection management from protocol-specific framing and parsing. Enables isolated unit testing.
+3. **Battery Monitoring:**
+   - Decoded and logged during Phases 1–3; evaluation of FusionHUD exposure during Phase 5.
+4. **Connection Priority:**
+   - Call `requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)` upon entering ValveMode to minimize BLE input latency.
+5. **Haptics / Rumble:**
+   - Implement input pipeline first (Phases 1–4); implement rumble on `100F6C34` in Phase 4/5.
+
+### 7.2 Topics for Coordination in Discussion #149
+1. Coordination on `/dev/hidraw22` vs Triton 45-byte ring buffer reuse.
+2. Confirming whether upstream maintainer prefers single-file diff or the clean `steamcontroller/` subpackage.
+3. Review of the ValveMode keep-alive timing (3000 ms) and connection priority behavior on lower-end Android handhelds.

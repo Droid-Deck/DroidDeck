@@ -1,8 +1,9 @@
 # Implementation Plan: Native Bluetooth LE Support for Steam Controller (2015)
 
 ## Done (with commit hashes)
-- `bdeb30d3`: Initial exploration pass of DroidDeck codebase and reference implementations (`HIDDeviceBLESteamController.java`, `hid-steam.c`, `SDL_hidapi_steam.c`, `controller_structs.h`, `SdlBridge`).
-- `bdeb30d3`: Produced architectural design document: `DESIGN.md`.
+- `2dfc2c00`: Initial exploration pass of DroidDeck codebase and reference implementations (`HIDDeviceBLESteamController.java`, `hid-steam.c`, `SDL_hidapi_steam.c`, `controller_structs.h`, `SdlBridge`).
+- `2dfc2c00`: Produced architectural design document: `DESIGN.md`.
+- `fd816b3c`: Updated `DESIGN.md` and `PLAN.md` with pair-programming architectural decisions.
 
 ## In progress
 - **Phase 0 — Research & design**:
@@ -41,9 +42,14 @@
   - Finalize documentation and PR description.
   - Draft coordination message for GitHub Discussion #149.
 
-## Open questions
-1. **Input Pipeline Representation**: Should the 2015 controller be mapped to the existing 45-byte Triton state structure (`writeTritonState` / `/dev/hidraw18`), or is a dedicated virtual hidraw node (`28de:1106`) preferred?
-2. **Modularization Strategy**: Single unified `SteamControllerBle.kt` or separated protocol delegate handlers under `com.droiddeck.launcher.input.steamcontroller.*`?
-3. **Battery Exposure**: Should the battery percentage from Report 5 be piped into DroidDeck's HUD / system battery indicators?
-4. **Connection Priority**: Should `CONNECTION_PRIORITY_HIGH` be explicitly requested to lock down latency over BLE?
-5. **Haptics/Rumble**: Include basic haptic rumble conversion via `100F6C34` now or in a follow-up PR?
+## Open questions & Decisions
+1. **Input Pipeline Representation**:
+   - **Decision:** Target Option B (native hidraw node `0005:28DE:1106` via `/dev/hidraw22`) as primary implementation; preserve Option A (Triton 45-byte ring buffer translation) as fallback.
+2. **Modularization Strategy**:
+   - **Decision:** Option B (subpackage `com.droiddeck.launcher.input.steamcontroller.*` with isolated protocol handlers and unit tests).
+3. **Battery Exposure**:
+   - **Decision:** Decode and log in debug during early phases; evaluate FusionHUD exposure in Phase 5.
+4. **Connection Priority**:
+   - **Decision:** Request `BluetoothGatt.CONNECTION_PRIORITY_HIGH` upon entering ValveMode.
+5. **Haptics/Rumble**:
+   - **Decision:** Option A (implement rumble in Phase 4/5 after inputs are proven stable).
