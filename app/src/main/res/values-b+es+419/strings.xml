@@ -3665,7 +3665,6 @@
     <string name="input_reset_positions">Restablecer posiciones</string>
     <string name="input_show_label">Mostrar etiqueta</string>
     <string name="input_layout_import_failed">No se pudo importar esta disposición</string>
-
     <string name="theme_white_red">Nieve escarlata</string>
     
 </resources>
