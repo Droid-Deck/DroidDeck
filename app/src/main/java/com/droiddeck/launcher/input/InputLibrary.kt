@@ -244,7 +244,8 @@ data class InputLibrary(
             for (e in layout.elements) {
                 inputName(e.name)
                 require(e.icon == 0 || InputButtonIcons.has(e.icon))
-                require(e.image.isEmpty() || e.image.matches(Regex("[A-Za-z0-9_.-]{1,128}")) && e.image != "." && e.image != "..")
+                for (image in listOf(e.image, e.stickImage))
+                    require(image.isEmpty() || image.matches(Regex("[A-Za-z0-9_.-]{1,128}")) && image != "." && image != "..")
                 require(e.opacity.isFinite() && e.opacity in 0.01f..1f)
                 require(!e.toggle || e.kind == InputElementKind.BUTTON || e.kind == InputElementKind.TRIGGER)
                 require(listOf(e.x, e.y, e.width, e.height).all { it.isFinite() })

@@ -19,7 +19,10 @@ internal object CommunityControls {
     const val SUBMIT = "https://github.com/Droid-Deck/DroidDeck/issues/new?template=community-controls.yml"
     data class Pack(val layout: SavedInputLayout, val bindings: SavedInputBindings, val images: Map<String, ByteArray>)
     data class Entry(val name: String, val author: String, val game: String, val license: String,
-        val path: String, val sha256: String, val screen: InputLayoutScreen, val preview: String? = null, val bundled: Boolean = false)
+        val path: String, val sha256: String, val screen: InputLayoutScreen, val preview: String? = null, val bundled: Boolean = false,
+        val source: ControlSources.Source = ControlSources.DROIDDECK, val skin: Boolean = false) {
+        val key get() = source.id + "/" + path
+    }
 
     fun readLimited(input: InputStream, limit: Int = MAX_BYTES): ByteArray {
         val output = ByteArrayOutputStream()
@@ -49,7 +52,7 @@ internal object CommunityControls {
                 zip.putNextEntry(ZipEntry(name)); zip.write(bytes); zip.closeEntry()
             }
             add("controls.json", manifest.toString().toByteArray(Charsets.UTF_8))
-            for (name in layout.elements.map { it.image }.filter { it.isNotEmpty() }.distinct()) {
+            for (name in layout.elements.flatMap { listOf(it.image, it.stickImage) }.filter { it.isNotEmpty() }.distinct()) {
                 val file = requireNotNull(InputButtonImages.file(context, name))
                 add("images/$name", file.inputStream().use { readLimited(it, 1024 * 1024) })
             }
@@ -86,7 +89,7 @@ internal object CommunityControls {
         doc.getJSONArray("bindings").put(bindings)
         val decoded = requireNotNull(InputLibraries.decode(doc.toString())) { "Invalid controls or bindings." }
         val saved = decoded.layouts.first { it.id == layoutId }
-        val names = saved.elements.map { it.image }.filter { it.isNotEmpty() }.toSet()
+        val names = saved.elements.flatMap { listOf(it.image, it.stickImage) }.filter { it.isNotEmpty() }.toSet()
         require(files.keys == names.map { "images/$it" }.toSet()) { "Missing or unexpected button images." }
         var pixels = 0L
         val images = names.associateWith { name ->
@@ -96,7 +99,7 @@ internal object CommunityControls {
             BitmapFactory.decodeByteArray(data, 0, data.size, bounds)
             require(bounds.outWidth in 1..1024 && bounds.outHeight in 1..1024)
             pixels += bounds.outWidth.toLong() * bounds.outHeight
-            require(pixels <= 4_194_304)
+            require(pixels <= 16_777_216)
             val bitmap = requireNotNull(BitmapFactory.decodeByteArray(data, 0, data.size))
             bitmap.recycle()
             data
@@ -116,7 +119,7 @@ internal object CommunityControls {
                 file.writeBytes(bytes)
                 name
             }
-            val layout = pack.layout.copy(elements = pack.layout.elements.map { e -> e.copy(image = names[e.image] ?: "") })
+            val layout = pack.layout.copy(elements = pack.layout.elements.map { e -> e.copy(image = names[e.image] ?: "", stickImage = names[e.stickImage] ?: "") })
             return InputLibraries.update(context) {
                 it.withLayout(layout).withPreset(pack.bindings).chooseLayout(profile, role, layout.id)
             }
@@ -126,22 +129,23 @@ internal object CommunityControls {
         }
     }
 
-    fun catalog(raw: String): List<Entry> {
+    fun catalog(raw: String, source: ControlSources.Source = ControlSources.DROIDDECK): List<Entry> {
         require(raw.length <= 1_000_000)
         val doc = JSONObject(raw)
-        require(doc.getInt("version") == 1)
-        val list = doc.getJSONArray("controls")
+        val skin = doc.has("skins") && !doc.has("controls")
+        require(skin || doc.getInt("version") == 1)
+        val list = doc.getJSONArray(if (skin) "skins" else "controls")
         require(list.length() <= 256)
         return (0 until list.length()).map { index ->
             val e = list.getJSONObject(index)
             fun text(key: String) = e.getString(key).also { require(it.isNotBlank() && it.length <= 160) }
             val path = text("file")
-            require(path.matches(Regex("packs/[a-z0-9_-]+[.]ddcontrols[.]zip")))
-            val sha = text("sha256").also { require(it.matches(Regex("[a-f0-9]{64}"))) }
-            Entry(text("name"), text("author"), e.optString("game").take(160), text("license"), path, sha,
-                InputLayoutScreen.valueOf(e.getString("screen")), e.optString("preview").takeIf { it.isNotEmpty() }?.also {
-                    require(it.matches(Regex("previews/[a-z0-9_-]+[.]png")))
-                })
+            require(ControlSources.validPath(path) && path.endsWith(".zip", ignoreCase = true))
+            val sha = e.optString("sha256").also { require(if (skin) it.isEmpty() || it.matches(Regex("[a-f0-9]{64}")) else it.matches(Regex("[a-f0-9]{64}"))) }
+            Entry(text("name"), e.optString("author").take(160), e.optString("game").take(160), e.optString("license").take(160), path, sha,
+                if (skin) InputLayoutScreen.BOTH else InputLayoutScreen.valueOf(e.getString("screen")), e.optString("preview").takeIf { it.isNotEmpty() }?.also {
+                    require(ControlSources.validPath(it) && it.endsWith(".png", ignoreCase = true))
+                }, source = source, skin = skin)
         }.also { require(it.map { e -> e.path }.distinct().size == it.size) }
     }
 
@@ -149,23 +153,29 @@ internal object CommunityControls {
         catalog(readLimited(it, 1_000_000).toString(Charsets.UTF_8)).map { e -> e.copy(bundled = true) }
     }
 
-    fun fetchCatalog(): List<Entry> = catalog(get(BASE + "catalog.json", 1_000_000).toString(Charsets.UTF_8))
+    fun fetchCatalog(source: ControlSources.Source = ControlSources.DROIDDECK): List<Entry> =
+        catalog(get(source.manifest, 1_000_000).toString(Charsets.UTF_8), source)
     fun preview(context: Context, entry: Entry): android.graphics.Bitmap? {
         val path = entry.preview ?: return null
         val bytes = if (entry.bundled) context.assets.open("community-controls/$path").use { readLimited(it, 512 * 1024) }
-            else get(BASE + path, 512 * 1024)
+            else get(entry.source.url(path), 2 * 1024 * 1024)
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-        require(bounds.outWidth in 1..1024 && bounds.outHeight in 1..1024)
-        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        require(bounds.outWidth in 1..4096 && bounds.outHeight in 1..4096)
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = 1
+            while (maxOf(bounds.outWidth, bounds.outHeight) / inSampleSize > 512) inSampleSize *= 2
+        }
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
     }
 
-    fun download(context: Context, entry: Entry): Pack {
+    fun download(context: Context, entry: Entry, layout: SavedInputLayout? = null, bindings: SavedInputBindings? = null): Pack {
         val bytes = if (entry.bundled) context.assets.open("community-controls/${entry.path}").use { readLimited(it) }
-            else get(BASE + entry.path, MAX_BYTES)
+            else get(entry.source.url(entry.path), if (entry.skin) 32 * 1024 * 1024 else MAX_BYTES)
         val sha = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-        require(sha == entry.sha256) { "Controls download failed verification." }
-        return parse(context, bytes).also { require(it.layout.screen == entry.screen) }
+        require(entry.sha256.isEmpty() && entry.skin || sha == entry.sha256) { "Controls download failed verification." }
+        return if (entry.skin) ArmsControlSkins.parse(context, bytes, requireNotNull(layout), requireNotNull(bindings), entry.name)
+        else parse(context, bytes).also { require(it.layout.screen == entry.screen) }
     }
 
     private fun get(url: String, limit: Int): ByteArray {

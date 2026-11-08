@@ -327,13 +327,7 @@ class InputSurfaceView(
         protected fun textColor(lit: Boolean) = if (lit) Color.WHITE else tint?.let { light(it, 210, 0.75f) } ?: TEXT
     }
 
-    private inner class HoldButton(context: Context, private val element: InputSurfaceElement, private val source: InputSurfaceSource?) : Surface(context) {
-        private var down = false
-        private val pointers = HashSet<Int>()
-        val round get() = element.buttonShape == InputButtonShape.CIRCLE
-        val gamepad get() = round || element.buttonShape == InputButtonShape.PILL
-        private val symbol = InputButtonIcons.drawable(context, element.icon)
-        private val bitmap = previewImages[element.image] ?: InputButtonImages.file(context, element.image)?.let { file ->
+    private fun imageBitmap(name: String): android.graphics.Bitmap? = previewImages[name] ?: InputButtonImages.file(context, name)?.let { file ->
             val size = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(file.path, size)
             val options = BitmapFactory.Options().apply {
@@ -342,6 +336,14 @@ class InputSurfaceView(
             }
             if (file.isFile) BitmapFactory.decodeFile(file.path, options) else null
         }
+
+    private inner class HoldButton(context: Context, private val element: InputSurfaceElement, private val source: InputSurfaceSource?) : Surface(context) {
+        private var down = false
+        private val pointers = HashSet<Int>()
+        val round get() = element.buttonShape == InputButtonShape.CIRCLE
+        val gamepad get() = round || element.buttonShape == InputButtonShape.PILL
+        private val symbol = InputButtonIcons.drawable(context, element.icon)
+        private val bitmap = imageBitmap(element.image)
         private val imageRect = RectF()
 
         override fun onDraw(canvas: Canvas) {
@@ -512,6 +514,17 @@ class InputSurfaceView(
         private var knobY = 0f
         private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
         private val knob = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val baseImage = imageBitmap(element.image)
+        private val stickImage = imageBitmap(element.stickImage)
+        private val imagePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        private val imageBounds = RectF()
+
+        private fun drawImage(canvas: Canvas, image: android.graphics.Bitmap, x: Float, y: Float, radius: Float) {
+            val scale = min(radius * 2 / image.width, radius * 2 / image.height)
+            imageBounds.set(x - image.width * scale / 2, y - image.height * scale / 2,
+                x + image.width * scale / 2, y + image.height * scale / 2)
+            canvas.drawBitmap(image, null, imageBounds, imagePaint)
+        }
 
         val adaptive get() = adaptive(element)
 
@@ -535,6 +548,14 @@ class InputSurfaceView(
             val cx = if (touching) originX else centreX()
             val cy = if (touching) originY else height / 2f
             val color = tint
+            if (baseImage != null || stickImage != null) {
+                val radius = min(width, height) / 2f - .75f * density
+                if (baseImage != null) drawImage(canvas, baseImage, cx, cy, radius)
+                else { ring.color = LINE; ring.strokeWidth = 2 * density; canvas.drawCircle(cx, cy, radius, ring) }
+                if (stickImage != null) drawImage(canvas, stickImage, cx + knobX, cy + knobY, radius * .46f)
+                else { knob.color = if (touching) ACCENT else KNOB; canvas.drawCircle(cx + knobX, cy + knobY, radius * .46f, knob) }
+                return
+            }
             if (classic(element) && color != null) {
                 val radius = min(width, height) / 2f - 0.75f * density
                 drawCircle(canvas, cx, cy, radius,
