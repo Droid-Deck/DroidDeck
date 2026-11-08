@@ -98,16 +98,6 @@ def encode_request(request: dict) -> str:
     return encoded
 
 
-_CONTENT_COMMAND: dict[str, bool] = {}
-
-
-def has_content_command(adb: str, serial: str) -> bool:
-    if serial not in _CONTENT_COMMAND:
-        result = run_adb(adb, serial, "shell", "command -v content", timeout=15)
-        _CONTENT_COMMAND[serial] = result.returncode == 0 and bool(result.stdout.strip())
-    return _CONTENT_COMMAND[serial]
-
-
 def receiver_call(adb: str, serial: str, method: str, request: dict | None, timeout: float) -> dict:
     """The agent bridge through a broadcast, for shells without the `content` command."""
     call_id = uuid.uuid4().hex[:16]
@@ -131,8 +121,6 @@ def receiver_call(adb: str, serial: str, method: str, request: dict | None, time
 
 def provider_call(adb: str, serial: str, method: str, arg: str | None = None, request: dict | None = None,
                   timeout: float = 30) -> dict:
-    if not has_content_command(adb, serial):
-        return receiver_call(adb, serial, method, request, timeout)
     command = ["shell", "content", "call", "--uri", AUTHORITY, "--method", method]
     if arg is not None:
         command.extend(["--arg", arg])
@@ -141,6 +129,8 @@ def provider_call(adb: str, serial: str, method: str, arg: str | None = None, re
         command.extend(["--extra", f"request:s:{encoded}"])
     result = run_adb(adb, serial, *command, timeout=timeout)
     output = (result.stdout + result.stderr).decode(errors="replace")
+    if "content: inaccessible or not found" in output:
+        return receiver_call(adb, serial, method, request, timeout)
     response = _content_result(output)
     if result.returncode != 0 and response.get("ok") is not False:
         raise ControlError(output.strip() or "ADB content call failed", "ADB_FAILED")
