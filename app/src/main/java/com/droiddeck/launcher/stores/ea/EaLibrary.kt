@@ -76,6 +76,12 @@ object EaLibrary {
     private const val ART_THREADS = 4
     const val STORE_URL = "https://www.ea.com/ea-app/library"
     private val running = AtomicBoolean(false)
+    private val generation = java.util.concurrent.atomic.AtomicInteger()
+
+    /** Makes any sync already running drop its results instead of writing or showing them. */
+    fun invalidate() {
+        generation.incrementAndGet()
+    }
     private val store = Store.EA
 
     fun cached(context: Context): List<EaGame> {
@@ -165,9 +171,11 @@ object EaLibrary {
         }
     }
 
-    private fun publish(app: Context, games: List<EaGame>) {
+    private fun publish(app: Context, games: List<EaGame>, gen: Int = generation.get()) {
+        if (gen != generation.get()) return
         val items = games.map { toCatalogItem(app, it) }
         StoresState.post {
+            if (gen != generation.get()) return@post
             StoresState.library[store] = mergeItems(StoresState.library[store], items)
             val installed = StoresState.installed.filter { it.sidecar.store == store }.map { it.sidecar.id }.toSet()
             StoresState.shelves[store] = StoreShelves(trending = items.filterNot { it.id in installed }, art = StoresState.shelves[store]?.art.orEmpty())
@@ -184,6 +192,7 @@ object EaLibrary {
     fun sync(context: Context, force: Boolean) {
         if (!running.compareAndSet(false, true)) return
         val app = context.applicationContext
+        val gen = generation.get()
         val prefs = EaPrefs.get(app)
         val cache = cached(app)
         val quiet = cache.isNotEmpty() && !force
@@ -195,7 +204,7 @@ object EaLibrary {
             }
         }
         try {
-            if (cache.isNotEmpty()) publish(app, cache)
+            if (cache.isNotEmpty()) publish(app, cache, gen)
             if (!force && cache.isNotEmpty() && System.currentTimeMillis() - prefs.getLong(KEY_SYNCED_AT, 0L) in 0 until THROTTLE_MS) {
                 return problem(null)
             }
@@ -218,9 +227,10 @@ object EaLibrary {
                     multiplayerId = offer.multiplayerId, masterTitleId = offer.masterTitleId, cloudSaves = offer.cloudSaves, locales = offer.locales,
                 )
             }
+            if (gen != generation.get()) return
             prefs.edit().putString(KEY_CACHE, JSONArray(games.map { it.toJson() }).toString()).putLong(KEY_SYNCED_AT, System.currentTimeMillis()).apply()
             posters(app, games)
-            publish(app, games)
+            publish(app, games, gen)
             problem(null)
         } catch (e: EaApiException) {
             StoresState.logLine("ea: library sync failed: ${e.message}")

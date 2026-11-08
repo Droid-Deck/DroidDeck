@@ -47,6 +47,7 @@ object EaLsx {
         val locale: String,
         val hardware: EaOoa.Hardware?,
         val hashVersion: Int,
+        val token: String = "",
     )
 
     /** The parts of a request a reply depends on. */
@@ -59,12 +60,16 @@ object EaLsx {
         fun authCode(clientId: String, scope: String?): String?
         fun license(contentId: String, requestTicket: String, ticketEngine: String): String?
         fun entitlements(group: String): List<Map<String, String>>
+        fun token(): String?
     }
 
     @Volatile var game: Game? = null
     @Volatile private var account: Account? = null
     private var server: ServerSocket? = null
     private val lock = Any()
+    private const val MAX_CLIENTS = 8
+    private val WHITESPACE = Regex("[ \t]+")
+    private val clients = java.util.concurrent.atomic.AtomicInteger()
 
     fun start(context: Context, game: Game): Boolean {
         this.game = game
@@ -88,14 +93,42 @@ object EaLsx {
         synchronized(lock) {
             runCatching { server?.close() }
             server = null
+            game = null
         }
     }
 
     private fun accept(socket: ServerSocket) {
         while (!socket.isClosed) {
             val client = runCatching { socket.accept() }.getOrNull() ?: continue
-            Thread({ serve(client) }, "ea-lsx-client").apply { isDaemon = true }.start()
+            if (!fromThisApp(client)) {
+                Log.w(TAG, "refused a connection from another app")
+                runCatching { client.close() }
+                continue
+            }
+            if (clients.incrementAndGet() > MAX_CLIENTS) {
+                clients.decrementAndGet()
+                runCatching { client.close() }
+                continue
+            }
+            Thread({ try { serve(client) } finally { clients.decrementAndGet() } }, "ea-lsx-client").apply { isDaemon = true }.start()
         }
+    }
+
+    /**
+     * The guest runs under this app's uid, so a connection from any other uid is another app on the
+     * device. Readable only where SELinux allows /proc/net; elsewhere every local client is accepted.
+     */
+    private fun fromThisApp(client: Socket): Boolean {
+        val port = client.port
+        val owner = listOf("/proc/net/tcp6", "/proc/net/tcp").firstNotNullOfOrNull { path ->
+            runCatching { java.io.File(path).readLines() }.getOrNull()?.drop(1)?.firstNotNullOfOrNull { line ->
+                val f = line.trim().split(WHITESPACE)
+                val local = f.getOrNull(1)?.substringAfterLast(':')?.toIntOrNull(16)
+                val remote = f.getOrNull(2)?.substringAfterLast(':')?.toIntOrNull(16)
+                if (local == port && remote == PORT) f.getOrNull(7)?.toIntOrNull() else null
+            }
+        } ?: return true
+        return owner == android.os.Process.myUid()
     }
 
     private class Session(val output: OutputStream) {
@@ -237,6 +270,7 @@ object EaLsx {
                 body = m.children.joinToString("") { tag(it.first, body = esc(it.second)) },
             )
             "GetAuthCode" -> tag("AuthCode", "value" to (who?.authCode(m.attrs["ClientId"].orEmpty(), m.attrs["Scope"]) ?: "invalid"))
+            "GetAuthToken" -> tag("AuthToken", "value" to (g?.token?.takeIf { it.isNotEmpty() } ?: who?.token().orEmpty()))
             "RequestLicense" -> {
                 val token = who?.license(g?.contentId.orEmpty(), m.attrs["RequestTicket"].orEmpty(), m.attrs["TicketEngine"].orEmpty()).orEmpty()
                 tag("RequestLicenseResponse", "License" to token)
@@ -283,6 +317,8 @@ object EaLsx {
                 EaOoa.request(token, contentId, EaOoa.machineHash(hw, g.hashVersion), requestTicket.ifEmpty { null }, ticketEngine.ifEmpty { null }).gameToken
             }.onFailure { Log.w(TAG, "licence: ${it.message}") }.getOrNull()
         }
+
+        override fun token(): String? = EaAuth.mint(app, EaAuth.CLIENT_ID, "token", EaAuth.OPAQUE_SCOPES, "OPAQUE", 14400)
 
         override fun entitlements(group: String): List<Map<String, String>> {
             val token = EaAuth.accessToken(app) ?: return emptyList()

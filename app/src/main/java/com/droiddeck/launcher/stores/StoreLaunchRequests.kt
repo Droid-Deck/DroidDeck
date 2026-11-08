@@ -61,6 +61,10 @@ object StoreLaunchRequests {
                 .getOrElse { JSONObject().put("ok", false).put("reason", "Xbox account service is unavailable. Sign in again and retry.") }
             "ea-prepare" -> runCatching { lastLaunched = Store.EA to request.optString("id"); com.droiddeck.launcher.stores.ea.EaLaunch.prepare(app, request) }
                 .getOrElse { JSONObject().put("ok", false).put("reason", "error-" + it.javaClass.simpleName) }
+            "ea-exited" -> {
+                com.droiddeck.launcher.stores.ea.EaLsx.stop()
+                JSONObject().put("ok", true)
+            }
             "gog-achievements" -> runCatching { com.droiddeck.launcher.stores.gog.GogComet.prepare(app, request.optString("id")) }
                 .getOrElse { JSONObject().put("ok", false).put("ready", false).put("reason", "service-unavailable") }
             "epic-code" -> {

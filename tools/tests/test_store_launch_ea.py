@@ -35,6 +35,32 @@ class EaHook(unittest.TestCase):
         self.assertIn((r'HKEY_LOCAL_MACHINE\SOFTWARE\EA Games\Game', 'DisplayName', 'Mass Effect 3'), entries)
         self.assertIn((r'HKEY_LOCAL_MACHINE\SOFTWARE\Respawn\Titanfall2', 'DisplayName', 'Mass Effect 3'), entries)
 
+    def test_legacy_games_are_registered_by_content_id(self):
+        sidecar = {'id': 'Origin.OFR.50.0005237', 'title': 'Mass Effect 3 (2012)',
+                   'extra': {'contentIds': '71073,71183, bad id', 'displayName': 'Mass Effect 3', 'locale': 'fr_FR'}}
+        entries = store.ea_registry_entries(Path('/root/Games/ME3'), sidecar)
+        key = r'HKEY_LOCAL_MACHINE\SOFTWARE\Origin Games' + '\\'
+        self.assertIn((key + '71073', 'DisplayName', 'Mass Effect 3'), entries)
+        self.assertIn((key + '71183', 'Locale', 'fr_FR'), entries)
+        self.assertFalse(any('bad id' in e[0] for e in entries))
+
+    def test_cpuid_probe_is_a_32_bit_console_program(self):
+        import struct
+        exe = store.cpuid_exe()
+        self.assertEqual(exe[:2], b'MZ')
+        self.assertEqual(exe[0x40:0x44], b'PE\0\0')
+        self.assertEqual(struct.unpack_from('<H', exe, 0x44)[0], 0x14C)
+        self.assertEqual(struct.unpack_from('<H', exe, 0x58)[0], 0x10B)
+        self.assertEqual(struct.unpack_from('<H', exe, 0x58 + 68)[0], 3)
+        self.assertIn(b'KERNEL32.dll', exe)
+        self.assertEqual(len(exe), 0x400)
+
+    def test_cpuid_output_is_decoded_as_the_game_sees_it(self):
+        raw = bytes.fromhex('1600000047656e756e74656c696e654961060a00000805000f23d882fffb8b27436f727465782d4135323000000000000000000000000000000000000000000000000000000000000000000000000000')
+        self.assertEqual(store.cpuid_values(raw), {'cpuVendor': 'GenuineIntel', 'cpuEax': '000A0661', 'cpuEdx': '278BFBFF',
+                                                   'cpuEcx': '82d8230f', 'cpuBrand': 'Cortex-A520'})
+        self.assertEqual(store.cpuid_values(b''), {})
+
     def test_touchup_arguments_fill_locale_and_folder(self):
         install = r'Z:\root\My Game'
         args = store.touchup_args('-locale {locale} -installPath "{installLocation}" /silent', 'fr_FR', install)
@@ -56,7 +82,7 @@ class EaHook(unittest.TestCase):
             compat = Path(tmp) / 'compat'
             (compat / 'pfx').mkdir(parents=True)
             (compat / 'pfx/user.reg').write_text('')
-            (compat / 'pfx' / store.EA_HARDWARE).write_text(json.dumps({'processorId': 'ABC'}))
+            (compat / 'pfx' / store.EA_HARDWARE).write_text(json.dumps({'processorId': 'ABC', 'cpuVendor': 'GenuineIntel'}))
             folder = Path(tmp) / 'game'
             folder.mkdir()
             asked = {}
@@ -69,7 +95,7 @@ class EaHook(unittest.TestCase):
                     patch.object(store, 'ea_touchup', lambda *a, **k: 'none'), patch.dict('os.environ', {'BL_STORE_PROTON': ''}):
                 store.prepare_ea(folder, {'id': 'Origin.OFR.1'}, str(compat), str(Path(tmp) / 'launch'))
             self.assertEqual(asked['op'], 'ea-prepare')
-            self.assertEqual(asked['hardware'], {'processorId': 'ABC'})
+            self.assertEqual(asked['hardware'], {'processorId': 'ABC', 'cpuVendor': 'GenuineIntel'})
             self.assertEqual((compat / 'pfx/drive_c/ProgramData/L/x.dlf').read_bytes(), b'z')
 
 

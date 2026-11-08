@@ -24,6 +24,7 @@ object EaLaunch {
         offerId: String,
         contentId: String,
         locale: String,
+        generic: String,
         access: String,
         opaque: String,
         account: EaAuth.Account,
@@ -35,7 +36,7 @@ object EaLaunch {
         "EAExternalSource" to "EA",
         "EAFreeTrialGame" to "false",
         "EAGameLocale" to locale,
-        "EAGenericAuthToken" to access,
+        "EAGenericAuthToken" to generic,
         "EALaunchCode" to "unavailable",
         "EALaunchOwner" to "EA",
         "EALaunchEAID" to account.eaId.ifEmpty { account.displayName },
@@ -54,43 +55,66 @@ object EaLaunch {
         "EAAccessTokenJWS" to access,
     )
 
+    /** Adds what installs made before the manifest's content ids and title were recorded are missing. */
+    internal fun backfill(folder: File, sidecar: StoreGameSidecar): StoreGameSidecar {
+        if (sidecar.extra.containsKey("contentIds") || sidecar.extra.containsKey("displayName")) return sidecar
+        val manifest = EaManifest.read(folder) ?: return sidecar
+        val locale = sidecar.extra["locale"].orEmpty().ifEmpty { "en_US" }
+        val added = mapOf(
+            "contentIds" to manifest.contentIds.joinToString(","),
+            "displayName" to manifest.title(locale).orEmpty(),
+        ).filterValues { it.isNotEmpty() }
+        if (added.isEmpty()) return sidecar
+        val updated = sidecar.copy(extra = sidecar.extra + added)
+        runCatching { updated.write(folder) }.onFailure { Log.w(TAG, "sidecar: ${it.javaClass.simpleName}") }
+        return updated
+    }
+
     /** Answers the guest's request right before an EA game starts: session, licence and the LSX endpoint. */
     fun prepare(context: Context, request: JSONObject): JSONObject {
         val app = context.applicationContext
         val id = request.optString("id")
         val reply = JSONObject().put("ok", false)
-        val (folder, sidecar) = installed(app, id) ?: return reply.put("reason", "not-installed")
+        val (folder, recorded) = installed(app, id) ?: return reply.put("reason", "not-installed")
+        val sidecar = backfill(folder, recorded)
         File(folder, ENV_FILE).delete()
         val account = EaAuth.load(app) ?: return reply.put("reason", "signed-out")
         val access = EaAuth.accessToken(app) ?: return reply.put("reason", "sign-in-expired")
         val contentId = sidecar.extra["contentId"].orEmpty()
         val locale = sidecar.extra["locale"].orEmpty().ifEmpty { "en_US" }
-        val hardware = request.optJSONObject("hardware")?.let(EaOoa.Hardware::fromJson)
-        val hashVersion = EaOoa.activationVersion(folder)
+        val core = EaOoa.coreDir(folder, sidecar.exe)
+        val hashVersion = core?.let(EaOoa::activationVersion) ?: 1
+        val hardware = request.optJSONObject("hardware")?.let(EaOoa.Hardware::fromJson)?.takeIf { it.complete(hashVersion) }
+        val legacy = EaOoa.legacyCore(core)
 
-        val lsx = EaLsx.start(app, EaLsx.Game(id, contentId, sidecar.title, sidecar.installVersion, locale, hardware, hashVersion))
-        val opaque = EaAuth.mint(app, EaAuth.CLIENT_ID, "token", EaAuth.OPAQUE_SCOPES, "OPAQUE", 550).orEmpty()
-        val env = environment(id, contentId, locale, access, opaque, EaAuth.load(app) ?: account)
+        val opaque = EaAuth.mint(app, EaAuth.CLIENT_ID, "token", EaAuth.OPAQUE_SCOPES, "OPAQUE", if (legacy) 14400 else 550).orEmpty()
+        val lsx = EaLsx.start(app, EaLsx.Game(id, contentId, sidecar.title, sidecar.installVersion, locale, hardware, hashVersion, opaque))
+        val env = environment(id, contentId, locale, if (legacy && opaque.isNotEmpty()) opaque else access, access, opaque, EaAuth.load(app) ?: account)
         val tmp = File(folder, "$ENV_FILE.tmp")
         tmp.writeText(env.entries.joinToString("\r\n", postfix = "\r\n") { "${it.key}=${it.value}" })
         tmp.renameTo(File(folder, ENV_FILE))
 
         val licenses = JSONArray()
-        var licenseNote = "none-needed"
-        if (EaOoa.needsLicense(folder) && contentId.isNotEmpty()) {
-            licenseNote = if (hardware == null) "no-hardware" else try {
+        val notes = ArrayList<String>()
+        if (core != null) {
+            val ids = (listOf(contentId) + sidecar.extra["contentIds"].orEmpty().split(',')).map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+            if (hardware == null) notes += "no-hardware" else {
                 val hash = EaOoa.machineHash(hardware, hashVersion)
-                val license = EaOoa.request(access, contentId, hash)
-                for ((path, data) in EaOoa.files(folder, license)) {
-                    licenses.put(JSONObject().put("path", path).put("data", Base64.encodeToString(data, Base64.NO_WRAP)))
+                for (content in ids) {
+                    notes += try {
+                        for ((path, data) in EaOoa.files(core, EaOoa.request(access, content, hash))) {
+                            licenses.put(JSONObject().put("path", path).put("data", Base64.encodeToString(data, Base64.NO_WRAP)))
+                        }
+                        "$content:ok"
+                    } catch (e: Exception) {
+                        Log.w(TAG, "licence $content for $id: ${e.message}")
+                        "$content:refused"
+                    }
                 }
-                "ok v$hashVersion"
-            } catch (e: Exception) {
-                Log.w(TAG, "licence for $id: ${e.message}")
-                "failed"
             }
         }
-        Log.i(TAG, "prepared $id lsx=$lsx opaque=${opaque.isNotEmpty()} licence=$licenseNote")
+        val licenseNote = if (core == null) "none-needed" else "v$hashVersion " + notes.joinToString(",")
+        Log.i(TAG, "prepared $id lsx=$lsx legacy=$legacy opaque=${opaque.isNotEmpty()} licence=$licenseNote")
         return reply.put("ok", true).put("lsx", lsx).put("license", licenseNote).put("licenses", licenses)
     }
 }

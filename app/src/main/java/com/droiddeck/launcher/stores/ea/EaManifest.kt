@@ -11,7 +11,11 @@ class EaManifest(
     val launchers: List<Launcher>,
     val touchupPath: String,
     val touchupParameters: String,
+    val contentIds: List<String> = emptyList(),
+    val titles: Map<String, String> = emptyMap(),
 ) {
+    fun title(locale: String): String? = titles[locale] ?: titles["en_US"] ?: titles.values.firstOrNull()
+
     class Launcher(val path: String, val parameters: String, val trial: Boolean)
 
     fun launcher(): Launcher? = launchers.firstOrNull { !it.trial } ?: launchers.firstOrNull()
@@ -41,6 +45,9 @@ class EaManifest(
             var path = ""
             var params = ""
             var trial = false
+            val contentIds = ArrayList<String>()
+            val titles = LinkedHashMap<String, String>()
+            var locale = ""
             while (parser.eventType != XmlPullParser.END_DOCUMENT) {
                 when (parser.eventType) {
                     XmlPullParser.START_TAG -> {
@@ -50,6 +57,7 @@ class EaManifest(
                             version = parser.getAttributeValue(null, "version") ?: version
                         }
                         if (name.equals("launcher", true)) { path = ""; params = ""; trial = false }
+                        if (name.equals("localeInfo", true)) locale = parser.getAttributeValue(null, "locale").orEmpty()
                     }
                     XmlPullParser.TEXT -> {
                         val text = parser.text.trim()
@@ -61,6 +69,8 @@ class EaManifest(
                             parent.equals("launcher", true) && tag.equals("trial", true) -> trial = text.equals("true", true)
                             (parent.equals("touchup", true) || parent.equals("executable", true)) && tag.equals("filePath", true) -> touchupPath = text
                             (parent.equals("touchup", true) || parent.equals("executable", true)) && tag.equals("parameters", true) -> touchupParams = text
+                            parent.equals("contentIDs", true) && tag.equals("contentID", true) -> contentIds += text
+                            parent.equals("localeInfo", true) && tag.equals("title", true) && locale.isNotEmpty() -> titles[locale] = text
                         }
                     }
                     XmlPullParser.END_TAG -> {
@@ -70,7 +80,7 @@ class EaManifest(
                 }
                 parser.next()
             }
-            return EaManifest(version, launchers, touchupPath, touchupParams)
+            return EaManifest(version, launchers, touchupPath, touchupParams, contentIds, titles)
         }
     }
 }

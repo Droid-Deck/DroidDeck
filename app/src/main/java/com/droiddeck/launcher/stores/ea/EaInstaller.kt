@@ -127,6 +127,8 @@ internal class EaInstaller(
                 "registry" to keys.toString(),
                 "touchup" to manifest?.touchupPath.orEmpty().replace('\\', '/').trimStart('/'),
                 "touchupArgs" to manifest?.touchupParameters.orEmpty(),
+                "contentIds" to manifest?.contentIds.orEmpty().joinToString(","),
+                "displayName" to manifest?.title(locale(app, game?.locales.orEmpty())).orEmpty(),
             ).filterValues { it.isNotEmpty() }
             return StoreGameSidecar(
                 Store.EA, item.id, item.title, exe = exe, args = args,

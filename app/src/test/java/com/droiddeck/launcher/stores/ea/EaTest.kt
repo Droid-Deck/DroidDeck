@@ -21,7 +21,7 @@ class EaTest {
         boardManufacturer = "Wine", boardSerial = "None", biosManufacturer = "The Wine Project", biosSerial = "0",
         osInstallDate = "20240101000000.000000+000", osSerial = "12345-OEM", volumeSerial = "43000000",
         gpuPnpId = "PCI\\VEN_5143&DEV_0001&SUBSYS_00000000&REV_00\\0&DEADBEEF&0&DEAD",
-        cpuManufacturer = "GenuineIntel", processorId = "BFEBFBFF000906EA", cpuEcx = "7ffafbbf", brand = "FEX CPU", hostname = "myhost",
+        cpuVendor = "GenuineIntel", cpuEdx = "BFEBFBFF", cpuEax = "000906EA", cpuEcx = "7ffafbbf", brand = "FEX CPU", hostname = "myhost",
     )
 
     @Test fun machineHashFollowsTheActivationVersion() {
@@ -151,11 +151,48 @@ class EaTest {
 
     @Test fun environmentCarriesTheSession() {
         val account = EaAuth.Account("a", "r", 0, "1001", "2002", "Name", "EaId")
-        val env = EaLaunch.environment("Origin.OFR.1", "1035052", "fr_FR", "jwt", "opaque", account, "session")
+        val env = EaLaunch.environment("Origin.OFR.1", "1035052", "fr_FR", "generic", "jwt", "opaque", account, "session")
+        assertEquals("generic", env["EAGenericAuthToken"])
+        assertEquals("jwt", env["EAAccessTokenJWS"])
         assertEquals("3216", env["EALsxPort"])
         assertEquals("opaque", env["EALaunchUserAuthToken"])
         assertEquals("EaId", env["EALaunchEAID"])
         assertEquals("1035052", env["ContentId"])
         assertEquals("fr_FR", env["EAGameLocale"])
+    }
+
+    @Test fun activationCoreSitsBesideTheExe() {
+        val dir = Files.createTempDirectory("ea").toFile()
+        File(dir, "Binaries/Win32/Core").mkdirs()
+        File(dir, "Binaries/Win32/Core/EACore.dll").writeText("x")
+        val core = EaOoa.coreDir(dir, "Binaries/Win32/MassEffect3.exe")
+        assertEquals(File(dir, "Binaries/Win32/Core").canonicalPath, core?.canonicalPath)
+        assertTrue(EaOoa.legacyCore(core))
+        assertNull(EaOoa.coreDir(dir, "Game.exe"))
+        File(dir, "Core").mkdirs()
+        assertEquals(File(dir, "Core").canonicalPath, EaOoa.coreDir(dir, "Game.exe")?.canonicalPath)
+        dir.deleteRecursively()
+    }
+
+    @Test fun anIncompleteProbeIsNotHashed() {
+        val empty = EaOoa.Hardware.fromJson(JSONObject())
+        assertTrue(!empty.complete(0) && !empty.complete(4))
+        val wmiOnly = EaOoa.Hardware.fromJson(JSONObject().put("boardManufacturer", "Intel Corporation").put("biosManufacturer", "The Wine Project")
+            .put("osSerial", "00330").put("osInstallDate", "2026").put("hostname", "DROIDDECK"))
+        assertTrue(wmiOnly.complete(0))
+        assertTrue(!wmiOnly.complete(4))
+        assertTrue(wine.complete(4))
+    }
+
+    @Test fun legacyManifestNamesItsContentAndTitle() {
+        val xml = """<game gameVersion="1.05.0.0" manifestVersion="2.1"><contentIDs><contentID>71073</contentID><contentID>71183</contentID></contentIDs>
+            <metadata><localeInfo locale="ru_RU"><title>RU</title></localeInfo><localeInfo locale="en_US"><title>Mass Effect 3</title></localeInfo></metadata>
+            <executable><filePath>/__Installer/touchup.exe</filePath><parameters>install -locale {locale}</parameters></executable></game>"""
+        val m = EaManifest.parse(xml)
+        assertEquals(listOf("71073", "71183"), m.contentIds)
+        assertEquals("Mass Effect 3", m.title("en_US"))
+        assertEquals("RU", m.title("ru_RU"))
+        assertEquals("Mass Effect 3", m.title("de_DE"))
+        assertEquals("/__Installer/touchup.exe", m.touchupPath)
     }
 }

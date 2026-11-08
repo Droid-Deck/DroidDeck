@@ -14,7 +14,11 @@ object EaOoa {
     const val LICENSE_DIR = "ProgramData/Electronic Arts/EA Services/License"
     private const val SIGNATURE_SLOT = 65
 
-    /** What the game sees of the machine inside its Wine prefix, as reported by Wine's WMI. */
+    /**
+     * What the game sees of the machine inside its Wine prefix: firmware and OS values from Wine's
+     * WMI, CPU values from CPUID executed as x86 code, since an emulated game sees the emulator's
+     * CPUID rather than the host CPU WMI describes.
+     */
     class Hardware(
         val boardManufacturer: String,
         val boardSerial: String,
@@ -24,44 +28,55 @@ object EaOoa {
         val osSerial: String,
         val volumeSerial: String,
         val gpuPnpId: String,
-        val cpuManufacturer: String,
-        val processorId: String,
+        val cpuVendor: String,
+        val cpuEdx: String,
+        val cpuEax: String,
         val cpuEcx: String,
         val brand: String,
         val hostname: String,
     ) {
+        /** Whether the probe reported everything the hash of this activation version is built from. */
+        fun complete(version: Int): Boolean {
+            val base = listOf(boardManufacturer, biosManufacturer, osSerial).all { it.isNotEmpty() }
+            return when {
+                version <= 1 -> base && osInstallDate.isNotEmpty() && hostname.isNotEmpty()
+                else -> base && cpuVendor.isNotEmpty() && cpuEdx.isNotEmpty() && cpuEax.isNotEmpty() && cpuEcx.isNotEmpty()
+            }
+        }
+
         companion object {
             fun fromJson(o: JSONObject): Hardware {
-                fun s(k: String, d: String) = o.optString(k).trim().ifEmpty { d }
+                fun s(k: String) = o.optString(k).trim()
                 return Hardware(
-                    boardManufacturer = s("boardManufacturer", "Microsoft Corporation"),
-                    boardSerial = s("boardSerial", "None"),
-                    biosManufacturer = s("biosManufacturer", "Microsoft Corporation"),
-                    biosSerial = s("biosSerial", "None"),
-                    osInstallDate = s("osInstallDate", "1970-01-0100:00:00.000000000+0000"),
-                    osSerial = s("osSerial", "None"),
-                    volumeSerial = s("volumeSerial", "00000000").replace("-", "").lowercase().padStart(8, '0'),
-                    gpuPnpId = s("gpuPnpId", "None"),
-                    cpuManufacturer = s("cpuManufacturer", ""),
-                    processorId = s("processorId", "0000000000000000").uppercase().padStart(16, '0'),
-                    cpuEcx = s("cpuEcx", "00000000").lowercase(),
-                    brand = o.optString("brand").trim(),
-                    hostname = s("hostname", "localhost"),
+                    boardManufacturer = s("boardManufacturer"),
+                    boardSerial = s("boardSerial").ifEmpty { "None" },
+                    biosManufacturer = s("biosManufacturer"),
+                    biosSerial = s("biosSerial").ifEmpty { "None" },
+                    osInstallDate = s("osInstallDate"),
+                    osSerial = s("osSerial"),
+                    volumeSerial = s("volumeSerial").replace("-", "").lowercase().let { if (it.isEmpty()) it else it.padStart(8, '0') },
+                    gpuPnpId = s("gpuPnpId").ifEmpty { "None" },
+                    cpuVendor = s("cpuVendor"),
+                    cpuEdx = s("cpuEdx").uppercase(),
+                    cpuEax = s("cpuEax").uppercase(),
+                    cpuEcx = s("cpuEcx").lowercase(),
+                    brand = o.optString("cpuBrand"),
+                    hostname = s("hostname"),
                 )
             }
         }
     }
 
     fun machineHash(hw: Hardware, version: Int): String {
-        val edxEax = hw.processorId.takeLast(16)
-        val edx = edxEax.take(8).lowercase()
+        val edxEax = hw.cpuEdx + hw.cpuEax
+        val edx = hw.cpuEdx.lowercase()
         val shortGpu = hw.gpuPnpId.substringBeforeLast('\\', hw.gpuPnpId)
         val parts = arrayListOf(hw.boardManufacturer, hw.boardSerial)
         when {
             version <= 1 -> parts += listOf(hw.hostname, hw.biosManufacturer, hw.biosSerial, hw.osInstallDate, hw.osSerial)
-            version == 2 -> parts += listOf(hw.biosManufacturer, hw.biosSerial, hw.osInstallDate, hw.osSerial, hw.volumeSerial, shortGpu, hw.cpuManufacturer, edx, hw.cpuEcx)
-            version == 3 -> parts += listOf(hw.biosManufacturer, hw.biosSerial, hw.volumeSerial, shortGpu, hw.cpuManufacturer, edx, hw.cpuEcx)
-            else -> parts += listOf(hw.biosManufacturer, hw.biosSerial, hw.volumeSerial, hw.gpuPnpId, hw.cpuManufacturer, edxEax)
+            version == 2 -> parts += listOf(hw.biosManufacturer, hw.biosSerial, hw.osInstallDate, hw.osSerial, hw.volumeSerial, shortGpu, hw.cpuVendor, edx, hw.cpuEcx)
+            version == 3 -> parts += listOf(hw.biosManufacturer, hw.biosSerial, hw.volumeSerial, shortGpu, hw.cpuVendor, edx, hw.cpuEcx)
+            else -> parts += listOf(hw.biosManufacturer, hw.biosSerial, hw.volumeSerial, hw.gpuPnpId, hw.cpuVendor, edxEax)
         }
         val text = StringBuilder(parts.joinToString(";")).append(';')
         if (version >= 2) text.append(hw.brand.take(47).padEnd(47, '\u0000')).append(';')
@@ -70,8 +85,7 @@ object EaOoa {
     }
 
     /** Version of the game's activation layer, which decides how the machine hash is built. */
-    fun activationVersion(game: File): Int {
-        val core = EaPaths.find(game, "Core") ?: return 1
+    fun activationVersion(core: File): Int {
         val dll = listOf("activation.dll", "awc.dll").firstNotNullOfOrNull { EaPaths.find(core, it) } ?: return 1
         val (major, minor, patch) = productVersion(dll.readBytes()) ?: return 1
         return when {
@@ -83,9 +97,17 @@ object EaOoa {
         }
     }
 
-    fun needsLicense(game: File): Boolean = EaPaths.find(game, "Core")?.isDirectory == true
+    /** The activation layer's folder: `Core` beside the game's exe, where EA ships it, or at the game root. */
+    fun coreDir(game: File, exe: String): File? {
+        val exeDir = exe.replace('\\', '/').substringBeforeLast('/', "")
+        val candidates = listOfNotNull(exeDir.takeIf { it.isNotEmpty() }?.let { "$it/Core" }, "Core")
+        return candidates.firstNotNullOfOrNull { EaPaths.find(game, it)?.takeIf { f -> f.isDirectory } }
+    }
 
-    private fun encodedSignature(game: File): Boolean = EaPaths.find(game, "Core")?.let { EaPaths.find(it, "activation.exe") } != null
+    /** Games built on the 2012-era EA Core client, which want an opaque token rather than a JWS one. */
+    fun legacyCore(core: File?): Boolean = core != null && EaPaths.find(core, "EACore.dll") != null
+
+    private fun encodedSignature(core: File): Boolean = EaPaths.find(core, "activation.exe") != null
 
     internal fun productVersion(pe: ByteArray): Triple<Int, Int, Int>? {
         val magic = byteArrayOf(0xBD.toByte(), 0x04, 0xEF.toByte(), 0xFE.toByte())
@@ -163,8 +185,8 @@ object EaOoa {
     }
 
     /** Licence files for a game about to start, named as the activation layer looks for them. */
-    fun files(game: File, license: License): List<Pair<String, ByteArray>> {
-        val blob = licenseBlob(license, encodedSignature(game))
+    fun files(core: File, license: License): List<Pair<String, ByteArray>> {
+        val blob = licenseBlob(license, encodedSignature(core))
         val id = license.contentId
         return listOf("$LICENSE_DIR/$id.dlf" to blob, "$LICENSE_DIR/${id}_cached.dlf" to blob)
     }

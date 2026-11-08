@@ -38,6 +38,7 @@ object EaBackend : StoreBackend {
 
     override fun signOut(context: Context) {
         val app = context.applicationContext
+        EaLibrary.invalidate()
         runCatching { EaLibrary.forget(app) }
         EaUpdates.available.clear()
         runCatching { WebCookies.expire(EaLogin.SIGN_IN_URLS, ".ea.com", listOf("/")) {} }
@@ -103,8 +104,13 @@ object EaUpdates {
         if (!force && now - (checked[id] ?: 0L) < RECHECK_MS) return
         checked[id] = now
         Thread({
-            val token = EaAuth.accessToken(app) ?: return@Thread
-            val live = runCatching { EaApi.offers(token, listOf(id)).firstOrNull()?.gameVersion }.getOrNull().orEmpty()
+            val token = EaAuth.accessToken(app)
+            val offer = token?.let { runCatching { EaApi.offers(it, listOf(id)) }.getOrNull() }?.firstOrNull()
+            if (offer == null) {
+                checked.remove(id)
+                return@Thread
+            }
+            val live = offer.gameVersion
             val installed = game.sidecar.installVersion
             StoresState.post {
                 if (live.isNotEmpty() && installed.isNotEmpty() && live != installed) available[game.key] = live else available.remove(game.key)

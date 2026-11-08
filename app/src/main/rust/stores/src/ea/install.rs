@@ -174,6 +174,15 @@ fn crc_of(path: &Path, cancel: &AtomicBool) -> Result<Option<u32>, ()> {
     }
 }
 
+/// Whether two paths name one file, as they do for a case-only rename on case-insensitive storage.
+fn same_file(a: &Path, b: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    match (fs::metadata(a), fs::metadata(b)) {
+        (Ok(x), Ok(y)) => x.dev() == y.dev() && x.ino() == y.ino(),
+        _ => false,
+    }
+}
+
 fn temp_path(dest: &Path) -> PathBuf {
     let mut name = dest.as_os_str().to_owned();
     name.push(TEMP_SUFFIX);
@@ -202,7 +211,8 @@ pub fn plan(entries: &[Entry], directory_offset: u64) -> Result<Vec<Planned>, St
         if !seen.insert(path.to_lowercase()) {
             continue;
         }
-        let next = offsets.iter().copied().find(|&o| o > e.local_offset).unwrap_or(directory_offset);
+        let at = offsets.partition_point(|&o| o <= e.local_offset);
+        let next = offsets.get(at).copied().unwrap_or(directory_offset);
         let minimum = e.local_offset + zip::LOCAL_FIXED as u64 + e.compressed;
         if next < minimum {
             return Err(format!("{} overlaps the next record in the archive", e.name));
@@ -798,12 +808,15 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
     }
 
     let wanted: HashSet<&str> = planned.iter().map(|p| p.path.as_str()).collect();
+    let by_case: HashMap<String, &str> = planned.iter().map(|p| (p.path.to_lowercase(), p.path.as_str())).collect();
     let mut removed = 0;
     let current = read_ledger(&req.game_dir);
     let mut text = String::new();
     for (path, known) in &current {
         if wanted.contains(path.as_str()) {
             text.push_str(&ledger_line(path, *known));
+        } else if by_case.get(&path.to_lowercase()).is_some_and(|kept| same_file(&req.game_dir.join(kept), &req.game_dir.join(path))) {
+            continue;
         } else if zip::safe_path(path).as_deref() == Some(path.as_str()) && fs::remove_file(req.game_dir.join(path)).is_ok() {
             removed += 1;
         }
