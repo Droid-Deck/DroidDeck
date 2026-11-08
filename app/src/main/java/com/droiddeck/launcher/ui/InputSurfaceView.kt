@@ -51,6 +51,7 @@ class InputSurfaceView(
     private val inputRole: InputRole = InputRole.SECONDARY,
     private var surfaceStyle: InputSurfaceStyle = InputSurfaceStyle(),
     private val haptics: Boolean = inputRole != InputRole.PRIMARY,
+    private val previewImages: Map<String, android.graphics.Bitmap> = emptyMap(),
 ) : FrameLayout(context) {
     private val content = FrameLayout(context)
     private val elementSources = ArrayList<InputSurfaceSource>()
@@ -332,7 +333,7 @@ class InputSurfaceView(
         val round get() = element.buttonShape == InputButtonShape.CIRCLE
         val gamepad get() = round || element.buttonShape == InputButtonShape.PILL
         private val symbol = InputButtonIcons.drawable(context, element.icon)
-        private val bitmap = InputButtonImages.file(context, element.image)?.let { file ->
+        private val bitmap = previewImages[element.image] ?: InputButtonImages.file(context, element.image)?.let { file ->
             val size = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(file.path, size)
             val options = BitmapFactory.Options().apply {

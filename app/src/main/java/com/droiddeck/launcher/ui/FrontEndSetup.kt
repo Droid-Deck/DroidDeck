@@ -840,6 +840,9 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
     val ready = current != null && !state.saving
     val launcher = game.library == com.droiddeck.launcher.frontend.Library.EPIC_LAUNCHER
     fun save(change: (android.content.Context) -> com.droiddeck.launcher.core.GameEnvironment.Config?) = state.save(change)
+    val inputLibrary = remember(host.open) { com.droiddeck.launcher.input.InputLibraries.read(appContext) }
+    var controlsProfile by remember(scope) { mutableStateOf(com.droiddeck.launcher.input.GameInputControls.profile(appContext, scope)) }
+    val controlsKey = "game-settings-controls"
     val key = GAME_SETTINGS_MENU
     val fexKey = "game-settings-fex"
     val syncKey = "game-settings-sync"
@@ -882,10 +885,13 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
                 trailing = { Text("›", fontSize = 16.sp, color = colors.onSurfaceVariant) },
             ) { host.open = syncKey }
         }
+        MenuItem(stringResource(R.string.community_game_controls), checked = false,
+            detail = inputLibrary.profiles.firstOrNull { it.id == controlsProfile }?.name ?: useDefault) { host.open = controlsKey }
         MenuItem(stringResource(R.string.game_settings_default), checked = false, enabled = ready,
             detail = stringResource(R.string.game_settings_default_detail)) {
             save {
                 val failure = runCatching { com.droiddeck.launcher.session.GameProfileManager.reset(it, scope) }.exceptionOrNull()
+                if (failure == null) controlsProfile = null
                 com.droiddeck.launcher.stores.StoresState.post {
                     android.widget.Toast.makeText(
                         it,
@@ -895,6 +901,20 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
                 }
                 null
             }
+        }
+    }
+    AnchoredMenu(host.open == controlsKey, onDismiss = { if (host.open == controlsKey) host.open = null },
+        title = stringResource(R.string.community_game_controls)) { first ->
+        MenuItem(useDefault, checked = controlsProfile == null, focusRequester = first) {
+            runCatching { com.droiddeck.launcher.input.GameInputControls.set(appContext, scope, null) }
+                .onSuccess { controlsProfile = null; host.open = key }
+                .onFailure { android.widget.Toast.makeText(appContext, it.message, android.widget.Toast.LENGTH_SHORT).show() }
+        }
+        for (profile in inputLibrary.profiles) MenuItem(profile.name, checked = profile.id == controlsProfile,
+            detail = stringResource(R.string.community_game_controls_hint)) {
+            runCatching { com.droiddeck.launcher.input.GameInputControls.set(appContext, scope, profile.id) }
+                .onSuccess { controlsProfile = profile.id; host.open = key }
+                .onFailure { android.widget.Toast.makeText(appContext, it.message, android.widget.Toast.LENGTH_SHORT).show() }
         }
     }
     AnchoredMenu(host.open == fexKey, onDismiss = { if (host.open == fexKey) host.open = null }, title = stringResource(R.string.fex_preset_title)) { first ->

@@ -1,0 +1,22 @@
+<resources>
+    <string name="community_title">Community controls</string>
+    <string name="community_home_hint">Browse, import, and share on-screen controls</string>
+    <string name="community_description">Discover controls made by the community. Packs include button artwork, layout, and actions. Review a pack before applying it to a profile.</string>
+    <string name="community_target">Apply to</string>
+    <string name="community_search">Search name, author, or game</string>
+    <string name="community_empty">No controls match this screen and search.</string>
+    <string name="community_refresh">Check for community packs</string>
+    <string name="community_refreshed">Community catalog updated.</string>
+    <string name="community_import">Import controls pack (.zip)</string>
+    <string name="community_export">Export this layout and actions</string>
+    <string name="community_share">Share your controls</string>
+    <string name="community_submit_hint">Export the selected profile’s layout, then attach the ZIP and a screenshot to a community submission. Reviewed packs appear in the catalog. A GitHub account is required to submit.</string>
+    <string name="community_submit">Submit a community pack</string>
+    <string name="community_exported">Pack exported. You can share the ZIP directly or attach it to a community submission.</string>
+    <string name="community_apply_hint">%1$d controls. Apply layout and actions to %2$s · %3$s? This selects a new local copy. Other profiles keep their controls.</string>
+    <string name="community_apply">Apply controls</string>
+    <string name="community_installed">Controls installed and selected for this profile.</string>
+    <string name="community_failed">Could not load or save community controls.</string>
+    <string name="community_game_controls">On-screen controls profile</string>
+    <string name="community_game_controls_hint">Use this profile’s screen layouts and actions. Physical controls follow your general settings.</string>
+</resources>

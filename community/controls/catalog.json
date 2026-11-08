@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "controls": [
+    {
+      "name": "Compact gamepad",
+      "author": "DroidDeck",
+      "game": "",
+      "license": "GPL-3.0",
+      "file": "packs/compact-gamepad.ddcontrols.zip",
+      "sha256": "8b747e86268a1f607e312f2c39dd67402658bd5cf9e4e4ff524a4640417c9f3e",
+      "screen": "BOTH",
+      "preview": "previews/compact-gamepad.png"
+    }
+  ]
+}
