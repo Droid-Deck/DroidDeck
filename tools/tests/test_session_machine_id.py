@@ -39,6 +39,10 @@ class SessionMachineIdTest(unittest.TestCase):
         self.assertEqual(FRESH + "\n", self.ensure())
         self.file.write_text("uninitialized\n")
         self.assertEqual(FRESH + "\n", self.ensure())
+        self.file.write_text("fedcba9876543210fedcba9876543210\nextra\n")
+        self.assertEqual(FRESH + "\n", self.ensure())
+        self.file.write_text("0" * 32 + "\n")
+        self.assertEqual(FRESH + "\n", self.ensure())
 
     def test_a_valid_id_is_never_changed(self):
         self.file.write_text("fedcba9876543210fedcba9876543210\n")
