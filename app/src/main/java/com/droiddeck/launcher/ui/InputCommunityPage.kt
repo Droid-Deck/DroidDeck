@@ -45,7 +45,6 @@ internal fun InputCommunityPage(library: InputLibrary, profile: String, initialR
     val pageCount = ((filtered.size + 11) / 12).coerceAtLeast(1)
     val pageEntries = filtered.drop(page * 12).take(12)
     val previews = remember(selectedSource.id, pageEntries) { mutableStateMapOf<String, android.graphics.Bitmap>() }
-    DisposableEffect(previews, selectedSource.id, pageEntries) { onDispose { previews.values.forEach { it.recycle() } } }
     LaunchedEffect(previews, pageEntries) {
         for (entry in pageEntries) {
             if (entry.preview == null || entry.key in previews) continue

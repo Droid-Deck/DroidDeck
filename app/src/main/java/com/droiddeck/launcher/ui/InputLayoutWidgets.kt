@@ -39,7 +39,6 @@ internal fun InputLayoutRow(layout: SavedInputLayout, role: InputRole, detail: S
 internal fun InputLayoutThumbnail(layout: SavedInputLayout, role: InputRole, images: Map<String, ByteArray> = emptyMap(),
     modifier: Modifier = Modifier.width(112.dp).height(76.dp)) {
     val bitmaps = remember(images) { images.mapValues { (_, bytes) -> android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) } }
-    DisposableEffect(bitmaps) { onDispose { bitmaps.values.forEach { it?.recycle() } } }
     key(bitmaps) {
         AndroidView(factory = { InputLayoutPreviewView(it, bitmaps.filterValues { it != null }.mapValues { it.value!! }) },
             modifier = modifier.testTag("layout-preview-${layout.id}"), update = { it.update(layout, role) })
