@@ -389,11 +389,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         sendRight = { down -> heldButtons.set(32, PointerGestures.BTN_RIGHT, down) },
         mouseAttached = ::mouseAttached,
     )
+    private val usbMenuHold = com.droiddeck.launcher.input.MouseMenuHold(
+        schedule = { runnable, ms -> uiHandler.postDelayed(runnable, ms) },
+        cancel = { uiHandler.removeCallbacks(it) },
+        onMenu = { releasePads(); drawerOpen = true },
+    )
     private val usbMouse = com.droiddeck.launcher.input.UsbMouse(this, object : com.droiddeck.launcher.input.UsbMouse.Listener {
-        override fun onMove(dx: Int, dy: Int) = onRelativeMouse(dx.toFloat(), dy.toFloat())
+        override fun onMove(dx: Int, dy: Int) {
+            usbMenuHold.onMove(dx, dy)
+            onRelativeMouse(dx.toFloat(), dy.toFloat())
+        }
         override fun onButton(index: Int, down: Boolean) {
             if (down) lastUserPressMs = android.os.SystemClock.uptimeMillis()
             heldButtons.set(8, USB_MOUSE_BUTTONS[index], down)
+            usbMenuHold.onButton(index, down)
         }
         override fun onWheel(steps: Int) = sendSceneWheel(-steps)
         override fun onChanged() = updatePointerCapture()
@@ -4182,6 +4191,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!want || window.decorView.hasPointerCapture()) {
             if (usbMouse.active) {
                 usbMouse.release()
+                usbMenuHold.reset()
                 heldButtons.release(8)
             }
             return
@@ -4258,8 +4268,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun onRelativeMouse(dx: Float, dy: Float) {
-        if (pointerLocked) sendSceneDelta(dx, dy)
-        else {
+        if (pointerLocked) {
+            sendSceneDelta(dx, dy)
+            cursorVisible = false
+        } else {
             grabDesktopMouse()
             moveCapturedMouse(dx, dy)
         }
