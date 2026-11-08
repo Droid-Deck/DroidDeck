@@ -64,6 +64,7 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 +	const double flY = wlserver.mouse_surface_cursory;
 +	const double flSentX = wlserver.flSentDX;
 +	const double flSentY = wlserver.flSentDY;
++	const struct wlr_pointer_constraint_v1 *pConstraint = wlserver.GetCursorConstraint();
 +	wlserver.flSentDX = 0.0;
 +	wlserver.flSentDY = 0.0;
 +	wlserver_unlock();
@@ -77,7 +78,6 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 +	}
 +
 +	const steamcompmgr_win_t *pWindow = pFocus->inputFocusWindow;
-+	const struct wlr_pointer_constraint_v1 *pConstraint = wlserver.GetCursorConstraint();
 +	if ( pWindow != s_pWindow || pConstraint != s_pConstraint )
 +	{
 +		s_bTracking = false;

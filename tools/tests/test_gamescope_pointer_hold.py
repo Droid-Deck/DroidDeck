@@ -127,7 +127,9 @@ class PointerHoldTest(unittest.TestCase):
         tracker = block(added_source(), "static void update_pointer_hold")
         reset = tracker.index("if ( pWindow != s_pWindow || pConstraint != s_pConstraint )")
         self.assertIn("const steamcompmgr_win_t *pWindow = pFocus->inputFocusWindow;", tracker)
-        self.assertIn("wlserver.GetCursorConstraint();", tracker)
+        constraint = tracker.index("wlserver.GetCursorConstraint();")
+        self.assertLess(tracker.index("wlserver_lock();"), constraint)
+        self.assertLess(constraint, tracker.index("wlserver_unlock();"))
         self.assertLess(reset, tracker.index("if ( s_bTracking && bHinted && !s_bHinted )"))
         self.assertIn("s_bTracking = false;", tracker[reset:reset + 120])
 
