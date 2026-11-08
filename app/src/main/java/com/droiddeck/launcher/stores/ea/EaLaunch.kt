@@ -88,8 +88,11 @@ object EaLaunch {
         val hardware = request.optJSONObject("hardware")?.let(EaOoa.Hardware::fromJson)?.takeIf { it.complete(hashVersion) }
         val legacy = EaOoa.legacyCore(core)
 
-        val opaque = EaAuth.mint(app, EaAuth.CLIENT_ID, "token", EaAuth.OPAQUE_SCOPES, "OPAQUE", if (legacy) 14400 else 550).orEmpty()
-        val lsx = EaLsx.start(app, EaLsx.Game(id, contentId, sidecar.title, sidecar.installVersion, locale, hardware, hashVersion, opaque))
+        val lifetime = if (legacy) 14400 else 550
+        val opaque = EaAuth.mint(app, EaAuth.CLIENT_ID, "token", EaAuth.OPAQUE_SCOPES, "OPAQUE", lifetime).orEmpty()
+        val known = (sidecar.extra["contentIds"].orEmpty().split(',') + sidecar.extra["multiplayerId"].orEmpty()).map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        val lsx = EaLsx.start(app, EaLsx.Game(id, contentId, sidecar.title, sidecar.installVersion, locale, hardware, hashVersion, opaque,
+            System.currentTimeMillis() + (lifetime - 30) * 1000L, known))
         val env = environment(id, contentId, locale, if (legacy && opaque.isNotEmpty()) opaque else access, access, opaque, EaAuth.load(app) ?: account)
         val tmp = File(folder, "$ENV_FILE.tmp")
         tmp.writeText(env.entries.joinToString("\r\n", postfix = "\r\n") { "${it.key}=${it.value}" })

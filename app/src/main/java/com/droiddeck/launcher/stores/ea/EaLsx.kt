@@ -47,7 +47,11 @@ object EaLsx {
         val hardware: EaOoa.Hardware?,
         val hashVersion: Int,
         val token: String = "",
-    )
+        val tokenExpiresAt: Long = 0L,
+        val contentIds: Set<String> = emptySet(),
+    ) {
+        val validToken: String? get() = token.takeIf { it.isNotEmpty() && System.currentTimeMillis() < tokenExpiresAt }
+    }
 
     /** The parts of a request a reply depends on. */
     class Message(val recipient: String, val id: String, val name: String, val attrs: Map<String, String>, val children: List<Pair<String, String>>)
@@ -132,6 +136,7 @@ object EaLsx {
 
     private class Session(val output: OutputStream) {
         var key: ByteArray? = null
+        var trusted = false
         var pending: ByteArray? = null
 
         @Synchronized
@@ -261,7 +266,9 @@ object EaLsx {
                 val answer = EaCrypto.challengeAnswer(m.attrs["key"].orEmpty())
                 val version = m.attrs["version"].orEmpty()
                 val seed = EaCrypto.challengeSeed(version, answer) ?: 0
-                note("challenge version '$version'")
+                val content = m.children.firstOrNull { it.first == "ContentId" }?.second.orEmpty()
+                session.trusted = g != null && content.isNotEmpty() && (content == g.contentId || content in g.contentIds)
+                note("challenge version '$version' content '$content' ${if (session.trusted) "matches" else "does not match"} the prepared game")
                 session.pending = EaCrypto.lsxKey(seed)
                 Log.i(TAG, "game connected: ${m.children.firstOrNull { it.first == "Title" }?.second.orEmpty()}")
                 tag("ChallengeAccepted", "response" to answer)
@@ -298,15 +305,15 @@ object EaLsx {
                 "AreChunksInstalledResponse", "ItemId" to m.attrs["ItemId"].orEmpty(), "Installed" to true,
                 body = m.children.joinToString("") { tag(it.first, body = esc(it.second)) },
             )
-            "GetAuthCode" -> tag("AuthCode", "value" to (who?.authCode(m.attrs["ClientId"].orEmpty(), m.attrs["Scope"]) ?: "invalid"))
-            "GetAuthToken" -> tag("AuthToken", "value" to (g?.token?.takeIf { it.isNotEmpty() } ?: who?.token().orEmpty()))
+            "GetAuthCode" -> tag("AuthCode", "value" to (who?.takeIf { session.trusted }?.authCode(m.attrs["ClientId"].orEmpty(), m.attrs["Scope"]) ?: "invalid"))
+            "GetAuthToken" -> tag("AuthToken", "value" to if (!session.trusted) "" else (g?.validToken ?: who?.token().orEmpty()))
             "RequestLicense" -> {
-                val token = who?.license(g?.contentId.orEmpty(), m.attrs["RequestTicket"].orEmpty(), m.attrs["TicketEngine"].orEmpty()).orEmpty()
+                val token = who?.takeIf { session.trusted }?.license(g?.contentId.orEmpty(), m.attrs["RequestTicket"].orEmpty(), m.attrs["TicketEngine"].orEmpty()).orEmpty()
                 tag("RequestLicenseResponse", "License" to token)
             }
             "QueryEntitlements" -> {
                 val group = m.attrs["Group"].orEmpty()
-                val rows = who?.entitlements(group).orEmpty()
+                val rows = who?.takeIf { session.trusted }?.entitlements(group).orEmpty()
                 tag("QueryEntitlementsResponse", body = rows.joinToString("") { e ->
                     tag(
                         "Entitlement",

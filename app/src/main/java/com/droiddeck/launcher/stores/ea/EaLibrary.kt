@@ -128,19 +128,21 @@ object EaLibrary {
         }.sortedBy { it.first.name.lowercase() }
     }
 
-    private fun art(app: Context, token: String, slugs: Collection<String>): Map<String, EaApi.Images> {
+    private fun art(app: Context, token: String, slugs: Collection<String>, gen: Int): Map<String, EaApi.Images> {
         val prefs = EaPrefs.get(app)
         val now = System.currentTimeMillis()
         val out = java.util.concurrent.ConcurrentHashMap<String, EaApi.Images>()
         val pool = Executors.newFixedThreadPool(ART_THREADS)
         try {
             for (slug in slugs.filter { it.isNotEmpty() }) {
+                if (gen != generation.get()) break
                 val cached = prefs.getString("art_$slug", null)?.let { runCatching { JSONObject(it) }.getOrNull() }
                 if (cached != null && now - cached.optLong("at") < ART_TTL_MS) {
                     out[slug] = EaApi.Images(cached.optString("tall").ifEmpty { null }, cached.optString("wide").ifEmpty { null }, cached.optString("logo").ifEmpty { null })
                     continue
                 }
                 pool.execute {
+                    if (gen != generation.get()) return@execute
                     val images = runCatching { EaApi.images(token, slug) }.getOrNull() ?: return@execute
                     out[slug] = images
                     prefs.edit().putString(
@@ -156,13 +158,14 @@ object EaLibrary {
         return out
     }
 
-    private fun posters(app: Context, games: List<EaGame>) {
+    private fun posters(app: Context, games: List<EaGame>, gen: Int) {
         val prefs = EaPrefs.get(app)
         val todo = games.filter { it.tall.isEmpty() && !prefs.contains("poster_${it.offerId}") }.take(40)
         if (todo.isEmpty()) return
         val pool = Executors.newFixedThreadPool(ART_THREADS)
         try {
             for (g in todo) pool.execute {
+                if (gen != generation.get()) return@execute
                 prefs.edit().putString("poster_${g.offerId}", runCatching { StoreNet.sgdbPoster(g.title) }.getOrDefault("")).apply()
             }
         } finally {
@@ -216,8 +219,9 @@ object EaLibrary {
             val picked = pick(owned, offers)
             StoresState.logLine("ea: ${owned.size} owned products, ${picked.size} games")
             if (picked.isEmpty()) return problem(if (cache.isEmpty()) app.getString(R.string.stores_sync_no_games, store.label) else null)
+            if (gen != generation.get()) return
             status(R.string.stores_sync_cover_art)
-            val images = art(app, token, picked.map { it.first.slug })
+            val images = art(app, token, picked.map { it.first.slug }, gen)
             val games = picked.map { (o, offer) ->
                 val img = images[o.slug]
                 EaGame(
@@ -229,7 +233,8 @@ object EaLibrary {
             }
             if (gen != generation.get()) return
             prefs.edit().putString(KEY_CACHE, JSONArray(games.map { it.toJson() }).toString()).putLong(KEY_SYNCED_AT, System.currentTimeMillis()).apply()
-            posters(app, games)
+            posters(app, games, gen)
+            if (gen != generation.get()) return
             publish(app, games, gen)
             problem(null)
         } catch (e: EaApiException) {
