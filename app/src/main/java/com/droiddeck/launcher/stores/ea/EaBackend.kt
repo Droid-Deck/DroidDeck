@@ -38,6 +38,7 @@ object EaBackend : StoreBackend {
 
     override fun signOut(context: Context) {
         val app = context.applicationContext
+        EaAuth.signOut(app)
         EaLibrary.invalidate()
         runCatching { EaLibrary.forget(app) }
         EaUpdates.available.clear()
