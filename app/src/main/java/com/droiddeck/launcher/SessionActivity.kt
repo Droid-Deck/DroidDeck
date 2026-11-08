@@ -4036,7 +4036,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         if (event.actionMasked == MotionEvent.ACTION_DOWN) lockedSwipeUsed = false
         if (programLocksPointer() && event.actionMasked == MotionEvent.ACTION_MOVE) {
-            if (lockedSwipeUsed) directTouchHold.cancelPendingHold() else directTouchHold.cancel()
+            if (lockedSwipeUsed) directTouchHold.cancelPendingHold() else directTouchHold.cancelTouch()
             lockedSwipeUsed = true
             val scale = sceneScale(rect)
             sendSceneDelta((event.x - swipeX) * scale, (event.y - swipeY) * scale)

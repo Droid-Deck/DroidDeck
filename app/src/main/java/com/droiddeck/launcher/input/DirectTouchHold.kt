@@ -70,6 +70,14 @@ class DirectTouchHold(
         handler.removeCallbacks(hold)
     }
 
+    fun cancelTouch() {
+        handler.removeCallbacks(hold)
+        handler.removeCallbacks(lift)
+        liftPending = false
+        if (forwarded) touch.cancel()
+        forwarded = false
+    }
+
     fun onTouch(event: MotionEvent): Boolean {
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             if (liftPending) {
