@@ -82,8 +82,12 @@ public final class LinuxRuntimeInstaller {
     private LinuxRuntimeInstaller() {}
 
     public static String installedVersion(Context context) {
+        return LinuxRuntime.isInstalled(context) ? rootfsVersion(context) : null;
+    }
+
+    private static String rootfsVersion(Context context) {
         File marker = new File(LinuxRuntime.rootDir(context), VERSION_FILE);
-        if (!marker.isFile() || !LinuxRuntime.isInstalled(context)) return null;
+        if (!marker.isFile()) return null;
         String v = FileUtils.readString(marker);
         return v == null ? null : v.trim();
     }
@@ -144,8 +148,10 @@ public final class LinuxRuntimeInstaller {
                 }
             };
             boolean desktop = DesktopCatalog.INSTANCE.desktopInstalled(app);
-            job.ok = installOnce(app, release, progress);
-            if (job.ok && desktop) keepDesktop(app, progress);
+            boolean packsOnly = LinuxRuntime.hasRootfs(app) && !LinuxRuntime.isInstalled(app)
+                    && release.version.equals(rootfsVersion(app));
+            job.ok = installOnce(app, release, progress, packsOnly);
+            if (job.ok && desktop && !packsOnly) keepDesktop(app, progress);
             return job.ok;
         } finally {
             synchronized (JOB_LOCK) {
@@ -283,7 +289,16 @@ public final class LinuxRuntimeInstaller {
         for (File file : files) file.delete();
     }
 
-    private static boolean installOnce(Context context, Release release, ProgressListener listener) {
+    private static kotlin.jvm.functions.Function1<AddonPack.State, kotlin.Unit> packProgress(ProgressListener listener, String stage) {
+        return state -> {
+            if (listener != null && state instanceof AddonPack.State.Downloading) {
+                listener.onProgress(Step.DOWNLOADING, stage, Math.round(((AddonPack.State.Downloading) state).getProgress() * 100f));
+            }
+            return kotlin.Unit.INSTANCE;
+        };
+    }
+
+    private static boolean installOnce(Context context, Release release, ProgressListener listener, boolean packsOnly) {
         File archive = new File(context.getCacheDir(), archiveName(release));
         boolean keepPartial = false;
         try {
@@ -294,10 +309,11 @@ public final class LinuxRuntimeInstaller {
             emptyTrash(LinuxRuntime.rootDir(context).getParentFile());
             String downloading = context.getString(R.string.rtinst_downloading);
             if (listener != null) listener.onProgress(Step.DOWNLOADING, downloading, 0);
-            if (!LinuxRuntime.patchedProot(context) && !AddonPack.PROOT.await(context)
+            if (!LinuxRuntime.patchedProot(context) && !AddonPack.PROOT.await(context, () -> true, packProgress(listener, downloading))
                     && !SessionPrefs.allowStockProot(context))
                 throw new IOException("Cannot download proot");
-            if (!AddonPack.DIRECTAUDIO.await(context)) throw new IOException("Cannot download DirectAudio");
+            if (!AddonPack.DIRECTAUDIO.await(context, () -> true, packProgress(listener, downloading))) throw new IOException("Cannot download DirectAudio");
+            if (packsOnly && LinuxRuntime.isInstalled(context)) return true;
             boolean ok = Downloader.downloadFile(release.url, archive, true, release.sha256, (fraction) -> {
                 if (listener != null) {
                     listener.onProgress(Step.DOWNLOADING, downloading,

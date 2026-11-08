@@ -23,6 +23,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -1135,6 +1136,10 @@ class FrontEndActivity : ComponentActivity() {
         applyLauncherFullscreen()
         updates.start()
         setContent {
+            val prootPack by com.droiddeck.launcher.core.AddonPack.PROOT.state.collectAsState()
+            androidx.compose.runtime.LaunchedEffect(prootPack) {
+                if (prootPack == com.droiddeck.launcher.core.AddonPack.State.Ready && installed == null) refresh()
+            }
             DroidDeckTheme(theme, appScale = appScale) {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize().exposeTestTags()) {
                 if (decky.deckyPendingZip != null) com.droiddeck.launcher.ui.DeckyZipWarningDialog(
