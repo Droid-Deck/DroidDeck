@@ -37,6 +37,10 @@ static void resolve_symlinks(const char *path, char *out, size_t out_size, int d
             ddnatv_copy_cstr(next_path, sizeof(next_path), link_target);
         }
     }
+    // proot's link2symlink leaves hard links as ".l2s.*" files that programs must not see by name
+    const char *next_base = strrchr(next_path, '/');
+    next_base = next_base ? next_base + 1 : next_path;
+    if (strncmp(next_base, ".l2s.", 5) == 0) return;
     resolve_symlinks(next_path, out, out_size, depth + 1);
 }
 
