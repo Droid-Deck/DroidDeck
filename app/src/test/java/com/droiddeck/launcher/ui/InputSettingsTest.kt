@@ -406,7 +406,8 @@ class InputSettingsTest {
             compose.runOnIdle { assertFalse(element.value.showLabel); action.value = InputAction.Native() }
             compose.onNodeWithTag("setting-element-label").assertDoesNotExist()
             compose.runOnIdle { action.value = InputAction.Directions(0, 0, 0, 0, listOf(16, 18, 44, 46)) }
-            compose.onNodeWithTag("setting-element-label").assertExists()
+            if (kind == InputElementKind.STICK) compose.onNodeWithTag("setting-element-label").assertExists()
+            else compose.onNodeWithTag("setting-element-label").assertDoesNotExist()
         }
         compose.runOnIdle { element.value = InputSurfaceElement(InputControl.LS, .1f, .1f, .4f, .4f, "legacy:left-stick", InputElementKind.STICK, "Move") }
         compose.onNodeWithTag("setting-element-label").assertExists()
