@@ -35,6 +35,7 @@ object UserApps {
     private const val GITHUB_REPO = "github-repo"
     private const val GITHUB_TAG = "github-tag"
     private const val GITHUB_PUBLISHED = "github-published"
+    private const val GITHUB_ASSET = "github-asset"
 
     enum class Kind { SCRIPT, APPIMAGE, FLATPAK }
 
@@ -56,7 +57,7 @@ object UserApps {
     sealed class Source {
         class Script(val file: File) : Source()
         class AppImage(val file: File) : Source()
-        class GitHub(val repo: String) : Source()
+        class GitHub(val repo: String, val asset: String? = null) : Source()
         class Flatpak(val id: String) : Source()
         class FlatpakBundle(val file: File) : Source()
     }
@@ -113,7 +114,7 @@ object UserApps {
             when (val s = request.source) {
                 is Source.Script -> addScript(context, s.file, name, icon, request.meta, onProgress)
                 is Source.AppImage -> AppImageManager.import(context, s.file, name, icon, request.meta) { onProgress(it, -1) }
-                is Source.GitHub -> addFromGitHub(context, s.repo, name, icon, onProgress)
+                is Source.GitHub -> addFromGitHub(context, s.repo, s.asset, name, icon, onProgress)
                 is Source.Flatpak -> addFlatpak(context, s.id, name, icon, onProgress)
                 is Source.FlatpakBundle -> addFlatpakBundle(context, s.file, name, icon, onProgress)
             }
@@ -305,14 +306,26 @@ object UserApps {
         return if (repo.isEmpty() || repo == "." || repo == "..") null else "${m.groupValues[1]}/$repo"
     }
 
-    internal fun pickAsset(names: List<String>): String? {
+    fun githubAsset(input: String): String? =
+        Regex("github\\.com/[\\w.-]+/[\\w.-]+/releases/(?:download/[^/]+|latest/download)/([^/?#]+\\.appimage)(?:[?#].*)?$", RegexOption.IGNORE_CASE)
+            .find(input.trim())?.groupValues?.get(1)?.let { runCatching { java.net.URLDecoder.decode(it, "UTF-8") }.getOrNull() }
+
+    private fun assetVariant(name: String): Set<String> =
+        name.lowercase().replace(Regex("x86[_-]64|amd64"), "x64").replace(Regex("x86[_-]32|i[36]86"), "x32")
+            .split(Regex("[^a-z0-9]+")).filter { it.isNotEmpty() && !Regex("[0-9a-f]{7,}|v?[0-9]+").matches(it) }.toSet()
+
+    internal fun pickAsset(names: List<String>, wanted: String? = null): String? {
         val images = names.filter { it.endsWith(".appimage", ignoreCase = true) }
+        if (wanted != null) {
+            images.firstOrNull { it == wanted }?.let { return it }
+            images.firstOrNull { assetVariant(it) == assetVariant(wanted) }?.let { return it }
+        }
         return images.firstOrNull { Regex("aarch64|arm64", RegexOption.IGNORE_CASE).containsMatchIn(it) }
             ?: images.firstOrNull { !Regex("x86_64|x86-64|amd64|x64|i[36]86|armhf|armv7", RegexOption.IGNORE_CASE).containsMatchIn(it) }
             ?: images.firstOrNull { Regex("x86_64|x86-64|amd64|x64", RegexOption.IGNORE_CASE).containsMatchIn(it) }
     }
 
-    private fun latestRelease(context: Context, repo: String): Pair<Release?, String?> {
+    private fun latestRelease(context: Context, repo: String, wanted: String? = null): Pair<Release?, String?> {
         val body = Downloader.downloadString("https://api.github.com/repos/$repo/releases?per_page=15")
         val releases = body?.let { runCatching { JSONArray(it) }.getOrNull() }
             ?: return null to context.getString(R.string.user_apps_github_unreachable, repo)
@@ -321,7 +334,7 @@ object UserApps {
             if (r.optBoolean("draft")) return@mapNotNull null
             val assets = r.optJSONArray("assets") ?: return@mapNotNull null
             val byName = (0 until assets.length()).associate { j -> assets.getJSONObject(j).let { it.getString("name") to it } }
-            pickAsset(byName.keys.toList())?.let { asset ->
+            pickAsset(byName.keys.toList(), wanted)?.let { asset ->
                 r.optBoolean("prerelease") to byName.getValue(asset).let { a ->
                     Release(r.optString("tag_name", asset), r.optString("published_at"), asset, a.getString("browser_download_url"),
                         Hashes.githubSha256(a.optString("digest")))
@@ -344,11 +357,11 @@ object UserApps {
     }
 
     private fun githubMeta(repo: String, release: Release) =
-        mapOf(GITHUB_REPO to repo, GITHUB_TAG to release.tag, GITHUB_PUBLISHED to release.published)
+        mapOf(GITHUB_REPO to repo, GITHUB_TAG to release.tag, GITHUB_PUBLISHED to release.published, GITHUB_ASSET to release.asset)
 
-    private fun addFromGitHub(context: Context, repo: String, name: String?, icon: File?, onProgress: (String, Int) -> Unit): String? {
+    private fun addFromGitHub(context: Context, repo: String, asset: String?, name: String?, icon: File?, onProgress: (String, Int) -> Unit): String? {
         onProgress(context.getString(R.string.user_apps_github_checking, repo), -1)
-        val (release, problem) = latestRelease(context, repo)
+        val (release, problem) = latestRelease(context, repo, asset)
         if (release == null) return problem
         return withDownload(context, release, onProgress) { file ->
             AppImageManager.import(context, file, name ?: repo.substringAfter('/'), icon, githubMeta(repo, release)) { onProgress(it, -1) }
@@ -381,9 +394,10 @@ object UserApps {
 
     fun checkUpdate(context: Context, app: App): UpdateCheck {
         val repo = app.repo ?: return UpdateCheck.Failed(context.getString(R.string.user_apps_update_failed))
-        val (release, problem) = latestRelease(context, repo)
+        val dir = AppImageManager.dir(context, app.key.substringAfter(':'))
+        val (release, problem) = latestRelease(context, repo, FileUtils.readString(File(dir, GITHUB_ASSET))?.trim()?.takeIf { it.isNotEmpty() })
         if (release == null) return UpdateCheck.Failed(problem ?: context.getString(R.string.user_apps_update_failed))
-        val published = FileUtils.readString(File(AppImageManager.dir(context, app.key.substringAfter(':')), GITHUB_PUBLISHED))?.trim().orEmpty()
+        val published = FileUtils.readString(File(dir, GITHUB_PUBLISHED))?.trim().orEmpty()
         val newer = if (published.isNotEmpty() && release.published.isNotEmpty()) release.published > published else release.tag != app.version
         return if (newer) UpdateCheck.Available(release) else UpdateCheck.Current(app.version ?: release.tag)
     }
