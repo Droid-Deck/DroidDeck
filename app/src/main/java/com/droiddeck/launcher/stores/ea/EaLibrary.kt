@@ -80,8 +80,11 @@ object EaLibrary {
 
     /** Makes any sync already running drop its results instead of writing or showing them. */
     fun invalidate() {
-        generation.incrementAndGet()
+        synchronized(cacheLock) { generation.incrementAndGet() }
     }
+
+    private val cacheLock = Any()
+    private val again = AtomicBoolean(false)
     private val store = Store.EA
 
     fun cached(context: Context): List<EaGame> {
@@ -93,7 +96,7 @@ object EaLibrary {
     fun game(context: Context, offerId: String): EaGame? = cached(context).firstOrNull { it.offerId == offerId }
 
     fun forget(context: Context) {
-        EaPrefs.get(context).edit().remove(KEY_CACHE).remove(KEY_SYNCED_AT).apply()
+        synchronized(cacheLock) { EaPrefs.get(context).edit().remove(KEY_CACHE).remove(KEY_SYNCED_AT).commit() }
     }
 
     fun toCatalogItem(context: Context, g: EaGame): CatalogItem {
@@ -193,7 +196,10 @@ object EaLibrary {
     }
 
     fun sync(context: Context, force: Boolean) {
-        if (!running.compareAndSet(false, true)) return
+        if (!running.compareAndSet(false, true)) {
+            again.set(true)
+            return
+        }
         val app = context.applicationContext
         val gen = generation.get()
         val prefs = EaPrefs.get(app)
@@ -231,8 +237,11 @@ object EaLibrary {
                     multiplayerId = offer.multiplayerId, masterTitleId = offer.masterTitleId, cloudSaves = offer.cloudSaves, locales = offer.locales,
                 )
             }
-            if (gen != generation.get()) return
-            prefs.edit().putString(KEY_CACHE, JSONArray(games.map { it.toJson() }).toString()).putLong(KEY_SYNCED_AT, System.currentTimeMillis()).apply()
+            val written = synchronized(cacheLock) {
+                gen == generation.get() &&
+                    prefs.edit().putString(KEY_CACHE, JSONArray(games.map { it.toJson() }).toString()).putLong(KEY_SYNCED_AT, System.currentTimeMillis()).commit()
+            }
+            if (!written) return
             posters(app, games, gen)
             if (gen != generation.get()) return
             publish(app, games, gen)
@@ -246,6 +255,7 @@ object EaLibrary {
             problem(if (cache.isEmpty()) e.message ?: app.getString(R.string.stores_sync_failed) else null)
         } finally {
             running.set(false)
+            if (again.getAndSet(false)) sync(app, force = true)
         }
     }
 }
