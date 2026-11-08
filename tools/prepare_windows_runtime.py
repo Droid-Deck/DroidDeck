@@ -193,9 +193,10 @@ def prepare_ime(image):
         script = ROOT / 'tools/ime/prepare.py'
         if sys.platform == 'win32':
             docker = find_docker()
-            inspected = subprocess.run([docker, 'image', 'inspect', '--format', '{{.Id}}', image],
-                                       capture_output=True, text=True, check=False)
-            image_id = inspected.stdout.strip() if inspected.returncode == 0 else ''
+            inspect_cmd = [docker, 'image', 'inspect', '--format', '{{.Id}} {{.Os}}/{{.Architecture}}', image]
+            inspected = subprocess.run(inspect_cmd, capture_output=True, text=True, check=False)
+            fields = inspected.stdout.strip().split() if inspected.returncode == 0 else []
+            image_id = fields[0] if len(fields) == 2 and fields[0] and fields[1] == 'linux/amd64' else ''
             if not image_id and image == vr_build.IMAGE:
                 dockerfile = (ROOT / 'tools/local-cross.Dockerfile').read_bytes().replace(b'\r\n', b'\n')
                 try:
@@ -204,13 +205,14 @@ def prepare_ime(image):
                 except subprocess.CalledProcessError as error:
                     raise ValueError('IME preparation failed to build default compiler Docker image ' + image +
                                      '; inspect the Docker build output above, resolve the build error, and rerun preparation') from error
-                inspected = subprocess.run([docker, 'image', 'inspect', '--format', '{{.Id}}', image],
-                                           capture_output=True, text=True, check=False)
-                image_id = inspected.stdout.strip() if inspected.returncode == 0 else ''
+                inspected = subprocess.run(inspect_cmd, capture_output=True, text=True, check=False)
+                fields = inspected.stdout.strip().split() if inspected.returncode == 0 else []
+                image_id = fields[0] if len(fields) == 2 and fields[0] and fields[1] == 'linux/amd64' else ''
             if not image_id:
+                detail = inspected.stdout.strip() if inspected.returncode == 0 else inspected.stderr.strip()
+                detail = detail or 'no image id or platform returned'
                 raise ValueError('IME preparation requires the existing Docker image ' + image +
-                                 '; build or load it first (inspect failed: ' +
-                                 (inspected.stderr.strip() or 'no image id returned') + ')')
+                                 ' for linux/amd64; build or load it first (inspect result: ' + detail + ')')
             snapshot = temporary / 'src'
             (snapshot / 'tools/ime').mkdir(parents=True)
             shutil.copy2(script, snapshot / 'tools/ime/prepare.py')

@@ -299,7 +299,7 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
             def run(command, check=True, capture_output=True, text=True):
                 commands.append(command)
                 if command[1:3] == ['image', 'inspect']:
-                    return mock.Mock(returncode=0, stdout='sha256:image-id\n', stderr='')
+                    return mock.Mock(returncode=0, stdout='sha256:image-id linux/amd64\n', stderr='')
                 mounted = next(part for part in command if part.endswith(':/out'))
                 output = Path(mounted.removesuffix(':/out'))
                 target = output / 'usr/local/share/droiddeck/pinyin.so'
@@ -314,13 +314,14 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
                     mock.patch.object(prepare.subprocess, 'run', side_effect=run):
                 files, provenance = prepare.prepare_ime('compiler-image')
             inspect_command, command = commands
-            self.assertEqual(inspect_command, ['docker', 'image', 'inspect', '--format', '{{.Id}}',
-                                               'compiler-image'])
+            self.assertEqual(inspect_command, ['docker', 'image', 'inspect', '--format',
+                                               '{{.Id}} {{.Os}}/{{.Architecture}}', 'compiler-image'])
             self.assertEqual(command[0], 'docker')
             self.assertIn('--rm', command)
             self.assertIn('--platform', command)
             self.assertIn('linux/amd64', command)
             self.assertIn('sha256:image-id', command)
+            self.assertNotIn('sha256:image-id linux/amd64', command)
             self.assertNotIn('compiler-image', command)
             shell = command[-1]
             self.assertNotIn('apt-get', shell)
@@ -350,7 +351,7 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
             def run(command, check=True, capture_output=True, text=True, input=None):
                 commands.append(command)
                 if command[1:3] == ['image', 'inspect']:
-                    return mock.Mock(returncode=0, stdout='sha256:existing-v5\n', stderr='')
+                    return mock.Mock(returncode=0, stdout='sha256:existing-v5 linux/amd64\n', stderr='')
                 mounted = next(part for part in command if part.endswith(':/out'))
                 output = Path(mounted.removesuffix(':/out'))
                 target = output / 'usr/local/share/droiddeck/pinyin.so'
@@ -366,11 +367,14 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
                 files, provenance = prepare.prepare_ime(prepare.vr_build.IMAGE)
             self.assertEqual(prepare.vr_build.IMAGE, 'droiddeck-local-cross:24.04-v5')
             self.assertEqual([cmd[1] for cmd in commands], ['image', 'run'])
+            self.assertEqual(commands[0], ['docker', 'image', 'inspect', '--format',
+                                           '{{.Id}} {{.Os}}/{{.Architecture}}', 'droiddeck-local-cross:24.04-v5'])
             self.assertIn('sha256:existing-v5', commands[1])
+            self.assertNotIn('sha256:existing-v5 linux/amd64', commands[1])
             self.assertEqual(files['usr/local/share/droiddeck/pinyin.so'], b'ime')
             self.assertEqual(provenance, manifest)
 
-    def test_windows_ime_preparation_builds_missing_default_image_and_runs_by_id(self):
+    def test_windows_ime_preparation_builds_missing_or_incompatible_default_image_and_runs_by_id(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             (root / 'tools/ime').mkdir(parents=True)
@@ -380,45 +384,55 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
             manifest = {'version': 1, 'files': {
                 'usr/local/share/droiddeck/pinyin.so': {
                     'sha256': hashlib.sha256(b'ime').hexdigest(), 'mode': 420}}}
-            calls = []
-            inspected = 0
+            for label, first_inspect in (
+                ('missing', mock.Mock(returncode=1, stdout='', stderr='No such image')),
+                ('linux/arm64', mock.Mock(returncode=0, stdout='sha256:arm64-id linux/arm64\n', stderr='')),
+                ('windows/amd64', mock.Mock(returncode=0, stdout='sha256:win-id windows/amd64\n', stderr='')),
+            ):
+                with self.subTest(case=label):
+                    calls = []
+                    inspected = 0
 
-            def run(command, check=True, capture_output=False, text=False, input=None):
-                nonlocal inspected
-                calls.append((command, input))
-                if command[1:3] == ['image', 'inspect']:
-                    inspected += 1
-                    if inspected == 1:
-                        return mock.Mock(returncode=1, stdout='', stderr='No such image')
-                    return mock.Mock(returncode=0, stdout='sha256:built-v5-id\n', stderr='')
-                if command[1] == 'build':
-                    return mock.Mock(returncode=0)
-                mounted = next(part for part in command if part.endswith(':/out'))
-                output = Path(mounted.removesuffix(':/out'))
-                target = output / 'usr/local/share/droiddeck/pinyin.so'
-                target.parent.mkdir(parents=True)
-                target.write_bytes(b'ime')
-                (output / prepare.IME_MANIFEST).write_text(json.dumps(manifest), encoding='utf-8')
-                return mock.Mock(returncode=0)
+                    def run(command, check=True, capture_output=False, text=False, input=None):
+                        nonlocal inspected
+                        calls.append((command, input))
+                        if command[1:3] == ['image', 'inspect']:
+                            inspected += 1
+                            if inspected == 1:
+                                return first_inspect
+                            return mock.Mock(returncode=0, stdout='sha256:built-v5-id linux/amd64\n', stderr='')
+                        if command[1] == 'build':
+                            return mock.Mock(returncode=0)
+                        mounted = next(part for part in command if part.endswith(':/out'))
+                        output = Path(mounted.removesuffix(':/out'))
+                        target = output / 'usr/local/share/droiddeck/pinyin.so'
+                        target.parent.mkdir(parents=True)
+                        target.write_bytes(b'ime')
+                        (output / prepare.IME_MANIFEST).write_text(json.dumps(manifest), encoding='utf-8')
+                        return mock.Mock(returncode=0)
 
-            with mock.patch.object(prepare, 'ROOT', root), \
-                    mock.patch.object(prepare.sys, 'platform', 'win32'), \
-                    mock.patch.object(prepare.shutil, 'which', return_value='docker'), \
-                    mock.patch.object(prepare.subprocess, 'run', side_effect=run):
-                files, provenance = prepare.prepare_ime(prepare.vr_build.IMAGE)
-            self.assertEqual([cmd[1] for cmd, _ in calls], ['image', 'build', 'image', 'run'])
-            self.assertEqual(calls[0][0], ['docker', 'image', 'inspect', '--format', '{{.Id}}',
-                                           'droiddeck-local-cross:24.04-v5'])
-            build_cmd, build_input = calls[1]
-            self.assertEqual(build_cmd[:8], ['docker', 'build', '--platform', 'linux/amd64',
-                                             '--tag', 'droiddeck-local-cross:24.04-v5', '--file', '-'])
-            self.assertEqual(build_input, b'FROM ubuntu:24.04\nRUN echo ok\n')
-            run_cmd = calls[3][0]
-            self.assertIn('sha256:built-v5-id', run_cmd)
-            self.assertNotIn('droiddeck-local-cross:24.04-v5', run_cmd)
-            self.assertNotIn('apt-get', run_cmd[-1])
-            self.assertEqual(files['usr/local/share/droiddeck/pinyin.so'], b'ime')
-            self.assertEqual(provenance, manifest)
+                    with mock.patch.object(prepare, 'ROOT', root), \
+                            mock.patch.object(prepare.sys, 'platform', 'win32'), \
+                            mock.patch.object(prepare.shutil, 'which', return_value='docker'), \
+                            mock.patch.object(prepare.subprocess, 'run', side_effect=run):
+                        files, provenance = prepare.prepare_ime(prepare.vr_build.IMAGE)
+                    self.assertEqual([cmd[1] for cmd, _ in calls], ['image', 'build', 'image', 'run'])
+                    self.assertEqual(calls[0][0], ['docker', 'image', 'inspect', '--format',
+                                                   '{{.Id}} {{.Os}}/{{.Architecture}}',
+                                                   'droiddeck-local-cross:24.04-v5'])
+                    build_cmd, build_input = calls[1]
+                    self.assertEqual(build_cmd[:8], ['docker', 'build', '--platform', 'linux/amd64',
+                                                     '--tag', 'droiddeck-local-cross:24.04-v5', '--file', '-'])
+                    self.assertEqual(build_input, b'FROM ubuntu:24.04\nRUN echo ok\n')
+                    run_cmd = calls[3][0]
+                    self.assertIn('sha256:built-v5-id', run_cmd)
+                    self.assertNotIn('sha256:built-v5-id linux/amd64', run_cmd)
+                    self.assertNotIn('sha256:arm64-id', run_cmd)
+                    self.assertNotIn('sha256:win-id', run_cmd)
+                    self.assertNotIn('droiddeck-local-cross:24.04-v5', run_cmd)
+                    self.assertNotIn('apt-get', run_cmd[-1])
+                    self.assertEqual(files['usr/local/share/droiddeck/pinyin.so'], b'ime')
+                    self.assertEqual(provenance, manifest)
 
     def test_windows_ime_preparation_reports_default_image_build_failure(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -450,39 +464,57 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
             self.assertEqual(context.exception.__cause__.returncode, 17)
             self.assertEqual([cmd[1] for cmd in commands], ['image', 'build'])
 
-    def test_windows_ime_preparation_stops_if_default_image_still_has_no_id_after_build(self):
+    def test_windows_ime_preparation_stops_if_default_image_still_has_no_id_or_wrong_platform_after_build(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             (root / 'tools').mkdir(parents=True)
             (root / 'tools/local-cross.Dockerfile').write_bytes(b'FROM ubuntu:24.04\n')
-            commands = []
+            for label, result, detail in (
+                ('missing', mock.Mock(returncode=1, stdout='', stderr='still missing'), 'still missing'),
+                ('wrong-arch', mock.Mock(returncode=0, stdout='sha256:arm64-id linux/arm64\n', stderr=''), 'linux/arm64'),
+                ('malformed', mock.Mock(returncode=0, stdout='sha256:only-id\n', stderr=''), 'sha256:only-id'),
+            ):
+                with self.subTest(case=label):
+                    commands = []
 
-            def run(command, check=True, capture_output=False, text=False, input=None):
-                commands.append(command)
-                if command[1:3] == ['image', 'inspect']:
-                    return mock.Mock(returncode=1, stdout='', stderr='still missing')
-                return mock.Mock(returncode=0)
+                    def run(command, check=True, capture_output=False, text=False, input=None):
+                        commands.append(command)
+                        if command[1:3] == ['image', 'inspect']:
+                            return result
+                        return mock.Mock(returncode=0)
 
-            with mock.patch.object(prepare, 'ROOT', root), \
-                    mock.patch.object(prepare.sys, 'platform', 'win32'), \
-                    mock.patch.object(prepare.shutil, 'which', return_value='docker'), \
-                    mock.patch.object(prepare.subprocess, 'run', side_effect=run):
-                with self.assertRaisesRegex(ValueError, 'requires the existing Docker image'):
-                    prepare.prepare_ime(prepare.vr_build.IMAGE)
-            self.assertEqual([cmd[1] for cmd in commands], ['image', 'build', 'image'])
+                    with mock.patch.object(prepare, 'ROOT', root), \
+                            mock.patch.object(prepare.sys, 'platform', 'win32'), \
+                            mock.patch.object(prepare.shutil, 'which', return_value='docker'), \
+                            mock.patch.object(prepare.subprocess, 'run', side_effect=run):
+                        with self.assertRaisesRegex(ValueError, 'requires the existing Docker image') as context:
+                            prepare.prepare_ime(prepare.vr_build.IMAGE)
+                    self.assertIn('linux/amd64', str(context.exception))
+                    self.assertIn(prepare.vr_build.IMAGE, str(context.exception))
+                    self.assertIn(detail, str(context.exception))
+                    self.assertEqual([cmd[1] for cmd in commands], ['image', 'build', 'image'])
 
-    def test_windows_ime_preparation_rejects_a_missing_image_before_running(self):
+    def test_windows_ime_preparation_rejects_a_missing_or_incompatible_custom_image_before_running(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            with mock.patch.object(prepare, 'ROOT', root), \
-                    mock.patch.object(prepare.sys, 'platform', 'win32'), \
-                    mock.patch.object(prepare.shutil, 'which', return_value='docker'), \
-                    mock.patch.object(prepare.subprocess, 'run', return_value=mock.Mock(
-                        returncode=1, stdout='', stderr='No such image')) as run:
-                with self.assertRaisesRegex(ValueError, 'requires the existing Docker image'):
-                    prepare.prepare_ime('missing-image')
-            run.assert_called_once()
-            self.assertEqual(run.call_args.args[0][:3], ['docker', 'image', 'inspect'])
+            for label, result, detail in (
+                ('missing', mock.Mock(returncode=1, stdout='', stderr='No such image'), 'No such image'),
+                ('linux/arm64', mock.Mock(returncode=0, stdout='sha256:custom-arm linux/arm64\n', stderr=''), 'linux/arm64'),
+                ('windows/amd64', mock.Mock(returncode=0, stdout='sha256:custom-win windows/amd64\n', stderr=''), 'windows/amd64'),
+            ):
+                with self.subTest(case=label):
+                    with mock.patch.object(prepare, 'ROOT', root), \
+                            mock.patch.object(prepare.sys, 'platform', 'win32'), \
+                            mock.patch.object(prepare.shutil, 'which', return_value='docker'), \
+                            mock.patch.object(prepare.subprocess, 'run', return_value=result) as run:
+                        with self.assertRaisesRegex(ValueError, 'requires the existing Docker image') as context:
+                            prepare.prepare_ime('custom-image')
+                    self.assertIn('linux/amd64', str(context.exception))
+                    self.assertIn('custom-image', str(context.exception))
+                    self.assertIn(detail, str(context.exception))
+                    run.assert_called_once()
+                    self.assertEqual(run.call_args.args[0], ['docker', 'image', 'inspect', '--format',
+                                                             '{{.Id}} {{.Os}}/{{.Architecture}}', 'custom-image'])
 
 
 if __name__ == '__main__':
