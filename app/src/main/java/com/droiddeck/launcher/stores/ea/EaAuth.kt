@@ -164,18 +164,22 @@ object EaAuth {
             Log.w(TAG, "refresh: ${e.message}")
             return null
         }
-        val app = context.applicationContext
-        val record = StoreAccounts.read(app, Store.EA) ?: return null
         val access = token.getString("access_token")
-        record.put("access_token", access)
-            .put("expires_at", System.currentTimeMillis() + token.optLong("expires_in", 3600) * 1000)
-        token.optString("refresh_token").takeIf { it.isNotEmpty() }?.let { record.put("refresh_token", it) }
-        if (record.optString("user_id").isEmpty()) runCatching { EaApi.player(access) }.getOrNull()?.let {
-            record.put("user_id", it.userId).put("persona_id", it.personaId).put("display_name", it.displayName).put("ea_id", it.eaId)
-        }
-        StoreAccounts.write(app, Store.EA, record)
-        return access
+        val player = if (load(context)?.userId.isNullOrEmpty()) runCatching { EaApi.player(access) }.getOrNull() else null
+        return access.takeIf { storeRefreshed(context, access, token.optLong("expires_in", 3600), token.optString("refresh_token"), player) }
     }
+
+    /** Writes a refreshed token into the saved sign-in, unless sign-out removed it meanwhile. */
+    internal fun storeRefreshed(context: Context, access: String, expiresIn: Long, refresh: String, player: EaApi.Player? = null): Boolean =
+        synchronized(refreshLock) {
+            val app = context.applicationContext
+            val record = StoreAccounts.read(app, Store.EA) ?: return false
+            record.put("access_token", access).put("expires_at", System.currentTimeMillis() + expiresIn * 1000)
+            refresh.takeIf { it.isNotEmpty() }?.let { record.put("refresh_token", it) }
+            player?.let { record.put("user_id", it.userId).put("persona_id", it.personaId).put("display_name", it.displayName).put("ea_id", it.eaId) }
+            StoreAccounts.write(app, Store.EA, record)
+            true
+        }
 
     fun accessToken(context: Context): String? {
         val current = load(context) ?: return null
@@ -219,7 +223,8 @@ object EaAuth {
         return redirectValue(location, if (responseType == "token") "access_token" else responseType)
     }
 
+    /** Waits for any refresh in progress, so it cannot write the sign-in back afterwards. */
     fun signOut(context: Context) {
-        StoreAccounts.clear(context.applicationContext, Store.EA)
+        synchronized(refreshLock) { StoreAccounts.clear(context.applicationContext, Store.EA) }
     }
 }

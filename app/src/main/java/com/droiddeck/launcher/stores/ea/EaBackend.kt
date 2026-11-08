@@ -39,8 +39,7 @@ object EaBackend : StoreBackend {
     override fun signOut(context: Context) {
         val app = context.applicationContext
         EaAuth.signOut(app)
-        EaLibrary.invalidate()
-        runCatching { EaLibrary.forget(app) }
+        EaLibrary.reset(app)
         EaUpdates.available.clear()
         runCatching { WebCookies.expire(EaLogin.SIGN_IN_URLS, ".ea.com", listOf("/")) {} }
     }

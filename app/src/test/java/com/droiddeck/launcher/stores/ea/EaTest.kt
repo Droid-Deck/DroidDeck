@@ -226,4 +226,28 @@ class EaTest {
             assertTrue("the second request was dropped", runs.get() >= 1)
         }
     }
+
+    @Test fun aSyncThatSnapshottedBeforeSignOutCannotWriteItsLibrary() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        val game = EaGame("Origin.OFR.1", "1", "Old account game", "old")
+        val (gen, _) = EaLibrary.snapshot(app)
+        EaLibrary.reset(app)
+        assertTrue(!EaLibrary.storeCache(app, listOf(game), gen))
+        assertTrue(EaLibrary.cached(app).isEmpty())
+        val (fresh, cache) = EaLibrary.snapshot(app)
+        assertTrue(cache.isEmpty())
+        assertTrue(EaLibrary.storeCache(app, listOf(game), fresh))
+        assertEquals("Old account game", EaLibrary.cached(app).single().title)
+        EaLibrary.reset(app)
+    }
+
+    @Test fun aRefreshFinishingAfterSignOutDoesNotRestoreTheSignIn() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        com.droiddeck.launcher.stores.StoreAccounts.write(app, Store.EA, JSONObject().put("access_token", "old").put("refresh_token", "r").put("user_id", "1"))
+        assertTrue(EaAuth.storeRefreshed(app, "newer", 3600, "r2"))
+        assertEquals("newer", EaAuth.load(app)?.accessToken)
+        EaAuth.signOut(app)
+        assertTrue(!EaAuth.storeRefreshed(app, "late", 3600, "r3"))
+        assertNull(EaAuth.load(app))
+    }
 }

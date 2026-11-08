@@ -78,9 +78,19 @@ object EaLibrary {
     private val gate = SyncGate()
     private val generation = java.util.concurrent.atomic.AtomicInteger()
 
-    /** Makes any sync already running drop its results instead of writing or showing them. */
-    fun invalidate() {
-        synchronized(cacheLock) { generation.incrementAndGet() }
+    /** Drops the cache and makes any sync already running drop its results, in one step. */
+    fun reset(context: Context) {
+        synchronized(cacheLock) {
+            generation.incrementAndGet()
+            EaPrefs.get(context).edit().remove(KEY_CACHE).remove(KEY_SYNCED_AT).commit()
+        }
+    }
+
+    internal fun snapshot(app: Context): Pair<Int, List<EaGame>> = synchronized(cacheLock) { generation.get() to cached(app) }
+
+    internal fun storeCache(app: Context, games: List<EaGame>, gen: Int): Boolean = synchronized(cacheLock) {
+        gen == generation.get() &&
+            EaPrefs.get(app).edit().putString(KEY_CACHE, JSONArray(games.map { it.toJson() }).toString()).putLong(KEY_SYNCED_AT, System.currentTimeMillis()).commit()
     }
 
     private val cacheLock = Any()
@@ -94,9 +104,6 @@ object EaLibrary {
 
     fun game(context: Context, offerId: String): EaGame? = cached(context).firstOrNull { it.offerId == offerId }
 
-    fun forget(context: Context) {
-        synchronized(cacheLock) { EaPrefs.get(context).edit().remove(KEY_CACHE).remove(KEY_SYNCED_AT).commit() }
-    }
 
     fun toCatalogItem(context: Context, g: EaGame): CatalogItem {
         val prefs = EaPrefs.get(context)
@@ -204,9 +211,8 @@ object EaLibrary {
     }
 
     private fun syncOnce(app: Context, force: Boolean) {
-        val gen = generation.get()
+        val (gen, cache) = snapshot(app)
         val prefs = EaPrefs.get(app)
-        val cache = cached(app)
         val quiet = cache.isNotEmpty() && !force
         fun status(id: Int) { if (!quiet) StoresState.post { StoresState.status[store] = app.getString(id) } }
         fun problem(text: String?) {
@@ -240,11 +246,7 @@ object EaLibrary {
                     multiplayerId = offer.multiplayerId, masterTitleId = offer.masterTitleId, cloudSaves = offer.cloudSaves, locales = offer.locales,
                 )
             }
-            val written = synchronized(cacheLock) {
-                gen == generation.get() &&
-                    prefs.edit().putString(KEY_CACHE, JSONArray(games.map { it.toJson() }).toString()).putLong(KEY_SYNCED_AT, System.currentTimeMillis()).commit()
-            }
-            if (!written) return
+            if (!storeCache(app, games, gen)) return
             posters(app, games, gen)
             if (gen != generation.get()) return
             publish(app, games, gen)
