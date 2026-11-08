@@ -94,7 +94,7 @@ object Sc2015ReportParser {
             REPORT_STATE -> parseStateReport(payload, state)
             REPORT_STATUS -> parseStatusReport(payload, state)
             else -> {
-                SteamControllerDebug.log("2015 BLE unknown reportType=0x%02x raw=[%s]".format(reportType, SteamControllerDebug.hex(payload)))
+                SteamControllerDebug.log { "2015 BLE unknown reportType=0x%02x raw=[%s]".format(reportType, SteamControllerDebug.hex(payload)) }
                 ParsedReport.Unknown(reportType)
             }
         }
@@ -105,6 +105,7 @@ object Sc2015ReportParser {
         val optionMask = (payload[0].toInt() and 0xF0) or ((payload[1].toInt() and 0xFF) shl 8)
         var offset = 2
 
+        val prevButtons = state.buttons
         if (optionMask and CHUNK_BUTTONS_1 != 0) {
             if (offset + 3 > payload.size) return null
             val b0 = payload[offset].toInt() and 0xFF
@@ -180,11 +181,21 @@ object Sc2015ReportParser {
             state.rightPadY = 0
         }
 
+        if (state.buttons != prevButtons) {
+            SteamControllerDebug.log {
+                "2015 BLE state buttons=0x%06x lt=%d rt=%d stick=(%d,%d) lpad=(%d,%d) rpad=(%d,%d)".format(
+                    state.buttons, state.leftTrigger, state.rightTrigger,
+                    state.stickX, state.stickY, state.leftPadX, state.leftPadY, state.rightPadX, state.rightPadY
+                )
+            }
+        }
+
         return ParsedReport.State(optionMask)
     }
 
     private fun parseStatusReport(payload: ByteArray, state: Sc2015State): ParsedReport.Status? {
         if (payload.size < 13) return null
+        val prevVoltage = state.batteryVoltageMv
         val voltageMv = readUShortLE(payload, 11)
         val rawPercent = if (payload.size >= 14) payload[13].toInt() and 0xFF else 0
         val percent = if (rawPercent in 1..100) rawPercent else estimateBatteryPercent(voltageMv)
@@ -192,7 +203,9 @@ object Sc2015ReportParser {
             state.batteryVoltageMv = voltageMv
             state.batteryPercent = percent
         }
-        SteamControllerDebug.log("2015 BLE battery status: ${state.batteryVoltageMv} mV (${state.batteryPercent}%)")
+        if (prevVoltage == 0 || abs(state.batteryVoltageMv - prevVoltage) >= 5) {
+            SteamControllerDebug.log { "2015 BLE battery status: ${state.batteryVoltageMv} mV (${state.batteryPercent}%) raw=[${SteamControllerDebug.hex(payload)}]" }
+        }
         return ParsedReport.Status(state.batteryVoltageMv, state.batteryPercent)
     }
 

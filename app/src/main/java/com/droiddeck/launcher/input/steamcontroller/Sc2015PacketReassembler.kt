@@ -15,14 +15,14 @@ class Sc2015PacketReassembler {
         if (packet.isEmpty()) return null
         val header = packet[0].toInt() and 0xFF
         if (header and SEGMENT_DATA_FLAG == 0) {
-            SteamControllerDebug.log("2015 BLE ignored non-data segment header=0x%02x raw=[%s]".format(header, SteamControllerDebug.hex(packet)))
+            SteamControllerDebug.log { "2015 BLE ignored non-data segment header=0x%02x raw=[%s]".format(header, SteamControllerDebug.hex(packet)) }
             return null
         }
         val seq = header and SEGMENT_SEQ_MASK
         val isLast = header and SEGMENT_LAST_FLAG != 0
 
         if (seq != expectedSequence) {
-            SteamControllerDebug.log("2015 BLE fragment seq mismatch: got=$seq expected=$expectedSequence header=0x%02x".format(header))
+            SteamControllerDebug.log { "2015 BLE fragment seq mismatch: got=$seq expected=$expectedSequence header=0x%02x".format(header) }
             reset()
             if (seq != 0) return null
         }
@@ -36,14 +36,14 @@ class Sc2015PacketReassembler {
         }
 
         if (buffer.size() > MAX_REASSEMBLED_BYTES) {
-            SteamControllerDebug.log("2015 BLE reassembly overflow (${buffer.size()} bytes), resetting")
+            SteamControllerDebug.log { "2015 BLE reassembly overflow (${buffer.size()} bytes), resetting" }
             reset()
             return null
         }
 
         return if (isLast) {
             val complete = buffer.toByteArray()
-            SteamControllerDebug.log("2015 BLE reassembled ${seq + 1} fragments (${complete.size} bytes): [${SteamControllerDebug.hex(complete)}]")
+            SteamControllerDebug.log { "2015 BLE reassembled ${seq + 1} fragments (${complete.size} bytes): [${SteamControllerDebug.hex(complete)}]" }
             reset()
             complete
         } else {

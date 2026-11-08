@@ -3,10 +3,10 @@ package com.droiddeck.launcher.input.steamcontroller
 import android.util.Log
 
 object SteamControllerDebug {
-    private const val DEFAULT_TAG = "SteamControllerBle"
+    const val DEFAULT_TAG = "SteamControllerBle"
 
     @Volatile
-    var enabled: Boolean = true
+    var enabled: Boolean = false
 
     fun hex(bytes: ByteArray, limit: Int = bytes.size): String {
         if (bytes.isEmpty()) return ""
@@ -25,6 +25,12 @@ object SteamControllerDebug {
     fun log(message: String, tag: String = DEFAULT_TAG) {
         if (enabled) {
             runCatching { Log.d(tag, message) }
+        }
+    }
+
+    inline fun log(tag: String = DEFAULT_TAG, message: () -> String) {
+        if (enabled) {
+            log(message(), tag)
         }
     }
 

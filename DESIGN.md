@@ -266,7 +266,14 @@ com.droiddeck.launcher.input/
 5. **Haptics / Rumble:**
    - Implement input pipeline first (Phases 1–4); implement rumble on `100F6C34` in Phase 4/5.
 
-### 7.2 Topics for Coordination in Discussion #149
-1. Coordination on `/dev/hidraw22` vs Triton 45-byte ring buffer reuse.
+### 7.2 Hardware Verification Summary (Physical Steam Controller 2015)
+Verified on physical hardware (`SteamController` BLE `28de:1106` paired to Android 15 / POCO F8 Pro):
+- **GATT Discovery & MTU**: `requestMtu(517)` returns `mtu=23 status=0`; service `100F6C32` exposes `100f6c33(props=0x12)` and `100f6c34(props=0x0a)`.
+- **Mode Switch Handshake**: CCCD subscription on `100F6C33` (`status=0`), `requestConnectionPriority(CONNECTION_PRIORITY_HIGH)` (`interval=12 latency=0`), and ValveMode switch `{0xC0, 0x87, 0x03, 0x08, 0x07, 0x00}` on `100F6C34` (`status=0`) complete in ~350 ms.
+- **Input & Reassembly**: Single-fragment (19-byte) and multi-fragment (2x19B -> 36-byte reassembled payload when IMU accel + gyro + dual trackpad/stick chunks are active) reports decode cleanly with zero sequence drops.
+- **Battery Telemetry**: Status Report `0x05` (`raw=[05 55 02 29 ... 68 0d ...]`) accurately reports battery voltage (`3432 mV`, `100%`).
+
+### 7.3 Topics for Coordination in Discussion #149
+1. Coordination on `/dev/hidraw22` vs Triton 45-byte ring buffer reuse (`preloads.lock.json` constraint).
 2. Confirming whether upstream maintainer prefers single-file diff or the clean `steamcontroller/` subpackage.
 3. Review of the ValveMode keep-alive timing (3000 ms) and connection priority behavior on lower-end Android handhelds.
