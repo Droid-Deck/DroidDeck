@@ -3731,4 +3731,7 @@
     <string name="input_reset_positions">Obnovit pozice</string>
     <string name="input_show_label">Zobrazit popisek</string>
     <string name="input_layout_import_failed">Toto rozložení nelze importovat</string>
+
+    <string name="theme_white_red">Šarlatový sníh</string>
+    
 </resources>

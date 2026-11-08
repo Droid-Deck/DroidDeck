@@ -3653,4 +3653,7 @@
     <string name="input_reset_positions">Palauta sijainnit</string>
     <string name="input_show_label">Näytä nimi</string>
     <string name="input_layout_import_failed">Tätä asettelua ei voitu tuoda</string>
+
+    <string name="theme_white_red">Helakanpunainen lumi</string>
+    
 </resources>

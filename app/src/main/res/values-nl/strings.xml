@@ -3653,4 +3653,7 @@
     <string name="input_reset_positions">Posities herstellen</string>
     <string name="input_show_label">Label tonen</string>
     <string name="input_layout_import_failed">Deze indeling kan niet worden geïmporteerd</string>
+
+    <string name="theme_white_red">Scharlakenrode sneeuw</string>
+    
 </resources>

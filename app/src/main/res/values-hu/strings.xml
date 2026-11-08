@@ -3653,4 +3653,7 @@
     <string name="input_reset_positions">Pozíciók visszaállítása</string>
     <string name="input_show_label">Címke megjelenítése</string>
     <string name="input_layout_import_failed">Ez az elrendezés nem importálható</string>
+
+    <string name="theme_white_red">Skarlátvörös hó</string>
+    
 </resources>

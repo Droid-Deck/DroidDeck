@@ -3814,4 +3814,7 @@
     <string name="input_reset_positions">Reset positions</string>
     <string name="input_show_label">Show label</string>
     <string name="input_layout_import_failed">Could not import this layout</string>
+
+    <string name="theme_white_red">Scarlet Snow</string>
+    
 </resources>

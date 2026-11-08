@@ -58,6 +58,7 @@ object Themes {
     const val RGB_SPEEDS = 10
     const val DEFAULT_RGB_SPEED = 3
     const val RGB_HUE_STEP = 3f
+const val WHITE_RED = "white_red"
 
     var rgbSpeed by mutableStateOf(DEFAULT_RGB_SPEED)
         private set
@@ -126,6 +127,13 @@ object Themes {
             onBackground = Color(0xFFEEF3FF), onSurfaceVariant = Color(0xFF8B9AB8),
             primary = Color(0xFF2E86FF), primary2 = Color(0xFF2684FF), onPrimary = Color(0xFF03111F), signal = Color(0xFF2E86FF),
             good = Color(0xFF4CD37F),
+        ),
+        Palette(
+            WHITE_RED, R.string.theme_white_red, R.string.theme_white_red_detail,
+            background = Color(0xFFF8F8F8), surface = Color(0xFFFFFFFF), surfaceVariant = Color(0xFFF0F0F0), line = Color(0xFFDDDDDD), line2 = Color(0xFFC8C8C8),
+            onBackground = Color(0xFF191919), onSurfaceVariant = Color(0xFF555555),
+            primary = Color(0xFFD62828), primary2 = Color(0xFFB71C1C), onPrimary = Color(0xFFFFFFFF), signal = Color(0xFFD62828),
+            good = Color(0xFF248548),
         ),
         innerGamer(0f),
         ThemeColors.palette(DEFAULT_PRIMARY, DEFAULT_SECONDARY, R.string.theme_gradient, R.string.theme_gradient_detail),

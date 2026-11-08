@@ -3653,4 +3653,7 @@
     <string name="input_reset_positions">Επαναφορά θέσεων</string>
     <string name="input_show_label">Εμφάνιση ετικέτας</string>
     <string name="input_layout_import_failed">Δεν ήταν δυνατή η εισαγωγή αυτής της διάταξης</string>
+
+    <string name="theme_white_red">Κατακόκκινο χιόνι</string>
+    
 </resources>

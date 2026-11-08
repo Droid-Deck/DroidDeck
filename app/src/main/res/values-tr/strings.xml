@@ -3653,4 +3653,7 @@
     <string name="input_reset_positions">Konumları sıfırla</string>
     <string name="input_show_label">Etiketi göster</string>
     <string name="input_layout_import_failed">Bu düzen içe aktarılamadı</string>
+
+    <string name="theme_white_red">Kızıl Kar</string>
+    
 </resources>

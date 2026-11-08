@@ -3653,4 +3653,7 @@
     <string name="input_reset_positions">Återställ positioner</string>
     <string name="input_show_label">Visa etikett</string>
     <string name="input_layout_import_failed">Det gick inte att importera layouten</string>
+
+    <string name="theme_white_red">Scharlakansröd snö</string>
+    
 </resources>

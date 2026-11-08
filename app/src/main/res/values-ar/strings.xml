@@ -3809,4 +3809,7 @@
     <string name="input_reset_positions">إعادة تعيين المواضع</string>
     <string name="input_show_label">إظهار التسمية</string>
     <string name="input_layout_import_failed">تعذّر استيراد هذا التخطيط</string>
+
+    <string name="theme_white_red">ثلج قرمزي</string>
+    
 </resources>

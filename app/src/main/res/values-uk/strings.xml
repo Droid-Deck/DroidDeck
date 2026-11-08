@@ -3731,4 +3731,7 @@
     <string name="input_reset_positions">Скинути розташування</string>
     <string name="input_show_label">Показувати підпис</string>
     <string name="input_layout_import_failed">Не вдалося імпортувати цю розкладку</string>
+
+    <string name="theme_white_red">Багряний сніг</string>
+    
 </resources>

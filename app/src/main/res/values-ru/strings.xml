@@ -3814,4 +3814,7 @@
     <string name="input_reset_positions">Сбросить положение</string>
     <string name="input_show_label">Показывать подпись</string>
     <string name="input_layout_import_failed">Не удалось импортировать эту раскладку</string>
+
+    <string name="theme_white_red">Алый снег</string>
+    
 </resources>
