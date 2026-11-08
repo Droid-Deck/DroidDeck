@@ -701,17 +701,17 @@ def gog_support_data(folder, compat_data, proton):
                 target.mkdir(parents=True, exist_ok=True)
             elif not source.exists():
                 missing += 1
-            elif source.is_dir():
+            elif source.is_dir() and not source.is_symlink():
                 for top, dirs, files in os.walk(source):
                     for name in sorted(files + [d for d in dirs if (Path(top) / d).is_symlink()]):
                         item = Path(top) / name
                         destination = target / item.relative_to(source)
-                        if destination.exists() and not arguments.get("overwrite"):
+                        if (destination.exists() or destination.is_symlink()) and not arguments.get("overwrite"):
                             continue
                         gog_copy_file(item, destination, root)
                         copied += 1
                 target.mkdir(parents=True, exist_ok=True)
-            elif target.exists() and not target.is_symlink() and not arguments.get("overwrite"):
+            elif (target.exists() or target.is_symlink()) and not arguments.get("overwrite"):
                 continue
             else:
                 gog_copy_file(source, target, root)

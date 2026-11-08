@@ -463,6 +463,37 @@ class GogSupportData(unittest.TestCase):
             self.assertEqual(['secret.ini'], sorted(p.name for p in outside.iterdir()))
             self.assertFalse((user / 'Documents/secret.ini').exists())
 
+    def test_a_linked_source_folder_is_copied_as_a_link(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            outside = Path(root) / 'outside'
+            outside.mkdir()
+            (outside / 'secret.ini').write_text('s')
+            (folder / 'linked').symlink_to(outside)
+            gog_script(folder, '9', [support_data(type='folder', overwrite=True, source='{app}/linked', target='{userdocs}/G')])
+            store.gog_support_data(folder, root + '/compat', '/proton')
+            self.assertTrue((user / 'Documents/G').is_symlink())
+            self.assertEqual(outside, Path(os.readlink(user / 'Documents/G')))
+
+    def test_a_players_own_links_stay_without_overwrite(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            (folder / 'support/9/Saves').mkdir(parents=True)
+            (folder / 'support/9/a.ini').write_text('a')
+            (folder / 'support/9/Saves/b.ini').write_text('b')
+            (user / 'Documents/G').mkdir(parents=True)
+            (user / 'Documents/a.ini').symlink_to(user / 'mine.ini')
+            (user / 'Documents/G/b.ini').symlink_to(user / 'gone.ini')
+            gog_script(folder, '9', [
+                support_data(type='file', source='{supportDir}/a.ini', target='{userdocs}/a.ini'),
+                support_data(type='folder', source='{supportDir}/Saves', target='{userdocs}/G'),
+            ])
+            self.assertEqual('copied=0', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertEqual(user / 'mine.ini', Path(os.readlink(user / 'Documents/a.ini')))
+            self.assertEqual(user / 'gone.ini', Path(os.readlink(user / 'Documents/G/b.ini')))
+
     def test_a_changed_script_applies_again(self):
         with tempfile.TemporaryDirectory() as root:
             folder = game(root, store_id='gog', ident='9')
