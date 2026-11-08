@@ -25,12 +25,6 @@ if [ -n "$(find -H "$APPDIR" -maxdepth 4 \( -name chrome-sandbox -o -name chrome
     flags+=(--ozone-platform=x11)
   fi
 fi
-if [ -n "${DROIDDECK_GAME_TU_DEBUG+set}" ]; then
-  if [ ${#flags[@]} -eq 0 ]; then
-    if [ -n "$DROIDDECK_GAME_TU_DEBUG" ]; then export TU_DEBUG=$DROIDDECK_GAME_TU_DEBUG; else unset TU_DEBUG; fi
-  fi
-  unset DROIDDECK_GAME_TU_DEBUG
-fi
 qt=$(cat "$dir/qt" 2>/dev/null)
 case $qt in wayland|xcb) ;; *) qt=auto ;; esac
 wayland=${GAMESCOPE_WAYLAND_DISPLAY:-${WAYLAND_DISPLAY:-}}
@@ -61,6 +55,9 @@ if [ -x /usr/local/bin/droiddeck-fex ]; then
     *) run=(/usr/local/bin/droiddeck-fex run --mode "$fex" --for "$APPDIR" -- "$APPDIR/AppRun") ;;
   esac
 fi
+gpu=("${BASH_SOURCE[0]%/*}/droiddeck-game-gpu")
+[ ${#flags[@]} -gt 0 ] && gpu+=(--chromium)
+run=("${gpu[@]}" -- "${run[@]}")
 echo "== appimage $ARGV0 ($APPDIR) ${flags[*]} FEX $fex Qt $qt${QT_QPA_PLATFORM:+ ($QT_QPA_PLATFORM)}"
 cd "$APPDIR" || exit 1
 started=$(mktemp "${TMPDIR:-/tmp}/droiddeck-appimage.XXXXXX")

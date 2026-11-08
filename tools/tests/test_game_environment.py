@@ -902,6 +902,46 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(MODULE["apply_config"](env, config, "42")["TU_DEBUG"], "sysmem")
         self.assertNotIn("TU_DEBUG", MODULE["apply_config"](env, config, "43"))
 
+    def test_a_chromium_app_keeps_the_sessions_turnip_debug(self):
+        gpu = MODULE["game_gpu"]
+        self.assertEqual(gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "", "KEEP": "1"}, True),
+                         {"TU_DEBUG": "sysmem", "KEEP": "1"})
+        self.assertEqual(gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "nolrz"}, True), {"TU_DEBUG": "sysmem"})
+        self.assertEqual(gpu({"TU_DEBUG": "sysmem"}, True), {"TU_DEBUG": "sysmem"})
+
+    def test_chromium_files_are_found_four_levels_deep_and_no_further(self):
+        chromium = MODULE["chromium_app"]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "app"
+            (root / "usr/lib/tool").mkdir(parents=True)
+            (root / "usr/lib/tool/libtool.so").write_bytes(b"")
+            self.assertFalse(chromium(str(root)))
+            for name in ("chrome-sandbox", "chrome_100_percent.pak", "v8_context_snapshot.bin"):
+                found = root / "a/b/c" / name
+                found.parent.mkdir(parents=True, exist_ok=True)
+                found.write_bytes(b"")
+                self.assertTrue(chromium(str(root)), name)
+                found.unlink()
+            deep = root / "a/b/c/d/chrome-sandbox"
+            deep.parent.mkdir(parents=True)
+            deep.write_bytes(b"")
+            self.assertFalse(chromium(str(root)))
+            self.assertFalse(chromium(str(Path(tmp) / "missing")))
+
+    def test_chromium_detection_does_not_follow_links_inside_the_app(self):
+        chromium = MODULE["chromium_app"]
+        with tempfile.TemporaryDirectory() as tmp:
+            other = Path(tmp) / "other"
+            other.mkdir()
+            (other / "chrome-sandbox").write_bytes(b"")
+            root = Path(tmp) / "app"
+            root.mkdir()
+            (root / "linked").symlink_to(other, target_is_directory=True)
+            self.assertFalse(chromium(str(root)))
+            link = Path(tmp) / "app-link"
+            link.symlink_to(other, target_is_directory=True)
+            self.assertTrue(chromium(str(link)))
+
     def test_the_vram_cap_comes_before_the_games_own_dxvk_settings(self):
         cap = MODULE["vram_cap"]
         self.assertEqual(cap({"BL_VRAM_MB": "4096"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 4096")
