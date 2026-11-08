@@ -45,7 +45,10 @@ jobs:
         run: |
           set -euo pipefail
           labels='"ubuntu-24.04"'
-          IDLE_AT=$(gh api gists/0c7ed7ad6d6493de84f5123689c64ae6 --jq 'select(.owner.login == "maxjivi05") | .files["idle-at"].content' 2>/dev/null || echo 0)
+          gist=https://api.github.com/gists/0c7ed7ad6d6493de84f5123689c64ae6
+          body=$(curl -fsS --max-time 15 -H "Authorization: Bearer $GH_TOKEN" "$gist" 2>/dev/null || curl -fsS --max-time 15 "$gist" 2>/dev/null || echo '{}')
+          IDLE_AT=$(jq -r 'select(.owner.login == "maxjivi05") | .files["idle-at"].content // "0"' <<< "$body" 2>/dev/null || echo 0)
+          echo "Heartbeat: ${IDLE_AT:-none}"
           age=-1
           if [[ "${IDLE_AT:-0}" =~ ^[0-9]+$ ]] && [ "${IDLE_AT:-0}" -gt 0 ]; then
             age=$(( $(date +%s) - IDLE_AT ))
