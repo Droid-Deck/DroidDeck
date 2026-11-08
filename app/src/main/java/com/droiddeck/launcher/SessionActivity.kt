@@ -856,7 +856,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         hud.attach(root, root.childCount)
         memoryHud = com.droiddeck.launcher.session.MemoryHud(this)
         hud.onPresentingWindowChanged = {
-            if (frameGenModeForActiveGame().engine != FrameGen.ENGINE_OFF) CompositorHost.rearmFrameGen { applyFrameGen() }
+            CompositorHost.rearmFrameGen { applyFrameGen() }
         }
         if (SessionState.running && SessionState.firstFrameSeen) {
             loading.visible = false
@@ -953,7 +953,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 applyOutputPacing()
                 if (pipUi != frameGenPip) {
                     frameGenPip = pipUi
-                    if (frameGenModeForActiveGame().engine != FrameGen.ENGINE_OFF && ::surfaceView.isInitialized) applyFrameGen()
+                    if (::surfaceView.isInitialized) applyFrameGen()
                 }
             }
             androidx.compose.runtime.LaunchedEffect(AgentGuest.steamKeyboard) { updateOnScreenControls() }
@@ -2413,21 +2413,26 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun frameGenModeForActiveGame(): FrameGen.Mode {
-        val games = LibraryCache.load(this)
-        val ids = games.mapNotNull { it.profileKey.toLongOrNull() }.toSet()
-        val activeAppId = AgentGuest.activeSteamAppId(this, ids)
+        val cachedIds = LibraryCache.load(this)
+            .mapNotNull { it.profileKey.toLongOrNull() }
+            .toSet()
+        val currentIds = Library.launchableGames(this)
+            .mapNotNull { it.profileKey.toLongOrNull() }
+            .toSet()
+        val activeAppId = AgentGuest.activeSteamAppId(this, cachedIds + currentIds)
         return FrameGen.mode(this, activeAppId?.toString())
     }
 
     private fun applyFrameGen() {
         val hz = refreshHz()
         val pip = pipUi && mirrorRefreshLimit() <= 0
-        val mode = frameGenModeForActiveGame()
         val request = frameGenRequests.incrementAndGet()
         Thread({
+            // Inventory scanning happens off the main thread.
+            val mode = if (pip) FrameGen.Mode.OFF else frameGenModeForActiveGame()
             val problem = synchronized(frameGenRequests) {
                 if (request != frameGenRequests.get()) return@Thread
-                if (pip) FrameGen.apply(this, FrameGen.Mode.OFF, hz) else FrameGen.apply(this, mode, hz)
+                FrameGen.apply(this, mode, hz)
             }
             val state = Lossless.state(this)
             runOnUiThread {
@@ -2452,7 +2457,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             runOnUiThread {
                 lossless = state
                 Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-                if (frameGenModeForActiveGame().engine == FrameGen.ENGINE_LSFG) applyFrameGen()
+                applyFrameGen()
             }
         }, "lossless-import").start()
     }
