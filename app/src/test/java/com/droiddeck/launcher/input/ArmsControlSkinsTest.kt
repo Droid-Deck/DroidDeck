@@ -62,6 +62,25 @@ class ArmsControlSkinsTest {
         assertEquals(4, imported.images.size)
         assertEquals(old.bindings.elements, imported.bindings.elements)
     }
+    @Test fun partialStickSkinsKeepExistingBaseOrThumbArtwork() {
+        val old = base()
+        val full = ArmsControlSkins.parse(context, zip("analog_base.png" to png(Color.RED),
+            "analog_stick.png" to png(Color.GREEN)), old.layout, old.bindings, "Full skin")
+        val library = CommunityControls.install(context, full, InputProfile.GAME, InputRole.PRIMARY)
+        val layout = library.layout(InputProfile.GAME, InputRole.PRIMARY)!!
+        val bindings = library.preset(library.profile(InputProfile.GAME).binding(InputRole.PRIMARY))
+        val original = layout.elements.first { it.id == "left-stick" }
+        for (thumbOnly in listOf(true, false)) {
+            val key = if (thumbOnly) "analog_stick.png" else "analog_base.png"
+            val partial = ArmsControlSkins.parse(context, zip(key to png(Color.BLUE)), layout, bindings, "Partial skin")
+            val element = partial.layout.elements.first { it.id == "left-stick" }
+            val retained = if (thumbOnly) original.image else original.stickImage
+            assertEquals(retained, if (thumbOnly) element.image else element.stickImage)
+            assertArrayEquals(InputButtonImages.file(context, retained)!!.readBytes(), partial.images.getValue(retained))
+            assertEquals(bindings.elements, partial.bindings.elements)
+        }
+    }
+
     @Test fun downsamplesLargeImagesBeforeStoringThem() {
         val old = base()
         val skin = ArmsControlSkins.parse(context, zip("cross.png" to png(Color.RED, 2048)), old.layout, old.bindings, "Large skin")

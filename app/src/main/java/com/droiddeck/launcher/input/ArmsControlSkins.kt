@@ -15,7 +15,7 @@ internal object ArmsControlSkins {
     private val keys = buttons.values.toSet() + setOf("analog_base", "analog_stick", "analog_base_left", "analog_base_right",
         "analog_stick_left", "analog_stick_right")
 
-    fun parse(context: android.content.Context, bytes: ByteArray, original: SavedInputLayout, actions: SavedInputBindings, name: String): CommunityControls.Pack {
+    fun parse(context: android.content.Context, bytes: ByteArray, original: SavedInputLayout, actions: SavedInputBindings, name: String, nativeFailure: Exception? = null): CommunityControls.Pack {
         require(bytes.size <= 32 * 1024 * 1024 && original.editable && actions.compatible(original))
         val art = linkedMapOf<String, ByteArray>()
         var total = 0
@@ -27,7 +27,7 @@ internal object ArmsControlSkins {
                 if (entry.isDirectory) continue
                 val data = CommunityControls.readLimited(zip, minOf(8 * 1024 * 1024, 64 * 1024 * 1024 - total))
                 total += data.size
-                require(entry.name != "controls.json") { "Import this file as a DroidDeck controls pack." }
+                if (entry.name == "controls.json") throw (nativeFailure ?: IllegalArgumentException("Import this file as a DroidDeck controls pack."))
                 val file = entry.name.substringAfterLast('/').lowercase()
                 if (file.startsWith("._") || !file.endsWith(".png")) continue
                 val key = file.removeSuffix(".png").removePrefix("ic_controller_").removeSuffix("_button")
@@ -53,7 +53,7 @@ internal object ArmsControlSkins {
                 val stick = image("analog_stick_$side") ?: image("analog_stick")
                 if (base == null && stick == null) e else {
                     matched++
-                    e.copy(image = base ?: "", stickImage = stick ?: "", showLabel = false)
+                    e.copy(image = base ?: e.image, stickImage = stick ?: e.stickImage, showLabel = false)
                 }
             } else if (e.kind == InputElementKind.BUTTON || e.kind == InputElementKind.TRIGGER) {
                 val file = buttons[control]?.let(::image)

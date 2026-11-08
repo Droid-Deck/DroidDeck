@@ -107,6 +107,11 @@ internal object CommunityControls {
         return Pack(saved, decoded.preset(bindingId), images)
     }
 
+    fun importFile(context: Context, bytes: ByteArray, layout: SavedInputLayout, bindings: SavedInputBindings): Pack =
+        try { parse(context, bytes) } catch (nativeFailure: Exception) {
+            ArmsControlSkins.parse(context, bytes, layout, bindings, "Imported skin", nativeFailure)
+        }
+
     fun install(context: Context, pack: Pack, profile: String, role: InputRole): InputLibrary {
         require(pack.layout.supports(role))
         val written = mutableListOf<java.io.File>()
@@ -164,7 +169,7 @@ internal object CommunityControls {
         require(bounds.outWidth in 1..4096 && bounds.outHeight in 1..4096)
         val options = BitmapFactory.Options().apply {
             inSampleSize = 1
-            while (maxOf(bounds.outWidth, bounds.outHeight) / inSampleSize > 512) inSampleSize *= 2
+            while (maxOf(bounds.outWidth, bounds.outHeight) / inSampleSize > 256) inSampleSize *= 2
         }
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
     }

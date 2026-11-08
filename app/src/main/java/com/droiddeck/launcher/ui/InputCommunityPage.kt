@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-internal fun InputCommunityPage(library: InputLibrary, profile: String, initialRole: InputRole,
+internal fun InputCommunityPage(library: InputLibrary, profile: String, initialRole: InputRole, initialEntries: List<CommunityControls.Entry>? = null,
     onInstalled: (InputLibrary) -> Unit) {
     val context = LocalContext.current
     var targetProfile by remember { mutableStateOf(profile) }
@@ -33,19 +33,27 @@ internal fun InputCommunityPage(library: InputLibrary, profile: String, initialR
     var selectedSource by remember { mutableStateOf(sources.first()) }
     var addingSource by remember { mutableStateOf(false) }
     var sourceUrl by remember { mutableStateOf("") }
-    var entries by remember { mutableStateOf(CommunityControls.bundled(context)) }
+    var entries by remember { mutableStateOf(initialEntries ?: CommunityControls.bundled(context)) }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var pending by remember { mutableStateOf<CommunityControls.Pack?>(null) }
     var exporting by remember { mutableStateOf<ByteArray?>(null) }
     var search by remember { mutableStateOf("") }
-    val previews = remember { mutableStateMapOf<String, android.graphics.Bitmap>() }
-    DisposableEffect(Unit) { onDispose { previews.values.forEach { it.recycle() } } }
-    LaunchedEffect(entries) {
-        for (entry in entries) {
+    val filtered = remember(entries, search, role) { entries.filter { it.screen.supports(role) &&
+        (search.isBlank() || "${it.name} ${it.author} ${it.game}".contains(search, ignoreCase = true)) } }
+    var page by remember(selectedSource.id, entries, search, role) { mutableIntStateOf(0) }
+    val pageCount = ((filtered.size + 11) / 12).coerceAtLeast(1)
+    val pageEntries = filtered.drop(page * 12).take(12)
+    val previews = remember(selectedSource.id, pageEntries) { mutableStateMapOf<String, android.graphics.Bitmap>() }
+    DisposableEffect(previews, selectedSource.id, pageEntries) { onDispose { previews.values.forEach { it.recycle() } } }
+    LaunchedEffect(previews, pageEntries) {
+        for (entry in pageEntries) {
             if (entry.preview == null || entry.key in previews) continue
-            val bitmap = withContext(Dispatchers.IO) { runCatching { CommunityControls.preview(context, entry) }.getOrNull() }
-            if (bitmap != null) previews[entry.key] = bitmap
+            var decoded: android.graphics.Bitmap? = null
+            try {
+                withContext(Dispatchers.IO) { decoded = runCatching { CommunityControls.preview(context, entry) }.getOrNull() }
+                decoded?.let { previews[entry.key] = it; decoded = null }
+            } finally { decoded?.recycle() }
         }
     }
     fun task(action: suspend () -> Unit) {
@@ -70,10 +78,8 @@ internal fun InputCommunityPage(library: InputLibrary, profile: String, initialR
         if (uri != null) task {
             pending = withContext(Dispatchers.IO) {
                 val bytes = requireNotNull(context.contentResolver.openInputStream(uri)).use { CommunityControls.readLimited(it, 32 * 1024 * 1024) }
-                runCatching { CommunityControls.parse(context, bytes) }.getOrElse {
-                    ArmsControlSkins.parse(context, bytes, requireNotNull(library.layout(targetProfile, role)),
-                        library.preset(library.profile(targetProfile).binding(role)), "Imported skin")
-                }
+                CommunityControls.importFile(context, bytes, requireNotNull(library.layout(targetProfile, role)),
+                    library.preset(library.profile(targetProfile).binding(role)))
             }
         }
     }
@@ -116,8 +122,7 @@ internal fun InputCommunityPage(library: InputLibrary, profile: String, initialR
     SettingsGroup(stringResource(R.string.community_title)) {
         OutlinedTextField(search, { search = it.take(160) }, singleLine = true,
             label = { Text(stringResource(R.string.community_search)) }, modifier = Modifier.fillMaxWidth().padding(12.dp))
-        for (entry in entries.filter { it.screen.supports(role) &&
-            (search.isBlank() || "${it.name} ${it.author} ${it.game}".contains(search, ignoreCase = true)) }) {
+        for (entry in pageEntries) {
             InputNavigationRow(entry.name, listOf(entry.author, entry.game, entry.license).filter { it.isNotEmpty() }.joinToString(" · "),
                 Modifier.testTag("community-pack-${entry.path}"), leading = {
                     previews[entry.key]?.let { Image(it.asImageBitmap(), null, Modifier.width(112.dp).height(76.dp).testTag("community-preview-${entry.path}"), contentScale = ContentScale.Fit) }
@@ -126,7 +131,12 @@ internal fun InputCommunityPage(library: InputLibrary, profile: String, initialR
                     library.preset(library.profile(targetProfile).binding(role))) } }
             }
         }
-        if (entries.none { it.screen.supports(role) && (search.isBlank() || "${it.name} ${it.author} ${it.game}".contains(search, true)) })
+        if (pageCount > 1) Row(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            PadTextButton(enabled = page > 0 && !busy, onClick = { page-- }, modifier = Modifier.testTag("community-previous")) { Text(stringResource(R.string.community_previous)) }
+            Text(stringResource(R.string.community_page, page + 1, pageCount), Modifier.align(androidx.compose.ui.Alignment.CenterVertically))
+            PadTextButton(enabled = page + 1 < pageCount && !busy, onClick = { page++ }, modifier = Modifier.testTag("community-next")) { Text(stringResource(R.string.community_next)) }
+        }
+        if (filtered.isEmpty())
             InputHint(stringResource(R.string.community_empty))
         PadTextButton(enabled = !busy, onClick = { load(selectedSource) }, modifier = Modifier.padding(8.dp)) { Text(stringResource(R.string.community_refresh)) }
         PadTextButton(enabled = !busy, onClick = { importer.launch(arrayOf("application/zip", "application/octet-stream", "application/x-zip-compressed")) },

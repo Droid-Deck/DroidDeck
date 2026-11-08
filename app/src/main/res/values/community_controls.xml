@@ -28,4 +28,7 @@
     <string name="community_source_hint">Enter a public GitHub repository or an HTTPS catalog.json or manifest.json URL. Supports DroidDeck controls packs and ARMSX2 controller skins. Downloads come directly from the source.</string>
     <string name="community_connect">Connect</string>
     <string name="community_export_skin">Export skin artwork (.zip)</string>
+    <string name="community_previous">Previous</string>
+    <string name="community_next">Next</string>
+    <string name="community_page">Page %1$d of %2$d</string>
 </resources>

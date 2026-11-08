@@ -99,6 +99,16 @@ class CommunityControlsTest {
         rejects { CommunityControls.parse(context, archive("controls.json" to doc.toString().toByteArray())) }
     }
 
+    @Test fun importingInvalidNativePackPreservesItsOriginalError() {
+        val doc = manifest()
+        doc.getJSONObject("layout").getJSONArray("elements").getJSONObject(0).put("image", "missing.png")
+        val old = CommunityControls.parse(context, starter())
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            CommunityControls.importFile(context, archive("controls.json" to doc.toString().toByteArray()), old.layout, old.bindings)
+        }
+        assertEquals("Missing or unexpected button images.", error.message)
+    }
+
     @Test fun rejectsCorruptImages() {
         val doc = manifest()
         doc.getJSONObject("layout").getJSONArray("elements").getJSONObject(0).put("image", "invalid.png")
@@ -116,7 +126,9 @@ class CommunityControlsTest {
         assertTrue(entries.isNotEmpty())
         entries.forEach {
             assertEquals(it.name, CommunityControls.download(context, it).layout.name)
-            assertNotNull(CommunityControls.preview(context, it))
+            val preview = requireNotNull(CommunityControls.preview(context, it))
+            assertTrue(maxOf(preview.width, preview.height) <= 256)
+            preview.recycle()
         }
         rejects { CommunityControls.download(context, entries.first().copy(sha256 = "0".repeat(64))) }
         val doc = JSONObject(context.assets.open("community-controls/catalog.json").bufferedReader().use { it.readText() })

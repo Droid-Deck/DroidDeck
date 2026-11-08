@@ -5,6 +5,10 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.view.View
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.Modifier
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalView
@@ -63,6 +67,24 @@ class InputCommunityPageTest {
         compose.onNodeWithTag("community-import").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText(context.getString(R.string.community_submit)).performScrollTo().assertIsDisplayed()
     }
+    @Test fun largeCatalogIsPagedAndSearchResetsToMatchingResults() {
+        val library = InputLibraries.read(context)
+        val starter = CommunityControls.bundled(context).first()
+        val entries = (1..25).map { starter.copy(name = "Pack $it", path = "packs/pack-$it.ddcontrols.zip", preview = null) }
+        compose.setContent { DroidDeckTheme { Column(Modifier.verticalScroll(rememberScrollState())) {
+            InputCommunityPage(library, InputProfile.GAME, InputRole.PRIMARY, initialEntries = entries, onInstalled = {})
+        } } }
+        compose.onNodeWithText("Pack 1").assertExists()
+        compose.onNodeWithText("Pack 13").assertDoesNotExist()
+        compose.onNodeWithTag("community-next").performScrollTo().performClick()
+        compose.onNodeWithText("Pack 13").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Pack 1").assertDoesNotExist()
+        compose.onNodeWithText(context.getString(R.string.community_search)).performScrollTo().performTextInput("Pack 25")
+        compose.onNodeWithTag("community-pack-packs/pack-25.ddcontrols.zip").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("community-next").assertDoesNotExist()
+        compose.onNodeWithTag("community-import").performScrollTo().assertIsDisplayed()
+    }
+
     @Test fun starterPreviewUsesTheSameRendererAsInstalledControls() {
         val bytes = context.assets.open("community-controls/packs/compact-gamepad.ddcontrols.zip").use { it.readBytes() }
         val pack = CommunityControls.parse(context, bytes)
