@@ -693,6 +693,7 @@ def ea_hardware(compat_data, proton, timeout=240):
 
 def ea_registry_entries(folder, sidecar):
     install = windows_path(str(folder)).rstrip("\\") + "\\"
+    title = str(sidecar.get("title") or folder.name).strip()
     entries = [
         ("HKEY_LOCAL_MACHINE\\SOFTWARE\\Electronic Arts\\EA Desktop", "InstallSuccessful", "true"),
         ("HKEY_LOCAL_MACHINE\\SOFTWARE\\Electronic Arts\\Origin", "InstallSuccessful", "true"),
@@ -712,6 +713,8 @@ def ea_registry_entries(folder, sidecar):
         key = EA_ROOTS.get(root.upper(), root) + ("\\" + rest if rest else "")
         if key.upper().startswith(("HKEY_LOCAL_MACHINE\\", "HKEY_CURRENT_USER\\")) and name and "\n" not in key + name:
             entries.append((key, name, install))
+            if title:
+                entries.append((key, "DisplayName", title))
     return entries
 
 

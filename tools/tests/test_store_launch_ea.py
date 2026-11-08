@@ -22,7 +22,7 @@ class EaHook(unittest.TestCase):
         self.assertEqual(store.wmi_value(''), '')
 
     def test_registry_points_the_game_keys_at_the_install_folder(self):
-        sidecar = {'id': 'Origin.OFR.50.0001', 'extra': {'registry': json.dumps([
+        sidecar = {'id': 'Origin.OFR.50.0001', 'title': 'Mass Effect 3', 'extra': {'registry': json.dumps([
             [r'HKEY_LOCAL_MACHINE\SOFTWARE\EA Games\Game', 'Install Dir'],
             [r'HKLM\SOFTWARE\Respawn\Titanfall2', 'Install Dir'],
             [r'HKEY_CLASSES_ROOT\x', 'y'],
@@ -32,6 +32,8 @@ class EaHook(unittest.TestCase):
         game = [e for e in entries if e[1] == 'Install Dir']
         self.assertEqual([e[0] for e in game], [r'HKEY_LOCAL_MACHINE\SOFTWARE\EA Games\Game', r'HKEY_LOCAL_MACHINE\SOFTWARE\Respawn\Titanfall2'])
         self.assertEqual(game[0][2], 'Z:' + '\\'.join(['', 'root', 'Games', 'Stores', 'EA', 'Game', '']))
+        self.assertIn((r'HKEY_LOCAL_MACHINE\SOFTWARE\EA Games\Game', 'DisplayName', 'Mass Effect 3'), entries)
+        self.assertIn((r'HKEY_LOCAL_MACHINE\SOFTWARE\Respawn\Titanfall2', 'DisplayName', 'Mass Effect 3'), entries)
 
     def test_touchup_arguments_fill_locale_and_folder(self):
         install = r'Z:\root\My Game'
