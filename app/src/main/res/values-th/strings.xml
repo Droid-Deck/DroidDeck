@@ -1545,9 +1545,7 @@
     <string name="theme_icon_blue_detail">พื้นดำ ตัวอักษรขาว สีฟ้าสำหรับทุกสิ่งที่ถูกเลือก โฟกัส หรือกด</string>
     <string name="theme_electric">กรมท่าไฟฟ้า</string>
     <string name="theme_electric_detail">สีฟ้าสว่างขึ้น บนพื้นผิวที่เอียงไปทางกรมท่ามากกว่าเทา</string>
-    <string name="theme_yellow">เปลวสุริยะ</string>
-    <string name="theme_yellow_detail">พื้นผิวสีเข้มพร้อมจุดเน้นสีเหลืองอบอุ่นและสีทอง.</string>
-    <string name="theme_white_red">หิมะสีแดงชาด</string>
+<string name="theme_white_red">หิมะสีแดงชาด</string>
     <string name="theme_white_red_detail">พื้นผิวสีขาวสะอาดพร้อมจุดเน้นสีแดงสด.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">สีที่เปลี่ยนวนไปตามสายรุ้ง ทำงานตามการตั้งค่าแอนิเมชันของ Android</string>

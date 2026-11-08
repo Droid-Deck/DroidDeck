@@ -1599,9 +1599,7 @@
     <string name="theme_icon_blue_detail">Czarne tło, biały tekst i niebieski dla wszystkiego, co zaznaczone, aktywne lub naciśnięte.</string>
     <string name="theme_electric">Elektryczny granat</string>
     <string name="theme_electric_detail">Jaśniejszy niebieski na powierzchniach wpadających w granat zamiast w szarość.</string>
-    <string name="theme_yellow">Rozbłysk słoneczny</string>
-    <string name="theme_yellow_detail">Ciemne powierzchnie z ciepłymi żółtymi i złotymi akcentami.</string>
-    <string name="theme_white_red">Szkarłatny śnieg</string>
+<string name="theme_white_red">Szkarłatny śnieg</string>
     <string name="theme_white_red_detail">Czyste białe powierzchnie z wyrazistymi czerwonymi akcentami.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Kolory przechodzące przez całą tęczę. Szanuje ustawienia animacji Androida.</string>

@@ -1545,9 +1545,7 @@
     <string name="theme_icon_blue_detail">Nền đen, chữ trắng, xanh cho mọi thứ được chọn, lấy nét hoặc nhấn.</string>
     <string name="theme_electric">Xanh điện navy</string>
     <string name="theme_electric_detail">Màu xanh sáng hơn, trên các bề mặt nghiêng về navy thay vì xám.</string>
-    <string name="theme_yellow">Bùng phát Mặt Trời</string>
-    <string name="theme_yellow_detail">Bề mặt tối với điểm nhấn vàng ấm và ánh vàng kim.</string>
-    <string name="theme_white_red">Tuyết đỏ thẫm</string>
+<string name="theme_white_red">Tuyết đỏ thẫm</string>
     <string name="theme_white_red_detail">Bề mặt trắng tinh với điểm nhấn đỏ nổi bật.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Màu sắc chuyển dần qua cả dải cầu vồng. Tuân theo cài đặt hiệu ứng động của Android.</string>

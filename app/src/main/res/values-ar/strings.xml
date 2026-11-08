@@ -1635,9 +1635,7 @@
     <string name="theme_icon_blue_detail">خلفية سوداء ونص أبيض، والأزرق لكل عنصر محدَّد أو مُركَّز عليه أو مضغوط.</string>
     <string name="theme_electric">كحلي كهربائي</string>
     <string name="theme_electric_detail">أزرق أكثر سطوعًا، على أسطح تميل إلى الكحلي بدلاً من الرمادي.</string>
-    <string name="theme_yellow">توهج شمسي</string>
-    <string name="theme_yellow_detail">أسطح داكنة بلمسات صفراء دافئة وذهبية.</string>
-    <string name="theme_white_red">ثلج قرمزي</string>
+<string name="theme_white_red">ثلج قرمزي</string>
     <string name="theme_white_red_detail">أسطح بيضاء نظيفة بلمسات حمراء جريئة.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">ألوان تتدرّج عبر ألوان قوس قزح. تتبع إعدادات الرسوم المتحركة في Android.</string>
