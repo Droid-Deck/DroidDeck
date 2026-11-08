@@ -161,7 +161,7 @@ object EaLsx {
 
     /** Frees a slot for a new connection by closing the oldest session that never became trusted. */
     private fun evictUntrusted(): Boolean {
-        val victim = synchronized(sessions) { sessions.firstOrNull { !it.trusted } } ?: return false
+        val victim = synchronized(sessions) { sessions.firstOrNull { !it.trusted && !it.evicted }?.also { it.evicted = true } } ?: return false
         runCatching { victim.socket.close() }
         return true
     }
@@ -170,6 +170,7 @@ object EaLsx {
 
     private class Session(val socket: Socket, val output: OutputStream, val verified: Boolean) {
         val connectedAt = System.currentTimeMillis()
+        @Volatile var evicted = false
         var key: ByteArray? = null
         @Volatile var trusted = false
         var pending: ByteArray? = null
