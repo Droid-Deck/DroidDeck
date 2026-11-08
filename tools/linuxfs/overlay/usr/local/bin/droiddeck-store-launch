@@ -5,6 +5,7 @@ import binascii
 import json
 import os
 import re
+import shlex
 import sys
 import time
 import subprocess
@@ -611,6 +612,233 @@ def apply_gog_registry(folder, compat_data, proton, timeout=90, installation=Non
         return "import-failed" + note
 
 
+EA_HARDWARE = ".droiddeck-ea-hw.json"
+EA_CLIENT = "C:\\Windows\\System32\\conhost.exe"
+EA_WMI = (
+    ("boardManufacturer", "Win32_BaseBoard", "Manufacturer"),
+    ("boardSerial", "Win32_BaseBoard", "SerialNumber"),
+    ("biosManufacturer", "Win32_BIOS", "Manufacturer"),
+    ("biosSerial", "Win32_BIOS", "SerialNumber"),
+    ("osInstallDate", "Win32_OperatingSystem", "InstallDate"),
+    ("osSerial", "Win32_OperatingSystem", "SerialNumber"),
+    ("gpuPnpId", "Win32_VideoController", "PNPDeviceID"),
+    ("cpuManufacturer", "Win32_Processor", "Manufacturer"),
+    ("processorId", "Win32_Processor", "ProcessorId"),
+    ("brand", "Win32_Processor", "Name"),
+)
+EA_ROOTS = {"HKLM": "HKEY_LOCAL_MACHINE", "HKCU": "HKEY_CURRENT_USER"}
+
+
+def decode_output(data):
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff") or (len(data) > 1 and data[1:2] == b"\x00"):
+        return data.decode("utf-16", "replace")
+    return data.decode("utf-8", "replace")
+
+
+def wmi_value(text):
+    rows = [row.strip() for row in text.replace("\r", "\n").split("\n") if row.strip()]
+    return rows[1] if len(rows) > 1 else ""
+
+
+def ea_hardware(compat_data, proton, timeout=240):
+    pfx = Path(compat_data) / "pfx"
+    cache = pfx / EA_HARDWARE
+    try:
+        cached = json.loads(cache.read_text())
+        if isinstance(cached, dict) and cached.get("processorId"):
+            return cached, "cached"
+    except (OSError, ValueError):
+        pass
+    if not proton or not Path(proton).is_file():
+        return {}, "no-proton"
+    values = {}
+    with tempfile.TemporaryDirectory(prefix="droiddeck-ea-") as tmp:
+        folder = Path(tmp)
+        lines = ["@echo off"]
+        for key, cls, prop in EA_WMI:
+            lines.append('wmic path %s get %s > "%s"' % (cls, prop, windows_path(str(folder / (key + ".txt")))))
+        lines.append('vol C: > "%s"' % windows_path(str(folder / "volume.txt")))
+        lines.append('hostname > "%s"' % windows_path(str(folder / "hostname.txt")))
+        bat = folder / "probe.bat"
+        bat.write_bytes(("\r\n".join(lines) + "\r\n").encode())
+        try:
+            subprocess.run([proton, "run", "cmd.exe", "/d", "/c", windows_path(str(bat))], stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            return {}, "timeout"
+        except OSError:
+            return {}, "failed"
+        for key, _, _ in EA_WMI:
+            try:
+                values[key] = wmi_value(decode_output((folder / (key + ".txt")).read_bytes()))
+            except OSError:
+                values[key] = ""
+        try:
+            found = re.search(r"([0-9A-Fa-f]{4})-([0-9A-Fa-f]{4})", decode_output((folder / "volume.txt").read_bytes()))
+            values["volumeSerial"] = (found.group(1) + found.group(2)).lower() if found else ""
+        except OSError:
+            values["volumeSerial"] = ""
+        try:
+            values["hostname"] = decode_output((folder / "hostname.txt").read_bytes()).strip().splitlines()[0].strip()
+        except (OSError, IndexError):
+            values["hostname"] = ""
+    if values.get("processorId"):
+        try:
+            cache.write_text(json.dumps(values))
+        except OSError:
+            pass
+        return values, "probed"
+    return values, "incomplete"
+
+
+def ea_registry_entries(folder, sidecar):
+    install = windows_path(str(folder)).rstrip("\\") + "\\"
+    entries = [
+        ("HKEY_LOCAL_MACHINE\\SOFTWARE\\Electronic Arts\\EA Desktop", "InstallSuccessful", "true"),
+        ("HKEY_LOCAL_MACHINE\\SOFTWARE\\Electronic Arts\\Origin", "InstallSuccessful", "true"),
+        ("HKEY_LOCAL_MACHINE\\SOFTWARE\\Electronic Arts\\Origin", "ClientPath", EA_CLIENT),
+        ("HKEY_LOCAL_MACHINE\\SOFTWARE\\Origin", "ClientPath", EA_CLIENT),
+    ]
+    extra = sidecar.get("extra") if isinstance(sidecar.get("extra"), dict) else {}
+    try:
+        keys = json.loads(extra.get("registry") or "[]")
+    except ValueError:
+        keys = []
+    for pair in keys if isinstance(keys, list) else []:
+        if not isinstance(pair, list) or len(pair) != 2:
+            continue
+        key, name = str(pair[0]), str(pair[1])
+        root, _, rest = key.partition("\\")
+        key = EA_ROOTS.get(root.upper(), root) + ("\\" + rest if rest else "")
+        if key.upper().startswith(("HKEY_LOCAL_MACHINE\\", "HKEY_CURRENT_USER\\")) and name and "\n" not in key + name:
+            entries.append((key, name, install))
+    return entries
+
+
+def ea_registry(folder, sidecar, compat_data, proton, timeout=90):
+    if not compat_data or not proton or not Path(proton).is_file():
+        return "no-proton"
+    pfx = Path(compat_data) / "pfx"
+    text = "Windows Registry Editor Version 5.00\r\n\r\n" + "".join(
+        '[%s]\r\n"%s"="%s"\r\n\r\n' % (key, reg_escape(name), reg_escape(value)) for key, name, value in ea_registry_entries(folder, sidecar))
+    stamp = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    marker = pfx / (".droiddeck-ea-registry-" + re.sub(r"[^A-Za-z0-9._-]", "_", str(sidecar.get("id"))))
+    try:
+        if marker.is_file() and marker.read_text() == stamp and (pfx / "system.reg").is_file():
+            return "ready"
+        with tempfile.TemporaryDirectory(prefix="droiddeck-ea-") as tmp:
+            source = Path(tmp) / "registry.reg"
+            source.write_bytes(b"\xff\xfe" + text.encode("utf-16-le"))
+            executable = pfx / "drive_c/windows/system32/reg.exe"
+            for view in ("/reg:32", "/reg:64"):
+                run = subprocess.run([proton, "run", str(executable) if executable.is_file() else "reg.exe", "import", windows_path(str(source)), view],
+                                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
+                if run.returncode:
+                    return "import-failed"
+        marker.write_text(stamp)
+        return "written"
+    except subprocess.TimeoutExpired:
+        return "timeout"
+    except OSError:
+        return "import-failed"
+
+
+def find_case(folder, relative):
+    current = Path(folder)
+    for part in [p for p in relative.replace("\\", "/").split("/") if p and p != "."]:
+        exact = current / part
+        if exact.exists():
+            current = exact
+            continue
+        try:
+            current = next(c for c in current.iterdir() if c.name.lower() == part.lower())
+        except (OSError, StopIteration):
+            return None
+    return current if current != Path(folder) else None
+
+
+def touchup_args(raw, locale, install):
+    raw = raw.replace("{locale}", locale)
+    raw = raw.replace('"{installLocation}"', '"%s"' % install).replace("{installLocation}", install)
+    try:
+        return shlex.split(raw.replace("\\", "\\\\"))
+    except ValueError:
+        return raw.split()
+
+
+def ea_touchup(folder, sidecar, compat_data, proton, timeout=900):
+    extra = sidecar.get("extra") if isinstance(sidecar.get("extra"), dict) else {}
+    relative = str(extra.get("touchup") or "")
+    if not relative:
+        return "none"
+    exe = find_case(folder, relative)
+    if exe is None or not exe.is_file():
+        return "missing"
+    if not compat_data or not proton or not Path(proton).is_file():
+        return "no-proton"
+    pfx = Path(compat_data) / "pfx"
+    stamp = str(sidecar.get("installVersion") or "") + " " + str(sidecar.get("installedAt") or "")
+    marker = pfx / (".droiddeck-ea-touchup-" + re.sub(r"[^A-Za-z0-9._-]", "_", str(sidecar.get("id"))))
+    try:
+        if marker.is_file() and marker.read_text() == stamp:
+            return "done"
+    except OSError:
+        pass
+    args = touchup_args(str(extra.get("touchupArgs") or ""), str(extra.get("locale") or "en_US"), windows_path(str(folder)).rstrip("\\"))
+    try:
+        run = subprocess.run([proton, "run", str(exe)] + args, cwd=str(exe.parent), stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
+        result = "ok" if run.returncode == 0 else "exit-%d" % run.returncode
+    except subprocess.TimeoutExpired:
+        result = "timeout"
+    except OSError:
+        return "failed"
+    try:
+        marker.write_text(stamp)
+    except OSError:
+        pass
+    return result
+
+
+def write_licenses(compat_data, licenses):
+    if not compat_data:
+        return 0
+    root = Path(compat_data) / "pfx/drive_c"
+    written = 0
+    for item in licenses or []:
+        relative = str(item.get("path") or "") if isinstance(item, dict) else ""
+        if not relative or relative.startswith("/") or ".." in relative.split("/"):
+            continue
+        target = root / relative
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(base64.b64decode(item.get("data") or ""))
+            written += 1
+        except (OSError, binascii.Error):
+            pass
+    return written
+
+
+def prepare_ea(folder, sidecar, compat_data, launch_dir):
+    game = str(sidecar.get("id"))
+    proton = os.environ.get("BL_STORE_PROTON", "")
+    made = create_prefix(compat_data, proton)
+    ready = made in ("present", "created") or (compat_data and (Path(compat_data) / "pfx/user.reg").is_file())
+    hardware, probe = ea_hardware(compat_data, proton) if ready else ({}, "no-prefix")
+    log("ea %s prefix=%s hardware=%s registry=%s touchup=%s" % (
+        game, made, probe, ea_registry(folder, sidecar, compat_data, proton), ea_touchup(folder, sidecar, compat_data, proton)))
+    if not launch_dir:
+        log("ea %s session=no reason=no-channel" % game)
+        return
+    answer = ask(Path(launch_dir) / "stores", {"op": "ea-prepare", "store": "ea", "id": game, "hardware": hardware}, timeout=40.0)
+    if answer is None:
+        log("ea %s session=no reason=timeout" % game)
+        return
+    written = write_licenses(compat_data, answer.get("licenses"))
+    log("ea %s session=%s reason=%s lsx=%s licence=%s files=%d" % (
+        game, "yes" if answer.get("ok") else "no", answer.get("reason", ""), answer.get("lsx"), answer.get("license", ""), written))
+
+
 def main(argv):
     if os.environ.get("DROIDDECK_GOG_MAINTENANCE") == "1":
         return 0
@@ -691,6 +919,8 @@ def main(argv):
                 got = bool(answer.get("code"))
                 log("epic launch id=%s code=%s reason=%s" % (game, "yes" if got else "no", answer.get("reason", "")))
         log("epic prefix=%s %s" % (prefix_id or "?", provision_prefix(compat_data)))
+    if store == "ea":
+        prepare_ea(folder, sidecar, compat_data, launch_dir)
     if not cloud_on(sidecar):
         if store in CLOUD_STORES:
             log("cloud %s %s down result=skipped reason=off" % (store, game))
