@@ -607,7 +607,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         when {
             bundle != null -> useBundle(bundle)
             linux -> SessionPrefs.setLinuxDriver(activity, id)
-            else -> SessionPrefs.setAndroidDriver(activity, id)
+            else -> DriverBundle.selectDisplay(activity, id)
         }
         pairModeOpen = false
         setMode(auto = false, mix = true)
