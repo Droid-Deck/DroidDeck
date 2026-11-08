@@ -64,4 +64,26 @@ class LinuxFexTest {
         assertEquals("App-x86_64.AppImage", UserApps.pickAsset(listOf("App-x86_64.AppImage", "App-armhf.AppImage", "notes.txt")))
         assertNull(UserApps.pickAsset(listOf("App-armhf.AppImage", "App-i686.AppImage")))
     }
+
+    @Test fun aLinkedAssetPicksTheSameVariantInEveryRelease() {
+        val link = "https://github.com/Djihads80/Eglantine/releases/download/build-129/eglantine-a407703f6d29a5ab73328b4ededb12cf29b2758d-linux-aarch64.AppImage"
+        val wanted = UserApps.githubAsset(link)
+        assertEquals("eglantine-a407703f6d29a5ab73328b4ededb12cf29b2758d-linux-aarch64.AppImage", wanted)
+        assertEquals("Djihads80/Eglantine", UserApps.githubRepo(link))
+        val build = listOf("eglantine-a407703f6d29a5ab73328b4ededb12cf29b2758d-linux-aarch64-pgo.AppImage",
+            "eglantine-a407703f6d29a5ab73328b4ededb12cf29b2758d-linux-aarch64.AppImage")
+        assertEquals(build[1], UserApps.pickAsset(build, wanted))
+        val daily = listOf("eglantine-linux-aarch64-pgo.AppImage", "eglantine-linux-aarch64.AppImage", "eglantine-linux-x86_64.AppImage")
+        assertEquals("eglantine-linux-aarch64.AppImage", UserApps.pickAsset(daily, wanted))
+        assertEquals("eglantine-linux-aarch64-pgo.AppImage", UserApps.pickAsset(daily, "eglantine-0f3c2a91-linux-aarch64-pgo.AppImage"))
+        assertEquals("eglantine-linux-aarch64-pgo.AppImage", UserApps.pickAsset(daily, "Other-v2.1-x86_64.AppImage"))
+        assertEquals("eglantine-linux-aarch64-pgo.AppImage", UserApps.pickAsset(daily))
+    }
+
+    @Test fun onlyReleaseDownloadLinksNameAnAsset() {
+        assertNull(UserApps.githubAsset("https://github.com/Djihads80/Eglantine"))
+        assertNull(UserApps.githubAsset("Djihads80/Eglantine"))
+        assertNull(UserApps.githubAsset("https://github.com/o/r/releases/download/v1/notes.txt"))
+        assertEquals("My App-1.0-arm64.AppImage", UserApps.githubAsset("https://github.com/o/r/releases/download/v1.0/My%20App-1.0-arm64.AppImage"))
+    }
 }
