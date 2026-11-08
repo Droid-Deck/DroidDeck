@@ -55,6 +55,19 @@ class EaHook(unittest.TestCase):
         self.assertIn(b'KERNEL32.dll', exe)
         self.assertEqual(len(exe), 0x400)
 
+    def test_origin_stub_is_a_windowless_program_installed_once(self):
+        import struct
+        exe = store.origin_stub_exe()
+        self.assertEqual(exe[:2], b'MZ')
+        self.assertEqual(struct.unpack_from('<H', exe, 0x58 + 68)[0], 2)
+        self.assertIn(b'Sleep', exe)
+        self.assertEqual(exe[0x208:0x20A], b'\xeb\xf6')
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(store.install_origin_stub(tmp), 'written')
+            self.assertEqual(store.install_origin_stub(tmp), 'ready')
+            self.assertTrue((Path(tmp) / 'pfx/drive_c/Program Files (x86)/Origin/Origin.exe').is_file())
+        self.assertTrue(store.EA_CLIENT.endswith('Origin.exe'))
+
     def test_cpuid_output_is_decoded_as_the_game_sees_it(self):
         raw = bytes.fromhex('1600000047656e756e74656c696e654961060a00000805000f23d882fffb8b27436f727465782d4135323000000000000000000000000000000000000000000000000000000000000000000000000000')
         self.assertEqual(store.cpuid_values(raw), {'cpuVendor': 'GenuineIntel', 'cpuEax': '000A0661', 'cpuEdx': '278BFBFF',

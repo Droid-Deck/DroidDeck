@@ -12,6 +12,8 @@ object StoreLaunch {
     const val EPIC_CODE = ".droiddeck-epic-code"
     const val EPIC_ARGS = ".droiddeck-epic-args"
     const val EA_ENV = ".droiddeck-ea-env"
+    /** A sleeping stand-in that the launch hook installs; older EA SDKs require a running Origin process. */
+    const val EA_ORIGIN = "C:\\Program Files (x86)\\Origin\\Origin.exe"
 
     fun writeLauncher(folder: File, sidecar: StoreGameSidecar): StoreGameSidecar {
         val needs = sidecar.args.isNotEmpty() || sidecar.env.isNotEmpty() || sidecar.store == Store.EPIC || sidecar.store == Store.EA
@@ -55,7 +57,9 @@ object StoreLaunch {
             lines += "for /f \"usebackq tokens=1,* delims==\" %%a in (\"%~dp0$EA_ENV\") do set \"%%a=%%b\""
             lines += "del \"%~dp0$EA_ENV\""
             lines += ":run"
+            lines += "if exist \"$EA_ORIGIN\" start \"\" \"$EA_ORIGIN\""
             lines += run
+            lines += "taskkill /f /im Origin.exe >nul 2>&1"
         } else {
             lines += run
         }

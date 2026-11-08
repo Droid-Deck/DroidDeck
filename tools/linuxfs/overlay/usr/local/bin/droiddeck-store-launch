@@ -617,7 +617,7 @@ def apply_gog_registry(folder, compat_data, proton, timeout=90, installation=Non
 
 
 EA_HARDWARE = ".droiddeck-ea-hw.json"
-EA_CLIENT = "C:\\Windows\\System32\\conhost.exe"
+EA_CLIENT = "C:\\Program Files (x86)\\Origin\\Origin.exe"
 EA_WMI = (
     ("boardManufacturer", "Win32_BaseBoard", "Manufacturer"),
     ("boardSerial", "Win32_BaseBoard", "SerialNumber"),
@@ -681,6 +681,43 @@ def cpuid_exe():
     header[0x58:0x58 + 0xE0] = opt + bytes(dirs)
     header[0x138:0x138 + 40] = struct.pack("<8sIIIIIIHHI", b".text", 0x1000, rva, 0x200, 0x200, 0, 0, 0, 0, 0xE0000060)
     return bytes(header) + bytes(section)
+
+
+EA_STUB_DIR = "Program Files (x86)/Origin"
+EA_STUB = "C:\\Program Files (x86)\\Origin\\Origin.exe"
+
+
+def origin_stub_exe():
+    """A 32-bit program that only sleeps: the process older EA SDKs look for while a game runs."""
+    import struct
+    base, rva = 0x400000, 0x1000
+    iat = base + rva + 0x138
+    code = b"\x6a\xff\xff\x15" + struct.pack("<I", iat) + b"\xeb\xf6"
+    section = bytearray(0x200)
+    section[:len(code)] = code
+    struct.pack_into("<IIIII", section, 0x100, rva + 0x128, 0, 0, rva + 0x172, rva + 0x138)
+    struct.pack_into("<I", section, 0x128, rva + 0x148)
+    struct.pack_into("<I", section, 0x138, rva + 0x148)
+    section[0x14A:0x14A + 5] = b"Sleep"
+    section[0x172:0x172 + 12] = b"KERNEL32.dll"
+    header = bytearray(cpuid_exe()[:0x200])
+    struct.pack_into("<H", header, 0x58 + 68, 2)
+    return bytes(header) + bytes(section)
+
+
+def install_origin_stub(compat_data):
+    if not compat_data:
+        return "no-prefix"
+    target = Path(compat_data) / "pfx/drive_c" / EA_STUB_DIR / "Origin.exe"
+    data = origin_stub_exe()
+    try:
+        if target.is_file() and target.read_bytes() == data:
+            return "ready"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+        return "written"
+    except OSError:
+        return "failed"
 
 
 def cpuid_values(raw):
@@ -893,13 +930,14 @@ def prepare_ea(folder, sidecar, compat_data, launch_dir):
     proton = os.environ.get("BL_STORE_PROTON", "")
     made = create_prefix(compat_data, proton)
     ready = made in ("present", "created") or (compat_data and (Path(compat_data) / "pfx/user.reg").is_file())
+    stub = install_origin_stub(compat_data) if ready else "no-prefix"
     hardware, probe = ea_hardware(compat_data, proton) if ready else ({}, "no-prefix")
     answer = None
     if launch_dir:
         answer = ask(Path(launch_dir) / "stores", {"op": "ea-prepare", "store": "ea", "id": game, "hardware": hardware}, timeout=40.0)
     sidecar = sidecar_at(Path(folder)) or sidecar
-    log("ea %s prefix=%s hardware=%s registry=%s touchup=%s" % (
-        game, made, probe, ea_registry(folder, sidecar, compat_data, proton), ea_touchup(folder, sidecar, compat_data, proton)))
+    log("ea %s prefix=%s stub=%s hardware=%s registry=%s touchup=%s" % (
+        game, made, stub, probe, ea_registry(folder, sidecar, compat_data, proton), ea_touchup(folder, sidecar, compat_data, proton)))
     if answer is None:
         log("ea %s session=no reason=%s" % (game, "timeout" if launch_dir else "no-channel"))
         return

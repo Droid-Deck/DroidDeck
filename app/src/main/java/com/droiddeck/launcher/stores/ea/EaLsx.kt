@@ -5,7 +5,6 @@ import android.util.Log
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.ByteArrayOutputStream
-import java.io.InputStream
 import java.io.OutputStream
 import java.io.StringReader
 import java.net.InetAddress
@@ -145,41 +144,69 @@ object EaLsx {
         }
     }
 
+    private fun note(line: String) = com.droiddeck.launcher.stores.StoresState.logLine("ea lsx: $line")
+
     private fun serve(client: Socket) {
         client.tcpNoDelay = true
         val session = Session(client.getOutputStream())
+        val seen = LinkedHashSet<String>()
+        var why = "closed by the game"
+        note("game connected")
         try {
             session.send("<LSX><Event sender=\"$SENDER\"><Challenge build=\"release\" key=\"$CHALLENGE_KEY\" version=\"$CHALLENGE_VERSION\"/></Event></LSX>")
             val input = client.getInputStream()
+            val pending = ByteArrayOutputStream()
+            val chunk = ByteArray(16 * 1024)
             while (true) {
-                val frame = readFrame(input) ?: break
-                if (frame.isBlank()) continue
-                val key = session.key
-                val xml = if (key != null && !frame.trimStart().startsWith("<")) {
-                    runCatching { String(EaCrypto.ecbDecrypt(EaCrypto.unhex(frame), key)) }.getOrNull() ?: continue
-                } else frame
-                for (one in Regex("<LSX>.*?</LSX>", RegexOption.DOT_MATCHES_ALL).findAll(xml)) {
-                    val message = parse(one.value) ?: continue
-                    val reply = runCatching { answer(session, message) }.onFailure { Log.w(TAG, "${message.name}: ${it.javaClass.simpleName} ${it.message}") }.getOrNull()
-                    if (reply != null) session.send("<LSX><Response sender=\"${esc(message.recipient)}\" id=\"${esc(message.id)}\">$reply</Response></LSX>")
-                    session.pending?.let { session.key = it; session.pending = null }
+                val n = input.read(chunk)
+                if (n < 0) break
+                pending.write(chunk, 0, n)
+                for (frame in frames(pending, session.key)) {
+                    for (one in Regex("<LSX>.*?</LSX>", RegexOption.DOT_MATCHES_ALL).findAll(frame)) {
+                        val message = parse(one.value) ?: continue
+                        if (seen.add(message.name)) note("request ${message.name}")
+                        val reply = runCatching { answer(session, message) }
+                            .onFailure { note("${message.name} failed: ${it.javaClass.simpleName}") }.getOrNull()
+                        if (reply != null) session.send("<LSX><Response sender=\"${esc(message.recipient)}\" id=\"${esc(message.id)}\">$reply</Response></LSX>")
+                        session.pending?.let { session.key = it; session.pending = null }
+                    }
                 }
+                if (pending.size() > 4 * 1024 * 1024) { why = "message too large"; break }
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            why = e.javaClass.simpleName
         } finally {
+            note("game disconnected ($why)")
             runCatching { client.close() }
         }
     }
 
-    private fun readFrame(input: InputStream): String? {
-        val out = ByteArrayOutputStream()
-        while (true) {
-            val b = input.read()
-            if (b < 0) return if (out.size() > 0) out.toString("UTF-8") else null
-            if (b == 0) return out.toString("UTF-8")
-            out.write(b)
-            if (out.size() > 4 * 1024 * 1024) return null
+    /**
+     * Complete messages in what has arrived so far. Messages normally end in a NUL; one that does
+     * not counts once it holds a whole `<LSX>` element, plain or decrypted.
+     */
+    private fun frames(pending: ByteArrayOutputStream, key: ByteArray?): List<String> {
+        val bytes = pending.toByteArray()
+        val out = ArrayList<String>()
+        var start = 0
+        for (i in bytes.indices) {
+            if (bytes[i].toInt() != 0) continue
+            if (i > start) decode(String(bytes, start, i - start, Charsets.UTF_8), key)?.let(out::add)
+            start = i + 1
         }
+        var rest = String(bytes, start, bytes.size - start, Charsets.UTF_8)
+        if (rest.isNotBlank()) decode(rest, key)?.takeIf { it.contains("</LSX>") }?.let { out += it; rest = "" }
+        pending.reset()
+        pending.write(rest.toByteArray(Charsets.UTF_8))
+        return out
+    }
+
+    private fun decode(frame: String, key: ByteArray?): String? {
+        val text = frame.trim()
+        if (text.isEmpty()) return null
+        if (text.startsWith("<")) return text
+        val k = key ?: return null
+        return runCatching { String(EaCrypto.ecbDecrypt(EaCrypto.unhex(text), k)) }.getOrNull()
     }
 
     internal fun parse(xml: String): Message? = runCatching {
@@ -232,7 +259,9 @@ object EaLsx {
         return when (m.name) {
             "ChallengeResponse" -> {
                 val answer = EaCrypto.challengeAnswer(m.attrs["key"].orEmpty())
-                val seed = EaCrypto.challengeSeed(m.attrs["version"].orEmpty(), answer) ?: return null
+                val version = m.attrs["version"].orEmpty()
+                val seed = EaCrypto.challengeSeed(version, answer) ?: 0
+                note("challenge version '$version'")
                 session.pending = EaCrypto.lsxKey(seed)
                 Log.i(TAG, "game connected: ${m.children.firstOrNull { it.first == "Title" }?.second.orEmpty()}")
                 tag("ChallengeAccepted", "response" to answer)

@@ -77,6 +77,7 @@ object EaLaunch {
         val reply = JSONObject().put("ok", false)
         val (folder, recorded) = installed(app, id) ?: return reply.put("reason", "not-installed")
         val sidecar = backfill(folder, recorded)
+        runCatching { com.droiddeck.launcher.stores.StoreLaunch.refreshLauncher(folder, sidecar) }
         File(folder, ENV_FILE).delete()
         val account = EaAuth.load(app) ?: return reply.put("reason", "signed-out")
         val access = EaAuth.accessToken(app) ?: return reply.put("reason", "sign-in-expired")
