@@ -115,6 +115,7 @@ object EaLsx {
 
     private val open = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<Socket, Boolean>())
     private const val HANDSHAKE_TIMEOUT_MS = 15_000
+    private const val UNTRUSTED_IDLE_MS = 10 * 60 * 1000
 
     private fun accept(socket: ServerSocket) {
         while (!socket.isClosed) {
@@ -194,7 +195,10 @@ object EaLsx {
                             .onFailure { note("${message.name} failed: ${it.javaClass.simpleName}") }.getOrNull()
                         if (reply != null) session.send("<LSX><Response sender=\"${esc(message.recipient)}\" id=\"${esc(message.id)}\">$reply</Response></LSX>")
                         session.pending?.let { session.key = it; session.pending = null }
-                        if (session.trusted && client.soTimeout != 0) client.soTimeout = 0
+                        if (session.key != null) {
+                            val idle = if (session.trusted) 0 else UNTRUSTED_IDLE_MS
+                            if (client.soTimeout != idle) client.soTimeout = idle
+                        }
                     }
                 }
                 if (pending.size() > 4 * 1024 * 1024) { why = "message too large"; break }
@@ -284,6 +288,7 @@ object EaLsx {
     private fun answer(session: Session, m: Message): String? {
         val g = game
         val who = account
+        val person = who?.takeIf { session.trusted }
         val locale = g?.locale ?: "en_US"
         return when (m.name) {
             "ChallengeResponse" -> {
@@ -301,9 +306,9 @@ object EaLsx {
             "GetConfig" -> tag("GetConfigResponse", body = SERVICES.joinToString("") { tag("Service", "Name" to it.first, "Facility" to it.second) })
             "GetProfile" -> tag(
                 "GetProfileResponse",
-                "Persona" to who?.persona.orEmpty(), "SubscriberLevel" to 0, "CommerceCurrency" to "USD", "IsTrialSubscriber" to false,
-                "Country" to "US", "UserId" to who?.userId.orEmpty(), "GeoCountry" to "US", "AvatarId" to "", "IsSubscriber" to false,
-                "IsSteamSubscriber" to false, "PersonaId" to who?.personaId.orEmpty(), "IsUnderAge" to false, "UserIndex" to 0,
+                "Persona" to person?.persona.orEmpty(), "SubscriberLevel" to 0, "CommerceCurrency" to "USD", "IsTrialSubscriber" to false,
+                "Country" to "US", "UserId" to person?.userId.orEmpty(), "GeoCountry" to "US", "AvatarId" to "", "IsSubscriber" to false,
+                "IsSteamSubscriber" to false, "PersonaId" to person?.personaId.orEmpty(), "IsUnderAge" to false, "UserIndex" to 0,
             )
             "GetSetting" -> tag("GetSettingResponse", "Setting" to when (m.attrs["SettingId"]) {
                 "ENVIRONMENT" -> "production"
@@ -349,7 +354,7 @@ object EaLsx {
                     )
                 })
             }
-            "GetPresence" -> tag("GetPresenceResponse", "UserId" to who?.userId.orEmpty(), "Presence" to "INGAME")
+            "GetPresence" -> tag("GetPresenceResponse", "UserId" to person?.userId.orEmpty(), "Presence" to "INGAME")
             "QueryPresence" -> tag("QueryPresenceResponse", body = "")
             "QueryFriends" -> tag("QueryFriendsResponse", body = "")
             "GetBlockList" -> tag("GetBlockListResponse", "Return" to "Success", body = "")
