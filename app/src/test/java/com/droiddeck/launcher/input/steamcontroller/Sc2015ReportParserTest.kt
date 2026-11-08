@@ -113,8 +113,9 @@ class Sc2015ReportParserTest {
         }
         val releasePayload = byteArrayOf(
             (Sc2015ReportParser.REPORT_STATE or Sc2015ReportParser.CHUNK_BUTTONS_1).toByte(),
-            0x00,
-            0x00, 0x00, 0x00
+            (Sc2015ReportParser.CHUNK_RIGHT_TRACKPAD ushr 8).toByte(),
+            0x00, 0x00, 0x00,
+            0x10, 0x27, 0x60, 0x6D
         )
         val parsed = Sc2015ReportParser.parse(releasePayload, state)
         assertNotNull(parsed)
@@ -138,7 +139,7 @@ class Sc2015ReportParserTest {
     }
 
     @Test
-    fun extractsImuModeAndHapticCommands() {
+    fun extractsImuModeCommands() {
         val featureReport = byteArrayOf(
             0x00, 0x87.toByte(), 0x06,
             0x08, 0x07, 0x00,
@@ -149,17 +150,39 @@ class Sc2015ReportParserTest {
             byteArrayOf(0xC0.toByte(), 0x87.toByte(), 0x03, 0x30, 0x18, 0x00),
             imuCmd
         )
+    }
 
-        val pulseReport = byteArrayOf(
-            0x81.toByte(), 0x01,
-            0xF4.toByte(), 0x01,
-            0xE8.toByte(), 0x03,
-            0x02, 0x00
+    @Test
+    fun latchedTrackpadTouchExpiresUntilPadReportsAgain() {
+        val state = Sc2015State()
+        val touch = byteArrayOf(
+            (Sc2015ReportParser.REPORT_STATE or Sc2015ReportParser.CHUNK_BUTTONS_1).toByte(),
+            (Sc2015ReportParser.CHUNK_RIGHT_TRACKPAD ushr 8).toByte(),
+            0x00, 0x00, 0x10,
+            0x10, 0x27, 0x60, 0x6D
         )
-        val hapticCmd = Sc2015ReportParser.toHapticPulseCommand(pulseReport)
-        assertArrayEquals(
-            byteArrayOf(0xC0.toByte(), 0x8F.toByte(), 0x07, 0x00, 0xF4.toByte(), 0x01, 0xE8.toByte(), 0x03, 0x02, 0x00),
-            hapticCmd
-        )
+        Sc2015ReportParser.parse(touch, state, nowMs = 1000)
+        assertEquals(28000.toShort(), state.rightPadY)
+        assertTrue(!Sc2015ReportParser.expireIdlePads(state, 1100))
+        assertTrue(Sc2015ReportParser.expireIdlePads(state, 1300))
+        assertEquals(0, state.buttons and Sc2015ReportParser.BUTTON_RPAD_TOUCH)
+        assertEquals(0.toShort(), state.rightPadY)
+
+        val buttonsOnly = byteArrayOf((Sc2015ReportParser.REPORT_STATE or Sc2015ReportParser.CHUNK_BUTTONS_1).toByte(), 0x00, 0x00, 0x00, 0x10)
+        Sc2015ReportParser.parse(buttonsOnly, state, nowMs = 1400)
+        assertEquals(0, state.buttons and Sc2015ReportParser.BUTTON_RPAD_TOUCH)
+
+        Sc2015ReportParser.parse(touch, state, nowMs = 1500)
+        assertTrue(state.buttons and Sc2015ReportParser.BUTTON_RPAD_TOUCH != 0)
+        assertEquals(28000.toShort(), state.rightPadY)
+    }
+
+    @Test
+    fun buildsFeatureReplyWithShippedFirmwareTimestamp() {
+        val reply = Sc2015ReportParser.buildFeatureReply(0x83, batteryMv = 2950)
+        val buf = ByteBuffer.wrap(reply).order(ByteOrder.LITTLE_ENDIAN)
+        assertEquals(0x83, buf.get(0).toInt() and 0xFF)
+        assertEquals(0x04, buf.get(12).toInt() and 0xFF)
+        assertEquals(Sc2015ReportParser.TRITON_FW_TIMESTAMP, buf.getInt(13))
     }
 }

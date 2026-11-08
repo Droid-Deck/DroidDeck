@@ -21,6 +21,7 @@ import com.droiddeck.launcher.input.steamcontroller.SteamControllerDebug
 import com.droiddeck.launcher.input.steamcontroller.SteamControllerModel
 import com.droiddeck.launcher.input.steamcontroller.SteamControllerUuids
 import com.droiddeck.launcher.session.SessionState
+import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.ArrayDeque
@@ -48,7 +49,9 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
     private var connectTimeNs = 0L
     private var pendingFeatureCmd2015 = 0
     private var lastImuModeCmd2015: ByteArray? = null
-    private var lastHapticWriteMs = 0L
+    private var lastStateEmitMs = 0L
+    private val keepAliveTask = Runnable { keepAlive2015() }
+    private val fwTimestamp2015 by lazy { resolveFwTimestamp() }
     private var lizardOffSent = false
     private var reportedNone = false
     private var discoveries = 0
@@ -199,6 +202,8 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
             if (connected) {
                 if (model == SteamControllerModel.ORIGINAL_2015) {
                     runCatching { g.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH) }
+                    handler.removeCallbacks(keepAliveTask)
+                    handler.postDelayed(keepAliveTask, KEEPALIVE_2015_MS)
                 }
                 refreshLizardMode()
                 pollOutput()
@@ -318,33 +323,48 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         if (model == SteamControllerModel.ORIGINAL_2015) {
             enqueueOutput(REPORT, SteamControllerUuids.VALVE_MODE_2015.copyOf())
             lastImuModeCmd2015?.let { enqueueOutput(REPORT, it.copyOf()) }
-        } else {
-            val msg = ByteArray(FEATURE_BYTES)
-            msg[0] = 0x87.toByte(); msg[1] = 3; msg[2] = 9
-            enqueueOutput(REPORT, msg)
+            return@withSlot
         }
+        val msg = ByteArray(FEATURE_BYTES)
+        msg[0] = 0x87.toByte(); msg[1] = 3; msg[2] = 9
+        enqueueOutput(REPORT, msg)
         handler.postDelayed(::refreshLizardMode, LIZARD_REFRESH_MS)
     }
 
     private fun onNotification2015(packet: ByteArray) = withSlot {
         val deframed = reassembler2015.onNotification(packet) ?: return@withSlot
-        when (val parsed = Sc2015ReportParser.parse(deframed, state2015)) {
-            is Sc2015ReportParser.ParsedReport.State -> {
-                val elapsedUs = (System.nanoTime() - connectTimeNs) / 1_000L
-                val report = Sc2015ReportParser.toTritonReport(
-                    state = state2015,
-                    packetNum = ++packetCounter2015,
-                    elapsedUs = elapsedUs,
-                    out = tritonBuffer2015
-                )
-                onState(report)
-            }
+        when (val parsed = Sc2015ReportParser.parse(deframed, state2015, SystemClock.uptimeMillis())) {
+            is Sc2015ReportParser.ParsedReport.State -> emitState2015()
             is Sc2015ReportParser.ParsedReport.Status -> {
                 batteryVoltageMv = parsed.voltageMv
                 batteryPercent = parsed.batteryPercent
             }
             else -> Unit
         }
+    }
+
+    private fun emitState2015() {
+        lastStateEmitMs = SystemClock.uptimeMillis()
+        val report = Sc2015ReportParser.toTritonReport(
+            state = state2015,
+            packetNum = ++packetCounter2015,
+            elapsedUs = (System.nanoTime() - connectTimeNs) / 1_000L,
+            out = tritonBuffer2015
+        )
+        onState(report)
+    }
+
+    // Steam Input only advances its per-pad filters on new packet numbers, and the 2015 controller goes silent while idle.
+    private fun keepAlive2015(): Unit = withSlot {
+        if (!running || !connected || gatt == null || model != SteamControllerModel.ORIGINAL_2015) return@withSlot
+        val now = SystemClock.uptimeMillis()
+        if (Sc2015ReportParser.expireIdlePads(state2015, now)) {
+            SteamControllerDebug.log { "2015 BLE pad touch expired after ${Sc2015ReportParser.PAD_IDLE_TIMEOUT_MS} ms without movement" }
+            emitState2015()
+        } else if (now - lastStateEmitMs >= KEEPALIVE_2015_MS) {
+            emitState2015()
+        }
+        handler.postDelayed(keepAliveTask, KEEPALIVE_2015_MS)
     }
 
     private fun onState(data: ByteArray) = withSlot {
@@ -372,7 +392,11 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         if (request != 0L && request != featureRead) {
             featureRead = request
             if (model == SteamControllerModel.ORIGINAL_2015) {
-                val reply = Sc2015ReportParser.buildFeatureReply(pendingFeatureCmd2015, state2015.batteryVoltageMv)
+                val reply = Sc2015ReportParser.buildFeatureReply(
+                    command = pendingFeatureCmd2015,
+                    batteryMv = state2015.batteryVoltageMv,
+                    fwTimestamp = fwTimestamp2015
+                )
                 FakeInputWriter.writeTritonFeatureReply(SLOT, featureRead, reply)
             } else {
                 queuedWrites.addLast(REPORT to null)
@@ -380,6 +404,22 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
             }
         }
         handler.postDelayed(::pollOutput, OUTPUT_POLL_MS)
+    }
+
+    private fun resolveFwTimestamp(): Int {
+        val cfg = File(context.filesDir, "linuxfs/root/.local/share/Steam/bin/hardwareupdater/hardwareupdater.cfg")
+        val shipped = runCatching {
+            cfg.useLines { lines ->
+                lines.firstNotNullOfOrNull { line ->
+                    val idx = line.indexOf("TRITON_FW_TS:")
+                    if (idx < 0) null
+                    else line.substring(idx + "TRITON_FW_TS:".length).trim().removePrefix("0x").removePrefix("0X")
+                        .takeWhile { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' }
+                        .toLongOrNull(16)?.toInt()
+                }
+            }
+        }.getOrNull() ?: 0
+        return if (shipped.toUInt() > Sc2015ReportParser.TRITON_FW_TIMESTAMP.toUInt()) shipped else Sc2015ReportParser.TRITON_FW_TIMESTAMP
     }
 
     private fun onFeatureRead(value: ByteArray?) = withSlot {
@@ -399,14 +439,6 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
                 Sc2015ReportParser.extractImuModeCommand(report)?.let { imuCmd ->
                     lastImuModeCmd2015 = imuCmd
                     enqueueOutput(REPORT, imuCmd)
-                }
-            } else {
-                val now = SystemClock.uptimeMillis()
-                if (now - lastHapticWriteMs >= HAPTIC_MIN_INTERVAL_2015_MS) {
-                    Sc2015ReportParser.toHapticPulseCommand(report)?.let { pulse ->
-                        lastHapticWriteMs = now
-                        enqueueOutput(REPORT, pulse)
-                    }
                 }
             }
             return
@@ -468,7 +500,7 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         private const val LIZARD_REFRESH_MS = 3_000L
         private const val OUTPUT_POLL_MS = 4L
         private const val OUTPUT_RETRY_MS = 10L
-        private const val HAPTIC_MIN_INTERVAL_2015_MS = 25L
+        private const val KEEPALIVE_2015_MS = 10L
         private const val FEATURE_BYTES = 62
         private const val STATE_BYTES = 45
         private const val OUTPUT_UUID_PREFIX = "100f6c"

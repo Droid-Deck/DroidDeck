@@ -73,14 +73,14 @@ object Sc2015ReportParser {
 
     private const val CMD_GET_ATTRIBUTES_VALUES = 0x83
     private const val CMD_SET_SETTINGS_VALUES = 0x87
-    private const val CMD_TRIGGER_HAPTIC_PULSE = 0x8F
     private const val CMD_GET_STRING_ATTRIBUTE = 0xAE
     private const val CMD_GET_CHIP_ID = 0xBA
     private const val SETTING_IMU_MODE = 0x30
 
     private const val TRITON_BLE_PRODUCT_ID = 0x1303
     private const val TRITON_HWID = 72
-    private const val TRITON_FW_TIMESTAMP = 0x6AC686B3
+    const val TRITON_FW_TIMESTAMP = 0x6AE90BC5
+    const val PAD_IDLE_TIMEOUT_MS = 250L
 
     sealed interface ParsedReport {
         data class State(val optionMask: Int) : ParsedReport
@@ -88,10 +88,10 @@ object Sc2015ReportParser {
         data class Unknown(val reportType: Int) : ParsedReport
     }
 
-    fun parse(payload: ByteArray, state: Sc2015State): ParsedReport? {
+    fun parse(payload: ByteArray, state: Sc2015State, nowMs: Long = 0L): ParsedReport? {
         if (payload.isEmpty()) return null
         return when (val reportType = payload[0].toInt() and 0x0F) {
-            REPORT_STATE -> parseStateReport(payload, state)
+            REPORT_STATE -> parseStateReport(payload, state, nowMs)
             REPORT_STATUS -> parseStatusReport(payload, state)
             else -> {
                 SteamControllerDebug.log { "2015 BLE unknown reportType=0x%02x raw=[%s]".format(reportType, SteamControllerDebug.hex(payload)) }
@@ -100,7 +100,7 @@ object Sc2015ReportParser {
         }
     }
 
-    private fun parseStateReport(payload: ByteArray, state: Sc2015State): ParsedReport.State? {
+    private fun parseStateReport(payload: ByteArray, state: Sc2015State, nowMs: Long): ParsedReport.State? {
         if (payload.size < 2) return null
         val optionMask = (payload[0].toInt() and 0xF0) or ((payload[1].toInt() and 0xFF) shl 8)
         var offset = 2
@@ -138,6 +138,8 @@ object Sc2015ReportParser {
             if (offset + 4 > payload.size) return null
             state.leftPadX = readShortLE(payload, offset)
             state.leftPadY = readShortLE(payload, offset + 2)
+            state.leftPadSeenMs = nowMs
+            state.leftPadStale = false
             offset += 4
         }
 
@@ -145,6 +147,8 @@ object Sc2015ReportParser {
             if (offset + 4 > payload.size) return null
             state.rightPadX = readShortLE(payload, offset)
             state.rightPadY = readShortLE(payload, offset + 2)
+            state.rightPadSeenMs = nowMs
+            state.rightPadStale = false
             offset += 4
         }
 
@@ -172,11 +176,18 @@ object Sc2015ReportParser {
             state.quatZ = readShortLE(payload, offset + 6)
         }
 
-        if (state.buttons and BUTTON_LPAD_TOUCH == 0 && optionMask and CHUNK_LEFT_TRACKPAD == 0) {
+        if (prevButtons and BUTTON_LPAD_TOUCH == 0 && state.buttons and BUTTON_LPAD_TOUCH != 0) state.leftPadSeenMs = nowMs
+        if (prevButtons and BUTTON_RPAD_TOUCH == 0 && state.buttons and BUTTON_RPAD_TOUCH != 0) state.rightPadSeenMs = nowMs
+        if (state.buttons and BUTTON_LPAD_TOUCH == 0) state.leftPadStale = false
+        if (state.buttons and BUTTON_RPAD_TOUCH == 0) state.rightPadStale = false
+        if (state.leftPadStale) state.buttons = state.buttons and BUTTON_LPAD_TOUCH.inv()
+        if (state.rightPadStale) state.buttons = state.buttons and BUTTON_RPAD_TOUCH.inv()
+
+        if (state.buttons and (BUTTON_LPAD_TOUCH or BUTTON_LPAD_AND_JOYSTICK) == 0) {
             state.leftPadX = 0
             state.leftPadY = 0
         }
-        if (state.buttons and BUTTON_RPAD_TOUCH == 0 && optionMask and CHUNK_RIGHT_TRACKPAD == 0) {
+        if (state.buttons and BUTTON_RPAD_TOUCH == 0) {
             state.rightPadX = 0
             state.rightPadY = 0
         }
@@ -212,6 +223,28 @@ object Sc2015ReportParser {
     fun estimateBatteryPercent(voltageMv: Int): Int =
         ((voltageMv - 2000) * 100 / 1000).coerceIn(0, 100)
 
+    // The 2015 pads can keep reporting a touch after the finger slides off the edge; a real finger always jitters the coordinates.
+    fun expireIdlePads(state: Sc2015State, nowMs: Long, timeoutMs: Long = PAD_IDLE_TIMEOUT_MS): Boolean {
+        var changed = false
+        val b = state.buttons
+        if (b and BUTTON_RPAD_TOUCH != 0 && b and BUTTON_RPAD_CLICK == 0 && nowMs - state.rightPadSeenMs >= timeoutMs) {
+            state.rightPadStale = true
+            state.buttons = state.buttons and BUTTON_RPAD_TOUCH.inv()
+            state.rightPadX = 0
+            state.rightPadY = 0
+            changed = true
+        }
+        if (b and BUTTON_LPAD_TOUCH != 0 && b and (BUTTON_LPAD_CLICK or BUTTON_LPAD_AND_JOYSTICK) == 0 &&
+            nowMs - state.leftPadSeenMs >= timeoutMs) {
+            state.leftPadStale = true
+            state.buttons = state.buttons and BUTTON_LPAD_TOUCH.inv()
+            state.leftPadX = 0
+            state.leftPadY = 0
+            changed = true
+        }
+        return changed
+    }
+
     fun toTritonReport(
         state: Sc2015State,
         packetNum: Int,
@@ -239,9 +272,11 @@ object Sc2015ReportParser {
         if (b and BUTTON_DPAD_DOWN != 0) bits = bits or TRITON_DOWN
         if (b and BUTTON_DPAD_LEFT != 0) bits = bits or TRITON_LEFT
         if (b and BUTTON_DPAD_RIGHT != 0) bits = bits or TRITON_RIGHT
-        if (b and BUTTON_LPAD_TOUCH != 0) bits = bits or TRITON_LPAD_TOUCH
+        val lpadTouched = b and (BUTTON_LPAD_TOUCH or BUTTON_LPAD_AND_JOYSTICK) != 0
+        val rpadTouched = b and BUTTON_RPAD_TOUCH != 0
+        if (lpadTouched) bits = bits or TRITON_LPAD_TOUCH
         if (b and BUTTON_LPAD_CLICK != 0) bits = bits or TRITON_LPAD_CLICK
-        if (b and BUTTON_RPAD_TOUCH != 0) bits = bits or TRITON_RPAD_TOUCH
+        if (rpadTouched) bits = bits or TRITON_RPAD_TOUCH
         if (b and BUTTON_RPAD_CLICK != 0) bits = bits or TRITON_RPAD_CLICK
 
         val ltFull = b and BUTTON_LT_FULL != 0
@@ -263,12 +298,12 @@ object Sc2015ReportParser {
         writeShortLE(out, 9, state.stickX.toInt().coerceIn(-32767, 32767))
         writeShortLE(out, 11, state.stickY.toInt().coerceIn(-32767, 32767))
 
-        writeShortLE(out, 17, state.leftPadX.toInt())
-        writeShortLE(out, 19, state.leftPadY.toInt())
+        writeShortLE(out, 17, if (lpadTouched) state.leftPadX.toInt() else 0)
+        writeShortLE(out, 19, if (lpadTouched) state.leftPadY.toInt() else 0)
         writeShortLE(out, 21, if (b and BUTTON_LPAD_CLICK != 0) 32767 else 0)
 
-        writeShortLE(out, 23, state.rightPadX.toInt())
-        writeShortLE(out, 25, state.rightPadY.toInt())
+        writeShortLE(out, 23, if (rpadTouched) state.rightPadX.toInt() else 0)
+        writeShortLE(out, 25, if (rpadTouched) state.rightPadY.toInt() else 0)
         writeShortLE(out, 27, if (b and BUTTON_RPAD_CLICK != 0) 32767 else 0)
 
         writeIntLE(out, 29, elapsedUs.toInt())
@@ -284,7 +319,11 @@ object Sc2015ReportParser {
         return out
     }
 
-    fun buildFeatureReply(command: Int, batteryMv: Int = 3000): ByteArray {
+    fun buildFeatureReply(
+        command: Int,
+        batteryMv: Int = 3000,
+        fwTimestamp: Int = TRITON_FW_TIMESTAMP
+    ): ByteArray {
         val reply = ByteArray(TRITON_FEATURE_BYTES)
         reply[0] = (command and 0xFF).toByte()
         when (command and 0xFF) {
@@ -293,7 +332,7 @@ object Sc2015ReportParser {
                 val values = intArrayOf(
                     TRITON_BLE_PRODUCT_ID,
                     0,
-                    TRITON_FW_TIMESTAMP,
+                    fwTimestamp,
                     TRITON_HWID,
                     0,
                     batteryMv.coerceIn(1500, 4500)
@@ -344,49 +383,6 @@ object Sc2015ReportParser {
         }
         return null
     }
-
-    fun toHapticPulseCommand(outputReport: ByteArray): ByteArray? {
-        if (outputReport.isEmpty()) return null
-        return when (outputReport[0].toInt() and 0xFF) {
-            0x80 -> {
-                if (outputReport.size < 9) return null
-                val left = readUShortLE(outputReport, 4)
-                val right = readUShortLE(outputReport, 7)
-                if (left == 0 && right == 0) return null
-                val actuator = if (left >= right) 1 else 0
-                val intensity = maxOf(left, right)
-                val onUs = (150 + (intensity * 650 / 65535)).coerceIn(150, 800)
-                val offUs = 2000
-                val repeat = 4
-                buildHapticPulse2015(actuator, onUs, offUs, repeat)
-            }
-            0x81 -> {
-                if (outputReport.size < 8) return null
-                val side = outputReport[1].toInt() and 0xFF
-                val actuator = if (side == 0) 1 else 0
-                val onUs = readUShortLE(outputReport, 2).coerceIn(50, 4000)
-                val offUs = readUShortLE(outputReport, 4).coerceIn(50, 4000)
-                val repeat = readUShortLE(outputReport, 6).coerceIn(1, 32)
-                buildHapticPulse2015(actuator, onUs, offUs, repeat)
-            }
-            0x82, 0x83, 0x84, 0x85 -> buildHapticPulse2015(actuator = 0, onUs = 300, offUs = 1000, repeat = 1)
-            else -> null
-        }
-    }
-
-    private fun buildHapticPulse2015(actuator: Int, onUs: Int, offUs: Int, repeat: Int): ByteArray =
-        byteArrayOf(
-            0xC0.toByte(),
-            CMD_TRIGGER_HAPTIC_PULSE.toByte(),
-            0x07,
-            (actuator and 0xFF).toByte(),
-            (onUs and 0xFF).toByte(),
-            ((onUs ushr 8) and 0xFF).toByte(),
-            (offUs and 0xFF).toByte(),
-            ((offUs ushr 8) and 0xFF).toByte(),
-            (repeat and 0xFF).toByte(),
-            ((repeat ushr 8) and 0xFF).toByte()
-        )
 
     private fun readShortLE(data: ByteArray, offset: Int): Short =
         ((data[offset].toInt() and 0xFF) or ((data[offset + 1].toInt() and 0xFF) shl 8)).toShort()

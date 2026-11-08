@@ -22,6 +22,10 @@ class Sc2015State {
     var quatZ: Short = 0
     var batteryVoltageMv: Int = 3000
     var batteryPercent: Int = 100
+    var leftPadSeenMs: Long = 0
+    var rightPadSeenMs: Long = 0
+    var leftPadStale: Boolean = false
+    var rightPadStale: Boolean = false
 
     fun reset() {
         buttons = 0
@@ -43,5 +47,9 @@ class Sc2015State {
         quatX = 0
         quatY = 0
         quatZ = 0
+        leftPadSeenMs = 0
+        rightPadSeenMs = 0
+        leftPadStale = false
+        rightPadStale = false
     }
 }
