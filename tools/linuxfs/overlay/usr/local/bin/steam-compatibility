@@ -16,6 +16,8 @@ LEGACY_LAUNCHER = "bannerlator-proton"
 LIBRARY = "/mnt/droiddeck"
 SOURCES = ("Proton Experimental (ARM64)", "Proton 11.0 (ARM64)")
 OWN_TOOLS = ((TOOL, SOURCES), (TOOL_11, ("Proton 11.0 (ARM64)",)))
+VALVE_DEPOTS = {"proton_experimental": SOURCES[0], "proton-experimental-arm64": SOURCES[0],
+                "proton_11": SOURCES[1], "proton_11-arm64": SOURCES[1]}
 FEX_TOOL = "droiddeck-fex"
 FEX_LAUNCHER = "droiddeck-fex-tool"
 FEX_FILES = ("toolmanifest.vdf", "compatibilitytool.vdf", FEX_LAUNCHER)
@@ -1160,6 +1162,18 @@ def tool_catalog(steam_root, extras=None):
     return catalog
 
 
+def built_from(name, catalog, runnable=None):
+    depot = VALVE_DEPOTS.get(name)
+    tools = [t["name"] for t in catalog if depot and t["valve"] and t["dir"] == depot and
+             (runnable is None or t["name"] in runnable)]
+    return tools[-1] if tools else None
+
+
+def rebuilt_picks(current, catalog, known, runnable=None):
+    picks = {app: built_from(name, catalog, runnable) for app, name in current.items() if app in known}
+    return {app: tool for app, tool in picks.items() if tool}
+
+
 def requested_tool(request, catalog):
     name = request.get("name")
     if isinstance(name, str) and any(t["name"] == name for t in catalog):
@@ -1513,7 +1527,8 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
             state["owned"] = sorted(set(owned), key=app_order)
         if default is None:
             if settle:
-                default, state = choose_default(current.get("0", ""), state, read_json(state_path("request.json", directory)), catalog)
+                default, state = choose_default(built_from(current.get("0", ""), catalog) or current.get("0", ""), state,
+                                                read_json(state_path("request.json", directory)), catalog)
             else:
                 default = state.get("default") if state.get("default") in names else TOOL
             if settle and newest and default == TOOL and state.get("source") not in ("app", "steam"):
@@ -1526,6 +1541,13 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
             current.update(replacements)
             if isinstance(state.get("auto"), dict):
                 state["auto"] = {app: newest if name in gone else name for app, name in state["auto"].items()}
+        following = followers(state, current)
+        following = following if isinstance(following, dict) else {}
+        moved = rebuilt_picks(current, catalog, set(following) | picked_apps(state))
+        if moved:
+            state["auto"] = {app: name for app, name in following.items() if app not in moved}
+            set_mappings(tokens, mapping, moved)
+            current.update(moved)
         steam_root = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
         requests = settled_game_requests(state, current, catalog, not steam_running(), directory)
         overrides = requested_games(requests or {}, catalog)

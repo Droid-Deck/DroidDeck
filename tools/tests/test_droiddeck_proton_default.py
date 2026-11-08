@@ -10,7 +10,8 @@ COMPAT = runpy.run_path(str(BIN / "steam-compatibility"))
 TOOL = COMPAT["TOOL"]
 OLD = {"name": "DroidDeck-Proton-11-11.2", "display": "DroidDeck-Proton 11-11.2", "dir": "DroidDeck-Proton 11-11.2", "valve": False}
 NEW = {"name": "DroidDeck-Proton-11-11.4", "display": "DroidDeck-Proton 11-11.4", "dir": "DroidDeck-Proton 11-11.4", "valve": False}
-VALVE = {"name": TOOL, "display": "Proton Experimental ARM64", "dir": "Proton - Experimental (ARM64)", "valve": True}
+VALVE = {"name": TOOL, "display": "Proton Experimental ARM64", "dir": COMPAT["SOURCES"][0], "valve": True}
+VALVE_11 = {"name": COMPAT["TOOL_11"], "display": "Proton 11.0 ARM64", "dir": COMPAT["SOURCES"][1], "valve": True}
 GE = {"name": "GE-Proton11-7", "display": "GE-Proton11-7", "dir": "GE-Proton11-7", "valve": False}
 GE10 = {"name": "GE-Proton10-3", "display": "GE-Proton10-3", "dir": "GE-Proton10-3", "valve": False}
 NEWER = {"name": "DroidDeck-Proton-11-12.1", "display": "DroidDeck-Proton 11-12.1", "dir": "DroidDeck-Proton 11-12.1", "valve": False}
@@ -163,6 +164,40 @@ class DroidDeckProtonDefaultTest(unittest.TestCase):
         self.assertEqual(default, GE10["name"])
         self.assertEqual(mapping, {"0": GE10["name"], "3000000001": TOOL, "3000000002": GE10["name"],
                                    "3000000003": GE["name"], "3000000004": GE10["name"], "42": GE["name"], "44": GE["name"]})
+
+    def test_proton_experimental_picked_for_a_game_in_steam_stays(self):
+        default, mapping, state = self.run_default(
+            {"default": NEW["name"], "written": NEW["name"], "source": "update",
+             "auto": {"42": NEW["name"], "43": NEW["name"], "45": NEW["name"]}},
+            [("0", NEW["name"]), ("42", "proton_experimental"), ("43", NEW["name"]), ("45", TOOL)], [VALVE, NEW],
+            ["42", "43", "44", "45"])
+        self.assertEqual(default, NEW["name"])
+        self.assertEqual(mapping, {"0": NEW["name"], "42": TOOL, "43": NEW["name"], "44": NEW["name"], "45": TOOL})
+        self.assertEqual(state["auto"], {"43": NEW["name"], "44": NEW["name"]})
+        self.assertTrue({"42", "45"} <= set(state["picked"]))
+        default, mapping, state = self.run_default(state, sorted(mapping.items()), [VALVE, NEWER], ["42", "43", "44", "45"])
+        self.assertEqual(default, NEWER["name"])
+        self.assertEqual(mapping, {"0": NEWER["name"], "42": TOOL, "43": NEWER["name"], "44": NEWER["name"], "45": TOOL})
+
+    def test_a_steam_pick_of_a_valve_proton_moves_to_the_build_made_from_it(self):
+        catalog = [VALVE, VALVE_11, NEW]
+        default, mapping, state = self.run_default(
+            {"default": NEW["name"], "written": NEW["name"], "source": "update", "auto": {"42": TOOL, "43": NEW["name"]},
+             "picked": ["44"]},
+            [("0", NEW["name"]), ("42", "proton-experimental-arm64"), ("43", "proton_11"), ("44", "proton_11-arm64"),
+             ("45", "proton_9")], catalog, ["42", "43", "44", "45"])
+        self.assertEqual(mapping, {"0": NEW["name"], "42": TOOL, "43": VALVE_11["name"], "44": VALVE_11["name"], "45": NEW["name"]})
+        self.assertEqual(state["auto"], {"45": NEW["name"]})
+        _, mapping, _ = self.run_default(state, sorted(mapping.items()), catalog, ["42", "43", "44", "45"],
+                                         request={"seq": 1, "valve": False, "dir": GE["dir"]})
+        self.assertEqual(mapping, {"0": NEW["name"], "42": TOOL, "43": VALVE_11["name"], "44": VALVE_11["name"], "45": NEW["name"]})
+
+    def test_proton_experimental_picked_as_steams_default_stays(self):
+        default, mapping, state = self.run_default(
+            {"default": NEW["name"], "written": NEW["name"], "source": "update"}, [("0", "proton_experimental")], [VALVE, NEW])
+        self.assertEqual((default, mapping, state["source"]), (TOOL, {"0": TOOL}, "steam"))
+        default, mapping, state = self.run_default(state, [("0", TOOL)], [VALVE, NEW, NEWER])
+        self.assertEqual((default, mapping), (TOOL, {"0": TOOL}))
 
     def test_the_newest_build_is_found_by_version(self):
         newest, gone = COMPAT["own_proton_moves"]({"tools": [OLD]}, [dict(NEW, name="a", dir="DroidDeck-Proton 11-9.10"), dict(NEW, name="b", dir="DroidDeck-Proton 11-11.1")])
